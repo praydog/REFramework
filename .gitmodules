@@ -4,3 +4,9 @@
 [submodule "dependencies/minhook"]
 	path = dependencies/minhook
 	url = https://github.com/TsudaKageyu/minhook.git
+[submodule "dependencies/spdlog"]
+	path = dependencies/spdlog
+	url = https://github.com/gabime/spdlog.git
+[submodule "dependencies/vectormath"]
+	path = dependencies/vectormath
+	url = https://github.com/glampert/vectormath.git
