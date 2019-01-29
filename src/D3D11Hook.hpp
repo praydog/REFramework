@@ -5,7 +5,6 @@
 #include <d3d11.h>
 #include <dxgi.h>
 
-#include "VtableHook.hpp"
 #include "FunctionHook.hpp"
 
 class D3D11Hook {
@@ -30,8 +29,6 @@ protected:
     bool m_firstTime{ true };
 
     std::unique_ptr<FunctionHook> m_presentHook{};
-    VtableHook m_swapChainHook;
-
     OnPresentFn m_onPresent{ nullptr };
 
     static HRESULT WINAPI present(IDXGISwapChain* swapChain, UINT syncInterval, UINT flags);

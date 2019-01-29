@@ -17,7 +17,6 @@ std::unique_ptr<REFramework> g_framework{};
 REFramework::REFramework() 
     : m_logger{ spdlog::basic_logger_mt("REFramework", "re2_framework_log.txt", true) }
 {
-    spdlog::flush_on(spdlog::level::info);
     spdlog::set_default_logger(m_logger);
     spdlog::info("REFramework entry");
 
@@ -101,7 +100,6 @@ bool REFramework::initialize() {
     }
 
     spdlog::info("Attempting to initialize");
-    m_logger->flush();
 
     auto device = m_d3d11Hook->getDevice();
     auto swapChain = m_d3d11Hook->getSwapChain();
@@ -119,20 +117,16 @@ bool REFramework::initialize() {
     };
 
     spdlog::info("Creating render target");
-    m_logger->flush();
 
     createRenderTarget();
 
     spdlog::info("Window Handle: {0:x}", (uintptr_t)m_wnd);
-    m_logger->flush();
     spdlog::info("Initializing ImGui");
-    m_logger->flush();
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
 
     spdlog::info("Initializing ImGui Win32");
-    m_logger->flush();
 
     if (!ImGui_ImplWin32_Init(m_wnd)) {
         spdlog::error("Failed to initialize ImGui.");
