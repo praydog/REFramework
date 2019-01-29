@@ -1,3 +1,6 @@
 [submodule "dependencies/imgui"]
 	path = dependencies/imgui
 	url = https://github.com/ocornut/imgui.git
+[submodule "dependencies/minhook"]
+	path = dependencies/minhook
+	url = https://github.com/TsudaKageyu/minhook.git
