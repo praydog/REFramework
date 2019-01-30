@@ -3,15 +3,30 @@ add_library(RE2 SHARED
             FunctionHook.cpp
             Main.cpp
 
+            DInputHook.hpp
+            DInputHook.cpp
             D3D11Hook.hpp
             D3D11Hook.cpp
             WindowsMessageHook.hpp
             WindowsMessageHook.cpp
 
+            FirstPerson.hpp
+            FirstPerson.cpp
+            ComponentTraverser.hpp
+            ComponentTraverser.cpp
+            ComponentHook.hpp
+            ComponentHook.cpp
+            PositionHooks.hpp
+            PositionHooks.cpp
+            Mod.hpp
+            Mods.hpp
+            Mods.cpp
             ReClass.hpp
             ReClass_Internal.hpp
             REFramework.hpp
             REFramework.cpp
+            REString.hpp
+            RETransform.hpp
 
             Address.hpp
             Address.cpp

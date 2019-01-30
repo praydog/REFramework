@@ -1,11 +1,16 @@
+#pragma once
+
+#include <windows.h>
 #include <cstdint>
+
+#include "Address.hpp"
 
 class FunctionHook {
 public:
     FunctionHook() = delete;
     FunctionHook(const FunctionHook& other) = delete;
     FunctionHook(FunctionHook&& other) = delete;
-    FunctionHook(uintptr_t target, uintptr_t destination);
+    FunctionHook(Address target, Address destination);
     virtual ~FunctionHook();
 
     // Called automatically by the destructor, but you can call it explicitly

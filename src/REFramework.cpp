@@ -15,8 +15,10 @@ IMGUI_IMPL_API LRESULT  ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPAR
 std::unique_ptr<REFramework> g_framework{};
 
 REFramework::REFramework() 
-    : m_logger{ spdlog::basic_logger_mt("REFramework", "re2_framework_log.txt", true) }
+    : m_logger{ spdlog::basic_logger_mt("REFramework", "re2_framework_log.txt", true) },
+    m_mods{}
 {
+    spdlog::flush_on(spdlog::level::info);
     spdlog::set_default_logger(m_logger);
     spdlog::info("REFramework entry");
 
@@ -60,6 +62,7 @@ void REFramework::onFrame() {
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
 
+    m_mods.onFrame();
     drawUI();
 
     ImGui::EndFrame();
@@ -78,6 +81,12 @@ bool REFramework::onMessage(HWND wnd, UINT message, WPARAM wParam, LPARAM lParam
         // If the user is interacting with the UI we block the message from going to the game.
         auto& io = ImGui::GetIO();
 
+        if (io.KeysDown[VK_INSERT] && !m_lastMenuButton) {
+            m_drawUI = !m_drawUI;
+        }
+
+        m_lastMenuButton = io.KeysDown[VK_INSERT];
+
         if (io.WantCaptureMouse || io.WantCaptureKeyboard || io.WantTextInput) {
             return false;
         }
@@ -87,11 +96,24 @@ bool REFramework::onMessage(HWND wnd, UINT message, WPARAM wParam, LPARAM lParam
 }
 
 void REFramework::drawUI() {
+    if (!m_drawUI) {
+        m_dinputHook->acknowledgeInput();
+        ImGui::GetIO().MouseDrawCursor = false;
+        return;
+    }
+
     auto& io = ImGui::GetIO();
+
+    if (io.WantCaptureKeyboard) {
+        m_dinputHook->ignoreInput();
+    }
+    else {
+        m_dinputHook->acknowledgeInput();
+    }
 
     ImGui::GetIO().MouseDrawCursor = true;
 
-    ImGui::ShowDemoWindow();
+    m_mods.onDrawUI();
 }
 
 bool REFramework::initialize() {
@@ -111,6 +133,8 @@ bool REFramework::initialize() {
     swapChain->GetDesc(&swapDesc);
 
     m_wnd = swapDesc.OutputWindow;
+
+    m_dinputHook = std::make_unique<DInputHook>(m_wnd);
     m_windowsMessageHook = std::make_unique<WindowsMessageHook>(m_wnd);
     m_windowsMessageHook->onMessage = [this](auto wnd, auto msg, auto wParam, auto lParam) {
         return onMessage(wnd, msg, wParam, lParam);

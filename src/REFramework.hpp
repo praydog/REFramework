@@ -4,6 +4,9 @@
 
 #include "D3D11Hook.hpp"
 #include "WindowsMessageHook.hpp"
+#include "DInputHook.hpp"
+
+#include "Mods.hpp"
 
 // Global facilitator
 class REFramework {
@@ -13,6 +16,10 @@ public:
 
     bool isValid() const {
         return m_valid;
+    }
+
+    const auto& getMods() const {
+        return m_mods;
     }
 
     void onFrame();
@@ -26,7 +33,9 @@ private:
     void cleanupRenderTarget();
 
     bool m_valid{ false };
+    bool m_lastMenuButton{ false };
     bool m_initialized{ false };
+    bool m_drawUI{ true };
 
     IDXGISwapChain* m_lastSwapChain{ nullptr };
 
@@ -34,7 +43,10 @@ private:
 
     std::unique_ptr<D3D11Hook> m_d3d11Hook{};
     std::unique_ptr<WindowsMessageHook> m_windowsMessageHook;
+    std::unique_ptr<DInputHook> m_dinputHook;
     std::shared_ptr<spdlog::logger> m_logger;
+
+    Mods m_mods;
 
     ID3D11RenderTargetView* m_mainRenderTargetView{ nullptr };
 };

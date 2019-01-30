@@ -215,7 +215,8 @@ public:
 class REManagedObject : public REObject
 {
 public:
-    char pad_0008[8]; //0x0008
+    uint32_t referenceCount; //0x0008
+    char pad_000C[4]; //0x000C
 }; //Size: 0x0010
 
 class REScene
@@ -261,7 +262,7 @@ class REJoint : public REManagedObject
 public:
     class RETransform* parentTransform; //0x0010
     class JointInfo* info; //0x0018
-    N000070F5 N000070F6; //0x0020
+    Matrix3x4f localMatrix; //0x0020
     char pad_0050[16]; //0x0050
 }; //Size: 0x0060
 
@@ -337,10 +338,9 @@ public:
 class RETransform : public REComponent
 {
 public:
-    Vector3f position; //0x0030
-    char pad_003C[4]; //0x003C
-    Vector3f angles; //0x0040
-    char pad_004C[20]; //0x004C
+    Vector4f position; //0x0030
+    Vector4f angles; //0x0040
+    char pad_0050[16]; //0x0050
     class REScene* scene; //0x0060
     class RETransform* transform1; //0x0068
     class RETransform* transform2; //0x0070
@@ -353,6 +353,7 @@ public:
     REJointArray joints; //0x00D8
     char pad_00F0[32]; //0x00F0
 }; //Size: 0x0110
+
 
 class RECamera : public REComponent
 {
@@ -569,11 +570,10 @@ public:
     char pad_0104[12]; //0x0104
     class DampingFloat* controlDamping3; //0x0110
     class DampingFloat* controlDamping4; //0x0118
-    char pad_0120[136]; //0x0120
-    class REManagedObject* N0000774E; //0x01A8
-    class REManagedObject* N0000774F; //0x01B0
-    char pad_01B8[24]; //0x01B8
-}; //Size: 0x01D0
+    char pad_0120[120]; //0x0120
+    uint32_t N00007748; //0x0198
+    char pad_019C[60]; //0x019C
+}; //Size: 0x01D8
 
 class N00007C3D
 {

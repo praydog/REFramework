@@ -7,7 +7,11 @@
 HMODULE g_dinput = 0;
 
 extern "C" {
-    __declspec(dllexport) HRESULT WINAPI DirectInput8Create(HINSTANCE hinst, DWORD dwVersion, const IID& riidltf, LPVOID* ppvOut, LPUNKNOWN punkOuter) {
+    // DirectInput8Create wrapper for dinput8.dll
+    __declspec(dllexport) HRESULT WINAPI DirectInput8Create_(HINSTANCE hinst, DWORD dwVersion, const IID& riidltf, LPVOID* ppvOut, LPUNKNOWN punkOuter) {
+        // This needs to be done because when we include dinput.h in DInputHook,
+        // It is a redefinition, so we assign an export by not using the original name
+        #pragma comment(linker, "/EXPORT:DirectInput8Create=DirectInput8Create_")
         return ((decltype(DirectInput8Create)*)GetProcAddress(g_dinput, "DirectInput8Create"))(hinst, dwVersion, riidltf, ppvOut, punkOuter);
     }
 }
@@ -22,8 +26,9 @@ void startupThread() {
 
     char buffer[MAX_PATH]{ 0 };
     GetSystemDirectory(buffer, MAX_PATH);
-
-    g_dinput = LoadLibrary((std::string{ buffer } +"\\dinput8.dll").c_str());
+    
+    // Load the original dinput8.dll
+    g_dinput = LoadLibrary((std::string{ buffer } + "\\dinput8.dll").c_str());
 
     g_framework = std::make_unique<REFramework>();
 }
