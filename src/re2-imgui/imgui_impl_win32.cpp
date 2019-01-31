@@ -7,7 +7,7 @@
 //  [X] Platform: Keyboard arrays indexed using VK_* Virtual Key Codes, e.g. ImGui::IsKeyPressed(VK_SPACE).
 //  [X] Platform: Gamepad support. Enabled with 'io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad'.
 
-#include "imgui.h"
+#include <imgui/imgui.h>
 #include "imgui_impl_win32.h"
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -42,8 +42,11 @@ static HWND                 g_hWnd = 0;
 static INT64                g_Time = 0;
 static INT64                g_TicksPerSecond = 0;
 static ImGuiMouseCursor     g_LastMouseCursor = ImGuiMouseCursor_COUNT;
+
+#ifdef USE_XINPUT
 static bool                 g_HasGamepad = false;
 static bool                 g_WantUpdateHasGamepad = true;
+#endif
 
 // Functions
 bool    ImGui_ImplWin32_Init(void* hwnd)
@@ -145,6 +148,7 @@ static void ImGui_ImplWin32_UpdateMousePos()
                 io.MousePos = ImVec2((float)pos.x, (float)pos.y);
 }
 
+#ifdef USE_XINPUT
 #ifdef _MSC_VER
 #pragma comment(lib, "xinput")
 #endif
@@ -195,6 +199,7 @@ void    ImGui_ImplWin32_UpdateGameControllers()
         #undef MAP_ANALOG
     }
 }
+#endif
 
 void    ImGui_ImplWin32_NewFrame()
 {
@@ -230,8 +235,10 @@ void    ImGui_ImplWin32_NewFrame()
         ImGui_ImplWin32_UpdateMouseCursor();
     }
 
+#ifdef USE_XINPUT
     // Update game controllers (if available)
     ImGui_ImplWin32_UpdateGameControllers();
+#endif
 }
 
 // Allow compilation with old Windows SDK. MinGW doesn't have default _WIN32_WINNT/WINVER versions.
@@ -313,8 +320,10 @@ IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg, WPARA
             return 1;
         return 0;
     case WM_DEVICECHANGE:
+#ifdef USE_XINPUT
         if ((UINT)wParam == DBT_DEVNODES_CHANGED)
             g_WantUpdateHasGamepad = true;
+#endif
         return 0;
     }
     return 0;
