@@ -1,40 +1,62 @@
+set(HOOKS_SRC
+    DInputHook.hpp
+    DInputHook.cpp
+    D3D11Hook.hpp
+    D3D11Hook.cpp
+    WindowsMessageHook.hpp
+    WindowsMessageHook.cpp
+
+    ComponentHook.hpp
+    ComponentHook.cpp
+    PositionHooks.hpp
+    PositionHooks.cpp
+)
+
+set(MODS_SRC
+    ComponentTraverser.hpp
+    ComponentTraverser.cpp
+    FirstPerson.hpp
+    FirstPerson.cpp
+)
+
+set(SDK_SRC
+    ReClass.hpp
+    ReClass_Internal.hpp
+    REString.hpp
+    RETransform.hpp
+)
+
+set(RE2IMGUI_SRC
+    re2-imgui/imgui_impl_win32.h
+    re2-imgui/imgui_impl_win32.cpp
+    re2-imgui/imgui_impl_dx11.h
+    re2-imgui/imgui_impl_dx11.cpp
+)
+
+source_group("re2-imgui", FILES ${RE2IMGUI_SRC})
+source_group("Hooks" FILES ${HOOKS_SRC})
+source_group("Mods" FILES ${MODS_SRC})
+source_group("SDK" FILES ${SDK_SRC})
+
 add_library(RE2 SHARED
             FunctionHook.hpp
             FunctionHook.cpp
             Main.cpp
 
-            DInputHook.hpp
-            DInputHook.cpp
-            D3D11Hook.hpp
-            D3D11Hook.cpp
-            WindowsMessageHook.hpp
-            WindowsMessageHook.cpp
-
-            FirstPerson.hpp
-            FirstPerson.cpp
-            ComponentTraverser.hpp
-            ComponentTraverser.cpp
-            ComponentHook.hpp
-            ComponentHook.cpp
-            PositionHooks.hpp
-            PositionHooks.cpp
             Mod.hpp
             Mods.hpp
             Mods.cpp
-            ReClass.hpp
-            ReClass_Internal.hpp
             REFramework.hpp
             REFramework.cpp
-            REString.hpp
-            RETransform.hpp
 
             Address.hpp
             Address.cpp
 
-            ${CMAKE_SOURCE_DIR}/dependencies/imgui/examples/imgui_impl_win32.h
-            ${CMAKE_SOURCE_DIR}/dependencies/imgui/examples/imgui_impl_win32.cpp
-            ${CMAKE_SOURCE_DIR}/dependencies/imgui/examples/imgui_impl_dx11.h
-            ${CMAKE_SOURCE_DIR}/dependencies/imgui/examples/imgui_impl_dx11.cpp)
+            ${SDK_SRC}
+            ${MODS_SRC}
+            ${HOOKS_SRC}
+            ${RE2IMGUI_SRC}
+)
 
 target_link_libraries(RE2 PUBLIC imgui minhook d3d11)
 target_compile_options(RE2 PUBLIC /GS- /GR- /MP)
