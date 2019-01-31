@@ -58,7 +58,7 @@ add_library(RE2 SHARED
             ${RE2IMGUI_SRC}
 )
 
-target_link_libraries(RE2 PUBLIC imgui minhook d3d11)
+target_link_libraries(RE2 PUBLIC imgui minhook d3d11 glm_static)
 target_compile_options(RE2 PUBLIC /GS- /GR- /MP)
 target_compile_features(RE2 PUBLIC cxx_std_17)
 

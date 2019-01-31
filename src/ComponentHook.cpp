@@ -53,7 +53,7 @@ void ComponentHook::onUpdateTransform(RETransform* transform) {
         return;
     }
 
-    auto offset = Vector3{ *m_sliders["x"], *m_sliders["y"], *m_sliders["z"] };
+    auto offset = Vector3f{ *m_sliders["x"], *m_sliders["y"], *m_sliders["z"] };
 
     if (!*m_toggles["world"]) {
         for (int32_t i = 0; i < transform->joints.size; ++i) {
@@ -63,7 +63,7 @@ void ComponentHook::onUpdateTransform(RETransform* transform) {
                 continue;
             }
 
-            joint->localMatrix[0] += offset;
+            joint->localMatrix[0] += Vector4f{ offset, 0.0f };
         }
     }
     else {

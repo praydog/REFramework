@@ -169,18 +169,20 @@ void FirstPerson::onUpdateTransform(RETransform* transform) {
 
     m_lastFrame = std::chrono::high_resolution_clock::now();
 
+    constexpr auto a = offsetof(RETransform, worldTransform);
+
     auto& mtx = transform->worldTransform;
-    auto& cameraPos = *(Vector3f*)&mtx[3];
+    auto& cameraPos = mtx[3];
 
     auto& boneMatrix = utility::RETransform::getJointMatrix(*m_playerTransform, m_attachBone);
-    auto& bonePos = *(Vector3f*)&boneMatrix[3];
+    auto& bonePos = boneMatrix[3];
 
     constexpr float speed = 0.01f;
+    
+    auto camRotMat = glm::extractMatrixRotation(mtx);
+    auto headRotMat = glm::extractMatrixRotation(boneMatrix);
 
-    auto camRotMat = mtx.getUpper3x3();
-    auto headRotMat = boneMatrix.getUpper3x3();
-
-    auto offset = headRotMat * (m_attachOffset * Vector3f{ -0.1f, 0.1f, 0.1f }.get128());
+    auto offset = headRotMat * (m_attachOffset * Vector4f{ -0.1f, 0.1f, 0.1f, 0.0f });
 
     if (m_inEventCamera) {
 
@@ -194,14 +196,16 @@ void FirstPerson::onUpdateTransform(RETransform* transform) {
         camRotMat = Matrix3x3f{ Quat::rotation(finalDir, Vector3f::yAxis()) };*/
 
         // Follow the bone rotation, but rotate towards where the camera is looking.
-        auto wantedMat = inverse(headRotMat) * camRotMat;
-        m_rotationOffset[0] = slerp(std::clamp<float>(m_scale * deltaTime, 0.0f, 1.0f), m_rotationOffset[0], wantedMat[0]);
-        m_rotationOffset[1] = slerp(std::clamp<float>(m_scale * deltaTime, 0.0f, 1.0f), m_rotationOffset[1], wantedMat[1]);
-        m_rotationOffset[2] = slerp(std::clamp<float>(m_scale * deltaTime, 0.0f, 1.0f), m_rotationOffset[2], wantedMat[2]);
+        auto wantedMat = glm::inverse(headRotMat) * camRotMat;
 
+        // Average the distance to the wanted rotation
+        auto dist = glm::distance(m_rotationOffset[0], wantedMat[0]) + glm::distance(m_rotationOffset[1], wantedMat[1]) + glm::distance(wantedMat[2], m_rotationOffset[2]);
+        dist /= 3.0f;
+        m_rotationOffset = glm::interpolate(m_rotationOffset, wantedMat, m_scale * deltaTime * dist);
+        
         camRotMat = headRotMat * m_rotationOffset;
 
-        mtx.setUpper3x3(camRotMat);
+        *(Matrix3x4f*)&mtx = camRotMat;
     }
 
     if (m_resetView) {
@@ -210,8 +214,8 @@ void FirstPerson::onUpdateTransform(RETransform* transform) {
 
     if (!m_inEventCamera) {
         cameraPos = bonePos + offset;
-        transform->position = Vector4f{ cameraPos };
-        *(Quat*)&transform->angles = Quat{ camRotMat };
+        transform->position = *(Vector4f*)&cameraPos;
+        *(glm::quat*)&transform->angles = glm::quat{ camRotMat };
         
         if (m_playerCameraController->ownerGameObject->transform->joints.matrices != nullptr) {
             m_playerCameraController->ownerGameObject->transform->joints.matrices->data[0].worldMatrix = mtx;
@@ -220,6 +224,6 @@ void FirstPerson::onUpdateTransform(RETransform* transform) {
 }
 
 void FirstPerson::reset() {
-    m_rotationOffset = Matrix3x3f{ 0 };
+    m_rotationOffset = glm::identity<decltype(m_rotationOffset)>();
 }
 
