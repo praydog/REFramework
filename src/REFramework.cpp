@@ -3,7 +3,6 @@
 #include <imgui/imgui.h>
 #include <imgui/examples/imgui_impl_win32.h>
 #include <imgui/examples/imgui_impl_dx11.h>
-#include <vectormath/vectormath.hpp>
 
 #include "ReClass.hpp"
 
