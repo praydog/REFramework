@@ -138,19 +138,45 @@ public:
     class N00000756* N0000074C[2048]; //0x0000
 }; //Size: 0x4000
 
-class REVector
+class VariableDescriptor
+{
+public:
+    char* name; //0x0000
+    char pad_0008[8]; //0x0008
+    void* function; //0x0010
+    char pad_0018[8]; //0x0018
+    char* typeName; //0x0020
+    char pad_0028[32]; //0x0028
+}; //Size: 0x0048
+
+class N0000ADA4
+{
+public:
+    class VariableDescriptor* N0000ADC6[256]; //0x0000
+}; //Size: 0x0800
+
+class REVariableList
 {
 public:
     char pad_0000[8]; //0x0000
-    class REVector* nextVector; //0x0008 idk why this is here.
-    class N0000074B* data; //0x0010
-    uint32_t num; //0x0018
-    uint32_t maxItems; //0x001C
-    char pad_0020[8]; //0x0020
+    class N0000ADA4* data; //0x0008
+    int32_t num; //0x0010
+    int32_t maxItems; //0x0014
+}; //Size: 0x0018
+
+class REFieldList
+{
+public:
+    char pad_0000[8]; //0x0000
+    class REFieldList* next; //0x0008 idk why this is here.
+    class N0000074B* functions; //0x0010
+    int32_t num; //0x0018
+    int32_t maxItems; //0x001C
+    class REVariableList* variables; //0x0020
     void* N0000072F; //0x0028
     uint32_t N00000730; //0x0030
-    char pad_0034[4]; //0x0034
-}; //Size: 0x0038
+    char pad_0034[36]; //0x0034
+}; //Size: 0x0058
 
 class REObjectInfo
 {
@@ -167,8 +193,7 @@ public:
     char pad_0034[52]; //0x0034
     class REType* type; //0x0068
     class REObjectInfo* N000009C2; //0x0070
-    char pad_0078[280]; //0x0078
-}; //Size: 0x0190
+}; //Size: 0x0078
 
 class REType
 {
@@ -184,9 +209,10 @@ public:
     char pad_0030[8]; //0x0030
     class REType* super; //0x0038
     char pad_0040[8]; //0x0040
-    class REType* memberTypeOrSomething; //0x0048
-    class REVector* functions; //0x0050
+    class REType* childType; //0x0048 pointed to at end
+    class REFieldList* fields; //0x0050 getters, setters, and variables
     class REClassInfo* classInfo; //0x0058
+    char pad_0060[8]; //0x0060
 
     virtual void Function0();
     virtual void Function1();
@@ -198,7 +224,7 @@ public:
     virtual void Function7();
     virtual void Function8();
     virtual void Function9();
-}; //Size: 0x0060
+}; //Size: 0x0068
 
 class CameraTypePtr
 {
@@ -219,14 +245,58 @@ public:
     char pad_000C[4]; //0x000C
 }; //Size: 0x0010
 
-class REScene
+class N0000B6D9
 {
 public:
-    class REObjectInfo* N000008E7; //0x0000
-    char pad_0008[152]; //0x0008
-    class REGameObject* N00000E4F; //0x00A0
-    char pad_00A8[102272]; //0x00A8
-}; //Size: 0x19028
+    class REManagedObject* object; //0x0000
+    uint32_t v1; //0x0008
+    uint32_t v2; //0x000C
+    uint32_t v3; //0x0010
+    uint32_t v4; //0x0014
+}; //Size: 0x0018
+
+class REString
+{
+public:
+    char pad_0000[24]; //0x0000
+    int32_t length; //0x0018 if len >= 12, is a pointer
+    int32_t maxLength; //0x001C
+}; //Size: 0x0020
+
+class REFolder : public REManagedObject
+{
+public:
+    char pad_0010[24]; //0x0010
+    REString name; //0x0028
+    REString name2; //0x0048
+    REString name3; //0x0068
+    class REFolder* parentFolder; //0x0088
+    class REFolder* childFolder; //0x0090
+    class REFolder* childFolder2; //0x0098
+    char pad_00A0[40]; //0x00A0
+    class REScene* scene; //0x00C8
+}; //Size: 0x00D0
+
+class REScene : public REManagedObject
+{
+public:
+    char pad_0010[3]; //0x0010
+    bool enabled; //0x0013
+    bool monitor; //0x0014
+    bool mainScene; //0x0015
+    char pad_0016[6]; //0x0016
+    uint32_t frameCount; //0x001C
+    float timescale; //0x0020
+    char pad_0024[4]; //0x0024
+    N0000B6D9 someHugeArray[65536]; //0x0028
+    char pad_180028[1176]; //0x180028
+    class RETransform* N0000B786; //0x1804C0
+    class REFolder* firstFolder; //0x1804C8
+    REString name; //0x1804D0
+    char pad_1804F0[720]; //0x1804F0
+    int64_t N0000B7E3; //0x1807C0
+    class REManagedObject* N0000B7E4; //0x1807C8
+}; //Size: 0x1807D0
 
 class N00003730
 {
@@ -251,19 +321,16 @@ public:
     char pad_0010[48]; //0x0010
 }; //Size: 0x0040
 
-class N000070F5
-{
-public:
-    Matrix3x4f localMatrix; //0x0000
-}; //Size: 0x0030
-
 class REJoint : public REManagedObject
 {
 public:
     class RETransform* parentTransform; //0x0010
     class JointInfo* info; //0x0018
     Matrix3x4f localMatrix; //0x0020
-    char pad_0050[16]; //0x0050
+    int32_t N00006E8E; //0x0050
+    float N00006E97; //0x0054
+    float N00006E8F; //0x0058
+    uint32_t N0000B861; //0x005C
 }; //Size: 0x0060
 
 class N00003745
@@ -293,54 +360,39 @@ public:
     class JointMatrices* matrices; //0x0010
 }; //Size: 0x0018
 
-class REString
-{
-public:
-    char pad_0000[24]; //0x0000
-    int32_t length; //0x0018 if len >= 12, is a pointer
-    int32_t maxLength; //0x001C
-}; //Size: 0x0020
-
-class REFolder : public REManagedObject
-{
-public:
-    char pad_0010[24]; //0x0010
-    REString name; //0x0028
-    REString name2; //0x0048
-    REString name3; //0x0068
-    class REFolder* parentFolder; //0x0088
-    class REFolder* childFolder; //0x0090
-    class REFolder* childFolder2; //0x0098
-    char pad_00A0[40]; //0x00A0
-    class REScene* scene; //0x00C8
-}; //Size: 0x00D0
-
 class REGameObject : public REManagedObject
 {
 public:
-    char pad_0010[8]; //0x0010
+    char pad_0010[2]; //0x0010
+    bool shouldUpdate; //0x0012
+    bool shouldDraw; //0x0013
+    bool shouldUpdateSelf; //0x0014
+    bool shouldDrawSelf; //0x0015
+    bool shouldSelect; //0x0016
+    char pad_0017[1]; //0x0017
     class RETransform* transform; //0x0018
     class REFolder* folder; //0x0020
     REString name; //0x0028 This can either be a pointer to the name or embedded directly
     uint32_t N00000DDA; //0x0048
-    float N00000695; //0x004C
+    float timescale; //0x004C
 }; //Size: 0x0050
 
 class REComponent : public REManagedObject
 {
 public:
     class REGameObject* ownerGameObject; //0x0010
-    class REComponent* idkComponent; //0x0018
+    class REComponent* idkComponent; //0x0018 child component
     class REComponent* prevComponent; //0x0020
     class REComponent* nextComponent; //0x0028
 }; //Size: 0x0030
+
 
 class RETransform : public REComponent
 {
 public:
     Vector4f position; //0x0030
     Vector4f angles; //0x0040
-    char pad_0050[16]; //0x0050
+    Vector4f something; //0x0050
     class REScene* scene; //0x0060
     class RETransform* transform1; //0x0068
     class RETransform* transform2; //0x0070
@@ -348,34 +400,35 @@ public:
     Matrix4x4f worldTransform; //0x0080
     class N00007EEE* N000007D8; //0x00C0
     int32_t N00000804; //0x00C8
-    uint32_t N00003743; //0x00CC
+    uint32_t tickCount; //0x00CC
     char pad_00D0[8]; //0x00D0
     REJointArray joints; //0x00D8
-    char pad_00F0[32]; //0x00F0
+    REString name; //0x00F0
 }; //Size: 0x0110
-
 
 class RECamera : public REComponent
 {
 public:
-    float N0000044E; //0x0030
+    float nearClipPlane; //0x0030
     float farClipPlane; //0x0034
     float fov; //0x0038
     float lookAtDistance; //0x003C
-    char pad_0040[4]; //0x0040
+    bool verticalEnable; //0x0040
+    char pad_0041[3]; //0x0041
     float aspectRatio; //0x0044
     int32_t N00000451; //0x0048
     char pad_004C[4]; //0x004C
     uint32_t cameraType; //0x0050
-    char pad_0054[20]; //0x0054
+    char pad_0054[12]; //0x0054
+    wchar_t* cameraName; //0x0060
     uint32_t N00000455; //0x0068
     char pad_006C[32]; //0x006C
     float N00000D40; //0x008C
     float N0000045A; //0x0090
     float N00000D43; //0x0094
     float N0000045B; //0x0098
-    char pad_009C[4]; //0x009C
-}; //Size: 0x00A0
+    char pad_009C[252]; //0x009C
+}; //Size: 0x0198
 
 class N0000092A
 {
@@ -482,8 +535,8 @@ class REBehavior : public REComponent
 {
 public:
     uint16_t N000076CE; //0x0030
-    uint16_t sdafasd; //0x0032
-    char pad_0034[4]; //0x0034
+    uint16_t probablyBehaviorId; //0x0032
+    uint32_t N00007712; //0x0034
     uint32_t N000076CF; //0x0038
     uint32_t N0000705D; //0x003C
     char pad_0040[8]; //0x0040
@@ -567,7 +620,9 @@ public:
     class DampingFloat* controlDamping2; //0x00F0
     class TwirlerCameraSettings* cameraLimitSettings; //0x00F8
     uint32_t N00007737; //0x0100
-    char pad_0104[12]; //0x0104
+    char pad_0104[4]; //0x0104
+    float pitch; //0x0108
+    float yaw; //0x010C
     class DampingFloat* controlDamping3; //0x0110
     class DampingFloat* controlDamping4; //0x0118
     char pad_0120[120]; //0x0120
@@ -675,3 +730,102 @@ public:
     class REManagedObject* N00006F3D; //0x00A8
     char pad_00B0[136]; //0x00B0
 }; //Size: 0x0138
+
+class N000070F5
+{
+public:
+    Matrix3x4f localMatrix; //0x0000
+}; //Size: 0x0030
+
+class SystemString : public REManagedObject
+{
+public:
+    int32_t size; //0x0010
+    wchar_t data[12]; //0x0014
+    char pad_002C[96]; //0x002C
+}; //Size: 0x008C
+
+class UserData : public REManagedObject
+{
+public:
+    REString name; //0x0010
+}; //Size: 0x0030
+
+class N0000A9C1 : public UserData
+{
+public:
+    class REManagedObject* N0000A9C3; //0x0030
+}; //Size: 0x0038
+
+class ObjectPointer : public REManagedObject
+{
+public:
+    class REClassInfo* classInfo; //0x0010
+    uint32_t N0000AB1A; //0x0018
+    uint32_t N0000AB3B; //0x001C
+    class REManagedObject* object; //0x0020
+    char pad_0028[40]; //0x0028
+}; //Size: 0x0050
+
+class RopewayIkController : public REBehavior
+{
+public:
+    char pad_0048[24]; //0x0048
+    class REManagedObject* N000071C9; //0x0060
+    class REManagedObject* N000071CA; //0x0068
+    char pad_0070[8]; //0x0070
+    class SystemString* someString; //0x0078
+    char pad_0080[32]; //0x0080
+    class SystemString* someString2; //0x00A0
+    char pad_00A8[40]; //0x00A8
+    class SystemString* someString3; //0x00D0
+    float N0000A946; //0x00D8
+    float N0000AA6C; //0x00DC
+    float N0000A947; //0x00E0
+    float N0000AA6F; //0x00E4
+    float N0000A948; //0x00E8
+    float N0000AA72; //0x00EC
+    char pad_00F0[8]; //0x00F0
+    class N0000A9C1* armFitIkUserData; //0x00F8
+    char pad_0100[52]; //0x0100
+    float N0000AA84; //0x0134
+    char pad_0138[48]; //0x0138
+    class ObjectPointer* N0000A958; //0x0168
+    char pad_0170[8]; //0x0170
+    class ObjectPointer* N0000A95A; //0x0178
+    char pad_0180[16]; //0x0180
+    class REManagedObject* N0000A95D; //0x0190
+    char pad_0198[24]; //0x0198
+    class REManagedObject* N0000A961; //0x01B0
+    class REManagedObject* N0000A962; //0x01B8
+    char pad_01C0[8]; //0x01C0
+    class ObjectPointer* jointPtr; //0x01C8
+    char pad_01D0[216]; //0x01D0
+}; //Size: 0x02A8
+
+class N0000AA93 : public REManagedObject
+{
+public:
+    class REClassInfo* N0000AA95; //0x0010
+    char pad_0018[112]; //0x0018
+}; //Size: 0x0088
+
+class N0000AAAC : public REManagedObject
+{
+public:
+    char pad_0010[48]; //0x0010
+}; //Size: 0x0040
+
+class N0000B632
+{
+public:
+    char pad_0000[136]; //0x0000
+}; //Size: 0x0088
+
+class N0000B627
+{
+public:
+    char pad_0000[8]; //0x0000
+    class N0000B632* N0000B629; //0x0008
+    char pad_0010[56]; //0x0010
+}; //Size: 0x0048
