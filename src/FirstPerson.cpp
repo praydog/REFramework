@@ -7,8 +7,13 @@
 
 #include "FirstPerson.hpp"
 
+FirstPerson* g_firstPerson = nullptr;
+
 FirstPerson::FirstPerson() {
-    m_attachBone.reserve(256);
+    // thanks imgui
+    g_firstPerson = this;
+
+    m_attachBoneImgui.reserve(256);
 
     m_toggles["enabled"] = ModToggle::create();
     m_toggles["enabled"]->value = true;
@@ -23,15 +28,30 @@ void FirstPerson::onFrame() {
     }
 
     if (m_camera == nullptr || m_cameraSystem == nullptr || m_playerCameraController == nullptr || m_playerTransform == nullptr) {
-        m_rotationOffset = Matrix3x3f{ 0 };
         ComponentTraverser::refreshComponents();
+        reset();
         return;
     }
 
     if (m_camera->ownerGameObject == nullptr || m_cameraSystem->ownerGameObject == nullptr || m_playerTransform->ownerGameObject == nullptr) {
         ComponentTraverser::refreshComponents();
-        m_rotationOffset = Matrix3x3f{ 0 };
+        reset();
         return;
+    }
+
+    if (m_attachNames.empty()) {
+        auto& joints = m_playerTransform->joints;
+
+        for (int32_t i = 0; joints.data != nullptr && i < joints.size; ++i) {
+            auto joint = joints.data->joints[i];
+
+            if (joint == nullptr || joint->info == nullptr || joint->info->name == nullptr) {
+                continue;
+            }
+
+            auto name = std::wstring{ joint->info->name };
+            m_attachNames.push_back(std::string{ std::begin(name), std::end(name) }.c_str());
+        }
     }
 }
 
@@ -41,6 +61,25 @@ void FirstPerson::onDrawUI() {
     ImGui::Checkbox("Enabled", &m_toggles["enabled"]->value);
     ImGui::SliderFloat3("offset", (float*)&m_attachOffset, -2.0f, 2.0f, "%.3f", 1.0f);
     ImGui::SliderFloat("scale", &m_scale, 0.0f, 250.0f);
+
+    if (ImGui::InputText("joint", m_attachBoneImgui.data(), 256)) {
+        m_attachBone = std::wstring{ std::begin(m_attachBoneImgui), std::end(m_attachBoneImgui) };
+        reset();
+    }
+
+    if (ImGui::Button("Refresh Joints")) {
+        m_attachNames.clear();
+    }
+
+    static auto listBoxHandler = [](void* data, int idx, const char** outText) -> bool {
+        return g_firstPerson->listBoxHandlerAttach(data, idx, outText);
+    };
+
+    if (ImGui::ListBox("Joints", &m_attachSelected, listBoxHandler, &m_attachNames, (int32_t)m_attachNames.size())) {
+        m_attachBoneImgui = m_attachNames[m_attachSelected];
+        m_attachBone = std::wstring{ std::begin(m_attachNames[m_attachSelected]), std::end(m_attachNames[m_attachSelected]) };
+        reset();
+    }
 
     ImGui::End();
 }
@@ -128,30 +167,16 @@ void FirstPerson::onUpdateTransform(RETransform* transform) {
 
     m_lastFrame = std::chrono::high_resolution_clock::now();
 
-    //m_primaryCameraHook.remove();
-
     auto& mtx = transform->worldTransform;
+    auto& cameraPos = *(Vector3f*)&mtx[3];
 
-    auto& camRight = *(Vector3f*)&mtx[0];
-    auto& camUp = *(Vector3f*)&mtx[1];
-    auto& camForward = *(Vector3f*)&mtx[2];
-    auto& pos = *(Vector3f*)&mtx[3];
     auto& boneMatrix = utility::RETransform::getJointMatrix(*m_playerTransform, m_attachBone);
-
-    auto& right = *(Vector3f*)&boneMatrix[0];
-    auto& up = *(Vector3f*)&boneMatrix[1];
-    auto& forward = *(Vector3f*)&boneMatrix[2];
     auto& bonePos = *(Vector3f*)&boneMatrix[3];
 
     constexpr float speed = 0.01f;
 
     auto camRotMat = mtx.getUpper3x3();
     auto headRotMat = boneMatrix.getUpper3x3();
-
-    Quat currentAngles{ headRotMat };
-    Quat camAngles{ camRotMat };
-
-    //auto correctedForward = forward * -1.0f;
 
     auto offset = headRotMat * (m_attachOffset * Vector3f{ 0.1f, 0.1f, -0.1f }.get128());
 
@@ -174,25 +199,25 @@ void FirstPerson::onUpdateTransform(RETransform* transform) {
 
         camRotMat = headRotMat * m_rotationOffset;
 
+        auto oldMat = mtx.getUpper3x3();
+
         mtx.setUpper3x3(camRotMat);
     }
 
     if (m_resetView) {
-        /*m_offset = pos - bonePos;
-        fixedVec = Vector3f{ m_offset.z, m_offset.x, m_offset.y };
-        vectorRotate(fixedVec, currentAngles * -1.0f);
-        m_offset = Vector3f{ fixedVec.y, fixedVec.z, fixedVec.x };
-        m_pitchScale = 1.0f;*/
+
     }
 
-    //m_worldPosition = bonePos + offset;
-
     if (!m_inEventCamera) {
-        pos = bonePos + offset;
+        cameraPos = bonePos + offset;
 
         if (m_playerCameraController->ownerGameObject->transform->joints.matrices != nullptr) {
             m_playerCameraController->ownerGameObject->transform->joints.matrices->data[0].worldMatrix = mtx;
         }
     }
+}
+
+void FirstPerson::reset() {
+    m_rotationOffset = Matrix3x3f{ 0 };
 }
 
