@@ -23,6 +23,7 @@ public:
     }
 
     void onFrame();
+    void onReset();
     bool onMessage(HWND wnd, UINT message, WPARAM wParam, LPARAM lParam);
 
 private:
@@ -36,8 +37,6 @@ private:
     bool m_lastMenuButton{ false };
     bool m_initialized{ false };
     bool m_drawUI{ true };
-
-    IDXGISwapChain* m_lastSwapChain{ nullptr };
 
     HWND m_wnd{ 0 };
 

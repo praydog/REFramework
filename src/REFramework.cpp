@@ -28,6 +28,7 @@ REFramework::REFramework()
 
     m_d3d11Hook = std::make_unique<D3D11Hook>();
     m_d3d11Hook->onPresent([this](D3D11Hook& hook) { onFrame(); });
+    m_d3d11Hook->onResizeBuffers([this](D3D11Hook& hook) { onReset(); });
 
     if (m_valid = m_d3d11Hook->hook()) {
         spdlog::info("Hooked D3D11");
@@ -48,16 +49,6 @@ void REFramework::onFrame() {
         return;
     }
 
-    auto swapChain = m_d3d11Hook->getSwapChain();
-
-    if (m_lastSwapChain != nullptr && m_lastSwapChain != swapChain) {
-        spdlog::info("SwapChain modified, reinitializing render target.");
-        cleanupRenderTarget();
-        createRenderTarget();
-    }
-
-    m_lastSwapChain = swapChain;
-
     ImGui_ImplDX11_NewFrame();
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
@@ -74,6 +65,14 @@ void REFramework::onFrame() {
     context->OMSetRenderTargets(1, &m_mainRenderTargetView, NULL);
 
     ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+}
+
+void REFramework::onReset() {
+    spdlog::info("Reset!");
+    
+    // Crashes if we don't release it at this point.
+    cleanupRenderTarget();
+    m_initialized = false;
 }
 
 bool REFramework::onMessage(HWND wnd, UINT message, WPARAM wParam, LPARAM lParam) {
@@ -132,13 +131,17 @@ bool REFramework::initialize() {
     DXGI_SWAP_CHAIN_DESC swapDesc{};
     swapChain->GetDesc(&swapDesc);
 
-    m_wnd = swapDesc.OutputWindow;
+    // Initialize can be called more than once, so don't do this needlessly
+    // it crashes for some reason anyways if rehooked.
+    if (m_wnd != swapDesc.OutputWindow) {
+        m_wnd = swapDesc.OutputWindow;
 
-    m_dinputHook = std::make_unique<DInputHook>(m_wnd);
-    m_windowsMessageHook = std::make_unique<WindowsMessageHook>(m_wnd);
-    m_windowsMessageHook->onMessage = [this](auto wnd, auto msg, auto wParam, auto lParam) {
-        return onMessage(wnd, msg, wParam, lParam);
-    };
+        m_dinputHook = std::make_unique<DInputHook>(m_wnd);
+        m_windowsMessageHook = std::make_unique<WindowsMessageHook>(m_wnd);
+        m_windowsMessageHook->onMessage = [this](auto wnd, auto msg, auto wParam, auto lParam) {
+            return onMessage(wnd, msg, wParam, lParam);
+        };
+    }
 
     spdlog::info("Creating render target");
 
@@ -170,10 +173,13 @@ bool REFramework::initialize() {
 }
 
 void REFramework::createRenderTarget() {
+    cleanupRenderTarget();
+
     ID3D11Texture2D* backBuffer{ nullptr };
-    m_d3d11Hook->getSwapChain()->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&backBuffer);
-    m_d3d11Hook->getDevice()->CreateRenderTargetView(backBuffer, NULL, &m_mainRenderTargetView);
-    backBuffer->Release();
+    if (m_d3d11Hook->getSwapChain()->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&backBuffer) == S_OK) {
+        m_d3d11Hook->getDevice()->CreateRenderTargetView(backBuffer, NULL, &m_mainRenderTargetView);
+        backBuffer->Release();
+    }
 }
 
 void REFramework::cleanupRenderTarget() {

@@ -42,7 +42,9 @@ bool D3D11Hook::hook() {
     }
 
     auto presentFn = (*(uintptr_t**)swapChain)[8];
+    auto resizeBuffersFn = (*(uintptr_t**)swapChain)[13];
     m_presentHook = std::make_unique<FunctionHook>(presentFn, (uintptr_t)&D3D11Hook::present);
+    m_resizeBuffersHook = std::make_unique<FunctionHook>(resizeBuffersFn, (uintptr_t)&D3D11Hook::resizeBuffers);
 
     device->Release();
     context->Release();
@@ -59,16 +61,25 @@ HRESULT WINAPI D3D11Hook::present(IDXGISwapChain* swapChain, UINT syncInterval, 
     auto d3d11 = g_d3d11Hook;
 
     d3d11->m_swapChain = swapChain;
+    swapChain->GetDevice(__uuidof(d3d11->m_device), (void**)&d3d11->m_device);
 
-    if (d3d11->m_firstTime) {
-        swapChain->GetDevice(__uuidof(d3d11->m_device), (void**)&d3d11->m_device);
-        d3d11->m_firstTime = false;
-    }
-    else if (d3d11->m_onPresent) {
+    if (d3d11->m_onPresent) {
         d3d11->m_onPresent(*d3d11);
     }
 
     auto presentFn = d3d11->m_presentHook->getOriginal<decltype(D3D11Hook::present)>();
 
     return presentFn(swapChain, syncInterval, flags);
+}
+
+HRESULT WINAPI D3D11Hook::resizeBuffers(IDXGISwapChain* swapChain, UINT BufferCount, UINT Width, UINT Height, DXGI_FORMAT NewFormat, UINT SwapChainFlags) {
+    auto d3d11 = g_d3d11Hook;
+
+    if (d3d11->m_onResizeBuffers) {
+        d3d11->m_onResizeBuffers(*d3d11);
+    }
+
+    auto resizeBuffersFn = d3d11->m_resizeBuffersHook->getOriginal<decltype(D3D11Hook::resizeBuffers)>();
+
+    return resizeBuffersFn(swapChain, BufferCount, Width, Height, NewFormat, SwapChainFlags);
 }
