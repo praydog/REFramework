@@ -21,7 +21,7 @@ void ComponentTraverser::onDrawUI() {
 }
 
 void ComponentTraverser::onGetMainCamera(RECamera* camera) {
-    if (!m_issueRefresh) {
+    if (!m_issueRefresh || std::chrono::system_clock::now() < m_nextTime) {
         return;
     }
 
@@ -89,6 +89,7 @@ void ComponentTraverser::onGetMainCamera(RECamera* camera) {
     traverseHierarchy(camera, encounteredComponents);
 
     m_issueRefresh = false;
+    m_nextTime = std::chrono::system_clock::now() + std::chrono::seconds(3);
     ++m_timesRefreshed;
 }
 
