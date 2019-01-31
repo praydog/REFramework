@@ -10,3 +10,6 @@
 [submodule "dependencies/vectormath"]
 	path = dependencies/vectormath
 	url = https://github.com/glampert/vectormath.git
+[submodule "dependencies/glm"]
+	path = dependencies/glm
+	url = https://github.com/g-truc/glm
