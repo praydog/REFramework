@@ -25,7 +25,7 @@ private:
 
     std::string m_attachBoneImgui{ "head" };
     std::wstring m_attachBone{ L"head" };
-    Vector3f m_attachOffset{ 0.263f, 0.4f, 0.975f };
+    Vector3f m_attachOffset{ -0.23f, 0.4f, 1.0f };
     Matrix3x3f m_rotationOffset{ };
 
     float m_scale{ 25.0f };

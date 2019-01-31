@@ -97,6 +97,8 @@ void FirstPerson::onComponent(REComponent* component) {
 
     auto typeName = std::string_view{ component->info->classInfo->type->name };
 
+    //spdlog::info("{:p} {} {}", (void*)component, utility::REString::getString(gameObject->name).c_str(), component->info->classInfo->type->name);
+
     if (typeName == "via.Transform") {
         // pl1000 = claire, pl0000 = leon
         if (utility::REString::equals(gameObject->name, L"pl1000") || utility::REString::equals(gameObject->name, L"pl0000")) {
@@ -178,7 +180,7 @@ void FirstPerson::onUpdateTransform(RETransform* transform) {
     auto camRotMat = mtx.getUpper3x3();
     auto headRotMat = boneMatrix.getUpper3x3();
 
-    auto offset = headRotMat * (m_attachOffset * Vector3f{ 0.1f, 0.1f, -0.1f }.get128());
+    auto offset = headRotMat * (m_attachOffset * Vector3f{ -0.1f, 0.1f, 0.1f }.get128());
 
     if (m_inEventCamera) {
 
@@ -199,8 +201,6 @@ void FirstPerson::onUpdateTransform(RETransform* transform) {
 
         camRotMat = headRotMat * m_rotationOffset;
 
-        auto oldMat = mtx.getUpper3x3();
-
         mtx.setUpper3x3(camRotMat);
     }
 
@@ -210,7 +210,9 @@ void FirstPerson::onUpdateTransform(RETransform* transform) {
 
     if (!m_inEventCamera) {
         cameraPos = bonePos + offset;
-
+        transform->position = Vector4f{ cameraPos };
+        *(Quat*)&transform->angles = Quat{ camRotMat };
+        
         if (m_playerCameraController->ownerGameObject->transform->joints.matrices != nullptr) {
             m_playerCameraController->ownerGameObject->transform->joints.matrices->data[0].worldMatrix = mtx;
         }
