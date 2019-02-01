@@ -45,7 +45,7 @@ bool Patch::enable() {
 }
 
 bool Patch::disable() {
-    return !(m_enabled = !patch(m_address, m_bytes));
+    return !(m_enabled = !patch(m_address, m_originalBytes));
 }
 
 bool Patch::toggle() {
