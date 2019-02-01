@@ -205,7 +205,7 @@ void FirstPerson::onUpdateTransform(RETransform* transform) {
         m_lastBoneRotation = glm::interpolate(m_lastBoneRotation, headRotMat, deltaTime * m_boneScale * dist);
 
         // Look at where the camera is pointing from the head position
-        camRotMat = glm::extractMatrixRotation(glm::rowMajor4(glm::lookAtRH(finalPos, camPos3 - (camForward3 * 100.0f), { 0.0f, 1.0f, 0.0f })));
+        camRotMat = glm::extractMatrixRotation(glm::rowMajor4(glm::lookAtRH(finalPos, camPos3 - (camForward3 * 8192.0f), { 0.0f, 1.0f, 0.0f })));
         // Follow the bone rotation, but rotate towards where the camera is looking.
         auto wantedMat = glm::inverse(m_lastBoneRotation) * camRotMat;
 
@@ -219,21 +219,16 @@ void FirstPerson::onUpdateTransform(RETransform* transform) {
         
         // Apply the new matrix
         *(Matrix3x4f*)&mtx = m_lastBoneRotation * m_rotationOffset;
-    }
 
-    if (m_resetView) {
-
-    }
-
-    if (!m_inEventCamera) {
+        // Apply the same matrix data to other things stored in-game (positions/quaternions)
         cameraPos = Vector4f{ finalPos, 1.0f };
         transform->position = *(Vector4f*)&cameraPos;
         *(glm::quat*)&transform->angles = glm::quat{ glm::colMajor4(camRotMat) };
         m_cameraSystem->cameraController->worldPosition = cameraPos;
-        
-        if (m_playerCameraController->ownerGameObject->transform->joints.matrices != nullptr) {
-            m_playerCameraController->ownerGameObject->transform->joints.matrices->data[0].worldMatrix = mtx;
-        }
+    }
+
+    if (m_resetView) {
+
     }
 }
 
