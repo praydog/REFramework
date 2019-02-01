@@ -23,10 +23,7 @@ FirstPerson::FirstPerson() {
     +B469625 - F3 0F11 8E 84000000   - movss [rsi+00000084],xmm1
     */
     // NOP the whole thing away so we can control it
-    m_cameraControllerPosPatch.address = (uintptr_t)GetModuleHandle(0) + 0xB46960F;
-    m_cameraControllerPosPatch.bytes.resize(34);
-    std::fill(m_cameraControllerPosPatch.bytes.begin(), m_cameraControllerPosPatch.bytes.end(), 0x90);
-    patch(m_cameraControllerPosPatch);
+    m_cameraControllerPosPatch = Patch::createNOP((uintptr_t)GetModuleHandle(0) + 0xB46960F, 34);
 }
 
 void FirstPerson::onFrame() {
@@ -67,12 +64,7 @@ void FirstPerson::onDrawUI() {
     ImGui::Begin("FirstPerson");
 
     if (ImGui::Checkbox("Enabled", &m_enabled)) {
-        if (m_enabled) {
-            patch(m_cameraControllerPosPatch);
-        }
-        else {
-            undoPatch(m_cameraControllerPosPatch);
-        }
+        m_cameraControllerPosPatch->toggle(m_enabled);
     }
 
     ImGui::SliderFloat3("offset", (float*)&m_attachOffset, -2.0f, 2.0f, "%.3f", 1.0f);

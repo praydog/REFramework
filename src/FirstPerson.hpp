@@ -49,5 +49,5 @@ private:
 
     // Allows us to freely modify the real camera position
     // which is used for firing weapons among other things
-    Patch m_cameraControllerPosPatch{};
+    std::unique_ptr<Patch> m_cameraControllerPosPatch{};
 };

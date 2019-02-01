@@ -4,7 +4,64 @@
 
 using namespace std;
 
-bool patch(uintptr_t address, const vector<int16_t>& bytes) {
+std::unique_ptr<Patch> Patch::create(uintptr_t addr, const std::vector<int16_t>& b) {
+    return std::make_unique<Patch>(addr, b);
+}
+
+
+std::unique_ptr<Patch> Patch::createNOP(uintptr_t addr, uint32_t length) {
+    std::vector<decltype(m_bytes)::value_type> bytes; bytes.resize(length);
+    std::fill(bytes.begin(), bytes.end(), 0x90);
+
+    return std::make_unique<Patch>(addr, bytes);
+}
+
+Patch::Patch(uintptr_t addr, const std::vector<int16_t>& b, bool shouldEnable /*= true*/) 
+    : m_address{ addr },
+    m_bytes{ b }
+{
+    if (shouldEnable) {
+        enable();
+    }
+}
+
+Patch::~Patch() {
+    disable();
+}
+
+bool Patch::enable() {
+    // Backup the original bytes.
+    if (m_originalBytes.empty()) {
+        m_originalBytes.resize(m_bytes.size());
+
+        unsigned int count = 0;
+
+        for (auto& byte : m_originalBytes) {
+            byte = *(uint8_t*)(m_address + count++);
+        }
+    }
+
+    return m_enabled = patch(m_address, m_bytes);
+}
+
+bool Patch::disable() {
+    return !(m_enabled = !patch(m_address, m_bytes));
+}
+
+bool Patch::toggle() {
+    if (!m_enabled) {
+        return enable();
+    }
+
+    return !disable();
+}
+
+
+bool Patch::toggle(bool state) {
+    return state ? enable() : disable();
+}
+
+bool Patch::patch(uintptr_t address, const vector<int16_t>& bytes) {
     auto oldProtection = protect(address, bytes.size(), PAGE_EXECUTE_READWRITE);
 
     if (!oldProtection) {
@@ -27,36 +84,7 @@ bool patch(uintptr_t address, const vector<int16_t>& bytes) {
     return true;
 }
 
-bool patch(Patch& p) {
-    if (p.address == 0 || p.bytes.empty()) {
-        return false;
-    }
-
-    // Backup the original bytes.
-    if (p.originalBytes.empty()) {
-        p.originalBytes.resize(p.bytes.size());
-
-        unsigned int count = 0;
-
-        for (auto& byte : p.originalBytes) {
-            byte = *(uint8_t*)(p.address + count++);
-        }
-    }
-
-    // Apply the patch.
-    return patch(p.address, p.bytes);
-}
-
-bool undoPatch(const Patch& p) {
-    if (p.address == 0 || p.originalBytes.empty()) {
-        return false;
-    }
-
-    // Patch in the original bytes.
-    return patch(p.address, p.originalBytes);
-}
-
-optional<DWORD> protect(uintptr_t address, size_t size, DWORD protection) {
+optional<DWORD> Patch::protect(uintptr_t address, size_t size, DWORD protection) {
     DWORD oldProtection{ 0 };
 
     if (VirtualProtect((LPVOID)address, size, protection, &oldProtection) != FALSE) {
