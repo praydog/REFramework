@@ -8,6 +8,9 @@
 #include <glm/gtx/matrix_interpolation.hpp>
 #include <glm/gtx/rotate_vector.hpp>
 #include <glm/gtc/quaternion.hpp>
+#include <glm/gtc/type_ptr.hpp>
+#include <glm/gtx/matrix_major_storage.hpp>
+#include <glm/gtx/compatibility.hpp>
 
 using Vector3f = glm::vec3;
 using Vector4f = glm::vec4;
