@@ -24,6 +24,10 @@ FirstPerson::FirstPerson() {
     */
     // NOP the whole thing away so we can control it
     m_cameraControllerPosPatch = Patch::createNOP((uintptr_t)GetModuleHandle(0) + 0xB46960F, 34);
+
+    // Specific player model configs
+    m_attachOffsets["pl0000"] = Vector4f{ -0.26f, 0.435f, 1.25f, 0.0f };
+    m_attachOffsets["pl1000"] = Vector4f{ -0.23f, 0.4f, 1.0f, 0.0f };
 }
 
 void FirstPerson::onFrame() {
@@ -67,7 +71,7 @@ void FirstPerson::onDrawUI() {
         m_cameraControllerPosPatch->toggle(m_enabled);
     }
 
-    ImGui::SliderFloat3("offset", (float*)&m_attachOffset, -2.0f, 2.0f, "%.3f", 1.0f);
+    ImGui::SliderFloat3("offset", (float*)&m_attachOffsets[m_playerName], -2.0f, 2.0f, "%.3f", 1.0f);
     ImGui::SliderFloat("CameraScale", &m_scale, 0.0f, 250.0f);
     ImGui::SliderFloat("BoneScale", &m_boneScale, 0.0f, 250.0f);
 
@@ -115,6 +119,7 @@ void FirstPerson::onComponent(REComponent* component) {
                 spdlog::info("Found player {:p}", (void*)component);
             }
 
+            m_playerName = utility::REString::getString(gameObject->name);
             m_playerTransform = (RETransform*)component;
         }
     }
@@ -190,7 +195,7 @@ void FirstPerson::onUpdateTransform(RETransform* transform) {
     auto camRotMat = glm::extractMatrixRotation(mtx);
     auto headRotMat = glm::extractMatrixRotation(boneMatrix);
 
-    auto offset = headRotMat * (m_attachOffset * Vector4f{ -0.1f, 0.1f, 0.1f, 0.0f });
+    auto offset = headRotMat * (m_attachOffsets[m_playerName] * Vector4f{ -0.1f, 0.1f, 0.1f, 0.0f });
     auto finalPos = Vector3f{ bonePos + offset };
 
     if (m_inEventCamera) {
@@ -205,7 +210,7 @@ void FirstPerson::onUpdateTransform(RETransform* transform) {
         m_lastBoneRotation = glm::interpolate(m_lastBoneRotation, headRotMat, deltaTime * m_boneScale * dist);
 
         // Look at where the camera is pointing from the head position
-        camRotMat = glm::extractMatrixRotation(glm::rowMajor4(glm::lookAtRH(finalPos, camPos3 - (camForward3 * 8192.0f), { 0.0f, 1.0f, 0.0f })));
+        camRotMat = glm::extractMatrixRotation(glm::rowMajor4(glm::lookAtLH(finalPos, camPos3 + (camForward3 * 8192.0f), { 0.0f, 1.0f, 0.0f })));
         // Follow the bone rotation, but rotate towards where the camera is looking.
         auto wantedMat = glm::inverse(m_lastBoneRotation) * camRotMat;
 

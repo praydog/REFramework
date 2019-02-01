@@ -26,12 +26,14 @@ private:
 
     std::string m_attachBoneImgui{ "head" };
     std::wstring m_attachBone{ L"head" };
-    Vector4f m_attachOffset{ -0.23f, 0.4f, 1.0f, 0.0f };
+    std::string m_playerName{ "pl1000" };
+    // Different "configs" for each model
+    std::unordered_map<std::string, Vector4f> m_attachOffsets;
     Matrix4x4f m_rotationOffset{ glm::identity<Matrix4x4f>() };
     Matrix4x4f m_lastBoneRotation{ glm::identity<Matrix4x4f>() };
 
     float m_scale{ 30.0f };
-    float m_boneScale{ 30.0f };
+    float m_boneScale{ 15.0f };
 
     RETransform* m_playerTransform{ nullptr };
     RECamera* m_camera{ nullptr };
