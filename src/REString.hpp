@@ -26,6 +26,10 @@ namespace utility {
                 rawName = namePtr;
             }
             else {
+                if (length <= 0) {
+                    return L"";
+                }
+
                 rawName = (wchar_t*)&str;
             }
 

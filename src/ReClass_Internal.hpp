@@ -102,12 +102,6 @@ public:
     char pad_0078[200]; //0x0078
 }; //Size: 0x0140
 
-class N000003DE
-{
-public:
-    char pad_0000[328]; //0x0000
-}; //Size: 0x0148
-
 class FunctionDescriptor
 {
 public:
@@ -138,16 +132,32 @@ public:
     class N00000756* N0000074C[2048]; //0x0000
 }; //Size: 0x4000
 
+class StaticVariableDescriptor
+{
+public:
+    uint16_t ownerTypeIndex; //0x0000
+    char pad_0002[6]; //0x0002
+    uint32_t variableIndex; //0x0008 index into some global array...?
+    uint16_t N00000839; //0x000C
+    int16_t N000009F5; //0x000E
+    uint32_t staticVariableOffset; //0x0010 of
+    char pad_0014[1]; //0x0014
+}; //Size: 0x0015
+
 class VariableDescriptor
 {
 public:
     char* name; //0x0000
     char pad_0008[8]; //0x0008
     void* function; //0x0010
-    char pad_0018[8]; //0x0018
+    uint32_t N0000B5CA; //0x0018
+    char pad_001C[4]; //0x001C
     char* typeName; //0x0020
-    char pad_0028[32]; //0x0028
-}; //Size: 0x0048
+    char pad_0028[4]; //0x0028
+    uint32_t N0000B5D9; //0x002C
+    class StaticVariableDescriptor* staticVariableData; //0x0030
+    char pad_0038[8]; //0x0038
+}; //Size: 0x0040
 
 class N0000ADA4
 {
@@ -175,32 +185,50 @@ public:
     class REVariableList* variables; //0x0020
     void* N0000072F; //0x0028
     uint32_t N00000730; //0x0030
-    char pad_0034[36]; //0x0034
-}; //Size: 0x0058
+    char pad_0034[4]; //0x0034
+}; //Size: 0x0038
+
+class N000007FF
+{
+public:
+    char pad_0000[72]; //0x0000
+}; //Size: 0x0048
 
 class REObjectInfo
 {
 public:
     class REClassInfo* classInfo; //0x0000
-    char pad_0008[96]; //0x0008
+    void* N00000991; //0x0008
+    void* N00000992; //0x0010
+    void* N00000993; //0x0018
+    void* N00000994; //0x0020
+    void* N00000995; //0x0028
+    void* N00000996; //0x0030
+    void* N00000997; //0x0038
+    void* N00000998; //0x0040
+    void* N00000999; //0x0048
+    void* N0000099A; //0x0050
+    void* N0000099B; //0x0058
+    class N000007FF* N0000099C; //0x0060
 }; //Size: 0x0068
 
 class REClassInfo
 {
 public:
-    char pad_0000[48]; //0x0000
+    uint16_t typeIndex; //0x0000 index into global type array
+    char pad_0002[46]; //0x0002
     uint32_t size; //0x0030
     char pad_0034[52]; //0x0034
     class REType* type; //0x0068
-    class REObjectInfo* N000009C2; //0x0070
+    class REObjectInfo* parentInfo; //0x0070
 }; //Size: 0x0078
 
 class REType
 {
 public:
     uint32_t typeIdentifier; //0x0008
-    char pad_000C[4]; //0x000C
-    class N000003DE* N000003B6; //0x0010
+    uint32_t N00000415; //0x000C
+    char pad_0010[8]; //0x0010
     uint32_t typeIndexProbably; //0x0018
     char pad_001C[4]; //0x001C
     char* name; //0x0020
@@ -208,11 +236,12 @@ public:
     uint32_t size; //0x002C
     char pad_0030[8]; //0x0030
     class REType* super; //0x0038
-    char pad_0040[8]; //0x0040
+    class REType* someSortOfType; //0x0040
     class REType* childType; //0x0048 pointed to at end
     class REFieldList* fields; //0x0050 getters, setters, and variables
     class REClassInfo* classInfo; //0x0058
-    char pad_0060[8]; //0x0060
+    int32_t N0000AB48; //0x0060
+    char pad_0064[4]; //0x0064
 
     virtual void Function0();
     virtual void Function1();
@@ -232,6 +261,20 @@ public:
     class REType* N000003AA; //0x0000
 }; //Size: 0x0008
 
+class N000008E5
+{
+public:
+    char pad_0000[328]; //0x0000
+}; //Size: 0x0148
+
+class N000003DE
+{
+public:
+    char pad_0000[8]; //0x0000
+    class N000008E5* N000003E0; //0x0008
+    char pad_0010[312]; //0x0010
+}; //Size: 0x0148
+
 class REObject
 {
 public:
@@ -242,7 +285,8 @@ class REManagedObject : public REObject
 {
 public:
     uint32_t referenceCount; //0x0008
-    char pad_000C[4]; //0x000C
+    int16_t N000071AE; //0x000C
+    char pad_000E[2]; //0x000E
 }; //Size: 0x0010
 
 class N0000B6D9
@@ -311,21 +355,29 @@ public:
     char pad_0008[128]; //0x0008
 }; //Size: 0x0088
 
-class JointInfo
+class REJointDesc
 {
 public:
     wchar_t* name; //0x0000
     uint32_t nameHash; //0x0008
     int16_t jointArrayIndex; //0x000C minus 1
     int16_t jointNumber; //0x000E
-    char pad_0010[48]; //0x0010
+    Vector4f offset; //0x0010
+    float N000037B4; //0x0020
+    float N0000377B; //0x0024
+    float N00003770; //0x0028
+    float N0000377E; //0x002C
+    float N00003771; //0x0030
+    float N00003781; //0x0034
+    float N00003772; //0x0038
+    float N00003784; //0x003C
 }; //Size: 0x0040
 
 class REJoint : public REManagedObject
 {
 public:
     class RETransform* parentTransform; //0x0010
-    class JointInfo* info; //0x0018
+    class REJointDesc* info; //0x0018
     Matrix3x4f localMatrix; //0x0020
     int32_t N00006E8E; //0x0050
     float N00006E97; //0x0054
@@ -375,7 +427,8 @@ public:
     REString name; //0x0028 This can either be a pointer to the name or embedded directly
     uint32_t N00000DDA; //0x0048
     float timescale; //0x004C
-}; //Size: 0x0050
+    char pad_0050[16]; //0x0050
+}; //Size: 0x060
 
 class REComponent : public REManagedObject
 {
@@ -385,7 +438,6 @@ public:
     class REComponent* prevComponent; //0x0020
     class REComponent* nextComponent; //0x0028
 }; //Size: 0x0030
-
 
 class RETransform : public REComponent
 {
@@ -401,10 +453,14 @@ public:
     class N00007EEE* N000007D8; //0x00C0
     int32_t N00000804; //0x00C8
     uint32_t tickCount; //0x00CC
-    char pad_00D0[8]; //0x00D0
+    char pad_00D0[1]; //0x00D0
+    bool N0000081A; //0x00D1
+    char pad_00D2[1]; //0x00D2
+    bool N00000817; //0x00D3
+    char pad_00D4[4]; //0x00D4
     REJointArray joints; //0x00D8
-    REString name; //0x00F0
-}; //Size: 0x0110
+    char pad_00F0[8]; //0x00F0
+}; //Size: 0x00F8
 
 class RECamera : public REComponent
 {
@@ -418,7 +474,7 @@ public:
     float aspectRatio; //0x0044
     int32_t N00000451; //0x0048
     char pad_004C[4]; //0x004C
-    uint32_t cameraType; //0x0050
+    int32_t cameraType; //0x0050
     char pad_0054[12]; //0x0054
     wchar_t* cameraName; //0x0060
     uint32_t N00000455; //0x0068
@@ -535,10 +591,11 @@ class REBehavior : public REComponent
 {
 public:
     uint16_t N000076CE; //0x0030
-    uint16_t probablyBehaviorId; //0x0032
+    bool enabled; //0x0032
+    uint8_t N00000836; //0x0033
     uint32_t N00007712; //0x0034
     uint32_t N000076CF; //0x0038
-    uint32_t N0000705D; //0x003C
+    uint32_t N0000705D; //0x003C update cost?
     char pad_0040[8]; //0x0040
 }; //Size: 0x0048
 
@@ -564,7 +621,12 @@ public:
 class DampingFloat : public REManagedObject
 {
 public:
-    char pad_0010[40]; //0x0010
+    float N00007881; //0x0010
+    char pad_0014[4]; //0x0014
+    float N00007882; //0x0018
+    float N00001318; //0x001C
+    char pad_0020[20]; //0x0020
+    float N00007896; //0x0034
     float N00007886; //0x0038
     float N00007891; //0x003C
     float N00007887; //0x0040
@@ -710,12 +772,33 @@ public:
     char pad_0050[480]; //0x0050
 }; //Size: 0x0230
 
+class AppliedCameraShakeParam : public REManagedObject
+{
+public:
+    char pad_0010[48]; //0x0010
+}; //Size: 0x0040
+
+class RopewayMainCameraController : public REBehavior
+{
+public:
+    char pad_0048[112]; //0x0048
+    class REAnimationCurve* N00000817; //0x00B8
+    class DotNetGenericList* cameraShakes; //0x00C0
+    class REGameObject* mainCameraObject; //0x00C8
+    class RECamera* mainCamera; //0x00D0
+    class REJoint* N0000081B; //0x00D8
+    class AppliedCameraShakeParam* appliedCameraShakeParam; //0x00E0
+    char pad_00E8[8]; //0x00E8
+}; //Size: 0x00F0
+
 class RopewayCameraSystem : public REBehavior
 {
 public:
     char pad_0048[8]; //0x0048
     float N00006F39; //0x0050
-    char pad_0054[4]; //0x0054
+    char pad_0054[1]; //0x0054
+    uint8_t N000009D7; //0x0055
+    char pad_0056[2]; //0x0056
     class DotNetGenericList* N00006F3A; //0x0058
     class DotNetGenericList* N00006F3B; //0x0060
     float N00006F3C; //0x0068
@@ -726,10 +809,17 @@ public:
     class REGameObject* N00006F2E; //0x0088
     char pad_0090[8]; //0x0090
     class RopewayPlayerCameraController* cameraController; //0x0098
-    char pad_00A0[8]; //0x00A0
+    class RopewayPlayerCameraController* previousController; //0x00A0
     class REManagedObject* N00006F3D; //0x00A8
-    char pad_00B0[136]; //0x00B0
-}; //Size: 0x0138
+    class DampingFloat* damping; //0x00B0
+    class REManagedObject* N00006F3F; //0x00B8
+    class RECamera* mainCamera; //0x00C0
+    class REManagedObject* N00006F41; //0x00C8
+    class REManagedObject* N00006F42; //0x00D0
+    class REComponent* N00006F43; //0x00D8
+    class REJoint* playerJoint; //0x00E0 Joint belonging to the camera pivot entity (player)
+    class RopewayMainCameraController* mainCameraController; //0x00E8
+}; //Size: 0x00F0
 
 class N000070F5
 {
@@ -829,3 +919,204 @@ public:
     class N0000B632* N0000B629; //0x0008
     char pad_0010[56]; //0x0010
 }; //Size: 0x0048
+
+class REMotionStructure : public REComponent
+{
+public:
+
+}; //Size: 0x0030
+
+class N0000B89B
+{
+public:
+    wchar_t name[64]; //0x0008
+
+    virtual void Function0();
+    virtual void Function1();
+    virtual void Function2();
+    virtual void Function3();
+    virtual void Function4();
+    virtual void Function5();
+    virtual void Function6();
+    virtual void Function7();
+    virtual void Function8();
+    virtual void Function9();
+}; //Size: 0x0088
+
+class SkeletonResourceHandle
+{
+public:
+    class N0000B89B* N0000B899; //0x0000
+}; //Size: 0x0008
+
+class JointDescData
+{
+public:
+    REJointDesc data[256]; //0x0000
+}; //Size: 0x4000
+
+class JointDescDTbl
+{
+public:
+    class JointDescData* data; //0x0000
+    uint32_t num; //0x0008
+    char pad_000C[4]; //0x000C
+}; //Size: 0x0010
+
+class REMotionDummySkeleton : public REMotionStructure
+{
+public:
+    SkeletonResourceHandle skeletonResourceHandle; //0x0030
+    JointDescDTbl jointDescTbl; //0x0038
+    char pad_0048[8]; //0x0048
+}; //Size: 0x0050
+
+class REAnimation : public REComponent
+{
+public:
+    char pad_0030[28]; //0x0030
+    float N0000BA25; //0x004C
+    float N0000B970; //0x0050
+    float N0000BA28; //0x0054
+    char pad_0058[32]; //0x0058
+}; //Size: 0x0078
+
+class REMotionCamera : public REAnimation
+{
+public:
+    char pad_0078[872]; //0x0078
+    Vector4f position; //0x03E0
+    Vector4f orientation; //0x03F0
+    char pad_0400[68]; //0x0400
+}; //Size: 0x0444
+
+class N00000878
+{
+public:
+    char pad_0000[8]; //0x0000
+}; //Size: 0x0008
+
+class N0000087A : public N00000878
+{
+public:
+
+}; //Size: 0x0008
+
+class N00000A27
+{
+public:
+    uint16_t ownerType; //0x0000
+    char pad_0002[22]; //0x0002
+    void* N00000A35; //0x0018
+}; //Size: 0x0020
+
+class SomeGlobalArray
+{
+public:
+    N00000A27 N00000A1D[2000000]; //0x0000
+}; //Size: 0x3D09000
+
+class SomeGlobalArrayPtr
+{
+public:
+    class SomeGlobalArray* N00000A1A; //0x0000
+}; //Size: 0x0008
+
+class TypeListArray
+{
+public:
+    REClassInfo N00000A51[100000]; //0x0000
+}; //Size: 0xB71B00
+
+class TypeListArrayPtr
+{
+public:
+    class TypeListArray* N00000A47; //0x0000
+}; //Size: 0x0008
+
+class N00000A8A
+{
+public:
+    char pad_0000[72]; //0x0000
+}; //Size: 0x0048
+
+class GlobalArrayData2
+{
+public:
+    char pad_0000[104]; //0x0000
+    class N00000A8A* N00000A6A; //0x0068
+    class REObjectInfo* objectInfo; //0x0070
+}; //Size: 0x0078
+
+class N00000CB2
+{
+public:
+    char pad_0000[8]; //0x0000
+}; //Size: 0x0008
+
+class N00001242
+{
+public:
+    char pad_0000[56]; //0x0000
+}; //Size: 0x0038
+
+class StaticVariables
+{
+public:
+    char pad_0000[72]; //0x0000
+}; //Size: 0x0048
+
+class N00001283
+{
+public:
+    class StaticVariables* N00001284[100000]; //0x0000
+}; //Size: 0xC3500
+
+class ContainerThing
+{
+public:
+    class N00001283* data; //0x0000
+    uint32_t size; //0x0008
+    char pad_000C[4]; //0x000C
+}; //Size: 0x0010
+
+class N00000AA4
+{
+public:
+    N00000CB2 N00000AA7[127]; //0x0008
+    char pad_0400[280]; //0x0400
+    N00001242 N00000ACB[256]; //0x0518
+    char pad_3D18[88]; //0x3D18
+    ContainerThing staticVariableLists[6]; //0x3D70
+    char pad_3DD0[15008]; //0x3DD0
+
+    virtual void Function0();
+    virtual void Function1();
+    virtual void Function2();
+    virtual void Function3();
+    virtual void Function4();
+    virtual void Function5();
+    virtual void Function6();
+    virtual void Function7();
+    virtual void Function8();
+    virtual void Function9();
+}; //Size: 0x7870
+
+class SomeGlobalArrayThingPtr
+{
+public:
+    class N00000AA4* N00000A9B; //0x0000
+}; //Size: 0x0008
+
+class StaticVariables_RopewayCameraSystem
+{
+public:
+    int32_t N000012C8; //0x0000
+    int32_t N000012D1; //0x0004
+    float N000012C9; //0x0008
+    float N000012D4; //0x000C
+    float N000012CA; //0x0010
+    float N000012D7; //0x0014
+    float N000012CB; //0x0018
+    char pad_001C[100]; //0x001C
+}; //Size: 0x0080

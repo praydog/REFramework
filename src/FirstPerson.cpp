@@ -36,15 +36,13 @@ void FirstPerson::onFrame() {
         return;
     }
 
-    if (m_camera == nullptr || m_cameraSystem == nullptr || m_playerCameraController == nullptr || m_playerTransform == nullptr) {
+    if (m_cameraSystem == nullptr || m_cameraSystem->ownerGameObject == nullptr) {
         ComponentTraverser::refreshComponents();
         reset();
         return;
     }
 
-    if (m_camera->ownerGameObject == nullptr || m_cameraSystem->ownerGameObject == nullptr || m_playerTransform->ownerGameObject == nullptr) {
-        ComponentTraverser::refreshComponents();
-        reset();
+    if (!updatePointersFromCameraSystem(m_cameraSystem)) {
         return;
     }
 
@@ -112,18 +110,7 @@ void FirstPerson::onComponent(REComponent* component) {
 
     //spdlog::info("{:p} {} {}", (void*)component, utility::REString::getString(gameObject->name).c_str(), component->info->classInfo->type->name);
 
-    if (typeName == "via.Transform") {
-        // pl1000 = claire, pl0000 = leon
-        if (utility::REString::equals(gameObject->name, L"pl1000") || utility::REString::equals(gameObject->name, L"pl0000")) {
-            if (m_playerTransform != (RETransform*)component) {
-                spdlog::info("Found player {:p}", (void*)component);
-            }
-
-            m_playerName = utility::REString::getString(gameObject->name);
-            m_playerTransform = (RETransform*)component;
-        }
-    }
-    else if (typeName == "app.ropeway.camera.CameraSystem") {
+    if (typeName == "app.ropeway.camera.CameraSystem") {
         if (utility::REString::equals(gameObject->name, L"Main Camera")) {
 
             if (m_cameraSystem != (RopewayCameraSystem*)component) {
@@ -131,22 +118,6 @@ void FirstPerson::onComponent(REComponent* component) {
             }
 
             m_cameraSystem = (RopewayCameraSystem*)component;
-        }
-    }
-    else if (typeName == "via.Camera") {
-        if (utility::REString::equals(gameObject->name, L"PlayerCameraController")) {
-            if (m_playerCameraController != (RECamera*)component) {
-                spdlog::info("Found PlayercameraController {:p}", (void*)component);
-            }
-
-            m_playerCameraController = (RECamera*)component;
-        }
-        else if (utility::REString::equals(gameObject->name, L"Main Camera")) {
-            if (m_camera != (RECamera*)component) {
-                spdlog::info("Found camera {:p}", (void*)component);
-            }
-
-            m_camera = (RECamera*)component;
         }
     }
 }
@@ -160,28 +131,84 @@ void FirstPerson::onUpdateTransform(RETransform* transform) {
         return;
     }
 
-    if (m_inEventCamera) {
-        if (transform != m_cameraSystem->cameraController->activeCamera->ownerGameObject->transform) {
-            return;
-        }
-    }
-    else if (transform != m_camera->ownerGameObject->transform) {
-        return;
-    }
-
-    // action camera
+    // can change to action camera
     if (m_cameraSystem->cameraController->activeCamera != m_playerCameraController) {
         return;
     }
 
-    if (!m_enabled) {
-        return;
+    if (transform == m_camera->ownerGameObject->transform) {
+        updateCameraTransform(transform);
+    }
+    else if (transform == m_playerTransform) {
+        updatePlayerTransform(transform);
+    }
+}
+
+void FirstPerson::reset() {
+    m_rotationOffset = glm::identity<decltype(m_rotationOffset)>();
+    m_lastBoneRotation = glm::identity<decltype(m_lastBoneRotation)>();
+    m_lastCameraMatrix = glm::identity<decltype(m_lastCameraMatrix)>();
+    m_updateTimes.clear();
+}
+
+bool FirstPerson::updatePointersFromCameraSystem(RopewayCameraSystem* cameraSystem) {
+    if (cameraSystem == nullptr) {
+        return false;
     }
 
-    auto deltaDuration = std::chrono::duration<float>(std::chrono::high_resolution_clock::now() - m_lastFrame);
-    auto deltaTime = deltaDuration.count();
+    if (m_camera = cameraSystem->mainCamera; m_camera == nullptr) {
+        m_playerTransform = nullptr;
+        return false;
+    }
 
-    m_lastFrame = std::chrono::high_resolution_clock::now();
+    auto joint = cameraSystem->playerJoint;
+    
+    if (joint == nullptr) {
+        m_playerTransform = nullptr;
+        return false;
+    }
+
+    // Update player name and log it
+    if (m_playerTransform != joint->parentTransform && joint->parentTransform != nullptr) {
+        if (joint->parentTransform->ownerGameObject == nullptr) {
+            return false;
+        }
+
+        m_playerName = utility::REString::getString(joint->parentTransform->ownerGameObject->name);
+
+        if (m_playerName.empty()) {
+            return false;
+        }
+
+        spdlog::info("Found Player {:s} {:p}", m_playerName.data(), (void*)joint->parentTransform);
+    }
+
+    // Update player transform pointer
+    if (m_playerTransform = joint->parentTransform; m_playerTransform == nullptr) {
+        return false;
+    }
+
+    // Update PlayerCameraController camera pointer
+    if (m_playerCameraController == nullptr) {
+        auto controller = cameraSystem->cameraController;
+
+        if (controller == nullptr || controller->ownerGameObject == nullptr || controller->activeCamera == nullptr || controller->activeCamera->ownerGameObject == nullptr) {
+            return false;
+        }
+
+        if (utility::REString::equals(controller->activeCamera->ownerGameObject->name, L"PlayerCameraController")) {
+            m_playerCameraController = controller->activeCamera;
+            spdlog::info("Found PlayerCameraController {:p}", (void*)m_playerCameraController);
+        }
+
+        return m_playerCameraController != nullptr;
+    }
+
+    return true;
+}
+
+void FirstPerson::updateCameraTransform(RETransform* transform) {
+    auto deltaTime = updateDeltaTime(transform);
 
     auto& mtx = transform->worldTransform;
     auto& cameraPos = mtx[3];
@@ -191,54 +218,59 @@ void FirstPerson::onUpdateTransform(RETransform* transform) {
 
     auto& boneMatrix = utility::RETransform::getJointMatrix(*m_playerTransform, m_attachBone);
     auto& bonePos = boneMatrix[3];
-    
+
     auto camRotMat = glm::extractMatrixRotation(mtx);
     auto headRotMat = glm::extractMatrixRotation(boneMatrix);
 
     auto offset = headRotMat * (m_attachOffsets[m_playerName] * Vector4f{ -0.1f, 0.1f, 0.1f, 0.0f });
     auto finalPos = Vector3f{ bonePos + offset };
 
-    if (m_inEventCamera) {
+    // Average the distance to the wanted rotation
+    auto dist = (glm::distance(m_lastBoneRotation[0], headRotMat[0])
+        + glm::distance(m_lastBoneRotation[1], headRotMat[1])
+        + glm::distance(m_lastBoneRotation[2], headRotMat[2])) / 3.0f;
 
-    }
-    else {
-        auto dist = (glm::distance(m_lastBoneRotation[0], headRotMat[0])
-            + glm::distance(m_lastBoneRotation[1], headRotMat[1])
-            + glm::distance(m_lastBoneRotation[2], headRotMat[2])) / 3.0f;
+    // interpolate the bone rotation (it's snappy otherwise)
+    m_lastBoneRotation = glm::interpolate(m_lastBoneRotation, headRotMat, deltaTime * m_boneScale * dist);
 
-        // interpolate the bone rotation (it's snappy otherwise)
-        m_lastBoneRotation = glm::interpolate(m_lastBoneRotation, headRotMat, deltaTime * m_boneScale * dist);
+    // Look at where the camera is pointing from the head position
+    camRotMat = glm::extractMatrixRotation(glm::rowMajor4(glm::lookAtLH(finalPos, camPos3 + (camForward3 * 8192.0f), { 0.0f, 1.0f, 0.0f })));
+    // Follow the bone rotation, but rotate towards where the camera is looking.
+    auto wantedMat = glm::inverse(m_lastBoneRotation) * camRotMat;
 
-        // Look at where the camera is pointing from the head position
-        camRotMat = glm::extractMatrixRotation(glm::rowMajor4(glm::lookAtLH(finalPos, camPos3 + (camForward3 * 8192.0f), { 0.0f, 1.0f, 0.0f })));
-        // Follow the bone rotation, but rotate towards where the camera is looking.
-        auto wantedMat = glm::inverse(m_lastBoneRotation) * camRotMat;
+    // Average the distance to the wanted rotation
+    dist = (glm::distance(m_rotationOffset[0], wantedMat[0])
+        + glm::distance(m_rotationOffset[1], wantedMat[1])
+        + glm::distance(m_rotationOffset[2], wantedMat[2])) / 3.0f;
 
-        // Average the distance to the wanted rotation
-        dist = (glm::distance(m_rotationOffset[0], wantedMat[0]) 
-                   + glm::distance(m_rotationOffset[1], wantedMat[1]) 
-                   + glm::distance(m_rotationOffset[2], wantedMat[2])) / 3.0f;
+    //m_lastDist = glm::lerp(m_lastDist, dist, deltaTime);
+    m_rotationOffset = glm::interpolate(m_rotationOffset, wantedMat, m_scale * deltaTime * dist);
 
-        //m_lastDist = glm::lerp(m_lastDist, dist, deltaTime);
-        m_rotationOffset = glm::interpolate(m_rotationOffset, wantedMat, m_scale * deltaTime * dist);
-        
-        // Apply the new matrix
-        *(Matrix3x4f*)&mtx = m_lastBoneRotation * m_rotationOffset;
+    // Apply the new matrix
+    *(Matrix3x4f*)&mtx = m_lastBoneRotation * m_rotationOffset;
+    m_lastCameraMatrix = mtx;
 
-        // Apply the same matrix data to other things stored in-game (positions/quaternions)
-        cameraPos = Vector4f{ finalPos, 1.0f };
-        transform->position = *(Vector4f*)&cameraPos;
-        *(glm::quat*)&transform->angles = glm::quat{ glm::colMajor4(camRotMat) };
-        m_cameraSystem->cameraController->worldPosition = cameraPos;
-    }
-
-    if (m_resetView) {
-
-    }
+    // Apply the same matrix data to other things stored in-game (positions/quaternions)
+    cameraPos = Vector4f{ finalPos, 1.0f };
+    transform->position = *(Vector4f*)&cameraPos;
+    *(glm::quat*)&transform->angles = glm::quat{ glm::colMajor4(camRotMat) };
+    m_cameraSystem->cameraController->worldPosition = cameraPos;
 }
 
-void FirstPerson::reset() {
-    m_rotationOffset = glm::identity<decltype(m_rotationOffset)>();
-    m_lastBoneRotation = glm::identity<decltype(m_lastBoneRotation)>();
+void FirstPerson::updatePlayerTransform(RETransform* transform) {
+    auto deltaTime = updateDeltaTime(transform);
+
+    /*auto& boneMatrix = utility::RETransform::getJointMatrix(*transform, m_attachBone);
+
+    *(Matrix3x4f*)&boneMatrix = *(Matrix3x4f*)&m_lastCameraMatrix;*/
+}
+
+float FirstPerson::updateDeltaTime(RETransform* transform) {
+    auto deltaDuration = std::chrono::duration<float>(std::chrono::high_resolution_clock::now() - m_updateTimes[transform]);
+    auto deltaTime = deltaDuration.count();
+
+    m_updateTimes[transform] = std::chrono::high_resolution_clock::now();
+
+    return deltaTime;
 }
 

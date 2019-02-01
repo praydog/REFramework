@@ -23,14 +23,20 @@ protected:
 
 private:
     void reset();
+    bool updatePointersFromCameraSystem(RopewayCameraSystem* cameraSystem);
+    void updateCameraTransform(RETransform* transform);
+    void updatePlayerTransform(RETransform* transform);
+    float updateDeltaTime(RETransform* transform);
 
     std::string m_attachBoneImgui{ "head" };
     std::wstring m_attachBone{ L"head" };
     std::string m_playerName{ "pl1000" };
+
     // Different "configs" for each model
     std::unordered_map<std::string, Vector4f> m_attachOffsets;
     Matrix4x4f m_rotationOffset{ glm::identity<Matrix4x4f>() };
     Matrix4x4f m_lastBoneRotation{ glm::identity<Matrix4x4f>() };
+    Matrix4x4f m_lastCameraMatrix{ glm::identity<Matrix4x4f>() };
 
     float m_scale{ 30.0f };
     float m_boneScale{ 15.0f };
@@ -44,7 +50,7 @@ private:
     bool m_inEventCamera{ false };
     bool m_resetView{ false };
 
-    std::chrono::high_resolution_clock::time_point m_lastFrame;
+    std::unordered_map<RETransform*, std::chrono::high_resolution_clock::time_point> m_updateTimes;
 
     std::vector<std::string> m_attachNames;
     int32_t m_attachSelected{ 0 };
