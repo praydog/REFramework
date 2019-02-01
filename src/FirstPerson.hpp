@@ -3,6 +3,7 @@
 #include <chrono>
 
 #include "Mod.hpp"
+#include "Patch.hpp"
 
 class FirstPerson : public Mod {
 public:
@@ -37,6 +38,7 @@ private:
     RECamera* m_playerCameraController{ nullptr };
     RopewayCameraSystem* m_cameraSystem{ nullptr };
 
+    bool m_enabled{ true };
     bool m_inEventCamera{ false };
     bool m_resetView{ false };
 
@@ -44,4 +46,8 @@ private:
 
     std::vector<std::string> m_attachNames;
     int32_t m_attachSelected{ 0 };
+
+    // Allows us to freely modify the real camera position
+    // which is used for firing weapons among other things
+    Patch m_cameraControllerPosPatch{};
 };

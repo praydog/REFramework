@@ -5,7 +5,6 @@ set(HOOKS_SRC
     D3D11Hook.cpp
     WindowsMessageHook.hpp
     WindowsMessageHook.cpp
-
     ComponentHook.hpp
     ComponentHook.cpp
     PositionHooks.hpp
@@ -33,29 +32,33 @@ set(RE2IMGUI_SRC
     re2-imgui/imgui_impl_dx11.cpp
 )
 
+set(FRAMEWORK_SRC
+    Address.hpp
+    Address.cpp
+    FunctionHook.hpp
+    FunctionHook.cpp
+    Patch.hpp
+    Patch.cpp
+    Mod.hpp
+    Mods.hpp
+    Mods.cpp
+    REFramework.hpp
+    REFramework.cpp
+)
+
 source_group("re2-imgui", FILES ${RE2IMGUI_SRC})
 source_group("Hooks" FILES ${HOOKS_SRC})
 source_group("Mods" FILES ${MODS_SRC})
 source_group("SDK" FILES ${SDK_SRC})
+source_group("Framework" FILES ${FRAMEWORK_SRC})
 
 add_library(RE2 SHARED
-            FunctionHook.hpp
-            FunctionHook.cpp
             Main.cpp
-
-            Mod.hpp
-            Mods.hpp
-            Mods.cpp
-            REFramework.hpp
-            REFramework.cpp
-
-            Address.hpp
-            Address.cpp
-
             ${SDK_SRC}
             ${MODS_SRC}
             ${HOOKS_SRC}
             ${RE2IMGUI_SRC}
+            ${FRAMEWORK_SRC}
 )
 
 target_link_libraries(RE2 PUBLIC imgui minhook d3d11 glm_static)

@@ -15,14 +15,22 @@ FirstPerson::FirstPerson() {
 
     m_attachBoneImgui.reserve(256);
 
-    m_toggles["enabled"] = ModToggle::create();
-    m_toggles["enabled"]->value = true;
+    // RopewayPlayerCameraController::worldPosition
+    /*
+    +B46960F - F3 0F11 86 80000000   - movss [rsi+00000080],xmm0
+    +B469617 - F3 0F10 44 24 48      - movss xmm0,[rsp+48]
+    +B46961D - F3 0F11 86 88000000   - movss [rsi+00000088],xmm0
+    +B469625 - F3 0F11 8E 84000000   - movss [rsi+00000084],xmm1
+    */
+    // NOP the whole thing away so we can control it
+    m_cameraControllerPosPatch.address = (uintptr_t)GetModuleHandle(0) + 0xB46960F;
+    m_cameraControllerPosPatch.bytes.resize(34);
+    std::fill(m_cameraControllerPosPatch.bytes.begin(), m_cameraControllerPosPatch.bytes.end(), 0x90);
+    patch(m_cameraControllerPosPatch);
 }
 
 void FirstPerson::onFrame() {
-    auto enabled = m_toggles["enabled"]->value;
-
-    if (!enabled) {
+    if (!m_enabled) {
         m_camera = nullptr;
         return;
     }
@@ -58,7 +66,15 @@ void FirstPerson::onFrame() {
 void FirstPerson::onDrawUI() {
     ImGui::Begin("FirstPerson");
 
-    ImGui::Checkbox("Enabled", &m_toggles["enabled"]->value);
+    if (ImGui::Checkbox("Enabled", &m_enabled)) {
+        if (m_enabled) {
+            patch(m_cameraControllerPosPatch);
+        }
+        else {
+            undoPatch(m_cameraControllerPosPatch);
+        }
+    }
+
     ImGui::SliderFloat3("offset", (float*)&m_attachOffset, -2.0f, 2.0f, "%.3f", 1.0f);
     ImGui::SliderFloat("CameraScale", &m_scale, 0.0f, 250.0f);
     ImGui::SliderFloat("BoneScale", &m_boneScale, 0.0f, 250.0f);
@@ -161,7 +177,7 @@ void FirstPerson::onUpdateTransform(RETransform* transform) {
         return;
     }
 
-    if (!m_toggles["enabled"]->value) {
+    if (!m_enabled) {
         return;
     }
 
