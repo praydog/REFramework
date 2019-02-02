@@ -146,7 +146,18 @@ void FirstPerson::onUpdateCameraController(RopewayPlayerCameraController* contro
         return;
     }
 
+    // The following code fixes inaccuracies between the rotation set by the game and what's set in updateCameraTransform
+    auto updatedMatrix = Matrix4x4f{ *(glm::quat*)&controller->worldRotation };
+    auto deltaTime = updateDeltaTime(controller);
+
+    auto dist = (glm::distance(m_lastCameraMatrix[0], updatedMatrix[0])
+               + glm::distance(m_lastCameraMatrix[1], updatedMatrix[1])
+               + glm::distance(m_lastCameraMatrix[2], updatedMatrix[2])) / 3.0f;
+
+    *(Matrix3x4f*)&m_lastCameraMatrix = glm::interpolate(glm::extractMatrixRotation(m_lastCameraMatrix), updatedMatrix, deltaTime * m_scale * dist);
+
     controller->worldPosition = m_lastCameraMatrix[3];
+    *(glm::quat*)&controller->worldRotation = glm::quat{ glm::colMajor4(glm::extractMatrixRotation(m_lastCameraMatrix)) };
 }
 
 void FirstPerson::reset() {
@@ -270,11 +281,11 @@ void FirstPerson::updatePlayerTransform(RETransform* transform) {
     *(Matrix3x4f*)&boneMatrix = *(Matrix3x4f*)&m_lastCameraMatrix;*/
 }
 
-float FirstPerson::updateDeltaTime(RETransform* transform) {
-    auto deltaDuration = std::chrono::duration<float>(std::chrono::high_resolution_clock::now() - m_updateTimes[transform]);
+float FirstPerson::updateDeltaTime(REComponent* component) {
+    auto deltaDuration = std::chrono::duration<float>(std::chrono::high_resolution_clock::now() - m_updateTimes[component]);
     auto deltaTime = deltaDuration.count();
 
-    m_updateTimes[transform] = std::chrono::high_resolution_clock::now();
+    m_updateTimes[component] = std::chrono::high_resolution_clock::now();
 
     return deltaTime;
 }

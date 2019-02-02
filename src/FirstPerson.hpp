@@ -27,7 +27,7 @@ private:
     bool updatePointersFromCameraSystem(RopewayCameraSystem* cameraSystem);
     void updateCameraTransform(RETransform* transform);
     void updatePlayerTransform(RETransform* transform);
-    float updateDeltaTime(RETransform* transform);
+    float updateDeltaTime(REComponent* component);
 
     std::string m_attachBoneImgui{ "head" };
     std::wstring m_attachBone{ L"head" };
@@ -51,7 +51,7 @@ private:
     bool m_inEventCamera{ false };
     bool m_resetView{ false };
 
-    std::unordered_map<RETransform*, std::chrono::high_resolution_clock::time_point> m_updateTimes;
+    std::unordered_map<REComponent*, std::chrono::high_resolution_clock::time_point> m_updateTimes;
 
     std::vector<std::string> m_attachNames;
     int32_t m_attachSelected{ 0 };
