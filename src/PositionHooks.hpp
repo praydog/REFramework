@@ -11,5 +11,9 @@ protected:
     void* updateTransformHook_Internal(RETransform* t);
     static void* updateTransformHook(RETransform* t);
 
+    void* updateCameraControllerHook_Internal(void* a1, RopewayPlayerCameraController* cameraController);
+    static void* updateCameraControllerHook(void* a1, RopewayPlayerCameraController* cameraController);
+
     std::unique_ptr<FunctionHook> m_updateTransformHook;
+    std::unique_ptr<FunctionHook> m_updateCameraControllerHook;
 };

@@ -50,6 +50,7 @@ public:
     virtual void onDrawUI() {};
 
     virtual void onUpdateTransform(RETransform* transform) {};
+    virtual void onUpdateCameraController(RopewayPlayerCameraController* controller) {};
     virtual void onGetMainCamera(RECamera* camera) {};
     virtual void onComponent(REComponent* component) {};
 

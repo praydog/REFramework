@@ -12,22 +12,17 @@ FirstPerson* g_firstPerson = nullptr;
 FirstPerson::FirstPerson() {
     // thanks imgui
     g_firstPerson = this;
-
     m_attachBoneImgui.reserve(256);
 
-    // RopewayPlayerCameraController::worldPosition
-    /*
-    +B46960F - F3 0F11 86 80000000   - movss [rsi+00000080],xmm0
-    +B469617 - F3 0F10 44 24 48      - movss xmm0,[rsp+48]
-    +B46961D - F3 0F11 86 88000000   - movss [rsi+00000088],xmm0
-    +B469625 - F3 0F11 8E 84000000   - movss [rsi+00000084],xmm1
-    */
-    // NOP the whole thing away so we can control it
-    m_cameraControllerPosPatch = Patch::createNOP((uintptr_t)GetModuleHandle(0) + 0xB46960F, 34);
-
     // Specific player model configs
+    // Leon
     m_attachOffsets["pl0000"] = Vector4f{ -0.26f, 0.435f, 1.25f, 0.0f };
+    // Claire
     m_attachOffsets["pl1000"] = Vector4f{ -0.23f, 0.4f, 1.0f, 0.0f };
+    // Sherry
+    m_attachOffsets["pl3000"] = Vector4f{ -0.278f, 0.435f, 0.945f, 0.0f };
+    // Hunk
+    m_attachOffsets["pl4000"] = Vector4f{ -0.26f, 0.435f, 1.25f, 0.0f };
 }
 
 void FirstPerson::onFrame() {
@@ -66,7 +61,7 @@ void FirstPerson::onDrawUI() {
     ImGui::Begin("FirstPerson");
 
     if (ImGui::Checkbox("Enabled", &m_enabled)) {
-        m_cameraControllerPosPatch->toggle(m_enabled);
+        //m_cameraControllerPosPatch->toggle(m_enabled);
     }
 
     ImGui::SliderFloat3("offset", (float*)&m_attachOffsets[m_playerName], -2.0f, 2.0f, "%.3f", 1.0f);
@@ -142,6 +137,18 @@ void FirstPerson::onUpdateTransform(RETransform* transform) {
     else if (transform == m_playerTransform) {
         updatePlayerTransform(transform);
     }
+}
+
+void FirstPerson::onUpdateCameraController(RopewayPlayerCameraController* controller) {
+    if (!m_enabled) {
+        return;
+    }
+
+    if (controller->activeCamera != m_playerCameraController) {
+        return;
+    }
+
+    controller->worldPosition = m_lastCameraMatrix[3];
 }
 
 void FirstPerson::reset() {
@@ -227,8 +234,8 @@ void FirstPerson::updateCameraTransform(RETransform* transform) {
 
     // Average the distance to the wanted rotation
     auto dist = (glm::distance(m_lastBoneRotation[0], headRotMat[0])
-        + glm::distance(m_lastBoneRotation[1], headRotMat[1])
-        + glm::distance(m_lastBoneRotation[2], headRotMat[2])) / 3.0f;
+               + glm::distance(m_lastBoneRotation[1], headRotMat[1])
+               + glm::distance(m_lastBoneRotation[2], headRotMat[2])) / 3.0f;
 
     // interpolate the bone rotation (it's snappy otherwise)
     m_lastBoneRotation = glm::interpolate(m_lastBoneRotation, headRotMat, deltaTime * m_boneScale * dist);
@@ -240,21 +247,21 @@ void FirstPerson::updateCameraTransform(RETransform* transform) {
 
     // Average the distance to the wanted rotation
     dist = (glm::distance(m_rotationOffset[0], wantedMat[0])
-        + glm::distance(m_rotationOffset[1], wantedMat[1])
-        + glm::distance(m_rotationOffset[2], wantedMat[2])) / 3.0f;
+          + glm::distance(m_rotationOffset[1], wantedMat[1])
+          + glm::distance(m_rotationOffset[2], wantedMat[2])) / 3.0f;
 
     //m_lastDist = glm::lerp(m_lastDist, dist, deltaTime);
     m_rotationOffset = glm::interpolate(m_rotationOffset, wantedMat, m_scale * deltaTime * dist);
-
-    // Apply the new matrix
-    *(Matrix3x4f*)&mtx = m_lastBoneRotation * m_rotationOffset;
-    m_lastCameraMatrix = mtx;
 
     // Apply the same matrix data to other things stored in-game (positions/quaternions)
     cameraPos = Vector4f{ finalPos, 1.0f };
     transform->position = *(Vector4f*)&cameraPos;
     *(glm::quat*)&transform->angles = glm::quat{ glm::colMajor4(camRotMat) };
-    m_cameraSystem->cameraController->worldPosition = cameraPos;
+    m_cameraSystem->cameraController->worldPosition = Vector4f{ finalPos, 1.0f };
+
+    // Apply the new matrix
+    *(Matrix3x4f*)&mtx = m_lastBoneRotation * m_rotationOffset;
+    m_lastCameraMatrix = mtx;
 }
 
 void FirstPerson::updatePlayerTransform(RETransform* transform) {

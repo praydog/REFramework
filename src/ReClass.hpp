@@ -12,6 +12,7 @@
 #include <glm/gtx/matrix_major_storage.hpp>
 #include <glm/gtx/compatibility.hpp>
 
+using Vector2f = glm::vec2;
 using Vector3f = glm::vec3;
 using Vector4f = glm::vec4;
 using Matrix3x3f = glm::mat3x3;

@@ -13,6 +13,7 @@ public:
     void onDrawUI() override;
     void onComponent(REComponent* component) override;
     void onUpdateTransform(RETransform* transform) override;
+    void onUpdateCameraController(RopewayPlayerCameraController* controller) override;
 
 protected:
     // gross
@@ -54,8 +55,4 @@ private:
 
     std::vector<std::string> m_attachNames;
     int32_t m_attachSelected{ 0 };
-
-    // Allows us to freely modify the real camera position
-    // which is used for firing weapons among other things
-    std::unique_ptr<Patch> m_cameraControllerPosPatch{};
 };
