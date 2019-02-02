@@ -41,8 +41,10 @@ private:
     std::unique_ptr<FunctionHook> m_getDeviceStateHook;
 
     bool m_isIgnoringInput;
+    bool m_doOnce;
 
     bool hook();
 
+    HRESULT getDeviceState_Internal(IDirectInputDevice* device, DWORD size, LPVOID data);
     static HRESULT WINAPI getDeviceState(IDirectInputDevice* device, DWORD size, LPVOID data);
 };

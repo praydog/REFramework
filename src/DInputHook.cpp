@@ -10,7 +10,8 @@ static DInputHook* g_dinputHook{ nullptr };
 
 DInputHook::DInputHook(HWND wnd)
     : m_wnd{ wnd },
-    m_isIgnoringInput{ false }
+    m_isIgnoringInput{ false },
+    m_doOnce{ true }
 {
     if (g_dinputHook == nullptr) {
         if (hook()) {
@@ -81,19 +82,24 @@ bool DInputHook::hook() {
     return m_getDeviceStateHook->isValid();
 }
 
-HRESULT WINAPI DInputHook::getDeviceState(IDirectInputDevice* device, DWORD size, LPVOID data) {
-    auto dinput = g_dinputHook;
-    auto originalGetDeviceState= (decltype(DInputHook::getDeviceState)*)dinput->m_getDeviceStateHook->getOriginal();
+HRESULT DInputHook::getDeviceState_Internal(IDirectInputDevice* device, DWORD size, LPVOID data) {
+    auto originalGetDeviceState = (decltype(DInputHook::getDeviceState)*)m_getDeviceStateHook->getOriginal();
 
     spdlog::debug("getDeviceState");
 
     // If we are ignoring input then we call the original to remove buffered    
     // input events from the devices queue without modifying the out parameters.
-    if (dinput->m_isIgnoringInput) {
+    if (m_isIgnoringInput || m_doOnce) {
         device->Unacquire();
-        device->SetCooperativeLevel(dinput->m_wnd, DISCL_FOREGROUND | DISCL_NONEXCLUSIVE);
+        device->SetCooperativeLevel(m_wnd, DISCL_FOREGROUND | DISCL_NONEXCLUSIVE);
         device->Acquire();
+
+        m_doOnce = false;
     }
 
     return originalGetDeviceState(device, size, data);
+}
+
+HRESULT WINAPI DInputHook::getDeviceState(IDirectInputDevice* device, DWORD size, LPVOID data) {
+    return g_dinputHook->getDeviceState_Internal(device, size, data);
 }
