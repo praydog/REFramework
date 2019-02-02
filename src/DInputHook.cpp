@@ -93,12 +93,6 @@ HRESULT WINAPI DInputHook::getDeviceState(IDirectInputDevice* device, DWORD size
         device->Unacquire();
         device->SetCooperativeLevel(dinput->m_wnd, DISCL_FOREGROUND | DISCL_NONEXCLUSIVE);
         device->Acquire();
-
-        if (data == nullptr) {
-            return originalGetDeviceState(device, size, data);
-        }
-
-        return originalGetDeviceState(device, size, data);
     }
 
     return originalGetDeviceState(device, size, data);

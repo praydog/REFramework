@@ -38,6 +38,7 @@ void FirstPerson::onFrame() {
     }
 
     if (!updatePointersFromCameraSystem(m_cameraSystem)) {
+        reset();
         return;
     }
 
@@ -60,10 +61,7 @@ void FirstPerson::onFrame() {
 void FirstPerson::onDrawUI() {
     ImGui::Begin("FirstPerson");
 
-    if (ImGui::Checkbox("Enabled", &m_enabled)) {
-        //m_cameraControllerPosPatch->toggle(m_enabled);
-    }
-
+    ImGui::Checkbox("Enabled", &m_enabled);
     ImGui::SliderFloat3("offset", (float*)&m_attachOffsets[m_playerName], -2.0f, 2.0f, "%.3f", 1.0f);
     ImGui::SliderFloat("CameraScale", &m_scale, 0.0f, 250.0f);
     ImGui::SliderFloat("BoneScale", &m_boneScale, 0.0f, 250.0f);
