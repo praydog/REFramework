@@ -138,33 +138,34 @@ void FirstPerson::onUpdateTransform(RETransform* transform) {
 }
 
 void FirstPerson::onUpdateCameraController(RopewayPlayerCameraController* controller) {
-    if (!m_enabled) {
-        return;
-    }
-
-    if (controller->activeCamera != m_playerCameraController) {
+    if (!m_enabled || controller->activeCamera != m_playerCameraController) {
         return;
     }
 
     // The following code fixes inaccuracies between the rotation set by the game and what's set in updateCameraTransform
-    auto updatedMatrix = Matrix4x4f{ *(glm::quat*)&controller->worldRotation };
-    auto deltaTime = updateDeltaTime(controller);
-
-    auto dist = (glm::distance(m_lastCameraMatrix[0], updatedMatrix[0])
-               + glm::distance(m_lastCameraMatrix[1], updatedMatrix[1])
-               + glm::distance(m_lastCameraMatrix[2], updatedMatrix[2])) / 3.0f;
-
-    *(Matrix3x4f*)&m_lastCameraMatrix = glm::interpolate(glm::extractMatrixRotation(m_lastCameraMatrix), updatedMatrix, deltaTime * m_scale * dist);
-
     controller->worldPosition = m_lastCameraMatrix[3];
-    *(glm::quat*)&controller->worldRotation = glm::quat{ glm::colMajor4(glm::extractMatrixRotation(m_lastCameraMatrix)) };
+    *(glm::quat*)&controller->worldRotation = glm::quat{ m_lastCameraMatrix };
+}
+
+void FirstPerson::onUpdateCameraController2(RopewayPlayerCameraController* controller) {
+    if (!m_enabled || controller->activeCamera != m_playerCameraController) {
+        return;
+    }
+
+    // Save the original position and rotation before our modifications.
+    // If we don't, the camera rotation will freeze up, because it keeps getting overwritten.
+    m_lastControllerPos = controller->worldPosition;
+    m_lastControllerRotation = *(glm::quat*)&controller->worldRotation;
 }
 
 void FirstPerson::reset() {
     m_rotationOffset = glm::identity<decltype(m_rotationOffset)>();
     m_lastBoneRotation = glm::identity<decltype(m_lastBoneRotation)>();
     m_lastCameraMatrix = glm::identity<decltype(m_lastCameraMatrix)>();
+    m_lastControllerPos = Vector4f{};
+    m_lastControllerRotation = glm::quat{};
     m_updateTimes.clear();
+    m_deltaTimes.clear();
 }
 
 bool FirstPerson::updatePointersFromCameraSystem(RopewayCameraSystem* cameraSystem) {
@@ -229,14 +230,15 @@ void FirstPerson::updateCameraTransform(RETransform* transform) {
     auto& mtx = transform->worldTransform;
     auto& cameraPos = mtx[3];
 
-    auto& camPos3 = *(Vector3f*)&mtx[3];
-    auto& camForward3 = *(Vector3f*)&mtx[2];
+    auto camPos3 = Vector3f{ m_lastControllerPos };
 
     auto& boneMatrix = utility::RETransform::getJointMatrix(*m_playerTransform, m_attachBone);
     auto& bonePos = boneMatrix[3];
 
-    auto camRotMat = glm::extractMatrixRotation(mtx);
+    auto camRotMat = glm::extractMatrixRotation(Matrix4x4f{ m_lastControllerRotation });
     auto headRotMat = glm::extractMatrixRotation(boneMatrix);
+
+    auto& camForward3 = *(Vector3f*)&camRotMat[2];
 
     auto offset = headRotMat * (m_attachOffsets[m_playerName] * Vector4f{ -0.1f, 0.1f, 0.1f, 0.0f });
     auto finalPos = Vector3f{ bonePos + offset };
@@ -261,24 +263,23 @@ void FirstPerson::updateCameraTransform(RETransform* transform) {
 
     //m_lastDist = glm::lerp(m_lastDist, dist, deltaTime);
     m_rotationOffset = glm::interpolate(m_rotationOffset, wantedMat, m_scale * deltaTime * dist);
+    auto finalMat = m_lastBoneRotation * m_rotationOffset;
+    auto finalQuat = glm::quat{ finalMat };
 
     // Apply the same matrix data to other things stored in-game (positions/quaternions)
     cameraPos = Vector4f{ finalPos, 1.0f };
+    m_cameraSystem->cameraController->worldPosition = *(Vector4f*)&cameraPos;
     transform->position = *(Vector4f*)&cameraPos;
-    *(glm::quat*)&transform->angles = glm::quat{ glm::colMajor4(camRotMat) };
-    m_cameraSystem->cameraController->worldPosition = Vector4f{ finalPos, 1.0f };
+    transform->angles = *(Vector4f*)&finalQuat;
+    m_cameraSystem->cameraController->worldRotation = *(Vector4f*)&finalQuat;
 
     // Apply the new matrix
-    *(Matrix3x4f*)&mtx = m_lastBoneRotation * m_rotationOffset;
+    *(Matrix3x4f*)&mtx = finalMat;
     m_lastCameraMatrix = mtx;
 }
 
 void FirstPerson::updatePlayerTransform(RETransform* transform) {
     auto deltaTime = updateDeltaTime(transform);
-
-    /*auto& boneMatrix = utility::RETransform::getJointMatrix(*transform, m_attachBone);
-
-    *(Matrix3x4f*)&boneMatrix = *(Matrix3x4f*)&m_lastCameraMatrix;*/
 }
 
 float FirstPerson::updateDeltaTime(REComponent* component) {
@@ -286,6 +287,7 @@ float FirstPerson::updateDeltaTime(REComponent* component) {
     auto deltaTime = deltaDuration.count();
 
     m_updateTimes[component] = std::chrono::high_resolution_clock::now();
+    m_deltaTimes[component] = deltaTime;
 
     return deltaTime;
 }

@@ -14,6 +14,7 @@ public:
     void onComponent(REComponent* component) override;
     void onUpdateTransform(RETransform* transform) override;
     void onUpdateCameraController(RopewayPlayerCameraController* controller) override;
+    void onUpdateCameraController2(RopewayPlayerCameraController* controller) override;
 
 protected:
     // gross
@@ -38,6 +39,8 @@ private:
     Matrix4x4f m_rotationOffset{ glm::identity<Matrix4x4f>() };
     Matrix4x4f m_lastBoneRotation{ glm::identity<Matrix4x4f>() };
     Matrix4x4f m_lastCameraMatrix{ glm::identity<Matrix4x4f>() };
+    Vector4f m_lastControllerPos{};
+    glm::quat m_lastControllerRotation{};
 
     float m_scale{ 30.0f };
     float m_boneScale{ 15.0f };
@@ -52,6 +55,7 @@ private:
     bool m_resetView{ false };
 
     std::unordered_map<REComponent*, std::chrono::high_resolution_clock::time_point> m_updateTimes;
+    std::unordered_map<REComponent*, float> m_deltaTimes;
 
     std::vector<std::string> m_attachNames;
     int32_t m_attachSelected{ 0 };
