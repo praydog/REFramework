@@ -138,17 +138,27 @@ void FirstPerson::onUpdateTransform(RETransform* transform) {
 }
 
 void FirstPerson::onUpdateCameraController(RopewayPlayerCameraController* controller) {
-    if (!m_enabled || controller->activeCamera != m_playerCameraController) {
+    if (!m_enabled || controller->activeCamera != m_playerCameraController || m_playerTransform == nullptr) {
         return;
     }
 
+    auto& boneMatrix = utility::RETransform::getJointMatrix(*m_playerTransform, m_attachBone);
+
+    auto offset = glm::extractMatrixRotation(boneMatrix) * (m_attachOffsets[m_playerName] * Vector4f{ -0.1f, 0.1f, 0.1f, 0.0f });
+    auto& bonePos = boneMatrix[3];
+    auto finalPos = Vector4f{ bonePos + offset };
+
     // The following code fixes inaccuracies between the rotation set by the game and what's set in updateCameraTransform
-    controller->worldPosition = m_lastCameraMatrix[3];
+    controller->worldPosition = finalPos;
     *(glm::quat*)&controller->worldRotation = glm::quat{ m_lastCameraMatrix };
+
+    m_lastCameraMatrix[3] = finalPos;
+    m_camera->ownerGameObject->transform->worldTransform = m_lastCameraMatrix;
+    m_camera->ownerGameObject->transform->angles = *(Vector4f*)&controller->worldRotation;
 }
 
 void FirstPerson::onUpdateCameraController2(RopewayPlayerCameraController* controller) {
-    if (!m_enabled || controller->activeCamera != m_playerCameraController) {
+    if (!m_enabled || controller->activeCamera != m_playerCameraController || m_playerTransform == nullptr) {
         return;
     }
 
@@ -261,7 +271,6 @@ void FirstPerson::updateCameraTransform(RETransform* transform) {
           + glm::distance(m_rotationOffset[1], wantedMat[1])
           + glm::distance(m_rotationOffset[2], wantedMat[2])) / 3.0f;
 
-    //m_lastDist = glm::lerp(m_lastDist, dist, deltaTime);
     m_rotationOffset = glm::interpolate(m_rotationOffset, wantedMat, m_scale * deltaTime * dist);
     auto finalMat = m_lastBoneRotation * m_rotationOffset;
     auto finalQuat = glm::quat{ finalMat };
@@ -269,9 +278,9 @@ void FirstPerson::updateCameraTransform(RETransform* transform) {
     // Apply the same matrix data to other things stored in-game (positions/quaternions)
     cameraPos = Vector4f{ finalPos, 1.0f };
     m_cameraSystem->cameraController->worldPosition = *(Vector4f*)&cameraPos;
+    m_cameraSystem->cameraController->worldRotation = *(Vector4f*)&finalQuat;
     transform->position = *(Vector4f*)&cameraPos;
     transform->angles = *(Vector4f*)&finalQuat;
-    m_cameraSystem->cameraController->worldRotation = *(Vector4f*)&finalQuat;
 
     // Apply the new matrix
     *(Matrix3x4f*)&mtx = finalMat;
