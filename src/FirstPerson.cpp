@@ -23,6 +23,11 @@ FirstPerson::FirstPerson() {
     m_attachOffsets["pl3000"] = Vector4f{ -0.278f, 0.435f, 0.945f, 0.0f };
     // Hunk
     m_attachOffsets["pl4000"] = Vector4f{ -0.26f, 0.435f, 1.25f, 0.0f };
+
+    // 8B 87 3C 01 00 00 89 83 DC 00 00 00
+    // mov eax, [rdi+13Ch], RDI is a SceneInfo I think.
+    // Maybe find a way to do it without a patch?
+    m_disableVignettePatch = Patch::create(Address(GetModuleHandle(0)).get(0xFC8B78A), { 0x31, 0xC0, 0x90, 0x90, 0x90, 0x90 });
 }
 
 void FirstPerson::onFrame() {
@@ -62,6 +67,11 @@ void FirstPerson::onDrawUI() {
 
     ImGui::Checkbox("Enabled", &m_enabled);
     ImGui::Checkbox("Hide Joint Mesh", &m_hideMesh);
+
+    if (ImGui::Checkbox("Disable Vignette", &m_disableVignette)) {
+        m_disableVignettePatch->toggle(m_disableVignette);
+    }
+
     ImGui::SliderFloat3("offset", (float*)&m_attachOffsets[m_playerName], -2.0f, 2.0f, "%.3f", 1.0f);
     ImGui::SliderFloat("CameraScale", &m_scale, 0.0f, 250.0f);
     ImGui::SliderFloat("BoneScale", &m_boneScale, 0.0f, 250.0f);
@@ -103,15 +113,12 @@ void FirstPerson::onComponent(REComponent* component) {
 
     //spdlog::info("{:p} {} {}", (void*)component, utility::REString::getString(gameObject->name).c_str(), component->info->classInfo->type->name);
 
-    if (typeName == "app.ropeway.camera.CameraSystem") {
-        if (utility::REString::equals(gameObject->name, L"Main Camera")) {
-
-            if (m_cameraSystem != (RopewayCameraSystem*)component) {
-                spdlog::info("Found CameraSystem {:p}", (void*)component);
-            }
-
-            m_cameraSystem = (RopewayCameraSystem*)component;
+    if (typeName == "app.ropeway.camera.CameraSystem" && utility::REString::equals(gameObject->name, L"Main Camera")) {
+        if (m_cameraSystem != (RopewayCameraSystem*)component) {
+            spdlog::info("Found CameraSystem {:p}", (void*)component);
         }
+
+        m_cameraSystem = (RopewayCameraSystem*)component;
     }
 }
 
@@ -180,7 +187,7 @@ void FirstPerson::onUpdateCameraController(RopewayPlayerCameraController* contro
         0, 1, 0, 0,
         0, 0, -1, 0,
         0, 0, 0, 1
-    };;
+    };
 
     auto offset = glm::extractMatrixRotation(boneMatrix) * (m_attachOffsets[m_playerName] * Vector4f{ -0.1f, 0.1f, 0.1f, 0.0f });
     auto finalPos = Vector4f{ boneMatrix[3] + offset };

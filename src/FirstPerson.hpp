@@ -57,10 +57,13 @@ private:
 
     bool m_enabled{ true };
     bool m_hideMesh{ true };
+    bool m_disableVignette{ true };
 
     std::unordered_map<REComponent*, std::chrono::high_resolution_clock::time_point> m_updateTimes;
     std::unordered_map<REComponent*, float> m_deltaTimes;
 
     std::vector<std::string> m_attachNames;
     int32_t m_attachSelected{ 0 };
+    
+    std::unique_ptr<Patch> m_disableVignettePatch{};
 };
