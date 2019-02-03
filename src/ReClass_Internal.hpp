@@ -360,7 +360,7 @@ class REJointDesc
 public:
     wchar_t* name; //0x0000
     uint32_t nameHash; //0x0008
-    int16_t jointArrayIndex; //0x000C minus 1
+    int16_t parentJoint; //0x000C minus 1
     int16_t jointNumber; //0x000E
     Vector4f offset; //0x0010
     float N000037B4; //0x0020
@@ -378,7 +378,10 @@ class REJoint : public REManagedObject
 public:
     class RETransform* parentTransform; //0x0010
     class REJointDesc* info; //0x0018
-    Matrix3x4f localMatrix; //0x0020
+    Vector4f posOffset; //0x0020
+    Vector3f anglesOffset; //0x0030
+    float N000026BC; //0x003C
+    char pad_0040[16]; //0x0040
     int32_t N00006E8E; //0x0050
     float N00006E97; //0x0054
     float N00006E8F; //0x0058
@@ -410,7 +413,8 @@ public:
     int32_t size; //0x0008
     int32_t numAllocated; //0x000C
     class JointMatrices* matrices; //0x0010
-}; //Size: 0x0018
+    char pad_0018[256]; //0x0018
+}; //Size: 0x0118
 
 class REGameObject : public REManagedObject
 {
@@ -428,7 +432,7 @@ public:
     uint32_t N00000DDA; //0x0048
     float timescale; //0x004C
     char pad_0050[16]; //0x0050
-}; //Size: 0x060
+}; //Size: 0x0060
 
 class REComponent : public REManagedObject
 {
@@ -446,8 +450,8 @@ public:
     Vector4f angles; //0x0040
     Vector4f something; //0x0050
     class REScene* scene; //0x0060
-    class RETransform* transform1; //0x0068
-    class RETransform* transform2; //0x0070
+    class RETransform* firstChildTransform; //0x0068
+    class RETransform* childTransform; //0x0070
     class RETransform* parentTransform; //0x0078
     Matrix4x4f worldTransform; //0x0080
     class N00007EEE* N000007D8; //0x00C0
@@ -459,8 +463,8 @@ public:
     bool N00000817; //0x00D3
     char pad_00D4[4]; //0x00D4
     REJointArray joints; //0x00D8
-    char pad_00F0[8]; //0x00F0
-}; //Size: 0x00F8
+    char pad_01F0[8]; //0x01F0
+}; //Size: 0x01F8
 
 class RECamera : public REComponent
 {
@@ -692,6 +696,15 @@ public:
     char pad_019C[60]; //0x019C
 }; //Size: 0x01D8
 
+class N000026F0
+{
+public:
+    char pad_0000[76]; //0x0000
+    float N0000270E; //0x004C
+    class REJoint* joint; //0x0050
+    char pad_0058[48]; //0x0058
+}; //Size: 0x0088
+
 class N00007C3D
 {
 public:
@@ -713,7 +726,9 @@ public:
 class REMotion : public REComponent
 {
 public:
-    char pad_0030[176]; //0x0030
+    char pad_0030[120]; //0x0030
+    class N000026F0* N0000797C; //0x00A8
+    char pad_00B0[48]; //0x00B0
     uint32_t N00007983; //0x00E0
     uint8_t N000079F6; //0x00E4
     char pad_00E5[115]; //0x00E5
@@ -1006,8 +1021,10 @@ class N00000A27
 {
 public:
     uint16_t ownerType; //0x0000
-    char pad_0002[22]; //0x0002
-    void* N00000A35; //0x0018
+    char pad_0002[2]; //0x0002
+    uint16_t N0000133D; //0x0004
+    uint16_t N00001380; //0x0006
+    char pad_0008[24]; //0x0008
 }; //Size: 0x0020
 
 class SomeGlobalArray
@@ -1118,5 +1135,46 @@ public:
     float N000012CA; //0x0010
     float N000012D7; //0x0014
     float N000012CB; //0x0018
-    char pad_001C[100]; //0x001C
-}; //Size: 0x0080
+    char pad_001C[2148]; //0x001C
+}; //Size: 0x0880
+
+class RERenderLayer : public REManagedObject
+{
+public:
+    char pad_0010[104]; //0x0010
+}; //Size: 0x0078
+
+class RenderTargetState
+{
+public:
+    char pad_0008[56]; //0x0008
+
+    virtual void Function0();
+    virtual void Function1();
+    virtual void Function2();
+    virtual void Function3();
+    virtual void Function4();
+    virtual void Function5();
+    virtual void Function6();
+    virtual void Function7();
+    virtual void Function8();
+    virtual void Function9();
+}; //Size: 0x0040
+
+class RenderBounds
+{
+public:
+    Vector2f top; //0x0000
+    Vector2f bottom; //0x0008
+}; //Size: 0x0010
+
+class RERenderLayerScene : public RERenderLayer
+{
+public:
+    class RECamera* camera; //0x0078
+    char pad_0080[8]; //0x0080
+    class RenderTargetState* targetStates[16]; //0x0088
+    char pad_0108[4544]; //0x0108
+    RenderBounds renderBounds[3]; //0x12C8
+    char pad_12F8[224]; //0x12F8
+}; //Size: 0x13D8

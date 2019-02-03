@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <mutex>
 
 #include "Mod.hpp"
 #include "Patch.hpp"
@@ -12,6 +13,7 @@ public:
     void onFrame() override;
     void onDrawUI() override;
     void onComponent(REComponent* component) override;
+    void onPreUpdateTransform(RETransform* transform) override;
     void onUpdateTransform(RETransform* transform) override;
     void onUpdateCameraController(RopewayPlayerCameraController* controller) override;
     void onUpdateCameraController2(RopewayPlayerCameraController* controller) override;
@@ -27,8 +29,10 @@ private:
     void reset();
     bool updatePointersFromCameraSystem(RopewayCameraSystem* cameraSystem);
     void updateCameraTransform(RETransform* transform);
-    void updatePlayerTransform(RETransform* transform);
+    void updatePlayerBones(RETransform* transform);
     float updateDeltaTime(REComponent* component);
+
+    std::mutex m_matrixMutex{};
 
     std::string m_attachBoneImgui{ "head" };
     std::wstring m_attachBone{ L"head" };
@@ -37,7 +41,8 @@ private:
     // Different "configs" for each model
     std::unordered_map<std::string, Vector4f> m_attachOffsets;
     Matrix4x4f m_rotationOffset{ glm::identity<Matrix4x4f>() };
-    Matrix4x4f m_lastBoneRotation{ glm::identity<Matrix4x4f>() };
+    Matrix4x4f m_interpolatedBone{ glm::identity<Matrix4x4f>() };
+    Matrix4x4f m_lastBoneMatrix{ glm::identity<Matrix4x4f>() };
     Matrix4x4f m_lastCameraMatrix{ glm::identity<Matrix4x4f>() };
     Vector4f m_lastControllerPos{};
     glm::quat m_lastControllerRotation{};

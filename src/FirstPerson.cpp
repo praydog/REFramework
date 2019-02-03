@@ -114,6 +114,38 @@ void FirstPerson::onComponent(REComponent* component) {
     }
 }
 
+thread_local bool g_inPlayerTransform = false;
+thread_local bool g_firstTime = true;
+
+void FirstPerson::onPreUpdateTransform(RETransform* transform) {
+    if (!m_enabled || m_camera == nullptr || m_camera->ownerGameObject == nullptr) {
+        return;
+    }
+
+    if (m_playerCameraController == nullptr || m_playerTransform == nullptr || m_cameraSystem == nullptr || m_cameraSystem->cameraController == nullptr) {
+        return;
+    }
+
+    // can change to action camera
+    if (m_cameraSystem->cameraController->activeCamera != m_playerCameraController) {
+        return;
+    }
+
+    // We need to lock a mutex because these UpdateTransform functions
+    // are called from multiple threads
+    if (transform == m_playerTransform) {
+        g_inPlayerTransform = true;
+        g_firstTime = true;
+        m_matrixMutex.lock();
+    }
+    // This is because UpdateTransform recursively calls UpdateTransform on its children,
+    // and the player transform (topmost) is the one that actually updates the bone matrix,
+    // and all the child transforms operate on the bones that it updated
+    else if (g_inPlayerTransform) {
+        updatePlayerBones(m_playerTransform);
+    }
+}
+
 void FirstPerson::onUpdateTransform(RETransform* transform) {
     if (!m_enabled || m_camera == nullptr || m_camera->ownerGameObject == nullptr) {
         return;
@@ -128,11 +160,12 @@ void FirstPerson::onUpdateTransform(RETransform* transform) {
         return;
     }
 
-    if (transform == m_camera->ownerGameObject->transform) {
-        updateCameraTransform(transform);
+    if (transform == m_playerTransform) {
+        g_inPlayerTransform = false;
+        m_matrixMutex.unlock();
     }
-    else if (transform == m_playerTransform) {
-        updatePlayerTransform(transform);
+    else if (transform == m_camera->ownerGameObject->transform) {
+        updateCameraTransform(transform);
     }
 }
 
@@ -141,11 +174,15 @@ void FirstPerson::onUpdateCameraController(RopewayPlayerCameraController* contro
         return;
     }
 
-    auto& boneMatrix = utility::RETransform::getJointMatrix(*m_playerTransform, m_attachBone);
+    auto boneMatrix = m_lastCameraMatrix * Matrix4x4f{
+        -1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, -1, 0,
+        0, 0, 0, 1
+    };;
 
     auto offset = glm::extractMatrixRotation(boneMatrix) * (m_attachOffsets[m_playerName] * Vector4f{ -0.1f, 0.1f, 0.1f, 0.0f });
-    auto& bonePos = boneMatrix[3];
-    auto finalPos = Vector4f{ bonePos + offset };
+    auto finalPos = Vector4f{ boneMatrix[3] + offset };
 
     // The following code fixes inaccuracies between the rotation set by the game and what's set in updateCameraTransform
     controller->worldPosition = finalPos;
@@ -169,8 +206,9 @@ void FirstPerson::onUpdateCameraController2(RopewayPlayerCameraController* contr
 
 void FirstPerson::reset() {
     m_rotationOffset = glm::identity<decltype(m_rotationOffset)>();
-    m_lastBoneRotation = glm::identity<decltype(m_lastBoneRotation)>();
+    m_interpolatedBone = glm::identity<decltype(m_interpolatedBone)>();
     m_lastCameraMatrix = glm::identity<decltype(m_lastCameraMatrix)>();
+    m_lastBoneMatrix = glm::identity<decltype(m_lastBoneMatrix)>();
     m_lastControllerPos = Vector4f{};
     m_lastControllerRotation = glm::quat{};
     m_updateTimes.clear();
@@ -234,6 +272,8 @@ bool FirstPerson::updatePointersFromCameraSystem(RopewayCameraSystem* cameraSyst
 }
 
 void FirstPerson::updateCameraTransform(RETransform* transform) {
+    std::lock_guard _{ m_matrixMutex };
+
     auto deltaTime = updateDeltaTime(transform);
 
     auto& mtx = transform->worldTransform;
@@ -241,29 +281,36 @@ void FirstPerson::updateCameraTransform(RETransform* transform) {
 
     auto camPos3 = Vector3f{ m_lastControllerPos };
 
-    auto& boneMatrix = utility::RETransform::getJointMatrix(*m_playerTransform, m_attachBone);
+    auto boneMatrix = m_lastCameraMatrix * Matrix4x4f{
+        -1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, -1, 0,
+        0, 0, 0, 1
+    };
+
+    boneMatrix[3] = m_lastBoneMatrix[3];
     auto& bonePos = boneMatrix[3];
 
     auto camRotMat = glm::extractMatrixRotation(Matrix4x4f{ m_lastControllerRotation });
-    auto headRotMat = glm::extractMatrixRotation(boneMatrix);
+    auto headRotMat = glm::extractMatrixRotation(m_lastBoneMatrix);
 
     auto& camForward3 = *(Vector3f*)&camRotMat[2];
 
-    auto offset = headRotMat * (m_attachOffsets[m_playerName] * Vector4f{ -0.1f, 0.1f, 0.1f, 0.0f });
+    auto offset = glm::extractMatrixRotation(boneMatrix) * (m_attachOffsets[m_playerName] * Vector4f{ -0.1f, 0.1f, 0.1f, 0.0f });
     auto finalPos = Vector3f{ bonePos + offset };
 
     // Average the distance to the wanted rotation
-    auto dist = (glm::distance(m_lastBoneRotation[0], headRotMat[0])
-               + glm::distance(m_lastBoneRotation[1], headRotMat[1])
-               + glm::distance(m_lastBoneRotation[2], headRotMat[2])) / 3.0f;
+    auto dist = (glm::distance(m_interpolatedBone[0], headRotMat[0])
+        + glm::distance(m_interpolatedBone[1], headRotMat[1])
+        + glm::distance(m_interpolatedBone[2], headRotMat[2])) / 3.0f;
 
     // interpolate the bone rotation (it's snappy otherwise)
-    m_lastBoneRotation = glm::interpolate(m_lastBoneRotation, headRotMat, deltaTime * m_boneScale * dist);
+    m_interpolatedBone = glm::interpolate(m_interpolatedBone, headRotMat, deltaTime * m_boneScale * dist);
 
     // Look at where the camera is pointing from the head position
     camRotMat = glm::extractMatrixRotation(glm::rowMajor4(glm::lookAtLH(finalPos, camPos3 + (camForward3 * 8192.0f), { 0.0f, 1.0f, 0.0f })));
     // Follow the bone rotation, but rotate towards where the camera is looking.
-    auto wantedMat = glm::inverse(m_lastBoneRotation) * camRotMat;
+    auto wantedMat = glm::inverse(m_interpolatedBone) * camRotMat;
 
     // Average the distance to the wanted rotation
     dist = (glm::distance(m_rotationOffset[0], wantedMat[0])
@@ -271,7 +318,7 @@ void FirstPerson::updateCameraTransform(RETransform* transform) {
           + glm::distance(m_rotationOffset[2], wantedMat[2])) / 3.0f;
 
     m_rotationOffset = glm::interpolate(m_rotationOffset, wantedMat, m_scale * deltaTime * dist);
-    auto finalMat = m_lastBoneRotation * m_rotationOffset;
+    auto finalMat = m_interpolatedBone * m_rotationOffset;
     auto finalQuat = glm::quat{ finalMat };
 
     // Apply the same matrix data to other things stored in-game (positions/quaternions)
@@ -284,10 +331,31 @@ void FirstPerson::updateCameraTransform(RETransform* transform) {
     // Apply the new matrix
     *(Matrix3x4f*)&mtx = finalMat;
     m_lastCameraMatrix = mtx;
+
+    if (transform->joints.size >= 1 && transform->joints.matrices != nullptr) {
+        transform->joints.matrices->data[0].worldMatrix = m_lastCameraMatrix;
+    }
 }
 
-void FirstPerson::updatePlayerTransform(RETransform* transform) {
+void FirstPerson::updatePlayerBones(RETransform* transform) {
     auto deltaTime = updateDeltaTime(transform);
+
+    auto& boneMatrix = utility::RETransform::getJointMatrix(*m_playerTransform, m_attachBone);
+    //
+    if (g_firstTime) {
+        m_lastBoneMatrix = boneMatrix;
+        g_firstTime = false;
+    }
+
+    auto wantedMat = m_lastCameraMatrix * Matrix4x4f{
+        -1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, -1, 0,
+        0, 0, 0, 1
+    };
+
+    *(Matrix3x4f*)&boneMatrix = wantedMat;
+    boneMatrix[3] = m_lastCameraMatrix[3] + (m_lastCameraMatrix[2] * 10.0f);
 }
 
 float FirstPerson::updateDeltaTime(REComponent* component) {
