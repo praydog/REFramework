@@ -19,8 +19,12 @@ PositionHooks::PositionHooks() {
     spdlog::info("PositionHooks");
 }
 
-void* PositionHooks::updateTransformHook_Internal(RETransform* t) {
-    auto ret = m_updateTransformHook->getOriginal<decltype(updateTransformHook)>()(t);
+void* PositionHooks::updateTransformHook_Internal(RETransform* t, uint8_t a2, uint32_t a3) {
+    for (auto& mod : g_framework->getMods().getMods()) {
+        mod->onPreUpdateTransform(t);
+    }
+
+    auto ret = m_updateTransformHook->getOriginal<decltype(updateTransformHook)>()(t, a2, a3);
 
     for (auto& mod : g_framework->getMods().getMods()) {
         mod->onUpdateTransform(t);
@@ -29,8 +33,8 @@ void* PositionHooks::updateTransformHook_Internal(RETransform* t) {
     return ret;
 }
 
-void* PositionHooks::updateTransformHook(RETransform* t) {
-    return g_hook->updateTransformHook_Internal(t);
+void* PositionHooks::updateTransformHook(RETransform* t, uint8_t a2, uint32_t a3) {
+    return g_hook->updateTransformHook_Internal(t, a2, a3);
 }
 
 void* PositionHooks::updateCameraControllerHook_Internal(void* a1, RopewayPlayerCameraController* cameraController) {

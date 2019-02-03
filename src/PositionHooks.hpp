@@ -8,8 +8,8 @@ public:
     PositionHooks();
 
 protected:
-    void* updateTransformHook_Internal(RETransform* t);
-    static void* updateTransformHook(RETransform* t);
+    void* updateTransformHook_Internal(RETransform* t, uint8_t a2, uint32_t a3);
+    static void* updateTransformHook(RETransform* t, uint8_t a2, uint32_t a3);
 
     void* updateCameraControllerHook_Internal(void* a1, RopewayPlayerCameraController* cameraController);
     static void* updateCameraControllerHook(void* a1, RopewayPlayerCameraController* cameraController);

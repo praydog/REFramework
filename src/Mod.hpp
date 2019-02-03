@@ -49,6 +49,7 @@ public:
     virtual void onFrame() {};
     virtual void onDrawUI() {};
 
+    virtual void onPreUpdateTransform(RETransform* transform) {};
     virtual void onUpdateTransform(RETransform* transform) {};
     virtual void onPreUpdateCameraController(RopewayPlayerCameraController* controller) {};
     virtual void onUpdateCameraController(RopewayPlayerCameraController* controller) {};
