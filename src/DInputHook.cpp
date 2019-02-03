@@ -2,6 +2,7 @@
 
 #include <spdlog/spdlog.h>
 
+#include "REFramework.hpp"
 #include "DInputHook.hpp"
 
 using namespace std;
@@ -97,7 +98,14 @@ HRESULT DInputHook::getDeviceState_Internal(IDirectInputDevice* device, DWORD si
         m_doOnce = false;
     }
 
-    return originalGetDeviceState(device, size, data);
+    auto res = originalGetDeviceState(device, size, data);
+
+    // Feed keys back to the framework
+    if (res == DI_OK && !m_isIgnoringInput && data != nullptr) {
+        g_framework->onDirectInputKeys(*(std::array<uint8_t, 256>*)data);
+    }
+
+    return res;
 }
 
 HRESULT WINAPI DInputHook::getDeviceState(IDirectInputDevice* device, DWORD size, LPVOID data) {

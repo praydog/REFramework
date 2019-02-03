@@ -79,18 +79,21 @@ bool REFramework::onMessage(HWND wnd, UINT message, WPARAM wParam, LPARAM lParam
         // If the user is interacting with the UI we block the message from going to the game.
         auto& io = ImGui::GetIO();
 
-        if (io.KeysDown[VK_INSERT] && !m_lastMenuButton) {
-            m_drawUI = !m_drawUI;
-        }
-
-        m_lastMenuButton = io.KeysDown[VK_INSERT];
-
         if (io.WantCaptureMouse || io.WantCaptureKeyboard || io.WantTextInput) {
             return false;
         }
     }
 
     return true;
+}
+
+// this is unfortunate.
+void REFramework::onDirectInputKeys(const std::array<uint8_t, 256>& keys) {
+    if (keys[m_menuKey] && !m_lastKeys[m_menuKey]) {
+        m_drawUI = !m_drawUI;
+    }
+
+    m_lastKeys = keys;
 }
 
 void REFramework::drawUI() {

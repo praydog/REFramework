@@ -22,9 +22,14 @@ public:
         return m_mods;
     }
 
+    const auto& getKeyboardState() const {
+        return m_lastKeys;
+    }
+
     void onFrame();
     void onReset();
     bool onMessage(HWND wnd, UINT message, WPARAM wParam, LPARAM lParam);
+    void onDirectInputKeys(const std::array<uint8_t, 256>& keys);
 
 private:
     void drawUI();
@@ -34,12 +39,13 @@ private:
     void cleanupRenderTarget();
 
     bool m_valid{ false };
-    bool m_lastMenuButton{ false };
     bool m_initialized{ false };
     bool m_drawUI{ true };
 
     HWND m_wnd{ 0 };
+    uint8_t m_menuKey{ DIK_INSERT };
 
+    std::array<uint8_t, 256> m_lastKeys{ 0 };
     std::unique_ptr<D3D11Hook> m_d3d11Hook{};
     std::unique_ptr<WindowsMessageHook> m_windowsMessageHook;
     std::unique_ptr<DInputHook> m_dinputHook;
