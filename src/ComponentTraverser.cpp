@@ -9,6 +9,7 @@
 #include "ComponentTraverser.hpp"
 
 void ComponentTraverser::onDrawUI() {
+#ifndef NDEBUG
     ImGui::Begin("ComponentHook");
 
     if (ImGui::Button("Refresh Components")) {
@@ -18,6 +19,7 @@ void ComponentTraverser::onDrawUI() {
     ImGui::Text("Refresh Count: %i", m_timesRefreshed);
 
     ImGui::End();
+#endif
 }
 
 void ComponentTraverser::onGetMainCamera(RECamera* camera) {
