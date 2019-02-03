@@ -10,8 +10,8 @@
 class Patch {
 public:
     using Ptr = std::unique_ptr<Patch>;
-    static Ptr create(uintptr_t addr, const std::vector<int16_t>& b);
-    static Ptr createNOP(uintptr_t addr, uint32_t length);
+    static Ptr create(uintptr_t addr, const std::vector<int16_t>& b, bool shouldEnable = true);
+    static Ptr createNOP(uintptr_t addr, uint32_t length, bool shouldEnable = true);
 
     static bool patch(uintptr_t address, const std::vector<int16_t>& bytes);
     // Returns the old protection on success.

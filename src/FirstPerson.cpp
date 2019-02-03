@@ -27,7 +27,7 @@ FirstPerson::FirstPerson() {
     // 8B 87 3C 01 00 00 89 83 DC 00 00 00
     // mov eax, [rdi+13Ch], RDI is a SceneInfo I think.
     // Maybe find a way to do it without a patch?
-    m_disableVignettePatch = Patch::create(Address(GetModuleHandle(0)).get(0xFC8B78A), { 0x31, 0xC0, 0x90, 0x90, 0x90, 0x90 });
+    m_disableVignettePatch = Patch::create(Address(GetModuleHandle(0)).get(0xFC8B78A), { 0x31, 0xC0, 0x90, 0x90, 0x90, 0x90 }, m_disableVignette);
     m_sliders["fov"] = ModSlider::create(-90.0f, 90.0f);
 }
 

@@ -4,16 +4,16 @@
 
 using namespace std;
 
-std::unique_ptr<Patch> Patch::create(uintptr_t addr, const std::vector<int16_t>& b) {
-    return std::make_unique<Patch>(addr, b);
+std::unique_ptr<Patch> Patch::create(uintptr_t addr, const std::vector<int16_t>& b, bool shouldEnable) {
+    return std::make_unique<Patch>(addr, b, shouldEnable);
 }
 
 
-std::unique_ptr<Patch> Patch::createNOP(uintptr_t addr, uint32_t length) {
+std::unique_ptr<Patch> Patch::createNOP(uintptr_t addr, uint32_t length, bool shouldEnable) {
     std::vector<decltype(m_bytes)::value_type> bytes; bytes.resize(length);
     std::fill(bytes.begin(), bytes.end(), 0x90);
 
-    return std::make_unique<Patch>(addr, bytes);
+    return std::make_unique<Patch>(addr, bytes, shouldEnable);
 }
 
 bool Patch::patch(uintptr_t address, const vector<int16_t>& bytes) {
