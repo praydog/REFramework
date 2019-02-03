@@ -47,7 +47,7 @@ private:
     Vector4f m_lastControllerPos{};
     glm::quat m_lastControllerRotation{};
 
-    float m_scale{ 30.0f };
+    float m_cameraScale{ 30.0f };
     float m_boneScale{ 15.0f };
 
     RETransform* m_playerTransform{ nullptr };

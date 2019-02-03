@@ -73,9 +73,9 @@ void FirstPerson::onDrawUI() {
         m_disableVignettePatch->toggle(m_disableVignette);
     }
 
-    ImGui::SliderFloat3("offset", (float*)&m_attachOffsets[m_playerName], -2.0f, 2.0f, "%.3f", 1.0f);
-    ImGui::SliderFloat("CameraScale", &m_scale, 0.0f, 250.0f);
-    ImGui::SliderFloat("BoneScale", &m_boneScale, 0.0f, 250.0f);
+    ImGui::SliderFloat3("CameraOffset", (float*)&m_attachOffsets[m_playerName], -2.0f, 2.0f, "%.3f", 1.0f);
+    ImGui::SliderFloat("CameraSpeed", &m_cameraScale, 0.0f, 250.0f);
+    ImGui::SliderFloat("CameraShake", &m_boneScale, 0.0f, 250.0f);
 
     auto& fov = m_sliders["fov"];
 
@@ -360,7 +360,7 @@ void FirstPerson::updateCameraTransform(RETransform* transform) {
           + glm::distance(m_rotationOffset[1], wantedMat[1])
           + glm::distance(m_rotationOffset[2], wantedMat[2])) / 3.0f;
 
-    m_rotationOffset = glm::interpolate(m_rotationOffset, wantedMat, m_scale * deltaTime * dist);
+    m_rotationOffset = glm::interpolate(m_rotationOffset, wantedMat, m_cameraScale * deltaTime * dist);
     auto finalMat = m_interpolatedBone * m_rotationOffset;
     auto finalQuat = glm::quat{ finalMat };
 
