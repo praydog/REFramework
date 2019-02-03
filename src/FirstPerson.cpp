@@ -61,6 +61,7 @@ void FirstPerson::onDrawUI() {
     ImGui::Begin("FirstPerson");
 
     ImGui::Checkbox("Enabled", &m_enabled);
+    ImGui::Checkbox("Hide Joint Mesh", &m_hideMesh);
     ImGui::SliderFloat3("offset", (float*)&m_attachOffsets[m_playerName], -2.0f, 2.0f, "%.3f", 1.0f);
     ImGui::SliderFloat("CameraScale", &m_scale, 0.0f, 250.0f);
     ImGui::SliderFloat("BoneScale", &m_boneScale, 0.0f, 250.0f);
@@ -341,7 +342,7 @@ void FirstPerson::updatePlayerBones(RETransform* transform) {
     auto deltaTime = updateDeltaTime(transform);
 
     auto& boneMatrix = utility::RETransform::getJointMatrix(*m_playerTransform, m_attachBone);
-    //
+    
     if (g_firstTime) {
         m_lastBoneMatrix = boneMatrix;
         g_firstTime = false;
@@ -355,7 +356,13 @@ void FirstPerson::updatePlayerBones(RETransform* transform) {
     };
 
     *(Matrix3x4f*)&boneMatrix = wantedMat;
-    boneMatrix[3] = m_lastCameraMatrix[3] + (m_lastCameraMatrix[2] * 10.0f);
+
+    // Hide the head model by moving it out of view of the camera (and hopefully shadows...)
+    if (m_hideMesh) {
+        boneMatrix[0] = Vector4f{ 0.0f, 0.0f, 0.0f, 0.0f };
+        boneMatrix[1] = Vector4f{ 0.0f, 0.0f, 0.0f, 0.0f };
+        boneMatrix[2] = Vector4f{ 0.0f, 0.0f, 0.0f, 0.0f };
+    }
 }
 
 float FirstPerson::updateDeltaTime(REComponent* component) {

@@ -56,8 +56,7 @@ private:
     RopewayCameraSystem* m_cameraSystem{ nullptr };
 
     bool m_enabled{ true };
-    bool m_inEventCamera{ false };
-    bool m_resetView{ false };
+    bool m_hideMesh{ true };
 
     std::unordered_map<REComponent*, std::chrono::high_resolution_clock::time_point> m_updateTimes;
     std::unordered_map<REComponent*, float> m_deltaTimes;
