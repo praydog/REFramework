@@ -27,7 +27,6 @@ FirstPerson::FirstPerson() {
 
 void FirstPerson::onFrame() {
     if (!m_enabled) {
-        m_camera = nullptr;
         return;
     }
 
@@ -116,7 +115,7 @@ void FirstPerson::onComponent(REComponent* component) {
 }
 
 void FirstPerson::onUpdateTransform(RETransform* transform) {
-    if (m_camera == nullptr || m_camera->ownerGameObject == nullptr) {
+    if (!m_enabled || m_camera == nullptr || m_camera->ownerGameObject == nullptr) {
         return;
     }
 
