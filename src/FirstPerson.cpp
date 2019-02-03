@@ -28,6 +28,7 @@ FirstPerson::FirstPerson() {
     // mov eax, [rdi+13Ch], RDI is a SceneInfo I think.
     // Maybe find a way to do it without a patch?
     m_disableVignettePatch = Patch::create(Address(GetModuleHandle(0)).get(0xFC8B78A), { 0x31, 0xC0, 0x90, 0x90, 0x90, 0x90 });
+    m_sliders["fov"] = ModSlider::create(-90.0f, 90.0f);
 }
 
 void FirstPerson::onFrame() {
@@ -75,6 +76,26 @@ void FirstPerson::onDrawUI() {
     ImGui::SliderFloat3("offset", (float*)&m_attachOffsets[m_playerName], -2.0f, 2.0f, "%.3f", 1.0f);
     ImGui::SliderFloat("CameraScale", &m_scale, 0.0f, 250.0f);
     ImGui::SliderFloat("BoneScale", &m_boneScale, 0.0f, 250.0f);
+
+    auto& fov = m_sliders["fov"];
+
+    // Set FOV
+    if (m_cameraSystem != nullptr 
+        && m_cameraSystem->cameraController != nullptr
+        && m_cameraSystem->cameraController->cameraParam != nullptr
+        && m_cameraSystem->cameraController->activeCamera == m_playerCameraController)
+    {
+        auto param = m_cameraSystem->cameraController->cameraParam;
+
+        if (ImGui::SliderFloat("FOV Offset", &fov->value, fov->minValue, fov->maxValue)) {
+            param->useParam = false;
+            m_playerCameraController->fov = param->fov + fov->value;
+        }
+    }
+
+    if (m_playerCameraController != nullptr) {
+        ImGui::Text("CurFOV: %f", m_playerCameraController->fov);
+    }
 
     if (ImGui::InputText("Joint", m_attachBoneImgui.data(), 256)) {
         m_attachBone = std::wstring{ std::begin(m_attachBoneImgui), std::end(m_attachBoneImgui) };
@@ -204,6 +225,20 @@ void FirstPerson::onUpdateCameraController(RopewayPlayerCameraController* contro
 void FirstPerson::onUpdateCameraController2(RopewayPlayerCameraController* controller) {
     if (!m_enabled || controller->activeCamera != m_playerCameraController || m_playerTransform == nullptr) {
         return;
+    }
+
+    // Just update the FOV in here. Whatever.
+    auto& fov = m_sliders["fov"];
+    auto param = controller->cameraParam;
+
+    if (param != nullptr) {
+        if (fov->value != 0.0f) {
+            m_playerCameraController->fov = param->fov + fov->value;
+            param->useParam = false;
+        }
+        else {
+            param->useParam = true;
+        }
     }
 
     // Save the original position and rotation before our modifications.

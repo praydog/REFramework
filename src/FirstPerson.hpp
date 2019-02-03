@@ -57,7 +57,7 @@ private:
 
     bool m_enabled{ true };
     bool m_hideMesh{ true };
-    bool m_disableVignette{ true };
+    bool m_disableVignette{ false };
 
     std::unordered_map<REComponent*, std::chrono::high_resolution_clock::time_point> m_updateTimes;
     std::unordered_map<REComponent*, float> m_deltaTimes;
