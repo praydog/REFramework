@@ -44,26 +44,6 @@ void FirstPerson::onFrame() {
         reset();
         return;
     }
-
-    if (!updatePointersFromCameraSystem(m_cameraSystem)) {
-        reset();
-        return;
-    }
-
-    if (m_attachNames.empty()) {
-        auto& joints = m_playerTransform->joints;
-
-        for (int32_t i = 0; joints.data != nullptr && i < joints.size; ++i) {
-            auto joint = joints.data->joints[i];
-
-            if (joint == nullptr || joint->info == nullptr || joint->info->name == nullptr) {
-                continue;
-            }
-
-            auto name = std::wstring{ joint->info->name };
-            m_attachNames.push_back(std::string{ std::begin(name), std::end(name) }.c_str());
-        }
-    }
 }
 
 void FirstPerson::onDrawUI() {
@@ -71,6 +51,8 @@ void FirstPerson::onDrawUI() {
         ImGui::SetNextTreeNodeOpen(true);
         m_firstTime = false;
     }
+
+    std::lock_guard _{ m_frameMutex };
 
     if (!ImGui::CollapsingHeader("FirstPerson")) {
         return;
@@ -188,7 +170,18 @@ void FirstPerson::onPreUpdateTransform(RETransform* transform) {
 }
 
 void FirstPerson::onUpdateTransform(RETransform* transform) {
-    if (!m_enabled || m_camera == nullptr || m_camera->ownerGameObject == nullptr) {
+    if (!m_enabled) {
+        return;
+    }
+
+    if (m_cameraSystem != nullptr && m_cameraSystem->ownerGameObject != nullptr && transform == m_cameraSystem->ownerGameObject->transform) {
+        if (!updatePointersFromCameraSystem(m_cameraSystem)) {
+            reset();
+            return;
+        }
+    }
+
+    if (m_camera == nullptr || m_camera->ownerGameObject == nullptr) {
         return;
     }
 
@@ -202,6 +195,8 @@ void FirstPerson::onUpdateTransform(RETransform* transform) {
     }
 
     if (transform == m_playerTransform) {
+        updateJointNames();
+
         g_inPlayerTransform = false;
         m_matrixMutex.unlock();
     }
@@ -257,6 +252,9 @@ void FirstPerson::reset() {
     m_lastControllerRotation = glm::quat{};
     m_updateTimes.clear();
     m_deltaTimes.clear();
+
+    std::lock_guard _{ m_frameMutex };
+    m_attachNames.clear();
 }
 
 bool FirstPerson::updatePointersFromCameraSystem(RopewayCameraSystem* cameraSystem) {
@@ -441,6 +439,25 @@ void FirstPerson::updateFOV(RopewayPlayerCameraController* controller) {
         
         // Causes the camera to ignore the FOV inside the param
         param->useParam = !m_enabled;
+    }
+}
+
+void FirstPerson::updateJointNames() {
+    if (m_playerTransform == nullptr || !m_attachNames.empty()) {
+        return;
+    }
+
+    auto& joints = m_playerTransform->joints;
+
+    for (int32_t i = 0; joints.data != nullptr && i < joints.size; ++i) {
+        auto joint = joints.data->joints[i];
+
+        if (joint == nullptr || joint->info == nullptr || joint->info->name == nullptr) {
+            continue;
+        }
+
+        auto name = std::wstring{ joint->info->name };
+        m_attachNames.push_back(std::string{ std::begin(name), std::end(name) }.c_str());
     }
 }
 

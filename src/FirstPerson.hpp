@@ -31,9 +31,11 @@ private:
     void updateCameraTransform(RETransform* transform);
     void updatePlayerBones(RETransform* transform);
     void updateFOV(RopewayPlayerCameraController* controller);
+    void updateJointNames();
     float updateDeltaTime(REComponent* component);
 
     std::mutex m_matrixMutex{};
+    std::mutex m_frameMutex{};
 
     std::string m_attachBoneImgui{ "head" };
     std::wstring m_attachBone{ L"head" };
