@@ -52,11 +52,11 @@ void FirstPerson::onDrawUI() {
         m_firstTime = false;
     }
 
-    std::lock_guard _{ m_frameMutex };
-
     if (!ImGui::CollapsingHeader("FirstPerson")) {
         return;
     }
+
+    std::lock_guard _{ m_frameMutex };
 
     if (ImGui::Checkbox("Enabled", &m_enabled)) {
         // Disable fov changes
@@ -99,7 +99,6 @@ void FirstPerson::onDrawUI() {
 
     if (ImGui::InputText("Joint", m_attachBoneImgui.data(), 256)) {
         m_attachBone = std::wstring{ std::begin(m_attachBoneImgui), std::end(m_attachBoneImgui) };
-        reset();
     }
 
     static auto listBoxHandler = [](void* data, int idx, const char** outText) -> bool {
@@ -109,7 +108,6 @@ void FirstPerson::onDrawUI() {
     if (ImGui::ListBox("Joints", &m_attachSelected, listBoxHandler, &m_attachNames, (int32_t)m_attachNames.size())) {
         m_attachBoneImgui = m_attachNames[m_attachSelected];
         m_attachBone = std::wstring{ std::begin(m_attachNames[m_attachSelected]), std::end(m_attachNames[m_attachSelected]) };
-        reset();
     }
 }
 
