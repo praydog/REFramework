@@ -4,39 +4,83 @@
 #include <unordered_map>
 #include <memory>
 
+#include <imgui/imgui.h>
+
 #include "ReClass.hpp"
 
+// Convenience classes for imgui
 template <typename T>
 struct ModValue {
     using Ptr = std::unique_ptr<ModValue<T>>;
 
-    static ModValue::Ptr create() {
-        return std::make_unique<ModValue<T>>();
+    static ModValue::Ptr create(T defaultValue = T{}) {
+        return std::make_unique<ModValue<T>>(defaultValue);
     }
 
+    ModValue(T defaultValue) : value{ defaultValue } {}
+    virtual ~ModValue() {};
+    virtual bool draw(std::string_view name) = 0;
+    virtual void drawValue(std::string_view name) = 0;
+
     operator T() {
-        return value;
+        return this->value;
     }
 
     T value{};
 };
 
 struct ModToggle : public ModValue<bool> {
+    ModToggle(bool defaultValue) : ModValue<bool>{ defaultValue } { }
 
-};
-
-struct ModSlider : public ModValue<float> {
-    using Ptr = std::unique_ptr<ModSlider>;
-
-    static ModSlider::Ptr create(float mn = 0.0f, float mx = 1.0f) {
-        return std::make_unique<ModSlider>(mn, mx);
+    static ModToggle::Ptr create(bool defaultValue = false) {
+        return std::make_unique<ModToggle>(defaultValue);
     }
 
-    ModSlider(float mn = 0.0f, float mx = 1.0f)
-        : minValue{ mn },
+    bool draw(std::string_view name) override {
+        return ImGui::Checkbox(name.data(), &this->value);
+    }
+
+    void drawValue(std::string_view name) override {
+        ImGui::Text("%s: %i", name.data(), this->value);
+    }
+};
+
+struct ModFloat : public ModValue<float> {
+    ModFloat(float defaultValue) : ModValue<float>{ defaultValue } { }
+
+    static ModFloat::Ptr create(float defaultValue = 0.0f) {
+        return std::make_unique<ModFloat>(defaultValue);
+    }
+
+    bool draw(std::string_view name) override {
+        return ImGui::InputFloat(name.data(), &this->value);
+    }
+
+    void drawValue(std::string_view name) override {
+        ImGui::Text("%s: %f", name.data(), this->value);
+    }
+};
+
+struct ModSlider : public ModFloat {
+    using Ptr = std::unique_ptr<ModSlider>;
+
+    static ModSlider::Ptr create(float mn = 0.0f, float mx = 1.0f, float defaultValue = 0.0f) {
+        return std::make_unique<ModSlider>(mn, mx, defaultValue);
+    }
+
+    ModSlider(float mn = 0.0f, float mx = 1.0f, float defaultValue = 0.0f)
+        : ModFloat{ defaultValue },
+        minValue{ mn },
         maxValue{ mx }
     {
+    }
 
+    bool draw(std::string_view name) override {
+        return ImGui::SliderFloat(name.data(), &this->value, this->minValue, this->maxValue);
+    }
+
+    void drawValue(std::string_view name) override {
+        ImGui::Text("%s: %f [%f, %f]", name.data(), this->value, this->minValue, this->maxValue);
     }
 
     float minValue{ 0.0f };
@@ -49,6 +93,7 @@ public:
     virtual void onFrame() {};
     virtual void onDrawUI() {};
 
+    // Game-specific callbacks
     virtual void onPreUpdateTransform(RETransform* transform) {};
     virtual void onUpdateTransform(RETransform* transform) {};
     virtual void onPreUpdateCameraController(RopewayPlayerCameraController* controller) {};

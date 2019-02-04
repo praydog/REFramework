@@ -29,6 +29,7 @@ FirstPerson::FirstPerson() {
     // Maybe find a way to do it without a patch?
     m_disableVignettePatch = Patch::create(Address(GetModuleHandle(0)).get(0xFC8B78A), { 0x31, 0xC0, 0x90, 0x90, 0x90, 0x90 }, m_disableVignette);
     m_sliders["fov"] = ModSlider::create(-90.0f, 90.0f);
+    m_currentFov = ModFloat::create();
 }
 
 void FirstPerson::onFrame() {
@@ -64,13 +65,25 @@ void FirstPerson::onFrame() {
 }
 
 void FirstPerson::onDrawUI() {
-    ImGui::Begin("FirstPerson");
+    if (m_firstTime) {
+        ImGui::SetNextTreeNodeOpen(true);
+        m_firstTime = false;
+    }
+
+    if (!ImGui::CollapsingHeader("FirstPerson")) {
+        return;
+    }
 
     ImGui::Checkbox("Enabled", &m_enabled);
     ImGui::Checkbox("Hide Joint Mesh", &m_hideMesh);
 
     if (ImGui::Checkbox("Disable Vignette", &m_disableVignette)) {
         m_disableVignettePatch->toggle(m_disableVignette);
+    }
+
+
+    if (ImGui::Button("Refresh Joints")) {
+        m_attachNames.clear();
     }
 
     ImGui::SliderFloat3("CameraOffset", (float*)&m_attachOffsets[m_playerName], -2.0f, 2.0f, "%.3f", 1.0f);
@@ -87,23 +100,18 @@ void FirstPerson::onDrawUI() {
     {
         auto param = m_cameraSystem->cameraController->cameraParam;
 
-        if (ImGui::SliderFloat("FOV Offset", &fov->value, fov->minValue, fov->maxValue)) {
+        if (fov->draw("FOVOffset")) {
             param->useParam = false;
             m_playerCameraController->fov = param->fov + fov->value;
         }
-    }
 
-    if (m_playerCameraController != nullptr) {
-        ImGui::Text("CurFOV: %f", m_playerCameraController->fov);
+        m_currentFov->value = m_playerCameraController->fov;
+        m_currentFov->draw("CurrentFOV");
     }
 
     if (ImGui::InputText("Joint", m_attachBoneImgui.data(), 256)) {
         m_attachBone = std::wstring{ std::begin(m_attachBoneImgui), std::end(m_attachBoneImgui) };
         reset();
-    }
-
-    if (ImGui::Button("Refresh Joints")) {
-        m_attachNames.clear();
     }
 
     static auto listBoxHandler = [](void* data, int idx, const char** outText) -> bool {
@@ -116,7 +124,7 @@ void FirstPerson::onDrawUI() {
         reset();
     }
 
-    ImGui::End();
+    ImGui::TreePop();
 }
 
 void FirstPerson::onComponent(REComponent* component) {
@@ -229,9 +237,8 @@ void FirstPerson::onUpdateCameraController2(RopewayPlayerCameraController* contr
 
     // Just update the FOV in here. Whatever.
     auto& fov = m_sliders["fov"];
-    auto param = controller->cameraParam;
 
-    if (param != nullptr) {
+    if (auto param = controller->cameraParam) {
         if (fov->value != 0.0f) {
             m_playerCameraController->fov = param->fov + fov->value;
             param->useParam = false;
@@ -344,8 +351,8 @@ void FirstPerson::updateCameraTransform(RETransform* transform) {
 
     // Average the distance to the wanted rotation
     auto dist = (glm::distance(m_interpolatedBone[0], headRotMat[0])
-        + glm::distance(m_interpolatedBone[1], headRotMat[1])
-        + glm::distance(m_interpolatedBone[2], headRotMat[2])) / 3.0f;
+               + glm::distance(m_interpolatedBone[1], headRotMat[1])
+               + glm::distance(m_interpolatedBone[2], headRotMat[2])) / 3.0f;
 
     // interpolate the bone rotation (it's snappy otherwise)
     m_interpolatedBone = glm::interpolate(m_interpolatedBone, headRotMat, deltaTime * m_boneScale * dist);

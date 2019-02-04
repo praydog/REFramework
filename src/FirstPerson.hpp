@@ -58,6 +58,8 @@ private:
     bool m_enabled{ true };
     bool m_hideMesh{ true };
     bool m_disableVignette{ false };
+    bool m_wasDifferentCamera{ false };
+    bool m_firstTime{ true };
 
     std::unordered_map<REComponent*, std::chrono::high_resolution_clock::time_point> m_updateTimes;
     std::unordered_map<REComponent*, float> m_deltaTimes;
@@ -66,4 +68,6 @@ private:
     int32_t m_attachSelected{ 0 };
     
     std::unique_ptr<Patch> m_disableVignettePatch{};
+
+    ModFloat::Ptr m_currentFov{};
 };

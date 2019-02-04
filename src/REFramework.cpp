@@ -114,7 +114,12 @@ void REFramework::drawUI() {
 
     ImGui::GetIO().MouseDrawCursor = true;
 
+    ImGui::Begin("REFramework", &m_drawUI, ImVec2{ 300, 500 });
+    ImGui::Text("Menu Key: Insert");
+
     m_mods.onDrawUI();
+
+    ImGui::End();
 }
 
 bool REFramework::initialize() {
