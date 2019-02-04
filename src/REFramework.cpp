@@ -12,12 +12,13 @@ IMGUI_IMPL_API LRESULT  ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPAR
 
 std::unique_ptr<REFramework> g_framework{};
 
-REFramework::REFramework() 
+REFramework::REFramework()
     : m_logger{ spdlog::basic_logger_mt("REFramework", "re2_framework_log.txt", true) },
+    m_gameModule{ GetModuleHandle(0) },
     m_mods{}
 {
-    spdlog::flush_on(spdlog::level::info);
     spdlog::set_default_logger(m_logger);
+    spdlog::flush_on(spdlog::level::info);
     spdlog::info("REFramework entry");
 
 #ifdef DEBUG
@@ -129,36 +130,24 @@ void REFramework::drawAbout() {
 
     ImGui::TreePush("About");
 
-    ImGui::Bullet();
     ImGui::Text("Author: praydog");
-
-    ImGui::Bullet();
     ImGui::Text("Inspired by the Kanan project.");
-
-    ImGui::Bullet();
+    ImGui::Text("https://github.com/praydog/RE2-Mod-Framework");
 
     if (ImGui::CollapsingHeader("Licenses")) {
         ImGui::TreePush("Licenses");
-
-        ImGui::Bullet();
 
         if (ImGui::CollapsingHeader("glm")) {
             ImGui::TextWrapped(license::glm);
         }
 
-        ImGui::Bullet();
-
         if (ImGui::CollapsingHeader("imgui")) {
             ImGui::TextWrapped(license::imgui);
         }
 
-        ImGui::Bullet();
-
         if (ImGui::CollapsingHeader("minhook")) {
             ImGui::TextWrapped(license::minhook);
         }
-
-        ImGui::Bullet();
 
         if (ImGui::CollapsingHeader("spdlog")) {
             ImGui::TextWrapped(license::spdlog);
@@ -223,6 +212,11 @@ bool REFramework::initialize() {
     }
 
     ImGui::StyleColorsDark();
+
+    if (m_firstFrame) {
+        m_mods.onInitialize();
+        m_firstFrame = false;
+    }
 
     return true;
 }

@@ -7,6 +7,9 @@ class PositionHooks : public Mod {
 public:
     PositionHooks();
 
+    std::string_view getName() const override { return "PositionHooks"; };
+    void onInitialize() override;
+
 protected:
     void* updateTransformHook_Internal(RETransform* t, uint8_t a2, uint32_t a3);
     static void* updateTransformHook(RETransform* t, uint8_t a2, uint32_t a3);

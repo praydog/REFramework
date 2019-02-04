@@ -24,14 +24,17 @@ FirstPerson::FirstPerson() {
     // Hunk
     m_attachOffsets["pl4000"] = Vector4f{ -0.26f, 0.435f, 1.0f, 0.0f };
 
-    // 8B 87 3C 01 00 00 89 83 DC 00 00 00
-    // mov eax, [rdi+13Ch], RDI is a SceneInfo I think.
-    // Maybe find a way to do it without a patch?
-    m_disableVignettePatch = Patch::create(Address(GetModuleHandle(0)).get(0xFC8B78A), { 0x31, 0xC0, 0x90, 0x90, 0x90, 0x90 }, m_disableVignette);
     m_sliders["fov"] = ModSlider::create(-100.0f, 100.0f, 10.0f);
     m_sliders["fovmult"] = ModSlider::create(0.0f, 2.0f, 1.0f);
     m_currentFov = ModFloat::create();
     m_lastFovMult = m_sliders["fovmult"]->value;
+}
+
+void FirstPerson::onInitialize() {
+    // 8B 87 3C 01 00 00 89 83 DC 00 00 00
+    // mov eax, [rdi+13Ch], RDI is a SceneInfo I think.
+    // Maybe find a way to do it without a patch?
+    m_disableVignettePatch = Patch::create(g_framework->getModule().get(0xFC8B78A), { 0x31, 0xC0, 0x90, 0x90, 0x90, 0x90 }, m_disableVignette);
 }
 
 void FirstPerson::onFrame() {
@@ -378,8 +381,6 @@ void FirstPerson::updateCameraTransform(RETransform* transform) {
 }
 
 void FirstPerson::updatePlayerBones(RETransform* transform) {
-    auto deltaTime = updateDeltaTime(transform);
-
     auto& boneMatrix = utility::RETransform::getJointMatrix(*m_playerTransform, m_attachBone);
     
     if (g_firstTime) {

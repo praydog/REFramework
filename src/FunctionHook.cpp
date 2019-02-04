@@ -1,3 +1,4 @@
+#include <spdlog/spdlog.h>
 #include <MinHook.h>
 
 #include "FunctionHook.hpp"
@@ -12,6 +13,8 @@ FunctionHook::FunctionHook(Address target, Address destination)
     m_destination{ 0 },
     m_original{ 0 }
 {
+    spdlog::info("Attempting to hook {:p}->{:p}", target.ptr(), destination.ptr());
+
     // Initialize MinHook if it hasn't been already.
     if (!g_isMinHookInitialized && MH_Initialize() == MH_OK) {
         g_isMinHookInitialized = true;
@@ -27,6 +30,10 @@ FunctionHook::FunctionHook(Address target, Address destination)
         m_target = target;
         m_destination = destination;
         m_original = original;
+        spdlog::info("Hooked {:p}->{:p}", target.ptr(), destination.ptr());
+    }
+    else {
+        spdlog::error("Failed to hook {:p}", target.ptr());
     }
 }
 

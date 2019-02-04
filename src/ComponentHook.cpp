@@ -11,7 +11,10 @@ ComponentHook* g_hook = nullptr;
 
 ComponentHook::ComponentHook() {
     g_hook = this;
-    m_getMainCameraHook = std::make_unique<FunctionHook>(Address(GetModuleHandle(0)).get(0xEE2C740), &getMainCameraHook);
+}
+
+void ComponentHook::onInitialize() {
+    m_getMainCameraHook = std::make_unique<FunctionHook>(g_framework->getModule().get(0xEE2C740), &getMainCameraHook);
 }
 
 RECamera* ComponentHook::getMainCameraHook_Internal(void* a1) {

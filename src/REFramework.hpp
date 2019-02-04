@@ -26,6 +26,10 @@ public:
         return m_lastKeys;
     }
 
+    Address getModule() const {
+        return m_gameModule;
+    }
+
     void onFrame();
     void onReset();
     bool onMessage(HWND wnd, UINT message, WPARAM wParam, LPARAM lParam);
@@ -39,11 +43,13 @@ private:
     void createRenderTarget();
     void cleanupRenderTarget();
 
+    bool m_firstFrame{ true };
     bool m_valid{ false };
     bool m_initialized{ false };
     bool m_drawUI{ true };
 
     HWND m_wnd{ 0 };
+    HMODULE m_gameModule{ 0 };
     uint8_t m_menuKey{ DIK_INSERT };
 
     std::array<uint8_t, 256> m_lastKeys{ 0 };

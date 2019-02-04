@@ -7,6 +7,8 @@
 // Calls Mod::onComponent for each entity/component
 class ComponentTraverser : public Mod {
 public:
+    std::string_view getName() const override { return "ComponentTraverser"; };
+
     void onDrawUI() override;
     void onGetMainCamera(RECamera* camera) override;
     void refresh();

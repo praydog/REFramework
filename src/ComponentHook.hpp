@@ -10,6 +10,9 @@ class ComponentHook : public Mod {
 public:
     ComponentHook();
 
+    std::string_view getName() const override { return "ComponentHook"; }
+    void onInitialize() override;
+
 protected:
     RECamera* getMainCameraHook_Internal(void* a1);
     static RECamera* getMainCameraHook(void* a1);

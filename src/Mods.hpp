@@ -8,6 +8,8 @@ public:
     Mods();
     virtual ~Mods() {}
 
+    void onInitialize() const;
+
     void onFrame() const;
     void onDrawUI() const;
 
