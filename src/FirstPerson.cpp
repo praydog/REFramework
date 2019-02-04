@@ -90,17 +90,15 @@ void FirstPerson::onDrawUI() {
     ImGui::SliderFloat("CameraSpeed", &m_cameraScale, 0.0f, 250.0f);
     ImGui::SliderFloat("CameraShake", &m_boneScale, 0.0f, 250.0f);
 
-    auto& fov = m_sliders["fov"];
+    if (m_playerCameraController != nullptr) {
+        auto& fov = m_sliders["fov"];
+        auto isActiveCamera = m_cameraSystem != nullptr
+            && m_cameraSystem->cameraController != nullptr
+            && m_cameraSystem->cameraController->cameraParam != nullptr
+            && m_cameraSystem->cameraController->activeCamera == m_playerCameraController;
 
-    // Set FOV
-    if (m_cameraSystem != nullptr 
-        && m_cameraSystem->cameraController != nullptr
-        && m_cameraSystem->cameraController->cameraParam != nullptr
-        && m_cameraSystem->cameraController->activeCamera == m_playerCameraController)
-    {
-        auto param = m_cameraSystem->cameraController->cameraParam;
-
-        if (fov->draw("FOVOffset")) {
+        if (fov->draw("FOVOffset") && isActiveCamera) {
+            auto param = m_cameraSystem->cameraController->cameraParam;
             param->useParam = false;
             m_playerCameraController->fov = param->fov + fov->value;
         }
