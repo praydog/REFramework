@@ -24,13 +24,16 @@ void startupThread() {
     freopen("CONOUT$", "w", stderr);
 #endif
 
-    char buffer[MAX_PATH]{ 0 };
-    GetSystemDirectory(buffer, MAX_PATH);
-    
-    // Load the original dinput8.dll
-    g_dinput = LoadLibrary((std::string{ buffer } + "\\dinput8.dll").c_str());
-
-    g_framework = std::make_unique<REFramework>();
+    wchar_t buffer[MAX_PATH]{ 0 };
+    if (GetSystemDirectoryW(buffer, MAX_PATH) != 0) {
+        // Load the original dinput8.dll
+        g_dinput = LoadLibraryW((std::wstring{ buffer } + L"\\dinput8.dll").c_str());
+        g_framework = std::make_unique<REFramework>();
+    }
+    else {
+        MessageBox(0, "REFramework: Unable to load the original dinput8.dll. Please report this to the developer.", "REFramework", 0);
+        ExitProcess(0);
+    }
 }
 
 BOOL APIENTRY DllMain(HANDLE handle, DWORD reason, LPVOID reserved) {
