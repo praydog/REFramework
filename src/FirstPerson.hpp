@@ -30,6 +30,7 @@ private:
     bool updatePointersFromCameraSystem(RopewayCameraSystem* cameraSystem);
     void updateCameraTransform(RETransform* transform);
     void updatePlayerBones(RETransform* transform);
+    void updateFOV(RopewayPlayerCameraController* controller);
     float updateDeltaTime(REComponent* component);
 
     std::mutex m_matrixMutex{};
@@ -47,8 +48,9 @@ private:
     Vector4f m_lastControllerPos{};
     glm::quat m_lastControllerRotation{};
 
-    float m_cameraScale{ 30.0f };
+    float m_cameraScale{ 40.0f };
     float m_boneScale{ 15.0f };
+    float m_lastFovMult{ 0.0f };
 
     RETransform* m_playerTransform{ nullptr };
     RECamera* m_camera{ nullptr };

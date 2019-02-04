@@ -16,20 +16,22 @@ FirstPerson::FirstPerson() {
 
     // Specific player model configs
     // Leon
-    m_attachOffsets["pl0000"] = Vector4f{ -0.26f, 0.435f, 1.25f, 0.0f };
+    m_attachOffsets["pl0000"] = Vector4f{ -0.26f, 0.435f, 1.0f, 0.0f };
     // Claire
     m_attachOffsets["pl1000"] = Vector4f{ -0.23f, 0.4f, 1.0f, 0.0f };
     // Sherry
     m_attachOffsets["pl3000"] = Vector4f{ -0.278f, 0.435f, 0.945f, 0.0f };
     // Hunk
-    m_attachOffsets["pl4000"] = Vector4f{ -0.26f, 0.435f, 1.25f, 0.0f };
+    m_attachOffsets["pl4000"] = Vector4f{ -0.26f, 0.435f, 1.0f, 0.0f };
 
     // 8B 87 3C 01 00 00 89 83 DC 00 00 00
     // mov eax, [rdi+13Ch], RDI is a SceneInfo I think.
     // Maybe find a way to do it without a patch?
     m_disableVignettePatch = Patch::create(Address(GetModuleHandle(0)).get(0xFC8B78A), { 0x31, 0xC0, 0x90, 0x90, 0x90, 0x90 }, m_disableVignette);
-    m_sliders["fov"] = ModSlider::create(-90.0f, 90.0f);
+    m_sliders["fov"] = ModSlider::create(-100.0f, 100.0f, 10.0f);
+    m_sliders["fovmult"] = ModSlider::create(0.0f, 2.0f, 1.0f);
     m_currentFov = ModFloat::create();
+    m_lastFovMult = m_sliders["fovmult"]->value;
 }
 
 void FirstPerson::onFrame() {
@@ -74,7 +76,13 @@ void FirstPerson::onDrawUI() {
         return;
     }
 
-    ImGui::Checkbox("Enabled", &m_enabled);
+    if (ImGui::Checkbox("Enabled", &m_enabled)) {
+        // Disable fov changes
+        if (!m_enabled && m_cameraSystem != nullptr) {
+            updateFOV(m_cameraSystem->cameraController);
+        }
+    }
+
     ImGui::Checkbox("Hide Joint Mesh", &m_hideMesh);
 
     if (ImGui::Checkbox("Disable Vignette", &m_disableVignette)) {
@@ -92,15 +100,15 @@ void FirstPerson::onDrawUI() {
 
     if (m_playerCameraController != nullptr) {
         auto& fov = m_sliders["fov"];
-        auto isActiveCamera = m_cameraSystem != nullptr
-            && m_cameraSystem->cameraController != nullptr
-            && m_cameraSystem->cameraController->cameraParam != nullptr
-            && m_cameraSystem->cameraController->activeCamera == m_playerCameraController;
+        auto& fovMult = m_sliders["fovmult"];
 
-        if (fov->draw("FOVOffset") && isActiveCamera) {
-            auto param = m_cameraSystem->cameraController->cameraParam;
-            param->useParam = false;
-            m_playerCameraController->fov = param->fov + fov->value;
+        if (fov->draw("FOVOffset")) {
+            updateFOV(m_cameraSystem->cameraController);
+        }
+
+        if (fovMult->draw("FOVMultiplier")) {
+            updateFOV(m_cameraSystem->cameraController);
+            m_lastFovMult = fovMult->value;
         }
 
         m_currentFov->value = m_playerCameraController->fov;
@@ -234,17 +242,7 @@ void FirstPerson::onUpdateCameraController2(RopewayPlayerCameraController* contr
     }
 
     // Just update the FOV in here. Whatever.
-    auto& fov = m_sliders["fov"];
-
-    if (auto param = controller->cameraParam) {
-        if (fov->value != 0.0f) {
-            m_playerCameraController->fov = param->fov + fov->value;
-            param->useParam = false;
-        }
-        else {
-            param->useParam = true;
-        }
-    }
+    updateFOV(controller);
 
     // Save the original position and rotation before our modifications.
     // If we don't, the camera rotation will freeze up, because it keeps getting overwritten.
@@ -409,6 +407,42 @@ void FirstPerson::updatePlayerBones(RETransform* transform) {
         boneMatrix[0] = Vector4f{ 0.0f, 0.0f, 0.0f, 0.0f };
         boneMatrix[1] = Vector4f{ 0.0f, 0.0f, 0.0f, 0.0f };
         boneMatrix[2] = Vector4f{ 0.0f, 0.0f, 0.0f, 0.0f };
+    }
+}
+
+void FirstPerson::updateFOV(RopewayPlayerCameraController* controller) {
+    if (controller == nullptr) {
+        return;
+    }
+
+    auto isActiveCamera = m_cameraSystem != nullptr
+        && m_cameraSystem->cameraController != nullptr
+        && m_cameraSystem->cameraController->cameraParam != nullptr
+        && m_cameraSystem->cameraController->activeCamera == m_playerCameraController;
+
+    if (!isActiveCamera) { 
+        return; 
+    }
+
+    if (auto param = controller->cameraParam; param != nullptr) {
+        auto& fov = m_sliders["fov"];
+        auto& fovMult = m_sliders["fovmult"];
+
+        auto newValue = (param->fov * fovMult->value) + fov->value;
+
+        if (fovMult->value != m_lastFovMult) {
+            auto prevValue = (param->fov * m_lastFovMult) + fov->value;
+            auto delta = prevValue - newValue;
+
+            fov->value += delta;
+            m_playerCameraController->fov = (param->fov * fovMult->value) + fov->value;
+        }
+        else {
+            m_playerCameraController->fov = newValue;
+        }
+        
+        // Causes the camera to ignore the FOV inside the param
+        param->useParam = !m_enabled;
     }
 }
 
