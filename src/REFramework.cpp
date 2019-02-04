@@ -4,8 +4,7 @@
 #include <imgui/examples/imgui_impl_win32.h>
 #include <imgui/examples/imgui_impl_dx11.h>
 
-#include "ReClass.hpp"
-
+#include "LicenseStrings.hpp"
 #include "REFramework.hpp"
 
 // Commented out in original ImGui code
@@ -117,9 +116,58 @@ void REFramework::drawUI() {
     ImGui::Begin("REFramework", &m_drawUI, ImVec2{ 300, 500 });
     ImGui::Text("Menu Key: Insert");
 
+    drawAbout();
     m_mods.onDrawUI();
 
     ImGui::End();
+}
+
+void REFramework::drawAbout() {
+    if (!ImGui::CollapsingHeader("About")) {
+        return;
+    }
+
+    ImGui::TreePush("About");
+
+    ImGui::Bullet();
+    ImGui::Text("Author: praydog");
+
+    ImGui::Bullet();
+    ImGui::Text("Inspired by the Kanan project.");
+
+    ImGui::Bullet();
+
+    if (ImGui::CollapsingHeader("Licenses")) {
+        ImGui::TreePush("Licenses");
+
+        ImGui::Bullet();
+
+        if (ImGui::CollapsingHeader("glm")) {
+            ImGui::TextWrapped(license::glm);
+        }
+
+        ImGui::Bullet();
+
+        if (ImGui::CollapsingHeader("imgui")) {
+            ImGui::TextWrapped(license::imgui);
+        }
+
+        ImGui::Bullet();
+
+        if (ImGui::CollapsingHeader("minhook")) {
+            ImGui::TextWrapped(license::minhook);
+        }
+
+        ImGui::Bullet();
+
+        if (ImGui::CollapsingHeader("spdlog")) {
+            ImGui::TextWrapped(license::spdlog);
+        }
+
+        ImGui::TreePop();
+    }
+
+    ImGui::TreePop();
 }
 
 bool REFramework::initialize() {

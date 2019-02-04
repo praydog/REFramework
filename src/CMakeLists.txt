@@ -54,6 +54,7 @@ source_group("Framework" FILES ${FRAMEWORK_SRC})
 
 add_library(RE2 SHARED
             Main.cpp
+            LicenseStrings.hpp
             ${SDK_SRC}
             ${MODS_SRC}
             ${HOOKS_SRC}

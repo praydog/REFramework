@@ -129,8 +129,6 @@ void FirstPerson::onDrawUI() {
         m_attachBone = std::wstring{ std::begin(m_attachNames[m_attachSelected]), std::end(m_attachNames[m_attachSelected]) };
         reset();
     }
-
-    ImGui::TreePop();
 }
 
 void FirstPerson::onComponent(REComponent* component) {

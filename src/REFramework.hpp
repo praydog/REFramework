@@ -33,6 +33,7 @@ public:
 
 private:
     void drawUI();
+    void drawAbout();
 
     bool initialize();
     void createRenderTarget();
