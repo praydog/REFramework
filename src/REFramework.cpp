@@ -75,6 +75,10 @@ void REFramework::onReset() {
 }
 
 bool REFramework::onMessage(HWND wnd, UINT message, WPARAM wParam, LPARAM lParam) {
+    if (!m_initialized) {
+        return true;
+    }
+
     if (ImGui_ImplWin32_WndProcHandler(wnd, message, wParam, lParam) != 0) {
         // If the user is interacting with the UI we block the message from going to the game.
         auto& io = ImGui::GetIO();
@@ -89,7 +93,8 @@ bool REFramework::onMessage(HWND wnd, UINT message, WPARAM wParam, LPARAM lParam
 
 // this is unfortunate.
 void REFramework::onDirectInputKeys(const std::array<uint8_t, 256>& keys) {
-    if (keys[m_menuKey] && !m_lastKeys[m_menuKey]) {
+    if (keys[m_menuKey] && m_lastKeys[m_menuKey] == 0) {
+        std::lock_guard _{ m_inputMutex };
         m_drawUI = !m_drawUI;
     }
 
@@ -97,6 +102,8 @@ void REFramework::onDirectInputKeys(const std::array<uint8_t, 256>& keys) {
 }
 
 void REFramework::drawUI() {
+    std::lock_guard _{ m_inputMutex };
+
     if (!m_drawUI) {
         m_dinputHook->acknowledgeInput();
         ImGui::GetIO().MouseDrawCursor = false;
@@ -178,16 +185,21 @@ bool REFramework::initialize() {
     DXGI_SWAP_CHAIN_DESC swapDesc{};
     swapChain->GetDesc(&swapDesc);
 
-    // Initialize can be called more than once, so don't do this needlessly
-    // it crashes for some reason anyways if rehooked.
-    if (m_wnd != swapDesc.OutputWindow) {
-        m_wnd = swapDesc.OutputWindow;
+    m_wnd = swapDesc.OutputWindow;
 
+    // Explicitly call destructor first
+    m_windowsMessageHook.reset();
+    m_windowsMessageHook = std::make_unique<WindowsMessageHook>(m_wnd);
+    m_windowsMessageHook->onMessage = [this](auto wnd, auto msg, auto wParam, auto lParam) {
+        return onMessage(wnd, msg, wParam, lParam);
+    };
+
+    // just do this instead of rehooking because there's no point.
+    if (m_firstFrame) {
         m_dinputHook = std::make_unique<DInputHook>(m_wnd);
-        m_windowsMessageHook = std::make_unique<WindowsMessageHook>(m_wnd);
-        m_windowsMessageHook->onMessage = [this](auto wnd, auto msg, auto wParam, auto lParam) {
-            return onMessage(wnd, msg, wParam, lParam);
-        };
+    }
+    else {
+        m_dinputHook->setWindow(m_wnd);
     }
 
     spdlog::info("Creating render target");

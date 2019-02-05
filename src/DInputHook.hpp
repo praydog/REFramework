@@ -32,6 +32,10 @@ public:
         return m_getDeviceStateHook->isValid();
     }
 
+    void setWindow(HWND wnd) {
+        m_wnd = wnd;
+    }
+
     DInputHook& operator=(const DInputHook& other) = delete;
     DInputHook& operator=(DInputHook&& other) = delete;
 

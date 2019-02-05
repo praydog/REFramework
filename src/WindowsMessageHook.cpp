@@ -8,8 +8,15 @@
 using namespace std;
 
 static WindowsMessageHook* g_windowsMessageHook{ nullptr };
+std::recursive_mutex g_procMutex{};
 
 LRESULT WINAPI windowProc(HWND wnd, UINT message, WPARAM wParam, LPARAM lParam) {
+    std::lock_guard _{ g_procMutex };
+
+    if (g_windowsMessageHook == nullptr) {
+        return 0;
+    }
+
     // Call our onMessage callback.
     auto& onMessage = g_windowsMessageHook->onMessage;
 
@@ -42,6 +49,8 @@ WindowsMessageHook::WindowsMessageHook(HWND wnd)
 }
 
 WindowsMessageHook::~WindowsMessageHook() {
+    std::lock_guard _{ g_procMutex };
+
     remove();
     g_windowsMessageHook = nullptr;
 }
