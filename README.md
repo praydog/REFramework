@@ -4,5 +4,7 @@ A mod framework for Resident Evil 2. Inspired by and uses code from [Kanan](http
 # Installation
 Download the latest binary from [AppVeyor](https://ci.appveyor.com/project/praydog/re2-mod-framework/build/artifacts). Extract dinput8.dll into your RE2 folder.
 
+DirectX 12 is not supported.
+
 # Included Mods
 First Person
