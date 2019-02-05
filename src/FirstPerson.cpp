@@ -380,16 +380,12 @@ void FirstPerson::updateCameraTransform(RETransform* transform) {
 }
 
 void FirstPerson::updatePlayerBones(RETransform* transform) {
-    // only necessary after the initial UpdateTransform for the player runs, set the
-    // bone matrix for the children
-    if (!g_firstTime) {
-        return;
-    }
-
     auto& boneMatrix = utility::RETransform::getJointMatrix(*m_playerTransform, m_attachBone);
-
-    m_lastBoneMatrix = boneMatrix;
-    g_firstTime = false;
+    
+    if (g_firstTime) {
+        m_lastBoneMatrix = boneMatrix;
+        g_firstTime = false;
+    }
 
     auto wantedMat = m_lastCameraMatrix * Matrix4x4f{
         -1, 0, 0, 0,
