@@ -79,7 +79,7 @@ bool REFramework::onMessage(HWND wnd, UINT message, WPARAM wParam, LPARAM lParam
         return true;
     }
 
-    if (ImGui_ImplWin32_WndProcHandler(wnd, message, wParam, lParam) != 0) {
+    if (m_drawUI && ImGui_ImplWin32_WndProcHandler(wnd, message, wParam, lParam) != 0) {
         // If the user is interacting with the UI we block the message from going to the game.
         auto& io = ImGui::GetIO();
 
