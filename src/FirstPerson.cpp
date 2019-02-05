@@ -50,12 +50,9 @@ void FirstPerson::onFrame() {
 }
 
 void FirstPerson::onDrawUI() {
-    if (m_firstTime) {
-        ImGui::SetNextTreeNodeOpen(true);
-        m_firstTime = false;
-    }
+    ImGui::SetNextTreeNodeOpen(true, ImGuiCond_::ImGuiCond_FirstUseEver);
 
-    if (!ImGui::CollapsingHeader("FirstPerson")) {
+    if (!ImGui::CollapsingHeader(getName().data())) {
         return;
     }
 
@@ -251,6 +248,8 @@ void FirstPerson::reset() {
     m_lastBoneMatrix = glm::identity<decltype(m_lastBoneMatrix)>();
     m_lastControllerPos = Vector4f{};
     m_lastControllerRotation = glm::quat{};
+
+    std::lock_guard __{ m_deltaMutex };
     m_updateTimes.clear();
     m_deltaTimes.clear();
 
@@ -461,6 +460,8 @@ void FirstPerson::updateJointNames() {
 }
 
 float FirstPerson::updateDeltaTime(REComponent* component) {
+    std::lock_guard _{ m_deltaMutex };
+
     auto deltaDuration = std::chrono::duration<float>(std::chrono::high_resolution_clock::now() - m_updateTimes[component]);
     auto deltaTime = deltaDuration.count();
 

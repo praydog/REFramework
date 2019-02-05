@@ -40,6 +40,7 @@ private:
 
     std::mutex m_matrixMutex{};
     std::mutex m_frameMutex{};
+    std::mutex m_deltaMutex{};
 
     std::string m_attachBoneImgui{ "head" };
     std::wstring m_attachBone{ L"head" };
@@ -67,7 +68,6 @@ private:
     bool m_hideMesh{ true };
     bool m_disableVignette{ false };
     bool m_wasDifferentCamera{ false };
-    bool m_firstTime{ true };
 
     std::unordered_map<REComponent*, std::chrono::high_resolution_clock::time_point> m_updateTimes;
     std::unordered_map<REComponent*, float> m_deltaTimes;
