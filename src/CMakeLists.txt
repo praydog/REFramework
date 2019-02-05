@@ -16,11 +16,15 @@ set(MODS_SRC
     ComponentTraverser.cpp
     FirstPerson.hpp
     FirstPerson.cpp
+    ObjectExplorer.hpp
+    ObjectExplorer.cpp
 )
 
 set(SDK_SRC
     ReClass.hpp
     ReClass_Internal.hpp
+    REComponent.hpp
+    REManagedObject.hpp
     REString.hpp
     RETransform.hpp
 )

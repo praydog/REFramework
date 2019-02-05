@@ -3,6 +3,7 @@
 #include "ComponentHook.hpp"
 #include "PositionHooks.hpp"
 #include "FirstPerson.hpp"
+#include "ObjectExplorer.hpp"
 
 #include "Mods.hpp"
 
@@ -11,6 +12,7 @@ Mods::Mods() {
     m_mods.push_back(std::make_unique<ComponentHook>());
     m_mods.push_back(std::make_unique<PositionHooks>());
     m_mods.push_back(std::make_unique<FirstPerson>());
+    m_mods.push_back(std::make_unique<ObjectExplorer>());
 }
 
 void Mods::onInitialize() const {
