@@ -36,6 +36,19 @@ set(RE2IMGUI_SRC
     re2-imgui/imgui_impl_dx11.cpp
 )
 
+set(UTILITY_SRC
+    utility/Memory.hpp
+    utility/Memory.cpp
+    utility/Module.hpp
+    utility/Module.cpp
+    utility/Pattern.hpp
+    utility/Pattern.cpp
+    utility/Scan.hpp
+    utility/Scan.cpp
+    utility/String.hpp
+    utility/String.cpp
+)
+
 set(FRAMEWORK_SRC
     Address.hpp
     Address.cpp
@@ -54,6 +67,7 @@ source_group("re2-imgui", FILES ${RE2IMGUI_SRC})
 source_group("Hooks" FILES ${HOOKS_SRC})
 source_group("Mods" FILES ${MODS_SRC})
 source_group("SDK" FILES ${SDK_SRC})
+source_group("Utility" FILES ${UTILITY_SRC})
 source_group("Framework" FILES ${FRAMEWORK_SRC})
 
 add_library(RE2 SHARED
@@ -63,6 +77,7 @@ add_library(RE2 SHARED
             ${MODS_SRC}
             ${HOOKS_SRC}
             ${RE2IMGUI_SRC}
+            ${UTILITY_SRC}
             ${FRAMEWORK_SRC}
 )
 
