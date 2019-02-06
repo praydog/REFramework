@@ -11,6 +11,8 @@ ObjectExplorer::ObjectExplorer()
 }
 
 void ObjectExplorer::onDrawUI() {
+    ImGui::SetNextTreeNodeOpen(false, ImGuiCond_::ImGuiCond_Once);
+
     if (!ImGui::CollapsingHeader(getName().data())) {
         return;
     }
@@ -45,7 +47,7 @@ void ObjectExplorer::handleAddress(Address address, int32_t offset) {
         if (ImGui::BeginPopupContextItem()) {
             if (ImGui::Selectable("Copy")) {
                 std::stringstream ss;
-                ss << std::hex << Address(object).get(offset).to<uintptr_t>();
+                ss << std::hex << (uintptr_t)object;
 
                 ImGui::SetClipboardText(ss.str().c_str());
             }
