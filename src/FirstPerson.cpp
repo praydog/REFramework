@@ -208,8 +208,6 @@ void FirstPerson::onUpdateCameraController(RopewayPlayerCameraController* contro
         return;
     }
 
-    std::lock_guard _{ m_matrixMutex };
-
     auto boneMatrix = m_lastCameraMatrix * Matrix4x4f{
         -1, 0, 0, 0,
         0, 1, 0, 0,
@@ -236,8 +234,6 @@ void FirstPerson::onUpdateCameraController2(RopewayPlayerCameraController* contr
 
     // Just update the FOV in here. Whatever.
     updateFOV(controller);
-
-    std::lock_guard _{ m_matrixMutex };
 
     // Save the original position and rotation before our modifications.
     // If we don't, the camera rotation will freeze up, because it keeps getting overwritten.
