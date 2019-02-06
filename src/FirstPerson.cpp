@@ -168,6 +168,14 @@ void FirstPerson::onPreUpdateTransform(RETransform* transform) {
 }
 
 void FirstPerson::onUpdateTransform(RETransform* transform) {
+    // Do this first before anything else.
+    if (g_inPlayerTransform && transform == m_playerTransform) {
+        updateJointNames();
+
+        g_inPlayerTransform = false;
+        m_matrixMutex.unlock();
+    }
+
     if (!m_enabled) {
         return;
     }
@@ -192,13 +200,7 @@ void FirstPerson::onUpdateTransform(RETransform* transform) {
         return;
     }
 
-    if (transform == m_playerTransform) {
-        updateJointNames();
-
-        g_inPlayerTransform = false;
-        m_matrixMutex.unlock();
-    }
-    else if (transform == m_camera->ownerGameObject->transform) {
+    if (transform == m_camera->ownerGameObject->transform) {
         updateCameraTransform(transform);
     }
 }
