@@ -16,8 +16,11 @@ public:
 private:
     void handleAddress(Address address, int32_t offset = -1);
     void handleGameObject(REGameObject* gameObject);
+    void handleComponent(REComponent* component);
     void handleTransform(RETransform* transform);
     void handleType(REType* t);
+
+
 
     void makeTreeOffset(REManagedObject* object, uint32_t offset, std::string_view name);
     bool isManagedObject(Address address) const;

@@ -1,3 +1,5 @@
+#include <sstream>
+
 #include <windows.h>
 
 #include "ObjectExplorer.hpp"
@@ -39,11 +41,26 @@ void ObjectExplorer::handleAddress(Address address, int32_t offset) {
         else {
             madeNode = ImGui::TreeNode((uint8_t*)object + offset, "0x%X: %s", offset, object->info->classInfo->type->name);
         }
+
+        if (ImGui::BeginPopupContextItem()) {
+            if (ImGui::Selectable("Copy")) {
+                std::stringstream ss;
+                ss << std::hex << Address(object).get(offset).to<uintptr_t>();
+
+                ImGui::SetClipboardText(ss.str().c_str());
+            }
+
+            ImGui::EndPopup();
+        }
     }
 
     if (madeNode || offset == -1) {
         if (isGameObject) {
             handleGameObject(address.as<REGameObject*>());
+        }
+
+        if (utility::REManagedObject::isA(object, "via.Component")) {
+            handleComponent(address.as<REComponent*>());
         }
 
         handleType(object->info->classInfo->type);
@@ -70,6 +87,13 @@ void ObjectExplorer::handleGameObject(REGameObject* gameObject) {
     ImGui::Text("Name: %s", utility::REString::getString(gameObject->name).c_str());
     makeTreeOffset(gameObject, offsetof(REGameObject, transform), "Transform");
     makeTreeOffset(gameObject, offsetof(REGameObject, folder), "Folder");
+}
+
+void ObjectExplorer::handleComponent(REComponent* component) {
+    makeTreeOffset(component, offsetof(REComponent, ownerGameObject), "Owner");
+    makeTreeOffset(component, offsetof(REComponent, idkComponent), "IdkComponent");
+    makeTreeOffset(component, offsetof(REComponent, prevComponent), "PrevComponent");
+    makeTreeOffset(component, offsetof(REComponent, nextComponent), "NextComponent");
 }
 
 void ObjectExplorer::handleTransform(RETransform* transform) {
@@ -126,8 +150,10 @@ void ObjectExplorer::makeTreeOffset(REManagedObject* object, uint32_t offset, st
         return;
     }
 
+    auto nameString = std::string{ name };
+
     if (ImGui::TreeNode((uint8_t*)object + offset, "0x%X: %s", offset, name.data())) {
-        handleAddress(ptr, offset);
+        handleAddress(ptr);
         ImGui::TreePop();
     }
 }
