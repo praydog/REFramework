@@ -16,6 +16,11 @@ extern "C" {
     }
 }
 
+void failed() {
+    MessageBox(0, "REFramework: Unable to load the original dinput8.dll. Please report this to the developer.", "REFramework", 0);
+    ExitProcess(0);
+}
+
 void startupThread() {
 #ifndef NDEBUG
     AllocConsole();
@@ -27,12 +32,14 @@ void startupThread() {
     wchar_t buffer[MAX_PATH]{ 0 };
     if (GetSystemDirectoryW(buffer, MAX_PATH) != 0) {
         // Load the original dinput8.dll
-        g_dinput = LoadLibraryW((std::wstring{ buffer } + L"\\dinput8.dll").c_str());
+        if ((g_dinput = LoadLibraryW((std::wstring{ buffer } + L"\\dinput8.dll").c_str())) == NULL) {
+            failed();
+        }
+
         g_framework = std::make_unique<REFramework>();
     }
     else {
-        MessageBox(0, "REFramework: Unable to load the original dinput8.dll. Please report this to the developer.", "REFramework", 0);
-        ExitProcess(0);
+        failed();
     }
 }
 
