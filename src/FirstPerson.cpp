@@ -347,7 +347,7 @@ void FirstPerson::updateCameraTransform(RETransform* transform) {
                + glm::distance(m_interpolatedBone[2], headRotMat[2])) / 3.0f;
 
     // interpolate the bone rotation (it's snappy otherwise)
-    m_interpolatedBone = glm::interpolate(m_interpolatedBone, headRotMat, deltaTime * m_boneScale * dist);
+    m_interpolatedBone = glm::interpolate(m_interpolatedBone, headRotMat, std::min(deltaTime, 0.1f) * m_boneScale * dist);
 
     // Look at where the camera is pointing from the head position
     camRotMat = glm::extractMatrixRotation(glm::rowMajor4(glm::lookAtLH(finalPos, camPos3 + (camForward3 * 8192.0f), { 0.0f, 1.0f, 0.0f })));
@@ -359,7 +359,7 @@ void FirstPerson::updateCameraTransform(RETransform* transform) {
           + glm::distance(m_rotationOffset[1], wantedMat[1])
           + glm::distance(m_rotationOffset[2], wantedMat[2])) / 3.0f;
 
-    m_rotationOffset = glm::interpolate(m_rotationOffset, wantedMat, m_cameraScale * deltaTime * dist);
+    m_rotationOffset = glm::interpolate(m_rotationOffset, wantedMat, std::min(deltaTime, 0.1f) * m_cameraScale * dist);
     auto finalMat = m_interpolatedBone * m_rotationOffset;
     auto finalQuat = glm::quat{ finalMat };
 
