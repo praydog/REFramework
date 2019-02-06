@@ -38,7 +38,8 @@ private:
     void updateJointNames();
     float updateDeltaTime(REComponent* component);
 
-    std::mutex m_matrixMutex{};
+    // Needs to be recursive for some reason. Otherwise freeze.
+    std::recursive_mutex m_matrixMutex{};
     std::mutex m_frameMutex{};
     std::mutex m_deltaMutex{};
 
