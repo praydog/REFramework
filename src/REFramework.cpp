@@ -178,6 +178,12 @@ bool REFramework::initialize() {
 
     auto device = m_d3d11Hook->getDevice();
     auto swapChain = m_d3d11Hook->getSwapChain();
+    
+    // Wait.
+    if (device == nullptr || swapChain == nullptr) {
+        spdlog::info("Device or SwapChain null. DirectX 12 may be in use. A crash may occur.");
+        return false;
+    }
 
     ID3D11DeviceContext* context = nullptr;
     device->GetImmediateContext(&context);
