@@ -3,12 +3,13 @@
 #include "utility/Scan.hpp"
 #include "utility/Module.hpp"
 
+#include "REFramework.hpp"
 #include "REGlobals.hpp"
 
 REGlobals::REGlobals() {
     spdlog::info("REGlobals initialization");
 
-    auto mod = GetModuleHandle(0);
+    auto mod = g_framework->getModule().as<HMODULE>();
     auto start = (uintptr_t)mod;
     auto end = (uintptr_t)start + *utility::getModuleSize(mod);
 
