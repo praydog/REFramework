@@ -6,7 +6,7 @@
 
 #include <imgui/imgui.h>
 
-#include "ReClass.hpp"
+#include "sdk/ReClass.hpp"
 
 // Convenience classes for imgui
 template <typename T>

@@ -17,14 +17,14 @@ set(MODS_SRC
 )
 
 set(SDK_SRC
-    ReClass.hpp
-    ReClass_Internal.hpp
-    REComponent.hpp
-    REGlobals.hpp
-    REGlobals.cpp
-    REManagedObject.hpp
-    REString.hpp
-    RETransform.hpp
+    sdk/ReClass.hpp
+    sdk/ReClass_Internal.hpp
+    sdk/REComponent.hpp
+    sdk/REGlobals.hpp
+    sdk/REGlobals.cpp
+    sdk/REManagedObject.hpp
+    sdk/REString.hpp
+    sdk/RETransform.hpp
 )
 
 set(RE2IMGUI_SRC
@@ -83,4 +83,5 @@ target_link_libraries(RE2 PUBLIC imgui minhook d3d11 glm_static)
 target_compile_options(RE2 PUBLIC /GS- /GR-)
 target_compile_features(RE2 PUBLIC cxx_std_17)
 
+include_directories(RE2 ${CMAKE_CURRENT_SOURCE_DIR})
 set_target_properties(RE2 PROPERTIES OUTPUT_NAME dinput8)
