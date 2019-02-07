@@ -15,7 +15,7 @@ public:
     void onFrame() override;
     void onDrawUI() override;
 
-    void onUpdateTransform(RETransform* transform);
+    void onUpdateTransform(RETransform* transform) override;
 
 private:
     bool m_enabled{ false };
