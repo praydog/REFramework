@@ -8,7 +8,7 @@ PositionHooks::PositionHooks() {
     g_hook = this;
 }
 
-void PositionHooks::onInitialize() {
+bool PositionHooks::onInitialize() {
     // Can be found by breakpointing RETransform's worldTransform
     m_updateTransformHook = std::make_unique<FunctionHook>(g_framework->getModule().get(0xEE0DDE0), &updateTransformHook);
 
@@ -17,6 +17,8 @@ void PositionHooks::onInitialize() {
 
     // Can be found by breakpointing camera controller's worldRotation
     m_updateCameraController2Hook = std::make_unique<FunctionHook>(g_framework->getModule().get(0xB436230), &updateCameraController2Hook);
+
+    return true;
 }
 
 void* PositionHooks::updateTransformHook_Internal(RETransform* t, uint8_t a2, uint32_t a3) {

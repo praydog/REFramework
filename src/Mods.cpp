@@ -12,11 +12,19 @@ Mods::Mods() {
     m_mods.push_back(std::make_unique<ObjectExplorer>());
 }
 
-void Mods::onInitialize() const {
+bool Mods::onInitialize() const {
+    bool ret = true;
+
     for (auto& mod : m_mods) {
         spdlog::info("{:s}::onInitialize()", mod->getName().data());
-        mod->onInitialize();
+
+        if (ret = mod->onInitialize(); !ret) {
+            spdlog::info("{:s}::onInitialize() has failed", mod->getName().data());
+            break;
+        }
     }
+
+    return ret;
 }
 
 void Mods::onFrame() const {

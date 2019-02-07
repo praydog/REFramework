@@ -184,7 +184,6 @@ void ObjectExplorer::handleType(REType* t) {
     for (auto i = 0; i < count; ++i) {
         ImGui::TreePop();
     }
-
 }
 
 void ObjectExplorer::contextMenu(void* address) {

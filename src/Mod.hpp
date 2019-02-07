@@ -92,7 +92,7 @@ public:
     virtual std::string_view getName() const { return "UnknownMod"; };
 
     // Called when REFramework::initialize finishes in the first render frame
-    virtual void onInitialize() {};
+    virtual bool onInitialize() { return true; };
 
     // Functionally equivalent, but onFrame will always get called, onDrawUI can be disabled by REFramework
     virtual void onFrame() {};

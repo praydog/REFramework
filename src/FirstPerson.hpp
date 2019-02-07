@@ -12,7 +12,7 @@ public:
 
     std::string_view getName() const override { return "FirstPerson"; };
 
-    void onInitialize() override;
+    bool onInitialize() override;
     void onFrame() override;
     void onDrawUI() override;
 

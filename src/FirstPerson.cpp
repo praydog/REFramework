@@ -3,6 +3,7 @@
 #include <spdlog/spdlog.h>
 #include <imgui/imgui.h>
 
+#include "utility/Scan.hpp"
 #include "REFramework.hpp"
 
 #include "FirstPerson.hpp"
@@ -30,11 +31,18 @@ FirstPerson::FirstPerson() {
     m_lastFovMult = m_sliders["fovmult"]->value;
 }
 
-void FirstPerson::onInitialize() {
-    // 8B 87 3C 01 00 00 89 83 DC 00 00 00
-    // mov eax, [rdi+13Ch], RDI is a SceneInfo I think.
-    // Maybe find a way to do it without a patch?
-    m_disableVignettePatch = Patch::create(g_framework->getModule().get(0xFC8B78A), { 0x31, 0xC0, 0x90, 0x90, 0x90, 0x90 }, m_disableVignette);
+bool FirstPerson::onInitialize() {
+    auto vignetteCode = utility::scan(g_framework->getModule().as<HMODULE>(), "8B 87 3C 01 00 00 89 83 DC 00 00 00");
+
+    if (!vignetteCode) {
+        g_framework->signalError("Failed to find Disable Vignette pattern");
+        return false;
+    }
+
+    // xor eax, eax
+    m_disableVignettePatch = Patch::create(*vignetteCode, { 0x31, 0xC0, 0x90, 0x90, 0x90, 0x90 }, m_disableVignette);
+
+    return true;
 }
 
 void FirstPerson::onFrame() {
