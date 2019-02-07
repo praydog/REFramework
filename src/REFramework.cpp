@@ -136,7 +136,7 @@ void REFramework::drawUI() {
         m_mods.onDrawUI();
     }
     else {
-        ImGui::Text("REFramework error: %s", m_error.c_str());
+        ImGui::TextWrapped("REFramework error: %s", m_error.c_str());
     }
 
     ImGui::End();

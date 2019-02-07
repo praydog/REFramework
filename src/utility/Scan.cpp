@@ -29,11 +29,7 @@ namespace utility {
         return p.find(start, length);
     }
 
-    std::optional<uintptr_t> calculateAbsolute(uintptr_t address, uint8_t customOffset /*= 4*/) {
-        if (address == 0) {
-            return {};
-        }
-
+    uintptr_t calculateAbsolute(uintptr_t address, uint8_t customOffset /*= 4*/) {
         auto offset = *(int32_t*)address;
 
         return address + customOffset + offset;

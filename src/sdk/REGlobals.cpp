@@ -20,11 +20,11 @@ REGlobals::REGlobals() {
     for (auto i = utility::scan(start, end - start, pat); i.has_value(); i = utility::scan(*i + 1, end - *i, pat)) {
         auto ptr = utility::calculateAbsolute(*i + 3);
 
-        if (*ptr == 0) {
+        if (ptr == 0) {
             continue;
         }
 
-        auto objPtr = (REManagedObject**)*ptr;
+        auto objPtr = (REManagedObject**)ptr;
 
         if (m_objects.find(objPtr) != m_objects.end()) {
             continue;
