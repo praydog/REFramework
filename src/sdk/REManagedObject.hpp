@@ -1,5 +1,7 @@
 #pragma once
 
+#include <windows.h>
+
 #include "utility/Address.hpp"
 #include "ReClass.hpp"
 

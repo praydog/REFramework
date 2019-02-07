@@ -2,14 +2,17 @@
 
 #include "PositionHooks.hpp"
 #include "FirstPerson.hpp"
-#include "ObjectExplorer.hpp"
+#include "DeveloperTools.hpp"
 
 #include "Mods.hpp"
 
 Mods::Mods() {
     m_mods.push_back(std::make_unique<PositionHooks>());
     m_mods.push_back(std::make_unique<FirstPerson>());
-    m_mods.push_back(std::make_unique<ObjectExplorer>());
+
+#ifdef DEVELOPER
+    m_mods.push_back(std::make_unique<DeveloperTools>());
+#endif
 }
 
 bool Mods::onInitialize() const {

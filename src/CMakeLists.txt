@@ -10,6 +10,8 @@ set(HOOKS_SRC
 )
 
 set(MODS_SRC
+    DeveloperTools.hpp
+    DeveloperTools.cpp
     FirstPerson.hpp
     FirstPerson.cpp
     ObjectExplorer.hpp
@@ -85,3 +87,9 @@ target_compile_features(RE2 PUBLIC cxx_std_17)
 
 include_directories(RE2 ${CMAKE_CURRENT_SOURCE_DIR})
 set_target_properties(RE2 PROPERTIES OUTPUT_NAME dinput8)
+
+option(DEVELOPER_MODE "Adds DeveloperTools option to menu" OFF)
+
+if(DEVELOPER_MODE)
+target_compile_definitions(RE2 PUBLIC DEVELOPER)
+endif()
