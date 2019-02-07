@@ -2,8 +2,8 @@
 
 #include <windows.h>
 
+#include "REFramework.hpp"
 #include "ObjectExplorer.hpp"
-
 
 ObjectExplorer::ObjectExplorer()
 {
@@ -15,6 +15,53 @@ void ObjectExplorer::onDrawUI() {
 
     if (!ImGui::CollapsingHeader(getName().data())) {
         return;
+    }
+
+    auto curtime = std::chrono::system_clock::now();
+
+    // List of globals to choose from
+    if (ImGui::CollapsingHeader("Singletons")) {
+        if (curtime > m_nextRefresh) {
+            g_framework->getGlobals()->safeRefresh();
+            m_nextRefresh = curtime + std::chrono::seconds(1);
+        }
+
+        // make a copy, we want to sort by name
+        auto singletons = g_framework->getGlobals()->getObjects();
+
+        // first loop, sort
+        std::sort(singletons.begin(), singletons.end(), [](REManagedObject** a, REManagedObject** b) {
+            auto aType = utility::REManagedObject::safeGetType(*a);
+            auto bType = utility::REManagedObject::safeGetType(*b);
+
+            if (aType == nullptr || aType->name == nullptr) {
+                return true;
+            }
+
+            if (bType == nullptr || bType->name == nullptr) {
+                return false;
+            }
+
+            return std::string_view{ aType->name } < std::string_view{ bType->name };
+        });
+
+        // Display the nodes
+        for (auto obj : singletons) {
+            auto t = utility::REManagedObject::safeGetType(*obj);
+
+            if (t == nullptr || t->name == nullptr) {
+                continue;
+            }
+
+            ImGui::SetNextTreeNodeOpen(false, ImGuiCond_::ImGuiCond_Once);
+
+            if (ImGui::TreeNode(t->name)) {
+                handleAddress(*obj);
+                ImGui::TreePop();
+            }
+
+            contextMenu(*obj);
+        }
     }
 
     ImGui::InputText("REObject Address", m_objectAddress.data(), 16, ImGuiInputTextFlags_::ImGuiInputTextFlags_CharsHexadecimal);
@@ -44,16 +91,7 @@ void ObjectExplorer::handleAddress(Address address, int32_t offset) {
             madeNode = ImGui::TreeNode((uint8_t*)object + offset, "0x%X: %s", offset, object->info->classInfo->type->name);
         }
 
-        if (ImGui::BeginPopupContextItem()) {
-            if (ImGui::Selectable("Copy")) {
-                std::stringstream ss;
-                ss << std::hex << (uintptr_t)object;
-
-                ImGui::SetClipboardText(ss.str().c_str());
-            }
-
-            ImGui::EndPopup();
-        }
+        contextMenu(object);
     }
 
     if (madeNode || offset == -1) {
@@ -147,6 +185,19 @@ void ObjectExplorer::handleType(REType* t) {
         ImGui::TreePop();
     }
 
+}
+
+void ObjectExplorer::contextMenu(void* address) {
+    if (ImGui::BeginPopupContextItem()) {
+        if (ImGui::Selectable("Copy")) {
+            std::stringstream ss;
+            ss << std::hex << (uintptr_t)address;
+
+            ImGui::SetClipboardText(ss.str().c_str());
+        }
+
+        ImGui::EndPopup();
+    }
 }
 
 void ObjectExplorer::makeTreeOffset(REManagedObject* object, uint32_t offset, std::string_view name) {

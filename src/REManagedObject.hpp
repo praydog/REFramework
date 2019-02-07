@@ -48,6 +48,10 @@ namespace utility::REManagedObject {
         return classInfo->type;
     }
 
+    static REType* safeGetType(::REManagedObject* object) {
+        return isManagedObject(object) ? getType(object) : nullptr;
+    }
+
     static bool isA(::REManagedObject* object, std::string_view name) {
         if (object == nullptr) {
             return false;

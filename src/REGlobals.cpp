@@ -33,6 +33,7 @@ REGlobals::REGlobals() {
         spdlog::debug("{:x}", (uintptr_t)objPtr);
         
         m_objects.insert(objPtr);
+        m_objectList.push_back(objPtr);
     }
 
     refreshMap();
@@ -65,6 +66,11 @@ REManagedObject* REGlobals::get(std::string_view name) {
 
 REManagedObject* REGlobals::operator[](std::string_view name) {
     return get(name);
+}
+
+void REGlobals::safeRefresh() {
+    std::lock_guard _{ m_mapMutex };
+    refreshMap();
 }
 
 void REGlobals::refreshMap() {
