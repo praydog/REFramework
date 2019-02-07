@@ -24,3 +24,4 @@ using Matrix4x4f = glm::mat4x4;
 #include "REString.hpp"
 #include "RETransform.hpp"
 #include "REComponent.hpp"
+#include "REGlobals.hpp"

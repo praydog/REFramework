@@ -24,6 +24,8 @@ set(SDK_SRC
     ReClass.hpp
     ReClass_Internal.hpp
     REComponent.hpp
+    REGlobals.hpp
+    REGlobals.cpp
     REManagedObject.hpp
     REString.hpp
     RETransform.hpp

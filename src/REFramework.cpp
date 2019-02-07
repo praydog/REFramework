@@ -235,6 +235,8 @@ bool REFramework::initialize() {
     ImGui::StyleColorsDark();
 
     if (m_firstFrame) {
+        // Game specific initialization stuff
+        m_globals = std::make_unique<REGlobals>();
         m_mods.onInitialize();
         m_firstFrame = false;
     }
