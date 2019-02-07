@@ -26,8 +26,16 @@ public:
         return m_lastKeys;
     }
 
+    const auto& getGlobals() const {
+        return m_globals;
+    }
+
     Address getModule() const {
         return m_gameModule;
+    }
+
+    void signalError(std::string_view err) {
+        m_error = err;
     }
 
     void onFrame();
@@ -60,7 +68,11 @@ private:
     std::unique_ptr<DInputHook> m_dinputHook;
     std::shared_ptr<spdlog::logger> m_logger;
 
+    std::string m_error{ "" };
+
+    // Game-specific stuff
     Mods m_mods;
+    std::unique_ptr<REGlobals> m_globals;
 
     ID3D11RenderTargetView* m_mainRenderTargetView{ nullptr };
 };

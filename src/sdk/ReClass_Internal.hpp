@@ -162,7 +162,7 @@ public:
 class N0000ADA4
 {
 public:
-    class VariableDescriptor* N0000ADC6[256]; //0x0000
+    class VariableDescriptor* descriptors[256]; //0x0000
 }; //Size: 0x0800
 
 class REVariableList

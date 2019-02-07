@@ -52,7 +52,10 @@ void REFramework::onFrame() {
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
 
-    m_mods.onFrame();
+    if (m_error.empty()) {
+        m_mods.onFrame();
+    }
+
     drawUI();
 
     ImGui::EndFrame();
@@ -128,7 +131,13 @@ void REFramework::drawUI() {
     ImGui::Text("Menu Key: Insert");
 
     drawAbout();
-    m_mods.onDrawUI();
+
+    if (m_error.empty()) {
+        m_mods.onDrawUI();
+    }
+    else {
+        ImGui::TextWrapped("REFramework error: %s", m_error.c_str());
+    }
 
     ImGui::End();
 }
@@ -235,7 +244,13 @@ bool REFramework::initialize() {
     ImGui::StyleColorsDark();
 
     if (m_firstFrame) {
-        m_mods.onInitialize();
+        // Game specific initialization stuff
+        m_globals = std::make_unique<REGlobals>();
+
+        if (!m_mods.onInitialize() && m_error.empty()) {
+            m_error = "An unknown error has occurred.";
+        }
+
         m_firstFrame = false;
     }
 

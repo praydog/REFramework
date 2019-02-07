@@ -1,14 +1,14 @@
 #pragma once
 
 #include "Mod.hpp"
-#include "FunctionHook.hpp"
+#include "utility/FunctionHook.hpp"
 
 class PositionHooks : public Mod {
 public:
     PositionHooks();
 
     std::string_view getName() const override { return "PositionHooks"; };
-    void onInitialize() override;
+    bool onInitialize() override;
 
 protected:
     void* updateTransformHook_Internal(RETransform* t, uint8_t a2, uint32_t a3);

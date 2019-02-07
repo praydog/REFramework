@@ -5,7 +5,7 @@
 #include <d3d11.h>
 #include <dxgi.h>
 
-#include "FunctionHook.hpp"
+#include "utility/FunctionHook.hpp"
 
 class D3D11Hook {
 public:

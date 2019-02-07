@@ -6,7 +6,7 @@
 #define DIRECTINPUT_VERSION 0x0800
 #include <dinput.h>
 
-#include "FunctionHook.hpp"
+#include "utility/FunctionHook.hpp"
 
 class DInputHook {
 public:

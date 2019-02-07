@@ -20,5 +20,8 @@ using Matrix3x4f = glm::mat3x4;
 using Matrix4x4f = glm::mat4x4;
 
 #include "ReClass_Internal.hpp"
+#include "REManagedObject.hpp"
 #include "REString.hpp"
 #include "RETransform.hpp"
+#include "REComponent.hpp"
+#include "REGlobals.hpp"

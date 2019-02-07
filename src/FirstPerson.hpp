@@ -4,7 +4,7 @@
 #include <mutex>
 
 #include "Mod.hpp"
-#include "Patch.hpp"
+#include "utility/Patch.hpp"
 
 class FirstPerson : public Mod {
 public:
@@ -12,11 +12,10 @@ public:
 
     std::string_view getName() const override { return "FirstPerson"; };
 
-    void onInitialize() override;
+    bool onInitialize() override;
     void onFrame() override;
     void onDrawUI() override;
 
-    void onComponent(REComponent* component) override;
     void onPreUpdateTransform(RETransform* transform) override;
     void onUpdateTransform(RETransform* transform) override;
     void onUpdateCameraController(RopewayPlayerCameraController* controller) override;
