@@ -4,7 +4,7 @@
 #include <mutex>
 
 #include "Mod.hpp"
-#include "Patch.hpp"
+#include "utility/Patch.hpp"
 
 class FirstPerson : public Mod {
 public:

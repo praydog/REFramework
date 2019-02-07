@@ -35,10 +35,16 @@ set(RE2IMGUI_SRC
 )
 
 set(UTILITY_SRC
+    utility/Address.hpp
+    utility/Address.cpp
+    utility/FunctionHook.hpp
+    utility/FunctionHook.cpp
     utility/Memory.hpp
     utility/Memory.cpp
     utility/Module.hpp
     utility/Module.cpp
+    utility/Patch.hpp
+    utility/Patch.cpp
     utility/Pattern.hpp
     utility/Pattern.cpp
     utility/Scan.hpp
@@ -48,12 +54,6 @@ set(UTILITY_SRC
 )
 
 set(FRAMEWORK_SRC
-    Address.hpp
-    Address.cpp
-    FunctionHook.hpp
-    FunctionHook.cpp
-    Patch.hpp
-    Patch.cpp
     Mod.hpp
     Mods.hpp
     Mods.cpp

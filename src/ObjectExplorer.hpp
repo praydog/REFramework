@@ -2,7 +2,7 @@
 
 #include <unordered_set>
 
-#include "Address.hpp"
+#include "utility/Address.hpp"
 #include "Mod.hpp"
 
 class ObjectExplorer : public Mod {

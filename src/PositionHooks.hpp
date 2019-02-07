@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Mod.hpp"
-#include "FunctionHook.hpp"
+#include "utility/FunctionHook.hpp"
 
 class PositionHooks : public Mod {
 public:

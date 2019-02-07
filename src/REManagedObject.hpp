@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Address.hpp"
+#include "utility/Address.hpp"
 #include "ReClass.hpp"
 
 namespace utility::REManagedObject {

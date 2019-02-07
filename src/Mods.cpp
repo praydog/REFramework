@@ -13,18 +13,16 @@ Mods::Mods() {
 }
 
 bool Mods::onInitialize() const {
-    bool ret = true;
-
     for (auto& mod : m_mods) {
         spdlog::info("{:s}::onInitialize()", mod->getName().data());
 
-        if (ret = mod->onInitialize(); !ret) {
+        if (!mod->onInitialize()) {
             spdlog::info("{:s}::onInitialize() has failed", mod->getName().data());
-            break;
+            return false;
         }
     }
 
-    return ret;
+    return true;
 }
 
 void Mods::onFrame() const {
