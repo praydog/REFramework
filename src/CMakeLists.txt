@@ -5,15 +5,11 @@ set(HOOKS_SRC
     D3D11Hook.cpp
     WindowsMessageHook.hpp
     WindowsMessageHook.cpp
-    ComponentHook.hpp
-    ComponentHook.cpp
     PositionHooks.hpp
     PositionHooks.cpp
 )
 
 set(MODS_SRC
-    ComponentTraverser.hpp
-    ComponentTraverser.cpp
     FirstPerson.hpp
     FirstPerson.cpp
     ObjectExplorer.hpp

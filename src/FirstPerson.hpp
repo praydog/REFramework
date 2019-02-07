@@ -16,7 +16,6 @@ public:
     void onFrame() override;
     void onDrawUI() override;
 
-    void onComponent(REComponent* component) override;
     void onPreUpdateTransform(RETransform* transform) override;
     void onUpdateTransform(RETransform* transform) override;
     void onUpdateCameraController(RopewayPlayerCameraController* controller) override;

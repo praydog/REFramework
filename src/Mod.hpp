@@ -105,8 +105,6 @@ public:
     virtual void onUpdateCameraController(RopewayPlayerCameraController* controller) {};
     virtual void onPreUpdateCameraController2(RopewayPlayerCameraController* controller) {};
     virtual void onUpdateCameraController2(RopewayPlayerCameraController* controller) {};
-    virtual void onGetMainCamera(RECamera* camera) {};
-    virtual void onComponent(REComponent* component) {};
 
     const auto& getToggles() const {
         return m_toggles;

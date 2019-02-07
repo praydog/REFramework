@@ -43,7 +43,7 @@ void FirstPerson::onFrame() {
     }
 
     if (m_cameraSystem == nullptr || m_cameraSystem->ownerGameObject == nullptr) {
-        ComponentTraverser::refreshComponents();
+        m_cameraSystem = g_framework->getGlobals()->get<RopewayCameraSystem>("app.ropeway.camera.CameraSystem");
         reset();
         return;
     }
@@ -108,30 +108,6 @@ void FirstPerson::onDrawUI() {
     if (ImGui::ListBox("Joints", &m_attachSelected, listBoxHandler, &m_attachNames, (int32_t)m_attachNames.size())) {
         m_attachBoneImgui = m_attachNames[m_attachSelected];
         m_attachBone = std::wstring{ std::begin(m_attachNames[m_attachSelected]), std::end(m_attachNames[m_attachSelected]) };
-    }
-}
-
-void FirstPerson::onComponent(REComponent* component) {
-    auto gameObject = component->ownerGameObject;
-
-    if (gameObject == nullptr || component->info == nullptr || component->info->classInfo == nullptr || component->info->classInfo->type == nullptr) {
-        return;
-    }
-
-    if (component->info->classInfo->type->name == nullptr) {
-        return;
-    }
-
-    auto typeName = std::string_view{ component->info->classInfo->type->name };
-
-    //spdlog::info("{:p} {} {}", (void*)component, utility::REString::getString(gameObject->name).c_str(), component->info->classInfo->type->name);
-
-    if (typeName == "app.ropeway.camera.CameraSystem" && utility::REString::equals(gameObject->name, L"Main Camera")) {
-        if (m_cameraSystem != (RopewayCameraSystem*)component) {
-            spdlog::info("Found CameraSystem {:p}", (void*)component);
-        }
-
-        m_cameraSystem = (RopewayCameraSystem*)component;
     }
 }
 

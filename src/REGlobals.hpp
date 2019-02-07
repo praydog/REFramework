@@ -24,6 +24,11 @@ public:
     REManagedObject* get(std::string_view name);
     REManagedObject* operator[](std::string_view name);
 
+    template <typename T>
+    T* get(std::string_view name) {
+        return (T*)get(name);
+    }
+
     // Lock a mutex and then refresh the map.
     void safeRefresh();
 
