@@ -59,7 +59,7 @@ REManagedObject* REGlobals::get(std::string_view name) {
     }
 
     // try again after refreshing the map
-    return obj != nullptr ? getObj() : nullptr;
+    return obj == nullptr ? getObj() : obj;
 }
 
 REManagedObject* REGlobals::operator[](std::string_view name) {
