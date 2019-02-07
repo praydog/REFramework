@@ -20,7 +20,7 @@ REGlobals::REGlobals() {
     for (auto i = utility::scan(start, end - start, pat); i.has_value(); i = utility::scan(*i + 1, end - *i, pat)) {
         auto ptr = utility::calculateAbsolute(*i + 3);
 
-        if (ptr == 0) {
+        if (ptr == 0 || IsBadReadPtr((void*)ptr, sizeof(void*))) {
             continue;
         }
 
