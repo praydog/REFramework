@@ -3,12 +3,14 @@
 #include "PositionHooks.hpp"
 #include "FirstPerson.hpp"
 #include "DeveloperTools.hpp"
+#include "ManualFlashlight.hpp"
 
 #include "Mods.hpp"
 
 Mods::Mods() {
     m_mods.push_back(std::make_unique<PositionHooks>());
     m_mods.push_back(std::make_unique<FirstPerson>());
+    m_mods.push_back(std::make_unique<ManualFlashlight>());
 
 #ifdef DEVELOPER
     m_mods.push_back(std::make_unique<DeveloperTools>());
