@@ -42,14 +42,7 @@ void ManualFlashlight::onUpdateTransform(RETransform* transform) {
         return;
     }
 
-    if (!m_shouldPullOut) {
-        m_illuminationManager->shouldUseFlashlight = 0;
-        m_illuminationManager->someCounter = 0;
-        m_illuminationManager->shouldUseFlashlight2 = false;
-        return;
-    }
-
-    m_illuminationManager->shouldUseFlashlight = 1;
-    m_illuminationManager->someCounter = 1;
-    m_illuminationManager->shouldUseFlashlight2 = true;
+    m_illuminationManager->shouldUseFlashlight = (int)m_shouldPullOut;
+    m_illuminationManager->someCounter = (int)m_shouldPullOut;
+    m_illuminationManager->shouldUseFlashlight2 = m_shouldPullOut;
 }
