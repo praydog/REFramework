@@ -22,4 +22,9 @@ private:
     bool m_lastButton{ false };
     bool m_shouldPullOut{ false };
     RopewayIlluminationManager* m_illuminationManager{ nullptr };
+
+    std::string m_keyButtonName{ "Change Key" };
+
+    // keys need to be directinput unfortunately. window messages for windows virtual keys get blocked
+    uint32_t m_key{ DIK_F };
 };

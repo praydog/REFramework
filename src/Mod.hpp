@@ -1,5 +1,9 @@
 #pragma once
 
+// Game can't use virtual keys unless the menu is open.
+#define DIRECTINPUT_VERSION 0x0800
+#include <dinput.h>
+
 #include <vector>
 #include <unordered_map>
 #include <memory>

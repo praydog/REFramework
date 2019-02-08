@@ -7,8 +7,8 @@ ManualFlashlight::ManualFlashlight() {
 }
 
 void ManualFlashlight::onFrame() {
-    // TODO: Add a way to change this button, and a config.
-    auto holdingButton = g_framework->getKeyboardState()[DIK_F] != 0;
+    // TODO: Add a config, and controller support.
+    auto holdingButton = g_framework->getKeyboardState()[m_key] != 0;
 
     if (holdingButton && !m_lastButton) {
         m_shouldPullOut = !m_shouldPullOut;
@@ -25,6 +25,26 @@ void ManualFlashlight::onDrawUI() {
     }
 
     ImGui::Checkbox("Enabled", &m_enabled);
+    ImGui::Button(m_keyButtonName.c_str());
+
+    if (ImGui::IsItemHovered()) {
+        m_keyButtonName = "Press any key";
+        
+        // make a copy
+        auto keys = g_framework->getKeyboardState();
+
+        for (auto k = 0; k < 256; ++k) {
+            if (keys[k]) {
+                m_key = k;
+                break;
+            }
+        }
+    }
+    else {
+        m_keyButtonName = "Change Key";
+    }
+
+    ImGui::Text("Current Key: 0x%X", m_key);
 }
 
 void ManualFlashlight::onUpdateTransform(RETransform* transform) {
