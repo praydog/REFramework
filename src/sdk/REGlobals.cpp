@@ -17,7 +17,7 @@ REGlobals::REGlobals() {
     auto pat = std::string{ "48 8D 0D ? ? ? ? 48 B8 00 00 00 00 00 00 00 80" };
 
     // find all the globals
-    for (auto i = utility::scan(start, end - start, pat); i.has_value(); i = utility::scan(*i + 1, end - *i, pat)) {
+    for (auto i = utility::scan(start, end - start, pat); i.has_value(); i = utility::scan(*i + 1, end - (*i + 1), pat)) {
         auto ptr = utility::calculateAbsolute(*i + 3);
 
         if (ptr == 0 || IsBadReadPtr((void*)ptr, sizeof(void*))) {
