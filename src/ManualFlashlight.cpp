@@ -2,13 +2,9 @@
 
 #include "ManualFlashlight.hpp"
 
-ManualFlashlight::ManualFlashlight() {
-
-}
-
 void ManualFlashlight::onFrame() {
-    // TODO: Add a config, and controller support.
-    auto holdingButton = g_framework->getKeyboardState()[m_key] != 0;
+    // TODO: Add controller support.
+    auto holdingButton = m_key->isKeyDown();
 
     if (holdingButton && !m_lastButton) {
         m_shouldPullOut = !m_shouldPullOut;
@@ -20,46 +16,27 @@ void ManualFlashlight::onFrame() {
 }
 
 void ManualFlashlight::onDrawUI() {
+    ImGui::SetNextTreeNodeOpen(false, ImGuiCond_::ImGuiCond_FirstUseEver);
     if (!ImGui::CollapsingHeader(getName().data())) {
         return;
     }
 
-    ImGui::Checkbox("Enabled", &m_enabled);
-    ImGui::Button(m_keyButtonName.c_str());
-
-    if (ImGui::IsItemHovered()) {
-        m_keyButtonName = "Press any key";
-        
-        auto& keys = g_framework->getKeyboardState();
-
-        for (auto k = 0; k < keys.size(); ++k) {
-            if (keys[k]) {
-                m_key = k;
-                break;
-            }
-        }
-    }
-    else {
-        m_keyButtonName = "Change Key";
-    }
-
-    ImGui::Text("Current Key: 0x%X", m_key);
+    m_enabled->draw("Enabled");
+    m_key->draw("Change Key");
 }
 
 void ManualFlashlight::onConfigLoad(const utility::Config& cfg) {
-    auto k = cfg.get<int32_t>("ManualFlashlightKey");
-
-    if (k) {
-        m_key = *k;
-    }
+    m_enabled->configLoad(cfg, generateName("Enabled"));
+    m_key->configLoad(cfg, generateName("Key"));
 }
 
 void ManualFlashlight::onConfigSave(utility::Config& cfg) {
-    cfg.set<uint32_t>("ManualFlashlightKey", m_key);
+    m_enabled->configSave(cfg, generateName("Enabled"));
+    m_key->configSave(cfg, generateName("Key"));
 }
 
 void ManualFlashlight::onUpdateTransform(RETransform* transform) {
-    if (!m_enabled) {
+    if (!m_enabled->value) {
         return;
     }
 

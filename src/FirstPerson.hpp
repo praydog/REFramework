@@ -16,6 +16,9 @@ public:
     void onFrame() override;
     void onDrawUI() override;
 
+    void onConfigLoad(const utility::Config& cfg) override;
+    void onConfigSave(utility::Config& cfg) override;
+
     void onPreUpdateTransform(RETransform* transform) override;
     void onUpdateTransform(RETransform* transform) override;
     void onUpdateCameraController(RopewayPlayerCameraController* controller) override;
@@ -55,19 +58,12 @@ private:
     Vector4f m_lastControllerPos{};
     glm::quat m_lastControllerRotation{};
 
-    float m_cameraScale{ 40.0f };
-    float m_boneScale{ 15.0f };
     float m_lastFovMult{ 0.0f };
 
     RETransform* m_playerTransform{ nullptr };
     RECamera* m_camera{ nullptr };
     RECamera* m_playerCameraController{ nullptr };
     RopewayCameraSystem* m_cameraSystem{ nullptr };
-
-    bool m_enabled{ true };
-    bool m_hideMesh{ true };
-    bool m_disableVignette{ false };
-    bool m_wasDifferentCamera{ false };
 
     std::unordered_map<REComponent*, std::chrono::high_resolution_clock::time_point> m_updateTimes;
     std::unordered_map<REComponent*, float> m_deltaTimes;
@@ -77,5 +73,16 @@ private:
     
     std::unique_ptr<Patch> m_disableVignettePatch{};
 
-    ModFloat::Ptr m_currentFov{};
+    ModToggle::Ptr m_enabled{ ModToggle::create() };
+    ModToggle::Ptr m_disableVignette{ ModToggle::create() };
+    ModToggle::Ptr m_hideMesh{ ModToggle::create() };
+
+    ModSlider::Ptr m_fovOffset{ ModSlider::create(-100.0f, 100.0f, 10.0f) };
+    ModSlider::Ptr m_fovMult{ ModSlider::create(0.0f, 2.0f, 1.0f) };
+
+    ModSlider::Ptr m_cameraScale{ ModSlider::create(0.0f, 100.0f, 40.0f) };
+    ModSlider::Ptr m_boneScale{ ModSlider::create(0.0f, 100.0f, 15.0f) };
+
+    // just used to draw. not actually stored in config
+    ModFloat::Ptr m_currentFov{ ModFloat::create() };
 };

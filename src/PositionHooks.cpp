@@ -1,3 +1,4 @@
+#include "Mods.hpp"
 #include "REFramework.hpp"
 #include "utility/Scan.hpp"
 

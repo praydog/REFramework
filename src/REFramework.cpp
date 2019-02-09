@@ -6,6 +6,9 @@
 
 #include "utility/Module.hpp"
 
+#include "sdk/REGlobals.hpp"
+#include "Mods.hpp"
+
 #include "LicenseStrings.hpp"
 #include "REFramework.hpp"
 
@@ -33,6 +36,10 @@ REFramework::REFramework()
     if (m_valid = m_d3d11Hook->hook()) {
         spdlog::info("Hooked D3D11");
     }
+}
+
+REFramework::~REFramework() {
+
 }
 
 void REFramework::onFrame() {

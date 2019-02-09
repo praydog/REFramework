@@ -2,17 +2,18 @@
 
 #include <spdlog/spdlog.h>
 
+class Mods;
+class REGlobals;
+
 #include "D3D11Hook.hpp"
 #include "WindowsMessageHook.hpp"
 #include "DInputHook.hpp"
-
-#include "Mods.hpp"
 
 // Global facilitator
 class REFramework {
 public:
     REFramework();
-    virtual ~REFramework() {};
+    virtual ~REFramework();
 
     bool isValid() const {
         return m_valid;
@@ -73,8 +74,8 @@ private:
     std::string m_error{ "" };
 
     // Game-specific stuff
-    std::unique_ptr<Mods> m_mods;
-    std::unique_ptr<REGlobals> m_globals;
+    std::unique_ptr<class Mods> m_mods;
+    std::unique_ptr<class REGlobals> m_globals;
 
     ID3D11RenderTargetView* m_mainRenderTargetView{ nullptr };
 };
