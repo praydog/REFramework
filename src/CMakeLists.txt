@@ -41,6 +41,8 @@ set(RE2IMGUI_SRC
 set(UTILITY_SRC
     utility/Address.hpp
     utility/Address.cpp
+    utility/Config.hpp
+    utility/Config.cpp
     utility/FunctionHook.hpp
     utility/FunctionHook.cpp
     utility/Memory.hpp
@@ -83,7 +85,7 @@ add_library(RE2 SHARED
             ${FRAMEWORK_SRC}
 )
 
-target_link_libraries(RE2 PUBLIC imgui minhook d3d11 glm_static)
+target_link_libraries(RE2 PUBLIC imgui minhook d3d11 glm_static shlwapi)
 target_compile_options(RE2 PUBLIC /GS- /GR-)
 target_compile_features(RE2 PUBLIC cxx_std_17)
 

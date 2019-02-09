@@ -15,6 +15,9 @@ public:
     void onFrame() override;
     void onDrawUI() override;
 
+    void onConfigLoad(const utility::Config& cfg) override;
+    void onConfigSave(utility::Config& cfg) override;
+
     void onUpdateTransform(RETransform* transform) override;
 
 private:

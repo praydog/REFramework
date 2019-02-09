@@ -43,6 +43,8 @@ public:
     bool onMessage(HWND wnd, UINT message, WPARAM wParam, LPARAM lParam);
     void onDirectInputKeys(const std::array<uint8_t, 256>& keys);
 
+    void saveConfig();
+
 private:
     void drawUI();
     void drawAbout();
@@ -71,7 +73,7 @@ private:
     std::string m_error{ "" };
 
     // Game-specific stuff
-    Mods m_mods;
+    std::unique_ptr<Mods> m_mods;
     std::unique_ptr<REGlobals> m_globals;
 
     ID3D11RenderTargetView* m_mainRenderTargetView{ nullptr };

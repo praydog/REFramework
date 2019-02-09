@@ -11,6 +11,7 @@
 #include <imgui/imgui.h>
 
 #include "sdk/ReClass.hpp"
+#include "utility/Config.hpp"
 
 // Convenience classes for imgui
 template <typename T>
@@ -101,6 +102,9 @@ public:
     // Functionally equivalent, but onFrame will always get called, onDrawUI can be disabled by REFramework
     virtual void onFrame() {};
     virtual void onDrawUI() {};
+
+    virtual void onConfigLoad(const utility::Config& cfg) {};
+    virtual void onConfigSave(utility::Config& cfg) {};
 
     // Game-specific callbacks
     virtual void onPreUpdateTransform(RETransform* transform) {};

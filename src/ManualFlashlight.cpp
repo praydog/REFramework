@@ -46,6 +46,18 @@ void ManualFlashlight::onDrawUI() {
     ImGui::Text("Current Key: 0x%X", m_key);
 }
 
+void ManualFlashlight::onConfigLoad(const utility::Config& cfg) {
+    auto k = cfg.get<int32_t>("ManualFlashlightKey");
+
+    if (k) {
+        m_key = *k;
+    }
+}
+
+void ManualFlashlight::onConfigSave(utility::Config& cfg) {
+    cfg.set<uint32_t>("ManualFlashlightKey", m_key);
+}
+
 void ManualFlashlight::onUpdateTransform(RETransform* transform) {
     if (!m_enabled) {
         return;
