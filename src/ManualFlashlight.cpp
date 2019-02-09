@@ -30,10 +30,9 @@ void ManualFlashlight::onDrawUI() {
     if (ImGui::IsItemHovered()) {
         m_keyButtonName = "Press any key";
         
-        // make a copy
-        auto keys = g_framework->getKeyboardState();
+        auto& keys = g_framework->getKeyboardState();
 
-        for (auto k = 0; k < 256; ++k) {
+        for (auto k = 0; k < keys.size(); ++k) {
             if (keys[k]) {
                 m_key = k;
                 break;
@@ -48,12 +47,12 @@ void ManualFlashlight::onDrawUI() {
 }
 
 void ManualFlashlight::onUpdateTransform(RETransform* transform) {
-    if (m_illuminationManager == nullptr) {
-        m_illuminationManager = g_framework->getGlobals()->get<RopewayIlluminationManager>("app.ropeway.IlluminationManager");
+    if (!m_enabled) {
         return;
     }
 
-    if (!m_enabled) {
+    if (m_illuminationManager == nullptr) {
+        m_illuminationManager = g_framework->getGlobals()->get<RopewayIlluminationManager>("app.ropeway.IlluminationManager");
         return;
     }
 
