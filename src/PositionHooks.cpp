@@ -75,6 +75,10 @@ bool PositionHooks::onInitialize() {
 }
 
 void* PositionHooks::updateTransformHook_Internal(RETransform* t, uint8_t a2, uint32_t a3) {
+    if (!g_framework->isReady()) {
+        return m_updateTransformHook->getOriginal<decltype(updateTransformHook)>()(t, a2, a3);
+    }
+
     auto& mods = g_framework->getMods()->getMods();
 
     for (auto& mod : mods) {
@@ -95,6 +99,10 @@ void* PositionHooks::updateTransformHook(RETransform* t, uint8_t a2, uint32_t a3
 }
 
 void* PositionHooks::updateCameraControllerHook_Internal(void* a1, RopewayPlayerCameraController* cameraController) {
+    if (!g_framework->isReady()) {
+        return m_updateCameraControllerHook->getOriginal<decltype(updateCameraControllerHook)>()(a1, cameraController);
+    }
+
     auto& mods = g_framework->getMods()->getMods();
 
     for (auto& mod : mods) {
@@ -115,6 +123,10 @@ void* PositionHooks::updateCameraControllerHook(void* a1, RopewayPlayerCameraCon
 }
 
 void* PositionHooks::updateCameraController2Hook_Internal(void* a1, RopewayPlayerCameraController* cameraController) {
+    if (!g_framework->isReady()) {
+        return m_updateCameraController2Hook->getOriginal<decltype(updateCameraController2Hook)>()(a1, cameraController);
+    }
+
     auto& mods = g_framework->getMods()->getMods();
 
     for (auto& mod : mods) {

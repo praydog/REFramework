@@ -39,6 +39,10 @@ public:
         m_error = err;
     }
 
+    bool isReady() const {
+        return m_gameDataInitialized;
+    }
+
     void onFrame();
     void onReset();
     bool onMessage(HWND wnd, UINT message, WPARAM wParam, LPARAM lParam);
