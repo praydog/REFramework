@@ -223,14 +223,10 @@ void FirstPerson::onUpdateCameraController(RopewayPlayerCameraController* contro
         0, 0, 0, 1
     };
 
-    auto offset = glm::extractMatrixRotation(boneMatrix) * (m_attachOffsets[m_playerName] * Vector4f{ -0.1f, 0.1f, 0.1f, 0.0f });
-    auto finalPos = Vector4f{ boneMatrix[3] + offset };
-
     // The following code fixes inaccuracies between the rotation set by the game and what's set in updateCameraTransform
-    controller->worldPosition = finalPos;
+    controller->worldPosition = m_lastCameraMatrix[3];
     *(glm::quat*)&controller->worldRotation = glm::quat{ m_lastCameraMatrix };
 
-    m_lastCameraMatrix[3] = finalPos;
     m_camera->ownerGameObject->transform->worldTransform = m_lastCameraMatrix;
     m_camera->ownerGameObject->transform->angles = *(Vector4f*)&controller->worldRotation;
 }
