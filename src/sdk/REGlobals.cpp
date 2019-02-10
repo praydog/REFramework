@@ -73,25 +73,23 @@ void REGlobals::refreshMap() {
     for (auto objPtr : m_objects) {
         auto obj = *objPtr;
 
-        if (obj == nullptr) {
+        if (obj == nullptr || IsBadReadPtr(obj, sizeof(void*))) {
             continue;
         }
 
-        if (!utility::REManagedObject::isManagedObject(obj)) {
-            continue;
-        }
-
-        auto t = utility::REManagedObject::getType(obj);
+        auto t = utility::REManagedObject::safeGetType(obj);
 
         if (t == nullptr || t->name == nullptr) {
             continue;
         }
 
         if (m_acknowledgedObjects.find(objPtr) == m_acknowledgedObjects.end()) {
+#ifdef DEVELOPER
             spdlog::info("{:x}->{:x} ({:s})", (uintptr_t)objPtr, (uintptr_t)*objPtr, t->name);
+#endif
+            m_acknowledgedObjects.insert(objPtr);
         }
 
         m_objectMap[t->name] = objPtr;
-        m_acknowledgedObjects.insert(objPtr);
     }
 }

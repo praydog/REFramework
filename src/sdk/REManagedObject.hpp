@@ -27,7 +27,19 @@ namespace utility::REManagedObject {
             return false;
         }
 
-        return classInfo->parentInfo == object->info && classInfo->type != nullptr && classInfo->type->name != nullptr;
+        if (classInfo->parentInfo != object->info || classInfo->type == nullptr) {
+            return false;
+        }
+
+        if (IsBadReadPtr(classInfo->type, sizeof(REType)) || classInfo->type->name == nullptr) {
+            return false;
+        }
+
+        if (IsBadReadPtr(classInfo->type->name, sizeof(void*))) {
+            return false;
+        }
+
+        return true;
     }
 
     static REType* getType(::REManagedObject* object) {
