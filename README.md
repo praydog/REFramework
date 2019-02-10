@@ -8,3 +8,7 @@ DirectX 12 is not supported.
 
 # Included Mods
 First Person
+Manual Flashlight
+
+# Thanks
+[SkacikPL](https://github.com/SkacikPL) for originally creating the Manual Flashlight mod.
