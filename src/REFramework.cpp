@@ -4,6 +4,11 @@
 #include <imgui/examples/imgui_impl_win32.h>
 #include <imgui/examples/imgui_impl_dx11.h>
 
+#include "utility/Module.hpp"
+
+#include "sdk/REGlobals.hpp"
+#include "Mods.hpp"
+
 #include "LicenseStrings.hpp"
 #include "REFramework.hpp"
 
@@ -14,8 +19,7 @@ std::unique_ptr<REFramework> g_framework{};
 
 REFramework::REFramework()
     : m_logger{ spdlog::basic_logger_mt("REFramework", "re2_framework_log.txt", true) },
-    m_gameModule{ GetModuleHandle(0) },
-    m_mods{}
+    m_gameModule{ GetModuleHandle(0) }
 {
     spdlog::set_default_logger(m_logger);
     spdlog::flush_on(spdlog::level::info);
@@ -32,6 +36,10 @@ REFramework::REFramework()
     if (m_valid = m_d3d11Hook->hook()) {
         spdlog::info("Hooked D3D11");
     }
+}
+
+REFramework::~REFramework() {
+
 }
 
 void REFramework::onFrame() {
@@ -53,7 +61,7 @@ void REFramework::onFrame() {
     ImGui::NewFrame();
 
     if (m_error.empty()) {
-        m_mods.onFrame();
+        m_mods->onFrame();
     }
 
     drawUI();
@@ -71,7 +79,7 @@ void REFramework::onFrame() {
 
 void REFramework::onReset() {
     spdlog::info("Reset!");
-    
+
     // Crashes if we don't release it at this point.
     cleanupRenderTarget();
     m_initialized = false;
@@ -99,9 +107,31 @@ void REFramework::onDirectInputKeys(const std::array<uint8_t, 256>& keys) {
     if (keys[m_menuKey] && m_lastKeys[m_menuKey] == 0) {
         std::lock_guard _{ m_inputMutex };
         m_drawUI = !m_drawUI;
+
+        // Save the config if we close the UI
+        if (!m_drawUI) {
+            saveConfig();
+        }
     }
 
     m_lastKeys = keys;
+}
+
+void REFramework::saveConfig() {
+    spdlog::info("Saving config re2_fw_config.txt");
+
+    utility::Config cfg{};
+
+    for (auto& mod : m_mods->getMods()) {
+        mod->onConfigSave(cfg);
+    }
+
+    if (!cfg.save("re2_fw_config.txt")) {
+        spdlog::info("Failed to save config");
+        return;
+    }
+
+    spdlog::info("Saved config");
 }
 
 void REFramework::drawUI() {
@@ -133,7 +163,7 @@ void REFramework::drawUI() {
     drawAbout();
 
     if (m_error.empty()) {
-        m_mods.onDrawUI();
+        m_mods->onDrawUI();
     }
     else {
         ImGui::TextWrapped("REFramework error: %s", m_error.c_str());
@@ -187,7 +217,7 @@ bool REFramework::initialize() {
 
     auto device = m_d3d11Hook->getDevice();
     auto swapChain = m_d3d11Hook->getSwapChain();
-    
+
     // Wait.
     if (device == nullptr || swapChain == nullptr) {
         spdlog::info("Device or SwapChain null. DirectX 12 may be in use. A crash may occur.");
@@ -196,7 +226,7 @@ bool REFramework::initialize() {
 
     ID3D11DeviceContext* context = nullptr;
     device->GetImmediateContext(&context);
-    
+
     DXGI_SWAP_CHAIN_DESC swapDesc{};
     swapChain->GetDesc(&swapDesc);
 
@@ -246,8 +276,9 @@ bool REFramework::initialize() {
     if (m_firstFrame) {
         // Game specific initialization stuff
         m_globals = std::make_unique<REGlobals>();
+        m_mods = std::make_unique<Mods>();
 
-        if (!m_mods.onInitialize() && m_error.empty()) {
+        if (!m_mods->onInitialize() && m_error.empty()) {
             m_error = "An unknown error has occurred.";
         }
 

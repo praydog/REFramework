@@ -796,7 +796,10 @@ public:
 class RopewayMainCameraController : public REBehavior
 {
 public:
-    char pad_0048[112]; //0x0048
+    char pad_0048[92]; //0x0048
+    float fov; //0x00A4
+    bool controllerEnabled; //0x00A8
+    char pad_00A9[15]; //0x00A9
     class REAnimationCurve* N00000817; //0x00B8
     class DotNetGenericList* cameraShakes; //0x00C0
     class REGameObject* mainCameraObject; //0x00C8
@@ -830,7 +833,7 @@ public:
     class REManagedObject* N00006F3F; //0x00B8
     class RECamera* mainCamera; //0x00C0
     class REManagedObject* N00006F41; //0x00C8
-    class REManagedObject* N00006F42; //0x00D0
+    class DotNetGenericList* N00006F42; //0x00D0
     class REComponent* N00006F43; //0x00D8
     class REJoint* playerJoint; //0x00E0 Joint belonging to the camera pivot entity (player)
     class RopewayMainCameraController* mainCameraController; //0x00E8
@@ -1178,3 +1181,61 @@ public:
     RenderBounds renderBounds[3]; //0x12C8
     char pad_12F8[224]; //0x12F8
 }; //Size: 0x13D8
+
+class RopewaySystemRingBufferController : public REBehavior
+{
+public:
+    char pad_0048[128]; //0x0048
+}; //Size: 0x00C8
+
+class RopewayIlluminationManager : public REBehavior
+{
+public:
+    char pad_0048[24]; //0x0048
+    uint32_t shouldUseFlashlight; //0x0060
+    uint32_t someCounter; //0x0064
+    bool shouldUseFlashlight2; //0x0068
+    char pad_0069[23]; //0x0069
+}; //Size: 0x0080
+
+class RopewayIlluminationManagerPtr
+{
+public:
+    class RopewayIlluminationManager* N000013CC; //0x0000
+}; //Size: 0x0008
+
+class N000013E9
+{
+public:
+    char pad_0000[8]; //0x0000
+}; //Size: 0x0008
+
+class N00001403
+{
+public:
+    char pad_0000[72]; //0x0000
+}; //Size: 0x0048
+
+class RopewayStayAreaController : public REBehavior
+{
+public:
+    char pad_0048[8]; //0x0048
+    uint32_t N00001410; //0x0050
+    uint32_t N00001444; //0x0054
+    uint32_t areaId; //0x0058
+    uint32_t N0000143A; //0x005C
+    uint32_t N00001412; //0x0060
+    uint32_t N00001446; //0x0064
+    uint32_t previousAreaId; //0x0068
+    uint32_t N0000143D; //0x006C
+    uint32_t areaId3; //0x0070
+    uint32_t N00001441; //0x0074
+    uint32_t areaId4; //0x0078
+    char pad_007C[116]; //0x007C
+}; //Size: 0x00F0
+
+class N00001417
+{
+public:
+    char pad_0000[8]; //0x0000
+}; //Size: 0x0008

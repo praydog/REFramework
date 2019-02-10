@@ -36,8 +36,6 @@ REGlobals::REGlobals() {
         m_objectList.push_back(objPtr);
     }
 
-    refreshMap();
-
     spdlog::info("Finished REGlobals initialization");
 }
 

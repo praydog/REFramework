@@ -1,3 +1,5 @@
+#include <shlwapi.h>
+
 #include "String.hpp"
 #include "Module.hpp"
 
@@ -29,6 +31,17 @@ namespace utility {
 
         // OptionalHeader is not actually optional.
         return ntHeaders->OptionalHeader.SizeOfImage;
+    }
+
+    std::optional<std::string> getModuleDirectory(HMODULE module) {
+        wchar_t fileName[MAX_PATH]{ 0 };
+        if (GetModuleFileNameW(module, fileName, MAX_PATH) >= MAX_PATH) {
+            return {};
+        }
+
+        PathRemoveFileSpecW(fileName);
+
+        return utility::narrow(fileName);
     }
 
     optional<uintptr_t> ptrFromRVA(uint8_t* dll, uintptr_t rva) {

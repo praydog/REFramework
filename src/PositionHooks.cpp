@@ -1,3 +1,4 @@
+#include "Mods.hpp"
 #include "REFramework.hpp"
 #include "utility/Scan.hpp"
 
@@ -74,7 +75,7 @@ bool PositionHooks::onInitialize() {
 }
 
 void* PositionHooks::updateTransformHook_Internal(RETransform* t, uint8_t a2, uint32_t a3) {
-    auto& mods = g_framework->getMods().getMods();
+    auto& mods = g_framework->getMods()->getMods();
 
     for (auto& mod : mods) {
         mod->onPreUpdateTransform(t);
@@ -94,7 +95,7 @@ void* PositionHooks::updateTransformHook(RETransform* t, uint8_t a2, uint32_t a3
 }
 
 void* PositionHooks::updateCameraControllerHook_Internal(void* a1, RopewayPlayerCameraController* cameraController) {
-    auto& mods = g_framework->getMods().getMods();
+    auto& mods = g_framework->getMods()->getMods();
 
     for (auto& mod : mods) {
         mod->onPreUpdateCameraController(cameraController);
@@ -114,13 +115,15 @@ void* PositionHooks::updateCameraControllerHook(void* a1, RopewayPlayerCameraCon
 }
 
 void* PositionHooks::updateCameraController2Hook_Internal(void* a1, RopewayPlayerCameraController* cameraController) {
-    for (auto& mod : g_framework->getMods().getMods()) {
+    auto& mods = g_framework->getMods()->getMods();
+
+    for (auto& mod : mods) {
         mod->onPreUpdateCameraController2(cameraController);
     }
 
     auto ret = m_updateCameraController2Hook->getOriginal<decltype(updateCameraController2Hook)>()(a1, cameraController);
 
-    for (auto& mod : g_framework->getMods().getMods()) {
+    for (auto& mod : mods) {
         mod->onUpdateCameraController2(cameraController);
     }
 
