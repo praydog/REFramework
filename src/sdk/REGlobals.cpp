@@ -29,8 +29,6 @@ REGlobals::REGlobals() {
         if (m_objects.find(objPtr) != m_objects.end()) {
             continue;
         }
-
-        spdlog::debug("{:x}", (uintptr_t)objPtr);
         
         m_objects.insert(objPtr);
         m_objectList.push_back(objPtr);

@@ -58,6 +58,7 @@ private:
     bool m_valid{ false };
     bool m_initialized{ false };
     bool m_drawUI{ true };
+    std::atomic<bool> m_gameDataInitialized{ false };
 
     std::mutex m_inputMutex{};
     

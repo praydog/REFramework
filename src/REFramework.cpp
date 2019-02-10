@@ -60,7 +60,7 @@ void REFramework::onFrame() {
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
 
-    if (m_error.empty()) {
+    if (m_error.empty() && m_gameDataInitialized) {
         m_mods->onFrame();
     }
 
@@ -162,10 +162,13 @@ void REFramework::drawUI() {
 
     drawAbout();
 
-    if (m_error.empty()) {
+    if (m_error.empty() && m_gameDataInitialized) {
         m_mods->onDrawUI();
     }
-    else {
+    else if (!m_gameDataInitialized) {
+        ImGui::TextWrapped("REFramework is currently initializing...");
+    }
+    else if(!m_error.empty()) {
         ImGui::TextWrapped("REFramework error: %s", m_error.c_str());
     }
 
@@ -274,15 +277,23 @@ bool REFramework::initialize() {
     ImGui::StyleColorsDark();
 
     if (m_firstFrame) {
-        // Game specific initialization stuff
-        m_globals = std::make_unique<REGlobals>();
-        m_mods = std::make_unique<Mods>();
-
-        if (!m_mods->onInitialize() && m_error.empty()) {
-            m_error = "An unknown error has occurred.";
-        }
-
         m_firstFrame = false;
+
+        spdlog::info("Starting game data initialization thread");
+
+        // Game specific initialization stuff
+        std::thread initThread([this]() {
+            m_globals = std::make_unique<REGlobals>();
+            m_mods = std::make_unique<Mods>();
+
+            if (!m_mods->onInitialize() && m_error.empty()) {
+                m_error = "An unknown error has occurred.";
+            }
+
+            m_gameDataInitialized = true;
+        });
+
+        initThread.detach();
     }
 
     return true;
