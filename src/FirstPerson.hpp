@@ -75,7 +75,7 @@ private:
 
     ModToggle::Ptr m_enabled{ ModToggle::create() };
     ModToggle::Ptr m_disableVignette{ ModToggle::create() };
-    ModToggle::Ptr m_hideMesh{ ModToggle::create() };
+    ModToggle::Ptr m_hideMesh{ ModToggle::create(true) };
 
     ModSlider::Ptr m_fovOffset{ ModSlider::create(-100.0f, 100.0f, 10.0f) };
     ModSlider::Ptr m_fovMult{ ModSlider::create(0.0f, 2.0f, 1.0f) };
