@@ -216,13 +216,6 @@ void FirstPerson::onUpdateCameraController(RopewayPlayerCameraController* contro
         return;
     }
 
-    auto boneMatrix = m_lastCameraMatrix * Matrix4x4f{
-        -1, 0, 0, 0,
-        0, 1, 0, 0,
-        0, 0, -1, 0,
-        0, 0, 0, 1
-    };
-
     // The following code fixes inaccuracies between the rotation set by the game and what's set in updateCameraTransform
     controller->worldPosition = m_lastCameraMatrix[3];
     *(glm::quat*)&controller->worldRotation = glm::quat{ m_lastCameraMatrix };

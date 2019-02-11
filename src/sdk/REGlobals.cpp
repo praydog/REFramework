@@ -20,7 +20,12 @@ REGlobals::REGlobals() {
     for (auto i = utility::scan(start, end - start, pat); i.has_value(); i = utility::scan(*i + 1, end - (*i + 1), pat)) {
         auto ptr = utility::calculateAbsolute(*i + 3);
 
-        if (ptr == 0 || IsBadReadPtr((void*)ptr, sizeof(void*))) {
+        // Make sure the pointer is aligned on an 8-byte boundary.
+        if (ptr == 0 || ((uintptr_t)ptr & (sizeof(void*) - 1)) != 0) {
+            continue;
+        }
+
+        if (IsBadReadPtr((void*)ptr, sizeof(void*))) {
             continue;
         }
 
@@ -73,7 +78,12 @@ void REGlobals::refreshMap() {
     for (auto objPtr : m_objects) {
         auto obj = *objPtr;
 
-        if (obj == nullptr || IsBadReadPtr(obj, sizeof(void*))) {
+        // Make sure the pointer is aligned on an 8-byte boundary.
+        if (obj == nullptr || ((uintptr_t)obj & (sizeof(void*) - 1)) != 0) {
+            continue;
+        }
+
+        if (IsBadReadPtr(obj, sizeof(REManagedObject))) {
             continue;
         }
 

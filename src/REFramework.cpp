@@ -109,7 +109,7 @@ void REFramework::onDirectInputKeys(const std::array<uint8_t, 256>& keys) {
         m_drawUI = !m_drawUI;
 
         // Save the config if we close the UI
-        if (!m_drawUI) {
+        if (!m_drawUI && m_gameDataInitialized) {
             saveConfig();
         }
     }
