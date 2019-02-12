@@ -194,6 +194,29 @@ void ObjectExplorer::contextMenu(void* address) {
 
             ImGui::SetClipboardText(ss.str().c_str());
         }
+        
+        // Log component hierarchy to disk
+        if (isManagedObject(address) && utility::REManagedObject::isA((REManagedObject*)address, "via.Component") && ImGui::Selectable("Log Hierarchy")) {
+            auto comp = (REComponent*)address;
+
+            for (auto obj = comp; obj; obj = obj->nextComponent) {
+                auto t = utility::REManagedObject::safeGetType(obj);
+
+                if (t != nullptr) {
+                    if (obj->ownerGameObject == nullptr) {
+                        spdlog::info("{:s} ({:x})", t->name, (uintptr_t)obj);
+                    }
+                    else {
+                        auto owner = obj->ownerGameObject;
+                        spdlog::info("[{:s}] {:s} ({:x})", utility::REString::getString(owner->name), t->name, (uintptr_t)obj);
+                    }
+                }
+
+                if (obj->nextComponent == comp) {
+                    break;
+                }
+            }
+        }
 
         ImGui::EndPopup();
     }
