@@ -50,7 +50,9 @@ bool D3D11Hook::hook() {
     context->Release();
     swapChain->Release();
 
-    return m_hooked = true;
+    m_hooked = m_presentHook->create() && m_resizeBuffersHook->create();
+
+    return m_hooked;
 }
 
 bool D3D11Hook::unhook() {

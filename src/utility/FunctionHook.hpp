@@ -13,6 +13,8 @@ public:
     FunctionHook(Address target, Address destination);
     virtual ~FunctionHook();
 
+    bool create();
+
     // Called automatically by the destructor, but you can call it explicitly
     // if you need to remove the hook.
     bool remove();

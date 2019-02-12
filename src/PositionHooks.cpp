@@ -28,7 +28,7 @@ bool PositionHooks::onInitialize() {
     // Can be found by breakpointing RETransform's worldTransform
     m_updateTransformHook = std::make_unique<FunctionHook>(updateTransform, &updateTransformHook);
 
-    if (!m_updateTransformHook->isValid()) {
+    if (!m_updateTransformHook->create()) {
         g_framework->signalError("Failed to hook UpdateTransform");
         return false;
     }
@@ -47,7 +47,7 @@ bool PositionHooks::onInitialize() {
     // Can be found by breakpointing camera controller's worldPosition
     m_updateCameraControllerHook = std::make_unique<FunctionHook>(updateCameraController, &updateCameraControllerHook);
 
-    if (!m_updateCameraControllerHook->isValid()) {
+    if (!m_updateCameraControllerHook->create()) {
         g_framework->signalError("Failed to hook UpdateCameraController");
         return false;
     }
@@ -66,7 +66,7 @@ bool PositionHooks::onInitialize() {
     // Can be found by breakpointing camera controller's worldRotation
     m_updateCameraController2Hook = std::make_unique<FunctionHook>(*updateCameraController2, &updateCameraController2Hook);
 
-    if (!m_updateCameraController2Hook->isValid()) {
+    if (!m_updateCameraController2Hook->create()) {
         g_framework->signalError("Failed to hook UpdateCameraController2");
         return false;
     }
