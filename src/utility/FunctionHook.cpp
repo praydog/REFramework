@@ -22,14 +22,20 @@ FunctionHook::FunctionHook(Address target, Address destination)
 
     // Create and enable the hook, only setting our member variables if it was
     // successful.
-    uintptr_t original{ 0 };
 
-    if (MH_CreateHook(target.as<LPVOID>(), destination.as<LPVOID>(), (LPVOID*)&original) == MH_OK &&
-        MH_EnableHook(target.as<LPVOID>()) == MH_OK)
-    {
+    if (MH_CreateHook(target.as<LPVOID>(), destination.as<LPVOID>(), (LPVOID*)&m_original) == MH_OK) {
         m_target = target;
         m_destination = destination;
-        m_original = original;
+
+        if (MH_EnableHook(target.as<LPVOID>()) != MH_OK) {
+            m_original = 0;
+            m_destination = 0;
+            m_target = 0;
+
+            spdlog::error("Failed to hook {:p}", target.ptr());
+            return;
+        }
+
         spdlog::info("Hooked {:p}->{:p}", target.ptr(), destination.ptr());
     }
     else {
