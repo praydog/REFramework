@@ -45,8 +45,12 @@ void FirstPerson::onFrame() {
         return;
     }
 
-    if (m_cameraSystem == nullptr || m_cameraSystem->ownerGameObject == nullptr) {
-        m_cameraSystem = g_framework->getGlobals()->get<RopewayCameraSystem>("app.ropeway.camera.CameraSystem");
+    // Update our global pointers
+    if (m_cameraSystem == nullptr || m_cameraSystem->ownerGameObject == nullptr || m_sweetLightManager == nullptr || m_sweetLightManager->ownerGameObject == nullptr) {
+        auto& globals = *g_framework->getGlobals();
+        m_sweetLightManager = globals.get<RopewaySweetLightManager>("app.ropeway.SweetLightManager");
+        m_cameraSystem = globals.get<RopewayCameraSystem>("app.ropeway.camera.CameraSystem");
+
         reset();
         return;
     }
@@ -62,14 +66,20 @@ void FirstPerson::onDrawUI() {
     std::lock_guard _{ m_frameMutex };
 
     if (m_enabled->draw("Enabled")) {
-        // Disable fov changes
-        if (!m_enabled->value && m_cameraSystem != nullptr) {
+        // Disable fov and camera light changes
+        if (!m_enabled->value && m_cameraSystem != nullptr && m_sweetLightManager != nullptr) {
             updateFOV(m_cameraSystem->cameraController);
+            updateSweetLightContext(utility::RopewaySweetLightManager::getContext(m_sweetLightManager, 0));
+            updateSweetLightContext(utility::RopewaySweetLightManager::getContext(m_sweetLightManager, 1));
         }
     }
 
+    ImGui::SameLine();
+    m_disableLightSource->draw("Disable Camera Light");
+
     m_hideMesh->draw("Hide Joint Mesh");
 
+    ImGui::SameLine();
     if (m_disableVignette->draw("Disable Vignette")) {
         m_disableVignettePatch->toggle(m_disableVignette->value);
     }
@@ -116,6 +126,7 @@ void FirstPerson::onConfigLoad(const utility::Config& cfg) {
     m_enabled->configLoad(cfg, generateName("Enabled"));
     m_hideMesh->configLoad(cfg, generateName("HideJointMesh"));
     m_disableVignette->configLoad(cfg, generateName("DisableVignette"));
+    m_disableLightSource->configLoad(cfg, generateName("DisableLightSource"));
     m_fovOffset->configLoad(cfg, generateName("FOVOffset"));
     m_fovMult->configLoad(cfg, generateName("FOVMultiplier"));
     
@@ -134,6 +145,7 @@ void FirstPerson::onConfigSave(utility::Config& cfg) {
     m_enabled->configSave(cfg, generateName("Enabled"));
     m_hideMesh->configSave(cfg, generateName("HideJointMesh"));
     m_disableVignette->configSave(cfg, generateName("DisableVignette"));
+    m_disableLightSource->configSave(cfg, generateName("DisableLightSource"));
     m_fovOffset->configSave(cfg, generateName("FOVOffset"));
     m_fovMult->configSave(cfg, generateName("FOVMultiplier"));
 
@@ -193,12 +205,24 @@ void FirstPerson::onUpdateTransform(RETransform* transform) {
         }
     }
 
+    if (m_sweetLightManager == nullptr) {
+        return;
+    }
+
     if (m_camera == nullptr || m_camera->ownerGameObject == nullptr) {
         return;
     }
 
     if (m_playerCameraController == nullptr || m_playerTransform == nullptr || m_cameraSystem == nullptr || m_cameraSystem->cameraController == nullptr) {
         return;
+    }
+
+    // Remove the camera light if specified
+    if (transform == m_sweetLightManager->ownerGameObject->transform) {
+        // SweetLight
+        updateSweetLightContext(utility::RopewaySweetLightManager::getContext(m_sweetLightManager, 0));
+        // EnvironmentSweetLight
+        updateSweetLightContext(utility::RopewaySweetLightManager::getContext(m_sweetLightManager, 1));
     }
 
     // can change to action camera
@@ -374,6 +398,25 @@ void FirstPerson::updateCameraTransform(RETransform* transform) {
     if (transform->joints.size >= 1 && transform->joints.matrices != nullptr) {
         transform->joints.matrices->data[0].worldMatrix = m_lastCameraMatrix;
     }
+}
+
+void FirstPerson::updateSweetLightContext(RopewaySweetLightManagerContext* ctx) {
+    if (ctx->controller == nullptr || ctx->controller->ownerGameObject == nullptr) {
+        return;
+    }
+
+    updateSweetLightTransform(ctx->controller->ownerGameObject->transform);
+}
+
+void FirstPerson::updateSweetLightTransform(RETransform* transform) {
+    if (transform == nullptr) {
+        return;
+    }
+
+    // Disable the camera light source.
+    transform->ownerGameObject->shouldDraw = !(m_enabled->value && 
+                                               m_disableLightSource->value && 
+                                               m_cameraSystem->cameraController->activeCamera == m_playerCameraController);
 }
 
 void FirstPerson::updatePlayerBones(RETransform* transform) {

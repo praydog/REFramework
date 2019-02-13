@@ -33,74 +33,11 @@ public:
     char pad_0020[280]; //0x0020
 }; //Size: 0x0138
 
-class N0000039C
+class N00002B03
 {
 public:
-    char pad_0000[72]; //0x0000
-}; //Size: 0x0048
-
-class N00000369
-{
-public:
-    class N0000039C* N0000036A; //0x0000
-    char pad_0008[320]; //0x0008
-}; //Size: 0x0148
-
-class N000001FF
-{
-public:
-    char pad_0000[120]; //0x0000
-}; //Size: 0x0078
-
-class N000001C9
-{
-public:
-    class N0000019E* parent; //0x0000
-    void* N000001CB; //0x0008
-    char pad_0010[40]; //0x0010
-    void* N000001D1; //0x0038
-    char pad_0040[8]; //0x0040
-    void* N000001D3; //0x0048
-    char pad_0050[16]; //0x0050
-    class N000001FF* N000001D6; //0x0060
-    char pad_0068[8]; //0x0068
-}; //Size: 0x0070
-
-class N0000019E
-{
-public:
-    char pad_0000[104]; //0x0000
-    class N00000369* N000001AC; //0x0068
-    class N000001C9* N000001AD; //0x0070
-    char pad_0078[208]; //0x0078
-}; //Size: 0x0148
-
-class ManagedTypes
-{
-public:
-    class N0000019E* N00000175[2048]; //0x0000
-}; //Size: 0x4000
-
-class N000002D1
-{
-public:
-    char pad_0000[72]; //0x0000
-}; //Size: 0x0048
-
-class N000002A6
-{
-public:
-    char pad_0000[328]; //0x0000
-}; //Size: 0x0148
-
-class N0000027C
-{
-public:
-    class N000002D1* N0000027D; //0x0000
-    char pad_0008[104]; //0x0008
-    class N000002A6* N0000028B; //0x0070
-    char pad_0078[200]; //0x0078
-}; //Size: 0x0140
+    char pad_0000[200]; //0x0000
+}; //Size: 0x00C8
 
 class FunctionDescriptor
 {
@@ -177,7 +114,8 @@ public:
 class REFieldList
 {
 public:
-    char pad_0000[8]; //0x0000
+    uint32_t N0000072A; //0x0000
+    char pad_0004[4]; //0x0004
     class REFieldList* next; //0x0008 idk why this is here.
     class N0000074B* functions; //0x0010
     int32_t num; //0x0018
@@ -187,41 +125,6 @@ public:
     uint32_t N00000730; //0x0030
     char pad_0034[4]; //0x0034
 }; //Size: 0x0038
-
-class N000007FF
-{
-public:
-    char pad_0000[72]; //0x0000
-}; //Size: 0x0048
-
-class REObjectInfo
-{
-public:
-    class REClassInfo* classInfo; //0x0000
-    void* N00000991; //0x0008
-    void* N00000992; //0x0010
-    void* N00000993; //0x0018
-    void* N00000994; //0x0020
-    void* N00000995; //0x0028
-    void* N00000996; //0x0030
-    void* N00000997; //0x0038
-    void* N00000998; //0x0040
-    void* N00000999; //0x0048
-    void* N0000099A; //0x0050
-    void* N0000099B; //0x0058
-    class N000007FF* N0000099C; //0x0060
-}; //Size: 0x0068
-
-class REClassInfo
-{
-public:
-    uint16_t typeIndex; //0x0000 index into global type array
-    char pad_0002[46]; //0x0002
-    uint32_t size; //0x0030
-    char pad_0034[52]; //0x0034
-    class REType* type; //0x0068
-    class REObjectInfo* parentInfo; //0x0070
-}; //Size: 0x0078
 
 class REType
 {
@@ -254,6 +157,110 @@ public:
     virtual void Function8();
     virtual void Function9();
 }; //Size: 0x0068
+
+class REObjectInfo
+{
+public:
+    class REClassInfo* classInfo; //0x0000
+    void* N00000991; //0x0008
+    void* getType; //0x0010
+    void* N00000993; //0x0018
+    void* N00000994; //0x0020
+    void* N00000995; //0x0028
+    void* N00000996; //0x0030
+    void* N00000997; //0x0038
+    void* N00000998; //0x0040
+    void* N00000999; //0x0048
+    void* getSize; //0x0050
+    void* N0000099B; //0x0058
+    void* N0000099C; //0x0060
+}; //Size: 0x0068
+
+class REClassInfo
+{
+public:
+    uint16_t typeIndex; //0x0000 index into global type array
+    char pad_0002[33]; //0x0002
+    uint8_t N00002AFF; //0x0023
+    char pad_0024[2]; //0x0024
+    uint8_t objectType; //0x0026 1 == normal type ? ??
+    char pad_0027[5]; //0x0027
+    uint32_t sizeThing; //0x002C
+    uint32_t size; //0x0030
+    char pad_0034[44]; //0x0034
+    class N00002B03* N000009C1; //0x0060
+    class REType* type; //0x0068
+    class REObjectInfo* parentInfo; //0x0070
+}; //Size: 0x0078
+
+class ManagedTypes
+{
+public:
+    class REClassInfo* types[2048]; //0x0000
+}; //Size: 0x4000
+
+class N0000039C
+{
+public:
+    char pad_0000[72]; //0x0000
+}; //Size: 0x0048
+
+class N00000369
+{
+public:
+    class N0000039C* N0000036A; //0x0000
+    char pad_0008[320]; //0x0008
+}; //Size: 0x0148
+
+class N000001FF
+{
+public:
+    char pad_0000[120]; //0x0000
+}; //Size: 0x0078
+
+class N000001C9
+{
+public:
+    class N0000019E* parent; //0x0000
+    void* N000001CB; //0x0008
+    char pad_0010[40]; //0x0010
+    void* N000001D1; //0x0038
+    char pad_0040[8]; //0x0040
+    void* N000001D3; //0x0048
+    char pad_0050[16]; //0x0050
+    class N000001FF* N000001D6; //0x0060
+    char pad_0068[8]; //0x0068
+}; //Size: 0x0070
+
+class N0000019E
+{
+public:
+    char pad_0000[104]; //0x0000
+    class N00000369* N000001AC; //0x0068
+    class N000001C9* N000001AD; //0x0070
+    char pad_0078[208]; //0x0078
+}; //Size: 0x0148
+
+class N000002D1
+{
+public:
+    char pad_0000[72]; //0x0000
+}; //Size: 0x0048
+
+class N000002A6
+{
+public:
+    char pad_0000[328]; //0x0000
+}; //Size: 0x0148
+
+class N0000027C
+{
+public:
+    class N000002D1* N0000027D; //0x0000
+    char pad_0008[104]; //0x0008
+    class N000002A6* N0000028B; //0x0070
+    char pad_0078[200]; //0x0078
+}; //Size: 0x0140
 
 class CameraTypePtr
 {
@@ -381,7 +388,10 @@ public:
     Vector4f posOffset; //0x0020
     Vector3f anglesOffset; //0x0030
     float N000026BC; //0x003C
-    char pad_0040[16]; //0x0040
+    float N000026B6; //0x0040
+    float N000026BF; //0x0044
+    float N000026B7; //0x0048
+    char pad_004C[4]; //0x004C
     int32_t N00006E8E; //0x0050
     float N00006E97; //0x0054
     float N00006E8F; //0x0058
@@ -629,7 +639,8 @@ public:
     char pad_0014[4]; //0x0014
     float N00007882; //0x0018
     float N00001318; //0x001C
-    char pad_0020[20]; //0x0020
+    char pad_0020[16]; //0x0020
+    uint32_t N00007885; //0x0030
     float N00007896; //0x0034
     float N00007886; //0x0038
     float N00007891; //0x003C
@@ -650,7 +661,9 @@ class TwirlerCameraSettings : public REManagedObject
 {
 public:
     wchar_t* settingsPath; //0x0010
-    char pad_0018[24]; //0x0018
+    char pad_0018[16]; //0x0018
+    uint32_t N000078BE; //0x0028
+    uint32_t N000078DE; //0x002C
     float N000078BF; //0x0030
     char pad_0034[4]; //0x0034
     class REAnimationCurve* animationCurve; //0x0038
@@ -664,6 +677,49 @@ public:
     float sensitivityScale; //0x0070
     char pad_0074[4]; //0x0074
 }; //Size: 0x0078
+
+class SystemString : public REManagedObject
+{
+public:
+    int32_t size; //0x0010
+    wchar_t data[12]; //0x0014
+    char pad_002C[96]; //0x002C
+}; //Size: 0x008C
+
+class RopewayPlayerCameraParam : public REManagedObject
+{
+public:
+    class REAnimationCurve* curve1; //0x0010
+    Vector2f vec; //0x0018
+    class REAnimationCurve* curve2; //0x0020
+    class REAnimationCurve* curve3; //0x0028
+    class SystemString* name; //0x0030
+    char pad_0038[104]; //0x0038
+}; //Size: 0x00A0
+
+class RopewayCameraTransitionParam : public REManagedObject
+{
+public:
+    class RopewayPlayerCameraParam* playerCameraParam; //0x0010
+    char pad_0018[136]; //0x0018
+}; //Size: 0x00A0
+
+class RopewayCameraPositionParam : public REManagedObject
+{
+public:
+    class REGameObject* attachedOwner; //0x0010
+    class REJoint* attachedJoint; //0x0018
+    class RopewayCameraTransitionParam* transitionParam; //0x0020
+}; //Size: 0x0028
+
+class RopewayCameraInterpolationPrame : public REManagedObject
+{
+public:
+    class REGameObject* owner; //0x0010
+    class RopewayCameraPositionParam* posParam1; //0x0018
+    class RopewayCameraPositionParam* posParam2; //0x0020
+    class DampingFloat* dampingFloat; //0x0028
+}; //Size: 0x0030
 
 class RopewayPlayerCameraController : public REBehavior
 {
@@ -685,13 +741,18 @@ public:
     class DampingFloat* controlDamping; //0x00E8
     class DampingFloat* controlDamping2; //0x00F0
     class TwirlerCameraSettings* cameraLimitSettings; //0x00F8
-    uint32_t N00007737; //0x0100
-    char pad_0104[4]; //0x0104
+    bool isNotUsingWeapon; //0x0100 IDK, but it gets set to true when not using a weap.
+    char pad_0101[7]; //0x0101
     float pitch; //0x0108
     float yaw; //0x010C
     class DampingFloat* controlDamping3; //0x0110
     class DampingFloat* controlDamping4; //0x0118
-    char pad_0120[120]; //0x0120
+    char pad_0120[24]; //0x0120
+    class DampingFloat* controlDamping5; //0x0138
+    uint32_t cameraMode; //0x0140 3 == in weapon?
+    char pad_0144[4]; //0x0144
+    class RopewayCameraInterpolationPrame* N0000773F; //0x0148
+    char pad_0150[72]; //0x0150
     uint32_t N00007748; //0x0198
     char pad_019C[60]; //0x019C
 }; //Size: 0x01D8
@@ -845,14 +906,6 @@ public:
     Matrix3x4f localMatrix; //0x0000
 }; //Size: 0x0030
 
-class SystemString : public REManagedObject
-{
-public:
-    int32_t size; //0x0010
-    wchar_t data[12]; //0x0014
-    char pad_002C[96]; //0x002C
-}; //Size: 0x008C
-
 class UserData : public REManagedObject
 {
 public:
@@ -869,11 +922,11 @@ class ObjectPointer : public REManagedObject
 {
 public:
     class REClassInfo* classInfo; //0x0010
-    uint32_t N0000AB1A; //0x0018
-    uint32_t N0000AB3B; //0x001C
+    uint32_t num1; //0x0018
+    uint32_t num2; //0x001C
     class REManagedObject* object; //0x0020
-    char pad_0028[40]; //0x0028
-}; //Size: 0x0050
+    char pad_0028[112]; //0x0028
+}; //Size: 0x0098
 
 class RopewayIkController : public REBehavior
 {
@@ -1188,14 +1241,39 @@ public:
     char pad_0048[128]; //0x0048
 }; //Size: 0x00C8
 
+class N00001440 : public REManagedObject
+{
+public:
+    char pad_0010[64]; //0x0010
+}; //Size: 0x0050
+
+class N0000144E : public REManagedObject
+{
+public:
+    char pad_0010[64]; //0x0010
+}; //Size: 0x0050
+
+class DotNetGenericDictionary : public REManagedObject
+{
+public:
+    class N00001440* N00001434; //0x0010
+    class N0000144E* N00001435; //0x0018
+    char pad_0020[16]; //0x0020
+    class REManagedObject* equalityComparer; //0x0030
+}; //Size: 0x0038
+
 class RopewayIlluminationManager : public REBehavior
 {
 public:
-    char pad_0048[24]; //0x0048
+    char pad_0048[8]; //0x0048
+    class REManagedObject* N000013E2; //0x0050
+    class DotNetGenericDictionary* mapIdsToIlluminationContainer; //0x0058
     uint32_t shouldUseFlashlight; //0x0060
     uint32_t someCounter; //0x0064
     bool shouldUseFlashlight2; //0x0068
-    char pad_0069[23]; //0x0069
+    char pad_0069[7]; //0x0069
+    class REManagedObject* N000013FB; //0x0070
+    class DotNetGenericList* N000013F4; //0x0078
 }; //Size: 0x0080
 
 class RopewayIlluminationManagerPtr
@@ -1203,18 +1281,6 @@ class RopewayIlluminationManagerPtr
 public:
     class RopewayIlluminationManager* N000013CC; //0x0000
 }; //Size: 0x0008
-
-class N000013E9
-{
-public:
-    char pad_0000[8]; //0x0000
-}; //Size: 0x0008
-
-class N00001403
-{
-public:
-    char pad_0000[72]; //0x0000
-}; //Size: 0x0048
 
 class RopewayStayAreaController : public REBehavior
 {
@@ -1234,8 +1300,173 @@ public:
     char pad_007C[116]; //0x007C
 }; //Size: 0x00F0
 
-class N00001417
+class RopewayCameraSystemPtr
 {
 public:
-    char pad_0000[8]; //0x0000
+    class RopewayCameraSystem* N000013EC; //0x0000
 }; //Size: 0x0008
+
+class RopewayCameraControllerInfo : public REManagedObject
+{
+public:
+    char pad_0010[8]; //0x0010
+    class REGameObject* controllerObject; //0x0018
+    char pad_0020[8]; //0x0020
+}; //Size: 0x0028
+
+class CameraControllerList : public REManagedObject
+{
+public:
+    char pad_0010[16]; //0x0010
+    class RopewayCameraControllerInfo* N00001407[64]; //0x0020
+}; //Size: 0x0220
+
+class RopewaySetPostEffectParam : public REBehavior
+{
+public:
+    char pad_0048[8]; //0x0048
+    uint32_t N0000156E; //0x0050
+    uint32_t N000015AE; //0x0054
+    char pad_0058[24]; //0x0058
+    class DotNetGenericDictionary* N00001572; //0x0070
+    char pad_0078[56]; //0x0078
+}; //Size: 0x00B0
+
+class RopewayPostEffectController : public REBehavior
+{
+public:
+    char pad_0048[8]; //0x0048
+    class REAnimationCurve* curve1; //0x0050
+    class REAnimationCurve* curve2; //0x0058
+    class DotNetGenericList* N000015B6; //0x0060
+    char pad_0068[24]; //0x0068
+}; //Size: 0x0080
+
+class RESecondaryAnimation : public REComponent
+{
+public:
+    char pad_0030[16]; //0x0030
+    uint32_t N000015EF; //0x0040
+    char pad_0044[4]; //0x0044
+}; //Size: 0x0048
+
+class N00001630
+{
+public:
+    class REActorLayer* layers[2048]; //0x0000
+}; //Size: 0x4000
+
+class ActorLayerList
+{
+public:
+    class N00001630* data; //0x0000
+    uint32_t numLayers; //0x0008
+    uint32_t numAllocated; //0x000C
+}; //Size: 0x0010
+
+class REActorMotionCamera : public RESecondaryAnimation
+{
+public:
+    ActorLayerList layers; //0x0048
+}; //Size: 0x0058
+
+class RERenderLight : public REComponent
+{
+public:
+    Vector4f color; //0x0030
+    char pad_0040[24]; //0x0040
+    float brightness; //0x0058
+    char pad_005C[4]; //0x005C
+    float N000014A3; //0x0060
+    float idkLodOrSomething; //0x0064
+    char pad_0068[4]; //0x0068
+    uint32_t N0000152E; //0x006C
+    char pad_0070[48]; //0x0070
+    Vector3f activeColor; //0x00A0
+    float N00001546; //0x00AC
+    char pad_00B0[192]; //0x00B0
+}; //Size: 0x0170
+
+class RERenderSpotLight : public RERenderLight
+{
+public:
+    char pad_0170[456]; //0x0170
+    float N0000150F; //0x0338
+    float N00001597; //0x033C
+    float radius; //0x0340
+    float illuminanceThreshold; //0x0344
+    float cone; //0x0348
+    float N0000159D; //0x034C
+    char pad_0350[48]; //0x0350
+}; //Size: 0x0380
+
+class RERenderProjectionSpotlight : public RERenderSpotLight
+{
+public:
+    char pad_0380[16]; //0x0380
+}; //Size: 0x0390
+
+class RopewaySpotLightParam : public REManagedObject
+{
+public:
+    char pad_0010[64]; //0x0010
+}; //Size: 0x0050
+
+class RopewaySweetLightController : public REBehavior
+{
+public:
+    char pad_0048[8]; //0x0048
+    uint32_t N00001470; //0x0050
+    uint32_t N0000152A; //0x0054
+    uint32_t N00001471; //0x0058
+    uint32_t N0000152D; //0x005C
+    class RERenderSpotLight* renderSpotLight; //0x0060
+    class RERenderProjectionSpotlight* renderProjectionSpotLight; //0x0068
+    class RopewaySpotLightParam* param1; //0x0070
+    class RopewaySpotLightParam* param2; //0x0078
+    char pad_0080[8]; //0x0080
+}; //Size: 0x0088
+
+class IndirectType : public REManagedObject
+{
+public:
+    class REClassInfo* containedType; //0x0010
+    int32_t num1; //0x0018
+    int32_t numElements; //0x001C
+}; //Size: 0x0020
+
+class RopewaySweetLightManagerContext : public REManagedObject
+{
+public:
+    class RopewaySweetLightController* controller; //0x0010
+    class RopewaySpotLightParam* param1; //0x0018
+    class RopewaySpotLightParam* param2; //0x0020
+    char pad_0028[8]; //0x0028
+    class DotNetGenericList* N000015B1; //0x0030
+    class RopewaySpotLightParam* param3; //0x0038
+    char pad_0040[8]; //0x0040
+}; //Size: 0x0048
+
+class SweetLightContextContainer : public IndirectType
+{
+public:
+    class RopewaySweetLightManagerContext* data[2]; //0x0020
+}; //Size: 0x0030
+
+class RopewaySweetLightParam : public REManagedObject
+{
+public:
+    class RopewaySpotLightParam* spotlight; //0x0010
+}; //Size: 0x0018
+
+class RopewaySweetLightManager : public REBehavior
+{
+public:
+    char pad_0048[8]; //0x0048
+    class SweetLightContextContainer* contexts; //0x0050
+    class RopewaySweetLightParam* param1; //0x0058
+    class RopewaySweetLightParam* param2; //0x0060
+    uint8_t N0000154E; //0x0068
+    char pad_0069[7]; //0x0069
+    class REManagedObject* N0000154F; //0x0070
+}; //Size: 0x0078

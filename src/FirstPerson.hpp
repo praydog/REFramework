@@ -35,6 +35,8 @@ private:
     void reset();
     bool updatePointersFromCameraSystem(RopewayCameraSystem* cameraSystem);
     void updateCameraTransform(RETransform* transform);
+    void updateSweetLightContext(RopewaySweetLightManagerContext* ctx);
+    void updateSweetLightTransform(RETransform* transform);
     void updatePlayerBones(RETransform* transform);
     void updateFOV(RopewayPlayerCameraController* controller);
     void updateJointNames();
@@ -64,6 +66,7 @@ private:
     RECamera* m_camera{ nullptr };
     RECamera* m_playerCameraController{ nullptr };
     RopewayCameraSystem* m_cameraSystem{ nullptr };
+    RopewaySweetLightManager* m_sweetLightManager{ nullptr };
 
     std::unordered_map<REComponent*, std::chrono::high_resolution_clock::time_point> m_updateTimes;
     std::unordered_map<REComponent*, float> m_deltaTimes;
@@ -76,6 +79,7 @@ private:
     ModToggle::Ptr m_enabled{ ModToggle::create() };
     ModToggle::Ptr m_disableVignette{ ModToggle::create() };
     ModToggle::Ptr m_hideMesh{ ModToggle::create(true) };
+    ModToggle::Ptr m_disableLightSource{ ModToggle::create(true) };
 
     ModSlider::Ptr m_fovOffset{ ModSlider::create(-100.0f, 100.0f, 10.0f) };
     ModSlider::Ptr m_fovMult{ ModSlider::create(0.0f, 2.0f, 1.0f) };

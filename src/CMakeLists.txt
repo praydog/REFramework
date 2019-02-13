@@ -29,6 +29,7 @@ set(SDK_SRC
     sdk/REManagedObject.hpp
     sdk/REString.hpp
     sdk/RETransform.hpp
+    sdk/RopewaySweetLightManager.hpp
 )
 
 set(RE2IMGUI_SRC
