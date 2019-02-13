@@ -36,7 +36,6 @@ private:
     bool updatePointersFromCameraSystem(RopewayCameraSystem* cameraSystem);
     void updateCameraTransform(RETransform* transform);
     void updateSweetLightContext(RopewaySweetLightManagerContext* ctx);
-    void updateSweetLightTransform(RETransform* transform);
     void updatePlayerBones(RETransform* transform);
     void updateFOV(RopewayPlayerCameraController* controller);
     void updateJointNames();
@@ -64,7 +63,7 @@ private:
 
     RETransform* m_playerTransform{ nullptr };
     RECamera* m_camera{ nullptr };
-    RECamera* m_playerCameraController{ nullptr };
+    RopewayPlayerCameraController* m_playerCameraController{ nullptr };
     RopewayCameraSystem* m_cameraSystem{ nullptr };
     RopewaySweetLightManager* m_sweetLightManager{ nullptr };
 

@@ -131,7 +131,7 @@ void ObjectExplorer::handleGameObject(REGameObject* gameObject) {
 
 void ObjectExplorer::handleComponent(REComponent* component) {
     makeTreeOffset(component, offsetof(REComponent, ownerGameObject), "Owner");
-    makeTreeOffset(component, offsetof(REComponent, idkComponent), "IdkComponent");
+    makeTreeOffset(component, offsetof(REComponent, childComponent), "ChildComponent");
     makeTreeOffset(component, offsetof(REComponent, prevComponent), "PrevComponent");
     makeTreeOffset(component, offsetof(REComponent, nextComponent), "NextComponent");
 }
@@ -199,7 +199,7 @@ void ObjectExplorer::contextMenu(void* address) {
         if (isManagedObject(address) && utility::REManagedObject::isA((REManagedObject*)address, "via.Component") && ImGui::Selectable("Log Hierarchy")) {
             auto comp = (REComponent*)address;
 
-            for (auto obj = comp; obj; obj = obj->nextComponent) {
+            for (auto obj = comp; obj; obj = obj->childComponent) {
                 auto t = utility::REManagedObject::safeGetType(obj);
 
                 if (t != nullptr) {
@@ -212,7 +212,7 @@ void ObjectExplorer::contextMenu(void* address) {
                     }
                 }
 
-                if (obj->nextComponent == comp) {
+                if (obj->childComponent == comp) {
                     break;
                 }
             }
@@ -229,9 +229,11 @@ void ObjectExplorer::makeTreeOffset(REManagedObject* object, uint32_t offset, st
         return;
     }
 
-    auto nameString = std::string{ name };
+    auto madeNode = ImGui::TreeNode((uint8_t*)object + offset, "0x%X: %s", offset, name.data());
 
-    if (ImGui::TreeNode((uint8_t*)object + offset, "0x%X: %s", offset, name.data())) {
+    contextMenu(ptr);
+
+    if (madeNode) {
         handleAddress(ptr);
         ImGui::TreePop();
     }

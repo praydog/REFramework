@@ -103,7 +103,7 @@ void FirstPerson::onDrawUI() {
             m_lastFovMult = m_fovMult->value;
         }
 
-        m_currentFov->value = m_playerCameraController->fov;
+        m_currentFov->value = m_playerCameraController->activeCamera->fov;
         m_currentFov->draw("CurrentFOV");
     }
 
@@ -166,7 +166,7 @@ void FirstPerson::onPreUpdateTransform(RETransform* transform) {
     }
 
     // can change to action camera
-    if (m_cameraSystem->cameraController->activeCamera != m_playerCameraController) {
+    if (m_cameraSystem->cameraController != m_playerCameraController) {
         return;
     }
 
@@ -226,7 +226,7 @@ void FirstPerson::onUpdateTransform(RETransform* transform) {
     }
 
     // can change to action camera
-    if (m_cameraSystem->cameraController->activeCamera != m_playerCameraController) {
+    if (m_cameraSystem->cameraController != m_playerCameraController) {
         return;
     }
 
@@ -236,7 +236,7 @@ void FirstPerson::onUpdateTransform(RETransform* transform) {
 }
 
 void FirstPerson::onUpdateCameraController(RopewayPlayerCameraController* controller) {
-    if (!m_enabled->value || controller->activeCamera != m_playerCameraController || m_playerTransform == nullptr) {
+    if (!m_enabled->value || controller != m_playerCameraController || m_playerTransform == nullptr) {
         return;
     }
 
@@ -249,7 +249,7 @@ void FirstPerson::onUpdateCameraController(RopewayPlayerCameraController* contro
 }
 
 void FirstPerson::onUpdateCameraController2(RopewayPlayerCameraController* controller) {
-    if (!m_enabled->value || controller->activeCamera != m_playerCameraController || m_playerTransform == nullptr) {
+    if (!m_enabled->value || controller != m_playerCameraController || m_playerTransform == nullptr) {
         return;
     }
 
@@ -324,7 +324,7 @@ bool FirstPerson::updatePointersFromCameraSystem(RopewayCameraSystem* cameraSyst
         }
 
         if (utility::REString::equals(controller->activeCamera->ownerGameObject->name, L"PlayerCameraController")) {
-            m_playerCameraController = controller->activeCamera;
+            m_playerCameraController = controller;
             spdlog::info("Found PlayerCameraController {:p}", (void*)m_playerCameraController);
         }
 
@@ -405,18 +405,11 @@ void FirstPerson::updateSweetLightContext(RopewaySweetLightManagerContext* ctx) 
         return;
     }
 
-    updateSweetLightTransform(ctx->controller->ownerGameObject->transform);
-}
-
-void FirstPerson::updateSweetLightTransform(RETransform* transform) {
-    if (transform == nullptr) {
-        return;
-    }
 
     // Disable the camera light source.
-    transform->ownerGameObject->shouldDraw = !(m_enabled->value && 
-                                               m_disableLightSource->value && 
-                                               m_cameraSystem->cameraController->activeCamera == m_playerCameraController);
+    ctx->controller->ownerGameObject->shouldDraw = !(m_enabled->value &&
+                                                     m_disableLightSource->value &&
+                                                     m_cameraSystem->cameraController == m_playerCameraController);
 }
 
 void FirstPerson::updatePlayerBones(RETransform* transform) {
@@ -452,7 +445,7 @@ void FirstPerson::updateFOV(RopewayPlayerCameraController* controller) {
     auto isActiveCamera = m_cameraSystem != nullptr
         && m_cameraSystem->cameraController != nullptr
         && m_cameraSystem->cameraController->cameraParam != nullptr
-        && m_cameraSystem->cameraController->activeCamera == m_playerCameraController;
+        && m_cameraSystem->cameraController == m_playerCameraController;
 
     if (!isActiveCamera) { 
         return; 
@@ -466,10 +459,10 @@ void FirstPerson::updateFOV(RopewayPlayerCameraController* controller) {
             auto delta = prevValue - newValue;
 
             m_fovOffset->value += delta;
-            m_playerCameraController->fov = (param->fov * m_fovMult->value) + m_fovOffset->value;
+            m_playerCameraController->activeCamera->fov = (param->fov * m_fovMult->value) + m_fovOffset->value;
         }
         else {
-            m_playerCameraController->fov = newValue;
+            m_playerCameraController->activeCamera->fov = newValue;
         }
         
         // Causes the camera to ignore the FOV inside the param

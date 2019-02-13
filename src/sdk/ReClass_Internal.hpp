@@ -448,7 +448,7 @@ class REComponent : public REManagedObject
 {
 public:
     class REGameObject* ownerGameObject; //0x0010
-    class REComponent* idkComponent; //0x0018 child component
+    class REComponent* childComponent; //0x0018 child component
     class REComponent* prevComponent; //0x0020
     class REComponent* nextComponent; //0x0028
 }; //Size: 0x0030
