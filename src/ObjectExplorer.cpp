@@ -173,7 +173,7 @@ void ObjectExplorer::handleType(REType* t) {
                         continue;
                     }
 
-                    ImGui::Text(variable->name);
+                    ImGui::Text("%s %s", variable->typeName, variable->name);
                 }
 
                 ImGui::TreePop();
