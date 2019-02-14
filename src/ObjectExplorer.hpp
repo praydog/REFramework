@@ -18,7 +18,8 @@ private:
     void handleGameObject(REGameObject* gameObject);
     void handleComponent(REComponent* component);
     void handleTransform(RETransform* transform);
-    void handleType(REType* t);
+    void handleType(REManagedObject* obj, REType* t);
+    void attemptDisplayField(REManagedObject* obj, VariableDescriptor* desc);
 
     void contextMenu(void* address);
 

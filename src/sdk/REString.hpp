@@ -3,6 +3,7 @@
 #include <string_view>
 #include <locale>
 
+#include "utility/String.hpp"
 #include "ReClass.hpp"
 
 namespace utility::REString {
@@ -36,9 +37,7 @@ namespace utility::REString {
     }
 
     static std::string getString(const ::REString& str) {
-        auto wstr = std::wstring{ getView(str) };
-
-        return { std::begin(wstr), std::end(wstr) };
+        return utility::narrow(getView(str));
     }
 
     static bool equals(const ::REString& str, std::wstring_view view) {

@@ -87,11 +87,11 @@ public:
     char* name; //0x0000
     char pad_0008[8]; //0x0008
     void* function; //0x0010
-    uint32_t N0000B5CA; //0x0018
+    uint32_t flags; //0x0018
     char pad_001C[4]; //0x001C
     char* typeName; //0x0020
     char pad_0028[4]; //0x0028
-    uint32_t N0000B5D9; //0x002C
+    uint32_t variableType; //0x002C
     class StaticVariableDescriptor* staticVariableData; //0x0030
     char pad_0038[8]; //0x0038
 }; //Size: 0x0040
