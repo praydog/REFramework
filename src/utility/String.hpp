@@ -27,6 +27,6 @@ namespace utility {
     }
 }
 
-auto constexpr operator "" _fnv(const char* s, size_t) {
+constexpr auto operator "" _fnv(const char* s, size_t) {
     return utility::hash(s);
 }

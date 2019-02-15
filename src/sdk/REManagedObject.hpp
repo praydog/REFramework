@@ -103,10 +103,9 @@ namespace utility::REManagedObject {
         auto size = classInfo->size;
 
         switch (classInfo->objectType) {
-        // Maybe should be called an array, idk.
         case 2:
         {
-            auto ind = (::IndirectType*)object;
+            auto ind = (::REArrayBase*)object;
 
             auto containedType = ind->containedType;
             
@@ -119,10 +118,10 @@ namespace utility::REManagedObject {
             }
 
             if (ind->num1 <= 1) {
-                size = multiplierThing * ind->numElements + sizeof(::IndirectType);
+                size = multiplierThing * ind->numElements + sizeof(::REArrayBase);
             }
             else {
-                size = multiplierThing * ind->numElements + sizeof(::IndirectType) + 4 * ind->num1;
+                size = multiplierThing * ind->numElements + sizeof(::REArrayBase) + 4 * ind->num1;
             }
 
             break;
