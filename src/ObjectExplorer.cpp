@@ -161,7 +161,14 @@ void ObjectExplorer::handleType(REManagedObject* obj, REType* t) {
             break;
         }
 
-        ImGui::Text("Size: 0x%X", utility::REManagedObject::getSize(obj));
+        // Topmost type
+        if (typeInfo == t) {
+            ImGui::Text("Size: 0x%X", utility::REManagedObject::getSize(obj));
+        }
+        // Super types
+        else {
+            ImGui::Text("Size: 0x%X", typeInfo->size);
+        }
 
         ++count;
 
