@@ -24,6 +24,12 @@ FirstPerson::FirstPerson() {
     m_attachOffsets["pl3000"] = Vector4f{ -0.278f, 0.435f, 0.945f, 0.0f };
     // Hunk
     m_attachOffsets["pl4000"] = Vector4f{ -0.26f, 0.435f, 1.0f, 0.0f };
+    // Kendo
+    m_attachOffsets["pl5000"] = Vector4f{ -0.24f, 0.4f, 1.0f, 0.0f };
+    // Forgotten Soldier
+    m_attachOffsets["pl5600"] = Vector4f{ -0.316, 0.556f, 1.02f, 0.0f };
+    // Elizabeth
+    m_attachOffsets["pl6400"] = Vector4f{ -0.316, 0.466f, 0.79f, 0.0f };
 }
 
 bool FirstPerson::onInitialize() {
