@@ -21,6 +21,7 @@ private:
     void handleType(REManagedObject* obj, REType* t);
     void attemptDisplayField(REManagedObject* obj, VariableDescriptor* desc);
 
+    bool widgetWithContext(void* address, std::function<bool()> widget);
     void contextMenu(void* address);
 
     void makeTreeOffset(REManagedObject* object, uint32_t offset, std::string_view name);

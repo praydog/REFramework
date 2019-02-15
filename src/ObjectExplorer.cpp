@@ -165,45 +165,50 @@ void ObjectExplorer::handleType(REManagedObject* obj, REType* t) {
 
         ++count;
 
-        if (typeInfo->fields != nullptr && typeInfo->fields->variables != nullptr && typeInfo->fields->variables->data != nullptr) {
-            auto descriptors = typeInfo->fields->variables->data->descriptors;
+        if (typeInfo->fields == nullptr || typeInfo->fields->variables == nullptr || typeInfo->fields->variables->data == nullptr) {
+            continue;
+        }
 
-            if (ImGui::TreeNode(typeInfo->fields, "Fields: %i", typeInfo->fields->variables->num)) {
-                for (auto i = descriptors; i != descriptors + typeInfo->fields->variables->num; ++i) {
-                    auto variable = *i;
+        auto descriptors = typeInfo->fields->variables->data->descriptors;
 
-                    if (variable == nullptr) {
-                        continue;
-                    }
+        if (ImGui::TreeNode(typeInfo->fields, "Fields: %i", typeInfo->fields->variables->num)) {
+            for (auto i = descriptors; i != descriptors + typeInfo->fields->variables->num; ++i) {
+                auto variable = *i;
 
-                    auto madeNode = ImGui::TreeNode(variable, "%s %s", variable->typeName, variable->name);
-                    contextMenu(variable->function);
-
-                    // Info about the field
-                    if (madeNode) {
-                        attemptDisplayField(obj, variable);
-
-                        if (ImGui::TreeNode(variable, "Additional Information")) {
-                            ImGui::Text("Address: 0x%p", variable);
-                            ImGui::Text("Function: 0x%p", variable->function);
-
-                            if (variable->typeName != nullptr) {
-                                ImGui::Text("Type: %s", variable->typeName);
-                            }
-
-                            ImGui::Text("VarType: %i", variable->variableType);
-
-                            if (variable->staticVariableData != nullptr) {
-                                ImGui::Text("GlobalIndex: %i", variable->staticVariableData->variableIndex);
-                            }
-                        }
-
-                        ImGui::TreePop();
-                    }
+                if (variable == nullptr) {
+                    continue;
                 }
 
-                ImGui::TreePop();
+                auto madeNode = widgetWithContext(variable->function, [&]() { return ImGui::TreeNode(variable, "%s", variable->typeName); });
+
+                // Draw the variable name with a color
+                ImGui::SameLine();            
+                ImGui::TextColored(ImVec4{ 100.0f / 255.0f, 149.0f / 255.0f, 237.0f / 255.0f, 255 / 255.0f }, "%s", variable->name);
+
+                // Info about the field
+                if (madeNode) {
+                    attemptDisplayField(obj, variable);
+
+                    if (ImGui::TreeNode(variable, "Additional Information")) {
+                        ImGui::Text("Address: 0x%p", variable);
+                        ImGui::Text("Function: 0x%p", variable->function);
+
+                        if (variable->typeName != nullptr) {
+                            ImGui::Text("Type: %s", variable->typeName);
+                        }
+
+                        ImGui::Text("VarType: %i", variable->variableType);
+
+                        if (variable->staticVariableData != nullptr) {
+                            ImGui::Text("GlobalIndex: %i", variable->staticVariableData->variableIndex);
+                        }
+                    }
+
+                    ImGui::TreePop();
+                }
             }
+
+            ImGui::TreePop();
         }
     }
 
@@ -217,14 +222,8 @@ void ObjectExplorer::attemptDisplayField(REManagedObject* obj, VariableDescripto
         return;
     }
 
-    auto ret = std::string{ desc->typeName };
-    auto func = (void* (*)(VariableDescriptor*, REManagedObject*, void*))desc->function;
-
     auto makeTreeAddr = [this](void* addr) {
-        auto madeNode = ImGui::TreeNode(addr, "Variable: 0x%p", addr);
-        contextMenu(addr);
-
-        if (madeNode) {
+        if (widgetWithContext(addr, [&]() { return ImGui::TreeNode(addr, "Variable: 0x%p", addr); })) {
             if (isManagedObject(addr)) {
                 handleAddress(addr);
             }
@@ -233,55 +232,81 @@ void ObjectExplorer::attemptDisplayField(REManagedObject* obj, VariableDescripto
         }
     };
 
+    auto ret = utility::hash(std::string{ desc->typeName });
+    auto getValueFunc = (void* (*)(VariableDescriptor*, REManagedObject*, void*))desc->function;
+
     char data[0x100]{ 0 };
 
     // 0x10 == pointer, i think?
     if (((desc->flags & 0x1F) - 1 != 0x10) || desc->staticVariableData == nullptr) {
-        func(desc, obj, &data);
+        getValueFunc(desc, obj, &data);
 
-        // not the most efficient way but whatever.
-        if (ret == "s32") {
-            ImGui::Text("%i", *(int16_t*)&data);
-        }
-        else if (ret == "u32") {
-            ImGui::Text("%i", *(int32_t*)&data);
-        }
-        else if (ret == "f32") {
-            ImGui::Text("%f", *(float*)&data);
-        }
-        else if (ret == "bool") {
-            ImGui::Text("%i", (int)*(bool*)&data);
-        }
-        else if (ret == "c16" && *(wchar_t**)&data != nullptr) {
-            ImGui::Text("%s", utility::narrow(*(wchar_t**)&data).c_str());
-        }
-        else if (ret == "c8" && *(char**)&data != nullptr) {
-            ImGui::Text("%s", *(char**)&data);
-        }
-        else if (ret == "via.vec3") {
-            auto& vec = *(Vector3f*)&data;
-            ImGui::Text("%f %f %f", vec.x, vec.y, vec.z);
-        }
-        else if (ret == "via.Quaternion") {
-            auto& quat = *(glm::quat*)&data;
-            ImGui::Text("%f %f %f %f", quat.x, quat.y, quat.z, quat.w);
-        }
-        else if (ret == "via.string") {
-            ImGui::Text("%s", utility::REString::getString(*(REString*)&data).c_str());
-        }
-        // Enum or something.
-        else if ((desc->flags & 0x1F) == 1) {
-            ImGui::Text("%i", *(int32_t*)&data);
-        }
-        else {
-            makeTreeAddr(*(void**)&data);
+        // yay for compile time string hashing
+        switch (ret) {
+            case "s32"_fnv:
+                ImGui::Text("%i", *(int16_t*)&data);
+                break;
+            case "u32"_fnv:
+                ImGui::Text("%i", *(int32_t*)&data);
+                break;
+            case "f32"_fnv:
+                ImGui::Text("%f", *(float*)&data);
+                break;
+            case "bool"_fnv:
+                ImGui::Text("%i", (int)*(bool*)&data);
+                break;
+            case "c16"_fnv:
+                if (*(wchar_t**)&data == nullptr) {
+                    break;
+                }
+
+                ImGui::Text("%s", utility::narrow(*(wchar_t**)&data).c_str());
+                break;
+            case "c8"_fnv:
+                if (*(char**)&data == nullptr) {
+                    break;
+                }
+
+                ImGui::Text("%s", *(char**)&data);
+                break;
+            case "via.vec3"_fnv:
+            {
+                auto& vec = *(Vector3f*)&data;
+                ImGui::Text("%f %f %f", vec.x, vec.y, vec.z);
+                break;
+            }
+            case "via.Quaternion"_fnv:
+            {
+                auto& quat = *(glm::quat*)&data;
+                ImGui::Text("%f %f %f %f", quat.x, quat.y, quat.z, quat.w);
+                break;
+            }
+            case "via.string"_fnv:
+                ImGui::Text("%s", utility::REString::getString(*(REString*)&data).c_str());
+                break;
+            default:
+                if ((desc->flags & 0x1F) == 1) {
+                    ImGui::Text("%i", *(int32_t*)&data);
+                }
+                else {
+                    makeTreeAddr(*(void**)&data);
+                }
+
+                break;
         }
     }
     // Pointer... usually
     else {
-        func(desc, obj, &data);
+        getValueFunc(desc, obj, &data);
         makeTreeAddr(*(void**)&data);
     }
+}
+
+bool ObjectExplorer::widgetWithContext(void* address, std::function<bool()> widget) {
+    auto ret = widget();
+    contextMenu(address);
+
+    return ret;
 }
 
 void ObjectExplorer::contextMenu(void* address) {
