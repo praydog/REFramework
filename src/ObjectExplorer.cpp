@@ -204,6 +204,7 @@ void ObjectExplorer::handleType(REManagedObject* obj, REType* t) {
                             ImGui::Text("Type: %s", variable->typeName);
                         }
 
+                        ImGui::Text("Flags & 1F: 0x%X", variable->flags & 0x1F);
                         ImGui::Text("VarType: %i", variable->variableType);
 
                         if (variable->staticVariableData != nullptr) {
@@ -253,14 +254,24 @@ void ObjectExplorer::attemptDisplayField(REManagedObject* obj, VariableDescripto
             case "s32"_fnv:
                 ImGui::Text("%i", *(int16_t*)&data);
                 break;
+            case "u64"_fnv:
+                ImGui::Text("%llu", *(int64_t*)&data);
+                break;
             case "u32"_fnv:
                 ImGui::Text("%i", *(int32_t*)&data);
                 break;
+            case "System.Nullable`1<System.Single>"_fnv:
             case "f32"_fnv:
                 ImGui::Text("%f", *(float*)&data);
                 break;
+            case "System.Nullable`1<System.Boolean>"_fnv:
             case "bool"_fnv:
-                ImGui::Text("%i", (int)*(bool*)&data);
+                if (*(bool*)&data) {
+                    ImGui::Text("true");
+                }
+                else {
+                    ImGui::Text("false");
+                }
                 break;
             case "c16"_fnv:
                 if (*(wchar_t**)&data == nullptr) {
@@ -276,6 +287,14 @@ void ObjectExplorer::attemptDisplayField(REManagedObject* obj, VariableDescripto
 
                 ImGui::Text("%s", *(char**)&data);
                 break;
+            case "System.Nullable`1<via.vec2>"_fnv:
+            case "via.vec2"_fnv:
+            {
+                auto& vec = *(Vector2f*)&data;
+                ImGui::Text("%f %f", vec.x, vec.y);
+                break;
+            }
+            case "System.Nullable`1<via.vec3>"_fnv:
             case "via.vec3"_fnv:
             {
                 auto& vec = *(Vector3f*)&data;
