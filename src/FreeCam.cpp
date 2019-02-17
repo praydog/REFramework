@@ -66,6 +66,12 @@ void FreeCam::onUpdateTransform(RETransform* transform) {
         orderer->enabled = !m_disableMovement->value;
     }
 
+    auto controller = m_cameraSystem->cameraController;
+
+    if (controller == nullptr) {
+        return;
+    }
+
     // despite the name, it works with the keyboard
     auto leftAnalog = utility::REManagedObject::getField<RopewayInputSystemAnalogStick*>(m_inputSystem, "_LStick");
 
@@ -79,7 +85,9 @@ void FreeCam::onUpdateTransform(RETransform* transform) {
 
     // Update wanted camera position
     auto delta = utility::REManagedObject::getField<float>(transform, "DeltaTime");
-    auto newPos = m_lastCameraMatrix[3] + glm::extractMatrixRotation(transform->worldTransform) * dir * m_speed->value * delta;
+
+    // Use controller rotation instead of camera rotation as it's accurate, will work in cutscenes.
+    auto newPos = m_lastCameraMatrix[3] + Matrix4x4f{ *(glm::quat*)&controller->worldRotation } *dir * m_speed->value * delta;
 
     if (!m_lockCamera->value) {
         // Keep track of the rotation if we want to lock the camera
@@ -89,12 +97,7 @@ void FreeCam::onUpdateTransform(RETransform* transform) {
 
     transform->worldTransform = m_lastCameraMatrix;
     transform->position = m_lastCameraMatrix[3];
-
-    auto controller = m_cameraSystem->cameraController;
-
-    if (controller != nullptr) {
-        controller->worldPosition = m_lastCameraMatrix[3];
-    }
+    controller->worldPosition = m_lastCameraMatrix[3];
 }
 
 bool FreeCam::updatePointers() {
