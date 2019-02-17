@@ -1,6 +1,8 @@
 #pragma once
 
 #include <windows.h>
+#include <mutex>
+
 #include "utility/Address.hpp"
 #include "ReClass.hpp"
 
@@ -91,6 +93,7 @@ namespace utility::REManagedObject {
         return Address(object).get(offset).as<T*>();
     }
 
+    // Get the total size of the object
     static uint32_t getSize(::REManagedObject* object) {
         auto info = object->info;
 
@@ -109,18 +112,18 @@ namespace utility::REManagedObject {
             auto containedType = ind->containedType;
             
             // array of ptrs by default
-            uint32_t multiplierThing = sizeof(void*);
+            uint32_t elementSize = sizeof(void*);
 
             // inline elements?
             if (containedType->objectType == 5) {
-                multiplierThing = containedType->sizeThing;
+                elementSize = containedType->elementSize;
             }
 
             if (ind->num1 <= 1) {
-                size = multiplierThing * ind->numElements + sizeof(::REArrayBase);
+                size = elementSize * ind->numElements + sizeof(::REArrayBase);
             }
             else {
-                size = multiplierThing * ind->numElements + sizeof(::REArrayBase) + 4 * ind->num1;
+                size = elementSize * ind->numElements + sizeof(::REArrayBase) + 4 * ind->num1;
             }
 
             break;
@@ -140,6 +143,7 @@ namespace utility::REManagedObject {
         return size;
     }
 
+    // Get the field/variable list for the type
     static REVariableList* getVariables(::REType* t) {
         if (t == nullptr || t->fields == nullptr || t->fields->variables == nullptr) {
             return nullptr;
@@ -158,7 +162,9 @@ namespace utility::REManagedObject {
         return getVariables(getType(obj));
     }
 
+    // Get a field descriptor by name
     static VariableDescriptor* getFieldDesc(::REManagedObject* obj, std::string_view field) {
+        static std::mutex insertionMutex{};
         static std::unordered_map<std::string, VariableDescriptor*> varMap{};
         
         auto t = getType(obj);
@@ -172,7 +178,6 @@ namespace utility::REManagedObject {
         if (varMap.find(fullName) != varMap.end()) {
             return varMap[fullName];
         }
-
 
         for (; t != nullptr; t = t->super) {
             auto vars = getVariables(t);
@@ -189,6 +194,7 @@ namespace utility::REManagedObject {
                 }
 
                 if (field == var->name) {
+                    std::lock_guard _{ insertionMutex };
                     varMap[fullName] = var;
                     return var;
                 }
@@ -198,6 +204,7 @@ namespace utility::REManagedObject {
         return nullptr;
     }
 
+    // Get a field value by name
     template <typename T>
     T getField(::REManagedObject* obj, std::string_view field) {
         T data{};

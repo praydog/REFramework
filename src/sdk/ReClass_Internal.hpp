@@ -377,7 +377,7 @@ public:
     char pad_0024[2]; //0x0024
     uint8_t objectType; //0x0026 1 == normal type ? ??
     char pad_0027[5]; //0x0027
-    uint32_t sizeThing; //0x002C
+    uint32_t elementSize; //0x002C
     uint32_t size; //0x0030
     char pad_0034[44]; //0x0034
     class N00002B03 *N000009C1; //0x0060
@@ -408,7 +408,10 @@ public:
 class REFolder : public REManagedObject
 {
 public:
-    char pad_0010[24]; //0x0010
+    char pad_0010[8]; //0x0010
+    int32_t N00000D4E; //0x0018
+    char pad_001C[8]; //0x001C
+    float N00005BA5; //0x0024
     class REString name; //0x0028
     class REString name2; //0x0048
     class REString name3; //0x0068
@@ -871,9 +874,8 @@ class SystemString : public REManagedObject
 {
 public:
     int32_t size; //0x0010
-    wchar_t data[12]; //0x0014
-    char pad_002C[96]; //0x002C
-}; //Size: 0x008C
+    wchar_t data[256]; //0x0014
+}; //Size: 0x0214
 
 class N0000AA93 : public REManagedObject
 {
@@ -1695,23 +1697,34 @@ public:
     class RopewaySurvivorDefineDamageParam *damageParam; //0x0060
     char pad_0068[6]; //0x0068
     bool forceUseFlashlight; //0x006E
-    char pad_006F[17]; //0x006F
-    float N0000185B; //0x0080
-    char pad_0084[4]; //0x0084
-    float sessionTime; //0x0088
-    char pad_008C[4]; //0x008C
-    class RopewayTimer *timer1; //0x0090
-    class RopewayTimer *timer2; //0x0098
-    char pad_00A0[16]; //0x00A0
+    bool manuallyLight; //0x006F
+    float autoHealStartTimer; //0x0070
+    float autoHealTimer; //0x0074
+    float poisonTimer; //0x0078
+    float poisonAutoRecoveryTimer; //0x007C
+    float combatTimer; //0x0080
+    float coughTimer; //0x0084
+    float warmTimer; //0x0088
+    float unknownfloat; //0x008C
+    class RopewayTimer *lightSwitchTimer; //0x0090
+    class RopewayTimer *burnTimer; //0x0098
+    class SurvivorConditionTimerTrigger *wetTimerTrigger; //0x00A0
+    class SurvivorConditionTimerTrigger *dryTimerTrigger; //0x00A8
     class REGameObject *flashlight; //0x00B0
-    char pad_00B8[72]; //0x00B8
+    char pad_00B8[48]; //0x00B8
+    class REJoint *playerJoint; //0x00E8
+    char pad_00F0[8]; //0x00F0
+    class SystemAction *actionVital; //0x00F8
     class RopewaySurvivorPlayerController *playerController; //0x0100
     class RopewaySurvivorPlayerActionOrderer *actionOrderer; //0x0108
     char pad_0110[16]; //0x0110
     class RopewaySurvivorInventory *inventory; //0x0120
     class RopewaySurvivorEquipment *equipment; //0x0128
     class REMotion *playerMotion; //0x0130
-    char pad_0138[360]; //0x0138
+    char pad_0138[152]; //0x0138
+    bool forceuseFlashlight2; //0x01D0
+    bool N00005FF6; //0x01D1
+    char pad_01D2[206]; //0x01D2
 }; //Size: 0x02A0
 
 class RopewayHandHeldItem : public REBehavior
@@ -1738,7 +1751,14 @@ public:
 class RopewayTimer : public RopewayTimerBase
 {
 public:
-    char pad_0018[24]; //0x0018
+    bool completeTrigger; //0x0018
+    char pad_0019[3]; //0x0019
+    int32_t functionType; //0x001C
+    float N0000194C; //0x0020
+    bool N00005FFE; //0x0024
+    char pad_0025[3]; //0x0025
+    bool N0000194D; //0x0028
+    char pad_0029[7]; //0x0029
 }; //Size: 0x0030
 
 class RopewaySurvivorInventory : public REBehavior
@@ -2115,8 +2135,78 @@ public:
     char pad_0010[112]; //0x0010
 }; //Size: 0x0080
 
-class N00003D3C
+class RopewaySurvivorManager : public REBehavior
 {
 public:
-    char pad_0000[8]; //0x0000
-}; //Size: 0x0008
+    char pad_0048[8]; //0x0048
+    class RopewaySurvivorPlayerCondition *playerCondition; //0x0050
+    char pad_0058[8]; //0x0058
+    class RopewaySurvivorCastingRequest *castingRequest; //0x0060
+    class DotNetGenericList *instantiateRequests; //0x0068
+    class DotNetGenericList *survivorPrefabInfo; //0x0070
+    class DotNetGenericDictionary *survivorTypesToConditions; //0x0078 SurvivorType->ActorCondition
+    class SystemAction *actionPlayerCondition; //0x0080
+    class SystemAction *actionNpcCondition; //0x0088
+    char pad_0090[8]; //0x0090
+    class SystemAction *survivorTypeAction1; //0x0098
+    class SystemAction *survivorTypeAction2; //0x00A0
+    char pad_00A8[8]; //0x00A8
+    class RopewaySurvivorCastingRequest *castingRequest2; //0x00B0
+    void *uservarAccessor_Survivor; //0x00B8
+    char pad_00C0[8]; //0x00C0
+    class RopewaySettingFolder *settingFolder1; //0x00C8
+    class RopewaySettingFolder *settingFolder2; //0x00D0
+    class RopewaySettingFolder *settingFolder3; //0x00D8
+    class UserData *conditionSettingUserData; //0x00E0
+    class DotNetGenericDictionary *survivorTypeToExistSurvivorInfo; //0x00E8
+    class DotNetGenericList *existSurvivorInfos; //0x00F0
+    class REManagedObject *N000058DF; //0x00F8
+}; //Size: 0x0100
+
+class RopewaySurvivorCastingRequest : public REManagedObject
+{
+public:
+    char pad_0010[24]; //0x0010
+}; //Size: 0x0028
+
+class SystemDelegate : public REManagedObject
+{
+public:
+
+}; //Size: 0x0010
+
+class DelegateElement
+{
+public:
+    class REManagedObject *obj; //0x0000
+    void* funcPtr; //0x0008
+}; //Size: 0x0010
+
+class SystemMulticastDelegate : public SystemDelegate
+{
+public:
+    int32_t numElements; //0x0010
+    int32_t N00005A07; //0x0014
+    class DelegateElement delegates[2048]; //0x0018
+}; //Size: 0x8018
+
+class SystemAction : public SystemMulticastDelegate
+{
+public:
+
+}; //Size: 0x8018
+
+class RopewaySettingFolder : public REManagedObject
+{
+public:
+    class REFolder *folder; //0x0010
+    class SystemString *name; //0x0018
+}; //Size: 0x0020
+
+class SurvivorConditionTimerTrigger : public REManagedObject
+{
+public:
+    float old; //0x0010
+    float current; //0x0014
+    float threshold; //0x0018
+}; //Size: 0x001C
