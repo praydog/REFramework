@@ -4,6 +4,7 @@
 #include "FirstPerson.hpp"
 #include "DeveloperTools.hpp"
 #include "ManualFlashlight.hpp"
+#include "FreeCam.hpp"
 
 #include "Mods.hpp"
 
@@ -12,6 +13,7 @@ Mods::Mods()
     m_mods.emplace_back(std::make_unique<PositionHooks>());
     m_mods.emplace_back(std::make_unique<FirstPerson>());
     m_mods.emplace_back(std::make_unique<ManualFlashlight>());
+    m_mods.emplace_back(std::make_unique<FreeCam>());
 
 #ifdef DEVELOPER
     m_mods.emplace_back(std::make_unique<DeveloperTools>());

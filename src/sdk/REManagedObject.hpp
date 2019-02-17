@@ -1,6 +1,7 @@
 #pragma once
 
 #include <windows.h>
+#include <spdlog/spdlog.h>
 
 #include "utility/Address.hpp"
 #include "ReClass.hpp"
@@ -139,5 +140,80 @@ namespace utility::REManagedObject {
         }
 
         return size;
+    }
+
+    static REVariableList* getVariables(::REType* t) {
+        if (t == nullptr || t->fields == nullptr || t->fields->variables == nullptr) {
+            return nullptr;
+        }
+
+        auto vars = t->fields->variables;
+
+        if (vars->data == nullptr || vars->num <= 0) {
+            return nullptr;
+        }
+
+        return vars;
+    }
+
+    static REVariableList* getVariables(::REManagedObject* obj) {
+        return getVariables(getType(obj));
+    }
+
+    static VariableDescriptor* getFieldDesc(::REManagedObject* obj, std::string_view field) {
+        static std::unordered_map<std::string, VariableDescriptor*> varMap{};
+        
+        auto t = getType(obj);
+
+        if (t == nullptr) {
+            return nullptr;
+        }
+
+        auto fullName = std::string{ t->name } + "." + field.data();
+
+        if (varMap.find(fullName) != varMap.end()) {
+            return varMap[fullName];
+        }
+
+
+        for (; t != nullptr; t = t->super) {
+            auto vars = getVariables(t);
+
+            if (vars == nullptr) {
+                continue;
+            }
+
+            for (auto i = 0; i < vars->num; ++i) {
+                auto& var = vars->data->descriptors[i];
+
+                if (var == nullptr || var->name == nullptr) {
+                    continue;
+                }
+
+                if (field == var->name) {
+                    varMap[fullName] = var;
+                    return var;
+                }
+            }
+        }
+
+        return nullptr;
+    }
+
+    template <typename T>
+    T getField(::REManagedObject* obj, std::string_view field) {
+        T data{};
+
+        auto desc = getFieldDesc(obj, field);
+
+        if (desc != nullptr) {
+            auto getValueFunc = (void* (*)(VariableDescriptor*, ::REManagedObject*, void*))desc->function;
+
+            if (getValueFunc != nullptr) {
+                getValueFunc(desc, obj, &data);
+            }
+        }
+
+        return data;
     }
 }

@@ -14,6 +14,8 @@ set(MODS_SRC
     DeveloperTools.cpp
     FirstPerson.hpp
     FirstPerson.cpp
+    FreeCam.hpp
+    FreeCam.cpp
     ManualFlashlight.hpp
     ManualFlashlight.cpp
     ObjectExplorer.hpp
