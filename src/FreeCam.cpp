@@ -22,6 +22,10 @@ void FreeCam::onDrawUI() {
     }
 
     m_enabled->draw("Enabled");
+
+    ImGui::SameLine();
+    m_lockCamera->draw("Lock Position");
+
     m_speed->draw("Speed");
 }
 
@@ -49,12 +53,19 @@ void FreeCam::onUpdateTransform(RETransform* transform) {
     }
 
     // Move direction
-    auto dir = utility::REManagedObject::getField<Vector4f>(leftAnalog, "Direction") * -1.0f;
+    auto axis = utility::REManagedObject::getField<Vector4f>(leftAnalog, "Axis");
+    auto dir = Vector4f{ axis.x, 0.0f, axis.y * -1.0f, 0.0f };
 
     // Update wanted camera position
-    m_lastCameraMatrix[3] += glm::extractMatrixRotation(transform->worldTransform) * dir * m_speed->value * delta;
+    auto newPos = m_lastCameraMatrix[3] + glm::extractMatrixRotation(transform->worldTransform) * dir * m_speed->value * delta;
 
-    transform->worldTransform[3] = m_lastCameraMatrix[3];
+    if (!m_lockCamera->value) {
+        // Keep track of the rotation if we want to lock the camera
+        m_lastCameraMatrix = transform->worldTransform;
+        m_lastCameraMatrix[3] = newPos;
+    }
+
+    transform->worldTransform = m_lastCameraMatrix;
     transform->position = m_lastCameraMatrix[3];
 
     auto controller = m_cameraSystem->cameraController;

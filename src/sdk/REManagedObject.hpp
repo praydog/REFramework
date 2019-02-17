@@ -1,8 +1,6 @@
 #pragma once
 
 #include <windows.h>
-#include <spdlog/spdlog.h>
-
 #include "utility/Address.hpp"
 #include "ReClass.hpp"
 
