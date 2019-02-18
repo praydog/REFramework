@@ -275,10 +275,6 @@ void FirstPerson::reset() {
     m_lastControllerPos = Vector4f{};
     m_lastControllerRotation = glm::quat{};
 
-    std::lock_guard __{ m_deltaMutex };
-    m_updateTimes.clear();
-    m_deltaTimes.clear();
-
     std::lock_guard _{ m_frameMutex };
     m_attachNames.clear();
 }
@@ -373,7 +369,7 @@ void FirstPerson::updateCameraTransform(RETransform* transform) {
                + glm::distance(m_interpolatedBone[2], headRotMat[2])) / 3.0f;
 
     // interpolate the bone rotation (it's snappy otherwise)
-    m_interpolatedBone = glm::interpolate(m_interpolatedBone, headRotMat, std::min(deltaTime, 0.1f) * m_boneScale->value * dist);
+    m_interpolatedBone = glm::interpolate(m_interpolatedBone, headRotMat, deltaTime * (m_boneScale->value * 0.01f) * dist);
 
     // Look at where the camera is pointing from the head position
     camRotMat = glm::extractMatrixRotation(glm::rowMajor4(glm::lookAtLH(finalPos, camPos3 + (camForward3 * 8192.0f), { 0.0f, 1.0f, 0.0f })));
@@ -385,7 +381,7 @@ void FirstPerson::updateCameraTransform(RETransform* transform) {
           + glm::distance(m_rotationOffset[1], wantedMat[1])
           + glm::distance(m_rotationOffset[2], wantedMat[2])) / 3.0f;
 
-    m_rotationOffset = glm::interpolate(m_rotationOffset, wantedMat, std::min(deltaTime, 0.1f) * m_cameraScale->value * dist);
+    m_rotationOffset = glm::interpolate(m_rotationOffset, wantedMat, deltaTime * (m_cameraScale->value * 0.01f) * dist);
     auto finalMat = m_interpolatedBone * m_rotationOffset;
     auto finalQuat = glm::quat{ finalMat };
 
@@ -495,14 +491,6 @@ void FirstPerson::updateJointNames() {
 }
 
 float FirstPerson::updateDeltaTime(REComponent* component) {
-    std::lock_guard _{ m_deltaMutex };
-
-    auto deltaDuration = std::chrono::duration<float>(std::chrono::high_resolution_clock::now() - m_updateTimes[component]);
-    auto deltaTime = deltaDuration.count();
-
-    m_updateTimes[component] = std::chrono::high_resolution_clock::now();
-    m_deltaTimes[component] = deltaTime;
-
-    return deltaTime;
+    return utility::REComponent::getDeltaTime(component);
 }
 

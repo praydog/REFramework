@@ -86,7 +86,7 @@ void FreeCam::onUpdateTransform(RETransform* transform) {
         auto axis = utility::REManagedObject::getField<Vector3f>(leftAnalog, "Axis");
         auto dir = Vector4f{ axis.x, 0.0f, axis.y * -1.0f, 0.0f };
 
-        auto delta = utility::REManagedObject::getField<float>(transform, "DeltaTime");
+        auto delta = utility::REComponent::getDeltaTime(transform);
 
         // Use controller rotation instead of camera rotation as it's accurate, will work in cutscenes.
         auto newPos = m_lastCameraMatrix[3] + Matrix4x4f{ *(glm::quat*)&controller->worldRotation } * dir * m_speed->value * delta;

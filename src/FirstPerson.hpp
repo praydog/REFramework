@@ -67,9 +67,6 @@ private:
     RopewayCameraSystem* m_cameraSystem{ nullptr };
     RopewaySweetLightManager* m_sweetLightManager{ nullptr };
 
-    std::unordered_map<REComponent*, std::chrono::high_resolution_clock::time_point> m_updateTimes;
-    std::unordered_map<REComponent*, float> m_deltaTimes;
-
     std::vector<std::string> m_attachNames;
     int32_t m_attachSelected{ 0 };
     
