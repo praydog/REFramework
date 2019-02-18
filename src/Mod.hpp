@@ -199,7 +199,8 @@ public:
     virtual std::string generateName(std::string_view name) { return std::string{ getName() } + "_" + name.data(); }
 
     // Called when REFramework::initialize finishes in the first render frame
-    virtual bool onInitialize() { return true; };
+    // Returns an error string if it fails
+    virtual std::optional<std::string> onInitialize() { return std::nullopt; };
 
     // Functionally equivalent, but onFrame will always get called, onDrawUI can be disabled by REFramework
     virtual void onFrame() {};

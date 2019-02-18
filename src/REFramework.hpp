@@ -35,10 +35,6 @@ public:
         return m_gameModule;
     }
 
-    void signalError(std::string_view err) {
-        m_error = err;
-    }
-
     bool isReady() const {
         return m_gameDataInitialized;
     }
@@ -79,8 +75,8 @@ private:
     std::string m_error{ "" };
 
     // Game-specific stuff
-    std::unique_ptr<class Mods> m_mods;
-    std::unique_ptr<class REGlobals> m_globals;
+    std::unique_ptr<Mods> m_mods;
+    std::unique_ptr<REGlobals> m_globals;
 
     ID3D11RenderTargetView* m_mainRenderTargetView{ nullptr };
 };

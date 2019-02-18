@@ -7,7 +7,7 @@ public:
     Mods();
     virtual ~Mods() {}
 
-    bool onInitialize() const;
+    std::optional<std::string> onInitialize() const;
 
     void onFrame() const;
     void onDrawUI() const;

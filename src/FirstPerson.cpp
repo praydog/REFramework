@@ -32,18 +32,17 @@ FirstPerson::FirstPerson() {
     m_attachOffsets["pl6400"] = Vector4f{ -0.316, 0.466f, 0.79f, 0.0f };
 }
 
-bool FirstPerson::onInitialize() {
+std::optional<std::string> FirstPerson::onInitialize() {
     auto vignetteCode = utility::scan(g_framework->getModule().as<HMODULE>(), "8B 87 3C 01 00 00 89 83 DC 00 00 00");
 
     if (!vignetteCode) {
-        g_framework->signalError("Failed to find Disable Vignette pattern");
-        return false;
+        return "Failed to find Disable Vignette pattern";
     }
 
     // xor eax, eax
     m_disableVignettePatch = Patch::create(*vignetteCode, { 0x31, 0xC0, 0x90, 0x90, 0x90, 0x90 }, false);
 
-    return true;
+    return Mod::onInitialize();
 }
 
 void FirstPerson::onFrame() {

@@ -20,13 +20,13 @@ Mods::Mods()
 #endif
 }
 
-bool Mods::onInitialize() const {
+std::optional<std::string> Mods::onInitialize() const {
     for (auto& mod : m_mods) {
         spdlog::info("{:s}::onInitialize()", mod->getName().data());
 
-        if (!mod->onInitialize()) {
-            spdlog::info("{:s}::onInitialize() has failed", mod->getName().data());
-            return false;
+        if (auto e = mod->onInitialize(); e != std::nullopt) {
+            spdlog::info("{:s}::onInitialize() has failed: {:s}", mod->getName().data(), *e);
+            return e;
         }
     }
 
@@ -37,7 +37,7 @@ bool Mods::onInitialize() const {
         mod->onConfigLoad(cfg);
     }
 
-    return true;
+    return std::nullopt;
 }
 
 void Mods::onFrame() const {

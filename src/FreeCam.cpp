@@ -79,17 +79,18 @@ void FreeCam::onUpdateTransform(RETransform* transform) {
         return;
     }
 
-    // Move direction
-    auto axis = utility::REManagedObject::getField<Vector4f>(leftAnalog, "Axis");
-    auto dir = Vector4f{ axis.x, 0.0f, axis.y * -1.0f, 0.0f };
-
     // Update wanted camera position
-    auto delta = utility::REManagedObject::getField<float>(transform, "DeltaTime");
-
-    // Use controller rotation instead of camera rotation as it's accurate, will work in cutscenes.
-    auto newPos = m_lastCameraMatrix[3] + Matrix4x4f{ *(glm::quat*)&controller->worldRotation } *dir * m_speed->value * delta;
-
     if (!m_lockCamera->value) {
+        // Move direction
+        // It's not a Vector2f because via.vec2 is not actually 8 bytes, we don't want stack corruption to occur.
+        auto axis = utility::REManagedObject::getField<Vector3f>(leftAnalog, "Axis");
+        auto dir = Vector4f{ axis.x, 0.0f, axis.y * -1.0f, 0.0f };
+
+        auto delta = utility::REManagedObject::getField<float>(transform, "DeltaTime");
+
+        // Use controller rotation instead of camera rotation as it's accurate, will work in cutscenes.
+        auto newPos = m_lastCameraMatrix[3] + Matrix4x4f{ *(glm::quat*)&controller->worldRotation } * dir * m_speed->value * delta;
+
         // Keep track of the rotation if we want to lock the camera
         m_lastCameraMatrix = transform->worldTransform;
         m_lastCameraMatrix[3] = newPos;

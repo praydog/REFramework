@@ -286,8 +286,15 @@ bool REFramework::initialize() {
             m_globals = std::make_unique<REGlobals>();
             m_mods = std::make_unique<Mods>();
 
-            if (!m_mods->onInitialize() && m_error.empty()) {
-                m_error = "An unknown error has occurred.";
+            auto e = m_mods->onInitialize();
+
+            if (e) {
+                if (e->empty()) {
+                    m_error = "An unknown error has occurred.";
+                }
+                else {
+                    m_error = *e;
+                }
             }
 
             m_gameDataInitialized = true;

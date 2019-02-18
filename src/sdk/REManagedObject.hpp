@@ -205,6 +205,7 @@ namespace utility::REManagedObject {
     }
 
     // Get a field value by name
+    // Be very careful with the type size here, stack corruption could occur if the size is not large enough!
     template <typename T>
     T getField(::REManagedObject* obj, std::string_view field) {
         T data{};

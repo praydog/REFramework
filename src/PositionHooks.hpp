@@ -8,7 +8,7 @@ public:
     PositionHooks();
 
     std::string_view getName() const override { return "PositionHooks"; };
-    bool onInitialize() override;
+    std::optional<std::string> onInitialize() override;
 
 protected:
     void* updateTransformHook_Internal(RETransform* t, uint8_t a2, uint32_t a3);
