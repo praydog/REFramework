@@ -8,6 +8,7 @@ DirectX 12 is not supported.
 
 ## Included Mods
 * First Person
+* Free Camera
 * Manual Flashlight
 
 ## Thanks
