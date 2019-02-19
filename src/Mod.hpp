@@ -205,7 +205,7 @@ public:
             for (auto k = 0; k < keys.size(); ++k) {
                 if (keys[k]) {
                     if (isEraseKey(k)) {
-                        m_value = -1;
+                        m_value = UNBOUND_KEY;
                         break;
                     }
 
@@ -234,6 +234,10 @@ public:
     }
 
     bool isKeyDown() const {
+        if (m_value < 0 || m_value > 255) {
+            return false;
+        }
+
         return g_framework->getKeyboardState()[(uint8_t)m_value] != 0;
     }
 
