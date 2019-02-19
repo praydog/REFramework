@@ -73,6 +73,9 @@ private:
     std::unique_ptr<Patch> m_disableVignettePatch{};
 
     ModToggle::Ptr m_enabled{ ModToggle::create(generateName("Enabled")) };
+    ModKey::Ptr m_toggleKey{ ModKey::create(generateName("ToggleKey")) };
+    void onDisabled();
+
     ModToggle::Ptr m_disableVignette{ ModToggle::create(generateName("DisableVignette")) };
     ModToggle::Ptr m_hideMesh{ ModToggle::create(generateName("HideJointMesh"), true) };
     ModToggle::Ptr m_disableLightSource{ ModToggle::create(generateName("DisableLightSource"), true) };

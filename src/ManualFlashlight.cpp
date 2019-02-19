@@ -4,14 +4,8 @@
 
 void ManualFlashlight::onFrame() {
     // TODO: Add controller support.
-    auto holdingButton = m_key->isKeyDown();
-
-    if (holdingButton && !m_lastButton) {
+    if (m_key->isKeyDownOnce()) {
         m_shouldPullOut = !m_shouldPullOut;
-        m_lastButton = true;
-    }
-    else if (!holdingButton) {
-        m_lastButton = false;
     }
 }
 

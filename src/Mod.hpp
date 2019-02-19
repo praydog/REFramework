@@ -66,6 +66,8 @@ protected:
 
 class ModToggle : public ModValue<bool> {
 public:
+    using Ptr = std::unique_ptr<ModToggle>;
+
     ModToggle(std::string_view configName, bool defaultValue) 
         : ModValue<bool>{ configName, defaultValue } 
     { 
@@ -86,10 +88,16 @@ public:
     void drawValue(std::string_view name) override {
         ImGui::Text("%s: %i", name.data(), m_value);
     }
+
+    bool toggle() {
+        return m_value = !m_value;
+    }
 };
 
 class ModFloat : public ModValue<float> {
 public:
+    using Ptr = std::unique_ptr<ModFloat>;
+
     ModFloat(std::string_view configName, float defaultValue) 
         : ModValue<float>{ configName, defaultValue } { }
 
@@ -174,11 +182,11 @@ class ModKey: public ModInt32 {
 public:
     using Ptr = std::unique_ptr<ModKey>;
 
-    static auto create(std::string_view configName, uint8_t defaultValue = UNBOUND_KEY) {
+    static auto create(std::string_view configName, int32_t defaultValue = UNBOUND_KEY) {
         return std::make_unique<ModKey>(configName, defaultValue);
     }
 
-    ModKey(std::string_view configName, uint8_t defaultValue = 0)
+    ModKey(std::string_view configName, int32_t defaultValue = UNBOUND_KEY)
         : ModInt32{ configName, defaultValue }
     {
     }
@@ -254,7 +262,7 @@ public:
         }
     }
 
-    static constexpr uint8_t UNBOUND_KEY = -1;
+    static constexpr int32_t UNBOUND_KEY = -1;
 
 protected:
     bool m_wasKeyDown{ false };

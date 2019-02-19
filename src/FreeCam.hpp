@@ -23,6 +23,9 @@ private:
     ModToggle::Ptr m_enabled{         ModToggle::create(generateName("Enabled"), false) };
     ModToggle::Ptr m_lockCamera{      ModToggle::create(generateName("LockPosition"), false) };
     ModToggle::Ptr m_disableMovement{ ModToggle::create(generateName("DisableMovement"), false) };
+    ModKey::Ptr m_toggleKey{          ModKey::create(generateName("ToggleKey")) };
+    ModKey::Ptr m_lockCameraKey{      ModKey::create(generateName("LockKey")) };
+    ModKey::Ptr m_disableMovementKey{ ModKey::create(generateName("DisableMoveKey")) };
 
     ModSlider::Ptr m_speed{ ModSlider::create(generateName("Speed"), 0.0f, 1.0f, 0.1f) };
 

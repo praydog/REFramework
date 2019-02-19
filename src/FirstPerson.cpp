@@ -46,6 +46,10 @@ std::optional<std::string> FirstPerson::onInitialize() {
 }
 
 void FirstPerson::onFrame() {
+    if (m_toggleKey->isKeyDownOnce() && !m_enabled->toggle()) {
+        onDisabled();
+    }
+
     if (!m_enabled->value()) {
         return;
     }
@@ -70,13 +74,9 @@ void FirstPerson::onDrawUI() {
 
     std::lock_guard _{ m_frameMutex };
 
-    if (m_enabled->draw("Enabled")) {
+    if (m_enabled->draw("Enabled") && !m_enabled->value()) {
         // Disable fov and camera light changes
-        if (!m_enabled->value() && m_cameraSystem != nullptr && m_sweetLightManager != nullptr) {
-            updateFOV(m_cameraSystem->cameraController);
-            updateSweetLightContext(utility::RopewaySweetLightManager::getContext(m_sweetLightManager, 0));
-            updateSweetLightContext(utility::RopewaySweetLightManager::getContext(m_sweetLightManager, 1));
-        }
+        onDisabled();
     }
 
     ImGui::SameLine();
@@ -89,9 +89,7 @@ void FirstPerson::onDrawUI() {
         m_disableVignettePatch->toggle(m_disableVignette->value());
     }
 
-    if (ImGui::Button("Refresh Joints")) {
-        m_attachNames.clear();
-    }
+    m_toggleKey->draw("Change Toggle Key");
 
     ImGui::SliderFloat3("CameraOffset", (float*)&m_attachOffsets[m_playerName], -2.0f, 2.0f, "%.3f", 1.0f);
 
@@ -129,6 +127,7 @@ void FirstPerson::onDrawUI() {
 void FirstPerson::onConfigLoad(const utility::Config& cfg) {
     // maybe add a way to just push them once into a list of mod variables.
     m_enabled->configLoad(cfg);
+    m_toggleKey->configLoad(cfg);
     m_hideMesh->configLoad(cfg);
     m_disableVignette->configLoad(cfg);
     m_disableLightSource->configLoad(cfg);
@@ -148,6 +147,7 @@ void FirstPerson::onConfigLoad(const utility::Config& cfg) {
 
 void FirstPerson::onConfigSave(utility::Config& cfg) {
     m_enabled->configSave(cfg);
+    m_toggleKey->configSave(cfg);
     m_hideMesh->configSave(cfg);
     m_disableVignette->configSave(cfg);
     m_disableLightSource->configSave(cfg);
@@ -492,5 +492,14 @@ void FirstPerson::updateJointNames() {
 
 float FirstPerson::updateDeltaTime(REComponent* component) {
     return utility::REComponent::getDeltaTime(component);
+}
+
+void FirstPerson::onDisabled() {
+    // Disable fov and camera light changes
+    if (m_cameraSystem != nullptr && m_sweetLightManager != nullptr) {
+        updateFOV(m_cameraSystem->cameraController);
+        updateSweetLightContext(utility::RopewaySweetLightManager::getContext(m_sweetLightManager, 0));
+        updateSweetLightContext(utility::RopewaySweetLightManager::getContext(m_sweetLightManager, 1));
+    }
 }
 

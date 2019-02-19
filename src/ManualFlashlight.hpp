@@ -21,7 +21,6 @@ public:
 private:
     RopewayIlluminationManager* m_illuminationManager{ nullptr };
 
-    bool m_lastButton{ false };
     bool m_shouldPullOut{ false };
 
     // keys need to be directinput unfortunately. window messages for windows virtual keys get blocked
