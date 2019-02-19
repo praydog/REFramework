@@ -46,7 +46,7 @@ std::optional<std::string> FirstPerson::onInitialize() {
 }
 
 void FirstPerson::onFrame() {
-    if (!m_enabled->value) {
+    if (!m_enabled->value()) {
         return;
     }
 
@@ -72,7 +72,7 @@ void FirstPerson::onDrawUI() {
 
     if (m_enabled->draw("Enabled")) {
         // Disable fov and camera light changes
-        if (!m_enabled->value && m_cameraSystem != nullptr && m_sweetLightManager != nullptr) {
+        if (!m_enabled->value() && m_cameraSystem != nullptr && m_sweetLightManager != nullptr) {
             updateFOV(m_cameraSystem->cameraController);
             updateSweetLightContext(utility::RopewaySweetLightManager::getContext(m_sweetLightManager, 0));
             updateSweetLightContext(utility::RopewaySweetLightManager::getContext(m_sweetLightManager, 1));
@@ -86,7 +86,7 @@ void FirstPerson::onDrawUI() {
 
     ImGui::SameLine();
     if (m_disableVignette->draw("Disable Vignette")) {
-        m_disableVignettePatch->toggle(m_disableVignette->value);
+        m_disableVignettePatch->toggle(m_disableVignette->value());
     }
 
     if (ImGui::Button("Refresh Joints")) {
@@ -105,10 +105,10 @@ void FirstPerson::onDrawUI() {
 
         if (m_fovMult->draw("FOVMultiplier")) {
             updateFOV(m_cameraSystem->cameraController);
-            m_lastFovMult = m_fovMult->value;
+            m_lastFovMult = m_fovMult->value();
         }
 
-        m_currentFov->value = m_playerCameraController->activeCamera->fov;
+        m_currentFov->value() = m_playerCameraController->activeCamera->fov;
         m_currentFov->draw("CurrentFOV");
     }
 
@@ -128,41 +128,41 @@ void FirstPerson::onDrawUI() {
 
 void FirstPerson::onConfigLoad(const utility::Config& cfg) {
     // maybe add a way to just push them once into a list of mod variables.
-    m_enabled->configLoad(cfg, generateName("Enabled"));
-    m_hideMesh->configLoad(cfg, generateName("HideJointMesh"));
-    m_disableVignette->configLoad(cfg, generateName("DisableVignette"));
-    m_disableLightSource->configLoad(cfg, generateName("DisableLightSource"));
-    m_fovOffset->configLoad(cfg, generateName("FOVOffset"));
-    m_fovMult->configLoad(cfg, generateName("FOVMultiplier"));
+    m_enabled->configLoad(cfg);
+    m_hideMesh->configLoad(cfg);
+    m_disableVignette->configLoad(cfg);
+    m_disableLightSource->configLoad(cfg);
+    m_fovOffset->configLoad(cfg);
+    m_fovMult->configLoad(cfg);
     
-    m_cameraScale->configLoad(cfg, generateName("CameraSpeed"));
-    m_boneScale->configLoad(cfg, generateName("CameraShake"));
+    m_cameraScale->configLoad(cfg);
+    m_boneScale->configLoad(cfg);
 
-    m_lastFovMult = m_fovMult->value;
+    m_lastFovMult = m_fovMult->value();
 
     // turn the patch on
-    if (m_disableVignette->value) {
-        m_disableVignettePatch->toggle(m_disableVignette->value);
+    if (m_disableVignette->value()) {
+        m_disableVignettePatch->toggle(m_disableVignette->value());
     }
 }
 
 void FirstPerson::onConfigSave(utility::Config& cfg) {
-    m_enabled->configSave(cfg, generateName("Enabled"));
-    m_hideMesh->configSave(cfg, generateName("HideJointMesh"));
-    m_disableVignette->configSave(cfg, generateName("DisableVignette"));
-    m_disableLightSource->configSave(cfg, generateName("DisableLightSource"));
-    m_fovOffset->configSave(cfg, generateName("FOVOffset"));
-    m_fovMult->configSave(cfg, generateName("FOVMultiplier"));
+    m_enabled->configSave(cfg);
+    m_hideMesh->configSave(cfg);
+    m_disableVignette->configSave(cfg);
+    m_disableLightSource->configSave(cfg);
+    m_fovOffset->configSave(cfg);
+    m_fovMult->configSave(cfg);
 
-    m_cameraScale->configSave(cfg, generateName("CameraSpeed"));
-    m_boneScale->configSave(cfg, generateName("CameraShake"));
+    m_cameraScale->configSave(cfg);
+    m_boneScale->configSave(cfg);
 }
 
 thread_local bool g_inPlayerTransform = false;
 thread_local bool g_firstTime = true;
 
 void FirstPerson::onPreUpdateTransform(RETransform* transform) {
-    if (!m_enabled->value || m_camera == nullptr || m_camera->ownerGameObject == nullptr) {
+    if (!m_enabled->value() || m_camera == nullptr || m_camera->ownerGameObject == nullptr) {
         return;
     }
 
@@ -199,7 +199,7 @@ void FirstPerson::onUpdateTransform(RETransform* transform) {
         m_matrixMutex.unlock();
     }
 
-    if (!m_enabled->value) {
+    if (!m_enabled->value()) {
         return;
     }
 
@@ -241,7 +241,7 @@ void FirstPerson::onUpdateTransform(RETransform* transform) {
 }
 
 void FirstPerson::onUpdateCameraController(RopewayPlayerCameraController* controller) {
-    if (!m_enabled->value || controller != m_playerCameraController || m_playerTransform == nullptr) {
+    if (!m_enabled->value() || controller != m_playerCameraController || m_playerTransform == nullptr) {
         return;
     }
 
@@ -254,7 +254,7 @@ void FirstPerson::onUpdateCameraController(RopewayPlayerCameraController* contro
 }
 
 void FirstPerson::onUpdateCameraController2(RopewayPlayerCameraController* controller) {
-    if (!m_enabled->value || controller != m_playerCameraController || m_playerTransform == nullptr) {
+    if (!m_enabled->value() || controller != m_playerCameraController || m_playerTransform == nullptr) {
         return;
     }
 
@@ -369,7 +369,7 @@ void FirstPerson::updateCameraTransform(RETransform* transform) {
                + glm::distance(m_interpolatedBone[2], headRotMat[2])) / 3.0f;
 
     // interpolate the bone rotation (it's snappy otherwise)
-    m_interpolatedBone = glm::interpolate(m_interpolatedBone, headRotMat, deltaTime * (m_boneScale->value * 0.01f) * dist);
+    m_interpolatedBone = glm::interpolate(m_interpolatedBone, headRotMat, deltaTime * (m_boneScale->value() * 0.01f) * dist);
 
     // Look at where the camera is pointing from the head position
     camRotMat = glm::extractMatrixRotation(glm::rowMajor4(glm::lookAtLH(finalPos, camPos3 + (camForward3 * 8192.0f), { 0.0f, 1.0f, 0.0f })));
@@ -381,7 +381,7 @@ void FirstPerson::updateCameraTransform(RETransform* transform) {
           + glm::distance(m_rotationOffset[1], wantedMat[1])
           + glm::distance(m_rotationOffset[2], wantedMat[2])) / 3.0f;
 
-    m_rotationOffset = glm::interpolate(m_rotationOffset, wantedMat, deltaTime * (m_cameraScale->value * 0.01f) * dist);
+    m_rotationOffset = glm::interpolate(m_rotationOffset, wantedMat, deltaTime * (m_cameraScale->value() * 0.01f) * dist);
     auto finalMat = m_interpolatedBone * m_rotationOffset;
     auto finalQuat = glm::quat{ finalMat };
 
@@ -408,8 +408,8 @@ void FirstPerson::updateSweetLightContext(RopewaySweetLightManagerContext* ctx) 
 
 
     // Disable the camera light source.
-    ctx->controller->ownerGameObject->shouldDraw = !(m_enabled->value &&
-                                                     m_disableLightSource->value &&
+    ctx->controller->ownerGameObject->shouldDraw = !(m_enabled->value() &&
+                                                     m_disableLightSource->value() &&
                                                      m_cameraSystem->cameraController == m_playerCameraController);
 }
 
@@ -431,7 +431,7 @@ void FirstPerson::updatePlayerBones(RETransform* transform) {
     *(Matrix3x4f*)&boneMatrix = wantedMat;
 
     // Hide the head model by moving it out of view of the camera (and hopefully shadows...)
-    if (m_hideMesh->value) {
+    if (m_hideMesh->value()) {
         boneMatrix[0] = Vector4f{ 0.0f, 0.0f, 0.0f, 0.0f };
         boneMatrix[1] = Vector4f{ 0.0f, 0.0f, 0.0f, 0.0f };
         boneMatrix[2] = Vector4f{ 0.0f, 0.0f, 0.0f, 0.0f };
@@ -453,21 +453,21 @@ void FirstPerson::updateFOV(RopewayPlayerCameraController* controller) {
     }
 
     if (auto param = controller->cameraParam; param != nullptr) {
-        auto newValue = (param->fov * m_fovMult->value) + m_fovOffset->value;
+        auto newValue = (param->fov * m_fovMult->value()) + m_fovOffset->value();
 
-        if (m_fovMult->value != m_lastFovMult) {
-            auto prevValue = (param->fov * m_lastFovMult) + m_fovOffset->value;
+        if (m_fovMult->value() != m_lastFovMult) {
+            auto prevValue = (param->fov * m_lastFovMult) + m_fovOffset->value();
             auto delta = prevValue - newValue;
 
-            m_fovOffset->value += delta;
-            m_playerCameraController->activeCamera->fov = (param->fov * m_fovMult->value) + m_fovOffset->value;
+            m_fovOffset->value() += delta;
+            m_playerCameraController->activeCamera->fov = (param->fov * m_fovMult->value()) + m_fovOffset->value();
         }
         else {
             m_playerCameraController->activeCamera->fov = newValue;
         }
         
         // Causes the camera to ignore the FOV inside the param
-        param->useParam = !m_enabled->value;
+        param->useParam = !m_enabled->value();
     }
 }
 

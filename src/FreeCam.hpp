@@ -20,10 +20,11 @@ public:
 private:
     bool updatePointers();
 
-    ModToggle::Ptr m_enabled{ ModToggle::create(false) };
-    ModToggle::Ptr m_lockCamera{ ModToggle::create(false) };
-    ModToggle::Ptr m_disableMovement{ ModToggle::create(false) };
-    ModSlider::Ptr m_speed{ ModSlider::create(0.0f, 1.0f, 0.1f) };
+    ModToggle::Ptr m_enabled{         ModToggle::create(generateName("Enabled"), false) };
+    ModToggle::Ptr m_lockCamera{      ModToggle::create(generateName("LockPosition"), false) };
+    ModToggle::Ptr m_disableMovement{ ModToggle::create(generateName("DisableMovement"), false) };
+
+    ModSlider::Ptr m_speed{ ModSlider::create(generateName("Speed"), 0.0f, 1.0f, 0.1f) };
 
     RopewayCameraSystem* m_cameraSystem{ nullptr };
     RopewayInputSystem* m_inputSystem{ nullptr };

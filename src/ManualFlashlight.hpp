@@ -25,6 +25,6 @@ private:
     bool m_shouldPullOut{ false };
 
     // keys need to be directinput unfortunately. window messages for windows virtual keys get blocked
-    ModKey::Ptr m_key{ ModKey::create(DIK_F) };
-    ModToggle::Ptr m_enabled{ ModToggle::create(false) };
+    ModKey::Ptr m_key{ ModKey::create(generateName("Key"), DIK_F) };
+    ModToggle::Ptr m_enabled{ ModToggle::create(generateName("Enabled"), false) };
 };

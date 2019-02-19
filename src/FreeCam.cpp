@@ -1,15 +1,15 @@
 #include "FreeCam.hpp"
 
 void FreeCam::onConfigLoad(const utility::Config& cfg) {
-    m_enabled->configLoad(cfg, generateName("Enabled"));
-    m_disableMovement->configLoad(cfg, generateName("DisableMovement"));
-    m_speed->configLoad(cfg, generateName("Speed"));
+    m_enabled->configLoad(cfg);
+    m_disableMovement->configLoad(cfg);
+    m_speed->configLoad(cfg);
 }
 
 void FreeCam::onConfigSave(utility::Config& cfg) {
-    m_enabled->configSave(cfg, generateName("Enabled"));
-    m_disableMovement->configSave(cfg, generateName("DisableMovement"));
-    m_speed->configSave(cfg, generateName("Speed"));
+    m_enabled->configSave(cfg);
+    m_disableMovement->configSave(cfg);
+    m_speed->configSave(cfg);
 }
 
 void FreeCam::onFrame() {
@@ -35,7 +35,7 @@ void FreeCam::onDrawUI() {
 }
 
 void FreeCam::onUpdateTransform(RETransform* transform) {
-    if (!m_enabled->value && !m_firstTime) {
+    if (!m_enabled->value() && !m_firstTime) {
         return;
     }
 
@@ -63,7 +63,7 @@ void FreeCam::onUpdateTransform(RETransform* transform) {
     auto orderer = condition->actionOrderer;
 
     if (orderer != nullptr) {
-        orderer->enabled = !m_disableMovement->value;
+        orderer->enabled = !m_disableMovement->value();
     }
 
     auto controller = m_cameraSystem->cameraController;
@@ -80,7 +80,7 @@ void FreeCam::onUpdateTransform(RETransform* transform) {
     }
 
     // Update wanted camera position
-    if (!m_lockCamera->value) {
+    if (!m_lockCamera->value()) {
         // Move direction
         // It's not a Vector2f because via.vec2 is not actually 8 bytes, we don't want stack corruption to occur.
         auto axis = utility::REManagedObject::getField<Vector3f>(leftAnalog, "Axis");
@@ -89,7 +89,7 @@ void FreeCam::onUpdateTransform(RETransform* transform) {
         auto delta = utility::REComponent::getDeltaTime(transform);
 
         // Use controller rotation instead of camera rotation as it's accurate, will work in cutscenes.
-        auto newPos = m_lastCameraMatrix[3] + Matrix4x4f{ *(glm::quat*)&controller->worldRotation } * dir * m_speed->value * delta;
+        auto newPos = m_lastCameraMatrix[3] + Matrix4x4f{ *(glm::quat*)&controller->worldRotation } * dir * m_speed->value() * delta;
 
         // Keep track of the rotation if we want to lock the camera
         m_lastCameraMatrix = transform->worldTransform;

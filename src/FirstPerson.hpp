@@ -72,17 +72,17 @@ private:
     
     std::unique_ptr<Patch> m_disableVignettePatch{};
 
-    ModToggle::Ptr m_enabled{ ModToggle::create() };
-    ModToggle::Ptr m_disableVignette{ ModToggle::create() };
-    ModToggle::Ptr m_hideMesh{ ModToggle::create(true) };
-    ModToggle::Ptr m_disableLightSource{ ModToggle::create(true) };
+    ModToggle::Ptr m_enabled{ ModToggle::create(generateName("Enabled")) };
+    ModToggle::Ptr m_disableVignette{ ModToggle::create(generateName("DisableVignette")) };
+    ModToggle::Ptr m_hideMesh{ ModToggle::create(generateName("HideJointMesh"), true) };
+    ModToggle::Ptr m_disableLightSource{ ModToggle::create(generateName("DisableLightSource"), true) };
 
-    ModSlider::Ptr m_fovOffset{ ModSlider::create(-100.0f, 100.0f, 10.0f) };
-    ModSlider::Ptr m_fovMult{ ModSlider::create(0.0f, 2.0f, 1.0f) };
+    ModSlider::Ptr m_fovOffset{ ModSlider::create(generateName("FOVOffset"), -100.0f, 100.0f, 10.0f) };
+    ModSlider::Ptr m_fovMult{ ModSlider::create(generateName("FOVMultiplier"), 0.0f, 2.0f, 1.0f) };
 
-    ModSlider::Ptr m_cameraScale{ ModSlider::create(0.0f, 100.0f, 40.0f) };
-    ModSlider::Ptr m_boneScale{ ModSlider::create(0.0f, 100.0f, 15.0f) };
+    ModSlider::Ptr m_cameraScale{ ModSlider::create(generateName("CameraSpeed"), 0.0f, 100.0f, 40.0f) };
+    ModSlider::Ptr m_boneScale{ ModSlider::create(generateName("CameraShake"), 0.0f, 100.0f, 15.0f) };
 
     // just used to draw. not actually stored in config
-    ModFloat::Ptr m_currentFov{ ModFloat::create() };
+    ModFloat::Ptr m_currentFov{ ModFloat::create("") };
 };

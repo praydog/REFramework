@@ -26,17 +26,17 @@ void ManualFlashlight::onDrawUI() {
 }
 
 void ManualFlashlight::onConfigLoad(const utility::Config& cfg) {
-    m_enabled->configLoad(cfg, generateName("Enabled"));
-    m_key->configLoad(cfg, generateName("Key"));
+    m_enabled->configLoad(cfg);
+    m_key->configLoad(cfg);
 }
 
 void ManualFlashlight::onConfigSave(utility::Config& cfg) {
-    m_enabled->configSave(cfg, generateName("Enabled"));
-    m_key->configSave(cfg, generateName("Key"));
+    m_enabled->configSave(cfg);
+    m_key->configSave(cfg);
 }
 
 void ManualFlashlight::onUpdateTransform(RETransform* transform) {
-    if (!m_enabled->value) {
+    if (!m_enabled->value()) {
         return;
     }
 

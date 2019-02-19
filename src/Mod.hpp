@@ -17,141 +17,169 @@
 
 // Convenience classes for imgui
 template <typename T>
-struct ModValue {
+class ModValue {
+public:
     using Ptr = std::unique_ptr<ModValue<T>>;
 
-    static ModValue::Ptr create(T defaultValue = T{}) {
-        return std::make_unique<ModValue<T>>(defaultValue);
+    static auto create(std::string_view configName, T defaultValue = T{}) {
+        return std::make_unique<ModValue<T>>(configName, defaultValue);
     }
 
-    ModValue(T defaultValue) : value{ defaultValue } {}
+    ModValue(std::string_view configName, T defaultValue) 
+        : m_configName{ configName },
+        m_value{ defaultValue }
+    {
+    }
+
     virtual ~ModValue() {};
     virtual bool draw(std::string_view name) = 0;
     virtual void drawValue(std::string_view name) = 0;
 
-    virtual void configLoad(const utility::Config& cfg, std::string_view name) {
-        auto v = cfg.get<T>(name.data());
+    virtual void configLoad(const utility::Config& cfg) {
+        auto v = cfg.get<T>(m_configName);
 
         if (v) {
-            this->value = *v;
+            m_value = *v;
         }
     };
 
-    virtual void configSave(utility::Config& cfg, std::string_view name) {
-        cfg.set<T>(name.data(), this->value);
+    virtual void configSave(utility::Config& cfg) {
+        cfg.set<T>(m_configName, m_value);
     };
 
-    operator T() {
-        return this->value;
+    operator T&() {
+        return m_value;
     }
 
-    T value{};
+    T& value() {
+        return m_value;
+    }
+
+    const auto& getConfigName() const {
+        return m_configName;
+    }
+
+protected:
+    T m_value{};
+    std::string m_configName{ "Default_ModValue" };
 };
 
-struct ModToggle : public ModValue<bool> {
-    ModToggle(bool defaultValue) : ModValue<bool>{ defaultValue } { }
+class ModToggle : public ModValue<bool> {
+public:
+    ModToggle(std::string_view configName, bool defaultValue) 
+        : ModValue<bool>{ configName, defaultValue } 
+    { 
+    }
 
-    static ModToggle::Ptr create(bool defaultValue = false) {
-        return std::make_unique<ModToggle>(defaultValue);
+    static auto create(std::string_view configName, bool defaultValue = false) {
+        return std::make_unique<ModToggle>(configName, defaultValue);
     }
 
     bool draw(std::string_view name) override {
         ImGui::PushID(this);
-        auto ret = ImGui::Checkbox(name.data(), &this->value);
+        auto ret = ImGui::Checkbox(name.data(), &m_value);
         ImGui::PopID();
 
         return ret;
     }
 
     void drawValue(std::string_view name) override {
-        ImGui::Text("%s: %i", name.data(), this->value);
+        ImGui::Text("%s: %i", name.data(), m_value);
     }
 };
 
-struct ModFloat : public ModValue<float> {
-    ModFloat(float defaultValue) : ModValue<float>{ defaultValue } { }
+class ModFloat : public ModValue<float> {
+public:
+    ModFloat(std::string_view configName, float defaultValue) 
+        : ModValue<float>{ configName, defaultValue } { }
 
-    static ModFloat::Ptr create(float defaultValue = 0.0f) {
-        return std::make_unique<ModFloat>(defaultValue);
+    static auto create(std::string_view configName, float defaultValue = 0.0f) {
+        return std::make_unique<ModFloat>(configName, defaultValue);
     }
 
     bool draw(std::string_view name) override {
         ImGui::PushID(this);
-        auto ret = ImGui::InputFloat(name.data(), &this->value);
+        auto ret = ImGui::InputFloat(name.data(), &m_value);
         ImGui::PopID();
 
         return ret;
     }
 
     void drawValue(std::string_view name) override {
-        ImGui::Text("%s: %f", name.data(), this->value);
+        ImGui::Text("%s: %f", name.data(), m_value);
     }
 };
 
-struct ModSlider : public ModFloat {
+class ModSlider : public ModFloat {
+public:
     using Ptr = std::unique_ptr<ModSlider>;
 
-    static ModSlider::Ptr create(float mn = 0.0f, float mx = 1.0f, float defaultValue = 0.0f) {
-        return std::make_unique<ModSlider>(mn, mx, defaultValue);
+    static auto create(std::string_view configName, float mn = 0.0f, float mx = 1.0f, float defaultValue = 0.0f) {
+        return std::make_unique<ModSlider>(configName, mn, mx, defaultValue);
     }
 
-    ModSlider(float mn = 0.0f, float mx = 1.0f, float defaultValue = 0.0f)
-        : ModFloat{ defaultValue },
-        minValue{ mn },
-        maxValue{ mx }
+    ModSlider(std::string_view configName, float mn = 0.0f, float mx = 1.0f, float defaultValue = 0.0f)
+        : ModFloat{ configName, defaultValue },
+        m_range{ mn, mx }
     {
     }
 
     bool draw(std::string_view name) override {
         ImGui::PushID(this);
-        auto ret = ImGui::SliderFloat(name.data(), &this->value, this->minValue, this->maxValue);
+        auto ret = ImGui::SliderFloat(name.data(), &m_value, m_range.x, m_range.y);
         ImGui::PopID();
 
         return ret;
     }
 
     void drawValue(std::string_view name) override {
-        ImGui::Text("%s: %f [%f, %f]", name.data(), this->value, this->minValue, this->maxValue);
+        ImGui::Text("%s: %f [%f, %f]", name.data(), m_value, m_range.x, m_range.y);
     }
 
-    float minValue{ 0.0f };
-    float maxValue{ 1.0f };
+    auto& range() {
+        return m_range;
+    }
+
+protected:
+    Vector2f m_range{ 0.0f, 1.0f };
 };
 
-struct ModInt32 : public ModValue<int32_t> {
+class ModInt32 : public ModValue<int32_t> {
+public:
     using Ptr = std::unique_ptr<ModInt32>;
 
-    static ModInt32::Ptr create(uint32_t defaultValue = 0) {
-        return std::make_unique<ModInt32>(defaultValue);
+    static auto create(std::string_view configName, uint32_t defaultValue = 0) {
+        return std::make_unique<ModInt32>(configName, defaultValue);
     }
 
-    ModInt32(uint32_t defaultValue = 0)
-        : ModValue{ defaultValue }
+    ModInt32(std::string_view configName, uint32_t defaultValue = 0)
+        : ModValue{ configName, defaultValue }
     {
     }
 
     bool draw(std::string_view name) override {
         ImGui::PushID(this);
-        auto ret = ImGui::InputInt(name.data(), &this->value);
+        auto ret = ImGui::InputInt(name.data(), &m_value);
         ImGui::PopID();
 
         return ret;
     }
 
     void drawValue(std::string_view name) override {
-        ImGui::Text("%s: %i", name.data(), this->value);
+        ImGui::Text("%s: %i", name.data(), m_value);
     }
 };
 
-struct ModKey : public ModInt32 {
+class ModKey: public ModInt32 {
+public:
     using Ptr = std::unique_ptr<ModKey>;
 
-    static ModKey::Ptr create(uint8_t defaultValue = 0) {
-        return std::make_unique<ModKey>(defaultValue);
+    static auto create(std::string_view configName, uint8_t defaultValue = UNBOUND_KEY) {
+        return std::make_unique<ModKey>(configName, defaultValue);
     }
 
-    ModKey(uint8_t defaultValue = 0)
-        : ModInt32{ defaultValue }
+    ModKey(std::string_view configName, uint8_t defaultValue = 0)
+        : ModInt32{ configName, defaultValue }
     {
     }
 
@@ -168,17 +196,28 @@ struct ModKey : public ModInt32 {
 
             for (auto k = 0; k < keys.size(); ++k) {
                 if (keys[k]) {
-                    this->value = k;
+                    if (isEraseKey(k)) {
+                        m_value = -1;
+                        break;
+                    }
+
+                    m_value = k;
                     break;
                 }
             }
 
             ImGui::SameLine();
-            ImGui::Text("Press any key", this->value);
+            ImGui::Text("Press any key", m_value);
         }
         else {
             ImGui::SameLine();
-            ImGui::Text("%i", this->value);
+
+            if (m_value >= 0 && m_value <= 255) {
+                ImGui::Text("%i", m_value);
+            }
+            else {
+                ImGui::Text("Not bound");
+            }
         }
 
         ImGui::PopID();
@@ -186,9 +225,39 @@ struct ModKey : public ModInt32 {
         return true;
     }
 
-    bool isKeyDown() {
-        return g_framework->getKeyboardState()[(uint8_t)this->value] != 0;
+    bool isKeyDown() const {
+        return g_framework->getKeyboardState()[(uint8_t)m_value] != 0;
     }
+
+    bool isKeyDownOnce() {
+        auto down = isKeyDown();
+
+        if (!m_wasKeyDown && down) {
+            m_wasKeyDown = true;
+            return true;
+        }
+        else if (!down) {
+            m_wasKeyDown = false;
+        }
+
+        return false;
+    }
+
+    bool isEraseKey(int k) const {
+        switch (k) {
+        case DIK_ESCAPE:
+        case DIK_BACKSPACE:
+            return true;
+
+        default:
+            return false;
+        }
+    }
+
+    static constexpr uint8_t UNBOUND_KEY = -1;
+
+protected:
+    bool m_wasKeyDown{ false };
 };
 
 class Mod {
