@@ -204,12 +204,7 @@ public:
 
             for (auto k = 0; k < keys.size(); ++k) {
                 if (keys[k]) {
-                    if (isEraseKey(k)) {
-                        m_value = UNBOUND_KEY;
-                        break;
-                    }
-
-                    m_value = k;
+                    m_value = isEraseKey(k) ? UNBOUND_KEY : k;
                     break;
                 }
             }

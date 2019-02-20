@@ -1,8 +1,10 @@
 #include <spdlog/sinks/basic_file_sink.h>
 
 #include <imgui/imgui.h>
-#include <imgui/examples/imgui_impl_win32.h>
-#include <imgui/examples/imgui_impl_dx11.h>
+
+// ours with XInput removed
+#include "re2-imgui/imgui_impl_win32.h"
+#include "re2-imgui/imgui_impl_dx11.h"
 
 #include "utility/Module.hpp"
 
@@ -11,9 +13,6 @@
 
 #include "LicenseStrings.hpp"
 #include "REFramework.hpp"
-
-// Commented out in original ImGui code
-IMGUI_IMPL_API LRESULT  ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 std::unique_ptr<REFramework> g_framework{};
 
