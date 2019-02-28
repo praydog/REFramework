@@ -107,23 +107,17 @@ namespace utility::REManagedObject {
         switch (classInfo->objectType) {
         case 2:
         {
-            auto ind = (::REArrayBase*)object;
-
-            auto containedType = ind->containedType;
+            auto container = (::REArrayBase*)object;
+            auto containedType = container->containedType;
             
             // array of ptrs by default
-            uint32_t elementSize = sizeof(void*);
+            uint32_t elementSize = utility::REArray::hasInlineElements(container) ? containedType->elementSize : sizeof(void*);
 
-            // inline elements?
-            if (containedType->objectType == 5) {
-                elementSize = containedType->elementSize;
-            }
-
-            if (ind->num1 <= 1) {
-                size = elementSize * ind->numElements + sizeof(::REArrayBase);
+            if (container->num1 <= 1) {
+                size = elementSize * container->numElements + sizeof(::REArrayBase);
             }
             else {
-                size = elementSize * ind->numElements + sizeof(::REArrayBase) + 4 * ind->num1;
+                size = elementSize * container->numElements + sizeof(::REArrayBase) + 4 * container->num1;
             }
 
             break;
