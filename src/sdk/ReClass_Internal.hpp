@@ -281,19 +281,19 @@ class RETransform : public REComponent
 public:
     Vector4f position; //0x0030
     Vector4f angles; //0x0040
-    Vector4f something; //0x0050
+    Vector4f scale; //0x0050
     class REScene *scene; //0x0060
-    class RETransform *firstChildTransform; //0x0068
-    class RETransform *childTransform; //0x0070
+    class RETransform *child; //0x0068
+    class RETransform *next; //0x0070
     class RETransform *parentTransform; //0x0078
     Matrix4x4f worldTransform; //0x0080
     class N00007EEE *N000007D8; //0x00C0
     int32_t N00000804; //0x00C8
     uint32_t tickCount; //0x00CC
-    char pad_00D0[1]; //0x00D0
+    bool sameJointsConstraint; //0x00D0
     bool N0000081A; //0x00D1
     char pad_00D2[1]; //0x00D2
-    bool N00000817; //0x00D3
+    bool absoluteScaling; //0x00D3
     char pad_00D4[4]; //0x00D4
     class REJointArray joints; //0x00D8
     char pad_01F0[8]; //0x01F0
@@ -565,8 +565,10 @@ public:
 class ValueTriggerBoolean : public REManagedObject
 {
 public:
-    uint32_t N0000784F; //0x0010
-    char pad_0014[4]; //0x0014
+    bool current; //0x0010
+    bool old; //0x0011
+    char pad_0012[2]; //0x0012
+    uint32_t N0000785B; //0x0014
 }; //Size: 0x0018
 
 class DampingFloat : public REManagedObject
@@ -696,7 +698,7 @@ public:
 class DotNetGenericList : public REManagedObject
 {
 public:
-    class REArrayThing *data; //0x0010
+    class REArrayBase *data; //0x0010
     char pad_0018[72]; //0x0018
 }; //Size: 0x0060
 
@@ -786,31 +788,38 @@ class RopewayCameraSystem : public REBehavior
 {
 public:
     char pad_0048[8]; //0x0048
-    float N00006F39; //0x0050
+    float motionCameraSpeedScale; //0x0050
     char pad_0054[1]; //0x0054
     uint8_t N000009D7; //0x0055
     char pad_0056[2]; //0x0056
-    class DotNetGenericList *N00006F3A; //0x0058
-    class DotNetGenericList *N00006F3B; //0x0060
-    float N00006F3C; //0x0068
-    float N00007054; //0x006C
-    class REManagedObject *castRayHandle; //0x0070
-    class REManagedObject *castSphereHandle; //0x0078
-    class REManagedObject *castRayHandle2; //0x0080
-    class REGameObject *N00006F2E; //0x0088
+    class DotNetGenericList *cameraControllerInfos; //0x0058
+    class RopewayCameraInterpolateSettings *cameraInterpSettings; //0x0060
+    float rayCastStartOffset; //0x0068
+    float maxViewShieldLength; //0x006C
+    class CollisionSystemAsyncCastRayHandle *castHandleTerrain; //0x0070
+    class CollisionSystemAsyncCastSphereHandle *castHandleCharacter; //0x0078
+    class CollisionSystemAsyncCastRayHandle *castHandleAim; //0x0080
+    class REGameObject *cameraGameObject; //0x0088
     char pad_0090[8]; //0x0090
     class RopewayPlayerCameraController *cameraController; //0x0098
     class RopewayPlayerCameraController *previousController; //0x00A0
     class REManagedObject *N00006F3D; //0x00A8
     class DampingFloat *damping; //0x00B0
-    class REManagedObject *N00006F3F; //0x00B8
+    class ValueTriggerBoolean *isExistStickInput; //0x00B8
     class RECamera *mainCamera; //0x00C0
-    class REManagedObject *N00006F41; //0x00C8
-    class DotNetGenericList *N00006F42; //0x00D0
-    class REComponent *N00006F43; //0x00D8
+    class DotNetGenericList *fixCameraIdentifiers; //0x00C8
+    class DotNetGenericList *cameraGateInfoContainers; //0x00D0
+    class RERenderCaptureToTexture *N00006F43; //0x00D8
     class REJoint *playerJoint; //0x00E0
     class RopewayMainCameraController *mainCameraController; //0x00E8
-}; //Size: 0x00F0
+    bool isUseWideMonitor; //0x00F0
+    char pad_00F1[7]; //0x00F1
+    class REManagedObject *N00003EEC; //0x00F8
+    bool N00003EED; //0x0100
+    char pad_0101[39]; //0x0101
+    class DotNetGenericList *stringList; //0x0128
+    char pad_0130[8]; //0x0130
+}; //Size: 0x0138
 
 class N000070F5
 {
@@ -822,32 +831,75 @@ class RopewayIkController : public REBehavior
 {
 public:
     char pad_0048[12]; //0x0048
-    uint8_t ikFlags; //0x0054
+    uint8_t updateTiming; //0x0054
     char pad_0055[3]; //0x0055
-    uint8_t ikFlags2; //0x0058
-    char pad_0059[7]; //0x0059
+    uint8_t enableIkBits; //0x0058
+    char pad_0059[3]; //0x0059
+    int8_t defaultSkipIkBits; //0x005C
+    char pad_005D[3]; //0x005D
     class REArrayThing *N000071C9; //0x0060
     class REArrayThing *N000071CA; //0x0068
-    char pad_0070[8]; //0x0070
+    int32_t ikLegKind; //0x0070
+    float fooatAlignBorderAngle; //0x0074
     class SystemString *someString; //0x0078
-    char pad_0080[32]; //0x0080
+    bool useSkipIkForLeg; //0x0080
+    char pad_0081[3]; //0x0081
+    int32_t skipIkForLegBits; //0x0084
+    bool useFootLockForLeg; //0x0088
+    bool unlockFootOnAdjustTerrain; //0x0089
+    bool unlockFootOnPressing; //0x008A
+    bool unlockFootOnMotionInterpolating; //0x008B
+    bool unlockFootOnPreventeringPenetrate; //0x008C
+    char pad_008D[3]; //0x008D
+    int16_t monitoringMotionLayerNoForLeg; //0x0090
+    char pad_0092[2]; //0x0092
+    int32_t spineKind; //0x0094
+    char pad_0098[8]; //0x0098
     class SystemString *someString2; //0x00A0
     char pad_00A8[40]; //0x00A8
     class SystemString *someString3; //0x00D0
-    float N0000A946; //0x00D8
-    float N0000AA6C; //0x00DC
-    float N0000A947; //0x00E0
-    float N0000AA6F; //0x00E4
-    float N0000A948; //0x00E8
-    float N0000AA72; //0x00EC
-    char pad_00F0[8]; //0x00F0
+    float armDampingRate; //0x00D8
+    float armDampingTime; //0x00DC
+    float defaultArmActivateTime; //0x00E0
+    float defaultArmResetTime; //0x00E4
+    float armRayRadius; //0x00E8
+    float armRayIntervalFrame; //0x00EC
+    int32_t wristKind; //0x00F0
+    char pad_00F4[4]; //0x00F4
     class N0000A9C1 *armFitIkUserData; //0x00F8
-    char pad_0100[52]; //0x0100
-    float N0000AA84; //0x0134
-    char pad_0138[48]; //0x0138
+    char pad_0100[8]; //0x0100
+    int32_t ikWristSolveMode; //0x0108
+    int32_t liftUpWristOnGround; //0x010C
+    bool useSkipIkForWrist; //0x0110
+    char pad_0111[3]; //0x0111
+    int32_t skipIkForWristBits; //0x0114
+    float skipIkDampingRateForWrist; //0x0118
+    bool useFootLockForWrist; //0x011C
+    char pad_011D[3]; //0x011D
+    int32_t footLockOptionBitsForWrist; //0x0120
+    int16_t monitoringMotionLayerNoForWrist; //0x0124
+    char pad_0126[2]; //0x0126
+    bool setupped; //0x0128
+    bool setuppedHumanRetargetIk; //0x0129
+    char pad_012A[2]; //0x012A
+    int32_t legStepStatus; //0x012C
+    bool alignedFoot; //0x0130
+    char pad_0131[3]; //0x0131
+    float alignedFootAngle; //0x0134
+    char pad_0138[4]; //0x0138
+    bool alignedForeFoot; //0x013C
+    char pad_013D[3]; //0x013D
+    float N0000A953; //0x0140
+    int32_t appliedSkipIkForLegBits; //0x0144
+    int32_t appliedFootLockForLegBits; //0x0148
+    char pad_014C[4]; //0x014C
+    void *lookAtTarget; //0x0150
+    bool autoLookAtEnable; //0x0158
+    char pad_0159[15]; //0x0159
     class REArrayThing *N0000A958; //0x0168
-    char pad_0170[8]; //0x0170
-    class REArrayThing *N0000A95A; //0x0178
+    int32_t appliedSkipIkForWristBits; //0x0170
+    int32_t appliedFootLockForWristBits; //0x0174
+    class IkControlStatusArray *controlStatuses; //0x0178
     char pad_0180[16]; //0x0180
     class REManagedObject *N0000A95D; //0x0190
     char pad_0198[24]; //0x0198
@@ -1029,10 +1081,21 @@ public:
 class RopewayMainCameraController : public REBehavior
 {
 public:
-    char pad_0048[92]; //0x0048
+    char pad_0048[9]; //0x0048
+    bool updateCamera; //0x0051
+    char pad_0052[6]; //0x0052
+    class RopewayCameraStatus *cameraStatus; //0x0058
+    Vector4f cameraObjectPosition; //0x0060
+    Vector4f cameraObjectRotation; //0x0070
+    Vector4f cameraPosition; //0x0080
+    Vector4f cameraRotation; //0x0090
+    char pad_00A0[4]; //0x00A0
     float fov; //0x00A4
     bool controllerEnabled; //0x00A8
-    char pad_00A9[15]; //0x00A9
+    char pad_00A9[3]; //0x00A9
+    float switchBusyTime; //0x00AC
+    float switchInterpolationTime; //0x00B0
+    char pad_00B4[4]; //0x00B4
     class REAnimationCurve *N00000817; //0x00B8
     class DotNetGenericList *cameraShakes; //0x00C0
     class REGameObject *mainCameraObject; //0x00C8
@@ -1385,9 +1448,13 @@ public:
 class RESecondaryAnimation : public REComponent
 {
 public:
-    char pad_0030[16]; //0x0030
-    uint32_t N000015EF; //0x0040
-    char pad_0044[4]; //0x0044
+    class REMotion *motion; //0x0030
+    char pad_0038[4]; //0x0038
+    int16_t priority; //0x003C
+    char pad_003E[2]; //0x003E
+    int32_t updateTiming; //0x0040
+    bool enabled; //0x0044
+    char pad_0045[3]; //0x0045
 }; //Size: 0x0048
 
 class ActorLayerList
@@ -1671,7 +1738,7 @@ public:
     uint32_t group; //0x0014
     uint32_t subGroup; //0x0018
     uint32_t ignoreSubGroup; //0x001C
-    uint32_t maskBits; //0x0020
+    int32_t maskBits; //0x0020
     char pad_0024[12]; //0x0024
 }; //Size: 0x0030
 
@@ -1693,9 +1760,18 @@ public:
 class RopewaySurvivorPlayerCondition : public REBehavior
 {
 public:
-    char pad_0048[24]; //0x0048
+    char pad_0048[12]; //0x0048
+    int32_t survivorType; //0x0054
+    bool ignoreBlow; //0x0058
+    bool ignoreGrapple; //0x0059
+    char pad_005A[6]; //0x005A
     class RopewaySurvivorDefineDamageParam *damageParam; //0x0060
-    char pad_0068[6]; //0x0068
+    bool isEvent; //0x0068
+    bool isLight; //0x0069
+    bool isCombat; //0x006A
+    bool isTension; //0x006B
+    bool isTense; //0x006C
+    bool useTranceiver; //0x006D
     bool forceUseFlashlight; //0x006E
     bool manuallyLight; //0x006F
     float autoHealStartTimer; //0x0070
@@ -1711,7 +1787,10 @@ public:
     class SurvivorConditionTimerTrigger *wetTimerTrigger; //0x00A0
     class SurvivorConditionTimerTrigger *dryTimerTrigger; //0x00A8
     class REGameObject *flashlight; //0x00B0
-    char pad_00B8[48]; //0x00B8
+    char pad_00B8[40]; //0x00B8
+    bool exceptional; //0x00E0
+    char pad_00E1[3]; //0x00E1
+    int32_t wallMaterial; //0x00E4
     class REJoint *playerJoint; //0x00E8
     char pad_00F0[8]; //0x00F0
     class SystemAction *actionVital; //0x00F8
@@ -1721,10 +1800,16 @@ public:
     class RopewaySurvivorInventory *inventory; //0x0120
     class RopewaySurvivorEquipment *equipment; //0x0128
     class REMotion *playerMotion; //0x0130
-    char pad_0138[152]; //0x0138
-    bool forceuseFlashlight2; //0x01D0
+    char pad_0138[136]; //0x0138
+    class ActionTriggerInt *hitPointVitalTrigger; //0x01C0
+    class ActionTriggerInt *situationTrigger; //0x01C8
+    bool onFlashlight; //0x01D0
     bool N00005FF6; //0x01D1
-    char pad_01D2[206]; //0x01D2
+    char pad_01D2[134]; //0x01D2
+    bool isPoison; //0x0258
+    char pad_0259[3]; //0x0259
+    float dopingTimer; //0x025C
+    char pad_0260[64]; //0x0260
 }; //Size: 0x02A0
 
 class RopewayHandHeldItem : public REBehavior
@@ -1744,8 +1829,8 @@ public:
 class RopewayTimerBase : public REManagedObject
 {
 public:
-    char pad_0010[4]; //0x0010
-    float interval; //0x0014
+    int32_t mode; //0x0010
+    float timeLimit; //0x0014
 }; //Size: 0x0018
 
 class RopewayTimer : public RopewayTimerBase
@@ -1754,12 +1839,12 @@ public:
     bool completeTrigger; //0x0018
     char pad_0019[3]; //0x0019
     int32_t functionType; //0x001C
-    float N0000194C; //0x0020
-    bool N00005FFE; //0x0024
+    float transitTime; //0x0020
+    bool completed; //0x0024
     char pad_0025[3]; //0x0025
-    bool N0000194D; //0x0028
-    char pad_0029[7]; //0x0029
-}; //Size: 0x0030
+    int16_t completedCount; //0x0028
+    char pad_002A[2]; //0x002A
+}; //Size: 0x002C
 
 class RopewaySurvivorInventory : public REBehavior
 {
@@ -2132,7 +2217,22 @@ public:
 class RopewayInputSystemAnalogStick : public REManagedObject
 {
 public:
-    char pad_0010[112]; //0x0010
+    Vector2f axis; //0x0010
+    char pad_0018[8]; //0x0018
+    Vector2f axisOld; //0x0020
+    char pad_0028[8]; //0x0028
+    Vector2f rawAxis; //0x0030
+    char pad_0038[24]; //0x0038
+    float angle; //0x0050
+    float angleOld; //0x0054
+    float angularVelocity; //0x0058
+    float magnitude; //0x005C
+    int32_t power; //0x0060
+    int32_t powerH; //0x0064
+    int32_t powerV; //0x0068
+    float N00001F51; //0x006C
+    int32_t N00001F58; //0x0070
+    char pad_0074[12]; //0x0074
 }; //Size: 0x0080
 
 class RopewaySurvivorManager : public REBehavior
@@ -2154,9 +2254,9 @@ public:
     class RopewaySurvivorCastingRequest *castingRequest2; //0x00B0
     void *uservarAccessor_Survivor; //0x00B8
     char pad_00C0[8]; //0x00C0
-    class RopewaySettingFolder *settingFolder1; //0x00C8
-    class RopewaySettingFolder *settingFolder2; //0x00D0
-    class RopewaySettingFolder *settingFolder3; //0x00D8
+    class RopewaySettingFolder *playerFolder; //0x00C8
+    class RopewaySettingFolder *npcFolder; //0x00D0
+    class RopewaySettingFolder *actorFolder; //0x00D8
     class UserData *conditionSettingUserData; //0x00E0
     class DotNetGenericDictionary *survivorTypeToExistSurvivorInfo; //0x00E8
     class DotNetGenericList *existSurvivorInfos; //0x00F0
@@ -2210,3 +2310,365 @@ public:
     float current; //0x0014
     float threshold; //0x0018
 }; //Size: 0x001C
+
+class RERangeI
+{
+public:
+    int32_t min; //0x0000
+    int32_t max; //0x0004
+}; //Size: 0x0008
+
+class RopewayEnemyController : public REBehavior
+{
+public:
+    char pad_0048[44]; //0x0048
+    float baseMotionSpeed; //0x0074
+    int32_t lod; //0x0078
+    class RERangeI renderLodRange; //0x007C
+    char pad_0084[12]; //0x0084
+    class DotNetGenericList *temporaryEventStorage; //0x0090
+    class RopewayEnemyEmSaveData *enemySaveData; //0x0098
+    char pad_00A0[64]; //0x00A0
+    float N00001E0B; //0x00E0
+    float N00001E80; //0x00E4
+    char pad_00E8[8]; //0x00E8
+    Vector4f firstAvailablePos; //0x00F0
+    char pad_0100[40]; //0x0100
+    class SystemAction *thinkAction; //0x0128
+    char pad_0130[16]; //0x0130
+    class RopewayEnemyContextController *enemyContextController; //0x0140
+    class RopewayEnemyEmCommonContext *enemyContext; //0x0148
+    class RopewayBitFlag *conditionStateBitFlag; //0x0150
+    class RopewayBitFlag *conditionStateBitFlag2; //0x0158
+    char pad_0160[4]; //0x0160
+    int32_t N0000201A; //0x0164
+    class DotNetGenericList *meshes; //0x0168
+    char pad_0170[8]; //0x0170
+    class REManagedObject *N00001EB1; //0x0178
+    class CollisionSystemAsyncCastRayHandle *castRayHandle; //0x0180
+    char pad_0188[4]; //0x0188
+    float attackAuthorityKeepRange; //0x018C
+    Vector4f attackAuthorityRangeBasePositionOffset; //0x0190
+    class RERenderMesh *mesh; //0x01A0
+    class REMotion *motion; //0x01A8
+    class REActorMotion *actorMotion; //0x01B0
+    char pad_01B8[304]; //0x01B8
+}; //Size: 0x02E8
+
+class RopewayEnemyContextController : public REBehavior
+{
+public:
+    char pad_0048[12]; //0x0048
+    int32_t initialKindId; //0x0054
+    char pad_0058[16]; //0x0058
+}; //Size: 0x0068
+
+class RopewayEnemyEmCommonContext : public REBehavior
+{
+public:
+    char pad_0048[32]; //0x0048
+    class REGameObject *enemyGameObject; //0x0068
+    bool spawnStandby; //0x0070
+    bool requestedPrefabStandby; //0x0071
+    bool requestedSpawn; //0x0072
+    bool isStayStandbyArea; //0x0073
+    bool isStayActiveArea; //0x0074
+    bool isEliminated; //0x0075
+    bool N00002016; //0x0076
+    bool N00002014; //0x0077
+    int32_t instanceStatus; //0x0078 app.ropeway.enemy.EmCommonContext.InstanceStatus
+    char pad_007C[44]; //0x007C
+}; //Size: 0x00A8
+
+class SystemGuid
+{
+public:
+    char pad_0000[16]; //0x0000
+}; //Size: 0x0010
+
+class RopewayEnemyEmSaveData : public REManagedObject
+{
+public:
+    uint32_t dataVersion; //0x0010
+    char pad_0014[4]; //0x0014
+    class SystemGuid guid; //0x0018
+    int16_t inheritId; //0x0028
+    char pad_002A[2]; //0x002A
+    int32_t kindId; //0x002C
+    float birthedTime; //0x0030
+    float unloadedTime; //0x0034
+    char pad_0038[72]; //0x0038
+}; //Size: 0x0080
+
+class RopewayBitFlag : public REManagedObject
+{
+public:
+    int32_t flag; //0x0010
+    char pad_0014[4]; //0x0014
+}; //Size: 0x0018
+
+class CollisionSystemAsyncCastHandleBase : public REManagedObject
+{
+public:
+    bool isFinish; //0x0010
+    char pad_0011[7]; //0x0011
+    class REGameObject *owner; //0x0018
+    int32_t castType; //0x0020
+    int16_t id; //0x0024
+    char pad_0026[10]; //0x0026
+    Vector4f startPos; //0x0030
+    Vector4f endPos; //0x0040
+    class PhysicsFilterInfo *filterInfo; //0x0050
+    uint32_t N00002199; //0x0058
+    float period; //0x005C
+    int16_t priority; //0x0060
+    char pad_0062[2]; //0x0062
+    bool isSkip; //0x0064
+    char pad_0065[3]; //0x0065
+    class AsyncCastHandleResultData *lastResultData; //0x0068
+    char pad_0070[16]; //0x0070
+}; //Size: 0x0080
+
+class CollisionSystemAsyncCastRayHandle : public CollisionSystemAsyncCastHandleBase
+{
+public:
+
+}; //Size: 0x0080
+
+class RopewayEnemyManager : public REBehavior
+{
+public:
+    char pad_0048[8]; //0x0048
+    class DotNetGenericList *enemyInfos; //0x0050 app.ropeway.EnemyManager.RegisterEnemyInfo
+    class DotNetGenericList *enemyControllers; //0x0058
+    class DotNetGenericList *gameObjects; //0x0060
+    bool isExistEnemyObject; //0x0068
+    char pad_0069[3]; //0x0069
+    float dataLoadAttackThroughSec; //0x006C
+    bool isPausing; //0x0070
+    bool isInvisible; //0x0071
+    bool isTimelinePausing; //0x0072
+    char pad_0073[5]; //0x0073
+    class RopewayEnemyController *grapplingOwner; //0x0078
+    float N00001F82; //0x0080
+    char pad_0084[4]; //0x0084
+    class RopewayEnemyLODSettingUserData *lodSettings; //0x0088
+    float totalEnemyCost; //0x0090
+    char pad_0094[4]; //0x0094
+    class SystemAction *N00001F25; //0x0098
+    class SystemAction *N00001F53; //0x00A0
+    bool hasActiveEnemyUpdateRequest; //0x00A8
+    char pad_00A9[7]; //0x00A9
+    class REManagedObject *N00001F55; //0x00B0
+    class RopewayCameraStatus *cameraStatus; //0x00B8
+    class REManagedObject *N00001F57; //0x00C0
+    class DotNetGenericList *instantiateRequests; //0x00C8
+    class DotNetGenericList *destroyRequests; //0x00D0
+    class DotNetGenericDictionary *mapIdsToSceneLoadStatus; //0x00D8
+    char pad_00E0[8]; //0x00E0
+    class DotNetGenericList *sceneLoadStatuses; //0x00E8
+    class DotNetGenericList *mapIds; //0x00F0
+    class REPtrArray *gameObjectsToControllers; //0x00F8 list of dictionaries
+    class DotNetGenericList *em6200ChaserControllers; //0x0100
+    class REManagedObject *N00002224; //0x0108
+    char pad_0110[8]; //0x0110
+    class RopewayEnemyManagerFrameTimer *frameTimers[6]; //0x0118 ThinkOffTimer, NoAttackTimer, AttackThroughTimer, NoHoldTimerEm4000, NoBackHoldTimerEm4000, NoAttackTimerEm4000
+    class DotNetGenericDictionary *guidsToSaveData; //0x0148
+    uint32_t totalEnemyKillCount; //0x0150
+    char pad_0154[4]; //0x0154
+    class REManagedObject *N0000222A; //0x0158
+    class REManagedObject *N0000222B; //0x0160
+    class REManagedObject *N0000222C; //0x0168
+    class REManagedObject *N0000222D; //0x0170
+    char pad_0178[8]; //0x0178
+}; //Size: 0x0180
+
+class RopewayEnemyLODSettingUserData : public UserData
+{
+public:
+    float distanceLevels[5]; //0x0030
+}; //Size: 0x0044
+
+class RopewayEnemyManagerFrameTimer : public REManagedObject
+{
+public:
+    bool run; //0x0010
+    char pad_0011[7]; //0x0011
+    uint64_t delayFrame; //0x0018
+    uint64_t endFrame; //0x0020
+    uint64_t frameCount; //0x0028
+}; //Size: 0x0030
+
+class RENativeArray // via.array
+{
+public:
+    class RENativeArrayData *data; //0x0000
+    int32_t size; //0x0008
+    int32_t numAllocated; //0x000C
+}; //Size: 0x0010
+
+class RENativeArrayData
+{
+public:
+    char pad_0000[8]; //0x0000
+}; //Size: 0x0008
+
+class RopewayCameraStatus : public REManagedObject
+{
+public:
+    char pad_0010[384]; //0x0010
+}; //Size: 0x0190
+
+class RopewayCameraInterpolateSettings : public UserData
+{
+public:
+    void *curveParamTable; //0x0030
+}; //Size: 0x0038
+
+class CollisionSystemAsyncCastSphereHandle : public CollisionSystemAsyncCastHandleBase
+{
+public:
+    class RESphere *sphere; //0x0080
+}; //Size: 0x0088
+
+class RESphere
+{
+public:
+    char pad_0000[8]; //0x0000
+}; //Size: 0x0008
+
+class RERenderCaptureToTexture : public REComponent
+{
+public:
+    bool N00004053; //0x0030
+    bool N00004069; //0x0031
+    bool enableAlphaChannel; //0x0032
+    char pad_0033[45]; //0x0033
+    bool enableReplayScene; //0x0060
+    char pad_0061[39]; //0x0061
+    float N0000405E; //0x0088
+    float N00004074; //0x008C
+}; //Size: 0x0090
+
+class AsyncCastHandleResultData : public REManagedObject
+{
+public:
+    char pad_0010[32]; //0x0010
+    Vector4f startPos; //0x0030
+    Vector4f endPos; //0x0040
+    char pad_0050[16]; //0x0050
+}; //Size: 0x0060
+
+class ValueTriggerInt : public REManagedObject
+{
+public:
+    int32_t current; //0x0010
+    int32_t old; //0x0014
+    int32_t lastFrame; //0x0018
+}; //Size: 0x001C
+
+class ActionTriggerInt : public ValueTriggerInt
+{
+public:
+    char pad_001C[4]; //0x001C
+    class SystemAction *action; //0x0020
+}; //Size: 0x0028
+
+class IkControlStatusArray : public REArrayBase
+{
+public:
+    class RopewayIkControlStatus *N00004982[6]; //0x0020
+}; //Size: 0x0050
+
+class RopewayIkControlStatus : public REManagedObject
+{
+public:
+    int32_t ikKind; //0x0010
+    float currentBlendRate; //0x0014
+    bool hasChild; //0x0018
+    bool activeAnyChild; //0x0019
+    char pad_001A[14]; //0x001A
+    bool hasExtraBlendRate; //0x0028
+    char pad_0029[3]; //0x0029
+    float currentExtraBlendRate; //0x002C
+    float extraBlendLerpTime; //0x0030
+    int32_t N00004A6E; //0x0034
+    class RopewayIkWrapper *ik; //0x0038
+    int32_t N00004ACF; //0x0040
+    char pad_0044[4]; //0x0044
+    class DotNetGenericDictionary *N00004A98; //0x0048
+    class RopewayRangeLerpFloat *rangeLerp1; //0x0050
+    class RopewayRangeLerpFloat *rangeLerp2; //0x0058
+    class RopewayRangeLerpFloat *rangeLerp3; //0x0060
+    void *N00004A9A; //0x0068
+    void *N00004AD5; //0x0070
+    int32_t N00004A45; //0x0078
+    float N00004DBD; //0x007C
+}; //Size: 0x0080
+
+class RopewayIkWrapper : public REManagedObject
+{
+public:
+    bool setupped; //0x0010
+    char pad_0011[7]; //0x0011
+    class REMotionIkLeg *N00004B67; //0x0018
+    char pad_0020[88]; //0x0020
+}; //Size: 0x0078
+
+class REMotionIkLeg : public RESecondaryAnimation
+{
+public:
+    char pad_0048[1904]; //0x0048
+    float heelHeight; //0x07B8
+    float toeHeight; //0x07BC
+    float groundContactUpDistance; //0x07C0
+    float groundContactDownDistance; //0x07C4
+    float groundContactRotationAdjustDistance; //0x07C8
+    char pad_07CC[4]; //0x07CC
+    int32_t effectorTarget; //0x07D0
+    int32_t centerAdjust; //0x07D4
+    char pad_07D8[32]; //0x07D8
+    int32_t toeControlOption; //0x07F8
+    int32_t rayCastSkipOption; //0x07FC
+    float blendRate; //0x0800
+    float adjustFootRotRate; //0x0804
+    float adjustFootDamping; //0x0808
+    float N00004EF8; //0x080C
+    float adjustFootBottomRate; //0x0810
+    float adjustFootUpwardRate; //0x0814
+    float N00004CB3; //0x0818
+    float centerAdjustRate; //0x081C
+    float centerDampingRate; //0x0820
+    float N00004EFE; //0x0824
+    float centerRXAdjustRate; //0x0828
+    float centerRZAdjustRate; //0x082C
+    float distanceLimitRate; //0x0830
+    float centerAdjustUpwardRate; //0x0834
+    float wallLimitAngle; //0x0838
+    float N00004EF0; //0x083C
+    float footRollLimit; //0x0840
+    float N00004EF2; //0x0844
+    int32_t jointNumBetweenHeelAndToe; //0x0848
+    int32_t rayCastInterval; //0x084C
+    char pad_0850[210]; //0x0850
+    bool enabledGroundAdjust; //0x0922
+    char pad_0923[2]; //0x0923
+    bool skipIkIfNoHitDetail; //0x0925
+    bool useIkSpine; //0x0926
+    char pad_0927[361]; //0x0927
+}; //Size: 0x0A90
+
+class RopewayRangeLerpFloat : public REManagedObject
+{
+public:
+    float lerpSpeed; //0x0010
+    float min; //0x0014
+    float max; //0x0018
+    bool isLoop; //0x001C
+    char pad_001D[3]; //0x001D
+    float loopPriority; //0x0020
+    bool isInterpolating; //0x0024
+    char pad_0025[3]; //0x0025
+    float target; //0x0028
+    float current; //0x002C
+}; //Size: 0x0030
