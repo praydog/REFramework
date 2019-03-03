@@ -14,12 +14,14 @@ public:
     void onDrawUI() override;
 
 private:
-    void handleAddress(Address address, int32_t offset = -1);
+    void handleAddress(Address address, int32_t offset = -1, Address parent = nullptr);
     void handleGameObject(REGameObject* gameObject);
     void handleComponent(REComponent* component);
     void handleTransform(RETransform* transform);
     void handleType(REManagedObject* obj, REType* t);
+
     void attemptDisplayField(REManagedObject* obj, VariableDescriptor* desc);
+    int32_t getFieldOffset(REManagedObject* obj, VariableDescriptor* desc);
 
     bool widgetWithContext(void* address, std::function<bool()> widget);
     void contextMenu(void* address);
@@ -29,4 +31,6 @@ private:
 
     std::string m_objectAddress{ "0" };
     std::chrono::system_clock::time_point m_nextRefresh;
+
+    std::unordered_map<VariableDescriptor*, int32_t> m_offsetMap;
 };

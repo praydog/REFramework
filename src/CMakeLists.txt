@@ -101,4 +101,5 @@ option(DEVELOPER_MODE "Adds DeveloperTools option to menu" OFF)
 
 if(DEVELOPER_MODE)
 target_compile_definitions(RE2 PUBLIC DEVELOPER)
+target_compile_options(RE2 PUBLIC /EHa)
 endif()

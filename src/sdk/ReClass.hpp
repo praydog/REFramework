@@ -19,7 +19,10 @@ using Matrix3x3f = glm::mat3x3;
 using Matrix3x4f = glm::mat3x4;
 using Matrix4x4f = glm::mat4x4;
 
+#pragma pack(push, r1, 1)
 #include "ReClass_Internal.hpp"
+#pragma pack(pop, r1)
+
 #include "REArray.hpp"
 #include "REManagedObject.hpp"
 #include "REString.hpp"

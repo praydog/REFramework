@@ -40,6 +40,10 @@ public:
         return *(T*)m_ptr;
     }
 
+    Address deref() const {
+        return to<void*>();
+    }
+
     void* ptr() const {
         return m_ptr;
     }
