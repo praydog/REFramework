@@ -1,4 +1,5 @@
 #include <sstream>
+#include <fstream>
 
 #include <windows.h>
 
@@ -58,12 +59,13 @@ void ObjectExplorer::onDrawUI() {
 
             ImGui::SetNextTreeNodeOpen(false, ImGuiCond_::ImGuiCond_Once);
 
-            if (ImGui::TreeNode(t->name)) {
+            auto madeNode = ImGui::TreeNode(t->name);
+            contextMenu(*obj);
+
+            if (madeNode) {
                 handleAddress(*obj);
                 ImGui::TreePop();
             }
-
-            contextMenu(*obj);
         }
     }
 
@@ -91,14 +93,55 @@ void ObjectExplorer::handleAddress(Address address, int32_t offset, Address pare
     if (offset != -1) {
         ImGui::SetNextTreeNodeOpen(false, ImGuiCond_::ImGuiCond_Once);
 
-        if (isGameObject) {
-            madeNode = ImGui::TreeNode(parent.get(offset), "0x%X: %s", offset, utility::REString::getString(address.as<REGameObject*>()->name).c_str());
-        }
-        else {
-            madeNode = ImGui::TreeNode(parent.get(offset), "0x%X: %s", offset, object->info->classInfo->type->name);
-        }
+        madeNode = stretchedTreeNode(parent.get(offset), "0x%X:", offset);
+        auto isHovered = ImGui::IsItemHovered();
+        auto additionalText = std::string{};
 
         contextMenu(object);
+
+        if (isGameObject) {
+            additionalText = utility::REString::getString(address.as<REGameObject*>()->name);
+        }
+        else {
+            // Change name based on VMType
+            switch (utility::REManagedObject::getVMType(object)) {
+            case via::clr::VMObjType::Array:
+            {
+                auto arr = (REArrayBase*)object;
+                std::string name{};
+                name += "Array<";
+                name += arr->containedType != nullptr ? arr->containedType->type->name : "";
+                name += ">";
+
+                additionalText = name;
+                break;
+            }
+
+            case via::clr::VMObjType::String:
+                additionalText = "String";
+                break;
+            case via::clr::VMObjType::Delegate:
+                additionalText = "Delegate";
+                break;
+            case via::clr::VMObjType::ValType:
+                additionalText = "ValType";
+                break;
+            case via::clr::VMObjType::Object:
+                additionalText = object->info->classInfo->type->name;
+                break;
+            case via::clr::VMObjType::NULL_:
+            default:
+                additionalText = "NULL_OBJECT";
+                break;
+            }
+        }
+
+        if (isHovered) {
+            makeSameLineText(additionalText, VARIABLE_COLOR_HIGHLIGHT);
+        }
+        else {
+            makeSameLineText(additionalText, VARIABLE_COLOR);
+        }
     }
 
     if (madeNode || offset == -1) {
@@ -191,12 +234,16 @@ void ObjectExplorer::handleType(REManagedObject* obj, REType* t) {
                     continue;
                 }
 
-                auto madeNode = widgetWithContext(variable->function, [&]() { return ImGui::TreeNode(variable, "%s", variable->typeName); });
+                auto madeNode = widgetWithContext(variable->function, [&]() { return stretchedTreeNode(variable, "%s", variable->typeName); });
                 auto treeHovered = ImGui::IsItemHovered();
 
                 // Draw the variable name with a color
-                ImGui::SameLine();
-                ImGui::TextColored(ImVec4{ 100.0f / 255.0f, 149.0f / 255.0f, 237.0f / 255.0f, 255 / 255.0f }, "%s", variable->name);
+                if (treeHovered) {
+                    makeSameLineText(variable->name, VARIABLE_COLOR_HIGHLIGHT);
+                }
+                else {
+                    makeSameLineText(variable->name, VARIABLE_COLOR);
+                }
 
                 // Display the field offset
                 auto offset = getFieldOffset(obj, variable);
@@ -556,6 +603,15 @@ void ObjectExplorer::contextMenu(void* address) {
 
         ImGui::EndPopup();
     }
+}
+
+void ObjectExplorer::makeSameLineText(std::string_view text, const ImVec4& color) {
+    if (text.empty()) {
+        return;
+    }
+
+    ImGui::SameLine();
+    ImGui::TextColored(color, "%s", text.data());
 }
 
 void ObjectExplorer::makeTreeOffset(REManagedObject* object, uint32_t offset, std::string_view name) {

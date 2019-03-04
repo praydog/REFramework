@@ -7,6 +7,39 @@
 #include "ReClass.hpp"
 
 namespace utility::REManagedObject {
+    // Forward declarations
+    static bool isManagedObject(Address address);
+    // Check object type name
+    static bool isA(::REManagedObject* object, std::string_view name);
+
+    // Get full type information about the object
+    static REType* getType(::REManagedObject* object);
+    static REType* safeGetType(::REManagedObject* object);
+    static std::string getTypeName(::REManagedObject* object);
+
+    // Get the VMObjType of the object
+    static via::clr::VMObjType getVMType(::REManagedObject* object);
+
+    // Get the total size of the object
+    static uint32_t getSize(::REManagedObject* object);
+
+    // Get the field/variable list for the type
+    static REVariableList* getVariables(::REType* t);
+    static REVariableList* getVariables(::REManagedObject* obj);
+
+    // Get a field descriptor by name
+    static VariableDescriptor* getFieldDesc(::REManagedObject* obj, std::string_view field);
+
+    // Gets the base offset of the top class in the hierarchy for this object
+    template <typename T>
+    static T* getFieldPtr(::REManagedObject* object);
+
+    // Get a field value by name
+    // Be very careful with the type size here, stack corruption could occur if the size is not large enough!
+    template <typename T>
+    T getField(::REManagedObject* obj, std::string_view field);
+
+
     static bool isManagedObject(Address address) {
         if (address == nullptr) {
             return false;
@@ -67,6 +100,16 @@ namespace utility::REManagedObject {
         return isManagedObject(object) ? getType(object) : nullptr;
     }
 
+    std::string getTypeName(::REManagedObject* object) {
+        auto t = getType(object);
+
+        if (t == nullptr) {
+            return "";
+        }
+
+        return t->name;
+    }
+
     static bool isA(::REManagedObject* object, std::string_view name) {
         if (object == nullptr) {
             return false;
@@ -81,7 +124,6 @@ namespace utility::REManagedObject {
         return false;
     }
     
-    // Gets the base offset of the top class in the hierarchy for this object
     template<typename T = void*>
     static T* getFieldPtr(::REManagedObject* object) {
         if (object == nullptr) {
@@ -89,11 +131,20 @@ namespace utility::REManagedObject {
         }
 
         // object - 8. Dunno, just what the game does.
-        auto offset = *(int32_t*)(Address(object).to<uintptr_t>() - sizeof(void*));
+        auto offset = Address(object).deref().sub(sizeof(void*)).to<int32_t>();
         return Address(object).get(offset).as<T*>();
     }
 
-    // Get the total size of the object
+    static via::clr::VMObjType getVMType(::REManagedObject* object) {
+        auto info = object->info;
+
+        if (info == nullptr || info->classInfo == nullptr) {
+            return via::clr::VMObjType::NULL_;
+        }
+
+        return (via::clr::VMObjType)info->classInfo->objectType;
+    }
+
     static uint32_t getSize(::REManagedObject* object) {
         auto info = object->info;
 
@@ -136,7 +187,6 @@ namespace utility::REManagedObject {
         return size;
     }
 
-    // Get the field/variable list for the type
     static REVariableList* getVariables(::REType* t) {
         if (t == nullptr || t->fields == nullptr || t->fields->variables == nullptr) {
             return nullptr;
@@ -155,7 +205,6 @@ namespace utility::REManagedObject {
         return getVariables(getType(obj));
     }
 
-    // Get a field descriptor by name
     static VariableDescriptor* getFieldDesc(::REManagedObject* obj, std::string_view field) {
         static std::mutex insertionMutex{};
         static std::unordered_map<std::string, VariableDescriptor*> varMap{};
@@ -197,8 +246,6 @@ namespace utility::REManagedObject {
         return nullptr;
     }
 
-    // Get a field value by name
-    // Be very careful with the type size here, stack corruption could occur if the size is not large enough!
     template <typename T>
     T getField(::REManagedObject* obj, std::string_view field) {
         T data{};

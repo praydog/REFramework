@@ -1,3 +1,5 @@
+// Generated with REFramework
+
 namespace app::ropeway::WwiseOptionMenu {
     enum class Speaker : int64_t {
         TV = 0,

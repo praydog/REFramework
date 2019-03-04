@@ -11,13 +11,11 @@ namespace utility::REArray {
     template<typename T> static T* getElement(::REArrayBase* container, int idx);
 
     static bool hasInlineElements(::REArrayBase* container) {
-        auto info = container->info;
-
-        if (info == nullptr || info->classInfo == nullptr) {
+        if (container->containedType == nullptr) {
             return false;
         }
 
-        return info->classInfo->objectType == (uint8_t)via::clr::VMObjType::ValType;
+        return container->containedType->objectType == (uint8_t)via::clr::VMObjType::ValType;
     }
 
     template<typename T>
