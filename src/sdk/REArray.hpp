@@ -17,7 +17,7 @@ namespace utility::REArray {
             return false;
         }
 
-        return info->classInfo->objectType == 5;
+        return info->classInfo->objectType == (uint8_t)via::clr::VMObjType::ValType;
     }
 
     template<typename T>

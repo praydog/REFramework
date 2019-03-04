@@ -973,7 +973,7 @@ public:
     char *name; //0x0000
     char pad_0008[8]; //0x0008
     void* function; //0x0010
-    uint32_t flags; //0x0018 (flags AND 0x1F) - 1 gives var type
+    int32_t flags; //0x0018 (flags AND 0x1F) - 1 gives var type
     uint32_t flags2; //0x001C
     char *typeName; //0x0020
     char pad_0028[4]; //0x0028
@@ -1857,18 +1857,23 @@ public:
 class RopewaySurvivorEquipment : public REBehavior
 {
 public:
-    char pad_0048[24]; //0x0048
-    class RopewayImplementArm *primaryWeapon; //0x0060
-    class RopewayImplementArm *sideWeapon; //0x0068
-    class RopewayImplementGun *currentWeapon; //0x0070
-    class RopewayArmList *weaponList; //0x0078
-    char pad_0080[16]; //0x0080
+    int32_t equipPartsForm; //0x0048
+    char pad_004C[8]; //0x004C
+    int32_t equipType; //0x0054
+    int32_t forceEquipType; //0x0058
+    char pad_005C[4]; //0x005C
+    class RopewayImplementArm *mainWeapon; //0x0060
+    class RopewayImplementArm *subWeapon; //0x0068
+    class RopewayImplementGun *equippedWeapon; //0x0070
+    class RopewayArmList *arms; //0x0078
+    int32_t rapidFireNumber; //0x0080
+    char pad_0084[12]; //0x0084
     class REManagedObject *valTrigger; //0x0090
     char pad_0098[104]; //0x0098
     class RopewaySurvivorPlayerCondition *parentCondition; //0x0100
     char pad_0108[24]; //0x0108
-    float currentAccuracy; //0x0120
-    bool isPerfectAccuracy; //0x0124
+    float currentAccuracy; //0x0120 ReticleFitPoint
+    bool isPerfectAccuracy; //0x0124 IsReticleFit
     char pad_0125[3]; //0x0125
 }; //Size: 0x0128
 
@@ -2177,9 +2182,14 @@ public:
     class HIDJoypadDevice *joypadDevice; //0x00B8
     class RopewayInputSystemAnalogStick *analogStick; //0x00C0
     class InputSystemButton *button; //0x00C8
-    char pad_00D0[108]; //0x00D0
+    char pad_00D0[32]; //0x00D0
+    Vector2f cameraSensitivity; //0x00F0
+    char pad_00F8[64]; //0x00F8
+    int16_t mouseMoveRingBufferSize; //0x0138
+    char pad_013A[2]; //0x013A
     float mouseDelta; //0x013C
-    char pad_0140[48]; //0x0140
+    float mouseMoveThreshold; //0x0140
+    char pad_0144[44]; //0x0144
 }; //Size: 0x0170
 
 class RopewayInputSystemButtonMaskBit : public REManagedObject
@@ -2672,3 +2682,140 @@ public:
     float target; //0x0028
     float current; //0x002C
 }; //Size: 0x0030
+
+class RopewayEquipmentManager : public REBehavior
+{
+public:
+    char pad_0048[8]; //0x0048
+    class DotNetGenericList *prefabInfoList; //0x0050
+    class DotNetGenericList *characterMotionPrefabInfoList; //0x0058
+    class DotNetGenericList *equipments; //0x0060
+    class DotNetGenericList *instantiateRequestList; //0x0068
+    class RopewayWeaponEquippedPositionUserData *weaponEquippedPositionData; //0x0070
+    class RopewayWeaponBulletUserData *weaponBulletData; //0x0078
+    char pad_0080[16]; //0x0080
+}; //Size: 0x0090
+
+class RopewayWeaponBulletUserData : public UserData
+{
+public:
+    char pad_0030[8]; //0x0030
+    bool enableDebug; //0x0038
+    char pad_0039[3]; //0x0039
+    int32_t debugWeaponType; //0x003C
+    int32_t debugWeaponParts; //0x0040
+    char pad_0044[4]; //0x0044
+}; //Size: 0x0048
+
+class RopewayWeaponEquippedPositionUserData : public UserData
+{
+public:
+    char pad_0030[8]; //0x0030
+}; //Size: 0x0038
+
+class RopewayGameMaster : public REBehavior
+{
+public:
+    char pad_0048[8]; //0x0048
+    class UserData *difficultySettings; //0x0050
+    class UserData *continueRankPoint; //0x0058
+    bool isWindows10; //0x0060
+    char pad_0061[3]; //0x0061
+    int32_t machine; //0x0064
+    int32_t machineDetail; //0x0068
+    int32_t operatingSystem; //0x006C
+    int32_t servicePlatform; //0x0070
+    int32_t criticalRateController; //0x0074
+}; //Size: 0x0078
+
+class ManagedEnumValuesPtr
+{
+public:
+    char *(*names)[8192]; //0x0000
+}; //Size: 0x0008
+
+class REEnumMap
+{
+public:
+    class REEnumNode *first; //0x0000
+    int32_t num; //0x0008
+    char pad_000C[4]; //0x000C
+}; //Size: 0x0010
+
+class ManagedEnums : public REEnumMap
+{
+public:
+    class RENativeArray enumValues; //0x0010
+}; //Size: 0x0020
+
+class N00006DF9
+{
+public:
+    char pad_0000[16]; //0x0000
+    class RENativeArray enumValues; //0x0010
+    char pad_0020[304]; //0x0020
+}; //Size: 0x0150
+
+class N00006EE3
+{
+public:
+    class REEnumDescriptor *N00006EE4; //0x0000
+    class N00006F33 *N00006EE5; //0x0008
+    class N00006F56 *N00006EE6; //0x0010
+    char pad_0018[8]; //0x0018
+}; //Size: 0x0020
+
+class REEnumNode
+{
+public:
+    class REEnumDescriptor *N00007017; //0x0000
+    class REEnumDescriptor *N0000702A; //0x0008
+    class REEnumDescriptor *N0000702B; //0x0010
+    char pad_0018[8]; //0x0018
+}; //Size: 0x0020
+
+class REEnumData
+{
+public:
+    char *name; //0x0000
+    bool N000070A2; //0x0008
+    char pad_0009[7]; //0x0009
+    class REEnumValueNode *values; //0x0010
+    void *N000070A4; //0x0018
+    char pad_0020[24]; //0x0020
+}; //Size: 0x0038
+
+class REEnumPair
+{
+public:
+    uint32_t first; //0x0000
+    char pad_0004[4]; //0x0004
+    class REEnumData second; //0x0008
+}; //Size: 0x0040
+
+class REEnumDescriptor : public REEnumNode
+{
+public:
+    class REEnumPair data; //0x0020
+    char pad_0060[332]; //0x0060
+}; //Size: 0x01AC
+
+class N00006F33
+{
+public:
+    char pad_0000[8]; //0x0000
+}; //Size: 0x0008
+
+class N00006F56
+{
+public:
+    char pad_0000[8]; //0x0000
+}; //Size: 0x0008
+
+class REEnumValueNode
+{
+public:
+    char *name; //0x0000
+    int64_t value; //0x0008
+    class REEnumValueNode *next; //0x0010
+}; //Size: 0x0018

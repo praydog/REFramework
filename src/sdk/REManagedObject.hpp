@@ -104,8 +104,8 @@ namespace utility::REManagedObject {
         auto classInfo = info->classInfo;
         auto size = classInfo->size;
 
-        switch (classInfo->objectType) {
-        case 2:
+        switch ((via::clr::VMObjType)classInfo->objectType) {
+        case via::clr::VMObjType::Array:
         {
             auto container = (::REArrayBase*)object;
             auto containedType = container->containedType;
@@ -122,18 +122,17 @@ namespace utility::REManagedObject {
 
             break;
         }
-        case 3:
+        case via::clr::VMObjType::String:
             size = sizeof(uint16_t) * (Address(object).get(sizeof(::REManagedObject)).to<uint32_t>() + 1) + 0x14;
             break;
-        case 4:
+        case via::clr::VMObjType::Delegate:
             size = 0x10 * (Address(object).get(sizeof(::REManagedObject)).to<uint32_t>() - 1) + 0x28;
             break;
-
-        // 1 is normal type that we can inspect easily
+        case via::clr::VMObjType::Object:
         default:
             break;
         }
-
+        
         return size;
     }
 

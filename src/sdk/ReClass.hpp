@@ -23,6 +23,8 @@ using Matrix4x4f = glm::mat4x4;
 #include "ReClass_Internal.hpp"
 #pragma pack(pop, r1)
 
+#include "Enums_Internal.hpp"
+
 #include "REArray.hpp"
 #include "REManagedObject.hpp"
 #include "REString.hpp"

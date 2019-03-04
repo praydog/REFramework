@@ -25,6 +25,7 @@ set(MODS_SRC
 set(SDK_SRC
     sdk/ReClass.hpp
     sdk/ReClass_Internal.hpp
+    sdk/Enums_Internal.hpp
 
     sdk/REArray.hpp
     sdk/REComponent.hpp
