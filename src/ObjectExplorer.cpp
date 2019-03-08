@@ -835,7 +835,9 @@ void ObjectExplorer::populateClasses() {
         return;
     }
 
-    auto& typeList = *(TypeList*)(0x1470B2790);
+    auto ref = utility::scan(g_framework->getModule().as<HMODULE>(), "48 8d 0d ? ? ? ? e8 ? ? ? ? 48 8d 05 ? ? ? ? 48 89 03");
+    auto& typeList = *(TypeList*)(utility::calculateAbsolute(*ref + 3));
+    spdlog::info("TypeList: {:x}", (uintptr_t)&typeList);
 
     // I don't know why but it can extend past the size.
     for (auto i = 0; i < typeList.numAllocated; ++i) {
@@ -866,7 +868,10 @@ void ObjectExplorer::populateClasses() {
 void ObjectExplorer::populateEnums() {
     std::ofstream outFile("Enums_Internal.hpp");
 
-    auto& l = *(std::map<uint64_t, REEnumData>*)0x1470B26F0;
+
+    auto ref = utility::scan(g_framework->getModule().as<HMODULE>(), "66 C7 40 18 01 01 48 89 05 ? ? ? ?");
+    auto& l = *(std::map<uint64_t, REEnumData>*)(utility::calculateAbsolute(*ref + 9));
+    spdlog::info("EnumList: {:x}", (uintptr_t)&l);
 
     spdlog::info("Size: {}", l.size());
 
