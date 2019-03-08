@@ -111,34 +111,24 @@ public:
 class REType
 {
 public:
-    uint32_t typeIdentifier; //0x0008
-    uint32_t N00000415; //0x000C
-    char pad_0010[8]; //0x0010
+    void *N000003B4; //0x0000
+    uint32_t classIndex; //0x0008
+    int16_t flags; //0x000C < 0 == NoneType, 1 == abstract, 2 == concrete, 256 == interface, 16384 == root
+    char pad_000E[2]; //0x000E
+    uint64_t fastClassIndex; //0x0010
     uint32_t typeIndexProbably; //0x0018
     char pad_001C[4]; //0x001C
     char *name; //0x0020
     char pad_0028[4]; //0x0028
     uint32_t size; //0x002C
-    char pad_0030[8]; //0x0030
+    uint32_t typeCRC; //0x0030
+    uint32_t miscFlags; //0x0034
     class REType *super; //0x0038
-    class REType *someSortOfType; //0x0040
-    class REType *childType; //0x0048
+    class REType *childType; //0x0040
+    class REType *chainType; //0x0048
     class REFieldList *fields; //0x0050
-    class REClassInfo *classInfo; //0x0058
-    int32_t N0000AB48; //0x0060
-    char pad_0064[4]; //0x0064
-
-    virtual void Function0();
-    virtual void Function1();
-    virtual void Function2();
-    virtual void Function3();
-    virtual void Function4();
-    virtual void Function5();
-    virtual void Function6();
-    virtual void Function7();
-    virtual void Function8();
-    virtual void Function9();
-}; //Size: 0x0068
+    class REClassInfo *classInfo; //0x0058 is a managed type if this is not null
+}; //Size: 0x0060
 
 class N000003DE
 {
@@ -224,10 +214,10 @@ public:
 class REFieldList
 {
 public:
-    uint32_t N0000072A; //0x0000
+    uint32_t unknown; //0x0000
     char pad_0004[4]; //0x0004
     class REFieldList *next; //0x0008
-    class N0000074B *functions; //0x0010
+    class FunctionHolder **(*methods)[4000]; //0x0010
     int32_t num; //0x0018
     int32_t maxItems; //0x001C
     class REVariableList *variables; //0x0020
@@ -239,7 +229,7 @@ public:
 class N0000074B
 {
 public:
-    class N00000756 *N0000074C[2048]; //0x0000
+    class FunctionHolder **N0000074C[2048]; //0x0000
 }; //Size: 0x4000
 
 class N00000756
@@ -259,9 +249,12 @@ class FunctionDescriptor
 {
 public:
     char *name; //0x0000
-    char pad_0008[16]; //0x0008
+    class MethodParamInfo(*params)[256]; //0x0008
+    char pad_0010[4]; //0x0010
+    int32_t numParams; //0x0014
     void* functionPtr; //0x0018
-    char pad_0020[8]; //0x0020
+    uint32_t returnTypeFlag; //0x0020 AND 1F = via::reflection::TypeKind
+    uint32_t typeIndex; //0x0024
     char *returnTypeName; //0x0028
     char pad_0030[8]; //0x0030
 }; //Size: 0x0038
@@ -372,8 +365,8 @@ class REClassInfo
 {
 public:
     uint16_t typeIndex; //0x0000 index into global type array
-    char pad_0002[33]; //0x0002
-    uint8_t N00002AFF; //0x0023
+    char pad_0002[30]; //0x0002
+    uint32_t typeFlags; //0x0020 System::Reflection::TypeAttributes or via::clr::TypeFlag
     char pad_0024[2]; //0x0024
     uint8_t objectType; //0x0026 1 == normal type ? ??
     char pad_0027[5]; //0x0027
@@ -971,9 +964,11 @@ class VariableDescriptor
 {
 public:
     char *name; //0x0000
-    char pad_0008[8]; //0x0008
+    char pad_0008[4]; //0x0008
+    uint16_t N00000871; //0x000C
+    uint16_t N00008140; //0x000E
     void* function; //0x0010
-    int32_t flags; //0x0018 (flags AND 0x1F) - 1 gives var type
+    int32_t flags; //0x0018 (flags AND 0x1F) gives var type (via::clr::reflection::TypeKind)
     uint32_t flags2; //0x001C
     char *typeName; //0x0020
     char pad_0028[4]; //0x0028
@@ -1567,8 +1562,8 @@ public:
 class N00002B03
 {
 public:
-    char pad_0000[200]; //0x0000
-}; //Size: 0x00C8
+    char pad_0000[192]; //0x0000
+}; //Size: 0x00C0
 
 class REArrayBase : public REManagedObject
 {
@@ -2819,3 +2814,46 @@ public:
     int64_t value; //0x0008
     class REEnumValueNode *next; //0x0010
 }; //Size: 0x0018
+
+class StdMap
+{
+public:
+    class StdMapNode *_MyHead; //0x0000
+    int32_t _MySize; //0x0008
+    char pad_000C[4]; //0x000C
+}; //Size: 0x0010
+
+class StdMapData
+{
+public:
+    char pad_0000[120]; //0x0000
+}; //Size: 0x0078
+
+class StdMapNode
+{
+public:
+    class StdMapNode *N00008173; //0x0000
+    class StdMapNode *N00008174; //0x0008
+    class StdMapNode *N00008175; //0x0010
+    char pad_0018[8]; //0x0018
+    class StdMapData data; //0x0020
+}; //Size: 0x0098
+
+class TypeList // RENativeArray
+{
+public:
+    class REType *(*data)[50000]; //0x0000
+    int32_t size; //0x0008
+    int32_t numAllocated; //0x000C
+    char pad_0010[120]; //0x0010
+}; //Size: 0x0088
+
+class MethodParamInfo
+{
+public:
+    char pad_0000[8]; //0x0000
+    char *paramName; //0x0008
+    uint32_t paramTypeFlag; //0x0010 AND 1f
+    uint32_t typeIndex; //0x0014
+    char *typeName; //0x0018
+}; //Size: 0x0020
