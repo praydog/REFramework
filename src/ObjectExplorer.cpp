@@ -597,6 +597,32 @@ int32_t ObjectExplorer::getFieldOffset(REManagedObject* obj, VariableDescriptor*
         return m_offsetMap[desc];
     }
 
+    // idk. best name i could come up with.
+    static void** dotNETContext = nullptr;
+    static uint8_t* (*getThreadNETContext)(void*, int) = nullptr;
+
+    if (dotNETContext == nullptr) {
+        auto ref = utility::scan(g_framework->getModule().as<HMODULE>(), "48 8B 0D ? ? ? ? BA FF FF FF FF E8 ? ? ? ? 48 89 C3");
+
+        if (!ref) {
+            spdlog::info("Unable to find ref. getFieldOffset will not function.");
+            return 0;
+        }
+
+        dotNETContext = (void**)utility::calculateAbsolute(*ref + 3);
+        getThreadNETContext = (decltype(getThreadNETContext))utility::calculateAbsolute(*ref + 13);
+
+        spdlog::info("g_dotNETContext: {:x}", (uintptr_t)dotNETContext);
+        spdlog::info("getThreadNETContext: {:x}", (uintptr_t)getThreadNETContext);
+    }
+
+    auto someObject = Address{ getThreadNETContext(*dotNETContext, -1) };
+    static int32_t prevReferenceCount = 0;
+
+    if (someObject != nullptr) {
+        prevReferenceCount = *someObject.get(0x78).as<int32_t*>();
+    }
+
     // Set up our "translator" to throw on any exception,
     // Particularly access violations.
     // Kind of gross but it's necessary for some fields,
@@ -608,34 +634,16 @@ int32_t ObjectExplorer::getFieldOffset(REManagedObject* obj, VariableDescriptor*
         {
             spdlog::info("ObjectExplorer: Attempting to handle access violation.");
 
-            // idk. best name i could come up with.
-            static void** dotNETContext = nullptr;
-            static uint8_t* (*getThreadNETContext)(void*, int) = nullptr;
-
-            if (dotNETContext == nullptr) {
-                auto ref = utility::scan(g_framework->getModule().as<HMODULE>(), "48 8B 0D ? ? ? ? BA FF FF FF FF E8 ? ? ? ? 48 89 C3");
-
-                if (!ref) {
-                    spdlog::info("Unable to find ref. We are going to crash.");
-                    break;
-                }
-
-                dotNETContext = (void**)utility::calculateAbsolute(*ref + 3);
-                getThreadNETContext = (decltype(getThreadNETContext))utility::calculateAbsolute(*ref + 13);
-
-                spdlog::info("g_dotNETContext: {:x}", (uintptr_t)dotNETContext);
-                spdlog::info("getThreadNETContext: {:x}", (uintptr_t)getThreadNETContext);
-            }
-
             auto someObject = Address{ getThreadNETContext(*dotNETContext, -1) };
 
             // This counter needs to be dealt with, it will end up causing a crash later on.
             // We also need to "destruct" whatever object this is.
             if (someObject != nullptr) {
                 auto& referenceCount = *someObject.get(0x78).as<int32_t*>();
+                auto countDelta = referenceCount - prevReferenceCount;
 
                 spdlog::error("{}", referenceCount);
-                if (referenceCount > 1) {
+                if (countDelta >= 1) {
                     --referenceCount;
 
                     static void* (*func1)(void*) = nullptr;
@@ -664,14 +672,14 @@ int32_t ObjectExplorer::getFieldOffset(REManagedObject* obj, VariableDescriptor*
 
                     // Perform object cleanup that was missed because an exception occurred.
                     if (someObject.get(0x50).deref().get(0x18).deref() != nullptr) {
-                        func1(someObject);                   
+                        func1(someObject);
                     }
 
                     func2(someObject);
                     func3(someObject);
                 }
-                else {
-                    spdlog::info("Reference count was 0.");
+                else if (countDelta == 0) {
+                    spdlog::info("No fix necessary");
                 }
             }
             else {
