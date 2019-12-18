@@ -15,7 +15,11 @@ std::optional<std::string> PositionHooks::onInitialize() {
 
     // The 48 8B 4D 40 bit might change.
     // Version 1.0 jmp stub: game+0x1dc7de0
-    auto updateTransformCall = utility::scan(game, "E8 ? ? ? ? 48 8B 5B ? 48 85 DB 75 ? 48 8B 4D 40 48 31 E1");
+    // Version 1
+    //auto updateTransformCall = utility::scan(game, "E8 ? ? ? ? 48 8B 5B ? 48 85 DB 75 ? 48 8B 4D 40 48 31 E1");
+
+    // Version 2 Dec 17th, 2019 (works on old version too) game.exe+0x1DD3FF0
+    auto updateTransformCall = utility::scan(game, "E8 ? ? ? ? 48 8B 5B ? 48 85 DB 75 ? 48 8B 4D 40 48 ? ?");
 
     if (!updateTransformCall) {
         return "Unable to find UpdateTransform pattern.";
@@ -32,17 +36,22 @@ std::optional<std::string> PositionHooks::onInitialize() {
     }
 
     // Version 1.0 jmp stub: game+0xB4685A0
-    auto updateCameraControllerCall = utility::scan(game, "75 ? 48 89 FA 48 89 D9 E8 ? ? ? ? 48 8B 43 50 48 83 78 18 00 75 ? 45 89");
+    // Version 1
+    /*auto updateCameraControllerCall = utility::scan(game, "75 ? 48 89 FA 48 89 D9 E8 ? ? ? ? 48 8B 43 50 48 83 78 18 00 75 ? 45 89");
 
     if (!updateCameraControllerCall) {
         return "Unable to find UpdateCameraController pattern.";
     }
 
-    auto updateCameraController = utility::calculateAbsolute(*updateCameraControllerCall + 9);
-    spdlog::info("UpdateCameraController: {:x}", updateCameraController);
+    auto updateCameraController = utility::calculateAbsolute(*updateCameraControllerCall + 9);*/
+
+    // Version 2 Dec 17th, 2019 game.exe+0x7CF690 (works on old version too)
+    auto updateCameraController = utility::scan(game, "40 55 56 57 48 8D AC 24 ? ? ? ? 48 81 EC ? ? 00 00 48 8B 41 50");
+
+    spdlog::info("UpdateCameraController: {:x}", *updateCameraController);
 
     // Can be found by breakpointing camera controller's worldPosition
-    m_updateCameraControllerHook = std::make_unique<FunctionHook>(updateCameraController, &updateCameraControllerHook);
+    m_updateCameraControllerHook = std::make_unique<FunctionHook>(*updateCameraController, &updateCameraControllerHook);
 
     if (!m_updateCameraControllerHook->create()) {
         return "Failed to hook UpdateCameraController";
@@ -50,7 +59,11 @@ std::optional<std::string> PositionHooks::onInitialize() {
 
     // Version 1.0 jmp stub: game+0xCF2510
     // Version 1.0 function: game+0xB436230
-    auto updateCameraController2 = utility::scan(game, "40 53 57 48 81 ec ? ? ? ? 48 8b 41 ? 48 89 d7 48 8b 92 ? ? 00 00");
+    
+    // Version 1
+    //auto updateCameraController2 = utility::scan(game, "40 53 57 48 81 ec ? ? ? ? 48 8b 41 ? 48 89 d7 48 8b 92 ? ? 00 00");
+    // Version 2 Dec 17th, 2019 game.exe+0x6CD9C0 (works on old version too)
+    auto updateCameraController2 = utility::scan(game, "40 53 57 48 81 EC ? ? ? ? 48 ? ? ? 48 ? ? 48 ? ? ? ? 00 00");
 
     if (!updateCameraController2) {
         return "Unable to find UpdateCameraController2 pattern.";

@@ -602,7 +602,11 @@ int32_t ObjectExplorer::getFieldOffset(REManagedObject* obj, VariableDescriptor*
     static uint8_t* (*getThreadNETContext)(void*, int) = nullptr;
 
     if (dotNETContext == nullptr) {
-        auto ref = utility::scan(g_framework->getModule().as<HMODULE>(), "48 8B 0D ? ? ? ? BA FF FF FF FF E8 ? ? ? ? 48 89 C3");
+        // Version 1
+        //auto ref = utility::scan(g_framework->getModule().as<HMODULE>(), "48 8B 0D ? ? ? ? BA FF FF FF FF E8 ? ? ? ? 48 89 C3");
+
+        // Version 2 Dec 17th, 2019, first ptr is at game.exe+0x7095E08
+        auto ref = utility::scan(g_framework->getModule().as<HMODULE>(), "48 8B 0D ? ? ? ? BA FF FF FF FF E8 ? ? ? ?");
 
         if (!ref) {
             spdlog::info("Unable to find ref. getFieldOffset will not function.");
@@ -653,8 +657,12 @@ int32_t ObjectExplorer::getFieldOffset(REManagedObject* obj, VariableDescriptor*
                     // Get our function pointers
                     if (func1 == nullptr) {
                         spdlog::info("Locating funcs");
+                        
+                        // Version 1
+                        //auto ref = utility::scan(g_framework->getModule().as<HMODULE>(), "48 83 78 18 00 74 ? 48 89 D9 E8 ? ? ? ? 48 89 D9 E8 ? ? ? ?");
 
-                        auto ref = utility::scan(g_framework->getModule().as<HMODULE>(), "48 83 78 18 00 74 ? 48 89 D9 E8 ? ? ? ? 48 89 D9 E8 ? ? ? ?");
+                        // Version 2 Dec 17th, 2019 game.exe+0x20437C (works on old version too)
+                        auto ref = utility::scan(g_framework->getModule().as<HMODULE>(), "48 83 78 18 00 74 ? 48 ? ? E8 ? ? ? ? 48 ? ? E8 ? ? ? ?");
 
                         if (!ref) {
                             spdlog::error("We're going to crash");
