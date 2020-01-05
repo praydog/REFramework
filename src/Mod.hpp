@@ -15,9 +15,20 @@
 
 #include "REFramework.hpp"
 
+class IModValue {
+public:
+    using Ptr = std::unique_ptr<IModValue>;
+
+    virtual ~IModValue() {};
+    virtual bool draw(std::string_view name) = 0;
+    virtual void drawValue(std::string_view name) = 0;
+    virtual void configLoad(const utility::Config& cfg) = 0;
+    virtual void configSave(utility::Config& cfg) = 0;
+};
+
 // Convenience classes for imgui
 template <typename T>
-class ModValue {
+class ModValue : public IModValue {
 public:
     using Ptr = std::unique_ptr<ModValue<T>>;
 
@@ -31,11 +42,11 @@ public:
     {
     }
 
-    virtual ~ModValue() {};
+    virtual ~ModValue() override {};
     virtual bool draw(std::string_view name) = 0;
     virtual void drawValue(std::string_view name) = 0;
 
-    virtual void configLoad(const utility::Config& cfg) {
+    virtual void configLoad(const utility::Config& cfg) override {
         auto v = cfg.get<T>(m_configName);
 
         if (v) {
@@ -43,9 +54,13 @@ public:
         }
     };
 
-    virtual void configSave(utility::Config& cfg) {
+    virtual void configSave(utility::Config& cfg) override {
         cfg.set<T>(m_configName, m_value);
     };
+
+    operator IModValue&() {
+        return *(IModValue*)this;
+    }
 
     operator T&() {
         return m_value;
@@ -268,6 +283,9 @@ protected:
 };
 
 class Mod {
+protected:
+    using ValueList = std::vector<std::reference_wrapper<IModValue>>;
+
 public:
     virtual std::string_view getName() const { return "UnknownMod"; };
 

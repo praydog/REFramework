@@ -1,23 +1,15 @@
 #include "FreeCam.hpp"
 
 void FreeCam::onConfigLoad(const utility::Config& cfg) {
-    m_enabled->configLoad(cfg);
-    m_disableMovement->configLoad(cfg);
-    m_speed->configLoad(cfg);
-
-    m_toggleKey->configLoad(cfg);
-    m_lockCameraKey->configLoad(cfg);
-    m_disableMovementKey->configLoad(cfg);
+    for (IModValue& option : m_options) {
+        option.configLoad(cfg);
+    }
 }
 
 void FreeCam::onConfigSave(utility::Config& cfg) {
-    m_enabled->configSave(cfg);
-    m_disableMovement->configSave(cfg);
-    m_speed->configSave(cfg);
-
-    m_toggleKey->configSave(cfg);
-    m_lockCameraKey->configSave(cfg);
-    m_disableMovementKey->configSave(cfg);
+    for (IModValue& option : m_options) {
+        option.configSave(cfg);
+    }
 }
 
 void FreeCam::onFrame() {

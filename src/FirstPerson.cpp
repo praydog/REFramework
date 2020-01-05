@@ -85,6 +85,8 @@ void FirstPerson::onDrawUI() {
     m_hideMesh->draw("Hide Joint Mesh");
 
     ImGui::SameLine();
+    m_rotateMesh->draw("Force Rotate Joint");
+
     if (m_disableVignette->draw("Disable Vignette")) {
         m_disableVignettePatch->toggle(m_disableVignette->value());
     }
@@ -125,17 +127,9 @@ void FirstPerson::onDrawUI() {
 }
 
 void FirstPerson::onConfigLoad(const utility::Config& cfg) {
-    // maybe add a way to just push them once into a list of mod variables.
-    m_enabled->configLoad(cfg);
-    m_toggleKey->configLoad(cfg);
-    m_hideMesh->configLoad(cfg);
-    m_disableVignette->configLoad(cfg);
-    m_disableLightSource->configLoad(cfg);
-    m_fovOffset->configLoad(cfg);
-    m_fovMult->configLoad(cfg);
-    
-    m_cameraScale->configLoad(cfg);
-    m_boneScale->configLoad(cfg);
+    for (IModValue& option : m_options) {
+        option.configLoad(cfg);
+    }
 
     m_lastFovMult = m_fovMult->value();
 
@@ -146,16 +140,9 @@ void FirstPerson::onConfigLoad(const utility::Config& cfg) {
 }
 
 void FirstPerson::onConfigSave(utility::Config& cfg) {
-    m_enabled->configSave(cfg);
-    m_toggleKey->configSave(cfg);
-    m_hideMesh->configSave(cfg);
-    m_disableVignette->configSave(cfg);
-    m_disableLightSource->configSave(cfg);
-    m_fovOffset->configSave(cfg);
-    m_fovMult->configSave(cfg);
-
-    m_cameraScale->configSave(cfg);
-    m_boneScale->configSave(cfg);
+    for (IModValue& option : m_options) {
+        option.configSave(cfg);
+    }
 }
 
 thread_local bool g_inPlayerTransform = false;
@@ -421,14 +408,17 @@ void FirstPerson::updatePlayerBones(RETransform* transform) {
         g_firstTime = false;
     }
 
-    auto wantedMat = m_lastCameraMatrix * Matrix4x4f{
-        -1, 0, 0, 0,
-        0, 1, 0, 0,
-        0, 0, -1, 0,
-        0, 0, 0, 1
-    };
+    // Forcefully rotate the bone to match the camera direction
+    if (m_cameraSystem->cameraController == m_playerCameraController && m_rotateMesh->value()) {
+        auto wantedMat = m_lastCameraMatrix * Matrix4x4f{
+            -1, 0, 0, 0,
+            0, 1, 0, 0,
+            0, 0, -1, 0,
+            0, 0, 0, 1
+        };
 
-    *(Matrix3x4f*)&boneMatrix = wantedMat;
+        *(Matrix3x4f*)&boneMatrix = wantedMat;
+    }
 
     // Hide the head model by moving it out of view of the camera (and hopefully shadows...)
     if (m_hideMesh->value()) {

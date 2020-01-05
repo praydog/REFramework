@@ -20,14 +20,24 @@ public:
 private:
     bool updatePointers();
 
-    ModToggle::Ptr m_enabled{         ModToggle::create(generateName("Enabled"), false) };
-    ModToggle::Ptr m_lockCamera{      ModToggle::create(generateName("LockPosition"), false) };
-    ModToggle::Ptr m_disableMovement{ ModToggle::create(generateName("DisableMovement"), false) };
-    ModKey::Ptr m_toggleKey{          ModKey::create(generateName("ToggleKey")) };
-    ModKey::Ptr m_lockCameraKey{      ModKey::create(generateName("LockKey")) };
-    ModKey::Ptr m_disableMovementKey{ ModKey::create(generateName("DisableMoveKey")) };
+    const ModToggle::Ptr m_enabled{         ModToggle::create(generateName("Enabled"), false) };
+    const ModToggle::Ptr m_lockCamera{      ModToggle::create(generateName("LockPosition"), false) };
+    const ModToggle::Ptr m_disableMovement{ ModToggle::create(generateName("DisableMovement"), false) };
+    const ModKey::Ptr m_toggleKey{          ModKey::create(generateName("ToggleKey")) };
+    const ModKey::Ptr m_lockCameraKey{      ModKey::create(generateName("LockKey")) };
+    const ModKey::Ptr m_disableMovementKey{ ModKey::create(generateName("DisableMoveKey")) };
 
-    ModSlider::Ptr m_speed{ ModSlider::create(generateName("Speed"), 0.0f, 1.0f, 0.1f) };
+    const ModSlider::Ptr m_speed{ ModSlider::create(generateName("Speed"), 0.0f, 1.0f, 0.1f) };
+
+    ValueList m_options{
+        *m_enabled,
+        *m_lockCamera,
+        *m_disableMovement,
+        *m_toggleKey,
+        *m_lockCameraKey,
+        *m_disableMovement,
+        *m_speed
+    };
 
     RopewayCameraSystem* m_cameraSystem{ nullptr };
     RopewayInputSystem* m_inputSystem{ nullptr };

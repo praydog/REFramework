@@ -72,20 +72,35 @@ private:
     
     std::unique_ptr<Patch> m_disableVignettePatch{};
 
-    ModToggle::Ptr m_enabled{ ModToggle::create(generateName("Enabled")) };
-    ModKey::Ptr m_toggleKey{ ModKey::create(generateName("ToggleKey")) };
+    const ModToggle::Ptr m_enabled{ ModToggle::create(generateName("Enabled")) };
+    const ModKey::Ptr m_toggleKey{ ModKey::create(generateName("ToggleKey")) };
     void onDisabled();
 
-    ModToggle::Ptr m_disableVignette{ ModToggle::create(generateName("DisableVignette")) };
-    ModToggle::Ptr m_hideMesh{ ModToggle::create(generateName("HideJointMesh"), true) };
-    ModToggle::Ptr m_disableLightSource{ ModToggle::create(generateName("DisableLightSource"), true) };
+    const ModToggle::Ptr m_disableVignette{ ModToggle::create(generateName("DisableVignette")) };
+    const ModToggle::Ptr m_hideMesh{ ModToggle::create(generateName("HideJointMesh"), true) };
+    const ModToggle::Ptr m_rotateMesh{ ModToggle::create(generateName("ForceRotateMesh"), true) };
+    const ModToggle::Ptr m_disableLightSource{ ModToggle::create(generateName("DisableLightSource"), true) };
 
-    ModSlider::Ptr m_fovOffset{ ModSlider::create(generateName("FOVOffset"), -100.0f, 100.0f, 10.0f) };
-    ModSlider::Ptr m_fovMult{ ModSlider::create(generateName("FOVMultiplier"), 0.0f, 2.0f, 1.0f) };
+    const ModSlider::Ptr m_fovOffset{ ModSlider::create(generateName("FOVOffset"), -100.0f, 100.0f, 10.0f) };
+    const ModSlider::Ptr m_fovMult{ ModSlider::create(generateName("FOVMultiplier"), 0.0f, 2.0f, 1.0f) };
 
-    ModSlider::Ptr m_cameraScale{ ModSlider::create(generateName("CameraSpeed"), 0.0f, 100.0f, 40.0f) };
-    ModSlider::Ptr m_boneScale{ ModSlider::create(generateName("CameraShake"), 0.0f, 100.0f, 15.0f) };
+    const ModSlider::Ptr m_cameraScale{ ModSlider::create(generateName("CameraSpeed"), 0.0f, 100.0f, 40.0f) };
+    const ModSlider::Ptr m_boneScale{ ModSlider::create(generateName("CameraShake"), 0.0f, 100.0f, 15.0f) };
 
     // just used to draw. not actually stored in config
-    ModFloat::Ptr m_currentFov{ ModFloat::create("") };
+    const ModFloat::Ptr m_currentFov{ ModFloat::create("") };
+
+    ValueList m_options{
+        *m_enabled,
+        *m_toggleKey,
+        *m_disableVignette,
+        *m_hideMesh,
+        *m_rotateMesh,
+        *m_disableLightSource,
+        *m_fovOffset,
+        *m_fovMult,
+        *m_cameraScale,
+        *m_boneScale,
+        *m_currentFov
+    };
 };

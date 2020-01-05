@@ -20,13 +20,15 @@ void ManualFlashlight::onDrawUI() {
 }
 
 void ManualFlashlight::onConfigLoad(const utility::Config& cfg) {
-    m_enabled->configLoad(cfg);
-    m_key->configLoad(cfg);
+    for (IModValue& option : m_options) {
+        option.configLoad(cfg);
+    }
 }
 
 void ManualFlashlight::onConfigSave(utility::Config& cfg) {
-    m_enabled->configSave(cfg);
-    m_key->configSave(cfg);
+    for (IModValue& option : m_options) {
+        option.configSave(cfg);
+    }
 }
 
 void ManualFlashlight::onUpdateTransform(RETransform* transform) {
