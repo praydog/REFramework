@@ -33,14 +33,14 @@ FirstPerson::FirstPerson() {
 }
 
 std::optional<std::string> FirstPerson::onInitialize() {
-    auto vignetteCode = utility::scan(g_framework->getModule().as<HMODULE>(), "8B 87 3C 01 00 00 89 83 DC 00 00 00");
+    /*auto vignetteCode = utility::scan(g_framework->getModule().as<HMODULE>(), "8B 87 3C 01 00 00 89 83 DC 00 00 00");
 
     if (!vignetteCode) {
         return "Failed to find Disable Vignette pattern";
     }
 
     // xor eax, eax
-    m_disableVignettePatch = Patch::create(*vignetteCode, { 0x31, 0xC0, 0x90, 0x90, 0x90, 0x90 }, false);
+    m_disableVignettePatch = Patch::create(*vignetteCode, { 0x31, 0xC0, 0x90, 0x90, 0x90, 0x90 }, false);*/
 
     return Mod::onInitialize();
 }
@@ -55,10 +55,13 @@ void FirstPerson::onFrame() {
     }
 
     // Update our global pointers
-    if (m_cameraSystem == nullptr || m_cameraSystem->ownerGameObject == nullptr || m_sweetLightManager == nullptr || m_sweetLightManager->ownerGameObject == nullptr) {
+    if (m_postEffectController == nullptr || m_postEffectController->ownerGameObject == nullptr || 
+        m_cameraSystem == nullptr || m_cameraSystem->ownerGameObject == nullptr || m_sweetLightManager == nullptr || m_sweetLightManager->ownerGameObject == nullptr) 
+    {
         auto& globals = *g_framework->getGlobals();
         m_sweetLightManager = globals.get<RopewaySweetLightManager>("app.ropeway.SweetLightManager");
         m_cameraSystem = globals.get<RopewayCameraSystem>("app.ropeway.camera.CameraSystem");
+        m_postEffectController = globals.get<RopewayPostEffectController>("app.ropeway.posteffect.PostEffectController");
 
         reset();
         return;
@@ -80,15 +83,20 @@ void FirstPerson::onDrawUI() {
     }
 
     ImGui::SameLine();
-    m_disableLightSource->draw("Disable Camera Light");
 
+    // Revert the updateCamera value to normal
+    if (m_showInCutscenes->draw("Show In Cutscenes") && m_cameraSystem != nullptr && m_cameraSystem->mainCameraController != nullptr) {
+        m_cameraSystem->mainCameraController->updateCamera = true;
+    }
+
+    m_disableLightSource->draw("Disable Camera Light");
     m_hideMesh->draw("Hide Joint Mesh");
 
     ImGui::SameLine();
     m_rotateMesh->draw("Force Rotate Joint");
 
-    if (m_disableVignette->draw("Disable Vignette")) {
-        m_disableVignettePatch->toggle(m_disableVignette->value());
+    if (m_disableVignette->draw("Disable Vignette") && m_disableVignette->value() == false) {
+        setVignette(via::render::ToneMapping::Vignetting::KerarePlus);
     }
 
     m_toggleKey->draw("Change Toggle Key");
@@ -98,7 +106,7 @@ void FirstPerson::onDrawUI() {
     m_cameraScale->draw("CameraSpeed");
     m_boneScale->draw("CameraShake");
 
-    if (m_playerCameraController != nullptr) {
+    if (m_cameraSystem != nullptr) {
         if (m_fovOffset->draw("FOVOffset")) {
             updateFOV(m_cameraSystem->cameraController);
         }
@@ -108,7 +116,7 @@ void FirstPerson::onDrawUI() {
             m_lastFovMult = m_fovMult->value();
         }
 
-        m_currentFov->value() = m_playerCameraController->activeCamera->fov;
+        m_currentFov->value() = m_cameraSystem->cameraController->activeCamera->fov;
         m_currentFov->draw("CurrentFOV");
     }
 
@@ -135,7 +143,7 @@ void FirstPerson::onConfigLoad(const utility::Config& cfg) {
 
     // turn the patch on
     if (m_disableVignette->value()) {
-        m_disableVignettePatch->toggle(m_disableVignette->value());
+        //m_disableVignettePatch->toggle(m_disableVignette->value());
     }
 }
 
@@ -158,7 +166,7 @@ void FirstPerson::onPreUpdateTransform(RETransform* transform) {
     }
 
     // can change to action camera
-    if (m_cameraSystem->cameraController != m_playerCameraController) {
+    if (!m_showInCutscenes->value() && m_cameraSystem->cameraController != m_playerCameraController) {
         return;
     }
 
@@ -184,6 +192,10 @@ void FirstPerson::onUpdateTransform(RETransform* transform) {
 
         g_inPlayerTransform = false;
         m_matrixMutex.unlock();
+    }
+
+    if (m_disableVignette->value() && m_postEffectController != nullptr && transform == m_postEffectController->ownerGameObject->transform) {
+        setVignette(via::render::ToneMapping::Vignetting::Disable);
     }
 
     if (!m_enabled->value()) {
@@ -217,18 +229,23 @@ void FirstPerson::onUpdateTransform(RETransform* transform) {
         updateSweetLightContext(utility::RopewaySweetLightManager::getContext(m_sweetLightManager, 1));
     }
 
-    // can change to action camera
-    if (m_cameraSystem->cameraController != m_playerCameraController) {
-        return;
-    }
+    if (transform == m_cameraSystem->mainCamera->ownerGameObject->transform) {
+        // Don't mess with the camera if we're in a cutscene
+        if (!m_showInCutscenes->value() && m_cameraSystem->cameraController != m_playerCameraController) {
+            return;
+        }
 
-    if (transform == m_camera->ownerGameObject->transform) {
         updateCameraTransform(transform);
+        updateFOV(m_cameraSystem->cameraController);
     }
 }
 
 void FirstPerson::onUpdateCameraController(RopewayPlayerCameraController* controller) {
-    if (!m_enabled->value() || controller != m_playerCameraController || m_playerTransform == nullptr) {
+    if (!m_enabled->value() || m_playerTransform == nullptr || controller != m_cameraSystem->cameraController) {
+        return;
+    }
+
+    if (!m_showInCutscenes->value() && m_cameraSystem->cameraController != m_playerCameraController) {
         return;
     }
 
@@ -241,7 +258,7 @@ void FirstPerson::onUpdateCameraController(RopewayPlayerCameraController* contro
 }
 
 void FirstPerson::onUpdateCameraController2(RopewayPlayerCameraController* controller) {
-    if (!m_enabled->value() || controller != m_playerCameraController || m_playerTransform == nullptr) {
+    if (!m_enabled->value() || m_playerTransform == nullptr || controller != m_cameraSystem->cameraController) {
         return;
     }
 
@@ -264,6 +281,31 @@ void FirstPerson::reset() {
 
     std::lock_guard _{ m_frameMutex };
     m_attachNames.clear();
+}
+
+void FirstPerson::setVignette(via::render::ToneMapping::Vignetting value) {
+    // Assign tone mapping controller
+    if (m_toneMappingController == nullptr && m_postEffectController != nullptr) {
+        m_toneMappingController = utility::REComponent::find<RopewayPostEffectControllerBase>(m_postEffectController, "app.ropeway.posteffect.ToneMapController");
+    }
+
+    // Overwrite vignetting
+    auto updateParam = [&value](auto param) {
+        if (param == nullptr) {
+            return;
+        }
+
+        ((RopewayPostEffectToneMapping*)param)->vignetting = (int32_t)value;
+    };
+
+    updateParam(m_toneMappingController->param1);
+    updateParam(m_toneMappingController->param2);
+    updateParam(m_toneMappingController->param3);
+    updateParam(m_toneMappingController->param4);
+    updateParam(m_toneMappingController->filterSetting->param);
+    updateParam(m_toneMappingController->filterSetting->currentParam);
+    updateParam(m_toneMappingController->filterSetting->param1);
+    updateParam(m_toneMappingController->filterSetting->param2);
 }
 
 bool FirstPerson::updatePointersFromCameraSystem(RopewayCameraSystem* cameraSystem) {
@@ -332,22 +374,38 @@ void FirstPerson::updateCameraTransform(RETransform* transform) {
 
     auto camPos3 = Vector3f{ m_lastControllerPos };
 
-    auto boneMatrix = m_lastCameraMatrix * Matrix4x4f{
+    auto cameraMatrix = m_lastCameraMatrix * Matrix4x4f{
         -1, 0, 0, 0,
         0, 1, 0, 0,
         0, 0, -1, 0,
         0, 0, 0, 1
     };
 
-    boneMatrix[3] = m_lastBoneMatrix[3];
-    auto& bonePos = boneMatrix[3];
+    auto isPlayerCamera = m_cameraSystem->cameraController == m_playerCameraController;
+    auto boneScale = isPlayerCamera ? (m_boneScale->value() * 0.01f) : 1.0f;
+
+    // Lets camera modification work in cutscenes/action camera etc
+    if (!isPlayerCamera) {
+        m_cameraSystem->mainCameraController->updateCamera = false;
+    }
+    else {
+        m_cameraSystem->mainCameraController->updateCamera = true;
+    }
+
+    cameraMatrix[3] = m_lastBoneMatrix[3];
+    auto& bonePos = cameraMatrix[3];
 
     auto camRotMat = glm::extractMatrixRotation(Matrix4x4f{ m_lastControllerRotation });
-    auto headRotMat = glm::extractMatrixRotation(m_lastBoneMatrix);
+    auto headRotMat = glm::extractMatrixRotation(m_lastBoneMatrix) * Matrix4x4f {
+        -1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, -1, 0,
+        0, 0, 0, 1
+    };
 
     auto& camForward3 = *(Vector3f*)&camRotMat[2];
 
-    auto offset = glm::extractMatrixRotation(boneMatrix) * (m_attachOffsets[m_playerName] * Vector4f{ -0.1f, 0.1f, 0.1f, 0.0f });
+    auto offset = glm::extractMatrixRotation(cameraMatrix) * (m_attachOffsets[m_playerName] * Vector4f{ -0.1f, 0.1f, 0.1f, 0.0f });
     auto finalPos = Vector3f{ bonePos + offset };
 
     // Average the distance to the wanted rotation
@@ -356,7 +414,7 @@ void FirstPerson::updateCameraTransform(RETransform* transform) {
                + glm::distance(m_interpolatedBone[2], headRotMat[2])) / 3.0f;
 
     // interpolate the bone rotation (it's snappy otherwise)
-    m_interpolatedBone = glm::interpolate(m_interpolatedBone, headRotMat, deltaTime * (m_boneScale->value() * 0.01f) * dist);
+    m_interpolatedBone = glm::interpolate(m_interpolatedBone, headRotMat, deltaTime * boneScale * dist);
 
     // Look at where the camera is pointing from the head position
     camRotMat = glm::extractMatrixRotation(glm::rowMajor4(glm::lookAtLH(finalPos, camPos3 + (camForward3 * 8192.0f), { 0.0f, 1.0f, 0.0f })));
@@ -369,7 +427,8 @@ void FirstPerson::updateCameraTransform(RETransform* transform) {
           + glm::distance(m_rotationOffset[2], wantedMat[2])) / 3.0f;
 
     m_rotationOffset = glm::interpolate(m_rotationOffset, wantedMat, deltaTime * (m_cameraScale->value() * 0.01f) * dist);
-    auto finalMat = m_interpolatedBone * m_rotationOffset;
+
+    auto finalMat = isPlayerCamera ? (m_interpolatedBone * m_rotationOffset) : m_interpolatedBone;
     auto finalQuat = glm::quat{ finalMat };
 
     // Apply the same matrix data to other things stored in-game (positions/quaternions)
@@ -382,6 +441,20 @@ void FirstPerson::updateCameraTransform(RETransform* transform) {
     // Apply the new matrix
     *(Matrix3x4f*)&mtx = finalMat;
     m_lastCameraMatrix = mtx;
+
+    // Fixes snappiness after camera switching
+    if (!isPlayerCamera) {
+        m_lastControllerPos = m_cameraSystem->cameraController->worldPosition;
+        m_lastControllerRotation = finalQuat;
+
+        m_cameraSystem->mainCameraController->cameraPosition = m_lastControllerPos;
+        m_cameraSystem->mainCameraController->cameraRotation = *(Vector4f*)&finalQuat;
+
+        /*m_playerCameraController->ownerGameObject->transform->position = m_lastControllerPos;
+        m_playerCameraController->ownerGameObject->transform->angles = *(Vector4f*)&finalQuat;
+        m_playerCameraController->worldPosition = m_lastControllerPos;
+        m_playerCameraController->worldRotation = *(Vector4f*)&finalQuat;*/
+    }
 
     if (transform->joints.size >= 1 && transform->joints.matrices != nullptr) {
         transform->joints.matrices->data[0].worldMatrix = m_lastCameraMatrix;
@@ -436,10 +509,16 @@ void FirstPerson::updateFOV(RopewayPlayerCameraController* controller) {
     auto isActiveCamera = m_cameraSystem != nullptr
         && m_cameraSystem->cameraController != nullptr
         && m_cameraSystem->cameraController->cameraParam != nullptr
-        && m_cameraSystem->cameraController == m_playerCameraController;
+        && m_cameraSystem->cameraController->activeCamera != nullptr
+        && m_cameraSystem->mainCameraController != nullptr
+        && m_cameraSystem->mainCameraController->mainCamera != nullptr;
 
     if (!isActiveCamera) { 
         return; 
+    }
+
+    if (!m_showInCutscenes->value() && m_cameraSystem->cameraController != m_playerCameraController) {
+        return;
     }
 
     if (auto param = controller->cameraParam; param != nullptr) {
@@ -450,10 +529,12 @@ void FirstPerson::updateFOV(RopewayPlayerCameraController* controller) {
             auto delta = prevValue - newValue;
 
             m_fovOffset->value() += delta;
-            m_playerCameraController->activeCamera->fov = (param->fov * m_fovMult->value()) + m_fovOffset->value();
+            m_cameraSystem->mainCameraController->mainCamera->fov = (param->fov * m_fovMult->value()) + m_fovOffset->value();
+            controller->activeCamera->fov = m_cameraSystem->mainCameraController->mainCamera->fov;
         }
         else {
-            m_playerCameraController->activeCamera->fov = newValue;
+            m_cameraSystem->mainCameraController->mainCamera->fov = newValue;
+            controller->activeCamera->fov = m_cameraSystem->mainCameraController->mainCamera->fov;
         }
         
         // Causes the camera to ignore the FOV inside the param
@@ -490,6 +571,10 @@ void FirstPerson::onDisabled() {
         updateFOV(m_cameraSystem->cameraController);
         updateSweetLightContext(utility::RopewaySweetLightManager::getContext(m_sweetLightManager, 0));
         updateSweetLightContext(utility::RopewaySweetLightManager::getContext(m_sweetLightManager, 1));
+
+        if (m_cameraSystem->mainCameraController != nullptr) {
+            m_cameraSystem->mainCameraController->updateCamera = true;
+        }
     }
 }
 

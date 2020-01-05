@@ -473,7 +473,10 @@ public:
 class REToneMapping : public REComponent
 {
 public:
-    char pad_0030[16]; //0x0030
+    void *N0000410F; //0x0030
+    float N00004110; //0x0038
+    bool enabled; //0x003C
+    char pad_003D[3]; //0x003D
 }; //Size: 0x0040
 
 class REBehavior : public REComponent
@@ -994,7 +997,6 @@ public:
 class REMotionStructure : public REComponent
 {
 public:
-
 }; //Size: 0x0030
 
 class SkeletonResourceHandle
@@ -1109,7 +1111,6 @@ public:
 class N0000087A : public N00000878
 {
 public:
-
 }; //Size: 0x0008
 
 class N000008E5
@@ -1493,28 +1494,42 @@ public:
     Vector4f color; //0x0030
     char pad_0040[24]; //0x0040
     float brightness; //0x0058
-    char pad_005C[4]; //0x005C
-    float N000014A3; //0x0060
-    float idkLodOrSomething; //0x0064
+    float bounceIntensity; //0x005C
+    float tempature; //0x0060
+    float minRoughness; //0x0064
     char pad_0068[4]; //0x0068
-    uint32_t N0000152E; //0x006C
+    uint32_t importantLevel; //0x006C
     char pad_0070[48]; //0x0070
     Vector3f activeColor; //0x00A0
     float N00001546; //0x00AC
-    char pad_00B0[192]; //0x00B0
+    char pad_00B0[82]; //0x00B0
+    bool forceShadowCacheEnable; //0x0102
+    char pad_0103[1]; //0x0103
+    bool blackBodyRadiation; //0x0104
+    char pad_0105[107]; //0x0105
 }; //Size: 0x0170
 
 class RERenderSpotLight : public RERenderLight
 {
 public:
-    char pad_0170[456]; //0x0170
+    char pad_0170[9]; //0x0170
+    bool shadowEnable; //0x0179
+    char pad_017A[22]; //0x017A
+    int32_t shadowCastFlags; //0x0190
+    char pad_0194[420]; //0x0194
     float N0000150F; //0x0338
     float N00001597; //0x033C
     float radius; //0x0340
     float illuminanceThreshold; //0x0344
     float cone; //0x0348
     float N0000159D; //0x034C
-    char pad_0350[48]; //0x0350
+    float N00001512; //0x0350
+    float shadowNearPlane; //0x0354
+    float detailShadow; //0x0358
+    bool N00002304; //0x035C
+    char pad_035D[3]; //0x035D
+    int32_t N00001514; //0x0360
+    char pad_0364[28]; //0x0364
 }; //Size: 0x0380
 
 class RERenderProjectionSpotlight : public RERenderSpotLight
@@ -1526,8 +1541,17 @@ public:
 class RopewaySpotLightParam : public REManagedObject
 {
 public:
-    char pad_0010[64]; //0x0010
-}; //Size: 0x0050
+    char pad_0010[80]; //0x0010
+    uint32_t N00002282; //0x0060
+    char pad_0064[92]; //0x0064
+    float N000022BD; //0x00C0
+    float N000022DF; //0x00C4
+    float N000022BE; //0x00C8
+    float N000022E3; //0x00CC
+    float N000022BF; //0x00D0
+    float N000022E5; //0x00D4
+    char pad_00D8[184]; //0x00D8
+}; //Size: 0x0190
 
 class RopewaySweetLightManager : public REBehavior
 {
@@ -1712,7 +1736,6 @@ public:
 class PhysicsConvexShape : public PhysicsShape
 {
 public:
-
 }; //Size: 0x0060
 
 class PhysicsCapsuleShape : public PhysicsConvexShape
@@ -2009,7 +2032,6 @@ public:
 class RopewayImplementVirtualJoint : public RopewayExtraJoint
 {
 public:
-
 }; //Size: 0x0038
 
 class RopewayMotionEventHandler : public REBehavior
@@ -2024,7 +2046,6 @@ public:
 class N000021BE : public REBehavior
 {
 public:
-
 }; //Size: 0x0048
 
 class WwiseContainer : public N000021BE
@@ -2277,7 +2298,6 @@ public:
 class SystemDelegate : public REManagedObject
 {
 public:
-
 }; //Size: 0x0010
 
 class DelegateElement
@@ -2298,7 +2318,6 @@ public:
 class SystemAction : public SystemMulticastDelegate
 {
 public:
-
 }; //Size: 0x8018
 
 class RopewaySettingFolder : public REManagedObject
@@ -2437,7 +2456,6 @@ public:
 class CollisionSystemAsyncCastRayHandle : public CollisionSystemAsyncCastHandleBase
 {
 public:
-
 }; //Size: 0x0080
 
 class RopewayEnemyManager : public REBehavior
@@ -2857,3 +2875,104 @@ public:
     uint32_t typeIndex; //0x0014
     char *typeName; //0x0018
 }; //Size: 0x0020
+
+class RopewayScriptEffectManager : public REBehavior
+{
+public:
+    char pad_0048[9]; //0x0048
+    bool isDisableAllEffect; //0x0051
+    char pad_0052[182]; //0x0052
+}; //Size: 0x0108
+
+class RERenderDepthOfField : public REComponent
+{
+public:
+    char pad_0030[24]; //0x0030
+    bool enabled; //0x0048
+    char pad_0049[15]; //0x0049
+}; //Size: 0x0058
+
+class RopewayPostEffectControllerBase : public REBehavior
+{
+public:
+    char pad_0048[32]; //0x0048
+    class REComponent *effectComponent; //0x0068
+    class RopewayPostEffectFilterParamBase *param1; //0x0070
+    class RopewayPostEffectFilterParamBase *param2; //0x0078
+    class REGameObject *cameraObject; //0x0080
+    char pad_0088[8]; //0x0088
+    class RopewayPostEffectCascade *cascade; //0x0090
+    class REGameObject *cameraObject2; //0x0098
+    char pad_00A0[8]; //0x00A0
+    class RopewayPostEffectFilterParamBase *param3; //0x00A8
+    class RopewayFilterSettingBase *filterSetting; //0x00B0
+    class RopewayPostEffectFilterParamBase *param4; //0x00B8
+    char pad_00C0[24]; //0x00C0
+}; //Size: 0x00D8
+
+class RopewayFilterSettingBase : public REBehavior
+{
+public:
+    char pad_0048[16]; //0x0048
+    class RopewayPostEffectFilterParamBase *param; //0x0058
+    float interpolationSpan; //0x0060
+    int32_t layerApplyType; //0x0064 app::ropeway::posteffect::setting::FilterSettingRoot::ApplyType
+    class RopewayPostEffectFilterParamBase *currentParam; //0x0068
+    class RopewayPostEffectFilterParamBase *param1; //0x0070
+    class RopewayPostEffectFilterParamBase *param2; //0x0078
+    char pad_0080[8]; //0x0080
+}; //Size: 0x0088
+
+class RopewayPostEffectFilterParamBase : public REManagedObject
+{
+public:
+    char pad_0010[32]; //0x0010
+}; //Size: 0x0030
+
+class RopewayPostEffectCascade : public REBehavior
+{
+public:
+    char pad_0048[48]; //0x0048
+}; //Size: 0x0078
+
+class RopewayFilterParamAccessable : public RopewayPostEffectFilterParamBase
+{
+public:
+    char pad_0030[16]; //0x0030
+    bool timelineOverwrite; //0x0040
+    char pad_0041[11]; //0x0041
+    float timelineBlendRate; //0x004C
+}; //Size: 0x0050
+
+class RopewayPostEffectToneMapping : public RopewayFilterParamAccessable
+{
+public:
+    bool enabled; //0x0050
+    char pad_0051[3]; //0x0051
+    float ev; //0x0054
+    float maxWhitePoint; //0x0058
+    float minWhitePoint; //0x005C
+    float whiteRange; //0x0060
+    float tonemapRange; //0x0064
+    float preTonemapRange; //0x0068
+    float brightAdaptationRate; //0x006C
+    float darkAdaptationRate; //0x0070
+    int32_t vignetting; //0x0074 via::render::ToneMapping::Vignetting
+    int32_t autoExposure; //0x0078 via::render::ToneMapping::AutoExposure
+    float kerareBeginAngle; //0x007C kerare = vignetting in japanese
+    float linearSectionBegin; //0x0080
+    float linearSectionLength; //0x0084
+    float sdrToe; //0x0088
+    float hdrToe; //0x008C
+    float kerareEndAngle; //0x0090
+    char pad_0094[4]; //0x0094
+    void *textureResource; //0x0098
+    char pad_00A0[8]; //0x00A0
+    int32_t temporalAAAlgorithm; //0x00A8 via::render::ToneMapping::TemporalAAAlgorithm
+    int32_t temporalAA; //0x00AC via::render::ToneMapping::TemporalAA
+    bool echoEnabled; //0x00B0
+    char pad_00B1[3]; //0x00B1
+    float antiAliasingBlendRate; //0x00B4
+    float temporalJitterScale; //0x00B8
+    float sharpness; //0x00BC
+}; //Size: 0x00C0

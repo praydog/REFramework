@@ -18,4 +18,15 @@ namespace utility::REComponent {
     static auto getDeltaTime(::REComponent* comp) {
         return utility::REManagedObject::getField<float>(comp, "DeltaTime");
     }
+
+    template<typename T = ::REComponent>
+    static T* find(::REComponent* comp, std::string_view name) {
+        for (auto child = comp->childComponent; child != nullptr && child != comp; child = child->childComponent) {
+            if (REManagedObject::isA(child, name)) {
+                return (T*)child;
+            }
+        }
+
+        return nullptr;
+    }
 }

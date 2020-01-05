@@ -33,6 +33,7 @@ protected:
 
 private:
     void reset();
+    void setVignette(via::render::ToneMapping::Vignetting value);
     bool updatePointersFromCameraSystem(RopewayCameraSystem* cameraSystem);
     void updateCameraTransform(RETransform* transform);
     void updateSweetLightContext(RopewaySweetLightManagerContext* ctx);
@@ -66,11 +67,13 @@ private:
     RopewayPlayerCameraController* m_playerCameraController{ nullptr };
     RopewayCameraSystem* m_cameraSystem{ nullptr };
     RopewaySweetLightManager* m_sweetLightManager{ nullptr };
+    RopewayPostEffectController* m_postEffectController{ nullptr };
+    RopewayPostEffectControllerBase* m_toneMappingController{ nullptr };
 
     std::vector<std::string> m_attachNames;
     int32_t m_attachSelected{ 0 };
     
-    std::unique_ptr<Patch> m_disableVignettePatch{};
+    //std::unique_ptr<Patch> m_disableVignettePatch{};
 
     const ModToggle::Ptr m_enabled{ ModToggle::create(generateName("Enabled")) };
     const ModKey::Ptr m_toggleKey{ ModKey::create(generateName("ToggleKey")) };
@@ -80,6 +83,7 @@ private:
     const ModToggle::Ptr m_hideMesh{ ModToggle::create(generateName("HideJointMesh"), true) };
     const ModToggle::Ptr m_rotateMesh{ ModToggle::create(generateName("ForceRotateMesh"), true) };
     const ModToggle::Ptr m_disableLightSource{ ModToggle::create(generateName("DisableLightSource"), true) };
+    const ModToggle::Ptr m_showInCutscenes{ ModToggle::create(generateName("ShowInCutscenes"), false) };
 
     const ModSlider::Ptr m_fovOffset{ ModSlider::create(generateName("FOVOffset"), -100.0f, 100.0f, 10.0f) };
     const ModSlider::Ptr m_fovMult{ ModSlider::create(generateName("FOVMultiplier"), 0.0f, 2.0f, 1.0f) };
@@ -97,6 +101,7 @@ private:
         *m_hideMesh,
         *m_rotateMesh,
         *m_disableLightSource,
+        *m_showInCutscenes,
         *m_fovOffset,
         *m_fovMult,
         *m_cameraScale,

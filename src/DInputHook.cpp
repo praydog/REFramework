@@ -90,7 +90,7 @@ HRESULT DInputHook::getDeviceState_Internal(IDirectInputDevice* device, DWORD si
 
     // If we are ignoring input then we call the original to remove buffered    
     // input events from the devices queue without modifying the out parameters.
-    if (m_isIgnoringInput || m_doOnce) {
+    if ((m_isIgnoringInput || m_doOnce) && size == 256) {
         device->Unacquire();
         device->SetCooperativeLevel(m_wnd, DISCL_FOREGROUND | DISCL_NONEXCLUSIVE);
         device->Acquire();
@@ -101,7 +101,7 @@ HRESULT DInputHook::getDeviceState_Internal(IDirectInputDevice* device, DWORD si
     auto res = originalGetDeviceState(device, size, data);
 
     // Feed keys back to the framework
-    if (res == DI_OK && !m_isIgnoringInput && data != nullptr) {
+    if (res == DI_OK && !m_isIgnoringInput && data != nullptr && size == 256) {
         g_framework->onDirectInputKeys(*(std::array<uint8_t, 256>*)data);
     }
 
