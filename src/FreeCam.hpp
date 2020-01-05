@@ -35,7 +35,7 @@ private:
         *m_disableMovement,
         *m_toggleKey,
         *m_lockCameraKey,
-        *m_disableMovement,
+        *m_disableMovementKey,
         *m_speed
     };
 
