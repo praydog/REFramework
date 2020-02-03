@@ -289,6 +289,10 @@ void FirstPerson::setVignette(via::render::ToneMapping::Vignetting value) {
         m_toneMappingController = utility::REComponent::find<RopewayPostEffectControllerBase>(m_postEffectController, "app.ropeway.posteffect.ToneMapController");
     }
 
+    if (m_toneMappingController == nullptr) {
+        return;
+    }
+
     // Overwrite vignetting
     auto updateParam = [&value](auto param) {
         if (param == nullptr) {

@@ -29,4 +29,25 @@ namespace utility::REComponent {
 
         return nullptr;
     }
+
+    // Find a component using the getComponent method
+    template <typename T = ::REComponent>
+    static T *findUsingMethod(::REComponent *comp, std::string_view name) {
+        struct ClassInfoContainer {
+            char padding[0x10];
+            REClassInfo *info;
+        } arg{};
+
+        auto t = g_framework->getTypes()->get(name);
+
+        if (t == nullptr || t->classInfo == nullptr) {
+            return nullptr;
+        }
+
+        arg.info = t->classInfo;
+
+        auto ret = utility::REManagedObject::callMethod(comp->ownerGameObject, "getComponent", &arg);
+
+        return (T *)ret->params.out_data;
+    }
 }

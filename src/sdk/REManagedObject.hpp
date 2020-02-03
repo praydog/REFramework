@@ -2,15 +2,21 @@
 
 #include <windows.h>
 #include <mutex>
+#include <memory>
 
 #include "utility/Address.hpp"
+
 #include "ReClass.hpp"
 
 namespace utility::REManagedObject {
     // Forward declarations
+    struct ParamWrapper;
     static bool isManagedObject(Address address);
+
     // Check object type name
     static bool isA(::REManagedObject* object, std::string_view name);
+    // Check object type
+    static bool isA(::REManagedObject* object, REType* cmp);
 
     // Get full type information about the object
     static REType* getType(::REManagedObject* object);
@@ -38,7 +44,19 @@ namespace utility::REManagedObject {
     // Be very careful with the type size here, stack corruption could occur if the size is not large enough!
     template <typename T>
     T getField(::REManagedObject* obj, std::string_view field);
+    
+    template <typename Arg>
+    static std::unique_ptr<ParamWrapper> callMethod(::REManagedObject* obj, std::string_view name, const Arg& arg);
 
+    struct ParamWrapper {
+        ParamWrapper(::REManagedObject* obj) {
+            params.object_ptr = (void*)obj;
+        }
+
+        virtual ~ParamWrapper() {}
+
+        MethodParams params{};
+    };
 
     static bool isManagedObject(Address address) {
         if (address == nullptr) {
@@ -123,7 +141,22 @@ namespace utility::REManagedObject {
 
         return false;
     }
-    
+
+    bool isA(::REManagedObject* object, REType* cmp) {
+        if (object == nullptr) {
+            return false;
+        }
+
+        for (auto t = REManagedObject::getType(object); t != nullptr && t->name != nullptr; t = t->super) {
+            if (cmp == t) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+
     template<typename T = void*>
     static T* getFieldPtr(::REManagedObject* object) {
         if (object == nullptr) {
@@ -246,6 +279,51 @@ namespace utility::REManagedObject {
         return nullptr;
     }
 
+    static FunctionDescriptor* getMethodDesc(::REManagedObject* obj, std::string_view name) {
+        static std::mutex insertionMutex{};
+        static std::unordered_map<std::string, FunctionDescriptor*> varMap{};
+
+        auto t = getType(obj);
+
+        if (t == nullptr) {
+            return nullptr;
+        }
+
+        auto fullName = std::string{ t->name } + "." + name.data();
+
+        for (; t != nullptr; t = t->super) {
+            auto fields = t->fields;
+
+            if (fields == nullptr || fields->methods == nullptr) {
+                continue;
+            }
+
+            auto methods = fields->methods;
+
+            for (auto i = 0; i < fields->num; ++i) {
+                auto top = (*methods)[i];
+
+                if (top == nullptr || *top == nullptr) {
+                    continue;
+                }
+
+                auto& holder = **top;
+
+                if (holder.descriptor == nullptr || holder.descriptor->name == nullptr) {
+                    continue;
+                }
+
+                if (name == holder.descriptor->name) {
+                    std::lock_guard _{ insertionMutex };
+                    varMap[fullName] = holder.descriptor;
+                    return holder.descriptor;
+                }
+            }
+        }
+
+        return nullptr;
+    }
+
     template <typename T>
     T getField(::REManagedObject* obj, std::string_view field) {
         T data{};
@@ -261,5 +339,26 @@ namespace utility::REManagedObject {
         }
 
         return data;
+    }
+
+    template <typename Arg>
+    std::unique_ptr<ParamWrapper> callMethod(::REManagedObject* obj, std::string_view name, const Arg& arg) {
+        auto desc = getMethodDesc(obj, name);
+
+        if (desc != nullptr) {
+
+            auto methodFunc = (ParamWrapper* (*)(MethodParams*, ::REThreadContext*))desc->functionPtr;
+
+            if (methodFunc != nullptr) {
+                auto params = std::make_unique<ParamWrapper>(obj);
+                
+                params->params.in_data = (void***)&arg;
+
+                methodFunc(&params->params, sdk::getThreadContext());
+                return std::move(params);
+            }
+        }
+
+        return nullptr;
     }
 }
