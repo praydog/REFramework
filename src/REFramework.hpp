@@ -4,6 +4,7 @@
 
 class Mods;
 class REGlobals;
+class RETypes;
 
 #include "D3D11Hook.hpp"
 #include "WindowsMessageHook.hpp"
@@ -21,6 +22,10 @@ public:
 
     const auto& getMods() const {
         return m_mods;
+    }
+
+    const auto& getTypes() const {
+        return m_types;
     }
 
     const auto& getKeyboardState() const {
@@ -77,6 +82,7 @@ private:
     // Game-specific stuff
     std::unique_ptr<Mods> m_mods;
     std::unique_ptr<REGlobals> m_globals;
+    std::unique_ptr<RETypes> m_types;
 
     ID3D11RenderTargetView* m_mainRenderTargetView{ nullptr };
 };

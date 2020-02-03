@@ -2976,3 +2976,41 @@ public:
     float temporalJitterScale; //0x00B8
     float sharpness; //0x00BC
 }; //Size: 0x00C0
+
+class REInstantiationDescriptor
+{
+public:
+    class REObjectInfo *type; //0x0000
+    uint32_t N00008AC9; //0x0008
+    uint32_t N00008B38; //0x000C
+    uint32_t size; //0x0010
+    uint32_t N00008B3A; //0x0014
+    char pad_0018[40]; //0x0018
+}; //Size: 0x0040
+
+class MethodParams
+{
+public:
+    char pad_0000[48]; //0x0000
+    void ***in_data; //0x0030 can point to data
+    void **out_data; //0x0038 can be whatever, can be a dword, can point to data
+    void *object_ptr; //0x0040 aka "this" pointer
+}; //Size: 0x0048
+
+class REThreadContext
+{
+public:
+    char pad_0000[80]; //0x0000
+    class UnkThreadContextObject *unkPtr; //0x0050
+    char pad_0058[32]; //0x0058
+    int32_t referenceCount; //0x0078
+    char pad_007C[4]; //0x007C
+}; //Size: 0x0080
+
+class UnkThreadContextObject
+{
+public:
+    char pad_0000[24]; //0x0000
+    void *unkPtr; //0x0018
+    char pad_0020[240]; //0x0020
+}; //Size: 0x0110

@@ -25,7 +25,9 @@ using Matrix4x4f = glm::mat4x4;
 
 #include "Enums_Internal.hpp"
 
+#include "RETypes.hpp"
 #include "REArray.hpp"
+#include "REContext.hpp"
 #include "REManagedObject.hpp"
 #include "REString.hpp"
 #include "RETransform.hpp"

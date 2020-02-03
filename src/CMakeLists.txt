@@ -29,11 +29,15 @@ set(SDK_SRC
 
     sdk/REArray.hpp
     sdk/REComponent.hpp
+    sdk/REContext.hpp
+    sdk/REContext.cpp
     sdk/REGlobals.hpp
     sdk/REGlobals.cpp
     sdk/REManagedObject.hpp
     sdk/REString.hpp
     sdk/RETransform.hpp
+    sdk/RETypes.hpp
+    sdk/RETypes.cpp
     sdk/RopewaySweetLightManager.hpp
 )
 

@@ -282,6 +282,7 @@ bool REFramework::initialize() {
 
         // Game specific initialization stuff
         std::thread initThread([this]() {
+            m_types = std::make_unique<RETypes>();
             m_globals = std::make_unique<REGlobals>();
             m_mods = std::make_unique<Mods>();
 
