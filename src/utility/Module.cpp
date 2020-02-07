@@ -6,11 +6,11 @@
 using namespace std;
 
 namespace utility {
-    optional<size_t> getModuleSize(const string& module) {
-        return getModuleSize(GetModuleHandle(module.c_str()));
+    optional<size_t> get_module_size(const string& module) {
+        return get_module_size(GetModuleHandle(module.c_str()));
     }
 
-    optional<size_t> getModuleSize(HMODULE module) {
+    optional<size_t> get_module_size(HMODULE module) {
         if (module == nullptr) {
             return {};
         }
@@ -33,7 +33,7 @@ namespace utility {
         return ntHeaders->OptionalHeader.SizeOfImage;
     }
 
-    std::optional<std::string> getModuleDirectory(HMODULE module) {
+    std::optional<std::string> get_module_directory(HMODULE module) {
         wchar_t fileName[MAX_PATH]{ 0 };
         if (GetModuleFileNameW(module, fileName, MAX_PATH) >= MAX_PATH) {
             return {};
@@ -44,7 +44,7 @@ namespace utility {
         return utility::narrow(fileName);
     }
 
-    optional<uintptr_t> ptrFromRVA(uint8_t* dll, uintptr_t rva) {
+    optional<uintptr_t> ptr_from_rva(uint8_t* dll, uintptr_t rva) {
         // Get the first section.
         auto dosHeader = (PIMAGE_DOS_HEADER)&dll[0];
         auto ntHeaders = (PIMAGE_NT_HEADERS)&dll[dosHeader->e_lfanew];

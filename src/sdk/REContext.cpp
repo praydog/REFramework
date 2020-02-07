@@ -6,22 +6,22 @@
 #include "REContext.hpp"
 
 namespace sdk {
-    REGlobalContext** REGlobalContext::s_globalContext{ nullptr };
-    REGlobalContext::ThreadContextFn REGlobalContext::s_getThreadContext{ nullptr };
+    REGlobalContext** REGlobalContext::s_global_context{ nullptr };
+    REGlobalContext::ThreadContextFn REGlobalContext::s_get_thread_context{ nullptr };
 
     sdk::REGlobalContext* REGlobalContext::get() {
-        updatePointers();
-        return *s_globalContext;
+        update_pointers();
+        return *s_global_context;
     }
 
-    REThreadContext* REGlobalContext::getThreadContext(int32_t unk /*= -1*/) {
-        updatePointers();
+    REThreadContext* REGlobalContext::get_thread_context(int32_t unk /*= -1*/) {
+        update_pointers();
 
-        return s_getThreadContext(this, unk);
+        return s_get_thread_context(this, unk);
     }
 
-    void REGlobalContext::updatePointers() {
-        if (s_globalContext != nullptr && s_getThreadContext != nullptr) {
+    void REGlobalContext::update_pointers() {
+        if (s_global_context != nullptr && s_get_thread_context != nullptr) {
             return;
         }
 
@@ -29,18 +29,28 @@ namespace sdk {
         //auto ref = utility::scan(g_framework->getModule().as<HMODULE>(), "48 8B 0D ? ? ? ? BA FF FF FF FF E8 ? ? ? ? 48 89 C3");
 
         // Version 2 Dec 17th, 2019, first ptr is at game.exe+0x7095E08
-        auto ref = utility::scan(g_framework->getModule().as<HMODULE>(), "48 8B 0D ? ? ? ? BA FF FF FF FF E8 ? ? ? ?");
+        auto ref = utility::scan(g_framework->get_module().as<HMODULE>(), "48 8B 0D ? ? ? ? BA FF FF FF FF E8 ? ? ? ?");
             
         if (!ref) {
             spdlog::info("[REGlobalContext::updatePointers] Unable to find ref.");
             return;
         }
 
-        s_globalContext = (decltype(s_globalContext))utility::calculateAbsolute(*ref + 3);
-        s_getThreadContext = (decltype(s_getThreadContext))utility::calculateAbsolute(*ref + 13);
+        s_global_context = (decltype(s_global_context))utility::calculate_absolute(*ref + 3);
+        s_get_thread_context = (decltype(s_get_thread_context))utility::calculate_absolute(*ref + 13);
 
-        spdlog::info("[REGlobalContext::updatePointers] s_globalContext: {:x}", (uintptr_t)s_globalContext);
-        spdlog::info("[REGlobalContext::updatePointers] s_getThreadContext: {:x}", (uintptr_t)s_getThreadContext);
+        spdlog::info("[REGlobalContext::updatePointers] s_globalContext: {:x}", (uintptr_t)s_global_context);
+        spdlog::info("[REGlobalContext::updatePointers] s_getThreadContext: {:x}", (uintptr_t)s_get_thread_context);
+    }
+
+    REThreadContext* get_thread_context(int32_t unk /*= -1*/) {
+        auto global_context = REGlobalContext::get();
+
+        if (global_context == nullptr) {
+            return nullptr;
+        }
+
+        return global_context->get_thread_context(unk);
     }
 }
 

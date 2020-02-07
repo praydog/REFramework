@@ -7,20 +7,20 @@ class PositionHooks : public Mod {
 public:
     PositionHooks();
 
-    std::string_view getName() const override { return "PositionHooks"; };
-    std::optional<std::string> onInitialize() override;
+    std::string_view get_name() const override { return "PositionHooks"; };
+    std::optional<std::string> on_initialize() override;
 
 protected:
-    void* updateTransformHook_Internal(RETransform* t, uint8_t a2, uint32_t a3);
-    static void* updateTransformHook(RETransform* t, uint8_t a2, uint32_t a3);
+    void* update_transform_hook_internal(RETransform* t, uint8_t a2, uint32_t a3);
+    static void* update_transform_hook(RETransform* t, uint8_t a2, uint32_t a3);
 
-    void* updateCameraControllerHook_Internal(void* a1, RopewayPlayerCameraController* cameraController);
-    static void* updateCameraControllerHook(void* a1, RopewayPlayerCameraController* cameraController);
+    void* update_camera_controller_hook_internal(void* a1, RopewayPlayerCameraController* camera_controller);
+    static void* update_camera_controller_hook(void* a1, RopewayPlayerCameraController* camera_controller);
 
-    void* updateCameraController2Hook_Internal(void* a1, RopewayPlayerCameraController* cameraController);
-    static void* updateCameraController2Hook(void* a1, RopewayPlayerCameraController* cameraController);
+    void* update_camera_controller2_hook_internal(void* a1, RopewayPlayerCameraController* camera_controller);
+    static void* update_camera_controller2_hook(void* a1, RopewayPlayerCameraController* camera_controller);
 
-    std::unique_ptr<FunctionHook> m_updateTransformHook;
-    std::unique_ptr<FunctionHook> m_updateCameraControllerHook;
-    std::unique_ptr<FunctionHook> m_updateCameraController2Hook;
+    std::unique_ptr<FunctionHook> m_update_transform_hook;
+    std::unique_ptr<FunctionHook> m_update_camera_controller_hook;
+    std::unique_ptr<FunctionHook> m_update_camera_controller2_hook;
 };

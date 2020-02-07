@@ -27,7 +27,7 @@ namespace utility {
         return wideStr;
     }
 
-    string formatString(const char* format, va_list args) {
+    string format_string(const char* format, va_list args) {
         va_list argsCopy{};
 
         va_copy(argsCopy, args);

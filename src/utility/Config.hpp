@@ -8,21 +8,21 @@
 namespace utility {
     class Config {
     public:
-        Config(const std::string& filePath = "");
+        Config(const std::string& file_path = "");
 
-        bool load(const std::string& filePath);
-        bool save(const std::string& filePath);
+        bool load(const std::string& file_path);
+        bool save(const std::string& file_path);
 
         // Helper for differentiating between boolean and arithmetic values.
         template <typename T>
         using is_arithmetic_not_bool = std::bool_constant<std::is_arithmetic_v<T> && !std::is_same_v<T, bool>>;
 
         template <typename T>
-        static constexpr bool is_arithmetic_not_bool_v = is_arithmetic_not_bool<T>::value;
+        static constexpr bool IS_ARITHMETIC_NOT_BOOL_V = is_arithmetic_not_bool<T>::value;
 
         // get method for arithmetic types.
         template <typename T>
-        std::optional<typename std::enable_if_t<is_arithmetic_not_bool_v<T>, T>> get(const std::string& key) const {
+        std::optional<typename std::enable_if_t<IS_ARITHMETIC_NOT_BOOL_V<T>, T>> get(const std::string& key) const {
             auto value = get(key);
 
             if (!value) {
@@ -68,7 +68,7 @@ namespace utility {
 
         // set method for arithmetic types.
         template <typename T>
-        void set(const std::string& key, typename std::enable_if_t<is_arithmetic_not_bool_v<T>, T> value) {
+        void set(const std::string& key, typename std::enable_if_t<IS_ARITHMETIC_NOT_BOOL_V<T>, T> value) {
             set(key, std::to_string(value));
         }
 
@@ -86,15 +86,15 @@ namespace utility {
         // set method for strings.
         void set(const std::string& key, const std::string& value);
 
-        auto& getKeyValues() {
-            return m_keyValues;
+        auto& get_key_values() {
+            return m_key_values;
         }
 
-        const auto& getKeyValues() const {
-            return m_keyValues;
+        const auto& get_key_values() const {
+            return m_key_values;
         }
 
     private:
-        std::map<std::string, std::string> m_keyValues;
+        std::map<std::string, std::string> m_key_values;
     };
 }

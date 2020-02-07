@@ -9,10 +9,10 @@ namespace utility {
     //
 
     // Conversion functions for UTF8<->UTF16.
-    std::string narrow(std::wstring_view str);
-    std::wstring widen(std::string_view str);
+    std::string narrow(std::wstring_view std);
+    std::wstring widen(std::string_view std);
 
-    std::string formatString(const char* format, va_list args);
+    std::string format_string(const char* format, va_list args);
     
     // FNV-1a
     static constexpr auto hash(std::string_view data) {

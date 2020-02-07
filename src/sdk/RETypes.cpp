@@ -9,15 +9,15 @@
 RETypes::RETypes() {
     spdlog::info("RETypes initialization");
 
-    auto mod = g_framework->getModule().as<HMODULE>();
+    auto mod = g_framework->get_module().as<HMODULE>();
     auto ref = utility::scan(mod, "48 8d 0d ? ? ? ? e8 ? ? ? ? 48 8d 05 ? ? ? ? 48 89 03");
 
     spdlog::info("Ref: {:x}", (uintptr_t)*ref);
 
-    m_rawTypes = (TypeList*)(utility::calculateAbsolute(*ref + 3));
-    spdlog::info("TypeList: {:x}", (uintptr_t)m_rawTypes);
+    m_raw_types = (TypeList*)(utility::calculate_absolute(*ref + 3));
+    spdlog::info("TypeList: {:x}", (uintptr_t)m_raw_types);
 
-    auto& typeList = *m_rawTypes;
+    auto& typeList = *m_raw_types;
 
     // I don't know why but it can extend past the size.
     for (auto i = 0; i < typeList.numAllocated; ++i) {
@@ -39,19 +39,19 @@ RETypes::RETypes() {
 
         spdlog::info("{:s}", name);
 
-        m_typeMap[name] = t;
+        m_type_map[name] = t;
         m_types.insert(t);
-        m_typeList.push_back(t);
+        m_type_list.push_back(t);
     }
 
     spdlog::info("Finished RETypes initialization");
 }
 
 REType* RETypes::get(std::string_view name) {
-    std::lock_guard _{ m_mapMutex };
+    std::lock_guard _{ m_map_mutex };
 
     auto getObj = [&]() -> REType* {
-        if (auto it = m_typeMap.find(name.data()); it != m_typeMap.end()) {
+        if (auto it = m_type_map.find(name.data()); it != m_type_map.end()) {
             return it->second;
         }
 
@@ -63,7 +63,7 @@ REType* RETypes::get(std::string_view name) {
     // try to refresh the map if the object doesnt exist.
     // assume the user knows this object exists.
     if (obj == nullptr) {
-        refreshMap();
+        refresh_map();
     }
 
     // try again after refreshing the map
@@ -74,13 +74,13 @@ REType* RETypes::operator[](std::string_view name) {
     return get(name);
 }
 
-void RETypes::safeRefresh() {
-    std::lock_guard _{ m_mapMutex };
-    refreshMap();
+void RETypes::safe_refresh() {
+    std::lock_guard _{ m_map_mutex };
+    refresh_map();
 }
 
-void RETypes::refreshMap() {
-    auto& typeList = *m_rawTypes;
+void RETypes::refresh_map() {
+    auto& typeList = *m_raw_types;
 
     // I don't know why but it can extend past the size.
     for (auto i = 0; i < typeList.numAllocated; ++i) {
@@ -102,11 +102,11 @@ void RETypes::refreshMap() {
 
         spdlog::info("{:s}", name);
 
-        m_typeMap[name] = t;
+        m_type_map[name] = t;
 
         if (m_types.count(t) == 0) {
             m_types.insert(t);
-            m_typeList.push_back(t);
+            m_type_list.push_back(t);
         }
     }
 }

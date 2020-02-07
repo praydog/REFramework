@@ -2,16 +2,16 @@
 
 #include "ManualFlashlight.hpp"
 
-void ManualFlashlight::onFrame() {
+void ManualFlashlight::on_frame() {
     // TODO: Add controller support.
-    if (m_key->isKeyDownOnce()) {
-        m_shouldPullOut = !m_shouldPullOut;
+    if (m_key->is_key_down_once()) {
+        m_should_pull_out = !m_should_pull_out;
     }
 }
 
-void ManualFlashlight::onDrawUI() {
+void ManualFlashlight::on_draw_ui() {
     ImGui::SetNextTreeNodeOpen(false, ImGuiCond_::ImGuiCond_FirstUseEver);
-    if (!ImGui::CollapsingHeader(getName().data())) {
+    if (!ImGui::CollapsingHeader(get_name().data())) {
         return;
     }
 
@@ -19,34 +19,34 @@ void ManualFlashlight::onDrawUI() {
     m_key->draw("Change Key");
 }
 
-void ManualFlashlight::onConfigLoad(const utility::Config& cfg) {
+void ManualFlashlight::on_config_load(const utility::Config& cfg) {
     for (IModValue& option : m_options) {
-        option.configLoad(cfg);
+        option.config_load(cfg);
     }
 }
 
-void ManualFlashlight::onConfigSave(utility::Config& cfg) {
+void ManualFlashlight::on_config_save(utility::Config& cfg) {
     for (IModValue& option : m_options) {
-        option.configSave(cfg);
+        option.config_save(cfg);
     }
 }
 
-void ManualFlashlight::onUpdateTransform(RETransform* transform) {
+void ManualFlashlight::on_update_transform(RETransform* transform) {
     if (!m_enabled->value()) {
         return;
     }
 
-    if (m_illuminationManager == nullptr) {
-        m_illuminationManager = g_framework->getGlobals()->get<RopewayIlluminationManager>("app.ropeway.IlluminationManager");
+    if (m_illumination_manager == nullptr) {
+        m_illumination_manager = g_framework->get_globals()->get<RopewayIlluminationManager>("app.ropeway.IlluminationManager");
         return;
     }
 
     // No patch is needed if we are modifying the variables after the transform is updated
-    if (transform != m_illuminationManager->ownerGameObject->transform) {
+    if (transform != m_illumination_manager->ownerGameObject->transform) {
         return;
     }
 
-    m_illuminationManager->shouldUseFlashlight = (int)m_shouldPullOut;
-    m_illuminationManager->someCounter = (int)m_shouldPullOut;
-    m_illuminationManager->shouldUseFlashlight2 = m_shouldPullOut;
+    m_illumination_manager->shouldUseFlashlight = (int)m_should_pull_out;
+    m_illumination_manager->someCounter = (int)m_should_pull_out;
+    m_illumination_manager->shouldUseFlashlight2 = m_should_pull_out;
 }

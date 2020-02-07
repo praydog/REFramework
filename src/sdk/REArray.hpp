@@ -2,15 +2,15 @@
 
 #include "ReClass.hpp"
 
-namespace utility::REArray {
+namespace utility::re_array {
     // Forward declarations
-    static bool hasInlineElements(::REArrayBase* container);
+    static bool has_inline_elements(::REArrayBase* container);
 
-    template<typename T> static T* getInlineElement(::REArrayBase* container, int idx);
-    template<typename T> static T* getPtrElement(::REArrayBase* container, int idx);
-    template<typename T> static T* getElement(::REArrayBase* container, int idx);
+    template<typename T> static T* get_inline_element(::REArrayBase* container, int idx);
+    template<typename T> static T* get_ptr_element(::REArrayBase* container, int idx);
+    template<typename T> static T* get_element(::REArrayBase* container, int idx);
 
-    static bool hasInlineElements(::REArrayBase* container) {
+    static bool has_inline_elements(::REArrayBase* container) {
         if (container->containedType == nullptr) {
             return false;
         }
@@ -19,28 +19,28 @@ namespace utility::REArray {
     }
 
     template<typename T>
-    static T* getInlineElement(::REArrayBase* container, int idx) {
+    static T* get_inline_element(::REArrayBase* container, int idx) {
         if (idx < 0 || idx >= container->numElements) {
             return nullptr;
         }             
 
-        auto data = Address{ REManagedObject::getFieldPtr(container) };
+        auto data = Address{ REManagedObject::get_field_ptr(container) };
         return data.get(container->info->classInfo->elementSize * idx).as<T*>();
     }
 
     template<typename T>
-    static T* getPtrElement(::REArrayBase* container, int idx) {
+    static T* get_ptr_element(::REArrayBase* container, int idx) {
         if (idx < 0 || idx >= container->numElements) {
             return nullptr;
         }
 
-        T** data = (T**)REManagedObject::getFieldPtr(container);
+        T** data = (T**)REManagedObject::get_field_ptr(container);
         return data[idx];
     }
 
     // may need more work to handle unseen cases.
     template<typename T> 
-    static T* getElement(::REArrayBase* container, int idx) {
-        return hasInlineElements(container) ? getInlineElement<T>(container, idx) : getPtrElement<T>(container, idx);
+    static T* get_element(::REArrayBase* container, int idx) {
+        return has_inline_elements(container) ? get_inline_element<T>(container, idx) : get_ptr_element<T>(container, idx);
     }
 }

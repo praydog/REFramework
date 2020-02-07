@@ -1,0 +1,61 @@
+Checks: -*,readability-identifier-naming,readability-else-after-return
+HeaderFilterRegex: '^.*src.*(RE|Mod|FreeCam|FirstPerson|Hook|Developer|Object|Flashlight|utility).*\.hpp$'
+# HeaderFilterRegex: '^(.*src.*REContext).*\.hpp$'
+CheckOptions:
+# Classes, structs, ...
+  - key:    readability-identifier-naming.NamespaceCase
+    value:  lower_case
+  - key:    readability-identifier-naming.ClassCase
+    value:  CamelCase
+  - key:    readability-identifier-naming.StructCase
+    value:  CamelCase
+  - key:    readability-identifier-naming.EnumCase
+    value:  CamelCase
+  - key:    readability-identifier-naming.UnionCase
+    value:  CamelCase
+  - key:    readability-identifier-naming.TypedefCase
+    value:  CamelCase
+
+# Variables, member variables, ...
+  - key:    readability-identifier-naming.ParameterCase
+    value:  lower_case
+  - key:    readability-identifier-naming.VariableCase
+    value:  lower_case
+  - key:    readability-identifier-naming.MemberCase
+    value:  lower_case
+  - key:    readability-identifier-naming.PublicMemberCase
+    value:  lower_case
+  - key:    readability-identifier-naming.ProtectedMemberCase
+    value:  lower_case
+  - key:    readability-identifier-naming.PrivateMemberCase
+    value:  lower_case
+  - key:    readability-identifier-naming.PrivateMemberSuffix
+    value:  ''
+
+# Functions, methods, ...
+  - key:    readability-identifier-naming.FunctionCase
+    value:  lower_case
+  - key:    readability-identifier-naming.MethodCase
+    value:  lower_case
+
+# Constants
+  - key:    readability-identifier-naming.ConstantPrefix
+    value:  ''
+  - key:    readability-identifier-naming.ConstantCase
+    value:  UPPER_CASE
+  - key:    readability-identifier-naming.ConstantMemberPrefix
+    value:  ''
+  - key:    readability-identifier-naming.ConstantMemberCase
+    value:  lower_case
+  - key:    readability-identifier-naming.ConstantParameterPrefix
+    value:  ''
+  - key:    readability-identifier-naming.ConstantParameterCase
+    value:  lower_case
+  - key:    readability-identifier-naming.LocalConstantParameterPrefix
+    value:  ''
+  - key:    readability-identifier-naming.LocalConstantCase
+    value:  lower_case
+  - key:    readability-identifier-naming.ConstexprVariablePrefix
+    value:  ''
+  - key:    readability-identifier-naming.ConstexprVariableCase
+    value:  lower_casse

@@ -7,17 +7,17 @@
 
 using namespace std;
 
-static DInputHook* g_dinputHook{ nullptr };
+static DInputHook* g_dinput_hook{ nullptr };
 
 DInputHook::DInputHook(HWND wnd)
     : m_wnd{ wnd },
-    m_isIgnoringInput{ false },
-    m_doOnce{ true }
+    m_is_ignoring_input{ false },
+    m_do_once{ true }
 {
-    if (g_dinputHook == nullptr) {
+    if (g_dinput_hook == nullptr) {
         if (hook()) {
             spdlog::info("DInputHook hooked successfully.");
-            g_dinputHook = this;
+            g_dinput_hook = this;
         }
         else {
             spdlog::info("DInputHook failed to hook.");
@@ -27,9 +27,9 @@ DInputHook::DInputHook(HWND wnd)
 
 DInputHook::~DInputHook() {
     // Explicitly unhook the methods we hooked so we can reset g_dinputHook.
-    m_getDeviceStateHook.reset();
+    m_get_device_state_hook.reset();
 
-    g_dinputHook = nullptr;
+    g_dinput_hook = nullptr;
 }
 
 bool DInputHook::hook() {
@@ -40,19 +40,19 @@ bool DInputHook::hook() {
     using DirectInput8CreateFn = HRESULT(WINAPI*)(HINSTANCE, DWORD, REFIID, LPVOID*, LPUNKNOWN);
 
     auto dinput8 = LoadLibrary("dinput8.dll");
-    auto dinput8Create = (DirectInput8CreateFn)GetProcAddress(dinput8, "DirectInput8Create");
+    auto dinput8_create = (DirectInput8CreateFn)GetProcAddress(dinput8, "DirectInput8Create");
 
-    if (dinput8Create == nullptr) {
+    if (dinput8_create == nullptr) {
         spdlog::info("Failed to find DirectInput8Create.");
         return false;
     }
 
-    spdlog::info("Got DirectInput8Create {:p}", (void*)dinput8Create);
+    spdlog::info("Got DirectInput8Create {:p}", (void*)dinput8_create);
 
     auto instance = (HINSTANCE)GetModuleHandle(nullptr);
     IDirectInput* dinput{ nullptr };
 
-    if (FAILED(dinput8Create(instance, DIRECTINPUT_VERSION, IID_IDirectInput8W, (LPVOID*)&dinput, nullptr))) {
+    if (FAILED(dinput8_create(instance, DIRECTINPUT_VERSION, IID_IDirectInput8W, (LPVOID*)&dinput, nullptr))) {
         spdlog::info("Failed to create IDirectInput.");
         return false;
     }
@@ -70,44 +70,44 @@ bool DInputHook::hook() {
     spdlog::info("Got IDirectInputDevice {:p}", (void*)device);
 
     // Get the addresses of the methods we want to hook.
-    auto getDeviceState = (*(uintptr_t**)device)[9];
+    auto get_device_state = (*(uintptr_t**)device)[9];
 
-    spdlog::info("Got IDirectInputDevice::GetDeviceState {:p}", getDeviceState);
+    spdlog::info("Got IDirectInputDevice::GetDeviceState {:p}", get_device_state);
 
     device->Release();
     dinput->Release();
 
     // Hook them.
-    m_getDeviceStateHook = make_unique<FunctionHook>(getDeviceState, (uintptr_t)&DInputHook::getDeviceState);
+    m_get_device_state_hook = make_unique<FunctionHook>(get_device_state, (uintptr_t)&DInputHook::get_device_state);
 
-    return m_getDeviceStateHook->create();
+    return m_get_device_state_hook->create();
 }
 
-HRESULT DInputHook::getDeviceState_Internal(IDirectInputDevice* device, DWORD size, LPVOID data) {
-    auto originalGetDeviceState = (decltype(DInputHook::getDeviceState)*)m_getDeviceStateHook->getOriginal();
+HRESULT DInputHook::get_device_state_internal(IDirectInputDevice* device, DWORD size, LPVOID data) {
+    auto original_get_device_state = (decltype(DInputHook::get_device_state)*)m_get_device_state_hook->get_original();
 
     spdlog::debug("getDeviceState");
 
     // If we are ignoring input then we call the original to remove buffered    
     // input events from the devices queue without modifying the out parameters.
-    if ((m_isIgnoringInput || m_doOnce) && size == 256) {
+    if ((m_is_ignoring_input || m_do_once) && size == 256) {
         device->Unacquire();
         device->SetCooperativeLevel(m_wnd, DISCL_FOREGROUND | DISCL_NONEXCLUSIVE);
         device->Acquire();
 
-        m_doOnce = false;
+        m_do_once = false;
     }
 
-    auto res = originalGetDeviceState(device, size, data);
+    auto res = original_get_device_state(device, size, data);
 
     // Feed keys back to the framework
-    if (res == DI_OK && !m_isIgnoringInput && data != nullptr && size == 256) {
-        g_framework->onDirectInputKeys(*(std::array<uint8_t, 256>*)data);
+    if (res == DI_OK && !m_is_ignoring_input && data != nullptr && size == 256) {
+        g_framework->on_direct_input_keys(*(std::array<uint8_t, 256>*)data);
     }
 
     return res;
 }
 
-HRESULT WINAPI DInputHook::getDeviceState(IDirectInputDevice* device, DWORD size, LPVOID data) {
-    return g_dinputHook->getDeviceState_Internal(device, size, data);
+HRESULT WINAPI DInputHook::get_device_state(IDirectInputDevice* device, DWORD size, LPVOID data) {
+    return g_dinput_hook->get_device_state_internal(device, size, data);
 }

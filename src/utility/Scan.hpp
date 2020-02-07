@@ -12,5 +12,5 @@ namespace utility {
     std::optional<uintptr_t> scan(HMODULE module, const std::string& pattern);
     std::optional<uintptr_t> scan(uintptr_t start, size_t length, const std::string& pattern);
 
-    uintptr_t calculateAbsolute(uintptr_t address, uint8_t customOffset = 4);
+    uintptr_t calculate_absolute(uintptr_t address, uint8_t custom_offset = 4);
 }

@@ -1,30 +1,32 @@
 #pragma once
 
-namespace utility::RETransform {
-    static Matrix4x4f invalidMatrix{};
+#include "Math.hpp"
+
+namespace utility::re_transform {
+    static Matrix4x4f invalid_matrix{};
 
     // Get a bone/joint by name
-    static REJoint* getJoint(const ::RETransform& transform, std::wstring_view name) {
-        auto& jointArray = transform.joints;
+    static REJoint* get_joint(const ::RETransform& transform, std::wstring_view name) {
+        auto& joint_array = transform.joints;
 
-        if (jointArray.size <= 0 || jointArray.numAllocated <= 0 || jointArray.data == nullptr || jointArray.matrices == nullptr) {
+        if (joint_array.size <= 0 || joint_array.numAllocated <= 0 || joint_array.data == nullptr || joint_array.matrices == nullptr) {
             return nullptr;
         }
 
-        for (int32_t i = 0; i < jointArray.size; ++i) {
-            auto joint = jointArray.data->joints[i];
+        for (int32_t i = 0; i < joint_array.size; ++i) {
+            auto joint = joint_array.data->joints[i];
 
             if (joint == nullptr) {
                 continue;
             }
 
-            auto jointInfo = joint->info;
+            auto joint_info = joint->info;
 
-            if (jointInfo == nullptr || jointInfo->name == nullptr) {
+            if (joint_info == nullptr || joint_info->name == nullptr) {
                 continue;
             }
 
-            if (name == jointInfo->name) {
+            if (name == joint_info->name) {
                 return joint;
             }
         }
@@ -33,13 +35,13 @@ namespace utility::RETransform {
     }
 
     // Get a bone/joint matrix by name
-    static Matrix4x4f& getJointMatrix(const ::RETransform& transform, std::wstring_view name) {
-        auto joint = getJoint(transform, name);
+    static Matrix4x4f& get_joint_matrix(const ::RETransform& transform, std::wstring_view name) {
+        auto joint = get_joint(transform, name);
 
         if (joint != nullptr) {
             return transform.joints.matrices->data[joint->info->jointNumber].worldMatrix;
         }
 
-        return invalidMatrix;
+        return invalid_matrix;
     }
 }

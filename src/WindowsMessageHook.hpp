@@ -8,7 +8,7 @@
 // messages sent to the window.
 class WindowsMessageHook {
 public:
-    std::function<bool(HWND, UINT, WPARAM, LPARAM)> onMessage;
+    std::function<bool(HWND, UINT, WPARAM, LPARAM)> on_message;
 
     WindowsMessageHook() = delete;
     WindowsMessageHook(const WindowsMessageHook& other) = delete;
@@ -20,12 +20,12 @@ public:
     // explicitly if you need to remove the message hook for some reason.
     bool remove();
 
-    auto isValid() const {
-        return m_originalProc != nullptr;
+    auto is_valid() const {
+        return m_original_proc != nullptr;
     }
 
-    auto getOriginal() const {
-        return m_originalProc;
+    auto get_original() const {
+        return m_original_proc;
     }
 
     WindowsMessageHook& operator=(const WindowsMessageHook& other) = delete;
@@ -33,5 +33,5 @@ public:
 
 private:
     HWND m_wnd;
-    WNDPROC m_originalProc;
+    WNDPROC m_original_proc;
 };

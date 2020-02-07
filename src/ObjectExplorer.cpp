@@ -12,53 +12,53 @@
 
 ObjectExplorer::ObjectExplorer()
 {
-    m_typeName.reserve(256);
-    m_objectAddress.reserve(256);
+    m_type_name.reserve(256);
+    m_object_address.reserve(256);
 }
 
-void ObjectExplorer::onDrawUI() {
+void ObjectExplorer::on_draw_ui() {
     ImGui::SetNextTreeNodeOpen(false, ImGuiCond_::ImGuiCond_Once);
 
-    if (!ImGui::CollapsingHeader(getName().data())) {
+    if (!ImGui::CollapsingHeader(get_name().data())) {
         return;
     }
 
-    if (m_doInit) {
-        populateClasses();
-        populateEnums();
+    if (m_do_init) {
+        populate_classes();
+        populate_enums();
     }
 
     auto curtime = std::chrono::system_clock::now();
 
     // List of globals to choose from
     if (ImGui::CollapsingHeader("Singletons")) {
-        if (curtime > m_nextRefresh) {
-            g_framework->getGlobals()->safeRefresh();
-            m_nextRefresh = curtime + std::chrono::seconds(1);
+        if (curtime > m_next_refresh) {
+            g_framework->get_globals()->safe_refresh();
+            m_next_refresh = curtime + std::chrono::seconds(1);
         }
 
         // make a copy, we want to sort by name
-        auto singletons = g_framework->getGlobals()->getObjects();
+        auto singletons = g_framework->get_globals()->get_objects();
 
         // first loop, sort
         std::sort(singletons.begin(), singletons.end(), [](REManagedObject** a, REManagedObject** b) {
-            auto aType = utility::REManagedObject::safeGetType(*a);
-            auto bType = utility::REManagedObject::safeGetType(*b);
+            auto a_type = utility::re_managed_object::safe_get_type(*a);
+            auto b_type = utility::re_managed_object::safe_get_type(*b);
 
-            if (aType == nullptr || aType->name == nullptr) {
+            if (a_type == nullptr || a_type->name == nullptr) {
                 return true;
             }
 
-            if (bType == nullptr || bType->name == nullptr) {
+            if (b_type == nullptr || b_type->name == nullptr) {
                 return false;
             }
 
-            return std::string_view{ aType->name } < std::string_view{ bType->name };
+            return std::string_view{ a_type->name } < std::string_view{ b_type->name };
         });
 
         // Display the nodes
         for (auto obj : singletons) {
-            auto t = utility::REManagedObject::safeGetType(*obj);
+            auto t = utility::re_managed_object::safe_get_type(*obj);
 
             if (t == nullptr || t->name == nullptr) {
                 continue;
@@ -66,75 +66,75 @@ void ObjectExplorer::onDrawUI() {
 
             ImGui::SetNextTreeNodeOpen(false, ImGuiCond_::ImGuiCond_Once);
 
-            auto madeNode = ImGui::TreeNode(t->name);
-            contextMenu(*obj);
+            auto made_node = ImGui::TreeNode(t->name);
+            context_menu(*obj);
 
-            if (madeNode) {
-                handleAddress(*obj);
+            if (made_node) {
+                handle_address(*obj);
                 ImGui::TreePop();
             }
         }
     }
 
     if (ImGui::CollapsingHeader("Types")) {
-        std::vector<uint8_t> fakeType{ 0 };
+        std::vector<uint8_t> fake_type{ 0 };
 
-        for (const auto& name : m_sortedTypes) {
-            fakeType.clear();
+        for (const auto& name : m_sorted_types) {
+            fake_type.clear();
 
-            auto t = getType(name);
+            auto t = get_type(name);
 
             if (t == nullptr) {
                 continue;
             }
 
-            if (t->size >= fakeType.capacity()) {
-                fakeType.reserve(t->size);
+            if (t->size >= fake_type.capacity()) {
+                fake_type.reserve(t->size);
             }
 
-            handleType((REManagedObject*)fakeType.data(), t);
+            handle_type((REManagedObject*)fake_type.data(), t);
         }
     }
 
-    if (m_doInit || ImGui::InputText("Type Name", m_typeName.data(), 256)) {
-        m_displayedTypes.clear();
+    if (m_do_init || ImGui::InputText("Type Name", m_type_name.data(), 256)) {
+        m_displayed_types.clear();
 
-        if (auto t = getType(m_typeName.data())) {
-            m_displayedTypes.push_back(t);
+        if (auto t = get_type(m_type_name.data())) {
+            m_displayed_types.push_back(t);
         }
         else {
             // Search the list for a partial match instead
-            for (auto i = std::find_if(m_sortedTypes.begin(), m_sortedTypes.end(), [this](const auto& a) { return a.find(m_typeName.data()) != std::string::npos; });
-                i != m_sortedTypes.end();
-                i = std::find_if(i + 1, m_sortedTypes.end(), [this](const auto& a) { return a.find(m_typeName.data()) != std::string::npos; }))
+            for (auto i = std::find_if(m_sorted_types.begin(), m_sorted_types.end(), [this](const auto& a) { return a.find(m_type_name.data()) != std::string::npos; });
+                i != m_sorted_types.end();
+                i = std::find_if(i + 1, m_sorted_types.end(), [this](const auto& a) { return a.find(m_type_name.data()) != std::string::npos; }))
             {
-                if (auto t = getType(*i)) {
-                    m_displayedTypes.push_back(t);
+                if (auto t = get_type(*i)) {
+                    m_displayed_types.push_back(t);
                 }
             }
         }
     }
 
-    ImGui::InputText("REObject Address", m_objectAddress.data(), 16, ImGuiInputTextFlags_::ImGuiInputTextFlags_CharsHexadecimal);
+    ImGui::InputText("REObject Address", m_object_address.data(), 16, ImGuiInputTextFlags_::ImGuiInputTextFlags_CharsHexadecimal);
 
-    if (m_objectAddress[0] != 0) {
-        handleAddress(std::stoull(m_objectAddress, nullptr, 16));
+    if (m_object_address[0] != 0) {
+        handle_address(std::stoull(m_object_address, nullptr, 16));
     }
 
-    std::vector<uint8_t> fakeType{ 0 };
+    std::vector<uint8_t> fake_type{ 0 };
 
-    for (auto t : m_displayedTypes) {
-        fakeType.clear();
-        fakeType.reserve(t->size);
+    for (auto t : m_displayed_types) {
+        fake_type.clear();
+        fake_type.reserve(t->size);
         
-        handleType((REManagedObject*)fakeType.data(), t);
+        handle_type((REManagedObject*)fake_type.data(), t);
     }
 
-    m_doInit = false;
+    m_do_init = false;
 }
 
-void ObjectExplorer::handleAddress(Address address, int32_t offset, Address parent) {
-    if (!isManagedObject(address)) {
+void ObjectExplorer::handle_address(Address address, int32_t offset, Address parent) {
+    if (!is_managed_object(address)) {
         return;
     }
 
@@ -144,24 +144,24 @@ void ObjectExplorer::handleAddress(Address address, int32_t offset, Address pare
         parent = address;
     }
 
-    bool madeNode = false;
-    auto isGameObject = utility::REManagedObject::isA(object, "via.GameObject");
+    bool made_node = false;
+    auto is_game_object = utility::re_managed_object::is_a(object, "via.GameObject");
 
     if (offset != -1) {
         ImGui::SetNextTreeNodeOpen(false, ImGuiCond_::ImGuiCond_Once);
 
-        madeNode = stretchedTreeNode(parent.get(offset), "0x%X:", offset);
-        auto isHovered = ImGui::IsItemHovered();
-        auto additionalText = std::string{};
+        made_node = stretched_tree_node(parent.get(offset), "0x%X:", offset);
+        auto is_hovered = ImGui::IsItemHovered();
+        auto additional_text = std::string{};
 
-        contextMenu(object);
+        context_menu(object);
 
-        if (isGameObject) {
-            additionalText = utility::REString::getString(address.as<REGameObject*>()->name);
+        if (is_game_object) {
+            additional_text = utility::re_string::get_string(address.as<REGameObject*>()->name);
         }
         else {
             // Change name based on VMType
-            switch (utility::REManagedObject::getVMType(object)) {
+            switch (utility::re_managed_object::get_vm_type(object)) {
             case via::clr::VMObjType::Array:
             {
                 auto arr = (REArrayBase*)object;
@@ -170,125 +170,125 @@ void ObjectExplorer::handleAddress(Address address, int32_t offset, Address pare
                 name += arr->containedType != nullptr ? arr->containedType->type->name : "";
                 name += ">";
 
-                additionalText = name;
+                additional_text = name;
                 break;
             }
 
             case via::clr::VMObjType::String:
-                additionalText = "String";
+                additional_text = "String";
                 break;
             case via::clr::VMObjType::Delegate:
-                additionalText = "Delegate";
+                additional_text = "Delegate";
                 break;
             case via::clr::VMObjType::ValType:
-                additionalText = "ValType";
+                additional_text = "ValType";
                 break;
             case via::clr::VMObjType::Object:
-                additionalText = object->info->classInfo->type->name;
+                additional_text = object->info->classInfo->type->name;
                 break;
             case via::clr::VMObjType::NULL_:
             default:
-                additionalText = "NULL_OBJECT";
+                additional_text = "NULL_OBJECT";
                 break;
             }
         }
 
-        if (isHovered) {
-            makeSameLineText(additionalText, VARIABLE_COLOR_HIGHLIGHT);
+        if (is_hovered) {
+            make_same_line_text(additional_text, VARIABLE_COLOR_HIGHLIGHT);
         }
         else {
-            makeSameLineText(additionalText, VARIABLE_COLOR);
+            make_same_line_text(additional_text, VARIABLE_COLOR);
         }
     }
 
-    if (madeNode || offset == -1) {
-        if (isGameObject) {
-            handleGameObject(address.as<REGameObject*>());
+    if (made_node || offset == -1) {
+        if (is_game_object) {
+            handle_game_object(address.as<REGameObject*>());
         }
 
-        if (utility::REManagedObject::isA(object, "via.Component")) {
-            handleComponent(address.as<REComponent*>());
+        if (utility::re_managed_object::is_a(object, "via.Component")) {
+            handle_component(address.as<REComponent*>());
         }
 
-        handleType(object, utility::REManagedObject::getType(object));
+        handle_type(object, utility::re_managed_object::get_type(object));
 
         if (ImGui::TreeNode(object, "AutoGenerated Types")) {
-            auto typeInfo = object->info->classInfo->type;
-            auto size = utility::REManagedObject::getSize(object);
+            auto type_info = object->info->classInfo->type;
+            auto size = utility::re_managed_object::get_size(object);
 
             for (auto i = (uint32_t)sizeof(void*); i < size; i += sizeof(void*)) {
                 auto ptr = Address(object).get(i).to<REManagedObject*>();
 
-                handleAddress(ptr, i, object);
+                handle_address(ptr, i, object);
             }
 
             ImGui::TreePop();
         }
     }
 
-    if (madeNode && offset != -1) {
+    if (made_node && offset != -1) {
         ImGui::TreePop();
     }
 }
 
-void ObjectExplorer::handleGameObject(REGameObject* gameObject) {
-    ImGui::Text("Name: %s", utility::REString::getString(gameObject->name).c_str());
-    makeTreeOffset(gameObject, offsetof(REGameObject, transform), "Transform");
-    makeTreeOffset(gameObject, offsetof(REGameObject, folder), "Folder");
+void ObjectExplorer::handle_game_object(REGameObject* game_object) {
+    ImGui::Text("Name: %s", utility::re_string::get_string(game_object->name).c_str());
+    make_tree_offset(game_object, offsetof(REGameObject, transform), "Transform");
+    make_tree_offset(game_object, offsetof(REGameObject, folder), "Folder");
 }
 
-void ObjectExplorer::handleComponent(REComponent* component) {
-    makeTreeOffset(component, offsetof(REComponent, ownerGameObject), "Owner");
-    makeTreeOffset(component, offsetof(REComponent, childComponent), "ChildComponent");
-    makeTreeOffset(component, offsetof(REComponent, prevComponent), "PrevComponent");
-    makeTreeOffset(component, offsetof(REComponent, nextComponent), "NextComponent");
+void ObjectExplorer::handle_component(REComponent* component) {
+    make_tree_offset(component, offsetof(REComponent, ownerGameObject), "Owner");
+    make_tree_offset(component, offsetof(REComponent, childComponent), "ChildComponent");
+    make_tree_offset(component, offsetof(REComponent, prevComponent), "PrevComponent");
+    make_tree_offset(component, offsetof(REComponent, nextComponent), "NextComponent");
 }
 
-void ObjectExplorer::handleTransform(RETransform* transform) {
+void ObjectExplorer::handle_transform(RETransform* transform) {
 
 }
 
-void ObjectExplorer::handleType(REManagedObject* obj, REType* t) {
+void ObjectExplorer::handle_type(REManagedObject* obj, REType* t) {
     if (obj == nullptr || t == nullptr) {
         return;
     }
 
     auto count = 0;
 
-    for (auto typeInfo = t; typeInfo != nullptr; typeInfo = typeInfo->super) {
-        auto name = typeInfo->name;
+    for (auto type_info = t; type_info != nullptr; type_info = type_info->super) {
+        auto name = type_info->name;
 
         if (name == nullptr) {
             continue;
         }
 
-        if (!widgetWithContext(typeInfo, [&name]() { return ImGui::TreeNode(name); })) {
+        if (!widget_with_context(type_info, [&name]() { return ImGui::TreeNode(name); })) {
             break;
         }
 
-        const auto isRealObject = utility::REManagedObject::isManagedObject(obj);
+        const auto is_real_object = utility::re_managed_object::is_managed_object(obj);
 
         // Topmost type
-        if (typeInfo == t && isRealObject) {
-            ImGui::Text("Size: 0x%X", utility::REManagedObject::getSize(obj));
+        if (type_info == t && is_real_object) {
+            ImGui::Text("Size: 0x%X", utility::re_managed_object::get_size(obj));
         }
         // Super types
         else {
-            ImGui::Text("Size: 0x%X", typeInfo->size);
+            ImGui::Text("Size: 0x%X", type_info->size);
         }
 
         ++count;
 
         // Display type flags
-        if (typeInfo->classInfo != nullptr) {
-            if (stretchedTreeNode("TypeFlags")) {
-                displayEnumValue("via.clr.TypeFlag", (int64_t)typeInfo->classInfo->typeFlags);
+        if (type_info->classInfo != nullptr) {
+            if (stretched_tree_node("TypeFlags")) {
+                display_enum_value("via.clr.TypeFlag", (int64_t)type_info->classInfo->typeFlags);
                 ImGui::TreePop();
             }
         }
 
-        displayMethods(obj, typeInfo);
-        displayFields(obj, typeInfo);
+        display_methods(obj, type_info);
+        display_fields(obj, type_info);
     }
 
     for (auto i = 0; i < count; ++i) {
@@ -296,13 +296,13 @@ void ObjectExplorer::handleType(REManagedObject* obj, REType* t) {
     }
 }
 
-void ObjectExplorer::displayEnumValue(std::string_view name, int64_t value) {
-    auto firstFound = getEnumValueName(name, (int64_t)value);
+void ObjectExplorer::display_enum_value(std::string_view name, int64_t value) {
+    auto first_found = get_enum_value_name(name, (int64_t)value);
 
-    if (!firstFound.empty()) {
+    if (!first_found.empty()) {
         ImGui::Text("%i: ", value);
         ImGui::SameLine();
-        ImGui::TextColored(VARIABLE_COLOR, "%s", firstFound.c_str());
+        ImGui::TextColored(VARIABLE_COLOR, "%s", first_found.c_str());
     }
     // Assume it's a set of flags then
     else {
@@ -312,37 +312,36 @@ void ObjectExplorer::displayEnumValue(std::string_view name, int64_t value) {
 
         // Check which bits are set and have enum names
         for (auto i = 0; i < 32; ++i) {
-            if (auto bit = (value & (1 << i)); bit != 0) {
-                auto valueName = getEnumValueName(name, bit);
+            if (auto bit = (value & ((int64_t)1 << i)); bit != 0) {
+                auto value_name = get_enum_value_name(name, bit);
 
-                if (valueName.empty()) {
+                if (value_name.empty()) {
                     continue;
                 }
 
-                names.push_back(valueName);
+                names.push_back(value_name);
             }
         }
 
         // Sort and print names
         std::sort(names.begin(), names.end());
-        for (const auto& valueName : names) {
-            ImGui::TextColored(VARIABLE_COLOR, "%s", valueName.c_str());
+        for (const auto& value_name : names) {
+            ImGui::TextColored(VARIABLE_COLOR, "%s", value_name.c_str());
         }
     }
 }
 
-void ObjectExplorer::displayMethods(REManagedObject* obj, REType* typeInfo) {
-    const auto isRealObject = utility::REManagedObject::isManagedObject(obj);
-    volatile auto methods = typeInfo->fields->methods;
+void ObjectExplorer::display_methods(REManagedObject* obj, REType* type_info) {
+    volatile auto methods = type_info->fields->methods;
 
     if (methods == nullptr || *methods == nullptr) {
         return;
     }
 
-    auto numMethods = typeInfo->fields->num;
+    auto num_methods = type_info->fields->num;
 
-    if (ImGui::TreeNode(methods, "Methods: %i", numMethods)) {
-        for (auto i = 0; i < numMethods; ++i) {
+    if (ImGui::TreeNode(methods, "Methods: %i", num_methods)) {
+        for (auto i = 0; i < num_methods; ++i) {
             volatile auto top = (*methods)[i];
 
             if (top == nullptr || *top == nullptr) {
@@ -357,32 +356,32 @@ void ObjectExplorer::displayMethods(REManagedObject* obj, REType* typeInfo) {
             }
 
             auto ret = descriptor->returnTypeName != nullptr ? std::string{ descriptor->returnTypeName } : std::string{ "undefined" };
-            auto madeNode = widgetWithContext(descriptor, [&]() { return stretchedTreeNode(descriptor, "%s", ret.c_str()); });
-            auto treeHovered = ImGui::IsItemHovered();
+            auto made_node = widget_with_context(descriptor, [&]() { return stretched_tree_node(descriptor, "%s", ret.c_str()); });
+            auto tree_hovered = ImGui::IsItemHovered();
 
             // Draw the variable name with a color
-            if (treeHovered) {
-                makeSameLineText(descriptor->name, VARIABLE_COLOR_HIGHLIGHT);
+            if (tree_hovered) {
+                make_same_line_text(descriptor->name, VARIABLE_COLOR_HIGHLIGHT);
             }
             else {
-                makeSameLineText(descriptor->name, VARIABLE_COLOR);
+                make_same_line_text(descriptor->name, VARIABLE_COLOR);
             }
 
-            if (madeNode) {
+            if (made_node) {
                 ImGui::Text("Address: 0x%p", descriptor);
                 ImGui::Text("Function: 0x%p", descriptor->functionPtr);
 
-                auto t2 = getType(ret);
+                auto t2 = get_type(ret);
 
-                if (t2 == nullptr || t2 == typeInfo) {
+                if (t2 == nullptr || t2 == type_info) {
                     ImGui::Text("Type: %s", ret.c_str());
                 }
                 else {
-                    std::vector<uint8_t> fakeObject{};
-                    fakeObject.reserve(t2->size);
-                    fakeObject.clear();
+                    std::vector<uint8_t> fake_object{};
+                    fake_object.reserve(t2->size);
+                    fake_object.clear();
 
-                    handleType((REManagedObject*)fakeObject.data(), t2);
+                    handle_type((REManagedObject*)fake_object.data(), t2);
                 }
 
                 ImGui::TreePop();
@@ -393,36 +392,36 @@ void ObjectExplorer::displayMethods(REManagedObject* obj, REType* typeInfo) {
     }
 }
 
-void ObjectExplorer::displayFields(REManagedObject* obj, REType* typeInfo) {
-    if (typeInfo->fields == nullptr || typeInfo->fields->variables == nullptr || typeInfo->fields->variables->data == nullptr) {
+void ObjectExplorer::display_fields(REManagedObject* obj, REType* type_info) {
+    if (type_info->fields == nullptr || type_info->fields->variables == nullptr || type_info->fields->variables->data == nullptr) {
         return;
     }
 
-    const auto isRealObject = utility::REManagedObject::isManagedObject(obj);
-    auto descriptors = typeInfo->fields->variables->data->descriptors;
+    const auto is_real_object = utility::re_managed_object::is_managed_object(obj);
+    auto descriptors = type_info->fields->variables->data->descriptors;
 
-    if (ImGui::TreeNode(typeInfo->fields, "Fields: %i", typeInfo->fields->variables->num)) {
-        for (auto i = descriptors; i != descriptors + typeInfo->fields->variables->num; ++i) {
+    if (ImGui::TreeNode(type_info->fields, "Fields: %i", type_info->fields->variables->num)) {
+        for (auto i = descriptors; i != descriptors + type_info->fields->variables->num; ++i) {
             auto variable = *i;
 
             if (variable == nullptr) {
                 continue;
             }
 
-            auto madeNode = widgetWithContext(variable->function, [&]() { return stretchedTreeNode(variable, "%s", variable->typeName); });
-            auto treeHovered = ImGui::IsItemHovered();
+            auto made_node = widget_with_context(variable->function, [&]() { return stretched_tree_node(variable, "%s", variable->typeName); });
+            auto tree_hovered = ImGui::IsItemHovered();
 
             // Draw the variable name with a color
-            if (treeHovered) {
-                makeSameLineText(variable->name, VARIABLE_COLOR_HIGHLIGHT);
+            if (tree_hovered) {
+                make_same_line_text(variable->name, VARIABLE_COLOR_HIGHLIGHT);
             }
             else {
-                makeSameLineText(variable->name, VARIABLE_COLOR);
+                make_same_line_text(variable->name, VARIABLE_COLOR);
             }
 
             // Display the field offset
-            if (isRealObject) {
-                auto offset = getFieldOffset(obj, variable);
+            if (is_real_object) {
+                auto offset = get_field_offset(obj, variable);
 
                 if (offset != 0) {
                     ImGui::SameLine();
@@ -431,9 +430,9 @@ void ObjectExplorer::displayFields(REManagedObject* obj, REType* typeInfo) {
             }
 
             // Info about the field
-            if (madeNode) {
-                if (isRealObject) {
-                    attemptDisplayField(obj, variable);
+            if (made_node) {
+                if (is_real_object) {
+                    attempt_display_field(obj, variable);
                 }
 
                 if (ImGui::TreeNode(variable, "Additional Information")) {
@@ -442,23 +441,23 @@ void ObjectExplorer::displayFields(REManagedObject* obj, REType* typeInfo) {
 
                     // Display type information
                     if (variable->typeName != nullptr) {
-                        auto t2 = getType(variable->typeName);
+                        auto t2 = get_type(variable->typeName);
 
-                        if (t2 == nullptr || t2 == typeInfo) {
+                        if (t2 == nullptr || t2 == type_info) {
                             ImGui::Text("Type: %s", variable->typeName);
                         }
                         else {
-                            std::vector<uint8_t> fakeObject{};
-                            fakeObject.reserve(t2->size);
-                            fakeObject.clear();
+                            std::vector<uint8_t> fake_object{};
+                            fake_object.reserve(t2->size);
+                            fake_object.clear();
 
-                            handleType((REManagedObject*)fakeObject.data(), t2);
+                            handle_type((REManagedObject*)fake_object.data(), t2);
                         }
                     }
 
-                    auto typeKind = variable->flags & 0x1F;
+                    auto type_kind = variable->flags & 0x1F;
 
-                    ImGui::Text("TypeKind: %i (%s)", typeKind, getEnumValueName("via.reflection.TypeKind", (int64_t)typeKind).c_str());
+                    ImGui::Text("TypeKind: %i (%s)", type_kind, get_enum_value_name("via.reflection.TypeKind", (int64_t)type_kind).c_str());
                     ImGui::Text("VarType: %i", variable->variableType);
 
                     if (variable->staticVariableData != nullptr) {
@@ -476,33 +475,33 @@ void ObjectExplorer::displayFields(REManagedObject* obj, REType* typeInfo) {
     }
 }
 
-void ObjectExplorer::attemptDisplayField(REManagedObject* obj, VariableDescriptor* desc) {
+void ObjectExplorer::attempt_display_field(REManagedObject* obj, VariableDescriptor* desc) {
     if (desc->function == nullptr) {
         return;
     }
 
-    auto makeTreeAddr = [this](void* addr) {
-        if (widgetWithContext(addr, [&]() { return ImGui::TreeNode(addr, "Variable: 0x%p", addr); })) {
-            if (isManagedObject(addr)) {
-                handleAddress(addr);
+    auto make_tree_addr = [this](void* addr) {
+        if (widget_with_context(addr, [&]() { return ImGui::TreeNode(addr, "Variable: 0x%p", addr); })) {
+            if (is_managed_object(addr)) {
+                handle_address(addr);
             }
 
             ImGui::TreePop();
         }
     };
 
-    auto typeName = std::string{ desc->typeName };
-    auto ret = utility::hash(typeName);
-    auto getValueFunc = (void* (*)(VariableDescriptor*, REManagedObject*, void*))desc->function;
+    auto type_name = std::string{ desc->typeName };
+    auto ret = utility::hash(type_name);
+    auto get_value_func = (void* (*)(VariableDescriptor*, REManagedObject*, void*))desc->function;
 
     char data[0x100]{ 0 };
-    auto typeKind = (via::reflection::TypeKind)(desc->flags & 0x1F);
+    auto type_kind = (via::reflection::TypeKind)(desc->flags & 0x1F);
 
     // 0x10 == pointer, i think?
-    if (typeKind != via::reflection::TypeKind::Class || desc->staticVariableData == nullptr) {
-        getValueFunc(desc, obj, &data);
+    if (type_kind != via::reflection::TypeKind::Class || desc->staticVariableData == nullptr) {
+        get_value_func(desc, obj, &data);
 
-        auto fieldOffset = getFieldOffset(obj, desc);
+        auto field_offset = get_field_offset(obj, desc);
 
         // yay for compile time string hashing
         switch (ret) {
@@ -514,8 +513,8 @@ void ObjectExplorer::attemptDisplayField(REManagedObject* obj, VariableDescripto
         case "u32"_fnv:
             ImGui::Text("%i", *(int32_t*)&data);
 
-            if (fieldOffset != 0) {
-                auto& int_val = *Address{ obj }.get(fieldOffset).as<int32_t*>();
+            if (field_offset != 0) {
+                auto& int_val = *Address{ obj }.get(field_offset).as<int32_t*>();
 
                 ImGui::SliderInt("Set Value", &int_val, int_val - 1, int_val + 1);
             }
@@ -524,8 +523,8 @@ void ObjectExplorer::attemptDisplayField(REManagedObject* obj, VariableDescripto
         case "s32"_fnv:
             ImGui::Text("%i", *(int32_t*)&data);
 
-            if (fieldOffset != 0) {
-                auto& int_val = *Address{ obj }.get(fieldOffset).as<int32_t*>();
+            if (field_offset != 0) {
+                auto& int_val = *Address{ obj }.get(field_offset).as<int32_t*>();
 
                 ImGui::SliderInt("Set Value", &int_val, int_val - 1, int_val + 1);
             }
@@ -536,8 +535,8 @@ void ObjectExplorer::attemptDisplayField(REManagedObject* obj, VariableDescripto
         {
             ImGui::Text("%f", *(float*)&data);
 
-            if (fieldOffset != 0) {
-                auto& float_val = *Address{ obj }.get(fieldOffset).as<float*>();
+            if (field_offset != 0) {
+                auto& float_val = *Address{ obj }.get(field_offset).as<float*>();
 
                 ImGui::SliderFloat("Set Value", &float_val, float_val - 1.0f, float_val + 1.0f);
             }
@@ -553,8 +552,8 @@ void ObjectExplorer::attemptDisplayField(REManagedObject* obj, VariableDescripto
                 ImGui::Text("false");
             }
 
-            if (fieldOffset != 0) {
-                auto& bool_val = *Address{ obj }.get(fieldOffset).as<bool*>();
+            if (field_offset != 0) {
+                auto& bool_val = *Address{ obj }.get(field_offset).as<bool*>();
 
                 ImGui::Checkbox("Set Value", &bool_val);
             }
@@ -580,8 +579,8 @@ void ObjectExplorer::attemptDisplayField(REManagedObject* obj, VariableDescripto
             auto& vec = *(Vector2f*)&data;
             ImGui::Text("%f %f", vec.x, vec.y);
 
-            if (fieldOffset != 0) {
-                auto& vec_val = *Address{ obj }.get(fieldOffset).as<Vector2f*>();
+            if (field_offset != 0) {
+                auto& vec_val = *Address{ obj }.get(field_offset).as<Vector2f*>();
                 auto largest_val = vec_val.x;
 
                 if (vec_val.y > largest_val) {
@@ -600,8 +599,8 @@ void ObjectExplorer::attemptDisplayField(REManagedObject* obj, VariableDescripto
             auto& vec = *(Vector3f*)&data;
             ImGui::Text("%f %f %f", vec.x, vec.y, vec.z);
 
-            if (fieldOffset != 0) {
-                auto& vec_val = *Address{ obj }.get(fieldOffset).as<Vector3f*>();
+            if (field_offset != 0) {
+                auto& vec_val = *Address{ obj }.get(field_offset).as<Vector3f*>();
                 auto largest_val = vec_val.x;
 
                 if (vec_val.y > largest_val) {
@@ -622,8 +621,8 @@ void ObjectExplorer::attemptDisplayField(REManagedObject* obj, VariableDescripto
             auto& quat = *(glm::quat*)&data;
             ImGui::Text("%f %f %f %f", quat.x, quat.y, quat.z, quat.w);
 
-            if (fieldOffset != 0) {
-                auto& vec_val = *Address{ obj }.get(fieldOffset).as<Vector4f*>();
+            if (field_offset != 0) {
+                auto& vec_val = *Address{ obj }.get(field_offset).as<Vector4f*>();
                 auto largest_val = vec_val.x;
 
                 if (vec_val.y > largest_val) {
@@ -644,22 +643,22 @@ void ObjectExplorer::attemptDisplayField(REManagedObject* obj, VariableDescripto
             break;
         }
         case "via.string"_fnv:
-            ImGui::Text("%s", utility::REString::getString(*(REString*)&data).c_str());
+            ImGui::Text("%s", utility::re_string::get_string(*(REString*)&data).c_str());
             break;
         default: 
         {
-            if (typeKind == via::reflection::TypeKind::Enum) {
+            if (type_kind == via::reflection::TypeKind::Enum) {
                 auto value = *(int32_t*)&data;
-                displayEnumValue(typeName, (int64_t)value);
+                display_enum_value(type_name, (int64_t)value);
 
-                if (fieldOffset != 0) {
-                    auto& int_val = *Address{ obj }.get(fieldOffset).as<int32_t*>();
+                if (field_offset != 0) {
+                    auto& int_val = *Address{ obj }.get(field_offset).as<int32_t*>();
 
                     ImGui::SliderInt("Set Value", &int_val, int_val - 1, int_val + 1);
                 }
             }
             else {
-                makeTreeAddr(*(void**)&data);
+                make_tree_addr(*(void**)&data);
             }
 
             break;
@@ -668,28 +667,28 @@ void ObjectExplorer::attemptDisplayField(REManagedObject* obj, VariableDescripto
     }
     // Pointer... usually
     else {
-        getValueFunc(desc, obj, &data);
-        makeTreeAddr(*(void**)&data);
+        get_value_func(desc, obj, &data);
+        make_tree_addr(*(void**)&data);
     }
 }
 
-int32_t ObjectExplorer::getFieldOffset(REManagedObject* obj, VariableDescriptor* desc) {
-    if (desc->typeName == nullptr || desc->function == nullptr || m_offsetMap.find(desc) != m_offsetMap.end()) {
-        return m_offsetMap[desc];
+int32_t ObjectExplorer::get_field_offset(REManagedObject* obj, VariableDescriptor* desc) {
+    if (desc->typeName == nullptr || desc->function == nullptr || m_offset_map.find(desc) != m_offset_map.end()) {
+        return m_offset_map[desc];
     }
 
     auto ret = utility::hash(std::string{ desc->typeName });
 
     // These usually modify the object state, not what we want.
     if (ret == "undefined"_fnv) {
-        return m_offsetMap[desc];
+        return m_offset_map[desc];
     }
 
-    static int32_t prevReferenceCount = 0;
-    auto threadContext = sdk::getThreadContext();
+    static int32_t prev_reference_count = 0;
+    auto thread_context = sdk::get_thread_context();
 
-    if (threadContext != nullptr) {
-        prevReferenceCount = threadContext->referenceCount;
+    if (thread_context != nullptr) {
+        prev_reference_count = thread_context->referenceCount;
     }
 
     // Set up our "translator" to throw on any exception,
@@ -703,17 +702,17 @@ int32_t ObjectExplorer::getFieldOffset(REManagedObject* obj, VariableDescriptor*
         {
             spdlog::info("ObjectExplorer: Attempting to handle access violation.");
 
-            auto threadContext = sdk::getThreadContext();
+            auto thread_context = sdk::get_thread_context();
 
             // This counter needs to be dealt with, it will end up causing a crash later on.
             // We also need to "destruct" whatever object this is.
-            if (threadContext != nullptr) {
-                auto& referenceCount = threadContext->referenceCount;
-                auto countDelta = referenceCount - prevReferenceCount;
+            if (thread_context != nullptr) {
+                auto& reference_count = thread_context->referenceCount;
+                auto count_delta = reference_count - prev_reference_count;
 
-                spdlog::error("{}", referenceCount);
-                if (countDelta >= 1) {
-                    --referenceCount;
+                spdlog::error("{}", reference_count);
+                if (count_delta >= 1) {
+                    --reference_count;
 
                     static void* (*func1)(void*) = nullptr;
                     static void* (*func2)(void*) = nullptr;
@@ -727,16 +726,16 @@ int32_t ObjectExplorer::getFieldOffset(REManagedObject* obj, VariableDescriptor*
                         //auto ref = utility::scan(g_framework->getModule().as<HMODULE>(), "48 83 78 18 00 74 ? 48 89 D9 E8 ? ? ? ? 48 89 D9 E8 ? ? ? ?");
 
                         // Version 2 Dec 17th, 2019 game.exe+0x20437C (works on old version too)
-                        auto ref = utility::scan(g_framework->getModule().as<HMODULE>(), "48 83 78 18 00 74 ? 48 ? ? E8 ? ? ? ? 48 ? ? E8 ? ? ? ?");
+                        auto ref = utility::scan(g_framework->get_module().as<HMODULE>(), "48 83 78 18 00 74 ? 48 ? ? E8 ? ? ? ? 48 ? ? E8 ? ? ? ?");
 
                         if (!ref) {
                             spdlog::error("We're going to crash");
                             break;
                         }
 
-                        func1 = Address{ utility::calculateAbsolute(*ref + 11) }.as<decltype(func1)>();
-                        func2 = Address{ utility::calculateAbsolute(*ref + 19) }.as<decltype(func2)>();
-                        func3 = Address{ utility::calculateAbsolute(*ref + 27) }.as<decltype(func3)>();
+                        func1 = Address{ utility::calculate_absolute(*ref + 11) }.as<decltype(func1)>();
+                        func2 = Address{ utility::calculate_absolute(*ref + 19) }.as<decltype(func2)>();
+                        func3 = Address{ utility::calculate_absolute(*ref + 27) }.as<decltype(func3)>();
 
                         spdlog::info("F1 {:x}", (uintptr_t)func1);
                         spdlog::info("F2 {:x}", (uintptr_t)func2);
@@ -744,14 +743,14 @@ int32_t ObjectExplorer::getFieldOffset(REManagedObject* obj, VariableDescriptor*
                     }
 
                     // Perform object cleanup that was missed because an exception occurred.
-                    if (threadContext->unkPtr != nullptr && threadContext->unkPtr->unkPtr != nullptr) {
-                        func1(threadContext);
+                    if (thread_context->unkPtr != nullptr && thread_context->unkPtr->unkPtr != nullptr) {
+                        func1(thread_context);
                     }
 
-                    func2(threadContext);
-                    func3(threadContext);
+                    func2(thread_context);
+                    func3(thread_context);
                 }
-                else if (countDelta == 0) {
+                else if (count_delta == 0) {
                     spdlog::info("No fix necessary");
                 }
             }
@@ -767,17 +766,17 @@ int32_t ObjectExplorer::getFieldOffset(REManagedObject* obj, VariableDescriptor*
     });
 
     struct BitTester {
-        BitTester(uint8_t* oldValue)
-            : ptr{ oldValue }
+        BitTester(uint8_t* old_value)
+            : ptr{ old_value }
         {
-            old = *oldValue;
+            old = *old_value;
         }
 
         ~BitTester() {
             *ptr = old;
         }
 
-        bool isValueSame(const uint8_t* buf) const {
+        bool is_value_same(const uint8_t* buf) const {
             return buf[0] == ptr[0];
         }
 
@@ -785,19 +784,19 @@ int32_t ObjectExplorer::getFieldOffset(REManagedObject* obj, VariableDescriptor*
         uint8_t old;
     };
 
-    const auto getValueFunc = (void* (*)(VariableDescriptor*, REManagedObject*, void*))desc->function;
-    const auto classSize = utility::REManagedObject::getSize(obj);
+    const auto get_value_func = (void* (*)(VariableDescriptor*, REManagedObject*, void*))desc->function;
+    const auto class_size = utility::re_managed_object::get_size(obj);
     const auto size = 1;
 
     // Copy the object so we don't cause a crash by replacing
     // data that's being used by the game
-    std::vector<uint8_t> objectCopy;
-    objectCopy.reserve(classSize);
-    memcpy(objectCopy.data(), obj, classSize);
+    std::vector<uint8_t> object_copy;
+    object_copy.reserve(class_size);
+    memcpy(object_copy.data(), obj, class_size);
 
     // Compare data
-    for (int32_t i = sizeof(REManagedObject); i + size <= (int32_t)classSize; i += 1) {
-        auto ptr = objectCopy.data() + i;
+    for (int32_t i = sizeof(REManagedObject); i + size <= (int32_t)class_size; i += 1) {
+        auto ptr = object_copy.data() + i;
         bool same = true;
 
         BitTester tester{ ptr };
@@ -809,7 +808,7 @@ int32_t ObjectExplorer::getFieldOffset(REManagedObject* obj, VariableDescriptor*
 
             // Attempt to get the field value.
             try {
-                getValueFunc(desc, (REManagedObject*)objectCopy.data(), data.data());
+                get_value_func(desc, (REManagedObject*)object_copy.data(), data.data());
             }
             // Access violation occurred. Good thing we handle it.
             catch (const std::exception&) {
@@ -818,7 +817,7 @@ int32_t ObjectExplorer::getFieldOffset(REManagedObject* obj, VariableDescriptor*
             }
 
             // Check if result is the same at our offset.
-            if (!tester.isValueSame(data.data())) {
+            if (!tester.is_value_same(data.data())) {
                 same = false;
                 break;
             }
@@ -828,22 +827,22 @@ int32_t ObjectExplorer::getFieldOffset(REManagedObject* obj, VariableDescriptor*
         }
 
         if (same) {
-            m_offsetMap[desc] = i;
+            m_offset_map[desc] = i;
             break;
         }
     }
 
-    return m_offsetMap[desc];
+    return m_offset_map[desc];
 }
 
-bool ObjectExplorer::widgetWithContext(void* address, std::function<bool()> widget) {
+bool ObjectExplorer::widget_with_context(void* address, std::function<bool()> widget) {
     auto ret = widget();
-    contextMenu(address);
+    context_menu(address);
 
     return ret;
 }
 
-void ObjectExplorer::contextMenu(void* address) {
+void ObjectExplorer::context_menu(void* address) {
     if (ImGui::BeginPopupContextItem()) {
         if (ImGui::Selectable("Copy")) {
             std::stringstream ss;
@@ -853,11 +852,11 @@ void ObjectExplorer::contextMenu(void* address) {
         }
 
         // Log component hierarchy to disk
-        if (isManagedObject(address) && utility::REManagedObject::isA((REManagedObject*)address, "via.Component") && ImGui::Selectable("Log Hierarchy")) {
+        if (is_managed_object(address) && utility::re_managed_object::is_a((REManagedObject*)address, "via.Component") && ImGui::Selectable("Log Hierarchy")) {
             auto comp = (REComponent*)address;
 
             for (auto obj = comp; obj; obj = obj->childComponent) {
-                auto t = utility::REManagedObject::safeGetType(obj);
+                auto t = utility::re_managed_object::safe_get_type(obj);
 
                 if (t != nullptr) {
                     if (obj->ownerGameObject == nullptr) {
@@ -865,7 +864,7 @@ void ObjectExplorer::contextMenu(void* address) {
                     }
                     else {
                         auto owner = obj->ownerGameObject;
-                        spdlog::info("[{:s}] {:s} ({:x})", utility::REString::getString(owner->name), t->name, (uintptr_t)obj);
+                        spdlog::info("[{:s}] {:s} ({:x})", utility::re_string::get_string(owner->name), t->name, (uintptr_t)obj);
                     }
                 }
 
@@ -879,7 +878,7 @@ void ObjectExplorer::contextMenu(void* address) {
     }
 }
 
-void ObjectExplorer::makeSameLineText(std::string_view text, const ImVec4& color) {
+void ObjectExplorer::make_same_line_text(std::string_view text, const ImVec4& color) {
     if (text.empty()) {
         return;
     }
@@ -888,34 +887,34 @@ void ObjectExplorer::makeSameLineText(std::string_view text, const ImVec4& color
     ImGui::TextColored(color, "%s", text.data());
 }
 
-void ObjectExplorer::makeTreeOffset(REManagedObject* object, uint32_t offset, std::string_view name) {
+void ObjectExplorer::make_tree_offset(REManagedObject* object, uint32_t offset, std::string_view name) {
     auto ptr = Address(object).get(offset).to<void*>();
 
     if (ptr == nullptr) {
         return;
     }
 
-    auto madeNode = ImGui::TreeNode((uint8_t*)object + offset, "0x%X: %s", offset, name.data());
+    auto made_node = ImGui::TreeNode((uint8_t*)object + offset, "0x%X: %s", offset, name.data());
 
-    contextMenu(ptr);
+    context_menu(ptr);
 
-    if (madeNode) {
-        handleAddress(ptr);
+    if (made_node) {
+        handle_address(ptr);
         ImGui::TreePop();
     }
 }
 
-bool ObjectExplorer::isManagedObject(Address address) const {
-    return utility::REManagedObject::isManagedObject(address);
+bool ObjectExplorer::is_managed_object(Address address) const {
+    return utility::re_managed_object::is_managed_object(address);
 }
 
-void ObjectExplorer::populateClasses() {
-    auto& typeList = *g_framework->getTypes()->getRawTypes();
-    spdlog::info("TypeList: {:x}", (uintptr_t)&typeList);
+void ObjectExplorer::populate_classes() {
+    auto& type_list = *g_framework->get_types()->get_raw_types();
+    spdlog::info("TypeList: {:x}", (uintptr_t)&type_list);
 
     // I don't know why but it can extend past the size.
-    for (auto i = 0; i < typeList.numAllocated; ++i) {
-        auto t = (*typeList.data)[i];
+    for (auto i = 0; i < type_list.numAllocated; ++i) {
+        auto t = (*type_list.data)[i];
 
         if (t == nullptr || IsBadReadPtr(t, sizeof(REType))) {
             continue;
@@ -932,19 +931,19 @@ void ObjectExplorer::populateClasses() {
         }
 
         spdlog::info("{:s}", name);
-        m_sortedTypes.push_back(name);
+        m_sorted_types.push_back(name);
         m_types[name] = t;
     }
 
-    std::sort(m_sortedTypes.begin(), m_sortedTypes.end());
+    std::sort(m_sorted_types.begin(), m_sorted_types.end());
 }
 
-void ObjectExplorer::populateEnums() {
-    std::ofstream outFile("Enums_Internal.hpp");
+void ObjectExplorer::populate_enums() {
+    std::ofstream out_file("Enums_Internal.hpp");
 
 
-    auto ref = utility::scan(g_framework->getModule().as<HMODULE>(), "66 C7 40 18 01 01 48 89 05 ? ? ? ?");
-    auto& l = *(std::map<uint64_t, REEnumData>*)(utility::calculateAbsolute(*ref + 9));
+    auto ref = utility::scan(g_framework->get_module().as<HMODULE>(), "66 C7 40 18 01 01 48 89 05 ? ? ? ?");
+    auto& l = *(std::map<uint64_t, REEnumData>*)(utility::calculate_absolute(*ref + 9));
     spdlog::info("EnumList: {:x}", (uintptr_t)&l);
 
     spdlog::info("Size: {}", l.size());
@@ -961,8 +960,8 @@ void ObjectExplorer::populateEnums() {
         }
 
 
-        outFile << "namespace " << nspace << " {" << std::endl;
-        outFile << "    enum " << name << " {" << std::endl;
+        out_file << "namespace " << nspace << " {" << std::endl;
+        out_file << "    enum " << name << " {" << std::endl;
 
         for (auto node = elem.second.values; node != nullptr; node = node->next) {
             if (node->name == nullptr) {
@@ -970,18 +969,18 @@ void ObjectExplorer::populateEnums() {
             }
 
             spdlog::info("     {} = {}", node->name, node->value);
-            outFile << "        " << node->name << " = " << node->value << "," << std::endl;
+            out_file << "        " << node->name << " = " << node->value << "," << std::endl;
 
             m_enums.emplace(elem.second.name, EnumDescriptor{ node->name, node->value });
         }
 
-        outFile << "    };" << std::endl;
-        outFile << "}" << std::endl;
+        out_file << "    };" << std::endl;
+        out_file << "}" << std::endl;
     }
 }
 
-std::string ObjectExplorer::getEnumValueName(std::string_view enumName, int64_t value) {
-    auto values = m_enums.equal_range(enumName.data());
+std::string ObjectExplorer::get_enum_value_name(std::string_view enum_name, int64_t value) {
+    auto values = m_enums.equal_range(enum_name.data());
 
     for (auto i = values.first; i != values.second; ++i) {
         if (i->second.value == value) {
@@ -992,12 +991,12 @@ std::string ObjectExplorer::getEnumValueName(std::string_view enumName, int64_t 
     return "";
 }
 
-REType* ObjectExplorer::getType(std::string_view typeName) {
-    if (typeName.empty()) {
+REType* ObjectExplorer::get_type(std::string_view type_name) {
+    if (type_name.empty()) {
         return nullptr;
     }
 
-    if (auto i = m_types.find(typeName.data()); i != m_types.end()) {
+    if (auto i = m_types.find(type_name.data()); i != m_types.end()) {
         return i->second;
     }
 

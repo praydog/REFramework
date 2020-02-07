@@ -19,16 +19,16 @@ public:
     // if you need to remove the hook.
     bool remove();
 
-    auto getOriginal() const {
+    auto get_original() const {
         return m_original;
     }
 
     template <typename T>
-    T* getOriginal() const {
+    T* get_original() const {
         return (T*)m_original;
     }
 
-    auto isValid() const {
+    auto is_valid() const {
         return m_original != 0;
     }
 

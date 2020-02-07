@@ -9,7 +9,7 @@ std::unique_ptr<Patch> Patch::create(uintptr_t addr, const std::vector<int16_t>&
 }
 
 
-std::unique_ptr<Patch> Patch::createNOP(uintptr_t addr, uint32_t length, bool shouldEnable) {
+std::unique_ptr<Patch> Patch::create_nop(uintptr_t addr, uint32_t length, bool shouldEnable) {
     std::vector<decltype(m_bytes)::value_type> bytes; bytes.resize(length);
     std::fill(bytes.begin(), bytes.end(), 0x90);
 
@@ -64,12 +64,12 @@ Patch::~Patch() {
 
 bool Patch::enable() {
     // Backup the original bytes.
-    if (m_originalBytes.empty()) {
-        m_originalBytes.resize(m_bytes.size());
+    if (m_original_bytes.empty()) {
+        m_original_bytes.resize(m_bytes.size());
 
         unsigned int count = 0;
 
-        for (auto& byte : m_originalBytes) {
+        for (auto& byte : m_original_bytes) {
             byte = *(uint8_t*)(m_address + count++);
         }
     }
@@ -78,7 +78,7 @@ bool Patch::enable() {
 }
 
 bool Patch::disable() {
-    return !(m_enabled = !patch(m_address, m_originalBytes));
+    return !(m_enabled = !patch(m_address, m_original_bytes));
 }
 
 bool Patch::toggle() {

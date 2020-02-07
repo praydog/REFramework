@@ -20,12 +20,12 @@ Mods::Mods()
 #endif
 }
 
-std::optional<std::string> Mods::onInitialize() const {
+std::optional<std::string> Mods::on_initialize() const {
     for (auto& mod : m_mods) {
-        spdlog::info("{:s}::onInitialize()", mod->getName().data());
+        spdlog::info("{:s}::on_initialize()", mod->get_name().data());
 
-        if (auto e = mod->onInitialize(); e != std::nullopt) {
-            spdlog::info("{:s}::onInitialize() has failed: {:s}", mod->getName().data(), *e);
+        if (auto e = mod->on_initialize(); e != std::nullopt) {
+            spdlog::info("{:s}::on_initialize() has failed: {:s}", mod->get_name().data(), *e);
             return e;
         }
     }
@@ -33,22 +33,22 @@ std::optional<std::string> Mods::onInitialize() const {
     utility::Config cfg{ "re2_fw_config.txt" };
 
     for (auto& mod : m_mods) {
-        spdlog::info("{:s}::onConfigLoad()", mod->getName().data());
-        mod->onConfigLoad(cfg);
+        spdlog::info("{:s}::on_config_load()", mod->get_name().data());
+        mod->on_config_load(cfg);
     }
 
     return std::nullopt;
 }
 
-void Mods::onFrame() const {
+void Mods::on_frame() const {
     for (auto& mod : m_mods) {
-        mod->onFrame();
+        mod->on_frame();
     }
 }
 
-void Mods::onDrawUI() const {
+void Mods::on_draw_ui() const {
     for (auto& mod : m_mods) {
-        mod->onDrawUI();
+        mod->on_draw_ui();
     }
 }
 

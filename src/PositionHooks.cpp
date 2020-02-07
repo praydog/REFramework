@@ -10,8 +10,8 @@ PositionHooks::PositionHooks() {
     g_hook = this;
 }
 
-std::optional<std::string> PositionHooks::onInitialize() {
-    auto game = g_framework->getModule().as<HMODULE>();
+std::optional<std::string> PositionHooks::on_initialize() {
+    auto game = g_framework->get_module().as<HMODULE>();
 
     // The 48 8B 4D 40 bit might change.
     // Version 1.0 jmp stub: game+0x1dc7de0
@@ -19,41 +19,41 @@ std::optional<std::string> PositionHooks::onInitialize() {
     //auto updateTransformCall = utility::scan(game, "E8 ? ? ? ? 48 8B 5B ? 48 85 DB 75 ? 48 8B 4D 40 48 31 E1");
 
     // Version 2 Dec 17th, 2019 (works on old version too) game.exe+0x1DD3FF0
-    auto updateTransformCall = utility::scan(game, "E8 ? ? ? ? 48 8B 5B ? 48 85 DB 75 ? 48 8B 4D 40 48 ? ?");
+    auto update_transform_call = utility::scan(game, "E8 ? ? ? ? 48 8B 5B ? 48 85 DB 75 ? 48 8B 4D 40 48 ? ?");
 
-    if (!updateTransformCall) {
+    if (!update_transform_call) {
         return "Unable to find UpdateTransform pattern.";
     }
 
-    auto updateTransform = utility::calculateAbsolute(*updateTransformCall + 1);
-    spdlog::info("UpdateTransform: {:x}", updateTransform);
+    auto update_transform = utility::calculate_absolute(*update_transform_call + 1);
+    spdlog::info("UpdateTransform: {:x}", update_transform);
 
     // Can be found by breakpointing RETransform's worldTransform
-    m_updateTransformHook = std::make_unique<FunctionHook>(updateTransform, &updateTransformHook);
+    m_update_transform_hook = std::make_unique<FunctionHook>(update_transform, &update_transform_hook);
 
-    if (!m_updateTransformHook->create()) {
+    if (!m_update_transform_hook->create()) {
         return "Failed to hook UpdateTransform";
     }
 
     // Version 1.0 jmp stub: game+0xB4685A0
     // Version 1
-    /*auto updateCameraControllerCall = utility::scan(game, "75 ? 48 89 FA 48 89 D9 E8 ? ? ? ? 48 8B 43 50 48 83 78 18 00 75 ? 45 89");
+    /*auto updatecamera_controllerCall = utility::scan(game, "75 ? 48 89 FA 48 89 D9 E8 ? ? ? ? 48 8B 43 50 48 83 78 18 00 75 ? 45 89");
 
-    if (!updateCameraControllerCall) {
-        return "Unable to find UpdateCameraController pattern.";
+    if (!updatecamera_controllerCall) {
+        return "Unable to find Updatecamera_controller pattern.";
     }
 
-    auto updateCameraController = utility::calculateAbsolute(*updateCameraControllerCall + 9);*/
+    auto updatecamera_controller = utility::calculate_absolute(*updatecamera_controllerCall + 9);*/
 
     // Version 2 Dec 17th, 2019 game.exe+0x7CF690 (works on old version too)
-    auto updateCameraController = utility::scan(game, "40 55 56 57 48 8D AC 24 ? ? ? ? 48 81 EC ? ? 00 00 48 8B 41 50");
+    auto update_camera_controller = utility::scan(game, "40 55 56 57 48 8D AC 24 ? ? ? ? 48 81 EC ? ? 00 00 48 8B 41 50");
 
-    spdlog::info("UpdateCameraController: {:x}", *updateCameraController);
+    spdlog::info("UpdateCameraController: {:x}", *update_camera_controller);
 
     // Can be found by breakpointing camera controller's worldPosition
-    m_updateCameraControllerHook = std::make_unique<FunctionHook>(*updateCameraController, &updateCameraControllerHook);
+    m_update_camera_controller_hook = std::make_unique<FunctionHook>(*update_camera_controller, &update_camera_controller_hook);
 
-    if (!m_updateCameraControllerHook->create()) {
+    if (!m_update_camera_controller_hook->create()) {
         return "Failed to hook UpdateCameraController";
     }
 
@@ -61,95 +61,95 @@ std::optional<std::string> PositionHooks::onInitialize() {
     // Version 1.0 function: game+0xB436230
     
     // Version 1
-    //auto updateCameraController2 = utility::scan(game, "40 53 57 48 81 ec ? ? ? ? 48 8b 41 ? 48 89 d7 48 8b 92 ? ? 00 00");
+    //auto updatecamera_controller2 = utility::scan(game, "40 53 57 48 81 ec ? ? ? ? 48 8b 41 ? 48 89 d7 48 8b 92 ? ? 00 00");
     // Version 2 Dec 17th, 2019 game.exe+0x6CD9C0 (works on old version too)
-    auto updateCameraController2 = utility::scan(game, "40 53 57 48 81 EC ? ? ? ? 48 ? ? ? 48 ? ? 48 ? ? ? ? 00 00");
+    auto update_camera_controller2 = utility::scan(game, "40 53 57 48 81 EC ? ? ? ? 48 ? ? ? 48 ? ? 48 ? ? ? ? 00 00");
 
-    if (!updateCameraController2) {
+    if (!update_camera_controller2) {
         return "Unable to find UpdateCameraController2 pattern.";
     }
 
-    spdlog::info("UpdateCameraController2: {:x}", *updateCameraController2);
+    spdlog::info("Updatecamera_controller2: {:x}", *update_camera_controller2);
 
     // Can be found by breakpointing camera controller's worldRotation
-    m_updateCameraController2Hook = std::make_unique<FunctionHook>(*updateCameraController2, &updateCameraController2Hook);
+    m_update_camera_controller2_hook = std::make_unique<FunctionHook>(*update_camera_controller2, &update_camera_controller2_hook);
 
-    if (!m_updateCameraController2Hook->create()) {
-        return "Failed to hook UpdateCameraController2";
+    if (!m_update_camera_controller2_hook->create()) {
+        return "Failed to hook Updatecamera_controller2";
     }
 
-    return Mod::onInitialize();
+    return Mod::on_initialize();
 }
 
-void* PositionHooks::updateTransformHook_Internal(RETransform* t, uint8_t a2, uint32_t a3) {
-    if (!g_framework->isReady()) {
-        return m_updateTransformHook->getOriginal<decltype(updateTransformHook)>()(t, a2, a3);
+void* PositionHooks::update_transform_hook_internal(RETransform* t, uint8_t a2, uint32_t a3) {
+    if (!g_framework->is_ready()) {
+        return m_update_transform_hook->get_original<decltype(update_transform_hook)>()(t, a2, a3);
     }
 
-    auto& mods = g_framework->getMods()->getMods();
+    auto& mods = g_framework->get_mods()->get_mods();
 
     for (auto& mod : mods) {
-        mod->onPreUpdateTransform(t);
+        mod->on_pre_update_transform(t);
     }
 
-    auto ret = m_updateTransformHook->getOriginal<decltype(updateTransformHook)>()(t, a2, a3);
+    auto ret = m_update_transform_hook->get_original<decltype(update_transform_hook)>()(t, a2, a3);
 
     for (auto& mod : mods) {
-        mod->onUpdateTransform(t);
+        mod->on_update_transform(t);
     }
 
     return ret;
 }
 
-void* PositionHooks::updateTransformHook(RETransform* t, uint8_t a2, uint32_t a3) {
-    return g_hook->updateTransformHook_Internal(t, a2, a3);
+void* PositionHooks::update_transform_hook(RETransform* t, uint8_t a2, uint32_t a3) {
+    return g_hook->update_transform_hook_internal(t, a2, a3);
 }
 
-void* PositionHooks::updateCameraControllerHook_Internal(void* a1, RopewayPlayerCameraController* cameraController) {
-    if (!g_framework->isReady()) {
-        return m_updateCameraControllerHook->getOriginal<decltype(updateCameraControllerHook)>()(a1, cameraController);
+void* PositionHooks::update_camera_controller_hook_internal(void* a1, RopewayPlayerCameraController* camera_controller) {
+    if (!g_framework->is_ready()) {
+        return m_update_camera_controller_hook->get_original<decltype(update_camera_controller_hook)>()(a1, camera_controller);
     }
 
-    auto& mods = g_framework->getMods()->getMods();
+    auto& mods = g_framework->get_mods()->get_mods();
 
     for (auto& mod : mods) {
-        mod->onPreUpdateCameraController(cameraController);
+        mod->on_pre_update_camera_controller(camera_controller);
     }
 
-    auto ret = m_updateCameraControllerHook->getOriginal<decltype(updateCameraControllerHook)>()(a1, cameraController);
+    auto ret = m_update_camera_controller_hook->get_original<decltype(update_camera_controller_hook)>()(a1, camera_controller);
 
     for (auto& mod : mods) {
-        mod->onUpdateCameraController(cameraController);
+        mod->on_update_camera_controller(camera_controller);
     }
 
     return ret;
 }
 
-void* PositionHooks::updateCameraControllerHook(void* a1, RopewayPlayerCameraController* cameraController) {
-    return g_hook->updateCameraControllerHook_Internal(a1, cameraController);
+void* PositionHooks::update_camera_controller_hook(void* a1, RopewayPlayerCameraController* camera_controller) {
+    return g_hook->update_camera_controller_hook_internal(a1, camera_controller);
 }
 
-void* PositionHooks::updateCameraController2Hook_Internal(void* a1, RopewayPlayerCameraController* cameraController) {
-    if (!g_framework->isReady()) {
-        return m_updateCameraController2Hook->getOriginal<decltype(updateCameraController2Hook)>()(a1, cameraController);
+void* PositionHooks::update_camera_controller2_hook_internal(void* a1, RopewayPlayerCameraController* camera_controller) {
+    if (!g_framework->is_ready()) {
+        return m_update_camera_controller2_hook->get_original<decltype(update_camera_controller2_hook)>()(a1, camera_controller);
     }
 
-    auto& mods = g_framework->getMods()->getMods();
+    auto& mods = g_framework->get_mods()->get_mods();
 
     for (auto& mod : mods) {
-        mod->onPreUpdateCameraController2(cameraController);
+        mod->on_pre_update_camera_controller2(camera_controller);
     }
 
-    auto ret = m_updateCameraController2Hook->getOriginal<decltype(updateCameraController2Hook)>()(a1, cameraController);
+    auto ret = m_update_camera_controller2_hook->get_original<decltype(update_camera_controller2_hook)>()(a1, camera_controller);
 
     for (auto& mod : mods) {
-        mod->onUpdateCameraController2(cameraController);
+        mod->on_update_camera_controller2(camera_controller);
     }
 
     return ret;
 }
 
-void* PositionHooks::updateCameraController2Hook(void* a1, RopewayPlayerCameraController* cameraController) {
-    return g_hook->updateCameraController2Hook_Internal(a1, cameraController);
+void* PositionHooks::update_camera_controller2_hook(void* a1, RopewayPlayerCameraController* camera_controller) {
+    return g_hook->update_camera_controller2_hook_internal(a1, camera_controller);
 }
 

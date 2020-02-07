@@ -16,23 +16,23 @@ public:
     DInputHook(HWND wnd);
     virtual ~DInputHook();
 
-    void ignoreInput() {
-        m_isIgnoringInput = true;
+    void ignore_input() {
+        m_is_ignoring_input = true;
     }
 
-    void acknowledgeInput() {
-        m_isIgnoringInput = false;
+    void acknowledge_input() {
+        m_is_ignoring_input = false;
     }
 
-    auto isIgnoringInput() const {
-        return m_isIgnoringInput;
+    auto is_ignoring_input() const {
+        return m_is_ignoring_input;
     }
 
-    auto isValid() const {
-        return m_getDeviceStateHook->isValid();
+    auto is_valid() const {
+        return m_get_device_state_hook->is_valid();
     }
 
-    void setWindow(HWND wnd) {
+    void set_window(HWND wnd) {
         m_wnd = wnd;
     }
 
@@ -42,13 +42,13 @@ public:
 private:
     HWND m_wnd;
 
-    std::unique_ptr<FunctionHook> m_getDeviceStateHook;
+    std::unique_ptr<FunctionHook> m_get_device_state_hook;
 
-    bool m_isIgnoringInput;
-    bool m_doOnce;
+    bool m_is_ignoring_input;
+    bool m_do_once;
 
     bool hook();
 
-    HRESULT getDeviceState_Internal(IDirectInputDevice* device, DWORD size, LPVOID data);
-    static HRESULT WINAPI getDeviceState(IDirectInputDevice* device, DWORD size, LPVOID data);
+    HRESULT get_device_state_internal(IDirectInputDevice* device, DWORD size, LPVOID data);
+    static HRESULT WINAPI get_device_state(IDirectInputDevice* device, DWORD size, LPVOID data);
 };

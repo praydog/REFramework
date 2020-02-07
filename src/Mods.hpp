@@ -7,12 +7,12 @@ public:
     Mods();
     virtual ~Mods() {}
 
-    std::optional<std::string> onInitialize() const;
+    std::optional<std::string> on_initialize() const;
 
-    void onFrame() const;
-    void onDrawUI() const;
+    void on_frame() const;
+    void on_draw_ui() const;
 
-    const auto& getMods() const {
+    const auto& get_mods() const {
         return m_mods;
     }
 

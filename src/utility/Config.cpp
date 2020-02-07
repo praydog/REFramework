@@ -8,7 +8,7 @@ using namespace std;
 
 namespace utility {
     Config::Config(const string& filePath)
-        : m_keyValues{}
+        : m_key_values{}
     {
         if (!filePath.empty()) {
             load(filePath);
@@ -47,7 +47,7 @@ namespace utility {
             return false;
         }
 
-        for (auto& keyValue : m_keyValues) {
+        for (auto& keyValue : m_key_values) {
             f << keyValue.first << "=" << keyValue.second << endl;
         }
 
@@ -55,9 +55,9 @@ namespace utility {
     }
 
     optional<string> Config::get(const string& key) const {
-        auto search = m_keyValues.find(key);
+        auto search = m_key_values.find(key);
 
-        if (search == m_keyValues.end()) {
+        if (search == m_key_values.end()) {
             return {};
         }
 
@@ -66,7 +66,7 @@ namespace utility {
 
     void Config::set(const string& key, const string& value) {
         if (!key.empty() && !value.empty()) {
-            m_keyValues[key] = value;
+            m_key_values[key] = value;
         }
     }
 }

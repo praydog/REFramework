@@ -12,16 +12,16 @@ public:
     RETypes();
     virtual ~RETypes() {};
 
-    const auto& getRawTypes() const {
-        return m_rawTypes;
+    const auto& get_raw_types() const {
+        return m_raw_types;
     }
 
-    const auto& getTypesSet() const {
+    const auto& get_types_set() const {
         return m_types;
     }
 
-    const auto& getTypes() const {
-        return m_typeList;
+    const auto& get_types() const {
+        return m_type_list;
     }
 
     // Equivalent
@@ -34,21 +34,21 @@ public:
     }
 
     // Lock a mutex and then refresh the map.
-    void safeRefresh();
+    void safe_refresh();
 
 private:
-    void refreshMap();
+    void refresh_map();
 
-    TypeList* m_rawTypes{ nullptr };
+    TypeList* m_raw_types{ nullptr };
 
     // Class name to object like "app.foo.bar" -> 0xDEADBEEF
-    std::unordered_map<std::string, REType*> m_typeMap;
+    std::unordered_map<std::string, REType*> m_type_map;
 
     // Raw list of objects (for if the type hasn't been fully initialized, we need to refresh the map)
     std::unordered_set<REType*> m_types;
-    std::vector<REType*> m_typeList;
+    std::vector<REType*> m_type_list;
     // List of objects we've already logged
-    std::unordered_set<REType*> m_acknowledgedTypes;
+    std::unordered_set<REType*> m_acknowledged_types;
 
-    std::mutex m_mapMutex{};
+    std::mutex m_map_mutex{};
 };

@@ -6,41 +6,41 @@
 #include "utility/String.hpp"
 #include "ReClass.hpp"
 
-namespace utility::REString {
-    static std::wstring_view getView(const ::REString& str) {
+namespace utility::re_string {
+    static std::wstring_view get_view(const ::REString& str) {
         auto length = str.length;
 
         if (length <= 0) {
             return L"";
         }
 
-        std::wstring_view rawName;
+        std::wstring_view raw_name;
 
         if (length >= 12) {
-            auto namePtr = *(wchar_t**)&str;
+            auto name_ptr = *(wchar_t**)&str;
 
-            if (namePtr == nullptr) {
+            if (name_ptr == nullptr) {
                 return L"";
             }
 
-            rawName = namePtr;
+            raw_name = name_ptr;
         }
         else {
             if (length <= 0) {
                 return L"";
             }
 
-            rawName = (wchar_t*)&str;
+            raw_name = (wchar_t*)&str;
         }
 
-        return rawName;
+        return raw_name;
     }
 
-    static std::string getString(const ::REString& str) {
-        return utility::narrow(getView(str));
+    static std::string get_string(const ::REString& str) {
+        return utility::narrow(get_view(str));
     }
 
     static bool equals(const ::REString& str, std::wstring_view view) {
-        return getView(str) == view;
+        return get_view(str) == view;
     }
 }

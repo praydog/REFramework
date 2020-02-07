@@ -2,8 +2,8 @@
 
 #include "ReClass.hpp"
 
-namespace utility::RopewaySweetLightManager {
-    static RopewaySweetLightManagerContext* getContext(::RopewaySweetLightManager* mgr, int32_t index) {
+namespace utility::ropeway_sweetlight_manager {
+    static RopewaySweetLightManagerContext* get_context(::RopewaySweetLightManager* mgr, int32_t index) {
         if (mgr == nullptr) {
             return nullptr;
         }

@@ -12,12 +12,12 @@ public:
     REGlobals();
     virtual ~REGlobals() {};
 
-    const auto& getObjectsSet() const {
+    const auto& get_objects_set() const {
         return m_objects;
     }
 
-    const auto& getObjects() const {
-        return m_objectList;
+    const auto& get_objects() const {
+        return m_object_list;
     }
 
     // Equivalent
@@ -30,19 +30,19 @@ public:
     }
 
     // Lock a mutex and then refresh the map.
-    void safeRefresh();
+    void safe_refresh();
 
 private:
-    void refreshMap();
+    void refresh_map();
 
     // Class name to object like "app.foo.bar" -> 0xDEADBEEF
-    std::unordered_map<std::string, REManagedObject**> m_objectMap;
+    std::unordered_map<std::string, REManagedObject**> m_object_map;
 
     // Raw list of objects (for if the type hasn't been fully initialized, we need to refresh the map)
     std::unordered_set<REManagedObject**> m_objects;
-    std::vector<REManagedObject**> m_objectList;
+    std::vector<REManagedObject**> m_object_list;
     // List of objects we've already logged
-    std::unordered_set<REManagedObject**> m_acknowledgedObjects;
+    std::unordered_set<REManagedObject**> m_acknowledged_objects;
 
-    std::mutex m_mapMutex{};
+    std::mutex m_map_mutex{};
 };
