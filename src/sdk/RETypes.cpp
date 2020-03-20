@@ -6,6 +6,15 @@
 #include "REFramework.hpp"
 #include "RETypes.hpp"
 
+std::string game_namespace(std::string_view base_name)
+{
+#ifdef RE3
+    return std::string{ "offline." } + base_name.data();
+#else
+    return std::string{ "app.ropeway." } + base_name.data();
+#endif
+}
+
 RETypes::RETypes() {
     spdlog::info("RETypes initialization");
 
@@ -13,7 +22,7 @@ RETypes::RETypes() {
     auto ref = utility::scan(mod, "48 8d 0d ? ? ? ? e8 ? ? ? ? 48 8d 05 ? ? ? ? 48 89 03");
 
     spdlog::info("Ref: {:x}", (uintptr_t)*ref);
-
+    //
     m_raw_types = (TypeList*)(utility::calculate_absolute(*ref + 3));
     spdlog::info("TypeList: {:x}", (uintptr_t)m_raw_types);
 
@@ -26,7 +35,7 @@ RETypes::RETypes() {
         if (t == nullptr || IsBadReadPtr(t, sizeof(REType)) || ((uintptr_t)t & (sizeof(void*) - 1)) != 0) {
             continue;
         }
-
+        //
         if (t->name == nullptr) {
             continue;
         }

@@ -6,6 +6,8 @@
 
 #include "ReClass.hpp"
 
+std::string game_namespace(std::string_view base_name);
+
 // A list of types in the RE engine
 class RETypes {
 public:

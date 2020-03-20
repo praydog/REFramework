@@ -95,7 +95,7 @@ void REGlobals::refresh_map() {
 
         if (m_acknowledged_objects.find(obj_ptr) == m_acknowledged_objects.end()) {
 #ifdef DEVELOPER
-            spdlog::info("{:x}->{:x} ({:s})", (uintptr_t)objPtr, (uintptr_t)*objPtr, t->name);
+            spdlog::info("{:x}->{:x} ({:s})", (uintptr_t)obj_ptr, (uintptr_t)*obj_ptr, t->name);
 #endif
             m_acknowledged_objects.insert(obj_ptr);
         }

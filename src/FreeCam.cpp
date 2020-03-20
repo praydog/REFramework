@@ -119,9 +119,9 @@ void FreeCam::on_update_transform(RETransform* transform) {
 bool FreeCam::update_pointers() {
     if (m_camera_system == nullptr || m_input_system == nullptr || m_survivor_manager == nullptr) {
         auto& globals = *g_framework->get_globals();
-        m_camera_system = globals.get<RopewayCameraSystem>("app.ropeway.camera.CameraSystem");
-        m_input_system = globals.get<RopewayInputSystem>("app.ropeway.InputSystem");
-        m_survivor_manager = globals.get<RopewaySurvivorManager>("app.ropeway.SurvivorManager");
+        m_camera_system = globals.get<RopewayCameraSystem>(game_namespace("camera.CameraSystem"));
+        m_input_system = globals.get<RopewayInputSystem>(game_namespace("InputSystem"));
+        m_survivor_manager = globals.get<RopewaySurvivorManager>(game_namespace("SurvivorManager"));
         return false;
     }
 

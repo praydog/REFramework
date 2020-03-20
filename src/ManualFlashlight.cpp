@@ -37,7 +37,7 @@ void ManualFlashlight::on_update_transform(RETransform* transform) {
     }
 
     if (m_illumination_manager == nullptr) {
-        m_illumination_manager = g_framework->get_globals()->get<RopewayIlluminationManager>("app.ropeway.IlluminationManager");
+        m_illumination_manager = g_framework->get_globals()->get<RopewayIlluminationManager>(game_namespace("IlluminationManager"));
         return;
     }
 

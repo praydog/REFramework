@@ -25,6 +25,7 @@ set(MODS_SRC
 set(SDK_SRC
     sdk/ReClass.hpp
     sdk/ReClass_Internal.hpp
+    sdk/ReClass_Internal_RE3.hpp
     sdk/Enums_Internal.hpp
 
     sdk/REArray.hpp
@@ -103,8 +104,13 @@ include_directories(RE2 ${CMAKE_CURRENT_SOURCE_DIR})
 set_target_properties(RE2 PROPERTIES OUTPUT_NAME dinput8)
 
 option(DEVELOPER_MODE "Adds DeveloperTools option to menu" OFF)
+option(RE3 "RE3 build" OFF)
 
 if(DEVELOPER_MODE)
-target_compile_definitions(RE2 PUBLIC DEVELOPER)
-target_compile_options(RE2 PUBLIC /EHa)
+    target_compile_definitions(RE2 PUBLIC DEVELOPER)
+    target_compile_options(RE2 PUBLIC /EHa)
+endif()
+
+if (RE3)
+    target_compile_definitions(RE2 PUBLIC RE3)
 endif()

@@ -15,6 +15,11 @@ FirstPerson::FirstPerson() {
     g_first_person = this;
     m_attach_bone_imgui.reserve(256);
 
+#ifdef RE3
+    // Jill (it looks better with 0?)
+    m_attach_offsets["pl2000"] = Vector4f{ 0.0f, 0.0f, 0.0f, 0.0f };
+    //m_attach_offsets["pl2000"] = Vector4f{ -0.23f, 0.4f, 1.0f, 0.0f };
+#else
     // Specific player model configs
     // Leon
     m_attach_offsets["pl0000"] = Vector4f{ -0.26f, 0.435f, 1.0f, 0.0f };
@@ -30,6 +35,7 @@ FirstPerson::FirstPerson() {
     m_attach_offsets["pl5600"] = Vector4f{ -0.316, 0.556f, 1.02f, 0.0f };
     // Elizabeth
     m_attach_offsets["pl6400"] = Vector4f{ -0.316, 0.466f, 0.79f, 0.0f };
+#endif
 }
 
 std::optional<std::string> FirstPerson::on_initialize() {
@@ -59,9 +65,9 @@ void FirstPerson::on_frame() {
         m_camera_system == nullptr || m_camera_system->ownerGameObject == nullptr || m_sweet_light_manager == nullptr || m_sweet_light_manager->ownerGameObject == nullptr) 
     {
         auto& globals = *g_framework->get_globals();
-        m_sweet_light_manager = globals.get<RopewaySweetLightManager>("app.ropeway.SweetLightManager");
-        m_camera_system = globals.get<RopewayCameraSystem>("app.ropeway.camera.CameraSystem");
-        m_post_effect_controller = globals.get<RopewayPostEffectController>("app.ropeway.posteffect.PostEffectController");
+        m_sweet_light_manager = globals.get<RopewaySweetLightManager>(game_namespace("SweetLightManager"));
+        m_camera_system = globals.get<RopewayCameraSystem>(game_namespace("camera.CameraSystem"));
+        m_post_effect_controller = globals.get<RopewayPostEffectController>(game_namespace("posteffect.PostEffectController"));
 
         reset();
         return;
@@ -249,6 +255,16 @@ void FirstPerson::on_update_camera_controller(RopewayPlayerCameraController* con
         return;
     }
 
+#ifdef RE3
+    // Just update the FOV in here. Whatever.
+    update_fov(controller);
+
+    // Save the original position and rotation before our modifications.
+    // If we don't, the camera rotation will freeze up, because it keeps getting overwritten.
+    m_last_controller_pos = controller->worldPosition;
+    m_last_controller_rotation = *(glm::quat*)&controller->worldRotation;
+#endif
+
     // The following code fixes inaccuracies between the rotation set by the game and what's set in updateCameraTransform
     controller->worldPosition = m_last_camera_matrix[3];
     *(glm::quat*)&controller->worldRotation = glm::quat{ m_last_camera_matrix };
@@ -286,7 +302,7 @@ void FirstPerson::reset() {
 void FirstPerson::set_vignette(via::render::ToneMapping::Vignetting value) {
     // Assign tone mapping controller
     if (m_tone_mapping_controller == nullptr && m_post_effect_controller != nullptr) {
-        m_tone_mapping_controller = utility::re_component::find<RopewayPostEffectControllerBase>(m_post_effect_controller, "app.ropeway.posteffect.ToneMapController");
+        m_tone_mapping_controller = utility::re_component::find<RopewayPostEffectControllerBase>(m_post_effect_controller, game_namespace("posteffect.ToneMapController"));
     }
 
     if (m_tone_mapping_controller == nullptr) {
