@@ -5,6 +5,7 @@
 
 #include "utility/Scan.hpp"
 #include "REFramework.hpp"
+#include "sdk/REMath.hpp"
 
 #include "FirstPerson.hpp"
 
@@ -100,6 +101,7 @@ void FirstPerson::on_draw_ui() {
 
     ImGui::SameLine();
     m_rotate_mesh->draw("Force Rotate Joint");
+    m_rotate_body->draw("Rotate Body");
 
     if (m_disable_vignette->draw("Disable Vignette") && m_disable_vignette->value() == false) {
         set_vignette(via::render::ToneMapping::Vignetting::KerarePlus);
@@ -125,6 +127,8 @@ void FirstPerson::on_draw_ui() {
         m_current_fov->value() = m_camera_system->cameraController->activeCamera->fov;
         m_current_fov->draw("CurrentFOV");
     }
+
+    m_body_rotate_speed->draw("BodyRotateSpeed");
 
     if (ImGui::InputText("Joint", m_attach_bone_imgui.data(), 256)) {
         m_attach_bone = std::wstring{ std::begin(m_attach_bone_imgui), std::end(m_attach_bone_imgui) };
@@ -161,6 +165,7 @@ void FirstPerson::on_config_save(utility::Config& cfg) {
 
 thread_local bool g_in_player_transform = false;
 thread_local bool g_first_time = true;
+thread_local glm::quat g_old_rotation{};
 
 void FirstPerson::on_pre_update_transform(RETransform* transform) {
     if (!m_enabled->value() || m_camera == nullptr || m_camera->ownerGameObject == nullptr) {
@@ -171,22 +176,36 @@ void FirstPerson::on_pre_update_transform(RETransform* transform) {
         return;
     }
 
-    // can change to action camera
-    if (!m_show_in_cutscenes->value() && m_camera_system->cameraController != m_player_camera_controller) {
-        return;
-    }
-
     // We need to lock a mutex because these UpdateTransform functions
     // are called from multiple threads
     if (transform == m_player_transform) {
+        if (!is_first_person_allowed()) {
+            return;
+        }
+
         g_in_player_transform = true;
         g_first_time = true;
         m_matrix_mutex.lock();
+
+        // Update this beforehand so we don't see the player's head disappear when using the inventory
+        m_last_camera_type = utility::re_managed_object::get_field<app::ropeway::camera::CameraControlType>(m_camera_system, "BusyCameraType");
+        m_cached_bone_matrix = nullptr;
+
+        update_player_transform(m_player_transform);
     }
     // This is because UpdateTransform recursively calls UpdateTransform on its children,
     // and the player transform (topmost) is the one that actually updates the bone matrix,
     // and all the child transforms operate on the bones that it updated
     else if (g_in_player_transform) {
+        if (!is_first_person_allowed()) {
+            return;
+        }
+
+        /*if (g_first_time) {
+            g_old_rotation = *(glm::quat*)&m_player_transform->angles;
+        }*/
+
+        //update_player_transform(m_player_transform);
         update_player_bones(m_player_transform);
     }
 }
@@ -194,7 +213,17 @@ void FirstPerson::on_pre_update_transform(RETransform* transform) {
 void FirstPerson::on_update_transform(RETransform* transform) {
     // Do this first before anything else.
     if (g_in_player_transform && transform == m_player_transform) {
+        // By also updating this in here, it fixes the out of sync issue sometimes seen for one frame
+        // where the player body appears slightly ahead of the camera
+        // This should especially help with frametime fluctuations
+        if (m_camera_system != nullptr && m_camera_system->mainCamera != nullptr && m_camera_system->mainCamera->ownerGameObject != nullptr) {
+            update_camera_transform(m_camera_system->mainCamera->ownerGameObject->transform);
+        }
+
         update_joint_names();
+        //update_player_transform(transform);
+
+        //transform->angles = *(Vector4f*)&g_old_rotation;
 
         g_in_player_transform = false;
         m_matrix_mutex.unlock();
@@ -236,11 +265,6 @@ void FirstPerson::on_update_transform(RETransform* transform) {
     }
 
     if (transform == m_camera_system->mainCamera->ownerGameObject->transform) {
-        // Don't mess with the camera if we're in a cutscene
-        if (!m_show_in_cutscenes->value() && m_camera_system->cameraController != m_player_camera_controller) {
-            return;
-        }
-
         update_camera_transform(transform);
         update_fov(m_camera_system->cameraController);
     }
@@ -251,23 +275,13 @@ void FirstPerson::on_update_camera_controller(RopewayPlayerCameraController* con
         return;
     }
 
-    if (!m_show_in_cutscenes->value() && m_camera_system->cameraController != m_player_camera_controller) {
+    if (!is_first_person_allowed()) {
         return;
     }
 
-#ifdef RE3
-    // Just update the FOV in here. Whatever.
-    update_fov(controller);
-
-    // Save the original position and rotation before our modifications.
-    // If we don't, the camera rotation will freeze up, because it keeps getting overwritten.
-    m_last_controller_pos = controller->worldPosition;
-    m_last_controller_rotation = *(glm::quat*)&controller->worldRotation;
-#endif
-
     // The following code fixes inaccuracies between the rotation set by the game and what's set in updateCameraTransform
     controller->worldPosition = m_last_camera_matrix[3];
-    *(glm::quat*)&controller->worldRotation = glm::quat{ m_last_camera_matrix };
+    *(glm::quat*)&controller->worldRotation = glm::quat{ m_last_camera_matrix  };
 
     m_camera->ownerGameObject->transform->worldTransform = m_last_camera_matrix;
     m_camera->ownerGameObject->transform->angles = *(Vector4f*)&controller->worldRotation;
@@ -281,10 +295,26 @@ void FirstPerson::on_update_camera_controller2(RopewayPlayerCameraController* co
     // Just update the FOV in here. Whatever.
     update_fov(controller);
 
-    // Save the original position and rotation before our modifications.
-    // If we don't, the camera rotation will freeze up, because it keeps getting overwritten.
+    if (m_camera_system->cameraController == m_player_camera_controller) {
+        if (m_ignore_next_player_angles) {
+            // keep ignoring player input until no longer switching cameras
+            if (m_ignore_next_player_angles && !utility::re_managed_object::get_field<bool>(m_camera_system->mainCameraController, "SwitchingCamera")) {
+                m_ignore_next_player_angles = false;
+            }
+
+            *(glm::quat*)&controller->worldRotation = m_last_controller_rotation;
+            controller->pitch = m_last_controller_angles.x;
+            controller->yaw = m_last_controller_angles.y;
+        }
+        else {
+            m_ignore_next_player_angles = false;
+        }
+
+        m_last_controller_angles = Vector3f{ controller->pitch, controller->yaw, 0.0f };
+    }
+
     m_last_controller_pos = controller->worldPosition;
-    m_last_controller_rotation = *(glm::quat*)&controller->worldRotation;
+    m_last_controller_rotation = *(glm::quat*) & controller->worldRotation;
 }
 
 void FirstPerson::reset() {
@@ -294,6 +324,7 @@ void FirstPerson::reset() {
     m_last_bone_matrix = glm::identity<decltype(m_last_bone_matrix)>();
     m_last_controller_pos = Vector4f{};
     m_last_controller_rotation = glm::quat{};
+    m_cached_bone_matrix = nullptr;
 
     std::lock_guard _{ m_frame_mutex };
     m_attach_names.clear();
@@ -384,8 +415,69 @@ bool FirstPerson::update_pointers_from_camera_system(RopewayCameraSystem* camera
     return true;
 }
 
+void FirstPerson::update_player_transform(RETransform* transform) {
+    if (!m_enabled->value() || m_camera_system == nullptr) {
+        return;
+    }
+
+    // so we don't go spinning everywhere in cutscenes
+    if (m_last_camera_type != app::ropeway::camera::CameraControlType::PLAYER) {
+        return;
+    }
+
+    if (!m_rotate_body->value()) {
+        return;
+    }
+
+    auto& player_matrix = glm::mat4{ *(glm::quat*) & transform->angles };
+
+    auto player_right = *(Vector3f*)&player_matrix[0] * -1.0f;
+    player_right[1] = 0.0f;
+    player_right = glm::normalize(player_right);
+    auto player_forward = *(Vector3f*)&player_matrix[2] * -1.0f;
+    player_forward[1] = 0.0f;
+    player_forward = glm::normalize(player_forward);
+
+    auto camera_matrix = m_last_camera_matrix;
+
+    auto cam_forward3 = *(Vector3f*)&camera_matrix[2];
+
+    // Remove the upwards facing component of the forward vector
+    cam_forward3[1] = 0.0f;
+    cam_forward3 = glm::normalize(cam_forward3);
+
+    auto angle_between = glm::degrees(glm::orientedAngle(player_forward, cam_forward3, Vector3f{ 0.0f, 1.0f, 0.0f }));
+
+    if (std::abs(angle_between) == 0.0f) {
+        return;
+    }
+
+    if (angle_between > 0) {
+        player_right *= -1.0f;
+    }
+
+    auto angle_diff = std::abs(angle_between) / 720.0f;
+    auto diff = (player_forward - player_right) * angle_diff * update_delta_time(transform) * m_body_rotate_speed->value();
+
+    // Create a two-dimensional representation of the forward vector as a rotation matrix
+    auto rot = glm::lookAtRH(Vector3f{}, glm::normalize(player_forward + diff), Vector3f{ 0.0f, 1.0f, 0.0f });
+    camera_matrix = glm::extractMatrixRotation(glm::rowMajor4(rot));
+
+    auto camera_quat = glm::quat{ camera_matrix };
+
+    // Finally rotate the player transform to match the camera in a two-dimensional fashion
+    transform->angles = *(Vector4f*)&camera_quat;
+}
+
 void FirstPerson::update_camera_transform(RETransform* transform) {
     std::lock_guard _{ m_matrix_mutex };
+
+    m_last_camera_type = utility::re_managed_object::get_field<app::ropeway::camera::CameraControlType>(m_camera_system, "BusyCameraType");
+
+    // Don't mess with the camera if we're in a cutscene
+    if (!is_first_person_allowed()) {
+        return;
+    }
 
     auto delta_time = update_delta_time(transform);
 
@@ -401,11 +493,45 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
         0, 0, 0, 1
     };
 
-    auto is_player_camera = m_camera_system->cameraController == m_player_camera_controller;
-    auto bone_scale = is_player_camera ? (m_bone_scale->value() * 0.01f) : 1.0f;
+    const auto is_player_camera = m_last_camera_type == app::ropeway::camera::CameraControlType::PLAYER;
+    const auto is_switching_camera = utility::re_managed_object::get_field<bool>(m_camera_system->mainCameraController, "SwitchingCamera");
+    const auto is_player_in_control = (is_player_camera && !is_switching_camera);
+    const auto is_switching_to_player_camera = is_player_camera && is_switching_camera;
+    //is_player_camera = is_player_camera && !is_switching_camera;
+
+    m_interp_bone_scale = glm::lerp(m_interp_bone_scale, m_bone_scale->value(), std::clamp(delta_time * 0.05f, 0.0f, 1.0f));
+    m_interp_camera_speed = glm::lerp(m_interp_camera_speed, m_camera_scale->value(), std::clamp(delta_time * 0.05f, 0.0f, 1.0f));
+
+    if (is_switching_camera || !is_player_camera) {
+        if (is_switching_camera) {
+            m_interp_camera_speed = 100.0f;
+
+            auto c = m_camera_system->mainCameraController;
+
+            if (is_player_camera) {
+                auto len = c->switchInterpolationTime;
+                
+                if (len == 0.0f) {
+                    len = 1.0f;
+                }
+
+                m_interp_bone_scale = (5.0f / len);
+                //m_interp_bone_scale = 10.0f;
+            }
+            else {
+                m_interp_bone_scale = 100.0f;
+            }
+        }
+        else {
+            m_interp_camera_speed = 100.0f;
+            m_interp_bone_scale = 50.0f;
+        }
+    }
+
+    auto bone_scale = (is_player_in_control || is_switching_to_player_camera) ? (m_interp_bone_scale * 0.01f) : 1.0f;
 
     // Lets camera modification work in cutscenes/action camera etc
-    if (!is_player_camera) {
+    if (!is_player_camera && !is_switching_camera) {
         m_camera_system->mainCameraController->updateCamera = false;
     }
     else {
@@ -434,19 +560,29 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
                + glm::distance(m_interpolated_bone[2], head_rot_mat[2])) / 3.0f;
 
     // interpolate the bone rotation (it's snappy otherwise)
-    m_interpolated_bone = glm::interpolate(m_interpolated_bone, head_rot_mat, delta_time * bone_scale * dist);
+    if (is_player_in_control || is_switching_to_player_camera) {
+        m_interpolated_bone = glm::interpolate(m_interpolated_bone, head_rot_mat, delta_time * bone_scale * dist);
+    }
+    else {
+        m_interpolated_bone = head_rot_mat;
+    }
 
     // Look at where the camera is pointing from the head position
-    cam_rot_mat = glm::extractMatrixRotation(glm::rowMajor4(glm::lookAtLH(final_pos, cam_pos3 + (cam_forward3 * 8192.0f), { 0.0f, 1.0f, 0.0f })));
+    cam_rot_mat = glm::extractMatrixRotation(glm::rowMajor4(glm::lookAtLH(final_pos, cam_pos3 + (cam_forward3 * 8192.0f), Vector3f{ 0.0f, 1.0f, 0.0f })));
     // Follow the bone rotation, but rotate towards where the camera is looking.
     auto wanted_mat = glm::inverse(m_interpolated_bone) * cam_rot_mat;
 
-    // Average the distance to the wanted rotation
-    dist = (glm::distance(m_rotation_offset[0], wanted_mat[0])
-          + glm::distance(m_rotation_offset[1], wanted_mat[1])
-          + glm::distance(m_rotation_offset[2], wanted_mat[2])) / 3.0f;
+    if (is_player_in_control || is_switching_to_player_camera) {
+        // Average the distance to the wanted rotation
+        dist = (glm::distance(m_rotation_offset[0], wanted_mat[0])
+            + glm::distance(m_rotation_offset[1], wanted_mat[1])
+            + glm::distance(m_rotation_offset[2], wanted_mat[2])) / 3.0f;
 
-    m_rotation_offset = glm::interpolate(m_rotation_offset, wanted_mat, delta_time * (m_camera_scale->value() * 0.01f) * dist);
+        m_rotation_offset = glm::interpolate(m_rotation_offset, wanted_mat, delta_time * (m_interp_camera_speed * 0.01f) * dist);
+    }
+    else {
+        m_rotation_offset = wanted_mat;
+    }
 
     auto final_mat = is_player_camera ? (m_interpolated_bone * m_rotation_offset) : m_interpolated_bone;
     auto final_quat = glm::quat{ final_mat };
@@ -460,20 +596,46 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
 
     // Apply the new matrix
     *(Matrix3x4f*)&mtx = final_mat;
-    m_last_camera_matrix = mtx;
+
+    //if (is_player_in_control || !is_player_camera) {
+        m_last_camera_matrix = mtx;
+    //}
 
     // Fixes snappiness after camera switching
-    if (!is_player_camera) {
+    if (!is_player_in_control) {
         m_last_controller_pos = m_camera_system->cameraController->worldPosition;
         m_last_controller_rotation = final_quat;
 
         m_camera_system->mainCameraController->cameraPosition = m_last_controller_pos;
         m_camera_system->mainCameraController->cameraRotation = *(Vector4f*)&final_quat;
 
-        /*m_playerCameraController->ownerGameObject->transform->position = m_lastControllerPos;
-        m_playerCameraController->ownerGameObject->transform->angles = *(Vector4f*)&finalQuat;
-        m_playerCameraController->worldPosition = m_lastControllerPos;
-        m_playerCameraController->worldRotation = *(Vector4f*)&finalQuat;*/
+        //if (!is_switching_to_player_camera) {
+            m_last_controller_angles = utility::math::euler_angles(final_mat);
+        //}
+
+        // These are what control the real rotation, so only set it in a cutscene or something
+        // If we did it all the time, the view would drift constantly
+        //m_camera_system->cameraController->pitch = m_last_controller_angles.x;
+        //m_camera_system->cameraController->yaw = m_last_controller_angles.y;
+
+        if (m_player_camera_controller != nullptr) {
+            m_player_camera_controller->worldPosition = m_camera_system->cameraController->worldPosition;
+            m_player_camera_controller->worldRotation = m_camera_system->cameraController->worldRotation;
+
+            /*if (m_last_camera_type == app::ropeway::camera::CameraControlType::PLAYER) {
+                m_last_controller_angles.z = 0.0f;
+
+                m_last_controller_angles += (prev_angles - m_last_controller_angles) * delta_time;
+            }*/
+
+            // Forces the game to keep the previous angles/rotation we set after exiting a cutscene
+            //if (!is_switching_to_player_camera) {
+                m_player_camera_controller->pitch = m_last_controller_angles.x;
+                m_player_camera_controller->yaw = m_last_controller_angles.y;
+            //}
+
+            m_ignore_next_player_angles = !is_switching_to_player_camera;
+        }
     }
 
     if (transform->joints.size >= 1 && transform->joints.matrices != nullptr) {
@@ -494,12 +656,19 @@ void FirstPerson::update_sweet_light_context(RopewaySweetLightManagerContext* ct
 }
 
 void FirstPerson::update_player_bones(RETransform* transform) {
-    auto& bone_matrix = utility::re_transform::get_joint_matrix(*m_player_transform, m_attach_bone);
-    
     if (g_first_time) {
+        auto& bone_matrix = utility::re_transform::get_joint_matrix(*m_player_transform, m_attach_bone);
+
+        m_cached_bone_matrix = &bone_matrix;
         m_last_bone_matrix = bone_matrix;
         g_first_time = false;
     }
+
+    if (m_cached_bone_matrix == nullptr) {
+        return;
+    }
+
+    auto& bone_matrix = *m_cached_bone_matrix;
 
     // Forcefully rotate the bone to match the camera direction
     if (m_camera_system->cameraController == m_player_camera_controller && m_rotate_mesh->value()) {
@@ -537,24 +706,36 @@ void FirstPerson::update_fov(RopewayPlayerCameraController* controller) {
         return; 
     }
 
-    if (!m_show_in_cutscenes->value() && m_camera_system->cameraController != m_player_camera_controller) {
+    if (!is_first_person_allowed()) {
         return;
     }
 
     if (auto param = controller->cameraParam; param != nullptr) {
         auto new_value = (param->fov * m_fov_mult->value()) + m_fov_offset->value();
 
-        if (m_fov_mult->value() != m_last_fov_mult) {
-            auto prev_value = (param->fov * m_last_fov_mult) + m_fov_offset->value();
-            auto delta = prev_value - new_value;
+        if (m_last_camera_type == app::ropeway::camera::CameraControlType::PLAYER) {
+            if (m_fov_mult->value() != m_last_fov_mult) {
+                auto prev_value = (param->fov * m_last_fov_mult) + m_fov_offset->value();
+                auto delta = prev_value - new_value;
 
-            m_fov_offset->value() += delta;
-            m_camera_system->mainCameraController->mainCamera->fov = (param->fov * m_fov_mult->value()) + m_fov_offset->value();
-            controller->activeCamera->fov = m_camera_system->mainCameraController->mainCamera->fov;
+                m_fov_offset->value() += delta;
+                m_camera_system->mainCameraController->mainCamera->fov = (param->fov * m_fov_mult->value()) + m_fov_offset->value();
+                controller->activeCamera->fov = m_camera_system->mainCameraController->mainCamera->fov;
+            }
+            else {
+                m_camera_system->mainCameraController->mainCamera->fov = new_value;
+                controller->activeCamera->fov = m_camera_system->mainCameraController->mainCamera->fov;
+            }
+
+            m_last_player_fov = controller->activeCamera->fov;
         }
         else {
-            m_camera_system->mainCameraController->mainCamera->fov = new_value;
-            controller->activeCamera->fov = m_camera_system->mainCameraController->mainCamera->fov;
+            if (m_last_player_fov == 0.0f) {
+                m_last_player_fov = 90.0f;
+            }
+
+            m_camera_system->mainCameraController->mainCamera->fov = m_last_player_fov;
+            controller->activeCamera->fov = m_last_player_fov;
         }
         
         // Causes the camera to ignore the FOV inside the param
@@ -583,6 +764,15 @@ void FirstPerson::update_joint_names() {
 
 float FirstPerson::update_delta_time(REComponent* component) {
     return utility::re_component::get_delta_time(component);
+}
+
+bool FirstPerson::is_first_person_allowed() const {
+    // Don't mess with the camera if we're in a cutscene
+    if (m_show_in_cutscenes->value()) {
+        return m_allowed_camera_types.count(m_last_camera_type) > 0;
+    }
+    
+    return m_last_camera_type == app::ropeway::camera::CameraControlType::PLAYER;
 }
 
 void FirstPerson::on_disabled() {

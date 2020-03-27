@@ -1,6 +1,7 @@
 #include "Mods.hpp"
 #include "REFramework.hpp"
 #include "utility/Scan.hpp"
+#include "utility/Module.hpp"
 
 #include "PositionHooks.hpp"
 
@@ -64,6 +65,18 @@ std::optional<std::string> PositionHooks::on_initialize() {
     //auto updatecamera_controller2 = utility::scan(game, "40 53 57 48 81 ec ? ? ? ? 48 8b 41 ? 48 89 d7 48 8b 92 ? ? 00 00");
     // Version 2 Dec 17th, 2019 game.exe+0x6CD9C0 (works on old version too)
     auto update_camera_controller2 = utility::scan(game, "40 53 57 48 81 EC ? ? ? ? 48 ? ? ? 48 ? ? 48 ? ? ? ? 00 00");
+
+#ifdef RE3
+    while (update_camera_controller2) {
+        if (utility::scan(*update_camera_controller2, 0x100, "0F B6 4F 51")) {
+            break;
+        }
+
+        update_camera_controller2 = utility::scan(*update_camera_controller2 + 1,
+            (uint32_t)(*utility::get_module_size(game) - ((*update_camera_controller2 + 1) - (uintptr_t)game)),
+            "40 53 57 48 81 EC ? ? ? ? 48 ? ? ? 48 ? ? 48 ? ? ? ? 00 00");
+    }
+#endif
 
     if (!update_camera_controller2) {
         return "Unable to find UpdateCameraController2 pattern.";

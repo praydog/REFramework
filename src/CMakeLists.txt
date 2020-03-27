@@ -35,6 +35,7 @@ set(SDK_SRC
     sdk/REGlobals.hpp
     sdk/REGlobals.cpp
     sdk/REManagedObject.hpp
+    sdk/REMath.hpp
     sdk/REString.hpp
     sdk/RETransform.hpp
     sdk/RETypes.hpp
