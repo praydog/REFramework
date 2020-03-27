@@ -239,7 +239,49 @@ void ObjectExplorer::handle_game_object(REGameObject* game_object) {
 
 void ObjectExplorer::handle_component(REComponent* component) {
     make_tree_offset(component, offsetof(REComponent, ownerGameObject), "Owner");
-    make_tree_offset(component, offsetof(REComponent, childComponent), "ChildComponent");
+    //make_tree_offset(component, offsetof(REComponent, childComponent), "ChildComponent");
+
+    auto children_offset = offsetof(REComponent, childComponent);
+    auto children_ptr = Address(component).get(children_offset).to<void*>();
+
+    // Draw children
+    if (children_ptr != nullptr) {
+        auto made_node = ImGui::TreeNode((uint8_t*)component + children_offset, "0x%X: ChildComponents", children_offset);
+        context_menu(children_ptr);
+
+        if (made_node) {
+            int32_t count = 0;
+
+            // Iterate the children
+            for (auto child = component->childComponent; child != nullptr && child != component; child = child->childComponent) {
+                // uh oh
+                if (!utility::re_managed_object::is_managed_object(child)) {
+                    continue;
+                }
+
+                auto child_name = utility::re_managed_object::get_type_name(child);
+
+                made_node = widget_with_context(child, [&]() { return stretched_tree_node(child, "%i", count++); });
+                auto tree_hovered = ImGui::IsItemHovered();
+
+                // Draw the variable name with a color
+                if (tree_hovered) {
+                    make_same_line_text(child_name, VARIABLE_COLOR_HIGHLIGHT);
+                }
+                else {
+                    make_same_line_text(child_name, VARIABLE_COLOR);
+                }
+
+                if (made_node) {
+                    handle_address(child);
+                    ImGui::TreePop();
+                }
+            }
+
+            ImGui::TreePop();
+        }
+    }
+
     make_tree_offset(component, offsetof(REComponent, prevComponent), "PrevComponent");
     make_tree_offset(component, offsetof(REComponent, nextComponent), "NextComponent");
 }
