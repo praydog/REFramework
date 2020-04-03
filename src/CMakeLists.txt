@@ -16,6 +16,8 @@ set(MODS_SRC
     FirstPerson.cpp
     FreeCam.hpp
     FreeCam.cpp
+    IntegrityCheckBypass.hpp
+    IntegrityCheckBypass.cpp
     ManualFlashlight.hpp
     ManualFlashlight.cpp
     ObjectExplorer.hpp

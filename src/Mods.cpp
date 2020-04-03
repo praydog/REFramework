@@ -1,5 +1,6 @@
 #include <spdlog/spdlog.h>
 
+#include "IntegrityCheckBypass.hpp"
 #include "PositionHooks.hpp"
 #include "FirstPerson.hpp"
 #include "DeveloperTools.hpp"
@@ -10,6 +11,10 @@
 
 Mods::Mods()
 {
+#ifdef RE3
+    m_mods.emplace_back(std::make_unique<IntegrityCheckBypass>());
+#endif
+
     m_mods.emplace_back(std::make_unique<PositionHooks>());
     m_mods.emplace_back(std::make_unique<FirstPerson>());
     m_mods.emplace_back(std::make_unique<ManualFlashlight>());
