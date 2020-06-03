@@ -14,6 +14,12 @@ PositionHooks::PositionHooks() {
 std::optional<std::string> PositionHooks::on_initialize() {
     auto game = g_framework->get_module().as<HMODULE>();
 
+    const auto mod_size = utility::get_module_size(game);
+
+    if (!mod_size) {
+        return "Unable to get module size";
+    }
+
     // The 48 8B 4D 40 bit might change.
     // Version 1.0 jmp stub: game+0x1dc7de0
     // Version 1
@@ -47,7 +53,28 @@ std::optional<std::string> PositionHooks::on_initialize() {
     auto updatecamera_controller = utility::calculate_absolute(*updatecamera_controllerCall + 9);*/
 
     // Version 2 Dec 17th, 2019 game.exe+0x7CF690 (works on old version too)
-    auto update_camera_controller = utility::scan(game, "40 55 56 57 48 8D AC 24 ? ? ? ? 48 81 EC ? ? 00 00 48 8B 41 50");
+    //auto update_camera_controller = utility::scan(game, "40 55 56 57 48 8D AC 24 ? ? ? ? 48 81 EC ? ? 00 00 48 8B 41 50");
+
+    // Version 3 June 2nd, 2020 game.exe+0xD41AD0 (works on old version too)
+    auto update_camera_controller = utility::scan(game, "40 55 ? 57 48 8D AC 24 ? ? ? ? 48 81 EC ? ? 00 00 48 8B 41 50");
+
+    // Keep searching through the game module to find the correct function.
+    while (update_camera_controller) {
+        // Present in old versions, near the very top of the function
+        // .srdata:0000000140D41B21 4C 89 B4 24 A0 02 00 00                       mov [rsp+2C0h+var_20], r14
+        // .srdata:0000000140D41B29 E8 A2 51 C8 00                                call    sub_1419C6CD0
+        // .srdata:0000000140D41B2E 0F B6 C8                                      movzx   ecx, al
+        if (utility::scan(*update_camera_controller + 1, 0x100, "4C 89 ? ? ? ? ? ? E8 ? ? ? ? 0F B6 C8")) {
+            // found the correct function
+            break;
+        }
+        
+        update_camera_controller = utility::scan(*update_camera_controller + 1, *mod_size - 100, "40 55 ? 57 48 8D AC 24 ? ? ? ? 48 81 EC ? ? 00 00 48 8B 41 50");
+    }
+
+    if (!update_camera_controller) {
+        return "Failed to find UpdateCameraController pattern";
+    }
 
     spdlog::info("UpdateCameraController: {:x}", *update_camera_controller);
 
