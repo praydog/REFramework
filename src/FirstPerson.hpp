@@ -120,6 +120,7 @@ private:
         *m_hide_mesh,
         *m_rotate_mesh,
         *m_rotate_body,
+        *m_body_rotate_speed,
         *m_disable_light_source,
         *m_show_in_cutscenes,
         *m_fov_offset,
