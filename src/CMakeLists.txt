@@ -3,6 +3,8 @@ set(HOOKS_SRC
     DInputHook.cpp
     D3D11Hook.hpp
     D3D11Hook.cpp
+    D3D12Hook.hpp
+    D3D12Hook.cpp
     WindowsMessageHook.hpp
     WindowsMessageHook.cpp
     PositionHooks.hpp
@@ -50,6 +52,8 @@ set(RE2IMGUI_SRC
     re2-imgui/imgui_impl_win32.cpp
     re2-imgui/imgui_impl_dx11.h
     re2-imgui/imgui_impl_dx11.cpp
+    re2-imgui/imgui_impl_dx12.h
+    re2-imgui/imgui_impl_dx12.cpp
 )
 
 set(UTILITY_SRC
