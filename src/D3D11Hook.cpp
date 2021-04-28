@@ -56,7 +56,12 @@ bool D3D11Hook::hook() {
 }
 
 bool D3D11Hook::unhook() {
-    return true;
+	if (m_present_hook->remove() && m_resize_buffers_hook->remove()) {
+		m_hooked = false;
+		return true;
+	}
+
+    return false;
 }
 
 HRESULT WINAPI D3D11Hook::present(IDXGISwapChain* swap_chain, UINT sync_interval, UINT flags) {
@@ -64,12 +69,13 @@ HRESULT WINAPI D3D11Hook::present(IDXGISwapChain* swap_chain, UINT sync_interval
 
     d3d11->m_swap_chain = swap_chain;
     swap_chain->GetDevice(__uuidof(d3d11->m_device), (void**)&d3d11->m_device);
+    
+    // This line must be called before calling our detour function because we might have to unhook the function inside our detour.
+    auto present_fn = d3d11->m_present_hook->get_original<decltype(D3D11Hook::present)>();
 
     if (d3d11->m_on_present) {
         d3d11->m_on_present(*d3d11);
     }
-
-    auto present_fn = d3d11->m_present_hook->get_original<decltype(D3D11Hook::present)>();
 
     return present_fn(swap_chain, sync_interval, flags);
 }

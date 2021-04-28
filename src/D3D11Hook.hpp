@@ -15,6 +15,10 @@ public:
     D3D11Hook() = default;
     virtual ~D3D11Hook();
 
+	bool is_hooked() {
+		return m_hooked;
+	}
+
     bool hook();
     bool unhook();
 
