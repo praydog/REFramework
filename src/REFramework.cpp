@@ -29,7 +29,8 @@ REFramework::REFramework()
     spdlog::set_level(spdlog::level::debug);
 #endif
 
-    // Hooking D3D12 initially because we need to retrieve the command queue before the first frame then switch to D3D11 if it failed later on
+    // Hooking D3D12 initially because we need to retrieve the command queue before the first frame then switch to D3D11 if it failed later
+    // on
     if (!hook_d3d12()) {
         spdlog::error("Failed to hook D3D12 for initial test.");
     }
@@ -57,10 +58,11 @@ bool REFramework::hook_d3d11() {
             return true;
         }
         // We make sure to no unhook any unwanted hooks if D3D11 didn't get hooked properly
-        if (m_d3d11_hook->unhook())
+        if (m_d3d11_hook->unhook()) {
             spdlog::info("D3D11 unhooked!");
-        else
+        } else {
             spdlog::info("Cannot unhook D3D11, this might crash.");
+        }
 
         m_valid = false;
         m_is_d3d11 = false;
@@ -86,10 +88,11 @@ bool REFramework::hook_d3d12() {
             return true;
         }
         // We make sure to no unhook any unwanted hooks if D3D12 didn't get hooked properly
-        if (m_d3d12_hook->unhook())
+        if (m_d3d12_hook->unhook()) {
             spdlog::info("D3D12 Unhooked!");
-        else
+        } else {
             spdlog::info("Cannot unhook D3D12, this might crash.");
+        }
 
         m_valid = false;
         m_is_d3d12 = false;
@@ -373,10 +376,11 @@ bool REFramework::initialize() {
             spdlog::info("Device or SwapChain null. DirectX 12 may be in use. Unhooking D3D11...");
 
             // We unhook D3D11
-            if (m_d3d11_hook->unhook())
+            if (m_d3d11_hook->unhook()) {
                 spdlog::info("D3D11 unhooked!");
-            else
+            } else {
                 spdlog::error("Cannot unhook D3D11, this might crash.");
+            }
 
             m_is_d3d11 = false;
             m_valid = false;
@@ -399,7 +403,9 @@ bool REFramework::initialize() {
         // Explicitly call destructor first
         m_windows_message_hook.reset();
         m_windows_message_hook = std::make_unique<WindowsMessageHook>(m_wnd);
-        m_windows_message_hook->on_message = [this](auto wnd, auto msg, auto w_param, auto l_param) { return on_message(wnd, msg, w_param, l_param); };
+        m_windows_message_hook->on_message = [this](auto wnd, auto msg, auto w_param, auto l_param) {
+            return on_message(wnd, msg, w_param, l_param);
+        };
 
         // just do this instead of rehooking because there's no point.
         if (m_first_frame) {
@@ -469,7 +475,9 @@ bool REFramework::initialize() {
 
         m_windows_message_hook.reset();
         m_windows_message_hook = std::make_unique<WindowsMessageHook>(m_wnd);
-        m_windows_message_hook->on_message = [this](auto wnd, auto msg, auto w_param, auto l_param) { return on_message(wnd, msg, w_param, l_param); };
+        m_windows_message_hook->on_message = [this](auto wnd, auto msg, auto w_param, auto l_param) {
+            return on_message(wnd, msg, w_param, l_param);
+        };
 
         if (m_first_frame) {
             m_dinput_hook = std::make_unique<DInputHook>(m_wnd);
@@ -510,7 +518,8 @@ bool REFramework::initialize() {
         }
 
         if (!ImGui_ImplDX12_Init(device, s_NUM_FRAMES_IN_FLIGHT_D3D12, DXGI_FORMAT_R8G8B8A8_UNORM,
-                m_pd3d_srv_desc_heap_d3d12->GetCPUDescriptorHandleForHeapStart(), m_pd3d_srv_desc_heap_d3d12->GetGPUDescriptorHandleForHeapStart())) {
+                m_pd3d_srv_desc_heap_d3d12->GetCPUDescriptorHandleForHeapStart(),
+                m_pd3d_srv_desc_heap_d3d12->GetGPUDescriptorHandleForHeapStart())) {
             spdlog::error("Failed to initialize ImGui ImplDX12.");
             return false;
         }
@@ -591,11 +600,13 @@ bool REFramework::create_rtv_descriptor_heap_d3d12() {
     desc.NumDescriptors = s_NUM_BACK_BUFFERS_D3D12;
     desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
     desc.NodeMask = 1;
-    if (device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&m_pd3d_rtv_desc_heap_d3d12)) != S_OK)
+    if (device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&m_pd3d_rtv_desc_heap_d3d12)) != S_OK) {
         return false;
+    }
 
     SIZE_T rtv_descriptor_size = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
     D3D12_CPU_DESCRIPTOR_HANDLE rtv_handle = m_pd3d_rtv_desc_heap_d3d12->GetCPUDescriptorHandleForHeapStart();
+
     for (UINT i = 0; i < s_NUM_BACK_BUFFERS_D3D12; i++) {
         m_main_render_target_descriptor_d3d12[i] = rtv_handle;
         rtv_handle.ptr += rtv_descriptor_size;
@@ -609,24 +620,32 @@ bool REFramework::create_srv_descriptor_heap_d3d12() {
     desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     desc.NumDescriptors = 1;
     desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-    if (m_d3d12_hook->get_device()->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&m_pd3d_srv_desc_heap_d3d12)) != S_OK)
+
+    if (m_d3d12_hook->get_device()->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&m_pd3d_srv_desc_heap_d3d12)) != S_OK) {
         return false;
+    }
 
     return true;
 }
 
 bool REFramework::create_command_allocator_d3d12() {
-    for (UINT i = 0; i < s_NUM_FRAMES_IN_FLIGHT_D3D12; i++)
-        if (m_d3d12_hook->get_device()->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_frame_context_d3d12[i].command_allocator)) !=
-            S_OK)
+    for (UINT i = 0; i < s_NUM_FRAMES_IN_FLIGHT_D3D12; i++) {
+        auto res = m_d3d12_hook->get_device()->CreateCommandAllocator(
+            D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_frame_context_d3d12[i].command_allocator));
+
+        if (res != S_OK) {
             return false;
+        }
+    }
+
     return true;
 }
 
 bool REFramework::create_command_list_d3d12() {
-    if (m_d3d12_hook->get_device()->CreateCommandList(
-            0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_frame_context_d3d12[0].command_allocator, NULL, IID_PPV_ARGS(&m_pd3d_command_list_d3d12)) != S_OK ||
-        m_pd3d_command_list_d3d12->Close() != S_OK) {
+    auto res = m_d3d12_hook->get_device()->CreateCommandList(
+        0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_frame_context_d3d12[0].command_allocator, NULL, IID_PPV_ARGS(&m_pd3d_command_list_d3d12));
+
+    if (res != S_OK || m_pd3d_command_list_d3d12->Close() != S_OK) {
         return false;
     }
 
