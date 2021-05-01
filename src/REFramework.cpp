@@ -9,6 +9,7 @@
 
 #include "utility/Module.hpp"
 #include "utility/Patch.hpp"
+#include "utility/Scan.hpp"
 
 #include "Mods.hpp"
 #include "sdk/REGlobals.hpp"
@@ -36,11 +37,15 @@ REFramework::REFramework()
     }
 
     // Fixes a crash on some machines when starting the game
-    // todo: add pattern
 #ifdef RE8
-    auto startup_patch_addr = Address{m_game_module}.get(0x3E69E50);
+    // auto startup_patch_addr = Address{m_game_module}.get(0x3E69E50);
+    auto startup_patch_addr = utility::scan(m_game_module, "40 53 57 48 83 ec 28 48 83 b9 ? ? ? ? 00");
 
-    static auto permanent_patch = Patch::create(startup_patch_addr, {0xC3});
+    if (startup_patch_addr) {
+        static auto permanent_patch = Patch::create(*startup_patch_addr, {0xC3});
+    } else {
+        spdlog::info("Couldn't find RE8 crash fix patch location!");
+    }
 #endif
 }
 
