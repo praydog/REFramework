@@ -1001,8 +1001,20 @@ void ObjectExplorer::attempt_display_field(REManagedObject* obj, VariableDescrip
 
             break;
         }
-        case "via.string"_fnv:
+        case "via.string"_fnv: {
+#ifdef RE8
+            auto ptr = *(REString**)&data;
+
+            if (ptr != nullptr) {
+                ImGui::Text("%s", utility::re_string::get_string(*ptr).c_str());
+            }
+            else {
+                ImGui::Text("");
+            }
+#else
             ImGui::Text("%s", utility::re_string::get_string(*(REString*)&data).c_str());
+#endif
+        }
             break;
         default: 
         {

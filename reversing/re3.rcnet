@@ -586,7 +586,7 @@
       <node type="Hex32Node" name="N00000765" comment="" hidden="false" />
       <node type="Hex32Node" name="N00000771" comment="" hidden="false" />
     </class>
-    <class uuid="vVwgVYgr2E6eZiEHkCcq4Q==" name="FunctionDescriptor" comment="" address="21c630ea168">
+    <class uuid="vVwgVYgr2E6eZiEHkCcq4Q==" name="FunctionDescriptor" comment="" address="13a58470830">
       <node type="Utf8TextPtrNode" name="name" comment="" hidden="false" />
       <node type="PointerNode" name="params" comment="" hidden="false">
         <node type="ArrayNode" name="N00003617" comment="" hidden="false" count="256">
@@ -2221,7 +2221,7 @@
         </node>
       </node>
     </class>
-    <class uuid="UXD4+zrLqkC9JbbrL2syKA==" name="VariableDescriptor" comment="" address="2cff2250">
+    <class uuid="UXD4+zrLqkC9JbbrL2syKA==" name="VariableDescriptor" comment="" address="13a58470830">
       <node type="Utf8TextPtrNode" name="name" comment="" hidden="false" />
       <node type="Hex32Node" name="N0000B5C8" comment="" hidden="false" />
       <node type="UInt16Node" name="N00000871" comment="" hidden="false" />
@@ -2322,17 +2322,17 @@
     </class>
     <class uuid="f9TIlhPq30WKhbrs5ROCLw==" name="StaticVariableDescriptor" comment="" address="140000000">
       <node type="UInt16Node" name="ownerTypeIndex" comment="" hidden="false" />
-      <node type="Hex8Node" name="N000009E0" comment="" hidden="false" />
-      <node type="Hex8Node" name="N000009E3" comment="" hidden="false" />
-      <node type="Hex8Node" name="N000009E1" comment="" hidden="false" />
-      <node type="Hex8Node" name="N000009D4" comment="" hidden="false" />
-      <node type="Hex8Node" name="N000009E7" comment="" hidden="false" />
-      <node type="Hex8Node" name="N000009EA" comment="" hidden="false" />
+      <node type="Hex16Node" name="N00004BDC" comment="" hidden="false" />
+      <node type="Hex32Node" name="N00004BE3" comment="" hidden="false" />
+      <node type="Hex16Node" name="N00004BE4" comment="" hidden="false" />
       <node type="UInt32Node" name="variableIndex" comment="index into some global array...?" hidden="false" />
       <node type="UInt16Node" name="N00000839" comment="" hidden="false" />
-      <node type="Int16Node" name="N000009F5" comment="" hidden="false" />
-      <node type="UInt32Node" name="staticVariableOffset" comment="of" hidden="false" />
-      <node type="Hex8Node" name="N000009F6" comment="" hidden="false" />
+      <node type="Int16Node" name="flags" comment="" hidden="false" />
+      <node type="UInt16Node" name="staticVariableOffset" comment="of" hidden="false" />
+      <node type="Hex16Node" name="N00004BD8" comment="" hidden="false" />
+      <node type="Hex16Node" name="N00004BDE" comment="" hidden="false" />
+      <node type="FunctionPtrNode" name="function" comment="" hidden="false" />
+      <node type="Hex64Node" name="N00004BD1" comment="" hidden="false" />
     </class>
     <class uuid="aO3ikV8to0WdCc7DuB07ig==" name="REMotionCamera" comment="" address="0x16001c50">
       <node type="ClassInstanceNode" name="N0000B956" comment="" hidden="false" reference="1Et14OQDvUeFNf4AQVLidA==" />
@@ -2615,7 +2615,7 @@
       <node type="Hex64Node" name="N000009A2" comment="" hidden="false" />
       <node type="Hex64Node" name="N000009A3" comment="" hidden="false" />
     </class>
-    <class uuid="zu3bLGFj3UqKBPzFW2nvNg==" name="FieldInfoPtr" comment="" address="1470C33B8">
+    <class uuid="zu3bLGFj3UqKBPzFW2nvNg==" name="FieldInfoPtr" comment="" address="13a58470830">
       <node type="PointerNode" name="N00000A1A" comment="" hidden="false">
         <node type="ClassInstanceNode" name="N00000A03" comment="" hidden="false" reference="AtbzDjgqDE2m7VVnJYJq9A==" />
       </node>
@@ -2625,7 +2625,7 @@
         <node type="ClassInstanceNode" name="N00000A06" comment="" hidden="false" reference="sfI53aVX50WeGhKrLJTj2w==" />
       </node>
     </class>
-    <class uuid="sfI53aVX50WeGhKrLJTj2w==" name="FieldInfo" comment="" address="140000000">
+    <class uuid="sfI53aVX50WeGhKrLJTj2w==" name="FieldInfo" comment="" address="13a58470830">
       <node type="UInt16Node" name="ownerType" comment="" hidden="false" />
       <node type="Int16Node" name="indexIntoSomeOtherArray" comment="" hidden="false" />
       <node type="UInt16Node" name="N0000133D" comment="" hidden="false" />

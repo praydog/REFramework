@@ -8,6 +8,13 @@
 
 namespace utility::re_string {
     static std::wstring_view get_view(const ::REString& str) {
+#ifdef RE8
+        if (str.ptr == nullptr || str.ptr->size == 0) {
+            return L"";
+        }
+
+        return (wchar_t*)&str.ptr->data;
+#else
         auto length = str.length;
 
         if (length <= 0) {
@@ -24,8 +31,7 @@ namespace utility::re_string {
             }
 
             raw_name = name_ptr;
-        }
-        else {
+        } else {
             if (length <= 0) {
                 return L"";
             }
@@ -34,6 +40,7 @@ namespace utility::re_string {
         }
 
         return raw_name;
+#endif
     }
 
     static std::string get_string(const ::REString& str) {
