@@ -224,12 +224,14 @@ void ObjectExplorer::on_draw_ui() {
 }
 
 void ObjectExplorer::generate_sdk() {
+    // enums
     auto ref = utility::scan(g_framework->get_module().as<HMODULE>(), "66 C7 40 18 01 01 48 89 05 ? ? ? ?");
     auto& l = *(std::map<uint64_t, REEnumData>*)(utility::calculate_absolute(*ref + 9));
 
     genny::Sdk sdk{};
     auto g = sdk.global_ns();
 
+    sdk.include("REFramework.hpp");
     sdk.include("sdk/ReClass.hpp");
     sdk.include("cstdint");
 
@@ -337,7 +339,8 @@ void ObjectExplorer::generate_sdk() {
 
                 auto m = c->function(descriptor->name);
 
-                m->procedure("");
+                m->param("args")->type(g->type("void**"));
+                m->procedure(std::string{ "return utility::re_managed_object::call_method(this, \"" } + descriptor->name + "\", *args);")->returns(g->type("std::unique_ptr<ParamWrapper>"));
             }
         }
 
@@ -352,9 +355,26 @@ void ObjectExplorer::generate_sdk() {
                     continue;
                 }
 
-                auto m = c->function(variable->name);
+                genny::Function* m = nullptr;
 
-                m->procedure("");
+                if (variable->staticVariableData != nullptr) {
+                    m = c->static_function(variable->name);
+
+                    std::ostringstream os{};
+                    os << "static auto info = g_framework->get_types()->get(variable->name)->classInfo->parentInfo;\n";
+                    os << "auto dummy_type = REManagedObject{ };\n";
+                    os << "dummy_type.info = info;\n";
+                    os << "return utility::re_managed_object::get_field<sdk::DummyData>(nullptr, utility::re_managed_object::get_field_desc(&dummy_type, \"" << variable->name << "\");\n";
+
+                    m->procedure(os.str());
+                }
+                else {
+                    m = c->function(variable->name);
+                    m->procedure(std::string{"return utility::re_managed_object::get_field<sdk::DummyData>("} + "this" + ", \"" + variable->name + "\");");
+                }
+
+                auto dummy_type = g->namespace_("sdk")->struct_("DummyData")->size(0x100);
+                m->returns(dummy_type);
             }
         }
     }

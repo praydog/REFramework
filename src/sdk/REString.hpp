@@ -9,7 +9,7 @@
 namespace utility::re_string {
     static std::wstring_view get_view(const ::REString& str) {
 #ifdef RE8
-        if (str.ptr == nullptr || str.ptr->size == 0) {
+        if (str.ptr == nullptr || ((uintptr_t)str.ptr & (sizeof(void*) - 1)) != 0 || str.ptr->size == 0) {
             return L"";
         }
 

@@ -41,11 +41,18 @@ namespace utility::re_managed_object {
     template <typename T>
     static T* get_field_ptr(::REManagedObject* object);
 
+    // Get a field value by field descriptor
+    template <typename T> 
+    T get_field(::REManagedObject* obj, VariableDescriptor* desc);
+
     // Get a field value by name
     // Be very careful with the type size here, stack corruption could occur if the size is not large enough!
     template <typename T>
     T get_field(::REManagedObject* obj, std::string_view field);
     
+    template <typename Arg> 
+    static std::unique_ptr<ParamWrapper> call_method(::REManagedObject* obj, FunctionDescriptor* desc, const Arg& arg);
+
     template <typename Arg>
     static std::unique_ptr<ParamWrapper> call_method(::REManagedObject* obj, std::string_view name, const Arg& arg);
 
@@ -329,41 +336,50 @@ namespace utility::re_managed_object {
         return nullptr;
     }
 
-    template <typename T>
-    T get_field(::REManagedObject* obj, std::string_view field) {
+    template <typename T> 
+    T get_field(::REManagedObject* obj, VariableDescriptor* desc) {
         T data{};
 
-        auto desc = get_field_desc(obj, field);
+        if (desc == nullptr) {
+            return data;
+        }
 
-        if (desc != nullptr) {
-            auto get_value_func = (void* (*)(VariableDescriptor*, ::REManagedObject*, void*))desc->function;
+        auto get_value_func = (void* (*)(VariableDescriptor*, ::REManagedObject*, void*))desc->function;
 
-            if (get_value_func != nullptr) {
-                get_value_func(desc, obj, &data);
-            }
+        if (get_value_func != nullptr) {
+            get_value_func(desc, obj, &data);
         }
 
         return data;
     }
 
-    template <typename Arg>
-    std::unique_ptr<ParamWrapper> call_method(::REManagedObject* obj, std::string_view name, const Arg& arg) {
-        auto desc = get_method_desc(obj, name);
+    template <typename T>
+    T get_field(::REManagedObject* obj, std::string_view field) {
+        return get_field<T>(obj, get_field_desc(obj, field));
+    }
 
-        if (desc != nullptr) {
+    template <typename Arg> 
+    std::unique_ptr<ParamWrapper> call_method(::REManagedObject* obj, FunctionDescriptor* desc, const Arg& arg) {
+        if (desc == nullptr) {
+            return nullptr;
+        }
 
-            auto methodFunc = (ParamWrapper* (*)(MethodParams*, ::REThreadContext*))desc->functionPtr;
+        auto method_func = (ParamWrapper * (*)(MethodParams*, ::REThreadContext*)) desc->functionPtr;
 
-            if (methodFunc != nullptr) {
-                auto params = std::make_unique<ParamWrapper>(obj);
-                
-                params->params.in_data = (void***)&arg;
+        if (method_func != nullptr) {
+            auto params = std::make_unique<ParamWrapper>(obj);
 
-                methodFunc(&params->params, sdk::get_thread_context());
-                return std::move(params);
-            }
+            params->params.in_data = (void***)&arg;
+
+            method_func(&params->params, sdk::get_thread_context());
+            return std::move(params);
         }
 
         return nullptr;
+    }
+
+    template <typename Arg>
+    std::unique_ptr<ParamWrapper> call_method(::REManagedObject* obj, std::string_view name, const Arg& arg) {
+        return call_method(obj, get_method_desc(obj, name), arg);
     }
 }
