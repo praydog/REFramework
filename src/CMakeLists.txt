@@ -114,6 +114,7 @@ set_target_properties(RE2 PROPERTIES OUTPUT_NAME dinput8)
 option(DEVELOPER_MODE "Adds DeveloperTools option to menu" OFF)
 option(RE3 "RE3 build" OFF)
 option(RE8 "RE8 build" OFF)
+option(BAREBONES "Barebones build without game-specific features/hooks" OFF)
 
 if(DEVELOPER_MODE)
     target_compile_definitions(RE2 PUBLIC DEVELOPER)
