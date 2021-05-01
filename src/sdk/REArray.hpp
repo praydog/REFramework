@@ -2,6 +2,20 @@
 
 #include "ReClass.hpp"
 
+namespace utility::re_class_info {
+static via::clr::VMObjType get_vm_type(::REClassInfo* c) {
+    if (c == nullptr) {
+        return via::clr::VMObjType::NULL_;
+    }
+
+#ifndef RE8
+    return (via::clr::VMObjType)c->objectType;
+#else
+    return (via::clr::VMObjType)(c->objectFlags >> 5);
+#endif
+}
+} // namespace utility::re_type
+
 namespace utility::re_array {
     // Forward declarations
     static bool has_inline_elements(::REArrayBase* container);
@@ -15,7 +29,7 @@ namespace utility::re_array {
             return false;
         }
 
-        return container->containedType->objectType == (uint8_t)via::clr::VMObjType::ValType;
+        return utility::re_class_info::get_vm_type(container->containedType) == via::clr::VMObjType::ValType;
     }
 
     template<typename T>
@@ -24,7 +38,7 @@ namespace utility::re_array {
             return nullptr;
         }             
 
-        auto data = Address{ REManagedObject::get_field_ptr(container) };
+        auto data = Address{ (uintptr_t)((REArrayBase*)utility::re_managed_object::get_field_ptr(container) + 1) - sizeof(REManagedObject) };
         return data.get(container->info->classInfo->elementSize * idx).as<T*>();
     }
 
@@ -34,7 +48,7 @@ namespace utility::re_array {
             return nullptr;
         }
 
-        T** data = (T**)REManagedObject::get_field_ptr(container);
+        auto data = (T**)((uintptr_t)((REArrayBase*)utility::re_managed_object::get_field_ptr(container) + 1) - sizeof(REManagedObject));
         return data[idx];
     }
 

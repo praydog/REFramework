@@ -7,8 +7,94 @@
 #include "utility/String.hpp"
 #include "utility/Scan.hpp"
 
+#include "Genny.hpp"
+
 #include "REFramework.hpp"
 #include "ObjectExplorer.hpp"
+
+std::unordered_set<std::string> g_class_set{};
+
+std::vector<std::string> split(const std::string& s, const std::string& token) {
+    std::vector<std::string> out{};
+
+    size_t prev = 0;
+    for (auto i = s.find(token); i != std::string::npos; i = s.find(token, i + 1)) {
+        out.emplace_back(s.substr(prev, i - prev));
+        prev = i + 1;
+    }
+
+    out.emplace_back(s.substr(prev, std::string::npos));
+
+    return out;
+}
+
+genny::Class* class_from_name(genny::Namespace* g, const std::string& class_name) {
+    auto namespaces = split(class_name, ".");
+    auto new_ns = g;
+
+    if (namespaces.size() > 1) {
+        std::string potential_class_name{""};
+
+        bool is_actually_class = false;
+
+        for (auto ns = namespaces.begin(); ns != namespaces.end() - 1; ++ns) {
+            if (ns != namespaces.begin()) {
+                potential_class_name += ".";
+            }
+
+            potential_class_name += *ns;
+
+            if (g_class_set.count(potential_class_name) > 0) {
+                class_from_name(g, potential_class_name);
+                is_actually_class = true;
+            } else {
+                new_ns = new_ns->namespace_(*ns);
+            }
+        }
+
+        if (is_actually_class) {
+            auto final_class = class_from_name(g, potential_class_name);
+
+            return final_class->class_(namespaces.back());
+        }
+    }
+
+    return new_ns->class_(namespaces.back());
+}
+
+genny::Enum* enum_from_name(genny::Namespace* g, const std::string& enum_name) {
+    auto namespaces = split(enum_name, ".");
+    auto new_ns = g;
+
+    if (namespaces.size() > 1) {
+        std::string potential_class_name{""};
+
+        bool is_actually_class = false;
+
+        for (auto ns = namespaces.begin(); ns != namespaces.end() - 1; ++ns) {
+            if (ns != namespaces.begin()) {
+                potential_class_name += ".";
+            }
+
+            potential_class_name += *ns;
+
+            if (g_class_set.count(potential_class_name) > 0) {
+                class_from_name(g, potential_class_name);
+                is_actually_class = true;
+            } else {
+                new_ns = new_ns->namespace_(*ns);
+            }
+        }
+
+        if (is_actually_class) {
+            auto final_class = class_from_name(g, potential_class_name);
+
+            return final_class->enum_(namespaces.back());
+        }
+    }
+
+    return new_ns->enum_(namespaces.back());
+}
 
 ObjectExplorer::ObjectExplorer()
 {
@@ -26,6 +112,10 @@ void ObjectExplorer::on_draw_ui() {
     if (m_do_init) {
         populate_classes();
         populate_enums();
+    }
+
+    if (ImGui::Button("Dump SDK")) {
+        generate_sdk();
     }
 
     auto curtime = std::chrono::system_clock::now();
@@ -133,6 +223,159 @@ void ObjectExplorer::on_draw_ui() {
     m_do_init = false;
 }
 
+void ObjectExplorer::generate_sdk() {
+    auto ref = utility::scan(g_framework->get_module().as<HMODULE>(), "66 C7 40 18 01 01 48 89 05 ? ? ? ?");
+    auto& l = *(std::map<uint64_t, REEnumData>*)(utility::calculate_absolute(*ref + 9));
+
+    genny::Sdk sdk{};
+    auto g = sdk.global_ns();
+
+    sdk.include("sdk/ReClass.hpp");
+    sdk.include("cstdint");
+
+    g->type("int8_t")->size(1);
+    g->type("int16_t")->size(2);
+    g->type("int32_t")->size(4);
+    g->type("int64_t")->size(8);
+    g->type("uint8_t")->size(1);
+    g->type("uint16_t")->size(2);
+    g->type("uint32_t")->size(4);
+    g->type("uint64_t")->size(8);
+    g->type("float")->size(4);
+    g->type("double")->size(8);
+    g->type("bool")->size(1);
+    g->type("char")->size(1);
+    g->type("int")->size(4);
+    g->type("void")->size(0);
+    g->type("void*")->size(8);
+
+    // First pass, gather all valid class names
+    for (const auto& name : m_sorted_types) {
+        auto t = get_type(name);
+
+        if (t == nullptr || t->name == nullptr) {
+            continue;
+        }
+
+        if (t->fields == nullptr /*|| t->classInfo == nullptr || utility::re_class_info::get_vm_type(t->classInfo) != via::clr::VMObjType::Object*/) {
+            continue;
+        }
+
+        // template classes we dont want
+        if (std::string{ t->name }.find_first_of("`<>") != std::string::npos) {
+            continue;
+        }
+
+        g_class_set.insert(t->name);
+    }
+
+    for (const auto& name : m_sorted_types) {
+        auto t = get_type(name);
+
+        if (t == nullptr || t->name == nullptr) {
+            continue;
+        }
+
+        if (t->fields == nullptr || t->classInfo == nullptr || utility::re_class_info::get_vm_type(t->classInfo) != via::clr::VMObjType::Object) {
+            continue;
+        }
+
+        // template classes we dont want
+        if (std::string{ t->name }.find_first_of("`<>") != std::string::npos) {
+            continue;
+        }
+
+        auto c = class_from_name(g, t->name);
+        c->size(t->size);
+
+        auto parent_c = c;
+
+        // generate inheritance
+        for (auto super = t->super; super != nullptr; super = super->super) {
+            if (super == nullptr || super->name == nullptr) {
+                continue;
+            }
+
+            if (super->fields == nullptr /*|| super->classInfo == nullptr || utility::re_class_info::get_vm_type(super->classInfo) != via::clr::VMObjType::Object*/) {
+                continue;
+            }
+
+            // template classes we dont want
+            if (std::string{super->name}.find_first_of("`<>") != std::string::npos) {
+                continue;
+            }
+
+            auto s = class_from_name(g, super->name);
+            s->size(super->size);
+
+            parent_c->parent(s);
+            parent_c = s;
+        }
+
+        auto fields = t->fields;
+        auto num_methods = fields->num;
+        auto methods = fields->methods;
+
+        // Generate Methods
+        if (fields->methods != nullptr) {
+            for (auto i = 0; i < num_methods; ++i) {
+                volatile auto top = (*methods)[i];
+
+                if (top == nullptr) {
+                    continue;
+                }
+
+                auto& holder = **top;
+                auto descriptor = holder.descriptor;
+
+                if (descriptor == nullptr || descriptor->name == nullptr) {
+                    continue;
+                }
+
+                // auto ret = descriptor->returnTypeName != nullptr ? std::string{descriptor->returnTypeName} : std::string{"undefined"};
+                std::string ret{"void"};
+
+                auto m = c->function(descriptor->name);
+
+                m->procedure("");
+            }
+        }
+
+        // Generate Fields
+        if (fields->variables != nullptr && fields->variables != nullptr && fields->variables->data != nullptr) {
+            auto descriptors = fields->variables->data->descriptors;
+
+            for (auto i = descriptors; i != descriptors + fields->variables->num; ++i) {
+                auto variable = *i;
+
+                if (variable == nullptr) {
+                    continue;
+                }
+
+                auto m = c->function(variable->name);
+
+                m->procedure("");
+            }
+        }
+    }
+
+    for (auto& desc : l) {
+        auto e = enum_from_name(g, desc.second.name);
+
+        e->type(g->type("uint64_t"));
+
+        for (auto node = desc.second.values; node != nullptr; node = node->next) {
+            if (node->name == nullptr) {
+                continue;
+            }
+
+            e->value(node->name, node->value);
+        }
+    }
+
+    sdk.generate("sdk");
+}
+
 void ObjectExplorer::handle_address(Address address, int32_t offset, Address parent) {
     if (!is_managed_object(address)) {
         return;
@@ -153,6 +396,7 @@ void ObjectExplorer::handle_address(Address address, int32_t offset, Address par
         made_node = stretched_tree_node(parent.get(offset), "0x%X:", offset);
         auto is_hovered = ImGui::IsItemHovered();
         auto additional_text = std::string{};
+        auto additional_text2 = std::string{};
 
         context_menu(object);
 
@@ -174,18 +418,67 @@ void ObjectExplorer::handle_address(Address address, int32_t offset, Address par
                 break;
             }
 
-            case via::clr::VMObjType::String:
+            case via::clr::VMObjType::String: {
                 additional_text = "String";
+
+                auto t = utility::re_managed_object::get_type(object);
+
+                if (t != nullptr) {
+                    auto type_name = std::string{t->name};
+                    auto ret = utility::hash(type_name);
+
+                    switch (ret) {
+                    case "System.String"_fnv: {
+                        auto str = (SystemString*)((uintptr_t)utility::re_managed_object::get_field_ptr(object) - sizeof(REManagedObject));
+
+                        if (str->size > 0) {
+                            additional_text2 = utility::narrow(str->data);
+                        }
+
+                        break;
+                    }
+                    default:
+                        additional_text2 = "NATIVE_STRING";
+                        break;
+                    }
+                }
+
                 break;
-            case via::clr::VMObjType::Delegate:
+            }
+            case via::clr::VMObjType::Delegate: {
                 additional_text = "Delegate";
                 break;
+            }
             case via::clr::VMObjType::ValType:
                 additional_text = "ValType";
                 break;
-            case via::clr::VMObjType::Object:
+            case via::clr::VMObjType::Object: {
+
                 additional_text = object->info->classInfo->type->name;
+
+                auto t = utility::re_managed_object::get_type(object);
+
+                if (t != nullptr) {
+                    auto type_name = std::string{t->name};
+                    auto ret = utility::hash(type_name);
+
+                    switch (ret) {
+                    case "System.String"_fnv: {
+                        auto str = (SystemString*)((uintptr_t)utility::re_managed_object::get_field_ptr(object) - sizeof(REManagedObject));
+
+                        if (str->size > 0) {
+                            additional_text2 = utility::narrow(str->data);
+                        }
+
+                        break;
+                    }
+                    default:
+                        break;
+                    }
+                }
+
                 break;
+            }
             case via::clr::VMObjType::NULL_:
             default:
                 additional_text = "NULL_OBJECT";
@@ -195,9 +488,11 @@ void ObjectExplorer::handle_address(Address address, int32_t offset, Address par
 
         if (is_hovered) {
             make_same_line_text(additional_text, VARIABLE_COLOR_HIGHLIGHT);
+            make_same_line_text(additional_text2, { 1.0f, 0.0f, 1.0f, 1.0f });
         }
         else {
             make_same_line_text(additional_text, VARIABLE_COLOR);
+            make_same_line_text(additional_text2, { 1.0f, 0.0f, 0.0f, 1.0f });
         }
     }
 
@@ -211,6 +506,18 @@ void ObjectExplorer::handle_address(Address address, int32_t offset, Address par
         }
 
         handle_type(object, utility::re_managed_object::get_type(object));
+
+        if (utility::re_managed_object::get_vm_type(object) == via::clr::VMObjType::Array) {
+            if (ImGui::TreeNode(address.get(sizeof(REArrayBase)), "Array Entries")) {
+                auto arr = (REArrayBase*)object;
+
+                for (auto i = 0; i < arr->numElements; ++i) {
+                    handle_address(utility::re_array::get_element<void*>(arr, i), i, arr);
+                }
+
+                ImGui::TreePop();
+            }
+        }
 
         if (ImGui::TreeNode(object, "AutoGenerated Types")) {
             auto type_info = object->info->classInfo->type;
@@ -412,6 +719,11 @@ void ObjectExplorer::display_methods(REManagedObject* obj, REType* type_info) {
             if (made_node) {
                 ImGui::Text("Address: 0x%p", descriptor);
                 ImGui::Text("Function: 0x%p", descriptor->functionPtr);
+
+                if (descriptor->functionPtr != nullptr && ImGui::Button("Attempt to call")) {
+                    char poop[0x100]{ 0 };
+                    utility::re_managed_object::call_method(obj, descriptor->name, poop);
+                }
 
                 auto t2 = get_type(ret);
 

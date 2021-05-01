@@ -16,6 +16,8 @@ public:
     void on_draw_ui() override;
 
 private:
+    void generate_sdk();
+
     void handle_address(Address address, int32_t offset = -1, Address parent = nullptr);
     void handle_game_object(REGameObject* game_object);
     void handle_component(REComponent* component);

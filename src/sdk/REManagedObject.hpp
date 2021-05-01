@@ -176,7 +176,11 @@ namespace utility::re_managed_object {
             return via::clr::VMObjType::NULL_;
         }
 
+#ifndef RE8
         return (via::clr::VMObjType)info->classInfo->objectType;
+#else
+        return (via::clr::VMObjType)(info->classInfo->objectFlags >> 5);
+#endif
     }
 
     static uint32_t get_size(::REManagedObject* object) {
@@ -189,7 +193,7 @@ namespace utility::re_managed_object {
         auto class_info = info->classInfo;
         auto size = class_info->size;
 
-        switch ((via::clr::VMObjType)class_info->objectType) {
+        switch (get_vm_type(object)) {
         case via::clr::VMObjType::Array:
         {
             auto container = (::REArrayBase*)object;

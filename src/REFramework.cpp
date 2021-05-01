@@ -8,6 +8,7 @@
 #include "re2-imgui/imgui_impl_dx12.h"
 
 #include "utility/Module.hpp"
+#include "utility/Patch.hpp"
 
 #include "sdk/REGlobals.hpp"
 #include "Mods.hpp"
@@ -33,6 +34,14 @@ REFramework::REFramework()
     if (!hook_d3d12()) {
         spdlog::error("Failed to hook D3D12 for initial test.");
     }
+
+    // Fixes a crash on some machines when starting the game
+    // todo: add pattern
+#ifdef RE8
+    auto startup_patch_addr = Address{m_game_module}.get(0x3E69E50);
+
+    static auto permanent_patch = Patch::create(startup_patch_addr, {0xC3});
+#endif
 }
 
 bool REFramework::hook_d3d11()

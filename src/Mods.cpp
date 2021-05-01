@@ -15,10 +15,15 @@ Mods::Mods()
     m_mods.emplace_back(std::make_unique<IntegrityCheckBypass>());
 #endif
 
+#ifndef BAREBONES
     m_mods.emplace_back(std::make_unique<PositionHooks>());
+
+#ifndef RE8
     m_mods.emplace_back(std::make_unique<FirstPerson>());
     m_mods.emplace_back(std::make_unique<ManualFlashlight>());
     m_mods.emplace_back(std::make_unique<FreeCam>());
+#endif
+#endif
 
 #ifdef DEVELOPER
     m_mods.emplace_back(std::make_unique<DeveloperTools>());

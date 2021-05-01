@@ -58,4 +58,8 @@ CheckOptions:
   - key:    readability-identifier-naming.ConstexprVariablePrefix
     value:  ''
   - key:    readability-identifier-naming.ConstexprVariableCase
-    value:  lower_casse
+    value:  lower_case
+
+# Other
+  - key:    readability-braces-around-statements.ShortStatementLines
+    value:  0

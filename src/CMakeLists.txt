@@ -30,6 +30,7 @@ set(SDK_SRC
     sdk/ReClass.hpp
     sdk/ReClass_Internal.hpp
     sdk/ReClass_Internal_RE3.hpp
+    sdk/ReClass_Internal_RE8.hpp
     sdk/Enums_Internal.hpp
 
     sdk/REArray.hpp
@@ -104,7 +105,7 @@ add_library(RE2 SHARED
 )
 
 target_link_libraries(RE2 PUBLIC imgui minhook d3d11 glm_static shlwapi)
-target_compile_options(RE2 PUBLIC /GS- /GR-)
+target_compile_options(RE2 PUBLIC /GS-)
 target_compile_features(RE2 PUBLIC cxx_std_17)
 
 include_directories(RE2 ${CMAKE_CURRENT_SOURCE_DIR})
@@ -112,6 +113,7 @@ set_target_properties(RE2 PROPERTIES OUTPUT_NAME dinput8)
 
 option(DEVELOPER_MODE "Adds DeveloperTools option to menu" OFF)
 option(RE3 "RE3 build" OFF)
+option(RE8 "RE8 build" OFF)
 
 if(DEVELOPER_MODE)
     target_compile_definitions(RE2 PUBLIC DEVELOPER)
@@ -120,4 +122,12 @@ endif()
 
 if (RE3)
     target_compile_definitions(RE2 PUBLIC RE3)
+endif()
+
+if (RE8)
+    target_compile_definitions(RE2 PUBLIC RE8)
+endif()
+
+if (BAREBONES)
+    target_compile_definitions(RE2 PUBLIC BAREBONES)
 endif()

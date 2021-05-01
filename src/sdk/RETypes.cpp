@@ -8,7 +8,9 @@
 
 std::string game_namespace(std::string_view base_name)
 {
-#ifdef RE3
+#ifdef RE8
+    return std::string{ "app." } + base_name.data();
+#elif RE3
     return std::string{ "offline." } + base_name.data();
 #else
     return std::string{ "app.ropeway." } + base_name.data();
@@ -18,13 +20,32 @@ std::string game_namespace(std::string_view base_name)
 RETypes::RETypes() {
     spdlog::info("RETypes initialization");
 
+    const auto types_pattern = "48 8d 0d ? ? ? ? e8 ? ? ? ? 48 8d 05 ? ? ? ? 48 89 03";
+
     auto mod = g_framework->get_module().as<HMODULE>();
-    auto ref = utility::scan(mod, "48 8d 0d ? ? ? ? e8 ? ? ? ? 48 8d 05 ? ? ? ? 48 89 03");
+    auto ref = utility::scan(mod, types_pattern);
+
+    if (!ref) {
+        spdlog::info("Bad RETypes ref");
+        return;
+    }
 
     spdlog::info("Ref: {:x}", (uintptr_t)*ref);
-    //
+    
     m_raw_types = (TypeList*)(utility::calculate_absolute(*ref + 3));
     spdlog::info("TypeList: {:x}", (uintptr_t)m_raw_types);
+
+    const auto module_size = utility::get_module_size(g_framework->get_module().as<HMODULE>());
+
+    while (m_raw_types->data != nullptr && IsBadReadPtr(m_raw_types->data, sizeof(void*))) {
+        spdlog::info("Re-scanning for RETypes, previous was invalid.");
+
+        ref = utility::scan(*ref + 1, *module_size, types_pattern);
+
+        spdlog::info("Ref: {:x}", (uintptr_t)*ref);
+        
+        m_raw_types = (TypeList*)(utility::calculate_absolute(*ref + 3));
+    }
 
     auto& typeList = *m_raw_types;
 
