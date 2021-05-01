@@ -360,6 +360,11 @@ void ObjectExplorer::generate_sdk() {
     }
 
     for (auto& desc : l) {
+        // template classes we dont want
+        if (std::string{desc.second.name}.find_first_of("`<>") != std::string::npos) {
+            continue;
+        }
+
         auto e = enum_from_name(g, desc.second.name);
 
         e->type(g->type("uint64_t"));
