@@ -8,13 +8,6 @@
 
 namespace utility::re_string {
     static std::wstring_view get_view(const ::REString& str) {
-#ifdef RE8
-        if (str.ptr == nullptr || ((uintptr_t)str.ptr & (sizeof(void*) - 1)) != 0 || str.ptr->size == 0) {
-            return L"";
-        }
-
-        return (wchar_t*)&str.ptr->data;
-#else
         auto length = str.length;
 
         if (length <= 0) {
@@ -40,14 +33,37 @@ namespace utility::re_string {
         }
 
         return raw_name;
-#endif
+    }
+
+    static std::wstring_view get_view(const ::SystemString& str) {
+        return std::wstring_view{ str.data };
+    }
+
+    static std::wstring_view get_view(SystemString* str) {
+        return get_view(*str);
     }
 
     static std::string get_string(const ::REString& str) {
         return utility::narrow(get_view(str));
     }
 
+    static std::string get_string(const ::SystemString& str) {
+        return utility::narrow(str.size > 0 ? str.data : L"");
+    }
+
+    static std::string get_string(SystemString* str) {
+        return get_string(*str);
+    }
+
     static bool equals(const ::REString& str, std::wstring_view view) {
         return get_view(str) == view;
     }
-}
+
+    static bool equals(const ::SystemString& str, std::wstring_view view) {
+        return get_view(str) == view;
+    }
+
+    static bool equals(const ::SystemString* str, std::wstring_view view) {
+        return equals(*str, view);
+    }
+    }

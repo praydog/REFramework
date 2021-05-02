@@ -531,7 +531,9 @@
       <node type="PointerNode" name="folder" comment="" hidden="false">
         <node type="ClassInstanceNode" name="N000002FF" comment="" hidden="false" reference="b4jDnv3yP0G6TqLnUOUcUQ==" />
       </node>
-      <node type="ClassInstanceNode" name="name" comment="This can either be a pointer to the name or embedded directly" hidden="false" reference="BlW8sIwa/kmYS9a8m2ZLdA==" />
+      <node type="PointerNode" name="name" comment="This can either be a pointer to the name or embedded directly" hidden="false">
+        <node type="ClassInstanceNode" name="N00007304" comment="" hidden="false" reference="nK/lMHj+G0iMi9ZVZmr9Ug==" />
+      </node>
       <node type="UInt32Node" name="N00000DDA" comment="" hidden="false" />
       <node type="FloatNode" name="timescale" comment="" hidden="false" />
       <node type="Hex32Node" name="N000007DA" comment="" hidden="false" />
@@ -10186,6 +10188,9 @@
     </class>
     <class uuid="LS3IBsEtdU2lEOnkr8ffbA==" name="N0000356E" comment="" address="140000000">
       <node type="Hex64Node" name="N0000356F" comment="" hidden="false" />
+    </class>
+    <class uuid="hZwtQsxvWEC389PrUxwVVw==" name="N00007305" comment="" address="140000000">
+      <node type="Hex64Node" name="N00007306" comment="" hidden="false" />
     </class>
   </classes>
 </reclass>

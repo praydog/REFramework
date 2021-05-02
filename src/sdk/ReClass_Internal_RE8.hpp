@@ -165,11 +165,6 @@ public:
     char pad_009C[252];   // 0x009C
 };                        // Size: 0x0198
 
-class REString {
-public:
-    class SystemString* ptr; // 0x0000
-};                           // Size: 0x0008
-
 class REGameObject : public REManagedObject {
 public:
     char pad_0010[2];             // 0x0010
@@ -181,7 +176,7 @@ public:
     char pad_0017[1];             // 0x0017
     class RETransform* transform; // 0x0018
     class REFolder* folder;       // 0x0020
-    class REString name;          // 0x0028 This can either be a pointer to the name or embedded directly
+    class SystemString* name;     // 0x0028 This can either be a pointer to the name or embedded directly
     uint32_t N00000DDA;           // 0x0030
     float timescale;              // 0x0034
     char pad_0038[16];            // 0x0038
@@ -270,6 +265,13 @@ public:
     uint32_t v4;                   // 0x0014
 };                                 // Size: 0x0018
 
+class REString {
+public:
+    char pad_0000[24]; // 0x0000
+    int32_t length;    // 0x0018 if len >= 12, is a pointer
+    int32_t maxLength; // 0x001C
+};                     // Size: 0x0020
+
 class REScene : public REManagedObject {
 public:
     char pad_0010[3];                     // 0x0010
@@ -285,10 +287,10 @@ public:
     class RETransform* N0000B786;         // 0x1804C0
     class REFolder* firstFolder;          // 0x1804C8
     class REString name;                  // 0x1804D0
-    char pad_1804D8[720];                 // 0x1804D8
-    int64_t N0000B7E3;                    // 0x1807A8
-    class REManagedObject* N0000B7E4;     // 0x1807B0
-};                                        // Size: 0x1807B8
+    char pad_1804F0[720];                 // 0x1804F0
+    int64_t N0000B7E3;                    // 0x1807C0
+    class REManagedObject* N0000B7E4;     // 0x1807C8
+};                                        // Size: 0x1807D0
 
 class N0000091E {
 public:
@@ -371,14 +373,14 @@ public:
     char pad_001C[8];             // 0x001C
     float N00005BA5;              // 0x0024
     class REString name;          // 0x0028
-    class REString name2;         // 0x0030
-    class REString name3;         // 0x0038
-    class REFolder* parentFolder; // 0x0040
-    class REFolder* childFolder;  // 0x0048
-    class REFolder* childFolder2; // 0x0050
-    char pad_0058[40];            // 0x0058
-    class REScene* scene;         // 0x0080
-};                                // Size: 0x0088
+    class REString name2;         // 0x0048
+    class REString name3;         // 0x0068
+    class REFolder* parentFolder; // 0x0088
+    class REFolder* childFolder;  // 0x0090
+    class REFolder* childFolder2; // 0x0098
+    char pad_00A0[40];            // 0x00A0
+    class REScene* scene;         // 0x00C8
+};                                // Size: 0x00D0
 
 class N00000D61 {
 public:
@@ -876,12 +878,12 @@ public:
 class UserData : public REManagedObject {
 public:
     class REString name; // 0x0010
-};                       // Size: 0x0018
+};                       // Size: 0x0030
 
 class N0000A9C1 : public UserData {
 public:
-    class REManagedObject* N0000A9C3; // 0x0018
-};                                    // Size: 0x0020
+    class REManagedObject* N0000A9C3; // 0x0030
+};                                    // Size: 0x0038
 
 class SystemString : public REManagedObject {
 public:
@@ -1536,10 +1538,10 @@ public:
 class RopewaySurvivorCharacterControllerUserData : public UserData // what a NAME
 {
 public:
-    class REPtrArray* data; // 0x0018
-    float N00001634;        // 0x0020
-    float N0000165B;        // 0x0024
-};                          // Size: 0x0028
+    class REPtrArray* data; // 0x0030
+    float N00001634;        // 0x0038
+    float N0000165B;        // 0x003C
+};                          // Size: 0x0040
 
 class REPtrArray : public REArrayBase {
 public:
@@ -1860,8 +1862,8 @@ class REDynamicsRagdoll : public REDynamicsRigidBodySet {
 public:
     char pad_00D0[32];   // 0x00D0
     class REString name; // 0x00F0
-    char pad_00F8[200];  // 0x00F8
-};                       // Size: 0x01C0
+    char pad_0110[200];  // 0x0110
+};                       // Size: 0x01D8
 
 class REDynamicsWorld : public REManagedObject {
 public:
@@ -2326,8 +2328,8 @@ public:
 
 class RopewayEnemyLODSettingUserData : public UserData {
 public:
-    float distanceLevels[5]; // 0x0018
-};                           // Size: 0x002C
+    float distanceLevels[5]; // 0x0030
+};                           // Size: 0x0044
 
 class RopewayEnemyManagerFrameTimer : public REManagedObject {
 public:
@@ -2358,8 +2360,8 @@ public:
 
 class RopewayCameraInterpolateSettings : public UserData {
 public:
-    void* curveParamTable; // 0x0018
-};                         // Size: 0x0020
+    void* curveParamTable; // 0x0030
+};                         // Size: 0x0038
 
 class CollisionSystemAsyncCastSphereHandle : public CollisionSystemAsyncCastHandleBase {
 public:
@@ -2512,18 +2514,18 @@ public:
 
 class RopewayWeaponBulletUserData : public UserData {
 public:
-    char pad_0018[8];         // 0x0018
-    bool enableDebug;         // 0x0020
-    char pad_0021[3];         // 0x0021
-    int32_t debugWeaponType;  // 0x0024
-    int32_t debugWeaponParts; // 0x0028
-    char pad_002C[4];         // 0x002C
-};                            // Size: 0x0030
+    char pad_0030[8];         // 0x0030
+    bool enableDebug;         // 0x0038
+    char pad_0039[3];         // 0x0039
+    int32_t debugWeaponType;  // 0x003C
+    int32_t debugWeaponParts; // 0x0040
+    char pad_0044[4];         // 0x0044
+};                            // Size: 0x0048
 
 class RopewayWeaponEquippedPositionUserData : public UserData {
 public:
-    char pad_0018[8]; // 0x0018
-};                    // Size: 0x0020
+    char pad_0030[8]; // 0x0030
+};                    // Size: 0x0038
 
 class RopewayGameMaster : public REBehavior {
 public:
@@ -2923,7 +2925,7 @@ public:
     char pad_0000[8]; // 0x0000
 };                    // Size: 0x0008
 
-class N000070C1 {
+class N00007305 {
 public:
-    char pad_0000[72]; // 0x0000
-};                     // Size: 0x0048
+    char pad_0000[8]; // 0x0000
+};                    // Size: 0x0008
