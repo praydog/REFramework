@@ -339,8 +339,12 @@ void ObjectExplorer::generate_sdk() {
 
                 auto m = c->function(descriptor->name);
 
+                std::ostringstream os{};
+                os << "// " << (descriptor->returnTypeName != nullptr ? descriptor->returnTypeName : "") << "\n";
+                os << "return utility::re_managed_object::call_method(this, \"" << descriptor->name << "\", *args);";
+
                 m->param("args")->type(g->type("void**"));
-                m->procedure(std::string{ "return utility::re_managed_object::call_method(this, \"" } + descriptor->name + "\", *args);")->returns(g->type("std::unique_ptr<ParamWrapper>"));
+                m->procedure(os.str())->returns(g->type("std::unique_ptr<ParamWrapper>"));
             }
         }
 
@@ -357,20 +361,25 @@ void ObjectExplorer::generate_sdk() {
 
                 genny::Function* m = nullptr;
 
+
+                std::ostringstream os{};
+                os << "// " << (variable->typeName != nullptr ? variable->typeName : "") << "\n";
+
                 if (variable->staticVariableData != nullptr) {
                     m = c->static_function(variable->name);
 
-                    std::ostringstream os{};
-                    os << "static auto info = g_framework->get_types()->get(variable->name)->classInfo->parentInfo;\n";
+                    os << "static auto info = g_framework->get_types()->get(\"" << t->name << "\")->classInfo->parentInfo;\n";
                     os << "auto dummy_type = REManagedObject{ };\n";
                     os << "dummy_type.info = info;\n";
-                    os << "return utility::re_managed_object::get_field<sdk::DummyData>(nullptr, utility::re_managed_object::get_field_desc(&dummy_type, \"" << variable->name << "\");\n";
+                    os << "return utility::re_managed_object::get_field<sdk::DummyData>(obj, utility::re_managed_object::get_field_desc(&dummy_type, \"" << variable->name << "\");\n";
 
-                    m->procedure(os.str());
+                    m->procedure(os.str())->param("obj")->type(g->type("REManagedObject*")->size(sizeof(REManagedObject*)));
                 }
                 else {
                     m = c->function(variable->name);
-                    m->procedure(std::string{"return utility::re_managed_object::get_field<sdk::DummyData>("} + "this" + ", \"" + variable->name + "\");");
+
+                    os << "return utility::re_managed_object::get_field<sdk::DummyData>(this" << "\"" << variable->name << "\");";
+                    m->procedure(os.str());
                 }
 
                 auto dummy_type = g->namespace_("sdk")->struct_("DummyData")->size(0x100);
@@ -1032,7 +1041,9 @@ void ObjectExplorer::attempt_display_field(REManagedObject* obj, VariableDescrip
                     ImGui::Text("");
                 }
             } else {
-                ImGui::Text("%s", utility::re_string::get_string(*(REString*)&data).c_str());
+                if (desc->variableType != 3) {
+                    ImGui::Text("%s", utility::re_string::get_string(*(REString*)&data).c_str());
+                }
             }
 #else
             ImGui::Text("%s", utility::re_string::get_string(*(REString*)&data).c_str());
