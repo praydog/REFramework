@@ -1275,8 +1275,8 @@ public:
 
 class DotNetGenericDictionary : public REManagedObject {
 public:
-    class REArrayBase* N00001434;            // 0x0010
-    class REArrayBase* N00001435;            // 0x0018
+    class REArrayBase* keys;                 // 0x0010
+    class REArrayBase* values;               // 0x0018
     char pad_0020[16];                       // 0x0020
     class REManagedObject* equalityComparer; // 0x0030
 };                                           // Size: 0x0038
@@ -3066,20 +3066,6 @@ public:
     char pad_0048[8]; // 0x0048
 };                    // Size: 0x0050
 
-class IESLight {
-public:
-    char pad_0000[417]; // 0x0000
-    bool ShadowEnable;  // 0x01A1
-    char pad_01A2[414]; // 0x01A2
-    float Radius;       // 0x0340
-};
-
-class AppHandLightPowerController {
-public:
-    char pad_0000[120];             // 0x0000
-    class IESLight* renderIESLight; // 0x0078
-};
-
 class AppPlayerHandLight : public AppBehaviorApp {
 public:
     char pad_0050[1];                                            // 0x0050
@@ -3107,3 +3093,128 @@ class N0000ABD5 {
 public:
     char pad_0000[8]; // 0x0000
 };                    // Size: 0x0008
+
+class AppCharacterUpdater : public AppBehaviorApp {
+public:
+    void* referenceContainer;      // 0x0050
+    void* agentsPriorityContainer; // 0x0058
+};                                 // Size: 0x0060
+
+class AppPlayerUpdater : public AppCharacterUpdater {
+public:
+    void* playerConfigure;                                       // 0x0060
+    class AppPlayerReferenceContainer* playerReferenceContainer; // 0x0068
+    char pad_0070[8];                                            // 0x0070
+};                                                               // Size: 0x0078
+
+class N0000B468 {
+public:
+    char pad_0000[8]; // 0x0000
+};                    // Size: 0x0008
+
+class N0000B498 : public REManagedObject {
+public:
+}; // Size: 0x0010
+
+class AppCharacterReferenceContainer : public N0000B498 {
+public:
+    void* N0000B49D;                          // 0x0010
+    void* N0000B49E;                          // 0x0018
+    void* N0000B49F;                          // 0x0020
+    void* N0000B4A0;                          // 0x0028
+    void* N0000B4A1;                          // 0x0030
+    void* N0000B4A2;                          // 0x0038
+    void* N0000B4A3;                          // 0x0040
+    class AppInputInputUpdater* inputUpdater; // 0x0048
+    char pad_0050[200];                       // 0x0050
+};                                            // Size: 0x0118
+
+class AppPlayerReferenceContainer : public AppCharacterReferenceContainer {
+public:
+    char pad_0118[232]; // 0x0118
+};                      // Size: 0x0200
+
+class N0000B49B {
+public:
+    char pad_0000[8]; // 0x0000
+};                    // Size: 0x0008
+
+class AppDemiAgent : public AppObjectApp {
+public:
+    class REGameObject* gameObject; // 0x0010
+};                                  // Size: 0x0018
+
+class AppAgent : public AppDemiAgent {
+public:
+    class AppAgentCostWatch* costWatch1; // 0x0018
+    class AppAgentCostWatch* costWatch2; // 0x0020
+};                                       // Size: 0x0028
+
+class AppInputInputUpdater : public AppAgent {
+public:
+    char pad_0028[8];                               // 0x0028
+    class DotNetGenericDictionary* inputDictionary; // 0x0030
+    char pad_0038[72];                              // 0x0038
+};                                                  // Size: 0x0080
+
+class N0000B578 {
+public:
+    char pad_0000[8]; // 0x0000
+};                    // Size: 0x0008
+
+class N0000B5C1 {
+public:
+    char pad_0000[8]; // 0x0000
+};                    // Size: 0x0008
+
+class AppAgentCostWatch : public REManagedObject {
+public:
+    float N0000B612;                             // 0x0010
+    bool isWait;                                 // 0x0014
+    char pad_0015[3];                            // 0x0015
+    class SystemDiagnosticsStopwatch* stopwatch; // 0x0018
+    char pad_0020[4];                            // 0x0020
+    float averageCost;                           // 0x0024
+    float minUpdateCost;                         // 0x0028
+    float maxUpdateCost;                         // 0x002C
+    char pad_0030[8];                            // 0x0030
+};                                               // Size: 0x0038
+
+class N0000B60D {
+public:
+    char pad_0000[8]; // 0x0000
+};                    // Size: 0x0008
+
+class N0000B610 {
+public:
+    char pad_0000[8]; // 0x0000
+};                    // Size: 0x0008
+
+class SystemDiagnosticsStopwatch : public REManagedObject {
+public:
+    char pad_0010[24]; // 0x0010
+};                     // Size: 0x0028
+
+class N0000B63F {
+public:
+    char pad_0000[8]; // 0x0000
+};                    // Size: 0x0008
+
+class N0000B688 {
+public:
+    char pad_0000[8]; // 0x0000
+};                    // Size: 0x0008
+
+class AppHandLightPowerController {
+public:
+    char pad_0000[120];             // 0x0000
+    class IESLight* renderIESLight; // 0x0078
+};                                  // Size: 0x0080
+
+class IESLight {
+public:
+    char pad_0000[417]; // 0x0000
+    bool ShadowEnable;  // 0x01A1
+    char pad_01A2[414]; // 0x01A2
+    float Radius;       // 0x0340
+};                      // Size: 0x0344
