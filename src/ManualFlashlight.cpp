@@ -72,15 +72,15 @@ void ManualFlashlight::on_update_transform(RETransform* transform) {
         return;
     }
 
+    const auto player_transform = player->transform;
+    if (player_transform == nullptr || transform != player_transform) {
+        return;
+    }
+
     // NOTE: This makes me a bit uneasy because if a pointer is reused then this logic will fail.
     // Surely theres a better way to check if the level/game session has changed, right?
     if (player != m_player) {
         m_player = player;
-    }
-
-    const auto player_transform = m_player->transform;
-    if (player_transform == nullptr) {
-        return;
     }
 
     // Wait until "AppPlayerHandLight" is valid...
