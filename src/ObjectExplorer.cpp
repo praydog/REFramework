@@ -330,7 +330,7 @@ void ObjectExplorer::generate_sdk() {
                 auto& holder = **top;
                 auto descriptor = holder.descriptor;
 
-                if (descriptor == nullptr || descriptor->name == nullptr) {
+                if (descriptor == nullptr || descriptor->name == nullptr || descriptor->functionPtr == nullptr) {
                     continue;
                 }
 
@@ -378,7 +378,7 @@ void ObjectExplorer::generate_sdk() {
                 else {
                     m = c->function(variable->name);
 
-                    os << "return utility::re_managed_object::get_field<sdk::DummyData>(this" << "\"" << variable->name << "\");";
+                    os << "return utility::re_managed_object::get_field<sdk::DummyData>(this, " << "\"" << variable->name << "\");";
                     m->procedure(os.str());
                 }
 

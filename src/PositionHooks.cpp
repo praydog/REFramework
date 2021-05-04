@@ -42,6 +42,7 @@ std::optional<std::string> PositionHooks::on_initialize() {
         return "Failed to hook UpdateTransform";
     }
 
+#ifndef RE8
     // Version 1.0 jmp stub: game+0xB4685A0
     // Version 1
     /*auto updatecamera_controllerCall = utility::scan(game, "75 ? 48 89 FA 48 89 D9 E8 ? ? ? ? 48 8B 43 50 48 83 78 18 00 75 ? 45 89");
@@ -117,6 +118,7 @@ std::optional<std::string> PositionHooks::on_initialize() {
     if (!m_update_camera_controller2_hook->create()) {
         return "Failed to hook Updatecamera_controller2";
     }
+#endif
 
     return Mod::on_initialize();
 }

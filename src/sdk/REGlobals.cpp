@@ -14,7 +14,7 @@ REGlobals::REGlobals() {
     auto end = (uintptr_t)start + *utility::get_module_size(mod);
 
     // generic pattern used for all these globals
-    auto pat = std::string{ "48 8D 0D ? ? ? ? 48 B8 00 00 00 00 00 00 00 80" };
+    auto pat = std::string{ "48 8D ? ? ? ? ? 48 B8 00 00 00 00 00 00 00 80" };
 
     // find all the globals
     for (auto i = utility::scan(start, end - start, pat); i.has_value(); i = utility::scan(*i + 1, end - (*i + 1), pat)) {

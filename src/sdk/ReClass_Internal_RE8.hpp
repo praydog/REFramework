@@ -1275,8 +1275,8 @@ public:
 
 class DotNetGenericDictionary : public REManagedObject {
 public:
-    class N00001440* N00001434;              // 0x0010
-    class N0000144E* N00001435;              // 0x0018
+    class REArrayBase* N00001434;            // 0x0010
+    class REArrayBase* N00001435;            // 0x0018
     char pad_0020[16];                       // 0x0020
     class REManagedObject* equalityComparer; // 0x0030
 };                                           // Size: 0x0038
@@ -2926,6 +2926,170 @@ public:
 };                    // Size: 0x0008
 
 class N00007305 {
+public:
+    char pad_0000[8]; // 0x0000
+};                    // Size: 0x0008
+
+class RenderSwingWind : public REComponent {
+public:
+    bool Enabled;                   // 0x0030
+    char pad_0031[7];               // 0x0031
+    class N00009C0D* WindParameter; // 0x0038
+};                                  // Size: 0x0040
+
+class N00009BE4 {
+public:
+    char pad_0000[8]; // 0x0000
+};                    // Size: 0x0008
+
+class N00009C0D {
+public:
+    char pad_0000[264]; // 0x0000
+};                      // Size: 0x0108
+
+class N00009C94 {
+public:
+    char pad_0000[8]; // 0x0000
+};                    // Size: 0x0008
+
+class N00009CD9 {
+public:
+    char pad_0000[8]; // 0x0000
+};                    // Size: 0x0008
+
+class N00009D2E {
+public:
+    char pad_0000[112]; // 0x0000
+};                      // Size: 0x0070
+
+class REArraySystemInt32 : public REArrayBase {
+public:
+    class N00009D2E N00009D02[256]; // 0x0020
+};                                  // Size: 0x7020
+
+class N00009D00 {
+public:
+    char pad_0000[8]; // 0x0000
+};                    // Size: 0x0008
+
+class DotNetGenericHashSet : public REManagedObject {
+public:
+    char pad_0010[16];                       // 0x0010
+    class REManagedObject* equalityComparer; // 0x0020
+};                                           // Size: 0x0028
+
+class N00009D4A {
+public:
+    char pad_0000[8]; // 0x0000
+};                    // Size: 0x0008
+
+class N00009DB2 {
+public:
+    char pad_0000[8]; // 0x0000
+};                    // Size: 0x0008
+
+class N00009DB6 {
+public:
+    char pad_0000[8]; // 0x0000
+};                    // Size: 0x0008
+
+class N00009DD9 {
+public:
+    char pad_0000[8]; // 0x0000
+};                    // Size: 0x0008
+
+class AppPropsManager : public REBehavior {
+public:
+    char pad_0048[16];                           // 0x0048
+    class REGameObject* player;                  // 0x0058
+    class RECamera* camera;                      // 0x0060
+    class AppFlotageProcess* flotageProcess;     // 0x0068
+    class AppSwingRopeProcess* swingRopeProcess; // 0x0070
+    char pad_0078[8];                            // 0x0078
+};                                               // Size: 0x0080
+
+class N00009DE5 {
+public:
+    char pad_0000[8]; // 0x0000
+};                    // Size: 0x0008
+
+class N00009E4C {
+public:
+    char pad_0000[8]; // 0x0000
+};                    // Size: 0x0008
+
+class N00009E71 {
+public:
+    char pad_0000[8]; // 0x0000
+};                    // Size: 0x0008
+
+class AppObjectApp : public REManagedObject {
+public:
+}; // Size: 0x0010
+
+class AppPropsManagerToyProcess : public AppObjectApp {
+public:
+    bool isDebugDraw;                      // 0x0010
+    char pad_0011[15];                     // 0x0011
+    class DotNetGenericList* behaviorList; // 0x0020
+};                                         // Size: 0x0028
+
+class AppFlotageProcess : public AppPropsManagerToyProcess {
+public:
+    int32_t flotageId;   // 0x0028
+    int32_t turnCounter; // 0x002C
+    float maxDistance;   // 0x0030
+    float N0000A33D;     // 0x0034
+};                       // Size: 0x0038
+
+class AppSwingRopeProcess : public AppPropsManagerToyProcess {
+public:
+}; // Size: 0x0028
+
+class N00009EC1 {
+public:
+    char pad_0000[8]; // 0x0000
+};                    // Size: 0x0008
+
+class N00009EC7 {
+public:
+    char pad_0000[8]; // 0x0000
+};                    // Size: 0x0008
+
+class N00009F02 {
+public:
+    char pad_0000[8]; // 0x0000
+};                    // Size: 0x0008
+
+class AppBehaviorApp : public REBehavior {
+public:
+    char pad_0048[8]; // 0x0048
+};                    // Size: 0x0050
+
+class AppPlayerHandLight : public AppBehaviorApp {
+public:
+    char pad_0050[1];     // 0x0050
+    bool isEnabled;       // 0x0051
+    char pad_0052[6];     // 0x0052
+    void* handLightPower; // 0x0058
+    char pad_0060[16];    // 0x0060
+    void* nightVision;    // 0x0070
+    char pad_0078[8];     // 0x0078
+    void* playerStatus;   // 0x0080
+    void* wwise;          // 0x0088
+};                        // Size: 0x0090
+
+class N0000ABA1 {
+public:
+    char pad_0000[8]; // 0x0000
+};                    // Size: 0x0008
+
+class N0000ABAF {
+public:
+    char pad_0000[8]; // 0x0000
+};                    // Size: 0x0008
+
+class N0000ABD5 {
 public:
     char pad_0000[8]; // 0x0000
 };                    // Size: 0x0008
