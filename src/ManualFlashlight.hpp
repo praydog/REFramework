@@ -4,7 +4,7 @@
 
 #include "Mod.hpp"
 
-// Original founder: SkacikPL (https://github.com/SkacikPL)
+// Original founder (RE2): SkacikPL (https://github.com/SkacikPL)
 // Recreated in REFramework
 class ManualFlashlight : public Mod {
 public:
@@ -19,7 +19,13 @@ public:
     void on_update_transform(RETransform* transform) override;
 
 private:
+#ifndef RE8
     RopewayIlluminationManager* m_illumination_manager{ nullptr };
+#else
+    AppPropsManager* m_props_manager{ nullptr };
+    REGameObject* m_player{ nullptr };
+    AppPlayerHandLight* m_player_hand_light{ nullptr };
+#endif
 
     bool m_should_pull_out{ false };
 
@@ -27,8 +33,17 @@ private:
     const ModKey::Ptr m_key{ ModKey::create(generate_name("Key"), DIK_F) };
     const ModToggle::Ptr m_enabled{ ModToggle::create(generate_name("Enabled"), false) };
 
+#ifdef RE8
+    const ModToggle::Ptr m_light_enable_shadows{ ModToggle::create(generate_name("LightShadows"), true) };
+    const ModSlider::Ptr m_light_radius{ ModSlider::create(generate_name("LightRadius"), 0.0f, 50.0f, 1.0f) };
+#endif
+
     ValueList m_options{
         *m_key,
-        *m_enabled
+        *m_enabled,
+#ifdef RE8
+        *m_light_enable_shadows,
+        *m_light_radius,
+#endif
     };
 };

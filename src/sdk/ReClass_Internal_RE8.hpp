@@ -3066,18 +3066,32 @@ public:
     char pad_0048[8]; // 0x0048
 };                    // Size: 0x0050
 
+class IESLight {
+public:
+    char pad_0000[417]; // 0x0000
+    bool ShadowEnable;  // 0x01A1
+    char pad_01A2[414]; // 0x01A2
+    float Radius;       // 0x0340
+};
+
+class AppHandLightPowerController {
+public:
+    char pad_0000[120];             // 0x0000
+    class IESLight* renderIESLight; // 0x0078
+};
+
 class AppPlayerHandLight : public AppBehaviorApp {
 public:
-    char pad_0050[1];     // 0x0050
-    bool isEnabled;       // 0x0051
-    char pad_0052[6];     // 0x0052
-    void* handLightPower; // 0x0058
-    char pad_0060[16];    // 0x0060
-    void* nightVision;    // 0x0070
-    char pad_0078[8];     // 0x0078
-    void* playerStatus;   // 0x0080
-    void* wwise;          // 0x0088
-};                        // Size: 0x0090
+    char pad_0050[1];                                            // 0x0050
+    bool IsContinuousOn;                                         // 0x0051
+    char pad_0052[6];                                            // 0x0052
+    class AppHandLightPowerController* handLightPowerController; // 0x0058
+    char pad_0060[16];                                           // 0x0060
+    void* nightVision;                                           // 0x0070
+    char pad_0078[8];                                            // 0x0078
+    void* playerStatus;                                          // 0x0080
+    void* wwise;                                                 // 0x0088
+};                                                               // Size: 0x0090
 
 class N0000ABA1 {
 public:

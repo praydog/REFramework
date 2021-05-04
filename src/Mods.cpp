@@ -17,10 +17,10 @@ Mods::Mods()
 
 #ifndef BAREBONES
     m_mods.emplace_back(std::make_unique<PositionHooks>());
+    m_mods.emplace_back(std::make_unique<ManualFlashlight>());
 
 #ifndef RE8
     m_mods.emplace_back(std::make_unique<FirstPerson>());
-    m_mods.emplace_back(std::make_unique<ManualFlashlight>());
     m_mods.emplace_back(std::make_unique<FreeCam>());
 #endif
 #endif
