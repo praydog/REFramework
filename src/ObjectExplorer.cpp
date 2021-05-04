@@ -371,7 +371,7 @@ void ObjectExplorer::generate_sdk() {
                     os << "static auto info = g_framework->get_types()->get(\"" << t->name << "\")->classInfo->parentInfo;\n";
                     os << "auto dummy_type = REManagedObject{ };\n";
                     os << "dummy_type.info = info;\n";
-                    os << "return utility::re_managed_object::get_field<sdk::DummyData>(obj, utility::re_managed_object::get_field_desc(&dummy_type, \"" << variable->name << "\");\n";
+                    os << "return utility::re_managed_object::get_field<sdk::DummyData>(obj, utility::re_managed_object::get_field_desc(&dummy_type, \"" << variable->name << "\"));\n";
 
                     m->procedure(os.str())->param("obj")->type(g->type("REManagedObject*")->size(sizeof(REManagedObject*)));
                 }
