@@ -14,6 +14,7 @@ public:
     static Ptr create_nop(uintptr_t addr, uint32_t length, bool should_enable = true);
 
     static bool patch(uintptr_t address, const std::vector<int16_t>& bytes);
+
     // Returns the old protection on success.
     // Note: you don't need to call this if you're using the above patch function.
     static std::optional<DWORD> protect(uintptr_t address, size_t size, DWORD protection);

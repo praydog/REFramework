@@ -8,7 +8,6 @@ std::unique_ptr<Patch> Patch::create(uintptr_t addr, const std::vector<int16_t>&
     return std::make_unique<Patch>(addr, b, shouldEnable);
 }
 
-
 std::unique_ptr<Patch> Patch::create_nop(uintptr_t addr, uint32_t length, bool shouldEnable) {
     std::vector<decltype(m_bytes)::value_type> bytes; bytes.resize(length);
     std::fill(bytes.begin(), bytes.end(), 0x90);

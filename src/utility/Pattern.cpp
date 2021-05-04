@@ -40,7 +40,6 @@ namespace utility {
 
             // Make sure the address is readable.
             if (IsBadReadPtr((const void*)i, patternLength) != FALSE) {
-            //if (!isGoodReadPtr(i, patternLength)) {
                 i += patternLength - 1;
                 continue;
             }

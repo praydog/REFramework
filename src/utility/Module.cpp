@@ -58,7 +58,7 @@ namespace utility {
                 size = section->SizeOfRawData;
             }
 
-            if (rva >= section->VirtualAddress && rva < (section->VirtualAddress + size)) {
+            if (rva >= section->VirtualAddress && rva < ((uintptr_t)section->VirtualAddress + size)) {
                 auto delta = section->VirtualAddress - section->PointerToRawData;
 
                 return (uintptr_t)(dll + (rva - delta));
