@@ -16,6 +16,7 @@
 #include "Enums_Internal.hpp"
 
 #include "RETypes.hpp"
+#include "REType.hpp"
 #include "REArray.hpp"
 #include "REContext.hpp"
 #include "REManagedObject.hpp"

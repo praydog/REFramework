@@ -74,6 +74,19 @@ RETypes::RETypes() {
         m_type_list.push_back(t);
     }
 
+#ifdef RE8
+    const auto value_types_pattern = "25 ff ff 03 00 48 8d 0c 40 48 8b 05 ? ? ? ? 48 03 c9";
+    ref = utility::scan(mod, value_types_pattern);
+
+    if (!ref) {
+        spdlog::info("Bad REValueTypes pattern");
+        return;
+    }
+
+    m_raw_value_types = (REValueTypes**)utility::calculate_absolute(*ref + 12);
+    spdlog::info("ValueTypes: {:x}", (uintptr_t)m_raw_value_types);
+#endif
+
     spdlog::info("Finished RETypes initialization");
 }
 

@@ -207,7 +207,7 @@ namespace utility::re_managed_object {
             auto contained_type = container->containedType;
             
             // array of ptrs by default
-            uint32_t element_size = utility::re_array::has_inline_elements(container) ? contained_type->elementSize : sizeof(void*);
+            auto element_size = utility::re_array::get_element_size(container);
 
             if (container->num1 <= 1) {
                 size = element_size * container->numElements + sizeof(::REArrayBase);

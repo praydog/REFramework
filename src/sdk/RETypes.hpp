@@ -26,6 +26,12 @@ public:
         return m_type_list;
     }
 
+#ifdef RE8
+    const auto& get_value_types() const { 
+        return *m_raw_value_types; 
+    }
+#endif
+
     // Equivalent
     REType* get(std::string_view name);
     REType* operator[](std::string_view name);
@@ -42,6 +48,9 @@ private:
     void refresh_map();
 
     TypeList* m_raw_types{ nullptr };
+#ifdef RE8
+    REValueTypes** m_raw_value_types{ nullptr };
+#endif
 
     // Class name to object like "app.foo.bar" -> 0xDEADBEEF
     std::unordered_map<std::string, REType*> m_type_map;

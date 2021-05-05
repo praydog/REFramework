@@ -341,7 +341,7 @@ public:
     char pad_0002[5];               // 0x0002
     uint8_t objectFlags;            // 0x0007 flags >> 5 ==  1 == normal type ? ??
     uint32_t typeFlags;             // 0x0008 System::Reflection::TypeAttributes or via::clr::TypeFlag
-    uint32_t elementSize;           // 0x000C
+    uint32_t elementBitField;       // 0x000C >> 4 is the value type index (REValueTypes)
     char pad_0010[4];               // 0x0010
     uint32_t size;                  // 0x0014
     char pad_0018[40];              // 0x0018
@@ -1490,8 +1490,8 @@ public:
 
 class REArrayThing : public REArrayBase {
 public:
-    char pad_0020[72]; // 0x0020
-};                     // Size: 0x0068
+    char pad_0020[1096]; // 0x0020
+};                       // Size: 0x0468
 
 class RopewaySurvivorCharacterController : public REBehavior {
 public:
@@ -3218,3 +3218,22 @@ public:
     char pad_01A2[414]; // 0x01A2
     float Radius;       // 0x0340
 };                      // Size: 0x0344
+
+class AppGamePadDevice {
+public:
+    char pad_0000[560];  // 0x0000
+    Vector3f N0000BCA8;  // 0x0230
+    char pad_023C[1548]; // 0x023C
+};                       // Size: 0x0848
+
+class ValueTypeDescriptor {
+public:
+    char pad_0000[8];  // 0x0000
+    uint32_t size;     // 0x0008
+    char pad_000C[36]; // 0x000C
+};                     // Size: 0x0030
+
+class REValueTypes {
+public:
+    class ValueTypeDescriptor types[10000]; // 0x0000
+};                                          // Size: 0x75300

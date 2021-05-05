@@ -43,6 +43,8 @@ set(SDK_SRC
     sdk/REMath.hpp
     sdk/REString.hpp
     sdk/RETransform.hpp
+    sdk/REType.hpp
+    sdk/REType.cpp
     sdk/RETypes.hpp
     sdk/RETypes.cpp
     sdk/RopewaySweetLightManager.hpp
