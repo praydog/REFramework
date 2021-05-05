@@ -29,6 +29,10 @@ private:
 
     const ModSlider::Ptr m_speed{ ModSlider::create(generate_name("Speed"), 0.0f, 1.0f, 0.1f) };
 
+#ifdef RE8
+    ModSlider::Ptr m_rotation_speed{ ModSlider::create(generate_name("RotationSpeed"), 0.0f, 1.0f, 0.1f) };
+#endif
+
     ValueList m_options{
         *m_enabled,
         *m_lock_camera,
@@ -36,7 +40,10 @@ private:
         *m_toggle_key,
         *m_lock_camera_key,
         *m_disable_movement_key,
-        *m_speed
+        *m_speed,
+#ifdef RE8
+        *m_rotation_speed,
+#endif
     };
 
 #ifndef RE8
@@ -51,4 +58,8 @@ private:
     Matrix4x4f m_last_camera_matrix{ glm::identity<Matrix4x4f>() };
 
     bool m_first_time{ true };
+
+#ifdef RE8
+    Vector3f m_custom_angles{};
+#endif
 };

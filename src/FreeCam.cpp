@@ -1,3 +1,5 @@
+#include "sdk/REMath.hpp"
+
 #include "FreeCam.hpp"
 
 void FreeCam::on_config_load(const utility::Config& cfg) {
@@ -47,6 +49,7 @@ void FreeCam::on_draw_ui() {
     m_disable_movement_key->draw("Disable Movement Toggle Key");
 
     m_speed->draw("Speed");
+    m_rotation_speed->draw("Rotation Speed");
 }
 
 void FreeCam::on_update_transform(RETransform* transform) {
@@ -130,6 +133,12 @@ void FreeCam::on_update_transform(RETransform* transform) {
         m_last_camera_matrix = transform->worldTransform;
         m_first_time = false;
 
+        m_custom_angles = utility::math::euler_angles(glm::extractMatrixRotation(transform->worldTransform));
+        //m_custom_angles[1] *= -1.0f;
+        //m_custom_angles[1] += glm::radians(180.0f);
+
+        utility::math::fix_angles(m_custom_angles);
+
         return;
     }
 
@@ -139,16 +148,23 @@ void FreeCam::on_update_transform(RETransform* transform) {
     if (!m_lock_camera->value()) {
         // Move direction
         // It's not a Vector2f because via.vec2 is not actually 8 bytes, we don't want stack corruption to occur.
-        auto axis = *utility::re_managed_object::get_field<Vector3f*>(device, "AxisL");
-        auto dir = Vector4f{axis.x, 0.0f, axis.y * -1.0f, 0.0f};
+        auto axis_l = *utility::re_managed_object::get_field<Vector3f*>(device, "AxisL");
+        auto axis_r = *utility::re_managed_object::get_field<Vector3f*>(device, "AxisR");
+        auto dir = Vector4f{axis_l.x, 0.0f, axis_l.y * -1.0f, 0.0f};
 
         auto delta = utility::re_component::get_delta_time(transform);
 
-        // Use controller rotation instead of camera rotation as it's accurate, will work in cutscenes.
-        auto new_pos = m_last_camera_matrix[3] + Matrix4x4f{*(glm::quat*)&transform->angles} * dir * m_speed->value() * delta;
+        m_custom_angles[0] += axis_r.y * m_rotation_speed->value() * delta;
+        m_custom_angles[1] -= axis_r.x * m_rotation_speed->value() * delta;
+        m_custom_angles[2] = 0.0f;
+
+        utility::math::fix_angles(m_custom_angles);
+
+        auto new_rotation = Matrix4x4f{ glm::quat{ m_custom_angles } };
+        auto new_pos = m_last_camera_matrix[3] + new_rotation * dir * m_speed->value() * delta;
 
         // Keep track of the rotation if we want to lock the camera
-        m_last_camera_matrix = transform->worldTransform;
+        m_last_camera_matrix = new_rotation;
         m_last_camera_matrix[3] = new_pos;
     }
 #endif
