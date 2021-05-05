@@ -58,6 +58,7 @@ void FreeCam::on_update_transform(RETransform* transform) {
         return;
     }
 
+#ifndef RE8
     if (m_camera_system->mainCamera == nullptr || transform != m_camera_system->mainCamera->ownerGameObject->transform) {
         return;
     }
@@ -111,12 +112,53 @@ void FreeCam::on_update_transform(RETransform* transform) {
         m_last_camera_matrix[3] = new_pos;
     }
 
+    controller->worldPosition = m_last_camera_matrix[3];
+#else
+    if (m_props_manager->camera == nullptr || transform != m_props_manager->camera->ownerGameObject->transform) {
+        return;
+    }
+
+    auto camera = m_props_manager->camera;
+
+    // Controllers only for now
+    if (m_pad_manager->pad1 == nullptr || m_pad_manager->pad1->device == nullptr) {
+        m_first_time = true;
+        return;
+    }
+
+    if (m_first_time) {
+        m_last_camera_matrix = transform->worldTransform;
+        m_first_time = false;
+
+        return;
+    }
+
+    auto device = m_pad_manager->pad1->device;
+
+    // Update wanted camera position
+    if (!m_lock_camera->value()) {
+        // Move direction
+        // It's not a Vector2f because via.vec2 is not actually 8 bytes, we don't want stack corruption to occur.
+        auto axis = *utility::re_managed_object::get_field<Vector3f*>(device, "AxisL");
+        auto dir = Vector4f{axis.x, 0.0f, axis.y * -1.0f, 0.0f};
+
+        auto delta = utility::re_component::get_delta_time(transform);
+
+        // Use controller rotation instead of camera rotation as it's accurate, will work in cutscenes.
+        auto new_pos = m_last_camera_matrix[3] + Matrix4x4f{*(glm::quat*)&transform->angles} * dir * m_speed->value() * delta;
+
+        // Keep track of the rotation if we want to lock the camera
+        m_last_camera_matrix = transform->worldTransform;
+        m_last_camera_matrix[3] = new_pos;
+    }
+#endif
+
     transform->worldTransform = m_last_camera_matrix;
     transform->position = m_last_camera_matrix[3];
-    controller->worldPosition = m_last_camera_matrix[3];
 }
 
 bool FreeCam::update_pointers() {
+#ifndef RE8
     if (m_camera_system == nullptr || m_input_system == nullptr || m_survivor_manager == nullptr) {
         auto& globals = *g_framework->get_globals();
         m_camera_system = globals.get<RopewayCameraSystem>(game_namespace("camera.CameraSystem"));
@@ -124,6 +166,14 @@ bool FreeCam::update_pointers() {
         m_survivor_manager = globals.get<RopewaySurvivorManager>(game_namespace("SurvivorManager"));
         return false;
     }
+#else
+    if (m_pad_manager == nullptr || m_props_manager == nullptr) {
+        auto& globals = *g_framework->get_globals();
+        m_pad_manager = globals.get<AppHIDPadManager>(game_namespace("HIDPadManager"));
+        m_props_manager = globals.get<AppPropsManager>(game_namespace("PropsManager"));
+        return false;
+    }
+#endif
 
     return true;
 }

@@ -39,9 +39,14 @@ private:
         *m_speed
     };
 
+#ifndef RE8
     RopewayCameraSystem* m_camera_system{ nullptr };
     RopewayInputSystem* m_input_system{ nullptr };
     RopewaySurvivorManager* m_survivor_manager{ nullptr };
+#else
+    AppHIDPadManager* m_pad_manager{ nullptr };
+    AppPropsManager* m_props_manager{ nullptr };
+#endif
 
     Matrix4x4f m_last_camera_matrix{ glm::identity<Matrix4x4f>() };
 

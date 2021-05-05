@@ -2065,18 +2065,43 @@ public:
 
 class HIDNativeDeviceBase : public REManagedObject {
 public:
-    char pad_0010[272]; // 0x0010
-};                      // Size: 0x0120
+    char pad_0010[120];    // 0x0010
+    bool connecting;       // 0x0088
+    char pad_0089[7];      // 0x0089
+    class REString name;   // 0x0090
+    char pad_00B0[80];     // 0x00B0
+    uint32_t button;       // 0x0100 via.hid.GamePadButton
+    char pad_0104[4];      // 0x0104
+    uint32_t buttonDown;   // 0x0108
+    uint32_t buttonUp;     // 0x010C
+    uint32_t buttonRepeat; // 0x0110
+    char pad_0114[12];     // 0x0114
+};                         // Size: 0x0120
 
 class HIDGamePadDevice : public HIDNativeDeviceBase {
 public:
-    char pad_0120[384]; // 0x0120
-};                      // Size: 0x02A0
+    char pad_0120[160];       // 0x0120
+    Vector2f rawAxisL;        // 0x01C0
+    char pad_01C8[8];         // 0x01C8
+    Vector2f rawAxisR;        // 0x01D0
+    char pad_01D8[8];         // 0x01D8
+    Vector2f axisL;           // 0x01E0
+    char pad_01E8[8];         // 0x01E8
+    Vector2f axisR;           // 0x01F0
+    char pad_01F8[8];         // 0x01F8
+    float analogL;            // 0x0200
+    float analogR;            // 0x0204
+    char pad_0208[24];        // 0x0208
+    Vector3f acceleration;    // 0x0220
+    char pad_022C[4];         // 0x022C
+    Vector3f angularVelocity; // 0x0230
+    char pad_023C[116];       // 0x023C
+};                            // Size: 0x02B0
 
 class HIDJoypadDevice : public HIDGamePadDevice {
 public:
-    char pad_02A0[16]; // 0x02A0
-};                     // Size: 0x02B0
+    char pad_02B0[16]; // 0x02B0
+};                     // Size: 0x02C0
 
 class RopewayInputSystemAnalogStick : public REManagedObject {
 public:
@@ -3237,3 +3262,132 @@ class REValueTypes {
 public:
     class ValueTypeDescriptor types[10000]; // 0x0000
 };                                          // Size: 0x75300
+
+class DictionaryEntryUInt32Ptr {
+public:
+    int32_t hashCode; // 0x0000
+    int32_t next;     // 0x0004
+    uint32_t key;     // 0x0008
+    char pad_000C[4]; // 0x000C
+    void* value;      // 0x0010
+};                    // Size: 0x0018
+
+class SystemClassDescriptor {
+public:
+    char* name_space;                             // 0x0000
+    char* class_name;                             // 0x0008
+    uint32_t num_methods;                         // 0x0010
+    char pad_0014[4];                             // 0x0014
+    class SystemMethodDescriptor (*methods)[256]; // 0x0018
+};                                                // Size: 0x0020
+
+class SystemClasses {
+public:
+    class SystemClassDescriptor N0000CB08[256]; // 0x0000
+};                                              // Size: 0x2000
+
+class SystemMethodDescriptor {
+public:
+    char* name;        // 0x0000
+    void* func;        // 0x0008
+    char pad_0010[64]; // 0x0010
+};                     // Size: 0x0050
+
+class N0000CBBC {
+public:
+    class REClassInfo* class_infos[256]; // 0x0000
+};                                       // Size: 0x0800
+
+class N0000CBE8 {
+public:
+    char pad_0000[64]; // 0x0000
+};                     // Size: 0x0040
+
+class N0000CC15 {
+public:
+    char pad_0000[8]; // 0x0000
+};                    // Size: 0x0008
+
+class N0000CC3A {
+public:
+    char pad_0000[8]; // 0x0000
+};                    // Size: 0x0008
+
+class N0000CCC5 {
+public:
+    char pad_0000[8]; // 0x0000
+};                    // Size: 0x0008
+
+class AppHIDPadManager : public REBehavior {
+public:
+    char pad_0048[16];                   // 0x0048
+    void* userdata;                      // 0x0058
+    class AppHIDPad* pad1;               // 0x0060
+    class N0000CD1C* pad2;               // 0x0068
+    void* delegate1;                     // 0x0070
+    void* delegate2;                     // 0x0078
+    class DotNetGenericList* pads;       // 0x0080
+    class DotNetGenericList* padDevices; // 0x0088
+};                                       // Size: 0x0090
+
+class N0000CCD1 {
+public:
+    char pad_0000[8]; // 0x0000
+};                    // Size: 0x0008
+
+class AppHIDPad : public AppObjectApp {
+public:
+    void* delegate1;                            // 0x0010
+    class HIDGamePadDevice* device;             // 0x0018
+    char pad_0020[16];                          // 0x0020
+    class REArrayBase* array1;                  // 0x0030
+    class REArrayBase* array2;                  // 0x0038
+    char pad_0040[96];                          // 0x0040
+    class DotNetGenericDictionary* dictionary1; // 0x00A0
+    char pad_00A8[8];                           // 0x00A8
+};                                              // Size: 0x00B0
+
+class N0000CD1C {
+public:
+    char pad_0000[8]; // 0x0000
+};                    // Size: 0x0008
+
+class N0000CD6D {
+public:
+    char pad_0000[8]; // 0x0000
+};                    // Size: 0x0008
+
+class N0000CD91 {
+public:
+    char pad_0000[8]; // 0x0000
+};                    // Size: 0x0008
+
+class N0000CDB4 {
+public:
+    char pad_0000[8]; // 0x0000
+};                    // Size: 0x0008
+
+class N0000CDDB {
+public:
+    char pad_0000[8]; // 0x0000
+};                    // Size: 0x0008
+
+class N0000CDFF {
+public:
+    char pad_0000[8]; // 0x0000
+};                    // Size: 0x0008
+
+class N0000CE24 {
+public:
+    char pad_0000[8]; // 0x0000
+};                    // Size: 0x0008
+
+class N0000CE49 {
+public:
+    char pad_0000[8]; // 0x0000
+};                    // Size: 0x0008
+
+class N0000CE70 {
+public:
+    char pad_0000[8]; // 0x0000
+};                    // Size: 0x0008
