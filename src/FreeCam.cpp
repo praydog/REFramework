@@ -49,7 +49,10 @@ void FreeCam::on_draw_ui() {
     m_disable_movement_key->draw("Disable Movement Toggle Key");
 
     m_speed->draw("Speed");
+
+#ifdef RE8
     m_rotation_speed->draw("Rotation Speed");
+#endif
 }
 
 void FreeCam::on_update_transform(RETransform* transform) {
