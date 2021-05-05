@@ -7,6 +7,10 @@
 //  [X] Platform: Keyboard arrays indexed using VK_* Virtual Key Codes, e.g. ImGui::IsKeyPressed(VK_SPACE).
 //  [X] Platform: Gamepad support. Enabled with 'io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad'.
 
+#include <vector>
+#include <deque>
+#include <mutex>
+
 #include <imgui/imgui.h>
 #include "imgui_impl_win32.h"
 #ifndef WIN32_LEAN_AND_MEAN
@@ -201,9 +205,69 @@ void    ImGui_ImplWin32_UpdateGameControllers()
 }
 #endif
 
+struct ImguiInputEvent {
+    struct KeyDownEvent {
+        KeyDownEvent(WPARAM k, bool d)
+            : key{ k },
+            down{ d }
+        {
+        }
+
+        WPARAM key{};
+        bool down{ false };
+    };
+
+    struct MouseDownEvent {
+        MouseDownEvent(int32_t b, bool d)
+            : btn{b}
+            , down{d} {}
+
+        int32_t btn{};
+        bool down{false};
+    };
+
+    std::vector<KeyDownEvent> queued_keys{};
+    std::vector<MouseDownEvent> queued_buttons{};
+    std::vector<uint16_t> queued_chars{};
+
+    float mousewheel[2]{};
+};
+
+std::deque<ImguiInputEvent> g_input_events{};
+uint64_t g_frame_count{ 0 };
+uint64_t g_last_frame_count{ 0 };
+
+std::recursive_mutex g_input_mtx{};
+
 void    ImGui_ImplWin32_NewFrame()
 {
     ImGuiIO& io = ImGui::GetIO();
+
+    {
+        std::lock_guard _{ g_input_mtx };
+
+        if (!g_input_events.empty()) {
+            auto& evt = g_input_events.front();
+
+            for (auto& queued_key : evt.queued_keys) {
+                io.KeysDown[queued_key.key] = queued_key.down;
+            }
+
+            for (auto& queued_button : evt.queued_buttons) {
+                io.MouseDown[queued_button.btn] = queued_button.down;
+            }
+
+            for (auto queued_char : evt.queued_chars) {
+                io.AddInputCharacter(queued_char);
+            }
+
+            io.MouseWheel += evt.mousewheel[0];
+            io.MouseWheelH += evt.mousewheel[1];
+
+            g_input_events.pop_front();
+        }
+    }
+
     IM_ASSERT(io.Fonts->IsBuilt() && "Font atlas not built! It is generally built by the renderer back-end. Missing call to renderer _NewFrame() function? e.g. ImGui_ImplOpenGL3_NewFrame().");
 
     // Setup display size (every frame to accommodate for window resizing)
@@ -239,6 +303,8 @@ void    ImGui_ImplWin32_NewFrame()
     // Update game controllers (if available)
     ImGui_ImplWin32_UpdateGameControllers();
 #endif
+
+    ++g_frame_count;
 }
 
 // Allow compilation with old Windows SDK. MinGW doesn't have default _WIN32_WINNT/WINVER versions.
@@ -262,6 +328,16 @@ IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg, WPARA
         return 0;
 
     ImGuiIO& io = ImGui::GetIO();
+
+    std::lock_guard _{ g_input_mtx };
+
+    if (g_frame_count != g_last_frame_count || g_input_events.empty()) {
+        g_input_events.emplace_back();
+        g_last_frame_count = g_frame_count;
+    }
+
+    auto& input_event = g_input_events.back();
+
     switch (msg)
     {
     case WM_LBUTTONDOWN: case WM_LBUTTONDBLCLK:
@@ -276,7 +352,7 @@ IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg, WPARA
         if (msg == WM_XBUTTONDOWN || msg == WM_XBUTTONDBLCLK) { button = (GET_XBUTTON_WPARAM(wParam) == XBUTTON1) ? 3 : 4; }
         if (!ImGui::IsAnyMouseDown() && ::GetCapture() == NULL)
             ::SetCapture(hwnd);
-        io.MouseDown[button] = true;
+        input_event.queued_buttons.emplace_back(button, true);
         return 0;
     }
     case WM_LBUTTONUP:
@@ -289,31 +365,33 @@ IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg, WPARA
         if (msg == WM_RBUTTONUP) { button = 1; }
         if (msg == WM_MBUTTONUP) { button = 2; }
         if (msg == WM_XBUTTONUP) { button = (GET_XBUTTON_WPARAM(wParam) == XBUTTON1) ? 3 : 4; }
-        io.MouseDown[button] = false;
+        input_event.queued_buttons.emplace_back(button, false);
         if (!ImGui::IsAnyMouseDown() && ::GetCapture() == hwnd)
             ::ReleaseCapture();
         return 0;
     }
     case WM_MOUSEWHEEL:
-        io.MouseWheel += (float)GET_WHEEL_DELTA_WPARAM(wParam) / (float)WHEEL_DELTA;
+        input_event.mousewheel[0] += (float)GET_WHEEL_DELTA_WPARAM(wParam) / (float)WHEEL_DELTA;
+        //io.MouseWheel += (float)GET_WHEEL_DELTA_WPARAM(wParam) / (float)WHEEL_DELTA;
         return 0;
     case WM_MOUSEHWHEEL:
-        io.MouseWheelH += (float)GET_WHEEL_DELTA_WPARAM(wParam) / (float)WHEEL_DELTA;
+        input_event.mousewheel[1] += (float)GET_WHEEL_DELTA_WPARAM(wParam) / (float)WHEEL_DELTA;
+        //io.MouseWheelH += (float)GET_WHEEL_DELTA_WPARAM(wParam) / (float)WHEEL_DELTA;
         return 0;
     case WM_KEYDOWN:
     case WM_SYSKEYDOWN:
         if (wParam < 256)
-            io.KeysDown[wParam] = 1;
+            input_event.queued_keys.emplace_back(wParam, true);
         return 0;
     case WM_KEYUP:
     case WM_SYSKEYUP:
         if (wParam < 256)
-            io.KeysDown[wParam] = 0;
+            input_event.queued_keys.emplace_back(wParam, false);
         return 0;
     case WM_CHAR:
         // You can also use ToAscii()+GetKeyboardState() to retrieve characters.
         if (wParam > 0 && wParam < 0x10000)
-            io.AddInputCharacter((unsigned short)wParam);
+            input_event.queued_chars.emplace_back((unsigned short)wParam);
         return 0;
     case WM_SETCURSOR:
         if (LOWORD(lParam) == HTCLIENT && ImGui_ImplWin32_UpdateMouseCursor())
