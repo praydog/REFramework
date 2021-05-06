@@ -138,6 +138,8 @@ void REFramework::on_frame_d3d11() {
         return;
     }
 
+    consume_input();
+
     ImGui_ImplDX11_NewFrame();
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
@@ -178,6 +180,8 @@ void REFramework::on_frame_d3d12() {
         spdlog::error("Null Command Queue");
         return;
     }
+
+    consume_input();
 
     ImGui_ImplDX12_NewFrame();
     ImGui_ImplWin32_NewFrame();
@@ -243,6 +247,26 @@ bool REFramework::on_message(HWND wnd, UINT message, WPARAM w_param, LPARAM l_pa
         return true;
     }
 
+    switch (message) {
+    case WM_INPUT: {
+        uint32_t size = sizeof(RAWINPUT);
+        uint8_t lpb[sizeof(RAWINPUT)]{};
+
+        // obtain size
+        GetRawInputData((HRAWINPUT)l_param, RID_INPUT, nullptr, &size, sizeof(RAWINPUTHEADER));
+
+        auto result = GetRawInputData((HRAWINPUT)l_param, RID_INPUT, lpb, &size, sizeof(RAWINPUTHEADER));
+        auto raw = (RAWINPUT*)lpb;
+
+        if (raw->header.dwType == RIM_TYPEMOUSE) {
+            m_accumulated_mouse_delta[0] += (float)raw->data.mouse.lLastX;
+            m_accumulated_mouse_delta[1] += (float)raw->data.mouse.lLastY;
+        }
+    } break;
+    default:
+        break;
+    }
+
     if (m_draw_ui && ImGui_ImplWin32_WndProcHandler(wnd, message, w_param, l_param) != 0) {
         // If the user is interacting with the UI we block the message from going to the game.
         auto& io = ImGui::GetIO();
@@ -285,6 +309,14 @@ void REFramework::save_config() {
     }
 
     spdlog::info("Saved config");
+}
+
+void REFramework::consume_input() {
+    m_mouse_delta[0] = m_accumulated_mouse_delta[0];
+    m_mouse_delta[1] = m_accumulated_mouse_delta[1];
+
+    m_accumulated_mouse_delta[0] = 0.0f;
+    m_accumulated_mouse_delta[1] = 0.0f;
 }
 
 void REFramework::draw_ui() {

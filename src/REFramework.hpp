@@ -27,6 +27,7 @@ public:
 
     const auto& get_types() const { return m_types; }
 
+    const auto& get_mouse_delta() const { return m_mouse_delta; }
     const auto& get_keyboard_state() const { return m_last_keys; }
 
     const auto& get_globals() const { return m_globals; }
@@ -44,6 +45,8 @@ public:
     void save_config();
 
 private:
+    void consume_input();
+
     void draw_ui();
     void draw_about();
 
@@ -66,6 +69,8 @@ private:
     HMODULE m_game_module{0};
     uint8_t m_menu_key{DIK_INSERT};
 
+    float m_accumulated_mouse_delta[2]{};
+    float m_mouse_delta[2]{};
     std::array<uint8_t, 256> m_last_keys{0};
     std::unique_ptr<D3D11Hook> m_d3d11_hook{};
     std::unique_ptr<D3D12Hook> m_d3d12_hook{};
