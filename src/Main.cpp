@@ -24,9 +24,11 @@ void failed() {
 void startup_thread() {
 #ifndef NDEBUG
     AllocConsole();
-    freopen("CONIN$", "r", stdin);
-    freopen("CONOUT$", "w", stdout);
-    freopen("CONOUT$", "w", stderr);
+
+    FILE* dummy;
+    freopen_s(&dummy, "CONIN$", "r", stdin);
+    freopen_s(&dummy, "CONOUT$", "w", stdout);
+    freopen_s(&dummy, "CONOUT$", "w", stderr);
 #endif
 
     wchar_t buffer[MAX_PATH]{ 0 };
