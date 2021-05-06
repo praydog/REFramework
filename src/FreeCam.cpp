@@ -49,8 +49,38 @@ void FreeCam::on_draw_ui() {
     m_disable_movement_key->draw("Disable Movement Toggle Key");
 
     m_speed->draw("Speed");
+
+#ifdef RE8
     m_rotation_speed->draw("Rotation Speed");
+#endif
 }
+
+#ifdef RE8
+enum class MoveDirection : uint32_t {
+    FORWARD,
+    BACKWARD,
+    LEFT,
+    RIGHT
+};
+
+std::unordered_map<MoveDirection, Vector4f> g_movedir_map{
+    { MoveDirection::FORWARD, { 0.0f, 0.0f, -1.0f, 0.0f } },
+    { MoveDirection::BACKWARD, { 0.0f, 0.0f, 1.0f, 0.0f  } },
+    { MoveDirection::LEFT, { -1.0f, 0.0f, 0.0f, 0.0f  } },
+    { MoveDirection::RIGHT, { 1.0f, 0.0f, 0.0f, 0.0f  } },
+};
+
+std::unordered_map<int32_t, MoveDirection> g_vk_to_movedir{
+    { DIK_W, MoveDirection::FORWARD },
+    { DIK_A, MoveDirection::LEFT },
+    { DIK_S, MoveDirection::BACKWARD },
+    { DIK_D, MoveDirection::RIGHT },
+    { DIK_UP, MoveDirection::FORWARD },
+    { DIK_LEFT, MoveDirection::LEFT },
+    { DIK_DOWN, MoveDirection::BACKWARD },
+    { DIK_RIGHT, MoveDirection::RIGHT },
+};
+#endif
 
 void FreeCam::on_update_transform(RETransform* transform) {
     if (!m_enabled->value() && !m_first_time) {
@@ -123,12 +153,6 @@ void FreeCam::on_update_transform(RETransform* transform) {
 
     auto camera = m_props_manager->camera;
 
-    // Controllers only for now
-    if (m_pad_manager->pad1 == nullptr || m_pad_manager->pad1->device == nullptr) {
-        m_first_time = true;
-        return;
-    }
-
     if (m_first_time) {
         m_last_camera_matrix = transform->worldTransform;
         m_first_time = false;
@@ -142,20 +166,42 @@ void FreeCam::on_update_transform(RETransform* transform) {
         return;
     }
 
-    auto device = m_pad_manager->pad1->device;
-
     // Update wanted camera position
     if (!m_lock_camera->value()) {
-        // Move direction
-        // It's not a Vector2f because via.vec2 is not actually 8 bytes, we don't want stack corruption to occur.
-        auto axis_l = *utility::re_managed_object::get_field<Vector3f*>(device, "AxisL");
-        auto axis_r = *utility::re_managed_object::get_field<Vector3f*>(device, "AxisR");
-        auto dir = Vector4f{axis_l.x, 0.0f, axis_l.y * -1.0f, 0.0f};
-
+        Vector4f dir{};
         auto delta = utility::re_component::get_delta_time(transform);
 
-        m_custom_angles[0] += axis_r.y * m_rotation_speed->value() * delta;
-        m_custom_angles[1] -= axis_r.x * m_rotation_speed->value() * delta;
+        // Controller support
+        if (m_pad_manager->pad1 != nullptr && m_pad_manager->pad1->device != nullptr) {
+            auto device = m_pad_manager->pad1->device;
+
+            // Move direction
+            // It's not a Vector2f because via.vec2 is not actually 8 bytes, we don't want stack corruption to occur.
+            auto axis_l = *utility::re_managed_object::get_field<Vector3f*>(device, "AxisL");
+            auto axis_r = *utility::re_managed_object::get_field<Vector3f*>(device, "AxisR");
+
+            m_custom_angles[0] += axis_r.y * m_rotation_speed->value() * delta;
+            m_custom_angles[1] -= axis_r.x * m_rotation_speed->value() * delta;
+            m_custom_angles[2] = 0.0f;
+
+            if (axis_l.length() > 0.0f) {
+                dir = Vector4f{ axis_l.x, 0.0f, axis_l.y * -1.0f, 0.0f };
+            }
+        }
+
+        auto& io = ImGui::GetIO();
+        auto& keyboard_state = g_framework->get_keyboard_state();
+
+        for (auto& entry : g_vk_to_movedir) {
+            if (keyboard_state[entry.first]) {
+                dir += g_movedir_map[entry.second];
+            }
+        }
+
+        const auto& mouse_delta = g_framework->get_mouse_delta();
+
+        m_custom_angles[0] -= mouse_delta[1] * m_rotation_speed->value() * delta;
+        m_custom_angles[1] -= mouse_delta[0] * m_rotation_speed->value() * delta;
         m_custom_angles[2] = 0.0f;
 
         utility::math::fix_angles(m_custom_angles);
