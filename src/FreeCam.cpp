@@ -2,6 +2,8 @@
 
 #include "FreeCam.hpp"
 
+using namespace utility;
+
 void FreeCam::on_config_load(const utility::Config& cfg) {
     for (IModValue& option : m_options) {
         option.config_load(cfg);
@@ -48,16 +50,20 @@ void FreeCam::on_draw_ui() {
     m_lock_camera_key->draw("Lock Position Toggle Key");
     m_disable_movement_key->draw("Disable Movement Toggle Key");
 
-    m_speed->draw("Speed");
-
 #ifdef RE8
+    m_speed_modifier_fast_key->draw("Speed modifier Fast key");
+    m_speed_modifier_slow_key->draw("Speed modifier Slow key");
+
     m_rotation_speed->draw("Rotation Speed");
+    m_speed_modifier->draw("Speed Modifier");
 #endif
+
+    m_speed->draw("Speed");
 }
 
 #ifdef RE8
-enum class MoveDirection : uint32_t {
-    FORWARD,
+enum class MoveDirection : uint8_t {
+    FORWARD = 0,
     BACKWARD,
     LEFT,
     RIGHT
@@ -147,21 +153,20 @@ void FreeCam::on_update_transform(RETransform* transform) {
 
     controller->worldPosition = m_last_camera_matrix[3];
 #else
-    if (m_props_manager->camera == nullptr || transform != m_props_manager->camera->ownerGameObject->transform) {
+    const auto camera = m_props_manager->camera;
+    if (camera == nullptr || transform != camera->ownerGameObject->transform) {
         return;
     }
-
-    auto camera = m_props_manager->camera;
 
     if (m_first_time) {
         m_last_camera_matrix = transform->worldTransform;
         m_first_time = false;
 
-        m_custom_angles = utility::math::euler_angles(glm::extractMatrixRotation(transform->worldTransform));
+        m_custom_angles = math::euler_angles(glm::extractMatrixRotation(transform->worldTransform));
         //m_custom_angles[1] *= -1.0f;
         //m_custom_angles[1] += glm::radians(180.0f);
 
-        utility::math::fix_angles(m_custom_angles);
+        math::fix_angles(m_custom_angles);
 
         return;
     }
@@ -169,16 +174,16 @@ void FreeCam::on_update_transform(RETransform* transform) {
     // Update wanted camera position
     if (!m_lock_camera->value()) {
         Vector4f dir{};
-        auto delta = utility::re_component::get_delta_time(transform);
+        const auto delta = re_component::get_delta_time(transform);
 
         // Controller support
         if (m_pad_manager->pad1 != nullptr && m_pad_manager->pad1->device != nullptr) {
-            auto device = m_pad_manager->pad1->device;
+            const auto device = m_pad_manager->pad1->device;
 
             // Move direction
             // It's not a Vector2f because via.vec2 is not actually 8 bytes, we don't want stack corruption to occur.
-            auto axis_l = *utility::re_managed_object::get_field<Vector3f*>(device, "AxisL");
-            auto axis_r = *utility::re_managed_object::get_field<Vector3f*>(device, "AxisR");
+            const auto axis_l = *re_managed_object::get_field<Vector3f*>(device, "AxisL");
+            const auto axis_r = *re_managed_object::get_field<Vector3f*>(device, "AxisR");
 
             m_custom_angles[0] += axis_r.y * m_rotation_speed->value() * delta;
             m_custom_angles[1] -= axis_r.x * m_rotation_speed->value() * delta;
@@ -189,13 +194,22 @@ void FreeCam::on_update_transform(RETransform* transform) {
             }
         }
 
-        auto& io = ImGui::GetIO();
-        auto& keyboard_state = g_framework->get_keyboard_state();
-
-        for (auto& entry : g_vk_to_movedir) {
+        const auto& keyboard_state = g_framework->get_keyboard_state();
+        for (const auto& entry : g_vk_to_movedir) {
             if (keyboard_state[entry.first]) {
                 dir += g_movedir_map[entry.second];
             }
+        }
+
+        const auto dir_speed_mod_fast = m_speed_modifier->value();
+        const auto dir_speed_mod_slow = 1.f / dir_speed_mod_fast;
+
+        auto dir_speed = m_speed->value();
+        if (keyboard_state[m_speed_modifier_fast_key->value()]) {
+            dir_speed *= dir_speed_mod_fast;
+        } 
+        else if (keyboard_state[m_speed_modifier_slow_key->value()]) {
+            dir_speed *= dir_speed_mod_slow;
         }
 
         const auto& mouse_delta = g_framework->get_mouse_delta();
@@ -204,10 +218,10 @@ void FreeCam::on_update_transform(RETransform* transform) {
         m_custom_angles[1] -= mouse_delta[0] * m_rotation_speed->value() * delta;
         m_custom_angles[2] = 0.0f;
 
-        utility::math::fix_angles(m_custom_angles);
+        math::fix_angles(m_custom_angles);
 
-        auto new_rotation = Matrix4x4f{ glm::quat{ m_custom_angles } };
-        auto new_pos = m_last_camera_matrix[3] + new_rotation * dir * m_speed->value() * delta;
+        const auto new_rotation = Matrix4x4f{ glm::quat{ m_custom_angles } };
+        const auto new_pos = m_last_camera_matrix[3] + new_rotation * dir * dir_speed * delta;
 
         // Keep track of the rotation if we want to lock the camera
         m_last_camera_matrix = new_rotation;

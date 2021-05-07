@@ -25,6 +25,7 @@ private:
     AppPropsManager* m_props_manager{ nullptr };
     REGameObject* m_player{ nullptr };
     AppPlayerHandLight* m_player_hand_light{ nullptr };
+    IESLight* m_player_hand_ies_light{ nullptr };
 #endif
 
     bool m_should_pull_out{ false };
