@@ -9,6 +9,15 @@ void ManualFlashlight::on_frame() {
     if (m_key->is_key_down_once()) {
         m_enabled->toggle();
     }
+
+    static auto last_enabled{ false };
+
+    const auto enabled = m_enabled->value();
+    if (enabled && enabled != last_enabled && !m_toggle_off) {
+        m_toggle_off = true;
+    }
+
+    last_enabled = enabled;
 }
 
 void ManualFlashlight::on_draw_ui() {
@@ -40,9 +49,26 @@ void ManualFlashlight::on_config_save(utility::Config& cfg) {
 
 void ManualFlashlight::on_update_transform(RETransform* transform) {
     if (!m_enabled->value()) {
-        // Turn off flashlight when not enabled.
-        if (m_player_hand_light != nullptr) {
-            m_player_hand_light->IsContinuousOn = false;
+        // Toggle off flashlight once.
+        if (m_toggle_off) {
+#ifndef RE8
+            if (m_illumination_manager != nullptr) {
+                m_illumination_manager->shouldUseFlashlight = 0;
+                m_illumination_manager->someCounter = 0;
+                m_illumination_manager->shouldUseFlashlight2 = false;
+            }
+#else
+            if (m_player_hand_light != nullptr) {
+                m_player_hand_light->IsContinuousOn = false;
+            }
+
+            if (m_player_hand_ies_light != nullptr) {
+                m_player_hand_ies_light->ShadowEnable = m_light_enable_shadows->default_value();
+                m_player_hand_ies_light->Radius = m_light_radius->default_value();
+            }
+#endif
+
+            m_toggle_off = false;
         }
 
         return;
@@ -51,17 +77,18 @@ void ManualFlashlight::on_update_transform(RETransform* transform) {
 #ifndef RE8
     if (m_illumination_manager == nullptr) {
         m_illumination_manager = g_framework->get_globals()->get<RopewayIlluminationManager>(game_namespace("IlluminationManager"));
-        return;
+        if (m_illumination_manager == nullptr) {
+            return;
+        }
     }
 
-    // No patch is needed if we are modifying the variables after the transform is updated
     if (transform != m_illumination_manager->ownerGameObject->transform) {
         return;
     }
 
-    m_illumination_manager->shouldUseFlashlight = (int)m_should_pull_out;
-    m_illumination_manager->someCounter = (int)m_should_pull_out;
-    m_illumination_manager->shouldUseFlashlight2 = m_should_pull_out;
+    m_illumination_manager->shouldUseFlashlight = 1;
+    m_illumination_manager->someCounter = 1;
+    m_illumination_manager->shouldUseFlashlight2 = true;
 #else
     const auto reset_player_data = [&](REGameObject* new_player = nullptr) {
         m_player = new_player;
@@ -69,10 +96,8 @@ void ManualFlashlight::on_update_transform(RETransform* transform) {
         m_player_hand_ies_light = nullptr;
     };
 
-    // Wait until "AppPropsManager" is valid and cache it off once.
+    // Wait until "AppPropsManager" is valid...
     if (m_props_manager == nullptr) {
-        reset_player_data();
-
         m_props_manager = g_framework->get_globals()->get<AppPropsManager>(game_namespace("PropsManager"));
         if (m_props_manager == nullptr) {
             return;
@@ -85,7 +110,6 @@ void ManualFlashlight::on_update_transform(RETransform* transform) {
         return;
     }
 
-    // Only update when it's the "pl1000" transform.
     const auto player_transform = player->transform;
     if (player_transform == nullptr || transform != player_transform) {
         return;

@@ -49,16 +49,15 @@ void FreeCam::on_draw_ui() {
     m_toggle_key->draw("Toggle Key");
     m_lock_camera_key->draw("Lock Position Toggle Key");
     m_disable_movement_key->draw("Disable Movement Toggle Key");
-
-#ifdef RE8
     m_speed_modifier_fast_key->draw("Speed modifier Fast key");
     m_speed_modifier_slow_key->draw("Speed modifier Slow key");
 
+#ifdef RE8
     m_rotation_speed->draw("Rotation Speed");
-    m_speed_modifier->draw("Speed Modifier");
 #endif
 
     m_speed->draw("Speed");
+    m_speed_modifier->draw("Speed Modifier");
 }
 
 #ifdef RE8
@@ -102,8 +101,7 @@ void FreeCam::on_update_transform(RETransform* transform) {
         return;
     }
 
-    auto condition = m_survivor_manager->playerCondition;
-
+    const auto condition = m_survivor_manager->playerCondition;
     if (m_first_time || condition == nullptr) {
         m_last_camera_matrix = transform->worldTransform;
 
@@ -115,21 +113,18 @@ void FreeCam::on_update_transform(RETransform* transform) {
         return;
     }
 
-    auto orderer = condition->actionOrderer;
-
+    const auto orderer = condition->actionOrderer;
     if (orderer != nullptr) {
         orderer->enabled = !m_disable_movement->value();
     }
 
-    auto controller = m_camera_system->cameraController;
-
+    const auto controller = m_camera_system->cameraController;
     if (controller == nullptr) {
         return;
     }
 
     // despite the name, it works with the keyboard
-    auto left_analog = utility::re_managed_object::get_field<RopewayInputSystemAnalogStick*>(m_input_system, "_LStick");
-
+    const auto left_analog = re_managed_object::get_field<RopewayInputSystemAnalogStick*>(m_input_system, "_LStick");
     if (left_analog == nullptr) {
         return;
     }
@@ -138,13 +133,25 @@ void FreeCam::on_update_transform(RETransform* transform) {
     if (!m_lock_camera->value()) {
         // Move direction
         // It's not a Vector2f because via.vec2 is not actually 8 bytes, we don't want stack corruption to occur.
-        auto axis = utility::re_managed_object::get_field<Vector3f>(left_analog, "Axis");
-        auto dir = Vector4f{ axis.x, 0.0f, axis.y * -1.0f, 0.0f };
+        const auto axis = re_managed_object::get_field<Vector3f>(left_analog, "Axis");
+        const auto dir = Vector4f{ axis.x, 0.0f, axis.y * -1.0f, 0.0f };
 
-        auto delta = utility::re_component::get_delta_time(transform);
+        const auto delta = re_component::get_delta_time(transform);
+
+        const auto dir_speed_mod_fast = m_speed_modifier->value();
+        const auto dir_speed_mod_slow = 1.f / dir_speed_mod_fast;
+
+        auto dir_speed = m_speed->value();
+
+        const auto& keyboard_state = g_framework->get_keyboard_state();
+        if (keyboard_state[m_speed_modifier_fast_key->value()]) {
+            dir_speed *= dir_speed_mod_fast;
+        } else if (keyboard_state[m_speed_modifier_slow_key->value()]) {
+            dir_speed *= dir_speed_mod_slow;
+        }
 
         // Use controller rotation instead of camera rotation as it's accurate, will work in cutscenes.
-        auto new_pos = m_last_camera_matrix[3] + Matrix4x4f{ *(glm::quat*)&controller->worldRotation } * dir * m_speed->value() * delta;
+        const auto new_pos = m_last_camera_matrix[3] + Matrix4x4f{ *(glm::quat*)&controller->worldRotation } * dir * dir_speed * delta;
 
         // Keep track of the rotation if we want to lock the camera
         m_last_camera_matrix = transform->worldTransform;

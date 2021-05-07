@@ -28,7 +28,7 @@ private:
     IESLight* m_player_hand_ies_light{ nullptr };
 #endif
 
-    bool m_should_pull_out{ false };
+    bool m_toggle_off{ false };
 
     // keys need to be directinput unfortunately. window messages for windows virtual keys get blocked
     const ModKey::Ptr m_key{ ModKey::create(generate_name("Key"), DIK_F) };
