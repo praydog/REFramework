@@ -38,7 +38,8 @@ public:
 
     ModValue(std::string_view config_name, T default_value) 
         : m_config_name{ config_name },
-        m_value{ default_value }
+        m_value{ default_value }, 
+        m_default_value{ default_value }
     {
     }
 
@@ -64,12 +65,17 @@ public:
         return m_value;
     }
 
+    const T& default_value() const {
+        return m_default_value;
+    }
+
     const auto& get_config_name() const {
         return m_config_name;
     }
 
 protected:
     T m_value{};
+    T m_default_value{};
     std::string m_config_name{ "Default_ModValue" };
 };
 
