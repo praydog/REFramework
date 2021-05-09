@@ -10,6 +10,7 @@ Supports both DirectX 11 and DirectX 12.
 * First Person (RE2, RE3)
 * Free Camera (RE2, RE3, RE8)
 * Manual Flashlight (RE2, RE3, RE8)
+* FOV Slider & Vignette Disabler (RE2, RE3, RE8)
 
 ## Included Fixes
 * RE8 Startup Crash

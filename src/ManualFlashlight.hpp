@@ -19,17 +19,6 @@ public:
     void on_update_transform(RETransform* transform) override;
 
 private:
-#ifndef RE8
-    RopewayIlluminationManager* m_illumination_manager{ nullptr };
-#else
-    AppPropsManager* m_props_manager{ nullptr };
-    REGameObject* m_player{ nullptr };
-    AppPlayerHandLight* m_player_hand_light{ nullptr };
-    IESLight* m_player_hand_ies_light{ nullptr };
-#endif
-
-    bool m_toggle_off{ false };
-
     // keys need to be directinput unfortunately. window messages for windows virtual keys get blocked
     const ModKey::Ptr m_key{ ModKey::create(generate_name("Key"), DIK_F) };
     const ModToggle::Ptr m_enabled{ ModToggle::create(generate_name("Enabled"), false) };
@@ -47,4 +36,15 @@ private:
         *m_light_radius,
 #endif
     };
+
+#ifndef RE8
+    RopewayIlluminationManager* m_illumination_manager{nullptr};
+#else
+    AppPropsManager* m_props_manager{nullptr};
+    REGameObject* m_player{nullptr};
+    AppPlayerHandLight* m_player_hand_light{nullptr};
+    IESLight* m_player_hand_ies_light{nullptr};
+#endif
+
+    void on_disabled() noexcept;
 };

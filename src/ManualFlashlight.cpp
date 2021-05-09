@@ -6,18 +6,9 @@ using namespace utility;
 
 void ManualFlashlight::on_frame() {
     // TODO: Add controller support.
-    if (m_key->is_key_down_once()) {
-        m_enabled->toggle();
+    if (m_key->is_key_down_once() && !m_enabled->toggle()) {
+        on_disabled();
     }
-
-    static auto last_enabled{ false };
-
-    const auto enabled = m_enabled->value();
-    if (enabled && enabled != last_enabled && !m_toggle_off) {
-        m_toggle_off = true;
-    }
-
-    last_enabled = enabled;
 }
 
 void ManualFlashlight::on_draw_ui() {
@@ -26,7 +17,10 @@ void ManualFlashlight::on_draw_ui() {
         return;
     }
 
-    m_enabled->draw("Enabled");
+    if (m_enabled->draw("Enabled") && !m_enabled->value()) {
+        on_disabled();
+    }
+
     m_key->draw("Change Key");
 
 #ifdef RE8
@@ -49,28 +43,6 @@ void ManualFlashlight::on_config_save(utility::Config& cfg) {
 
 void ManualFlashlight::on_update_transform(RETransform* transform) {
     if (!m_enabled->value()) {
-        // Toggle off flashlight once.
-        if (m_toggle_off) {
-#ifndef RE8
-            if (m_illumination_manager != nullptr) {
-                m_illumination_manager->shouldUseFlashlight = 0;
-                m_illumination_manager->someCounter = 0;
-                m_illumination_manager->shouldUseFlashlight2 = false;
-            }
-#else
-            if (m_player_hand_light != nullptr) {
-                m_player_hand_light->IsContinuousOn = false;
-            }
-
-            if (m_player_hand_ies_light != nullptr) {
-                m_player_hand_ies_light->ShadowEnable = m_light_enable_shadows->default_value();
-                m_player_hand_ies_light->Radius = m_light_radius->default_value();
-            }
-#endif
-
-            m_toggle_off = false;
-        }
-
         return;
     } 
 
@@ -145,5 +117,24 @@ void ManualFlashlight::on_update_transform(RETransform* transform) {
 
     m_player_hand_ies_light->ShadowEnable = m_light_enable_shadows->value();
     m_player_hand_ies_light->Radius = m_light_radius->value();
+#endif
+}
+
+void ManualFlashlight::on_disabled() noexcept {
+#ifndef RE8
+    if (m_illumination_manager != nullptr) {
+        m_illumination_manager->shouldUseFlashlight = 0;
+        m_illumination_manager->someCounter = 0;
+        m_illumination_manager->shouldUseFlashlight2 = false;
+    }
+#else
+    if (m_player_hand_light != nullptr) {
+        m_player_hand_light->IsContinuousOn = false;
+    }
+
+    if (m_player_hand_ies_light != nullptr) {
+        m_player_hand_ies_light->ShadowEnable = m_light_enable_shadows->default_value();
+        m_player_hand_ies_light->Radius = m_light_radius->default_value();
+    }
 #endif
 }
