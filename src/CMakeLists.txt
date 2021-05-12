@@ -12,6 +12,8 @@ set(HOOKS_SRC
 )
 
 set(MODS_SRC
+    Camera.hpp
+    Camera.cpp
     DeveloperTools.hpp
     DeveloperTools.cpp
     FirstPerson.hpp
