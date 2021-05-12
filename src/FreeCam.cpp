@@ -4,13 +4,13 @@
 
 using namespace utility;
 
-void FreeCam::on_config_load(const utility::Config& cfg) {
+void FreeCam::on_config_load(const Config& cfg) {
     for (IModValue& option : m_options) {
         option.config_load(cfg);
     }
 }
 
-void FreeCam::on_config_save(utility::Config& cfg) {
+void FreeCam::on_config_save(Config& cfg) {
     for (IModValue& option : m_options) {
         option.config_save(cfg);
     }

@@ -2,6 +2,7 @@
 
 #include "IntegrityCheckBypass.hpp"
 #include "PositionHooks.hpp"
+#include "Camera.hpp"
 #include "FirstPerson.hpp"
 #include "DeveloperTools.hpp"
 #include "ManualFlashlight.hpp"
@@ -20,6 +21,8 @@ Mods::Mods()
 
 #ifndef RE8
     m_mods.emplace_back(std::make_unique<FirstPerson>());
+#else
+    m_mods.emplace_back(std::make_unique<Camera>());
 #endif
 
     m_mods.emplace_back(std::make_unique<ManualFlashlight>());
