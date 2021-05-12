@@ -7,25 +7,26 @@ set(HOOKS_SRC
     D3D12Hook.cpp
     WindowsMessageHook.hpp
     WindowsMessageHook.cpp
-    PositionHooks.hpp
-    PositionHooks.cpp
+    
+    mods/PositionHooks.hpp
+    mods/PositionHooks.cpp
 )
 
 set(MODS_SRC
-    Camera.hpp
-    Camera.cpp
-    DeveloperTools.hpp
-    DeveloperTools.cpp
-    FirstPerson.hpp
-    FirstPerson.cpp
-    FreeCam.hpp
-    FreeCam.cpp
-    IntegrityCheckBypass.hpp
-    IntegrityCheckBypass.cpp
-    ManualFlashlight.hpp
-    ManualFlashlight.cpp
-    ObjectExplorer.hpp
-    ObjectExplorer.cpp
+    mods/Camera.hpp
+    mods/Camera.cpp
+    mods/DeveloperTools.hpp
+    mods/DeveloperTools.cpp
+    mods/FirstPerson.hpp
+    mods/FirstPerson.cpp
+    mods/FreeCam.hpp
+    mods/FreeCam.cpp
+    mods/IntegrityCheckBypass.hpp
+    mods/IntegrityCheckBypass.cpp
+    mods/ManualFlashlight.hpp
+    mods/ManualFlashlight.cpp
+    mods/ObjectExplorer.hpp
+    mods/ObjectExplorer.cpp
 )
 
 set(SDK_SRC

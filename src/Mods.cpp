@@ -1,12 +1,12 @@
 #include <spdlog/spdlog.h>
 
-#include "IntegrityCheckBypass.hpp"
-#include "PositionHooks.hpp"
-#include "Camera.hpp"
-#include "FirstPerson.hpp"
-#include "DeveloperTools.hpp"
-#include "ManualFlashlight.hpp"
-#include "FreeCam.hpp"
+#include "mods/IntegrityCheckBypass.hpp"
+#include "mods/PositionHooks.hpp"
+#include "mods/Camera.hpp"
+#include "mods/FirstPerson.hpp"
+#include "mods/DeveloperTools.hpp"
+#include "mods/ManualFlashlight.hpp"
+#include "mods/FreeCam.hpp"
 
 #include "Mods.hpp"
 
