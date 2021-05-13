@@ -8,6 +8,8 @@
 
 std::string game_namespace(std::string_view base_name);
 
+class RETypeDB;
+
 // A list of types in the RE engine
 class RETypes {
 public:
@@ -26,11 +28,7 @@ public:
         return m_type_list;
     }
 
-#ifdef RE8
-    const auto& get_value_types() const { 
-        return *m_raw_value_types; 
-    }
-#endif
+    RETypeDB* get_type_db() const;
 
     // Equivalent
     REType* get(std::string_view name);
@@ -49,7 +47,7 @@ private:
 
     TypeList* m_raw_types{ nullptr };
 #ifdef RE8
-    REValueTypes** m_raw_value_types{ nullptr };
+    RETypeImpl** m_raw_type_impls{ nullptr };
 #endif
 
     // Class name to object like "app.foo.bar" -> 0xDEADBEEF

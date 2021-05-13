@@ -27,7 +27,7 @@ uint32_t utility::re_type::get_value_type_size(::REType* t) {
     auto class_info = t->classInfo;
 
 #ifdef RE8
-    return g_framework->get_types()->get_value_types()->types[class_info->elementBitField >> 4].size;
+    return (*g_framework->get_types()->get_type_db()->typesImpl)[(class_info->elementBitField >> 4) & ((1 << 18) - 1)].fieldSize;
 #else
     return class_info->elementSize;
 #endif

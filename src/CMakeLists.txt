@@ -50,6 +50,7 @@ set(SDK_SRC
     sdk/REType.cpp
     sdk/RETypes.hpp
     sdk/RETypes.cpp
+    sdk/RETypeDB.hpp
     sdk/RopewaySweetLightManager.hpp
 )
 

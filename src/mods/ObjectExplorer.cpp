@@ -12,7 +12,88 @@
 #include "REFramework.hpp"
 #include "ObjectExplorer.hpp"
 
+#ifdef RE8
+namespace detail {
+struct ParsedMethod {
+    REClassInfo* owner{};
+    REMethodDefinition* m{};
+    REMethodImpl* m_impl{};
+    const char* name;
+
+    // todo PARAMS
+};
+
+struct ParsedField {
+    REClassInfo* owner{};
+    REClassInfo* type{};
+    REField* f{};
+    REFieldImpl* f_impl{};
+    const char* name{};
+    uint32_t offset_from_fieldptr{};
+    uint32_t offset_from_base{};
+};
+
+struct ExtendedTypeDescriptor {
+    REClassInfo* t{ nullptr };
+    const char* name{ "Unknown" };
+    std::vector<REMethodDefinition*> methods{};
+    std::vector<REMethodImpl*> method_impls{};
+    std::vector<REField*> fields{};
+    std::vector<REFieldImpl*> field_impls{};
+    std::vector<REProperty*> props{};
+    std::vector<REPropertyImpl> prop_impls{};
+
+    std::vector<std::unique_ptr<ParsedField>> parsed_fields;
+    std::vector<std::unique_ptr<ParsedMethod>> parsed_methods;
+};
+}
+
+std::unordered_map<std::string, std::shared_ptr<detail::ExtendedTypeDescriptor>> g_stypedb{};
+std::unordered_map<uint32_t, std::shared_ptr<detail::ExtendedTypeDescriptor>> g_itypedb{};
+#endif
+
 std::unordered_set<std::string> g_class_set{};
+
+struct BitReader {
+    BitReader(void* d)
+        : data{(uint8_t*)d} {}
+
+    static constexpr uint64_t make_bitmask(int32_t nbits) {
+        if (nbits < 0) {
+            return 0;
+        }
+
+        if (nbits >= 64) {
+            nbits = 63;
+        }
+
+        return ((uint64_t)1 << nbits) - 1;
+    }
+
+    uint64_t read(int32_t nbits) {
+        constexpr auto CHUNK_BYTES = sizeof(uint8_t);
+        constexpr auto CHUNK_BITS = CHUNK_BYTES * 8;
+
+        const auto bidx = bit_index % CHUNK_BITS;
+        const auto byte_index = (int32_t)floor((float)bit_index / (float)CHUNK_BITS) * CHUNK_BYTES;
+
+        auto window = *(uint64_t*)&data[byte_index];
+        auto out = (window >> bidx) & make_bitmask(nbits);
+
+        bit_index += nbits;
+
+        return out;
+    }
+
+    uint8_t read_byte() { return (uint8_t)read(sizeof(uint8_t) * 8); }
+    uint16_t read_short() { return (uint16_t)read(sizeof(uint16_t) * 8); }
+    uint32_t read_int() { return (uint32_t)read(sizeof(uint32_t) * 8); }
+
+    void seek(int32_t index) { bit_index = index; }
+
+    uint8_t* data{};
+    int32_t bit_index{0};
+};
 
 std::vector<std::string> split(const std::string& s, const std::string& token) {
     std::vector<std::string> out{};
@@ -250,6 +331,153 @@ void ObjectExplorer::generate_sdk() {
     g->type("int")->size(4);
     g->type("void")->size(0);
     g->type("void*")->size(8);
+
+#ifdef RE8
+    auto tdb = g_framework->get_types()->get_type_db();
+
+    // Types
+    for (uint32_t i = 0; i < tdb->numTypes; ++i) {
+        auto& t = (*tdb->types)[i];
+
+        if (t.type == nullptr || t.type->name == nullptr) {
+            continue;
+        }
+
+        auto desc = std::make_shared<detail::ExtendedTypeDescriptor>();
+
+        g_stypedb[t.type->name] = desc;
+        g_itypedb[i] = desc;
+
+        desc->t = &t;
+        
+        if (desc->t->type != nullptr && desc->t->type->name != nullptr) {
+            desc->name = desc->t->type->name;
+        }
+    }
+
+    // Methods
+    for (uint32_t i = 0; i < tdb->numMethods; ++i) {
+        auto& m = (*tdb->methods)[i];
+
+        auto br = BitReader{&m.data};
+
+        auto type_id = (uint32_t)br.read(18);
+        auto impl_id = (uint32_t)br.read(20);
+        auto param_list = (uint32_t)br.read(26);
+
+        if (g_itypedb.find(type_id) == g_itypedb.end()) {
+            continue;
+        }
+
+        auto& desc = g_itypedb[type_id];
+        auto& impl = (*tdb->methodsImpl)[impl_id];
+
+        desc->methods.push_back(&m);
+        desc->method_impls.push_back(&impl);
+
+        const auto name_offset = impl.nameOffset;
+        const auto name = Address{ tdb->stringPool }.get(name_offset).as<const char*>();
+
+        // Create an easier to deal with structure
+        auto& pm = desc->parsed_methods.emplace_back(std::make_unique<detail::ParsedMethod>());
+
+        pm->m = &m;
+        pm->m_impl = &impl;
+        pm->name = name;
+        pm->owner = desc->t;
+
+        spdlog::info("{:s}.{:s}", desc->t->type->name, name);
+    }
+
+    spdlog::info("FIELDS BEGIN");
+
+    // Fields
+    for (uint32_t i = 0; i < tdb->numFields; ++i) {
+        auto& f = (*tdb->fields)[i];
+
+        auto br = BitReader{&f};
+
+        const auto type_id = (uint32_t)br.read(18);
+        const auto impl_id = (uint32_t)br.read(20);
+        const auto offset = (uint32_t)br.read(26);
+
+        if (g_itypedb.find(type_id) == g_itypedb.end()) {
+            continue;
+        }
+
+        auto& desc = g_itypedb[type_id];
+        auto& impl = (*tdb->fieldsImpl)[impl_id];
+
+        desc->fields.push_back(&f);
+        desc->field_impls.push_back(&impl);
+
+        auto br_impl = BitReader{ &impl };
+        
+        const auto field_attr_id = (uint16_t)br_impl.read_short();
+        const auto field_flags = (uint16_t)br_impl.read_short();
+        const auto field_type = (uint32_t)br_impl.read(18);
+        const auto init_data_low = (uint16_t)br_impl.read(14);
+        const auto name_offset = (uint32_t)br_impl.read(30);
+        const auto init_data_high = (uint8_t)br_impl.read(2);
+        const auto name = Address{tdb->stringPool}.get(name_offset).as<const char*>();
+
+        // Create an easier to deal with structure
+        auto& pf = desc->parsed_fields.emplace_back(std::make_unique<detail::ParsedField>());
+
+        pf->f = &f;
+        pf->f_impl = &impl;
+        pf->name = name;
+        pf->owner = desc->t;
+        pf->offset_from_fieldptr = offset;
+        pf->offset_from_base = pf->offset_from_fieldptr;
+        pf->type = g_itypedb[field_type]->t;
+
+        // Resolve the offset to be from the base class
+        if (pf->owner->parentInfo != nullptr) {
+            const auto field_ptr_offset = Address{ pf->owner->parentInfo }.get(-(int32_t)sizeof(void*)).to<int32_t>();
+
+            pf->offset_from_base += field_ptr_offset;
+        }
+
+        const auto field_type_name = (pf->type != nullptr && pf->type->type != nullptr) ? pf->type->type->name : "Unknown";
+
+        spdlog::info("{:s} {:s}.{:s}: 0x{:x}", field_type_name, desc->t->type->name, name, pf->offset_from_base);
+    }
+    
+    spdlog::info("PROPERTIES BEGIN");
+
+    // properties
+    for (uint32_t i = 0; i < tdb->numProperties; ++i) {
+        auto& p = (*tdb->properties)[i];
+
+        auto br = BitReader{&p};
+
+        const auto impl_id = (uint32_t)br.read(20);
+        const auto getter_id = (uint32_t)br.read(22);
+        const auto setter_id = (uint32_t)br.read(22);
+
+        auto& impl = (*tdb->propertiesImpl)[impl_id];
+        auto name = Address{ tdb->stringPool }.get(impl.nameOffset).as<const char*>();
+
+
+        /*desc->fields.push_back(&f);
+        desc->field_impls.push_back(&impl);
+
+        if (g_itypedb.find(type_id) == g_itypedb.end()) {
+            continue;
+        }*/
+        
+        auto& getter = (*tdb->methods)[getter_id];
+        auto& setter = (*tdb->methods)[setter_id];
+
+        const auto declaring_type_id = (uint32_t)BitReader{ &getter }.read(18);
+        auto declaring_type = g_itypedb[declaring_type_id];
+
+        spdlog::info("{:s}.{:s}", declaring_type->name, name);
+
+        //spdlog::info("{:s} {:s}.{:s}: 0x{:x}", field_type_name, desc->t->type->name, name, pf->offset_from_base);
+    }
+#endif
 
     // First pass, gather all valid class names
     for (const auto& name : m_sorted_types) {

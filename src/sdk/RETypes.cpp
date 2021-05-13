@@ -4,6 +4,7 @@
 #include "utility/Module.hpp"
 
 #include "REFramework.hpp"
+#include "REContext.hpp"
 #include "RETypes.hpp"
 
 std::string game_namespace(std::string_view base_name)
@@ -74,20 +75,17 @@ RETypes::RETypes() {
         m_type_list.push_back(t);
     }
 
-#ifdef RE8
-    const auto value_types_pattern = "25 ff ff 03 00 48 8d 0c 40 48 8b 05 ? ? ? ? 48 03 c9";
-    ref = utility::scan(mod, value_types_pattern);
+    spdlog::info("Finished RETypes initialization");
+}
 
-    if (!ref) {
-        spdlog::info("Bad REValueTypes pattern");
-        return;
+RETypeDB* RETypes::get_type_db() const {
+    auto c = sdk::REGlobalContext::get();
+
+    if (c == nullptr) {
+        return nullptr;
     }
 
-    m_raw_value_types = (REValueTypes**)utility::calculate_absolute(*ref + 12);
-    spdlog::info("ValueTypes: {:x}", (uintptr_t)m_raw_value_types);
-#endif
-
-    spdlog::info("Finished RETypes initialization");
+    return c->get_type_db();
 }
 
 REType* RETypes::get(std::string_view name) {
