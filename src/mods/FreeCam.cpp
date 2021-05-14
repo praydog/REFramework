@@ -180,6 +180,10 @@ void FreeCam::on_update_transform(RETransform* transform) {
     }
 
     if (m_first_time) {
+        if (player != nullptr) {
+            player->shouldUpdate = true;
+        }
+
         m_last_camera_matrix = transform->worldTransform;
         m_first_time = false;
 
