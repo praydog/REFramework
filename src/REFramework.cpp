@@ -249,18 +249,20 @@ bool REFramework::on_message(HWND wnd, UINT message, WPARAM w_param, LPARAM l_pa
 
     switch (message) {
     case WM_INPUT: {
-        uint32_t size = sizeof(RAWINPUT);
-        uint8_t lpb[sizeof(RAWINPUT)]{};
+        // RIM_INPUT means the window has focus
+        if (GET_RAWINPUT_CODE_WPARAM(w_param) == RIM_INPUT) {
+            uint32_t size = sizeof(RAWINPUT);
+            RAWINPUT raw{};
 
-        // obtain size
-        GetRawInputData((HRAWINPUT)l_param, RID_INPUT, nullptr, &size, sizeof(RAWINPUTHEADER));
+            // obtain size
+            GetRawInputData((HRAWINPUT)l_param, RID_INPUT, nullptr, &size, sizeof(RAWINPUTHEADER));
 
-        auto result = GetRawInputData((HRAWINPUT)l_param, RID_INPUT, lpb, &size, sizeof(RAWINPUTHEADER));
-        auto raw = (RAWINPUT*)lpb;
+            auto result = GetRawInputData((HRAWINPUT)l_param, RID_INPUT, &raw, &size, sizeof(RAWINPUTHEADER));
 
-        if (raw->header.dwType == RIM_TYPEMOUSE) {
-            m_accumulated_mouse_delta[0] += (float)raw->data.mouse.lLastX;
-            m_accumulated_mouse_delta[1] += (float)raw->data.mouse.lLastY;
+            if (raw.header.dwType == RIM_TYPEMOUSE) {
+                m_accumulated_mouse_delta[0] += (float)raw.data.mouse.lLastX;
+                m_accumulated_mouse_delta[1] += (float)raw.data.mouse.lLastY;
+            }
         }
     } break;
     default:
