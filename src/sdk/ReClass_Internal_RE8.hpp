@@ -379,7 +379,11 @@ public:
     uint32_t elementBitField;       // 0x000C >> 4 is the value type index (REValueTypes)
     char pad_0010[4];               // 0x0010
     uint32_t size;                  // 0x0014
-    char pad_0018[40];              // 0x0018
+    uint32_t fqnHash;               // 0x0018
+    uint32_t typeCRC;               // 0x001C
+    char pad_0020[24];              // 0x0020
+    int32_t interfaces;             // 0x0038
+    int32_t generics;               // 0x003C byte pool
     class REType* type;             // 0x0040
     class REObjectInfo* parentInfo; // 0x0048
 };                                  // Size: 0x0050
@@ -3464,46 +3468,46 @@ static_assert(sizeof(AppKeyboard) == 0x1C);
 
 class RETypeDB {
 public:
-    uint32_t magic;                            // 0x0000
-    uint32_t version;                          // 0x0004
-    uint32_t initialized;                      // 0x0008
-    uint32_t numTypes;                         // 0x000C
-    uint32_t numMethods;                       // 0x0010
-    uint32_t numFields;                        // 0x0014
-    uint32_t numTypeImpl;                      // 0x0018
-    uint32_t numFieldImpl;                     // 0x001C
-    uint32_t numMethodImpl;                    // 0x0020
-    uint32_t numPropertyImpl;                  // 0x0024
-    uint32_t numProperties;                    // 0x0028
-    uint32_t numEvents;                        // 0x002C
-    uint32_t numParams;                        // 0x0030
-    uint32_t numAttributes;                    // 0x0034
-    int32_t numInitData;                       // 0x0038
-    uint32_t numAttributes2;                   // 0x003C
-    uint32_t numInternStrings;                 // 0x0040
-    uint32_t numModules;                       // 0x0044
-    int32_t devEntry;                          // 0x0048
-    int32_t appEntry;                          // 0x004C
-    uint32_t numStringPool;                    // 0x0050
-    uint32_t numBytePool;                      // 0x0054
-    void* modules;                             // 0x0058
-    class REClassInfo (*types)[93788];         // 0x0060
-    class RETypeImpl (*typesImpl)[256];        // 0x0068
-    class REMethodDefinition (*methods)[256];  // 0x0070
-    class REMethodImpl (*methodsImpl)[56756];  // 0x0078
-    class REField (*fields)[1];                // 0x0080
-    class REFieldImpl (*fieldsImpl)[1];        // 0x0088
-    class REProperty (*properties)[256];       // 0x0090
-    class REPropertyImpl (*propertiesImpl)[1]; // 0x0098
-    void* events;                              // 0x00A0
-    class REParameterDef (*params)[1];         // 0x00A8
-    class REAttributeDef (*attributes)[1];     // 0x00B0
-    void* initData;                            // 0x00B8
-    int32_t (*attributes2)[256];               // 0x00C0
-    void* stringPool;                          // 0x00C8
-    uint8_t (*bytePool)[256];                  // 0x00D0
-    int32_t (*internStrings)[256];             // 0x00D8
-};                                             // Size: 0x00E0
+    uint32_t magic;                              // 0x0000
+    uint32_t version;                            // 0x0004
+    uint32_t initialized;                        // 0x0008
+    uint32_t numTypes;                           // 0x000C
+    uint32_t numMethods;                         // 0x0010
+    uint32_t numFields;                          // 0x0014
+    uint32_t numTypeImpl;                        // 0x0018
+    uint32_t numFieldImpl;                       // 0x001C
+    uint32_t numMethodImpl;                      // 0x0020
+    uint32_t numPropertyImpl;                    // 0x0024
+    uint32_t numProperties;                      // 0x0028
+    uint32_t numEvents;                          // 0x002C
+    uint32_t numParams;                          // 0x0030
+    uint32_t numAttributes;                      // 0x0034
+    int32_t numInitData;                         // 0x0038
+    uint32_t numAttributes2;                     // 0x003C
+    uint32_t numInternStrings;                   // 0x0040
+    uint32_t numModules;                         // 0x0044
+    int32_t devEntry;                            // 0x0048
+    int32_t appEntry;                            // 0x004C
+    uint32_t numStringPool;                      // 0x0050
+    uint32_t numBytePool;                        // 0x0054
+    void* modules;                               // 0x0058
+    class REClassInfo (*types)[93788];           // 0x0060
+    class RETypeImpl (*typesImpl)[256];          // 0x0068
+    class REMethodDefinition (*methods)[703558]; // 0x0070
+    class REMethodImpl (*methodsImpl)[56756];    // 0x0078
+    class REField (*fields)[1];                  // 0x0080
+    class REFieldImpl (*fieldsImpl)[1];          // 0x0088
+    class REProperty (*properties)[256];         // 0x0090
+    class REPropertyImpl (*propertiesImpl)[1];   // 0x0098
+    void* events;                                // 0x00A0
+    class REParameterDef (*params)[10000];       // 0x00A8
+    class REAttributeDef (*attributes)[2000];    // 0x00B0
+    void* initData;                              // 0x00B8
+    int32_t (*attributes2)[256];                 // 0x00C0
+    void* stringPool;                            // 0x00C8
+    uint8_t (*bytePool)[256];                    // 0x00D0
+    int32_t (*internStrings)[256];               // 0x00D8
+};                                               // Size: 0x00E0
 static_assert(sizeof(RETypeDB) == 0xE0);
 
 class RETypeImpl {
@@ -3637,3 +3641,12 @@ public:
     int32_t blob;        // 0x0004
 };                       // Size: 0x0008
 static_assert(sizeof(REAttributeDef) == 0x8);
+
+class REParamList {
+public:
+    uint16_t numParams;  // 0x0000
+    uint16_t invokeID;   // 0x0002
+    uint32_t returnType; // 0x0004
+    uint32_t params[1];  // 0x0008
+};                       // Size: 0x000C
+static_assert(sizeof(REParamList) == 0xC);
