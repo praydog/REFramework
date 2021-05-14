@@ -38,8 +38,8 @@ struct ParsedMethod {
     REMethodImpl* m_impl{};
     const char* name{};
 
-    // todo PARAMS
     std::vector<std::shared_ptr<ParsedParams>> params{};
+    std::shared_ptr<ParsedParams> return_val{};
 };
 
 struct ParsedField {
@@ -388,7 +388,11 @@ void ObjectExplorer::generate_sdk() {
         if (desc->t->type != nullptr && desc->t->type->name != nullptr) {
             desc->name = desc->t->type->name;
 
-            il2cpp_dump[desc->name] = {};
+            il2cpp_dump[desc->name] = {
+                {"id", i},
+                {"fqn", (std::stringstream{} << std::hex << t.fqnHash).str()},
+                {"crc", (std::stringstream{} << std::hex << t.typeCRC).str()},
+            };
         }
     }
 
@@ -425,67 +429,90 @@ void ObjectExplorer::generate_sdk() {
 
         g_imethoddb[i] = pm;
 
-        spdlog::info("{:s}.{:s}: 0x{:x}", desc->t->type->name, name, (uintptr_t)m.function);
+        //spdlog::info("{:s}.{:s}: 0x{:x}", desc->t->type->name, name, (uintptr_t)m.function);
 
 
-        auto& entry = il2cpp_dump[desc->name]["methods"][pm->name];
+        auto& method_entry = il2cpp_dump[desc->name]["methods"][pm->name];
 
-        entry = {
-            { "function", (std::stringstream{} << std::hex << m.function).str() },
-        };
+        method_entry["id"] = i;
+        method_entry["function"] = (std::stringstream{} << std::hex << m.function).str();
 
         if (auto impl_flags = get_full_enum_value_name("via.clr.MethodImplFlag", impl.implFlags); !impl_flags.empty()) {
-            entry["impl_flags"] = impl_flags;
+            method_entry["impl_flags"] = impl_flags;
         }
 
         if (impl.vtableIndex >= 0) {
-            entry["vtable_index"] = impl.vtableIndex;
-        }
-    }
-
-    // Parameters
-    for (uint32_t i = 0; i < tdb->numParams; ++i) {
-        auto& p = (*tdb->params)[i];
-
-        auto br = BitReader{&p};
-        const auto attributes_index = (uint16_t)br.read_short();
-        const auto init_data_index = (uint16_t)br.read_short();
-        const auto name_index = (uint32_t)br.read(30);
-        const auto modifier = (uint8_t)br.read(2);
-        const auto type_id = (uint32_t)br.read(18);
-        const auto flags = (uint32_t)br.read(14);
-
-        if (auto it = g_itypedb.find(type_id); it == g_itypedb.end()) {
-            continue;
+            method_entry["vtable_index"] = impl.vtableIndex;
         }
 
-        auto& param_type = g_itypedb[type_id];
-        auto& attr = (*tdb->attributes)[attributes_index];
+        // Parameters
+        auto param_ids = Address{ tdb->bytePool }.get(param_list).as<REParamList*>();
+        const auto num_params = param_ids->numParams;
 
-        if (auto it = g_imethoddb.find(attr.methodIndex); it != g_imethoddb.end()) {
-            g_iparamdb[i] = std::make_shared<detail::ParsedParams>();
+        method_entry["invoke_id"] = param_ids->invokeID;;
 
-            auto& m = it->second;
-            auto& desc = g_iparamdb[i];
+        auto parse_param = [&](uint32_t param_index, bool is_return = false) {
+            auto& p = (*tdb->params)[param_index];
 
-            auto param_name = Address{ tdb->stringPool }.get(name_index).as<const char*>();
+            auto br_p = BitReader{&p};
+            const auto attributes_index = (uint16_t)br_p.read_short();
+            const auto init_data_index = (uint16_t)br_p.read_short();
+            const auto name_index = (uint32_t)br_p.read(30);
+            const auto modifier = (uint8_t)br_p.read(2);
+            const auto param_type_id = (uint32_t)br_p.read(18);
+            const auto flags = (uint16_t)br_p.read(14);
 
-            desc->owner = m;
-            desc->type = param_type;
-            desc->name = param_name;
+            if (auto it = g_itypedb.find(param_type_id); it == g_itypedb.end()) {
+                return json{};
+            }
 
-            m->params.emplace_back(desc);
+            auto& param_type = g_itypedb[param_type_id];
 
-            auto entry = json{
-                {"type", desc->type->name},
-                {"name", desc->name},
+            auto pdesc = std::make_shared<detail::ParsedParams>();
+            g_iparamdb[param_index] = pdesc;
+
+            auto param_name = Address{tdb->stringPool}.get(name_index).as<const char*>();
+
+            pdesc->owner = pm;
+            pdesc->type = param_type;
+            pdesc->name = param_name;
+
+            if (is_return) {
+                pm->return_val = pdesc;
+            }
+            else {
+                pm->params.emplace_back(pdesc);
+            }
+
+            auto param_entry = json{
+                {"type", pdesc->type->name},
+                {"name", pdesc->name},
             };
 
             if (auto param_flags = get_full_enum_value_name("via.clr.ParamFlag", flags); !param_flags.empty()) {
-                entry["flags"] = param_flags;
+                param_entry["flags"] = param_flags;
             }
 
-            il2cpp_dump[m->owner->name]["methods"][m->name]["params"].emplace_back(entry);
+            if (auto param_modifier = get_full_enum_value_name("via.clr.ParamModifier", flags); !param_modifier.empty()) {
+                param_entry["modifier"] = param_modifier;
+            }
+
+            return param_entry;
+        };
+
+        // Parse return type
+        method_entry["returns"] = parse_param(param_ids->returnType, true);
+
+        // Parse all params
+        for (auto f = 0; f < num_params; ++f) {
+            const auto param_index = param_ids->params[f];
+            if (param_index >= tdb->numParams) {
+                break;
+            }
+
+            auto param_entry = parse_param(param_index);
+
+            method_entry["params"].emplace_back(param_entry);
         }
     }
 
@@ -544,6 +571,7 @@ void ObjectExplorer::generate_sdk() {
         //spdlog::info("{:s} {:s}.{:s}: 0x{:x}", field_type_name, desc->t->type->name, name, pf->offset_from_base);
 
         il2cpp_dump[desc->name]["fields"][pf->name] = {
+            {"id", i},
             {"type", field_type_name},
             {"offset_from_base", (std::stringstream{} << "0x" << std::hex << pf->offset_from_base).str()},
             {"offset_from_fieldptr", (std::stringstream{} << "0x" << std::hex << pf->offset_from_fieldptr).str()}, 
@@ -599,9 +627,10 @@ void ObjectExplorer::generate_sdk() {
         auto getter_name = pp->getter != nullptr ? pp->getter->name : "";
         auto setter_name = pp->setter != nullptr ? pp->setter->name : "";
 
-        spdlog::info("{:s}.{:s}", desc->name, name);
+        //spdlog::info("{:s}.{:s}", desc->name, name);
 
         il2cpp_dump[desc->name]["properties"][pp->name] = {
+            {"id", i},
             {"getter", getter_name},
             {"setter", setter_name},
         };

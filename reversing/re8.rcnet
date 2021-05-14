@@ -8900,7 +8900,7 @@
       <node type="UInt64Node" name="endFrame" comment="" hidden="false" />
       <node type="UInt64Node" name="frameCount" comment="" hidden="false" />
     </class>
-    <class uuid="bd012451-a4dc-4e11-8265-e5dff163df77" name="RENativeArray" comment="via.array" address="18342688">
+    <class uuid="bd012451-a4dc-4e11-8265-e5dff163df77" name="RENativeArray" comment="via.array" address="149857AB0+71ca44">
       <node type="PointerNode" name="data" comment="" hidden="false">
         <node type="ClassInstanceNode" name="N000028E9" comment="" hidden="false" reference="c3908934-ac8d-4145-b82f-eb478fe2e6e7" />
       </node>
@@ -11105,7 +11105,7 @@
         </node>
       </node>
       <node type="PointerNode" name="methods" comment="" hidden="false">
-        <node type="ArrayNode" name="N0000AC87" comment="" hidden="false" count="256">
+        <node type="ArrayNode" name="N0000AC87" comment="" hidden="false" count="703558">
           <node type="ClassInstanceNode" name="N0000ACAA" comment="" hidden="false" reference="4eae0bca-c13d-43a4-8110-b8d60aa88cbc" />
         </node>
       </node>
@@ -11136,12 +11136,12 @@
       </node>
       <node type="PointerNode" name="events" comment="" hidden="false" />
       <node type="PointerNode" name="params" comment="" hidden="false">
-        <node type="ArrayNode" name="N00002D34" comment="" hidden="false" count="1">
+        <node type="ArrayNode" name="N00002D34" comment="" hidden="false" count="10000">
           <node type="ClassInstanceNode" name="N00002D5A" comment="" hidden="false" reference="c58f6373-b63c-462e-a56f-485677d3ad30" />
         </node>
       </node>
       <node type="PointerNode" name="attributes" comment="" hidden="false">
-        <node type="ArrayNode" name="N0000355F" comment="" hidden="false" count="1">
+        <node type="ArrayNode" name="N0000355F" comment="" hidden="false" count="2000">
           <node type="ClassInstanceNode" name="N00003585" comment="" hidden="false" reference="b9eb5bc6-084e-4436-838c-2943d3723c3b" />
         </node>
       </node>
@@ -13056,6 +13056,14 @@
     <class uuid="b9eb5bc6-084e-4436-838c-2943d3723c3b" name="REAttributeDef" comment="" address="140000000">
       <node type="Int32Node" name="methodIndex" comment="" hidden="false" />
       <node type="Int32Node" name="blob" comment="" hidden="false" />
+    </class>
+    <class uuid="98400ed4-13eb-4916-99cd-3c7ce2e0ae12" name="REParamList" comment="" address="149857AB0+521C00">
+      <node type="UInt16Node" name="numParams" comment="" hidden="false" />
+      <node type="UInt16Node" name="invokeID" comment="" hidden="false" />
+      <node type="UInt32Node" name="returnType" comment="" hidden="false" />
+      <node type="ArrayNode" name="params" comment="" hidden="false" count="1">
+        <node type="UInt32Node" name="N00003A73" comment="" hidden="false" />
+      </node>
     </class>
   </classes>
 </reclass>
