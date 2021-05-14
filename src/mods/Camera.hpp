@@ -69,7 +69,7 @@ public:
 
 private:
     const ModToggle::Ptr m_enabled{ ModToggle::create(generate_name("Enabled"), false) };
-    const ModToggle::Ptr m_disable_vignette{ ModToggle::create(generate_name("DisableVignette"), true) };
+    const ModToggle::Ptr m_disable_vignette{ ModToggle::create(generate_name("DisableVignette"), false) };
     const ModSlider::Ptr m_vignette_brightness{ ModSlider::create(generate_name("VignetteBrightness"), -1.0, 1.0, 0.0f ) };
     const ModSlider::Ptr m_fov{ ModSlider::create(generate_name("FOV"), 0.0f, 180.0f, 81.0f) };
     const ModSlider::Ptr m_fov_aiming{ ModSlider::create(generate_name("FOVAiming"), 0.0f, 180.0f, 70.0f) };

@@ -1,3 +1,5 @@
+#include <filesystem>
+
 #include <spdlog/sinks/basic_file_sink.h>
 
 #include <imgui/imgui.h>
@@ -14,6 +16,8 @@
 
 #include "LicenseStrings.hpp"
 #include "REFramework.hpp"
+
+namespace fs = std::filesystem;
 
 std::unique_ptr<REFramework> g_framework{};
 
@@ -143,6 +147,13 @@ void REFramework::on_frame_d3d11() {
     ImGui::NewFrame();
 
     if (m_error.empty() && m_game_data_initialized) {
+        // Write default config if it doesn't exists.
+        const fs::path cfg{ utility::widen("re2_fw_config.txt") };
+        if (!fs::exists(cfg)) {
+            save_config();
+        }
+
+        // Run mod frame callbacks.
         m_mods->on_frame();
     }
 
@@ -186,6 +197,13 @@ void REFramework::on_frame_d3d12() {
     ImGui::NewFrame();
 
     if (m_error.empty() && m_game_data_initialized) {
+        // Write default config if it doesn't exists.
+        const fs::path cfg{ utility::widen("re2_fw_config.txt") };
+        if (!fs::exists(cfg)) {
+            save_config();
+        }
+
+        // Run mod frame callbacks.
         m_mods->on_frame();
     }
 
@@ -262,7 +280,8 @@ bool REFramework::on_message(HWND wnd, UINT message, WPARAM w_param, LPARAM l_pa
                 m_accumulated_mouse_delta[1] += (float)raw.data.mouse.lLastY;
             }
         }
-    } break;
+        break;
+    }
     default:
         break;
     }
@@ -321,6 +340,7 @@ void REFramework::consume_input() {
 void REFramework::draw_ui() {
     std::lock_guard _{m_input_mutex};
 
+    // Write the config if it doesn't exist.
     if (!m_draw_ui) {
         m_dinput_hook->acknowledge_input();
         ImGui::GetIO().MouseDrawCursor = false;
