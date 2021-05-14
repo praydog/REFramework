@@ -27,9 +27,10 @@ void Camera::on_draw_ui() {
     }
 
     if (m_disable_vignette->draw("Disable Vignette") && !m_disable_vignette->value()) {
-        set_vignette(via::render::ToneMapping::Vignetting::Enable);
+        set_vignette_type(via::render::ToneMapping::Vignetting::Enable);
     }
 
+    m_vignette_brightness->draw("Vignette Brightness");
     m_fov->draw("FOV");
     m_fov_aiming->draw("Aiming FOV");
 }
@@ -38,7 +39,7 @@ void Camera::on_update_transform(RETransform* transform) {
     const auto reset_camera_data = [&](RECamera* new_camera = nullptr) {
         if (m_camera != new_camera) {
             m_camera = new_camera;
-            m_tone_map_internal = nullptr;
+            m_tone_map = nullptr;
         }
 
         return m_camera != nullptr;
@@ -79,15 +80,16 @@ void Camera::on_update_transform(RETransform* transform) {
 }
 
 void Camera::on_cam_transform(RETransform* transform) noexcept {
-    if (m_disable_vignette->value()) {
-        // Wait until "RenderToneMapping"'s internal data is valid...
-        if (m_tone_map_internal == nullptr) {
-            if (const auto tone_map = re_component::find<RenderToneMapping>(m_camera, "via.render.ToneMapping")) {
-                m_tone_map_internal = tone_map->toneMappingInternal;
-            }
-        }
+    // Wait until "RenderToneMapping"'s internal data is valid...
+    if (m_tone_map == nullptr) {
+        m_tone_map = re_component::find<RenderToneMapping>(m_camera, "via.render.ToneMapping");
+    }
 
-        set_vignette(via::render::ToneMapping::Vignetting::Disable);
+    if (m_disable_vignette->value()) {
+        set_vignette_type(via::render::ToneMapping::Vignetting::Disable);
+    } 
+    else {
+        set_vignette_brightness(m_vignette_brightness->value());
     }
 }
 
@@ -130,17 +132,38 @@ void Camera::on_player_transform(RETransform* transform) noexcept {
 }
 
 void Camera::on_disabled() noexcept {
-    set_vignette(via::render::ToneMapping::Vignetting::Enable);
+    set_vignette_type(via::render::ToneMapping::Vignetting::Enable);
+    set_vignette_brightness(m_vignette_brightness->default_value());
     set_fov(m_fov->default_value(), m_fov_aiming->default_value());
 }
 
-void Camera::set_vignette(via::render::ToneMapping::Vignetting value) noexcept
+void Camera::set_vignette_type(via::render::ToneMapping::Vignetting value) noexcept
 {
-    if (m_tone_map_internal == nullptr) {
+    if (m_tone_map == nullptr) {
         return;
     }
 
-    m_tone_map_internal->Vignetting = (int32_t)value;
+    const auto tone_map_internal = m_tone_map->toneMappingInternal;
+    if (tone_map_internal == nullptr) {
+        return;
+    }
+
+    tone_map_internal->vignetting_mode = (int32_t)value;
+}
+
+void Camera::set_vignette_brightness(float value) noexcept
+{
+    if (m_tone_map == nullptr) {
+        return;
+    }
+
+    const auto tone_map_internal = m_tone_map->toneMappingInternal;
+    if (tone_map_internal == nullptr) {
+        return;
+    }
+
+    tone_map_internal->update_vignette = true;
+    tone_map_internal->vignetting_brightness = value;
 }
 
 void Camera::set_fov(float fov, float aiming_fov) noexcept
