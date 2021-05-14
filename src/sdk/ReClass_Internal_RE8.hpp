@@ -3496,8 +3496,8 @@ public:
     class REProperty (*properties)[256];       // 0x0090
     class REPropertyImpl (*propertiesImpl)[1]; // 0x0098
     void* events;                              // 0x00A0
-    class N00002D5B (*params)[1];              // 0x00A8
-    void* attributes;                          // 0x00B0
+    class REParameterDef (*params)[1];         // 0x00A8
+    class REAttributeDef (*attributes)[1];     // 0x00B0
     void* initData;                            // 0x00B8
     int32_t (*attributes2)[256];               // 0x00C0
     void* stringPool;                          // 0x00C8
@@ -3571,11 +3571,14 @@ public:
 };                            // Size: 0x0008
 static_assert(sizeof(REPropertyImpl) == 0x8);
 
-class N00002D5B {
+class REParameterDef {
 public:
-    char pad_0000[8]; // 0x0000
-};                    // Size: 0x0008
-static_assert(sizeof(N00002D5B) == 0x8);
+    uint16_t attributesIndex; // 0x0000
+    uint16_t initData;        // 0x0002
+    uint32_t nameAndModifer;  // 0x0004 0-29 = name index, 30-31 = modifier
+    uint32_t typeAndFlags;    // 0x0008 0-17 = type index, 18-31 = flags
+};                            // Size: 0x000C
+static_assert(sizeof(REParameterDef) == 0xC);
 
 class RENativeArray_SystemRuntimeType {
 public:
@@ -3627,3 +3630,10 @@ public:
     int32_t number;                       // 0x001C
 };                                        // Size: 0x0020
 static_assert(sizeof(SystemRuntimeType) == 0x20);
+
+class REAttributeDef {
+public:
+    int32_t methodIndex; // 0x0000
+    int32_t blob;        // 0x0004
+};                       // Size: 0x0008
+static_assert(sizeof(REAttributeDef) == 0x8);

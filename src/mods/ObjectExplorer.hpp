@@ -40,6 +40,7 @@ private:
     void populate_classes();
     void populate_enums();
 
+    std::string get_full_enum_value_name(std::string_view enum_name, int64_t value);
     std::string get_enum_value_name(std::string_view enum_name, int64_t value);
     REType* get_type(std::string_view type_name);
 
