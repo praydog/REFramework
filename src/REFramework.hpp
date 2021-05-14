@@ -85,6 +85,9 @@ private:
     std::unique_ptr<REGlobals> m_globals;
     std::unique_ptr<RETypes> m_types;
 
+private: // D3D misc
+    void set_imgui_style() noexcept;
+
 private: // D3D11 Init
     void create_render_target_d3d11();
     void cleanup_render_target_d3d11();

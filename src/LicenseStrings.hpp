@@ -5,12 +5,12 @@ namespace license {
 R"(================================================================================
 OpenGL Mathematics (GLM)
 --------------------------------------------------------------------------------
-GLM is licensed under The Happy Bunny License and MIT License
+GLM is licensed under The Happy Bunny License or MIT License
 
 ================================================================================
 The Happy Bunny License (Modified MIT License)
 --------------------------------------------------------------------------------
-Copyright (c) 2005 - 2014 G-Truc Creation
+Copyright (c) 2005 - G-Truc Creation
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -37,7 +37,7 @@ THE SOFTWARE.
 ================================================================================
 The MIT License
 --------------------------------------------------------------------------------
-Copyright (c) 2005 - 2014 G-Truc Creation
+Copyright (c) 2005 - G-Truc Creation
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -62,7 +62,7 @@ namespace license {
     static constexpr auto imgui =
 R"(The MIT License (MIT)
 
-Copyright (c) 2014-2019 Omar Cornut
+Copyright (c) 2014-2021 Omar Cornut
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -80,13 +80,12 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-)";
+SOFTWARE.)";
 }
 
 namespace license {
     static constexpr auto minhook =
-        R"(MinHook - The Minimalistic API Hooking Library for x64/x86
+R"(MinHook - The Minimalistic API Hooking Library for x64/x86
 Copyright (C) 2009-2017 Tsuda Kageyu.
 All rights reserved.
 
@@ -166,13 +165,12 @@ PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
 PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
 LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
 NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-)";
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.)";
 }
 
 namespace license {
     static constexpr auto spdlog =
-        R"(The MIT License (MIT)
+R"(The MIT License (MIT)
 
 Copyright (c) 2016 Gabi Melman.                                       
 
@@ -193,5 +191,8 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
-)";
+
+-- NOTE: Third party dependency used by this software --
+This software depends on the fmt lib (MIT License),
+and users must comply to its license: https://github.com/fmtlib/fmt/blob/master/LICENSE.rst)";
 }

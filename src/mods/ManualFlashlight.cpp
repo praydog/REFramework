@@ -87,7 +87,6 @@ void ManualFlashlight::on_update_transform(RETransform* transform) {
         return;
     }
 
-    // TODO: Find a better way to do this (figure out when the player is actually reset).
     if (m_player != player) {
         reset_player_data(player);
     }

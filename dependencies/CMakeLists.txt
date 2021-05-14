@@ -1,6 +1,7 @@
 add_subdirectory(spdlog)
 
 SET(GLM_TEST_ENABLE OFF CACHE BOOL "Build unit tests" FORCE)
+SET(BUILD_STATIC_LIBS ON)
 add_subdirectory(glm)
 
 project(minhook)
@@ -25,4 +26,5 @@ add_library(imgui STATIC
             imgui/imgui_demo.cpp
             imgui/imgui_widgets.cpp
             imgui/imgui_draw.cpp
+            imgui/imgui_tables.cpp
             imgui/imgui.cpp)

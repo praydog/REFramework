@@ -7,7 +7,7 @@ set(HOOKS_SRC
     D3D12Hook.cpp
     WindowsMessageHook.hpp
     WindowsMessageHook.cpp
-    
+
     mods/PositionHooks.hpp
     mods/PositionHooks.cpp
 )
@@ -61,6 +61,7 @@ set(RE2IMGUI_SRC
     re2-imgui/imgui_impl_dx11.cpp
     re2-imgui/imgui_impl_dx12.h
     re2-imgui/imgui_impl_dx12.cpp
+    re2-imgui/re2_imconfig.hpp
 )
 
 set(UTILITY_SRC
@@ -121,6 +122,8 @@ option(DEVELOPER_MODE "Adds DeveloperTools option to menu" OFF)
 option(RE3 "RE3 build" OFF)
 option(RE8 "RE8 build" OFF)
 option(BAREBONES "Barebones build without game-specific features/hooks" OFF)
+
+target_compile_definitions(RE2 PUBLIC IMGUI_USER_CONFIG="re2-imgui/re2_imconfig.hpp")
 
 if(DEVELOPER_MODE)
     target_compile_definitions(RE2 PUBLIC DEVELOPER)

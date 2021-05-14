@@ -1,8 +1,6 @@
 #include <spdlog/sinks/basic_file_sink.h>
 
 #include <imgui/imgui.h>
-
-// ours with XInput removed
 #include "re2-imgui/imgui_impl_dx11.h"
 #include "re2-imgui/imgui_impl_dx12.h"
 #include "re2-imgui/imgui_impl_win32.h"
@@ -271,8 +269,7 @@ bool REFramework::on_message(HWND wnd, UINT message, WPARAM w_param, LPARAM l_pa
 
     if (m_draw_ui && ImGui_ImplWin32_WndProcHandler(wnd, message, w_param, l_param) != 0) {
         // If the user is interacting with the UI we block the message from going to the game.
-        auto& io = ImGui::GetIO();
-
+        const auto& io = ImGui::GetIO();
         if (io.WantCaptureMouse || io.WantCaptureKeyboard || io.WantTextInput) {
             return false;
         }
@@ -395,6 +392,20 @@ void REFramework::draw_about() {
     ImGui::TreePop();
 }
 
+void REFramework::set_imgui_style() noexcept
+{
+    ImGui::StyleColorsDark();
+
+    auto &style = ImGui::GetStyle();
+    style.WindowRounding    = 4.0f;
+    style.ChildRounding     = 4.0f;
+    style.PopupRounding     = 4.0f;
+    style.FrameRounding     = 2.0f;
+    style.ScrollbarRounding = 2.0f;
+    style.GrabRounding      = 2.0f;
+    style.TabRounding       = 2.0f;
+}
+
 bool REFramework::initialize() {
     if (m_initialized) {
         return true;
@@ -463,6 +474,8 @@ bool REFramework::initialize() {
         IMGUI_CHECKVERSION();
         ImGui::CreateContext();
 
+        set_imgui_style();
+
         spdlog::info("Initializing ImGui Win32");
 
         if (!ImGui_ImplWin32_Init(m_wnd)) {
@@ -476,8 +489,6 @@ bool REFramework::initialize() {
             spdlog::error("Failed to initialize ImGui.");
             return false;
         }
-
-        ImGui::StyleColorsDark();
     } else if (m_is_d3d12) {
         spdlog::info("Attempting to initialize DirectX 12");
 
@@ -549,14 +560,14 @@ bool REFramework::initialize() {
         IMGUI_CHECKVERSION();
         ImGui::CreateContext();
 
-        auto& io = ImGui::GetIO();
+        set_imgui_style();
 
         if (!ImGui_ImplWin32_Init(m_wnd)) {
             spdlog::error("Failed to initialize ImGui ImplWin32.");
             return false;
         }
 
-        if (!ImGui_ImplDX12_Init(device, s_NUM_FRAMES_IN_FLIGHT_D3D12, DXGI_FORMAT_R8G8B8A8_UNORM,
+        if (!ImGui_ImplDX12_Init(device, s_NUM_FRAMES_IN_FLIGHT_D3D12, DXGI_FORMAT_R8G8B8A8_UNORM, m_pd3d_srv_desc_heap_d3d12,
                 m_pd3d_srv_desc_heap_d3d12->GetCPUDescriptorHandleForHeapStart(),
                 m_pd3d_srv_desc_heap_d3d12->GetGPUDescriptorHandleForHeapStart())) {
             spdlog::error("Failed to initialize ImGui ImplDX12.");
@@ -568,8 +579,6 @@ bool REFramework::initialize() {
             spdlog::error("Failed to initialize ImGui CreateDeviceObjects.");
             return false;
         }
-
-        ImGui::StyleColorsDark();
 
         /*m_target_width = m_d3d12_hook->get_display_width();
         m_target_height = m_d3d12_hook->get_display_height();
