@@ -201,6 +201,11 @@ void FreeCam::on_update_transform(RETransform* transform) {
         Vector4f dir{};
         const auto delta = re_component::get_delta_time(transform);
 
+        // The rotation speed gets scaled down here heavily since "1.0f" is way too fast... This makes the slider a bit more user-friendly.
+        // TODO: Figure out a conversion here to make KB+M & Controllers equal in rotation sensitivity.
+        const auto rotation_speed = m_rotation_speed->value();
+        const auto rotation_speed_kbm = rotation_speed * 0.05f;
+
         // Controller support
         if (m_pad_manager->pad1 != nullptr && m_pad_manager->pad1->device != nullptr) {
             const auto device = m_pad_manager->pad1->device;
@@ -210,8 +215,8 @@ void FreeCam::on_update_transform(RETransform* transform) {
             const auto axis_l = *re_managed_object::get_field<Vector3f*>(device, "AxisL");
             const auto axis_r = *re_managed_object::get_field<Vector3f*>(device, "AxisR");
 
-            m_custom_angles[0] += axis_r.y * m_rotation_speed->value() * delta;
-            m_custom_angles[1] -= axis_r.x * m_rotation_speed->value() * delta;
+            m_custom_angles[0] += axis_r.y * rotation_speed * delta;
+            m_custom_angles[1] -= axis_r.x * rotation_speed * delta;
             m_custom_angles[2] = 0.0f;
 
             if (axis_l.length() > 0.0f) {
@@ -246,8 +251,8 @@ void FreeCam::on_update_transform(RETransform* transform) {
 
         const auto& mouse_delta = g_framework->get_mouse_delta();
 
-        m_custom_angles[0] -= mouse_delta[1] * m_rotation_speed->value() * delta;
-        m_custom_angles[1] -= mouse_delta[0] * m_rotation_speed->value() * delta;
+        m_custom_angles[0] -= mouse_delta[1] * rotation_speed_kbm * delta;
+        m_custom_angles[1] -= mouse_delta[0] * rotation_speed_kbm * delta;
         m_custom_angles[2] = 0.0f;
 
         math::fix_angles(m_custom_angles);
