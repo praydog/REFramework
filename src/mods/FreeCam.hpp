@@ -25,6 +25,8 @@ private:
     const ModToggle::Ptr m_disable_movement{     ModToggle::create(generate_name("DisableMovement"), false) };
     const ModKey::Ptr m_toggle_key{              ModKey::create(generate_name("ToggleKey")) };
     const ModKey::Ptr m_lock_camera_key{         ModKey::create(generate_name("LockKey")) };
+    const ModKey::Ptr m_move_up_key{             ModKey::create(generate_name("MoveUpKey"), DIK_SPACE) };
+    const ModKey::Ptr m_move_down_key{             ModKey::create(generate_name("MoveDownKey"), DIK_LCONTROL) };
     const ModKey::Ptr m_disable_movement_key{    ModKey::create(generate_name("DisableMoveKey")) };
     const ModKey::Ptr m_speed_modifier_fast_key{ ModKey::create(generate_name("SpeedModifierFast"), DIK_LSHIFT)};
     const ModKey::Ptr m_speed_modifier_slow_key{ ModKey::create(generate_name("SpeedModifierSlow"), DIK_LMENU)};
@@ -42,6 +44,8 @@ private:
         *m_disable_movement,
         *m_toggle_key,
         *m_lock_camera_key,
+        *m_move_up_key,
+        *m_move_down_key,
         *m_disable_movement_key,
         *m_speed,
         *m_speed_modifier,

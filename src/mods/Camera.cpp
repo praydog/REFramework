@@ -27,9 +27,7 @@ void Camera::on_draw_ui() {
     }
 
     if (m_disable_vignette->draw("Disable Vignette") && !m_disable_vignette->value()) {
-        if (m_tone_map_internal != nullptr) {
-            m_tone_map_internal->Vignetting = (int32_t)via::render::ToneMapping::Vignetting::Enable;
-        }
+        set_vignette(via::render::ToneMapping::Vignetting::Enable);
     }
 
     m_fov->draw("FOV");
@@ -37,6 +35,24 @@ void Camera::on_draw_ui() {
 }
 
 void Camera::on_update_transform(RETransform* transform) {
+    const auto reset_camera_data = [&](RECamera* new_camera = nullptr) {
+        if (m_camera != new_camera) {
+            m_camera = new_camera;
+            m_tone_map_internal = nullptr;
+        }
+
+        return m_camera != nullptr;
+    };
+
+    const auto reset_player_data = [&](REGameObject* new_player = nullptr) {
+        if (m_player != new_player) {
+            m_player = new_player;
+            m_player_camera_params = nullptr;
+        }
+
+        return m_player != nullptr;
+    };
+
     if (!m_enabled->value()) {
         return;
     }
@@ -49,28 +65,14 @@ void Camera::on_update_transform(RETransform* transform) {
         }
     }
 
-    // Run on camera transform.
-    if (const auto cam = m_props_manager->camera; cam != nullptr) {
-        if (const auto cam_owner = cam->ownerGameObject; cam_owner != nullptr && cam_owner->transform != nullptr && cam_owner->transform == transform) {
-            // Check against cached camera pointer.
-            if (m_cam != cam) {
-                m_cam = cam;
-                m_tone_map_internal = nullptr;
-            }
-
+    if (reset_camera_data(m_props_manager->camera)) {
+        if (const auto owner = m_camera->ownerGameObject; owner != nullptr && owner->transform != nullptr && owner->transform == transform) {
             on_cam_transform(transform);
         }
     }
 
-    // Run on player transform.
-    if (const auto player = m_props_manager->player; player != nullptr) {
-        if (player->transform != nullptr && player->transform == transform) {
-            // Check against cached player pointer.
-            if (m_player != player) {
-                m_player = player;
-                m_player_camera_params = nullptr;
-            }
-
+    if (reset_player_data(m_props_manager->player)) {
+        if (m_player->transform != nullptr && m_player->transform == transform) {
             on_player_transform(transform);
         }
     }
@@ -80,15 +82,12 @@ void Camera::on_cam_transform(RETransform* transform) noexcept {
     if (m_disable_vignette->value()) {
         // Wait until "RenderToneMapping"'s internal data is valid...
         if (m_tone_map_internal == nullptr) {
-            if (const auto tone_map = re_component::find<RenderToneMapping>(m_cam, "via.render.ToneMapping"); tone_map != nullptr) {
+            if (const auto tone_map = re_component::find<RenderToneMapping>(m_camera, "via.render.ToneMapping")) {
                 m_tone_map_internal = tone_map->toneMappingInternal;
             }
         }
 
-        // Set vignette.
-        if (m_tone_map_internal != nullptr) {
-            m_tone_map_internal->Vignetting = (int32_t)via::render::ToneMapping::Vignetting::Disable;
-        }
+        set_vignette(via::render::ToneMapping::Vignetting::Disable);
     }
 }
 
@@ -127,21 +126,31 @@ void Camera::on_player_transform(RETransform* transform) noexcept {
         m_player_camera_params = get_player_camera_params(re_component::find<AppPlayerConfigure>(transform, game_namespace("PlayerConfigure")));
     }
 
-    if (m_player_camera_params != nullptr) {
-        m_player_camera_params->DefaultFOV = m_fov->value();
-        m_player_camera_params->AimmingFOV = m_fov_aiming->value();
-    }
+    set_fov(m_fov->value(), m_fov_aiming->value());
 }
 
 void Camera::on_disabled() noexcept {
-    if (m_tone_map_internal != nullptr) {
-        m_tone_map_internal->Vignetting = (int32_t)via::render::ToneMapping::Vignetting::Enable;
+    set_vignette(via::render::ToneMapping::Vignetting::Enable);
+    set_fov(m_fov->default_value(), m_fov_aiming->default_value());
+}
+
+void Camera::set_vignette(via::render::ToneMapping::Vignetting value) noexcept
+{
+    if (m_tone_map_internal == nullptr) {
+        return;
     }
 
-    if (m_player_camera_params != nullptr) {
-        m_player_camera_params->DefaultFOV = m_fov->default_value();
-        m_player_camera_params->AimmingFOV = m_fov_aiming->default_value();
+    m_tone_map_internal->Vignetting = (int32_t)value;
+}
+
+void Camera::set_fov(float fov, float aiming_fov) noexcept
+{
+    if (m_player_camera_params == nullptr) {
+        return;
     }
+
+    m_player_camera_params->DefaultFOV = fov;
+    m_player_camera_params->AimmingFOV = aiming_fov;
 }
 
 #endif

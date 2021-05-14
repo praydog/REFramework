@@ -77,7 +77,7 @@ private:
     };
 
     AppPropsManager* m_props_manager{ nullptr };
-    RECamera* m_cam{ nullptr };
+    RECamera* m_camera{ nullptr };
     REGameObject* m_player{ nullptr };
     RenderToneMappingInternal* m_tone_map_internal{ nullptr };
     AppPlayerCameraParameter* m_player_camera_params{ nullptr };
@@ -85,6 +85,9 @@ private:
     void on_cam_transform(RETransform* transform) noexcept;
     void on_player_transform(RETransform* transform) noexcept;
     void on_disabled() noexcept;
+
+    void set_vignette(via::render::ToneMapping::Vignetting value) noexcept;
+    void set_fov(float fov, float aiming_fov) noexcept;
 };
 
 #endif

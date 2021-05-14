@@ -48,6 +48,8 @@ void FreeCam::on_draw_ui() {
 
     m_toggle_key->draw("Toggle Key");
     m_lock_camera_key->draw("Lock Position Toggle Key");
+    m_move_up_key->draw("Move camera up Key");
+    m_move_down_key->draw("Move camera down Key");
     m_disable_movement_key->draw("Disable Movement Toggle Key");
     m_speed_modifier_fast_key->draw("Speed modifier Fast key");
     m_speed_modifier_slow_key->draw("Speed modifier Slow key");
@@ -134,19 +136,26 @@ void FreeCam::on_update_transform(RETransform* transform) {
         // Move direction
         // It's not a Vector2f because via.vec2 is not actually 8 bytes, we don't want stack corruption to occur.
         const auto axis = re_managed_object::get_field<Vector3f>(left_analog, "Axis");
-        const auto dir = Vector4f{ axis.x, 0.0f, axis.y * -1.0f, 0.0f };
+        auto dir = Vector4f{ axis.x, 0.0f, axis.y * -1.0f, 0.0f };
 
         const auto delta = re_component::get_delta_time(transform);
+
+        const auto& keyboard_state = g_framework->get_keyboard_state();
+        if (keyboard_state[m_move_up_key->value()]) {
+            dir.y = 1.0f;
+        } 
+        else if (keyboard_state[m_move_down_key->value()]) {
+            dir.y = -1.0f;
+        }
 
         const auto dir_speed_mod_fast = m_speed_modifier->value();
         const auto dir_speed_mod_slow = 1.f / dir_speed_mod_fast;
 
         auto dir_speed = m_speed->value();
-
-        const auto& keyboard_state = g_framework->get_keyboard_state();
         if (keyboard_state[m_speed_modifier_fast_key->value()]) {
             dir_speed *= dir_speed_mod_fast;
-        } else if (keyboard_state[m_speed_modifier_slow_key->value()]) {
+        } 
+        else if (keyboard_state[m_speed_modifier_slow_key->value()]) {
             dir_speed *= dir_speed_mod_slow;
         }
 
@@ -160,6 +169,11 @@ void FreeCam::on_update_transform(RETransform* transform) {
 
     controller->worldPosition = m_last_camera_matrix[3];
 #else
+    const auto player = m_props_manager->player;
+    if (player != nullptr && player->transform != nullptr && player->transform == transform) {
+        player->shouldUpdate = m_disable_movement->value();
+    }
+
     const auto camera = m_props_manager->camera;
     if (camera == nullptr || transform != camera->ownerGameObject->transform) {
         return;
@@ -206,6 +220,13 @@ void FreeCam::on_update_transform(RETransform* transform) {
             if (keyboard_state[entry.first]) {
                 dir += g_movedir_map[entry.second];
             }
+        }
+
+        if (keyboard_state[m_move_up_key->value()]) {
+            dir.y = 1.0f;
+        } 
+        else if (keyboard_state[m_move_down_key->value()]) {
+            dir.y = -1.0f;
         }
 
         const auto dir_speed_mod_fast = m_speed_modifier->value();
