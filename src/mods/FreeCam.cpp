@@ -171,7 +171,7 @@ void FreeCam::on_update_transform(RETransform* transform) {
 #else
     const auto player = m_props_manager->player;
     if (player != nullptr && player->transform != nullptr && player->transform == transform) {
-        player->shouldUpdate = m_disable_movement->value();
+        player->shouldUpdate = !m_disable_movement->value();
     }
 
     const auto camera = m_props_manager->camera;
