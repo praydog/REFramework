@@ -1,6 +1,7 @@
 #include <sstream>
 #include <fstream>
 #include <forward_list>
+#include <deque>
 #include <nlohmann/json.hpp>
 
 #include <windows.h>
@@ -16,70 +17,9 @@
 using json = nlohmann::json;
 
 #ifdef RE8
-namespace detail {
-struct ParsedParams;
-struct ParsedMethod;
-struct ParsedField;
-struct ParsedProperty;
-struct ParsedType;
-
-struct ParsedParams {
-    std::shared_ptr<ParsedMethod> owner{};
-    std::shared_ptr<ParsedType> type{};
-    const char* name;
-
-    bool by_ref : 1;
-    bool by_ptr : 1;
-};
-
-struct ParsedMethod {
-    std::shared_ptr<ParsedType> owner{};
-    REMethodDefinition* m{};
-    REMethodImpl* m_impl{};
-    const char* name{};
-
-    std::vector<std::shared_ptr<ParsedParams>> params{};
-    std::shared_ptr<ParsedParams> return_val{};
-};
-
-struct ParsedField {
-    std::shared_ptr<ParsedType> owner{};
-    std::shared_ptr<ParsedType> type{};
-    REField* f{};
-    REFieldImpl* f_impl{};
-    const char* name{};
-    uint32_t offset_from_fieldptr{};
-    uint32_t offset_from_base{};
-};
-
-struct ParsedProperty {
-    std::shared_ptr<ParsedType> owner{};
-    std::shared_ptr<ParsedMethod> getter{};
-    std::shared_ptr<ParsedMethod> setter{};
-
-    REProperty* p{};
-    REPropertyImpl* p_impl{};
-    const char* name{};
-};
-
-struct ParsedType {
-    REClassInfo* t{ nullptr };
-    const char* name{ "Unknown" };
-    std::vector<REMethodDefinition*> methods{};
-    std::vector<REMethodImpl*> method_impls{};
-    std::vector<REField*> fields{};
-    std::vector<REFieldImpl*> field_impls{};
-    std::vector<REProperty*> props{};
-    std::vector<REPropertyImpl> prop_impls{};
-
-    std::vector<std::shared_ptr<ParsedField>> parsed_fields;
-    std::vector<std::shared_ptr<ParsedMethod>> parsed_methods;
-    std::vector<std::shared_ptr<ParsedProperty>> parsed_props;
-};
-}
-
 std::unordered_map<std::string, std::shared_ptr<detail::ParsedType>> g_stypedb{};
 std::unordered_map<uint32_t, std::shared_ptr<detail::ParsedType>> g_itypedb{};
+std::unordered_map<uint32_t, std::shared_ptr<detail::ParsedType>> g_fqntypedb{};
 
 std::unordered_map<uint32_t, std::shared_ptr<detail::ParsedParams>> g_iparamdb{};
 std::unordered_map<uint32_t, std::shared_ptr<detail::ParsedMethod>> g_imethoddb{};
@@ -103,24 +43,25 @@ struct BitReader {
         return ((uint64_t)1 << nbits) - 1;
     }
 
-    uint64_t read(int32_t nbits) {
+    template<typename T = uint64_t>
+    T read(int32_t nbits) {
         constexpr auto CHUNK_BYTES = sizeof(uint8_t);
         constexpr auto CHUNK_BITS = CHUNK_BYTES * 8;
 
-        const auto bidx = bit_index % CHUNK_BITS;
+        const auto bidx = (uint8_t)(bit_index % CHUNK_BITS);
         const auto byte_index = (int32_t)floor((float)bit_index / (float)CHUNK_BITS) * CHUNK_BYTES;
 
-        auto window = *(uint64_t*)&data[byte_index];
-        auto out = (window >> bidx) & make_bitmask(nbits);
+        auto window = *(T*)&data[byte_index];
+        auto out = (window >> bidx) & (T)make_bitmask(nbits);
 
         bit_index += nbits;
 
         return out;
     }
 
-    uint8_t read_byte() { return (uint8_t)read(sizeof(uint8_t) * 8); }
-    uint16_t read_short() { return (uint16_t)read(sizeof(uint16_t) * 8); }
-    uint32_t read_int() { return (uint32_t)read(sizeof(uint32_t) * 8); }
+    uint8_t read_byte() { return read<uint8_t>(sizeof(uint8_t) * 8); }
+    uint16_t read_short() { return read<uint16_t>(sizeof(uint16_t) * 8); }
+    uint32_t read_int() { return read<uint32_t>(sizeof(uint32_t) * 8); }
 
     void seek(int32_t index) { bit_index = index; }
 
@@ -337,6 +278,137 @@ void ObjectExplorer::on_draw_ui() {
     m_do_init = false;
 }
 
+#ifdef RE8
+std::shared_ptr<detail::ParsedType> ObjectExplorer::init_type(json& il2cpp_dump, RETypeDB* tdb, uint32_t i) {
+    if (g_itypedb.find(i) != g_itypedb.end()) {
+        return g_itypedb[i];
+    }
+
+    auto& t = (*tdb->types)[i];
+    auto br = BitReader{&t};
+
+    // because i think it's impossible in reclass to make bitfields with names
+    const auto index = br.read<uint32_t>(18);
+    const auto parent_typeid = br.read<uint32_t>(18);
+    const auto declaring_typeid = br.read<uint32_t>(18);
+    const auto underlying_typeid = br.read<uint32_t>(7);
+    const auto object_typeid = br.read<uint32_t>(3);
+    const auto array_typeid = br.read<uint32_t>(18);
+    const auto element_typeid = br.read<uint32_t>(18);
+    const auto impl_index = br.read<uint32_t>(18);
+    const auto system_typeid = br.read<uint32_t>(10);
+    const auto type_flags = br.read_int();
+
+    auto desc = std::make_shared<detail::ParsedType>();
+
+    auto& impl = (*tdb->typesImpl)[impl_index];
+
+    const auto ns = Address{tdb->stringPool}.get(impl.namespaceThing).as<const char*>();
+    const auto name = Address{tdb->stringPool}.get(impl.nameThing).as<const char*>();
+
+    desc->t = &t;
+    desc->name_space = ns;
+    desc->name = name;
+
+    g_itypedb[i] = desc;
+    g_fqntypedb[t.fqnHash] = desc;
+
+    std::deque<std::string> names{};
+
+    // owner class names
+    if (declaring_typeid != 0) {
+        desc->owner = init_type(il2cpp_dump, tdb, declaring_typeid);
+
+        for (auto owner = desc; owner != nullptr; owner = owner->owner) {
+            names.push_front(owner->name);
+
+            if (owner->owner == nullptr && !std::string{owner->name_space}.empty()) {
+                names.push_front(owner->name_space);
+            }
+        }
+    } else {
+        // namespace
+        if (!std::string{ns}.empty()) {
+            names.push_front(ns);
+        }
+
+        // actual class name
+        names.push_back(name);
+    }
+
+    for (auto f = 0; f < names.size(); ++f) {
+        if (f > 0) {
+            desc->full_name += ".";
+        }
+
+        desc->full_name += names[f];
+    }
+
+    g_stypedb[desc->full_name] = desc;
+
+    auto& type_entry = (il2cpp_dump[desc->full_name] = {});
+
+    type_entry = {
+        {"id", i},
+        {"fqn", (std::stringstream{} << std::hex << t.fqnHash).str()},
+        {"crc", (std::stringstream{} << std::hex << t.typeCRC).str()},
+        {"size", (std::stringstream{} << std::hex << t.size).str()},
+    };
+
+    if (parent_typeid != 0) {
+        desc->super = init_type(il2cpp_dump, tdb, parent_typeid);
+        type_entry["parent"] = desc->super->full_name;
+    }
+
+    if (auto type_flags_str = get_full_enum_value_name("via.clr.TypeFlag", type_flags); !type_flags_str.empty()) {
+        type_entry["flags"] = type_flags_str;
+    }
+
+    if (desc->t->type != nullptr && desc->t->type->name != nullptr) {
+        if (desc->t->type->name != desc->full_name) {
+            type_entry["native_typename"] = desc->t->type->name;
+        }
+    }
+
+    if (i > 0  && t.type != nullptr && ((uint8_t)t.type->flags >> 5) & 1) 
+    {
+        auto clr_t = t.type;
+
+        auto& deserialize_list = clr_t->deserializeThing;
+
+        if (deserialize_list.deserializers != nullptr && deserialize_list.num > 0 && deserialize_list.numAllocated > 0) {
+            for (uint32_t f = 0; f < deserialize_list.num; ++f) {
+                auto& sequence = (*deserialize_list.deserializers)[f];
+                auto sequence_type = init_type(il2cpp_dump, tdb, BitReader{ sequence.nativeType }.read(18));
+
+                auto sbr = BitReader{ &sequence.data };
+
+                const auto code = sbr.read<uint8_t>(8);
+                const auto size = sbr.read<uint8_t>(8);
+                const auto align = sbr.read<uint8_t>(8);
+                const auto depth = sbr.read<uint8_t>(6);
+                const auto is_array = (bool)sbr.read<uint8_t>(1);
+                const auto is_static = (bool)sbr.read<uint8_t>(1);
+
+                auto rsz_entry = json{};
+
+                rsz_entry["type"] = sequence_type->full_name;
+                rsz_entry["code"] = get_enum_value_name("via.typeinfo.TypeCode", code);
+                rsz_entry["align"] = align;
+                rsz_entry["size"] = (std::stringstream{} << "0x" << std::hex << (uint32_t)size).str();
+                rsz_entry["depth"] = depth;
+                rsz_entry["array"] = is_array;
+                rsz_entry["static"] = is_static;
+
+                type_entry["RSZ"].emplace_back(rsz_entry);
+            }
+        }
+    }
+
+    return desc;
+}
+#endif
+
 void ObjectExplorer::generate_sdk() {
     // enums
     auto ref = utility::scan(g_framework->get_module().as<HMODULE>(), "66 C7 40 18 01 01 48 89 05 ? ? ? ?");
@@ -370,30 +442,23 @@ void ObjectExplorer::generate_sdk() {
 #ifdef RE8
     auto tdb = g_framework->get_types()->get_type_db();
 
+    struct RETypeDefinitionVersion69 {
+        uint32_t index : 8;
+        uint32_t parent_typeid : 18;
+        uint32_t declaring_typeid : 18;
+        uint32_t underlying_typeid : 7;
+        uint32_t object_typeid : 3;
+        uint32_t array_typeid : 18;
+        uint32_t element_typeid : 18;
+        uint32_t impl_index : 18;
+        uint32_t system_typeid : 10;
+
+        //rest is in REClassInfo
+    };
+
     // Types
     for (uint32_t i = 0; i < tdb->numTypes; ++i) {
-        auto& t = (*tdb->types)[i];
-
-        if (t.type == nullptr || t.type->name == nullptr) {
-            continue;
-        }
-
-        auto desc = std::make_shared<detail::ParsedType>();
-
-        g_stypedb[t.type->name] = desc;
-        g_itypedb[i] = desc;
-
-        desc->t = &t;
-        
-        if (desc->t->type != nullptr && desc->t->type->name != nullptr) {
-            desc->name = desc->t->type->name;
-
-            il2cpp_dump[desc->name] = {
-                {"id", i},
-                {"fqn", (std::stringstream{} << std::hex << t.fqnHash).str()},
-                {"crc", (std::stringstream{} << std::hex << t.typeCRC).str()},
-            };
-        }
+        init_type(il2cpp_dump, tdb, i);
     }
 
     // Methods
@@ -431,14 +496,18 @@ void ObjectExplorer::generate_sdk() {
 
         //spdlog::info("{:s}.{:s}: 0x{:x}", desc->t->type->name, name, (uintptr_t)m.function);
 
-
-        auto& method_entry = il2cpp_dump[desc->name]["methods"][pm->name];
+        auto& type_entry = il2cpp_dump[desc->full_name];
+        auto& method_entry = type_entry["methods"][pm->name];
 
         method_entry["id"] = i;
         method_entry["function"] = (std::stringstream{} << std::hex << m.function).str();
 
         if (auto impl_flags = get_full_enum_value_name("via.clr.MethodImplFlag", impl.implFlags); !impl_flags.empty()) {
             method_entry["impl_flags"] = impl_flags;
+        }
+
+        if (auto flags = get_full_enum_value_name("via.clr.MethodFlag", impl.flags); !flags.empty()) {
+            method_entry["flags"] = flags;
         }
 
         if (impl.vtableIndex >= 0) {
@@ -449,7 +518,8 @@ void ObjectExplorer::generate_sdk() {
         auto param_ids = Address{ tdb->bytePool }.get(param_list).as<REParamList*>();
         const auto num_params = param_ids->numParams;
 
-        method_entry["invoke_id"] = param_ids->invokeID;;
+        // Invoke wrapper for arbitrary amount of arguments, so we can just pass it on the VM stack/context as an array
+        method_entry["invoke_id"] = param_ids->invokeID;
 
         auto parse_param = [&](uint32_t param_index, bool is_return = false) {
             auto& p = (*tdb->params)[param_index];
@@ -485,7 +555,7 @@ void ObjectExplorer::generate_sdk() {
             }
 
             auto param_entry = json{
-                {"type", pdesc->type->name},
+                {"type", pdesc->type->full_name},
                 {"name", pdesc->name},
             };
 
@@ -566,16 +636,23 @@ void ObjectExplorer::generate_sdk() {
             pf->offset_from_base += field_ptr_offset;
         }
         
-        const auto field_type_name = (pf->type != nullptr && pf->type->t->type != nullptr) ? pf->type->t->type->name : "";
+        const auto field_type_name = (pf->type != nullptr) ? pf->type->full_name : "";
 
         //spdlog::info("{:s} {:s}.{:s}: 0x{:x}", field_type_name, desc->t->type->name, name, pf->offset_from_base);
 
-        il2cpp_dump[desc->name]["fields"][pf->name] = {
+        auto& type_entry = il2cpp_dump[desc->full_name];
+        auto& field_entry = type_entry["fields"][pf->name];
+
+        field_entry = {
             {"id", i},
             {"type", field_type_name},
             {"offset_from_base", (std::stringstream{} << "0x" << std::hex << pf->offset_from_base).str()},
             {"offset_from_fieldptr", (std::stringstream{} << "0x" << std::hex << pf->offset_from_fieldptr).str()}, 
         };
+
+        if (auto field_flags_str = get_full_enum_value_name("via.clr.FieldFlag", field_flags); !field_flags_str.empty()) {
+            field_entry["flags"] = field_flags_str;
+        }
     }
     
     spdlog::info("PROPERTIES BEGIN");
@@ -629,7 +706,9 @@ void ObjectExplorer::generate_sdk() {
 
         //spdlog::info("{:s}.{:s}", desc->name, name);
 
-        il2cpp_dump[desc->name]["properties"][pp->name] = {
+        auto& type_entry = il2cpp_dump[desc->full_name];
+
+        type_entry["properties"][pp->name] = {
             {"id", i},
             {"getter", getter_name},
             {"setter", setter_name},
@@ -734,26 +813,35 @@ void ObjectExplorer::generate_sdk() {
                 m->param("args")->type(g->type("void**"));
                 m->procedure(os.str())->returns(g->type("std::unique_ptr<ParamWrapper>"));
 
+#ifdef RE8
                 json json_params{};
 
                 for (auto f = 0; f < descriptor->numParams; ++f) {
+                    auto& param_d = (*descriptor->params)[f];
+                    auto param_t = g_itypedb[(*descriptor->params)[f].typeIndex];
+                    auto param_typename = (param_t != nullptr && param_d.typeIndex) != 0 ? param_t->full_name : param_d.typeName;
+
                     json_params.push_back({
-                        {"type", (*descriptor->params)[f].typeName},
-                        {"name", (*descriptor->params)[f].paramName},
-                        {"typeindex", (*descriptor->params)[f].typeIndex}
+                        {"type", param_typename},
+                        {"name", param_d.paramName},
+                        {"typeindex", param_d.typeIndex}
                     });
                 }
 
-                il2cpp_dump[t->name]["glued_methods"][descriptor->name] = {
+                auto return_t = g_itypedb[descriptor->typeIndex];
+                auto return_name = (return_t != nullptr && descriptor->typeIndex != 0) ? return_t->full_name : descriptor->returnTypeName;
+
+                il2cpp_dump[t->name]["reflection_methods"][descriptor->name] = {
                     {"function", (std::stringstream{} << "0x" << std::hex << (uintptr_t)descriptor->functionPtr).str()},
-                    {"returns", descriptor->returnTypeName},
+                    {"returns", return_name},
                     {"params", json_params},
                     {"typeindex", descriptor->typeIndex}
                 };
+#endif
             }
         }
 
-        // Generate Fields
+        // Generate Properties
         if (fields->variables != nullptr && fields->variables != nullptr && fields->variables->data != nullptr) {
             auto descriptors = fields->variables->data->descriptors;
 
@@ -789,6 +877,16 @@ void ObjectExplorer::generate_sdk() {
 
                 auto dummy_type = g->namespace_("sdk")->struct_("DummyData")->size(0x100);
                 m->returns(dummy_type);
+
+#ifdef RE8
+                auto field_t = g_fqntypedb[variable->typeFqn];
+                auto field_t_name = (field_t != nullptr && variable->typeFqn != 0) ? field_t->full_name : variable->typeName;
+
+                il2cpp_dump[t->name]["reflection_properties"][variable->name] = {
+                    {"getter", (std::stringstream{} << "0x" << std::hex << (uintptr_t)variable->function).str()},
+                    {"type", field_t_name},
+                };
+#endif
             }
         }
     }

@@ -212,11 +212,10 @@ public:
     int32_t num;                             // 0x0018
     int32_t maxItems;                        // 0x001C
     class REVariableList* variables;         // 0x0020
-    void* N0000072F;                         // 0x0028
+    void* deserializer;                      // 0x0028
     uint32_t N00000730;                      // 0x0030
-    char pad_0034[4];                        // 0x0034
-};                                           // Size: 0x0038
-static_assert(sizeof(REFieldList) == 0x38);
+};                                           // Size: 0x0034
+static_assert(sizeof(REFieldList) == 0x34);
 
 class N0000074B {
 public:
@@ -346,11 +345,11 @@ static_assert(sizeof(N00000965) == 0x48);
 class REObjectInfo {
 public:
     class REClassInfo* classInfo; // 0x0000
-    void* N00000991;              // 0x0008
+    void* validator;              // 0x0008
     void* N0000246A;              // 0x0010
     void* getType;                // 0x0018
-    void* N00000993;              // 0x0020
-    void* N00000994;              // 0x0028
+    void* toString;               // 0x0020
+    void* copy;                   // 0x0028
     void* N00000995;              // 0x0030
     void* N00000996;              // 0x0038
     void* N00000997;              // 0x0040
@@ -375,16 +374,21 @@ public:
     uint16_t typeIndex;             // 0x0000 index into global type array
     char pad_0002[5];               // 0x0002
     uint8_t objectFlags;            // 0x0007 flags >> 5 ==  1 == normal type ? ??
-    uint32_t typeFlags;             // 0x0008 System::Reflection::TypeAttributes or via::clr::TypeFlag
-    uint32_t elementBitField;       // 0x000C >> 4 is the value type index (REValueTypes)
-    char pad_0010[4];               // 0x0010
+    uint32_t _;                     // 0x0008
+    uint32_t elementBitField;       // 0x000C >> 4 is the value type index (RETypeImpl)
+    uint32_t typeFlags;             // 0x0010 System::Reflection::TypeAttributes or via::clr::TypeFlag
     uint32_t size;                  // 0x0014
     uint32_t fqnHash;               // 0x0018
     uint32_t typeCRC;               // 0x001C
-    char pad_0020[24];              // 0x0020
+    uint32_t defaultCtor;           // 0x0020
+    uint32_t vt;                    // 0x0024 vtable byte pool
+    uint32_t memberMethod;          // 0x0028
+    uint32_t memberField;           // 0x002C
+    uint32_t memberProp;            // 0x0030
+    uint32_t memberEvent;           // 0x0034
     int32_t interfaces;             // 0x0038
     int32_t generics;               // 0x003C byte pool
-    class REType* type;             // 0x0040
+    class RETypeCLR* type;          // 0x0040
     class REObjectInfo* parentInfo; // 0x0048
 };                                  // Size: 0x0050
 static_assert(sizeof(REClassInfo) == 0x50);
@@ -1010,20 +1014,26 @@ static_assert(sizeof(N0000ADA4) == 0x800);
 
 class VariableDescriptor {
 public:
-    char* name;                                         // 0x0000
-    char pad_0008[4];                                   // 0x0008
-    uint16_t N00000871;                                 // 0x000C
-    uint16_t N00008140;                                 // 0x000E
-    void* function;                                     // 0x0010
-    int32_t flags;                                      // 0x0018 (flags AND 0x1F) gives var type (via::clr::reflection::TypeKind)
-    uint32_t flags2;                                    // 0x001C
-    char* typeName;                                     // 0x0020
-    char pad_0028[4];                                   // 0x0028
-    uint32_t variableType;                              // 0x002C 1 == pointer? 3 == builtin?
+    char* name;         // 0x0000
+    uint32_t nameHash;  // 0x0008
+    uint16_t flags1;    // 0x000C
+    uint16_t N00008140; // 0x000E
+    void* function;     // 0x0010
+    int32_t flags;      // 0x0018 (flags AND 0x1F) gives var type (via::clr::reflection::TypeKind)
+    uint32_t typeFqn;   // 0x001C
+    char* typeName;     // 0x0020
+    int32_t getter;     // 0x0028
+    union               // 0x002C 1 == pointer? 3 == builtin?
+    {
+        uint32_t variableType; // 0x0000
+        uint32_t destructor;   // 0x0000
+    };
     class StaticVariableDescriptor* staticVariableData; // 0x0030
-    char pad_0038[8];                                   // 0x0038
-};                                                      // Size: 0x0040
-static_assert(sizeof(VariableDescriptor) == 0x40);
+    int32_t setter;                                     // 0x0038
+    int32_t attributes;                                 // 0x003C
+    char pad_0040[8];                                   // 0x0040
+};                                                      // Size: 0x0048
+static_assert(sizeof(VariableDescriptor) == 0x48);
 
 class N0000B627 {
 public:
@@ -3650,3 +3660,27 @@ public:
     uint32_t params[1];  // 0x0008
 };                       // Size: 0x000C
 static_assert(sizeof(REParamList) == 0xC);
+
+class ArrayDeserializeSequence {
+public:
+    class DeserializeSequence (*deserializers)[256]; // 0x0000
+    uint32_t num;                                    // 0x0008
+    uint32_t numAllocated;                           // 0x000C
+};                                                   // Size: 0x0010
+static_assert(sizeof(ArrayDeserializeSequence) == 0x10);
+
+class RETypeCLR : public REType {
+public:
+    class ArrayDeserializeSequence deserializeThing; // 0x0060
+    class REType* nativeType;                        // 0x0070
+    char* name2;                                     // 0x0078
+};                                                   // Size: 0x0080
+static_assert(sizeof(RETypeCLR) == 0x80);
+
+class DeserializeSequence {
+public:
+    uint32_t data;                 // 0x0000
+    uint32_t offset;               // 0x0004
+    class REClassInfo* nativeType; // 0x0008
+};                                 // Size: 0x0010
+static_assert(sizeof(DeserializeSequence) == 0x10);

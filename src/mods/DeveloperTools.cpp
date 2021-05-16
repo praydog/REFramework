@@ -14,7 +14,5 @@ void DeveloperTools::on_draw_ui() {
     for (auto& tool : m_tools) {
         tool->on_draw_ui();
     }
-
-    ImGui::TreePop();
 }
 

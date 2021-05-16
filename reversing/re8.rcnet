@@ -384,7 +384,7 @@
         <node type="ClassInstanceNode" name="N00000266" comment="" hidden="false" reference="597c0e7f-7348-4542-804e-fda1f2c45d7a" />
       </node>
     </class>
-    <class uuid="597c0e7f-7348-4542-804e-fda1f2c45d7a" name="REType" comment="" address="42731070">
+    <class uuid="597c0e7f-7348-4542-804e-fda1f2c45d7a" name="REType" comment="" address="446f44c0">
       <node type="PointerNode" name="N000003B4" comment="" hidden="false" />
       <node type="UInt32Node" name="classIndex" comment="" hidden="false" />
       <node type="Int16Node" name="flags" comment="&lt; 0 == NoneType, 1 == abstract, 2 == concrete, 256 == interface, 16384 == root" hidden="false" />
@@ -563,9 +563,8 @@
       <node type="PointerNode" name="variables" comment="" hidden="false">
         <node type="ClassInstanceNode" name="N00000313" comment="" hidden="false" reference="924df953-58cf-41c8-bb0f-f88ec67b84db" />
       </node>
-      <node type="FunctionPtrNode" name="N0000072F" comment="" hidden="false" />
+      <node type="FunctionPtrNode" name="deserializer" comment="" hidden="false" />
       <node type="UInt32Node" name="N00000730" comment="" hidden="false" />
-      <node type="Hex32Node" name="N0000076F" comment="" hidden="false" />
     </class>
     <class uuid="95e7395d-812e-4346-b69c-e3f26b230e08" name="N0000074B" comment="" address="140000000">
       <node type="ArrayNode" name="N0000074C" comment="" hidden="false" count="2048">
@@ -985,11 +984,11 @@
       <node type="PointerNode" name="classInfo" comment="" hidden="false">
         <node type="ClassInstanceNode" name="N0000049B" comment="" hidden="false" reference="1168af80-ede7-47fc-8e4e-4f12322f0ac3" />
       </node>
-      <node type="FunctionPtrNode" name="N00000991" comment="" hidden="false" />
+      <node type="FunctionPtrNode" name="validator" comment="" hidden="false" />
       <node type="FunctionPtrNode" name="N0000246A" comment="" hidden="false" />
       <node type="FunctionPtrNode" name="getType" comment="" hidden="false" />
-      <node type="FunctionPtrNode" name="N00000993" comment="" hidden="false" />
-      <node type="FunctionPtrNode" name="N00000994" comment="" hidden="false" />
+      <node type="FunctionPtrNode" name="toString" comment="" hidden="false" />
+      <node type="FunctionPtrNode" name="copy" comment="" hidden="false" />
       <node type="FunctionPtrNode" name="N00000995" comment="" hidden="false" />
       <node type="FunctionPtrNode" name="N00000996" comment="" hidden="false" />
       <node type="FunctionPtrNode" name="N00000997" comment="" hidden="false" />
@@ -1013,24 +1012,22 @@
       <node type="Hex8Node" name="objectTypeFlag" comment="" hidden="false" />
       <node type="Hex16Node" name="N00002561" comment="" hidden="false" />
       <node type="UInt8Node" name="objectFlags" comment="flags &gt;&gt; 5 ==  1 == normal type ? ??" hidden="false" />
+      <node type="UInt32Node" name="_" comment="" hidden="false" />
+      <node type="UInt32Node" name="elementBitField" comment="&gt;&gt; 4 is the value type index (RETypeImpl)" hidden="false" />
       <node type="UInt32Node" name="typeFlags" comment="System::Reflection::TypeAttributes or via::clr::TypeFlag" hidden="false" />
-      <node type="UInt32Node" name="elementBitField" comment="&gt;&gt; 4 is the value type index (REValueTypes)" hidden="false" />
-      <node type="Hex32Node" name="elementSize" comment="" hidden="false" />
       <node type="UInt32Node" name="size" comment="" hidden="false" />
-      <node type="Hex32Node" name="elementSize" comment="" hidden="false" />
-      <node type="Hex32Node" name="N00002440" comment="" hidden="false" />
-      <node type="Hex32Node" name="N00002461" comment="" hidden="false" />
-      <node type="Hex32Node" name="N000034D7" comment="" hidden="false" />
-      <node type="Hex32Node" name="N00002441" comment="" hidden="false" />
-      <node type="Hex8Node" name="N000034D5" comment="" hidden="false" />
-      <node type="Hex8Node" name="N000034DB" comment="" hidden="false" />
-      <node type="Hex8Node" name="objectType" comment="" hidden="false" />
-      <node type="Hex8Node" name="N000034DC" comment="" hidden="false" />
-      <node type="Hex64Node" name="N0000247E" comment="" hidden="false" />
-      <node type="Hex32Node" name="N00002D63" comment="" hidden="false" />
-      <node type="Hex32Node" name="N000009C1" comment="" hidden="false" />
+      <node type="UInt32Node" name="fqnHash" comment="" hidden="false" />
+      <node type="UInt32Node" name="typeCRC" comment="" hidden="false" />
+      <node type="UInt32Node" name="defaultCtor" comment="" hidden="false" />
+      <node type="UInt32Node" name="vt" comment="vtable byte pool" hidden="false" />
+      <node type="UInt32Node" name="memberMethod" comment="" hidden="false" />
+      <node type="UInt32Node" name="memberField" comment="" hidden="false" />
+      <node type="UInt32Node" name="memberProp" comment="" hidden="false" />
+      <node type="UInt32Node" name="memberEvent" comment="" hidden="false" />
+      <node type="Int32Node" name="interfaces" comment="" hidden="false" />
+      <node type="Int32Node" name="generics" comment="byte pool" hidden="false" />
       <node type="PointerNode" name="type" comment="" hidden="false">
-        <node type="ClassInstanceNode" name="N000004C8" comment="" hidden="false" reference="597c0e7f-7348-4542-804e-fda1f2c45d7a" />
+        <node type="ClassInstanceNode" name="N000004C8" comment="" hidden="false" reference="b1bec6ef-4478-4215-a7ae-e2d10738f096" />
       </node>
       <node type="PointerNode" name="parentInfo" comment="" hidden="false">
         <node type="ClassInstanceNode" name="N000004CB" comment="" hidden="false" reference="95c6cb2d-ba3e-4dba-a381-8fdfaa1de3b5" />
@@ -2222,20 +2219,25 @@
     </class>
     <class uuid="fbf87051-cb3a-40aa-bd25-b6eb2f6b3228" name="VariableDescriptor" comment="" address="2a3eeb50">
       <node type="Utf8TextPtrNode" name="name" comment="" hidden="false" />
-      <node type="Hex32Node" name="N0000B5C8" comment="" hidden="false" />
-      <node type="UInt16Node" name="N00000871" comment="" hidden="false" />
+      <node type="UInt32Node" name="nameHash" comment="" hidden="false" />
+      <node type="UInt16Node" name="flags1" comment="" hidden="false" />
       <node type="UInt16Node" name="N00008140" comment="" hidden="false" />
       <node type="FunctionPtrNode" name="function" comment="" hidden="false" />
       <node type="Int32Node" name="flags" comment="(flags AND 0x1F) gives var type (via::clr::reflection::TypeKind)" hidden="false" />
-      <node type="UInt32Node" name="flags2" comment="" hidden="false" />
+      <node type="UInt32Node" name="typeFqn" comment="" hidden="false" />
       <node type="Utf8TextPtrNode" name="typeName" comment="" hidden="false" />
-      <node type="Hex32Node" name="N0000B5CC" comment="" hidden="false" />
-      <node type="UInt32Node" name="variableType" comment="1 == pointer? 3 == builtin?" hidden="false" />
+      <node type="Int32Node" name="getter" comment="" hidden="false" />
+      <node type="UnionNode" name="variableType" comment="1 == pointer? 3 == builtin?" hidden="false">
+        <node type="UInt32Node" name="variableType" comment="" hidden="false" />
+        <node type="UInt32Node" name="destructor" comment="" hidden="false" />
+      </node>
       <node type="PointerNode" name="staticVariableData" comment="" hidden="false">
         <node type="ClassInstanceNode" name="N000008C2" comment="" hidden="false" reference="96c8d47f-ea13-45df-8a85-baece513822f" />
       </node>
-      <node type="Hex32Node" name="N0000B5CE" comment="" hidden="false" />
-      <node type="Hex32Node" name="N0000192E" comment="" hidden="false" />
+      <node type="Int32Node" name="setter" comment="" hidden="false" />
+      <node type="Int32Node" name="attributes" comment="" hidden="false" />
+      <node type="Hex32Node" name="N000030B5" comment="" hidden="false" />
+      <node type="Hex32Node" name="N000030B7" comment="" hidden="false" />
     </class>
     <class uuid="86ae5941-0992-41bc-a9a6-277f581eaa4e" name="N0000B627" comment="" address="140000000">
       <node type="Hex64Node" name="N0000B628" comment="" hidden="false" />
@@ -13063,6 +13065,30 @@
       <node type="UInt32Node" name="returnType" comment="" hidden="false" />
       <node type="ArrayNode" name="params" comment="" hidden="false" count="1">
         <node type="UInt32Node" name="N00003A73" comment="" hidden="false" />
+      </node>
+    </class>
+    <class uuid="b1bec6ef-4478-4215-a7ae-e2d10738f096" name="RETypeCLR" comment="" address="446f44c0">
+      <node type="ClassInstanceNode" name="N00005F68" comment="" hidden="false" reference="597c0e7f-7348-4542-804e-fda1f2c45d7a" />
+      <node type="ClassInstanceNode" name="deserializeThing" comment="" hidden="false" reference="09d1a9c2-58d6-44a0-9c4f-15fd6dd90928" />
+      <node type="PointerNode" name="nativeType" comment="" hidden="false">
+        <node type="ClassInstanceNode" name="N00005F81" comment="" hidden="false" reference="597c0e7f-7348-4542-804e-fda1f2c45d7a" />
+      </node>
+      <node type="Utf8TextPtrNode" name="name2" comment="" hidden="false" />
+    </class>
+    <class uuid="09d1a9c2-58d6-44a0-9c4f-15fd6dd90928" name="ArrayDeserializeSequence" comment="" address="140000000">
+      <node type="PointerNode" name="deserializers" comment="" hidden="false">
+        <node type="ArrayNode" name="N0000306C" comment="" hidden="false" count="256">
+          <node type="ClassInstanceNode" name="N00003092" comment="" hidden="false" reference="9e2defe5-1f4a-4a60-95d6-a08ad1124436" />
+        </node>
+      </node>
+      <node type="UInt32Node" name="num" comment="" hidden="false" />
+      <node type="UInt32Node" name="numAllocated" comment="" hidden="false" />
+    </class>
+    <class uuid="9e2defe5-1f4a-4a60-95d6-a08ad1124436" name="DeserializeSequence" comment="" address="140000000">
+      <node type="Int32Node" name="data" comment="" hidden="false" />
+      <node type="UInt32Node" name="offset" comment="" hidden="false" />
+      <node type="PointerNode" name="nativeType" comment="" hidden="false">
+        <node type="ClassInstanceNode" name="N0000309B" comment="" hidden="false" reference="1168af80-ede7-47fc-8e4e-4f12322f0ac3" />
       </node>
     </class>
   </classes>

@@ -1,11 +1,82 @@
 #pragma once
 
 #include <unordered_set>
-
 #include <imgui/imgui.h>
+#include <nlohmann/json.hpp>
 
 #include "utility/Address.hpp"
 #include "Mod.hpp"
+
+#ifdef RE8
+namespace detail {
+struct ParsedParams;
+struct ParsedMethod;
+struct ParsedField;
+struct ParsedProperty;
+struct ParsedType;
+
+struct ParsedParams {
+    std::shared_ptr<ParsedMethod> owner{};
+    std::shared_ptr<ParsedType> type{};
+    const char* name;
+
+    bool by_ref : 1;
+    bool by_ptr : 1;
+};
+
+struct ParsedMethod {
+    std::shared_ptr<ParsedType> owner{};
+    REMethodDefinition* m{};
+    REMethodImpl* m_impl{};
+    const char* name{};
+
+    std::vector<std::shared_ptr<ParsedParams>> params{};
+    std::shared_ptr<ParsedParams> return_val{};
+};
+
+struct ParsedField {
+    std::shared_ptr<ParsedType> owner{};
+    std::shared_ptr<ParsedType> type{};
+    REField* f{};
+    REFieldImpl* f_impl{};
+    const char* name{};
+    uint32_t offset_from_fieldptr{};
+    uint32_t offset_from_base{};
+};
+
+struct ParsedProperty {
+    std::shared_ptr<ParsedType> owner{};
+    std::shared_ptr<ParsedMethod> getter{};
+    std::shared_ptr<ParsedMethod> setter{};
+
+    REProperty* p{};
+    REPropertyImpl* p_impl{};
+    const char* name{};
+};
+
+struct ParsedType {
+    std::shared_ptr<ParsedType> owner{}; // declaring class
+    std::shared_ptr<ParsedType> super{}; // parent class we inherit from
+
+    REClassInfo* t{nullptr};
+
+    const char* name_space{"Unknown"};
+    const char* name{"Unknown"};
+    std::string full_name{};
+
+    std::vector<REMethodDefinition*> methods{};
+    std::vector<REMethodImpl*> method_impls{};
+    std::vector<REField*> fields{};
+    std::vector<REFieldImpl*> field_impls{};
+    std::vector<REProperty*> props{};
+    std::vector<REPropertyImpl> prop_impls{};
+
+    std::vector<std::shared_ptr<ParsedField>> parsed_fields;
+    std::vector<std::shared_ptr<ParsedMethod>> parsed_methods;
+    std::vector<std::shared_ptr<ParsedProperty>> parsed_props;
+};
+} // namespace detail
+#endif
 
 class ObjectExplorer : public Mod {
 public:
@@ -16,6 +87,9 @@ public:
     void on_draw_ui() override;
 
 private:
+#ifdef RE8
+    std::shared_ptr<detail::ParsedType> init_type(nlohmann::json& il2cpp_dump, RETypeDB* tdb, uint32_t i);
+#endif
     void generate_sdk();
 
     void handle_address(Address address, int32_t offset = -1, Address parent = nullptr, Address real_address = nullptr);
