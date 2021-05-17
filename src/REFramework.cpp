@@ -1,3 +1,5 @@
+#include <filesystem>
+
 #include <spdlog/sinks/basic_file_sink.h>
 
 #include <imgui/imgui.h>
@@ -14,6 +16,8 @@
 
 #include "LicenseStrings.hpp"
 #include "REFramework.hpp"
+
+namespace fs = std::filesystem;
 
 std::unique_ptr<REFramework> g_framework{};
 
@@ -143,6 +147,14 @@ void REFramework::on_frame_d3d11() {
     ImGui::NewFrame();
 
     if (m_error.empty() && m_game_data_initialized) {
+        // Write default config once if it doesn't exist.
+        if (!std::exchange(m_created_default_cfg, true)) {
+            if (!fs::exists({utility::widen("re2_fw_config.txt")})) {
+                save_config();
+            }
+        }
+
+        // Run mod frame callbacks.
         m_mods->on_frame();
     }
 
@@ -186,6 +198,14 @@ void REFramework::on_frame_d3d12() {
     ImGui::NewFrame();
 
     if (m_error.empty() && m_game_data_initialized) {
+        // Write default config once if it doesn't exist.
+        if (!std::exchange(m_created_default_cfg, true)) {
+            if (!fs::exists({utility::widen("re2_fw_config.txt")})) {
+                save_config();
+            }
+        }
+
+        // Run mod frame callbacks.
         m_mods->on_frame();
     }
 
