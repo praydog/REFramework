@@ -93,7 +93,7 @@ set(FRAMEWORK_SRC
     REFramework.cpp
 )
 
-source_group("re2-imgui", FILES ${RE2IMGUI_SRC})
+source_group("re2-imgui" FILES ${RE2IMGUI_SRC})
 source_group("Hooks" FILES ${HOOKS_SRC})
 source_group("Mods" FILES ${MODS_SRC})
 source_group("SDK" FILES ${SDK_SRC})

@@ -60,6 +60,7 @@ private:
     bool m_is_d3d11{false};
     bool m_valid{false};
     bool m_initialized{false};
+    bool m_created_default_cfg{false};
     bool m_draw_ui{true};
     std::atomic<bool> m_game_data_initialized{false};
 
