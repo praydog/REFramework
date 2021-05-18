@@ -400,6 +400,7 @@ std::shared_ptr<detail::ParsedType> ObjectExplorer::init_type(json& il2cpp_dump,
                 rsz_entry["depth"] = depth;
                 rsz_entry["array"] = is_array;
                 rsz_entry["static"] = is_static;
+                rsz_entry["fieldptr_offset"] = (std::stringstream{} << "0x" << std::hex << sequence.offset).str();
 
                 type_entry["RSZ"].emplace_back(rsz_entry);
             }
