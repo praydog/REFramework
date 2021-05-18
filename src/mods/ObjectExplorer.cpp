@@ -62,6 +62,7 @@ struct BitReader {
     uint8_t read_byte() { return read<uint8_t>(sizeof(uint8_t) * 8); }
     uint16_t read_short() { return read<uint16_t>(sizeof(uint16_t) * 8); }
     uint32_t read_int() { return read<uint32_t>(sizeof(uint32_t) * 8); }
+    uint64_t read_int64() { return read<uint64_t>(sizeof(uint64_t) * 8); }
 
     void seek(int32_t index) { bit_index = index; }
 
@@ -347,11 +348,12 @@ std::shared_ptr<detail::ParsedType> ObjectExplorer::init_type(json& il2cpp_dump,
     g_stypedb[desc->full_name] = desc;
 
     auto& type_entry = (il2cpp_dump[desc->full_name] = {});
+    const auto crc = t.type != nullptr ? t.type->typeCRC : t.typeCRC;
 
     type_entry = {
         {"id", i},
         {"fqn", (std::stringstream{} << std::hex << t.fqnHash).str()},
-        {"crc", (std::stringstream{} << std::hex << t.typeCRC).str()},
+        {"crc", (std::stringstream{} << std::hex << crc).str()},
         {"size", (std::stringstream{} << std::hex << t.size).str()},
     };
 
@@ -370,8 +372,7 @@ std::shared_ptr<detail::ParsedType> ObjectExplorer::init_type(json& il2cpp_dump,
         }
     }
 
-    if (i > 0  && t.type != nullptr && ((uint8_t)t.type->flags >> 5) & 1) 
-    {
+    if (i > 0  && t.type != nullptr && ((uint8_t)t.type->flags >> 5) & 1) {
         auto clr_t = t.type;
 
         auto& deserialize_list = clr_t->deserializeThing;
@@ -379,7 +380,7 @@ std::shared_ptr<detail::ParsedType> ObjectExplorer::init_type(json& il2cpp_dump,
         if (deserialize_list.deserializers != nullptr && deserialize_list.num > 0 && deserialize_list.numAllocated > 0) {
             for (uint32_t f = 0; f < deserialize_list.num; ++f) {
                 auto& sequence = (*deserialize_list.deserializers)[f];
-                auto sequence_type = init_type(il2cpp_dump, tdb, BitReader{ sequence.nativeType }.read(18));
+                auto sequence_type = init_type(il2cpp_dump, tdb, BitReader{ sequence.nativeType }.read<uint32_t>(18));
 
                 auto sbr = BitReader{ &sequence.data };
 
