@@ -214,18 +214,22 @@ public:
         ImGui::PushID(this);
         ImGui::Button(name.data());
 
-        if (ImGui::IsItemHovered()) {
-            auto& keys = g_framework->get_keyboard_state();
+        if (ImGui::IsItemHovered() && ImGui::GetIO().MouseDown[0]) {
+            m_waiting_for_new_key = true;
+        }
 
-            for (auto k = 0; k < keys.size(); ++k) {
+        if (m_waiting_for_new_key) {
+            const auto &keys = g_framework->get_keyboard_state();
+            for (int32_t k{ 0 }; k < keys.size(); ++k) {
                 if (keys[k]) {
                     m_value = is_erase_key(k) ? UNBOUND_KEY : k;
+                    m_waiting_for_new_key = false;
                     break;
                 }
             }
 
             ImGui::SameLine();
-            ImGui::Text("Press any key");
+            ImGui::Text("Press any key...");
         }
         else {
             ImGui::SameLine();
@@ -266,7 +270,7 @@ public:
         return false;
     }
 
-    bool is_erase_key(int k) const {
+    bool is_erase_key(uint8_t k) const {
         switch (k) {
         case DIK_ESCAPE:
         case DIK_BACKSPACE:
@@ -277,10 +281,11 @@ public:
         }
     }
 
-    static constexpr int32_t UNBOUND_KEY = -1;
+    static constexpr int32_t UNBOUND_KEY{ -1 };
 
 protected:
     bool m_was_key_down{ false };
+    bool m_waiting_for_new_key{ false };
 };
 
 class Mod {
@@ -313,4 +318,3 @@ public:
     virtual void on_pre_update_camera_controller2(RopewayPlayerCameraController* controller) {};
     virtual void on_update_camera_controller2(RopewayPlayerCameraController* controller) {};
 };
-
