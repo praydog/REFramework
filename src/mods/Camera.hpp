@@ -86,6 +86,7 @@ private:
     RECamera* m_camera{ nullptr };
     REGameObject* m_player{ nullptr };
     RenderToneMapping* m_tone_map{ nullptr };
+    RenderToneMappingInternal* m_tone_map_internal{ nullptr };
     AppPlayerCameraParameter* m_player_camera_params{ nullptr };
 
     void on_cam_transform(RETransform* transform) noexcept;

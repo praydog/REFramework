@@ -40,6 +40,7 @@ void Camera::on_update_transform(RETransform* transform) {
         if (m_camera != new_camera) {
             m_camera = new_camera;
             m_tone_map = nullptr;
+            m_tone_map_internal = nullptr;
         }
 
         return m_camera != nullptr;
@@ -83,6 +84,10 @@ void Camera::on_cam_transform(RETransform* transform) noexcept {
     // Wait until "RenderToneMapping"'s internal data is valid...
     if (m_tone_map == nullptr) {
         m_tone_map = re_component::find<RenderToneMapping>(m_camera, "via.render.ToneMapping");
+    }
+
+    if (m_tone_map != nullptr && m_tone_map_internal == nullptr) {
+        m_tone_map_internal = m_tone_map->toneMappingInternal;
     }
 
     if (m_disable_vignette->value()) {
@@ -139,31 +144,21 @@ void Camera::on_disabled() noexcept {
 
 void Camera::set_vignette_type(via::render::ToneMapping::Vignetting value) noexcept
 {
-    if (m_tone_map == nullptr) {
+    if (m_tone_map_internal == nullptr) {
         return;
     }
 
-    const auto tone_map_internal = m_tone_map->toneMappingInternal;
-    if (tone_map_internal == nullptr) {
-        return;
-    }
-
-    tone_map_internal->vignetting_mode = (int32_t)value;
+    m_tone_map_internal->vignetting_mode = (int32_t)value;
 }
 
 void Camera::set_vignette_brightness(float value) noexcept
 {
-    if (m_tone_map == nullptr) {
+    if (m_tone_map_internal == nullptr) {
         return;
     }
 
-    const auto tone_map_internal = m_tone_map->toneMappingInternal;
-    if (tone_map_internal == nullptr) {
-        return;
-    }
-
-    tone_map_internal->update_vignette = true;
-    tone_map_internal->vignetting_brightness = value;
+    m_tone_map_internal->update_vignette = true;
+    m_tone_map_internal->vignetting_brightness = value;
 }
 
 void Camera::set_fov(float fov, float aiming_fov) noexcept
