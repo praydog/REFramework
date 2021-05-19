@@ -5,7 +5,6 @@
 #include "Mod.hpp"
 
 #ifdef RE8
-
 class AppPlayerHandLight2 : public AppBehaviorApp {
 public:
     char pad_0050[1];                                      // 0x0050
@@ -38,8 +37,6 @@ private:
 
 #ifdef RE8
     const ModToggle::Ptr m_light_ignore_power_on_zones{ ModToggle::create(generate_name("IgnorePowerOnZones"), false) };
-    const ModToggle::Ptr m_light_enable_shadows{ ModToggle::create(generate_name("LightShadows"), true) };
-    const ModSlider::Ptr m_light_radius{ ModSlider::create(generate_name("LightRadius"), 0.0f, 50.0f, 1.0f) };
 #endif
 
     ValueList m_options{
@@ -47,8 +44,6 @@ private:
         *m_enabled,
 #ifdef RE8
         *m_light_ignore_power_on_zones,
-        *m_light_enable_shadows,
-        *m_light_radius,
 #endif
     };
 
