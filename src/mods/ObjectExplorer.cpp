@@ -2,6 +2,7 @@
 #include <fstream>
 #include <forward_list>
 #include <deque>
+#include <algorithm>
 #include <nlohmann/json.hpp>
 
 #include <windows.h>
@@ -400,7 +401,7 @@ std::shared_ptr<detail::ParsedType> ObjectExplorer::init_type(json& il2cpp_dump,
                 rsz_entry["depth"] = depth;
                 rsz_entry["array"] = is_array;
                 rsz_entry["static"] = is_static;
-                rsz_entry["fieldptr_offset"] = (std::stringstream{} << "0x" << std::hex << sequence.offset).str();
+                rsz_entry["offset_from_fieldptr"] = (std::stringstream{} << "0x" << std::hex << sequence.offset).str();
 
                 type_entry["RSZ"].emplace_back(rsz_entry);
             }
@@ -718,6 +719,45 @@ void ObjectExplorer::generate_sdk() {
 
         //spdlog::info("{:s} {:s}.{:s}: 0x{:x}", field_type_name, desc->t->type->name, name, pf->offset_from_base);
     }
+
+    std::ofstream pseudocode_dump{ "RSZ_dump.txt" };
+
+    // Try and guess what the field names are for the RSZ entries
+    for (auto& t : g_itypedb) {
+        auto& t_json = il2cpp_dump[t.second->full_name];
+
+        if (!t_json.contains("RSZ")) {
+            continue;
+        }
+
+        pseudocode_dump << "// " << t_json["fqn"].get<std::string>() << std::endl;
+        pseudocode_dump << "struct " << t.second->full_name << " {" << std::endl;
+
+        if (t_json.contains("parent")) {
+            pseudocode_dump << "    " << t_json["parent"].get<std::string>() << " parent" << ";" << std::endl;
+        }
+
+        int32_t i = 0;
+
+        for (auto& rsz_entry : t_json["RSZ"]) {
+            const auto rsz_offset = std::stoul(std::string{ rsz_entry["offset_from_fieldptr"] }, nullptr, 16);
+
+            for (auto& f : t.second->parsed_fields) {
+                if (f->offset_from_fieldptr == rsz_offset) {
+                    rsz_entry["potential_name"] = f->name;
+                    break;
+                }
+            }
+
+            auto field_name = rsz_entry.contains("potential_name") ? rsz_entry["potential_name"].get<std::string>() : ("v" + std::to_string(i++));
+
+            pseudocode_dump << "    " << rsz_entry["code"].get<std::string>() << " " << field_name << "; //" << rsz_entry["type"] << std::endl;
+        }
+
+        pseudocode_dump << "};" << std::endl;
+    }
+
+    pseudocode_dump.close();
 #endif
 
     // First pass, gather all valid class names
