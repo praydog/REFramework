@@ -91,10 +91,12 @@ std::unordered_map<int32_t, MoveDirection> g_vk_to_movedir{
 
 void FreeCam::on_update_transform(RETransform* transform) {
     if (!m_enabled->value() && !m_first_time) {
+        m_was_disabled = false;
         return;
     }
 
     if (!update_pointers()) {
+        m_was_disabled = false;
         return;
     }
 
@@ -171,7 +173,10 @@ void FreeCam::on_update_transform(RETransform* transform) {
 #else
     const auto player = m_props_manager->player;
     if (player != nullptr && player->transform != nullptr && player->transform == transform) {
-        player->shouldUpdate = !m_disable_movement->value();
+        if (m_disable_movement->value() || m_was_disabled) {
+            player->shouldUpdate = !m_disable_movement->value();
+            m_was_disabled = !player->shouldUpdate;
+        }
     }
 
     const auto camera = m_props_manager->camera;
@@ -180,8 +185,9 @@ void FreeCam::on_update_transform(RETransform* transform) {
     }
 
     if (m_first_time) {
-        if (player != nullptr) {
+        if (player != nullptr && m_was_disabled) {
             player->shouldUpdate = true;
+            m_was_disabled = false;
         }
 
         m_last_camera_matrix = transform->worldTransform;

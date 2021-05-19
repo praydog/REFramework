@@ -68,6 +68,7 @@ private:
     Matrix4x4f m_last_camera_matrix{ glm::identity<Matrix4x4f>() };
 
     bool m_first_time{ true };
+    bool m_was_disabled{ false };
 
 #ifdef RE8
     Vector3f m_custom_angles{};
