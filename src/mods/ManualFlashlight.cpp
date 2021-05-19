@@ -24,8 +24,9 @@ void ManualFlashlight::on_draw_ui() {
     m_key->draw("Change Key");
 
 #ifdef RE8
-    m_light_enable_shadows->draw("Enable light shadows");
-    m_light_radius->draw("Light radius");
+    m_light_ignore_power_on_zones->draw("Ignore Light Power On Zones");
+
+    ImGui::Text("Light power on zones: %i\n", m_light_power_on_zones);
 #endif
 }
 
@@ -65,7 +66,6 @@ void ManualFlashlight::on_update_transform(RETransform* transform) {
     const auto reset_player_data = [&](REGameObject* new_player = nullptr) {
         m_player = new_player;
         m_player_hand_light = nullptr;
-        m_player_hand_ies_light = nullptr;
     };
 
     // Cache off "AppPropsManager" once.
@@ -93,28 +93,24 @@ void ManualFlashlight::on_update_transform(RETransform* transform) {
 
     // Wait until "AppPlayerHandLight" is valid...
     if (m_player_hand_light == nullptr) {
-        m_player_hand_light = re_component::find<AppPlayerHandLight>(player_transform, game_namespace("PlayerHandLight"));
+        m_player_hand_light = re_component::find<AppPlayerHandLight2>(player_transform, game_namespace("PlayerHandLight"));
         if (m_player_hand_light == nullptr) {
             return;
         }
     }
 
-    // Wait until the "IESLight" pointer inside "AppHandLightPowerController" is valid...
-    if (m_player_hand_ies_light = [&]() -> IESLight* {
-        const auto light_power = m_player_hand_light->handLightPowerController;
-        if (light_power == nullptr) {
-            return nullptr;
-        }
+    // TODO: Check for scene change and cache this stuff, maybe theres a power on zone count in the current scene somewhere?
+    // Also, sometimes the game will force this on before it can be set here, making your flashlight toggle on.
+    // I don't really care to find a way around this since it's user-friendly anyway... Some areas are pitch-black.
 
-        return light_power->renderIESLight;
-    }(); m_player_hand_ies_light == nullptr ) {
-        return;
+    auto &light_power_on_zones = m_player_hand_light->EnterHandLightPowerOnZoneCount;
+    m_light_power_on_zones = light_power_on_zones;
+    
+    if (m_light_ignore_power_on_zones->value()) {
+        light_power_on_zones = 0;
     }
 
     m_player_hand_light->IsContinuousOn = true;
-
-    m_player_hand_ies_light->ShadowEnable = m_light_enable_shadows->value();
-    m_player_hand_ies_light->Radius = m_light_radius->value();
 #endif
 }
 
@@ -128,11 +124,6 @@ void ManualFlashlight::on_disabled() noexcept {
 #else
     if (m_player_hand_light != nullptr) {
         m_player_hand_light->IsContinuousOn = false;
-    }
-
-    if (m_player_hand_ies_light != nullptr) {
-        m_player_hand_ies_light->ShadowEnable = m_light_enable_shadows->default_value();
-        m_player_hand_ies_light->Radius = m_light_radius->default_value();
     }
 #endif
 }
