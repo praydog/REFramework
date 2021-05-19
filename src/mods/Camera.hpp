@@ -87,7 +87,21 @@ private:
     REGameObject* m_player{ nullptr };
     RenderToneMapping* m_tone_map{ nullptr };
     RenderToneMappingInternal* m_tone_map_internal{ nullptr };
+    AppPlayerConfigure* m_player_configure{ nullptr };
     AppPlayerCameraParameter* m_player_camera_params{ nullptr };
+
+    template<class T>
+    inline bool reset_ptr(T* &m, T* ptr, const std::function< void (bool) > &on_change = {}) {
+        if (m != ptr) {
+            m = ptr;
+
+            if (on_change) {
+                on_change(m != nullptr);
+            }
+        }
+
+        return m != nullptr;
+    }
 
     void on_cam_transform(RETransform* transform) noexcept;
     void on_player_transform(RETransform* transform) noexcept;
