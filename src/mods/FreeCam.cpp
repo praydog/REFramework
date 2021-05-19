@@ -47,9 +47,9 @@ void FreeCam::on_draw_ui() {
     m_disable_movement->draw("Disable Character Movement");
 
     m_toggle_key->draw("Toggle Key");
-    m_lock_camera_key->draw("Lock Position Toggle Key");
     m_move_up_key->draw("Move camera up Key");
     m_move_down_key->draw("Move camera down Key");
+    m_lock_camera_key->draw("Lock Position Toggle Key");
     m_disable_movement_key->draw("Disable Movement Toggle Key");
     m_speed_modifier_fast_key->draw("Speed modifier Fast key");
     m_speed_modifier_slow_key->draw("Speed modifier Slow key");

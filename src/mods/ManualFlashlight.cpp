@@ -68,7 +68,7 @@ void ManualFlashlight::on_update_transform(RETransform* transform) {
         m_player_hand_ies_light = nullptr;
     };
 
-    // Wait until "AppPropsManager" is valid...
+    // Cache off "AppPropsManager" once.
     if (m_props_manager == nullptr) {
         m_props_manager = g_framework->get_globals()->get<AppPropsManager>(game_namespace("PropsManager"));
         if (m_props_manager == nullptr) {
@@ -98,18 +98,17 @@ void ManualFlashlight::on_update_transform(RETransform* transform) {
             return;
         }
     }
-    
+
     // Wait until the "IESLight" pointer inside "AppHandLightPowerController" is valid...
-    if (m_player_hand_ies_light == nullptr) {
-        if (const auto light_power = m_player_hand_light->handLightPowerController; light_power != nullptr) {
-            if (const auto ies_light = light_power->renderIESLight; ies_light != nullptr) {
-                m_player_hand_ies_light = ies_light;
-            }
+    if (m_player_hand_ies_light = [&]() -> IESLight* {
+        const auto light_power = m_player_hand_light->handLightPowerController;
+        if (light_power == nullptr) {
+            return nullptr;
         }
 
-        if (m_player_hand_ies_light == nullptr) {
-            return;
-        }
+        return light_power->renderIESLight;
+    }(); m_player_hand_ies_light == nullptr ) {
+        return;
     }
 
     m_player_hand_light->IsContinuousOn = true;
