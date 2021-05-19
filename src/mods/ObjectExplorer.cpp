@@ -710,6 +710,10 @@ void ObjectExplorer::generate_sdk() {
 
     // Try and guess what the field names are for the RSZ entries
     for (auto& t : g_itypedb) {
+        if (t.second->t == nullptr || t.second->t->typeIndex == 0) {
+            continue;
+        }
+
         auto& t_json = il2cpp_dump[t.second->full_name];
 
         if (!t_json.contains("RSZ")) {
@@ -727,15 +731,39 @@ void ObjectExplorer::generate_sdk() {
 
         for (auto& rsz_entry : t_json["RSZ"]) {
             const auto rsz_offset = std::stoul(std::string{ rsz_entry["offset_from_fieldptr"] }, nullptr, 16);
+            auto fieldptr_adjustment = 0;
 
-            for (auto& f : t.second->parsed_fields) {
-                if (f->offset_from_fieldptr == rsz_offset) {
+            auto depth_t = t.second;
+            const auto depth = rsz_entry["depth"].get<int32_t>();
+
+            // Get the topmost one because of depth
+            for (auto d = 0; d < depth; ++d) {
+                if (depth_t->t->parentInfo == nullptr) {
+                    break;
+                }
+
+                const auto field_ptr = Address{ depth_t->t->parentInfo }.get(-(int32_t)sizeof(void*)).to<int32_t>();
+
+                depth_t = depth_t->super;
+
+                if (depth_t->t->parentInfo == nullptr) {
+                    break;
+                }
+
+                const auto field_ptr2 = Address{ depth_t->t->parentInfo }.get(-(int32_t)sizeof(void*)).to<int32_t>();
+
+                fieldptr_adjustment += field_ptr - field_ptr2;
+            }
+
+            auto field_name = std::string{ "v" } + std::to_string(i++);
+
+            for (auto& f : depth_t->parsed_fields) {
+                if (f->offset_from_fieldptr + fieldptr_adjustment == rsz_offset) {
                     rsz_entry["potential_name"] = f->name;
+                    field_name = f->name;
                     break;
                 }
             }
-
-            auto field_name = rsz_entry.contains("potential_name") ? rsz_entry["potential_name"].get<std::string>() : ("v" + std::to_string(i++));
 
             pseudocode_dump << "    " << rsz_entry["code"].get<std::string>() << " " << field_name << "; //" << rsz_entry["type"] << std::endl;
         }
