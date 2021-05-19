@@ -445,20 +445,6 @@ void ObjectExplorer::generate_sdk() {
 #ifdef RE8
     auto tdb = g_framework->get_types()->get_type_db();
 
-    struct RETypeDefinitionVersion69 {
-        uint32_t index : 8;
-        uint32_t parent_typeid : 18;
-        uint32_t declaring_typeid : 18;
-        uint32_t underlying_typeid : 7;
-        uint32_t object_typeid : 3;
-        uint32_t array_typeid : 18;
-        uint32_t element_typeid : 18;
-        uint32_t impl_index : 18;
-        uint32_t system_typeid : 10;
-
-        //rest is in REClassInfo
-    };
-
     // Types
     for (uint32_t i = 0; i < tdb->numTypes; ++i) {
         init_type(il2cpp_dump, tdb, i);
@@ -1392,9 +1378,23 @@ void ObjectExplorer::display_fields(REManagedObject* obj, REType* type_info) {
                 }
             }
 
+#ifdef RE8
+            const auto allowed = is_real_object || utility::reflection_property::is_static(variable); // static
+
+            // Set the obj to the static table so we can get static variables
+            if (utility::reflection_property::is_static(variable)) {
+                const auto type_index = BitReader{&type_info->classInfo->typeIndex}.read<uint32_t>(18);
+                obj = (REManagedObject*)sdk::REGlobalContext::get()->get_static_tbl_for_type(type_index);
+
+                make_same_line_text("STATIC", ImVec4{ 1.0f, 0.0f, 0.0f, 1.0f });
+            }
+#else
+            const auto allowed = is_real_object;
+#endif
+
             // Info about the field
             if (made_node) {
-                if (is_real_object) {
+                if (allowed) {
                     attempt_display_field(obj, variable);
                 }
 

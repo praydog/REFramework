@@ -24,4 +24,5 @@
 #include "RETransform.hpp"
 #include "REComponent.hpp"
 #include "RopewaySweetLightManager.hpp"
+#include "REVariableDescriptor.hpp"
 #include "REGlobals.hpp"

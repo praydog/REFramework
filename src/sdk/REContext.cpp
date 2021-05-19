@@ -9,6 +9,7 @@
 namespace sdk {
     REGlobalContext** REGlobalContext::s_global_context{ nullptr };
     REGlobalContext::ThreadContextFn REGlobalContext::s_get_thread_context{ nullptr };
+    int32_t REGlobalContext::s_static_tbl_offset{ 0 };
     int32_t REGlobalContext::s_type_db_offset{ 0 };
 
     sdk::REGlobalContext* REGlobalContext::get() {
@@ -26,6 +27,22 @@ namespace sdk {
         update_pointers();
 
         return *(RETypeDB**)((uintptr_t)this + s_type_db_offset);
+    }
+
+    REStaticTbl& REGlobalContext::get_static_tbl() {
+        update_pointers();
+
+        return *(REStaticTbl*)((uintptr_t)this + s_static_tbl_offset);
+    }
+
+    uint8_t* REGlobalContext::get_static_tbl_for_type(uint32_t type_index) {
+        auto& tbls = get_static_tbl();
+
+        /*if (type_index >= tbls.size) {
+            return nullptr;
+        }*/
+
+        return tbls.elements[type_index];
     }
 
     void REGlobalContext::update_pointers() {
@@ -59,7 +76,9 @@ namespace sdk {
 
             if (ptr->magic == *(uint32_t*)"TDB") {
                 s_type_db_offset = i;
-                spdlog::info("[REGlobalContext::updatePointers] s_type_db_offset: {:x}", s_type_db_offset);
+                s_static_tbl_offset = s_type_db_offset - 0x30; // hope this holds true for the older gameS!!!!!!!!!!!!!!!!!!!
+                spdlog::info("[REGlobalContext::update_pointers] s_type_db_offset: {:x}", s_type_db_offset);
+                spdlog::info("[REGlobalContext::update_pointers] s_static_tbl_offset: {:x}", s_static_tbl_offset);
                 break;
             }
         }
