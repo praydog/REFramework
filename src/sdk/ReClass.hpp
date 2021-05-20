@@ -4,7 +4,9 @@
 #include "Math.hpp"
 
 #pragma pack(push, r1, 1)
-#ifdef RE8
+#ifdef DMC5
+#include "ReClass_Internal_DMC5.hpp"
+#elif RE8
 #include "ReClass_Internal_RE8.hpp"
 #elif RE3
 #include "ReClass_Internal_RE3.hpp"

@@ -6,6 +6,8 @@
 #include "Mod.hpp"
 #include "utility/Patch.hpp"
 
+#ifndef DMC5
+
 class FirstPerson : public Mod {
 public:
     FirstPerson();
@@ -130,3 +132,5 @@ private:
         *m_current_fov
     };
 };
+
+#endif

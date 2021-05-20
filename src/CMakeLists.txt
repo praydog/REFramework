@@ -34,6 +34,7 @@ set(SDK_SRC
     sdk/ReClass_Internal.hpp
     sdk/ReClass_Internal_RE3.hpp
     sdk/ReClass_Internal_RE8.hpp
+    sdk/ReClass_Internal_DMC5.hpp
     sdk/Enums_Internal.hpp
 
     sdk/REArray.hpp
@@ -122,6 +123,7 @@ set_target_properties(RE2 PROPERTIES OUTPUT_NAME dinput8)
 option(DEVELOPER_MODE "Adds DeveloperTools option to menu" OFF)
 option(RE3 "RE3 build" OFF)
 option(RE8 "RE8 build" OFF)
+option(DMC5 "DMC5 build" OFF)
 option(BAREBONES "Barebones build without game-specific features/hooks" OFF)
 
 target_compile_definitions(RE2 PUBLIC IMGUI_USER_CONFIG="re2-imgui/re2_imconfig.hpp")
@@ -137,6 +139,10 @@ endif()
 
 if (RE8)
     target_compile_definitions(RE2 PUBLIC RE8)
+endif()
+
+if (DMC5)
+    target_compile_definitions(RE2 PUBLIC DMC5)
 endif()
 
 if (BAREBONES)

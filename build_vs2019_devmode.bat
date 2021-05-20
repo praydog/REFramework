@@ -16,3 +16,9 @@ mkdir build64_re8
 cd build64_re8
 cmake .. -G "Visual Studio 16 2019" -A x64 -DDEVELOPER_MODE=ON -DRE3=ON -DRE8=ON
 cmake --build . --config Release
+
+cd ..
+mkdir build64_dmc5
+cd build64_dmc5
+cmake .. -G "Visual Studio 16 2019" -A x64 -DDEVELOPER_MODE=ON -DBAREBONES=ON -DDMC5=ON
+cmake --build . --config Release

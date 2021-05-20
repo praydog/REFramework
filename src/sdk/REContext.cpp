@@ -1,6 +1,7 @@
 #include <spdlog/spdlog.h>
 
 #include "utility/Scan.hpp"
+#include "utility/Module.hpp"
 
 #include "REFramework.hpp"
 #include "ReClass.hpp"
@@ -55,10 +56,29 @@ namespace sdk {
         // Version 1
         //auto ref = utility::scan(g_framework->getModule().as<HMODULE>(), "48 8B 0D ? ? ? ? BA FF FF FF FF E8 ? ? ? ? 48 89 C3");
 
+        auto mod = g_framework->get_module().as<HMODULE>();
+        auto start = (uintptr_t)mod;
+        auto end = (uintptr_t)start + *utility::get_module_size(mod);
+
+        std::unordered_map<uintptr_t, uint32_t> references{};
+
         // Version 2 Dec 17th, 2019, first ptr is at game.exe+0x7095E08
-        auto ref = utility::scan(g_framework->get_module().as<HMODULE>(), "48 8B 0D ? ? ? ? BA FF FF FF FF E8 ? ? ? ?");
-            
-        if (!ref) {
+        const auto pat = "48 8B 0D ? ? ? ? BA FF FF FF FF E8 ? ? ? ?";
+        std::optional<Address> ref{};
+
+        for (auto i = utility::scan(start, end - start, pat); i.has_value(); i = utility::scan(*i + 1, end - (*i + 1), pat)) {
+            auto potential_ctx_ref = utility::calculate_absolute(*i + 3);
+
+            references[potential_ctx_ref]++;
+
+            // this is for sure the right one
+            if (references[potential_ctx_ref] > 10) {
+                ref = *i;
+                break;
+            }
+        }
+
+        if (ref == nullptr) {
             spdlog::info("[REGlobalContext::update_pointers] Unable to find ref.");
             return;
         }

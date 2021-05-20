@@ -9,6 +9,8 @@
 
 #include "FirstPerson.hpp"
 
+#ifndef DMC5
+
 FirstPerson* g_first_person = nullptr;
 
 FirstPerson::FirstPerson() {
@@ -788,3 +790,4 @@ void FirstPerson::on_disabled() {
     }
 }
 
+#endif
