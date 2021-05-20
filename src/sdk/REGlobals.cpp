@@ -3,6 +3,8 @@
 #include "utility/Scan.hpp"
 #include "utility/Module.hpp"
 
+#include "REType.hpp"
+
 #include "REFramework.hpp"
 #include "REGlobals.hpp"
 
@@ -42,6 +44,36 @@ REGlobals::REGlobals() {
     spdlog::info("Finished REGlobals initialization");
 }
 
+void* REGlobals::get_native(std::string_view name) {
+    std::lock_guard _{ m_map_mutex };
+
+    if (m_native_singleton_types.empty()) {
+        refresh_natives();
+    }
+
+    auto it = m_native_singleton_map.find(name.data());
+
+    if (it == m_native_singleton_map.end()) {
+        refresh_natives();
+
+        it = m_native_singleton_map.find(name.data());
+    }
+
+    if (it == m_native_singleton_map.end()) {
+        return nullptr;
+    }
+
+    return it->second;
+}
+
+std::vector<::REType*>& REGlobals::get_native_singletons() {
+    if (m_native_singleton_types.empty()) {
+        refresh_natives();
+    }
+
+    return m_native_singleton_types;
+}
+
 REManagedObject* REGlobals::get(std::string_view name) {
     std::lock_guard _{ m_map_mutex };
 
@@ -72,6 +104,30 @@ REManagedObject* REGlobals::operator[](std::string_view name) {
 void REGlobals::safe_refresh() {
     std::lock_guard _{ m_map_mutex };
     refresh_map();
+}
+
+void REGlobals::safe_refresh_native() {
+    std::lock_guard _{m_map_mutex};
+    refresh_natives();
+}
+
+void REGlobals::refresh_natives() {
+    auto& types = g_framework->get_types()->get_types();
+
+    m_native_singleton_types.clear();
+
+    for (auto t : types) {
+        if (!utility::re_type::is_singleton(t)) {
+            continue;
+        }
+
+        m_native_singleton_types.push_back(t);
+        m_native_singleton_map[t->name] = t;
+    }
+
+    std::sort(m_native_singleton_types.begin(), m_native_singleton_types.end(), [](auto a, auto b) {
+        return std::string{ a->name } < std::string{ b->name };
+    });
 }
 
 void REGlobals::refresh_map() {

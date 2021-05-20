@@ -101,8 +101,8 @@ private:
     void display_enum_value(std::string_view name, int64_t value);
     void display_methods(REManagedObject* obj, REType* type_info);
     void display_fields(REManagedObject* obj, REType* type_info);
-    void attempt_display_field(REManagedObject* obj, VariableDescriptor* desc);
-    int32_t get_field_offset(REManagedObject* obj, VariableDescriptor* desc);
+    void attempt_display_field(REManagedObject* obj, VariableDescriptor* desc, REType* type_info);
+    int32_t get_field_offset(REManagedObject* obj, VariableDescriptor* desc, REType* type_info);
 
     bool widget_with_context(void* address, std::function<bool()> widget);
     void context_menu(void* address);
@@ -136,6 +136,7 @@ private:
     std::string m_type_name{ "via.typeinfo.TypeInfo" };
     std::string m_object_address{ "0" };
     std::chrono::system_clock::time_point m_next_refresh;
+    std::chrono::system_clock::time_point m_next_refresh_natives{};
 
     std::unordered_map<VariableDescriptor*, int32_t> m_offset_map;
 

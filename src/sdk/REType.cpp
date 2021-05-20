@@ -32,3 +32,22 @@ uint32_t utility::re_type::get_value_type_size(::REType* t) {
     return class_info->elementSize;
 #endif
 }
+
+bool utility::re_type::is_singleton(::REType* t) {
+    return (t->flags & (uint16_t)via::dti::decl::Singleton) != 0;
+}
+
+void* utility::re_type::get_singleton_instance(::REType* t) {
+    if (!is_singleton(t)) {
+        return nullptr;
+    }
+
+    using SingletonFunc = void (*)(::REType*, void**, void*);
+
+    auto f = (*(SingletonFunc**)t)[1];
+
+    void* out = nullptr;
+    f(t, &out, nullptr);
+
+    return out;
+}

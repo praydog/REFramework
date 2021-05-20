@@ -20,6 +20,9 @@ public:
         return m_object_list;
     }
 
+    void* get_native(std::string_view name);
+    std::vector<::REType*>& get_native_singletons();
+
     // Equivalent
     REManagedObject* get(std::string_view name);
     REManagedObject* operator[](std::string_view name);
@@ -31,8 +34,10 @@ public:
 
     // Lock a mutex and then refresh the map.
     void safe_refresh();
+    void safe_refresh_native();
 
 private:
+    void refresh_natives();
     void refresh_map();
 
     // Class name to object like "app.foo.bar" -> 0xDEADBEEF
@@ -43,6 +48,9 @@ private:
     std::vector<REManagedObject**> m_object_list;
     // List of objects we've already logged
     std::unordered_set<REManagedObject**> m_acknowledged_objects;
+
+    std::vector<::REType*> m_native_singleton_types{};
+    std::unordered_map<std::string, ::REType*> m_native_singleton_map{};
 
     std::mutex m_map_mutex{};
 };
