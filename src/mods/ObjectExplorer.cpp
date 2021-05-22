@@ -364,6 +364,45 @@ std::shared_ptr<detail::ParsedType> ObjectExplorer::init_type(json& il2cpp_dump,
         desc->full_name += names[f];
     }
 
+
+    if (t.generics != 0) {
+        struct GenericParamData {
+            uint32_t constraint_typeid : 18;
+            uint32_t flags : 14;
+            int32_t name;
+        };
+
+        struct GenericDefinitionData {
+            uint32_t definition_typeid : 18;
+            uint32_t num : 14;
+            GenericParamData params[1];
+        };
+
+        auto generics = (GenericDefinitionData*)&(*tdb->bytePool)[t.generics];
+
+        if (generics->num > 0) {
+            desc->full_name += "<";
+
+            for (auto f = 0; f < generics->num; ++f) {
+                json entry = {};
+
+                auto gtypeid = generics->params[f].constraint_typeid;
+
+                if (gtypeid != 0 && gtypeid < tdb->numTypes) {
+                    desc->full_name += init_type(il2cpp_dump, tdb, gtypeid)->full_name;
+                } else {
+                    desc->full_name += "";
+                }
+
+                if (f < generics->num - 1) {
+                    desc->full_name += ",";
+                }
+            }
+
+            desc->full_name += ">";
+        }
+    }
+
     g_stypedb[desc->full_name] = desc;
 
     auto& type_entry = (il2cpp_dump[desc->full_name] = {});
