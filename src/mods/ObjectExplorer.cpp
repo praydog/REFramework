@@ -299,29 +299,183 @@ void ObjectExplorer::on_draw_ui() {
 }
 
 #ifdef RE8
-std::shared_ptr<detail::ParsedType> ObjectExplorer::init_type(json& il2cpp_dump, RETypeDB* tdb, uint32_t i) {
+struct RETypeDefinitionVersion69 {
+    uint64_t index : 18;
+    uint64_t parent_typeid : 18;
+    uint64_t declaring_typeid : 18;
+    uint64_t underlying_typeid : 7;
+    uint64_t object_typeid : 3;
+    uint64_t array_typeid : 18;
+    uint64_t element_typeid : 18;
+    uint64_t impl_index : 18;
+    uint64_t system_typeid : 10;
+    uint32_t type_flags;
+
+    // rest is in REClassInfo
+};
+
+constexpr auto asdf = offsetof(RETypeDefinitionVersion69, type_flags);
+std::shared_ptr<detail::ParsedType> ObjectExplorer::init_type(nlohmann::json& il2cpp_dump, RETypeDB* tdb, uint32_t i) {
     if (g_itypedb.find(i) != g_itypedb.end()) {
         return g_itypedb[i];
     }
 
+    auto desc = init_type_min(il2cpp_dump, tdb, i);
+
+    g_itypedb[i] = desc;
+    g_fqntypedb[desc->t->fqnHash] = desc;
+
+    return desc;
+}
+
+std::string ObjectExplorer::generate_full_name(RETypeDB* tdb, uint32_t i) {
+    static std::unordered_map<uint32_t, std::string> full_names{};
+
+    if (i == 0 || i >= tdb->numTypes) {
+        return "";
+    }
+
+    if (full_names.find(i) != full_names.end()) {
+        return full_names[i];
+    }
+
+    static auto get_declare_t = [](REClassInfo& t, RETypeDB* tdb) -> REClassInfo* {
+        auto tdef = (RETypeDefinitionVersion69*)&t;
+
+        if (tdef->declaring_typeid == 0 || tdef->declaring_typeid > tdb->numTypes) {
+            return nullptr;
+        }
+
+        return &(*tdb->types)[tdef->declaring_typeid];
+    };
+
+    static auto get_declare_t_i = [](auto i, RETypeDB* tdb) -> REClassInfo* {
+        return get_declare_t((*tdb->types)[i], tdb);
+    };
+
+    static auto get_declare_heirarchy = [](REClassInfo& t, RETypeDB* tdb) {
+        std::vector<REClassInfo*> owners{};
+
+        for (auto parent = &t; parent != nullptr; parent = get_declare_t(*parent, tdb)) {
+            owners.push_back(parent);
+        }
+
+        return owners;
+    };
+
+    static auto get_name = [](REClassInfo& t, RETypeDB* tdb) {
+        auto tdef = (RETypeDefinitionVersion69*)&t;
+
+        auto& impl = (*tdb->typesImpl)[tdef->impl_index];
+
+        return Address{ tdb->stringPool }.get(impl.nameThing).as<const char*>();
+    };
+
+    static auto get_namespace = [](REClassInfo& t, RETypeDB* tdb) {
+        auto tdef = (RETypeDefinitionVersion69*)&t;
+
+        auto& impl = (*tdb->typesImpl)[tdef->impl_index];
+
+        return Address{tdb->stringPool}.get(impl.namespaceThing).as<const char*>();
+    };
+
+
+    auto& raw_t = (*tdb->types)[i];
+    auto tdef = (RETypeDefinitionVersion69*)&raw_t;
+
+
+    std::deque<std::string> names{};
+    std::string full_name{};
+
+    if (tdef->declaring_typeid > 0 && tdef->declaring_typeid != i) {
+        std::unordered_set<REClassInfo*> seen_classes{};
+
+        for (auto owner = &raw_t; owner != nullptr; owner = get_declare_t(*owner, tdb)) {
+            if (seen_classes.count(owner) > 0) {
+                break;
+            }
+
+            names.push_front(get_name(*owner, tdb));
+
+            if (get_declare_t(*owner, tdb) == nullptr && !std::string{get_namespace(*owner, tdb)}.empty()) {
+                names.push_front(get_namespace(*owner, tdb));
+            }
+
+            // uh.
+            if (get_declare_t(*owner, tdb) == &raw_t) {
+                break;
+            }
+
+            seen_classes.insert(owner);
+        }
+    } else {
+        // namespace
+        if (!std::string{ get_namespace(raw_t, tdb) }.empty()) {
+            names.push_front(get_namespace(raw_t, tdb));
+        }
+
+        // actual class name
+        names.push_back(get_name(raw_t, tdb));
+    }
+
+    for (auto f = 0; f < names.size(); ++f) {
+        if (f > 0) {
+            full_name += ".";
+        }
+
+        full_name += names[f];
+    }
+
+    // Set this here at this point in-case generate_full_name runs into it
+    full_names[i] = full_name;
+
+    if (raw_t.generics > 0) {
+        struct GenericListData {
+            uint32_t definition_typeid : 18;
+            uint32_t num : 14;
+            uint32_t types[1];
+        };
+
+
+        auto generics = (GenericListData*)&(*tdb->bytePool)[raw_t.generics];
+
+        if (generics->num > 0) {
+            full_name += "<";
+
+            for (uint32_t f = 0; f < generics->num; ++f) {
+                auto gtypeid = generics->types[f];
+
+                if (gtypeid > 0 && gtypeid < tdb->numTypes) {
+                    full_name += generate_full_name(tdb, gtypeid);
+                } else {
+                    full_name += "";
+                }
+
+                if (generics->num > 1 && f < generics->num - 1) {
+                    full_name += ",";
+                }
+            }
+
+            full_name += ">";
+        }
+    }
+
+    full_names[i] = full_name;
+
+    spdlog::info("{:s}", full_name);
+
+    return full_name;
+}
+
+std::shared_ptr<detail::ParsedType> ObjectExplorer::init_type_min(json& il2cpp_dump, RETypeDB* tdb, uint32_t i) {
     auto& t = (*tdb->types)[i];
     auto br = BitReader{&t};
 
-    // because i think it's impossible in reclass to make bitfields with names
-    const auto index = br.read<uint32_t>(18);
-    const auto parent_typeid = br.read<uint32_t>(18);
-    const auto declaring_typeid = br.read<uint32_t>(18);
-    const auto underlying_typeid = br.read<uint32_t>(7);
-    const auto object_typeid = br.read<uint32_t>(3);
-    const auto array_typeid = br.read<uint32_t>(18);
-    const auto element_typeid = br.read<uint32_t>(18);
-    const auto impl_index = br.read<uint32_t>(18);
-    const auto system_typeid = br.read<uint32_t>(10);
-    const auto type_flags = br.read_int();
+    auto tdef = (RETypeDefinitionVersion69*)&t;
 
     auto desc = std::make_shared<detail::ParsedType>();
 
-    auto& impl = (*tdb->typesImpl)[impl_index];
+    auto& impl = (*tdb->typesImpl)[tdef->impl_index];
 
     const auto ns = Address{tdb->stringPool}.get(impl.namespaceThing).as<const char*>();
     const auto name = Address{tdb->stringPool}.get(impl.nameThing).as<const char*>();
@@ -329,142 +483,6 @@ std::shared_ptr<detail::ParsedType> ObjectExplorer::init_type(json& il2cpp_dump,
     desc->t = &t;
     desc->name_space = ns;
     desc->name = name;
-
-    g_itypedb[i] = desc;
-    g_fqntypedb[t.fqnHash] = desc;
-
-    std::deque<std::string> names{};
-
-    // owner class names
-    if (declaring_typeid != 0) {
-        desc->owner = init_type(il2cpp_dump, tdb, declaring_typeid);
-
-        for (auto owner = desc; owner != nullptr; owner = owner->owner) {
-            names.push_front(owner->name);
-
-            if (owner->owner == nullptr && !std::string{owner->name_space}.empty()) {
-                names.push_front(owner->name_space);
-            }
-        }
-    } else {
-        // namespace
-        if (!std::string{ns}.empty()) {
-            names.push_front(ns);
-        }
-
-        // actual class name
-        names.push_back(name);
-    }
-
-    for (auto f = 0; f < names.size(); ++f) {
-        if (f > 0) {
-            desc->full_name += ".";
-        }
-
-        desc->full_name += names[f];
-    }
-
-
-    if (t.generics != 0) {
-        struct GenericParamData {
-            uint32_t constraint_typeid : 18;
-            uint32_t flags : 14;
-            int32_t name;
-        };
-
-        struct GenericDefinitionData {
-            uint32_t definition_typeid : 18;
-            uint32_t num : 14;
-            GenericParamData params[1];
-        };
-
-        auto generics = (GenericDefinitionData*)&(*tdb->bytePool)[t.generics];
-
-        if (generics->num > 0) {
-            desc->full_name += "<";
-
-            for (auto f = 0; f < generics->num; ++f) {
-                json entry = {};
-
-                auto gtypeid = generics->params[f].constraint_typeid;
-
-                if (gtypeid != 0 && gtypeid < tdb->numTypes) {
-                    desc->full_name += init_type(il2cpp_dump, tdb, gtypeid)->full_name;
-                } else {
-                    desc->full_name += "";
-                }
-
-                if (f < generics->num - 1) {
-                    desc->full_name += ",";
-                }
-            }
-
-            desc->full_name += ">";
-        }
-    }
-
-    g_stypedb[desc->full_name] = desc;
-
-    auto& type_entry = (il2cpp_dump[desc->full_name] = {});
-    const auto crc = t.type != nullptr ? t.type->typeCRC : t.typeCRC;
-
-    type_entry = {
-        {"address", (std::stringstream{} << std::hex << &t).str()},
-        {"id", i},
-        {"fqn", (std::stringstream{} << std::hex << t.fqnHash).str()},
-        {"crc", (std::stringstream{} << std::hex << crc).str()},
-        {"size", (std::stringstream{} << std::hex << t.size).str()},
-    };
-
-    if (parent_typeid != 0) {
-        desc->super = init_type(il2cpp_dump, tdb, parent_typeid);
-        type_entry["parent"] = desc->super->full_name;
-    }
-
-    if (auto type_flags_str = get_full_enum_value_name("via.clr.TypeFlag", type_flags); !type_flags_str.empty()) {
-        type_entry["flags"] = type_flags_str;
-    }
-
-    if (desc->t->type != nullptr && desc->t->type->name != nullptr) {
-        if (desc->t->type->name != desc->full_name) {
-            type_entry["native_typename"] = desc->t->type->name;
-        }
-    }
-
-    if (i > 0  && t.type != nullptr && ((uint8_t)t.type->flags >> 5) & 1) {
-        auto clr_t = t.type;
-
-        auto& deserialize_list = clr_t->deserializeThing;
-
-        if (deserialize_list.deserializers != nullptr && deserialize_list.num > 0 && deserialize_list.numAllocated > 0) {
-            for (uint32_t f = 0; f < deserialize_list.num; ++f) {
-                auto& sequence = (*deserialize_list.deserializers)[f];
-                auto sequence_type = init_type(il2cpp_dump, tdb, BitReader{ sequence.nativeType }.read<uint32_t>(18));
-
-                auto sbr = BitReader{ &sequence.data };
-
-                const auto code = sbr.read<uint8_t>(8);
-                const auto size = sbr.read<uint8_t>(8);
-                const auto align = sbr.read<uint8_t>(8);
-                const auto depth = sbr.read<uint8_t>(6);
-                const auto is_array = (bool)sbr.read<uint8_t>(1);
-                const auto is_static = (bool)sbr.read<uint8_t>(1);
-
-                auto rsz_entry = json{};
-
-                rsz_entry["type"] = sequence_type->full_name;
-                rsz_entry["code"] = get_enum_value_name("via.typeinfo.TypeCode", code);
-                rsz_entry["align"] = align;
-                rsz_entry["size"] = (std::stringstream{} << "0x" << std::hex << (uint32_t)size).str();
-                rsz_entry["depth"] = depth;
-                rsz_entry["array"] = is_array;
-                rsz_entry["static"] = is_static;
-                rsz_entry["offset_from_fieldptr"] = (std::stringstream{} << "0x" << std::hex << sequence.offset).str();
-
-                type_entry["RSZ"].emplace_back(rsz_entry);
-            }
-        }
-    }
 
     return desc;
 }
@@ -506,6 +524,95 @@ void ObjectExplorer::generate_sdk() {
     // Types
     for (uint32_t i = 0; i < tdb->numTypes; ++i) {
         init_type(il2cpp_dump, tdb, i);
+    }
+
+    for (uint32_t i = 0; i < tdb->numTypes; ++i) {
+        auto desc = init_type(il2cpp_dump, tdb, i);
+
+        desc->full_name = generate_full_name(tdb, i);
+        g_stypedb[desc->full_name] = desc;
+    }
+
+    // Finish off initialization of types
+    for (uint32_t i = 0; i < tdb->numTypes; ++i) {
+        auto desc = init_type(il2cpp_dump, tdb, i);
+        auto& t = *desc->t;
+
+        auto tdef = (RETypeDefinitionVersion69*)desc->t;
+
+        auto& type_entry = (il2cpp_dump[desc->full_name] = {});
+        const auto crc = t.type != nullptr ? t.type->typeCRC : t.typeCRC;
+
+        type_entry = {
+            {"address", (std::stringstream{} << std::hex << &t).str()},
+            {"id", i},
+            {"fqn", (std::stringstream{} << std::hex << t.fqnHash).str()},
+            {"crc", (std::stringstream{} << std::hex << crc).str()},
+            {"size", (std::stringstream{} << std::hex << t.size).str()},
+        };
+
+        if (tdef->declaring_typeid != 0) {
+            desc->owner = init_type(il2cpp_dump, tdb, tdef->declaring_typeid);
+        }
+
+        if (tdef->parent_typeid != 0) {
+            desc->super = init_type(il2cpp_dump, tdb, tdef->parent_typeid);
+            type_entry["parent"] = desc->super->full_name;
+        }
+
+        if (auto type_flags_str = get_full_enum_value_name("via.clr.TypeFlag", t.typeFlags); !type_flags_str.empty()) {
+            type_entry["flags"] = type_flags_str;
+        }
+
+        if (desc->t->type != nullptr && desc->t->type->name != nullptr) {
+            if (desc->t->type->name != desc->full_name) {
+                type_entry["native_typename"] = desc->t->type->name;
+            }
+        }
+    }
+
+
+    // Initialize RSZ
+    // Dont do it in init_type because it calls init_type
+    for (uint32_t i = 0; i < tdb->numTypes; ++i) {
+        auto pt = init_type(il2cpp_dump, tdb, i);
+        auto& t = *pt->t;
+
+        if (t.type == nullptr || (((uint8_t)t.type->flags >> 5) & 1) == 0) {
+            continue;
+        }
+
+        auto clr_t = t.type;
+
+        auto& deserialize_list = clr_t->deserializeThing;
+
+        if (deserialize_list.deserializers != nullptr && deserialize_list.num > 0 && deserialize_list.numAllocated > 0) {
+            for (uint32_t f = 0; f < deserialize_list.num; ++f) {
+                auto& sequence = (*deserialize_list.deserializers)[f];
+
+                auto sbr = BitReader{&sequence.data};
+
+                const auto code = sbr.read<uint8_t>(8);
+                const auto size = sbr.read<uint8_t>(8);
+                const auto align = sbr.read<uint8_t>(8);
+                const auto depth = sbr.read<uint8_t>(6);
+                const auto is_array = (bool)sbr.read<uint8_t>(1);
+                const auto is_static = (bool)sbr.read<uint8_t>(1);
+
+                auto rsz_entry = json{};
+
+                rsz_entry["type"] = generate_full_name(tdb, ((RETypeDefinitionVersion69*)sequence.nativeType)->index);
+                rsz_entry["code"] = get_enum_value_name("via.typeinfo.TypeCode", code);
+                rsz_entry["align"] = align;
+                rsz_entry["size"] = (std::stringstream{} << "0x" << std::hex << (uint32_t)size).str();
+                rsz_entry["depth"] = depth;
+                rsz_entry["array"] = is_array;
+                rsz_entry["static"] = is_static;
+                rsz_entry["offset_from_fieldptr"] = (std::stringstream{} << "0x" << std::hex << sequence.offset).str();
+
+                il2cpp_dump[pt->full_name]["RSZ"].emplace_back(rsz_entry);
+            }
+        }
     }
 
     // Methods
@@ -768,7 +875,7 @@ void ObjectExplorer::generate_sdk() {
 
     // Try and guess what the field names are for the RSZ entries
     for (auto& t : g_itypedb) {
-        if (t.second->t == nullptr || t.second->t->typeIndex == 0) {
+        if (t.second->t == nullptr || (t.second->t->typeIndex & 0x3FFFF) == 0) {
             continue;
         }
 
@@ -796,7 +903,7 @@ void ObjectExplorer::generate_sdk() {
 
             // Get the topmost one because of depth
             for (auto d = 0; d < depth; ++d) {
-                if (depth_t->t->parentInfo == nullptr) {
+                if (depth_t->t->parentInfo == nullptr || depth_t->super == nullptr) {
                     break;
                 }
 

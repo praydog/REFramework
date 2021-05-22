@@ -88,7 +88,9 @@ public:
 
 private:
 #ifdef RE8
+    std::shared_ptr<detail::ParsedType> init_type_min(nlohmann::json& il2cpp_dump, RETypeDB* tdb, uint32_t i);
     std::shared_ptr<detail::ParsedType> init_type(nlohmann::json& il2cpp_dump, RETypeDB* tdb, uint32_t i);
+    std::string generate_full_name(RETypeDB* tdb, uint32_t i);
 #endif
     void generate_sdk();
 
