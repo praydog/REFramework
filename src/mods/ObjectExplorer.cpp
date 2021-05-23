@@ -486,6 +486,52 @@ std::shared_ptr<detail::ParsedType> ObjectExplorer::init_type_min(json& il2cpp_d
 
     return desc;
 }
+
+void ObjectExplorer::export_deserializer_chain(nlohmann::json& il2cpp_dump, RETypeDB* tdb, REType* t, std::optional<std::string> real_name) {
+    const auto is_clr_type = (((uint8_t)t->flags >> 5) & 1) != 0;
+
+    if (is_clr_type) {
+        return;
+    }
+
+    std::string full_name{};
+
+    // Export info about native deserializers for the python script
+    if (!real_name) {
+        full_name = t->classInfo != nullptr ? generate_full_name(tdb, t->classInfo->typeIndex & 0x3FFFF) : t->name;
+    }
+    else {
+        full_name = *real_name;
+    }
+
+    auto& type_entry = il2cpp_dump[full_name];
+
+    // already done it
+    if (type_entry.contains("deserializer_chain") || type_entry.contains("RSZ")) {
+        return;
+    }
+
+    auto& deserializer_chain = (type_entry["deserializer_chain"] = {});
+
+    std::deque<nlohmann::json> chain_raw{};
+
+    for (auto super = t; super != nullptr; super = (RETypeCLR*)super->super) {
+        if (super->fields == nullptr || super->fields->deserializer == nullptr) {
+            continue;
+        }
+
+        auto deserializer = super->fields->deserializer;
+
+        json des_entry{};
+
+        des_entry["address"] = (std::stringstream{} << "0x" << std::hex << deserializer).str();
+
+        // push in reverse order so it can be parsed easier (parent -> all the way back to this type)
+        chain_raw.push_front(des_entry);
+    }
+
+    deserializer_chain = chain_raw;
+}
 #endif
 
 void ObjectExplorer::generate_sdk() {
@@ -578,12 +624,18 @@ void ObjectExplorer::generate_sdk() {
         auto pt = init_type(il2cpp_dump, tdb, i);
         auto& t = *pt->t;
 
-        if (t.type == nullptr || (((uint8_t)t.type->flags >> 5) & 1) == 0) {
+        if (t.type == nullptr) {
+            continue;
+        }
+
+        const auto is_clr_type = (((uint8_t)t.type->flags >> 5) & 1) != 0;
+
+        if (!is_clr_type) {
+            export_deserializer_chain(il2cpp_dump, tdb, t.type, pt->full_name);
             continue;
         }
 
         auto clr_t = t.type;
-
         auto& deserialize_list = clr_t->deserializeThing;
 
         if (deserialize_list.deserializers != nullptr && deserialize_list.num > 0 && deserialize_list.numAllocated > 0) {
@@ -957,6 +1009,10 @@ void ObjectExplorer::generate_sdk() {
         }
 
         g_class_set.insert(t->name);
+
+#ifdef RE8
+        export_deserializer_chain(il2cpp_dump, tdb, t);
+#endif
     }
 
     for (const auto& name : m_sorted_types) {
@@ -966,7 +1022,7 @@ void ObjectExplorer::generate_sdk() {
             continue;
         }
 
-        if (t->fields == nullptr || t->classInfo == nullptr || utility::re_class_info::get_vm_type(t->classInfo) != via::clr::VMObjType::Object) {
+        if (t->fields == nullptr) {
             continue;
         }
 
