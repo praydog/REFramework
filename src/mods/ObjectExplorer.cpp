@@ -280,7 +280,7 @@ void ObjectExplorer::on_draw_ui() {
         }
     }
 
-    ImGui::InputText("REObject Address", m_object_address.data(), 16, ImGuiInputTextFlags_::ImGuiInputTextFlags_CharsHexadecimal);
+    ImGui::InputText("REObject Address", m_object_address.data(), 17, ImGuiInputTextFlags_::ImGuiInputTextFlags_CharsHexadecimal);
 
     if (m_object_address[0] != 0) {
         handle_address(std::stoull(m_object_address, nullptr, 16));
