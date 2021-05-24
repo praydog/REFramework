@@ -39,14 +39,20 @@ def main(il2cpp_path="il2cpp_dump.json", natives_path=None):
         i = 0
 
         e = entry
+        parent_name = key
 
+        # Go through parents until we run into a native that we need to insert at the top of the structure
         for f in range(0, 10):
             if natives is None or "parent" not in e:
                 break
 
-            parent_name = e["parent"]
             if not (parent_name in il2cpp_dump and "RSZ" not in il2cpp_dump[parent_name] and parent_name in natives):
-                break
+                # Keep going up the heirarchy of parents until we reach something usable
+                if "parent" in e and e["parent"] in il2cpp_dump:
+                    parent_name = e["parent"]
+                    e = il2cpp_dump[e["parent"]]
+
+                continue
 
             parent_native = natives[parent_name]
             parent_il2cpp = il2cpp_dump[parent_name]
@@ -80,8 +86,6 @@ def main(il2cpp_path="il2cpp_dump.json", natives_path=None):
             
             if found_anything:
                 break
-            elif "parent" in e and e["parent"] in il2cpp_dump:
-                e = il2cpp_dump[e["parent"]]
 
         for rsz_entry in entry["RSZ"]:
             name = "v" + str(i)
