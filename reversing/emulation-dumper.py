@@ -165,6 +165,31 @@ class Allocator:
 
 allocator = None
 
+def invalidate_and_return_call(emu, frame):
+    cs = frame["cs"]
+
+    # Load the context before the previous call
+    ctx = pickle.loads(frame["call_stack"][1]["context"])
+    emu.context_restore(ctx)
+
+    rip = emu.reg_read(UC_X86_REG_RIP)
+    print("%X" % rip)
+
+    frame["call_stack"] = frame["call_stack"][0:1]
+
+    # Fix the history count for RIP
+    if len(frame["call_stack"]) > 0 and rip in frame["call_stack"][-1]["history"]:
+        dis_g = cs.disasm(emu.mem_read(rip, 0x100), rip, 1)
+        dis = next(dis_g)
+
+        hist = frame["call_stack"][-1]["history"]
+
+        for i in range(rip, rip + dis.size):
+            hist[i] = hist[i] - 1
+
+    emu.mem_write(emu.reg_read(UC_X86_REG_RIP), b"\x90\x90\x90\x90\x90")
+    frame["start"] = emu.reg_read(UC_X86_REG_RIP)
+
 # callback for tracing invalid memory access (READ or WRITE)
 def hook_mem_invalid(emu, access, address, size, value, frame):
     if access == UC_MEM_WRITE_UNMAPPED:
@@ -184,6 +209,15 @@ def hook_code(emu, address, size, frame):
         frame["context"] = pickle.dumps(emu.context_save())
         cs = frame["cs"]
         deserialize_arg = frame["deserialize_arg"]
+
+        # We don't want to do this. We manually call each parent deserializer to mark where in the structure they start.
+        # It's also easier to manage this way, we don't have to worry about nested shit.
+        if len(frame["call_stack"]) > 1 and address in frame["deserializers"]:
+            print("STOPPING EXECUTION!!!!")
+            invalidate_and_return_call(emu, frame)
+            emu.emu_stop()
+            return
+
 
         '''
         try:
@@ -376,29 +410,9 @@ def hook_unmapped(emu, access, address, size, value, frame):
         return False
 
     cs = frame["cs"]
-
     
     if len(frame["call_stack"]) > 1:
-        # Load the context before the previous call
-        ctx = pickle.loads(frame["call_stack"][1]["context"])
-        emu.context_restore(ctx)
-
-        rip = emu.reg_read(UC_X86_REG_RIP)
-        print("%X" % rip)
-
-        frame["call_stack"] = frame["call_stack"][0:1]
-
-        # Fix the history count for RIP
-        if len(frame["call_stack"]) > 0 and rip in frame["call_stack"][-1]["history"]:
-            dis_g = cs.disasm(emu.mem_read(rip, 0x100), rip, 1)
-            dis = next(dis_g)
-
-            hist = frame["call_stack"][-1]["history"]
-
-            for i in range(rip, rip + dis.size):
-                hist[i] = hist[i] - 1
-
-        emu.mem_write(emu.reg_read(UC_X86_REG_RIP), b"\x90\x90\x90\x90\x90")
+        invalidate_and_return_call(emu, frame)
     else:
         # Load the context before the previous instruction
         ctx = pickle.loads(frame["context"])
@@ -639,6 +653,8 @@ def main(p, test_mode):
     # Detects members for one structure deserializer chain
     def detect_members_chain(struct_name, chain):
         meta_frame["layout"] = []
+        # our dict to check if the deserializer calls a parent deserializer (and ignore it)
+        meta_frame["deserializers"] = {int(address, 16): True for item in chain for (key, address) in item.items() if key == "address"}
 
         emu.context_restore(pickle.loads(pristine_context))
 
@@ -712,17 +728,28 @@ def main(p, test_mode):
             struct_file.write(struct_str)
 
             print("Native struct potentially has %i members" % len(meta_frame["layout"]))
-        # else:
-            # print("%s has zero members, ignoring..." % struct_name)
+
+        return layout_list
 
     count = 0
+    native_layouts = {}
+
+    print("Emulating...")
 
     for struct_name in chains.keys():
         if chains[struct_name] is not None and "deserializer_chain" in chains[struct_name]:
-            detect_members_chain(struct_name, chains[struct_name]["deserializer_chain"])
+            struct_layout = detect_members_chain(struct_name, chains[struct_name]["deserializer_chain"])
+
+            if len(struct_layout) > 0:
+                native_layouts[struct_name] = struct_layout
 
         count = count + 1
         sys.stdout.write("\r%f%%" % (float(count / chains_len) * 100.0))
+
+    print("Finished. Dumping to native-layouts.json")
+    with os.open("native-layouts.json", "w") as f:
+        json.dump(native_layouts, f)
+
     
 
 if __name__ == '__main__':
