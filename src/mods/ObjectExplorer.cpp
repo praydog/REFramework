@@ -504,10 +504,6 @@ void ObjectExplorer::export_deserializer_chain(nlohmann::json& il2cpp_dump, RETy
         full_name = *real_name;
     }
 
-    if (!il2cpp_dump.contains(full_name)) {
-        return;
-    }
-
     auto& type_entry = il2cpp_dump[full_name];
 
     // already done it
