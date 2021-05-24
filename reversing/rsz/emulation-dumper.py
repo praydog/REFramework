@@ -442,10 +442,7 @@ def hook_unmapped(emu, access, address, size, value, frame):
     return True
 
 
-def main(p, test_mode):
-    if test_mode is None:
-        test_mode = False
-
+def main(p, test_mode=False):
     if not os.path.exists(p):
         print("Path %s does not exist" % p)
         return
@@ -746,9 +743,9 @@ def main(p, test_mode):
         count = count + 1
         sys.stdout.write("\r%f%%" % (float(count / chains_len) * 100.0))
 
-    print("Finished. Dumping to native-layouts.json")
-    with os.open("native-layouts.json", "w") as f:
-        json.dump(native_layouts, f)
+    print("Finished. Dumping to native_layouts.json")
+    with open("native_layouts.json", "w") as f:
+        json.dump(native_layouts, f, indent=4, sort_keys=True)
 
     
 
