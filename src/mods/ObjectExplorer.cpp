@@ -488,20 +488,24 @@ std::shared_ptr<detail::ParsedType> ObjectExplorer::init_type_min(json& il2cpp_d
 }
 
 void ObjectExplorer::export_deserializer_chain(nlohmann::json& il2cpp_dump, RETypeDB* tdb, REType* t, std::optional<std::string> real_name) {
-    const auto is_clr_type = (((uint8_t)t->flags >> 5) & 1) != 0;
+    /*const auto is_clr_type = (((uint8_t)t->flags >> 5) & 1) != 0;
 
     if (is_clr_type) {
         return;
-    }
+    }*/
 
     std::string full_name{};
 
     // Export info about native deserializers for the python script
     if (!real_name) {
-        full_name = t->classInfo != nullptr ? generate_full_name(tdb, t->classInfo->typeIndex & 0x3FFFF) : t->name;
+        full_name = t->classInfo != nullptr ? generate_full_name(tdb, *(uint32_t*)&t->classInfo->typeIndex & 0x3FFFF) : t->name;
     }
     else {
         full_name = *real_name;
+    }
+
+    if (!il2cpp_dump.contains(full_name)) {
+        return;
     }
 
     auto& type_entry = il2cpp_dump[full_name];
@@ -510,8 +514,6 @@ void ObjectExplorer::export_deserializer_chain(nlohmann::json& il2cpp_dump, RETy
     if (type_entry.contains("deserializer_chain") || type_entry.contains("RSZ")) {
         return;
     }
-
-    auto& deserializer_chain = (type_entry["deserializer_chain"] = {});
 
     std::deque<nlohmann::json> chain_raw{};
 
@@ -525,12 +527,18 @@ void ObjectExplorer::export_deserializer_chain(nlohmann::json& il2cpp_dump, RETy
         json des_entry{};
 
         des_entry["address"] = (std::stringstream{} << "0x" << std::hex << deserializer).str();
+        des_entry["name"] = super->classInfo != nullptr ? generate_full_name(tdb, *(uint32_t*)&super->classInfo->typeIndex & 0x3FFFF) : super->name;
 
         // push in reverse order so it can be parsed easier (parent -> all the way back to this type)
         chain_raw.push_front(des_entry);
     }
 
-    deserializer_chain = chain_raw;
+    // dont create an empty entry
+    if (chain_raw.empty()) {
+        return;
+    }
+
+    type_entry["deserializer_chain"] = chain_raw;
 }
 #endif
 
@@ -664,6 +672,11 @@ void ObjectExplorer::generate_sdk() {
 
                 il2cpp_dump[pt->full_name]["RSZ"].emplace_back(rsz_entry);
             }
+        }
+
+        // do this because it empty
+        if (!il2cpp_dump[pt->full_name].contains("RSZ")) {
+            export_deserializer_chain(il2cpp_dump, tdb, t.type, pt->full_name);
         }
     }
 
@@ -927,7 +940,7 @@ void ObjectExplorer::generate_sdk() {
 
     // Try and guess what the field names are for the RSZ entries
     for (auto& t : g_itypedb) {
-        if (t.second->t == nullptr || (t.second->t->typeIndex & 0x3FFFF) == 0) {
+        if (t.second->t == nullptr || (*(uint32_t*)&t.second->t->typeIndex & 0x3FFFF) == 0) {
             continue;
         }
 
@@ -999,6 +1012,10 @@ void ObjectExplorer::generate_sdk() {
             continue;
         }
 
+#ifdef RE8
+        export_deserializer_chain(il2cpp_dump, tdb, t);
+#endif
+
         if (t->fields == nullptr /*|| t->classInfo == nullptr || utility::re_class_info::get_vm_type(t->classInfo) != via::clr::VMObjType::Object*/) {
             continue;
         }
@@ -1009,10 +1026,6 @@ void ObjectExplorer::generate_sdk() {
         }
 
         g_class_set.insert(t->name);
-
-#ifdef RE8
-        export_deserializer_chain(il2cpp_dump, tdb, t);
-#endif
     }
 
     for (const auto& name : m_sorted_types) {

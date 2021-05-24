@@ -556,7 +556,7 @@ def main(p, test_mode):
 
     def detect_members(deserializer_start):
         if deserializer_start in zero_member_functions:
-            return
+            return []
 
         # print("Detecting members for deserializer %X" % deserializer_start)
 
@@ -610,6 +610,8 @@ def main(p, test_mode):
 
         prev_layout_size = len(meta_frame["layout"])
 
+        out_layout = []
+
         for i in range(0, 1000):
             # Execution has left the scope of the function.
             if len(meta_frame["call_stack"]) == 0:
@@ -629,6 +631,10 @@ def main(p, test_mode):
         # print("Function contained %i members" % layout_delta)
         if layout_delta == 0:
             zero_member_functions[deserializer_start] = True
+        else:
+            out_layout = meta_frame["layout"][prev_layout_size:(prev_layout_size+layout_delta)]
+        
+        return out_layout
 
     # Detects members for one structure deserializer chain
     def detect_members_chain(struct_name, chain):
@@ -636,9 +642,14 @@ def main(p, test_mode):
 
         emu.context_restore(pickle.loads(pristine_context))
 
+        layout_list = []
+
         # Actually detect the members now
         for entry in chain:
-            detect_members(int(entry["address"], 16))
+            layout_list.append({
+                "name": entry["name"],
+                "layout": detect_members(int(entry["address"], 16))
+            })
         
         def generate_metastring(layout):
             metastring = ""
@@ -676,17 +687,25 @@ def main(p, test_mode):
             i = 0
             struct_str = "struct " + struct_name + " {\n"
 
-            for layout in meta_frame["layout"]:
-                # metastring = generate_metastring(layout)
-                # print("%i %X %X %s" % (i + 1, layout["size"], layout["align"], metastring))
+            for parent in layout_list:
+                if len(parent["layout"]) == 0:
+                    continue
 
-                type_name = generate_typename(layout)
-                var_name = "v" + str(i)
+                struct_str = struct_str + "// " + parent["name"] + " BEGIN\n"
 
-                struct_str = struct_str + "    "
-                struct_str = struct_str + type_name + " " + var_name + ";\n"
+                for layout in parent["layout"]:
+                    # metastring = generate_metastring(layout)
+                    # print("%i %X %X %s" % (i + 1, layout["size"], layout["align"], metastring))
 
-                i = i + 1
+                    type_name = generate_typename(layout)
+                    var_name = "v" + str(i)
+
+                    struct_str = struct_str + "    "
+                    struct_str = struct_str + type_name + " " + var_name + ";\n"
+
+                    i = i + 1
+                
+                struct_str = struct_str + "// " + parent["name"] + " END\n"
 
             struct_str = struct_str + "};\n"
             print(struct_str)
@@ -699,7 +718,7 @@ def main(p, test_mode):
     count = 0
 
     for struct_name in chains.keys():
-        if "deserializer_chain" in chains[struct_name]:
+        if chains[struct_name] is not None and "deserializer_chain" in chains[struct_name]:
             detect_members_chain(struct_name, chains[struct_name]["deserializer_chain"])
 
         count = count + 1
