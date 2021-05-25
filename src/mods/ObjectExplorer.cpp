@@ -28,6 +28,15 @@ std::unordered_map<uint32_t, std::shared_ptr<detail::ParsedMethod>> g_imethoddb{
 
 std::unordered_set<std::string> g_class_set{};
 
+struct PropertyFlags {
+    uint32_t type_kind : 5;
+    uint32_t type_qual : 2;
+    uint32_t type_attr : 3;
+    uint32_t size : 20;
+    uint32_t managed_str : 1;
+    uint32_t reserved : 1;
+};
+
 struct BitReader {
     BitReader(void* d)
         : data{(uint8_t*)d} {}
@@ -1715,9 +1724,13 @@ void ObjectExplorer::display_fields(REManagedObject* obj, REType* type_info) {
                         }
                     }
 
-                    auto type_kind = variable->flags & 0x1F;
+                    auto prop_flags = *(PropertyFlags*)&variable->flags;
 
-                    ImGui::Text("TypeKind: %i (%s)", type_kind, get_enum_value_name("via.reflection.TypeKind", (int64_t)type_kind).c_str());
+                    ImGui::Text("TypeKind: %i (%s)", prop_flags.type_kind, get_enum_value_name("via.reflection.TypeKind", (int64_t)prop_flags.type_kind).c_str());
+                    ImGui::Text("Qualifiers: %i", prop_flags.type_qual);
+                    ImGui::Text("Attributes: %i", prop_flags.type_attr);
+                    ImGui::Text("Size: %i", prop_flags.size);
+                    ImGui::Text("ManagedStr: %i", prop_flags.managed_str);
                     ImGui::Text("VarType: %i", variable->variableType);
 
                     if (variable->staticVariableData != nullptr) {
@@ -1750,18 +1763,28 @@ void ObjectExplorer::attempt_display_field(REManagedObject* obj, VariableDescrip
         }
     };
 
+    auto prop_flags = *(PropertyFlags*)&desc->flags;
+
+    const auto is_pointer = prop_flags.managed_str || prop_flags.type_attr == 1 || prop_flags.type_attr == 2;
+
     auto type_name = std::string{ desc->typeName };
     auto ret = utility::hash(type_name);
     auto get_value_func = (void* (*)(VariableDescriptor*, REManagedObject*, void*))desc->function;
 
-    char data[0x100]{ 0 };
+    char raw_data[0x100]{ 0 };
     auto type_kind = (via::reflection::TypeKind)(desc->flags & 0x1F);
 
     // 0x10 == pointer, i think?
-    if (type_kind != via::reflection::TypeKind::Class || desc->staticVariableData == nullptr) {
-        get_value_func(desc, obj, &data);
+    //if (type_kind != via::reflection::TypeKind::Class) {
+        get_value_func(desc, obj, &raw_data);
 
+        auto& data = (is_pointer ? **(char***)&raw_data : *(char**)&raw_data);
         auto field_offset = get_field_offset(obj, desc, type_info);
+
+        if (data == nullptr) {
+            return;
+        }
+
 
         // yay for compile time string hashing
         switch (ret) {
@@ -1838,10 +1861,6 @@ void ObjectExplorer::attempt_display_field(REManagedObject* obj, VariableDescrip
         {
             auto vec = (Vector2f*)&data;
 
-            if (desc->variableType == 0) {
-                vec = *(Vector2f**)&data;
-            }
-
             ImGui::Text("%f %f", vec->x, vec->y);
 
             if (field_offset != 0) {
@@ -1862,10 +1881,6 @@ void ObjectExplorer::attempt_display_field(REManagedObject* obj, VariableDescrip
         case "via.vec3"_fnv:
         {
             auto vec = (Vector3f*)&data;
-
-            if (desc->variableType == 0) {
-                vec = *(Vector3f**)&data;
-            }
 
             if (vec != nullptr) {
                 ImGui::Text("%f %f %f", vec->x, vec->y, vec->z);
@@ -1916,8 +1931,8 @@ void ObjectExplorer::attempt_display_field(REManagedObject* obj, VariableDescrip
         }
         case "via.string"_fnv: {
 #ifdef RE8
-            if (desc->variableType == 0) {
-                auto ptr = *(SystemString***)&data; 
+            if (prop_flags.managed_str) {
+                auto ptr = (SystemString**)&data; 
 
                 if (ptr != nullptr && *ptr != nullptr) {
                     ImGui::Text("%s", utility::re_string::get_string(**ptr).c_str());
@@ -1925,9 +1940,7 @@ void ObjectExplorer::attempt_display_field(REManagedObject* obj, VariableDescrip
                     ImGui::Text("");
                 }
             } else {
-                if (desc->variableType != 3) {
-                    ImGui::Text("%s", utility::re_string::get_string(*(REString*)&data).c_str());
-                }
+                ImGui::Text("%s", utility::re_string::get_string(*(REString*)&data).c_str());
             }
 #else
             ImGui::Text("%s", utility::re_string::get_string(*(REString*)&data).c_str());
@@ -1947,18 +1960,20 @@ void ObjectExplorer::attempt_display_field(REManagedObject* obj, VariableDescrip
                 }
             }
             else {
-                make_tree_addr(*(void**)&data);
+                make_tree_addr(&data);
             }
 
             break;
         }
         }
-    }
+    //}
     // Pointer... usually
-    else {
-        get_value_func(desc, obj, &data);
-        make_tree_addr(*(void**)&data);
-    }
+    /*else {
+        get_value_func(desc, obj, &raw_data);
+        auto& data = (is_pointer ? **(char***)&raw_data : *(char**)&raw_data);
+
+        make_tree_addr(&data);
+    }*/
 }
 
 int32_t ObjectExplorer::get_field_offset(REManagedObject* obj, VariableDescriptor* desc, REType* type_info) {
