@@ -280,7 +280,7 @@ void ObjectExplorer::on_draw_ui() {
         }
     }
 
-    ImGui::InputText("REObject Address", m_object_address.data(), 17, ImGuiInputTextFlags_::ImGuiInputTextFlags_CharsHexadecimal);
+    ImGui::InputText("REObject Address", m_object_address.data(), 16, ImGuiInputTextFlags_::ImGuiInputTextFlags_CharsHexadecimal);
 
     if (m_object_address[0] != 0) {
         handle_address(std::stoull(m_object_address, nullptr, 16));
@@ -314,7 +314,6 @@ struct RETypeDefinitionVersion69 {
     // rest is in REClassInfo
 };
 
-constexpr auto asdf = offsetof(RETypeDefinitionVersion69, type_flags);
 std::shared_ptr<detail::ParsedType> ObjectExplorer::init_type(nlohmann::json& il2cpp_dump, RETypeDB* tdb, uint32_t i) {
     if (g_itypedb.find(i) != g_itypedb.end()) {
         return g_itypedb[i];
@@ -1658,7 +1657,11 @@ void ObjectExplorer::display_fields(REManagedObject* obj, REType* type_info) {
             }
 
             // Display the field offset
-            if (is_real_object) {
+            if (is_real_object || utility::re_type::is_singleton(type_info)) {
+                if (utility::re_type::is_singleton(type_info)) {
+                    obj = (REManagedObject*)utility::re_type::get_singleton_instance(type_info);
+                }
+
                 auto offset = get_field_offset(obj, variable, type_info);
 
                 if (offset != 0) {
