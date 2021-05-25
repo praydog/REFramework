@@ -1,6 +1,8 @@
 #pragma once
 
 class REType;
+class REVariableList;
+class VariableDescriptor;
 
 // Flags
 namespace via::dti {
@@ -21,4 +23,6 @@ uint32_t get_vm_type(::REType* t);
 uint32_t get_value_type_size(::REType* t);
 bool is_singleton(::REType* t);
 void* get_singleton_instance(::REType* t);
+REVariableList* get_variables(::REType* t);
+VariableDescriptor* get_field_desc(::REType* t, std::string_view field);
 } // namespace utility::re_type

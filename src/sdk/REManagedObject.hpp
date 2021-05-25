@@ -233,17 +233,7 @@ namespace utility::re_managed_object {
     }
 
     static REVariableList* get_variables(::REType* t) {
-        if (t == nullptr || t->fields == nullptr || t->fields->variables == nullptr) {
-            return nullptr;
-        }
-
-        auto vars = t->fields->variables;
-
-        if (vars->data == nullptr || vars->num <= 0) {
-            return nullptr;
-        }
-
-        return vars;
+        return re_type::get_variables(t);
     }
 
     static REVariableList* get_variables(::REManagedObject* obj) {
@@ -251,44 +241,7 @@ namespace utility::re_managed_object {
     }
 
     static VariableDescriptor* get_field_desc(::REManagedObject* obj, std::string_view field) {
-        static std::mutex insertion_mutex{};
-        static std::unordered_map<std::string, VariableDescriptor*> var_map{};
-        
-        auto t = get_type(obj);
-
-        if (t == nullptr) {
-            return nullptr;
-        }
-
-        auto full_name = std::string{ t->name } + "." + field.data();
-
-        if (var_map.find(full_name) != var_map.end()) {
-            return var_map[full_name];
-        }
-
-        for (; t != nullptr; t = t->super) {
-            auto vars = get_variables(t);
-
-            if (vars == nullptr) {
-                continue;
-            }
-
-            for (auto i = 0; i < vars->num; ++i) {
-                auto& var = vars->data->descriptors[i];
-
-                if (var == nullptr || var->name == nullptr) {
-                    continue;
-                }
-
-                if (field == var->name) {
-                    std::lock_guard _{ insertion_mutex };
-                    var_map[full_name] = var;
-                    return var;
-                }
-            }
-        }
-
-        return nullptr;
+        return re_type::get_field_desc(get_type(obj), field);
     }
 
     static FunctionDescriptor* get_method_desc(::REManagedObject* obj, std::string_view name) {
