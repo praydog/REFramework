@@ -245,48 +245,7 @@ namespace utility::re_managed_object {
     }
 
     static FunctionDescriptor* get_method_desc(::REManagedObject* obj, std::string_view name) {
-        static std::mutex insertion_mutex{};
-        static std::unordered_map<std::string, FunctionDescriptor*> var_map{};
-
-        auto t = get_type(obj);
-
-        if (t == nullptr) {
-            return nullptr;
-        }
-
-        auto full_name = std::string{ t->name } + "." + name.data();
-
-        for (; t != nullptr; t = t->super) {
-            auto fields = t->fields;
-
-            if (fields == nullptr || fields->methods == nullptr) {
-                continue;
-            }
-
-            auto methods = fields->methods;
-
-            for (auto i = 0; i < fields->num; ++i) {
-                auto top = (*methods)[i];
-
-                if (top == nullptr || *top == nullptr) {
-                    continue;
-                }
-
-                auto& holder = **top;
-
-                if (holder.descriptor == nullptr || holder.descriptor->name == nullptr) {
-                    continue;
-                }
-
-                if (name == holder.descriptor->name) {
-                    std::lock_guard _{ insertion_mutex };
-                    var_map[full_name] = holder.descriptor;
-                    return holder.descriptor;
-                }
-            }
-        }
-
-        return nullptr;
+        return re_type::get_method_desc(get_type(obj), name);
     }
 
     template <typename T> 

@@ -26,6 +26,9 @@ std::unordered_map<uint32_t, std::shared_ptr<detail::ParsedParams>> g_iparamdb{}
 std::unordered_map<uint32_t, std::shared_ptr<detail::ParsedMethod>> g_imethoddb{};
 #endif
 
+constexpr std::string_view TYPE_INFO_NAME = "REType";
+constexpr std::string_view TYPE_DEFINITION_NAME = "REClassInfo";
+
 std::unordered_set<std::string> g_class_set{};
 
 struct PropertyFlags {
@@ -35,6 +38,12 @@ struct PropertyFlags {
     uint32_t size : 20;
     uint32_t managed_str : 1;
     uint32_t reserved : 1;
+};
+
+template <typename T> struct NativeArray {
+    T* elements;
+    uint32_t num;
+    uint32_t num_allocated;
 };
 
 struct BitReader {
@@ -1048,8 +1057,31 @@ void ObjectExplorer::generate_sdk() {
             continue;
         }
 
+        const auto is_singleton = utility::re_type::is_singleton(t);
+
         auto c = class_from_name(g, t->name);
         c->size(t->size);
+
+        // make get_type static function
+        {
+            auto m = c->static_function("get_type_info")->returns(g->type(TYPE_INFO_NAME)->ptr());
+
+            std::stringstream os{};
+            os << "return g_framework->get_types()->get(\"" << t->name << "\");";
+
+            m->procedure(os.str());
+        }
+
+        // make get_singleton_instance static function
+        if (is_singleton) {
+            auto m = c->static_function("get_singleton_instance")->returns(c->ptr());
+
+            std::stringstream os{};
+
+            os << "return (" << c->ptr()->get_typename() << ")utility::re_type::get_singleton_instance(get_type_info());";
+
+            m->procedure(os.str());
+        }
 
         auto parent_c = c;
 
@@ -1102,10 +1134,16 @@ void ObjectExplorer::generate_sdk() {
 
                 std::ostringstream os{};
                 os << "// " << (descriptor->returnTypeName != nullptr ? descriptor->returnTypeName : "") << "\n";
-                os << "return utility::re_managed_object::call_method(this, \"" << descriptor->name << "\", *args);";
+
+                if (!is_singleton) {
+                    os << "return utility::re_managed_object::call_method((REManagedObject*)this, \"" << descriptor->name << "\", *args);";
+                }
+                else {
+                    os << "return utility::re_managed_object::call_method((REManagedObject*)this, utility::re_type::get_method_desc(get_type_info(), \"" << descriptor->name << "\"), *args);";
+                }
 
                 m->param("args")->type(g->type("void**"));
-                m->procedure(os.str())->returns(g->type("std::unique_ptr<ParamWrapper>"));
+                m->procedure(os.str())->returns(g->type("std::unique_ptr<utility::re_managed_object::ParamWrapper>"));
 
 #ifdef RE8
                 json json_params{};
@@ -1148,24 +1186,28 @@ void ObjectExplorer::generate_sdk() {
 
                 genny::Function* m = nullptr;
 
-
                 std::ostringstream os{};
                 os << "// " << (variable->typeName != nullptr ? variable->typeName : "") << "\n";
 
-                if (variable->staticVariableData != nullptr) {
+                if (utility::reflection_property::is_static(variable)) {
                     m = c->static_function(variable->name);
 
-                    os << "static auto info = g_framework->get_types()->get(\"" << t->name << "\")->classInfo->parentInfo;\n";
-                    os << "auto dummy_type = REManagedObject{ };\n";
-                    os << "dummy_type.info = info;\n";
-                    os << "return utility::re_managed_object::get_field<sdk::DummyData>(obj, utility::re_managed_object::get_field_desc(&dummy_type, \"" << variable->name << "\"));\n";
+                    os << "auto tbl = sdk::REGlobalContext::get()->get_static_tbl_for_type(*(uint32_t*)get_type_info()->classInfo & 0x3FFF);\n";
+                    os << "if (tbl == nullptr) {\n return nullptr;\n}\n";
+                    os << "return utility::re_managed_object::get_field<sdk::DummyData>((REManagedObject*)tbl, utility::re_type::get_field_desc(get_type_info(), \"" << variable->name << "\"));\n";
 
-                    m->procedure(os.str())->param("obj")->type(g->type("REManagedObject*")->size(sizeof(REManagedObject*)));
+                    m->procedure(os.str());
                 }
                 else {
                     m = c->function(variable->name);
 
-                    os << "return utility::re_managed_object::get_field<sdk::DummyData>(this, " << "\"" << variable->name << "\");";
+                    if (!is_singleton) {
+                        os << "return utility::re_managed_object::get_field<sdk::DummyData>((REManagedObject*)this, " << "\"" << variable->name << "\");";
+                    }
+                    else {
+                        os << "return utility::re_managed_object::get_field<sdk::DummyData>((REManagedObject*)this, utility::re_type::get_field_desc(get_type_info(), " << "\"" << variable->name << "\"));";
+                    }
+
                     m->procedure(os.str());
                 }
 

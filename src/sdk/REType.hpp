@@ -3,6 +3,7 @@
 class REType;
 class REVariableList;
 class VariableDescriptor;
+class FunctionDescriptor;
 
 // Flags
 namespace via::dti {
@@ -25,4 +26,5 @@ bool is_singleton(::REType* t);
 void* get_singleton_instance(::REType* t);
 REVariableList* get_variables(::REType* t);
 VariableDescriptor* get_field_desc(::REType* t, std::string_view field);
+FunctionDescriptor* get_method_desc(::REType* t, std::string_view name);
 } // namespace utility::re_type
