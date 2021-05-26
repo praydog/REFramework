@@ -1786,7 +1786,8 @@ void ObjectExplorer::attempt_display_field(REManagedObject* obj, VariableDescrip
     constexpr auto min_uint64 = std::numeric_limits<uint64_t>::min();
     constexpr auto max_uint64 = std::numeric_limits<uint64_t>::max();
 
-    constexpr auto min_float = std::numeric_limits<float>::min();
+    // uh okay
+    constexpr auto min_float = std::numeric_limits<float>::lowest();
     constexpr auto max_float = std::numeric_limits<float>::max();
 
     constexpr auto min_zero = 0;
@@ -1924,7 +1925,6 @@ void ObjectExplorer::attempt_display_field(REManagedObject* obj, VariableDescrip
         case "System.Nullable`1<via.vec3>"_fnv:
         case "via.Float3"_fnv:
         case "via.vec3"_fnv:
-        case "via.vec4"_fnv:
         {
             auto vec = (Vector3f*)&data;
 
@@ -1940,6 +1940,8 @@ void ObjectExplorer::attempt_display_field(REManagedObject* obj, VariableDescrip
 
             break;
         }
+
+        case "via.vec4"_fnv:
         case "via.Quaternion"_fnv:
         {
             auto& quat = *(glm::quat*)&data;
