@@ -15,7 +15,7 @@ code_typedefs = {
     "U16": "RSZUShort"
 }
 
-def main(il2cpp_path="il2cpp_dump.json", natives_path=None):
+def main(il2cpp_path="il2cpp_dump.json", natives_path=None, use_typedefs=False):
     with open(il2cpp_path, "r", encoding="utf8") as f:
         il2cpp_dump = json.load(f)
 
@@ -28,10 +28,17 @@ def main(il2cpp_path="il2cpp_dump.json", natives_path=None):
         print("No natives file found, output may be incorrect for some types")
 
     out_str = ""
+    out_json = {}
     
     for key, entry in il2cpp_dump.items():
         if entry is None or "RSZ" not in entry:
             continue
+
+        out_json[key] = {}
+        json_entry = out_json[key]
+        json_entry["fqn"] = entry["fqn"]
+        json_entry["crc"] = entry["crc"]
+        json_entry["fields"] = []
 
         struct_str = "// " + entry["fqn"] + "\n"
         struct_str = struct_str + "struct " + key + " {\n"
@@ -79,7 +86,16 @@ def main(il2cpp_path="il2cpp_dump.json", natives_path=None):
                         
                         return "Data%iA%i" % (element["size"], element["align"])
                     
-                    struct_str = struct_str + "    " + generate_name(field) + " v" + str(i) + ";\n"
+                    native_type_name = generate_name(field)
+                    native_field_name = "v" + str(i)
+
+                    json_entry["fields"].append({
+                        "type": native_type_name,
+                        "name": native_field_name,
+                        "original_type": ""
+                    })
+
+                    struct_str = struct_str + "    " + native_type_name + " " + native_field_name + ";\n"
                     i = i + 1
 
                 struct_str = struct_str + "// " + chain["name"] + " END\n"
@@ -96,13 +112,20 @@ def main(il2cpp_path="il2cpp_dump.json", natives_path=None):
             code = rsz_entry["code"]
             type = rsz_entry["type"]
             
-            if code in code_typedefs:
-                code = code_typedefs[code]
-            else:
-                code = "RSZ" + code
+            if use_typedefs == True:
+                if code in code_typedefs:
+                    code = code_typedefs[code]
+                else:
+                    code = "RSZ" + code
 
             if rsz_entry["array"] == True:
                 code = code + "List"
+
+            json_entry["fields"].append({
+                "type": code,
+                "name": name,
+                "original_type": type
+            })
 
             field_str = "    " + code + " " + name + "; //\"" + type + "\""
             struct_str = struct_str + field_str + "\n"
@@ -114,6 +137,9 @@ def main(il2cpp_path="il2cpp_dump.json", natives_path=None):
 
     with open("RSZ_dump_python.txt", "w", encoding="utf8") as f:
         f.write(out_str)
+
+    with open("RSZ_dump_python.json", "w", encoding="utf8") as f:
+        json.dump(out_json, f, indent=4, sort_keys=True)
 
 
 if __name__ == '__main__':

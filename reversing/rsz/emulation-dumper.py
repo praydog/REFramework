@@ -663,21 +663,6 @@ def main(p, test_mode=False):
                 "name": entry["name"],
                 "layout": detect_members(int(entry["address"], 16))
             })
-        
-        def generate_metastring(layout):
-            metastring = ""
-
-            if layout["list"] == True and layout["string"] == True:
-                metastring = "LIST AND STRING?????"
-            if layout["string"] == True:
-                metastring = "STRING"
-            elif layout["list"] == True:
-                metastring = "LIST %X %X" % (layout["element_size"], layout["element"]["align"])
-
-            if layout["element"] is not None:
-                return metastring + " " + generate_metastring(layout["element"])
-
-            return metastring
 
         def generate_typename(layout):
             typename = ""
@@ -707,9 +692,6 @@ def main(p, test_mode=False):
                 struct_str = struct_str + "// " + parent["name"] + " BEGIN\n"
 
                 for layout in parent["layout"]:
-                    # metastring = generate_metastring(layout)
-                    # print("%i %X %X %s" % (i + 1, layout["size"], layout["align"], metastring))
-
                     type_name = generate_typename(layout)
                     var_name = "v" + str(i)
 
