@@ -1,3 +1,5 @@
+#include <shared_mutex>
+
 #include "../REFramework.hpp"
 #include "ReClass.hpp"
 
@@ -52,18 +54,22 @@ void* utility::re_type::get_singleton_instance(::REType* t) {
     return out;
 }
 
+static std::shared_mutex insertion_mutex{};
+static std::unordered_map<std::string, VariableDescriptor*> var_map{};
+
 VariableDescriptor* utility::re_type::get_field_desc(::REType* t, std::string_view field) {
     if (t == nullptr) {
         return nullptr;
     }
 
-    static std::mutex insertion_mutex{};
-    static std::unordered_map<std::string, VariableDescriptor*> var_map{};
-
     auto full_name = std::string{t->name} + "." + field.data();
 
-    if (var_map.find(full_name) != var_map.end()) {
-        return var_map[full_name];
+    {
+        std::shared_lock _{ insertion_mutex };
+
+        if (var_map.find(full_name) != var_map.end()) {
+            return var_map[full_name];
+        }
     }
 
     for (; t != nullptr; t = t->super) {
@@ -81,7 +87,7 @@ VariableDescriptor* utility::re_type::get_field_desc(::REType* t, std::string_vi
             }
 
             if (field == var->name) {
-                std::lock_guard _{insertion_mutex};
+                std::unique_lock _{insertion_mutex};
                 var_map[full_name] = var;
                 return var;
             }
@@ -105,18 +111,22 @@ REVariableList* utility::re_type::get_variables(::REType* t) {
     return vars;
 }
 
-FunctionDescriptor* utility::re_type::get_method_desc(::REType* t, std::string_view name) {
-    static std::mutex insertion_mutex{};
-    static std::unordered_map<std::string, FunctionDescriptor*> var_map{};
+static std::shared_mutex method_insertion_mutex{};
+static std::unordered_map<std::string, FunctionDescriptor*> method_map{};
 
+FunctionDescriptor* utility::re_type::get_method_desc(::REType* t, std::string_view name) {
     if (t == nullptr) {
         return nullptr;
     }
 
     auto full_name = std::string{t->name} + "." + name.data();
 
-    if (var_map.find(full_name) != var_map.end()) {
-        return var_map[full_name];
+    {
+        std::shared_lock _{ method_insertion_mutex };
+
+        if (method_map.find(full_name) != method_map.end()) {
+            return method_map[full_name];
+        }
     }
 
     for (; t != nullptr; t = t->super) {
@@ -142,8 +152,8 @@ FunctionDescriptor* utility::re_type::get_method_desc(::REType* t, std::string_v
             }
 
             if (name == holder.descriptor->name) {
-                std::lock_guard _{insertion_mutex};
-                var_map[full_name] = holder.descriptor;
+                std::unique_lock _{ method_insertion_mutex};
+                method_map[full_name] = holder.descriptor;
                 return holder.descriptor;
             }
         }
