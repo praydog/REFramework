@@ -1475,7 +1475,9 @@ void ObjectExplorer::handle_type(REManagedObject* obj, REType* t) {
             continue;
         }
 
-        auto made_node = widget_with_context(type_info, [&name]() { return ImGui::TreeNode(name); });
+        auto obj_for_widget = (type_info == t && is_singleton && !is_real_obj) ? utility::re_type::get_singleton_instance(type_info) : t;
+
+        auto made_node = widget_with_context(obj_for_widget, [&name]() { return ImGui::TreeNode(name); });
 
         // top
         if (is_singleton && type_info == t) {
@@ -1690,6 +1692,7 @@ void ObjectExplorer::display_fields(REManagedObject* obj, REType* type_info) {
             // Set the obj to the static table so we can get static variables
             if (utility::reflection_property::is_static(variable)) {
                 const auto type_index = BitReader{&type_info->classInfo->typeIndex}.read<uint32_t>(18);
+
                 local_obj = (REManagedObject*)sdk::REGlobalContext::get()->get_static_tbl_for_type(type_index);
 
                 make_same_line_text("STATIC", ImVec4{ 1.0f, 0.0f, 0.0f, 1.0f });
@@ -1763,53 +1766,108 @@ void ObjectExplorer::attempt_display_field(REManagedObject* obj, VariableDescrip
         }
     };
 
-    auto prop_flags = *(PropertyFlags*)&desc->flags;
-
-    const auto is_pointer = prop_flags.managed_str || prop_flags.type_attr == 1 || prop_flags.type_attr == 2;
-
     auto type_name = std::string{ desc->typeName };
     auto ret = utility::hash(type_name);
     auto get_value_func = (void* (*)(VariableDescriptor*, REManagedObject*, void*))desc->function;
 
     char raw_data[0x100]{ 0 };
-    auto type_kind = (via::reflection::TypeKind)(desc->flags & 0x1F);
+
+    constexpr auto min_i8 = std::numeric_limits<int8_t>::min();
+    constexpr auto max_i8 = std::numeric_limits<int8_t>::max();
+    constexpr auto min_int = std::numeric_limits<int32_t>::min();
+    constexpr auto max_int = std::numeric_limits<int32_t>::max();
+    constexpr auto min_int64 = std::numeric_limits<int64_t>::min();
+    constexpr auto max_int64 = std::numeric_limits<int64_t>::max();
+
+    constexpr auto min_u8 = std::numeric_limits<uint8_t>::min();
+    constexpr auto max_u8 = std::numeric_limits<uint8_t>::max();
+    constexpr auto min_uint = std::numeric_limits<uint32_t>::min();
+    constexpr auto max_uint = std::numeric_limits<uint32_t>::max();
+    constexpr auto min_uint64 = std::numeric_limits<uint64_t>::min();
+    constexpr auto max_uint64 = std::numeric_limits<uint64_t>::max();
+
+    constexpr auto min_float = std::numeric_limits<float>::min();
+    constexpr auto max_float = std::numeric_limits<float>::max();
+
+    constexpr auto min_zero = 0;
 
     // 0x10 == pointer, i think?
     //if (type_kind != via::reflection::TypeKind::Class) {
         get_value_func(desc, obj, &raw_data);
 
-        auto& data = (is_pointer ? **(char***)&raw_data : *(char**)&raw_data);
-        auto field_offset = get_field_offset(obj, desc, type_info);
+        auto prop_flags = *(PropertyFlags*)&desc->flags;
+        const auto is_pointer = prop_flags.managed_str || prop_flags.type_attr == 1 || prop_flags.type_attr == 2;
 
-        if (data == nullptr) {
+        if (is_pointer && *(void**)&raw_data == nullptr) {
+            ImGui::Text("Null pointer");
             return;
         }
 
+        auto& data = (is_pointer ? **(char***)&raw_data : *(char**)&raw_data);
+        auto field_offset = get_field_offset(obj, desc, type_info);
 
         // yay for compile time string hashing
         switch (ret) {
-            // signed 32
+        case "size_t"_fnv:
         case "u64"_fnv:
-            ImGui::Text("%llu", *(int64_t*)&data);
-
-            break;
-        case "u32"_fnv:
-            ImGui::Text("%i", *(int32_t*)&data);
+            ImGui::Text("%llu", *(uint64_t*)&data);
 
             if (field_offset != 0) {
-                auto& int_val = *Address{ obj }.get(field_offset).as<int32_t*>();
+                auto& int_val = *Address{obj}.get(field_offset).as<uint64_t*>();
 
-                ImGui::SliderInt("Set Value", &int_val, int_val - 1, int_val + 1);
+                ImGui::DragScalar("Set Value", ImGuiDataType_U64, &int_val, 1.0f, &min_uint64, &max_uint64);
             }
 
             break;
+
+        case "s64"_fnv:
+            ImGui::Text("%lli", *(int64_t*)&data);
+
+            if (field_offset != 0) {
+                auto& int_val = *Address{obj}.get(field_offset).as<int64_t*>();
+
+                ImGui::DragScalar("Set Value", ImGuiDataType_S64, &int_val, 1.0f, &min_int64, &max_int64);
+            }
+
+            break;
+        case "u32"_fnv:
+            ImGui::Text("%u", *(int32_t*)&data);
+
+            if (field_offset != 0) {
+                auto& int_val = *Address{obj}.get(field_offset).as<uint32_t*>();
+
+                ImGui::DragInt("Set Value", (int*)&int_val, 1.0f, min_uint, max_uint);
+            }
+
+            break;
+
         case "s32"_fnv:
             ImGui::Text("%i", *(int32_t*)&data);
 
             if (field_offset != 0) {
                 auto& int_val = *Address{ obj }.get(field_offset).as<int32_t*>();
 
-                ImGui::SliderInt("Set Value", &int_val, int_val - 1, int_val + 1);
+                ImGui::DragInt("Set Value", (int*)&int_val, 1.0f, min_int, max_int);
+            }
+
+            break;
+        case "u8"_fnv:
+            ImGui::Text("%u", *(uint8_t*)&data);
+
+            if (field_offset != 0) {
+                auto& int_val = *Address{obj}.get(field_offset).as<int8_t*>();
+
+                ImGui::DragScalar("Set Value", ImGuiDataType_U8, &int_val, 1.0f, &min_u8, &max_u8);
+            }
+
+            break;
+        case "s8"_fnv:
+            ImGui::Text("%i", *(int8_t*)&data);
+
+            if (field_offset != 0) {
+                auto& int_val = *Address{obj}.get(field_offset).as<int8_t*>();
+
+                ImGui::DragScalar("Set Value", ImGuiDataType_S8, &int_val, 1.0f, &min_i8, &max_i8);
             }
 
             break;
@@ -1821,7 +1879,7 @@ void ObjectExplorer::attempt_display_field(REManagedObject* obj, VariableDescrip
             if (field_offset != 0) {
                 auto& float_val = *Address{ obj }.get(field_offset).as<float*>();
 
-                ImGui::SliderFloat("Set Value", &float_val, float_val - 1.0f, float_val + 1.0f);
+                ImGui::DragFloat("Set Value", &float_val, 0.01f, min_float, max_float);
             }
             
             break;
@@ -1843,18 +1901,10 @@ void ObjectExplorer::attempt_display_field(REManagedObject* obj, VariableDescrip
 
             break;
         case "c16"_fnv:
-            if (*(wchar_t**)&data == nullptr) {
-                break;
-            }
-
-            ImGui::Text("%s", utility::narrow(*(wchar_t**)&data).c_str());
+            ImGui::Text("%s", utility::narrow((wchar_t*)&data).c_str());
             break;
         case "c8"_fnv:
-            if (*(char**)&data == nullptr) {
-                break;
-            }
-
-            ImGui::Text("%s", *(char**)&data);
+            ImGui::Text("%s", (char*)&data);
             break;
         case "System.Nullable`1<via.vec2>"_fnv:
         case "via.vec2"_fnv:
@@ -1865,13 +1915,8 @@ void ObjectExplorer::attempt_display_field(REManagedObject* obj, VariableDescrip
 
             if (field_offset != 0) {
                 auto& vec_val = *Address{ obj }.get(field_offset).as<Vector2f*>();
-                auto largest_val = vec_val.x;
 
-                if (vec_val.y > largest_val) {
-                    largest_val = vec_val.y;
-                }
-
-                ImGui::SliderFloat2("Set Value", (float*)&vec_val, largest_val - 1.0f, largest_val + 1.0f);
+                ImGui::DragFloat2("Set Value", (float*)&vec_val, 0.01f, min_float, max_float);
             }
 
             break;
@@ -1879,6 +1924,7 @@ void ObjectExplorer::attempt_display_field(REManagedObject* obj, VariableDescrip
         case "System.Nullable`1<via.vec3>"_fnv:
         case "via.Float3"_fnv:
         case "via.vec3"_fnv:
+        case "via.vec4"_fnv:
         {
             auto vec = (Vector3f*)&data;
 
@@ -1888,17 +1934,8 @@ void ObjectExplorer::attempt_display_field(REManagedObject* obj, VariableDescrip
 
             if (field_offset != 0) {
                 auto& vec_val = *Address{ obj }.get(field_offset).as<Vector3f*>();
-                auto largest_val = vec_val.x;
 
-                if (vec_val.y > largest_val) {
-                    largest_val = vec_val.y;
-                }
-
-                if (vec_val.z > largest_val) {
-                    largest_val = vec_val.z;
-                }
-                
-                ImGui::SliderFloat3("Set Value", (float*)&vec_val, largest_val - 1.0f, largest_val + 1.0f);
+                ImGui::DragFloat3("Set Value", (float*)&vec_val, 0.01f, min_float, max_float);
             }
 
             break;
@@ -1910,21 +1947,8 @@ void ObjectExplorer::attempt_display_field(REManagedObject* obj, VariableDescrip
 
             if (field_offset != 0) {
                 auto& vec_val = *Address{ obj }.get(field_offset).as<Vector4f*>();
-                auto largest_val = vec_val.x;
 
-                if (vec_val.y > largest_val) {
-                    largest_val = vec_val.y;
-                }
-
-                if (vec_val.z > largest_val) {
-                    largest_val = vec_val.z;
-                }
-
-                if (vec_val.w > largest_val) {
-                    largest_val = vec_val.w;
-                }
-
-                ImGui::SliderFloat4("Set Value", (float*)&vec_val, largest_val - 1.0f, largest_val + 1.0f);
+                ImGui::DragFloat4("Set Value", (float*)&vec_val, 0.01f, min_float, max_float);
             }
 
             break;
@@ -1949,7 +1973,7 @@ void ObjectExplorer::attempt_display_field(REManagedObject* obj, VariableDescrip
             break;
         default: 
         {
-            if (type_kind == via::reflection::TypeKind::Enum) {
+            if (prop_flags.type_kind == (uint32_t)via::reflection::TypeKind::Enum) {
                 auto value = *(int32_t*)&data;
                 display_enum_value(type_name, (int64_t)value);
 
@@ -1981,10 +2005,26 @@ int32_t ObjectExplorer::get_field_offset(REManagedObject* obj, VariableDescripto
         return m_offset_map[desc];
     }
 
-    auto ret = utility::hash(std::string{ desc->typeName });
+    const auto parent_hash = utility::hash(std::string{ type_info->name });
+    const auto name_hash = utility::hash(std::string{ desc->name });
+    const auto ret_hash = utility::hash(std::string{ desc->typeName });
 
     // These usually modify the object state, not what we want.
-    if (ret == "undefined"_fnv) {
+    if (ret_hash == "undefined"_fnv) {
+        return m_offset_map[desc];
+    }
+
+    // this function modifies some state which causes an unrecoverable exception
+    // not very interested to figure out a generic way to fix it right now
+    if (parent_hash == "via.wwise.WwiseDriver"_fnv && name_hash == "AudioInput"_fnv) {
+        return m_offset_map[desc];
+    }
+
+    if (parent_hash == "via.wwise.WwiseManager"_fnv && name_hash == "ObsOclTargetParamList"_fnv) {
+        return m_offset_map[desc];
+    }
+
+    if (parent_hash == "via.wwise.WwiseManager"_fnv && name_hash == "MaterialObsOclParamList"_fnv) {
         return m_offset_map[desc];
     }
 
@@ -2018,12 +2058,12 @@ int32_t ObjectExplorer::get_field_offset(REManagedObject* obj, VariableDescripto
                 if (count_delta >= 1) {
                     --reference_count;
 
-                    static void* (*func1)(void*) = nullptr;
-                    static void* (*func2)(void*) = nullptr;
-                    static void* (*func3)(void*) = nullptr;
+                    static void* (*context_unhandled_exception_fn)(REThreadContext*) = nullptr;
+                    static void* (*context_local_frame_gc_fn)(REThreadContext*) = nullptr;
+                    static void* (*context_end_global_frame_fn)(REThreadContext*) = nullptr;
 
                     // Get our function pointers
-                    if (func1 == nullptr) {
+                    if (context_unhandled_exception_fn == nullptr) {
                         spdlog::info("Locating funcs");
                         
                         // Version 1
@@ -2037,22 +2077,22 @@ int32_t ObjectExplorer::get_field_offset(REManagedObject* obj, VariableDescripto
                             break;
                         }
 
-                        func1 = Address{ utility::calculate_absolute(*ref + 11) }.as<decltype(func1)>();
-                        func2 = Address{ utility::calculate_absolute(*ref + 19) }.as<decltype(func2)>();
-                        func3 = Address{ utility::calculate_absolute(*ref + 27) }.as<decltype(func3)>();
+                        context_unhandled_exception_fn = Address{ utility::calculate_absolute(*ref + 11) }.as<decltype(context_unhandled_exception_fn)>();
+                        context_local_frame_gc_fn = Address{ utility::calculate_absolute(*ref + 19) }.as<decltype(context_local_frame_gc_fn)>();
+                        context_end_global_frame_fn = Address{ utility::calculate_absolute(*ref + 27) }.as<decltype(context_end_global_frame_fn)>();
 
-                        spdlog::info("F1 {:x}", (uintptr_t)func1);
-                        spdlog::info("F2 {:x}", (uintptr_t)func2);
-                        spdlog::info("F3 {:x}", (uintptr_t)func3);
+                        spdlog::info("Context::UnhandledException {:x}", (uintptr_t)context_unhandled_exception_fn);
+                        spdlog::info("Context::LocalFrameGC {:x}", (uintptr_t)context_local_frame_gc_fn);
+                        spdlog::info("Context::EndGlobalFrame {:x}", (uintptr_t)context_end_global_frame_fn);
                     }
 
                     // Perform object cleanup that was missed because an exception occurred.
                     if (thread_context->unkPtr != nullptr && thread_context->unkPtr->unkPtr != nullptr) {
-                        func1(thread_context);
+                        context_unhandled_exception_fn(thread_context);
                     }
 
-                    func2(thread_context);
-                    func3(thread_context);
+                    context_local_frame_gc_fn(thread_context);
+                    context_end_global_frame_fn(thread_context);
                 }
                 else if (count_delta == 0) {
                     spdlog::info("No fix necessary");
@@ -2094,9 +2134,13 @@ int32_t ObjectExplorer::get_field_offset(REManagedObject* obj, VariableDescripto
 
     // Copy the object so we don't cause a crash by replacing
     // data that's being used by the game
-    std::vector<uint8_t> object_copy;
+    std::vector<uint8_t> object_copy{};
     object_copy.reserve(class_size);
     memcpy(object_copy.data(), obj, class_size);
+
+    auto first_time = std::chrono::high_resolution_clock::now();
+
+    spdlog::info("{:d} {:s}", GetCurrentThreadId(), desc->name);
 
     // Compare data
     for (int32_t i = sizeof(REManagedObject); i + size <= (int32_t)class_size; i += 1) {
@@ -2138,6 +2182,14 @@ int32_t ObjectExplorer::get_field_offset(REManagedObject* obj, VariableDescripto
 
             // Modify the data for our second run.
             *ptr ^= 1;
+        }
+
+        auto elapsed_time = std::chrono::high_resolution_clock::now() - first_time;
+        const auto pct = (float)i / (float)class_size;
+
+        // this is taking way too long
+        if (pct < 50.0f && elapsed_time >= std::chrono::seconds(1)) {
+            break;
         }
 
         if (same) {
