@@ -1065,9 +1065,10 @@ protected:
     }
 
     std::filesystem::path include_path(Object* from, Object* to) const {
-        auto to_path = include_path_for_object(to);
-        auto from_path = include_path_for_object(from);
-        return std::filesystem::relative(to_path.parent_path(), from_path.parent_path()) / to_path.filename();
+        auto to_path = std::filesystem::absolute(include_path_for_object(to));
+        auto from_path = std::filesystem::absolute(include_path_for_object(from));
+        auto rel_path = std::filesystem::relative(to_path.parent_path(), from_path.parent_path()) / to_path.filename();
+        return rel_path;
     }
 
     template <typename T> void generate_header(const std::filesystem::path& sdk_path, T* obj) const {
