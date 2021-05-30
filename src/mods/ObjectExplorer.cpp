@@ -29,6 +29,12 @@ std::unordered_map<uint32_t, std::shared_ptr<detail::ParsedMethod>> g_imethoddb{
 constexpr std::string_view TYPE_INFO_NAME = "REType";
 constexpr std::string_view TYPE_DEFINITION_NAME = "REClassInfo";
 
+#ifdef RE8
+constexpr uint8_t TYPE_INDEX_BITS = 18;
+#else
+constexpr uint8_t TYPE_INDEX_BITS = 17;
+#endif
+
 std::unordered_set<std::string> g_class_set{};
 
 struct PropertyFlags {
@@ -448,7 +454,11 @@ std::string ObjectExplorer::generate_full_name(RETypeDB* tdb, uint32_t i) {
 
     if (raw_t.generics > 0) {
         struct GenericListData {
+#ifdef RE8
             uint32_t definition_typeid : 18;
+#else
+            uint32_t definition_typeid : 17;
+#endif
             uint32_t num : 14;
             uint32_t types[1];
         };
@@ -1218,10 +1228,23 @@ void ObjectExplorer::generate_sdk() {
                 auto field_t = g_fqntypedb[variable->typeFqn];
                 auto field_t_name = (field_t != nullptr && variable->typeFqn != 0) ? field_t->full_name : variable->typeName;
 
-                il2cpp_dump[t->name]["reflection_properties"][variable->name] = {
+                auto& prop_entry = il2cpp_dump[t->name]["reflection_properties"][variable->name];
+
+                prop_entry = {
                     {"getter", (std::stringstream{} << "0x" << std::hex << (uintptr_t)variable->function).str()},
                     {"type", field_t_name},
                 };
+
+                // Property attributes
+                if (variable->attributes != 0 && variable->attributes != -1) {
+                    for (auto attr = (REAttribute*)((uintptr_t)&variable->attributes + variable->attributes); attr != nullptr && !IsBadReadPtr(attr, sizeof(REAttribute)) && attr->info != nullptr; attr = attr->next) {
+                        auto type_func = (REType* (*)())attr->info->getType;
+
+                        prop_entry["attributes"].emplace_back(
+                            json{ {"name", type_func()->name } }
+                        );
+                    }
+                }
 #endif
             }
         }

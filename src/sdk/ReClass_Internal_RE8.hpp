@@ -3516,7 +3516,7 @@ public:
     int32_t (*attributes2)[256];                 // 0x00C0
     void* stringPool;                            // 0x00C8
     uint8_t (*bytePool)[256];                    // 0x00D0
-    int32_t (*internStrings)[256];               // 0x00D8
+    int32_t (*internStrings)[14154];             // 0x00D8
 };                                               // Size: 0x00E0
 static_assert(sizeof(RETypeDB) == 0xE0);
 
@@ -3602,6 +3602,13 @@ public:
 };                                              // Size: 0x0010
 static_assert(sizeof(RENativeArray_SystemRuntimeType) == 0x10);
 
+class RENativeArray_Static {
+public:
+    class N00004CB2* (*N00002F64)[93788]; // 0x0000
+    uint64_t num;                         // 0x0008
+};                                        // Size: 0x0010
+static_assert(sizeof(RENativeArray_Static) == 0x10);
+
 class N0000306B {
 public:
     char pad_0000[448]; // 0x0000
@@ -3617,7 +3624,8 @@ public:
     uint32_t N000030CA;                            // 0x3574
     char pad_3578[32];                             // 0x3578
     class RENativeArray_SystemRuntimeType typeTbl; // 0x3598
-    char pad_35A8[48];                             // 0x35A8
+    class RENativeArray_Static staticTbl;          // 0x35A8
+    char pad_35B8[32];                             // 0x35B8
     class RETypeDB* typeDb;                        // 0x35D8
     class N00003030* N00002F73;                    // 0x35E0
     class N0000306B jobs[256];                     // 0x35E8
@@ -3679,8 +3687,27 @@ static_assert(sizeof(RETypeCLR) == 0x80);
 
 class DeserializeSequence {
 public:
-    uint32_t data;                 // 0x0000
+    int32_t data;                  // 0x0000
     uint32_t offset;               // 0x0004
     class REClassInfo* nativeType; // 0x0008
 };                                 // Size: 0x0010
 static_assert(sizeof(DeserializeSequence) == 0x10);
+
+class InternStrings {
+public:
+    class SystemString* (*N00004B5E)[20000]; // 0x0000
+};                                           // Size: 0x0008
+static_assert(sizeof(InternStrings) == 0x8);
+
+class N00004CB2 {
+public:
+    char pad_0000[136]; // 0x0000
+};                      // Size: 0x0088
+static_assert(sizeof(N00004CB2) == 0x88);
+
+class REAttribute : public REObject {
+public:
+    char pad_0008[8];        // 0x0008
+    class REAttribute* next; // 0x0010
+};                           // Size: 0x0018
+static_assert(sizeof(REAttribute) == 0x18);
