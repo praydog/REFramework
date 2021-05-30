@@ -57,5 +57,6 @@ private:
     int32_t m_light_power_on_zones{ 0 };
 #endif
 
+    bool m_wants_flashlight{ false };
     void on_disabled() noexcept;
 };

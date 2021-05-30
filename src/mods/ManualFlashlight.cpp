@@ -6,8 +6,8 @@ using namespace utility;
 
 void ManualFlashlight::on_frame() {
     // TODO: Add controller support.
-    if (m_key->is_key_down_once() && !m_enabled->toggle()) {
-        on_disabled();
+    if (m_key->is_key_down_once()) {
+        m_wants_flashlight = !m_wants_flashlight;
     }
 }
 
@@ -45,7 +45,7 @@ void ManualFlashlight::on_config_save(utility::Config& cfg) {
 void ManualFlashlight::on_update_transform(RETransform* transform) {
     if (!m_enabled->value()) {
         return;
-    } 
+    }
 
 #ifndef RE8
     if (m_illumination_manager == nullptr) {
@@ -59,9 +59,9 @@ void ManualFlashlight::on_update_transform(RETransform* transform) {
         return;
     }
 
-    m_illumination_manager->shouldUseFlashlight = 1;
-    m_illumination_manager->someCounter = 1;
-    m_illumination_manager->shouldUseFlashlight2 = true;
+    m_illumination_manager->shouldUseFlashlight = (int32_t)m_wants_flashlight;
+    m_illumination_manager->someCounter = (int32_t)m_wants_flashlight;
+    m_illumination_manager->shouldUseFlashlight2 = m_wants_flashlight;
 #else
     const auto reset_player_data = [&](REGameObject* new_player = nullptr) {
         m_player = new_player;
@@ -110,7 +110,7 @@ void ManualFlashlight::on_update_transform(RETransform* transform) {
         light_power_on_zones = 0;
     }
 
-    m_player_hand_light->IsContinuousOn = true;
+    m_player_hand_light->IsContinuousOn = m_wants_flashlight;
 #endif
 }
 
