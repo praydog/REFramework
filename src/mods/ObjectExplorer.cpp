@@ -959,7 +959,6 @@ void ObjectExplorer::generate_sdk() {
         //spdlog::info("{:s} {:s}.{:s}: 0x{:x}", field_type_name, desc->t->type->name, name, pf->offset_from_base);
     }
 
-    std::ofstream pseudocode_dump{ "RSZ_dump.txt" };
 
     // Try and guess what the field names are for the RSZ entries
     for (auto& t : g_itypedb) {
@@ -971,13 +970,6 @@ void ObjectExplorer::generate_sdk() {
 
         if (!t_json.contains("RSZ")) {
             continue;
-        }
-
-        pseudocode_dump << "// " << t_json["fqn"].get<std::string>() << std::endl;
-        pseudocode_dump << "struct " << t.second->full_name << " {" << std::endl;
-
-        if (t_json.contains("parent")) {
-            pseudocode_dump << "    " << t_json["parent"].get<std::string>() << " parent" << ";" << std::endl;
         }
 
         int32_t i = 0;
@@ -1008,23 +1000,14 @@ void ObjectExplorer::generate_sdk() {
                 fieldptr_adjustment += field_ptr - field_ptr2;
             }
 
-            auto field_name = std::string{ "v" } + std::to_string(i++);
-
             for (auto& f : depth_t->parsed_fields) {
                 if (f->offset_from_fieldptr + fieldptr_adjustment == rsz_offset) {
                     rsz_entry["potential_name"] = f->name;
-                    field_name = f->name;
                     break;
                 }
             }
-
-            pseudocode_dump << "    " << rsz_entry["code"].get<std::string>() << " " << field_name << "; //" << rsz_entry["type"] << std::endl;
         }
-
-        pseudocode_dump << "};" << std::endl;
     }
-
-    pseudocode_dump.close();
 #endif
 
     // First pass, gather all valid class names
@@ -1234,7 +1217,7 @@ void ObjectExplorer::generate_sdk() {
                     {"getter", (std::stringstream{} << "0x" << std::hex << (uintptr_t)variable->function).str()},
                     {"type", field_t_name},
                 };
-
+                
                 // Property attributes
                 if (variable->attributes != 0 && variable->attributes != -1) {
                     for (auto attr = (REAttribute*)((uintptr_t)&variable->attributes + variable->attributes); attr != nullptr && !IsBadReadPtr(attr, sizeof(REAttribute)) && attr->info != nullptr; attr = attr->next) {
