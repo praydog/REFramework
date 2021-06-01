@@ -33,6 +33,48 @@ namespace utility {
         return ntHeaders->OptionalHeader.SizeOfImage;
     }
 
+    std::optional<uintptr_t> get_dll_imagebase(Address dll) {
+        if (dll == nullptr) {
+            return {};
+        }
+
+        // Get the dos header and verify that it seems valid.
+        auto dosHeader = dll.as<PIMAGE_DOS_HEADER>();
+
+        if (dosHeader->e_magic != IMAGE_DOS_SIGNATURE) {
+            return {};
+        }
+
+        // Get the nt headers and verify that they seem valid.
+        auto ntHeaders = (PIMAGE_NT_HEADERS)((uintptr_t)dosHeader + dosHeader->e_lfanew);
+
+        if (ntHeaders->Signature != IMAGE_NT_SIGNATURE) {
+            return {};
+        }
+
+        return ntHeaders->OptionalHeader.ImageBase;
+    }
+
+    std::optional<uintptr_t> get_imagebase_va_from_ptr(Address dll, Address base, void* ptr) {
+        auto file_imagebase = get_dll_imagebase(dll);
+
+        if (!file_imagebase) {
+            return {};
+        }
+
+        return *file_imagebase + ((uintptr_t)ptr - base.as<uintptr_t>());
+    }
+
+
+    std::optional<std::string> get_module_path(HMODULE module) {
+        wchar_t fileName[MAX_PATH]{0};
+        if (GetModuleFileNameW(module, fileName, MAX_PATH) >= MAX_PATH) {
+            return {};
+        }
+
+        return utility::narrow(fileName);
+    }
+
     std::optional<std::string> get_module_directory(HMODULE module) {
         wchar_t fileName[MAX_PATH]{ 0 };
         if (GetModuleFileNameW(module, fileName, MAX_PATH) >= MAX_PATH) {

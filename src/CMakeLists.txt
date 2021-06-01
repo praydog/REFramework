@@ -45,13 +45,17 @@ set(SDK_SRC
     sdk/REGlobals.cpp
     sdk/REManagedObject.hpp
     sdk/REMath.hpp
+    sdk/RENativeArray.hpp
     sdk/REString.hpp
     sdk/RETransform.hpp
     sdk/REType.hpp
     sdk/REType.cpp
+    sdk/RETypeCLR.hpp
     sdk/RETypes.hpp
     sdk/RETypes.cpp
     sdk/RETypeDB.hpp
+    sdk/RETypeDefinition.hpp
+    sdk/RETypeDefinition.cpp
     sdk/REVariableDescriptor.hpp
     sdk/RopewaySweetLightManager.hpp
 )

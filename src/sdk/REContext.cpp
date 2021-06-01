@@ -86,7 +86,6 @@ namespace sdk {
         s_global_context = (decltype(s_global_context))utility::calculate_absolute(*ref + 3);
         s_get_thread_context = (decltype(s_get_thread_context))utility::calculate_absolute(*ref + 13);
 
-#ifdef RE8
         for (auto i = 0; i < 0x20000; i += sizeof(void*)) {
             auto ptr = *(RETypeDB**)((uintptr_t)*s_global_context + i);
 
@@ -94,7 +93,7 @@ namespace sdk {
                 continue;
             }
 
-            if (ptr->magic == *(uint32_t*)"TDB") {
+            if (*(uint32_t*)ptr == *(uint32_t*)"TDB") {
                 s_type_db_offset = i;
                 s_static_tbl_offset = s_type_db_offset - 0x30; // hope this holds true for the older gameS!!!!!!!!!!!!!!!!!!!
                 spdlog::info("[REGlobalContext::update_pointers] s_type_db_offset: {:x}", s_type_db_offset);
@@ -102,7 +101,6 @@ namespace sdk {
                 break;
             }
         }
-#endif
 
         spdlog::info("[REGlobalContext::update_pointers] s_global_context: {:x}", (uintptr_t)s_global_context);
         spdlog::info("[REGlobalContext::update_pointers] s_get_thread_context: {:x}", (uintptr_t)s_get_thread_context);

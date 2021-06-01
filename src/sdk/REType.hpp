@@ -1,5 +1,6 @@
 #pragma once
 
+class REClassInfo;
 class REType;
 class REVariableList;
 class VariableDescriptor;
@@ -19,9 +20,11 @@ enum class decl : uint16_t {
 };
 }
 
+// Utility functions for REType aka via.typeinfo.TypeInfo
 namespace utility::re_type {
 uint32_t get_vm_type(::REType* t);
 uint32_t get_value_type_size(::REType* t);
+bool is_clr_type(::REType* t);
 bool is_singleton(::REType* t);
 void* get_singleton_instance(::REType* t);
 REVariableList* get_variables(::REType* t);

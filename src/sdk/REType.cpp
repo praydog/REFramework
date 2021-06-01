@@ -3,6 +3,7 @@
 #include "../REFramework.hpp"
 #include "ReClass.hpp"
 
+#include "RETypeDefinition.hpp"
 #include "REType.hpp"
 
 uint32_t utility::re_type::get_vm_type(::REType* t) {
@@ -26,13 +27,19 @@ uint32_t utility::re_type::get_value_type_size(::REType* t) {
         return t->size;
     }
 
-    auto class_info = t->classInfo;
 
 #ifdef RE8
-    return (*g_framework->get_types()->get_type_db()->typesImpl)[(class_info->elementBitField >> 4) & ((1 << 18) - 1)].fieldSize;
+    auto class_info = (sdk::RETypeDefVersion69*)t->classInfo;
+
+    return (*g_framework->get_types()->get_type_db()->typesImpl)[class_info->impl_index].fieldSize;
 #else
+    auto class_info = t->classInfo;
     return class_info->elementSize;
 #endif
+}
+
+bool utility::re_type::is_clr_type(::REType* t) {
+    return (t->flags & (int16_t)via::dti::decl::Script) != 0;
 }
 
 bool utility::re_type::is_singleton(::REType* t) {
@@ -161,3 +168,4 @@ FunctionDescriptor* utility::re_type::get_method_desc(::REType* t, std::string_v
 
     return nullptr;
 }
+

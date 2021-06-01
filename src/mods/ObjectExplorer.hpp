@@ -7,7 +7,17 @@
 #include "utility/Address.hpp"
 #include "Mod.hpp"
 
-#ifdef RE8
+#ifdef DMC5
+#define TDB_VER 67
+#elif RE8
+#define TDB_VER 69
+#elif RE3
+#define TDB_VER 67
+#else
+#define TDB_VER 67
+#endif
+
+#if defined(RE8) || defined(RE3)
 namespace detail {
 struct ParsedParams;
 struct ParsedMethod;
@@ -27,7 +37,9 @@ struct ParsedParams {
 struct ParsedMethod {
     std::shared_ptr<ParsedType> owner{};
     REMethodDefinition* m{};
+#if TDB_VER >= 69
     REMethodImpl* m_impl{};
+#endif
     const char* name{};
 
     std::vector<std::shared_ptr<ParsedParams>> params{};
@@ -38,7 +50,9 @@ struct ParsedField {
     std::shared_ptr<ParsedType> owner{};
     std::shared_ptr<ParsedType> type{};
     REField* f{};
+#if TDB_VER >= 69
     REFieldImpl* f_impl{};
+#endif
     const char* name{};
     uint32_t offset_from_fieldptr{};
     uint32_t offset_from_base{};
@@ -50,7 +64,10 @@ struct ParsedProperty {
     std::shared_ptr<ParsedMethod> setter{};
 
     REProperty* p{};
+
+#if TDB_VER >= 69
     REPropertyImpl* p_impl{};
+#endif
     const char* name{};
 };
 
@@ -65,11 +82,14 @@ struct ParsedType {
     std::string full_name{};
 
     std::vector<REMethodDefinition*> methods{};
-    std::vector<REMethodImpl*> method_impls{};
     std::vector<REField*> fields{};
-    std::vector<REFieldImpl*> field_impls{};
     std::vector<REProperty*> props{};
+
+#if TDB_VER >= 69
+    std::vector<REMethodImpl*> method_impls{};
     std::vector<REPropertyImpl> prop_impls{};
+    std::vector<REFieldImpl*> field_impls{};
+#endif
 
     std::vector<std::shared_ptr<ParsedField>> parsed_fields;
     std::vector<std::shared_ptr<ParsedMethod>> parsed_methods;
@@ -87,7 +107,7 @@ public:
     void on_draw_ui() override;
 
 private:
-#ifdef RE8
+#if defined(RE8) || defined(RE3)
     std::shared_ptr<detail::ParsedType> init_type_min(nlohmann::json& il2cpp_dump, RETypeDB* tdb, uint32_t i);
     std::shared_ptr<detail::ParsedType> init_type(nlohmann::json& il2cpp_dump, RETypeDB* tdb, uint32_t i);
     std::string generate_full_name(RETypeDB* tdb, uint32_t i);
@@ -120,6 +140,8 @@ private:
     std::string get_full_enum_value_name(std::string_view enum_name, int64_t value);
     std::string get_enum_value_name(std::string_view enum_name, int64_t value);
     REType* get_type(std::string_view type_name);
+
+    uintptr_t get_original_va(void* ptr);
 
     template <typename T, typename... Args>
     bool stretched_tree_node(T id, Args... args) {
@@ -154,6 +176,8 @@ private:
 
     // Types currently being displayed
     std::vector<REType*> m_displayed_types;
+
+    std::vector<uint8_t> m_module_chunk{};
 
     bool m_do_init{ true };
 };
