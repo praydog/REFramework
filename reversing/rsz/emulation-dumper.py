@@ -441,14 +441,25 @@ def hook_unmapped(emu, access, address, size, value, frame):
     # Continue execution
     return True
 
-
-def main(p, test_mode=False):
+def verify_file(p):
     if not os.path.exists(p):
         print("Path %s does not exist" % p)
+        return False
+
+    if not os.path.isfile(p):
+        print("Path %s is not a file!" % p)
+        return False
+
+    return True
+
+def main(p, il2cpp_path="il2cpp_dump.json", test_mode=False):
+    if not verify_file(p) or not verify_file(il2cpp_path):
         return
 
+    pe_filename = os.path.basename(p)
+
     if test_mode == False:
-        with open("il2cpp_dump.json", "r", encoding="utf8") as f:
+        with open(il2cpp_path, "r", encoding="utf8") as f:
             chains = json.load(f)
     else:
         chains = default_chains
@@ -460,7 +471,7 @@ def main(p, test_mode=False):
     with open(p, "rb") as f:
         data = f.read()
 
-    struct_file = open("dump.txt", "w")
+    struct_file = open("dump_ " + pe_filename + ".txt", "w")
 
     print("Opened with length 0x%X" % len(data))
 
@@ -726,7 +737,7 @@ def main(p, test_mode=False):
         sys.stdout.write("\r%f%%" % (float(count / chains_len) * 100.0))
 
     print("Finished. Dumping to native_layouts.json")
-    with open("native_layouts.json", "w") as f:
+    with open("native_layouts_" + pe_filename + ".json", "w") as f:
         json.dump(native_layouts, f, indent=4, sort_keys=True)
 
     

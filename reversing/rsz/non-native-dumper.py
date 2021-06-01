@@ -15,7 +15,7 @@ code_typedefs = {
     "U16": "RSZUShort"
 }
 
-def main(il2cpp_path="il2cpp_dump.json", natives_path=None, use_typedefs=False):
+def main(out_postfix="", il2cpp_path="il2cpp_dump.json", natives_path=None, use_typedefs=False, use_hashkeys=False):
     with open(il2cpp_path, "r", encoding="utf8") as f:
         il2cpp_dump = json.load(f)
 
@@ -34,9 +34,15 @@ def main(il2cpp_path="il2cpp_dump.json", natives_path=None, use_typedefs=False):
         if entry is None or "RSZ" not in entry:
             continue
 
-        out_json[key] = {}
-        json_entry = out_json[key]
-        json_entry["fqn"] = entry["fqn"]
+        if use_hashkeys:
+            out_json[entry["fqn"]] = {}
+            json_entry = out_json[entry["fqn"]]
+            json_entry["name"] = key
+        else:
+            out_json[key] = {}
+            json_entry = out_json[key]
+            json_entry["fqn"] = entry["fqn"]
+        
         json_entry["crc"] = entry["crc"]
         json_entry["fields"] = []
 
@@ -135,10 +141,10 @@ def main(il2cpp_path="il2cpp_dump.json", natives_path=None, use_typedefs=False):
         struct_str = struct_str + "};\n"
         out_str = out_str + struct_str
 
-    with open("RSZ_dump_python.txt", "w", encoding="utf8") as f:
+    with open("rsz" + out_postfix + ".txt", "w", encoding="utf8") as f:
         f.write(out_str)
 
-    with open("RSZ_dump_python.json", "w", encoding="utf8") as f:
+    with open("rsz" + out_postfix + ".json", "w", encoding="utf8") as f:
         json.dump(out_json, f, indent=4, sort_keys=True)
 
 
