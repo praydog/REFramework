@@ -24,6 +24,7 @@
 #include "RETypes.hpp"
 #include "REType.hpp"
 #include "RETypeCLR.hpp"
+#include "RETypeDB.hpp"
 #include "RETypeDefinition.hpp"
 #include "REArray.hpp"
 #include "REContext.hpp"

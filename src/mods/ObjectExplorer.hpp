@@ -8,16 +8,19 @@
 #include "Mod.hpp"
 
 #ifdef DMC5
+#define TDB_DUMP_ALLOWED
 #define TDB_VER 67
 #elif RE8
+#define TDB_DUMP_ALLOWED
 #define TDB_VER 69
 #elif RE3
+#define TDB_DUMP_ALLOWED
 #define TDB_VER 67
 #else
 #define TDB_VER 67
 #endif
 
-#if defined(RE8) || defined(RE3)
+#ifdef TDB_DUMP_ALLOWED
 namespace detail {
 struct ParsedParams;
 struct ParsedMethod;
@@ -107,7 +110,7 @@ public:
     void on_draw_ui() override;
 
 private:
-#if defined(RE8) || defined(RE3)
+#ifdef TDB_DUMP_ALLOWED
     std::shared_ptr<detail::ParsedType> init_type_min(nlohmann::json& il2cpp_dump, RETypeDB* tdb, uint32_t i);
     std::shared_ptr<detail::ParsedType> init_type(nlohmann::json& il2cpp_dump, RETypeDB* tdb, uint32_t i);
     std::string generate_full_name(RETypeDB* tdb, uint32_t i);

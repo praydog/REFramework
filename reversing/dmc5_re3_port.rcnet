@@ -1013,20 +1013,16 @@
       <node type="UInt32Node" name="elementSize" comment="" hidden="false" />
       <node type="UInt32Node" name="size" comment="" hidden="false" />
       <node type="Hex32Node" name="N00000D89" comment="" hidden="false" />
-      <node type="UInt32Node" name="memberMethod" comment="" hidden="false" />
-      <node type="UInt32Node" name="numMemberMethod" comment="" hidden="false" />
-      <node type="UInt32Node" name="memberField" comment="" hidden="false" />
-      <node type="UInt32Node" name="numMemberField" comment="" hidden="false" />
+      <node type="UInt32Node" name="memberMethodBitfield" comment="0-11 = num, rest (rsh 12) = index" hidden="false" />
+      <node type="UInt32Node" name="memberFieldBitfield" comment="0-11 = num, rest (rsh 12) = index" hidden="false" />
       <node type="UInt32Node" name="memberPropertyBitfield" comment="0-11 = num, rest (rsh 12) = index" hidden="false" />
       <node type="Hex32Node" name="numMemberProperty" comment="" hidden="false" />
       <node type="UInt32Node" name="interfaces" comment="" hidden="false" />
       <node type="Hex32Node" name="N00001527" comment="" hidden="false" />
       <node type="UInt32Node" name="generics" comment="" hidden="false" />
       <node type="UInt32Node" name="vt" comment="" hidden="false" />
-      <node type="Hex32Node" name="N000009D2" comment="" hidden="false" />
-      <node type="Hex32Node" name="N000028EB" comment="" hidden="false" />
-      <node type="Hex32Node" name="N000009C1" comment="" hidden="false" />
-      <node type="Hex32Node" name="N000028E1" comment="" hidden="false" />
+      <node type="Hex64Node" name="N00004950" comment="" hidden="false" />
+      <node type="Hex64Node" name="N0000494F" comment="" hidden="false" />
       <node type="PointerNode" name="type" comment="" hidden="false">
         <node type="ClassInstanceNode" name="N000004C8" comment="" hidden="false" reference="597c0e7f-7348-4542-804e-fda1f2c45d7a" />
       </node>
@@ -9950,7 +9946,7 @@
     <class uuid="34b1be2d-8b2c-4220-b225-bd50473de7cd" name="N000025B3" comment="" address="140000000">
       <node type="Hex64Node" name="N000025B4" comment="" hidden="false" />
     </class>
-    <class uuid="44d1d754-b2f5-4c7f-8e52-40808627a710" name="RETypeDB" comment="" address="&lt;re3.exe&gt;+8DC8C20">
+    <class uuid="44d1d754-b2f5-4c7f-8e52-40808627a710" name="RETypeDB" comment="" address="&lt;devilmaycry5.exe&gt;+54945a0">
       <node type="UInt32Node" name="magic" comment="" hidden="false" />
       <node type="UInt32Node" name="version" comment="" hidden="false" />
       <node type="UInt32Node" name="initialized" comment="" hidden="false" />
