@@ -1357,17 +1357,19 @@ void ObjectExplorer::generate_sdk() {
                 auto dummy_type = g->namespace_("sdk")->struct_("DummyData")->size(0x100);
                 m->returns(dummy_type);
 
-#ifdef RE8
+#ifdef TDB_DUMP_ALLOWED
                 auto field_t = g_fqntypedb[variable->typeFqn];
                 auto field_t_name = (field_t != nullptr && variable->typeFqn != 0) ? field_t->full_name : variable->typeName;
 
                 auto& prop_entry = il2cpp_dump[t->name]["reflection_properties"][variable->name];
 
                 prop_entry = {
-                    {"getter", (std::stringstream{} << "0x" << std::hex << (uintptr_t)variable->function).str()},
+                    {"getter", (std::stringstream{} << "0x" << std::hex << get_original_va(variable->function)).str()},
                     {"type", field_t_name},
                 };
-                
+#endif
+            
+#ifdef RE8
                 // Property attributes
                 if (variable->attributes != 0 && variable->attributes != -1) {
                     for (auto attr = (REAttribute*)((uintptr_t)&variable->attributes + variable->attributes); attr != nullptr && !IsBadReadPtr(attr, sizeof(REAttribute)) && attr->info != nullptr; attr = attr->next) {
