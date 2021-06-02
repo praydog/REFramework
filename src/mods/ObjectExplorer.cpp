@@ -1170,6 +1170,16 @@ void ObjectExplorer::generate_sdk() {
 
 #ifdef TDB_DUMP_ALLOWED
         export_deserializer_chain(il2cpp_dump, tdb, t);
+
+        auto& entry = il2cpp_dump[t->name];
+
+        if (!entry.contains("fqn")) {
+            entry["fqn"] = (std::stringstream{} << std::hex << t->classIndex).str();
+        }
+
+        if (!entry.contains("crc")) {
+            entry["crc"] = (std::stringstream{} << std::hex << t->typeCRC).str();
+        }
 #endif
 
         if (t->fields == nullptr /*|| t->classInfo == nullptr || utility::re_class_info::get_vm_type(t->classInfo) != via::clr::VMObjType::Object*/) {
