@@ -86,7 +86,7 @@ struct REField {
 
 struct REProperty {
     char pad_0000[4];    // 0x0000
-    uint32_t nameOffset; // 0x0004
+    uint32_t name_offset; // 0x0004
     uint32_t getter;     // 0x0008
     uint32_t setter;     // 0x000C
 };

@@ -3512,7 +3512,7 @@ public:
     void* events;                                // 0x00A0
     class REParameterDef (*params)[10000];       // 0x00A8
     class REAttributeDef (*attributes)[2000];    // 0x00B0
-    void* initData;                              // 0x00B8
+    int32_t (*initData)[19890];                  // 0x00B8
     int32_t (*attributes2)[256];                 // 0x00C0
     void* stringPool;                            // 0x00C8
     uint8_t (*bytePool)[256];                    // 0x00D0

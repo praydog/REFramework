@@ -985,11 +985,13 @@ void ObjectExplorer::generate_sdk() {
         const auto name_offset = (uint32_t)br_impl.read(30);
         const auto init_data_high = (uint8_t)br_impl.read(2);
         const auto name = Address{tdb->stringPool}.get(name_offset).as<const char*>();
+        const auto init_data_index = init_data_low | (init_data_high << 14);
 #else
         const auto name_offset = casted_field->name_offset;
         const auto name = Address{ tdb->stringPool }.get(name_offset).as<const char*>();
         const auto field_type = (uint32_t)casted_field->field_typeid;
         const auto field_flags = casted_field->flags;
+        const auto init_data_index = 0;
 #endif
 
         // Create an easier to deal with structure
@@ -1024,12 +1026,91 @@ void ObjectExplorer::generate_sdk() {
             {"id", i},
             {"type", field_type_name},
             {"offset_from_base", (std::stringstream{} << "0x" << std::hex << pf->offset_from_base).str()},
-            {"offset_from_fieldptr", (std::stringstream{} << "0x" << std::hex << pf->offset_from_fieldptr).str()}, 
+            {"offset_from_fieldptr", (std::stringstream{} << "0x" << std::hex << pf->offset_from_fieldptr).str()},
+            {"init_data_index", init_data_index}
         };
 
         if (auto field_flags_str = get_full_enum_value_name("via.clr.FieldFlag", field_flags); !field_flags_str.empty()) {
             field_entry["flags"] = field_flags_str;
         }
+
+#ifdef RE8
+        if (init_data_index != 0) {
+            const auto init_data_offset = (*tdb->initData)[init_data_index];
+            auto init_data = &(*tdb->bytePool)[init_data_offset];
+
+            // WACKY
+            if (init_data_offset < 0) {
+                init_data = &((uint8_t*)tdb->stringPool)[init_data_offset * -1];
+            }
+
+            auto init_data_type = pf->type;
+            auto full_name{ init_data_type->full_name };
+
+            // edge case
+            if (pf->type->super != nullptr && pf->type->super->full_name == "System.Enum") {
+                switch (pf->type->t->size - pf->type->super->t->size) {
+                case 1:
+                    full_name = "System.Byte";
+                    break;
+                case 2:
+                    full_name = "System.UInt16";
+                    break;
+                case 4:
+                    full_name = "System.UInt32";
+                    break;
+                case 8:
+                    full_name = "System.UInt64";
+                    break;
+                }
+            }
+
+            switch (utility::hash(full_name)) {
+            case "System.Boolean"_fnv:
+                field_entry["default"] = *(bool*)init_data;
+                break;
+            case "System.Char"_fnv:
+                field_entry["default"] = *(wchar_t*)init_data;
+                break;
+            case "System.Byte"_fnv:
+                field_entry["default"] = *(uint8_t*)init_data;
+                break;
+            case "System.SByte"_fnv:
+                field_entry["default"] = *(int8_t*)init_data;
+                break;
+            case "System.UInt16"_fnv:
+                field_entry["default"] = *(uint16_t*)init_data;
+                break;
+            case "System.Int16"_fnv:
+                field_entry["default"] = *(int16_t*)init_data;
+                break;
+            case "System.UInt32"_fnv:
+                field_entry["default"] = *(uint32_t*)init_data;
+                break;
+            case "System.Int32"_fnv:
+                field_entry["default"] = *(int32_t*)init_data;
+                break;
+            case "System.UInt64"_fnv:
+                field_entry["default"] = *(uint64_t*)init_data;
+                break;
+            case "System.Int64"_fnv:
+                field_entry["default"] = *(int64_t*)init_data;
+                break;
+            case "System.Single"_fnv:
+                field_entry["default"] = *(float*)init_data;
+                break;
+            case "System.Double"_fnv:
+                field_entry["default"] = *(double*)init_data;
+                break;
+            case "System.String"_fnv:
+                field_entry["default"] = (char*)init_data;
+                break;
+            default:
+                field_entry["default"] = "REFRAMEWORK_UNIMPLEMENTED_INIT_TYPE";
+                break;
+            }
+        }
+#endif
     }
     
     spdlog::info("PROPERTIES BEGIN");

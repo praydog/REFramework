@@ -384,7 +384,7 @@
         <node type="ClassInstanceNode" name="N00000266" comment="" hidden="false" reference="597c0e7f-7348-4542-804e-fda1f2c45d7a" />
       </node>
     </class>
-    <class uuid="597c0e7f-7348-4542-804e-fda1f2c45d7a" name="REType" comment="" address="45720b60">
+    <class uuid="597c0e7f-7348-4542-804e-fda1f2c45d7a" name="REType" comment="" address="147d11f80">
       <node type="PointerNode" name="N000003B4" comment="" hidden="false" />
       <node type="UInt32Node" name="classIndex" comment="" hidden="false" />
       <node type="Int16Node" name="flags" comment="&lt; 0 == NoneType, 1 == abstract, 2 == concrete, 256 == interface, 16384 == root" hidden="false" />
@@ -1006,7 +1006,7 @@
       <node type="FunctionPtrNode" name="N00002472" comment="" hidden="false" />
       <node type="FunctionPtrNode" name="N00002473" comment="" hidden="false" />
     </class>
-    <class uuid="1168af80-ede7-47fc-8e4e-4f12322f0ac3" name="REClassInfo" comment="" address="14A45F018">
+    <class uuid="1168af80-ede7-47fc-8e4e-4f12322f0ac3" name="REClassInfo" comment="" address="147d11f80">
       <node type="UInt16Node" name="typeIndex" comment="index into global type array" hidden="false" />
       <node type="Hex16Node" name="N000030DE" comment="" hidden="false" />
       <node type="Hex8Node" name="objectTypeFlag" comment="" hidden="false" />
@@ -11147,7 +11147,11 @@
           <node type="ClassInstanceNode" name="N00003585" comment="" hidden="false" reference="b9eb5bc6-084e-4436-838c-2943d3723c3b" />
         </node>
       </node>
-      <node type="PointerNode" name="initData" comment="" hidden="false" />
+      <node type="PointerNode" name="initData" comment="" hidden="false">
+        <node type="ArrayNode" name="N00003060" comment="" hidden="false" count="19890">
+          <node type="Int32Node" name="N00003503" comment="" hidden="false" />
+        </node>
+      </node>
       <node type="PointerNode" name="attributes2" comment="" hidden="false">
         <node type="ArrayNode" name="N0000A9C6" comment="" hidden="false" count="256">
           <node type="Int32Node" name="N0000A9E9" comment="" hidden="false" />

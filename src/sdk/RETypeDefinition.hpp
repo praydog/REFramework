@@ -48,8 +48,8 @@ struct RETypeDefVersion69 {
     uint32_t member_event;          // 0x0034
     int32_t interfaces;             // 0x0038
     int32_t generics;               // 0x003C byte pool
-    struct sdk::RETypeCLR* type;     // 0x0040
-    class REObjectInfo* managed_vt; // 0x0048
+    struct sdk::RETypeCLR* type;    // 0x0040
+    class ::REObjectInfo* managed_vt; // 0x0048
 };
 
 struct RETypeDefVersion67 {
@@ -73,7 +73,7 @@ struct RETypeDefVersion67 {
     uint32_t element_size;
     uint32_t size;
     char pad_0034[4];
-    
+
     // this is fun
 #if RE3
     uint32_t member_method;
@@ -90,14 +90,15 @@ struct RETypeDefVersion67 {
     uint32_t num_member_prop : 12;
     uint32_t member_prop : 19;
 
-    char pad_004C[4];
+    uint32_t events;
     uint32_t interfaces;
     char pad_0054[4];
     uint32_t generics;
-    char pad_005C[12];
+    uint32_t vt; // byte pool
+    char pad_005C[8];
     void* unk;
     struct sdk::RETypeCLR* type;
-    class REObjectInfo* managed_vt;
+    class ::REObjectInfo* managed_vt;
 };
 #ifndef RE8
 #if defined(RE3)
