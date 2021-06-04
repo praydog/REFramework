@@ -991,7 +991,7 @@ void ObjectExplorer::generate_sdk() {
         const auto name = Address{ tdb->stringPool }.get(name_offset).as<const char*>();
         const auto field_type = (uint32_t)casted_field->field_typeid;
         const auto field_flags = casted_field->flags;
-        const auto init_data_index = 0;
+        const auto init_data_index = casted_field->init_data_index;
 #endif
 
         // Create an easier to deal with structure
@@ -1034,7 +1034,6 @@ void ObjectExplorer::generate_sdk() {
             field_entry["flags"] = field_flags_str;
         }
 
-#ifdef RE8
         if (init_data_index != 0) {
             const auto init_data_offset = (*tdb->initData)[init_data_index];
             auto init_data = &(*tdb->bytePool)[init_data_offset];
@@ -1110,7 +1109,6 @@ void ObjectExplorer::generate_sdk() {
                 break;
             }
         }
-#endif
     }
     
     spdlog::info("PROPERTIES BEGIN");

@@ -29,7 +29,7 @@ struct TDB {
     uint32_t numUnk;                                   // 0x0020
     uint32_t maybeNumParams;                           // 0x0024
     uint32_t maybeNumAttributes;                       // 0x0028
-    uint32_t maybeNumInitData;                         // 0x002C
+    uint32_t numInitData;                              // 0x002C
     uint32_t numInternStrings;                         // 0x0030
     uint32_t numModules;                               // 0x0034
     uint32_t devEntry;                                 // 0x0038
@@ -40,11 +40,11 @@ struct TDB {
     sdk::RETypeDefinition (*types)[81728];             // 0x0050
     sdk::tdb67::REMethodDefinition (*methods)[556344]; // 0x0058
     sdk::tdb67::REField (*fields)[122496];             // 0x0060
-    sdk::tdb67::REProperty (*properties)[119791];            // 0x0068
+    sdk::tdb67::REProperty (*properties)[119791];      // 0x0068
     void* events;                                      // 0x0070
     char pad_0078[8];                                  // 0x0078
     void* N0000243D;                                   // 0x0080
-    void* N0000243E;                                   // 0x0088
+    uint32_t (*initData)[1];                           // 0x0088
     void* N0000243F;                                   // 0x0090
     char (*stringPool)[0];                             // 0x0098
     uint8_t (*bytePool)[1];                            // 0x00A0
@@ -79,16 +79,16 @@ struct REField {
 
     uint32_t name_offset;
     uint16_t flags;
-    uint16_t unk;
+    uint16_t init_data_index;
     uint32_t offset;
     uint32_t unk2;
 };
 
 struct REProperty {
-    char pad_0000[4];    // 0x0000
+    char pad_0000[4];     // 0x0000
     uint32_t name_offset; // 0x0004
-    uint32_t getter;     // 0x0008
-    uint32_t setter;     // 0x000C
+    uint32_t getter;      // 0x0008
+    uint32_t setter;      // 0x000C
 };
 } // namespace tdb67
 } // namespace sdk

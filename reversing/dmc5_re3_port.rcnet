@@ -384,7 +384,7 @@
         <node type="ClassInstanceNode" name="N00000266" comment="" hidden="false" reference="597c0e7f-7348-4542-804e-fda1f2c45d7a" />
       </node>
     </class>
-    <class uuid="597c0e7f-7348-4542-804e-fda1f2c45d7a" name="REType" comment="" address="1bca4b30650">
+    <class uuid="597c0e7f-7348-4542-804e-fda1f2c45d7a" name="REType" comment="" address="27342094e00">
       <node type="PointerNode" name="N000003B4" comment="" hidden="false" />
       <node type="UInt32Node" name="classIndex" comment="" hidden="false" />
       <node type="Int16Node" name="flags" comment="&lt; 0 == NoneType, 1 == abstract, 2 == concrete, 256 == interface, 16384 == root" hidden="false" />
@@ -9958,7 +9958,7 @@
       <node type="UInt32Node" name="numUnk" comment="" hidden="false" />
       <node type="UInt32Node" name="maybeNumParams" comment="" hidden="false" />
       <node type="UInt32Node" name="maybeNumAttributes" comment="" hidden="false" />
-      <node type="UInt32Node" name="maybeNumInitData" comment="" hidden="false" />
+      <node type="UInt32Node" name="numInitData" comment="" hidden="false" />
       <node type="UInt32Node" name="numInternStrings" comment="" hidden="false" />
       <node type="UInt32Node" name="numModules" comment="" hidden="false" />
       <node type="UInt32Node" name="devEntry" comment="" hidden="false" />
@@ -9981,7 +9981,7 @@
         </node>
       </node>
       <node type="PointerNode" name="fields" comment="" hidden="false">
-        <node type="ArrayNode" name="N000025AA" comment="" hidden="false" count="122496">
+        <node type="ArrayNode" name="N000025AA" comment="" hidden="false" count="142792">
           <node type="ClassInstanceNode" name="N000025CD" comment="" hidden="false" reference="4b32e5b0-e98e-4145-bcc5-4eed5a4ab8d4" />
         </node>
       </node>
@@ -9992,9 +9992,15 @@
       </node>
       <node type="PointerNode" name="events" comment="" hidden="false" />
       <node type="Hex64Node" name="N0000243C" comment="" hidden="false" />
-      <node type="PointerNode" name="N0000243D" comment="" hidden="false" />
       <node type="PointerNode" name="N0000243E" comment="" hidden="false" />
-      <node type="PointerNode" name="N0000243F" comment="" hidden="false" />
+      <node type="PointerNode" name="initData" comment="" hidden="false">
+        <node type="ArrayNode" name="N0000516D" comment="" hidden="false" count="180000">
+          <node type="Int32Node" name="N00005193" comment="" hidden="false" />
+        </node>
+      </node>
+      <node type="PointerNode" name="N00005582" comment="" hidden="false">
+        <node type="ClassInstanceNode" name="N00005584" comment="" hidden="false" reference="de9fd6d6-7d91-478c-8f26-69df3d7105bc" />
+      </node>
       <node type="PointerNode" name="stringPool" comment="" hidden="false">
         <node type="Utf8TextNode" name="N00005685" comment="" hidden="false" length="0" />
       </node>
@@ -10029,7 +10035,7 @@
       <node type="UInt64Node" name="bitfield1" comment="0-17 = declaring type, 17-35 = field type, rest = idk" hidden="false" />
       <node type="UInt32Node" name="nameOffset" comment="" hidden="false" />
       <node type="UInt16Node" name="flags" comment="" hidden="false" />
-      <node type="Hex16Node" name="N00006A67" comment="" hidden="false" />
+      <node type="UInt16Node" name="initDataIndex" comment="" hidden="false" />
       <node type="UInt32Node" name="offset" comment="" hidden="false" />
       <node type="Hex32Node" name="N00006E58" comment="" hidden="false" />
     </class>
@@ -10127,6 +10133,25 @@
     </class>
     <class uuid="b23488a2-66f7-410a-933f-7c83171d40d2" name="REMethodParamDef" comment="" address="7FF6182CAF10+0x530F68+8+8">
       <node type="UInt64Node" name="bitfield1" comment="0-16 = param type, 17-32 = flags, 33-???? = name offset" hidden="false" />
+    </class>
+    <class uuid="de9fd6d6-7d91-478c-8f26-69df3d7105bc" name="N00005585" comment="" address="140000000">
+      <node type="Hex64Node" name="N00005586" comment="" hidden="false" />
+      <node type="Hex64Node" name="N00005587" comment="" hidden="false" />
+      <node type="Hex64Node" name="N00005588" comment="" hidden="false" />
+      <node type="Hex64Node" name="N00005589" comment="" hidden="false" />
+      <node type="Hex64Node" name="N0000558A" comment="" hidden="false" />
+      <node type="Hex64Node" name="N0000558B" comment="" hidden="false" />
+      <node type="Hex64Node" name="N0000558C" comment="" hidden="false" />
+      <node type="Hex64Node" name="N0000558D" comment="" hidden="false" />
+      <node type="Hex64Node" name="N0000558E" comment="" hidden="false" />
+      <node type="Hex64Node" name="N0000558F" comment="" hidden="false" />
+      <node type="Hex64Node" name="N00005590" comment="" hidden="false" />
+      <node type="Hex64Node" name="N00005591" comment="" hidden="false" />
+      <node type="Hex64Node" name="N00005592" comment="" hidden="false" />
+      <node type="Hex64Node" name="N00005593" comment="" hidden="false" />
+      <node type="Hex64Node" name="N00005594" comment="" hidden="false" />
+      <node type="Hex64Node" name="N00005595" comment="" hidden="false" />
+      <node type="Hex64Node" name="N00005596" comment="" hidden="false" />
     </class>
   </classes>
 </reclass>

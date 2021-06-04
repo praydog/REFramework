@@ -3109,7 +3109,7 @@ public:
     uint32_t numUnk;                             // 0x0020
     uint32_t maybeNumParams;                     // 0x0024
     uint32_t maybeNumAttributes;                 // 0x0028
-    uint32_t maybeNumInitData;                   // 0x002C
+    uint32_t numInitData;                        // 0x002C
     uint32_t numInternStrings;                   // 0x0030
     uint32_t numModules;                         // 0x0034
     uint32_t devEntry;                           // 0x0038
@@ -3119,13 +3119,13 @@ public:
     class N00002524 (*modules)[256];             // 0x0048
     class REClassInfo (*types)[81728];           // 0x0050
     class REMethodDefinition (*methods)[556344]; // 0x0058
-    class REField (*fields)[122496];             // 0x0060
+    class REField (*fields)[142792];             // 0x0060
     class REProperty (*properties)[119791];      // 0x0068
     void* events;                                // 0x0070
     char pad_0078[8];                            // 0x0078
-    void* N0000243D;                             // 0x0080
-    void* N0000243E;                             // 0x0088
-    void* N0000243F;                             // 0x0090
+    void* N0000243E;                             // 0x0080
+    int32_t (*initData)[180000];                 // 0x0088
+    class N00005585* N00005582;                  // 0x0090
     char (*stringPool)[0];                       // 0x0098
     uint8_t (*bytePool)[1];                      // 0x00A0
     uint32_t (*internStrings)[17014];            // 0x00A8
@@ -3159,13 +3159,13 @@ static_assert(sizeof(REMethodDefinition) == 0x20);
 
 class REField {
 public:
-    uint64_t bitfield1;  // 0x0000 0-17 = declaring type, 17-35 = field type, rest = idk
-    uint32_t nameOffset; // 0x0008
-    uint16_t flags;      // 0x000C
-    char pad_000E[2];    // 0x000E
-    uint32_t offset;     // 0x0010
-    char pad_0014[4];    // 0x0014
-};                       // Size: 0x0018
+    uint64_t bitfield1;     // 0x0000 0-17 = declaring type, 17-35 = field type, rest = idk
+    uint32_t nameOffset;    // 0x0008
+    uint16_t flags;         // 0x000C
+    uint16_t initDataIndex; // 0x000E
+    uint32_t offset;        // 0x0010
+    char pad_0014[4];       // 0x0014
+};                          // Size: 0x0018
 static_assert(sizeof(REField) == 0x18);
 
 class N0000547A {
@@ -3221,3 +3221,9 @@ public:
     uint64_t bitfield1; // 0x0000 0-16 = param type, 17-32 = flags, 33-???? = name offset
 };                      // Size: 0x0008
 static_assert(sizeof(REMethodParamDef) == 0x8);
+
+class N00005585 {
+public:
+    char pad_0000[136]; // 0x0000
+};                      // Size: 0x0088
+static_assert(sizeof(N00005585) == 0x88);

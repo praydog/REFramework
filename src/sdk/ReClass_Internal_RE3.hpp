@@ -373,7 +373,8 @@ public:
     uint8_t systemType;              // 0x0024
     char pad_0025[1];                // 0x0025
     uint8_t objectType;              // 0x0026 1 == normal type ? ??
-    char pad_0027[5];                // 0x0027
+    char pad_0027[1];                // 0x0027
+    uint32_t defaultCtor;            // 0x0028
     uint32_t elementSize;            // 0x002C
     uint32_t size;                   // 0x0030
     char pad_0034[4];                // 0x0034
@@ -3110,7 +3111,7 @@ public:
     uint32_t numUnk;                             // 0x0020
     uint32_t maybeNumParams;                     // 0x0024
     uint32_t maybeNumAttributes;                 // 0x0028
-    uint32_t maybeNumInitData;                   // 0x002C
+    uint32_t numInitData;                        // 0x002C
     uint32_t numInternStrings;                   // 0x0030
     uint32_t numModules;                         // 0x0034
     uint32_t devEntry;                           // 0x0038
@@ -3124,9 +3125,9 @@ public:
     class REProperty (*properties)[119791];      // 0x0068
     void* events;                                // 0x0070
     char pad_0078[8];                            // 0x0078
-    void* N0000243D;                             // 0x0080
-    void* N0000243E;                             // 0x0088
-    void* N0000243F;                             // 0x0090
+    void* N0000243E;                             // 0x0080
+    int32_t (*initData)[256];                    // 0x0088
+    class N000028FE* N000028C3;                  // 0x0090
     char (*stringPool)[0];                       // 0x0098
     uint8_t (*bytePool)[1];                      // 0x00A0
     uint32_t (*internStrings)[17014];            // 0x00A8
@@ -3222,3 +3223,15 @@ public:
     uint64_t bitfield1; // 0x0000 0-16 = param type, 17-32 = flags, 33-???? = name offset
 };                      // Size: 0x0008
 static_assert(sizeof(REMethodParamDef) == 0x8);
+
+class N000028C6 {
+public:
+    char pad_0000[136]; // 0x0000
+};                      // Size: 0x0088
+static_assert(sizeof(N000028C6) == 0x88);
+
+class N000028FE {
+public:
+    char pad_0000[136]; // 0x0000
+};                      // Size: 0x0088
+static_assert(sizeof(N000028FE) == 0x88);
