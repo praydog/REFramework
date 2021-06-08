@@ -5,6 +5,7 @@
 
 #include "REFramework.hpp"
 #include "REContext.hpp"
+#include "RETypeDB.hpp"
 #include "RETypes.hpp"
 
 std::string game_namespace(std::string_view base_name)
@@ -80,7 +81,7 @@ RETypes::RETypes() {
     spdlog::info("Finished RETypes initialization");
 }
 
-RETypeDB* RETypes::get_type_db() const {
+sdk::RETypeDB* RETypes::get_type_db() const {
     auto c = sdk::REGlobalContext::get();
 
     if (c == nullptr) {

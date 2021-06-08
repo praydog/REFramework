@@ -4,11 +4,15 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "ReClass.hpp"
+//#include "ReClass.hpp"
 
 std::string game_namespace(std::string_view base_name);
 
-class RETypeDB;
+class REType;
+
+namespace sdk {
+    struct RETypeDB;
+}
 
 // A list of types in the RE engine
 class RETypes {
@@ -28,7 +32,7 @@ public:
         return m_type_list;
     }
 
-    RETypeDB* get_type_db() const;
+    sdk::RETypeDB* get_type_db() const;
 
     // Equivalent
     REType* get(std::string_view name);

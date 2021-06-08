@@ -17,7 +17,8 @@
 #define TDB_DUMP_ALLOWED
 #define TDB_VER 67
 #else
-#define TDB_VER 67
+#define TDB_DUMP_ALLOWED
+#define TDB_VER 66
 #endif
 
 #ifdef TDB_DUMP_ALLOWED
@@ -39,7 +40,7 @@ struct ParsedParams {
 
 struct ParsedMethod {
     std::shared_ptr<ParsedType> owner{};
-    REMethodDefinition* m{};
+    sdk::REMethodDefinition* m{};
 #if TDB_VER >= 69
     REMethodImpl* m_impl{};
 #endif
@@ -52,7 +53,7 @@ struct ParsedMethod {
 struct ParsedField {
     std::shared_ptr<ParsedType> owner{};
     std::shared_ptr<ParsedType> type{};
-    REField* f{};
+    sdk::REField* f{};
 #if TDB_VER >= 69
     REFieldImpl* f_impl{};
 #endif
@@ -66,7 +67,7 @@ struct ParsedProperty {
     std::shared_ptr<ParsedMethod> getter{};
     std::shared_ptr<ParsedMethod> setter{};
 
-    REProperty* p{};
+    sdk::REProperty* p{};
 
 #if TDB_VER >= 69
     REPropertyImpl* p_impl{};
@@ -78,15 +79,15 @@ struct ParsedType {
     std::shared_ptr<ParsedType> owner{}; // declaring class
     std::shared_ptr<ParsedType> super{}; // parent class we inherit from
 
-    REClassInfo* t{nullptr};
+    sdk::RETypeDefinition* t{nullptr};
 
     const char* name_space{"Unknown"};
     const char* name{"Unknown"};
     std::string full_name{};
 
-    std::vector<REMethodDefinition*> methods{};
-    std::vector<REField*> fields{};
-    std::vector<REProperty*> props{};
+    std::vector<sdk::REMethodDefinition*> methods{};
+    std::vector<sdk::REField*> fields{};
+    std::vector<sdk::REProperty*> props{};
 
 #if TDB_VER >= 69
     std::vector<REMethodImpl*> method_impls{};
@@ -111,10 +112,10 @@ public:
 
 private:
 #ifdef TDB_DUMP_ALLOWED
-    std::shared_ptr<detail::ParsedType> init_type_min(nlohmann::json& il2cpp_dump, RETypeDB* tdb, uint32_t i);
-    std::shared_ptr<detail::ParsedType> init_type(nlohmann::json& il2cpp_dump, RETypeDB* tdb, uint32_t i);
-    std::string generate_full_name(RETypeDB* tdb, uint32_t i);
-    void export_deserializer_chain(nlohmann::json& il2cpp_dump, RETypeDB* tdb, REType* t, std::optional<std::string> real_name = std::nullopt);
+    std::shared_ptr<detail::ParsedType> init_type_min(nlohmann::json& il2cpp_dump, sdk::RETypeDB* tdb, uint32_t i);
+    std::shared_ptr<detail::ParsedType> init_type(nlohmann::json& il2cpp_dump, sdk::RETypeDB* tdb, uint32_t i);
+    std::string generate_full_name(sdk::RETypeDB* tdb, uint32_t i);
+    void export_deserializer_chain(nlohmann::json& il2cpp_dump, sdk::RETypeDB* tdb, REType* t, std::optional<std::string> real_name = std::nullopt);
 #endif
     void generate_sdk();
 

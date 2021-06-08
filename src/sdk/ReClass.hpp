@@ -14,7 +14,7 @@
 #define TDB_VER 67
 #include "ReClass_Internal_RE3.hpp"
 #else
-#define TDB_VER 67
+#define TDB_VER 66
 #include "ReClass_Internal.hpp"
 #endif
 #pragma pack(pop, r1)

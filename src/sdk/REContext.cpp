@@ -24,10 +24,10 @@ namespace sdk {
         return s_get_thread_context(this, unk);
     }
 
-    RETypeDB* REGlobalContext::get_type_db() {
+    sdk::RETypeDB* REGlobalContext::get_type_db() {
         update_pointers();
 
-        return *(RETypeDB**)((uintptr_t)this + s_type_db_offset);
+        return *(sdk::RETypeDB**)((uintptr_t)this + s_type_db_offset);
     }
 
     REStaticTbl& REGlobalContext::get_static_tbl() {
@@ -87,7 +87,7 @@ namespace sdk {
         s_get_thread_context = (decltype(s_get_thread_context))utility::calculate_absolute(*ref + 13);
 
         for (auto i = 0; i < 0x20000; i += sizeof(void*)) {
-            auto ptr = *(RETypeDB**)((uintptr_t)*s_global_context + i);
+            auto ptr = *(sdk::RETypeDB**)((uintptr_t)*s_global_context + i);
 
             if (ptr == nullptr || IsBadReadPtr(ptr, sizeof(void*)) || ((uintptr_t)ptr & (sizeof(void*) - 1)) != 0) {
                 continue;

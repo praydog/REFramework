@@ -3,21 +3,23 @@
 #include <cstdint>
 
 #include "ReClass.hpp"
+#include "RETypeCLR.hpp"
 
 // Manual definitions of REClassInfo because ReClass doesn't have bitfields like this.
 namespace sdk {
 struct RETypeDefVersion69;
 struct RETypeDefVersion67;
+struct RETypeDefVersion66;
 
 #ifdef RE8
 #define TYPE_INDEX_BITS 18
 using RETypeDefinition = sdk::RETypeDefVersion69;
-#elif RE3
+#elif defined(RE3) || defined(DMC5)
 #define TYPE_INDEX_BITS 17
 using RETypeDefinition = sdk::RETypeDefVersion67;
 #else
-#define TYPE_INDEX_BITS 17
-using RETypeDefinition = sdk::RETypeDefVersion67;
+#define TYPE_INDEX_BITS 16
+using RETypeDefinition = sdk::RETypeDefVersion66;
 #endif
 
 struct RETypeDefVersion69 {
@@ -75,7 +77,7 @@ struct RETypeDefVersion67 {
     char pad_0034[4];
 
     // this is fun
-#if RE3
+#ifdef RE3
     uint32_t member_method;
     uint32_t num_member_method;
     uint32_t member_field;
@@ -100,11 +102,56 @@ struct RETypeDefVersion67 {
     struct sdk::RETypeCLR* type;
     class ::REObjectInfo* managed_vt;
 };
+
+struct RETypeDefVersion66 {
+    // 0-8
+    uint64_t index : TYPE_INDEX_BITS;
+    uint64_t unkbitfieldthing : 16;
+    uint64_t parent_typeid : TYPE_INDEX_BITS;
+    uint64_t declaring_typeid : TYPE_INDEX_BITS;
+
+    uint32_t fqn_hash; // murmurhash3
+    uint32_t type_crc;
+    char pad_0010[8];
+    uint32_t name_offset;
+    uint32_t namespace_offset;
+    uint32_t type_flags;
+    uint8_t system_type;
+    char pad_0025[1];
+    uint8_t object_type;
+    char pad_0027[1];
+    uint32_t default_ctor;
+    uint32_t element_size;
+    uint32_t size;
+    char pad_0034[4];
+
+    uint32_t num_member_method : 12;
+    uint32_t member_method : 19;
+    uint32_t num_member_field : 12;
+    uint32_t member_field : 19;
+    uint32_t num_member_prop : 12;
+    uint32_t member_prop : 19;
+
+    uint32_t events;
+    uint32_t interfaces;
+    char pad_0054[4];
+    uint32_t generics;
+    uint32_t vt; // byte pool
+    char pad_005C[8];
+    void* unk;
+    struct sdk::RETypeCLR* type;
+    class ::REObjectInfo* managed_vt;
+};
+
 #ifndef RE8
 #if defined(RE3)
 static_assert(sizeof(RETypeDefVersion67) == 0x80);
 #else
+#if defined(DMC5)
 static_assert(sizeof(RETypeDefVersion67) == 0x78);
+#else
+static_assert(sizeof(RETypeDefVersion66) == 0x78);
+#endif
 #endif
 #endif
 } // namespace sdk

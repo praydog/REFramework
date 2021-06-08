@@ -122,15 +122,6 @@ std::array<const char*, 84> g_typecode_names{
 };
 #endif
 
-struct PropertyFlags {
-    uint32_t type_kind : 5;
-    uint32_t type_qual : 2;
-    uint32_t type_attr : 3;
-    uint32_t size : 20;
-    uint32_t managed_str : 1;
-    uint32_t reserved : 1;
-};
-
 struct BitReader {
     BitReader(void* d)
         : data{(uint8_t*)d} {}
@@ -402,7 +393,7 @@ void ObjectExplorer::on_draw_ui() {
 }
 
 #ifdef TDB_DUMP_ALLOWED
-static auto get_declare_t = [](REClassInfo& t, RETypeDB* tdb) -> REClassInfo* {
+static auto get_declare_t = [](sdk::RETypeDefinition& t, sdk::RETypeDB* tdb) -> sdk::RETypeDefinition* {
     auto tdef = (sdk::RETypeDefinition*)&t;
 
     if (tdef->declaring_typeid == 0 || tdef->declaring_typeid > tdb->numTypes) {
@@ -412,12 +403,12 @@ static auto get_declare_t = [](REClassInfo& t, RETypeDB* tdb) -> REClassInfo* {
     return &(*tdb->types)[tdef->declaring_typeid];
 };
 
-static auto get_declare_t_i = [](auto i, RETypeDB* tdb) -> REClassInfo* { 
+static auto get_declare_t_i = [](auto i, RETypeDB* tdb) -> sdk::RETypeDefinition* {
     return get_declare_t((*tdb->types)[i], tdb); 
 };
 
-static auto get_declare_heirarchy = [](REClassInfo& t, RETypeDB* tdb) {
-    std::vector<REClassInfo*> owners{};
+static auto get_declare_heirarchy = [](sdk::RETypeDefinition& t, sdk::RETypeDB* tdb) {
+    std::vector<sdk::RETypeDefinition*> owners{};
 
     for (auto parent = &t; parent != nullptr; parent = get_declare_t(*parent, tdb)) {
         owners.push_back(parent);
@@ -426,35 +417,31 @@ static auto get_declare_heirarchy = [](REClassInfo& t, RETypeDB* tdb) {
     return owners;
 };
 
-static auto get_name = [](REClassInfo& t, RETypeDB* tdb) {
-    auto tdef = (sdk::RETypeDefinition*)&t;
-
+static auto get_name = [](sdk::RETypeDefinition& tdef, sdk::RETypeDB* tdb) {
 #if TDB_VER >= 69
-    auto& impl = (*tdb->typesImpl)[tdef->impl_index];
+    auto& impl = (*tdb->typesImpl)[tdef.impl_index];
 
     const auto name_index = impl.nameThing;
 #else
-    const auto name_index = tdef->name_offset;
+    const auto name_index = tdef.name_offset;
 #endif
 
     return Address{tdb->stringPool}.get(name_index).as<const char*>();
 };
 
-static auto get_namespace = [](REClassInfo& t, RETypeDB* tdb) {
-    auto tdef = (sdk::RETypeDefinition*)&t;
-
+static auto get_namespace = [](sdk::RETypeDefinition& tdef, sdk::RETypeDB* tdb) {
 #if TDB_VER >= 69
-    auto& impl = (*tdb->typesImpl)[tdef->impl_index];
+    auto& impl = (*tdb->typesImpl)[tdef.impl_index];
 
     const auto name_index = impl.namespaceThing;
 #else
-    const auto name_index = tdef->namespace_offset;
+    const auto name_index = tdef.namespace_offset;
 #endif
 
     return Address{tdb->stringPool}.get(name_index).as<const char*>();
 };
 
-std::shared_ptr<detail::ParsedType> ObjectExplorer::init_type(nlohmann::json& il2cpp_dump, RETypeDB* tdb, uint32_t i) {
+std::shared_ptr<detail::ParsedType> ObjectExplorer::init_type(nlohmann::json& il2cpp_dump, sdk::RETypeDB* tdb, uint32_t i) {
     if (g_itypedb.find(i) != g_itypedb.end()) {
         return g_itypedb[i];
     }
@@ -462,12 +449,12 @@ std::shared_ptr<detail::ParsedType> ObjectExplorer::init_type(nlohmann::json& il
     auto desc = init_type_min(il2cpp_dump, tdb, i);
 
     g_itypedb[i] = desc;
-    g_fqntypedb[desc->t->fqnHash] = desc;
+    g_fqntypedb[desc->t->fqn_hash] = desc;
 
     return desc;
 }
 
-std::string ObjectExplorer::generate_full_name(RETypeDB* tdb, uint32_t i) {
+std::string ObjectExplorer::generate_full_name(sdk::RETypeDB* tdb, uint32_t i) {
     static std::unordered_map<uint32_t, std::string> full_names{};
 
     if (i == 0 || i >= tdb->numTypes) {
@@ -486,7 +473,7 @@ std::string ObjectExplorer::generate_full_name(RETypeDB* tdb, uint32_t i) {
     std::string full_name{};
 
     if (tdef->declaring_typeid > 0 && tdef->declaring_typeid != i) {
-        std::unordered_set<REClassInfo*> seen_classes{};
+        std::unordered_set<sdk::RETypeDefinition*> seen_classes{};
 
         for (auto owner = &raw_t; owner != nullptr; owner = ::get_declare_t(*owner, tdb)) {
             if (seen_classes.count(owner) > 0) {
@@ -528,14 +515,7 @@ std::string ObjectExplorer::generate_full_name(RETypeDB* tdb, uint32_t i) {
     full_names[i] = full_name;
 
     if (raw_t.generics > 0) {
-        struct GenericListData {
-            uint32_t definition_typeid : TYPE_INDEX_BITS;
-            uint32_t num : 14;
-            uint32_t types[1];
-        };
-
-
-        auto generics = (GenericListData*)&(*tdb->bytePool)[raw_t.generics];
+        auto generics = (sdk::GenericListData*)&(*tdb->bytePool)[raw_t.generics];
 
         if (generics->num > 0) {
             full_name += "<";
@@ -565,7 +545,7 @@ std::string ObjectExplorer::generate_full_name(RETypeDB* tdb, uint32_t i) {
     return full_name;
 }
 
-std::shared_ptr<detail::ParsedType> ObjectExplorer::init_type_min(json& il2cpp_dump, RETypeDB* tdb, uint32_t i) {
+std::shared_ptr<detail::ParsedType> ObjectExplorer::init_type_min(json& il2cpp_dump, sdk::RETypeDB* tdb, uint32_t i) {
     auto& t = (*tdb->types)[i];
     auto br = BitReader{&t};
 
@@ -580,7 +560,7 @@ std::shared_ptr<detail::ParsedType> ObjectExplorer::init_type_min(json& il2cpp_d
     return desc;
 }
 
-void ObjectExplorer::export_deserializer_chain(nlohmann::json& il2cpp_dump, RETypeDB* tdb, REType* t, std::optional<std::string> real_name) {
+void ObjectExplorer::export_deserializer_chain(nlohmann::json& il2cpp_dump, sdk::RETypeDB* tdb, REType* t, std::optional<std::string> real_name) {
     /*const auto is_clr_type = (((uint8_t)t->flags >> 5) & 1) != 0;
 
     if (is_clr_type) {
@@ -666,7 +646,7 @@ void ObjectExplorer::generate_sdk() {
     json il2cpp_dump{};
 
 #ifdef TDB_DUMP_ALLOWED
-    auto tdb = g_framework->get_types()->get_type_db();
+    auto tdb = (sdk::RETypeDB*)g_framework->get_types()->get_type_db();
 
     // Types
     for (uint32_t i = 0; i < tdb->numTypes; ++i) {
@@ -688,12 +668,12 @@ void ObjectExplorer::generate_sdk() {
         auto tdef = (sdk::RETypeDefinition*)desc->t;
 
         auto& type_entry = (il2cpp_dump[desc->full_name] = {});
-        const auto crc = t.type != nullptr ? t.type->typeCRC : t.typeCRC;
+        const auto crc = t.type != nullptr ? t.type->typeCRC : t.type_crc;
 
         type_entry = {
             {"address", (std::stringstream{} << std::hex << get_original_va(&t)).str()},
             {"id", i},
-            {"fqn", (std::stringstream{} << std::hex << t.fqnHash).str()},
+            {"fqn", (std::stringstream{} << std::hex << t.fqn_hash).str()},
             {"crc", (std::stringstream{} << std::hex << crc).str()},
             {"size", (std::stringstream{} << std::hex << t.size).str()},
         };
@@ -707,7 +687,7 @@ void ObjectExplorer::generate_sdk() {
             type_entry["parent"] = desc->super->full_name;
         }
 
-        if (auto type_flags_str = get_full_enum_value_name("via.clr.TypeFlag", t.typeFlags); !type_flags_str.empty()) {
+        if (auto type_flags_str = get_full_enum_value_name("via.clr.TypeFlag", t.type_flags); !type_flags_str.empty()) {
             type_entry["flags"] = type_flags_str;
         }
 
@@ -782,10 +762,8 @@ void ObjectExplorer::generate_sdk() {
         auto impl_id = (uint32_t)br.read(20);
         auto param_list = (uint32_t)br.read(26);
 #else
-        auto casted_method = (sdk::tdb67::REMethodDefinition*)&m;
-
-        const auto type_id = (uint32_t)casted_method->declaring_typeid;
-        const auto param_list = casted_method->params;
+        const auto type_id = (uint32_t)m.declaring_typeid;
+        const auto param_list = m.params;
 #endif
 
         if (g_itypedb.find(type_id) == g_itypedb.end()) {
@@ -801,7 +779,7 @@ void ObjectExplorer::generate_sdk() {
         desc->method_impls.push_back(&impl);
         const auto name_offset = impl.nameOffset;
 #else
-        const auto name_offset = casted_method->name_offset;
+        const auto name_offset = m.name_offset;
 #endif
 
         const auto name = Address{ tdb->stringPool }.get(name_offset).as<const char*>();
@@ -819,9 +797,9 @@ void ObjectExplorer::generate_sdk() {
         const auto impl_flags = impl.implFlags;
         const auto method_flags = impl.flags;
 #else
-        const auto vtable_index = casted_method->vtable_index;
-        const auto impl_flags = casted_method->impl_flags;
-        const auto method_flags = casted_method->flags;
+        const auto vtable_index = m.vtable_index;
+        const auto impl_flags = m.impl_flags;
+        const auto method_flags = m.flags;
 #endif
 
         g_imethoddb[i] = pm;
@@ -852,9 +830,9 @@ void ObjectExplorer::generate_sdk() {
         const auto num_params = param_ids->numParams;
         const auto invoke_id = param_ids->invokeID;
 #else
-        auto param_ids = Address{ tdb->bytePool }.get(param_list).as<sdk::tdb67::REMethodParamDef*>();
-        const auto num_params = (uint8_t)casted_method->num_params;
-        const auto invoke_id = (uint16_t)casted_method->invoke_id;
+        auto param_ids = Address{ tdb->bytePool }.get(param_list).as<sdk::REMethodParamDef*>();
+        const auto num_params = (uint8_t)m.num_params;
+        const auto invoke_id = (uint16_t)m.invoke_id;
 #endif
 
         // Invoke wrapper for arbitrary amount of arguments, so we can just pass it on the VM stack/context as an array
@@ -922,7 +900,7 @@ void ObjectExplorer::generate_sdk() {
         method_entry["returns"] = parse_param(param_ids->returnType, true);
 #else
         method_entry["returns"] = json{
-            {"type", generate_full_name(tdb, casted_method->return_typeid)},
+            {"type", generate_full_name(tdb, m.return_typeid)},
             {"name", ""},
         };
 #endif
@@ -957,10 +935,8 @@ void ObjectExplorer::generate_sdk() {
         const auto impl_id = (uint32_t)br.read(20);
         const auto offset = (uint32_t)br.read(26);
 #else
-        auto casted_field = (sdk::tdb67::REField*)&f;
-
-        const auto type_id = (uint32_t)casted_field->declaring_typeid;
-        const auto offset = casted_field->offset;
+        const auto type_id = (uint32_t)f.declaring_typeid;
+        const auto offset = f.offset;
 #endif
 
         if (g_itypedb.find(type_id) == g_itypedb.end()) {
@@ -987,11 +963,11 @@ void ObjectExplorer::generate_sdk() {
         const auto name = Address{tdb->stringPool}.get(name_offset).as<const char*>();
         const auto init_data_index = init_data_low | (init_data_high << 14);
 #else
-        const auto name_offset = casted_field->name_offset;
+        const auto name_offset = f.name_offset;
         const auto name = Address{ tdb->stringPool }.get(name_offset).as<const char*>();
-        const auto field_type = (uint32_t)casted_field->field_typeid;
-        const auto field_flags = casted_field->flags;
-        const auto init_data_index = casted_field->init_data_index;
+        const auto field_type = (uint32_t)f.field_typeid;
+        const auto field_flags = f.flags;
+        const auto init_data_index = f.init_data_index;
 #endif
 
         // Create an easier to deal with structure
@@ -1009,8 +985,8 @@ void ObjectExplorer::generate_sdk() {
 #endif
 
         // Resolve the offset to be from the base class
-        if (pf->owner->t->parentInfo != nullptr) {
-            const auto field_ptr_offset = Address{ pf->owner->t->parentInfo }.get(-(int32_t)sizeof(void*)).to<int32_t>();
+        if (pf->owner->t->managed_vt != nullptr) {
+            const auto field_ptr_offset = Address{ pf->owner->t->managed_vt }.get(-(int32_t)sizeof(void*)).to<int32_t>();
 
             pf->offset_from_base += field_ptr_offset;
         }
@@ -1154,7 +1130,7 @@ void ObjectExplorer::generate_sdk() {
         auto& impl = (*tdb->propertiesImpl)[impl_id];
         auto name = Address{tdb->stringPool}.get(impl.nameOffset).as<const char*>();
 #else
-        auto name = Address{ tdb->stringPool }.get(p.nameOffset).as<const char*>();
+        auto name = Address{ tdb->stringPool }.get(p.name_offset).as<const char*>();
 #endif
 
         // ha ha
@@ -1212,19 +1188,19 @@ void ObjectExplorer::generate_sdk() {
 
             // Get the topmost one because of depth
             for (auto d = 0; d < depth; ++d) {
-                if (depth_t->t->parentInfo == nullptr || depth_t->super == nullptr) {
+                if (depth_t->t->managed_vt == nullptr || depth_t->super == nullptr) {
                     break;
                 }
 
-                const auto field_ptr = Address{ depth_t->t->parentInfo }.get(-(int32_t)sizeof(void*)).to<int32_t>();
+                const auto field_ptr = Address{ depth_t->t->managed_vt }.get(-(int32_t)sizeof(void*)).to<int32_t>();
 
                 depth_t = depth_t->super;
 
-                if (depth_t->t->parentInfo == nullptr) {
+                if (depth_t->t->managed_vt == nullptr) {
                     break;
                 }
 
-                const auto field_ptr2 = Address{ depth_t->t->parentInfo }.get(-(int32_t)sizeof(void*)).to<int32_t>();
+                const auto field_ptr2 = Address{ depth_t->t->managed_vt }.get(-(int32_t)sizeof(void*)).to<int32_t>();
 
                 fieldptr_adjustment += field_ptr - field_ptr2;
             }
@@ -2016,7 +1992,7 @@ void ObjectExplorer::display_fields(REManagedObject* obj, REType* type_info) {
                         }
                     }
 
-                    auto prop_flags = *(PropertyFlags*)&variable->flags;
+                    auto prop_flags = *(sdk::PropertyFlags*)&variable->flags;
 
                     ImGui::Text("TypeKind: %i (%s)", prop_flags.type_kind, get_enum_value_name("via.reflection.TypeKind", (int64_t)prop_flags.type_kind).c_str());
                     ImGui::Text("Qualifiers: %i", prop_flags.type_qual);
@@ -2085,7 +2061,7 @@ void ObjectExplorer::attempt_display_field(REManagedObject* obj, VariableDescrip
     //if (type_kind != via::reflection::TypeKind::Class) {
         get_value_func(desc, obj, &raw_data);
 
-        auto prop_flags = *(PropertyFlags*)&desc->flags;
+        auto prop_flags = *(sdk::PropertyFlags*)&desc->flags;
         const auto is_pointer = prop_flags.managed_str || prop_flags.type_attr == 1 || prop_flags.type_attr == 2;
 
         if (is_pointer && *(void**)&raw_data == nullptr) {

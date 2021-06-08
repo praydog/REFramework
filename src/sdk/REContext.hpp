@@ -2,8 +2,9 @@
 
 #include <cstdint>
 
+#include "RETypeDB.hpp"
+
 class REThreadContext;
-class RETypeDB;
 
 namespace sdk {
     struct REStaticTbl {
@@ -18,7 +19,7 @@ namespace sdk {
 
     public:
         REThreadContext* get_thread_context(int32_t unk = -1);
-        RETypeDB* get_type_db();
+        sdk::RETypeDB* get_type_db();
         REStaticTbl& get_static_tbl();
 
         uint8_t* get_static_tbl_for_type(uint32_t type_index);
