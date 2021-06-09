@@ -393,54 +393,6 @@ void ObjectExplorer::on_draw_ui() {
 }
 
 #ifdef TDB_DUMP_ALLOWED
-static auto get_declare_t = [](sdk::RETypeDefinition& t, sdk::RETypeDB* tdb) -> sdk::RETypeDefinition* {
-    auto tdef = (sdk::RETypeDefinition*)&t;
-
-    if (tdef->declaring_typeid == 0 || tdef->declaring_typeid > tdb->numTypes) {
-        return nullptr;
-    }
-
-    return &(*tdb->types)[tdef->declaring_typeid];
-};
-
-static auto get_declare_t_i = [](auto i, RETypeDB* tdb) -> sdk::RETypeDefinition* {
-    return get_declare_t((*tdb->types)[i], tdb); 
-};
-
-static auto get_declare_heirarchy = [](sdk::RETypeDefinition& t, sdk::RETypeDB* tdb) {
-    std::vector<sdk::RETypeDefinition*> owners{};
-
-    for (auto parent = &t; parent != nullptr; parent = get_declare_t(*parent, tdb)) {
-        owners.push_back(parent);
-    }
-
-    return owners;
-};
-
-static auto get_name = [](sdk::RETypeDefinition& tdef, sdk::RETypeDB* tdb) {
-#if TDB_VER >= 69
-    auto& impl = (*tdb->typesImpl)[tdef.impl_index];
-
-    const auto name_index = impl.nameThing;
-#else
-    const auto name_index = tdef.name_offset;
-#endif
-
-    return Address{tdb->stringPool}.get(name_index).as<const char*>();
-};
-
-static auto get_namespace = [](sdk::RETypeDefinition& tdef, sdk::RETypeDB* tdb) {
-#if TDB_VER >= 69
-    auto& impl = (*tdb->typesImpl)[tdef.impl_index];
-
-    const auto name_index = impl.namespaceThing;
-#else
-    const auto name_index = tdef.namespace_offset;
-#endif
-
-    return Address{tdb->stringPool}.get(name_index).as<const char*>();
-};
-
 std::shared_ptr<detail::ParsedType> ObjectExplorer::init_type(nlohmann::json& il2cpp_dump, sdk::RETypeDB* tdb, uint32_t i) {
     if (g_itypedb.find(i) != g_itypedb.end()) {
         return g_itypedb[i];
@@ -455,90 +407,12 @@ std::shared_ptr<detail::ParsedType> ObjectExplorer::init_type(nlohmann::json& il
 }
 
 std::string ObjectExplorer::generate_full_name(sdk::RETypeDB* tdb, uint32_t i) {
-    static std::unordered_map<uint32_t, std::string> full_names{};
-
     if (i == 0 || i >= tdb->numTypes) {
         return "";
     }
 
-    if (full_names.find(i) != full_names.end()) {
-        return full_names[i];
-    }
-
     auto& raw_t = (*tdb->types)[i];
-    auto tdef = (sdk::RETypeDefinition*)&raw_t;
-
-
-    std::deque<std::string> names{};
-    std::string full_name{};
-
-    if (tdef->declaring_typeid > 0 && tdef->declaring_typeid != i) {
-        std::unordered_set<sdk::RETypeDefinition*> seen_classes{};
-
-        for (auto owner = &raw_t; owner != nullptr; owner = ::get_declare_t(*owner, tdb)) {
-            if (seen_classes.count(owner) > 0) {
-                break;
-            }
-
-            names.push_front(::get_name(*owner, tdb));
-
-            if (::get_declare_t(*owner, tdb) == nullptr && !std::string{::get_namespace(*owner, tdb)}.empty()) {
-                names.push_front(get_namespace(*owner, tdb));
-            }
-
-            // uh.
-            if (::get_declare_t(*owner, tdb) == &raw_t) {
-                break;
-            }
-
-            seen_classes.insert(owner);
-        }
-    } else {
-        // namespace
-        if (!std::string{ ::get_namespace(raw_t, tdb) }.empty()) {
-            names.push_front(::get_namespace(raw_t, tdb));
-        }
-
-        // actual class name
-        names.push_back(::get_name(raw_t, tdb));
-    }
-
-    for (auto f = 0; f < names.size(); ++f) {
-        if (f > 0) {
-            full_name += ".";
-        }
-
-        full_name += names[f];
-    }
-
-    // Set this here at this point in-case generate_full_name runs into it
-    full_names[i] = full_name;
-
-    if (raw_t.generics > 0) {
-        auto generics = (sdk::GenericListData*)&(*tdb->bytePool)[raw_t.generics];
-
-        if (generics->num > 0) {
-            full_name += "<";
-
-            for (uint32_t f = 0; f < generics->num; ++f) {
-                auto gtypeid = generics->types[f];
-
-                if (gtypeid > 0 && gtypeid < tdb->numTypes) {
-                    full_name += generate_full_name(tdb, gtypeid);
-                } else {
-                    full_name += "";
-                }
-
-                if (generics->num > 1 && f < generics->num - 1) {
-                    full_name += ",";
-                }
-            }
-
-            full_name += ">";
-        }
-    }
-
-    full_names[i] = full_name;
+    auto full_name = raw_t.get_full_name();
 
     spdlog::info("{:s}", full_name);
 
@@ -549,13 +423,11 @@ std::shared_ptr<detail::ParsedType> ObjectExplorer::init_type_min(json& il2cpp_d
     auto& t = (*tdb->types)[i];
     auto br = BitReader{&t};
 
-    auto tdef = (sdk::RETypeDefinition*)&t;
-
     auto desc = std::make_shared<detail::ParsedType>();
 
     desc->t = &t;
-    desc->name_space = ::get_namespace(t, tdb);
-    desc->name = ::get_name(t, tdb);
+    desc->name_space = t.get_namespace();
+    desc->name = t.get_name();
 
     return desc;
 }
@@ -929,11 +801,9 @@ void ObjectExplorer::generate_sdk() {
         auto& f = (*tdb->fields)[i];
 
 #if TDB_VER >= 69
-        auto br = BitReader{&f};
-
-        const auto type_id = (uint32_t)br.read(18);
-        const auto impl_id = (uint32_t)br.read(20);
-        const auto offset = (uint32_t)br.read(26);
+        const auto type_id = (uint32_t)f.declaring_typeid;
+        const auto impl_id = (uint32_t)f.impl_id;
+        const auto offset = (uint32_t)f.offset;
 #else
         const auto type_id = (uint32_t)f.declaring_typeid;
         const auto offset = f.offset;
@@ -1613,7 +1483,7 @@ void ObjectExplorer::handle_address(Address address, int32_t offset, Address par
         if (utility::re_managed_object::get_vm_type(object) == via::clr::VMObjType::Array) {
             if (ImGui::TreeNode(real_address.get(sizeof(REArrayBase)), "Array Entries")) {
                 auto arr = (REArrayBase*)object;
-                const bool entry_is_val = utility::re_class_info::get_vm_type(arr->containedType) == via::clr::VMObjType::ValType;
+                const bool entry_is_val = ((sdk::RETypeDefinition*)arr->containedType)->get_vm_obj_type() == via::clr::VMObjType::ValType;
 
                 if (entry_is_val) {
                     for (auto i = 0; i < arr->numElements; ++i) {
@@ -1779,8 +1649,10 @@ void ObjectExplorer::handle_type(REManagedObject* obj, REType* t) {
             }
         }
 
-        display_methods(obj, type_info);
-        display_fields(obj, type_info);
+        display_reflection_methods(obj, type_info);
+        display_reflection_properties(obj, type_info);
+
+        display_native_fields(obj, (sdk::RETypeDefinition*)type_info->classInfo);
     }
 
     for (auto i = 0; i < count; ++i) {
@@ -1840,7 +1712,7 @@ void ObjectExplorer::display_enum_value(std::string_view name, int64_t value) {
     }
 }
 
-void ObjectExplorer::display_methods(REManagedObject* obj, REType* type_info) {
+void ObjectExplorer::display_reflection_methods(REManagedObject* obj, REType* type_info) {
     volatile auto methods = type_info->fields->methods;
 
     if (methods == nullptr || *methods == nullptr) {
@@ -1849,7 +1721,7 @@ void ObjectExplorer::display_methods(REManagedObject* obj, REType* type_info) {
 
     auto num_methods = type_info->fields->num;
 
-    if (ImGui::TreeNode(methods, "Methods: %i", num_methods)) {
+    if (ImGui::TreeNode(methods, "Reflection Methods: %i", num_methods)) {
         for (auto i = 0; i < num_methods; ++i) {
             volatile auto top = (*methods)[i];
 
@@ -1906,7 +1778,7 @@ void ObjectExplorer::display_methods(REManagedObject* obj, REType* type_info) {
     }
 }
 
-void ObjectExplorer::display_fields(REManagedObject* obj, REType* type_info) {
+void ObjectExplorer::display_reflection_properties(REManagedObject* obj, REType* type_info) {
     if (type_info->fields == nullptr || type_info->fields->variables == nullptr || type_info->fields->variables->data == nullptr) {
         return;
     }
@@ -1914,7 +1786,7 @@ void ObjectExplorer::display_fields(REManagedObject* obj, REType* type_info) {
     const auto is_real_object = utility::re_managed_object::is_managed_object(obj);
     auto descriptors = type_info->fields->variables->data->descriptors;
 
-    if (ImGui::TreeNode(type_info->fields, "Fields: %i", type_info->fields->variables->num)) {
+    if (ImGui::TreeNode(type_info->fields, "Reflection Properties: %i", type_info->fields->variables->num)) {
         for (auto i = descriptors; i != descriptors + type_info->fields->variables->num; ++i) {
             auto variable = *i;
 
@@ -2016,20 +1888,167 @@ void ObjectExplorer::display_fields(REManagedObject* obj, REType* type_info) {
     }
 }
 
+void ObjectExplorer::display_native_fields(REManagedObject* obj, sdk::RETypeDefinition* tdef) {
+#ifdef TDB_DUMP_ALLOWED
+    if (tdef == nullptr) {
+        return;
+    }
+
+    const auto is_real_object = utility::re_managed_object::is_managed_object(obj);
+    auto fields = tdef->get_fields();
+
+    if (fields.size() == 0) {
+        return;
+    }
+
+    bool owner_is_valuetype = tdef->get_vm_obj_type() == via::clr::VMObjType::ValType;
+
+    auto tdb = g_framework->get_types()->get_type_db();
+
+    if (ImGui::TreeNode(fields.begin(), "TDB Fields: %i", fields.size())) {
+        for (auto& f : fields) {
+#if TDB_VER >= 69
+            const auto declaring_typeid = (uint32_t)f.declaring_typeid;
+            const auto impl_id = (uint32_t)f.impl_id;
+            const auto fieldptr_offset = (uint32_t)f.offset;
+
+            const auto& impl = (*tdb->fieldsImpl)[impl_id];
+            const auto name_offset = impl.name_offset;
+            const auto field_typeid = impl.field_typeid;
+            const auto field_flags = impl.flags;
+            const auto init_data_index = impl.init_data_lo | (impl.init_data_hi << 14);
+#else
+            const auto declaring_type_id = (uint32_t)f.declaring_typeid;
+            const auto fieldptr_offset = f.offset;
+            const auto name_offset = f.name_offset;
+            const auto field_typeid = f.field_typeid;
+            const auto field_flags = f.flags;
+            const auto init_data_index = f.init_data_index;
+#endif
+            
+            const auto field_type = &(*tdb->types)[field_typeid];
+            const auto field_type_name = field_type->get_full_name();
+            const auto field_name = Address{ tdb->stringPool }.get(name_offset).as<const char*>();
+
+            auto offset = fieldptr_offset;
+
+            void* data = nullptr;
+
+            bool is_valuetype = false;
+            bool is_enum = false;
+            bool is_managed_str = false;
+
+            std::string final_type_name = field_type_name;
+
+            // Check the field type's parent
+            if (auto fpt = field_type->get_parent_type(); fpt != nullptr) {
+                const auto full_name_hash = utility::hash(fpt->get_full_name());
+
+                if (full_name_hash == "System.Enum"_fnv) {
+                    is_enum = true;
+                    //is_valuetype = true;
+                }
+
+                /*if (full_name_hash == "System.ValueType"_fnv) {
+                    is_valuetype = true;
+                }*/
+            }
+
+            is_valuetype = field_type->get_vm_obj_type() == via::clr::VMObjType::ValType;
+
+            std::vector<std::string> postfixes{};
+
+            if ((field_flags & (uint16_t)via::clr::FieldFlag::Static) != 0) {
+                postfixes.push_back("STATIC");
+
+                if ((field_flags & (uint16_t)via::clr::FieldFlag::Literal) != 0) {
+                    postfixes.push_back("CONST");
+                    
+                    const auto init_data_offset = (*tdb->initData)[init_data_index];
+                    auto init_data = &(*tdb->bytePool)[init_data_offset];
+
+                    // WACKY
+                    if (init_data_offset < 0) {
+                        init_data = &((uint8_t*)tdb->stringPool)[init_data_offset * -1];
+                    }
+
+                    data = init_data;
+
+                    switch (utility::hash(field_type_name)) {
+                    case "System.String"_fnv:
+                        final_type_name = "c8";
+                        break;
+
+                    default:
+                        break;
+                    }
+                }
+                else {
+                    auto tbl = sdk::REGlobalContext::get()->get_static_tbl_for_type(tdef->index);
+
+                    if (tbl != nullptr) {
+                        data = Address{ tbl }.get(fieldptr_offset);
+
+                        if (!is_valuetype) {
+                            data = *(void**)data;
+                        }
+                    }
+                }
+            }
+            else {
+                if (!owner_is_valuetype || is_real_object) {
+                    offset += tdef->get_fieldptr_offset();
+                }
+
+                // Draw the offset
+                postfixes.push_back((std::stringstream{} << "0x" << std::uppercase << std::hex << offset).str());
+
+                if (obj != nullptr) {
+                    data = Address{ obj }.get(offset);
+
+                    if (!is_valuetype) {
+                        data = *(void**)data;
+                    }
+                }
+            }
+
+            is_managed_str = final_type_name == "System.String";
+
+            const auto made_node = widget_with_context(data, [&]() { return stretched_tree_node(&f, "%s", field_type_name.c_str()); });
+            const auto tree_hovered = ImGui::IsItemHovered();
+
+            // Draw the variable name with a color
+            if (tree_hovered) {
+                make_same_line_text(field_name, VARIABLE_COLOR_HIGHLIGHT);
+            } else {
+                make_same_line_text(field_name, VARIABLE_COLOR);
+            }
+
+            // draw stuff after the field like the offset
+            for (auto postfix : postfixes) {
+                ImGui::SameLine();
+                ImGui::TextColored(ImVec4{ 1.0f, 0.0f, 0.0f, 1.0f }, postfix.c_str());
+            }
+
+            // draw the field data
+            if (made_node) {
+                display_data(data, data, final_type_name, is_enum, is_managed_str, is_valuetype ? field_type : nullptr);
+
+                ImGui::TreePop();
+            }
+        }
+
+        ImGui::TreePop();
+    }
+#else
+    return;
+#endif
+}
+
 void ObjectExplorer::attempt_display_field(REManagedObject* obj, VariableDescriptor* desc, REType* type_info) {
     if (desc->function == nullptr) {
         return;
     }
-
-    auto make_tree_addr = [this](void* addr) {
-        if (widget_with_context(addr, [&]() { return ImGui::TreeNode(addr, "Variable: 0x%p", addr); })) {
-            if (is_managed_object(addr)) {
-                handle_address(addr);
-            }
-
-            ImGui::TreePop();
-        }
-    };
 
     auto type_name = std::string{ desc->typeName };
     auto ret = utility::hash(type_name);
@@ -2037,8 +2056,43 @@ void ObjectExplorer::attempt_display_field(REManagedObject* obj, VariableDescrip
 
     char raw_data[0x100]{ 0 };
 
+    get_value_func(desc, obj, &raw_data);
+
+    auto prop_flags = *(sdk::PropertyFlags*)&desc->flags;
+    const auto is_pointer = prop_flags.managed_str || prop_flags.type_attr == 1 || prop_flags.type_attr == 2;
+
+    if (is_pointer && *(void**)&raw_data == nullptr) {
+        ImGui::Text("Null pointer");
+        return;
+    }
+
+    auto data = (is_pointer ? *(char**)&raw_data : (char*)&raw_data);
+    auto field_offset = get_field_offset(obj, desc, type_info);
+
+    void* real_data = nullptr;
+
+    if (field_offset != 0) {
+        real_data = Address{ obj }.get(field_offset);
+    }
+
+    // i don't understand why the game does this.
+    if (prop_flags.managed_str != 0 && prop_flags.type_attr == 2 && data != nullptr) {
+        data = *(char**)data;
+    }
+
+    display_data(data, real_data, type_name, prop_flags.type_kind == (uint32_t)via::reflection::TypeKind::Enum, prop_flags.managed_str != 0);
+}
+
+void ObjectExplorer::display_data(void* data, void* real_data, std::string type_name, bool is_enum, bool managed_str, sdk::RETypeDefinition* override_def) {
+    if (data == nullptr) {
+        ImGui::Text("Null pointer");
+        return;
+    }
+
     constexpr auto min_i8 = std::numeric_limits<int8_t>::min();
     constexpr auto max_i8 = std::numeric_limits<int8_t>::max();
+    constexpr auto min_i16 = std::numeric_limits<int16_t>::min();
+    constexpr auto max_i16 = std::numeric_limits<int16_t>::max();
     constexpr auto min_int = std::numeric_limits<int32_t>::min();
     constexpr auto max_int = std::numeric_limits<int32_t>::max();
     constexpr auto min_int64 = std::numeric_limits<int64_t>::min();
@@ -2046,6 +2100,8 @@ void ObjectExplorer::attempt_display_field(REManagedObject* obj, VariableDescrip
 
     constexpr auto min_u8 = std::numeric_limits<uint8_t>::min();
     constexpr auto max_u8 = std::numeric_limits<uint8_t>::max();
+    constexpr auto min_u16 = std::numeric_limits<uint16_t>::min();
+    constexpr auto max_u16 = std::numeric_limits<uint16_t>::max();
     constexpr auto min_uint = std::numeric_limits<uint32_t>::min();
     constexpr auto max_uint = std::numeric_limits<uint32_t>::max();
     constexpr auto min_uint64 = std::numeric_limits<uint64_t>::min();
@@ -2057,214 +2113,224 @@ void ObjectExplorer::attempt_display_field(REManagedObject* obj, VariableDescrip
 
     constexpr auto min_zero = 0;
 
-    // 0x10 == pointer, i think?
-    //if (type_kind != via::reflection::TypeKind::Class) {
-        get_value_func(desc, obj, &raw_data);
+    auto make_tree_addr = [this](void* addr) {
+        if (widget_with_context(addr, [&]() { return ImGui::TreeNode(addr, "Variable: 0x%p", addr); })) {
+            if (is_managed_object(addr)) {
+                handle_address(addr);
+            }
 
-        auto prop_flags = *(sdk::PropertyFlags*)&desc->flags;
-        const auto is_pointer = prop_flags.managed_str || prop_flags.type_attr == 1 || prop_flags.type_attr == 2;
+            ImGui::TreePop();
+        }
+    };
 
-        if (is_pointer && *(void**)&raw_data == nullptr) {
-            ImGui::Text("Null pointer");
-            return;
+    // yay for compile time string hashing
+    switch (utility::hash(type_name)) {
+    case "System.UInt64"_fnv:
+    case "size_t"_fnv:
+    case "u64"_fnv:
+        ImGui::Text("%llu", *(uint64_t*)data);
+
+        if (real_data != nullptr) {
+            auto& int_val = *(uint64_t*)real_data;
+
+            ImGui::DragScalar("Set Value", ImGuiDataType_U64, &int_val, 1.0f, &min_uint64, &max_uint64);
         }
 
-        auto& data = (is_pointer ? **(char***)&raw_data : *(char**)&raw_data);
-        auto field_offset = get_field_offset(obj, desc, type_info);
+        break;
+    case "System.Int64"_fnv:
+    case "s64"_fnv:
+        ImGui::Text("%lli", *(int64_t*)data);
 
-        // yay for compile time string hashing
-        switch (ret) {
-        case "size_t"_fnv:
-        case "u64"_fnv:
-            ImGui::Text("%llu", *(uint64_t*)&data);
+        if (real_data != nullptr) {
+            auto& int_val = *(int64_t*)real_data;
 
-            if (field_offset != 0) {
-                auto& int_val = *Address{obj}.get(field_offset).as<uint64_t*>();
-
-                ImGui::DragScalar("Set Value", ImGuiDataType_U64, &int_val, 1.0f, &min_uint64, &max_uint64);
-            }
-
-            break;
-
-        case "s64"_fnv:
-            ImGui::Text("%lli", *(int64_t*)&data);
-
-            if (field_offset != 0) {
-                auto& int_val = *Address{obj}.get(field_offset).as<int64_t*>();
-
-                ImGui::DragScalar("Set Value", ImGuiDataType_S64, &int_val, 1.0f, &min_int64, &max_int64);
-            }
-
-            break;
-        case "u32"_fnv:
-            ImGui::Text("%u", *(int32_t*)&data);
-
-            if (field_offset != 0) {
-                auto& int_val = *Address{obj}.get(field_offset).as<uint32_t*>();
-
-                ImGui::DragInt("Set Value", (int*)&int_val, 1.0f, min_uint, max_uint);
-            }
-
-            break;
-
-        case "s32"_fnv:
-            ImGui::Text("%i", *(int32_t*)&data);
-
-            if (field_offset != 0) {
-                auto& int_val = *Address{ obj }.get(field_offset).as<int32_t*>();
-
-                ImGui::DragInt("Set Value", (int*)&int_val, 1.0f, min_int, max_int);
-            }
-
-            break;
-        case "u8"_fnv:
-            ImGui::Text("%u", *(uint8_t*)&data);
-
-            if (field_offset != 0) {
-                auto& int_val = *Address{obj}.get(field_offset).as<int8_t*>();
-
-                ImGui::DragScalar("Set Value", ImGuiDataType_U8, &int_val, 1.0f, &min_u8, &max_u8);
-            }
-
-            break;
-        case "s8"_fnv:
-            ImGui::Text("%i", *(int8_t*)&data);
-
-            if (field_offset != 0) {
-                auto& int_val = *Address{obj}.get(field_offset).as<int8_t*>();
-
-                ImGui::DragScalar("Set Value", ImGuiDataType_S8, &int_val, 1.0f, &min_i8, &max_i8);
-            }
-
-            break;
-        case "System.Nullable`1<System.Single>"_fnv:
-        case "f32"_fnv: 
-        {
-            ImGui::Text("%f", *(float*)&data);
-
-            if (field_offset != 0) {
-                auto& float_val = *Address{ obj }.get(field_offset).as<float*>();
-
-                ImGui::DragFloat("Set Value", &float_val, 0.01f, min_float, max_float);
-            }
-            
-            break;
-        }
-        case "System.Nullable`1<System.Boolean>"_fnv:
-        case "bool"_fnv:
-            if (*(bool*)&data) {
-                ImGui::Text("true");
-            }
-            else {
-                ImGui::Text("false");
-            }
-
-            if (field_offset != 0) {
-                auto& bool_val = *Address{ obj }.get(field_offset).as<bool*>();
-
-                ImGui::Checkbox("Set Value", &bool_val);
-            }
-
-            break;
-        case "c16"_fnv:
-            ImGui::Text("%s", utility::narrow((wchar_t*)&data).c_str());
-            break;
-        case "c8"_fnv:
-            ImGui::Text("%s", (char*)&data);
-            break;
-        case "System.Nullable`1<via.vec2>"_fnv:
-        case "via.vec2"_fnv:
-        {
-            auto vec = (Vector2f*)&data;
-
-            ImGui::Text("%f %f", vec->x, vec->y);
-
-            if (field_offset != 0) {
-                auto& vec_val = *Address{ obj }.get(field_offset).as<Vector2f*>();
-
-                ImGui::DragFloat2("Set Value", (float*)&vec_val, 0.01f, min_float, max_float);
-            }
-
-            break;
-        }
-        case "System.Nullable`1<via.vec3>"_fnv:
-        case "via.Float3"_fnv:
-        case "via.vec3"_fnv:
-        {
-            auto vec = (Vector3f*)&data;
-
-            if (vec != nullptr) {
-                ImGui::Text("%f %f %f", vec->x, vec->y, vec->z);
-            }
-
-            if (field_offset != 0) {
-                auto& vec_val = *Address{ obj }.get(field_offset).as<Vector3f*>();
-
-                ImGui::DragFloat3("Set Value", (float*)&vec_val, 0.01f, min_float, max_float);
-            }
-
-            break;
+            ImGui::DragScalar("Set Value", ImGuiDataType_S64, &int_val, 1.0f, &min_int64, &max_int64);
         }
 
-        case "via.vec4"_fnv:
-        case "via.Quaternion"_fnv:
-        {
-            auto& quat = *(glm::quat*)&data;
-            ImGui::Text("%f %f %f %f", quat.x, quat.y, quat.z, quat.w);
+        break;
+    case "System.UInt32"_fnv:
+    case "u32"_fnv:
+        ImGui::Text("%u", *(uint32_t*)data);
 
-            if (field_offset != 0) {
-                auto& vec_val = *Address{ obj }.get(field_offset).as<Vector4f*>();
+        if (real_data != nullptr) {
+            auto& int_val = *(uint32_t*)real_data;
 
-                ImGui::DragFloat4("Set Value", (float*)&vec_val, 0.01f, min_float, max_float);
-            }
-
-            break;
+            ImGui::DragInt("Set Value", (int*)&int_val, 1.0f, min_uint, max_uint);
         }
-        case "via.string"_fnv: {
-#ifdef RE8
-            if (prop_flags.managed_str) {
-                auto ptr = (SystemString**)&data; 
 
-                if (ptr != nullptr && *ptr != nullptr) {
-                    ImGui::Text("%s", utility::re_string::get_string(**ptr).c_str());
-                } else {
-                    ImGui::Text("");
-                }
+        break;
+    case "System.Int32"_fnv:
+    case "s32"_fnv:
+        ImGui::Text("%i", *(int32_t*)data);
+
+        if (real_data != nullptr) {
+            auto& int_val = *(int32_t*)real_data;
+
+            ImGui::DragInt("Set Value", (int*)&int_val, 1.0f, min_int, max_int);
+        }
+
+        break;
+
+    case "System.UInt16"_fnv:
+    case "u16"_fnv:
+        ImGui::Text("%i", *(uint16_t*)data);
+
+        if (real_data != nullptr) {
+            auto& int_val = *(uint16_t*)real_data;
+
+            ImGui::DragScalar("Set Value", ImGuiDataType_U16, &int_val, 1.0f, &min_u16, &max_u16);
+        }
+        break;
+
+    case "System.Int16"_fnv:
+    case "s16"_fnv:
+        ImGui::Text("%i", *(int16_t*)data);
+
+        if (real_data != nullptr) {
+            auto& int_val = *(int16_t*)real_data;
+
+            ImGui::DragScalar("Set Value", ImGuiDataType_S16, &int_val, 1.0f, &min_i16, &max_i16);
+        }
+        break;
+    case "System.Byte"_fnv:
+    case "u8"_fnv:
+        ImGui::Text("%u", *(uint8_t*)data);
+
+        if (real_data != nullptr) {
+            auto& int_val = *(uint8_t*)real_data;
+
+            ImGui::DragScalar("Set Value", ImGuiDataType_U8, &int_val, 1.0f, &min_u8, &max_u8);
+        }
+
+        break;
+    case "System.SByte"_fnv:
+    case "s8"_fnv:
+        ImGui::Text("%i", *(int8_t*)data);
+
+        if (real_data != nullptr) {
+            auto& int_val = *(int8_t*)real_data;
+
+            ImGui::DragScalar("Set Value", ImGuiDataType_S8, &int_val, 1.0f, &min_i8, &max_i8);
+        }
+
+        break;
+    //case "System.Nullable`1<System.Single>"_fnv:
+    case "System.Single"_fnv:
+    case "f32"_fnv: {
+        ImGui::Text("%f", *(float*)data);
+
+        if (real_data != nullptr) {
+            auto& float_val = *(float*)real_data;
+
+            ImGui::DragFloat("Set Value", &float_val, 0.01f, min_float, max_float);
+        }
+
+        break;
+    }
+    //case "System.Nullable`1<System.Boolean>"_fnv:
+    case "System.Boolean"_fnv:
+    case "bool"_fnv:
+        if (*(bool*)data) {
+            ImGui::Text("true");
+        } else {
+            ImGui::Text("false");
+        }
+
+        if (real_data != nullptr) {
+            auto& bool_val = *(bool*)real_data;
+
+            ImGui::Checkbox("Set Value", &bool_val);
+        }
+
+        break;
+    case "System.Char"_fnv:
+    case "c16"_fnv:
+        ImGui::Text("%s", utility::narrow((wchar_t*)data).c_str());
+        break;
+    case "c8"_fnv:
+        ImGui::Text("%s", (char*)data);
+        break;
+    //case "System.Nullable`1<via.vec2>"_fnv:
+    case "via.Float2"_fnv:
+    case "via.vec2"_fnv: {
+        auto vec = (Vector2f*)data;
+
+        ImGui::Text("%f %f", vec->x, vec->y);
+
+        if (real_data != nullptr) {
+            auto& vec_val = *(Vector2f*)real_data;
+
+            ImGui::DragFloat2("Set Value", (float*)&vec_val, 0.01f, min_float, max_float);
+        }
+
+        break;
+    }
+    //case "System.Nullable`1<via.vec3>"_fnv:
+    case "via.Float3"_fnv:
+    case "via.vec3"_fnv: {
+        auto vec = (Vector3f*)data;
+
+        if (vec != nullptr) {
+            ImGui::Text("%f %f %f", vec->x, vec->y, vec->z);
+        }
+
+        if (real_data != nullptr) {
+            auto& vec_val = *(Vector3f*)real_data;
+
+            ImGui::DragFloat3("Set Value", (float*)&vec_val, 0.01f, min_float, max_float);
+        }
+
+        break;
+    }
+    case "via.Float4"_fnv:
+    case "via.vec4"_fnv:
+    case "via.Quaternion"_fnv: {
+        auto& quat = *(glm::quat*)data;
+        ImGui::Text("%f %f %f %f", quat.x, quat.y, quat.z, quat.w);
+
+        if (real_data != nullptr) {
+            auto& vec_val = *(Vector4f*)real_data;
+
+            ImGui::DragFloat4("Set Value", (float*)&vec_val, 0.01f, min_float, max_float);
+        }
+
+        break;
+    }
+    case "System.String"_fnv:
+    case "via.string"_fnv: {
+        if (managed_str) {
+            auto ptr = (SystemString*)data;
+
+            if (ptr != nullptr) {
+                ImGui::Text("%s", utility::re_string::get_string(*ptr).c_str());
             } else {
-                ImGui::Text("%s", utility::re_string::get_string(*(REString*)&data).c_str());
+                ImGui::Text("");
             }
-#else
-            ImGui::Text("%s", utility::re_string::get_string(*(REString*)&data).c_str());
-#endif
+        } else {
+            ImGui::Text("%s", utility::re_string::get_string(*(REString*)data).c_str());
         }
-            break;
-        default: 
-        {
-            if (prop_flags.type_kind == (uint32_t)via::reflection::TypeKind::Enum) {
-                auto value = *(int32_t*)&data;
-                display_enum_value(type_name, (int64_t)value);
+    } break;
+    default: {
+        if (is_enum) {
+            auto value = *(int32_t*)data;
+            display_enum_value(type_name, (int64_t)value);
 
-                if (field_offset != 0) {
-                    auto& int_val = *Address{ obj }.get(field_offset).as<int32_t*>();
+            if (real_data != nullptr) {
+                auto& int_val = *(int32_t*)real_data;
 
-                    ImGui::SliderInt("Set Value", &int_val, int_val - 1, int_val + 1);
-                }
+                ImGui::SliderInt("Set Value", &int_val, int_val - 1, int_val + 1);
             }
-            else {
-                make_tree_addr(&data);
+        } else {
+            make_tree_addr(data);
+
+            if (override_def != nullptr && override_def->type != nullptr) {
+                handle_type((REManagedObject*)data, override_def->type);
             }
-
-            break;
         }
-        }
-    //}
-    // Pointer... usually
-    /*else {
-        get_value_func(desc, obj, &raw_data);
-        auto& data = (is_pointer ? **(char***)&raw_data : *(char**)&raw_data);
 
-        make_tree_addr(&data);
-    }*/
+        break;
+    }
+    }
 }
 
 int32_t ObjectExplorer::get_field_offset(REManagedObject* obj, VariableDescriptor* desc, REType* type_info) {

@@ -2,8 +2,8 @@
 
 #include <cstdint>
 
-#include "ReClass.hpp"
 #include "RETypeCLR.hpp"
+#include "ReClass.hpp"
 
 // Manual definitions of REClassInfo because ReClass doesn't have bitfields like this.
 namespace sdk {
@@ -11,47 +11,51 @@ struct RETypeDefVersion69;
 struct RETypeDefVersion67;
 struct RETypeDefVersion66;
 
+struct REField;
+struct REMethodDefinition;
+struct REProperty;
+struct RETypeDefinition;
+
 #ifdef RE8
 #define TYPE_INDEX_BITS 18
-using RETypeDefinition = sdk::RETypeDefVersion69;
+using RETypeDefinition_ = sdk::RETypeDefVersion69;
 #elif defined(RE3) || defined(DMC5)
 #define TYPE_INDEX_BITS 17
-using RETypeDefinition = sdk::RETypeDefVersion67;
+using RETypeDefinition_ = sdk::RETypeDefVersion67;
 #else
 #define TYPE_INDEX_BITS 16
-using RETypeDefinition = sdk::RETypeDefVersion66;
+using RETypeDefinition_ = sdk::RETypeDefVersion66;
 #endif
 
 struct RETypeDefVersion69 {
-    // 0 - 8
     uint64_t index : TYPE_INDEX_BITS;
     uint64_t parent_typeid : TYPE_INDEX_BITS;
     uint64_t declaring_typeid : TYPE_INDEX_BITS;
     uint64_t underlying_typeid : 7;
-    uint64_t object_typeid : 3;
+    uint64_t object_type : 3;
     uint64_t array_typeid : TYPE_INDEX_BITS;
     uint64_t element_typeid : TYPE_INDEX_BITS;
     uint64_t impl_index : TYPE_INDEX_BITS;
     uint64_t system_typeid : 10;
 
-    uint32_t type_flags;    // 0x008
-    uint32_t size;          // 0x0014
-    uint32_t fqn_hash;      // 0x0018
-    uint32_t type_crc;      // 0x001C
-    uint32_t default_ctor;  // 0x0020
-    uint32_t vt;            // 0x0024 vtable byte pool
-    uint32_t member_method; // 0x0028
-    uint32_t member_field;  // 0x002C
+    uint32_t type_flags;
+    uint32_t size;
+    uint32_t fqn_hash;
+    uint32_t type_crc;
+    uint32_t default_ctor;
+    uint32_t vt;
+    uint32_t member_method;
+    uint32_t member_field;
 
     // 0x0030
     uint32_t num_member_prop : 12;
     uint32_t member_prop : 19;
 
-    uint32_t member_event;          // 0x0034
-    int32_t interfaces;             // 0x0038
-    int32_t generics;               // 0x003C byte pool
-    struct sdk::RETypeCLR* type;    // 0x0040
-    class ::REObjectInfo* managed_vt; // 0x0048
+    uint32_t member_event;
+    int32_t interfaces;
+    int32_t generics;
+    struct sdk::RETypeCLR* type;
+    class ::REObjectInfo* managed_vt;
 };
 
 struct RETypeDefVersion67 {
@@ -154,4 +158,60 @@ static_assert(sizeof(RETypeDefVersion66) == 0x78);
 #endif
 #endif
 #endif
+} // namespace sdk
+
+// helper class
+namespace sdk {
+struct RETypeDefinition : public sdk::RETypeDefinition_ {
+    class MethodIterator {
+    public:
+        MethodIterator(sdk::RETypeDefinition* parent)
+            : m_parent{parent} {}
+
+        sdk::REMethodDefinition* begin();
+        sdk::REMethodDefinition* end();
+        size_t size();
+
+    private:
+        sdk::RETypeDefinition* m_parent;
+    };
+
+    class FieldIterator {
+    public:
+        FieldIterator(sdk::RETypeDefinition* parent)
+            : m_parent{parent} {}
+
+        sdk::REField* begin();
+        sdk::REField* end();
+        size_t size();
+
+    private:
+        sdk::RETypeDefinition* m_parent;
+    };
+
+    class PropertyIterator {
+    public:
+        PropertyIterator(sdk::RETypeDefinition* parent)
+            : m_parent{parent} {}
+
+        sdk::REProperty* begin();
+        sdk::REProperty* end();
+
+    private:
+        sdk::RETypeDefinition* m_parent;
+    };
+
+    MethodIterator get_methods() { return MethodIterator{this}; }
+    FieldIterator get_fields() { return FieldIterator{this}; }
+    PropertyIterator get_properties() { return PropertyIterator{this}; }
+
+    const char* get_namespace();
+    const char* get_name();
+    std::string get_full_name();
+    sdk::RETypeDefinition* get_declaring_type();
+    sdk::RETypeDefinition* get_parent_type();
+    int32_t get_fieldptr_offset();
+
+    via::clr::VMObjType get_vm_obj_type() const;
+};
 } // namespace sdk

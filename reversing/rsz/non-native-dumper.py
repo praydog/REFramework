@@ -48,11 +48,11 @@ def generate_native_name(element):
         os.system("Error")
 
     if element["string"] == True:
-        return "String%iA%i" % (element["size"], element["align"])
+        return "String"
     elif element["list"] == True:
-        return "List%iA%i%s" % (element["size"], element["align"], generate_native_name(element["element"]))
+        return generate_native_name(element["element"])
     
-    return "Data%iA%i" % (element["size"], element["align"])
+    return "Data"
 
 def generate_field_entries(il2cpp_dump, natives, key, il2cpp_entry, use_typedefs, prefix = "", i=0, struct_i=0):
     e = il2cpp_entry
@@ -95,15 +95,20 @@ def generate_field_entries(il2cpp_dump, natives, key, il2cpp_entry, use_typedefs
                     "original_type": "",
                     "align": field["align"],
                     "size": field["size"],
+                    "native": True
                 }
 
                 if "element" in field and "list" in field and field["list"] == True:
+                    '''
                     new_entry["element"] = {
                         "type": generate_native_name(field["element"]),
                         "original_type": "",
                         "align": field["element"]["align"],
                         "size": field["element"]["size"],
                     }
+                    '''
+                    new_entry["align"] = field["element"]["align"]
+                    new_entry["size"] = field["element"]["size"]
                     new_entry["array"] = True
                 else:
                     new_entry["array"] = False
@@ -147,8 +152,10 @@ def generate_field_entries(il2cpp_dump, natives, key, il2cpp_entry, use_typedefs
                     else:
                         code = "RSZ" + code
 
+                '''
                 if rsz_entry["array"] == True:
                     code = code + "List"
+                '''
 
                 fields_out.append({
                     "type": code,
@@ -157,6 +164,7 @@ def generate_field_entries(il2cpp_dump, natives, key, il2cpp_entry, use_typedefs
                     "array": rsz_entry["array"] == 1,
                     "align": align_size["align"],
                     "size": align_size["size"],
+                    "native": False
                 })
 
                 field_str = "    " + code + " " + name + "; //\"" + type + "\""
@@ -167,7 +175,10 @@ def generate_field_entries(il2cpp_dump, natives, key, il2cpp_entry, use_typedefs
     return fields_out, struct_str, i, struct_i
 
 
-def main(out_postfix="", il2cpp_path="il2cpp_dump.json", natives_path=None, use_typedefs=False, use_hashkeys=False):
+def main(out_postfix="", il2cpp_path="", natives_path=None, use_typedefs=False, use_hashkeys=False):
+    if il2cpp_path is None:
+        return
+
     with open(il2cpp_path, "r", encoding="utf8") as f:
         il2cpp_dump = json.load(f)
 
@@ -212,7 +223,7 @@ def main(out_postfix="", il2cpp_path="il2cpp_dump.json", natives_path=None, use_
         f.write(out_str)
 
     with open("rsz" + out_postfix + ".json", "w", encoding="utf8") as f:
-        json.dump(out_json, f, indent=4, sort_keys=True)
+        json.dump(out_json, f, indent='\t', sort_keys=True)
 
 
 if __name__ == '__main__':

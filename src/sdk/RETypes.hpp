@@ -11,7 +11,7 @@ std::string game_namespace(std::string_view base_name);
 class REType;
 
 namespace sdk {
-    struct RETypeDB;
+struct RETypeDB;
 }
 
 // A list of types in the RE engine

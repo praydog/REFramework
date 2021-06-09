@@ -21,6 +21,10 @@
 #define TDB_VER 66
 #endif
 
+namespace sdk {
+struct RETypeDefinition;
+}
+
 #ifdef TDB_DUMP_ALLOWED
 namespace detail {
 struct ParsedParams;
@@ -55,7 +59,7 @@ struct ParsedField {
     std::shared_ptr<ParsedType> type{};
     sdk::REField* f{};
 #if TDB_VER >= 69
-    REFieldImpl* f_impl{};
+    sdk::REFieldImpl* f_impl{};
 #endif
     const char* name{};
     uint32_t offset_from_fieldptr{};
@@ -92,7 +96,7 @@ struct ParsedType {
 #if TDB_VER >= 69
     std::vector<REMethodImpl*> method_impls{};
     std::vector<REPropertyImpl> prop_impls{};
-    std::vector<REFieldImpl*> field_impls{};
+    std::vector<sdk::REFieldImpl*> field_impls{};
 #endif
 
     std::vector<std::shared_ptr<ParsedField>> parsed_fields;
@@ -126,9 +130,11 @@ private:
     void handle_type(REManagedObject* obj, REType* t);
 
     void display_enum_value(std::string_view name, int64_t value);
-    void display_methods(REManagedObject* obj, REType* type_info);
-    void display_fields(REManagedObject* obj, REType* type_info);
+    void display_reflection_methods(REManagedObject* obj, REType* type_info);
+    void display_reflection_properties(REManagedObject* obj, REType* type_info);
+    void display_native_fields(REManagedObject* obj, sdk::RETypeDefinition* tdef);
     void attempt_display_field(REManagedObject* obj, VariableDescriptor* desc, REType* type_info);
+    void display_data(void* data, void* real_data, std::string type_name, bool is_enum = false, bool managed_str = false, sdk::RETypeDefinition* override_def = nullptr);
     int32_t get_field_offset(REManagedObject* obj, VariableDescriptor* desc, REType* type_info);
 
     bool widget_with_context(void* address, std::function<bool()> widget);

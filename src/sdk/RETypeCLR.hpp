@@ -9,6 +9,8 @@
 // Structures for CLR types
 // Same structure across all the games so we don't care about the ReClass header
 namespace sdk {
+struct RETypeDefinition;
+
 struct DeserializeSequence {
     uint32_t code : 8;
     uint32_t size : 8;
@@ -16,9 +18,9 @@ struct DeserializeSequence {
     uint32_t depth : 6;
     uint32_t is_array : 1;
     uint32_t is_static : 1;
-
+    
     uint32_t offset;
-    class ::REClassInfo* native_type;
+    sdk::RETypeDefinition* native_type;
 };
 
 struct RETypeCLR : public ::REType {

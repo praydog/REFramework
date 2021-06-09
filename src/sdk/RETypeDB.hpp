@@ -6,15 +6,27 @@
 
 class RETypeDB;
 class REClassInfo;
+class RETypeImpl;
+class REMethodImpl;
+class REPropertyImpl;
+class REParameterDef;
+class REAttributeDef;
 
 namespace sdk {
+struct RETypeDefinition;
+struct REField;
+struct REFieldImpl;
+struct REMethodDefinition;
+struct REMethodImpl;
+struct REProperty;
+
 namespace tdb69 {
-    // todo bring these in from reclass
-    /*
-    struct REMethodDefinition;
-    struct REField;
-    struct REProperty;
-    */
+// todo bring these in from reclass
+struct REMethodDefinition;
+struct REMethodImpl;
+struct REField;
+struct REFieldImpl;
+struct REProperty;
 
 struct TDB {
     uint32_t magic;                              // 0x0000
@@ -41,21 +53,37 @@ struct TDB {
     uint32_t numBytePool;                        // 0x0054
     void* modules;                               // 0x0058
     sdk::RETypeDefinition (*types)[93788];       // 0x0060
-    class RETypeImpl (*typesImpl)[256];          // 0x0068
-    class REMethodDefinition (*methods)[703558]; // 0x0070
-    class REMethodImpl (*methodsImpl)[56756];    // 0x0078
-    class REField (*fields)[1];                  // 0x0080
-    class REFieldImpl (*fieldsImpl)[1];          // 0x0088
-    class REProperty (*properties)[256];         // 0x0090
-    class REPropertyImpl (*propertiesImpl)[1];   // 0x0098
+    class ::RETypeImpl (*typesImpl)[256];          // 0x0068
+    sdk::REMethodDefinition (*methods)[703558]; // 0x0070
+    class ::REMethodImpl (*methodsImpl)[56756];    // 0x0078
+    sdk::REField (*fields)[1];                  // 0x0080
+    sdk::REFieldImpl (*fieldsImpl)[1];          // 0x0088
+    sdk::REProperty (*properties)[256];         // 0x0090
+    class ::REPropertyImpl (*propertiesImpl)[1];   // 0x0098
     void* events;                                // 0x00A0
-    class REParameterDef (*params)[10000];       // 0x00A8
-    class REAttributeDef (*attributes)[2000];    // 0x00B0
+    class ::REParameterDef (*params)[10000];       // 0x00A8
+    class ::REAttributeDef (*attributes)[2000];    // 0x00B0
     int32_t (*initData)[19890];                  // 0x00B8
     int32_t (*attributes2)[256];                 // 0x00C0
     void* stringPool;                            // 0x00C8
     uint8_t (*bytePool)[256];                    // 0x00D0
     int32_t (*internStrings)[14154];             // 0x00D8
+};
+
+struct REField {
+    uint64_t declaring_typeid : TYPE_INDEX_BITS;
+    uint64_t impl_id : 20;
+    uint64_t offset : 26;
+};
+
+struct REFieldImpl {
+    uint16_t attributes_id;
+    uint16_t flags;
+    uint32_t field_typeid : 18;
+    uint32_t init_data_lo : 14;
+    uint32_t name_offset : 30;
+    uint32_t init_data_hi : 2;
+
 };
 
 struct GenericListData {
@@ -91,9 +119,9 @@ struct TDB {
     uint32_t numBytePool;                              // 0x0044
     class N00002524 (*modules)[256];                   // 0x0048
     sdk::RETypeDefinition (*types)[81728];             // 0x0050
-    sdk::tdb67::REMethodDefinition (*methods)[556344]; // 0x0058
-    sdk::tdb67::REField (*fields)[122496];             // 0x0060
-    sdk::tdb67::REProperty (*properties)[119791];      // 0x0068
+    sdk::REMethodDefinition (*methods)[556344]; // 0x0058
+    sdk::REField (*fields)[122496];             // 0x0060
+    sdk::REProperty (*properties)[119791];      // 0x0068
     void* events;                                      // 0x0070
     char pad_0078[8];                                  // 0x0078
     void* N0000243D;                                   // 0x0080
@@ -177,9 +205,9 @@ struct TDB {
     uint32_t numBytePool;                              // 0x0044
     class N00002524 (*modules)[256];                   // 0x0048
     sdk::RETypeDefinition (*types)[81728];             // 0x0050
-    sdk::tdb66::REMethodDefinition (*methods)[556344]; // 0x0058
-    sdk::tdb66::REField (*fields)[122496];             // 0x0060
-    sdk::tdb66::REProperty (*properties)[119791];      // 0x0068
+    sdk::REMethodDefinition (*methods)[556344]; // 0x0058
+    sdk::REField (*fields)[122496];             // 0x0060
+    sdk::REProperty (*properties)[119791];      // 0x0068
     void* events;                                      // 0x0070
     char pad_0078[8];                                  // 0x0078
     void* N0000243D;                                   // 0x0080
@@ -243,22 +271,23 @@ struct GenericListData {
 
 #ifdef RE8
 struct RETypeDB : public sdk::tdb69::TDB {};
-using REMethodDefinition = ::REMethodDefinition;
-using REField = ::REField;
-using REProperty = ::REProperty;
+struct REMethodDefinition : public ::REMethodDefinition {};
+struct REField : public sdk::tdb69::REField {};
+struct REFieldImpl : public sdk::tdb69::REFieldImpl {};
+struct REProperty : public ::REProperty {};
 using GenericListData = sdk::tdb69::GenericListData;
 #elif defined(RE3) || defined(DMC5)
 struct RETypeDB : public sdk::tdb67::TDB {};
-using REMethodDefinition = sdk::tdb67::REMethodDefinition;
-using REField = sdk::tdb67::REField;
-using REProperty = sdk::tdb67::REProperty;
+struct REMethodDefinition : public sdk::tdb67::REMethodDefinition {};
+struct REField : public sdk::tdb67::REField {};
+struct REProperty : public sdk::tdb67::REProperty {};
 using GenericListData = sdk::tdb67::GenericListData;
 using REMethodParamDef = sdk::tdb67::REMethodParamDef;
 #else
 struct RETypeDB : public sdk::tdb66::TDB {};
-using REMethodDefinition = sdk::tdb66::REMethodDefinition;
-using REField = sdk::tdb66::REField;
-using REProperty = sdk::tdb66::REProperty;
+struct REMethodDefinition : public sdk::tdb66::REMethodDefinition {};
+struct REField : public sdk::tdb66::REField {};
+struct REProperty : public sdk::tdb66::REProperty {};
 using GenericListData = sdk::tdb66::GenericListData;
 using REMethodParamDef = sdk::tdb66::REMethodParamDef;
 #endif
