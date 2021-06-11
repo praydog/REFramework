@@ -54,6 +54,7 @@ set(SDK_SRC
     sdk/RETypes.hpp
     sdk/RETypes.cpp
     sdk/RETypeDB.hpp
+    sdk/RETypeDB.cpp
     sdk/RETypeDefinition.hpp
     sdk/RETypeDefinition.cpp
     sdk/REVariableDescriptor.hpp

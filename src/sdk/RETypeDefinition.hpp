@@ -207,9 +207,13 @@ struct RETypeDefinition : public sdk::RETypeDefinition_ {
 
     const char* get_namespace();
     const char* get_name();
+
     std::string get_full_name();
+
     sdk::RETypeDefinition* get_declaring_type();
     sdk::RETypeDefinition* get_parent_type();
+    sdk::REField* get_field(std::string_view name);
+
     int32_t get_fieldptr_offset();
 
     via::clr::VMObjType get_vm_obj_type() const;

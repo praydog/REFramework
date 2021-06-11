@@ -1907,34 +1907,18 @@ void ObjectExplorer::display_native_fields(REManagedObject* obj, sdk::RETypeDefi
 
     if (ImGui::TreeNode(fields.begin(), "TDB Fields: %i", fields.size())) {
         for (auto& f : fields) {
-#if TDB_VER >= 69
-            const auto declaring_typeid = (uint32_t)f.declaring_typeid;
-            const auto impl_id = (uint32_t)f.impl_id;
-            const auto fieldptr_offset = (uint32_t)f.offset;
-
-            const auto& impl = (*tdb->fieldsImpl)[impl_id];
-            const auto name_offset = impl.name_offset;
-            const auto field_typeid = impl.field_typeid;
-            const auto field_flags = impl.flags;
-            const auto init_data_index = impl.init_data_lo | (impl.init_data_hi << 14);
-#else
-            const auto declaring_type_id = (uint32_t)f.declaring_typeid;
-            const auto fieldptr_offset = f.offset;
-            const auto name_offset = f.name_offset;
-            const auto field_typeid = f.field_typeid;
-            const auto field_flags = f.flags;
-            const auto init_data_index = f.init_data_index;
-#endif
-            
-            const auto field_type = &(*tdb->types)[field_typeid];
+            const auto field_declaring_type = f.get_declaring_type();
+            const auto field_flags = f.get_flags();
+            const auto field_type = f.get_type();
             const auto field_type_name = field_type->get_full_name();
-            const auto field_name = Address{ tdb->stringPool }.get(name_offset).as<const char*>();
+            const auto field_name = f.get_name();
+            const auto fieldptr_offset = f.get_offset_from_fieldptr();
+            const auto is_valuetype = field_type->get_vm_obj_type() == via::clr::VMObjType::ValType;
 
             auto offset = fieldptr_offset;
 
             void* data = nullptr;
 
-            bool is_valuetype = false;
             bool is_enum = false;
             bool is_managed_str = false;
 
@@ -1946,33 +1930,20 @@ void ObjectExplorer::display_native_fields(REManagedObject* obj, sdk::RETypeDefi
 
                 if (full_name_hash == "System.Enum"_fnv) {
                     is_enum = true;
-                    //is_valuetype = true;
                 }
-
-                /*if (full_name_hash == "System.ValueType"_fnv) {
-                    is_valuetype = true;
-                }*/
             }
-
-            is_valuetype = field_type->get_vm_obj_type() == via::clr::VMObjType::ValType;
 
             std::vector<std::string> postfixes{};
 
+            // Handle static fields
             if ((field_flags & (uint16_t)via::clr::FieldFlag::Static) != 0) {
                 postfixes.push_back("STATIC");
 
+                // Const
                 if ((field_flags & (uint16_t)via::clr::FieldFlag::Literal) != 0) {
                     postfixes.push_back("CONST");
-                    
-                    const auto init_data_offset = (*tdb->initData)[init_data_index];
-                    auto init_data = &(*tdb->bytePool)[init_data_offset];
 
-                    // WACKY
-                    if (init_data_offset < 0) {
-                        init_data = &((uint8_t*)tdb->stringPool)[init_data_offset * -1];
-                    }
-
-                    data = init_data;
+                    data = f.get_init_data();
 
                     switch (utility::hash(field_type_name)) {
                     case "System.String"_fnv:
@@ -1984,18 +1955,14 @@ void ObjectExplorer::display_native_fields(REManagedObject* obj, sdk::RETypeDefi
                     }
                 }
                 else {
-                    auto tbl = sdk::REGlobalContext::get()->get_static_tbl_for_type(tdef->index);
+                    data = f.get_data_raw();
 
-                    if (tbl != nullptr) {
-                        data = Address{ tbl }.get(fieldptr_offset);
-
-                        if (!is_valuetype) {
-                            data = *(void**)data;
-                        }
+                    if (data != nullptr && !is_valuetype) {
+                        data = *(void**)data;
                     }
                 }
             }
-            else {
+            else { // Handle normal field
                 if (!owner_is_valuetype || is_real_object) {
                     offset += tdef->get_fieldptr_offset();
                 }

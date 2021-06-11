@@ -236,6 +236,34 @@ sdk::RETypeDefinition* RETypeDefinition::get_parent_type() {
     return &(*tdb->types)[this->parent_typeid];
 }
 
+static std::shared_mutex g_field_mtx{};
+static std::unordered_map<std::string, sdk::REField*> g_field_map{};
+
+sdk::REField* RETypeDefinition::get_field(std::string_view name) {
+    auto full_name = this->get_full_name() + "." + name.data();
+
+    {
+        std::shared_lock _{ g_field_mtx };
+
+        if (g_field_map.find(full_name) != g_field_map.end()) {
+            return g_field_map[full_name];
+        }
+    }
+
+    for (auto& f : get_fields()) {
+        auto field_name = std::string{};
+
+        if (field_name == name) {
+            std::unique_lock _{ g_field_mtx };
+
+            g_field_map[full_name] = &f;
+            return g_field_map[full_name];
+        }
+    }
+
+    return nullptr;
+}
+
 int32_t RETypeDefinition::get_fieldptr_offset() {
     if (this->managed_vt == nullptr) {
         return 0;
