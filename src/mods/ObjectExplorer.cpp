@@ -628,11 +628,9 @@ void ObjectExplorer::generate_sdk() {
         auto& m = (*tdb->methods)[i];
 
 #if TDB_VER >= 69
-        auto br = BitReader{&m.data};
-
-        auto type_id = (uint32_t)br.read(18);
-        auto impl_id = (uint32_t)br.read(20);
-        auto param_list = (uint32_t)br.read(26);
+        auto type_id = (uint32_t)m.declaring_typeid;
+        auto impl_id = (uint32_t)m.impl_id;
+        auto param_list = (uint32_t)m.params;
 #else
         const auto type_id = (uint32_t)m.declaring_typeid;
         const auto param_list = m.params;
@@ -649,7 +647,7 @@ void ObjectExplorer::generate_sdk() {
 #if TDB_VER >= 69
         auto& impl = (*tdb->methodsImpl)[impl_id];
         desc->method_impls.push_back(&impl);
-        const auto name_offset = impl.nameOffset;
+        const auto name_offset = impl.name_offset;
 #else
         const auto name_offset = m.name_offset;
 #endif
@@ -665,8 +663,8 @@ void ObjectExplorer::generate_sdk() {
 
 #if TDB_VER >= 69
         pm->m_impl = &impl;
-        const auto vtable_index = impl.vtableIndex;
-        const auto impl_flags = impl.implFlags;
+        const auto vtable_index = impl.vtable_index;
+        const auto impl_flags = impl.impl_flags;
         const auto method_flags = impl.flags;
 #else
         const auto vtable_index = m.vtable_index;
@@ -963,17 +961,8 @@ void ObjectExplorer::generate_sdk() {
     for (uint32_t i = 0; i < tdb->numProperties; ++i) {
         auto& p = (*tdb->properties)[i];
 
-#if TDB_VER >= 69
-        auto br = BitReader{&p};
-
-        const auto impl_id = (uint32_t)br.read(20);
-        const auto getter_id = (uint32_t)br.read(22);
-        const auto setter_id = (uint32_t)br.read(22);
-#else
-        // well the good thing about this i guess is we don't need to recreate a reclass structure because of the bitfields.
-        const auto getter_id = p.getter;
-        const auto setter_id = p.setter;
-#endif
+        const auto getter_id = (uint32_t)p.getter;
+        const auto setter_id = (uint32_t)p.setter;
 
         std::shared_ptr<detail::ParsedMethod> getter{};
         std::shared_ptr<detail::ParsedMethod> setter{};
@@ -997,8 +986,9 @@ void ObjectExplorer::generate_sdk() {
         auto& desc = prop_method->owner;
 
 #if TDB_VER >= 69
+        const auto impl_id = (uint32_t)p.impl_id;
         auto& impl = (*tdb->propertiesImpl)[impl_id];
-        auto name = Address{tdb->stringPool}.get(impl.nameOffset).as<const char*>();
+        auto name = Address{tdb->stringPool}.get(impl.name_offset).as<const char*>();
 #else
         auto name = Address{ tdb->stringPool }.get(p.name_offset).as<const char*>();
 #endif

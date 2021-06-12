@@ -213,6 +213,7 @@ struct RETypeDefinition : public sdk::RETypeDefinition_ {
     sdk::RETypeDefinition* get_declaring_type();
     sdk::RETypeDefinition* get_parent_type();
     sdk::REField* get_field(std::string_view name);
+    sdk::REMethodDefinition* get_method(std::string_view name);
 
     int32_t get_fieldptr_offset();
 

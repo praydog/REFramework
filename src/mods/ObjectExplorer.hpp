@@ -46,7 +46,7 @@ struct ParsedMethod {
     std::shared_ptr<ParsedType> owner{};
     sdk::REMethodDefinition* m{};
 #if TDB_VER >= 69
-    REMethodImpl* m_impl{};
+    sdk::REMethodImpl* m_impl{};
 #endif
     const char* name{};
 
@@ -74,7 +74,7 @@ struct ParsedProperty {
     sdk::REProperty* p{};
 
 #if TDB_VER >= 69
-    REPropertyImpl* p_impl{};
+    sdk::REPropertyImpl* p_impl{};
 #endif
     const char* name{};
 };
@@ -94,8 +94,8 @@ struct ParsedType {
     std::vector<sdk::REProperty*> props{};
 
 #if TDB_VER >= 69
-    std::vector<REMethodImpl*> method_impls{};
-    std::vector<REPropertyImpl> prop_impls{};
+    std::vector<sdk::REMethodImpl*> method_impls{};
+    std::vector<sdk::REPropertyImpl> prop_impls{};
     std::vector<sdk::REFieldImpl*> field_impls{};
 #endif
 

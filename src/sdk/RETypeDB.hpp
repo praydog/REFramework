@@ -14,11 +14,13 @@ class REAttributeDef;
 
 namespace sdk {
 struct RETypeDefinition;
+struct RETypeImpl;
 struct REField;
 struct REFieldImpl;
 struct REMethodDefinition;
 struct REMethodImpl;
 struct REProperty;
+struct REPropertyImpl;
 
 namespace tdb69 {
 // todo bring these in from reclass
@@ -27,48 +29,96 @@ struct REMethodImpl;
 struct REField;
 struct REFieldImpl;
 struct REProperty;
+struct RETypeImpl;
+struct REPropertyImpl;
 
 struct TDB {
-    uint32_t magic;                              // 0x0000
-    uint32_t version;                            // 0x0004
-    uint32_t initialized;                        // 0x0008
-    uint32_t numTypes;                           // 0x000C
-    uint32_t numMethods;                         // 0x0010
-    uint32_t numFields;                          // 0x0014
-    uint32_t numTypeImpl;                        // 0x0018
-    uint32_t numFieldImpl;                       // 0x001C
-    uint32_t numMethodImpl;                      // 0x0020
-    uint32_t numPropertyImpl;                    // 0x0024
-    uint32_t numProperties;                      // 0x0028
-    uint32_t numEvents;                          // 0x002C
-    uint32_t numParams;                          // 0x0030
-    uint32_t numAttributes;                      // 0x0034
-    int32_t numInitData;                         // 0x0038
-    uint32_t numAttributes2;                     // 0x003C
-    uint32_t numInternStrings;                   // 0x0040
-    uint32_t numModules;                         // 0x0044
-    int32_t devEntry;                            // 0x0048
-    int32_t appEntry;                            // 0x004C
-    uint32_t numStringPool;                      // 0x0050
-    uint32_t numBytePool;                        // 0x0054
-    void* modules;                               // 0x0058
-    sdk::RETypeDefinition (*types)[93788];       // 0x0060
-    class ::RETypeImpl (*typesImpl)[256];        // 0x0068
-    sdk::REMethodDefinition (*methods)[703558];  // 0x0070
-    class ::REMethodImpl (*methodsImpl)[56756];  // 0x0078
-    sdk::REField (*fields)[1];                   // 0x0080
-    sdk::REFieldImpl (*fieldsImpl)[1];           // 0x0088
-    sdk::REProperty (*properties)[256];          // 0x0090
-    class ::REPropertyImpl (*propertiesImpl)[1]; // 0x0098
-    void* events;                                // 0x00A0
-    class ::REParameterDef (*params)[10000];     // 0x00A8
-    class ::REAttributeDef (*attributes)[2000];  // 0x00B0
-    int32_t (*initData)[19890];                  // 0x00B8
-    int32_t (*attributes2)[256];                 // 0x00C0
-    char (*stringPool)[0];                       // 0x00C8
-    uint8_t (*bytePool)[256];                    // 0x00D0
-    int32_t (*internStrings)[14154];             // 0x00D8
+    uint32_t magic;                             // 0x0000
+    uint32_t version;                           // 0x0004
+    uint32_t initialized;                       // 0x0008
+    uint32_t numTypes;                          // 0x000C
+    uint32_t numMethods;                        // 0x0010
+    uint32_t numFields;                         // 0x0014
+    uint32_t numTypeImpl;                       // 0x0018
+    uint32_t numFieldImpl;                      // 0x001C
+    uint32_t numMethodImpl;                     // 0x0020
+    uint32_t numPropertyImpl;                   // 0x0024
+    uint32_t numProperties;                     // 0x0028
+    uint32_t numEvents;                         // 0x002C
+    uint32_t numParams;                         // 0x0030
+    uint32_t numAttributes;                     // 0x0034
+    int32_t numInitData;                        // 0x0038
+    uint32_t numAttributes2;                    // 0x003C
+    uint32_t numInternStrings;                  // 0x0040
+    uint32_t numModules;                        // 0x0044
+    int32_t devEntry;                           // 0x0048
+    int32_t appEntry;                           // 0x004C
+    uint32_t numStringPool;                     // 0x0050
+    uint32_t numBytePool;                       // 0x0054
+    void* modules;                              // 0x0058
+    sdk::RETypeDefinition (*types)[93788];      // 0x0060
+    sdk::RETypeImpl (*typesImpl)[256];          // 0x0068
+    sdk::REMethodDefinition (*methods)[703558]; // 0x0070
+    sdk::REMethodImpl (*methodsImpl)[56756];    // 0x0078
+    sdk::REField (*fields)[1];                  // 0x0080
+    sdk::REFieldImpl (*fieldsImpl)[1];          // 0x0088
+    sdk::REProperty (*properties)[256];         // 0x0090
+    sdk::REPropertyImpl (*propertiesImpl)[1];   // 0x0098
+    void* events;                               // 0x00A0
+    class ::REParameterDef (*params)[10000];    // 0x00A8
+    class ::REAttributeDef (*attributes)[2000]; // 0x00B0
+    int32_t (*initData)[19890];                 // 0x00B8
+    int32_t (*attributes2)[256];                // 0x00C0
+    char (*stringPool)[0];                      // 0x00C8
+    uint8_t (*bytePool)[256];                   // 0x00D0
+    int32_t (*internStrings)[14154];            // 0x00D8
 };
+
+#pragma pack(push, 4)
+struct REMethodDefinition {
+    uint64_t declaring_typeid : 18;
+    uint64_t impl_id : 20;
+    uint64_t params : 26;
+    void* function;
+};
+
+struct REMethodImpl {
+    uint16_t attributes_id;
+    int16_t vtable_index;
+    uint16_t flags;
+    uint16_t impl_flags;
+    uint32_t name_offset;
+};
+
+struct RETypeImpl {
+    int32_t name_offset;
+    int32_t namespace_offset;
+    int32_t field_size;
+    int32_t static_field_size;
+    uint8_t module_id;
+    uint8_t array_rank;
+    uint16_t num_member_methods;
+    int32_t num_member_fields;
+    int16_t interface_id;
+    uint16_t num_native_vtable;
+    uint16_t attributes_id;
+    uint16_t num_vtable;
+    uint64_t mark;
+    uint64_t cycle;
+};
+
+struct REProperty {
+    uint64_t impl_id : 20;
+    uint64_t getter : 22;
+    uint64_t setter : 22;
+};
+
+struct REPropertyImpl {
+    uint16_t flags;
+    uint16_t attributes_id;
+    int32_t name_offset;
+};
+#pragma pack(pop)
 
 struct REField {
     uint64_t declaring_typeid : TYPE_INDEX_BITS;
@@ -270,22 +320,25 @@ struct GenericListData {
 
 #ifdef RE8
 struct RETypeDB : public sdk::tdb69::TDB {};
-struct REMethodDefinition : public ::REMethodDefinition {};
+struct REMethodDefinition_ : public sdk::tdb69::REMethodDefinition {};
+struct REMethodImpl : public sdk::tdb69::REMethodImpl {};
 using REField_ = sdk::tdb69::REField;
 struct REFieldImpl : public sdk::tdb69::REFieldImpl {};
-struct REProperty : public ::REProperty {};
+struct RETypeImpl : public sdk::tdb69::RETypeImpl {};
+struct REPropertyImpl : public sdk::tdb69::REPropertyImpl {};
+struct REProperty : public sdk::tdb69::REProperty {};
 using GenericListData = sdk::tdb69::GenericListData;
 #elif defined(RE3) || defined(DMC5)
 struct RETypeDB : public sdk::tdb67::TDB {};
-struct REMethodDefinition : public sdk::tdb67::REMethodDefinition {};
-struct REField_ : public sdk::tdb67::REField {};
+struct REMethodDefinition_ : public sdk::tdb67::REMethodDefinition {};
+using REField_ = sdk::tdb67::REField;
 struct REProperty : public sdk::tdb67::REProperty {};
 using GenericListData = sdk::tdb67::GenericListData;
 using REMethodParamDef = sdk::tdb67::REMethodParamDef;
 #else
 struct RETypeDB : public sdk::tdb66::TDB {};
-struct REMethodDefinition : public sdk::tdb66::REMethodDefinition {};
-struct REField_ : public sdk::tdb66::REField {};
+struct REMethodDefinition_ : public sdk::tdb66::REMethodDefinition {};
+using REField_ = sdk::tdb66::REField;
 struct REProperty : public sdk::tdb66::REProperty {};
 using GenericListData = sdk::tdb66::GenericListData;
 using REMethodParamDef = sdk::tdb66::REMethodParamDef;
@@ -304,9 +357,11 @@ struct REField : public sdk::REField_ {
 
     void* get_data_raw(void* object = nullptr, bool is_value_type = false) const;
 
-    template<typename T>
-    T& get_data(void* object = nullptr, bool is_value_type = false) const {
-        return *(T*)get_data_raw(object);
-    }
+    template <typename T> T& get_data(void* object = nullptr, bool is_value_type = false) const { return *(T*)get_data_raw(object); }
+};
+
+struct REMethodDefinition : public sdk::REMethodDefinition_ {
+    sdk::RETypeDefinition* get_declaring_type() const;
+    sdk::RETypeDefinition* get_return_type() const;
 };
 } // namespace sdk

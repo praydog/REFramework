@@ -114,3 +114,14 @@ void* REField::get_data_raw(void* object, bool is_value_type) const {
     return nullptr;
 }
 } // namespace sdk
+
+// methods
+namespace sdk {
+sdk::RETypeDefinition* REMethodDefinition::get_declaring_type() const {
+    return nullptr;
+}
+
+sdk::RETypeDefinition* REMethodDefinition::get_return_type() const {
+    return nullptr;
+}
+} // namespace sdk

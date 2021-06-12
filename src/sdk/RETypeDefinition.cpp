@@ -27,7 +27,7 @@ sdk::REMethodDefinition* RETypeDefinition::MethodIterator::end() {
 
 #if TDB_VER >= 69
     const auto& impl = (*tdb->typesImpl)[m_parent->impl_index];
-    const auto num_methods = impl.numMemberMethods;
+    const auto num_methods = impl.num_member_methods;
 #else
     const auto num_methods = m_parent->num_member_method;
 #endif
@@ -58,7 +58,7 @@ sdk::REField* sdk::RETypeDefinition::FieldIterator::end() {
 
 #if TDB_VER >= 69
     const auto& impl = (*tdb->typesImpl)[m_parent->impl_index];
-    const auto num_fields = impl.numMemberFields;
+    const auto num_fields = impl.num_member_fields;
 #else
     const auto num_fields = m_parent->num_member_field;
 #endif
@@ -98,7 +98,7 @@ const char* RETypeDefinition::get_namespace() {
 #if TDB_VER >= 69
     auto& impl = (*tdb->typesImpl)[this->impl_index];
 
-    const auto name_index = impl.namespaceThing;
+    const auto name_index = impl.namespace_offset;
 #else
     const auto name_index = this->namespace_offset;
 #endif
@@ -112,7 +112,7 @@ const char* RETypeDefinition::get_name() {
 #if TDB_VER >= 69
     auto& impl = (*tdb->typesImpl)[this->impl_index];
 
-    const auto name_index = impl.nameThing;
+    const auto name_index = impl.name_offset;
 #else
     const auto name_index = this->name_offset;
 #endif
@@ -258,6 +258,34 @@ sdk::REField* RETypeDefinition::get_field(std::string_view name) {
 
             g_field_map[full_name] = &f;
             return g_field_map[full_name];
+        }
+    }
+
+    return nullptr;
+}
+
+static std::shared_mutex g_method_mtx{};
+static std::unordered_map<std::string, REMethodDefinition*> g_method_map{};
+
+sdk::REMethodDefinition* RETypeDefinition::get_method(std::string_view name) {
+    auto full_name = this->get_full_name() + "." + name.data();
+
+    {
+        std::shared_lock _{g_method_mtx};
+
+        if (g_method_map.find(full_name) != g_method_map.end()) {
+            return g_method_map[full_name];
+        }
+    }
+
+    for (auto& m  : get_methods()) {
+        auto method_name = std::string{};
+
+        if (method_name == name) {
+            std::unique_lock _{g_method_mtx};
+
+            g_method_map[full_name] = &m;
+            return g_method_map[full_name];
         }
     }
 

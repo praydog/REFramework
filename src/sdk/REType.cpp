@@ -31,7 +31,7 @@ uint32_t utility::re_type::get_value_type_size(::REType* t) {
 #ifdef RE8
     auto class_info = (sdk::RETypeDefVersion69*)t->classInfo;
 
-    return (*g_framework->get_types()->get_type_db()->typesImpl)[class_info->impl_index].fieldSize;
+    return (*g_framework->get_types()->get_type_db()->typesImpl)[class_info->impl_index].field_size;
 #else
     auto class_info = t->classInfo;
     return class_info->elementSize;
