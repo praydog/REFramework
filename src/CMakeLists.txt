@@ -120,7 +120,7 @@ add_library(RE2 SHARED
 
 target_link_libraries(RE2 PUBLIC imgui minhook d3d11 glm_static shlwapi)
 target_compile_options(RE2 PUBLIC /GS-)
-target_compile_features(RE2 PUBLIC cxx_std_17)
+target_compile_features(RE2 PUBLIC cxx_std_20)
 
 include_directories(RE2 ${CMAKE_CURRENT_SOURCE_DIR})
 set_target_properties(RE2 PROPERTIES OUTPUT_NAME dinput8)
