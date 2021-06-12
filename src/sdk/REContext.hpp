@@ -1,10 +1,17 @@
+class REThreadContext;
+
+namespace sdk {
+    struct REStaticTbl;
+    class REGlobalContext;
+    REThreadContext* get_thread_context(int32_t unk = -1);
+}
+
+
 #pragma once
 
 #include <cstdint>
 
 #include "RETypeDB.hpp"
-
-class REThreadContext;
 
 namespace sdk {
     struct REStaticTbl {
@@ -34,6 +41,4 @@ namespace sdk {
         static int32_t s_static_tbl_offset;
         static int32_t s_type_db_offset;
     };
-
-    REThreadContext* get_thread_context(int32_t unk = -1);
 }

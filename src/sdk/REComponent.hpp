@@ -31,7 +31,7 @@ namespace utility::re_component {
     }
 
     // Find a component using the getComponent method
-    template <typename T = ::REComponent>
+    /*template <typename T = ::REComponent>
     static T *find_using_method(::REComponent *comp, std::string_view name) {
         struct ClassInfoContainer {
             char padding[0x10];
@@ -49,5 +49,5 @@ namespace utility::re_component {
         auto ret = utility::re_managed_object::call_method(comp->ownerGameObject, "getComponent", &arg);
 
         return (T *)ret->params.out_data;
-    }
+    }*/
 }

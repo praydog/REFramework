@@ -1,5 +1,21 @@
+class REArrayBase;
+
+namespace utility::re_array {
+    // Forward declarations
+    static bool has_inline_elements(::REArrayBase* container);
+    static uint32_t get_element_size(::REArrayBase* container);
+
+    template <typename T> static T* get_inline_element(::REArrayBase* container, int idx);
+    template <typename T> static T* get_ptr_element(::REArrayBase* container, int idx);
+    template <typename T> static T* get_element(::REArrayBase* container, int idx);
+
+}
+
 #pragma once
 
+#include "utility/Address.hpp"
+
+#include "REManagedObject.hpp"
 #include "REType.hpp"
 #include "ReClass.hpp"
 

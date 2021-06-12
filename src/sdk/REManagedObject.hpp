@@ -1,13 +1,9 @@
-#pragma once
-
-#include <windows.h>
-#include <mutex>
-#include <memory>
 #include <string_view>
-
 #include "utility/Address.hpp"
 
-#include "ReClass.hpp"
+class REManagedObject;
+class REType;
+class FunctionDescriptor;
 
 namespace utility::re_managed_object {
     // Forward declarations
@@ -38,24 +34,31 @@ namespace utility::re_managed_object {
     static VariableDescriptor* get_field_desc(::REManagedObject* obj, std::string_view field);
 
     // Gets the base offset of the top class in the hierarchy for this object
-    template <typename T>
-    static T* get_field_ptr(::REManagedObject* object);
+    template <typename T> static T* get_field_ptr(::REManagedObject* object);
 
     // Get a field value by field descriptor
-    template <typename T> 
-    T get_field(::REManagedObject* obj, VariableDescriptor* desc);
+    template <typename T> T get_field(::REManagedObject* obj, VariableDescriptor* desc);
 
     // Get a field value by name
     // Be very careful with the type size here, stack corruption could occur if the size is not large enough!
-    template <typename T>
-    T get_field(::REManagedObject* obj, std::string_view field);
-    
-    template <typename Arg> 
-    static std::unique_ptr<ParamWrapper> call_method(::REManagedObject* obj, FunctionDescriptor* desc, const Arg& arg);
+    template <typename T> T get_field(::REManagedObject* obj, std::string_view field);
 
-    template <typename Arg>
-    static std::unique_ptr<ParamWrapper> call_method(::REManagedObject* obj, std::string_view name, const Arg& arg);
+    template <typename Arg> static std::unique_ptr<ParamWrapper> call_method(::REManagedObject* obj, FunctionDescriptor* desc, const Arg& arg);
 
+    template <typename Arg> static std::unique_ptr<ParamWrapper> call_method(::REManagedObject* obj, std::string_view name, const Arg& arg);
+}
+
+#pragma once
+
+#include <windows.h>
+#include <mutex>
+#include <memory>
+#include <string_view>
+
+#include "REContext.hpp"
+#include "ReClass.hpp"
+
+namespace utility::re_managed_object {
     struct ParamWrapper {
         ParamWrapper(::REManagedObject* obj) {
             params.object_ptr = (void*)obj;

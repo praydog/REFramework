@@ -431,7 +431,7 @@ void FirstPerson::update_player_transform(RETransform* transform) {
         return;
     }
 
-    auto& player_matrix = glm::mat4{ *(glm::quat*) & transform->angles };
+    auto player_matrix = glm::mat4{ *(glm::quat*) & transform->angles };
 
     auto player_right = *(Vector3f*)&player_matrix[0] * -1.0f;
     player_right[1] = 0.0f;
