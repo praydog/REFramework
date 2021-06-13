@@ -165,58 +165,60 @@ namespace sdk {
 struct RETypeDefinition : public sdk::RETypeDefinition_ {
     class MethodIterator {
     public:
-        MethodIterator(sdk::RETypeDefinition* parent)
+        MethodIterator(const sdk::RETypeDefinition* parent)
             : m_parent{parent} {}
 
-        sdk::REMethodDefinition* begin();
-        sdk::REMethodDefinition* end();
-        size_t size();
+        sdk::REMethodDefinition* begin() const;
+        sdk::REMethodDefinition* end() const;
+        size_t size() const;
 
     private:
-        sdk::RETypeDefinition* m_parent;
+        const sdk::RETypeDefinition* m_parent;
     };
 
     class FieldIterator {
     public:
-        FieldIterator(sdk::RETypeDefinition* parent)
+        FieldIterator(const sdk::RETypeDefinition* parent)
             : m_parent{parent} {}
 
-        sdk::REField* begin();
-        sdk::REField* end();
-        size_t size();
+        sdk::REField* begin() const;
+        sdk::REField* end() const;
+        size_t size() const;
 
     private:
-        sdk::RETypeDefinition* m_parent;
+        const sdk::RETypeDefinition* m_parent;
     };
 
     class PropertyIterator {
     public:
-        PropertyIterator(sdk::RETypeDefinition* parent)
+        PropertyIterator(const sdk::RETypeDefinition* parent)
             : m_parent{parent} {}
 
-        sdk::REProperty* begin();
-        sdk::REProperty* end();
+        sdk::REProperty* begin() const;
+        sdk::REProperty* end() const;
 
     private:
-        sdk::RETypeDefinition* m_parent;
+        const sdk::RETypeDefinition* m_parent;
     };
 
-    MethodIterator get_methods() { return MethodIterator{this}; }
-    FieldIterator get_fields() { return FieldIterator{this}; }
-    PropertyIterator get_properties() { return PropertyIterator{this}; }
+    MethodIterator get_methods() const { return MethodIterator{this}; }
+    FieldIterator get_fields() const { return FieldIterator{this}; }
+    PropertyIterator get_properties() const { return PropertyIterator{this}; }
 
-    const char* get_namespace();
-    const char* get_name();
+    const char* get_namespace() const;
+    const char* get_name() const;
 
-    std::string get_full_name();
+    std::string get_full_name() const;
 
-    sdk::RETypeDefinition* get_declaring_type();
-    sdk::RETypeDefinition* get_parent_type();
-    sdk::REField* get_field(std::string_view name);
-    sdk::REMethodDefinition* get_method(std::string_view name);
+    sdk::RETypeDefinition* get_declaring_type() const;
+    sdk::RETypeDefinition* get_parent_type() const;
+    sdk::REField* get_field(std::string_view name) const;
+    sdk::REMethodDefinition* get_method(std::string_view name) const;
 
-    int32_t get_fieldptr_offset();
+    int32_t get_fieldptr_offset() const;
 
     via::clr::VMObjType get_vm_obj_type() const;
+
+    void* get_instance() const;
 };
 } // namespace sdk

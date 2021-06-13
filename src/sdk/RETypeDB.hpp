@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <span>
 
 #include "RETypeDefinition.hpp"
 
@@ -21,6 +22,7 @@ struct REMethodDefinition;
 struct REMethodImpl;
 struct REProperty;
 struct REPropertyImpl;
+struct REParameterDef;
 
 namespace tdb69 {
 // todo bring these in from reclass
@@ -31,6 +33,7 @@ struct REFieldImpl;
 struct REProperty;
 struct RETypeImpl;
 struct REPropertyImpl;
+struct REParameterDef;
 
 struct TDB {
     uint32_t magic;                             // 0x0000
@@ -65,7 +68,7 @@ struct TDB {
     sdk::REProperty (*properties)[256];         // 0x0090
     sdk::REPropertyImpl (*propertiesImpl)[1];   // 0x0098
     void* events;                               // 0x00A0
-    class ::REParameterDef (*params)[10000];    // 0x00A8
+    sdk::REParameterDef (*params)[10000];       // 0x00A8
     class ::REAttributeDef (*attributes)[2000]; // 0x00B0
     int32_t (*initData)[19890];                 // 0x00B8
     int32_t (*attributes2)[256];                // 0x00C0
@@ -75,6 +78,15 @@ struct TDB {
 };
 
 #pragma pack(push, 4)
+struct REParameterDef {
+    uint16_t attributes_id;
+    uint16_t init_data_index;
+    uint32_t name_offset : 30;
+    uint32_t modifier : 2;
+    uint32_t type_id : 18;
+    uint32_t flags : 14;
+};
+
 struct REMethodDefinition {
     uint64_t declaring_typeid : 18;
     uint64_t impl_id : 20;
@@ -319,7 +331,7 @@ struct GenericListData {
 } // namespace tdb66
 
 #ifdef RE8
-struct RETypeDB : public sdk::tdb69::TDB {};
+struct RETypeDB_ : public sdk::tdb69::TDB {};
 struct REMethodDefinition_ : public sdk::tdb69::REMethodDefinition {};
 struct REMethodImpl : public sdk::tdb69::REMethodImpl {};
 using REField_ = sdk::tdb69::REField;
@@ -327,22 +339,40 @@ struct REFieldImpl : public sdk::tdb69::REFieldImpl {};
 struct RETypeImpl : public sdk::tdb69::RETypeImpl {};
 struct REPropertyImpl : public sdk::tdb69::REPropertyImpl {};
 struct REProperty : public sdk::tdb69::REProperty {};
+struct REParameterDef : public sdk::tdb69::REParameterDef {};
 using GenericListData = sdk::tdb69::GenericListData;
 #elif defined(RE3) || defined(DMC5)
-struct RETypeDB : public sdk::tdb67::TDB {};
+struct RETypeDB_ : public sdk::tdb67::TDB {};
 struct REMethodDefinition_ : public sdk::tdb67::REMethodDefinition {};
 using REField_ = sdk::tdb67::REField;
 struct REProperty : public sdk::tdb67::REProperty {};
 using GenericListData = sdk::tdb67::GenericListData;
 using REMethodParamDef = sdk::tdb67::REMethodParamDef;
 #else
-struct RETypeDB : public sdk::tdb66::TDB {};
+struct RETypeDB_ : public sdk::tdb66::TDB {};
 struct REMethodDefinition_ : public sdk::tdb66::REMethodDefinition {};
 using REField_ = sdk::tdb66::REField;
 struct REProperty : public sdk::tdb66::REProperty {};
 using GenericListData = sdk::tdb66::GenericListData;
 using REMethodParamDef = sdk::tdb66::REMethodParamDef;
 #endif
+} // namespace sdk
+
+namespace sdk {
+struct RETypeDB : public sdk::RETypeDB_ {
+    static RETypeDB* get();
+
+    sdk::RETypeDefinition* find_type(std::string_view name) const;
+    sdk::RETypeDefinition* get_type(uint32_t index) const;
+    sdk::REMethodDefinition* get_method(uint32_t index) const;
+    sdk::REField* get_field(uint32_t index) const;
+    sdk::REProperty* get_property(uint32_t index) const;
+
+    const char* get_string(uint32_t offset) const;
+    uint8_t* get_bytes(uint32_t offset) const;
+
+    template <typename T> T* get_data(uint32_t offset) const { return (T*)get_bytes(offset); }
+};
 } // namespace sdk
 
 namespace sdk {
@@ -363,5 +393,26 @@ struct REField : public sdk::REField_ {
 struct REMethodDefinition : public sdk::REMethodDefinition_ {
     sdk::RETypeDefinition* get_declaring_type() const;
     sdk::RETypeDefinition* get_return_type() const;
+
+    const char* get_name() const;
+    void* get_function() const;
+    
+    template<typename T>
+    T get_function_t() const {
+        return (T)get_function();
+    }
+
+    template<typename T = void*, typename ...Args>
+    T call(Args... args) const {
+        return get_function_t<T (*)(Args...)>()(args...);
+    }
+
+    template <typename T = void, typename... Args> 
+    T operator()(Args... args) const { 
+        return get_function_t<T (*)(Args...)>()(args...); 
+    }
+
+    std::vector<uint32_t> get_param_typeids() const;
+    std::vector<sdk::RETypeDefinition*> get_param_types() const;
 };
 } // namespace sdk

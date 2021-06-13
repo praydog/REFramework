@@ -1,6 +1,6 @@
 #pragma once
 
-#include <mutex>
+#include <shared_mutex>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -63,5 +63,5 @@ private:
     // List of objects we've already logged
     std::unordered_set<REType*> m_acknowledged_types;
 
-    std::mutex m_map_mutex{};
+    std::shared_mutex m_map_mutex{};
 };

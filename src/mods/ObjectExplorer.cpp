@@ -123,7 +123,7 @@ std::array<const char*, 84> g_typecode_names{
 #endif
 
 struct BitReader {
-    BitReader(void* d)
+    BitReader(const void* d)
         : data{(uint8_t*)d} {}
 
     static constexpr uint64_t make_bitmask(int32_t nbits) {
@@ -161,7 +161,7 @@ struct BitReader {
 
     void seek(int32_t index) { bit_index = index; }
 
-    uint8_t* data{};
+    const uint8_t* data{};
     int32_t bit_index{0};
 };
 
@@ -420,7 +420,7 @@ std::string ObjectExplorer::generate_full_name(sdk::RETypeDB* tdb, uint32_t i) {
 }
 
 std::shared_ptr<detail::ParsedType> ObjectExplorer::init_type_min(json& il2cpp_dump, sdk::RETypeDB* tdb, uint32_t i) {
-    auto& t = (*tdb->types)[i];
+    auto& t = *tdb->get_type(i);
     auto br = BitReader{&t};
 
     auto desc = std::make_shared<detail::ParsedType>();
@@ -625,7 +625,7 @@ void ObjectExplorer::generate_sdk() {
 
     // Methods
     for (uint32_t i = 0; i < tdb->numMethods; ++i) {
-        auto& m = (*tdb->methods)[i];
+        auto& m = *tdb->get_method(i);
 
 #if TDB_VER >= 69
         auto type_id = (uint32_t)m.declaring_typeid;
@@ -652,7 +652,7 @@ void ObjectExplorer::generate_sdk() {
         const auto name_offset = m.name_offset;
 #endif
 
-        const auto name = Address{ tdb->stringPool }.get(name_offset).as<const char*>();
+        const auto name = tdb->get_string(name_offset);
 
         // Create an easier to deal with structure
         auto& pm = desc->parsed_methods.emplace_back(std::make_shared<detail::ParsedMethod>());
@@ -712,13 +712,12 @@ void ObjectExplorer::generate_sdk() {
 #if TDB_VER >= 69
             auto& p = (*tdb->params)[param_index];
 
-            auto br_p = BitReader{&p};
-            const auto attributes_index = (uint16_t)br_p.read_short();
-            const auto init_data_index = (uint16_t)br_p.read_short();
-            const auto name_index = (uint32_t)br_p.read(30);
-            const auto modifier = (uint8_t)br_p.read(2);
-            const auto param_type_id = (uint32_t)br_p.read(18);
-            const auto flags = (uint16_t)br_p.read(14);
+            const auto attributes_index = (uint16_t)p.attributes_id;
+            const auto init_data_index = (uint16_t)p.init_data_index;
+            const auto name_index = (uint32_t)p.name_offset;
+            const auto modifier = (uint8_t)p.modifier;
+            const auto param_type_id = (uint32_t)p.type_id;
+            const auto flags = (uint16_t)p.flags;
 #else
             auto& p = param_ids[param_index];
 
@@ -2040,7 +2039,7 @@ void ObjectExplorer::attempt_display_field(REManagedObject* obj, VariableDescrip
     display_data(data, real_data, type_name, prop_flags.type_kind == (uint32_t)via::reflection::TypeKind::Enum, prop_flags.managed_str != 0);
 }
 
-void ObjectExplorer::display_data(void* data, void* real_data, std::string type_name, bool is_enum, bool managed_str, sdk::RETypeDefinition* override_def) {
+void ObjectExplorer::display_data(void* data, void* real_data, std::string type_name, bool is_enum, bool managed_str, const sdk::RETypeDefinition* override_def) {
     if (data == nullptr) {
         ImGui::Text("Null pointer");
         return;

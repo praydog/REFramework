@@ -92,9 +92,9 @@ sdk::RETypeDB* RETypes::get_type_db() const {
 }
 
 REType* RETypes::get(std::string_view name) {
-    std::lock_guard _{ m_map_mutex };
-
     auto getObj = [&]() -> REType* {
+        std::shared_lock _{ m_map_mutex };
+
         if (auto it = m_type_map.find(name.data()); it != m_type_map.end()) {
             return it->second;
         }
@@ -119,7 +119,7 @@ REType* RETypes::operator[](std::string_view name) {
 }
 
 void RETypes::safe_refresh() {
-    std::lock_guard _{ m_map_mutex };
+    std::unique_lock _{ m_map_mutex };
     refresh_map();
 }
 

@@ -134,7 +134,7 @@ private:
     void display_reflection_properties(REManagedObject* obj, REType* type_info);
     void display_native_fields(REManagedObject* obj, sdk::RETypeDefinition* tdef);
     void attempt_display_field(REManagedObject* obj, VariableDescriptor* desc, REType* type_info);
-    void display_data(void* data, void* real_data, std::string type_name, bool is_enum = false, bool managed_str = false, sdk::RETypeDefinition* override_def = nullptr);
+    void display_data(void* data, void* real_data, std::string type_name, bool is_enum = false, bool managed_str = false, const sdk::RETypeDefinition* override_def = nullptr);
     int32_t get_field_offset(REManagedObject* obj, VariableDescriptor* desc, REType* type_info);
 
     bool widget_with_context(void* address, std::function<bool()> widget);
