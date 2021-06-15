@@ -61,8 +61,17 @@ private:
     bool m_valid{false};
     bool m_initialized{false};
     bool m_created_default_cfg{false};
-    bool m_draw_ui{true};
     std::atomic<bool> m_game_data_initialized{false};
+
+    // UI
+    bool m_draw_ui{true};
+    bool m_last_draw_ui{m_draw_ui};
+    bool m_is_ui_focused{false};
+    bool m_cursor_state{true};
+    bool m_is_internal_message{false};
+    bool m_ui_option_transparent{true};
+    bool m_ui_passthrough{false};
+    
 
     std::mutex m_input_mutex{};
 
