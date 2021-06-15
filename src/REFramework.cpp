@@ -3,6 +3,7 @@
 #include <spdlog/sinks/basic_file_sink.h>
 
 #include <imgui/imgui.h>
+#include "re2-imgui/font_robotomedium.hpp"
 #include "re2-imgui/imgui_impl_dx11.h"
 #include "re2-imgui/imgui_impl_dx12.h"
 #include "re2-imgui/imgui_impl_win32.h"
@@ -159,6 +160,7 @@ void REFramework::on_frame_d3d11() {
     }
 
     draw_ui();
+    m_last_draw_ui = m_draw_ui;
 
     ImGui::EndFrame();
     ImGui::Render();
@@ -174,7 +176,7 @@ void REFramework::on_frame_d3d11() {
 // D3D12 Draw funciton
 void REFramework::on_frame_d3d12() {
     spdlog::debug("on_frame (D3D12)");
-
+    
     if (!m_initialized) {
         if (!initialize()) {
             spdlog::error("Failed to initialize REFramework on DirectX 12");
@@ -210,6 +212,7 @@ void REFramework::on_frame_d3d12() {
     }
 
     draw_ui();
+    m_last_draw_ui = m_draw_ui;
 
     ImGui::EndFrame();
     ImGui::Render();
@@ -265,13 +268,14 @@ bool REFramework::on_message(HWND wnd, UINT message, WPARAM w_param, LPARAM l_pa
         return true;
     }
 
+    bool is_mouse_moving{false};
     switch (message) {
     case WM_INPUT: {
         // RIM_INPUT means the window has focus
         if (GET_RAWINPUT_CODE_WPARAM(w_param) == RIM_INPUT) {
             uint32_t size = sizeof(RAWINPUT);
             RAWINPUT raw{};
-
+            
             // obtain size
             GetRawInputData((HRAWINPUT)l_param, RID_INPUT, nullptr, &size, sizeof(RAWINPUTHEADER));
 
@@ -280,18 +284,46 @@ bool REFramework::on_message(HWND wnd, UINT message, WPARAM w_param, LPARAM l_pa
             if (raw.header.dwType == RIM_TYPEMOUSE) {
                 m_accumulated_mouse_delta[0] += (float)raw.data.mouse.lLastX;
                 m_accumulated_mouse_delta[1] += (float)raw.data.mouse.lLastY;
+
+                // Allowing camera movement when the UI is hovered while not focused
+                if (raw.data.mouse.lLastX || raw.data.mouse.lLastY) {
+                    is_mouse_moving = true;
+                }
             }
+        }
+    } break;
+
+    case RE_TOGGLE_CURSOR: {
+        if (!m_is_internal_message) {
+            m_cursor_state = w_param;
+
+            if (m_draw_ui && !w_param)
+                return ImGui_ImplWin32_WndProcHandler(wnd, RE_TOGGLE_CURSOR, true, l_param);
         }
     } break;
     default:
         break;
     }
+    m_is_internal_message = false;
 
-    if (m_draw_ui && ImGui_ImplWin32_WndProcHandler(wnd, message, w_param, l_param) != 0) {
+    ImGui_ImplWin32_WndProcHandler(wnd, message, w_param, l_param);
+
+    {
         // If the user is interacting with the UI we block the message from going to the game.
         const auto& io = ImGui::GetIO();
-        if (io.WantCaptureMouse || io.WantCaptureKeyboard || io.WantTextInput) {
-            return false;
+        if (m_draw_ui && !m_ui_passthrough) {
+            // Fix of a bug that makes the input key down register but the key up will never register \
+            when clicking on the ui while the game is not focused
+            if (message == WM_INPUT && GET_RAWINPUT_CODE_WPARAM(w_param) == RIM_INPUTSINK)
+                return false;
+
+            if (m_is_ui_focused) {
+                if (io.WantCaptureMouse || io.WantCaptureKeyboard || io.WantTextInput)
+                    return false;
+            } else {
+                if (!is_mouse_moving && (io.WantCaptureMouse || io.WantCaptureKeyboard || io.WantTextInput))
+                    return false;
+            }
         }
     }
 
@@ -342,9 +374,33 @@ void REFramework::draw_ui() {
     std::lock_guard _{m_input_mutex};
 
     if (!m_draw_ui) {
+        m_is_ui_focused = false;
+        if (m_last_draw_ui) {
+            m_is_internal_message = true;
+            m_windows_message_hook->window_toggle_cursor(m_cursor_state);
+        }
         m_dinput_hook->acknowledge_input();
-        ImGui::GetIO().MouseDrawCursor = false;
+        // ImGui::GetIO().MouseDrawCursor = false;
         return;
+    }
+    
+    // UI Specific code:
+    m_is_ui_focused = ImGui::IsWindowFocused(ImGuiFocusedFlags_AnyWindow);
+
+    if (m_ui_option_transparent) {
+        auto& style = ImGui::GetStyle();
+        if (m_is_ui_focused) {
+            style.Alpha = 1.0f;
+        } else {
+            if (ImGui::IsWindowHovered(ImGuiFocusedFlags_AnyWindow)) {
+                style.Alpha = 0.9f;
+            } else {
+                style.Alpha = 0.8f;
+            }
+        }
+    } else {
+        auto& style = ImGui::GetStyle();
+        style.Alpha = 1.0f;
     }
 
     auto& io = ImGui::GetIO();
@@ -355,14 +411,29 @@ void REFramework::draw_ui() {
         m_dinput_hook->acknowledge_input();
     }
 
-    ImGui::GetIO().MouseDrawCursor = true;
+    // ImGui::GetIO().MouseDrawCursor = true;
+    if (!m_last_draw_ui) {
+        m_is_internal_message = true;
+        m_windows_message_hook->window_toggle_cursor(true);
+    }
 
     ImGui::SetNextWindowPos(ImVec2(50, 50), ImGuiCond_::ImGuiCond_Once);
     ImGui::SetNextWindowSize(ImVec2(300, 500), ImGuiCond_::ImGuiCond_Once);
 
     ImGui::Begin("REFramework", &m_draw_ui);
     ImGui::Text("Menu Key: Insert");
+    ImGui::Checkbox("Transparency", &m_ui_option_transparent);
+    ImGui::SameLine();
+    ImGui::Text("(?)");
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Makes the UI transparent when not focused.");
+    ImGui::Checkbox("Input Passthrough", &m_ui_passthrough);
+    ImGui::SameLine();
+    ImGui::Text("(?)");
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Allows mouse and keyboard inputs to register to the game while the UI is focused.");
 
+    // Mods:
     draw_about();
 
     if (m_error.empty() && m_game_data_initialized) {
@@ -406,24 +477,75 @@ void REFramework::draw_about() {
             ImGui::TextWrapped(license::spdlog);
         }
 
+        if (ImGui::CollapsingHeader("robotomedium")) {
+            ImGui::TextWrapped(license::roboto);
+        }
+
         ImGui::TreePop();
     }
 
     ImGui::TreePop();
 }
 
-void REFramework::set_imgui_style() noexcept
-{
+void REFramework::set_imgui_style() noexcept {
     ImGui::StyleColorsDark();
 
-    auto &style = ImGui::GetStyle();
-    style.WindowRounding    = 4.0f;
-    style.ChildRounding     = 4.0f;
-    style.PopupRounding     = 4.0f;
-    style.FrameRounding     = 2.0f;
+    auto& style = ImGui::GetStyle();
+    style.WindowRounding = 0.0f;
+    style.ChildRounding = 0.0f;
+    style.PopupRounding = 0.0f;
+    style.FrameRounding = 0.0f;
     style.ScrollbarRounding = 2.0f;
-    style.GrabRounding      = 2.0f;
-    style.TabRounding       = 2.0f;
+    style.GrabRounding = 0.0f;
+    style.TabRounding = 0.0f;
+    style.WindowBorderSize = 2.0f;
+    style.WindowPadding = ImVec2(2.0f, 0.0f);
+
+    auto& colors = ImGui::GetStyle().Colors;
+    // Window BG
+    colors[ImGuiCol_WindowBg] = ImVec4{0.1f, 0.105f, 0.11f, 1.0f};
+
+    // Navigatation highlight
+    colors[ImGuiCol_NavHighlight] = ImVec4{0.3f, 0.305f, 0.31f, 1.0f};
+
+    // Headers
+    colors[ImGuiCol_Header] = ImVec4{0.2f, 0.205f, 0.21f, 1.0f};
+    colors[ImGuiCol_HeaderHovered] = ImVec4{0.3f, 0.305f, 0.31f, 1.0f};
+    colors[ImGuiCol_HeaderActive] = ImVec4{0.55f, 0.5505f, 0.551f, 1.0f};
+
+    // Buttons
+    colors[ImGuiCol_Button] = ImVec4{0.2f, 0.205f, 0.21f, 1.0f};
+    colors[ImGuiCol_ButtonHovered] = ImVec4{0.3f, 0.305f, 0.31f, 1.0f};
+    colors[ImGuiCol_ButtonActive] = ImVec4{0.55f, 0.5505f, 0.551f, 1.0f};
+
+    // Checkbox
+    colors[ImGuiCol_CheckMark] = ImVec4(0.55f, 0.5505f, 0.551f, 1.0f);
+
+    // Frame BG
+    colors[ImGuiCol_FrameBg] = ImVec4{0.211f, 0.210f, 0.25f, 1.0f};
+    colors[ImGuiCol_FrameBgHovered] = ImVec4{0.3f, 0.305f, 0.31f, 1.0f};
+    colors[ImGuiCol_FrameBgActive] = ImVec4{0.55f, 0.5505f, 0.551f, 1.0f};
+
+    // Tabs
+    colors[ImGuiCol_Tab] = ImVec4{0.25f, 0.2505f, 0.251f, 1.0f};
+    colors[ImGuiCol_TabHovered] = ImVec4{0.38f, 0.3805f, 0.381f, 1.0f};
+    colors[ImGuiCol_TabActive] = ImVec4{0.28f, 0.2805f, 0.281f, 1.0f};
+    colors[ImGuiCol_TabUnfocused] = ImVec4{0.25f, 0.2505f, 0.251f, 1.0f};
+    colors[ImGuiCol_TabUnfocusedActive] = ImVec4{0.8f, 0.805f, 0.81f, 1.0f};
+
+    // Resize Grip
+    colors[ImGuiCol_ResizeGrip] = ImVec4{0.2f, 0.205f, 0.21f, 0.0f};
+    colors[ImGuiCol_ResizeGripHovered] = ImVec4{0.3f, 0.305f, 0.31f, 1.0f};
+    colors[ImGuiCol_ResizeGripActive] = ImVec4{0.55f, 0.5505f, 0.551f, 1.0f};
+
+    // Title
+    colors[ImGuiCol_TitleBg] = ImVec4{0.25f, 0.2505f, 0.251f, 1.0f};
+    colors[ImGuiCol_TitleBgActive] = ImVec4{0.55f, 0.5505f, 0.551f, 1.0f};
+    colors[ImGuiCol_TitleBgCollapsed] = ImVec4{0.25f, 0.2505f, 0.251f, 1.0f};
+
+    // Font
+    auto& io = ImGui::GetIO();
+    io.Fonts->AddFontFromMemoryCompressedTTF(RobotoMedium_compressed_data, RobotoMedium_compressed_size, 16.0f);
 }
 
 bool REFramework::initialize() {
@@ -495,6 +617,8 @@ bool REFramework::initialize() {
         ImGui::CreateContext();
 
         set_imgui_style();
+
+        ImGui::GetIO().IniFilename = "ref_ui.ini";
 
         spdlog::info("Initializing ImGui Win32");
 
@@ -582,6 +706,8 @@ bool REFramework::initialize() {
 
         set_imgui_style();
 
+        ImGui::GetIO().IniFilename = "ref_ui.ini";
+        
         if (!ImGui_ImplWin32_Init(m_wnd)) {
             spdlog::error("Failed to initialize ImGui ImplWin32.");
             return false;
