@@ -27,6 +27,8 @@ set(MODS_SRC
     mods/ManualFlashlight.cpp
     mods/ObjectExplorer.hpp
     mods/ObjectExplorer.cpp
+    mods/Scene.hpp
+    mods/Scene.cpp
 )
 
 set(SDK_SRC
@@ -59,6 +61,8 @@ set(SDK_SRC
     sdk/RETypeDefinition.cpp
     sdk/REVariableDescriptor.hpp
     sdk/RopewaySweetLightManager.hpp
+    sdk/SceneManager.hpp
+    sdk/SceneManager.cpp
 )
 
 set(RE2IMGUI_SRC

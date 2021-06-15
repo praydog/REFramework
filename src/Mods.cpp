@@ -7,6 +7,7 @@
 #include "mods/DeveloperTools.hpp"
 #include "mods/ManualFlashlight.hpp"
 #include "mods/FreeCam.hpp"
+#include "mods/Scene.hpp"
 
 #include "Mods.hpp"
 
@@ -27,6 +28,7 @@ Mods::Mods()
 
     m_mods.emplace_back(std::make_unique<ManualFlashlight>());
     m_mods.emplace_back(std::make_unique<FreeCam>());
+    m_mods.emplace_back(std::make_unique<SceneMods>());
 #endif
 
 #ifdef DEVELOPER

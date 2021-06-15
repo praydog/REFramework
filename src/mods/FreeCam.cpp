@@ -1,4 +1,5 @@
 #include "sdk/REMath.hpp"
+#include "sdk/SceneManager.hpp"
 
 #include "FreeCam.hpp"
 
@@ -99,6 +100,7 @@ void FreeCam::on_update_transform(RETransform* transform) {
         m_was_disabled = false;
         return;
     }
+
 
 #ifndef RE8
     if (m_camera_system->mainCamera == nullptr || transform != m_camera_system->mainCamera->ownerGameObject->transform) {
@@ -204,6 +206,14 @@ void FreeCam::on_update_transform(RETransform* transform) {
 
     // Update wanted camera position
     if (!m_lock_camera->value()) {
+        auto timescale = sdk::get_timescale();
+
+        if (timescale == 0.0f) {
+            timescale = std::numeric_limits<float>::epsilon();
+        }
+
+        const auto timescale_mult = 1.0f / timescale;
+
         Vector4f dir{};
         const auto delta = re_component::get_delta_time(transform);
 
@@ -221,8 +231,8 @@ void FreeCam::on_update_transform(RETransform* transform) {
             const auto axis_l = *re_managed_object::get_field<Vector3f*>(device, "AxisL");
             const auto axis_r = *re_managed_object::get_field<Vector3f*>(device, "AxisR");
 
-            m_custom_angles[0] += axis_r.y * rotation_speed * delta;
-            m_custom_angles[1] -= axis_r.x * rotation_speed * delta;
+            m_custom_angles[0] += axis_r.y * rotation_speed * delta * timescale_mult;
+            m_custom_angles[1] -= axis_r.x * rotation_speed * delta * timescale_mult;
             m_custom_angles[2] = 0.0f;
 
             if (axis_l.length() > 0.0f) {
@@ -257,14 +267,14 @@ void FreeCam::on_update_transform(RETransform* transform) {
 
         const auto& mouse_delta = g_framework->get_mouse_delta();
 
-        m_custom_angles[0] -= mouse_delta[1] * rotation_speed_kbm * delta;
-        m_custom_angles[1] -= mouse_delta[0] * rotation_speed_kbm * delta;
+        m_custom_angles[0] -= mouse_delta[1] * rotation_speed_kbm * delta * timescale_mult;
+        m_custom_angles[1] -= mouse_delta[0] * rotation_speed_kbm * delta * timescale_mult;
         m_custom_angles[2] = 0.0f;
 
         math::fix_angles(m_custom_angles);
 
         const auto new_rotation = Matrix4x4f{ glm::quat{ m_custom_angles } };
-        const auto new_pos = m_last_camera_matrix[3] + new_rotation * dir * dir_speed * delta;
+        const auto new_pos = m_last_camera_matrix[3] + new_rotation * dir * (dir_speed * delta * timescale_mult);
 
         // Keep track of the rotation if we want to lock the camera
         m_last_camera_matrix = new_rotation;
