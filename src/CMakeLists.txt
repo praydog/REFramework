@@ -130,6 +130,7 @@ include_directories(RE2 ${CMAKE_CURRENT_SOURCE_DIR})
 set_target_properties(RE2 PROPERTIES OUTPUT_NAME dinput8)
 
 option(DEVELOPER_MODE "Adds DeveloperTools option to menu" OFF)
+option(RE2 "RE2 build" OFF)
 option(RE3 "RE3 build" OFF)
 option(RE8 "RE8 build" OFF)
 option(DMC5 "DMC5 build" OFF)
@@ -140,6 +141,10 @@ target_compile_definitions(RE2 PUBLIC IMGUI_USER_CONFIG="re2-imgui/re2_imconfig.
 if(DEVELOPER_MODE)
     target_compile_definitions(RE2 PUBLIC DEVELOPER)
     target_compile_options(RE2 PUBLIC /EHa)
+endif()
+
+if (RE2)
+    target_compile_definitions(RE2 PUBLIC RE2)
 endif()
 
 if (RE3)

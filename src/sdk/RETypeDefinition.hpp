@@ -1,9 +1,12 @@
 #pragma once
 
 #include <cstdint>
+#include <string_view>
 
 #include "RETypeCLR.hpp"
 #include "ReClass.hpp"
+
+class REManagedObject;
 
 // Manual definitions of REClassInfo because ReClass doesn't have bitfields like this.
 namespace sdk {

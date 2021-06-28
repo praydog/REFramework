@@ -21,12 +21,16 @@ Mods::Mods()
     m_mods.emplace_back(std::make_unique<PositionHooks>());
 
 #ifndef RE8
+#ifndef DMC5
     m_mods.emplace_back(std::make_unique<FirstPerson>());
+#endif
 #else
     m_mods.emplace_back(std::make_unique<Camera>());
 #endif
 
+#ifndef DMC5
     m_mods.emplace_back(std::make_unique<ManualFlashlight>());
+#endif
     m_mods.emplace_back(std::make_unique<FreeCam>());
     m_mods.emplace_back(std::make_unique<SceneMods>());
 #endif

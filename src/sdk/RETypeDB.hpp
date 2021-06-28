@@ -414,4 +414,23 @@ struct REMethodDefinition : public sdk::REMethodDefinition_ {
     std::vector<uint32_t> get_param_typeids() const;
     std::vector<sdk::RETypeDefinition*> get_param_types() const;
 };
+
+template <typename T, typename... Args> 
+T call_object_func(void* obj, sdk::RETypeDefinition* t, std::string_view name, Args... args) {
+    const auto method = t->get_method(name);
+
+    if (method == nullptr) {
+        // spdlog::error("Cannot find {:s}", name.data());
+        return nullptr;
+    }
+
+    return method->call<T>(args...);
+}
+
+template <typename T, typename... Args> 
+T call_object_func(::REManagedObject* obj, std::string_view name, Args... args) {
+    auto def = (sdk::RETypeDefinition*)obj->info->classInfo;
+
+    return call_object_func<T>((void*)obj, def, name, args...);
+}
 } // namespace sdk

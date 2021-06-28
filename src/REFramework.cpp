@@ -312,8 +312,8 @@ bool REFramework::on_message(HWND wnd, UINT message, WPARAM w_param, LPARAM l_pa
         // If the user is interacting with the UI we block the message from going to the game.
         const auto& io = ImGui::GetIO();
         if (m_draw_ui && !m_ui_passthrough) {
-            // Fix of a bug that makes the input key down register but the key up will never register \
-            when clicking on the ui while the game is not focused
+            // Fix of a bug that makes the input key down register but the key up will never register
+            // when clicking on the ui while the game is not focused
             if (message == WM_INPUT && GET_RAWINPUT_CODE_WPARAM(w_param) == RIM_INPUTSINK)
                 return false;
 

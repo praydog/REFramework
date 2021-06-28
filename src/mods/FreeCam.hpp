@@ -26,7 +26,7 @@ private:
     const ModKey::Ptr m_toggle_key{              ModKey::create(generate_name("ToggleKey")) };
     const ModKey::Ptr m_lock_camera_key{         ModKey::create(generate_name("LockKey")) };
     const ModKey::Ptr m_move_up_key{             ModKey::create(generate_name("MoveUpKey"), DIK_SPACE) };
-    const ModKey::Ptr m_move_down_key{             ModKey::create(generate_name("MoveDownKey"), DIK_LCONTROL) };
+    const ModKey::Ptr m_move_down_key{           ModKey::create(generate_name("MoveDownKey"), DIK_LCONTROL) };
     const ModKey::Ptr m_disable_movement_key{    ModKey::create(generate_name("DisableMoveKey")) };
     const ModKey::Ptr m_speed_modifier_fast_key{ ModKey::create(generate_name("SpeedModifierFast"), DIK_LSHIFT)};
     const ModKey::Ptr m_speed_modifier_slow_key{ ModKey::create(generate_name("SpeedModifierSlow"), DIK_LMENU)};
@@ -34,9 +34,7 @@ private:
     const ModSlider::Ptr m_speed{ ModSlider::create(generate_name("Speed"), 0.0f, 1.0f, 0.1f) };
     const ModSlider::Ptr m_speed_modifier{ ModSlider::create(generate_name("SpeedModifier"), 1.f, 50.f, 4.f) };
 
-#ifdef RE8
     const ModSlider::Ptr m_rotation_speed{ ModSlider::create(generate_name("RotationSpeed"), 0.0f, 1.0f, 1.0f) };
-#endif
 
     ValueList m_options{
         *m_enabled,
@@ -51,26 +49,26 @@ private:
         *m_speed_modifier,
         *m_speed_modifier_fast_key,
         *m_speed_modifier_slow_key,
-#ifdef RE8
         *m_rotation_speed,
-#endif
     };
 
 #ifndef RE8
-    RopewayCameraSystem* m_camera_system{ nullptr };
-    RopewayInputSystem* m_input_system{ nullptr };
     RopewaySurvivorManager* m_survivor_manager{ nullptr };
 #else
-    AppHIDPadManager* m_pad_manager{ nullptr };
     AppPropsManager* m_props_manager{ nullptr };
 #endif
+
+    struct {
+        void* object{ nullptr };
+        sdk::RETypeDefinition* t{ nullptr };
+    } m_via_hid_gamepad;
+
+    REManagedObject* m_gamepad{ nullptr };
 
     Matrix4x4f m_last_camera_matrix{ glm::identity<Matrix4x4f>() };
 
     bool m_first_time{ true };
     bool m_was_disabled{ false };
 
-#ifdef RE8
     Vector3f m_custom_angles{};
-#endif
 };

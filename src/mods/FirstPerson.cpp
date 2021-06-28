@@ -641,6 +641,13 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
     }
 
     if (transform->joints.size >= 1 && transform->joints.matrices != nullptr) {
+        auto joint = utility::re_transform::get_joint(*transform, 0);
+
+        if (joint != nullptr) {
+            joint->posOffset = Vector4f{};
+            *(Vector4f*)&joint->anglesOffset = Vector4f{ 0.0f, 0.0f, 0.0f, 1.0f };
+        }
+
         transform->joints.matrices->data[0].worldMatrix = m_last_camera_matrix;
     }
 }

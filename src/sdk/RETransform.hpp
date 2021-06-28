@@ -5,6 +5,28 @@
 namespace utility::re_transform {
     static Matrix4x4f invalid_matrix{};
 
+    static REJoint* get_joint(const ::RETransform& transform, uint32_t index) {
+        auto& joint_array = transform.joints;
+
+        if (joint_array.size <= 0 || joint_array.numAllocated <= 0 || joint_array.data == nullptr || joint_array.matrices == nullptr) {
+            return nullptr;
+        }
+
+        auto joint = joint_array.data->joints[index];
+
+        if (joint == nullptr) {
+            return nullptr;
+        }
+
+        auto joint_info = joint->info;
+
+        if (joint_info == nullptr || joint_info->name == nullptr) {
+            return nullptr;
+        }
+
+        return joint;
+    }
+
     // Get a bone/joint by name
     static REJoint* get_joint(const ::RETransform& transform, std::wstring_view name) {
         auto& joint_array = transform.joints;

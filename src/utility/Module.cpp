@@ -67,23 +67,23 @@ namespace utility {
 
 
     std::optional<std::string> get_module_path(HMODULE module) {
-        wchar_t fileName[MAX_PATH]{0};
-        if (GetModuleFileNameW(module, fileName, MAX_PATH) >= MAX_PATH) {
+        wchar_t filename[MAX_PATH]{0};
+        if (GetModuleFileNameW(module, filename, MAX_PATH) >= MAX_PATH) {
             return {};
         }
 
-        return utility::narrow(fileName);
+        return utility::narrow(filename);
     }
 
     std::optional<std::string> get_module_directory(HMODULE module) {
-        wchar_t fileName[MAX_PATH]{ 0 };
-        if (GetModuleFileNameW(module, fileName, MAX_PATH) >= MAX_PATH) {
+        wchar_t filename[MAX_PATH]{ 0 };
+        if (GetModuleFileNameW(module, filename, MAX_PATH) >= MAX_PATH) {
             return {};
         }
 
-        PathRemoveFileSpecW(fileName);
+        PathRemoveFileSpecW(filename);
 
-        return utility::narrow(fileName);
+        return utility::narrow(filename);
     }
 
     optional<uintptr_t> ptr_from_rva(uint8_t* dll, uintptr_t rva) {

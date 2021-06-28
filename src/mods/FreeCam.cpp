@@ -55,15 +55,12 @@ void FreeCam::on_draw_ui() {
     m_speed_modifier_fast_key->draw("Speed modifier Fast key");
     m_speed_modifier_slow_key->draw("Speed modifier Slow key");
 
-#ifdef RE8
     m_rotation_speed->draw("Rotation Speed");
-#endif
 
     m_speed->draw("Speed");
     m_speed_modifier->draw("Speed Modifier");
 }
 
-#ifdef RE8
 enum class MoveDirection : uint8_t {
     FORWARD = 0,
     BACKWARD,
@@ -88,7 +85,6 @@ std::unordered_map<int32_t, MoveDirection> g_vk_to_movedir{
     { DIK_DOWN, MoveDirection::BACKWARD },
     { DIK_RIGHT, MoveDirection::RIGHT },
 };
-#endif
 
 void FreeCam::on_update_transform(RETransform* transform) {
     if (!m_enabled->value() && !m_first_time) {
@@ -102,77 +98,7 @@ void FreeCam::on_update_transform(RETransform* transform) {
     }
 
 
-#ifndef RE8
-    if (m_camera_system->mainCamera == nullptr || transform != m_camera_system->mainCamera->ownerGameObject->transform) {
-        return;
-    }
-
-    const auto condition = m_survivor_manager->playerCondition;
-    if (m_first_time || condition == nullptr) {
-        m_last_camera_matrix = transform->worldTransform;
-
-        if (condition != nullptr && condition->actionOrderer != nullptr) {
-            condition->actionOrderer->enabled = true;
-            m_first_time = false;
-        }
-        
-        return;
-    }
-
-    const auto orderer = condition->actionOrderer;
-    if (orderer != nullptr) {
-        orderer->enabled = !m_disable_movement->value();
-    }
-
-    const auto controller = m_camera_system->cameraController;
-    if (controller == nullptr) {
-        return;
-    }
-
-    // despite the name, it works with the keyboard
-    const auto left_analog = re_managed_object::get_field<RopewayInputSystemAnalogStick*>(m_input_system, "_LStick");
-    if (left_analog == nullptr) {
-        return;
-    }
-
-    // Update wanted camera position
-    if (!m_lock_camera->value()) {
-        // Move direction
-        // It's not a Vector2f because via.vec2 is not actually 8 bytes, we don't want stack corruption to occur.
-        const auto axis = re_managed_object::get_field<Vector3f>(left_analog, "Axis");
-        auto dir = Vector4f{ axis.x, 0.0f, axis.y * -1.0f, 0.0f };
-
-        const auto delta = re_component::get_delta_time(transform);
-
-        const auto& keyboard_state = g_framework->get_keyboard_state();
-        if (keyboard_state[m_move_up_key->value()]) {
-            dir.y = 1.0f;
-        } 
-        else if (keyboard_state[m_move_down_key->value()]) {
-            dir.y = -1.0f;
-        }
-
-        const auto dir_speed_mod_fast = m_speed_modifier->value();
-        const auto dir_speed_mod_slow = 1.f / dir_speed_mod_fast;
-
-        auto dir_speed = m_speed->value();
-        if (keyboard_state[m_speed_modifier_fast_key->value()]) {
-            dir_speed *= dir_speed_mod_fast;
-        } 
-        else if (keyboard_state[m_speed_modifier_slow_key->value()]) {
-            dir_speed *= dir_speed_mod_slow;
-        }
-
-        // Use controller rotation instead of camera rotation as it's accurate, will work in cutscenes.
-        const auto new_pos = m_last_camera_matrix[3] + Matrix4x4f{ *(glm::quat*)&controller->worldRotation } * dir * dir_speed * delta;
-
-        // Keep track of the rotation if we want to lock the camera
-        m_last_camera_matrix = transform->worldTransform;
-        m_last_camera_matrix[3] = new_pos;
-    }
-
-    controller->worldPosition = m_last_camera_matrix[3];
-#else
+#ifdef RE8
     const auto player = m_props_manager->player;
     if (player != nullptr && player->transform != nullptr && player->transform == transform) {
         if (m_disable_movement->value() || m_was_disabled) {
@@ -180,22 +106,46 @@ void FreeCam::on_update_transform(RETransform* transform) {
             m_was_disabled = !player->shouldUpdate;
         }
     }
+#endif
 
-    const auto camera = m_props_manager->camera;
+    const auto camera = sdk::get_primary_camera();
+
     if (camera == nullptr || transform != camera->ownerGameObject->transform) {
         return;
     }
 
+
+#if defined(RE2) || defined(RE3)
+    const auto condition = m_survivor_manager->playerCondition;
+#endif
+
+    // first joint
+    auto joint = utility::re_transform::get_joint(*transform, 0);
+
     if (m_first_time) {
+#ifdef RE8
         if (player != nullptr && m_was_disabled) {
             player->shouldUpdate = true;
             m_was_disabled = false;
         }
+#endif
 
-        m_last_camera_matrix = transform->worldTransform;
+#if defined(RE2) || defined(RE3)
+        if (condition != nullptr && condition->actionOrderer != nullptr) {
+            condition->actionOrderer->enabled = true;
+        }
+#endif
+
+        if (joint != nullptr && transform->joints.matrices != nullptr) {
+            m_last_camera_matrix = transform->joints.matrices->data[0].worldMatrix;
+        }
+        else {
+            m_last_camera_matrix = transform->worldTransform;
+        }
+
         m_first_time = false;
 
-        m_custom_angles = math::euler_angles(glm::extractMatrixRotation(transform->worldTransform));
+        m_custom_angles = math::euler_angles(glm::extractMatrixRotation(m_last_camera_matrix));
         //m_custom_angles[1] *= -1.0f;
         //m_custom_angles[1] += glm::radians(180.0f);
 
@@ -203,6 +153,15 @@ void FreeCam::on_update_transform(RETransform* transform) {
 
         return;
     }
+
+#if defined(RE2) || defined(RE3)
+    if (condition != nullptr) {
+        const auto orderer = condition->actionOrderer;
+        if (orderer != nullptr) {
+            orderer->enabled = !m_disable_movement->value();
+        }
+    }
+#endif
 
     // Update wanted camera position
     if (!m_lock_camera->value()) {
@@ -222,14 +181,14 @@ void FreeCam::on_update_transform(RETransform* transform) {
         const auto rotation_speed = m_rotation_speed->value();
         const auto rotation_speed_kbm = rotation_speed * 0.05f;
 
-        // Controller support
-        if (m_pad_manager->pad1 != nullptr && m_pad_manager->pad1->device != nullptr) {
-            const auto device = m_pad_manager->pad1->device;
+        auto pad = sdk::call_object_func<REManagedObject*>(m_via_hid_gamepad.object, m_via_hid_gamepad.t, "get_LastInputDevice", sdk::get_thread_context(), m_via_hid_gamepad.object);
 
+        // Controller support
+        if (pad != nullptr) {
             // Move direction
             // It's not a Vector2f because via.vec2 is not actually 8 bytes, we don't want stack corruption to occur.
-            const auto axis_l = *re_managed_object::get_field<Vector3f*>(device, "AxisL");
-            const auto axis_r = *re_managed_object::get_field<Vector3f*>(device, "AxisR");
+            const auto axis_l = *re_managed_object::get_field<Vector3f*>(pad, "AxisL");
+            const auto axis_r = *re_managed_object::get_field<Vector3f*>(pad, "AxisR");
 
             m_custom_angles[0] += axis_r.y * rotation_speed * delta * timescale_mult;
             m_custom_angles[1] -= axis_r.x * rotation_speed * delta * timescale_mult;
@@ -280,29 +239,43 @@ void FreeCam::on_update_transform(RETransform* transform) {
         m_last_camera_matrix = new_rotation;
         m_last_camera_matrix[3] = new_pos;
     }
-#endif
 
     transform->worldTransform = m_last_camera_matrix;
     transform->position = m_last_camera_matrix[3];
+
+    if (joint != nullptr) {
+        joint->posOffset = Vector4f{};
+        *(Vector4f*)&joint->anglesOffset = Vector4f{0.0f, 0.00f, 0.0f, 1.0f};
+    }
 }
 
 bool FreeCam::update_pointers() {
-#ifndef RE8
-    if (m_camera_system == nullptr || m_input_system == nullptr || m_survivor_manager == nullptr) {
+    // Should work for all games.
+    if (m_via_hid_gamepad.object == nullptr || m_via_hid_gamepad.t == nullptr) {
         auto& globals = *g_framework->get_globals();
-        m_camera_system = globals.get<RopewayCameraSystem>(game_namespace("camera.CameraSystem"));
-        m_input_system = globals.get<RopewayInputSystem>(game_namespace("InputSystem"));
+
+        m_via_hid_gamepad.object = globals.get_native("via.hid.GamePad");
+
+        if (m_via_hid_gamepad.object != nullptr) {
+            m_via_hid_gamepad.t = (sdk::RETypeDefinition*)g_framework->get_types()->get("via.hid.GamePad")->classInfo;
+        }
+    }
+
+#ifndef RE8
+#ifndef DMC5
+    if (m_survivor_manager == nullptr) {
+        auto& globals = *g_framework->get_globals();
         m_survivor_manager = globals.get<RopewaySurvivorManager>(game_namespace("SurvivorManager"));
         return false;
     }
+#endif
 #else
-    if (m_pad_manager == nullptr || m_props_manager == nullptr) {
+    if (m_props_manager == nullptr) {
         auto& globals = *g_framework->get_globals();
-        m_pad_manager = globals.get<AppHIDPadManager>(game_namespace("HIDPadManager"));
         m_props_manager = globals.get<AppPropsManager>(game_namespace("PropsManager"));
         return false;
     }
 #endif
 
-    return true;
+    return m_via_hid_gamepad.object != nullptr && m_via_hid_gamepad.t != nullptr;
 }
