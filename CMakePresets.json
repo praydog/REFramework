@@ -1,0 +1,34 @@
+{
+    "version": 2,
+    "configurePresets": [
+        {
+            "name": "MSVC Release",
+            "displayName": "Visual Studio Community 2019 Release - amd64",
+            "description": "Using compilers for Visual Studio 16 2019 (x64 architecture)",
+            "generator": "Visual Studio 16 2019",
+            "toolset": "host=x64",
+            "architecture": "x64",
+            "binaryDir": "${sourceDir}/build/",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "Release",
+            "description": "",
+            "displayName": "Release",
+            "configurePreset": "MSVC Release",
+            "configuration": "Release"
+        },
+        {
+            "name": "RelWithDebInfo",
+            "description": "",
+            "displayName": "RelWithDebInfo",
+            "configurePreset": "MSVC Release",
+            "configuration": "RelWithDebInfo"
+        }
+    ]
+}

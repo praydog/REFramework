@@ -1,4 +1,9 @@
+.vs/
+.vscode/
+build/
+build64_all/
 build64/
+build64_re2/
 build64_re3/
 build64_re8/
 build64_dmc5

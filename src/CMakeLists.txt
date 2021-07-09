@@ -111,7 +111,7 @@ source_group("SDK" FILES ${SDK_SRC})
 source_group("Utility" FILES ${UTILITY_SRC})
 source_group("Framework" FILES ${FRAMEWORK_SRC})
 
-add_library(RE2 SHARED
+add_library(${GAME_NAME} SHARED
             Main.cpp
             LicenseStrings.hpp
             ${SDK_SRC}
@@ -122,43 +122,36 @@ add_library(RE2 SHARED
             ${FRAMEWORK_SRC}
 )
 
-target_link_libraries(RE2 PUBLIC imgui minhook d3d11 glm_static shlwapi)
-target_compile_options(RE2 PUBLIC /GS-)
-target_compile_features(RE2 PUBLIC cxx_std_20)
+target_link_libraries(${GAME_NAME} PUBLIC imgui minhook d3d11 glm_static shlwapi)
+target_compile_options(${GAME_NAME} PUBLIC /GS-)
+target_compile_features(${GAME_NAME} PUBLIC cxx_std_20)
 
-include_directories(RE2 ${CMAKE_CURRENT_SOURCE_DIR})
-set_target_properties(RE2 PROPERTIES OUTPUT_NAME dinput8)
+include_directories(${GAME_NAME} ${CMAKE_CURRENT_SOURCE_DIR})
+set_target_properties(${GAME_NAME} PROPERTIES OUTPUT_NAME dinput8)
 
-option(DEVELOPER_MODE "Adds DeveloperTools option to menu" OFF)
-option(RE2 "RE2 build" OFF)
-option(RE3 "RE3 build" OFF)
-option(RE8 "RE8 build" OFF)
-option(DMC5 "DMC5 build" OFF)
-option(BAREBONES "Barebones build without game-specific features/hooks" OFF)
-
-target_compile_definitions(RE2 PUBLIC IMGUI_USER_CONFIG="re2-imgui/re2_imconfig.hpp")
+target_compile_definitions(${GAME_NAME} PUBLIC IMGUI_USER_CONFIG="re2-imgui/re2_imconfig.hpp")
 
 if(DEVELOPER_MODE)
-    target_compile_definitions(RE2 PUBLIC DEVELOPER)
-    target_compile_options(RE2 PUBLIC /EHa)
+    target_compile_definitions(${GAME_NAME} PUBLIC DEVELOPER)
+    target_compile_options(${GAME_NAME} PUBLIC /EHa)
 endif()
 
 if (RE2)
-    target_compile_definitions(RE2 PUBLIC RE2)
+    target_compile_definitions(${GAME_NAME} PUBLIC RE2)
 endif()
 
 if (RE3)
-    target_compile_definitions(RE2 PUBLIC RE3)
+    target_compile_definitions(${GAME_NAME} PUBLIC RE3)
 endif()
 
 if (RE8)
-    target_compile_definitions(RE2 PUBLIC RE8)
+    target_compile_definitions(${GAME_NAME} PUBLIC RE8)
 endif()
 
 if (DMC5)
-    target_compile_definitions(RE2 PUBLIC DMC5)
+    target_compile_definitions(${GAME_NAME} PUBLIC DMC5)
 endif()
 
 if (BAREBONES)
-    target_compile_definitions(RE2 PUBLIC BAREBONES)
+    target_compile_definitions(${GAME_NAME} PUBLIC BAREBONES)
 endif()
