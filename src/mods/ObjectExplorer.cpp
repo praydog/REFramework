@@ -2274,7 +2274,7 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
             if (real_data != nullptr) {
                 auto& int_val = *(int32_t*)real_data;
 
-                ImGui::SliderInt("Set Value", &int_val, int_val - 1, int_val + 1);
+                ImGui::DragInt("Set Value", (int*)&int_val, 1.0f, min_int, max_int);
             }
         } else {
             make_tree_addr(data);
