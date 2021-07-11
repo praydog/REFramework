@@ -1,6 +1,9 @@
 #pragma once
 
+#include <memory>
+
 #include "Mod.hpp"
+#include "utility/Patch.hpp"
 
 // Always on for RE3
 // Because we use hooks that modify the integrity of the executable
@@ -13,6 +16,12 @@ public:
     void on_frame() override;
 
 private:
+#ifdef RE3
     // This is what the game uses to bypass its integrity checks altogether or something
     bool* m_bypass_integrity_checks{ nullptr };
+#else
+    void disable_update_timers(const std::string& name) const;
+
+    std::vector<std::unique_ptr<Patch>> m_patches{};
+#endif
 };

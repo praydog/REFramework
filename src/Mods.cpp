@@ -13,7 +13,7 @@
 
 Mods::Mods()
 {
-#ifdef RE3
+#if defined(RE3) || defined(RE8)
     m_mods.emplace_back(std::make_unique<IntegrityCheckBypass>());
 #endif
 
