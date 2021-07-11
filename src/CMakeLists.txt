@@ -1,3 +1,5 @@
+project(${GAME_NAME})
+
 set(HOOKS_SRC
     DInputHook.hpp
     DInputHook.cpp
