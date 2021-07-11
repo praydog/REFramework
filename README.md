@@ -2,18 +2,20 @@
 A mod framework for RE Engine games. Inspired by and uses code from [Kanan](https://github.com/cursey/kanan-new)
 
 ## Installation
-Download the latest binary from [AppVeyor](https://ci.appveyor.com/project/praydog/reframework/branch/master/artifacts). Extract dinput8.dll into your RE2/RE3/RE8 folder.
+Download the latest binary from [AppVeyor](https://ci.appveyor.com/project/praydog/reframework/branch/master/artifacts). Extract dinput8.dll into your corresponding game folder.
 
 Supports both DirectX 11 and DirectX 12.
 
 ## Included Mods
 * First Person (RE2, RE3)
-* Free Camera (RE2, RE3, RE8)
+* Free Camera (All games)
+* Scene Timescale (All games)
 * Manual Flashlight (RE2, RE3, RE8)
 * FOV Slider & Vignette Disabler (RE2, RE3, RE8)
 
 ## Included Fixes
 * RE8 Startup Crash
+* RE8 Stutters (killing enemies, taking damage, etc...)
 
 ## Included Tools (Developer Mode)
 * Object Explorer
@@ -22,7 +24,7 @@ Supports both DirectX 11 and DirectX 12.
 * Resident Evil 2
 * Resident Evil 3
 * Resident Evil Village
-* Devil May Cry 5 (Developer mode only)
+* Devil May Cry 5
 
 ## Thanks
 [SkacikPL](https://github.com/SkacikPL) for originally creating the Manual Flashlight mod.
