@@ -64,6 +64,32 @@ typedef DWORD (WINAPI *PFN_XInputGetState)(DWORD, XINPUT_STATE*);
 //  2017-10-23: Inputs: Using Win32 ::SetCapture/::GetCapture() to retrieve mouse positions outside the client area when dragging.
 //  2016-11-12: Inputs: Only call Win32 ::SetCursor(NULL) when io.MouseDrawCursor is set.
 
+namespace imgui {
+void reset_keystates() {
+    // get imgui io
+    auto& io = ImGui::GetIO();
+
+    // clear io key states
+    io.KeyCtrl = false;
+    io.KeyShift = false;
+    io.KeyAlt = false;
+    io.KeySuper = false;
+    
+    // clear io mouse state
+    io.MousePos.x = 0;
+    io.MousePos.y = 0;
+
+    for (auto& mouse_down : io.MouseDown) {
+        mouse_down = false;
+    }
+    
+    // clear io keys
+    for (auto& key : io.KeysDown) {
+        key = false;
+    }
+}
+}
+
 // Win32 Data
 static HWND                 g_hWnd = NULL;
 static INT64                g_Time = 0;
@@ -448,6 +474,9 @@ IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg, WPARA
     case WM_SYSKEYUP:
         if (wParam < 256)
             input_event.queued_keys.emplace_back(wParam, false);
+        return 0;
+    case WM_KILLFOCUS:
+        imgui::reset_keystates();
         return 0;
     case WM_CHAR:
         // You can also use ToAscii()+GetKeyboardState() to retrieve characters.

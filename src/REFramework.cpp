@@ -301,16 +301,17 @@ void REFramework::on_frame_d3d12() {
 void REFramework::on_reset() {
     spdlog::info("Reset!");
 
+    if (m_initialized) {
+        // fixes text boxes not being able to receive input
+        imgui::reset_keystates();
+    }
+
     // Crashes if we don't release it at this point.
     if (m_is_d3d11) {
         cleanup_render_target_d3d11();
     }
 
     if (m_is_d3d12) {
-        // For some reason if we don't destroy the context and recreate it later, the text fields will not work.
-        if (m_initialized) {
-            ImGui::DestroyContext();
-        }
         cleanup_render_target_d3d12();
     }
 
