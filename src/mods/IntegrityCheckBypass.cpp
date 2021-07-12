@@ -63,7 +63,7 @@ std::optional<std::string> IntegrityCheckBypass::on_initialize() {
         while (integrity_check_ref) {
             const auto ja_instruction = *integrity_check_ref + possible_pattern.offset;
 
-            if (already_patched.count(ja_instruction)) {
+            if (already_patched.contains(ja_instruction)) {
                 spdlog::info("IntegrityCheckBypass: ja instruction at 0x{:X} already patched, continuing...", ja_instruction);
                 integrity_check_ref =
                     utility::scan(*integrity_check_ref + 1, module_end - (*integrity_check_ref + 1), possible_pattern.pat);
