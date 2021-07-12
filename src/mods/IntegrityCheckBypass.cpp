@@ -144,7 +144,7 @@ void IntegrityCheckBypass::disable_update_timers(const std::string& name) const 
     auto manager = g_framework->get_globals()->get<REManagedObject>(name);
 
     // If the interact manager is null, we're probably not in the game
-    if (manager == nullptr) {
+    if (manager == nullptr || manager->info == nullptr || manager->info->classInfo == nullptr) {
         return;
     }
 

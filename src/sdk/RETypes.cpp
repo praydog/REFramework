@@ -26,30 +26,39 @@ RETypes::RETypes() {
 
     const auto types_pattern = "48 8d 0d ? ? ? ? e8 ? ? ? ? 48 8d 05 ? ? ? ? 48 89 03";
 
-    auto mod = g_framework->get_module().as<HMODULE>();
+    const auto mod = g_framework->get_module().as<HMODULE>();
     auto ref = utility::scan(mod, types_pattern);
 
     if (!ref) {
-        spdlog::info("Bad RETypes ref");
+        spdlog::error("Bad RETypes ref");
         return;
     }
 
-    spdlog::info("Ref: {:x}", (uintptr_t)*ref);
+    spdlog::info("Initial ref: {:x}", (uintptr_t)*ref);
     
     m_raw_types = (TypeList*)(utility::calculate_absolute(*ref + 3));
-    spdlog::info("TypeList: {:x}", (uintptr_t)m_raw_types);
+    spdlog::info("Initial TypeList: {:x}", (uintptr_t)m_raw_types);
 
-    const auto module_size = utility::get_module_size(g_framework->get_module().as<HMODULE>());
+    const auto module_size = utility::get_module_size(mod);
+    const auto module_end = g_framework->get_module() + *module_size;
 
-    while (m_raw_types->data != nullptr && IsBadReadPtr(m_raw_types->data, sizeof(void*))) {
+    while (IsBadReadPtr(m_raw_types, sizeof(void*)) || IsBadReadPtr(m_raw_types->data, sizeof(void*))) {
         spdlog::info("Re-scanning for RETypes, previous was invalid.");
 
-        ref = utility::scan(*ref + 1, *module_size, types_pattern);
+        ref = utility::scan(*ref + 1, module_end - (*ref + 1), types_pattern);
 
-        spdlog::info("Ref: {:x}", (uintptr_t)*ref);
+        if (!ref) {
+            spdlog::error("Bad RETypes ref during re-scan");
+            return;
+        }
+
+        spdlog::info("Ref: {:x}", *ref);
         
         m_raw_types = (TypeList*)(utility::calculate_absolute(*ref + 3));
     }
+
+    spdlog::info("Settled on ref: {:x}", *ref);
+    spdlog::info("Settled on TypeList: {:x}", (uintptr_t)m_raw_types);
 
     auto& typeList = *m_raw_types;
 
@@ -60,7 +69,7 @@ RETypes::RETypes() {
         if (t == nullptr || IsBadReadPtr(t, sizeof(REType)) || ((uintptr_t)t & (sizeof(void*) - 1)) != 0) {
             continue;
         }
-        //
+        
         if (t->name == nullptr) {
             continue;
         }
