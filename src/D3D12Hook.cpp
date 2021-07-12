@@ -53,14 +53,41 @@ bool D3D12Hook::hook() {
     swap_chain_desc1.Scaling = DXGI_SCALING_STRETCH;
     swap_chain_desc1.Stereo = FALSE;
 
-    if (FAILED(D3D12CreateDevice(nullptr, feature_level, IID_PPV_ARGS(&device)))) {
-        spdlog::error("Failed to create D3D12 Dummy device\n");
+    // Manually get D3D12CreateDevice export because the user may be running Windows 7
+    const auto d3d12_module = LoadLibraryA("d3d12.dll");
+    if (d3d12_module == nullptr) {
+        spdlog::error("Failed to load d3d12.dll");
+        return false;
+    }
+
+    auto d3d12_create_device = (decltype(D3D12CreateDevice)*)GetProcAddress(d3d12_module, "D3D12CreateDevice");
+    if (d3d12_create_device == nullptr) {
+        spdlog::error("Failed to get D3D12CreateDevice export");
+        return false;
+    }
+
+    if (FAILED(d3d12_create_device(nullptr, feature_level, IID_PPV_ARGS(&device)))) {
+        spdlog::error("Failed to create D3D12 Dummy device");
+        return false;
+    }
+
+    // Manually get CreateDXGIFactory export because the user may be running Windows 7
+    const auto dxgi_module = LoadLibraryA("dxgi.dll");
+    if (dxgi_module == nullptr) {
+        spdlog::error("Failed to load dxgi.dll");
+        return false;
+    }
+
+    auto create_dxgi_factory = (decltype(CreateDXGIFactory)*)GetProcAddress(dxgi_module, "CreateDXGIFactory");
+
+    if (create_dxgi_factory == nullptr) {
+        spdlog::error("Failed to get CreateDXGIFactory export");
         return false;
     }
 
     IDXGIFactory4* factory{ nullptr };
-    if (FAILED(CreateDXGIFactory(IID_PPV_ARGS(&factory)))) {
-        spdlog::error("Failed to create D3D12 Dummy DXGI Factory\n");
+    if (FAILED(create_dxgi_factory(IID_PPV_ARGS(&factory)))) {
+        spdlog::error("Failed to create D3D12 Dummy DXGI Factory");
         return false;
     }
 
@@ -72,17 +99,17 @@ bool D3D12Hook::hook() {
 
     ID3D12CommandQueue* command_queue{ nullptr };
     if (FAILED(device->CreateCommandQueue(&queue_desc, IID_PPV_ARGS(&command_queue)))) {
-        spdlog::error("Failed to create D3D12 Dummy Command Queue\n");
+        spdlog::error("Failed to create D3D12 Dummy Command Queue");
         return false;
     }
 
     if (FAILED(factory->CreateSwapChainForHwnd(command_queue, h_wnd, &swap_chain_desc1, NULL, NULL, &swap_chain1))) {
-        spdlog::error("Failed to create D3D12 Dummy DXGI SwapChain\n");
+        spdlog::error("Failed to create D3D12 Dummy DXGI SwapChain");
         return false;
     }
 
     if (FAILED(swap_chain1->QueryInterface(IID_PPV_ARGS(&swap_chain)))) {
-        spdlog::error("Failed to retrieve D3D12 DXGI SwapChain\n");
+        spdlog::error("Failed to retrieve D3D12 DXGI SwapChain");
         return false;
     }
 

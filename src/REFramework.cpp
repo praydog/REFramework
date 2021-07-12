@@ -33,6 +33,49 @@ REFramework::REFramework()
     spdlog::set_level(spdlog::level::debug);
 #endif
 
+    // Create the typedef for RtlGetVersion
+    typedef LONG (*RtlGetVersionFunc)(PRTL_OSVERSIONINFOW);
+
+    const auto ntdll = GetModuleHandle("ntdll.dll");
+
+    if (ntdll != nullptr) {
+        // Manually get RtlGetVersion
+        auto rtl_get_version = (RtlGetVersionFunc)GetProcAddress(ntdll, "RtlGetVersion");
+
+        if (rtl_get_version != nullptr) {
+            spdlog::info("Getting OS version information...");
+
+            // Create an initial log that prints out the user's Windows OS version information
+            // With the major and minor version numbers
+            // Using RtlGetVersion()
+            OSVERSIONINFOW os_version_info{};
+            ZeroMemory(&os_version_info, sizeof(OSVERSIONINFOW));
+            os_version_info.dwOSVersionInfoSize = sizeof(OSVERSIONINFOW);
+            os_version_info.dwMajorVersion = 0;
+            os_version_info.dwMinorVersion = 0;
+            os_version_info.dwBuildNumber = 0;
+            os_version_info.dwPlatformId = 0;
+
+            if (rtl_get_version(&os_version_info) != 0) {
+                spdlog::info("RtlGetVersion() failed");
+            } else {
+                // Log the Windows version information
+                spdlog::info("OS Version Information");
+                spdlog::info("\tMajor Version: {}", os_version_info.dwMajorVersion);
+                spdlog::info("\tMinor Version: {}", os_version_info.dwMinorVersion);
+                spdlog::info("\tBuild Number: {}", os_version_info.dwBuildNumber);
+                spdlog::info("\tPlatform Id: {}", os_version_info.dwPlatformId);
+
+                spdlog::info("Disclaimer: REFramework does not send this information to the developers or any other third party.");
+                spdlog::info("This information is only used to help with the development of REFramework.");
+            }
+        } else {
+            spdlog::info("RtlGetVersion() not found");
+        }
+    } else {
+        spdlog::info("ntdll.dll not found");
+    }
+
     // Hooking D3D12 initially because we need to retrieve the command queue before the first frame then switch to D3D11 if it failed later
     // on
     if (!hook_d3d12()) {
@@ -81,6 +124,15 @@ bool REFramework::hook_d3d11() {
 }
 
 bool REFramework::hook_d3d12() {
+    // windows 7?
+    if (LoadLibraryA("d3d12.dll") == nullptr) {
+        spdlog::info("d3d12.dll not found, user is probably running Windows 7.");
+        spdlog::info("Falling back to hooking D3D11.");
+
+        m_is_d3d12 = false;
+        return hook_d3d11();
+    }
+
     m_d3d12_hook = std::make_unique<D3D12Hook>();
     m_d3d12_hook->on_present([this](D3D12Hook& hook) { on_frame_d3d12(); });
     m_d3d12_hook->on_resize_buffers([this](D3D12Hook& hook) { on_reset(); });
@@ -104,7 +156,9 @@ bool REFramework::hook_d3d12() {
 
         m_valid = false;
         m_is_d3d12 = false;
-        return false;
+
+        // Try to hook d3d11 instead
+        return hook_d3d11();
     }
 
     return false;
