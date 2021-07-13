@@ -30,8 +30,8 @@ public:
         return m_original_proc;
     }
 
-    inline void window_toggle_cursor(bool toggle) {
-        ::PostMessage(m_wnd, RE_TOGGLE_CURSOR, toggle, 0);
+    inline void window_toggle_cursor(bool show) {
+        ::PostMessage(m_wnd, RE_TOGGLE_CURSOR, show, 1);
     }
 
     WindowsMessageHook& operator=(const WindowsMessageHook& other) = delete;

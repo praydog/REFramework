@@ -349,17 +349,19 @@ bool REFramework::on_message(HWND wnd, UINT message, WPARAM w_param, LPARAM l_pa
     } break;
 
     case RE_TOGGLE_CURSOR: {
-        if (!m_is_internal_message) {
-            m_cursor_state = w_param;
+        const auto is_internal_message = l_param != 0;
+        const auto return_value = is_internal_message || !m_draw_ui;
 
-            if (m_draw_ui && !w_param)
-                return ImGui_ImplWin32_WndProcHandler(wnd, RE_TOGGLE_CURSOR, true, l_param);
+        if (!is_internal_message) {
+            m_cursor_state = (bool)w_param;
+            m_cursor_state_changed = true;
         }
+
+        return return_value;
     } break;
     default:
         break;
     }
-    m_is_internal_message = false;
 
     ImGui_ImplWin32_WndProcHandler(wnd, message, w_param, l_param);
 
@@ -431,7 +433,6 @@ void REFramework::draw_ui() {
     if (!m_draw_ui) {
         m_is_ui_focused = false;
         if (m_last_draw_ui) {
-            m_is_internal_message = true;
             m_windows_message_hook->window_toggle_cursor(m_cursor_state);
         }
         m_dinput_hook->acknowledge_input();
@@ -467,8 +468,8 @@ void REFramework::draw_ui() {
     }
 
     // ImGui::GetIO().MouseDrawCursor = true;
-    if (!m_last_draw_ui) {
-        m_is_internal_message = true;
+    if (!m_last_draw_ui || m_cursor_state_changed) {
+        m_cursor_state_changed = false;
         m_windows_message_hook->window_toggle_cursor(true);
     }
 
