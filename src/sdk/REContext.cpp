@@ -1,3 +1,4 @@
+#include <shared_mutex>
 #include <spdlog/spdlog.h>
 
 #include "utility/Scan.hpp"
@@ -46,10 +47,20 @@ namespace sdk {
         return tbls.elements[type_index];
     }
 
+    static std::shared_mutex s_mutex{};
+
     void REGlobalContext::update_pointers() {
-        if (s_global_context != nullptr && s_get_thread_context != nullptr) {
-            return;
+        {
+            // Lock a shared lock for the s_mutex
+            std::shared_lock lock(s_mutex);
+
+            if (s_global_context != nullptr && s_get_thread_context != nullptr) {
+                return;
+            }
         }
+
+        // Create a unique lock for the s_mutex as we get to the meat of the function
+        std::unique_lock lock{ s_mutex };
 
         spdlog::info("[REGlobalContext::update_pointers] Updating...");
 
