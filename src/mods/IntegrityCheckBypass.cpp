@@ -27,21 +27,47 @@ std::optional<std::string> IntegrityCheckBypass::on_initialize() {
         {"48 ? ? 18 00 0F ? ? 88 0D ? ? ? ? 49 ? ? ? 48", 10},
 #elif defined(RE8)
         /*
-        sub eax, ecx
-        ja addr
-        mov eax, dword ptr [rsp+whatever]
-
-        This is partially obfuscated and is within a protected section.
+        These are partially obfuscated and are within protected sections.
         The ja jumps past the checksum checks which cause very large stutters if they are ran.
         We'll replace the ja to always jump past the checksum checks.
 
-        There are various patterns here because the code is obfuscated.
+        There are various patterns here because the code is obfuscated, there's an element of randomness per update.
+        Lots of random junk code. Some instructions are obfuscated into multiple instructions as well.
         We're taking a shot in the dark here hoping that the obfuscated code
         stays generally the same past a game update.
         */
-        {"29 c8 0f 87 ? ? ? ? 8b 84", 2,}, 
-        {"29 c8 0f 87 ? ? ? ? 31 C0 2B", 2}, 
+
+        /*
+        sub     eax, ecx
+        ja      NO_CHECKSUM_CHECKS1
+        mov     eax, [rsp+whatever]
+        */
+        // app.PlayerCore.onDamage, app.EnemyCore.onDie2 (onDie2 gets called from onDie)
+        {"29 c8 0f 87 ? ? ? ? 8b 84", 2},
+
+        /*
+        sub     eax, ecx
+        ja      NO_CHECKSUM_CHECKS2
+.       xor     eax, eax
+        sub     eax, [rsp+whatever]
+        */
+        // app.PlayerCore.onDamage #2
+        {"29 c8 0f 87 ? ? ? ? 31 C0 2B", 2},
+
+        /*
+        mov     eax, [rsp+whatever]
+        sub     eax, ecx
+        ja      NO_CHECKSUM_CHECKS3
+        xor     eax, eax
+        */
+        // app.PlayerCore.onDamage #3, app.EnemyCore.onDie2 #2
         {"8b 84 ? ? ? ? ? 29 c8 0f 87 ? ? ? ?", 9},
+        /* 
+        There is another one inside of app.GlobalService.msgSceneTransition_afterDeactivate
+        but didn't bother to patch it out. Reason being that it seems to only get called when loading is finished. 
+        Maybe some more investigation is required here?
+        */
+        // The above function names can be found within il2cpp_dump.json, which is dumped with REFramework's "Dump SDK" button in developer mode.
 #endif
     };
 

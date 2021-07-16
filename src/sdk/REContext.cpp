@@ -89,7 +89,7 @@ namespace sdk {
             }
         }
 
-        if (ref == nullptr) {
+        if (!ref || *ref == nullptr) {
             spdlog::info("[REGlobalContext::update_pointers] Unable to find ref.");
             return;
         }
