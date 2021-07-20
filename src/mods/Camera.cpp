@@ -132,27 +132,23 @@ void Camera::on_disabled() noexcept {
     set_fov(m_fov->default_value(), m_fov_aiming->default_value());
 }
 
-void Camera::set_vignette_type(via::render::ToneMapping::Vignetting value) noexcept
-{
-    if (m_tone_map_internal == nullptr) {
+void Camera::set_vignette_type(via::render::ToneMapping::Vignetting value) noexcept {
+    if (m_tone_map == nullptr) {
         return;
     }
-    
-    m_tone_map_internal->vignetting_mode = (int32_t)value;
+
+    utility::re_managed_object::call_method(m_tone_map, "setVignetting", value);
 }
 
-void Camera::set_vignette_brightness(float value) noexcept
-{
-    if (m_tone_map_internal == nullptr) {
+void Camera::set_vignette_brightness(float value) noexcept {
+    if (m_tone_map == nullptr) {
         return;
     }
-    
-    m_tone_map_internal->update_vignette = true;
-    m_tone_map_internal->vignetting_brightness = value;
+
+    utility::re_managed_object::call_method(m_tone_map, "setVignettingBrightness", (double)value);
 }
 
-void Camera::set_fov(float fov, float aiming_fov) noexcept
-{
+void Camera::set_fov(float fov, float aiming_fov) noexcept {
     if (m_player_camera_params == nullptr) {
         return;
     }
