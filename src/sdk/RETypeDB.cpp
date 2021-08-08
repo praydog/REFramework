@@ -241,6 +241,36 @@ void* REMethodDefinition::get_function() const {
     return this->function;
 }
 
+int32_t REMethodDefinition::get_virtual_index() const {
+#if TDB_VER >= 69
+    auto tdb = RETypeDB::get();
+    auto& impl = (*tdb->methodsImpl)[this->impl_id];
+    return impl.vtable_index;
+#else
+    return this->vtable_index;
+#endif
+}
+
+uint16_t REMethodDefinition::get_flags() const {
+#if TDB_VER >= 69
+    auto tdb = RETypeDB::get();
+    auto& impl = (*tdb->methodsImpl)[this->impl_id];
+    return impl.flags;
+#else
+    return this->flags;
+#endif
+}
+
+uint16_t REMethodDefinition::get_impl_flags() const {
+#if TDB_VER >= 69
+    auto tdb = RETypeDB::get();
+    auto& impl = (*tdb->methodsImpl)[this->impl_id];
+    return impl.impl_flags;
+#else
+    return this->impl_flags;
+#endif
+}
+
 std::vector<uint32_t> REMethodDefinition::get_param_typeids() const {
     auto tdb = RETypeDB::get();
 
@@ -295,5 +325,43 @@ std::vector<sdk::RETypeDefinition*> REMethodDefinition::get_param_types() const 
     }
 
     return out;
+}
+
+std::vector<const char*> REMethodDefinition::get_param_names() const {
+    std::vector<const char*> out{};
+
+    auto tdb = RETypeDB::get();
+    const auto param_list = (uint32_t)this->params;
+
+#if TDB_VER >= 69
+    auto param_ids = tdb->get_data<REParamList>(param_list);
+    const auto num_params = param_ids->numParams;
+
+    // Parse all params
+    for (auto f = 0; f < num_params; ++f) {
+        const auto param_index = param_ids->params[f];
+
+        if (param_index >= tdb->numParams) {
+            break;
+        }
+
+        auto& p = (*tdb->params)[param_index];
+
+        out.push_back(tdb->get_string(p.name_offset));
+    }
+
+    return out;
+#else
+    const auto num_params = (uint8_t)this->num_params;
+    auto param_ids = tdb->get_data<sdk::REMethodParamDef>(param_list);
+
+    for (auto f = 0; f < num_params; ++f) {
+        const auto param_index = param_ids[f].param_typeid;
+        const auto name_offset = (uint32_t)param_ids[f].name_offset;
+        out.push_back(tdb->get_string(name_offset));
+    }
+    
+    return out;
+#endif
 }
 } // namespace sdk

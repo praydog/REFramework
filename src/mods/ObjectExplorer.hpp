@@ -132,6 +132,7 @@ private:
     void display_enum_value(std::string_view name, int64_t value);
     void display_reflection_methods(REManagedObject* obj, REType* type_info);
     void display_reflection_properties(REManagedObject* obj, REType* type_info);
+    void display_native_methods(REManagedObject* obj, sdk::RETypeDefinition* tdef);
     void display_native_fields(REManagedObject* obj, sdk::RETypeDefinition* tdef);
     void attempt_display_field(REManagedObject* obj, VariableDescriptor* desc, REType* type_info);
     void display_data(void* data, void* real_data, std::string type_name, bool is_enum = false, bool managed_str = false, const sdk::RETypeDefinition* override_def = nullptr);

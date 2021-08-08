@@ -1641,6 +1641,7 @@ void ObjectExplorer::handle_type(REManagedObject* obj, REType* t) {
         display_reflection_methods(obj, type_info);
         display_reflection_properties(obj, type_info);
 
+        display_native_methods(obj, (sdk::RETypeDefinition*)type_info->classInfo);
         display_native_fields(obj, (sdk::RETypeDefinition*)type_info->classInfo);
     }
 
@@ -1999,6 +2000,120 @@ void ObjectExplorer::display_native_fields(REManagedObject* obj, sdk::RETypeDefi
 #else
     return;
 #endif
+}
+
+void ObjectExplorer::display_native_methods(REManagedObject* obj, sdk::RETypeDefinition* tdef) {
+    if (tdef == nullptr) {
+        return;
+    }
+
+    const auto is_real_object = utility::re_managed_object::is_managed_object(obj);
+    auto methods = tdef->get_methods();
+    auto tdb = g_framework->get_types()->get_type_db();
+
+    if (methods.size() == 0) {
+        return;
+    }
+
+    if (ImGui::TreeNode(methods.begin(), "TDB Methods: %i", methods.size())) {
+        for (auto& m : methods) {
+            const auto method_name = m.get_name();
+            const auto method_return_type = m.get_return_type();
+            const auto method_return_type_name = method_return_type->get_full_name();
+            const auto method_param_types = m.get_param_types();
+            const auto method_param_names = m.get_param_names();
+            const auto method_virtual_index = m.get_virtual_index();
+            const auto method_flags = m.get_flags();
+            const auto method_impl_flags = m.get_impl_flags();
+
+            const auto method_ptr = m.get_function();
+
+            // Create a c-style function prototype string from the param types and names
+            std::stringstream ss{};
+            ss << method_name << "(";
+
+            for (auto i = 0; i < method_param_types.size(); i++) {
+                if (i > 0) {
+                    ss << ", ";
+                }
+                ss << method_param_types[i]->get_full_name() << " " << method_param_names[i];
+            }
+
+            ss << ")";
+            const auto method_prototype = ss.str();
+
+            const auto made_node = widget_with_context(method_ptr, [&]() { return stretched_tree_node(&m, "%s", method_return_type_name.c_str()); });
+            const auto tree_hovered = ImGui::IsItemHovered();
+
+            // Draw the method name with a color
+            if (tree_hovered) {
+                make_same_line_text(method_prototype, VARIABLE_COLOR_HIGHLIGHT);
+            } else {
+                make_same_line_text(method_prototype, VARIABLE_COLOR);
+            }
+
+            // draw the method data
+            if (made_node) {
+                if (ImGui::BeginTable("##method", 4,  ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable)) {
+                    ImGui::TableNextColumn();
+                    ImGui::Text("Address");
+
+                    ImGui::TableNextColumn();
+                    ImGui::Text("Virtual Index");
+
+                    ImGui::TableNextColumn();
+                    ImGui::Text("Flags");
+
+                    ImGui::TableNextColumn();
+                    ImGui::Text("Impl flags");
+                    
+                    // address
+                    ImGui::TableNextColumn();
+                    ImGui::Text("0x%p", method_ptr);
+
+                    // virtual index
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%i", method_virtual_index);
+
+                    // flags
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%s", get_full_enum_value_name("via.clr.MethodFlag", method_flags).c_str());
+                    
+                    // impl flags
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%s", get_full_enum_value_name("via.clr.MethodImplFlag", method_impl_flags).c_str());
+
+                    ImGui::EndTable();
+                }
+
+                if (method_param_types.size() > 0) {
+                    if (ImGui::BeginTable("##params", 3,  ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable)) {
+                        ImGui::TableNextColumn();
+                        ImGui::Text("Index");
+                        ImGui::TableNextColumn();
+                        ImGui::Text("Type");
+                        ImGui::TableNextColumn();
+                        ImGui::Text("Name");
+
+                        for (auto i = 0; i < method_param_types.size(); i++) {
+                            ImGui::TableNextColumn();
+                            ImGui::Text(std::to_string(i).c_str());
+                            ImGui::TableNextColumn();
+                            ImGui::Text(method_param_types[i]->get_full_name().c_str());
+                            ImGui::TableNextColumn();
+                            ImGui::TextColored(VARIABLE_COLOR, method_param_names[i]);
+                        }
+
+                        ImGui::EndTable();
+                    }
+                }
+
+                ImGui::TreePop();
+            }
+        }
+
+        ImGui::TreePop();
+    }
 }
 
 void ObjectExplorer::attempt_display_field(REManagedObject* obj, VariableDescriptor* desc, REType* type_info) {

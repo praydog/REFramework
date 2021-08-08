@@ -395,6 +395,10 @@ struct REMethodDefinition : public sdk::REMethodDefinition_ {
 
     const char* get_name() const;
     void* get_function() const;
+
+    int32_t get_virtual_index() const;
+    uint16_t get_flags() const;
+    uint16_t get_impl_flags() const;
     
     template<typename T>
     T get_function_t() const {
@@ -413,6 +417,7 @@ struct REMethodDefinition : public sdk::REMethodDefinition_ {
 
     std::vector<uint32_t> get_param_typeids() const;
     std::vector<sdk::RETypeDefinition*> get_param_types() const;
+    std::vector<const char*> get_param_names() const;
 };
 
 template <typename T, typename... Args> 
