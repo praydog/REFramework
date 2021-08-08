@@ -19,7 +19,7 @@ sdk::REMethodDefinition* RETypeDefinition::MethodIterator::begin() const {
 }
 
 sdk::REMethodDefinition* RETypeDefinition::MethodIterator::end()  const {
-    if (m_parent->member_field == 0) {
+    if (m_parent->member_method == 0) {
         return nullptr;
     }
 
@@ -32,7 +32,7 @@ sdk::REMethodDefinition* RETypeDefinition::MethodIterator::end()  const {
     const auto num_methods = m_parent->num_member_method;
 #endif
 
-    return &(*tdb->methods)[m_parent->member_field + num_methods];
+    return &(*tdb->methods)[m_parent->member_method + num_methods];
 }
 
 size_t RETypeDefinition::MethodIterator::size() const {
