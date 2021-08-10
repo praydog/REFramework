@@ -212,7 +212,15 @@ sdk::RETypeDefinition* REMethodDefinition::get_return_type() const {
 
 #if TDB_VER >= 69
     auto param_ids = tdb->get_data<REParamList>(this->params);
-    const auto return_typeid = param_ids->returnType;
+    
+    const auto return_param_id = param_ids->returnType;
+    const auto& p = (*tdb->params)[return_param_id];
+
+    if (p.type_id == 0) {
+        return nullptr;
+    }
+
+    const auto return_typeid = p.type_id;
 #else
     const auto return_typeid = (uint32_t)this->return_typeid;
 #endif
