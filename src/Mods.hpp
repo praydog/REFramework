@@ -10,6 +10,7 @@ public:
     std::optional<std::string> on_initialize() const;
 
     void on_frame() const;
+    void on_post_frame() const;
     void on_draw_ui() const;
 
     const auto& get_mods() const {

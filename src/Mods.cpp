@@ -8,6 +8,7 @@
 #include "mods/ManualFlashlight.hpp"
 #include "mods/FreeCam.hpp"
 #include "mods/Scene.hpp"
+#include "mods/VR.hpp"
 
 #include "Mods.hpp"
 
@@ -19,6 +20,7 @@ Mods::Mods()
 
 #ifndef BAREBONES
     m_mods.emplace_back(std::make_unique<PositionHooks>());
+    m_mods.emplace_back(VR::get());
 
 #ifndef RE8
 #ifndef DMC5
@@ -63,6 +65,12 @@ std::optional<std::string> Mods::on_initialize() const {
 void Mods::on_frame() const {
     for (auto& mod : m_mods) {
         mod->on_frame();
+    }
+}
+
+void Mods::on_post_frame() const {
+    for (auto& mod : m_mods) {
+        mod->on_post_frame();
     }
 }
 

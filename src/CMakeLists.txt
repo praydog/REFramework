@@ -31,6 +31,8 @@ set(MODS_SRC
     mods/ObjectExplorer.cpp
     mods/Scene.hpp
     mods/Scene.cpp
+    mods/VR.hpp
+    mods/VR.cpp
 )
 
 set(SDK_SRC
@@ -124,7 +126,7 @@ add_library(${GAME_NAME} SHARED
             ${FRAMEWORK_SRC}
 )
 
-target_link_libraries(${GAME_NAME} PUBLIC imgui minhook d3d11 glm_static shlwapi)
+target_link_libraries(${GAME_NAME} PUBLIC imgui minhook d3d11 glm_static shlwapi ${CMAKE_SOURCE_DIR}/dependencies/openvr/lib/win64/openvr_api.lib)
 target_compile_options(${GAME_NAME} PUBLIC /GS-)
 target_compile_features(${GAME_NAME} PUBLIC cxx_std_20)
 

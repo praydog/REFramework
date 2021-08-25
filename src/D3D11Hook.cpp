@@ -1,6 +1,8 @@
 #include <algorithm>
 #include <spdlog/spdlog.h>
 
+#include <openvr/headers/openvr.h>
+
 #include "D3D11Hook.hpp"
 
 using namespace std;

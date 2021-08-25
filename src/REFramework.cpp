@@ -195,6 +195,8 @@ void REFramework::on_frame_d3d11() {
         return;
     }
 
+    m_renderer_type = RendererType::D3D11;
+
     consume_input();
 
     ImGui_ImplDX11_NewFrame();
@@ -225,6 +227,10 @@ void REFramework::on_frame_d3d11() {
     context->OMSetRenderTargets(1, &m_main_render_target_view_d3d11, NULL);
 
     ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+
+    if (m_error.empty() && m_game_data_initialized) {
+        m_mods->on_post_frame();
+    }
 }
 
 // D3D12 Draw funciton
@@ -246,6 +252,8 @@ void REFramework::on_frame_d3d12() {
         spdlog::error("Null Command Queue");
         return;
     }
+
+    m_renderer_type = RendererType::D3D12;
 
     consume_input();
 

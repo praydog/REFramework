@@ -305,6 +305,7 @@ public:
 
     // Functionally equivalent, but on_frame will always get called, on_draw_ui can be disabled by REFramework
     virtual void on_frame() {};
+    virtual void on_post_frame() {};
     virtual void on_draw_ui() {};
 
     virtual void on_config_load(const utility::Config& cfg) {};

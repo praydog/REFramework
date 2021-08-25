@@ -29,4 +29,8 @@ add_library(imgui STATIC
             imgui/imgui_tables.cpp
             imgui/imgui.cpp)
 
+add_library(openvr INTERFACE openvr/headers/openvr.h)
+file(COPY openvr/lib/win64/openvr_api.lib DESTINATION ${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
+file(COPY openvr/bin/win64/openvr_api.dll DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
+
 target_compile_definitions(imgui PUBLIC IMGUI_USER_CONFIG="../src/re2-imgui/re2_imconfig.hpp")
