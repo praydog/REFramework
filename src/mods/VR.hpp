@@ -35,6 +35,34 @@ public:
         return m_poses;
     }
 
+    const auto& get_left_offset() const {
+        return m_left_offset;
+    }
+
+    const auto& get_right_offset() const {
+        return m_right_offset;
+    }
+
+    auto get_frame_count() const {
+        return m_frame_count;
+    }
+
+    bool is_using_afr() const {
+        return m_use_afr;
+    }
+
+    auto get_current_offset() const {
+        if (!m_use_afr) {
+            return Vector4f{};
+        }
+
+        if (m_frame_count % 2 == 0) {
+            return m_left_offset;
+        }
+        
+        return m_right_offset;
+    }
+
     Matrix4x4f get_rotation(uint32_t index);
 
 private:

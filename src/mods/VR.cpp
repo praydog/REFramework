@@ -170,14 +170,7 @@ void VR::on_update_camera_controller(RopewayPlayerCameraController* controller) 
 
     *(glm::quat*)&controller->worldRotation = glm::quat{ headset_rotation  };
 
-    if (m_use_afr) {
-        if (m_frame_count % 2 == 0) {
-            // adjust the camera position using left eye offset
-            controller->worldPosition += m_left_offset;
-        } else {
-            controller->worldPosition += m_right_offset;
-        }
-    }
+    controller->worldPosition += get_current_offset();
 }
 
 void VR::on_frame_d3d12() {

@@ -282,11 +282,14 @@ void FirstPerson::on_update_camera_controller(RopewayPlayerCameraController* con
         return;
     }
 
-    // The following code fixes inaccuracies between the rotation set by the game and what's set in updateCameraTransform
-    controller->worldPosition = m_last_camera_matrix[3];
-    *(glm::quat*)&controller->worldRotation = glm::quat{ m_last_camera_matrix  };
+    auto nudged_mtx = m_last_camera_matrix;
+    //nudged_mtx[3] += VR::get()->get_current_offset();
 
-    m_camera->ownerGameObject->transform->worldTransform = m_last_camera_matrix;
+    // The following code fixes inaccuracies between the rotation set by the game and what's set in updateCameraTransform
+    controller->worldPosition = nudged_mtx[3];
+    *(glm::quat*)&controller->worldRotation = glm::quat{ nudged_mtx  };
+
+    m_camera->ownerGameObject->transform->worldTransform = nudged_mtx;
     m_camera->ownerGameObject->transform->angles = *(Vector4f*)&controller->worldRotation;
 }
 
@@ -603,6 +606,8 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
     //if (is_player_in_control || !is_player_camera) {
         m_last_camera_matrix = mtx;
     //}
+
+    (*(Matrix3x4f*)&mtx)[3] += glm::extractMatrixRotation(camera_matrix) * VR::get()->get_current_offset();
 
     // Fixes snappiness after camera switching
     if (!is_player_in_control) {
