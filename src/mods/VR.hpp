@@ -3,6 +3,10 @@
 #include <memory>
 #include <openvr/headers/openvr.h>
 
+#include <d3d11.h>
+#include <dxgi.h>
+#include <wrl.h>
+
 #include "sdk/Math.hpp"
 
 #include "Mod.hpp"
@@ -44,4 +48,15 @@ private:
     vr::TrackedDevicePose_t m_poses[vr::k_unMaxTrackedDeviceCount];
     
     uint32_t m_w{0}, m_h{0};
+
+    template <typename T> using ComPtr = Microsoft::WRL::ComPtr<T>;
+
+    ComPtr<ID3D11Texture2D> m_left_eye_tex0{}; // Holds an intermediate frame for the left eye.
+    ComPtr<ID3D11Texture2D> m_left_eye_tex{};
+    ComPtr<ID3D11Texture2D> m_right_eye_tex{};
+
+    int m_frame_count{};
+    bool m_use_afr{true};
+
+    void setup_d3d11();
 };

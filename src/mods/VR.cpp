@@ -54,10 +54,21 @@ void VR::on_post_frame() {
 }
 
 void VR::on_frame_d3d11() {
+    // Increment frame count.
+    ++m_frame_count;
+
+    if (m_left_eye_tex == nullptr) {
+        setup_d3d11();
+    }
+
     auto& hook = g_framework->get_d3d11_hook();
     
     // get device
     auto device = hook->get_device();
+
+    // Get the context.
+    ID3D11DeviceContext* context{};
+    device->GetImmediateContext(&context);
 
     // get swapchain
     auto swapchain = hook->get_swap_chain();
@@ -71,21 +82,79 @@ void VR::on_frame_d3d11() {
         return;
     }
 
-    auto compositor = vr::VRCompositor();
+    if (m_use_afr) {
+        // If m_frame_count is even, we're rendering the left eye.
+        if (m_frame_count % 2 == 0) {
+            // Copy the back buffer to the left eye texture (m_left_eye_tex0 holds the intermediate frame).
+            context->CopyResource(m_left_eye_tex0.Get(), backbuffer);
+        } else {
+            // Copy the back buffer to the right eye texture.
+            context->CopyResource(m_right_eye_tex.Get(), backbuffer);
 
-    vr::Texture_t texture{(void*)backbuffer, vr::TextureType_DirectX, vr::ColorSpace_Auto};
+            // Copy the intermediate left eye texture to the actual left eye texture.
+            context->CopyResource(m_left_eye_tex.Get(), m_left_eye_tex0.Get());
+        }
 
-    auto e = compositor->Submit(vr::Eye_Left, &texture, &m_left_bounds);
+        // Submit the eye textures to the compositor at this point. It must be done every frame for both eyes otherwise
+        // FPS will dive off the deep end.
+        auto compositor = vr::VRCompositor();
 
-    if (e != vr::VRCompositorError_None) {
-        spdlog::error("[VR] VRCompositor failed to submit left eye: {}", (int)e);
+        vr::Texture_t left_eye{(void*)m_left_eye_tex.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto};
+        vr::Texture_t right_eye{(void*)m_right_eye_tex.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto};
+
+        auto e = compositor->Submit(vr::Eye_Left, &left_eye, &m_left_bounds);
+
+        if (e != vr::VRCompositorError_None) {
+            spdlog::error("[VR] VRCompositor failed to submit left eye: {}", (int)e);
+        }
+
+        e = compositor->Submit(vr::Eye_Right, &right_eye, &m_right_bounds);
+
+        if (e != vr::VRCompositorError_None) {
+            spdlog::error("[VR] VRCompositor failed to submit right eye: {}", (int)e);
+        }
+    } else {
+        auto compositor = vr::VRCompositor();
+
+        vr::Texture_t texture{(void*)backbuffer, vr::TextureType_DirectX, vr::ColorSpace_Auto};
+
+        auto e = compositor->Submit(vr::Eye_Left, &texture, &m_left_bounds);
+
+        if (e != vr::VRCompositorError_None) {
+            spdlog::error("[VR] VRCompositor failed to submit left eye: {}", (int)e);
+        }
+
+        e = compositor->Submit(vr::Eye_Right, &texture, &m_right_bounds);
+
+        if (e != vr::VRCompositorError_None) {
+            spdlog::error("[VR] VRCompositor failed to submit right eye: {}", (int)e);
+        }
     }
 
-    e = compositor->Submit(vr::Eye_Right, &texture, &m_right_bounds);
+    // Release the context.
+    context->Release();
+}
 
-    if (e != vr::VRCompositorError_None) {
-        spdlog::error("[VR] VRCompositor failed to submit right eye: {}", (int)e);
-    }
+void VR::setup_d3d11() {
+    // Get device and swapchain.
+    auto& hook = g_framework->get_d3d11_hook();
+    auto device = hook->get_device();
+    auto swapchain = hook->get_swap_chain();
+
+    // Get back buffer.
+    ID3D11Texture2D* backbuffer{};
+    swapchain->GetBuffer(0, IID_PPV_ARGS(&backbuffer));
+
+    // Get backbuffer description.
+    D3D11_TEXTURE2D_DESC backbuffer_desc{};
+    backbuffer->GetDesc(&backbuffer_desc);
+
+    // Create eye textures.
+    device->CreateTexture2D(&backbuffer_desc, nullptr, &m_left_eye_tex0);
+    device->CreateTexture2D(&backbuffer_desc, nullptr, &m_left_eye_tex);
+    device->CreateTexture2D(&backbuffer_desc, nullptr, &m_right_eye_tex);
+
+    spdlog::info("[VR] d3d11 textures have been setup");
 }
 
 void VR::on_update_camera_controller(RopewayPlayerCameraController* controller) {
@@ -121,6 +190,7 @@ void VR::on_draw_ui() {
     ImGui::Separator();
     ImGui::DragFloat4("Right", (float*)&m_right_bounds, 0.01f, 0.0f, 1.0f);
     ImGui::DragFloat4("Left", (float*)&m_left_bounds, 0.01f, 0.0f, 1.0f);
+    ImGui::Checkbox("Use AFR", &m_use_afr);
 }
 
 void VR::on_config_load(const utility::Config& cfg) {
