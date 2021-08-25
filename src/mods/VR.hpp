@@ -44,6 +44,9 @@ private:
     vr::VRTextureBounds_t m_right_bounds{ 0.0f, 0.0f, 0.5f, 1.0f };
     vr::VRTextureBounds_t m_left_bounds{ 0.5f, 0.0f, 1.0f, 1.0f };
 
+    Vector4f m_left_offset{ 0.0f, 0.0f, 0.0f, 0.0f };
+    Vector4f m_right_offset{ 0.0f, 0.0f, 0.0f, 0.0f };
+
     vr::IVRSystem* m_hmd{nullptr};
     vr::TrackedDevicePose_t m_poses[vr::k_unMaxTrackedDeviceCount];
     

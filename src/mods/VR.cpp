@@ -169,6 +169,15 @@ void VR::on_update_camera_controller(RopewayPlayerCameraController* controller) 
     auto headset_rotation = glm::extractMatrixRotation(glm::rowMajor4(headset_matrix));
 
     *(glm::quat*)&controller->worldRotation = glm::quat{ headset_rotation  };
+
+    if (m_use_afr) {
+        if (m_frame_count % 2 == 0) {
+            // adjust the camera position using left eye offset
+            controller->worldPosition += m_left_offset;
+        } else {
+            controller->worldPosition += m_right_offset;
+        }
+    }
 }
 
 void VR::on_frame_d3d12() {
@@ -188,8 +197,10 @@ void VR::on_draw_ui() {
     ImGui::Separator();
     ImGui::Text("Recommended render target size: %d x %d", m_w, m_h);
     ImGui::Separator();
-    ImGui::DragFloat4("Right", (float*)&m_right_bounds, 0.01f, 0.0f, 1.0f);
-    ImGui::DragFloat4("Left", (float*)&m_left_bounds, 0.01f, 0.0f, 1.0f);
+    ImGui::DragFloat4("Right Bounds", (float*)&m_right_bounds, 0.01f, 0.0f, 5.0f);
+    ImGui::DragFloat4("Left Bounds", (float*)&m_left_bounds, 0.01f, 0.0f, 5.0f);
+    ImGui::DragFloat3("Right Offset", (float*)&m_left_offset, 0.01f, 0.0f, 5.0f);
+    ImGui::DragFloat3("Left Offset", (float*)&m_right_offset, 0.01f, 0.0f, 5.0f);
     ImGui::Checkbox("Use AFR", &m_use_afr);
 }
 
