@@ -2322,6 +2322,8 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
         ImGui::Text("%s", (char*)data);
         break;
     //case "System.Nullable`1<via.vec2>"_fnv:
+    case "via.Rect"_fnv:
+    case "via.Size"_fnv:
     case "via.Float2"_fnv:
     case "via.vec2"_fnv: {
         auto vec = (Vector2f*)data;

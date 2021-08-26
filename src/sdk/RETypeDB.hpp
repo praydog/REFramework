@@ -426,7 +426,7 @@ T call_object_func(void* obj, sdk::RETypeDefinition* t, std::string_view name, A
 
     if (method == nullptr) {
         // spdlog::error("Cannot find {:s}", name.data());
-        return nullptr;
+        return T{};
     }
 
     return method->call<T>(args...);

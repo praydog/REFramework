@@ -21,6 +21,7 @@ public:
     std::optional<std::string> on_initialize() override;
 
     void on_post_frame() override;
+    void on_update_transform(RETransform* transform) override;
     void on_update_camera_controller(RopewayPlayerCameraController* controller) override;
     void on_draw_ui() override;
 
@@ -35,12 +36,12 @@ public:
         return m_poses;
     }
 
-    const auto& get_left_offset() const {
-        return m_left_offset;
+    auto get_hmd_width() const {
+        return m_w;
     }
 
-    const auto& get_right_offset() const {
-        return m_right_offset;
+    auto get_hmd_height() const {
+        return m_h;
     }
 
     auto get_frame_count() const {
@@ -57,10 +58,30 @@ public:
         }
 
         if (m_frame_count % 2 == 0) {
-            return m_left_offset;
+            return Vector4f{m_eye_distance * -1.0f, 0.0f, 0.0f, 0.0f};
         }
         
-        return m_right_offset;
+        return Vector4f{m_eye_distance, 0.0f, 0.0f, 0.0f};
+    }
+
+    auto get_current_yaw_offset() const {
+        if (!m_use_afr) {
+            return 0.0f;
+        }
+
+        if (m_frame_count % 2 == 0) {
+            return m_eye_rotation * -1;
+        }
+        
+        return m_eye_rotation;
+    }
+
+    auto get_current_rotation_offset() const {
+        if (!m_use_afr) {
+            return glm::identity<Matrix4x4f>();
+        }
+
+        return Matrix4x4f{ glm::quat{ Vector3f { 0.0f, get_current_yaw_offset(), 0.0f } } };
     }
 
     Matrix4x4f get_rotation(uint32_t index);
@@ -69,11 +90,13 @@ private:
     void on_frame_d3d11();
     void on_frame_d3d12();
 
-    vr::VRTextureBounds_t m_right_bounds{ 0.0f, 0.0f, 0.5f, 1.0f };
-    vr::VRTextureBounds_t m_left_bounds{ 0.5f, 0.0f, 1.0f, 1.0f };
+    REManagedObject* m_main_view{nullptr};
 
-    Vector4f m_left_offset{ 0.0f, 0.0f, 0.0f, 0.0f };
-    Vector4f m_right_offset{ 0.0f, 0.0f, 0.0f, 0.0f };
+    vr::VRTextureBounds_t m_right_bounds{ 0.0f, 0.0f, 1.0f, 1.0f };
+    vr::VRTextureBounds_t m_left_bounds{ 0.0f, 0.0f, 1.0f, 1.0f };
+
+    float m_eye_distance{ -0.025f };
+    float m_eye_rotation{ 0.135f };
 
     vr::IVRSystem* m_hmd{nullptr};
     vr::TrackedDevicePose_t m_poses[vr::k_unMaxTrackedDeviceCount];
@@ -87,6 +110,7 @@ private:
     ComPtr<ID3D11Texture2D> m_right_eye_tex{};
 
     int m_frame_count{};
+    int m_last_frame_count{-1};
     bool m_use_afr{true};
 
     void setup_d3d11();

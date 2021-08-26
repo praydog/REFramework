@@ -607,7 +607,8 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
         m_last_camera_matrix = mtx;
     //}
 
-    (*(Matrix3x4f*)&mtx)[3] += glm::extractMatrixRotation(camera_matrix) * VR::get()->get_current_offset();
+    *(Matrix4x4f*)&mtx *= VR::get()->get_current_rotation_offset();
+    (*(Matrix3x4f*)&mtx)[3] += glm::extractMatrixRotation(camera_matrix) * (VR::get()->get_current_offset() * Vector4f{ -1.0f, 1.0f, 1.0f, 0.0f });
 
     // Fixes snappiness after camera switching
     if (!is_player_in_control) {

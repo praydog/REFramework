@@ -1,4 +1,9 @@
 #include "sdk/Math.hpp"
+#include "sdk/SceneManager.hpp"
+#include "sdk/RETypeDB.hpp"
+
+#include "utility/Scan.hpp"
+#include "utility/FunctionHook.hpp"
 
 #include "VR.hpp"
 
@@ -10,6 +15,25 @@ std::shared_ptr<VR>& VR::get() {
     }
 
     return inst;
+}
+
+std::unique_ptr<FunctionHook> g_get_size_hook{};
+
+// Purpose: spoof the render target size to the size of the HMD displays
+float* get_size_hook(float* result, void* ctx, REManagedObject* scene_view) {
+    auto original_func = g_get_size_hook->get_original<decltype(get_size_hook)>();
+
+    spdlog::info("Hello from the hook");
+
+    auto out = original_func(result, ctx, scene_view);
+
+    // spoof the size to the HMD's size
+    auto mod = VR::get();
+
+    out[0] = (float)mod->get_hmd_width();
+    out[1] = (float)mod->get_hmd_height();
+
+    return out;
 }
 
 // Called when the mod is initialized
@@ -37,11 +61,63 @@ std::optional<std::string> VR::on_initialize() {
         return "VRCompositor failed to initialize.";
     }
 
+    // We're going to hook via.SceneView.get_Size so we can
+    // spoof the render target size to the HMD's resolution.
+    auto sceneview_type = sdk::RETypeDB::get()->find_type("via.SceneView");
+
+    if (sceneview_type == nullptr) {
+        return "VR init failed: via.SceneView type not found.";
+    }
+
+    auto get_size_method = sceneview_type->get_method("get_Size");
+
+    if (get_size_method == nullptr) {
+        return "VR init failed: via.SceneView.get_Size method not found.";
+    }
+
+    auto get_size_func = get_size_method->get_function();
+
+    if (get_size_func == nullptr) {
+        return "VR init failed: via.SceneView.get_Size function not found.";
+    }
+
+    spdlog::info("via.SceneView.get_Size: {:x}", (uintptr_t)get_size_func);
+
+    // Pattern scan for the native function call
+    auto ref = utility::scan((uintptr_t)get_size_func, 0x100, "49 8B C8 E8");
+
+    if (!ref) {
+        return "VR init failed: via.SceneView.get_Size native function not found. Pattern scan failed.";
+    }
+
+    auto native_func = utility::calculate_absolute(*ref + 4);
+
+    // Hook the native function
+    g_get_size_hook = std::make_unique<FunctionHook>(native_func, get_size_hook);
+
+    if (!g_get_size_hook->create()) {
+        return "VR init failed: via.SceneView.get_Size native function hook failed.";
+    }
+
     // all OK
     return Mod::on_initialize();
 }
 
 void VR::on_post_frame() {
+    auto scene = sdk::get_current_scene();
+
+    if (scene == nullptr) {
+        return;
+    }
+
+    m_frame_count = sdk::call_object_func<int32_t>(scene, "get_FrameCount", sdk::get_thread_context(), scene);
+    m_main_view = sdk::get_main_view();
+
+    if (m_main_view != nullptr) {
+        Vector2f size{ (float)m_w, (float)m_h };
+        //sdk::call_object_func<void*>(m_main_view, "set_Size", sdk::get_thread_context(), m_main_view, &size);
+    }
+
     const auto renderer = g_framework->get_renderer_type();
 
     if (renderer == REFramework::RendererType::D3D11) {
@@ -51,12 +127,13 @@ void VR::on_post_frame() {
     }
 
     vr::VRCompositor()->WaitGetPoses(m_poses, vr::k_unMaxTrackedDeviceCount, NULL, 0);
+
+    m_last_frame_count = m_frame_count;
 }
 
 void VR::on_frame_d3d11() {
     // Increment frame count.
-    ++m_frame_count;
-
+    //++m_frame_count;
     if (m_left_eye_tex == nullptr) {
         setup_d3d11();
     }
@@ -83,16 +160,18 @@ void VR::on_frame_d3d11() {
     }
 
     if (m_use_afr) {
-        // If m_frame_count is even, we're rendering the left eye.
-        if (m_frame_count % 2 == 0) {
-            // Copy the back buffer to the left eye texture (m_left_eye_tex0 holds the intermediate frame).
-            context->CopyResource(m_left_eye_tex0.Get(), backbuffer);
-        } else {
-            // Copy the back buffer to the right eye texture.
-            context->CopyResource(m_right_eye_tex.Get(), backbuffer);
+        if (m_frame_count != m_last_frame_count) {
+            // If m_frame_count is even, we're rendering the left eye.
+            if (m_frame_count % 2 == 0) {
+                // Copy the back buffer to the left eye texture (m_left_eye_tex0 holds the intermediate frame).
+                context->CopyResource(m_left_eye_tex0.Get(), backbuffer);
+            } else {
+                // Copy the back buffer to the right eye texture.
+                context->CopyResource(m_right_eye_tex.Get(), backbuffer);
 
-            // Copy the intermediate left eye texture to the actual left eye texture.
-            context->CopyResource(m_left_eye_tex.Get(), m_left_eye_tex0.Get());
+                // Copy the intermediate left eye texture to the actual left eye texture.
+                context->CopyResource(m_left_eye_tex.Get(), m_left_eye_tex0.Get());
+            }
         }
 
         // Submit the eye textures to the compositor at this point. It must be done every frame for both eyes otherwise
@@ -157,6 +236,10 @@ void VR::setup_d3d11() {
     spdlog::info("[VR] d3d11 textures have been setup");
 }
 
+void VR::on_update_transform(RETransform* transform) {
+    
+}
+
 void VR::on_update_camera_controller(RopewayPlayerCameraController* controller) {
     // get headset rotation
     const auto& headset_pose = m_poses[0];
@@ -168,9 +251,19 @@ void VR::on_update_camera_controller(RopewayPlayerCameraController* controller) 
     auto headset_matrix = Matrix4x4f{ *(Matrix3x4f*)&headset_pose.mDeviceToAbsoluteTracking };
     auto headset_rotation = glm::extractMatrixRotation(glm::rowMajor4(headset_matrix));
 
+    headset_rotation *= get_current_rotation_offset();
+
     *(glm::quat*)&controller->worldRotation = glm::quat{ headset_rotation  };
 
     controller->worldPosition += get_current_offset();
+
+    auto scene_view = sdk::get_main_view();
+    auto camera = sdk::get_primary_camera();
+
+    if (camera != nullptr) {
+        // Fixes warping effect in the vertical part of the camera when looking up and down
+        sdk::call_object_func<void*>((::REManagedObject*)camera, "set_VerticalEnable", sdk::get_thread_context(), camera, true);
+    }
 }
 
 void VR::on_frame_d3d12() {
@@ -190,10 +283,10 @@ void VR::on_draw_ui() {
     ImGui::Separator();
     ImGui::Text("Recommended render target size: %d x %d", m_w, m_h);
     ImGui::Separator();
-    ImGui::DragFloat4("Right Bounds", (float*)&m_right_bounds, 0.01f, 0.0f, 5.0f);
-    ImGui::DragFloat4("Left Bounds", (float*)&m_left_bounds, 0.01f, 0.0f, 5.0f);
-    ImGui::DragFloat3("Right Offset", (float*)&m_left_offset, 0.01f, 0.0f, 5.0f);
-    ImGui::DragFloat3("Left Offset", (float*)&m_right_offset, 0.01f, 0.0f, 5.0f);
+    ImGui::DragFloat4("Right Bounds", (float*)&m_right_bounds, 0.005f, 0.0f, 5.0f);
+    ImGui::DragFloat4("Left Bounds", (float*)&m_left_bounds, 0.005f, 0.0f, 5.0f);
+    ImGui::DragFloat("Eye Distance", (float*)&m_eye_distance, 0.005f, -5.0f, 5.0f);
+    ImGui::DragFloat("Eye Rotation", (float*)&m_eye_rotation, 0.005f, -5.0f, 5.0f);
     ImGui::Checkbox("Use AFR", &m_use_afr);
 }
 
@@ -207,7 +300,7 @@ void VR::on_config_save(utility::Config& cfg) {
 
 Matrix4x4f VR::get_rotation(uint32_t index) {
     if (index >= vr::k_unMaxTrackedDeviceCount) {
-        return Matrix4x4f{};
+        return glm::identity<Matrix4x4f>();
     }
 
     auto& pose = m_poses[index];
