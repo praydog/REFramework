@@ -23,8 +23,6 @@ std::unique_ptr<FunctionHook> g_get_size_hook{};
 float* get_size_hook(float* result, void* ctx, REManagedObject* scene_view) {
     auto original_func = g_get_size_hook->get_original<decltype(get_size_hook)>();
 
-    spdlog::info("Hello from the hook");
-
     auto out = original_func(result, ctx, scene_view);
 
     // spoof the size to the HMD's size
