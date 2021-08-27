@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <shared_mutex>
 #include <openvr/headers/openvr.h>
 
 #include <d3d11.h>
@@ -33,7 +34,11 @@ public:
     }
 
     auto& get_poses() const {
-        return m_poses;
+        if (m_use_predicted_poses) {
+            return m_game_poses;
+        }
+
+        return m_render_poses;
     }
 
     auto get_hmd_width() const {
@@ -86,9 +91,20 @@ public:
 
     Matrix4x4f get_rotation(uint32_t index);
 
+    auto& get_camera_mutex() {
+        return m_camera_mtx;
+    }
+
+    auto& get_pose_mutex() {
+        return m_pose_mtx;
+    }
+
 private:
     void on_frame_d3d11();
     void on_frame_d3d12();
+    
+    std::recursive_mutex m_camera_mtx{};
+    std::shared_mutex m_pose_mtx{};
 
     REManagedObject* m_main_view{nullptr};
 
@@ -99,7 +115,8 @@ private:
     float m_eye_rotation{ 0.135f };
 
     vr::IVRSystem* m_hmd{nullptr};
-    vr::TrackedDevicePose_t m_poses[vr::k_unMaxTrackedDeviceCount];
+    vr::TrackedDevicePose_t m_render_poses[vr::k_unMaxTrackedDeviceCount];
+    vr::TrackedDevicePose_t m_game_poses[vr::k_unMaxTrackedDeviceCount];
     
     uint32_t m_w{0}, m_h{0};
 
@@ -112,6 +129,8 @@ private:
     int m_frame_count{};
     int m_last_frame_count{-1};
     bool m_use_afr{true};
+    bool m_use_predicted_poses{false};
+    bool m_submitted{false};
 
     void setup_d3d11();
 };
