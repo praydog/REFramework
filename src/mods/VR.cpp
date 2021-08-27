@@ -102,6 +102,8 @@ std::optional<std::string> VR::on_initialize() {
 }
 
 void VR::on_post_frame() {
+    //std::scoped_lock _{ m_camera_mtx };
+
     auto scene = sdk::get_current_scene();
 
     if (scene == nullptr) {
@@ -118,13 +120,17 @@ void VR::on_post_frame() {
 
     const auto renderer = g_framework->get_renderer_type();
 
+    if (m_submitted) {
+        std::unique_lock _{ m_pose_mtx };
+        vr::VRCompositor()->WaitGetPoses(m_render_poses, vr::k_unMaxTrackedDeviceCount, m_game_poses, vr::k_unMaxTrackedDeviceCount);
+        m_submitted = false;
+    }
+
     if (renderer == REFramework::RendererType::D3D11) {
         on_frame_d3d11();
     } else if (renderer == REFramework::RendererType::D3D12) {
         on_frame_d3d12();
     }
-
-    vr::VRCompositor()->WaitGetPoses(m_poses, vr::k_unMaxTrackedDeviceCount, NULL, 0);
 
     m_last_frame_count = m_frame_count;
 }
@@ -173,23 +179,27 @@ void VR::on_frame_d3d11() {
             }
         }
 
-        // Submit the eye textures to the compositor at this point. It must be done every frame for both eyes otherwise
-        // FPS will dive off the deep end.
-        auto compositor = vr::VRCompositor();
+        if (m_frame_count != m_last_frame_count && m_frame_count % 2 == 1) {
+            // Submit the eye textures to the compositor at this point. It must be done every frame for both eyes otherwise
+            // FPS will dive off the deep end.
+            auto compositor = vr::VRCompositor();
 
         vr::Texture_t left_eye{(void*)m_d3d11.left_eye_tex.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto};
         vr::Texture_t right_eye{(void*)m_d3d11.right_eye_tex.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto};
 
-        auto e = compositor->Submit(vr::Eye_Left, &left_eye, &m_left_bounds);
+            auto e = compositor->Submit(vr::Eye_Left, &left_eye, &m_left_bounds);
 
-        if (e != vr::VRCompositorError_None) {
-            spdlog::error("[VR] VRCompositor failed to submit left eye: {}", (int)e);
-        }
+            if (e != vr::VRCompositorError_None) {
+                spdlog::error("[VR] VRCompositor failed to submit left eye: {}", (int)e);
+            }
 
-        e = compositor->Submit(vr::Eye_Right, &right_eye, &m_right_bounds);
+            e = compositor->Submit(vr::Eye_Right, &right_eye, &m_right_bounds);
 
-        if (e != vr::VRCompositorError_None) {
-            spdlog::error("[VR] VRCompositor failed to submit right eye: {}", (int)e);
+            if (e != vr::VRCompositorError_None) {
+                spdlog::error("[VR] VRCompositor failed to submit right eye: {}", (int)e);
+            }
+
+            m_submitted = true;
         }
     } else {
         auto compositor = vr::VRCompositor();
@@ -207,6 +217,8 @@ void VR::on_frame_d3d11() {
         if (e != vr::VRCompositorError_None) {
             spdlog::error("[VR] VRCompositor failed to submit right eye: {}", (int)e);
         }
+
+        m_submitted = true;
     }
 
     // Release the context.
@@ -241,7 +253,7 @@ void VR::on_update_transform(RETransform* transform) {
 
 void VR::on_update_camera_controller(RopewayPlayerCameraController* controller) {
     // get headset rotation
-    const auto& headset_pose = m_poses[0];
+    /*const auto& headset_pose = m_game_poses[0];
 
     if (!headset_pose.bPoseIsValid) {
         return;
@@ -254,7 +266,7 @@ void VR::on_update_camera_controller(RopewayPlayerCameraController* controller) 
 
     *(glm::quat*)&controller->worldRotation = glm::quat{ headset_rotation  };
 
-    controller->worldPosition += get_current_offset();
+    controller->worldPosition += get_current_offset();*/
 
     auto scene_view = sdk::get_main_view();
     auto camera = sdk::get_primary_camera();
@@ -462,6 +474,7 @@ void VR::on_draw_ui() {
     ImGui::DragFloat("Eye Distance", (float*)&m_eye_distance, 0.005f, -5.0f, 5.0f);
     ImGui::DragFloat("Eye Rotation", (float*)&m_eye_rotation, 0.005f, -5.0f, 5.0f);
     ImGui::Checkbox("Use AFR", &m_use_afr);
+    ImGui::Checkbox("Use Predicted Poses", &m_use_predicted_poses);
 }
 
 void VR::on_config_load(const utility::Config& cfg) {
@@ -477,7 +490,9 @@ Matrix4x4f VR::get_rotation(uint32_t index) {
         return glm::identity<Matrix4x4f>();
     }
 
-    auto& pose = m_poses[index];
+    std::shared_lock _{ m_pose_mtx };
+
+    auto& pose = get_poses()[index];
     auto matrix = Matrix4x4f{ *(Matrix3x4f*)&pose.mDeviceToAbsoluteTracking };
     return glm::extractMatrixRotation(glm::rowMajor4(matrix));
 }
