@@ -576,7 +576,7 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
     // Look at where the camera is pointing from the head position
     cam_rot_mat = glm::extractMatrixRotation(glm::rowMajor4(glm::lookAtLH(final_pos, cam_pos3 + (cam_forward3 * 8192.0f), Vector3f{ 0.0f, 1.0f, 0.0f })));
     // Follow the bone rotation, but rotate towards where the camera is looking.
-    auto wanted_mat = glm::inverse(m_interpolated_bone) * cam_rot_mat * VR::get()->get_rotation(0);
+    auto wanted_mat = glm::inverse(m_interpolated_bone) * cam_rot_mat;
 
     if (is_player_in_control || is_switching_to_player_camera) {
         // Average the distance to the wanted rotation
@@ -591,6 +591,10 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
     }
 
     auto final_mat = is_player_camera ? (m_interpolated_bone * m_rotation_offset) : m_interpolated_bone;
+    
+    // do not interpolate the headset rotation to reduce motion sickness
+    final_mat *= VR::get()->get_rotation(0);
+
     auto final_quat = glm::quat{ final_mat };
 
     // Apply the same matrix data to other things stored in-game (positions/quaternions)
