@@ -4,6 +4,7 @@
 #include <openvr/headers/openvr.h>
 
 #include <d3d11.h>
+#include <d3d12.h>
 #include <dxgi.h>
 #include <wrl.h>
 
@@ -105,13 +106,28 @@ private:
 
     template <typename T> using ComPtr = Microsoft::WRL::ComPtr<T>;
 
-    ComPtr<ID3D11Texture2D> m_left_eye_tex0{}; // Holds an intermediate frame for the left eye.
-    ComPtr<ID3D11Texture2D> m_left_eye_tex{};
-    ComPtr<ID3D11Texture2D> m_right_eye_tex{};
+    struct {
+        ComPtr<ID3D11Texture2D> left_eye_tex0{}; // Holds an intermediate frame for the left eye.
+        ComPtr<ID3D11Texture2D> left_eye_tex{};
+        ComPtr<ID3D11Texture2D> right_eye_tex{};
+    } m_d3d11{};
+
+    struct {
+        ComPtr<ID3D12CommandAllocator> cmd_allocator{};
+        ComPtr<ID3D12GraphicsCommandList> cmd_list{};
+        ComPtr<ID3D12Fence> fence{};
+        UINT64 fence_value{};
+        HANDLE fence_event{};
+
+        ComPtr<ID3D12Resource> left_eye_tex0{}; // Holds an intermediate frame for the left eye.
+        ComPtr<ID3D12Resource> left_eye_tex{};
+        ComPtr<ID3D12Resource> right_eye_tex{}; 
+    } m_d3d12{};
 
     int m_frame_count{};
     int m_last_frame_count{-1};
     bool m_use_afr{true};
 
     void setup_d3d11();
+    void setup_d3d12();
 };

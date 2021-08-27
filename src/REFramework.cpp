@@ -304,6 +304,10 @@ void REFramework::on_frame_d3d12() {
     m_pd3d_command_list_d3d12->Close();
 
     m_pd3d_command_queue_d3d12->ExecuteCommandLists(1, (ID3D12CommandList* const*)&m_pd3d_command_list_d3d12);
+
+    if (m_error.empty() && m_game_data_initialized) {
+        m_mods->on_post_frame();
+    }
 }
 
 void REFramework::on_reset() {
