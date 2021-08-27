@@ -307,6 +307,7 @@ public:
     virtual void on_frame() {};
     virtual void on_post_frame() {};
     virtual void on_draw_ui() {};
+    virtual void on_device_reset() {};
 
     virtual void on_config_load(const utility::Config& cfg) {};
     virtual void on_config_save(utility::Config& cfg) {};

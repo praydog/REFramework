@@ -26,6 +26,7 @@ public:
     void on_update_transform(RETransform* transform) override;
     void on_update_camera_controller(RopewayPlayerCameraController* controller) override;
     void on_draw_ui() override;
+    void on_device_reset() override;
 
     void on_config_load(const utility::Config& cfg) override;
     void on_config_save(utility::Config& cfg) override;
@@ -123,13 +124,13 @@ private:
 
     template <typename T> using ComPtr = Microsoft::WRL::ComPtr<T>;
 
-    struct {
+    struct D3D11Resources {
         ComPtr<ID3D11Texture2D> left_eye_tex0{}; // Holds an intermediate frame for the left eye.
         ComPtr<ID3D11Texture2D> left_eye_tex{};
         ComPtr<ID3D11Texture2D> right_eye_tex{};
     } m_d3d11{};
 
-    struct {
+    struct D3D12Resources {
         ComPtr<ID3D12CommandAllocator> cmd_allocator{};
         ComPtr<ID3D12GraphicsCommandList> cmd_list{};
         ComPtr<ID3D12Fence> fence{};

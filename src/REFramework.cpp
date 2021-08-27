@@ -327,6 +327,10 @@ void REFramework::on_reset() {
         cleanup_render_target_d3d12();
     }
 
+    if (m_game_data_initialized) {
+        m_mods->on_device_reset();
+    }
+
     m_initialized = false;
 }
 

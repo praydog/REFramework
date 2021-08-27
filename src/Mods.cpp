@@ -80,3 +80,8 @@ void Mods::on_draw_ui() const {
     }
 }
 
+void Mods::on_device_reset() const {
+    for (auto& mod : m_mods) {
+        mod->on_device_reset();
+    }
+}

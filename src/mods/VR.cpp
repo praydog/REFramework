@@ -482,6 +482,11 @@ void VR::on_draw_ui() {
     ImGui::Checkbox("Use Predicted Poses", &m_use_predicted_poses);
 }
 
+void VR::on_device_reset() {
+    m_d3d11 = D3D11Resources{};
+    m_d3d12 = D3D12Resources{};
+}
+
 void VR::on_config_load(const utility::Config& cfg) {
     
 }
