@@ -101,6 +101,16 @@ std::optional<std::string> VR::on_initialize() {
     return Mod::on_initialize();
 }
 
+int32_t VR::get_frame_count() const {
+    auto scene = sdk::get_current_scene();
+
+    if (scene == nullptr) {
+        return 0;
+    }
+
+    return  sdk::call_object_func<int32_t>(scene, "get_FrameCount", sdk::get_thread_context(), scene);
+}
+
 void VR::on_post_frame() {
     //std::scoped_lock _{ m_camera_mtx };
 
@@ -120,12 +130,6 @@ void VR::on_post_frame() {
 
     const auto renderer = g_framework->get_renderer_type();
 
-    if (m_submitted) {
-        std::unique_lock _{ m_pose_mtx };
-        vr::VRCompositor()->WaitGetPoses(m_render_poses, vr::k_unMaxTrackedDeviceCount, m_game_poses, vr::k_unMaxTrackedDeviceCount);
-        m_submitted = false;
-    }
-
     if (renderer == REFramework::RendererType::D3D11) {
         on_frame_d3d11();
     } else if (renderer == REFramework::RendererType::D3D12) {
@@ -133,6 +137,12 @@ void VR::on_post_frame() {
     }
 
     m_last_frame_count = m_frame_count;
+
+    if (m_submitted) {
+        std::unique_lock _{ m_pose_mtx };
+        vr::VRCompositor()->WaitGetPoses(m_render_poses, vr::k_unMaxTrackedDeviceCount, m_game_poses, vr::k_unMaxTrackedDeviceCount);
+        m_submitted = false;
+    }
 }
 
 void VR::on_frame_d3d11() {

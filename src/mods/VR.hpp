@@ -51,9 +51,7 @@ public:
         return m_h;
     }
 
-    auto get_frame_count() const {
-        return m_frame_count;
-    }
+    int32_t get_frame_count() const;
 
     bool is_using_afr() const {
         return m_use_afr;
@@ -64,7 +62,7 @@ public:
             return Vector4f{};
         }
 
-        if (m_frame_count % 2 == 0) {
+        if (get_frame_count() % 2 == 0) {
             return Vector4f{m_eye_distance * -1.0f, 0.0f, 0.0f, 0.0f};
         }
         
@@ -76,7 +74,7 @@ public:
             return 0.0f;
         }
 
-        if (m_frame_count % 2 == 0) {
+        if (get_frame_count() % 2 == 0) {
             return m_eye_rotation * -1;
         }
         
