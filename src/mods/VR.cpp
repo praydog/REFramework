@@ -184,8 +184,8 @@ void VR::on_frame_d3d11() {
             // FPS will dive off the deep end.
             auto compositor = vr::VRCompositor();
 
-        vr::Texture_t left_eye{(void*)m_d3d11.left_eye_tex.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto};
-        vr::Texture_t right_eye{(void*)m_d3d11.right_eye_tex.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto};
+            vr::Texture_t left_eye{(void*)m_d3d11.left_eye_tex.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto};
+            vr::Texture_t right_eye{(void*)m_d3d11.right_eye_tex.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto};
 
             auto e = compositor->Submit(vr::Eye_Left, &left_eye, &m_left_bounds);
 
@@ -278,8 +278,41 @@ void VR::on_update_camera_controller(RopewayPlayerCameraController* controller) 
 }
 
 void VR::on_frame_d3d12() {
-    // Increment frame count.
-    ++m_frame_count;
+    auto copy_texture = [this](ID3D12Resource* src, ID3D12Resource* dst) {
+        // Switch src into copy source.
+        D3D12_RESOURCE_BARRIER src_barrier{};
+
+        src_barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        src_barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+        src_barrier.Transition.pResource = src;
+        src_barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+        src_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+        src_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
+
+        // Switch dst into copy destination.
+        D3D12_RESOURCE_BARRIER dst_barrier{};
+        dst_barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        dst_barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+        dst_barrier.Transition.pResource = dst;
+        dst_barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+        dst_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+        dst_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
+
+        D3D12_RESOURCE_BARRIER barriers[2]{src_barrier, dst_barrier};
+
+        m_d3d12.cmd_list->ResourceBarrier(2, barriers);
+
+        // Copy the resource.
+        m_d3d12.cmd_list->CopyResource(dst, src);
+
+        // Switch back to present.
+        src_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
+        src_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+        dst_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
+        dst_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+
+        m_d3d12.cmd_list->ResourceBarrier(2, barriers);
+    };
 
     if (m_d3d12.left_eye_tex == nullptr) {
         setup_d3d12();
@@ -306,80 +339,50 @@ void VR::on_frame_d3d12() {
     }
 
     if (m_use_afr) {
-        auto copy_texture = [this](ID3D12Resource* src, ID3D12Resource* dst) {
-            // Switch src into copy source.
-            D3D12_RESOURCE_BARRIER src_barrier{};
+        if (m_frame_count != m_last_frame_count) {
+            // If m_frame_count is even, we're rendering the left eye.
+            if (m_frame_count % 2 == 0) {
+                // Copy the back buffer to the left eye texture (m_left_eye_tex0 holds the intermediate frame).
+                copy_texture(backbuffer, m_d3d12.left_eye_tex0.Get());
+            } else {
+                // Copy the back buffer to the right eye texture.
+                copy_texture(backbuffer, m_d3d12.right_eye_tex.Get());
 
-            src_barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-            src_barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-            src_barrier.Transition.pResource = src;
-            src_barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-            src_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
-            src_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
+                // Copy the intermediate left eye texture to the actual left eye texture.
+                copy_texture(m_d3d12.left_eye_tex0.Get(), m_d3d12.left_eye_tex.Get());
+            }
 
-            // Switch dst into copy destination.
-            D3D12_RESOURCE_BARRIER dst_barrier{};
-            dst_barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-            dst_barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-            dst_barrier.Transition.pResource = dst;
-            dst_barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-            dst_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
-            dst_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
-
-            D3D12_RESOURCE_BARRIER barriers[2]{src_barrier, dst_barrier};
-
-            m_d3d12.cmd_list->ResourceBarrier(2, barriers);
-
-            // Copy the resource.
-            m_d3d12.cmd_list->CopyResource(dst, src);
-
-            // Switch back to present.
-            src_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
-            src_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
-            dst_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
-            dst_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
-
-            m_d3d12.cmd_list->ResourceBarrier(2, barriers);
-        };
-
-        // If m_frame_count is even, we're rendering the left eye.
-        if (m_frame_count % 2 == 0) {
-            // Copy the back buffer to the left eye texture (m_left_eye_tex0 holds the intermediate frame).
-            copy_texture(backbuffer, m_d3d12.left_eye_tex0.Get());
-        } else {
-            // Copy the back buffer to the right eye texture.
-            copy_texture(backbuffer, m_d3d12.right_eye_tex.Get());
-
-            // Copy the intermediate left eye texture to the actual left eye texture.
-            copy_texture(m_d3d12.left_eye_tex0.Get(), m_d3d12.left_eye_tex.Get());
+            // Wait for GPU to finish copying the textures.
+            m_d3d12.cmd_list->Close();
+            command_queue->ExecuteCommandLists(1, (ID3D12CommandList* const*)m_d3d12.cmd_list.GetAddressOf());
+            command_queue->Signal(m_d3d12.fence.Get(), ++m_d3d12.fence_value);
+            m_d3d12.fence->SetEventOnCompletion(m_d3d12.fence_value, m_d3d12.fence_event);
+            WaitForSingleObject(m_d3d12.fence_event, INFINITE);
+            m_d3d12.cmd_allocator->Reset();
+            m_d3d12.cmd_list->Reset(m_d3d12.cmd_allocator.Get(), nullptr);
         }
 
-        // Wait for GPU to finish copying the textures.
-        m_d3d12.cmd_list->Close();
-        command_queue->ExecuteCommandLists(1, (ID3D12CommandList* const*)m_d3d12.cmd_list.GetAddressOf());
-        command_queue->Signal(m_d3d12.fence.Get(), ++m_d3d12.fence_value);
-        m_d3d12.fence->SetEventOnCompletion(m_d3d12.fence_value, m_d3d12.fence_event);
-        WaitForSingleObject(m_d3d12.fence_event, INFINITE);
-        m_d3d12.cmd_allocator->Reset();
-        m_d3d12.cmd_list->Reset(m_d3d12.cmd_allocator.Get(), nullptr);
+        if (m_frame_count != m_last_frame_count && m_frame_count % 2 == 1) {
+            // Submit the eye textures to the compositor at this point. It must be done every frame for both eyes otherwise
+            // FPS will dive off the deep end.
+            auto compositor = vr::VRCompositor();
 
-        // Submit the eye textures to the compositor at this point. It must be done every frame for both eyes otherwise
-        // FPS will dive off the deep end.
-        auto compositor = vr::VRCompositor();
+            vr::Texture_t left_eye{(void*)m_d3d12.left_eye_tex.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto};
+            vr::Texture_t right_eye{(void*)m_d3d12.right_eye_tex.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto};
 
-        vr::Texture_t left_eye{(void*)m_d3d12.left_eye_tex.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto};
-        vr::Texture_t right_eye{(void*)m_d3d12.right_eye_tex.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto};
+            auto e = compositor->Submit(vr::Eye_Left, &left_eye, &m_left_bounds);
 
-        auto e = compositor->Submit(vr::Eye_Left, &left_eye, &m_left_bounds);
+            if (e != vr::VRCompositorError_None) {
+                spdlog::error("[VR] VRCompositor failed to submit left eye: {}", (int)e);
+            }
 
-        if (e != vr::VRCompositorError_None) {
-            spdlog::error("[VR] VRCompositor failed to submit left eye: {}", (int)e);
-        }
+            e = compositor->Submit(vr::Eye_Right, &right_eye, &m_right_bounds);
 
-        e = compositor->Submit(vr::Eye_Right, &right_eye, &m_right_bounds);
+            if (e != vr::VRCompositorError_None) {
+                spdlog::error("[VR] VRCompositor failed to submit right eye: {}", (int)e);
+            }
 
-        if (e != vr::VRCompositorError_None) {
-            spdlog::error("[VR] VRCompositor failed to submit right eye: {}", (int)e);
+            m_submitted = true;
         }
     } else {
         auto compositor = vr::VRCompositor();
@@ -397,6 +400,8 @@ void VR::on_frame_d3d12() {
         if (e != vr::VRCompositorError_None) {
             spdlog::error("[VR] VRCompositor failed to submit right eye: {}", (int)e);
         }
+
+        m_submitted = true;
     }
 
     // Release the back buffer.
