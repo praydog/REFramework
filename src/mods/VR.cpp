@@ -221,6 +221,9 @@ void VR::on_frame_d3d11() {
         m_submitted = true;
     }
 
+    // Release the back buffer.
+    backbuffer->Release();
+
     // Release the context.
     context->Release();
 }
@@ -243,6 +246,9 @@ void VR::setup_d3d11() {
     device->CreateTexture2D(&backbuffer_desc, nullptr, &m_d3d11.left_eye_tex0);
     device->CreateTexture2D(&backbuffer_desc, nullptr, &m_d3d11.left_eye_tex);
     device->CreateTexture2D(&backbuffer_desc, nullptr, &m_d3d11.right_eye_tex);
+
+    // Release the back buffer.
+    backbuffer->Release();
 
     spdlog::info("[VR] d3d11 textures have been setup");
 }
