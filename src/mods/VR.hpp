@@ -89,6 +89,11 @@ public:
         return Matrix4x4f{ glm::quat{ Vector3f { 0.0f, get_current_yaw_offset(), 0.0f } } };
     }
 
+    auto& get_controllers() const {
+        return m_controllers;
+    }
+
+    Vector4f get_position(uint32_t index);
     Matrix4x4f get_rotation(uint32_t index);
 
     auto& get_camera_mutex() {
@@ -100,6 +105,11 @@ public:
     }
 
 private:
+    // initialization functions
+    std::optional<std::string> initialize_openvr();
+    std::optional<std::string> hijack_resolution();
+
+    // rendering functions
     void on_frame_d3d11();
     void on_frame_d3d12();
     
@@ -117,6 +127,7 @@ private:
     vr::IVRSystem* m_hmd{nullptr};
     vr::TrackedDevicePose_t m_render_poses[vr::k_unMaxTrackedDeviceCount];
     vr::TrackedDevicePose_t m_game_poses[vr::k_unMaxTrackedDeviceCount];
+    std::vector<int32_t> m_controllers{};
     
     uint32_t m_w{0}, m_h{0};
 

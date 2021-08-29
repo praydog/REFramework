@@ -36,6 +36,23 @@ float* get_size_hook(float* result, void* ctx, REManagedObject* scene_view) {
 
 // Called when the mod is initialized
 std::optional<std::string> VR::on_initialize() {
+    auto openvr_error = initialize_openvr();
+
+    if (openvr_error) {
+        return openvr_error;
+    }
+
+    auto hijack_error = hijack_resolution();
+
+    if (hijack_error) {
+        return hijack_error;
+    }
+
+    // all OK
+    return Mod::on_initialize();
+}
+
+std::optional<std::string> VR::initialize_openvr() {
     auto error = vr::VRInitError_None;
 	m_hmd = vr::VR_Init(&error, vr::VRApplication_Scene);
 
@@ -59,6 +76,19 @@ std::optional<std::string> VR::on_initialize() {
         return "VRCompositor failed to initialize.";
     }
 
+    // go through all the device indices and get the controllers
+    for (int i = 0; i < vr::k_unMaxTrackedDeviceCount; i++) {
+        if (m_hmd->GetTrackedDeviceClass(i) == vr::TrackedDeviceClass_Controller) {
+            m_controllers.push_back(i);
+
+            spdlog::info("Found controller {}", i);
+        }
+    }
+
+    return std::nullopt;
+}
+
+std::optional<std::string> VR::hijack_resolution() {
     // We're going to hook via.SceneView.get_Size so we can
     // spoof the render target size to the HMD's resolution.
     auto sceneview_type = sdk::RETypeDB::get()->find_type("via.SceneView");
@@ -97,8 +127,7 @@ std::optional<std::string> VR::on_initialize() {
         return "VR init failed: via.SceneView.get_Size native function hook failed.";
     }
 
-    // all OK
-    return Mod::on_initialize();
+    return std::nullopt;
 }
 
 int32_t VR::get_frame_count() const {
@@ -108,25 +137,14 @@ int32_t VR::get_frame_count() const {
         return 0;
     }
 
-    return  sdk::call_object_func<int32_t>(scene, "get_FrameCount", sdk::get_thread_context(), scene);
+    return sdk::call_object_func<int32_t>(scene, "get_FrameCount", sdk::get_thread_context(), scene);
 }
 
 void VR::on_post_frame() {
     //std::scoped_lock _{ m_camera_mtx };
 
-    auto scene = sdk::get_current_scene();
-
-    if (scene == nullptr) {
-        return;
-    }
-
-    m_frame_count = sdk::call_object_func<int32_t>(scene, "get_FrameCount", sdk::get_thread_context(), scene);
+    m_frame_count = get_frame_count();
     m_main_view = sdk::get_main_view();
-
-    if (m_main_view != nullptr) {
-        Vector2f size{ (float)m_w, (float)m_h };
-        //sdk::call_object_func<void*>(m_main_view, "set_Size", sdk::get_thread_context(), m_main_view, &size);
-    }
 
     const auto renderer = g_framework->get_renderer_type();
 
@@ -146,9 +164,6 @@ void VR::on_post_frame() {
 }
 
 void VR::on_frame_d3d11() {
-    // Increment frame count.
-    //++m_frame_count;
-
     if (m_d3d11.left_eye_tex == nullptr) {
         setup_d3d11();
     }
@@ -509,6 +524,21 @@ void VR::on_config_load(const utility::Config& cfg) {
 
 void VR::on_config_save(utility::Config& cfg) {
     
+}
+
+Vector4f VR::get_position(uint32_t index) {
+    if (index >= vr::k_unMaxTrackedDeviceCount) {
+        return Vector4f{};
+    }
+
+    std::shared_lock _{ m_pose_mtx };
+
+    auto& pose = get_poses()[index];
+    auto matrix = Matrix4x4f{ *(Matrix3x4f*)&pose.mDeviceToAbsoluteTracking };
+    auto result = glm::rowMajor4(matrix)[3];
+    result.w = 1.0f;
+
+    return result;
 }
 
 Matrix4x4f VR::get_rotation(uint32_t index) {
