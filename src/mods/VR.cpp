@@ -1,3 +1,5 @@
+#include <fstream>
+
 #include "sdk/Math.hpp"
 #include "sdk/SceneManager.hpp"
 #include "sdk/RETypeDB.hpp"
@@ -157,7 +159,21 @@ std::optional<std::string> VR::initialize_openvr() {
         }
     }
 
-    const auto actions_path = *utility::get_module_directory(g_framework->get_module().as<HMODULE>()) + "/actions.json";
+    const auto module_directory = *utility::get_module_directory(g_framework->get_module().as<HMODULE>());
+
+    // write default actions and bindings with the static strings we have
+    {
+        std::ofstream actions_file{ module_directory + "/actions.json" };
+        actions_file << VR::actions_json;
+
+        std::ofstream rift_file{ module_directory + "/binding_rift.json" };
+        rift_file << VR::binding_rift_json;
+
+        std::ofstream oculus_touch_file{ module_directory + "/bindings_oculus_touch.json" };
+        oculus_touch_file << VR::bindings_oculus_touch_json;
+    }
+
+    const auto actions_path = module_directory + "/actions.json";
     auto input_error = vr::VRInput()->SetActionManifestPath(actions_path.c_str());
 
     if (input_error != vr::VRInputError_None) {
@@ -828,3 +844,328 @@ Vector2f VR::get_left_stick_axis() const {
 Vector2f VR::get_right_stick_axis() const {
     return get_joystick_axis(m_right_joystick);
 }
+
+std::string VR::actions_json = R"(
+{
+  "actions": [
+    {
+      "name": "/actions/default/in/HeadsetOnHead",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/default/in/SkeletonLeftHand",
+      "type": "skeleton",
+      "skeleton": "/skeleton/hand/left"
+    },
+    {
+      "name": "/actions/default/in/SkeletonRightHand",
+      "type": "skeleton",
+      "skeleton": "/skeleton/hand/right"
+    },
+    {
+      "name": "/actions/default/in/Pose",
+      "type": "pose"
+    },
+    {
+      "name": "/actions/default/in/Trigger",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/default/in/Grip",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/default/in/Touchpad",
+      "type": "vector2"
+    },
+    {
+      "name": "/actions/default/in/TouchpadClick",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/default/in/Joystick",
+      "type": "vector2"
+    },
+    {
+      "name": "/actions/default/in/JoystickClick",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/default/in/AButton",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/default/in/BButton",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/default/in/SystemButton",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/default/in/Squeeze",
+      "type": "vector1"
+    },
+    {
+      "name": "/actions/default/in/Teleport",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/default/out/Haptic",
+      "type": "vibration"
+    }
+  ],
+  "action_sets": [
+    {
+      "name": "/actions/default",
+      "usage": "single"
+    }
+  ],
+  "default_bindings": [
+    {
+      "controller_type": "oculus_touch",
+      "binding_url": "bindings_oculus_touch.json"
+    },
+    {
+      "controller_type": "rift",
+      "binding_url": "binding_rift.json"
+    }
+  ],
+  "localization": []
+})";
+
+std::string VR::binding_rift_json = R"(
+{
+   "alias_info" : {},
+   "bindings" : {
+      "/actions/default" : {
+         "chords" : [],
+         "haptics" : [],
+         "poses" : [],
+         "skeleton" : [],
+         "sources" : [
+            {
+               "inputs" : {
+                  "click" : {
+                     "output" : "/actions/default/in/headsetonhead"
+                  }
+               },
+               "mode" : "button",
+               "path" : "/user/head/proximity"
+            }
+         ]
+      }
+   },
+   "controller_type" : "rift",
+   "description" : "",
+   "name" : "rift defaults",
+   "options" : {},
+   "simulated_actions" : []
+})";
+
+std::string VR::bindings_oculus_touch_json = R"(
+{
+   "alias_info" : {},
+   
+   "bindings" : {
+      "/actions/buggy" : {
+         "chords" : [],
+         "haptics" : [],
+         "poses" : [],
+         "skeleton" : [],
+         "sources" : []
+      },
+      "/actions/default" : {
+         "chords" : [],
+         "haptics" : [
+            {
+               "output" : "/actions/default/out/haptic",
+               "path" : "/user/hand/left/output/haptic"
+            },
+            {
+               "output" : "/actions/default/out/haptic",
+               "path" : "/user/hand/right/output/haptic"
+            }
+         ],
+         "poses" : [
+            {
+               "output" : "/actions/default/in/pose",
+               "path" : "/user/hand/left/pose/raw"
+            },
+            {
+               "output" : "/actions/default/in/pose",
+               "path" : "/user/hand/right/pose/raw"
+            }
+         ],
+         "skeleton" : [
+            {
+               "output" : "/actions/default/in/skeletonrighthand",
+               "path" : "/user/hand/left/input/skeleton/right"
+            },
+            {
+               "output" : "/actions/default/in/skeletonrighthand",
+               "path" : "/user/hand/right/input/skeleton/right"
+            },
+            {
+               "output" : "/actions/default/in/skeletonlefthand",
+               "path" : "/user/hand/left/input/skeleton/left"
+            }
+         ],
+         "sources" : [
+            {
+               "inputs" : {
+                  "pull" : {
+                     "output" : "/actions/default/in/squeeze"
+                  }
+               },
+               "mode" : "trigger",
+               "path" : "/user/hand/left/input/grip"
+            },
+            {
+               "inputs" : {
+                  "pull" : {
+                     "output" : "/actions/default/in/squeeze"
+                  }
+               },
+               "mode" : "trigger",
+               "path" : "/user/hand/right/input/grip"
+            },
+            {
+               "inputs" : {
+                  "click" : {
+                     "output" : "/actions/default/in/trigger"
+                  }
+               },
+               "mode" : "button",
+               "path" : "/user/hand/left/input/trigger"
+            },
+            {
+               "inputs" : {
+                  "click" : {
+                     "output" : "/actions/default/in/trigger"
+                  }
+               },
+               "mode" : "button",
+               "path" : "/user/hand/right/input/trigger"
+            },
+            {
+               "inputs" : {
+                  "click" : {
+                     "output" : "/actions/default/in/grip"
+                  }
+               },
+               "mode" : "button",
+               "path" : "/user/hand/left/input/grip"
+            },
+            {
+               "inputs" : {
+                  "click" : {
+                     "output" : "/actions/default/in/grip"
+                  }
+               },
+               "mode" : "button",
+               "path" : "/user/hand/right/input/grip"
+            },
+            {
+               "inputs" : {
+                  "click" : {
+                     "output" : "/actions/default/in/abutton"
+                  }
+               },
+               "mode" : "button",
+               "path" : "/user/hand/left/input/x"
+            },
+            {
+               "inputs" : {
+                  "click" : {
+                     "output" : "/actions/default/in/abutton"
+                  }
+               },
+               "mode" : "button",
+               "path" : "/user/hand/right/input/x"
+            },
+            {
+               "inputs" : {
+                  "click" : {
+                     "output" : "/actions/default/in/bbutton"
+                  }
+               },
+               "mode" : "button",
+               "path" : "/user/hand/left/input/y"
+            },
+            {
+               "inputs" : {
+                  "click" : {
+                     "output" : "/actions/default/in/bbutton"
+                  }
+               },
+               "mode" : "button",
+               "path" : "/user/hand/right/input/y"
+            },
+            {
+               "inputs" : {
+                  "click" : {
+                     "output" : "/actions/default/in/abutton"
+                  }
+               },
+               "mode" : "button",
+               "path" : "/user/hand/right/input/a"
+            },
+            {
+               "inputs" : {
+                  "click" : {
+                     "output" : "/actions/default/in/joystickclick"
+                  },
+                  "position" : {
+                     "output" : "/actions/default/in/joystick"
+                  }
+               },
+               "mode" : "joystick",
+               "path" : "/user/hand/left/input/joystick"
+            },
+            {
+               "inputs" : {
+                  "click" : {
+                     "output" : "/actions/default/in/joystickclick"
+                  },
+                  "position" : {
+                     "output" : "/actions/default/in/joystick"
+                  }
+               },
+               "mode" : "joystick",
+               "path" : "/user/hand/right/input/joystick"
+            },
+            {
+               "inputs" : {
+                  "click" : {
+                     "output" : "/actions/default/in/bbutton"
+                  }
+               },
+               "mode" : "button",
+               "path" : "/user/hand/right/input/b"
+            },
+            {
+               "inputs" : {
+                  "click" : {
+                     "output" : "/actions/default/in/systembutton"
+                  }
+               },
+               "mode" : "button",
+               "path" : "/user/hand/left/input/system"
+            }
+         ]
+      },
+      "/actions/platformer" : {
+         "chords" : [],
+         "haptics" : [],
+         "poses" : [],
+         "skeleton" : [],
+         "sources" : []
+      }
+   },
+   "controller_type" : "oculus_touch",
+   "description" : "",
+   "name" : "oculus_touch",
+   "options" : {},
+   "simulated_actions" : []
+})";

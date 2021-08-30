@@ -193,4 +193,8 @@ private:
 
     void setup_d3d11();
     void setup_d3d12();
+
+    static std::string actions_json;
+    static std::string binding_rift_json;
+    static std::string bindings_oculus_touch_json;
 };
