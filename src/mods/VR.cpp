@@ -4,6 +4,7 @@
 
 #include "utility/Scan.hpp"
 #include "utility/FunctionHook.hpp"
+#include "utility/Module.hpp"
 
 #include "VR.hpp"
 
@@ -85,6 +86,40 @@ std::optional<std::string> VR::initialize_openvr() {
         }
     }
 
+    const auto actions_path = *utility::get_module_directory(g_framework->get_module().as<HMODULE>()) + "/actions.json";
+    auto input_error = vr::VRInput()->SetActionManifestPath(actions_path.c_str());
+
+    if (input_error != vr::VRInputError_None) {
+        return "VRInput failed to set action manifest path: " + std::to_string((uint32_t)input_error);
+    }
+
+    // get action set
+    auto action_set_error = vr::VRInput()->GetActionSetHandle("/actions/default", &m_action_set);
+
+    if (action_set_error != vr::VRInputError_None) {
+        return "VRInput failed to get action set: " + std::to_string((uint32_t)action_set_error);
+    }
+
+    if (m_action_set == vr::k_ulInvalidActionSetHandle) {
+        return "VRInput failed to get action set handle.";
+    }
+
+    // get action handles
+    auto trigger_error = vr::VRInput()->GetActionHandle("/actions/default/in/Trigger", &m_action_trigger);
+    auto grip_error = vr::VRInput()->GetActionHandle("/actions/default/in/Grip", &m_action_grip);
+
+    if (trigger_error != vr::VRInputError_None || grip_error != vr::VRInputError_None) {
+        return "VRInput failed to get action handles: " + std::to_string((uint32_t)trigger_error) + " " + std::to_string((uint32_t)grip_error);
+    }
+
+    if (m_action_trigger == vr::k_ulInvalidActionHandle || m_action_grip == vr::k_ulInvalidActionHandle) {
+        return "VRInput failed to get action handles.";
+    }
+
+    m_active_action_set.ulActionSet = m_action_set;
+    m_active_action_set.ulRestrictedToDevice = vr::k_ulInvalidInputValueHandle;
+    m_active_action_set.nPriority = 0;
+
     return std::nullopt;
 }
 
@@ -158,6 +193,12 @@ void VR::on_post_frame() {
 
     if (m_submitted) {
         std::unique_lock _{ m_pose_mtx };
+        auto error = vr::VRInput()->UpdateActionState(&m_active_action_set, sizeof(m_active_action_set), 1);
+
+        if (error != vr::VRInputError_None) {
+            spdlog::error("VRInput failed to update action state: {}", (uint32_t)error);
+        }
+
         vr::VRCompositor()->WaitGetPoses(m_render_poses, vr::k_unMaxTrackedDeviceCount, m_game_poses, vr::k_unMaxTrackedDeviceCount);
         m_submitted = false;
     }
@@ -305,6 +346,8 @@ void VR::on_update_camera_controller(RopewayPlayerCameraController* controller) 
     if (camera != nullptr) {
         // Fixes warping effect in the vertical part of the camera when looking up and down
         sdk::call_object_func<void*>((::REManagedObject*)camera, "set_VerticalEnable", sdk::get_thread_context(), camera, true);
+
+        openvr_input_to_game();
     }
 }
 
@@ -439,6 +482,44 @@ void VR::on_frame_d3d12() {
     backbuffer->Release();
 }
 
+void VR::openvr_input_to_game() {
+    // RE2/RE3 only (i think?)
+    auto input_system = g_framework->get_globals()->get(game_namespace("InputSystem"));
+
+    if (input_system == nullptr) {
+        spdlog::error("[VR] Failed to get the game's input system.");
+        return;
+    }
+
+    // Get OpenVR input system
+    auto openvr_input = vr::VRInput();
+
+    if (openvr_input == nullptr) {
+        spdlog::error("[VR] Failed to get OpenVR input system.");
+        return;
+    }
+
+    const auto is_grip_down = is_action_active(m_action_grip);
+    const auto is_trigger_down = is_action_active(m_action_trigger);
+
+    auto set_button_state = [&](app::ropeway::InputDefine::Kind kind, bool state) {
+        // static so we dont pass the object
+        sdk::call_object_func<void*>(input_system, "setForce", sdk::get_thread_context(), kind, state);
+    };
+
+    if (is_grip_down) {
+        set_button_state(app::ropeway::InputDefine::Kind::HOLD, true);
+    } else {
+        set_button_state(app::ropeway::InputDefine::Kind::HOLD, false);
+    }
+
+    if (is_trigger_down) {
+        set_button_state(app::ropeway::InputDefine::Kind::ATTACK, true);
+    } else {
+        set_button_state(app::ropeway::InputDefine::Kind::ATTACK, false);
+    }
+}
+
 void VR::setup_d3d12() {
     spdlog::info("[VR] Setting up d3d12 textures...");
 
@@ -551,4 +632,11 @@ Matrix4x4f VR::get_rotation(uint32_t index) {
     auto& pose = get_poses()[index];
     auto matrix = Matrix4x4f{ *(Matrix3x4f*)&pose.mDeviceToAbsoluteTracking };
     return glm::extractMatrixRotation(glm::rowMajor4(matrix));
+}
+
+bool VR::is_action_active(vr::VRActionHandle_t action) const {
+    vr::InputDigitalActionData_t data{};
+	vr::VRInput()->GetDigitalActionData(action, &data, sizeof(data), vr::k_ulInvalidInputValueHandle);
+
+    return data.bActive && data.bState;
 }

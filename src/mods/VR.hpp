@@ -103,6 +103,8 @@ public:
     auto& get_pose_mutex() {
         return m_pose_mtx;
     }
+    
+    bool is_action_active(vr::VRActionHandle_t action) const;
 
 private:
     // initialization functions
@@ -112,6 +114,11 @@ private:
     // rendering functions
     void on_frame_d3d11();
     void on_frame_d3d12();
+
+    // input functions
+    // Purpose: "Emulate" OpenVR input to the game
+    // By setting things like input flags based on controller state
+    void openvr_input_to_game();
     
     std::recursive_mutex m_camera_mtx{};
     std::shared_mutex m_pose_mtx{};
@@ -128,6 +135,13 @@ private:
     vr::TrackedDevicePose_t m_render_poses[vr::k_unMaxTrackedDeviceCount];
     vr::TrackedDevicePose_t m_game_poses[vr::k_unMaxTrackedDeviceCount];
     std::vector<int32_t> m_controllers{};
+
+    // action set handle
+    vr::VRActionSetHandle_t m_action_set{};
+    vr::VRActiveActionSet_t m_active_action_set{};
+
+    vr::VRActionHandle_t m_action_trigger{ };
+    vr::VRActionHandle_t m_action_grip{ };
     
     uint32_t m_w{0}, m_h{0};
 
