@@ -19,10 +19,11 @@ std::shared_ptr<VR>& VR::get() {
 }
 
 std::unique_ptr<FunctionHook> g_get_size_hook{};
+std::unique_ptr<FunctionHook> g_input_hook{};
 
 // Purpose: spoof the render target size to the size of the HMD displays
-float* get_size_hook(float* result, void* ctx, REManagedObject* scene_view) {
-    auto original_func = g_get_size_hook->get_original<decltype(get_size_hook)>();
+float* VR::get_size_hook(float* result, void* ctx, REManagedObject* scene_view) {
+    auto original_func = g_get_size_hook->get_original<decltype(VR::get_size_hook)>();
 
     auto out = original_func(result, ctx, scene_view);
 
@@ -33,6 +34,73 @@ float* get_size_hook(float* result, void* ctx, REManagedObject* scene_view) {
     out[1] = (float)mod->get_hmd_height();
 
     return out;
+}
+
+void VR::inputsystem_update_hook(void* ctx, REManagedObject* input_system) {
+    auto original_func = g_input_hook->get_original<decltype(VR::inputsystem_update_hook)>();
+    auto lstick = sdk::call_object_func<REManagedObject*>(input_system, "get_LStick", sdk::get_thread_context());
+    auto rstick = sdk::call_object_func<REManagedObject*>(input_system, "get_RStick", sdk::get_thread_context());
+
+    if (lstick == nullptr || rstick == nullptr) {
+        return;
+    }
+
+    auto set_button_state = [&](app::ropeway::InputDefine::Kind kind, bool state) {
+        // static so we dont pass the object
+        sdk::call_object_func<void*>(input_system, "setForce", sdk::get_thread_context(), kind, state);
+    };
+
+    auto mod = VR::get();
+    auto left_axis = mod->get_left_stick_axis();
+    auto right_axis = mod->get_right_stick_axis();
+    const auto left_axis_len = glm::length(left_axis);
+    const auto right_axis_len = glm::length(right_axis);
+
+    if (left_axis_len > 0.01f) {
+        // Override the left stick's axis values to the VR controller's values
+        Vector3f axis{ left_axis.x, left_axis.y, 0.0f };
+        sdk::call_object_func<void*>(lstick, "update", sdk::get_thread_context(), lstick, &axis, &axis);
+    }
+
+    if (right_axis_len > 0.01f) {
+        // Override the right stick's axis values to the VR controller's values
+        Vector3f axis{ right_axis.x, right_axis.y, 0.0f };
+        sdk::call_object_func<void*>(rstick, "update", sdk::get_thread_context(), rstick, &axis, &axis);
+    }
+
+    set_button_state(app::ropeway::InputDefine::Kind::MOVE, left_axis_len > 0.01f);
+    set_button_state(app::ropeway::InputDefine::Kind::UI_L_STICK, left_axis_len > 0.01f);
+
+    set_button_state(app::ropeway::InputDefine::Kind::WATCH, right_axis_len > 0.01f);
+    set_button_state(app::ropeway::InputDefine::Kind::UI_R_STICK, right_axis_len > 0.01f);
+    //set_button_state(app::ropeway::InputDefine::Kind::RUN, right_axis_len > 0.01f);
+
+    original_func(ctx, input_system);
+
+    if (left_axis_len > 0.01f) {
+        // Override the left stick's axis values to the VR controller's values
+        Vector3f axis{ left_axis.x, left_axis.y, 0.0f };
+        sdk::call_object_func<void*>(lstick, "update", sdk::get_thread_context(), lstick, &axis, &axis);
+    }
+
+    if (right_axis_len > 0.01f) {
+        // Override the right stick's axis values to the VR controller's values
+        Vector3f axis{ right_axis.x, right_axis.y, 0.0f };
+        sdk::call_object_func<void*>(rstick, "update", sdk::get_thread_context(), rstick, &axis, &axis);
+    }
+
+    set_button_state(app::ropeway::InputDefine::Kind::MOVE, left_axis_len > 0.01f);
+    set_button_state(app::ropeway::InputDefine::Kind::UI_L_STICK, left_axis_len > 0.01f);
+
+    set_button_state(app::ropeway::InputDefine::Kind::WATCH, right_axis_len > 0.01f);
+    set_button_state(app::ropeway::InputDefine::Kind::UI_R_STICK, right_axis_len > 0.01f);
+
+    // Causes the right stick to take effect properly
+    if (right_axis_len > 0.01f || left_axis_len > 0.01f) {
+        sdk::call_object_func<void*>(input_system, "set_InputMode", sdk::get_thread_context(), input_system, app::ropeway::InputDefine::InputMode::Pad);
+    }
+
+    mod->openvr_input_to_game();
 }
 
 // Called when the mod is initialized
@@ -49,6 +117,13 @@ std::optional<std::string> VR::on_initialize() {
         return hijack_error;
     }
 
+    hijack_error = hijack_input();
+
+    if (hijack_error) {
+        return hijack_error;
+
+    }
+
     // all OK
     return Mod::on_initialize();
 }
@@ -62,12 +137,8 @@ std::optional<std::string> VR::initialize_openvr() {
         return "VR_Init failed: " + std::string{vr::VR_GetVRInitErrorAsEnglishDescription(error)};
     }
 
-    // set m_hmd to module context vrsystem
-    m_hmd = vr::OpenVRInternal_ModuleContext().VRSystem();
-
-    // check if error
-    if (!m_hmd || error != vr::VRInitError_None) {
-        return "VR_Init failed: " + std::string{vr::VR_GetVRInitErrorAsEnglishDescription(error)};
+    if (m_hmd == nullptr) {
+        return "VR_Init failed: HMD is null";
     }
 
     // get render target size
@@ -114,6 +185,43 @@ std::optional<std::string> VR::initialize_openvr() {
 
     if (m_action_trigger == vr::k_ulInvalidActionHandle || m_action_grip == vr::k_ulInvalidActionHandle) {
         return "VRInput failed to get action handles.";
+    }
+
+    auto joystick_error = vr::VRInput()->GetActionHandle("/actions/default/in/Joystick", &m_action_joystick);
+
+    if (joystick_error != vr::VRInputError_None) {
+        return "VRInput failed to get action handles (Joystick): " + std::to_string((uint32_t)joystick_error);
+    }
+
+    auto joystick_click_error = vr::VRInput()->GetActionHandle("/actions/default/in/JoystickClick", &m_action_joystick_click);
+
+    if (joystick_click_error != vr::VRInputError_None) {
+        return "VRInput failed to get action handles (JoystickClick): " + std::to_string((uint32_t)joystick_click_error);
+    }
+
+    auto a_button_error = vr::VRInput()->GetActionHandle("/actions/default/in/AButton", &m_action_a_button);
+
+    if (a_button_error != vr::VRInputError_None) {
+        return "VRInput failed to get action handles (AButton): " + std::to_string((uint32_t)a_button_error);
+    }
+
+    auto b_button_error = vr::VRInput()->GetActionHandle("/actions/default/in/BButton", &m_action_b_button);
+
+    if (b_button_error != vr::VRInputError_None) {
+        return "VRInput failed to get action handles (BButton): " + std::to_string((uint32_t)b_button_error);
+    }
+
+    // get the source input device handles for the joysticks
+    auto left_joystick_error = vr::VRInput()->GetInputSourceHandle("/user/hand/left", &m_left_joystick);
+
+    if (left_joystick_error != vr::VRInputError_None) {
+        return "VRInput failed to get input source handles (left): " + std::to_string((uint32_t)left_joystick_error);
+    }
+
+    auto right_joystick_error = vr::VRInput()->GetInputSourceHandle("/user/hand/right", &m_right_joystick);
+
+    if (right_joystick_error != vr::VRInputError_None) {
+        return "VRInput failed to get input source handles (right): " + std::to_string((uint32_t)right_joystick_error);
     }
 
     m_active_action_set.ulActionSet = m_action_set;
@@ -165,6 +273,39 @@ std::optional<std::string> VR::hijack_resolution() {
     return std::nullopt;
 }
 
+std::optional<std::string> VR::hijack_input() {
+    // We're going to hook InputSystem.update so we can
+    // override the analog stick values with the VR controller's
+    auto t = sdk::RETypeDB::get()->find_type(game_namespace("InputSystem"));
+
+    if (t == nullptr) {
+        return "VR init failed: InputSystem type not found.";
+    }
+
+    auto method = t->get_method("update");
+
+    if (method == nullptr) {
+        return "VR init failed: InputSystem.update method not found.";
+    }
+
+    auto func = method->get_function();
+
+    if (func == nullptr) {
+        return "VR init failed: InputSystem.update function not found.";
+    }
+
+    spdlog::info("InputSystem.update: {:x}", (uintptr_t)func);
+
+    // Hook the native function
+    g_input_hook = std::make_unique<FunctionHook>(func, inputsystem_update_hook);
+
+    if (!g_input_hook->create()) {
+        return "VR init failed: InputSystem.update native function hook failed.";
+    }
+
+    return std::nullopt;
+}
+
 int32_t VR::get_frame_count() const {
     auto scene = sdk::get_current_scene();
 
@@ -193,6 +334,8 @@ void VR::on_post_frame() {
 
     if (m_submitted) {
         std::unique_lock _{ m_pose_mtx };
+
+        // Update input
         auto error = vr::VRInput()->UpdateActionState(&m_active_action_set, sizeof(m_active_action_set), 1);
 
         if (error != vr::VRInputError_None) {
@@ -346,8 +489,6 @@ void VR::on_update_camera_controller(RopewayPlayerCameraController* controller) 
     if (camera != nullptr) {
         // Fixes warping effect in the vertical part of the camera when looking up and down
         sdk::call_object_func<void*>((::REManagedObject*)camera, "set_VerticalEnable", sdk::get_thread_context(), camera, true);
-
-        openvr_input_to_game();
     }
 }
 
@@ -499,25 +640,57 @@ void VR::openvr_input_to_game() {
         return;
     }
 
-    const auto is_grip_down = is_action_active(m_action_grip);
-    const auto is_trigger_down = is_action_active(m_action_trigger);
+    const auto is_grip_down = is_action_active(m_action_grip, m_right_joystick);
+    const auto is_trigger_down = is_action_active(m_action_trigger, m_right_joystick);
+    const auto is_left_joystick_click_down = is_action_active(m_action_joystick_click, m_left_joystick);
+    const auto is_right_joystick_click_down = is_action_active(m_action_joystick_click, m_right_joystick);
+
+    const auto is_left_a_button_down = is_action_active(m_action_a_button, m_left_joystick);
+    const auto is_left_b_button_down = is_action_active(m_action_b_button, m_left_joystick);
+    const auto is_right_a_button_down = is_action_active(m_action_a_button, m_right_joystick);
+    const auto is_right_b_button_down = is_action_active(m_action_b_button, m_right_joystick);
 
     auto set_button_state = [&](app::ropeway::InputDefine::Kind kind, bool state) {
         // static so we dont pass the object
         sdk::call_object_func<void*>(input_system, "setForce", sdk::get_thread_context(), kind, state);
     };
 
-    if (is_grip_down) {
-        set_button_state(app::ropeway::InputDefine::Kind::HOLD, true);
-    } else {
-        set_button_state(app::ropeway::InputDefine::Kind::HOLD, false);
-    }
+    // Aim
+    set_button_state(app::ropeway::InputDefine::Kind::HOLD, is_grip_down);
 
-    if (is_trigger_down) {
-        set_button_state(app::ropeway::InputDefine::Kind::ATTACK, true);
-    } else {
-        set_button_state(app::ropeway::InputDefine::Kind::ATTACK, false);
-    }
+    // Attack
+    set_button_state(app::ropeway::InputDefine::Kind::ATTACK, is_trigger_down);
+
+    // Sprint
+    set_button_state(app::ropeway::InputDefine::Kind::JOG1, is_left_joystick_click_down);
+
+    // Reset camera
+    set_button_state(app::ropeway::InputDefine::Kind::RESET_CAMERA, is_right_joystick_click_down);
+
+    // Inventory, PRESS_START
+    set_button_state(app::ropeway::InputDefine::Kind::INVENTORY, is_left_b_button_down);
+    set_button_state(app::ropeway::InputDefine::Kind::PRESS_START, is_left_b_button_down);
+
+    // QUICK_TURN, PRESS_START, CANCEL, DIALOG_CANCEL
+    set_button_state(app::ropeway::InputDefine::Kind::QUICK_TURN, is_left_a_button_down);
+    set_button_state(app::ropeway::InputDefine::Kind::PRESS_START, is_left_a_button_down);
+    set_button_state(app::ropeway::InputDefine::Kind::CANCEL, is_left_a_button_down);
+    set_button_state(app::ropeway::InputDefine::Kind::DIALOG_CANCEL, is_left_a_button_down);
+    
+    // Action, ITEM, PRESS_START, DECIDE, DIALOG_DECIDE, (1 << 51)
+    set_button_state(app::ropeway::InputDefine::Kind::ACTION, is_right_a_button_down);
+    set_button_state(app::ropeway::InputDefine::Kind::ITEM, is_right_a_button_down);
+    set_button_state(app::ropeway::InputDefine::Kind::PRESS_START, is_right_a_button_down);
+    set_button_state(app::ropeway::InputDefine::Kind::DECIDE, is_right_a_button_down);
+    set_button_state(app::ropeway::InputDefine::Kind::DIALOG_DECIDE, is_right_a_button_down);
+    set_button_state((app::ropeway::InputDefine::Kind)((uint64_t)1 << 51), is_right_a_button_down);
+    
+    // Reload, Skip Event, UI_EXCHANGE, UI_RESET, (1 << 52) (that one is RE3 only? don't see it in the enum)
+    set_button_state(app::ropeway::InputDefine::Kind::RELOAD, is_right_b_button_down);
+    set_button_state(app::ropeway::InputDefine::Kind::SKIP_EVENT, is_right_b_button_down);
+    set_button_state(app::ropeway::InputDefine::Kind::UI_EXCHANGE, is_right_b_button_down);
+    set_button_state(app::ropeway::InputDefine::Kind::UI_RESET, is_right_b_button_down);
+    set_button_state((app::ropeway::InputDefine::Kind)((uint64_t)1 << 52), is_right_b_button_down);
 }
 
 void VR::setup_d3d12() {
@@ -634,9 +807,24 @@ Matrix4x4f VR::get_rotation(uint32_t index) {
     return glm::extractMatrixRotation(glm::rowMajor4(matrix));
 }
 
-bool VR::is_action_active(vr::VRActionHandle_t action) const {
+bool VR::is_action_active(vr::VRActionHandle_t action, vr::VRInputValueHandle_t source) const {
     vr::InputDigitalActionData_t data{};
-	vr::VRInput()->GetDigitalActionData(action, &data, sizeof(data), vr::k_ulInvalidInputValueHandle);
+	vr::VRInput()->GetDigitalActionData(action, &data, sizeof(data), source);
 
     return data.bActive && data.bState;
+}
+
+Vector2f VR::get_joystick_axis(vr::VRInputValueHandle_t handle) const {
+    vr::InputAnalogActionData_t data{};
+    vr::VRInput()->GetAnalogActionData(m_action_joystick, &data, sizeof(data), handle);
+
+    return Vector2f{ data.x, data.y };
+}
+
+Vector2f VR::get_left_stick_axis() const {
+    return get_joystick_axis(m_left_joystick);
+}
+
+Vector2f VR::get_right_stick_axis() const {
+    return get_joystick_axis(m_right_joystick);
 }

@@ -13,6 +13,8 @@
 
 #include "Mod.hpp"
 
+class REManagedObject;
+
 class VR : public Mod {
 public:
     static std::shared_ptr<VR>& get();
@@ -104,12 +106,21 @@ public:
         return m_pose_mtx;
     }
     
-    bool is_action_active(vr::VRActionHandle_t action) const;
+    bool is_action_active(vr::VRActionHandle_t action, vr::VRInputValueHandle_t source = vr::k_ulInvalidInputValueHandle) const;
+    Vector2f get_joystick_axis(vr::VRInputValueHandle_t handle) const;
+
+    Vector2f get_left_stick_axis() const;
+    Vector2f get_right_stick_axis() const;
 
 private:
+    // Hooks
+    static float* get_size_hook(float* result, void* ctx, REManagedObject* scene_view);
+    static void inputsystem_update_hook(void* ctx, REManagedObject* input_system);
+
     // initialization functions
     std::optional<std::string> initialize_openvr();
     std::optional<std::string> hijack_resolution();
+    std::optional<std::string> hijack_input();
 
     // rendering functions
     void on_frame_d3d11();
@@ -136,12 +147,21 @@ private:
     vr::TrackedDevicePose_t m_game_poses[vr::k_unMaxTrackedDeviceCount];
     std::vector<int32_t> m_controllers{};
 
-    // action set handle
+    // Action set handles
     vr::VRActionSetHandle_t m_action_set{};
     vr::VRActiveActionSet_t m_active_action_set{};
 
+    // Action handles
     vr::VRActionHandle_t m_action_trigger{ };
     vr::VRActionHandle_t m_action_grip{ };
+    vr::VRActionHandle_t m_action_joystick{};
+    vr::VRActionHandle_t m_action_joystick_click{};
+    vr::VRActionHandle_t m_action_a_button{};
+    vr::VRActionHandle_t m_action_b_button{};
+
+    // Input sources
+    vr::VRInputValueHandle_t m_left_joystick{};
+    vr::VRInputValueHandle_t m_right_joystick{};
     
     uint32_t m_w{0}, m_h{0};
 
