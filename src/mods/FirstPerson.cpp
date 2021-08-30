@@ -87,6 +87,24 @@ void FirstPerson::on_draw_ui() {
 
     std::lock_guard _{ m_frame_mutex };
 
+    ImGui::DragFloat4("Scale Debug", (float*)&m_scale_debug.x, 1.0f, -1.0f, 1.0f);
+    ImGui::DragFloat4("Scale Debug 2", (float*)&m_scale_debug2.x, 1.0f, -1.0f, 1.0f);
+    ImGui::DragFloat4("Offset Debug", (float*)&m_offset_debug.x, 1.0f, -1.0f, 1.0f);
+
+    ImGui::DragFloat3("Controller rotation", (float*)&m_hand_rotation_offset, 0.1f, -360.0f, 360.0f);
+    ImGui::DragFloat3("Controller position", (float*)&m_hand_position_offset, 0.1f, -360.0f, 360.0f);
+
+    ImGui::DragFloat3("Controller 1", (float*)&m_last_controller_euler[0].x, 1.0f, -360.0f, 360.0f);
+    ImGui::DragFloat3("Controller 2", (float*)&m_last_controller_euler[1].x, 1.0f, -360.0f, 360.0f);
+
+    auto last_controller_matrix = glm::extractMatrixRotation(Matrix4x4f{ m_last_controller_rotation });
+
+    // Create 4 DragFloat4's for the 4x4 matrix
+    for (int i = 0; i < 4; i++) {
+        auto elem = last_controller_matrix[i];
+        ImGui::DragFloat4("##", (float*)&elem, 1.0f, -1.0f, 1.0f);
+    }
+
     if (m_enabled->draw("Enabled") && !m_enabled->value()) {
         // Disable fov and camera light changes
         on_disabled();
@@ -429,6 +447,76 @@ void FirstPerson::update_player_transform(RETransform* transform) {
     // so we don't go spinning everywhere in cutscenes
     if (m_last_camera_type != app::ropeway::camera::CameraControlType::PLAYER) {
         return;
+    }
+
+    auto vr_mod = VR::get();
+    auto& controllers = vr_mod->get_controllers();
+
+    if (!controllers.empty()) {
+        auto update_joint = [&](std::wstring_view name, int32_t controller_index) {
+            auto wrist_joint = utility::re_transform::get_joint(*transform, name);
+
+            if (wrist_joint == nullptr) {
+                return;
+            }
+
+            auto& wrist = utility::re_transform::get_joint_matrix(*transform, wrist_joint);
+
+            /*auto look_matrix = glm::extractMatrixRotation(Matrix4x4f{ m_last_controller_rotation }) 
+                                                       * Matrix4x4f{ m_scale_debug2.x, 0.0f, 0.0f, 0.0f,
+                                                                     0.0f, m_scale_debug2.y, 0.0f, 0.0f,
+                                                                     0.0f, 0.0f, m_scale_debug2.z, 0.0f,
+                                                                     0.0f, 0.0f, 0.0f, m_scale_debug2.w };*/
+
+            auto cam_rot_mat = glm::extractMatrixRotation(Matrix4x4f{ m_last_controller_rotation });
+
+            auto& cam_forward3 = *(Vector3f*)&cam_rot_mat[2];
+
+            auto offset = glm::extractMatrixRotation(m_last_camera_matrix) * (m_attach_offsets[m_player_name] * Vector4f{ -0.1f, 0.1f, 0.1f, 0.0f });
+            auto final_pos = Vector3f{ m_last_bone_matrix[3] + offset };
+
+            // what the fuck is this
+            auto look_matrix = glm::extractMatrixRotation(glm::rowMajor4(glm::lookAtLH(final_pos, Vector3f{ m_last_controller_pos } + (cam_forward3 * 8192.0f), Vector3f{ 0.0f, 1.0f, 0.0f })));
+            //auto look_matrix = glm::extractMatrixRotation(m_last_camera_matrix);
+            look_matrix = look_matrix * Matrix4x4f{ m_scale_debug2.x, 0.0f, 0.0f, 0.0f,
+                                                    0.0f, m_scale_debug2.y, 0.0f, 0.0f,
+                                                    0.0f, 0.0f, m_scale_debug2.z, 0.0f,
+                                                    0.0f, 0.0f, 0.0f, m_scale_debug2.w };
+            
+
+            auto hmd_pos = vr_mod->get_position(0);
+
+            auto controller_offset = vr_mod->get_position(controllers[controller_index]) - hmd_pos;
+            auto controller_rotation = vr_mod->get_rotation(controllers[controller_index]) 
+                                                       * Matrix4x4f{ m_scale_debug.x, 0.0f, 0.0f, 0.0f,
+                                                                     0.0f, m_scale_debug.y, 0.0f, 0.0f,
+                                                                     0.0f, 0.0f, m_scale_debug.z, 0.0f,
+                                                                     0.0f, 0.0f, 0.0f, m_scale_debug.w };
+            
+            const auto hand_rotation_offset = controller_index == 0 ? (m_hand_rotation_offset * -1.0f) : m_hand_rotation_offset;
+
+            auto offset_quat = glm::quat{ hand_rotation_offset };
+            auto controller_quat = glm::quat{ controller_rotation };
+
+            // fix up the controller_rotation by rotating it with the camera rotation (look_matrix)
+            auto rotation_quat = glm::normalize(glm::normalize(glm::quat{ look_matrix }) * glm::normalize(controller_quat) * glm::normalize(offset_quat));
+
+            // be sure to always multiply the MATRIX BEFORE THE VECTOR!! WHAT HTE FUCK
+            auto hand_pos = look_matrix * ((controller_offset + m_hand_position_offset) * Vector4f{ m_offset_debug.x, m_offset_debug.y, m_offset_debug.z, 0.0f });
+            auto new_pos = m_last_bone_matrix[3] + hand_pos;
+
+            // These functions will automatically update the joint and all children properly
+            // by setting dirty flags and updating the local position and rotation
+            // they automatically go up the chain of parents to set the correct local position and rotation
+            sdk::call_object_func<void*>(wrist_joint, "set_Position", sdk::get_thread_context(), wrist_joint, &new_pos);
+            sdk::call_object_func<void*>(wrist_joint, "set_Rotation", sdk::get_thread_context(), wrist_joint, &rotation_quat);
+
+            // radians -> deg
+            m_last_controller_euler[controller_index] = glm::eulerAngles(rotation_quat) * (180.0f / glm::pi<float>());
+        };
+
+        update_joint(L"l_arm_wrist", 0);
+        update_joint(L"r_arm_wrist", 1);
     }
 
     if (!m_rotate_body->value()) {
