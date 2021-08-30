@@ -4,18 +4,47 @@
 
 #include "Math.hpp"
 
-namespace utility::re_transform {
-    // because the ReClass version looks like ass
-    struct Joint : public REManagedObject {
-		::RETransform* Owner;
-		::REJointDesc* Desc;
-		Vector4f LocalPosition;
-		Vector4f LocalRotation;
-		Vector4f LocalScale;
-		int32_t ConstraintJointIndex;
-		int32_t JointIndex;
-	};
+namespace sdk {
+// because the ReClass version looks like ass
+struct Joint : public REManagedObject {
+    ::RETransform* Owner;
+    ::REJointDesc* Desc;
+    Vector4f LocalPosition;
+    Vector4f LocalRotation;
+    Vector4f LocalScale;
+    int32_t ConstraintJointIndex;
+    // for some reason this doesn't work on RE2?
+    int32_t JointIndex;
 
+    int32_t get_joint_index() const {
+#ifndef RE2
+        return JointIndex;
+#else
+        if (Owner == nullptr) {
+            return 0;
+        }
+
+        auto& joint_array = Owner->joints;
+
+        if (joint_array.size <= 0 || joint_array.numAllocated <= 0 || joint_array.data == nullptr || joint_array.matrices == nullptr) {
+            return 0;
+        }
+
+        for (auto i = 0; i < joint_array.size; i++) {
+            auto joint = joint_array.data->joints[i];
+
+            if ((sdk::Joint*)joint == this) {
+                return i;
+            }
+        }
+
+        return 0;
+#endif
+    }
+};
+}
+
+namespace utility::re_transform {
     static Matrix4x4f invalid_matrix{};
 
     static REJoint* get_joint(const ::RETransform& transform, uint32_t index) {
@@ -74,7 +103,7 @@ namespace utility::re_transform {
         auto joint = get_joint(transform, name);
 
         if (joint != nullptr && joint->info != nullptr) {
-            return transform.joints.matrices->data[((Joint*)joint)->JointIndex].worldMatrix;
+            return transform.joints.matrices->data[((sdk::Joint*)joint)->get_joint_index()].worldMatrix;
         }
 
         return invalid_matrix;
@@ -82,7 +111,7 @@ namespace utility::re_transform {
 
     static Matrix4x4f& get_joint_matrix(const ::RETransform& transform, REJoint* joint) {
         if (joint != nullptr && joint->info != nullptr) {
-            return transform.joints.matrices->data[((Joint*)joint)->JointIndex].worldMatrix;
+            return transform.joints.matrices->data[((sdk::Joint*)joint)->get_joint_index()].worldMatrix;
         }
 
         return invalid_matrix;
@@ -110,7 +139,7 @@ namespace utility::re_transform {
                 continue;
             }
 
-            if (joint->info->parentJoint == ((Joint*)parent)->JointIndex) {
+            if (joint->info->parentJoint == ((sdk::Joint*)parent)->get_joint_index()) {
                 children.push_back(joint);
 
                 auto child_children = get_all_children(transform, joint, visited);
@@ -150,7 +179,7 @@ namespace utility::re_transform {
                 continue;
             }
 
-            if (joint->info->parentJoint == ((Joint*)parent)->JointIndex) {
+            if (joint->info->parentJoint == ((sdk::Joint*)parent)->get_joint_index()) {
                 children.push_back(joint);
             }
         }
