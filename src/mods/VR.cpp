@@ -40,10 +40,20 @@ float* VR::get_size_hook(float* result, void* ctx, REManagedObject* scene_view) 
 
 void VR::inputsystem_update_hook(void* ctx, REManagedObject* input_system) {
     auto original_func = g_input_hook->get_original<decltype(VR::inputsystem_update_hook)>();
+
+    auto mod = VR::get();
+
+    if (mod->get_controllers().empty()) {
+        // no controllers connected, don't do anything
+        original_func(ctx, input_system);
+        return;
+    }
+
     auto lstick = sdk::call_object_func<REManagedObject*>(input_system, "get_LStick", sdk::get_thread_context());
     auto rstick = sdk::call_object_func<REManagedObject*>(input_system, "get_RStick", sdk::get_thread_context());
 
     if (lstick == nullptr || rstick == nullptr) {
+        original_func(ctx, input_system);
         return;
     }
 
@@ -52,7 +62,6 @@ void VR::inputsystem_update_hook(void* ctx, REManagedObject* input_system) {
         sdk::call_object_func<void*>(input_system, "setForce", sdk::get_thread_context(), kind, state);
     };
 
-    auto mod = VR::get();
     auto left_axis = mod->get_left_stick_axis();
     auto right_axis = mod->get_right_stick_axis();
     const auto left_axis_len = glm::length(left_axis);
