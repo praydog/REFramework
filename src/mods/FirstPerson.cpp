@@ -577,14 +577,14 @@ void FirstPerson::update_player_transform(RETransform* transform) {
                 if (arm_fit_list != nullptr && arm_fit_list->numElements > 0) {
                     //spdlog::info("Inside arm fit, arm fit list: {:x}", (uintptr_t)arm_fit_list);
 
-                    auto first_element = utility::re_array::get_element<REManagedObject>(arm_fit_list, 0);
+                    auto arm_fit_data = utility::re_array::get_element<REManagedObject>(arm_fit_list, 0);
 
-                    if (first_element != nullptr) {
+                    if (arm_fit_data != nullptr) {
                         //spdlog::info("First element: {:x}", (uintptr_t)first_element);
 
-                        auto first_element_t = (sdk::RETypeDefinition*)first_element->info->classInfo;
-                        auto first_element_tmatrix_field = first_element_t->get_field("<TargetMatrix>k__BackingField");
-                        auto& target_matrix = first_element_tmatrix_field->get_data<Matrix4x4f>(first_element);
+                        auto arm_fit_data_t = (sdk::RETypeDefinition*)arm_fit_data->info->classInfo;
+                        auto arm_fit_data_tmatrix_field = arm_fit_data_t->get_field("<TargetMatrix>k__BackingField");
+                        auto& target_matrix = arm_fit_data_tmatrix_field->get_data<Matrix4x4f>(arm_fit_data);
 
                         // Set the target matrix to the VR controller's position (new_pos, rotation_quat)
                         target_matrix = Matrix4x4f{ rotation_quat };
@@ -624,6 +624,15 @@ void FirstPerson::update_player_transform(RETransform* transform) {
                         }
 
                         //spdlog::info("About to call updateIk");
+
+                        auto blend_rate_field = arm_fit_t->get_field("BlendRateField");
+                        auto& blend_rate = blend_rate_field->get_data<float>(arm_fit);
+
+                        auto armfit_data_blend_rate_field = arm_fit_data_t->get_field("BlendRate");
+                        auto& armfit_data_blend_rate = armfit_data_blend_rate_field->get_data<float>(arm_fit_data);
+
+                        blend_rate = 1.0f;
+                        armfit_data_blend_rate = 1.0f;
 
                         // Call the IK update function (index 0, first element)
                         sdk::call_object_func<void*>(arm_fit, "updateIk", sdk::get_thread_context(), arm_fit, 0);
