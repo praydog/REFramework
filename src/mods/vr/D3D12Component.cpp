@@ -6,42 +6,6 @@
 
 namespace vrmod {
 void D3D12Component::on_frame(VR* vr) {
-	 auto copy_texture = [this](ID3D12Resource* src, ID3D12Resource* dst) {
-        // Switch src into copy source.
-        D3D12_RESOURCE_BARRIER src_barrier{};
-
-        src_barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-        src_barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-        src_barrier.Transition.pResource = src;
-        src_barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-        src_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
-        src_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
-
-        // Switch dst into copy destination.
-        D3D12_RESOURCE_BARRIER dst_barrier{};
-        dst_barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-        dst_barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-        dst_barrier.Transition.pResource = dst;
-        dst_barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-        dst_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
-        dst_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
-
-        D3D12_RESOURCE_BARRIER barriers[2]{src_barrier, dst_barrier};
-
-        m_cmd_list->ResourceBarrier(2, barriers);
-
-        // Copy the resource.
-        m_cmd_list->CopyResource(dst, src);
-
-        // Switch back to present.
-        src_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
-        src_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
-        dst_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
-        dst_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
-
-        m_cmd_list->ResourceBarrier(2, barriers);
-    };
-
     if (m_left_eye_tex == nullptr) {
         setup();
     }
@@ -202,5 +166,41 @@ void D3D12Component::setup() {
     backbuffer->Release();
 
     spdlog::info("[VR] d3d12 textures have been setup");
+}
+
+void D3D12Component::copy_texture(ID3D12Resource* src, ID3D12Resource* dst) {
+    // Switch src into copy source.
+    D3D12_RESOURCE_BARRIER src_barrier{};
+
+    src_barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+    src_barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+    src_barrier.Transition.pResource = src;
+    src_barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+    src_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+    src_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
+
+    // Switch dst into copy destination.
+    D3D12_RESOURCE_BARRIER dst_barrier{};
+    dst_barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+    dst_barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+    dst_barrier.Transition.pResource = dst;
+    dst_barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+    dst_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+    dst_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
+
+    D3D12_RESOURCE_BARRIER barriers[2]{src_barrier, dst_barrier};
+
+    m_cmd_list->ResourceBarrier(2, barriers);
+
+    // Copy the resource.
+    m_cmd_list->CopyResource(dst, src);
+
+    // Switch back to present.
+    src_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
+    src_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+    dst_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
+    dst_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+
+    m_cmd_list->ResourceBarrier(2, barriers);
 }
 } // namespace vrmod

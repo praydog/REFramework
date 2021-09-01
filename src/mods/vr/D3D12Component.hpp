@@ -26,5 +26,6 @@ private:
 	ComPtr<ID3D12Resource> m_right_eye_tex{}; 
 
     void setup();
+    void copy_texture(ID3D12Resource* src, ID3D12Resource* dst);
 };
 }
