@@ -796,7 +796,7 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
         m_interpolated_bone = glm::interpolate(m_interpolated_bone, head_rot_mat, delta_time * bone_scale * dist);
     }
     else {
-        m_interpolated_bone = head_rot_mat * VR::get()->get_rotation(0);
+        m_interpolated_bone = head_rot_mat;
     }
 
     // Look at where the camera is pointing from the head position
