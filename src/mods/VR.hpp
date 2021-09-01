@@ -163,8 +163,6 @@ private:
     
     uint32_t m_w{0}, m_h{0};
 
-    template <typename T> using ComPtr = Microsoft::WRL::ComPtr<T>;
-
     vrmod::D3D11Component m_d3d11{};
     vrmod::D3D12Component m_d3d12{};
 
