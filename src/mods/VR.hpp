@@ -10,6 +10,8 @@
 #include <wrl.h>
 
 #include "sdk/Math.hpp"
+#include "vr/D3D11Component.hpp"
+#include "vr/D3D12Component.hpp"
 
 #include "Mod.hpp"
 
@@ -122,10 +124,6 @@ private:
     std::optional<std::string> hijack_resolution();
     std::optional<std::string> hijack_input();
 
-    // rendering functions
-    void on_frame_d3d11();
-    void on_frame_d3d12();
-
     // input functions
     // Purpose: "Emulate" OpenVR input to the game
     // By setting things like input flags based on controller state
@@ -167,23 +165,8 @@ private:
 
     template <typename T> using ComPtr = Microsoft::WRL::ComPtr<T>;
 
-    struct D3D11Resources {
-        ComPtr<ID3D11Texture2D> left_eye_tex0{}; // Holds an intermediate frame for the left eye.
-        ComPtr<ID3D11Texture2D> left_eye_tex{};
-        ComPtr<ID3D11Texture2D> right_eye_tex{};
-    } m_d3d11{};
-
-    struct D3D12Resources {
-        ComPtr<ID3D12CommandAllocator> cmd_allocator{};
-        ComPtr<ID3D12GraphicsCommandList> cmd_list{};
-        ComPtr<ID3D12Fence> fence{};
-        UINT64 fence_value{};
-        HANDLE fence_event{};
-
-        ComPtr<ID3D12Resource> left_eye_tex0{}; // Holds an intermediate frame for the left eye.
-        ComPtr<ID3D12Resource> left_eye_tex{};
-        ComPtr<ID3D12Resource> right_eye_tex{}; 
-    } m_d3d12{};
+    vrmod::D3D11Component m_d3d11{};
+    vrmod::D3D12Component m_d3d12{};
 
     int m_frame_count{};
     int m_last_frame_count{-1};
@@ -191,10 +174,10 @@ private:
     bool m_use_predicted_poses{false};
     bool m_submitted{false};
 
-    void setup_d3d11();
-    void setup_d3d12();
-
     static std::string actions_json;
     static std::string binding_rift_json;
     static std::string bindings_oculus_touch_json;
+
+    friend class vrmod::D3D11Component;
+    friend class vrmod::D3D12Component;
 };

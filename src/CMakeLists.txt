@@ -33,6 +33,10 @@ set(MODS_SRC
     mods/Scene.cpp
     mods/VR.hpp
     mods/VR.cpp
+    mods/vr/D3D11Component.hpp
+    mods/vr/D3D11Component.cpp
+    mods/vr/D3D12Component.hpp
+    mods/vr/D3D12Component.cpp
 )
 
 set(SDK_SRC
