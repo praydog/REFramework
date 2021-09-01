@@ -90,6 +90,7 @@ void FirstPerson::on_draw_ui() {
     ImGui::DragFloat4("Scale Debug", (float*)&m_scale_debug.x, 1.0f, -1.0f, 1.0f);
     ImGui::DragFloat4("Scale Debug 2", (float*)&m_scale_debug2.x, 1.0f, -1.0f, 1.0f);
     ImGui::DragFloat4("Offset Debug", (float*)&m_offset_debug.x, 1.0f, -1.0f, 1.0f);
+    ImGui::DragFloat("VR Scale", (float*)&m_vr_scale, 0.01f, 0.01f, 1.0f);
 
     ImGui::DragFloat3("Controller rotation", (float*)&m_hand_rotation_offset, 0.1f, -360.0f, 360.0f);
     ImGui::DragFloat3("Controller position", (float*)&m_hand_position_offset, 0.1f, -360.0f, 360.0f);
@@ -502,7 +503,7 @@ void FirstPerson::update_player_transform(RETransform* transform) {
             auto rotation_quat = glm::normalize(glm::normalize(glm::quat{ look_matrix }) * glm::normalize(controller_quat) * glm::normalize(offset_quat));
 
             // be sure to always multiply the MATRIX BEFORE THE VECTOR!! WHAT HTE FUCK
-            auto hand_pos = look_matrix * (controller_offset + m_hand_position_offset);
+            auto hand_pos = look_matrix * ((controller_offset * m_vr_scale) + m_hand_position_offset);
             auto new_pos = m_last_bone_matrix[3] + hand_pos;
 
             static auto get_joint_parent = [](REJoint* joint) -> REJoint* {
@@ -647,6 +648,31 @@ void FirstPerson::update_player_transform(RETransform* transform) {
                 }
             } else {
                 spdlog::info("Arm fit component not found");
+            }
+
+            // We're going to modify the player's weapon (gun) to fire from the muzzle instead of the camera
+            // Luckily the game has that built-in so we don't really need to hook anything
+            auto equipment = utility::re_component::find<REComponent>(transform, game_namespace("survivor.Equipment"));
+
+            if (equipment != nullptr) {
+                auto equipment_t = (sdk::RETypeDefinition*)equipment->info->classInfo;
+                auto main_weapon_field = equipment_t->get_field("<MainWeapon>k__BackingField");
+                auto& main_weapon = main_weapon_field->get_data<REManagedObject*>(equipment);
+
+                if (main_weapon != nullptr && utility::re_managed_object::is_a(main_weapon, game_namespace("implement.Gun"))) {
+                    auto main_weapon_t = (sdk::RETypeDefinition*)main_weapon->info->classInfo;
+                    auto fire_bullet_param_field = main_weapon_t->get_field("<FireBulletParam>k__BackingField");
+                    auto& fire_bullet_param = fire_bullet_param_field->get_data<REManagedObject*>(main_weapon);
+
+                    if (fire_bullet_param != nullptr) {
+                        auto fire_bullet_param_t = (sdk::RETypeDefinition*)fire_bullet_param->info->classInfo;
+                        auto fire_bullet_type_field = fire_bullet_param_t->get_field("_FireBulletType");
+                        auto& fire_bullet_type = fire_bullet_type_field->get_data<app::ropeway::weapon::shell::ShellDefine::FireBulletType>(fire_bullet_param);
+
+                        // Set the fire bullet type to AlongMuzzle, which fires from the muzzle's position and rotation
+                        fire_bullet_type = app::ropeway::weapon::shell::ShellDefine::FireBulletType::AlongMuzzle;
+                    }
+                }
             }
 
             // radians -> deg
