@@ -90,6 +90,7 @@ void FirstPerson::on_draw_ui() {
     ImGui::DragFloat4("Scale Debug", (float*)&m_scale_debug.x, 1.0f, -1.0f, 1.0f);
     ImGui::DragFloat4("Scale Debug 2", (float*)&m_scale_debug2.x, 1.0f, -1.0f, 1.0f);
     ImGui::DragFloat4("Offset Debug", (float*)&m_offset_debug.x, 1.0f, -1.0f, 1.0f);
+    ImGui::DragFloat("VR Scale", (float*)&m_vr_scale, 0.01f, 0.01f, 1.0f);
 
     ImGui::DragFloat3("Controller rotation", (float*)&m_hand_rotation_offset, 0.1f, -360.0f, 360.0f);
     ImGui::DragFloat3("Controller position", (float*)&m_hand_position_offset, 0.1f, -360.0f, 360.0f);
@@ -502,14 +503,177 @@ void FirstPerson::update_player_transform(RETransform* transform) {
             auto rotation_quat = glm::normalize(glm::normalize(glm::quat{ look_matrix }) * glm::normalize(controller_quat) * glm::normalize(offset_quat));
 
             // be sure to always multiply the MATRIX BEFORE THE VECTOR!! WHAT HTE FUCK
-            auto hand_pos = look_matrix * ((controller_offset + m_hand_position_offset) * Vector4f{ m_offset_debug.x, m_offset_debug.y, m_offset_debug.z, 0.0f });
+            auto hand_pos = look_matrix * ((controller_offset * m_vr_scale) + m_hand_position_offset);
             auto new_pos = m_last_bone_matrix[3] + hand_pos;
 
-            // These functions will automatically update the joint and all children properly
-            // by setting dirty flags and updating the local position and rotation
-            // they automatically go up the chain of parents to set the correct local position and rotation
-            sdk::call_object_func<void*>(wrist_joint, "set_Position", sdk::get_thread_context(), wrist_joint, &new_pos);
-            sdk::call_object_func<void*>(wrist_joint, "set_Rotation", sdk::get_thread_context(), wrist_joint, &rotation_quat);
+            static auto get_joint_parent = [](REJoint* joint) -> REJoint* {
+                if (joint == nullptr || joint->info == nullptr || joint->info->parentJoint == -1) {
+                    return nullptr;
+                }
+
+                auto joint_transform = joint->parentTransform;
+
+                // what da heck
+                if (joint_transform == nullptr) {
+                    return nullptr;
+                }
+
+                return utility::re_transform::get_joint(*joint_transform, joint->info->parentJoint);
+            };
+
+            static auto set_joint_position = [](REJoint* joint, const Vector4f& position) {
+                sdk::call_object_func<void*>(joint, "set_Position", sdk::get_thread_context(), joint, &position);
+            };
+
+            static auto set_joint_rotation = [](REJoint* joint, const glm::quat& rotation) {
+                sdk::call_object_func<void*>(joint, "set_Rotation", sdk::get_thread_context(), joint, &rotation);
+            };
+
+            static auto get_joint_rotation = [](REJoint* joint) -> glm::quat {
+                glm::quat rotation{};
+                sdk::call_object_func<glm::quat*>(joint, "get_Rotation", &rotation, sdk::get_thread_context(), joint);
+                return rotation;
+            };
+
+            static auto get_joint_position = [](REJoint* joint) -> Vector4f {
+                Vector4f position{};
+                sdk::call_object_func<Vector4f*>(joint, "get_Position", &position, sdk::get_thread_context(), joint);
+                return position;
+            };
+
+            static auto get_joint_local_rotation = [](REJoint* joint) -> glm::quat {
+                glm::quat rotation{};
+                sdk::call_object_func<glm::quat*>(joint, "get_LocalRotation", &rotation, sdk::get_thread_context(), joint);
+                return rotation;
+            };
+
+            static auto get_joint_local_position = [](REJoint* joint) -> Vector4f {
+                Vector4f position{};
+                sdk::call_object_func<Vector4f*>(joint, "get_LocalPosition", &position, sdk::get_thread_context(), joint);
+                return position;
+            };
+
+            static auto set_joint_local_rotation = [](REJoint* joint, const glm::quat& rotation) {
+                sdk::call_object_func<void*>(joint, "set_LocalRotation", sdk::get_thread_context(), joint, &rotation);
+            };
+
+            static auto set_joint_local_position = [](REJoint* joint, const Vector4f& position) {
+                sdk::call_object_func<void*>(joint, "set_LocalPosition", sdk::get_thread_context(), joint, &position);
+            };
+
+            //set_joint_position(wrist_joint, new_pos);
+            //set_joint_rotation(wrist_joint, rotation_quat);
+
+            // Get Arm IK component
+            auto arm_fit = utility::re_component::find<REComponent>(transform, game_namespace("IkArmFit"));
+
+            // We will use the game's IK system instead of building our own because it's a pain in the ass
+            // The arm fit component by default will only update the left wrist position (I don't know why, maybe the right arm is a blended animation?)
+            // So we will not only abuse that, but we will repurpose it to update the right arm as well
+            if (arm_fit != nullptr) {
+                auto arm_fit_t = (sdk::RETypeDefinition*)arm_fit->info->classInfo;
+                auto arm_fit_list_field = arm_fit_t->get_field("ArmFitList");
+                auto arm_fit_list = arm_fit_list_field->get_data<REArrayBase*>(arm_fit);
+
+                if (arm_fit_list != nullptr && arm_fit_list->numElements > 0) {
+                    //spdlog::info("Inside arm fit, arm fit list: {:x}", (uintptr_t)arm_fit_list);
+
+                    auto arm_fit_data = utility::re_array::get_element<REManagedObject>(arm_fit_list, 0);
+
+                    if (arm_fit_data != nullptr) {
+                        //spdlog::info("First element: {:x}", (uintptr_t)first_element);
+
+                        auto arm_fit_data_t = (sdk::RETypeDefinition*)arm_fit_data->info->classInfo;
+                        auto arm_fit_data_tmatrix_field = arm_fit_data_t->get_field("<TargetMatrix>k__BackingField");
+                        auto& target_matrix = arm_fit_data_tmatrix_field->get_data<Matrix4x4f>(arm_fit_data);
+
+                        // Set the target matrix to the VR controller's position (new_pos, rotation_quat)
+                        target_matrix = Matrix4x4f{ rotation_quat };
+                        target_matrix[3] = new_pos;
+
+                        auto solver_list_field = arm_fit_t->get_field("<SolverList>k__BackingField");
+                        auto solver_list = solver_list_field->get_data<::DotNetGenericList*>(arm_fit);
+
+                        // Keep track of the old joints so we can set them back after updating the IK
+                        REJoint* old_apply_joint = nullptr;
+                        REJoint** apply_joint_ptr = nullptr;
+
+                        // Using the solver list, we are going to override the target joint to the current wrist joint
+                        // So we can use the IK system to update both wrists
+                        if (solver_list != nullptr) {
+                            //spdlog::info("Solver list: {:x}", (uintptr_t)solver_list);
+
+                            auto raw_solver_list = solver_list->data;
+
+                            if (raw_solver_list != nullptr && raw_solver_list->numElements > 0) {
+                                auto first_solver = utility::re_array::get_element<REManagedObject>(raw_solver_list, 0);
+
+                                if (first_solver != nullptr) {
+                                    //spdlog::info("First solver: {:x}", (uintptr_t)first_solver);
+
+                                    auto first_solver_t = (sdk::RETypeDefinition*)first_solver->info->classInfo;
+                                    auto apply_joint_field = first_solver_t->get_field("<ApplyJoint>k__BackingField");
+                                    auto& apply_joint = apply_joint_field->get_data<REJoint*>(first_solver);
+
+                                    old_apply_joint = apply_joint;
+                                    apply_joint_ptr = &apply_joint;
+                                    
+                                    // Set the apply joint to the wrist joint
+                                    apply_joint = wrist_joint;
+                                }
+                            }
+                        }
+
+                        //spdlog::info("About to call updateIk");
+
+                        auto blend_rate_field = arm_fit_t->get_field("BlendRateField");
+                        auto& blend_rate = blend_rate_field->get_data<float>(arm_fit);
+
+                        auto armfit_data_blend_rate_field = arm_fit_data_t->get_field("BlendRate");
+                        auto& armfit_data_blend_rate = armfit_data_blend_rate_field->get_data<float>(arm_fit_data);
+
+                        blend_rate = 1.0f;
+                        armfit_data_blend_rate = 1.0f;
+
+                        // Call the IK update function (index 0, first element)
+                        sdk::call_object_func<void*>(arm_fit, "updateIk", sdk::get_thread_context(), arm_fit, 0);
+
+                        // Reset the apply joint to the old value
+                        if (apply_joint_ptr != nullptr) {
+                            *apply_joint_ptr = old_apply_joint;
+                        }
+                    }
+                } else {
+                    spdlog::info("Arm fit list is empty");
+                }
+            } else {
+                spdlog::info("Arm fit component not found");
+            }
+
+            // We're going to modify the player's weapon (gun) to fire from the muzzle instead of the camera
+            // Luckily the game has that built-in so we don't really need to hook anything
+            auto equipment = utility::re_component::find<REComponent>(transform, game_namespace("survivor.Equipment"));
+
+            if (equipment != nullptr) {
+                auto equipment_t = (sdk::RETypeDefinition*)equipment->info->classInfo;
+                auto main_weapon_field = equipment_t->get_field("<MainWeapon>k__BackingField");
+                auto& main_weapon = main_weapon_field->get_data<REManagedObject*>(equipment);
+
+                if (main_weapon != nullptr && utility::re_managed_object::is_a(main_weapon, game_namespace("implement.Gun"))) {
+                    auto main_weapon_t = (sdk::RETypeDefinition*)main_weapon->info->classInfo;
+                    auto fire_bullet_param_field = main_weapon_t->get_field("<FireBulletParam>k__BackingField");
+                    auto& fire_bullet_param = fire_bullet_param_field->get_data<REManagedObject*>(main_weapon);
+
+                    if (fire_bullet_param != nullptr) {
+                        auto fire_bullet_param_t = (sdk::RETypeDefinition*)fire_bullet_param->info->classInfo;
+                        auto fire_bullet_type_field = fire_bullet_param_t->get_field("_FireBulletType");
+                        auto& fire_bullet_type = fire_bullet_type_field->get_data<app::ropeway::weapon::shell::ShellDefine::FireBulletType>(fire_bullet_param);
+
+                        // Set the fire bullet type to AlongMuzzle, which fires from the muzzle's position and rotation
+                        fire_bullet_type = app::ropeway::weapon::shell::ShellDefine::FireBulletType::AlongMuzzle;
+                    }
+                }
+            }
 
             // radians -> deg
             m_last_controller_euler[controller_index] = glm::eulerAngles(rotation_quat) * (180.0f / glm::pi<float>());
@@ -658,7 +822,7 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
         m_interpolated_bone = glm::interpolate(m_interpolated_bone, head_rot_mat, delta_time * bone_scale * dist);
     }
     else {
-        m_interpolated_bone = head_rot_mat * VR::get()->get_rotation(0);
+        m_interpolated_bone = head_rot_mat;
     }
 
     // Look at where the camera is pointing from the head position
