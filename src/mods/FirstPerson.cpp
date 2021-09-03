@@ -865,6 +865,9 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
     }
 
     auto final_mat = is_player_camera ? (m_interpolated_bone * m_rotation_offset) : m_interpolated_bone;
+
+    const auto final_mat_pre_vr = final_mat;
+    const auto final_quat_pre_vr = glm::quat{final_mat};
     
     // do not interpolate the headset rotation to reduce motion sickness
     final_mat *= VR::get()->get_rotation(0);
@@ -891,13 +894,14 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
     // Fixes snappiness after camera switching
     if (!is_player_in_control) {
         m_last_controller_pos = m_camera_system->cameraController->worldPosition;
-        m_last_controller_rotation = final_quat;
+        m_last_controller_rotation = final_quat_pre_vr;
 
         m_camera_system->mainCameraController->cameraPosition = m_last_controller_pos;
-        m_camera_system->mainCameraController->cameraRotation = *(Vector4f*)&final_quat;
+        m_camera_system->mainCameraController->cameraRotation = *(Vector4f*)&final_quat_pre_vr;
+        m_camera_system->cameraController->worldRotation = *(Vector4f*)&final_quat_pre_vr;
 
         //if (!is_switching_to_player_camera) {
-            m_last_controller_angles = utility::math::euler_angles(final_mat);
+            m_last_controller_angles = utility::math::euler_angles(final_mat_pre_vr);
         //}
 
         // These are what control the real rotation, so only set it in a cutscene or something
