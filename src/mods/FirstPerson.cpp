@@ -636,7 +636,7 @@ void FirstPerson::update_player_transform(RETransform* transform) {
                                     // When the wanted position exceeds the total IK length.
                                     // Usually that's what IK is supposed to do, but not in this game, i guess
                                     if (glm::length(new_pos - shoulder_joint_pos) > total_length) {
-                                        new_pos = shoulder_joint_pos + (glm::normalize(new_pos - get_joint_position(shoulder_joint)) * total_length);
+                                        new_pos = shoulder_joint_pos + (glm::normalize(new_pos - shoulder_joint_pos) * total_length);
                                     }
                                 }
                             }
