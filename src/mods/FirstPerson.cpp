@@ -587,10 +587,6 @@ void FirstPerson::update_player_transform(RETransform* transform) {
                         auto arm_fit_data_tmatrix_field = arm_fit_data_t->get_field("<TargetMatrix>k__BackingField");
                         auto& target_matrix = arm_fit_data_tmatrix_field->get_data<Matrix4x4f>(arm_fit_data);
 
-                        // Set the target matrix to the VR controller's position (new_pos, rotation_quat)
-                        target_matrix = Matrix4x4f{ rotation_quat };
-                        target_matrix[3] = new_pos;
-
                         auto solver_list_field = arm_fit_t->get_field("<SolverList>k__BackingField");
                         auto solver_list = solver_list_field->get_data<::DotNetGenericList*>(arm_fit);
 
@@ -620,9 +616,35 @@ void FirstPerson::update_player_transform(RETransform* transform) {
                                     
                                     // Set the apply joint to the wrist joint
                                     apply_joint = wrist_joint;
+
+                                    auto l0_field = first_solver_t->get_field("<L0>k__BackingField");
+                                    auto l1_field = first_solver_t->get_field("<L1>k__BackingField");
+
+                                    auto& l0 = l0_field->get_data<float>(first_solver);
+                                    auto& l1 = l1_field->get_data<float>(first_solver);
+
+                                    const auto total_length = l0 + l1;
+
+                                    // Get shoulder joint by getting the parents of the wrist joint
+                                    auto elbow_joint = get_joint_parent(wrist_joint);
+                                    auto shoulder_joint = get_joint_parent(elbow_joint);
+
+                                    const auto shoulder_joint_pos = get_joint_position(shoulder_joint);
+
+                                    // Bring the new_pos back to the shoulder joint + dir to the wrist joint * total length/
+                                    // This will keep the arm properly extended instead of contracting back to the original animation
+                                    // When the wanted position exceeds the total IK length.
+                                    // Usually that's what IK is supposed to do, but not in this game, i guess
+                                    if (glm::length(new_pos - shoulder_joint_pos) > total_length) {
+                                        new_pos = shoulder_joint_pos + (glm::normalize(new_pos - get_joint_position(shoulder_joint)) * total_length);
+                                    }
                                 }
                             }
                         }
+                    
+                        // Set the target matrix to the VR controller's position (new_pos, rotation_quat)
+                        target_matrix = Matrix4x4f{ rotation_quat };
+                        target_matrix[3] = new_pos;
 
                         //spdlog::info("About to call updateIk");
 
