@@ -61,36 +61,15 @@ public:
         return m_use_afr;
     }
 
-    auto get_current_offset() const {
-        if (!m_use_afr) {
-            return Vector4f{};
-        }
+    Vector4f get_current_offset();
 
-        if (get_frame_count() % 2 == 0) {
-            return Vector4f{m_eye_distance * -1.0f, 0.0f, 0.0f, 0.0f};
-        }
-        
-        return Vector4f{m_eye_distance, 0.0f, 0.0f, 0.0f};
-    }
+    float get_current_yaw_offset();
 
-    auto get_current_yaw_offset() const {
-        if (!m_use_afr) {
-            return 0.0f;
-        }
+    Matrix4x4f get_current_rotation_offset();
+    Matrix4x4f get_current_projection_matrix(bool flip = false);
 
-        if (get_frame_count() % 2 == 0) {
-            return m_eye_rotation * -1;
-        }
-        
-        return m_eye_rotation;
-    }
-
-    auto get_current_rotation_offset() const {
-        if (!m_use_afr) {
-            return glm::identity<Matrix4x4f>();
-        }
-
-        return Matrix4x4f{ glm::quat{ Vector3f { 0.0f, get_current_yaw_offset(), 0.0f } } };
+    auto get_focus_distance() const {
+        return m_focus_distance;
     }
 
     auto& get_controllers() const {
@@ -107,6 +86,10 @@ public:
     auto& get_pose_mutex() {
         return m_pose_mtx;
     }
+
+    const auto& get_eyes() const {
+        return m_eyes;
+    }
     
     bool is_action_active(vr::VRActionHandle_t action, vr::VRInputValueHandle_t source = vr::k_ulInvalidInputValueHandle) const;
     Vector2f get_joystick_axis(vr::VRInputValueHandle_t handle) const;
@@ -118,11 +101,13 @@ private:
     // Hooks
     static float* get_size_hook(float* result, void* ctx, REManagedObject* scene_view);
     static void inputsystem_update_hook(void* ctx, REManagedObject* input_system);
+    static Matrix4x4f* camera_get_projection_matrix_hook(REManagedObject* camera, Matrix4x4f* result);
 
     // initialization functions
     std::optional<std::string> initialize_openvr();
     std::optional<std::string> hijack_resolution();
     std::optional<std::string> hijack_input();
+    std::optional<std::string> hijack_camera();
 
     // input functions
     // Purpose: "Emulate" OpenVR input to the game
@@ -131,6 +116,7 @@ private:
     
     std::recursive_mutex m_camera_mtx{};
     std::shared_mutex m_pose_mtx{};
+    std::shared_mutex m_eyes_mtx{};
 
     REManagedObject* m_main_view{nullptr};
 
@@ -139,11 +125,20 @@ private:
 
     float m_eye_distance{ -0.025f };
     float m_eye_rotation{ 0.135f };
+    float m_focus_distance{ 8192.0f };
+    float m_nearz{ 0.1f };
+    float m_farz{ 3000.0f };
 
     vr::IVRSystem* m_hmd{nullptr};
-    vr::TrackedDevicePose_t m_render_poses[vr::k_unMaxTrackedDeviceCount];
-    vr::TrackedDevicePose_t m_game_poses[vr::k_unMaxTrackedDeviceCount];
+    std::array<vr::TrackedDevicePose_t, vr::k_unMaxTrackedDeviceCount> m_real_render_poses;
+    std::array<vr::TrackedDevicePose_t, vr::k_unMaxTrackedDeviceCount> m_real_game_poses;
+
+    std::array<vr::TrackedDevicePose_t, vr::k_unMaxTrackedDeviceCount> m_render_poses;
+    std::array<vr::TrackedDevicePose_t, vr::k_unMaxTrackedDeviceCount> m_game_poses;
     std::vector<int32_t> m_controllers{};
+
+    std::array<Matrix4x4f, 2> m_eyes{};
+    std::array<Matrix4x4f, 2> m_projections{};
 
     // Action set handles
     vr::VRActionSetHandle_t m_action_set{};

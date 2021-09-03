@@ -1,5 +1,10 @@
 #include <fstream>
 
+//#if defined(RE2) || defined(RE3)
+#include "sdk/regenny/re3/via/Window.hpp"
+#include "sdk/regenny/re3/via/SceneView.hpp"
+//#endif
+
 #include "sdk/Math.hpp"
 #include "sdk/SceneManager.hpp"
 #include "sdk/RETypeDB.hpp"
@@ -22,20 +27,53 @@ std::shared_ptr<VR>& VR::get() {
 
 std::unique_ptr<FunctionHook> g_get_size_hook{};
 std::unique_ptr<FunctionHook> g_input_hook{};
+std::unique_ptr<FunctionHook> g_camera_hook{};
 
 // Purpose: spoof the render target size to the size of the HMD displays
 float* VR::get_size_hook(float* result, void* ctx, REManagedObject* scene_view) {
     auto original_func = g_get_size_hook->get_original<decltype(VR::get_size_hook)>();
+    auto mod = VR::get();
 
     auto out = original_func(result, ctx, scene_view);
 
-    // spoof the size to the HMD's size
-    auto mod = VR::get();
+    //#if defined(RE2) || defined(RE3)
+    /*auto regenny_view = (regenny::via::SceneView*)scene_view;
+    auto window = regenny_view->window;
 
+    // Set the window size, which will increase the size of the backbuffer
+    if (window != nullptr) {
+        //window->width = mod->get_hmd_width();
+        //window->height = mod->get_hmd_height();
+
+        spdlog::info("window: {:x}", (uintptr_t)window);
+    }*/
+//#endif
+
+    // spoof the size to the HMD's size
     out[0] = (float)mod->get_hmd_width();
     out[1] = (float)mod->get_hmd_height();
 
     return out;
+}
+
+Matrix4x4f* VR::camera_get_projection_matrix_hook(REManagedObject* camera, Matrix4x4f* result) {
+    auto original_func = g_camera_hook->get_original<decltype(VR::camera_get_projection_matrix_hook)>();
+
+    auto vr = VR::get();
+
+    if (result == nullptr || !vr->m_use_afr) {
+        return original_func(camera, result);
+    }
+
+    if (camera != sdk::get_primary_camera()) {
+        return original_func(camera, result);
+    }
+
+    // Get the projection matrix for the correct eye
+    // For some reason we need to flip the projection matrix here?
+    *result = vr->get_current_projection_matrix(true);
+
+    return result;
 }
 
 void VR::inputsystem_update_hook(void* ctx, REManagedObject* input_system) {
@@ -132,7 +170,12 @@ std::optional<std::string> VR::on_initialize() {
 
     if (hijack_error) {
         return hijack_error;
+    }
 
+    hijack_error = hijack_camera();
+
+    if (hijack_error) {
+        return hijack_error;
     }
 
     // all OK
@@ -331,6 +374,48 @@ std::optional<std::string> VR::hijack_input() {
     return std::nullopt;
 }
 
+std::optional<std::string> VR::hijack_camera() {
+    // We're going to hook via.Camera.get_ProjectionMatrix so we can
+    // override the camera's Projection matrix with the HMD's Projection matrix (per-eye)
+    auto t = sdk::RETypeDB::get()->find_type("via.Camera");
+
+    if (t == nullptr) {
+        return "VR init failed: via.Camera type not found.";
+    }
+
+    auto method = t->get_method("get_ProjectionMatrix");
+
+    if (method == nullptr) {
+        return "VR init failed: via.Camera.get_ProjectionMatrix method not found.";
+    }
+
+    auto func = method->get_function();
+
+    if (func == nullptr) {
+        return "VR init failed: via.Camera.get_ProjectionMatrix function not found.";
+    }
+
+    spdlog::info("via.Camera.get_ProjectionMatrix: {:x}", (uintptr_t)func);
+    
+    // Pattern scan for the native function call
+    auto ref = utility::scan((uintptr_t)func, 0x100, "49 8B C8 E8");
+
+    if (!ref) {
+        return "VR init failed: via.Camera.get_ProjectionMatrix native function not found. Pattern scan failed.";
+    }
+
+    auto native_func = utility::calculate_absolute(*ref + 4);
+
+    // Hook the native function
+    g_camera_hook = std::make_unique<FunctionHook>(native_func, camera_get_projection_matrix_hook);
+
+    if (!g_camera_hook->create()) {
+        return "VR init failed: via.Camera.get_ProjectionMatrix native function hook failed.";
+    }
+
+    return std::nullopt;
+}
+
 int32_t VR::get_frame_count() const {
     auto scene = sdk::get_current_scene();
 
@@ -339,6 +424,73 @@ int32_t VR::get_frame_count() const {
     }
 
     return sdk::call_object_func<int32_t>(scene, "get_FrameCount", sdk::get_thread_context(), scene);
+
+    /*static auto renderer_type = sdk::RETypeDB::get()->find_type("via.render.Renderer");
+    auto renderer = g_framework->get_globals()->get_native("via.render.Renderer");
+
+    if (renderer == nullptr) {
+        return 0;
+    }
+
+    return sdk::call_object_func<int32_t>(renderer, renderer_type, "get_RenderFrame", sdk::get_thread_context(), renderer);*/
+}
+
+Vector4f VR::get_current_offset() {
+    if (!m_use_afr) {
+        return Vector4f{};
+    }
+
+    std::shared_lock _{ m_eyes_mtx };
+
+    if (get_frame_count() % 2 == 0) {
+        //return Vector4f{m_eye_distance * -1.0f, 0.0f, 0.0f, 0.0f};
+        return m_eyes[vr::Eye_Left][3];
+    }
+    
+    return m_eyes[vr::Eye_Right][3];
+    //return Vector4f{m_eye_distance, 0.0f, 0.0f, 0.0f};
+}
+
+float VR::get_current_yaw_offset() {
+    if (!m_use_afr) {
+        return 0.0f;
+    }
+
+    std::shared_lock _{ m_eyes_mtx };
+
+    if (get_frame_count() % 2 == 0) {
+        return m_eye_rotation * -1;
+    }
+    
+    return m_eye_rotation;
+}
+
+Matrix4x4f VR::get_current_rotation_offset() {
+    if (!m_use_afr) {
+        return glm::identity<Matrix4x4f>();
+    }
+
+    std::shared_lock _{m_eyes_mtx};
+
+    if (get_frame_count() % 2 == 0) {
+        return glm::extractMatrixRotation(m_eyes[vr::Eye_Left]);
+    }
+
+    return glm::extractMatrixRotation(m_eyes[vr::Eye_Right]);
+
+    //return Matrix4x4f{ glm::quat{ Vector3f { 0.0f, get_current_yaw_offset(), 0.0f } } };
+}
+
+Matrix4x4f VR::get_current_projection_matrix(bool flip) {
+    std::shared_lock _{m_eyes_mtx};
+
+    auto mod_count = flip ? 1 : 0;
+
+    if (get_frame_count() % 2 == mod_count) {
+        return m_projections[vr::Eye_Left];
+    }
+
+    return m_projections[vr::Eye_Right];
 }
 
 void VR::on_post_frame() {
@@ -346,6 +498,19 @@ void VR::on_post_frame() {
 
     m_frame_count = get_frame_count();
     m_main_view = sdk::get_main_view();
+
+    if (m_main_view != nullptr) {
+        auto regenny_view = (regenny::via::SceneView*)m_main_view;
+        auto window = regenny_view->window;
+
+        // Set the window size, which will increase the size of the backbuffer
+        if (window != nullptr) {
+            window->width = get_hmd_width();
+            window->height = get_hmd_height();
+
+            //spdlog::info("window: {:x}", (uintptr_t)window);
+        }
+    }
 
     const auto renderer = g_framework->get_renderer_type();
 
@@ -358,8 +523,6 @@ void VR::on_post_frame() {
     m_last_frame_count = m_frame_count;
 
     if (m_submitted) {
-        std::unique_lock _{ m_pose_mtx };
-
         // Update input
         auto error = vr::VRInput()->UpdateActionState(&m_active_action_set, sizeof(m_active_action_set), 1);
 
@@ -367,7 +530,31 @@ void VR::on_post_frame() {
             spdlog::error("VRInput failed to update action state: {}", (uint32_t)error);
         }
 
-        vr::VRCompositor()->WaitGetPoses(m_render_poses, vr::k_unMaxTrackedDeviceCount, m_game_poses, vr::k_unMaxTrackedDeviceCount);
+
+
+        vr::VRCompositor()->WaitGetPoses(m_real_render_poses.data(), vr::k_unMaxTrackedDeviceCount, m_real_game_poses.data(), vr::k_unMaxTrackedDeviceCount);
+
+        {
+            std::unique_lock _{ m_pose_mtx };
+
+            memcpy(m_game_poses.data(), m_real_game_poses.data(), sizeof(m_game_poses));
+            memcpy(m_render_poses.data(), m_real_render_poses.data(), sizeof(m_render_poses));
+        }
+
+        std::unique_lock __{ m_eyes_mtx };
+
+        const auto local_left = m_hmd->GetEyeToHeadTransform(vr::Eye_Left);
+        const auto local_right = m_hmd->GetEyeToHeadTransform(vr::Eye_Right);
+
+        m_eyes[vr::Eye_Left] = glm::rowMajor4(Matrix4x4f{ *(Matrix3x4f*)&local_left } );
+        m_eyes[vr::Eye_Right] = glm::rowMajor4(Matrix4x4f{ *(Matrix3x4f*)&local_right } );
+
+        auto pleft = m_hmd->GetProjectionMatrix(vr::Eye_Left, m_nearz, m_farz);
+        auto pright = m_hmd->GetProjectionMatrix(vr::Eye_Right, m_nearz, m_farz);
+
+        m_projections[vr::Eye_Left] = glm::rowMajor4(Matrix4x4f{ *(Matrix4x4f*)&pleft } );
+        m_projections[vr::Eye_Right] = glm::rowMajor4(Matrix4x4f{ *(Matrix4x4f*)&pright } );
+
         m_submitted = false;
     }
 }
@@ -399,6 +586,8 @@ void VR::on_update_camera_controller(RopewayPlayerCameraController* controller) 
     if (camera != nullptr) {
         // Fixes warping effect in the vertical part of the camera when looking up and down
         sdk::call_object_func<void*>((::REManagedObject*)camera, "set_VerticalEnable", sdk::get_thread_context(), camera, true);
+        m_nearz = sdk::call_object_func<float>(camera, "get_NearClipPlane", sdk::get_thread_context(), camera);
+        m_farz = sdk::call_object_func<float>(camera, "get_FarClipPlane", sdk::get_thread_context(), camera);
     }
 }
 
@@ -485,10 +674,11 @@ void VR::on_draw_ui() {
     ImGui::Separator();
     ImGui::Text("Recommended render target size: %d x %d", m_w, m_h);
     ImGui::Separator();
-    ImGui::DragFloat4("Right Bounds", (float*)&m_right_bounds, 0.005f, 0.0f, 5.0f);
-    ImGui::DragFloat4("Left Bounds", (float*)&m_left_bounds, 0.005f, 0.0f, 5.0f);
+    ImGui::DragFloat4("Right Bounds", (float*)&m_right_bounds, 0.005f, -2.0f, 2.0f);
+    ImGui::DragFloat4("Left Bounds", (float*)&m_left_bounds, 0.005f, -2.0f, 2.0f);
     ImGui::DragFloat("Eye Distance", (float*)&m_eye_distance, 0.005f, -5.0f, 5.0f);
     ImGui::DragFloat("Eye Rotation", (float*)&m_eye_rotation, 0.005f, -5.0f, 5.0f);
+    ImGui::DragFloat("Focus Distance", (float*)&m_focus_distance, 1.0f, 0.0f, 8192.0f);
     ImGui::Checkbox("Use AFR", &m_use_afr);
     ImGui::Checkbox("Use Predicted Poses", &m_use_predicted_poses);
 }

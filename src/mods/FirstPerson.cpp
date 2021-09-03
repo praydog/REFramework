@@ -656,7 +656,7 @@ void FirstPerson::update_player_transform(RETransform* transform) {
 
             if (equipment != nullptr) {
                 auto equipment_t = (sdk::RETypeDefinition*)equipment->info->classInfo;
-                auto main_weapon_field = equipment_t->get_field("<MainWeapon>k__BackingField");
+                auto main_weapon_field = equipment_t->get_field("<EquipWeapon>k__BackingField");
                 auto& main_weapon = main_weapon_field->get_data<REManagedObject*>(equipment);
 
                 if (main_weapon != nullptr && utility::re_managed_object::is_a(main_weapon, game_namespace("implement.Gun"))) {
@@ -863,8 +863,8 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
         m_last_camera_matrix = mtx;
     //}
 
-    *(Matrix4x4f*)&mtx *= VR::get()->get_current_rotation_offset();
-    (*(Matrix3x4f*)&mtx)[3] += glm::extractMatrixRotation(camera_matrix) * (VR::get()->get_current_offset() * Vector4f{ -1.0f, 1.0f, 1.0f, 0.0f });
+    //*(Matrix4x4f*)&mtx *= VR::get()->get_current_rotation_offset();
+    (*(Matrix3x4f*)&mtx)[3] += glm::extractMatrixRotation(camera_matrix) * (VR::get()->get_current_offset());
 
     // Fixes snappiness after camera switching
     if (!is_player_in_control) {
