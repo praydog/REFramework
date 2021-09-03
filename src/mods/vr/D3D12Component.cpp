@@ -22,7 +22,8 @@ void D3D12Component::on_frame(VR* vr) {
     auto swapchain = hook->get_swap_chain();
 
     // get back buffer
-    ID3D12Resource* backbuffer{};
+    ComPtr<ID3D12Resource> backbuffer{};
+
     swapchain->GetBuffer(swapchain->GetCurrentBackBufferIndex(), IID_PPV_ARGS(&backbuffer));
 
     if (backbuffer == nullptr) {
@@ -35,10 +36,10 @@ void D3D12Component::on_frame(VR* vr) {
             // If m_frame_count is even, we're rendering the left eye.
             if (vr->m_frame_count % 2 == 0) {
                 // Copy the back buffer to the left eye texture (m_left_eye_tex0 holds the intermediate frame).
-                copy_texture(backbuffer, m_left_eye_tex0.Get());
+                copy_texture(backbuffer.Get(), m_left_eye_tex0.Get());
             } else {
                 // Copy the back buffer to the right eye texture.
-                copy_texture(backbuffer, m_right_eye_tex.Get());
+                copy_texture(backbuffer.Get(), m_right_eye_tex.Get());
 
                 // Copy the intermediate left eye texture to the actual left eye texture.
                 copy_texture(m_left_eye_tex0.Get(), m_left_eye_tex.Get());
@@ -79,7 +80,7 @@ void D3D12Component::on_frame(VR* vr) {
     } else {
         auto compositor = vr::VRCompositor();
 
-        vr::Texture_t texture{(void*)backbuffer, vr::TextureType_DirectX, vr::ColorSpace_Auto};
+        vr::Texture_t texture{(void*)backbuffer.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto};
 
         auto e = compositor->Submit(vr::Eye_Left, &texture, &vr->m_left_bounds);
 
@@ -95,9 +96,6 @@ void D3D12Component::on_frame(VR* vr) {
 
         vr->m_submitted = true;
     }
-
-    // Release the back buffer.
-    backbuffer->Release();
 }
 
 void D3D12Component::on_reset(VR* vr) {
@@ -134,7 +132,7 @@ void D3D12Component::setup() {
 
     m_fence_event = CreateEvent(nullptr, FALSE, FALSE, nullptr);
 
-    ID3D12Resource* backbuffer{};
+    ComPtr<ID3D12Resource> backbuffer{};
 
     if (FAILED(swapchain->GetBuffer(0, IID_PPV_ARGS(&backbuffer)))) {
         spdlog::error("[VR] Failed to get back buffer.");
@@ -162,8 +160,6 @@ void D3D12Component::setup() {
             IID_PPV_ARGS(&m_right_eye_tex)))) {
         spdlog::error("[VR] Failed to create right eye texture.");
     }
-
-    backbuffer->Release();
 
     spdlog::info("[VR] d3d12 textures have been setup");
 }

@@ -16,15 +16,17 @@ void D3D11Component::on_frame(VR* vr) {
     auto device = hook->get_device();
 
     // Get the context.
-    ID3D11DeviceContext* context{};
+    ComPtr<ID3D11DeviceContext> context{};
+
     device->GetImmediateContext(&context);
 
     // get swapchain
     auto swapchain = hook->get_swap_chain();
 
     // get back buffer
-    ID3D11Texture2D* backbuffer = nullptr;
-    swapchain->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&backbuffer);
+    ComPtr<ID3D11Texture2D> backbuffer{};
+
+    swapchain->GetBuffer(0, IID_PPV_ARGS(&backbuffer));
 
     if (backbuffer == nullptr) {
         spdlog::error("[VR] Failed to get back buffer.");
@@ -36,10 +38,10 @@ void D3D11Component::on_frame(VR* vr) {
             // If m_frame_count is even, we're rendering the left eye.
             if (vr->m_frame_count % 2 == 0) {
                 // Copy the back buffer to the left eye texture (m_left_eye_tex0 holds the intermediate frame).
-                context->CopyResource(m_left_eye_tex0.Get(), backbuffer);
+                context->CopyResource(m_left_eye_tex0.Get(), backbuffer.Get());
             } else {
                 // Copy the back buffer to the right eye texture.
-                context->CopyResource(m_right_eye_tex.Get(), backbuffer);
+                context->CopyResource(m_right_eye_tex.Get(), backbuffer.Get());
 
                 // Copy the intermediate left eye texture to the actual left eye texture.
                 context->CopyResource(m_left_eye_tex.Get(), m_left_eye_tex0.Get());
@@ -71,7 +73,7 @@ void D3D11Component::on_frame(VR* vr) {
     } else {
         auto compositor = vr::VRCompositor();
 
-        vr::Texture_t texture{(void*)backbuffer, vr::TextureType_DirectX, vr::ColorSpace_Auto};
+        vr::Texture_t texture{(void*)backbuffer.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto};
 
         auto e = compositor->Submit(vr::Eye_Left, &texture, &vr->m_left_bounds);
 
@@ -87,12 +89,6 @@ void D3D11Component::on_frame(VR* vr) {
 
         vr->m_submitted = true;
     }
-
-    // Release the back buffer.
-    backbuffer->Release();
-
-    // Release the context.
-    context->Release();
 }
 
 void D3D11Component::on_reset(VR* vr) {
@@ -108,20 +104,19 @@ void D3D11Component::setup() {
     auto swapchain = hook->get_swap_chain();
 
     // Get back buffer.
-    ID3D11Texture2D* backbuffer{};
+    ComPtr<ID3D11Texture2D> backbuffer{};
+
     swapchain->GetBuffer(0, IID_PPV_ARGS(&backbuffer));
 
     // Get backbuffer description.
     D3D11_TEXTURE2D_DESC backbuffer_desc{};
+
     backbuffer->GetDesc(&backbuffer_desc);
 
     // Create eye textures.
     device->CreateTexture2D(&backbuffer_desc, nullptr, &m_left_eye_tex0);
     device->CreateTexture2D(&backbuffer_desc, nullptr, &m_left_eye_tex);
     device->CreateTexture2D(&backbuffer_desc, nullptr, &m_right_eye_tex);
-
-    // Release the back buffer.
-    backbuffer->Release();
 
     spdlog::info("[VR] d3d11 textures have been setup");
 }
