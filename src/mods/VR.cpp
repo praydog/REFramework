@@ -503,6 +503,8 @@ void VR::on_post_frame() {
         auto regenny_view = (regenny::via::SceneView*)m_main_view;
         auto window = regenny_view->window;
 
+        regenny_view->display_type = regenny::via::DisplayType::Fit;
+
         // Set the window size, which will increase the size of the backbuffer
         if (window != nullptr) {
             window->width = get_hmd_width();
