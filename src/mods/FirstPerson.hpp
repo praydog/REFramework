@@ -61,6 +61,7 @@ private:
     Matrix4x4f m_interpolated_bone{ glm::identity<Matrix4x4f>() };
     Matrix4x4f m_last_bone_matrix{ glm::identity<Matrix4x4f>() };
     Matrix4x4f m_last_camera_matrix{ glm::identity<Matrix4x4f>() };
+    Matrix4x4f m_last_camera_matrix_pre_vr{ glm::identity<Matrix4x4f>() };
     Matrix4x4f* m_cached_bone_matrix{ nullptr };
     Vector4f m_last_controller_pos{};
     glm::quat m_last_controller_rotation{};
@@ -97,6 +98,9 @@ private:
     RopewaySweetLightManager* m_sweet_light_manager{ nullptr };
     RopewayPostEffectController* m_post_effect_controller{ nullptr };
     RopewayPostEffectControllerBase* m_tone_mapping_controller{ nullptr };
+
+    // app::ropeway::gui::GuiMaster
+    REBehavior* m_gui_master{ nullptr };
 
     std::vector<std::string> m_attach_names;
     int32_t m_attach_selected{ 0 };

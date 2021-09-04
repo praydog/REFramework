@@ -66,12 +66,14 @@ void FirstPerson::on_frame() {
 
     // Update our global pointers
     if (m_post_effect_controller == nullptr || m_post_effect_controller->ownerGameObject == nullptr || 
-        m_camera_system == nullptr || m_camera_system->ownerGameObject == nullptr || m_sweet_light_manager == nullptr || m_sweet_light_manager->ownerGameObject == nullptr) 
+        m_camera_system == nullptr || m_camera_system->ownerGameObject == nullptr || m_sweet_light_manager == nullptr || m_sweet_light_manager->ownerGameObject == nullptr
+        || m_gui_master == nullptr) 
     {
         auto& globals = *g_framework->get_globals();
         m_sweet_light_manager = globals.get<RopewaySweetLightManager>(game_namespace("SweetLightManager"));
         m_camera_system = globals.get<RopewayCameraSystem>(game_namespace("camera.CameraSystem"));
         m_post_effect_controller = globals.get<RopewayPostEffectController>(game_namespace("posteffect.PostEffectController"));
+        m_gui_master = globals.get<REBehavior>(game_namespace("gui.GUIMaster"));
 
         reset();
         return;
@@ -266,7 +268,7 @@ void FirstPerson::on_update_transform(RETransform* transform) {
         }
     }
 
-    if (m_sweet_light_manager == nullptr) {
+    if (m_sweet_light_manager == nullptr || m_gui_master == nullptr) {
         return;
     }
 
@@ -346,6 +348,7 @@ void FirstPerson::reset() {
     m_rotation_offset = glm::identity<decltype(m_rotation_offset)>();
     m_interpolated_bone = glm::identity<decltype(m_interpolated_bone)>();
     m_last_camera_matrix = glm::identity<decltype(m_last_camera_matrix)>();
+    m_last_camera_matrix_pre_vr = glm::identity<decltype(m_last_camera_matrix_pre_vr)>();
     m_last_bone_matrix = glm::identity<decltype(m_last_bone_matrix)>();
     m_last_controller_pos = Vector4f{};
     m_last_controller_rotation = glm::quat{};
@@ -766,18 +769,25 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
 
     auto cam_pos3 = Vector3f{ m_last_controller_pos };
 
-    auto camera_matrix = m_last_camera_matrix * Matrix4x4f{
+    auto camera_matrix = m_last_camera_matrix_pre_vr * Matrix4x4f{
         -1, 0, 0, 0,
         0, 1, 0, 0,
         0, 0, -1, 0,
         0, 0, 0, 1
     };
 
+    const auto gui_state = *sdk::get_object_field<int32_t>(m_gui_master, "<State_>k__BackingField");
+    const auto is_paused = gui_state == (int32_t)app::ropeway::gui::GUIMaster::GuiState::PAUSE || gui_state == (int32_t)app::ropeway::gui::GUIMaster::GuiState::INVENTORY;
     const auto is_player_camera = m_last_camera_type == app::ropeway::camera::CameraControlType::PLAYER;
     const auto is_switching_camera = utility::re_managed_object::get_field<bool>(m_camera_system->mainCameraController, "SwitchingCamera");
-    const auto is_player_in_control = (is_player_camera && !is_switching_camera);
+    const auto is_player_in_control = (is_player_camera && !is_switching_camera && !is_paused);
     const auto is_switching_to_player_camera = is_player_camera && is_switching_camera;
     //is_player_camera = is_player_camera && !is_switching_camera;
+
+    // fix some crazy spinning bullshit
+    if (is_paused) {
+        *(Matrix3x4f*)&mtx = m_last_camera_matrix_pre_vr;
+    }
 
     m_interp_bone_scale = glm::lerp(m_interp_bone_scale, m_bone_scale->value(), std::clamp(delta_time * 0.05f, 0.0f, 1.0f));
     m_interp_camera_speed = glm::lerp(m_interp_camera_speed, m_camera_scale->value(), std::clamp(delta_time * 0.05f, 0.0f, 1.0f));
@@ -866,6 +876,7 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
 
     auto final_mat = is_player_camera ? (m_interpolated_bone * m_rotation_offset) : m_interpolated_bone;
 
+    const auto mtx_pre_vr = mtx;
     const auto final_mat_pre_vr = final_mat;
     const auto final_quat_pre_vr = glm::quat{final_mat};
     
@@ -886,6 +897,7 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
 
     //if (is_player_in_control || !is_player_camera) {
         m_last_camera_matrix = mtx;
+        m_last_camera_matrix_pre_vr = mtx_pre_vr;
     //}
 
     //*(Matrix4x4f*)&mtx *= VR::get()->get_current_rotation_offset();

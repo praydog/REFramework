@@ -438,4 +438,23 @@ T call_object_func(::REManagedObject* obj, std::string_view name, Args... args) 
 
     return call_object_func<T>((void*)obj, def, name, args...);
 }
+
+template<typename T>
+T* get_object_field(void* obj, sdk::RETypeDefinition* t, std::string_view name, bool is_value_type = false) {
+    const auto field = t->get_field(name);
+
+    if (field == nullptr) {
+        // spdlog::error("Cannot find {:s}", name.data());
+        return nullptr;
+    }
+
+    return (T*)field->get_data_raw(obj, is_value_type);
+}
+
+template<typename T>
+T* get_object_field(::REManagedObject* obj, std::string_view name, bool is_value_type = false) {
+    auto def = (sdk::RETypeDefinition*)obj->info->classInfo;
+
+    return get_object_field<T>((void*)obj, def, name, is_value_type);
+}
 } // namespace sdk
