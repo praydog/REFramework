@@ -1,5 +1,6 @@
 #pragma once
 
+#include <bitset>
 #include <memory>
 #include <shared_mutex>
 #include <openvr/headers/openvr.h>
@@ -112,7 +113,7 @@ private:
     // input functions
     // Purpose: "Emulate" OpenVR input to the game
     // By setting things like input flags based on controller state
-    void openvr_input_to_game();
+    void openvr_input_to_game(REManagedObject* input_system);
     
     std::recursive_mutex m_camera_mtx{};
     std::shared_mutex m_pose_mtx{};
@@ -155,6 +156,11 @@ private:
     // Input sources
     vr::VRInputValueHandle_t m_left_joystick{};
     vr::VRInputValueHandle_t m_right_joystick{};
+
+    // Input system history
+    std::bitset<64> m_button_states_down{};
+    std::bitset<64> m_button_states_on{};
+    std::bitset<64> m_button_states_up{};
     
     uint32_t m_w{0}, m_h{0};
 

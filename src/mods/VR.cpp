@@ -95,61 +95,67 @@ void VR::inputsystem_update_hook(void* ctx, REManagedObject* input_system) {
         return;
     }
 
-    auto set_button_state = [&](app::ropeway::InputDefine::Kind kind, bool state) {
-        // static so we dont pass the object
-        sdk::call_object_func<void*>(input_system, "setForce", sdk::get_thread_context(), kind, state);
-    };
+    auto button_bits_obj = sdk::call_object_func<REManagedObject*>(input_system, "get_ButtonBits", sdk::get_thread_context(), input_system);
+
+    if (button_bits_obj == nullptr) {
+        original_func(ctx, input_system);
+        return;
+    }
 
     auto left_axis = mod->get_left_stick_axis();
     auto right_axis = mod->get_right_stick_axis();
     const auto left_axis_len = glm::length(left_axis);
     const auto right_axis_len = glm::length(right_axis);
 
+    // Current actual button bits used by the game
+    auto& button_bits_down = *sdk::get_object_field<uint64_t>(button_bits_obj, "Down");
+    auto& button_bits_on = *sdk::get_object_field<uint64_t>(button_bits_obj, "On");
+    auto& button_bits_up = *sdk::get_object_field<uint64_t>(button_bits_obj, "Up");
+
     if (left_axis_len > 0.01f) {
         // Override the left stick's axis values to the VR controller's values
         Vector3f axis{ left_axis.x, left_axis.y, 0.0f };
         sdk::call_object_func<void*>(lstick, "update", sdk::get_thread_context(), lstick, &axis, &axis);
+
+        if ((mod->m_button_states_on.to_ullong() & (uint64_t)app::ropeway::InputDefine::Kind::UI_L_STICK) == 0) {
+            if (mod->m_button_states_down.to_ullong() & (uint64_t)app::ropeway::InputDefine::Kind::UI_L_STICK) {
+                button_bits_on |= (uint64_t)app::ropeway::InputDefine::Kind::UI_L_STICK;
+                button_bits_down &= ~(uint64_t)app::ropeway::InputDefine::Kind::UI_L_STICK;
+            } else {
+                button_bits_down |= (uint64_t)app::ropeway::InputDefine::Kind::UI_L_STICK;
+            }
+        } else {
+            button_bits_down &= ~(uint64_t)app::ropeway::InputDefine::Kind::UI_L_STICK;
+            button_bits_on |= (uint64_t)app::ropeway::InputDefine::Kind::UI_L_STICK;
+        }
     }
 
     if (right_axis_len > 0.01f) {
         // Override the right stick's axis values to the VR controller's values
         Vector3f axis{ right_axis.x, right_axis.y, 0.0f };
         sdk::call_object_func<void*>(rstick, "update", sdk::get_thread_context(), rstick, &axis, &axis);
+
+        if ((mod->m_button_states_on.to_ullong() & (uint64_t)app::ropeway::InputDefine::Kind::UI_R_STICK) == 0) {
+            if (mod->m_button_states_down.to_ullong() & (uint64_t)app::ropeway::InputDefine::Kind::UI_R_STICK) {
+                button_bits_on |= (uint64_t)app::ropeway::InputDefine::Kind::UI_R_STICK;
+                button_bits_down &= ~(uint64_t)app::ropeway::InputDefine::Kind::UI_R_STICK;
+            } else {
+                button_bits_down |= (uint64_t)app::ropeway::InputDefine::Kind::UI_R_STICK;
+            }
+        } else {
+            button_bits_down &= ~(uint64_t)app::ropeway::InputDefine::Kind::UI_R_STICK;
+            button_bits_on |= (uint64_t)app::ropeway::InputDefine::Kind::UI_R_STICK;
+        }
     }
-
-    set_button_state(app::ropeway::InputDefine::Kind::MOVE, left_axis_len > 0.01f);
-    set_button_state(app::ropeway::InputDefine::Kind::UI_L_STICK, left_axis_len > 0.01f);
-
-    set_button_state(app::ropeway::InputDefine::Kind::WATCH, right_axis_len > 0.01f);
-    set_button_state(app::ropeway::InputDefine::Kind::UI_R_STICK, right_axis_len > 0.01f);
-    //set_button_state(app::ropeway::InputDefine::Kind::RUN, right_axis_len > 0.01f);
-
-    original_func(ctx, input_system);
-
-    if (left_axis_len > 0.01f) {
-        // Override the left stick's axis values to the VR controller's values
-        Vector3f axis{ left_axis.x, left_axis.y, 0.0f };
-        sdk::call_object_func<void*>(lstick, "update", sdk::get_thread_context(), lstick, &axis, &axis);
-    }
-
-    if (right_axis_len > 0.01f) {
-        // Override the right stick's axis values to the VR controller's values
-        Vector3f axis{ right_axis.x, right_axis.y, 0.0f };
-        sdk::call_object_func<void*>(rstick, "update", sdk::get_thread_context(), rstick, &axis, &axis);
-    }
-
-    set_button_state(app::ropeway::InputDefine::Kind::MOVE, left_axis_len > 0.01f);
-    set_button_state(app::ropeway::InputDefine::Kind::UI_L_STICK, left_axis_len > 0.01f);
-
-    set_button_state(app::ropeway::InputDefine::Kind::WATCH, right_axis_len > 0.01f);
-    set_button_state(app::ropeway::InputDefine::Kind::UI_R_STICK, right_axis_len > 0.01f);
 
     // Causes the right stick to take effect properly
     if (right_axis_len > 0.01f || left_axis_len > 0.01f) {
         sdk::call_object_func<void*>(input_system, "set_InputMode", sdk::get_thread_context(), input_system, app::ropeway::InputDefine::InputMode::Pad);
     }
 
-    mod->openvr_input_to_game();
+    original_func(ctx, input_system);
+
+    mod->openvr_input_to_game(input_system);
 }
 
 // Called when the mod is initialized
@@ -593,20 +599,26 @@ void VR::on_update_camera_controller(RopewayPlayerCameraController* controller) 
     }
 }
 
-void VR::openvr_input_to_game() {
-    // RE2/RE3 only (i think?)
-    auto input_system = g_framework->get_globals()->get(game_namespace("InputSystem"));
-
-    if (input_system == nullptr) {
-        spdlog::error("[VR] Failed to get the game's input system.");
-        return;
-    }
-
+void VR::openvr_input_to_game(REManagedObject* input_system) {
     // Get OpenVR input system
     auto openvr_input = vr::VRInput();
 
     if (openvr_input == nullptr) {
         spdlog::error("[VR] Failed to get OpenVR input system.");
+        return;
+    }
+
+    auto lstick = sdk::call_object_func<REManagedObject*>(input_system, "get_LStick", sdk::get_thread_context());
+    auto rstick = sdk::call_object_func<REManagedObject*>(input_system, "get_RStick", sdk::get_thread_context());
+
+    if (lstick == nullptr || rstick == nullptr) {
+        return;
+    }
+
+    auto button_bits_obj = sdk::call_object_func<REManagedObject*>(input_system, "get_ButtonBits", sdk::get_thread_context(), input_system);
+    //auto button_bits_obj = utility::re_managed_object::get_field<REManagedObject*>(input_system, "ButtonBits");
+
+    if (button_bits_obj == nullptr) {
         return;
     }
 
@@ -620,9 +632,56 @@ void VR::openvr_input_to_game() {
     const auto is_right_a_button_down = is_action_active(m_action_a_button, m_right_joystick);
     const auto is_right_b_button_down = is_action_active(m_action_b_button, m_right_joystick);
 
+    // Current actual button bits used by the game
+    auto& button_bits_down = *sdk::get_object_field<uint64_t>(button_bits_obj, "Down");
+    auto& button_bits_on = *sdk::get_object_field<uint64_t>(button_bits_obj, "On");
+    auto& button_bits_up = *sdk::get_object_field<uint64_t>(button_bits_obj, "Up");
+
+    // Set button state based on our own history we keep that doesn't get overwritten by the game
     auto set_button_state = [&](app::ropeway::InputDefine::Kind kind, bool state) {
-        // static so we dont pass the object
-        sdk::call_object_func<void*>(input_system, "setForce", sdk::get_thread_context(), kind, state);
+        const auto kind_uint64 = (uint64_t)kind;
+
+        if (state) {
+            button_bits_up &= ~kind_uint64;
+            m_button_states_up &= ~kind_uint64;
+
+            // if "On" state is not set
+            if ((m_button_states_on.to_ullong() & kind_uint64) == 0) {
+                if (m_button_states_down.to_ullong() & kind_uint64) {
+                    m_button_states_on |= kind_uint64;
+                    m_button_states_down &= ~kind_uint64;
+
+                    button_bits_on |= kind_uint64;
+                    button_bits_down &= ~kind_uint64;
+                } else {
+                    m_button_states_on &= ~kind_uint64;
+                    m_button_states_down |= kind_uint64;
+
+                    button_bits_on &= ~kind_uint64;
+                    button_bits_down |= kind_uint64;
+                }
+            } else {
+                m_button_states_down &= ~kind_uint64;
+                button_bits_down &= ~kind_uint64;
+
+                m_button_states_on |= kind_uint64;
+                button_bits_on |= kind_uint64;
+            }
+        } else {
+            if (m_button_states_down.to_ullong() & kind_uint64 || m_button_states_on.to_ullong() & kind_uint64) {
+                m_button_states_up |= kind_uint64;
+                button_bits_up |= kind_uint64;
+            } else {
+                m_button_states_up &= ~kind_uint64;
+                button_bits_up &= ~kind_uint64;
+            }
+
+            button_bits_down &= ~kind_uint64;
+            m_button_states_down &= ~kind_uint64;
+            
+            button_bits_on &= ~kind_uint64;
+            m_button_states_on &= ~kind_uint64;
+        }
     };
 
     // Aim
@@ -661,6 +720,35 @@ void VR::openvr_input_to_game() {
     set_button_state(app::ropeway::InputDefine::Kind::UI_EXCHANGE, is_right_b_button_down);
     set_button_state(app::ropeway::InputDefine::Kind::UI_RESET, is_right_b_button_down);
     set_button_state((app::ropeway::InputDefine::Kind)((uint64_t)1 << 52), is_right_b_button_down);
+
+    auto left_axis = get_left_stick_axis();
+    auto right_axis = get_right_stick_axis();
+    const auto left_axis_len = glm::length(left_axis);
+    const auto right_axis_len = glm::length(right_axis);
+
+    if (left_axis_len > 0.01f) {
+        // Override the left stick's axis values to the VR controller's values
+        Vector3f axis{ left_axis.x, left_axis.y, 0.0f };
+        sdk::call_object_func<void*>(lstick, "update", sdk::get_thread_context(), lstick, &axis, &axis);
+    }
+
+    if (right_axis_len > 0.01f) {
+        // Override the right stick's axis values to the VR controller's values
+        Vector3f axis{ right_axis.x, right_axis.y, 0.0f };
+        sdk::call_object_func<void*>(rstick, "update", sdk::get_thread_context(), rstick, &axis, &axis);
+    }
+
+    set_button_state(app::ropeway::InputDefine::Kind::MOVE, left_axis_len > 0.01f);
+    set_button_state(app::ropeway::InputDefine::Kind::UI_L_STICK, left_axis_len > 0.01f);
+
+    set_button_state(app::ropeway::InputDefine::Kind::WATCH, right_axis_len > 0.01f);
+    set_button_state(app::ropeway::InputDefine::Kind::UI_R_STICK, right_axis_len > 0.01f);
+    //set_button_state(app::ropeway::InputDefine::Kind::RUN, right_axis_len > 0.01f);
+
+    // Causes the right stick to take effect properly
+    if (right_axis_len > 0.01f || left_axis_len > 0.01f) {
+        sdk::call_object_func<void*>(input_system, "set_InputMode", sdk::get_thread_context(), input_system, app::ropeway::InputDefine::InputMode::Pad);
+    }
 }
 
 void VR::on_draw_ui() {
