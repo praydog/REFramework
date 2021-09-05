@@ -281,20 +281,34 @@ void __stdcall D3D11Hook::om_set_render_targets(
     orig(context, num_views, views, depth);
 }
 
+#include "mods/VR.hpp"
+
 void __stdcall D3D11Hook::rs_set_viewports(ID3D11DeviceContext* context, UINT num_viewports, const D3D11_VIEWPORT* viewports) {
     auto d3d11 = g_d3d11_hook;
     auto orig = d3d11->m_rs_set_viewports_hook->get_original<decltype(D3D11Hook::rs_set_viewports)>();
 
     if (d3d11->m_stage == 2) {
         D3D11_VIEWPORT vp = viewports[0];
+        auto& vr = VR::get();
 
-        vp.TopLeftX += 300;
-        vp.TopLeftY += 300;
-        vp.Width -= 600;
-        vp.Height -= 600;
+        auto delta_x = vp.Width - (vp.Width * vr->get_ui_scale());
+        auto delta_y = vp.Height - (vp.Height * vr->get_ui_scale());
 
-        //orig(context, 1, &vp);
-        orig(context, num_viewports, viewports);
+        if (vr->get_frame_count() % 2 == 0) {
+            vp.TopLeftX += vr->get_ui_offset() + delta_x;
+        } else {
+            vp.TopLeftX -= vr->get_ui_offset() - delta_x;
+        }
+
+        vp.TopLeftY += delta_y;
+        vp.Width -= delta_x * 2;
+        vp.Height -= delta_y * 2;
+        //vp.TopLeftY += 300;
+        //vp.Width -= 600;
+        //vp.Height -= 600;
+
+        orig(context, 1, &vp);
+        //orig(context, num_viewports, viewports);
         d3d11->m_backup_vp = viewports[0];
     } else {
         orig(context, num_viewports, viewports);

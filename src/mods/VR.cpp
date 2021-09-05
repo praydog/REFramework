@@ -172,7 +172,7 @@ std::optional<std::string> VR::on_initialize() {
         return hijack_error;
     }
 
-    hijack_error = hijack_input();
+    //hijack_error = hijack_input();
 
     if (hijack_error) {
         return hijack_error;
@@ -771,6 +771,8 @@ void VR::on_draw_ui() {
     ImGui::DragFloat("Focus Distance", (float*)&m_focus_distance, 1.0f, 0.0f, 8192.0f);
     ImGui::Checkbox("Use AFR", &m_use_afr);
     ImGui::Checkbox("Use Predicted Poses", &m_use_predicted_poses);
+    ImGui::DragFloat("UI Offset", &m_ui_offset, 0.1f, 0.0f, 500.0f);
+    ImGui::DragFloat("UI Scale", &m_ui_scale, 0.005f, 0.0f, 1.0f);
 }
 
 void VR::on_device_reset() {
