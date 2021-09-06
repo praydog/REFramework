@@ -15,6 +15,8 @@
 
 #include "VR.hpp"
 
+constexpr auto CONTROLLER_DEADZONE = 0.1f;
+
 std::shared_ptr<VR>& VR::get() {
     static std::shared_ptr<VR> inst{};
 
@@ -30,23 +32,24 @@ std::unique_ptr<FunctionHook> g_input_hook{};
 std::unique_ptr<FunctionHook> g_camera_hook{};
 
 // Purpose: spoof the render target size to the size of the HMD displays
-float* VR::get_size_hook(float* result, void* ctx, REManagedObject* scene_view) {
+float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
     auto original_func = g_get_size_hook->get_original<decltype(VR::get_size_hook)>();
     auto mod = VR::get();
 
-    auto out = original_func(result, ctx, scene_view);
+    auto out = original_func(scene_view, result);
 
-    //#if defined(RE2) || defined(RE3)
-    /*auto regenny_view = (regenny::via::SceneView*)scene_view;
+//#if defined(RE2) || defined(RE3)
+    auto regenny_view = (regenny::via::SceneView*)scene_view;
     auto window = regenny_view->window;
+
+    // Force the display to stretch to the window size
+    regenny_view->display_type = regenny::via::DisplayType::Fit;
 
     // Set the window size, which will increase the size of the backbuffer
     if (window != nullptr) {
-        //window->width = mod->get_hmd_width();
-        //window->height = mod->get_hmd_height();
-
-        spdlog::info("window: {:x}", (uintptr_t)window);
-    }*/
+        window->width = mod->get_hmd_width();
+        window->height = mod->get_hmd_height();
+    }
 //#endif
 
     // spoof the size to the HMD's size
@@ -80,6 +83,8 @@ void VR::inputsystem_update_hook(void* ctx, REManagedObject* input_system) {
     auto original_func = g_input_hook->get_original<decltype(VR::inputsystem_update_hook)>();
 
     auto mod = VR::get();
+    const auto now = std::chrono::steady_clock::now();
+    auto is_using_controller = (now - mod->get_last_controller_update()) <= std::chrono::seconds(10);
 
     if (mod->get_controllers().empty()) {
         // no controllers connected, don't do anything
@@ -112,7 +117,14 @@ void VR::inputsystem_update_hook(void* ctx, REManagedObject* input_system) {
     auto& button_bits_on = *sdk::get_object_field<uint64_t>(button_bits_obj, "On");
     auto& button_bits_up = *sdk::get_object_field<uint64_t>(button_bits_obj, "Up");
 
-    if (left_axis_len > 0.01f) {
+    //button_bits_down |= mod->m_button_states_down.to_ullong();
+    //button_bits_on |= mod-> m_button_states_on.to_ullong();
+    //button_bits_up |= mod->m_button_states_up.to_ullong();
+
+    if (left_axis_len > CONTROLLER_DEADZONE) {
+        mod->m_last_controller_update = now;
+        is_using_controller = true;
+
         // Override the left stick's axis values to the VR controller's values
         Vector3f axis{ left_axis.x, left_axis.y, 0.0f };
         sdk::call_object_func<void*>(lstick, "update", sdk::get_thread_context(), lstick, &axis, &axis);
@@ -130,7 +142,10 @@ void VR::inputsystem_update_hook(void* ctx, REManagedObject* input_system) {
         }
     }
 
-    if (right_axis_len > 0.01f) {
+    if (right_axis_len > CONTROLLER_DEADZONE) {
+        mod->m_last_controller_update = now;
+        is_using_controller = true;
+
         // Override the right stick's axis values to the VR controller's values
         Vector3f axis{ right_axis.x, right_axis.y, 0.0f };
         sdk::call_object_func<void*>(rstick, "update", sdk::get_thread_context(), rstick, &axis, &axis);
@@ -149,7 +164,7 @@ void VR::inputsystem_update_hook(void* ctx, REManagedObject* input_system) {
     }
 
     // Causes the right stick to take effect properly
-    if (right_axis_len > 0.01f || left_axis_len > 0.01f) {
+    if (is_using_controller) {
         sdk::call_object_func<void*>(input_system, "set_InputMode", sdk::get_thread_context(), input_system, app::ropeway::InputDefine::InputMode::Pad);
     }
 
@@ -172,7 +187,7 @@ std::optional<std::string> VR::on_initialize() {
         return hijack_error;
     }
 
-    //hijack_error = hijack_input();
+    hijack_error = hijack_input();
 
     if (hijack_error) {
         return hijack_error;
@@ -212,6 +227,7 @@ std::optional<std::string> VR::initialize_openvr() {
     for (int i = 0; i < vr::k_unMaxTrackedDeviceCount; i++) {
         if (m_hmd->GetTrackedDeviceClass(i) == vr::TrackedDeviceClass_Controller) {
             m_controllers.push_back(i);
+            m_controllers_set.insert(i);
 
             spdlog::info("Found controller {}", i);
         }
@@ -457,20 +473,6 @@ Vector4f VR::get_current_offset() {
     //return Vector4f{m_eye_distance, 0.0f, 0.0f, 0.0f};
 }
 
-float VR::get_current_yaw_offset() {
-    if (!m_use_afr) {
-        return 0.0f;
-    }
-
-    std::shared_lock _{ m_eyes_mtx };
-
-    if (get_frame_count() % 2 == 0) {
-        return m_eye_rotation * -1;
-    }
-    
-    return m_eye_rotation;
-}
-
 Matrix4x4f VR::get_current_rotation_offset() {
     if (!m_use_afr) {
         return glm::identity<Matrix4x4f>();
@@ -505,21 +507,6 @@ void VR::on_post_frame() {
     m_frame_count = get_frame_count();
     m_main_view = sdk::get_main_view();
 
-    if (m_main_view != nullptr) {
-        auto regenny_view = (regenny::via::SceneView*)m_main_view;
-        auto window = regenny_view->window;
-
-        regenny_view->display_type = regenny::via::DisplayType::Fit;
-
-        // Set the window size, which will increase the size of the backbuffer
-        if (window != nullptr) {
-            window->width = get_hmd_width();
-            window->height = get_hmd_height();
-
-            //spdlog::info("window: {:x}", (uintptr_t)window);
-        }
-    }
-
     const auto renderer = g_framework->get_renderer_type();
 
     if (renderer == REFramework::RendererType::D3D11) {
@@ -538,10 +525,30 @@ void VR::on_post_frame() {
             spdlog::error("VRInput failed to update action state: {}", (uint32_t)error);
         }
 
-
-
         vr::VRCompositor()->WaitGetPoses(m_real_render_poses.data(), vr::k_unMaxTrackedDeviceCount, m_real_game_poses.data(), vr::k_unMaxTrackedDeviceCount);
 
+        auto set_controller_updated = [&](vr::TrackedDeviceIndex_t index) {
+            // Check if event.trackedDeviceIndex is a controller within m_controllers (list of indices)
+            // If it is, set m_last_controller_update to now
+            if (m_controllers_set.contains(index)) {
+                m_last_controller_update = std::chrono::steady_clock::now();
+            }
+        };
+
+        // Process events
+        vr::VREvent_t event{};
+        while (m_hmd->PollNextEvent(&event, sizeof(event))) {
+            // We're mostly interested in the controllers for now
+            // We will set m_last_controller_update if the controllers are being used
+            switch ((vr::EVREventType)event.eventType) {
+                default:
+                    break;
+            }
+        }
+
+        // Update the poses used for the game
+        // If we used the data directly from the WaitGetPoses call, we would have to lock a different mutex and wait a long time
+        // This is because the WaitGetPoses call is blocking, and we don't want to block any game logic
         {
             std::unique_lock _{ m_pose_mtx };
 
@@ -562,6 +569,9 @@ void VR::on_post_frame() {
 
         m_projections[vr::Eye_Left] = glm::rowMajor4(Matrix4x4f{ *(Matrix4x4f*)&pleft } );
         m_projections[vr::Eye_Right] = glm::rowMajor4(Matrix4x4f{ *(Matrix4x4f*)&pright } );
+
+        m_hmd->GetProjectionRaw(vr::Eye_Left, &m_raw_projections[vr::Eye_Left][0], &m_raw_projections[vr::Eye_Left][1], &m_raw_projections[vr::Eye_Left][2], &m_raw_projections[vr::Eye_Left][3]);
+        m_hmd->GetProjectionRaw(vr::Eye_Right, &m_raw_projections[vr::Eye_Right][0], &m_raw_projections[vr::Eye_Right][1], &m_raw_projections[vr::Eye_Right][2], &m_raw_projections[vr::Eye_Right][3]);
 
         m_submitted = false;
     }
@@ -622,6 +632,9 @@ void VR::openvr_input_to_game(REManagedObject* input_system) {
         return;
     }
 
+    const auto now = std::chrono::steady_clock::now();
+    auto is_using_controller = (now - get_last_controller_update()) <= std::chrono::seconds(10);
+
     const auto is_grip_down = is_action_active(m_action_grip, m_right_joystick);
     const auto is_trigger_down = is_action_active(m_action_trigger, m_right_joystick);
     const auto is_left_joystick_click_down = is_action_active(m_action_joystick_click, m_left_joystick);
@@ -642,6 +655,9 @@ void VR::openvr_input_to_game(REManagedObject* input_system) {
         const auto kind_uint64 = (uint64_t)kind;
 
         if (state) {
+            m_last_controller_update = now;
+            is_using_controller = true;
+
             button_bits_up &= ~kind_uint64;
             m_button_states_up &= ~kind_uint64;
 
@@ -671,16 +687,23 @@ void VR::openvr_input_to_game(REManagedObject* input_system) {
             if (m_button_states_down.to_ullong() & kind_uint64 || m_button_states_on.to_ullong() & kind_uint64) {
                 m_button_states_up |= kind_uint64;
                 button_bits_up |= kind_uint64;
-            } else {
+
+                m_last_controller_update = now;
+                is_using_controller = true;
+            } else if (is_using_controller) {
                 m_button_states_up &= ~kind_uint64;
                 button_bits_up &= ~kind_uint64;
             }
 
-            button_bits_down &= ~kind_uint64;
-            m_button_states_down &= ~kind_uint64;
-            
-            button_bits_on &= ~kind_uint64;
-            m_button_states_on &= ~kind_uint64;
+            // Don't want to screw with the user's input if they aren't actively
+            // Using their VR controllers
+            if (is_using_controller) {
+                button_bits_down &= ~kind_uint64;
+                m_button_states_down &= ~kind_uint64;
+                
+                button_bits_on &= ~kind_uint64;
+                m_button_states_on &= ~kind_uint64;
+            }
         }
     };
 
@@ -726,27 +749,27 @@ void VR::openvr_input_to_game(REManagedObject* input_system) {
     const auto left_axis_len = glm::length(left_axis);
     const auto right_axis_len = glm::length(right_axis);
 
-    if (left_axis_len > 0.01f) {
+    if (left_axis_len > CONTROLLER_DEADZONE) {
         // Override the left stick's axis values to the VR controller's values
         Vector3f axis{ left_axis.x, left_axis.y, 0.0f };
         sdk::call_object_func<void*>(lstick, "update", sdk::get_thread_context(), lstick, &axis, &axis);
     }
 
-    if (right_axis_len > 0.01f) {
+    if (right_axis_len > CONTROLLER_DEADZONE) {
         // Override the right stick's axis values to the VR controller's values
         Vector3f axis{ right_axis.x, right_axis.y, 0.0f };
         sdk::call_object_func<void*>(rstick, "update", sdk::get_thread_context(), rstick, &axis, &axis);
     }
 
-    set_button_state(app::ropeway::InputDefine::Kind::MOVE, left_axis_len > 0.01f);
-    set_button_state(app::ropeway::InputDefine::Kind::UI_L_STICK, left_axis_len > 0.01f);
+    set_button_state(app::ropeway::InputDefine::Kind::MOVE, left_axis_len > CONTROLLER_DEADZONE);
+    set_button_state(app::ropeway::InputDefine::Kind::UI_L_STICK, left_axis_len > CONTROLLER_DEADZONE);
 
-    set_button_state(app::ropeway::InputDefine::Kind::WATCH, right_axis_len > 0.01f);
-    set_button_state(app::ropeway::InputDefine::Kind::UI_R_STICK, right_axis_len > 0.01f);
+    set_button_state(app::ropeway::InputDefine::Kind::WATCH, right_axis_len > CONTROLLER_DEADZONE);
+    set_button_state(app::ropeway::InputDefine::Kind::UI_R_STICK, right_axis_len > CONTROLLER_DEADZONE);
     //set_button_state(app::ropeway::InputDefine::Kind::RUN, right_axis_len > 0.01f);
 
     // Causes the right stick to take effect properly
-    if (right_axis_len > 0.01f || left_axis_len > 0.01f) {
+    if (is_using_controller) {
         sdk::call_object_func<void*>(input_system, "set_InputMode", sdk::get_thread_context(), input_system, app::ropeway::InputDefine::InputMode::Pad);
     }
 }
@@ -764,11 +787,16 @@ void VR::on_draw_ui() {
     ImGui::Separator();
     ImGui::Text("Recommended render target size: %d x %d", m_w, m_h);
     ImGui::Separator();
+    ImGui::DragFloat4("Raw Left", (float*)&m_raw_projections[0], 0.01f, -100.0f, 100.0f);
+    ImGui::DragFloat4("Raw Right", (float*)&m_raw_projections[1], 0.01f, -100.0f, 100.0f);
+    ImGui::Separator();
+
+    if (ImGui::Button("Set Standing Height")) {
+        m_standing_height = get_position(0).y;
+    }
+
     ImGui::DragFloat4("Right Bounds", (float*)&m_right_bounds, 0.005f, -2.0f, 2.0f);
     ImGui::DragFloat4("Left Bounds", (float*)&m_left_bounds, 0.005f, -2.0f, 2.0f);
-    ImGui::DragFloat("Eye Distance", (float*)&m_eye_distance, 0.005f, -5.0f, 5.0f);
-    ImGui::DragFloat("Eye Rotation", (float*)&m_eye_rotation, 0.005f, -5.0f, 5.0f);
-    ImGui::DragFloat("Focus Distance", (float*)&m_focus_distance, 1.0f, 0.0f, 8192.0f);
     ImGui::Checkbox("Use AFR", &m_use_afr);
     ImGui::Checkbox("Use Predicted Poses", &m_use_predicted_poses);
     ImGui::DragFloat("UI Offset", &m_ui_offset, 0.1f, 0.0f, 500.0f);

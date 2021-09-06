@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <bitset>
 #include <memory>
 #include <shared_mutex>
@@ -56,6 +57,14 @@ public:
         return m_h;
     }
 
+    auto get_standing_height() const {
+        return m_standing_height;
+    }
+
+    auto get_last_controller_update() const {
+        return m_last_controller_update;
+    }
+
     int32_t get_frame_count() const;
 
     bool is_using_afr() const {
@@ -64,14 +73,8 @@ public:
 
     Vector4f get_current_offset();
 
-    float get_current_yaw_offset();
-
     Matrix4x4f get_current_rotation_offset();
     Matrix4x4f get_current_projection_matrix(bool flip = false);
-
-    auto get_focus_distance() const {
-        return m_focus_distance;
-    }
 
     auto& get_controllers() const {
         return m_controllers;
@@ -100,10 +103,11 @@ public:
 
     auto get_ui_offset() const { return m_ui_offset; }
     auto get_ui_scale() const { return m_ui_scale; }
+    const auto& get_raw_projections() const { return m_raw_projections; }
 
 private:
     // Hooks
-    static float* get_size_hook(float* result, void* ctx, REManagedObject* scene_view);
+    static float* get_size_hook(REManagedObject* scene_view, float* result);
     static void inputsystem_update_hook(void* ctx, REManagedObject* input_system);
     static Matrix4x4f* camera_get_projection_matrix_hook(REManagedObject* camera, Matrix4x4f* result);
 
@@ -127,11 +131,9 @@ private:
     vr::VRTextureBounds_t m_right_bounds{ 0.0f, 0.0f, 1.0f, 1.0f };
     vr::VRTextureBounds_t m_left_bounds{ 0.0f, 0.0f, 1.0f, 1.0f };
 
-    float m_eye_distance{ -0.025f };
-    float m_eye_rotation{ 0.135f };
-    float m_focus_distance{ 8192.0f };
     float m_nearz{ 0.1f };
     float m_farz{ 3000.0f };
+    float m_standing_height{ 1.45f };
 
     vr::IVRSystem* m_hmd{nullptr};
     std::array<vr::TrackedDevicePose_t, vr::k_unMaxTrackedDeviceCount> m_real_render_poses;
@@ -140,6 +142,7 @@ private:
     std::array<vr::TrackedDevicePose_t, vr::k_unMaxTrackedDeviceCount> m_render_poses;
     std::array<vr::TrackedDevicePose_t, vr::k_unMaxTrackedDeviceCount> m_game_poses;
     std::vector<int32_t> m_controllers{};
+    std::unordered_set<int32_t> m_controllers_set{};
 
     std::array<Matrix4x4f, 2> m_eyes{};
     std::array<Matrix4x4f, 2> m_projections{};
@@ -164,8 +167,10 @@ private:
     std::bitset<64> m_button_states_down{};
     std::bitset<64> m_button_states_on{};
     std::bitset<64> m_button_states_up{};
+    std::chrono::steady_clock::time_point m_last_controller_update{};
     
     uint32_t m_w{0}, m_h{0};
+    Vector4f m_raw_projections[2]{};
 
     vrmod::D3D11Component m_d3d11{};
     vrmod::D3D12Component m_d3d12{};

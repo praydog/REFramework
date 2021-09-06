@@ -287,16 +287,33 @@ void __stdcall D3D11Hook::rs_set_viewports(ID3D11DeviceContext* context, UINT nu
     auto d3d11 = g_d3d11_hook;
     auto orig = d3d11->m_rs_set_viewports_hook->get_original<decltype(D3D11Hook::rs_set_viewports)>();
 
-    if (d3d11->m_stage == 2) {
+    if (d3d11->m_stage == 2 && viewports != nullptr) {
+        // Viewport dimensions are the actual screen size (e.g. 1920x1080). Not normalized like the raw projections.
         D3D11_VIEWPORT vp = viewports[0];
         auto& vr = VR::get();
+
+        //spdlog::info("[D3D11] Viewport: x{} y{} w{} h{}", vp.TopLeftX, vp.TopLeftY, vp.Width, vp.Height, vp.MinDepth, vp.MaxDepth);
 
         auto delta_x = vp.Width - (vp.Width * vr->get_ui_scale());
         auto delta_y = vp.Height - (vp.Height * vr->get_ui_scale());
 
+        // Raw projections, left/right/top/bottom. in range of -1, 1 or so
+        // Projections from left start at -1, right at 1.
+        const auto& left_projection = vr->get_raw_projections()[vr::Eye_Left];
+        const auto& right_projection = vr->get_raw_projections()[vr::Eye_Right];
+
+        // right - right
+        const auto potential_center_x = left_projection.y + ((right_projection.y - left_projection.y) / 2.0f);
+        
+        // fix left eye, keeping in mind that raw projections are normalized
         if (vr->get_frame_count() % 2 == 0) {
+            const auto increase_amount = -(left_projection.y - potential_center_x) * (vp.Width + delta_x);
+            vp.TopLeftX += increase_amount;
             vp.TopLeftX += vr->get_ui_offset() + delta_x;
+        // fix right eye
         } else {
+            const auto increase_amount = -(right_projection.y - potential_center_x) * (vp.Width + delta_x);
+            vp.TopLeftX += increase_amount;
             vp.TopLeftX -= vr->get_ui_offset() - delta_x;
         }
 
