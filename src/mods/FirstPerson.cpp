@@ -700,6 +700,19 @@ void FirstPerson::update_player_transform(RETransform* transform) {
                 }
             }
 
+            auto ik_leg = utility::re_component::find<REComponent>(transform, "via.motion.IkLeg");
+
+            // We're going to use the leg IK to adjust the height of the player according to headset position
+            if (ik_leg != nullptr) {
+                const auto headset_pos = VR::get()->get_position(0);
+                
+                sdk::call_object_func<void*>(ik_leg, "set_CenterPositionCtrl", sdk::get_thread_context(), ik_leg, via::motion::IkLeg::EffectorCtrl::WorldOffset);
+
+                auto center_offset = Address{ik_leg}.get(0x70).as<Vector3f*>();
+
+                center_offset->y = headset_pos.y - VR::get()->get_standing_height();;
+            }
+
             // radians -> deg
             m_last_controller_euler[controller_index] = glm::eulerAngles(rotation_quat) * (180.0f / glm::pi<float>());
         };
@@ -900,7 +913,7 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
         m_last_camera_matrix_pre_vr = mtx_pre_vr;
     //}
 
-    //*(Matrix4x4f*)&mtx *= VR::get()->get_current_rotation_offset();
+    *(Matrix4x4f*)&mtx *= VR::get()->get_current_rotation_offset();
     (*(Matrix3x4f*)&mtx)[3] += glm::extractMatrixRotation(camera_matrix) * (VR::get()->get_current_offset());
 
     // Fixes snappiness after camera switching
