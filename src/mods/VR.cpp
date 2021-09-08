@@ -527,21 +527,18 @@ void VR::on_post_frame() {
 
         vr::VRCompositor()->WaitGetPoses(m_real_render_poses.data(), vr::k_unMaxTrackedDeviceCount, m_real_game_poses.data(), vr::k_unMaxTrackedDeviceCount);
 
-        auto set_controller_updated = [&](vr::TrackedDeviceIndex_t index) {
-            // Check if event.trackedDeviceIndex is a controller within m_controllers (list of indices)
-            // If it is, set m_last_controller_update to now
-            if (m_controllers_set.contains(index)) {
-                m_last_controller_update = std::chrono::steady_clock::now();
-            }
-        };
-
         // Process events
         vr::VREvent_t event{};
         while (m_hmd->PollNextEvent(&event, sizeof(event))) {
-            // We're mostly interested in the controllers for now
-            // We will set m_last_controller_update if the controllers are being used
             switch ((vr::EVREventType)event.eventType) {
+                // Detect whether video settings changed
+                case vr::VREvent_SteamVRSectionSettingChanged: {
+                    spdlog::info("VR: VREvent_SteamVRSectionSettingChanged");
+                    m_hmd->GetRecommendedRenderTargetSize(&m_w, &m_h);
+                } break;
+
                 default:
+                    spdlog::info("VR: Unknown event: {}", (uint32_t)event.eventType);
                     break;
             }
         }
@@ -637,6 +634,8 @@ void VR::openvr_input_to_game(REManagedObject* input_system) {
 
     const auto is_grip_down = is_action_active(m_action_grip, m_right_joystick);
     const auto is_trigger_down = is_action_active(m_action_trigger, m_right_joystick);
+    const auto is_left_grip_down = is_action_active(m_action_grip, m_left_joystick);
+    const auto is_left_trigger_down = is_action_active(m_action_trigger, m_left_joystick);
     const auto is_left_joystick_click_down = is_action_active(m_action_joystick_click, m_left_joystick);
     const auto is_right_joystick_click_down = is_action_active(m_action_joystick_click, m_right_joystick);
 
@@ -709,6 +708,9 @@ void VR::openvr_input_to_game(REManagedObject* input_system) {
 
     // Aim
     set_button_state(app::ropeway::InputDefine::Kind::HOLD, is_grip_down);
+
+    // Alternate aim (grenades, knives, etc)
+    set_button_state(app::ropeway::InputDefine::Kind::SUPPORT_HOLD, is_left_grip_down);
 
     // Attack
     set_button_state(app::ropeway::InputDefine::Kind::ATTACK, is_trigger_down);
@@ -799,7 +801,7 @@ void VR::on_draw_ui() {
     ImGui::DragFloat4("Left Bounds", (float*)&m_left_bounds, 0.005f, -2.0f, 2.0f);
     ImGui::Checkbox("Use AFR", &m_use_afr);
     ImGui::Checkbox("Use Predicted Poses", &m_use_predicted_poses);
-    ImGui::DragFloat("UI Offset", &m_ui_offset, 0.1f, 0.0f, 500.0f);
+    ImGui::DragFloat("UI Offset", &m_ui_offset, 0.1f, -500.0f, 500.0f);
     ImGui::DragFloat("UI Scale", &m_ui_scale, 0.005f, 0.0f, 1.0f);
 }
 
