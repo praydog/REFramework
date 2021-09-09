@@ -2196,6 +2196,21 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
 
     // yay for compile time string hashing
     switch (utility::hash(type_name)) {
+    case "via.GameObjectRef"_fnv: {
+        static auto object_ref_type = sdk::RETypeDB::get()->find_type("via.GameObjectRef");
+        auto obj = sdk::call_object_func<REGameObject*>(data, object_ref_type, "get_Target", sdk::get_thread_context(), data);
+
+        if (obj != nullptr && is_managed_object(obj)) {
+            if (widget_with_context(obj, [&]() { return ImGui::TreeNode(obj, "Ref Target: 0x%p", obj); })) {
+                if (is_managed_object(obj)) {
+                    handle_address(obj);
+                }
+
+                ImGui::TreePop();
+            }
+        }
+    } break;
+
     case "System.UInt64"_fnv:
     case "size_t"_fnv:
     case "u64"_fnv:
