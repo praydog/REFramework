@@ -55,20 +55,20 @@ bool D3D11Hook::hook() {
 
     m_present_hook = std::make_unique<FunctionHook>(present_fn, (uintptr_t)&D3D11Hook::present);
     m_resize_buffers_hook = std::make_unique<FunctionHook>(resize_buffers_fn, (uintptr_t)&D3D11Hook::resize_buffers);
-    m_create_pixel_shader_hook = std::make_unique<FunctionHook>(create_pixel_shader_fn, (uintptr_t)&D3D11Hook::create_pixel_shader);
+    /*m_create_pixel_shader_hook = std::make_unique<FunctionHook>(create_pixel_shader_fn, (uintptr_t)&D3D11Hook::create_pixel_shader);
     m_draw_hook = std::make_unique<FunctionHook>(draw_fn, (uintptr_t)&D3D11Hook::draw);
     m_draw_indexed_hook = std::make_unique<FunctionHook>(draw_indexed_fn, (uintptr_t)&D3D11Hook::draw_indexed);
     m_ps_set_shader_hook = std::make_unique<FunctionHook>(ps_set_shader_fn, (uintptr_t)&D3D11Hook::ps_set_shader);
     m_om_set_render_targets_hook = std::make_unique<FunctionHook>(om_set_render_targets_fn, (uintptr_t)&D3D11Hook::om_set_render_targets);
-    m_rs_set_viewports_hook = std::make_unique<FunctionHook>(rs_set_viewports_fn, (uintptr_t)rs_set_viewports);
+    m_rs_set_viewports_hook = std::make_unique<FunctionHook>(rs_set_viewports_fn, (uintptr_t)rs_set_viewports);*/
 
     device->Release();
     context->Release();
     swap_chain->Release();
 
-    m_hooked = m_present_hook->create() && m_resize_buffers_hook->create() && m_create_pixel_shader_hook->create() &&
+    m_hooked = m_present_hook->create() && m_resize_buffers_hook->create() /*&& m_create_pixel_shader_hook->create() &&
                m_draw_hook->create() && m_draw_indexed_hook->create() && m_ps_set_shader_hook->create() &&
-               m_om_set_render_targets_hook->create() && m_rs_set_viewports_hook->create();
+               m_om_set_render_targets_hook->create() && m_rs_set_viewports_hook->create()*/;
 
     return m_hooked;
 }

@@ -31,6 +31,9 @@ public:
     void on_post_frame() override;
     void on_update_transform(RETransform* transform) override;
     void on_update_camera_controller(RopewayPlayerCameraController* controller) override;
+    void on_pre_gui_draw_element(REComponent* gui_element, void* primitive_context) override;
+    void on_gui_draw_element(REComponent* gui_element, void* primitive_context) override;
+
     void on_draw_ui() override;
     void on_device_reset() override;
 
@@ -176,7 +179,7 @@ private:
     vrmod::D3D12Component m_d3d12{};
 
     float m_ui_offset{};
-    float m_ui_scale{1.0f};
+    float m_ui_scale{15.0f};
 
     int m_frame_count{};
     int m_last_frame_count{-1};

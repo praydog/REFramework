@@ -42,6 +42,34 @@ std::optional<std::string> PositionHooks::on_initialize() {
         return "Failed to hook UpdateTransform";
     }
 
+    // This pattern appears to work all the way from RE2 to RE8.
+    // If this ever breaks, its parent function is found within via.gui.GUIManager.
+    // It is used as a draw callback. The assignment can be found within the constructor near the end.
+    // "onEnd(via.gui.TextAnimationEndArg)" can be used as a reference to find the constructor.
+    // In RE2:
+    /*  
+    *(_QWORD *)(v23 + 8 * v22) = &vtable_thing;
+    *(_QWORD *)(v23 + 8 * v22 + 8) = gui_manager;
+    *(_OWORD *)(v23 + 8 * v22 + 16) = v34;
+    *(_QWORD *)(v23 + 8 * v22 + 32) = gui_manager;
+    ++*(_DWORD *)(gui_manager + 232);
+    *(_QWORD *)&v35 = draw_task_function; <-- "gui_draw_call" is found within this function.
+    */
+    auto gui_draw_call = utility::scan(game, "49 8B 0C CE 48 83 79 10 00 74 ? E8 ? ? ? ?");
+
+    if (!gui_draw_call) {
+        return "Unable to find gui_draw_call pattern.";
+    }
+
+    auto gui_draw = utility::calculate_absolute(*gui_draw_call + 12);
+    spdlog::info("gui_draw_call: {:x}", gui_draw);
+
+    m_gui_draw_hook = std::make_unique<FunctionHook>(gui_draw, &gui_draw_hook);
+
+    if (!m_gui_draw_hook->create()) {
+        return "Failed to hook GUI::draw";
+    }
+
 #if !defined(RE8) && !defined(DMC5)
     // Version 1.0 jmp stub: game+0xB4685A0
     // Version 1
@@ -193,5 +221,31 @@ void* PositionHooks::update_camera_controller2_hook_internal(void* a1, RopewayPl
 
 void* PositionHooks::update_camera_controller2_hook(void* a1, RopewayPlayerCameraController* camera_controller) {
     return g_hook->update_camera_controller2_hook_internal(a1, camera_controller);
+}
+
+void* PositionHooks::gui_draw_hook_internal(REComponent* gui_element, void* primitive_context) {
+    auto original_func = m_gui_draw_hook->get_original<decltype(gui_draw_hook)>();
+
+    if (!g_framework->is_ready()) {
+        return original_func(gui_element, primitive_context);
+    }
+
+    auto& mods = g_framework->get_mods()->get_mods();
+
+    for (auto& mod : mods) {
+        mod->on_pre_gui_draw_element(gui_element, primitive_context);
+    }
+
+    auto ret = original_func(gui_element, primitive_context);
+
+    for (auto& mod : mods) {
+        mod->on_gui_draw_element(gui_element, primitive_context);
+    }
+
+    return ret;
+}
+
+void* PositionHooks::gui_draw_hook(REComponent* gui_element, void* primitive_context) {
+    return g_hook->gui_draw_hook_internal(gui_element, primitive_context);
 }
 

@@ -20,7 +20,11 @@ protected:
     void* update_camera_controller2_hook_internal(void* a1, RopewayPlayerCameraController* camera_controller);
     static void* update_camera_controller2_hook(void* a1, RopewayPlayerCameraController* camera_controller);
 
+    void* gui_draw_hook_internal(REComponent* gui_element, void* primitive_context);
+    static void* gui_draw_hook(REComponent* gui_element, void* primitive_context);
+
     std::unique_ptr<FunctionHook> m_update_transform_hook;
     std::unique_ptr<FunctionHook> m_update_camera_controller_hook;
     std::unique_ptr<FunctionHook> m_update_camera_controller2_hook;
+    std::unique_ptr<FunctionHook> m_gui_draw_hook;
 };

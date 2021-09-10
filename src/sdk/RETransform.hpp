@@ -98,6 +98,10 @@ namespace utility::re_transform {
         return nullptr;
     }
 
+    static Matrix4x4f& get_joint_matrix_by_index(const ::RETransform& transform, uint32_t index) {
+        return transform.joints.matrices->data[index].worldMatrix;
+    }
+
     // Get a bone/joint matrix by name
     static Matrix4x4f& get_joint_matrix(const ::RETransform& transform, std::wstring_view name) {
         auto joint = get_joint(transform, name);

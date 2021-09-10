@@ -606,6 +606,109 @@ void VR::on_update_camera_controller(RopewayPlayerCameraController* controller) 
     }
 }
 
+struct GUIRestoreData {
+    REComponent* element{nullptr};
+    REComponent* view{nullptr};
+    Vector4f original_position{ 0.0f, 0.0f, 0.0f, 1.0f };
+    bool overlay{false};
+    bool detonemap{true};
+};
+
+thread_local std::vector<std::unique_ptr<GUIRestoreData>> g_elements_to_reset{};
+
+void VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_context) {
+    auto game_object = utility::re_component::get_game_object(gui_element);
+
+    if (game_object != nullptr && game_object->transform != nullptr) {
+        const auto name = utility::re_string::get_string(game_object->name);
+
+        spdlog::info("VR: on_pre_gui_draw_element: {}", name);
+
+        auto view = sdk::call_object_func<REComponent*>(gui_element, "get_View", sdk::get_thread_context(), gui_element);
+
+        if (view != nullptr) {
+            const auto current_view_type = sdk::call_object_func<uint32_t>(view, "get_ViewType", sdk::get_thread_context(), view);
+
+            if (current_view_type == (uint32_t)via::gui::ViewType::Screen) {
+                auto& restore_data = g_elements_to_reset.emplace_back(std::make_unique<GUIRestoreData>());
+
+                restore_data->element = gui_element;
+                restore_data->view = view;
+                restore_data->original_position = game_object->transform->worldTransform[3];
+                restore_data->overlay = sdk::call_object_func<bool>(view, "get_Overlay", sdk::get_thread_context(), view);
+                restore_data->detonemap = sdk::call_object_func<bool>(view, "get_Detonemap", sdk::get_thread_context(), view);
+
+                // Set view type to world
+                sdk::call_object_func<void*>(view, "set_ViewType", sdk::get_thread_context(), view, (uint32_t)via::gui::ViewType::World);
+
+                // Set overlay = false (fixes double vision in VR)
+                //sdk::call_object_func<void*>(view, "set_Overlay", sdk::get_thread_context(), view, false);
+
+                // Set detonemap = true (fixes weird tint)
+                sdk::call_object_func<void*>(view, "set_Detonemap", sdk::get_thread_context(), view, true);
+
+                // Go through the children until we hit a blur filter
+                // And then remove it
+                for (auto child = sdk::call_object_func<REComponent*>(view, "get_Child", sdk::get_thread_context(), view); child != nullptr; child = sdk::call_object_func<REComponent*>(child, "get_Child", sdk::get_thread_context(), child)) {
+                    if (utility::re_managed_object::is_a(child, "via.gui.BlurFilter")) {
+                        // Call remove()
+                        sdk::call_object_func<void*>(child, "remove", sdk::get_thread_context(), child);
+                        break;
+                    }
+                }
+
+                auto camera = sdk::get_primary_camera();
+
+                // Set the gui element's position to be in front of the camera
+                if (camera != nullptr) {
+                    auto camera_object = utility::re_component::get_game_object(camera);
+
+                    if (camera_object != nullptr && camera_object->transform != nullptr) {
+                        auto camera_transform = camera_object->transform;
+
+                        const auto& camera_matrix = utility::re_transform::get_joint_matrix_by_index(*camera_transform, 0);
+                        const auto& camera_position = camera_matrix[3];
+                        
+                        auto& gui_matrix = game_object->transform->worldTransform;
+
+                        gui_matrix = glm::extractMatrixRotation(camera_matrix) * Matrix4x4f {
+                            -1, 0, 0, 0,
+                            0, 1, 0, 0,
+                            0, 0, -1, 0,
+                            0, 0, 0, 1
+                        };
+                        
+                        gui_matrix[3] = camera_position + (-camera_matrix[2] * m_ui_scale);
+                    }
+                }
+            }
+        }
+    } else {
+        spdlog::info("VR: on_pre_gui_draw_element: nullptr gameobject");
+    }
+}
+
+void VR::on_gui_draw_element(REComponent* gui_element, void* primitive_context) {
+    //spdlog::info("VR: on_gui_draw_element");
+
+    // Restore elements back to original states
+    for (auto& data : g_elements_to_reset) {
+        sdk::call_object_func<void*>(data->view, "set_ViewType", sdk::get_thread_context(), data->view, (uint32_t)via::gui::ViewType::Screen);
+        sdk::call_object_func<void*>(data->view, "set_Overlay", sdk::get_thread_context(), data->view, data->overlay);
+        sdk::call_object_func<void*>(data->view, "set_Detonemap", sdk::get_thread_context(), data->view, data->detonemap);
+        
+        auto game_object = utility::re_component::get_game_object(data->element);
+
+        if (game_object != nullptr && game_object->transform != nullptr) {
+            auto& gui_matrix = game_object->transform->worldTransform;
+
+            gui_matrix[3] = data->original_position;
+        }
+    }
+
+    g_elements_to_reset.clear();
+}
+
 void VR::openvr_input_to_game(REManagedObject* input_system) {
     // Get OpenVR input system
     auto openvr_input = vr::VRInput();
