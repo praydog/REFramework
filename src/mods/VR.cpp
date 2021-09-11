@@ -248,16 +248,6 @@ std::optional<std::string> VR::initialize_openvr() {
         return "VRCompositor failed to initialize.";
     }
 
-    // go through all the device indices and get the controllers
-    for (int i = 0; i < vr::k_unMaxTrackedDeviceCount; i++) {
-        if (m_hmd->GetTrackedDeviceClass(i) == vr::TrackedDeviceClass_Controller) {
-            m_controllers.push_back(i);
-            m_controllers_set.insert(i);
-
-            spdlog::info("Found controller {}", i);
-        }
-    }
-
     const auto module_directory = *utility::get_module_directory(g_framework->get_module().as<HMODULE>());
 
     // write default actions and bindings with the static strings we have
@@ -343,6 +333,27 @@ std::optional<std::string> VR::initialize_openvr() {
     m_active_action_set.ulRestrictedToDevice = vr::k_ulInvalidInputValueHandle;
     m_active_action_set.nPriority = 0;
 
+    // Get input origin info for the joysticks
+    vr::InputOriginInfo_t left_joystick_origin_info;
+    vr::InputOriginInfo_t right_joystick_origin_info;
+    auto left_joystick_origin_error = vr::VRInput()->GetOriginTrackedDeviceInfo(m_left_joystick, &left_joystick_origin_info, sizeof(left_joystick_origin_info));
+    auto right_joystick_origin_error = vr::VRInput()->GetOriginTrackedDeviceInfo(m_right_joystick, &right_joystick_origin_info, sizeof(right_joystick_origin_info));
+
+    if (left_joystick_origin_error != vr::VRInputError_None || right_joystick_origin_error != vr::VRInputError_None) {
+        return "VRInput failed to get origin tracked device info: " + std::to_string((uint32_t)left_joystick_origin_error) + " " + std::to_string((uint32_t)right_joystick_origin_error);
+    }
+
+    // Instead of manually going through the devices,
+    // We do this. The order of the devices isn't always guaranteed to be
+    // Left, and then right. Using the input state handles will always
+    // Get us the correct device indices.
+    m_controllers.push_back(left_joystick_origin_info.trackedDeviceIndex);
+    m_controllers.push_back(right_joystick_origin_info.trackedDeviceIndex);
+    m_controllers_set.insert(left_joystick_origin_info.trackedDeviceIndex);
+    m_controllers_set.insert(right_joystick_origin_info.trackedDeviceIndex);
+
+    spdlog::info("Left Hand: {}", left_joystick_origin_info.trackedDeviceIndex);
+    spdlog::info("Right Hand: {}", right_joystick_origin_info.trackedDeviceIndex);
     return std::nullopt;
 }
 
