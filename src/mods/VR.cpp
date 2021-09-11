@@ -16,6 +16,7 @@
 #include "VR.hpp"
 
 constexpr auto CONTROLLER_DEADZONE = 0.1f;
+constexpr auto OVERLAY_DRAW_INDEX = 12;
 
 std::shared_ptr<VR>& VR::get() {
     static std::shared_ptr<VR> inst{};
@@ -194,6 +195,12 @@ std::optional<std::string> VR::on_initialize() {
     }
 
     hijack_error = hijack_camera();
+
+    if (hijack_error) {
+        return hijack_error;
+    }
+
+    hijack_error = hijack_overlay_renderer();
 
     if (hijack_error) {
         return hijack_error;
@@ -438,6 +445,66 @@ std::optional<std::string> VR::hijack_camera() {
     return std::nullopt;
 }
 
+std::optional<std::string> VR::hijack_overlay_renderer() {
+    // We're going to make via.render.layer.Overlay.Draw() return early
+    // For some reason this fixes 3D GUI rendering in RE3 in VR
+    auto t = sdk::RETypeDB::get()->find_type("via.render.layer.Overlay");
+
+    if (t == nullptr) {
+        return "VR init failed: via.render.layer.Overlay type not found.";
+    }
+
+    auto managed_type = t->type;
+
+    if (managed_type == nullptr) {
+        return "VR init failed: via.render.layer.Overlay managed type not found.";
+    }
+
+    auto type_vtable = *(uintptr_t**)managed_type;
+
+    if (type_vtable == nullptr) {
+        return "VR init failed: via.render.layer.Overlay vtable not found.";
+    }
+
+    // We're going to construct a fake instance of the object
+    // So we can get the address of the Draw() method which is
+    // a virtual function
+    void** (*create_instance)(void* obj, void** result, void* buffer) = decltype(create_instance)(type_vtable[1]);
+
+    if (create_instance == nullptr) {
+        return "VR init failed: via.render.layer.Overlay type create_instance function not found.";
+    }
+
+    auto test = (uintptr_t)create_instance - g_framework->get_module().as<uintptr_t>();
+    spdlog::info("via.render.layer.Overlay.create_instance: {:x}", test);
+
+    void* fake_obj = nullptr;
+    create_instance(nullptr, &fake_obj, nullptr);
+
+    if (fake_obj == nullptr) {
+        return "VR init failed: Failed to create fake via.render.layer.Overlay instance.";
+    }
+
+    auto obj_vtable = *(uintptr_t**)fake_obj;
+
+    if (obj_vtable == nullptr) {
+        return "VR init failed: via.render.layer.Overlay vtable not found.";
+    }
+
+    auto draw_native = obj_vtable[OVERLAY_DRAW_INDEX];
+
+    if (draw_native == 0) {
+        return "VR init failed: via.render.layer.Overlay draw native not found.";
+    }
+
+    spdlog::info("via.render.layer.Overlay.Draw: {:x}", (uintptr_t)draw_native);
+
+    // Set the first byte to the ret instruction
+    m_overlay_draw_patch = Patch::create(draw_native, { 0xC3 });
+
+    return std::nullopt;
+}
+
 int32_t VR::get_frame_count() const {
     auto scene = sdk::get_current_scene();
 
@@ -622,7 +689,7 @@ void VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
     if (game_object != nullptr && game_object->transform != nullptr) {
         const auto name = utility::re_string::get_string(game_object->name);
 
-        spdlog::info("VR: on_pre_gui_draw_element: {}", name);
+        //spdlog::info("VR: on_pre_gui_draw_element: {}", name);
 
         auto view = sdk::call_object_func<REComponent*>(gui_element, "get_View", sdk::get_thread_context(), gui_element);
 
@@ -642,20 +709,20 @@ void VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                 sdk::call_object_func<void*>(view, "set_ViewType", sdk::get_thread_context(), view, (uint32_t)via::gui::ViewType::World);
 
                 // Set overlay = false (fixes double vision in VR)
-                //sdk::call_object_func<void*>(view, "set_Overlay", sdk::get_thread_context(), view, false);
+                sdk::call_object_func<void*>(view, "set_Overlay", sdk::get_thread_context(), view, true);
 
                 // Set detonemap = true (fixes weird tint)
                 sdk::call_object_func<void*>(view, "set_Detonemap", sdk::get_thread_context(), view, true);
 
                 // Go through the children until we hit a blur filter
                 // And then remove it
-                for (auto child = sdk::call_object_func<REComponent*>(view, "get_Child", sdk::get_thread_context(), view); child != nullptr; child = sdk::call_object_func<REComponent*>(child, "get_Child", sdk::get_thread_context(), child)) {
+                /*for (auto child = sdk::call_object_func<REComponent*>(view, "get_Child", sdk::get_thread_context(), view); child != nullptr; child = sdk::call_object_func<REComponent*>(child, "get_Child", sdk::get_thread_context(), child)) {
                     if (utility::re_managed_object::is_a(child, "via.gui.BlurFilter")) {
                         // Call remove()
                         sdk::call_object_func<void*>(child, "remove", sdk::get_thread_context(), child);
                         break;
                     }
-                }
+                }*/
 
                 auto camera = sdk::get_primary_camera();
 

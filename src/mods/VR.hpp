@@ -11,6 +11,7 @@
 #include <dxgi.h>
 #include <wrl.h>
 
+#include "utility/Patch.hpp"
 #include "sdk/Math.hpp"
 #include "vr/D3D11Component.hpp"
 #include "vr/D3D12Component.hpp"
@@ -119,11 +120,14 @@ private:
     std::optional<std::string> hijack_resolution();
     std::optional<std::string> hijack_input();
     std::optional<std::string> hijack_camera();
+    std::optional<std::string> hijack_overlay_renderer();
 
     // input functions
     // Purpose: "Emulate" OpenVR input to the game
     // By setting things like input flags based on controller state
     void openvr_input_to_game(REManagedObject* input_system);
+
+    Patch::Ptr m_overlay_draw_patch{};
     
     std::recursive_mutex m_camera_mtx{};
     std::shared_mutex m_pose_mtx{};
