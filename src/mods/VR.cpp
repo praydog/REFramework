@@ -1,9 +1,12 @@
 #include <fstream>
 
-//#if defined(RE2) || defined(RE3)
+#if defined(RE2) || defined(RE3)
 #include "sdk/regenny/re3/via/Window.hpp"
 #include "sdk/regenny/re3/via/SceneView.hpp"
-//#endif
+#else 
+#include "sdk/regenny/re8/via/Window.hpp"
+#include "sdk/regenny/re8/via/SceneView.hpp"
+#endif
 
 #include "sdk/Math.hpp"
 #include "sdk/SceneManager.hpp"
@@ -16,7 +19,11 @@
 #include "VR.hpp"
 
 constexpr auto CONTROLLER_DEADZONE = 0.1f;
+#ifdef RE8
+constexpr auto OVERLAY_DRAW_INDEX = 14;
+#else
 constexpr auto OVERLAY_DRAW_INDEX = 12;
+#endif
 
 std::shared_ptr<VR>& VR::get() {
     static std::shared_ptr<VR> inst{};
@@ -72,6 +79,17 @@ Matrix4x4f* VR::camera_get_projection_matrix_hook(REManagedObject* camera, Matri
     if (camera != sdk::get_primary_camera()) {
         return original_func(camera, result);
     }
+
+#ifdef RE8
+    static auto once = false;
+
+    if (!once) {        
+        vr->m_nearz = sdk::call_object_func<float>(camera, "get_NearClipPlane", sdk::get_thread_context(), camera);
+        vr->m_farz = sdk::call_object_func<float>(camera, "get_FarClipPlane", sdk::get_thread_context(), camera);
+
+        once = true;
+    }
+#endif
 
     // Get the projection matrix for the correct eye
     // For some reason we need to flip the projection matrix here?
@@ -371,6 +389,7 @@ std::optional<std::string> VR::hijack_resolution() {
 }
 
 std::optional<std::string> VR::hijack_input() {
+#ifndef RE8
     // We're going to hook InputSystem.update so we can
     // override the analog stick values with the VR controller's
     auto t = sdk::RETypeDB::get()->find_type(game_namespace("InputSystem"));
@@ -399,6 +418,7 @@ std::optional<std::string> VR::hijack_input() {
     if (!g_input_hook->create()) {
         return "VR init failed: InputSystem.update native function hook failed.";
     }
+#endif
 
     return std::nullopt;
 }
@@ -976,6 +996,7 @@ void VR::on_draw_ui() {
 }
 
 void VR::on_device_reset() {
+    spdlog::info("VR: on_device_reset");
     m_d3d11.on_reset(this);
     m_d3d12.on_reset(this);
 }
