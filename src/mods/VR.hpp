@@ -84,6 +84,10 @@ public:
         return m_controllers;
     }
 
+    bool is_using_controllers() const {
+        return (std::chrono::steady_clock::now() - m_last_controller_update) <= std::chrono::seconds(10);
+    }
+
     Vector4f get_position(uint32_t index);
     Matrix4x4f get_rotation(uint32_t index);
 

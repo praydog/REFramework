@@ -352,6 +352,7 @@ void FirstPerson::reset() {
     m_last_bone_matrix = glm::identity<decltype(m_last_bone_matrix)>();
     m_last_controller_pos = Vector4f{};
     m_last_controller_rotation = glm::quat{};
+    m_last_controller_rotation_vr = glm::quat{};
     m_cached_bone_matrix = nullptr;
 
     std::lock_guard _{ m_frame_mutex };
@@ -472,7 +473,9 @@ void FirstPerson::update_player_transform(RETransform* transform) {
                                                                      0.0f, 0.0f, m_scale_debug2.z, 0.0f,
                                                                      0.0f, 0.0f, 0.0f, m_scale_debug2.w };*/
 
-            auto cam_rot_mat = glm::extractMatrixRotation(Matrix4x4f{ m_last_controller_rotation });
+            // m_last_controller_rotation_vr is for the controller rotation, but
+            // the Y component is zero'd out so only the HMD can look up/down
+            auto cam_rot_mat = glm::extractMatrixRotation(Matrix4x4f{ m_last_controller_rotation_vr });
 
             auto& cam_forward3 = *(Vector3f*)&cam_rot_mat[2];
 
@@ -710,24 +713,8 @@ void FirstPerson::update_player_transform(RETransform* transform) {
 
                 auto center_offset = Address{ik_leg}.get(0x70).as<Vector3f*>();
 
-                auto camera_matrix = m_last_camera_matrix * Matrix4x4f{
-                    -1, 0, 0, 0,
-                    0, 1, 0, 0,
-                    0, 0, -1, 0,
-                    0, 0, 0, 1
-                };
-
-                auto rotation_diff = glm::normalize(m_last_controller_rotation);
-
-                auto forward_dir = glm::extractMatrixRotation(Matrix4x4f{rotation_diff})[2];
-                // Remove y component and normalize so we have the facing direction
-                forward_dir.y = 0.0f;
-                forward_dir = glm::normalize(forward_dir);
-
-                // Convert forward_dir to quaternion properly
-                const auto forward_mat = glm::rowMajor4(glm::lookAtLH(Vector3f{}, Vector3f{ forward_dir }, Vector3f(0.0f, 1.0f, 0.0f)));
-
-                *center_offset = forward_mat * (headset_pos - VR::get()->get_standing_origin());
+                // m_last_controller_rotation_vr has the Y component zero'd out
+                *center_offset = m_last_controller_rotation_vr * (headset_pos - VR::get()->get_standing_origin());
             }
 
             // radians -> deg
@@ -871,6 +858,13 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
 
     auto& cam_forward3 = *(Vector3f*)&cam_rot_mat[2];
 
+    // Zero out the Y component of the forward vector
+    // When using VR so only the user can control the up/down rotation with the headset
+    if (VR::get()->is_using_controllers()) {
+        cam_forward3[1] = 0.0f;
+        cam_forward3 = glm::normalize(cam_forward3);
+    }
+
     auto offset = glm::extractMatrixRotation(camera_matrix) * (m_attach_offsets[m_player_name] * Vector4f{ -0.1f, 0.1f, 0.1f, 0.0f });
     auto final_pos = Vector3f{ bone_pos + offset };
 
@@ -905,8 +899,8 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
     }
 
     auto final_mat = is_player_camera ? (m_interpolated_bone * m_rotation_offset) : m_interpolated_bone;
-
     const auto mtx_pre_vr = mtx;
+
     const auto final_mat_pre_vr = final_mat;
     const auto final_quat_pre_vr = glm::quat{final_mat};
     
@@ -982,6 +976,8 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
 
         transform->joints.matrices->data[0].worldMatrix = m_last_camera_matrix;
     }
+
+    m_last_controller_rotation_vr = glm::quat { cam_rot_mat };
 }
 
 void FirstPerson::update_sweet_light_context(RopewaySweetLightManagerContext* ctx) {

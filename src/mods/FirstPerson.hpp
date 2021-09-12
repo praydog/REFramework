@@ -65,6 +65,7 @@ private:
     Matrix4x4f* m_cached_bone_matrix{ nullptr };
     Vector4f m_last_controller_pos{};
     glm::quat m_last_controller_rotation{};
+    glm::quat m_last_controller_rotation_vr{};
     Vector3f m_last_controller_angles{};
     bool m_ignore_next_player_angles{ false };
     app::ropeway::camera::CameraControlType m_last_camera_type{};
