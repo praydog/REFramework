@@ -1028,7 +1028,6 @@ void VR::on_draw_ui() {
     ImGui::DragFloat4("Left Bounds", (float*)&m_left_bounds, 0.005f, -2.0f, 2.0f);
     ImGui::Checkbox("Use AFR", &m_use_afr);
     ImGui::Checkbox("Use Predicted Poses", &m_use_predicted_poses);
-    ImGui::DragFloat("UI Offset", &m_ui_offset, 0.1f, -500.0f, 500.0f);
     ImGui::DragFloat("UI Scale", &m_ui_scale, 0.005f, 0.0f, 1.0f);
 }
 

@@ -105,7 +105,6 @@ public:
     Vector2f get_left_stick_axis() const;
     Vector2f get_right_stick_axis() const;
 
-    auto get_ui_offset() const { return m_ui_offset; }
     auto get_ui_scale() const { return m_ui_scale; }
     const auto& get_raw_projections() const { return m_raw_projections; }
 
@@ -189,7 +188,6 @@ private:
     vrmod::D3D11Component m_d3d11{};
     vrmod::D3D12Component m_d3d12{};
 
-    float m_ui_offset{};
     float m_ui_scale{15.0f};
 
     int m_frame_count{};
