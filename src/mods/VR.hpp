@@ -61,10 +61,6 @@ public:
         return m_h;
     }
 
-    auto get_standing_height() const {
-        return m_standing_height;
-    }
-
     auto get_last_controller_update() const {
         return m_last_controller_update;
     }
@@ -74,6 +70,10 @@ public:
     bool is_using_afr() const {
         return m_use_afr;
     }
+
+    // Functions that generally use a mutex or have more complex logic
+    float get_standing_height();
+    Vector4f get_standing_origin();
 
     Vector4f get_current_offset();
 
@@ -110,6 +110,9 @@ public:
     const auto& get_raw_projections() const { return m_raw_projections; }
 
 private:
+    Vector4f get_position_unsafe(uint32_t index);
+
+private:
     // Hooks
     static float* get_size_hook(REManagedObject* scene_view, float* result);
     static void inputsystem_update_hook(void* ctx, REManagedObject* input_system);
@@ -140,14 +143,18 @@ private:
 
     float m_nearz{ 0.1f };
     float m_farz{ 3000.0f };
-    float m_standing_height{ 1.45f };
 
     vr::IVRSystem* m_hmd{nullptr};
+
+    // Poses
     std::array<vr::TrackedDevicePose_t, vr::k_unMaxTrackedDeviceCount> m_real_render_poses;
     std::array<vr::TrackedDevicePose_t, vr::k_unMaxTrackedDeviceCount> m_real_game_poses;
 
     std::array<vr::TrackedDevicePose_t, vr::k_unMaxTrackedDeviceCount> m_render_poses;
     std::array<vr::TrackedDevicePose_t, vr::k_unMaxTrackedDeviceCount> m_game_poses;
+
+    Vector4f m_standing_origin{ 0.0f, 1.5f, 0.0f, 0.0f };
+
     std::vector<int32_t> m_controllers{};
     std::unordered_set<int32_t> m_controllers_set{};
 

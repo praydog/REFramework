@@ -555,6 +555,18 @@ int32_t VR::get_frame_count() const {
     return sdk::call_object_func<int32_t>(renderer, renderer_type, "get_RenderFrame", sdk::get_thread_context(), renderer);*/
 }
 
+float VR::get_standing_height() {
+    std::shared_lock _{ m_pose_mtx };
+
+    return m_standing_origin.y;
+}
+
+Vector4f VR::get_standing_origin() {
+    std::shared_lock _{ m_pose_mtx };
+
+    return m_standing_origin;
+}
+
 Vector4f VR::get_current_offset() {
     if (!m_use_afr) {
         return Vector4f{};
@@ -623,7 +635,10 @@ void VR::on_post_frame() {
             spdlog::error("VRInput failed to update action state: {}", (uint32_t)error);
         }
 
+        vr::VRCompositor()->SetTrackingSpace(vr::TrackingUniverseStanding);
         vr::VRCompositor()->WaitGetPoses(m_real_render_poses.data(), vr::k_unMaxTrackedDeviceCount, m_real_game_poses.data(), vr::k_unMaxTrackedDeviceCount);
+
+        bool wants_reset_origin = false;
 
         // Process events
         vr::VREvent_t event{};
@@ -633,6 +648,13 @@ void VR::on_post_frame() {
                 case vr::VREvent_SteamVRSectionSettingChanged: {
                     spdlog::info("VR: VREvent_SteamVRSectionSettingChanged");
                     m_hmd->GetRecommendedRenderTargetSize(&m_w, &m_h);
+                } break;
+
+                // Detect whether SteamVR reset the standing/seated pose
+                case vr::VREvent_SeatedZeroPoseReset: [[fallthrough]];
+                case vr::VREvent_StandingZeroPoseReset: {
+                    spdlog::info("VR: VREvent_SeatedZeroPoseReset");
+                    wants_reset_origin = true;
                 } break;
 
                 default:
@@ -649,6 +671,10 @@ void VR::on_post_frame() {
 
             memcpy(m_game_poses.data(), m_real_game_poses.data(), sizeof(m_game_poses));
             memcpy(m_render_poses.data(), m_real_render_poses.data(), sizeof(m_render_poses));
+
+            if (wants_reset_origin) {
+                m_standing_origin = get_position_unsafe(vr::k_unTrackedDeviceIndex_Hmd);
+            }
         }
 
         std::unique_lock __{ m_eyes_mtx };
@@ -995,7 +1021,7 @@ void VR::on_draw_ui() {
     ImGui::Separator();
 
     if (ImGui::Button("Set Standing Height")) {
-        m_standing_height = get_position(0).y;
+        m_standing_origin.y = get_position(0).y;
     }
 
     ImGui::DragFloat4("Right Bounds", (float*)&m_right_bounds, 0.005f, -2.0f, 2.0f);
@@ -1026,6 +1052,14 @@ Vector4f VR::get_position(uint32_t index) {
     }
 
     std::shared_lock _{ m_pose_mtx };
+
+    return get_position_unsafe(index);
+}
+
+Vector4f VR::get_position_unsafe(uint32_t index) {
+    if (index >= vr::k_unMaxTrackedDeviceCount) {
+        return Vector4f{};
+    }
 
     auto& pose = get_poses()[index];
     auto matrix = Matrix4x4f{ *(Matrix3x4f*)&pose.mDeviceToAbsoluteTracking };
@@ -1149,6 +1183,10 @@ std::string VR::actions_json = R"(
     {
       "controller_type": "oculus_touch",
       "binding_url": "bindings_oculus_touch.json"
+    },
+    {
+      "controller_type": "vive_controller",
+      "binding_url": "bindings_vive_controller.json"
     },
     {
       "controller_type": "rift",

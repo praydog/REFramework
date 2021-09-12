@@ -710,7 +710,24 @@ void FirstPerson::update_player_transform(RETransform* transform) {
 
                 auto center_offset = Address{ik_leg}.get(0x70).as<Vector3f*>();
 
-                center_offset->y = headset_pos.y - VR::get()->get_standing_height();;
+                auto camera_matrix = m_last_camera_matrix * Matrix4x4f{
+                    -1, 0, 0, 0,
+                    0, 1, 0, 0,
+                    0, 0, -1, 0,
+                    0, 0, 0, 1
+                };
+
+                auto rotation_diff = glm::normalize(m_last_controller_rotation);
+
+                auto forward_dir = glm::extractMatrixRotation(Matrix4x4f{rotation_diff})[2];
+                // Remove y component and normalize so we have the facing direction
+                forward_dir.y = 0.0f;
+                forward_dir = glm::normalize(forward_dir);
+
+                // Convert forward_dir to quaternion properly
+                const auto forward_mat = glm::rowMajor4(glm::lookAtLH(Vector3f{}, Vector3f{ forward_dir }, Vector3f(0.0f, 1.0f, 0.0f)));
+
+                *center_offset = forward_mat * (headset_pos - VR::get()->get_standing_origin());
             }
 
             // radians -> deg
@@ -915,6 +932,7 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
 
     *(Matrix4x4f*)&mtx *= VR::get()->get_current_rotation_offset();
     (*(Matrix3x4f*)&mtx)[3] += glm::extractMatrixRotation(camera_matrix) * (VR::get()->get_current_offset());
+    mtx[3][3] = 1.0f;
 
     // Fixes snappiness after camera switching
     if (!is_player_in_control) {
