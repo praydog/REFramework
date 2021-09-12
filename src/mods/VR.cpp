@@ -929,32 +929,36 @@ void VR::openvr_input_to_game(REManagedObject* input_system) {
         }
     };
 
-    // Aim
+    // Right Grip: Aim
     set_button_state(app::ropeway::InputDefine::Kind::HOLD, is_grip_down);
 
-    // Alternate aim (grenades, knives, etc)
+    // Left Grip: Alternate aim (grenades, knives, etc)
     set_button_state(app::ropeway::InputDefine::Kind::SUPPORT_HOLD, is_left_grip_down);
 
-    // Attack
+    // Right Trigger (RB): Attack, UI right
     set_button_state(app::ropeway::InputDefine::Kind::ATTACK, is_trigger_down);
+    set_button_state(app::ropeway::InputDefine::Kind::UI_SHIFT_RIGHT, is_trigger_down);
 
-    // Sprint
+    // Left Trigger (LB): UI left
+    set_button_state(app::ropeway::InputDefine::Kind::UI_SHIFT_LEFT, is_left_trigger_down);
+
+    // L3: Sprint
     set_button_state(app::ropeway::InputDefine::Kind::JOG1, is_left_joystick_click_down);
 
-    // Reset camera
+    // R3: Reset camera
     set_button_state(app::ropeway::InputDefine::Kind::RESET_CAMERA, is_right_joystick_click_down);
 
-    // Inventory, PRESS_START
+    // Left B: Inventory, PRESS_START
     set_button_state(app::ropeway::InputDefine::Kind::INVENTORY, is_left_b_button_down);
     set_button_state(app::ropeway::InputDefine::Kind::PRESS_START, is_left_b_button_down);
 
-    // QUICK_TURN, PRESS_START, CANCEL, DIALOG_CANCEL
+    // Left A: QUICK_TURN, PRESS_START, CANCEL, DIALOG_CANCEL
     set_button_state(app::ropeway::InputDefine::Kind::QUICK_TURN, is_left_a_button_down);
     set_button_state(app::ropeway::InputDefine::Kind::PRESS_START, is_left_a_button_down);
     set_button_state(app::ropeway::InputDefine::Kind::CANCEL, is_left_a_button_down);
     set_button_state(app::ropeway::InputDefine::Kind::DIALOG_CANCEL, is_left_a_button_down);
     
-    // Action, ITEM, PRESS_START, DECIDE, DIALOG_DECIDE, (1 << 51)
+    // Right A: Action, ITEM, PRESS_START, DECIDE, DIALOG_DECIDE, (1 << 51)
     set_button_state(app::ropeway::InputDefine::Kind::ACTION, is_right_a_button_down);
     set_button_state(app::ropeway::InputDefine::Kind::ITEM, is_right_a_button_down);
     set_button_state(app::ropeway::InputDefine::Kind::PRESS_START, is_right_a_button_down);
@@ -962,7 +966,7 @@ void VR::openvr_input_to_game(REManagedObject* input_system) {
     set_button_state(app::ropeway::InputDefine::Kind::DIALOG_DECIDE, is_right_a_button_down);
     set_button_state((app::ropeway::InputDefine::Kind)((uint64_t)1 << 51), is_right_a_button_down);
     
-    // Reload, Skip Event, UI_EXCHANGE, UI_RESET, (1 << 52) (that one is RE3 only? don't see it in the enum)
+    // Right B: Reload, Skip Event, UI_EXCHANGE, UI_RESET, (1 << 52) (that one is RE3 only? don't see it in the enum)
     set_button_state(app::ropeway::InputDefine::Kind::RELOAD, is_right_b_button_down);
     set_button_state(app::ropeway::InputDefine::Kind::SKIP_EVENT, is_right_b_button_down);
     set_button_state(app::ropeway::InputDefine::Kind::UI_EXCHANGE, is_right_b_button_down);
