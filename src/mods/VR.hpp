@@ -199,6 +199,18 @@ private:
     static std::string actions_json;
     static std::string binding_rift_json;
     static std::string bindings_oculus_touch_json;
+    static std::string binding_vive;
+    static std::string bindings_vive_controller;
+    static std::string bindings_knuckles;
+
+    const std::unordered_map<std::string, std::string> m_binding_files {
+        { "actions.json", actions_json },
+        { "binding_rift.json", binding_rift_json },
+        { "bindings_oculus_touch.json", bindings_oculus_touch_json },
+        { "binding_vive.json", binding_vive },
+        { "bindings_vive_controller.json", bindings_vive_controller },
+        { "bindings_knuckles.json", bindings_knuckles }
+    };
 
     friend class vrmod::D3D11Component;
     friend class vrmod::D3D12Component;
