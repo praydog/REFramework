@@ -974,16 +974,30 @@ void VR::openvr_input_to_game(REManagedObject* input_system) {
     const auto left_axis_len = glm::length(left_axis);
     const auto right_axis_len = glm::length(right_axis);
 
+    bool moved_sticks = false;
+
     if (left_axis_len > CONTROLLER_DEADZONE) {
+        moved_sticks = true;
+
         // Override the left stick's axis values to the VR controller's values
         Vector3f axis{ left_axis.x, left_axis.y, 0.0f };
         sdk::call_object_func<void*>(lstick, "update", sdk::get_thread_context(), lstick, &axis, &axis);
     }
 
     if (right_axis_len > CONTROLLER_DEADZONE) {
+        moved_sticks = true;
+
         // Override the right stick's axis values to the VR controller's values
         Vector3f axis{ right_axis.x, right_axis.y, 0.0f };
         sdk::call_object_func<void*>(rstick, "update", sdk::get_thread_context(), rstick, &axis, &axis);
+    }
+
+    if (moved_sticks) {
+        auto new_pos = get_position(vr::k_unTrackedDeviceIndex_Hmd);
+
+        new_pos.y = m_standing_origin.y;
+        // Don't set the Y because it would look really strange
+        m_standing_origin = glm::lerp(m_standing_origin, new_pos, 1 / 90.0f);
     }
 
     set_button_state(app::ropeway::InputDefine::Kind::MOVE, left_axis_len > CONTROLLER_DEADZONE);
