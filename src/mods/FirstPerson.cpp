@@ -713,8 +713,19 @@ void FirstPerson::update_player_transform(RETransform* transform) {
 
                 auto center_offset = Address{ik_leg}.get(0x70).as<Vector3f*>();
 
-                // m_last_controller_rotation_vr has the Y component zero'd out
-                *center_offset = m_last_controller_rotation_vr * (headset_pos - VR::get()->get_standing_origin());
+                if (!VR::get()->is_using_controllers()) {
+                    auto forward_dir = glm::extractMatrixRotation(Matrix4x4f{glm::normalize(m_last_controller_rotation_vr)})[2];
+                    // Remove y component and normalize so we have the facing direction
+                    forward_dir.y = 0.0f;
+                    forward_dir = glm::normalize(forward_dir);
+
+                    // Convert forward_dir to quaternion properly
+                    const auto forward_mat = glm::rowMajor4(glm::lookAtLH(Vector3f{}, Vector3f{ forward_dir }, Vector3f(0.0f, 1.0f, 0.0f)));
+
+                    *center_offset = forward_mat * (headset_pos - VR::get()->get_standing_origin());
+                } else {
+                    *center_offset = m_last_controller_rotation_vr * (headset_pos - VR::get()->get_standing_origin());
+                }
             }
 
             // radians -> deg
