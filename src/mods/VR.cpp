@@ -118,13 +118,13 @@ Matrix4x4f* VR::camera_get_view_matrix_hook(REManagedObject* camera, Matrix4x4f*
 
     const auto current_eye_transform = vr->get_current_eye_transform();
 
-    if (vr->m_use_rotation) {
+    /*if (vr->m_use_rotation) {
         if (vr->m_invert) {
             mtx *= glm::inverse(glm::extractMatrixRotation(current_eye_transform));
         } else {
             mtx *= glm::extractMatrixRotation(current_eye_transform);
         }
-    }
+    }*/
 
     // Adjust the view matrix origin
     *(Vector3f*)&mtx[3] += Vector3f { current_eye_transform[3] };
