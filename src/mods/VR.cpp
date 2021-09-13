@@ -37,7 +37,8 @@ std::shared_ptr<VR>& VR::get() {
 
 std::unique_ptr<FunctionHook> g_get_size_hook{};
 std::unique_ptr<FunctionHook> g_input_hook{};
-std::unique_ptr<FunctionHook> g_camera_hook{};
+std::unique_ptr<FunctionHook> g_projection_matrix_hook{};
+std::unique_ptr<FunctionHook> g_view_matrix_hook{};
 
 // Purpose: spoof the render target size to the size of the HMD displays
 float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
@@ -68,7 +69,7 @@ float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
 }
 
 Matrix4x4f* VR::camera_get_projection_matrix_hook(REManagedObject* camera, Matrix4x4f* result) {
-    auto original_func = g_camera_hook->get_original<decltype(VR::camera_get_projection_matrix_hook)>();
+    auto original_func = g_projection_matrix_hook->get_original<decltype(VR::camera_get_projection_matrix_hook)>();
 
     auto vr = VR::get();
 
@@ -94,6 +95,39 @@ Matrix4x4f* VR::camera_get_projection_matrix_hook(REManagedObject* camera, Matri
     // Get the projection matrix for the correct eye
     // For some reason we need to flip the projection matrix here?
     *result = vr->get_current_projection_matrix(true);
+
+    return result;
+}
+
+Matrix4x4f* VR::camera_get_view_matrix_hook(REManagedObject* camera, Matrix4x4f* result) {
+    auto original_func = g_view_matrix_hook->get_original<decltype(VR::camera_get_view_matrix_hook)>();
+
+    auto vr = VR::get();
+
+    if (result == nullptr || !vr->m_use_afr) {
+        return original_func(camera, result);
+    }
+
+    /*if (camera != sdk::get_primary_camera()) {
+        return original_func(camera, result);
+    }*/
+
+    original_func(camera, result);
+
+    auto& mtx = *result;
+
+    const auto current_eye_transform = vr->get_current_eye_transform();
+
+    if (vr->m_use_rotation) {
+        if (vr->m_invert) {
+            mtx *= glm::inverse(glm::extractMatrixRotation(current_eye_transform));
+        } else {
+            mtx *= glm::extractMatrixRotation(current_eye_transform);
+        }
+    }
+
+    // Adjust the view matrix origin
+    *(Vector3f*)&mtx[3] += Vector3f { current_eye_transform[3] };
 
     return result;
 }
@@ -463,10 +497,43 @@ std::optional<std::string> VR::hijack_camera() {
     auto native_func = utility::calculate_absolute(*ref + 4);
 
     // Hook the native function
-    g_camera_hook = std::make_unique<FunctionHook>(native_func, camera_get_projection_matrix_hook);
+    g_projection_matrix_hook = std::make_unique<FunctionHook>(native_func, camera_get_projection_matrix_hook);
 
-    if (!g_camera_hook->create()) {
+    if (!g_projection_matrix_hook->create()) {
         return "VR init failed: via.Camera.get_ProjectionMatrix native function hook failed.";
+    }
+
+    ///////////////////////////////
+    // Hook view matrix start
+    ///////////////////////////////
+    method = t->get_method("get_ViewMatrix");
+
+    if (method == nullptr) {
+        return "VR init failed: via.Camera.get_ViewMatrix method not found.";
+    }
+
+    func = method->get_function();
+
+    if (func == nullptr) {
+        return "VR init failed: via.Camera.get_ViewMatrix function not found.";
+    }
+
+    spdlog::info("via.Camera.get_ViewMatrix: {:x}", (uintptr_t)func);
+
+    // Pattern scan for the native function call
+    ref = utility::scan((uintptr_t)func, 0x100, "49 8B C8 E8");
+
+    if (!ref) {
+        return "VR init failed: via.Camera.get_ViewMatrix native function not found. Pattern scan failed.";
+    }
+
+    native_func = utility::calculate_absolute(*ref + 4);
+
+    // Hook the native function
+    g_view_matrix_hook = std::make_unique<FunctionHook>(native_func, camera_get_view_matrix_hook);
+
+    if (!g_view_matrix_hook->create()) {
+        return "VR init failed: via.Camera.get_ViewMatrix native function hook failed.";
     }
 
     return std::nullopt;
@@ -579,7 +646,7 @@ Vector4f VR::get_current_offset() {
     //return Vector4f{m_eye_distance, 0.0f, 0.0f, 0.0f};
 }
 
-Matrix4x4f VR::get_current_rotation_offset() {
+Matrix4x4f VR::get_current_eye_transform() {
     if (!m_use_afr) {
         return glm::identity<Matrix4x4f>();
     }
@@ -587,12 +654,18 @@ Matrix4x4f VR::get_current_rotation_offset() {
     std::shared_lock _{m_eyes_mtx};
 
     if (get_frame_count() % 2 == 0) {
-        return glm::extractMatrixRotation(m_eyes[vr::Eye_Left]);
+        return m_eyes[vr::Eye_Left];
     }
 
-    return glm::extractMatrixRotation(m_eyes[vr::Eye_Right]);
+    return m_eyes[vr::Eye_Right];
+}
 
-    //return Matrix4x4f{ glm::quat{ Vector3f { 0.0f, get_current_yaw_offset(), 0.0f } } };
+Matrix4x4f VR::get_current_rotation_offset() {
+    if (!m_use_afr) {
+        return glm::identity<Matrix4x4f>();
+    }
+
+    return glm::extractMatrixRotation(get_current_eye_transform());
 }
 
 Matrix4x4f VR::get_current_projection_matrix(bool flip) {
@@ -1042,6 +1115,8 @@ void VR::on_draw_ui() {
     ImGui::DragFloat4("Left Bounds", (float*)&m_left_bounds, 0.005f, -2.0f, 2.0f);
     ImGui::Checkbox("Use AFR", &m_use_afr);
     ImGui::Checkbox("Use Predicted Poses", &m_use_predicted_poses);
+    ImGui::Checkbox("Use Eye Rotation", &m_use_rotation);
+    ImGui::Checkbox("Invert Eye Rotation", &m_invert);
     ImGui::DragFloat("UI Scale", &m_ui_scale, 0.005f, 0.0f, 100.0f);
 }
 

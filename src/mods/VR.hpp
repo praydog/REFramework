@@ -77,6 +77,7 @@ public:
 
     Vector4f get_current_offset();
 
+    Matrix4x4f get_current_eye_transform();
     Matrix4x4f get_current_rotation_offset();
     Matrix4x4f get_current_projection_matrix(bool flip = false);
 
@@ -120,6 +121,7 @@ private:
     static float* get_size_hook(REManagedObject* scene_view, float* result);
     static void inputsystem_update_hook(void* ctx, REManagedObject* input_system);
     static Matrix4x4f* camera_get_projection_matrix_hook(REManagedObject* camera, Matrix4x4f* result);
+    static Matrix4x4f* camera_get_view_matrix_hook(REManagedObject* camera, Matrix4x4f* result);
 
     // initialization functions
     std::optional<std::string> initialize_openvr();
@@ -215,6 +217,9 @@ private:
         { "bindings_vive_controller.json", bindings_vive_controller },
         { "bindings_knuckles.json", bindings_knuckles }
     };
+
+    bool m_invert{false};
+    bool m_use_rotation{true};
 
     friend class vrmod::D3D11Component;
     friend class vrmod::D3D12Component;
