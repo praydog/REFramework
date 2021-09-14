@@ -174,6 +174,24 @@ void VR::inputsystem_update_hook(void* ctx, REManagedObject* input_system) {
     //button_bits_on |= mod-> m_button_states_on.to_ullong();
     //button_bits_up |= mod->m_button_states_up.to_ullong();
 
+    auto keep_button_down = [&](app::ropeway::InputDefine::Kind button) {
+        if ((mod->m_button_states_on.to_ullong() & (uint64_t)button) == 0 && (mod->m_button_states_down.to_ullong() & (uint64_t)button) == 0) {
+            return;
+        }
+
+        if ((mod->m_button_states_on.to_ullong() & (uint64_t)button) == 0) {
+            if (mod->m_button_states_down.to_ullong() & (uint64_t)button) {
+                button_bits_on |= (uint64_t)button;
+                button_bits_down &= ~(uint64_t)button;
+            } else {
+                button_bits_down |= (uint64_t)button;
+            }
+        } else {
+            button_bits_down &= ~(uint64_t)button;
+            button_bits_on |= (uint64_t)button;
+        }
+    };
+
     if (left_axis_len > CONTROLLER_DEADZONE) {
         mod->m_last_controller_update = now;
         is_using_controller = true;
@@ -182,17 +200,7 @@ void VR::inputsystem_update_hook(void* ctx, REManagedObject* input_system) {
         Vector3f axis{ left_axis.x, left_axis.y, 0.0f };
         sdk::call_object_func<void*>(lstick, "update", sdk::get_thread_context(), lstick, &axis, &axis);
 
-        if ((mod->m_button_states_on.to_ullong() & (uint64_t)app::ropeway::InputDefine::Kind::UI_L_STICK) == 0) {
-            if (mod->m_button_states_down.to_ullong() & (uint64_t)app::ropeway::InputDefine::Kind::UI_L_STICK) {
-                button_bits_on |= (uint64_t)app::ropeway::InputDefine::Kind::UI_L_STICK;
-                button_bits_down &= ~(uint64_t)app::ropeway::InputDefine::Kind::UI_L_STICK;
-            } else {
-                button_bits_down |= (uint64_t)app::ropeway::InputDefine::Kind::UI_L_STICK;
-            }
-        } else {
-            button_bits_down &= ~(uint64_t)app::ropeway::InputDefine::Kind::UI_L_STICK;
-            button_bits_on |= (uint64_t)app::ropeway::InputDefine::Kind::UI_L_STICK;
-        }
+        keep_button_down(app::ropeway::InputDefine::Kind::UI_L_STICK);
     }
 
     if (right_axis_len > CONTROLLER_DEADZONE) {
@@ -203,17 +211,7 @@ void VR::inputsystem_update_hook(void* ctx, REManagedObject* input_system) {
         Vector3f axis{ right_axis.x, right_axis.y, 0.0f };
         sdk::call_object_func<void*>(rstick, "update", sdk::get_thread_context(), rstick, &axis, &axis);
 
-        if ((mod->m_button_states_on.to_ullong() & (uint64_t)app::ropeway::InputDefine::Kind::UI_R_STICK) == 0) {
-            if (mod->m_button_states_down.to_ullong() & (uint64_t)app::ropeway::InputDefine::Kind::UI_R_STICK) {
-                button_bits_on |= (uint64_t)app::ropeway::InputDefine::Kind::UI_R_STICK;
-                button_bits_down &= ~(uint64_t)app::ropeway::InputDefine::Kind::UI_R_STICK;
-            } else {
-                button_bits_down |= (uint64_t)app::ropeway::InputDefine::Kind::UI_R_STICK;
-            }
-        } else {
-            button_bits_down &= ~(uint64_t)app::ropeway::InputDefine::Kind::UI_R_STICK;
-            button_bits_on |= (uint64_t)app::ropeway::InputDefine::Kind::UI_R_STICK;
-        }
+        keep_button_down(app::ropeway::InputDefine::Kind::UI_R_STICK);
     }
 
     // Causes the right stick to take effect properly
@@ -1002,18 +1000,23 @@ void VR::openvr_input_to_game(REManagedObject* input_system) {
         }
     };
 
-    // Right Grip: Aim
+    // Right Grip: Aim, UI Right (RB)
     set_button_state(app::ropeway::InputDefine::Kind::HOLD, is_grip_down);
+    set_button_state(app::ropeway::InputDefine::Kind::UI_SHIFT_RIGHT, is_grip_down);
 
-    // Left Grip: Alternate aim (grenades, knives, etc)
+    // Left Grip: Alternate aim (grenades, knives, etc), UI left (LB)
     set_button_state(app::ropeway::InputDefine::Kind::SUPPORT_HOLD, is_left_grip_down);
+    set_button_state(app::ropeway::InputDefine::Kind::UI_SHIFT_LEFT, is_left_grip_down);
 
-    // Right Trigger (RB): Attack, UI right
+    // Right Trigger (RB): Attack, Alternate UI right (RT), GE_RTrigBottom (quick time event), GE_RTrigTop (another quick time event)
     set_button_state(app::ropeway::InputDefine::Kind::ATTACK, is_trigger_down);
-    set_button_state(app::ropeway::InputDefine::Kind::UI_SHIFT_RIGHT, is_trigger_down);
+    set_button_state(app::ropeway::InputDefine::Kind::UI_SHIFT_RIGHT_2, is_trigger_down);
+    set_button_state((app::ropeway::InputDefine::Kind)18014398509481984, is_trigger_down);
+    set_button_state((app::ropeway::InputDefine::Kind)9007199254740992, is_trigger_down);
+    //set_button_state((app::ropeway::InputDefine::Kind)4503599627370496, is_trigger_down);
 
-    // Left Trigger (LB): UI left
-    set_button_state(app::ropeway::InputDefine::Kind::UI_SHIFT_LEFT, is_left_trigger_down);
+    // Left Trigger (LB): Alternate UI left (LT)
+    set_button_state(app::ropeway::InputDefine::Kind::UI_SHIFT_LEFT_2, is_left_trigger_down);
 
     // L3: Sprint
     set_button_state(app::ropeway::InputDefine::Kind::JOG1, is_left_joystick_click_down);
@@ -1046,8 +1049,8 @@ void VR::openvr_input_to_game(REManagedObject* input_system) {
     set_button_state(app::ropeway::InputDefine::Kind::UI_RESET, is_right_b_button_down);
     set_button_state((app::ropeway::InputDefine::Kind)((uint64_t)1 << 52), is_right_b_button_down);
 
-    auto left_axis = get_left_stick_axis();
-    auto right_axis = get_right_stick_axis();
+    const auto left_axis = get_left_stick_axis();
+    const auto right_axis = get_right_stick_axis();
     const auto left_axis_len = glm::length(left_axis);
     const auto right_axis_len = glm::length(right_axis);
 
