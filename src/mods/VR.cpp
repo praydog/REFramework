@@ -344,31 +344,54 @@ std::optional<std::string> VR::initialize_openvr() {
         return "VRInput failed to get action handles (BButton): " + std::to_string((uint32_t)b_button_error);
     }
 
-    // get the source input device handles for the joysticks
-    auto left_joystick_error = vr::VRInput()->GetInputSourceHandle("/user/hand/left", &m_left_joystick);
-
-    if (left_joystick_error != vr::VRInputError_None) {
-        return "VRInput failed to get input source handles (left): " + std::to_string((uint32_t)left_joystick_error);
-    }
-
-    auto right_joystick_error = vr::VRInput()->GetInputSourceHandle("/user/hand/right", &m_right_joystick);
-
-    if (right_joystick_error != vr::VRInputError_None) {
-        return "VRInput failed to get input source handles (right): " + std::to_string((uint32_t)right_joystick_error);
-    }
-
     m_active_action_set.ulActionSet = m_action_set;
     m_active_action_set.ulRestrictedToDevice = vr::k_ulInvalidInputValueHandle;
     m_active_action_set.nPriority = 0;
 
+    auto left_joystick_origin_error = vr::EVRInputError::VRInputError_None;
+    auto right_joystick_origin_error = vr::EVRInputError::VRInputError_None;
+
+    vr::InputOriginInfo_t left_joystick_origin_info{};
+    vr::InputOriginInfo_t right_joystick_origin_info{};
+
+    const auto start_time = std::chrono::steady_clock::now();
+    auto iterations = 0;
+
     // Get input origin info for the joysticks
-    vr::InputOriginInfo_t left_joystick_origin_info;
-    vr::InputOriginInfo_t right_joystick_origin_info;
-    auto left_joystick_origin_error = vr::VRInput()->GetOriginTrackedDeviceInfo(m_left_joystick, &left_joystick_origin_info, sizeof(left_joystick_origin_info));
-    auto right_joystick_origin_error = vr::VRInput()->GetOriginTrackedDeviceInfo(m_right_joystick, &right_joystick_origin_info, sizeof(right_joystick_origin_info));
+    do {
+        ++iterations;
+        
+        const auto now = std::chrono::steady_clock::now();
+
+        if (now - start_time >= std::chrono::seconds(5)) {
+            break;
+        }
+
+        // get the source input device handles for the joysticks
+        auto left_joystick_error = vr::VRInput()->GetInputSourceHandle("/user/hand/left", &m_left_joystick);
+
+        if (left_joystick_error != vr::VRInputError_None) {
+            continue;
+        }
+
+        auto right_joystick_error = vr::VRInput()->GetInputSourceHandle("/user/hand/right", &m_right_joystick);
+
+        if (right_joystick_error != vr::VRInputError_None) {
+            continue;
+        }
+
+        left_joystick_origin_info = {};
+        right_joystick_origin_info = {};
+
+        left_joystick_origin_error = vr::VRInput()->GetOriginTrackedDeviceInfo(m_left_joystick, &left_joystick_origin_info, sizeof(left_joystick_origin_info));
+        right_joystick_origin_error = vr::VRInput()->GetOriginTrackedDeviceInfo(m_right_joystick, &right_joystick_origin_info, sizeof(right_joystick_origin_info));
+    } while (left_joystick_origin_error != vr::EVRInputError::VRInputError_None 
+            || right_joystick_origin_error != vr::EVRInputError::VRInputError_None);
+
+    spdlog::info("VRInput: GetOriginTrackedDeviceInfo took {} iterations", iterations);
 
     if (left_joystick_origin_error != vr::VRInputError_None || right_joystick_origin_error != vr::VRInputError_None) {
-        return "VRInput failed to get origin tracked device info: " + std::to_string((uint32_t)left_joystick_origin_error) + " " + std::to_string((uint32_t)right_joystick_origin_error);
+        return "VRInput failed to get controller device info (left, right): " + std::to_string((uint32_t)left_joystick_origin_error) + ", " + std::to_string((uint32_t)right_joystick_origin_error);
     }
 
     // Instead of manually going through the devices,
