@@ -1,7 +1,7 @@
 #pragma once
-#include "..\via\mat4.hpp"
-#include "..\via\Range.hpp"
 #include "..\via\motion\AxisDirection.hpp"
+#include "..\via\Range.hpp"
+#include "..\via\mat4.hpp"
 namespace regenny::via {
 struct Joint;
 }

@@ -1,9 +1,9 @@
 #pragma once
-namespace regenny {
-struct TypeDefinition;
-}
 namespace regenny::tdb67 {
 struct MethodDefinition;
+}
+namespace regenny {
+struct TypeDefinition;
 }
 namespace regenny::tdb67 {
 #pragma pack(push, 1)

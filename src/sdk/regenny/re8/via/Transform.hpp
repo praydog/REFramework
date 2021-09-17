@@ -1,13 +1,13 @@
 #pragma once
+#include ".\JointArray.hpp"
 #include ".\vec4.hpp"
 #include ".\mat4.hpp"
 #include ".\Component.hpp"
-#include ".\JointArray.hpp"
-namespace regenny::via {
-struct Scene;
-}
 namespace regenny::via {
 struct Transform;
+}
+namespace regenny::via {
+struct Scene;
 }
 namespace regenny::via {
 #pragma pack(push, 1)

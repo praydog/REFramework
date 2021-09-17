@@ -1,6 +1,6 @@
 #pragma once
-#include ".\Size.hpp"
 #include ".\Point.hpp"
+#include ".\Size.hpp"
 namespace regenny::via {
 #pragma pack(push, 1)
 struct Window {
