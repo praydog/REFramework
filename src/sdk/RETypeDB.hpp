@@ -457,4 +457,26 @@ T* get_object_field(::REManagedObject* obj, std::string_view name, bool is_value
 
     return get_object_field<T>((void*)obj, def, name, is_value_type);
 }
+
+static void* find_native_method(sdk::RETypeDefinition* t, std::string_view method_name) {
+    const auto method = t->get_method(method_name);
+
+    if (method == nullptr) {
+        // spdlog::error("Cannot find {:s}", method_name.data());
+        return nullptr;
+    }
+
+    return method->get_function();
+}
+
+static void* find_native_method(std::string_view type_name, std::string_view method_name) {
+    auto t = sdk::RETypeDB::get()->find_type(type_name);
+
+    if (t == nullptr) {
+        //spdlog::error("Cannot find type {:s}", type_name.data());
+        return nullptr;
+    }
+
+    return find_native_method(t, method_name);
+}
 } // namespace sdk

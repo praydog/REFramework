@@ -85,30 +85,16 @@ std::optional<std::string> PositionHooks::on_initialize() {
     //auto update_camera_controller = utility::scan(game, "40 55 56 57 48 8D AC 24 ? ? ? ? 48 81 EC ? ? 00 00 48 8B 41 50");
 
     // Version 3 June 2nd, 2020 game.exe+0xD41AD0 (works on old version too)
-    auto update_camera_controller = utility::scan(game, "40 55 ? 57 48 8D AC 24 ? ? ? ? 48 81 EC ? ? 00 00 48 8B 41 50");
+    auto update_camera_controller = sdk::find_native_method(game_namespace("camera.PlayerCameraController"), "updateCameraPosition");
 
-    // Keep searching through the game module to find the correct function.
-    while (update_camera_controller) {
-        // Present in old versions, near the very top of the function
-        // .srdata:0000000140D41B21 4C 89 B4 24 A0 02 00 00                       mov [rsp+2C0h+var_20], r14
-        // .srdata:0000000140D41B29 E8 A2 51 C8 00                                call    sub_1419C6CD0
-        // .srdata:0000000140D41B2E 0F B6 C8                                      movzx   ecx, al
-        if (utility::scan(*update_camera_controller + 1, 0x100, "4C 89 ? ? ? ? ? ? E8 ? ? ? ? 0F B6 C8")) {
-            // found the correct function
-            break;
-        }
-        
-        update_camera_controller = utility::scan(*update_camera_controller + 1, *mod_size - 100, "40 55 ? 57 48 8D AC 24 ? ? ? ? 48 81 EC ? ? 00 00 48 8B 41 50");
+    if (update_camera_controller == nullptr) {
+        return std::string{"Failed to find "} + game_namespace("camera.PlayerCameraController") + "::updateCameraPosition";
     }
 
-    if (!update_camera_controller) {
-        return "Failed to find UpdateCameraController pattern";
-    }
-
-    spdlog::info("UpdateCameraController: {:x}", *update_camera_controller);
+    spdlog::info("camera.PlayerCameraController.updateCameraPosition: {:x}", (uintptr_t)update_camera_controller);
 
     // Can be found by breakpointing camera controller's worldPosition
-    m_update_camera_controller_hook = std::make_unique<FunctionHook>(*update_camera_controller, &update_camera_controller_hook);
+    m_update_camera_controller_hook = std::make_unique<FunctionHook>(update_camera_controller, &update_camera_controller_hook);
 
     if (!m_update_camera_controller_hook->create()) {
         return "Failed to hook UpdateCameraController";
@@ -120,28 +106,16 @@ std::optional<std::string> PositionHooks::on_initialize() {
     // Version 1
     //auto updatecamera_controller2 = utility::scan(game, "40 53 57 48 81 ec ? ? ? ? 48 8b 41 ? 48 89 d7 48 8b 92 ? ? 00 00");
     // Version 2 Dec 17th, 2019 game.exe+0x6CD9C0 (works on old version too)
-    auto update_camera_controller2 = utility::scan(game, "40 53 57 48 81 EC ? ? ? ? 48 ? ? ? 48 ? ? 48 ? ? ? ? 00 00");
+    auto update_camera_controller2 = sdk::find_native_method(game_namespace("camera.TwirlerCameraControllerRoot"), "update");
 
-#ifdef RE3
-    while (update_camera_controller2) {
-        if (utility::scan(*update_camera_controller2, 0x100, "0F B6 4F 51")) {
-            break;
-        }
-
-        update_camera_controller2 = utility::scan(*update_camera_controller2 + 1,
-            (uint32_t)(*utility::get_module_size(game) - ((*update_camera_controller2 + 1) - (uintptr_t)game)),
-            "40 53 57 48 81 EC ? ? ? ? 48 ? ? ? 48 ? ? 48 ? ? ? ? 00 00");
-    }
-#endif
-
-    if (!update_camera_controller2) {
-        return "Unable to find UpdateCameraController2 pattern.";
+    if (update_camera_controller2 == nullptr) {
+        return std::string{"Failed to find "} + game_namespace("camera.TwirlerCameraControllerRoot") + "::update";
     }
 
-    spdlog::info("Updatecamera_controller2: {:x}", *update_camera_controller2);
+    spdlog::info("camera.TwirlerCameraControllerRoot.update: {:x}", (uintptr_t)update_camera_controller2);
 
     // Can be found by breakpointing camera controller's worldRotation
-    m_update_camera_controller2_hook = std::make_unique<FunctionHook>(*update_camera_controller2, &update_camera_controller2_hook);
+    m_update_camera_controller2_hook = std::make_unique<FunctionHook>(update_camera_controller2, &update_camera_controller2_hook);
 
     if (!m_update_camera_controller2_hook->create()) {
         return "Failed to hook Updatecamera_controller2";
