@@ -14,14 +14,26 @@
 
 FirstPerson* g_first_person = nullptr;
 
+std::shared_ptr<FirstPerson>& FirstPerson::get() {
+    static std::shared_ptr<FirstPerson> inst{};
+
+    if (inst == nullptr) {
+        inst = std::make_shared<FirstPerson>();
+    }
+
+    return inst;
+}
+
 FirstPerson::FirstPerson() {
     // thanks imgui
     g_first_person = this;
     m_attach_bone_imgui.reserve(256);
 
 #ifdef RE3
+    // Carlos
+    m_attach_offsets["pl0000"] = Vector4f{ 0.0f, 0.667f, 1.1f, 0.0f };
     // Jill (it looks better with 0?)
-    m_attach_offsets["pl2000"] = Vector4f{ 0.0f, 0.0f, 0.0f, 0.0f };
+    m_attach_offsets["pl2000"] = Vector4f{ 0.0f, 0.5f, 0.776f, 0.0f };
     //m_attach_offsets["pl2000"] = Vector4f{ -0.23f, 0.4f, 1.0f, 0.0f };
 #else
     // Specific player model configs

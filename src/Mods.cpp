@@ -24,7 +24,7 @@ Mods::Mods()
 
 #ifndef RE8
 #ifndef DMC5
-    m_mods.emplace_back(std::make_unique<FirstPerson>());
+    m_mods.emplace_back(FirstPerson::get());
 #endif
 #else
     m_mods.emplace_back(std::make_unique<Camera>());

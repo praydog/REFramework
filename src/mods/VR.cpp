@@ -16,6 +16,8 @@
 #include "utility/FunctionHook.hpp"
 #include "utility/Module.hpp"
 
+#include "FirstPerson.hpp"
+
 #include "VR.hpp"
 
 constexpr auto CONTROLLER_DEADZONE = 0.1f;
@@ -667,6 +669,7 @@ void VR::on_post_frame() {
 
     m_frame_count = get_frame_count();
     m_main_view = sdk::get_main_view();
+    m_submitted = false;
 
     const auto renderer = g_framework->get_renderer_type();
 
@@ -728,22 +731,31 @@ void VR::on_post_frame() {
             }
         }
 
-        std::unique_lock __{ m_eyes_mtx };
+        {
+            std::unique_lock __{ m_eyes_mtx };
+            const auto local_left = m_hmd->GetEyeToHeadTransform(vr::Eye_Left);
+            const auto local_right = m_hmd->GetEyeToHeadTransform(vr::Eye_Right);
 
-        const auto local_left = m_hmd->GetEyeToHeadTransform(vr::Eye_Left);
-        const auto local_right = m_hmd->GetEyeToHeadTransform(vr::Eye_Right);
+            m_eyes[vr::Eye_Left] = glm::rowMajor4(Matrix4x4f{ *(Matrix3x4f*)&local_left } );
+            m_eyes[vr::Eye_Right] = glm::rowMajor4(Matrix4x4f{ *(Matrix3x4f*)&local_right } );
 
-        m_eyes[vr::Eye_Left] = glm::rowMajor4(Matrix4x4f{ *(Matrix3x4f*)&local_left } );
-        m_eyes[vr::Eye_Right] = glm::rowMajor4(Matrix4x4f{ *(Matrix3x4f*)&local_right } );
+            auto pleft = m_hmd->GetProjectionMatrix(vr::Eye_Left, m_nearz, m_farz);
+            auto pright = m_hmd->GetProjectionMatrix(vr::Eye_Right, m_nearz, m_farz);
 
-        auto pleft = m_hmd->GetProjectionMatrix(vr::Eye_Left, m_nearz, m_farz);
-        auto pright = m_hmd->GetProjectionMatrix(vr::Eye_Right, m_nearz, m_farz);
+            m_projections[vr::Eye_Left] = glm::rowMajor4(Matrix4x4f{ *(Matrix4x4f*)&pleft } );
+            m_projections[vr::Eye_Right] = glm::rowMajor4(Matrix4x4f{ *(Matrix4x4f*)&pright } );
 
-        m_projections[vr::Eye_Left] = glm::rowMajor4(Matrix4x4f{ *(Matrix4x4f*)&pleft } );
-        m_projections[vr::Eye_Right] = glm::rowMajor4(Matrix4x4f{ *(Matrix4x4f*)&pright } );
+            m_hmd->GetProjectionRaw(vr::Eye_Left, &m_raw_projections[vr::Eye_Left][0], &m_raw_projections[vr::Eye_Left][1], &m_raw_projections[vr::Eye_Left][2], &m_raw_projections[vr::Eye_Left][3]);
+            m_hmd->GetProjectionRaw(vr::Eye_Right, &m_raw_projections[vr::Eye_Right][0], &m_raw_projections[vr::Eye_Right][1], &m_raw_projections[vr::Eye_Right][2], &m_raw_projections[vr::Eye_Right][3]);
+        }
 
-        m_hmd->GetProjectionRaw(vr::Eye_Left, &m_raw_projections[vr::Eye_Left][0], &m_raw_projections[vr::Eye_Left][1], &m_raw_projections[vr::Eye_Left][2], &m_raw_projections[vr::Eye_Left][3]);
-        m_hmd->GetProjectionRaw(vr::Eye_Right, &m_raw_projections[vr::Eye_Right][0], &m_raw_projections[vr::Eye_Right][1], &m_raw_projections[vr::Eye_Right][2], &m_raw_projections[vr::Eye_Right][3]);
+#if defined(RE2) || defined(RE3)
+        auto camera = sdk::get_primary_camera();
+
+        if (camera != nullptr) {
+            FirstPerson::get()->update_camera_transform(camera->ownerGameObject->transform);
+        }
+#endif
 
         m_submitted = false;
     }
