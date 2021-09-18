@@ -50,4 +50,10 @@ namespace utility::math {
         return std::clamp(ang, glm::radians(-89.0f), glm::radians(89.0f));
     }
 
+    static glm::mat4 remove_y_component(const glm::mat4& mat) {
+        // Remove y component and normalize so we have the facing direction
+        const auto forward_dir = glm::normalize(Vector3f{ mat[2].x, 0.0f, mat[2].z });
+
+        return glm::rowMajor4(glm::lookAtLH(Vector3f{}, Vector3f{ forward_dir }, Vector3f(0.0f, 1.0f, 0.0f)));
+    }
 }

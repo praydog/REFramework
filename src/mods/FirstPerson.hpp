@@ -57,16 +57,20 @@ private:
 
     // Different "configs" for each model
     std::unordered_map<std::string, Vector4f> m_attach_offsets;
+    
     Matrix4x4f m_rotation_offset{ glm::identity<Matrix4x4f>() };
     Matrix4x4f m_interpolated_bone{ glm::identity<Matrix4x4f>() };
     Matrix4x4f m_last_bone_matrix{ glm::identity<Matrix4x4f>() };
     Matrix4x4f m_last_camera_matrix{ glm::identity<Matrix4x4f>() };
     Matrix4x4f m_last_camera_matrix_pre_vr{ glm::identity<Matrix4x4f>() };
+    Matrix4x4f m_last_camera_matrix_pre_cutscene{ glm::identity<Matrix4x4f>() };
+    Matrix4x4f m_last_headset_rotation_pre_cutscene{ glm::identity<Matrix4x4f>() };
     Matrix4x4f* m_cached_bone_matrix{ nullptr };
     Vector4f m_last_controller_pos{};
     glm::quat m_last_controller_rotation{};
     glm::quat m_last_controller_rotation_vr{};
     Vector3f m_last_controller_angles{};
+    bool m_has_cutscene_rotation{ false };
     bool m_ignore_next_player_angles{ false };
     app::ropeway::camera::CameraControlType m_last_camera_type{};
 

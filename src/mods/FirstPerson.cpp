@@ -349,6 +349,7 @@ void FirstPerson::reset() {
     m_interpolated_bone = glm::identity<decltype(m_interpolated_bone)>();
     m_last_camera_matrix = glm::identity<decltype(m_last_camera_matrix)>();
     m_last_camera_matrix_pre_vr = glm::identity<decltype(m_last_camera_matrix_pre_vr)>();
+    m_last_headset_rotation_pre_cutscene = glm::identity<decltype(m_last_headset_rotation_pre_cutscene)>();
     m_last_bone_matrix = glm::identity<decltype(m_last_bone_matrix)>();
     m_last_controller_pos = Vector4f{};
     m_last_controller_rotation = glm::quat{};
@@ -714,15 +715,8 @@ void FirstPerson::update_player_transform(RETransform* transform) {
                 auto center_offset = Address{ik_leg}.get(0x70).as<Vector3f*>();
 
                 if (!VR::get()->is_using_controllers()) {
-                    auto forward_dir = glm::extractMatrixRotation(Matrix4x4f{glm::normalize(m_last_controller_rotation_vr)})[2];
-                    // Remove y component and normalize so we have the facing direction
-                    forward_dir.y = 0.0f;
-                    forward_dir = glm::normalize(forward_dir);
-
-                    // Convert forward_dir to quaternion properly
-                    const auto forward_mat = glm::rowMajor4(glm::lookAtLH(Vector3f{}, Vector3f{ forward_dir }, Vector3f(0.0f, 1.0f, 0.0f)));
-
-                    *center_offset = forward_mat * (headset_pos - VR::get()->get_standing_origin());
+                    const auto forward_matrix = utility::math::remove_y_component(Matrix4x4f{glm::normalize(m_last_controller_rotation_vr)});
+                    *center_offset = forward_matrix * (headset_pos - VR::get()->get_standing_origin());
                 } else {
                     *center_offset = m_last_controller_rotation_vr * (headset_pos - VR::get()->get_standing_origin());
                 }
@@ -859,6 +853,25 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
     camera_matrix[3] = m_last_bone_matrix[3];
     auto& bone_pos = camera_matrix[3];
 
+    // Fix rotation after returning to player control
+    if (is_player_in_control && m_has_cutscene_rotation) {
+        const auto cutscene_quat = glm::quat{ glm::inverse(m_last_headset_rotation_pre_cutscene) };
+        m_last_controller_rotation = glm::normalize((cutscene_quat) * m_last_controller_rotation);
+        m_last_controller_angles = utility::math::euler_angles(Matrix4x4f{m_last_controller_rotation});
+
+        if (m_player_camera_controller != nullptr) {
+            m_player_camera_controller->worldRotation = m_camera_system->cameraController->worldRotation;
+
+            m_player_camera_controller->pitch = m_last_controller_angles.x;
+            m_player_camera_controller->yaw = m_last_controller_angles.y;
+        }
+
+        m_has_cutscene_rotation = false;
+        m_ignore_next_player_angles = true;
+
+        m_camera_system->mainCameraController->updateCamera = false;
+    }
+
     auto cam_rot_mat = glm::extractMatrixRotation(Matrix4x4f{ m_last_controller_rotation });
     auto head_rot_mat = glm::extractMatrixRotation(m_last_bone_matrix) * Matrix4x4f {
         -1, 0, 0, 0,
@@ -910,13 +923,26 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
     }
 
     auto final_mat = is_player_camera ? (m_interpolated_bone * m_rotation_offset) : m_interpolated_bone;
+
     const auto mtx_pre_vr = mtx;
+    
+    const auto last_headset_rotation = !is_player_in_control ? m_last_headset_rotation_pre_cutscene : glm::identity<Matrix4x4f>();
+    const auto inverse_last_headset_rotation = !is_player_in_control ? glm::inverse(m_last_headset_rotation_pre_cutscene) : glm::identity<Matrix4x4f>();
 
     const auto final_mat_pre_vr = final_mat;
-    const auto final_quat_pre_vr = glm::quat{final_mat};
+    const auto final_quat_pre_vr = glm::normalize(glm::quat{final_mat});
+
+    const auto real_headset_rotation = VR::get()->get_rotation(0);
+    const auto headset_rotation = inverse_last_headset_rotation * real_headset_rotation;
+
+    //if (!is_paused && m_has_cutscene_rotation) {
+        //final_mat *= glm::inverse(m_last_headset_rotation_pre_cutscene);
+    //}
     
     // do not interpolate the headset rotation to reduce motion sickness
-    final_mat *= VR::get()->get_rotation(0);
+    //if (is_player_in_control || m_has_cutscene_rotation || is_paused) {
+        final_mat *= headset_rotation;
+    //}
 
     auto final_quat = glm::quat{ final_mat };
 
@@ -934,12 +960,6 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
         m_last_camera_matrix = mtx;
         m_last_camera_matrix_pre_vr = mtx_pre_vr;
     //}
-
-    /*
-    *(Matrix4x4f*)&mtx *= VR::get()->get_current_rotation_offset();
-    (*(Matrix3x4f*)&mtx)[3] += glm::extractMatrixRotation(camera_matrix) * (VR::get()->get_current_offset());
-    mtx[3][3] = 1.0f;
-    */
 
     // Fixes snappiness after camera switching
     if (!is_player_in_control) {
@@ -991,6 +1011,16 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
     }
 
     m_last_controller_rotation_vr = glm::quat { cam_rot_mat };
+
+    // Keep track of the last pre-cutscene headset rotation
+    // so the player doesn't do something like flip 180 when a cutscene starts
+    // which would be especially prevalent for a user with a large playspace
+    if (!is_player_in_control && !m_has_cutscene_rotation) {
+        m_last_headset_rotation_pre_cutscene = utility::math::remove_y_component(real_headset_rotation);
+        m_has_cutscene_rotation = true;
+    } else if (is_player_in_control) {
+        m_has_cutscene_rotation = false;
+    }
 }
 
 void FirstPerson::update_sweet_light_context(RopewaySweetLightManagerContext* ctx) {
