@@ -94,7 +94,7 @@ Matrix4x4f* VR::camera_get_projection_matrix_hook(REManagedObject* camera, Matri
 
     // Get the projection matrix for the correct eye
     // For some reason we need to flip the projection matrix here?
-    *result = vr->get_current_projection_matrix(true);
+    *result = vr->get_current_projection_matrix(!(vr->m_frame_count < vr->get_frame_count()));
 
     return result;
 }
@@ -632,11 +632,14 @@ Matrix4x4f VR::get_current_eye_transform() {
 
     std::shared_lock _{m_eyes_mtx};
 
+    const auto frame_count = get_frame_count();
+    const auto flip = (m_frame_count < frame_count);
+
     if (get_frame_count() % 2 == 0) {
-        return m_eyes[vr::Eye_Left];
+        return !flip ? m_eyes[vr::Eye_Left] : m_eyes[vr::Eye_Right];
     }
 
-    return m_eyes[vr::Eye_Right];
+    return !flip ? m_eyes[vr::Eye_Right] : m_eyes[vr::Eye_Left];
 }
 
 Matrix4x4f VR::get_current_rotation_offset() {
