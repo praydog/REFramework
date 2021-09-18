@@ -29,8 +29,6 @@ public:
     void on_update_camera_controller(RopewayPlayerCameraController* controller) override;
     void on_update_camera_controller2(RopewayPlayerCameraController* controller) override;
 
-    void update_camera_transform(RETransform* transform);
-
 protected:
     // gross
     bool list_box_handler_attach(void* data, int idx, const char** out_text) {
@@ -43,6 +41,7 @@ private:
     void set_vignette(via::render::ToneMapping::Vignetting value);
     bool update_pointers_from_camera_system(RopewayCameraSystem* camera_system);
     void update_player_transform(RETransform* transform);
+    void update_camera_transform(RETransform* transform);
     void update_sweet_light_context(RopewaySweetLightManagerContext* ctx);
     void update_player_bones(RETransform* transform);
     void update_fov(RopewayPlayerCameraController* controller);

@@ -749,11 +749,15 @@ void VR::on_post_frame() {
             m_hmd->GetProjectionRaw(vr::Eye_Right, &m_raw_projections[vr::Eye_Right][0], &m_raw_projections[vr::Eye_Right][1], &m_raw_projections[vr::Eye_Right][2], &m_raw_projections[vr::Eye_Right][3]);
         }
 
+        // Forcefully update the camera transform after submitting the frame
+        // because the game logic thread does not run in sync with the rendering thread
+        // This will massively improve HMD rotation smoothness for the user
+        // if this is not done, the left eye will jitter a lot
 #if defined(RE2) || defined(RE3)
         auto camera = sdk::get_primary_camera();
 
-        if (camera != nullptr) {
-            FirstPerson::get()->update_camera_transform(camera->ownerGameObject->transform);
+        if (camera != nullptr && camera->ownerGameObject != nullptr && camera->ownerGameObject->transform != nullptr) {
+            FirstPerson::get()->on_update_transform(camera->ownerGameObject->transform);
         }
 #endif
 
