@@ -411,19 +411,7 @@ std::optional<std::string> VR::initialize_openvr() {
 std::optional<std::string> VR::hijack_resolution() {
     // We're going to hook via.SceneView.get_Size so we can
     // spoof the render target size to the HMD's resolution.
-    auto sceneview_type = sdk::RETypeDB::get()->find_type("via.SceneView");
-
-    if (sceneview_type == nullptr) {
-        return "VR init failed: via.SceneView type not found.";
-    }
-
-    auto get_size_method = sceneview_type->get_method("get_Size");
-
-    if (get_size_method == nullptr) {
-        return "VR init failed: via.SceneView.get_Size method not found.";
-    }
-
-    auto get_size_func = get_size_method->get_function();
+    auto get_size_func = sdk::find_native_method("via.SceneView", "get_Size");
 
     if (get_size_func == nullptr) {
         return "VR init failed: via.SceneView.get_Size function not found.";
@@ -454,19 +442,7 @@ std::optional<std::string> VR::hijack_input() {
 #ifndef RE8
     // We're going to hook InputSystem.update so we can
     // override the analog stick values with the VR controller's
-    auto t = sdk::RETypeDB::get()->find_type(game_namespace("InputSystem"));
-
-    if (t == nullptr) {
-        return "VR init failed: InputSystem type not found.";
-    }
-
-    auto method = t->get_method("update");
-
-    if (method == nullptr) {
-        return "VR init failed: InputSystem.update method not found.";
-    }
-
-    auto func = method->get_function();
+    auto func = sdk::find_native_method(game_namespace("InputSystem"), "update");
 
     if (func == nullptr) {
         return "VR init failed: InputSystem.update function not found.";
@@ -488,19 +464,7 @@ std::optional<std::string> VR::hijack_input() {
 std::optional<std::string> VR::hijack_camera() {
     // We're going to hook via.Camera.get_ProjectionMatrix so we can
     // override the camera's Projection matrix with the HMD's Projection matrix (per-eye)
-    auto t = sdk::RETypeDB::get()->find_type("via.Camera");
-
-    if (t == nullptr) {
-        return "VR init failed: via.Camera type not found.";
-    }
-
-    auto method = t->get_method("get_ProjectionMatrix");
-
-    if (method == nullptr) {
-        return "VR init failed: via.Camera.get_ProjectionMatrix method not found.";
-    }
-
-    auto func = method->get_function();
+    auto func = sdk::find_native_method("via.Camera", "get_ProjectionMatrix");
 
     if (func == nullptr) {
         return "VR init failed: via.Camera.get_ProjectionMatrix function not found.";
@@ -527,13 +491,7 @@ std::optional<std::string> VR::hijack_camera() {
     ///////////////////////////////
     // Hook view matrix start
     ///////////////////////////////
-    method = t->get_method("get_ViewMatrix");
-
-    if (method == nullptr) {
-        return "VR init failed: via.Camera.get_ViewMatrix method not found.";
-    }
-
-    func = method->get_function();
+    func = sdk::find_native_method("via.Camera", "get_ViewMatrix");
 
     if (func == nullptr) {
         return "VR init failed: via.Camera.get_ViewMatrix function not found.";
