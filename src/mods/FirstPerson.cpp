@@ -840,8 +840,6 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
         }
     }
 
-    auto bone_scale = (is_player_in_control || is_switching_to_player_camera) ? (m_interp_bone_scale * 0.01f) : 1.0f;
-
     // Lets camera modification work in cutscenes/action camera etc
     if (!is_player_camera && !is_switching_camera) {
         m_camera_system->mainCameraController->updateCamera = false;
@@ -855,7 +853,8 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
 
     // Fix rotation after returning to player control
     if (is_player_in_control && m_has_cutscene_rotation) {
-        const auto cutscene_quat = glm::quat{ glm::inverse(m_last_headset_rotation_pre_cutscene) };
+        const auto cutscene_inverse = glm::inverse(m_last_headset_rotation_pre_cutscene);
+        const auto cutscene_quat = glm::quat{ cutscene_inverse };
         m_last_controller_rotation = glm::normalize((cutscene_quat) * m_last_controller_rotation);
         m_last_controller_angles = utility::math::euler_angles(Matrix4x4f{m_last_controller_rotation});
 
@@ -866,11 +865,22 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
             m_player_camera_controller->yaw = m_last_controller_angles.y;
         }
 
+        m_camera_system->mainCameraController->cameraRotation = *(Vector4f*)&m_last_controller_rotation;
+        m_camera_system->cameraController->worldRotation = *(Vector4f*)&m_last_controller_rotation;
+
         m_has_cutscene_rotation = false;
         m_ignore_next_player_angles = true;
 
         m_camera_system->mainCameraController->updateCamera = false;
+
+        *(Matrix3x4f*)&mtx = cutscene_inverse * m_last_camera_matrix_pre_vr;
+
+        // Do not interpolate these so the camera doesn't jump after exiting a cutscene.
+        m_interp_bone_scale = 0.0f;
+        m_interp_camera_speed = 100.0f;
     }
+
+    auto bone_scale = (is_player_in_control || is_switching_to_player_camera) ? (m_interp_bone_scale * 0.01f) : 1.0f;
 
     auto cam_rot_mat = glm::extractMatrixRotation(Matrix4x4f{ m_last_controller_rotation });
     auto head_rot_mat = glm::extractMatrixRotation(m_last_bone_matrix) * Matrix4x4f {
@@ -911,12 +921,16 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
     auto wanted_mat = glm::inverse(m_interpolated_bone) * cam_rot_mat;
 
     if (is_player_in_control || is_switching_to_player_camera) {
-        // Average the distance to the wanted rotation
-        dist = (glm::distance(m_rotation_offset[0], wanted_mat[0])
-            + glm::distance(m_rotation_offset[1], wanted_mat[1])
-            + glm::distance(m_rotation_offset[2], wanted_mat[2])) / 3.0f;
+        if (is_player_in_control && m_interp_camera_speed >= 100.0f && bone_scale == 0.0f) {
+            m_rotation_offset = wanted_mat;
+        } else {
+            // Average the distance to the wanted rotation
+            dist = (glm::distance(m_rotation_offset[0], wanted_mat[0])
+                + glm::distance(m_rotation_offset[1], wanted_mat[1])
+                + glm::distance(m_rotation_offset[2], wanted_mat[2])) / 3.0f;
 
-        m_rotation_offset = glm::interpolate(m_rotation_offset, wanted_mat, delta_time * (m_interp_camera_speed * 0.01f) * dist);
+            m_rotation_offset = glm::interpolate(m_rotation_offset, wanted_mat, delta_time * (m_interp_camera_speed * 0.01f) * dist);
+        }
     }
     else {
         m_rotation_offset = wanted_mat;
