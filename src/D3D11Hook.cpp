@@ -75,7 +75,7 @@ HRESULT WINAPI D3D11Hook::present(IDXGISwapChain* swap_chain, UINT sync_interval
 
     if (d3d11->m_swapchain_0 == nullptr) {
         d3d11->m_swapchain_0 = swap_chain;
-    } else if (d3d11->m_swapchain_1 == nullptr) {
+    } else if (d3d11->m_swapchain_1 == nullptr && swap_chain != d3d11->m_swapchain_0) {
         d3d11->m_swapchain_1 = swap_chain;
     }
 

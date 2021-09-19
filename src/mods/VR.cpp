@@ -51,8 +51,7 @@ float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
 
     if (left_sceneview == nullptr) {
         left_sceneview = scene_view;
-    }
-    else if (right_sceneview == nullptr) {
+    } else if (right_sceneview == nullptr && scene_view != left_sceneview) {
         right_sceneview = scene_view;
     }
 
