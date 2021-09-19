@@ -11,6 +11,7 @@
 #include "sdk/Math.hpp"
 #include "sdk/SceneManager.hpp"
 #include "sdk/RETypeDB.hpp"
+#include "sdk/Renderer.hpp"
 
 #include "utility/Scan.hpp"
 #include "utility/FunctionHook.hpp"
@@ -257,6 +258,15 @@ std::optional<std::string> VR::on_initialize() {
     if (hijack_error) {
         return hijack_error;
     }
+
+    while (sdk::get_main_view() == nullptr) {
+
+    }
+
+    auto view = sdk::get_main_view();
+
+    // Add new scene view for the right eye
+    sdk::renderer::add_scene_view(view);
 
     // all OK
     return Mod::on_initialize();
@@ -751,11 +761,11 @@ void VR::on_post_frame() {
         // This will massively improve HMD rotation smoothness for the user
         // if this is not done, the left eye will jitter a lot
 #if defined(RE2) || defined(RE3)
-        auto camera = sdk::get_primary_camera();
+        /*auto camera = sdk::get_primary_camera();
 
         if (camera != nullptr && camera->ownerGameObject != nullptr && camera->ownerGameObject->transform != nullptr) {
             FirstPerson::get()->on_update_transform(camera->ownerGameObject->transform);
-        }
+        }*/
 #endif
 
         m_submitted = false;

@@ -69,6 +69,8 @@ set(SDK_SRC
     sdk/RETypeDefinition.hpp
     sdk/RETypeDefinition.cpp
     sdk/REVariableDescriptor.hpp
+    sdk/Renderer.hpp
+    sdk/Renderer.cpp
     sdk/RopewaySweetLightManager.hpp
     sdk/SceneManager.hpp
     sdk/SceneManager.cpp
