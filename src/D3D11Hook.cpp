@@ -72,6 +72,13 @@ HRESULT WINAPI D3D11Hook::present(IDXGISwapChain* swap_chain, UINT sync_interval
     auto d3d11 = g_d3d11_hook;
 
     d3d11->m_swap_chain = swap_chain;
+
+    if (d3d11->m_swapchain_0 == nullptr) {
+        d3d11->m_swapchain_0 = swap_chain;
+    } else if (d3d11->m_swapchain_1 == nullptr) {
+        d3d11->m_swapchain_1 = swap_chain;
+    }
+
     swap_chain->GetDevice(__uuidof(d3d11->m_device), (void**)&d3d11->m_device);
 
     // This line must be called before calling our detour function because we might have to unhook the function inside our detour.

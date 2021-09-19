@@ -45,8 +45,25 @@ std::unique_ptr<FunctionHook> g_view_matrix_hook{};
 
 // Purpose: spoof the render target size to the size of the HMD displays
 float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
-    auto original_func = g_get_size_hook->get_original<decltype(VR::get_size_hook)>();
     auto mod = VR::get();
+    static REManagedObject* left_sceneview{};
+    static REManagedObject* right_sceneview{};
+
+    if (left_sceneview == nullptr) {
+        left_sceneview = scene_view;
+    }
+    else if (right_sceneview == nullptr) {
+        right_sceneview = scene_view;
+    }
+
+    if (scene_view == left_sceneview) {
+        mod->m_frame_count = 1;
+    } else {
+        mod->m_frame_count = 2;
+    }
+
+
+    auto original_func = g_get_size_hook->get_original<decltype(VR::get_size_hook)>();
 
     auto out = original_func(scene_view, result);
 
@@ -591,13 +608,14 @@ std::optional<std::string> VR::hijack_overlay_renderer() {
 }
 
 int32_t VR::get_frame_count() const {
-    auto scene = sdk::get_current_scene();
+    return m_frame_count;
+    /*auto scene = sdk::get_current_scene();
 
     if (scene == nullptr) {
         return 0;
     }
 
-    return sdk::call_object_func<int32_t>(scene, "get_FrameCount", sdk::get_thread_context(), scene);
+    return sdk::call_object_func<int32_t>(scene, "get_FrameCount", sdk::get_thread_context(), scene);*/
 
     /*static auto renderer_type = sdk::RETypeDB::get()->find_type("via.render.Renderer");
     auto renderer = g_framework->get_globals()->get_native("via.render.Renderer");

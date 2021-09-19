@@ -27,11 +27,15 @@ public:
     void on_resize_buffers(OnResizeBuffersFn fn) { m_on_resize_buffers = fn; }
 
     ID3D11Device* get_device() { return m_device; }
-    IDXGISwapChain* get_swap_chain() { return m_swap_chain; }
+    IDXGISwapChain* get_swap_chain() { return m_swap_chain; } // The "active" swap chain.
+    auto get_swapchain_0() { return m_swapchain_0; }
+    auto get_swapchain_1() { return m_swapchain_1; }
 
 protected:
     ID3D11Device* m_device{ nullptr };
     IDXGISwapChain* m_swap_chain{ nullptr };
+    IDXGISwapChain* m_swapchain_0{};
+    IDXGISwapChain* m_swapchain_1{};
     bool m_hooked{ false };
 
     std::unique_ptr<FunctionHook> m_present_hook{};

@@ -34,7 +34,7 @@ void D3D11Component::on_frame(VR* vr) {
     }
 
     if (vr->m_use_afr) {
-        if (vr->m_frame_count != vr->m_last_frame_count) {
+        /*if (vr->m_frame_count != vr->m_last_frame_count) {
             // If m_frame_count is even, we're rendering the left eye.
             if (vr->m_frame_count % 2 == 0) {
                 // Copy the back buffer to the left eye texture (m_left_eye_tex0 holds the intermediate frame).
@@ -48,7 +48,14 @@ void D3D11Component::on_frame(VR* vr) {
             }
         }
 
-        if (vr->m_frame_count != vr->m_last_frame_count && vr->m_frame_count % 2 == 1) {
+        if (vr->m_frame_count != vr->m_last_frame_count && vr->m_frame_count % 2 == 1) {*/
+        if (swapchain == hook->get_swapchain_0()) {
+            //vr->m_frame_count = 1;
+            context->CopyResource(m_left_eye_tex.Get(), backbuffer.Get());
+        } else {
+            //vr->m_frame_count = 2;
+            context->CopyResource(m_right_eye_tex.Get(), backbuffer.Get());
+
             // Submit the eye textures to the compositor at this point. It must be done every frame for both eyes otherwise
             // FPS will dive off the deep end.
             auto compositor = vr::VRCompositor();
