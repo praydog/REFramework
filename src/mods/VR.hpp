@@ -66,6 +66,7 @@ public:
     }
 
     int32_t get_frame_count() const;
+    int32_t get_game_frame_count() const;
 
     bool is_using_afr() const {
         return m_use_afr;
@@ -129,6 +130,9 @@ private:
     std::optional<std::string> hijack_input();
     std::optional<std::string> hijack_camera();
     std::optional<std::string> hijack_overlay_renderer();
+
+    void setup_right_scene_view();
+    void destroy_right_scene_view();
 
     // input functions
     // Purpose: "Emulate" OpenVR input to the game
@@ -220,6 +224,8 @@ private:
 
     bool m_invert{false};
     bool m_use_rotation{true};
+
+    void* m_right_scene_view{nullptr};
 
     friend class vrmod::D3D11Component;
     friend class vrmod::D3D12Component;

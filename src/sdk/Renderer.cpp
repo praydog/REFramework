@@ -43,5 +43,28 @@ void add_scene_view(void* scene_view) {
 
     add_scene_view_fn(scene_view);
 }
+
+void remove_scene_view(void* scene_view) {
+    static void (*remove_scene_view_fn)(void*) = nullptr;
+
+    if (remove_scene_view_fn == nullptr) {
+        spdlog::info("[Renderer] Finding remove_scene_view_fn");
+
+        // Almost the same as add_scene_view pattern, is set up right after add_scene_view
+        const auto mod = g_framework->get_module().as<HMODULE>();
+        auto ref = utility::scan(mod, "4C 8D 05 ? ? ? ? 48 8D ? ? ? 48 8D ? 28 E8 ? ? ? ? 48 ? ? FF 15");
+
+        if (!ref) {
+            spdlog::error("[Renderer] Failed to find remove_scene_view_fn");
+            return;
+        }
+
+        remove_scene_view_fn = (decltype(remove_scene_view_fn))utility::calculate_absolute(*ref + 3);
+
+        spdlog::info("[Renderer] remove_scene_view_fn: {:x}", (uintptr_t)remove_scene_view_fn);
+    }
+
+    remove_scene_view_fn(scene_view);
+}
 }
 }

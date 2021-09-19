@@ -43,27 +43,22 @@ std::unique_ptr<FunctionHook> g_input_hook{};
 std::unique_ptr<FunctionHook> g_projection_matrix_hook{};
 std::unique_ptr<FunctionHook> g_view_matrix_hook{};
 
+REManagedObject* g_left_sceneview{};
+REManagedObject* g_right_sceneview{};
+
 // Purpose: spoof the render target size to the size of the HMD displays
 float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
     auto mod = VR::get();
-    static REManagedObject* left_sceneview{};
-    static REManagedObject* right_sceneview{};
 
-    if (left_sceneview == nullptr) {
-        left_sceneview = scene_view;
-    } else if (right_sceneview == nullptr && scene_view != left_sceneview) {
-        right_sceneview = scene_view;
+    if (!mod->m_use_afr) {
+        if (scene_view == g_left_sceneview) {
+            mod->m_frame_count = 1;
+        } else {
+            mod->m_frame_count = 2;
+        }
     }
-
-    if (scene_view == left_sceneview) {
-        mod->m_frame_count = 1;
-    } else {
-        mod->m_frame_count = 2;
-    }
-
 
     auto original_func = g_get_size_hook->get_original<decltype(VR::get_size_hook)>();
-
     auto out = original_func(scene_view, result);
 
 //#if defined(RE2) || defined(RE3)
@@ -92,7 +87,7 @@ Matrix4x4f* VR::camera_get_projection_matrix_hook(REManagedObject* camera, Matri
 
     auto vr = VR::get();
 
-    if (result == nullptr || !vr->m_use_afr) {
+    if (result == nullptr) {
         return original_func(camera, result);
     }
 
@@ -123,7 +118,7 @@ Matrix4x4f* VR::camera_get_view_matrix_hook(REManagedObject* camera, Matrix4x4f*
 
     auto vr = VR::get();
 
-    if (result == nullptr || !vr->m_use_afr) {
+    if (result == nullptr) {
         return original_func(camera, result);
     }
 
@@ -275,14 +270,9 @@ std::optional<std::string> VR::on_initialize() {
         return hijack_error;
     }
 
-    while (sdk::get_main_view() == nullptr) {
-
+    if (!m_use_afr) {
+        setup_right_scene_view();
     }
-
-    auto view = sdk::get_main_view();
-
-    // Add new scene view for the right eye
-    sdk::renderer::add_scene_view(view);
 
     // all OK
     return Mod::on_initialize();
@@ -606,24 +596,51 @@ std::optional<std::string> VR::hijack_overlay_renderer() {
     return std::nullopt;
 }
 
-int32_t VR::get_frame_count() const {
-    return m_frame_count;
-    /*auto scene = sdk::get_current_scene();
+void VR::setup_right_scene_view() {
+    while (sdk::get_main_view() == nullptr) {
 
-    if (scene == nullptr) {
-        return 0;
     }
 
-    return sdk::call_object_func<int32_t>(scene, "get_FrameCount", sdk::get_thread_context(), scene);*/
+    auto view = sdk::get_main_view();
 
-    /*static auto renderer_type = sdk::RETypeDB::get()->find_type("via.render.Renderer");
+    if (m_right_scene_view == nullptr) {
+        m_right_scene_view = new uint8_t[0x1000];
+    }
+
+    memcpy(m_right_scene_view, view, 0x1000);
+
+    g_left_sceneview = view;
+    g_right_sceneview = (REManagedObject*)m_right_scene_view;
+
+    // Add new scene view for the right eye
+    sdk::renderer::add_scene_view(m_right_scene_view);
+}
+
+void VR::destroy_right_scene_view() {
+    if (m_right_scene_view == nullptr) {
+        return;
+    }
+
+    sdk::renderer::remove_scene_view(m_right_scene_view);
+}
+
+int32_t VR::get_frame_count() const {
+    if (m_use_afr) {
+        return get_game_frame_count();
+    }
+
+    return m_frame_count;
+}
+
+int32_t VR::get_game_frame_count() const {
+    static auto renderer_type = sdk::RETypeDB::get()->find_type("via.render.Renderer");
     auto renderer = g_framework->get_globals()->get_native("via.render.Renderer");
 
     if (renderer == nullptr) {
         return 0;
     }
 
-    return sdk::call_object_func<int32_t>(renderer, renderer_type, "get_RenderFrame", sdk::get_thread_context(), renderer);*/
+    return sdk::call_object_func<int32_t>(renderer, renderer_type, "get_RenderFrame", sdk::get_thread_context(), renderer);
 }
 
 float VR::get_standing_height() {
@@ -639,10 +656,6 @@ Vector4f VR::get_standing_origin() {
 }
 
 Vector4f VR::get_current_offset() {
-    if (!m_use_afr) {
-        return Vector4f{};
-    }
-
     std::shared_lock _{ m_eyes_mtx };
 
     if (get_frame_count() % 2 == 0) {
@@ -655,10 +668,6 @@ Vector4f VR::get_current_offset() {
 }
 
 Matrix4x4f VR::get_current_eye_transform() {
-    if (!m_use_afr) {
-        return glm::identity<Matrix4x4f>();
-    }
-
     std::shared_lock _{m_eyes_mtx};
 
     if (get_frame_count() % 2 == 0) {
@@ -669,10 +678,6 @@ Matrix4x4f VR::get_current_eye_transform() {
 }
 
 Matrix4x4f VR::get_current_rotation_offset() {
-    if (!m_use_afr) {
-        return glm::identity<Matrix4x4f>();
-    }
-
     return glm::extractMatrixRotation(get_current_eye_transform());
 }
 
@@ -1140,7 +1145,15 @@ void VR::on_draw_ui() {
 
     ImGui::DragFloat4("Right Bounds", (float*)&m_right_bounds, 0.005f, -2.0f, 2.0f);
     ImGui::DragFloat4("Left Bounds", (float*)&m_left_bounds, 0.005f, -2.0f, 2.0f);
-    ImGui::Checkbox("Use AFR", &m_use_afr);
+
+    if (ImGui::Checkbox("Use AFR", &m_use_afr)) {
+        if (m_use_afr) {
+            destroy_right_scene_view();
+        } else {
+            setup_right_scene_view();
+        }
+    }
+
     ImGui::Checkbox("Use Predicted Poses", &m_use_predicted_poses);
     ImGui::Checkbox("Use Eye Rotation", &m_use_rotation);
     ImGui::Checkbox("Invert Eye Rotation", &m_invert);
