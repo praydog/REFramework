@@ -202,6 +202,8 @@ private:
 
     int m_frame_count{};
     int m_last_frame_count{-1};
+    int m_left_eye_frame_count{0};
+    int m_right_eye_frame_count{0};
     bool m_use_afr{true};
     bool m_use_predicted_poses{false};
     bool m_submitted{false};

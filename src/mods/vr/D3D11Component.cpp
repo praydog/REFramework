@@ -71,13 +71,17 @@ void D3D11Component::on_frame(VR* vr) {
             vr->m_submitted = true;
         }
     } else {
+        const auto fc = vr->get_game_frame_count();
+
         if (swapchain == hook->get_swapchain_0()) {
-            //vr->m_frame_count = 1;
+            vr->m_left_eye_frame_count = fc;
             context->CopyResource(m_left_eye_tex.Get(), backbuffer.Get());
         } else {
-            //vr->m_frame_count = 2;
+            vr->m_right_eye_frame_count = fc;
             context->CopyResource(m_right_eye_tex.Get(), backbuffer.Get());
+        }
 
+        if (vr->m_left_eye_frame_count == vr->m_right_eye_frame_count) {
             // Submit the eye textures to the compositor at this point. It must be done every frame for both eyes otherwise
             // FPS will dive off the deep end.
             auto compositor = vr::VRCompositor();
