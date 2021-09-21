@@ -48,6 +48,8 @@ set(SDK_SRC
     sdk/ReClass_Internal_DMC5.hpp
     sdk/Enums_Internal.hpp
 
+    sdk/Application.hpp
+    sdk/Application.cpp
     sdk/REArray.hpp
     sdk/REComponent.hpp
     sdk/REContext.hpp
