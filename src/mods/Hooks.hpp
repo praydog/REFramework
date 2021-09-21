@@ -44,10 +44,25 @@ private:
     std::optional<std::string> hook_update_camera_controller2();
     std::optional<std::string> hook_gui_draw();
     std::optional<std::string> hook_update_before_lock_scene();
-    std::optional<std::string> hook_lock_scene();
-    std::optional<std::string> hook_begin_rendering();
-    std::optional<std::string> hook_end_rendering();
-    std::optional<std::string> hook_wait_rendering();
+
+    // Utility function for hooking function entries in via.Application
+    std::optional<std::string> hook_application_entry(std::string name, std::unique_ptr<FunctionHook>& hook, void (*hook_fn)(void*));
+    
+    std::optional<std::string> hook_lock_scene() {
+        return hook_application_entry("LockScene", m_lock_scene_hook, lock_scene_hook);
+    }
+
+    std::optional<std::string> hook_begin_rendering() {
+        return hook_application_entry("BeginRendering", m_begin_rendering_hook, begin_rendering_hook);
+    }
+
+    std::optional<std::string> hook_end_rendering() {
+        return hook_application_entry("EndRendering", m_end_rendering_hook, end_rendering_hook);
+    }
+    
+    std::optional<std::string> hook_wait_rendering() {
+        return hook_application_entry("WaitRendering", m_wait_rendering_hook, wait_rendering_hook);
+    }
 
     #define HOOK_LAMBDA(func) [&]() -> std::optional<std::string> { return this->func(); }
 

@@ -159,6 +159,39 @@ std::optional<std::string> Hooks::hook_gui_draw() {
     return std::nullopt;
 }
 
+std::optional<std::string> Hooks::hook_application_entry(std::string name, std::unique_ptr<FunctionHook>& hook, void (*hook_fn)(void*)) {
+    auto application = sdk::Application::get();
+
+    if (application == nullptr) {
+        return "Failed to get via.Application";
+    }
+
+    auto entry = application->get_function(name);
+
+    if (entry == nullptr) {
+        return "Unable to find via::Application::" + name;
+    }
+
+    auto func = entry->func;
+
+    if (func == nullptr) {
+        return "via::Application::" + name + " is null";
+    }
+
+    spdlog::info("{} entry: {:x}", name, (uintptr_t)entry);
+    spdlog::info("{}: {:x}", name, (uintptr_t)func);
+
+    hook = std::make_unique<FunctionHook>(func, hook_fn);
+
+    if (!hook->create()) {
+        return "Failed to hook via::Application::" + name;
+    }
+    
+    spdlog::info("Hooked via::Application::{}", name);
+
+    return std::nullopt;
+}
+
 std::optional<std::string> Hooks::hook_update_before_lock_scene() {
     // Hook updateBeforeLockScene
     auto update_before_lock_scene = sdk::find_native_method("via.render.EntityRenderer", "updateBeforeLockScene");
@@ -173,118 +206,6 @@ std::optional<std::string> Hooks::hook_update_before_lock_scene() {
 
     if (!m_update_before_lock_scene_hook->create()) {
         return "Failed to hook via::render::EntityRenderer::updateBeforeLockScene";
-    }
-
-    return std::nullopt;
-}
-
-std::optional<std::string> Hooks::hook_lock_scene() {
-    auto application = sdk::Application::get();
-
-    // Hook LockScene
-    auto lock_scene_entry = application->get_function("LockScene");
-
-    if (lock_scene_entry == nullptr) {
-        return "Unable to find via::Application::LockScene";
-    }
-
-    auto lock_scene = lock_scene_entry->func;
-
-    if (lock_scene == nullptr) {
-        return "via::Application::LockScene is null";
-    }
-
-    spdlog::info("LockScene entry: {:x}", (uintptr_t)lock_scene_entry);
-    spdlog::info("LockScene: {:x}", (uintptr_t)lock_scene);
-
-    m_lock_scene_hook = std::make_unique<FunctionHook>(lock_scene, &lock_scene_hook);
-
-    if (!m_lock_scene_hook->create()) {
-        return "Failed to hook via::Application::LockScene";
-    }
-
-    return std::nullopt;
-}
-
-std::optional<std::string> Hooks::hook_begin_rendering() {
-    auto application = sdk::Application::get();
-
-    // Hook BeginRendering
-    auto begin_rendering_entry = application->get_function("BeginRendering");
-
-    if (begin_rendering_entry == nullptr) {
-        return "Unable to find via::Application::BeginRendering";
-    }
-
-    auto begin_rendering = begin_rendering_entry->func;
-
-    if (begin_rendering == nullptr) {
-        return "via::Application::BeginRendering is null";
-    }
-
-    spdlog::info("BeginRendering entry: {:x}", (uintptr_t)begin_rendering_entry);
-    spdlog::info("BeginRendering: {:x}", (uintptr_t)begin_rendering);
-
-    m_begin_rendering_hook = std::make_unique<FunctionHook>(begin_rendering, &begin_rendering_hook);
-
-    if (!m_begin_rendering_hook->create()) {
-        return "Failed to hook via::Application::BeginRendering";
-    }
-
-    return std::nullopt;
-}
-
-std::optional<std::string> Hooks::hook_end_rendering() {
-    auto application = sdk::Application::get();
-
-    // Hook EndRendering
-    auto end_rendering_entry = application->get_function("EndRendering");
-
-    if (end_rendering_entry == nullptr) {
-        return "Unable to find via::Application::EndRendering";
-    }
-
-    auto end_rendering = end_rendering_entry->func;
-
-    if (end_rendering == nullptr) {
-        return "via::Application::EndRendering is null";
-    }
-
-    spdlog::info("EndRendering entry: {:x}", (uintptr_t)end_rendering_entry);
-    spdlog::info("EndRendering: {:x}", (uintptr_t)end_rendering);
-
-    m_end_rendering_hook = std::make_unique<FunctionHook>(end_rendering, &end_rendering_hook);
-
-    if (!m_end_rendering_hook->create()) {
-        return "Failed to hook via::Application::EndRendering";
-    }
-
-    return std::nullopt;
-}
-
-std::optional<std::string> Hooks::hook_wait_rendering() {
-    auto application = sdk::Application::get();
-
-    // Hook WaitRendering
-    auto wait_rendering_entry = application->get_function("WaitRendering");
-
-    if (wait_rendering_entry == nullptr) {
-        return "Unable to find via::Application::WaitRendering";
-    }
-
-    auto wait_rendering = wait_rendering_entry->func;
-
-    if (wait_rendering == nullptr) {
-        return "via::Application::WaitRendering is null";
-    }
-
-    spdlog::info("WaitRendering entry: {:x}", (uintptr_t)wait_rendering_entry);
-    spdlog::info("WaitRendering: {:x}", (uintptr_t)wait_rendering);
-
-    m_wait_rendering_hook = std::make_unique<FunctionHook>(wait_rendering, &wait_rendering_hook);
-
-    if (!m_wait_rendering_hook->create()) {
-        return "Failed to hook via::Application::WaitRendering";
     }
 
     return std::nullopt;
