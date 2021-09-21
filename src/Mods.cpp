@@ -1,7 +1,7 @@
 #include <spdlog/spdlog.h>
 
 #include "mods/IntegrityCheckBypass.hpp"
-#include "mods/PositionHooks.hpp"
+#include "mods/Hooks.hpp"
 #include "mods/Camera.hpp"
 #include "mods/FirstPerson.hpp"
 #include "mods/DeveloperTools.hpp"
@@ -19,7 +19,7 @@ Mods::Mods()
 #endif
 
 #ifndef BAREBONES
-    m_mods.emplace_back(std::make_unique<PositionHooks>());
+    m_mods.emplace_back(std::make_unique<Hooks>());
     m_mods.emplace_back(VR::get());
 
 #ifndef RE8

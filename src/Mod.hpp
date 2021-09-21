@@ -321,4 +321,15 @@ public:
     virtual void on_update_camera_controller2(RopewayPlayerCameraController* controller) {};
     virtual void on_pre_gui_draw_element(REComponent* gui_element, void* primitive_context) {};
     virtual void on_gui_draw_element(REComponent* gui_element, void* primitive_context) {};
+    virtual void on_pre_update_before_lock_scene(void* ctx) {};
+    virtual void on_update_before_lock_scene(void* ctx) {};
+    // via.application entry hooks
+    virtual void on_pre_lock_scene(void* entry) {};
+    virtual void on_lock_scene(void* entry) {};
+    virtual void on_pre_begin_rendering(void* entry) {}; // do NOT use these for imgui rendering
+    virtual void on_begin_rendering(void* entry) {};
+    virtual void on_pre_end_rendering(void* entry) {};
+    virtual void on_end_rendering(void* entry) {};
+    virtual void on_pre_wait_rendering(void* entry) {};
+    virtual void on_wait_rendering(void* entry) {};
 };
