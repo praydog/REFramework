@@ -3,9 +3,9 @@
 #include "Mod.hpp"
 #include "utility/FunctionHook.hpp"
 
-class PositionHooks : public Mod {
+class Hooks : public Mod {
 public:
-    PositionHooks();
+    Hooks();
 
     std::string_view get_name() const override { return "PositionHooks"; };
     std::optional<std::string> on_initialize() override;
@@ -38,6 +38,32 @@ protected:
     void wait_rendering_hook_internal(void* entry);
     static void wait_rendering_hook(void* entry);
 
+private:
+    std::optional<std::string> hook_update_transform();
+    std::optional<std::string> hook_update_camera_controller();
+    std::optional<std::string> hook_update_camera_controller2();
+    std::optional<std::string> hook_gui_draw();
+    std::optional<std::string> hook_update_before_lock_scene();
+    std::optional<std::string> hook_lock_scene();
+    std::optional<std::string> hook_begin_rendering();
+    std::optional<std::string> hook_end_rendering();
+    std::optional<std::string> hook_wait_rendering();
+
+    #define HOOK_LAMBDA(func) [&]() -> std::optional<std::string> { return this->func(); }
+
+    std::vector<std::function<std::optional<std::string>()>> m_hook_list{
+        HOOK_LAMBDA(hook_update_transform),
+        HOOK_LAMBDA(hook_update_camera_controller),
+        HOOK_LAMBDA(hook_update_camera_controller2),
+        HOOK_LAMBDA(hook_gui_draw),
+        HOOK_LAMBDA(hook_update_before_lock_scene),
+        HOOK_LAMBDA(hook_lock_scene),
+        HOOK_LAMBDA(hook_begin_rendering),
+        HOOK_LAMBDA(hook_end_rendering),
+        HOOK_LAMBDA(hook_wait_rendering)
+    };
+
+protected:
     std::unique_ptr<FunctionHook> m_update_transform_hook;
     std::unique_ptr<FunctionHook> m_update_camera_controller_hook;
     std::unique_ptr<FunctionHook> m_update_camera_controller2_hook;

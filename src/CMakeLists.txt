@@ -10,8 +10,8 @@ set(HOOKS_SRC
     WindowsMessageHook.hpp
     WindowsMessageHook.cpp
 
-    mods/PositionHooks.hpp
-    mods/PositionHooks.cpp
+    mods/Hooks.hpp
+    mods/Hooks.cpp
 )
 
 set(MODS_SRC
