@@ -3,6 +3,8 @@
 #include "utility/Scan.hpp"
 #include "utility/Module.hpp"
 
+#include "sdk/Application.hpp"
+
 #include "PositionHooks.hpp"
 
 PositionHooks* g_hook = nullptr;
@@ -68,6 +70,110 @@ std::optional<std::string> PositionHooks::on_initialize() {
 
     if (!m_gui_draw_hook->create()) {
         return "Failed to hook GUI::draw";
+    }
+    
+    // Hook updateBeforeLockScene
+    auto update_before_lock_scene = sdk::find_native_method("via.render.EntityRenderer", "updateBeforeLockScene");
+
+    if (update_before_lock_scene == nullptr) {
+        return "Unable to find via::render::EntityRenderer::updateBeforeLockScene";
+    }
+
+    spdlog::info("updateBeforeLockScene: {:x}", (uintptr_t)update_before_lock_scene);
+
+    m_update_before_lock_scene_hook = std::make_unique<FunctionHook>(update_before_lock_scene, &update_before_lock_scene_hook);
+
+    if (!m_update_before_lock_scene_hook->create()) {
+        return "Failed to hook via::render::EntityRenderer::updateBeforeLockScene";
+    }
+
+    // Hook LockScene
+    auto application = sdk::Application::get();
+    auto lock_scene_entry = application->get_function("LockScene");
+
+    if (lock_scene_entry == nullptr) {
+        return "Unable to find via::Application::LockScene";
+    }
+
+    auto lock_scene = lock_scene_entry->func;
+
+    if (lock_scene == nullptr) {
+        return "via::Application::LockScene is null";
+    }
+
+    spdlog::info("LockScene entry: {:x}", (uintptr_t)lock_scene_entry);
+    spdlog::info("LockScene: {:x}", (uintptr_t)lock_scene);
+
+    m_lock_scene_hook = std::make_unique<FunctionHook>(lock_scene, &lock_scene_hook);
+
+    if (!m_lock_scene_hook->create()) {
+        return "Failed to hook via::Application::LockScene";
+    }
+
+    // Hook BeginRendering
+    auto begin_rendering_entry = application->get_function("BeginRendering");
+
+    if (begin_rendering_entry == nullptr) {
+        return "Unable to find via::Application::BeginRendering";
+    }
+
+    auto begin_rendering = begin_rendering_entry->func;
+
+    if (begin_rendering == nullptr) {
+        return "via::Application::BeginRendering is null";
+    }
+
+    spdlog::info("BeginRendering entry: {:x}", (uintptr_t)begin_rendering_entry);
+    spdlog::info("BeginRendering: {:x}", (uintptr_t)begin_rendering);
+
+    m_begin_rendering_hook = std::make_unique<FunctionHook>(begin_rendering, &begin_rendering_hook);
+
+    if (!m_begin_rendering_hook->create()) {
+        return "Failed to hook via::Application::BeginRendering";
+    }
+
+    // Hook EndRendering
+    auto end_rendering_entry = application->get_function("EndRendering");
+
+    if (end_rendering_entry == nullptr) {
+        return "Unable to find via::Application::EndRendering";
+    }
+
+    auto end_rendering = end_rendering_entry->func;
+
+    if (end_rendering == nullptr) {
+        return "via::Application::EndRendering is null";
+    }
+
+    spdlog::info("EndRendering entry: {:x}", (uintptr_t)end_rendering_entry);
+    spdlog::info("EndRendering: {:x}", (uintptr_t)end_rendering);
+
+    m_end_rendering_hook = std::make_unique<FunctionHook>(end_rendering, &end_rendering_hook);
+
+    if (!m_end_rendering_hook->create()) {
+        return "Failed to hook via::Application::EndRendering";
+    }
+
+    // Hook WaitRendering
+    auto wait_rendering_entry = application->get_function("WaitRendering");
+
+    if (wait_rendering_entry == nullptr) {
+        return "Unable to find via::Application::WaitRendering";
+    }
+
+    auto wait_rendering = wait_rendering_entry->func;
+
+    if (wait_rendering == nullptr) {
+        return "via::Application::WaitRendering is null";
+    }
+
+    spdlog::info("WaitRendering entry: {:x}", (uintptr_t)wait_rendering_entry);
+    spdlog::info("WaitRendering: {:x}", (uintptr_t)wait_rendering);
+
+    m_wait_rendering_hook = std::make_unique<FunctionHook>(wait_rendering, &wait_rendering_hook);
+
+    if (!m_wait_rendering_hook->create()) {
+        return "Failed to hook via::Application::WaitRendering";
     }
 
 #if !defined(RE8) && !defined(DMC5)
@@ -223,3 +329,122 @@ void* PositionHooks::gui_draw_hook(REComponent* gui_element, void* primitive_con
     return g_hook->gui_draw_hook_internal(gui_element, primitive_context);
 }
 
+void PositionHooks::update_before_lock_scene_hook_internal(void* ctx) {
+    auto original = m_update_before_lock_scene_hook->get_original<decltype(update_before_lock_scene_hook)>();
+
+    if (!g_framework->is_ready()) {
+        return original(ctx);
+    }
+
+    auto& mods = g_framework->get_mods()->get_mods();
+
+    for (auto& mod : mods) {
+        mod->on_pre_update_before_lock_scene(ctx);
+    }
+
+    original(ctx);
+
+    for (auto& mod : mods) {
+        mod->on_update_before_lock_scene(ctx);
+    }
+}
+
+void PositionHooks::update_before_lock_scene_hook(void* ctx) {
+    g_hook->update_before_lock_scene_hook_internal(ctx);
+}
+
+void PositionHooks::lock_scene_hook_internal(void* entry) {
+    auto original = m_lock_scene_hook->get_original<decltype(lock_scene_hook)>();
+
+    if (!g_framework->is_ready()) {
+        return original(entry);
+    }
+
+    auto& mods = g_framework->get_mods()->get_mods();
+
+    for (auto& mod : mods) {
+        mod->on_pre_lock_scene(entry);
+    }
+
+    original(entry);
+
+    for (auto& mod : mods) {
+        mod->on_lock_scene(entry);
+    }
+}
+
+void PositionHooks::lock_scene_hook(void* entry) {
+    g_hook->lock_scene_hook_internal(entry);
+}
+
+void PositionHooks::begin_rendering_hook_internal(void* entry) {
+    auto original = m_begin_rendering_hook->get_original<decltype(begin_rendering_hook)>();
+
+    if (!g_framework->is_ready()) {
+        return original(entry);
+    }
+
+    auto& mods = g_framework->get_mods()->get_mods();
+
+    for (auto& mod : mods) {
+        mod->on_pre_begin_rendering(entry);
+    }
+
+    original(entry);
+
+    for (auto& mod : mods) {
+        mod->on_begin_rendering(entry);
+    }
+}
+
+void PositionHooks::begin_rendering_hook(void* entry) {
+    g_hook->begin_rendering_hook_internal(entry);
+}
+
+void PositionHooks::end_rendering_hook_internal(void* entry) {
+    auto original = m_end_rendering_hook->get_original<decltype(end_rendering_hook)>();
+
+    if (!g_framework->is_ready()) {
+        return original(entry);
+    }
+
+    auto& mods = g_framework->get_mods()->get_mods();
+
+    for (auto& mod : mods) {
+        mod->on_pre_end_rendering(entry);
+    }
+
+    original(entry);
+
+    for (auto& mod : mods) {
+        mod->on_end_rendering(entry);
+    }
+}
+
+void PositionHooks::end_rendering_hook(void* entry) {
+    g_hook->end_rendering_hook_internal(entry);
+}
+
+void PositionHooks::wait_rendering_hook_internal(void* entry) {
+    auto original = m_wait_rendering_hook->get_original<decltype(wait_rendering_hook)>();
+
+    if (!g_framework->is_ready()) {
+        return original(entry);
+    }
+
+    auto& mods = g_framework->get_mods()->get_mods();
+
+    for (auto& mod : mods) {
+        mod->on_pre_wait_rendering(entry);
+    }
+
+    original(entry);
+
+    for (auto& mod : mods) {
+        mod->on_wait_rendering(entry);
+    }
+}
+
+void PositionHooks::wait_rendering_hook(void* entry) {
+    g_hook->wait_rendering_hook_internal(entry);
+}
