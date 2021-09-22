@@ -78,23 +78,38 @@ void D3D12Component::on_frame(VR* vr) {
             vr->m_submitted = true;
         }
     } else {
-        auto compositor = vr::VRCompositor();
+        const auto fc = vr->get_game_frame_count();
 
-        vr::Texture_t texture{(void*)backbuffer.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto};
-
-        auto e = compositor->Submit(vr::Eye_Left, &texture, &vr->m_left_bounds);
-
-        if (e != vr::VRCompositorError_None) {
-            spdlog::error("[VR] VRCompositor failed to submit left eye: {}", (int)e);
+        if (swapchain == hook->get_swapchain_0()) {
+            vr->m_left_eye_frame_count = fc;
+            copy_texture(backbuffer.Get(), m_left_eye_tex.Get());
+        } else {
+            vr->m_right_eye_frame_count = fc;
+            copy_texture(backbuffer.Get(), m_right_eye_tex.Get());
         }
 
-        e = compositor->Submit(vr::Eye_Right, &texture, &vr->m_right_bounds);
+        if (vr->m_left_eye_frame_count == vr->m_right_eye_frame_count) {
+            // Submit the eye textures to the compositor at this point. It must be done every frame for both eyes otherwise
+            // FPS will dive off the deep end.
+            auto compositor = vr::VRCompositor();
 
-        if (e != vr::VRCompositorError_None) {
-            spdlog::error("[VR] VRCompositor failed to submit right eye: {}", (int)e);
+            vr::Texture_t left_eye{(void*)m_left_eye_tex.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto};
+            vr::Texture_t right_eye{(void*)m_right_eye_tex.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto};
+
+            auto e = compositor->Submit(vr::Eye_Left, &left_eye, &vr->m_left_bounds);
+
+            if (e != vr::VRCompositorError_None) {
+                spdlog::error("[VR] VRCompositor failed to submit left eye: {}", (int)e);
+            }
+
+            e = compositor->Submit(vr::Eye_Right, &right_eye, &vr->m_right_bounds);
+
+            if (e != vr::VRCompositorError_None) {
+                spdlog::error("[VR] VRCompositor failed to submit right eye: {}", (int)e);
+            }
+
+            vr->m_submitted = true;
         }
-
-        vr->m_submitted = true;
     }
 }
 

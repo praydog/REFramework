@@ -57,6 +57,9 @@ public:
         return m_swap_chain;
     }
 
+    auto get_swapchain_0() { return m_swapchain_0; }
+    auto get_swapchain_1() { return m_swapchain_1; }
+
     ID3D12CommandQueue* get_command_queue() const {
         return m_command_queue;
     }
@@ -80,6 +83,8 @@ public:
 protected:
     ID3D12Device4* m_device{ nullptr };
     IDXGISwapChain3* m_swap_chain{ nullptr };
+    IDXGISwapChain3* m_swapchain_0{};
+    IDXGISwapChain3* m_swapchain_1{};
     ID3D12CommandQueue* m_command_queue{ nullptr };
     UINT m_display_width{ NULL };
     UINT m_display_height{ NULL };
