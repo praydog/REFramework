@@ -88,7 +88,13 @@ HRESULT WINAPI D3D11Hook::present(IDXGISwapChain* swap_chain, UINT sync_interval
         d3d11->m_on_present(*d3d11);
     }
 
-    return present_fn(swap_chain, sync_interval, flags);
+    auto result = present_fn(swap_chain, sync_interval, flags);
+
+    if (d3d11->m_on_post_present) {
+        d3d11->m_on_post_present(*d3d11);
+    }
+
+    return result;
 }
 
 HRESULT WINAPI D3D11Hook::resize_buffers(

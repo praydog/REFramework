@@ -12,6 +12,7 @@
 #include "sdk/SceneManager.hpp"
 #include "sdk/RETypeDB.hpp"
 #include "sdk/Renderer.hpp"
+#include "sdk/Application.hpp"
 
 #include "utility/Scan.hpp"
 #include "utility/FunctionHook.hpp"
@@ -624,6 +625,86 @@ void VR::destroy_right_scene_view() {
     sdk::renderer::remove_scene_view(m_right_scene_view);
 }
 
+void VR::update_hmd_state() {
+    auto error = vr::VRInput()->UpdateActionState(&m_active_action_set, sizeof(m_active_action_set), 1);
+
+    if (error != vr::VRInputError_None) {
+        spdlog::error("VRInput failed to update action state: {}", (uint32_t)error);
+    }
+
+    vr::VRCompositor()->SetTrackingSpace(vr::TrackingUniverseStanding);
+    vr::VRCompositor()->WaitGetPoses(m_real_render_poses.data(), vr::k_unMaxTrackedDeviceCount, m_real_game_poses.data(), vr::k_unMaxTrackedDeviceCount);
+
+    bool wants_reset_origin = false;
+
+    // Process events
+    vr::VREvent_t event{};
+    while (m_hmd->PollNextEvent(&event, sizeof(event))) {
+        switch ((vr::EVREventType)event.eventType) {
+            // Detect whether video settings changed
+            case vr::VREvent_SteamVRSectionSettingChanged: {
+                spdlog::info("VR: VREvent_SteamVRSectionSettingChanged");
+                m_hmd->GetRecommendedRenderTargetSize(&m_w, &m_h);
+            } break;
+
+            // Detect whether SteamVR reset the standing/seated pose
+            case vr::VREvent_SeatedZeroPoseReset: [[fallthrough]];
+            case vr::VREvent_StandingZeroPoseReset: {
+                spdlog::info("VR: VREvent_SeatedZeroPoseReset");
+                wants_reset_origin = true;
+            } break;
+
+            default:
+                spdlog::info("VR: Unknown event: {}", (uint32_t)event.eventType);
+                break;
+        }
+    }
+
+    // Update the poses used for the game
+    // If we used the data directly from the WaitGetPoses call, we would have to lock a different mutex and wait a long time
+    // This is because the WaitGetPoses call is blocking, and we don't want to block any game logic
+    {
+        std::unique_lock _{ m_pose_mtx };
+
+        memcpy(m_game_poses.data(), m_real_game_poses.data(), sizeof(m_game_poses));
+        memcpy(m_render_poses.data(), m_real_render_poses.data(), sizeof(m_render_poses));
+
+        if (wants_reset_origin) {
+            m_standing_origin = get_position_unsafe(vr::k_unTrackedDeviceIndex_Hmd);
+        }
+    }
+
+    {
+        std::unique_lock __{ m_eyes_mtx };
+        const auto local_left = m_hmd->GetEyeToHeadTransform(vr::Eye_Left);
+        const auto local_right = m_hmd->GetEyeToHeadTransform(vr::Eye_Right);
+
+        m_eyes[vr::Eye_Left] = glm::rowMajor4(Matrix4x4f{ *(Matrix3x4f*)&local_left } );
+        m_eyes[vr::Eye_Right] = glm::rowMajor4(Matrix4x4f{ *(Matrix3x4f*)&local_right } );
+
+        auto pleft = m_hmd->GetProjectionMatrix(vr::Eye_Left, m_nearz, m_farz);
+        auto pright = m_hmd->GetProjectionMatrix(vr::Eye_Right, m_nearz, m_farz);
+
+        m_projections[vr::Eye_Left] = glm::rowMajor4(Matrix4x4f{ *(Matrix4x4f*)&pleft } );
+        m_projections[vr::Eye_Right] = glm::rowMajor4(Matrix4x4f{ *(Matrix4x4f*)&pright } );
+
+        m_hmd->GetProjectionRaw(vr::Eye_Left, &m_raw_projections[vr::Eye_Left][0], &m_raw_projections[vr::Eye_Left][1], &m_raw_projections[vr::Eye_Left][2], &m_raw_projections[vr::Eye_Left][3]);
+        m_hmd->GetProjectionRaw(vr::Eye_Right, &m_raw_projections[vr::Eye_Right][0], &m_raw_projections[vr::Eye_Right][1], &m_raw_projections[vr::Eye_Right][2], &m_raw_projections[vr::Eye_Right][3]);
+    }
+
+    // Forcefully update the camera transform after submitting the frame
+    // because the game logic thread does not run in sync with the rendering thread
+    // This will massively improve HMD rotation smoothness for the user
+    // if this is not done, the left eye will jitter a lot
+#if defined(RE2) || defined(RE3)
+    auto camera = sdk::get_primary_camera();
+
+    if (camera != nullptr && camera->ownerGameObject != nullptr && camera->ownerGameObject->transform != nullptr) {
+        FirstPerson::get()->on_update_transform(camera->ownerGameObject->transform);
+    }
+#endif
+}
+
 int32_t VR::get_frame_count() const {
     if (m_use_afr) {
         return get_game_frame_count();
@@ -694,11 +775,14 @@ Matrix4x4f VR::get_current_projection_matrix(bool flip) {
 }
 
 void VR::on_post_frame() {
-    //std::scoped_lock _{ m_camera_mtx };
+    //std::scoped_lock _{ m_wgp_mtx };
 
+
+}
+
+void VR::on_post_present() {
     m_frame_count = get_frame_count();
     m_main_view = sdk::get_main_view();
-    m_submitted = false;
 
     const auto renderer = g_framework->get_renderer_type();
 
@@ -709,87 +793,16 @@ void VR::on_post_frame() {
     }
 
     m_last_frame_count = m_frame_count;
-
+    
     if (m_submitted) {
-        // Update input
-        auto error = vr::VRInput()->UpdateActionState(&m_active_action_set, sizeof(m_active_action_set), 1);
-
-        if (error != vr::VRInputError_None) {
-            spdlog::error("VRInput failed to update action state: {}", (uint32_t)error);
-        }
-
-        vr::VRCompositor()->SetTrackingSpace(vr::TrackingUniverseStanding);
-        vr::VRCompositor()->WaitGetPoses(m_real_render_poses.data(), vr::k_unMaxTrackedDeviceCount, m_real_game_poses.data(), vr::k_unMaxTrackedDeviceCount);
-
-        bool wants_reset_origin = false;
-
-        // Process events
-        vr::VREvent_t event{};
-        while (m_hmd->PollNextEvent(&event, sizeof(event))) {
-            switch ((vr::EVREventType)event.eventType) {
-                // Detect whether video settings changed
-                case vr::VREvent_SteamVRSectionSettingChanged: {
-                    spdlog::info("VR: VREvent_SteamVRSectionSettingChanged");
-                    m_hmd->GetRecommendedRenderTargetSize(&m_w, &m_h);
-                } break;
-
-                // Detect whether SteamVR reset the standing/seated pose
-                case vr::VREvent_SeatedZeroPoseReset: [[fallthrough]];
-                case vr::VREvent_StandingZeroPoseReset: {
-                    spdlog::info("VR: VREvent_SeatedZeroPoseReset");
-                    wants_reset_origin = true;
-                } break;
-
-                default:
-                    spdlog::info("VR: Unknown event: {}", (uint32_t)event.eventType);
-                    break;
-            }
-        }
-
-        // Update the poses used for the game
-        // If we used the data directly from the WaitGetPoses call, we would have to lock a different mutex and wait a long time
-        // This is because the WaitGetPoses call is blocking, and we don't want to block any game logic
-        {
-            std::unique_lock _{ m_pose_mtx };
-
-            memcpy(m_game_poses.data(), m_real_game_poses.data(), sizeof(m_game_poses));
-            memcpy(m_render_poses.data(), m_real_render_poses.data(), sizeof(m_render_poses));
-
-            if (wants_reset_origin) {
-                m_standing_origin = get_position_unsafe(vr::k_unTrackedDeviceIndex_Hmd);
-            }
-        }
+        vr::VRCompositor()->PostPresentHandoff();
 
         {
-            std::unique_lock __{ m_eyes_mtx };
-            const auto local_left = m_hmd->GetEyeToHeadTransform(vr::Eye_Left);
-            const auto local_right = m_hmd->GetEyeToHeadTransform(vr::Eye_Right);
-
-            m_eyes[vr::Eye_Left] = glm::rowMajor4(Matrix4x4f{ *(Matrix3x4f*)&local_left } );
-            m_eyes[vr::Eye_Right] = glm::rowMajor4(Matrix4x4f{ *(Matrix3x4f*)&local_right } );
-
-            auto pleft = m_hmd->GetProjectionMatrix(vr::Eye_Left, m_nearz, m_farz);
-            auto pright = m_hmd->GetProjectionMatrix(vr::Eye_Right, m_nearz, m_farz);
-
-            m_projections[vr::Eye_Left] = glm::rowMajor4(Matrix4x4f{ *(Matrix4x4f*)&pleft } );
-            m_projections[vr::Eye_Right] = glm::rowMajor4(Matrix4x4f{ *(Matrix4x4f*)&pright } );
-
-            m_hmd->GetProjectionRaw(vr::Eye_Left, &m_raw_projections[vr::Eye_Left][0], &m_raw_projections[vr::Eye_Left][1], &m_raw_projections[vr::Eye_Left][2], &m_raw_projections[vr::Eye_Left][3]);
-            m_hmd->GetProjectionRaw(vr::Eye_Right, &m_raw_projections[vr::Eye_Right][0], &m_raw_projections[vr::Eye_Right][1], &m_raw_projections[vr::Eye_Right][2], &m_raw_projections[vr::Eye_Right][3]);
+            std::lock_guard _{m_present_finished_mtx};
+            m_present_finished = true;
         }
 
-        // Forcefully update the camera transform after submitting the frame
-        // because the game logic thread does not run in sync with the rendering thread
-        // This will massively improve HMD rotation smoothness for the user
-        // if this is not done, the left eye will jitter a lot
-#if defined(RE2) || defined(RE3)
-        /*auto camera = sdk::get_primary_camera();
-
-        if (camera != nullptr && camera->ownerGameObject != nullptr && camera->ownerGameObject->transform != nullptr) {
-            FirstPerson::get()->on_update_transform(camera->ownerGameObject->transform);
-        }*/
-#endif
-
+        m_present_finished_cv.notify_all();
         m_submitted = false;
     }
 }
@@ -927,6 +940,45 @@ void VR::on_gui_draw_element(REComponent* gui_element, void* primitive_context) 
     }
 
     g_elements_to_reset.clear();
+}
+
+void VR::on_update_before_lock_scene(void* ctx) {
+}
+
+void VR::on_pre_lock_scene(void* entry) {
+}
+
+void VR::on_lock_scene(void* entry) {
+}
+
+void VR::on_pre_begin_rendering(void* entry) {
+}
+
+void VR::on_begin_rendering(void* entry) {
+
+}
+
+void VR::on_pre_end_rendering(void* entry) {
+
+}
+
+void VR::on_end_rendering(void* entry) {
+}
+
+void VR::on_pre_wait_rendering(void* entry) {
+    // wait for m_present_finished (std::condition_variable)
+    // to be signaled
+    {
+        std::unique_lock<std::mutex> lock{m_present_finished_mtx};
+        m_present_finished_cv.wait(lock, [&]() { return m_present_finished; });
+        m_present_finished = false;
+    }
+
+    update_hmd_state();
+}
+
+void VR::on_wait_rendering(void* entry) {
+    
 }
 
 void VR::openvr_input_to_game(REManagedObject* input_system) {

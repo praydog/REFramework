@@ -33,6 +33,10 @@ public:
         m_on_present = fn;
     }
 
+    void on_post_present(OnPresentFn fn) {
+        m_on_post_present = fn;
+    }
+
     void on_resize_buffers(OnResizeBuffersFn fn) {
         m_on_resize_buffers = fn;
     }
@@ -90,6 +94,7 @@ protected:
     std::unique_ptr<FunctionHook> m_create_swap_chain_hook{};
 
     OnPresentFn m_on_present{ nullptr };
+    OnPresentFn m_on_post_present{ nullptr };
     OnResizeBuffersFn m_on_resize_buffers{ nullptr };
     OnResizeTargetFn m_on_resize_target{ nullptr };
     OnCreateSwapChainFn m_on_create_swap_chain{ nullptr };

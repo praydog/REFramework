@@ -305,7 +305,8 @@ public:
 
     // Functionally equivalent, but on_frame will always get called, on_draw_ui can be disabled by REFramework
     virtual void on_frame() {};
-    virtual void on_post_frame() {};
+    virtual void on_post_frame() {}; // after imgui rendering is done
+    virtual void on_post_present() {}; // actually after present gets called
     virtual void on_draw_ui() {};
     virtual void on_device_reset() {};
 

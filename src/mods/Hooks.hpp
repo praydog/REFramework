@@ -37,6 +37,9 @@ protected:
 
     void wait_rendering_hook_internal(void* entry);
     static void wait_rendering_hook(void* entry);
+    
+    void begin_frame_rendering_hook_internal(void* entry);
+    static void begin_frame_rendering_hook(void* entry);
 
 private:
     std::optional<std::string> hook_update_transform();
@@ -63,7 +66,6 @@ private:
     std::optional<std::string> hook_wait_rendering() {
         return hook_application_entry("WaitRendering", m_wait_rendering_hook, wait_rendering_hook);
     }
-
     #define HOOK_LAMBDA(func) [&]() -> std::optional<std::string> { return this->func(); }
 
     std::vector<std::function<std::optional<std::string>()>> m_hook_list{
@@ -75,7 +77,7 @@ private:
         HOOK_LAMBDA(hook_lock_scene),
         HOOK_LAMBDA(hook_begin_rendering),
         HOOK_LAMBDA(hook_end_rendering),
-        HOOK_LAMBDA(hook_wait_rendering)
+        HOOK_LAMBDA(hook_wait_rendering),
     };
 
 protected:
@@ -88,4 +90,5 @@ protected:
     std::unique_ptr<FunctionHook> m_begin_rendering_hook;
     std::unique_ptr<FunctionHook> m_end_rendering_hook;
     std::unique_ptr<FunctionHook> m_wait_rendering_hook;
+    std::unique_ptr<FunctionHook> m_begin_frame_rendering_hook;
 };

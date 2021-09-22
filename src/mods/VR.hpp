@@ -30,10 +30,20 @@ public:
     std::optional<std::string> on_initialize() override;
 
     void on_post_frame() override;
+    void on_post_present() override;
     void on_update_transform(RETransform* transform) override;
     void on_update_camera_controller(RopewayPlayerCameraController* controller) override;
     void on_pre_gui_draw_element(REComponent* gui_element, void* primitive_context) override;
     void on_gui_draw_element(REComponent* gui_element, void* primitive_context) override;
+    void on_update_before_lock_scene(void* ctx) override;
+    void on_pre_lock_scene(void* entry) override;
+    void on_lock_scene(void* entry) override;
+    void on_pre_begin_rendering(void* entry) override;
+    void on_begin_rendering(void* entry) override;
+    void on_pre_end_rendering(void* entry) override;
+    void on_end_rendering(void* entry) override;
+    void on_pre_wait_rendering(void* entry) override;
+    void on_wait_rendering(void* entry) override;
 
     void on_draw_ui() override;
     void on_device_reset() override;
@@ -93,10 +103,6 @@ public:
     Vector4f get_position(uint32_t index);
     Matrix4x4f get_rotation(uint32_t index);
 
-    auto& get_camera_mutex() {
-        return m_camera_mtx;
-    }
-
     auto& get_pose_mutex() {
         return m_pose_mtx;
     }
@@ -133,6 +139,7 @@ private:
 
     void setup_right_scene_view();
     void destroy_right_scene_view();
+    void update_hmd_state();
 
     // input functions
     // Purpose: "Emulate" OpenVR input to the game
@@ -141,7 +148,7 @@ private:
 
     Patch::Ptr m_overlay_draw_patch{};
     
-    std::recursive_mutex m_camera_mtx{};
+    std::recursive_mutex m_wgp_mtx{};
     std::shared_mutex m_pose_mtx{};
     std::shared_mutex m_eyes_mtx{};
 
@@ -191,6 +198,9 @@ private:
     std::bitset<64> m_button_states_on{};
     std::bitset<64> m_button_states_up{};
     std::chrono::steady_clock::time_point m_last_controller_update{};
+
+    std::condition_variable m_present_finished_cv{};
+    std::mutex m_present_finished_mtx{};
     
     uint32_t m_w{0}, m_h{0};
     Vector4f m_raw_projections[2]{};
@@ -204,9 +214,10 @@ private:
     int m_last_frame_count{-1};
     int m_left_eye_frame_count{0};
     int m_right_eye_frame_count{0};
-    bool m_use_afr{true};
+    bool m_use_afr{false};
     bool m_use_predicted_poses{false};
     bool m_submitted{false};
+    bool m_present_finished{false};
 
     static std::string actions_json;
     static std::string binding_rift_json;

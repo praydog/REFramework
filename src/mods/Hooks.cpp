@@ -179,7 +179,7 @@ std::optional<std::string> Hooks::hook_application_entry(std::string name, std::
     }
 
     spdlog::info("{} entry: {:x}", name, (uintptr_t)entry);
-    spdlog::info("{}: {:x}", name, (uintptr_t)func);
+    spdlog::info("{}: {:x}", name, (uintptr_t)func - g_framework->get_module());
 
     hook = std::make_unique<FunctionHook>(func, hook_fn);
 

@@ -98,6 +98,7 @@ REFramework::REFramework()
 bool REFramework::hook_d3d11() {
     m_d3d11_hook = std::make_unique<D3D11Hook>();
     m_d3d11_hook->on_present([this](D3D11Hook& hook) { on_frame_d3d11(); });
+    m_d3d11_hook->on_post_present([this](D3D11Hook& hook) { on_post_present_d3d11(); });
     m_d3d11_hook->on_resize_buffers([this](D3D11Hook& hook) { on_reset(); });
 
     // Making sure D3D12 is not hooked
@@ -135,6 +136,7 @@ bool REFramework::hook_d3d12() {
 
     m_d3d12_hook = std::make_unique<D3D12Hook>();
     m_d3d12_hook->on_present([this](D3D12Hook& hook) { on_frame_d3d12(); });
+    m_d3d12_hook->on_post_present([this](D3D12Hook& hook) { on_post_present_d3d12(); });
     m_d3d12_hook->on_resize_buffers([this](D3D12Hook& hook) { on_reset(); });
     m_d3d12_hook->on_resize_target([this](D3D12Hook& hook) { on_reset(); });
     m_d3d12_hook->on_create_swap_chain([this](D3D12Hook& hook) { m_pd3d_command_queue_d3d12 = m_d3d12_hook->get_command_queue(); });
@@ -233,6 +235,16 @@ void REFramework::on_frame_d3d11() {
     }
 }
 
+void REFramework::on_post_present_d3d11() {
+    if (!m_initialized || !m_game_data_initialized) {
+        return;
+    }
+
+    for (auto& mod : m_mods->get_mods()) {
+        mod->on_post_present();
+    }
+}
+
 // D3D12 Draw funciton
 void REFramework::on_frame_d3d12() {
     spdlog::debug("on_frame (D3D12)");
@@ -307,6 +319,16 @@ void REFramework::on_frame_d3d12() {
 
     if (m_error.empty() && m_game_data_initialized) {
         m_mods->on_post_frame();
+    }
+}
+
+void REFramework::on_post_present_d3d12() {
+    if (!m_initialized || !m_game_data_initialized) {
+        return;
+    }
+
+    for (auto& mod : m_mods->get_mods()) {
+        mod->on_post_present();
     }
 }
 

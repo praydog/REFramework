@@ -479,4 +479,16 @@ static void* find_native_method(std::string_view type_name, std::string_view met
 
     return find_native_method(t, method_name);
 }
+
+template <typename T = void>
+T* get_native_singleton(std::string_view type_name) {
+    auto t = sdk::RETypeDB::get()->find_type(type_name);
+
+    if (t == nullptr) {
+        //spdlog::error("Cannot find type {:s}", type_name.data());
+        return nullptr;
+    }
+
+    return (T*)t->get_instance();
+}
 } // namespace sdk
