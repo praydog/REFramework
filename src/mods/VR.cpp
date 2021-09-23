@@ -775,9 +775,6 @@ Matrix4x4f VR::get_current_projection_matrix(bool flip) {
 }
 
 void VR::on_post_frame() {
-    //std::scoped_lock _{ m_wgp_mtx };
-
-
 }
 
 void VR::on_post_present() {
@@ -793,17 +790,29 @@ void VR::on_post_present() {
     }
 
     m_last_frame_count = m_frame_count;
-    
-    if (m_submitted) {
-        vr::VRCompositor()->PostPresentHandoff();
 
+    // Unlock the m_present_finished conditional variable
+    // Which will synchronize WaitGetPoses() properly
+    // inside on_pre_wait_rendering()
+    // we can't do it here because the game logic thread executes out of sync otherwise
+    // causing jittery HMD rotation
+    auto unlock_present = [&]() {
         {
             std::lock_guard _{m_present_finished_mtx};
             m_present_finished = true;
         }
 
         m_present_finished_cv.notify_all();
+    };
+    
+    if (m_submitted) {
+        vr::VRCompositor()->PostPresentHandoff();
+
+        m_needs_wgp_update = true;
+        unlock_present();
         m_submitted = false;
+    } else if (m_use_afr) { // always unlocks every frame so we don't cause a deadlock on AFR
+        unlock_present();
     }
 }
 
@@ -974,7 +983,10 @@ void VR::on_pre_wait_rendering(void* entry) {
         m_present_finished = false;
     }
 
-    update_hmd_state();
+    if (m_needs_wgp_update) {
+        m_needs_wgp_update = false;
+        update_hmd_state();
+    }
 }
 
 void VR::on_wait_rendering(void* entry) {

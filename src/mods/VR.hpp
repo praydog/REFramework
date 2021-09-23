@@ -218,6 +218,7 @@ private:
     bool m_use_predicted_poses{false};
     bool m_submitted{false};
     bool m_present_finished{false};
+    bool m_needs_wgp_update{false};
 
     static std::string actions_json;
     static std::string binding_rift_json;
