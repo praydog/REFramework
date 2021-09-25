@@ -49,6 +49,12 @@ REManagedObject* g_right_sceneview{};
 
 // Purpose: spoof the render target size to the size of the HMD displays
 float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
+    auto original_func = g_get_size_hook->get_original<decltype(VR::get_size_hook)>();
+
+    if (!g_framework->is_ready()) {
+        return original_func(scene_view, result);
+    }
+
     auto mod = VR::get();
 
     if (!mod->m_use_afr) {
@@ -59,7 +65,6 @@ float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
         }
     }
 
-    auto original_func = g_get_size_hook->get_original<decltype(VR::get_size_hook)>();
     auto out = original_func(scene_view, result);
 
 //#if defined(RE2) || defined(RE3)
@@ -88,7 +93,7 @@ Matrix4x4f* VR::camera_get_projection_matrix_hook(REManagedObject* camera, Matri
 
     auto vr = VR::get();
 
-    if (result == nullptr) {
+    if (result == nullptr || !g_framework->is_ready()) {
         return original_func(camera, result);
     }
 
@@ -117,11 +122,11 @@ Matrix4x4f* VR::camera_get_projection_matrix_hook(REManagedObject* camera, Matri
 Matrix4x4f* VR::camera_get_view_matrix_hook(REManagedObject* camera, Matrix4x4f* result) {
     auto original_func = g_view_matrix_hook->get_original<decltype(VR::camera_get_view_matrix_hook)>();
 
-    auto vr = VR::get();
-
-    if (result == nullptr) {
+    if (result == nullptr || !g_framework->is_ready()) {
         return original_func(camera, result);
     }
+
+    auto vr = VR::get();
 
     /*if (camera != sdk::get_primary_camera()) {
         return original_func(camera, result);
@@ -149,6 +154,11 @@ Matrix4x4f* VR::camera_get_view_matrix_hook(REManagedObject* camera, Matrix4x4f*
 
 void VR::inputsystem_update_hook(void* ctx, REManagedObject* input_system) {
     auto original_func = g_input_hook->get_original<decltype(VR::inputsystem_update_hook)>();
+
+    if (!g_framework->is_ready()) {
+        original_func(ctx, input_system);
+        return;
+    }
 
     auto mod = VR::get();
     const auto now = std::chrono::steady_clock::now();
@@ -271,9 +281,7 @@ std::optional<std::string> VR::on_initialize() {
         return hijack_error;
     }
 
-    if (!m_use_afr) {
-        setup_right_scene_view();
-    }
+    m_wants_afr_switch = true;
 
     // all OK
     return Mod::on_initialize();
@@ -715,7 +723,14 @@ int32_t VR::get_frame_count() const {
 
 int32_t VR::get_game_frame_count() const {
     static auto renderer_type = sdk::RETypeDB::get()->find_type("via.render.Renderer");
-    auto renderer = g_framework->get_globals()->get_native("via.render.Renderer");
+
+    if (renderer_type == nullptr) {
+        renderer_type = sdk::RETypeDB::get()->find_type("via.render.Renderer");
+        spdlog::warn("VR: Failed to find renderer type, trying again next time");
+        return 0;
+    }
+
+    auto renderer = renderer_type->get_instance();
 
     if (renderer == nullptr) {
         return 0;
@@ -791,6 +806,29 @@ void VR::on_post_present() {
 
     m_last_frame_count = m_frame_count;
 
+    // Switch between alternating and synchronized eye rendering when requested
+    auto switch_afr = [&]() {
+        if (!m_wants_afr_switch) {
+            return;
+        }
+
+        std::lock_guard _{m_afr_mtx};
+
+        if (m_wants_afr_switch) {
+            m_wants_afr_switch = false;
+
+            if (m_future_afr_value) {
+                // Nip it in the bud instantly so we don't accidentally use non-existent sceneviews
+                m_use_afr = true;
+                destroy_right_scene_view();
+            } else {
+                setup_right_scene_view();
+            }
+
+            m_use_afr = m_future_afr_value;
+        }
+    };
+
     // Unlock the m_present_finished conditional variable
     // Which will synchronize WaitGetPoses() properly
     // inside on_pre_wait_rendering()
@@ -800,12 +838,16 @@ void VR::on_post_present() {
         {
             std::lock_guard _{m_present_finished_mtx};
             m_present_finished = true;
+
+            if (!m_submitted) {
+                switch_afr();
+            }
         }
 
         m_present_finished_cv.notify_all();
     };
     
-    if (m_submitted) {
+    if (m_submitted || m_wants_afr_switch) {
         vr::VRCompositor()->PostPresentHandoff();
 
         m_needs_wgp_update = true;
@@ -977,12 +1019,25 @@ void VR::on_end_rendering(void* entry) {
 void VR::on_pre_wait_rendering(void* entry) {
     // wait for m_present_finished (std::condition_variable)
     // to be signaled
+    bool timed_out = false;
     {
-        std::unique_lock<std::mutex> lock{m_present_finished_mtx};
-        m_present_finished_cv.wait(lock, [&]() { return m_present_finished; });
+        std::unique_lock lock{m_present_finished_mtx};
+        const auto now = std::chrono::steady_clock::now();
+        
+        if (!m_present_finished_cv.wait_until(lock, now + std::chrono::milliseconds(333), [&]() { return m_present_finished; })) {
+            timed_out = true;
+        }
+
         m_present_finished = false;
     }
 
+    // if we timed out, just return. we're assuming that the rendering will go on as normal
+    if (timed_out) {
+        spdlog::warn("VR: on_pre_wait_rendering: timed out");
+        return;
+    }
+
+    // Call WaitGetPoses
     if (m_needs_wgp_update) {
         m_needs_wgp_update = false;
         update_hmd_state();
@@ -990,7 +1045,6 @@ void VR::on_pre_wait_rendering(void* entry) {
 }
 
 void VR::on_wait_rendering(void* entry) {
-    
 }
 
 void VR::openvr_input_to_game(REManagedObject* input_system) {
@@ -1210,12 +1264,8 @@ void VR::on_draw_ui() {
     ImGui::DragFloat4("Right Bounds", (float*)&m_right_bounds, 0.005f, -2.0f, 2.0f);
     ImGui::DragFloat4("Left Bounds", (float*)&m_left_bounds, 0.005f, -2.0f, 2.0f);
 
-    if (ImGui::Checkbox("Use AFR", &m_use_afr)) {
-        if (m_use_afr) {
-            destroy_right_scene_view();
-        } else {
-            setup_right_scene_view();
-        }
+    if (ImGui::Checkbox("Use AFR", &m_future_afr_value)) {
+        m_wants_afr_switch = true;
     }
 
     ImGui::Checkbox("Use Predicted Poses", &m_use_predicted_poses);

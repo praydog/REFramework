@@ -146,9 +146,11 @@ private:
     // By setting things like input flags based on controller state
     void openvr_input_to_game(REManagedObject* input_system);
 
+    // Sets overlay layer to return instantly
+    // causes world-space gui elements to render properly
     Patch::Ptr m_overlay_draw_patch{};
     
-    std::recursive_mutex m_wgp_mtx{};
+    std::mutex m_afr_mtx{};
     std::shared_mutex m_pose_mtx{};
     std::shared_mutex m_eyes_mtx{};
 
@@ -214,11 +216,13 @@ private:
     int m_last_frame_count{-1};
     int m_left_eye_frame_count{0};
     int m_right_eye_frame_count{0};
-    bool m_use_afr{false};
+    bool m_use_afr{true};
     bool m_use_predicted_poses{false};
     bool m_submitted{false};
     bool m_present_finished{false};
     bool m_needs_wgp_update{false};
+    bool m_wants_afr_switch{false};
+    bool m_future_afr_value{false};
 
     static std::string actions_json;
     static std::string binding_rift_json;

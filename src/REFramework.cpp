@@ -236,7 +236,7 @@ void REFramework::on_frame_d3d11() {
 }
 
 void REFramework::on_post_present_d3d11() {
-    if (!m_initialized || !m_game_data_initialized) {
+    if (!m_error.empty() || !m_initialized || !m_game_data_initialized) {
         return;
     }
 
@@ -323,10 +323,10 @@ void REFramework::on_frame_d3d12() {
 }
 
 void REFramework::on_post_present_d3d12() {
-    if (!m_initialized || !m_game_data_initialized) {
+    if (!m_error.empty() || !m_initialized || !m_game_data_initialized) {
         return;
     }
-
+    
     for (auto& mod : m_mods->get_mods()) {
         mod->on_post_present();
     }
