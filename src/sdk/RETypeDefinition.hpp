@@ -223,5 +223,6 @@ struct RETypeDefinition : public sdk::RETypeDefinition_ {
     via::clr::VMObjType get_vm_obj_type() const;
 
     void* get_instance() const;
+    void* create_instance() const;
 };
 } // namespace sdk

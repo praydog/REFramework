@@ -312,4 +312,12 @@ void* RETypeDefinition::get_instance() const {
     return utility::re_type::get_singleton_instance(this->type);
 }
 
+void* RETypeDefinition::create_instance() const {
+    if (this->type == nullptr) {
+        return nullptr;
+    }
+
+    return utility::re_type::create_instance(this->type);
+}
+
 } // namespace sdk

@@ -61,6 +61,17 @@ void* utility::re_type::get_singleton_instance(::REType* t) {
     return out;
 }
 
+void* utility::re_type::create_instance(::REType* t) {
+    using InstanceFunc = void (*)(::REType*, void**, void*);
+
+    auto f = (*(InstanceFunc**)t)[1];
+
+    void* out = nullptr;
+    f(t, &out, nullptr);
+
+    return out;
+}
+
 static std::shared_mutex insertion_mutex{};
 static std::unordered_map<std::string, VariableDescriptor*> var_map{};
 

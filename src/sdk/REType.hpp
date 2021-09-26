@@ -27,6 +27,7 @@ uint32_t get_value_type_size(::REType* t);
 bool is_clr_type(::REType* t);
 bool is_singleton(::REType* t);
 void* get_singleton_instance(::REType* t);
+void* create_instance(::REType* t);
 REVariableList* get_variables(::REType* t);
 VariableDescriptor* get_field_desc(::REType* t, std::string_view field);
 FunctionDescriptor* get_method_desc(::REType* t, std::string_view name);
