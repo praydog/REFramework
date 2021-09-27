@@ -41,6 +41,49 @@ RenderLayer* RenderLayer::add_layer(::REType* layer_type, uint32_t priority, uin
     return add_layer_fn(this, layer_type, priority, offset);
 }
 
+sdk::NativeArray<RenderLayer*>& RenderLayer::get_layers() {
+    static uint32_t layers_offset = 0;
+
+    if (layers_offset == 0) {
+        spdlog::info("[Renderer] Finding RenderLayer::layers");
+
+        const auto root_layer = sdk::renderer::get_root_layer();
+        
+        if (root_layer == nullptr) {
+            spdlog::error("[Renderer] Failed to find root layer");
+            throw std::runtime_error("[Renderer] Failed to find root layer");
+        }
+        
+        // Scan through the root layer for a pointer to a RenderLayer object
+        for (auto i = 0; i < 0x500; i += sizeof(void*)) {
+            auto ptr = *(RenderLayer***)((uintptr_t)root_layer + i);
+
+            if (ptr == nullptr || IsBadReadPtr(ptr, sizeof(ptr))) {
+                continue;
+            }
+
+            const auto potential_layer = *ptr;
+
+            if (potential_layer == nullptr || IsBadReadPtr(potential_layer, sizeof(potential_layer))) {
+                continue;
+            }
+
+            if (!utility::re_managed_object::is_managed_object(potential_layer)) {
+                continue;
+            }
+
+            if (utility::re_managed_object::is_a(potential_layer, "via.render.RenderLayer")) {
+                layers_offset = i;
+                break;
+            }
+        }
+
+        spdlog::info("[Renderer] RenderLayer::layers: {:x}", layers_offset);
+    }
+
+    return *(sdk::NativeArray<RenderLayer*>*)((uintptr_t)this + layers_offset);
+}
+
 void* get_renderer() {
     return sdk::get_native_singleton("via.render.Renderer");
 }
@@ -148,7 +191,7 @@ RenderLayer* get_root_layer() {
     return *(RenderLayer**)((uintptr_t)renderer + root_layer_offset);
 }
 
-RenderLayer* get_output_layer() {
+sdk::renderer::layer::Output* get_output_layer() {
     auto renderer_t = sdk::RETypeDB::get()->find_type("via.render.Renderer");
 
     if (renderer_t == nullptr) {
@@ -156,7 +199,79 @@ RenderLayer* get_output_layer() {
         return nullptr;
     }
 
-    return sdk::call_object_func<RenderLayer*>(nullptr, renderer_t, "getOutputLayer", sdk::get_thread_context(), nullptr);
+    return sdk::call_object_func<sdk::renderer::layer::Output*>(nullptr, renderer_t, "getOutputLayer", sdk::get_thread_context(), nullptr);
+}
+
+void*& layer::Output::get_present_state() {
+    static uint32_t output_target_offset = 0;
+
+    if (output_target_offset == 0) {
+        spdlog::info("[Renderer] Finding output_target_offset");
+
+        auto get_scene_view_fn = sdk::find_native_method("via.render.Renderer", "get_SceneView");
+
+        if (get_scene_view_fn == nullptr) {
+            spdlog::error("[Renderer] Failed to find get_SceneView");
+            return *(void**)((uintptr_t)this + 0);
+        }
+
+        // Resolve the jmp to the real function
+        if (((uint8_t*)get_scene_view_fn)[0] == 0xE9) {
+            get_scene_view_fn = (decltype(get_scene_view_fn))utility::calculate_absolute((uintptr_t)get_scene_view_fn + 1);
+        }
+
+        // Find the offset to the output target
+        // First instruction is a mov, so we don't need to pattern scan for it
+        output_target_offset = *(uint8_t*)((uintptr_t)get_scene_view_fn + 3);
+
+        spdlog::info("[Renderer] output_target_offset: {:x}", output_target_offset);
+    }
+
+    return *(void**)((uintptr_t)this + output_target_offset);
+}
+
+REManagedObject*& layer::Output::get_scene_view() {
+    static uint32_t scene_view_offset = 0;
+
+    if (scene_view_offset == 0) {
+        spdlog::info("[Renderer] Finding scene_view_offset");
+
+        // because if this is a manually created output layer,
+        // we might not have the scene view and output state set up yet
+        auto top_output_layer = sdk::renderer::get_output_layer();
+
+        if (top_output_layer == nullptr) {
+            spdlog::error("[Renderer] Failed to find top_output_layer");
+            return *(REManagedObject**)((uintptr_t)this + 0);
+        }
+
+        // Call get_SceneView so we can get a scene view
+        // to scan the object for
+        const auto scene_view = sdk::call_object_func<void*>(top_output_layer, "get_SceneView", sdk::get_thread_context(), top_output_layer);
+        const auto output_target = top_output_layer->get_present_state();
+
+        if (scene_view == nullptr) {
+            spdlog::error("[Renderer] Failed to find scene_view");
+            return *(REManagedObject**)((uintptr_t)this + 0);
+        }
+
+        if (output_target == nullptr) {
+            spdlog::error("[Renderer] Failed to find output_target");
+            return *(REManagedObject**)((uintptr_t)this + 0);
+        }
+
+        // Find the offset to the scene view
+        for (auto i = 0; i < 0x1000; i += sizeof(void*)) {
+            if (*(void**)((uintptr_t)output_target + i) == scene_view) {
+                scene_view_offset = i;
+                break;
+            }
+        }
+
+        spdlog::info("[Renderer] scene_view_offset: {:x}", scene_view_offset);
+    }
+
+    return *(REManagedObject**)((uintptr_t)get_present_state() + scene_view_offset);
 }
 }
 }

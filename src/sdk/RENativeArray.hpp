@@ -2,7 +2,7 @@
 
 namespace sdk {
 template <typename T> struct NativeArray {
-    T* begin() {
+    T* begin() const {
         if (elements == nullptr || num == 0 || num_allocated == 0) {
             return nullptr;
         }
@@ -10,7 +10,7 @@ template <typename T> struct NativeArray {
         return elements;
     }
 
-    T* end() {
+    T* end() const {
         if (elements == nullptr || num == 0 || num_allocated == 0) {
             return nullptr;
         }
