@@ -175,12 +175,17 @@ RenderLayer* get_root_layer() {
             get_output_layer_fn = (decltype(get_output_layer_fn))utility::calculate_absolute((uintptr_t)get_output_layer_fn + 1);
         }
 
-        // Find the offset to the root layer
+        // Find the offset to the root layer (RE3, RE8)
         auto ref = utility::scan((uintptr_t)get_output_layer_fn, 0x100, "48 8B 81 ? ? ? ?");
 
         if (!ref) {
-            spdlog::error("[Renderer] Failed to find root_layer_offset");
-            return nullptr;
+            // Fallback pattern to scan for (RE2)
+            ref = utility::scan((uintptr_t)get_output_layer_fn, 0x100, "4C 8B 80 ? ? ? ?");
+
+            if (!ref) {
+                spdlog::error("[Renderer] Failed to find root_layer_offset");
+                return nullptr;
+            }
         }
 
         root_layer_offset = *(uint32_t*)(*ref + 3);
