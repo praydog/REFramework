@@ -40,6 +40,15 @@ public:
 }
 
 void* get_renderer();
+
+void wait_rendering();
+void begin_update_primitive();
+void update_primitive();
+void end_update_primitive();
+
+void begin_rendering();
+void end_rendering();
+
 void add_scene_view(void* scene_view);
 void remove_scene_view(void* scene_view);
 RenderLayer* get_root_layer();

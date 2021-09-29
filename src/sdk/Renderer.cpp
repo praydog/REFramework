@@ -1,6 +1,7 @@
 #include "../utility/Scan.hpp"
 #include "../REFramework.hpp"
 
+#include "Application.hpp"
 #include "RETypeDB.hpp"
 
 #include "Renderer.hpp"
@@ -86,6 +87,42 @@ sdk::NativeArray<RenderLayer*>& RenderLayer::get_layers() {
 
 void* get_renderer() {
     return sdk::get_native_singleton("via.render.Renderer");
+}
+
+void wait_rendering() {
+    static auto wait_rendering_entry = sdk::Application::get()->get_function("WaitRendering");
+
+    return wait_rendering_entry->func(nullptr);
+}
+
+void begin_rendering() {
+    static auto begin_rendering_entry = sdk::Application::get()->get_function("BeginRendering");
+
+    return begin_rendering_entry->func(nullptr);
+}
+
+void end_rendering() {
+    static auto end_rendering_entry = sdk::Application::get()->get_function("EndRendering");
+
+    return end_rendering_entry->func(nullptr);
+}
+
+void begin_update_primitive() {
+    static auto begin_update_primitive_entry = sdk::Application::get()->get_function("BeginUpdatePrimitive");
+
+    return begin_update_primitive_entry->func(nullptr);
+}
+
+void update_primitive() {
+    static auto update_primitive_entry = sdk::Application::get()->get_function("UpdatePrimitive");
+
+    return update_primitive_entry->func(nullptr);
+}
+
+void end_update_primitive() {
+    static auto end_update_primitive_entry = sdk::Application::get()->get_function("EndUpdatePrimitive");
+
+    return end_update_primitive_entry->func(nullptr);
 }
 
 void add_scene_view(void* scene_view) {
