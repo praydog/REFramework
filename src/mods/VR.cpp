@@ -24,9 +24,9 @@
 
 constexpr auto CONTROLLER_DEADZONE = 0.1f;
 #ifdef RE8
-constexpr auto OVERLAY_DRAW_INDEX = 14;
+constexpr auto LAYER_DRAW_INDEX = 14;
 #else
-constexpr auto OVERLAY_DRAW_INDEX = 12;
+constexpr auto LAYER_DRAW_INDEX = 12;
 #endif
 
 std::shared_ptr<VR>& VR::get() {
@@ -43,6 +43,7 @@ std::unique_ptr<FunctionHook> g_get_size_hook{};
 std::unique_ptr<FunctionHook> g_input_hook{};
 std::unique_ptr<FunctionHook> g_projection_matrix_hook{};
 std::unique_ptr<FunctionHook> g_view_matrix_hook{};
+//std::unique_ptr<FunctionHook> g_get_sharpness_hook{};
 
 REManagedObject* g_left_sceneview{};
 REManagedObject* g_right_sceneview{};
@@ -56,15 +57,6 @@ float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
     }
 
     auto mod = VR::get();
-
-    if (!mod->m_use_afr) {
-        if (scene_view == g_left_sceneview) {
-            mod->m_frame_count = 1;
-        } else {
-            mod->m_frame_count = 2;
-        }
-    }
-
     auto out = original_func(scene_view, result);
 
 //#if defined(RE2) || defined(RE3)
@@ -249,6 +241,25 @@ void VR::inputsystem_update_hook(void* ctx, REManagedObject* input_system) {
     mod->openvr_input_to_game(input_system);
 }
 
+// put it on the backburner
+/*
+float VR::get_sharpness_hook(void* tonemapping) {
+    auto original_func = g_get_sharpness_hook->get_original<decltype(get_sharpness_hook)>();
+    
+    if (!g_framework->is_ready()) {
+        return original_func(tonemapping);
+    }
+
+    auto mod = VR::get();
+
+    if (mod->m_disable_sharpening) {
+        return 0.0f;
+    }
+
+    return original_func(tonemapping);
+}
+*/
+
 // Called when the mod is initialized
 std::optional<std::string> VR::on_initialize() {
     auto openvr_error = initialize_openvr();
@@ -280,8 +291,6 @@ std::optional<std::string> VR::on_initialize() {
     if (hijack_error) {
         return hijack_error;
     }
-
-    m_wants_afr_switch = true;
 
     // all OK
     return Mod::on_initialize();
@@ -554,32 +563,7 @@ std::optional<std::string> VR::hijack_overlay_renderer() {
         return "VR init failed: via.render.layer.Overlay type not found.";
     }
 
-    auto managed_type = t->type;
-
-    if (managed_type == nullptr) {
-        return "VR init failed: via.render.layer.Overlay managed type not found.";
-    }
-
-    auto type_vtable = *(uintptr_t**)managed_type;
-
-    if (type_vtable == nullptr) {
-        return "VR init failed: via.render.layer.Overlay vtable not found.";
-    }
-
-    // We're going to construct a fake instance of the object
-    // So we can get the address of the Draw() method which is
-    // a virtual function
-    void** (*create_instance)(void* obj, void** result, void* buffer) = decltype(create_instance)(type_vtable[1]);
-
-    if (create_instance == nullptr) {
-        return "VR init failed: via.render.layer.Overlay type create_instance function not found.";
-    }
-
-    auto test = (uintptr_t)create_instance - g_framework->get_module().as<uintptr_t>();
-    spdlog::info("via.render.layer.Overlay.create_instance: {:x}", test);
-
-    void* fake_obj = nullptr;
-    create_instance(nullptr, &fake_obj, nullptr);
+    void* fake_obj = t->create_instance();
 
     if (fake_obj == nullptr) {
         return "VR init failed: Failed to create fake via.render.layer.Overlay instance.";
@@ -591,7 +575,7 @@ std::optional<std::string> VR::hijack_overlay_renderer() {
         return "VR init failed: via.render.layer.Overlay vtable not found.";
     }
 
-    auto draw_native = obj_vtable[OVERLAY_DRAW_INDEX];
+    auto draw_native = obj_vtable[LAYER_DRAW_INDEX];
 
     if (draw_native == 0) {
         return "VR init failed: via.render.layer.Overlay draw native not found.";
@@ -602,35 +586,61 @@ std::optional<std::string> VR::hijack_overlay_renderer() {
     // Set the first byte to the ret instruction
     m_overlay_draw_patch = Patch::create(draw_native, { 0xC3 });
 
+    // Hook get_Sharpness
+    /*auto get_sharpness = sdk::find_native_method("via.render.ToneMapping", "get_Sharpness");
+
+    if (get_sharpness == nullptr) {
+        return "Could not find get_Sharpness";
+    }
+
+    spdlog::info("via.render.ToneMapping.get_Sharpness: {:x}", (uintptr_t)get_sharpness);
+
+    // Scan for the native function call (jmp)
+    auto ref = utility::scan((uintptr_t)get_sharpness, 0x20, "E9");
+
+    if (!ref) {
+        return "VR init failed: via.render.ToneMapping.get_Sharpness native function not found. Pattern scan failed.";
+    }
+
+    auto native_func = utility::calculate_absolute(*ref + 1);
+
+    g_get_sharpness_hook = std::make_unique<FunctionHook>(native_func, get_sharpness_hook);
+
+    if (!g_get_sharpness_hook->create()) {
+        return "VR init failed: via.render.ToneMapping.get_Sharpness native function hook failed.";
+    }*/
+
+    // ASDAFASFF
+    /*t = sdk::RETypeDB::get()->find_type("via.render.layer.PostShadowCast");
+
+    if (t == nullptr) {
+        return "VR init failed: via.render.layer.PostShadowCast type not found.";
+    }
+
+    fake_obj = t->create_instance();
+
+    if (fake_obj == nullptr) {
+        return "VR init failed: Failed to create fake via.render.layer.PostShadowCast instance.";
+    }
+
+    obj_vtable = *(uintptr_t**)fake_obj;
+
+    if (obj_vtable == nullptr) {
+        return "VR init failed: via.render.layer.PostShadowCast vtable not found.";
+    }
+
+    draw_native = obj_vtable[LAYER_DRAW_INDEX];
+
+    if (draw_native == 0) {
+        return "VR init failed: via.render.layer.PostShadowCast draw native not found.";
+    }
+
+    spdlog::info("via.render.layer.PostShadowCast.Draw: {:x}", (uintptr_t)draw_native);
+
+    // Set the first byte to the ret instruction
+    static auto shadow_patch = Patch::create(draw_native, { 0xC3 });*/
+
     return std::nullopt;
-}
-
-void VR::setup_right_scene_view() {
-    while (sdk::get_main_view() == nullptr) {
-
-    }
-
-    auto view = sdk::get_main_view();
-
-    if (m_right_scene_view == nullptr) {
-        m_right_scene_view = new uint8_t[0x1000];
-    }
-
-    memcpy(m_right_scene_view, view, 0x1000);
-
-    g_left_sceneview = view;
-    g_right_sceneview = (REManagedObject*)m_right_scene_view;
-
-    // Add new scene view for the right eye
-    sdk::renderer::add_scene_view(m_right_scene_view);
-}
-
-void VR::destroy_right_scene_view() {
-    if (m_right_scene_view == nullptr) {
-        return;
-    }
-
-    sdk::renderer::remove_scene_view(m_right_scene_view);
 }
 
 void VR::update_hmd_state() {
@@ -714,11 +724,7 @@ void VR::update_hmd_state() {
 }
 
 int32_t VR::get_frame_count() const {
-    if (m_use_afr) {
-        return get_game_frame_count();
-    }
-
-    return m_frame_count;
+    return get_game_frame_count();
 }
 
 int32_t VR::get_game_frame_count() const {
@@ -790,9 +796,6 @@ Matrix4x4f VR::get_current_projection_matrix(bool flip) {
 }
 
 void VR::on_post_frame() {
-}
-
-void VR::on_post_present() {
     m_frame_count = get_frame_count();
     m_main_view = sdk::get_main_view();
 
@@ -805,30 +808,9 @@ void VR::on_post_present() {
     }
 
     m_last_frame_count = m_frame_count;
+}
 
-    // Switch between alternating and synchronized eye rendering when requested
-    auto switch_afr = [&]() {
-        if (!m_wants_afr_switch) {
-            return;
-        }
-
-        std::lock_guard _{m_afr_mtx};
-
-        if (m_wants_afr_switch) {
-            m_wants_afr_switch = false;
-
-            if (m_future_afr_value) {
-                // Nip it in the bud instantly so we don't accidentally use non-existent sceneviews
-                m_use_afr = true;
-                destroy_right_scene_view();
-            } else {
-                setup_right_scene_view();
-            }
-
-            m_use_afr = m_future_afr_value;
-        }
-    };
-
+void VR::on_post_present() {
     // Unlock the m_present_finished conditional variable
     // Which will synchronize WaitGetPoses() properly
     // inside on_pre_wait_rendering()
@@ -838,22 +820,23 @@ void VR::on_post_present() {
         {
             std::lock_guard _{m_present_finished_mtx};
             m_present_finished = true;
-
-            if (!m_submitted) {
-                switch_afr();
-            }
         }
 
         m_present_finished_cv.notify_all();
     };
+
+    if (m_needs_wgp_update) {
+        unlock_present();
+        return;
+    }
     
-    if (m_submitted || m_wants_afr_switch) {
+    if (m_submitted) {
         vr::VRCompositor()->PostPresentHandoff();
 
         m_needs_wgp_update = true;
         unlock_present();
         m_submitted = false;
-    } else if (m_use_afr) { // always unlocks every frame so we don't cause a deadlock on AFR
+    } else { // always unlocks every frame so we don't cause a deadlock on AFR
         unlock_present();
     }
 }
@@ -1002,18 +985,93 @@ void VR::on_pre_lock_scene(void* entry) {
 void VR::on_lock_scene(void* entry) {
 }
 
+bool inside_on_end = false;
+uint32_t actual_frame_count = 0;
+
 void VR::on_pre_begin_rendering(void* entry) {
 }
 
 void VR::on_begin_rendering(void* entry) {
-
+    //spdlog::info("BeginRendering");
 }
 
 void VR::on_pre_end_rendering(void* entry) {
+    actual_frame_count = get_game_frame_count();
 
+    //spdlog::info("EndRendering");
 }
 
 void VR::on_end_rendering(void* entry) {
+    if (m_use_afr || inside_on_end) {
+        return;
+    }
+
+    // Only render again on even (left eye) frames
+    // We're checking == 1 because at this point, the frame has finished.
+    // Meaning the previous frame was a left eye frame.
+    if (!inside_on_end && actual_frame_count % 2 == 1) {
+        inside_on_end = true;
+        
+        // Try to render again for the right eye
+        auto app = sdk::Application::get();
+
+        static auto chain = app->generate_chain("WaitRendering", "EndRendering");
+        static bool do_once = true;
+
+        if (do_once) {
+            do_once = false;
+
+            // Remove "UpdatePhysicsCharacterController" from the chain (std::vector remove idiom)
+            chain.erase(std::remove_if(chain.begin(), chain.end(), [](auto& func) {
+                return func->description == "UpdatePhysicsCharacterController";
+            }), chain.end());
+        }
+
+        sdk::renderer::begin_update_primitive();
+
+        //static auto update_geometry = app->get_function("UpdateGeometry");
+        static auto begin_update_effect = app->get_function("BeginUpdateEffect");
+        static auto update_effect = app->get_function("UpdateEffect");
+        static auto end_update_effect = app->get_function("EndUpdateEffect");
+        static auto prerender_gui = app->get_function("PrerenderGUI");
+
+        // SO. Let me explain what's happening here.
+        // If we try and just render a frame in this naive way in this order:
+        // BeginUpdatePrimitive,
+        // WaitRendering,
+        // BeginRendering,
+        // UpdatePrimitive,
+        // EndPrimitive,
+        // EndRendering,
+        // This will end up having a chance to crash when rendering fluid effects for some reason when calling UpdatePrimitive.
+        // The crash happens because some pipeline state inside the fluid simulator gets set to null.
+        // So, we manually call BeginEffect, and then EndUpdateEffect
+        // Which somehow solves the crash.
+        // We don't call UpdateEffect because it will make effects appear to run at a higher framerate
+        if (begin_update_effect != nullptr) {
+            begin_update_effect->func(begin_update_effect->entry);
+        }
+
+        /*if (update_effect != nullptr) {
+            update_effect->func(update_effect->entry);
+        }*/
+
+        if (end_update_effect != nullptr) {
+            end_update_effect->func(end_update_effect->entry);
+        }
+
+        if (prerender_gui != nullptr) {
+            prerender_gui->func(prerender_gui->entry);
+        }
+
+        for (auto func : chain) {
+            //spdlog::info("Calling {}", func->description);
+
+            func->func(func->entry);
+        }
+
+        inside_on_end = false;
+    }
 }
 
 void VR::on_pre_wait_rendering(void* entry) {
@@ -1033,12 +1091,21 @@ void VR::on_pre_wait_rendering(void* entry) {
 
     // if we timed out, just return. we're assuming that the rendering will go on as normal
     if (timed_out) {
-        spdlog::warn("VR: on_pre_wait_rendering: timed out");
+        if (inside_on_end) {
+            spdlog::warn("VR: on_pre_wait_rendering: timed out inside_on_end");
+        } else {
+            spdlog::warn("VR: on_pre_wait_rendering: timed out");
+        }
+
         return;
     }
 
+    if (m_needs_wgp_update && inside_on_end) {
+        spdlog::info("VR: on_pre_wait_rendering: inside on end!");
+    }
+
     // Call WaitGetPoses
-    if (m_needs_wgp_update) {
+    if (m_needs_wgp_update && !inside_on_end) {
         m_needs_wgp_update = false;
         update_hmd_state();
     }
@@ -1264,8 +1331,7 @@ void VR::on_draw_ui() {
     ImGui::DragFloat4("Right Bounds", (float*)&m_right_bounds, 0.005f, -2.0f, 2.0f);
     ImGui::DragFloat4("Left Bounds", (float*)&m_left_bounds, 0.005f, -2.0f, 2.0f);
 
-    if (ImGui::Checkbox("Use AFR", &m_future_afr_value)) {
-        m_wants_afr_switch = true;
+    if (ImGui::Checkbox("Use AFR", &m_use_afr)) {
     }
 
     ImGui::Checkbox("Use Predicted Poses", &m_use_predicted_poses);

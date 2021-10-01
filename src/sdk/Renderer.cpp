@@ -92,37 +92,37 @@ void* get_renderer() {
 void wait_rendering() {
     static auto wait_rendering_entry = sdk::Application::get()->get_function("WaitRendering");
 
-    return wait_rendering_entry->func(nullptr);
+    return wait_rendering_entry->func(wait_rendering_entry->entry);
 }
 
 void begin_rendering() {
     static auto begin_rendering_entry = sdk::Application::get()->get_function("BeginRendering");
 
-    return begin_rendering_entry->func(nullptr);
+    return begin_rendering_entry->func(begin_rendering_entry->entry);
 }
 
 void end_rendering() {
     static auto end_rendering_entry = sdk::Application::get()->get_function("EndRendering");
 
-    return end_rendering_entry->func(nullptr);
+    return end_rendering_entry->func(end_rendering_entry->entry);
 }
 
 void begin_update_primitive() {
     static auto begin_update_primitive_entry = sdk::Application::get()->get_function("BeginUpdatePrimitive");
 
-    return begin_update_primitive_entry->func(nullptr);
+    return begin_update_primitive_entry->func(begin_update_primitive_entry->entry);
 }
 
 void update_primitive() {
     static auto update_primitive_entry = sdk::Application::get()->get_function("UpdatePrimitive");
 
-    return update_primitive_entry->func(nullptr);
+    return update_primitive_entry->func(update_primitive_entry->entry);
 }
 
 void end_update_primitive() {
     static auto end_update_primitive_entry = sdk::Application::get()->get_function("EndUpdatePrimitive");
 
-    return end_update_primitive_entry->func(nullptr);
+    return end_update_primitive_entry->func(end_update_primitive_entry->entry);
 }
 
 void add_scene_view(void* scene_view) {

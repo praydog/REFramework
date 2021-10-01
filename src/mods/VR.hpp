@@ -129,6 +129,7 @@ private:
     static void inputsystem_update_hook(void* ctx, REManagedObject* input_system);
     static Matrix4x4f* camera_get_projection_matrix_hook(REManagedObject* camera, Matrix4x4f* result);
     static Matrix4x4f* camera_get_view_matrix_hook(REManagedObject* camera, Matrix4x4f* result);
+    static float get_sharpness_hook(void* tonemapping);
 
     // initialization functions
     std::optional<std::string> initialize_openvr();
@@ -137,8 +138,6 @@ private:
     std::optional<std::string> hijack_camera();
     std::optional<std::string> hijack_overlay_renderer();
 
-    void setup_right_scene_view();
-    void destroy_right_scene_view();
     void update_hmd_state();
 
     // input functions
@@ -210,19 +209,21 @@ private:
     vrmod::D3D11Component m_d3d11{};
     vrmod::D3D12Component m_d3d12{};
 
+    // options
     float m_ui_scale{15.0f};
-
     int m_frame_count{};
     int m_last_frame_count{-1};
     int m_left_eye_frame_count{0};
     int m_right_eye_frame_count{0};
-    bool m_use_afr{true};
+    bool m_use_afr{false};
     bool m_use_predicted_poses{false};
     bool m_submitted{false};
     bool m_present_finished{false};
-    bool m_needs_wgp_update{false};
-    bool m_wants_afr_switch{false};
-    bool m_future_afr_value{false};
+    // we always need at least one initial WaitGetPoses before the game will render
+    // even if we don't have anything to submit yet, otherwise the compositor
+    // will return VRCompositorError_DoNotHaveFocus
+    bool m_needs_wgp_update{true};
+    //bool m_disable_sharpening{true};
 
     static std::string actions_json;
     static std::string binding_rift_json;
@@ -242,8 +243,6 @@ private:
 
     bool m_invert{false};
     bool m_use_rotation{true};
-
-    void* m_right_scene_view{nullptr};
 
     friend class vrmod::D3D11Component;
     friend class vrmod::D3D12Component;

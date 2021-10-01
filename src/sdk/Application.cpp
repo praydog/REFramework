@@ -61,14 +61,42 @@ Application::Function* Application::get_function(std::string_view name) {
     }
 
     const auto module_entry_enum = sdk::RETypeDB::get()->find_type("via.ModuleEntry");
-    const auto function_index = *sdk::get_object_field<uint16_t>(nullptr, module_entry_enum, name, true);
+    const auto function_index = sdk::get_object_field<uint16_t>(nullptr, module_entry_enum, name, true);
+
+    if (function_index == nullptr) {
+        return nullptr;
+    }
 
     for (auto i = 0; i < 1024; ++i) {
-        if (functions[i].priority == function_index) {
+        if (functions[i].priority == *function_index) {
             return &functions[i];
         }
     }
 
     return nullptr;
+}
+
+std::vector<Application::Function*> Application::generate_chain(std::string_view start_name, std::string_view end_name) {
+    std::vector<Function*> chain{};
+    
+    const auto module_entry_enum = sdk::RETypeDB::get()->find_type("via.ModuleEntry");
+    const auto start_index = sdk::get_object_field<uint16_t>(nullptr, module_entry_enum, start_name, true);
+    const auto end_index = sdk::get_object_field<uint16_t>(nullptr, module_entry_enum, end_name, true);
+
+    if (start_index == nullptr || end_index == nullptr) {
+        return chain;
+    }
+
+    for (auto i = *start_index; i <= *end_index; ++i) {
+        const auto function = get_function(i);
+
+        if (function == nullptr || function->func == nullptr) {
+            continue;
+        }
+
+        chain.push_back(function);
+    }
+
+    return chain;
 }
 }
