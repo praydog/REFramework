@@ -45,9 +45,6 @@ std::unique_ptr<FunctionHook> g_projection_matrix_hook{};
 std::unique_ptr<FunctionHook> g_view_matrix_hook{};
 //std::unique_ptr<FunctionHook> g_get_sharpness_hook{};
 
-REManagedObject* g_left_sceneview{};
-REManagedObject* g_right_sceneview{};
-
 // Purpose: spoof the render target size to the size of the HMD displays
 float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
     auto original_func = g_get_size_hook->get_original<decltype(VR::get_size_hook)>();
@@ -59,7 +56,6 @@ float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
     auto mod = VR::get();
     auto out = original_func(scene_view, result);
 
-//#if defined(RE2) || defined(RE3)
     auto regenny_view = (regenny::via::SceneView*)scene_view;
     auto window = regenny_view->window;
 
@@ -71,7 +67,6 @@ float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
         window->width = mod->get_hmd_width();
         window->height = mod->get_hmd_height();
     }
-//#endif
 
     // spoof the size to the HMD's size
     out[0] = (float)mod->get_hmd_width();
@@ -1218,9 +1213,10 @@ void VR::openvr_input_to_game(REManagedObject* input_system) {
     set_button_state(app::ropeway::InputDefine::Kind::HOLD, is_grip_down);
     set_button_state(app::ropeway::InputDefine::Kind::UI_SHIFT_RIGHT, is_grip_down);
 
-    // Left Grip: Alternate aim (grenades, knives, etc), UI left (LB)
+    // Left Grip: Alternate aim (grenades, knives, etc), UI left (LB), DEFENSE (LB)
     set_button_state(app::ropeway::InputDefine::Kind::SUPPORT_HOLD, is_left_grip_down);
     set_button_state(app::ropeway::InputDefine::Kind::UI_SHIFT_LEFT, is_left_grip_down);
+    set_button_state(app::ropeway::InputDefine::Kind::DEFENSE, is_left_grip_down);
 
     // Right Trigger (RB): Attack, Alternate UI right (RT), GE_RTrigBottom (quick time event), GE_RTrigTop (another quick time event)
     set_button_state(app::ropeway::InputDefine::Kind::ATTACK, is_trigger_down);
