@@ -1066,10 +1066,23 @@ void VR::on_end_rendering(void* entry) {
         if (do_once) {
             do_once = false;
 
-            // Remove "UpdatePhysicsCharacterController" from the chain (std::vector remove idiom)
-            chain.erase(std::remove_if(chain.begin(), chain.end(), [](auto& func) {
-                return func->description == "UpdatePhysicsCharacterController";
-            }), chain.end());
+            // Remove these from the chain (std::vector)
+            auto entries_to_remove = std::vector<std::string> {
+                "UpdatePhysicsCharacterController",
+                "UpdateTelemetry",
+                "UpdateMovie", // Causes movies to play twice as fast if ran again
+                // The dynamics stuff causes a cloth physics step in the right eye
+                "BeginRenderingDynamics",
+                "BeginDynamics",
+                "EndRenderingDynamics",
+                "EndDynamics",
+            };
+
+            for (auto& entry : entries_to_remove) {
+                chain.erase(std::remove_if(chain.begin(), chain.end(), [&](auto& func) {
+                    return entry == func->description;
+                }), chain.end());
+            }
         }
 
         sdk::renderer::begin_update_primitive();
