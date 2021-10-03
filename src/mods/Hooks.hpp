@@ -63,10 +63,6 @@ private:
         HOOK_LAMBDA(hook_update_camera_controller2),
         HOOK_LAMBDA(hook_gui_draw),
         HOOK_LAMBDA(hook_update_before_lock_scene),
-        /*HOOK_LAMBDA(hook_lock_scene),
-        HOOK_LAMBDA(hook_begin_rendering),
-        HOOK_LAMBDA(hook_end_rendering),
-        HOOK_LAMBDA(hook_wait_rendering),*/
         HOOK_LAMBDA(hook_all_application_entries),
     };
 
@@ -76,11 +72,6 @@ protected:
     std::unique_ptr<FunctionHook> m_update_camera_controller2_hook;
     std::unique_ptr<FunctionHook> m_gui_draw_hook;
     std::unique_ptr<FunctionHook> m_update_before_lock_scene_hook;
-    std::unique_ptr<FunctionHook> m_lock_scene_hook;
-    std::unique_ptr<FunctionHook> m_begin_rendering_hook;
-    std::unique_ptr<FunctionHook> m_end_rendering_hook;
-    std::unique_ptr<FunctionHook> m_wait_rendering_hook;
-    std::unique_ptr<FunctionHook> m_begin_frame_rendering_hook;
 
     std::unordered_map<const char*, void (*)(void*)> m_application_entry_hooks;
 };

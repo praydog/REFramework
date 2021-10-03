@@ -325,12 +325,7 @@ public:
     virtual void on_pre_update_before_lock_scene(void* ctx) {};
     virtual void on_update_before_lock_scene(void* ctx) {};
     // via.application entry hooks
-    virtual void on_pre_lock_scene(void* entry) {};
-    virtual void on_lock_scene(void* entry) {};
-    virtual void on_pre_begin_rendering(void* entry) {}; // do NOT use these for imgui rendering
-    virtual void on_begin_rendering(void* entry) {};
-    virtual void on_pre_end_rendering(void* entry) {};
-    virtual void on_end_rendering(void* entry) {};
-    virtual void on_pre_wait_rendering(void* entry) {};
-    virtual void on_wait_rendering(void* entry) {};
+    // For a list of possible entries, see via.ModuleEntry enum
+    virtual void on_pre_application_entry(void* entry, const char* name, size_t hash) {};
+    virtual void on_application_entry(void* entry, const char* name, size_t hash) {};
 };
