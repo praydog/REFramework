@@ -62,15 +62,26 @@ float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
     // Force the display to stretch to the window size
     regenny_view->display_type = regenny::via::DisplayType::Fit;
 
+    auto wanted_width = 0.0f;
+    auto wanted_height = 0.0f;
+
     // Set the window size, which will increase the size of the backbuffer
     if (window != nullptr) {
-        window->width = mod->get_hmd_width();
-        window->height = mod->get_hmd_height();
+        if (mod->m_is_hmd_active) {
+            window->width = mod->get_hmd_width();
+            window->height = mod->get_hmd_height();
+        } else {
+            window->width = (uint32_t)window->borderless_size.w;
+            window->height = (uint32_t)window->borderless_size.h;
+        }
+
+        wanted_width = (float)window->width;
+        wanted_height = (float)window->height;
     }
 
     // spoof the size to the HMD's size
-    out[0] = (float)mod->get_hmd_width();
-    out[1] = (float)mod->get_hmd_height();
+    out[0] = wanted_width;
+    out[1] = wanted_height;
 
     return out;
 }
@@ -80,7 +91,7 @@ Matrix4x4f* VR::camera_get_projection_matrix_hook(REManagedObject* camera, Matri
 
     auto vr = VR::get();
 
-    if (result == nullptr || !g_framework->is_ready()) {
+    if (result == nullptr || !g_framework->is_ready() || !vr->m_is_hmd_active) {
         return original_func(camera, result);
     }
 
@@ -114,6 +125,10 @@ Matrix4x4f* VR::camera_get_view_matrix_hook(REManagedObject* camera, Matrix4x4f*
     }
 
     auto vr = VR::get();
+
+    if (!vr->m_is_hmd_active) {
+        return original_func(camera, result);
+    }
 
     /*if (camera != sdk::get_primary_camera()) {
         return original_func(camera, result);
@@ -753,6 +768,10 @@ Vector4f VR::get_standing_origin() {
 }
 
 Vector4f VR::get_current_offset() {
+    if (!m_is_hmd_active) {
+        return Vector4f{};
+    }
+
     std::shared_lock _{ m_eyes_mtx };
 
     if (get_frame_count() % 2 == 0) {
@@ -765,6 +784,10 @@ Vector4f VR::get_current_offset() {
 }
 
 Matrix4x4f VR::get_current_eye_transform() {
+    if (!m_is_hmd_active) {
+        return glm::identity<Matrix4x4f>();
+    }
+
     std::shared_lock _{m_eyes_mtx};
 
     if (get_frame_count() % 2 == 0) {
@@ -775,10 +798,18 @@ Matrix4x4f VR::get_current_eye_transform() {
 }
 
 Matrix4x4f VR::get_current_rotation_offset() {
+    if (!m_is_hmd_active) {
+        return glm::identity<Matrix4x4f>();
+    }
+
     return glm::extractMatrixRotation(get_current_eye_transform());
 }
 
 Matrix4x4f VR::get_current_projection_matrix(bool flip) {
+    if (!m_is_hmd_active) {
+        return glm::identity<Matrix4x4f>();
+    }
+
     std::shared_lock _{m_eyes_mtx};
 
     auto mod_count = flip ? 1 : 0;
@@ -791,6 +822,13 @@ Matrix4x4f VR::get_current_projection_matrix(bool flip) {
 }
 
 void VR::on_post_frame() {
+    const auto hmd_activity = m_hmd->GetTrackedDeviceActivityLevel(vr::k_unTrackedDeviceIndex_Hmd);
+    m_is_hmd_active = hmd_activity == vr::k_EDeviceActivityLevel_UserInteraction || hmd_activity == vr::k_EDeviceActivityLevel_UserInteraction_Timeout;
+
+    if (!m_is_hmd_active) {
+        return;
+    }
+
     m_frame_count = get_frame_count();
     m_main_view = sdk::get_main_view();
 
@@ -806,6 +844,10 @@ void VR::on_post_frame() {
 }
 
 void VR::on_post_present() {
+    if (!m_is_hmd_active) {
+        return;
+    }
+
     // Unlock the m_present_finished conditional variable
     // Which will synchronize WaitGetPoses() properly
     // inside on_pre_wait_rendering()
@@ -879,6 +921,10 @@ struct GUIRestoreData {
 thread_local std::vector<std::unique_ptr<GUIRestoreData>> g_elements_to_reset{};
 
 void VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_context) {
+    if (!m_is_hmd_active) {
+        return;
+    }
+
     auto game_object = utility::re_component::get_game_object(gui_element);
 
     if (game_object != nullptr && game_object->transform != nullptr) {
@@ -997,6 +1043,10 @@ void VR::on_pre_end_rendering(void* entry) {
 }
 
 void VR::on_end_rendering(void* entry) {
+    if (!m_is_hmd_active) {
+        return;
+    }
+
     if (m_use_afr || inside_on_end) {
         return;
     }
@@ -1070,6 +1120,10 @@ void VR::on_end_rendering(void* entry) {
 }
 
 void VR::on_pre_wait_rendering(void* entry) {
+    if (!m_is_hmd_active) {
+        return;
+    }
+
     // wait for m_present_finished (std::condition_variable)
     // to be signaled
     bool timed_out = false;
@@ -1213,10 +1267,9 @@ void VR::openvr_input_to_game(REManagedObject* input_system) {
     set_button_state(app::ropeway::InputDefine::Kind::HOLD, is_grip_down);
     set_button_state(app::ropeway::InputDefine::Kind::UI_SHIFT_RIGHT, is_grip_down);
 
-    // Left Grip: Alternate aim (grenades, knives, etc), UI left (LB), DEFENSE (LB)
+    // Left Grip: Alternate aim (grenades, knives, etc), UI left (LB)
     set_button_state(app::ropeway::InputDefine::Kind::SUPPORT_HOLD, is_left_grip_down);
     set_button_state(app::ropeway::InputDefine::Kind::UI_SHIFT_LEFT, is_left_grip_down);
-    set_button_state(app::ropeway::InputDefine::Kind::DEFENSE, is_left_grip_down);
 
     // Right Trigger (RB): Attack, Alternate UI right (RT), GE_RTrigBottom (quick time event), GE_RTrigTop (another quick time event)
     set_button_state(app::ropeway::InputDefine::Kind::ATTACK, is_trigger_down);
@@ -1225,8 +1278,9 @@ void VR::openvr_input_to_game(REManagedObject* input_system) {
     set_button_state((app::ropeway::InputDefine::Kind)9007199254740992, is_trigger_down);
     //set_button_state((app::ropeway::InputDefine::Kind)4503599627370496, is_trigger_down);
 
-    // Left Trigger (LB): Alternate UI left (LT)
+    // Left Trigger (LB): Alternate UI left (LT), DEFENSE (LB)
     set_button_state(app::ropeway::InputDefine::Kind::UI_SHIFT_LEFT_2, is_left_trigger_down);
+    set_button_state(app::ropeway::InputDefine::Kind::DEFENSE, is_left_trigger_down);
 
     // L3: Sprint
     set_button_state(app::ropeway::InputDefine::Kind::JOG1, is_left_joystick_click_down);

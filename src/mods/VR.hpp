@@ -225,6 +225,8 @@ private:
     bool m_needs_wgp_update{true};
     //bool m_disable_sharpening{true};
 
+    bool m_is_hmd_active{false};
+
     static std::string actions_json;
     static std::string binding_rift_json;
     static std::string bindings_oculus_touch_json;
