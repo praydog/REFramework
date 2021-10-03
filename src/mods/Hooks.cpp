@@ -2,6 +2,7 @@
 #include "REFramework.hpp"
 #include "utility/Scan.hpp"
 #include "utility/Module.hpp"
+#include "utility/String.hpp"
 
 #include "sdk/Application.hpp"
 
@@ -192,6 +193,133 @@ std::optional<std::string> Hooks::hook_application_entry(std::string name, std::
     return std::nullopt;
 }
 
+std::optional<std::string> Hooks::hook_all_application_entries() {
+    auto application = sdk::Application::get();
+
+    if (application == nullptr) {
+        return "Failed to get via.Application";
+    }
+
+    auto generate_mov_rdx = [](uintptr_t target) {
+        std::vector<uint8_t> mov_rdx{ 0x48, 0xBA, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+        *(uintptr_t*)&mov_rdx[2] = target;
+
+        return mov_rdx;
+    };
+
+    auto generate_mov_r8 = [](uintptr_t target) {
+        std::vector<uint8_t> mov_r8{ 0x49, 0xB8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+        *(uintptr_t*)&mov_r8[2] = target;
+
+        return mov_r8;
+    };
+
+    auto generate_mov_r9 = [](uintptr_t target) {
+        std::vector<uint8_t> mov_r9{ 0x49, 0xB9, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+        *(uintptr_t*)&mov_r9[2] = target;
+
+        return mov_r9;
+    };
+
+    auto generate_jmp_r9 = []() {
+        std::vector<uint8_t> jmp_r8{ 0x41, 0xFF, 0xE1 };
+        return jmp_r8;
+    };
+
+    // movabs rdx, entry_name_addr
+    // movabs r8, entry_name_hash
+    // movabs r9, hook_addr
+    // jmp r9 (Hooks::global_application_entry_hook)
+    // The purpose of this is so we can pass some state to the hook callback
+    // So we can know which hook is being called, as a global hook handler
+    // gets called for every hook (Hooks::global_application_entry_hook)
+    auto generate_hook_func = [&](const char* name, uintptr_t target) {
+        auto mov_rdx = generate_mov_rdx((uintptr_t)name);
+        auto mov_r8 = generate_mov_r8(utility::hash(name));
+        auto mov_r9 = generate_mov_r9(target);
+        auto jmp_r9 = generate_jmp_r9();
+
+        // Concats the above vectors into a single vector.
+        std::vector<uint8_t> hook{};
+        hook.insert(hook.end(), mov_rdx.begin(), mov_rdx.end());
+        hook.insert(hook.end(), mov_r8.begin(), mov_r8.end());
+        hook.insert(hook.end(), mov_r9.begin(), mov_r9.end());
+        hook.insert(hook.end(), jmp_r9.begin(), jmp_r9.end());
+
+        // Allocate some permanent memory for the hook
+        // and copy the hook into it. Set the permissions to RWX.
+        auto hook_addr = VirtualAlloc(nullptr, hook.size(), MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+        memcpy(hook_addr, hook.data(), hook.size());
+
+        return hook_addr;
+    };
+
+    // Seemingly only necessary when using MinHook rather than pointer hooking.
+    /*std::unordered_set<void*> bad_funcs{};
+    std::unordered_map<void*, sdk::Application::Function*> funcs_to_entries{};
+
+    for (auto i = 0; i < 1024; ++i) {
+        auto entry = application->get_function(i);
+
+        if (entry == nullptr || entry->description == nullptr) {
+            continue;
+        }
+
+        auto func = entry->func;
+
+        if (func == nullptr) {
+            continue;
+        }
+
+        if (funcs_to_entries.find(func) == funcs_to_entries.end()) {
+            funcs_to_entries[func] = entry;
+        } else {
+            bad_funcs.insert(func);
+        }
+    }*/
+
+    for (auto i = 0; i < 1024; ++i) {
+        auto entry = application->get_function(i);
+
+        if (entry == nullptr || entry->description == nullptr) {
+            continue;
+        }
+
+        auto func = entry->func;
+
+        if (func == nullptr) {
+            continue;
+        }
+
+        /*if (bad_funcs.find(func) != bad_funcs.end()) {
+            spdlog::warn("Duplicate function: {}", entry->description);
+            continue;
+        }*/
+
+        spdlog::info("{} {} entry: {:x}", i, entry->description, (uintptr_t)entry);
+
+        auto generated_hook = generate_hook_func((const char*)entry->description, (uintptr_t)&global_application_entry_hook);
+
+        //m_application_entry_hooks[entry->description] = std::make_unique<FunctionHook>(func, generated_hook);
+        
+        // We are just going to replace the pointer to the function for now
+        // Doing a full hook with FunctionHook eats up a lot of initialization time because of
+        // the constant thread suspension. 
+        m_application_entry_hooks[entry->description] = func;
+        entry->func = (void (*)(void*))generated_hook;
+
+        spdlog::info("Hooked {} {:x}->{:x}", entry->description, (uintptr_t)func, (uintptr_t)generated_hook);
+    }
+
+    /*for (auto& entry : m_application_entry_hooks) {
+        if (!entry.second->create()) {
+            return "Failed to hook via::Application::" + std::string{entry.first};
+        }
+    }*/
+
+    return std::nullopt;
+}
+
 std::optional<std::string> Hooks::hook_update_before_lock_scene() {
     // Hook updateBeforeLockScene
     auto update_before_lock_scene = sdk::find_native_method("via.render.EntityRenderer", "updateBeforeLockScene");
@@ -333,8 +461,10 @@ void Hooks::update_before_lock_scene_hook(void* ctx) {
     g_hook->update_before_lock_scene_hook_internal(ctx);
 }
 
-void Hooks::lock_scene_hook_internal(void* entry) {
-    auto original = m_lock_scene_hook->get_original<decltype(lock_scene_hook)>();
+void Hooks::global_application_entry_hook_internal(void* entry, const char* name, size_t hash) {
+    //spdlog::info("{}", name);
+
+    auto original = m_application_entry_hooks[name];
 
     if (!g_framework->is_ready()) {
         return original(entry);
@@ -343,88 +473,16 @@ void Hooks::lock_scene_hook_internal(void* entry) {
     auto& mods = g_framework->get_mods()->get_mods();
 
     for (auto& mod : mods) {
-        mod->on_pre_lock_scene(entry);
+        mod->on_pre_application_entry(entry, name, hash);
     }
-
+    
     original(entry);
 
     for (auto& mod : mods) {
-        mod->on_lock_scene(entry);
+        mod->on_application_entry(entry, name, hash);
     }
 }
 
-void Hooks::lock_scene_hook(void* entry) {
-    g_hook->lock_scene_hook_internal(entry);
-}
-
-void Hooks::begin_rendering_hook_internal(void* entry) {
-    auto original = m_begin_rendering_hook->get_original<decltype(begin_rendering_hook)>();
-
-    if (!g_framework->is_ready()) {
-        return original(entry);
-    }
-
-    auto& mods = g_framework->get_mods()->get_mods();
-
-    for (auto& mod : mods) {
-        mod->on_pre_begin_rendering(entry);
-    }
-
-    original(entry);
-
-    for (auto& mod : mods) {
-        mod->on_begin_rendering(entry);
-    }
-}
-
-void Hooks::begin_rendering_hook(void* entry) {
-    g_hook->begin_rendering_hook_internal(entry);
-}
-
-void Hooks::end_rendering_hook_internal(void* entry) {
-    auto original = m_end_rendering_hook->get_original<decltype(end_rendering_hook)>();
-
-    if (!g_framework->is_ready()) {
-        return original(entry);
-    }
-
-    auto& mods = g_framework->get_mods()->get_mods();
-
-    for (auto& mod : mods) {
-        mod->on_pre_end_rendering(entry);
-    }
-
-    original(entry);
-
-    for (auto& mod : mods) {
-        mod->on_end_rendering(entry);
-    }
-}
-
-void Hooks::end_rendering_hook(void* entry) {
-    g_hook->end_rendering_hook_internal(entry);
-}
-
-void Hooks::wait_rendering_hook_internal(void* entry) {
-    auto original = m_wait_rendering_hook->get_original<decltype(wait_rendering_hook)>();
-
-    if (!g_framework->is_ready()) {
-        return original(entry);
-    }
-
-    auto& mods = g_framework->get_mods()->get_mods();
-
-    for (auto& mod : mods) {
-        mod->on_pre_wait_rendering(entry);
-    }
-
-    original(entry);
-
-    for (auto& mod : mods) {
-        mod->on_wait_rendering(entry);
-    }
-}
-
-void Hooks::wait_rendering_hook(void* entry) {
-    g_hook->wait_rendering_hook_internal(entry);
+void Hooks::global_application_entry_hook(void* entry, const char* name, size_t hash) {
+    g_hook->global_application_entry_hook_internal(entry, name, hash);
 }

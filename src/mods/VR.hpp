@@ -36,14 +36,17 @@ public:
     void on_pre_gui_draw_element(REComponent* gui_element, void* primitive_context) override;
     void on_gui_draw_element(REComponent* gui_element, void* primitive_context) override;
     void on_update_before_lock_scene(void* ctx) override;
-    void on_pre_lock_scene(void* entry) override;
-    void on_lock_scene(void* entry) override;
-    void on_pre_begin_rendering(void* entry) override;
-    void on_begin_rendering(void* entry) override;
-    void on_pre_end_rendering(void* entry) override;
-    void on_end_rendering(void* entry) override;
-    void on_pre_wait_rendering(void* entry) override;
-    void on_wait_rendering(void* entry) override;
+
+    void on_pre_application_entry(void* entry, const char* name, size_t hash) override;
+    void on_application_entry(void* entry, const char* name, size_t hash) override;
+
+    // Application entries
+    void on_pre_begin_rendering(void* entry);
+    void on_begin_rendering(void* entry);
+    void on_pre_end_rendering(void* entry);
+    void on_end_rendering(void* entry);
+    void on_pre_wait_rendering(void* entry);
+    void on_wait_rendering(void* entry);
 
     void on_draw_ui() override;
     void on_device_reset() override;
@@ -225,7 +228,8 @@ private:
     bool m_needs_wgp_update{true};
     //bool m_disable_sharpening{true};
 
-    bool m_is_hmd_active{false};
+    bool m_is_hmd_active{true};
+    bool m_wgp_initialized{false};
 
     static std::string actions_json;
     static std::string binding_rift_json;

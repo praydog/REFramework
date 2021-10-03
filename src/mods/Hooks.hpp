@@ -41,6 +41,9 @@ protected:
     void begin_frame_rendering_hook_internal(void* entry);
     static void begin_frame_rendering_hook(void* entry);
 
+    void global_application_entry_hook_internal(void* entry, const char* name, size_t hash);
+    static void global_application_entry_hook(void* entry, const char* name, size_t hash);
+
 private:
     std::optional<std::string> hook_update_transform();
     std::optional<std::string> hook_update_camera_controller();
@@ -50,22 +53,8 @@ private:
 
     // Utility function for hooking function entries in via.Application
     std::optional<std::string> hook_application_entry(std::string name, std::unique_ptr<FunctionHook>& hook, void (*hook_fn)(void*));
-    
-    std::optional<std::string> hook_lock_scene() {
-        return hook_application_entry("LockScene", m_lock_scene_hook, lock_scene_hook);
-    }
+    std::optional<std::string> hook_all_application_entries();
 
-    std::optional<std::string> hook_begin_rendering() {
-        return hook_application_entry("BeginRendering", m_begin_rendering_hook, begin_rendering_hook);
-    }
-
-    std::optional<std::string> hook_end_rendering() {
-        return hook_application_entry("EndRendering", m_end_rendering_hook, end_rendering_hook);
-    }
-    
-    std::optional<std::string> hook_wait_rendering() {
-        return hook_application_entry("WaitRendering", m_wait_rendering_hook, wait_rendering_hook);
-    }
     #define HOOK_LAMBDA(func) [&]() -> std::optional<std::string> { return this->func(); }
 
     std::vector<std::function<std::optional<std::string>()>> m_hook_list{
@@ -74,10 +63,11 @@ private:
         HOOK_LAMBDA(hook_update_camera_controller2),
         HOOK_LAMBDA(hook_gui_draw),
         HOOK_LAMBDA(hook_update_before_lock_scene),
-        HOOK_LAMBDA(hook_lock_scene),
+        /*HOOK_LAMBDA(hook_lock_scene),
         HOOK_LAMBDA(hook_begin_rendering),
         HOOK_LAMBDA(hook_end_rendering),
-        HOOK_LAMBDA(hook_wait_rendering),
+        HOOK_LAMBDA(hook_wait_rendering),*/
+        HOOK_LAMBDA(hook_all_application_entries),
     };
 
 protected:
@@ -91,4 +81,6 @@ protected:
     std::unique_ptr<FunctionHook> m_end_rendering_hook;
     std::unique_ptr<FunctionHook> m_wait_rendering_hook;
     std::unique_ptr<FunctionHook> m_begin_frame_rendering_hook;
+
+    std::unordered_map<const char*, void (*)(void*)> m_application_entry_hooks;
 };

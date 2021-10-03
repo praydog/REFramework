@@ -663,6 +663,8 @@ void VR::update_hmd_state() {
     vr::VRCompositor()->SetTrackingSpace(vr::TrackingUniverseStanding);
     vr::VRCompositor()->WaitGetPoses(m_real_render_poses.data(), vr::k_unMaxTrackedDeviceCount, m_real_game_poses.data(), vr::k_unMaxTrackedDeviceCount);
 
+    m_wgp_initialized = true;
+
     bool wants_reset_origin = false;
 
     // Process events
@@ -822,11 +824,15 @@ Matrix4x4f VR::get_current_projection_matrix(bool flip) {
 }
 
 void VR::on_post_frame() {
-    const auto hmd_activity = m_hmd->GetTrackedDeviceActivityLevel(vr::k_unTrackedDeviceIndex_Hmd);
-    m_is_hmd_active = hmd_activity == vr::k_EDeviceActivityLevel_UserInteraction || hmd_activity == vr::k_EDeviceActivityLevel_UserInteraction_Timeout;
+    if (m_wgp_initialized) {
+        const auto hmd_activity = m_hmd->GetTrackedDeviceActivityLevel(vr::k_unTrackedDeviceIndex_Hmd);
+        m_is_hmd_active = hmd_activity == vr::k_EDeviceActivityLevel_UserInteraction || hmd_activity == vr::k_EDeviceActivityLevel_UserInteraction_Timeout;
 
-    if (!m_is_hmd_active) {
-        return;
+        if (!m_is_hmd_active) {
+            return;
+        }
+    } else {
+        m_is_hmd_active = true; // We need to force out an initial WaitGetPoses call
     }
 
     m_frame_count = get_frame_count();
@@ -1020,12 +1026,6 @@ void VR::on_gui_draw_element(REComponent* gui_element, void* primitive_context) 
 void VR::on_update_before_lock_scene(void* ctx) {
 }
 
-void VR::on_pre_lock_scene(void* entry) {
-}
-
-void VR::on_lock_scene(void* entry) {
-}
-
 bool inside_on_end = false;
 uint32_t actual_frame_count = 0;
 
@@ -1174,6 +1174,38 @@ void VR::on_pre_wait_rendering(void* entry) {
 }
 
 void VR::on_wait_rendering(void* entry) {
+}
+
+void VR::on_pre_application_entry(void* entry, const char* name, size_t hash) {
+    switch (hash) {
+        case "WaitRendering"_fnv:
+            on_pre_wait_rendering(entry);
+            break;
+        case "BeginRendering"_fnv:
+            on_pre_begin_rendering(entry);
+            break;
+        case "EndRendering"_fnv:
+            on_pre_end_rendering(entry);
+            break;
+        default:
+            break;
+    }
+}
+
+void VR::on_application_entry(void* entry, const char* name, size_t hash) {
+    switch (hash) {
+        case "WaitRendering"_fnv:
+            on_wait_rendering(entry);
+            break;
+        case "BeginRendering"_fnv:
+            on_begin_rendering(entry);
+            break;
+        case "EndRendering"_fnv:
+            on_end_rendering(entry);
+            break;
+        default:
+            break;
+    }
 }
 
 void VR::openvr_input_to_game(REManagedObject* input_system) {
