@@ -518,7 +518,7 @@
       <node type="Hex64Node" name="N0000B696" comment="" hidden="false" />
       <node type="Hex64Node" name="N0000B697" comment="" hidden="false" />
     </class>
-    <class uuid="482d6f90-2574-46b3-9cdb-ca86030efa64" name="REGameObject" comment="" address="174bdfe0">
+    <class uuid="482d6f90-2574-46b3-9cdb-ca86030efa64" name="REGameObject" comment="" address="2b537010">
       <node type="ClassInstanceNode" name="object" comment="" hidden="false" reference="51dffaa5-a284-4aca-b851-3d0ff9c7894e" />
       <node type="Hex16Node" name="N0000047E" comment="" hidden="false" />
       <node type="BoolNode" name="shouldUpdate" comment="" hidden="false" />
@@ -1708,10 +1708,8 @@
     </class>
     <class uuid="70458525-2257-497d-b677-875a6f3f620d" name="REJointArray" comment="" address="140000000">
       <node type="PointerNode" name="data" comment="" hidden="false">
-        <node type="ClassInstanceNode" name="N00000714" comment="" hidden="false" reference="1a386805-36bf-469c-94af-d6f7c4b0b130" />
+        <node type="ClassInstanceNode" name="N0000301C" comment="" hidden="false" reference="32dd15b8-c152-4dd4-81a2-e2922df836e0" />
       </node>
-      <node type="Int32Node" name="size" comment="" hidden="false" />
-      <node type="Int32Node" name="numAllocated" comment="" hidden="false" />
       <node type="PointerNode" name="matrices" comment="" hidden="false">
         <node type="ClassInstanceNode" name="N00000719" comment="" hidden="false" reference="fa505499-2c5e-4138-ab7f-e0bb9929f77e" />
       </node>
@@ -13138,6 +13136,25 @@
       <node type="PointerNode" name="next" comment="" hidden="false">
         <node type="ClassInstanceNode" name="N00003093" comment="" hidden="false" reference="879f458b-13fd-43b0-9269-7f135de02704" />
       </node>
+    </class>
+    <class uuid="e7d0a881-7987-4a57-a326-f5770c1453f1" name="N0000301D" comment="" address="140000000">
+      <node type="Hex64Node" name="N0000301E" comment="" hidden="false" />
+      <node type="Hex64Node" name="N0000301F" comment="" hidden="false" />
+      <node type="Hex64Node" name="N00003020" comment="" hidden="false" />
+      <node type="Hex64Node" name="N00003021" comment="" hidden="false" />
+      <node type="Hex64Node" name="N00003022" comment="" hidden="false" />
+      <node type="Hex64Node" name="N00003023" comment="" hidden="false" />
+      <node type="Hex64Node" name="N00003024" comment="" hidden="false" />
+      <node type="Hex64Node" name="N00003025" comment="" hidden="false" />
+      <node type="Hex64Node" name="N00003026" comment="" hidden="false" />
+      <node type="Hex64Node" name="N00003027" comment="" hidden="false" />
+      <node type="Hex64Node" name="N00003028" comment="" hidden="false" />
+      <node type="Hex64Node" name="N00003029" comment="" hidden="false" />
+      <node type="Hex64Node" name="N0000302A" comment="" hidden="false" />
+      <node type="Hex64Node" name="N0000302B" comment="" hidden="false" />
+      <node type="Hex64Node" name="N0000302C" comment="" hidden="false" />
+      <node type="Hex64Node" name="N0000302D" comment="" hidden="false" />
+      <node type="Hex64Node" name="N0000302E" comment="" hidden="false" />
     </class>
   </classes>
 </reclass>

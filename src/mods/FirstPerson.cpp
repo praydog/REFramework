@@ -1025,7 +1025,7 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
         }
     }
 
-    if (transform->joints.size >= 1 && transform->joints.matrices != nullptr) {
+    if (transform->joints.matrices != nullptr) {
         auto joint = utility::re_transform::get_joint(*transform, 0);
 
         if (joint != nullptr) {
@@ -1156,8 +1156,13 @@ void FirstPerson::update_joint_names() {
 
     auto& joints = m_player_transform->joints;
 
+#ifndef RE8
     for (int32_t i = 0; joints.data != nullptr && i < joints.size; ++i) {
         auto joint = joints.data->joints[i];
+#else
+    for (int32_t i = 0; joints.data != nullptr && i < joints.data->numElements; ++i) {
+        auto joint = utility::re_array::get_element<REJoint>(joints.data, i);
+#endif
 
         if (joint == nullptr || joint->info == nullptr || joint->info->name == nullptr) {
             continue;
