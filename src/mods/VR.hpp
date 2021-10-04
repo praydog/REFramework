@@ -214,7 +214,8 @@ private:
     vrmod::D3D11Component m_d3d11{};
     vrmod::D3D12Component m_d3d12{};
 
-    Matrix4x4f m_original_camera_matrix{ glm::identity<Matrix4x4f>() };
+    Vector4f m_original_camera_position{ 0.0f, 0.0f, 0.0f, 0.0f };
+    glm::quat m_original_camera_rotation{ glm::identity<glm::quat>() };
 
     // options
     float m_ui_scale{15.0f};
@@ -235,6 +236,7 @@ private:
     bool m_is_hmd_active{true};
     bool m_wgp_initialized{false};
     bool m_needs_camera_restore{false};
+    bool m_in_render{false};
 
     static std::string actions_json;
     static std::string binding_rift_json;

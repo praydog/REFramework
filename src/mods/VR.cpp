@@ -54,6 +54,10 @@ float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
     auto mod = VR::get();
     auto out = original_func(scene_view, result);
 
+    if (!mod->m_in_render) {
+        return original_func(scene_view, result);
+    }
+
     auto regenny_view = (regenny::via::SceneView*)scene_view;
     auto window = regenny_view->window;
 
@@ -97,6 +101,10 @@ Matrix4x4f* VR::camera_get_projection_matrix_hook(REManagedObject* camera, Matri
         return original_func(camera, result);
     }
 
+    if (!vr->m_in_render) {
+        return original_func(camera, result);
+    }
+
 #if defined(RE8) || defined(DMC5)
     static auto once = false;
 
@@ -124,7 +132,7 @@ Matrix4x4f* VR::camera_get_view_matrix_hook(REManagedObject* camera, Matrix4x4f*
 
     auto vr = VR::get();
 
-    if (!vr->m_is_hmd_active) {
+    if (!vr->m_is_hmd_active || !vr->m_in_render) {
         return original_func(camera, result);
     }
 
@@ -764,11 +772,18 @@ void VR::update_camera() {
         return;
     }
 
-    //auto& camera_matrix = utility::re_transform::get_joint_matrix_by_index(*camera_object->transform, 0);
-    //camera_matrix *= get_rotation(0);
+    auto camera_joint = utility::re_transform::get_joint(*camera_object->transform, 0);
 
-    m_original_camera_matrix = camera_object->transform->worldTransform;
-    camera_object->transform->worldTransform *= get_rotation(0);
+    if (camera_joint == nullptr) {
+        m_needs_camera_restore = false;
+        return;
+    }
+
+    m_original_camera_position = sdk::get_joint_position(camera_joint);
+    m_original_camera_rotation = sdk::get_joint_rotation(camera_joint);
+
+    sdk::set_joint_rotation(camera_joint, m_original_camera_rotation * glm::quat{get_rotation(0)});
+
     m_needs_camera_restore = true;
 }
 
@@ -798,7 +813,16 @@ void VR::restore_camera() {
         return;
     }
 
-    camera_object->transform->worldTransform = m_original_camera_matrix;
+    //camera_object->transform->worldTransform = m_original_camera_matrix;
+
+    auto joint = utility::re_transform::get_joint(*camera_object->transform, 0);
+
+    if (joint == nullptr) {
+        m_needs_camera_restore = false;
+        return;
+    }
+
+    sdk::set_joint_rotation(joint, m_original_camera_rotation);
     m_needs_camera_restore = false;
 }
 
@@ -1094,6 +1118,7 @@ void VR::on_update_before_lock_scene(void* ctx) {
 }
 
 void VR::on_pre_begin_rendering(void* entry) {
+    m_in_render = true;
     update_camera();
 }
 
@@ -1109,6 +1134,7 @@ void VR::on_pre_end_rendering(void* entry) {
 
 void VR::on_end_rendering(void* entry) {
     if (!m_is_hmd_active) {
+        m_in_render = false;
         return;
     }
 
@@ -1195,6 +1221,7 @@ void VR::on_end_rendering(void* entry) {
 
         restore_camera();
 
+        m_in_render = false;
         inside_on_end = false;
     }
 }

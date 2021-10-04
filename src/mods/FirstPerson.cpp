@@ -542,61 +542,6 @@ void FirstPerson::update_player_transform(RETransform* transform) {
             auto hand_pos = look_matrix * ((controller_offset * m_vr_scale) + m_hand_position_offset);
             auto new_pos = m_last_bone_matrix[3] + hand_pos;
 
-            static auto get_joint_parent = [](REJoint* joint) -> REJoint* {
-                if (joint == nullptr || joint->info == nullptr || joint->info->parentJoint == -1) {
-                    return nullptr;
-                }
-
-                auto joint_transform = joint->parentTransform;
-
-                // what da heck
-                if (joint_transform == nullptr) {
-                    return nullptr;
-                }
-
-                return utility::re_transform::get_joint(*joint_transform, joint->info->parentJoint);
-            };
-
-            static auto set_joint_position = [](REJoint* joint, const Vector4f& position) {
-                sdk::call_object_func<void*>(joint, "set_Position", sdk::get_thread_context(), joint, &position);
-            };
-
-            static auto set_joint_rotation = [](REJoint* joint, const glm::quat& rotation) {
-                sdk::call_object_func<void*>(joint, "set_Rotation", sdk::get_thread_context(), joint, &rotation);
-            };
-
-            static auto get_joint_rotation = [](REJoint* joint) -> glm::quat {
-                glm::quat rotation{};
-                sdk::call_object_func<glm::quat*>(joint, "get_Rotation", &rotation, sdk::get_thread_context(), joint);
-                return rotation;
-            };
-
-            static auto get_joint_position = [](REJoint* joint) -> Vector4f {
-                Vector4f position{};
-                sdk::call_object_func<Vector4f*>(joint, "get_Position", &position, sdk::get_thread_context(), joint);
-                return position;
-            };
-
-            static auto get_joint_local_rotation = [](REJoint* joint) -> glm::quat {
-                glm::quat rotation{};
-                sdk::call_object_func<glm::quat*>(joint, "get_LocalRotation", &rotation, sdk::get_thread_context(), joint);
-                return rotation;
-            };
-
-            static auto get_joint_local_position = [](REJoint* joint) -> Vector4f {
-                Vector4f position{};
-                sdk::call_object_func<Vector4f*>(joint, "get_LocalPosition", &position, sdk::get_thread_context(), joint);
-                return position;
-            };
-
-            static auto set_joint_local_rotation = [](REJoint* joint, const glm::quat& rotation) {
-                sdk::call_object_func<void*>(joint, "set_LocalRotation", sdk::get_thread_context(), joint, &rotation);
-            };
-
-            static auto set_joint_local_position = [](REJoint* joint, const Vector4f& position) {
-                sdk::call_object_func<void*>(joint, "set_LocalPosition", sdk::get_thread_context(), joint, &position);
-            };
-
             //set_joint_position(wrist_joint, new_pos);
             //set_joint_rotation(wrist_joint, rotation_quat);
 
@@ -662,10 +607,10 @@ void FirstPerson::update_player_transform(RETransform* transform) {
                                     const auto total_length = l0 + l1;
 
                                     // Get shoulder joint by getting the parents of the wrist joint
-                                    auto elbow_joint = get_joint_parent(wrist_joint);
-                                    auto shoulder_joint = get_joint_parent(elbow_joint);
+                                    auto elbow_joint = sdk::get_joint_parent(wrist_joint);
+                                    auto shoulder_joint = sdk::get_joint_parent(elbow_joint);
 
-                                    const auto shoulder_joint_pos = get_joint_position(shoulder_joint);
+                                    const auto shoulder_joint_pos = sdk::get_joint_position(shoulder_joint);
 
                                     // Bring the new_pos back to the shoulder joint + dir to the wrist joint * total length/
                                     // This will keep the arm properly extended instead of contracting back to the original animation
