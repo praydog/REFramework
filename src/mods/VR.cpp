@@ -1032,6 +1032,11 @@ void VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
             return;
         }
 
+        // These allow the cutscene transitions to display (fade to black)
+        if (name == "BlackFade" || name == "WhiteFade") {
+            return;
+        }
+
         //spdlog::info("VR: on_pre_gui_draw_element: {}", name);
 
         auto view = sdk::call_object_func<REComponent*>(gui_element, "get_View", sdk::get_thread_context(), gui_element);
