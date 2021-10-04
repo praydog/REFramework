@@ -85,6 +85,46 @@ sdk::NativeArray<RenderLayer*>& RenderLayer::get_layers() {
     return *(sdk::NativeArray<RenderLayer*>*)((uintptr_t)this + layers_offset);
 }
 
+RenderLayer* RenderLayer::find_layer(::REType* layer_type) {
+    const auto& layers = get_layers();
+
+    for (auto layer : layers) {
+        if (layer->info == nullptr || layer->info->classInfo == nullptr) {
+            continue;
+        }
+
+        const auto tdef = (sdk::RETypeDefinition*)layer->info->classInfo;
+        const auto t = tdef->type;
+
+        if (t == layer_type) {
+            return layer;
+        }
+    }
+
+    return nullptr;
+}
+
+RenderLayer* RenderLayer::get_parent() {
+    return sdk::call_object_func<RenderLayer*>(this, "get_Parent", sdk::get_thread_context(), this);
+}
+
+RenderLayer* RenderLayer::find_parent(::REType* layer_type) {
+    for (auto parent = get_parent(); parent != nullptr; parent = parent->get_parent()) {
+        if (parent->info == nullptr || parent->info->classInfo == nullptr) {
+            break;
+        }
+
+        const auto tdef = (sdk::RETypeDefinition*)parent->info->classInfo;
+        const auto t = tdef->type;
+
+        if (t == layer_type) {
+            return parent;
+        }
+    }
+
+    return nullptr;
+}
+
 void* get_renderer() {
     return sdk::get_native_singleton("via.render.Renderer");
 }
@@ -231,6 +271,63 @@ RenderLayer* get_root_layer() {
     }
 
     return *(RenderLayer**)((uintptr_t)renderer + root_layer_offset);
+}
+
+RenderLayer* find_layer(::REType* layer_type) {
+    auto renderer = sdk::get_native_singleton("via.render.Renderer");
+
+    if (renderer == nullptr) {
+        spdlog::error("[Renderer] Failed to find renderer");
+        return nullptr;
+    }
+
+    static uint32_t layers_offset = 0;
+
+    // Scan through the renderer object to find a RenderLayer pointer
+    if (layers_offset == 0) {
+        spdlog::info("[Renderer] Finding layers_offset");
+
+        for (uint32_t i = 0; i < 0x2000; i += sizeof(void*)) {
+            const auto ptr = *(REManagedObject**)((uintptr_t)renderer + i);
+
+            if (ptr == nullptr) {
+                continue;
+            }
+
+            if (!utility::re_managed_object::is_managed_object(ptr)) {
+                continue;
+            }
+
+            if (utility::re_managed_object::is_a(ptr, "via.render.RenderLayer")) {
+                layers_offset = i;
+                break;
+            }
+        }
+
+        if (layers_offset == 0) {
+            spdlog::error("[Renderer] Failed to find layers_offset");
+            return nullptr;
+        }
+
+        spdlog::info("[Renderer] layers_offset: {:x}", layers_offset);
+    }
+
+    const auto& layers = *(std::array<RenderLayer*, 256>*)((uintptr_t)renderer + layers_offset);
+
+    for (auto& layer : layers) {
+        if (layer->info == nullptr || layer->info->classInfo == nullptr) {
+            continue;
+        }
+
+        const auto tdef = (sdk::RETypeDefinition*)layer->info->classInfo;
+        const auto t = tdef->type;
+
+        if (t == layer_type) {
+            return layer;
+        }
+    }
+
+    return nullptr;
 }
 
 sdk::renderer::layer::Output* get_output_layer() {

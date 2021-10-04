@@ -13,12 +13,28 @@ class RenderLayer : public REManagedObject {
 public:
     RenderLayer* add_layer(::REType* layer_type, uint32_t priority, uint8_t offset = 0);
     sdk::NativeArray<RenderLayer*>& get_layers();
+    RenderLayer* find_layer(::REType* layer_type);
+
+    RenderLayer* get_parent();
+    RenderLayer* find_parent(::REType* layer_type);
 
 #ifdef RE8
     static constexpr uint32_t DRAW_VTABLE_INDEX = 14;
 #else
     static constexpr uint32_t DRAW_VTABLE_INDEX = 12;
 #endif
+
+    static constexpr uint32_t UPDATE_VTABLE_INDEX = DRAW_VTABLE_INDEX + 1;
+
+    void draw(void* render_context) {
+        const auto vtable = *(void(***)(void*, void*))this;
+        return vtable[DRAW_VTABLE_INDEX](this, render_context);
+    }
+
+    void update() {
+        const auto vtable = *(void(***)(void*))this;
+        return vtable[UPDATE_VTABLE_INDEX](this);
+    }
 
 public:
     uint32_t m_id;
@@ -52,6 +68,8 @@ void end_rendering();
 void add_scene_view(void* scene_view);
 void remove_scene_view(void* scene_view);
 RenderLayer* get_root_layer();
+RenderLayer* find_layer(::REType* layer_type);
+
 sdk::renderer::layer::Output* get_output_layer();
 }
 }
