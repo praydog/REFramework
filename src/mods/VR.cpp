@@ -1,6 +1,6 @@
 #include <fstream>
 
-#if defined(RE2) || defined(RE3)
+#if defined(RE2) || defined(RE3) || defined(DMC5)
 #include "sdk/regenny/re3/via/Window.hpp"
 #include "sdk/regenny/re3/via/SceneView.hpp"
 #else 
@@ -23,11 +23,6 @@
 #include "VR.hpp"
 
 constexpr auto CONTROLLER_DEADZONE = 0.1f;
-#ifdef RE8
-constexpr auto LAYER_DRAW_INDEX = 14;
-#else
-constexpr auto LAYER_DRAW_INDEX = 12;
-#endif
 
 std::shared_ptr<VR>& VR::get() {
     static std::shared_ptr<VR> inst{};
@@ -99,7 +94,7 @@ Matrix4x4f* VR::camera_get_projection_matrix_hook(REManagedObject* camera, Matri
         return original_func(camera, result);
     }
 
-#ifdef RE8
+#if defined(RE8) || defined(DMC5)
     static auto once = false;
 
     if (!once) {        
@@ -485,7 +480,7 @@ std::optional<std::string> VR::hijack_resolution() {
 }
 
 std::optional<std::string> VR::hijack_input() {
-#ifndef RE8
+#if defined(RE2) || defined(RE3)
     // We're going to hook InputSystem.update so we can
     // override the analog stick values with the VR controller's
     auto func = sdk::find_native_method(game_namespace("InputSystem"), "update");
@@ -585,7 +580,7 @@ std::optional<std::string> VR::hijack_overlay_renderer() {
         return "VR init failed: via.render.layer.Overlay vtable not found.";
     }
 
-    auto draw_native = obj_vtable[LAYER_DRAW_INDEX];
+    auto draw_native = obj_vtable[sdk::renderer::RenderLayer::DRAW_VTABLE_INDEX];
 
     if (draw_native == 0) {
         return "VR init failed: via.render.layer.Overlay draw native not found.";
