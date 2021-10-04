@@ -24,6 +24,9 @@
 
 constexpr auto CONTROLLER_DEADZONE = 0.1f;
 
+bool inside_on_end = false;
+uint32_t actual_frame_count = 0;
+
 std::shared_ptr<VR>& VR::get() {
     static std::shared_ptr<VR> inst{};
 
@@ -730,6 +733,75 @@ void VR::update_hmd_state() {
 #endif
 }
 
+void VR::update_camera() {
+    if (!m_is_hmd_active) {
+        m_needs_camera_restore = false;
+        return;
+    }
+
+    if (inside_on_end) {
+        return;
+    }
+
+#if defined(RE2) || defined(RE3)
+    if (FirstPerson::get()->will_be_used()) {
+        m_needs_camera_restore = false;
+        return;
+    }
+#endif
+
+    auto camera = sdk::get_primary_camera();
+
+    if (camera == nullptr) {
+        m_needs_camera_restore = false;
+        return;
+    }
+
+    auto camera_object = utility::re_component::get_game_object(camera);
+
+    if (camera_object == nullptr || camera_object->transform == nullptr) {
+        m_needs_camera_restore = false;
+        return;
+    }
+
+    //auto& camera_matrix = utility::re_transform::get_joint_matrix_by_index(*camera_object->transform, 0);
+    //camera_matrix *= get_rotation(0);
+
+    m_original_camera_matrix = camera_object->transform->worldTransform;
+    camera_object->transform->worldTransform *= get_rotation(0);
+    m_needs_camera_restore = true;
+}
+
+void VR::restore_camera() {
+    if (!m_needs_camera_restore || !m_is_hmd_active) {
+        return;
+    }
+
+#if defined(RE2) || defined(RE3)
+    if (FirstPerson::get()->will_be_used()) {
+        m_needs_camera_restore = false;
+        return;
+    }
+#endif
+
+    auto camera = sdk::get_primary_camera();
+
+    if (camera == nullptr) {
+        m_needs_camera_restore = false;
+        return;
+    }
+
+    auto camera_object = utility::re_component::get_game_object(camera);
+
+    if (camera_object == nullptr || camera_object->transform == nullptr) {
+        m_needs_camera_restore = false;
+        return;
+    }
+
+    camera_object->transform->worldTransform = m_original_camera_matrix;
+    m_needs_camera_restore = false;
+}
+
 int32_t VR::get_frame_count() const {
     return get_game_frame_count();
 }
@@ -1021,10 +1093,8 @@ void VR::on_gui_draw_element(REComponent* gui_element, void* primitive_context) 
 void VR::on_update_before_lock_scene(void* ctx) {
 }
 
-bool inside_on_end = false;
-uint32_t actual_frame_count = 0;
-
 void VR::on_pre_begin_rendering(void* entry) {
+    update_camera();
 }
 
 void VR::on_begin_rendering(void* entry) {
@@ -1122,6 +1192,8 @@ void VR::on_end_rendering(void* entry) {
 
             func->func(func->entry);
         }
+
+        restore_camera();
 
         inside_on_end = false;
     }

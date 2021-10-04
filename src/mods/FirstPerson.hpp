@@ -15,6 +15,14 @@ public:
 public:
     FirstPerson();
 
+    bool is_enabled() const {
+        return m_enabled->value();
+    }
+
+    bool will_be_used() const {
+        return is_enabled() && is_first_person_allowed() && m_player_transform != nullptr;
+    }
+
     std::string_view get_name() const override { return "FirstPerson"; };
     std::optional<std::string> on_initialize() override;
 
@@ -28,6 +36,12 @@ public:
     void on_update_transform(RETransform* transform) override;
     void on_update_camera_controller(RopewayPlayerCameraController* controller) override;
     void on_update_camera_controller2(RopewayPlayerCameraController* controller) override;
+
+    void on_pre_application_entry(void* entry, const char* name, size_t hash) override;
+    void on_application_entry(void* entry, const char* name, size_t hash) override;
+
+    // non-virtual callbacks
+    void on_pre_update_behavior(void* entry);
 
 protected:
     // gross

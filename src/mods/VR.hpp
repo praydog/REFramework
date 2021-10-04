@@ -142,6 +142,8 @@ private:
     std::optional<std::string> hijack_overlay_renderer();
 
     void update_hmd_state();
+    void update_camera(); // if not in firstperson mode
+    void restore_camera(); // After rendering
 
     // input functions
     // Purpose: "Emulate" OpenVR input to the game
@@ -212,6 +214,8 @@ private:
     vrmod::D3D11Component m_d3d11{};
     vrmod::D3D12Component m_d3d12{};
 
+    Matrix4x4f m_original_camera_matrix{ glm::identity<Matrix4x4f>() };
+
     // options
     float m_ui_scale{15.0f};
     int m_frame_count{};
@@ -230,6 +234,7 @@ private:
 
     bool m_is_hmd_active{true};
     bool m_wgp_initialized{false};
+    bool m_needs_camera_restore{false};
 
     static std::string actions_json;
     static std::string binding_rift_json;

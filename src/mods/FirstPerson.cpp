@@ -68,28 +68,6 @@ std::optional<std::string> FirstPerson::on_initialize() {
 }
 
 void FirstPerson::on_frame() {
-    if (m_toggle_key->is_key_down_once() && !m_enabled->toggle()) {
-        on_disabled();
-    }
-
-    if (!m_enabled->value()) {
-        return;
-    }
-
-    // Update our global pointers
-    if (m_post_effect_controller == nullptr || m_post_effect_controller->ownerGameObject == nullptr || 
-        m_camera_system == nullptr || m_camera_system->ownerGameObject == nullptr || m_sweet_light_manager == nullptr || m_sweet_light_manager->ownerGameObject == nullptr
-        || m_gui_master == nullptr) 
-    {
-        auto& globals = *g_framework->get_globals();
-        m_sweet_light_manager = globals.get<RopewaySweetLightManager>(game_namespace("SweetLightManager"));
-        m_camera_system = globals.get<RopewayCameraSystem>(game_namespace("camera.CameraSystem"));
-        m_post_effect_controller = globals.get<RopewayPostEffectController>(game_namespace("posteffect.PostEffectController"));
-        m_gui_master = globals.get<REBehavior>(game_namespace("gui.GUIMaster"));
-
-        reset();
-        return;
-    }
 }
 
 void FirstPerson::on_draw_ui() {
@@ -354,6 +332,45 @@ void FirstPerson::on_update_camera_controller2(RopewayPlayerCameraController* co
 
     m_last_controller_pos = controller->worldPosition;
     m_last_controller_rotation = *(glm::quat*) & controller->worldRotation;
+}
+
+void FirstPerson::on_pre_application_entry(void* entry, const char* name, size_t hash) {
+    switch (hash) {
+        case "UpdateBehavior"_fnv:
+            on_pre_update_behavior(entry);
+            break;
+        default:
+            break;
+    }
+}
+
+void FirstPerson::on_application_entry(void* entry, const char* name, size_t hash) {
+    
+}
+
+void FirstPerson::on_pre_update_behavior(void* entry) {
+    if (m_toggle_key->is_key_down_once() && !m_enabled->toggle()) {
+        on_disabled();
+    }
+
+    if (!m_enabled->value()) {
+        return;
+    }
+
+    // Update our global pointers
+    if (m_post_effect_controller == nullptr || m_post_effect_controller->ownerGameObject == nullptr || 
+        m_camera_system == nullptr || m_camera_system->ownerGameObject == nullptr || m_sweet_light_manager == nullptr || m_sweet_light_manager->ownerGameObject == nullptr
+        || m_gui_master == nullptr) 
+    {
+        auto& globals = *g_framework->get_globals();
+        m_sweet_light_manager = globals.get<RopewaySweetLightManager>(game_namespace("SweetLightManager"));
+        m_camera_system = globals.get<RopewayCameraSystem>(game_namespace("camera.CameraSystem"));
+        m_post_effect_controller = globals.get<RopewayPostEffectController>(game_namespace("posteffect.PostEffectController"));
+        m_gui_master = globals.get<REBehavior>(game_namespace("gui.GUIMaster"));
+
+        reset();
+        return;
+    }
 }
 
 void FirstPerson::reset() {
