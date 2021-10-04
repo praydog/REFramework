@@ -1027,6 +1027,11 @@ void VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
     if (game_object != nullptr && game_object->transform != nullptr) {
         const auto name = utility::re_string::get_string(game_object->name);
 
+        // Don't mess with this, causes weird black boxes on the sides of the screen
+        if (name == "GUI_PillarBox") {
+            return;
+        }
+
         //spdlog::info("VR: on_pre_gui_draw_element: {}", name);
 
         auto view = sdk::call_object_func<REComponent*>(gui_element, "get_View", sdk::get_thread_context(), gui_element);
