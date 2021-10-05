@@ -400,63 +400,8 @@ std::optional<std::string> VR::initialize_openvr() {
     m_active_action_set.ulRestrictedToDevice = vr::k_ulInvalidInputValueHandle;
     m_active_action_set.nPriority = 0;
 
-    auto left_joystick_origin_error = vr::EVRInputError::VRInputError_None;
-    auto right_joystick_origin_error = vr::EVRInputError::VRInputError_None;
+    detect_controllers();
 
-    vr::InputOriginInfo_t left_joystick_origin_info{};
-    vr::InputOriginInfo_t right_joystick_origin_info{};
-
-    const auto start_time = std::chrono::steady_clock::now();
-    auto iterations = 0;
-
-    // Get input origin info for the joysticks
-    do {
-        ++iterations;
-        
-        const auto now = std::chrono::steady_clock::now();
-
-        if (now - start_time >= std::chrono::seconds(5)) {
-            break;
-        }
-
-        // get the source input device handles for the joysticks
-        auto left_joystick_error = vr::VRInput()->GetInputSourceHandle("/user/hand/left", &m_left_joystick);
-
-        if (left_joystick_error != vr::VRInputError_None) {
-            continue;
-        }
-
-        auto right_joystick_error = vr::VRInput()->GetInputSourceHandle("/user/hand/right", &m_right_joystick);
-
-        if (right_joystick_error != vr::VRInputError_None) {
-            continue;
-        }
-
-        left_joystick_origin_info = {};
-        right_joystick_origin_info = {};
-
-        left_joystick_origin_error = vr::VRInput()->GetOriginTrackedDeviceInfo(m_left_joystick, &left_joystick_origin_info, sizeof(left_joystick_origin_info));
-        right_joystick_origin_error = vr::VRInput()->GetOriginTrackedDeviceInfo(m_right_joystick, &right_joystick_origin_info, sizeof(right_joystick_origin_info));
-    } while (left_joystick_origin_error != vr::EVRInputError::VRInputError_None 
-            || right_joystick_origin_error != vr::EVRInputError::VRInputError_None);
-
-    spdlog::info("VRInput: GetOriginTrackedDeviceInfo took {} iterations", iterations);
-
-    if (left_joystick_origin_error != vr::VRInputError_None || right_joystick_origin_error != vr::VRInputError_None) {
-        return "VRInput failed to get controller device info (left, right): " + std::to_string((uint32_t)left_joystick_origin_error) + ", " + std::to_string((uint32_t)right_joystick_origin_error);
-    }
-
-    // Instead of manually going through the devices,
-    // We do this. The order of the devices isn't always guaranteed to be
-    // Left, and then right. Using the input state handles will always
-    // Get us the correct device indices.
-    m_controllers.push_back(left_joystick_origin_info.trackedDeviceIndex);
-    m_controllers.push_back(right_joystick_origin_info.trackedDeviceIndex);
-    m_controllers_set.insert(left_joystick_origin_info.trackedDeviceIndex);
-    m_controllers_set.insert(right_joystick_origin_info.trackedDeviceIndex);
-
-    spdlog::info("Left Hand: {}", left_joystick_origin_info.trackedDeviceIndex);
-    spdlog::info("Right Hand: {}", right_joystick_origin_info.trackedDeviceIndex);
     return std::nullopt;
 }
 
@@ -657,6 +602,56 @@ std::optional<std::string> VR::hijack_overlay_renderer() {
     static auto shadow_patch = Patch::create(draw_native, { 0xC3 });*/
 
     return std::nullopt;
+}
+
+bool VR::detect_controllers() {
+    // already detected
+    if (!m_controllers.empty()) {
+        return true;
+    }
+
+    auto left_joystick_origin_error = vr::EVRInputError::VRInputError_None;
+    auto right_joystick_origin_error = vr::EVRInputError::VRInputError_None;
+
+    vr::InputOriginInfo_t left_joystick_origin_info{};
+    vr::InputOriginInfo_t right_joystick_origin_info{};
+
+    // Get input origin info for the joysticks
+    // get the source input device handles for the joysticks
+    auto left_joystick_error = vr::VRInput()->GetInputSourceHandle("/user/hand/left", &m_left_joystick);
+
+    if (left_joystick_error != vr::VRInputError_None) {
+        return false;
+    }
+
+    auto right_joystick_error = vr::VRInput()->GetInputSourceHandle("/user/hand/right", &m_right_joystick);
+
+    if (right_joystick_error != vr::VRInputError_None) {
+        return false;
+    }
+
+    left_joystick_origin_info = {};
+    right_joystick_origin_info = {};
+
+    left_joystick_origin_error = vr::VRInput()->GetOriginTrackedDeviceInfo(m_left_joystick, &left_joystick_origin_info, sizeof(left_joystick_origin_info));
+    right_joystick_origin_error = vr::VRInput()->GetOriginTrackedDeviceInfo(m_right_joystick, &right_joystick_origin_info, sizeof(right_joystick_origin_info));
+    if (left_joystick_origin_error != vr::EVRInputError::VRInputError_None || right_joystick_origin_error != vr::EVRInputError::VRInputError_None) {
+        return false;
+    }
+
+    // Instead of manually going through the devices,
+    // We do this. The order of the devices isn't always guaranteed to be
+    // Left, and then right. Using the input state handles will always
+    // Get us the correct device indices.
+    m_controllers.push_back(left_joystick_origin_info.trackedDeviceIndex);
+    m_controllers.push_back(right_joystick_origin_info.trackedDeviceIndex);
+    m_controllers_set.insert(left_joystick_origin_info.trackedDeviceIndex);
+    m_controllers_set.insert(right_joystick_origin_info.trackedDeviceIndex);
+
+    spdlog::info("Left Hand: {}", left_joystick_origin_info.trackedDeviceIndex);
+    spdlog::info("Right Hand: {}", right_joystick_origin_info.trackedDeviceIndex);
+
+    return true;
 }
 
 void VR::update_hmd_state() {
@@ -1129,6 +1124,7 @@ void VR::on_update_before_lock_scene(void* ctx) {
 
 void VR::on_pre_begin_rendering(void* entry) {
     m_in_render = true;
+    detect_controllers();
     update_camera();
 }
 

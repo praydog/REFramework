@@ -141,6 +141,7 @@ private:
     std::optional<std::string> hijack_camera();
     std::optional<std::string> hijack_overlay_renderer();
 
+    bool detect_controllers();
     void update_hmd_state();
     void update_camera(); // if not in firstperson mode
     void restore_camera(); // After rendering
