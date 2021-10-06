@@ -339,6 +339,48 @@ std::optional<std::string> Hooks::hook_update_before_lock_scene() {
     return std::nullopt;
 }
 
+std::optional<std::string> Hooks::hook_lightshaft_draw() {
+    // Create a fake via.render.LightShaft instance
+    // so we can get the draw method and hook it.
+    auto lightshaft_t = sdk::RETypeDB::get()->find_type("via.render.LightShaft");
+
+    if (lightshaft_t == nullptr) {
+        return "Unable to find via::render::LightShaft";
+    }
+
+    auto lightshaft = lightshaft_t->create_instance();
+
+    if (lightshaft == nullptr) {
+        return "Unable to create via::render::LightShaft instance";
+    }
+
+    auto lightshaft_vtable = *(void***)lightshaft;
+
+    if (lightshaft_vtable == nullptr) {
+        return "Unable to get via::render::LightShaft vtable";
+    }
+
+#ifdef RE8
+    auto draw = lightshaft_vtable[13];
+#else
+    auto draw = lightshaft_vtable[10];
+#endif
+
+    if (draw == nullptr) {
+        return "Unable to get via::render::LightShaft::draw";
+    }
+
+    spdlog::info("LightShaft::draw: {:x}", (uintptr_t)draw);
+
+    m_lightshaft_draw_hook = std::make_unique<FunctionHook>((uintptr_t)draw, (uintptr_t)&lightshaft_draw_hook);
+
+    if (!m_lightshaft_draw_hook->create()) {
+        return "Failed to hook via::render::LightShaft::draw";
+    }
+
+    return std::nullopt;
+}
+
 void* Hooks::update_transform_hook_internal(RETransform* t, uint8_t a2, uint32_t a3) {
     if (!g_framework->is_ready()) {
         return m_update_transform_hook->get_original<decltype(update_transform_hook)>()(t, a2, a3);
@@ -459,6 +501,30 @@ void Hooks::update_before_lock_scene_hook_internal(void* ctx) {
 
 void Hooks::update_before_lock_scene_hook(void* ctx) {
     g_hook->update_before_lock_scene_hook_internal(ctx);
+}
+
+void Hooks::lightshaft_draw_hook_internal(void* shaft, void* render_context) {
+    auto original = m_lightshaft_draw_hook->get_original<decltype(lightshaft_draw_hook)>();
+
+    if (!g_framework->is_ready()) {
+        return original(shaft, render_context);
+    }
+
+    auto& mods = g_framework->get_mods()->get_mods();
+
+    for (auto& mod : mods) {
+        mod->on_pre_lightshaft_draw(shaft, render_context);
+    }
+
+    original(shaft, render_context);
+
+    for (auto& mod : mods) {
+        mod->on_lightshaft_draw(shaft, render_context);
+    }
+}
+
+void Hooks::lightshaft_draw_hook(void* shaft, void* render_context) {
+    g_hook->lightshaft_draw_hook_internal(shaft, render_context);
 }
 
 void Hooks::global_application_entry_hook_internal(void* entry, const char* name, size_t hash) {

@@ -37,10 +37,10 @@ protected:
 
     void wait_rendering_hook_internal(void* entry);
     static void wait_rendering_hook(void* entry);
-    
-    void begin_frame_rendering_hook_internal(void* entry);
-    static void begin_frame_rendering_hook(void* entry);
 
+    void lightshaft_draw_hook_internal(void* shaft, void* render_context);
+    static void lightshaft_draw_hook(void* shaft, void* render_context);
+    
     void global_application_entry_hook_internal(void* entry, const char* name, size_t hash);
     static void global_application_entry_hook(void* entry, const char* name, size_t hash);
 
@@ -50,6 +50,7 @@ private:
     std::optional<std::string> hook_update_camera_controller2();
     std::optional<std::string> hook_gui_draw();
     std::optional<std::string> hook_update_before_lock_scene();
+    std::optional<std::string> hook_lightshaft_draw();
 
     // Utility function for hooking function entries in via.Application
     std::optional<std::string> hook_application_entry(std::string name, std::unique_ptr<FunctionHook>& hook, void (*hook_fn)(void*));
@@ -63,6 +64,7 @@ private:
         HOOK_LAMBDA(hook_update_camera_controller2),
         HOOK_LAMBDA(hook_gui_draw),
         HOOK_LAMBDA(hook_update_before_lock_scene),
+        HOOK_LAMBDA(hook_lightshaft_draw),
         HOOK_LAMBDA(hook_all_application_entries),
     };
 
@@ -72,6 +74,7 @@ protected:
     std::unique_ptr<FunctionHook> m_update_camera_controller2_hook;
     std::unique_ptr<FunctionHook> m_gui_draw_hook;
     std::unique_ptr<FunctionHook> m_update_before_lock_scene_hook;
+    std::unique_ptr<FunctionHook> m_lightshaft_draw_hook;
 
     std::unordered_map<const char*, void (*)(void*)> m_application_entry_hooks;
 };

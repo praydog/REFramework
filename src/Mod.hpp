@@ -324,6 +324,8 @@ public:
     virtual void on_gui_draw_element(REComponent* gui_element, void* primitive_context) {};
     virtual void on_pre_update_before_lock_scene(void* ctx) {};
     virtual void on_update_before_lock_scene(void* ctx) {};
+    virtual void on_pre_lightshaft_draw(void* shaft, void* render_context) {};
+    virtual void on_lightshaft_draw(void* shaft, void* render_context) {};
     // via.application entry hooks
     // For a list of possible entries, see via.ModuleEntry enum
     virtual void on_pre_application_entry(void* entry, const char* name, size_t hash) {};

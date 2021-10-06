@@ -35,7 +35,9 @@ public:
     void on_update_camera_controller(RopewayPlayerCameraController* controller) override;
     void on_pre_gui_draw_element(REComponent* gui_element, void* primitive_context) override;
     void on_gui_draw_element(REComponent* gui_element, void* primitive_context) override;
-    void on_update_before_lock_scene(void* ctx) override;
+    void on_pre_update_before_lock_scene(void* ctx) override;
+    void on_pre_lightshaft_draw(void* shaft, void* render_context) override;
+    void on_lightshaft_draw(void* shaft, void* render_context) override;
 
     void on_pre_application_entry(void* entry, const char* name, size_t hash) override;
     void on_application_entry(void* entry, const char* name, size_t hash) override;
@@ -238,6 +240,7 @@ private:
     bool m_wgp_initialized{false};
     bool m_needs_camera_restore{false};
     bool m_in_render{false};
+    bool m_in_lightshaft{false};
 
     static std::string actions_json;
     static std::string binding_rift_json;

@@ -55,7 +55,7 @@ float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
     auto out = original_func(scene_view, result);
 
     if (!mod->m_in_render) {
-        return original_func(scene_view, result);
+        //return original_func(scene_view, result);
     }
 
     auto regenny_view = (regenny::via::SceneView*)scene_view;
@@ -102,19 +102,12 @@ Matrix4x4f* VR::camera_get_projection_matrix_hook(REManagedObject* camera, Matri
     }
 
     if (!vr->m_in_render) {
-        return original_func(camera, result);
+       // return original_func(camera, result);
     }
 
-#if defined(RE8) || defined(DMC5)
-    static auto once = false;
-
-    if (!once) {        
-        vr->m_nearz = sdk::call_object_func<float>(camera, "get_NearClipPlane", sdk::get_thread_context(), camera);
-        vr->m_farz = sdk::call_object_func<float>(camera, "get_FarClipPlane", sdk::get_thread_context(), camera);
-
-        once = true;
+    if (vr->m_in_lightshaft) {
+        //return original_func(camera, result);
     }
-#endif
 
     // Get the projection matrix for the correct eye
     // For some reason we need to flip the projection matrix here?
@@ -132,7 +125,7 @@ Matrix4x4f* VR::camera_get_view_matrix_hook(REManagedObject* camera, Matrix4x4f*
 
     auto vr = VR::get();
 
-    if (!vr->m_is_hmd_active || !vr->m_in_render) {
+    if (!vr->m_is_hmd_active) {
         return original_func(camera, result);
     }
 
@@ -779,11 +772,29 @@ void VR::update_camera() {
 
     sdk::set_joint_rotation(camera_joint, m_original_camera_rotation * glm::quat{get_rotation(0)});
 
+    auto projection_matrix = get_current_projection_matrix(true);
+
+    // Steps towards getting lens flares and volumetric lighting working
+    // Get the FOV from the projection matrix
+    const auto vfov = glm::degrees(2.0f * std::atan(1.0f / projection_matrix[1][1]));
+    const auto aspect = projection_matrix[1][1] / projection_matrix[0][0];
+    const auto hfov = vfov * aspect;
+    
+    //spdlog::info("vFOV: {}", vfov);
+    //spdlog::info("Aspect: {}", aspect);
+
+    sdk::call_object_func<void*>(camera, "set_FOV", sdk::get_thread_context(), camera, vfov);
+    sdk::call_object_func<void*>(camera, "set_VerticalEnable", sdk::get_thread_context(), camera, true);
+    sdk::call_object_func<void*>(camera, "set_AspectRatio", sdk::get_thread_context(), camera, aspect);
+
+    m_nearz = sdk::call_object_func<float>(camera, "get_NearClipPlane", sdk::get_thread_context(), camera);
+    m_farz = sdk::call_object_func<float>(camera, "get_FarClipPlane", sdk::get_thread_context(), camera);
+
     m_needs_camera_restore = true;
 }
 
 void VR::restore_camera() {
-    if (!m_needs_camera_restore || !m_is_hmd_active) {
+    if (!m_needs_camera_restore) {
         return;
     }
 
@@ -990,16 +1001,6 @@ void VR::on_update_camera_controller(RopewayPlayerCameraController* controller) 
     *(glm::quat*)&controller->worldRotation = glm::quat{ headset_rotation  };
 
     controller->worldPosition += get_current_offset();*/
-
-    auto scene_view = sdk::get_main_view();
-    auto camera = sdk::get_primary_camera();
-
-    if (camera != nullptr) {
-        // Fixes warping effect in the vertical part of the camera when looking up and down
-        sdk::call_object_func<void*>((::REManagedObject*)camera, "set_VerticalEnable", sdk::get_thread_context(), camera, true);
-        m_nearz = sdk::call_object_func<float>(camera, "get_NearClipPlane", sdk::get_thread_context(), camera);
-        m_farz = sdk::call_object_func<float>(camera, "get_FarClipPlane", sdk::get_thread_context(), camera);
-    }
 }
 
 struct GUIRestoreData {
@@ -1119,13 +1120,66 @@ void VR::on_gui_draw_element(REComponent* gui_element, void* primitive_context) 
     g_elements_to_reset.clear();
 }
 
-void VR::on_update_before_lock_scene(void* ctx) {
+void VR::on_pre_update_before_lock_scene(void* ctx) {
+    /*auto camera = sdk::get_primary_camera();
+
+    if (camera == nullptr) {
+        return;
+    }
+
+    auto projection_matrix = get_current_projection_matrix(true);
+
+    // Steps towards getting lens flares and volumetric lighting working
+    // Get the FOV from the projection matrix
+    const auto vfov = glm::degrees(2.0f * std::atan(1.0f / projection_matrix[1][1]));
+    const auto aspect = projection_matrix[1][1] / projection_matrix[0][0];
+    const auto hfov = vfov * aspect;
+    
+    spdlog::info("vFOV: {}", vfov);
+    spdlog::info("Aspect: {}", aspect);
+
+    sdk::call_object_func<void*>(camera, "set_FOV", sdk::get_thread_context(), camera, vfov);
+    sdk::call_object_func<void*>(camera, "set_VerticalEnable", sdk::get_thread_context(), camera, true);
+    sdk::call_object_func<void*>(camera, "set_AspectRatio", sdk::get_thread_context(), camera, aspect);*/
+}
+
+void VR::on_pre_lightshaft_draw(void* shaft, void* render_context) {
+    m_in_lightshaft = true;
+
+    /*static auto transparent_layer_t = sdk::RETypeDB::get()->find_type("via.render.layer.Transparent");
+    auto transparent_layer = sdk::renderer::find_layer(transparent_layer_t->type);
+
+    spdlog::info("transparent layer: {:x}", (uintptr_t)transparent_layer);
+
+    if (transparent_layer == nullptr) {
+        return;
+    }
+
+    static auto scene_layer_t = sdk::RETypeDB::get()->find_type("via.render.layer.Scene");
+    auto scene_layer = transparent_layer->find_parent(scene_layer_t->type);
+
+    spdlog::info("scene layer: {:x}", (uintptr_t)scene_layer);
+
+    if (scene_layer == nullptr) {
+        return;
+    }
+
+    scene_layer->update();
+
+    spdlog::info("scene layer update: {:x}", (uintptr_t)(*(void***)scene_layer)[sdk::renderer::RenderLayer::UPDATE_VTABLE_INDEX]);*/
+}
+
+void VR::on_lightshaft_draw(void* shaft, void* render_context) {
+    m_in_lightshaft = false;
 }
 
 void VR::on_pre_begin_rendering(void* entry) {
     m_in_render = true;
     detect_controllers();
-    update_camera();
+
+    if (!inside_on_end && get_game_frame_count() % 2 == 1) {
+        update_camera();
+    }
 }
 
 void VR::on_begin_rendering(void* entry) {
@@ -1140,6 +1194,8 @@ void VR::on_pre_end_rendering(void* entry) {
 
 void VR::on_end_rendering(void* entry) {
     if (!m_is_hmd_active) {
+        restore_camera();
+
         m_in_render = false;
         return;
     }
