@@ -73,18 +73,44 @@ namespace sdk {
 
         std::unordered_map<uintptr_t, uint32_t> references{};
 
-        // Version 2 Dec 17th, 2019, first ptr is at game.exe+0x7095E08
-        const auto pat = "48 8B 0D ? ? ? ? BA FF FF FF FF E8 ? ? ? ?";
+        struct CtxPattern {
+            int32_t ctx_offset;
+            int32_t get_thread_context_offset;
+            std::string pattern;
+        };
+
+        auto patterns = std::vector<CtxPattern>{
+            // Version 2 Dec 17th, 2019, first ptr is at game.exe+0x7095E08
+            // Works RE2, RE3, RE8, DMC5
+            { 3, 13, "48 8B 0D ? ? ? ? BA FF FF FF FF E8 ? ? ? ?" },
+             // Only seen in RE7
+            { 3, 11, "48 8B 0D ? ? ? ? 83 CA FF E8 ? ? ? ?" },
+        };
+
+
         std::optional<Address> ref{};
+        const CtxPattern* context_pattern{nullptr};
+        
+        for (const auto& pattern : patterns) {
+            ref = {};
+            references.clear();
 
-        for (auto i = utility::scan(start, end - start, pat); i.has_value(); i = utility::scan(*i + 1, end - (*i + 1), pat)) {
-            auto potential_ctx_ref = utility::calculate_absolute(*i + 3);
+            const auto& pat = pattern.pattern;
 
-            references[potential_ctx_ref]++;
+            for (auto i = utility::scan(start, end - start, pat); i.has_value(); i = utility::scan(*i + 1, end - (*i + 1), pat)) {
+                auto potential_ctx_ref = utility::calculate_absolute(*i + 3);
 
-            // this is for sure the right one
-            if (references[potential_ctx_ref] > 10) {
-                ref = *i;
+                references[potential_ctx_ref]++;
+
+                // this is for sure the right one
+                if (references[potential_ctx_ref] > 10) {
+                    ref = *i;
+                    context_pattern = &pattern;
+                    break;
+                }
+            }
+
+            if (ref) {
                 break;
             }
         }
@@ -94,8 +120,8 @@ namespace sdk {
             return;
         }
 
-        s_global_context = (decltype(s_global_context))utility::calculate_absolute(*ref + 3);
-        s_get_thread_context = (decltype(s_get_thread_context))utility::calculate_absolute(*ref + 13);
+        s_global_context = (decltype(s_global_context))utility::calculate_absolute(*ref + context_pattern->ctx_offset);
+        s_get_thread_context = (decltype(s_get_thread_context))utility::calculate_absolute(*ref + context_pattern->get_thread_context_offset);
 
         for (auto i = 0; i < 0x20000; i += sizeof(void*)) {
             auto ptr = *(sdk::RETypeDB**)((uintptr_t)*s_global_context + i);
@@ -105,10 +131,13 @@ namespace sdk {
             }
 
             if (*(uint32_t*)ptr == *(uint32_t*)"TDB") {
+                const auto version = *(uint32_t*)((uintptr_t)ptr + 4);
+
                 s_type_db_offset = i;
                 s_static_tbl_offset = s_type_db_offset - 0x30; // hope this holds true for the older gameS!!!!!!!!!!!!!!!!!!!
                 spdlog::info("[REGlobalContext::update_pointers] s_type_db_offset: {:x}", s_type_db_offset);
                 spdlog::info("[REGlobalContext::update_pointers] s_static_tbl_offset: {:x}", s_static_tbl_offset);
+                spdlog::info("[REGlobalContext::update_pointers] TDB Version: {}", version);
                 break;
             }
         }

@@ -24,59 +24,97 @@ std::string game_namespace(std::string_view base_name)
 RETypes::RETypes() {
     spdlog::info("RETypes initialization");
 
-    const auto pat = "48 8d 0d ? ? ? ? e8 ? ? ? ? 48 8d 05 ? ? ? ? 48 89 03";
-
+    // RE2, RE3, RE8, DMC5
+    auto pat = "48 8d 0d ? ? ? ? e8 ? ? ? ? 48 8d 05 ? ? ? ? 48 89 03";
     const auto mod = g_framework->get_module().as<HMODULE>();
+
+    auto types_offset = 3;
     auto ref = utility::scan(mod, pat);
 
+    bool re7_version = false;
+
     if (!ref) {
-        spdlog::error("Bad RETypes ref");
-        return;
+        // Scan for RE7 version
+        // mov edx, 8F7E7AEh (TypeInfoNone hash)
+        pat = "BA AE E7 F7 08";
+
+        const auto typeinfo_none_ref = utility::scan(mod, pat);
+
+        if (!typeinfo_none_ref) {
+            spdlog::error("Failed to find TypeInfoNone");
+            return;
+        }
+
+        const auto add_type_ref = utility::scan(*typeinfo_none_ref, 0x100, "48 8B CB E8 ? ? ? ?");
+
+        if (!add_type_ref) {
+            spdlog::error("Failed to find add_type_ref");
+            return;
+        }
+
+        const auto add_type_fn = utility::calculate_absolute(*add_type_ref + 4);
+
+        if (!add_type_fn) {
+            spdlog::error("Failed to calculate add_type_fn");
+            return;
+        }
+
+        ref = utility::scan(add_type_fn, 0x200, "4C 8B 05 ? ? ? ?");
+
+        if (!ref) {
+            spdlog::error("Bad RETypes ref");
+            return;
+        }
+
+        types_offset = 3;
+        re7_version = true;
     }
 
     spdlog::info("Initial ref: {:x}", (uintptr_t)*ref);
     
-    m_raw_types = (TypeList*)(utility::calculate_absolute(*ref + 3));
+    m_raw_types = (TypeList*)(utility::calculate_absolute(*ref + types_offset));
     spdlog::info("Initial TypeList: {:x}", (uintptr_t)m_raw_types);
 
     const auto start = g_framework->get_module();
     const auto module_size = utility::get_module_size(mod);
     const auto module_end = g_framework->get_module() + *module_size;
 
-    bool found_something = false;
+    if (!re7_version) {
+        bool found_something = false;
 
-    // keeps track of how many references there are to each potential type list
-    std::unordered_map<uintptr_t, uint32_t> references{};
+        // keeps track of how many references there are to each potential type list
+        std::unordered_map<uintptr_t, uint32_t> references{};
 
-    // Scan multiple times to find all references to TypeList
-    // If more than 20 references are found for a single address, it's the right one
-    for (auto i = utility::scan(start, module_end - start, pat); i.has_value(); i = utility::scan(*i + 1, module_end - (*i + 1), pat)) {
-        auto potential_types_ptr = utility::calculate_absolute(*i + 3);
+        // Scan multiple times to find all references to TypeList
+        // If more than 20 references are found for a single address, it's the right one
+        for (auto i = utility::scan(start, module_end - start, pat); i.has_value(); i = utility::scan(*i + 1, module_end - (*i + 1), pat)) {
+            auto potential_types_ptr = utility::calculate_absolute(*i + 3);
 
-        // Log the potential type if it's not already in the map
-        if (!references.contains(potential_types_ptr)) {
-            spdlog::info("Potential ref: {:x}", (uintptr_t)*i);
-            spdlog::info("Potential TypeList: {:x}", (uintptr_t)potential_types_ptr);
+            // Log the potential type if it's not already in the map
+            if (!references.contains(potential_types_ptr)) {
+                spdlog::info("Potential ref: {:x}", (uintptr_t)*i);
+                spdlog::info("Potential TypeList: {:x}", (uintptr_t)potential_types_ptr);
+            }
+
+            references[potential_types_ptr]++;
+
+            // this is for sure the right one
+            if (references[potential_types_ptr] > 20) {
+                ref = *i;
+                m_raw_types = (TypeList*)potential_types_ptr;
+                found_something = true;
+                break;
+            }
         }
 
-        references[potential_types_ptr]++;
-
-        // this is for sure the right one
-        if (references[potential_types_ptr] > 20) {
-            ref = *i;
-            m_raw_types = (TypeList*)potential_types_ptr;
-            found_something = true;
-            break;
+        if (!found_something) {
+            spdlog::error("Couldn't find TypeList");
+            return;
         }
-    }
 
-    if (!found_something) {
-        spdlog::error("Couldn't find TypeList");
-        return;
+        spdlog::info("Settled on ref: {:x}", *ref);
+        spdlog::info("Settled on TypeList: {:x}", (uintptr_t)m_raw_types);
     }
-
-    spdlog::info("Settled on ref: {:x}", *ref);
-    spdlog::info("Settled on TypeList: {:x}", (uintptr_t)m_raw_types);
 
     auto& typeList = *m_raw_types;
 

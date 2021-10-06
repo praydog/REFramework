@@ -44,13 +44,30 @@ std::optional<std::string> Hooks::hook_update_transform() {
     //auto updateTransformCall = utility::scan(game, "E8 ? ? ? ? 48 8B 5B ? 48 85 DB 75 ? 48 8B 4D 40 48 31 E1");
 
     // Version 2 Dec 17th, 2019 (works on old version too) game.exe+0x1DD3FF0
+    // If this ever changes, get the singleton for via.SceneManager, find its
+    // constructor function, and look for the job function added near the end of the constructor
+    // UpdateTransform gets called near the end of the job, looks like this:
+    /*
+      if ( *(_BYTE *)(v2 + 0x114) )
+        UpdateTransform(v14, 0, v10);
+      else
+        sub_141DD4140(v14, 0i64, v10);
+    */
+    auto absolute_offset = 1;
     auto update_transform_call = utility::scan(game, "E8 ? ? ? ? 48 8B 5B ? 48 85 DB 75 ? 48 8B 4D 40 48 ? ?");
 
     if (!update_transform_call) {
-        return "Unable to find UpdateTransform pattern.";
+        // RE7
+        update_transform_call = utility::scan(game, "0F B6 D1 48 8B CB E8 ? ? ? ? 48 8B 9B ? ? ? ?");
+
+        if (!update_transform_call) {
+            return "Unable to find UpdateTransform pattern.";
+        }
+
+        absolute_offset = 7;
     }
 
-    auto update_transform = utility::calculate_absolute(*update_transform_call + 1);
+    auto update_transform = utility::calculate_absolute(*update_transform_call + absolute_offset);
     spdlog::info("UpdateTransform: {:x}", update_transform);
 
     // Can be found by breakpointing RETransform's worldTransform
