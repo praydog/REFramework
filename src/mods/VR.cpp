@@ -52,11 +52,6 @@ float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
     }
 
     auto mod = VR::get();
-    auto out = original_func(scene_view, result);
-
-    if (!mod->m_in_render) {
-        //return original_func(scene_view, result);
-    }
 
     auto regenny_view = (regenny::via::SceneView*)scene_view;
     auto window = regenny_view->window;
@@ -79,6 +74,12 @@ float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
 
         wanted_width = (float)window->width;
         wanted_height = (float)window->height;
+    }
+
+    auto out = original_func(scene_view, result);
+
+    if (!mod->m_in_render) {
+        //return original_func(scene_view, result);
     }
 
     // spoof the size to the HMD's size
