@@ -20,6 +20,8 @@ public:
 
 #ifdef RE8
     static constexpr uint32_t DRAW_VTABLE_INDEX = 14;
+#elif defined(RE7)
+    static constexpr uint32_t DRAW_VTABLE_INDEX = 10;
 #else
     static constexpr uint32_t DRAW_VTABLE_INDEX = 12;
 #endif

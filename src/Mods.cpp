@@ -21,9 +21,7 @@ Mods::Mods()
 #ifndef BAREBONES
     m_mods.emplace_back(std::make_unique<Hooks>());
 
-#ifndef RE7
     m_mods.emplace_back(VR::get());
-#endif
 
 #ifndef RE8
 

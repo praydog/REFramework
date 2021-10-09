@@ -51,6 +51,7 @@ float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
         return original_func(scene_view, result);
     }
 
+#ifndef RE7
     auto mod = VR::get();
 
     auto regenny_view = (regenny::via::SceneView*)scene_view;
@@ -85,6 +86,10 @@ float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
     // spoof the size to the HMD's size
     out[0] = wanted_width;
     out[1] = wanted_height;
+#else
+    // FIX IT!!!
+    auto out = original_func(scene_view, result);
+#endif
 
     return out;
 }
@@ -529,6 +534,8 @@ std::optional<std::string> VR::hijack_overlay_renderer() {
     if (obj_vtable == nullptr) {
         return "VR init failed: via.render.layer.Overlay vtable not found.";
     }
+
+    spdlog::info("via.render.layer.Overlay vtable: {:x}", (uintptr_t)obj_vtable - g_framework->get_module());
 
     auto draw_native = obj_vtable[sdk::renderer::RenderLayer::DRAW_VTABLE_INDEX];
 

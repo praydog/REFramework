@@ -150,6 +150,7 @@ std::optional<std::string> Hooks::hook_gui_draw() {
     // If this ever breaks, its parent function is found within via.gui.GUIManager.
     // It is used as a draw callback. The assignment can be found within the constructor near the end.
     // "onEnd(via.gui.TextAnimationEndArg)" can be used as a reference to find the constructor.
+    // "copyProperties(via.gui.PlayObject)" also works in RE7 and onwards
     // In RE2:
     /*  
     *(_QWORD *)(v23 + 8 * v22) = &vtable_thing;
@@ -162,7 +163,12 @@ std::optional<std::string> Hooks::hook_gui_draw() {
     auto gui_draw_call = utility::scan(game, "49 8B 0C CE 48 83 79 10 00 74 ? E8 ? ? ? ?");
 
     if (!gui_draw_call) {
-        return "Unable to find gui_draw_call pattern.";
+        // RE7 (+0x20 grabs the owner ptr, 0x10 in others)
+        gui_draw_call = utility::scan(game, "49 8B 0C CE 48 83 79 20 00 74 ? E8 ? ? ? ?");
+
+        if (!gui_draw_call) {
+            return "Unable to find gui_draw_call pattern.";
+        }
     }
 
     auto gui_draw = utility::calculate_absolute(*gui_draw_call + 12);
