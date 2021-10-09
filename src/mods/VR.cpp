@@ -1046,16 +1046,20 @@ void VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
 
     if (game_object != nullptr && game_object->transform != nullptr) {
         const auto name = utility::re_string::get_string(game_object->name);
+        const auto name_hash = utility::hash(name);
 
+        switch (name_hash) {
         // Don't mess with this, causes weird black boxes on the sides of the screen
-        if (name == "GUI_PillarBox") {
-            return;
-        }
-
+        case "GUI_PillarBox"_fnv:
         // These allow the cutscene transitions to display (fade to black)
-        if (name == "BlackFade" || name == "WhiteFade") {
+        case "BlackFade"_fnv:
+        case "WhiteFade"_fnv:
+        case "Fade_In_Out_Black"_fnv:
             return;
-        }
+
+        default:
+            break;
+        };
 
         //spdlog::info("VR: on_pre_gui_draw_element: {}", name);
 
