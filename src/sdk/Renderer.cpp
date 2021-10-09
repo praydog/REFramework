@@ -93,8 +93,7 @@ RenderLayer* RenderLayer::find_layer(::REType* layer_type) {
             continue;
         }
 
-        const auto tdef = (sdk::RETypeDefinition*)layer->info->classInfo;
-        const auto t = tdef->type;
+        const auto t = utility::re_managed_object::get_type(layer);
 
         if (t == layer_type) {
             return layer;
@@ -114,8 +113,7 @@ RenderLayer* RenderLayer::find_parent(::REType* layer_type) {
             break;
         }
 
-        const auto tdef = (sdk::RETypeDefinition*)parent->info->classInfo;
-        const auto t = tdef->type;
+        const auto t = utility::re_managed_object::get_type(parent);
 
         if (t == layer_type) {
             return parent;
@@ -319,8 +317,7 @@ RenderLayer* find_layer(::REType* layer_type) {
             continue;
         }
 
-        const auto tdef = (sdk::RETypeDefinition*)layer->info->classInfo;
-        const auto t = tdef->type;
+        const auto t = utility::re_managed_object::get_type(layer);
 
         if (t == layer_type) {
             return layer;

@@ -93,6 +93,7 @@ void FreeCam::on_update_transform(RETransform* transform) {
     }
 
     if (!update_pointers()) {
+        spdlog::error("FreeCam: Failed to update pointers");
         m_was_disabled = false;
         return;
     }
@@ -109,6 +110,8 @@ void FreeCam::on_update_transform(RETransform* transform) {
 #endif
 
     const auto camera = sdk::get_primary_camera();
+
+    spdlog::info("Camera: {:x}", (uintptr_t)camera);
 
     if (camera == nullptr || transform != camera->ownerGameObject->transform) {
         return;
@@ -165,6 +168,7 @@ void FreeCam::on_update_transform(RETransform* transform) {
 
     // Update wanted camera position
     if (!m_lock_camera->value()) {
+#ifndef RE7
         auto timescale = sdk::get_timescale();
 
         if (timescale == 0.0f) {
@@ -172,6 +176,10 @@ void FreeCam::on_update_transform(RETransform* transform) {
         }
 
         const auto timescale_mult = 1.0f / timescale;
+#else
+        // RE7 doesn't have timescale
+        const auto timescale_mult = 1.0f;
+#endif
 
         Vector4f dir{};
         const auto delta = re_component::get_delta_time(transform);
@@ -257,19 +265,19 @@ bool FreeCam::update_pointers() {
         m_via_hid_gamepad.object = globals.get_native("via.hid.GamePad");
 
         if (m_via_hid_gamepad.object != nullptr) {
-            m_via_hid_gamepad.t = (sdk::RETypeDefinition*)g_framework->get_types()->get("via.hid.GamePad")->classInfo;
+            m_via_hid_gamepad.t = sdk::RETypeDB::get()->find_type("via.hid.GamePad");
         }
     }
 
-#ifndef RE8
-#ifndef DMC5
+#if defined(RE2) || defined(RE3)
     if (m_survivor_manager == nullptr) {
         auto& globals = *g_framework->get_globals();
         m_survivor_manager = globals.get<RopewaySurvivorManager>(game_namespace("SurvivorManager"));
         return false;
     }
 #endif
-#else
+
+#ifdef RE8
     if (m_props_manager == nullptr) {
         auto& globals = *g_framework->get_globals();
         m_props_manager = globals.get<AppPropsManager>(game_namespace("PropsManager"));

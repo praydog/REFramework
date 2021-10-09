@@ -5,6 +5,10 @@ class REManagedObject;
 class REType;
 class FunctionDescriptor;
 
+namespace sdk {
+struct RETypeDefinition;
+}
+
 namespace utility::re_managed_object {
     // Forward declarations
     struct ParamWrapper;
@@ -17,6 +21,7 @@ namespace utility::re_managed_object {
 
     // Get full type information about the object
     static REType* get_type(::REManagedObject* object);
+    static sdk::RETypeDefinition* get_type_definition(::REManagedObject* object);
     static REType* safe_get_type(::REManagedObject* object);
     static std::string get_type_name(::REManagedObject* object);
 
@@ -34,7 +39,7 @@ namespace utility::re_managed_object {
     static VariableDescriptor* get_field_desc(::REManagedObject* obj, std::string_view field);
 
     // Gets the base offset of the top class in the hierarchy for this object
-    template <typename T> static T* get_field_ptr(::REManagedObject* object);
+    template <typename T = void*> static T* get_field_ptr(::REManagedObject* object);
 
     // Get a field value by field descriptor
     template <typename T> T get_field(::REManagedObject* obj, VariableDescriptor* desc);
@@ -57,6 +62,7 @@ namespace utility::re_managed_object {
 
 #include "REContext.hpp"
 #include "ReClass.hpp"
+#include "REArray.hpp"
 
 namespace utility::re_managed_object {
     struct ParamWrapper {
@@ -90,6 +96,7 @@ namespace utility::re_managed_object {
             return false;
         }
 
+#ifndef RE7
         if (class_info->parentInfo != object->info || class_info->type == nullptr) {
             return false;
         }
@@ -101,6 +108,21 @@ namespace utility::re_managed_object {
         if (IsBadReadPtr(class_info->type->name, sizeof(void*))) {
             return false;
         }
+#else
+        auto info = object->info;
+
+        if (info->type == nullptr) {
+            return false;
+        }
+
+        if (IsBadReadPtr(info->type, sizeof(REType)) || info->type->name == nullptr) {
+            return false;
+        }
+
+        if (IsBadReadPtr(info->type->name, sizeof(void*))) {
+            return false;
+        }
+#endif
 
         return true;
     }
@@ -116,6 +138,7 @@ namespace utility::re_managed_object {
             return nullptr;
         }
 
+#ifndef RE7
         auto class_info = info->classInfo;
 
         if (class_info == nullptr) {
@@ -123,6 +146,23 @@ namespace utility::re_managed_object {
         }
 
         return class_info->type;
+#else
+        return info->type;
+#endif
+    }
+
+    static sdk::RETypeDefinition* get_type_definition(::REManagedObject* object) {
+        if (object == nullptr) {
+            return nullptr;
+        }
+
+        auto info = object->info;
+
+        if (info == nullptr) {
+            return nullptr;
+        }
+
+        return (sdk::RETypeDefinition*)info->classInfo;
     }
 
     static REType* safe_get_type(::REManagedObject* object) {
@@ -168,7 +208,7 @@ namespace utility::re_managed_object {
     }
 
 
-    template<typename T = void*>
+    template<typename T>
     static T* get_field_ptr(::REManagedObject* object) {
         if (object == nullptr) {
             return nullptr;
@@ -200,8 +240,12 @@ namespace utility::re_managed_object {
             return 0;
         }
 
+#ifndef RE7
         auto class_info = info->classInfo;
         auto size = class_info->size;
+#else
+        auto size = info->size;
+#endif
 
         switch (get_vm_type(object)) {
         case via::clr::VMObjType::Array:

@@ -9,35 +9,35 @@
 #include "REContext.hpp"
 
 namespace sdk {
-    REGlobalContext** REGlobalContext::s_global_context{ nullptr };
-    REGlobalContext::ThreadContextFn REGlobalContext::s_get_thread_context{ nullptr };
-    int32_t REGlobalContext::s_static_tbl_offset{ 0 };
-    int32_t REGlobalContext::s_type_db_offset{ 0 };
+    VM** VM::s_global_context{ nullptr };
+    VM::ThreadContextFn VM::s_get_thread_context{ nullptr };
+    int32_t VM::s_static_tbl_offset{ 0 };
+    int32_t VM::s_type_db_offset{ 0 };
 
-    sdk::REGlobalContext* REGlobalContext::get() {
+    sdk::VM* VM::get() {
         update_pointers();
         return *s_global_context;
     }
 
-    REThreadContext* REGlobalContext::get_thread_context(int32_t unk /*= -1*/) {
+    REThreadContext* VM::get_thread_context(int32_t unk /*= -1*/) {
         update_pointers();
 
         return s_get_thread_context(this, unk);
     }
 
-    sdk::RETypeDB* REGlobalContext::get_type_db() {
+    sdk::RETypeDB* VM::get_type_db() {
         update_pointers();
 
         return *(sdk::RETypeDB**)((uintptr_t)this + s_type_db_offset);
     }
 
-    REStaticTbl& REGlobalContext::get_static_tbl() {
+    REStaticTbl& VM::get_static_tbl() {
         update_pointers();
 
         return *(REStaticTbl*)((uintptr_t)this + s_static_tbl_offset);
     }
 
-    uint8_t* REGlobalContext::get_static_tbl_for_type(uint32_t type_index) {
+    uint8_t* VM::get_static_tbl_for_type(uint32_t type_index) {
         auto& tbls = get_static_tbl();
 
         /*if (type_index >= tbls.size) {
@@ -49,7 +49,7 @@ namespace sdk {
 
     static std::shared_mutex s_mutex{};
 
-    void REGlobalContext::update_pointers() {
+    void VM::update_pointers() {
         {
             // Lock a shared lock for the s_mutex
             std::shared_lock lock(s_mutex);
@@ -62,7 +62,7 @@ namespace sdk {
         // Create a unique lock for the s_mutex as we get to the meat of the function
         std::unique_lock lock{ s_mutex };
 
-        spdlog::info("[REGlobalContext::update_pointers] Updating...");
+        spdlog::info("[VM::update_pointers] Updating...");
 
         // Version 1
         //auto ref = utility::scan(g_framework->getModule().as<HMODULE>(), "48 8B 0D ? ? ? ? BA FF FF FF FF E8 ? ? ? ? 48 89 C3");
@@ -116,7 +116,7 @@ namespace sdk {
         }
 
         if (!ref || *ref == nullptr) {
-            spdlog::info("[REGlobalContext::update_pointers] Unable to find ref.");
+            spdlog::info("[VM::update_pointers] Unable to find ref.");
             return;
         }
 
@@ -135,19 +135,19 @@ namespace sdk {
 
                 s_type_db_offset = i;
                 s_static_tbl_offset = s_type_db_offset - 0x30; // hope this holds true for the older gameS!!!!!!!!!!!!!!!!!!!
-                spdlog::info("[REGlobalContext::update_pointers] s_type_db_offset: {:x}", s_type_db_offset);
-                spdlog::info("[REGlobalContext::update_pointers] s_static_tbl_offset: {:x}", s_static_tbl_offset);
-                spdlog::info("[REGlobalContext::update_pointers] TDB Version: {}", version);
+                spdlog::info("[VM::update_pointers] s_type_db_offset: {:x}", s_type_db_offset);
+                spdlog::info("[VM::update_pointers] s_static_tbl_offset: {:x}", s_static_tbl_offset);
+                spdlog::info("[VM::update_pointers] TDB Version: {}", version);
                 break;
             }
         }
 
-        spdlog::info("[REGlobalContext::update_pointers] s_global_context: {:x}", (uintptr_t)s_global_context);
-        spdlog::info("[REGlobalContext::update_pointers] s_get_thread_context: {:x}", (uintptr_t)s_get_thread_context);
+        spdlog::info("[VM::update_pointers] s_global_context: {:x}", (uintptr_t)s_global_context);
+        spdlog::info("[VM::update_pointers] s_get_thread_context: {:x}", (uintptr_t)s_get_thread_context);
     }
 
     REThreadContext* get_thread_context(int32_t unk /*= -1*/) {
-        auto global_context = REGlobalContext::get();
+        auto global_context = VM::get();
 
         if (global_context == nullptr) {
             return nullptr;

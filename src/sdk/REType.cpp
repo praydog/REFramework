@@ -6,13 +6,31 @@
 #include "RETypeDefinition.hpp"
 #include "REType.hpp"
 
+sdk::RETypeDefinition* utility::re_type::get_type_definition(REType* type) {
+    if (type == nullptr || type->classInfo == nullptr) {
+        return nullptr;
+    }
+
+#ifndef RE7
+    return (sdk::RETypeDefinition*)type->classInfo;
+#else
+    return (sdk::RETypeDefinition*)type->classInfo->classInfo;
+#endif
+}
+
 uint32_t utility::re_type::get_vm_type(::REType* t) {
     if (t == nullptr || t->classInfo == nullptr) {
         return (uint32_t)via::clr::VMObjType::NULL_;
     }
 
 #ifndef RE8
+
+#ifndef RE7
     return (uint32_t)t->classInfo->objectType;
+#else
+    return (uint32_t)t->classInfo->classInfo->objectType;
+#endif
+
 #else
     return (uint32_t)(t->classInfo->objectFlags >> 5);
 #endif
@@ -33,7 +51,11 @@ uint32_t utility::re_type::get_value_type_size(::REType* t) {
 
     return (*g_framework->get_types()->get_type_db()->typesImpl)[class_info->impl_index].field_size;
 #else
+#ifndef RE7
     auto class_info = t->classInfo;
+#else
+    auto class_info = t->classInfo->classInfo;
+#endif
     return class_info->elementSize;
 #endif
 }

@@ -144,6 +144,7 @@ void* REField::get_init_data() const {
     const auto init_data_index = this->init_data_index;
 #endif
 
+#ifndef RE7
     const auto init_data_offset = (*tdb->initData)[init_data_index];
     auto init_data = tdb->get_bytes(init_data_offset);
 
@@ -153,6 +154,11 @@ void* REField::get_init_data() const {
     }
 
     return init_data;
+#else
+    throw std::exception("Not implemented");
+
+    return nullptr;
+#endif
 }
 
 uint32_t REField::get_offset_from_fieldptr() const {
@@ -178,7 +184,7 @@ void* REField::get_data_raw(void* object, bool is_value_type) const {
             return this->get_init_data();
         }
 
-        auto tbl = sdk::REGlobalContext::get()->get_static_tbl_for_type(this->get_declaring_type()->index);
+        auto tbl = sdk::VM::get()->get_static_tbl_for_type(this->get_declaring_type()->get_index());
 
         if (tbl != nullptr) {
             return Address{tbl}.get(this->get_offset_from_fieldptr());
@@ -221,8 +227,10 @@ sdk::RETypeDefinition* REMethodDefinition::get_return_type() const {
     }
 
     const auto return_typeid = p.type_id;
-#else
+#elif TDB_VER >= 66
     const auto return_typeid = (uint32_t)this->return_typeid;
+#else
+    const auto return_typeid = tdb->get_data<REMethodDefinition::AdditionalData>(this->method_data_offset)->return_typeid;
 #endif
 
     if (return_typeid == 0) {
@@ -246,7 +254,20 @@ const char* REMethodDefinition::get_name() const {
 }
 
 void* REMethodDefinition::get_function() const {
+#ifndef RE7
     return this->function;
+#else
+    auto vm = sdk::VM::get();
+    auto& m = vm->methods[this->get_index()];
+
+    return m.function;
+#endif
+}
+
+uint32_t sdk::REMethodDefinition::get_index() const {
+    auto tdb = RETypeDB::get();
+
+    return (uint32_t)(((uintptr_t)this - (uintptr_t)tdb->methods) / sizeof(sdk::REMethodDefinition));
 }
 
 int32_t REMethodDefinition::get_virtual_index() const {
@@ -280,6 +301,10 @@ uint16_t REMethodDefinition::get_impl_flags() const {
 }
 
 std::vector<uint32_t> REMethodDefinition::get_param_typeids() const {
+#ifdef RE7
+    return {};
+#else
+
     auto tdb = RETypeDB::get();
 
     const auto param_list = (uint32_t)this->params;
@@ -316,9 +341,14 @@ std::vector<uint32_t> REMethodDefinition::get_param_typeids() const {
 
     return out;
 #endif
+#endif
 }
 
 std::vector<sdk::RETypeDefinition*> REMethodDefinition::get_param_types() const {
+#ifdef RE7
+    return {};
+#else
+
     auto typeids = get_param_typeids();
 
     if (typeids.empty()) {
@@ -333,9 +363,13 @@ std::vector<sdk::RETypeDefinition*> REMethodDefinition::get_param_types() const 
     }
 
     return out;
+#endif
 }
 
 std::vector<const char*> REMethodDefinition::get_param_names() const {
+#ifdef RE7
+    return {};
+#else
     std::vector<const char*> out{};
 
     auto tdb = RETypeDB::get();
@@ -370,6 +404,7 @@ std::vector<const char*> REMethodDefinition::get_param_names() const {
     }
     
     return out;
+#endif
 #endif
 }
 } // namespace sdk

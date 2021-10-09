@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <string_view>
+#include <vector>
 
 #include "RETypeCLR.hpp"
 #include "ReClass.hpp"
@@ -13,6 +14,7 @@ namespace sdk {
 struct RETypeDefVersion69;
 struct RETypeDefVersion67;
 struct RETypeDefVersion66;
+struct RETypeDefVersion49;
 
 struct REField;
 struct REMethodDefinition;
@@ -25,9 +27,12 @@ using RETypeDefinition_ = sdk::RETypeDefVersion69;
 #elif defined(RE3) || defined(DMC5)
 #define TYPE_INDEX_BITS 17
 using RETypeDefinition_ = sdk::RETypeDefVersion67;
-#else
+#elif RE2
 #define TYPE_INDEX_BITS 16
 using RETypeDefinition_ = sdk::RETypeDefVersion66;
+#elif RE7
+#define TYPE_INDEX_BITS 16
+using RETypeDefinition_ = sdk::RETypeDefVersion49;
 #endif
 
 struct RETypeDefVersion69 {
@@ -150,6 +155,39 @@ struct RETypeDefVersion66 {
     class ::REObjectInfo* managed_vt;
 };
 
+#pragma pack(push, 1)
+struct RETypeDefVersion49 {
+    uint32_t unk_data : 16; // 0x0
+    uint32_t unk_data2 : 16; // 0x0
+    uint16_t parent_typeid; // 0x4
+    uint16_t declaring_typeid; // 0x6
+    char pad_8[0xa];
+    uint16_t something; // 0x12
+    uint32_t name_offset; // 0x14
+    uint32_t namespace_offset; // 0x18
+    uint32_t type_flags; // 0x1c
+    uint16_t system_type; // 0x20
+    uint8_t object_type; // 0x22
+    char pad_23[0x5];
+    uint16_t num_member_method; // 0x28
+    char pad_2a[0x2];
+    uint16_t num_member_prop; // 0x2c
+    uint16_t num_virtual_method; // 0x2e
+    uint16_t num_member_field; // 0x30
+    char pad_32[0x2];
+    uint32_t element_size; // 0x34
+    uint32_t member_field_start; // 0x38
+    char pad_3c[0x4];
+    uint32_t member_method; // 0x40
+    char pad_44[0x4];
+    uint32_t member_prop; // 0x48
+    uint32_t virtual_method_start; // 0x4c
+    char pad_50[0x10];
+};
+#pragma pack(pop)
+
+static_assert(sizeof(RETypeDefVersion49) == 0x60);
+
 #ifndef RE8
 #if defined(RE3)
 static_assert(sizeof(RETypeDefVersion67) == 0x80);
@@ -181,11 +219,44 @@ struct RETypeDefinition : public sdk::RETypeDefinition_ {
 
     class FieldIterator {
     public:
-        FieldIterator(const sdk::RETypeDefinition* parent)
-            : m_parent{parent} {}
+        FieldIterator(const sdk::RETypeDefinition* parent) : m_parent{parent} {}
 
-        sdk::REField* begin() const;
-        sdk::REField* end() const;
+        // We need this because RE7's fields are non-contiguous in memory
+        // and because we want parity with the other games without ifdefs everywhere
+        class REFieldIterator {
+        public:
+            REFieldIterator(const sdk::RETypeDefinition* parent, size_t start = 0)
+                : m_parent{parent},
+                m_index{start}
+            {
+            }
+
+            sdk::REField* operator*() const;
+            REFieldIterator& operator++() {
+                m_index++;
+                return *this;
+            }
+
+            bool operator==(const REFieldIterator& other) const {
+                return m_index == other.m_index && m_parent == other.m_parent;
+            }
+            
+            bool operator!=(const REFieldIterator& other) const {
+                return m_index != other.m_index || m_parent != other.m_parent;
+            }
+        private:
+            const sdk::RETypeDefinition* m_parent;
+            size_t m_index{0};
+        };
+
+        REFieldIterator begin() const {
+            return REFieldIterator{m_parent};
+        }
+
+        REFieldIterator end() const {
+            return REFieldIterator{m_parent, size()};
+        }
+
         size_t size() const;
 
     private:
@@ -218,9 +289,12 @@ struct RETypeDefinition : public sdk::RETypeDefinition_ {
     sdk::REField* get_field(std::string_view name) const;
     sdk::REMethodDefinition* get_method(std::string_view name) const;
 
+    uint32_t get_index() const;
     int32_t get_fieldptr_offset() const;
 
     via::clr::VMObjType get_vm_obj_type() const;
+
+    ::REType* get_type() const;
 
     void* get_instance() const;
     void* create_instance() const;

@@ -52,9 +52,11 @@ private:
         *m_rotation_speed,
     };
 
-#ifndef RE8
+#if defined(RE2) || defined(RE3)
     RopewaySurvivorManager* m_survivor_manager{ nullptr };
-#else
+#endif
+
+#ifdef RE8
     AppPropsManager* m_props_manager{ nullptr };
 #endif
 

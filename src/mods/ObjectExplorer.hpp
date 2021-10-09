@@ -16,9 +16,12 @@
 #elif RE3
 #define TDB_DUMP_ALLOWED
 #define TDB_VER 67
-#else
+#elif RE2
 #define TDB_DUMP_ALLOWED
 #define TDB_VER 66
+#elif RE7
+//#define TDB_DUMP_ALLOWED
+#define TDB_VER 49
 #endif
 
 namespace sdk {

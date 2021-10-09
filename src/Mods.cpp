@@ -20,21 +20,31 @@ Mods::Mods()
 
 #ifndef BAREBONES
     m_mods.emplace_back(std::make_unique<Hooks>());
+
+#ifndef RE7
     m_mods.emplace_back(VR::get());
+#endif
 
 #ifndef RE8
-#ifndef DMC5
+
+#if defined(RE2) || defined(RE3)
     m_mods.emplace_back(FirstPerson::get());
 #endif
+
 #else
     m_mods.emplace_back(std::make_unique<Camera>());
 #endif
 
-#ifndef DMC5
+#if defined(RE2) || defined(RE3) || defined(RE8)
     m_mods.emplace_back(std::make_unique<ManualFlashlight>());
 #endif
+
     m_mods.emplace_back(std::make_unique<FreeCam>());
+
+#ifndef RE7
     m_mods.emplace_back(std::make_unique<SceneMods>());
+#endif
+
 #endif
 
 #ifdef DEVELOPER

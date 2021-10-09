@@ -147,7 +147,7 @@ RETypes::RETypes() {
 }
 
 sdk::RETypeDB* RETypes::get_type_db() const {
-    auto c = sdk::REGlobalContext::get();
+    auto c = sdk::VM::get();
 
     if (c == nullptr) {
         return nullptr;

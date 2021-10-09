@@ -13,9 +13,12 @@
 #elif RE3
 #define TDB_VER 67
 #include "ReClass_Internal_RE3.hpp"
-#else
+#elif RE2
 #define TDB_VER 66
 #include "ReClass_Internal.hpp"
+#elif RE7
+#define TDB_VER 49
+#include "ReClass_Internal_RE7.hpp"
 #endif
 #pragma pack(pop, r1)
 

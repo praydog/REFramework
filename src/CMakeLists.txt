@@ -44,6 +44,7 @@ set(SDK_SRC
     sdk/ReClass.hpp
     sdk/ReClass_Internal.hpp
     sdk/ReClass_Internal_RE3.hpp
+    sdk/ReClass_Internal_RE7.hpp
     sdk/ReClass_Internal_RE8.hpp
     sdk/ReClass_Internal_DMC5.hpp
     sdk/Enums_Internal.hpp
@@ -155,6 +156,10 @@ endif()
 
 if (RE3)
     target_compile_definitions(${GAME_NAME} PUBLIC RE3)
+endif()
+
+if (RE7)
+    target_compile_definitions(${GAME_NAME} PUBLIC RE7)
 endif()
 
 if (RE8)

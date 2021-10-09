@@ -45,6 +45,7 @@ T* get_native_singleton(std::string_view type_name);
 #pragma once
 
 #include "RETypeDefinition.hpp"
+#include "REManagedObject.hpp"
 
 namespace sdk {
 namespace tdb69 {
@@ -353,6 +354,88 @@ struct GenericListData {
 };
 } // namespace tdb66
 
+namespace tdb49 {
+struct REMethodDefinition;
+struct REField;
+struct REProperty;
+
+#pragma pack(push, 1)
+struct REProperty {
+    uint16_t declaring_typeid; // 0x0
+    char pad_2[0x6];
+    uint32_t name_offset; // 0x8
+    uint32_t getter; // 0xc
+    uint32_t setter; // 0x10
+};
+#pragma pack(pop)
+
+#pragma pack(push, 1)
+struct REMethodDefinition {
+    struct AdditionalData {
+        int16_t unk; // 0x0
+        uint16_t return_typeid; // 0x2
+    }; // Size: 0x4
+
+    uint64_t declaring_typeid : 16; // 0x0
+    uint64_t invoke_id : 16; // 0x0
+    uint64_t num_params : 6; // 0x0
+    uint64_t unk : 10; // 0x0
+    uint64_t vtable_index : 16; // 0x0
+    uint32_t prototype_name_offset; // 0x8
+    char pad_c[0x4];
+    uint32_t name_offset; // 0x10
+    uint16_t flags; // 0x14
+    uint16_t impl_flags; // 0x16
+    uint32_t unk2; // 0x18
+    uint32_t method_data_offset; // 0x1c
+};
+#pragma pack(pop)
+static_assert(sizeof(tdb49::REMethodDefinition) == 0x20);
+static_assert(offsetof(tdb49::REMethodDefinition, name_offset) == 0x10);
+
+#pragma pack(push, 1)
+struct REField {
+    uint64_t declaring_typeid : 16; // 0x0
+    uint64_t field_typeid : 16; // 0x0
+    uint32_t name_offset; // 0x8
+    uint16_t flags; // 0xc
+    char pad_e[0x2];
+    uint16_t init_data_index; // 0x10
+    char pad_12[0x2];
+    uint32_t offset; // 0x14
+    char pad_18[0x4];
+};
+#pragma pack(pop)
+
+#pragma pack(push, 1)
+struct TDB {
+    uint32_t magic; // 0x0
+    uint32_t version; // 0x4
+    uint32_t initialized; // 0x8
+    uint32_t numTypes; // 0xc
+    uint32_t numMethods; // 0x10
+    uint32_t numFields; // 0x14
+    uint32_t numProperties; // 0x18
+    uint32_t numEvents; // 0x1c
+    uint32_t numInitData; // 0x20
+    uint32_t numModules; // 0x24
+    uint32_t devEntry; // 0x28
+    uint32_t appEntry; // 0x2c
+    uint32_t numStringPool; // 0x30
+    uint32_t numBytePool; // 0x34
+    void* modules; // 0x38
+    sdk::RETypeDefinition (*types)[1]; // 0x40
+    sdk::REMethodDefinition (*methods)[1]; // 0x48
+    sdk::REField (*fields)[1]; // 0x50
+    sdk::REProperty (*properties)[1]; // 0x58
+    void* (*events)[0];
+    char (*stringPool)[0];
+    uint8_t (*bytePool)[1];
+    char pad_78[0x88];
+};
+#pragma pack(pop)
+}
+
 #ifdef RE8
 struct RETypeDB_ : public sdk::tdb69::TDB {};
 struct REMethodDefinition_ : public sdk::tdb69::REMethodDefinition {};
@@ -371,11 +454,20 @@ using REField_ = sdk::tdb67::REField;
 struct REProperty : public sdk::tdb67::REProperty {};
 using GenericListData = sdk::tdb67::GenericListData;
 using REMethodParamDef = sdk::tdb67::REMethodParamDef;
-#else
+#elif RE2
 struct RETypeDB_ : public sdk::tdb66::TDB {};
 struct REMethodDefinition_ : public sdk::tdb66::REMethodDefinition {};
 using REField_ = sdk::tdb66::REField;
 struct REProperty : public sdk::tdb66::REProperty {};
+using GenericListData = sdk::tdb66::GenericListData;
+using REMethodParamDef = sdk::tdb66::REMethodParamDef;
+#elif RE7
+struct RETypeDB_ : public sdk::tdb49::TDB {};
+struct REMethodDefinition_ : public sdk::tdb49::REMethodDefinition {};
+using REField_ = sdk::tdb49::REField;
+struct REProperty : public sdk::tdb49::REProperty {};
+
+// FIX THIS!!!!
 using GenericListData = sdk::tdb66::GenericListData;
 using REMethodParamDef = sdk::tdb66::REMethodParamDef;
 #endif
@@ -420,6 +512,7 @@ struct REMethodDefinition : public sdk::REMethodDefinition_ {
     const char* get_name() const;
     void* get_function() const;
 
+    uint32_t get_index() const;
     int32_t get_virtual_index() const;
     uint16_t get_flags() const;
     uint16_t get_impl_flags() const;
@@ -458,7 +551,7 @@ T call_object_func(void* obj, sdk::RETypeDefinition* t, std::string_view name, A
 
 template <typename T, typename... Args> 
 T call_object_func(::REManagedObject* obj, std::string_view name, Args... args) {
-    auto def = (sdk::RETypeDefinition*)obj->info->classInfo;
+    auto def = utility::re_managed_object::get_type_definition(obj);
 
     return call_object_func<T>((void*)obj, def, name, args...);
 }
@@ -477,7 +570,7 @@ T* get_object_field(void* obj, sdk::RETypeDefinition* t, std::string_view name, 
 
 template<typename T>
 T* get_object_field(::REManagedObject* obj, std::string_view name, bool is_value_type) {
-    auto def = (sdk::RETypeDefinition*)obj->info->classInfo;
+    auto def = utility::re_managed_object::get_type_definition(obj);
 
     return get_object_field<T>((void*)obj, def, name, is_value_type);
 }

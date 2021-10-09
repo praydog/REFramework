@@ -8,6 +8,8 @@
 #include "RETypeDefinition.hpp"
 
 namespace sdk {
+struct RETypeDefinition;
+
 sdk::REMethodDefinition* RETypeDefinition::MethodIterator::begin() const {
     if (m_parent->member_method == 0) {
         return nullptr;
@@ -39,36 +41,44 @@ size_t RETypeDefinition::MethodIterator::size() const {
     return ((uintptr_t)end() - (uintptr_t)begin()) / sizeof(sdk::REMethodDefinition);
 }
 
-sdk::REField* sdk::RETypeDefinition::FieldIterator::begin() const {
+sdk::REField* sdk::RETypeDefinition::FieldIterator::REFieldIterator::operator*() const {
+#ifndef RE7
     if (m_parent->member_field == 0) {
         return nullptr;
     }
 
     auto tdb = RETypeDB::get();
 
-    return &(*tdb->fields)[m_parent->member_field];
+    return &(*tdb->fields)[m_parent->member_field + m_index];
+#else
+    if (m_parent->member_field_start == 0) {
+        return nullptr;
+    }
+
+    auto tdb = RETypeDB::get();
+    const auto field_indices = tdb->get_data<uint32_t>(m_parent->member_field_start);
+
+    const auto index = field_indices[m_index];
+
+    if (index == 0) {
+        return nullptr;
+    }
+
+    return &(*tdb->fields)[index];
+#endif
 }
 
-sdk::REField* sdk::RETypeDefinition::FieldIterator::end() const {
-    if (m_parent->member_field == 0) {
-        return nullptr;
-    }
-
-    auto tdb = RETypeDB::get();
-
+size_t sdk::RETypeDefinition::FieldIterator::size() const {
 #if TDB_VER >= 69
-    const auto& impl = (*tdb->typesImpl)[m_parent->impl_index];
-    const auto num_fields = impl.num_member_fields;
+        auto tdb = sdk::RETypeDB::get();
+        const auto& impl = (*tdb->typesImpl)[m_parent->impl_index];
+        const auto num_fields = impl.num_member_fields;
 #else
-    const auto num_fields = m_parent->num_member_field;
+        const auto num_fields = m_parent->num_member_field;
 #endif
 
-    return &(*tdb->fields)[m_parent->member_field + num_fields];
-}
-
-size_t RETypeDefinition::FieldIterator::size() const {
-    return ((uintptr_t)end() - (uintptr_t)begin()) / sizeof(sdk::REField);
-}
+        return num_fields;
+    }
 
 sdk::REProperty* RETypeDefinition::PropertyIterator::begin() const {
     if (m_parent->member_prop == 0) {
@@ -130,15 +140,15 @@ std::string RETypeDefinition::get_full_name() const {
     {
         std::shared_lock _{ g_full_name_mtx };
 
-        if (g_full_names.find(this->index) != g_full_names.end()) {
-            return g_full_names[this->index];
+        if (g_full_names.find(this->get_index()) != g_full_names.end()) {
+            return g_full_names[this->get_index()];
         }
     }
 
     std::deque<std::string> names{};
     std::string full_name{};
 
-    if (this->declaring_typeid > 0 && this->declaring_typeid != this->index) {
+    if (this->declaring_typeid > 0 && this->declaring_typeid != this->get_index()) {
         std::unordered_set<const sdk::RETypeDefinition*> seen_classes{};
 
         for (auto owner = this; owner != nullptr; owner = owner->get_declaring_type()) {
@@ -180,9 +190,10 @@ std::string RETypeDefinition::get_full_name() const {
     // Set this here at this point in-case get_full_name runs into it
     {
         std::unique_lock _{g_full_name_mtx};
-        g_full_names[this->index] = full_name;
+        g_full_names[this->get_index()] = full_name;
     }
 
+#ifndef RE7
     if (this->generics > 0) {
         auto generics = tdb->get_data<sdk::GenericListData>(this->generics);
 
@@ -207,10 +218,13 @@ std::string RETypeDefinition::get_full_name() const {
             full_name += ">";
         }
     }
+#else
+    //full_name += "<not implemented>";
+#endif
 
     {
         std::unique_lock _{g_full_name_mtx};
-        g_full_names[this->index] = full_name;
+        g_full_names[this->get_index()] = full_name;
     }
 
     return full_name;
@@ -251,11 +265,11 @@ sdk::REField* RETypeDefinition::get_field(std::string_view name) const {
     }
 
     for (auto super = this; super != nullptr; super = super->get_parent_type()) {
-        for (auto& f : super->get_fields()) {
-            if (name == f.get_name()) {
+        for (auto f : super->get_fields()) {
+            if (name == f->get_name()) {
                 std::unique_lock _{ g_field_mtx };
 
-                g_field_map[full_name] = &f;
+                g_field_map[full_name] = f;
                 return g_field_map[full_name];
             }
         }
@@ -292,32 +306,63 @@ sdk::REMethodDefinition* RETypeDefinition::get_method(std::string_view name) con
     return g_method_map[full_name];
 }
 
+uint32_t RETypeDefinition::get_index() const {
+#ifndef RE7
+    return this->index;
+#else
+    const auto tdb = RETypeDB::get();
+
+    return (uint32_t)(((uintptr_t)this - (uintptr_t)tdb->types) / sizeof(sdk::RETypeDefinition));
+#endif
+}
+
 int32_t RETypeDefinition::get_fieldptr_offset() const {
+#ifndef RE7
     if (this->managed_vt == nullptr) {
         return 0;
     }
 
     return *(int32_t*)((uintptr_t)this->managed_vt - sizeof(void*));
+#else
+    auto vm = sdk::VM::get();
+    const auto& vm_type = vm->types[this->get_index()];
+
+    return vm_type.size;
+#endif
 }
 
 via::clr::VMObjType RETypeDefinition::get_vm_obj_type() const {
     return (via::clr::VMObjType)this->object_type;
 }
 
+::REType* RETypeDefinition::get_type() const {
+#ifndef RE7
+    return this->type;
+#else
+    auto vm = sdk::VM::get();
+    const auto& vm_type = vm->types[this->get_index()];
+
+    return (::REType*)vm_type.reflection_type;
+#endif
+}
+
 void* RETypeDefinition::get_instance() const {
-    if (this->type == nullptr) {
+    const auto t = get_type();
+
+    if (t == nullptr) {
         return nullptr;
     }
 
-    return utility::re_type::get_singleton_instance(this->type);
+    return utility::re_type::get_singleton_instance(t);
 }
 
 void* RETypeDefinition::create_instance() const {
-    if (this->type == nullptr) {
+    const auto t = get_type();
+
+    if (t == nullptr) {
         return nullptr;
     }
 
-    return utility::re_type::create_instance(this->type);
+    return utility::re_type::create_instance(t);
 }
-
 } // namespace sdk

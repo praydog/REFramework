@@ -20,8 +20,13 @@ enum class decl : uint16_t {
 };
 }
 
+namespace sdk {
+struct RETypeDefinition;
+}
+    
 // Utility functions for REType aka via.typeinfo.TypeInfo
 namespace utility::re_type {
+sdk::RETypeDefinition* get_type_definition(REType* type);
 uint32_t get_vm_type(::REType* t);
 uint32_t get_value_type_size(::REType* t);
 bool is_clr_type(::REType* t);

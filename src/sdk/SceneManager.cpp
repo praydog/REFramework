@@ -47,7 +47,7 @@ RECamera* get_primary_camera() {
 }
 
 void set_timescale(REManagedObject* scene, float timescale) {
-    const auto scene_type = (sdk::RETypeDefinition*)scene->info->classInfo;
+    const auto scene_type =utility::re_managed_object::get_type_definition(scene);
     const auto set_timescale_method = scene_type->get_method("set_TimeScale");
 
     set_timescale_method->call(sdk::get_thread_context(), scene, timescale);
@@ -64,7 +64,7 @@ void set_timescale(float timescale) {
 }
 
 float get_timescale(REManagedObject* scene) {
-    const auto scene_type = (sdk::RETypeDefinition*)scene->info->classInfo;
+    const auto scene_type = utility::re_managed_object::get_type_definition(scene);
     const auto set_timescale_method = scene_type->get_method("get_TimeScale");
 
     return set_timescale_method->call<float>(sdk::get_thread_context(), scene);

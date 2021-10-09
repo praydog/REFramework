@@ -552,7 +552,7 @@ void FirstPerson::update_player_transform(RETransform* transform) {
             // The arm fit component by default will only update the left wrist position (I don't know why, maybe the right arm is a blended animation?)
             // So we will not only abuse that, but we will repurpose it to update the right arm as well
             if (arm_fit != nullptr) {
-                auto arm_fit_t = (sdk::RETypeDefinition*)arm_fit->info->classInfo;
+                auto arm_fit_t = utility::re_managed_object::get_type_definition(arm_fit);
                 auto arm_fit_list_field = arm_fit_t->get_field("ArmFitList");
                 auto arm_fit_list = arm_fit_list_field->get_data<REArrayBase*>(arm_fit);
 
@@ -564,7 +564,7 @@ void FirstPerson::update_player_transform(RETransform* transform) {
                     if (arm_fit_data != nullptr) {
                         //spdlog::info("First element: {:x}", (uintptr_t)first_element);
 
-                        auto arm_fit_data_t = (sdk::RETypeDefinition*)arm_fit_data->info->classInfo;
+                        auto arm_fit_data_t = utility::re_managed_object::get_type_definition(arm_fit_data);
                         auto arm_fit_data_tmatrix_field = arm_fit_data_t->get_field("<TargetMatrix>k__BackingField");
                         auto& target_matrix = arm_fit_data_tmatrix_field->get_data<Matrix4x4f>(arm_fit_data);
 
@@ -588,7 +588,7 @@ void FirstPerson::update_player_transform(RETransform* transform) {
                                 if (first_solver != nullptr) {
                                     //spdlog::info("First solver: {:x}", (uintptr_t)first_solver);
 
-                                    auto first_solver_t = (sdk::RETypeDefinition*)first_solver->info->classInfo;
+                                    auto first_solver_t = utility::re_managed_object::get_type_definition(first_solver);
                                     auto apply_joint_field = first_solver_t->get_field("<ApplyJoint>k__BackingField");
                                     auto& apply_joint = apply_joint_field->get_data<REJoint*>(first_solver);
 
@@ -658,17 +658,17 @@ void FirstPerson::update_player_transform(RETransform* transform) {
             auto equipment = utility::re_component::find<REComponent>(transform, game_namespace("survivor.Equipment"));
 
             if (equipment != nullptr) {
-                auto equipment_t = (sdk::RETypeDefinition*)equipment->info->classInfo;
+                auto equipment_t = utility::re_managed_object::get_type_definition(equipment);
                 auto main_weapon_field = equipment_t->get_field("<EquipWeapon>k__BackingField");
                 auto& main_weapon = main_weapon_field->get_data<REManagedObject*>(equipment);
 
                 if (main_weapon != nullptr && utility::re_managed_object::is_a(main_weapon, game_namespace("implement.Gun"))) {
-                    auto main_weapon_t = (sdk::RETypeDefinition*)main_weapon->info->classInfo;
+                    auto main_weapon_t = utility::re_managed_object::get_type_definition(main_weapon);
                     auto fire_bullet_param_field = main_weapon_t->get_field("<FireBulletParam>k__BackingField");
                     auto& fire_bullet_param = fire_bullet_param_field->get_data<REManagedObject*>(main_weapon);
 
                     if (fire_bullet_param != nullptr) {
-                        auto fire_bullet_param_t = (sdk::RETypeDefinition*)fire_bullet_param->info->classInfo;
+                        auto fire_bullet_param_t = utility::re_managed_object::get_type_definition(fire_bullet_param);
                         auto fire_bullet_type_field = fire_bullet_param_t->get_field("_FireBulletType");
                         auto& fire_bullet_type = fire_bullet_type_field->get_data<app::ropeway::weapon::shell::ShellDefine::FireBulletType>(fire_bullet_param);
 
