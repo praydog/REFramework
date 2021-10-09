@@ -110,9 +110,7 @@ void FreeCam::on_update_transform(RETransform* transform) {
 #endif
 
     const auto camera = sdk::get_primary_camera();
-
-    spdlog::info("Camera: {:x}", (uintptr_t)camera);
-
+    
     if (camera == nullptr || transform != camera->ownerGameObject->transform) {
         return;
     }
