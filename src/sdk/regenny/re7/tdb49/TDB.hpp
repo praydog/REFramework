@@ -1,9 +1,6 @@
 #pragma once
 namespace regenny::tdb49 {
-struct MethodDefinition;
-}
-namespace regenny::tdb49 {
-struct PropertyDefinition;
+struct FieldDefinition;
 }
 namespace regenny::tdb49 {
 struct TypeDefinition;
@@ -12,7 +9,10 @@ namespace regenny::tdb49 {
 struct Module;
 }
 namespace regenny::tdb49 {
-struct FieldDefinition;
+struct PropertyDefinition;
+}
+namespace regenny::tdb49 {
+struct MethodDefinition;
 }
 namespace regenny::tdb49 {
 #pragma pack(push, 1)

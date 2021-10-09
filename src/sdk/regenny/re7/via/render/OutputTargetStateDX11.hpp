@@ -1,6 +1,6 @@
 #pragma once
-#include ".\TargetDescriptorDX11.hpp"
 #include ".\OutputTargetState.hpp"
+#include ".\TargetDescriptorDX11.hpp"
 namespace regenny::via::render {
 #pragma pack(push, 1)
 struct OutputTargetStateDX11 : public OutputTargetState {

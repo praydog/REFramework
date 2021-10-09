@@ -1,12 +1,12 @@
 #pragma once
+namespace regenny::via::clr {
+struct Type;
+}
 namespace regenny::via::typeinfo {
 struct TypeInfo;
 }
 namespace regenny::via::reflection {
 struct Reflection;
-}
-namespace regenny::via::clr {
-struct Type;
 }
 namespace regenny::via::typeinfo {
 #pragma pack(push, 1)
@@ -16,7 +16,9 @@ struct TypeInfo {
     uint16_t attributes; // 0xc
     uint16_t type; // 0xe
     uint64_t fast_class_index; // 0x10
-    char pad_18[0x10];
+    char pad_18[0x8];
+    uint32_t flags; // 0x20
+    char pad_24[0x4];
     // Metadata: utf8*
     char* name; // 0x28
     uint32_t parent_fqn; // 0x30

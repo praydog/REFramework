@@ -2,10 +2,10 @@
 #include ".\delegate.hpp"
 #include ".\SceneArray.hpp"
 namespace regenny::via {
-struct SceneView;
+struct Scene;
 }
 namespace regenny::via {
-struct Scene;
+struct SceneView;
 }
 namespace regenny::via {
 #pragma pack(push, 1)

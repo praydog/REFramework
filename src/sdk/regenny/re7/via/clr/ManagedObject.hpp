@@ -1,7 +1,5 @@
 #pragma once
-namespace regenny::via::clr {
-struct Type;
-}
+#include "VM.hpp"
 namespace regenny::via::clr {
 #pragma pack(push, 1)
 struct ManagedObject {

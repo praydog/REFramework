@@ -1,12 +1,12 @@
 #pragma once
 namespace regenny::via::reflection {
+struct PropertyArray;
+}
+namespace regenny::via::reflection {
 struct MethodArray;
 }
 namespace regenny {
 struct BullShit;
-}
-namespace regenny::via::reflection {
-struct PropertyArray;
 }
 namespace regenny::via::reflection {
 #pragma pack(push, 1)

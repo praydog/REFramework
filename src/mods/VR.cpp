@@ -3,7 +3,10 @@
 #if defined(RE2) || defined(RE3) || defined(DMC5)
 #include "sdk/regenny/re3/via/Window.hpp"
 #include "sdk/regenny/re3/via/SceneView.hpp"
-#else 
+#elif defined(RE7)
+#include "sdk/regenny/re7/via/Window.hpp"
+#include "sdk/regenny/re7/via/SceneView.hpp"
+#else
 #include "sdk/regenny/re8/via/Window.hpp"
 #include "sdk/regenny/re8/via/SceneView.hpp"
 #endif
@@ -43,6 +46,10 @@ std::unique_ptr<FunctionHook> g_projection_matrix_hook{};
 std::unique_ptr<FunctionHook> g_view_matrix_hook{};
 //std::unique_ptr<FunctionHook> g_get_sharpness_hook{};
 
+#ifdef RE7
+std::optional<regenny::via::Size> g_previous_size{};
+#endif
+
 // Purpose: spoof the render target size to the size of the HMD displays
 float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
     auto original_func = g_get_size_hook->get_original<decltype(VR::get_size_hook)>();
@@ -51,7 +58,6 @@ float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
         return original_func(scene_view, result);
     }
 
-#ifndef RE7
     auto mod = VR::get();
 
     auto regenny_view = (regenny::via::SceneView*)scene_view;
@@ -66,11 +72,25 @@ float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
     // Set the window size, which will increase the size of the backbuffer
     if (window != nullptr) {
         if (mod->m_is_hmd_active) {
+#ifdef RE7
+            if (!g_previous_size) {
+                g_previous_size = regenny::via::Size{ (float)window->width, (float)window->height };
+            }
+#endif
             window->width = mod->get_hmd_width();
             window->height = mod->get_hmd_height();
         } else {
+#ifndef RE7
             window->width = (uint32_t)window->borderless_size.w;
             window->height = (uint32_t)window->borderless_size.h;
+#else
+            if (g_previous_size) {
+                window->width = (uint32_t)g_previous_size->w;
+                window->height = (uint32_t)g_previous_size->h;
+
+                g_previous_size = std::nullopt;
+            }
+#endif
         }
 
         wanted_width = (float)window->width;
@@ -86,10 +106,6 @@ float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
     // spoof the size to the HMD's size
     out[0] = wanted_width;
     out[1] = wanted_height;
-#else
-    // FIX IT!!!
-    auto out = original_func(scene_view, result);
-#endif
 
     return out;
 }

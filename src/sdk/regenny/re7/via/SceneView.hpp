@@ -1,12 +1,11 @@
 #pragma once
+#include ".\RenderType.hpp"
+#include ".\Size.hpp"
+#include ".\BasisPlane.hpp"
+#include ".\DisplayType.hpp"
+#include ".\CameraType.hpp"
 #include ".\DeviceOrientation.hpp"
 #include ".\MobileBarState.hpp"
-#include ".\Size.hpp"
-#include ".\Color.hpp"
-#include ".\DisplayType.hpp"
-#include ".\RenderType.hpp"
-#include ".\BasisPlane.hpp"
-#include ".\CameraType.hpp"
 #include "clr\ManagedObject.hpp"
 namespace regenny::via {
 struct Window;
@@ -17,15 +16,15 @@ struct Scene;
 namespace regenny::via {
 #pragma pack(push, 1)
 struct SceneView : public clr::ManagedObject {
-    regenny::via::Color background_color; // 0x20
-    char pad_24[0x4];
+    regenny::via::Window* window; // 0x20
+    regenny::via::Scene* scene; // 0x28
+    char pad_30[0x8];
     // Metadata: utf16*
-    wchar_t* name; // 0x28
-    char pad_30[0x18];
-    regenny::via::Size size; // 0x48
-    regenny::via::Size custom_display_size; // 0x50
-    regenny::via::Size present_rect; // 0x58
-    char pad_60[0x10];
+    wchar_t* name; // 0x38
+    char pad_40[0x18];
+    regenny::via::Size size; // 0x58
+    regenny::via::Size custom_display_size; // 0x60
+    regenny::via::Size present_rect; // 0x68
     bool draw_develop; // 0x70
     bool tool_light; // 0x71
     bool show_icons; // 0x72
