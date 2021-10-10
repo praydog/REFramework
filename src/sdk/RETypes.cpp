@@ -10,9 +10,7 @@
 
 std::string game_namespace(std::string_view base_name)
 {
-#ifdef RE8
-    return std::string{ "app." } + base_name.data();
-#elif DMC5
+#if defined(RE8) || defined(RE7) || defined(DMC5)
     return std::string{ "app." } + base_name.data();
 #elif RE3
     return std::string{ "offline." } + base_name.data();

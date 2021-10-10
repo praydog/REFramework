@@ -122,6 +122,18 @@ namespace utility::re_managed_object {
         if (IsBadReadPtr(info->type->name, sizeof(void*))) {
             return false;
         }
+
+        if (info->type->super != nullptr && IsBadReadPtr(info->type->super, sizeof(REType))) {
+            return false;
+        }
+
+        if (info->type->classInfo != nullptr && IsBadReadPtr(info->type->classInfo, sizeof(REObjectInfo))) {
+            return false;
+        }
+
+        if (info->type->classInfo != nullptr && info->type->classInfo != object->info) {
+            return false;
+        }
 #endif
 
         return true;

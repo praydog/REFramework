@@ -3,6 +3,7 @@
 #include <mutex>
 #include <unordered_map>
 #include <unordered_set>
+#include <functional>
 
 #include "ReClass.hpp"
 
@@ -16,12 +17,10 @@ public:
         return m_objects;
     }
 
-    const auto& get_objects() const {
-        return m_object_list;
-    }
+    std::vector<REManagedObject*> get_objects();
 
     void* get_native(std::string_view name);
-    std::vector<::REType*>& get_native_singletons();
+    std::vector<::REType*>& get_native_singleton_types();
 
     // Equivalent
     REManagedObject* get(std::string_view name);
@@ -46,6 +45,8 @@ private:
     // Raw list of objects (for if the type hasn't been fully initialized, we need to refresh the map)
     std::unordered_set<REManagedObject**> m_objects;
     std::vector<REManagedObject**> m_object_list;
+    std::unordered_map<std::string, std::function<REManagedObject* ()>> m_getters;
+
     // List of objects we've already logged
     std::unordered_set<REManagedObject**> m_acknowledged_objects;
 

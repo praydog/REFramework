@@ -3,6 +3,7 @@
 #include "utility/Scan.hpp"
 #include "utility/Module.hpp"
 
+#include "RETypeDB.hpp"
 #include "REType.hpp"
 
 #include "REFramework.hpp"
@@ -10,6 +11,8 @@
 
 REGlobals::REGlobals() {
     spdlog::info("REGlobals initialization");
+
+    m_object_list.reserve(2048);
 
     auto mod = g_framework->get_module().as<HMODULE>();
     auto start = (uintptr_t)mod;
@@ -41,7 +44,68 @@ REGlobals::REGlobals() {
         m_object_list.push_back(obj_ptr);
     }
 
+    // Create a list of getter functions instead
+    if (m_objects.empty()) {
+        spdlog::info("Usual pattern for REGlobals not working, falling back to scanning for SingletonBehavior types");
+
+        auto& types = g_framework->get_types();
+        auto& type_list = types->get_types();
+
+        for (auto t : type_list) {
+            auto name = std::string{t->name};
+
+            if (name.find(game_namespace("SingletonBehavior`1")) != std::string::npos) {
+                const auto type_definition = utility::re_type::get_type_definition(t);
+
+                if (type_definition == nullptr) {
+                    spdlog::info("Failed to get type definition for {}", name);
+                    continue;
+                }
+
+                //using asdf = decltype(m_getters)::value_type::second_type::_Func_class;
+                using Getter = REManagedObject* (*)();
+                auto getter = (Getter)sdk::find_native_method(type_definition, "get_Instance");
+
+                if (getter == nullptr) {
+                    continue;
+                }
+
+                // Get the contained type by grabbing the string between the "`1<"" and the ">""
+                auto type_name = name.substr(name.find("`1<") + 3, name.find(">") - name.find("`1<") - 3);
+
+                spdlog::info("{}", type_name);
+
+                m_getters[type_name] = getter;
+            }
+        }
+    }
+
+    spdlog::info("Found {} REGlobals", m_object_list.size());
+    spdlog::info("Found {} getters", m_getters.size());
+
     spdlog::info("Finished REGlobals initialization");
+}
+
+std::vector<REManagedObject*> REGlobals::get_objects() {
+    std::vector<REManagedObject*> out{};
+
+    if (!m_object_list.empty()) {
+        for (auto obj_ptr : m_object_list) {
+            if (*obj_ptr != nullptr) {
+                out.push_back(*obj_ptr);
+            }
+        }
+    } else {
+        for (auto getter : m_getters) {
+            auto result = getter.second();
+
+            if (result != nullptr) {
+                out.push_back(result);
+            }
+        }
+    }
+
+    return out;
 }
 
 void* REGlobals::get_native(std::string_view name) {
@@ -66,7 +130,7 @@ void* REGlobals::get_native(std::string_view name) {
     return it->second;
 }
 
-std::vector<::REType*>& REGlobals::get_native_singletons() {
+std::vector<::REType*>& REGlobals::get_native_singleton_types() {
     if (m_native_singleton_types.empty()) {
         refresh_natives();
     }
@@ -78,6 +142,14 @@ REManagedObject* REGlobals::get(std::string_view name) {
     std::lock_guard _{ m_map_mutex };
 
     auto get_obj = [&]() -> REManagedObject* {
+        if (m_object_map.empty()) {
+            auto getter = m_getters.find(name.data());
+
+            if (getter != m_getters.end()) {
+                return getter->second();
+            }
+        }
+
         if (auto it = m_object_map.find(name.data()); it != m_object_map.end()) {
             return *it->second;
         }

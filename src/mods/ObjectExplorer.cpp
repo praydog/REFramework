@@ -282,9 +282,9 @@ void ObjectExplorer::on_draw_ui() {
         auto singletons = g_framework->get_globals()->get_objects();
 
         // first loop, sort
-        std::sort(singletons.begin(), singletons.end(), [](REManagedObject** a, REManagedObject** b) {
-            auto a_type = utility::re_managed_object::safe_get_type(*a);
-            auto b_type = utility::re_managed_object::safe_get_type(*b);
+        std::sort(singletons.begin(), singletons.end(), [](REManagedObject* a, REManagedObject* b) {
+            auto a_type = utility::re_managed_object::safe_get_type(a);
+            auto b_type = utility::re_managed_object::safe_get_type(b);
 
             if (a_type == nullptr || a_type->name == nullptr) {
                 return true;
@@ -299,7 +299,7 @@ void ObjectExplorer::on_draw_ui() {
 
         // Display the nodes
         for (auto obj : singletons) {
-            auto t = utility::re_managed_object::safe_get_type(*obj);
+            auto t = utility::re_managed_object::safe_get_type(obj);
 
             if (t == nullptr || t->name == nullptr) {
                 continue;
@@ -308,17 +308,17 @@ void ObjectExplorer::on_draw_ui() {
             ImGui::SetNextTreeNodeOpen(false, ImGuiCond_::ImGuiCond_Once);
 
             auto made_node = ImGui::TreeNode(t->name);
-            context_menu(*obj);
+            context_menu(obj);
 
             if (made_node) {
-                handle_address(*obj);
+                handle_address(obj);
                 ImGui::TreePop();
             }
         }
     }
 
     if (ImGui::CollapsingHeader("Native Singletons")) {
-        auto& native_singletons = g_framework->get_globals()->get_native_singletons();
+        auto& native_singletons = g_framework->get_globals()->get_native_singleton_types();
 
         // Display the nodes
         for (auto t : native_singletons) {
@@ -1901,7 +1901,7 @@ void ObjectExplorer::display_reflection_properties(REManagedObject* obj, REType*
 }
 
 void ObjectExplorer::display_native_fields(REManagedObject* obj, sdk::RETypeDefinition* tdef) {
-#ifdef TDB_DUMP_ALLOWED
+//#ifdef TDB_DUMP_ALLOWED
     if (tdef == nullptr) {
         return;
     }
@@ -2019,9 +2019,9 @@ void ObjectExplorer::display_native_fields(REManagedObject* obj, sdk::RETypeDefi
 
         ImGui::TreePop();
     }
-#else
-    return;
-#endif
+//#else
+    //return;
+//#endif
 }
 
 void ObjectExplorer::display_native_methods(REManagedObject* obj, sdk::RETypeDefinition* tdef) {
@@ -2517,7 +2517,7 @@ int32_t ObjectExplorer::get_field_offset(REManagedObject* obj, VariableDescripto
                         //auto ref = utility::scan(g_framework->getModule().as<HMODULE>(), "48 83 78 18 00 74 ? 48 89 D9 E8 ? ? ? ? 48 89 D9 E8 ? ? ? ?");
 
                         // Version 2 Dec 17th, 2019 game.exe+0x20437C (works on old version too)
-                        auto ref = utility::scan(g_framework->get_module().as<HMODULE>(), "48 83 78 18 00 74 ? 48 ? ? E8 ? ? ? ? 48 ? ? E8 ? ? ? ?");
+                        auto ref = utility::scan(g_framework->get_module().as<HMODULE>(), "48 83 78 18 00 74 ? 48 ? ? E8 ? ? ? ? 48 ? ? E8 ? ? ? ? 48 ? ? E8 ? ? ? ?");
 
                         if (!ref) {
                             spdlog::error("We're going to crash");

@@ -254,7 +254,7 @@ static std::shared_mutex g_field_mtx{};
 static std::unordered_map<std::string, sdk::REField*> g_field_map{};
 
 sdk::REField* RETypeDefinition::get_field(std::string_view name) const {
-    auto full_name = this->get_full_name() + "." + name.data();
+    auto full_name = std::to_string(this->get_index()) + "." + name.data();
 
     {
         std::shared_lock _{ g_field_mtx };
@@ -282,7 +282,11 @@ static std::shared_mutex g_method_mtx{};
 static std::unordered_map<std::string, REMethodDefinition*> g_method_map{};
 
 sdk::REMethodDefinition* RETypeDefinition::get_method(std::string_view name) const {
-    auto full_name = this->get_full_name() + "." + name.data();
+    // originally this used this->get_full_name() + "." + name.data()
+    // but that doesn't work for generic types if we haven't yet mapped out
+    // how generic (instantiated) types work for the game we're working with
+    // and this is probably faster anyways
+    auto full_name = std::to_string(this->get_index()) + "." + name.data();
 
     {
         std::shared_lock _{g_method_mtx};

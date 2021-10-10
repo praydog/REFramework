@@ -32,7 +32,10 @@ static sdk::PropertyFlags get_flags(VariableDescriptor* v) {
 #ifndef RE7
     return *(sdk::PropertyFlags*)&v->flags;
 #else
-    return *(sdk::PropertyFlags*)&v->typeKind;
+    auto result = *(sdk::PropertyFlags*)&v->typeKind;
+
+    result.managed_str = false;
+    return result;
 #endif
 }
 
