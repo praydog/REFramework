@@ -1993,7 +1993,7 @@ void ObjectExplorer::display_native_fields(REManagedObject* obj, sdk::RETypeDefi
 
             is_managed_str = final_type_name == "System.String";
 
-            const auto made_node = widget_with_context(data, [&]() { return stretched_tree_node(&f, "%s", field_type_name.c_str()); });
+            const auto made_node = widget_with_context(data, [&]() { return stretched_tree_node(f, "%s", field_type_name.c_str()); });
             const auto tree_hovered = ImGui::IsItemHovered();
 
             // Draw the variable name with a color
