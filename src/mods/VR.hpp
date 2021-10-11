@@ -147,6 +147,7 @@ private:
     void update_hmd_state();
     void update_camera(); // if not in firstperson mode
     void restore_camera(); // After rendering
+    void set_lens_distortion(bool value);
 
     // input functions
     // Purpose: "Emulate" OpenVR input to the game

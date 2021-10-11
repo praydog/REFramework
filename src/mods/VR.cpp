@@ -814,6 +814,24 @@ void VR::update_camera() {
     m_nearz = sdk::call_object_func<float>(camera, "get_NearClipPlane", sdk::get_thread_context(), camera);
     m_farz = sdk::call_object_func<float>(camera, "get_FarClipPlane", sdk::get_thread_context(), camera);
 
+    // Disable lens distortion
+#ifdef RE7
+    static auto lens_distortion_tdef = sdk::RETypeDB::get()->find_type(game_namespace("LensDistortionController"));
+    static auto lens_distortion_t = lens_distortion_tdef->get_type();
+
+    auto lens_distortion_component = utility::re_component::find(camera, lens_distortion_t);
+
+    if (lens_distortion_component != nullptr) {
+        // Get "LensDistortion" field
+        auto lens_distortion = *sdk::get_object_field<REManagedObject*>(lens_distortion_component, "LensDistortion");
+
+        if (lens_distortion != nullptr) {
+            // Call "set_Enabled" method
+            sdk::call_object_func<void*>(lens_distortion, "set_Enabled", sdk::get_thread_context(), lens_distortion, false);
+        }
+    }
+#endif
+
     m_needs_camera_restore = true;
 }
 
@@ -854,6 +872,31 @@ void VR::restore_camera() {
 
     sdk::set_joint_rotation(joint, m_original_camera_rotation);
     m_needs_camera_restore = false;
+}
+
+void VR::set_lens_distortion(bool value) {
+#ifdef RE7
+    auto camera = sdk::get_primary_camera();
+
+    if (camera == nullptr) {
+        return;
+    }
+
+    static auto lens_distortion_tdef = sdk::RETypeDB::get()->find_type(game_namespace("LensDistortionController"));
+    static auto lens_distortion_t = lens_distortion_tdef->get_type();
+
+    auto lens_distortion_component = utility::re_component::find(camera, lens_distortion_t);
+
+    if (lens_distortion_component != nullptr) {
+        // Get "LensDistortion" field
+        auto lens_distortion = *sdk::get_object_field<REManagedObject*>(lens_distortion_component, "LensDistortion");
+
+        if (lens_distortion != nullptr) {
+            // Call "set_Enabled" method
+            sdk::call_object_func<void*>(lens_distortion, "set_Enabled", sdk::get_thread_context(), lens_distortion, value);
+        }
+    }
+#endif
 }
 
 int32_t VR::get_frame_count() const {
