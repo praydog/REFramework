@@ -815,22 +815,10 @@ void VR::update_camera() {
     m_farz = sdk::call_object_func<float>(camera, "get_FarClipPlane", sdk::get_thread_context(), camera);
 
     // Disable lens distortion
-#ifdef RE7
-    static auto lens_distortion_tdef = sdk::RETypeDB::get()->find_type(game_namespace("LensDistortionController"));
-    static auto lens_distortion_t = lens_distortion_tdef->get_type();
-
-    auto lens_distortion_component = utility::re_component::find(camera, lens_distortion_t);
-
-    if (lens_distortion_component != nullptr) {
-        // Get "LensDistortion" field
-        auto lens_distortion = *sdk::get_object_field<REManagedObject*>(lens_distortion_component, "LensDistortion");
-
-        if (lens_distortion != nullptr) {
-            // Call "set_Enabled" method
-            sdk::call_object_func<void*>(lens_distortion, "set_Enabled", sdk::get_thread_context(), lens_distortion, false);
-        }
-    }
-#endif
+    set_lens_distortion(false);
+    // Disable certain effects like the 3D overlay during the sewer gators
+    // section in RE7
+    disable_bad_effects();
 
     m_needs_camera_restore = true;
 }
@@ -894,6 +882,48 @@ void VR::set_lens_distortion(bool value) {
         if (lens_distortion != nullptr) {
             // Call "set_Enabled" method
             sdk::call_object_func<void*>(lens_distortion, "set_Enabled", sdk::get_thread_context(), lens_distortion, value);
+        }
+    }
+#endif
+}
+
+void VR::disable_bad_effects() {
+#ifdef RE7
+    auto camera = sdk::get_primary_camera();
+
+    if (camera == nullptr) {
+        return;
+    }
+
+    auto camera_game_object = utility::re_component::get_game_object(camera);
+
+    if (camera_game_object == nullptr) {
+        return;
+    }
+    
+    auto camera_transform = camera_game_object->transform;
+
+    if (camera_transform == nullptr) {
+        return;
+    }
+
+    auto get_type = [](std::string name) {
+        auto tdef = sdk::RETypeDB::get()->find_type(name);
+        return tdef->get_type();
+    };
+
+    static auto effect_player_t = get_type("via.effect.EffectPlayer");
+    static auto hide_effect_for_vr_t = get_type(game_namespace("EPVStandard.HideEffectForVR"));
+
+    // Do not draw the game object if it is hidden for VR (this was there for the original PSVR release i guess)
+    for (auto child = camera_transform->child; child != nullptr; child = child->child) {
+        if (utility::re_component::find(child, effect_player_t) != nullptr) {
+            if (utility::re_component::find(child, hide_effect_for_vr_t) != nullptr) {
+                auto game_object = child->ownerGameObject;
+
+                game_object->shouldDraw = false;
+                //sdk::call_object_func<void*>(game_object, "set_Draw", sdk::get_thread_context(), game_object, false);
+            }
         }
     }
 #endif
@@ -1074,6 +1104,7 @@ struct GUIRestoreData {
     REComponent* element{nullptr};
     REComponent* view{nullptr};
     Vector4f original_position{ 0.0f, 0.0f, 0.0f, 1.0f };
+    via::gui::ViewType view_type{ via::gui::ViewType::Screen };
     bool overlay{false};
     bool detonemap{true};
 };
@@ -1120,11 +1151,12 @@ void VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                 restore_data->original_position = game_object->transform->worldTransform[3];
                 restore_data->overlay = sdk::call_object_func<bool>(view, "get_Overlay", sdk::get_thread_context(), view);
                 restore_data->detonemap = sdk::call_object_func<bool>(view, "get_Detonemap", sdk::get_thread_context(), view);
+                restore_data->view_type = (via::gui::ViewType)current_view_type;
 
                 // Set view type to world
                 sdk::call_object_func<void*>(view, "set_ViewType", sdk::get_thread_context(), view, (uint32_t)via::gui::ViewType::World);
 
-                // Set overlay = false (fixes double vision in VR)
+                // Set overlay = true (fixes double vision in VR)
                 sdk::call_object_func<void*>(view, "set_Overlay", sdk::get_thread_context(), view, true);
 
                 // Set detonemap = true (fixes weird tint)

@@ -1547,7 +1547,26 @@ void ObjectExplorer::handle_game_object(REGameObject* game_object) {
 }
 
 void ObjectExplorer::handle_component(REComponent* component) {
-    make_tree_offset(component, offsetof(REComponent, ownerGameObject), "Owner");
+    auto display_component_preview = [&](REComponent* comp) {
+        if (comp != nullptr && comp->ownerGameObject != nullptr) {
+            auto prev_name = utility::re_managed_object::get_type_name(comp);
+            auto prev_gameobject_name = utility::re_string::get_string(comp->ownerGameObject->name);
+
+            auto tree_hovered = ImGui::IsItemHovered();
+
+            // Draw the variable name with a color
+            if (tree_hovered) {
+                make_same_line_text(prev_name, VARIABLE_COLOR_HIGHLIGHT);
+                make_same_line_text(prev_gameobject_name, VARIABLE_COLOR_HIGHLIGHT);
+            }
+            else {
+                make_same_line_text(prev_name, VARIABLE_COLOR);
+                make_same_line_text(prev_gameobject_name, VARIABLE_COLOR);
+            }
+        }
+    };
+
+    make_tree_offset(component, offsetof(REComponent, ownerGameObject), "Owner", [&](){  display_component_preview(component); });
     //make_tree_offset(component, offsetof(REComponent, childComponent), "ChildComponent");
 
     auto children_offset = offsetof(REComponent, childComponent);
@@ -1591,8 +1610,8 @@ void ObjectExplorer::handle_component(REComponent* component) {
         }
     }
 
-    make_tree_offset(component, offsetof(REComponent, prevComponent), "PrevComponent");
-    make_tree_offset(component, offsetof(REComponent, nextComponent), "NextComponent");
+    make_tree_offset(component, offsetof(REComponent, prevComponent), "PrevComponent", [&](){ display_component_preview(component->prevComponent); });
+    make_tree_offset(component, offsetof(REComponent, nextComponent), "NextComponent", [&](){ display_component_preview(component->nextComponent); });
 }
 
 void ObjectExplorer::handle_transform(RETransform* transform) {
@@ -2700,7 +2719,7 @@ void ObjectExplorer::make_same_line_text(std::string_view text, const ImVec4& co
     ImGui::TextColored(color, "%s", text.data());
 }
 
-void ObjectExplorer::make_tree_offset(REManagedObject* object, uint32_t offset, std::string_view name) {
+void ObjectExplorer::make_tree_offset(REManagedObject* object, uint32_t offset, std::string_view name, std::function<void()> widget) {
     auto ptr = Address(object).get(offset).to<void*>();
 
     if (ptr == nullptr) {
@@ -2710,6 +2729,10 @@ void ObjectExplorer::make_tree_offset(REManagedObject* object, uint32_t offset, 
     auto made_node = ImGui::TreeNode((uint8_t*)object + offset, "0x%X: %s", offset, name.data());
 
     context_menu(ptr);
+
+    if (widget != nullptr) {
+        widget();
+    }
 
     if (made_node) {
         handle_address(ptr);

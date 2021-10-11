@@ -145,7 +145,7 @@ private:
     void context_menu(void* address);
     void make_same_line_text(std::string_view text, const ImVec4& color);
 
-    void make_tree_offset(REManagedObject* object, uint32_t offset, std::string_view name);
+    void make_tree_offset(REManagedObject* object, uint32_t offset, std::string_view name, std::function<void()> widget = nullptr);
     bool is_managed_object(Address address) const;
 
     void populate_classes();
