@@ -42,7 +42,7 @@ size_t RETypeDefinition::MethodIterator::size() const {
 }
 
 sdk::REField* sdk::RETypeDefinition::FieldIterator::REFieldIterator::operator*() const {
-#ifndef RE7
+//#ifndef RE7
     if (m_parent->member_field == 0) {
         return nullptr;
     }
@@ -50,7 +50,7 @@ sdk::REField* sdk::RETypeDefinition::FieldIterator::REFieldIterator::operator*()
     auto tdb = RETypeDB::get();
 
     return &(*tdb->fields)[m_parent->member_field + m_index];
-#else
+/*#else
     if (m_parent->member_field_start == 0) {
         return nullptr;
     }
@@ -65,7 +65,7 @@ sdk::REField* sdk::RETypeDefinition::FieldIterator::REFieldIterator::operator*()
     }
 
     return &(*tdb->fields)[index];
-#endif
+#endif*/
 }
 
 size_t sdk::RETypeDefinition::FieldIterator::size() const {
@@ -331,7 +331,7 @@ int32_t RETypeDefinition::get_fieldptr_offset() const {
     auto vm = sdk::VM::get();
     const auto& vm_type = vm->types[this->get_index()];
 
-    return vm_type.size;
+    return vm_type.fieldptr_offset;
 #endif
 }
 

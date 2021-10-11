@@ -1,13 +1,13 @@
 #pragma once
 #include "..\clr\ManagedObject.hpp"
 namespace regenny::via::gui {
+struct GUI;
+}
+namespace regenny::via::gui {
 struct PlayObject;
 }
 namespace regenny::via::gui {
 struct Control;
-}
-namespace regenny::via::gui {
-struct GUI;
 }
 namespace regenny::via::gui {
 #pragma pack(push, 1)

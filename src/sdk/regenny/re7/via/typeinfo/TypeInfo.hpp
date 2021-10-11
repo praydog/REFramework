@@ -1,12 +1,12 @@
 #pragma once
-namespace regenny::via::clr {
-struct Type;
-}
 namespace regenny::via::typeinfo {
 struct TypeInfo;
 }
 namespace regenny::via::reflection {
 struct Reflection;
+}
+namespace regenny::via::clr {
+struct Type;
 }
 namespace regenny::via::typeinfo {
 #pragma pack(push, 1)
@@ -31,9 +31,8 @@ struct TypeInfo {
     char pad_78[0x100];
     regenny::via::reflection::Reflection* reflection; // 0x178
     regenny::via::clr::VM::Type* vm_type; // 0x180
-    char pad_188[0x20];
-    regenny::via::clr::VM::Type* vm_type2; // 0x1a8
-    char pad_1b0[0x30];
-}; // Size: 0x1e0
+    uint32_t crc; // 0x188
+    char pad_18c[0x4];
+}; // Size: 0x190
 #pragma pack(pop)
 }

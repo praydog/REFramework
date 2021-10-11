@@ -590,17 +590,17 @@ void ObjectExplorer::generate_sdk() {
         auto& deserialize_list = clr_t->deserializers;
 
         for (const auto& sequence : deserialize_list) {
-            const auto code = sequence.code;
-            const auto size = sequence.size;
-            const auto align = sequence.align;
-            const auto depth = sequence.depth;
-            const auto is_array = sequence.is_array;
-            const auto is_static = sequence.is_static;
+            const auto code = sequence.get_code();
+            const auto size = sequence.get_size();
+            const auto align = sequence.get_align();
+            const auto depth = sequence.get_depth();
+            const auto is_array = sequence.is_array();
+            const auto is_static = sequence.is_static();
             
             auto rsz_entry = json{};
             
 
-            rsz_entry["type"] = generate_full_name(tdb, (sequence.native_type)->index);
+            rsz_entry["type"] = generate_full_name(tdb, (sequence.get_native_type())->index);
 #if TDB_VER >= 69
             rsz_entry["code"] = get_enum_value_name("via.typeinfo.TypeCode", code);
 #else

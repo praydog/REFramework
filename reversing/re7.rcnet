@@ -451,13 +451,6 @@
         <node type="ClassInstanceNode" name="N0000028A" comment="" hidden="false" reference="95c6cb2d-ba3e-4dba-a381-8fdfaa1de3b5" />
       </node>
       <node type="Hex64Node" name="N000048AE" comment="" hidden="false" />
-      <node type="Hex64Node" name="N000048AF" comment="" hidden="false" />
-      <node type="Hex64Node" name="N000048B0" comment="" hidden="false" />
-      <node type="Hex64Node" name="N000048B1" comment="" hidden="false" />
-      <node type="Hex64Node" name="N000048B2" comment="" hidden="false" />
-      <node type="Hex64Node" name="N000048B3" comment="" hidden="false" />
-      <node type="Hex64Node" name="N000048B4" comment="" hidden="false" />
-      <node type="Hex64Node" name="N000048B5" comment="" hidden="false" />
     </class>
     <class uuid="5f088a3e-48b9-463c-a3eb-2bc0c2313706" name="N000003DE" comment="" address="140000000">
       <node type="Hex32Node" name="N000003DF" comment="" hidden="false" />
@@ -564,7 +557,7 @@
       <node type="Hex64Node" name="N0000B696" comment="" hidden="false" />
       <node type="Hex64Node" name="N0000B697" comment="" hidden="false" />
     </class>
-    <class uuid="482d6f90-2574-46b3-9cdb-ca86030efa64" name="REGameObject" comment="" address="174bdfe0">
+    <class uuid="482d6f90-2574-46b3-9cdb-ca86030efa64" name="REGameObject" comment="" address="1b32ae1db50">
       <node type="ClassInstanceNode" name="object" comment="" hidden="false" reference="51dffaa5-a284-4aca-b851-3d0ff9c7894e" />
       <node type="Hex16Node" name="N0000047E" comment="" hidden="false" />
       <node type="BoolNode" name="shouldUpdate" comment="" hidden="false" />

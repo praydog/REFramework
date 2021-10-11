@@ -1,12 +1,12 @@
 #pragma once
-#include "..\via\mat4.hpp"
-#include "..\via\Range.hpp"
 #include "..\via\motion\AxisDirection.hpp"
-namespace regenny::System {
-struct String;
-}
+#include "..\via\Range.hpp"
+#include "..\via\mat4.hpp"
 namespace regenny::via {
 struct Joint;
+}
+namespace regenny::System {
+struct String;
 }
 namespace regenny::game {
 #pragma pack(push, 1)

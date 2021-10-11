@@ -1,4 +1,7 @@
 #pragma once
+
+#include "../clr/VM.hpp"
+
 namespace regenny::via::reflection {
 #pragma pack(push, 1)
 struct Property {
@@ -30,7 +33,13 @@ struct Property {
     uint32_t size; // 0x40
     char pad_44[0x1c];
     void* getter; // 0x60
-    char pad_68[0xc8];
-}; // Size: 0x130
+    void* getter_array; // 0x68
+    char pad_70[0x60];
+    void* getter_array2; // 0xd0
+    char pad_d8[0x50];
+    regenny::via::clr::VM::Field* vm_field; // 0x128
+    uint32_t clr_member_type; // 0x130
+    char pad_134[0x4];
+}; // Size: 0x138
 #pragma pack(pop)
 }

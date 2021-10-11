@@ -400,10 +400,10 @@ struct REField {
     uint32_t name_offset; // 0x8
     uint16_t flags; // 0xc
     char pad_e[0x2];
-    uint16_t init_data_index; // 0x10
+    uint16_t unk_thingy; // 0x10
     char pad_12[0x2];
     uint32_t offset; // 0x14
-    char pad_18[0x4];
+    uint32_t init_data_offset;
 };
 #pragma pack(pop)
 

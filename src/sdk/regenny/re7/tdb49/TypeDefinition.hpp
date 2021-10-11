@@ -15,16 +15,16 @@ struct TypeDefinition {
     uint8_t object_type; // 0x22
     char pad_23[0x5];
     uint16_t num_member_method; // 0x28
-    char pad_2a[0x2];
+    uint16_t num_member_field; // 0x2a
     uint16_t num_member_prop; // 0x2c
     uint16_t num_virtual_method; // 0x2e
-    uint16_t num_member_field; // 0x30
+    uint16_t num_virtual_field; // 0x30
     char pad_32[0x2];
     uint32_t element_size; // 0x34
-    uint32_t member_field_start; // 0x38
+    uint32_t virtual_field_start; // 0x38
     char pad_3c[0x4];
     uint32_t member_method; // 0x40
-    char pad_44[0x4];
+    uint32_t member_field; // 0x44
     uint32_t member_prop; // 0x48
     uint32_t virtual_method_start; // 0x4c
     char pad_50[0x10];

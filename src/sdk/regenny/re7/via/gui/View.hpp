@@ -1,6 +1,6 @@
 #pragma once
-#include "..\Size.hpp"
 #include ".\Window.hpp"
+#include "..\Size.hpp"
 namespace regenny::via::gui {
 #pragma pack(push, 1)
 struct View : public Window {

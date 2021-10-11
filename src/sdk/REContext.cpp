@@ -38,6 +38,7 @@ namespace sdk {
     }
 
     uint8_t* VM::get_static_tbl_for_type(uint32_t type_index) {
+#ifndef RE7
         auto& tbls = get_static_tbl();
 
         /*if (type_index >= tbls.size) {
@@ -45,6 +46,13 @@ namespace sdk {
         }*/
 
         return tbls.elements[type_index];
+#else
+        if (type_index >= this->num_types) {
+            return nullptr;
+        }
+
+        return (uint8_t*)this->types[type_index].static_fields;
+#endif
     }
 
     static std::shared_mutex s_mutex{};

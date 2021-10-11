@@ -4,9 +4,6 @@
 #include ".\JointArray.hpp"
 #include ".\Component.hpp"
 namespace regenny::via {
-struct Scene;
-}
-namespace regenny::via {
 struct Transform;
 }
 namespace regenny::via {
@@ -15,10 +12,10 @@ struct Transform : public Component {
     regenny::via::vec4 Position; // 0x40
     regenny::via::vec4 Rotation; // 0x50
     regenny::via::vec4 Scale; // 0x60
-    regenny::via::Scene* Scene; // 0x70
+    regenny::via::Transform* Parent; // 0x70
     regenny::via::Transform* Child; // 0x78
     regenny::via::Transform* Next; // 0x80
-    regenny::via::Transform* Parent; // 0x88
+    regenny::via::Transform* Prev; // 0x88
     regenny::via::mat4 WorldTransform; // 0x90
     void* JointHashTbl; // 0xd0
     int32_t ParentJointIndex; // 0xd8

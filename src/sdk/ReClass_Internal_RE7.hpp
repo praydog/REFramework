@@ -143,9 +143,9 @@ public:
 	char pad_0078[256]; //0x0078
 	class REFieldList *fields; //0x0178
 	class REObjectInfo *classInfo; //0x0180 is a managed type if this is not null
-	char pad_0188[64]; //0x0188
-}; //Size: 0x01C8
-static_assert(sizeof(REType) == 0x1C8);
+	char pad_0188[8]; //0x0188
+}; //Size: 0x0190
+static_assert(sizeof(REType) == 0x190);
 
 class N000003DE
 {

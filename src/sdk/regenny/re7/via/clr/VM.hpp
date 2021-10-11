@@ -2,14 +2,14 @@
 namespace regenny::tdb49 {
 struct TypeDefinition;
 }
+namespace regenny::tdb49 {
+struct MethodDefinition;
+}
 namespace regenny::via::typeinfo {
 struct TypeInfo;
 }
 namespace regenny {
 struct BullShit;
-}
-namespace regenny::tdb49 {
-struct MethodDefinition;
 }
 namespace regenny::tdb49 {
 struct FieldDefinition;
@@ -23,7 +23,7 @@ struct VM {
     struct Type {
         regenny::tdb49::TypeDefinition* tdb_type; // 0x0
         uint32_t type_flags; // 0x8
-        uint32_t size; // 0xc
+        uint32_t fieldptr_offset; // 0xc
         char pad_10[0x10];
         regenny::via::clr::VM::Type* parent; // 0x20
         regenny::via::clr::VM::Type* next; // 0x28

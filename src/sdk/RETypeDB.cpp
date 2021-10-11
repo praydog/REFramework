@@ -140,12 +140,14 @@ void* REField::get_init_data() const {
 #if TDB_VER >= 69
     auto& impl = (*tdb->fieldsImpl)[this->impl_id];
     const auto init_data_index = impl.init_data_lo | (impl.init_data_hi << 14);
-#else
+    const auto init_data_offset = (*tdb->initData)[init_data_index];
+#elif TDB_VER > 49
     const auto init_data_index = this->init_data_index;
+    const auto init_data_offset = (*tdb->initData)[init_data_index];
+#else
+    const auto init_data_offset = this->init_data_offset;
 #endif
 
-#ifndef RE7
-    const auto init_data_offset = (*tdb->initData)[init_data_index];
     auto init_data = tdb->get_bytes(init_data_offset);
 
     // WACKY
@@ -154,11 +156,6 @@ void* REField::get_init_data() const {
     }
 
     return init_data;
-#else
-    throw std::exception("Not implemented");
-
-    return nullptr;
-#endif
 }
 
 uint32_t REField::get_offset_from_fieldptr() const {
