@@ -1157,6 +1157,7 @@ void VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
         case "WhiteFade"_fnv:
         case "Fade_In_Out_Black"_fnv:
         case "Fade_In_Out_White"_fnv:
+        case "GenomeCodexGUI"_fnv:
             return;
 
         default:
@@ -1164,7 +1165,8 @@ void VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
         };
 
         //spdlog::info("VR: on_pre_gui_draw_element: {}", name);
-        
+        //spdlog::info("VR: on_pre_gui_draw_element: {} {:x}", name, (uintptr_t)game_object);
+
         auto view = sdk::call_object_func<REComponent*>(gui_element, "get_View", sdk::get_thread_context(), gui_element);
 
         if (view != nullptr) {
