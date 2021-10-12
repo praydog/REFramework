@@ -30,6 +30,8 @@ constexpr auto CONTROLLER_DEADZONE = 0.1f;
 bool inside_on_end = false;
 uint32_t actual_frame_count = 0;
 
+thread_local bool inside_gui_draw = false;
+
 std::shared_ptr<VR>& VR::get() {
     static std::shared_ptr<VR> inst{};
 
@@ -44,6 +46,7 @@ std::unique_ptr<FunctionHook> g_get_size_hook{};
 std::unique_ptr<FunctionHook> g_input_hook{};
 std::unique_ptr<FunctionHook> g_projection_matrix_hook{};
 std::unique_ptr<FunctionHook> g_view_matrix_hook{};
+std::unique_ptr<FunctionHook> g_overlay_draw_hook{};
 //std::unique_ptr<FunctionHook> g_get_sharpness_hook{};
 
 #ifdef RE7
@@ -270,6 +273,22 @@ void VR::inputsystem_update_hook(void* ctx, REManagedObject* input_system) {
     original_func(ctx, input_system);
 
     mod->openvr_input_to_game(input_system);
+}
+
+void VR::overlay_draw_hook(void* layer, void* render_ctx) {
+    auto original_func = g_overlay_draw_hook->get_original<decltype(VR::overlay_draw_hook)>();
+
+    if (!g_framework->is_ready()) {
+        original_func(layer, render_ctx);
+        return;
+    }
+
+    auto mod = VR::get();
+
+    if ((mod->m_is_hmd_active && !inside_gui_draw) || !mod->m_is_hmd_active) {
+        original_func(layer, render_ctx);
+        return;
+    }
 }
 
 // put it on the backburner
@@ -562,7 +581,13 @@ std::optional<std::string> VR::hijack_overlay_renderer() {
     spdlog::info("via.render.layer.Overlay.Draw: {:x}", (uintptr_t)draw_native);
 
     // Set the first byte to the ret instruction
-    m_overlay_draw_patch = Patch::create(draw_native, { 0xC3 });
+    //m_overlay_draw_patch = Patch::create(draw_native, { 0xC3 });
+
+    g_overlay_draw_hook = std::make_unique<FunctionHook>(draw_native, overlay_draw_hook);
+
+    if (!g_overlay_draw_hook->create()) {
+        return "VR init failed: via.render.layer.Overlay draw native function hook failed.";
+    }
 
     // Hook get_Sharpness
     /*auto get_sharpness = sdk::find_native_method("via.render.ToneMapping", "get_Sharpness");
@@ -1112,6 +1137,8 @@ struct GUIRestoreData {
 thread_local std::vector<std::unique_ptr<GUIRestoreData>> g_elements_to_reset{};
 
 void VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_context) {
+    inside_gui_draw = true;
+
     if (!m_is_hmd_active) {
         return;
     }
@@ -1272,6 +1299,7 @@ void VR::on_gui_draw_element(REComponent* gui_element, void* primitive_context) 
     }
 
     g_elements_to_reset.clear();
+    inside_gui_draw = false;
 }
 
 void VR::on_pre_update_before_lock_scene(void* ctx) {
@@ -1731,6 +1759,10 @@ void VR::on_draw_ui() {
 
     if (ImGui::Button("Set Standing Height")) {
         m_standing_origin.y = get_position(0).y;
+    }
+
+    if (ImGui::Button("Set Standing Origin")) {
+        m_standing_origin = get_position(0);
     }
 
     ImGui::DragFloat4("Right Bounds", (float*)&m_right_bounds, 0.005f, -2.0f, 2.0f);
