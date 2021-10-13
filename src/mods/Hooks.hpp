@@ -69,9 +69,7 @@ private:
         HOOK_LAMBDA(hook_lightshaft_draw),
 #endif
 #endif
-#ifndef MHRISE
         HOOK_LAMBDA(hook_all_application_entries),
-#endif
     };
 
 protected:
