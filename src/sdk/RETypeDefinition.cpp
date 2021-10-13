@@ -335,8 +335,74 @@ int32_t RETypeDefinition::get_fieldptr_offset() const {
 #endif
 }
 
+bool RETypeDefinition::has_fieldptr_offset() const {
+#ifndef RE7
+    return this->managed_vt != nullptr;
+#else
+    return true;
+#endif
+}
+
 via::clr::VMObjType RETypeDefinition::get_vm_obj_type() const {
     return (via::clr::VMObjType)this->object_type;
+}
+
+uint32_t RETypeDefinition::get_crc_hash() const {
+#ifndef RE7
+    const auto t = get_type();
+    return t != nullptr ? t->typeCRC : this->type_crc;
+#else
+    const auto t = (regenny::via::typeinfo::TypeInfo*)get_type();
+
+    if (t == nullptr) {
+        return 0;
+    }
+
+    return t->crc;
+#endif
+}
+
+uint32_t RETypeDefinition::get_fqn_hash() const {
+#ifndef RE7
+    return this->fqn_hash;
+#else
+    auto t = (regenny::via::typeinfo::TypeInfo*)get_type();
+
+    if (t == nullptr) {
+        return 0;
+    }
+
+    return t->fqn_hash;
+#endif
+}
+
+uint32_t RETypeDefinition::get_size() const {
+#ifndef RE7
+    return this->size;
+#else
+    auto t = (regenny::via::typeinfo::TypeInfo*)get_type();
+
+    if (t == nullptr) {
+        return 0;
+    }
+
+    return t->size;
+#endif
+}
+
+uint32_t RETypeDefinition::get_valuetype_size() const {
+#if TDB_VER >= 69
+    auto tdb = RETypeDB::get();
+    auto impl_id = this->impl_index;
+
+    if (impl_id == 0) {
+        return 0;
+    }
+
+    return (*tdb->typesImpl)[impl_id].field_size;
+#else
+    return ((REClassInfo*)this)->elementSize;
+#endif
 }
 
 ::REType* RETypeDefinition::get_type() const {

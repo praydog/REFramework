@@ -238,10 +238,10 @@ namespace utility::re_managed_object {
             return via::clr::VMObjType::NULL_;
         }
 
-#ifndef RE8
-        return (via::clr::VMObjType)info->classInfo->objectType;
-#else
+#if defined(RE8) || defined(MHRISE)
         return (via::clr::VMObjType)(info->classInfo->objectFlags >> 5);
+#else
+        return (via::clr::VMObjType)info->classInfo->objectType;
 #endif
     }
 

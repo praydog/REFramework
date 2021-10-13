@@ -54,7 +54,7 @@ namespace utility::re_transform {
     static Matrix4x4f invalid_matrix{};
 
     static REJoint* get_joint(const ::RETransform& transform, uint32_t index) {
-#ifndef RE8
+#if !defined(RE8) && !defined(MHRISE)
         auto& joint_array = transform.joints;
 
         if (joint_array.size <= 0 || joint_array.numAllocated <= 0 || joint_array.data == nullptr || joint_array.matrices == nullptr) {
@@ -81,7 +81,7 @@ namespace utility::re_transform {
 
     // Get a bone/joint by name
     static REJoint* get_joint(const ::RETransform& transform, std::wstring_view name) {
-#ifndef RE8
+#if !defined(RE8) && !defined(MHRISE)
         auto& joint_array = transform.joints;
 
         if (joint_array.size <= 0 || joint_array.numAllocated <= 0 || joint_array.data == nullptr || joint_array.matrices == nullptr) {
@@ -89,7 +89,7 @@ namespace utility::re_transform {
         }
 #endif
 
-#ifndef RE8
+#if !defined(RE8) && !defined(MHRISE)
         for (int32_t i = 0; i < joint_array.size; ++i) {
             auto joint = joint_array.data->joints[i];
 #else
@@ -148,7 +148,7 @@ namespace utility::re_transform {
             return {};
         }
 
-#ifdef RE8
+#if defined(RE8) || defined(MHRISE)
         if (transform.joints.data == nullptr) {
             return {};
         }
@@ -158,7 +158,7 @@ namespace utility::re_transform {
 
         std::vector<REJoint*> children{};
 
-#ifndef RE8
+#if !defined(RE8) && !defined(MHRISE)
         for (int32_t i = 0; i < transform.joints.size; ++i) {
             auto joint = transform.joints.data->joints[i]; 
 #else
@@ -201,7 +201,7 @@ namespace utility::re_transform {
             return {};
         }
 
-#ifdef RE8
+#if defined(RE8) || defined(MHRISE)
         if (transform.joints.data == nullptr) {
             return {};
         }
@@ -209,7 +209,7 @@ namespace utility::re_transform {
 
         std::vector<REJoint*> children{};
 
-#ifndef RE8
+#if !defined(RE8) && !defined(MHRISE)
         for (int32_t i = 0; i < transform.joints.size; ++i) {
             auto joint = transform.joints.data->joints[i]; 
 #else

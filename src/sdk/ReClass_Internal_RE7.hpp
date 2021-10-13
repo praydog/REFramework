@@ -143,7 +143,8 @@ public:
 	char pad_0078[256]; //0x0078
 	class REFieldList *fields; //0x0178
 	class REObjectInfo *classInfo; //0x0180 is a managed type if this is not null
-	char pad_0188[8]; //0x0188
+	uint32_t typeCRC; //0x0188
+	char pad_018C[4]; //0x018C
 }; //Size: 0x0190
 static_assert(sizeof(REType) == 0x190);
 
@@ -246,11 +247,12 @@ public:
 	int32_t maxItems; //0x000C
 	char pad_0010[16]; //0x0010
 	class REVariableList *variables; //0x0020
-	void* deserializer; //0x0028
-	uint32_t N00000730; //0x0030
-	char pad_0034[4]; //0x0034
-}; //Size: 0x0038
-static_assert(sizeof(REFieldList) == 0x38);
+	char pad_0028[8]; //0x0028
+	void* deserializer; //0x0030
+	uint32_t N00000730; //0x0038
+	char pad_003C[4]; //0x003C
+}; //Size: 0x0040
+static_assert(sizeof(REFieldList) == 0x40);
 
 class N0000074B
 {

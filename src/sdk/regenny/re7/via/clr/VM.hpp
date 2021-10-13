@@ -2,17 +2,17 @@
 namespace regenny::tdb49 {
 struct TypeDefinition;
 }
-namespace regenny::tdb49 {
-struct MethodDefinition;
-}
 namespace regenny::via::typeinfo {
 struct TypeInfo;
 }
-namespace regenny {
-struct BullShit;
-}
 namespace regenny::tdb49 {
 struct FieldDefinition;
+}
+namespace regenny::tdb49 {
+struct MethodDefinition;
+}
+namespace regenny {
+struct BullShit;
 }
 namespace regenny::tdb49 {
 struct TDB;

@@ -1,6 +1,6 @@
 #pragma once
-#include ".\mat4.hpp"
 #include ".\vec4.hpp"
+#include ".\mat4.hpp"
 #include ".\JointArray.hpp"
 #include ".\Component.hpp"
 namespace regenny::via {

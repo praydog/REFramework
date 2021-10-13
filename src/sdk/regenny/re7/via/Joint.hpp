@@ -1,6 +1,6 @@
 #pragma once
-#include "clr\ManagedObject.hpp"
 #include ".\vec4.hpp"
+#include "clr\ManagedObject.hpp"
 namespace regenny::via {
 struct Transform;
 }

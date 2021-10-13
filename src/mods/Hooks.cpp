@@ -383,7 +383,7 @@ std::optional<std::string> Hooks::hook_lightshaft_draw() {
         return "Unable to get via::render::LightShaft vtable";
     }
 
-#ifdef RE8
+#if defined(RE8) || defined(MHRISE)
     auto draw = lightshaft_vtable[13];
 #else
     auto draw = lightshaft_vtable[10];

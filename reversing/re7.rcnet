@@ -450,7 +450,8 @@
       <node type="PointerNode" name="classInfo" comment="is a managed type if this is not null" hidden="false">
         <node type="ClassInstanceNode" name="N0000028A" comment="" hidden="false" reference="95c6cb2d-ba3e-4dba-a381-8fdfaa1de3b5" />
       </node>
-      <node type="Hex64Node" name="N000048AE" comment="" hidden="false" />
+      <node type="UInt32Node" name="typeCRC" comment="" hidden="false" />
+      <node type="Hex32Node" name="N0000675E" comment="" hidden="false" />
     </class>
     <class uuid="5f088a3e-48b9-463c-a3eb-2bc0c2313706" name="N000003DE" comment="" address="140000000">
       <node type="Hex32Node" name="N000003DF" comment="" hidden="false" />
@@ -598,6 +599,7 @@
       <node type="PointerNode" name="variables" comment="" hidden="false">
         <node type="ClassInstanceNode" name="N00000313" comment="" hidden="false" reference="924df953-58cf-41c8-bb0f-f88ec67b84db" />
       </node>
+      <node type="Hex64Node" name="N00006B2F" comment="" hidden="false" />
       <node type="FunctionPtrNode" name="deserializer" comment="" hidden="false" />
       <node type="UInt32Node" name="N00000730" comment="" hidden="false" />
       <node type="Hex32Node" name="N0000076F" comment="" hidden="false" />

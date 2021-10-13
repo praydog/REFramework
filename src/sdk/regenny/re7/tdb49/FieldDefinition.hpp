@@ -10,7 +10,7 @@ struct FieldDefinition {
     uint16_t unk_thingy; // 0x10
     char pad_12[0x2];
     uint32_t offset; // 0x14
-    uint32_t init_data_offset; // 0x18
+    int32_t init_data_offset; // 0x18
 }; // Size: 0x1c
 #pragma pack(pop)
 }

@@ -1,10 +1,10 @@
 #pragma once
 #include "..\clr\ManagedObject.hpp"
 namespace regenny::via::gui {
-struct GUI;
+struct PlayObject;
 }
 namespace regenny::via::gui {
-struct PlayObject;
+struct GUI;
 }
 namespace regenny::via::gui {
 struct Control;

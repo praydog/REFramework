@@ -25,10 +25,10 @@ static via::clr::VMObjType get_vm_type(::REClassInfo* c) {
         return via::clr::VMObjType::NULL_;
     }
 
-#ifndef RE8
-    return (via::clr::VMObjType)c->objectType;
-#else
+#if defined(RE8) || defined(MHRISE)
     return (via::clr::VMObjType)(c->objectFlags >> 5);
+#else
+    return (via::clr::VMObjType)c->objectType;
 #endif
 }
 } // namespace utility::re_type
@@ -50,7 +50,7 @@ namespace utility::re_array {
             return sizeof(void*);
         }
 
-#ifdef RE8
+#if defined(RE8) || defined(MHRISE)
         const auto element_size = utility::re_type::get_value_type_size(container->containedType->type);
 #else
         const auto element_size = container->info->classInfo->elementSize;

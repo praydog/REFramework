@@ -1118,7 +1118,7 @@ void FirstPerson::update_joint_names() {
 
     auto& joints = m_player_transform->joints;
 
-#ifndef RE8
+#if !defined(RE8) && !defined(MHRISE)
     for (int32_t i = 0; joints.data != nullptr && i < joints.size; ++i) {
         auto joint = joints.data->joints[i];
 #else

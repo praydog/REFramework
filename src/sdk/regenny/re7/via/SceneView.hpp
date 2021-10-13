@@ -1,10 +1,10 @@
 #pragma once
-#include "clr\ManagedObject.hpp"
+#include ".\RenderType.hpp"
 #include ".\Size.hpp"
 #include ".\DisplayType.hpp"
 #include ".\BasisPlane.hpp"
-#include ".\RenderType.hpp"
 #include ".\CameraType.hpp"
+#include "clr\ManagedObject.hpp"
 namespace regenny::via {
 struct Window;
 }

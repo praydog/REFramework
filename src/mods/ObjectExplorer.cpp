@@ -401,7 +401,7 @@ std::shared_ptr<detail::ParsedType> ObjectExplorer::init_type(nlohmann::json& il
     auto desc = init_type_min(il2cpp_dump, tdb, i);
 
     g_itypedb[i] = desc;
-    g_fqntypedb[desc->t->fqn_hash] = desc;
+    g_fqntypedb[desc->t->get_fqn_hash()] = desc;
 
     return desc;
 }
@@ -444,7 +444,7 @@ void ObjectExplorer::export_deserializer_chain(nlohmann::json& il2cpp_dump, sdk:
     // Export info about native deserializers for the python script
     if (!real_name) {
         auto tdef = utility::re_type::get_type_definition(t);
-        full_name = t->classInfo != nullptr ? generate_full_name(tdb, tdef->index) : t->name;
+        full_name = t->classInfo != nullptr ? generate_full_name(tdb, tdef->get_index()) : t->name;
     }
     else {
         full_name = *real_name;
@@ -472,7 +472,7 @@ void ObjectExplorer::export_deserializer_chain(nlohmann::json& il2cpp_dump, sdk:
         auto tdef = utility::re_type::get_type_definition(super);
         
         des_entry["address"] = (std::stringstream{} << "0x" << std::hex << deserializer_normalized).str();
-        des_entry["name"] = super->classInfo != nullptr ? generate_full_name(tdb, tdef->index) : super->name;
+        des_entry["name"] = super->classInfo != nullptr ? generate_full_name(tdb, tdef->get_index()) : super->name;
 
         // push in reverse order so it can be parsed easier (parent -> all the way back to this type)
         chain_raw.push_front(des_entry);
@@ -489,8 +489,8 @@ void ObjectExplorer::export_deserializer_chain(nlohmann::json& il2cpp_dump, sdk:
 
 void ObjectExplorer::generate_sdk() {
     // enums
-    auto ref = utility::scan(g_framework->get_module().as<HMODULE>(), "66 C7 40 18 01 01 48 89 05 ? ? ? ?");
-    auto& l = *(std::map<uint64_t, REEnumData>*)(utility::calculate_absolute(*ref + 9));
+    //auto ref = utility::scan(g_framework->get_module().as<HMODULE>(), "66 C7 40 18 01 01 48 89 05 ? ? ? ?");
+    //auto& l = *(std::map<uint64_t, REEnumData>*)(utility::calculate_absolute(*ref + 9));
 
     genny::Sdk sdk{};
     auto g = sdk.global_ns();
@@ -540,14 +540,16 @@ void ObjectExplorer::generate_sdk() {
         auto tdef = desc->t;
 
         auto& type_entry = (il2cpp_dump[desc->full_name] = {});
-        const auto crc = t.type != nullptr ? t.type->typeCRC : t.type_crc;
+        const auto crc = t.get_crc_hash();
+        const auto fqn = t.get_fqn_hash();
+        const auto type_info = t.get_type();
 
         type_entry = {
             {"address", (std::stringstream{} << std::hex << get_original_va(&t)).str()},
             {"id", i},
-            {"fqn", (std::stringstream{} << std::hex << t.fqn_hash).str()},
+            {"fqn", (std::stringstream{} << std::hex << fqn).str()},
             {"crc", (std::stringstream{} << std::hex << crc).str()},
-            {"size", (std::stringstream{} << std::hex << t.size).str()},
+            {"size", (std::stringstream{} << std::hex << t.get_size()).str()},
         };
 
         if (tdef->declaring_typeid != 0) {
@@ -563,9 +565,9 @@ void ObjectExplorer::generate_sdk() {
             type_entry["flags"] = type_flags_str;
         }
 
-        if (desc->t->type != nullptr && desc->t->type->name != nullptr) {
-            if (desc->t->type->name != desc->full_name) {
-                type_entry["native_typename"] = desc->t->type->name;
+        if (type_info != nullptr && type_info->name != nullptr) {
+            if (type_info->name != desc->full_name) {
+                type_entry["native_typename"] = type_info->name;
             }
         }
     }
@@ -577,16 +579,18 @@ void ObjectExplorer::generate_sdk() {
         auto pt = init_type(il2cpp_dump, tdb, i);
         auto& t = *pt->t;
 
-        if (t.type == nullptr) {
+        const auto type_info = t.get_type();
+
+        if (type_info == nullptr) {
             continue;
         }
 
-        if (!utility::re_type::is_clr_type(t.type)) {
-            export_deserializer_chain(il2cpp_dump, tdb, t.type, pt->full_name);
+        if (!utility::re_type::is_clr_type(type_info)) {
+            export_deserializer_chain(il2cpp_dump, tdb, type_info, pt->full_name);
             continue;
         }
 
-        auto clr_t = (sdk::RETypeCLR*)t.type;
+        auto clr_t = (sdk::RETypeCLR*)type_info;
         auto& deserialize_list = clr_t->deserializers;
 
         for (const auto& sequence : deserialize_list) {
@@ -600,7 +604,7 @@ void ObjectExplorer::generate_sdk() {
             auto rsz_entry = json{};
             
 
-            rsz_entry["type"] = generate_full_name(tdb, (sequence.get_native_type())->index);
+            rsz_entry["type"] = generate_full_name(tdb, (sequence.get_native_type())->get_index());
 #if TDB_VER >= 69
             rsz_entry["code"] = get_enum_value_name("via.typeinfo.TypeCode", code);
 #else
@@ -619,7 +623,7 @@ void ObjectExplorer::generate_sdk() {
 
         // do this because it empty
         if (!il2cpp_dump[pt->full_name].contains("RSZ")) {
-            export_deserializer_chain(il2cpp_dump, tdb, t.type, pt->full_name);
+            export_deserializer_chain(il2cpp_dump, tdb, type_info, pt->full_name);
         }
     }
 
@@ -680,7 +684,7 @@ void ObjectExplorer::generate_sdk() {
         auto& method_entry = type_entry["methods"][pm->name];
 
         method_entry["id"] = i;
-        method_entry["function"] = (std::stringstream{} << std::hex << get_original_va(m.function)).str();
+        method_entry["function"] = (std::stringstream{} << std::hex << get_original_va(m.get_function())).str();
 
         if (auto impl_flags_str = get_full_enum_value_name("via.clr.MethodImplFlag", impl_flags); !impl_flags_str.empty()) {
             method_entry["impl_flags"] = impl_flags_str;
@@ -700,8 +704,13 @@ void ObjectExplorer::generate_sdk() {
         const auto num_params = param_ids->numParams;
         const auto invoke_id = param_ids->invokeID;
 #else
-        auto param_ids = Address{ tdb->bytePool }.get(param_list).as<sdk::REMethodParamDef*>();
-        const auto num_params = (uint8_t)m.num_params;
+#if TDB_VER >= 66
+        auto param_ids = tdb->get_data<sdk::REMethodParamDef>(param_list);
+#else
+        auto params_data = tdb->get_data<sdk::REMethodParamDef>(param_list);
+        auto param_ids = params_data->params;
+#endif
+        const auto num_params = (uint8_t)m.get_num_params();
         const auto invoke_id = (uint16_t)m.invoke_id;
 #endif
 
@@ -757,9 +766,11 @@ void ObjectExplorer::generate_sdk() {
                 param_entry["flags"] = param_flags;
             }
 
+#if TDB_VER > 49
             if (auto param_modifier = get_full_enum_value_name("via.clr.ParamModifier", flags); !param_modifier.empty()) {
                 param_entry["modifier"] = param_modifier;
             }
+#endif
 
             return param_entry;
         };
@@ -769,7 +780,7 @@ void ObjectExplorer::generate_sdk() {
         method_entry["returns"] = parse_param(param_ids->returnType, true);
 #else
         method_entry["returns"] = json{
-            {"type", generate_full_name(tdb, m.return_typeid)},
+            {"type", generate_full_name(tdb, m.get_return_type()->get_index())},
             {"name", ""},
         };
 #endif
@@ -834,7 +845,15 @@ void ObjectExplorer::generate_sdk() {
         const auto name = Address{ tdb->stringPool }.get(name_offset).as<const char*>();
         const auto field_type = (uint32_t)f.field_typeid;
         const auto field_flags = f.flags;
+#if TDB_VER >= 66
         const auto init_data_index = f.init_data_index;
+#endif
+#endif
+
+#if TDB_VER >= 66
+        const auto init_data_offset = init_data_index != 0 ? (*tdb->initData)[init_data_index] : 0;
+#else
+        const auto init_data_offset = f.init_data_offset;
 #endif
 
         // Create an easier to deal with structure
@@ -852,11 +871,7 @@ void ObjectExplorer::generate_sdk() {
 #endif
 
         // Resolve the offset to be from the base class
-        if (pf->owner->t->managed_vt != nullptr) {
-            const auto field_ptr_offset = Address{ pf->owner->t->managed_vt }.get(-(int32_t)sizeof(void*)).to<int32_t>();
-
-            pf->offset_from_base += field_ptr_offset;
-        }
+        pf->offset_from_base += pf->owner->t->get_fieldptr_offset();
         
         const auto field_type_name = (pf->type != nullptr) ? pf->type->full_name : "";
 
@@ -870,15 +885,16 @@ void ObjectExplorer::generate_sdk() {
             {"type", field_type_name},
             {"offset_from_base", (std::stringstream{} << "0x" << std::hex << pf->offset_from_base).str()},
             {"offset_from_fieldptr", (std::stringstream{} << "0x" << std::hex << pf->offset_from_fieldptr).str()},
+#if TDB_VER >= 66
             {"init_data_index", init_data_index}
+#endif
         };
 
         if (auto field_flags_str = get_full_enum_value_name("via.clr.FieldFlag", field_flags); !field_flags_str.empty()) {
             field_entry["flags"] = field_flags_str;
         }
 
-        if (init_data_index != 0) {
-            const auto init_data_offset = (*tdb->initData)[init_data_index];
+        if (init_data_offset != 0) {
             auto init_data = &(*tdb->bytePool)[init_data_offset];
 
             // WACKY
@@ -891,7 +907,7 @@ void ObjectExplorer::generate_sdk() {
 
             // edge case
             if (pf->type->super != nullptr && pf->type->super->full_name == "System.Enum") {
-                switch (pf->type->t->size - pf->type->super->t->size) {
+                switch (pf->type->t->get_size() - pf->type->super->t->get_size()) {
                 case 1:
                     full_name = "System.Byte";
                     break;
@@ -1026,7 +1042,7 @@ void ObjectExplorer::generate_sdk() {
     for (auto& t : g_itypedb) {
         auto tdef = t.second->t;
 
-        if (tdef == nullptr || tdef->index == 0) {
+        if (tdef == nullptr || tdef->get_index() == 0) {
             continue;
         }
 
@@ -1047,19 +1063,19 @@ void ObjectExplorer::generate_sdk() {
 
             // Get the topmost one because of depth
             for (auto d = 0; d < depth; ++d) {
-                if (depth_t->t->managed_vt == nullptr || depth_t->super == nullptr) {
+                if (!depth_t->t->has_fieldptr_offset() || depth_t->super == nullptr) {
                     break;
                 }
 
-                const auto field_ptr = Address{ depth_t->t->managed_vt }.get(-(int32_t)sizeof(void*)).to<int32_t>();
+                const auto field_ptr = depth_t->t->get_fieldptr_offset();
 
                 depth_t = depth_t->super;
 
-                if (depth_t->t->managed_vt == nullptr) {
+                if (!depth_t->t->has_fieldptr_offset()) {
                     break;
                 }
 
-                const auto field_ptr2 = Address{ depth_t->t->managed_vt }.get(-(int32_t)sizeof(void*)).to<int32_t>();
+                const auto field_ptr2 = depth_t->t->get_fieldptr_offset();
 
                 fieldptr_adjustment += field_ptr - field_ptr2;
             }
@@ -1090,7 +1106,7 @@ void ObjectExplorer::generate_sdk() {
         if (!entry.contains("fqn")) {
             entry["fqn"] = (std::stringstream{} << std::hex << t->classIndex).str();
         }
-
+        
         if (!entry.contains("crc")) {
             entry["crc"] = (std::stringstream{} << std::hex << t->typeCRC).str();
         }
@@ -1108,6 +1124,7 @@ void ObjectExplorer::generate_sdk() {
         g_class_set.insert(t->name);
     }
 
+#ifndef RE7
     for (const auto& name : m_sorted_types) {
         auto t = get_type(name);
 
@@ -1178,6 +1195,8 @@ void ObjectExplorer::generate_sdk() {
         auto num_methods = fields->num;
         auto methods = fields->methods;
 
+// BORKED RIGHT NOW
+#ifndef RE7
         // Generate Methods
         if (fields->methods != nullptr) {
             for (auto i = 0; i < num_methods; ++i) {
@@ -1213,6 +1232,7 @@ void ObjectExplorer::generate_sdk() {
                 m->procedure(os.str())->returns(g->type("std::unique_ptr<utility::re_managed_object::ParamWrapper>"));
 
 #ifdef TDB_DUMP_ALLOWED
+// BORKED RIGHT NOW
                 json json_params{};
 
                 for (auto f = 0; f < descriptor->numParams; ++f) {
@@ -1239,6 +1259,7 @@ void ObjectExplorer::generate_sdk() {
 #endif
             }
         }
+#endif
 
         // Generate Properties
         if (fields->variables != nullptr && fields->variables != nullptr && fields->variables->data != nullptr) {
@@ -1293,7 +1314,7 @@ void ObjectExplorer::generate_sdk() {
                 };
 #endif
             
-#ifdef RE8
+#if defined(RE8) || defined(MHRISE)
                 // Property attributes
                 if (variable->attributes != 0 && variable->attributes != -1) {
                     for (auto attr = (REAttribute*)((uintptr_t)&variable->attributes + variable->attributes); attr != nullptr && !IsBadReadPtr(attr, sizeof(REAttribute)) && attr->info != nullptr; attr = attr->next) {
@@ -1308,27 +1329,25 @@ void ObjectExplorer::generate_sdk() {
             }
         }
     }
+#endif
 
-    for (auto& desc : l) {
+    for (auto& it : this->m_enums) {
         // template classes we dont want
-        if (std::string{desc.second.name}.find_first_of("`<>") != std::string::npos) {
+        if (std::string{it.first}.find_first_of("`<>") != std::string::npos) {
             continue;
         }
 
-        auto e = enum_from_name(g, desc.second.name);
+        auto e = enum_from_name(g, it.first);
 
         e->type(g->type("uint64_t"));
-
-        for (auto node = desc.second.values; node != nullptr; node = node->next) {
-            if (node->name == nullptr) {
-                continue;
-            }
-
-            e->value(node->name, node->value);
-        }
+        e->value(it.second.name, it.second.value);
     }
 
-    std::ofstream{ "il2cpp_dump.json" } << il2cpp_dump.dump(4) << std::endl;
+    try {
+        std::ofstream{ "il2cpp_dump.json" } << il2cpp_dump.dump(4, ' ', false, json::error_handler_t::ignore) << std::endl;
+    } catch(std::exception& e) {
+        spdlog::info("Failed to dump il2cpp_dump.json: {}", e.what());
+    }
 
     sdk.generate("sdk");
 }
@@ -1853,7 +1872,7 @@ void ObjectExplorer::display_reflection_properties(REManagedObject* obj, REType*
                 }
             }
 
-#ifdef RE8
+#if defined(RE8) || defined(MHRISE)
             const auto allowed = is_real_object || utility::reflection_property::is_static(variable) || utility::re_type::is_singleton(type_info);
 
             // Set the obj to the static table so we can get static variables
@@ -2815,7 +2834,57 @@ void ObjectExplorer::populate_enums() {
         out_file << "    };" << std::endl;
         out_file << "}" << std::endl;
     }
+#else
+    std::vector<sdk::RETypeDefinition*> enum_types{};
+    auto tdb = sdk::RETypeDB::get();
 
+    for (uint32_t i = 0; i < tdb->numTypes; ++i) {
+        auto t = tdb->get_type(i);
+        auto parent_t = t->get_parent_type();
+
+        if (parent_t == nullptr) {
+            continue;
+        }
+
+        if (parent_t->get_full_name() == "System.Enum") {
+            spdlog::info("ENUM {}", t->get_full_name().c_str());
+            enum_types.push_back(t);
+
+            auto fields = t->get_fields();
+
+            for (auto f : fields) {
+                const auto field_flags = f->get_flags();
+
+                if ((field_flags & (uint16_t)via::clr::FieldFlag::Static) != 0 && (field_flags & (uint16_t)via::clr::FieldFlag::Literal) != 0) {
+                    auto raw_data = f->get_data_raw(nullptr, true);
+                    int64_t enum_data = 0;
+
+                    switch(t->get_valuetype_size()) {
+                        case 1:
+                            enum_data = (int64_t)*(int8_t*)raw_data;
+                            break;
+                        case 2:
+                            enum_data = (int64_t)*(int16_t*)raw_data;
+                            break;
+                        case 4:
+                            enum_data = (int64_t)*(int32_t*)raw_data;
+                            break;
+                        case 8:
+                            enum_data = *(int64_t*)raw_data;
+                            break;
+                        default:
+                            spdlog::error("Unknown enum size: {}", t->get_valuetype_size());
+                            break;
+                    }
+
+                    m_enums.emplace(t->get_full_name(), EnumDescriptor{ f->get_name(), enum_data });
+
+                    // Log
+                    spdlog::info(" {} = {}", f->get_name(), enum_data);
+                }
+            }
+        }
+    }
 #endif
 }
 
@@ -2843,6 +2912,11 @@ std::string ObjectExplorer::get_full_enum_value_name(std::string_view enum_name,
 }
 
 std::string ObjectExplorer::get_enum_value_name(std::string_view enum_name, int64_t value) {
+    if (!m_enums.contains(enum_name.data())) {
+        spdlog::info("Unknown enum: {}", enum_name);
+        return "";
+    }
+
     auto values = m_enums.equal_range(enum_name.data());
 
     for (auto i = values.first; i != values.second; ++i) {

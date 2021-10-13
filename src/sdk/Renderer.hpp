@@ -18,7 +18,7 @@ public:
     RenderLayer* get_parent();
     RenderLayer* find_parent(::REType* layer_type);
 
-#ifdef RE8
+#if defined(RE8) || defined(MHRISE)
     static constexpr uint32_t DRAW_VTABLE_INDEX = 14;
 #elif defined(RE7)
     static constexpr uint32_t DRAW_VTABLE_INDEX = 10;

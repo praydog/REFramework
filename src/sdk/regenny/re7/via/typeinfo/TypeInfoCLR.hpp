@@ -1,10 +1,10 @@
 #pragma once
 #include ".\TypeInfo.hpp"
-namespace regenny::via::clr {
-struct Type;
-}
 namespace regenny::via::typeinfo {
 struct DeserializeSequence;
+}
+namespace regenny::via::clr {
+struct Type;
 }
 namespace regenny::via::typeinfo {
 #pragma pack(push, 1)

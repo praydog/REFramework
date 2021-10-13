@@ -23,8 +23,7 @@ uint32_t utility::re_type::get_vm_type(::REType* t) {
         return (uint32_t)via::clr::VMObjType::NULL_;
     }
 
-#ifndef RE8
-
+#if !defined(RE8) && !defined(MHRISE)
 #ifndef RE7
     return (uint32_t)t->classInfo->objectType;
 #else
@@ -46,7 +45,7 @@ uint32_t utility::re_type::get_value_type_size(::REType* t) {
     }
 
 
-#ifdef RE8
+#if defined(RE8) || defined(MHRISE)
     auto class_info = (sdk::RETypeDefVersion69*)t->classInfo;
 
     return (*g_framework->get_types()->get_type_db()->typesImpl)[class_info->impl_index].field_size;

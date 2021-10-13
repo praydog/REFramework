@@ -170,6 +170,11 @@ if (DMC5)
     target_compile_definitions(${GAME_NAME} PUBLIC DMC5)
 endif()
 
+if (MHRISE)
+    target_compile_definitions(${GAME_NAME} PUBLIC MHRISE)
+endif()
+
+
 if (BAREBONES)
     target_compile_definitions(${GAME_NAME} PUBLIC BAREBONES)
 endif()

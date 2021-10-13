@@ -167,7 +167,9 @@ uint32_t REField::get_offset_from_base() const {
     auto declaring_type = this->get_declaring_type();
 
     if (declaring_type != nullptr) {
-        return declaring_type->get_fieldptr_offset() + offset_from_fieldptr;
+        if (declaring_type->has_fieldptr_offset()) {
+            return declaring_type->get_fieldptr_offset() + offset_from_fieldptr;
+        }
     }
 
     return offset_from_fieldptr;
@@ -227,7 +229,7 @@ sdk::RETypeDefinition* REMethodDefinition::get_return_type() const {
 #elif TDB_VER >= 66
     const auto return_typeid = (uint32_t)this->return_typeid;
 #else
-    const auto return_typeid = tdb->get_data<REMethodDefinition::AdditionalData>(this->method_data_offset)->return_typeid;
+    const auto return_typeid = tdb->get_data<sdk::REMethodParamDef>(this->params)->return_typeid;
 #endif
 
     if (return_typeid == 0) {
@@ -297,11 +299,23 @@ uint16_t REMethodDefinition::get_impl_flags() const {
 #endif
 }
 
-std::vector<uint32_t> REMethodDefinition::get_param_typeids() const {
-#ifdef RE7
-    return {};
+uint32_t sdk::REMethodDefinition::get_num_params() const {
+#if TDB_VER >= 69
+    auto tdb = RETypeDB::get();
+    const auto param_list = (uint32_t)this->params;
+    const auto param_ids = tdb->get_data<REParamList>(param_list);
+    return param_ids->numParams;
 #else
+#if TDB_VER >= 66
+    return this->num_params;
+#else
+    auto tdb = RETypeDB::get();
+    return tdb->get_data<sdk::REMethodParamDef>(this->params)->num_params;
+#endif
+#endif
+}
 
+std::vector<uint32_t> REMethodDefinition::get_param_typeids() const {
     auto tdb = RETypeDB::get();
 
     const auto param_list = (uint32_t)this->params;
@@ -328,24 +342,25 @@ std::vector<uint32_t> REMethodDefinition::get_param_typeids() const {
 
     return out;
 #else
-    auto param_ids = tdb->get_data<sdk::REMethodParamDef>(param_list);
-    const auto num_params = (uint8_t)this->num_params;
+#if TDB_VER >= 66
+    const auto param_ids = tdb->get_data<sdk::REMethodParamDef>(param_list);
+#else
+    const auto param_data = tdb->get_data<sdk::REMethodParamDef>(param_list);
+    const auto param_ids = param_data->params;
+#endif
 
-    for (auto f = 0; f < num_params; ++f) {
+    const auto num_params = get_num_params();
+
+    for (uint32_t f = 0; f < num_params; ++f) {
         auto& p = param_ids[f];
         out.push_back((uint32_t)p.param_typeid);
     }
 
     return out;
 #endif
-#endif
 }
 
 std::vector<sdk::RETypeDefinition*> REMethodDefinition::get_param_types() const {
-#ifdef RE7
-    return {};
-#else
-
     auto typeids = get_param_typeids();
 
     if (typeids.empty()) {
@@ -360,13 +375,10 @@ std::vector<sdk::RETypeDefinition*> REMethodDefinition::get_param_types() const 
     }
 
     return out;
-#endif
 }
 
 std::vector<const char*> REMethodDefinition::get_param_names() const {
-#ifdef RE7
-    return {};
-#else
+
     std::vector<const char*> out{};
 
     auto tdb = RETypeDB::get();
@@ -391,17 +403,22 @@ std::vector<const char*> REMethodDefinition::get_param_names() const {
 
     return out;
 #else
-    const auto num_params = (uint8_t)this->num_params;
-    auto param_ids = tdb->get_data<sdk::REMethodParamDef>(param_list);
+    const auto num_params = get_num_params();
 
-    for (auto f = 0; f < num_params; ++f) {
+#if TDB_VER >= 66
+    const auto param_ids = tdb->get_data<sdk::REMethodParamDef>(param_list);
+#else
+    const auto param_data = tdb->get_data<sdk::REMethodParamDef>(param_list);
+    const auto param_ids = param_data->params;
+#endif
+
+    for (uint32_t f = 0; f < num_params; ++f) {
         const auto param_index = param_ids[f].param_typeid;
         const auto name_offset = (uint32_t)param_ids[f].name_offset;
         out.push_back(tdb->get_string(name_offset));
     }
     
     return out;
-#endif
 #endif
 }
 } // namespace sdk

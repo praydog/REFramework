@@ -48,6 +48,51 @@ T* get_native_singleton(std::string_view type_name);
 #include "REManagedObject.hpp"
 
 namespace sdk {
+namespace tdb70 {
+struct TDB {
+    uint32_t magic;                             // 0x0000
+    uint32_t version;                           // 0x0004
+    uint32_t initialized;                       // 0x0008
+    uint32_t numTypes;                          // 0x000C
+    uint32_t numMethods;                        // 0x0010
+    uint32_t numFields;                         // 0x0014
+    uint32_t numTypeImpl;                       // 0x0018
+    uint32_t numFieldImpl;                      // 0x001C
+    uint32_t numMethodImpl;                     // 0x0020
+    uint32_t numPropertyImpl;                   // 0x0024
+    uint32_t numProperties;                     // 0x0028
+    uint32_t numEvents;                         // 0x002C
+    uint32_t numParams;                         // 0x0030
+    uint32_t numAttributes;                     // 0x0034
+    int32_t numInitData;                        // 0x0038
+    uint32_t numAttributes2;                    // 0x003C
+    uint32_t numInternStrings;                  // 0x0040
+    uint32_t numModules;                        // 0x0044
+    int32_t devEntry;                           // 0x0048
+    int32_t appEntry;                           // 0x004C
+    uint32_t numStringPool;                     // 0x0050
+    uint32_t numBytePool;                       // 0x0054
+    void* modules;                              // 0x0058
+    sdk::RETypeDefinition (*types)[93788];      // 0x0060
+    sdk::RETypeImpl (*typesImpl)[256];          // 0x0068
+    sdk::REMethodDefinition (*methods)[703558]; // 0x0070
+    sdk::REMethodImpl (*methodsImpl)[56756];    // 0x0078
+    sdk::REField (*fields)[1];                  // 0x0080
+    sdk::REFieldImpl (*fieldsImpl)[1];          // 0x0088
+    sdk::REProperty (*properties)[256];         // 0x0090
+    sdk::REPropertyImpl (*propertiesImpl)[1];   // 0x0098
+    void* events;                               // 0x00A0
+    sdk::REParameterDef (*params)[10000];       // 0x00A8
+    class ::REAttributeDef (*attributes)[2000]; // 0x00B0
+    int32_t (*initData)[19890];                 // 0x00B8
+    void* unk;
+    int32_t (*attributes2)[256];                // 0x00C0 + 8
+    char (*stringPool)[1];                      // 0x00C8 + 8
+    uint8_t (*bytePool)[256];                   // 0x00D0 + 8
+    int32_t (*internStrings)[14154];            // 0x00D8 + 8
+};
+}
+
 namespace tdb69 {
 // todo bring these in from reclass
 struct REMethodDefinition;
@@ -96,7 +141,7 @@ struct TDB {
     class ::REAttributeDef (*attributes)[2000]; // 0x00B0
     int32_t (*initData)[19890];                 // 0x00B8
     int32_t (*attributes2)[256];                // 0x00C0
-    char (*stringPool)[0];                      // 0x00C8
+    char (*stringPool)[1];                      // 0x00C8
     uint8_t (*bytePool)[256];                   // 0x00D0
     int32_t (*internStrings)[14154];            // 0x00D8
 };
@@ -371,23 +416,17 @@ struct REProperty {
 
 #pragma pack(push, 1)
 struct REMethodDefinition {
-    struct AdditionalData {
-        int16_t unk; // 0x0
-        uint16_t return_typeid; // 0x2
-    }; // Size: 0x4
-
-    uint64_t declaring_typeid : 16; // 0x0
-    uint64_t invoke_id : 16; // 0x0
-    uint64_t num_params : 6; // 0x0
-    uint64_t unk : 10; // 0x0
-    uint64_t vtable_index : 16; // 0x0
+    uint32_t unk_idk : 16; // 0x0
+    uint32_t invoke_id : 16; // 0x0
+    uint16_t declaring_typeid; // 0x4
+    uint16_t vtable_index; // 0x6
     uint32_t prototype_name_offset; // 0x8
     char pad_c[0x4];
     uint32_t name_offset; // 0x10
     uint16_t flags; // 0x14
     uint16_t impl_flags; // 0x16
     uint32_t unk2; // 0x18
-    uint32_t method_data_offset; // 0x1c
+    uint32_t params; // 0x1c
 };
 #pragma pack(pop)
 static_assert(sizeof(tdb49::REMethodDefinition) == 0x20);
@@ -404,6 +443,19 @@ struct REField {
     char pad_12[0x2];
     uint32_t offset; // 0x14
     uint32_t init_data_offset;
+};
+#pragma pack(pop)
+
+#pragma pack(push, 1)
+struct REMethodParamDef {
+    uint16_t num_params;
+    uint16_t return_typeid;
+
+    struct Param {
+        uint64_t param_typeid : 16;
+        uint64_t flags : 16;
+        uint64_t name_offset : 31;
+    } params[1];
 };
 #pragma pack(pop)
 
@@ -436,8 +488,12 @@ struct TDB {
 #pragma pack(pop)
 }
 
+#if defined(RE8) || defined(MHRISE)
 #ifdef RE8
 struct RETypeDB_ : public sdk::tdb69::TDB {};
+#elif defined(MHRISE)
+struct RETypeDB_ : public sdk::tdb70::TDB {};
+#endif
 struct REMethodDefinition_ : public sdk::tdb69::REMethodDefinition {};
 struct REMethodImpl : public sdk::tdb69::REMethodImpl {};
 using REField_ = sdk::tdb69::REField;
@@ -466,10 +522,10 @@ struct RETypeDB_ : public sdk::tdb49::TDB {};
 struct REMethodDefinition_ : public sdk::tdb49::REMethodDefinition {};
 using REField_ = sdk::tdb49::REField;
 struct REProperty : public sdk::tdb49::REProperty {};
+using REMethodParamDef = sdk::tdb49::REMethodParamDef;
 
 // FIX THIS!!!!
 using GenericListData = sdk::tdb66::GenericListData;
-using REMethodParamDef = sdk::tdb66::REMethodParamDef;
 #endif
 } // namespace sdk
 
@@ -531,6 +587,8 @@ struct REMethodDefinition : public sdk::REMethodDefinition_ {
     T operator()(Args... args) const { 
         return get_function_t<T (*)(Args...)>()(args...); 
     }
+
+    uint32_t get_num_params() const;
 
     std::vector<uint32_t> get_param_typeids() const;
     std::vector<sdk::RETypeDefinition*> get_param_types() const;

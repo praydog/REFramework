@@ -50,7 +50,7 @@ private:
     void refresh_map();
 
     TypeList* m_raw_types{ nullptr };
-#ifdef RE8
+#if defined(RE8) || defined(MHRISE)
     RETypeImpl** m_raw_type_impls{ nullptr };
 #endif
 

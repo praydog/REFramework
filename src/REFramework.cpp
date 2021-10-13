@@ -29,6 +29,9 @@ REFramework::REFramework()
     spdlog::flush_on(spdlog::level::info);
     spdlog::info("REFramework entry");
 
+    spdlog::info("Game Module Addr: {:x}", (uintptr_t)m_game_module);
+    spdlog::info("Game Module Size: {:x}", *utility::get_module_size(m_game_module));
+
 #ifdef DEBUG
     spdlog::set_level(spdlog::level::debug);
 #endif
@@ -76,16 +79,19 @@ REFramework::REFramework()
         spdlog::info("ntdll.dll not found");
     }
 
-    // Hooking D3D12 initially because we need to retrieve the command queue before the first frame then switch to D3D11 if it failed later
-    // on
-    if (!hook_d3d12()) {
-        spdlog::error("Failed to hook D3D12 for initial test.");
+    // Fixes a crash on some machines when starting the game
+#if defined(RE8) || defined(MHRISE)
+    // wait for the game to load (WTF MHRISE??)
+    while (LoadLibraryA("d3d12.dll") == nullptr) {
+        spdlog::info("Waiting");
     }
 
-    // Fixes a crash on some machines when starting the game
-#ifdef RE8
     // auto startup_patch_addr = Address{m_game_module}.get(0x3E69E50);
     auto startup_patch_addr = utility::scan(m_game_module, "40 53 57 48 83 ec 28 48 83 b9 ? ? ? ? 00");
+
+    while (!startup_patch_addr) {
+        startup_patch_addr = utility::scan(m_game_module, "40 53 57 48 83 ec 28 48 83 b9 ? ? ? ? 00");
+    }
 
     if (startup_patch_addr) {
         static auto permanent_patch = Patch::create(*startup_patch_addr, {0xC3});
@@ -93,6 +99,12 @@ REFramework::REFramework()
         spdlog::info("Couldn't find RE8 crash fix patch location!");
     }
 #endif
+
+    // Hooking D3D12 initially because we need to retrieve the command queue before the first frame then switch to D3D11 if it failed later
+    // on
+    if (!hook_d3d12()) {
+        spdlog::error("Failed to hook D3D12 for initial test.");
+    }
 }
 
 bool REFramework::hook_d3d11() {
@@ -738,6 +750,10 @@ bool REFramework::initialize() {
         auto swap_chain = m_d3d12_hook->get_swap_chain();
 
         if (device == nullptr || swap_chain == nullptr || m_pd3d_command_queue_d3d12 == nullptr) {
+            spdlog::info("Device: {:x}", (uintptr_t)device);
+            spdlog::info("SwapChain: {:x}", (uintptr_t)swap_chain);
+            spdlog::info("CommandQueue: {:x}", (uintptr_t)m_pd3d_command_queue_d3d12);
+
             spdlog::info("Device or SwapChain null. DirectX 11 may be in use. Unhooking D3D12...");
 
             // We unhook D3D12

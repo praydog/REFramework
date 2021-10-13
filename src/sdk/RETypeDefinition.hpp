@@ -21,7 +21,11 @@ struct REMethodDefinition;
 struct REProperty;
 struct RETypeDefinition;
 
-#ifdef RE8
+#ifdef MHRISE
+// it's version 70 but looks the same for now i guess
+#define TYPE_INDEX_BITS 18
+using RETypeDefinition_ = sdk::RETypeDefVersion69;
+#elif defined(RE8)
 #define TYPE_INDEX_BITS 18
 using RETypeDefinition_ = sdk::RETypeDefVersion69;
 #elif defined(RE3) || defined(DMC5)
@@ -188,7 +192,7 @@ struct RETypeDefVersion49 {
 
 static_assert(sizeof(RETypeDefVersion49) == 0x60);
 
-#ifndef RE8
+#if TDB_VER < 69
 #if defined(RE3)
 static_assert(sizeof(RETypeDefVersion67) == 0x80);
 #else
@@ -291,9 +295,14 @@ struct RETypeDefinition : public sdk::RETypeDefinition_ {
 
     uint32_t get_index() const;
     int32_t get_fieldptr_offset() const;
+    bool has_fieldptr_offset() const;
 
     via::clr::VMObjType get_vm_obj_type() const;
 
+    uint32_t get_crc_hash() const;
+    uint32_t get_fqn_hash() const;
+    uint32_t get_size() const;
+    uint32_t get_valuetype_size() const;
     ::REType* get_type() const;
 
     void* get_instance() const;
