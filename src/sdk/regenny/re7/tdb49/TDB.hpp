@@ -1,18 +1,21 @@
 #pragma once
 namespace regenny::tdb49 {
-struct Module;
-}
-namespace regenny::tdb49 {
-struct TypeDefinition;
+struct FieldDefinition;
 }
 namespace regenny::tdb49 {
 struct MethodDefinition;
 }
 namespace regenny::tdb49 {
-struct FieldDefinition;
+struct Event;
 }
 namespace regenny::tdb49 {
 struct PropertyDefinition;
+}
+namespace regenny::tdb49 {
+struct Module;
+}
+namespace regenny::tdb49 {
+struct TypeDefinition;
 }
 namespace regenny::tdb49 {
 #pragma pack(push, 1)
@@ -36,7 +39,7 @@ struct TDB {
     regenny::tdb49::MethodDefinition* methods; // 0x48
     regenny::tdb49::FieldDefinition* fields; // 0x50
     regenny::tdb49::PropertyDefinition* properties; // 0x58
-    void* events; // 0x60
+    regenny::tdb49::Event* events; // 0x60
     void* strings; // 0x68
     uint8_t* bytes; // 0x70
     char pad_78[0x88];

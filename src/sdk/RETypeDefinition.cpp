@@ -137,6 +137,9 @@ static std::shared_mutex g_full_name_mtx{};
 std::string RETypeDefinition::get_full_name() const {
     auto tdb = RETypeDB::get();
 
+#ifdef RE7
+    return tdb->get_string(this->full_name_offset); // uhh thanks?
+#else
     {
         std::shared_lock _{ g_full_name_mtx };
 
@@ -228,6 +231,7 @@ std::string RETypeDefinition::get_full_name() const {
     }
 
     return full_name;
+#endif
 }
 
 sdk::RETypeDefinition* RETypeDefinition::get_declaring_type() const {
@@ -363,17 +367,7 @@ uint32_t RETypeDefinition::get_crc_hash() const {
 }
 
 uint32_t RETypeDefinition::get_fqn_hash() const {
-#ifndef RE7
     return this->fqn_hash;
-#else
-    auto t = (regenny::via::typeinfo::TypeInfo*)get_type();
-
-    if (t == nullptr) {
-        return 0;
-    }
-
-    return t->fqn_hash;
-#endif
 }
 
 uint32_t RETypeDefinition::get_size() const {

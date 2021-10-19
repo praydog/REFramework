@@ -6,16 +6,16 @@ namespace regenny::via::typeinfo {
 struct TypeInfo;
 }
 namespace regenny::tdb49 {
+struct MethodDefinition;
+}
+namespace regenny::tdb49 {
 struct FieldDefinition;
 }
 namespace regenny::tdb49 {
-struct MethodDefinition;
+struct TDB;
 }
 namespace regenny {
 struct BullShit;
-}
-namespace regenny::tdb49 {
-struct TDB;
 }
 namespace regenny::via::clr {
 #pragma pack(push, 1)

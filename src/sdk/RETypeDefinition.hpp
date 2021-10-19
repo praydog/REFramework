@@ -161,11 +161,12 @@ struct RETypeDefVersion66 {
 
 #pragma pack(push, 1)
 struct RETypeDefVersion49 {
-    uint32_t unk_data : 16; // 0x0
-    uint32_t unk_data2 : 16; // 0x0
+    uint32_t fqn_hash; // 0x0
     uint16_t parent_typeid; // 0x4
     uint16_t declaring_typeid; // 0x6
-    char pad_8[0xa];
+    uint32_t full_name_offset; // 0x8
+    char pad_c[0x4];
+    uint16_t generic_typeid; // 0x10
     uint16_t something; // 0x12
     uint32_t name_offset; // 0x14
     uint32_t namespace_offset; // 0x18
@@ -178,7 +179,7 @@ struct RETypeDefVersion49 {
     uint16_t num_member_prop; // 0x2c
     uint16_t num_virtual_method; // 0x2e
     uint16_t num_virtual_field; // 0x30
-    char pad_32[0x2];
+    uint16_t idk; // 0x32
     uint32_t element_size; // 0x34
     uint32_t virtual_field_start; // 0x38
     char pad_3c[0x4];

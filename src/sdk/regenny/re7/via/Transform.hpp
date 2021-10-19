@@ -1,8 +1,8 @@
 #pragma once
-#include ".\vec4.hpp"
 #include ".\mat4.hpp"
-#include ".\JointArray.hpp"
+#include ".\vec4.hpp"
 #include ".\Component.hpp"
+#include ".\JointArray.hpp"
 namespace regenny::via {
 struct Transform;
 }

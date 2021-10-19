@@ -1,10 +1,10 @@
 #pragma once
 #include "clr\ManagedObject.hpp"
 namespace regenny::via {
-struct Folder;
+struct Transform;
 }
 namespace regenny::via {
-struct Transform;
+struct Folder;
 }
 namespace regenny::via {
 #pragma pack(push, 1)

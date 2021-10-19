@@ -1,4 +1,5 @@
 #pragma once
+
 #include "VM.hpp"
 
 namespace regenny::via::clr {

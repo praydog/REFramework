@@ -1,9 +1,9 @@
 #pragma once
 #include ".\RenderType.hpp"
 #include ".\Size.hpp"
+#include ".\CameraType.hpp"
 #include ".\DisplayType.hpp"
 #include ".\BasisPlane.hpp"
-#include ".\CameraType.hpp"
 #include "clr\ManagedObject.hpp"
 namespace regenny::via {
 struct Window;

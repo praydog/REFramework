@@ -17,7 +17,7 @@ struct MethodDefinition {
     uint16_t flags; // 0x14
     uint16_t impl_flags; // 0x16
     uint32_t unk2; // 0x18
-    uint32_t method_params; // 0x1c
+    uint32_t params; // 0x1c
 }; // Size: 0x20
 #pragma pack(pop)
 }
