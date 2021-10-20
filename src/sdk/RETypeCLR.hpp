@@ -140,7 +140,7 @@ public:
         }
 
         // this is wack af good thing its only in re7
-        return prop->getter_array != nullptr && prop->getter_array2 != nullptr;
+        return prop->getter_array != nullptr || prop->getter_array2 != nullptr;
 #else
         return is_array_;
 #endif

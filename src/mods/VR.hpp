@@ -93,7 +93,7 @@ public:
 
     Vector4f get_current_offset();
 
-    Matrix4x4f get_current_eye_transform();
+    Matrix4x4f get_current_eye_transform(bool flip = false);
     Matrix4x4f get_current_rotation_offset();
     Matrix4x4f get_current_projection_matrix(bool flip = false);
 
@@ -148,6 +148,7 @@ private:
     bool detect_controllers();
     void update_hmd_state();
     void update_camera(); // if not in firstperson mode
+    void update_camera_origin(); // every frame
     void restore_camera(); // After rendering
     void set_lens_distortion(bool value);
     void disable_bad_effects();
@@ -245,6 +246,10 @@ private:
     bool m_needs_camera_restore{false};
     bool m_in_render{false};
     bool m_in_lightshaft{false};
+
+    // == 1 or == 0
+    uint8_t m_left_eye_interval{0};
+    uint8_t m_right_eye_interval{1};
 
     static std::string actions_json;
     static std::string binding_rift_json;

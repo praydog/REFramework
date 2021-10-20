@@ -10,6 +10,13 @@ void D3D12Component::on_frame(VR* vr) {
         setup();
     }
 
+    // for some reason this happens.
+    // causes all sorts of weird bugs
+    // but it usually happens after removing the headset
+    if (vr->m_frame_count == vr->m_last_frame_count) {
+        return;
+    }
+
     auto& hook = g_framework->get_d3d12_hook();
     
     // get device
@@ -32,7 +39,7 @@ void D3D12Component::on_frame(VR* vr) {
     }
 
     // If m_frame_count is even, we're rendering the left eye.
-    if (vr->m_frame_count % 2 == 0) {
+    if (vr->m_frame_count % 2 == vr->m_left_eye_interval) {
         // Copy the back buffer to the left eye texture (m_left_eye_tex0 holds the intermediate frame).
         copy_texture(backbuffer.Get(), m_left_eye_tex0.Get());
     } else {
@@ -43,7 +50,7 @@ void D3D12Component::on_frame(VR* vr) {
         copy_texture(m_left_eye_tex0.Get(), m_left_eye_tex.Get());
     }
 
-    if (vr->m_frame_count % 2 == 1) {
+    if (vr->m_frame_count % 2 == vr->m_right_eye_interval) {
         // Wait for GPU to finish copying the textures.
         m_cmd_list->Close();
         command_queue->ExecuteCommandLists(1, (ID3D12CommandList* const*)m_cmd_list.GetAddressOf());
@@ -53,13 +60,31 @@ void D3D12Component::on_frame(VR* vr) {
         m_cmd_allocator->Reset();
         m_cmd_list->Reset(m_cmd_allocator.Get(), nullptr);
 
+        if (vr->m_needs_wgp_update) {
+            vr->m_submitted = false;
+            spdlog::info("[VR] Needed WGP update inside present (frame {})", vr->m_frame_count);
+            return;
+        }
+
 
         // Submit the eye textures to the compositor at this point. It must be done every frame for both eyes otherwise
         // FPS will dive off the deep end.
         auto compositor = vr::VRCompositor();
 
-        vr::Texture_t left_eye{(void*)m_left_eye_tex.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto};
-        vr::Texture_t right_eye{(void*)m_right_eye_tex.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto};
+        vr::D3D12TextureData_t left {
+            m_left_eye_tex.Get(),
+            command_queue,
+            0
+        };
+
+        vr::D3D12TextureData_t right {
+            m_right_eye_tex.Get(),
+            command_queue,
+            0
+        };
+
+        vr::Texture_t left_eye{(void*)&left, vr::TextureType_DirectX12, vr::ColorSpace_Auto};
+        vr::Texture_t right_eye{(void*)&right, vr::TextureType_DirectX12, vr::ColorSpace_Auto};
 
         auto e = compositor->Submit(vr::Eye_Left, &left_eye, &vr->m_left_bounds);
 

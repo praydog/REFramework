@@ -136,7 +136,7 @@ Matrix4x4f* VR::camera_get_projection_matrix_hook(REManagedObject* camera, Matri
 
     // Get the projection matrix for the correct eye
     // For some reason we need to flip the projection matrix here?
-    *result = vr->get_current_projection_matrix(true);
+    *result = vr->get_current_projection_matrix(false);
 
     return result;
 }
@@ -154,15 +154,17 @@ Matrix4x4f* VR::camera_get_view_matrix_hook(REManagedObject* camera, Matrix4x4f*
         return original_func(camera, result);
     }
 
-    /*if (camera != sdk::get_primary_camera()) {
+    if (camera != sdk::get_primary_camera()) {
         return original_func(camera, result);
-    }*/
+    }
 
     original_func(camera, result);
 
     auto& mtx = *result;
 
     const auto current_eye_transform = vr->get_current_eye_transform();
+    //auto current_head_pos = -(glm::inverse(vr->get_rotation(0)) * ((vr->get_position(0)) - vr->m_standing_origin));
+    //current_head_pos.w = 0.0f;
 
     /*if (vr->m_use_rotation) {
         if (vr->m_invert) {
@@ -173,7 +175,7 @@ Matrix4x4f* VR::camera_get_view_matrix_hook(REManagedObject* camera, Matrix4x4f*
     }*/
 
     // Adjust the view matrix origin
-    *(Vector3f*)&mtx[3] += Vector3f { current_eye_transform[3] };
+    *(Vector3f*)&mtx[3] -= Vector3f { current_eye_transform[3] };
 
     return result;
 }
@@ -803,28 +805,10 @@ void VR::update_camera() {
     auto camera = sdk::get_primary_camera();
 
     if (camera == nullptr) {
-        m_needs_camera_restore = false;
         return;
     }
 
-    auto camera_object = utility::re_component::get_game_object(camera);
-
-    if (camera_object == nullptr || camera_object->transform == nullptr) {
-        m_needs_camera_restore = false;
-        return;
-    }
-
-    auto camera_joint = utility::re_transform::get_joint(*camera_object->transform, 0);
-
-    if (camera_joint == nullptr) {
-        m_needs_camera_restore = false;
-        return;
-    }
-
-    m_original_camera_position = sdk::get_joint_position(camera_joint);
-    m_original_camera_rotation = sdk::get_joint_rotation(camera_joint);
-
-    sdk::set_joint_rotation(camera_joint, m_original_camera_rotation * glm::quat{get_rotation(0)});
+    update_camera_origin();
 
     auto projection_matrix = get_current_projection_matrix(true);
 
@@ -851,6 +835,58 @@ void VR::update_camera() {
     disable_bad_effects();
 
     m_needs_camera_restore = true;
+}
+
+void VR::update_camera_origin() {
+    if (!m_is_hmd_active) {
+        return;
+    }
+
+    // this means that the user just put the headset on or something
+    // and we caught them in a bad frame
+    if (inside_on_end && !m_needs_camera_restore) {
+        return;
+    }
+
+    auto camera = sdk::get_primary_camera();
+
+    if (camera == nullptr) {
+        m_needs_camera_restore = false;
+        return;
+    }
+
+    auto camera_object = utility::re_component::get_game_object(camera);
+
+    if (camera_object == nullptr || camera_object->transform == nullptr) {
+        m_needs_camera_restore = false;
+        return;
+    }
+
+    auto camera_joint = utility::re_transform::get_joint(*camera_object->transform, 0);
+
+    if (camera_joint == nullptr) {
+        m_needs_camera_restore = false;
+        return;
+    }
+
+    if (!inside_on_end) {
+        m_original_camera_position = sdk::get_joint_position(camera_joint);
+        m_original_camera_rotation = sdk::get_joint_rotation(camera_joint);
+    }
+    
+    const auto current_hmd_rotation = glm::quat{get_rotation(0)};
+    const auto new_rotation = m_original_camera_rotation * current_hmd_rotation;
+    
+    const auto current_relative_eye_transform = get_current_eye_transform(false);
+    const auto current_relative_eye_pos = current_hmd_rotation * current_relative_eye_transform[3];
+
+    auto current_relative_pos = (get_position(0) - m_standing_origin) /*+ current_relative_eye_pos*/;
+    current_relative_pos.w = 0.0f;
+
+    auto current_head_pos = m_original_camera_rotation * current_relative_pos;
+
+    sdk::set_joint_rotation(camera_joint, new_rotation);
+    sdk::set_joint_position(camera_joint, m_original_camera_position + current_head_pos);
 }
 
 void VR::restore_camera() {
@@ -889,6 +925,7 @@ void VR::restore_camera() {
     }
 
     sdk::set_joint_rotation(joint, m_original_camera_rotation);
+    sdk::set_joint_position(joint, m_original_camera_position);
     m_needs_camera_restore = false;
 }
 
@@ -1000,7 +1037,7 @@ Vector4f VR::get_current_offset() {
 
     std::shared_lock _{ m_eyes_mtx };
 
-    if (get_frame_count() % 2 == 0) {
+    if (m_frame_count % 2 == m_left_eye_interval) {
         //return Vector4f{m_eye_distance * -1.0f, 0.0f, 0.0f, 0.0f};
         return m_eyes[vr::Eye_Left][3];
     }
@@ -1009,14 +1046,16 @@ Vector4f VR::get_current_offset() {
     //return Vector4f{m_eye_distance, 0.0f, 0.0f, 0.0f};
 }
 
-Matrix4x4f VR::get_current_eye_transform() {
+Matrix4x4f VR::get_current_eye_transform(bool flip) {
     if (!m_is_hmd_active) {
         return glm::identity<Matrix4x4f>();
     }
 
     std::shared_lock _{m_eyes_mtx};
 
-    if (get_frame_count() % 2 == 0) {
+    auto mod_count = flip ? m_right_eye_interval : m_left_eye_interval;
+
+    if (m_frame_count % 2 == mod_count) {
         return m_eyes[vr::Eye_Left];
     }
 
@@ -1038,9 +1077,9 @@ Matrix4x4f VR::get_current_projection_matrix(bool flip) {
 
     std::shared_lock _{m_eyes_mtx};
 
-    auto mod_count = flip ? 1 : 0;
+    auto mod_count = flip ? m_right_eye_interval : m_left_eye_interval;
 
-    if (get_frame_count() % 2 == mod_count) {
+    if (m_frame_count % 2 == mod_count) {
         return m_projections[vr::Eye_Left];
     }
 
@@ -1059,8 +1098,12 @@ void VR::on_post_frame() {
         m_is_hmd_active = true; // We need to force out an initial WaitGetPoses call
     }
 
-    m_frame_count = get_frame_count();
+    if (m_frame_count == m_last_frame_count) {
+        return;
+    }
+
     m_main_view = sdk::get_main_view();
+    m_submitted = false;
 
     const auto renderer = g_framework->get_renderer_type();
 
@@ -1069,8 +1112,6 @@ void VR::on_post_frame() {
     } else if (renderer == REFramework::RendererType::D3D12) {
         m_d3d12.on_frame(this);
     }
-
-    m_last_frame_count = m_frame_count;
 }
 
 void VR::on_post_present() {
@@ -1091,18 +1132,21 @@ void VR::on_post_present() {
 
         m_present_finished_cv.notify_all();
     };
-
-    if (m_needs_wgp_update) {
-        unlock_present();
+    
+    if (m_frame_count == m_last_frame_count) {
         return;
     }
-    
-    if (m_submitted) {
-        vr::VRCompositor()->PostPresentHandoff();
+
+    m_last_frame_count = m_frame_count;
+
+    if (m_submitted || m_needs_wgp_update) {
+        if (m_submitted) {
+            vr::VRCompositor()->PostPresentHandoff();
+        }
 
         m_needs_wgp_update = true;
-        unlock_present();
         m_submitted = false;
+        unlock_present();
     } else { // always unlocks every frame so we don't cause a deadlock on AFR
         unlock_present();
     }
@@ -1362,12 +1406,50 @@ void VR::on_lightshaft_draw(void* shaft, void* render_context) {
     m_in_lightshaft = false;
 }
 
+thread_local bool timed_out = false;
+
 void VR::on_pre_begin_rendering(void* entry) {
     m_in_render = true;
     detect_controllers();
 
-    if (!inside_on_end && get_game_frame_count() % 2 == 1) {
+    actual_frame_count = get_game_frame_count();
+    m_frame_count = actual_frame_count;
+
+    /*if (!inside_on_end) {
+        spdlog::info("VR: frame count: {}", m_frame_count);
+    } else {
+        spdlog::info("VR: frame count: {} (inside on_end)", m_frame_count);
+    }*/
+
+    // if we timed out, just return. we're assuming that the rendering will go on as normal
+    if (timed_out) {
+        if (inside_on_end) {
+            spdlog::warn("VR: on_pre_wait_rendering: timed out inside_on_end");
+        } else {
+            spdlog::warn("VR: on_pre_wait_rendering: timed out");
+        }
+
+        return;
+    }
+
+    if (m_needs_wgp_update && inside_on_end) {
+        spdlog::info("VR: on_pre_wait_rendering: inside on end!");
+    }
+
+    // Call WaitGetPoses
+    if (m_needs_wgp_update && !inside_on_end) {
+        m_needs_wgp_update = false;
+        update_hmd_state();
+    }
+
+    if (m_needs_wgp_update) {
+        return;
+    }
+
+    if (!inside_on_end && m_frame_count % 2 == m_left_eye_interval) {
         update_camera();
+    } else if (inside_on_end) {
+        update_camera_origin();
     }
 }
 
@@ -1376,27 +1458,32 @@ void VR::on_begin_rendering(void* entry) {
 }
 
 void VR::on_pre_end_rendering(void* entry) {
-    actual_frame_count = get_game_frame_count();
 
     //spdlog::info("EndRendering");
 }
 
 void VR::on_end_rendering(void* entry) {
-    if (!m_is_hmd_active) {
+    if ((!m_is_hmd_active || m_needs_wgp_update) && !inside_on_end) {
         restore_camera();
 
+        inside_on_end = false;
         m_in_render = false;
         return;
     }
 
     if (m_use_afr || inside_on_end) {
+        if (m_use_afr) {
+            restore_camera();
+            m_in_render = false;
+        }
+
         return;
     }
 
     // Only render again on even (left eye) frames
     // We're checking == 1 because at this point, the frame has finished.
     // Meaning the previous frame was a left eye frame.
-    if (!inside_on_end && actual_frame_count % 2 == 1) {
+    if (!inside_on_end && m_frame_count % 2 == m_left_eye_interval) {
         inside_on_end = true;
         
         // Try to render again for the right eye
@@ -1413,6 +1500,8 @@ void VR::on_end_rendering(void* entry) {
                 "UpdatePhysicsCharacterController",
                 "UpdateTelemetry",
                 "UpdateMovie", // Causes movies to play twice as fast if ran again
+                "UpdateSpeedTree",
+                "UpdateHansoft",
                 // The dynamics stuff causes a cloth physics step in the right eye
                 "BeginRenderingDynamics",
                 "BeginDynamics",
@@ -1478,13 +1567,14 @@ void VR::on_end_rendering(void* entry) {
 }
 
 void VR::on_pre_wait_rendering(void* entry) {
+    timed_out = false;
+
     if (!m_is_hmd_active) {
         return;
     }
 
     // wait for m_present_finished (std::condition_variable)
     // to be signaled
-    bool timed_out = false;
     {
         std::unique_lock lock{m_present_finished_mtx};
         const auto now = std::chrono::steady_clock::now();
@@ -1494,27 +1584,6 @@ void VR::on_pre_wait_rendering(void* entry) {
         }
 
         m_present_finished = false;
-    }
-
-    // if we timed out, just return. we're assuming that the rendering will go on as normal
-    if (timed_out) {
-        if (inside_on_end) {
-            spdlog::warn("VR: on_pre_wait_rendering: timed out inside_on_end");
-        } else {
-            spdlog::warn("VR: on_pre_wait_rendering: timed out");
-        }
-
-        return;
-    }
-
-    if (m_needs_wgp_update && inside_on_end) {
-        spdlog::info("VR: on_pre_wait_rendering: inside on end!");
-    }
-
-    // Call WaitGetPoses
-    if (m_needs_wgp_update && !inside_on_end) {
-        m_needs_wgp_update = false;
-        update_hmd_state();
     }
 }
 
