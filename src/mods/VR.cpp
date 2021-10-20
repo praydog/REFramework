@@ -706,8 +706,6 @@ void VR::update_hmd_state() {
     vr::VRCompositor()->SetTrackingSpace(vr::TrackingUniverseStanding);
     vr::VRCompositor()->WaitGetPoses(m_real_render_poses.data(), vr::k_unMaxTrackedDeviceCount, m_real_game_poses.data(), vr::k_unMaxTrackedDeviceCount);
 
-    m_wgp_initialized = true;
-
     bool wants_reset_origin = false;
 
     // Process events
@@ -764,6 +762,13 @@ void VR::update_hmd_state() {
         m_hmd->GetProjectionRaw(vr::Eye_Left, &m_raw_projections[vr::Eye_Left][0], &m_raw_projections[vr::Eye_Left][1], &m_raw_projections[vr::Eye_Left][2], &m_raw_projections[vr::Eye_Left][3]);
         m_hmd->GetProjectionRaw(vr::Eye_Right, &m_raw_projections[vr::Eye_Right][0], &m_raw_projections[vr::Eye_Right][1], &m_raw_projections[vr::Eye_Right][2], &m_raw_projections[vr::Eye_Right][3]);
     }
+
+    // On first run, set the standing origin to the headset position
+    if (!m_wgp_initialized) {
+        m_standing_origin = get_position(vr::k_unTrackedDeviceIndex_Hmd);
+    }
+
+    m_wgp_initialized = true;
 
     // Forcefully update the camera transform after submitting the frame
     // because the game logic thread does not run in sync with the rendering thread
