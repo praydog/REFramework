@@ -1,9 +1,11 @@
-#include "ObjectExplorer.hpp"
+#include "tools/GameObjectsDisplay.hpp"
+#include "tools/ObjectExplorer.hpp"
 
 #include "DeveloperTools.hpp"
 
 DeveloperTools::DeveloperTools() {
-    m_tools.push_back(std::make_shared<ObjectExplorer>());
+    m_tools.emplace_back(std::make_shared<GameObjectsDisplay>());
+    m_tools.emplace_back(std::make_shared<ObjectExplorer>());
 }
 
 void DeveloperTools::on_draw_ui() {
@@ -12,7 +14,7 @@ void DeveloperTools::on_draw_ui() {
     }
 
     for (auto& tool : m_tools) {
-        tool->on_draw_ui();
+        tool->on_draw_dev_ui();
     }
 }
 

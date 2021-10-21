@@ -48,7 +48,12 @@ Mods::Mods()
 #endif
 
 #ifdef DEVELOPER
-    m_mods.emplace_back(std::make_unique<DeveloperTools>());
+    auto dev_tools = std::make_shared<DeveloperTools>();
+    m_mods.emplace_back(dev_tools);
+
+    for (auto& tool : dev_tools->get_tools()) {
+        m_mods.emplace_back(tool);
+    }
 #endif
 }
 

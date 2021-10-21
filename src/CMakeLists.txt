@@ -17,8 +17,6 @@ set(HOOKS_SRC
 set(MODS_SRC
     mods/Camera.hpp
     mods/Camera.cpp
-    mods/DeveloperTools.hpp
-    mods/DeveloperTools.cpp
     mods/FirstPerson.hpp
     mods/FirstPerson.cpp
     mods/FreeCam.hpp
@@ -27,8 +25,6 @@ set(MODS_SRC
     mods/IntegrityCheckBypass.cpp
     mods/ManualFlashlight.hpp
     mods/ManualFlashlight.cpp
-    mods/ObjectExplorer.hpp
-    mods/ObjectExplorer.cpp
     mods/Scene.hpp
     mods/Scene.cpp
     mods/VR.hpp
@@ -40,6 +36,13 @@ set(MODS_SRC
     mods/vr/D3D12Component.cpp
     mods/ScriptRunner.hpp
     mods/ScriptRunner.cpp
+
+    mods/DeveloperTools.hpp
+    mods/DeveloperTools.cpp
+    mods/tools/GameObjectsDisplay.hpp
+    mods/tools/GameObjectsDisplay.cpp
+    mods/tools/ObjectExplorer.hpp
+    mods/tools/ObjectExplorer.cpp
 )
 
 set(SDK_SRC
@@ -114,6 +117,7 @@ set(UTILITY_SRC
 
 set(FRAMEWORK_SRC
     Mod.hpp
+    Tool.hpp
     Mods.hpp
     Mods.cpp
     REFramework.hpp

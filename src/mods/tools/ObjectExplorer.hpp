@@ -5,7 +5,7 @@
 #include <nlohmann/json.hpp>
 
 #include "utility/Address.hpp"
-#include "Mod.hpp"
+#include "Tool.hpp"
 
 #ifdef DMC5
 #define TDB_DUMP_ALLOWED
@@ -112,13 +112,13 @@ struct ParsedType {
 } // namespace detail
 #endif
 
-class ObjectExplorer : public Mod {
+class ObjectExplorer : public Tool {
 public:
     ObjectExplorer();
 
     std::string_view get_name() const override { return "ObjectExplorer"; };
 
-    void on_draw_ui() override;
+    void on_draw_dev_ui() override;
 
 private:
 #ifdef TDB_DUMP_ALLOWED

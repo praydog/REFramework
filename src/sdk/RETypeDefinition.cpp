@@ -314,6 +314,20 @@ sdk::REMethodDefinition* RETypeDefinition::get_method(std::string_view name) con
     return g_method_map[full_name];
 }
 
+std::vector<sdk::REMethodDefinition*> RETypeDefinition::get_methods(std::string_view name) const {
+    std::vector<sdk::REMethodDefinition*> out{};
+
+    for (auto super = this; super != nullptr; super = super->get_parent_type()) {
+        for (auto& m : super->get_methods()) {
+            if (name == m.get_name()) {
+                out.push_back(&m);
+            }
+        }
+    }
+
+    return out;
+}
+
 uint32_t RETypeDefinition::get_index() const {
 #ifndef RE7
     return this->index;

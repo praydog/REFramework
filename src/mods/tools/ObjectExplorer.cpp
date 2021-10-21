@@ -253,7 +253,7 @@ ObjectExplorer::ObjectExplorer()
     m_object_address.reserve(256);
 }
 
-void ObjectExplorer::on_draw_ui() {
+void ObjectExplorer::on_draw_dev_ui() {
     ImGui::SetNextTreeNodeOpen(false, ImGuiCond_::ImGuiCond_Once);
 
     if (!ImGui::CollapsingHeader(get_name().data())) {
