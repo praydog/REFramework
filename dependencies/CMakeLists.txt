@@ -78,6 +78,7 @@ add_library(lua STATIC
             lua/src/lvm.c
             lua/src/lzio.c)
 target_include_directories(lua PUBLIC lua/src/)
+target_compile_options(lua PUBLIC /MT)
 
 add_library(sol2 INTERFACE)
 target_include_directories(sol2 INTERFACE sol2/single/include)
