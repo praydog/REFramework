@@ -55,6 +55,8 @@ public:
     auto& get_d3d11_hook() const { return m_d3d11_hook; }
     auto& get_d3d12_hook() const { return m_d3d12_hook; }
 
+    auto get_window() const { return m_wnd; }
+
 private:
     void consume_input();
 

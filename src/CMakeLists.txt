@@ -38,6 +38,8 @@ set(MODS_SRC
     mods/vr/D3D11Component.cpp
     mods/vr/D3D12Component.hpp
     mods/vr/D3D12Component.cpp
+    mods/ScriptRunner.hpp
+    mods/ScriptRunner.cpp
 )
 
 set(SDK_SRC
@@ -136,7 +138,7 @@ add_library(${GAME_NAME} SHARED
             ${FRAMEWORK_SRC}
 )
 
-target_link_libraries(${GAME_NAME} PUBLIC imgui minhook d3d11 glm_static shlwapi ${CMAKE_SOURCE_DIR}/dependencies/openvr/lib/win64/openvr_api.lib)
+target_link_libraries(${GAME_NAME} PUBLIC lua sol2 imgui minhook d3d11 glm_static shlwapi ${CMAKE_SOURCE_DIR}/dependencies/openvr/lib/win64/openvr_api.lib)
 target_compile_options(${GAME_NAME} PUBLIC /GS-)
 target_compile_features(${GAME_NAME} PUBLIC cxx_std_20)
 

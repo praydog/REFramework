@@ -9,6 +9,7 @@
 #include "mods/FreeCam.hpp"
 #include "mods/Scene.hpp"
 #include "mods/VR.hpp"
+#include "mods/ScriptRunner.hpp"
 
 #include "Mods.hpp"
 
@@ -22,6 +23,7 @@ Mods::Mods()
     m_mods.emplace_back(std::make_unique<Hooks>());
 
     m_mods.emplace_back(VR::get());
+    m_mods.emplace_back(std::make_unique<ScriptRunner>());
 
 #ifndef RE8
 
