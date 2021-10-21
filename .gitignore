@@ -8,3 +8,5 @@ build64_re3/
 build64_re8/
 build64_dmc5
 src/sdk/generated
+cmake-build*
+.idea/
