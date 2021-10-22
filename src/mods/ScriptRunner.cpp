@@ -3,7 +3,9 @@
 #include <imgui.h>
 
 #include "../sdk/REContext.hpp"
+#include "../sdk/REManagedObject.hpp"
 #include "../sdk/RETypeDB.hpp"
+#include "../sdk/SceneManager.hpp"
 
 #include "ScriptRunner.hpp"
 
@@ -30,7 +32,7 @@ void* get_managed_singleton(const char* name) {
     return (void*)g_framework->get_globals()->get(name);
 }
 
-void* call_native_func(void* obj, void* def, const char* name, sol::variadic_args va) {
+sol::object call_native_func(void* obj, void* def, const char* name, sol::variadic_args va) {
     static std::vector<void*> args{};
     auto l = va.lua_state();
 
@@ -51,15 +53,38 @@ void* call_native_func(void* obj, void* def, const char* name, sol::variadic_arg
         } else {
             args.push_back(arg.as<void*>());
         }
+
+        // TODO: handle string args.
     }
 
-    return ::sdk::invoke_object_func(obj, (::sdk::RETypeDefinition*)def, name, args);
+    auto ty = (::sdk::RETypeDefinition*)def;
+    auto ret_val = ::sdk::invoke_object_func(obj, ty, name, args);
+
+    // Convert return values to the correct Lua types.
+    auto fn = ty->get_method(name);
+    auto ret_ty = fn->get_return_type();
+
+    if (ret_ty != nullptr && ret_ty->get_full_name() == "System.String") {
+        auto managed_ret_val = (::REManagedObject*)ret_val;
+        auto managed_str = (SystemString*)((uintptr_t)utility::re_managed_object::get_field_ptr(managed_ret_val) - sizeof(::REManagedObject));
+        auto str = utility::narrow(managed_str->data);
+
+        return sol::make_object(l, str);
+    }
+
+    // TODO: handle more return type conversions.
+
+    return sol::make_object(l, ret_val);
 }
 
 auto call_object_func(void* obj, const char* name, sol::variadic_args va) {
     auto def = utility::re_managed_object::get_type_definition((::REManagedObject*)obj);
 
     return call_native_func((void*)obj, def, name, va);
+}
+
+void* get_primary_camera() {
+    return ::sdk::get_primary_camera();
 }
 }
 
@@ -79,6 +104,7 @@ ScriptState::ScriptState() {
     sdk["find_type_definition"] = api::sdk::find_type_definition;
     sdk["call_native_func"] = api::sdk::call_native_func;
     sdk["call_object_func"] = api::sdk::call_object_func;
+    sdk["get_primary_camera"] = api::sdk::get_primary_camera;
     m_lua["sdk"] = sdk;
 }
 
