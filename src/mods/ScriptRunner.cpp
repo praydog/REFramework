@@ -38,11 +38,21 @@ void* create_managed_string(const char* text) {
     return ::sdk::VM::create_managed_string(utility::widen(text));
 }
 
-sol::object call_native_func(void* obj, void* def, const char* name, sol::variadic_args va) {
+sol::object call_native_func(sol::object obj, void* def, const char* name, sol::variadic_args va) {
     static std::vector<void*> args{};
     auto l = va.lua_state();
 
     args.clear();
+
+    void* real_obj = nullptr;
+    
+    if (!obj.is<sol::nil_t>()) {
+        if (obj.is<void*>()) {
+            real_obj = obj.as<void*>();
+        } else {
+            real_obj = (void*)obj.as<uintptr_t>();
+        }
+    }
 
     for (auto&& arg : va) {
         auto i = arg.stack_index();
@@ -66,7 +76,7 @@ sol::object call_native_func(void* obj, void* def, const char* name, sol::variad
     }
 
     auto ty = (::sdk::RETypeDefinition*)def;
-    auto ret_val = ::sdk::invoke_object_func(obj, ty, name, args);
+    auto ret_val = ::sdk::invoke_object_func(real_obj, ty, name, args);
 
     // A null void* will get converted into an userdata with value 0. That's not very useful in Lua, so
     // let's return nil instead since that's a much more usable value.
@@ -91,10 +101,20 @@ sol::object call_native_func(void* obj, void* def, const char* name, sol::variad
     return sol::make_object(l, ret_val);
 }
 
-auto call_object_func(void* obj, const char* name, sol::variadic_args va) {
-    auto def = utility::re_managed_object::get_type_definition((::REManagedObject*)obj);
+auto call_object_func(sol::object obj, const char* name, sol::variadic_args va) {
+    void* real_obj = nullptr;
 
-    return call_native_func((void*)obj, def, name, va);
+    if (!obj.is<sol::nil_t>()) {
+        if (obj.is<void*>()) {
+            real_obj = obj.as<void*>();
+        } else {
+            real_obj = (void*)obj.as<uintptr_t>();
+        }
+    }
+
+    auto def = utility::re_managed_object::get_type_definition((::REManagedObject*)real_obj);
+
+    return call_native_func(obj, def, name, va);
 }
 
 void* get_primary_camera() {

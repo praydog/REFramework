@@ -300,9 +300,38 @@ sdk::REMethodDefinition* RETypeDefinition::get_method(std::string_view name) con
         }
     }
     
+    // first pass, do not use function prototypes
     for (auto super = this; super != nullptr; super = super->get_parent_type()) {
         for (auto& m : super->get_methods()) {
             if (name == m.get_name()) {
+                std::unique_lock _{g_method_mtx};
+
+                g_method_map[full_name] = &m;
+                return g_method_map[full_name];
+            }
+        }
+    }
+    
+    // second pass, build a function prototype
+    for (auto super = this; super != nullptr; super = super->get_parent_type()) {
+        for (auto& m : super->get_methods()) {
+            const auto method_param_types = m.get_param_types();
+            const auto method_param_names = m.get_param_names();
+
+            std::stringstream ss{};
+            ss << m.get_name() << "(";
+
+            for (auto i = 0; i < method_param_types.size(); i++) {
+                if (i > 0) {
+                    ss << ", ";
+                }
+                ss << method_param_types[i]->get_full_name();
+            }
+
+            ss << ")";
+            const auto method_prototype = ss.str();
+
+            if (name == method_prototype) {
                 std::unique_lock _{g_method_mtx};
 
                 g_method_map[full_name] = &m;
