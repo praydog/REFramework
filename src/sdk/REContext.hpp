@@ -1,4 +1,5 @@
 class REThreadContext;
+class SystemString;
 
 namespace sdk {
 typedef void (*InvokeMethod)(void* stack_frame, void* context);
@@ -13,6 +14,7 @@ InvokeMethod* get_invoke_table();
 #pragma once
 
 #include <cstdint>
+#include <string_view>
 
 #include "RETypeDB.hpp"
 
@@ -43,6 +45,7 @@ namespace sdk {
         uint8_t* get_static_tbl_for_type(uint32_t type_index);
 
         static sdk::InvokeMethod* get_invoke_table();
+        static SystemString* create_managed_string(std::wstring_view str); // System.String
 
     private:
         using ThreadContextFn = REThreadContext* (*)(VM*, int32_t);

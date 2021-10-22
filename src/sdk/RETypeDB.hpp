@@ -38,6 +38,9 @@ T* get_object_field(void* obj, sdk::RETypeDefinition* t, std::string_view name, 
 template<typename T>
 T* get_object_field(::REManagedObject* obj, std::string_view name, bool is_value_type = false);
 
+template<typename T>
+T* get_static_field(std::string_view type_name, std::string_view name, bool is_value_type = false);
+
 static void* find_native_method(sdk::RETypeDefinition* t, std::string_view method_name);
 static void* find_native_method(std::string_view type_name, std::string_view method_name);
 
@@ -642,6 +645,18 @@ T* get_object_field(::REManagedObject* obj, std::string_view name, bool is_value
     auto def = utility::re_managed_object::get_type_definition(obj);
 
     return get_object_field<T>((void*)obj, def, name, is_value_type);
+}
+
+template<typename T>
+T* get_static_field(std::string_view type_name, std::string_view name, bool is_value_type) {
+    const auto t = sdk::RETypeDB::get()->find_type(type_name);
+
+    if (t == nullptr) {
+        // spdlog::error("Cannot find type {:s}", type_name.data());
+        return nullptr;
+    }
+
+    return get_object_field<T>((void*)nullptr, t, name, is_value_type);
 }
 
 static void* find_native_method(sdk::RETypeDefinition* t, std::string_view method_name) {

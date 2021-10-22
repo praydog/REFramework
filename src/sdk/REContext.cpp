@@ -6,6 +6,7 @@
 
 #include "REFramework.hpp"
 #include "ReClass.hpp"
+#include "RETypeDB.hpp"
 #include "REContext.hpp"
 
 namespace sdk {
@@ -207,6 +208,29 @@ namespace sdk {
         update_pointers();
 
         return s_invoke_tbl;
+    }
+
+    ::SystemString* VM::create_managed_string(std::wstring_view str) {
+        static auto empty_string = *sdk::get_static_field<REManagedObject*>("System.String", "Empty");
+        static std::vector<uint8_t> huge_string_data{};
+
+        if (huge_string_data.empty()) {
+            huge_string_data.resize(sizeof(REManagedObject) + 4 + 2048);
+            memset(&huge_string_data[0], 0, huge_string_data.size());
+
+            auto huge_string = (SystemString*)&huge_string_data[0];
+            memcpy(huge_string, empty_string, sizeof(REManagedObject));
+        }
+
+        const auto str_len = str.length();
+        auto huge_string = (SystemString*)&huge_string_data[0];
+        huge_string->size = (int32_t)str_len;
+
+        auto out = (SystemString*)sdk::invoke_object_func(huge_string, "Clone", {});
+
+        memcpy(out->data, str.data(), str_len * sizeof(wchar_t));
+
+        return out;
     }
 
     sdk::InvokeMethod* get_invoke_table() {

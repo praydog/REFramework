@@ -7,6 +7,8 @@
 #include "../sdk/RETypeDB.hpp"
 #include "../sdk/SceneManager.hpp"
 
+#include "utility/String.hpp"
+
 #include "ScriptRunner.hpp"
 
 namespace api::re {
@@ -30,6 +32,10 @@ void* get_native_singleton(const char* name) {
 
 void* get_managed_singleton(const char* name) {
     return (void*)g_framework->get_globals()->get(name);
+}
+
+void* create_managed_string(const char* text) {
+    return ::sdk::VM::create_managed_string(utility::widen(text));
 }
 
 sol::object call_native_func(void* obj, void* def, const char* name, sol::variadic_args va) {
@@ -101,6 +107,7 @@ ScriptState::ScriptState() {
     sdk["get_thread_context"] = api::sdk::get_thread_context;
     sdk["get_native_singleton"] = api::sdk::get_native_singleton;
     sdk["get_managed_singleton"] = api::sdk::get_managed_singleton;
+    sdk["create_managed_string"] = api::sdk::create_managed_string;
     sdk["find_type_definition"] = api::sdk::find_type_definition;
     sdk["call_native_func"] = api::sdk::call_native_func;
     sdk["call_object_func"] = api::sdk::call_object_func;
