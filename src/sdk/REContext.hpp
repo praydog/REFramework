@@ -1,9 +1,12 @@
 class REThreadContext;
 
 namespace sdk {
-    struct REStaticTbl;
-    class VM;
-    REThreadContext* get_thread_context(int32_t unk = -1);
+typedef void (*InvokeMethod)(void* stack_frame, void* context);
+
+struct REStaticTbl;
+class VM;
+REThreadContext* get_thread_context(int32_t unk = -1);
+InvokeMethod* get_invoke_table();
 }
 
 
@@ -39,11 +42,14 @@ namespace sdk {
 
         uint8_t* get_static_tbl_for_type(uint32_t type_index);
 
+        static sdk::InvokeMethod* get_invoke_table();
+
     private:
         using ThreadContextFn = REThreadContext* (*)(VM*, int32_t);
         static void update_pointers();
 
         static VM** s_global_context;
+        static sdk::InvokeMethod* s_invoke_tbl;
         static ThreadContextFn s_get_thread_context;
 
         static int32_t s_static_tbl_offset;

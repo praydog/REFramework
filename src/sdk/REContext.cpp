@@ -10,6 +10,7 @@
 
 namespace sdk {
     VM** VM::s_global_context{ nullptr };
+    sdk::InvokeMethod* VM::s_invoke_tbl{nullptr};
     VM::ThreadContextFn VM::s_get_thread_context{ nullptr };
     int32_t VM::s_static_tbl_offset{ 0 };
     int32_t VM::s_type_db_offset{ 0 };
@@ -152,6 +153,44 @@ namespace sdk {
 
         spdlog::info("[VM::update_pointers] s_global_context: {:x}", (uintptr_t)s_global_context);
         spdlog::info("[VM::update_pointers] s_get_thread_context: {:x}", (uintptr_t)s_get_thread_context);
+
+        // Get invoke_tbl
+        // this SEEMS to work on RE2 and onwards, but not on RE7
+        // look into it later
+#ifndef RE7
+        // Just a potential method inside the table
+        // we will scan for something pointing to it,
+        // meaning that we will land in the middle of the invoke table somwhere
+        // from there, we will scan backwards for a null pointer,
+        // which will be the start of the table
+        auto method_inside_invoke_tbl = utility::scan(mod, "40 53 48 83 ec 20 48 8b 41 30 4c 8b d2 48 8b 51 40 48 8b d9 4c 8b 00 48 8b 41 10");
+
+        if (!method_inside_invoke_tbl) {
+            spdlog::info("[VM::update_pointers] Unable to find method inside invoke table.");
+            return;
+        }
+
+        spdlog::info("[VM::update_pointers] method_inside_invoke_tbl: {:x}", (uintptr_t)*method_inside_invoke_tbl);
+
+        auto ptr_inside_invoke_tbl = utility::scan_ptr(mod, *method_inside_invoke_tbl);
+
+        if (!ptr_inside_invoke_tbl) {
+            spdlog::info("[VM::update_pointers] Unable to find ptr inside invoke table.");
+            return;
+        }
+
+        spdlog::info("[VM::update_pointers] ptr_inside_invoke_tbl: {:x}", (uintptr_t)*ptr_inside_invoke_tbl);
+
+        // Scan backwards for a null pointer
+        for (auto i = *ptr_inside_invoke_tbl; ; i -= sizeof(void*)) {
+            if (*(void**)i == nullptr) {
+                s_invoke_tbl = (sdk::InvokeMethod*)i;
+                break;
+            }
+        }
+
+        spdlog::info("[VM::update_pointers] s_invoke_tbl: {:x}", (uintptr_t)s_invoke_tbl);
+#endif
     }
 
     REThreadContext* get_thread_context(int32_t unk /*= -1*/) {
@@ -162,6 +201,16 @@ namespace sdk {
         }
 
         return global_context->get_thread_context(unk);
+    }
+
+    sdk::InvokeMethod* VM::get_invoke_table() {
+        update_pointers();
+
+        return s_invoke_tbl;
+    }
+
+    sdk::InvokeMethod* get_invoke_table() {
+        return VM::get_invoke_table();
     }
 }
 

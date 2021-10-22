@@ -10,6 +10,20 @@ RETypeDB* RETypeDB::get() {
 static std::shared_mutex g_tdb_type_mtx{};
 static std::unordered_map<std::string, sdk::RETypeDefinition*> g_tdb_type_map{};
 
+void invoke_object_func(void* obj, sdk::RETypeDefinition* t, std::string_view name, const std::vector<void*>& args, void* result) {
+    const auto method = t->get_method(name);
+
+    if (method == nullptr) {
+        return;
+    }
+
+    method->invoke(obj, args, result);
+}
+
+void invoke_object_func(::REManagedObject* obj, std::string_view name, const std::vector<void*>& args, void* result) {
+    invoke_object_func((void*)obj, utility::re_managed_object::get_type_definition(obj), name, args, result);
+}
+
 sdk::RETypeDefinition* RETypeDB::find_type(std::string_view name) const {
     {
         std::shared_lock _{ g_tdb_type_mtx };
@@ -261,6 +275,49 @@ void* REMethodDefinition::get_function() const {
 
     return m.function;
 #endif
+}
+
+uint32_t sdk::REMethodDefinition::get_invoke_id() const {
+    auto tdb = RETypeDB::get();
+
+#if TDB_VER >= 69
+    const auto param_list = (uint32_t)this->params;
+    const auto param_ids = tdb->get_data<REParamList>(param_list);
+    const auto num_params = param_ids->numParams;
+    const auto invoke_id = param_ids->invokeID;
+#else
+    const auto invoke_id = (uint16_t)this->invoke_id;
+#endif
+
+    return invoke_id;
+}
+
+void sdk::REMethodDefinition::invoke(void* object, const std::vector<void*>& args, void* result) const {
+    if (get_num_params() != args.size()) {
+        //throw std::runtime_error("Invalid number of arguments");
+        spdlog::warn("Invalid number of arguments passed to REMethodDefinition::invoke for {}", get_name());
+        return;
+    }
+
+    const auto invoke_tbl = sdk::get_invoke_table();
+    auto invoke_wrapper = invoke_tbl[get_invoke_id()];
+    
+    struct StackFrame {
+        char pad_0000[8+8]; //0x0000
+        const sdk::REMethodDefinition* method;
+        char pad_0010[24]; //0x0018
+        void* in_data; //0x0030 can point to data
+        void* out_data; //0x0038 can be whatever, can be a dword, can point to data
+        void* object_ptr; //0x0040 aka "this" pointer
+    };
+
+    StackFrame stack_frame{};
+    stack_frame.method = this;
+    stack_frame.object_ptr = object;
+    stack_frame.in_data = (void*)args.data();
+    stack_frame.out_data = result;
+    
+    invoke_wrapper((void*)&stack_frame, sdk::get_thread_context());
 }
 
 uint32_t sdk::REMethodDefinition::get_index() const {

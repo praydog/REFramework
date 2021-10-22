@@ -29,6 +29,19 @@ namespace utility {
         return p.find(start, length);
     }
 
+    optional<uintptr_t> scan_ptr(HMODULE module, uintptr_t ptr) {
+        const auto module_size = get_module_size(module).value_or(0);
+        const auto end = (uintptr_t)module + module_size;
+
+        for (auto i = (uintptr_t)module; i < end; i += sizeof(void*)) {
+            if (*(uintptr_t*)i == ptr) {
+                return i;
+            }
+        }
+
+        return std::nullopt;
+    }
+
     uintptr_t calculate_absolute(uintptr_t address, uint8_t customOffset /*= 4*/) {
         auto offset = *(int32_t*)address;
 

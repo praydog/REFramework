@@ -1,4 +1,5 @@
 #include <string_view>
+#include <vector>
 #include <cstdint>
 
 // Forward decls
@@ -21,6 +22,9 @@ struct REMethodImpl;
 struct REProperty;
 struct REPropertyImpl;
 struct REParameterDef;
+
+void invoke_object_func(void* obj, sdk::RETypeDefinition* t, std::string_view name, const std::vector<void*>& args, void* result);
+void invoke_object_func(::REManagedObject* obj, std::string_view name, const std::vector<void*>& args, void* result);
 
 template <typename T, typename... Args> 
 T call_object_func(void* obj, sdk::RETypeDefinition* t, std::string_view name, Args... args);
@@ -588,6 +592,13 @@ struct REMethodDefinition : public sdk::REMethodDefinition_ {
         return get_function_t<T (*)(Args...)>()(args...); 
     }
 
+    // calling and invoking are two different things
+    // calling is the actual call to the function
+    // invoking is calling a wrapper function that calls the function
+    // using an array of arguments
+    void invoke(void* object, const std::vector<void*>& args, void* result) const;
+
+    uint32_t get_invoke_id() const;
     uint32_t get_num_params() const;
 
     std::vector<uint32_t> get_param_typeids() const;
