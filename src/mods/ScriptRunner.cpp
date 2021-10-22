@@ -31,17 +31,29 @@ void* get_managed_singleton(const char* name) {
 }
 
 void* call_native_func(void* obj, void* def, const char* name, sol::variadic_args va) {
-    auto t = (::sdk::RETypeDefinition*)def;
+    static std::vector<void*> args{};
+    auto l = va.lua_state();
 
-    switch (va.size()) {
-    case 0: return ::sdk::call_object_func<void*>(obj, t, name);
-    case 1: return ::sdk::call_object_func<void*>(obj, t, name, va.get<void*>(0));
-    case 2: return ::sdk::call_object_func<void*>(obj, t, name, va.get<void*>(0), va.get<void*>(1));
-    case 3: return ::sdk::call_object_func<void*>(obj, t, name, va.get<void*>(0), va.get<void*>(1), va.get<void*>(2));
-    // TODO: do more.
+    args.clear();
+
+    for (auto&& arg : va) {
+        auto i = arg.stack_index();
+
+        // sol2 doesn't seem to differentiate between Lua integers and numbers. So
+        // we must do it ourselves.
+        if (lua_isinteger(l, i)) {
+            auto n = (intptr_t)lua_tointeger(l, i);
+            args.push_back((void*)n);
+        } else if (lua_isnumber(l, i)) {
+            auto f = lua_tonumber(l, i);
+            auto n = *(intptr_t*)&f;
+            args.push_back((void*)n);
+        } else {
+            args.push_back(arg.as<void*>());
+        }
     }
 
-    return (void*)0xcc90cc90'cc90cc90;
+    return ::sdk::invoke_object_func(obj, (::sdk::RETypeDefinition*)def, name, args);
 }
 
 auto call_object_func(void* obj, const char* name, sol::variadic_args va) {
@@ -71,13 +83,18 @@ ScriptState::ScriptState() {
 }
 
 void ScriptState::run_script(const std::string& p) {
-    m_lua.safe_script_file(p, [](lua_State*, sol::protected_function_result pfr) {
+    /*m_lua.safe_script_file(p, [](lua_State*, sol::protected_function_result pfr) {
         if (!pfr.valid()) {
             sol::error err = pfr;
             api::re::msg(err.what());
         }
         return pfr;
-    });
+    });*/
+    try {
+        m_lua.safe_script_file(p);
+    } catch (const std::exception& e) {
+        api::re::msg(e.what());
+    }
 }
 
 void ScriptState::on_pre_application_entry(const char* name) {
