@@ -1,6 +1,7 @@
 #pragma once
 
 #include <unordered_map>
+#include <memory>
 
 #include <sol/sol.hpp>
 
@@ -30,6 +31,6 @@ public:
     void on_application_entry(void* entry, const char* name, size_t hash) override;
 
 private:
-    ScriptState m_state{};
+    std::unique_ptr<ScriptState> m_state{new ScriptState{}};
 };
 

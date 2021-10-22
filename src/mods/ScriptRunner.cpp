@@ -218,19 +218,19 @@ void ScriptRunner::on_draw_ui() {
         ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
 
         if (GetOpenFileName(&ofn) != FALSE) {
-            m_state.run_script(file);
+            m_state->run_script(file);
         }
     }
 
     if (ImGui::Button("Reset scripts")) {
-        m_state = {};
+        m_state = std::make_unique<ScriptState>();
     }
 }
 
 void ScriptRunner::on_pre_application_entry(void* entry, const char* name, size_t hash) {
-    m_state.on_pre_application_entry(name);
+    m_state->on_pre_application_entry(name);
 }
 
 void ScriptRunner::on_application_entry(void* entry, const char* name, size_t hash) {
-    m_state.on_application_entry(name);
+    m_state->on_application_entry(name);
 }
