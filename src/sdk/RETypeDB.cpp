@@ -10,18 +10,18 @@ RETypeDB* RETypeDB::get() {
 static std::shared_mutex g_tdb_type_mtx{};
 static std::unordered_map<std::string, sdk::RETypeDefinition*> g_tdb_type_map{};
 
-void invoke_object_func(void* obj, sdk::RETypeDefinition* t, std::string_view name, const std::vector<void*>& args, void* result) {
+void* invoke_object_func(void* obj, sdk::RETypeDefinition* t, std::string_view name, const std::vector<void*>& args) {
     const auto method = t->get_method(name);
 
     if (method == nullptr) {
-        return;
+        return nullptr;
     }
 
-    method->invoke(obj, args, result);
+    return method->invoke(obj, args);
 }
 
-void invoke_object_func(::REManagedObject* obj, std::string_view name, const std::vector<void*>& args, void* result) {
-    invoke_object_func((void*)obj, utility::re_managed_object::get_type_definition(obj), name, args, result);
+void* invoke_object_func(::REManagedObject* obj, std::string_view name, const std::vector<void*>& args) {
+   return invoke_object_func((void*)obj, utility::re_managed_object::get_type_definition(obj), name, args);
 }
 
 sdk::RETypeDefinition* RETypeDB::find_type(std::string_view name) const {
@@ -292,16 +292,16 @@ uint32_t sdk::REMethodDefinition::get_invoke_id() const {
     return invoke_id;
 }
 
-void sdk::REMethodDefinition::invoke(void* object, const std::vector<void*>& args, void* result) const {
+void* sdk::REMethodDefinition::invoke(void* object, const std::vector<void*>& args) const {
     if (get_num_params() != args.size()) {
         //throw std::runtime_error("Invalid number of arguments");
         spdlog::warn("Invalid number of arguments passed to REMethodDefinition::invoke for {}", get_name());
-        return;
+        return nullptr;
     }
 
     const auto invoke_tbl = sdk::get_invoke_table();
     auto invoke_wrapper = invoke_tbl[get_invoke_id()];
-    
+
     struct StackFrame {
         char pad_0000[8+8]; //0x0000
         const sdk::REMethodDefinition* method;
@@ -315,9 +315,11 @@ void sdk::REMethodDefinition::invoke(void* object, const std::vector<void*>& arg
     stack_frame.method = this;
     stack_frame.object_ptr = object;
     stack_frame.in_data = (void*)args.data();
-    stack_frame.out_data = result;
+    stack_frame.out_data = nullptr;
     
     invoke_wrapper((void*)&stack_frame, sdk::get_thread_context());
+
+    return stack_frame.out_data;
 }
 
 uint32_t sdk::REMethodDefinition::get_index() const {

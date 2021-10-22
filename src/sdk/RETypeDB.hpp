@@ -23,8 +23,8 @@ struct REProperty;
 struct REPropertyImpl;
 struct REParameterDef;
 
-void invoke_object_func(void* obj, sdk::RETypeDefinition* t, std::string_view name, const std::vector<void*>& args, void* result);
-void invoke_object_func(::REManagedObject* obj, std::string_view name, const std::vector<void*>& args, void* result);
+void* invoke_object_func(void* obj, sdk::RETypeDefinition* t, std::string_view name, const std::vector<void*>& args);
+void* invoke_object_func(::REManagedObject* obj, std::string_view name, const std::vector<void*>& args);
 
 template <typename T, typename... Args> 
 T call_object_func(void* obj, sdk::RETypeDefinition* t, std::string_view name, Args... args);
@@ -596,7 +596,7 @@ struct REMethodDefinition : public sdk::REMethodDefinition_ {
     // calling is the actual call to the function
     // invoking is calling a wrapper function that calls the function
     // using an array of arguments
-    void invoke(void* object, const std::vector<void*>& args, void* result) const;
+    void* invoke(void* object, const std::vector<void*>& args) const;
 
     uint32_t get_invoke_id() const;
     uint32_t get_num_params() const;
