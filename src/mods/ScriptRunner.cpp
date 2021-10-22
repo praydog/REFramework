@@ -56,11 +56,13 @@ sol::object call_native_func(void* obj, void* def, const char* name, sol::variad
             auto f = lua_tonumber(l, i);
             auto n = *(intptr_t*)&f;
             args.push_back((void*)n);
-        } else {
+        } else if (lua_isstring(l, i)) {
+            auto s = lua_tostring(l, i);
+            args.push_back(create_managed_string(s));
+        }
+        else {
             args.push_back(arg.as<void*>());
         }
-
-        // TODO: handle string args.
     }
 
     auto ty = (::sdk::RETypeDefinition*)def;
