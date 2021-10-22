@@ -96,6 +96,24 @@ void* get_primary_camera() {
 }
 }
 
+namespace api::log {
+void info(const char* str) {
+    spdlog::info(str);
+}
+
+void warn(const char* str) {
+    spdlog::warn(str);
+}
+
+void error(const char* str) {
+    spdlog::error(str);
+}
+
+void debug(const char* str) {
+    spdlog::debug(str);
+}
+}
+
 ScriptState::ScriptState() {
     m_lua.open_libraries(sol::lib::base, sol::lib::package, sol::lib::string, sol::lib::math, sol::lib::table, sol::lib::bit32, sol::lib::utf8);
 
@@ -115,6 +133,13 @@ ScriptState::ScriptState() {
     sdk["call_object_func"] = api::sdk::call_object_func;
     sdk["get_primary_camera"] = api::sdk::get_primary_camera;
     m_lua["sdk"] = sdk;
+
+    auto log = m_lua.create_table();
+    log["info"] = api::log::info;
+    log["warn"] = api::log::warn;
+    log["error"] = api::log::error;
+    log["debug"] = api::log::debug;
+    m_lua["log"] = log;
 }
 
 void ScriptState::run_script(const std::string& p) {
