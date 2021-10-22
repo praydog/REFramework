@@ -68,6 +68,12 @@ sol::object call_native_func(void* obj, void* def, const char* name, sol::variad
     auto ty = (::sdk::RETypeDefinition*)def;
     auto ret_val = ::sdk::invoke_object_func(obj, ty, name, args);
 
+    // A null void* will get converted into an userdata with value 0. That's not very useful in Lua, so
+    // let's return nil instead since that's a much more usable value.
+    if (ret_val == nullptr) {
+        return sol::make_object(l, sol::nil);
+    }
+
     // Convert return values to the correct Lua types.
     auto fn = ty->get_method(name);
     auto ret_ty = fn->get_return_type();
