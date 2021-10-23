@@ -113,7 +113,7 @@ public:
 #ifdef RE7
         return (uint16_t)typekind_sizes[code];
 #else
-        return depth;
+        return size;
 #endif
     }
 

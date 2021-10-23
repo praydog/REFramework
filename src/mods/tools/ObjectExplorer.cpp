@@ -618,6 +618,10 @@ void ObjectExplorer::generate_sdk() {
             rsz_entry["static"] = is_static;
             rsz_entry["offset_from_fieldptr"] = (std::stringstream{} << "0x" << std::hex << sequence.offset).str();
 
+#ifdef RE7
+            rsz_entry["potential_name"] = sequence.prop->name;
+#endif
+
             il2cpp_dump[pt->full_name]["RSZ"].emplace_back(rsz_entry);
         }
 
@@ -779,8 +783,11 @@ void ObjectExplorer::generate_sdk() {
 #if TDB_VER >= 69
         method_entry["returns"] = parse_param(param_ids->returnType, true);
 #else
+        const auto return_type = m.get_return_type();
+        const auto return_type_name = return_type != nullptr ? return_type->get_full_name() : "";
+
         method_entry["returns"] = json{
-            {"type", generate_full_name(tdb, m.get_return_type()->get_index())},
+            {"type", return_type_name},
             {"name", ""},
         };
 #endif
@@ -1039,6 +1046,9 @@ void ObjectExplorer::generate_sdk() {
 
 
     // Try and guess what the field names are for the RSZ entries
+    // In RE7, the deserializer points to the reflection property,
+    // so we can just grab the name from there instead of comparing field offsets.
+#ifndef RE7
     for (auto& t : g_itypedb) {
         auto tdef = t.second->t;
 
@@ -1055,6 +1065,7 @@ void ObjectExplorer::generate_sdk() {
         int32_t i = 0;
 
         for (auto& rsz_entry : t_json["RSZ"]) {
+            const auto is_rsz_static = rsz_entry["static"].get<bool>();
             const auto rsz_offset = std::stoul(std::string{ rsz_entry["offset_from_fieldptr"] }, nullptr, 16);
             auto fieldptr_adjustment = 0;
 
@@ -1081,13 +1092,23 @@ void ObjectExplorer::generate_sdk() {
             }
 
             for (auto& f : depth_t->parsed_fields) {
-                if (f->offset_from_fieldptr + fieldptr_adjustment == rsz_offset) {
+                const auto is_field_static = f->f->is_static();
+
+                if (is_field_static != is_rsz_static) {
+                    continue;
+                }
+
+                //const auto field_offset = is_field_static ? f->offset_from_fieldptr : (f->offset_from_fieldptr + fieldptr_adjustment);
+                const auto field_offset = f->offset_from_fieldptr + fieldptr_adjustment;
+
+                if (field_offset == rsz_offset) {
                     rsz_entry["potential_name"] = f->name;
                     break;
                 }
             }
         }
     }
+#endif
 #endif
 
     // First pass, gather all valid class names
@@ -2079,7 +2100,7 @@ void ObjectExplorer::display_native_methods(REManagedObject* obj, sdk::RETypeDef
         for (auto& m : methods) {
             const auto method_name = m.get_name();
             const auto method_return_type = m.get_return_type();
-            const auto method_return_type_name = method_return_type->get_full_name();
+            const auto method_return_type_name = method_return_type != nullptr ? method_return_type->get_full_name() : std::string{};
             const auto method_param_types = m.get_param_types();
             const auto method_param_names = m.get_param_names();
             const auto method_virtual_index = m.get_virtual_index();

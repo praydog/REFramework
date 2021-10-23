@@ -189,6 +189,18 @@ uint32_t REField::get_offset_from_base() const {
     return offset_from_fieldptr;
 }
 
+bool sdk::REField::is_static() const {
+    const auto field_flags = this->get_flags();
+
+    return (field_flags & (uint16_t)via::clr::FieldFlag::Static) != 0;
+}
+
+bool sdk::REField::is_literal() const  {
+    const auto field_flags = this->get_flags();
+
+    return (field_flags & (uint16_t)via::clr::FieldFlag::Literal) != 0;
+}
+
 void* REField::get_data_raw(void* object, bool is_value_type) const {
     const auto field_flags = get_flags();
 

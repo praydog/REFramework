@@ -24,125 +24,152 @@ FILL_BYTE = 16
 zero_member_functions = {}
 
 default_chains = {
-    "via.gui.Material": {
+    "via.motion.tree.AddBlendNode": {
         "deserializer_chain": [
             {
-                "address": "0x00000001461750E0"
+                "address": "0x143bbbfd0",
+                "name": "via.Object"
             },
             {
-                "address": "0x00000001461740D0"
+                "address": "0x143bc9390",
+                "name": "via.motion.tree.BaseNode"
             },
             {
-                "address": "0x0000000146186870"
+                "address": "0x143bca5a0",
+                "name": "via.motion.tree.TreeNode"
             },
             {
-                "address": "0x0000000146182A70"
+                "address": "0x143bc9880",
+                "name": "via.motion.tree.InnerNodeDynamic"
             },
             {
-                "address": "0x0000000146181EA0"
+                "address": "0x143bc9110",
+                "name": "via.motion.tree.BaseBlendNode"
             },
             {
-                "address": "0x0000000146184840"
+                "address": "0x143bc9230",
+                "name": "via.motion.tree.BaseLayerBlendNode"
             },
             {
-                "address": "0x0000000146184890"
+                "address": "0x143bc98b0",
+                "name": "via.motion.tree.AddBlendNode"
             }
         ],
     },
-    "via.Transform": {
+    "via.render.LocalCubemap": {
         "deserializer_chain": [
             {
-                "address": "0x00000001461750E0"
+                "address": "0x143bbbfd0",
+                "name": "via.Object"
             },
             {
-                "address": "0x00000001461740D0"
+                "address": "0x143bd0d80",
+                "name": "System.Object"
             },
             {
-                "address": "0x00000001461743F0"
+                "address": "0x143bd1650",
+                "name": "via.Component"
             },
             {
-                "address": "0x0000000146175AE0"
+                "address": "0x143bd3b70",
+                "name": "via.render.LocalCubemap"
             }
         ],
     },
-    "via.wwise.WwiseEntry": {
+    "via.render.MaterialParam": {
+        "address": "1451e8988",
+        "crc": "2bedb2b0",
         "deserializer_chain": [
             {
-                "address": "0x00000001461750E0"
+                "address": "0x143bbbfd0",
+                "name": "via.Object"
             },
             {
-                "address": "0x00000001461740D0"
+                "address": "0x143bd0d80",
+                "name": "System.Object"
             },
             {
-                "address": "0x00000001461BC0C0"
+                "address": "0x143bd3c50",
+                "name": "via.render.MaterialParam"
             }
         ],
     },
-    "via.render.Mesh": {
+    "via.wwise.WwiseMaterialSwitchParam": {
         "deserializer_chain": [
             {
-                "address": "0x00000001461750E0"
+                "address": "0x143bbbfd0",
+                "name": "via.Object"
             },
             {
-                "address": "0x00000001461740D0"
+                "address": "0x143bd0d80",
+                "name": "System.Object"
             },
             {
-                "address": "0x00000001461743F0"
-            },
-            {
-                "address": "0x00000001461AC670"
+                "address": "0x143bdffe0",
+                "name": "via.wwise.WwiseMaterialSwitchParam"
             }
         ],
     },
-    "via.landscape.AreaDivision": {
-        "address": "000000014814A020",
-        "crc": "e1951674",
+    "via.wwise.WwiseSwitchByNameParam": {
         "deserializer_chain": [
             {
-                "address": "0x00000001461750E0"
+                "address": "0x143bbbfd0",
+                "name": "via.Object"
             },
             {
-                "address": "0x00000001461740D0"
+                "address": "0x143bd0d80",
+                "name": "System.Object"
             },
             {
-                "address": "0x00000001461743F0"
-            },
-            {
-                "address": "0x000000014618BA60"
+                "address": "0x143bdffe0",
+                "name": "via.wwise.WwiseSwitchByNameParam"
             }
         ],
     },
-    "via.landscape.AreaInfo": {
-        "address": "0000000147DC5E90",
-        "crc": "c6957839",
+    "via.wwise.WwiseSwitchList": {
         "deserializer_chain": [
             {
-                "address": "0x00000001461750E0"
+                "address": "0x143bbbfd0",
+                "name": "via.Object"
             },
             {
-                "address": "0x00000001461740D0"
+                "address": "0x143bd0d80",
+                "name": "System.Object"
             },
             {
-                "address": "0x000000014618BB00"
+                "address": "0x143bd1650",
+                "name": "via.Component"
+            },
+            {
+                "address": "0x143bbb830",
+                "name": "via.Behavior"
+            },
+            {
+                "address": "0x143bdb270",
+                "name": "via.wwise.Wwise"
+            },
+            {
+                "address": "0x143bdb470",
+                "name": "via.wwise.WwiseSwitchList"
             }
         ],
     },
-    "via.landscape.PointBaker": {
+    "via.wwise.WwiseSwitchParam": {
         "deserializer_chain": [
             {
-                "address": "0x00000001461750E0"
+                "address": "0x143bbbfd0",
+                "name": "via.Object"
             },
             {
-                "address": "0x00000001461740D0"
+                "address": "0x143bd0d80",
+                "name": "System.Object"
             },
             {
-                "address": "0x00000001461743F0"
-            },
-            {
-                "address": "0x000000014618C6D0"
+                "address": "0x143be0260",
+                "name": "via.wwise.WwiseSwitchParam"
             }
         ],
-    },
+    }
 }
 
 class Allocator:
@@ -173,7 +200,7 @@ def invalidate_and_return_call(emu, frame):
     emu.context_restore(ctx)
 
     rip = emu.reg_read(UC_X86_REG_RIP)
-    print("%X" % rip)
+    print("Invalidating %X" % rip)
 
     frame["call_stack"] = frame["call_stack"][0:1]
 
@@ -188,7 +215,19 @@ def invalidate_and_return_call(emu, frame):
             hist[i] = hist[i] - 1
 
     emu.mem_write(emu.reg_read(UC_X86_REG_RIP), b"\x90\x90\x90\x90\x90")
+    emu.reg_write(UC_X86_REG_RAX, 0)
+    emu.reg_write(UC_X86_REG_RDX, 0)
+    emu.reg_write(UC_X86_REG_RCX, 0)
+    emu.reg_write(UC_X86_REG_R8, 0)
+    emu.reg_write(UC_X86_REG_R9, 0)
     frame["start"] = emu.reg_read(UC_X86_REG_RIP)
+    
+    # Try to read the new address to make sure it's valid memory
+    try:
+        emu.mem_read(frame["start"], 1)
+    except:
+        print("Failed to read new address 0x%X" % frame["start"])
+        return
 
 # callback for tracing invalid memory access (READ or WRITE)
 def hook_mem_invalid(emu, access, address, size, value, frame):
@@ -218,6 +257,17 @@ def hook_code(emu, address, size, frame):
             emu.emu_stop()
             return
 
+        # Upon first address in a call
+        if len(frame["call_stack"]) > 0 and frame["call_stack"][-1]["first"] == True:
+            frame["call_stack"][-1]["first"] = False
+
+            # When the deserialize function calls another function,
+            # We only care when it calls a function that reads the stream for deserialization
+            # Any other function is irrelevant to us
+            if emu.reg_read(UC_X86_REG_RCX) != deserialize_arg:
+                invalidate_and_return_call(emu, frame)
+                emu.emu_stop()
+                return
 
         '''
         try:
@@ -259,10 +309,11 @@ def hook_code(emu, address, size, frame):
                         dis_g = cs.disasm(emu.mem_read(lex, 0x100), address, 1)
                         dis = next(dis_g)
 
+                        print("LEX: 0x%x" % lex)
                         print("0x%x: %s %s" % (address, dis.mnemonic, dis.op_str))
 
                         print("Instruction at %X didn't read bytes from stream?" % address)
-                        # os.system("pause")
+                        os.system("pause")
                         return
 
                     # Erase the elements that were added to the layout, keep list only
@@ -279,7 +330,19 @@ def hook_code(emu, address, size, frame):
         # easy way to wait until after insn executes to read stuff
         if lex > 0:
             cs.detail = True
-            last_dis_g = cs.disasm(emu.mem_read(lex, 0x100), address, 1)
+
+            try:
+                last_dis_g = cs.disasm(emu.mem_read(lex, 0x100), address, 1)
+            except Exception as e:
+                print(traceback.format_exc(), "LEX EXCEPTION 0x%X 0x%X" % (address, lex))
+
+                for i in range(0, len(frame["call_stack"])):
+                    print("0x%X" % frame["call_stack"][i]["last_executed_addr"])
+
+                print(" ", emu.mem_read(address, 0x100).hex())
+                print("%X" % frame["call_stack"][-1]["last_executed_addr"])
+                os.system("pause")
+            
             last_dis = next(last_dis_g)
 
             deserialize_cur = int.from_bytes(emu.mem_read(frame["deserialize_arg"] + 0x8, 8), sys.byteorder)
@@ -309,6 +372,10 @@ def hook_code(emu, address, size, frame):
 
                         if abs(delta) > 0x10000:
                             print("Huge delta detected. Register overwritten? 0x%X" % lex)
+                            # frame["last_deserialize_reg"] = -1
+                            # frame["last_deserialize_reg_val"] = 0
+                            # invalidate_and_return_call(emu, frame)
+                            # os.system("pause")
 
                     if last_dis.mnemonic == "and" and last_dis.operands[1].type == X86_OP_IMM and last_dis.operands[0].reg == frame["last_deserialize_reg"]:
                         # print("0x%X alignment detected" % (~last_dis.operands[1].imm + 1))
@@ -320,6 +387,9 @@ def hook_code(emu, address, size, frame):
                     frame["last_deserialize_reg_val"] = val
             elif frame["last_alignment"] == 4 and last_dis.group(X86_GRP_BRANCH_RELATIVE):
                 frame["was_string"] = True
+            elif frame["last_alignment"] == 4 and last_dis.bytes == bytearray(b"\x4B\x8D\x0C\x41"): # this means "lea rcx, [r9+r8*2]", e.g. reading a wide string
+                frame["was_string"] = True
+
                 #print("String or list detected")
 
             cs.detail = False
@@ -344,15 +414,20 @@ def hook_code(emu, address, size, frame):
                     if counter == 0:
                         history[i] = history[i] + 1
 
+                        if len(frame["call_stack"]) == 1 and counter > FILL_BYTE:
+                            print("YUP", history[i])
+
                         # if dis.mnemonic == "rep movsb":
                             # print("YUP", history[i])
 
         if dis.mnemonic == "call":
+            is_normal_call = dis.bytes[0] == 0xE8
             frame["call_stack"].append({ 
                 "addr": address + dis.size,
                 "context":  pickle.dumps(emu.context_save()),
                 "history": {},
-                "last_executed_addr": 0
+                "last_executed_addr": 0,
+                "first": is_normal_call
             })
 
         # Potential return from read func
@@ -423,22 +498,40 @@ def hook_unmapped(emu, access, address, size, value, frame):
         dis_g = cs.disasm(emu.mem_read(rip, 0x100), rip, 1)
         dis = next(dis_g)
 
-        nops = np.empty(dis.size, dtype=np.byte)
-        nops.fill(0x90)
+        # only NOP out non-return instructions
+        # otherwise weird things happen
+        if dis.mnemonic != "ret":
+            nops = np.empty(dis.size, dtype=np.byte)
+            nops.fill(0x90)
 
-        # Fix the history count for RIP
-        if len(frame["call_stack"]) > 0 and rip in frame["call_stack"][-1]["history"]:
-            hist = frame["call_stack"][-1]["history"]
+            # Fix the history count for RIP
+            if len(frame["call_stack"]) > 0 and rip in frame["call_stack"][-1]["history"]:
+                hist = frame["call_stack"][-1]["history"]
 
-            for i in range(rip, rip + dis.size):
-                hist[i] = hist[i] - 1
+                for i in range(rip, rip + dis.size):
+                    hist[i] = hist[i] - 1
 
-        # Nop out the instruction causing read/write errors
-        emu.mem_write(rip, nops.tobytes())
+            # Nop out the instruction causing read/write errors
+            emu.mem_write(rip, nops.tobytes())
+        else:
+            print("WTF? WE TRIED TO NOP OUT A RET? 0x%X" % rip)
 
     frame["start"] = emu.reg_read(UC_X86_REG_RIP)
 
     # Continue execution
+    return True
+
+def hook_write(emu, access, address, size, value, frame):
+    if address >= frame["fake_vtable"] and address < frame["fake_vtable"] + REGISTER_MEMORY_SIZE:
+        print("Something bad is happening with the vtable!!!!! WTF 0x%X" % emu.reg_read(UC_X86_REG_RIP))
+        os.system("pause")
+        return False
+
+    if address == frame["fake_return_func"]:
+        print("ATTEMPTED WRITE TO RETURN FUNC 0x%X!" % emu.reg_read(UC_X86_REG_RIP))
+        os.system("pause")
+        return False
+
     return True
 
 def verify_file(p):
@@ -544,13 +637,23 @@ def main(p, il2cpp_path="il2cpp_dump.json", test_mode=False):
     deserialize_arg = args["rdx"]
 
     # Initialize fake return func for vtable
-    fake_return_func = allocator.allocate(1024)
-    emu.mem_write(fake_return_func, int(0xC3).to_bytes(1, sys.byteorder))
+    fake_return_func = allocator.allocate(1024,)
+
+    # xor rax, rax
+    # ret
+    emu.mem_write(fake_return_func, b'\x48\x31\xc0\xc3')
 
     # Initialize fake vtable for object in RCX
     fake_vtable = allocator.allocate(REGISTER_MEMORY_SIZE)
-    for i in range(1, int(REGISTER_MEMORY_SIZE / 8)):
+
+    print("Fake vtable allocated at 0x%X" % fake_vtable)
+
+    print("Fake return func allocated at 0x%X" % fake_return_func)
+
+    for i in range(0, int(REGISTER_MEMORY_SIZE / 8)):
         emu.mem_write(fake_vtable + (i * 8), fake_return_func.to_bytes(8, sys.byteorder))
+
+    # def init_vtable():
 
     meta_frame = {
         "cs": cs,
@@ -565,7 +668,9 @@ def main(p, il2cpp_path="il2cpp_dump.json", test_mode=False):
         "layout": [],
         "was_string": False,
         "last_return_val": 0,
-        "last_layout_size": 0
+        "last_layout_size": 0,
+        "fake_vtable": fake_vtable,
+        "fake_return_func": fake_return_func,
     }
 
     emu.hook_add(UC_HOOK_CODE, hook_code, meta_frame)
@@ -573,6 +678,7 @@ def main(p, il2cpp_path="il2cpp_dump.json", test_mode=False):
     emu.hook_add(UC_HOOK_MEM_FETCH_UNMAPPED, hook_unmapped, meta_frame)
     emu.hook_add(UC_HOOK_MEM_READ_UNMAPPED, hook_unmapped, meta_frame)
     emu.hook_add(UC_HOOK_MEM_WRITE_UNMAPPED, hook_unmapped, meta_frame)
+    emu.hook_add(UC_HOOK_MEM_WRITE, hook_write, meta_frame)
 
     pristine_context = pickle.dumps(emu.context_save())
 
@@ -594,6 +700,7 @@ def main(p, il2cpp_path="il2cpp_dump.json", test_mode=False):
         '''
 
         init_registers()
+        # init_vtable()
 
         # Initialize the deserializer struct
         emu.mem_write(deserialize_arg + 0x0, deserialize_buffer.to_bytes(8, sys.byteorder)) # head
@@ -620,7 +727,8 @@ def main(p, il2cpp_path="il2cpp_dump.json", test_mode=False):
             "addr": deserializer_start, 
             "context":  pickle.dumps(emu.context_save()),
             "history": {},
-            "last_executed_addr": 0
+            "last_executed_addr": 0,
+            "first": False
         })
 
         meta_frame["start"] = deserializer_start
@@ -728,10 +836,23 @@ def main(p, il2cpp_path="il2cpp_dump.json", test_mode=False):
 
     for struct_name in chains.keys():
         if chains[struct_name] is not None and "deserializer_chain" in chains[struct_name]:
+            print(struct_name)
             struct_layout = detect_members_chain(struct_name, chains[struct_name]["deserializer_chain"])
 
             if len(struct_layout) > 0:
                 native_layouts[struct_name] = struct_layout
+
+                if struct_name == "via.render.MaterialParam" or struct_name == "via.render.LocalCubemap":
+                    des_addr = int(chains[struct_name]["deserializer_chain"][-1]["address"], 16)
+                    des_disasm = cs.disasm(emu.mem_read(des_addr, 0x1000), des_addr, 1000)
+                    # Print disassembly
+                    print("Disassembly:")
+                    for ins in des_disasm:
+                        if ins.mnemonic == "ret":
+                            break
+
+                        print(ins)
+                    os.system("pause")
 
         count = count + 1
         sys.stdout.write("\r%f%%" % (float(count / chains_len) * 100.0))
