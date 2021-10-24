@@ -3,7 +3,7 @@
 #include <forward_list>
 #include <deque>
 #include <algorithm>
-#include <nlohmann/json.hpp>
+#include <json.hpp>
 
 #include <windows.h>
 

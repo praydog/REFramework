@@ -1,7 +1,7 @@
 #include <unordered_set>
 
 #include <spdlog/spdlog.h>
-#include <imgui/imgui.h>
+#include <imgui.h>
 
 #include "utility/Scan.hpp"
 #include "REFramework.hpp"

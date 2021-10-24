@@ -4,7 +4,7 @@
 #include <bitset>
 #include <memory>
 #include <shared_mutex>
-#include <openvr/headers/openvr.h>
+#include <openvr.h>
 
 #include <d3d11.h>
 #include <d3d12.h>

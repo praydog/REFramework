@@ -1,8 +1,8 @@
 #pragma once
 
 #include <unordered_set>
-#include <imgui/imgui.h>
-#include <nlohmann/json.hpp>
+#include <imgui.h>
+#include <json.hpp>
 
 #include "utility/Address.hpp"
 #include "Tool.hpp"

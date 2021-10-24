@@ -8,7 +8,7 @@
 #include <unordered_map>
 #include <memory>
 
-#include <imgui/imgui.h>
+#include <imgui.h>
 
 #include "sdk/ReClass.hpp"
 #include "utility/Config.hpp"

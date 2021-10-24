@@ -2,7 +2,7 @@
 
 #include <spdlog/sinks/basic_file_sink.h>
 
-#include <imgui/imgui.h>
+#include <imgui.h>
 #include "re2-imgui/font_robotomedium.hpp"
 #include "re2-imgui/imgui_impl_dx11.h"
 #include "re2-imgui/imgui_impl_dx12.h"

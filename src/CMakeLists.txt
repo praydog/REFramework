@@ -1,5 +1,3 @@
-project(${GAME_NAME})
-
 set(HOOKS_SRC
     DInputHook.hpp
     DInputHook.cpp
@@ -142,7 +140,7 @@ add_library(${GAME_NAME} SHARED
             ${FRAMEWORK_SRC}
 )
 
-target_link_libraries(${GAME_NAME} PUBLIC lua sol2 imgui minhook d3d11 glm_static shlwapi ${CMAKE_SOURCE_DIR}/dependencies/openvr/lib/win64/openvr_api.lib)
+target_link_libraries(${GAME_NAME} PUBLIC nlohmann_json spdlog lua sol2 imgui minhook d3d11 glm_static shlwapi openvr)
 target_compile_options(${GAME_NAME} PUBLIC /GS-)
 target_compile_features(${GAME_NAME} PUBLIC cxx_std_20)
 

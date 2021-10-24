@@ -1,5 +1,7 @@
 #pragma once
 
+#include <array>
+
 #include <spdlog/spdlog.h>
 
 class Mods;

@@ -1,4 +1,4 @@
-#include <openvr/headers/openvr.h>
+#include <openvr.h>
 
 #include "../VR.hpp"
 
