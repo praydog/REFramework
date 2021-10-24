@@ -285,9 +285,11 @@ void VR::overlay_draw_hook(void* layer, void* render_ctx) {
         return;
     }
 
+    // just don't render anything at all.
+    // overlays just seem to break stuff in VR.
     auto mod = VR::get();
 
-    if ((mod->m_is_hmd_active && !inside_gui_draw) || !mod->m_is_hmd_active) {
+    if (!mod->m_is_hmd_active) {
         original_func(layer, render_ctx);
         return;
     }
