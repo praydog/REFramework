@@ -562,6 +562,8 @@ struct REField : public sdk::REField_ {
     void* get_init_data() const;
     uint32_t get_offset_from_fieldptr() const;
     uint32_t get_offset_from_base() const;
+    bool is_static() const;
+    bool is_literal() const;
 
     void* get_data_raw(void* object = nullptr, bool is_value_type = false) const;
 
