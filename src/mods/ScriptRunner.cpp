@@ -200,6 +200,7 @@ void error(const char* str) {
 }
 
 void debug(const char* str) {
+    OutputDebugString(str);
     spdlog::debug(str);
 }
 }
@@ -251,6 +252,7 @@ void ScriptState::run_script(const std::string& p) {
     try {
         m_lua.safe_script_file(p);
     } catch (const std::exception& e) {
+        OutputDebugString(e.what());
         api::re::msg(e.what());
     }
 }
@@ -263,7 +265,7 @@ void ScriptState::on_pre_application_entry(const char* name) {
             it->second();
         }
     } catch (const std::exception& e) {
-        api::re::msg(e.what());
+        OutputDebugString(e.what());
     }
 }
 
@@ -275,7 +277,7 @@ void ScriptState::on_application_entry(const char* name) {
             it->second();
         }
     } catch (const std::exception& e) {
-        api::re::msg(e.what());
+        OutputDebugString(e.what());
     }
 }
 
@@ -287,7 +289,7 @@ void ScriptState::on_hook(HookedFn* fn) {
         // TODO: Take changes to the arguments into account.
         fn->script_fn();
     } catch (const std::exception& e) {
-        api::re::msg(e.what());
+        OutputDebugString(e.what());
     }
 }
 
