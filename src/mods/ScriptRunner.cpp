@@ -22,8 +22,8 @@ void* get_thread_context() {
     return (void*)::sdk::get_thread_context();
 }
 
-void* find_type_definition(const char* name) {
-    return (void*)::sdk::RETypeDB::get()->find_type(name);
+auto find_type_definition(const char* name) {
+    return ::sdk::RETypeDB::get()->find_type(name);
 }
 
 void* get_native_singleton(const char* name) {
