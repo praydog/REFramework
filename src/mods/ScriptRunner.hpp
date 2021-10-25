@@ -18,6 +18,7 @@ public:
     struct HookedFn {
         void* target_fn{};
         sol::function script_fn{};
+        sol::table script_args{};
 
         std::unique_ptr<FunctionHook> fn_hook{};
         Xbyak::CodeGenerator facilitator_gen{};

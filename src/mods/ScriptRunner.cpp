@@ -124,18 +124,20 @@ void* get_primary_camera() {
 }
 
 void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function cb) {
-    auto state = sol::state_view{s}.registry()["state"].get<ScriptState*>();
+    auto sol_state = sol::state_view{s};
+    auto state = sol_state.registry()["state"].get<ScriptState*>();
     auto hook = std::make_unique<ScriptState::HookedFn>();
 
     hook->target_fn = (void*)fn->get_function();
     hook->script_fn = cb;
+    hook->script_args = sol_state.create_table();
 
     auto& args = hook->args;
     auto& fn_hook = hook->fn_hook;
     auto& g = hook->facilitator_gen;
 
     // Make sure we have room to store the arguments.
-    args.resize(2);
+    args.resize(2 + fn->get_num_params());
 
     // Generate the facilitator function that will store the arguments, call on_hook, 
     // restore the arguments, and call the original function.
@@ -148,6 +150,18 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function cb) {
     g.mov(g.ptr[g.rax], g.rcx);
     g.mov(g.ptr[g.rax + 8], g.rdx);
 
+    for (auto i = 0u; i < fn->get_num_params(); ++i) {
+        auto args_offset = 16 + (i * 8);
+
+        if (i == 0) { // stored in r8
+            g.mov(g.ptr[g.rax + args_offset], g.r8);
+        } else if (i == 1) { // stored in r9
+            g.mov(g.ptr[g.rax + args_offset], g.r9);
+        } else {
+            // TODO: handle stack args.
+        }
+    }
+
     // Call on_hook.
     g.mov(g.rcx, g.ptr[g.rip + this_label]);
     g.mov(g.rdx, g.ptr[g.rip + hook_label]);
@@ -157,6 +171,18 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function cb) {
     g.mov(g.rax, g.ptr[g.rip + args_label]);
     g.mov(g.rcx, g.ptr[g.rax]);
     g.mov(g.rdx, g.ptr[g.rax + 8]);
+
+    for (auto i = 0u; i < fn->get_num_params(); ++i) {
+        auto args_offset = 16 + (i * 8);
+
+        if (i == 0) { // stored in r8
+            g.mov(g.r8, g.ptr[g.rax + args_offset]);
+        } else if (i == 1) { // stored in r9
+            g.mov(g.r9, g.ptr[g.rax + args_offset]);
+        } else {
+            // TODO: handle stack args.
+        }
+    }
 
     // Call original function.
     g.add(g.rsp, 40);
@@ -226,6 +252,7 @@ ScriptState::ScriptState() {
     sdk["call_object_func"] = api::sdk::call_object_func;
     sdk["get_primary_camera"] = api::sdk::get_primary_camera;
     sdk["hook"] = api::sdk::hook;
+    sdk["to_managed_object"] = [](void* ptr) { return (REManagedObject*)ptr; };
     m_lua["sdk"] = sdk;
 
     auto log = m_lua.create_table();
@@ -287,7 +314,11 @@ void ScriptState::on_hook(HookedFn* fn) {
         // TODO: Pass arguments to the script function.
         // TODO: Take return value from the script function into account.
         // TODO: Take changes to the arguments into account.
-        fn->script_fn();
+        for (auto i = 0u; i < fn->args.size(); ++i) {
+            fn->script_args[i + 1] = (void*)fn->args[i];
+        }
+
+        fn->script_fn(fn->script_args);
     } catch (const std::exception& e) {
         OutputDebugString(e.what());
     }
