@@ -256,27 +256,39 @@ void ScriptState::run_script(const std::string& p) {
 }
 
 void ScriptState::on_pre_application_entry(const char* name) {
-    auto range = m_pre_application_entry_fns.equal_range(name);
+    try {
+        auto range = m_pre_application_entry_fns.equal_range(name);
 
-    for (auto it = range.first; it != range.second; ++it) {
-        it->second();
+        for (auto it = range.first; it != range.second; ++it) {
+            it->second();
+        }
+    } catch (const std::exception& e) {
+        api::re::msg(e.what());
     }
 }
 
 void ScriptState::on_application_entry(const char* name) {
-    auto range = m_application_entry_fns.equal_range(name);
+    try {
+        auto range = m_application_entry_fns.equal_range(name);
 
-    for (auto it = range.first; it != range.second; ++it) {
-        it->second();
+        for (auto it = range.first; it != range.second; ++it) {
+            it->second();
+        }
+    } catch (const std::exception& e) {
+        api::re::msg(e.what());
     }
 }
 
 void ScriptState::on_hook(HookedFn* fn) {
-    // Call the script function.
-    // TODO: Pass arguments to the script function.
-    // TODO: Take return value from the script function into account.
-    // TODO: Take changes to the arguments into account.
-    fn->script_fn();
+    try {
+        // Call the script function.
+        // TODO: Pass arguments to the script function.
+        // TODO: Take return value from the script function into account.
+        // TODO: Take changes to the arguments into account.
+        fn->script_fn();
+    } catch (const std::exception& e) {
+        api::re::msg(e.what());
+    }
 }
 
 void ScriptRunner::on_draw_ui() {
