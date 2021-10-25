@@ -140,6 +140,7 @@ private:
 
     // initialization functions
     std::optional<std::string> initialize_openvr();
+    std::optional<std::string> initialize_openvr_input();
     std::optional<std::string> hijack_resolution();
     std::optional<std::string> hijack_input();
     std::optional<std::string> hijack_camera();
