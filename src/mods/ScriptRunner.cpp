@@ -45,9 +45,11 @@ sol::object call_native_func(sol::object obj, ::sdk::RETypeDefinition* ty, const
     args.clear();
 
     void* real_obj = nullptr;
-    
+
     if (!obj.is<sol::nil_t>()) {
-        if (obj.is<void*>()) {
+        if (obj.is<REManagedObject*>()) {
+            real_obj = (void*)obj.as<REManagedObject*>();
+        } else if (obj.is<void*>()) {
             real_obj = obj.as<void*>();
         } else {
             real_obj = (void*)obj.as<uintptr_t>();
@@ -103,7 +105,9 @@ auto call_object_func(sol::object obj, const char* name, sol::variadic_args va) 
     void* real_obj = nullptr;
 
     if (!obj.is<sol::nil_t>()) {
-        if (obj.is<void*>()) {
+        if (obj.is<REManagedObject*>()) {
+            real_obj = (void*)obj.as<REManagedObject*>();
+        } else if (obj.is<void*>()) {
             real_obj = obj.as<void*>();
         } else {
             real_obj = (void*)obj.as<uintptr_t>();
