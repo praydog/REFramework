@@ -77,3 +77,10 @@ target_include_directories(sol2 INTERFACE sol2/single/include/)
 add_library(nlohmann_json INTERFACE)
 target_include_directories(nlohmann_json INTERFACE nlohmann/)
 
+# TODO: maybe get all dependencies this way?
+include(FetchContent)
+
+FetchContent_Declare(xbyak
+                     GIT_REPOSITORY "https://github.com/herumi/xbyak.git"
+                     GIT_TAG "v6.00")
+FetchContent_MakeAvailable(xbyak)

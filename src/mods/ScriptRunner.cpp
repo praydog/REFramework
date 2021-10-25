@@ -30,15 +30,15 @@ void* get_native_singleton(const char* name) {
     return (void*)::sdk::get_native_singleton<void>(name);
 }
 
-void* get_managed_singleton(const char* name) {
-    return (void*)g_framework->get_globals()->get(name);
+auto get_managed_singleton(const char* name) {
+    return g_framework->get_globals()->get(name);
 }
 
 void* create_managed_string(const char* text) {
     return ::sdk::VM::create_managed_string(utility::widen(text));
 }
 
-sol::object call_native_func(sol::object obj, void* def, const char* name, sol::variadic_args va) {
+sol::object call_native_func(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name, sol::variadic_args va) {
     static std::vector<void*> args{};
     auto l = va.lua_state();
 
@@ -69,13 +69,11 @@ sol::object call_native_func(sol::object obj, void* def, const char* name, sol::
         } else if (lua_isstring(l, i)) {
             auto s = lua_tostring(l, i);
             args.push_back(create_managed_string(s));
-        }
-        else {
+        } else {
             args.push_back(arg.as<void*>());
         }
     }
 
-    auto ty = (::sdk::RETypeDefinition*)def;
     auto ret_val = ::sdk::invoke_object_func(real_obj, ty, name, args);
 
     // A null void* will get converted into an userdata with value 0. That's not very useful in Lua, so
@@ -120,6 +118,68 @@ auto call_object_func(sol::object obj, const char* name, sol::variadic_args va) 
 void* get_primary_camera() {
     return ::sdk::get_primary_camera();
 }
+
+void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function cb) {
+    auto state = sol::state_view{s}.registry()["state"].get<ScriptState*>();
+    auto hook = std::make_unique<ScriptState::HookedFn>();
+
+    hook->target_fn = (void*)fn->get_function();
+    hook->script_fn = cb;
+
+    auto& args = hook->args;
+    auto& fn_hook = hook->fn_hook;
+    auto& g = hook->facilitator_gen;
+
+    // Make sure we have room to store the arguments.
+    args.resize(2);
+
+    // Generate the facilitator function that will store the arguments, call on_hook, 
+    // restore the arguments, and call the original function.
+    Xbyak::Label hook_label{}, args_label{}, this_label{}, on_hook_label{}, orig_label{};
+
+    // Store args.
+    // TODO: Handle all the arguments the function takes.
+    g.sub(g.rsp, 40);
+    g.mov(g.rax, g.ptr[g.rip + args_label]);
+    g.mov(g.ptr[g.rax], g.rcx);
+    g.mov(g.ptr[g.rax + 8], g.rdx);
+
+    // Call on_hook.
+    g.mov(g.rcx, g.ptr[g.rip + this_label]);
+    g.mov(g.rdx, g.ptr[g.rip + hook_label]);
+    g.call(g.ptr[g.rip + on_hook_label]);
+
+    // Restore args.
+    g.mov(g.rax, g.ptr[g.rip + args_label]);
+    g.mov(g.rcx, g.ptr[g.rax]);
+    g.mov(g.rdx, g.ptr[g.rax + 8]);
+
+    // Call original function.
+    g.add(g.rsp, 40);
+    g.jmp(g.ptr[g.rip + orig_label]);
+    
+    g.L(hook_label);
+    g.dq((uint64_t)hook.get());
+    g.L(args_label);
+    g.dq((uint64_t)args.data());
+    g.L(this_label);
+    g.dq((uint64_t)state);
+    g.L(on_hook_label);
+    g.dq((uint64_t)&ScriptState::on_hook_static);
+    g.L(orig_label);
+    // Can't do the following because the hook hasn't been created yet.
+    //g.dq(fn_hook->get_original());
+    g.dq(0);
+
+    // Hook the function to our facilitator.
+    fn_hook = std::make_unique<FunctionHook>(fn->get_function(), (void*)g.getCode());
+
+    // Set the facilitators original function pointer.
+    *(uintptr_t*)orig_label.getAddress() = fn_hook->get_original();
+
+    fn_hook->create();
+    state->hooked_fns().emplace_back(std::move(hook));
+}
 }
 
 namespace api::log {
@@ -143,6 +203,8 @@ void debug(const char* str) {
 ScriptState::ScriptState() {
     m_lua.open_libraries(sol::lib::base, sol::lib::package, sol::lib::string, sol::lib::math, sol::lib::table, sol::lib::bit32, sol::lib::utf8);
 
+    m_lua.registry()["state"] = this;
+
     auto re = m_lua.create_table();
     re["msg"] = api::re::msg;
     re["on_pre_application_entry"] = [this](const char* name, sol::function fn) { m_pre_application_entry_fns.emplace(name, fn); };
@@ -158,6 +220,7 @@ ScriptState::ScriptState() {
     sdk["call_native_func"] = api::sdk::call_native_func;
     sdk["call_object_func"] = api::sdk::call_object_func;
     sdk["get_primary_camera"] = api::sdk::get_primary_camera;
+    sdk["hook"] = api::sdk::hook;
     m_lua["sdk"] = sdk;
 
     auto log = m_lua.create_table();
@@ -166,6 +229,11 @@ ScriptState::ScriptState() {
     log["error"] = api::log::error;
     log["debug"] = api::log::debug;
     m_lua["log"] = log;
+
+    m_lua.new_usertype<::sdk::RETypeDefinition>("RETypeDefinition", 
+        "get_method", &::sdk::RETypeDefinition::get_method);
+    m_lua.new_usertype<REManagedObject>("REManagedObject", 
+        "get_type_definition", [](REManagedObject* obj) { return utility::re_managed_object::get_type_definition(obj); });
 }
 
 void ScriptState::run_script(const std::string& p) {
@@ -197,6 +265,14 @@ void ScriptState::on_application_entry(const char* name) {
     for (auto it = range.first; it != range.second; ++it) {
         it->second();
     }
+}
+
+void ScriptState::on_hook(HookedFn* fn) {
+    // Call the script function.
+    // TODO: Pass arguments to the script function.
+    // TODO: Take return value from the script function into account.
+    // TODO: Take changes to the arguments into account.
+    fn->script_fn();
 }
 
 void ScriptRunner::on_draw_ui() {
