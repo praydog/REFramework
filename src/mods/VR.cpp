@@ -370,6 +370,16 @@ std::optional<std::string> VR::initialize_openvr() {
         return "VRCompositor failed to initialize.";
     }
 
+    auto input_error = initialize_openvr_input();
+
+    if (input_error) {
+        return input_error;
+    }
+
+    return std::nullopt;
+}
+
+std::optional<std::string> VR::initialize_openvr_input() {
     const auto module_directory = *utility::get_module_directory(g_framework->get_module().as<HMODULE>());
 
     // write default actions and bindings with the static strings we have
@@ -701,10 +711,29 @@ bool VR::detect_controllers() {
 }
 
 void VR::update_hmd_state() {
+    const auto start_time = std::chrono::high_resolution_clock::now();
+
     auto error = vr::VRInput()->UpdateActionState(&m_active_action_set, sizeof(m_active_action_set), 1);
 
     if (error != vr::VRInputError_None) {
         spdlog::error("VRInput failed to update action state: {}", (uint32_t)error);
+    }
+
+    const auto end_time = std::chrono::high_resolution_clock::now();
+
+    if ((end_time - start_time) >= std::chrono::milliseconds(30)) {
+        spdlog::warn("VRInput update action state took too long: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count());
+        spdlog::info("Reinitializing openvr input");
+
+        // Reinitialize openvr input, hopefully this fixes the issue
+        m_controllers.clear();
+        m_controllers_set.clear();
+
+        auto input_error = initialize_openvr_input();
+
+        if (input_error) {
+            spdlog::error("Failed to reinitialize openvr input: {}", *input_error);
+        }
     }
 
     vr::VRCompositor()->SetTrackingSpace(vr::TrackingUniverseStanding);
@@ -1647,6 +1676,12 @@ void VR::openvr_input_to_game(REManagedObject* input_system) {
         return;
     }
 
+    auto input_unit_obj = sdk::call_object_func<REManagedObject*>(input_system, "getActiveUserInputUnit", sdk::get_thread_context(), input_system);
+
+    if (input_unit_obj == nullptr) {
+        return;
+    }
+
     const auto now = std::chrono::steady_clock::now();
     auto is_using_controller = (now - get_last_controller_update()) <= std::chrono::seconds(10);
 
@@ -1773,6 +1808,14 @@ void VR::openvr_input_to_game(REManagedObject* input_system) {
     set_button_state(app::ropeway::InputDefine::Kind::UI_EXCHANGE, is_right_b_button_down);
     set_button_state(app::ropeway::InputDefine::Kind::UI_RESET, is_right_b_button_down);
     set_button_state((app::ropeway::InputDefine::Kind)((uint64_t)1 << 52), is_right_b_button_down);
+
+    // Fixes QTE bound to triggers
+    if (is_using_controller) {
+        const auto left_trigger_state = is_left_trigger_down ? 1.0f : 0.0f;
+        const auto right_trigger_state = is_trigger_down ? 1.0f : 0.0f;
+        sdk::call_object_func<void*>(input_unit_obj, "set__AnalogL", sdk::get_thread_context(), input_unit_obj, left_trigger_state);
+        sdk::call_object_func<void*>(input_unit_obj, "set__AnalogR", sdk::get_thread_context(), input_unit_obj, right_trigger_state);
+    }
 
     const auto left_axis = get_left_stick_axis();
     const auto right_axis = get_right_stick_axis();
