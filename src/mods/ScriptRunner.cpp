@@ -88,12 +88,27 @@ sol::object call_native_func(sol::object obj, ::sdk::RETypeDefinition* ty, const
     auto fn = ty->get_method(name);
     auto ret_ty = fn->get_return_type();
 
-    if (ret_ty != nullptr && ret_ty->get_full_name() == "System.String") {
-        auto managed_ret_val = (::REManagedObject*)ret_val;
-        auto managed_str = (SystemString*)((uintptr_t)utility::re_managed_object::get_field_ptr(managed_ret_val) - sizeof(::REManagedObject));
-        auto str = utility::narrow(managed_str->data);
+    if (ret_ty != nullptr) {
+        switch (utility::hash(ret_ty->get_full_name())) {
+        case "System.String"_fnv: {
+            auto managed_ret_val = (::REManagedObject*)ret_val;
+            auto managed_str = (SystemString*)((uintptr_t)utility::re_managed_object::get_field_ptr(managed_ret_val) - sizeof(::REManagedObject));
+            auto str = utility::narrow(managed_str->data);
 
-        return sol::make_object(l, str);
+            return sol::make_object(l, str);
+        }
+        case "System.Single"_fnv: {
+            // even though it's a single, it's actually a double because of the invoke wrapper conversion
+            auto ret_val_f = *(double*)&ret_val;
+            return sol::make_object(l, ret_val_f);
+        }
+        case "System.UInt32"_fnv: {
+            auto ret_val_u = *(uint32_t*)&ret_val;
+            return sol::make_object(l, ret_val_u);
+        }
+        default: 
+            break;
+        }
     }
 
     // TODO: handle more return type conversions.
@@ -253,6 +268,9 @@ ScriptState::ScriptState() {
     sdk["get_primary_camera"] = api::sdk::get_primary_camera;
     sdk["hook"] = api::sdk::hook;
     sdk["to_managed_object"] = [](void* ptr) { return (REManagedObject*)ptr; };
+    sdk["to_double"] = [](void* ptr) { return *(double*)&ptr; };
+    sdk["to_float"] = [](void* ptr) { return *(float*)&ptr; };
+    sdk["to_int64"] = [](void* ptr) { return *(int64_t*)&ptr; };
     m_lua["sdk"] = sdk;
 
     auto log = m_lua.create_table();
