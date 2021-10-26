@@ -349,6 +349,9 @@ ScriptState::ScriptState() {
             return obj.as<void*>();
         }
     };
+    sdk["float_to_ptr"] = [](float f) {
+        return *(void**)&f;
+    };
     m_lua["sdk"] = sdk;
 
     auto log = m_lua.create_table();
