@@ -271,6 +271,17 @@ ScriptState::ScriptState() {
     sdk["to_double"] = [](void* ptr) { return *(double*)&ptr; };
     sdk["to_float"] = [](void* ptr) { return *(float*)&ptr; };
     sdk["to_int64"] = [](void* ptr) { return *(int64_t*)&ptr; };
+    sdk["to_ptr"] = [](sol::object obj) {
+        if (obj.is<int64_t>()) {
+            auto n = obj.as<int64_t>();
+            return *(void**)&n;
+        } else if (obj.is<double>()) {
+            auto n = obj.as<double>();
+            return *(void**)&n;
+        } else {
+            return obj.as<void*>();
+        }
+    };
     m_lua["sdk"] = sdk;
 
     auto log = m_lua.create_table();
@@ -329,14 +340,20 @@ void ScriptState::on_application_entry(const char* name) {
 void ScriptState::on_hook(HookedFn* fn) {
     try {
         // Call the script function.
-        // TODO: Pass arguments to the script function.
         // TODO: Take return value from the script function into account.
-        // TODO: Take changes to the arguments into account.
+
+        // Convert the args to a table that we pass to the script function.
         for (auto i = 0u; i < fn->args.size(); ++i) {
             fn->script_args[i + 1] = (void*)fn->args[i];
         }
 
         fn->script_fn(fn->script_args);
+
+        // Apply the changes to arguments that the script function may have made.
+        for (auto i = 0u; i < fn->args.size(); ++i) {
+            auto arg = fn->script_args[i + 1];
+            fn->args[i] = (uintptr_t)arg.get<void*>();
+        }
     } catch (const std::exception& e) {
         OutputDebugString(e.what());
     }
