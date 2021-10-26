@@ -185,7 +185,7 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function cb) {
         switch (args_offset) {
         case 8: // rdx/xmm1
             if (is_float) {
-                g.movdqu(g.ptr[g.rax + args_offset], g.xmm1);
+                g.movq(g.ptr[g.rax + args_offset], g.xmm1);
             } else {
                 g.mov(g.ptr[g.rax + args_offset], g.rdx);
             }
@@ -193,7 +193,7 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function cb) {
 
         case 16: // r8/xmm2
             if (is_float) {
-                g.movdqu(g.ptr[g.rax + args_offset], g.xmm2);
+                g.movq(g.ptr[g.rax + args_offset], g.xmm2);
             } else {
                 g.mov(g.ptr[g.rax + args_offset], g.r8);
             }
@@ -201,7 +201,7 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function cb) {
 
         case 24: // r9/xmm3
             if (is_float) {
-                g.movdqu(g.ptr[g.rax + args_offset], g.xmm3);
+                g.movq(g.ptr[g.rax + args_offset], g.xmm3);
             } else {
                 g.mov(g.ptr[g.rax + args_offset], g.r9);
             }
@@ -238,7 +238,7 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function cb) {
         switch (args_offset) {
         case 8: // rdx/xmm1
             if (is_float) {
-                g.movdqu(g.xmm1, g.ptr[g.rax + args_offset]);
+                g.movq(g.xmm1, g.ptr[g.rax + args_offset]);
             } else {
                 g.mov(g.rdx, g.ptr[g.rax + args_offset]);
             }
@@ -246,7 +246,7 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function cb) {
 
         case 16: // r8/xmm2
             if (is_float) {
-                g.movdqu(g.xmm2, g.ptr[g.rax + args_offset]);
+                g.movq(g.xmm2, g.ptr[g.rax + args_offset]);
             } else {
                 g.mov(g.r8, g.ptr[g.rax + args_offset]);
             }
@@ -254,7 +254,7 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function cb) {
 
         case 24: // r9/xmm3
             if (is_float) {
-                g.movdqu(g.xmm3, g.ptr[g.rax + args_offset]);
+                g.movq(g.xmm3, g.ptr[g.rax + args_offset]);
             } else {
                 g.mov(g.r9, g.ptr[g.rax + args_offset]);
             }
