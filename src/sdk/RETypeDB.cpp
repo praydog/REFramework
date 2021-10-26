@@ -370,6 +370,12 @@ uint16_t REMethodDefinition::get_impl_flags() const {
 #endif
 }
 
+bool REMethodDefinition::is_static() const {
+    const auto method_flags = this->get_flags();
+
+    return (method_flags & (uint16_t)via::clr::MethodFlag::Static) != 0;
+}
+
 uint32_t sdk::REMethodDefinition::get_num_params() const {
 #if TDB_VER >= 69
     auto tdb = RETypeDB::get();

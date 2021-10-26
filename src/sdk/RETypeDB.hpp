@@ -581,6 +581,7 @@ struct REMethodDefinition : public sdk::REMethodDefinition_ {
     int32_t get_virtual_index() const;
     uint16_t get_flags() const;
     uint16_t get_impl_flags() const;
+    bool is_static() const;
     
     template<typename T>
     T get_function_t() const {
