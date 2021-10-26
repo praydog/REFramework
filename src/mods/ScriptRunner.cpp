@@ -358,7 +358,7 @@ void ScriptRunner::on_draw_ui() {
         ofn.lpstrFile = file;
         ofn.nMaxFile = sizeof(file);
         ofn.lpstrFilter = "Lua script files (*.lua)\0*.lua\0";
-        ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+        ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
 
         if (GetOpenFileName(&ofn) != FALSE) {
             m_state->run_script(file);
