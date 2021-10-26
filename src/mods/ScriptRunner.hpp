@@ -9,6 +9,7 @@
 #include <sol/sol.hpp>
 #include <xbyak/xbyak.h>
 
+#include "sdk/RETypeDefinition.hpp"
 #include "utility/FunctionHook.hpp"
 
 #include "Mod.hpp"
@@ -23,6 +24,7 @@ public:
         std::unique_ptr<FunctionHook> fn_hook{};
         Xbyak::CodeGenerator facilitator_gen{};
         std::vector<uintptr_t> args{};
+        std::vector<sdk::RETypeDefinition*> arg_tys{};
     };
 
     ScriptState();

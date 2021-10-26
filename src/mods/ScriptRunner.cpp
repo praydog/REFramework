@@ -146,8 +146,10 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function cb) {
     hook->target_fn = (void*)fn->get_function();
     hook->script_fn = cb;
     hook->script_args = sol_state.create_table();
+    hook->arg_tys = fn->get_param_types();
 
     auto& args = hook->args;
+    auto& arg_tys = hook->arg_tys;
     auto& fn_hook = hook->fn_hook;
     auto& g = hook->facilitator_gen;
 
@@ -162,18 +164,52 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function cb) {
     // TODO: Handle all the arguments the function takes.
     g.sub(g.rsp, 40);
     g.mov(g.rax, g.ptr[g.rip + args_label]);
-    g.mov(g.ptr[g.rax], g.rcx);
-    g.mov(g.ptr[g.rax + 8], g.rdx);
+    g.mov(g.ptr[g.rax], g.rcx); // current thread context.
+
+    auto args_start_offset = 8;
+
+    if (!fn->is_static()) {
+        args_start_offset = 16;
+        g.mov(g.ptr[g.rax + 8], g.rdx); // this ptr... probably.
+    }
 
     for (auto i = 0u; i < fn->get_num_params(); ++i) {
-        auto args_offset = 16 + (i * 8);
+        auto arg_ty = arg_tys[i];
+        auto args_offset = args_start_offset + (i * 8);
+        auto is_float = false;
 
-        if (i == 0) { // stored in r8
-            g.mov(g.ptr[g.rax + args_offset], g.r8);
-        } else if (i == 1) { // stored in r9
-            g.mov(g.ptr[g.rax + args_offset], g.r9);
-        } else {
+        if (arg_ty->get_full_name() == "System.Single") {
+            is_float = true;
+        }
+
+        switch (args_offset) {
+        case 8: // rdx/xmm1
+            if (is_float) {
+                g.movdqu(g.ptr[g.rax + args_offset], g.xmm1);
+            } else {
+                g.mov(g.ptr[g.rax + args_offset], g.rdx);
+            }
+            break;
+
+        case 16: // r8/xmm2
+            if (is_float) {
+                g.movdqu(g.ptr[g.rax + args_offset], g.xmm2);
+            } else {
+                g.mov(g.ptr[g.rax + args_offset], g.r8);
+            }
+            break;
+
+        case 24: // r9/xmm3
+            if (is_float) {
+                g.movdqu(g.ptr[g.rax + args_offset], g.xmm3);
+            } else {
+                g.mov(g.ptr[g.rax + args_offset], g.r9);
+            }
+            break;
+
+        default:
             // TODO: handle stack args.
+            break;
         }
     }
 
@@ -184,18 +220,49 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function cb) {
 
     // Restore args.
     g.mov(g.rax, g.ptr[g.rip + args_label]);
-    g.mov(g.rcx, g.ptr[g.rax]);
-    g.mov(g.rdx, g.ptr[g.rax + 8]);
+    g.mov(g.rcx, g.ptr[g.rax]); // current thread context.
+
+    if (!fn->is_static()) {
+        g.mov(g.rdx, g.ptr[g.rax + 8]); // this ptr... probably.
+    }
 
     for (auto i = 0u; i < fn->get_num_params(); ++i) {
-        auto args_offset = 16 + (i * 8);
+        auto arg_ty = arg_tys[i];
+        auto args_offset = args_start_offset + (i * 8);
+        auto is_float = false;
 
-        if (i == 0) { // stored in r8
-            g.mov(g.r8, g.ptr[g.rax + args_offset]);
-        } else if (i == 1) { // stored in r9
-            g.mov(g.r9, g.ptr[g.rax + args_offset]);
-        } else {
+        if (arg_ty->get_full_name() == "System.Single") {
+            is_float = true;
+        }
+
+        switch (args_offset) {
+        case 8: // rdx/xmm1
+            if (is_float) {
+                g.movdqu(g.xmm1, g.ptr[g.rax + args_offset]);
+            } else {
+                g.mov(g.rdx, g.ptr[g.rax + args_offset]);
+            }
+            break;
+
+        case 16: // r8/xmm2
+            if (is_float) {
+                g.movdqu(g.xmm2, g.ptr[g.rax + args_offset]);
+            } else {
+                g.mov(g.r8, g.ptr[g.rax + args_offset]);
+            }
+            break;
+
+        case 24: // r9/xmm3
+            if (is_float) {
+                g.movdqu(g.xmm3, g.ptr[g.rax + args_offset]);
+            } else {
+                g.mov(g.r9, g.ptr[g.rax + args_offset]);
+            }
+            break;
+
+        default:
             // TODO: handle stack args.
+            break;
         }
     }
 
