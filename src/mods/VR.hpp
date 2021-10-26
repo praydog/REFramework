@@ -33,7 +33,7 @@ public:
     void on_post_present() override;
     void on_update_transform(RETransform* transform) override;
     void on_update_camera_controller(RopewayPlayerCameraController* controller) override;
-    void on_pre_gui_draw_element(REComponent* gui_element, void* primitive_context) override;
+    bool on_pre_gui_draw_element(REComponent* gui_element, void* primitive_context) override;
     void on_gui_draw_element(REComponent* gui_element, void* primitive_context) override;
     void on_pre_update_before_lock_scene(void* ctx) override;
     void on_pre_lightshaft_draw(void* shaft, void* render_context) override;

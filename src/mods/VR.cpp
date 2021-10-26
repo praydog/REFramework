@@ -1216,11 +1216,11 @@ struct GUIRestoreData {
 
 thread_local std::vector<std::unique_ptr<GUIRestoreData>> g_elements_to_reset{};
 
-void VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_context) {
+bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_context) {
     inside_gui_draw = true;
 
     if (!m_is_hmd_active) {
-        return;
+        return true;
     }
 
     auto game_object = utility::re_component::get_game_object(gui_element);
@@ -1238,11 +1238,31 @@ void VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
         case "Fade_In_Out_Black"_fnv:
         case "Fade_In_Out_White"_fnv:
         case "GenomeCodexGUI"_fnv:
-            return;
+            return true;
 
         default:
             break;
         };
+
+        // Certain UI elements we want to remove when in VR (FirstPerson enabled)
+#if defined(RE2) || defined(RE3)
+        auto& fp = FirstPerson::get();
+
+        if (fp->is_enabled() && fp->will_be_used()) {
+            const auto has_motion_controls = m_controllers.size() >= 2;
+
+            switch(name_hash) {
+            case "GUI_Reticle"_fnv: // Crosshair
+                if (has_motion_controls) {
+                    return false;
+                }
+                
+                break;
+            default:
+                break;
+            }
+        }
+#endif
 
         //spdlog::info("VR: on_pre_gui_draw_element: {}", name);
         //spdlog::info("VR: on_pre_gui_draw_element: {} {:x}", name, (uintptr_t)game_object);
@@ -1360,6 +1380,8 @@ void VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
     } else {
         spdlog::info("VR: on_pre_gui_draw_element: nullptr gameobject");
     }
+
+    return true;
 }
 
 void VR::on_gui_draw_element(REComponent* gui_element, void* primitive_context) {

@@ -485,11 +485,19 @@ void* Hooks::gui_draw_hook_internal(REComponent* gui_element, void* primitive_co
 
     auto& mods = g_framework->get_mods()->get_mods();
 
+    bool any_false = false;
+
     for (auto& mod : mods) {
-        mod->on_pre_gui_draw_element(gui_element, primitive_context);
+        if (!mod->on_pre_gui_draw_element(gui_element, primitive_context)) {
+            any_false = true;
+        }
     }
 
-    auto ret = original_func(gui_element, primitive_context);
+    void* ret = nullptr;
+
+    if (!any_false) {
+        ret = original_func(gui_element, primitive_context);
+    }
 
     for (auto& mod : mods) {
         mod->on_gui_draw_element(gui_element, primitive_context);

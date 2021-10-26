@@ -320,7 +320,7 @@ public:
     virtual void on_update_camera_controller(RopewayPlayerCameraController* controller) {};
     virtual void on_pre_update_camera_controller2(RopewayPlayerCameraController* controller) {};
     virtual void on_update_camera_controller2(RopewayPlayerCameraController* controller) {};
-    virtual void on_pre_gui_draw_element(REComponent* gui_element, void* primitive_context) {};
+    virtual bool on_pre_gui_draw_element(REComponent* gui_element, void* primitive_context) { return true; };
     virtual void on_gui_draw_element(REComponent* gui_element, void* primitive_context) {};
     virtual void on_pre_update_before_lock_scene(void* ctx) {};
     virtual void on_update_before_lock_scene(void* ctx) {};
