@@ -352,6 +352,10 @@ std::optional<std::string> VR::on_initialize() {
 }
 
 std::optional<std::string> VR::initialize_openvr() {
+    m_needs_wgp_update = true;
+    m_wgp_initialized = false;
+    m_is_hmd_active = true;
+
     auto error = vr::VRInitError_None;
 	m_hmd = vr::VR_Init(&error, vr::VRApplication_Scene);
 
@@ -724,16 +728,18 @@ void VR::update_hmd_state() {
 
     if ((end_time - start_time) >= std::chrono::milliseconds(30)) {
         spdlog::warn("VRInput update action state took too long: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count());
-        spdlog::info("Reinitializing openvr input");
+        spdlog::info("Reinitializing openvr");
+
+        vr::VR_Shutdown();
 
         // Reinitialize openvr input, hopefully this fixes the issue
         m_controllers.clear();
         m_controllers_set.clear();
 
-        auto input_error = initialize_openvr_input();
+        auto input_error = initialize_openvr();
 
         if (input_error) {
-            spdlog::error("Failed to reinitialize openvr input: {}", *input_error);
+            spdlog::error("Failed to reinitialize openvr: {}", *input_error);
         }
     }
 
