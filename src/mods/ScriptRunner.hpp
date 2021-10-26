@@ -18,13 +18,17 @@ class ScriptState {
 public:
     struct HookedFn {
         void* target_fn{};
-        sol::function script_fn{};
+        sol::function script_pre_fn{};
+        sol::function script_post_fn{};
         sol::table script_args{};
 
         std::unique_ptr<FunctionHook> fn_hook{};
         Xbyak::CodeGenerator facilitator_gen{};
         std::vector<uintptr_t> args{};
         std::vector<sdk::RETypeDefinition*> arg_tys{};
+        uintptr_t ret_addr{};
+        uintptr_t ret_val{};
+        sdk::RETypeDefinition* ret_ty{};
     };
 
     ScriptState();
@@ -34,10 +38,15 @@ public:
     void on_pre_application_entry(const char* name);
     void on_application_entry(const char* name);
 
-    void on_hook(HookedFn* fn);
+    void on_pre_hook(HookedFn* fn);
+    void on_post_hook(HookedFn* fn);
 
-    static void on_hook_static(ScriptState* s, HookedFn* fn) {
-        s->on_hook(fn);
+    static void on_pre_hook_static(ScriptState* s, HookedFn* fn) {
+        s->on_pre_hook(fn);
+    }
+
+    static void on_post_hook_static(ScriptState* s, HookedFn* fn) {
+        s->on_post_hook(fn);
     }
 
     auto& hooked_fns() {

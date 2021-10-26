@@ -138,15 +138,17 @@ void* get_primary_camera() {
     return ::sdk::get_primary_camera();
 }
 
-void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function cb) {
+void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function pre_cb, sol::function post_cb) {
     auto sol_state = sol::state_view{s};
     auto state = sol_state.registry()["state"].get<ScriptState*>();
     auto hook = std::make_unique<ScriptState::HookedFn>();
 
     hook->target_fn = (void*)fn->get_function();
-    hook->script_fn = cb;
+    hook->script_pre_fn = pre_cb;
+    hook->script_post_fn = post_cb;
     hook->script_args = sol_state.create_table();
     hook->arg_tys = fn->get_param_types();
+    hook->ret_ty = fn->get_return_type();
 
     auto& args = hook->args;
     auto& arg_tys = hook->arg_tys;
@@ -158,11 +160,11 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function cb) {
 
     // Generate the facilitator function that will store the arguments, call on_hook, 
     // restore the arguments, and call the original function.
-    Xbyak::Label hook_label{}, args_label{}, this_label{}, on_hook_label{}, orig_label{};
+    Xbyak::Label hook_label{}, args_label{}, this_label{}, on_pre_hook_label{}, on_post_hook_label{}, 
+        ret_addr_label{}, ret_val_label{}, orig_label{};
 
     // Store args.
     // TODO: Handle all the arguments the function takes.
-    g.sub(g.rsp, 40);
     g.mov(g.rax, g.ptr[g.rip + args_label]);
     g.mov(g.ptr[g.rax], g.rcx); // current thread context.
 
@@ -213,10 +215,12 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function cb) {
         }
     }
 
-    // Call on_hook.
+    // Call on_pre_hook.
     g.mov(g.rcx, g.ptr[g.rip + this_label]);
     g.mov(g.rdx, g.ptr[g.rip + hook_label]);
-    g.call(g.ptr[g.rip + on_hook_label]);
+    g.sub(g.rsp, 8);
+    g.call(g.ptr[g.rip + on_pre_hook_label]);
+    g.add(g.rsp, 8);
 
     // Restore args.
     g.mov(g.rax, g.ptr[g.rip + args_label]);
@@ -267,8 +271,49 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function cb) {
     }
 
     // Call original function.
-    g.add(g.rsp, 40);
+    Xbyak::Label ret_label{};
+
+    // Save return address.
+    g.mov(g.r10, g.ptr[g.rsp]);
+    g.mov(g.rax, g.ptr[g.rip + ret_addr_label]);
+    g.mov(g.ptr[g.rax], g.r10);
+
+    // Overwrite return address.
+    g.lea(g.rax, g.ptr[g.rip + ret_label]);
+    g.mov(g.ptr[g.rsp], g.rax);
+
+    // Jmp to original function.
     g.jmp(g.ptr[g.rip + orig_label]);
+
+    g.L(ret_label);
+
+    // Save return value.
+    g.mov(g.rcx, g.ptr[g.rip + ret_val_label]);
+
+    auto is_ret_ty_float = hook->ret_ty->get_full_name() == "System.Single";
+
+    if (is_ret_ty_float) {
+        g.movq(g.ptr[g.rcx], g.xmm0);
+    } else {
+        g.mov(g.ptr[g.rcx], g.rax);
+    }
+
+    // Call on_post_hook.
+    g.mov(g.rcx, g.ptr[g.rip + this_label]);
+    g.mov(g.rdx, g.ptr[g.rip + hook_label]);
+    g.call(g.ptr[g.rip + on_post_hook_label]);
+
+    // Restore return value.
+    g.mov(g.rcx, g.ptr[g.rip + ret_val_label]);
+
+    if (is_ret_ty_float) {
+        g.movq(g.xmm0, g.ptr[g.rcx]);
+    } else {
+        g.mov(g.rax, g.ptr[g.rcx]);
+    }
+
+    g.mov(g.r10, g.ptr[g.rip + ret_addr_label]);
+    g.jmp(g.ptr[g.r10]);
     
     g.L(hook_label);
     g.dq((uint64_t)hook.get());
@@ -276,8 +321,14 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function cb) {
     g.dq((uint64_t)args.data());
     g.L(this_label);
     g.dq((uint64_t)state);
-    g.L(on_hook_label);
-    g.dq((uint64_t)&ScriptState::on_hook_static);
+    g.L(on_pre_hook_label);
+    g.dq((uint64_t)&ScriptState::on_pre_hook_static);
+    g.L(on_post_hook_label);
+    g.dq((uint64_t)&ScriptState::on_post_hook_static);
+    g.L(ret_addr_label);
+    g.dq((uint64_t)&hook->ret_addr);
+    g.L(ret_val_label);
+    g.dq((uint64_t)&hook->ret_val);
     g.L(orig_label);
     // Can't do the following because the hook hasn't been created yet.
     //g.dq(fn_hook->get_original());
@@ -407,7 +458,7 @@ void ScriptState::on_application_entry(const char* name) {
     }
 }
 
-void ScriptState::on_hook(HookedFn* fn) {
+void ScriptState::on_pre_hook(HookedFn* fn) {
     try {
         // Call the script function.
         // TODO: Take return value from the script function into account.
@@ -417,13 +468,21 @@ void ScriptState::on_hook(HookedFn* fn) {
             fn->script_args[i + 1] = (void*)fn->args[i];
         }
 
-        fn->script_fn(fn->script_args);
+        fn->script_pre_fn(fn->script_args);
 
         // Apply the changes to arguments that the script function may have made.
         for (auto i = 0u; i < fn->args.size(); ++i) {
             auto arg = fn->script_args[i + 1];
             fn->args[i] = (uintptr_t)arg.get<void*>();
         }
+    } catch (const std::exception& e) {
+        OutputDebugString(e.what());
+    }
+}
+
+void ScriptState::on_post_hook(HookedFn* fn) {
+    try {
+        fn->ret_val = (uintptr_t)fn->script_post_fn((void*)fn->ret_val).get<void*>();
     } catch (const std::exception& e) {
         OutputDebugString(e.what());
     }
