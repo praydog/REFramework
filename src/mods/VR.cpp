@@ -16,6 +16,7 @@
 #include "sdk/RETypeDB.hpp"
 #include "sdk/Renderer.hpp"
 #include "sdk/Application.hpp"
+#include "sdk/Renderer.hpp"
 
 #include "utility/Scan.hpp"
 #include "utility/FunctionHook.hpp"
@@ -826,18 +827,27 @@ void VR::update_camera() {
         return;
     }
 
+    auto camera = sdk::get_primary_camera();
+
+    if (camera == nullptr) {
+        return;
+    }
+
+    m_nearz = sdk::call_object_func<float>(camera, "get_NearClipPlane", sdk::get_thread_context(), camera);
+    m_farz = sdk::call_object_func<float>(camera, "get_FarClipPlane", sdk::get_thread_context(), camera);
+
+    // Disable certain effects like the 3D overlay during the sewer gators
+    // section in RE7
+    disable_bad_effects();
+    // Disable lens distortion
+    set_lens_distortion(false);
+
 #if defined(RE2) || defined(RE3)
     if (FirstPerson::get()->will_be_used()) {
         m_needs_camera_restore = false;
         return;
     }
 #endif
-
-    auto camera = sdk::get_primary_camera();
-
-    if (camera == nullptr) {
-        return;
-    }
 
     update_camera_origin();
 
@@ -855,15 +865,6 @@ void VR::update_camera() {
     sdk::call_object_func<void*>(camera, "set_FOV", sdk::get_thread_context(), camera, vfov);
     sdk::call_object_func<void*>(camera, "set_VerticalEnable", sdk::get_thread_context(), camera, true);
     sdk::call_object_func<void*>(camera, "set_AspectRatio", sdk::get_thread_context(), camera, aspect);
-
-    m_nearz = sdk::call_object_func<float>(camera, "get_NearClipPlane", sdk::get_thread_context(), camera);
-    m_farz = sdk::call_object_func<float>(camera, "get_FarClipPlane", sdk::get_thread_context(), camera);
-
-    // Disable lens distortion
-    set_lens_distortion(false);
-    // Disable certain effects like the 3D overlay during the sewer gators
-    // section in RE7
-    disable_bad_effects();
 
     m_needs_camera_restore = true;
 }
@@ -986,6 +987,58 @@ void VR::set_lens_distortion(bool value) {
 }
 
 void VR::disable_bad_effects() {
+    auto context = sdk::get_thread_context();
+
+    static auto renderer_t = sdk::RETypeDB::get()->find_type("via.render.Renderer");
+    auto renderer = renderer_t->get_instance();
+
+    auto render_config = sdk::call_object_func<REManagedObject*>(renderer, renderer_t, "get_RenderConfig", context, renderer);
+
+    if (render_config == nullptr) {
+        spdlog::info("No render config!");
+        return;
+    }
+
+    auto framerate_setting = sdk::call_object_func<via::render::RenderConfig::FramerateType>(render_config, "get_FramerateSetting", context, render_config);
+
+    // Allow FPS to go above 60
+    if (framerate_setting != via::render::RenderConfig::FramerateType::VARIABLE) {
+        sdk::call_object_func<void*>(render_config, "set_FramerateSetting", context, render_config, via::render::RenderConfig::FramerateType::VARIABLE);
+    }
+
+    auto antialiasing = sdk::call_object_func<via::render::RenderConfig::AntiAliasingType>(render_config, "get_AntiAliasing", context, render_config);
+
+    // Disable TAA
+    switch (antialiasing) {
+        case via::render::RenderConfig::AntiAliasingType::TAA:
+        case via::render::RenderConfig::AntiAliasingType::FXAA_TAA:
+            sdk::call_object_func<void*>(render_config, "set_AntiAliasing", context, render_config, via::render::RenderConfig::AntiAliasingType::NONE);
+            break;
+        default:
+            break;
+    }
+
+    auto lens_distortion_setting = sdk::call_object_func<via::render::RenderConfig::LensDistortionSetting>(render_config, "get_LensDistortionSetting", context, render_config);
+
+    // Disable lens distortion
+    if (lens_distortion_setting != via::render::RenderConfig::LensDistortionSetting::OFF) {
+        sdk::call_object_func<void*>(render_config, "set_LensDistortionSetting", context, render_config, via::render::RenderConfig::LensDistortionSetting::OFF);
+    }
+
+    auto is_motion_blur_enabled = sdk::call_object_func<bool>(render_config, "get_MotionBlurEnable", context, render_config);
+
+    // Disable motion blur
+    if (is_motion_blur_enabled) {
+        sdk::call_object_func<void*>(render_config, "set_MotionBlurEnable", context, render_config, false);
+    }
+
+    auto vsync = sdk::call_object_func<bool>(render_config, "get_VSync", context, render_config);
+
+    // Disable vsync
+    if (vsync) {
+        sdk::call_object_func<void*>(render_config, "set_VSync", context, render_config, false);
+    }
+
 #ifdef RE7
     auto camera = sdk::get_primary_camera();
 
