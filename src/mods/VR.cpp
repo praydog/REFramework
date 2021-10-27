@@ -1394,7 +1394,7 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                         auto child = sdk::call_object_func<REManagedObject*>(view, "get_Child", context, view);
 
                         // Fix position of interaction icons (RE2, RE3)
-                        if (name_hash == "GUI_FloatIcon"_fnv) {
+                        if (name_hash == "GUI_FloatIcon"_fnv || name_hash == "RogueFloatIcon"_fnv) {
                             auto dir = glm::normalize(original_game_object_pos - camera_position);
                             dir.w = 0.0f;
                             
