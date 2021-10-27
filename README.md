@@ -7,6 +7,10 @@ Download the latest binary from [AppVeyor](https://ci.appveyor.com/project/prayd
 Supports both DirectX 11 and DirectX 12.
 
 ## Included Mods
+* Lua Scripting API (All games)
+* VR
+  * Generic 6DOF VR support for all games
+  * Motion controls for RE2/RE3
 * First Person (RE2, RE3)
 * Free Camera (All games)
 * Scene Timescale (All games)
@@ -18,13 +22,16 @@ Supports both DirectX 11 and DirectX 12.
 * RE8 Stutters (killing enemies, taking damage, etc...)
 
 ## Included Tools (Developer Mode)
+* Game Objects Display
 * Object Explorer
 
 ## Supported Games
 * Resident Evil 2
 * Resident Evil 3
+* Resident Evil 7
 * Resident Evil Village
 * Devil May Cry 5
+* Monster Hunter Rise
 
 ## Thanks
 [SkacikPL](https://github.com/SkacikPL) for originally creating the Manual Flashlight mod.
