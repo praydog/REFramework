@@ -89,6 +89,8 @@ sol::object call_native_func(sol::object obj, ::sdk::RETypeDefinition* ty, const
     auto ret_ty = fn->get_return_type();
 
     if (ret_ty != nullptr) {
+        const auto vm_obj_type = ret_ty->get_vm_obj_type();
+
         switch (utility::hash(ret_ty->get_full_name())) {
         case "System.String"_fnv: {
             auto managed_ret_val = (::REManagedObject*)ret_val;
@@ -106,7 +108,10 @@ sol::object call_native_func(sol::object obj, ::sdk::RETypeDefinition* ty, const
             auto ret_val_u = *(uint32_t*)&ret_val;
             return sol::make_object(l, ret_val_u);
         }
-        default: 
+        default:
+            if (vm_obj_type > via::clr::VMObjType::NULL_ && vm_obj_type < via::clr::VMObjType::ValType) {
+                return sol::make_object(l, (::REManagedObject*)ret_val);
+            }
             break;
         }
     }
@@ -415,6 +420,7 @@ ScriptState::ScriptState() {
     m_lua.new_usertype<::sdk::RETypeDefinition>("RETypeDefinition", 
         "get_method", &::sdk::RETypeDefinition::get_method);
     m_lua.new_usertype<REManagedObject>("REManagedObject", 
+        "get_address", [](REManagedObject* obj) { return (void*)obj; },
         "get_type_definition", [](REManagedObject* obj) { return utility::re_managed_object::get_type_definition(obj); },
         "call",
         [this](REManagedObject* obj, const char* name, sol::variadic_args args) {
