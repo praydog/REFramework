@@ -415,7 +415,11 @@ ScriptState::ScriptState() {
     m_lua.new_usertype<::sdk::RETypeDefinition>("RETypeDefinition", 
         "get_method", &::sdk::RETypeDefinition::get_method);
     m_lua.new_usertype<REManagedObject>("REManagedObject", 
-        "get_type_definition", [](REManagedObject* obj) { return utility::re_managed_object::get_type_definition(obj); });
+        "get_type_definition", [](REManagedObject* obj) { return utility::re_managed_object::get_type_definition(obj); },
+        "call",
+        [this](REManagedObject* obj, const char* name, sol::variadic_args args) {
+            return api::sdk::call_object_func(sol::make_object(m_lua, obj), name, args);
+        });
 }
 
 void ScriptState::run_script(const std::string& p) {
