@@ -298,6 +298,8 @@ struct RETypeDefinition : public sdk::RETypeDefinition_ {
     uint32_t get_index() const;
     int32_t get_fieldptr_offset() const;
     bool has_fieldptr_offset() const;
+    bool is_a(sdk::RETypeDefinition* other) const;
+    bool is_a(std::string_view other) const;
 
     via::clr::VMObjType get_vm_obj_type() const;
 

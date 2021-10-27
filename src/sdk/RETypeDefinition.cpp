@@ -390,6 +390,24 @@ bool RETypeDefinition::has_fieldptr_offset() const {
 #endif
 }
 
+bool RETypeDefinition::is_a(sdk::RETypeDefinition* other) const {
+    if (other == nullptr) {
+        return false;
+    }
+
+    for (auto super = this; super != nullptr; super = super->get_parent_type()) {
+        if (super == other) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool RETypeDefinition::is_a(std::string_view other) const {
+    return this->is_a(RETypeDB::get()->find_type(other));
+}
+
 via::clr::VMObjType RETypeDefinition::get_vm_obj_type() const {
     return (via::clr::VMObjType)this->object_type;
 }
