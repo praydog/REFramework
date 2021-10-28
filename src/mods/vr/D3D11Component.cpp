@@ -40,13 +40,10 @@ void D3D11Component::on_frame(VR* vr) {
     // If m_frame_count is even, we're rendering the left eye.
     if (vr->m_frame_count % 2 == vr->m_left_eye_interval) {
         // Copy the back buffer to the left eye texture (m_left_eye_tex0 holds the intermediate frame).
-        context->CopyResource(m_left_eye_tex0.Get(), backbuffer.Get());
+        context->CopyResource(m_left_eye_tex.Get(), backbuffer.Get());
     } else {
         // Copy the back buffer to the right eye texture.
         context->CopyResource(m_right_eye_tex.Get(), backbuffer.Get());
-
-        // Copy the intermediate left eye texture to the actual left eye texture.
-        context->CopyResource(m_left_eye_tex.Get(), m_left_eye_tex0.Get());
     }
 
     if (vr->m_frame_count % 2 == vr->m_right_eye_interval) {
@@ -78,7 +75,6 @@ void D3D11Component::on_frame(VR* vr) {
 }
 
 void D3D11Component::on_reset(VR* vr) {
-    m_left_eye_tex0.Reset();
     m_left_eye_tex.Reset();
     m_right_eye_tex.Reset();
 }
@@ -102,7 +98,6 @@ void D3D11Component::setup() {
     backbuffer_desc.BindFlags |= D3D11_BIND_RENDER_TARGET;
 
     // Create eye textures.
-    device->CreateTexture2D(&backbuffer_desc, nullptr, &m_left_eye_tex0);
     device->CreateTexture2D(&backbuffer_desc, nullptr, &m_left_eye_tex);
     device->CreateTexture2D(&backbuffer_desc, nullptr, &m_right_eye_tex);
 
