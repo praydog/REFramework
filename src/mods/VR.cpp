@@ -1374,12 +1374,11 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                         
                         gui_matrix[3] = camera_position + (-camera_matrix[2] * m_ui_scale);
                         gui_matrix[3].w = 1.0f;
-
+    
                         auto child = sdk::call_object_func<REManagedObject*>(view, "get_Child", context, view);
 
-                        // Fix position of interaction icons (RE2, RE3)
-                        if (name_hash == "GUI_FloatIcon"_fnv || name_hash == "RogueFloatIcon"_fnv) {
-                            auto dir = glm::normalize(original_game_object_pos - camera_position);
+                        auto fix_2d_position = [&](const Vector4f& target_position) {
+                            auto dir = glm::normalize(target_position - camera_position);
                             dir.w = 0.0f;
                             
                             gui_matrix[3] = camera_position + (dir * m_ui_scale);
@@ -1396,52 +1395,36 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                                 Vector3f half_size{ gui_size.w / 2.0f, gui_size.h / 2.0f, 0.0f };
                                 sdk::call_object_func<void*>(child, "set_Position", context, child, &half_size);
                             }
+                        };
+
+                        // Fix position of interaction icons
+                        if (name_hash == "GUI_FloatIcon"_fnv || name_hash == "RogueFloatIcon"_fnv) { // RE2, RE3
+                            fix_2d_position(original_game_object_pos);
+                        } else if(name_hash == "GUIInteractIcon"_fnv || name_hash == "GUIInteractFarIcon"_fnv) { // RE8
+                            auto interact_icon_comp = utility::re_component::find(game_object->transform, game_namespace("GUIDriver"));
+
+                            if (interact_icon_comp != nullptr) {
+                                auto interact_icon_object = sdk::call_object_func<REGameObject*>(interact_icon_comp, "get_attachTarget", context, interact_icon_comp);
+
+                                if (interact_icon_object != nullptr && interact_icon_object->transform != nullptr) {
+                                    // call get_Position on the object
+                                    Vector4f interact_icon_position{};
+                                    sdk::call_object_func<Vector4f*>(interact_icon_object->transform, "get_Position", &interact_icon_position, context, interact_icon_object->transform);
+
+                                    fix_2d_position(interact_icon_position);
+                                }
+                            }
                         }
 
+                        // ... RE7
                         if (child != nullptr && utility::re_managed_object::get_field<wchar_t*>(child, "Name") == std::wstring_view(L"c_interact")) {
-                            /*auto math = sdk::get_native_singleton("via.math");
-                            auto math_t = sdk::RETypeDB::get()->find_type("via.math");
-
-                            Vector4f current_2d_pos{};
-                            sdk::call_object_func<Vector4f*>(child, "get_Position", &current_2d_pos, sdk::get_thread_context(), child);
-
-                            spdlog::info("{} {}", current_2d_pos.x, current_2d_pos.y);
-
-                            // Translate 2d position to 3d position (screen to world)
-                            Matrix4x4f proj{}, view{};
-                            float screen_size[2]{};
-                            camera_get_projection_matrix_hook(camera, &proj);
-                            camera_get_view_matrix_hook(camera, &view);
-                            get_size_hook(sdk::get_main_view(), (float*)&screen_size);
-
-                            float rect[4]{};
-
-                            rect[2] = screen_size[0];
-                            rect[3] = screen_size[1];
-
-                            Vector4f pos{};
-                            sdk::call_object_func<Vector4f*>(math, math_t, "screenPos2WorldPos", &pos, sdk::get_thread_context(), &current_2d_pos, &proj, &view, &rect);
-
-                            const auto dir = glm::normalize(pos - camera_position);*/
-
                             auto world_pos_attach_comp = utility::re_component::find(game_object->transform, "app.UIWorldPosAttach");
 
                             // Fix the world position of the gui element
                             if (world_pos_attach_comp != nullptr) {
                                 const auto& target_pos = *sdk::get_object_field<Vector4f>(world_pos_attach_comp, "_NowTargetPos");
-                                auto dir = glm::normalize(target_pos - camera_position);
 
-                                dir.w = 0.0f;
-                                gui_matrix[3] = camera_position + (dir * m_ui_scale);
-                                gui_matrix[3].w = 1.0f;
-
-                                regenny::via::Size gui_size{};
-                                sdk::call_object_func<void*>(view, "get_ScreenSize", &gui_size, context, view);
-
-                                Vector3f half_size{ gui_size.w / 2.0f, gui_size.h / 2.0f, 0.0f };
-                                sdk::call_object_func<void*>(child, "set_Position", context, child, &half_size);
-
-                                //spdlog::info("c_interact");
+                                fix_2d_position(target_pos);
                             }
                         }
                     }
