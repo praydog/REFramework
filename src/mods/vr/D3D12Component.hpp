@@ -21,7 +21,6 @@ private:
 	UINT64 m_fence_value{};
 	HANDLE m_fence_event{};
 
-	ComPtr<ID3D12Resource> m_left_eye_tex0{}; // Holds an intermediate frame for the left eye.
 	ComPtr<ID3D12Resource> m_left_eye_tex{};
 	ComPtr<ID3D12Resource> m_right_eye_tex{}; 
 

@@ -41,13 +41,10 @@ void D3D12Component::on_frame(VR* vr) {
     // If m_frame_count is even, we're rendering the left eye.
     if (vr->m_frame_count % 2 == vr->m_left_eye_interval) {
         // Copy the back buffer to the left eye texture (m_left_eye_tex0 holds the intermediate frame).
-        copy_texture(backbuffer.Get(), m_left_eye_tex0.Get());
+        copy_texture(backbuffer.Get(), m_left_eye_tex.Get());
     } else {
         // Copy the back buffer to the right eye texture.
         copy_texture(backbuffer.Get(), m_right_eye_tex.Get());
-
-        // Copy the intermediate left eye texture to the actual left eye texture.
-        copy_texture(m_left_eye_tex0.Get(), m_left_eye_tex.Get());
     }
 
     if (vr->m_frame_count % 2 == vr->m_right_eye_interval) {
@@ -65,7 +62,6 @@ void D3D12Component::on_frame(VR* vr) {
             spdlog::info("[VR] Needed WGP update inside present (frame {})", vr->m_frame_count);
             return;
         }
-
 
         // Submit the eye textures to the compositor at this point. It must be done every frame for both eyes otherwise
         // FPS will dive off the deep end.
@@ -113,7 +109,6 @@ void D3D12Component::on_reset(VR* vr) {
     m_fence_value = 0;
     CloseHandle(m_fence_event);
     m_fence_event = 0;
-    m_left_eye_tex0.Reset();
     m_left_eye_tex.Reset();
     m_right_eye_tex.Reset();
 }
@@ -153,12 +148,6 @@ void D3D12Component::setup() {
     heap_props.Type = D3D12_HEAP_TYPE_DEFAULT;
     heap_props.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
     heap_props.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
-
-    // Create the textures.
-    if (FAILED(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &backbuffer_desc, D3D12_RESOURCE_STATE_PRESENT, nullptr,
-            IID_PPV_ARGS(&m_left_eye_tex0)))) {
-        spdlog::error("[VR] Failed to create left eye texture.");
-    }
 
     if (FAILED(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &backbuffer_desc, D3D12_RESOURCE_STATE_PRESENT, nullptr,
             IID_PPV_ARGS(&m_left_eye_tex)))) {
