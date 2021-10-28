@@ -167,14 +167,6 @@ Matrix4x4f* VR::camera_get_view_matrix_hook(REManagedObject* camera, Matrix4x4f*
     //auto current_head_pos = -(glm::inverse(vr->get_rotation(0)) * ((vr->get_position(0)) - vr->m_standing_origin));
     //current_head_pos.w = 0.0f;
 
-    /*if (vr->m_use_rotation) {
-        if (vr->m_invert) {
-            mtx *= glm::inverse(glm::extractMatrixRotation(current_eye_transform));
-        } else {
-            mtx *= glm::extractMatrixRotation(current_eye_transform);
-        }
-    }*/
-
     // Adjust the view matrix origin
     *(Vector3f*)&mtx[3] -= Vector3f { current_eye_transform[3] };
 
@@ -926,7 +918,10 @@ void VR::update_camera_origin() {
     auto current_head_pos = m_original_camera_rotation * current_relative_pos;
 
     sdk::set_joint_rotation(camera_joint, new_rotation);
-    sdk::set_joint_position(camera_joint, m_original_camera_position + current_head_pos);
+
+    if (m_positional_tracking) {
+        sdk::set_joint_position(camera_joint, m_original_camera_position + current_head_pos);   
+    }
 }
 
 void VR::restore_camera() {
@@ -2009,9 +2004,9 @@ void VR::on_draw_ui() {
     if (ImGui::Checkbox("Use AFR", &m_use_afr)) {
     }
 
-    ImGui::Checkbox("Use Predicted Poses", &m_use_predicted_poses);
-    ImGui::Checkbox("Use Eye Rotation", &m_use_rotation);
-    ImGui::Checkbox("Invert Eye Rotation", &m_invert);
+    if (ImGui::Checkbox("Positional Tracking", &m_positional_tracking)) {
+    }
+
     ImGui::DragFloat("UI Scale", &m_ui_scale, 0.005f, 0.0f, 100.0f);
 }
 

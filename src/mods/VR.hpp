@@ -61,10 +61,6 @@ public:
     }
 
     auto& get_poses() const {
-        if (m_use_predicted_poses) {
-            return m_game_poses;
-        }
-
         return m_render_poses;
     }
 
@@ -233,7 +229,6 @@ private:
     int m_left_eye_frame_count{0};
     int m_right_eye_frame_count{0};
     bool m_use_afr{false};
-    bool m_use_predicted_poses{false};
     bool m_submitted{false};
     bool m_present_finished{false};
     // we always need at least one initial WaitGetPoses before the game will render
@@ -248,6 +243,7 @@ private:
     bool m_in_render{false};
     bool m_in_lightshaft{false};
     bool m_request_reinitialize_openvr{false};
+    bool m_positional_tracking{true};
 
     // == 1 or == 0
     uint8_t m_left_eye_interval{0};
@@ -269,7 +265,6 @@ private:
         { "bindings_knuckles.json", bindings_knuckles }
     };
 
-    bool m_invert{false};
     bool m_use_rotation{true};
 
     friend class vrmod::D3D11Component;
