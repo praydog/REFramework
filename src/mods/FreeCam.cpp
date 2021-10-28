@@ -204,7 +204,7 @@ void FreeCam::on_update_transform(RETransform* transform) {
             m_custom_angles[1] -= axis_r.x * rotation_speed * delta * timescale_mult;
             m_custom_angles[2] = 0.0f;
 
-            if (axis_l.length() > 0.0f) {
+            if (glm::length(axis_l) > 0.0f) {
                 dir = Vector4f{ axis_l.x, 0.0f, axis_l.y * -1.0f, 0.0f };
             }
         }
@@ -278,15 +278,4 @@ bool FreeCam::update_pointers() {
 
     // Should work for all games.
     return m_via_hid_gamepad.update() && m_application.update();
-}
-
-bool FreeCam::NativeObject::update() {
-    if (this->object != nullptr && this->t != nullptr) {
-        return true;
-    }
-
-    this->object = sdk::get_native_singleton(this->name);
-    this->t = sdk::RETypeDB::get()->find_type(this->name);
-
-    return this->object != nullptr && this->t != nullptr;
 }

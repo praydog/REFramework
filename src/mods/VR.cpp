@@ -1518,6 +1518,33 @@ thread_local bool timed_out = false;
 void VR::on_pre_begin_rendering(void* entry) {
     m_in_render = true;
 
+    if (m_via_hid_gamepad.update()) {
+        auto pad = sdk::call_object_func<REManagedObject*>(m_via_hid_gamepad.object, m_via_hid_gamepad.t, "get_LastInputDevice", sdk::get_thread_context(), m_via_hid_gamepad.object);
+
+        if (pad != nullptr) {
+            // Move direction
+            // It's not a Vector2f because via.vec2 is not actually 8 bytes, we don't want stack corruption to occur.
+            const auto axis_l = (Vector2f)*utility::re_managed_object::get_field<Vector3f*>(pad, "AxisL");
+            const auto axis_r = (Vector2f)*utility::re_managed_object::get_field<Vector3f*>(pad, "AxisR");
+
+            // Lerp the standing origin back to HMD position
+            // if the user is moving
+            if (glm::length(axis_l) > 0.0f || glm::length(axis_r) > 0.0f) {
+                const auto highest_length = std::max<float>(glm::length(axis_l), glm::length(axis_r));
+                auto new_pos = get_position(vr::k_unTrackedDeviceIndex_Hmd);
+
+                const auto delta = sdk::Application::get()->get_delta_time();
+
+                new_pos.y = m_standing_origin.y;
+                // Don't set the Y because it would look really strange
+                m_standing_origin = glm::lerp(m_standing_origin, new_pos, ((float)highest_length * delta) * 0.01f);
+            }
+        }
+
+        // TODO: do the same thing for the keyboard
+        // will probably require some game-specific code
+    }
+
     if (!inside_on_end && m_request_reinitialize_openvr) {
         m_request_reinitialize_openvr = false;
         reinitialize_openvr();
@@ -1942,9 +1969,12 @@ void VR::openvr_input_to_game(REManagedObject* input_system) {
     if (moved_sticks) {
         auto new_pos = get_position(vr::k_unTrackedDeviceIndex_Hmd);
 
+        const auto delta = sdk::Application::get()->get_delta_time();
+        const auto highest_length = std::max<float>(glm::length(right_axis), glm::length(left_axis));
+
         new_pos.y = m_standing_origin.y;
         // Don't set the Y because it would look really strange
-        m_standing_origin = glm::lerp(m_standing_origin, new_pos, 1 / 90.0f);
+        m_standing_origin = glm::lerp(m_standing_origin, new_pos, ((float)highest_length * delta) * 0.01f);
     }
 
     set_button_state(app::ropeway::InputDefine::Kind::MOVE, left_axis_len > CONTROLLER_DEADZONE);

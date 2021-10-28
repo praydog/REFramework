@@ -13,6 +13,7 @@
 
 #include "utility/Patch.hpp"
 #include "sdk/Math.hpp"
+#include "sdk/helpers/NativeObject.hpp"
 #include "vr/D3D11Component.hpp"
 #include "vr/D3D12Component.hpp"
 
@@ -239,6 +240,8 @@ private:
 
     Vector4f m_original_camera_position{ 0.0f, 0.0f, 0.0f, 0.0f };
     glm::quat m_original_camera_rotation{ glm::identity<glm::quat>() };
+
+    sdk::helpers::NativeObject m_via_hid_gamepad{ "via.hid.GamePad" };
 
     // options
     float m_ui_scale{15.0f};

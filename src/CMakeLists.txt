@@ -80,6 +80,9 @@ set(SDK_SRC
     sdk/RopewaySweetLightManager.hpp
     sdk/SceneManager.hpp
     sdk/SceneManager.cpp
+
+    sdk/helpers/NativeObject.hpp
+    sdk/helpers/NativeObject.cpp
 )
 
 set(RE2IMGUI_SRC

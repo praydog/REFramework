@@ -23,5 +23,7 @@ struct Application {
     Function* get_function(std::string_view name);
 
     std::vector<Function*> generate_chain(std::string_view start_name, std::string_view end_name);
+
+    float get_delta_time();
 };
 }

@@ -103,4 +103,15 @@ std::vector<Application::Function*> Application::generate_chain(std::string_view
 
     return chain;
 }
+
+float Application::get_delta_time() {
+    static const auto application_type = sdk::RETypeDB::get()->find_type("via.Application");
+
+    if (application_type == nullptr) {
+        spdlog::error("Cannot find via.Application");
+        return 0.0f;
+    }
+
+    return sdk::call_object_func<float>(this, application_type, "get_DeltaTime", sdk::get_thread_context(), this);
+}
 }
