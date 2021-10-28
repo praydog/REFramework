@@ -3,6 +3,7 @@
 
 #include "utility/Scan.hpp"
 #include "utility/Module.hpp"
+#include "utility/Memory.hpp"
 
 #include "REFramework.hpp"
 #include "ReClass.hpp"
@@ -99,8 +100,8 @@ namespace sdk {
 
         for (auto i = 0; i < 0x20000; i += sizeof(void*)) {
             auto ptr = *(sdk::RETypeDB**)((uintptr_t)*s_global_context + i);
-
-            if (ptr == nullptr || IsBadReadPtr(ptr, sizeof(void*)) || ((uintptr_t)ptr & (sizeof(void*) - 1)) != 0) {
+            
+            if (ptr == nullptr || utility::isBadPtr((uintptr_t)ptr) || ((uintptr_t)ptr & (sizeof(void*) - 1)) != 0) {
                 continue;
             }
 

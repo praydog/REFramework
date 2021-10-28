@@ -64,4 +64,24 @@ namespace utility {
     bool isGoodCodePtr(uintptr_t ptr, size_t len) {
         return isGoodPtr(ptr, len, PAGE_EXECUTE | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE);
     }
+
+    bool isBadPtr(uintptr_t ptr) {
+
+        // https://stackoverflow.com/questions/496034/most-efficient-replacement-for-isbadreadptr
+        MEMORY_BASIC_INFORMATION mbi = {0};
+
+        if (VirtualQuery((LPCVOID)ptr, &mbi, sizeof(mbi))) {
+            
+            DWORD mask = PAGE_READONLY | PAGE_READWRITE | PAGE_WRITECOPY | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY;
+            bool protect = !(mbi.Protect & mask);
+
+            if (mbi.Protect & (PAGE_GUARD | PAGE_NOACCESS)) {
+                protect = true;
+            }
+
+            return protect;
+        }
+
+        return true;
+    }
 }
