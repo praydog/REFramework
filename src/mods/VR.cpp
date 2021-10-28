@@ -718,23 +718,10 @@ void VR::update_hmd_state() {
 
     const auto end_time = std::chrono::high_resolution_clock::now();
 
-    if (m_request_reinitialize_openvr || (end_time - start_time) >= std::chrono::milliseconds(30)) {
-        m_request_reinitialize_openvr = false;
-
+    if ((end_time - start_time) >= std::chrono::milliseconds(30)) {
         spdlog::warn("VRInput update action state took too long: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count());
-        spdlog::info("Reinitializing openvr");
 
-        vr::VR_Shutdown();
-
-        // Reinitialize openvr input, hopefully this fixes the issue
-        m_controllers.clear();
-        m_controllers_set.clear();
-
-        auto input_error = initialize_openvr();
-
-        if (input_error) {
-            spdlog::error("Failed to reinitialize openvr: {}", *input_error);
-        }
+        reinitialize_openvr();
     }
 
     vr::VRCompositor()->SetTrackingSpace(vr::TrackingUniverseStanding);
@@ -1547,6 +1534,12 @@ thread_local bool timed_out = false;
 
 void VR::on_pre_begin_rendering(void* entry) {
     m_in_render = true;
+
+    if (!inside_on_end && m_request_reinitialize_openvr) {
+        m_request_reinitialize_openvr = false;
+        reinitialize_openvr();
+    }
+
     detect_controllers();
 
     actual_frame_count = get_game_frame_count();

@@ -142,6 +142,24 @@ private:
     std::optional<std::string> hijack_camera();
     std::optional<std::string> hijack_overlay_renderer();
 
+    std::optional<std::string> reinitialize_openvr() {
+        spdlog::info("Reinitializing openvr");
+
+        vr::VR_Shutdown();
+
+        // Reinitialize openvr input, hopefully this fixes the issue
+        m_controllers.clear();
+        m_controllers_set.clear();
+
+        auto input_error = initialize_openvr();
+
+        if (input_error) {
+            spdlog::error("Failed to reinitialize openvr: {}", *input_error);
+        }
+
+        return input_error;
+    }
+
     bool detect_controllers();
     void update_hmd_state();
     void update_camera(); // if not in firstperson mode
