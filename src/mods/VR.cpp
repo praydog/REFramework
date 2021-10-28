@@ -1621,6 +1621,16 @@ void VR::on_end_rendering(void* entry) {
         // Try to render again for the right eye
         auto app = sdk::Application::get();
 
+        static auto app_type = sdk::RETypeDB::get()->find_type("via.Application");
+        static auto set_max_delta_time_fn = app_type->get_method("set_MaxDeltaTime");
+
+        // RE8 and onwards...
+        // defaults to 2, and will slow the game down if frame rate is too low
+        if (set_max_delta_time_fn != nullptr) {
+            // static func, no need for app
+            set_max_delta_time_fn->call<void*>(sdk::get_thread_context(), 10.0f);
+        }
+
         static auto chain = app->generate_chain("WaitRendering", "EndRendering");
         static bool do_once = true;
 
@@ -1639,6 +1649,11 @@ void VR::on_end_rendering(void* entry) {
                 "BeginDynamics",
                 "EndRenderingDynamics",
                 "EndDynamics",
+                "EndPhysics",
+                "RenderDynamics",
+                "RenderLandscape",
+                "DevelopRenderer",
+                "DrawWidget"
             };
 
             for (auto& entry : entries_to_remove) {
