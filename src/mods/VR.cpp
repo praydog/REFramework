@@ -726,7 +726,9 @@ void VR::update_hmd_state() {
 
     const auto end_time = std::chrono::high_resolution_clock::now();
 
-    if ((end_time - start_time) >= std::chrono::milliseconds(30)) {
+    if (m_request_reinitialize_openvr || (end_time - start_time) >= std::chrono::milliseconds(30)) {
+        m_request_reinitialize_openvr = false;
+
         spdlog::warn("VRInput update action state took too long: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count());
         spdlog::info("Reinitializing openvr");
 
@@ -1414,7 +1416,7 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                             }
                         }
 
-                        if (child && utility::re_managed_object::get_field<wchar_t*>(child, "Name") == std::wstring_view(L"c_interact")) {
+                        if (child != nullptr && utility::re_managed_object::get_field<wchar_t*>(child, "Name") == std::wstring_view(L"c_interact")) {
                             /*auto math = sdk::get_native_singleton("via.math");
                             auto math_t = sdk::RETypeDB::get()->find_type("via.math");
 
@@ -1993,6 +1995,10 @@ void VR::on_draw_ui() {
 
     if (ImGui::Button("Set Standing Origin")) {
         m_standing_origin = get_position(0);
+    }
+
+    if (ImGui::Button("Reinitialize OpenVR")) {
+        m_request_reinitialize_openvr = true;
     }
 
     ImGui::DragFloat4("Right Bounds", (float*)&m_right_bounds, 0.005f, -2.0f, 2.0f);

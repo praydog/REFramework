@@ -247,6 +247,7 @@ private:
     bool m_needs_camera_restore{false};
     bool m_in_render{false};
     bool m_in_lightshaft{false};
+    bool m_request_reinitialize_openvr{false};
 
     // == 1 or == 0
     uint8_t m_left_eye_interval{0};
