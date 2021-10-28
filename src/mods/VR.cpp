@@ -1588,7 +1588,9 @@ void VR::on_pre_begin_rendering(void* entry) {
         return;
     }
 
-    if (!inside_on_end && m_frame_count % 2 == m_left_eye_interval) {
+    const auto should_update_camera = (m_frame_count % 2 == m_left_eye_interval) || m_use_afr;
+
+    if (!inside_on_end && should_update_camera) {
         update_camera();
     } else if (inside_on_end) {
         update_camera_origin();
