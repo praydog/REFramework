@@ -84,8 +84,10 @@ void FirstPerson::on_draw_ui() {
     ImGui::DragFloat4("Offset Debug", (float*)&m_offset_debug.x, 1.0f, -1.0f, 1.0f);
     ImGui::DragFloat("VR Scale", (float*)&m_vr_scale, 0.01f, 0.01f, 1.0f);
 
-    ImGui::DragFloat3("Controller rotation", (float*)&m_hand_rotation_offset, 0.1f, -360.0f, 360.0f);
-    ImGui::DragFloat3("Controller position", (float*)&m_hand_position_offset, 0.1f, -360.0f, 360.0f);
+    ImGui::DragFloat3("Controller rotation (Left)", (float*)&m_left_hand_rotation_offset, 0.1f, -360.0f, 360.0f);
+    ImGui::DragFloat3("Controller rotation (Right)", (float*)&m_right_hand_rotation_offset, 0.1f, -360.0f, 360.0f);
+    ImGui::DragFloat3("Controller position (Left)", (float*)&m_left_hand_position_offset, 0.01f, -2.0f, 2.0f);
+    ImGui::DragFloat3("Controller position (Right)", (float*)&m_right_hand_position_offset, 0.01f, -2.0f, 2.0f);
 
     ImGui::DragFloat3("Controller 1", (float*)&m_last_controller_euler[0].x, 1.0f, -360.0f, 360.0f);
     ImGui::DragFloat3("Controller 2", (float*)&m_last_controller_euler[1].x, 1.0f, -360.0f, 360.0f);
@@ -486,6 +488,7 @@ void FirstPerson::update_player_transform(RETransform* transform) {
 
     auto vr_mod = VR::get();
     auto& controllers = vr_mod->get_controllers();
+    const auto is_hmd_active = vr_mod->is_hmd_active();
 
     if (!controllers.empty()) {
         auto update_joint = [&](std::wstring_view name, int32_t controller_index) {
@@ -509,7 +512,14 @@ void FirstPerson::update_player_transform(RETransform* transform) {
 
             auto& cam_forward3 = *(Vector3f*)&cam_rot_mat[2];
 
-            auto offset = glm::extractMatrixRotation(m_last_camera_matrix) * (m_attach_offsets[m_player_name] * Vector4f{ -0.1f, 0.1f, 0.1f, 0.0f });
+            auto attach_offset = m_attach_offsets[m_player_name];
+
+            if (is_hmd_active) {
+                attach_offset.x = 0.0f;
+                attach_offset.z = 0.0f;
+            }
+
+            auto offset = glm::extractMatrixRotation(m_last_camera_matrix) * (attach_offset * Vector4f{ -0.1f, 0.1f, 0.1f, 0.0f });
             auto final_pos = Vector3f{ m_last_bone_matrix[3] + offset };
 
             // what the fuck is this
@@ -524,26 +534,35 @@ void FirstPerson::update_player_transform(RETransform* transform) {
             auto hmd_pos = vr_mod->get_position(0);
 
             auto controller_offset = vr_mod->get_position(controllers[controller_index]) - hmd_pos;
+            controller_offset.w = 1.0f;
             auto controller_rotation = vr_mod->get_rotation(controllers[controller_index]) 
                                                        * Matrix4x4f{ m_scale_debug.x, 0.0f, 0.0f, 0.0f,
                                                                      0.0f, m_scale_debug.y, 0.0f, 0.0f,
                                                                      0.0f, 0.0f, m_scale_debug.z, 0.0f,
                                                                      0.0f, 0.0f, 0.0f, m_scale_debug.w };
             
-            const auto hand_rotation_offset = controller_index == 0 ? (m_hand_rotation_offset * -1.0f) : m_hand_rotation_offset;
+            const auto hand_rotation_offset = controller_index == 0 ? m_left_hand_rotation_offset : m_right_hand_rotation_offset;
+            const auto hand_position_offset = controller_index == 0 ? m_left_hand_position_offset : m_right_hand_position_offset;
 
-            auto offset_quat = glm::quat{ hand_rotation_offset };
-            auto controller_quat = glm::quat{ controller_rotation };
+            const auto offset_quat = glm::normalize(glm::quat{ hand_rotation_offset });
+            const auto controller_quat = glm::normalize(glm::quat{ controller_rotation });
+            const auto look_quat = glm::normalize(glm::quat{ look_matrix });
 
             // fix up the controller_rotation by rotating it with the camera rotation (look_matrix)
-            auto rotation_quat = glm::normalize(glm::normalize(glm::quat{ look_matrix }) * glm::normalize(controller_quat) * glm::normalize(offset_quat));
+            auto rotation_quat = glm::normalize(look_quat * controller_quat * offset_quat);
+
+            Vector4f wrist_pivot_point{};
+            sdk::call_object_func<Vector4f*>(wrist_joint, "get_BaseLocalPosition", &wrist_pivot_point, sdk::get_thread_context(), wrist_joint);
+
+            glm::quat base_wrist_rotation{};
+            sdk::call_object_func<glm::quat*>(wrist_joint, "get_BaseLocalRotation", &base_wrist_rotation, sdk::get_thread_context(), wrist_joint);
 
             // be sure to always multiply the MATRIX BEFORE THE VECTOR!! WHAT HTE FUCK
-            auto hand_pos = look_matrix * ((controller_offset * m_vr_scale) + m_hand_position_offset);
-            auto new_pos = m_last_bone_matrix[3] + hand_pos;
+            auto hand_pos = look_quat * ((controller_offset * m_vr_scale));
+            hand_pos += (glm::normalize(look_quat * controller_quat) * hand_position_offset);
 
-            //set_joint_position(wrist_joint, new_pos);
-            //set_joint_rotation(wrist_joint, rotation_quat);
+            auto new_pos = m_last_camera_matrix_pre_vr[3] + hand_pos;
+            new_pos.w = 1.0f;
 
             // Get Arm IK component
             auto arm_fit = utility::re_component::find<REComponent>(transform, game_namespace("IkArmFit"));
@@ -873,7 +892,14 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
         cam_forward3 = glm::normalize(cam_forward3);
     }
 
-    auto offset = glm::extractMatrixRotation(camera_matrix) * (m_attach_offsets[m_player_name] * Vector4f{ -0.1f, 0.1f, 0.1f, 0.0f });
+    auto attach_offset = m_attach_offsets[m_player_name];
+
+    if (VR::get()->is_hmd_active()) {
+        attach_offset.x = 0.0f;
+        attach_offset.z = 0.0f;
+    }
+
+    auto offset = glm::extractMatrixRotation(camera_matrix) * (attach_offset * Vector4f{ -0.1f, 0.1f, 0.1f, 0.0f });
     auto final_pos = Vector3f{ bone_pos + offset };
 
     // Average the distance to the wanted rotation

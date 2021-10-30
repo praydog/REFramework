@@ -102,6 +102,10 @@ public:
         return (std::chrono::steady_clock::now() - m_last_controller_update) <= std::chrono::seconds(10);
     }
 
+    bool is_hmd_active() const {
+        return m_is_hmd_active && m_wgp_initialized;
+    }
+
     Vector4f get_position(uint32_t index);
     Matrix4x4f get_rotation(uint32_t index);
 

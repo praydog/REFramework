@@ -103,13 +103,15 @@ private:
     float m_last_fov_mult{ 0.0f };
     float m_interp_camera_speed{ 100.0f };
     float m_interp_bone_scale{ 1.0f };
-    float m_vr_scale{ 0.75f };
+    float m_vr_scale{ 1.0f };
 
     Vector4f m_scale_debug{ 1.0f, 1.0f, 1.0f, 1.0f };
     Vector4f m_scale_debug2{ 1.0f, 1.0f, 1.0f, 1.0f };
     Vector4f m_offset_debug{ 1.0f, 1.0f, 1.0f, 1.0f };
-    Vector4f m_hand_position_offset{ 0.0f, -0.1f, 0.0f, 0.0f };
-    Vector3f m_hand_rotation_offset{ 0.2f, -2.7f, -1.7f };
+    Vector4f m_left_hand_position_offset{ -0.05f, 0.05f, 0.15f, 0.0f };
+    Vector4f m_right_hand_position_offset{ 0.05f, 0.05f, 0.15f, 0.0f };
+    Vector3f m_left_hand_rotation_offset{ 0.4f, 2.4f, 1.7f };
+    Vector3f m_right_hand_rotation_offset{ 0.2f, -2.5f, -1.7f };
 
     Vector3f m_last_controller_euler[2]{};
 
