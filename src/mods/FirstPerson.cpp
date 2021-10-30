@@ -550,13 +550,7 @@ void FirstPerson::update_player_transform(RETransform* transform) {
 
             // fix up the controller_rotation by rotating it with the camera rotation (look_matrix)
             auto rotation_quat = glm::normalize(look_quat * controller_quat * offset_quat);
-
-            Vector4f wrist_pivot_point{};
-            sdk::call_object_func<Vector4f*>(wrist_joint, "get_BaseLocalPosition", &wrist_pivot_point, sdk::get_thread_context(), wrist_joint);
-
-            glm::quat base_wrist_rotation{};
-            sdk::call_object_func<glm::quat*>(wrist_joint, "get_BaseLocalRotation", &base_wrist_rotation, sdk::get_thread_context(), wrist_joint);
-
+            
             // be sure to always multiply the MATRIX BEFORE THE VECTOR!! WHAT HTE FUCK
             auto hand_pos = look_quat * ((controller_offset * m_vr_scale));
             hand_pos += (glm::normalize(look_quat * controller_quat) * hand_position_offset);
