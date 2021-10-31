@@ -394,18 +394,10 @@ std::optional<std::string> VR::initialize_openvr() {
         return "VROverlay failed to set overlay width: " + std::string{vr::VROverlay()->GetOverlayErrorNameFromEnum(overlay_error)};
     }
 
-    // set overlay to high quality
     overlay_error = vr::VROverlay()->SetOverlayInputMethod(m_overlay_handle, vr::VROverlayInputMethod_Mouse);
 
     if (overlay_error != vr::VROverlayError_None) {
         return "VROverlay failed to set overlay input method: " + std::string{vr::VROverlay()->GetOverlayErrorNameFromEnum(overlay_error)};
-    }
-
-    // set overlay picture to dog.png
-    overlay_error = vr::VROverlay()->SetOverlayFromFile(m_overlay_handle, "G:\\SteamLibrary\\steamapps\\common\\RESIDENT EVIL 2  BIOHAZARD RE2\\dog.png");
-
-    if (overlay_error != vr::VROverlayError_None) {
-        return "VROverlay failed to set overlay from file: " + std::string{vr::VROverlay()->GetOverlayErrorNameFromEnum(overlay_error)};
     }
 
     // same thing as above but absolute instead
@@ -414,11 +406,7 @@ std::optional<std::string> VR::initialize_openvr() {
     // then set it as the overlay transform
     vr::TrackedDevicePose_t pose;
     vr::VRSystem()->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseStanding, 0, &pose, 1);
-
-    vr::HmdMatrix34_t pose_matrix = pose.mDeviceToAbsoluteTracking;
-    vr::VROverlay()->SetOverlayTransformAbsolute(m_overlay_handle, vr::TrackingUniverseStanding, &pose_matrix);
-
-    //vr::VROverlay()->SetOverlayTransformAbsolute(m_overlay_handle, vr::ETrackingUniverseOrigin::TrackingUniverseStanding, &asdf);
+    vr::VROverlay()->SetOverlayTransformAbsolute(m_overlay_handle, vr::TrackingUniverseStanding, &pose.mDeviceToAbsoluteTracking);
 
     spdlog::info("Made overlay with handle {}", m_overlay_handle);
 
