@@ -235,12 +235,41 @@ void REFramework::on_frame_d3d11() {
     ImGui::EndFrame();
     ImGui::Render();
 
-    ID3D11DeviceContext* context = nullptr;
-    m_d3d11_hook->get_device()->GetImmediateContext(&context);
+    ComPtr<ID3D11DeviceContext> context{};
+    float clear_color[]{0.0f, 0.0f, 0.0f, 0.0f};
 
-    context->OMSetRenderTargets(1, &m_main_render_target_view_d3d11, NULL);
+    m_d3d11_hook->get_device()->GetImmediateContext(&context);
+    context->ClearRenderTargetView(m_d3d11.rt_rtv.Get(), clear_color);
+    context->OMSetRenderTargets(1, m_d3d11.rt_rtv.GetAddressOf(), NULL);
+    //context->OMSetRenderTargets(1, m_d3d11.bb_rtv.GetAddressOf(), NULL);
 
     ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+
+    // Set the back buffer to be the render target.
+    context->OMSetRenderTargets(1, m_d3d11.bb_rtv.GetAddressOf(), nullptr);
+
+    // Setup a draw list to draw our render target to the back buffer.
+    static ImDrawList dl{ImGui::GetDrawListSharedData()};
+    static ImDrawData dd{};
+    static ImDrawList* dls[]{&dl};
+	auto w = (float)m_d3d11.rt_width;
+	auto h = (float)m_d3d11.rt_height;
+
+    dl._ResetForNewFrame();
+    dl.PushClipRect(ImVec2{0.0f, 0.0f}, ImVec2{w, h});
+	dl.AddImage((ImTextureID)m_d3d11.rt_srv.Get(), ImVec2{0.0f, 0.0f}, ImVec2{w, h});
+    dl.PopClipRect();
+
+	dd.Valid = true;
+    dd.CmdLists = dls;
+    dd.CmdListsCount = 1;
+    dd.TotalVtxCount = dl.VtxBuffer.Size;
+    dd.TotalIdxCount = dl.IdxBuffer.Size;
+    dd.DisplayPos = ImVec2{0.0f, 0.0f};
+    dd.DisplaySize = ImGui::GetIO().DisplaySize;
+    dd.FramebufferScale = ImGui::GetIO().DisplayFramebufferScale;
+
+    ImGui_ImplDX11_RenderDrawData(&dd);
 
     if (m_error.empty() && m_game_data_initialized) {
         m_mods->on_post_frame();
@@ -880,18 +909,54 @@ bool REFramework::initialize() {
 void REFramework::create_render_target_d3d11() {
     cleanup_render_target_d3d11();
 
-    ID3D11Texture2D* back_buffer{nullptr};
-    if (m_d3d11_hook->get_swap_chain()->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&back_buffer) == S_OK) {
-        m_d3d11_hook->get_device()->CreateRenderTargetView(back_buffer, NULL, &m_main_render_target_view_d3d11);
-        back_buffer->Release();
+    auto swapchain = m_d3d11_hook->get_swap_chain();
+    auto device = m_d3d11_hook->get_device();
+
+    // Get back buffer.
+    ComPtr<ID3D11Texture2D> backbuffer{};
+
+    if (FAILED(swapchain->GetBuffer(0, IID_PPV_ARGS(&backbuffer)))) {
+        spdlog::error("[D3D11] Failed to get back buffer!");
+        return;
     }
+
+    // Create a render target view of the back buffer.
+    if (FAILED(device->CreateRenderTargetView(backbuffer.Get(), nullptr, &m_d3d11.bb_rtv))) {
+        spdlog::error("[D3D11] Failed to create back buffer render target view!");
+        return;
+    }
+
+    // Get backbuffer description.
+    D3D11_TEXTURE2D_DESC backbuffer_desc{};
+
+    backbuffer->GetDesc(&backbuffer_desc);
+
+    backbuffer_desc.BindFlags |= D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+
+    // Create our render target.
+    if (FAILED(device->CreateTexture2D(&backbuffer_desc, nullptr, &m_d3d11.rt))) {
+        spdlog::error("[D3D11] Failed to create render target texture!");
+        return;
+    }
+
+    // Create our render target view.
+    if (FAILED(device->CreateRenderTargetView(m_d3d11.rt.Get(), nullptr, &m_d3d11.rt_rtv))) {
+        spdlog::error("[D3D11] Failed to create render terget view!");
+        return;
+    }
+
+    // Create our render target shader resource view.
+    if (FAILED(device->CreateShaderResourceView(m_d3d11.rt.Get(), nullptr, &m_d3d11.rt_srv))) {
+        spdlog::error("[D3D11] Failed to create shader resource view!");
+        return;
+    }
+
+    m_d3d11.rt_width = backbuffer_desc.Width;
+    m_d3d11.rt_height = backbuffer_desc.Height;
 }
 
 void REFramework::cleanup_render_target_d3d11() {
-    if (m_main_render_target_view_d3d11 != nullptr) {
-        m_main_render_target_view_d3d11->Release();
-        m_main_render_target_view_d3d11 = nullptr;
-    }
+    m_d3d11 = {};
 }
 
 // DirectX 12 Initialization methods

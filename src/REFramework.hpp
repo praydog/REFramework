@@ -3,6 +3,7 @@
 #include <array>
 
 #include <spdlog/spdlog.h>
+#include <imgui.h>
 
 class Mods;
 class REGlobals;
@@ -112,6 +113,8 @@ private:
 
     RendererType m_renderer_type{RendererType::D3D11};
 
+    template <typename T> using ComPtr = Microsoft::WRL::ComPtr<T>;
+
 private: // D3D misc
     void set_imgui_style() noexcept;
 
@@ -128,7 +131,14 @@ private: // D3D12 Init
     void create_render_target_d3d12();
 
 private: // D3D11 members
-    ID3D11RenderTargetView* m_main_render_target_view_d3d11{nullptr};
+    struct D3D11 {
+		ComPtr<ID3D11Texture2D> rt{};
+		ComPtr<ID3D11RenderTargetView> rt_rtv{};
+		ComPtr<ID3D11ShaderResourceView> rt_srv{};
+        uint32_t rt_width{};
+        uint32_t rt_height{};
+		ComPtr<ID3D11RenderTargetView> bb_rtv{};
+    } m_d3d11{};
 
 private: // D3D12 members
     struct FrameContextD3D12 {
