@@ -140,6 +140,9 @@ private: // D3D11 members
 		ComPtr<ID3D11RenderTargetView> bb_rtv{};
     } m_d3d11{};
 
+public:
+    auto& get_rendertarget_d3d11() { return m_d3d11.rt; }
+
 private: // D3D12 members
     struct FrameContextD3D12 {
         ID3D12CommandAllocator* command_allocator;
