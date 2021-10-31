@@ -373,6 +373,55 @@ std::optional<std::string> VR::initialize_openvr() {
         return input_error;
     }
 
+    // create vr overlay
+    auto overlay_error = vr::VROverlay()->CreateOverlay("RopewayVR", "RopewayVR", &m_overlay_handle);
+
+    if (overlay_error != vr::VROverlayError_None) {
+        return "VROverlay failed to create overlay: " + std::string{vr::VROverlay()->GetOverlayErrorNameFromEnum(overlay_error)};
+    }
+
+    // set overlay to visible
+    overlay_error = vr::VROverlay()->ShowOverlay(m_overlay_handle);
+
+    if (overlay_error != vr::VROverlayError_None) {
+        return "VROverlay failed to show overlay: " + std::string{vr::VROverlay()->GetOverlayErrorNameFromEnum(overlay_error)};
+    }
+
+    // set overlay to high quality
+    overlay_error = vr::VROverlay()->SetOverlayWidthInMeters(m_overlay_handle, 1.0f);
+
+    if (overlay_error != vr::VROverlayError_None) {
+        return "VROverlay failed to set overlay width: " + std::string{vr::VROverlay()->GetOverlayErrorNameFromEnum(overlay_error)};
+    }
+
+    // set overlay to high quality
+    overlay_error = vr::VROverlay()->SetOverlayInputMethod(m_overlay_handle, vr::VROverlayInputMethod_Mouse);
+
+    if (overlay_error != vr::VROverlayError_None) {
+        return "VROverlay failed to set overlay input method: " + std::string{vr::VROverlay()->GetOverlayErrorNameFromEnum(overlay_error)};
+    }
+
+    // set overlay picture to dog.png
+    overlay_error = vr::VROverlay()->SetOverlayFromFile(m_overlay_handle, "G:\\SteamLibrary\\steamapps\\common\\RESIDENT EVIL 2  BIOHAZARD RE2\\dog.png");
+
+    if (overlay_error != vr::VROverlayError_None) {
+        return "VROverlay failed to set overlay from file: " + std::string{vr::VROverlay()->GetOverlayErrorNameFromEnum(overlay_error)};
+    }
+
+    // same thing as above but absolute instead
+    // get absolute tracking pose of hmd with GetDeviceToAbsoluteTrackingPose
+    // then get the matrix from that
+    // then set it as the overlay transform
+    vr::TrackedDevicePose_t pose;
+    vr::VRSystem()->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseStanding, 0, &pose, 1);
+
+    vr::HmdMatrix34_t pose_matrix = pose.mDeviceToAbsoluteTracking;
+    vr::VROverlay()->SetOverlayTransformAbsolute(m_overlay_handle, vr::TrackingUniverseStanding, &pose_matrix);
+
+    //vr::VROverlay()->SetOverlayTransformAbsolute(m_overlay_handle, vr::ETrackingUniverseOrigin::TrackingUniverseStanding, &asdf);
+
+    spdlog::info("Made overlay with handle {}", m_overlay_handle);
+
     return std::nullopt;
 }
 
@@ -1160,7 +1209,7 @@ Matrix4x4f VR::get_current_projection_matrix(bool flip) {
     return m_projections[vr::Eye_Right];
 }
 
-void VR::on_post_frame() {
+void VR::on_frame() {
     if (m_wgp_initialized) {
         const auto hmd_activity = m_hmd->GetTrackedDeviceActivityLevel(vr::k_unTrackedDeviceIndex_Hmd);
         m_is_hmd_active = hmd_activity == vr::k_EDeviceActivityLevel_UserInteraction || hmd_activity == vr::k_EDeviceActivityLevel_UserInteraction_Timeout;

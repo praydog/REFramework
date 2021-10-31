@@ -30,7 +30,7 @@ public:
     // Called when the mod is initialized
     std::optional<std::string> on_initialize() override;
 
-    void on_post_frame() override;
+    void on_frame() override;
     void on_post_present() override;
     void on_update_transform(RETransform* transform) override;
     void on_update_camera_controller(RopewayPlayerCameraController* controller) override;
@@ -226,6 +226,9 @@ private:
     // Input sources
     vr::VRInputValueHandle_t m_left_joystick{};
     vr::VRInputValueHandle_t m_right_joystick{};
+
+    // overlay handle
+    vr::VROverlayHandle_t m_overlay_handle{};
 
     // Input system history
     std::bitset<64> m_button_states_down{};

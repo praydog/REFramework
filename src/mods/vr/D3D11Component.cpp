@@ -71,6 +71,10 @@ void D3D11Component::on_frame(VR* vr) {
         }
 
         vr->m_submitted = submitted;
+
+        vr::Texture_t imgui_tex{(void*)g_framework->get_rendertarget_d3d11().Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto};
+        vr::VROverlay()->SetOverlayTexture(vr->m_overlay_handle, &imgui_tex);
+        //vr::VROverlay()->ShowOverlay(vr->m_overlay_handle);
     }
 }
 
