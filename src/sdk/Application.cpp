@@ -5,8 +5,12 @@
 #include "Application.hpp"
 
 namespace sdk {
+RETypeDefinition* Application::get_type() {
+    return sdk::RETypeDB::get()->find_type("via.Application");
+}
+
 Application* Application::get() {
-    const auto application_type = sdk::RETypeDB::get()->find_type("via.Application");
+    const auto application_type = Application::get_type();
 
     if (application_type == nullptr) {
         spdlog::error("Cannot find via.Application");
@@ -105,7 +109,7 @@ std::vector<Application::Function*> Application::generate_chain(std::string_view
 }
 
 float Application::get_delta_time() {
-    static const auto application_type = sdk::RETypeDB::get()->find_type("via.Application");
+    static const auto application_type = Application::get_type();
 
     if (application_type == nullptr) {
         spdlog::error("Cannot find via.Application");
@@ -113,5 +117,27 @@ float Application::get_delta_time() {
     }
 
     return sdk::call_object_func<float>(this, application_type, "get_DeltaTime", sdk::get_thread_context(), this);
+}
+
+float Application::get_max_fps() {
+    static const auto application_type = Application::get_type();
+
+    if (application_type == nullptr) {
+        spdlog::error("Cannot find via.Application");
+        return 0.0f;
+    }
+
+    return sdk::call_object_func<float>(nullptr, application_type, "get_MaxFps", sdk::get_thread_context());
+}
+
+void Application::set_max_fps(float max_fps) {
+    static const auto application_type = Application::get_type();
+
+    if (application_type == nullptr) {
+        spdlog::error("Cannot find via.Application");
+        return;
+    }
+
+    sdk::call_object_func<void*>(nullptr, application_type, "set_MaxFps", sdk::get_thread_context(), max_fps);
 }
 }

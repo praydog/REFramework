@@ -1016,6 +1016,8 @@ void VR::set_lens_distortion(bool value) {
 void VR::disable_bad_effects() {
     auto context = sdk::get_thread_context();
 
+    auto application = sdk::Application::get();
+
     static auto renderer_t = sdk::RETypeDB::get()->find_type("via.render.Renderer");
     auto renderer = renderer_t->get_instance();
 
@@ -1031,6 +1033,13 @@ void VR::disable_bad_effects() {
     // Allow FPS to go above 60
     if (framerate_setting != via::render::RenderConfig::FramerateType::VARIABLE) {
         sdk::call_object_func<void*>(render_config, "set_FramerateSetting", context, render_config, via::render::RenderConfig::FramerateType::VARIABLE);
+        spdlog::info("[VR] Set framerate to variable");
+    }
+    
+    // get_MaxFps on application
+    if (application->get_max_fps() < 600.0f) {
+        application->set_max_fps(600.0f);
+        spdlog::info("[VR] Max FPS set to 600");
     }
 
     auto antialiasing = sdk::call_object_func<via::render::RenderConfig::AntiAliasingType>(render_config, "get_AntiAliasing", context, render_config);
@@ -1040,6 +1049,7 @@ void VR::disable_bad_effects() {
         case via::render::RenderConfig::AntiAliasingType::TAA:
         case via::render::RenderConfig::AntiAliasingType::FXAA_TAA:
             sdk::call_object_func<void*>(render_config, "set_AntiAliasing", context, render_config, via::render::RenderConfig::AntiAliasingType::NONE);
+            spdlog::info("[VR] TAA disabled");
             break;
         default:
             break;
@@ -1050,6 +1060,7 @@ void VR::disable_bad_effects() {
     // Disable lens distortion
     if (lens_distortion_setting != via::render::RenderConfig::LensDistortionSetting::OFF) {
         sdk::call_object_func<void*>(render_config, "setLensDistortionSetting", context, render_config, via::render::RenderConfig::LensDistortionSetting::OFF);
+        spdlog::info("[VR] Lens distortion disabled");
     }
 
     auto is_motion_blur_enabled = sdk::call_object_func<bool>(render_config, "get_MotionBlurEnable", context, render_config);
@@ -1057,6 +1068,7 @@ void VR::disable_bad_effects() {
     // Disable motion blur
     if (is_motion_blur_enabled) {
         sdk::call_object_func<void*>(render_config, "set_MotionBlurEnable", context, render_config, false);
+        spdlog::info("[VR] Motion blur disabled");
     }
 
     auto vsync = sdk::call_object_func<bool>(render_config, "get_VSync", context, render_config);
@@ -1064,6 +1076,7 @@ void VR::disable_bad_effects() {
     // Disable vsync
     if (vsync) {
         sdk::call_object_func<void*>(render_config, "set_VSync", context, render_config, false);
+        spdlog::info("[VR] VSync disabled");
     }
 
 #ifdef RE7

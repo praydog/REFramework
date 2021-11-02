@@ -4,6 +4,8 @@
 #include <string_view>
 
 namespace sdk {
+struct RETypeDefinition;
+
 struct Application {
     struct Function {
         void* entry; // 0 
@@ -15,6 +17,7 @@ struct Application {
         uint8_t pad[0xD0 - 0x24];
     };
 
+    static RETypeDefinition* get_type();
     static Application* get();
 
     // Use via.ModuleEntry enum to figure out the function index
@@ -25,5 +28,8 @@ struct Application {
     std::vector<Function*> generate_chain(std::string_view start_name, std::string_view end_name);
 
     float get_delta_time();
+    
+    static float get_max_fps();
+    static void set_max_fps(float max_fps);
 };
 }
