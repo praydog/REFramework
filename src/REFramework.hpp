@@ -59,6 +59,8 @@ public:
     auto& get_d3d12_hook() const { return m_d3d12_hook; }
 
     auto get_window() const { return m_wnd; }
+    auto get_last_window_pos() const { return m_last_window_pos; } // REFramework imgui window
+    auto get_last_window_size() const { return m_last_window_size; } // REFramework imgui window
 
 private:
     void consume_input();
@@ -88,6 +90,8 @@ private:
     bool m_ui_option_transparent{true};
     bool m_ui_passthrough{false};
     
+    ImVec2 m_last_window_pos{};
+    ImVec2 m_last_window_size{};
 
     std::mutex m_input_mutex{};
 
@@ -132,7 +136,9 @@ private: // D3D12 Init
 
 private: // D3D11 members
     struct D3D11 {
+        ComPtr<ID3D11Texture2D> blank_rt{};
 		ComPtr<ID3D11Texture2D> rt{};
+        ComPtr<ID3D11RenderTargetView> blank_rt_rtv{};
 		ComPtr<ID3D11RenderTargetView> rt_rtv{};
 		ComPtr<ID3D11ShaderResourceView> rt_srv{};
         uint32_t rt_width{};
@@ -141,7 +147,10 @@ private: // D3D11 members
     } m_d3d11{};
 
 public:
+    auto& get_blank_rendertarget_d3d11() { return m_d3d11.blank_rt; }
     auto& get_rendertarget_d3d11() { return m_d3d11.rt; }
+    auto get_rendertarget_width_d3d11() const { return m_d3d11.rt_width; }
+    auto get_rendertarget_height_d3d11() const { return m_d3d11.rt_height; }
 
 private: // D3D12 members
     struct FrameContextD3D12 {

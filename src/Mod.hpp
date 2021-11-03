@@ -303,6 +303,10 @@ public:
     // Returns an error string if it fails
     virtual std::optional<std::string> on_initialize() { return std::nullopt; };
 
+    // This gets called after updating stuff like keyboard/mouse input to imgui
+    // can be used to override these inputs e.g. with a custom input system
+    // like VR controllers
+    virtual void on_pre_imgui_frame() {};
     // Functionally equivalent, but on_frame will always get called, on_draw_ui can be disabled by REFramework
     virtual void on_frame() {};
     virtual void on_post_frame() {}; // after imgui rendering is done

@@ -211,20 +211,30 @@ void REFramework::on_frame_d3d11() {
 
     m_renderer_type = RendererType::D3D11;
 
-    consume_input();
+    const bool is_init_ok = m_error.empty() && m_game_data_initialized;
 
-    ImGui_ImplDX11_NewFrame();
-    ImGui_ImplWin32_NewFrame();
-    ImGui::NewFrame();
-
-    if (m_error.empty() && m_game_data_initialized) {
+    if (is_init_ok) {
         // Write default config once if it doesn't exist.
         if (!std::exchange(m_created_default_cfg, true)) {
             if (!fs::exists({utility::widen("re2_fw_config.txt")})) {
                 save_config();
             }
         }
+    }
 
+    consume_input();
+
+    ImGui_ImplDX11_NewFrame();
+    ImGui_ImplWin32_NewFrame();
+
+    if (is_init_ok) {
+        // Run mod frame callbacks.
+        m_mods->on_pre_imgui_frame();
+    }
+
+    ImGui::NewFrame();
+
+    if (is_init_ok) {
         // Run mod frame callbacks.
         m_mods->on_frame();
     }
@@ -239,6 +249,7 @@ void REFramework::on_frame_d3d11() {
     float clear_color[]{0.0f, 0.0f, 0.0f, 0.0f};
 
     m_d3d11_hook->get_device()->GetImmediateContext(&context);
+    context->ClearRenderTargetView(m_d3d11.blank_rt_rtv.Get(), clear_color);
     context->ClearRenderTargetView(m_d3d11.rt_rtv.Get(), clear_color);
     context->OMSetRenderTargets(1, m_d3d11.rt_rtv.GetAddressOf(), NULL);
     //context->OMSetRenderTargets(1, m_d3d11.bb_rtv.GetAddressOf(), NULL);
@@ -252,15 +263,15 @@ void REFramework::on_frame_d3d11() {
     static ImDrawList dl{ImGui::GetDrawListSharedData()};
     static ImDrawData dd{};
     static ImDrawList* dls[]{&dl};
-	auto w = (float)m_d3d11.rt_width;
-	auto h = (float)m_d3d11.rt_height;
+    auto w = (float)m_d3d11.rt_width;
+    auto h = (float)m_d3d11.rt_height;
 
     dl._ResetForNewFrame();
     dl.PushClipRect(ImVec2{0.0f, 0.0f}, ImVec2{w, h});
-	dl.AddImage((ImTextureID)m_d3d11.rt_srv.Get(), ImVec2{0.0f, 0.0f}, ImVec2{w, h});
+    dl.AddImage((ImTextureID)m_d3d11.rt_srv.Get(), ImVec2{0.0f, 0.0f}, ImVec2{w, h});
     dl.PopClipRect();
 
-	dd.Valid = true;
+    dd.Valid = true;
     dd.CmdLists = dls;
     dd.CmdListsCount = 1;
     dd.TotalVtxCount = dl.VtxBuffer.Size;
@@ -271,7 +282,7 @@ void REFramework::on_frame_d3d11() {
 
     ImGui_ImplDX11_RenderDrawData(&dd);
 
-    if (m_error.empty() && m_game_data_initialized) {
+    if (is_init_ok) {
         m_mods->on_post_frame();
     }
 }
@@ -312,7 +323,6 @@ void REFramework::on_frame_d3d12() {
 
     ImGui_ImplDX12_NewFrame();
     ImGui_ImplWin32_NewFrame();
-    ImGui::NewFrame();
 
     if (m_error.empty() && m_game_data_initialized) {
         // Write default config once if it doesn't exist.
@@ -322,6 +332,13 @@ void REFramework::on_frame_d3d12() {
             }
         }
 
+        // Run mod frame callbacks.
+        m_mods->on_pre_imgui_frame();
+    }
+
+    ImGui::NewFrame();
+
+    if (m_error.empty() && m_game_data_initialized) {
         // Run mod frame callbacks.
         m_mods->on_frame();
     }
@@ -554,7 +571,6 @@ void REFramework::draw_ui() {
 
     ImGui::SetNextWindowPos(ImVec2(50, 50), ImGuiCond_::ImGuiCond_Once);
     ImGui::SetNextWindowSize(ImVec2(300, 500), ImGuiCond_::ImGuiCond_Once);
-
     ImGui::Begin("REFramework", &m_draw_ui);
     ImGui::Text("Menu Key: Insert");
     ImGui::Checkbox("Transparency", &m_ui_option_transparent);
@@ -578,6 +594,9 @@ void REFramework::draw_ui() {
     } else if (!m_error.empty()) {
         ImGui::TextWrapped("REFramework error: %s", m_error.c_str());
     }
+
+    m_last_window_pos = ImGui::GetWindowPos();
+    m_last_window_size = ImGui::GetWindowSize();
 
     ImGui::End();
 }
@@ -933,11 +952,24 @@ void REFramework::create_render_target_d3d11() {
 
     backbuffer_desc.BindFlags |= D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
 
+    // Create our blank render target.
+    if (FAILED(device->CreateTexture2D(&backbuffer_desc, nullptr, &m_d3d11.blank_rt))) {
+        spdlog::error("[D3D11] Failed to create render target texture!");
+        return;
+    }
+
     // Create our render target.
     if (FAILED(device->CreateTexture2D(&backbuffer_desc, nullptr, &m_d3d11.rt))) {
         spdlog::error("[D3D11] Failed to create render target texture!");
         return;
     }
+
+    // Create our blank render target view.
+    if (FAILED(device->CreateRenderTargetView(m_d3d11.blank_rt.Get(), nullptr, &m_d3d11.blank_rt_rtv))) {
+        spdlog::error("[D3D11] Failed to create render terget view!");
+        return;
+    }
+
 
     // Create our render target view.
     if (FAILED(device->CreateRenderTargetView(m_d3d11.rt.Get(), nullptr, &m_d3d11.rt_rtv))) {

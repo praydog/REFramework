@@ -30,6 +30,7 @@ public:
     // Called when the mod is initialized
     std::optional<std::string> on_initialize() override;
 
+    void on_pre_imgui_frame() override;
     void on_frame() override;
     void on_post_present() override;
     void on_update_transform(RETransform* transform) override;
@@ -108,6 +109,8 @@ public:
 
     Vector4f get_position(uint32_t index);
     Matrix4x4f get_rotation(uint32_t index);
+    Matrix4x4f get_transform(uint32_t index);
+    vr::HmdMatrix34_t get_raw_transform(uint32_t index);
 
     auto& get_pose_mutex() {
         return m_pose_mtx;
@@ -162,6 +165,9 @@ private:
             spdlog::error("Failed to reinitialize openvr: {}", *input_error);
         }
 
+        m_d3d11.on_reinitialize_openvr();
+        // m_d3d12.on_reinitialize_openvr();
+
         return input_error;
     }
 
@@ -190,6 +196,9 @@ private:
 
     vr::VRTextureBounds_t m_right_bounds{ 0.0f, 0.0f, 1.0f, 1.0f };
     vr::VRTextureBounds_t m_left_bounds{ 0.0f, 0.0f, 1.0f, 1.0f };
+
+    glm::vec3 m_overlay_rotation{-1.550f, 0.0f, -1.330f};
+    glm::vec4 m_overlay_position{0.0f, 0.06f, -0.05f, 1.0f};
 
     float m_nearz{ 0.1f };
     float m_farz{ 3000.0f };
@@ -229,6 +238,20 @@ private:
 
     // overlay handle
     vr::VROverlayHandle_t m_overlay_handle{};
+    vr::VROverlayHandle_t m_thumbnail_handle{};
+
+    // initial input state for imgui on the left eye frame
+    struct {
+        ImVec2      MousePos;
+        bool        MouseDown[5];
+        float       MouseWheel;
+        float       MouseWheelH;
+        bool        KeyCtrl;
+        bool        KeyShift;
+        bool        KeyAlt;
+        bool        KeySuper;
+        bool        KeysDown[512];
+    } m_initial_imgui_input_state;
 
     // Input system history
     std::bitset<64> m_button_states_down{};

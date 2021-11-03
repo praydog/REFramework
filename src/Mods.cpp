@@ -77,6 +77,12 @@ std::optional<std::string> Mods::on_initialize() const {
     return std::nullopt;
 }
 
+void Mods::on_pre_imgui_frame() const {
+    for (auto& mod : m_mods) {
+        mod->on_pre_imgui_frame();
+    }
+}
+
 void Mods::on_frame() const {
     for (auto& mod : m_mods) {
         mod->on_frame();
