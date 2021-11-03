@@ -234,9 +234,79 @@ namespace utility::re_transform {
 
         return children;
     }
+
+    static std::vector<REJoint*> get_all_parents(const ::RETransform& transform, REJoint* child) {
+        if (child->info == nullptr) {
+            return {};
+        }
+
+        std::vector<REJoint*> parents{};
+
+        auto parent = child->info->parentJoint;
+
+        while (parent != -1) {
+            auto joint = get_joint(transform, parent);
+
+            if (joint != nullptr) {
+                parents.push_back(joint);
+                parent = joint->info->parentJoint;
+            } else {
+                break;
+            }
+        }
+
+        return parents;
+    }
+
+    static glm::mat4 calculate_base_transform(const ::RETransform& transform, REJoint* target) {
+        if (target == nullptr) {
+            return glm::identity<glm::mat4>();
+        }
+
+        auto parent = target->info->parentJoint;
+
+        if (parent == -1) {
+            return glm::identity<glm::mat4>();
+        }
+
+        auto parent_joint = get_joint(transform, parent);
+
+        if (parent_joint == nullptr) {
+            return glm::identity<glm::mat4>();
+        }
+
+        auto parent_transform = calculate_base_transform(transform, parent_joint);
+
+        glm::quat base_rotation{};
+        sdk::call_object_func<glm::quat*>(target, "get_BaseLocalRotation", &base_rotation, sdk::get_thread_context(), target);
+
+        Vector4f base_position{};
+        sdk::call_object_func<Vector4f*>(target, "get_BaseLocalPosition", &base_position, sdk::get_thread_context(), target);
+
+        // Convert to matrix
+        auto base_transform = glm::translate(glm::mat4(1.0f), glm::vec3(base_position.x, base_position.y, base_position.z)) * glm::mat4_cast(base_rotation);
+
+        return parent_transform * base_transform;
+    }
 }
 
 namespace sdk {
+static Vector4f get_transform_position(RETransform* transform) {
+    Vector4f out{};
+
+    sdk::call_object_func<Vector4f*>(transform, "get_Position", &out, sdk::get_thread_context(), transform);
+
+    return out;
+}
+
+static glm::quat get_transform_rotation(RETransform* transform) {
+    glm::quat out{};
+
+    sdk::call_object_func<glm::quat*>(transform, "get_Rotation", &out, sdk::get_thread_context(), transform);
+
+    return out;
+}
+
 static REJoint* get_joint_parent(REJoint* joint) {
     if (joint == nullptr || joint->info == nullptr || joint->info->parentJoint == -1) {
         return nullptr;
