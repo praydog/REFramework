@@ -764,13 +764,6 @@ void FirstPerson::update_player_transform(RETransform* transform) {
                 // a small side effect is that the player can slightly float, but it's worth it.
                 // not a TDB method unfortunately.
                 utility::re_managed_object::call_method(ik_leg, "set_CenterAdjust", via::motion::IkLeg::CenterAdjust::None);
-
-                /*if (!is_using_controllers) {
-                    const auto forward_matrix = utility::math::remove_y_component(Matrix4x4f{glm::normalize(m_last_controller_rotation_vr)});
-                    *center_offset = forward_matrix * hmd_offset;
-                } else {
-                    *center_offset = m_last_controller_rotation_vr * hmd_offset;
-                }*/
             }
 
             // radians -> deg

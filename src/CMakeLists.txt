@@ -32,6 +32,8 @@ set(MODS_SRC
     mods/vr/D3D11Component.cpp
     mods/vr/D3D12Component.hpp
     mods/vr/D3D12Component.cpp
+    mods/vr/OverlayComponent.hpp
+    mods/vr/OverlayComponent.cpp
     mods/ScriptRunner.hpp
     mods/ScriptRunner.cpp
 

@@ -62,6 +62,10 @@ public:
     auto get_last_window_pos() const { return m_last_window_pos; } // REFramework imgui window
     auto get_last_window_size() const { return m_last_window_size; } // REFramework imgui window
 
+    void set_draw_ui(bool state) {
+        m_draw_ui = state;
+    }
+
 private:
     void consume_input();
 
@@ -178,10 +182,13 @@ private: // D3D12 members
         uint32_t rt_height{};
     } m_d3d12{};
 
-    auto& get_blank_renderertarget_d3d12() { return m_d3d12.blank_rt; }
+public:
+    auto& get_blank_rendertarget_d3d12() { return m_d3d12.blank_rt; }
     auto& get_rendertarget_d3d12() { return m_d3d12.rt; }
     auto get_rendertarget_width_d3d12() { return m_d3d12.rt_width; }
     auto get_rendertarget_height_d3d12() { return m_d3d12.rt_height; }
+
+private:
 };
 
 extern std::unique_ptr<REFramework> g_framework;

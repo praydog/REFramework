@@ -319,26 +319,30 @@ void REFramework::on_frame_d3d12() {
 
     m_renderer_type = RendererType::D3D12;
 
-    consume_input();
+    const bool is_init_ok = m_error.empty() && m_game_data_initialized;
 
-    ImGui_ImplDX12_NewFrame();
-    ImGui_ImplWin32_NewFrame();
-
-    if (m_error.empty() && m_game_data_initialized) {
+    if (is_init_ok) {
         // Write default config once if it doesn't exist.
         if (!std::exchange(m_created_default_cfg, true)) {
             if (!fs::exists({utility::widen("re2_fw_config.txt")})) {
                 save_config();
             }
         }
+    }
 
+    consume_input();
+
+    ImGui_ImplDX12_NewFrame();
+    ImGui_ImplWin32_NewFrame();
+
+    if (is_init_ok) {
         // Run mod frame callbacks.
         m_mods->on_pre_imgui_frame();
     }
 
     ImGui::NewFrame();
 
-    if (m_error.empty() && m_game_data_initialized) {
+    if (is_init_ok) {
         // Run mod frame callbacks.
         m_mods->on_frame();
     }
@@ -418,7 +422,7 @@ void REFramework::on_frame_d3d12() {
 
     m_d3d12.command_queue->ExecuteCommandLists(1, (ID3D12CommandList* const*)&m_d3d12.command_list);
 
-    if (m_error.empty() && m_game_data_initialized) {
+    if (is_init_ok) {
         m_mods->on_post_frame();
     }
 }
@@ -1163,8 +1167,8 @@ void REFramework::create_render_target_d3d12() {
     device->CreateShaderResourceView(m_d3d12.rt.Get(), nullptr, m_d3d12.cpu_srvs[3]);
 
     m_d3d12.rt_resources[3] = m_d3d12.rt.Get();
-    m_d3d12.rt_width = backbuffer_desc.Width;
-    m_d3d12.rt_height = backbuffer_desc.Height;
+    m_d3d12.rt_width = (uint32_t)backbuffer_desc.Width;
+    m_d3d12.rt_height = (uint32_t)backbuffer_desc.Height;
 
     // Create a blank render target too.
     if (FAILED(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &backbuffer_desc, D3D12_RESOURCE_STATE_PRESENT, nullptr,

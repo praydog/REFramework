@@ -16,6 +16,7 @@
 #include "sdk/helpers/NativeObject.hpp"
 #include "vr/D3D11Component.hpp"
 #include "vr/D3D12Component.hpp"
+#include "vr/OverlayComponent.hpp"
 
 #include "Mod.hpp"
 
@@ -165,9 +166,6 @@ private:
             spdlog::error("Failed to reinitialize openvr: {}", *input_error);
         }
 
-        m_d3d11.on_reinitialize_openvr();
-        // m_d3d12.on_reinitialize_openvr();
-
         return input_error;
     }
 
@@ -236,23 +234,6 @@ private:
     vr::VRInputValueHandle_t m_left_joystick{};
     vr::VRInputValueHandle_t m_right_joystick{};
 
-    // overlay handle
-    vr::VROverlayHandle_t m_overlay_handle{};
-    vr::VROverlayHandle_t m_thumbnail_handle{};
-
-    // initial input state for imgui on the left eye frame
-    struct {
-        ImVec2      MousePos;
-        bool        MouseDown[5];
-        float       MouseWheel;
-        float       MouseWheelH;
-        bool        KeyCtrl;
-        bool        KeyShift;
-        bool        KeyAlt;
-        bool        KeySuper;
-        bool        KeysDown[512];
-    } m_initial_imgui_input_state;
-
     // Input system history
     std::bitset<64> m_button_states_down{};
     std::bitset<64> m_button_states_on{};
@@ -267,6 +248,7 @@ private:
 
     vrmod::D3D11Component m_d3d11{};
     vrmod::D3D12Component m_d3d12{};
+    vrmod::OverlayComponent m_overlay_component{};
 
     Vector4f m_original_camera_position{ 0.0f, 0.0f, 0.0f, 0.0f };
     glm::quat m_original_camera_rotation{ glm::identity<glm::quat>() };
@@ -320,4 +302,5 @@ private:
 
     friend class vrmod::D3D11Component;
     friend class vrmod::D3D12Component;
+    friend class vrmod::OverlayComponent;
 };

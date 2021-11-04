@@ -375,45 +375,11 @@ std::optional<std::string> VR::initialize_openvr() {
         return input_error;
     }
 
-    // create vr overlay
-    auto overlay_error = vr::VROverlay()->CreateOverlay("REFramework", "REFramework", &m_overlay_handle);
+    auto overlay_error = m_overlay_component.on_initialize_openvr();
 
-    if (overlay_error != vr::VROverlayError_None) {
-        return "VROverlay failed to create overlay: " + std::string{vr::VROverlay()->GetOverlayErrorNameFromEnum(overlay_error)};
+    if (overlay_error) {
+        return overlay_error;
     }
-
-    // set overlay to visible
-    vr::VROverlay()->ShowOverlay(m_overlay_handle);
-
-    // set overlay to high quality
-    overlay_error = vr::VROverlay()->SetOverlayWidthInMeters(m_overlay_handle, 0.25f);
-
-    if (overlay_error != vr::VROverlayError_None) {
-        return "VROverlay failed to set overlay width: " + std::string{vr::VROverlay()->GetOverlayErrorNameFromEnum(overlay_error)};
-    }
-
-    overlay_error = vr::VROverlay()->SetOverlayInputMethod(m_overlay_handle, vr::VROverlayInputMethod_Mouse);
-
-    if (overlay_error != vr::VROverlayError_None) {
-        return "VROverlay failed to set overlay input method: " + std::string{vr::VROverlay()->GetOverlayErrorNameFromEnum(overlay_error)};
-    }
-
-    // same thing as above but absolute instead
-    // get absolute tracking pose of hmd with GetDeviceToAbsoluteTrackingPose
-    // then get the matrix from that
-    // then set it as the overlay transform
-    vr::TrackedDevicePose_t pose{};
-    vr::VRSystem()->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseStanding, 0.0f, &pose, 1);
-    vr::VROverlay()->SetOverlayTransformAbsolute(m_overlay_handle, vr::TrackingUniverseStanding, &pose.mDeviceToAbsoluteTracking);
-
-    // set overlay flag to receive discrete scroll events
-    overlay_error = vr::VROverlay()->SetOverlayFlag(m_overlay_handle, vr::VROverlayFlags::VROverlayFlags_SendVRDiscreteScrollEvents, true);
-
-    if (overlay_error != vr::VROverlayError_None) {
-        return "VROverlay failed to set overlay flag: " + std::string{vr::VROverlay()->GetOverlayErrorNameFromEnum(overlay_error)};
-    }
-
-    spdlog::info("Made overlay with handle {}", m_overlay_handle);
 
     return std::nullopt;
 }
@@ -765,6 +731,8 @@ void VR::update_hmd_state() {
 
         reinitialize_openvr();
     }
+
+    m_overlay_component.on_post_compositor_submit();
 
     vr::VRCompositor()->SetTrackingSpace(vr::TrackingUniverseStanding);
     vr::VRCompositor()->WaitGetPoses(m_real_render_poses.data(), vr::k_unMaxTrackedDeviceCount, m_real_game_poses.data(), vr::k_unMaxTrackedDeviceCount);
@@ -1220,82 +1188,7 @@ void VR::on_pre_imgui_frame() {
         return;
     }
 
-    auto& io = ImGui::GetIO();
-    const auto is_initial_frame = get_game_frame_count() % 2 == m_left_eye_interval || m_use_afr;
-
-    if (!is_initial_frame) {
-        // Restore the previous frame's input state
-        memcpy(io.KeysDown, m_initial_imgui_input_state.KeysDown, sizeof(io.KeysDown));
-        memcpy(io.MouseDown, m_initial_imgui_input_state.MouseDown, sizeof(io.MouseDown));
-        io.MousePos = m_initial_imgui_input_state.MousePos;
-        io.MouseWheel = m_initial_imgui_input_state.MouseWheel;
-        io.MouseWheelH = m_initial_imgui_input_state.MouseWheelH;
-        io.KeyCtrl = m_initial_imgui_input_state.KeyCtrl;
-        io.KeyShift = m_initial_imgui_input_state.KeyShift;
-        io.KeyAlt = m_initial_imgui_input_state.KeyAlt;
-        io.KeySuper = m_initial_imgui_input_state.KeySuper;
-
-        return;
-    }
-
-    //vr::VROverlay()->ShowDashboard("REFramework");
-
-    const auto last_window_pos = g_framework->get_last_window_pos();
-    const auto last_window_size = g_framework->get_last_window_size();
-    const auto rendertarget_width = g_framework->get_renderer_type() == REFramework::RendererType::D3D11 ? g_framework->get_rendertarget_width_d3d11() : 0;
-    const auto rendertarget_height = g_framework->get_renderer_type() == REFramework::RendererType::D3D11 ? g_framework->get_rendertarget_height_d3d11() : 0;
-
-    // Poll overlay events
-    vr::VREvent_t event{};
-    const auto hwnd = g_framework->get_window();
-
-    while (vr::VROverlay()->PollNextOverlayEvent(m_overlay_handle, &event, sizeof(event))) {
-        switch (event.eventType) {
-            case vr::VREvent_MouseButtonDown:
-                SendMessage(hwnd, WM_LBUTTONDOWN, 0, 0);
-                io.MouseDown[0] = true;
-                break;
-            case vr::VREvent_MouseButtonUp:
-                SendMessage(hwnd, WM_LBUTTONUP, 0, 0);
-                io.MouseDown[0] = false;
-                break;
-            case vr::VREvent_MouseMove: {
-                const std::array<float, 2> raw_coords { event.data.mouse.x, event.data.mouse.y };
-
-                // Convert from GL space (bottom left is 0,0) to window space (top left is 0,0)
-                const auto mouse_point = ImVec2{
-                    raw_coords[0],
-                    (rendertarget_height - raw_coords[1])
-                };
-
-                // make lparam
-                const auto lparam = MAKELPARAM((int32_t)mouse_point[0], (int32_t)mouse_point[1]);
-                SendMessage(hwnd, WM_MOUSEMOVE, 0, lparam);
-
-                // override imgui mouse position
-                io.MousePos = mouse_point;
-                //SetCursorPos((int32_t)mouse_point[0], (int32_t)mouse_point[1]);
-            } break;
-            case vr::VREvent_ScrollDiscrete: {
-                // WM_MOUSEWHEEL
-                const auto wparam = MAKEWPARAM(0, event.data.scroll.ydelta);
-                SendMessage(hwnd, WM_MOUSEWHEEL, wparam, 0);
-            } break;
-            default:
-                break;
-        }
-    }
-
-    // Store the current frame's input state
-    memcpy(m_initial_imgui_input_state.KeysDown, io.KeysDown, sizeof(io.KeysDown));
-    memcpy(m_initial_imgui_input_state.MouseDown, io.MouseDown, sizeof(io.MouseDown));
-    m_initial_imgui_input_state.MousePos = io.MousePos;
-    m_initial_imgui_input_state.MouseWheel = io.MouseWheel;
-    m_initial_imgui_input_state.MouseWheelH = io.MouseWheelH;
-    m_initial_imgui_input_state.KeyCtrl = io.KeyCtrl;
-    m_initial_imgui_input_state.KeyShift = io.KeyShift;
-    m_initial_imgui_input_state.KeyAlt = io.KeyAlt;
-    m_initial_imgui_input_state.KeySuper = io.KeySuper;
+    m_overlay_component.on_pre_imgui_frame();
 }
 
 void VR::on_frame() {
@@ -2176,6 +2069,7 @@ void VR::on_device_reset() {
     spdlog::info("VR: on_device_reset");
     m_d3d11.on_reset(this);
     m_d3d12.on_reset(this);
+    m_overlay_component.on_reset();
 }
 
 void VR::on_config_load(const utility::Config& cfg) {
