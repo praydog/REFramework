@@ -158,6 +158,8 @@ private:
     ValueList m_options{
         *m_enabled,
         *m_toggle_key,
+        *m_smooth_xz_movement,
+        *m_smooth_y_movement,
         *m_disable_vignette,
         *m_hide_mesh,
         *m_rotate_mesh,
