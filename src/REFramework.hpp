@@ -153,21 +153,35 @@ public:
     auto get_rendertarget_height_d3d11() const { return m_d3d11.rt_height; }
 
 private: // D3D12 members
-    struct FrameContextD3D12 {
-        ID3D12CommandAllocator* command_allocator;
-        UINT64 fence_value;
-    };
+    struct D3D12 {
+        struct FrameContext {
+            ID3D12CommandAllocator* command_allocator{};
+            UINT64 fence_value{};
+        };
 
-    static constexpr int s_NUM_FRAMES_IN_FLIGHT_D3D12{3};
-    static constexpr int s_NUM_BACK_BUFFERS_D3D12{3};
+        static constexpr int s_NUM_FRAMES_IN_FLIGHT_D3D12{4};
+        static constexpr int s_NUM_BACK_BUFFERS_D3D12{4};
 
-    FrameContextD3D12 m_frame_context_d3d12[s_NUM_FRAMES_IN_FLIGHT_D3D12]{};
-    ID3D12DescriptorHeap* m_pd3d_rtv_desc_heap_d3d12{nullptr};
-    ID3D12DescriptorHeap* m_pd3d_srv_desc_heap_d3d12{nullptr};
-    ID3D12CommandQueue* m_pd3d_command_queue_d3d12{nullptr};
-    ID3D12GraphicsCommandList* m_pd3d_command_list_d3d12{nullptr};
-    ID3D12Resource* m_main_render_target_resource_d3d12[s_NUM_BACK_BUFFERS_D3D12]{nullptr};
-    D3D12_CPU_DESCRIPTOR_HANDLE m_main_render_target_descriptor_d3d12[s_NUM_BACK_BUFFERS_D3D12]{};
+        FrameContext frame_context[4]{};
+        ID3D12DescriptorHeap* rtv_desc_heap{nullptr};
+        ID3D12DescriptorHeap* srv_desc_heap{nullptr};
+        ID3D12CommandQueue* command_queue{nullptr};
+        ID3D12GraphicsCommandList* command_list{nullptr};
+        ID3D12Resource* rt_resources[4]{nullptr};
+        D3D12_CPU_DESCRIPTOR_HANDLE cpu_rtvs[4]{};
+        D3D12_CPU_DESCRIPTOR_HANDLE cpu_srvs[4]{};
+        D3D12_GPU_DESCRIPTOR_HANDLE gpu_srvs[4]{};
+
+        ComPtr<ID3D12Resource> blank_rt{};
+        ComPtr<ID3D12Resource> rt{};
+        uint32_t rt_width{};
+        uint32_t rt_height{};
+    } m_d3d12{};
+
+    auto& get_blank_renderertarget_d3d12() { return m_d3d12.blank_rt; }
+    auto& get_rendertarget_d3d12() { return m_d3d12.rt; }
+    auto get_rendertarget_width_d3d12() { return m_d3d12.rt_width; }
+    auto get_rendertarget_height_d3d12() { return m_d3d12.rt_height; }
 };
 
 extern std::unique_ptr<REFramework> g_framework;
