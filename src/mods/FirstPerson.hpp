@@ -135,6 +135,9 @@ private:
     const ModKey::Ptr m_toggle_key{ ModKey::create(generate_name("ToggleKey")) };
     void on_disabled();
 
+
+    const ModToggle::Ptr m_smooth_xz_movement{ ModToggle::create(generate_name("SmoothXZMovementVR"), true) };
+    const ModToggle::Ptr m_smooth_y_movement{ ModToggle::create(generate_name("SmoothYMovementVR"), true) };
     const ModToggle::Ptr m_disable_vignette{ ModToggle::create(generate_name("DisableVignette")) };
     const ModToggle::Ptr m_hide_mesh{ ModToggle::create(generate_name("HideJointMesh"), true) };
     const ModToggle::Ptr m_rotate_mesh{ ModToggle::create(generate_name("ForceRotateMesh"), true) };
@@ -155,6 +158,8 @@ private:
     ValueList m_options{
         *m_enabled,
         *m_toggle_key,
+        *m_smooth_xz_movement,
+        *m_smooth_y_movement,
         *m_disable_vignette,
         *m_hide_mesh,
         *m_rotate_mesh,

@@ -79,6 +79,32 @@ void FirstPerson::on_draw_ui() {
 
     std::lock_guard _{ m_frame_mutex };
 
+    /*auto last_controller_matrix = glm::extractMatrixRotation(Matrix4x4f{ m_last_controller_rotation });
+
+    // Create 4 DragFloat4's for the 4x4 matrix
+    for (int i = 0; i < 4; i++) {
+        auto elem = last_controller_matrix[i];
+        ImGui::DragFloat4("##", (float*)&elem, 1.0f, -1.0f, 1.0f);
+    }*/
+
+    if (m_enabled->draw("Enabled") && !m_enabled->value()) {
+        // Disable fov and camera light changes
+        on_disabled();
+    }
+
+    ImGui::SameLine();
+
+    // Revert the updateCamera value to normal
+    if (m_show_in_cutscenes->draw("Show In Cutscenes") && m_camera_system != nullptr && m_camera_system->mainCameraController != nullptr) {
+        m_camera_system->mainCameraController->updateCamera = true;
+    }
+
+    ImGui::Separator();
+    ImGui::Text("VR Specific Settings");
+
+    m_smooth_xz_movement->draw("Smooth XZ Movement (VR)");
+    m_smooth_y_movement->draw("Smooth Y Movement (VR)");
+
     ImGui::DragFloat4("Scale Debug", (float*)&m_scale_debug.x, 1.0f, -1.0f, 1.0f);
     ImGui::DragFloat4("Scale Debug 2", (float*)&m_scale_debug2.x, 1.0f, -1.0f, 1.0f);
     ImGui::DragFloat4("Offset Debug", (float*)&m_offset_debug.x, 1.0f, -1.0f, 1.0f);
@@ -92,25 +118,8 @@ void FirstPerson::on_draw_ui() {
     ImGui::DragFloat3("Controller 1", (float*)&m_last_controller_euler[0].x, 1.0f, -360.0f, 360.0f);
     ImGui::DragFloat3("Controller 2", (float*)&m_last_controller_euler[1].x, 1.0f, -360.0f, 360.0f);
 
-    auto last_controller_matrix = glm::extractMatrixRotation(Matrix4x4f{ m_last_controller_rotation });
-
-    // Create 4 DragFloat4's for the 4x4 matrix
-    for (int i = 0; i < 4; i++) {
-        auto elem = last_controller_matrix[i];
-        ImGui::DragFloat4("##", (float*)&elem, 1.0f, -1.0f, 1.0f);
-    }
-
-    if (m_enabled->draw("Enabled") && !m_enabled->value()) {
-        // Disable fov and camera light changes
-        on_disabled();
-    }
-
-    ImGui::SameLine();
-
-    // Revert the updateCamera value to normal
-    if (m_show_in_cutscenes->draw("Show In Cutscenes") && m_camera_system != nullptr && m_camera_system->mainCameraController != nullptr) {
-        m_camera_system->mainCameraController->updateCamera = true;
-    }
+    ImGui::Separator();
+    ImGui::Text("General Settings");
 
     m_disable_light_source->draw("Disable Camera Light");
     m_hide_mesh->draw("Hide Joint Mesh");
@@ -531,7 +540,7 @@ void FirstPerson::update_player_transform(RETransform* transform) {
                                                     0.0f, 0.0f, 0.0f, m_scale_debug2.w };
             
 
-            auto hmd_pos = vr_mod->get_position(0);
+            const auto hmd_pos = vr_mod->get_position(0);
 
             auto controller_offset = vr_mod->get_position(controllers[controller_index]) - hmd_pos;
             controller_offset.w = 1.0f;
@@ -691,22 +700,77 @@ void FirstPerson::update_player_transform(RETransform* transform) {
                 }
             }
 
-            auto ik_leg = utility::re_component::find<REComponent>(transform, "via.motion.IkLeg");
+            static auto ik_leg_def = sdk::RETypeDB::get()->find_type("via.motion.IkLeg");
+            static auto via_motion_def = sdk::RETypeDB::get()->find_type("via.motion.Motion");
+            auto ik_leg = utility::re_component::find<REComponent>(transform, ik_leg_def->type);
+            auto via_motion = utility::re_component::find<REComponent>(transform, via_motion_def->type);
 
             // We're going to use the leg IK to adjust the height of the player according to headset position
-            if (ik_leg != nullptr) {
-                const auto headset_pos = VR::get()->get_position(0);
+            if (ik_leg != nullptr && via_motion != nullptr) {
+                const auto headset_pos = vr_mod->get_position(0);
+                const auto standing_origin = vr_mod->get_standing_origin();
+                const auto hmd_offset = headset_pos - standing_origin;
+                const auto is_using_controllers = vr_mod->is_using_controllers();
+
+                // Create a final offset which will keep the player's head where they want
+                // while also stabilizing any undesired head movement from the original animation
+                Vector4f final_offset{ hmd_offset };
+
+                if (!is_using_controllers) {
+                    const auto forward_matrix = utility::math::remove_y_component(Matrix4x4f{glm::normalize(m_last_controller_rotation_vr)});
+                    final_offset = forward_matrix * final_offset;
+                } else {
+                    final_offset = m_last_controller_rotation_vr * final_offset;
+                }
+
+                const auto smooth_xz_movement = m_smooth_xz_movement->value();
+                const auto smooth_y_movement = m_smooth_y_movement->value();
+
+                if (smooth_xz_movement || smooth_y_movement) {
+                    auto center_joint = utility::re_transform::get_joint(*transform, L"COG");
+                    auto head_joint = utility::re_transform::get_joint(*transform, L"head");
+
+                    if (head_joint != nullptr && center_joint != nullptr) {
+                        const auto head_joint_index = ((sdk::Joint*)head_joint)->get_joint_index();
+
+                        const auto base_transform_pos = sdk::get_transform_position(transform);
+                        const auto base_transform_rot = sdk::get_transform_rotation(transform);
+
+                        Vector4f original_head_pos{};
+                        sdk::call_object_func<Vector4f*>(via_motion, "getWorldPosition", &original_head_pos, sdk::get_thread_context(), via_motion, head_joint_index);
+
+                        original_head_pos = base_transform_rot * original_head_pos;
+
+                        // the reference pose for the head joint
+                        const auto head_base_transform = utility::re_transform::calculate_base_transform(*transform, head_joint);
+                        const auto reference_height = head_base_transform[3].y;
+
+                        if (smooth_xz_movement) {
+                            final_offset.x -= original_head_pos.x;
+                            final_offset.z -= original_head_pos.z;
+                        }
+
+                        if (smooth_y_movement) {
+                            final_offset.y += (reference_height - original_head_pos.y);
+                        }
+                    }
+                }
                 
                 sdk::call_object_func<void*>(ik_leg, "set_CenterPositionCtrl", sdk::get_thread_context(), ik_leg, via::motion::IkLeg::EffectorCtrl::WorldOffset);
+                sdk::call_object_func<void*>(ik_leg, "set_CenterOffset", sdk::get_thread_context(), ik_leg, &final_offset);
 
-                auto center_offset = Address{ik_leg}.get(0x70).as<Vector3f*>();
+                // this will allow the player to physically move higher than the model's standing height
+                // so the head adjustment will be more accurate and smooth if the player is standing straight.
+                // a small side effect is that the player can slightly float, but it's worth it.
+                // not a TDB method unfortunately.
+                utility::re_managed_object::call_method(ik_leg, "set_CenterAdjust", via::motion::IkLeg::CenterAdjust::None);
 
-                if (!VR::get()->is_using_controllers()) {
+                /*if (!is_using_controllers) {
                     const auto forward_matrix = utility::math::remove_y_component(Matrix4x4f{glm::normalize(m_last_controller_rotation_vr)});
-                    *center_offset = forward_matrix * (headset_pos - VR::get()->get_standing_origin());
+                    *center_offset = forward_matrix * hmd_offset;
                 } else {
-                    *center_offset = m_last_controller_rotation_vr * (headset_pos - VR::get()->get_standing_origin());
-                }
+                    *center_offset = m_last_controller_rotation_vr * hmd_offset;
+                }*/
             }
 
             // radians -> deg
