@@ -732,8 +732,6 @@ void VR::update_hmd_state() {
         reinitialize_openvr();
     }
 
-    m_overlay_component.on_post_compositor_submit();
-
     vr::VRCompositor()->SetTrackingSpace(vr::TrackingUniverseStanding);
     vr::VRCompositor()->WaitGetPoses(m_real_render_poses.data(), vr::k_unMaxTrackedDeviceCount, m_real_game_poses.data(), vr::k_unMaxTrackedDeviceCount);
 
@@ -1246,6 +1244,7 @@ void VR::on_post_present() {
 
     if (m_submitted || m_needs_wgp_update) {
         if (m_submitted) {
+            m_overlay_component.on_post_compositor_submit();
             vr::VRCompositor()->PostPresentHandoff();
         }
 

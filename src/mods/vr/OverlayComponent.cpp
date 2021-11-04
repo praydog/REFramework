@@ -81,10 +81,12 @@ void OverlayComponent::update_input() {
         return;
     }
 
+    const auto is_d3d11 = g_framework->get_renderer_type() == REFramework::RendererType::D3D11;
+
     const auto last_window_pos = g_framework->get_last_window_pos();
     const auto last_window_size = g_framework->get_last_window_size();
-    const auto rendertarget_width = g_framework->get_renderer_type() == REFramework::RendererType::D3D11 ? g_framework->get_rendertarget_width_d3d11() : 0;
-    const auto rendertarget_height = g_framework->get_renderer_type() == REFramework::RendererType::D3D11 ? g_framework->get_rendertarget_height_d3d11() : 0;
+    const auto rendertarget_width = is_d3d11 ? g_framework->get_rendertarget_width_d3d11() : g_framework->get_rendertarget_width_d3d12();
+    const auto rendertarget_height = is_d3d11 ? g_framework->get_rendertarget_height_d3d11() : g_framework->get_rendertarget_height_d3d12();
 
     // Poll overlay events
     vr::VREvent_t event{};
