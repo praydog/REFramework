@@ -143,8 +143,8 @@ std::string RETypeDefinition::get_full_name() const {
     {
         std::shared_lock _{ g_full_name_mtx };
 
-        if (g_full_names.find(this->get_index()) != g_full_names.end()) {
-            return g_full_names[this->get_index()];
+        if (auto it = g_full_names.find(this->get_index()); it != g_full_names.end()) {
+            return it->second;
         }
     }
 
@@ -263,8 +263,8 @@ sdk::REField* RETypeDefinition::get_field(std::string_view name) const {
     {
         std::shared_lock _{ g_field_mtx };
 
-        if (g_field_map.find(full_name) != g_field_map.end()) {
-            return g_field_map[full_name];
+        if (auto it = g_field_map.find(full_name); it != g_field_map.end()) {
+            return it->second;
         }
     }
 
@@ -295,8 +295,8 @@ sdk::REMethodDefinition* RETypeDefinition::get_method(std::string_view name) con
     {
         std::shared_lock _{g_method_mtx};
 
-        if (g_method_map.find(full_name) != g_method_map.end()) {
-            return g_method_map[full_name];
+        if (auto it = g_method_map.find(full_name); it != g_method_map.end()) {
+            return it->second;
         }
     }
     
