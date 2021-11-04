@@ -498,6 +498,7 @@ void FirstPerson::update_player_transform(RETransform* transform) {
     auto vr_mod = VR::get();
     auto& controllers = vr_mod->get_controllers();
     const auto is_hmd_active = vr_mod->is_hmd_active();
+    const auto is_using_controllers = vr_mod->is_using_controllers();
 
     if (!controllers.empty()) {
         auto update_joint = [&](std::wstring_view name, int32_t controller_index) {
@@ -675,103 +676,110 @@ void FirstPerson::update_player_transform(RETransform* transform) {
                 spdlog::info("Arm fit component not found");
             }
 
-            // We're going to modify the player's weapon (gun) to fire from the muzzle instead of the camera
-            // Luckily the game has that built-in so we don't really need to hook anything
-            auto equipment = utility::re_component::find<REComponent>(transform, game_namespace("survivor.Equipment"));
-
-            if (equipment != nullptr) {
-                auto equipment_t = utility::re_managed_object::get_type_definition(equipment);
-                auto main_weapon_field = equipment_t->get_field("<EquipWeapon>k__BackingField");
-                auto& main_weapon = main_weapon_field->get_data<REManagedObject*>(equipment);
-
-                if (main_weapon != nullptr && utility::re_managed_object::is_a(main_weapon, game_namespace("implement.Gun"))) {
-                    auto main_weapon_t = utility::re_managed_object::get_type_definition(main_weapon);
-                    auto fire_bullet_param_field = main_weapon_t->get_field("<FireBulletParam>k__BackingField");
-                    auto& fire_bullet_param = fire_bullet_param_field->get_data<REManagedObject*>(main_weapon);
-
-                    if (fire_bullet_param != nullptr) {
-                        auto fire_bullet_param_t = utility::re_managed_object::get_type_definition(fire_bullet_param);
-                        auto fire_bullet_type_field = fire_bullet_param_t->get_field("_FireBulletType");
-                        auto& fire_bullet_type = fire_bullet_type_field->get_data<app::ropeway::weapon::shell::ShellDefine::FireBulletType>(fire_bullet_param);
-
-                        // Set the fire bullet type to AlongMuzzle, which fires from the muzzle's position and rotation
-                        fire_bullet_type = app::ropeway::weapon::shell::ShellDefine::FireBulletType::AlongMuzzle;
-                    }
-                }
-            }
-
-            static auto ik_leg_def = sdk::RETypeDB::get()->find_type("via.motion.IkLeg");
-            static auto via_motion_def = sdk::RETypeDB::get()->find_type("via.motion.Motion");
-            auto ik_leg = utility::re_component::find<REComponent>(transform, ik_leg_def->type);
-            auto via_motion = utility::re_component::find<REComponent>(transform, via_motion_def->type);
-
-            // We're going to use the leg IK to adjust the height of the player according to headset position
-            if (ik_leg != nullptr && via_motion != nullptr) {
-                const auto headset_pos = vr_mod->get_position(0);
-                const auto standing_origin = vr_mod->get_standing_origin();
-                const auto hmd_offset = headset_pos - standing_origin;
-                const auto is_using_controllers = vr_mod->is_using_controllers();
-
-                // Create a final offset which will keep the player's head where they want
-                // while also stabilizing any undesired head movement from the original animation
-                Vector4f final_offset{ hmd_offset };
-
-                if (!is_using_controllers) {
-                    const auto forward_matrix = utility::math::remove_y_component(Matrix4x4f{glm::normalize(m_last_controller_rotation_vr)});
-                    final_offset = forward_matrix * final_offset;
-                } else {
-                    final_offset = m_last_controller_rotation_vr * final_offset;
-                }
-
-                const auto smooth_xz_movement = m_smooth_xz_movement->value();
-                const auto smooth_y_movement = m_smooth_y_movement->value();
-
-                if (smooth_xz_movement || smooth_y_movement) {
-                    auto center_joint = utility::re_transform::get_joint(*transform, L"COG");
-                    auto head_joint = utility::re_transform::get_joint(*transform, L"head");
-
-                    if (head_joint != nullptr && center_joint != nullptr) {
-                        const auto head_joint_index = ((sdk::Joint*)head_joint)->get_joint_index();
-
-                        const auto base_transform_pos = sdk::get_transform_position(transform);
-                        const auto base_transform_rot = sdk::get_transform_rotation(transform);
-
-                        Vector4f original_head_pos{};
-                        sdk::call_object_func<Vector4f*>(via_motion, "getWorldPosition", &original_head_pos, sdk::get_thread_context(), via_motion, head_joint_index);
-
-                        original_head_pos = base_transform_rot * original_head_pos;
-
-                        // the reference pose for the head joint
-                        const auto head_base_transform = utility::re_transform::calculate_base_transform(*transform, head_joint);
-                        const auto reference_height = head_base_transform[3].y;
-
-                        if (smooth_xz_movement) {
-                            final_offset.x -= original_head_pos.x;
-                            final_offset.z -= original_head_pos.z;
-                        }
-
-                        if (smooth_y_movement) {
-                            final_offset.y += (reference_height - original_head_pos.y);
-                        }
-                    }
-                }
-                
-                sdk::call_object_func<void*>(ik_leg, "set_CenterPositionCtrl", sdk::get_thread_context(), ik_leg, via::motion::IkLeg::EffectorCtrl::WorldOffset);
-                sdk::call_object_func<void*>(ik_leg, "set_CenterOffset", sdk::get_thread_context(), ik_leg, &final_offset);
-
-                // this will allow the player to physically move higher than the model's standing height
-                // so the head adjustment will be more accurate and smooth if the player is standing straight.
-                // a small side effect is that the player can slightly float, but it's worth it.
-                // not a TDB method unfortunately.
-                utility::re_managed_object::call_method(ik_leg, "set_CenterAdjust", via::motion::IkLeg::CenterAdjust::None);
-            }
-
             // radians -> deg
             m_last_controller_euler[controller_index] = glm::eulerAngles(rotation_quat) * (180.0f / glm::pi<float>());
         };
 
-        update_joint(L"l_arm_wrist", 0);
-        update_joint(L"r_arm_wrist", 1);
+        if (is_using_controllers)  {
+            update_joint(L"l_arm_wrist", 0);
+            update_joint(L"r_arm_wrist", 1);
+        }
+    }
+
+    if (is_hmd_active) {
+        // We're going to modify the player's weapon (gun) to fire from the muzzle instead of the camera
+        // Luckily the game has that built-in so we don't really need to hook anything
+        auto equipment = utility::re_component::find<REComponent>(transform, game_namespace("survivor.Equipment"));
+
+        if (equipment != nullptr) {
+            auto equipment_t = utility::re_managed_object::get_type_definition(equipment);
+            auto main_weapon_field = equipment_t->get_field("<EquipWeapon>k__BackingField");
+            auto& main_weapon = main_weapon_field->get_data<REManagedObject*>(equipment);
+
+            if (main_weapon != nullptr && utility::re_managed_object::is_a(main_weapon, game_namespace("implement.Gun"))) {
+                auto main_weapon_t = utility::re_managed_object::get_type_definition(main_weapon);
+                auto fire_bullet_param_field = main_weapon_t->get_field("<FireBulletParam>k__BackingField");
+                auto& fire_bullet_param = fire_bullet_param_field->get_data<REManagedObject*>(main_weapon);
+
+                if (fire_bullet_param != nullptr) {
+                    auto fire_bullet_param_t = utility::re_managed_object::get_type_definition(fire_bullet_param);
+                    auto fire_bullet_type_field = fire_bullet_param_t->get_field("_FireBulletType");
+                    auto& fire_bullet_type = fire_bullet_type_field->get_data<app::ropeway::weapon::shell::ShellDefine::FireBulletType>(fire_bullet_param);
+
+                    // Set the fire bullet type to AlongMuzzle, which fires from the muzzle's position and rotation
+                    if (is_using_controllers) {
+                        fire_bullet_type = app::ropeway::weapon::shell::ShellDefine::FireBulletType::AlongMuzzle;
+                    } else {
+                        fire_bullet_type = app::ropeway::weapon::shell::ShellDefine::FireBulletType::Camera;
+                    }
+                }
+            }
+        }
+
+        static auto ik_leg_def = sdk::RETypeDB::get()->find_type("via.motion.IkLeg");
+        static auto via_motion_def = sdk::RETypeDB::get()->find_type("via.motion.Motion");
+        auto ik_leg = utility::re_component::find<REComponent>(transform, ik_leg_def->type);
+        auto via_motion = utility::re_component::find<REComponent>(transform, via_motion_def->type);
+
+        // We're going to use the leg IK to adjust the height of the player according to headset position
+        if (ik_leg != nullptr && via_motion != nullptr) {
+            const auto headset_pos = vr_mod->get_position(0);
+            const auto standing_origin = vr_mod->get_standing_origin();
+            const auto hmd_offset = headset_pos - standing_origin;
+
+            // Create a final offset which will keep the player's head where they want
+            // while also stabilizing any undesired head movement from the original animation
+            Vector4f final_offset{ hmd_offset };
+
+            if (!is_using_controllers) {
+                const auto forward_matrix = utility::math::remove_y_component(Matrix4x4f{glm::normalize(m_last_controller_rotation_vr)});
+                final_offset = forward_matrix * final_offset;
+            } else {
+                final_offset = m_last_controller_rotation_vr * final_offset;
+            }
+
+            const auto smooth_xz_movement = m_smooth_xz_movement->value();
+            const auto smooth_y_movement = m_smooth_y_movement->value();
+
+            if (smooth_xz_movement || smooth_y_movement) {
+                auto center_joint = utility::re_transform::get_joint(*transform, L"COG");
+                auto head_joint = utility::re_transform::get_joint(*transform, L"head");
+
+                if (head_joint != nullptr && center_joint != nullptr) {
+                    const auto head_joint_index = ((sdk::Joint*)head_joint)->get_joint_index();
+
+                    const auto base_transform_pos = sdk::get_transform_position(transform);
+                    const auto base_transform_rot = sdk::get_transform_rotation(transform);
+
+                    Vector4f original_head_pos{};
+                    sdk::call_object_func<Vector4f*>(via_motion, "getWorldPosition", &original_head_pos, sdk::get_thread_context(), via_motion, head_joint_index);
+
+                    original_head_pos = base_transform_rot * original_head_pos;
+
+                    // the reference pose for the head joint
+                    const auto head_base_transform = utility::re_transform::calculate_base_transform(*transform, head_joint);
+                    const auto reference_height = head_base_transform[3].y;
+
+                    if (smooth_xz_movement) {
+                        final_offset.x -= original_head_pos.x;
+                        final_offset.z -= original_head_pos.z;
+                    }
+
+                    if (smooth_y_movement) {
+                        final_offset.y += (reference_height - original_head_pos.y);
+                    }
+                }
+            }
+            
+            sdk::call_object_func<void*>(ik_leg, "set_CenterPositionCtrl", sdk::get_thread_context(), ik_leg, via::motion::IkLeg::EffectorCtrl::WorldOffset);
+            sdk::call_object_func<void*>(ik_leg, "set_CenterOffset", sdk::get_thread_context(), ik_leg, &final_offset);
+
+            // this will allow the player to physically move higher than the model's standing height
+            // so the head adjustment will be more accurate and smooth if the player is standing straight.
+            // a small side effect is that the player can slightly float, but it's worth it.
+            // not a TDB method unfortunately.
+            utility::re_managed_object::call_method(ik_leg, "set_CenterAdjust", via::motion::IkLeg::CenterAdjust::None);
+        }
     }
 
     if (!m_rotate_body->value()) {
