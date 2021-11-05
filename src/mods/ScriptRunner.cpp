@@ -491,13 +491,15 @@ ScriptState::ScriptState() {
     m_lua.new_usertype<Vector2f>("Vector2f",
         "x", &Vector2f::x, 
         "y", &Vector2f::y, 
-        //"dot", [](Vector2f& v1, Vector2f& v2) { return glm::dot(v1, v2); },
+        "dot", [](Vector2f& v1, Vector2f& v2) { return glm::dot(v1, v2); },
         "length", [](Vector2f& v) { return glm::length(v); },
         "normalize", [](Vector2f& v) { v = glm::normalize(v); },
         "normalized", [](Vector2f& v) { return glm::normalize(v); },
         sol::meta_function::addition, [](Vector2f& lhs, Vector2f& rhs) { return lhs + rhs; },
         sol::meta_function::subtraction, [](Vector2f& lhs, Vector2f& rhs) { return lhs - rhs; },
-        sol::meta_function::multiplication, [](Vector2f& lhs, float scalar) { return lhs * scalar; });
+        sol::meta_function::multiplication, [](Vector2f& lhs, float scalar) { return lhs * scalar; },
+        "to_vec3", [](Vector2f& v) { return Vector3f{v.x, v.y, 0.0f}; },
+        "to_vec4", [](Vector2f& v) { return Vector4f{v.x, v.y, 0.0f, 0.0f}; });
 
     // add vec3 usertype
     m_lua.new_usertype<Vector3f>("Vector3f",
@@ -511,7 +513,9 @@ ScriptState::ScriptState() {
         "normalized", [](Vector3f& v) { return glm::normalize(v); },
         sol::meta_function::addition, [](Vector3f& lhs, Vector3f& rhs) { return lhs + rhs; },
         sol::meta_function::subtraction, [](Vector3f& lhs, Vector3f& rhs) { return lhs - rhs; },
-        sol::meta_function::multiplication, [](Vector3f& lhs, float scalar) { return lhs * scalar; });
+        sol::meta_function::multiplication, [](Vector3f& lhs, float scalar) { return lhs * scalar; },
+        "to_vec2", [](Vector3f& v) { return Vector2f{v.x, v.y}; },
+        "to_vec4", [](Vector3f& v) { return Vector4f{v.x, v.y, v.z, 0.0f}; });
 
     // add vec4 usertype
     m_lua.new_usertype<Vector4f>("Vector4f",
@@ -526,7 +530,9 @@ ScriptState::ScriptState() {
         "normalized", [](Vector4f& v) { return glm::normalize(v); },
         sol::meta_function::addition, [](Vector4f& lhs, Vector4f& rhs) { return lhs + rhs; },
         sol::meta_function::subtraction, [](Vector4f& lhs, Vector4f& rhs) { return lhs - rhs; },
-        sol::meta_function::multiplication, [](Vector4f& lhs, float scalar) { return lhs * scalar; });
+        sol::meta_function::multiplication, [](Vector4f& lhs, float scalar) { return lhs * scalar; },
+        "to_vec2", [](Vector4f& v) { return Vector2f{v.x, v.y}; },
+        "to_vec3", [](Vector4f& v) { return Vector3f{v.x, v.y, v.z}; });
 
     // add Matrix4x4f (glm::mat4) usertype
     m_lua.new_usertype<Matrix4x4f>("Matrix4x4f",
