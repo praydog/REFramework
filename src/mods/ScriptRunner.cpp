@@ -9,6 +9,8 @@
 
 #include "utility/String.hpp"
 
+#include "Mods.hpp"
+
 #include "ScriptRunner.hpp"
 
 namespace api::re {
@@ -555,6 +557,12 @@ ScriptState::ScriptState() {
             lhs[index] = rhs;
         }
     );
+
+    auto& mods = g_framework->get_mods()->get_mods();
+
+    for (auto& mod : mods) {
+        mod->add_lua_bindings(m_lua);
+    }
 }
 
 void ScriptState::run_script(const std::string& p) {
@@ -671,6 +679,12 @@ void ScriptState::on_post_hook(HookedFn* fn) {
     } catch (const std::exception& e) {
         OutputDebugString(e.what());
     }
+}
+
+std::optional<std::string> ScriptRunner::on_initialize() {
+    m_state = std::make_unique<ScriptState>();
+
+    return Mod::on_initialize();
 }
 
 void ScriptRunner::on_draw_ui() {

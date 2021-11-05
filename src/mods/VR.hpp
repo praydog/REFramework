@@ -30,6 +30,7 @@ public:
 
     // Called when the mod is initialized
     std::optional<std::string> on_initialize() override;
+    void add_lua_bindings(sol::state& lua) override;
 
     void on_pre_imgui_frame() override;
     void on_frame() override;
@@ -101,7 +102,7 @@ public:
     }
 
     bool is_using_controllers() const {
-        return (std::chrono::steady_clock::now() - m_last_controller_update) <= std::chrono::seconds(10);
+        return !m_controllers.empty() && (std::chrono::steady_clock::now() - m_last_controller_update) <= std::chrono::seconds(10);
     }
 
     bool is_hmd_active() const {

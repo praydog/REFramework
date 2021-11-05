@@ -75,6 +75,7 @@ private:
 class ScriptRunner : public Mod {
 public:
     std::string_view get_name() const override { return "ScriptRunner"; }
+    std::optional<std::string> on_initialize() override;
 
     void on_draw_ui() override;
     void on_pre_application_entry(void* entry, const char* name, size_t hash) override;
@@ -83,7 +84,7 @@ public:
     void on_update_transform(RETransform* transform) override;
 
 private:
-    std::unique_ptr<ScriptState> m_state{new ScriptState{}};
+    std::unique_ptr<ScriptState> m_state{};
     std::recursive_mutex m_access_mutex{};
 };
 

@@ -345,6 +345,24 @@ std::optional<std::string> VR::on_initialize() {
     return Mod::on_initialize();
 }
 
+void VR::add_lua_bindings(sol::state& lua) {
+    lua.new_usertype<VR>("VR",
+        "get_controllers", &VR::get_controllers,
+        "get_position", &VR::get_position,
+        "get_rotation", &VR::get_rotation,
+        "get_transform", &VR::get_transform,
+        "get_left_stick_axis", &VR::get_left_stick_axis,
+        "get_right_stick_axis", &VR::get_right_stick_axis,
+        "get_current_eye_transform", &VR::get_current_eye_transform,
+        "get_current_projection_matrix", &VR::get_current_projection_matrix,
+        "get_standing_origin", &VR::get_standing_origin,
+        "is_using_controllers", &VR::is_using_controllers,
+        "is_hmd_active", &VR::is_hmd_active
+    );
+
+    lua["vrmod"] = this;
+}
+
 std::optional<std::string> VR::initialize_openvr() {
     m_needs_wgp_update = true;
     m_wgp_initialized = false;

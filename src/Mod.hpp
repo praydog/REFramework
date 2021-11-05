@@ -9,6 +9,7 @@
 #include <memory>
 
 #include <imgui.h>
+#include <sol/sol.hpp>
 
 #include "sdk/ReClass.hpp"
 #include "utility/Config.hpp"
@@ -302,6 +303,7 @@ public:
     // Called when REFramework::initialize finishes in the first render frame
     // Returns an error string if it fails
     virtual std::optional<std::string> on_initialize() { return std::nullopt; };
+    virtual void add_lua_bindings(sol::state& lua) {};
 
     // This gets called after updating stuff like keyboard/mouse input to imgui
     // can be used to override these inputs e.g. with a custom input system
