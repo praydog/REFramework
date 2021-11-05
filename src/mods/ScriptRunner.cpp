@@ -76,24 +76,23 @@ sol::object call_native_func(sol::object obj, ::sdk::RETypeDefinition* ty, const
             auto s = lua_tostring(l, i);
             args.push_back(create_managed_string(s));
         } else if (arg.is<Vector2f>()) {
-			auto& v = arg.as<Vector2f&>();
-			args.push_back((void*)&vec_storage.emplace_back(v.x, v.y, 0.0f, 0.0f));
-		} else if (arg.is<Vector3f>()) {
-			auto& v = arg.as<Vector3f&>();
-			args.push_back((void*)&vec_storage.emplace_back(v.x, v.y, v.z, 0.0f));
-		} else if (arg.is<Vector4f>()) {
-			auto& v = arg.as<Vector4f&>();
-			args.push_back((void*)&v);
-		} else if (arg.is<Matrix4x4f>()) {
-			auto& v = arg.as<Matrix4x4f&>();
-			args.push_back((void*)&v);
-		} else if (arg.is<glm::quat>()) {
-			auto& v = arg.as<glm::quat&>();
-			args.push_back((void*)&v);
-		} else {
-			args.push_back(arg.as<void*>());
-		}
-        
+            auto& v = arg.as<Vector2f&>();
+            args.push_back((void*)&vec_storage.emplace_back(v.x, v.y, 0.0f, 0.0f));
+        } else if (arg.is<Vector3f>()) {
+            auto& v = arg.as<Vector3f&>();
+            args.push_back((void*)&vec_storage.emplace_back(v.x, v.y, v.z, 0.0f));
+        } else if (arg.is<Vector4f>()) {
+            auto& v = arg.as<Vector4f&>();
+            args.push_back((void*)&v);
+        } else if (arg.is<Matrix4x4f>()) {
+            auto& v = arg.as<Matrix4x4f&>();
+            args.push_back((void*)&v);
+        } else if (arg.is<glm::quat>()) {
+            auto& v = arg.as<glm::quat&>();
+            args.push_back((void*)&v);
+        } else {
+            args.push_back(arg.as<void*>());
+        }
     }
 
     auto ret_val = ::sdk::invoke_object_func(real_obj, ty, name, args);
