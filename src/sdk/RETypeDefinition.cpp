@@ -412,6 +412,10 @@ via::clr::VMObjType RETypeDefinition::get_vm_obj_type() const {
     return (via::clr::VMObjType)this->object_type;
 }
 
+bool RETypeDefinition::is_value_type() const {
+    return get_vm_obj_type() == via::clr::VMObjType::ValType;
+}
+
 uint32_t RETypeDefinition::get_crc_hash() const {
 #ifndef RE7
     const auto t = get_type();

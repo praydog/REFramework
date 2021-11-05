@@ -226,7 +226,7 @@ namespace sdk {
         auto huge_string = (SystemString*)&huge_string_data[0];
         huge_string->size = (int32_t)str_len;
 
-        auto out = (SystemString*)sdk::invoke_object_func(huge_string, "Clone", {});
+        auto out = (SystemString*)sdk::invoke_object_func(huge_string, "Clone", {}).ptr;
 
         memcpy(out->data, str.data(), str_len * sizeof(wchar_t));
 

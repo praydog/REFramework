@@ -72,28 +72,41 @@ sol::object call_native_func(sol::object obj, ::sdk::RETypeDefinition* ty, const
             auto s = lua_tostring(l, i);
             args.push_back(create_managed_string(s));
         } else {
-            args.push_back(arg.as<void*>());
+            if (obj.is<Vector2f*>()) {
+                auto& v = *obj.as<Vector2f*>();
+                args.push_back(*(void**)&v);
+            } else if (obj.is<Vector3f*>()) {
+                auto v = obj.as<Vector3f*>();
+                args.push_back((void*)v);
+            } else if (obj.is<Vector4f*>()) {
+                auto v = obj.as<Vector4f*>();
+                args.push_back((void*)v);
+            } else {
+                args.push_back(arg.as<void*>());
+            }
         }
     }
 
     auto ret_val = ::sdk::invoke_object_func(real_obj, ty, name, args);
-
-    // A null void* will get converted into an userdata with value 0. That's not very useful in Lua, so
-    // let's return nil instead since that's a much more usable value.
-    if (ret_val == nullptr) {
-        return sol::make_object(l, sol::nil);
-    }
 
     // Convert return values to the correct Lua types.
     auto fn = ty->get_method(name);
     auto ret_ty = fn->get_return_type();
 
     if (ret_ty != nullptr) {
+        const auto full_name_hash = utility::hash(ret_ty->get_full_name());
+
+        if (!ret_ty->is_value_type()) {
+            if (ret_val.ptr == nullptr) {
+                return sol::make_object(l, sol::nil);
+            }
+        }
+
         const auto vm_obj_type = ret_ty->get_vm_obj_type();
 
-        switch (utility::hash(ret_ty->get_full_name())) {
+        switch (full_name_hash) {
         case "System.String"_fnv: {
-            auto managed_ret_val = (::REManagedObject*)ret_val;
+            auto managed_ret_val = (::REManagedObject*)ret_val.ptr;
             auto managed_str = (SystemString*)((uintptr_t)utility::re_managed_object::get_field_ptr(managed_ret_val) - sizeof(::REManagedObject));
             auto str = utility::narrow(managed_str->data);
 
@@ -108,17 +121,39 @@ sol::object call_native_func(sol::object obj, ::sdk::RETypeDefinition* ty, const
             auto ret_val_u = *(uint32_t*)&ret_val;
             return sol::make_object(l, ret_val_u);
         }
+        case "System.Int32"_fnv: {
+            auto ret_val_u = *(int32_t*)&ret_val;
+            return sol::make_object(l, ret_val_u);
+        }
+        case "via.vec2"_fnv: {
+            auto ret_val_v = *(Vector2f*)&ret_val;
+            return sol::make_object(l, ret_val_v);
+        }
+        case "via.vec3"_fnv: {
+            auto ret_val_v = *(Vector3f*)&ret_val;
+            return sol::make_object(l, ret_val_v);
+        }
+        case "via.vec4"_fnv: {
+            auto ret_val_v = *(Vector4f*)&ret_val;
+            return sol::make_object(l, ret_val_v);
+        }
         default:
             if (vm_obj_type > via::clr::VMObjType::NULL_ && vm_obj_type < via::clr::VMObjType::ValType) {
-                return sol::make_object(l, (::REManagedObject*)ret_val);
+                return sol::make_object(l, (::REManagedObject*)ret_val.ptr);
             }
             break;
+        }
+    } else { 
+        // A null void* will get converted into an userdata with value 0. That's not very useful in Lua, so
+        // let's return nil instead since that's a much more usable value.
+        if (ret_val.ptr == nullptr) {
+            return sol::make_object(l, sol::nil);
         }
     }
 
     // TODO: handle more return type conversions.
 
-    return sol::make_object(l, ret_val);
+    return sol::make_object(l, ret_val.ptr);
 }
 
 auto call_object_func(sol::object obj, const char* name, sol::variadic_args va) {
@@ -381,6 +416,7 @@ ScriptState::ScriptState() {
     m_lua["re"] = re;
 
     auto sdk = m_lua.create_table();
+    sdk["game_namespace"] = game_namespace;
     sdk["get_thread_context"] = api::sdk::get_thread_context;
     sdk["get_native_singleton"] = api::sdk::get_native_singleton;
     sdk["get_managed_singleton"] = api::sdk::get_managed_singleton;
@@ -426,6 +462,23 @@ ScriptState::ScriptState() {
         [this](REManagedObject* obj, const char* name, sol::variadic_args args) {
             return api::sdk::call_object_func(sol::make_object(m_lua, obj), name, args);
         });
+    // add vec2 usertype
+    m_lua.new_usertype<Vector2f>("Vector2f",
+        "x", &Vector2f::x,
+        "y", &Vector2f::y);
+
+    // add vec3 usertype
+    m_lua.new_usertype<Vector3f>("Vector3f",
+        "x", &Vector3f::x,
+        "y", &Vector3f::y,
+        "z", &Vector3f::z);
+
+    // add vec4 usertype
+    m_lua.new_usertype<Vector4f>("Vector4f",
+        "x", &Vector4f::x,
+        "y", &Vector4f::y,
+        "z", &Vector4f::z,
+        "w", &Vector4f::w);
 }
 
 void ScriptState::run_script(const std::string& p) {

@@ -302,6 +302,7 @@ struct RETypeDefinition : public sdk::RETypeDefinition_ {
     bool is_a(std::string_view other) const;
 
     via::clr::VMObjType get_vm_obj_type() const;
+    bool is_value_type() const;
 
     uint32_t get_crc_hash() const;
     uint32_t get_fqn_hash() const;

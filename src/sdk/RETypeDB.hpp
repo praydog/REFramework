@@ -13,6 +13,8 @@ class REAttributeDef;
 class REManagedObject;
 
 namespace sdk {
+struct InvokeRet;
+
 struct RETypeDefinition;
 struct RETypeImpl;
 struct REField;
@@ -23,8 +25,8 @@ struct REProperty;
 struct REPropertyImpl;
 struct REParameterDef;
 
-void* invoke_object_func(void* obj, sdk::RETypeDefinition* t, std::string_view name, const std::vector<void*>& args);
-void* invoke_object_func(::REManagedObject* obj, std::string_view name, const std::vector<void*>& args);
+sdk::InvokeRet invoke_object_func(void* obj, sdk::RETypeDefinition* t, std::string_view name, const std::vector<void*>& args);
+sdk::InvokeRet invoke_object_func(::REManagedObject* obj, std::string_view name, const std::vector<void*>& args);
 
 template <typename T, typename... Args> 
 T call_object_func(void* obj, sdk::RETypeDefinition* t, std::string_view name, Args... args);
@@ -570,6 +572,15 @@ struct REField : public sdk::REField_ {
     template <typename T> T& get_data(void* object = nullptr, bool is_value_type = false) const { return *(T*)get_data_raw(object); }
 };
 
+#pragma pack(push, 1)
+struct InvokeRet {
+    union {
+        std::array<uint8_t, 128> bytes{};
+        void* ptr;
+    };
+};
+#pragma pack(pop)
+
 struct REMethodDefinition : public sdk::REMethodDefinition_ {
     sdk::RETypeDefinition* get_declaring_type() const;
     sdk::RETypeDefinition* get_return_type() const;
@@ -602,7 +613,7 @@ struct REMethodDefinition : public sdk::REMethodDefinition_ {
     // calling is the actual call to the function
     // invoking is calling a wrapper function that calls the function
     // using an array of arguments
-    void* invoke(void* object, const std::vector<void*>& args) const;
+    InvokeRet invoke(void* object, const std::vector<void*>& args) const;
 
     uint32_t get_invoke_id() const;
     uint32_t get_num_params() const;
