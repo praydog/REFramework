@@ -104,6 +104,9 @@ sol::object call_native_func(sol::object obj, ::sdk::RETypeDefinition* ty, const
         const auto vm_obj_type = ret_ty->get_vm_obj_type();
 
         switch (full_name_hash) {
+        case "via.Transform"_fnv: {
+            return sol::make_object(l, (::RETransform*)ret_val.ptr);
+        }
         case "System.String"_fnv: {
             auto managed_ret_val = (::REManagedObject*)ret_val.ptr;
             auto managed_str = (SystemString*)((uintptr_t)utility::re_managed_object::get_field_ptr(managed_ret_val) - sizeof(::REManagedObject));
@@ -404,6 +407,8 @@ void debug(const char* str) {
 }
 
 ScriptState::ScriptState() {
+    std::scoped_lock _{ m_execution_mutex };
+
     m_lua.open_libraries(sol::lib::base, sol::lib::package, sol::lib::string, sol::lib::math, sol::lib::table, sol::lib::bit32, sol::lib::utf8);
 
     m_lua.registry()["state"] = this;
@@ -412,6 +417,8 @@ ScriptState::ScriptState() {
     re["msg"] = api::re::msg;
     re["on_pre_application_entry"] = [this](const char* name, sol::function fn) { m_pre_application_entry_fns.emplace(name, fn); };
     re["on_application_entry"] = [this](const char* name, sol::function fn) { m_application_entry_fns.emplace(name, fn); };
+    re["on_update_transform"] = [this](RETransform* transform, sol::function fn) { m_update_transform_fns.emplace(transform, fn); };
+    re["on_pre_update_transform"] = [this](RETransform* transform, sol::function fn) { m_pre_update_transform_fns.emplace(transform, fn); };
     m_lua["re"] = re;
 
     auto sdk = m_lua.create_table();
@@ -461,6 +468,9 @@ ScriptState::ScriptState() {
         [this](REManagedObject* obj, const char* name, sol::variadic_args args) {
             return api::sdk::call_object_func(sol::make_object(m_lua, obj), name, args);
         });
+
+    m_lua.new_usertype<RETransform>("RETransform",
+        sol::base_classes, sol::bases<REManagedObject>());
     // add vec2 usertype
     m_lua.new_usertype<Vector2f>("Vector2f",
         "x", &Vector2f::x,
@@ -481,6 +491,8 @@ ScriptState::ScriptState() {
 }
 
 void ScriptState::run_script(const std::string& p) {
+    std::scoped_lock _{ m_execution_mutex };
+
     /*m_lua.safe_script_file(p, [](lua_State*, sol::protected_function_result pfr) {
         if (!pfr.valid()) {
             sol::error err = pfr;
@@ -500,8 +512,12 @@ void ScriptState::on_pre_application_entry(const char* name) {
     try {
         auto range = m_pre_application_entry_fns.equal_range(name);
 
-        for (auto it = range.first; it != range.second; ++it) {
-            it->second();
+        if (range.first != range.second) {
+            std::scoped_lock _{ m_execution_mutex };
+
+            for (auto it = range.first; it != range.second; ++it) {
+                it->second();
+            }
         }
     } catch (const std::exception& e) {
         OutputDebugString(e.what());
@@ -512,8 +528,44 @@ void ScriptState::on_application_entry(const char* name) {
     try {
         auto range = m_application_entry_fns.equal_range(name);
 
-        for (auto it = range.first; it != range.second; ++it) {
-            it->second();
+        if (range.first != range.second) {
+            std::scoped_lock _{ m_execution_mutex };
+
+            for (auto it = range.first; it != range.second; ++it) {
+                it->second();
+            }
+        }
+    } catch (const std::exception& e) {
+        OutputDebugString(e.what());
+    }
+}
+
+void ScriptState::on_pre_update_transform(RETransform* transform) {
+    try {
+        auto range = m_pre_update_transform_fns.equal_range(transform);
+
+        if (range.first != range.second) {
+            std::scoped_lock _{ m_execution_mutex };
+
+            for (auto it = range.first; it != range.second; ++it) {
+                it->second(transform);
+            }
+        }
+    } catch (const std::exception& e) {
+        OutputDebugString(e.what());
+    }
+}
+
+void ScriptState::on_update_transform(RETransform* transform) {
+    try {
+        auto range = m_update_transform_fns.equal_range(transform);
+
+        if (range.first != range.second) {
+            std::scoped_lock _{ m_execution_mutex };
+
+            for (auto it = range.first; it != range.second; ++it) {
+                it->second(transform);
+            }
         }
     } catch (const std::exception& e) {
         OutputDebugString(e.what());
@@ -521,6 +573,8 @@ void ScriptState::on_application_entry(const char* name) {
 }
 
 void ScriptState::on_pre_hook(HookedFn* fn) {
+    std::scoped_lock _{ m_execution_mutex };
+
     try {
         // Call the script function.
         // TODO: Take return value from the script function into account.
@@ -543,6 +597,8 @@ void ScriptState::on_pre_hook(HookedFn* fn) {
 }
 
 void ScriptState::on_post_hook(HookedFn* fn) {
+    std::scoped_lock _{ m_execution_mutex };
+
     try {
         fn->ret_val = (uintptr_t)fn->script_post_fn((void*)fn->ret_val).get<void*>();
     } catch (const std::exception& e) {
@@ -569,19 +625,37 @@ void ScriptRunner::on_draw_ui() {
         ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
 
         if (GetOpenFileName(&ofn) != FALSE) {
+            std::scoped_lock _{ m_access_mutex };
             m_state->run_script(file);
         }
     }
 
     if (ImGui::Button("Reset scripts")) {
+        std::scoped_lock _{ m_access_mutex };
         m_state = std::make_unique<ScriptState>();
     }
 }
 
 void ScriptRunner::on_pre_application_entry(void* entry, const char* name, size_t hash) {
+    std::scoped_lock _{ m_access_mutex };
+
     m_state->on_pre_application_entry(name);
 }
 
 void ScriptRunner::on_application_entry(void* entry, const char* name, size_t hash) {
+    std::scoped_lock _{ m_access_mutex };
+
     m_state->on_application_entry(name);
+}
+
+void ScriptRunner::on_pre_update_transform(RETransform* transform) {
+    std::scoped_lock _{ m_access_mutex };
+
+    m_state->on_pre_update_transform(transform);
+}
+
+void ScriptRunner::on_update_transform(RETransform* transform) {
+    std::scoped_lock _{ m_access_mutex };
+
+    m_state->on_update_transform(transform);
 }
