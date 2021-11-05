@@ -190,8 +190,8 @@ auto call_object_func(sol::object obj, const char* name, sol::variadic_args va) 
     return call_native_func(obj, def, name, va);
 }
 
-void* get_primary_camera() {
-    return ::sdk::get_primary_camera();
+::REManagedObject* get_primary_camera() {
+    return (::REManagedObject*)::sdk::get_primary_camera();
 }
 
 void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function pre_cb, sol::function post_cb) {
@@ -493,12 +493,14 @@ ScriptState::ScriptState() {
 
     // add vec3 usertype
     m_lua.new_usertype<Vector3f>("Vector3f",
+        sol::meta_function::construct, sol::constructors<Vector4f(float, float, float)>(),
         "x", &Vector3f::x,
         "y", &Vector3f::y,
         "z", &Vector3f::z);
 
     // add vec4 usertype
     m_lua.new_usertype<Vector4f>("Vector4f",
+        sol::meta_function::construct, sol::constructors<Vector4f(float, float, float, float)>(),
         "x", &Vector4f::x,
         "y", &Vector4f::y,
         "z", &Vector4f::z,
@@ -517,12 +519,14 @@ ScriptState::ScriptState() {
         "to_quat", [] (Matrix4x4f& m) { return glm::quat(m); },
         "inverse", [] (Matrix4x4f& m) { return glm::inverse(m); },
         "invert", [] (Matrix4x4f& m) { m = glm::inverse(m); },
-        sol::meta_function::multiplication, [](Matrix4x4f& lhs, Matrix4x4f& rhs) {
-            return lhs * rhs;
-        },
-        sol::meta_function::multiplication, [](Matrix4x4f& lhs, Vector4f& rhs) {
-            return lhs * rhs;
-        },
+        sol::meta_function::multiplication, sol::overload(
+            [](Matrix4x4f& lhs, Matrix4x4f& rhs) {
+                return lhs * rhs;
+            },
+            [](Matrix4x4f& lhs, Vector4f& rhs) {
+                return lhs * rhs;
+            }
+        ),
         sol::meta_function::index, [](Matrix4x4f& lhs, int index) -> Vector4f& {
             return lhs[index];
         },
@@ -533,6 +537,7 @@ ScriptState::ScriptState() {
 
     // add glm::quat usertype
     m_lua.new_usertype<glm::quat>("Quaternion",
+        sol::meta_function::construct, sol::constructors<glm::quat(), glm::quat(float, float, float, float), glm::quat(const Vector3f&)>(),
         "x", &glm::quat::x,
         "y", &glm::quat::y,
         "z", &glm::quat::z,
@@ -540,16 +545,19 @@ ScriptState::ScriptState() {
         "to_mat4", [](glm::quat& q) { return Matrix4x4f{q}; },
         "inverse", [](glm::quat& q) { return glm::inverse(q); },
         "invert", [](glm::quat& q) { q = glm::inverse(q); },
-        "normalize", [](glm::quat& q) { return glm::normalize(q); },
-        sol::meta_function::multiplication, [](glm::quat& lhs, glm::quat& rhs) {
-            return glm::normalize(lhs * rhs);
-        },
-        sol::meta_function::multiplication, [](glm::quat& lhs, Vector3f& rhs) {
-            return lhs * rhs;
-        },
-        sol::meta_function::multiplication, [](glm::quat& lhs, Vector4f& rhs) {
-            return lhs * rhs;
-        },
+        "normalize", [](glm::quat& q) { q = glm::normalize(q); },
+        "normalized", [](glm::quat& q) { return glm::normalize(q); },
+        sol::meta_function::multiplication, sol::overload( 
+            [](glm::quat& lhs, glm::quat& rhs) -> glm::quat {
+                return lhs * rhs;
+            },
+            [](glm::quat& lhs, Vector3f& rhs) -> Vector3f {
+                return lhs * rhs;
+            },
+            [](glm::quat& lhs, Vector4f& rhs) -> Vector4f {
+                return lhs * rhs;
+            }
+        ),
         sol::meta_function::index, [](glm::quat& lhs, int index) -> float& {
             return lhs[index];
         },
