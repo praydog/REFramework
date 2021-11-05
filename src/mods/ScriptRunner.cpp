@@ -72,15 +72,15 @@ sol::object call_native_func(sol::object obj, ::sdk::RETypeDefinition* ty, const
             auto s = lua_tostring(l, i);
             args.push_back(create_managed_string(s));
         } else {
-            if (obj.is<Vector2f*>()) {
-                auto& v = *obj.as<Vector2f*>();
-                args.push_back(*(void**)&v);
-            } else if (obj.is<Vector3f*>()) {
-                auto v = obj.as<Vector3f*>();
-                args.push_back((void*)v);
-            } else if (obj.is<Vector4f*>()) {
-                auto v = obj.as<Vector4f*>();
-                args.push_back((void*)v);
+            if (arg.is<Vector2f>()) {
+                auto& v = arg.as<Vector2f&>();
+                args.push_back((void*)&v);
+            } else if (arg.is<Vector3f>()) {
+                auto& v = arg.as<Vector3f&>();
+                args.push_back((void*)&v);
+            } else if (arg.is<Vector4f>()) {
+                auto& v = arg.as<Vector4f&>();
+                args.push_back((void*)&v);
             } else {
                 args.push_back(arg.as<void*>());
             }
@@ -94,14 +94,13 @@ sol::object call_native_func(sol::object obj, ::sdk::RETypeDefinition* ty, const
     auto ret_ty = fn->get_return_type();
 
     if (ret_ty != nullptr) {
-        const auto full_name_hash = utility::hash(ret_ty->get_full_name());
-
         if (!ret_ty->is_value_type()) {
             if (ret_val.ptr == nullptr) {
                 return sol::make_object(l, sol::nil);
             }
         }
 
+        const auto full_name_hash = utility::hash(ret_ty->get_full_name());
         const auto vm_obj_type = ret_ty->get_vm_obj_type();
 
         switch (full_name_hash) {
@@ -127,15 +126,15 @@ sol::object call_native_func(sol::object obj, ::sdk::RETypeDefinition* ty, const
         }
         case "via.vec2"_fnv: {
             auto ret_val_v = *(Vector2f*)&ret_val;
-            return sol::make_object(l, ret_val_v);
+            return sol::make_object<Vector4f>(l, Vector4f{ret_val_v.x , ret_val_v.y, 0, 0});
         }
         case "via.vec3"_fnv: {
             auto ret_val_v = *(Vector3f*)&ret_val;
-            return sol::make_object(l, ret_val_v);
+            return sol::make_object<Vector4f>(l, Vector4f{ret_val_v.x , ret_val_v.y, ret_val_v.z, 0});
         }
         case "via.vec4"_fnv: {
             auto ret_val_v = *(Vector4f*)&ret_val;
-            return sol::make_object(l, ret_val_v);
+            return sol::make_object<Vector4f>(l, ret_val_v);
         }
         default:
             if (vm_obj_type > via::clr::VMObjType::NULL_ && vm_obj_type < via::clr::VMObjType::ValType) {
