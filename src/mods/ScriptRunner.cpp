@@ -42,9 +42,11 @@ void* create_managed_string(const char* text) {
 
 sol::object call_native_func(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name, sol::variadic_args va) {
     static std::vector<void*> args{};
+    static std::vector<Vector4f> vec_storage{};
     auto l = va.lua_state();
 
     args.clear();
+    vec_storage.clear();
 
     void* real_obj = nullptr;
 
@@ -73,26 +75,25 @@ sol::object call_native_func(sol::object obj, ::sdk::RETypeDefinition* ty, const
         } else if (lua_isstring(l, i)) {
             auto s = lua_tostring(l, i);
             args.push_back(create_managed_string(s));
-        } else {
-            if (arg.is<Vector2f>()) {
-                auto& v = arg.as<Vector2f&>();
-                args.push_back((void*)&v);
-            } else if (arg.is<Vector3f>()) {
-                auto& v = arg.as<Vector3f&>();
-                args.push_back((void*)&v);
-            } else if (arg.is<Vector4f>()) {
-                auto& v = arg.as<Vector4f&>();
-                args.push_back((void*)&v);
-            } else if (arg.is<Matrix4x4f>()) {
-                auto& v = arg.as<Matrix4x4f&>();
-                args.push_back((void*)&v);
-            } else if (arg.is<glm::quat>()) {
-                auto& v = arg.as<glm::quat&>();
-                args.push_back((void*)&v);
-            } else {
-                args.push_back(arg.as<void*>());
-            }
-        }
+        } else if (arg.is<Vector2f>()) {
+			auto& v = arg.as<Vector2f&>();
+			args.push_back((void*)&vec_storage.emplace_back(v.x, v.y, 0.0f, 0.0f));
+		} else if (arg.is<Vector3f>()) {
+			auto& v = arg.as<Vector3f&>();
+			args.push_back((void*)&vec_storage.emplace_back(v.x, v.y, v.z, 0.0f));
+		} else if (arg.is<Vector4f>()) {
+			auto& v = arg.as<Vector4f&>();
+			args.push_back((void*)&v);
+		} else if (arg.is<Matrix4x4f>()) {
+			auto& v = arg.as<Matrix4x4f&>();
+			args.push_back((void*)&v);
+		} else if (arg.is<glm::quat>()) {
+			auto& v = arg.as<glm::quat&>();
+			args.push_back((void*)&v);
+		} else {
+			args.push_back(arg.as<void*>());
+		}
+        
     }
 
     auto ret_val = ::sdk::invoke_object_func(real_obj, ty, name, args);
@@ -137,11 +138,11 @@ sol::object call_native_func(sol::object obj, ::sdk::RETypeDefinition* ty, const
         }
         case "via.vec2"_fnv: {
             auto ret_val_v = *(Vector2f*)&ret_val;
-            return sol::make_object<Vector4f>(l, Vector4f{ret_val_v.x , ret_val_v.y, 0, 0});
+            return sol::make_object<Vector2f>(l, ret_val_v);
         }
         case "via.vec3"_fnv: {
             auto ret_val_v = *(Vector3f*)&ret_val;
-            return sol::make_object<Vector4f>(l, Vector4f{ret_val_v.x , ret_val_v.y, ret_val_v.z, 0});
+            return sol::make_object<Vector3f>(l, ret_val_v);
         }
         case "via.vec4"_fnv: {
             auto ret_val_v = *(Vector4f*)&ret_val;
@@ -486,17 +487,32 @@ ScriptState::ScriptState() {
     m_lua.new_usertype<RETransform>("RETransform",
         sol::base_classes, sol::bases<REManagedObject>());
     
+    // clang-format off
     // add vec2 usertype
     m_lua.new_usertype<Vector2f>("Vector2f",
-        "x", &Vector2f::x,
-        "y", &Vector2f::y);
+        "x", &Vector2f::x, 
+        "y", &Vector2f::y, 
+        //"dot", [](Vector2f& v1, Vector2f& v2) { return glm::dot(v1, v2); },
+        "length", [](Vector2f& v) { return glm::length(v); },
+        "normalize", [](Vector2f& v) { v = glm::normalize(v); },
+        "normalized", [](Vector2f& v) { return glm::normalize(v); },
+        sol::meta_function::addition, [](Vector2f& lhs, Vector2f& rhs) { return lhs + rhs; },
+        sol::meta_function::subtraction, [](Vector2f& lhs, Vector2f& rhs) { return lhs - rhs; },
+        sol::meta_function::multiplication, [](Vector2f& lhs, float scalar) { return lhs * scalar; });
 
     // add vec3 usertype
     m_lua.new_usertype<Vector3f>("Vector3f",
         sol::meta_function::construct, sol::constructors<Vector4f(float, float, float)>(),
         "x", &Vector3f::x,
         "y", &Vector3f::y,
-        "z", &Vector3f::z);
+        "z", &Vector3f::z,
+        "dot", [](Vector3f& v1, Vector3f& v2) { return glm::dot(v1, v2); },
+        "length", [](Vector3f& v) { return glm::length(v); },
+        "normalize", [](Vector3f& v) { v = glm::normalize(v); },
+        "normalized", [](Vector3f& v) { return glm::normalize(v); },
+        sol::meta_function::addition, [](Vector3f& lhs, Vector3f& rhs) { return lhs + rhs; },
+        sol::meta_function::subtraction, [](Vector3f& lhs, Vector3f& rhs) { return lhs - rhs; },
+        sol::meta_function::multiplication, [](Vector3f& lhs, float scalar) { return lhs * scalar; });
 
     // add vec4 usertype
     m_lua.new_usertype<Vector4f>("Vector4f",
@@ -511,8 +527,7 @@ ScriptState::ScriptState() {
         "normalized", [](Vector4f& v) { return glm::normalize(v); },
         sol::meta_function::addition, [](Vector4f& lhs, Vector4f& rhs) { return lhs + rhs; },
         sol::meta_function::subtraction, [](Vector4f& lhs, Vector4f& rhs) { return lhs - rhs; },
-        sol::meta_function::multiplication, [](Vector4f& lhs, float scalar) { return lhs * scalar; }
-    );
+        sol::meta_function::multiplication, [](Vector4f& lhs, float scalar) { return lhs * scalar; });
 
     // add Matrix4x4f (glm::mat4) usertype
     m_lua.new_usertype<Matrix4x4f>("Matrix4x4f",
@@ -524,6 +539,7 @@ ScriptState::ScriptState() {
                 return lhs * rhs;
             },
             [](Matrix4x4f& lhs, Vector4f& rhs) {
+
                 return lhs * rhs;
             }
         ),
@@ -565,6 +581,7 @@ ScriptState::ScriptState() {
             lhs[index] = rhs;
         }
     );
+    // clang-format on
 
     auto& mods = g_framework->get_mods()->get_mods();
 
