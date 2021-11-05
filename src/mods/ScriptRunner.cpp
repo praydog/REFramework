@@ -90,6 +90,8 @@ sol::object call_native_func(sol::object obj, ::sdk::RETypeDefinition* ty, const
         } else if (arg.is<glm::quat>()) {
             auto& v = arg.as<glm::quat&>();
             args.push_back((void*)&v);
+        } else if (arg.is<::REManagedObject*>()) {
+            args.push_back(arg.as<::REManagedObject*>());
         } else {
             args.push_back(arg.as<void*>());
         }
