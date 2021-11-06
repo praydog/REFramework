@@ -2047,9 +2047,8 @@ void VR::on_draw_ui() {
     }
 
     // draw VR tree entry in menu (imgui)
-    ImGui::Text("VR");
-    ImGui::Separator();
-    ImGui::Text("Recommended render target size: %d x %d", m_w, m_h);
+    ImGui::Text("Render Resolution: %d x %d", m_w, m_h);
+    ImGui::Text("Resolution can be changed in SteamVR");
     ImGui::Separator();
     ImGui::DragFloat4("Raw Left", (float*)&m_raw_projections[0], 0.01f, -100.0f, 100.0f);
     ImGui::DragFloat4("Raw Right", (float*)&m_raw_projections[1], 0.01f, -100.0f, 100.0f);
