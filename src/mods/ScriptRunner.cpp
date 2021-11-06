@@ -610,6 +610,7 @@ ScriptState::ScriptState() {
     );
 
     m_lua.new_usertype<RETransform>("RETransform",
+        "calculate_base_transform", &utility::re_transform::calculate_base_transform,
         sol::base_classes, sol::bases<REManagedObject>());
     
     // clang-format off
