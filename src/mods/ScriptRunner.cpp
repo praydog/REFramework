@@ -601,10 +601,13 @@ ScriptState::ScriptState() {
         "get_field", [this](REManagedObject* obj, const char* name, sol::variadic_args args) {
             return api::sdk::get_native_field(sol::make_object(m_lua, obj), utility::re_managed_object::get_type_definition(obj), name, args); 
         },
-        "call",
-        [this](REManagedObject* obj, const char* name, sol::variadic_args args) {
+        "set_field", [this](REManagedObject* obj, const char* name, sol::object value) {
+            return api::sdk::set_native_field(sol::make_object(m_lua, obj), utility::re_managed_object::get_type_definition(obj), name, value); 
+        },
+        "call", [this](REManagedObject* obj, const char* name, sol::variadic_args args) {
             return api::sdk::call_object_func(sol::make_object(m_lua, obj), name, args);
-        });
+        }
+    );
 
     m_lua.new_usertype<RETransform>("RETransform",
         sol::base_classes, sol::bases<REManagedObject>());
