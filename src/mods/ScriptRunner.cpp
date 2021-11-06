@@ -40,6 +40,190 @@ void* create_managed_string(const char* text) {
     return ::sdk::VM::create_managed_string(utility::widen(text));
 }
 
+sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_type) {
+    if (data_type != nullptr) {
+        if (!data_type->is_value_type()) {
+            if (data == nullptr || *(void**)data == nullptr) {
+                return sol::make_object(l, sol::nil);
+            }
+        }
+
+        const auto full_name_hash = utility::hash(data_type->get_full_name());
+        const auto vm_obj_type = data_type->get_vm_obj_type();
+
+        switch (full_name_hash) {
+        case "via.Transform"_fnv: {
+            return sol::make_object(l, *(::RETransform**)data);
+        }
+        case "System.String"_fnv: {
+            auto managed_ret_val = *(::REManagedObject**)data;
+            auto managed_str = (SystemString*)((uintptr_t)utility::re_managed_object::get_field_ptr(managed_ret_val) - sizeof(::REManagedObject));
+            auto str = utility::narrow(managed_str->data);
+
+            return sol::make_object(l, str);
+        }
+        case "System.Single"_fnv: {
+            // even though it's a single, it's actually a double because of the invoke wrapper conversion
+            auto ret_val_f = *(double*)data;
+            return sol::make_object(l, ret_val_f);
+        }
+        case "System.UInt32"_fnv: {
+            auto ret_val_u = *(uint32_t*)data;
+            return sol::make_object(l, ret_val_u);
+        }
+        case "System.Int32"_fnv: {
+            auto ret_val_u = *(int32_t*)data;
+            return sol::make_object(l, ret_val_u);
+        }
+        case "via.vec2"_fnv: {
+            auto ret_val_v = *(Vector2f*)data;
+            return sol::make_object<Vector2f>(l, ret_val_v);
+        }
+        case "via.vec3"_fnv: {
+            auto ret_val_v = *(Vector3f*)data;
+            return sol::make_object<Vector3f>(l, ret_val_v);
+        }
+        case "via.vec4"_fnv: {
+            auto ret_val_v = *(Vector4f*)data;
+            return sol::make_object<Vector4f>(l, ret_val_v);
+        }
+        case "via.mat4"_fnv: {
+            auto ret_val_m = *(Matrix4x4f*)data;
+            return sol::make_object<Matrix4x4f>(l, ret_val_m);
+        }
+        case "via.Quaternion"_fnv: {
+            auto ret_val_q = *(glm::quat*)data;
+            return sol::make_object<glm::quat>(l, ret_val_q);
+        }
+        default:
+            if (vm_obj_type > via::clr::VMObjType::NULL_ && vm_obj_type < via::clr::VMObjType::ValType) {
+                return sol::make_object(l, *(::REManagedObject**)data);
+            }
+            break;
+        }
+    }
+
+    // A null void* will get converted into an userdata with value 0. That's not very useful in Lua, so
+    // let's return nil instead since that's a much more usable value.
+    if (data == nullptr || *(void**)data == nullptr) {
+        return sol::make_object(l, sol::nil);
+    }
+
+    return sol::make_object(l, *(void**)data);
+}
+
+void set_data(void* data, ::sdk::RETypeDefinition* data_type, sol::object& value) {
+    if (data_type != nullptr) {
+        const auto full_name_hash = utility::hash(data_type->get_full_name());
+        const auto vm_obj_type = data_type->get_vm_obj_type();
+
+        switch (full_name_hash) {
+        case "System.Single"_fnv:
+            *(float*)data = value.as<float>();
+            return;
+        case "System.UInt32"_fnv:
+            *(uint32_t*)data = value.as<uint32_t>();
+            break;
+        case "System.Int32"_fnv:
+            *(int32_t*)data = value.as<int32_t>();
+            return;
+        case "via.vec2"_fnv:
+            *(Vector2f*)data = value.as<Vector2f>();
+            return;
+        case "via.vec3"_fnv:
+            *(Vector3f*)data = value.as<Vector3f>();
+            return;
+        case "via.vec4"_fnv:
+            *(Vector4f*)data = value.as<Vector4f>();
+            return;
+        case "via.mat4"_fnv:
+            *(Matrix4x4f*)data = value.as<Matrix4x4f>();
+            return;
+        case "via.Quaternion"_fnv:
+            *(glm::quat*)data = value.as<glm::quat>();
+            return;
+        default:
+            if (vm_obj_type > via::clr::VMObjType::NULL_ && vm_obj_type < via::clr::VMObjType::ValType) {
+                *(::REManagedObject**)data = value.as<::REManagedObject*>();
+                return;
+            }
+        }
+    }
+
+    // A null void* will get converted into an userdata with value 0. That's not very useful in Lua, so
+    // let's return nil instead since that's a much more usable value.
+    if (data == nullptr || *(void**)data == nullptr) {
+        return;
+    }
+
+    *(void**)data = value.as<void*>();
+}
+
+void set_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name, sol::object value) {
+    auto l = value.lua_state();
+    void* real_obj = nullptr;
+
+    if (!obj.is<sol::nil_t>()) {
+        if (obj.is<REManagedObject*>()) {
+            real_obj = (void*)obj.as<REManagedObject*>();
+        } else if (obj.is<void*>()) {
+            real_obj = obj.as<void*>();
+        } else {
+            real_obj = (void*)obj.as<uintptr_t>();
+        }
+    }
+
+    const auto field = ty->get_field(name);
+
+    if (field == nullptr) {
+        return;
+    }
+
+    const auto field_type = field->get_type();
+
+    if (!field->is_static() && !field_type->is_value_type() && real_obj == nullptr) {
+        return;
+    }
+
+    auto data = field->get_data_raw(real_obj, ty->is_value_type());
+
+    if (data == nullptr) {
+        return;
+    }
+
+    set_data(data, field_type, value);
+}
+
+sol::object get_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name, sol::variadic_args va) {
+    auto l = va.lua_state();
+    void* real_obj = nullptr;
+
+    if (!obj.is<sol::nil_t>()) {
+        if (obj.is<REManagedObject*>()) {
+            real_obj = (void*)obj.as<REManagedObject*>();
+        } else if (obj.is<void*>()) {
+            real_obj = obj.as<void*>();
+        } else {
+            real_obj = (void*)obj.as<uintptr_t>();
+        }
+    }
+
+    const auto field = ty->get_field(name);
+
+    if (field == nullptr || (!field->is_static() && real_obj == nullptr)) {
+        return sol::make_object(l, sol::nil);
+    }
+
+    const auto field_type = field->get_type();
+    auto data = field->get_data_raw(real_obj, ty->is_value_type());
+
+    if (data == nullptr) {
+        return sol::make_object(l, sol::nil);
+    }
+
+    return parse_data(l, data, field_type);
+}
+
 sol::object call_native_func(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name, sol::variadic_args va) {
     static std::vector<void*> args{};
     static std::vector<Vector4f> vec_storage{};
@@ -103,75 +287,7 @@ sol::object call_native_func(sol::object obj, ::sdk::RETypeDefinition* ty, const
     auto fn = ty->get_method(name);
     auto ret_ty = fn->get_return_type();
 
-    if (ret_ty != nullptr) {
-        if (!ret_ty->is_value_type()) {
-            if (ret_val.ptr == nullptr) {
-                return sol::make_object(l, sol::nil);
-            }
-        }
-
-        const auto full_name_hash = utility::hash(ret_ty->get_full_name());
-        const auto vm_obj_type = ret_ty->get_vm_obj_type();
-
-        switch (full_name_hash) {
-        case "via.Transform"_fnv: {
-            return sol::make_object(l, (::RETransform*)ret_val.ptr);
-        }
-        case "System.String"_fnv: {
-            auto managed_ret_val = (::REManagedObject*)ret_val.ptr;
-            auto managed_str = (SystemString*)((uintptr_t)utility::re_managed_object::get_field_ptr(managed_ret_val) - sizeof(::REManagedObject));
-            auto str = utility::narrow(managed_str->data);
-
-            return sol::make_object(l, str);
-        }
-        case "System.Single"_fnv: {
-            // even though it's a single, it's actually a double because of the invoke wrapper conversion
-            auto ret_val_f = *(double*)&ret_val;
-            return sol::make_object(l, ret_val_f);
-        }
-        case "System.UInt32"_fnv: {
-            auto ret_val_u = *(uint32_t*)&ret_val;
-            return sol::make_object(l, ret_val_u);
-        }
-        case "System.Int32"_fnv: {
-            auto ret_val_u = *(int32_t*)&ret_val;
-            return sol::make_object(l, ret_val_u);
-        }
-        case "via.vec2"_fnv: {
-            auto ret_val_v = *(Vector2f*)&ret_val;
-            return sol::make_object<Vector2f>(l, ret_val_v);
-        }
-        case "via.vec3"_fnv: {
-            auto ret_val_v = *(Vector3f*)&ret_val;
-            return sol::make_object<Vector3f>(l, ret_val_v);
-        }
-        case "via.vec4"_fnv: {
-            auto ret_val_v = *(Vector4f*)&ret_val;
-            return sol::make_object<Vector4f>(l, ret_val_v);
-        }
-        case "via.mat4"_fnv: {
-            auto ret_val_m = *(Matrix4x4f*)&ret_val;
-            return sol::make_object<Matrix4x4f>(l, ret_val_m);
-        }
-        case "via.Quaternion"_fnv: {
-            auto ret_val_q = *(glm::quat*)&ret_val;
-            return sol::make_object<glm::quat>(l, ret_val_q);
-        }
-        default:
-            if (vm_obj_type > via::clr::VMObjType::NULL_ && vm_obj_type < via::clr::VMObjType::ValType) {
-                return sol::make_object(l, (::REManagedObject*)ret_val.ptr);
-            }
-            break;
-        }
-    } else { 
-        // A null void* will get converted into an userdata with value 0. That's not very useful in Lua, so
-        // let's return nil instead since that's a much more usable value.
-        if (ret_val.ptr == nullptr) {
-            return sol::make_object(l, sol::nil);
-        }
-    }
-
-    return sol::make_object(l, ret_val.ptr);
+    return parse_data(l, &ret_val, ret_ty);
 }
 
 auto call_object_func(sol::object obj, const char* name, sol::variadic_args va) {
@@ -446,6 +562,8 @@ ScriptState::ScriptState() {
     sdk["find_type_definition"] = api::sdk::find_type_definition;
     sdk["call_native_func"] = api::sdk::call_native_func;
     sdk["call_object_func"] = api::sdk::call_object_func;
+    sdk["get_native_field"] = api::sdk::get_native_field;
+    sdk["set_native_field"] = api::sdk::set_native_field;
     sdk["get_primary_camera"] = api::sdk::get_primary_camera;
     sdk["hook"] = api::sdk::hook;
     sdk["to_managed_object"] = [](void* ptr) { return (REManagedObject*)ptr; };
@@ -480,6 +598,9 @@ ScriptState::ScriptState() {
     m_lua.new_usertype<REManagedObject>("REManagedObject", 
         "get_address", [](REManagedObject* obj) { return (void*)obj; },
         "get_type_definition", [](REManagedObject* obj) { return utility::re_managed_object::get_type_definition(obj); },
+        "get_field", [this](REManagedObject* obj, const char* name, sol::variadic_args args) {
+            return api::sdk::get_native_field(sol::make_object(m_lua, obj), utility::re_managed_object::get_type_definition(obj), name, args); 
+        },
         "call",
         [this](REManagedObject* obj, const char* name, sol::variadic_args args) {
             return api::sdk::call_object_func(sol::make_object(m_lua, obj), name, args);
