@@ -1341,6 +1341,8 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
         case "WhiteFade"_fnv:
         case "Fade_In_Out_Black"_fnv:
         case "Fade_In_Out_White"_fnv:
+        case "FadeInOutBlack"_fnv:
+        case "FadeInOutWhite"_fnv:
         case "GenomeCodexGUI"_fnv:
             return true;
 
