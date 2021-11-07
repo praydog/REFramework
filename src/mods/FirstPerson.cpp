@@ -863,8 +863,11 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
         *(Matrix3x4f*)&mtx = m_last_camera_matrix_pre_vr;
     }
 
-    m_interp_bone_scale = glm::lerp(m_interp_bone_scale, m_bone_scale->value(), std::clamp(delta_time * 0.05f, 0.0f, 1.0f));
-    m_interp_camera_speed = glm::lerp(m_interp_camera_speed, m_camera_scale->value(), std::clamp(delta_time * 0.05f, 0.0f, 1.0f));
+    const auto wanted_camera_shake = VR::get()->is_hmd_active() ? 0.0f : m_bone_scale->value();
+    const auto wanted_camera_speed = VR::get()->is_hmd_active() ? 100.0f : m_camera_scale->value();
+
+    m_interp_bone_scale = glm::lerp(m_interp_bone_scale, wanted_camera_shake, std::clamp(delta_time * 0.05f, 0.0f, 1.0f));
+    m_interp_camera_speed = glm::lerp(m_interp_camera_speed, wanted_camera_speed, std::clamp(delta_time * 0.05f, 0.0f, 1.0f));
 
     if (is_switching_camera || !is_player_camera) {
         if (is_switching_camera) {

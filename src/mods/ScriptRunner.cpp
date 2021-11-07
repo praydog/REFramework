@@ -198,9 +198,12 @@ sol::object get_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const
     auto l = va.lua_state();
     void* real_obj = nullptr;
 
+    bool managed_obj_passed = false;
+
     if (!obj.is<sol::nil_t>()) {
         if (obj.is<REManagedObject*>()) {
             real_obj = (void*)obj.as<REManagedObject*>();
+            managed_obj_passed = true;
         } else if (obj.is<void*>()) {
             real_obj = obj.as<void*>();
         } else {
@@ -215,7 +218,7 @@ sol::object get_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const
     }
 
     const auto field_type = field->get_type();
-    auto data = field->get_data_raw(real_obj, ty->is_value_type());
+    auto data = field->get_data_raw(real_obj, ty->is_value_type() && !managed_obj_passed);
 
     if (data == nullptr) {
         return sol::make_object(l, sol::nil);
@@ -647,6 +650,7 @@ ScriptState::ScriptState() {
     );
 
     m_lua.new_usertype<RETransform>("RETransform",
+        "calculate_base_transform", &utility::re_transform::calculate_base_transform,
         sol::base_classes, sol::bases<REManagedObject>());
     
     // clang-format off

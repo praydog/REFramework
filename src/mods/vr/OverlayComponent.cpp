@@ -41,8 +41,8 @@ std::optional<std::string> OverlayComponent::on_initialize_openvr() {
     vr::VRSystem()->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseStanding, 0.0f, &pose, 1);
     vr::VROverlay()->SetOverlayTransformAbsolute(m_overlay_handle, vr::TrackingUniverseStanding, &pose.mDeviceToAbsoluteTracking);
 
-    // set overlay flag to receive discrete scroll events
-    overlay_error = vr::VROverlay()->SetOverlayFlag(m_overlay_handle, vr::VROverlayFlags::VROverlayFlags_SendVRDiscreteScrollEvents, true);
+    // set overlay flag to receive smooth scroll events
+    overlay_error = vr::VROverlay()->SetOverlayFlag(m_overlay_handle, vr::VROverlayFlags::VROverlayFlags_SendVRSmoothScrollEvents, true);
 
     if (overlay_error != vr::VROverlayError_None) {
         return "VROverlay failed to set overlay flag: " + std::string{vr::VROverlay()->GetOverlayErrorNameFromEnum(overlay_error)};
@@ -119,10 +119,12 @@ void OverlayComponent::update_input() {
                 io.MousePos = mouse_point;
                 //SetCursorPos((int32_t)mouse_point[0], (int32_t)mouse_point[1]);
             } break;
-            case vr::VREvent_ScrollDiscrete: {
+            case vr::VREvent_ScrollSmooth: {
                 // WM_MOUSEWHEEL
-                const auto wparam = MAKEWPARAM(0, event.data.scroll.ydelta);
-                SendMessage(hwnd, WM_MOUSEWHEEL, wparam, 0);
+                //const auto wparam = MAKEWPARAM(0, event.data.scroll.ydelta);
+                //SendMessage(hwnd, WM_MOUSEWHEEL, wparam, 0);
+
+                io.MouseWheel += event.data.scroll.ydelta;
             } break;
             default:
                 break;
