@@ -591,6 +591,8 @@ ScriptState::ScriptState() {
     re["on_application_entry"] = [this](const char* name, sol::function fn) { m_application_entry_fns.emplace(name, fn); };
     re["on_update_transform"] = [this](RETransform* transform, sol::function fn) { m_update_transform_fns.emplace(transform, fn); };
     re["on_pre_update_transform"] = [this](RETransform* transform, sol::function fn) { m_pre_update_transform_fns.emplace(transform, fn); };
+    re["on_pre_gui_draw_element"] = [this](sol::function fn) { m_pre_gui_draw_element_fns.emplace_back(fn); };
+    re["on_gui_draw_element"] = [this](sol::function fn) { m_gui_draw_element_fns.emplace_back(fn); };
     m_lua["re"] = re;
 
     auto sdk = m_lua.create_table();
@@ -649,9 +651,12 @@ ScriptState::ScriptState() {
         }
     );
 
+    m_lua.new_usertype<REComponent>("REComponent",
+        sol::base_classes, sol::bases<REManagedObject>());
+
     m_lua.new_usertype<RETransform>("RETransform",
         "calculate_base_transform", &utility::re_transform::calculate_base_transform,
-        sol::base_classes, sol::bases<REManagedObject>());
+        sol::base_classes, sol::bases<REComponent, REManagedObject>());
     
     // clang-format off
     // add vec2 usertype
@@ -844,6 +849,36 @@ void ScriptState::on_update_transform(RETransform* transform) {
     }
 }
 
+bool ScriptState::on_pre_gui_draw_element(REComponent* gui_element, void* context) {
+    bool any_false = false;
+
+    try {
+        std::scoped_lock _{ m_execution_mutex };
+
+        for (auto& fn : m_pre_gui_draw_element_fns) {
+            if (sol::object result = fn(gui_element, context); !result.is<sol::nil_t>() && result.is<bool>() && result.as<bool>() == false) {
+                any_false = true;
+            }
+        }
+    } catch (const std::exception& e) {
+        OutputDebugString(e.what());
+    }
+
+    return !any_false;
+}
+
+void ScriptState::on_gui_draw_element(REComponent* gui_element, void* context) {
+    try {
+        std::scoped_lock _{ m_execution_mutex };
+
+        for (auto& fn : m_gui_draw_element_fns) {
+            fn(gui_element, context);
+        }
+    } catch (const std::exception& e) {
+        OutputDebugString(e.what());
+    }
+}
+
 void ScriptState::on_pre_hook(HookedFn* fn) {
     std::scoped_lock _{ m_execution_mutex };
 
@@ -936,4 +971,15 @@ void ScriptRunner::on_update_transform(RETransform* transform) {
     std::scoped_lock _{ m_access_mutex };
 
     m_state->on_update_transform(transform);
+}
+bool ScriptRunner::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_context) {
+    std::scoped_lock _{ m_access_mutex };
+
+    return m_state->on_pre_gui_draw_element(gui_element, primitive_context);
+}
+
+void ScriptRunner::on_gui_draw_element(REComponent* gui_element, void* primitive_context) {
+    std::scoped_lock _{ m_access_mutex };
+
+    m_state->on_gui_draw_element(gui_element, primitive_context);
 }

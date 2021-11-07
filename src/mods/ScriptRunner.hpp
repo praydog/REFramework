@@ -42,6 +42,9 @@ public:
     void on_application_entry(const char* name);
     void on_pre_update_transform(RETransform* transform);
     void on_update_transform(RETransform* transform);
+    bool on_pre_gui_draw_element(REComponent* gui_element, void* primitive_context);
+    void on_gui_draw_element(REComponent* gui_element, void* primitive_context);
+
 
     void on_pre_hook(HookedFn* fn);
     void on_post_hook(HookedFn* fn);
@@ -71,6 +74,9 @@ private:
     std::unordered_multimap<RETransform*, sol::function> m_pre_update_transform_fns{};
     std::unordered_multimap<RETransform*, sol::function> m_update_transform_fns{};
 
+    std::vector<sol::function> m_pre_gui_draw_element_fns{};
+    std::vector<sol::function> m_gui_draw_element_fns{};
+
     Xbyak::CodeGenerator m_code{};
     std::vector<std::unique_ptr<HookedFn>> m_hooked_fns{};
 };
@@ -85,6 +91,8 @@ public:
     void on_application_entry(void* entry, const char* name, size_t hash) override;
     void on_pre_update_transform(RETransform* transform) override;
     void on_update_transform(RETransform* transform) override;
+    bool on_pre_gui_draw_element(REComponent* gui_element, void* primitive_context) override;
+    void on_gui_draw_element(REComponent* gui_element, void* primitive_context) override;
 
 private:
     std::unique_ptr<ScriptState> m_state{};
