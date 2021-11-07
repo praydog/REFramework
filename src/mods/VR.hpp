@@ -47,6 +47,7 @@ public:
     void on_application_entry(void* entry, const char* name, size_t hash) override;
 
     // Application entries
+    void on_update_hid(void* entry);
     void on_pre_begin_rendering(void* entry);
     void on_begin_rendering(void* entry);
     void on_pre_end_rendering(void* entry);
@@ -128,6 +129,17 @@ public:
     Vector2f get_left_stick_axis() const;
     Vector2f get_right_stick_axis() const;
 
+    auto get_action_set() const { return m_action_set; }
+    auto& get_active_action_set() const { return m_active_action_set; }
+    auto get_action_trigger() const { return m_action_trigger; }
+    auto get_action_grip() const { return m_action_grip; }
+    auto get_action_joystick() const { return m_action_joystick; }
+    auto get_action_joystick_click() const { return m_action_joystick_click; }
+    auto get_action_a_button() const { return m_action_a_button; }
+    auto get_action_b_button() const { return m_action_b_button; }
+    auto get_left_joystick() const { return m_left_joystick; }
+    auto get_right_joystick() const { return m_right_joystick; }
+
     auto get_ui_scale() const { return m_ui_scale; }
     const auto& get_raw_projections() const { return m_raw_projections; }
 
@@ -181,7 +193,8 @@ private:
     // input functions
     // Purpose: "Emulate" OpenVR input to the game
     // By setting things like input flags based on controller state
-    void openvr_input_to_game(REManagedObject* input_system);
+    void openvr_input_to_re2_re3(REManagedObject* input_system);
+    void openvr_input_to_re_engine(); // generic, can be used on any game
 
     // Sets overlay layer to return instantly
     // causes world-space gui elements to render properly

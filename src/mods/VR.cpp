@@ -269,7 +269,7 @@ void VR::inputsystem_update_hook(void* ctx, REManagedObject* input_system) {
 
     original_func(ctx, input_system);
 
-    mod->openvr_input_to_game(input_system);
+    mod->openvr_input_to_re2_re3(input_system);
 }
 
 void VR::overlay_draw_hook(void* layer, void* render_ctx) {
@@ -356,8 +356,19 @@ void VR::add_lua_bindings(sol::state& lua) {
         "get_current_eye_transform", &VR::get_current_eye_transform,
         "get_current_projection_matrix", &VR::get_current_projection_matrix,
         "get_standing_origin", &VR::get_standing_origin,
+        "get_action_set", &VR::get_action_set,
+        "get_active_action_set", &VR::get_active_action_set,
+        "get_action_trigger", &VR::get_action_trigger,
+        "get_action_grip", &VR::get_action_grip,
+        "get_action_joystick", &VR::get_action_joystick,
+        "get_action_joystick_click", &VR::get_action_joystick_click,
+        "get_action_a_button", &VR::get_action_a_button,
+        "get_action_b_button", &VR::get_action_b_button,
+        "get_left_joystick", &VR::get_left_joystick,
+        "get_right_joystick", &VR::get_right_joystick,
         "is_using_controllers", &VR::is_using_controllers,
-        "is_hmd_active", &VR::is_hmd_active
+        "is_hmd_active", &VR::is_hmd_active,
+        "is_action_active", &VR::is_action_active
     );
 
     lua["vrmod"] = this;
@@ -1813,6 +1824,9 @@ void VR::on_pre_application_entry(void* entry, const char* name, size_t hash) {
 
 void VR::on_application_entry(void* entry, const char* name, size_t hash) {
     switch (hash) {
+        case "UpdateHID"_fnv:
+            on_update_hid(entry);
+            break;
         case "WaitRendering"_fnv:
             on_wait_rendering(entry);
             break;
@@ -1827,7 +1841,13 @@ void VR::on_application_entry(void* entry, const char* name, size_t hash) {
     }
 }
 
-void VR::openvr_input_to_game(REManagedObject* input_system) {
+void VR::on_update_hid(void* entry) {
+#if not defined(RE2) and not defined(RE3)
+    this->openvr_input_to_re_engine();
+#endif
+}
+
+void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
     // Get OpenVR input system
     auto openvr_input = vr::VRInput();
 
@@ -2035,6 +2055,36 @@ void VR::openvr_input_to_game(REManagedObject* input_system) {
     // Causes the right stick to take effect properly
     if (is_using_controller) {
         sdk::call_object_func<void*>(input_system, "set_InputMode", sdk::get_thread_context(), input_system, app::ropeway::InputDefine::InputMode::Pad);
+    }
+}
+
+void VR::openvr_input_to_re_engine() {
+    // TODO: Get the "merged pad" and actually modify some inputs!
+
+    const auto left_axis = get_left_stick_axis();
+    const auto right_axis = get_right_stick_axis();
+    const auto left_axis_len = glm::length(left_axis);
+    const auto right_axis_len = glm::length(right_axis);
+
+    bool moved_sticks = false;
+
+    if (left_axis_len > CONTROLLER_DEADZONE) {
+        moved_sticks = true;
+    }
+
+    if (right_axis_len > CONTROLLER_DEADZONE) {
+        moved_sticks = true;
+    }
+
+    if (moved_sticks) {
+        auto new_pos = get_position(vr::k_unTrackedDeviceIndex_Hmd);
+
+        const auto delta = sdk::Application::get()->get_delta_time();
+        const auto highest_length = std::max<float>(glm::length(right_axis), glm::length(left_axis));
+
+        new_pos.y = m_standing_origin.y;
+        // Don't set the Y because it would look really strange
+        m_standing_origin = glm::lerp(m_standing_origin, new_pos, ((float)highest_length * delta) * 0.01f);
     }
 }
 
