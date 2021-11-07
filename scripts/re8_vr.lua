@@ -748,7 +748,7 @@ local function on_post_interact_manager_lateupdate(retval)
     return retval
 end
 
-sdk.hook(sdk.find_type_definition("app.InteractManager"):get_method("doLateUpdate"), on_pre_interact_manager_lateupdate, function(retval) return retval end)
+sdk.hook(sdk.find_type_definition("app.InteractManager"):get_method("doLateUpdate"), on_pre_interact_manager_lateupdate, on_post_interact_manager_lateupdate)
 
 --re.on_pre_application_entry("UpdateBehavior", on_pre_interact_manager_lateupdate)
 --re.on_application_entry("LateUpdateBehavior", on_post_interact_manager_lateupdate)
