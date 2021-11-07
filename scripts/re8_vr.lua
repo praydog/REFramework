@@ -388,6 +388,10 @@ local function update_pad_device(device)
         end
     end
 
+    if player_data.wants_block then
+        cur_button = cur_button | via.hid.GamePadButton.LTrigTop
+    end
+
     if vrmod:is_action_active(action_a_button, right_joystick) then
         cur_button = cur_button | via.hid.GamePadButton.Decide | via.hid.GamePadButton.RDown
     end
@@ -700,6 +704,7 @@ end
 sdk.hook(sdk.find_type_definition("app.WeaponGunCore"):get_method("shoot"), on_pre_shoot, on_post_shoot)
 
 local old_camera_rot = nil
+local old_camera_pos = nil
 
 --[[local function on_pre_playercamera_lateupdate(args)
     local camera = sdk.get_primary_camera()
@@ -735,7 +740,9 @@ local function on_pre_interact_manager_lateupdate(args)
     local hmd_rotation = hmd_transform:to_quat()
 
     old_camera_rot = camera_transform:call("get_Rotation")
+    old_camera_pos = camera_transform:call("get_Position")
     camera_transform:call("set_Rotation", last_camera_matrix:to_quat())
+    camera_transform:call("set_Position", last_camera_matrix[3])
 end
 
 local function on_post_interact_manager_lateupdate(retval)
@@ -744,6 +751,7 @@ local function on_post_interact_manager_lateupdate(retval)
     local camera_transform = camera_gameobject:call("get_Transform")
 
     camera_transform:call("set_Rotation", old_camera_rot)
+    camera_transform:call("set_Position", old_camera_pos)
 
     return retval
 end
@@ -752,6 +760,62 @@ sdk.hook(sdk.find_type_definition("app.InteractManager"):get_method("doLateUpdat
 
 --re.on_pre_application_entry("UpdateBehavior", on_pre_interact_manager_lateupdate)
 --re.on_application_entry("LateUpdateBehavior", on_post_interact_manager_lateupdate)
+
+-- function to check if the player's hands are facing generally up and in front of the camera
+-- so we can press the "LB" button in-game to block
+local function check_player_hands_up()
+    update_player_data()
+    if not player then 
+        player_data.wants_block = false
+        return 
+    end
+
+    local right_hand_up = false
+    local left_hand_up = false
+
+
+    local controllers = vrmod:get_controllers()
+    if #controllers < 2 then
+        player_data.wants_block = false
+        return
+    end
+
+    local hmd = vrmod:get_transform(0)
+    local left_hand = vrmod:get_transform(controllers[1])
+    local right_hand = vrmod:get_transform(controllers[2])
+
+    local delta_to_left = left_hand[3] - hmd[3]
+    local delta_to_right = right_hand[3] - hmd[3]
+    local dir_to_left = delta_to_left:normalized()
+    local dir_to_right = delta_to_right:normalized()
+
+    local hmd_forward = hmd[2]
+
+    local left_hand_dot = math.abs(hmd_forward:dot(dir_to_left))
+    local right_hand_dot = math.abs(hmd_forward:dot(dir_to_right))
+
+    local left_hand_in_front = left_hand_dot >= 0.8
+    local right_hand_in_front = right_hand_dot >= 0.8
+
+    local first_test = left_hand_in_front and right_hand_in_front
+
+    if not first_test then
+        player_data.wants_block = false
+        return
+    end
+
+    -- now we need to check if the hands are facing up
+    local left_hand_up_dot = math.abs(hmd_forward:dot(left_hand[0]))
+    local right_hand_up_dot = math.abs(hmd_forward:dot(right_hand[0]))
+
+    left_hand_up = left_hand_up_dot >= 0.5
+    right_hand_up = right_hand_up_dot >= 0.5
+
+    player_data.wants_block = left_hand_up and right_hand_up
+
+    --log.info("left hand dot: " .. tostring(left_hand_dot))
+    --log.info("right hand dot: " .. tostring(right_hand_dot))
+end
 
 re.on_application_entry("UpdateHID", function()
     --local padman = sdk.get_managed_singleton("app.HIDPadManager")
@@ -763,6 +827,8 @@ re.on_application_entry("BeginRendering", function()
     if not player then return end
 
     on_pre_update_player_transform(player_data.transform)
+
+    check_player_hands_up()
 
     local camera = sdk.get_primary_camera()
 
