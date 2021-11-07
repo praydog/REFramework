@@ -2065,6 +2065,7 @@ void VR::openvr_input_to_re_engine() {
     const auto right_axis = get_right_stick_axis();
     const auto left_axis_len = glm::length(left_axis);
     const auto right_axis_len = glm::length(right_axis);
+    const auto now = std::chrono::steady_clock::now();
 
     bool moved_sticks = false;
 
@@ -2085,6 +2086,13 @@ void VR::openvr_input_to_re_engine() {
         new_pos.y = m_standing_origin.y;
         // Don't set the Y because it would look really strange
         m_standing_origin = glm::lerp(m_standing_origin, new_pos, ((float)highest_length * delta) * 0.01f);
+        m_last_controller_update = now;
+    }
+
+    for (const auto& action_handle : m_action_handles) {
+        if (is_action_active(action_handle, m_left_joystick) || is_action_active(action_handle, m_right_joystick)) {
+            m_last_controller_update = now;
+        }
     }
 }
 

@@ -877,3 +877,22 @@ re.on_application_entry("BeginRendering", function()
     last_muzzle_rot = muzzle_rotation
     last_muzzle_forward = muzzle_joint:call("get_AxisZ")
 end)
+
+re.on_pre_gui_draw_element(function(element, context)
+    if not vrmod:is_hmd_active() then return true end
+
+    local game_object = element:call("get_GameObject")
+    if game_object == nil then return true end
+
+    local name = game_object:call("get_Name")
+
+    log.info("drawing element: " .. name)
+
+    if name == "GUIReticle" then
+        if vrmod:is_using_controllers() then
+            return false
+        end
+    end
+
+    return true
+end)

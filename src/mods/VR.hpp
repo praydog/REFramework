@@ -140,6 +140,8 @@ public:
     auto get_left_joystick() const { return m_left_joystick; }
     auto get_right_joystick() const { return m_right_joystick; }
 
+    const auto& get_action_handles() const { return m_action_handles;}
+
     auto get_ui_scale() const { return m_ui_scale; }
     const auto& get_raw_projections() const { return m_raw_projections; }
 
@@ -243,6 +245,15 @@ private:
     vr::VRActionHandle_t m_action_joystick_click{};
     vr::VRActionHandle_t m_action_a_button{};
     vr::VRActionHandle_t m_action_b_button{};
+
+    std::vector<std::reference_wrapper<vr::VRActionHandle_t>> m_action_handles{
+        m_action_trigger,
+        m_action_grip,
+        m_action_joystick,
+        m_action_joystick_click,
+        m_action_a_button,
+        m_action_b_button
+    };
 
     // Input sources
     vr::VRInputValueHandle_t m_left_joystick{};
