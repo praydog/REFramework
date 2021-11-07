@@ -158,10 +158,14 @@ void OverlayComponent::update_overlay() {
     // if things like the width or position of the window change
     if (m_overlay_data.last_x != last_window_pos.x || m_overlay_data.last_y != last_window_pos.y ||
         m_overlay_data.last_width != last_window_size.x || m_overlay_data.last_height != last_window_size.y ||
-        m_overlay_data.last_render_target_width != render_target_width || m_overlay_data.last_render_target_height != render_target_height) 
+        m_overlay_data.last_render_target_width != render_target_width || m_overlay_data.last_render_target_height != render_target_height || m_just_closed_ui || m_just_opened_ui) 
     {
+        // scaling for the intersection mask
+        // so it doesn't become too intrusive during gameplay
+        const auto scale = m_closed_ui ? 0.25f : 1.0f;
+
         vr::VRTextureBounds_t bounds{};
-        bounds.uMin = last_window_pos.x / render_target_width;
+        bounds.uMin = last_window_pos.x / render_target_width ;
         bounds.uMax = (last_window_pos.x + last_window_size.x) / render_target_width;
         bounds.vMin = last_window_pos.y / render_target_height;
         bounds.vMax = (last_window_pos.y + last_window_size.y) / render_target_height;
@@ -253,8 +257,20 @@ void OverlayComponent::update_overlay() {
 
             // Do the intersection test
             if (vr::VROverlay()->ComputeOverlayIntersection(m_overlay_handle, &intersection_params, &intersection_results)) {
-                // Make sure the intersection hit the front of the overlay, not the back
-                any_intersected = intersection_results.vNormal.v[2] > 0.0f;
+                if (m_closed_ui) {
+                    const auto u = ((intersection_results.vUVs.v[0] * m_overlay_data.last_render_target_width) - m_overlay_data.last_x) / m_overlay_data.last_width;
+                    const auto v = ((m_overlay_data.last_render_target_height - (intersection_results.vUVs.v[1] * m_overlay_data.last_render_target_height)) - m_overlay_data.last_y) / m_overlay_data.last_height;
+
+                    any_intersected = u >= 0.25f &&
+                                    u <= 0.75f && 
+                                    v >= 0.25f && 
+                                    v <= 0.75f;
+
+                    // Make sure the intersection hit the front of the overlay, not the back
+                    any_intersected = any_intersected && intersection_results.vNormal.v[2] > 0.0f;
+                } else {
+                    any_intersected = intersection_results.vNormal.v[2] > 0.0f;
+                }
             }
         }
 
@@ -273,8 +289,18 @@ void OverlayComponent::update_overlay() {
             intersection_params.vDirection.v[2] = -head_world_transform[2][2];
 
             if (vr::VROverlay()->ComputeOverlayIntersection(m_overlay_handle, &intersection_params, &intersection_results)) {
+                if (m_closed_ui) {
+                    const auto u = ((intersection_results.vUVs.v[0] * m_overlay_data.last_render_target_width) - m_overlay_data.last_x) / m_overlay_data.last_width;
+                    const auto v = ((m_overlay_data.last_render_target_height - (intersection_results.vUVs.v[1] * m_overlay_data.last_render_target_height)) - m_overlay_data.last_y) / m_overlay_data.last_height;
+
+                    any_intersected = u >= 0.25f &&
+                                    u <= 0.75f && 
+                                    v >= 0.25f && 
+                                    v <= 0.75f;
+                }
+
                 // Make sure the intersection hit the front of the overlay, not the back
-                any_intersected = intersection_results.vNormal.v[2] > 0.0f;
+                any_intersected = any_intersected && intersection_results.vNormal.v[2] > 0.0f;
             } else {
                 any_intersected = false;
             }
@@ -286,15 +312,28 @@ void OverlayComponent::update_overlay() {
             vr::VROverlay()->SetOverlayFlag(m_overlay_handle, vr::VROverlayFlags::VROverlayFlags_MakeOverlaysInteractiveIfVisible, true);
 
             g_framework->set_draw_ui(true);
+
+            if (m_closed_ui) {
+                m_just_opened_ui = true;
+            } else {
+                m_just_opened_ui = false;
+            }
+
+            m_closed_ui = false;
             m_just_closed_ui = false;
         } else {
             should_show_overlay = false;
             vr::VROverlay()->SetOverlayFlag(m_overlay_handle, vr::VROverlayFlags::VROverlayFlags_MakeOverlaysInteractiveIfVisible, false);
 
-            if (!m_just_closed_ui) {
+            if (!m_closed_ui) {
                 g_framework->set_draw_ui(false);
+                m_closed_ui = true;
                 m_just_closed_ui = true;
+            } else {
+                m_just_closed_ui = false;
             }
+
+            m_just_opened_ui = false;
         }
     }
 
