@@ -58,6 +58,9 @@ public:
         return m_hooked_fns;
     }
 
+    static void lock_static(ScriptState* s) { s->m_execution_mutex.lock(); }
+    static void unlock_static(ScriptState* s) { s->m_execution_mutex.unlock(); }
+
 private:
     sol::state m_lua{};
 

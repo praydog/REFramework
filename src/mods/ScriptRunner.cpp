@@ -335,7 +335,25 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function pre_cb
     // Generate the facilitator function that will store the arguments, call on_hook, 
     // restore the arguments, and call the original function.
     Xbyak::Label hook_label{}, args_label{}, this_label{}, on_pre_hook_label{}, on_post_hook_label{}, 
-        ret_addr_label{}, ret_val_label{}, orig_label{};
+        ret_addr_label{}, ret_val_label{}, orig_label{}, lock_label{}, unlock_label{};
+
+    // Save state.
+    g.push(g.rcx);
+    g.push(g.rdx);
+    g.push(g.r8);
+    g.push(g.r9);
+
+    // Lock context.
+    g.mov(g.rcx, g.ptr[g.rip + this_label]);
+    g.sub(g.rsp, 40);
+    g.call(g.ptr[g.rip + lock_label]);
+    g.add(g.rsp, 40);
+
+    // Restore state.
+    g.pop(g.r9);
+    g.pop(g.r8);
+    g.pop(g.rdx);
+    g.pop(g.rcx);
 
     // Store args.
     // TODO: Handle all the arguments the function takes.
@@ -486,7 +504,22 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function pre_cb
         g.mov(g.rax, g.ptr[g.rcx]);
     }
 
+    // Store state.
+    g.push(g.rax);
     g.mov(g.r10, g.ptr[g.rip + ret_addr_label]);
+    g.push(g.r10);
+
+    // Unlock context.
+    g.mov(g.rcx, g.ptr[g.rip + this_label]);
+    g.sub(g.rsp, 32);
+    g.call(g.ptr[g.rip + unlock_label]);
+    g.add(g.rsp, 32);
+
+    // Restore state.
+    g.pop(g.r10);
+    g.pop(g.rax);
+
+    // Return.
     g.jmp(g.ptr[g.r10]);
     
     g.L(hook_label);
@@ -499,6 +532,10 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function pre_cb
     g.dq((uint64_t)&ScriptState::on_pre_hook_static);
     g.L(on_post_hook_label);
     g.dq((uint64_t)&ScriptState::on_post_hook_static);
+    g.L(lock_label);
+    g.dq((uint64_t)&ScriptState::lock_static);
+    g.L(unlock_label);
+    g.dq((uint64_t)&ScriptState::unlock_static);
     g.L(ret_addr_label);
     g.dq((uint64_t)&hook->ret_addr);
     g.L(ret_val_label);
