@@ -1465,7 +1465,7 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                         if (name_hash == "GUI_FloatIcon"_fnv || name_hash == "RogueFloatIcon"_fnv) { // RE2, RE3
                             fix_2d_position(original_game_object_pos);
                         } else if(gui_driver_typedef != nullptr) { // RE8
-                            auto interact_icon_comp = utility::re_component::find(game_object->transform, gui_driver_typedef->type);
+                            auto interact_icon_comp = utility::re_component::find(game_object->transform, gui_driver_typedef->get_type());
 
                             if (interact_icon_comp != nullptr) {
                                 auto interact_icon_object = sdk::call_object_func<REGameObject*>(interact_icon_comp, "get_attachTarget", context, interact_icon_comp);

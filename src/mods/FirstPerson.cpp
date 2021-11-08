@@ -10,7 +10,7 @@
 #include "VR.hpp"
 #include "FirstPerson.hpp"
 
-#ifndef DMC5
+#if defined(RE2) || defined(RE3)
 
 FirstPerson* g_first_person = nullptr;
 

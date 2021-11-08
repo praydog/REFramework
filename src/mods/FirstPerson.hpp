@@ -6,7 +6,7 @@
 #include "Mod.hpp"
 #include "utility/Patch.hpp"
 
-#ifndef DMC5
+#if defined(RE2) || defined(RE3)
 
 class FirstPerson : public Mod {
 public:
