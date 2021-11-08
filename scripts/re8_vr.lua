@@ -826,7 +826,7 @@ re.on_application_entry("BeginRendering", function()
     update_player_data()
     if not player then return end
 
-    on_pre_update_player_transform(player_data.transform)
+    --on_pre_update_player_transform(player_data.transform)
 
     check_player_hands_up()
 
