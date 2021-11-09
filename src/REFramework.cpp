@@ -1,3 +1,4 @@
+#include <chrono>
 #include <filesystem>
 
 #include <spdlog/sinks/basic_file_sink.h>
@@ -19,6 +20,8 @@
 #include "REFramework.hpp"
 
 namespace fs = std::filesystem;
+using namespace std::literals;
+
 
 std::unique_ptr<REFramework> g_framework{};
 
@@ -81,9 +84,15 @@ REFramework::REFramework()
 
     // Fixes a crash on some machines when starting the game
 #if defined(RE8) || defined(MHRISE)
+    auto now = std::chrono::steady_clock::now();
+    std::chrono::steady_clock::time_point next_log = now;
+
     // wait for the game to load (WTF MHRISE??)
     while (LoadLibraryA("d3d12.dll") == nullptr) {
-        spdlog::info("Waiting");
+        if (now >= next_log) {
+            spdlog::info("[REFramework] Waiting for D3D12...");
+            next_log = now + 1s;
+        }
     }
 
     // auto startup_patch_addr = Address{m_game_module}.get(0x3E69E50);
