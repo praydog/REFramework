@@ -1,4 +1,5 @@
 #include <cstdint>
+#include <filesystem>
 
 #include <imgui.h>
 
@@ -770,13 +771,8 @@ ScriptState::ScriptState() {
 void ScriptState::run_script(const std::string& p) {
     std::scoped_lock _{ m_execution_mutex };
 
-    /*m_lua.safe_script_file(p, [](lua_State*, sol::protected_function_result pfr) {
-        if (!pfr.valid()) {
-            sol::error err = pfr;
-            api::re::msg(err.what());
-        }
-        return pfr;
-    });*/
+    spdlog::info("[ScriptState] Running script {}...", p);
+
     try {
         m_lua.safe_script_file(p);
     } catch (const std::exception& e) {
@@ -914,7 +910,8 @@ void ScriptState::on_post_hook(HookedFn* fn) {
 }
 
 std::optional<std::string> ScriptRunner::on_initialize() {
-    m_state = std::make_unique<ScriptState>();
+    // Calling reset_scripts even though the scripts have never been set yet still works.
+    reset_scripts();
 
     return Mod::on_initialize();
 }
@@ -944,8 +941,7 @@ void ScriptRunner::on_draw_ui() {
     }
 
     if (ImGui::Button("Reset scripts")) {
-        std::scoped_lock _{ m_access_mutex };
-        m_state = std::make_unique<ScriptState>();
+        reset_scripts();
     }
 }
 
@@ -982,4 +978,30 @@ void ScriptRunner::on_gui_draw_element(REComponent* gui_element, void* primitive
     std::scoped_lock _{ m_access_mutex };
 
     m_state->on_gui_draw_element(gui_element, primitive_context);
+}
+
+void ScriptRunner::reset_scripts() {
+    std::scoped_lock _{ m_access_mutex };
+
+    m_state = std::make_unique<ScriptState>();
+
+    std::string module_path{};
+
+    module_path.resize(1024, 0);
+    module_path.resize(GetModuleFileName(nullptr, module_path.data(), module_path.size()));
+    spdlog::info("[ScriptRunner] Module path {}", module_path);
+
+    auto autorun_path = std::filesystem::path{module_path}.parent_path() / "autorun";
+
+    spdlog::info("[ScriptRunner] Creating directories {}", autorun_path.string());
+    std::filesystem::create_directories(autorun_path);
+    spdlog::info("[ScriptRunner] Loading scripts...");
+
+    for (auto&& entry : std::filesystem::directory_iterator{autorun_path}) {
+        auto&& path = entry.path();
+
+        if (path.has_extension() && path.extension() == ".lua") {
+            m_state->run_script(path.string());
+        }
+    }
 }

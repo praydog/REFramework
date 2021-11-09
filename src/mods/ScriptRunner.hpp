@@ -97,5 +97,8 @@ public:
 private:
     std::unique_ptr<ScriptState> m_state{};
     std::recursive_mutex m_access_mutex{};
+
+    // Resets the ScriptState and runs autorun scripts again.
+    void reset_scripts();
 };
 
