@@ -127,12 +127,20 @@ set(FRAMEWORK_SRC
     REFramework.cpp
 )
 
+set(BINDINGS_SRC
+    mods/bindings/Sdk.cpp
+    mods/bindings/Sdk.hpp
+    mods/bindings/ImGui.cpp
+    mods/bindings/ImGui.hpp
+)
+
 source_group("re2-imgui" FILES ${RE2IMGUI_SRC})
 source_group("Hooks" FILES ${HOOKS_SRC})
 source_group("Mods" FILES ${MODS_SRC})
 source_group("SDK" FILES ${SDK_SRC})
 source_group("Utility" FILES ${UTILITY_SRC})
 source_group("Framework" FILES ${FRAMEWORK_SRC})
+source_group("Bindings" FILES ${BINDINGS_SRC})
 
 add_library(${GAME_NAME} SHARED
             Main.cpp
@@ -143,6 +151,7 @@ add_library(${GAME_NAME} SHARED
             ${RE2IMGUI_SRC}
             ${UTILITY_SRC}
             ${FRAMEWORK_SRC}
+            ${BINDINGS_SRC}
 )
 
 target_link_libraries(${GAME_NAME} PUBLIC xbyak nlohmann_json spdlog lua sol2 imgui minhook d3d11 glm_static shlwapi openvr)

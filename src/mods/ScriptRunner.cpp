@@ -13,7 +13,7 @@
 #include "Mods.hpp"
 
 #include "bindings/Sdk.hpp"
-#include "bindings/Ui.hpp"
+#include "bindings/ImGui.hpp"
 
 #include "ScriptRunner.hpp"
 
@@ -22,7 +22,6 @@ void msg(const char* text) {
     MessageBox(g_framework->get_window(), text, "ScriptRunner Message", MB_ICONINFORMATION | MB_OK);
 }
 }
-
 
 namespace api::log {
 void info(const char* str) {
@@ -49,7 +48,7 @@ ScriptState::ScriptState() {
     m_lua.registry()["state"] = this;
     m_lua.open_libraries(sol::lib::base, sol::lib::package, sol::lib::string, sol::lib::math, sol::lib::table, sol::lib::bit32, sol::lib::utf8);
     bindings::open_sdk(this);
-    bindings::open_ui(this);
+    bindings::open_imgui(this);
 
     auto re = m_lua.create_table();
     re["msg"] = api::re::msg;
