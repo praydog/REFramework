@@ -10,7 +10,7 @@
 #include <sol/sol.hpp>
 #include <xbyak/xbyak.h>
 
-#include "sdk/RETypeDefinition.hpp"
+#include "sdk/RETypeDB.hpp"
 #include "utility/FunctionHook.hpp"
 
 #include "Mod.hpp"
@@ -38,6 +38,7 @@ public:
 
     void run_script(const std::string& p);
 
+    void on_draw_ui();
     void on_pre_application_entry(const char* name);
     void on_application_entry(const char* name);
     void on_pre_update_transform(RETransform* transform);
@@ -64,6 +65,8 @@ public:
     static void lock_static(ScriptState* s) { s->m_execution_mutex.lock(); }
     static void unlock_static(ScriptState* s) { s->m_execution_mutex.unlock(); }
 
+    auto& lua() { return m_lua; }
+
 private:
     sol::state m_lua{};
 
@@ -76,6 +79,7 @@ private:
 
     std::vector<sol::function> m_pre_gui_draw_element_fns{};
     std::vector<sol::function> m_gui_draw_element_fns{};
+    std::vector<sol::function> m_on_draw_ui_fns{};
 
     Xbyak::CodeGenerator m_code{};
     std::vector<std::unique_ptr<HookedFn>> m_hooked_fns{};
