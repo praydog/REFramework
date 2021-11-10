@@ -82,6 +82,8 @@ set(SDK_SRC
     sdk/RopewaySweetLightManager.hpp
     sdk/SceneManager.hpp
     sdk/SceneManager.cpp
+    sdk/SystemArray.hpp
+    sdk/SystemArray.cpp
 
     sdk/helpers/NativeObject.hpp
     sdk/helpers/NativeObject.cpp

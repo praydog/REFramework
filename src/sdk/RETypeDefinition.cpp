@@ -475,6 +475,59 @@ uint32_t RETypeDefinition::get_valuetype_size() const {
 #endif
 }
 
+static std::unordered_map<const sdk::RETypeDefinition*, ::REManagedObject*> g_runtime_type_map{};
+static std::shared_mutex g_runtime_type_mtx{};
+
+::REManagedObject* RETypeDefinition::get_runtime_type() const {
+    {
+        std::shared_lock _{g_runtime_type_mtx};
+
+        if (auto it = g_runtime_type_map.find(this); it != g_runtime_type_map.end()) {
+            return it->second;
+        }
+    }
+
+    static auto appdomain_type = sdk::RETypeDB::get()->find_type("System.AppDomain");
+    static auto assembly_type = sdk::RETypeDB::get()->find_type("System.Reflection.Assembly");
+    static auto get_current_domain_func = appdomain_type->get_method("get_CurrentDomain");
+    static auto get_assemblies_func = appdomain_type->get_method("GetAssemblies");
+    static auto get_assembly_type_func = assembly_type->get_method("GetType(System.String)");
+
+    auto context = sdk::get_thread_context();
+    auto current_domain = get_current_domain_func->call<REManagedObject*>(context, nullptr);
+
+    if (current_domain == nullptr) {
+        return nullptr;
+    }
+
+    auto assemblies = get_assemblies_func->call<sdk::SystemArray*>(context, current_domain);
+
+    if (assemblies == nullptr) {
+        return nullptr;
+    }
+
+    const auto assembly_count = assemblies->size();
+    const auto managed_string = sdk::VM::create_managed_string(utility::widen(this->get_full_name()));
+
+    for (auto i = 0; i < assembly_count; ++i) {
+        auto assembly = (REManagedObject*)assemblies->get_element(i);
+
+        if (assembly == nullptr) {
+            continue;
+        }
+
+        auto type = get_assembly_type_func->call<REManagedObject*>(context, assembly, managed_string);
+
+        if (type != nullptr) {
+            std::unique_lock _{g_runtime_type_mtx};
+            g_runtime_type_map[this] = type;
+            return type;
+        }
+    }
+
+    return g_runtime_type_map[this];
+}
+
 void* RETypeDefinition::get_instance() const {
     const auto t = get_type();
 

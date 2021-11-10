@@ -35,6 +35,7 @@
 #include "REArray.hpp"
 #include "REContext.hpp"
 #include "REManagedObject.hpp"
+#include "SystemArray.hpp"
 #include "REString.hpp"
 #include "RETransform.hpp"
 #include "REComponent.hpp"

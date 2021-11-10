@@ -309,6 +309,7 @@ struct RETypeDefinition : public sdk::RETypeDefinition_ {
     uint32_t get_size() const;
     uint32_t get_valuetype_size() const;
     ::REType* get_type() const;
+    ::REManagedObject* get_runtime_type() const;
 
     void* get_instance() const;
     void* create_instance() const;
