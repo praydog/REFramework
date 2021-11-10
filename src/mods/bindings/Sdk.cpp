@@ -18,6 +18,16 @@ auto find_type_definition(const char* name) {
     return ::sdk::RETypeDB::get()->find_type(name);
 }
 
+::REManagedObject* typeof(const char* name) {
+    auto type_definition = find_type_definition(name);
+
+    if (type_definition == nullptr) {
+        return nullptr;
+    }
+
+    return type_definition->get_runtime_type();
+}
+
 void* get_native_singleton(const char* name) {
     return (void*)::sdk::get_native_singleton<void>(name);
 }
@@ -571,6 +581,7 @@ void bindings::open_sdk(ScriptState* s) {
     sdk["get_managed_singleton"] = api::sdk::get_managed_singleton;
     sdk["create_managed_string"] = api::sdk::create_managed_string;
     sdk["find_type_definition"] = api::sdk::find_type_definition;
+    sdk["typeof"] = api::sdk::typeof;
     sdk["call_native_func"] = api::sdk::call_native_func;
     sdk["call_object_func"] = api::sdk::call_object_func;
     sdk["get_native_field"] = api::sdk::get_native_field;
