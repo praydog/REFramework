@@ -9,6 +9,10 @@
 
 #include "Sdk.hpp"
 
+namespace api {
+struct SystemArray;
+}
+
 namespace api::sdk {
 void* get_thread_context() {
     return (void*)::sdk::get_thread_context();
@@ -87,7 +91,20 @@ sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_t
         }
         default:
             if (vm_obj_type > via::clr::VMObjType::NULL_ && vm_obj_type < via::clr::VMObjType::ValType) {
-                return sol::make_object(l, *(::REManagedObject**)data);
+                switch (vm_obj_type) {
+                case via::clr::VMObjType::Array:
+                    return sol::make_object(l, *(::api::SystemArray**)data);
+                default: {
+                    const auto td = utility::re_managed_object::get_type_definition(*(::REManagedObject**)data);
+
+                    // another fallback incase the method returns an object which is an array
+                    if (td != nullptr && td->get_vm_obj_type() == via::clr::VMObjType::Array) {
+                        return sol::make_object(l, *(::api::SystemArray**)data);
+                    }
+
+                    return sol::make_object(l, *(::REManagedObject**)data);
+                }
+                }
             }
             break;
         }
@@ -549,6 +566,34 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function pre_cb
 }
 }
 
+namespace api {
+struct SystemArray : public ::REManagedObject {
+    int32_t size() {
+        static auto system_array_type = api::sdk::find_type_definition("System.Array");
+        static auto get_length_method = system_array_type->get_method("GetLength");
+
+        return get_length_method->call<int32_t>(sdk::get_thread_context(), this, 0);
+    }
+
+    ::REManagedObject* get_element(int32_t index) {
+        static auto system_array_type = api::sdk::find_type_definition("System.Array");
+        static auto get_element_method = system_array_type->get_method("GetValue(System.Int32)");
+
+        return get_element_method->call<::REManagedObject*>(sdk::get_thread_context(), this, index);
+    }
+
+    std::vector<::REManagedObject*> get_elements() {
+        std::vector<::REManagedObject*> elements;
+
+        for (int32_t i = 0; i < size(); i++) {
+            elements.push_back(get_element(i));
+        }
+
+        return elements;
+    }
+};
+}
+
 void bindings::open_sdk(ScriptState* s) {
     auto& lua = s->lua();
     auto sdk = lua.create_table();
@@ -606,4 +651,13 @@ void bindings::open_sdk(ScriptState* s) {
     lua.new_usertype<RETransform>("RETransform",
         "calculate_base_transform", &utility::re_transform::calculate_base_transform,
         sol::base_classes, sol::bases<REComponent, REManagedObject>());
+
+    lua.new_usertype<api::SystemArray>("SystemArray",
+        "get_size", &api::SystemArray::size,
+        "get_element", &api::SystemArray::get_element,
+        "get_elements", &api::SystemArray::get_elements,
+        sol::meta_function::index, [](api::SystemArray* arr, int32_t index) {
+            return arr->get_element(index);
+        },
+        sol::base_classes, sol::bases<REManagedObject>());
 }

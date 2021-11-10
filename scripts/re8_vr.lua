@@ -5,8 +5,8 @@ local function get_raw_userdata(ud)
 end
 
 local system_object_type = sdk.find_type_definition("System.Object")
-local system_array_type = sdk.find_type_definition("System.Array")
 local system_type = sdk.find_type_definition("System.RuntimeType")
+local system_array_type = sdk.find_type_definition("System.Array")
 local system_single = sdk.find_type_definition("System.Single")
 local system_activator_type = sdk.find_type_definition("System.Activator")
 
