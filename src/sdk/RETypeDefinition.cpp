@@ -547,4 +547,17 @@ void* RETypeDefinition::create_instance() const {
 
     return utility::re_type::create_instance(t);
 }
+
+::REManagedObject* RETypeDefinition::create_instance_full() const {
+    static auto system_activator_type = sdk::RETypeDB::get()->find_type("System.Activator");
+    static auto create_instance_func = system_activator_type->get_method("CreateInstance(System.Type)");
+
+    const auto typeof = this->get_runtime_type();
+
+    if (typeof == nullptr) {
+        return nullptr;
+    }
+
+    return create_instance_func->call<REManagedObject*>(sdk::get_thread_context(), typeof);
+}
 } // namespace sdk

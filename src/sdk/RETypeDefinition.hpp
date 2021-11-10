@@ -313,5 +313,6 @@ struct RETypeDefinition : public sdk::RETypeDefinition_ {
 
     void* get_instance() const;
     void* create_instance() const;
+    ::REManagedObject* create_instance_full() const;
 };
 } // namespace sdk

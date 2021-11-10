@@ -40,6 +40,16 @@ void* create_managed_string(const char* text) {
     return ::sdk::VM::create_managed_string(utility::widen(text));
 }
 
+::REManagedObject* create_instance(const char* name) {
+    auto type_definition = find_type_definition(name);
+
+    if (type_definition == nullptr) {
+        return nullptr;
+    }
+
+    return type_definition->create_instance_full();
+}
+
 sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_type) {
     if (data_type != nullptr) {
         if (!data_type->is_value_type()) {
@@ -580,6 +590,7 @@ void bindings::open_sdk(ScriptState* s) {
     sdk["get_native_singleton"] = api::sdk::get_native_singleton;
     sdk["get_managed_singleton"] = api::sdk::get_managed_singleton;
     sdk["create_managed_string"] = api::sdk::create_managed_string;
+    sdk["create_instance"] = api::sdk::create_instance;
     sdk["find_type_definition"] = api::sdk::find_type_definition;
     sdk["typeof"] = api::sdk::typeof;
     sdk["call_native_func"] = api::sdk::call_native_func;
@@ -610,7 +621,8 @@ void bindings::open_sdk(ScriptState* s) {
 
     lua.new_usertype<::sdk::RETypeDefinition>("RETypeDefinition", 
         "get_method", &::sdk::RETypeDefinition::get_method,
-        "get_runtime_type", &::sdk::RETypeDefinition::get_runtime_type);
+        "get_runtime_type", &::sdk::RETypeDefinition::get_runtime_type,
+        "create_instance", &::sdk::RETypeDefinition::create_instance_full);
     lua.new_usertype<REManagedObject>("REManagedObject", 
         "get_address", [](REManagedObject* obj) { return (void*)obj; },
         "get_type_definition", [](REManagedObject* obj) { return utility::re_managed_object::get_type_definition(obj); },
