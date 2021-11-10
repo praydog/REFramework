@@ -77,12 +77,36 @@ sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_t
             auto ret_val_f = *(double*)data;
             return sol::make_object(l, ret_val_f);
         }
+        case "System.Boolean"_fnv: {
+            auto ret_val_b = *(bool*)data;
+            return sol::make_object(l, ret_val_b);
+        }
+        case "System.Byte"_fnv: {
+            auto ret_val_b = *(uint8_t*)data;
+            return sol::make_object(l, ret_val_b);
+        }
+        case "System.Int16"_fnv: {
+            auto ret_val_i = *(int16_t*)data;
+            return sol::make_object(l, ret_val_i);
+        }
+        case "System.UInt16"_fnv: {
+            auto ret_val_i = *(uint16_t*)data;
+            return sol::make_object(l, ret_val_i);
+        }
         case "System.UInt32"_fnv: {
             auto ret_val_u = *(uint32_t*)data;
             return sol::make_object(l, ret_val_u);
         }
         case "System.Int32"_fnv: {
             auto ret_val_u = *(int32_t*)data;
+            return sol::make_object(l, ret_val_u);
+        }
+        case "System.Int64"_fnv: {
+            auto ret_val_u = *(int64_t*)data;
+            return sol::make_object(l, ret_val_u);
+        }
+        case "System.UInt64"_fnv: {
+            auto ret_val_u = *(uint64_t*)data;
             return sol::make_object(l, ret_val_u);
         }
         case "via.vec2"_fnv: {
