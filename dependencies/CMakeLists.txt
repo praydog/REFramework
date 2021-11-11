@@ -17,7 +17,7 @@ add_library(minhook STATIC
             minhook/src/hde/pstdint.h
             minhook/src/hde/table32.h
             minhook/src/hde/table64.h)
-target_include_directories(minhook INTERFACE minhook/include/)
+target_include_directories(minhook INTERFACE minhook/include/ minhook/src/hde)
 
 add_library(imgui STATIC
             imgui/imgui_demo.cpp

@@ -1,5 +1,7 @@
 #include <cstdint>
 
+#include <hde64.h>
+
 #include "../../sdk/REContext.hpp"
 #include "../../sdk/REManagedObject.hpp"
 #include "../../sdk/RETypeDB.hpp"
@@ -374,12 +376,33 @@ auto call_object_func(sol::object obj, const char* name, sol::variadic_args va) 
     return (::REManagedObject*)::sdk::get_primary_camera();
 }
 
+namespace detail {
+void* get_actual_function(void* possible_fn) {
+    auto actual_fn = possible_fn;
+    auto ip = (uintptr_t)possible_fn;
+
+    // Disassemble the first few instructions to see if there is a jmp to an actual function.
+    for (auto i = 0; i < 10; ++i) {
+        hde64s hde{};
+        auto len = hde64_disasm((void*)ip, &hde);
+        ip += len;
+
+        if (hde.opcode == 0xE9) { // jmp.
+            actual_fn = (void*)(ip + hde.imm.imm32);
+            break;
+        }
+    }
+
+    return actual_fn;
+}
+}
+
 void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function pre_cb, sol::function post_cb) {
     auto sol_state = sol::state_view{s};
     auto state = sol_state.registry()["state"].get<ScriptState*>();
     auto hook = std::make_unique<ScriptState::HookedFn>();
 
-    hook->target_fn = (void*)fn->get_function();
+    hook->target_fn = detail::get_actual_function(fn->get_function());
     hook->script_pre_fn = pre_cb;
     hook->script_post_fn = post_cb;
     hook->script_args = sol_state.create_table();
@@ -608,7 +631,7 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function pre_cb
     g.dq(0);
 
     // Hook the function to our facilitator.
-    fn_hook = std::make_unique<FunctionHook>(fn->get_function(), (void*)g.getCode());
+    fn_hook = std::make_unique<FunctionHook>(hook->target_fn, (void*)g.getCode());
 
     // Set the facilitators original function pointer.
     *(uintptr_t*)orig_label.getAddress() = fn_hook->get_original();
