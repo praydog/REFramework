@@ -274,14 +274,7 @@ sol::object get_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const
     return parse_data(l, data, field_type);
 }
 
-sol::object call_native_func(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name, sol::variadic_args va) {
-    static std::vector<void*> args{};
-    static std::vector<Vector4f> vec_storage{};
-    auto l = va.lua_state();
-
-    args.clear();
-    vec_storage.clear();
-
+void* get_real_obj(sol::object obj) {
     void* real_obj = nullptr;
 
     if (!obj.is<sol::nil_t>()) {
@@ -293,6 +286,18 @@ sol::object call_native_func(sol::object obj, ::sdk::RETypeDefinition* ty, const
             real_obj = (void*)obj.as<uintptr_t>();
         }
     }
+
+    return real_obj;
+}
+
+std::vector<void*>& build_args(sol::variadic_args va) {
+    auto l = va.lua_state();
+
+    static std::vector<void*> args{};
+    static std::vector<Vector4f> vec_storage{};
+
+    args.clear();
+    vec_storage.clear();
 
     for (auto&& arg : va) {
         auto i = arg.stack_index();
@@ -331,7 +336,14 @@ sol::object call_native_func(sol::object obj, ::sdk::RETypeDefinition* ty, const
         }
     }
 
-    auto ret_val = ::sdk::invoke_object_func(real_obj, ty, name, args);
+    return args;
+}
+
+sol::object call_native_func(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name, sol::variadic_args va) {
+    auto l = va.lua_state();
+
+    auto real_obj = get_real_obj(obj);
+    auto ret_val = ::sdk::invoke_object_func(real_obj, ty, name, build_args(va));
 
     // Convert return values to the correct Lua types.
     auto fn = ty->get_method(name);
@@ -341,18 +353,7 @@ sol::object call_native_func(sol::object obj, ::sdk::RETypeDefinition* ty, const
 }
 
 auto call_object_func(sol::object obj, const char* name, sol::variadic_args va) {
-    void* real_obj = nullptr;
-
-    if (!obj.is<sol::nil_t>()) {
-        if (obj.is<REManagedObject*>()) {
-            real_obj = (void*)obj.as<REManagedObject*>();
-        } else if (obj.is<void*>()) {
-            real_obj = obj.as<void*>();
-        } else {
-            real_obj = (void*)obj.as<uintptr_t>();
-        }
-    }
-
+    auto real_obj = get_real_obj(obj);
     auto def = utility::re_managed_object::get_type_definition((::REManagedObject*)real_obj);
 
     return call_native_func(obj, def, name, va);
@@ -643,10 +644,68 @@ void bindings::open_sdk(ScriptState* s) {
     };
     lua["sdk"] = sdk;
 
-    lua.new_usertype<::sdk::RETypeDefinition>("RETypeDefinition", 
+    lua.new_usertype<::sdk::RETypeDefinition>("RETypeDefinition",
+        "get_methods", [](sdk::RETypeDefinition* def) -> std::vector<sdk::REMethodDefinition*> {
+            std::vector<sdk::REMethodDefinition*> methods{};
+
+            for (auto& method : def->get_methods()) {
+                const auto func = method.get_function();
+
+                if (method.get_function() == nullptr) {
+                    continue;
+                }
+
+                const auto bytes = (uint8_t*)func;
+                constexpr std::array<uint8_t, 4> xor_rax_rax_ret = { 0x48, 0x31, 0xc0, 0xc3 };
+                constexpr std::array<uint8_t, 3> xor_eax_eax_ret = { 0x33, 0xc0, 0xc3 };
+                constexpr std::array<uint8_t, 3> xor_al_al_ret = { 0x30, 0xc0, 0xc3 };
+                constexpr std::array<uint8_t, 3> xor_al_al_ret2 = { 0x31, 0xc0, 0xc3 };
+                constexpr std::array<uint8_t, 3> xor_al_al_ret3 = { 0x32, 0xc0, 0xc3 };
+                constexpr std::array<uint8_t, 3> mov_al_1_ret = { 0xb0, 0x01, 0xc3 };
+                constexpr std::array<uint8_t, 3> mov_al_0_ret = { 0xb0, 0x00, 0xc3 };
+                constexpr std::array<uint8_t, 3> ret_0000 = { 0xC2, 0x00, 0x00 };
+
+                // check if the function is a stub
+                if (bytes[0] == 0xC3 || *(uint32_t*)bytes == *(uint32_t*)xor_rax_rax_ret.data()
+                    || memcmp(bytes, xor_eax_eax_ret.data(), 3) == 0
+                    || memcmp(bytes, xor_al_al_ret.data(), 3) == 0
+                    || memcmp(bytes, xor_al_al_ret2.data(), 3) == 0
+                    || memcmp(bytes, xor_al_al_ret3.data(), 3) == 0
+                    || memcmp(bytes, mov_al_1_ret.data(), 3) == 0 
+                    || memcmp(bytes, mov_al_0_ret.data(), 3) == 0 
+                    || memcmp(bytes, ret_0000.data(), 3) == 0)
+                {
+                    continue;
+                }
+
+                methods.push_back(&method);
+            }
+
+            return methods;
+         },
         "get_method", &::sdk::RETypeDefinition::get_method,
         "get_runtime_type", &::sdk::RETypeDefinition::get_runtime_type,
         "create_instance", &::sdk::RETypeDefinition::create_instance_full);
+    
+    lua.new_usertype<sdk::REMethodDefinition>("REMethodDefinition",
+        "get_name", &sdk::REMethodDefinition::get_name,
+        "get_return_type", &sdk::REMethodDefinition::get_return_type,
+        "get_function", &sdk::REMethodDefinition::get_function,
+        "get_declaring_type", &sdk::REMethodDefinition::get_declaring_type,
+        "get_num_params", &sdk::REMethodDefinition::get_num_params,
+        "is_static", &sdk::REMethodDefinition::is_static,
+        "call", [](sdk::REMethodDefinition* def, sol::object obj, sol::variadic_args va) {
+            auto l = va.lua_state();
+
+            auto real_obj = ::api::sdk::get_real_obj(obj);
+            auto ret_val = def->invoke(real_obj, ::api::sdk::build_args(va));
+
+            // Convert return values to the correct Lua types.
+            auto ret_ty = def->get_return_type();
+
+            return ::api::sdk::parse_data(l, &ret_val, ret_ty);
+        });
+    
     lua.new_usertype<REManagedObject>("REManagedObject", 
         "get_address", [](REManagedObject* obj) { return (void*)obj; },
         "get_type_definition", [](REManagedObject* obj) { return utility::re_managed_object::get_type_definition(obj); },
