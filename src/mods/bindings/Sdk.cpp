@@ -129,6 +129,17 @@ sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_t
             auto ret_val_q = *(glm::quat*)data;
             return sol::make_object<glm::quat>(l, ret_val_q);
         }
+        case "via.GameObjectRef"_fnv: {
+            static auto object_ref_type = ::sdk::RETypeDB::get()->find_type("via.GameObjectRef");
+            static auto get_target_func = object_ref_type->get_method("get_Target");
+            auto obj = get_target_func->call<::REManagedObject*>(sdk::get_thread_context(), data);
+
+            if (obj == nullptr) {
+                return sol::make_object(l, sol::nil);
+            }
+
+            return sol::make_object(l, obj);
+        }
         default:
             if (vm_obj_type > via::clr::VMObjType::NULL_ && vm_obj_type < via::clr::VMObjType::ValType) {
                 switch (vm_obj_type) {
@@ -685,6 +696,7 @@ void bindings::open_sdk(ScriptState* s) {
          },
         "get_method", &::sdk::RETypeDefinition::get_method,
         "get_runtime_type", &::sdk::RETypeDefinition::get_runtime_type,
+        "get_parent_type", &::sdk::RETypeDefinition::get_parent_type,
         "create_instance", &::sdk::RETypeDefinition::create_instance_full);
     
     lua.new_usertype<sdk::REMethodDefinition>("REMethodDefinition",
