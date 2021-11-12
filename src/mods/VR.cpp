@@ -1345,6 +1345,7 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
         case "FadeInOutWhite"_fnv:
         case "GUIBlackMask"_fnv:
         case "GenomeCodexGUI"_fnv:
+        case "sm42_020_keystrokeDevice01A_gimmick"_fnv: // this one is the keypad in the locker room...
             return true;
 
         default:
@@ -1380,6 +1381,15 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
             const auto current_view_type = sdk::call_object_func<uint32_t>(view, "get_ViewType", context, view);
 
             if (current_view_type == (uint32_t)via::gui::ViewType::Screen) {
+                static auto via_render_mesh_typedef = sdk::RETypeDB::get()->find_type("via.render.Mesh");
+
+                // we don't want to mess with any game object that has a mesh
+                // because it might be something physical in the game world
+                // that the player can interact with
+                if (utility::re_component::find(game_object->transform, via_render_mesh_typedef->get_type()) != nullptr) {
+                    return true;
+                }
+
                 auto& restore_data = g_elements_to_reset.emplace_back(std::make_unique<GUIRestoreData>());
 
                 Vector4f original_game_object_pos{};
@@ -1426,13 +1436,20 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                         original_game_object_pos.w = 0.0f;
 
                         auto& gui_matrix = game_object->transform->worldTransform;
-
-                        gui_matrix = glm::extractMatrixRotation(camera_matrix) * Matrix4x4f {
+                        const auto wanted_rotation_mat = glm::extractMatrixRotation(camera_matrix) * Matrix4x4f {
                             -1, 0, 0, 0,
                             0, 1, 0, 0,
                             0, 0, -1, 0,
                             0, 0, 0, 1
                         };
+
+                        const auto wanted_rotation = glm::quat{wanted_rotation_mat};
+
+                        gui_matrix = wanted_rotation_mat;
+
+                        //sdk::call_object_func<void*>(game_object->transform, "set_Rotation", context, game_object->transform, &wanted_rotation);
+
+                        //gui_matrix = wanted_rotation_mat;
                         
                         gui_matrix[3] = camera_position + (-camera_matrix[2] * m_ui_scale);
                         gui_matrix[3].w = 1.0f;
@@ -1446,9 +1463,17 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                             gui_matrix[3] = camera_position + (dir * m_ui_scale);
                             gui_matrix[3].w = 1.0f;
 
+                            // make matrix from dir
+                            const auto look_mat = glm::rowMajor4(glm::lookAtLH(Vector3f{}, Vector3f{ dir }, Vector3f(0.0f, 1.0f, 0.0f)));
+                            const auto look_rot = glm::quat{look_mat};
+
                             const auto new_pos = gui_matrix[3];
 
+                            gui_matrix = look_mat;
+                            gui_matrix[3] = new_pos;
                             sdk::call_object_func<void*>(game_object->transform, "set_Position", context, game_object->transform, &new_pos);
+                            sdk::call_object_func<void*>(game_object->transform, "set_Rotation", context, game_object->transform, &look_rot);
+                            
 
                             if (child != nullptr) {
                                 regenny::via::Size gui_size{};
