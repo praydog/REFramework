@@ -1381,7 +1381,16 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
             const auto current_view_type = sdk::call_object_func<uint32_t>(view, "get_ViewType", context, view);
 
             if (current_view_type == (uint32_t)via::gui::ViewType::Screen) {
-                static auto via_render_mesh_typedef = sdk::RETypeDB::get()->find_type("via.render.Mesh");
+                static sdk::RETypeDefinition* via_render_mesh_typedef = nullptr;
+
+                if (via_render_mesh_typedef == nullptr) {
+                    via_render_mesh_typedef = sdk::RETypeDB::get()->find_type("via.render.Mesh");
+
+                    // wait
+                    if (via_render_mesh_typedef == nullptr) {
+                        return true;
+                    }
+                }
 
                 // we don't want to mess with any game object that has a mesh
                 // because it might be something physical in the game world
