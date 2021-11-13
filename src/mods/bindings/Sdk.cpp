@@ -52,6 +52,23 @@ void* create_managed_string(const char* text) {
     return type_definition->create_instance_full();
 }
 
+
+void* get_real_obj(sol::object obj) {
+    void* real_obj = nullptr;
+
+    if (!obj.is<sol::nil_t>()) {
+        if (obj.is<REManagedObject*>()) {
+            real_obj = (void*)obj.as<REManagedObject*>();
+        } else if (obj.is<void*>()) {
+            real_obj = obj.as<void*>();
+        } else {
+            real_obj = (void*)obj.as<uintptr_t>();
+        }
+    }
+
+    return real_obj;
+}
+
 sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_type) {
     if (data_type != nullptr) {
         if (!data_type->is_value_type()) {
@@ -181,11 +198,29 @@ void set_data(void* data, ::sdk::RETypeDefinition* data_type, sol::object& value
         case "System.Single"_fnv:
             *(float*)data = value.as<float>();
             return;
+        case "System.Boolean"_fnv:
+            *(bool*)data = value.as<bool>();
+            return;
+        case "System.Byte"_fnv:
+            *(uint8_t*)data = value.as<uint8_t>();
+            return;
+        case "System.Int16"_fnv:
+            *(int16_t*)data = value.as<int16_t>();
+            return;
+        case "System.UInt16"_fnv:
+            *(uint16_t*)data = value.as<uint16_t>();
+            return;
         case "System.UInt32"_fnv:
             *(uint32_t*)data = value.as<uint32_t>();
-            break;
+            return;
         case "System.Int32"_fnv:
             *(int32_t*)data = value.as<int32_t>();
+            return;
+        case "System.Int64"_fnv:
+            *(int64_t*)data = value.as<int32_t>();
+            return;
+        case "System.UInt64"_fnv:
+            *(uint64_t*)data = value.as<int32_t>();
             return;
         case "via.vec2"_fnv:
             *(Vector2f*)data = value.as<Vector2f>();
@@ -221,17 +256,9 @@ void set_data(void* data, ::sdk::RETypeDefinition* data_type, sol::object& value
 
 void set_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name, sol::object value) {
     auto l = value.lua_state();
-    void* real_obj = nullptr;
+    auto real_obj = get_real_obj(obj);
 
-    if (!obj.is<sol::nil_t>()) {
-        if (obj.is<REManagedObject*>()) {
-            real_obj = (void*)obj.as<REManagedObject*>();
-        } else if (obj.is<void*>()) {
-            real_obj = obj.as<void*>();
-        } else {
-            real_obj = (void*)obj.as<uintptr_t>();
-        }
-    }
+    bool managed_obj_passed = obj.is<REManagedObject*>();
 
     const auto field = ty->get_field(name);
 
@@ -245,7 +272,7 @@ void set_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const char* 
         return;
     }
 
-    auto data = field->get_data_raw(real_obj, ty->is_value_type());
+    auto data = field->get_data_raw(real_obj, ty->is_value_type() && !managed_obj_passed);
 
     if (data == nullptr) {
         return;
@@ -256,20 +283,9 @@ void set_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const char* 
 
 sol::object get_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name, sol::variadic_args va) {
     auto l = va.lua_state();
-    void* real_obj = nullptr;
+    void* real_obj = get_real_obj(obj);
 
-    bool managed_obj_passed = false;
-
-    if (!obj.is<sol::nil_t>()) {
-        if (obj.is<REManagedObject*>()) {
-            real_obj = (void*)obj.as<REManagedObject*>();
-            managed_obj_passed = true;
-        } else if (obj.is<void*>()) {
-            real_obj = obj.as<void*>();
-        } else {
-            real_obj = (void*)obj.as<uintptr_t>();
-        }
-    }
+    bool managed_obj_passed = obj.is<REManagedObject*>();
 
     const auto field = ty->get_field(name);
 
@@ -287,22 +303,6 @@ sol::object get_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const
     return parse_data(l, data, field_type);
 }
 
-void* get_real_obj(sol::object obj) {
-    void* real_obj = nullptr;
-
-    if (!obj.is<sol::nil_t>()) {
-        if (obj.is<REManagedObject*>()) {
-            real_obj = (void*)obj.as<REManagedObject*>();
-        } else if (obj.is<void*>()) {
-            real_obj = obj.as<void*>();
-        } else {
-            real_obj = (void*)obj.as<uintptr_t>();
-        }
-    }
-
-    return real_obj;
-}
-
 std::vector<void*>& build_args(sol::variadic_args va) {
     auto l = va.lua_state();
 
@@ -315,9 +315,17 @@ std::vector<void*>& build_args(sol::variadic_args va) {
     for (auto&& arg : va) {
         auto i = arg.stack_index();
 
+        if (lua_isnil(l, i)) {
+            args.push_back(nullptr);
+            continue;
+        }
+
         // sol2 doesn't seem to differentiate between Lua integers and numbers. So
         // we must do it ourselves.
-        if (lua_isinteger(l, i)) {
+        if (lua_isboolean(l, i)) {
+            auto b = lua_toboolean(l, i);
+            args.push_back((void*)b);
+        } else if (lua_isinteger(l, i)) {
             auto n = (intptr_t)lua_tointeger(l, i);
             args.push_back((void*)n);
         } else if (lua_isnumber(l, i)) {
