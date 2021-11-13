@@ -369,7 +369,10 @@ void ScriptRunner::on_draw_ui() {
         }
     }
 
-    m_state->on_draw_ui();
+    { 
+        std::scoped_lock _{ m_access_mutex };
+        m_state->on_draw_ui();
+    }
 }
 
 void ScriptRunner::on_pre_application_entry(void* entry, const char* name, size_t hash) {
