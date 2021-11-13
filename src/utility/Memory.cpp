@@ -80,6 +80,7 @@ namespace utility {
             { 0xb0, 0x01, 0xc3 }, // mov al, 1; ret
             { 0xb0, 0x00, 0xc3 }, // mov al, 0; ret
             { 0xc2, 0x00, 0x00 }, // ret 0
+            { 0xc3 } // ret
         };
 
         // check whether the code matches any of the stub codes
