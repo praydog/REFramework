@@ -6,6 +6,7 @@
 #include "../../sdk/REManagedObject.hpp"
 #include "../../sdk/RETypeDB.hpp"
 #include "../../sdk/SceneManager.hpp"
+#include "../../utility/Memory.hpp"
 
 #include "../ScriptRunner.hpp"
 
@@ -698,25 +699,8 @@ void bindings::open_sdk(ScriptState* s) {
                 }
 
                 const auto bytes = (uint8_t*)func;
-                constexpr std::array<uint8_t, 4> xor_rax_rax_ret = { 0x48, 0x31, 0xc0, 0xc3 };
-                constexpr std::array<uint8_t, 3> xor_eax_eax_ret = { 0x33, 0xc0, 0xc3 };
-                constexpr std::array<uint8_t, 3> xor_al_al_ret = { 0x30, 0xc0, 0xc3 };
-                constexpr std::array<uint8_t, 3> xor_al_al_ret2 = { 0x31, 0xc0, 0xc3 };
-                constexpr std::array<uint8_t, 3> xor_al_al_ret3 = { 0x32, 0xc0, 0xc3 };
-                constexpr std::array<uint8_t, 3> mov_al_1_ret = { 0xb0, 0x01, 0xc3 };
-                constexpr std::array<uint8_t, 3> mov_al_0_ret = { 0xb0, 0x00, 0xc3 };
-                constexpr std::array<uint8_t, 3> ret_0000 = { 0xC2, 0x00, 0x00 };
 
-                // check if the function is a stub
-                if (bytes[0] == 0xC3 || *(uint32_t*)bytes == *(uint32_t*)xor_rax_rax_ret.data()
-                    || memcmp(bytes, xor_eax_eax_ret.data(), 3) == 0
-                    || memcmp(bytes, xor_al_al_ret.data(), 3) == 0
-                    || memcmp(bytes, xor_al_al_ret2.data(), 3) == 0
-                    || memcmp(bytes, xor_al_al_ret3.data(), 3) == 0
-                    || memcmp(bytes, mov_al_1_ret.data(), 3) == 0 
-                    || memcmp(bytes, mov_al_0_ret.data(), 3) == 0 
-                    || memcmp(bytes, ret_0000.data(), 3) == 0)
-                {
+                if (utility::is_stub_code(bytes)) {
                     continue;
                 }
 

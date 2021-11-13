@@ -187,6 +187,8 @@ private:
         int64_t value;
     };
 
+    std::unordered_set<void*> m_known_stub_methods{};
+    std::unordered_set<void*> m_ok_methods{};
     std::unordered_multimap<std::string, EnumDescriptor> m_enums;
     std::unordered_map<std::string, REType*> m_types;
     std::vector<std::string> m_sorted_types;

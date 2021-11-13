@@ -1,5 +1,6 @@
 #include <optional>
 #include <vector>
+#include <array>
 
 #include <Windows.h>
 
@@ -63,5 +64,31 @@ namespace utility {
 
     bool isGoodCodePtr(uintptr_t ptr, size_t len) {
         return isGoodPtr(ptr, len, PAGE_EXECUTE | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE);
+    }
+
+    bool is_stub_code(uint8_t* code) {
+        if (code == nullptr) {
+            return false;
+        }
+
+        static const std::vector<std::vector<uint8_t>> stub_codes{
+            { 0x48, 0x31, 0xc0, 0xc3 }, // xor rax, rax; ret
+            { 0x33, 0xc0, 0xc3 }, // xor eax, eax; ret
+            { 0x30, 0xc0, 0xc3 }, // xor al, al; ret
+            { 0x31, 0xc0, 0xc3 }, // xor al, al; ret
+            { 0x32, 0xc0, 0xc3 }, // xor al, al; ret
+            { 0xb0, 0x01, 0xc3 }, // mov al, 1; ret
+            { 0xb0, 0x00, 0xc3 }, // mov al, 0; ret
+            { 0xc2, 0x00, 0x00 }, // ret 0
+        };
+
+        // check whether the code matches any of the stub codes
+        for (const auto& stub_code : stub_codes) {
+            if (memcmp(code, stub_code.data(), stub_code.size()) == 0) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

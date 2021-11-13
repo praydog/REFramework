@@ -10,6 +10,7 @@
 #include "utility/String.hpp"
 #include "utility/Scan.hpp"
 #include "utility/Module.hpp"
+#include "utility/Memory.hpp"
 
 #include "Genny.hpp"
 
@@ -2131,6 +2132,25 @@ void ObjectExplorer::display_native_methods(REManagedObject* obj, sdk::RETypeDef
                 make_same_line_text(method_prototype, VARIABLE_COLOR_HIGHLIGHT);
             } else {
                 make_same_line_text(method_prototype, VARIABLE_COLOR);
+            }
+
+            bool is_stub = m_known_stub_methods.find(method_ptr) != m_known_stub_methods.end();
+            bool is_ok_method = m_ok_methods.find(method_ptr) != m_ok_methods.end();
+
+            if (method_ptr != nullptr && !is_stub && !is_ok_method) {
+                if (utility::is_stub_code((uint8_t*)method_ptr)) {
+                    m_known_stub_methods.insert(method_ptr);
+
+                    is_ok_method = false;
+                    is_stub = true;
+                } else {
+                    m_ok_methods.insert(method_ptr);
+                }
+            }
+            
+            if (method_ptr == nullptr || is_stub) {
+                ImGui::SameLine();
+                ImGui::TextColored(ImVec4{ 1.0f, 0.0f, 0.0f, 1.0f }, "STUB");
             }
 
             // draw the method data
