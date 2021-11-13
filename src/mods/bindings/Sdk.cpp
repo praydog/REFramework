@@ -717,9 +717,13 @@ void bindings::open_sdk(ScriptState* s) {
 
             return methods;
          },
+        "get_full_name", &sdk::RETypeDefinition::get_full_name,
+        "get_name", &sdk::RETypeDefinition::get_name,
+        "get_namespace", &sdk::RETypeDefinition::get_namespace,
         "get_method", &::sdk::RETypeDefinition::get_method,
         "get_runtime_type", &::sdk::RETypeDefinition::get_runtime_type,
         "get_parent_type", &::sdk::RETypeDefinition::get_parent_type,
+        "is_value_type", &::sdk::RETypeDefinition::is_value_type,
         "create_instance", &::sdk::RETypeDefinition::create_instance_full);
     
     lua.new_usertype<sdk::REMethodDefinition>("REMethodDefinition",
