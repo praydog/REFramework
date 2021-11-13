@@ -70,15 +70,33 @@ sol::variadic_results input_text(sol::this_state s, const char* label, const std
 }
 
 sol::variadic_results combo(sol::this_state s, const char* label, int selection, sol::table values) {
-    auto preview_value = values[selection].get<const char*>();
+    const char* preview_value = "";
+
+    if (!values.empty()) {
+        if (selection < 1 || selection > values.size()) {
+            selection = 1;
+        }
+
+        auto val_at_selection = values[selection].get<sol::object>();
+
+        if (val_at_selection.is<const char*>()) {
+            preview_value = val_at_selection.as<const char*>();
+        }
+    }
+
     auto selection_changed = false;
 
     if (ImGui::BeginCombo(label, preview_value)) {
         for (auto i = 1u; i <= values.size(); ++i) {
-            auto entry = values[i].get<const char*>();
-            if (ImGui::Selectable(entry, selection == i)) {
-                selection = i;
-                selection_changed = true;
+            auto val_at_i = values[i].get<sol::object>();
+
+            if (val_at_i.is<const char*>()) {
+                auto entry = val_at_i.as<const char*>();
+
+                if (ImGui::Selectable(entry, selection == i)) {
+                    selection = i;
+                    selection_changed = true;
+                }
             }
         }
 
