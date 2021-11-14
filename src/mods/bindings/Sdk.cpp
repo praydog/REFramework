@@ -78,7 +78,19 @@ sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_t
             }
         }
 
-        const auto full_name_hash = utility::hash(data_type->get_full_name());
+        size_t full_name_hash{};
+
+        // Slightly different logic for enums
+        if (data_type->is_enum()) {
+            auto underlying_type = data_type->get_underlying_type();
+
+            if (underlying_type != nullptr) {
+                full_name_hash = utility::hash(underlying_type->get_full_name());
+            }
+        } else {
+            full_name_hash = utility::hash(data_type->get_full_name());
+        }
+
         const auto vm_obj_type = data_type->get_vm_obj_type();
 
         switch (full_name_hash) {
@@ -86,9 +98,9 @@ sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_t
             return sol::make_object(l, *(::RETransform**)data);
         }
         case "System.String"_fnv: {
-            auto managed_ret_val = *(::REManagedObject**)data;
-            auto managed_str = (SystemString*)((uintptr_t)utility::re_managed_object::get_field_ptr(managed_ret_val) - sizeof(::REManagedObject));
-            auto str = utility::narrow(managed_str->data);
+            const auto managed_ret_val = *(::REManagedObject**)data;
+            const auto managed_str = (SystemString*)((uintptr_t)utility::re_managed_object::get_field_ptr(managed_ret_val) - sizeof(::REManagedObject));
+            const auto str = utility::narrow(managed_str->data);
 
             return sol::make_object(l, str);
         }
@@ -282,13 +294,11 @@ void set_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const char* 
     set_data(data, field_type, value);
 }
 
-sol::object get_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name, sol::variadic_args va) {
-    auto l = va.lua_state();
-    void* real_obj = get_real_obj(obj);
+sol::object get_native_field_from_field(sol::object obj, ::sdk::RETypeDefinition* ty, ::sdk::REField* field) {
+    auto l = obj.lua_state();
 
+    auto real_obj = get_real_obj(obj);
     bool managed_obj_passed = obj.is<REManagedObject*>();
-
-    const auto field = ty->get_field(name);
 
     if (field == nullptr || (!field->is_static() && real_obj == nullptr)) {
         return sol::make_object(l, sol::nil);
@@ -302,6 +312,17 @@ sol::object get_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const
     }
 
     return parse_data(l, data, field_type);
+}
+
+sol::object get_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name) {
+    auto l = obj.lua_state();
+    const auto field = ty->get_field(name);
+
+    if (field == nullptr) {
+        return sol::make_object(l, sol::nil);
+    }
+
+    return get_native_field_from_field(obj, ty, field);
 }
 
 std::vector<void*>& build_args(sol::variadic_args va) {
@@ -325,7 +346,7 @@ std::vector<void*>& build_args(sol::variadic_args va) {
         // we must do it ourselves.
         if (lua_isboolean(l, i)) {
             auto b = lua_toboolean(l, i);
-            args.push_back((void*)b);
+            args.push_back((void*)(intptr_t)b);
         } else if (lua_isinteger(l, i)) {
             auto n = (intptr_t)lua_tointeger(l, i);
             args.push_back((void*)n);
@@ -376,7 +397,16 @@ sol::object call_native_func(sol::object obj, ::sdk::RETypeDefinition* ty, const
 
 auto call_object_func(sol::object obj, const char* name, sol::variadic_args va) {
     auto real_obj = get_real_obj(obj);
+
+    if (real_obj == nullptr) {
+        return sol::make_object(obj.lua_state(), sol::nil);
+    }
+
     auto def = utility::re_managed_object::get_type_definition((::REManagedObject*)real_obj);
+
+    if (def == nullptr) {
+        return sol::make_object(obj.lua_state(), sol::nil);
+    }
 
     return call_native_func(obj, def, name, va);
 }
@@ -708,11 +738,21 @@ void bindings::open_sdk(ScriptState* s) {
             }
 
             return methods;
-         },
+        },
+        "get_fields", [](sdk::RETypeDefinition* def) -> std::vector<sdk::REField*> {
+            std::vector<sdk::REField*> fields{};
+
+            for (auto field : def->get_fields()) {
+                fields.push_back(field);
+            }
+
+            return fields;
+        },
         "get_full_name", &sdk::RETypeDefinition::get_full_name,
         "get_name", &sdk::RETypeDefinition::get_name,
         "get_namespace", &sdk::RETypeDefinition::get_namespace,
         "get_method", &::sdk::RETypeDefinition::get_method,
+        "get_field", &::sdk::RETypeDefinition::get_field,
         "get_runtime_type", &::sdk::RETypeDefinition::get_runtime_type,
         "get_parent_type", &::sdk::RETypeDefinition::get_parent_type,
         "is_value_type", &::sdk::RETypeDefinition::is_value_type,
@@ -735,18 +775,69 @@ void bindings::open_sdk(ScriptState* s) {
             auto ret_ty = def->get_return_type();
 
             return ::api::sdk::parse_data(l, &ret_val, ret_ty);
-        });
+        }
+    );
+    
+    lua.new_usertype<sdk::REField>("REField",
+        "get_name", &sdk::REField::get_name,
+        "get_type", &sdk::REField::get_type,
+        "get_offset_from_base", &sdk::REField::get_offset_from_base,
+        "get_offset_from_fieldptr", &sdk::REField::get_offset_from_fieldptr,
+        "get_declaring_type", &sdk::REField::get_declaring_type,
+        "get_flags", &sdk::REField::get_flags,
+        "is_static", &sdk::REField::is_static,
+        "is_literal", &sdk::REField::is_literal,
+        "get_data", [s](sdk::REField* f, sol::object obj) -> sol::object {
+            auto& l = s->lua();
+
+            if (obj.is<::REManagedObject*>()) {
+                auto managed_obj = obj.as<::REManagedObject*>();
+
+                if (managed_obj == nullptr) {
+                    return sol::make_object(l, sol::nil);
+                }
+
+                auto ty = utility::re_managed_object::get_type_definition(managed_obj);
+
+                if (ty == nullptr) {
+                    return sol::make_object(l, sol::nil);
+                }
+
+                return api::sdk::get_native_field_from_field(obj, ty, f);
+            }
+
+            auto ty = f->get_declaring_type();
+
+            if (ty == nullptr) {
+                return sol::make_object(l, sol::nil);
+            }
+
+            return api::sdk::get_native_field_from_field(obj, ty, f);
+        }
+    );
     
     lua.new_usertype<REManagedObject>("REManagedObject", 
-        "get_address", [](REManagedObject* obj) { return (void*)obj; },
+        "get_address", [](REManagedObject* obj) { return (uintptr_t)obj; },
         "get_type_definition", [](REManagedObject* obj) { return utility::re_managed_object::get_type_definition(obj); },
-        "get_field", [s](REManagedObject* obj, const char* name, sol::variadic_args args) {
-            return api::sdk::get_native_field(sol::make_object(s->lua(), obj), utility::re_managed_object::get_type_definition(obj), name, args); 
+        "get_field", [s](REManagedObject* obj, const char* name) {
+            if (obj == nullptr) {
+                return sol::make_object(s->lua(), sol::nil);
+            }
+
+            return api::sdk::get_native_field(sol::make_object(s->lua(), obj), utility::re_managed_object::get_type_definition(obj), name); 
         },
         "set_field", [s](REManagedObject* obj, const char* name, sol::object value) {
+            if (obj == nullptr) {
+                return;
+            }
+
             return api::sdk::set_native_field(sol::make_object(s->lua(), obj), utility::re_managed_object::get_type_definition(obj), name, value); 
         },
         "call", [s](REManagedObject* obj, const char* name, sol::variadic_args args) {
+            if (obj == nullptr) {
+                return sol::make_object(s->lua(), sol::nil);
+            }
+
             return api::sdk::call_object_func(sol::make_object(s->lua(), obj), name, args);
         }
     );

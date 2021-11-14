@@ -254,6 +254,49 @@ sdk::RETypeDefinition* RETypeDefinition::get_parent_type() const {
     return tdb->get_type(this->parent_typeid);
 }
 
+static std::shared_mutex g_underlying_mtx{};
+static std::unordered_map<const sdk::RETypeDefinition*, sdk::RETypeDefinition*> g_underlying_types{};
+
+sdk::RETypeDefinition* RETypeDefinition::get_underlying_type() const {
+    {
+        std::shared_lock _{ g_underlying_mtx };
+
+        if (auto it = g_underlying_types.find(this); it != g_underlying_types.end()) {
+            return it->second;
+        }
+    }
+    
+    if (!this->is_enum()) {
+        return nullptr;
+    }
+
+    // get the underlying type of the enum
+    // and then hash the name of the type instead
+    static auto get_underlying_type_method = this->get_method("GetUnderlyingType");
+    const auto underlying_type = get_underlying_type_method->call<::REManagedObject*>(sdk::get_thread_context(), this->get_runtime_type());
+
+    if (underlying_type != nullptr) {
+        static auto system_runtime_type_type = sdk::RETypeDB::get()->find_type("System.RuntimeType");
+        static auto get_name_method = system_runtime_type_type->get_method("get_FullName");
+
+        const auto full_name = get_name_method->call<::REManagedObject*>(sdk::get_thread_context(), underlying_type);
+
+        if (full_name != nullptr) {
+            const auto managed_str = (SystemString*)((uintptr_t)utility::re_managed_object::get_field_ptr(full_name) - sizeof(::REManagedObject));
+            const auto str = utility::narrow(managed_str->data);
+
+            managed_str->referenceCount = 0;
+
+            auto type_definition = sdk::RETypeDB::get()->find_type(str);
+            
+            std::unique_lock _{ g_underlying_mtx };
+            g_underlying_types[this] = type_definition;
+        }
+    }
+
+    return g_underlying_types[this];
+}
+
 static std::shared_mutex g_field_mtx{};
 static std::unordered_map<std::string, sdk::REField*> g_field_map{};
 
@@ -414,6 +457,20 @@ via::clr::VMObjType RETypeDefinition::get_vm_obj_type() const {
 
 bool RETypeDefinition::is_value_type() const {
     return get_vm_obj_type() == via::clr::VMObjType::ValType;
+}
+
+bool RETypeDefinition::is_enum() const {
+    static sdk::RETypeDefinition* enum_type = nullptr;
+
+    if (enum_type == nullptr) {
+        enum_type = RETypeDB::get()->find_type("System.Enum");
+    }
+
+    if (!this->is_value_type()) {
+        return false;
+    }
+
+    return this->is_a(enum_type);
 }
 
 uint32_t RETypeDefinition::get_crc_hash() const {
