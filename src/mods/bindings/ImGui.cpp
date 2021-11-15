@@ -1,6 +1,7 @@
 #include <imgui.h>
 
 #include "../ScriptRunner.hpp"
+#include "../../sdk/SceneManager.hpp"
 
 #include "ImGui.hpp"
 
@@ -110,6 +111,74 @@ sol::variadic_results combo(sol::this_state s, const char* label, int selection,
 
     return results;
 }
+
+void world_text(const char* text, const Vector4f& world_pos, ImU32 color = 0xFFFFFFFF) { 
+    auto scene = sdk::get_current_scene();
+
+    if (scene == nullptr) {
+        return;
+    }
+
+    auto context = sdk::get_thread_context();
+
+    static auto scene_def = sdk::RETypeDB::get()->find_type("via.Scene");
+    auto first_transform = sdk::call_object_func<RETransform*>(scene, scene_def, "get_FirstTransform", context, scene);
+
+    if (first_transform == nullptr) {
+        return;
+    }
+
+    static auto transform_def = utility::re_managed_object::get_type_definition(first_transform);
+    static auto next_transform_method = transform_def->get_method("get_Next");
+    static auto get_gameobject_method = transform_def->get_method("get_GameObject");
+    static auto get_position_method = transform_def->get_method("get_Position");
+    static auto get_axisz_method = transform_def->get_method("get_AxisZ");
+    static auto math_t = sdk::RETypeDB::get()->find_type("via.math");
+
+    auto camera = sdk::get_primary_camera();
+
+    if (camera == nullptr) {
+        return;
+    }
+
+    auto main_view = sdk::get_main_view();
+
+    if (main_view == nullptr) {
+        return;
+    }
+
+    auto camera_gameobject = get_gameobject_method->call<REGameObject*>(context, camera);
+    auto camera_transform = camera_gameobject->transform;
+
+    Vector4f camera_origin{};
+    get_position_method->call<void*>(&camera_origin, context, camera_transform);
+
+    Vector4f camera_forward{};
+    get_axisz_method->call<void*>(&camera_forward, context, camera_transform);
+
+    // Translate 2d position to 3d position (screen to world)
+    Matrix4x4f proj{}, view{};
+    float screen_size[2]{};
+    sdk::call_object_func<void*>(camera, "get_ProjectionMatrix", &proj, context, camera);
+    sdk::call_object_func<void*>(camera, "get_ViewMatrix", &view, context, camera);
+    sdk::call_object_func<void*>(main_view, "get_Size", &screen_size, context, main_view);
+
+    static auto world_to_screen_methods = math_t->get_methods("worldPos2ScreenPos"); // there are 2 of them.
+
+    Vector4f pos{};
+    Vector4f screen_pos{};
+
+    auto draw_list = ImGui::GetBackgroundDrawList();
+    const auto delta = pos - camera_origin;
+
+    // behind camera
+    if (glm::dot(delta, -camera_forward) <= 0.0f) {
+        return;
+    }
+
+    world_to_screen_methods[1]->call<void*>(&screen_pos, context, &pos, &view, &proj, &screen_size);
+    draw_list->AddText(ImVec2(screen_pos.x, screen_pos.y), color, text);
+}
 }
 
 void bindings::open_imgui(ScriptState* s) {
@@ -123,6 +192,7 @@ void bindings::open_imgui(ScriptState* s) {
     imgui["input_text"] = api::imgui::input_text;
     imgui["text"] = api::imgui::text;
     imgui["checkbox"] = api::imgui::checkbox;
+    imgui["world_text"] = api::imgui::world_text;
 
     lua["imgui"] = imgui;
 }
