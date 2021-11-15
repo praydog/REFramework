@@ -59,6 +59,7 @@ ScriptState::ScriptState() {
     re["on_pre_gui_draw_element"] = [this](sol::function fn) { m_pre_gui_draw_element_fns.emplace_back(fn); };
     re["on_gui_draw_element"] = [this](sol::function fn) { m_gui_draw_element_fns.emplace_back(fn); };
     re["on_draw_ui"] = [this](sol::function fn) { m_on_draw_ui_fns.emplace_back(fn); };
+    re["on_frame"] = [this](sol::function fn) { m_on_frame_fns.emplace_back(fn); };
     m_lua["re"] = re;
 
 
@@ -189,6 +190,18 @@ void ScriptState::run_script(const std::string& p) {
     } catch (const std::exception& e) {
         OutputDebugString(e.what());
         api::re::msg(e.what());
+    }
+}
+
+void ScriptState::on_frame() {
+    try {
+        std::scoped_lock _{ m_execution_mutex };
+
+        for (auto& fn : m_on_frame_fns) {
+            fn();
+        }
+    } catch (const std::exception& e) {
+        OutputDebugString(e.what());
     }
 }
 
@@ -341,6 +354,11 @@ std::optional<std::string> ScriptRunner::on_initialize() {
     reset_scripts();
 
     return Mod::on_initialize();
+}
+
+void ScriptRunner::on_frame() {
+    std::scoped_lock _{m_access_mutex};
+    m_state->on_frame();
 }
 
 void ScriptRunner::on_draw_ui() {

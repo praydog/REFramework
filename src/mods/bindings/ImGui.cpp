@@ -111,8 +111,10 @@ sol::variadic_results combo(sol::this_state s, const char* label, int selection,
 
     return results;
 }
+}
 
-void world_text(const char* text, const Vector4f& world_pos, ImU32 color = 0xFFFFFFFF) { 
+namespace api::draw {
+void world_text(const char* text, const Vector4f& world_pos, ImU32 color = 0xFFFFFFFF) {
     auto scene = sdk::get_current_scene();
 
     if (scene == nullptr) {
@@ -165,21 +167,36 @@ void world_text(const char* text, const Vector4f& world_pos, ImU32 color = 0xFFF
 
     static auto world_to_screen_methods = math_t->get_methods("worldPos2ScreenPos"); // there are 2 of them.
 
-    Vector4f pos{};
     Vector4f screen_pos{};
 
     auto draw_list = ImGui::GetBackgroundDrawList();
-    const auto delta = pos - camera_origin;
+    const auto delta = world_pos - camera_origin;
 
     // behind camera
     if (glm::dot(delta, -camera_forward) <= 0.0f) {
         return;
     }
 
-    world_to_screen_methods[1]->call<void*>(&screen_pos, context, &pos, &view, &proj, &screen_size);
-    draw_list->AddText(ImVec2(screen_pos.x, screen_pos.y), color, text);
+    world_to_screen_methods[1]->call<void*>(&screen_pos, context, &world_pos, &view, &proj, &screen_size);
+    draw_list->AddText(ImVec2{screen_pos.x, screen_pos.y}, color, text);
 }
+
+void text(const char* text, float x, float y, ImU32 color) {
+    ImGui::GetBackgroundDrawList()->AddText(ImVec2{x, y}, color, text);
 }
+
+void filled_rect(float x, float y, float w, float h, ImU32 color) {
+    ImGui::GetBackgroundDrawList()->AddRectFilled(ImVec2{x, y}, ImVec2{x + w, y + h}, color);
+}
+
+void outline_rect(float x, float y, float w, float h, ImU32 color) {
+    ImGui::GetBackgroundDrawList()->AddRect(ImVec2{x, y}, ImVec2{x + w, y + h}, color);
+}
+
+void line(float x1, float y1, float x2, float y2, ImU32 color) {
+    ImGui::GetBackgroundDrawList()->AddLine(ImVec2{x1, y1}, ImVec2{x2, y2}, color);
+}
+} // namespace api::draw
 
 void bindings::open_imgui(ScriptState* s) {
     auto& lua = s->lua();
@@ -192,7 +209,14 @@ void bindings::open_imgui(ScriptState* s) {
     imgui["input_text"] = api::imgui::input_text;
     imgui["text"] = api::imgui::text;
     imgui["checkbox"] = api::imgui::checkbox;
-    imgui["world_text"] = api::imgui::world_text;
-
     lua["imgui"] = imgui;
+
+    auto draw = lua.create_table();
+
+    draw["world_text"] = api::draw::world_text;
+    draw["text"] = api::draw::text;
+    draw["filled_rect"] = api::draw::filled_rect;
+    draw["outline_rect"] = api::draw::outline_rect;
+    draw["line"] = api::draw::line;
+    lua["draw"] = draw;
 }

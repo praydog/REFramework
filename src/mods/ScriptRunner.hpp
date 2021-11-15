@@ -38,6 +38,7 @@ public:
 
     void run_script(const std::string& p);
 
+    void on_frame();
     void on_draw_ui();
     void on_pre_application_entry(const char* name);
     void on_application_entry(const char* name);
@@ -45,7 +46,6 @@ public:
     void on_update_transform(RETransform* transform);
     bool on_pre_gui_draw_element(REComponent* gui_element, void* primitive_context);
     void on_gui_draw_element(REComponent* gui_element, void* primitive_context);
-
 
     void on_pre_hook(HookedFn* fn);
     void on_post_hook(HookedFn* fn);
@@ -80,6 +80,7 @@ private:
     std::vector<sol::function> m_pre_gui_draw_element_fns{};
     std::vector<sol::function> m_gui_draw_element_fns{};
     std::vector<sol::function> m_on_draw_ui_fns{};
+    std::vector<sol::function> m_on_frame_fns{};
 
     Xbyak::CodeGenerator m_code{};
     std::vector<std::unique_ptr<HookedFn>> m_hooked_fns{};
@@ -90,6 +91,7 @@ public:
     std::string_view get_name() const override { return "ScriptRunner"; }
     std::optional<std::string> on_initialize() override;
 
+    void on_frame() override;
     void on_draw_ui() override;
     void on_pre_application_entry(void* entry, const char* name, size_t hash) override;
     void on_application_entry(void* entry, const char* name, size_t hash) override;
