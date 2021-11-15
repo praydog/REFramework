@@ -114,7 +114,7 @@ sol::variadic_results combo(sol::this_state s, const char* label, int selection,
 }
 
 namespace api::draw {
-void world_text(const char* text, const Vector4f& world_pos, ImU32 color = 0xFFFFFFFF) {
+void world_text(const char* text, sol::object world_pos_object, ImU32 color = 0xFFFFFFFF) {
     auto scene = sdk::get_current_scene();
 
     if (scene == nullptr) {
@@ -127,6 +127,25 @@ void world_text(const char* text, const Vector4f& world_pos, ImU32 color = 0xFFF
     auto first_transform = sdk::call_object_func<RETransform*>(scene, scene_def, "get_FirstTransform", context, scene);
 
     if (first_transform == nullptr) {
+        return;
+    }
+
+    if (world_pos_object.is<sol::nil_t>()) {
+        return;
+    }
+
+    Vector4f world_pos{};
+
+    if (world_pos_object.is<Vector2f>()) {
+        auto& v2f = world_pos_object.as<Vector2f&>();
+        world_pos = Vector4f{v2f.x, v2f.y, 0.0f, 1.0f};
+    } else if (world_pos_object.is<Vector3f>()) {
+        auto& v3f = world_pos_object.as<Vector3f&>();
+        world_pos = Vector4f{v3f.x, v3f.y, v3f.z, 1.0f};
+    } else if (world_pos_object.is<Vector4f>()) {
+        auto& v4f = world_pos_object.as<Vector4f&>();
+        world_pos = Vector4f{v4f.x, v4f.y, v4f.z, v4f.w};
+    } else {
         return;
     }
 
