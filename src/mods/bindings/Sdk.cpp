@@ -13,6 +13,79 @@
 #include "Sdk.hpp"
 
 namespace api::sdk {
+std::vector<void*>& build_args(sol::variadic_args va);
+sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_type);
+sol::object get_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name);
+
+struct Bytes {
+    std::vector<uint8_t> data{};
+    ::sdk::RETypeDefinition* type{nullptr};
+
+    uint8_t byte() const {
+        if (data.empty()) {
+            return 0;
+        }
+
+        return data[0];
+    }
+
+    uint16_t word() const {
+        if (data.size() < 2) {
+            return 0;
+        }
+
+        return *(uint16_t*)data.data();
+    }
+
+    uint32_t dword() const {
+        if (data.size() < 4) {
+            return 0;
+        }
+
+        return *(uint32_t*)data.data();
+    }
+
+    uint64_t qword() const {
+        if (data.size() < 8) {
+            return 0;
+        }
+
+        return *(uint64_t*)data.data();
+    }
+
+    uintptr_t address() const {
+        return (uintptr_t)data.data();
+    }
+
+    sol::object call(sol::this_state l, const char* name, sol::variadic_args va) {
+        if (type == nullptr) {
+            return sol::make_object(l, sol::nil);
+        }
+
+        auto real_obj = (void*)address();
+        auto def = type->get_method(name);
+
+        if (def == nullptr) {
+            return sol::make_object(l, sol::nil);
+        }
+
+        auto ret_val = def->invoke(real_obj, ::api::sdk::build_args(va));
+
+        // Convert return values to the correct Lua types.
+        auto ret_ty = def->get_return_type();
+
+        return ::api::sdk::parse_data(l, &ret_val, ret_ty);
+    }
+
+    sol::object get_field(sol::this_state l, const char* name) {
+        if (type == nullptr) {
+            return sol::make_object(l, sol::nil);
+        }
+
+        return ::api::sdk::get_native_field(sol::make_object(l, (void*)address()), type, name);
+    }
+};
+
 void* get_thread_context() {
     return (void*)::sdk::get_thread_context();
 }
@@ -53,13 +126,14 @@ void* create_managed_string(const char* text) {
     return type_definition->create_instance_full();
 }
 
-
 void* get_real_obj(sol::object obj) {
     void* real_obj = nullptr;
 
     if (!obj.is<sol::nil_t>()) {
         if (obj.is<REManagedObject*>()) {
             real_obj = (void*)obj.as<REManagedObject*>();
+        } else if (obj.is<Bytes>()) {
+            real_obj = (void*)obj.as<Bytes&>().address();
         } else if (obj.is<void*>()) {
             real_obj = obj.as<void*>();
         } else {
@@ -191,6 +265,19 @@ sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_t
             }
             break;
         }
+    }
+
+    // so, we managed to get here, but we don't know what to do with the data
+    // check if it's a valuetype first
+    if (data_type->is_value_type()) {
+        auto new_obj = sol::make_object(l, Bytes{});
+        auto& bytes = new_obj.as<Bytes&>();
+
+        bytes.type = data_type;
+        bytes.data.resize(data_type->get_size());
+        memcpy(bytes.data.data(), data, data_type->get_size());
+
+        return new_obj;
     }
 
     // A null void* will get converted into an userdata with value 0. That's not very useful in Lua, so
@@ -374,6 +461,9 @@ std::vector<void*>& build_args(sol::variadic_args va) {
             args.push_back((void*)&v);
         } else if (arg.is<::REManagedObject*>()) {
             args.push_back(arg.as<::REManagedObject*>());
+        } else if (arg.is<Bytes>()) {
+            auto& b = arg.as<Bytes&>();
+            args.push_back((void*)b.address());
         } else {
             args.push_back(arg.as<void*>());
         }
@@ -857,4 +947,15 @@ void bindings::open_sdk(ScriptState* s) {
             return arr->get_element(index);
         },
         sol::base_classes, sol::bases<REManagedObject>());
+    
+    lua.new_usertype<api::sdk::Bytes>("Bytes",
+        "data", &api::sdk::Bytes::data,
+        "type", &api::sdk::Bytes::type,
+        "byte", &api::sdk::Bytes::byte,
+        "word", &api::sdk::Bytes::word,
+        "dword", &api::sdk::Bytes::dword,
+        "qword", &api::sdk::Bytes::qword,
+        "address", &api::sdk::Bytes::address,
+        "call", &api::sdk::Bytes::call,
+        "get_field", &api::sdk::Bytes::get_field);
 }
