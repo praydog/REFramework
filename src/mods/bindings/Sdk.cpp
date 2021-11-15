@@ -854,6 +854,8 @@ void bindings::open_sdk(ScriptState* s) {
         "get_function", &sdk::REMethodDefinition::get_function,
         "get_declaring_type", &sdk::REMethodDefinition::get_declaring_type,
         "get_num_params", &sdk::REMethodDefinition::get_num_params,
+        "get_param_types", &sdk::REMethodDefinition::get_param_types,
+        "get_param_names", &sdk::REMethodDefinition::get_param_names,
         "is_static", &sdk::REMethodDefinition::is_static,
         "call", [](sdk::REMethodDefinition* def, sol::object obj, sol::variadic_args va) {
             auto l = va.lua_state();
