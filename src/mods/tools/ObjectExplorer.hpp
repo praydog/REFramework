@@ -119,6 +119,7 @@ public:
     std::string_view get_name() const override { return "ObjectExplorer"; };
 
     void on_draw_dev_ui() override;
+    void add_lua_bindings(sol::state& lua) override;
 
 private:
 #ifdef TDB_DUMP_ALLOWED

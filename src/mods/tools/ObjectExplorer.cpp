@@ -257,15 +257,14 @@ ObjectExplorer::ObjectExplorer()
 void ObjectExplorer::on_draw_dev_ui() {
     ImGui::SetNextTreeNodeOpen(false, ImGuiCond_::ImGuiCond_Once);
 
-    if (!ImGui::CollapsingHeader(get_name().data())) {
-        return;
-    }
-
     if (m_do_init) {
         populate_classes();
         populate_enums();
     }
 
+    if (!ImGui::CollapsingHeader(get_name().data())) {
+        return;
+    }
     if (ImGui::Button("Dump SDK")) {
         generate_sdk();
     }
@@ -391,6 +390,29 @@ void ObjectExplorer::on_draw_dev_ui() {
     }
 
     m_do_init = false;
+}
+
+void ObjectExplorer::add_lua_bindings(sol::state& lua) {
+    // lua bindings for ObjectExplorer might sound weird,
+    // but it's actually pretty useful for displaying objects
+    // that may be found during scripting
+    lua.new_usertype<ObjectExplorer>("ObjectExplorer",
+        "handle_address", [](ObjectExplorer* e, sol::object addr) {
+            uintptr_t real_addr = 0;
+
+            if (addr.is<uintptr_t>()) {
+                real_addr = addr.as<uintptr_t>();
+            } else if (addr.is<::REManagedObject*>()) {
+                real_addr = (uintptr_t)addr.as<::REManagedObject*>();
+            } else {
+                real_addr = (uintptr_t)addr.as<void*>();
+            }
+
+            e->handle_address(real_addr);
+        }
+    );
+
+    lua["object_explorer"] = this;
 }
 
 #ifdef TDB_DUMP_ALLOWED
