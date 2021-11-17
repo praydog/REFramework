@@ -111,7 +111,31 @@ sol::variadic_results combo(sol::this_state s, const char* label, int selection,
 
     return results;
 }
+
+bool tree_node(const char* label) {
+    return ImGui::TreeNode(label);
 }
+
+bool tree_node_ptr_id(const void* id, const char* label) {
+    return ImGui::TreeNode(id, label);
+}
+
+bool tree_node_str_id(const char* id, const char* label) {
+    return ImGui::TreeNode(id, label);
+}
+
+void tree_pop() {
+    ImGui::TreePop();
+}
+
+void same_line() {
+    ImGui::SameLine();
+}
+
+bool is_item_hovered() {
+    return ImGui::IsItemHovered();
+}
+} // namespace api::imgui
 
 namespace api::draw {
 void world_text(const char* text, sol::object world_pos_object, ImU32 color = 0xFFFFFFFF) {
@@ -228,6 +252,12 @@ void bindings::open_imgui(ScriptState* s) {
     imgui["input_text"] = api::imgui::input_text;
     imgui["text"] = api::imgui::text;
     imgui["checkbox"] = api::imgui::checkbox;
+    imgui["tree_node"] = api::imgui::tree_node;
+    imgui["tree_node_ptr_id"] = api::imgui::tree_node_ptr_id;
+    imgui["tree_node_str_id"] = api::imgui::tree_node_str_id;
+    imgui["tree_pop"] = api::imgui::tree_pop;
+    imgui["same_line"] = api::imgui::same_line;
+    imgui["is_item_hovered"] = api::imgui::is_item_hovered;
     lua["imgui"] = imgui;
 
     auto draw = lua.create_table();

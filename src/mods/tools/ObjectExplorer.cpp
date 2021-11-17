@@ -262,7 +262,7 @@ void ObjectExplorer::on_draw_dev_ui() {
         populate_enums();
     }
 
-    if (!ImGui::CollapsingHeader(get_name().data())) {
+    if (!m_do_init && !ImGui::CollapsingHeader(get_name().data())) {
         return;
     }
     if (ImGui::Button("Dump SDK")) {
