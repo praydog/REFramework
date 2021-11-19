@@ -639,9 +639,9 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function pre_cb
     // Call on_pre_hook.
     g.mov(g.rcx, g.ptr[g.rip + this_label]);
     g.mov(g.rdx, g.ptr[g.rip + hook_label]);
-    g.sub(g.rsp, 8);
+    g.sub(g.rsp, 40);
     g.call(g.ptr[g.rip + on_pre_hook_label]);
-    g.add(g.rsp, 8);
+    g.add(g.rsp, 40);
 
     // Save the return value so we can see if we need to call the original later.
     g.mov(g.r11, g.rax);
