@@ -14,7 +14,7 @@
 
 namespace api::sdk {
 std::vector<void*>& build_args(sol::variadic_args va);
-sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_type);
+sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_type, bool from_method);
 sol::object get_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name);
 
 struct Bytes {
@@ -74,7 +74,7 @@ struct Bytes {
         // Convert return values to the correct Lua types.
         auto ret_ty = def->get_return_type();
 
-        return ::api::sdk::parse_data(l, &ret_val, ret_ty);
+        return ::api::sdk::parse_data(l, &ret_val, ret_ty, true);
     }
 
     sol::object get_field(sol::this_state l, const char* name) {
@@ -144,7 +144,7 @@ void* get_real_obj(sol::object obj) {
     return real_obj;
 }
 
-sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_type) {
+sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_type, bool from_method) {
     if (data_type != nullptr) {
         if (!data_type->is_value_type()) {
             if (data == nullptr || *(void**)data == nullptr) {
@@ -179,9 +179,14 @@ sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_t
             return sol::make_object(l, str);
         }
         case "System.Single"_fnv: {
-            // even though it's a single, it's actually a double because of the invoke wrapper conversion
-            auto ret_val_f = *(double*)data;
-            return sol::make_object(l, ret_val_f);
+            if (from_method) {
+                // even though it's a single, it's actually a double because of the invoke wrapper conversion
+                auto ret_val_f = *(double*)data;
+                return sol::make_object(l, ret_val_f);
+            } else {
+                auto ret_val_f = *(float*)data;
+                return sol::make_object(l, ret_val_f);
+            }
         }
         case "System.Boolean"_fnv: {
             auto ret_val_b = *(bool*)data;
@@ -398,7 +403,7 @@ sol::object get_native_field_from_field(sol::object obj, ::sdk::RETypeDefinition
         return sol::make_object(l, sol::nil);
     }
 
-    return parse_data(l, data, field_type);
+    return parse_data(l, data, field_type, false);
 }
 
 sol::object get_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name) {
@@ -482,7 +487,7 @@ sol::object call_native_func(sol::object obj, ::sdk::RETypeDefinition* ty, const
     auto fn = ty->get_method(name);
     auto ret_ty = fn->get_return_type();
 
-    return parse_data(l, &ret_val, ret_ty);
+    return parse_data(l, &ret_val, ret_ty, true);
 }
 
 auto call_object_func(sol::object obj, const char* name, sol::variadic_args va) {
@@ -878,7 +883,7 @@ void bindings::open_sdk(ScriptState* s) {
             // Convert return values to the correct Lua types.
             auto ret_ty = def->get_return_type();
 
-            return ::api::sdk::parse_data(l, &ret_val, ret_ty);
+            return ::api::sdk::parse_data(l, &ret_val, ret_ty, true);
         }
     );
     
