@@ -50,11 +50,11 @@ public:
     void on_pre_hook(HookedFn* fn);
     void on_post_hook(HookedFn* fn);
 
-    static void on_pre_hook_static(ScriptState* s, HookedFn* fn) {
+    __declspec(noinline) static void on_pre_hook_static(ScriptState* s, HookedFn* fn) {
         s->on_pre_hook(fn);
     }
 
-    static void on_post_hook_static(ScriptState* s, HookedFn* fn) {
+    __declspec(noinline)static void on_post_hook_static(ScriptState* s, HookedFn* fn) {
         s->on_post_hook(fn);
     }
 
@@ -62,8 +62,8 @@ public:
         return m_hooked_fns;
     }
 
-    static void lock_static(ScriptState* s) { s->m_execution_mutex.lock(); }
-    static void unlock_static(ScriptState* s) { s->m_execution_mutex.unlock(); }
+    __declspec(noinline) static void lock_static(ScriptState* s) { s->m_execution_mutex.lock(); }
+    __declspec(noinline) static void unlock_static(ScriptState* s) { s->m_execution_mutex.unlock(); }
 
     auto& lua() { return m_lua; }
 

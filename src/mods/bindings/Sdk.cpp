@@ -505,6 +505,16 @@ auto call_object_func(sol::object obj, const char* name, sol::variadic_args va) 
     return (::REManagedObject*)::sdk::get_primary_camera();
 }
 
+bool is_managed_object(sol::object obj) {
+    auto real_obj = get_real_obj(obj);
+
+    if (real_obj == nullptr) {
+        return false;
+    }
+
+    return utility::re_managed_object::is_managed_object(real_obj);
+}
+
 namespace detail {
 void* get_actual_function(void* possible_fn) {
     auto actual_fn = possible_fn;
@@ -721,6 +731,7 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function pre_cb
     // Store state.
     g.push(g.rax);
     g.mov(g.r10, g.ptr[g.rip + ret_addr_label]);
+    g.mov(g.r10, g.ptr[g.r10]);
     g.push(g.r10);
 
     // Unlock context.
@@ -734,7 +745,7 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function pre_cb
     g.pop(g.rax);
 
     // Return.
-    g.jmp(g.ptr[g.r10]);
+    g.jmp(g.r10);
     
     g.L(hook_label);
     g.dq((uint64_t)hook.get());
@@ -787,6 +798,7 @@ void bindings::open_sdk(ScriptState* s) {
     sdk["set_native_field"] = api::sdk::set_native_field;
     sdk["get_primary_camera"] = api::sdk::get_primary_camera;
     sdk["hook"] = api::sdk::hook;
+    sdk["is_managed_object"] = api::sdk::is_managed_object;
     sdk["to_managed_object"] = [](void* ptr) { return (REManagedObject*)ptr; };
     sdk["to_double"] = [](void* ptr) { return *(double*)&ptr; };
     sdk["to_float"] = [](void* ptr) { return *(float*)&ptr; };
