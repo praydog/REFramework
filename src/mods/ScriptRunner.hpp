@@ -19,6 +19,11 @@ class RETransform;
 
 class ScriptState {
 public:
+    enum class PreHookResult : int {
+        CALL_ORIGINAL,
+        SKIP_ORIGINAL,
+    };
+
     struct HookedFn {
         void* target_fn{};
         sol::function script_pre_fn{};
@@ -47,11 +52,12 @@ public:
     bool on_pre_gui_draw_element(REComponent* gui_element, void* primitive_context);
     void on_gui_draw_element(REComponent* gui_element, void* primitive_context);
 
-    void on_pre_hook(HookedFn* fn);
+    // Returns true when the original function should be called.
+    PreHookResult on_pre_hook(HookedFn* fn);
     void on_post_hook(HookedFn* fn);
 
-    __declspec(noinline) static void on_pre_hook_static(ScriptState* s, HookedFn* fn) {
-        s->on_pre_hook(fn);
+    __declspec(noinline) static PreHookResult on_pre_hook_static(ScriptState* s, HookedFn* fn) {
+        return s->on_pre_hook(fn);
     }
 
     __declspec(noinline)static void on_post_hook_static(ScriptState* s, HookedFn* fn) {

@@ -315,8 +315,9 @@ void ScriptState::on_gui_draw_element(REComponent* gui_element, void* context) {
     }
 }
 
-void ScriptState::on_pre_hook(HookedFn* fn) {
+ScriptState::PreHookResult ScriptState::on_pre_hook(HookedFn* fn) {
     std::scoped_lock _{ m_execution_mutex };
+    auto result = PreHookResult::CALL_ORIGINAL;
 
     try {
         // Call the script function.
@@ -327,7 +328,11 @@ void ScriptState::on_pre_hook(HookedFn* fn) {
             fn->script_args[i + 1] = (void*)fn->args[i];
         }
 
-        fn->script_pre_fn(fn->script_args);
+        auto script_result = fn->script_pre_fn(fn->script_args).get<sol::object>();
+
+        if (script_result.is<PreHookResult>()) {
+            result = script_result.as<PreHookResult>();
+        }
 
         // Apply the changes to arguments that the script function may have made.
         for (auto i = 0u; i < fn->args.size(); ++i) {
@@ -337,6 +342,8 @@ void ScriptState::on_pre_hook(HookedFn* fn) {
     } catch (const std::exception& e) {
         OutputDebugString(e.what());
     }
+
+    return result;
 }
 
 void ScriptState::on_post_hook(HookedFn* fn) {

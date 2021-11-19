@@ -643,6 +643,9 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function pre_cb
     g.call(g.ptr[g.rip + on_pre_hook_label]);
     g.add(g.rsp, 8);
 
+    // Save the return value so we can see if we need to call the original later.
+    g.mov(g.r11, g.rax);
+
     // Restore args.
     g.mov(g.rax, g.ptr[g.rip + args_label]);
     g.mov(g.rcx, g.ptr[g.rax]); // current thread context.
@@ -692,7 +695,7 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function pre_cb
     }
 
     // Call original function.
-    Xbyak::Label ret_label{};
+    Xbyak::Label ret_label{}, skip_label{};
 
     // Save return address.
     g.mov(g.r10, g.ptr[g.rsp]);
@@ -703,8 +706,15 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function pre_cb
     g.lea(g.rax, g.ptr[g.rip + ret_label]);
     g.mov(g.ptr[g.rsp], g.rax);
 
+    // Determine if we need to skip the original function or not.
+    g.cmp(g.r11, (int)ScriptState::PreHookResult::CALL_ORIGINAL);
+    g.jnz(skip_label);
+
     // Jmp to original function.
     g.jmp(g.ptr[g.rip + orig_label]);
+
+    g.L(skip_label);
+    g.add(g.rsp, 8); // pop ret address.
 
     g.L(ret_label);
 
@@ -803,6 +813,7 @@ void bindings::open_sdk(ScriptState* s) {
     sdk["set_native_field"] = api::sdk::set_native_field;
     sdk["get_primary_camera"] = api::sdk::get_primary_camera;
     sdk["hook"] = api::sdk::hook;
+    sdk.new_enum("PreHookResult", "CALL_ORIGINAL", ScriptState::PreHookResult::CALL_ORIGINAL, "SKIP_ORIGINAL", ScriptState::PreHookResult::SKIP_ORIGINAL);
     sdk["is_managed_object"] = api::sdk::is_managed_object;
     sdk["to_managed_object"] = [](void* ptr) { return (REManagedObject*)ptr; };
     sdk["to_double"] = [](void* ptr) { return *(double*)&ptr; };
