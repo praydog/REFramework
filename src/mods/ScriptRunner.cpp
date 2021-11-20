@@ -60,6 +60,7 @@ ScriptState::ScriptState() {
     re["on_gui_draw_element"] = [this](sol::function fn) { m_gui_draw_element_fns.emplace_back(fn); };
     re["on_draw_ui"] = [this](sol::function fn) { m_on_draw_ui_fns.emplace_back(fn); };
     re["on_frame"] = [this](sol::function fn) { m_on_frame_fns.emplace_back(fn); };
+    re["on_script_reset"] = [this](sol::function fn) { m_on_script_reset_fns.emplace_back(fn); };
     m_lua["re"] = re;
 
 
@@ -315,6 +316,18 @@ void ScriptState::on_gui_draw_element(REComponent* gui_element, void* context) {
     }
 }
 
+void ScriptState::on_script_reset() {
+    try {
+        std::scoped_lock _{ m_execution_mutex };
+
+        for (auto& fn : m_on_script_reset_fns) {
+            fn();
+        }
+    } catch (const std::exception& e) {
+        OutputDebugString(e.what());
+    }
+}
+
 ScriptState::PreHookResult ScriptState::on_pre_hook(HookedFn* fn) {
     std::scoped_lock _{ m_execution_mutex };
     auto result = PreHookResult::CALL_ORIGINAL;
@@ -437,6 +450,10 @@ void ScriptRunner::on_gui_draw_element(REComponent* gui_element, void* primitive
 
 void ScriptRunner::reset_scripts() {
     std::scoped_lock _{ m_access_mutex };
+
+    if (m_state != nullptr) {
+        m_state->on_script_reset();
+    }
 
     m_state = std::make_unique<ScriptState>();
 
