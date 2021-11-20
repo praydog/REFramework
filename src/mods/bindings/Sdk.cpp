@@ -296,8 +296,18 @@ sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_t
 
 void set_data(void* data, ::sdk::RETypeDefinition* data_type, sol::object& value) {
     if (data_type != nullptr) {
-        const auto full_name_hash = utility::hash(data_type->get_full_name());
+        size_t full_name_hash{};
         const auto vm_obj_type = data_type->get_vm_obj_type();
+
+        if (data_type->is_enum()) {
+            auto underlying_type = data_type->get_underlying_type();
+
+            if (underlying_type != nullptr) {
+                full_name_hash = utility::hash(underlying_type->get_full_name());
+            }
+        } else {
+            full_name_hash = utility::hash(data_type->get_full_name());
+        }
 
         switch (full_name_hash) {
         case "System.Single"_fnv:
