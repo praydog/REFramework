@@ -40,6 +40,7 @@ public:
     };
 
     ScriptState();
+    ~ScriptState();
 
     void run_script(const std::string& p);
 

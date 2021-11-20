@@ -181,6 +181,11 @@ ScriptState::ScriptState() {
     }
 }
 
+ScriptState::~ScriptState() {
+    std::scoped_lock _{m_execution_mutex};
+    m_hooked_fns.clear();
+}
+
 void ScriptState::run_script(const std::string& p) {
     std::scoped_lock _{ m_execution_mutex };
 
