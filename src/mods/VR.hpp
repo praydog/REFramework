@@ -264,6 +264,8 @@ private:
     std::bitset<64> m_button_states_on{};
     std::bitset<64> m_button_states_up{};
     std::chrono::steady_clock::time_point m_last_controller_update{};
+    std::chrono::nanoseconds m_last_input_delay{};
+    std::chrono::nanoseconds m_avg_input_delay{};
 
     std::condition_variable m_present_finished_cv{};
     std::mutex m_present_finished_mtx{};
@@ -296,6 +298,7 @@ private:
     //bool m_disable_sharpening{true};
 
     bool m_is_hmd_active{true};
+    bool m_was_hmd_active{true};
     bool m_wgp_initialized{false};
     bool m_needs_camera_restore{false};
     bool m_in_render{false};

@@ -378,6 +378,7 @@ std::optional<std::string> VR::initialize_openvr() {
     m_needs_wgp_update = true;
     m_wgp_initialized = false;
     m_is_hmd_active = true;
+    m_was_hmd_active = true;
 
     auto error = vr::VRInitError_None;
 	m_hmd = vr::VR_Init(&error, vr::VRApplication_Scene);
@@ -754,6 +755,10 @@ void VR::update_hmd_state() {
     }
 
     const auto end_time = std::chrono::high_resolution_clock::now();
+    const auto time_delta = end_time - start_time;
+
+    m_last_input_delay = time_delta;
+    m_avg_input_delay = (m_avg_input_delay + time_delta) / 2;
 
     if ((end_time - start_time) >= std::chrono::milliseconds(30)) {
         spdlog::warn("VRInput update action state took too long: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count());
@@ -1223,11 +1228,19 @@ void VR::on_frame() {
         const auto hmd_activity = m_hmd->GetTrackedDeviceActivityLevel(vr::k_unTrackedDeviceIndex_Hmd);
         m_is_hmd_active = hmd_activity == vr::k_EDeviceActivityLevel_UserInteraction || hmd_activity == vr::k_EDeviceActivityLevel_UserInteraction_Timeout;
 
+        // upon headset re-entry, reinitialize OpenVR
+        if (m_is_hmd_active && !m_was_hmd_active) {
+            m_request_reinitialize_openvr = true;
+        }
+
+        m_was_hmd_active = m_is_hmd_active;
+
         if (!m_is_hmd_active) {
             return;
         }
     } else {
         m_is_hmd_active = true; // We need to force out an initial WaitGetPoses call
+        m_was_hmd_active = true;
     }
 
     if (m_frame_count == m_last_frame_count) {
@@ -2147,8 +2160,14 @@ void VR::on_draw_ui() {
     ImGui::Text("Render Resolution: %d x %d", m_w, m_h);
     ImGui::Text("Resolution can be changed in SteamVR");
     ImGui::Separator();
+    ImGui::Text("Debug info");
     ImGui::DragFloat4("Raw Left", (float*)&m_raw_projections[0], 0.01f, -100.0f, 100.0f);
     ImGui::DragFloat4("Raw Right", (float*)&m_raw_projections[1], 0.01f, -100.0f, 100.0f);
+
+    // convert m_avg_input_delay (std::chrono::nanoseconds) to milliseconds (float)
+    auto duration_float = std::chrono::duration<float, std::milli>(m_avg_input_delay).count();
+
+    ImGui::DragFloat("Avg Input Processing Delay (MS)", &duration_float, 0.00001f);
     ImGui::Separator();
 
     if (ImGui::Button("Set Standing Height")) {
