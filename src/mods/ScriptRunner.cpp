@@ -199,12 +199,22 @@ void ScriptState::run_script(const std::string& p) {
     }
 }
 
+// i have to wonder why this isn't in sol when they have safe_script stuff
+sol::protected_function_result ScriptState::handle_protected_result(sol::protected_function_result result) {
+    if (result.valid()) {
+        return result;
+    }
+
+    sol::script_default_on_error(m_lua.lua_state(), std::move(result));
+    return result;
+}
+
 void ScriptState::on_frame() {
     try {
         std::scoped_lock _{ m_execution_mutex };
 
         for (auto& fn : m_on_frame_fns) {
-            fn();
+            handle_protected_result(fn());
         }
     } catch (const std::exception& e) {
         OutputDebugString(e.what());
@@ -220,7 +230,7 @@ void ScriptState::on_draw_ui() {
         std::scoped_lock _{ m_execution_mutex };
 
         for (auto& fn : m_on_draw_ui_fns) {
-            fn();
+            handle_protected_result(fn());
         }
     } catch (const std::exception& e) {
         OutputDebugString(e.what());
@@ -235,7 +245,7 @@ void ScriptState::on_pre_application_entry(const char* name) {
             std::scoped_lock _{ m_execution_mutex };
 
             for (auto it = range.first; it != range.second; ++it) {
-                it->second();
+                handle_protected_result(it->second());
             }
         }
     } catch (const std::exception& e) {
@@ -251,7 +261,7 @@ void ScriptState::on_application_entry(const char* name) {
             std::scoped_lock _{ m_execution_mutex };
 
             for (auto it = range.first; it != range.second; ++it) {
-                it->second();
+                handle_protected_result(it->second());
             }
         }
     } catch (const std::exception& e) {
@@ -267,7 +277,7 @@ void ScriptState::on_pre_update_transform(RETransform* transform) {
             std::scoped_lock _{ m_execution_mutex };
 
             for (auto it = range.first; it != range.second; ++it) {
-                it->second(transform);
+                handle_protected_result(it->second(transform));
             }
         }
     } catch (const std::exception& e) {
@@ -283,7 +293,7 @@ void ScriptState::on_update_transform(RETransform* transform) {
             std::scoped_lock _{ m_execution_mutex };
 
             for (auto it = range.first; it != range.second; ++it) {
-                it->second(transform);
+                handle_protected_result(it->second(transform));
             }
         }
     } catch (const std::exception& e) {
@@ -298,7 +308,7 @@ bool ScriptState::on_pre_gui_draw_element(REComponent* gui_element, void* contex
         std::scoped_lock _{ m_execution_mutex };
 
         for (auto& fn : m_pre_gui_draw_element_fns) {
-            if (sol::object result = fn(gui_element, context); !result.is<sol::nil_t>() && result.is<bool>() && result.as<bool>() == false) {
+            if (sol::object result = handle_protected_result(fn(gui_element, context)); !result.is<sol::nil_t>() && result.is<bool>() && result.as<bool>() == false) {
                 any_false = true;
             }
         }
@@ -314,7 +324,7 @@ void ScriptState::on_gui_draw_element(REComponent* gui_element, void* context) {
         std::scoped_lock _{ m_execution_mutex };
 
         for (auto& fn : m_gui_draw_element_fns) {
-            fn(gui_element, context);
+            handle_protected_result(fn(gui_element, context));
         }
     } catch (const std::exception& e) {
         OutputDebugString(e.what());
@@ -326,7 +336,7 @@ void ScriptState::on_script_reset() {
         std::scoped_lock _{ m_execution_mutex };
 
         for (auto& fn : m_on_script_reset_fns) {
-            fn();
+            handle_protected_result(fn());
         }
     } catch (const std::exception& e) {
         OutputDebugString(e.what());
@@ -346,7 +356,7 @@ ScriptState::PreHookResult ScriptState::on_pre_hook(HookedFn* fn) {
             fn->script_args[i + 1] = (void*)fn->args[i];
         }
 
-        auto script_result = fn->script_pre_fn(fn->script_args).get<sol::object>();
+        auto script_result = handle_protected_result(fn->script_pre_fn(fn->script_args)).get<sol::object>();
 
         if (script_result.is<PreHookResult>()) {
             result = script_result.as<PreHookResult>();
@@ -368,7 +378,7 @@ void ScriptState::on_post_hook(HookedFn* fn) {
     std::scoped_lock _{ m_execution_mutex };
 
     try {
-        fn->ret_val = (uintptr_t)fn->script_post_fn((void*)fn->ret_val).get<void*>();
+        fn->ret_val = (uintptr_t)handle_protected_result(fn->script_post_fn((void*)fn->ret_val)).get<void*>();
     } catch (const std::exception& e) {
         OutputDebugString(e.what());
     }

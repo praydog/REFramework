@@ -26,8 +26,8 @@ public:
 
     struct HookedFn {
         void* target_fn{};
-        sol::function script_pre_fn{};
-        sol::function script_post_fn{};
+        sol::protected_function script_pre_fn{};
+        sol::protected_function script_post_fn{};
         sol::table script_args{};
 
         std::unique_ptr<FunctionHook> fn_hook{};
@@ -43,6 +43,7 @@ public:
     ~ScriptState();
 
     void run_script(const std::string& p);
+    sol::protected_function_result handle_protected_result(sol::protected_function_result result); // because protected_functions don't throw
 
     void on_frame();
     void on_draw_ui();
@@ -80,16 +81,16 @@ private:
 
     std::recursive_mutex m_execution_mutex{};
 
-    std::unordered_multimap<std::string, sol::function> m_pre_application_entry_fns{};
-    std::unordered_multimap<std::string, sol::function> m_application_entry_fns{};
-    std::unordered_multimap<RETransform*, sol::function> m_pre_update_transform_fns{};
-    std::unordered_multimap<RETransform*, sol::function> m_update_transform_fns{};
+    std::unordered_multimap<std::string, sol::protected_function> m_pre_application_entry_fns{};
+    std::unordered_multimap<std::string, sol::protected_function> m_application_entry_fns{};
+    std::unordered_multimap<RETransform*, sol::protected_function> m_pre_update_transform_fns{};
+    std::unordered_multimap<RETransform*, sol::protected_function> m_update_transform_fns{};
 
-    std::vector<sol::function> m_pre_gui_draw_element_fns{};
-    std::vector<sol::function> m_gui_draw_element_fns{};
-    std::vector<sol::function> m_on_draw_ui_fns{};
-    std::vector<sol::function> m_on_frame_fns{};
-    std::vector<sol::function> m_on_script_reset_fns{};
+    std::vector<sol::protected_function> m_pre_gui_draw_element_fns{};
+    std::vector<sol::protected_function> m_gui_draw_element_fns{};
+    std::vector<sol::protected_function> m_on_draw_ui_fns{};
+    std::vector<sol::protected_function> m_on_frame_fns{};
+    std::vector<sol::protected_function> m_on_script_reset_fns{};
 
     Xbyak::CodeGenerator m_code{};
     std::vector<std::unique_ptr<HookedFn>> m_hooked_fns{};
