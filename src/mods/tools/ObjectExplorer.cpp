@@ -793,8 +793,8 @@ void ObjectExplorer::generate_sdk() {
                 param_entry["flags"] = param_flags;
             }
 
-#if TDB_VER > 49
-            if (auto param_modifier = get_full_enum_value_name("via.clr.ParamModifier", flags); !param_modifier.empty()) {
+#if TDB_VER >= 69
+            if (auto param_modifier = get_full_enum_value_name("via.clr.ParamModifier", modifier); !param_modifier.empty()) {
                 param_entry["modifier"] = param_modifier;
             }
 #endif
