@@ -16,6 +16,7 @@ namespace api::sdk {
 std::vector<void*>& build_args(sol::variadic_args va);
 sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_type, bool from_method);
 sol::object get_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name);
+void set_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name, sol::object value);
 
 struct Bytes {
     std::vector<uint8_t> data{};
@@ -83,6 +84,14 @@ struct Bytes {
         }
 
         return ::api::sdk::get_native_field(sol::make_object(l, (void*)address()), type, name);
+    }
+
+    void set_field(sol::this_state l, const char* name, sol::object value) {
+        if (type == nullptr) {
+            return;
+        }
+
+        ::api::sdk::set_native_field(sol::make_object(l, (void*)address()), type, name, value);
     }
 };
 
@@ -270,19 +279,19 @@ sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_t
             }
             break;
         }
-    }
 
-    // so, we managed to get here, but we don't know what to do with the data
-    // check if it's a valuetype first
-    if (data_type->is_value_type()) {
-        auto new_obj = sol::make_object(l, Bytes{});
-        auto& bytes = new_obj.as<Bytes&>();
+        // so, we managed to get here, but we don't know what to do with the data
+        // check if it's a valuetype first
+        if (data_type->is_value_type()) {
+            auto new_obj = sol::make_object(l, Bytes{});
+            auto& bytes = new_obj.as<Bytes&>();
 
-        bytes.type = data_type;
-        bytes.data.resize(data_type->get_size());
-        memcpy(bytes.data.data(), data, data_type->get_size());
+            bytes.type = data_type;
+            bytes.data.resize(data_type->get_size());
+            memcpy(bytes.data.data(), data, data_type->get_size());
 
-        return new_obj;
+            return new_obj;
+        }
     }
 
     // A null void* will get converted into an userdata with value 0. That's not very useful in Lua, so
@@ -490,12 +499,22 @@ std::vector<void*>& build_args(sol::variadic_args va) {
 sol::object call_native_func(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name, sol::variadic_args va) {
     auto l = va.lua_state();
 
-    auto real_obj = get_real_obj(obj);
-    auto ret_val = ::sdk::invoke_object_func(real_obj, ty, name, build_args(va));
-
+    
     // Convert return values to the correct Lua types.
     auto fn = ty->get_method(name);
+
+    if (fn == nullptr) {
+        return sol::make_object(l, sol::nil);
+    }
+
     auto ret_ty = fn->get_return_type();
+
+    if (ret_ty == nullptr) {
+        return sol::make_object(l, sol::nil);
+    }
+
+    auto real_obj = get_real_obj(obj);
+    auto ret_val = fn->invoke(real_obj, build_args(va));
 
     return parse_data(l, &ret_val, ret_ty, true);
 }
@@ -997,5 +1016,8 @@ void bindings::open_sdk(ScriptState* s) {
         "qword", &api::sdk::Bytes::qword,
         "address", &api::sdk::Bytes::address,
         "call", &api::sdk::Bytes::call,
-        "get_field", &api::sdk::Bytes::get_field);
+        "get_field", &api::sdk::Bytes::get_field,
+        "set_field", &api::sdk::Bytes::set_field,
+        "get_type_definition", [](api::sdk::Bytes* b) { return b->type; }
+    );
 }

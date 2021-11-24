@@ -172,6 +172,14 @@ ScriptState::ScriptState() {
             lhs[index] = rhs;
         }
     );
+
+
+    m_lua.new_usertype<REFramework>("REFramework",
+        "is_drawing_ui", &REFramework::is_drawing_ui
+    );
+
+    m_lua["reframework"] = g_framework.get();
+
     // clang-format on
 
     auto& mods = g_framework->get_mods()->get_mods();

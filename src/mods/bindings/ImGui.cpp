@@ -135,14 +135,34 @@ void same_line() {
 bool is_item_hovered() {
     return ImGui::IsItemHovered();
 }
+
+bool begin_window(const char* name, sol::object open_obj, ImGuiWindowFlags flags = 0) {
+    bool open = true;
+    bool* open_p = nullptr;
+
+    if (!open_obj.is<sol::nil_t>() && open_obj.is<bool>()) {
+        open = open_obj.as<bool>();
+        open_p = &open;
+    }
+
+    if (!open) {
+        return false;
+    }
+
+    return ImGui::Begin(name, open_p, flags) && open;
+}
+
+void end_window() {
+    ImGui::End();
+}
 } // namespace api::imgui
 
 namespace api::draw {
-void world_text(const char* text, sol::object world_pos_object, ImU32 color = 0xFFFFFFFF) {
+std::optional<Vector2f> world_to_screen(sol::object world_pos_object) {
     auto scene = sdk::get_current_scene();
 
     if (scene == nullptr) {
-        return;
+        return std::nullopt;
     }
 
     auto context = sdk::get_thread_context();
@@ -151,11 +171,11 @@ void world_text(const char* text, sol::object world_pos_object, ImU32 color = 0x
     auto first_transform = sdk::call_object_func<RETransform*>(scene, scene_def, "get_FirstTransform", context, scene);
 
     if (first_transform == nullptr) {
-        return;
+        return std::nullopt;
     }
 
     if (world_pos_object.is<sol::nil_t>()) {
-        return;
+        return std::nullopt;
     }
 
     Vector4f world_pos{};
@@ -170,7 +190,7 @@ void world_text(const char* text, sol::object world_pos_object, ImU32 color = 0x
         auto& v4f = world_pos_object.as<Vector4f&>();
         world_pos = Vector4f{v4f.x, v4f.y, v4f.z, v4f.w};
     } else {
-        return;
+        return std::nullopt;
     }
 
     static auto transform_def = utility::re_managed_object::get_type_definition(first_transform);
@@ -183,13 +203,13 @@ void world_text(const char* text, sol::object world_pos_object, ImU32 color = 0x
     auto camera = sdk::get_primary_camera();
 
     if (camera == nullptr) {
-        return;
+        return std::nullopt;
     }
 
     auto main_view = sdk::get_main_view();
 
     if (main_view == nullptr) {
-        return;
+        return std::nullopt;
     }
 
     auto camera_gameobject = get_gameobject_method->call<REGameObject*>(context, camera);
@@ -208,20 +228,30 @@ void world_text(const char* text, sol::object world_pos_object, ImU32 color = 0x
     sdk::call_object_func<void*>(camera, "get_ViewMatrix", &view, context, camera);
     sdk::call_object_func<void*>(main_view, "get_Size", &screen_size, context, main_view);
 
-    static auto world_to_screen_methods = math_t->get_methods("worldPos2ScreenPos"); // there are 2 of them.
-
     Vector4f screen_pos{};
 
-    auto draw_list = ImGui::GetBackgroundDrawList();
     const auto delta = world_pos - camera_origin;
 
     // behind camera
     if (glm::dot(delta, -camera_forward) <= 0.0f) {
+        return std::nullopt;
+    }
+
+    static auto world_to_screen_method = math_t->get_method("worldPos2ScreenPos(via.vec3, via.mat4, via.mat4, via.Size)"); // there are 2 of them.
+    world_to_screen_method->call<void*>(&screen_pos, context, &world_pos, &view, &proj, &screen_size);
+
+    return Vector2f{screen_pos.x, screen_pos.y};
+}
+
+void world_text(const char* text, sol::object world_pos_object, ImU32 color = 0xFFFFFFFF) {
+    auto screen_pos = world_to_screen(world_pos_object);
+
+    if (!screen_pos) {
         return;
     }
 
-    world_to_screen_methods[1]->call<void*>(&screen_pos, context, &world_pos, &view, &proj, &screen_size);
-    draw_list->AddText(ImVec2{screen_pos.x, screen_pos.y}, color, text);
+    auto draw_list = ImGui::GetBackgroundDrawList();
+    draw_list->AddText(ImVec2{screen_pos->x, screen_pos->y}, color, text);
 }
 
 void text(const char* text, float x, float y, ImU32 color) {
@@ -258,10 +288,13 @@ void bindings::open_imgui(ScriptState* s) {
     imgui["tree_pop"] = api::imgui::tree_pop;
     imgui["same_line"] = api::imgui::same_line;
     imgui["is_item_hovered"] = api::imgui::is_item_hovered;
+    imgui["begin_window"] = api::imgui::begin_window;
+    imgui["end_window"] = api::imgui::end_window;
     lua["imgui"] = imgui;
 
     auto draw = lua.create_table();
 
+    draw["world_to_screen"] = api::draw::world_to_screen;
     draw["world_text"] = api::draw::world_text;
     draw["text"] = api::draw::text;
     draw["filled_rect"] = api::draw::filled_rect;

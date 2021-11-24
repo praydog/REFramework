@@ -62,6 +62,10 @@ public:
     auto get_last_window_pos() const { return m_last_window_pos; } // REFramework imgui window
     auto get_last_window_size() const { return m_last_window_size; } // REFramework imgui window
 
+    bool is_drawing_ui() const {
+        return m_draw_ui;
+    }
+
     void set_draw_ui(bool state) {
         m_draw_ui = state;
     }
