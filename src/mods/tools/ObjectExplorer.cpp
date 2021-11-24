@@ -1806,6 +1806,10 @@ void ObjectExplorer::display_enum_value(std::string_view name, int64_t value) {
 }
 
 void ObjectExplorer::display_reflection_methods(REManagedObject* obj, REType* type_info) {
+    if (type_info->fields == nullptr) {
+        return;
+    }
+
     volatile auto methods = type_info->fields->methods;
 
     if (methods == nullptr || *methods == nullptr) {
