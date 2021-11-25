@@ -708,7 +708,7 @@ void ObjectExplorer::generate_sdk() {
         //spdlog::info("{:s}.{:s}: 0x{:x}", desc->t->type->name, name, (uintptr_t)m.function);
 
         auto& type_entry = il2cpp_dump[desc->full_name];
-        auto& method_entry = type_entry["methods"][pm->name];
+        auto& method_entry = type_entry["methods"][pm->name + std::to_string(i)];
 
         method_entry["id"] = i;
         method_entry["function"] = (std::stringstream{} << std::hex << get_original_va(m.get_function())).str();
