@@ -828,6 +828,45 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function pre_cb
 }
 }
 
+namespace api::re_managed_object {
+bool is_valid_offset(::REManagedObject* obj, int32_t offset) {
+    if (obj == nullptr || !::utility::re_managed_object::is_managed_object(obj)) {
+        return false;
+    }
+
+    const auto typedefinition = ::utility::re_managed_object::get_type_definition(obj);
+
+    if (typedefinition == nullptr) {
+        return false;
+    }
+
+    // trying to limit the impact of this function.
+    if (offset < -0x1000 || (uint32_t)offset >= typedefinition->get_size()) {
+        return false;
+    }
+
+    return true;
+}
+
+template <typename T>
+void write_memory(::REManagedObject* obj, int32_t offset, T value) {
+    if (!is_valid_offset(obj, offset)) {
+        return;
+    }
+
+    *(T*)((uintptr_t)obj + offset) = value;
+}
+
+template <typename T>
+T read_memory(::REManagedObject* obj, int32_t offset) {
+    if (!is_valid_offset(obj, offset)) {
+        return 0;
+    }
+
+    return *(T*)((uintptr_t)obj + offset);
+}
+}
+
 void bindings::open_sdk(ScriptState* s) {
     auto& lua = s->lua();
     auto sdk = lua.create_table();
@@ -1005,7 +1044,19 @@ void bindings::open_sdk(ScriptState* s) {
             }
 
             return api::sdk::call_object_func(sol::make_object(s->lua(), obj), name, args);
-        }
+        },
+        "write_byte", &api::re_managed_object::write_memory<uint8_t>,
+        "write_short", &api::re_managed_object::write_memory<uint16_t>,
+        "write_dword", &api::re_managed_object::write_memory<uint32_t>,
+        "write_qword", &api::re_managed_object::write_memory<uint64_t>,
+        "write_float", &api::re_managed_object::write_memory<float>,
+        "write_double", &api::re_managed_object::write_memory<double>,
+        "read_byte", &api::re_managed_object::read_memory<uint8_t>,
+        "read_short", &api::re_managed_object::read_memory<uint16_t>,
+        "read_dword", &api::re_managed_object::read_memory<uint32_t>,
+        "read_qword", &api::re_managed_object::read_memory<uint64_t>,
+        "read_float", &api::re_managed_object::read_memory<float>,
+        "read_double", &api::re_managed_object::read_memory<double>
     );
 
     lua.new_usertype<REComponent>("REComponent",
