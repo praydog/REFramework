@@ -473,6 +473,76 @@ bool RETypeDefinition::is_enum() const {
     return this->is_a(enum_type);
 }
 
+static std::shared_mutex g_by_ref_mtx{};
+static std::unordered_map<const RETypeDefinition*, bool> g_by_ref_map{};
+
+bool RETypeDefinition::is_by_ref() const {
+    {
+        std::shared_lock _{g_by_ref_mtx};
+
+        if (auto it = g_by_ref_map.find(this); it != g_by_ref_map.end()) {
+            return it->second;
+        }
+    }
+
+    std::unique_lock _{g_by_ref_mtx};
+
+    auto runtime_type = this->get_runtime_type();
+
+    if (runtime_type == nullptr) {
+        g_by_ref_map[this] = true;
+        return true;
+    }
+
+    auto runtime_typedef = utility::re_managed_object::get_type_definition(runtime_type);
+
+    if (runtime_typedef == nullptr) {
+        g_by_ref_map[this] = true;
+        return true;
+    }
+
+    static auto by_ref_method = runtime_typedef->get_method("get_IsByRef");
+
+    g_by_ref_map[this] = by_ref_method->call<bool>(sdk::get_thread_context(), runtime_type);
+
+    return g_by_ref_map[this];   
+}
+
+static std::shared_mutex g_pointer_mtx{};
+static std::unordered_map<const RETypeDefinition*, bool> g_pointer_map{};
+
+bool RETypeDefinition::is_pointer() const {
+    {
+        std::shared_lock _{g_pointer_mtx};
+
+        if (auto it = g_pointer_map.find(this); it != g_pointer_map.end()) {
+            return it->second;
+        }
+    }
+
+    std::unique_lock _{g_pointer_mtx};
+
+    auto runtime_type = this->get_runtime_type();
+
+    if (runtime_type == nullptr) {
+        g_pointer_map[this] = false;
+        return false;
+    }
+
+    auto runtime_typedef = utility::re_managed_object::get_type_definition(runtime_type);
+
+    if (runtime_typedef == nullptr) {
+        g_pointer_map[this] = false;
+        return false;
+    }
+
+    static auto pointer_method = runtime_typedef->get_method("get_IsPointer");
+
+    g_pointer_map[this] = pointer_method->call<bool>(sdk::get_thread_context(), runtime_type);
+
+    return g_pointer_map[this];
+}
+
 uint32_t RETypeDefinition::get_crc_hash() const {
 #ifndef RE7
     const auto t = get_type();
