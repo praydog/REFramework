@@ -346,12 +346,15 @@ void set_data(void* data, ::sdk::RETypeDefinition* data_type, sol::object& value
         case "System.UInt64"_fnv:
             *(uint64_t*)data = value.as<int32_t>();
             return;
+        case "via.Float2"_fnv: [[fallthrough]];
         case "via.vec2"_fnv:
             *(Vector2f*)data = value.as<Vector2f>();
             return;
+        case "via.Float3"_fnv: [[fallthrough]];
         case "via.vec3"_fnv:
             *(Vector3f*)data = value.as<Vector3f>();
             return;
+        case "via.Float4"_fnv: [[fallthrough]];
         case "via.vec4"_fnv:
             *(Vector4f*)data = value.as<Vector4f>();
             return;
@@ -903,6 +906,15 @@ void bindings::open_sdk(ScriptState* s) {
         "get_runtime_type", &::sdk::RETypeDefinition::get_runtime_type,
         "get_parent_type", &::sdk::RETypeDefinition::get_parent_type,
         "is_value_type", &::sdk::RETypeDefinition::is_value_type,
+        "is_a", [](sdk::RETypeDefinition* def, sol::object comp) -> bool {
+            if (comp.is<sdk::RETypeDefinition*>()) {
+                return def->is_a(comp.as<sdk::RETypeDefinition*>());
+            } else if (comp.is<const char*>()) {
+                return def->is_a(comp.as<const char*>());
+            }
+
+            return false;
+        },
         "create_instance", &::sdk::RETypeDefinition::create_instance_full);
     
     lua.new_usertype<sdk::REMethodDefinition>("REMethodDefinition",
