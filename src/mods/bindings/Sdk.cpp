@@ -868,6 +868,7 @@ void bindings::open_sdk(ScriptState* s) {
     lua["sdk"] = sdk;
 
     lua.new_usertype<::sdk::RETypeDefinition>("RETypeDefinition",
+        sol::meta_function::equal_to, [](::sdk::RETypeDefinition* lhs, ::sdk::RETypeDefinition* rhs) { return lhs == rhs; },
         "get_methods", [](sdk::RETypeDefinition* def) -> std::vector<sdk::REMethodDefinition*> {
             std::vector<sdk::REMethodDefinition*> methods{};
 
@@ -980,7 +981,8 @@ void bindings::open_sdk(ScriptState* s) {
         }
     );
     
-    lua.new_usertype<REManagedObject>("REManagedObject", 
+    lua.new_usertype<REManagedObject>("REManagedObject",
+        sol::meta_function::equal_to, [s](REManagedObject* lhs, REManagedObject* rhs) { return lhs == rhs; },
         "get_address", [](REManagedObject* obj) { return (uintptr_t)obj; },
         "get_type_definition", [](REManagedObject* obj) { return utility::re_managed_object::get_type_definition(obj); },
         "get_field", [s](REManagedObject* obj, const char* name) {

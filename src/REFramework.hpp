@@ -62,6 +62,24 @@ public:
     auto get_last_window_pos() const { return m_last_window_pos; } // REFramework imgui window
     auto get_last_window_size() const { return m_last_window_size; } // REFramework imgui window
 
+    static const char* get_game_name() {
+    #if defined(RE2)
+        return "re2";
+    #elif defined(RE3)
+        return "re3";
+    #elif defined(RE7)
+        return "re7";
+    #elif defined(RE8)
+        return "re8";
+    #elif defined(DMC5)
+        return "dmc5";
+    #elif defined(MHRISE)
+        return "mhrise";
+    #else
+        return "unknown";
+    #endif
+    }
+
     bool is_drawing_ui() const {
         return m_draw_ui;
     }

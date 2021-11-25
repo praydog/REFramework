@@ -189,7 +189,8 @@ ScriptState::ScriptState() {
 
 
     m_lua.new_usertype<REFramework>("REFramework",
-        "is_drawing_ui", &REFramework::is_drawing_ui
+        "is_drawing_ui", &REFramework::is_drawing_ui,
+        "get_game_name", &REFramework::get_game_name
     );
 
     m_lua["reframework"] = g_framework.get();
