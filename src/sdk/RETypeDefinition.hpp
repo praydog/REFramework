@@ -307,6 +307,7 @@ struct RETypeDefinition : public sdk::RETypeDefinition_ {
     bool is_enum() const;
     bool is_by_ref() const;
     bool is_pointer() const;
+    bool is_primitive() const;
 
     uint32_t get_crc_hash() const;
     uint32_t get_fqn_hash() const;

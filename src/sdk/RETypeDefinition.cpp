@@ -543,6 +543,41 @@ bool RETypeDefinition::is_pointer() const {
     return g_pointer_map[this];
 }
 
+static std::shared_mutex g_primitive_mtx{};
+static std::unordered_map<const RETypeDefinition*, bool> g_primitive_map{};
+
+bool RETypeDefinition::is_primitive() const {
+    {
+        std::shared_lock _{g_primitive_mtx};
+
+        if (auto it = g_primitive_map.find(this); it != g_primitive_map.end()) {
+            return it->second;
+        }
+    }
+
+    std::unique_lock _{g_primitive_mtx};
+
+    auto runtime_type = this->get_runtime_type();
+
+    if (runtime_type == nullptr) {
+        g_primitive_map[this] = false;
+        return false;
+    }
+
+    auto runtime_typedef = utility::re_managed_object::get_type_definition(runtime_type);
+
+    if (runtime_typedef == nullptr) {
+        g_primitive_map[this] = false;
+        return false;
+    }
+
+    static auto primitive_method = runtime_typedef->get_method("get_IsPrimitive");
+
+    g_primitive_map[this] = primitive_method->call<bool>(sdk::get_thread_context(), runtime_type);
+
+    return g_primitive_map[this];
+}
+
 uint32_t RETypeDefinition::get_crc_hash() const {
 #ifndef RE7
     const auto t = get_type();

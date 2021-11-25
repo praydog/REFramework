@@ -906,6 +906,9 @@ void bindings::open_sdk(ScriptState* s) {
         "get_runtime_type", &::sdk::RETypeDefinition::get_runtime_type,
         "get_parent_type", &::sdk::RETypeDefinition::get_parent_type,
         "is_value_type", &::sdk::RETypeDefinition::is_value_type,
+        "is_by_ref", &::sdk::RETypeDefinition::is_by_ref,
+        "is_pointer", &::sdk::RETypeDefinition::is_pointer,
+        "is_primitive", &::sdk::RETypeDefinition::is_primitive,
         "is_a", [](sdk::RETypeDefinition* def, sol::object comp) -> bool {
             if (comp.is<sdk::RETypeDefinition*>()) {
                 return def->is_a(comp.as<sdk::RETypeDefinition*>());

@@ -335,7 +335,7 @@ sdk::InvokeRet sdk::REMethodDefinition::invoke(void* object, const std::vector<v
     // vec3 and stuff that is > sizeof(void*) requires special handling
     // by preallocating the output buffer
     if (ret_ty != nullptr && ret_ty->is_value_type()) {
-        if (ret_ty->get_valuetype_size() > sizeof(void*) || (!ret_ty->is_by_ref() && !ret_ty->is_pointer())) {
+        if (ret_ty->get_valuetype_size() > sizeof(void*) || (!ret_ty->is_primitive() && !ret_ty->is_enum())) {
             stack_frame.out_data = &out;
         } else {
             stack_frame.out_data = nullptr;
