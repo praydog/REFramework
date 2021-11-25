@@ -94,6 +94,7 @@ ScriptState::ScriptState() {
         "y", &Vector3f::y,
         "z", &Vector3f::z,
         "dot", [](Vector3f& v1, Vector3f& v2) { return glm::dot(v1, v2); },
+        "cross", [](Vector3f& v1, Vector3f& v2) { return glm::cross(v1, v2); },
         "length", [](Vector3f& v) { return glm::length(v); },
         "normalize", [](Vector3f& v) { v = glm::normalize(v); },
         "normalized", [](Vector3f& v) { return glm::normalize(v); },
@@ -101,7 +102,13 @@ ScriptState::ScriptState() {
         sol::meta_function::subtraction, [](Vector3f& lhs, Vector3f& rhs) { return lhs - rhs; },
         sol::meta_function::multiplication, [](Vector3f& lhs, float scalar) { return lhs * scalar; },
         "to_vec2", [](Vector3f& v) { return Vector2f{v.x, v.y}; },
-        "to_vec4", [](Vector3f& v) { return Vector4f{v.x, v.y, v.z, 0.0f}; });
+        "to_vec4", [](Vector3f& v) { return Vector4f{v.x, v.y, v.z, 0.0f}; },
+        "to_mat", [](Vector3f& v) { return glm::rowMajor4(glm::lookAtLH(Vector3f{0.0f, 0.0f, 0.0f}, v, Vector3f{0.0f, 1.0f, 0.0f})); },
+        "to_quat", [](Vector3f& v) { 
+            auto mat = glm::rowMajor4(glm::lookAtLH(Vector3f{0.0f, 0.0f, 0.0f}, v, Vector3f{0.0f, 1.0f, 0.0f}));
+
+            return glm::quat{mat};
+        });
 
     // add vec4 usertype
     m_lua.new_usertype<Vector4f>("Vector4f",
@@ -111,6 +118,7 @@ ScriptState::ScriptState() {
         "z", &Vector4f::z,
         "w", &Vector4f::w,
         "dot", [](Vector4f& v1, Vector4f& v2) { return glm::dot(v1, v2); },
+        "cross", [](Vector4f& v1, Vector4f& v2) { return glm::cross(Vector3f{v1.x, v1.y, v1.z}, Vector3f{v2.x, v2.y, v2.z}); },
         "length", [](Vector4f& v) { return glm::length(v); },
         "normalize", [](Vector4f& v) { v = glm::normalize(v); },
         "normalized", [](Vector4f& v) { return glm::normalize(v); },
@@ -118,7 +126,13 @@ ScriptState::ScriptState() {
         sol::meta_function::subtraction, [](Vector4f& lhs, Vector4f& rhs) { return lhs - rhs; },
         sol::meta_function::multiplication, [](Vector4f& lhs, float scalar) { return lhs * scalar; },
         "to_vec2", [](Vector4f& v) { return Vector2f{v.x, v.y}; },
-        "to_vec3", [](Vector4f& v) { return Vector3f{v.x, v.y, v.z}; });
+        "to_vec3", [](Vector4f& v) { return Vector3f{v.x, v.y, v.z}; },
+        "to_mat", [](Vector4f& v) { return glm::rowMajor4(glm::lookAtLH(Vector3f{0.0f, 0.0f, 0.0f}, Vector3f{v.x, v.y, v.z}, Vector3f{0.0f, 1.0f, 0.0f})); },
+        "to_quat", [](Vector4f& v) { 
+            auto mat = glm::rowMajor4(glm::lookAtLH(Vector3f{0.0f, 0.0f, 0.0f}, Vector3f{v.x, v.y, v.z}, Vector3f{0.0f, 1.0f, 0.0f}));
+
+            return glm::quat{mat};
+        });
 
     // add Matrix4x4f (glm::mat4) usertype
     m_lua.new_usertype<Matrix4x4f>("Matrix4x4f",
