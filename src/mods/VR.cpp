@@ -375,6 +375,9 @@ void VR::add_lua_bindings(sol::state& lua) {
 }
 
 std::optional<std::string> VR::initialize_openvr() {
+    m_d3d12.on_reset(this);
+    m_d3d11.on_reset(this);
+
     m_needs_wgp_update = true;
     m_wgp_initialized = false;
     m_is_hmd_active = true;
@@ -1252,6 +1255,9 @@ void VR::on_frame() {
 
     const auto renderer = g_framework->get_renderer_type();
 
+    // attempt to fix crash when reinitializing openvr
+    std::scoped_lock _{m_openvr_mtx};
+
     if (renderer == REFramework::RendererType::D3D11) {
         m_d3d11.on_frame(this);
     } else if (renderer == REFramework::RendererType::D3D12) {
@@ -1281,6 +1287,8 @@ void VR::on_post_present() {
     if (m_frame_count == m_last_frame_count) {
         return;
     }
+
+    std::scoped_lock _{m_openvr_mtx};
 
     m_last_frame_count = m_frame_count;
 
@@ -1657,6 +1665,8 @@ void VR::on_pre_begin_rendering(void* entry) {
     }
 
     if (!inside_on_end && m_request_reinitialize_openvr) {
+        std::scoped_lock _{m_openvr_mtx};
+
         m_request_reinitialize_openvr = false;
         reinitialize_openvr();
     }

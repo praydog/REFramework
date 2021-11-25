@@ -202,7 +202,7 @@ private:
     // causes world-space gui elements to render properly
     Patch::Ptr m_overlay_draw_patch{};
     
-    std::mutex m_afr_mtx{};
+    std::recursive_mutex m_openvr_mtx{};
     std::shared_mutex m_pose_mtx{};
     std::shared_mutex m_eyes_mtx{};
 
