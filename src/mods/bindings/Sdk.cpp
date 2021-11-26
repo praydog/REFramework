@@ -229,14 +229,17 @@ sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_t
             auto ret_val_u = *(uint64_t*)data;
             return sol::make_object(l, ret_val_u);
         }
+        case "via.Float2"_fnv: [[fallthrough]];
         case "via.vec2"_fnv: {
             auto ret_val_v = *(Vector2f*)data;
             return sol::make_object<Vector2f>(l, ret_val_v);
         }
+        case "via.Float3"_fnv: [[fallthrough]];
         case "via.vec3"_fnv: {
             auto ret_val_v = *(Vector3f*)data;
             return sol::make_object<Vector3f>(l, ret_val_v);
         }
+        case "via.Float4"_fnv: [[fallthrough]];
         case "via.vec4"_fnv: {
             auto ret_val_v = *(Vector4f*)data;
             return sol::make_object<Vector4f>(l, ret_val_v);
