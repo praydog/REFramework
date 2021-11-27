@@ -349,6 +349,8 @@ void VR::add_lua_bindings(sol::state& lua) {
     lua.new_usertype<VR>("VR",
         "get_controllers", &VR::get_controllers,
         "get_position", &VR::get_position,
+        "get_velocity", &VR::get_velocity,
+        "get_angular_velocity", &VR::get_angular_velocity,
         "get_rotation", &VR::get_rotation,
         "get_transform", &VR::get_transform,
         "get_left_stick_axis", &VR::get_left_stick_axis,
@@ -2232,6 +2234,26 @@ Vector4f VR::get_position(uint32_t index) {
     return get_position_unsafe(index);
 }
 
+Vector4f VR::get_velocity(uint32_t index) {
+    if (index >= vr::k_unMaxTrackedDeviceCount) {
+        return Vector4f{};
+    }
+
+    std::shared_lock _{ m_pose_mtx };
+
+    return get_velocity_unsafe(index);
+}
+
+Vector4f VR::get_angular_velocity(uint32_t index) {
+    if (index >= vr::k_unMaxTrackedDeviceCount) {
+        return Vector4f{};
+    }
+
+    std::shared_lock _{ m_pose_mtx };
+
+    return get_angular_velocity_unsafe(index);
+}
+
 Vector4f VR::get_position_unsafe(uint32_t index) {
     if (index >= vr::k_unMaxTrackedDeviceCount) {
         return Vector4f{};
@@ -2243,6 +2265,28 @@ Vector4f VR::get_position_unsafe(uint32_t index) {
     result.w = 1.0f;
 
     return result;
+}
+
+Vector4f VR::get_velocity_unsafe(uint32_t index) {
+    if (index >= vr::k_unMaxTrackedDeviceCount) {
+        return Vector4f{};
+    }
+
+    const auto& pose = get_poses()[index];
+    const auto& velocity = pose.vVelocity;
+
+    return Vector4f{ velocity.v[0], velocity.v[1], velocity.v[2], 0.0f };
+}
+
+Vector4f VR::get_angular_velocity_unsafe(uint32_t index) {
+    if (index >= vr::k_unMaxTrackedDeviceCount) {
+        return Vector4f{};
+    }
+
+    const auto& pose = get_poses()[index];
+    const auto& angular_velocity = pose.vAngularVelocity;
+
+    return Vector4f{ angular_velocity.v[0], angular_velocity.v[1], angular_velocity.v[2], 0.0f };
 }
 
 Matrix4x4f VR::get_rotation(uint32_t index) {

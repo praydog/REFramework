@@ -111,6 +111,8 @@ public:
     }
 
     Vector4f get_position(uint32_t index);
+    Vector4f get_velocity(uint32_t index);
+    Vector4f get_angular_velocity(uint32_t index);
     Matrix4x4f get_rotation(uint32_t index);
     Matrix4x4f get_transform(uint32_t index);
     vr::HmdMatrix34_t get_raw_transform(uint32_t index);
@@ -147,6 +149,8 @@ public:
 
 private:
     Vector4f get_position_unsafe(uint32_t index);
+    Vector4f get_velocity_unsafe(uint32_t index);
+    Vector4f get_angular_velocity_unsafe(uint32_t index);
 
 private:
     // Hooks
