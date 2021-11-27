@@ -500,6 +500,8 @@ void FirstPerson::update_player_transform(RETransform* transform) {
     const auto is_hmd_active = vr_mod->is_hmd_active();
     const auto is_using_controllers = vr_mod->is_using_controllers();
 
+    auto context = sdk::get_thread_context();
+
     if (!controllers.empty()) {
         auto update_joint = [&](std::wstring_view name, int32_t controller_index) {
             auto wrist_joint = utility::re_transform::get_joint(*transform, name);
@@ -662,7 +664,7 @@ void FirstPerson::update_player_transform(RETransform* transform) {
                         armfit_data_blend_rate = 1.0f;
 
                         // Call the IK update function (index 0, first element)
-                        sdk::call_object_func<void*>(arm_fit, "updateIk", sdk::get_thread_context(), arm_fit, 0);
+                        sdk::call_object_func<void*>(arm_fit, "updateIk", context, arm_fit, 0);
 
                         // Reset the apply joint to the old value
                         if (apply_joint_ptr != nullptr) {
@@ -696,21 +698,52 @@ void FirstPerson::update_player_transform(RETransform* transform) {
             auto main_weapon_field = equipment_t->get_field("<EquipWeapon>k__BackingField");
             auto& main_weapon = main_weapon_field->get_data<REManagedObject*>(equipment);
 
-            if (main_weapon != nullptr && utility::re_managed_object::is_a(main_weapon, game_namespace("implement.Gun"))) {
+            if (main_weapon != nullptr) {
+                auto main_weapon_game_object = sdk::call_object_func<REGameObject*>(main_weapon, "get_GameObject", context, main_weapon);
+                auto main_weapon_transform = main_weapon_game_object != nullptr ? main_weapon_game_object->transform : (RETransform*)nullptr;
+
+                static auto implement_gun_typedef = sdk::RETypeDB::get()->find_type(game_namespace("implement.Gun"));
+                static auto implement_melee_typedef = sdk::RETypeDB::get()->find_type(game_namespace("implement.Melee"));
+
                 auto main_weapon_t = utility::re_managed_object::get_type_definition(main_weapon);
-                auto fire_bullet_param_field = main_weapon_t->get_field("<FireBulletParam>k__BackingField");
-                auto& fire_bullet_param = fire_bullet_param_field->get_data<REManagedObject*>(main_weapon);
 
-                if (fire_bullet_param != nullptr) {
-                    auto fire_bullet_param_t = utility::re_managed_object::get_type_definition(fire_bullet_param);
-                    auto fire_bullet_type_field = fire_bullet_param_t->get_field("_FireBulletType");
-                    auto& fire_bullet_type = fire_bullet_type_field->get_data<app::ropeway::weapon::shell::ShellDefine::FireBulletType>(fire_bullet_param);
+                if (main_weapon_game_object != nullptr && main_weapon_t != nullptr && main_weapon_t->is_a(implement_gun_typedef)) {
+                    auto& fire_bullet_param = *sdk::get_object_field<REManagedObject*>(main_weapon, "<FireBulletParam>k__BackingField");
 
-                    // Set the fire bullet type to AlongMuzzle, which fires from the muzzle's position and rotation
-                    if (is_using_controllers) {
-                        fire_bullet_type = app::ropeway::weapon::shell::ShellDefine::FireBulletType::AlongMuzzle;
-                    } else {
-                        fire_bullet_type = app::ropeway::weapon::shell::ShellDefine::FireBulletType::Camera;
+                    if (fire_bullet_param != nullptr) {
+                        auto fire_bullet_param_t = utility::re_managed_object::get_type_definition(fire_bullet_param);
+                        auto& fire_bullet_type = *sdk::get_object_field<app::ropeway::weapon::shell::ShellDefine::FireBulletType>(fire_bullet_param, "_FireBulletType");
+
+                        // Set the fire bullet type to AlongMuzzle, which fires from the muzzle's position and rotation
+                        if (is_using_controllers) {
+                            fire_bullet_type = app::ropeway::weapon::shell::ShellDefine::FireBulletType::AlongMuzzle;
+                        } else {
+                            fire_bullet_type = app::ropeway::weapon::shell::ShellDefine::FireBulletType::Camera;
+                        }
+
+                        auto muzzle_joint_param = *sdk::get_object_field<REManagedObject*>(fire_bullet_param, "_MuzzleJointParameter");
+                        auto muzzle_joint_extra = *sdk::get_object_field<REManagedObject*>(main_weapon, "<MuzzleJoint>k__BackingField");
+
+                        // Set the muzzle joint to the VFX muzzle position used for stuff like muzzle flashes
+                        if (muzzle_joint_param != nullptr && muzzle_joint_extra != nullptr) {
+                            auto vfx_muzzle1 = utility::re_transform::get_joint(*main_weapon_transform, L"vfx_muzzle1");
+                            auto current_muzzle_joint = *sdk::get_object_field<REJoint*>(muzzle_joint_extra, "_Parent");
+
+                            // Set the parent joint name to the VFX muzzle joint which will set _Parent later on
+                            if (vfx_muzzle1 != nullptr && current_muzzle_joint != vfx_muzzle1) {
+                                auto muzzle_joint_name = sdk::VM::create_managed_string(L"vfx_muzzle1");
+
+                                // call set_ParentJointNameForm
+                                sdk::call_object_func<void*>(muzzle_joint_param, "set_ParentJointNameForm", context, muzzle_joint_param, muzzle_joint_name);
+                            }
+                        }
+                    }
+                } else if (main_weapon_game_object != nullptr && main_weapon_t != nullptr && main_weapon_t->is_a(implement_melee_typedef)) {
+                    auto collider_field = main_weapon_t->get_field("<RequestSetCollider>k__BackingField");
+                    auto& collider = collider_field->get_data<REManagedObject*>(main_weapon);
+
+                    if (collider != nullptr) {
+                        // TODO!
                     }
                 }
             }
