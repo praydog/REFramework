@@ -136,6 +136,15 @@ ScriptState::ScriptState() {
 
     // add Matrix4x4f (glm::mat4) usertype
     m_lua.new_usertype<Matrix4x4f>("Matrix4x4f",
+        sol::meta_function::construct, 
+         sol::constructors<
+         Matrix4x4f(),
+         Matrix4x4f(const Vector4f&, const Vector4f&, const Vector4f&, const Vector4f&),
+         Matrix4x4f(float, float, float, float,
+                    float, float, float, float,
+                    float, float, float, float,
+                    float, float, float, float)
+        >(),
         "to_quat", [] (Matrix4x4f& m) { return glm::quat(m); },
         "inverse", [] (Matrix4x4f& m) { return glm::inverse(m); },
         "invert", [] (Matrix4x4f& m) { m = glm::inverse(m); },
