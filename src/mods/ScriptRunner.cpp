@@ -223,12 +223,20 @@ void ScriptState::run_script(const std::string& p) {
 
     spdlog::info("[ScriptState] Running script {}...", p);
 
+    std::string old_path = m_lua["package"]["path"];
+
     try {
+        auto path = std::filesystem::path(p);
+        auto dir = path.parent_path();
+
+        m_lua["package"]["path"] = old_path + ";" + dir.string() + "/?.lua";
         m_lua.safe_script_file(p);
     } catch (const std::exception& e) {
         OutputDebugString(e.what());
         api::re::msg(e.what());
     }
+
+    m_lua["package"]["path"] = old_path;
 }
 
 // i have to wonder why this isn't in sol when they have safe_script stuff
