@@ -201,6 +201,10 @@ sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_t
             auto ret_val_b = *(bool*)data;
             return sol::make_object(l, ret_val_b);
         }
+        case "System.SByte"_fnv: {
+            auto ret_val_i = *(int8_t*)data;
+            return sol::make_object(l, ret_val_i);
+        }
         case "System.Byte"_fnv: {
             auto ret_val_b = *(uint8_t*)data;
             return sol::make_object(l, ret_val_b);
@@ -327,6 +331,9 @@ void set_data(void* data, ::sdk::RETypeDefinition* data_type, sol::object& value
             return;
         case "System.Boolean"_fnv:
             *(bool*)data = value.as<bool>();
+            return;
+        case "System.SByte"_fnv:
+            *(int8_t*)data = value.as<int8_t>();
             return;
         case "System.Byte"_fnv:
             *(uint8_t*)data = value.as<uint8_t>();
