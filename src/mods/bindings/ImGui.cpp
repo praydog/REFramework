@@ -149,7 +149,9 @@ bool begin_window(const char* name, sol::object open_obj, ImGuiWindowFlags flags
         return false;
     }
 
-    return ImGui::Begin(name, open_p, flags) && open;
+    ImGui::Begin(name, open_p, flags);
+
+    return open;
 }
 
 void end_window() {
