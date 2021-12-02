@@ -2226,7 +2226,21 @@ void ObjectExplorer::display_native_methods(REManagedObject* obj, sdk::RETypeDef
                             ImGui::TableNextColumn();
                             ImGui::Text(std::to_string(i).c_str());
                             ImGui::TableNextColumn();
-                            ImGui::Text(method_param_types[i]->get_full_name().c_str());
+
+                            const auto param_typedef = method_param_types[i];
+                            const auto param_type_full_name = param_typedef->get_full_name();
+                            const auto param_type = param_typedef->get_type();
+
+                            if (param_type != nullptr) {
+                                std::vector<uint8_t> fake_object{};
+                                fake_object.reserve(param_typedef->get_size());
+                                fake_object.clear();
+
+                                this->handle_type((REManagedObject*)fake_object.data(), param_typedef->get_type());
+                            } else {
+                                ImGui::Text(param_type_full_name.c_str());
+                            }
+
                             ImGui::TableNextColumn();
                             ImGui::TextColored(VARIABLE_COLOR, method_param_names[i]);
                         }
