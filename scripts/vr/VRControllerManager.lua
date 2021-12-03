@@ -11,9 +11,10 @@ local VRController = {
     rotation = Quaternion.new(0, 0, 0, 0),
     index = 0,
     new = function(self, index, o)
-        o = o or {}
-        setmetatable(o, self)
         self.__index = self
+
+        o = o or {}
+        o = setmetatable(o, self)
         o.index = index
         return o
     end,
@@ -35,9 +36,10 @@ local VRControllerManager = {
     controllers = {},
     controllers_list = {},
     new = function(self, o)
+        self.__index = self
+
         o = o or {}
         setmetatable(o, self)
-        self.__index = self
         return o
     end,
     update = function(self)

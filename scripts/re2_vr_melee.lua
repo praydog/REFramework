@@ -1,5 +1,11 @@
 local vrc_manager = require("vr/VRControllerManager")
 local statics = require("utility/Statics")
+local ManagedObjectDict = require("utility/ManagedObjectDict")
+local re2 = require("utility/RE2")
+local GameObject = require("utility/GameObject")
+
+local force_melee = false
+local is_knife_out = false
 
 local via = {
     hid = {
@@ -7,89 +13,14 @@ local via = {
     }
 }
 
+local EquipStatus = statics.generate(sdk.game_namespace("EquipmentDefine.EquipStatus"))
+
 local function get_gameobject(component)
     return component:call("get_GameObject")
 end
 
-local function get_component(game_object, type_name)
-    local t = sdk.typeof(type_name)
-
-    if t == nil then 
-        return nil
-    end
-
-    return game_object:call("getComponent(System.Type)", t)
-end
-
-local function get_components(game_object)
-    local transform = game_object:call("get_Transform")
-
-    if not transform then
-        return {}
-    end
-
-    return game_object:call("get_Components"):get_elements()
-end
-
-local function get_localplayer()
-    local playman = sdk.get_managed_singleton(sdk.game_namespace("PlayerManager"))
-
-    if not playman then
-        return nil
-    end
-
-    return playman:call("get_CurrentPlayer")
-end
-
---[[local motion = get_component(player, "via.motion.Motion")
-if not motion then
-    log.info("no motion")
-    return
-end]]
-
 local camera = sdk.get_primary_camera()
 local camera_gameobject = camera:call("get_GameObject")
-
-local motion_blur = get_component(camera_gameobject, "via.render.MotionBlur")
-local tonemapping = get_component(camera_gameobject, "via.render.ToneMapping")
-
---[[if motion_blur then
-    motion_blur:call("destroy", motion_blur)
-end
-
-if tonemapping then
-    tonemapping:call("destroy", tonemapping)
-else
-    camera_gameobject:call("createComponent", sdk.typeof("via.render.ToneMapping"))
-end]]
-
---[[local player = get_localplayer()
-if not player then 
-    log.info("no player")
-    return 
-end
-
-local player_transform = player:call("get_Transform")
-local transform_position = player_transform:call("get_Position")]]
-
-local function get_weapon_object(player)
-    local equipment = get_component(player, sdk.game_namespace("survivor.Equipment"))
-    if not equipment then
-        return nil, nil
-    end
-
-    local weapon = equipment:get_field("<EquipWeapon>k__BackingField")
-    if not weapon then
-        return nil, nil
-    end
-
-    local weapon_gameobject = weapon:call("get_GameObject")
-    if not weapon_gameobject then
-        return nil, nil
-    end
-
-    return weapon_gameobject, weapon
-end
 
 local melee_type = sdk.find_type_definition(sdk.game_namespace("implement.Melee"))
 
@@ -110,21 +41,23 @@ local last_previous_weapon_gameobject = nil
 
 local override_capsule_end = nil
 
-local game_object_joints = {}
+local game_object_joints = ManagedObjectDict:new()
 
 local capsule_origins = {}
 
 local r_arm_wrist_hash = nil
 
+local wrist_rotator = Vector3f.new(-1, 0, 0):to_quat()
+
 re.on_application_entry("BeginRendering", function()
-    local player = get_localplayer()
+    local player = re2.get_localplayer()
     if not player then 
         return 
     end
 
     override_capsule_end = nil
 
-    local weapon_gameobject, weapon = get_weapon_object(player)
+    local weapon_gameobject, weapon = re2.get_weapon_object(player)
     if not weapon_gameobject or not weapon then
         local player_transform = player:call("get_Transform")
 
@@ -149,21 +82,22 @@ re.on_application_entry("BeginRendering", function()
         end
 
         last_weapon_pos = r_arm_wrist:call("get_Position")
-        last_weapon_rotation = r_arm_wrist:call("get_Rotation")
+        last_weapon_rotation = (r_arm_wrist:call("get_Rotation") * wrist_rotator):normalized()
 
         return
     end
 
-    if last_weapon_gameobject ~= nil and weapon_gameobject:get_address() ~= last_weapon_gameobject:get_address() then
+    if last_weapon_gameobject ~= nil and weapon_gameobject ~= last_weapon_gameobject then
         last_previous_weapon_gameobject = last_weapon_gameobject
     end
 
     last_weapon_gameobject = weapon_gameobject
+
     local weapon_transform = weapon_gameobject:call("get_Transform")
 
-    game_object_joints[last_weapon_gameobject:get_address()] = {}
+    game_object_joints[last_weapon_gameobject] = {}
 
-    local joints_tbl = game_object_joints[last_weapon_gameobject:get_address()]
+    local joints_tbl = game_object_joints[last_weapon_gameobject]
     local joints = weapon_transform:call("get_Joints"):get_elements()
 
     for i, joint in ipairs(joints) do
@@ -192,6 +126,14 @@ re.on_application_entry("BeginRendering", function()
         return
     end
 
+    if last_previous_weapon_gameobject ~= last_weapon_gameobject and sdk.is_managed_object(last_previous_weapon_gameobject) then
+        local melee = GameObject.get_component(last_previous_weapon_gameobject, sdk.game_namespace("implement.Melee"))
+
+        if melee ~= nil then
+        end
+    end
+
+
     --capsule_origins = {}
 
     --[[local request_set_collider = get_component(weapon_gameobject, "via.physics.RequestSetCollider")
@@ -219,7 +161,7 @@ re.on_application_entry("BeginRendering", function()
     end]]
 end)
 
-local curious = {}
+local curious = ManagedObjectDict:new()
 local wanted_scale = 1.0
 
 
@@ -261,17 +203,21 @@ local function read_mat4(managed_object, offset)
 end
 
 re.on_pre_application_entry("UpdateBehavior", function()
-    local player = get_localplayer()
-    if not player then 
+    local player = re2.get_localplayer()
+    if not player then
+        is_knife_out = false
         return 
     end
 
-    local weapon_gameobject, weapon = get_weapon_object(player)
+    local weapon_gameobject, weapon = re2.get_weapon_object(player)
     if not weapon_gameobject then
+        is_knife_out = false
         return
     end
 
-    local weapon_transform = weapon_gameobject:call("get_Transform")
+    is_knife_out = GameObject.get_component(weapon_gameobject, sdk.game_namespace("implement.Melee")) ~= nil
+
+    --[[local weapon_transform = weapon_gameobject:call("get_Transform")
 
     local collidables_list = weapon:get_field("<TargetCollidables>k__BackingField")
     if not collidables_list then
@@ -280,11 +226,11 @@ re.on_pre_application_entry("UpdateBehavior", function()
 
     local collidables = collidables_list:get_field("mItems"):get_elements()
 
-    local request_set_collider = get_component(weapon_gameobject, "via.physics.RequestSetCollider")
+    local request_set_collider = GameObject.get_component(weapon_gameobject, "via.physics.RequestSetCollider")
 
     if request_set_collider == nil then
         return
-    end
+    end]]
 
     --[[for i, collidable in ipairs(collidables) do
         curious[collidable:get_address()] = true
@@ -320,14 +266,15 @@ re.on_pre_application_entry("UpdateBehavior", function()
 end)
 
 local melee_collidables = {}
-local original_capsules = {}
+local original_capsules = ManagedObjectDict:new()
+local ContinuousCapsuleShape = sdk.find_type_definition("via.physics.ContinuousCapsuleShape")
 
 local function hijack_capsules(collidable)
     if collidable == nil then return end
     
     local transformed_shape = collidable:call("get_TransformedShape")
 
-    if transformed_shape ~= nil and transformed_shape:get_type_definition():get_name() == "ContinuousCapsuleShape" then
+    if transformed_shape ~= nil and transformed_shape:get_type_definition() == ContinuousCapsuleShape then
         local untransformed_shape = collidable:call("get_Shape")
         local untransformed_capsule = untransformed_shape:call("get_Capsule")
 
@@ -344,7 +291,7 @@ local function hijack_capsules(collidable)
             local delta = utp1 - utp0
             local dir = delta:normalized()
 
-            original_capsules[collidable:get_address()] = { p0, p1, r }
+            original_capsules[collidable] = { p0, p1, r }
 
             local new_p0 = last_weapon_pos
             local new_p1 = override_capsule_end
@@ -372,12 +319,12 @@ end
 local function restore_capsules(collidable)
     if collidable == nil then return end
 
-    local original_capsule = original_capsules[collidable:get_address()]
+    local original_capsule = original_capsules[collidable]
     if original_capsule == nil then return end
     
     local transformed_shape = collidable:call("get_TransformedShape")
 
-    if transformed_shape ~= nil and transformed_shape:get_type_definition():get_name() == "ContinuousCapsuleShape" then
+    if transformed_shape ~= nil and transformed_shape:get_type_definition() == ContinuousCapsuleShape then
         local transformed_capsule = transformed_shape:call("get_Capsule")
 
         if transformed_capsule ~= nil then
@@ -411,6 +358,14 @@ local get_uptime_second_function = application_type:get_method("get_UpTimeSecond
 local last_physical_swing_time = 0.0
 
 local function should_physically_swing()
+    if force_melee then
+        return true
+    end
+
+    if not is_knife_out then
+        return false
+    end
+
     local now = get_uptime_second_function:call(application)
 
     if now - last_physical_swing_time <= 0.1 then
@@ -434,15 +389,110 @@ local function get_frame_count()
     return sdk.call_native_func(application, application_type, "get_FrameCount")
 end
 
+local last_melee_status = {}
+local do_not_skip_implement = false
+
+local MeleeRestorationData = {
+    new = function(self, melee, o)
+        self.__index = self
+
+        o = o or {}
+        o = setmetatable(o, self)
+        o.melee = melee
+        return o
+    end,
+
+    equipment = nil,
+    equip_weapon = nil,
+    equip_type = nil,
+    equip_status = nil,
+    melee = nil,
+
+    save = function(self)
+        local player = re2.get_localplayer()
+        if not player then
+            return
+        end
+
+        local weapon_gameobject, weapon = re2.get_weapon_object(player)
+
+        if weapon == self.melee then
+            --self.melee:set_field("_Status", 2)
+            return
+        end
+
+        local original_status = self.melee:get_field("_Status")
+        local melee_addr = self.melee:get_address()
+
+        if not last_melee_status[melee_addr] then
+            last_melee_status[melee_addr] = original_status
+        end
+
+        if last_melee_status[melee_addr] ~= original_status then
+            last_melee_status[melee_addr] = original_status
+            do_not_skip_implement = true
+            return
+        end
+
+        do_not_skip_implement = false
+
+        local player_transform = player:call("get_Transform")
+        local equipment = GameObject.get_component(player, sdk.game_namespace("survivor.Equipment"))
+        self.equipment = equipment
+
+        if equipment ~= nil then
+            local equip_weapon = equipment:get_field("<EquipWeapon>k__BackingField")
+            local equip_type = equipment:get_field("<EquipType>k__BackingField")
+
+            self.equip_type = equip_type
+            self.equip_weapon = equip_weapon
+
+            --[[if original_status == 1 then
+                self.equip_status = 2
+            else]]
+                self.equip_status = original_status
+            --end
+
+            self.melee:set_field("_Status", EquipStatus.Equiped) -- yep thats how it's spelled
+            --equipment:set_field("<EquipWeapon>k__BackingField", self.melee)
+
+            --log.info("equip type: " .. tostring(equip_type))
+
+            -- lets us use our bare hands as a melee weapon
+            --if equip_type == 0 then
+                --equipment:set_field("<EquipType>k__BackingField", 46)
+            --end
+        end
+
+        return data
+    end,
+    restore = function(self)
+        if self.equipment ~= nil then
+            self.equipment:set_field("<EquipType>k__BackingField", self.equip_type)
+            self.equipment:set_field("<EquipWeapon>k__BackingField", self.equip_weapon)
+            self.melee:set_field("_Status", self.equip_status)
+        end
+    end
+}
+
+local melee_restoration = nil
+local inside_melee_update = false
+
 local function on_pre_melee_late_update(args)
+    inside_melee_update = true
+    melee_restoration = nil
     melee_collidables = {}
-    original_capsules = {}
+    original_capsules = ManagedObjectDict:new()
     capsule_origins = {}
+
+    if not is_knife_out then
+        return
+    end
 
     local melee = sdk.to_managed_object(args[2])
     local gameobject = melee:call("get_GameObject")
 
-    local request_set_collider = get_component(gameobject, "via.physics.RequestSetCollider")
+    local request_set_collider = GameObject.get_component(gameobject, "via.physics.RequestSetCollider")
 
     if request_set_collider == nil then
         return
@@ -466,50 +516,35 @@ local function on_pre_melee_late_update(args)
     
     local collidables = collidables_list:get_field("mItems"):get_elements()
 
+    for i, collidable in ipairs(collidables) do
+        collidable:call("set_Enabled", true)
+        collidable:call("enable")
+
+        curious[collidable] = true
+
+        table.insert(melee_collidables, collidable)
+        hijack_capsules(collidable)
+    end
+
     -- physically swing to issue a melee attack
     if should_physically_swing() then
-
-        local player = get_localplayer()
-        if not player then
-            return
-        end
-    
-        local player_transform = player:call("get_Transform")
-    
-        local equipment = get_component(player, sdk.game_namespace("survivor.Equipment"))
-    
-        if equipment ~= nil then
-            local equip_type = equipment:get_field("<EquipType>k__BackingField")
-    
-            --log.info("equip type: " .. tostring(equip_type))
-
-            -- lets us use our bare hands as a melee weapon
-            if equip_type == 0 then
-                equipment:set_field("<EquipType>k__BackingField", 1)
-            end
-        end
+        melee_restoration = MeleeRestorationData:new(melee)
+        melee_restoration:save()
 
         local request_set_id = melee:get_field("<RequestSetID>k__BackingField")
 
         if request_set_id ~= nil then
-            --request_set_id:set_field("<Current>k__BackingField", 1)
-            request_set_id:set_field("<Old>k__BackingField", -1)
-            --request_set_id:set_field("<FrameCount>k__BackingField", get_frame_count() + 1)
+            --request_set_id:set_field("<Current>k__BackingField", -1)
+            --request_set_id:set_field("<Old>k__BackingField", -1)
+
+            if request_set_id:get_field("<FrameCount>k__BackingField") + 5 < get_frame_count() then
+                request_set_id:set_field("<FrameCount>k__BackingField", get_frame_count())
+            end
         end
     
-        melee:call("enableAttack")
+        --melee:call("enableAttack")
         --melee:call("setupMeleeAttackUserData")
         melee:set_field("<GeneratedDecal>k__BackingField", false)
-    end
-
-    for i, collidable in ipairs(collidables) do
-        --collidable:call("set_Enabled", true)
-        --collidable:call("enable")
-
-        curious[collidable:get_address()] = true
-
-        table.insert(melee_collidables, collidable)
-        hijack_capsules(collidable)
     end
 end
 
@@ -518,14 +553,81 @@ local function on_post_melee_late_update(retval)
         restore_capsules(collidable)
     end
 
+    if melee_restoration ~= nil then
+        melee_restoration:restore()
+        melee_restoration = nil
+    end
+
+    inside_melee_update = false
+
     return retval
 end
 
 sdk.hook(sdk.find_type_definition(sdk.game_namespace("implement.Melee")):get_method("lateUpdate"), on_pre_melee_late_update, on_post_melee_late_update)
 
-local function on_pre_melee_check_attack(args)
+local inside_check_hit_attack = false
+
+-- Come back to this later?
+-- uncomment this out to hit with the knife while another weapon is out
+--[[local function on_pre_melee_check_hit_attack(args)
+    inside_check_hit_attack = true
+
     if should_physically_swing() then
         return sdk.PreHookResult.SKIP_ORIGINAL
+    end
+end
+
+local function on_post_melee_check_attack(retval)
+    inside_check_hit_attack = false
+
+    if should_physically_swing() then
+        return sdk.to_ptr(1)
+    end
+
+    return retval
+end
+
+sdk.hook(sdk.find_type_definition(sdk.game_namespace("implement.Melee")):get_method("onCheckHitAttack"), on_pre_melee_check_hit_attack, on_post_melee_check_attack)]]
+
+local function on_pre_implement_set_status(args)
+    if not inside_melee_update then
+        return
+    end
+
+    if do_not_skip_implement then
+        return
+    end
+
+    if not should_physically_swing() then
+        return
+    end
+
+    local player = re2.get_localplayer()
+    if not player then
+        return
+    end
+
+    local implement = sdk.to_managed_object(args[2])
+    local weapon_gameobject, weapon = re2.get_weapon_object(player)
+
+    if weapon ~= implement then
+        if melee_restoration ~= nil then
+            melee_restoration.equip_status = sdk.to_int64(args[3])
+        end
+
+        return sdk.PreHookResult.SKIP_ORIGINAL
+    end
+end
+
+local function on_post_implement_set_status(retval)
+    return retval
+end
+
+sdk.hook(sdk.find_type_definition(sdk.game_namespace("implement.Implement")):get_method("set_Status"), on_pre_implement_set_status, on_post_implement_set_status)
+
+local function on_pre_melee_check_attack(args)
+    if should_physically_swing() then
+        --return sdk.PreHookResult.SKIP_ORIGINAL
     end
 end
 
@@ -538,6 +640,7 @@ local function on_post_melee_check_attack(retval)
 end
 
 sdk.hook(sdk.find_type_definition(sdk.game_namespace("survivor.Equipment")):get_method("checkActiveMeleeAttack"), on_pre_melee_check_attack, on_post_melee_check_attack)
+--sdk.hook(sdk.find_type_definition(sdk.game_namespace("implement.Melee")):get_method("checkActiveMeleeAttack"), on_pre_melee_check_attack, on_post_melee_check_attack)
 
 local disable_enemy_ai = false
 
@@ -560,13 +663,23 @@ sdk.hook(sdk.find_type_definition(sdk.game_namespace("EnemyController")):get_met
 
 local should_open = true
 local draw_without_reframework = false
+local debug_mode = false
 
 re.on_draw_ui(function()
     local changed = false
 
-    changed, should_open = imgui.checkbox("Funny Window", should_open)
-    changed, draw_without_reframework = imgui.checkbox("Draw without reframework", draw_without_reframework)
-    changed, disable_enemy_ai = imgui.checkbox("Disable enemy AI", disable_enemy_ai)
+    if imgui.tree_node("RE2 Melee VR Extension") then
+        changed, debug_mode = imgui.checkbox("Debug Mode", debug_mode)
+
+        if debug_mode then
+            changed, should_open = imgui.checkbox("Debug Window", should_open)
+            changed, draw_without_reframework = imgui.checkbox("Draw without reframework", draw_without_reframework)
+            changed, disable_enemy_ai = imgui.checkbox("Disable enemy AI", disable_enemy_ai)
+            changed, force_melee = imgui.checkbox("Force melee", force_melee)
+        end
+
+        imgui.tree_pop()
+    end
 end)
 
 local wanted_typename = "System.UInt32"
@@ -589,7 +702,11 @@ local function draw_vr_info()
 end
 
 re.on_frame(function()
-    draw.world_text("Hello", last_weapon_pos, 0xffffffff)
+    if not debug_mode then
+        return
+    end
+
+    --draw.world_text("Hello", last_weapon_pos, 0xffffffff)
 
     for i, capsule in ipairs(capsule_origins) do
         local capsule_pos1 = draw.world_to_screen(capsule[1])
@@ -697,9 +814,9 @@ re.on_frame(function()
             if imgui.tree_node("Curious") then
                 local count = 0
 
-                for addr, v in pairs(curious) do
+                for obj, v in pairs(curious) do
                     if imgui.tree_node(tostring(count)) then
-                        object_explorer:handle_address(addr)
+                        object_explorer:handle_address(obj)
                         imgui.tree_pop()
                     end
 
@@ -713,17 +830,3 @@ re.on_frame(function()
         end
     end
 end)
-
---[[re.on_pre_gui_draw_element(function(element, context)
-    local game_object = element:call("get_GameObject")
-    if not game_object then
-        return
-    end
-
-    local transform = game_object:call("get_Transform")
-    --log.info(game_object:call("get_Name") .. ": " .. tostring(game_object:get_address()))
-
-    if game_object:call("get_Name") == "sm42_020_keystrokeDevice01A_gimmick" then
-
-    end
-end)]]
