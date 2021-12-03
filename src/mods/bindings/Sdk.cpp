@@ -586,11 +586,20 @@ void* get_actual_function(void* possible_fn) {
 void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function pre_cb, sol::function post_cb) {
     auto sol_state = sol::state_view{s};
     auto state = sol_state.registry()["state"].get<ScriptState*>();
+    auto& hooked_fns = state->hooked_fns();
+
+    if (auto search = hooked_fns.find(fn); search != hooked_fns.end()) {
+        auto& hooked_fn = search->second;
+        hooked_fn->script_pre_fns.emplace_back(pre_cb);
+        hooked_fn->script_post_fns.emplace_back(post_cb);
+        return;
+    }
+
     auto hook = std::make_unique<ScriptState::HookedFn>();
 
     hook->target_fn = detail::get_actual_function(fn->get_function());
-    hook->script_pre_fn = pre_cb;
-    hook->script_post_fn = post_cb;
+    hook->script_pre_fns.emplace_back(pre_cb);
+    hook->script_post_fns.emplace_back(post_cb);
     hook->script_args = sol_state.create_table();
     hook->arg_tys = fn->get_param_types();
     hook->ret_ty = fn->get_return_type();
@@ -834,7 +843,7 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function pre_cb
     *(uintptr_t*)orig_label.getAddress() = fn_hook->get_original();
 
     fn_hook->create();
-    state->hooked_fns().emplace_back(std::move(hook));
+    hooked_fns.emplace(fn, std::move(hook));
 }
 }
 

@@ -396,10 +396,12 @@ ScriptState::PreHookResult ScriptState::on_pre_hook(HookedFn* fn) {
             fn->script_args[i + 1] = (void*)fn->args[i];
         }
 
-        auto script_result = handle_protected_result(fn->script_pre_fn(fn->script_args)).get<sol::object>();
+        for (auto&& pre_fn : fn->script_pre_fns) {
+            auto script_result = handle_protected_result(pre_fn(fn->script_args)).get<sol::object>();
 
-        if (script_result.is<PreHookResult>()) {
-            result = script_result.as<PreHookResult>();
+            if (script_result.is<PreHookResult>()) {
+                result = script_result.as<PreHookResult>();
+            }
         }
 
         // Apply the changes to arguments that the script function may have made.
@@ -418,7 +420,9 @@ void ScriptState::on_post_hook(HookedFn* fn) {
     std::scoped_lock _{ m_execution_mutex };
 
     try {
-        fn->ret_val = (uintptr_t)handle_protected_result(fn->script_post_fn((void*)fn->ret_val)).get<void*>();
+        for (auto&& post_fn : fn->script_post_fns) {
+            fn->ret_val = (uintptr_t)handle_protected_result(post_fn((void*)fn->ret_val)).get<void*>();
+        }
     } catch (const std::exception& e) {
         OutputDebugString(e.what());
     }

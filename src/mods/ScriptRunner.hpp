@@ -26,8 +26,8 @@ public:
 
     struct HookedFn {
         void* target_fn{};
-        sol::protected_function script_pre_fn{};
-        sol::protected_function script_post_fn{};
+        std::vector<sol::protected_function> script_pre_fns{};
+        std::vector<sol::protected_function> script_post_fns{};
         sol::table script_args{};
 
         std::unique_ptr<FunctionHook> fn_hook{};
@@ -93,7 +93,9 @@ private:
     std::vector<sol::protected_function> m_on_script_reset_fns{};
 
     Xbyak::CodeGenerator m_code{};
-    std::vector<std::unique_ptr<HookedFn>> m_hooked_fns{};
+    //std::vector<std::unique_ptr<HookedFn>> m_hooked_fns{};
+
+    std::unordered_map<sdk::REMethodDefinition*, std::unique_ptr<HookedFn>> m_hooked_fns{};
 };
 
 class ScriptRunner : public Mod {
