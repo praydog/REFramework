@@ -722,4 +722,8 @@ void* RETypeDefinition::create_instance() const {
 
     return create_instance_func->call<REManagedObject*>(sdk::get_thread_context(), typeof);
 }
+
+bool RETypeDefinition::should_pass_by_pointer() const {
+    return !is_value_type() || (get_valuetype_size() > sizeof(void*) || (!is_primitive() && !is_enum()));
+}
 } // namespace sdk

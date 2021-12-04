@@ -309,6 +309,8 @@ struct RETypeDefinition : public sdk::RETypeDefinition_ {
     bool is_pointer() const;
     bool is_primitive() const;
 
+    bool should_pass_by_pointer() const;
+
     uint32_t get_crc_hash() const;
     uint32_t get_fqn_hash() const;
     uint32_t get_size() const;

@@ -29,7 +29,7 @@ std::unordered_map<uint32_t, std::shared_ptr<detail::ParsedMethod>> g_imethoddb{
 #endif
 
 constexpr std::string_view TYPE_INFO_NAME = "REType";
-constexpr std::string_view TYPE_DEFINITION_NAME = "REClassInfo";
+constexpr std::string_view TYPE_DEFINITION_NAME = "sdk::RETypeDefinition";
 
 std::unordered_set<std::string> g_class_set{};
 
@@ -123,6 +123,21 @@ std::array<const char*, 84> g_typecode_names{
 };
 #endif
 
+static std::unordered_map<std::string, std::string> g_valuetype_typedefs {
+    { "System.Void", "void" },
+    { "System.Byte", "uint8_t" },
+    { "System.SByte", "int8_t" },
+    { "System.Int16", "int16_t" },
+    { "System.UInt16", "uint16_t" },
+    { "System.Int32", "int32_t" },
+    { "System.UInt32", "uint32_t" },
+    { "System.Int64", "int64_t" },
+    { "System.UInt64", "uint64_t" },
+    { "System.Single", "float" },
+    { "System.Double", "double" },
+    { "System.Boolean", "bool" },
+};
+
 struct BitReader {
     BitReader(const void* d)
         : data{(uint8_t*)d} {}
@@ -180,7 +195,32 @@ std::vector<std::string> split(const std::string& s, const std::string& token) {
     return out;
 }
 
-genny::Class* class_from_name(genny::Namespace* g, const std::string& class_name) {
+// remove stuf like "<", ">" from typenames, replace with "_"
+// anything that would be invalid in a C++ identifier or directory name
+std::string clean_typename(std::string_view name) {
+    std::string out{};
+
+    for (auto&& c : name) {
+        if (c == '<' || c == '>' || c == ' ' || c == ',') {
+            out += '_';
+        } else {
+            out += c;
+        }
+    }
+
+    return out;
+}
+
+genny::Class* class_from_name(genny::Namespace* g, std::string class_name) {
+    class_name = clean_typename(class_name);
+
+    if (class_name.length() >= 100) {
+        // hash the rest of the string using utility::hash and std::to_string instead
+        auto class_name_piece = class_name.substr(0, 100);
+        auto class_name_hash = utility::hash(class_name.substr(100));
+        class_name = class_name_piece + std::to_string(class_name_hash);
+    }
+
     auto namespaces = split(class_name, ".");
     auto new_ns = g;
 
@@ -830,6 +870,136 @@ void ObjectExplorer::generate_sdk() {
 
             method_entry["params"].emplace_back(param_entry);
         }
+
+        // Generate sdkgenny methods
+        if (pm->owner != nullptr && pm->m != nullptr) {
+            auto c = class_from_name(g, pm->owner->full_name);
+
+            auto real_return_type = return_type;
+            auto real_return_type_name = return_type_name;
+
+            if (return_type != nullptr && return_type->is_enum()) {
+                const auto underlying_type = return_type->get_underlying_type();
+
+                if (underlying_type != nullptr) {
+                    real_return_type = underlying_type;
+                    real_return_type_name = underlying_type->get_full_name();
+                }
+            } 
+            
+            // get the typedef of the C# valuetype to C++
+            if (real_return_type != nullptr && real_return_type->is_value_type()) {
+                if (auto it = g_valuetype_typedefs.find(real_return_type_name); it != g_valuetype_typedefs.end()) {
+                    real_return_type_name = it->second;
+                }
+            }
+
+            auto retc = class_from_name(g, real_return_type_name != "" ? real_return_type_name : "void");
+
+            bool is_ptr = false;
+
+            if (real_return_type != nullptr && real_return_type->should_pass_by_pointer()) {
+                is_ptr = true;
+            }
+
+            std::stringstream cpp_ret_stream{};
+            retc->generate_typename_for(cpp_ret_stream, nullptr);
+
+            const auto cpp_ret_name = cpp_ret_stream.str();
+
+            genny::Function* f = nullptr;
+
+            std::stringstream os{};
+
+            //os << "auto t = get_type_definition();\n";
+            os << "static auto m = sdk::RETypeDB::get()->get_method(" << pm->m->get_index() << ");\n";
+
+            auto param_names = pm->m->get_param_names();
+            auto param_types = pm->m->get_param_types();
+
+            f = c->function(clean_typename(pm->name));
+
+            auto ret_in_first_param = false;
+
+            if (real_return_type != nullptr && real_return_type->is_value_type() && is_ptr && retc->name() != "void") {
+                ret_in_first_param = true;
+                f = f->returns(retc);
+
+                os << cpp_ret_name << " out;\n";
+                os << "return m->call<" << cpp_ret_name << ">(&out, sdk::get_thread_context()";
+
+                if (!pm->m->is_static()) {
+                    os << ", this";
+                }
+
+                if (param_names.size() > 0){
+                    for (auto param_name : param_names) {
+                        os << ", " << param_name;
+                    }
+                }
+
+                os << ");\n";
+            } else if (is_ptr) {
+                f = f->returns(retc->ptr());
+
+                os << "return m->call<" << cpp_ret_name << "*>(sdk::get_thread_context()";
+
+                if (!pm->m->is_static()) {
+                    os << ", this";
+                }
+
+                if (param_names.size() > 0){
+                    for (auto param_name : param_names) {
+                        os << ", " << param_name;
+                    }
+                }
+
+                os << ");\n";
+            } else {
+                f = f->returns(retc);
+                os << "return m->call<" << cpp_ret_name << ">(sdk::get_thread_context()";
+
+                if (!pm->m->is_static()) {
+                    os << ", this";
+                }
+
+                if (param_names.size() > 0){
+                    for (auto param_name : param_names) {
+                        os << ", " << param_name;
+                    }
+                }
+
+                os << ");\n";
+            }
+
+            f->procedure(os.str());
+
+            // Method params
+            for (auto i = 0; i < param_types.size(); ++i) {
+                auto param_type = param_types[i];
+                auto param_name = param_names[i];
+
+                if (param_type == nullptr) {
+                    continue;
+                }
+
+                auto param_type_name = param_type->get_full_name();
+
+                if (param_type->is_enum()) {
+                    const auto underlying_type = param_type->get_underlying_type();
+
+                    if (underlying_type != nullptr) {
+                        param_type_name = underlying_type->get_full_name();
+                    }
+                }
+
+                if (param_type->should_pass_by_pointer()) {
+                    f->param(clean_typename(param_name))->type(class_from_name(g, param_type_name)->ptr());
+                } else {
+                    f->param(clean_typename(param_name))->type(class_from_name(g, param_type_name));
+                }
+            }
+        }
     }
 
     spdlog::info("FIELDS BEGIN");
@@ -902,6 +1072,41 @@ void ObjectExplorer::generate_sdk() {
 
         // Resolve the offset to be from the base class
         pf->offset_from_base += pf->owner->t->get_fieldptr_offset();
+
+        if (pf->owner != nullptr) {
+            auto c = class_from_name(g, pf->owner->full_name);
+            auto t = pf->type;
+
+            if (pf->type != nullptr && pf->type->t != nullptr && (field_flags & (uint16_t)via::clr::FieldFlag::Static) == 0) {
+                const bool is_value_type = pf->type->t->is_value_type();
+
+                auto v = c->variable(pf->name)->offset(pf->offset_from_base);
+
+                if (is_value_type) {
+                    const bool is_enum = pf->type->t->is_enum();
+                    auto valuetype_typedef = pf->type->full_name;
+
+                    if (is_enum) {
+                        const auto underlying_type = pf->type->t->get_underlying_type();
+
+                        if (underlying_type != nullptr) {
+                            valuetype_typedef = underlying_type->get_full_name();
+                        }
+                    }
+
+                    if (auto it = g_valuetype_typedefs.find(valuetype_typedef); it != g_valuetype_typedefs.end()) {
+                        valuetype_typedef = it->second;
+                        v->type(valuetype_typedef);
+                    } else if (pf->type->t != pf->owner->t) {
+                        v->type(class_from_name(g, valuetype_typedef));
+                    } else {
+                        v->type(g->type("uint8_t")->array_(pf->type->t->get_size()));
+                    }
+                } else {
+                    v->type(class_from_name(g, pf->type->full_name)->ptr());
+                }
+            }
+        }
         
         const auto field_type_name = (pf->type != nullptr) ? pf->type->full_name : "";
 
@@ -1200,6 +1405,17 @@ void ObjectExplorer::generate_sdk() {
             m->procedure(os.str());
         }
 
+        // make get_type_definition static function
+        {
+            auto m = c->static_function("get_type_definition")->returns(g->type(TYPE_DEFINITION_NAME)->ptr());
+
+            std::stringstream os{};
+            os << "static auto t = sdk::RETypeDB::get()->find_type(\"" << t->name << "\");\n";
+            os << "return t;";
+
+            m->procedure(os.str());
+        }
+
         // make get_singleton_instance static function
         if (is_singleton) {
             auto m = c->static_function("get_singleton_instance")->returns(c->ptr());
@@ -1258,7 +1474,9 @@ void ObjectExplorer::generate_sdk() {
                 }
 
                 // auto ret = descriptor->returnTypeName != nullptr ? std::string{descriptor->returnTypeName} : std::string{"undefined"};
-                std::string ret{"void"};
+
+                // reflection methods are kind of shit so ignore them for now.
+                /*std::string ret{"void"};
 
                 auto m = c->function(descriptor->name);
 
@@ -1273,7 +1491,7 @@ void ObjectExplorer::generate_sdk() {
                 }
 
                 m->param("args")->type(g->type("void**"));
-                m->procedure(os.str())->returns(g->type("std::unique_ptr<utility::re_managed_object::ParamWrapper>"));
+                m->procedure(os.str())->returns(g->type("std::unique_ptr<utility::re_managed_object::ParamWrapper>"));*/
 
 #ifdef TDB_DUMP_ALLOWED
 // BORKED RIGHT NOW
@@ -1316,7 +1534,7 @@ void ObjectExplorer::generate_sdk() {
                     continue;
                 }
 
-                genny::Function* m = nullptr;
+                /*genny::Function* m = nullptr;
 
                 std::ostringstream os{};
                 os << "// " << (variable->typeName != nullptr ? variable->typeName : "") << "\n";
@@ -1341,10 +1559,10 @@ void ObjectExplorer::generate_sdk() {
                     }
 
                     m->procedure(os.str());
-                }
+                }*/
 
                 auto dummy_type = g->namespace_("sdk")->struct_("DummyData")->size(0x100);
-                m->returns(dummy_type);
+                //m->returns(dummy_type);
 
 #ifdef TDB_DUMP_ALLOWED
                 auto field_t = g_fqntypedb[variable->typeFqn];
