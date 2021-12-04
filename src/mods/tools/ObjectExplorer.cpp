@@ -917,7 +917,7 @@ void ObjectExplorer::generate_sdk() {
             auto param_names = pm->m->get_param_names();
             auto param_types = pm->m->get_param_types();
 
-            f = c->function(clean_typename(pm->name));
+            f = c->function(clean_typename(pm->name) + std::to_string(pm->m->get_index()));
 
             auto ret_in_first_param = false;
 
@@ -1133,7 +1133,7 @@ void ObjectExplorer::generate_sdk() {
                     std::stringstream full_return_type_name{};
                     return_f->generate_typename_for(full_return_type_name, nullptr);
                     std::stringstream os{};
-                    os << "return sdk::get_static_field<" << full_return_type_name.str() << ">(\"" << pf->owner->full_name << ", " << pf->name << ", false" <<  "\");";
+                    os << "return *sdk::get_static_field<" << full_return_type_name.str() << ">(\"" << pf->owner->full_name << "\", \"" << pf->name << "\", false);";
 
                     v->procedure(os.str());
                 }
