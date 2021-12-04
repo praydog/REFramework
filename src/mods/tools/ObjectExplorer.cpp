@@ -433,6 +433,34 @@ void ObjectExplorer::on_draw_dev_ui() {
     m_do_init = false;
 }
 
+void ObjectExplorer::on_frame() {
+    if (m_pinned_objects.empty()) {
+        return;
+    }
+
+    // on_frame is just going to be a way to display
+    // the pinned objects in a separate window
+    if (ImGui::Begin("Pinned objects")) {
+        display_pins();
+
+        ImGui::End();
+    } else {
+        m_pinned_objects.clear();
+    }
+}
+
+void ObjectExplorer::display_pins() {
+    for (auto& pinned_obj : m_pinned_objects) {
+        const auto made_node = ImGui::TreeNode((pinned_obj.path + "." + pinned_obj.name).c_str());
+        context_menu(pinned_obj.address);
+
+        if (made_node) {
+            handle_address(pinned_obj.address);
+            ImGui::TreePop();
+        }
+    }
+}
+
 void ObjectExplorer::add_lua_bindings(sol::state& lua) {
     // lua bindings for ObjectExplorer might sound weird,
     // but it's actually pretty useful for displaying objects
@@ -1703,7 +1731,12 @@ void ObjectExplorer::handle_address(Address address, int32_t offset, Address par
     }
 
     bool made_node = false;
-    auto is_game_object = utility::re_managed_object::is_a(object, "via.GameObject");
+    const auto is_game_object = utility::re_managed_object::is_a(object, "via.GameObject");
+    const auto obj_typedef = utility::re_managed_object::get_type_definition(object);
+
+    if (obj_typedef != nullptr) {
+        m_current_path.emplace_back(obj_typedef->get_name());
+    }
 
 
     if (offset != -1) {
@@ -1891,6 +1924,10 @@ void ObjectExplorer::handle_address(Address address, int32_t offset, Address par
 
     if (made_node && offset != -1) {
         ImGui::TreePop();
+    }
+
+    if (obj_typedef != nullptr) {
+        m_current_path.pop_back();
     }
 }
 
@@ -3072,6 +3109,23 @@ void ObjectExplorer::context_menu(void* address) {
             ss << std::hex << (uintptr_t)address;
 
             ImGui::SetClipboardText(ss.str().c_str());
+        }
+
+        if (auto it = std::find_if(m_pinned_objects.begin(), m_pinned_objects.end(), [address](auto& pinned_obj) { return pinned_obj.address == address; }); it != m_pinned_objects.end()) {
+            if (ImGui::Selectable("Unpin")) {
+                m_pinned_objects.erase(it);
+            }
+        } else {
+            if (ImGui::Selectable("Pin")) {
+                auto& pinned = m_pinned_objects.emplace_back();
+
+                const auto is_managed_object = utility::re_managed_object::is_managed_object(address);
+                const auto type_definition = is_managed_object ? utility::re_managed_object::get_type_definition((REManagedObject*)address) : nullptr;
+
+                pinned.address = address;
+                pinned.name = type_definition != nullptr ? type_definition->get_name() : std::to_string((uintptr_t)address);
+                pinned.path = build_path();
+            }
         }
 
         // Log component hierarchy to disk
