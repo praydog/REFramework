@@ -18,11 +18,11 @@ sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_t
 sol::object get_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name);
 void set_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name, sol::object value);
 
-struct Bytes {
+struct ValueType {
     std::vector<uint8_t> data{};
     ::sdk::RETypeDefinition* type{nullptr};
 
-    Bytes(::sdk::RETypeDefinition* t)
+    ValueType(::sdk::RETypeDefinition* t)
         : type(t)
     {
         if (type != nullptr) {
@@ -144,8 +144,8 @@ void* get_real_obj(sol::object obj) {
     if (!obj.is<sol::nil_t>()) {
         if (obj.is<REManagedObject*>()) {
             real_obj = (void*)obj.as<REManagedObject*>();
-        } else if (obj.is<Bytes>()) {
-            real_obj = (void*)obj.as<Bytes&>().address();
+        } else if (obj.is<ValueType>()) {
+            real_obj = (void*)obj.as<ValueType&>().address();
         } else if (obj.is<void*>()) {
             real_obj = obj.as<void*>();
         } else {
@@ -293,8 +293,8 @@ sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_t
         // so, we managed to get here, but we don't know what to do with the data
         // check if it's a valuetype first
         if (data_type->is_value_type()) {
-            auto new_obj = sol::make_object(l, Bytes{ data_type });
-            auto& bytes = new_obj.as<Bytes&>();
+            auto new_obj = sol::make_object(l, ValueType{ data_type });
+            auto& bytes = new_obj.as<ValueType&>();
             
             memcpy(bytes.data.data(), data, data_type->get_size());
 
@@ -499,8 +499,8 @@ std::vector<void*>& build_args(sol::variadic_args va) {
             args.push_back((void*)&v);
         } else if (arg.is<::REManagedObject*>()) {
             args.push_back(arg.as<::REManagedObject*>());
-        } else if (arg.is<Bytes>()) {
-            auto& b = arg.as<Bytes&>();
+        } else if (arg.is<ValueType>()) {
+            auto& b = arg.as<ValueType&>();
             args.push_back((void*)b.address());
         } else {
             args.push_back(arg.as<void*>());
@@ -965,6 +965,8 @@ void bindings::open_sdk(ScriptState* s) {
         "get_field", &::sdk::RETypeDefinition::get_field,
         "get_runtime_type", &::sdk::RETypeDefinition::get_runtime_type,
         "get_parent_type", &::sdk::RETypeDefinition::get_parent_type,
+        "get_size", &::sdk::RETypeDefinition::get_size,
+        "get_valuetype_size", &::sdk::RETypeDefinition::get_valuetype_size,
         "is_value_type", &::sdk::RETypeDefinition::is_value_type,
         "is_by_ref", &::sdk::RETypeDefinition::is_by_ref,
         "is_pointer", &::sdk::RETypeDefinition::is_pointer,
@@ -1095,26 +1097,26 @@ void bindings::open_sdk(ScriptState* s) {
         },
         sol::base_classes, sol::bases<REManagedObject>());
     
-    lua.new_usertype<api::sdk::Bytes>("Bytes",
-        sol::meta_function::construct, sol::constructors<api::sdk::Bytes(sdk::RETypeDefinition*)>(),
-        "data", &api::sdk::Bytes::data,
-        "type", &api::sdk::Bytes::type,
-        "write_byte", &api::sdk::Bytes::write_memory<uint8_t>,
-        "write_short", &api::sdk::Bytes::write_memory<uint16_t>,
-        "write_dword", &api::sdk::Bytes::write_memory<uint32_t>,
-        "write_qword", &api::sdk::Bytes::write_memory<uint64_t>,
-        "write_float", &api::sdk::Bytes::write_memory<float>,
-        "write_double", &api::sdk::Bytes::write_memory<double>,
-        "read_byte", &api::sdk::Bytes::read_memory<uint8_t>,
-        "read_short", &api::sdk::Bytes::read_memory<uint16_t>,
-        "read_dword", &api::sdk::Bytes::read_memory<uint32_t>,
-        "read_qword", &api::sdk::Bytes::read_memory<uint64_t>,
-        "read_float", &api::sdk::Bytes::read_memory<float>,
-        "read_double", &api::sdk::Bytes::read_memory<double>,
-        "address", &api::sdk::Bytes::address,
-        "call", &api::sdk::Bytes::call,
-        "get_field", &api::sdk::Bytes::get_field,
-        "set_field", &api::sdk::Bytes::set_field,
-        "get_type_definition", [](api::sdk::Bytes* b) { return b->type; }
+    lua.new_usertype<api::sdk::ValueType>("ValueType",
+        sol::meta_function::construct, sol::constructors<api::sdk::ValueType(sdk::RETypeDefinition*)>(),
+        "data", &api::sdk::ValueType::data,
+        "type", &api::sdk::ValueType::type,
+        "write_byte", &api::sdk::ValueType::write_memory<uint8_t>,
+        "write_short", &api::sdk::ValueType::write_memory<uint16_t>,
+        "write_dword", &api::sdk::ValueType::write_memory<uint32_t>,
+        "write_qword", &api::sdk::ValueType::write_memory<uint64_t>,
+        "write_float", &api::sdk::ValueType::write_memory<float>,
+        "write_double", &api::sdk::ValueType::write_memory<double>,
+        "read_byte", &api::sdk::ValueType::read_memory<uint8_t>,
+        "read_short", &api::sdk::ValueType::read_memory<uint16_t>,
+        "read_dword", &api::sdk::ValueType::read_memory<uint32_t>,
+        "read_qword", &api::sdk::ValueType::read_memory<uint64_t>,
+        "read_float", &api::sdk::ValueType::read_memory<float>,
+        "read_double", &api::sdk::ValueType::read_memory<double>,
+        "address", &api::sdk::ValueType::address,
+        "call", &api::sdk::ValueType::call,
+        "get_field", &api::sdk::ValueType::get_field,
+        "set_field", &api::sdk::ValueType::set_field,
+        "get_type_definition", [](api::sdk::ValueType* b) { return b->type; }
     );
 }
