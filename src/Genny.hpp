@@ -17,6 +17,7 @@
 #include <stack>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -251,7 +252,6 @@ public:
 protected:
     friend class Type;
     friend class Pointer;
-    friend class Function;
     friend class Namespace;
     friend class Sdk;
 
@@ -494,6 +494,59 @@ protected:
     uintptr_t m_offset{};
     size_t m_bit_size{};
     uintptr_t m_bit_offset{};
+};
+
+class Constant : public Object {
+public:
+    explicit Constant(std::string_view name) : Object{name} {}
+
+    auto type() const { return m_type; }
+    auto type(Type* type) {
+        m_type = type;
+        return this;
+    }
+
+    // Helper that recurses though owners to find the correct type.
+    auto type(std::string_view name) {
+        m_type = find_in_owners_or_add<Type>(name);
+        return this;
+    }
+
+    const auto& value() const { return m_value; }
+    auto value(std::string_view value) { 
+        m_value = std::move(value);
+        return this;
+    }
+
+    template <typename T, std::enable_if_t<std::is_floating_point_v<T>, bool> = true>
+    auto real(T value) { 
+        m_value = std::to_string(value);
+        return this;    
+    }
+
+    template <typename T, std::enable_if_t<std::is_integral_v<T>, bool> = true>
+    auto integer(T value) {
+        m_value = std::to_string(value);
+        return this;
+    }
+
+    auto string(const std::string& value) { 
+        m_value = "\"" + value + "\"";
+        return this;
+    }
+
+    virtual void generate(std::ostream& os) const {
+        os << "static constexpr ";
+        generate_metadata(os);
+        m_type->generate_typename_for(os, this);
+        os << " " << usable_name();
+        m_type->generate_variable_postamble(os);
+        os << " = " << m_value << ";";
+    }
+
+protected:
+    Type* m_type{};
+    std::string m_value{};
 };
 
 class Parameter : public Object {
@@ -747,6 +800,7 @@ public:
     explicit Struct(std::string_view name) : Type{name} {}
 
     auto variable(std::string_view name) { return find_or_add_unique<Variable>(name); }
+    auto constant(std::string_view name) { return find_or_add_unique<Constant>(name); }
 
     // Returns a map of bit_offset, bitfield_variable at a given offset. Optionally, it will ignore a given variable
     // while constructing the map.
@@ -940,6 +994,11 @@ protected:
         }
 
         for (auto&& child : get_all<Struct>()) {
+            child->generate(os);
+            os << "\n";
+        }
+
+        for (auto&& child : get_all<Constant>()) {
             child->generate(os);
             os << "\n";
         }
@@ -1260,6 +1319,7 @@ protected:
             os << "#include \"" << include << "\"\n";
         }
 
+        std::unordered_set<Constant*> constants{};
         std::unordered_set<Variable*> variables{};
         std::unordered_set<Function*> functions{};
         std::unordered_set<Type*> types_to_include{};
@@ -1286,8 +1346,13 @@ protected:
             }
         };
 
+        obj->get_all_in_children<Constant>(constants);
         obj->get_all_in_children<Variable>(variables);
         obj->get_all_in_children<Function>(functions);
+
+        for (auto&& c : constants) {
+            add_type(c->type());
+        }
 
         for (auto&& var : variables) {
             add_type(var->type());

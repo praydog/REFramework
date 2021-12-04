@@ -125,6 +125,7 @@ std::array<const char*, 84> g_typecode_names{
 
 static std::unordered_map<std::string, std::string> g_valuetype_typedefs {
     { "System.Void", "void" },
+    { "System.Char", "wchar_t" },
     { "System.Byte", "uint8_t" },
     { "System.SByte", "int8_t" },
     { "System.Int16", "int16_t" },
@@ -566,6 +567,7 @@ void ObjectExplorer::generate_sdk() {
     g->type("int16_t")->size(2);
     g->type("int32_t")->size(4);
     g->type("int64_t")->size(8);
+    g->type("wchar_t")->size(2);
     g->type("uint8_t")->size(1);
     g->type("uint16_t")->size(2);
     g->type("uint32_t")->size(4);
@@ -1004,6 +1006,8 @@ void ObjectExplorer::generate_sdk() {
 
     spdlog::info("FIELDS BEGIN");
 
+    auto dummy_constant = g->class_("__DummyClass__")->constant("__DummyConstant__")->type("int32_t");
+
     // Fields
     for (uint32_t i = 0; i < tdb->numFields; ++i) {
         auto& f = (*tdb->fields)[i];
@@ -1072,6 +1076,7 @@ void ObjectExplorer::generate_sdk() {
 
         // Resolve the offset to be from the base class
         pf->offset_from_base += pf->owner->t->get_fieldptr_offset();
+        genny::Constant* cs = dummy_constant;
 
         // Use sdkgenny to generate the fields now
         if (pf->owner != nullptr) {
@@ -1110,32 +1115,55 @@ void ObjectExplorer::generate_sdk() {
                         v->type(class_from_name(g, pf->type->full_name)->ptr());
                     }
                 } else { // Statics
-                    auto v = c->static_function(pf->name);
+                    genny::StaticFunction* f = nullptr;
                     genny::Type* return_f = nullptr;
 
                     if (is_value_type) {
                         if (auto it = g_valuetype_typedefs.find(valuetype_typedef); it != g_valuetype_typedefs.end()) {
                             valuetype_typedef = it->second;
                             return_f = g->type(valuetype_typedef);
-                            v->returns(return_f);
-                        } else if (pf->type->t != pf->owner->t) {
-                            return_f = class_from_name(g, valuetype_typedef);
-                            v->returns(return_f);
+
+                            if ((field_flags & (uint16_t)via::clr::FieldFlag::Literal) != 0) {
+                                cs = c->constant(pf->name)->type(return_f);
+                            } else {
+                                f = c->static_function(pf->name);
+                            }
                         } else {
                             return_f = g->type("uint8_t")->ptr();
-                            v->returns(return_f);
+
+                            f = c->static_function(pf->name);
+                            f->returns(return_f);
                         }
                     } else {
-                        return_f = class_from_name(g, pf->type->full_name)->ptr();
-                        v->returns(return_f);
+                        if ((field_flags & (uint16_t)via::clr::FieldFlag::Literal) != 0) {
+                            switch (utility::hash(pf->type->full_name)) {
+                            case "System.String"_fnv:
+                                return_f = g->type("char")->ptr();
+                                cs = c->constant(pf->name)->type(return_f);
+                                break;
+                            default:
+                                return_f = class_from_name(g, pf->type->full_name)->ptr();
+                                f = c->static_function(pf->name);
+                                f->returns(return_f);
+
+                                break;
+                            }
+                        }
+                        else {
+                            return_f = class_from_name(g, pf->type->full_name)->ptr();
+                            f = c->static_function(pf->name);
+                            f->returns(return_f);
+                        }
                     }
 
-                    std::stringstream full_return_type_name{};
-                    return_f->generate_typename_for(full_return_type_name, nullptr);
-                    std::stringstream os{};
-                    os << "return *sdk::get_static_field<" << full_return_type_name.str() << ">(\"" << pf->owner->full_name << "\", \"" << pf->name << "\", false);";
+                    if (f != nullptr) {
+                        std::stringstream full_return_type_name{};
+                        return_f->generate_typename_for(full_return_type_name, nullptr);
+                        std::stringstream os{};
+                        os << "return *sdk::get_static_field<" << full_return_type_name.str() << ">(\"" << pf->owner->full_name << "\", \"" << pf->name << "\", false);";
 
-                    v->procedure(os.str());
+                        f->procedure(os.str());
+                    }
                 }
             }
         }
@@ -1193,42 +1221,55 @@ void ObjectExplorer::generate_sdk() {
             switch (utility::hash(full_name)) {
             case "System.Boolean"_fnv:
                 field_entry["default"] = *(bool*)init_data;
+                cs->integer(*(bool*)init_data);
                 break;
             case "System.Char"_fnv:
                 field_entry["default"] = *(wchar_t*)init_data;
+                cs->integer(*(wchar_t*)init_data);
                 break;
             case "System.Byte"_fnv:
                 field_entry["default"] = *(uint8_t*)init_data;
+                cs->integer(*(uint8_t*)init_data);
                 break;
             case "System.SByte"_fnv:
                 field_entry["default"] = *(int8_t*)init_data;
+                cs->integer(*(int8_t*)init_data);
                 break;
             case "System.UInt16"_fnv:
                 field_entry["default"] = *(uint16_t*)init_data;
+                cs->integer(*(uint16_t*)init_data);
                 break;
             case "System.Int16"_fnv:
                 field_entry["default"] = *(int16_t*)init_data;
+                cs->integer(*(int16_t*)init_data);
                 break;
             case "System.UInt32"_fnv:
                 field_entry["default"] = *(uint32_t*)init_data;
+                cs->integer(*(uint32_t*)init_data);
                 break;
             case "System.Int32"_fnv:
                 field_entry["default"] = *(int32_t*)init_data;
+                cs->integer(*(int32_t*)init_data);
                 break;
             case "System.UInt64"_fnv:
                 field_entry["default"] = *(uint64_t*)init_data;
+                cs->integer(*(uint64_t*)init_data);
                 break;
             case "System.Int64"_fnv:
                 field_entry["default"] = *(int64_t*)init_data;
+                cs->integer(*(int64_t*)init_data);
                 break;
             case "System.Single"_fnv:
                 field_entry["default"] = *(float*)init_data;
+                cs->real(*(float*)init_data);
                 break;
             case "System.Double"_fnv:
                 field_entry["default"] = *(double*)init_data;
+                cs->real(*(double*)init_data);
                 break;
             case "System.String"_fnv:
                 field_entry["default"] = (char*)init_data;
+                cs->string((char*)init_data);
                 break;
             default:
                 field_entry["default"] = "REFRAMEWORK_UNIMPLEMENTED_INIT_TYPE";
