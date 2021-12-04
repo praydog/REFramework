@@ -576,7 +576,7 @@ void ObjectExplorer::generate_sdk() {
     g->type("char")->size(1);
     g->type("int")->size(4);
     g->type("void")->size(0);
-    g->type("void*")->size(8);
+    //g->type("void*")->size(8);
 
     json il2cpp_dump{};
 
@@ -1073,37 +1073,69 @@ void ObjectExplorer::generate_sdk() {
         // Resolve the offset to be from the base class
         pf->offset_from_base += pf->owner->t->get_fieldptr_offset();
 
+        // Use sdkgenny to generate the fields now
         if (pf->owner != nullptr) {
             auto c = class_from_name(g, pf->owner->full_name);
             auto t = pf->type;
 
-            if (pf->type != nullptr && pf->type->t != nullptr && (field_flags & (uint16_t)via::clr::FieldFlag::Static) == 0) {
+            if (pf->type != nullptr && pf->type->t != nullptr) {
+                const bool is_owner_value_type = pf->owner->t->is_value_type();
                 const bool is_value_type = pf->type->t->is_value_type();
+                const bool is_enum = pf->type->t->is_enum();
 
-                auto v = c->variable(pf->name)->offset(pf->offset_from_base);
+                auto valuetype_typedef = pf->type->full_name;
 
-                if (is_value_type) {
-                    const bool is_enum = pf->type->t->is_enum();
-                    auto valuetype_typedef = pf->type->full_name;
+                if (is_enum) {
+                    const auto underlying_type = pf->type->t->get_underlying_type();
 
-                    if (is_enum) {
-                        const auto underlying_type = pf->type->t->get_underlying_type();
+                    if (underlying_type != nullptr) {
+                        valuetype_typedef = underlying_type->get_full_name();
+                    }
+                }
 
-                        if (underlying_type != nullptr) {
-                            valuetype_typedef = underlying_type->get_full_name();
+                // Non-statics first
+                if ((field_flags & (uint16_t)via::clr::FieldFlag::Static) == 0) {
+                    auto v = c->variable(pf->name)->offset(pf->offset_from_base);
+
+                    if (is_value_type) {
+                        if (auto it = g_valuetype_typedefs.find(valuetype_typedef); it != g_valuetype_typedefs.end()) {
+                            valuetype_typedef = it->second;
+                            v->type(g->type(valuetype_typedef));
+                        } else if (pf->type->t != pf->owner->t) {
+                            v->type(class_from_name(g, valuetype_typedef));
+                        } else {
+                            v->type(g->type("uint8_t")->array_(pf->type->t->get_size()));
                         }
+                    } else {
+                        v->type(class_from_name(g, pf->type->full_name)->ptr());
+                    }
+                } else { // Statics
+                    auto v = c->static_function(pf->name);
+                    genny::Type* return_f = nullptr;
+
+                    if (is_value_type) {
+                        if (auto it = g_valuetype_typedefs.find(valuetype_typedef); it != g_valuetype_typedefs.end()) {
+                            valuetype_typedef = it->second;
+                            return_f = g->type(valuetype_typedef);
+                            v->returns(return_f);
+                        } else if (pf->type->t != pf->owner->t) {
+                            return_f = class_from_name(g, valuetype_typedef);
+                            v->returns(return_f);
+                        } else {
+                            return_f = g->type("uint8_t")->ptr();
+                            v->returns(return_f);
+                        }
+                    } else {
+                        return_f = class_from_name(g, pf->type->full_name)->ptr();
+                        v->returns(return_f);
                     }
 
-                    if (auto it = g_valuetype_typedefs.find(valuetype_typedef); it != g_valuetype_typedefs.end()) {
-                        valuetype_typedef = it->second;
-                        v->type(valuetype_typedef);
-                    } else if (pf->type->t != pf->owner->t) {
-                        v->type(class_from_name(g, valuetype_typedef));
-                    } else {
-                        v->type(g->type("uint8_t")->array_(pf->type->t->get_size()));
-                    }
-                } else {
-                    v->type(class_from_name(g, pf->type->full_name)->ptr());
+                    std::stringstream full_return_type_name{};
+                    return_f->generate_typename_for(full_return_type_name, nullptr);
+                    std::stringstream os{};
+                    os << "return sdk::get_static_field<" << full_return_type_name.str() << ">(\"" << pf->owner->full_name << ", " << pf->name << ", false" <<  "\");";
+
+                    v->procedure(os.str());
                 }
             }
         }
@@ -1422,7 +1454,7 @@ void ObjectExplorer::generate_sdk() {
 
             std::stringstream os{};
 
-            os << "return (" << c->ptr()->get_typename() << ")utility::re_type::get_singleton_instance(get_type_info());";
+            os << "return (" << c->ptr()->usable_name() << ")utility::re_type::get_singleton_instance(get_type_info());";
 
             m->procedure(os.str());
         }
