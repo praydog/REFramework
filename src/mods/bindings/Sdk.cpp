@@ -22,36 +22,39 @@ struct Bytes {
     std::vector<uint8_t> data{};
     ::sdk::RETypeDefinition* type{nullptr};
 
-    uint8_t byte() const {
-        if (data.empty()) {
-            return 0;
+    Bytes(::sdk::RETypeDefinition* t)
+        : type(t)
+    {
+        if (type != nullptr) {
+            data.resize(type->get_size());
         }
-
-        return data[0];
     }
 
-    uint16_t word() const {
-        if (data.size() < 2) {
-            return 0;
-        }
-
-        return *(uint16_t*)data.data();
+    template <typename T>
+    bool is_valid_offset(int32_t offset, T& value) const {
+        return offset >= 0 && offset + sizeof(T) <= (int32_t)data.size();
     }
 
-    uint32_t dword() const {
-        if (data.size() < 4) {
-            return 0;
-        }
-
-        return *(uint32_t*)data.data();
+    bool is_valid_offset(int32_t offset) const {
+        return offset >= 0 && offset <= (int32_t)data.size();
     }
 
-    uint64_t qword() const {
-        if (data.size() < 8) {
-            return 0;
+    template <typename T>
+    void write_memory(int32_t offset, T value) {
+        if (!is_valid_offset(offset, value)) {
+            return;
         }
 
-        return *(uint64_t*)data.data();
+        *(T*)((uintptr_t)data.data() + offset) = value;
+    }
+
+    template <typename T>
+    T read_memory(int32_t offset) {
+        if (!is_valid_offset(offset)) {
+            return {};
+        }
+
+        return *(T*)((uintptr_t)data.data() + offset);
     }
 
     uintptr_t address() const {
@@ -290,11 +293,9 @@ sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_t
         // so, we managed to get here, but we don't know what to do with the data
         // check if it's a valuetype first
         if (data_type->is_value_type()) {
-            auto new_obj = sol::make_object(l, Bytes{});
+            auto new_obj = sol::make_object(l, Bytes{ data_type });
             auto& bytes = new_obj.as<Bytes&>();
-
-            bytes.type = data_type;
-            bytes.data.resize(data_type->get_size());
+            
             memcpy(bytes.data.data(), data, data_type->get_size());
 
             return new_obj;
@@ -1095,12 +1096,21 @@ void bindings::open_sdk(ScriptState* s) {
         sol::base_classes, sol::bases<REManagedObject>());
     
     lua.new_usertype<api::sdk::Bytes>("Bytes",
+        sol::meta_function::construct, sol::constructors<api::sdk::Bytes(sdk::RETypeDefinition*)>(),
         "data", &api::sdk::Bytes::data,
         "type", &api::sdk::Bytes::type,
-        "byte", &api::sdk::Bytes::byte,
-        "word", &api::sdk::Bytes::word,
-        "dword", &api::sdk::Bytes::dword,
-        "qword", &api::sdk::Bytes::qword,
+        "write_byte", &api::sdk::Bytes::write_memory<uint8_t>,
+        "write_short", &api::sdk::Bytes::write_memory<uint16_t>,
+        "write_dword", &api::sdk::Bytes::write_memory<uint32_t>,
+        "write_qword", &api::sdk::Bytes::write_memory<uint64_t>,
+        "write_float", &api::sdk::Bytes::write_memory<float>,
+        "write_double", &api::sdk::Bytes::write_memory<double>,
+        "read_byte", &api::sdk::Bytes::read_memory<uint8_t>,
+        "read_short", &api::sdk::Bytes::read_memory<uint16_t>,
+        "read_dword", &api::sdk::Bytes::read_memory<uint32_t>,
+        "read_qword", &api::sdk::Bytes::read_memory<uint64_t>,
+        "read_float", &api::sdk::Bytes::read_memory<float>,
+        "read_double", &api::sdk::Bytes::read_memory<double>,
         "address", &api::sdk::Bytes::address,
         "call", &api::sdk::Bytes::call,
         "get_field", &api::sdk::Bytes::get_field,
