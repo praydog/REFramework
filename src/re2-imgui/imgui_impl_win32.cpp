@@ -368,9 +368,9 @@ void    ImGui_ImplWin32_NewFrame()
     g_Time = current_time;
 
     // Read keyboard modifiers inputs
-    io.KeyCtrl = (::GetKeyState(VK_CONTROL) & 0x8000) != 0;
-    io.KeyShift = (::GetKeyState(VK_SHIFT) & 0x8000) != 0;
-    io.KeyAlt = (::GetKeyState(VK_MENU) & 0x8000) != 0;
+    io.KeyCtrl = (::GetKeyState(VK_CONTROL) & 0x8000) != 0 || io.KeysDown[VK_CONTROL] || io.KeysDown[VK_LCONTROL] || io.KeysDown[VK_RCONTROL];
+    io.KeyShift = (::GetKeyState(VK_SHIFT) & 0x8000) != 0 || io.KeysDown[VK_SHIFT] || io.KeysDown[VK_LSHIFT] || io.KeysDown[VK_RSHIFT];
+    io.KeyAlt = (::GetKeyState(VK_MENU) & 0x8000) != 0 || io.KeysDown[VK_MENU] || io.KeysDown[VK_LMENU] || io.KeysDown[VK_RMENU];
     io.KeySuper = false;
     // io.KeysDown[], io.MousePos, io.MouseDown[], io.MouseWheel: filled by the WndProc handler below.
 
