@@ -438,13 +438,19 @@ void ObjectExplorer::on_frame() {
         return;
     }
 
+    bool open = true;
+
     // on_frame is just going to be a way to display
     // the pinned objects in a separate window
-    if (ImGui::Begin("Pinned objects")) {
+
+    ImGui::SetNextWindowSize(ImVec2(200, 400), ImGuiCond_::ImGuiCond_Once);
+    if (ImGui::Begin("Pinned objects", &open)) {
         display_pins();
 
         ImGui::End();
-    } else {
+    }
+
+    if (!open) {
         m_pinned_objects.clear();
     }
 }
