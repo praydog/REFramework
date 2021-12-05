@@ -878,13 +878,13 @@ void ObjectExplorer::generate_sdk() {
             return param_entry;
         };
 
+        const auto return_type = m.get_return_type();
+        const auto return_type_name = return_type != nullptr ? return_type->get_full_name() : "";
+
         // Parse return type
 #if TDB_VER >= 69
         method_entry["returns"] = parse_param(param_ids->returnType, true);
 #else
-        const auto return_type = m.get_return_type();
-        const auto return_type_name = return_type != nullptr ? return_type->get_full_name() : "";
-
         method_entry["returns"] = json{
             {"type", return_type_name},
             {"name", ""},
