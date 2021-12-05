@@ -21,14 +21,14 @@ FunctionHook::FunctionHook(Address target, Address destination)
     }
 
     // Create the hook. Call create afterwards to prevent race conditions accessing FunctionHook before it leaves its constructor.
-    if (MH_CreateHook(target.as<LPVOID>(), destination.as<LPVOID>(), (LPVOID*)&m_original) == MH_OK) {
+    if (auto status = MH_CreateHook(target.as<LPVOID>(), destination.as<LPVOID>(), (LPVOID*)&m_original); status == MH_OK) {
         m_target = target;
         m_destination = destination;
 
         spdlog::info("Hook init successful {:p}->{:p}", target.ptr(), destination.ptr());
     }
     else {
-        spdlog::error("Failed to hook {:p}", target.ptr());
+        spdlog::error("Failed to hook {:p}: {}", target.ptr(), MH_StatusToString(status));
     }
 }
 
@@ -42,12 +42,12 @@ bool FunctionHook::create() {
         return false;
     }
 
-    if (MH_EnableHook((LPVOID)m_target) != MH_OK) {
+    if (auto status = MH_EnableHook((LPVOID)m_target); status != MH_OK) {
         m_original = 0;
         m_destination = 0;
         m_target = 0;
 
-        spdlog::error("Failed to hook {:x}", m_target);
+        spdlog::error("Failed to hook {:x}: {}", m_target, MH_StatusToString(status));
         return false;
     }
 
