@@ -25,6 +25,88 @@ using namespace std::literals;
 
 std::unique_ptr<REFramework> g_framework{};
 
+void REFramework::hook_monitor() {
+    std::scoped_lock _{ m_hook_monitor_mutex };
+
+    if (g_framework == nullptr) {
+        return;
+    }
+
+    const auto now = std::chrono::steady_clock::now();
+
+    auto& d3d11 = get_d3d11_hook();
+    auto& d3d12 = get_d3d12_hook();
+
+    const auto renderer_type = get_renderer_type();
+
+    if (d3d11 == nullptr || d3d12 == nullptr 
+        || (renderer_type == REFramework::D3D11 && d3d11 != nullptr && !d3d11->is_inside_present()) 
+        || (renderer_type == REFramework::D3D12 && d3d12 != nullptr && !d3d12->is_inside_present())) 
+    {
+        // check if present time is more than 5 seconds ago
+        if (now - m_last_present_time > std::chrono::seconds(5)) {
+            if (m_has_last_chance) {
+                // the purpose of this is to make sure that the game is not frozen
+                // e.g. if we are debugging the game, so we don't rehook anything on accident
+                m_has_last_chance = false;
+                m_last_chance_time = now;
+
+                spdlog::info("Last chance encountered for hooking");
+            }
+
+            if (!m_has_last_chance && now - m_last_chance_time > std::chrono::seconds(1)) {
+                spdlog::info("Sending rehook request for D3D");
+
+                m_is_d3d11 = false;
+
+                if (hook_d3d12()) {
+                    
+                }
+
+                // so we don't immediately go and hook it again
+                // add some additional time to it to give it some leeway
+                m_last_present_time = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+                m_last_message_time = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+                m_last_chance_time = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+                m_has_last_chance = true;
+            }
+        } else {
+            m_last_chance_time = std::chrono::steady_clock::now();
+            m_has_last_chance = true;
+        }
+
+        if (m_initialized && m_wnd != 0 && now - m_last_message_time > std::chrono::seconds(5)) {
+            // send dummy message to window to check if our hook is still intact
+            if (!m_sent_message) {
+                spdlog::info("Sending initial message hook test");
+
+                auto proc = (WNDPROC)GetWindowLongPtr(m_wnd, GWLP_WNDPROC);
+
+                if (proc != nullptr) {
+                    const auto ret = CallWindowProc(proc, m_wnd, WM_NULL, 0, 0);
+
+                    spdlog::info("Hook test message sent");
+                }
+
+                m_last_sendmessage_time = std::chrono::steady_clock::now();
+                m_sent_message = true;
+            } else if (now - m_last_sendmessage_time > std::chrono::seconds(1)) {
+                spdlog::info("Sending reinitialization request for message hook");
+
+                // if we don't get a message for 5 seconds, assume the hook is broken
+                //m_initialized = false; // causes the hook to be re-initialized next frame
+                m_message_hook_requested = true;
+                m_last_message_time = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+                m_last_present_time = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+
+                m_sent_message = false;
+            }
+        } else {
+            m_sent_message = false;
+        }
+    }
+}
+
 REFramework::REFramework()
     : m_game_module{GetModuleHandle(0)}
     , m_logger{spdlog::basic_logger_mt("REFramework", "re2_framework_log.txt", true)} {
@@ -111,16 +193,31 @@ REFramework::REFramework()
 
     // Hooking D3D12 initially because we need to retrieve the command queue before the first frame then switch to D3D11 if it failed later
     // on
-    if (!hook_d3d12()) {
+    // addendum: now we don't need to do that, we just grab the command queue offset from the swapchain we create
+    /*if (!hook_d3d12()) {
         spdlog::error("Failed to hook D3D12 for initial test.");
-    }
+    }*/
+
+    std::scoped_lock _{m_hook_monitor_mutex};
+
+    m_last_present_time = std::chrono::steady_clock::now();
+    m_last_message_time = std::chrono::steady_clock::now();
+    m_d3d_monitor_thread = std::make_unique<std::thread>([this]() {
+        while (true) {
+            this->hook_monitor();
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        }
+    });
 }
 
 bool REFramework::hook_d3d11() {
-    m_d3d11_hook = std::make_unique<D3D11Hook>();
-    m_d3d11_hook->on_present([this](D3D11Hook& hook) { on_frame_d3d11(); });
-    m_d3d11_hook->on_post_present([this](D3D11Hook& hook) { on_post_present_d3d11(); });
-    m_d3d11_hook->on_resize_buffers([this](D3D11Hook& hook) { on_reset(); });
+    //if (m_d3d11_hook == nullptr) {
+        m_d3d11_hook.reset();
+        m_d3d11_hook = std::make_unique<D3D11Hook>();
+        m_d3d11_hook->on_present([this](D3D11Hook& hook) { on_frame_d3d11(); });
+        m_d3d11_hook->on_post_present([this](D3D11Hook& hook) { on_post_present_d3d11(); });
+        m_d3d11_hook->on_resize_buffers([this](D3D11Hook& hook) { on_reset(); });
+    //}
 
     // Making sure D3D12 is not hooked
     if (!m_is_d3d12) {
@@ -155,12 +252,15 @@ bool REFramework::hook_d3d12() {
         return hook_d3d11();
     }
 
-    m_d3d12_hook = std::make_unique<D3D12Hook>();
-    m_d3d12_hook->on_present([this](D3D12Hook& hook) { on_frame_d3d12(); });
-    m_d3d12_hook->on_post_present([this](D3D12Hook& hook) { on_post_present_d3d12(); });
-    m_d3d12_hook->on_resize_buffers([this](D3D12Hook& hook) { on_reset(); });
-    m_d3d12_hook->on_resize_target([this](D3D12Hook& hook) { on_reset(); });
-    m_d3d12_hook->on_create_swap_chain([this](D3D12Hook& hook) { m_d3d12.command_queue = m_d3d12_hook->get_command_queue(); });
+    //if (m_d3d12_hook == nullptr) {
+        m_d3d12_hook.reset();
+        m_d3d12_hook = std::make_unique<D3D12Hook>();
+        m_d3d12_hook->on_present([this](D3D12Hook& hook) { on_frame_d3d12(); });
+        m_d3d12_hook->on_post_present([this](D3D12Hook& hook) { on_post_present_d3d12(); });
+        m_d3d12_hook->on_resize_buffers([this](D3D12Hook& hook) { on_reset(); });
+        m_d3d12_hook->on_resize_target([this](D3D12Hook& hook) { on_reset(); });
+    //}
+    //m_d3d12_hook->on_create_swap_chain([this](D3D12Hook& hook) { m_d3d12.command_queue = m_d3d12_hook->get_command_queue(); });
 
     // Making sure D3D11 is not hooked
     if (!m_is_d3d11) {
@@ -219,6 +319,10 @@ void REFramework::on_frame_d3d11() {
     }
 
     m_renderer_type = RendererType::D3D11;
+    
+    if (m_message_hook_requested) {
+        initialize_windows_message_hook();
+    }
 
     const bool is_init_ok = m_error.empty() && m_game_data_initialized;
 
@@ -298,17 +402,27 @@ void REFramework::on_frame_d3d11() {
 
 void REFramework::on_post_present_d3d11() {
     if (!m_error.empty() || !m_initialized || !m_game_data_initialized) {
+        if (m_last_present_time <= std::chrono::steady_clock::now()){
+            m_last_present_time = std::chrono::steady_clock::now();
+        }
+
         return;
     }
 
     for (auto& mod : m_mods->get_mods()) {
         mod->on_post_present();
     }
+
+    if (m_last_present_time <= std::chrono::steady_clock::now()){
+        m_last_present_time = std::chrono::steady_clock::now();
+    }
 }
 
 // D3D12 Draw funciton
 void REFramework::on_frame_d3d12() {
-    spdlog::debug("on_frame (D3D12)");
+    m_d3d12.command_queue = m_d3d12_hook->get_command_queue();
+
+    //spdlog::debug("on_frame (D3D12)");
     
     if (!m_initialized) {
         if (!initialize()) {
@@ -327,6 +441,10 @@ void REFramework::on_frame_d3d12() {
     }
 
     m_renderer_type = RendererType::D3D12;
+
+    if (m_message_hook_requested) {
+        initialize_windows_message_hook();
+    }
 
     const bool is_init_ok = m_error.empty() && m_game_data_initialized;
 
@@ -438,11 +556,19 @@ void REFramework::on_frame_d3d12() {
 
 void REFramework::on_post_present_d3d12() {
     if (!m_error.empty() || !m_initialized || !m_game_data_initialized) {
+        if (m_last_present_time <= std::chrono::steady_clock::now()){
+            m_last_present_time = std::chrono::steady_clock::now();
+        }
+
         return;
     }
     
     for (auto& mod : m_mods->get_mods()) {
         mod->on_post_present();
+    }
+
+    if (m_last_present_time <= std::chrono::steady_clock::now()){
+        m_last_present_time = std::chrono::steady_clock::now();
     }
 }
 
@@ -471,6 +597,8 @@ void REFramework::on_reset() {
 }
 
 bool REFramework::on_message(HWND wnd, UINT message, WPARAM w_param, LPARAM l_param) {
+    m_last_message_time = std::chrono::steady_clock::now();
+
     if (!m_initialized) {
         return true;
     }
@@ -666,7 +794,7 @@ void REFramework::draw_about() {
 
     ImGui::Text("Author: praydog");
     ImGui::Text("Inspired by the Kanan project.");
-    ImGui::Text("https://github.com/praydog/RE2-Mod-Framework");
+    ImGui::Text("https://github.com/praydog/REFramework");
 
     if (ImGui::CollapsingHeader("Licenses")) {
         ImGui::TreePush("Licenses");
@@ -763,6 +891,16 @@ bool REFramework::initialize() {
         return true;
     }
 
+    if (m_first_initialize) {
+        m_frames_since_init = 0;
+        m_first_initialize = false;
+    }
+
+    if (m_frames_since_init < 60) {
+        m_frames_since_init++;
+        return false;
+    }
+
     if (m_is_d3d11) {
         spdlog::info("Attempting to initialize DirectX 11");
 
@@ -775,6 +913,8 @@ bool REFramework::initialize() {
 
         // Wait.
         if (device == nullptr || swap_chain == nullptr) {
+            m_first_initialize = true;
+
             spdlog::info("Device or SwapChain null. DirectX 12 may be in use. Unhooking D3D11...");
 
             // We unhook D3D11
@@ -801,20 +941,6 @@ bool REFramework::initialize() {
         swap_chain->GetDesc(&swap_desc);
 
         m_wnd = swap_desc.OutputWindow;
-
-        // Explicitly call destructor first
-        m_windows_message_hook.reset();
-        m_windows_message_hook = std::make_unique<WindowsMessageHook>(m_wnd);
-        m_windows_message_hook->on_message = [this](auto wnd, auto msg, auto w_param, auto l_param) {
-            return on_message(wnd, msg, w_param, l_param);
-        };
-
-        // just do this instead of rehooking because there's no point.
-        if (m_first_frame) {
-            m_dinput_hook = std::make_unique<DInputHook>(m_wnd);
-        } else {
-            m_dinput_hook->set_window(m_wnd);
-        }
 
         spdlog::info("Creating render target");
 
@@ -853,7 +979,23 @@ bool REFramework::initialize() {
         auto device = m_d3d12_hook->get_device();
         auto swap_chain = m_d3d12_hook->get_swap_chain();
 
+        if (m_d3d12.command_queue != nullptr) {
+            if (IsBadReadPtr(m_d3d12.command_queue, sizeof(ID3D12CommandQueue*))) {
+                m_d3d12.command_queue = nullptr;
+            } else {
+                // query interface to check if the command queue is valid
+                ID3D12CommandQueue* queue = nullptr;
+                if (SUCCEEDED(m_d3d12.command_queue->QueryInterface(__uuidof(ID3D12CommandQueue), reinterpret_cast<void**>(&queue)))) {
+                    m_d3d12.command_queue = queue;
+                } else {
+                    m_d3d12.command_queue = nullptr;
+                }
+            }
+        }
+
         if (device == nullptr || swap_chain == nullptr || m_d3d12.command_queue == nullptr) {
+            m_first_initialize = true;
+
             spdlog::info("Device: {:x}", (uintptr_t)device);
             spdlog::info("SwapChain: {:x}", (uintptr_t)swap_chain);
             spdlog::info("CommandQueue: {:x}", (uintptr_t)m_d3d12.command_queue);
@@ -880,18 +1022,6 @@ bool REFramework::initialize() {
         swap_chain->GetDesc(&swap_desc);
 
         m_wnd = swap_desc.OutputWindow;
-
-        m_windows_message_hook.reset();
-        m_windows_message_hook = std::make_unique<WindowsMessageHook>(m_wnd);
-        m_windows_message_hook->on_message = [this](auto wnd, auto msg, auto w_param, auto l_param) {
-            return on_message(wnd, msg, w_param, l_param);
-        };
-
-        if (m_first_frame) {
-            m_dinput_hook = std::make_unique<DInputHook>(m_wnd);
-        } else {
-            m_dinput_hook->set_window(m_wnd);
-        }
 
         if (!create_rtv_descriptor_heap_d3d12()) {
             spdlog::error("Failed to create RTV Descriptor.");
@@ -949,6 +1079,14 @@ bool REFramework::initialize() {
         return false;
     }
 
+    initialize_windows_message_hook();
+
+    if (m_first_frame) {
+        m_dinput_hook = std::make_unique<DInputHook>(m_wnd);
+    } else {
+        m_dinput_hook->set_window(m_wnd);
+    }
+
     if (m_first_frame) {
         m_first_frame = false;
 
@@ -977,6 +1115,27 @@ bool REFramework::initialize() {
     }
 
     return true;
+}
+
+bool REFramework::initialize_windows_message_hook() {
+    if (m_wnd == 0) {
+        return false;
+    }
+
+    if (m_first_frame || m_message_hook_requested || m_windows_message_hook == nullptr) {
+        m_last_message_time = std::chrono::steady_clock::now();
+        m_windows_message_hook.reset();
+        m_windows_message_hook = std::make_unique<WindowsMessageHook>(m_wnd);
+        m_windows_message_hook->on_message = [this](auto wnd, auto msg, auto w_param, auto l_param) {
+            return on_message(wnd, msg, w_param, l_param);
+        };
+
+        m_message_hook_requested = false;
+        return true;
+    }
+
+    m_message_hook_requested = false;
+    return false;
 }
 
 // DirectX 11 Initialization methods

@@ -114,10 +114,14 @@ set(UTILITY_SRC
     utility/Patch.cpp
     utility/Pattern.hpp
     utility/Pattern.cpp
+    utility/PointerHook.hpp
+    utility/PointerHook.cpp
     utility/Scan.hpp
     utility/Scan.cpp
     utility/String.hpp
     utility/String.cpp
+    utility/Thread.hpp
+    utility/Thread.cpp
 )
 
 set(FRAMEWORK_SRC

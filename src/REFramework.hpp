@@ -16,6 +16,9 @@ class RETypes;
 
 // Global facilitator
 class REFramework {
+private:
+    void hook_monitor();
+
 public:
     REFramework();
     virtual ~REFramework();
@@ -88,6 +91,10 @@ public:
         m_draw_ui = state;
     }
 
+    auto& get_hook_monitor_mutex() {
+        return m_hook_monitor_mutex;
+    }
+
 private:
     void consume_input();
 
@@ -98,6 +105,7 @@ private:
     bool hook_d3d12();
 
     bool initialize();
+    bool initialize_windows_message_hook();
 
     bool m_first_frame{true};
     bool m_is_d3d12{false};
@@ -140,6 +148,19 @@ private:
     std::unique_ptr<Mods> m_mods;
     std::unique_ptr<REGlobals> m_globals;
     std::unique_ptr<RETypes> m_types;
+
+    std::recursive_mutex m_hook_monitor_mutex{};
+    std::unique_ptr<std::thread> m_d3d_monitor_thread{};
+    std::chrono::steady_clock::time_point m_last_present_time{};
+    std::chrono::steady_clock::time_point m_last_message_time{};
+    std::chrono::steady_clock::time_point m_last_sendmessage_time{};
+    std::chrono::steady_clock::time_point m_last_chance_time{};
+    uint32_t m_frames_since_init{0};
+    bool m_has_last_chance{true};
+    bool m_first_initialize{true};
+
+    bool m_sent_message{false};
+    bool m_message_hook_requested{false};
 
     RendererType m_renderer_type{RendererType::D3D11};
 

@@ -3,6 +3,8 @@
 
 #include <spdlog/spdlog.h>
 
+#include "utility/Thread.hpp"
+
 #include "WindowsMessageHook.hpp"
 
 using namespace std;
@@ -35,7 +37,10 @@ WindowsMessageHook::WindowsMessageHook(HWND wnd)
     : m_wnd{ wnd },
     m_original_proc{ nullptr }
 {
+    std::lock_guard _{ g_proc_mutex };
     spdlog::info("Initializing WindowsMessageHook");
+
+    utility::ThreadSuspender suspender{};
 
     g_windows_message_hook = this;
 
@@ -50,6 +55,9 @@ WindowsMessageHook::WindowsMessageHook(HWND wnd)
 
 WindowsMessageHook::~WindowsMessageHook() {
     std::lock_guard _{ g_proc_mutex };
+    spdlog::info("Destroying WindowsMessageHook");
+
+    utility::ThreadSuspender suspender{};
 
     remove();
     g_windows_message_hook = nullptr;
@@ -62,7 +70,12 @@ bool WindowsMessageHook::remove() {
     }
 
     // Restore the original window procedure.
-    SetWindowLongPtr(m_wnd, GWLP_WNDPROC, (LONG_PTR)m_original_proc);
+    auto current_proc = (WNDPROC)GetWindowLongPtr(m_wnd, GWLP_WNDPROC);
+
+    // lets not try to restore the original window procedure if it's not ours.
+    if (current_proc == &window_proc) {
+        SetWindowLongPtr(m_wnd, GWLP_WNDPROC, (LONG_PTR)m_original_proc);
+    }
 
     // Invalidate this message hook.
     m_wnd = nullptr;

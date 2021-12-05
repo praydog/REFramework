@@ -9,7 +9,7 @@
 #include <d3d12.h>
 #include <dxgi1_4.h>
 
-#include "utility/FunctionHook.hpp"
+#include "utility/PointerHook.hpp"
 
 class D3D12Hook
 {
@@ -45,9 +45,9 @@ public:
         m_on_resize_target = fn;
     }
 
-    void on_create_swap_chain(OnCreateSwapChainFn fn) {
+    /*void on_create_swap_chain(OnCreateSwapChainFn fn) {
         m_on_create_swap_chain = fn;
-    }
+    }*/
 
     ID3D12Device4* get_device() const {
         return m_device;
@@ -80,6 +80,10 @@ public:
         return m_render_height;
     }
 
+    bool is_inside_present() const {
+        return m_inside_present;
+    }
+
 protected:
     ID3D12Device4* m_device{ nullptr };
     IDXGISwapChain3* m_swap_chain{ nullptr };
@@ -91,22 +95,25 @@ protected:
     UINT m_render_width{ NULL };
     UINT m_render_height{ NULL };
 
-    bool m_hooked{ false };
+    uint32_t m_command_queue_offset{};
 
-    std::unique_ptr<FunctionHook> m_present_hook{};
-    std::unique_ptr<FunctionHook> m_resize_buffers_hook{};
-    std::unique_ptr<FunctionHook> m_resize_target_hook{};
-    std::unique_ptr<FunctionHook> m_create_swap_chain_hook{};
+    bool m_hooked{ false };
+    bool m_inside_present{false};
+
+    std::unique_ptr<PointerHook> m_present_hook{};
+    std::unique_ptr<PointerHook> m_resize_buffers_hook{};
+    std::unique_ptr<PointerHook> m_resize_target_hook{};
+    //std::unique_ptr<FunctionHook> m_create_swap_chain_hook{};
 
     OnPresentFn m_on_present{ nullptr };
     OnPresentFn m_on_post_present{ nullptr };
     OnResizeBuffersFn m_on_resize_buffers{ nullptr };
     OnResizeTargetFn m_on_resize_target{ nullptr };
-    OnCreateSwapChainFn m_on_create_swap_chain{ nullptr };
+    //OnCreateSwapChainFn m_on_create_swap_chain{ nullptr };
     
     static HRESULT WINAPI present(IDXGISwapChain3* swap_chain, UINT sync_interval, UINT flags);
     static HRESULT WINAPI resize_buffers(IDXGISwapChain3* swap_chain, UINT buffer_count, UINT width, UINT height, DXGI_FORMAT new_format, UINT swap_chain_flags);
     static HRESULT WINAPI resize_target(IDXGISwapChain3* swap_chain, const DXGI_MODE_DESC* new_target_parameters);
-    static HRESULT WINAPI create_swap_chain(IDXGIFactory4* factory, IUnknown* device, HWND hwnd, const DXGI_SWAP_CHAIN_DESC* desc, const DXGI_SWAP_CHAIN_FULLSCREEN_DESC* p_fullscreen_desc, IDXGIOutput* p_restrict_to_output, IDXGISwapChain** swap_chain);
+    //static HRESULT WINAPI create_swap_chain(IDXGIFactory4* factory, IUnknown* device, HWND hwnd, const DXGI_SWAP_CHAIN_DESC* desc, const DXGI_SWAP_CHAIN_FULLSCREEN_DESC* p_fullscreen_desc, IDXGIOutput* p_restrict_to_output, IDXGISwapChain** swap_chain);
 };
 

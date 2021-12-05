@@ -6,7 +6,7 @@
 #include <dxgi.h>
 #include <wrl.h>
 
-#include "utility/FunctionHook.hpp"
+#include "utility/PointerHook.hpp"
 
 class D3D11Hook {
 public:
@@ -19,6 +19,10 @@ public:
 	bool is_hooked() {
 		return m_hooked;
 	}
+
+    bool is_inside_present() const {
+        return m_inside_present;
+    }
 
     bool hook();
     bool unhook();
@@ -38,9 +42,10 @@ protected:
     IDXGISwapChain* m_swapchain_0{};
     IDXGISwapChain* m_swapchain_1{};
     bool m_hooked{ false };
+    bool m_inside_present{false};
 
-    std::unique_ptr<FunctionHook> m_present_hook{};
-    std::unique_ptr<FunctionHook> m_resize_buffers_hook{};
+    std::unique_ptr<PointerHook> m_present_hook{};
+    std::unique_ptr<PointerHook> m_resize_buffers_hook{};
     OnPresentFn m_on_present{ nullptr };
     OnPresentFn m_on_post_present{ nullptr };
     OnResizeBuffersFn m_on_resize_buffers{ nullptr };
