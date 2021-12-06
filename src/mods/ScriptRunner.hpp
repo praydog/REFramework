@@ -100,6 +100,8 @@ private:
 
 class ScriptRunner : public Mod {
 public:
+    static std::shared_ptr<ScriptRunner>& get();
+
     std::string_view get_name() const override { return "ScriptRunner"; }
     std::optional<std::string> on_initialize() override;
 
@@ -112,9 +114,19 @@ public:
     bool on_pre_gui_draw_element(REComponent* gui_element, void* primitive_context) override;
     void on_gui_draw_element(REComponent* gui_element, void* primitive_context) override;
 
+    void add_on_lua_state_created(REFLuaStateCreatedCb cb);
+    void add_on_lua_state_destroyed(REFLuaStateDestroyedCb cb);
+
+    const auto& get_state() {
+        return m_state;
+    }
+
 private:
     std::unique_ptr<ScriptState> m_state{};
     std::recursive_mutex m_access_mutex{};
+
+    std::unordered_set<REFLuaStateCreatedCb> m_lua_state_created_cbs{};
+    std::unordered_set<REFLuaStateDestroyedCb> m_lua_state_destroyed_cbs{};
 
     // Resets the ScriptState and runs autorun scripts again.
     void reset_scripts();

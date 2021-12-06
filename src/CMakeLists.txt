@@ -125,6 +125,9 @@ set(UTILITY_SRC
 )
 
 set(FRAMEWORK_SRC
+    ../include/API.h
+    ../include/API.hpp
+    API.cpp
     Mod.hpp
     Tool.hpp
     Mods.hpp
@@ -202,3 +205,5 @@ endif()
 if (BAREBONES)
     target_compile_definitions(${GAME_NAME} PUBLIC BAREBONES)
 endif()
+
+target_compile_definitions(${GAME_NAME} PUBLIC REFRAMEWORK_EXPORTS)

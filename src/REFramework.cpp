@@ -25,6 +25,18 @@ using namespace std::literals;
 
 std::unique_ptr<REFramework> g_framework{};
 
+namespace detail {
+    std::mutex g_initialize_mtx{};
+    std::vector<REFramework::REFInitializedCb> g_on_initialize_cbs;
+}
+
+bool REFramework::add_on_initialized(REFramework::REFInitializedCb cb) {
+    std::scoped_lock _{detail::g_initialize_mtx};
+
+    detail::g_on_initialize_cbs.push_back(cb);
+    return true;
+}
+
 void REFramework::hook_monitor() {
     std::scoped_lock _{ m_hook_monitor_mutex };
 
@@ -333,6 +345,8 @@ void REFramework::on_frame_d3d11() {
                 save_config();
             }
         }
+
+        call_initialize_cbs();
     }
 
     consume_input();
@@ -455,6 +469,8 @@ void REFramework::on_frame_d3d12() {
                 save_config();
             }
         }
+
+        call_initialize_cbs();
     }
 
     consume_input();
@@ -593,6 +609,7 @@ void REFramework::on_reset() {
         m_mods->on_device_reset();
     }
 
+    m_first_initialize = false;
     m_initialized = false;
 }
 
@@ -1136,6 +1153,18 @@ bool REFramework::initialize_windows_message_hook() {
 
     m_message_hook_requested = false;
     return false;
+}
+
+void REFramework::call_initialize_cbs() {
+    std::scoped_lock _{detail::g_initialize_mtx};
+
+    if (!detail::g_on_initialize_cbs.empty()) {
+        for (auto& cb : detail::g_on_initialize_cbs) {
+            cb();
+        }
+
+        detail::g_on_initialize_cbs.clear();
+    }
 }
 
 // DirectX 11 Initialization methods

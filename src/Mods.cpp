@@ -23,7 +23,7 @@ Mods::Mods()
     m_mods.emplace_back(std::make_unique<Hooks>());
 
     m_mods.emplace_back(VR::get());
-    m_mods.emplace_back(std::make_unique<ScriptRunner>());
+    m_mods.emplace_back(ScriptRunner::get());
 
 #ifndef RE8
 

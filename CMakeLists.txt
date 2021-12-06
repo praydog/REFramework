@@ -51,6 +51,7 @@ macro (add_game game_name)
     set(GAME_NAME ${game_name})
 
     add_subdirectory(src ${CMAKE_BINARY_DIR}/${game_name})
+    add_subdirectory(example_dll ${CMAKE_BINARY_DIR}/${game_name}/example_dll)
 
     set(${game_name} OFF)
 endmacro()
@@ -65,4 +66,5 @@ if (SINGLE_BUILD)
 else()
     set(GAME_NAME GAME)
     add_subdirectory(src)
+    add_subdirectory(example_dll)
 endif()
