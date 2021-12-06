@@ -13,6 +13,8 @@ set(HOOKS_SRC
 )
 
 set(MODS_SRC
+    mods/APIProxy.hpp
+    mods/APIProxy.cpp
     mods/Camera.hpp
     mods/Camera.cpp
     mods/FirstPerson.hpp

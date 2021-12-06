@@ -10,6 +10,7 @@
 #include "mods/Scene.hpp"
 #include "mods/VR.hpp"
 #include "mods/ScriptRunner.hpp"
+#include "mods/APIProxy.hpp"
 
 #include "Mods.hpp"
 
@@ -24,6 +25,7 @@ Mods::Mods()
 
     m_mods.emplace_back(VR::get());
     m_mods.emplace_back(ScriptRunner::get());
+    m_mods.emplace_back(APIProxy::get());
 
 #ifndef RE8
 

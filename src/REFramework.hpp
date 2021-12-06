@@ -14,7 +14,6 @@ class RETypes;
 #include "D3D12Hook.hpp"
 #include "DInputHook.hpp"
 #include "WindowsMessageHook.hpp"
-#include "../include/API.hpp"
 
 // Global facilitator
 class REFramework {
@@ -24,9 +23,6 @@ private:
 public:
     REFramework();
     virtual ~REFramework();
-
-    using REFInitializedCb = std::function<std::remove_pointer<::REFInitializedCb>::type>;
-    static bool add_on_initialized(REFInitializedCb cb);
 
     bool is_valid() const { return m_valid; }
 
@@ -112,7 +108,7 @@ private:
     bool initialize();
     bool initialize_windows_message_hook();
 
-    void call_initialize_cbs();
+    void call_on_frame();
 
     bool m_first_frame{true};
     bool m_is_d3d12{false};

@@ -345,7 +345,7 @@ std::optional<std::string> VR::on_initialize() {
     return Mod::on_initialize();
 }
 
-void VR::add_lua_bindings(sol::state& lua) {
+void VR::on_lua_state_created(sol::state& lua) {
     lua.new_usertype<VR>("VR",
         "get_controllers", &VR::get_controllers,
         "get_position", &VR::get_position,

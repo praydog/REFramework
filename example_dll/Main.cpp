@@ -18,11 +18,16 @@ void on_lua_state_destroyed(lua_State* l) {
     MessageBox(NULL, "Lua State Destroyed", "DLL", MB_OK);
 }
 
+void on_frame() {
+    OutputDebugString("Example Frame");
+}
+
 void startup_thread() {
     MessageBox(NULL, "Hello from the DLL!", "DLL", MB_OK);
 
     reframework_on_lua_state_created(on_lua_state_created);
     reframework_on_lua_state_destroyed(on_lua_state_destroyed);
+    reframework_on_frame(on_frame);
 }
 
 BOOL APIENTRY DllMain(HANDLE handle, DWORD reason, LPVOID reserved) {

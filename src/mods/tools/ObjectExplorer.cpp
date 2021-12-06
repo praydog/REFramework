@@ -467,7 +467,7 @@ void ObjectExplorer::display_pins() {
     }
 }
 
-void ObjectExplorer::add_lua_bindings(sol::state& lua) {
+void ObjectExplorer::on_lua_state_created(sol::state& lua) {
     // lua bindings for ObjectExplorer might sound weird,
     // but it's actually pretty useful for displaying objects
     // that may be found during scripting

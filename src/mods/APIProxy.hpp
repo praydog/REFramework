@@ -1,0 +1,40 @@
+#pragma once
+
+#include <memory>
+
+#include "Mod.hpp"
+
+#include "../include/API.hpp"
+
+// Class manager/proxy to call callbacks added via the C interface
+class APIProxy : public Mod {
+public:
+    static std::shared_ptr<APIProxy>& get();
+
+public:
+    std::string_view get_name() const override { return "APIProxy"; }
+
+    void on_frame() override;
+    void on_lua_state_created(sol::state& state) override;
+    void on_lua_state_destroyed(sol::state& state) override;
+    void on_pre_application_entry(void* entry, const char* name, size_t hash) override;
+    void on_application_entry(void* entry, const char* name, size_t hash) override;
+
+public:
+    using REFInitializedCb = std::function<std::remove_pointer<::REFInitializedCb>::type>;
+    using REFLuaStateCreatedCb = std::function<std::remove_pointer<::REFLuaStateCreatedCb>::type>;
+    using REFLuaStateDestroyedCb = std::function<std::remove_pointer<::REFLuaStateDestroyedCb>::type>;
+    using REFOnFrameCb = std::function<std::remove_pointer<::REFOnFrameCb>::type>;
+    static bool add_on_initialized(REFInitializedCb cb); // effectively serves as a do-once callback
+    bool add_on_lua_state_created(REFLuaStateCreatedCb cb);
+    bool add_on_lua_state_destroyed(REFLuaStateDestroyedCb cb);
+    bool add_on_frame(REFOnFrameCb cb);
+
+private:
+    // API Callbacks
+    static std::recursive_mutex s_api_cb_mtx;
+    static std::vector<APIProxy::REFInitializedCb> s_on_initialized_cbs;
+    std::vector<APIProxy::REFLuaStateCreatedCb> m_on_lua_state_created_cbs;
+    std::vector<APIProxy::REFLuaStateDestroyedCb> m_on_lua_state_destroyed_cbs;
+    std::vector<APIProxy::REFInitializedCb> m_on_frame_cbs{};
+};

@@ -209,7 +209,7 @@ ScriptState::ScriptState() {
     auto& mods = g_framework->get_mods()->get_mods();
 
     for (auto& mod : mods) {
-        mod->add_lua_bindings(m_lua);
+        mod->on_lua_state_created(m_lua);
     }
 }
 
@@ -512,28 +512,14 @@ void ScriptRunner::on_gui_draw_element(REComponent* gui_element, void* primitive
     m_state->on_gui_draw_element(gui_element, primitive_context);
 }
 
-void ScriptRunner::add_on_lua_state_created(REFLuaStateCreatedCb cb) {
-    std::scoped_lock _{ m_access_mutex };
-
-    m_lua_state_created_cbs.insert(cb);
-
-    if (m_state != nullptr && m_state->lua().lua_state() != nullptr) {
-        cb(m_state->lua());
-    }
-}
-
-void ScriptRunner::add_on_lua_state_destroyed(REFLuaStateDestroyedCb cb) {
-    std::scoped_lock _{ m_access_mutex };
-
-    m_lua_state_destroyed_cbs.insert(cb);
-}
-
 void ScriptRunner::reset_scripts() {
     std::scoped_lock _{ m_access_mutex };
 
     if (m_state != nullptr) {
-        for (auto&& cb : m_lua_state_destroyed_cbs) {
-            cb(m_state->lua());
+        auto& mods = g_framework->get_mods()->get_mods();
+
+        for (auto& mod : mods) {
+            mod->on_lua_state_destroyed(m_state->lua());
         }
 
         m_state->on_script_reset();
@@ -559,9 +545,5 @@ void ScriptRunner::reset_scripts() {
         if (path.has_extension() && path.extension() == ".lua") {
             m_state->run_script(path.string());
         }
-    }
-
-    for (auto&& cb : m_lua_state_created_cbs) {
-        cb(m_state->lua());
     }
 }

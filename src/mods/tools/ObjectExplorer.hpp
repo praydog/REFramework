@@ -122,7 +122,7 @@ public:
 
     void on_draw_dev_ui() override;
     void on_frame() override;
-    void add_lua_bindings(sol::state& lua) override;
+    void on_lua_state_created(sol::state& lua) override;
 
 private:
     void display_pins();

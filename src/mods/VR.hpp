@@ -30,7 +30,7 @@ public:
 
     // Called when the mod is initialized
     std::optional<std::string> on_initialize() override;
-    void add_lua_bindings(sol::state& lua) override;
+    void on_lua_state_created(sol::state& lua) override;
 
     void on_pre_imgui_frame() override;
     void on_frame() override;
