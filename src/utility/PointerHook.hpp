@@ -1,10 +1,11 @@
 #pragma once
 
 struct ProtectionOverride {
-    ProtectionOverride(void* address, uint32_t protection);
+    ProtectionOverride(void* address, size_t size, uint32_t protection);
     virtual ~ProtectionOverride();
 
     void* m_address{};
+    size_t m_size{};
     uint32_t m_old{};
 };
 

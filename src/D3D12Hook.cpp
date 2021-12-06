@@ -66,7 +66,7 @@ bool D3D12Hook::hook() {
         std::vector<uint8_t> hooked_bytes(original_bytes->size());
         memcpy(hooked_bytes.data(), d3d12_create_device, original_bytes->size());
 
-        ProtectionOverride protection_override{ d3d12_create_device, PAGE_EXECUTE_READWRITE };
+        ProtectionOverride protection_override{ d3d12_create_device, original_bytes->size(), PAGE_EXECUTE_READWRITE };
         memcpy(d3d12_create_device, original_bytes->data(), original_bytes->size());
         
         if (FAILED(d3d12_create_device(nullptr, feature_level, IID_PPV_ARGS(&device)))) {
@@ -82,8 +82,8 @@ bool D3D12Hook::hook() {
             spdlog::error("Failed to create D3D12 Dummy device");
             return false;
         }
-    }
 
+    }
     // Manually get CreateDXGIFactory export because the user may be running Windows 7
     const auto dxgi_module = LoadLibraryA("dxgi.dll");
     if (dxgi_module == nullptr) {
@@ -238,7 +238,7 @@ HRESULT WINAPI D3D12Hook::present(IDXGISwapChain3* swap_chain, UINT sync_interva
         auto original_bytes = utility::get_original_bytes(Address{present_fn});
 
         if (original_bytes) {
-            ProtectionOverride protection_override{present_fn, PAGE_EXECUTE_READWRITE};
+            ProtectionOverride protection_override{present_fn, original_bytes->size(), PAGE_EXECUTE_READWRITE};
 
             memcpy(present_fn, original_bytes->data(), original_bytes->size());
 
@@ -285,7 +285,7 @@ HRESULT WINAPI D3D12Hook::resize_buffers(IDXGISwapChain3* swap_chain, UINT buffe
         auto original_bytes = utility::get_original_bytes(Address{resize_buffers_fn});
 
         if (original_bytes) {
-            ProtectionOverride protection_override{resize_buffers_fn, PAGE_EXECUTE_READWRITE};
+            ProtectionOverride protection_override{resize_buffers_fn, original_bytes->size(), PAGE_EXECUTE_READWRITE};
 
             memcpy(resize_buffers_fn, original_bytes->data(), original_bytes->size());
 
@@ -329,7 +329,7 @@ HRESULT WINAPI D3D12Hook::resize_target(IDXGISwapChain3* swap_chain, const DXGI_
         auto original_bytes = utility::get_original_bytes(Address{resize_buffers_fn});
 
         if (original_bytes) {
-            ProtectionOverride protection_override{resize_buffers_fn, PAGE_EXECUTE_READWRITE};
+            ProtectionOverride protection_override{resize_buffers_fn, original_bytes->size(), PAGE_EXECUTE_READWRITE};
 
             memcpy(resize_buffers_fn, original_bytes->data(), original_bytes->size());
 

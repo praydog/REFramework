@@ -53,7 +53,7 @@ bool D3D11Hook::hook() {
         std::vector<uint8_t> hooked_bytes(original_bytes->size());
         memcpy(hooked_bytes.data(), &D3D11CreateDeviceAndSwapChain, original_bytes->size());
 
-        ProtectionOverride protection_override{ &D3D11CreateDeviceAndSwapChain, PAGE_EXECUTE_READWRITE };
+        ProtectionOverride protection_override{ &D3D11CreateDeviceAndSwapChain, original_bytes->size(), PAGE_EXECUTE_READWRITE };
         memcpy(&D3D11CreateDeviceAndSwapChain, original_bytes->data(), original_bytes->size());
         
         if (FAILED(D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_NULL, nullptr, 0, &feature_level, 1, D3D11_SDK_VERSION,

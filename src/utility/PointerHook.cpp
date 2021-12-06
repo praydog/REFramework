@@ -19,7 +19,7 @@ PointerHook::PointerHook(void** old_ptr, void* new_ptr)
         throw std::invalid_argument("old_ptr is not readable");
     }
 
-    ProtectionOverride overrider{old_ptr, PAGE_EXECUTE_READWRITE};
+    ProtectionOverride overrider{old_ptr, sizeof(void*), PAGE_EXECUTE_READWRITE};
 
     spdlog::info("[PointerHook] Hooking {:x}->{:x} to {:x}", (uintptr_t)old_ptr, (uintptr_t)*old_ptr, (uintptr_t)new_ptr);
 
@@ -34,7 +34,7 @@ PointerHook::~PointerHook() {
 bool PointerHook::remove() {
     if (m_replace_ptr != nullptr && !IsBadReadPtr(m_replace_ptr, sizeof(void*)) && *m_replace_ptr == m_destination) {
         try {
-            ProtectionOverride overrider{m_replace_ptr, PAGE_EXECUTE_READWRITE};
+            ProtectionOverride overrider{m_replace_ptr, sizeof(void*), PAGE_EXECUTE_READWRITE};
             *m_replace_ptr = m_original;
         } catch (std::exception& e) {
             spdlog::error("PointerHook: {}", e.what());
@@ -48,7 +48,7 @@ bool PointerHook::remove() {
 bool PointerHook::restore() {
     if (m_replace_ptr != nullptr && !IsBadReadPtr(m_replace_ptr, sizeof(void*)) && *m_replace_ptr != m_destination) {
         try {
-            ProtectionOverride overrider{m_replace_ptr, PAGE_EXECUTE_READWRITE};
+            ProtectionOverride overrider{m_replace_ptr, sizeof(void*), PAGE_EXECUTE_READWRITE};
             *m_replace_ptr = m_destination;
         } catch (std::exception& e) {
             spdlog::error("PointerHook: {}", e.what());
@@ -59,15 +59,16 @@ bool PointerHook::restore() {
     return true;
 }
 
-ProtectionOverride::ProtectionOverride(void* address, uint32_t protection)
-    : m_address{address}
+ProtectionOverride::ProtectionOverride(void* address, size_t size, uint32_t protection)
+    : m_address{address},
+    m_size{size}
 {
-    if (!VirtualProtect(address, sizeof(void*), protection, (DWORD*)&m_old)) {
+    if (!VirtualProtect(address, size, protection, (DWORD*)&m_old)) {
         spdlog::error("PointerHook: VirtualProtect failed");
         throw std::runtime_error("VirtualProtect failed");
     }
 }
 
 ProtectionOverride::~ProtectionOverride() {
-    VirtualProtect(m_address, sizeof(void*), m_old, (DWORD*)&m_old);
+    VirtualProtect(m_address, m_size, m_old, (DWORD*)&m_old);
 }
