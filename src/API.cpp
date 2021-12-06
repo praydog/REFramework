@@ -1,15 +1,9 @@
 #include "mods/APIProxy.hpp"
 #include "mods/ScriptRunner.hpp"
 
+#include "REFramework.hpp"
+
 #include "../include/API.hpp"
-
-bool reframework_is_ready() {
-    if (g_framework == nullptr) {
-        return false;
-    }
-
-    return g_framework->is_ready();
-}
 
 bool reframework_on_initialized(REFInitializedCb cb) {
     return APIProxy::add_on_initialized(cb);

@@ -6,7 +6,7 @@
 
 #include "../include/API.hpp"
 
-// Class manager/proxy to call callbacks added via the C interface
+// API manager/proxy to call callbacks added via the C interface
 class APIProxy : public Mod {
 public:
     static std::shared_ptr<APIProxy>& get();

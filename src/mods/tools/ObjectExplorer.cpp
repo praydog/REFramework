@@ -2105,21 +2105,21 @@ void ObjectExplorer::handle_type(REManagedObject* obj, REType* t) {
 }
 
 void ObjectExplorer::display_enum_value(std::string_view name, int64_t value) {
-    auto first_found = get_enum_value_name(name, (int64_t)value);
 
+    auto first_found = get_enum_value_name(name, (int64_t)value);
     if (!first_found.empty()) {
-        ImGui::Text("%i: ", value);
+        ImGui::Text("%lld: ", value);
         ImGui::SameLine();
         ImGui::TextColored(VARIABLE_COLOR, "%s", first_found.c_str());
     }
     // Assume it's a set of flags then
     else {
-        ImGui::Text("%i", value);
+        ImGui::Text("%lld", value);
 
         std::vector<std::string> names{};
 
         // Check which bits are set and have enum names
-        for (auto i = 0; i < 32; ++i) {
+        for (auto i = 0; i < 64; ++i) {
             if (auto bit = (value & ((int64_t)1 << i)); bit != 0) {
                 auto value_name = get_enum_value_name(name, bit);
 
@@ -2345,25 +2345,14 @@ void ObjectExplorer::display_native_fields(REManagedObject* obj, sdk::RETypeDefi
             const auto field_type_name = field_type->get_full_name();
             const auto field_name = f->get_name();
             const auto fieldptr_offset = f->get_offset_from_fieldptr();
-            const auto is_valuetype = field_type->get_vm_obj_type() == via::clr::VMObjType::ValType;
-
-            auto offset = fieldptr_offset;
-
-            void* data = nullptr;
-
-            bool is_enum = false;
+            const auto is_valuetype = field_type->is_value_type();
+            const auto is_enum = field_type->is_enum();
             bool is_managed_str = false;
 
+            auto offset = fieldptr_offset;
+            void* data = nullptr;
+
             std::string final_type_name = field_type_name;
-
-            // Check the field type's parent
-            if (auto fpt = field_type->get_parent_type(); fpt != nullptr) {
-                const auto full_name_hash = utility::hash(fpt->get_full_name());
-
-                if (full_name_hash == "System.Enum"_fnv) {
-                    is_enum = true;
-                }
-            }
 
             std::vector<std::string> postfixes{};
 
@@ -2875,13 +2864,54 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
     } break;
     default: {
         if (is_enum) {
-            auto value = *(int32_t*)data;
-            display_enum_value(type_name, (int64_t)value);
+            if (override_def != nullptr) {
+                switch (override_def->get_underlying_type()->get_valuetype_size()) {
+                    case 1:
+                        display_enum_value(type_name, *(int8_t*)data);
+                        if (real_data != nullptr) {
+                            auto& int_val = *(int16_t*)real_data;
 
-            if (real_data != nullptr) {
-                auto& int_val = *(int32_t*)real_data;
+                            ImGui::DragScalar("Set Value", ImGuiDataType_S8, &int_val, 1.0f, &min_i8, &max_i8);
+                        }
+                        break;
+                    case 2:
+                        display_enum_value(type_name, *(int16_t*)data);
+                        if (real_data != nullptr) {
+                            auto& int_val = *(int16_t*)real_data;
 
-                ImGui::DragInt("Set Value", (int*)&int_val, 1.0f, min_int, max_int);
+                            ImGui::DragScalar("Set Value", ImGuiDataType_S16, &int_val, 1.0f, &min_i16, &max_i16);
+                        }
+                        break;
+                    case 4:
+                        display_enum_value(type_name, *(int32_t*)data);
+                        if (real_data != nullptr) {
+                            auto& int_val = *(int32_t*)real_data;
+
+                            ImGui::DragInt("Set Value", (int*)&int_val, 1.0f, min_int, max_int);
+                        }
+                        break;
+                    case 8:
+                        display_enum_value(type_name, *(int64_t*)data);
+                        if (real_data != nullptr) {
+                            auto& int_val = *(int64_t*)real_data;
+
+                            ImGui::DragScalar("Set Value", ImGuiDataType_S64, &int_val, 1.0f, &min_int64, &max_int64);
+                        }
+                        break;
+                    default:
+                        ImGui::Text("Invalid enum size, falling back to int32");
+
+                        display_enum_value(type_name, *(int32_t*)data);
+                        if (real_data != nullptr) {
+                            auto& int_val = *(int32_t*)real_data;
+
+                            ImGui::DragInt("Set Value", (int*)&int_val, 1.0f, min_int, max_int);
+                        }
+                        break;
+                }
+            } else {
+                auto value = *(int32_t*)data;
+                display_enum_value(type_name, (int32_t)value);
             }
         } else {
             make_tree_addr(data);
@@ -3324,7 +3354,7 @@ std::string ObjectExplorer::get_full_enum_value_name(std::string_view enum_name,
     std::string out{};
 
     // Check which bits are set and have enum names
-    for (auto i = 0; i < 32; ++i) {
+    for (auto i = 0; i < 64; ++i) {
         if (auto bit = (value & ((int64_t)1 << i)); bit != 0) {
             auto value_name = get_enum_value_name(enum_name, bit);
 
