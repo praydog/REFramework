@@ -1,5 +1,7 @@
 local GameObject = {}
 
+GameObject.type = sdk.find_type_definition("via.GameObject")
+
 local known_typeofs = {}
 
 function GameObject.get_component(game_object, type_obj)
@@ -29,6 +31,14 @@ function GameObject.get_components(game_object)
     end
 
     return game_object:call("get_Components"):get_elements()
+end
+
+function GameObject.create(name, folder)
+    if folder == nil then
+        return sdk.call_native_func(nil, GameObject.type, "create(System.String)", name)
+    else
+        return sdk.call_native_func(nil, GameObject.type, "create(System.String, via.Folder)", name, folder)
+    end
 end
 
 return GameObject

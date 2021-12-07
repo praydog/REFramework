@@ -1,6 +1,8 @@
 local Statics = {}
 
-function Statics.generate(typename)
+function Statics.generate(typename, double_ended)
+    local double_ended = double_ended or false
+
     local t = sdk.find_type_definition(typename)
     if not t then return {} end
 
@@ -15,6 +17,10 @@ function Statics.generate(typename)
             log.info(name .. " = " .. tostring(raw_value))
 
             enum[name] = raw_value
+
+            if double_ended then
+                enum[raw_value] = name
+            end
         end
     end
 
