@@ -2287,9 +2287,7 @@ void ObjectExplorer::display_reflection_properties(REManagedObject* obj, REType*
                             ImGui::Text("Type: %s", variable->typeName);
                         }
                         else {
-                            std::vector<uint8_t> fake_object{};
-                            fake_object.reserve(t2->size);
-                            fake_object.clear();
+                            std::vector<uint8_t> fake_object(t2->size, 0);
 
                             handle_type((REManagedObject*)fake_object.data(), t2);
                         }
@@ -2555,9 +2553,7 @@ void ObjectExplorer::display_native_methods(REManagedObject* obj, sdk::RETypeDef
                             const auto param_type = param_typedef->get_type();
 
                             if (param_type != nullptr) {
-                                std::vector<uint8_t> fake_object{};
-                                fake_object.reserve(param_typedef->get_size());
-                                fake_object.clear();
+                                std::vector<uint8_t> fake_object(param_typedef->get_size(), 0);
 
                                 this->handle_type((REManagedObject*)fake_object.data(), param_typedef->get_type());
                             } else {
