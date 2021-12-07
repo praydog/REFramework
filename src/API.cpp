@@ -38,3 +38,35 @@ bool reframework_on_frame(REFOnFrameCb cb) {
         APIProxy::get()->add_on_frame(cb);
     });
 }
+
+REFRAMEWORK_API bool reframework_on_pre_application_entry(const char* name, REFOnPreApplicationEntryCb cb) {
+    if (cb == nullptr) {
+        return false;
+    }
+
+    auto cppname = std::string{name};
+
+    if (cppname.empty()) {
+        return false;
+    }
+
+    return APIProxy::add_on_initialized([cppname, cb]() {
+        APIProxy::get()->add_on_pre_application_entry(cppname, cb);
+    });   
+}
+
+REFRAMEWORK_API bool reframework_on_post_application_entry(const char* name, REFOnPostApplicationEntryCb cb) {
+    if (cb == nullptr || name == nullptr) {
+        return false;
+    }
+
+    auto cppname = std::string{name};
+
+    if (cppname.empty()) {
+        return false;
+    }
+
+    return APIProxy::add_on_initialized([cppname, cb]() {
+        APIProxy::get()->add_on_post_application_entry(cppname, cb);
+    });   
+}

@@ -1,3 +1,5 @@
+#include "utility/String.hpp"
+
 #include "ScriptRunner.hpp"
 
 #include "APIProxy.hpp"
@@ -45,6 +47,32 @@ bool APIProxy::add_on_frame(APIProxy::REFOnFrameCb cb) {
     return true;
 }
 
+bool APIProxy::add_on_pre_application_entry(std::string_view name, REFOnPreApplicationEntryCb cb) {
+    std::scoped_lock _{s_api_cb_mtx};
+
+    if (name.empty()) {
+        return false;
+    }
+
+    const auto name_hash = utility::hash(name);
+
+    m_on_pre_application_entry_cbs[name_hash].push_back(cb);
+    return true;
+}
+
+bool APIProxy::add_on_post_application_entry(std::string_view name, REFOnPostApplicationEntryCb cb) {
+    std::scoped_lock _{s_api_cb_mtx};
+
+    if (name.empty()) {
+        return false;
+    }
+
+    const auto name_hash = utility::hash(name);
+
+    m_on_post_application_entry_cbs[name_hash].push_back(cb);
+    return true;
+}
+
 void APIProxy::on_lua_state_created(sol::state& state) {
     std::scoped_lock _{s_api_cb_mtx};
 
@@ -78,9 +106,21 @@ void APIProxy::on_frame() {
 }
 
 void APIProxy::on_pre_application_entry(void* entry, const char* name, size_t hash) {
-    
+    std::scoped_lock _{s_api_cb_mtx};
+
+    if (auto it = m_on_pre_application_entry_cbs.find(hash); it != m_on_pre_application_entry_cbs.end()) {
+        for (auto&& cb : it->second) {
+            cb();
+        }
+    }
 }
 
 void APIProxy::on_application_entry(void* entry, const char* name, size_t hash) {
-    
+    std::scoped_lock _{s_api_cb_mtx};
+
+    if (auto it = m_on_post_application_entry_cbs.find(hash); it != m_on_post_application_entry_cbs.end()) {
+        for (auto&& cb : it->second) {
+            cb();
+        }
+    }
 }

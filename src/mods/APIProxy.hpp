@@ -25,10 +25,15 @@ public:
     using REFLuaStateCreatedCb = std::function<std::remove_pointer<::REFLuaStateCreatedCb>::type>;
     using REFLuaStateDestroyedCb = std::function<std::remove_pointer<::REFLuaStateDestroyedCb>::type>;
     using REFOnFrameCb = std::function<std::remove_pointer<::REFOnFrameCb>::type>;
+    using REFOnPreApplicationEntryCb = std::function<std::remove_pointer<::REFOnPreApplicationEntryCb>::type>;
+    using REFOnPostApplicationEntryCb = std::function<std::remove_pointer<::REFOnPostApplicationEntryCb>::type>;
+
     static bool add_on_initialized(REFInitializedCb cb); // effectively serves as a do-once callback
     bool add_on_lua_state_created(REFLuaStateCreatedCb cb);
     bool add_on_lua_state_destroyed(REFLuaStateDestroyedCb cb);
     bool add_on_frame(REFOnFrameCb cb);
+    bool add_on_pre_application_entry(std::string_view name, REFOnPreApplicationEntryCb cb);
+    bool add_on_post_application_entry(std::string_view name, REFOnPostApplicationEntryCb cb);
 
 private:
     // API Callbacks
@@ -37,4 +42,8 @@ private:
     std::vector<APIProxy::REFLuaStateCreatedCb> m_on_lua_state_created_cbs;
     std::vector<APIProxy::REFLuaStateDestroyedCb> m_on_lua_state_destroyed_cbs;
     std::vector<APIProxy::REFInitializedCb> m_on_frame_cbs{};
+
+    // Application Entry Callbacks
+    std::unordered_map<size_t, std::vector<APIProxy::REFOnPreApplicationEntryCb>> m_on_pre_application_entry_cbs{};
+    std::unordered_map<size_t, std::vector<APIProxy::REFOnPostApplicationEntryCb>> m_on_post_application_entry_cbs{};
 };
