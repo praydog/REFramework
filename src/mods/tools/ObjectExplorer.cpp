@@ -380,18 +380,17 @@ void ObjectExplorer::on_draw_dev_ui() {
         std::vector<uint8_t> fake_type{ 0 };
 
         for (const auto& name : m_sorted_types) {
-            fake_type.clear();
-
             auto t = get_type(name);
 
             if (t == nullptr) {
                 continue;
             }
-
-            if (t->size >= fake_type.capacity()) {
-                fake_type.reserve(t->size);
+            
+            if (t->size > fake_type.size()) {
+                fake_type.resize(t->size);
             }
 
+            memset(fake_type.data(), 0, t->size);\
             handle_type((REManagedObject*)fake_type.data(), t);
         }
     }
@@ -424,9 +423,11 @@ void ObjectExplorer::on_draw_dev_ui() {
     std::vector<uint8_t> fake_type{ 0 };
 
     for (auto t : m_displayed_types) {
-        fake_type.clear();
-        fake_type.reserve(t->size);
+        if (t->size > fake_type.size()) {
+            fake_type.resize(t->size);
+        }
         
+        memset(fake_type.data(), 0, t->size);
         handle_type((REManagedObject*)fake_type.data(), t);
     }
 
@@ -2194,9 +2195,7 @@ void ObjectExplorer::display_reflection_methods(REManagedObject* obj, REType* ty
                     ImGui::Text("Type: %s", ret.c_str());
                 }
                 else {
-                    std::vector<uint8_t> fake_object{};
-                    fake_object.reserve(t2->size);
-                    fake_object.clear();
+                    std::vector<uint8_t> fake_object(t2->size, 0);
 
                     handle_type((REManagedObject*)fake_object.data(), t2);
                 }
@@ -3060,8 +3059,7 @@ int32_t ObjectExplorer::get_field_offset(REManagedObject* obj, VariableDescripto
 
     // Copy the object so we don't cause a crash by replacing
     // data that's being used by the game
-    std::vector<uint8_t> object_copy{};
-    object_copy.reserve(class_size);
+    std::vector<uint8_t> object_copy(class_size);
     memcpy(object_copy.data(), obj, class_size);
 
     auto first_time = std::chrono::high_resolution_clock::now();
