@@ -1,3 +1,7 @@
+if reframework:get_game_name() ~= "re8" then
+    return
+end
+
 -- Trim the "userdata: " off of a string
 -- todo: FIX IT so we don't need to do this
 local function get_raw_userdata(ud)
@@ -10,209 +14,12 @@ local system_array_type = sdk.find_type_definition("System.Array")
 local system_single = sdk.find_type_definition("System.Single")
 local system_activator_type = sdk.find_type_definition("System.Activator")
 
-local function call_static(typename, method_name, ...)
-    local arg = {...}
-    
-    local type = sdk.find_type_definition(typename)
-    local result = sdk.call_native_func(nil, type, method_name, table.unpack(arg))
-
-    return result
-end
-
-local function system_array_to_table(array)
-    local out = {}
-
-    if not array then
-        log.info("Array was nil!")
-        return out 
-    end
-
-    local raw_return = sdk.call_native_func(array, system_array_type, "GetLength", 0)
-    --log.info("Raw return: " .. tostring(raw_return))
-    local array_length = raw_return
-
-    if array_length == nil then
-        array_length = 0
-    end
-
-    --log.info("array_length: " .. tostring(array_length))
-    --log.info("raw_return: " .. tostring(raw_return))
-
-    if array_length == 0 then
-        return out
-    end
-
-    for i=0, array_length-1 do
-        local element = sdk.call_native_func(array, system_array_type, "GetValue(System.Int32)", i)
-
-        table.insert(out, element)
-    end
-
-    return out
-end
-
-local function get_current_appdomain()
-    --return call_static("System.Threading.Thread", "GetDomain")
-    return call_static("System.AppDomain", "get_CurrentDomain")
-end
-
-local function get_assemblies(domain)
-    --log.info("domain: " .. tostring(domain))
-    return system_array_to_table(sdk.call_object_func(domain, "GetAssemblies"))
-end
-
-local known_types = {}
-
-local function find_system_type(type_name)
-    local t = known_types[type_name]
-
-    if t == nil then
-        local assemblies = get_assemblies(get_current_appdomain())
-
-        for i, assembly in ipairs(assemblies) do
-            t = sdk.call_object_func(assembly, "GetType(System.String)", type_name)
-
-            if t ~= nil then
-                known_types[type_name] = t
-                break 
-            end
-        end
-    end
-    
-    return t
-end
-
-local function create_object(type_name)
-    local t = find_system_type(type_name)
-
-    if t == nil then 
-        return nil
-    end
-
-    return sdk.call_native_func(nil, system_activator_type, "CreateInstance(System.Type)", t)
-end
-
-local function create_single(value)
-    local out = create_object("System.Single")
-
-    if not out then 
-        return out 
-    end
-
-    sdk.call_native_func(get_raw_userdata(out) + 0x10, system_single, ".ctor(System.Single)", value)
-    return out
-end
-
-local function dump_fields(object)
-    log.info("Dumping fields...")
-
-    local object_type = sdk.call_object_func(object, "GetType")
-    local binding_flags = 32 | 16 | 4 | 8
-
-    local fields = sdk.call_native_func(object_type, system_type, "GetFields(System.Reflection.BindingFlags)", binding_flags)
-
-    if fields then
-        local array_length = get_raw_userdata(sdk.call_native_func(fields, system_array_type, "GetLength", 0))
-
-        for i=0, array_length-1 do
-            local field = sdk.call_native_func(fields, system_array_type, "GetValue(System.Int32)", i)
-
-            log.info("Field: " .. sdk.call_object_func(field, "ToString"))
-        end
-    end
-end
-
-local function get_field_descriptors(typename)
-    local t = find_system_type(typename)
-
-    if t == nil then 
-        return {}
-    end
-
-    -- static only
-    local field_descriptors = sdk.call_native_func(t, system_type, "GetFields(System.Reflection.BindingFlags)", 32 | 16 | 8)
-
-    if field_descriptors then
-        local array_length = sdk.call_native_func(field_descriptors, system_array_type, "GetLength", 0)
-
-        local out = {}
-
-        for i=0, array_length-1 do
-            local field_descriptor = sdk.call_native_func(field_descriptors, system_array_type, "GetValue(System.Int32)", i)
-
-            table.insert(out, field_descriptor)
-        end
-
-        return out
-    end
-
-    return {}
-end
-
-local function get_object_type_name(object)
-    local object_type = sdk.call_object_func(object, "GetType")
-
-    return sdk.call_object_func(object_type, "get_FullName")
-end
-
-local known_fields = {}
-
-local function get_field_info(object, field_name)
-    if not object then
-        return nil
-    end
-
-    local field_info = known_fields[get_object_type_name(object) .. field_name]
-
-    if field_info then
-        return field_info
-    end
-
-    local object_type = sdk.call_object_func(object, "GetType")
-
-    local binding_flags = 32 | 16 | 4 | 8
-    field_info = sdk.call_native_func(object_type, system_type, "GetField(System.String, System.Reflection.BindingFlags)", field_name, binding_flags)
-
-    --known_fields[get_object_type_name(object) .. field_name] = field_info
-
-    return field_info
-end
-
-local function get_field_data(object, field_name)
-    local field_info = get_field_info(object, field_name)
-
-    if not field_info then
-        return nil
-    end
-
-    return sdk.call_object_func(field_info, "GetValue(System.Object)", object)
-end
-
-local function set_field_data(object, field_name, data)
-    local field_info = get_field_info(object, field_name)
-
-    if not field_info then
-        return nil
-    end
-
-    sdk.call_object_func(field_info, "SetValue(System.Object, System.Object)", object, data)
-end
-
-local function call_object(obj, typename, method_name, ...)
-    local arg = {...}
-    
-    local type = sdk.find_type_definition(typename)
-    local result = sdk.call_native_func(obj, type, method_name, table.unpack(arg))
-
-    return result
-end
-
 local function get_gameobject(component)
-    return call_object_func(component, "get_GameObject")
+    return component:call("get_GameObject")
 end
 
 local function get_component(game_object, type_name)
-    local t = find_system_type(type_name)
+    local t = sdk.typeof(type_name)
 
     if t == nil then 
         return nil
@@ -222,13 +29,13 @@ local function get_component(game_object, type_name)
 end
 
 local function get_components(game_object)
-    local transform = sdk.call_object_func(game_object, "get_Transform")
+    local transform = game_object:call("get_Transform")
 
     if not transform then
         return {}
     end
-
-    return system_array_to_table(sdk.call_object_func(game_object, "get_Components"))
+    
+    return game_object:call("get_Components"):get_elements()
 end
 
 local propsman = sdk.get_managed_singleton(sdk.game_namespace("PropsManager"))
@@ -274,29 +81,36 @@ local app = {
 }
 
 local function generate_enum(typename)
-    local fields = get_field_descriptors(typename)
+    local t = sdk.find_type_definition(typename)
+    if not t then return {} end
 
+    local fields = t:get_fields()
     local enum = {}
 
     for i, field in ipairs(fields) do
-        local name = sdk.call_object_func(field, "get_Name")
-        local raw_value = sdk.call_object_func(field, "GetValue(System.Object)", nil)
-        local value = raw_value:get_field("mValue")
+        if field:is_static() then
+            local name = field:get_name()
+            local raw_value = field:get_data(nil)
 
-        if value == nil then
-            value = raw_value
+            log.info(name .. " = " .. tostring(raw_value))
+
+            enum[name] = raw_value
         end
-
-        log.info(name .. " = " .. tostring(value))
-
-        enum[name] = value
     end
 
     return enum
 end
 
 via.hid.GamePadButton = generate_enum("via.hid.GamePadButton")
+via.hid.MouseButton = generate_enum("via.hid.MouseButton")
 app.HIDInputMode = generate_enum("app.HIDInputMode")
+
+local via_hid_mouse_typedef = sdk.find_type_definition("via.hid.Mouse")
+local via_hid_mouse = sdk.get_native_singleton("via.hid.Mouse")
+
+local function get_mouse_device()
+    return sdk.call_native_func(via_hid_mouse, via_hid_mouse_typedef, "get_Device")
+end
 
 local function set_inputmode(mode)
     local hid_manager = sdk.get_managed_singleton(sdk.game_namespace("HIDManager"))
@@ -321,7 +135,7 @@ local function update_pad_device(device)
     local vr_left_stick_axis = vrmod:get_left_stick_axis()
     local vr_right_stick_axis = vrmod:get_right_stick_axis()
 
-    local cur_button = sdk.to_int64(device:call("get_Button"))
+    local cur_button = device:call("get_Button")
     
     device:call("set_AxisL", vr_left_stick_axis)
     device:call("set_RawAxisR", vr_right_stick_axis)
@@ -509,7 +323,7 @@ local function on_pre_update_player_transform(transform)
 
     --log.info("Muzzle rotation: " .. tostring(muzzle_rotation.x) .. " " .. tostring(muzzle_rotation.y) .. " " .. tostring(muzzle_rotation.z) .. " " .. tostring(muzzle_rotation.w))
 
-    local joints = system_array_to_table(transform:call("get_Joints"))
+    local joints = transform:call("get_Joints"):get_elements()
     local rotation = transform:call("get_Rotation")
     local position = transform:call("get_Position")
 
@@ -658,7 +472,7 @@ local function update_player_data()
     end
 
 
-    local hand_ik = system_array_to_table(player_data.hand_touch:get_field("HandIK"))
+    local hand_ik = player_data.hand_touch:get_field("HandIK"):get_elements()
     --local hand_ik = { player_data.reference:get_field("<ikRHand>k__BackingField"), player_data.reference:get_field("<ikLHand>k__BackingField") }
 
     if #hand_ik < 2 then
@@ -818,8 +632,6 @@ local function check_player_hands_up()
 end
 
 re.on_application_entry("UpdateHID", function()
-    --local padman = sdk.get_managed_singleton("app.HIDPadManager")
-    --update_padman(padman)
 end)
 
 re.on_application_entry("BeginRendering", function()
