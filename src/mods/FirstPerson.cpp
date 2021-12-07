@@ -716,9 +716,13 @@ void FirstPerson::update_player_transform(RETransform* transform) {
 
                         // Set the fire bullet type to AlongMuzzle, which fires from the muzzle's position and rotation
                         if (is_using_controllers) {
-                            fire_bullet_type = app::ropeway::weapon::shell::ShellDefine::FireBulletType::AlongMuzzle;
+                            if (fire_bullet_type == app::ropeway::weapon::shell::ShellDefine::FireBulletType::Camera) {
+                                fire_bullet_type = app::ropeway::weapon::shell::ShellDefine::FireBulletType::AlongMuzzle;
+                            }
                         } else {
-                            fire_bullet_type = app::ropeway::weapon::shell::ShellDefine::FireBulletType::Camera;
+                            if (fire_bullet_type == app::ropeway::weapon::shell::ShellDefine::FireBulletType::AlongMuzzle) {
+                                fire_bullet_type = app::ropeway::weapon::shell::ShellDefine::FireBulletType::Camera;
+                            }
                         }
 
                         auto muzzle_joint_param = *sdk::get_object_field<REManagedObject*>(fire_bullet_param, "_MuzzleJointParameter");
