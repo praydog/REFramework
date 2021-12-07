@@ -1054,7 +1054,9 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
     
     // do not interpolate the headset rotation to reduce motion sickness
     //if (is_player_in_control || m_has_cutscene_rotation || is_paused) {
+    if (VR::get()->is_hmd_active()) {
         final_mat *= headset_rotation;
+    }
     //}
 
     auto final_quat = glm::quat{ final_mat };
