@@ -7,14 +7,26 @@
 
 namespace api::imgui {
 bool button(const char* label) {
+    if (label == nullptr) {
+        label = "";
+    }
+
     return ImGui::Button(label);
 }
 
 void text(const char* text) {
+    if (text == nullptr) {
+        text = "";
+    }
+
     ImGui::Text(text);
 }
 
 sol::variadic_results checkbox(sol::this_state s, const char* label, bool v) {
+    if (label == nullptr) {
+        label = "";
+    }
+
     auto changed = ImGui::Checkbox(label, &v);
 
     sol::variadic_results results{};
@@ -26,6 +38,10 @@ sol::variadic_results checkbox(sol::this_state s, const char* label, bool v) {
 }
 
 sol::variadic_results drag_float(sol::this_state s, const char* label, float v, float v_speed, float v_min, float v_max, const char* display_format = "%.3f") {
+    if (label == nullptr) {
+        label = "";
+    }
+
     auto changed = ImGui::DragFloat(label, &v, v_speed, v_min, v_max, display_format);
 
     sol::variadic_results results{};
@@ -37,6 +53,10 @@ sol::variadic_results drag_float(sol::this_state s, const char* label, float v, 
 }
 
 sol::variadic_results drag_int(sol::this_state s, const char* label, int v, float v_speed, int v_min, int v_max, const char* display_format = "%.0f") {
+    if (label == nullptr) {
+        label = "";
+    }
+
     auto changed = ImGui::DragInt(label, &v, v_speed, v_min, v_max, display_format);
 
     sol::variadic_results results{};
@@ -48,6 +68,10 @@ sol::variadic_results drag_int(sol::this_state s, const char* label, int v, floa
 }
 
 sol::variadic_results input_text(sol::this_state s, const char* label, const std::string& v, ImGuiInputTextFlags flags = 0) {
+    if (label == nullptr) {
+        label = "";
+    }
+
     static std::vector<char> buffer{};
 
     if (v.size() + 1 > buffer.size()) {
@@ -71,6 +95,10 @@ sol::variadic_results input_text(sol::this_state s, const char* label, const std
 }
 
 sol::variadic_results combo(sol::this_state s, const char* label, int selection, sol::table values) {
+    if (label == nullptr) {
+        label = "";
+    }
+
     const char* preview_value = "";
 
     if (!values.empty()) {
@@ -113,14 +141,26 @@ sol::variadic_results combo(sol::this_state s, const char* label, int selection,
 }
 
 bool tree_node(const char* label) {
+    if (label == nullptr) {
+        label = "";
+    }
+
     return ImGui::TreeNode(label);
 }
 
 bool tree_node_ptr_id(const void* id, const char* label) {
+    if (label == nullptr) {
+        label = "";
+    }
+
     return ImGui::TreeNode(id, label);
 }
 
 bool tree_node_str_id(const char* id, const char* label) {
+    if (label == nullptr) {
+        label = "";
+    }
+
     return ImGui::TreeNode(id, label);
 }
 
@@ -137,6 +177,10 @@ bool is_item_hovered() {
 }
 
 bool begin_window(const char* name, sol::object open_obj, ImGuiWindowFlags flags = 0) {
+    if (name == nullptr) {
+        name = "";
+    }
+
     bool open = true;
     bool* open_p = nullptr;
 
