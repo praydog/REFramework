@@ -39,7 +39,7 @@ bool reframework_on_frame(REFOnFrameCb cb) {
     });
 }
 
-REFRAMEWORK_API bool reframework_on_pre_application_entry(const char* name, REFOnPreApplicationEntryCb cb) {
+bool reframework_on_pre_application_entry(const char* name, REFOnPreApplicationEntryCb cb) {
     if (cb == nullptr) {
         return false;
     }
@@ -55,7 +55,7 @@ REFRAMEWORK_API bool reframework_on_pre_application_entry(const char* name, REFO
     });   
 }
 
-REFRAMEWORK_API bool reframework_on_post_application_entry(const char* name, REFOnPostApplicationEntryCb cb) {
+bool reframework_on_post_application_entry(const char* name, REFOnPostApplicationEntryCb cb) {
     if (cb == nullptr || name == nullptr) {
         return false;
     }
