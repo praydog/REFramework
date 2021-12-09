@@ -65,6 +65,7 @@ set(SDK_SRC
     sdk/REGlobals.hpp
     sdk/REGlobals.cpp
     sdk/REManagedObject.hpp
+    sdk/REManagedObject.cpp
     sdk/REMath.hpp
     sdk/RENativeArray.hpp
     sdk/REString.hpp
