@@ -40,7 +40,7 @@ bool reframework_on_frame(REFOnFrameCb cb) {
 }
 
 bool reframework_on_pre_application_entry(const char* name, REFOnPreApplicationEntryCb cb) {
-    if (cb == nullptr) {
+    if (cb == nullptr || name == nullptr) {
         return false;
     }
 

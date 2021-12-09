@@ -2953,6 +2953,10 @@ int32_t ObjectExplorer::get_field_offset(REManagedObject* obj, VariableDescripto
         return m_offset_map[desc];
     }
 
+    if (parent_hash == "via.wwise.WwiseContainer"_fnv && name_hash == "TriggerIdByFsm"_fnv) {
+        return m_offset_map[desc];
+    }
+
     static int32_t prev_reference_count = 0;
     auto thread_context = sdk::get_thread_context();
 
