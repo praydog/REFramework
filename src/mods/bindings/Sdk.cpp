@@ -1101,32 +1101,41 @@ void bindings::open_sdk(ScriptState* s) {
         "read_double", &api::re_managed_object::read_memory<double>
     );
 
-    lua["__REManagedObjectPtrInternalCreate"] = [s]() -> sol::object {
-        return sol::make_object(s->lua(), (::REManagedObject*)12345);
+    // templated lambda
+    auto create_managed_object_ptr_gc = [&]<typename T, typename = std::enable_if_t<std::is_base_of_v<::REManagedObject, T>>>(T* obj) {
+        lua["__REManagedObjectPtrInternalCreate"] = [s]() -> sol::object {
+            return sol::make_object(s->lua(), (T*)12345);
+        };
+
+        lua.do_string(R"(
+            local fake_obj = __REManagedObjectPtrInternalCreate()
+            local mt = getmetatable(fake_obj)
+
+            fake_obj = nil
+            collectgarbage("collect")
+
+            mt.__gc = function(obj)
+                obj:release()
+            end
+        )");
+
+        lua["__REManagedObjectPtrInternalCreate"] = sol::make_object(lua, sol::nil);
     };
 
-    lua.do_string(R"(
-        local fake_obj = __REManagedObjectPtrInternalCreate()
-        local mt = getmetatable(fake_obj)
-
-        fake_obj = nil
-        collectgarbage("collect")
-
-        mt.__gc = function(obj)
-            obj:release()
-        end
-    )");
-
-    lua["__REManagedObjectPtrInternalCreate"] = sol::make_object(lua, sol::nil);
+    create_managed_object_ptr_gc((::REManagedObject*)nullptr);
 
     lua.new_usertype<REComponent>("REComponent",
         sol::base_classes, sol::bases<::REManagedObject>()
     );
 
+    create_managed_object_ptr_gc((::REComponent*)nullptr);
+
     lua.new_usertype<RETransform>("RETransform",
         "calculate_base_transform", &utility::re_transform::calculate_base_transform,
         sol::base_classes, sol::bases<::REComponent, ::REManagedObject>()
     );
+
+    create_managed_object_ptr_gc((::RETransform*)nullptr);
 
     lua.new_usertype<sdk::SystemArray>("SystemArray",
         "get_size", &sdk::SystemArray::size,
@@ -1137,6 +1146,8 @@ void bindings::open_sdk(ScriptState* s) {
         },
         sol::base_classes, sol::bases<::REManagedObject>()
     );
+
+    create_managed_object_ptr_gc((sdk::SystemArray*)nullptr);
     
     lua.new_usertype<api::sdk::ValueType>("ValueType",
         sol::meta_function::construct, sol::constructors<api::sdk::ValueType(sdk::RETypeDefinition*)>(),
