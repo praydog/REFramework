@@ -12,13 +12,16 @@
 
 #include "Sdk.hpp"
 
-int sol_lua_push(sol::types<::REManagedObject*>, lua_State* l, ::REManagedObject* obj) {
+// specialization for REManagedObject to automatically add a reference
+// when lua pushes a pointer to the object onto the stack
+template<typename T, typename = std::enable_if_t<std::is_base_of_v<::REManagedObject, T>>>
+int sol_lua_push(sol::types<T*>, lua_State* l, T* obj) {
     if (obj != nullptr) {
         if ((uintptr_t)obj != 12345) {
             utility::re_managed_object::add_ref(obj);
         }
 
-        using Tu = sol::meta::unqualified_t<::REManagedObject*>;
+        using Tu = sol::meta::unqualified_t<T*>;
         sol::stack::unqualified_pusher<Tu> p {};
         (void)p;
         return p.push(l, obj);
