@@ -35,6 +35,8 @@ void add_ref(REManagedObject* object) {
         spdlog::info("[REManagedObject] Found add_ref function at {:x}", (uintptr_t)add_ref_func);
     }
 
+    //spdlog::info("Pushing: {} {}", (int32_t)object->referenceCount, utility::re_managed_object::get_type_definition(object)->get_full_name());
+
     add_ref_func(object);
 }
 
@@ -65,7 +67,11 @@ void release(REManagedObject* object) {
         spdlog::info("[REManagedObject] Found release function at {:x}", (uintptr_t)release_func);
     }
 
+    //spdlog::info("Popping: {} {}", (int32_t)object->referenceCount, utility::re_managed_object::get_type_definition(object)->get_full_name());
+
     release_func(object);
+
+    //spdlog::info("Now: {}", (int32_t)object->referenceCount);
 }
 
 

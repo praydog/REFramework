@@ -12,6 +12,21 @@
 
 #include "Sdk.hpp"
 
+int sol_lua_push(sol::types<::REManagedObject*>, lua_State* l, ::REManagedObject* obj) {
+    if (obj != nullptr) {
+        if ((uintptr_t)obj != 12345) {
+            utility::re_managed_object::add_ref(obj);
+        }
+
+        using Tu = sol::meta::unqualified_t<::REManagedObject*>;
+        sol::stack::unqualified_pusher<Tu> p {};
+        (void)p;
+        return p.push(l, obj);
+    }
+
+    return sol::stack::push(l, sol::nil);
+}
+
 namespace api::sdk {
 std::vector<void*>& build_args(sol::variadic_args va);
 sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_type, bool from_method);
@@ -549,8 +564,8 @@ auto call_object_func(sol::object obj, const char* name, sol::variadic_args va) 
     return call_native_func(obj, def, name, va);
 }
 
-::REManagedObject* get_primary_camera() {
-    return (::REManagedObject*)::sdk::get_primary_camera();
+sol::object get_primary_camera(sol::this_state s) {
+    return sol::make_object(s, (::REManagedObject*)::sdk::get_primary_camera());
 }
 
 bool is_managed_object(sol::object obj) {
@@ -906,7 +921,7 @@ void bindings::open_sdk(ScriptState* s) {
     sdk["hook"] = api::sdk::hook;
     sdk.new_enum("PreHookResult", "CALL_ORIGINAL", ScriptState::PreHookResult::CALL_ORIGINAL, "SKIP_ORIGINAL", ScriptState::PreHookResult::SKIP_ORIGINAL);
     sdk["is_managed_object"] = api::sdk::is_managed_object;
-    sdk["to_managed_object"] = [](void* ptr) { return (REManagedObject*)ptr; };
+    sdk["to_managed_object"] = [s](void* ptr) { return sol::make_object(s->lua(), (REManagedObject*)ptr); };
     sdk["to_double"] = [](void* ptr) { return *(double*)&ptr; };
     sdk["to_float"] = [](void* ptr) { return *(float*)&ptr; };
     sdk["to_int64"] = [](void* ptr) { return *(int64_t*)&ptr; };
@@ -1041,11 +1056,13 @@ void bindings::open_sdk(ScriptState* s) {
             return api::sdk::get_native_field_from_field(obj, ty, f);
         }
     );
-    
-    lua.new_usertype<REManagedObject>("REManagedObject",
+
+    lua.new_usertype<::REManagedObject>("REManagedObject",
         sol::meta_function::equal_to, [s](REManagedObject* lhs, REManagedObject* rhs) { return lhs == rhs; },
+        "add_ref", &utility::re_managed_object::add_ref,
+        "release", &utility::re_managed_object::release,
         "get_address", [](REManagedObject* obj) { return (uintptr_t)obj; },
-        "get_type_definition", [](REManagedObject* obj) { return utility::re_managed_object::get_type_definition(obj); },
+        "get_type_definition", &utility::re_managed_object::get_type_definition,
         "get_field", [s](REManagedObject* obj, const char* name) {
             if (obj == nullptr) {
                 return sol::make_object(s->lua(), sol::nil);
@@ -1081,12 +1098,32 @@ void bindings::open_sdk(ScriptState* s) {
         "read_double", &api::re_managed_object::read_memory<double>
     );
 
+    lua["__REManagedObjectPtrInternalCreate"] = [s]() -> sol::object {
+        return sol::make_object(s->lua(), (::REManagedObject*)12345);
+    };
+
+    lua.do_string(R"(
+        local fake_obj = __REManagedObjectPtrInternalCreate()
+        local mt = getmetatable(fake_obj)
+
+        fake_obj = nil
+        collectgarbage("collect")
+
+        mt.__gc = function(obj)
+            obj:release()
+        end
+    )");
+
+    lua["__REManagedObjectPtrInternalCreate"] = sol::make_object(lua, sol::nil);
+
     lua.new_usertype<REComponent>("REComponent",
-        sol::base_classes, sol::bases<REManagedObject>());
+        sol::base_classes, sol::bases<::REManagedObject>()
+    );
 
     lua.new_usertype<RETransform>("RETransform",
         "calculate_base_transform", &utility::re_transform::calculate_base_transform,
-        sol::base_classes, sol::bases<REComponent, REManagedObject>());
+        sol::base_classes, sol::bases<::REComponent, ::REManagedObject>()
+    );
 
     lua.new_usertype<sdk::SystemArray>("SystemArray",
         "get_size", &sdk::SystemArray::size,
@@ -1095,7 +1132,8 @@ void bindings::open_sdk(ScriptState* s) {
         sol::meta_function::index, [](sdk::SystemArray* arr, int32_t index) {
             return arr->get_element(index);
         },
-        sol::base_classes, sol::bases<REManagedObject>());
+        sol::base_classes, sol::bases<::REManagedObject>()
+    );
     
     lua.new_usertype<api::sdk::ValueType>("ValueType",
         sol::meta_function::construct, sol::constructors<api::sdk::ValueType(sdk::RETypeDefinition*)>(),
