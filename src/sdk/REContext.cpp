@@ -260,6 +260,40 @@ namespace sdk {
         return s_context_end_global_frame_fn(this);
     }
 
+    void sdk::VMContext::cleanup_after_exception(int32_t old_reference_count) {
+        auto& reference_count = this->referenceCount;
+        auto count_delta = reference_count - old_reference_count;
+
+        spdlog::error("{}", reference_count);
+        if (count_delta >= 1) {
+            --reference_count;
+
+            // Perform object cleanup that was missed because an exception occurred.
+            if (this->unkPtr != nullptr && this->unkPtr->unkPtr != nullptr) {
+                this->unhandled_exception();
+            }
+
+            this->local_frame_gc();
+            this->end_global_frame();
+        } else if (count_delta == 0) {
+            spdlog::info("No fix necessary");
+        }
+    }
+
+    void sdk::VMContext::ScopedTranslator::translator(unsigned int code, struct ::_EXCEPTION_POINTERS* exc) {
+        spdlog::info("VMContext: Caught exception code {:x}", code);
+
+        switch (code) {
+        case EXCEPTION_ACCESS_VIOLATION:
+            spdlog::info("VMContext: Attempting to handle access violation.");
+
+        default:
+            break;
+        }
+
+        throw sdk::VMContext::Exception{};
+    }
+
     sdk::InvokeMethod* VM::get_invoke_table() {
         update_pointers();
 

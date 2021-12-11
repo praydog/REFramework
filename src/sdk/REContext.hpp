@@ -17,6 +17,7 @@ InvokeMethod* get_invoke_table();
 
 #include <cstdint>
 #include <string_view>
+#include <exception>
 
 #include "RETypeDB.hpp"
 
@@ -66,6 +67,43 @@ public:
     void* unhandled_exception();
     void* local_frame_gc();
     void* end_global_frame();
+
+    void cleanup_after_exception(int32_t old_reference_count);
+
+    class Exception : public std::exception {
+    public:
+        const char* what() const override {
+            return "VMContext::Exception";
+        }
+    };
+
+    class ScopedTranslator {
+    public:
+        ScopedTranslator(VMContext* context)
+            : m_context{context},
+            m_prev_reference_count{context->referenceCount},
+            m_old_translator{_set_se_translator(ScopedTranslator::translator)}
+        {
+        }
+        ~ScopedTranslator() {
+            _set_se_translator(m_old_translator);
+        }
+
+        auto get_prev_reference_count() const {
+            return m_prev_reference_count;
+        }
+
+        auto get_context() const {
+            return m_context;
+        }
+
+    private:
+        static void translator(unsigned int, struct ::_EXCEPTION_POINTERS*);
+
+        const ::_se_translator_function m_old_translator;
+        VMContext* m_context{};
+        int32_t m_prev_reference_count{};
+    };
 
 private:
     void update_pointers();

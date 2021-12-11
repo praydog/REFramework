@@ -2957,58 +2957,14 @@ int32_t ObjectExplorer::get_field_offset(REManagedObject* obj, VariableDescripto
         return m_offset_map[desc];
     }
 
-    static int32_t prev_reference_count = 0;
     auto thread_context = sdk::get_thread_context();
-
-    if (thread_context != nullptr) {
-        prev_reference_count = thread_context->referenceCount;
-    }
 
     // Set up our "translator" to throw on any exception,
     // Particularly access violations.
     // Kind of gross but it's necessary for some fields,
     // because the field function may access the thing we modified, which may actually be a pointer,
     // and we need to handle it.
-    _set_se_translator([](uint32_t code, EXCEPTION_POINTERS* exc) {
-        switch (code) {
-        case EXCEPTION_ACCESS_VIOLATION:
-        {
-            spdlog::info("ObjectExplorer: Attempting to handle access violation.");
-
-            auto thread_context = sdk::get_thread_context();
-
-            // This counter needs to be dealt with, it will end up causing a crash later on.
-            // We also need to "destruct" whatever object this is.
-            if (thread_context != nullptr) {
-                auto& reference_count = thread_context->referenceCount;
-                auto count_delta = reference_count - prev_reference_count;
-
-                spdlog::error("{}", reference_count);
-                if (count_delta >= 1) {
-                    --reference_count;
-
-                    // Perform object cleanup that was missed because an exception occurred.
-                    if (thread_context->unkPtr != nullptr && thread_context->unkPtr->unkPtr != nullptr) {
-                        thread_context->unhandled_exception();
-                    }
-
-                    thread_context->local_frame_gc();
-                    thread_context->end_global_frame();
-                }
-                else if (count_delta == 0) {
-                    spdlog::info("No fix necessary");
-                }
-            }
-            else {
-                spdlog::info("thread context was null. A crash may occur.");
-            }
-        }
-        default:
-            break;
-        }
-
-        throw std::exception(std::to_string(code).c_str());
-    });
+    sdk::VMContext::ScopedTranslator scoped_translator{thread_context};
 
     struct BitTester {
         BitTester(uint8_t* old_value)
@@ -3059,7 +3015,9 @@ int32_t ObjectExplorer::get_field_offset(REManagedObject* obj, VariableDescripto
                 get_value_func(desc, (REManagedObject*)object_copy.data(), data.data());
             }
             // Access violation occurred. Good thing we handle it.
-            catch (const std::exception&) {
+            catch (const sdk::VMContext::Exception&) {
+                thread_context->cleanup_after_exception(scoped_translator.get_prev_reference_count());
+
                 same = false;
                 break;
             }

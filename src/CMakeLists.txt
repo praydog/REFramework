@@ -177,8 +177,9 @@ target_compile_definitions(${GAME_NAME} PUBLIC IMGUI_USER_CONFIG="re2-imgui/re2_
 
 if(DEVELOPER_MODE)
     target_compile_definitions(${GAME_NAME} PUBLIC DEVELOPER)
-    target_compile_options(${GAME_NAME} PUBLIC /EHa)
 endif()
+
+target_compile_options(${GAME_NAME} PUBLIC /EHa)
 
 if (RE2)
     target_compile_definitions(${GAME_NAME} PUBLIC RE2)
