@@ -194,14 +194,70 @@ namespace sdk {
 #endif
     }
 
-    REThreadContext* get_thread_context(int32_t unk /*= -1*/) {
+    sdk::VMContext* get_thread_context(int32_t unk /*= -1*/) {
         auto global_context = VM::get();
 
         if (global_context == nullptr) {
             return nullptr;
         }
 
-        return global_context->get_thread_context(unk);
+        return (sdk::VMContext*)global_context->get_thread_context(unk);
+    }
+
+    static std::shared_mutex s_pointers_mtx{};
+    static void* (*s_context_unhandled_exception_fn)(::REThreadContext*) = nullptr;
+    static void* (*s_context_local_frame_gc_fn)(::REThreadContext*) = nullptr;
+    static void* (*s_context_end_global_frame_fn)(::REThreadContext*) = nullptr;
+
+    void sdk::VMContext::update_pointers() {
+        {
+            std::shared_lock _{s_pointers_mtx};
+
+            if (s_context_unhandled_exception_fn != nullptr && s_context_local_frame_gc_fn != nullptr && s_context_end_global_frame_fn != nullptr) {
+                return;
+            }
+        }
+        
+        std::unique_lock _{s_pointers_mtx};
+
+        spdlog::info("Locating funcs");
+        
+        // Version 1
+        //auto ref = utility::scan(g_framework->getModule().as<HMODULE>(), "48 83 78 18 00 74 ? 48 89 D9 E8 ? ? ? ? 48 89 D9 E8 ? ? ? ?");
+
+        // Version 2 Dec 17th, 2019 game.exe+0x20437C (works on old version too)
+        auto ref = utility::scan(g_framework->get_module().as<HMODULE>(), "48 83 78 18 00 74 ? 48 ? ? E8 ? ? ? ? 48 ? ? E8 ? ? ? ? 48 ? ? E8 ? ? ? ?");
+
+        if (!ref) {
+            spdlog::error("We're going to crash");
+            return;
+        }
+
+        s_context_unhandled_exception_fn = Address{ utility::calculate_absolute(*ref + 11) }.as<decltype(s_context_unhandled_exception_fn)>();
+        s_context_local_frame_gc_fn = Address{ utility::calculate_absolute(*ref + 19) }.as<decltype(s_context_local_frame_gc_fn)>();
+        s_context_end_global_frame_fn = Address{ utility::calculate_absolute(*ref + 27) }.as<decltype(s_context_end_global_frame_fn)>();
+
+        spdlog::info("Context::UnhandledException {:x}", (uintptr_t)s_context_unhandled_exception_fn);
+        spdlog::info("Context::LocalFrameGC {:x}", (uintptr_t)s_context_local_frame_gc_fn);
+        spdlog::info("Context::EndGlobalFrame {:x}", (uintptr_t)s_context_end_global_frame_fn);
+    }
+
+    void* sdk::VMContext::unhandled_exception() {
+        update_pointers();
+
+        return s_context_unhandled_exception_fn(this);
+    }
+
+    void* sdk::VMContext::local_frame_gc() {
+        update_pointers();
+
+        return s_context_local_frame_gc_fn(this);
+    }
+
+    void* sdk::VMContext::end_global_frame() {
+        update_pointers();
+
+        return s_context_end_global_frame_fn(this);
     }
 
     sdk::InvokeMethod* VM::get_invoke_table() {

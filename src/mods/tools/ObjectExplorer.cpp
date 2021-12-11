@@ -2987,41 +2987,13 @@ int32_t ObjectExplorer::get_field_offset(REManagedObject* obj, VariableDescripto
                 if (count_delta >= 1) {
                     --reference_count;
 
-                    static void* (*context_unhandled_exception_fn)(REThreadContext*) = nullptr;
-                    static void* (*context_local_frame_gc_fn)(REThreadContext*) = nullptr;
-                    static void* (*context_end_global_frame_fn)(REThreadContext*) = nullptr;
-
-                    // Get our function pointers
-                    if (context_unhandled_exception_fn == nullptr) {
-                        spdlog::info("Locating funcs");
-                        
-                        // Version 1
-                        //auto ref = utility::scan(g_framework->getModule().as<HMODULE>(), "48 83 78 18 00 74 ? 48 89 D9 E8 ? ? ? ? 48 89 D9 E8 ? ? ? ?");
-
-                        // Version 2 Dec 17th, 2019 game.exe+0x20437C (works on old version too)
-                        auto ref = utility::scan(g_framework->get_module().as<HMODULE>(), "48 83 78 18 00 74 ? 48 ? ? E8 ? ? ? ? 48 ? ? E8 ? ? ? ? 48 ? ? E8 ? ? ? ?");
-
-                        if (!ref) {
-                            spdlog::error("We're going to crash");
-                            break;
-                        }
-
-                        context_unhandled_exception_fn = Address{ utility::calculate_absolute(*ref + 11) }.as<decltype(context_unhandled_exception_fn)>();
-                        context_local_frame_gc_fn = Address{ utility::calculate_absolute(*ref + 19) }.as<decltype(context_local_frame_gc_fn)>();
-                        context_end_global_frame_fn = Address{ utility::calculate_absolute(*ref + 27) }.as<decltype(context_end_global_frame_fn)>();
-
-                        spdlog::info("Context::UnhandledException {:x}", (uintptr_t)context_unhandled_exception_fn);
-                        spdlog::info("Context::LocalFrameGC {:x}", (uintptr_t)context_local_frame_gc_fn);
-                        spdlog::info("Context::EndGlobalFrame {:x}", (uintptr_t)context_end_global_frame_fn);
-                    }
-
                     // Perform object cleanup that was missed because an exception occurred.
                     if (thread_context->unkPtr != nullptr && thread_context->unkPtr->unkPtr != nullptr) {
-                        context_unhandled_exception_fn(thread_context);
+                        thread_context->unhandled_exception();
                     }
 
-                    context_local_frame_gc_fn(thread_context);
-                    context_end_global_frame_fn(thread_context);
+                    thread_context->local_frame_gc();
+                    thread_context->end_global_frame();
                 }
                 else if (count_delta == 0) {
                     spdlog::info("No fix necessary");

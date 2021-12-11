@@ -6,7 +6,9 @@ typedef void (*InvokeMethod)(void* stack_frame, void* context);
 
 struct REStaticTbl;
 class VM;
-REThreadContext* get_thread_context(int32_t unk = -1);
+class VMContext;
+
+VMContext* get_thread_context(int32_t unk = -1);
 InvokeMethod* get_invoke_table();
 }
 
@@ -23,39 +25,49 @@ InvokeMethod* get_invoke_table();
 #endif
 
 namespace sdk {
-    struct REStaticTbl {
-        uint8_t** elements;
-        uint32_t size;
-    };
+struct REStaticTbl {
+    uint8_t** elements;
+    uint32_t size;
+};
 
-    // AKA via.clr.VM
+// AKA via.clr.VM
 #ifdef RE7
-    class VM : public regenny::via::clr::VM {
+class VM : public regenny::via::clr::VM {
 #else
-    class VM {
+class VM {
 #endif
-    public:
-        static VM* get();
+public:
+    static VM* get();
 
-    public:
-        REThreadContext* get_thread_context(int32_t unk = -1);
-        sdk::RETypeDB* get_type_db();
-        REStaticTbl& get_static_tbl();
+public:
+    REThreadContext* get_thread_context(int32_t unk = -1);
+    sdk::RETypeDB* get_type_db();
+    REStaticTbl& get_static_tbl();
 
-        uint8_t* get_static_tbl_for_type(uint32_t type_index);
+    uint8_t* get_static_tbl_for_type(uint32_t type_index);
 
-        static sdk::InvokeMethod* get_invoke_table();
-        static SystemString* create_managed_string(std::wstring_view str); // System.String
+    static sdk::InvokeMethod* get_invoke_table();
+    static SystemString* create_managed_string(std::wstring_view str); // System.String
 
-    private:
-        using ThreadContextFn = REThreadContext* (*)(VM*, int32_t);
-        static void update_pointers();
+private:
+    using ThreadContextFn = REThreadContext* (*)(VM*, int32_t);
+    static void update_pointers();
 
-        static VM** s_global_context;
-        static sdk::InvokeMethod* s_invoke_tbl;
-        static ThreadContextFn s_get_thread_context;
+    static VM** s_global_context;
+    static sdk::InvokeMethod* s_invoke_tbl;
+    static ThreadContextFn s_get_thread_context;
 
-        static int32_t s_static_tbl_offset;
-        static int32_t s_type_db_offset;
-    };
+    static int32_t s_static_tbl_offset;
+    static int32_t s_type_db_offset;
+};
+
+class VMContext : public ::REThreadContext {
+public:
+    void* unhandled_exception();
+    void* local_frame_gc();
+    void* end_global_frame();
+
+private:
+    void update_pointers();
+};
 }
