@@ -93,6 +93,10 @@ struct ValueType {
 
         auto ret_val = def->invoke(real_obj, ::api::sdk::build_args(va));
 
+        if (ret_val.exception_thrown) {
+            throw sol::error("Invoke threw an exception");
+        }
+
         // Convert return values to the correct Lua types.
         auto ret_ty = def->get_return_type();
 
@@ -547,6 +551,10 @@ sol::object call_native_func(sol::object obj, ::sdk::RETypeDefinition* ty, const
 
     auto real_obj = get_real_obj(obj);
     auto ret_val = fn->invoke(real_obj, build_args(va));
+
+    if (ret_val.exception_thrown) {
+        throw sol::error("Invoke threw an exception");
+    }
 
     return parse_data(l, &ret_val, ret_ty, true);
 }
@@ -1014,6 +1022,10 @@ void bindings::open_sdk(ScriptState* s) {
 
             auto real_obj = ::api::sdk::get_real_obj(obj);
             auto ret_val = def->invoke(real_obj, ::api::sdk::build_args(va));
+
+            if (ret_val.exception_thrown) {
+                throw sol::error("Invoke threw an exception");
+            }
 
             // Convert return values to the correct Lua types.
             auto ret_ty = def->get_return_type();

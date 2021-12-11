@@ -578,6 +578,8 @@ struct InvokeRet {
         std::array<uint8_t, 128> bytes{};
         void* ptr;
     };
+
+    bool exception_thrown{false};
 };
 #pragma pack(pop)
 

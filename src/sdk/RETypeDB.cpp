@@ -331,20 +331,45 @@ sdk::InvokeRet sdk::REMethodDefinition::invoke(void* object, const std::vector<v
     stack_frame.in_data = (void*)args.data();
     
     auto ret_ty = get_return_type();
+    bool is_ptr = false;
  
     // vec3 and stuff that is > sizeof(void*) requires special handling
     // by preallocating the output buffer
     if (ret_ty != nullptr && ret_ty->is_value_type()) {
         if (ret_ty->get_valuetype_size() > sizeof(void*) || (!ret_ty->is_primitive() && !ret_ty->is_enum())) {
             stack_frame.out_data = &out;
+            is_ptr = false;
         } else {
             stack_frame.out_data = nullptr;
+            is_ptr = true;
         }
     } else {
         stack_frame.out_data = nullptr;
+        is_ptr = true;
     }
     
-    invoke_wrapper((void*)&stack_frame, sdk::get_thread_context());
+    {
+        auto context = sdk::get_thread_context();
+        sdk::VMContext::ScopedTranslator scoped_translator{context};
+
+        try {
+            invoke_wrapper((void*)&stack_frame, context);
+            out.exception_thrown = false;
+        } catch (sdk::VMContext::Exception&) {
+            spdlog::error("Exception thrown in REMethodDefinition::invoke for {}", get_name());
+            context->cleanup_after_exception(scoped_translator.get_prev_reference_count());
+            
+            memset(&out, 0, sizeof(out));
+
+            if (!is_ptr) {
+                out.ptr = out.bytes.data();
+            }
+
+            out.exception_thrown = true;
+
+            return out;
+        }
+    }
 
     if (stack_frame.out_data != &out) {
         out.ptr = stack_frame.out_data;
