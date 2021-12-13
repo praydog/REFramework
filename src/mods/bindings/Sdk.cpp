@@ -1,4 +1,5 @@
 #include <cstdint>
+#include <concepts>
 
 #include <hde64.h>
 
@@ -9,22 +10,135 @@
 #include "../../utility/Memory.hpp"
 
 #include "../ScriptRunner.hpp"
+#include <lstate.h> // weird include order because of sol
+#include <lgc.h>
 
 #include "Sdk.hpp"
 
-// specialization for REManagedObject to automatically add a reference
-// when lua pushes a pointer to the object onto the stack
-template<typename T, typename = std::enable_if_t<std::is_base_of_v<::REManagedObject, T>>>
-int sol_lua_push(sol::types<T*>, lua_State* l, T* obj) {
-    if (obj != nullptr) {
-        if ((uintptr_t)obj != 12345) {
+namespace detail {
+constexpr uintptr_t FAKE_OBJECT_ADDR = 12345;
+}
+
+namespace api::re_managed_object {
+namespace detail {
+void add_ref(lua_State* l, ::REManagedObject* obj, bool force = false) {
+    auto sv = sol::state_view{l};
+    
+    // we shouldn't really do this very much
+    // so it shouldn't be too terrible on performance
+    if (!utility::re_managed_object::is_managed_object(obj)) {
+        throw sol::error{(std::stringstream{} << "sol_lua_push: " << (uintptr_t)obj << " is not a managed object").str()};
+    }
+
+    // Throwing automatic add_ref on the backburner; it doesn't seem to work
+    // very well with lua's garbage collector.
+    // addendum: maybe figured it out
+
+    // only add a reference if it's a "local" object, indicated by a negative reference count
+    //if ((int32_t)obj->referenceCount < 0 || (current_ref_count && *current_ref_count > 0)) {
+    // addendum: only do it when reference count is > 0, local objects seem buggy...
+    if (force || (int32_t)obj->referenceCount > 0) {
+        if (!force) {
             utility::re_managed_object::add_ref(obj);
         }
 
-        using Tu = sol::meta::unqualified_t<T*>;
-        sol::stack::unqualified_pusher<Tu> p {};
-        (void)p;
-        return p.push(l, obj);
+        // the reference counting is not necessary, but it will let us
+        // catch bugs if an REManagedObject pointer is being created
+        // without coming through our sol_lua_push function
+        sol::lua_table ref_counts = sv["_sol_lua_push_ref_counts"];
+        sol::lua_table ephemeral_counts = sv["_sol_lua_push_ephemeral_counts"];
+        std::optional<int> current_ref_count = ref_counts[(uintptr_t)obj];
+
+        if (current_ref_count && *current_ref_count > 0) {
+            // don't unnecessarily increase the ref count
+            // if the user is the one doing it
+            if (force) {
+                return;
+            }
+
+            ref_counts[(uintptr_t)obj] = *current_ref_count + 1;
+        } else {
+            // only add the ref once when the user requests it
+            // so they don't screw something up
+            if (force) {
+                utility::re_managed_object::add_ref(obj);
+            }
+
+            ref_counts[(uintptr_t)obj] = 1;
+        }
+
+        // when the user adds a ref to an ephemeral object
+        if (force) {
+            std::optional<int> current_ephemeral_count = ephemeral_counts[(uintptr_t)obj];
+
+            if (current_ephemeral_count && *current_ephemeral_count > 0) {
+                ephemeral_counts[(uintptr_t)obj] = *current_ephemeral_count - 1;
+            } else {
+                ephemeral_counts[(uintptr_t)obj] = sol::make_object(l, sol::nil);
+            }
+        }
+    } else {
+        // ephemeral counts is just a table
+        // to help with tracking the local objects
+        // so we don't spam the log with warnings when they get gc'd
+        sol::lua_table ephemeral_counts = sv["_sol_lua_push_ephemeral_counts"];
+        std::optional<int> current_ref_count = ephemeral_counts[(uintptr_t)obj];
+
+        if (current_ref_count) {
+            ephemeral_counts[(uintptr_t)obj] = *current_ref_count + 1;
+        } else {
+            ephemeral_counts[(uintptr_t)obj] = 1;
+        }
+
+        //ref_counts[(uintptr_t)obj] = sol::make_object(l, sol::nil);
+    }
+}
+}
+
+// used by metatable for REManagedObject
+::REManagedObject* add_ref(sol::this_state s, ::REManagedObject* obj) {
+    detail::add_ref(s.lua_state(), obj, true);
+
+    return obj;
+}
+}
+
+// specialization for REManagedObject to automatically add a reference
+// when lua pushes a pointer to the object onto the stack
+template<detail::ManagedObjectBased T>
+int sol_lua_push(sol::types<T*>, lua_State* l, T* obj) {
+    if (obj != nullptr) {
+        auto sv = sol::state_view{l};
+        sol::lua_table objects = sv["_sol_lua_push_objects"];
+
+        if (sol::object lua_obj = objects[(uintptr_t)obj]; !lua_obj.is<sol::nil_t>()) {
+            // renew the reference so it doesn't get collected
+            // had to dig deep in the lua source to figure out this nonsense
+            lua_obj.push();
+            auto g = G(l);
+            auto tv = s2v(l->top - 1);
+            auto& gc = tv->value_.gc;
+            resetbits(gc->marked, bitmask(BLACKBIT) | WHITEBITS); // "touches" the object, marking it gray. lowers the insane GC frequency on our weak table
+
+            return 1;
+        } else {
+            if ((uintptr_t)obj != detail::FAKE_OBJECT_ADDR) {
+                api::re_managed_object::detail::add_ref(l, obj, false);
+            }
+
+            auto backpedal = sol::stack::push<sol::detail::as_pointer_tag<std::remove_pointer_t<T>>>(l, obj);
+
+            if ((uintptr_t)obj != detail::FAKE_OBJECT_ADDR) {
+                auto ref = sol::stack::get<sol::object>(l, -backpedal);
+
+                // keep a weak reference to the object for caching
+                objects[(uintptr_t)obj] = ref;
+
+                return backpedal;
+            }
+
+            return backpedal;
+        }
     }
 
     return sol::stack::push(l, sol::nil);
@@ -128,14 +242,14 @@ auto find_type_definition(const char* name) {
     return ::sdk::RETypeDB::get()->find_type(name);
 }
 
-::REManagedObject* typeof(const char* name) {
+sol::object typeof(sol::this_state s, const char* name) {
     auto type_definition = find_type_definition(name);
 
     if (type_definition == nullptr) {
-        return nullptr;
+        return sol::make_object(s, sol::nil);
     }
 
-    return type_definition->get_runtime_type();
+    return sol::make_object(s, type_definition->get_runtime_type());
 }
 
 void* get_native_singleton(const char* name) {
@@ -150,14 +264,14 @@ void* create_managed_string(const char* text) {
     return ::sdk::VM::create_managed_string(utility::widen(text));
 }
 
-::REManagedObject* create_instance(const char* name) {
+sol::object create_instance(sol::this_state s, const char* name) {
     auto type_definition = find_type_definition(name);
 
     if (type_definition == nullptr) {
-        return nullptr;
+        return sol::make_object(s, sol::nil);
     }
 
-    return type_definition->create_instance_full();
+    return sol::make_object(s, type_definition->create_instance_full());
 }
 
 void* get_real_obj(sol::object obj) {
@@ -911,10 +1025,18 @@ T read_memory(::REManagedObject* obj, int32_t offset) {
 
     return *(T*)((uintptr_t)obj + offset);
 }
-}
+} 
 
 void bindings::open_sdk(ScriptState* s) {
     auto& lua = s->lua();
+
+    //lua["_sol_lua_push_objects"] = std::unordered_map<::REManagedObject*, sol::object>();
+    lua.do_string(R"(
+        _sol_lua_push_objects = setmetatable({}, { __mode = "v" })
+        _sol_lua_push_ref_counts = {}
+        _sol_lua_push_ephemeral_counts = {}
+    )");
+
     auto sdk = lua.create_table();
     sdk["game_namespace"] = game_namespace;
     sdk["get_thread_context"] = api::sdk::get_thread_context;
@@ -1074,8 +1196,49 @@ void bindings::open_sdk(ScriptState* s) {
 
     lua.new_usertype<::REManagedObject>("REManagedObject",
         sol::meta_function::equal_to, [s](REManagedObject* lhs, REManagedObject* rhs) { return lhs == rhs; },
-        "add_ref", &utility::re_managed_object::add_ref,
-        "release", &utility::re_managed_object::release,
+        "add_ref", &api::re_managed_object::add_ref,
+        "release", [](sol::this_state s, ::REManagedObject* obj) {
+            auto l = s.lua_state();
+            auto sv = sol::state_view(l);
+
+            sol::lua_table objects = sv["_sol_lua_push_objects"];
+            sol::lua_table ref_counts = sv["_sol_lua_push_ref_counts"];
+            sol::lua_table ephemeral_counts = sv["_sol_lua_push_ephemeral_counts"];
+
+            if (std::optional<int> ref_count = ref_counts[(uintptr_t)obj]; ref_count && *ref_count > 0) {
+                // because of our internal refcount keeping, we shouldn't need to double check
+                // whether it's an actual object or not. hopefully?
+                //if (utility::re_managed_object::is_managed_object(obj)) {
+                    utility::re_managed_object::release(obj);
+                //}
+
+                int new_ref_count = *ref_count - 1;
+
+                if (new_ref_count == 0) {
+                    if (sol::object object = ephemeral_counts[(uintptr_t)obj]; !object.valid()) {
+                        objects[(uintptr_t)obj] = sol::make_object(l, sol::nil);
+                    }
+
+                    ref_counts[(uintptr_t)obj] = sol::make_object(l, sol::nil);
+                } else {
+                    ref_counts[(uintptr_t)obj] = new_ref_count;
+                }
+
+                //ephemeral_counts[(uintptr_t)obj] = sol::make_object(l, sol::nil);
+            } else if (std::optional<int> ephemeral_count = ephemeral_counts[(uintptr_t)obj]; ephemeral_count && *ephemeral_count > 0) {
+                // ephemeral counts don't actually release the object, they just decrement the count.
+                int new_ephemeral_count = *ephemeral_count - 1;
+
+                if (new_ephemeral_count == 0) {
+                    objects[(uintptr_t)obj] = sol::make_object(l, sol::nil);
+                    ephemeral_counts[(uintptr_t)obj] = sol::make_object(l, sol::nil);
+                } else {
+                    ephemeral_counts[(uintptr_t)obj] = new_ephemeral_count;
+                }
+            } else {
+                spdlog::warn("REManagedObject:release attempted to release an object that was not managed by our Lua state");
+            }
+        },
         "get_address", [](REManagedObject* obj) { return (uintptr_t)obj; },
         "get_type_definition", &utility::re_managed_object::get_type_definition,
         "get_field", [s](REManagedObject* obj, const char* name) {

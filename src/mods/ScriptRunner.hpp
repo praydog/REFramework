@@ -17,7 +17,16 @@
 
 #include "../include/API.hpp"
 
+class REManagedObject;
 class RETransform;
+
+namespace detail {
+template<typename T>
+concept ManagedObjectBased = std::is_base_of_v<::REManagedObject, T>;
+}
+
+template<detail::ManagedObjectBased T>
+int sol_lua_push(sol::types<T*>, lua_State* l, T* obj);
 
 class ScriptState {
 public:
