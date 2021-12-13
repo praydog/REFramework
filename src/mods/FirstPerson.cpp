@@ -716,7 +716,19 @@ void FirstPerson::update_player_transform(RETransform* transform) {
 
                         // Set the fire bullet type to AlongMuzzle, which fires from the muzzle's position and rotation
                         if (is_using_controllers) {
-                            if (fire_bullet_type == app::ropeway::weapon::shell::ShellDefine::FireBulletType::Camera) {
+                            static auto throw_grenade_generator_type = sdk::RETypeDB::get()->find_type(game_namespace("weapon.generator.ThrowGrenadeGenerator"));
+                            auto shell_generator = *sdk::get_object_field<REManagedObject*>(main_weapon, "<ShellGenerator>k__BackingField");
+                            auto is_grenade = false;
+
+                            if (shell_generator != nullptr) {
+                                auto shell_generator_t = utility::re_managed_object::get_type_definition(shell_generator);
+
+                                if (shell_generator_t != nullptr && shell_generator_t->is_a(throw_grenade_generator_type)) {
+                                    is_grenade = true;
+                                }
+                            }
+
+                            if (!is_grenade) {
                                 fire_bullet_type = app::ropeway::weapon::shell::ShellDefine::FireBulletType::AlongMuzzle;
                             }
                         } else {
