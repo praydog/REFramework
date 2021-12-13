@@ -1,3 +1,7 @@
+if _RE2Lib ~= nil then
+    return _RE2Lib
+end
+
 local RE2 = {}
 
 local known_typeofs = {}
@@ -69,5 +73,36 @@ function RE2.get_weapon_object(player)
 
     return weapon_gameobject, weapon
 end
+
+RE2.player = nil
+RE2.inventory = nil
+RE2.weapon = nil
+RE2.weapon_gameobject = nil
+
+re.on_pre_application_entry("UpdateBehavior", function()
+    RE2.player = RE2.get_localplayer()
+
+    if RE2.player == nil then
+        RE2.weapon = nil
+        RE2.weapon_gameobject = nil
+        RE2.inventory = nil
+        return
+    end
+
+    local weapon_gameobject, weapon = RE2.get_weapon_object(RE2.player)
+
+    if weapon_gameobject == nil or weapon == nil then
+        RE2.weapon = nil
+        RE2.weapon_gameobject = nil
+        RE2.inventory = nil
+        return
+    end
+
+    RE2.weapon = weapon
+    RE2.weapon_gameobject = weapon_gameobject
+    RE2.inventory = RE2.get_inventory(RE2.player)
+end)
+
+_RE2Lib = RE2
 
 return RE2
