@@ -576,6 +576,12 @@ struct REField : public sdk::REField_ {
 struct InvokeRet {
     union {
         std::array<uint8_t, 128> bytes{};
+        uint8_t byte;
+        uint16_t word;
+        uint32_t dword;
+        float f;
+        uint64_t qword;
+        double d;
         void* ptr;
     };
 
@@ -610,6 +616,41 @@ struct REMethodDefinition : public sdk::REMethodDefinition_ {
     T operator()(Args... args) const { 
         return get_function_t<T (*)(Args...)>()(args...); 
     }
+
+    template <typename Ret = void*, typename ...Types>
+    struct CallHelper {
+        template<size_t... I>
+        struct Dispatcher {
+            Dispatcher(std::tuple<Types...>&& args) : args(args) {}
+
+            template<typename ...PreambleTypes>
+            auto operator()(const REMethodDefinition* target, PreambleTypes... preamble) {
+                return target->call<Ret>(preamble..., std::get<I>(args)...);
+            }
+
+            std::tuple<Types...> args;
+        };
+
+        template <size_t N, typename S = std::make_index_sequence<N>>
+        struct Packer {
+            template<size_t... I>
+            static auto pack(void** voids, std::index_sequence<I...>) {
+                return Dispatcher<I...>{std::make_tuple(*(Types*)&voids[I]...)};
+            }
+        
+            static auto pack(void** voids) {
+                return pack(voids, S{});
+            }
+        };
+
+        static auto create(void** voids) {
+            if constexpr (sizeof...(Types) > 0) {
+                return Packer<sizeof...(Types)>::pack(voids);
+            } else {
+                return std::make_tuple<Types...>();
+            }
+        };
+    };
 
     // calling and invoking are two different things
     // calling is the actual call to the function

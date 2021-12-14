@@ -305,12 +305,15 @@ uint32_t sdk::REMethodDefinition::get_invoke_id() const {
 }
 
 sdk::InvokeRet sdk::REMethodDefinition::invoke(void* object, const std::vector<void*>& args) const {
-    if (get_num_params() != args.size()) {
+    const auto num_params = get_num_params();
+
+    if (num_params != args.size()) {
         //throw std::runtime_error("Invalid number of arguments");
         spdlog::warn("Invalid number of arguments passed to REMethodDefinition::invoke for {}", get_name());
         return InvokeRet{};
     }
 
+#ifndef RE7
     const auto invoke_tbl = sdk::get_invoke_table();
     auto invoke_wrapper = invoke_tbl[get_invoke_id()];
 
@@ -377,6 +380,179 @@ sdk::InvokeRet sdk::REMethodDefinition::invoke(void* object, const std::vector<v
     }
 
     return out;
+#else
+    // RE7 doesn't have the invoke wrappers that the newer games use...
+    if (num_params > 2) {
+        spdlog::warn("REMethodDefinition::invoke for {} has more than 2 parameters, which is not supported at this time (RE7)", get_name());
+        return InvokeRet{};
+    }
+
+    const bool is_static = this->is_static();
+
+    if (!is_static && object == nullptr) {
+        spdlog::warn("REMethodDefinition::invoke for {} is not static, but object is nullptr", get_name());
+        return InvokeRet{};
+    }
+
+    auto ret_ty = get_return_type();
+    size_t ret_hash = ret_ty != nullptr ? utility::hash(ret_ty->get_full_name()) : 0;
+    bool is_ptr = false;
+ 
+    // vec3 and stuff that is > sizeof(void*) requires special handling
+    // by preallocating the output buffer
+    if (ret_ty != nullptr && ret_ty->is_value_type()) {
+        if (ret_ty->get_valuetype_size() > sizeof(void*) || (!ret_ty->is_primitive() && !ret_ty->is_enum())) {
+            is_ptr = false;
+        } else {
+            is_ptr = true;
+        }
+    } else {
+        is_ptr = true;
+    }
+
+    InvokeRet out{};
+
+    const auto param_types = get_param_types();
+    std::vector<size_t> param_hashes{};
+    std::vector<void*> converted_args(args.size());
+
+    for (auto& ty : param_types) {
+        param_hashes.push_back(utility::hash(ty->get_full_name()));
+    }
+
+    // convert necessary args to float
+    // we pass the args as double, but because there's no invoke wrappers
+    // in RE7, we must convert them back to float
+    for (size_t i = 0; i < args.size(); i++) {
+        auto& arg = args[i];
+        auto& ty = param_types[i];
+        auto& hash = param_hashes[i];
+
+        switch (hash) {
+        case "System.Single"_fnv:
+            *(float*)&converted_args[i] = (float)*(double*)&arg;
+            break;
+        default:
+            converted_args[i] = arg;
+            break;
+        }
+    }
+
+    auto unpack_and_call = [&]<typename ...Types>() {
+        if constexpr (sizeof...(Types) == 0) {
+            if (is_static) {
+                if (!is_ptr) {
+                    this->call<void*>(out.bytes.data(), sdk::get_thread_context());
+                    out.ptr = out.bytes.data();
+                } else {
+                    if (ret_hash == "System.Single"_fnv) {
+                        out.f = this->call<float>(sdk::get_thread_context());
+                    } else if (ret_hash == "System.Double"_fnv) {
+                        out.d = this->call<double>(sdk::get_thread_context());
+                    } else {
+                        out.ptr = this->call<void*>(sdk::get_thread_context());
+                    }
+                }
+            } else {
+                if (!is_ptr) {
+                    this->call<void*>(out.bytes.data(), sdk::get_thread_context(), object);
+                    out.ptr = out.bytes.data();
+                } else {
+                    if (ret_hash == "System.Single"_fnv) {
+                        out.f = this->call<float>(sdk::get_thread_context(), object);
+                    } else if (ret_hash == "System.Double"_fnv) {
+                        out.d = this->call<double>(sdk::get_thread_context(), object);
+                    } else {
+                        out.ptr = this->call<void*>(sdk::get_thread_context(), object);
+                    }
+                }
+            }
+        } else if constexpr (sizeof...(Types) > 0) {
+            // now we must do the same as above but unpack the converted_args and cast them to the correct type
+            if (is_static) {
+                if (!is_ptr) {
+                    CallHelper<void*, Types...>::create(converted_args.data())(this, out.bytes.data(), sdk::get_thread_context());
+                    out.ptr = out.bytes.data();
+                } else {
+                    if (ret_hash == "System.Single"_fnv) {
+                        out.f = CallHelper<float, Types...>::create(converted_args.data())(this, sdk::get_thread_context());
+                    } else if (ret_hash == "System.Double"_fnv) {
+                        out.d = CallHelper<double, Types...>::create(converted_args.data())(this, sdk::get_thread_context());
+                    } else {
+                        out.ptr = CallHelper<void*, Types...>::create(converted_args.data())(this, sdk::get_thread_context());
+                    }
+                }
+            } else {
+                if (!is_ptr) {
+                    CallHelper<void*, Types...>::create(converted_args.data())(this, out.bytes.data(), sdk::get_thread_context(), object);
+                    out.ptr = out.bytes.data();
+                } else {
+                    if (ret_hash == "System.Single"_fnv) {
+                        out.f = CallHelper<float, Types...>::create(converted_args.data())(this, sdk::get_thread_context(), object);
+                    } else if (ret_hash == "System.Double"_fnv) {
+                        out.d = CallHelper<double, Types...>::create(converted_args.data())(this, sdk::get_thread_context(), object);
+                    } else {
+                        out.ptr = CallHelper<void*, Types...>::create(converted_args.data())(this, sdk::get_thread_context(), object);
+                    }
+                }
+            }
+        }
+    };
+
+    switch (num_params) {
+    case 0:
+        unpack_and_call();
+        return out;
+
+        break;
+    case 1:
+        // now we must check each parameter to check if it's a float/double
+        if (param_hashes[0] == "System.Single"_fnv) {
+            unpack_and_call.operator()<float>();
+        } else if (param_hashes[0] == "System.Double"_fnv) {
+            unpack_and_call.operator()<double>();
+        } else {
+            unpack_and_call.operator()<void*>();
+        }
+
+        return out;
+
+        break;
+    case 2:
+        // oh god now we need to handle more permutations
+        if (param_hashes[0] == "System.Single"_fnv && param_hashes[1] == "System.Single"_fnv) {
+            unpack_and_call.operator()<float, float>();
+        } else if (param_hashes[0] == "System.Single"_fnv && param_hashes[1] == "System.Double"_fnv) {
+            unpack_and_call.operator()<float, double>();
+        } else if (param_hashes[0] == "System.Double"_fnv && param_hashes[1] == "System.Single"_fnv) {
+            unpack_and_call.operator()<double, float>();
+        } else if (param_hashes[0] == "System.Double"_fnv && param_hashes[1] == "System.Double"_fnv) {
+            unpack_and_call.operator()<double, double>();
+        } else if (param_hashes[0] == "System.Single"_fnv) {
+            unpack_and_call.operator()<float, void*>();
+        } else if (param_hashes[0] == "System.Double"_fnv) {
+            unpack_and_call.operator()<double, void*>();
+        } else if (param_hashes[1] == "System.Single"_fnv) {
+            unpack_and_call.operator()<void*, float>();
+        } else if (param_hashes[1] == "System.Double"_fnv) {
+            unpack_and_call.operator()<void*, double>();
+        } else {
+            unpack_and_call.operator()<void*, void*>();
+        }
+
+        return out;
+
+        break;
+    default:
+        // for now, we aren't going to handle the case where there are more than 2 parameters
+        // because that will get very very messy
+        // maybe try to fix it with templates or JIT or something...
+        // but for now, just return an empty struct
+        break;
+    }
+
+    return out;
+#endif
 }
 
 uint32_t sdk::REMethodDefinition::get_index() const {

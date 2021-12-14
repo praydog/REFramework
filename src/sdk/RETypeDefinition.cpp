@@ -270,6 +270,7 @@ sdk::RETypeDefinition* RETypeDefinition::get_underlying_type() const {
         return nullptr;
     }
 
+#ifndef RE7
     // get the underlying type of the enum
     // and then hash the name of the type instead
     static auto get_underlying_type_method = this->get_method("GetUnderlyingType");
@@ -293,8 +294,21 @@ sdk::RETypeDefinition* RETypeDefinition::get_underlying_type() const {
             g_underlying_types[this] = type_definition;
         }
     }
-
+    
     return g_underlying_types[this];
+#else
+    const auto value_field = this->get_field("value__");
+
+    if (value_field == nullptr) {
+        g_underlying_types[this] = nullptr;
+        return nullptr;
+    }
+
+    const auto underlying_type = value_field->get_type();
+    
+    g_underlying_types[this] = underlying_type;
+    return g_underlying_types[this];
+#endif
 }
 
 static std::shared_mutex g_field_mtx{};
@@ -555,6 +569,7 @@ bool RETypeDefinition::is_primitive() const {
         }
     }
 
+#ifndef RE7
     std::unique_lock _{g_primitive_mtx};
 
     auto runtime_type = this->get_runtime_type();
@@ -576,6 +591,35 @@ bool RETypeDefinition::is_primitive() const {
     g_primitive_map[this] = primitive_method->call<bool>(sdk::get_thread_context(), runtime_type);
 
     return g_primitive_map[this];
+#else
+    // RE7 is missing get_IsPrimitive and System.RuntimeType
+    const auto full_name_hash = utility::hash(this->get_full_name());
+
+    switch (full_name_hash) {
+    case "System.Boolean"_fnv:[[fallthrough]];
+    case "System.Char"_fnv:[[fallthrough]];
+    case "System.SByte"_fnv:[[fallthrough]];
+    case "System.Byte"_fnv:[[fallthrough]];
+    case "System.Int16"_fnv:[[fallthrough]];
+    case "System.UInt16"_fnv:[[fallthrough]];
+    case "System.Int32"_fnv:[[fallthrough]];
+    case "System.UInt32"_fnv:[[fallthrough]];
+    case "System.Int64"_fnv:[[fallthrough]];
+    case "System.UInt64"_fnv:[[fallthrough]];
+    case "System.Single"_fnv:[[fallthrough]];
+    case "System.Double"_fnv:[[fallthrough]];
+    case "System.Void"_fnv:[[fallthrough]];
+    case "System.IntPtr"_fnv:[[fallthrough]];
+    case "System.UIntPtr"_fnv:
+        g_primitive_map[this] = true;
+        return true;
+    default:
+        g_primitive_map[this] = false;
+        return false;
+    }
+
+    return false;
+#endif
 }
 
 uint32_t RETypeDefinition::get_crc_hash() const {

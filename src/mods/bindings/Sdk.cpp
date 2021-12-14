@@ -1277,7 +1277,7 @@ void bindings::open_sdk(ScriptState* s) {
     );
 
     // templated lambda
-    auto create_managed_object_ptr_gc = [&]<typename T, typename = std::enable_if_t<std::is_base_of_v<::REManagedObject, T>>>(T* obj) {
+    auto create_managed_object_ptr_gc = [&]<detail::ManagedObjectBased T>(T* obj) {
         lua["__REManagedObjectPtrInternalCreate"] = [s]() -> sol::object {
             return sol::make_object(s->lua(), (T*)12345);
         };

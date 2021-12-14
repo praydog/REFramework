@@ -35,9 +35,17 @@ void add_ref(REManagedObject* object) {
         spdlog::info("[REManagedObject] Found add_ref function at {:x}", (uintptr_t)add_ref_func);
     }
 
-    //spdlog::info("Pushing: {} {}", (int32_t)object->referenceCount, utility::re_managed_object::get_type_definition(object)->get_full_name());
+    //spdlog::info("Pushing: {} {} {:x}", (int32_t)object->referenceCount, utility::re_managed_object::get_type_definition(object)->get_full_name(), (uintptr_t)object);
 
+#ifdef RE7
+    if ((int32_t)object->referenceCount >= 0) {
+        _InterlockedIncrement(&object->referenceCount);
+    } else {
+        add_ref_func(object);
+    }
+#else
     add_ref_func(object);
+#endif
 }
 
 void release(REManagedObject* object) {
@@ -67,7 +75,7 @@ void release(REManagedObject* object) {
         spdlog::info("[REManagedObject] Found release function at {:x}", (uintptr_t)release_func);
     }
 
-    //spdlog::info("Popping: {} {}", (int32_t)object->referenceCount, utility::re_managed_object::get_type_definition(object)->get_full_name());
+    //spdlog::info("Popping: {} {} {:x}", (int32_t)object->referenceCount, utility::re_managed_object::get_type_definition(object)->get_full_name(), (uintptr_t)object);
 
     release_func(object);
 
