@@ -1,4 +1,7 @@
 #pragma once
+namespace regenny::System {
+struct Type;
+}
 namespace regenny::tdb49 {
 struct TypeDefinition;
 }
@@ -6,13 +9,13 @@ namespace regenny::via::typeinfo {
 struct TypeInfo;
 }
 namespace regenny::tdb49 {
-struct MethodDefinition;
+struct TDB;
 }
 namespace regenny::tdb49 {
 struct FieldDefinition;
 }
 namespace regenny::tdb49 {
-struct TDB;
+struct MethodDefinition;
 }
 namespace regenny {
 struct BullShit;
@@ -20,6 +23,9 @@ struct BullShit;
 namespace regenny::via::clr {
 #pragma pack(push, 1)
 struct VM {
+    struct Method;
+    struct Field;
+
     struct Type {
         regenny::tdb49::TypeDefinition* tdb_type; // 0x0
         uint32_t type_flags; // 0x8
@@ -27,9 +33,10 @@ struct VM {
         char pad_10[0x10];
         regenny::via::clr::VM::Type* parent; // 0x20
         regenny::via::clr::VM::Type* next; // 0x28
-        char pad_30[0x10];
-        struct regenny::via::clr::VM::Method** methods; // 0x40
-        struct regenny::via::clr::VM::Field** fields; // 0x48
+        char pad_30[0x8];
+        regenny::System::Type* runtime_type; // 0x38
+        regenny::via::clr::VM::Method** methods; // 0x40
+        regenny::via::clr::VM::Field** fields; // 0x48
         void* static_fields; // 0x50
         char pad_58[0x8];
         regenny::via::typeinfo::TypeInfo* reflection_type; // 0x60

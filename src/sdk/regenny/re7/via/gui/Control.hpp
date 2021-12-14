@@ -1,7 +1,7 @@
 #pragma once
 #include "..\vec4.hpp"
-#include "..\vec3.hpp"
 #include ".\TransformObject.hpp"
+#include "..\vec3.hpp"
 namespace regenny::via::gui {
 #pragma pack(push, 1)
 struct Control : public TransformObject {

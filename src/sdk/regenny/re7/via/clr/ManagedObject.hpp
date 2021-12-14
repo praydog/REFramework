@@ -3,6 +3,9 @@
 #include "VM.hpp"
 
 namespace regenny::via::clr {
+struct Type;
+}
+namespace regenny::via::clr {
 #pragma pack(push, 1)
 struct ManagedObject {
     void** vtable; // 0x0

@@ -1,11 +1,11 @@
 #pragma once
-#include "clr\ManagedObject.hpp"
 #include ".\vec4.hpp"
-namespace regenny::via {
-struct Transform;
-}
+#include "clr\ManagedObject.hpp"
 namespace regenny::via {
 struct JointDesc;
+}
+namespace regenny::via {
+struct Transform;
 }
 namespace regenny::via {
 #pragma pack(push, 1)

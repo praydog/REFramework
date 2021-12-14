@@ -2,7 +2,7 @@
 namespace regenny::tdb49 {
 #pragma pack(push, 1)
 struct TypeDefinition {
-    uint32_t fqn; // 0x0
+    uint32_t fqn_hash; // 0x0
     uint16_t parent_typeid; // 0x4
     uint16_t declaring_typeid; // 0x6
     uint32_t full_name_offset; // 0x8

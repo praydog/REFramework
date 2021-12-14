@@ -1,6 +1,6 @@
 #pragma once
-#include ".\delegate.hpp"
 #include ".\SceneArray.hpp"
+#include ".\delegate.hpp"
 namespace regenny::via {
 struct SceneView;
 }

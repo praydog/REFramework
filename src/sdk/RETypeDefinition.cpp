@@ -693,6 +693,7 @@ static std::shared_mutex g_runtime_type_mtx{};
         }
     }
 
+#ifndef RE7
     static auto appdomain_type = sdk::RETypeDB::get()->find_type("System.AppDomain");
     static auto assembly_type = sdk::RETypeDB::get()->find_type("System.Reflection.Assembly");
     static auto get_current_domain_func = appdomain_type->get_method("get_CurrentDomain");
@@ -722,14 +723,70 @@ static std::shared_mutex g_runtime_type_mtx{};
             continue;
         }
 
-        auto type = get_assembly_type_func->call<REManagedObject*>(context, assembly, managed_string);
+        if (get_assembly_type_func != nullptr) {
+            auto type = get_assembly_type_func->call<REManagedObject*>(context, assembly, managed_string);
 
-        if (type != nullptr) {
-            std::unique_lock _{g_runtime_type_mtx};
-            g_runtime_type_map[this] = type;
-            return type;
+            if (type != nullptr) {
+                std::unique_lock _{g_runtime_type_mtx};
+                g_runtime_type_map[this] = type;
+                return type;
+            }
+        } else { // RE7
+            static auto get_types_method = assembly_type->get_method("GetTypes");
+
+            if (get_types_method != nullptr) {
+                auto types = get_types_method->call<sdk::SystemArray*>(context, assembly);
+
+                if (types != nullptr) {
+                    const auto type_count = types->size();
+
+                    for (auto j = 0; j < type_count; ++j) {
+                        auto type = (REManagedObject*)types->get_element(j);
+
+                        if (type == nullptr) {
+                            continue;
+                        }
+
+                        auto type_t = utility::re_managed_object::get_type_definition(type);
+
+                        if (type_t == nullptr) {
+                            continue;
+                        }
+
+                        static auto get_namespace_method = type_t->get_method("get_Namespace");
+                        static auto get_name_method = type_t->get_method("get_Name");
+
+                        auto ns = get_namespace_method->call<SystemString*>(context, type);
+                        auto name = get_name_method->call<SystemString*>(context, type);
+
+                        if (ns == nullptr || name == nullptr) {
+                            continue;
+                        }
+
+                        const auto full_name = utility::narrow(ns->data) + "." + utility::narrow(name->data);
+
+                        if (full_name == this->get_full_name()) {
+                            std::unique_lock _{g_runtime_type_mtx};
+                            g_runtime_type_map[this] = type;
+                            return type;
+                        }
+                    }
+                }
+            }
         }
     }
+#else
+    auto vm = sdk::VM::get();
+
+    if (vm == nullptr) {
+        return nullptr;
+    }
+
+    const auto& vm_type = vm->types[this->get_index()];
+
+    g_runtime_type_map[this] = (::REManagedObject*)vm_type.runtime_type;
+    return g_runtime_type_map[this];
+#endif
 
     return g_runtime_type_map[this];
 }

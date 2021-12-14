@@ -1,15 +1,15 @@
 #pragma once
-#include ".\RenderType.hpp"
 #include ".\Size.hpp"
-#include ".\CameraType.hpp"
-#include ".\DisplayType.hpp"
-#include ".\BasisPlane.hpp"
 #include "clr\ManagedObject.hpp"
-namespace regenny::via {
-struct Window;
-}
+#include ".\RenderType.hpp"
+#include ".\BasisPlane.hpp"
+#include ".\DisplayType.hpp"
+#include ".\CameraType.hpp"
 namespace regenny::via {
 struct Scene;
+}
+namespace regenny::via {
+struct Window;
 }
 namespace regenny::via {
 #pragma pack(push, 1)

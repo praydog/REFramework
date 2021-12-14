@@ -1,12 +1,12 @@
 #pragma once
+namespace regenny::via::clr {
+struct Type;
+}
 namespace regenny::via::typeinfo {
 struct TypeInfo;
 }
 namespace regenny::via::reflection {
 struct Reflection;
-}
-namespace regenny::via::clr {
-struct Type;
 }
 namespace regenny::via::typeinfo {
 #pragma pack(push, 1)

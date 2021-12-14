@@ -1,5 +1,10 @@
 #pragma once
+
 #include "../clr/VM.hpp"
+
+namespace regenny::via::clr {
+struct Field;
+}
 namespace regenny::via::reflection {
 #pragma pack(push, 1)
 struct Property {

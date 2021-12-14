@@ -3,13 +3,13 @@ namespace regenny::tdb49 {
 struct FieldDefinition;
 }
 namespace regenny::tdb49 {
-struct MethodDefinition;
+struct PropertyDefinition;
 }
 namespace regenny::tdb49 {
 struct Event;
 }
 namespace regenny::tdb49 {
-struct PropertyDefinition;
+struct MethodDefinition;
 }
 namespace regenny::tdb49 {
 struct Module;
