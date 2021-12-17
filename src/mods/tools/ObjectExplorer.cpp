@@ -2762,7 +2762,8 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
         break;
     //case "System.Nullable`1<System.Single>"_fnv:
     case "System.Single"_fnv:
-    case "f32"_fnv: {
+    case "f32"_fnv:
+    case "float"_fnv: {
         ImGui::Text("%f", *(float*)data);
 
         if (real_data != nullptr) {
