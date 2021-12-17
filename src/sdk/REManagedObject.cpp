@@ -139,9 +139,16 @@ bool is_managed_object(Address address) {
         return false;
     }
 
-    if (info->type->classInfo != nullptr && info->type->classInfo != object->info) {
+    static auto vm = sdk::VM::get();
+    const auto tdef = (sdk::RETypeDefinition*)info->classInfo;
+    
+    if (&vm->types[tdef->get_index()] != (regenny::via::clr::VM::Type*)object->info) {
         return false;
     }
+
+    /*if (info->type->classInfo != nullptr && info->type->classInfo != object->info) {
+        return false;
+    }*/
 #endif
 
     return true;
@@ -259,8 +266,7 @@ uint32_t get_size(::REManagedObject* object) {
     case via::clr::VMObjType::Array:
     {
         auto container = (::REArrayBase*)object;
-        auto contained_type = container->containedType;
-        
+
         // array of ptrs by default
         auto element_size = utility::re_array::get_element_size(container);
 

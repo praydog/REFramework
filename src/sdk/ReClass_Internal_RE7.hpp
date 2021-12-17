@@ -1760,7 +1760,7 @@ static_assert(sizeof(N00002B03) == 0xC0);
 class REArrayBase : public REManagedObject
 {
 public:
-	class REClassInfo *containedType; //0x0020
+	class REObjectInfo *containedType; //0x0020
 	int32_t num1; //0x0028
 	int32_t numElements; //0x002C
 }; //Size: 0x0030

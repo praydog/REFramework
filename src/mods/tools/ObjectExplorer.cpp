@@ -1767,11 +1767,11 @@ void ObjectExplorer::handle_address(Address address, int32_t offset, Address par
                 auto arr = (REArrayBase*)object;
                 std::string name{};
                 name += "Array<";
-#ifndef RE7
-                name += arr->containedType != nullptr ? arr->containedType->type->name : "";
-#else
-                throw std::runtime_error("Not implemented");
-#endif
+
+                const auto contained_type = utility::re_array::get_contained_type(arr);
+                
+                name += contained_type != nullptr ? contained_type->get_full_name() : "";
+
                 name += ">";
 
                 additional_text = name;
@@ -1873,21 +1873,22 @@ void ObjectExplorer::handle_address(Address address, int32_t offset, Address par
         if (utility::re_managed_object::get_vm_type(object) == via::clr::VMObjType::Array) {
             if (ImGui::TreeNode(real_address.get(sizeof(REArrayBase)), "Array Entries")) {
                 auto arr = (REArrayBase*)object;
-                const bool entry_is_val = ((sdk::RETypeDefinition*)arr->containedType)->get_vm_obj_type() == via::clr::VMObjType::ValType;
+                const bool entry_is_val = utility::re_array::get_contained_type(arr)->get_vm_obj_type() == via::clr::VMObjType::ValType;
 
                 if (entry_is_val) {
                     for (auto i = 0; i < arr->numElements; ++i) {
                         auto elem = utility::re_array::get_element<void*>(arr, i);
                         REManagedObject fake_obj{};
 
+                        const auto contained_type = utility::re_array::get_contained_type(arr);
+
 #ifndef RE7
                         fake_obj.info = arr->containedType->parentInfo;
-
-                        auto real_size = arr->containedType->size;
 #else
-                        auto real_size = 0;
-                        throw std::runtime_error("Not implemented");
+                        fake_obj.info = (::REObjectInfo*)&sdk::VM::get()->types[contained_type->get_index()];
 #endif
+
+                        auto real_size = contained_type->get_size();
 
                         std::vector<uint8_t> copied_obj{};
                         copied_obj.resize(real_size);

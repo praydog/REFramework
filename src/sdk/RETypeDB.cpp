@@ -499,59 +499,59 @@ sdk::InvokeRet sdk::REMethodDefinition::invoke(void* object, const std::vector<v
         }
     };
 
-    switch (num_params) {
-    case 0:
-        unpack_and_call();
-        return out;
+switch (num_params) {
+case 0:
+    unpack_and_call();
+    return out;
 
-        break;
-    case 1:
-        // now we must check each parameter to check if it's a float/double
-        if (param_hashes[0] == "System.Single"_fnv) {
-            unpack_and_call.operator()<float>();
-        } else if (param_hashes[0] == "System.Double"_fnv) {
-            unpack_and_call.operator()<double>();
-        } else {
-            unpack_and_call.operator()<void*>();
-        }
-
-        return out;
-
-        break;
-    case 2:
-        // oh god now we need to handle more permutations
-        if (param_hashes[0] == "System.Single"_fnv && param_hashes[1] == "System.Single"_fnv) {
-            unpack_and_call.operator()<float, float>();
-        } else if (param_hashes[0] == "System.Single"_fnv && param_hashes[1] == "System.Double"_fnv) {
-            unpack_and_call.operator()<float, double>();
-        } else if (param_hashes[0] == "System.Double"_fnv && param_hashes[1] == "System.Single"_fnv) {
-            unpack_and_call.operator()<double, float>();
-        } else if (param_hashes[0] == "System.Double"_fnv && param_hashes[1] == "System.Double"_fnv) {
-            unpack_and_call.operator()<double, double>();
-        } else if (param_hashes[0] == "System.Single"_fnv) {
-            unpack_and_call.operator()<float, void*>();
-        } else if (param_hashes[0] == "System.Double"_fnv) {
-            unpack_and_call.operator()<double, void*>();
-        } else if (param_hashes[1] == "System.Single"_fnv) {
-            unpack_and_call.operator()<void*, float>();
-        } else if (param_hashes[1] == "System.Double"_fnv) {
-            unpack_and_call.operator()<void*, double>();
-        } else {
-            unpack_and_call.operator()<void*, void*>();
-        }
-
-        return out;
-
-        break;
-    default:
-        // for now, we aren't going to handle the case where there are more than 2 parameters
-        // because that will get very very messy
-        // maybe try to fix it with templates or JIT or something...
-        // but for now, just return an empty struct
-        break;
+    break;
+case 1:
+    // now we must check each parameter to check if it's a float/double
+    if (param_hashes[0] == "System.Single"_fnv) {
+        unpack_and_call.operator()<float>();
+    } else if (param_hashes[0] == "System.Double"_fnv) {
+        unpack_and_call.operator()<double>();
+    } else {
+        unpack_and_call.operator()<void*>();
     }
 
     return out;
+
+    break;
+case 2:
+    // oh god now we need to handle more permutations
+    if (param_hashes[0] == "System.Single"_fnv && param_hashes[1] == "System.Single"_fnv) {
+        unpack_and_call.operator()<float, float>();
+    } else if (param_hashes[0] == "System.Single"_fnv && param_hashes[1] == "System.Double"_fnv) {
+        unpack_and_call.operator()<float, double>();
+    } else if (param_hashes[0] == "System.Double"_fnv && param_hashes[1] == "System.Single"_fnv) {
+        unpack_and_call.operator()<double, float>();
+    } else if (param_hashes[0] == "System.Double"_fnv && param_hashes[1] == "System.Double"_fnv) {
+        unpack_and_call.operator()<double, double>();
+    } else if (param_hashes[0] == "System.Single"_fnv) {
+        unpack_and_call.operator()<float, void*>();
+    } else if (param_hashes[0] == "System.Double"_fnv) {
+        unpack_and_call.operator()<double, void*>();
+    } else if (param_hashes[1] == "System.Single"_fnv) {
+        unpack_and_call.operator()<void*, float>();
+    } else if (param_hashes[1] == "System.Double"_fnv) {
+        unpack_and_call.operator()<void*, double>();
+    } else {
+        unpack_and_call.operator()<void*, void*>();
+    }
+
+    return out;
+
+    break;
+default:
+    // for now, we aren't going to handle the case where there are more than 2 parameters
+    // because that will get very very messy
+    // maybe try to fix it with templates or JIT or something...
+    // but for now, just return an empty struct
+    break;
+}
+
+return out;
 #endif
 }
 
