@@ -1369,6 +1369,14 @@ void bindings::open_sdk(ScriptState* s) {
     );
 
     lua.new_usertype<::sdk::Resource>("REResource",
+        "add_ref", [](sol::this_state s, ::sdk::Resource* res) { 
+            res->add_ref();
+
+            return sol::make_object(s, res);
+        },
+        "release", [](::sdk::Resource* res) {
+            res->release();
+        },
         "get_address", [](::sdk::Resource* res) { return (uintptr_t)res; }
     );
 }
