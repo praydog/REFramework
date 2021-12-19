@@ -300,6 +300,8 @@ void* get_real_obj(sol::object obj) {
     if (!obj.is<sol::nil_t>()) {
         if (obj.is<REManagedObject*>()) {
             real_obj = (void*)obj.as<REManagedObject*>();
+        } else if (obj.is<::sdk::Resource*>()) {
+            real_obj = (void*)obj.as<::sdk::Resource*>();
         } else if (obj.is<ValueType>()) {
             real_obj = (void*)obj.as<ValueType&>().address();
         } else if (obj.is<void*>()) {
