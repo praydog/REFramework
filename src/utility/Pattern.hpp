@@ -19,6 +19,8 @@ namespace utility {
         Pattern& operator=(const Pattern& other) = default;
         Pattern& operator=(Pattern&& other) = default;
 
+        auto pattern_len() const noexcept { return m_pattern.size(); }
+
     private:
         std::vector<int16_t> m_pattern;
     };

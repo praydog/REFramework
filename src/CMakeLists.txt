@@ -82,6 +82,8 @@ set(SDK_SRC
     sdk/REVariableDescriptor.hpp
     sdk/Renderer.hpp
     sdk/Renderer.cpp
+    sdk/ResourceManager.hpp
+    sdk/ResourceManager.cpp
     sdk/RopewaySweetLightManager.hpp
     sdk/SceneManager.hpp
     sdk/SceneManager.cpp

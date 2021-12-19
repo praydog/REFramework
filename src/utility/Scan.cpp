@@ -29,6 +29,19 @@ namespace utility {
         return p.find(start, length);
     }
 
+    optional<uintptr_t> scan_data(HMODULE module, const uint8_t* data, size_t size) {
+        const auto module_size = get_module_size(module).value_or(0);
+        const auto end = (uintptr_t)module + module_size;
+
+        for (auto i = (uintptr_t)module; i < end; i += sizeof(uint8_t)) {
+            if (memcmp((void*)i, data, size) == 0) {
+                return i;
+            }
+        }
+
+        return {};
+    }
+
     optional<uintptr_t> scan_ptr(HMODULE module, uintptr_t ptr) {
         const auto module_size = get_module_size(module).value_or(0);
         const auto end = (uintptr_t)module + module_size;
@@ -40,6 +53,68 @@ namespace utility {
         }
 
         return std::nullopt;
+    }
+
+    optional<uintptr_t> scan_string(HMODULE module, const string& str) {
+        if (str.empty()) {
+            return {};
+        }
+
+        const auto data = (uint8_t*)str.c_str();
+        const auto size = str.size();
+
+        return scan_data(module, data, size);
+    }
+
+    optional<uintptr_t> scan_string(HMODULE module, const wstring& str) {
+        if (str.empty()) {
+            return {};
+        }
+
+        const auto data = (uint8_t*)str.c_str();
+        const auto size = str.size() * sizeof(wchar_t);
+
+        return scan_data(module, data, size);
+    }
+
+    optional<uintptr_t> scan_reference(HMODULE module, uintptr_t ptr, bool relative) {
+        if (!relative) {
+            return scan_ptr(module, ptr);
+        }
+
+        const auto module_size = get_module_size(module).value_or(0);
+        const auto end = (uintptr_t)module + module_size;
+        
+        for (auto i = (uintptr_t)module; i < end; i += sizeof(uint8_t)) {
+            if (calculate_absolute(i, 4) == ptr) {
+                return i;
+            }
+        }
+
+        return {};
+    }
+
+    optional<uintptr_t> scan_relative_reference_strict(HMODULE module, uintptr_t ptr, const string& preceded_by) {
+        if (preceded_by.empty()) {
+            return {};
+        }
+
+        const auto module_size = get_module_size(module).value_or(0);
+        const auto end = (uintptr_t)module + module_size;
+
+        // convert preceded_by (IDA style string) to bytes
+        auto pat = utility::Pattern{ preceded_by };
+        const auto pat_len = pat.pattern_len();
+
+        for (auto i = (uintptr_t)module; i < end; i += sizeof(uint8_t)) {
+            if (calculate_absolute(i, 4) == ptr) {
+                if (pat.find(i - pat_len, pat_len)) {
+                    return i;
+                }
+            }
+        }
+
+        return {};
     }
 
     uintptr_t calculate_absolute(uintptr_t address, uint8_t customOffset /*= 4*/) {

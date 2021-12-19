@@ -7,6 +7,7 @@
 #include "../../sdk/REManagedObject.hpp"
 #include "../../sdk/RETypeDB.hpp"
 #include "../../sdk/SceneManager.hpp"
+#include "../../sdk/ResourceManager.hpp"
 #include "../../utility/Memory.hpp"
 
 #include "../ScriptRunner.hpp"
@@ -264,7 +265,26 @@ void* create_managed_string(const char* text) {
     return ::sdk::VM::create_managed_string(utility::widen(text));
 }
 
+sol::object create_resource(sol::this_state s, std::string type_name, std::string name) {
+    auto& types = g_framework->get_types();
+
+    // NOT a type definition!!
+    // this is a via::typeinfo::TypeInfo
+    const auto t = types->get(type_name);
+
+    if (t == nullptr) {
+        return sol::make_object(s, sol::nil);
+    }
+
+    auto resource_manager = ::sdk::ResourceManager::get();
+    return sol::make_object(s, resource_manager->create_resource(t, utility::widen(name)));
+}
+
 sol::object create_instance(sol::this_state s, const char* name) {
+    if (name == nullptr) {
+        return sol::make_object(s, sol::nil);
+    }
+
     auto type_definition = find_type_definition(name);
 
     if (type_definition == nullptr) {
@@ -1043,6 +1063,7 @@ void bindings::open_sdk(ScriptState* s) {
     sdk["get_native_singleton"] = api::sdk::get_native_singleton;
     sdk["get_managed_singleton"] = api::sdk::get_managed_singleton;
     sdk["create_managed_string"] = api::sdk::create_managed_string;
+    sdk["create_resource"] = api::sdk::create_resource;
     sdk["create_instance"] = api::sdk::create_instance;
     sdk["find_type_definition"] = api::sdk::find_type_definition;
     sdk["typeof"] = api::sdk::typeof;
@@ -1345,5 +1366,9 @@ void bindings::open_sdk(ScriptState* s) {
         "get_field", &api::sdk::ValueType::get_field,
         "set_field", &api::sdk::ValueType::set_field,
         "get_type_definition", [](api::sdk::ValueType* b) { return b->type; }
+    );
+
+    lua.new_usertype<::sdk::Resource>("REResource",
+        "get_address", [](::sdk::Resource* res) { return (uintptr_t)res; }
     );
 }
