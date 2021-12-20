@@ -13,6 +13,7 @@
 #include "utility/Memory.hpp"
 
 #include "Genny.hpp"
+#include "GennyIda.hpp"
 
 #include "REFramework.hpp"
 #include "ObjectExplorer.hpp"
@@ -137,6 +138,23 @@ static std::unordered_map<std::string, std::string> g_valuetype_typedefs {
     { "System.Single", "float" },
     { "System.Double", "double" },
     { "System.Boolean", "bool" },
+};
+
+static std::unordered_set<std::string> g_builtin_types {
+    "void",
+    "char",
+    "wchar_t",
+    "uint8_t",
+    "int8_t",
+    "int16_t",
+    "uint16_t",
+    "int32_t",
+    "uint32_t",
+    "int64_t",
+    "uint64_t",
+    "float",
+    "double",
+    "bool"
 };
 
 struct BitReader {
@@ -594,10 +612,6 @@ void ObjectExplorer::generate_sdk() {
     genny::Sdk sdk{};
     auto g = sdk.global_ns();
 
-    sdk.include("REFramework.hpp");
-    sdk.include("sdk/ReClass.hpp");
-    sdk.include("cstdint");
-
     g->type("int8_t")->size(1);
     g->type("int16_t")->size(2);
     g->type("int32_t")->size(4);
@@ -910,7 +924,8 @@ void ObjectExplorer::generate_sdk() {
 
         // Generate sdkgenny methods
         if (pm->owner != nullptr && pm->m != nullptr) {
-            auto c = class_from_name(g, pm->owner->full_name);
+            auto c = pm->owner->genny_t != nullptr ? pm->owner->genny_t : class_from_name(g, pm->owner->full_name);
+            pm->owner->genny_t = c;
 
             auto real_return_type = return_type;
             auto real_return_type_name = return_type_name;
@@ -929,6 +944,8 @@ void ObjectExplorer::generate_sdk() {
                 if (auto it = g_valuetype_typedefs.find(real_return_type_name); it != g_valuetype_typedefs.end()) {
                     real_return_type_name = it->second;
                 }
+            } else if (real_return_type != nullptr && real_return_type_name == "System.Void") {
+                real_return_type_name = "void";
             }
 
             auto retc = class_from_name(g, real_return_type_name != "" ? real_return_type_name : "void");
@@ -1027,13 +1044,26 @@ void ObjectExplorer::generate_sdk() {
 
                     if (underlying_type != nullptr) {
                         param_type_name = underlying_type->get_full_name();
+                        param_type = underlying_type;
                     }
                 }
 
                 if (param_type->should_pass_by_pointer()) {
                     f->param(clean_typename(param_name))->type(class_from_name(g, param_type_name)->ptr());
                 } else {
-                    f->param(clean_typename(param_name))->type(class_from_name(g, param_type_name));
+                    genny::Type* genny_param_type = nullptr;
+
+                    if (param_type->is_value_type()) {
+                        if (auto it = g_valuetype_typedefs.find(param_type_name); it != g_valuetype_typedefs.end()) {
+                            genny_param_type = g->type(it->second);
+                        }
+                    } else if (param_type_name == "System.Void") {
+                        genny_param_type = g->type("void");
+                    } else {
+                        genny_param_type = class_from_name(g, param_type_name);
+                    }
+
+                    f->param(clean_typename(param_name))->type(genny_param_type);
                 }
             }
         }
@@ -1115,8 +1145,10 @@ void ObjectExplorer::generate_sdk() {
 
         // Use sdkgenny to generate the fields now
         if (pf->owner != nullptr) {
-            auto c = class_from_name(g, pf->owner->full_name);
+            auto c = pf->owner->genny_t != nullptr ? pf->owner->genny_t : class_from_name(g, pf->owner->full_name);
             auto t = pf->type;
+
+            pf->owner->genny_t = c;
 
             if (pf->type != nullptr && pf->type->t != nullptr) {
                 const bool is_owner_value_type = pf->owner->t->is_value_type();
@@ -1141,13 +1173,21 @@ void ObjectExplorer::generate_sdk() {
                         if (auto it = g_valuetype_typedefs.find(valuetype_typedef); it != g_valuetype_typedefs.end()) {
                             valuetype_typedef = it->second;
                             v->type(g->type(valuetype_typedef));
+
+                            /*if (is_enum) {
+                                v->comment(std::stringstream{} << "ENUM: " << pf->type->full_name);
+                            }*/
                         } else if (pf->type->t != pf->owner->t) {
                             v->type(class_from_name(g, valuetype_typedef));
                         } else {
                             v->type(g->type("uint8_t")->array_(pf->type->t->get_size()));
                         }
                     } else {
-                        v->type(class_from_name(g, pf->type->full_name)->ptr());
+                        if (pf->type->full_name == "System.Void") {
+                            v->type(g->type("void"));
+                        } else {
+                            v->type(class_from_name(g, pf->type->full_name)->ptr());
+                        }
                     }
                 } else { // Statics
                     genny::StaticFunction* f = nullptr;
@@ -1185,7 +1225,12 @@ void ObjectExplorer::generate_sdk() {
                             }
                         }
                         else {
-                            return_f = class_from_name(g, pf->type->full_name)->ptr();
+                            if (pf->type->full_name == "System.Void") {
+                                return_f = g->type("void");
+                            } else {
+                                return_f = class_from_name(g, pf->type->full_name)->ptr();
+                            }
+
                             f = c->static_function(pf->name);
                             f->returns(return_f);
                         }
@@ -1701,7 +1746,8 @@ void ObjectExplorer::generate_sdk() {
     }
 #endif
 
-    for (auto& it : this->m_enums) {
+    // don't.
+    /*for (auto& it : this->m_enums) {
         // template classes we dont want
         if (std::string{it.first}.find_first_of("`<>") != std::string::npos) {
             continue;
@@ -1711,7 +1757,7 @@ void ObjectExplorer::generate_sdk() {
 
         e->type(g->type("uint64_t"));
         e->value(it.second.name, it.second.value);
-    }
+    }*/
 
     try {
         std::ofstream{ "il2cpp_dump.json" } << il2cpp_dump.dump(4, ' ', false, json::error_handler_t::ignore) << std::endl;
@@ -1719,7 +1765,17 @@ void ObjectExplorer::generate_sdk() {
         spdlog::info("Failed to dump il2cpp_dump.json: {}", e.what());
     }
 
-    sdk.generate("sdk");
+    /*spdlog::info("Generating SDK...");
+
+    sdk.include("REFramework.hpp");
+    sdk.include("sdk/ReClass.hpp");
+    sdk.include("cstdint");
+    sdk.generate("sdk");*/
+
+    spdlog::info("Generating IDA SDK...");
+    
+    genny::ida::transform(sdk);
+    sdk.generate("sdk_ida");
 }
 
 void ObjectExplorer::handle_address(Address address, int32_t offset, Address parent, Address real_address) {

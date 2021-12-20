@@ -33,6 +33,10 @@ namespace sdk {
 struct RETypeDefinition;
 }
 
+namespace genny {
+class Class;
+}
+
 #ifdef TDB_DUMP_ALLOWED
 namespace detail {
 struct ParsedParams;
@@ -92,6 +96,7 @@ struct ParsedType {
     std::shared_ptr<ParsedType> super{}; // parent class we inherit from
 
     sdk::RETypeDefinition* t{nullptr};
+    genny::Class* genny_t{nullptr};
 
     const char* name_space{"Unknown"};
     const char* name{"Unknown"};
