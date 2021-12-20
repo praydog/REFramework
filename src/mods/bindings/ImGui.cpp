@@ -68,23 +68,25 @@ sol::variadic_results drag_int(sol::this_state s, const char* label, int v, floa
 }
 
 sol::variadic_results input_text(sol::this_state s, const char* label, const std::string& v, ImGuiInputTextFlags flags = 0) {
+    flags |= ImGuiInputTextFlags_CallbackResize;
+
     if (label == nullptr) {
         label = "";
     }
 
-    static std::vector<char> buffer{};
+    static std::string buffer{""};
+    buffer = v;
 
-    if (v.size() + 1 > buffer.size()) {
-        buffer.resize(v.size() + 1);
-    }
+    static auto input_text_callback = [](ImGuiInputTextCallbackData* data) -> int {
+        if (data->EventFlag == ImGuiInputTextFlags_CallbackResize) {
+            buffer.resize(data->BufTextLen);
+            data->Buf = (char*)buffer.c_str();
+        }
 
-    if (v.empty()) {
-        buffer[0] = '\0';
-    } else {
-        strcpy_s(buffer.data(), v.size() + 1, v.c_str());
-    }
+        return 0;
+    };
 
-    auto changed = ImGui::InputText(label, &buffer[0], 512, flags);
+    auto changed = ImGui::InputText(label, buffer.data(), buffer.capacity() + 1, flags, input_text_callback);
 
     sol::variadic_results results{};
 
