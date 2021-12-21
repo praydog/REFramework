@@ -358,6 +358,14 @@ sdk::InvokeRet sdk::REMethodDefinition::invoke(void* object, const std::vector<v
         try {
             invoke_wrapper((void*)&stack_frame, context);
             out.exception_thrown = false;
+
+            // exception pointer
+            if (context->unkPtr->unkPtr != nullptr) {
+                spdlog::error("Internal game exception thrown in REMethodDefinition::invoke for {}", get_name());
+                out.exception_thrown = true;
+
+                context->unkPtr->unkPtr = nullptr;
+            }
         } catch (sdk::VMContext::Exception&) {
             spdlog::error("Exception thrown in REMethodDefinition::invoke for {}", get_name());
             context->cleanup_after_exception(scoped_translator.get_prev_reference_count());
