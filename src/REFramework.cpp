@@ -790,28 +790,32 @@ void REFramework::draw_about() {
     ImGui::Text("Author: praydog");
     ImGui::Text("Inspired by the Kanan project.");
     ImGui::Text("https://github.com/praydog/REFramework");
+    ImGui::Text("http://praydog.com");
 
     if (ImGui::CollapsingHeader("Licenses")) {
         ImGui::TreePush("Licenses");
 
-        if (ImGui::CollapsingHeader("glm")) {
-            ImGui::TextWrapped(license::glm);
-        }
+        struct License {
+            const char* name;
+            const char* text;
+        };
 
-        if (ImGui::CollapsingHeader("imgui")) {
-            ImGui::TextWrapped(license::imgui);
-        }
+        static constexpr std::array<License, 9> licenses{
+            License{ "glm", license::glm },
+            License{ "imgui", license::imgui },
+            License{ "minhook", license::minhook },
+            License{ "spdlog", license::spdlog },
+            License{ "robotomedium", license::roboto },
+            License{ "openvr", license::openvr },
+            License{ "lua", license::lua },
+            License{ "sol", license::sol },
+            License{ "json", license::json },
+        };
 
-        if (ImGui::CollapsingHeader("minhook")) {
-            ImGui::TextWrapped(license::minhook);
-        }
-
-        if (ImGui::CollapsingHeader("spdlog")) {
-            ImGui::TextWrapped(license::spdlog);
-        }
-
-        if (ImGui::CollapsingHeader("robotomedium")) {
-            ImGui::TextWrapped(license::roboto);
+        for (const auto& license : licenses) {
+            if (ImGui::CollapsingHeader(license.name)) {
+                ImGui::TextWrapped(license.text);
+            }
         }
 
         ImGui::TreePop();
