@@ -1263,6 +1263,7 @@ void bindings::open_sdk(ScriptState* s) {
                 spdlog::warn("REManagedObject:release attempted to release an object that was not managed by our Lua state");
             }
         },
+        "get_reference_count", [] (::REManagedObject* obj) { return obj->referenceCount; },
         "get_address", [](REManagedObject* obj) { return (uintptr_t)obj; },
         "get_type_definition", &utility::re_managed_object::get_type_definition,
         "get_field", [s](REManagedObject* obj, const char* name) {
