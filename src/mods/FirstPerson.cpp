@@ -169,6 +169,16 @@ void FirstPerson::on_draw_ui() {
     }
 }
 
+void FirstPerson::on_lua_state_created(sol::state& state) {
+    state.new_usertype<FirstPerson>("FirstPerson",
+        "new", sol::no_constructor,
+        "is_enabled", &FirstPerson::is_enabled,
+        "will_be_used", &FirstPerson::will_be_used
+    );
+
+    state["firstpersonmod"] = this;
+}
+
 void FirstPerson::on_config_load(const utility::Config& cfg) {
     for (IModValue& option : m_options) {
         option.config_load(cfg);

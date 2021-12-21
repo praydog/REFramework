@@ -28,6 +28,7 @@ public:
 
     void on_frame() override;
     void on_draw_ui() override;
+    void on_lua_state_created(sol::state& state) override;
 
     void on_config_load(const utility::Config& cfg) override;
     void on_config_save(utility::Config& cfg) override;
