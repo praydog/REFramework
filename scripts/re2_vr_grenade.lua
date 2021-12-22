@@ -202,7 +202,7 @@ local function on_pre_shell_cartridge_lateupdate(args)
         transform:call("set_Rotation", last_grenade_rotation)
 
         inside_vr_throw = true
-        re2.weapon:call("executeFire", 0) -- 0 == ammo decrease
+        re2.weapon:call("executeFire", 1) -- 1 == ammo decrease
         inside_vr_throw = false
         wants_spawn_nade = false
 
