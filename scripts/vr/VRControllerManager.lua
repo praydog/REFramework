@@ -76,7 +76,7 @@ local VRControllerManager = {
 
         -- clear out any controllers that are no longer connected
         for i, controller_index in ipairs(vr_controllers) do
-            if not self.controllers[controller_index] and not new_controller_found then
+            if not self.controllers[controller_index] then
                 self.controllers = {}
                 self.controllers_list = {}
 

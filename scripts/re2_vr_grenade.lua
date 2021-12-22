@@ -2,7 +2,6 @@ if reframework:get_game_name() ~= "re2" and reframework:get_game_name() ~= "re3"
     return
 end
 
-
 local vrc_manager = require("vr/VRControllerManager")
 local statics = require("utility/Statics")
 local ManagedObjectDict = require("utility/ManagedObjectDict")
@@ -16,13 +15,23 @@ local wants_spawn_nade = false
 local last_thrown_grenade = nil
 local last_camera_matrix = Matrix4x4f.new()
 
-local function on_pre_rigid_instantiate(args)
-    local go = sdk.to_managed_object(args[3])
+local r_arm_wrist_hash = nil
+local last_wrist_position = Vector3f.new(0, 0, 0)
+local last_wrist_rotation = Quaternion.new(0, 0, 0, 0)
 
-    last_thrown_grenade = go
+local function on_pre_rigid_instantiate(args)
+    wants_spawn_nade = false
+
+    if not firstpersonmod:will_be_used() then return end
+
+    last_thrown_grenade = sdk.to_managed_object(args[3])
 end
 
 local function on_post_rigid_instantiate(retval)
+    if not firstpersonmod:will_be_used() then
+        return retval
+    end
+    
     --[[if not is_grenade_out then
         return
     end]]
@@ -36,7 +45,17 @@ local function on_post_rigid_instantiate(retval)
             --local camera = sdk.get_primary_camera()
             local original_camera_rotation = last_camera_matrix:to_quat()
 
-            rigid_body:call("setLinearVelocity", 0, original_camera_rotation * right_controller.velocity)
+            local hmd_transform = vrmod:get_transform(0)
+            local hmd_rotation = hmd_transform:to_quat()
+
+            rigid_body:call("setLinearVelocity", 0, (original_camera_rotation * hmd_rotation:inverse()):normalized() * right_controller.velocity)
+            rigid_body:call("setAngularVelocity", 0, (original_camera_rotation * hmd_rotation:inverse()):normalized() * right_controller.angular_velocity)
+
+            --[[prigid_body:call("setPosition", last_wrist_position)
+            rigid_body:call("setRotation", last_wrist_rotation)
+
+            last_thrown_grenade:call("get_Transform"):call("set_Position", last_wrist_position)
+            last_thrown_grenade:call("get_Transform"):call("set_Rotation", last_wrist_rotation)]]
         end
     end
 
@@ -47,27 +66,53 @@ sdk.hook(throw_grenade_generator_type:get_method("onRigidInstantiate"), on_pre_r
 
 local inside_vr_throw = false
 
--- fixes a crash
-local function on_pre_request_ringbuffer_element(args)
-    log.debug("Requested ringbuffer element")
-
-    if inside_vr_throw then
-        log.debug("SKIPPING!!!!")
-        --return sdk.PreHookResult.SKIP_ORIGINAL
-    end
-end
-
-local function on_post_request_ringbuffer_element(retval)
-    return retval
-end
-
-local shell_manager_type = sdk.find_type_definition(sdk.game_namespace("weapon.shell.ShellManager"))
-sdk.hook(shell_manager_type:get_method("requestRingBufferElement"), on_pre_request_ringbuffer_element, on_post_request_ringbuffer_element)
-
 local was_grip_down = false
+local hooked = false
 
-re.on_application_entry("UpdateFSM", function()
+local last_grenade_position = Vector3f.new(0, 0, 0)
+local last_grenade_rotation = Quaternion.new(0, 0, 0, 0)
+
+re.on_application_entry("BeginRendering", function()
+    if not firstpersonmod:will_be_used() then return end
+
+    local camera = sdk.get_primary_camera()
+
+    if camera ~= nil then
+        last_camera_matrix = camera:call("get_WorldMatrix")
+    end
+
+    if re2.player ~= nil then
+        local transform = re2.player:call("get_Transform")
+        local r_arm_wrist = nil
+
+        if r_arm_wrist_hash == nil then
+            r_arm_wrist = transform:call("getJointByName", "r_arm_wrist")
+
+            if r_arm_wrist == nil then
+                log.info("wrist nil 1")
+                return
+            end
+
+            r_arm_wrist_hash = r_arm_wrist:call("get_NameHash")
+        else
+            r_arm_wrist = transform:call("getJointByHash", r_arm_wrist_hash)
+        end
+        
+        if r_arm_wrist ~= nil then
+            last_wrist_position = r_arm_wrist:call("get_Position")
+            last_wrist_rotation = r_arm_wrist:call("get_Rotation")
+        end
+    end
+
+    if re2.weapon_gameobject ~= nil then
+        last_grenade_position = re2.weapon_gameobject:call("get_Transform"):call("get_Position")
+        last_grenade_rotation = re2.weapon_gameobject:call("get_Transform"):call("get_Rotation")
+    end
+end)
+
+local function on_pre_shell_cartridge_lateupdate(args)
     is_grenade_out = false
+    if not firstpersonmod:will_be_used() then return end
 
     --[[if not vrmod:is_hmd_active() or not vrmod:is_using_controllers() or not vrc_manager:has_controllers() then
         return
@@ -75,20 +120,28 @@ re.on_application_entry("UpdateFSM", function()
 
     local player = re2.player
     if not player then
+        wants_spawn_nade = false
+        was_grip_down = false
         return
     end
 
     if not re2.weapon_gameobject or not re2.weapon then
+        wants_spawn_nade = false
+        was_grip_down = false
         return
     end
 
     local shell_generator = re2.weapon:get_field("<ShellGenerator>k__BackingField")
 
     if not shell_generator then
+        wants_spawn_nade = false
+        was_grip_down = false
         return
     end
 
     if not shell_generator:get_type_definition():is_a(throw_grenade_generator_type) then
+        wants_spawn_nade = false
+        was_grip_down = false
         return
     end
 
@@ -107,22 +160,62 @@ re.on_application_entry("UpdateFSM", function()
     end
 
     if wants_spawn_nade then
-        shell_generator:call("onRelease")
-        shell_generator:call("onSetup")
+        --shell_generator:call("onRelease")
+        --shell_generator:call("onSetup")
+
+        --[[local shell_cartridge_controller = re2.weapon:get_field("<ShellCartridgeController>k__BackingField")
+
+        if shell_cartridge_controller then
+            shell_cartridge_controller:call("request")
+        end]]
+
+        local r_arm_wrist = nil
+        
+        if re2.player ~= nil then
+            local transform = re2.player:call("get_Transform")
+    
+            if r_arm_wrist_hash == nil then
+                r_arm_wrist = transform:call("getJointByName", "r_arm_wrist")
+    
+                if r_arm_wrist == nil then
+                    log.info("wrist nil 1")
+                    return
+                end
+    
+                r_arm_wrist_hash = r_arm_wrist:call("get_NameHash")
+            else
+                r_arm_wrist = transform:call("getJointByHash", r_arm_wrist_hash)
+            end
+            
+            if r_arm_wrist ~= nil then
+                r_arm_wrist:call("set_Position", last_wrist_position)
+                r_arm_wrist:call("set_Rotation", last_wrist_rotation)
+            end
+        end
+
+        local transform = re2.weapon_gameobject:call("get_Transform")
+
+        local old_position = transform:call("get_Position")
+        local old_rotation = transform:call("get_Rotation")
+
+        transform:call("set_Position", last_grenade_position)
+        transform:call("set_Rotation", last_grenade_rotation)
+
         inside_vr_throw = true
-        re2.weapon:call("executeFire", 1)
+        re2.weapon:call("executeFire", 0) -- 0 == ammo decrease
         inside_vr_throw = false
         wants_spawn_nade = false
-    end
-end)
 
-re.on_pre_application_entry("BeginRendering", function()
-    local camera = sdk.get_primary_camera()
-
-    if camera ~= nil then
-        last_camera_matrix = camera:call("get_WorldMatrix")
+        transform:call("set_Position", old_position)
+        transform:call("set_Rotation", old_rotation)
     end
-end)
+end
+
+local function on_post_shell_cartridge_lateupdate(retval)
+    return retval
+end
+
+sdk.hook(sdk.find_type_definition(sdk.game_namespace("weapon.shell.ShellCartridgeController")):get_method("lateUpdate"), on_pre_shell_cartridge_lateupdate, on_post_shell_cartridge_lateupdate)
 
 re.on_draw_ui(function()
     if imgui.tree_node("RE2 VR Grenade Extension") then
