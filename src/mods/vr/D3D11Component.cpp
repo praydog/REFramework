@@ -138,8 +138,6 @@ void D3D11Component::setup() {
 
     depthstencil->GetDesc(&depthstencil_desc);
 
-    depthstencil_desc.BindFlags |= D3D11_BIND_RENDER_TARGET;
-
     // Create eye depthstencils.
     device->CreateTexture2D(&depthstencil_desc, nullptr, &m_left_eye_depthstencil);
     device->CreateTexture2D(&depthstencil_desc, nullptr, &m_right_eye_depthstencil);
