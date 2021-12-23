@@ -160,10 +160,6 @@ std::string VR::bindings_oculus_touch_json = R"(
          "skeleton" : [
             {
                "output" : "/actions/default/in/skeletonrighthand",
-               "path" : "/user/hand/left/input/skeleton/right"
-            },
-            {
-               "output" : "/actions/default/in/skeletonrighthand",
                "path" : "/user/hand/right/input/skeleton/right"
             },
             {
