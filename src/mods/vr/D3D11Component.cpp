@@ -1,6 +1,6 @@
-#include <openvr.h>
 #include <imgui.h>
 #include <imgui_internal.h>
+#include <openvr.h>
 
 #include "../VR.hpp"
 
@@ -17,7 +17,7 @@ void D3D11Component::on_frame(VR* vr) {
     }
 
     auto& hook = g_framework->get_d3d11_hook();
-    
+
     // get device
     auto device = hook->get_device();
 
@@ -39,13 +39,19 @@ void D3D11Component::on_frame(VR* vr) {
         return;
     }
 
+    auto depthstencil = hook->get_last_depthstencil_used();
+
     // If m_frame_count is even, we're rendering the left eye.
     if (vr->m_frame_count % 2 == vr->m_left_eye_interval) {
         // Copy the back buffer to the left eye texture (m_left_eye_tex0 holds the intermediate frame).
         context->CopyResource(m_left_eye_tex.Get(), backbuffer.Get());
+        context->CopyResource(m_left_eye_depthstencil.Get(), depthstencil.Get());
+        m_left_eye_proj = vr->m_hmd->GetProjectionMatrix(vr::Eye_Left, vr->m_nearz, vr->m_farz);
     } else {
         // Copy the back buffer to the right eye texture.
         context->CopyResource(m_right_eye_tex.Get(), backbuffer.Get());
+        context->CopyResource(m_right_eye_depthstencil.Get(), backbuffer.Get());
+        m_right_eye_proj = vr->m_hmd->GetProjectionMatrix(vr::Eye_Right, vr->m_nearz, vr->m_farz);
     }
 
     if (vr->m_frame_count % 2 == vr->m_right_eye_interval) {
@@ -53,11 +59,25 @@ void D3D11Component::on_frame(VR* vr) {
         // FPS will dive off the deep end.
         auto compositor = vr::VRCompositor();
 
-        vr::Texture_t left_eye{(void*)m_left_eye_tex.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto};
-        vr::Texture_t right_eye{(void*)m_right_eye_tex.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto};
+        vr::VRTextureWithDepth_t left_eye{
+            (void*)m_left_eye_tex.Get(),
+            vr::TextureType_DirectX,
+            vr::ColorSpace_Auto,
+            (void*)m_left_eye_depthstencil.Get(),
+            m_left_eye_proj,
+            {0.0f, 1.0f},
+        };
+        vr::VRTextureWithDepth_t right_eye{
+            (void*)m_right_eye_tex.Get(),
+            vr::TextureType_DirectX,
+            vr::ColorSpace_Auto,
+            (void*)m_right_eye_depthstencil.Get(),
+            m_right_eye_proj,
+            {0.0f, 1.0f},
+        };
 
-        auto e = compositor->Submit(vr::Eye_Left, &left_eye, &vr->m_left_bounds);
-        
+        auto e = compositor->Submit(vr::Eye_Left, &left_eye, &vr->m_left_bounds, vr::Submit_TextureWithDepth);
+
         bool submitted = true;
 
         if (e != vr::VRCompositorError_None) {
@@ -65,7 +85,7 @@ void D3D11Component::on_frame(VR* vr) {
             submitted = false;
         }
 
-        e = compositor->Submit(vr::Eye_Right, &right_eye, &vr->m_right_bounds);
+        e = compositor->Submit(vr::Eye_Right, &right_eye, &vr->m_right_bounds, vr::Submit_TextureWithDepth);
 
         if (e != vr::VRCompositorError_None) {
             spdlog::error("[VR] VRCompositor failed to submit right eye: {}", (int)e);
@@ -79,6 +99,8 @@ void D3D11Component::on_frame(VR* vr) {
 void D3D11Component::on_reset(VR* vr) {
     m_left_eye_tex.Reset();
     m_right_eye_tex.Reset();
+    m_left_eye_depthstencil.Reset();
+    m_right_eye_depthstencil.Reset();
 }
 
 void D3D11Component::setup() {
@@ -110,7 +132,21 @@ void D3D11Component::setup() {
     device->GetImmediateContext(&context);
     context->CopyResource(m_right_eye_tex.Get(), backbuffer.Get());
 
+    // Make depth stencils for both eyes.
+    auto depthstencil = hook->get_last_depthstencil_used();
+    D3D11_TEXTURE2D_DESC depthstencil_desc{};
+
+    depthstencil->GetDesc(&depthstencil_desc);
+
+    depthstencil_desc.BindFlags |= D3D11_BIND_RENDER_TARGET;
+
+    // Create eye depthstencils.
+    device->CreateTexture2D(&depthstencil_desc, nullptr, &m_left_eye_depthstencil);
+    device->CreateTexture2D(&depthstencil_desc, nullptr, &m_right_eye_depthstencil);
+
+    // Copy the current depthstencil into the right eye.
+    context->CopyResource(m_right_eye_depthstencil.Get(), depthstencil.Get());
+
     spdlog::info("[VR] d3d11 textures have been setup");
 }
-} // namespace vr
-
+} // namespace vrmod
