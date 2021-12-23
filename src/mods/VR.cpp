@@ -29,6 +29,7 @@
 #include "VR.hpp"
 
 constexpr auto CONTROLLER_DEADZONE = 0.1f;
+constexpr std::string_view COULD_NOT_LOAD_OPENVR = "Could not load openvr_api.dll";
 
 bool inside_on_end = false;
 uint32_t actual_frame_count = 0;
@@ -314,6 +315,18 @@ std::optional<std::string> VR::on_initialize() {
     auto openvr_error = initialize_openvr();
 
     if (openvr_error) {
+        m_is_hmd_active = false;
+        m_was_hmd_active = false;
+        m_needs_wgp_update = false;
+
+        if (*openvr_error == COULD_NOT_LOAD_OPENVR) {
+            // this is okay. we're not going to fail the whole thing entirely
+            // so we're just going to return OK, but
+            // when the VR mod draws its menu, it'll say "VR is not available"
+            m_openvr_loaded = false;
+            return Mod::on_initialize();
+        }
+
         return openvr_error;
     }
 
@@ -377,6 +390,12 @@ void VR::on_lua_state_created(sol::state& lua) {
 }
 
 std::optional<std::string> VR::initialize_openvr() {
+    if (LoadLibraryA("openvr_api.dll") == nullptr) {
+        return COULD_NOT_LOAD_OPENVR.data();
+    }
+
+    m_openvr_loaded = true;
+
     m_d3d12.on_reset(this);
     m_d3d11.on_reset(this);
 
@@ -1229,6 +1248,10 @@ void VR::on_pre_imgui_frame() {
 }
 
 void VR::on_frame() {
+    if (!m_openvr_loaded) {
+        return;
+    }
+
     if (m_wgp_initialized) {
         const auto hmd_activity = m_hmd->GetTrackedDeviceActivityLevel(vr::k_unTrackedDeviceIndex_Hmd);
         m_is_hmd_active = hmd_activity == vr::k_EDeviceActivityLevel_UserInteraction || hmd_activity == vr::k_EDeviceActivityLevel_UserInteraction_Timeout;
@@ -1268,7 +1291,7 @@ void VR::on_frame() {
 }
 
 void VR::on_post_present() {
-    if (!m_is_hmd_active) {
+    if (!m_is_hmd_active || !m_openvr_loaded) {
         return;
     }
 
@@ -1344,7 +1367,7 @@ thread_local std::vector<std::unique_ptr<GUIRestoreData>> g_elements_to_reset{};
 bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_context) {
     inside_gui_draw = true;
 
-    if (!m_is_hmd_active) {
+    if (!m_is_hmd_active || !m_openvr_loaded) {
         return true;
     }
 
@@ -1637,6 +1660,10 @@ void VR::on_lightshaft_draw(void* shaft, void* render_context) {
 thread_local bool timed_out = false;
 
 void VR::on_pre_begin_rendering(void* entry) {
+    if (!m_openvr_loaded) {
+        return;
+    }
+
     m_in_render = true;
 
     if (m_via_hid_gamepad.update()) {
@@ -1728,6 +1755,10 @@ void VR::on_pre_end_rendering(void* entry) {
 }
 
 void VR::on_end_rendering(void* entry) {
+    if (!m_openvr_loaded) {
+        return;
+    }
+
     if ((!m_is_hmd_active || m_needs_wgp_update) && !inside_on_end) {
         restore_camera();
 
@@ -1847,6 +1878,10 @@ void VR::on_end_rendering(void* entry) {
 }
 
 void VR::on_pre_wait_rendering(void* entry) {
+    if (!m_openvr_loaded) {
+        return;
+    }
+
     timed_out = false;
 
     if (!m_is_hmd_active) {
@@ -1906,12 +1941,20 @@ void VR::on_application_entry(void* entry, const char* name, size_t hash) {
 }
 
 void VR::on_update_hid(void* entry) {
+    if (!m_openvr_loaded) {
+        return;
+    }
+
 #if not defined(RE2) and not defined(RE3)
     this->openvr_input_to_re_engine();
 #endif
 }
 
 void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
+    if (!m_openvr_loaded) {
+        return;
+    }
+
     // Get OpenVR input system
     auto openvr_input = vr::VRInput();
 
@@ -2168,6 +2211,12 @@ void VR::on_draw_ui() {
         return;
     }
 
+    if (!m_openvr_loaded) {
+        ImGui::Text("VR not loaded: openvr_api.dll not found");
+        ImGui::Text("Please drop the openvr_api.dll file into the game's directory if you want to use VR");
+        return;
+    }
+
     // draw VR tree entry in menu (imgui)
     ImGui::Text("Render Resolution: %d x %d", m_w, m_h);
     ImGui::Text("Resolution can be changed in SteamVR");
@@ -2325,6 +2374,10 @@ vr::HmdMatrix34_t VR::get_raw_transform(uint32_t index) {
 }
 
 bool VR::is_action_active(vr::VRActionHandle_t action, vr::VRInputValueHandle_t source) const {
+    if (!m_openvr_loaded) {
+        return false;
+    }
+
     vr::InputDigitalActionData_t data{};
 	vr::VRInput()->GetDigitalActionData(action, &data, sizeof(data), source);
 
@@ -2332,6 +2385,10 @@ bool VR::is_action_active(vr::VRActionHandle_t action, vr::VRInputValueHandle_t 
 }
 
 Vector2f VR::get_joystick_axis(vr::VRInputValueHandle_t handle) const {
+    if (!m_openvr_loaded) {
+        return Vector2f{};
+    }
+
     vr::InputAnalogActionData_t data{};
     vr::VRInput()->GetAnalogActionData(m_action_joystick, &data, sizeof(data), handle);
 

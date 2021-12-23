@@ -310,6 +310,8 @@ private:
     bool m_request_reinitialize_openvr{false};
     bool m_positional_tracking{true};
 
+    bool m_openvr_loaded{false};
+
     // == 1 or == 0
     uint8_t m_left_eye_interval{0};
     uint8_t m_right_eye_interval{1};
