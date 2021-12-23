@@ -11,6 +11,7 @@ local GameObject = require("utility/GameObject")
 local throw_grenade_generator_type = sdk.find_type_definition(sdk.game_namespace("weapon.generator.ThrowGrenadeGenerator"))
 local is_grenade_out = false
 local wants_spawn_nade = false
+local inside_vr_throw = false
 
 local last_thrown_grenade = nil
 local last_camera_matrix = Matrix4x4f.new()
@@ -19,52 +20,111 @@ local r_arm_wrist_hash = nil
 local last_wrist_position = Vector3f.new(0, 0, 0)
 local last_wrist_rotation = Quaternion.new(0, 0, 0, 0)
 
-local function on_pre_rigid_instantiate(args)
+local function update_grenade_rigid_body(go)
     wants_spawn_nade = false
 
-    if not firstpersonmod:will_be_used() then return end
-
-    last_thrown_grenade = sdk.to_managed_object(args[3])
-end
-
-local function on_post_rigid_instantiate(retval)
     if not firstpersonmod:will_be_used() then
-        return retval
+        return
     end
     
     --[[if not is_grenade_out then
         return
     end]]
 
-    local rigid_body = GameObject.get_component(last_thrown_grenade, "via.dynamics.RigidBodySet")
+    if not vrmod:is_hmd_active() or not vrmod:is_using_controllers() or not vrc_manager:has_controllers() then
+        return
+    end
 
-    if rigid_body ~= nil and vrmod:is_hmd_active() and vrmod:is_using_controllers() and vrc_manager:has_controllers() then
-        local right_controller = vrc_manager.controllers_list[2]
+    local right_controller = vrc_manager.controllers_list[2]
+    if not right_controller then return end
 
-        if right_controller ~= nil then
-            --local camera = sdk.get_primary_camera()
-            local original_camera_rotation = last_camera_matrix:to_quat()
+    local original_camera_rotation = last_camera_matrix:to_quat()
 
-            local hmd_transform = vrmod:get_transform(0)
-            local hmd_rotation = hmd_transform:to_quat()
+    local hmd_transform = vrmod:get_transform(0)
+    local hmd_rotation = hmd_transform:to_quat()
 
-            rigid_body:call("setLinearVelocity", 0, (original_camera_rotation * hmd_rotation:inverse()):normalized() * right_controller.velocity)
-            rigid_body:call("setAngularVelocity", 0, (original_camera_rotation * hmd_rotation:inverse()):normalized() * right_controller.angular_velocity)
+    local rotation = (original_camera_rotation * hmd_rotation:inverse()):normalized()
+    local right_velocity = rotation * right_controller.velocity
 
-            --[[prigid_body:call("setPosition", last_wrist_position)
-            rigid_body:call("setRotation", last_wrist_rotation)
+    local rigid_body = GameObject.get_component(go, "via.dynamics.RigidBodySet")
 
-            last_thrown_grenade:call("get_Transform"):call("set_Position", last_wrist_position)
-            last_thrown_grenade:call("get_Transform"):call("set_Rotation", last_wrist_rotation)]]
+    if rigid_body ~= nil then
+        rigid_body:call("setLinearVelocity", 0, right_velocity)
+        rigid_body:call("setAngularVelocity", 0, rotation * right_controller.angular_velocity)
+    end
+
+    local throw_grenade = GameObject.get_component(go, sdk.game_namespace("weapon.shell.ThrowGrenade"))
+
+    if throw_grenade ~= nil then
+        local ballistic_information = throw_grenade:get_field("_BallisticInformation")
+
+        if ballistic_information ~= nil then
+            ballistic_information:call("set_CurrentSpeed", right_velocity)
+        else
+            log.info("BallisticInformation is nil!")
         end
+    end
+end
+
+local function on_pre_rigid_instantiate(args)
+    last_thrown_grenade = sdk.to_managed_object(args[3])
+
+    if not firstpersonmod:will_be_used() then return end
+end
+
+local function on_post_rigid_instantiate(retval)
+    update_grenade_rigid_body(last_thrown_grenade)
+
+    return retval
+end
+
+-- don't know why this is only in RE2
+if reframework:get_game_name() == "re2" then
+    sdk.hook(throw_grenade_generator_type:get_method("onRigidInstantiate"), on_pre_rigid_instantiate, on_post_rigid_instantiate)
+end
+
+local function on_pre_ringbuffer_get_element(args)
+end
+
+local function on_post_ringbuffer_get_element(retval)
+    if not firstpersonmod:will_be_used() then 
+        last_thrown_grenade = nil
+        return retval
+    end
+
+    if inside_vr_throw and sdk.to_int64(retval) ~= 0 then
+        last_thrown_grenade = sdk.to_managed_object(retval)
+        --wants_spawn_nade = false
     end
 
     return retval
 end
 
-sdk.hook(throw_grenade_generator_type:get_method("onRigidInstantiate"), on_pre_rigid_instantiate, on_post_rigid_instantiate)
+local last_shell_game_object = nil
 
-local inside_vr_throw = false
+local function on_pre_start_shell(args)
+    local throw_grenade = sdk.to_managed_object(args[2])
+    last_shell_game_object = throw_grenade:call("get_GameObject")
+end
+
+local function on_post_start_shell(retval)
+    if not firstpersonmod:will_be_used() then return end
+
+    if last_shell_game_object ~= nil then
+        update_grenade_rigid_body(last_shell_game_object)
+        last_shell_game_object = nil
+    end
+
+    return retval
+end
+
+local ringbuffer_manager_type = sdk.find_type_definition(sdk.game_namespace("system.RingBufferManager"))
+local throw_grenade_type = sdk.find_type_definition(sdk.game_namespace("weapon.shell.ThrowGrenade"))
+
+if reframework:get_game_name() == "re3" then
+    sdk.hook(ringbuffer_manager_type:get_method("getElement"), on_pre_ringbuffer_get_element, on_post_ringbuffer_get_element)
+    sdk.hook(throw_grenade_type:get_method("startShell"), on_pre_start_shell, on_post_start_shell)
+end
 
 local was_grip_down = false
 local hooked = false
@@ -202,7 +262,18 @@ local function on_pre_shell_cartridge_lateupdate(args)
         transform:call("set_Rotation", last_grenade_rotation)
 
         inside_vr_throw = true
-        re2.weapon:call("executeFire", 1) -- 1 == ammo decrease
+        --re2.weapon:call("executeFire", 0) -- 1 == ammo decrease
+        local mat = last_grenade_rotation:to_mat4()
+        mat[3] = last_grenade_position
+        shell_generator:call("generateShellProcess", mat)
+
+        local equipment = re2.weapon:get_field("<_OwnerInterface>k__BackingField")
+
+        -- decrements the ammo count
+        if equipment ~= nil then
+            equipment:call("use(" .. sdk.game_namespace("EquipmentDefine.WeaponType") .. ", System.Int32)", re2.weapon:get_field("_WeaponType"), 1)
+        end
+
         inside_vr_throw = false
         wants_spawn_nade = false
 
@@ -219,7 +290,13 @@ sdk.hook(sdk.find_type_definition(sdk.game_namespace("weapon.shell.ShellCartridg
 
 re.on_draw_ui(function()
     if imgui.tree_node("RE2 VR Grenade Extension") then
-        imgui.text("Last thrown grenade: " .. tostring(last_thrown_grenade))
+        if imgui.tree_node("Last thrown grenade") then
+            if last_thrown_grenade ~= nil then
+                object_explorer:handle_address(last_thrown_grenade:get_address())
+            end
+
+            imgui.tree_pop()
+        end
 
         if imgui.button("Spawn grenade") then
             wants_spawn_nade = true
