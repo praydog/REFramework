@@ -1,3 +1,7 @@
+if reframework:get_game_name() ~= "re2" and reframework:get_game_name() ~= "re3" then
+    return
+end
+
 local vrc_manager = require("vr/VRControllerManager")
 local statics = require("utility/Statics")
 local ManagedObjectDict = require("utility/ManagedObjectDict")
