@@ -50,7 +50,7 @@ void D3D11Component::on_frame(VR* vr) {
     } else {
         // Copy the back buffer to the right eye texture.
         context->CopyResource(m_right_eye_tex.Get(), backbuffer.Get());
-        context->CopyResource(m_right_eye_depthstencil.Get(), backbuffer.Get());
+        context->CopyResource(m_right_eye_depthstencil.Get(), depthstencil.Get());
         m_right_eye_proj = vr->m_hmd->GetProjectionMatrix(vr::Eye_Right, vr->m_nearz, vr->m_farz);
     }
 
