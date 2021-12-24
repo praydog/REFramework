@@ -47,6 +47,16 @@ sdk::RETypeDefinition* RETypeDB::find_type(std::string_view name) const {
     return g_tdb_type_map[name.data()];
 }
 
+sdk::REMethodDefinition* get_object_method(::REManagedObject* object, std::string_view name) {
+    auto t = utility::re_managed_object::get_type_definition(object);
+
+    if (t == nullptr) {
+        return nullptr;
+    }
+
+    return t->get_method(name);
+}
+
 sdk::RETypeDefinition* RETypeDB::get_type(uint32_t index) const {
     if (index >= this->numTypes) {
         return nullptr;

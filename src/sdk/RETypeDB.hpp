@@ -28,6 +28,8 @@ struct REParameterDef;
 sdk::InvokeRet invoke_object_func(void* obj, sdk::RETypeDefinition* t, std::string_view name, const std::vector<void*>& args);
 sdk::InvokeRet invoke_object_func(::REManagedObject* obj, std::string_view name, const std::vector<void*>& args);
 
+sdk::REMethodDefinition* get_object_method(::REManagedObject* obj, std::string_view name);
+
 template <typename T, typename... Args> 
 T call_object_func(void* obj, sdk::RETypeDefinition* t, std::string_view name, Args... args);
 
