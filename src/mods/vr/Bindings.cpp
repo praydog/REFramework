@@ -66,6 +66,26 @@ std::string VR::actions_json = R"(
       "type": "boolean"
     },
     {
+      "name": "/actions/default/in/DPad_Up",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/default/in/DPad_Right",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/default/in/DPad_Down",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/default/in/DPad_Left",
+      "type": "boolean"
+    },
+   {
+      "name": "/actions/default/in/WeaponDial_Start",
+      "type": "boolean"
+    },
+    {
       "name": "/actions/default/out/Haptic",
       "type": "vibration"
     }
@@ -198,6 +218,15 @@ std::string VR::bindings_oculus_touch_json = R"(
             {
                "inputs" : {
                   "click" : {
+                     "output" : "/actions/default/in/weapondial_start"
+                  }
+               },
+               "mode" : "button",
+               "path" : "/user/hand/left/input/trigger"
+            },
+            {
+               "inputs" : {
+                  "click" : {
                      "output" : "/actions/default/in/trigger"
                   }
                },
@@ -299,6 +328,15 @@ std::string VR::bindings_oculus_touch_json = R"(
                },
                "mode" : "button",
                "path" : "/user/hand/right/input/b"
+            },
+            {
+               "inputs" : {
+                  "click" : {
+                     "output" : "/actions/default/in/systembutton"
+                  }
+               },
+               "mode" : "button",
+               "path" : "/user/hand/left/input/system"
             },
             {
                "inputs" : {

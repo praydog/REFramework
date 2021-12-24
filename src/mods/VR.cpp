@@ -467,40 +467,16 @@ std::optional<std::string> VR::initialize_openvr_input() {
         return "VRInput failed to get action set handle.";
     }
 
-    // get action handles
-    auto trigger_error = vr::VRInput()->GetActionHandle("/actions/default/in/Trigger", &m_action_trigger);
-    auto grip_error = vr::VRInput()->GetActionHandle("/actions/default/in/Grip", &m_action_grip);
+    for (auto& it : m_action_handles) {
+        auto error = vr::VRInput()->GetActionHandle(it.first.c_str(), &it.second.get());
 
-    if (trigger_error != vr::VRInputError_None || grip_error != vr::VRInputError_None) {
-        return "VRInput failed to get action handles: " + std::to_string((uint32_t)trigger_error) + " " + std::to_string((uint32_t)grip_error);
-    }
+        if (error != vr::VRInputError_None) {
+            return "VRInput failed to get action handle: (" + it.first + "): " + std::to_string((uint32_t)error);
+        }
 
-    if (m_action_trigger == vr::k_ulInvalidActionHandle || m_action_grip == vr::k_ulInvalidActionHandle) {
-        return "VRInput failed to get action handles.";
-    }
-
-    auto joystick_error = vr::VRInput()->GetActionHandle("/actions/default/in/Joystick", &m_action_joystick);
-
-    if (joystick_error != vr::VRInputError_None) {
-        return "VRInput failed to get action handles (Joystick): " + std::to_string((uint32_t)joystick_error);
-    }
-
-    auto joystick_click_error = vr::VRInput()->GetActionHandle("/actions/default/in/JoystickClick", &m_action_joystick_click);
-
-    if (joystick_click_error != vr::VRInputError_None) {
-        return "VRInput failed to get action handles (JoystickClick): " + std::to_string((uint32_t)joystick_click_error);
-    }
-
-    auto a_button_error = vr::VRInput()->GetActionHandle("/actions/default/in/AButton", &m_action_a_button);
-
-    if (a_button_error != vr::VRInputError_None) {
-        return "VRInput failed to get action handles (AButton): " + std::to_string((uint32_t)a_button_error);
-    }
-
-    auto b_button_error = vr::VRInput()->GetActionHandle("/actions/default/in/BButton", &m_action_b_button);
-
-    if (b_button_error != vr::VRInputError_None) {
-        return "VRInput failed to get action handles (BButton): " + std::to_string((uint32_t)b_button_error);
+        if (it.second == vr::k_ulInvalidActionHandle) {
+            return "VRInput failed to get action handle: (" + it.first + ")";
+        }
     }
 
     m_active_action_set.ulActionSet = m_action_set;
@@ -1998,6 +1974,14 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
     const auto is_right_a_button_down = is_action_active(m_action_a_button, m_right_joystick);
     const auto is_right_b_button_down = is_action_active(m_action_b_button, m_right_joystick);
 
+    const auto is_dpad_up_down = is_action_active(m_action_dpad_up, m_left_joystick) || is_action_active(m_action_dpad_up, m_right_joystick);
+    const auto is_dpad_right_down = is_action_active(m_action_dpad_right, m_left_joystick) || is_action_active(m_action_dpad_right, m_right_joystick);
+    const auto is_dpad_down_down = is_action_active(m_action_dpad_down, m_left_joystick) || is_action_active(m_action_dpad_down, m_right_joystick);
+    const auto is_dpad_left_down = is_action_active(m_action_dpad_left, m_left_joystick) || is_action_active(m_action_dpad_left, m_right_joystick);
+
+    const auto is_left_system_button_down = is_action_active(m_action_system_button, m_left_joystick);
+    const auto is_right_system_button_down = is_action_active(m_action_system_button, m_right_joystick);
+
     // Current actual button bits used by the game
     auto& button_bits_down = *sdk::get_object_field<uint64_t>(button_bits_obj, "Down");
     auto& button_bits_on = *sdk::get_object_field<uint64_t>(button_bits_obj, "On");
@@ -2110,6 +2094,24 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
     set_button_state(app::ropeway::InputDefine::Kind::UI_RESET, is_right_b_button_down);
     set_button_state((app::ropeway::InputDefine::Kind)((uint64_t)1 << 52), is_right_b_button_down);
 
+    // DPad Up: Shortcut Up
+    set_button_state(app::ropeway::InputDefine::Kind::SHORTCUT_UP, is_dpad_up_down);
+
+    // DPad Right: Shortcut Right
+    set_button_state(app::ropeway::InputDefine::Kind::SHORTCUT_RIGHT, is_dpad_right_down);
+
+    // DPad Down: Shortcut Down
+    set_button_state(app::ropeway::InputDefine::Kind::SHORTCUT_DOWN, is_dpad_down_down);
+
+    // DPad Left: Shortcut Left
+    set_button_state(app::ropeway::InputDefine::Kind::SHORTCUT_LEFT, is_dpad_left_down);
+
+    // Left System Button: Pause
+    set_button_state(app::ropeway::InputDefine::Kind::PAUSE, is_left_system_button_down);
+
+    // Right System Button: Pause
+    set_button_state(app::ropeway::InputDefine::Kind::PAUSE, is_right_system_button_down);
+
     // Fixes QTE bound to triggers
     if (is_using_controller) {
         const auto left_trigger_state = is_left_trigger_down ? 1.0f : 0.0f;
@@ -2196,8 +2198,8 @@ void VR::openvr_input_to_re_engine() {
         m_last_controller_update = now;
     }
 
-    for (const auto& action_handle : m_action_handles) {
-        if (is_action_active(action_handle, m_left_joystick) || is_action_active(action_handle, m_right_joystick)) {
+    for (auto& it : m_action_handles) {
+        if (is_action_active(it.second, m_left_joystick) || is_action_active(it.second, m_right_joystick)) {
             m_last_controller_update = now;
         }
     }

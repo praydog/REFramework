@@ -249,14 +249,24 @@ private:
     vr::VRActionHandle_t m_action_joystick_click{};
     vr::VRActionHandle_t m_action_a_button{};
     vr::VRActionHandle_t m_action_b_button{};
+    vr::VRActionHandle_t m_action_dpad_up{};
+    vr::VRActionHandle_t m_action_dpad_right{};
+    vr::VRActionHandle_t m_action_dpad_down{};
+    vr::VRActionHandle_t m_action_dpad_left{};
+    vr::VRActionHandle_t m_action_system_button{};
 
-    std::vector<std::reference_wrapper<vr::VRActionHandle_t>> m_action_handles{
-        m_action_trigger,
-        m_action_grip,
-        m_action_joystick,
-        m_action_joystick_click,
-        m_action_a_button,
-        m_action_b_button
+    std::unordered_map<std::string, std::reference_wrapper<vr::VRActionHandle_t>> m_action_handles {
+        { "/actions/default/in/Trigger", m_action_trigger },
+        { "/actions/default/in/Grip", m_action_grip },
+        { "/actions/default/in/Joystick", m_action_joystick },
+        { "/actions/default/in/JoystickClick", m_action_joystick_click },
+        { "/actions/default/in/AButton", m_action_a_button },
+        { "/actions/default/in/BButton", m_action_b_button },
+        { "/actions/default/in/DPad_Up", m_action_dpad_up },
+        { "/actions/default/in/DPad_Right", m_action_dpad_right },
+        { "/actions/default/in/DPad_Down", m_action_dpad_down },
+        { "/actions/default/in/DPad_Left", m_action_dpad_left },
+        { "/actions/default/in/systembutton", m_action_system_button }
     };
 
     // Input sources
