@@ -788,6 +788,10 @@ void VR::update_hmd_state() {
                 wants_reset_origin = true;
             } break;
 
+            case vr::VREvent_DashboardActivated: {
+                m_handle_pause = true;
+            } break;
+
             default:
                 spdlog::info("VR: Unknown event: {}", (uint32_t)event.eventType);
                 break;
@@ -1974,10 +1978,10 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
     const auto is_right_a_button_down = is_action_active(m_action_a_button, m_right_joystick);
     const auto is_right_b_button_down = is_action_active(m_action_b_button, m_right_joystick);
 
-    auto is_dpad_up_down = is_action_active(m_action_dpad_up, m_left_joystick) || is_action_active(m_action_dpad_up, m_right_joystick);
-    auto is_dpad_right_down = is_action_active(m_action_dpad_right, m_left_joystick) || is_action_active(m_action_dpad_right, m_right_joystick);
-    auto is_dpad_down_down = is_action_active(m_action_dpad_down, m_left_joystick) || is_action_active(m_action_dpad_down, m_right_joystick);
-    auto is_dpad_left_down = is_action_active(m_action_dpad_left, m_left_joystick) || is_action_active(m_action_dpad_left, m_right_joystick);
+    const auto is_dpad_up_down = is_action_active(m_action_dpad_up, m_left_joystick) || is_action_active(m_action_dpad_up, m_right_joystick);
+    const auto is_dpad_right_down = is_action_active(m_action_dpad_right, m_left_joystick) || is_action_active(m_action_dpad_right, m_right_joystick);
+    const auto is_dpad_down_down = is_action_active(m_action_dpad_down, m_left_joystick) || is_action_active(m_action_dpad_down, m_right_joystick);
+    const auto is_dpad_left_down = is_action_active(m_action_dpad_left, m_left_joystick) || is_action_active(m_action_dpad_left, m_right_joystick);
 
     auto is_weapon_dial_down = is_action_active(m_action_weapon_dial, m_left_joystick) || is_action_active(m_action_weapon_dial, m_right_joystick);
 
@@ -2120,11 +2124,9 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
         set_button_state(app::ropeway::InputDefine::Kind::SHORTCUT_LEFT, left_axis.x < -0.9f);
     }
 
-    // Left System Button: Pause
-    set_button_state(app::ropeway::InputDefine::Kind::PAUSE, is_left_system_button_down);
-
-    // Right System Button: Pause
-    set_button_state(app::ropeway::InputDefine::Kind::PAUSE, is_right_system_button_down);
+    // Left or Right System Button: Pause
+    set_button_state(app::ropeway::InputDefine::Kind::PAUSE, is_left_system_button_down || is_right_system_button_down || m_handle_pause);
+    m_handle_pause = false;
 
     // Fixes QTE bound to triggers
     if (is_using_controller) {

@@ -267,7 +267,7 @@ private:
         { "/actions/default/in/DPad_Right", m_action_dpad_right },
         { "/actions/default/in/DPad_Down", m_action_dpad_down },
         { "/actions/default/in/DPad_Left", m_action_dpad_left },
-        { "/actions/default/in/systembutton", m_action_system_button },
+        { "/actions/default/in/SystemButton", m_action_system_button },
         { "/actions/default/in/WeaponDial_Start", m_action_weapon_dial } 
     };
 
@@ -321,6 +321,7 @@ private:
     bool m_in_lightshaft{false};
     bool m_request_reinitialize_openvr{false};
     bool m_positional_tracking{true};
+    bool m_handle_pause{false}; // happens when dashboard opens
 
     bool m_openvr_loaded{false};
 
