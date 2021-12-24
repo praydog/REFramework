@@ -312,6 +312,9 @@ private:
 
     bool m_openvr_loaded{false};
 
+    // on the backburner
+    bool m_depth_aided_reprojection{false};
+
     // == 1 or == 0
     uint8_t m_left_eye_interval{0};
     uint8_t m_right_eye_interval{1};

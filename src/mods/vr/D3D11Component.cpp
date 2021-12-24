@@ -59,40 +59,68 @@ void D3D11Component::on_frame(VR* vr) {
         // FPS will dive off the deep end.
         auto compositor = vr::VRCompositor();
 
-        vr::VRTextureWithDepth_t left_eye{
-            (void*)m_left_eye_tex.Get(),
-            vr::TextureType_DirectX,
-            vr::ColorSpace_Auto,
-            (void*)m_left_eye_depthstencil.Get(),
-            m_left_eye_proj,
-            {0.0f, 1.0f},
-        };
-        vr::VRTextureWithDepth_t right_eye{
-            (void*)m_right_eye_tex.Get(),
-            vr::TextureType_DirectX,
-            vr::ColorSpace_Auto,
-            (void*)m_right_eye_depthstencil.Get(),
-            m_right_eye_proj,
-            {0.0f, 1.0f},
-        };
+        if (vr->m_depth_aided_reprojection) {
+            auto view_mat = Matrix4x4f{};
 
-        auto e = compositor->Submit(vr::Eye_Left, &left_eye, &vr->m_left_bounds, vr::Submit_TextureWithDepth);
+            vr::VRTextureWithPoseAndDepth_t left_eye{
+                (void*)m_left_eye_tex.Get(),
+                vr::TextureType_DirectX,
+                vr::ColorSpace_Auto,
+                *(vr::HmdMatrix34_t*)&view_mat,
+                (void*)m_left_eye_depthstencil.Get(),
+                m_left_eye_proj,
+                {0.0f, 1.0f},
+            };
+            vr::VRTextureWithPoseAndDepth_t right_eye{
+                (void*)m_right_eye_tex.Get(),
+                vr::TextureType_DirectX,
+                vr::ColorSpace_Auto,
+                *(vr::HmdMatrix34_t*)&view_mat,
+                (void*)m_right_eye_depthstencil.Get(),
+                m_right_eye_proj,
+                {0.0f, 1.0f},
+            };
 
-        bool submitted = true;
+            const auto flags = vr::Submit_TextureWithDepth | vr::Submit_TextureWithPose;
+            auto e = compositor->Submit(vr::Eye_Left, &left_eye, &vr->m_left_bounds, (vr::EVRSubmitFlags)flags);
 
-        if (e != vr::VRCompositorError_None) {
-            spdlog::error("[VR] VRCompositor failed to submit left eye: {}", (int)e);
-            submitted = false;
+            bool submitted = true;
+
+            if (e != vr::VRCompositorError_None) {
+                spdlog::error("[VR] VRCompositor failed to submit left eye: {}", (int)e);
+                submitted = false;
+            }
+
+            e = compositor->Submit(vr::Eye_Right, &right_eye, &vr->m_right_bounds, (vr::EVRSubmitFlags)flags);
+
+            if (e != vr::VRCompositorError_None) {
+                spdlog::error("[VR] VRCompositor failed to submit right eye: {}", (int)e);
+                submitted = false;
+            }
+
+            vr->m_submitted = submitted;
+        } else {
+            vr::Texture_t left_eye{(void*)m_left_eye_tex.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto};
+            vr::Texture_t right_eye{(void*)m_right_eye_tex.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto};
+
+            auto e = compositor->Submit(vr::Eye_Left, &left_eye, &vr->m_left_bounds);
+
+            bool submitted = true;
+
+            if (e != vr::VRCompositorError_None) {
+                spdlog::error("[VR] VRCompositor failed to submit left eye: {}", (int)e);
+                submitted = false;
+            }
+
+            e = compositor->Submit(vr::Eye_Right, &right_eye, &vr->m_right_bounds);
+
+            if (e != vr::VRCompositorError_None) {
+                spdlog::error("[VR] VRCompositor failed to submit right eye: {}", (int)e);
+                submitted = false;
+            }
+
+            vr->m_submitted = submitted;
         }
-
-        e = compositor->Submit(vr::Eye_Right, &right_eye, &vr->m_right_bounds, vr::Submit_TextureWithDepth);
-
-        if (e != vr::VRCompositorError_None) {
-            spdlog::error("[VR] VRCompositor failed to submit right eye: {}", (int)e);
-            submitted = false;
-        }
-
-        vr->m_submitted = submitted;
     }
 }
 

@@ -149,9 +149,9 @@ HRESULT WINAPI D3D11Hook::present(IDXGISwapChain* swap_chain, UINT sync_interval
         OutputDebugString("Hooked ID3D11DeviceContext::SetRenderTargets");
     }
 
-    if (GetAsyncKeyState(VK_INSERT) & 1) {
+    /*if (GetAsyncKeyState(VK_INSERT) & 1) {
         OutputDebugString(fmt::format("Depth stencil @ {:p} used", (void*)d3d11->m_last_depthstencil_used.Get()).c_str());
-    }
+    }*/
 
     if (d3d11->m_on_present) {
         d3d11->m_on_present(*d3d11);
@@ -195,10 +195,20 @@ void WINAPI D3D11Hook::set_render_targets(
     auto d3d11 = g_d3d11_hook;
 
     if (dsv != nullptr) {
-        dsv->GetResource((ID3D11Resource**)d3d11->m_last_depthstencil_used.GetAddressOf());
         //auto obj_name = fmt::format("Depthstencil @ {:p}", (void*)d3d11->m_last_depthstencil_used.Get());
         //d3d11->m_last_depthstencil_used->SetPrivateData(WKPDID_D3DDebugObjectName, obj_name.size(), obj_name.c_str());
-        //OutputDebugString(fmt::format("Depth stencil @ {:p} used", (void*)depthstencil).c_str());
+        //OutputDebugString(fmt::format("Depth stencil @ {:p} used", (void*)d3d11->m_last_depthstencil_used.Get()).c_str());
+
+        D3D11_DEPTH_STENCIL_VIEW_DESC desc{};
+        dsv->GetDesc(&desc);
+
+        if (desc.Flags & D3D11_DSV_FLAG::D3D11_DSV_READ_ONLY_DEPTH) {
+            dsv->GetResource((ID3D11Resource**)d3d11->m_last_depthstencil_used.GetAddressOf());
+
+            //OutputDebugString(fmt::format("Flags: {}", desc.Flags).c_str());
+            //OutputDebugString(fmt::format("Format: {}", desc.Format).c_str());
+            //OutputDebugString(fmt::format("ViewDimension: {}", desc.ViewDimension).c_str());   
+        }
     }
 
     auto set_render_targets_fn = d3d11->m_set_render_targets_hook->get_original<decltype(set_render_targets)*>();

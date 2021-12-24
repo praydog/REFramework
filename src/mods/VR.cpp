@@ -2255,6 +2255,9 @@ void VR::on_draw_ui() {
     if (ImGui::Checkbox("Positional Tracking", &m_positional_tracking)) {
     }
 
+    if (ImGui::Checkbox("Depth Aided Reprojection", &m_depth_aided_reprojection)) {
+    }
+
     ImGui::DragFloat("UI Scale", &m_ui_scale, 0.005f, 0.0f, 100.0f);
 }
 
