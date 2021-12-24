@@ -345,7 +345,7 @@ std::string VR::bindings_oculus_touch_json = R"(
                   }
                },
                "mode" : "button",
-               "path" : "/user/hand/left/input/system"
+               "path" : "/user/hand/right/input/system"
             }
          ]
       }
