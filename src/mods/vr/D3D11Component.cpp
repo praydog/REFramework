@@ -39,18 +39,24 @@ void D3D11Component::on_frame(VR* vr) {
         return;
     }
 
-    auto depthstencil = hook->get_last_depthstencil_used();
-
     // If m_frame_count is even, we're rendering the left eye.
     if (vr->m_frame_count % 2 == vr->m_left_eye_interval) {
         // Copy the back buffer to the left eye texture (m_left_eye_tex0 holds the intermediate frame).
         context->CopyResource(m_left_eye_tex.Get(), backbuffer.Get());
-        context->CopyResource(m_left_eye_depthstencil.Get(), depthstencil.Get());
+
+        if (vr->m_depth_aided_reprojection) {
+            context->CopyResource(m_left_eye_depthstencil.Get(), hook->get_last_depthstencil_used().Get());
+        }
+
         m_left_eye_proj = vr->m_hmd->GetProjectionMatrix(vr::Eye_Left, vr->m_nearz, vr->m_farz);
     } else {
         // Copy the back buffer to the right eye texture.
         context->CopyResource(m_right_eye_tex.Get(), backbuffer.Get());
-        context->CopyResource(m_right_eye_depthstencil.Get(), depthstencil.Get());
+
+        if (vr->m_depth_aided_reprojection) {
+            context->CopyResource(m_right_eye_depthstencil.Get(), hook->get_last_depthstencil_used().Get());
+        }
+
         m_right_eye_proj = vr->m_hmd->GetProjectionMatrix(vr::Eye_Right, vr->m_nearz, vr->m_farz);
     }
 
