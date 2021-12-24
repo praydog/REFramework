@@ -1974,10 +1974,12 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
     const auto is_right_a_button_down = is_action_active(m_action_a_button, m_right_joystick);
     const auto is_right_b_button_down = is_action_active(m_action_b_button, m_right_joystick);
 
-    const auto is_dpad_up_down = is_action_active(m_action_dpad_up, m_left_joystick) || is_action_active(m_action_dpad_up, m_right_joystick);
-    const auto is_dpad_right_down = is_action_active(m_action_dpad_right, m_left_joystick) || is_action_active(m_action_dpad_right, m_right_joystick);
-    const auto is_dpad_down_down = is_action_active(m_action_dpad_down, m_left_joystick) || is_action_active(m_action_dpad_down, m_right_joystick);
-    const auto is_dpad_left_down = is_action_active(m_action_dpad_left, m_left_joystick) || is_action_active(m_action_dpad_left, m_right_joystick);
+    auto is_dpad_up_down = is_action_active(m_action_dpad_up, m_left_joystick) || is_action_active(m_action_dpad_up, m_right_joystick);
+    auto is_dpad_right_down = is_action_active(m_action_dpad_right, m_left_joystick) || is_action_active(m_action_dpad_right, m_right_joystick);
+    auto is_dpad_down_down = is_action_active(m_action_dpad_down, m_left_joystick) || is_action_active(m_action_dpad_down, m_right_joystick);
+    auto is_dpad_left_down = is_action_active(m_action_dpad_left, m_left_joystick) || is_action_active(m_action_dpad_left, m_right_joystick);
+
+    auto is_weapon_dial_down = is_action_active(m_action_weapon_dial, m_left_joystick) || is_action_active(m_action_weapon_dial, m_right_joystick);
 
     const auto is_left_system_button_down = is_action_active(m_action_system_button, m_left_joystick);
     const auto is_right_system_button_down = is_action_active(m_action_system_button, m_right_joystick);
@@ -2094,17 +2096,29 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
     set_button_state(app::ropeway::InputDefine::Kind::UI_RESET, is_right_b_button_down);
     set_button_state((app::ropeway::InputDefine::Kind)((uint64_t)1 << 52), is_right_b_button_down);
 
-    // DPad Up: Shortcut Up
-    set_button_state(app::ropeway::InputDefine::Kind::SHORTCUT_UP, is_dpad_up_down);
+    const auto left_axis = get_left_stick_axis();
+    const auto right_axis = get_right_stick_axis();
+    const auto left_axis_len = glm::length(left_axis);
+    const auto right_axis_len = glm::length(right_axis);
 
-    // DPad Right: Shortcut Right
-    set_button_state(app::ropeway::InputDefine::Kind::SHORTCUT_RIGHT, is_dpad_right_down);
+    if (!is_weapon_dial_down) {
+        // DPad Up: Shortcut Up
+        set_button_state(app::ropeway::InputDefine::Kind::SHORTCUT_UP, is_dpad_up_down);
 
-    // DPad Down: Shortcut Down
-    set_button_state(app::ropeway::InputDefine::Kind::SHORTCUT_DOWN, is_dpad_down_down);
+        // DPad Right: Shortcut Right
+        set_button_state(app::ropeway::InputDefine::Kind::SHORTCUT_RIGHT, is_dpad_right_down);
 
-    // DPad Left: Shortcut Left
-    set_button_state(app::ropeway::InputDefine::Kind::SHORTCUT_LEFT, is_dpad_left_down);
+        // DPad Down: Shortcut Down
+        set_button_state(app::ropeway::InputDefine::Kind::SHORTCUT_DOWN, is_dpad_down_down);
+
+        // DPad Left: Shortcut Left
+        set_button_state(app::ropeway::InputDefine::Kind::SHORTCUT_LEFT, is_dpad_left_down);
+    } else {
+        set_button_state(app::ropeway::InputDefine::Kind::SHORTCUT_UP, left_axis.y > 0.9f);
+        set_button_state(app::ropeway::InputDefine::Kind::SHORTCUT_RIGHT, left_axis.x > 0.9f);
+        set_button_state(app::ropeway::InputDefine::Kind::SHORTCUT_DOWN, left_axis.y < -0.9f);
+        set_button_state(app::ropeway::InputDefine::Kind::SHORTCUT_LEFT, left_axis.x < -0.9f);
+    }
 
     // Left System Button: Pause
     set_button_state(app::ropeway::InputDefine::Kind::PAUSE, is_left_system_button_down);
@@ -2119,11 +2133,6 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
         sdk::call_object_func<void*>(input_unit_obj, "set__AnalogL", sdk::get_thread_context(), input_unit_obj, left_trigger_state);
         sdk::call_object_func<void*>(input_unit_obj, "set__AnalogR", sdk::get_thread_context(), input_unit_obj, right_trigger_state);
     }
-
-    const auto left_axis = get_left_stick_axis();
-    const auto right_axis = get_right_stick_axis();
-    const auto left_axis_len = glm::length(left_axis);
-    const auto right_axis_len = glm::length(right_axis);
 
     bool moved_sticks = false;
 

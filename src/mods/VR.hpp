@@ -254,6 +254,7 @@ private:
     vr::VRActionHandle_t m_action_dpad_down{};
     vr::VRActionHandle_t m_action_dpad_left{};
     vr::VRActionHandle_t m_action_system_button{};
+    vr::VRActionHandle_t m_action_weapon_dial{};
 
     std::unordered_map<std::string, std::reference_wrapper<vr::VRActionHandle_t>> m_action_handles {
         { "/actions/default/in/Trigger", m_action_trigger },
@@ -266,7 +267,8 @@ private:
         { "/actions/default/in/DPad_Right", m_action_dpad_right },
         { "/actions/default/in/DPad_Down", m_action_dpad_down },
         { "/actions/default/in/DPad_Left", m_action_dpad_left },
-        { "/actions/default/in/systembutton", m_action_system_button }
+        { "/actions/default/in/systembutton", m_action_system_button },
+        { "/actions/default/in/WeaponDial_Start", m_action_weapon_dial } 
     };
 
     // Input sources
