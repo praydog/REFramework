@@ -57,10 +57,11 @@ void REFramework::hook_monitor() {
             if (!m_has_last_chance && now - m_last_chance_time > std::chrono::seconds(1)) {
                 spdlog::info("Sending rehook request for D3D");
 
-                m_is_d3d11 = false;
-
-                if (hook_d3d12()) {
-                    
+                // hook_d3d12 always gets called first.
+                if (m_is_d3d11) {
+                    hook_d3d11();
+                } else {
+                    hook_d3d12();
                 }
 
                 // so we don't immediately go and hook it again
