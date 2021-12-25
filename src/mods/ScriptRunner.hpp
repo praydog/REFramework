@@ -58,8 +58,8 @@ public:
 
     void on_frame();
     void on_draw_ui();
-    void on_pre_application_entry(const char* name);
-    void on_application_entry(const char* name);
+    void on_pre_application_entry(size_t hash);
+    void on_application_entry(size_t hash);
     void on_pre_update_transform(RETransform* transform);
     void on_update_transform(RETransform* transform);
     bool on_pre_gui_draw_element(REComponent* gui_element, void* primitive_context);
@@ -92,8 +92,9 @@ private:
 
     std::recursive_mutex m_execution_mutex{};
 
-    std::unordered_multimap<std::string, sol::protected_function> m_pre_application_entry_fns{};
-    std::unordered_multimap<std::string, sol::protected_function> m_application_entry_fns{};
+    // FNV-1A
+    std::unordered_multimap<size_t, sol::protected_function> m_pre_application_entry_fns{};
+    std::unordered_multimap<size_t, sol::protected_function> m_application_entry_fns{};
     std::unordered_multimap<RETransform*, sol::protected_function> m_pre_update_transform_fns{};
     std::unordered_multimap<RETransform*, sol::protected_function> m_update_transform_fns{};
 

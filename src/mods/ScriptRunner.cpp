@@ -52,8 +52,8 @@ ScriptState::ScriptState() {
 
     auto re = m_lua.create_table();
     re["msg"] = api::re::msg;
-    re["on_pre_application_entry"] = [this](const char* name, sol::function fn) { m_pre_application_entry_fns.emplace(name, fn); };
-    re["on_application_entry"] = [this](const char* name, sol::function fn) { m_application_entry_fns.emplace(name, fn); };
+    re["on_pre_application_entry"] = [this](const char* name, sol::function fn) { m_pre_application_entry_fns.emplace(utility::hash(name), fn); };
+    re["on_application_entry"] = [this](const char* name, sol::function fn) { m_application_entry_fns.emplace(utility::hash(name), fn); };
     re["on_update_transform"] = [this](RETransform* transform, sol::function fn) { m_update_transform_fns.emplace(transform, fn); };
     re["on_pre_update_transform"] = [this](RETransform* transform, sol::function fn) { m_pre_update_transform_fns.emplace(transform, fn); };
     re["on_pre_gui_draw_element"] = [this](sol::function fn) { m_pre_gui_draw_element_fns.emplace_back(fn); };
@@ -277,9 +277,9 @@ void ScriptState::on_draw_ui() {
     }
 }
 
-void ScriptState::on_pre_application_entry(const char* name) {
+void ScriptState::on_pre_application_entry(size_t hash) {
     try {
-        auto range = m_pre_application_entry_fns.equal_range(name);
+        auto range = m_pre_application_entry_fns.equal_range(hash);
 
         if (range.first != range.second) {
             std::scoped_lock _{ m_execution_mutex };
@@ -293,9 +293,9 @@ void ScriptState::on_pre_application_entry(const char* name) {
     }
 }
 
-void ScriptState::on_application_entry(const char* name) {
+void ScriptState::on_application_entry(size_t hash) {
     try {
-        auto range = m_application_entry_fns.equal_range(name);
+        auto range = m_application_entry_fns.equal_range(hash);
 
         if (range.first != range.second) {
             std::scoped_lock _{ m_execution_mutex };
@@ -480,13 +480,13 @@ void ScriptRunner::on_draw_ui() {
 void ScriptRunner::on_pre_application_entry(void* entry, const char* name, size_t hash) {
     std::scoped_lock _{ m_access_mutex };
 
-    m_state->on_pre_application_entry(name);
+    m_state->on_pre_application_entry(hash);
 }
 
 void ScriptRunner::on_application_entry(void* entry, const char* name, size_t hash) {
     std::scoped_lock _{ m_access_mutex };
 
-    m_state->on_application_entry(name);
+    m_state->on_application_entry(hash);
 }
 
 void ScriptRunner::on_pre_update_transform(RETransform* transform) {
