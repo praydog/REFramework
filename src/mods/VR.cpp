@@ -1990,6 +1990,7 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
 
     const auto is_weapon_dial_down = is_action_active(m_action_weapon_dial, m_left_joystick) || is_action_active(m_action_weapon_dial, m_right_joystick);
     const auto is_re3_dodge_down = is_action_active(m_action_re3_dodge, m_left_joystick) || is_action_active(m_action_re3_dodge, m_right_joystick);
+    const auto is_quickturn_down = is_action_active(m_action_re2_quickturn, m_left_joystick) || is_action_active(m_action_re2_quickturn, m_right_joystick);
 
     const auto is_left_system_button_down = is_action_active(m_action_system_button, m_left_joystick);
     const auto is_right_system_button_down = is_action_active(m_action_system_button, m_right_joystick);
@@ -2086,7 +2087,7 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
     set_button_state(app::ropeway::InputDefine::Kind::PRESS_START, is_left_b_button_down);
 
     // Left A: QUICK_TURN, PRESS_START, CANCEL, DIALOG_CANCEL
-    set_button_state(app::ropeway::InputDefine::Kind::QUICK_TURN, is_left_a_button_down);
+    set_button_state(app::ropeway::InputDefine::Kind::QUICK_TURN, is_quickturn_down); // unique, unbound by default as it causes issues
     set_button_state(app::ropeway::InputDefine::Kind::PRESS_START, is_left_a_button_down);
     set_button_state(app::ropeway::InputDefine::Kind::CANCEL, is_left_a_button_down);
     set_button_state(app::ropeway::InputDefine::Kind::DIALOG_CANCEL, is_left_a_button_down);
