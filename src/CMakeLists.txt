@@ -70,6 +70,7 @@ set(SDK_SRC
     sdk/RENativeArray.hpp
     sdk/REString.hpp
     sdk/RETransform.hpp
+    sdk/RETransform.cpp
     sdk/REType.hpp
     sdk/REType.cpp
     sdk/RETypeCLR.hpp
