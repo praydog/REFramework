@@ -177,6 +177,43 @@ void FirstPerson::on_lua_state_created(sol::state& state) {
     );
 
     state["firstpersonmod"] = this;
+
+    // this may seem counterintuitive
+    // but it's the easiest way to do this.
+    // it will fix the positioning and rotation of the flashlight's light
+    // when using VR controllers
+#ifdef RE2
+    try {
+        state.do_string(R"(
+            -- re3 doesnt have handheld flashlights
+            if reframework:get_game_name() ~= "re2" then return end
+
+            local function on_pre_apply_transform(args)
+                if not firstpersonmod:will_be_used() then
+                    return
+                end
+
+                if not vrmod:is_hmd_active() then
+                    return
+                end
+
+                if not vrmod:is_using_controllers() then
+                    return
+                end
+
+                return sdk.PreHookResult.SKIP_ORIGINAL
+            end
+
+            local function on_post_apply_transform(retval)
+                return retval
+            end
+
+            sdk.hook(sdk.find_type_definition(sdk.game_namespace("FlashLight")):get_method("applyTransform"), on_pre_apply_transform, on_post_apply_transform)
+        )");
+    } catch (const std::exception& e) {
+        spdlog::info("Error while trying to hook FlashLight.applyTransform: {}", e.what());
+    }
+#endif
 }
 
 void FirstPerson::on_config_load(const utility::Config& cfg) {
@@ -709,9 +746,7 @@ void FirstPerson::update_player_transform(RETransform* transform) {
                                         const auto elbow_diff = original_elbow_pos - original_shoulder_pos;
 
                                         const auto updated_shoulder_pos = current_shoulder_parent_pos + shoulder_diff;
-                                        const auto updated_shoulder_rot = current_shoulder_parent_rot * original_shoulder_rot;
                                         const auto updated_elbow_pos = updated_shoulder_pos + elbow_diff;
-                                        const auto updated_elbow_rot = updated_shoulder_rot * original_elbow_rot;
 
                                         sdk::set_joint_position(shoulder_joint, updated_shoulder_pos);
                                         sdk::set_joint_rotation(shoulder_joint, original_shoulder_rot);
