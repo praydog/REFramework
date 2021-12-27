@@ -396,12 +396,22 @@ ScriptState::PreHookResult ScriptState::on_pre_hook(HookedFn* fn) {
             fn->script_args[i + 1] = (void*)fn->args[i];
         }
 
+        bool any_skip = false;
+
         for (auto&& pre_fn : fn->script_pre_fns) {
             auto script_result = handle_protected_result(pre_fn(fn->script_args)).get<sol::object>();
 
             if (script_result.is<PreHookResult>()) {
                 result = script_result.as<PreHookResult>();
+
+                if (result == PreHookResult::SKIP_ORIGINAL) {
+                    any_skip = true;
+                }
             }
+        }
+
+        if (any_skip) {
+            result = PreHookResult::SKIP_ORIGINAL;
         }
 
         // Apply the changes to arguments that the script function may have made.
