@@ -81,8 +81,12 @@ std::string VR::actions_json = R"(
       "name": "/actions/default/in/DPad_Left",
       "type": "boolean"
     },
-   {
+    {
       "name": "/actions/default/in/WeaponDial_Start",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/default/in/RE3_Dodge",
       "type": "boolean"
     },
     {
@@ -291,6 +295,15 @@ std::string VR::bindings_oculus_touch_json = R"(
                "inputs" : {
                   "click" : {
                      "output" : "/actions/default/in/abutton"
+                  }
+               },
+               "mode" : "button",
+               "path" : "/user/hand/right/input/a"
+            },
+            {
+               "inputs" : {
+                  "click" : {
+                     "output" : "/actions/default/in/re3_dodge"
                   }
                },
                "mode" : "button",
@@ -653,6 +666,15 @@ std::string VR::bindings_knuckles = R"(
                "inputs" : {
                   "click" : {
                      "output" : "/actions/default/in/abutton"
+                  }
+               },
+               "mode" : "button",
+               "path" : "/user/hand/right/input/a"
+            },
+            {
+               "inputs" : {
+                  "click" : {
+                     "output" : "/actions/default/in/re3_dodge"
                   }
                },
                "mode" : "button",

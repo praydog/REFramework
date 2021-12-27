@@ -1943,21 +1943,26 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
         return;
     }
 
-    auto lstick = sdk::call_object_func<REManagedObject*>(input_system, "get_LStick", sdk::get_thread_context());
-    auto rstick = sdk::call_object_func<REManagedObject*>(input_system, "get_RStick", sdk::get_thread_context());
+    auto ctx = sdk::get_thread_context();
+
+    static auto get_lstick_method = sdk::get_object_method(input_system, "get_LStick");
+    static auto get_rstick_method = sdk::get_object_method(input_system, "get_RStick");
+    auto lstick = get_lstick_method->call<::REManagedObject*>(ctx);
+    auto rstick = get_rstick_method->call<::REManagedObject*>(ctx);
 
     if (lstick == nullptr || rstick == nullptr) {
         return;
     }
 
-    auto button_bits_obj = sdk::call_object_func<REManagedObject*>(input_system, "get_ButtonBits", sdk::get_thread_context(), input_system);
-    //auto button_bits_obj = utility::re_managed_object::get_field<REManagedObject*>(input_system, "ButtonBits");
+    static auto get_button_bits_method = sdk::get_object_method(input_system, "get_ButtonBits");
+    auto button_bits_obj = get_button_bits_method->call<::REManagedObject*>(ctx, input_system);
 
     if (button_bits_obj == nullptr) {
         return;
     }
 
-    auto input_unit_obj = sdk::call_object_func<REManagedObject*>(input_system, "getActiveUserInputUnit", sdk::get_thread_context(), input_system);
+    static auto get_active_user_input_unit_method = sdk::get_object_method(input_system, "getActiveUserInputUnit");
+    auto input_unit_obj = get_active_user_input_unit_method->call<::REManagedObject*>(ctx, input_system);
 
     if (input_unit_obj == nullptr) {
         return;
@@ -1983,7 +1988,8 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
     const auto is_dpad_down_down = is_action_active(m_action_dpad_down, m_left_joystick) || is_action_active(m_action_dpad_down, m_right_joystick);
     const auto is_dpad_left_down = is_action_active(m_action_dpad_left, m_left_joystick) || is_action_active(m_action_dpad_left, m_right_joystick);
 
-    auto is_weapon_dial_down = is_action_active(m_action_weapon_dial, m_left_joystick) || is_action_active(m_action_weapon_dial, m_right_joystick);
+    const auto is_weapon_dial_down = is_action_active(m_action_weapon_dial, m_left_joystick) || is_action_active(m_action_weapon_dial, m_right_joystick);
+    const auto is_re3_dodge_down = is_action_active(m_action_re3_dodge, m_left_joystick) || is_action_active(m_action_re3_dodge, m_right_joystick);
 
     const auto is_left_system_button_down = is_action_active(m_action_system_button, m_left_joystick);
     const auto is_right_system_button_down = is_action_active(m_action_system_button, m_right_joystick);
@@ -2091,7 +2097,7 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
     set_button_state(app::ropeway::InputDefine::Kind::PRESS_START, is_right_a_button_down);
     set_button_state(app::ropeway::InputDefine::Kind::DECIDE, is_right_a_button_down);
     set_button_state(app::ropeway::InputDefine::Kind::DIALOG_DECIDE, is_right_a_button_down);
-    set_button_state((app::ropeway::InputDefine::Kind)((uint64_t)1 << 51), is_right_a_button_down);
+    set_button_state((app::ropeway::InputDefine::Kind)((uint64_t)1 << 51), is_re3_dodge_down); // RE3 dodge
     
     // Right B: Reload, Skip Event, UI_EXCHANGE, UI_RESET, (1 << 52) (that one is RE3 only? don't see it in the enum)
     set_button_state(app::ropeway::InputDefine::Kind::RELOAD, is_right_b_button_down);
@@ -2132,8 +2138,11 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
     if (is_using_controller) {
         const auto left_trigger_state = is_left_trigger_down ? 1.0f : 0.0f;
         const auto right_trigger_state = is_trigger_down ? 1.0f : 0.0f;
-        sdk::call_object_func<void*>(input_unit_obj, "set__AnalogL", sdk::get_thread_context(), input_unit_obj, left_trigger_state);
-        sdk::call_object_func<void*>(input_unit_obj, "set__AnalogR", sdk::get_thread_context(), input_unit_obj, right_trigger_state);
+
+        static auto set__analog_l_method = sdk::get_object_method(input_unit_obj, "set__AnalogL");
+        static auto set__analog_r_method = sdk::get_object_method(input_unit_obj, "set__AnalogR");
+        set__analog_l_method->call<void*>(ctx, input_unit_obj, left_trigger_state);
+        set__analog_r_method->call<void*>(ctx, input_unit_obj, right_trigger_state);
     }
 
     bool moved_sticks = false;
@@ -2143,7 +2152,9 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
 
         // Override the left stick's axis values to the VR controller's values
         Vector3f axis{ left_axis.x, left_axis.y, 0.0f };
-        sdk::call_object_func<void*>(lstick, "update", sdk::get_thread_context(), lstick, &axis, &axis);
+
+        static auto update_method = sdk::get_object_method(lstick, "update");
+        update_method->call<void*>(ctx, lstick, &axis, &axis);
     }
 
     if (right_axis_len > CONTROLLER_DEADZONE) {
@@ -2151,7 +2162,9 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
 
         // Override the right stick's axis values to the VR controller's values
         Vector3f axis{ right_axis.x, right_axis.y, 0.0f };
-        sdk::call_object_func<void*>(rstick, "update", sdk::get_thread_context(), rstick, &axis, &axis);
+
+        static auto update_method = sdk::get_object_method(rstick, "update");
+        update_method->call<void*>(ctx, rstick, &axis, &axis);
     }
 
     if (moved_sticks) {
@@ -2174,7 +2187,8 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
 
     // Causes the right stick to take effect properly
     if (is_using_controller) {
-        sdk::call_object_func<void*>(input_system, "set_InputMode", sdk::get_thread_context(), input_system, app::ropeway::InputDefine::InputMode::Pad);
+        static auto set_input_mode_method = sdk::get_object_method(input_system, "set_InputMode");
+        set_input_mode_method->call<void*>(ctx, input_system, app::ropeway::InputDefine::InputMode::Pad);
     }
 }
 
