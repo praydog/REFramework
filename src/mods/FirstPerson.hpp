@@ -43,6 +43,9 @@ public:
 
     // non-virtual callbacks
     void on_pre_update_behavior(void* entry);
+    void on_pre_late_update_behavior(void* entry);
+    void on_post_late_update_behavior(void* entry);
+    void on_post_update_motion(void* entry);
 
 protected:
     // gross

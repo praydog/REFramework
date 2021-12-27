@@ -272,13 +272,6 @@ void FirstPerson::on_update_transform(RETransform* transform) {
         return;
     }
 
-    if (m_camera_system != nullptr && m_camera_system->ownerGameObject != nullptr && transform == m_camera_system->ownerGameObject->transform) {
-        if (!update_pointers_from_camera_system(m_camera_system)) {
-            reset();
-            return;
-        }
-    }
-
     if (m_sweet_light_manager == nullptr || m_gui_master == nullptr) {
         return;
     }
@@ -360,13 +353,25 @@ void FirstPerson::on_pre_application_entry(void* entry, const char* name, size_t
         case "UpdateBehavior"_fnv:
             on_pre_update_behavior(entry);
             break;
+        case "LateUpdateBehavior"_fnv:
+            on_pre_late_update_behavior(entry);
+            break;
         default:
             break;
     }
 }
 
 void FirstPerson::on_application_entry(void* entry, const char* name, size_t hash) {
-    
+    switch (hash) {
+        case "UpdateMotion"_fnv:
+            on_post_update_motion(entry); // fixes like literally every problem ever to exist
+            break;
+        case "LateUpdateBehavior"_fnv:
+            on_post_late_update_behavior(entry);
+            break;
+        default:
+            break;
+    }
 }
 
 void FirstPerson::on_pre_update_behavior(void* entry) {
@@ -390,7 +395,41 @@ void FirstPerson::on_pre_update_behavior(void* entry) {
         m_gui_master = globals.get<REBehavior>(game_namespace("gui.GUIMaster"));
 
         reset();
+    }
+
+    if (m_camera_system != nullptr && m_camera_system->ownerGameObject != nullptr) {
+        if (!update_pointers_from_camera_system(m_camera_system)) {
+            reset();
+            return;
+        }
+    }
+}
+
+void FirstPerson::on_pre_late_update_behavior(void* entry) {
+    on_post_update_motion(entry);
+}
+
+void FirstPerson::on_post_late_update_behavior(void* entry) {
+    
+}
+
+void FirstPerson::on_post_update_motion(void* entry) {
+    if (!m_enabled->value()) {
         return;
+    }
+
+    if (!will_be_used()) {
+        return;
+    }
+
+    if (m_player_transform != nullptr) {
+        if (m_camera_system != nullptr && m_camera_system->mainCamera != nullptr && m_camera_system->mainCamera->ownerGameObject != nullptr) {
+            auto player_object = m_player_transform->ownerGameObject;
+
+            if (player_object != nullptr) {
+                update_player_transform(m_player_transform);
+            }
+        }
     }
 }
 
@@ -643,16 +682,51 @@ void FirstPerson::update_player_transform(RETransform* transform) {
 
                                     // Get shoulder joint by getting the parents of the wrist joint
                                     auto elbow_joint = sdk::get_joint_parent(wrist_joint);
-                                    auto shoulder_joint = sdk::get_joint_parent(elbow_joint);
+                                    auto shoulder_joint = elbow_joint != nullptr ? sdk::get_joint_parent(elbow_joint) : (REJoint*)nullptr;
+                                    auto shoulder_parent_joint = shoulder_joint != nullptr ? sdk::get_joint_parent(shoulder_joint) : (REJoint*)nullptr;
 
-                                    const auto shoulder_joint_pos = sdk::get_joint_position(shoulder_joint);
+                                    if (elbow_joint != nullptr && shoulder_joint != nullptr && shoulder_parent_joint != nullptr) {
+                                        const auto transform_pos = sdk::get_transform_position(transform);
+                                        const auto transform_rotation = sdk::get_transform_rotation(transform);
 
-                                    // Bring the new_pos back to the shoulder joint + dir to the wrist joint * total length/
-                                    // This will keep the arm properly extended instead of contracting back to the original animation
-                                    // When the wanted position exceeds the total IK length.
-                                    // Usually that's what IK is supposed to do, but not in this game, i guess
-                                    if (glm::length(new_pos - shoulder_joint_pos) > total_length) {
-                                        new_pos = shoulder_joint_pos + (glm::normalize(new_pos - shoulder_joint_pos) * total_length);
+                                        // grab the T-pose of the elbow and shoulder
+                                        // then set the current position of the elbow and shoulder to the T-pose
+                                        const auto original_elbow_transform = utility::re_transform::calculate_base_transform(*transform, elbow_joint);
+                                        const auto original_shoulder_transform = utility::re_transform::calculate_base_transform(*transform, shoulder_joint);
+                                        const auto original_shoulder_parent_transform = utility::re_transform::calculate_base_transform(*transform, shoulder_parent_joint);
+
+                                        const auto original_elbow_pos = transform_pos + (transform_rotation * original_elbow_transform[3]);
+                                        const auto original_elbow_rot = transform_rotation * glm::quat{glm::extractMatrixRotation(original_elbow_transform)};
+                                        const auto original_shoulder_pos = transform_pos + (transform_rotation * original_shoulder_transform[3]);
+                                        const auto original_shoulder_rot = transform_rotation * glm::quat{glm::extractMatrixRotation(original_shoulder_transform)};
+                                        const auto original_shoulder_parent_pos = transform_pos + (transform_rotation * original_shoulder_parent_transform[3]);
+                                        const auto original_shoulder_parent_rot = transform_rotation * glm::quat{glm::extractMatrixRotation(original_shoulder_parent_transform)};
+
+                                        const auto current_shoulder_parent_pos = sdk::get_joint_position(shoulder_parent_joint);
+                                        const auto current_shoulder_parent_rot = sdk::get_joint_rotation(shoulder_parent_joint);
+
+                                        const auto shoulder_diff = original_shoulder_pos - original_shoulder_parent_pos;
+                                        const auto elbow_diff = original_elbow_pos - original_shoulder_pos;
+
+                                        const auto updated_shoulder_pos = current_shoulder_parent_pos + shoulder_diff;
+                                        const auto updated_shoulder_rot = current_shoulder_parent_rot * original_shoulder_rot;
+                                        const auto updated_elbow_pos = updated_shoulder_pos + elbow_diff;
+                                        const auto updated_elbow_rot = updated_shoulder_rot * original_elbow_rot;
+
+                                        sdk::set_joint_position(shoulder_joint, updated_shoulder_pos);
+                                        sdk::set_joint_rotation(shoulder_joint, original_shoulder_rot);
+                                        sdk::set_joint_position(elbow_joint, updated_elbow_pos);
+                                        sdk::set_joint_rotation(elbow_joint, original_elbow_rot);
+
+                                        const auto shoulder_joint_pos = sdk::get_joint_position(shoulder_joint);
+
+                                        // Bring the new_pos back to the shoulder joint + dir to the wrist joint * total length/
+                                        // This will keep the arm properly extended instead of contracting back to the original animation
+                                        // When the wanted position exceeds the total IK length.
+                                        // Usually that's what IK is supposed to do, but not in this game, i guess
+                                        if (glm::length(new_pos - shoulder_joint_pos) > total_length) {
+                                            new_pos = shoulder_joint_pos + (glm::normalize(new_pos - shoulder_joint_pos) * total_length);
+                                        }
                                     }
                                 }
                             }
