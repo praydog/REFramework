@@ -1,9 +1,13 @@
 #include <string_view>
+#include <memory>
+
 #include "utility/Address.hpp"
 
 class REManagedObject;
 class REType;
 class FunctionDescriptor;
+class REVariableList;
+class VariableDescriptor;
 
 namespace sdk {
 struct RETypeDefinition;

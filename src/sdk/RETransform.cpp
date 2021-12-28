@@ -1,3 +1,5 @@
+#include "Enums_Internal.hpp"
+
 #include "RETransform.hpp"
 
 namespace sdk {

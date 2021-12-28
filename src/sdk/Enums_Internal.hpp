@@ -1,4 +1,7 @@
 // Generated with REFramework
+#pragma once
+
+#include <cstdint>
 
 namespace app::ropeway::WwiseOptionMenu {
     enum class Speaker : int64_t {
