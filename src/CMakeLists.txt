@@ -58,6 +58,8 @@ set(SDK_SRC
 
     sdk/Application.hpp
     sdk/Application.cpp
+    sdk/MurmurHash.hpp
+    sdk/MurmurHash.cpp
     sdk/REArray.hpp
     sdk/REComponent.hpp
     sdk/REContext.hpp

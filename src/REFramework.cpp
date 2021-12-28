@@ -125,7 +125,7 @@ REFramework::REFramework()
     const auto module_size = *utility::get_module_size(m_game_module);
 
     spdlog::info("Game Module Addr: {:x}", (uintptr_t)m_game_module);
-    spdlog::info("Game Module Size: {:x}", *utility::get_module_size(m_game_module));
+    spdlog::info("Game Module Size: {:x}", module_size);
 
     // preallocate some memory for minhook to mitigate failures (temporarily at least... this should in theory fail when too many hooks are made)
     // but, 64 slots should be enough for now. 
