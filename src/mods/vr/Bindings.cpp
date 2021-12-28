@@ -462,10 +462,10 @@ std::string VR::bindings_vive_controller = R"(
             {
                "inputs" : {
                   "click" : {
-                     "output" : "/actions/default/in/touchpadclick"
+                     "output" : "/actions/default/in/joystickclick"
                   },
                   "position" : {
-                     "output" : "/actions/default/in/touchpad"
+                     "output" : "/actions/default/in/joystick"
                   }
                },
                "mode" : "trackpad",
@@ -501,10 +501,10 @@ std::string VR::bindings_vive_controller = R"(
             {
                "inputs" : {
                   "click" : {
-                     "output" : "/actions/default/in/touchpadclick"
+                     "output" : "/actions/default/in/joystickclick"
                   },
                   "position" : {
-                     "output" : "/actions/default/in/touchpad"
+                     "output" : "/actions/default/in/joystick"
                   }
                },
                "mode" : "trackpad",
