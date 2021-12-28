@@ -47,6 +47,9 @@ public:
     void on_post_late_update_behavior(void* entry);
     void on_post_update_motion(void* entry);
 
+    // non-virtual callbacks called from lua
+    bool on_pre_flashlight_apply_transform(::REManagedObject* flashlight_component);
+
 protected:
     // gross
     bool list_box_handler_attach(void* data, int idx, const char** out_text) {

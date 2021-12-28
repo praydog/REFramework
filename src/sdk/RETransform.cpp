@@ -21,6 +21,18 @@ glm::quat sdk::get_transform_rotation(RETransform* transform) {
     return out;
 }
 
+void set_transform_position(RETransform* transform, const Vector4f& pos) {
+    static auto set_position_method = sdk::RETypeDB::get()->find_type("via.Transform")->get_method("set_Position");
+
+    set_position_method->call<void*>(sdk::get_thread_context(), transform, &pos);
+}
+
+void set_transform_rotation(RETransform* transform, const glm::quat& rot) {
+    static auto set_rotation_method = sdk::RETypeDB::get()->find_type("via.Transform")->get_method("set_Rotation");
+
+    set_rotation_method->call<void*>(sdk::get_thread_context(), transform, &rot);
+}
+
 REJoint* sdk::get_joint_parent(REJoint* joint) {
     if (joint == nullptr || joint->info == nullptr || joint->info->parentJoint == -1) {
         return nullptr;

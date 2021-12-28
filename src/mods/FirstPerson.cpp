@@ -6,6 +6,7 @@
 #include "utility/Scan.hpp"
 #include "REFramework.hpp"
 #include "sdk/REMath.hpp"
+#include "sdk/MurmurHash.hpp"
 
 #include "VR.hpp"
 #include "FirstPerson.hpp"
@@ -173,7 +174,8 @@ void FirstPerson::on_lua_state_created(sol::state& state) {
     state.new_usertype<FirstPerson>("FirstPerson",
         "new", sol::no_constructor,
         "is_enabled", &FirstPerson::is_enabled,
-        "will_be_used", &FirstPerson::will_be_used
+        "will_be_used", &FirstPerson::will_be_used,
+        "on_pre_flashlight_apply_transform", &FirstPerson::on_pre_flashlight_apply_transform
     );
 
     state["firstpersonmod"] = this;
@@ -182,6 +184,8 @@ void FirstPerson::on_lua_state_created(sol::state& state) {
     // but it's the easiest way to do this.
     // it will fix the positioning and rotation of the flashlight's light
     // when using VR controllers
+    // one of the main reasons for this is to allow
+    // compatibility with Lua's sdk.hook which supports multiple hook callbacks under one hook
 #ifdef RE2
     try {
         state.do_string(R"(
@@ -189,19 +193,11 @@ void FirstPerson::on_lua_state_created(sol::state& state) {
             if reframework:get_game_name() ~= "re2" then return end
 
             local function on_pre_apply_transform(args)
-                if not firstpersonmod:will_be_used() then
-                    return
-                end
+                local flashlight = sdk.to_managed_object(args[2])
 
-                if not vrmod:is_hmd_active() then
-                    return
+                if not firstpersonmod:on_pre_flashlight_apply_transform(flashlight) then
+                    return sdk.PreHookResult.SKIP_ORIGINAL
                 end
-
-                if not vrmod:is_using_controllers() then
-                    return
-                end
-
-                return sdk.PreHookResult.SKIP_ORIGINAL
             end
 
             local function on_post_apply_transform(retval)
@@ -451,10 +447,6 @@ void FirstPerson::on_post_late_update_behavior(void* entry) {
 }
 
 void FirstPerson::on_post_update_motion(void* entry) {
-    if (!m_enabled->value()) {
-        return;
-    }
-
     if (!will_be_used()) {
         return;
     }
@@ -468,6 +460,82 @@ void FirstPerson::on_post_update_motion(void* entry) {
             }
         }
     }
+}
+
+bool FirstPerson::on_pre_flashlight_apply_transform(::REManagedObject* flashlight_component) {
+    if (!will_be_used()) {
+        return true;
+    }
+
+    auto& vr_mod = VR::get();
+
+    if (!vr_mod->is_hmd_active() || !vr_mod->is_using_controllers()) {
+        return true;
+    }
+
+    static auto via_render_mesh = sdk::RETypeDB::get()->find_type("via.render.Mesh");
+    static auto via_render_mesh_enabled = via_render_mesh->get_method("get_Enabled");
+
+    auto flashlight_go = ((::REComponent*)flashlight_component)->ownerGameObject;
+    if (flashlight_go == nullptr) {
+        return true;
+    }
+
+    auto flashlight_transform = flashlight_go->transform;
+    if (flashlight_transform == nullptr) {
+        return true;
+    }
+
+    auto flashlight_mesh = utility::re_component::find(flashlight_transform, via_render_mesh->get_type());
+    if (flashlight_mesh == nullptr) {
+        return true;
+    }
+
+    const auto is_mesh_visible = via_render_mesh_enabled->call<bool>(sdk::get_thread_context(), flashlight_mesh);
+
+    // if the mesh isn't being drawn, let the game handle it
+    // this will happen if the player is holding a two handed weapon and aiming it
+    if (!is_mesh_visible) {
+        return true;
+    }
+
+    auto ies_light = *sdk::get_object_field<::REComponent*>(flashlight_component, "<IESLight>k__BackingField");
+    if (ies_light == nullptr) {
+        return true;
+    }
+
+    auto ies_light_go = ies_light->ownerGameObject;
+    if (ies_light_go == nullptr) {
+        return true;
+    }
+
+    auto ies_light_transform = ies_light_go->transform;
+    if (ies_light_transform == nullptr) {
+        return true;
+    }
+
+    static auto root_hash = sdk::murmur_hash::calc32("root");
+    static auto via_transform = sdk::RETypeDB::get()->find_type("via.Transform");
+    static auto via_transform_get_joint_by_hash = via_transform->get_method("getJointByHash");
+
+    auto root_joint = via_transform_get_joint_by_hash->call<::REJoint*>(sdk::get_thread_context(), flashlight_transform, root_hash);
+    if (root_joint == nullptr) {
+        return true;
+    }
+
+    Vector4f light_direction{};
+    sdk::call_object_func<Vector4f*>(ies_light, "get_Direction", &light_direction, sdk::get_thread_context(), ies_light);
+
+    const auto flashlight_position = sdk::get_joint_position(root_joint);
+    const auto flashlight_rotation = sdk::get_joint_rotation(root_joint);
+    const auto light_offset = flashlight_rotation * *sdk::get_object_field<Vector4f>(flashlight_component, "_IESLightOffset");
+    const auto light_rot_offset = utility::math::to_quat(light_direction);
+
+    sdk::set_transform_position(ies_light_transform, flashlight_position + light_offset);
+    sdk::set_transform_rotation(ies_light_transform, flashlight_rotation * light_rot_offset);
+
+    // do not call the original function
+    return false;
 }
 
 void FirstPerson::reset() {
