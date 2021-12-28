@@ -127,7 +127,8 @@ float Application::get_max_fps() {
         return 0.0f;
     }
 
-    return sdk::call_object_func<float>(nullptr, application_type, "get_MaxFps", sdk::get_thread_context());
+    static auto get_max_fps_method = application_type->get_method("get_MaxFps");
+    return get_max_fps_method->call<float>(sdk::get_thread_context());
 }
 
 void Application::set_max_fps(float max_fps) {
@@ -138,6 +139,7 @@ void Application::set_max_fps(float max_fps) {
         return;
     }
 
-    sdk::call_object_func<void*>(nullptr, application_type, "set_MaxFps", sdk::get_thread_context(), max_fps);
+    static auto set_max_fps_method = application_type->get_method("set_MaxFps");
+    set_max_fps_method->call<void*>(sdk::get_thread_context(), max_fps);
 }
 }
