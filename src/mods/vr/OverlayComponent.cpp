@@ -200,7 +200,7 @@ void OverlayComponent::update_overlay() {
 
     bool should_show_overlay = true;
 
-    if (controllers.size() >= 2) {
+    if (controllers.size() >= 2 && !vr->is_any_action_down()) {
         // Attach the overlay to the left controller
         if (controllers[0] != vr::k_unTrackedDeviceIndexInvalid) {
             const auto position_offset = vr->m_overlay_position;

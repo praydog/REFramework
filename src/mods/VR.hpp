@@ -189,6 +189,7 @@ private:
     }
 
     bool detect_controllers();
+    bool is_any_action_down();
     void update_hmd_state();
     void update_camera(); // if not in firstperson mode
     void update_camera_origin(); // every frame

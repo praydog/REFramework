@@ -745,6 +745,31 @@ bool VR::detect_controllers() {
     return true;
 }
 
+bool VR::is_any_action_down() {
+    if (!m_is_hmd_active || !m_openvr_loaded || !is_using_controllers()) {
+        return false;
+    }
+
+    const auto left_axis = get_left_stick_axis();
+    const auto right_axis = get_right_stick_axis();
+
+    if (glm::length(left_axis) >= CONTROLLER_DEADZONE) {
+        return true;
+    }
+
+    if (glm::length(right_axis) >= CONTROLLER_DEADZONE) {
+        return true;
+    }
+
+    for (auto& it : m_action_handles) {
+        if (is_action_active(it.second, m_left_joystick) || is_action_active(it.second, m_right_joystick)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 void VR::update_hmd_state() {
     const auto start_time = std::chrono::high_resolution_clock::now();
 
