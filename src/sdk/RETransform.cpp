@@ -21,6 +21,12 @@ glm::quat sdk::get_transform_rotation(RETransform* transform) {
     return out;
 }
 
+REJoint* get_transform_joint_by_hash(RETransform* transform, uint32_t hash) {
+    static auto get_joint_by_hash_method = sdk::RETypeDB::get()->find_type("via.Transform")->get_method("getJointByHash");
+    
+    return get_joint_by_hash_method->call<REJoint*>(sdk::get_thread_context(), transform, hash);
+}
+
 void set_transform_position(RETransform* transform, const Vector4f& pos) {
     static auto set_position_method = sdk::RETypeDB::get()->find_type("via.Transform")->get_method("set_Position");
 

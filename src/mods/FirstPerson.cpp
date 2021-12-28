@@ -260,6 +260,7 @@ void FirstPerson::on_pre_update_transform(RETransform* transform) {
         m_cached_bone_matrix = nullptr;
 
         update_player_transform(m_player_transform);
+        update_player_body_rotation(m_player_transform);
     }
     // This is because UpdateTransform recursively calls UpdateTransform on its children,
     // and the player transform (topmost) is the one that actually updates the bone matrix,
@@ -725,13 +726,13 @@ void FirstPerson::update_player_transform(RETransform* transform) {
             new_pos.w = 1.0f;
 
             // Get Arm IK component
-            auto arm_fit = utility::re_component::find<REComponent>(transform, game_namespace("IkArmFit"));
+            static auto arm_fit_t = sdk::RETypeDB::get()->find_type(game_namespace("IkArmFit"));
+            auto arm_fit = utility::re_component::find<REComponent>(transform, arm_fit_t->get_type());
 
             // We will use the game's IK system instead of building our own because it's a pain in the ass
             // The arm fit component by default will only update the left wrist position (I don't know why, maybe the right arm is a blended animation?)
             // So we will not only abuse that, but we will repurpose it to update the right arm as well
             if (arm_fit != nullptr) {
-                auto arm_fit_t = utility::re_managed_object::get_type_definition(arm_fit);
                 auto arm_fit_list_field = arm_fit_t->get_field("ArmFitList");
                 auto arm_fit_list = arm_fit_list_field->get_data<REArrayBase*>(arm_fit);
 
@@ -878,10 +879,10 @@ void FirstPerson::update_player_transform(RETransform* transform) {
     if (is_hmd_active) {
         // We're going to modify the player's weapon (gun) to fire from the muzzle instead of the camera
         // Luckily the game has that built-in so we don't really need to hook anything
-        auto equipment = utility::re_component::find<REComponent>(transform, game_namespace("survivor.Equipment"));
+        static auto equipment_t = sdk::RETypeDB::get()->find_type(game_namespace("survivor.Equipment"));
+        auto equipment = utility::re_component::find<REComponent>(transform, equipment_t->get_type());
 
         if (equipment != nullptr) {
-            auto equipment_t = utility::re_managed_object::get_type_definition(equipment);
             auto main_weapon_field = equipment_t->get_field("<EquipWeapon>k__BackingField");
             auto& main_weapon = main_weapon_field->get_data<REManagedObject*>(equipment);
 
@@ -929,7 +930,9 @@ void FirstPerson::update_player_transform(RETransform* transform) {
 
                         // Set the muzzle joint to the VFX muzzle position used for stuff like muzzle flashes
                         if (muzzle_joint_param != nullptr && muzzle_joint_extra != nullptr) {
-                            auto vfx_muzzle1 = utility::re_transform::get_joint(*main_weapon_transform, L"vfx_muzzle1");
+                            static auto vfx_muzzle1_hash = sdk::murmur_hash::calc32(L"vfx_muzzle1");
+
+                            auto vfx_muzzle1 = sdk::get_transform_joint_by_hash(main_weapon_transform, vfx_muzzle1_hash);
                             auto current_muzzle_joint = *sdk::get_object_field<REJoint*>(muzzle_joint_extra, "_Parent");
 
                             // Set the parent joint name to the VFX muzzle joint which will set _Parent later on
@@ -1017,12 +1020,14 @@ void FirstPerson::update_player_transform(RETransform* transform) {
             utility::re_managed_object::call_method(ik_leg, "set_CenterAdjust", via::motion::IkLeg::CenterAdjust::None);
         }
     }
+}
 
+void FirstPerson::update_player_body_rotation(RETransform* transform) {
     if (!m_rotate_body->value()) {
         return;
     }
 
-    auto player_matrix = glm::mat4{ *(glm::quat*) & transform->angles };
+    auto player_matrix = glm::mat4{ *(glm::quat*)&transform->angles };
 
     auto player_right = *(Vector3f*)&player_matrix[0] * -1.0f;
     player_right[1] = 0.0f;

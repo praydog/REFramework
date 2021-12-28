@@ -267,6 +267,7 @@ void set_transform_position(RETransform* transform, const Vector4f& pos);
 void set_transform_rotation(RETransform* transform, const glm::quat& rot);
 Vector4f get_transform_position(RETransform* transform);
 glm::quat get_transform_rotation(RETransform* transform);
+REJoint* get_transform_joint_by_hash(RETransform* transform, uint32_t hash);
 REJoint* get_joint_parent(REJoint* joint);
 void set_joint_position(REJoint* joint, const Vector4f& position);
 void set_joint_rotation(REJoint* joint, const glm::quat& rotation);
