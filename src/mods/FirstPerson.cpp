@@ -641,6 +641,12 @@ bool FirstPerson::update_pointers_from_camera_system(RopewayCameraSystem* camera
 }
 
 void FirstPerson::update_player_transform(RETransform* transform) {
+    update_player_arm_ik(transform);
+    update_player_muzzle_behavior(transform);
+    update_player_body_ik(transform);
+}
+
+void FirstPerson::update_player_arm_ik(RETransform* transform) {
     if (!m_enabled->value() || m_camera_system == nullptr) {
         return;
     }
@@ -652,373 +658,423 @@ void FirstPerson::update_player_transform(RETransform* transform) {
 
     auto vr_mod = VR::get();
     auto& controllers = vr_mod->get_controllers();
+
+    if (controllers.empty()) {
+        return;
+    }
+
+    const auto is_hmd_active = vr_mod->is_hmd_active();
+    const auto is_using_controllers = vr_mod->is_using_controllers();
+
+    if (!is_hmd_active || !is_using_controllers) {
+        return;
+    }
+
+    auto context = sdk::get_thread_context();
+
+    auto update_joint = [&](uint32_t hash, int32_t controller_index) {
+        auto wrist_joint = sdk::get_transform_joint_by_hash(transform, hash);
+
+        if (wrist_joint == nullptr) {
+            return;
+        }
+
+        auto& wrist = utility::re_transform::get_joint_matrix(*transform, wrist_joint);
+
+        /*auto look_matrix = glm::extractMatrixRotation(Matrix4x4f{ m_last_controller_rotation }) 
+                                                    * Matrix4x4f{ m_scale_debug2.x, 0.0f, 0.0f, 0.0f,
+                                                                    0.0f, m_scale_debug2.y, 0.0f, 0.0f,
+                                                                    0.0f, 0.0f, m_scale_debug2.z, 0.0f,
+                                                                    0.0f, 0.0f, 0.0f, m_scale_debug2.w };*/
+
+        // m_last_controller_rotation_vr is for the controller rotation, but
+        // the Y component is zero'd out so only the HMD can look up/down
+        auto cam_rot_mat = glm::extractMatrixRotation(Matrix4x4f{ m_last_controller_rotation_vr });
+
+        auto& cam_forward3 = *(Vector3f*)&cam_rot_mat[2];
+
+        auto attach_offset = m_attach_offsets[m_player_name];
+
+        if (is_hmd_active) {
+            attach_offset.x = 0.0f;
+            attach_offset.z = 0.0f;
+        }
+
+        auto offset = glm::extractMatrixRotation(m_last_camera_matrix) * (attach_offset * Vector4f{ -0.1f, 0.1f, 0.1f, 0.0f });
+        auto final_pos = Vector3f{ m_last_bone_matrix[3] + offset };
+
+        // what the fuck is this
+        auto look_matrix = glm::extractMatrixRotation(glm::rowMajor4(glm::lookAtLH(final_pos, Vector3f{ m_last_controller_pos } + (cam_forward3 * 8192.0f), Vector3f{ 0.0f, 1.0f, 0.0f })));
+        //auto look_matrix = glm::extractMatrixRotation(m_last_camera_matrix);
+        look_matrix = look_matrix * Matrix4x4f{ m_scale_debug2.x, 0.0f, 0.0f, 0.0f,
+                                                0.0f, m_scale_debug2.y, 0.0f, 0.0f,
+                                                0.0f, 0.0f, m_scale_debug2.z, 0.0f,
+                                                0.0f, 0.0f, 0.0f, m_scale_debug2.w };
+        
+
+        const auto hmd_pos = vr_mod->get_position(0);
+
+        auto controller_offset = vr_mod->get_position(controllers[controller_index]) - hmd_pos;
+        controller_offset.w = 1.0f;
+        auto controller_rotation = vr_mod->get_rotation(controllers[controller_index]) 
+                                                    * Matrix4x4f{ m_scale_debug.x, 0.0f, 0.0f, 0.0f,
+                                                                    0.0f, m_scale_debug.y, 0.0f, 0.0f,
+                                                                    0.0f, 0.0f, m_scale_debug.z, 0.0f,
+                                                                    0.0f, 0.0f, 0.0f, m_scale_debug.w };
+        
+        const auto hand_rotation_offset = controller_index == 0 ? m_left_hand_rotation_offset : m_right_hand_rotation_offset;
+        const auto hand_position_offset = controller_index == 0 ? m_left_hand_position_offset : m_right_hand_position_offset;
+
+        const auto offset_quat = glm::normalize(glm::quat{ hand_rotation_offset });
+        const auto controller_quat = glm::normalize(glm::quat{ controller_rotation });
+        const auto look_quat = glm::normalize(glm::quat{ look_matrix });
+
+        // fix up the controller_rotation by rotating it with the camera rotation (look_matrix)
+        auto rotation_quat = glm::normalize(look_quat * controller_quat * offset_quat);
+        
+        // be sure to always multiply the MATRIX BEFORE THE VECTOR!! WHAT HTE FUCK
+        auto hand_pos = look_quat * ((controller_offset * m_vr_scale));
+        hand_pos += (glm::normalize(look_quat * controller_quat) * hand_position_offset);
+
+        auto new_pos = m_last_camera_matrix_pre_vr[3] + hand_pos;
+        new_pos.w = 1.0f;
+
+        // Get Arm IK component
+        static auto arm_fit_t = sdk::RETypeDB::get()->find_type(game_namespace("IkArmFit"));
+        auto arm_fit = utility::re_component::find<REComponent>(transform, arm_fit_t->get_type());
+
+        // We will use the game's IK system instead of building our own because it's a pain in the ass
+        // The arm fit component by default will only update the left wrist position (I don't know why, maybe the right arm is a blended animation?)
+        // So we will not only abuse that, but we will repurpose it to update the right arm as well
+        if (arm_fit != nullptr) {
+            auto arm_fit_list_field = arm_fit_t->get_field("ArmFitList");
+            auto arm_fit_list = arm_fit_list_field->get_data<REArrayBase*>(arm_fit);
+
+            if (arm_fit_list != nullptr && arm_fit_list->numElements > 0) {
+                //spdlog::info("Inside arm fit, arm fit list: {:x}", (uintptr_t)arm_fit_list);
+
+                auto arm_fit_data = utility::re_array::get_element<REManagedObject>(arm_fit_list, 0);
+
+                if (arm_fit_data != nullptr) {
+                    //spdlog::info("First element: {:x}", (uintptr_t)first_element);
+
+                    auto arm_fit_data_t = utility::re_managed_object::get_type_definition(arm_fit_data);
+                    auto arm_fit_data_tmatrix_field = arm_fit_data_t->get_field("<TargetMatrix>k__BackingField");
+                    auto& target_matrix = arm_fit_data_tmatrix_field->get_data<Matrix4x4f>(arm_fit_data);
+
+                    auto solver_list_field = arm_fit_t->get_field("<SolverList>k__BackingField");
+                    auto solver_list = solver_list_field->get_data<::DotNetGenericList*>(arm_fit);
+
+                    // Keep track of the old joints so we can set them back after updating the IK
+                    REJoint* old_apply_joint = nullptr;
+                    REJoint** apply_joint_ptr = nullptr;
+
+                    // Using the solver list, we are going to override the target joint to the current wrist joint
+                    // So we can use the IK system to update both wrists
+                    if (solver_list != nullptr) {
+                        //spdlog::info("Solver list: {:x}", (uintptr_t)solver_list);
+
+                        auto raw_solver_list = solver_list->data;
+
+                        if (raw_solver_list != nullptr && raw_solver_list->numElements > 0) {
+                            auto first_solver = utility::re_array::get_element<REManagedObject>(raw_solver_list, 0);
+
+                            if (first_solver != nullptr) {
+                                //spdlog::info("First solver: {:x}", (uintptr_t)first_solver);
+
+                                auto first_solver_t = utility::re_managed_object::get_type_definition(first_solver);
+                                auto apply_joint_field = first_solver_t->get_field("<ApplyJoint>k__BackingField");
+                                auto& apply_joint = apply_joint_field->get_data<REJoint*>(first_solver);
+
+                                old_apply_joint = apply_joint;
+                                apply_joint_ptr = &apply_joint;
+                                
+                                // Set the apply joint to the wrist joint
+                                apply_joint = wrist_joint;
+
+                                auto l0_field = first_solver_t->get_field("<L0>k__BackingField");
+                                auto l1_field = first_solver_t->get_field("<L1>k__BackingField");
+
+                                auto& l0 = l0_field->get_data<float>(first_solver);
+                                auto& l1 = l1_field->get_data<float>(first_solver);
+
+                                const auto total_length = l0 + l1;
+
+                                // Get shoulder joint by getting the parents of the wrist joint
+                                auto elbow_joint = sdk::get_joint_parent(wrist_joint);
+                                auto shoulder_joint = elbow_joint != nullptr ? sdk::get_joint_parent(elbow_joint) : (REJoint*)nullptr;
+                                auto shoulder_parent_joint = shoulder_joint != nullptr ? sdk::get_joint_parent(shoulder_joint) : (REJoint*)nullptr;
+
+                                if (elbow_joint != nullptr && shoulder_joint != nullptr && shoulder_parent_joint != nullptr) {
+                                    const auto transform_pos = sdk::get_transform_position(transform);
+                                    const auto transform_rotation = sdk::get_transform_rotation(transform);
+
+                                    // grab the T-pose of the elbow and shoulder
+                                    // then set the current position of the elbow and shoulder to the T-pose
+                                    const auto original_elbow_transform = utility::re_transform::calculate_base_transform(*transform, elbow_joint);
+                                    const auto original_shoulder_transform = utility::re_transform::calculate_base_transform(*transform, shoulder_joint);
+                                    const auto original_shoulder_parent_transform = utility::re_transform::calculate_base_transform(*transform, shoulder_parent_joint);
+
+                                    const auto original_elbow_pos = transform_pos + (transform_rotation * original_elbow_transform[3]);
+                                    const auto original_elbow_rot = transform_rotation * glm::quat{glm::extractMatrixRotation(original_elbow_transform)};
+                                    const auto original_shoulder_pos = transform_pos + (transform_rotation * original_shoulder_transform[3]);
+                                    const auto original_shoulder_rot = transform_rotation * glm::quat{glm::extractMatrixRotation(original_shoulder_transform)};
+                                    const auto original_shoulder_parent_pos = transform_pos + (transform_rotation * original_shoulder_parent_transform[3]);
+                                    const auto original_shoulder_parent_rot = transform_rotation * glm::quat{glm::extractMatrixRotation(original_shoulder_parent_transform)};
+
+                                    const auto current_shoulder_parent_pos = sdk::get_joint_position(shoulder_parent_joint);
+                                    const auto current_shoulder_parent_rot = sdk::get_joint_rotation(shoulder_parent_joint);
+
+                                    const auto shoulder_diff = original_shoulder_pos - original_shoulder_parent_pos;
+                                    const auto elbow_diff = original_elbow_pos - original_shoulder_pos;
+
+                                    const auto updated_shoulder_pos = current_shoulder_parent_pos + shoulder_diff;
+                                    const auto updated_elbow_pos = updated_shoulder_pos + elbow_diff;
+
+                                    sdk::set_joint_position(shoulder_joint, updated_shoulder_pos);
+                                    sdk::set_joint_rotation(shoulder_joint, original_shoulder_rot);
+                                    sdk::set_joint_position(elbow_joint, updated_elbow_pos);
+                                    sdk::set_joint_rotation(elbow_joint, original_elbow_rot);
+
+                                    const auto shoulder_joint_pos = sdk::get_joint_position(shoulder_joint);
+
+                                    // Bring the new_pos back to the shoulder joint + dir to the wrist joint * total length/
+                                    // This will keep the arm properly extended instead of contracting back to the original animation
+                                    // When the wanted position exceeds the total IK length.
+                                    // Usually that's what IK is supposed to do, but not in this game, i guess
+                                    if (glm::length(new_pos - shoulder_joint_pos) > total_length) {
+                                        new_pos = shoulder_joint_pos + (glm::normalize(new_pos - shoulder_joint_pos) * total_length);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                
+                    // Set the target matrix to the VR controller's position (new_pos, rotation_quat)
+                    target_matrix = Matrix4x4f{ rotation_quat };
+                    target_matrix[3] = new_pos;
+
+                    //spdlog::info("About to call updateIk");
+
+                    auto blend_rate_field = arm_fit_t->get_field("BlendRateField");
+                    auto& blend_rate = blend_rate_field->get_data<float>(arm_fit);
+
+                    auto armfit_data_blend_rate_field = arm_fit_data_t->get_field("BlendRate");
+                    auto& armfit_data_blend_rate = armfit_data_blend_rate_field->get_data<float>(arm_fit_data);
+
+                    blend_rate = 1.0f;
+                    armfit_data_blend_rate = 1.0f;
+
+                    // Call the IK update function (index 0, first element)
+                    sdk::call_object_func<void*>(arm_fit, "updateIk", context, arm_fit, 0);
+
+                    // Reset the apply joint to the old value
+                    if (apply_joint_ptr != nullptr) {
+                        *apply_joint_ptr = old_apply_joint;
+                    }
+                }
+            } else {
+                spdlog::info("Arm fit list is empty");
+            }
+        } else {
+            spdlog::info("Arm fit component not found");
+        }
+
+        // radians -> deg
+        m_last_controller_euler[controller_index] = glm::eulerAngles(rotation_quat) * (180.0f / glm::pi<float>());
+    };
+
+    if (is_using_controllers)  {
+        static auto l_arm_wrist_hash = sdk::murmur_hash::calc32(L"l_arm_wrist");
+        static auto r_arm_wrist_hash = sdk::murmur_hash::calc32(L"r_arm_wrist");
+
+        update_joint(l_arm_wrist_hash, 0);
+        update_joint(r_arm_wrist_hash, 1);
+    }
+}
+
+void FirstPerson::update_player_muzzle_behavior(RETransform* transform) {
+    if (!m_enabled->value() || m_camera_system == nullptr) {
+        return;
+    }
+
+    if (m_last_camera_type != app::ropeway::camera::CameraControlType::PLAYER) {
+        return;
+    }
+
+    auto vr_mod = VR::get();
+    auto& controllers = vr_mod->get_controllers();
     const auto is_hmd_active = vr_mod->is_hmd_active();
     const auto is_using_controllers = vr_mod->is_using_controllers();
 
     auto context = sdk::get_thread_context();
 
-    if (!controllers.empty()) {
-        auto update_joint = [&](std::wstring_view name, int32_t controller_index) {
-            auto wrist_joint = utility::re_transform::get_joint(*transform, name);
-
-            if (wrist_joint == nullptr) {
-                return;
-            }
-
-            auto& wrist = utility::re_transform::get_joint_matrix(*transform, wrist_joint);
-
-            /*auto look_matrix = glm::extractMatrixRotation(Matrix4x4f{ m_last_controller_rotation }) 
-                                                       * Matrix4x4f{ m_scale_debug2.x, 0.0f, 0.0f, 0.0f,
-                                                                     0.0f, m_scale_debug2.y, 0.0f, 0.0f,
-                                                                     0.0f, 0.0f, m_scale_debug2.z, 0.0f,
-                                                                     0.0f, 0.0f, 0.0f, m_scale_debug2.w };*/
-
-            // m_last_controller_rotation_vr is for the controller rotation, but
-            // the Y component is zero'd out so only the HMD can look up/down
-            auto cam_rot_mat = glm::extractMatrixRotation(Matrix4x4f{ m_last_controller_rotation_vr });
-
-            auto& cam_forward3 = *(Vector3f*)&cam_rot_mat[2];
-
-            auto attach_offset = m_attach_offsets[m_player_name];
-
-            if (is_hmd_active) {
-                attach_offset.x = 0.0f;
-                attach_offset.z = 0.0f;
-            }
-
-            auto offset = glm::extractMatrixRotation(m_last_camera_matrix) * (attach_offset * Vector4f{ -0.1f, 0.1f, 0.1f, 0.0f });
-            auto final_pos = Vector3f{ m_last_bone_matrix[3] + offset };
-
-            // what the fuck is this
-            auto look_matrix = glm::extractMatrixRotation(glm::rowMajor4(glm::lookAtLH(final_pos, Vector3f{ m_last_controller_pos } + (cam_forward3 * 8192.0f), Vector3f{ 0.0f, 1.0f, 0.0f })));
-            //auto look_matrix = glm::extractMatrixRotation(m_last_camera_matrix);
-            look_matrix = look_matrix * Matrix4x4f{ m_scale_debug2.x, 0.0f, 0.0f, 0.0f,
-                                                    0.0f, m_scale_debug2.y, 0.0f, 0.0f,
-                                                    0.0f, 0.0f, m_scale_debug2.z, 0.0f,
-                                                    0.0f, 0.0f, 0.0f, m_scale_debug2.w };
-            
-
-            const auto hmd_pos = vr_mod->get_position(0);
-
-            auto controller_offset = vr_mod->get_position(controllers[controller_index]) - hmd_pos;
-            controller_offset.w = 1.0f;
-            auto controller_rotation = vr_mod->get_rotation(controllers[controller_index]) 
-                                                       * Matrix4x4f{ m_scale_debug.x, 0.0f, 0.0f, 0.0f,
-                                                                     0.0f, m_scale_debug.y, 0.0f, 0.0f,
-                                                                     0.0f, 0.0f, m_scale_debug.z, 0.0f,
-                                                                     0.0f, 0.0f, 0.0f, m_scale_debug.w };
-            
-            const auto hand_rotation_offset = controller_index == 0 ? m_left_hand_rotation_offset : m_right_hand_rotation_offset;
-            const auto hand_position_offset = controller_index == 0 ? m_left_hand_position_offset : m_right_hand_position_offset;
-
-            const auto offset_quat = glm::normalize(glm::quat{ hand_rotation_offset });
-            const auto controller_quat = glm::normalize(glm::quat{ controller_rotation });
-            const auto look_quat = glm::normalize(glm::quat{ look_matrix });
-
-            // fix up the controller_rotation by rotating it with the camera rotation (look_matrix)
-            auto rotation_quat = glm::normalize(look_quat * controller_quat * offset_quat);
-            
-            // be sure to always multiply the MATRIX BEFORE THE VECTOR!! WHAT HTE FUCK
-            auto hand_pos = look_quat * ((controller_offset * m_vr_scale));
-            hand_pos += (glm::normalize(look_quat * controller_quat) * hand_position_offset);
-
-            auto new_pos = m_last_camera_matrix_pre_vr[3] + hand_pos;
-            new_pos.w = 1.0f;
-
-            // Get Arm IK component
-            static auto arm_fit_t = sdk::RETypeDB::get()->find_type(game_namespace("IkArmFit"));
-            auto arm_fit = utility::re_component::find<REComponent>(transform, arm_fit_t->get_type());
-
-            // We will use the game's IK system instead of building our own because it's a pain in the ass
-            // The arm fit component by default will only update the left wrist position (I don't know why, maybe the right arm is a blended animation?)
-            // So we will not only abuse that, but we will repurpose it to update the right arm as well
-            if (arm_fit != nullptr) {
-                auto arm_fit_list_field = arm_fit_t->get_field("ArmFitList");
-                auto arm_fit_list = arm_fit_list_field->get_data<REArrayBase*>(arm_fit);
-
-                if (arm_fit_list != nullptr && arm_fit_list->numElements > 0) {
-                    //spdlog::info("Inside arm fit, arm fit list: {:x}", (uintptr_t)arm_fit_list);
-
-                    auto arm_fit_data = utility::re_array::get_element<REManagedObject>(arm_fit_list, 0);
-
-                    if (arm_fit_data != nullptr) {
-                        //spdlog::info("First element: {:x}", (uintptr_t)first_element);
-
-                        auto arm_fit_data_t = utility::re_managed_object::get_type_definition(arm_fit_data);
-                        auto arm_fit_data_tmatrix_field = arm_fit_data_t->get_field("<TargetMatrix>k__BackingField");
-                        auto& target_matrix = arm_fit_data_tmatrix_field->get_data<Matrix4x4f>(arm_fit_data);
-
-                        auto solver_list_field = arm_fit_t->get_field("<SolverList>k__BackingField");
-                        auto solver_list = solver_list_field->get_data<::DotNetGenericList*>(arm_fit);
-
-                        // Keep track of the old joints so we can set them back after updating the IK
-                        REJoint* old_apply_joint = nullptr;
-                        REJoint** apply_joint_ptr = nullptr;
-
-                        // Using the solver list, we are going to override the target joint to the current wrist joint
-                        // So we can use the IK system to update both wrists
-                        if (solver_list != nullptr) {
-                            //spdlog::info("Solver list: {:x}", (uintptr_t)solver_list);
-
-                            auto raw_solver_list = solver_list->data;
-
-                            if (raw_solver_list != nullptr && raw_solver_list->numElements > 0) {
-                                auto first_solver = utility::re_array::get_element<REManagedObject>(raw_solver_list, 0);
-
-                                if (first_solver != nullptr) {
-                                    //spdlog::info("First solver: {:x}", (uintptr_t)first_solver);
-
-                                    auto first_solver_t = utility::re_managed_object::get_type_definition(first_solver);
-                                    auto apply_joint_field = first_solver_t->get_field("<ApplyJoint>k__BackingField");
-                                    auto& apply_joint = apply_joint_field->get_data<REJoint*>(first_solver);
-
-                                    old_apply_joint = apply_joint;
-                                    apply_joint_ptr = &apply_joint;
-                                    
-                                    // Set the apply joint to the wrist joint
-                                    apply_joint = wrist_joint;
-
-                                    auto l0_field = first_solver_t->get_field("<L0>k__BackingField");
-                                    auto l1_field = first_solver_t->get_field("<L1>k__BackingField");
-
-                                    auto& l0 = l0_field->get_data<float>(first_solver);
-                                    auto& l1 = l1_field->get_data<float>(first_solver);
-
-                                    const auto total_length = l0 + l1;
-
-                                    // Get shoulder joint by getting the parents of the wrist joint
-                                    auto elbow_joint = sdk::get_joint_parent(wrist_joint);
-                                    auto shoulder_joint = elbow_joint != nullptr ? sdk::get_joint_parent(elbow_joint) : (REJoint*)nullptr;
-                                    auto shoulder_parent_joint = shoulder_joint != nullptr ? sdk::get_joint_parent(shoulder_joint) : (REJoint*)nullptr;
-
-                                    if (elbow_joint != nullptr && shoulder_joint != nullptr && shoulder_parent_joint != nullptr) {
-                                        const auto transform_pos = sdk::get_transform_position(transform);
-                                        const auto transform_rotation = sdk::get_transform_rotation(transform);
-
-                                        // grab the T-pose of the elbow and shoulder
-                                        // then set the current position of the elbow and shoulder to the T-pose
-                                        const auto original_elbow_transform = utility::re_transform::calculate_base_transform(*transform, elbow_joint);
-                                        const auto original_shoulder_transform = utility::re_transform::calculate_base_transform(*transform, shoulder_joint);
-                                        const auto original_shoulder_parent_transform = utility::re_transform::calculate_base_transform(*transform, shoulder_parent_joint);
-
-                                        const auto original_elbow_pos = transform_pos + (transform_rotation * original_elbow_transform[3]);
-                                        const auto original_elbow_rot = transform_rotation * glm::quat{glm::extractMatrixRotation(original_elbow_transform)};
-                                        const auto original_shoulder_pos = transform_pos + (transform_rotation * original_shoulder_transform[3]);
-                                        const auto original_shoulder_rot = transform_rotation * glm::quat{glm::extractMatrixRotation(original_shoulder_transform)};
-                                        const auto original_shoulder_parent_pos = transform_pos + (transform_rotation * original_shoulder_parent_transform[3]);
-                                        const auto original_shoulder_parent_rot = transform_rotation * glm::quat{glm::extractMatrixRotation(original_shoulder_parent_transform)};
-
-                                        const auto current_shoulder_parent_pos = sdk::get_joint_position(shoulder_parent_joint);
-                                        const auto current_shoulder_parent_rot = sdk::get_joint_rotation(shoulder_parent_joint);
-
-                                        const auto shoulder_diff = original_shoulder_pos - original_shoulder_parent_pos;
-                                        const auto elbow_diff = original_elbow_pos - original_shoulder_pos;
-
-                                        const auto updated_shoulder_pos = current_shoulder_parent_pos + shoulder_diff;
-                                        const auto updated_elbow_pos = updated_shoulder_pos + elbow_diff;
-
-                                        sdk::set_joint_position(shoulder_joint, updated_shoulder_pos);
-                                        sdk::set_joint_rotation(shoulder_joint, original_shoulder_rot);
-                                        sdk::set_joint_position(elbow_joint, updated_elbow_pos);
-                                        sdk::set_joint_rotation(elbow_joint, original_elbow_rot);
-
-                                        const auto shoulder_joint_pos = sdk::get_joint_position(shoulder_joint);
-
-                                        // Bring the new_pos back to the shoulder joint + dir to the wrist joint * total length/
-                                        // This will keep the arm properly extended instead of contracting back to the original animation
-                                        // When the wanted position exceeds the total IK length.
-                                        // Usually that's what IK is supposed to do, but not in this game, i guess
-                                        if (glm::length(new_pos - shoulder_joint_pos) > total_length) {
-                                            new_pos = shoulder_joint_pos + (glm::normalize(new_pos - shoulder_joint_pos) * total_length);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    
-                        // Set the target matrix to the VR controller's position (new_pos, rotation_quat)
-                        target_matrix = Matrix4x4f{ rotation_quat };
-                        target_matrix[3] = new_pos;
-
-                        //spdlog::info("About to call updateIk");
-
-                        auto blend_rate_field = arm_fit_t->get_field("BlendRateField");
-                        auto& blend_rate = blend_rate_field->get_data<float>(arm_fit);
-
-                        auto armfit_data_blend_rate_field = arm_fit_data_t->get_field("BlendRate");
-                        auto& armfit_data_blend_rate = armfit_data_blend_rate_field->get_data<float>(arm_fit_data);
-
-                        blend_rate = 1.0f;
-                        armfit_data_blend_rate = 1.0f;
-
-                        // Call the IK update function (index 0, first element)
-                        sdk::call_object_func<void*>(arm_fit, "updateIk", context, arm_fit, 0);
-
-                        // Reset the apply joint to the old value
-                        if (apply_joint_ptr != nullptr) {
-                            *apply_joint_ptr = old_apply_joint;
-                        }
-                    }
-                } else {
-                    spdlog::info("Arm fit list is empty");
-                }
-            } else {
-                spdlog::info("Arm fit component not found");
-            }
-
-            // radians -> deg
-            m_last_controller_euler[controller_index] = glm::eulerAngles(rotation_quat) * (180.0f / glm::pi<float>());
-        };
-
-        if (is_using_controllers)  {
-            update_joint(L"l_arm_wrist", 0);
-            update_joint(L"r_arm_wrist", 1);
-        }
+    if (!is_hmd_active) {
+        return;
     }
 
-    if (is_hmd_active) {
-        // We're going to modify the player's weapon (gun) to fire from the muzzle instead of the camera
-        // Luckily the game has that built-in so we don't really need to hook anything
-        static auto equipment_t = sdk::RETypeDB::get()->find_type(game_namespace("survivor.Equipment"));
-        auto equipment = utility::re_component::find<REComponent>(transform, equipment_t->get_type());
+    // We're going to modify the player's weapon (gun) to fire from the muzzle instead of the camera
+    // Luckily the game has that built-in so we don't really need to hook anything
+    static auto equipment_t = sdk::RETypeDB::get()->find_type(game_namespace("survivor.Equipment"));
+    auto equipment = utility::re_component::find<REComponent>(transform, equipment_t->get_type());
 
-        if (equipment != nullptr) {
-            auto main_weapon_field = equipment_t->get_field("<EquipWeapon>k__BackingField");
-            auto& main_weapon = main_weapon_field->get_data<REManagedObject*>(equipment);
+    if (equipment != nullptr) {
+        auto main_weapon_field = equipment_t->get_field("<EquipWeapon>k__BackingField");
+        auto& main_weapon = main_weapon_field->get_data<REManagedObject*>(equipment);
 
-            if (main_weapon != nullptr) {
-                auto main_weapon_game_object = sdk::call_object_func<REGameObject*>(main_weapon, "get_GameObject", context, main_weapon);
-                auto main_weapon_transform = main_weapon_game_object != nullptr ? main_weapon_game_object->transform : (RETransform*)nullptr;
+        if (main_weapon != nullptr) {
+            auto main_weapon_game_object = sdk::call_object_func<REGameObject*>(main_weapon, "get_GameObject", context, main_weapon);
+            auto main_weapon_transform = main_weapon_game_object != nullptr ? main_weapon_game_object->transform : (RETransform*)nullptr;
 
-                static auto implement_gun_typedef = sdk::RETypeDB::get()->find_type(game_namespace("implement.Gun"));
-                static auto implement_melee_typedef = sdk::RETypeDB::get()->find_type(game_namespace("implement.Melee"));
+            static auto implement_gun_typedef = sdk::RETypeDB::get()->find_type(game_namespace("implement.Gun"));
+            static auto implement_melee_typedef = sdk::RETypeDB::get()->find_type(game_namespace("implement.Melee"));
 
-                auto main_weapon_t = utility::re_managed_object::get_type_definition(main_weapon);
+            auto main_weapon_t = utility::re_managed_object::get_type_definition(main_weapon);
 
-                if (main_weapon_game_object != nullptr && main_weapon_t != nullptr && main_weapon_t->is_a(implement_gun_typedef)) {
-                    auto& fire_bullet_param = *sdk::get_object_field<REManagedObject*>(main_weapon, "<FireBulletParam>k__BackingField");
+            if (main_weapon_game_object != nullptr && main_weapon_t != nullptr && main_weapon_t->is_a(implement_gun_typedef)) {
+                auto& fire_bullet_param = *sdk::get_object_field<REManagedObject*>(main_weapon, "<FireBulletParam>k__BackingField");
 
-                    if (fire_bullet_param != nullptr) {
-                        auto fire_bullet_param_t = utility::re_managed_object::get_type_definition(fire_bullet_param);
-                        auto& fire_bullet_type = *sdk::get_object_field<app::ropeway::weapon::shell::ShellDefine::FireBulletType>(fire_bullet_param, "_FireBulletType");
+                if (fire_bullet_param != nullptr) {
+                    auto fire_bullet_param_t = utility::re_managed_object::get_type_definition(fire_bullet_param);
+                    auto& fire_bullet_type = *sdk::get_object_field<app::ropeway::weapon::shell::ShellDefine::FireBulletType>(fire_bullet_param, "_FireBulletType");
 
-                        // Set the fire bullet type to AlongMuzzle, which fires from the muzzle's position and rotation
-                        if (is_using_controllers) {
-                            static auto throw_grenade_generator_type = sdk::RETypeDB::get()->find_type(game_namespace("weapon.generator.ThrowGrenadeGenerator"));
-                            auto shell_generator = *sdk::get_object_field<REManagedObject*>(main_weapon, "<ShellGenerator>k__BackingField");
-                            auto is_grenade = false;
+                    // Set the fire bullet type to AlongMuzzle, which fires from the muzzle's position and rotation
+                    if (is_using_controllers) {
+                        static auto throw_grenade_generator_type = sdk::RETypeDB::get()->find_type(game_namespace("weapon.generator.ThrowGrenadeGenerator"));
+                        auto shell_generator = *sdk::get_object_field<REManagedObject*>(main_weapon, "<ShellGenerator>k__BackingField");
+                        auto is_grenade = false;
 
-                            if (shell_generator != nullptr) {
-                                auto shell_generator_t = utility::re_managed_object::get_type_definition(shell_generator);
+                        if (shell_generator != nullptr) {
+                            auto shell_generator_t = utility::re_managed_object::get_type_definition(shell_generator);
 
-                                if (shell_generator_t != nullptr && shell_generator_t->is_a(throw_grenade_generator_type)) {
-                                    is_grenade = true;
-                                }
-                            }
-
-                            if (!is_grenade) {
-                                fire_bullet_type = app::ropeway::weapon::shell::ShellDefine::FireBulletType::AlongMuzzle;
-                            }
-                        } else {
-                            if (fire_bullet_type == app::ropeway::weapon::shell::ShellDefine::FireBulletType::AlongMuzzle) {
-                                fire_bullet_type = app::ropeway::weapon::shell::ShellDefine::FireBulletType::Camera;
+                            if (shell_generator_t != nullptr && shell_generator_t->is_a(throw_grenade_generator_type)) {
+                                is_grenade = true;
                             }
                         }
 
-                        auto muzzle_joint_param = *sdk::get_object_field<REManagedObject*>(fire_bullet_param, "_MuzzleJointParameter");
-                        auto muzzle_joint_extra = *sdk::get_object_field<REManagedObject*>(main_weapon, "<MuzzleJoint>k__BackingField");
-
-                        // Set the muzzle joint to the VFX muzzle position used for stuff like muzzle flashes
-                        if (muzzle_joint_param != nullptr && muzzle_joint_extra != nullptr) {
-                            static auto vfx_muzzle1_hash = sdk::murmur_hash::calc32(L"vfx_muzzle1");
-
-                            auto vfx_muzzle1 = sdk::get_transform_joint_by_hash(main_weapon_transform, vfx_muzzle1_hash);
-                            auto current_muzzle_joint = *sdk::get_object_field<REJoint*>(muzzle_joint_extra, "_Parent");
-
-                            // Set the parent joint name to the VFX muzzle joint which will set _Parent later on
-                            if (vfx_muzzle1 != nullptr && current_muzzle_joint != vfx_muzzle1) {
-                                auto muzzle_joint_name = sdk::VM::create_managed_string(L"vfx_muzzle1");
-
-                                // call set_ParentJointNameForm
-                                sdk::call_object_func<void*>(muzzle_joint_param, "set_ParentJointNameForm", context, muzzle_joint_param, muzzle_joint_name);
-                            }
+                        if (!is_grenade) {
+                            fire_bullet_type = app::ropeway::weapon::shell::ShellDefine::FireBulletType::AlongMuzzle;
+                        }
+                    } else {
+                        if (fire_bullet_type == app::ropeway::weapon::shell::ShellDefine::FireBulletType::AlongMuzzle) {
+                            fire_bullet_type = app::ropeway::weapon::shell::ShellDefine::FireBulletType::Camera;
                         }
                     }
-                } else if (main_weapon_game_object != nullptr && main_weapon_t != nullptr && main_weapon_t->is_a(implement_melee_typedef)) {
-                    auto collider_field = main_weapon_t->get_field("<RequestSetCollider>k__BackingField");
-                    auto& collider = collider_field->get_data<REManagedObject*>(main_weapon);
 
-                    if (collider != nullptr) {
-                        // TODO!
+                    auto muzzle_joint_param = *sdk::get_object_field<REManagedObject*>(fire_bullet_param, "_MuzzleJointParameter");
+                    auto muzzle_joint_extra = *sdk::get_object_field<REManagedObject*>(main_weapon, "<MuzzleJoint>k__BackingField");
+
+                    // Set the muzzle joint to the VFX muzzle position used for stuff like muzzle flashes
+                    if (muzzle_joint_param != nullptr && muzzle_joint_extra != nullptr) {
+                        static auto vfx_muzzle1_hash = sdk::murmur_hash::calc32(L"vfx_muzzle1");
+
+                        auto vfx_muzzle1 = sdk::get_transform_joint_by_hash(main_weapon_transform, vfx_muzzle1_hash);
+                        auto current_muzzle_joint = *sdk::get_object_field<REJoint*>(muzzle_joint_extra, "_Parent");
+
+                        // Set the parent joint name to the VFX muzzle joint which will set _Parent later on
+                        if (vfx_muzzle1 != nullptr && current_muzzle_joint != vfx_muzzle1) {
+                            auto muzzle_joint_name = sdk::VM::create_managed_string(L"vfx_muzzle1");
+
+                            // call set_ParentJointNameForm
+                            sdk::call_object_func<void*>(muzzle_joint_param, "set_ParentJointNameForm", context, muzzle_joint_param, muzzle_joint_name);
+                        }
                     }
+                }
+            } else if (main_weapon_game_object != nullptr && main_weapon_t != nullptr && main_weapon_t->is_a(implement_melee_typedef)) {
+                auto collider_field = main_weapon_t->get_field("<RequestSetCollider>k__BackingField");
+                auto& collider = collider_field->get_data<REManagedObject*>(main_weapon);
+
+                if (collider != nullptr) {
+                    // TODO! it's a lua script, maybe implement natively later?
                 }
             }
         }
+    }
+}
 
-        static auto ik_leg_def = sdk::RETypeDB::get()->find_type("via.motion.IkLeg");
-        static auto via_motion_def = sdk::RETypeDB::get()->find_type("via.motion.Motion");
-        auto ik_leg = utility::re_component::find<REComponent>(transform, ik_leg_def->type);
-        auto via_motion = utility::re_component::find<REComponent>(transform, via_motion_def->type);
+void FirstPerson::update_player_body_ik(RETransform* transform) {
+    if (!m_enabled->value() || m_camera_system == nullptr) {
+        return;
+    }
 
-        // We're going to use the leg IK to adjust the height of the player according to headset position
-        if (ik_leg != nullptr && via_motion != nullptr) {
-            const auto headset_pos = vr_mod->get_position(0);
-            const auto standing_origin = vr_mod->get_standing_origin();
-            const auto hmd_offset = headset_pos - standing_origin;
+    if (m_last_camera_type != app::ropeway::camera::CameraControlType::PLAYER) {
+        return;
+    }
 
-            // Create a final offset which will keep the player's head where they want
-            // while also stabilizing any undesired head movement from the original animation
-            Vector4f final_offset{ hmd_offset };
+    auto vr_mod = VR::get();
+    auto& controllers = vr_mod->get_controllers();
+    const auto is_hmd_active = vr_mod->is_hmd_active();
+    const auto is_using_controllers = vr_mod->is_using_controllers();
 
-            if (!is_using_controllers) {
-                const auto forward_matrix = utility::math::remove_y_component(Matrix4x4f{glm::normalize(m_last_controller_rotation_vr)});
-                final_offset = forward_matrix * final_offset;
-            } else {
-                final_offset = m_last_controller_rotation_vr * final_offset;
-            }
+    auto context = sdk::get_thread_context();
 
-            const auto smooth_xz_movement = m_smooth_xz_movement->value();
-            const auto smooth_y_movement = m_smooth_y_movement->value();
+    if (!is_hmd_active) {
+        return;
+    }
 
-            if (smooth_xz_movement || smooth_y_movement) {
-                auto center_joint = utility::re_transform::get_joint(*transform, L"COG");
-                auto head_joint = utility::re_transform::get_joint(*transform, L"head");
+    static auto ik_leg_def = sdk::RETypeDB::get()->find_type("via.motion.IkLeg");
+    static auto via_motion_def = sdk::RETypeDB::get()->find_type("via.motion.Motion");
+    auto ik_leg = utility::re_component::find<REComponent>(transform, ik_leg_def->type);
+    auto via_motion = utility::re_component::find<REComponent>(transform, via_motion_def->type);
 
-                if (head_joint != nullptr && center_joint != nullptr) {
-                    const auto head_joint_index = ((sdk::Joint*)head_joint)->get_joint_index();
+    // We're going to use the leg IK to adjust the height of the player according to headset position
+    if (ik_leg != nullptr && via_motion != nullptr) {
+        const auto headset_pos = vr_mod->get_position(0);
+        const auto standing_origin = vr_mod->get_standing_origin();
+        const auto hmd_offset = headset_pos - standing_origin;
 
-                    const auto base_transform_pos = sdk::get_transform_position(transform);
-                    const auto base_transform_rot = sdk::get_transform_rotation(transform);
+        // Create a final offset which will keep the player's head where they want
+        // while also stabilizing any undesired head movement from the original animation
+        Vector4f final_offset{ hmd_offset };
 
-                    Vector4f original_head_pos{};
-                    sdk::call_object_func<Vector4f*>(via_motion, "getWorldPosition", &original_head_pos, sdk::get_thread_context(), via_motion, head_joint_index);
+        if (!is_using_controllers) {
+            const auto forward_matrix = utility::math::remove_y_component(Matrix4x4f{glm::normalize(m_last_controller_rotation_vr)});
+            final_offset = forward_matrix * final_offset;
+        } else {
+            final_offset = m_last_controller_rotation_vr * final_offset;
+        }
 
-                    original_head_pos = base_transform_rot * original_head_pos;
+        const auto smooth_xz_movement = m_smooth_xz_movement->value();
+        const auto smooth_y_movement = m_smooth_y_movement->value();
 
-                    // the reference pose for the head joint
-                    const auto head_base_transform = utility::re_transform::calculate_base_transform(*transform, head_joint);
-                    const auto reference_height = head_base_transform[3].y;
+        if (smooth_xz_movement || smooth_y_movement) {
+            auto center_joint = utility::re_transform::get_joint(*transform, L"COG");
+            auto head_joint = utility::re_transform::get_joint(*transform, L"head");
 
-                    if (smooth_xz_movement) {
-                        final_offset.x -= original_head_pos.x;
-                        final_offset.z -= original_head_pos.z;
-                    }
+            if (head_joint != nullptr && center_joint != nullptr) {
+                const auto head_joint_index = ((sdk::Joint*)head_joint)->get_joint_index();
 
-                    if (smooth_y_movement) {
-                        final_offset.y += (reference_height - original_head_pos.y);
-                    }
+                const auto base_transform_pos = sdk::get_transform_position(transform);
+                const auto base_transform_rot = sdk::get_transform_rotation(transform);
+
+                Vector4f original_head_pos{};
+                sdk::call_object_func<Vector4f*>(via_motion, "getWorldPosition", &original_head_pos, sdk::get_thread_context(), via_motion, head_joint_index);
+
+                original_head_pos = base_transform_rot * original_head_pos;
+
+                // the reference pose for the head joint
+                const auto head_base_transform = utility::re_transform::calculate_base_transform(*transform, head_joint);
+                const auto reference_height = head_base_transform[3].y;
+
+                if (smooth_xz_movement) {
+                    final_offset.x -= original_head_pos.x;
+                    final_offset.z -= original_head_pos.z;
+                }
+
+                if (smooth_y_movement) {
+                    final_offset.y += (reference_height - original_head_pos.y);
                 }
             }
-            
-            sdk::call_object_func<void*>(ik_leg, "set_CenterPositionCtrl", sdk::get_thread_context(), ik_leg, via::motion::IkLeg::EffectorCtrl::WorldOffset);
-            sdk::call_object_func<void*>(ik_leg, "set_CenterOffset", sdk::get_thread_context(), ik_leg, &final_offset);
-
-            // this will allow the player to physically move higher than the model's standing height
-            // so the head adjustment will be more accurate and smooth if the player is standing straight.
-            // a small side effect is that the player can slightly float, but it's worth it.
-            // not a TDB method unfortunately.
-            utility::re_managed_object::call_method(ik_leg, "set_CenterAdjust", via::motion::IkLeg::CenterAdjust::None);
         }
+        
+        sdk::call_object_func<void*>(ik_leg, "set_CenterPositionCtrl", sdk::get_thread_context(), ik_leg, via::motion::IkLeg::EffectorCtrl::WorldOffset);
+        sdk::call_object_func<void*>(ik_leg, "set_CenterOffset", sdk::get_thread_context(), ik_leg, &final_offset);
+
+        // this will allow the player to physically move higher than the model's standing height
+        // so the head adjustment will be more accurate and smooth if the player is standing straight.
+        // a small side effect is that the player can slightly float, but it's worth it.
+        // not a TDB method unfortunately.
+        utility::re_managed_object::call_method(ik_leg, "set_CenterAdjust", via::motion::IkLeg::CenterAdjust::None);
     }
 }
 
