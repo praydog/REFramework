@@ -109,7 +109,7 @@ private:
         app::ropeway::camera::CameraControlType::PLAYER, // normal gameplay
         app::ropeway::camera::CameraControlType::EVENT, // cutscene
         app::ropeway::camera::CameraControlType::ACTION, // grabbed by zombie or something similar
-        app::ropeway::camera::CameraControlType::GIMMICK_MOTION, // traversal cutscene
+        //app::ropeway::camera::CameraControlType::GIMMICK_MOTION, // traversal cutscene
     };
 
     float m_last_player_fov{ 0.0f };
