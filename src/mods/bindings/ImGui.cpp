@@ -52,12 +52,43 @@ sol::variadic_results drag_float(sol::this_state s, const char* label, float v, 
     return results;
 }
 
-sol::variadic_results drag_int(sol::this_state s, const char* label, int v, float v_speed, int v_min, int v_max, const char* display_format = "%.0f") {
+sol::variadic_results drag_int(sol::this_state s, const char* label, int v, float v_speed, int v_min, int v_max, const char* display_format = "%d") {
     if (label == nullptr) {
         label = "";
     }
 
     auto changed = ImGui::DragInt(label, &v, v_speed, v_min, v_max, display_format);
+
+    sol::variadic_results results{};
+
+    results.push_back(sol::make_object(s, changed));
+    results.push_back(sol::make_object(s, v));
+
+    return results;
+}
+
+sol::variadic_results slider_float(sol::this_state s, const char* label, float v, float v_min, float v_max, const char* display_format = "%.3f") {
+    if (label == nullptr) {
+        label = "";
+    }
+
+    auto changed = ImGui::SliderFloat(label, &v, v_min, v_max, display_format);
+
+    sol::variadic_results results{};
+
+    results.push_back(sol::make_object(s, changed));
+    results.push_back(sol::make_object(s, v));
+
+    return results;
+}
+
+
+sol::variadic_results slider_int(sol::this_state s, const char* label, int v, int v_min, int v_max, const char* display_format = "%d") {
+    if (label == nullptr) {
+        label = "";
+    }
+
+    auto changed = ImGui::SliderInt(label, &v, v_min, v_max, display_format);
 
     sol::variadic_results results{};
 
@@ -203,6 +234,74 @@ bool begin_window(const char* name, sol::object open_obj, ImGuiWindowFlags flags
 void end_window() {
     ImGui::End();
 }
+
+bool begin_child_window(const char* name, sol::object size_obj, sol::object border_obj, ImGuiWindowFlags flags = 0) {
+    if (name == nullptr) {
+        name = "";
+    }
+
+    ImVec2 size{0, 0};
+    bool border{false};
+
+    if (size_obj.is<Vector2f>()) {
+        size = ImVec2{size_obj.as<Vector2f>().x, size_obj.as<Vector2f>().y};
+    } else if (size_obj.is<Vector3f>()) {
+        size = ImVec2{size_obj.as<Vector3f>().x, size_obj.as<Vector3f>().y};
+    } else if (size_obj.is<Vector4f>()) {
+        size = ImVec2{size_obj.as<Vector4f>().x, size_obj.as<Vector4f>().y};
+    }
+
+    if (border_obj.is<bool>()) {
+        border = border_obj.as<bool>();
+    }
+
+    return ImGui::BeginChild(name, size, border, flags);
+}
+
+void end_child_window() {
+    ImGui::EndChild();
+}
+
+void begin_group() {
+    ImGui::BeginGroup();
+}
+
+void end_group() {
+    ImGui::EndGroup();
+}
+
+void begin_rect() {
+    ImGui::BeginGroup();
+}
+
+void end_rect(sol::object additional_size_obj, sol::object rounding_obj) {
+    ImGui::EndGroup();
+
+    float rounding = rounding_obj.is<float>() ? rounding_obj.as<float>() : ImGui::GetStyle().FrameRounding;
+    float additional_size = additional_size_obj.is<float>() ? additional_size_obj.as<float>() : 0.0f;
+
+    auto mins = ImGui::GetItemRectMin();
+    mins.x -= additional_size;
+    mins.y -= additional_size;
+
+    auto maxs = ImGui::GetItemRectMax();
+    maxs.x += additional_size;
+    maxs.y += additional_size;
+
+    ImGui::GetWindowDrawList()->AddRect(mins, maxs, ImGui::GetColorU32(ImGuiCol_Border), ImGui::GetStyle().FrameRounding, ImDrawCornerFlags_All, 1.0f);
+}
+
+void separator() {
+    ImGui::Separator();
+}
+
+void spacing() {
+    ImGui::Spacing();
+}
+
+void new_line() {
+    ImGui::NewLine();
+}
 } // namespace api::imgui
 
 namespace api::draw {
@@ -327,6 +426,8 @@ void bindings::open_imgui(ScriptState* s) {
     imgui["combo"] = api::imgui::combo;
     imgui["drag_float"] = api::imgui::drag_float;
     imgui["drag_int"] = api::imgui::drag_int;
+    imgui["slider_float"] = api::imgui::slider_float;
+    imgui["slider_int"] = api::imgui::slider_int;
     imgui["input_text"] = api::imgui::input_text;
     imgui["text"] = api::imgui::text;
     imgui["checkbox"] = api::imgui::checkbox;
@@ -338,6 +439,15 @@ void bindings::open_imgui(ScriptState* s) {
     imgui["is_item_hovered"] = api::imgui::is_item_hovered;
     imgui["begin_window"] = api::imgui::begin_window;
     imgui["end_window"] = api::imgui::end_window;
+    imgui["begin_child_window"] = api::imgui::begin_child_window;
+    imgui["end_child_window"] = api::imgui::end_child_window;
+    imgui["begin_group"] = api::imgui::begin_group;
+    imgui["end_group"] = api::imgui::end_group;
+    imgui["begin_rect"] = api::imgui::begin_rect;
+    imgui["end_rect"] = api::imgui::end_rect;
+    imgui["separator"] = api::imgui::separator;
+    imgui["spacing"] = api::imgui::spacing;
+    imgui["new_line"] = api::imgui::new_line;
     lua["imgui"] = imgui;
 
     auto draw = lua.create_table();

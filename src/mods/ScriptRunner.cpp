@@ -75,6 +75,7 @@ ScriptState::ScriptState() {
     // clang-format off
     // add vec2 usertype
     m_lua.new_usertype<Vector2f>("Vector2f",
+        sol::meta_function::construct, sol::constructors<Vector4f(float, float)>(),
         "x", &Vector2f::x, 
         "y", &Vector2f::y, 
         "dot", [](Vector2f& v1, Vector2f& v2) { return glm::dot(v1, v2); },
