@@ -23,6 +23,8 @@ public:
         return is_enabled() && is_first_person_allowed() && m_player_transform != nullptr;
     }
 
+    void toggle();
+
     std::string_view get_name() const override { return "FirstPerson"; };
     std::optional<std::string> on_initialize() override;
 

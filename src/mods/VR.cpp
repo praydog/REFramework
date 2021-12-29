@@ -2058,6 +2058,16 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
     const auto is_left_system_button_down = is_action_active(m_action_system_button, m_left_joystick);
     const auto is_right_system_button_down = is_action_active(m_action_system_button, m_right_joystick);
 
+#if defined(RE2) || defined(RE3)
+    const auto is_firstperson_toggle_down = is_action_active(m_action_re2_firstperson_toggle, m_left_joystick) || is_action_active(m_action_re2_firstperson_toggle, m_right_joystick);
+
+    if (is_firstperson_toggle_down && !m_was_firstperson_toggle_down) {
+        FirstPerson::get()->toggle();
+    }
+
+    m_was_firstperson_toggle_down = is_firstperson_toggle_down;
+#endif
+
     // Current actual button bits used by the game
     auto& button_bits_down = *sdk::get_object_field<uint64_t>(button_bits_obj, "Down");
     auto& button_bits_on = *sdk::get_object_field<uint64_t>(button_bits_obj, "On");

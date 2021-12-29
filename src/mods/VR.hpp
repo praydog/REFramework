@@ -258,6 +258,9 @@ private:
     vr::VRActionHandle_t m_action_weapon_dial{};
     vr::VRActionHandle_t m_action_re3_dodge{};
     vr::VRActionHandle_t m_action_re2_quickturn{};
+    vr::VRActionHandle_t m_action_re2_firstperson_toggle{};
+
+    bool m_was_firstperson_toggle_down{false};
 
     std::unordered_map<std::string, std::reference_wrapper<vr::VRActionHandle_t>> m_action_handles {
         { "/actions/default/in/Trigger", m_action_trigger },
@@ -273,7 +276,8 @@ private:
         { "/actions/default/in/SystemButton", m_action_system_button },
         { "/actions/default/in/WeaponDial_Start", m_action_weapon_dial },
         { "/actions/default/in/RE3_Dodge", m_action_re3_dodge },
-        { "/actions/default/in/RE2_Quickturn", m_action_re2_quickturn }
+        { "/actions/default/in/RE2_Quickturn", m_action_re2_quickturn },
+        { "/actions/default/in/RE2_FirstPerson_Toggle", m_action_re2_firstperson_toggle },
     };
 
     // Input sources

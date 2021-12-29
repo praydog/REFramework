@@ -55,6 +55,12 @@ FirstPerson::FirstPerson() {
 #endif
 }
 
+void FirstPerson::toggle() {
+    if (!m_enabled->toggle()) {
+        on_disabled();
+    }
+}
+
 std::optional<std::string> FirstPerson::on_initialize() {
     /*auto vignetteCode = utility::scan(g_framework->getModule().as<HMODULE>(), "8B 87 3C 01 00 00 89 83 DC 00 00 00");
 
@@ -434,8 +440,9 @@ void FirstPerson::on_pre_update_behavior(void* entry) {
     if (m_camera_system != nullptr && m_camera_system->ownerGameObject != nullptr) {
         if (!update_pointers_from_camera_system(m_camera_system)) {
             reset();
-            return;
         }
+    } else {
+        reset();
     }
 }
 
@@ -449,6 +456,17 @@ void FirstPerson::on_post_late_update_behavior(void* entry) {
 
 void FirstPerson::on_post_update_motion(void* entry) {
     if (!will_be_used()) {
+        return;
+    }
+
+    // check it every time i guess becuase who knows what's going to happen.
+    if (m_camera_system != nullptr && m_camera_system->ownerGameObject != nullptr) {
+        if (!update_pointers_from_camera_system(m_camera_system)) {
+            reset();
+            return;
+        }
+    } else {
+        reset();
         return;
     }
 
