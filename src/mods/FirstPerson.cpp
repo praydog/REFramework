@@ -363,6 +363,13 @@ void FirstPerson::on_update_camera_controller2(RopewayPlayerCameraController* co
         return;
     }
 
+    if (!is_first_person_allowed()) {
+        m_last_controller_angles = Vector3f{ controller->pitch, controller->yaw, 0.0f };
+        m_last_controller_pos = controller->worldPosition;
+        m_last_controller_rotation = *(glm::quat*) & controller->worldRotation;
+        return;
+    }
+
     // Just update the FOV in here. Whatever.
     update_fov(controller);
 
@@ -1097,6 +1104,14 @@ void FirstPerson::update_player_body_ik(RETransform* transform) {
 }
 
 void FirstPerson::update_player_body_rotation(RETransform* transform) {
+    if (!m_enabled->value() || m_camera_system == nullptr) {
+        return;
+    }
+
+    if (m_last_camera_type != app::ropeway::camera::CameraControlType::PLAYER) {
+        return;
+    }
+
     if (!m_rotate_body->value()) {
         return;
     }
@@ -1148,6 +1163,10 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
 
     // Don't mess with the camera if we're in a cutscene
     if (!is_first_person_allowed()) {
+        if (m_camera_system->mainCameraController != nullptr) {
+            m_camera_system->mainCameraController->updateCamera = true;
+        }
+
         return;
     }
 
