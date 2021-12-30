@@ -259,6 +259,7 @@ private:
     vr::VRActionHandle_t m_action_re3_dodge{};
     vr::VRActionHandle_t m_action_re2_quickturn{};
     vr::VRActionHandle_t m_action_re2_firstperson_toggle{};
+    vr::VRActionHandle_t m_action_re2_reset_view{};
 
     bool m_was_firstperson_toggle_down{false};
 
@@ -278,6 +279,7 @@ private:
         { "/actions/default/in/RE3_Dodge", m_action_re3_dodge },
         { "/actions/default/in/RE2_Quickturn", m_action_re2_quickturn },
         { "/actions/default/in/RE2_FirstPerson_Toggle", m_action_re2_firstperson_toggle },
+        { "/actions/default/in/RE2_Reset_View", m_action_re2_reset_view }
     };
 
     // Input sources
