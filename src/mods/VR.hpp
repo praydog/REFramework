@@ -217,7 +217,7 @@ private:
     vr::VRTextureBounds_t m_left_bounds{ 0.0f, 0.0f, 1.0f, 1.0f };
 
     glm::vec3 m_overlay_rotation{-1.550f, 0.0f, -1.330f};
-    glm::vec4 m_overlay_position{0.0f, 0.06f, -0.05f, 1.0f};
+    glm::vec4 m_overlay_position{0.0f, 0.06f, -0.07f, 1.0f};
 
     float m_nearz{ 0.1f };
     float m_farz{ 3000.0f };
