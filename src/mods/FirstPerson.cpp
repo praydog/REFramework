@@ -94,9 +94,9 @@ void FirstPerson::on_draw_ui() {
         ImGui::DragFloat4("##", (float*)&elem, 1.0f, -1.0f, 1.0f);
     }*/
 
-    if (m_enabled->draw("Enabled") && !m_enabled->value()) {
+    if (m_enabled->draw("Enabled")) {
         // Disable fov and camera light changes
-        on_disabled();
+        m_wants_disable = !m_enabled->value();
     }
 
     ImGui::SameLine();
@@ -422,7 +422,7 @@ void FirstPerson::on_application_entry(void* entry, const char* name, size_t has
 }
 
 void FirstPerson::on_pre_update_behavior(void* entry) {
-    if (m_toggle_key->is_key_down_once() && !m_enabled->toggle()) {
+    if ((m_toggle_key->is_key_down_once() && !m_enabled->toggle()) || m_wants_disable) {
         on_disabled();
     }
 
@@ -430,27 +430,7 @@ void FirstPerson::on_pre_update_behavior(void* entry) {
         return;
     }
 
-    // Update our global pointers
-    if (m_post_effect_controller == nullptr || m_post_effect_controller->ownerGameObject == nullptr || 
-        m_camera_system == nullptr || m_camera_system->ownerGameObject == nullptr || m_sweet_light_manager == nullptr || m_sweet_light_manager->ownerGameObject == nullptr
-        || m_gui_master == nullptr) 
-    {
-        auto& globals = *g_framework->get_globals();
-        m_sweet_light_manager = globals.get<RopewaySweetLightManager>(game_namespace("SweetLightManager"));
-        m_camera_system = globals.get<RopewayCameraSystem>(game_namespace("camera.CameraSystem"));
-        m_post_effect_controller = globals.get<RopewayPostEffectController>(game_namespace("posteffect.PostEffectController"));
-        m_gui_master = globals.get<REBehavior>(game_namespace("gui.GUIMaster"));
-
-        reset();
-    }
-
-    if (m_camera_system != nullptr && m_camera_system->ownerGameObject != nullptr) {
-        if (!update_pointers_from_camera_system(m_camera_system)) {
-            reset();
-        }
-    } else {
-        reset();
-    }
+    update_pointers();
 }
 
 void FirstPerson::on_pre_late_update_behavior(void* entry) {
@@ -609,6 +589,35 @@ void FirstPerson::set_vignette(via::render::ToneMapping::Vignetting value) {
     update_param(m_tone_mapping_controller->filterSetting->param2);
 }
 
+bool FirstPerson::update_pointers() {
+    // Update our global pointers
+    if (m_post_effect_controller == nullptr || m_post_effect_controller->ownerGameObject == nullptr || 
+        m_camera_system == nullptr || m_camera_system->ownerGameObject == nullptr || m_sweet_light_manager == nullptr || m_sweet_light_manager->ownerGameObject == nullptr
+        || m_gui_master == nullptr) 
+    {
+        auto& globals = *g_framework->get_globals();
+        m_sweet_light_manager = globals.get<RopewaySweetLightManager>(game_namespace("SweetLightManager"));
+        m_camera_system = globals.get<RopewayCameraSystem>(game_namespace("camera.CameraSystem"));
+        m_post_effect_controller = globals.get<RopewayPostEffectController>(game_namespace("posteffect.PostEffectController"));
+        m_gui_master = globals.get<REBehavior>(game_namespace("gui.GUIMaster"));
+
+        reset();
+        return false;
+    }
+
+    if (m_camera_system != nullptr && m_camera_system->ownerGameObject != nullptr) {
+        if (!update_pointers_from_camera_system(m_camera_system)) {
+            reset();
+            return false;
+        }
+
+        return true;
+    }
+
+    reset();
+    return false;
+}
+
 bool FirstPerson::update_pointers_from_camera_system(RopewayCameraSystem* camera_system) {
     if (camera_system == nullptr) {
         return false;
@@ -669,6 +678,8 @@ void FirstPerson::update_player_transform(RETransform* transform) {
     update_player_arm_ik(transform);
     update_player_muzzle_behavior(transform);
     update_player_body_ik(transform);
+
+    m_was_hmd_active = VR::get()->is_hmd_active();
 }
 
 void FirstPerson::update_player_arm_ik(RETransform* transform) {
@@ -918,8 +929,12 @@ void FirstPerson::update_player_arm_ik(RETransform* transform) {
     }
 }
 
-void FirstPerson::update_player_muzzle_behavior(RETransform* transform) {
-    if (!m_enabled->value() || m_camera_system == nullptr) {
+void FirstPerson::update_player_muzzle_behavior(RETransform* transform, bool restore) {
+    if (!restore && !m_enabled->value()) {
+        return;
+    }
+
+    if (m_camera_system == nullptr) {
         return;
     }
 
@@ -934,8 +949,15 @@ void FirstPerson::update_player_muzzle_behavior(RETransform* transform) {
 
     auto context = sdk::get_thread_context();
 
-    if (!is_hmd_active) {
-        return;
+    // user just took off their headset
+    if (!is_hmd_active && m_was_hmd_active) {
+        restore = true;
+    }
+
+    if (!restore) {
+        if (!is_hmd_active) {
+            return;
+        }
     }
 
     // We're going to modify the player's weapon (gun) to fire from the muzzle instead of the camera
@@ -964,7 +986,7 @@ void FirstPerson::update_player_muzzle_behavior(RETransform* transform) {
                     auto& fire_bullet_type = *sdk::get_object_field<app::ropeway::weapon::shell::ShellDefine::FireBulletType>(fire_bullet_param, "_FireBulletType");
 
                     // Set the fire bullet type to AlongMuzzle, which fires from the muzzle's position and rotation
-                    if (is_using_controllers) {
+                    if (is_using_controllers && !restore) {
                         static auto throw_grenade_generator_type = sdk::RETypeDB::get()->find_type(game_namespace("weapon.generator.ThrowGrenadeGenerator"));
                         auto shell_generator = *sdk::get_object_field<REManagedObject*>(main_weapon, "<ShellGenerator>k__BackingField");
                         auto is_grenade = false;
@@ -1017,8 +1039,12 @@ void FirstPerson::update_player_muzzle_behavior(RETransform* transform) {
     }
 }
 
-void FirstPerson::update_player_body_ik(RETransform* transform) {
-    if (!m_enabled->value() || m_camera_system == nullptr) {
+void FirstPerson::update_player_body_ik(RETransform* transform, bool restore) {
+    if (!restore && !m_enabled->value()) {
+        return;
+    }
+
+    if (m_camera_system == nullptr) {
         return;
     }
 
@@ -1033,8 +1059,15 @@ void FirstPerson::update_player_body_ik(RETransform* transform) {
 
     auto context = sdk::get_thread_context();
 
-    if (!is_hmd_active) {
-        return;
+    // user just took headset off
+    if (!is_hmd_active && m_was_hmd_active) {
+        restore = true;
+    }
+
+    if (!restore) {
+        if (!is_hmd_active) {
+            return;
+        }
     }
 
     static auto ik_leg_def = sdk::RETypeDB::get()->find_type("via.motion.IkLeg");
@@ -1044,6 +1077,17 @@ void FirstPerson::update_player_body_ik(RETransform* transform) {
 
     // We're going to use the leg IK to adjust the height of the player according to headset position
     if (ik_leg != nullptr && via_motion != nullptr) {
+        // disabling FirstPerson triggers this
+        if (restore) {
+            Vector3f zero_offset{};
+
+            sdk::call_object_func<void*>(ik_leg, "set_CenterPositionCtrl", sdk::get_thread_context(), ik_leg, via::motion::IkLeg::EffectorCtrl::None);
+            sdk::call_object_func<void*>(ik_leg, "set_CenterOffset", sdk::get_thread_context(), ik_leg, &zero_offset);
+            utility::re_managed_object::call_method(ik_leg, "set_CenterAdjust", via::motion::IkLeg::CenterAdjust::Center);
+
+            return;
+        }
+
         const auto headset_pos = vr_mod->get_position(0);
         const auto standing_origin = vr_mod->get_standing_origin();
         const auto hmd_offset = headset_pos - standing_origin;
@@ -1573,6 +1617,19 @@ bool FirstPerson::is_first_person_allowed() const {
 }
 
 void FirstPerson::on_disabled() {
+    if (!update_pointers()) {
+        m_wants_disable = false;
+        return;
+    }
+
+    // restore the muzzle and body IK behavior
+    // so we don't lean off to the side when we're not in first person
+    // and not shoot out of the camera
+    if (m_player_transform != nullptr) {
+        update_player_muzzle_behavior(m_player_transform, true);
+        update_player_body_ik(m_player_transform, true);
+    }
+
     // Disable fov and camera light changes
     if (m_camera_system != nullptr && m_sweet_light_manager != nullptr) {
         update_fov(m_camera_system->cameraController);
@@ -1583,6 +1640,8 @@ void FirstPerson::on_disabled() {
             m_camera_system->mainCameraController->updateCamera = true;
         }
     }
+
+    m_wants_disable = false;
 }
 
 #endif

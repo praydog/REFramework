@@ -62,11 +62,12 @@ protected:
 private:
     void reset();
     void set_vignette(via::render::ToneMapping::Vignetting value);
+    bool update_pointers();
     bool update_pointers_from_camera_system(RopewayCameraSystem* camera_system);
     void update_player_transform(RETransform* transform);
     void update_player_arm_ik(RETransform* transform);
-    void update_player_muzzle_behavior(RETransform* transform);
-    void update_player_body_ik(RETransform* transform);
+    void update_player_muzzle_behavior(RETransform* transform, bool restore = false);
+    void update_player_body_ik(RETransform* transform, bool restore = false);
     void update_player_body_rotation(RETransform* transform);
     void update_camera_transform(RETransform* transform);
     void update_sweet_light_context(RopewaySweetLightManagerContext* ctx);
@@ -147,6 +148,8 @@ private:
     const ModToggle::Ptr m_enabled{ ModToggle::create(generate_name("Enabled")) };
     const ModKey::Ptr m_toggle_key{ ModKey::create(generate_name("ToggleKey")) };
     void on_disabled();
+    bool m_wants_disable{false};
+    bool m_was_hmd_active{false};
 
 
     const ModToggle::Ptr m_smooth_xz_movement{ ModToggle::create(generate_name("SmoothXZMovementVR"), true) };
