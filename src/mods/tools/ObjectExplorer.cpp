@@ -2474,7 +2474,7 @@ void ObjectExplorer::display_native_fields(REManagedObject* obj, sdk::RETypeDefi
 
             // draw the field data
             if (made_node) {
-                display_data(data, data, final_type_name, is_enum, is_managed_str, is_valuetype ? field_type : nullptr);
+                display_data(data, data, final_type_name, is_enum, is_managed_str, (is_valuetype || is_enum) ? field_type : nullptr);
 
                 ImGui::TreePop();
             }
@@ -2922,7 +2922,7 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
                     case 1:
                         display_enum_value(type_name, *(int8_t*)data);
                         if (real_data != nullptr) {
-                            auto& int_val = *(int16_t*)real_data;
+                            auto& int_val = *(int8_t*)real_data;
 
                             ImGui::DragScalar("Set Value", ImGuiDataType_S8, &int_val, 1.0f, &min_i8, &max_i8);
                         }
@@ -2965,6 +2965,12 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
             } else {
                 auto value = *(int32_t*)data;
                 display_enum_value(type_name, (int32_t)value);
+
+                if (real_data != nullptr) {
+                    auto& int_val = *(int32_t*)real_data;
+
+                    ImGui::DragInt("Set Value", (int*)&int_val, 1.0f, min_int, max_int);
+                }
             }
         } else {
             make_tree_addr(data);
