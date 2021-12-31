@@ -10,6 +10,8 @@ Download the latest files from the [Releases](https://github.com/praydog/REFrame
 ### VR
 * Extract the whole zip file into your corresponding game folder.
 
+[VR Troubleshooting/FAQ](https://github.com/praydog/REFramework/wiki/VR-Troubleshooting)
+
 Example game folder: G:\SteamLibrary\steamapps\common\RESIDENT EVIL 2 BIOHAZARD RE2
 
 Supports both DirectX 11 and DirectX 12.
