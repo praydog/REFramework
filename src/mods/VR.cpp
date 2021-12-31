@@ -1482,7 +1482,7 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
         auto& fp = FirstPerson::get();
 
         if (fp->is_enabled() && fp->will_be_used()) {
-            const auto has_motion_controls = m_controllers.size() >= 2;
+            const auto has_motion_controls = this->is_using_controllers();
 
             switch(name_hash) {
             case "GUI_Reticle"_fnv: // Crosshair
