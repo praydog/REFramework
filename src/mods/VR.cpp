@@ -1085,6 +1085,12 @@ void VR::disable_bad_effects() {
     static auto get_vsync_method = render_config_t->get_method("get_VSync");
     static auto set_vsync_method = render_config_t->get_method("set_VSync");
 
+    static auto get_transparent_buffer_quality_method = render_config_t->get_method("get_TransparentBufferQuality");
+    static auto set_transparent_buffer_quality_method = render_config_t->get_method("set_TransparentBufferQuality");
+
+    static auto get_lensflare_enable_method = render_config_t->get_method("get_LensFlareEnable");
+    static auto set_lensflare_enable_method = render_config_t->get_method("set_LensFlareEnable");
+
     auto renderer = renderer_t->get_instance();
 
     auto render_config = get_render_config_method->call<::REManagedObject*>(context, renderer);
@@ -1095,7 +1101,7 @@ void VR::disable_bad_effects() {
     }
 
     if (m_force_fps_settings->value() && get_framerate_setting_method != nullptr && set_framerate_setting_method != nullptr) {
-        auto framerate_setting = get_framerate_setting_method->call<via::render::RenderConfig::FramerateType>(context, render_config);
+        const auto framerate_setting = get_framerate_setting_method->call<via::render::RenderConfig::FramerateType>(context, render_config);
 
         // Allow FPS to go above 60
         if (framerate_setting != via::render::RenderConfig::FramerateType::VARIABLE) {
@@ -1111,7 +1117,7 @@ void VR::disable_bad_effects() {
     }
 
     if (m_force_aa_settings->value() && get_antialiasing_method != nullptr && set_antialiasing_method != nullptr) {
-        auto antialiasing = get_antialiasing_method->call<via::render::RenderConfig::AntiAliasingType>(context, render_config);
+        const auto antialiasing = get_antialiasing_method->call<via::render::RenderConfig::AntiAliasingType>(context, render_config);
 
         // Disable TAA
         switch (antialiasing) {
@@ -1126,7 +1132,7 @@ void VR::disable_bad_effects() {
     }
 
     if (m_force_lensdistortion_settings->value() && get_lens_distortion_setting_method != nullptr && set_lens_distortion_setting_method != nullptr) {
-        auto lens_distortion_setting = get_lens_distortion_setting_method->call<via::render::RenderConfig::LensDistortionSetting>(context, render_config);
+        const auto lens_distortion_setting = get_lens_distortion_setting_method->call<via::render::RenderConfig::LensDistortionSetting>(context, render_config);
 
         // Disable lens distortion
         if (lens_distortion_setting != via::render::RenderConfig::LensDistortionSetting::OFF) {
@@ -1136,7 +1142,7 @@ void VR::disable_bad_effects() {
     }
 
     if (m_force_motionblur_settings->value() && get_motion_blur_enable_method != nullptr && set_motion_blur_enable_method != nullptr) {
-        auto is_motion_blur_enabled = get_motion_blur_enable_method->call<bool>(context, render_config);
+        const auto is_motion_blur_enabled = get_motion_blur_enable_method->call<bool>(context, render_config);
 
         // Disable motion blur
         if (is_motion_blur_enabled) {
@@ -1146,12 +1152,32 @@ void VR::disable_bad_effects() {
     }
 
     if (m_force_vsync_settings->value() && get_vsync_method != nullptr && set_vsync_method != nullptr) {
-        auto vsync = get_vsync_method->call<bool>(context, render_config);
+        const auto vsync = get_vsync_method->call<bool>(context, render_config);
 
         // Disable vsync
         if (vsync) {
             set_vsync_method->call<void*>(context, render_config, false);
             spdlog::info("[VR] VSync disabled");
+        }
+    }
+
+    if (m_force_volumetrics_settings->value() && get_transparent_buffer_quality_method != nullptr && set_transparent_buffer_quality_method != nullptr) {
+        const auto transparent_buffer_quality = get_transparent_buffer_quality_method->call<via::render::RenderConfig::Quality>(context, render_config);
+
+        // Disable volumetrics
+        if (transparent_buffer_quality != via::render::RenderConfig::Quality::NONE) {
+            set_transparent_buffer_quality_method->call<void*>(context, render_config, via::render::RenderConfig::Quality::NONE);
+            spdlog::info("[VR] Volumetrics disabled");
+        }
+    }
+
+    if (m_force_lensflares_settings->value() && get_lensflare_enable_method != nullptr && set_lensflare_enable_method != nullptr) {
+        const auto is_lensflare_enabled = get_lensflare_enable_method->call<bool>(context, render_config);
+
+        // Disable lensflares
+        if (is_lensflare_enabled) {
+            set_lensflare_enable_method->call<void*>(context, render_config, false);
+            spdlog::info("[VR] Lensflares disabled");
         }
     }
 
@@ -2371,6 +2397,8 @@ void VR::on_draw_ui() {
     m_force_motionblur_settings->draw("Force Disable Motion Blur");
     m_force_vsync_settings->draw("Force Disable V-Sync");
     m_force_lensdistortion_settings->draw("Force Disable Lens Distortion");
+    m_force_volumetrics_settings->draw("Force Disable Volumetrics");
+    m_force_lensflares_settings->draw("Force Disable Lens Flares");
 
     ImGui::Separator();
     ImGui::Text("Debug info");

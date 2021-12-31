@@ -366,13 +366,17 @@ private:
     const ModToggle::Ptr m_force_motionblur_settings{ ModToggle::create(generate_name("ForceMotionBlur"), true) };
     const ModToggle::Ptr m_force_vsync_settings{ ModToggle::create(generate_name("ForceVSync"), true) };
     const ModToggle::Ptr m_force_lensdistortion_settings{ ModToggle::create(generate_name("ForceLensDistortion"), true) };
+    const ModToggle::Ptr m_force_volumetrics_settings{ ModToggle::create(generate_name("ForceVolumetrics"), true) };
+    const ModToggle::Ptr m_force_lensflares_settings{ ModToggle::create(generate_name("ForceLensFlares"), true) };
 
     ValueList m_options{
         *m_force_fps_settings,
         *m_force_aa_settings,
         *m_force_motionblur_settings,
         *m_force_vsync_settings,
-        *m_force_lensdistortion_settings
+        *m_force_lensdistortion_settings,
+        *m_force_volumetrics_settings,
+        *m_force_lensflares_settings
     };
 
     bool m_use_rotation{true};
