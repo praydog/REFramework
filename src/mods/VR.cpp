@@ -1030,6 +1030,10 @@ void VR::restore_camera() {
 }
 
 void VR::set_lens_distortion(bool value) {
+    if (!m_force_lensdistortion_settings->value()) {
+        return;
+    }
+
 #ifdef RE7
     auto camera = sdk::get_primary_camera();
 
@@ -1090,7 +1094,7 @@ void VR::disable_bad_effects() {
         return;
     }
 
-    if (get_framerate_setting_method != nullptr && set_framerate_setting_method != nullptr) {
+    if (m_force_fps_settings->value() && get_framerate_setting_method != nullptr && set_framerate_setting_method != nullptr) {
         auto framerate_setting = get_framerate_setting_method->call<via::render::RenderConfig::FramerateType>(context, render_config);
 
         // Allow FPS to go above 60
@@ -1101,12 +1105,12 @@ void VR::disable_bad_effects() {
     }
     
     // get_MaxFps on application
-    if (application->get_max_fps() < 600.0f) {
+    if (m_force_fps_settings->value() && application->get_max_fps() < 600.0f) {
         application->set_max_fps(600.0f);
         spdlog::info("[VR] Max FPS set to 600");
     }
 
-    if (get_antialiasing_method != nullptr && set_antialiasing_method != nullptr) {
+    if (m_force_aa_settings->value() && get_antialiasing_method != nullptr && set_antialiasing_method != nullptr) {
         auto antialiasing = get_antialiasing_method->call<via::render::RenderConfig::AntiAliasingType>(context, render_config);
 
         // Disable TAA
@@ -1121,7 +1125,7 @@ void VR::disable_bad_effects() {
         }
     }
 
-    if (get_lens_distortion_setting_method != nullptr && set_lens_distortion_setting_method != nullptr) {
+    if (m_force_lensdistortion_settings->value() && get_lens_distortion_setting_method != nullptr && set_lens_distortion_setting_method != nullptr) {
         auto lens_distortion_setting = get_lens_distortion_setting_method->call<via::render::RenderConfig::LensDistortionSetting>(context, render_config);
 
         // Disable lens distortion
@@ -1131,7 +1135,7 @@ void VR::disable_bad_effects() {
         }
     }
 
-    if (get_motion_blur_enable_method != nullptr && set_motion_blur_enable_method != nullptr) {
+    if (m_force_motionblur_settings->value() && get_motion_blur_enable_method != nullptr && set_motion_blur_enable_method != nullptr) {
         auto is_motion_blur_enabled = get_motion_blur_enable_method->call<bool>(context, render_config);
 
         // Disable motion blur
@@ -1141,7 +1145,7 @@ void VR::disable_bad_effects() {
         }
     }
 
-    if (get_vsync_method != nullptr && set_vsync_method != nullptr) {
+    if (m_force_vsync_settings->value() && get_vsync_method != nullptr && set_vsync_method != nullptr) {
         auto vsync = get_vsync_method->call<bool>(context, render_config);
 
         // Disable vsync
@@ -2329,15 +2333,6 @@ void VR::on_draw_ui() {
     ImGui::Text("Render Resolution: %d x %d", m_w, m_h);
     ImGui::Text("Resolution can be changed in SteamVR");
     ImGui::Separator();
-    ImGui::Text("Debug info");
-    ImGui::DragFloat4("Raw Left", (float*)&m_raw_projections[0], 0.01f, -100.0f, 100.0f);
-    ImGui::DragFloat4("Raw Right", (float*)&m_raw_projections[1], 0.01f, -100.0f, 100.0f);
-
-    // convert m_avg_input_delay (std::chrono::nanoseconds) to milliseconds (float)
-    auto duration_float = std::chrono::duration<float, std::milli>(m_avg_input_delay).count();
-
-    ImGui::DragFloat("Avg Input Processing Delay (MS)", &duration_float, 0.00001f);
-    ImGui::Separator();
 
     if (ImGui::Button("Set Standing Height")) {
         m_standing_origin.y = get_position(0).y;
@@ -2351,8 +2346,8 @@ void VR::on_draw_ui() {
         m_request_reinitialize_openvr = true;
     }
 
-    ImGui::DragFloat4("Right Bounds", (float*)&m_right_bounds, 0.005f, -2.0f, 2.0f);
-    ImGui::DragFloat4("Left Bounds", (float*)&m_left_bounds, 0.005f, -2.0f, 2.0f);
+    //ImGui::DragFloat4("Right Bounds", (float*)&m_right_bounds, 0.005f, -2.0f, 2.0f);
+    //ImGui::DragFloat4("Left Bounds", (float*)&m_left_bounds, 0.005f, -2.0f, 2.0f);
 
     ImGui::DragFloat3("Overlay Rotation", (float*)&m_overlay_rotation, 0.01f, -360.0f, 360.0f);
     ImGui::DragFloat3("Overlay Position", (float*)&m_overlay_position, 0.01f, -100.0f, 100.0f);
@@ -2363,10 +2358,29 @@ void VR::on_draw_ui() {
     if (ImGui::Checkbox("Positional Tracking", &m_positional_tracking)) {
     }
 
-    if (ImGui::Checkbox("Depth Aided Reprojection", &m_depth_aided_reprojection)) {
-    }
+    /*if (ImGui::Checkbox("Depth Aided Reprojection", &m_depth_aided_reprojection)) {
+    }*/
 
     ImGui::DragFloat("UI Scale", &m_ui_scale, 0.005f, 0.0f, 100.0f);
+
+    ImGui::Separator();
+    ImGui::Text("Graphical Options");
+
+    m_force_fps_settings->draw("Force Uncap FPS");
+    m_force_aa_settings->draw("Force Disable TAA");
+    m_force_motionblur_settings->draw("Force Disable Motion Blur");
+    m_force_vsync_settings->draw("Force Disable V-Sync");
+    m_force_lensdistortion_settings->draw("Force Disable Lens Distortion");
+
+    ImGui::Separator();
+    ImGui::Text("Debug info");
+    ImGui::DragFloat4("Raw Left", (float*)&m_raw_projections[0], 0.01f, -100.0f, 100.0f);
+    ImGui::DragFloat4("Raw Right", (float*)&m_raw_projections[1], 0.01f, -100.0f, 100.0f);
+
+    // convert m_avg_input_delay (std::chrono::nanoseconds) to milliseconds (float)
+    auto duration_float = std::chrono::duration<float, std::milli>(m_avg_input_delay).count();
+
+    ImGui::DragFloat("Avg Input Processing Delay (MS)", &duration_float, 0.00001f);
 }
 
 void VR::on_device_reset() {
@@ -2377,11 +2391,15 @@ void VR::on_device_reset() {
 }
 
 void VR::on_config_load(const utility::Config& cfg) {
-    
+    for (IModValue& option : m_options) {
+        option.config_load(cfg);
+    }
 }
 
 void VR::on_config_save(utility::Config& cfg) {
-    
+        for (IModValue& option : m_options) {
+        option.config_save(cfg);
+    }
 }
 
 Vector4f VR::get_position(uint32_t index) {

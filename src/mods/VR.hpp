@@ -30,6 +30,7 @@ public:
 
     // Called when the mod is initialized
     std::optional<std::string> on_initialize() override;
+
     void on_lua_state_created(sol::state& lua) override;
 
     void on_pre_imgui_frame() override;
@@ -358,6 +359,20 @@ private:
         { "binding_vive.json", binding_vive },
         { "bindings_vive_controller.json", bindings_vive_controller },
         { "bindings_knuckles.json", bindings_knuckles }
+    };
+
+    const ModToggle::Ptr m_force_fps_settings{ ModToggle::create(generate_name("ForceFPS"), true) };
+    const ModToggle::Ptr m_force_aa_settings{ ModToggle::create(generate_name("ForceAntiAliasing"), true) };
+    const ModToggle::Ptr m_force_motionblur_settings{ ModToggle::create(generate_name("ForceMotionBlur"), true) };
+    const ModToggle::Ptr m_force_vsync_settings{ ModToggle::create(generate_name("ForceVSync"), true) };
+    const ModToggle::Ptr m_force_lensdistortion_settings{ ModToggle::create(generate_name("ForceLensDistortion"), true) };
+
+    ValueList m_options{
+        *m_force_fps_settings,
+        *m_force_aa_settings,
+        *m_force_motionblur_settings,
+        *m_force_vsync_settings,
+        *m_force_lensdistortion_settings
     };
 
     bool m_use_rotation{true};
