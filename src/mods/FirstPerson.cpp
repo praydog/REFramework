@@ -111,6 +111,7 @@ void FirstPerson::on_draw_ui() {
 
     m_smooth_xz_movement->draw("Smooth XZ Movement (VR)");
     m_smooth_y_movement->draw("Smooth Y Movement (VR)");
+    m_roomscale->draw("Experimental Roomscale (VR)");
 
     ImGui::DragFloat4("Scale Debug", (float*)&m_scale_debug.x, 1.0f, -1.0f, 1.0f);
     ImGui::DragFloat4("Scale Debug 2", (float*)&m_scale_debug2.x, 1.0f, -1.0f, 1.0f);
@@ -265,7 +266,7 @@ void FirstPerson::on_pre_update_transform(RETransform* transform) {
         m_last_camera_type = utility::re_managed_object::get_field<app::ropeway::camera::CameraControlType>(m_camera_system, "BusyCameraType");
         m_cached_bone_matrix = nullptr;
 
-        update_player_transform(m_player_transform);
+        update_player_vr(m_player_transform);
         update_player_body_rotation(m_player_transform);
     }
     // This is because UpdateTransform recursively calls UpdateTransform on its children,
@@ -411,7 +412,7 @@ void FirstPerson::on_pre_application_entry(void* entry, const char* name, size_t
 void FirstPerson::on_application_entry(void* entry, const char* name, size_t hash) {
     switch (hash) {
         case "UpdateMotion"_fnv:
-            on_post_update_motion(entry); // fixes like literally every problem ever to exist
+            on_post_update_motion(entry, true); // fixes like literally every problem ever to exist
             break;
         case "LateUpdateBehavior"_fnv:
             on_post_late_update_behavior(entry);
@@ -441,19 +442,13 @@ void FirstPerson::on_post_late_update_behavior(void* entry) {
     
 }
 
-void FirstPerson::on_post_update_motion(void* entry) {
+void FirstPerson::on_post_update_motion(void* entry, bool true_motion) {
     if (!will_be_used()) {
         return;
     }
 
     // check it every time i guess becuase who knows what's going to happen.
-    if (m_camera_system != nullptr && m_camera_system->ownerGameObject != nullptr) {
-        if (!update_pointers_from_camera_system(m_camera_system)) {
-            reset();
-            return;
-        }
-    } else {
-        reset();
+    if (!update_pointers()) {
         return;
     }
 
@@ -462,7 +457,7 @@ void FirstPerson::on_post_update_motion(void* entry) {
             auto player_object = m_player_transform->ownerGameObject;
 
             if (player_object != nullptr) {
-                update_player_transform(m_player_transform);
+                update_player_vr(m_player_transform, true_motion);
             }
         }
     }
@@ -674,10 +669,9 @@ bool FirstPerson::update_pointers_from_camera_system(RopewayCameraSystem* camera
     return true;
 }
 
-void FirstPerson::update_player_transform(RETransform* transform) {
-    update_player_arm_ik(transform);
+void FirstPerson::update_player_vr(RETransform* transform, bool first) {
+    update_player_body_ik(transform, false, first);
     update_player_muzzle_behavior(transform);
-    update_player_body_ik(transform);
 
     m_was_hmd_active = VR::get()->is_hmd_active();
 }
@@ -1039,7 +1033,7 @@ void FirstPerson::update_player_muzzle_behavior(RETransform* transform, bool res
     }
 }
 
-void FirstPerson::update_player_body_ik(RETransform* transform, bool restore) {
+void FirstPerson::update_player_body_ik(RETransform* transform, bool restore, bool first) {
     if (!restore && !m_enabled->value()) {
         return;
     }
@@ -1079,7 +1073,7 @@ void FirstPerson::update_player_body_ik(RETransform* transform, bool restore) {
     if (ik_leg != nullptr && via_motion != nullptr) {
         // disabling FirstPerson triggers this
         if (restore) {
-            Vector3f zero_offset{};
+            Vector4f zero_offset{};
 
             sdk::call_object_func<void*>(ik_leg, "set_CenterPositionCtrl", sdk::get_thread_context(), ik_leg, via::motion::IkLeg::EffectorCtrl::None);
             sdk::call_object_func<void*>(ik_leg, "set_CenterOffset", sdk::get_thread_context(), ik_leg, &zero_offset);
@@ -1089,25 +1083,41 @@ void FirstPerson::update_player_body_ik(RETransform* transform, bool restore) {
         }
 
         const auto headset_pos = vr_mod->get_position(0);
-        const auto standing_origin = vr_mod->get_standing_origin();
-        const auto hmd_offset = headset_pos - standing_origin;
+        auto standing_origin = vr_mod->get_standing_origin();
+        auto hmd_offset = headset_pos - standing_origin;
+
+        glm::quat rotation{};
+
+        if (is_using_controllers) {
+            rotation = m_last_controller_rotation_vr;
+        } else {
+            rotation = utility::math::remove_y_component(Matrix4x4f{glm::normalize(m_last_controller_rotation_vr)});
+        }
+
+        bool updated_transform = false;
+
+        // Experimental roomscale movement.
+        if (m_roomscale->value() && first && glm::length(Vector3f{hmd_offset.x, 0.0f, hmd_offset.z}) > 0.5f) {
+            const auto current_pos = sdk::get_transform_position(transform);
+            sdk::set_transform_position(transform, current_pos + (rotation * Vector4f{ hmd_offset.x, 0.0f, hmd_offset.z, 0.0f }));
+
+            standing_origin = Vector4f{headset_pos.x, standing_origin.y, headset_pos.z, standing_origin.w};
+            vr_mod->set_standing_origin(standing_origin);
+
+            hmd_offset = headset_pos - standing_origin;
+            updated_transform = true;
+        }
 
         // Create a final offset which will keep the player's head where they want
         // while also stabilizing any undesired head movement from the original animation
-        Vector4f final_offset{ hmd_offset };
-
-        if (!is_using_controllers) {
-            const auto forward_matrix = utility::math::remove_y_component(Matrix4x4f{glm::normalize(m_last_controller_rotation_vr)});
-            final_offset = forward_matrix * final_offset;
-        } else {
-            final_offset = m_last_controller_rotation_vr * final_offset;
-        }
+        Vector4f final_offset{ rotation * hmd_offset };
 
         const auto smooth_xz_movement = m_smooth_xz_movement->value();
         const auto smooth_y_movement = m_smooth_y_movement->value();
 
+        auto center_joint = utility::re_transform::get_joint(*transform, L"COG");
+
         if (smooth_xz_movement || smooth_y_movement) {
-            auto center_joint = utility::re_transform::get_joint(*transform, L"COG");
             auto head_joint = utility::re_transform::get_joint(*transform, L"head");
 
             if (head_joint != nullptr && center_joint != nullptr) {
@@ -1144,6 +1154,24 @@ void FirstPerson::update_player_body_ik(RETransform* transform, bool restore) {
         // a small side effect is that the player can slightly float, but it's worth it.
         // not a TDB method unfortunately.
         utility::re_managed_object::call_method(ik_leg, "set_CenterAdjust", via::motion::IkLeg::CenterAdjust::None);
+
+        if (updated_transform && center_joint != nullptr) {
+            Vector4f true_cog_pos{};
+            const auto cog_joint_index = ((sdk::Joint*)center_joint)->get_joint_index();
+            sdk::call_object_func<Vector4f*>(via_motion, "getWorldPosition", &true_cog_pos, sdk::get_thread_context(), via_motion, cog_joint_index);
+
+            const auto original_cog_pos = sdk::get_joint_position(center_joint);
+            sdk::set_joint_position(center_joint, true_cog_pos);
+
+            sdk::call_object_func<void*>(ik_leg, "firstUpdate", sdk::get_thread_context(), ik_leg);
+            sdk::call_object_func<void*>(ik_leg, "secondUpdate", sdk::get_thread_context(), ik_leg);
+
+            update_player_arm_ik(transform);
+
+            sdk::set_joint_position(center_joint, original_cog_pos);
+        } else {
+            update_player_arm_ik(transform);
+        }
     }
 }
 

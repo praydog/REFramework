@@ -91,6 +91,7 @@ public:
     // Functions that generally use a mutex or have more complex logic
     float get_standing_height();
     Vector4f get_standing_origin();
+    void set_standing_origin(const Vector4f& origin);
 
     Vector4f get_current_offset();
 

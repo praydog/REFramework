@@ -1226,6 +1226,12 @@ Vector4f VR::get_standing_origin() {
     return m_standing_origin;
 }
 
+void VR::set_standing_origin(const Vector4f& origin) {
+    std::unique_lock _{ m_pose_mtx };
+    
+    m_standing_origin = origin;
+}
+
 Vector4f VR::get_current_offset() {
     if (!m_is_hmd_active) {
         return Vector4f{};

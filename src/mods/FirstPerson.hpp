@@ -47,7 +47,7 @@ public:
     void on_pre_update_behavior(void* entry);
     void on_pre_late_update_behavior(void* entry);
     void on_post_late_update_behavior(void* entry);
-    void on_post_update_motion(void* entry);
+    void on_post_update_motion(void* entry, bool true_motion = false);
 
     // non-virtual callbacks called from lua
     bool on_pre_flashlight_apply_transform(::REManagedObject* flashlight_component);
@@ -64,10 +64,10 @@ private:
     void set_vignette(via::render::ToneMapping::Vignetting value);
     bool update_pointers();
     bool update_pointers_from_camera_system(RopewayCameraSystem* camera_system);
-    void update_player_transform(RETransform* transform);
+    void update_player_vr(RETransform* transform, bool first = false);
     void update_player_arm_ik(RETransform* transform);
     void update_player_muzzle_behavior(RETransform* transform, bool restore = false);
-    void update_player_body_ik(RETransform* transform, bool restore = false);
+    void update_player_body_ik(RETransform* transform, bool restore = false, bool first = false);
     void update_player_body_rotation(RETransform* transform);
     void update_camera_transform(RETransform* transform);
     void update_sweet_light_context(RopewaySweetLightManagerContext* ctx);
@@ -154,6 +154,7 @@ private:
 
     const ModToggle::Ptr m_smooth_xz_movement{ ModToggle::create(generate_name("SmoothXZMovementVR"), true) };
     const ModToggle::Ptr m_smooth_y_movement{ ModToggle::create(generate_name("SmoothYMovementVR"), true) };
+    const ModToggle::Ptr m_roomscale{ ModToggle::create(generate_name("RoomScale"), false) };
     const ModToggle::Ptr m_disable_vignette{ ModToggle::create(generate_name("DisableVignette")) };
     const ModToggle::Ptr m_hide_mesh{ ModToggle::create(generate_name("HideJointMesh"), true) };
     const ModToggle::Ptr m_rotate_mesh{ ModToggle::create(generate_name("ForceRotateMesh"), true) };
