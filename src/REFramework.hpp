@@ -89,6 +89,10 @@ public:
     }
 
     void set_draw_ui(bool state) {
+        if (!state && m_draw_ui && m_game_data_initialized) {
+            save_config();
+        }
+
         m_draw_ui = state;
     }
 
