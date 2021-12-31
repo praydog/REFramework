@@ -48,6 +48,7 @@ public:
     void on_application_entry(void* entry, const char* name, size_t hash) override;
 
     // Application entries
+    void on_pre_update_hid(void* entry);
     void on_update_hid(void* entry);
     void on_pre_begin_rendering(void* entry);
     void on_begin_rendering(void* entry);
@@ -193,6 +194,7 @@ private:
     bool detect_controllers();
     bool is_any_action_down();
     void update_hmd_state();
+    void update_action_states();
     void update_camera(); // if not in firstperson mode
     void update_camera_origin(); // every frame
     void restore_camera(); // After rendering

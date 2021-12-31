@@ -771,25 +771,7 @@ bool VR::is_any_action_down() {
 }
 
 void VR::update_hmd_state() {
-    const auto start_time = std::chrono::high_resolution_clock::now();
-
-    auto error = vr::VRInput()->UpdateActionState(&m_active_action_set, sizeof(m_active_action_set), 1);
-
-    if (error != vr::VRInputError_None) {
-        spdlog::error("VRInput failed to update action state: {}", (uint32_t)error);
-    }
-
-    const auto end_time = std::chrono::high_resolution_clock::now();
-    const auto time_delta = end_time - start_time;
-
-    m_last_input_delay = time_delta;
-    m_avg_input_delay = (m_avg_input_delay + time_delta) / 2;
-
-    if ((end_time - start_time) >= std::chrono::milliseconds(30)) {
-        spdlog::warn("VRInput update action state took too long: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count());
-
-        reinitialize_openvr();
-    }
+    //update_action_states();
 
     vr::VRCompositor()->SetTrackingSpace(vr::TrackingUniverseStanding);
     vr::VRCompositor()->WaitGetPoses(m_real_render_poses.data(), vr::k_unMaxTrackedDeviceCount, m_real_game_poses.data(), vr::k_unMaxTrackedDeviceCount);
@@ -873,6 +855,33 @@ void VR::update_hmd_state() {
         FirstPerson::get()->on_update_transform(camera->ownerGameObject->transform);
     }
 #endif
+}
+
+void VR::update_action_states() {
+    if (m_request_reinitialize_openvr) {
+        return;
+    }
+
+    const auto start_time = std::chrono::high_resolution_clock::now();
+
+    auto error = vr::VRInput()->UpdateActionState(&m_active_action_set, sizeof(m_active_action_set), 1);
+
+    if (error != vr::VRInputError_None) {
+        spdlog::error("VRInput failed to update action state: {}", (uint32_t)error);
+    }
+
+    const auto end_time = std::chrono::high_resolution_clock::now();
+    const auto time_delta = end_time - start_time;
+
+    m_last_input_delay = time_delta;
+    m_avg_input_delay = (m_avg_input_delay + time_delta) / 2;
+
+    if ((end_time - start_time) >= std::chrono::milliseconds(30)) {
+        spdlog::warn("VRInput update action state took too long: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count());
+
+        //reinitialize_openvr();
+        m_request_reinitialize_openvr = true;
+    }
 }
 
 void VR::update_camera() {
@@ -1989,7 +1998,14 @@ void VR::on_wait_rendering(void* entry) {
 }
 
 void VR::on_pre_application_entry(void* entry, const char* name, size_t hash) {
+    if (!m_openvr_loaded) {
+        return;
+    }
+
     switch (hash) {
+        case "UpdateHID"_fnv:
+            on_pre_update_hid(entry);
+            break;
         case "WaitRendering"_fnv:
             on_pre_wait_rendering(entry);
             break;
@@ -2005,6 +2021,10 @@ void VR::on_pre_application_entry(void* entry, const char* name, size_t hash) {
 }
 
 void VR::on_application_entry(void* entry, const char* name, size_t hash) {
+    if (!m_openvr_loaded) {
+        return;
+    }
+
     switch (hash) {
         case "UpdateHID"_fnv:
             on_update_hid(entry);
@@ -2023,8 +2043,16 @@ void VR::on_application_entry(void* entry, const char* name, size_t hash) {
     }
 }
 
+void VR::on_pre_update_hid(void* entry) {
+    if (!m_openvr_loaded || !m_is_hmd_active) {
+        return;
+    }
+
+    update_action_states();
+}
+
 void VR::on_update_hid(void* entry) {
-    if (!m_openvr_loaded) {
+    if (!m_openvr_loaded || !m_is_hmd_active) {
         return;
     }
 
