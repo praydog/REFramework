@@ -7,13 +7,13 @@
 #include "D3D11Component.hpp"
 
 namespace vrmod {
-void D3D11Component::on_frame(VR* vr) {
+vr::EVRCompositorError D3D11Component::on_frame(VR* vr) {
     if (m_left_eye_tex == nullptr) {
         setup();
     }
 
     if (vr->m_frame_count == vr->m_last_frame_count) {
-        return;
+        return vr::VRCompositorError_None;
     }
 
     auto& hook = g_framework->get_d3d11_hook();
@@ -36,7 +36,7 @@ void D3D11Component::on_frame(VR* vr) {
 
     if (backbuffer == nullptr) {
         spdlog::error("[VR] Failed to get back buffer.");
-        return;
+        return vr::VRCompositorError_None;
     }
 
     // If m_frame_count is even, we're rendering the left eye.
@@ -57,6 +57,8 @@ void D3D11Component::on_frame(VR* vr) {
             m_right_eye_proj = vr->m_hmd->GetProjectionMatrix(vr::Eye_Right, vr->m_nearz, vr->m_farz);
         }
     }
+
+    vr::EVRCompositorError e = vr::EVRCompositorError::VRCompositorError_None;
 
     if (vr->m_frame_count % 2 == vr->m_right_eye_interval) {
         // Submit the eye textures to the compositor at this point. It must be done every frame for both eyes otherwise
@@ -86,7 +88,7 @@ void D3D11Component::on_frame(VR* vr) {
             };
 
             const auto flags = vr::Submit_TextureWithDepth | vr::Submit_TextureWithPose;
-            auto e = compositor->Submit(vr::Eye_Left, &left_eye, &vr->m_left_bounds, (vr::EVRSubmitFlags)flags);
+            e = compositor->Submit(vr::Eye_Left, &left_eye, &vr->m_left_bounds, (vr::EVRSubmitFlags)flags);
 
             bool submitted = true;
 
@@ -107,7 +109,7 @@ void D3D11Component::on_frame(VR* vr) {
             vr::Texture_t left_eye{(void*)m_left_eye_tex.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto};
             vr::Texture_t right_eye{(void*)m_right_eye_tex.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto};
 
-            auto e = compositor->Submit(vr::Eye_Left, &left_eye, &vr->m_left_bounds);
+            e = compositor->Submit(vr::Eye_Left, &left_eye, &vr->m_left_bounds);
 
             bool submitted = true;
 
@@ -126,6 +128,8 @@ void D3D11Component::on_frame(VR* vr) {
             vr->m_submitted = submitted;
         }
     }
+
+    return e;
 }
 
 void D3D11Component::on_reset(VR* vr) {

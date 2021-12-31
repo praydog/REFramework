@@ -5,7 +5,7 @@
 #include "D3D12Component.hpp"
 
 namespace vrmod {
-void D3D12Component::on_frame(VR* vr) {
+vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
     if (m_left_eye_tex == nullptr) {
         setup();
     }
@@ -14,7 +14,7 @@ void D3D12Component::on_frame(VR* vr) {
     // causes all sorts of weird bugs
     // but it usually happens after removing the headset
     if (vr->m_frame_count == vr->m_last_frame_count) {
-        return;
+        return vr::VRCompositorError_None;
     }
 
     auto& hook = g_framework->get_d3d12_hook();
@@ -35,7 +35,7 @@ void D3D12Component::on_frame(VR* vr) {
 
     if (backbuffer == nullptr) {
         spdlog::error("[VR] Failed to get back buffer.");
-        return;
+        return vr::VRCompositorError_None;;
     }
 
     // If m_frame_count is even, we're rendering the left eye.
@@ -46,6 +46,8 @@ void D3D12Component::on_frame(VR* vr) {
         // Copy the back buffer to the right eye texture.
         copy_texture(backbuffer.Get(), m_right_eye_tex.Get());
     }
+
+    vr::EVRCompositorError e = vr::EVRCompositorError::VRCompositorError_None;
 
     if (vr->m_frame_count % 2 == vr->m_right_eye_interval) {
         // Wait for GPU to finish copying the textures.
@@ -60,7 +62,7 @@ void D3D12Component::on_frame(VR* vr) {
         if (vr->m_needs_wgp_update) {
             vr->m_submitted = false;
             spdlog::info("[VR] Needed WGP update inside present (frame {})", vr->m_frame_count);
-            return;
+            return vr::VRCompositorError_None;;
         }
 
         // Submit the eye textures to the compositor at this point. It must be done every frame for both eyes otherwise
@@ -82,7 +84,7 @@ void D3D12Component::on_frame(VR* vr) {
         vr::Texture_t left_eye{(void*)&left, vr::TextureType_DirectX12, vr::ColorSpace_Auto};
         vr::Texture_t right_eye{(void*)&right, vr::TextureType_DirectX12, vr::ColorSpace_Auto};
 
-        auto e = compositor->Submit(vr::Eye_Left, &left_eye, &vr->m_left_bounds);
+        e = compositor->Submit(vr::Eye_Left, &left_eye, &vr->m_left_bounds);
 
         bool submitted = true;
 

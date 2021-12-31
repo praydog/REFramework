@@ -1371,10 +1371,18 @@ void VR::on_frame() {
     // attempt to fix crash when reinitializing openvr
     std::scoped_lock _{m_openvr_mtx};
 
+    vr::EVRCompositorError e = vr::EVRCompositorError::VRCompositorError_None;
+
     if (renderer == REFramework::RendererType::D3D11) {
-        m_d3d11.on_frame(this);
+        e = m_d3d11.on_frame(this);
     } else if (renderer == REFramework::RendererType::D3D12) {
-        m_d3d12.on_frame(this);
+        e = m_d3d12.on_frame(this);
+    }
+
+    // force a waitgetposes call to fix this...
+    if (e == vr::EVRCompositorError::VRCompositorError_AlreadySubmitted) {
+        m_wgp_initialized = false;
+        m_needs_wgp_update = true;
     }
 }
 

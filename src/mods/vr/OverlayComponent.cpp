@@ -20,7 +20,6 @@ std::optional<std::string> OverlayComponent::on_initialize_openvr() {
     // set overlay to visible
     vr::VROverlay()->ShowOverlay(m_overlay_handle);
 
-    // set overlay to high quality
     overlay_error = vr::VROverlay()->SetOverlayWidthInMeters(m_overlay_handle, 0.25f);
 
     if (overlay_error != vr::VROverlayError_None) {
@@ -198,15 +197,17 @@ void OverlayComponent::update_overlay() {
     // Fire an intersection test and enable the laser pointer if we're intersecting
     const auto& controllers = vr->get_controllers();
 
-    bool should_show_overlay = true;
+    bool should_show_overlay = !m_closed_ui;
 
     if (controllers.size() >= 2 && !vr->is_any_action_down()) {
+        Matrix4x4f left_controller_world_transform{glm::identity<Matrix4x4f>()};
+
         // Attach the overlay to the left controller
         if (controllers[0] != vr::k_unTrackedDeviceIndexInvalid) {
             const auto position_offset = vr->m_overlay_position;
             const auto rotation_offset = vr->m_overlay_rotation;
  
-            auto left_controller_world_transform = vr->get_transform(controllers[0]) * Matrix4x4f{glm::quat{rotation_offset}};
+            left_controller_world_transform = vr->get_transform(controllers[0]) * Matrix4x4f{glm::quat{rotation_offset}};
             left_controller_world_transform[3] -= glm::extractMatrixRotation(left_controller_world_transform) * position_offset;
             left_controller_world_transform[3].w = 1.0f;
 
@@ -266,8 +267,11 @@ void OverlayComponent::update_overlay() {
                                     v >= 0.25f && 
                                     v <= 0.75f;
 
+                    auto normal = Vector4f{intersection_results.vNormal.v[0], intersection_results.vNormal.v[1], intersection_results.vNormal.v[2], 1.0f};
+                    normal = glm::extractMatrixRotation(controller_world_transform) * normal;
+
                     // Make sure the intersection hit the front of the overlay, not the back
-                    any_intersected = any_intersected && intersection_results.vNormal.v[2] > 0.0f;
+                    any_intersected = any_intersected && normal.z > 0.0f;
                 } else {
                     any_intersected = intersection_results.vNormal.v[2] > 0.0f;
                 }
@@ -299,8 +303,11 @@ void OverlayComponent::update_overlay() {
                                     v <= 0.75f;
                 }
 
+                auto normal = Vector4f{intersection_results.vNormal.v[0], intersection_results.vNormal.v[1], intersection_results.vNormal.v[2], 1.0f};
+                normal = glm::extractMatrixRotation(head_world_transform) * normal;
+
                 // Make sure the intersection hit the front of the overlay, not the back
-                any_intersected = any_intersected && intersection_results.vNormal.v[2] > 0.0f;
+                any_intersected = any_intersected && normal.z > 0.0f;
             } else {
                 any_intersected = false;
             }
@@ -327,6 +334,7 @@ void OverlayComponent::update_overlay() {
 
             if (!m_closed_ui) {
                 g_framework->set_draw_ui(false);
+
                 m_closed_ui = true;
                 m_just_closed_ui = true;
             } else {

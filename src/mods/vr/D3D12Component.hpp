@@ -9,7 +9,7 @@ class VR;
 namespace vrmod {
 class D3D12Component {
 public:
-    void on_frame(VR* vr);
+    vr::EVRCompositorError on_frame(VR* vr);
     void on_reset(VR* vr);
 
 private:
