@@ -1100,6 +1100,9 @@ void VR::disable_bad_effects() {
     static auto get_lensflare_enable_method = render_config_t->get_method("get_LensFlareEnable");
     static auto set_lensflare_enable_method = render_config_t->get_method("set_LensFlareEnable");
 
+    static auto get_colorspace_method = render_config_t->get_method("get_ColorSpace");
+    static auto set_colorspace_method = render_config_t->get_method("set_ColorSpace");
+
     auto renderer = renderer_t->get_instance();
 
     auto render_config = get_render_config_method->call<::REManagedObject*>(context, renderer);
@@ -1187,6 +1190,15 @@ void VR::disable_bad_effects() {
         if (is_lensflare_enabled) {
             set_lensflare_enable_method->call<void*>(context, render_config, false);
             spdlog::info("[VR] Lensflares disabled");
+        }
+    }
+
+    if (get_colorspace_method != nullptr && set_colorspace_method != nullptr) {
+        const auto is_hdr_enabled = get_colorspace_method->call<via::render::ColorSpace>(context, render_config) == via::render::ColorSpace::HDR10;
+
+        if (is_hdr_enabled) {
+            set_colorspace_method->call<void*>(context, render_config, via::render::ColorSpace::HDTV);
+            spdlog::info("[VR] HDR disabled");
         }
     }
 
