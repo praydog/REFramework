@@ -1622,6 +1622,10 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
 
                         // Fix position of interaction icons
                         if (name_hash == "GUI_FloatIcon"_fnv || name_hash == "RogueFloatIcon"_fnv) { // RE2, RE3
+                            if (name_hash == "GUI_FloatIcon"_fnv) {
+                                m_last_interaction_display = std::chrono::steady_clock::now();
+                            }
+                        
                             fix_2d_position(original_game_object_pos);
                         } else if(gui_driver_typedef != nullptr) { // RE8
                             auto interact_icon_comp = utility::re_component::find(game_object->transform, gui_driver_typedef->get_type());
@@ -2208,7 +2212,13 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
     set_button_state(app::ropeway::InputDefine::Kind::PRESS_START, is_right_a_button_down);
     set_button_state(app::ropeway::InputDefine::Kind::DECIDE, is_right_a_button_down);
     set_button_state(app::ropeway::InputDefine::Kind::DIALOG_DECIDE, is_right_a_button_down);
-    set_button_state((app::ropeway::InputDefine::Kind)((uint64_t)1 << 51), is_re3_dodge_down); // RE3 dodge
+
+    // only allow dodging if there's nothing to interact with nearby
+    if (!is_right_a_button_down || (now - m_last_interaction_display) >= std::chrono::milliseconds(200)) {
+        set_button_state((app::ropeway::InputDefine::Kind)((uint64_t)1 << 51), is_re3_dodge_down); // RE3 dodge
+    } else {
+        set_button_state((app::ropeway::InputDefine::Kind)((uint64_t)1 << 51), false); // RE3 dodge
+    }
     
     // Right B: Reload, Skip Event, UI_EXCHANGE, UI_RESET, (1 << 52) (that one is RE3 only? don't see it in the enum)
     set_button_state(app::ropeway::InputDefine::Kind::RELOAD, is_right_b_button_down);
