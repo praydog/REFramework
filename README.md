@@ -12,6 +12,7 @@ Download the latest files from the [Releases](https://github.com/praydog/REFrame
 * Extract the whole zip file except `openvr_api.dll` into your corresponding game folder.
 
 ### VR
+* Install SteamVR
 * Extract the whole zip file into your corresponding game folder.
 
 [VR Troubleshooting/FAQ](https://github.com/praydog/REFramework/wiki/VR-Troubleshooting)
