@@ -178,6 +178,7 @@ HRESULT WINAPI D3D11Hook::resize_buffers(
     d3d11->m_swap_chain = swap_chain;
     d3d11->m_swapchain_0 = nullptr;
     d3d11->m_swapchain_1 = nullptr;
+    d3d11->m_last_depthstencil_used.Reset();
 
     if (d3d11->m_on_resize_buffers) {
         d3d11->m_on_resize_buffers(*d3d11);

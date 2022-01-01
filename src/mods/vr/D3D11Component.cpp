@@ -170,16 +170,19 @@ void D3D11Component::setup() {
 
     // Make depth stencils for both eyes.
     auto depthstencil = hook->get_last_depthstencil_used();
-    D3D11_TEXTURE2D_DESC depthstencil_desc{};
 
-    depthstencil->GetDesc(&depthstencil_desc);
+    if (depthstencil != nullptr) {
+        D3D11_TEXTURE2D_DESC depthstencil_desc{};
 
-    // Create eye depthstencils.
-    device->CreateTexture2D(&depthstencil_desc, nullptr, &m_left_eye_depthstencil);
-    device->CreateTexture2D(&depthstencil_desc, nullptr, &m_right_eye_depthstencil);
+        depthstencil->GetDesc(&depthstencil_desc);
 
-    // Copy the current depthstencil into the right eye.
-    context->CopyResource(m_right_eye_depthstencil.Get(), depthstencil.Get());
+        // Create eye depthstencils.
+        device->CreateTexture2D(&depthstencil_desc, nullptr, &m_left_eye_depthstencil);
+        device->CreateTexture2D(&depthstencil_desc, nullptr, &m_right_eye_depthstencil);
+
+        // Copy the current depthstencil into the right eye.
+        context->CopyResource(m_right_eye_depthstencil.Get(), depthstencil.Get());
+    }
 
     spdlog::info("[VR] d3d11 textures have been setup");
 }
