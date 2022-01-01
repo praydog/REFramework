@@ -62,7 +62,7 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
         if (vr->m_needs_wgp_update) {
             vr->m_submitted = false;
             spdlog::info("[VR] Needed WGP update inside present (frame {})", vr->m_frame_count);
-            return vr::VRCompositorError_None;;
+            return vr::VRCompositorError_None;
         }
 
         // Submit the eye textures to the compositor at this point. It must be done every frame for both eyes otherwise
@@ -102,6 +102,8 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
 
         vr->m_submitted = submitted;
     }
+
+    return e;
 }
 
 void D3D12Component::on_reset(VR* vr) {
