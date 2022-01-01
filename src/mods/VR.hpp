@@ -197,6 +197,7 @@ private:
     void update_action_states();
     void update_camera(); // if not in firstperson mode
     void update_camera_origin(); // every frame
+    void update_render_matrix();
     void restore_camera(); // After rendering
     void set_lens_distortion(bool value);
     void disable_bad_effects();
@@ -310,6 +311,7 @@ private:
     vrmod::OverlayComponent m_overlay_component{};
 
     Vector4f m_original_camera_position{ 0.0f, 0.0f, 0.0f, 0.0f };
+    Matrix4x4f m_render_camera_matrix{ glm::identity<Matrix4x4f>() };
     glm::quat m_original_camera_rotation{ glm::identity<glm::quat>() };
 
     sdk::helpers::NativeObject m_via_hid_gamepad{ "via.hid.GamePad" };

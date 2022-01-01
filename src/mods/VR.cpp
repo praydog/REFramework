@@ -998,6 +998,29 @@ void VR::update_camera_origin() {
     }
 }
 
+void VR::update_render_matrix() {
+    auto camera = sdk::get_primary_camera();
+
+    if (camera == nullptr) {
+        return;
+    }
+
+    auto camera_object = utility::re_component::get_game_object(camera);
+
+    if (camera_object == nullptr || camera_object->transform == nullptr) {
+        return;
+    }
+
+    auto camera_joint = utility::re_transform::get_joint(*camera_object->transform, 0);
+
+    if (camera_joint == nullptr) {
+        return;
+    }
+
+    m_render_camera_matrix = Matrix4x4f{sdk::get_joint_rotation(camera_joint)};
+    m_render_camera_matrix[3] = sdk::get_joint_position(camera_joint);
+}
+
 void VR::restore_camera() {
     if (!m_needs_camera_restore) {
         return;
@@ -1620,7 +1643,7 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                         auto child = sdk::call_object_func<REManagedObject*>(view, "get_Child", context, view);
 
                         auto fix_2d_position = [&](const Vector4f& target_position) {
-                            auto dir = glm::normalize(target_position - camera_position);
+                            auto dir = glm::normalize(target_position - m_render_camera_matrix[3]);
                             dir.w = 0.0f;
                             
                             gui_matrix[3] = camera_position + (dir * m_ui_scale);
@@ -1628,8 +1651,8 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
 
                             // make matrix from dir
                             const auto look_mat = glm::rowMajor4(glm::lookAtLH(Vector3f{}, Vector3f{ dir }, Vector3f(0.0f, 1.0f, 0.0f)));
-                            const auto look_rot = glm::quat{look_mat};
 
+                            const auto look_rot = glm::quat{look_mat};
                             const auto new_pos = gui_matrix[3];
 
                             gui_matrix = look_mat;
@@ -1855,6 +1878,9 @@ void VR::on_pre_begin_rendering(void* entry) {
     } else if (inside_on_end) {
         update_camera_origin();
     }
+
+    // update our internally stored render matrix
+    update_render_matrix();
 }
 
 void VR::on_begin_rendering(void* entry) {
