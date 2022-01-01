@@ -160,7 +160,7 @@ private:
     const ModToggle::Ptr m_rotate_mesh{ ModToggle::create(generate_name("ForceRotateMesh"), true) };
     const ModToggle::Ptr m_disable_light_source{ ModToggle::create(generate_name("DisableLightSource"), true) };
     const ModToggle::Ptr m_show_in_cutscenes{ ModToggle::create(generate_name("ShowInCutscenes"), false) };
-    const ModToggle::Ptr m_rotate_body{ ModToggle::create(generate_name("RotateBody"), false) };
+    const ModToggle::Ptr m_rotate_body{ ModToggle::create(generate_name("RotateBody"), true) };
     const ModSlider::Ptr m_body_rotate_speed{ ModSlider::create(generate_name("BodyRotateSpeed"), 0.01f, 5.0f, 0.3f) };
 
     const ModSlider::Ptr m_fov_offset{ ModSlider::create(generate_name("FOVOffset"), -100.0f, 100.0f, 10.0f) };
