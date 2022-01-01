@@ -258,6 +258,9 @@ void OverlayComponent::update_overlay() {
 
             // Do the intersection test
             if (vr::VROverlay()->ComputeOverlayIntersection(m_overlay_handle, &intersection_params, &intersection_results)) {
+                auto normal = Vector4f{intersection_results.vNormal.v[0], intersection_results.vNormal.v[1], intersection_results.vNormal.v[2], 1.0f};
+                normal = glm::inverse(glm::extractMatrixRotation(tip_world_transform)) * normal;
+
                 if (m_closed_ui) {
                     const auto u = ((intersection_results.vUVs.v[0] * m_overlay_data.last_render_target_width) - m_overlay_data.last_x) / m_overlay_data.last_width;
                     const auto v = ((m_overlay_data.last_render_target_height - (intersection_results.vUVs.v[1] * m_overlay_data.last_render_target_height)) - m_overlay_data.last_y) / m_overlay_data.last_height;
@@ -267,13 +270,10 @@ void OverlayComponent::update_overlay() {
                                     v >= 0.25f && 
                                     v <= 0.75f;
 
-                    auto normal = Vector4f{intersection_results.vNormal.v[0], intersection_results.vNormal.v[1], intersection_results.vNormal.v[2], 1.0f};
-                    normal = glm::extractMatrixRotation(controller_world_transform) * normal;
-
                     // Make sure the intersection hit the front of the overlay, not the back
                     any_intersected = any_intersected && normal.z > 0.0f;
                 } else {
-                    any_intersected = intersection_results.vNormal.v[2] > 0.0f;
+                    any_intersected = normal.z > 0.0f;
                 }
             }
         }
@@ -304,7 +304,7 @@ void OverlayComponent::update_overlay() {
                 }
 
                 auto normal = Vector4f{intersection_results.vNormal.v[0], intersection_results.vNormal.v[1], intersection_results.vNormal.v[2], 1.0f};
-                normal = glm::extractMatrixRotation(head_world_transform) * normal;
+                normal = glm::inverse(glm::extractMatrixRotation(head_world_transform)) * normal;
 
                 // Make sure the intersection hit the front of the overlay, not the back
                 any_intersected = any_intersected && normal.z > 0.0f;
