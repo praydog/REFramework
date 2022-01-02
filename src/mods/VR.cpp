@@ -1291,7 +1291,9 @@ int32_t VR::get_game_frame_count() const {
         return 0;
     }
 
-    return sdk::call_object_func<int32_t>(renderer, renderer_type, "get_RenderFrame", sdk::get_thread_context(), renderer);
+    static auto get_render_frame_method = renderer_type->get_method("get_RenderFrame");
+
+    return get_render_frame_method->call<int32_t>(sdk::get_thread_context(), renderer);
 }
 
 float VR::get_standing_height() {
@@ -1663,10 +1665,9 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
 
                             gui_matrix = look_mat;
                             gui_matrix[3] = new_pos;
-                            sdk::call_object_func<void*>(game_object->transform, "set_Position", context, game_object->transform, &new_pos);
-                            sdk::call_object_func<void*>(game_object->transform, "set_Rotation", context, game_object->transform, &look_rot);
+                            sdk::set_transform_position(game_object->transform, new_pos);
+                            sdk::set_transform_rotation(game_object->transform, look_rot);
                             
-
                             if (child != nullptr) {
                                 regenny::via::Size gui_size{};
                                 sdk::call_object_func<void*>(view, "get_ScreenSize", &gui_size, context, view);
@@ -1703,7 +1704,8 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
 
                         // ... RE7
                         if (child != nullptr && utility::re_managed_object::get_field<wchar_t*>(child, "Name") == std::wstring_view(L"c_interact")) {
-                            auto world_pos_attach_comp = utility::re_component::find(game_object->transform, "app.UIWorldPosAttach");
+                            static auto ui_world_pos_attach_typedef = sdk::RETypeDB::get()->find_type("app.UIWorldPosAttach");
+                            auto world_pos_attach_comp = utility::re_component::find(game_object->transform, ui_world_pos_attach_typedef->get_type());
 
                             // Fix the world position of the gui element
                             if (world_pos_attach_comp != nullptr) {
@@ -1737,7 +1739,7 @@ void VR::on_gui_draw_element(REComponent* gui_element, void* primitive_context) 
         auto game_object = utility::re_component::get_game_object(data->element);
 
         if (game_object != nullptr && game_object->transform != nullptr) {
-            sdk::call_object_func<Vector3f*>(game_object->transform, "set_Position", context, game_object->transform, &data->original_position);
+            sdk::set_transform_position(game_object->transform, data->original_position);
         }
     }
 

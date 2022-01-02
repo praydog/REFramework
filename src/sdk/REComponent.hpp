@@ -4,7 +4,8 @@
 
 namespace utility::re_component {
     static auto get_game_object(::REComponent* comp) {
-        return utility::re_managed_object::get_field<::REGameObject*>(comp, "GameObject");
+        //return utility::re_managed_object::get_field<::REGameObject*>(comp, "GameObject");
+        return comp->ownerGameObject;
     }
 
     static auto get_valid(::REComponent* comp) {
