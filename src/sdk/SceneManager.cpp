@@ -4,21 +4,8 @@
 #include "SceneManager.hpp"
 
 namespace sdk {
-template<typename T, typename ...Args>
-T call_scenemanager_func(std::string_view name, Args... args) {
-    auto scene_manager = sdk::get_scene_manager();
-
-    if (scene_manager == nullptr) {
-        return nullptr;
-    }
-
-    const auto scene_manager_type = sdk::RETypeDB::get()->find_type("via.SceneManager");
-
-    return sdk::call_object_func<T>(scene_manager, scene_manager_type, name, sdk::get_thread_context(), scene_manager, args...);
-}
-
 void* get_scene_manager() {
-    const auto scene_manager_type = sdk::RETypeDB::get()->find_type("via.SceneManager");
+    static auto scene_manager_type = sdk::RETypeDB::get()->find_type("via.SceneManager");
 
     if (scene_manager_type == nullptr) {
         spdlog::error("Cannot find via.SceneManager");
@@ -29,11 +16,17 @@ void* get_scene_manager() {
 }
 
 REManagedObject* get_main_view() {
-    return call_scenemanager_func<REManagedObject*>("get_MainView");
+    static auto scene_manager_type = sdk::RETypeDB::get()->find_type("via.SceneManager");
+    static auto get_main_view_method = scene_manager_type->get_method("get_MainView");
+
+    return get_main_view_method->call<::REManagedObject*>(sdk::get_thread_context(), get_scene_manager());
 }
 
 REManagedObject* get_current_scene() {
-    return call_scenemanager_func<REManagedObject*>("get_CurrentScene");
+    static auto scene_manager_type = sdk::RETypeDB::get()->find_type("via.SceneManager");
+    static auto get_current_scene_method = scene_manager_type->get_method("get_CurrentScene");
+
+    return get_current_scene_method->call<::REManagedObject*>(sdk::get_thread_context(), get_scene_manager());
 }
 
 RECamera* get_primary_camera() {
@@ -43,11 +36,14 @@ RECamera* get_primary_camera() {
         return nullptr;
     }
 
-    return call_object_func<RECamera*>(main_view, "get_PrimaryCamera", sdk::get_thread_context(), main_view);
+    static auto scene_view_type = sdk::RETypeDB::get()->find_type("via.SceneView");
+    static auto get_primary_camera_method = scene_view_type->get_method("get_PrimaryCamera");
+
+    return get_primary_camera_method->call<::RECamera*>(sdk::get_thread_context(), main_view);
 }
 
 void set_timescale(REManagedObject* scene, float timescale) {
-    const auto scene_type =utility::re_managed_object::get_type_definition(scene);
+    const auto scene_type = utility::re_managed_object::get_type_definition(scene);
     const auto set_timescale_method = scene_type->get_method("set_TimeScale");
 
     set_timescale_method->call(sdk::get_thread_context(), scene, timescale);
