@@ -87,7 +87,7 @@ public:
     int32_t get_game_frame_count() const;
 
     bool is_using_afr() const {
-        return m_use_afr;
+        return m_use_afr->value();
     }
 
     // Functions that generally use a mutex or have more complex logic
@@ -322,7 +322,7 @@ private:
     int m_last_frame_count{-1};
     int m_left_eye_frame_count{0};
     int m_right_eye_frame_count{0};
-    bool m_use_afr{false};
+
     bool m_submitted{false};
     bool m_present_finished{false};
     // we always need at least one initial WaitGetPoses before the game will render
@@ -366,6 +366,7 @@ private:
         { "bindings_knuckles.json", bindings_knuckles }
     };
 
+    const ModToggle::Ptr m_use_afr{ ModToggle::create(generate_name("AlternateFrameRendering"), false) };
     const ModToggle::Ptr m_force_fps_settings{ ModToggle::create(generate_name("ForceFPS"), true) };
     const ModToggle::Ptr m_force_aa_settings{ ModToggle::create(generate_name("ForceAntiAliasing"), true) };
     const ModToggle::Ptr m_force_motionblur_settings{ ModToggle::create(generate_name("ForceMotionBlur"), true) };
@@ -375,6 +376,7 @@ private:
     const ModToggle::Ptr m_force_lensflares_settings{ ModToggle::create(generate_name("ForceLensFlares"), true) };
 
     ValueList m_options{
+        *m_use_afr,
         *m_force_fps_settings,
         *m_force_aa_settings,
         *m_force_motionblur_settings,

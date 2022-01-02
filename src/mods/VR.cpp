@@ -1872,7 +1872,7 @@ void VR::on_pre_begin_rendering(void* entry) {
         return;
     }
 
-    const auto should_update_camera = (m_frame_count % 2 == m_left_eye_interval) || m_use_afr;
+    const auto should_update_camera = (m_frame_count % 2 == m_left_eye_interval) || is_using_afr();
 
     if (!inside_on_end && should_update_camera) {
         update_camera();
@@ -1906,8 +1906,8 @@ void VR::on_end_rendering(void* entry) {
         return;
     }
 
-    if (m_use_afr || inside_on_end) {
-        if (m_use_afr) {
+    if (is_using_afr() || inside_on_end) {
+        if (is_using_afr()) {
             restore_camera();
             m_in_render = false;
         }
@@ -2463,8 +2463,7 @@ void VR::on_draw_ui() {
     ImGui::DragFloat3("Overlay Rotation", (float*)&m_overlay_rotation, 0.01f, -360.0f, 360.0f);
     ImGui::DragFloat3("Overlay Position", (float*)&m_overlay_position, 0.01f, -100.0f, 100.0f);
 
-    if (ImGui::Checkbox("Use AFR", &m_use_afr)) {
-    }
+    m_use_afr->draw("Use AFR");
 
     if (ImGui::Checkbox("Positional Tracking", &m_positional_tracking)) {
     }
