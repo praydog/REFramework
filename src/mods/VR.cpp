@@ -371,6 +371,7 @@ void VR::on_lua_state_created(sol::state& lua) {
         "get_current_eye_transform", &VR::get_current_eye_transform,
         "get_current_projection_matrix", &VR::get_current_projection_matrix,
         "get_standing_origin", &VR::get_standing_origin,
+        "set_standing_origin", &VR::set_standing_origin,
         "get_action_set", &VR::get_action_set,
         "get_active_action_set", &VR::get_active_action_set,
         "get_action_trigger", &VR::get_action_trigger,
@@ -393,8 +394,6 @@ std::optional<std::string> VR::initialize_openvr() {
     if (LoadLibraryA("openvr_api.dll") == nullptr) {
         return COULD_NOT_LOAD_OPENVR.data();
     }
-
-    m_openvr_loaded = true;
 
     m_d3d12.on_reset(this);
     m_d3d11.on_reset(this);
@@ -434,6 +433,8 @@ std::optional<std::string> VR::initialize_openvr() {
     if (overlay_error) {
         return overlay_error;
     }
+    
+    m_openvr_loaded = true;
 
     return std::nullopt;
 }
