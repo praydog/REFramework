@@ -367,6 +367,8 @@ private:
     };
 
     const ModToggle::Ptr m_use_afr{ ModToggle::create(generate_name("AlternateFrameRendering"), false) };
+    const ModToggle::Ptr m_use_custom_view_distance{ ModToggle::create(generate_name("UseCustomViewDistance"), false) };
+    const ModSlider::Ptr m_view_distance{ ModSlider::create(generate_name("CustomViewDistance"), 10.0f, 3000.0f, 500.0f) };
     const ModToggle::Ptr m_force_fps_settings{ ModToggle::create(generate_name("ForceFPS"), true) };
     const ModToggle::Ptr m_force_aa_settings{ ModToggle::create(generate_name("ForceAntiAliasing"), true) };
     const ModToggle::Ptr m_force_motionblur_settings{ ModToggle::create(generate_name("ForceMotionBlur"), true) };
@@ -377,6 +379,8 @@ private:
 
     ValueList m_options{
         *m_use_afr,
+        *m_use_custom_view_distance,
+        *m_view_distance,
         *m_force_fps_settings,
         *m_force_aa_settings,
         *m_force_motionblur_settings,

@@ -904,9 +904,14 @@ void VR::update_camera() {
     static auto via_camera = sdk::RETypeDB::get()->find_type("via.Camera");
     static auto get_near_clip_plane_method = via_camera->get_method("get_NearClipPlane");
     static auto get_far_clip_plane_method = via_camera->get_method("get_FarClipPlane");
+    static auto set_far_clip_plane_method = via_camera->get_method("set_FarClipPlane");
     static auto set_fov_method = via_camera->get_method("set_FOV");
     static auto set_vertical_enable_method = via_camera->get_method("set_VerticalEnable");
     static auto set_aspect_ratio_method = via_camera->get_method("set_AspectRatio");
+
+    if (m_use_custom_view_distance->value()) {
+        set_far_clip_plane_method->call<void*>(sdk::get_thread_context(), camera, m_view_distance->value());
+    }
 
     m_nearz = get_near_clip_plane_method->call<float>(sdk::get_thread_context(), camera);
     m_farz = get_far_clip_plane_method->call<float>(sdk::get_thread_context(), camera);
@@ -2470,6 +2475,9 @@ void VR::on_draw_ui() {
 
     /*if (ImGui::Checkbox("Depth Aided Reprojection", &m_depth_aided_reprojection)) {
     }*/
+
+    m_use_custom_view_distance->draw("Use Custom View Distance");
+    m_view_distance->draw("View Distance/FarZ");
 
     ImGui::DragFloat("UI Scale", &m_ui_scale, 0.005f, 0.0f, 100.0f);
 
