@@ -1122,6 +1122,8 @@ bool REFramework::initialize() {
                 } else {
                     m_error = *e;
                 }
+
+                spdlog::error("Initialization of mods failed. Reason: {}", m_error);
             }
 
             m_game_data_initialized = true;
