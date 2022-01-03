@@ -1,3 +1,5 @@
+#define NOMINMAX
+
 #include <fstream>
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -19,6 +21,7 @@
 #include "sdk/Renderer.hpp"
 #include "sdk/Application.hpp"
 #include "sdk/Renderer.hpp"
+#include "sdk/REMath.hpp"
 
 #include "utility/Scan.hpp"
 #include "utility/FunctionHook.hpp"
@@ -988,7 +991,19 @@ void VR::update_camera_origin() {
     }
     
     const auto current_hmd_rotation = glm::quat{get_rotation(0)};
-    const auto new_rotation = m_original_camera_rotation * current_hmd_rotation;
+
+    glm::quat new_rotation{};
+    glm::quat camera_rotation{};
+    
+    if (!m_decoupled_pitch->value()) {
+        camera_rotation = m_original_camera_rotation;
+        new_rotation = glm::normalize(m_original_camera_rotation * current_hmd_rotation);
+    } else if (m_decoupled_pitch->value()) {
+        // facing forward matrix
+        const auto camera_rotation_matrix = utility::math::remove_y_component(Matrix4x4f{m_original_camera_rotation});
+        camera_rotation = glm::quat{camera_rotation_matrix};
+        new_rotation = glm::normalize(camera_rotation * current_hmd_rotation);
+    }
     
     const auto current_relative_eye_transform = get_current_eye_transform(false);
     const auto current_relative_eye_pos = current_hmd_rotation * current_relative_eye_transform[3];
@@ -996,7 +1011,7 @@ void VR::update_camera_origin() {
     auto current_relative_pos = (get_position(0) - m_standing_origin) /*+ current_relative_eye_pos*/;
     current_relative_pos.w = 0.0f;
 
-    auto current_head_pos = m_original_camera_rotation * current_relative_pos;
+    auto current_head_pos = camera_rotation * current_relative_pos;
 
     sdk::set_joint_rotation(camera_joint, new_rotation);
 
@@ -2474,6 +2489,7 @@ void VR::on_draw_ui() {
     ImGui::DragFloat3("Overlay Position", (float*)&m_overlay_position, 0.01f, -100.0f, 100.0f);
 
     m_use_afr->draw("Use AFR");
+    m_decoupled_pitch->draw("Decoupled Camera Pitch");
 
     if (ImGui::Checkbox("Positional Tracking", &m_positional_tracking)) {
     }

@@ -366,6 +366,7 @@ private:
         { "bindings_knuckles.json", bindings_knuckles }
     };
 
+    const ModToggle::Ptr m_decoupled_pitch{ ModToggle::create(generate_name("DecoupledPitch"), false) };
     const ModToggle::Ptr m_use_afr{ ModToggle::create(generate_name("AlternateFrameRendering"), false) };
     const ModToggle::Ptr m_use_custom_view_distance{ ModToggle::create(generate_name("UseCustomViewDistance"), false) };
     const ModSlider::Ptr m_view_distance{ ModSlider::create(generate_name("CustomViewDistance"), 10.0f, 3000.0f, 500.0f) };
@@ -380,6 +381,7 @@ private:
     const ModToggle::Ptr m_force_lensflares_settings{ ModToggle::create(generate_name("ForceLensFlares"), true) };
 
     ValueList m_options{
+        *m_decoupled_pitch,
         *m_use_afr,
         *m_use_custom_view_distance,
         *m_view_distance,
