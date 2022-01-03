@@ -2318,12 +2318,14 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
     if (!is_weapon_dial_down) {
         // DPad Up: Shortcut Up
         set_button_state(app::ropeway::InputDefine::Kind::SHORTCUT_UP, is_dpad_up_down);
+        set_button_state(app::ropeway::InputDefine::Kind::UI_MAP_UP, is_dpad_up_down);
 
         // DPad Right: Shortcut Right
         set_button_state(app::ropeway::InputDefine::Kind::SHORTCUT_RIGHT, is_dpad_right_down);
 
         // DPad Down: Shortcut Down
         set_button_state(app::ropeway::InputDefine::Kind::SHORTCUT_DOWN, is_dpad_down_down);
+        set_button_state(app::ropeway::InputDefine::Kind::UI_MAP_DOWN, is_dpad_down_down);
 
         // DPad Left: Shortcut Left
         set_button_state(app::ropeway::InputDefine::Kind::SHORTCUT_LEFT, is_dpad_left_down);
