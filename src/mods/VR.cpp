@@ -166,12 +166,13 @@ Matrix4x4f* VR::camera_get_view_matrix_hook(REManagedObject* camera, Matrix4x4f*
 
     auto& mtx = *result;
 
-    const auto current_eye_transform = vr->get_current_eye_transform();
+    //get the flipped eye to get the correct transform. something something right->left handedness i think
+    const auto current_eye_transform = vr->get_current_eye_transform(true);
     //auto current_head_pos = -(glm::inverse(vr->get_rotation(0)) * ((vr->get_position(0)) - vr->m_standing_origin));
     //current_head_pos.w = 0.0f;
 
-    // Adjust the view matrix origin
-    *(Vector3f*)&mtx[3] -= Vector3f { current_eye_transform[3] };
+    // Apply the complete eye transform. This fixes the need for parallel projections on all canted headsets like Pimax
+    mtx = current_eye_transform * mtx;
 
     return result;
 }
