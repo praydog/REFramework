@@ -2483,6 +2483,7 @@ void VR::on_draw_ui() {
 
     m_use_custom_view_distance->draw("Use Custom View Distance");
     m_view_distance->draw("View Distance/FarZ");
+    m_motion_controls_inactivity_timer->draw("Inactivity Timer");
 
     ImGui::DragFloat("UI Scale", &m_ui_scale, 0.005f, 0.0f, 100.0f);
 
