@@ -613,6 +613,15 @@ std::string VR::bindings_knuckles = R"(
             },
             {
                "inputs" : {
+                  "click" : {
+                     "output" : "/actions/default/in/weapondial_start"
+                  }
+               },
+               "mode" : "button",
+               "path" : "/user/hand/left/input/trigger"
+            },
+            {
+               "inputs" : {
                   "position" : {
                      "output" : "/actions/default/in/touchpad"
                   }
