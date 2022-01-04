@@ -153,12 +153,12 @@ void D3D12Component::setup() {
     heap_props.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
     heap_props.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
 
-    if (FAILED(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &backbuffer_desc, D3D12_RESOURCE_STATE_PRESENT, nullptr,
+    if (FAILED(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &backbuffer_desc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr,
             IID_PPV_ARGS(&m_left_eye_tex)))) {
         spdlog::error("[VR] Failed to create left eye texture.");
     }
 
-    if (FAILED(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &backbuffer_desc, D3D12_RESOURCE_STATE_PRESENT, nullptr,
+    if (FAILED(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &backbuffer_desc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr,
             IID_PPV_ARGS(&m_right_eye_tex)))) {
         spdlog::error("[VR] Failed to create right eye texture.");
     }
@@ -183,12 +183,13 @@ void D3D12Component::copy_texture(ID3D12Resource* src, ID3D12Resource* dst) {
     dst_barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
     dst_barrier.Transition.pResource = dst;
     dst_barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-    dst_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+    dst_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
     dst_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
 
-    D3D12_RESOURCE_BARRIER barriers[2]{src_barrier, dst_barrier};
-
-    m_cmd_list->ResourceBarrier(2, barriers);
+    {
+        D3D12_RESOURCE_BARRIER barriers[2]{src_barrier, dst_barrier};
+        m_cmd_list->ResourceBarrier(2, barriers);
+    }
 
     // Copy the resource.
     m_cmd_list->CopyResource(dst, src);
@@ -197,8 +198,11 @@ void D3D12Component::copy_texture(ID3D12Resource* src, ID3D12Resource* dst) {
     src_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
     src_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
     dst_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
-    dst_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+    dst_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
 
-    m_cmd_list->ResourceBarrier(2, barriers);
+    {
+        D3D12_RESOURCE_BARRIER barriers[2]{src_barrier, dst_barrier};
+        m_cmd_list->ResourceBarrier(2, barriers);
+    }
 }
 } // namespace vrmod
