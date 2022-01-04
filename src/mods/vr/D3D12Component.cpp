@@ -6,6 +6,8 @@
 
 namespace vrmod {
 vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
+    wait_for_texture_copy(INFINITE);
+
     if (m_left_eye_tex == nullptr) {
         setup();
     }
@@ -55,9 +57,8 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
         command_queue->ExecuteCommandLists(1, (ID3D12CommandList* const*)m_cmd_list.GetAddressOf());
         command_queue->Signal(m_fence.Get(), ++m_fence_value);
         m_fence->SetEventOnCompletion(m_fence_value, m_fence_event);
-        WaitForSingleObject(m_fence_event, INFINITE);
-        m_cmd_allocator->Reset();
-        m_cmd_list->Reset(m_cmd_allocator.Get(), nullptr);
+        m_waiting_for_fence = true;
+        // we don't wait for the fence here because it will cause cause bad perf and in turn reprojection to occur
 
         if (vr->m_needs_wgp_update) {
             vr->m_submitted = false;
@@ -107,14 +108,27 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
 }
 
 void D3D12Component::on_reset(VR* vr) {
+    wait_for_texture_copy(2000);
+
     m_cmd_allocator.Reset();
     m_cmd_list.Reset();
     m_fence.Reset();
     m_fence_value = 0;
     CloseHandle(m_fence_event);
     m_fence_event = 0;
+    m_waiting_for_fence = false;
     m_left_eye_tex.Reset();
     m_right_eye_tex.Reset();
+}
+
+void D3D12Component::wait_for_texture_copy(uint32_t ms) {
+	if (m_fence_event && m_waiting_for_fence) {
+        WaitForSingleObject(m_fence_event, ms);
+        ResetEvent(m_fence_event);
+        m_waiting_for_fence = false;
+        m_cmd_allocator->Reset();
+        m_cmd_list->Reset(m_cmd_allocator.Get(), nullptr);
+    }
 }
 
 void D3D12Component::setup() {
@@ -153,12 +167,12 @@ void D3D12Component::setup() {
     heap_props.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
     heap_props.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
 
-    if (FAILED(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &backbuffer_desc, D3D12_RESOURCE_STATE_PRESENT, nullptr,
+    if (FAILED(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &backbuffer_desc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr,
             IID_PPV_ARGS(&m_left_eye_tex)))) {
         spdlog::error("[VR] Failed to create left eye texture.");
     }
 
-    if (FAILED(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &backbuffer_desc, D3D12_RESOURCE_STATE_PRESENT, nullptr,
+    if (FAILED(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &backbuffer_desc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr,
             IID_PPV_ARGS(&m_right_eye_tex)))) {
         spdlog::error("[VR] Failed to create right eye texture.");
     }
@@ -183,12 +197,13 @@ void D3D12Component::copy_texture(ID3D12Resource* src, ID3D12Resource* dst) {
     dst_barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
     dst_barrier.Transition.pResource = dst;
     dst_barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-    dst_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+    dst_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
     dst_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
 
-    D3D12_RESOURCE_BARRIER barriers[2]{src_barrier, dst_barrier};
-
-    m_cmd_list->ResourceBarrier(2, barriers);
+    {
+        D3D12_RESOURCE_BARRIER barriers[2]{src_barrier, dst_barrier};
+        m_cmd_list->ResourceBarrier(2, barriers);
+    }
 
     // Copy the resource.
     m_cmd_list->CopyResource(dst, src);
@@ -197,8 +212,11 @@ void D3D12Component::copy_texture(ID3D12Resource* src, ID3D12Resource* dst) {
     src_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
     src_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
     dst_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
-    dst_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+    dst_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
 
-    m_cmd_list->ResourceBarrier(2, barriers);
+    {
+        D3D12_RESOURCE_BARRIER barriers[2]{src_barrier, dst_barrier};
+        m_cmd_list->ResourceBarrier(2, barriers);
+    }
 }
 } // namespace vrmod

@@ -13,6 +13,8 @@ public:
     void on_reset(VR* vr);
 
 private:
+	void wait_for_texture_copy(uint32_t ms);
+
     template <typename T> using ComPtr = Microsoft::WRL::ComPtr<T>;
 
 	ComPtr<ID3D12CommandAllocator> m_cmd_allocator{};
@@ -20,6 +22,7 @@ private:
 	ComPtr<ID3D12Fence> m_fence{};
 	UINT64 m_fence_value{};
 	HANDLE m_fence_event{};
+	bool m_waiting_for_fence{false};
 
 	ComPtr<ID3D12Resource> m_left_eye_tex{};
 	ComPtr<ID3D12Resource> m_right_eye_tex{}; 

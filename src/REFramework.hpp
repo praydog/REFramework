@@ -177,16 +177,12 @@ private: // D3D misc
     void set_imgui_style() noexcept;
 
 private: // D3D11 Init
-    void create_render_target_d3d11();
-    void cleanup_render_target_d3d11();
+    bool init_d3d11();
+    void deinit_d3d11();
 
 private: // D3D12 Init
-    bool create_rtv_descriptor_heap_d3d12();
-    bool create_srv_descriptor_heap_d3d12();
-    bool create_command_allocator_d3d12();
-    bool create_command_list_d3d12();
-    void cleanup_render_target_d3d12();
-    void create_render_target_d3d12();
+    bool init_d3d12();
+    void deinit_d3d12();
 
 private: // D3D11 members
     struct D3D11 {
@@ -208,33 +204,54 @@ public:
 
 private: // D3D12 members
     struct D3D12 {
-        struct FrameContext {
-            ID3D12CommandAllocator* command_allocator{};
-            UINT64 fence_value{};
+        ComPtr<ID3D12CommandAllocator> cmd_allocator{};
+        ComPtr<ID3D12GraphicsCommandList> cmd_list{};
+
+        enum class RTV : int{
+            BACKBUFFER_0,
+            BACKBUFFER_1,
+            BACKBUFFER_2,
+            BACKBUFFER_3,
+            IMGUI,
+            BLANK,
+            COUNT,
         };
 
-        static constexpr int s_NUM_FRAMES_IN_FLIGHT_D3D12{4};
-        static constexpr int s_NUM_BACK_BUFFERS_D3D12{4};
+        enum class SRV : int {
+            IMGUI_FONT,
+            IMGUI,
+            BLANK,
+            COUNT
+        };
 
-        FrameContext frame_context[4]{};
-        ID3D12DescriptorHeap* rtv_desc_heap{nullptr};
-        ID3D12DescriptorHeap* srv_desc_heap{nullptr};
-        ID3D12CommandQueue* command_queue{nullptr};
-        ID3D12GraphicsCommandList* command_list{nullptr};
-        ID3D12Resource* rt_resources[4]{nullptr};
-        D3D12_CPU_DESCRIPTOR_HANDLE cpu_rtvs[4]{};
-        D3D12_CPU_DESCRIPTOR_HANDLE cpu_srvs[4]{};
-        D3D12_GPU_DESCRIPTOR_HANDLE gpu_srvs[4]{};
+        ComPtr<ID3D12DescriptorHeap> rtv_desc_heap{};
+        ComPtr<ID3D12DescriptorHeap> srv_desc_heap{};
+        ComPtr<ID3D12Resource> rts[(int)RTV::COUNT]{};
 
-        ComPtr<ID3D12Resource> blank_rt{};
-        ComPtr<ID3D12Resource> rt{};
+        auto& get_rt(RTV rtv) { return rts[(int)rtv]; }
+
+        D3D12_CPU_DESCRIPTOR_HANDLE get_cpu_rtv(ID3D12Device* device, RTV rtv) {
+            return {rtv_desc_heap->GetCPUDescriptorHandleForHeapStart().ptr +
+                    (int)rtv * device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV)};
+        }
+
+        D3D12_CPU_DESCRIPTOR_HANDLE get_cpu_srv(ID3D12Device* device, SRV srv) {
+            return {srv_desc_heap->GetCPUDescriptorHandleForHeapStart().ptr +
+                    (int)srv * device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV)};
+        }
+
+        D3D12_GPU_DESCRIPTOR_HANDLE get_gpu_srv(ID3D12Device* device, SRV srv) {
+            return {srv_desc_heap->GetGPUDescriptorHandleForHeapStart().ptr +
+                    (int)srv * device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV)};
+        }
+
         uint32_t rt_width{};
         uint32_t rt_height{};
     } m_d3d12{};
 
 public:
-    auto& get_blank_rendertarget_d3d12() { return m_d3d12.blank_rt; }
-    auto& get_rendertarget_d3d12() { return m_d3d12.rt; }
+    auto& get_blank_rendertarget_d3d12() { return m_d3d12.get_rt(D3D12::RTV::BLANK); }
+    auto& get_rendertarget_d3d12() { return m_d3d12.get_rt(D3D12::RTV::IMGUI); }
     auto get_rendertarget_width_d3d12() { return m_d3d12.rt_width; }
     auto get_rendertarget_height_d3d12() { return m_d3d12.rt_height; }
 
