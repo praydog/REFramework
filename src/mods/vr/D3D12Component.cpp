@@ -6,6 +6,8 @@
 
 namespace vrmod {
 vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
+    wait_for_texture_copy(INFINITE);
+
     if (m_left_eye_tex == nullptr) {
         setup();
     }
@@ -55,9 +57,8 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
         command_queue->ExecuteCommandLists(1, (ID3D12CommandList* const*)m_cmd_list.GetAddressOf());
         command_queue->Signal(m_fence.Get(), ++m_fence_value);
         m_fence->SetEventOnCompletion(m_fence_value, m_fence_event);
-        WaitForSingleObject(m_fence_event, INFINITE);
-        m_cmd_allocator->Reset();
-        m_cmd_list->Reset(m_cmd_allocator.Get(), nullptr);
+        m_waiting_for_fence = true;
+        // we don't wait for the fence here because it will cause cause bad perf and in turn reprojection to occur
 
         if (vr->m_needs_wgp_update) {
             vr->m_submitted = false;
@@ -107,14 +108,27 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
 }
 
 void D3D12Component::on_reset(VR* vr) {
+    wait_for_texture_copy(2000);
+
     m_cmd_allocator.Reset();
     m_cmd_list.Reset();
     m_fence.Reset();
     m_fence_value = 0;
     CloseHandle(m_fence_event);
     m_fence_event = 0;
+    m_waiting_for_fence = false;
     m_left_eye_tex.Reset();
     m_right_eye_tex.Reset();
+}
+
+void D3D12Component::wait_for_texture_copy(uint32_t ms) {
+	if (m_fence_event && m_waiting_for_fence) {
+        WaitForSingleObject(m_fence_event, ms);
+        ResetEvent(m_fence_event);
+        m_waiting_for_fence = false;
+        m_cmd_allocator->Reset();
+        m_cmd_list->Reset(m_cmd_allocator.Get(), nullptr);
+    }
 }
 
 void D3D12Component::setup() {
