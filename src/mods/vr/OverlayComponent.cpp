@@ -65,20 +65,23 @@ void OverlayComponent::update_input() {
     auto& io = ImGui::GetIO();
     const auto is_initial_frame = vr->get_game_frame_count() % 2 == vr->m_left_eye_interval || vr->m_use_afr;
 
-    if (!is_initial_frame) {
-        // Restore the previous frame's input state
-        memcpy(io.KeysDown, m_initial_imgui_input_state.KeysDown, sizeof(io.KeysDown));
-        memcpy(io.MouseDown, m_initial_imgui_input_state.MouseDown, sizeof(io.MouseDown));
-        io.MousePos = m_initial_imgui_input_state.MousePos;
-        io.MouseWheel = m_initial_imgui_input_state.MouseWheel;
-        io.MouseWheelH = m_initial_imgui_input_state.MouseWheelH;
-        io.KeyCtrl = m_initial_imgui_input_state.KeyCtrl;
-        io.KeyShift = m_initial_imgui_input_state.KeyShift;
-        io.KeyAlt = m_initial_imgui_input_state.KeyAlt;
-        io.KeySuper = m_initial_imgui_input_state.KeySuper;
+    // Restore the previous frame's input state
+    memcpy(io.KeysDown, m_initial_imgui_input_state.KeysDown, sizeof(io.KeysDown));
+    memcpy(io.MouseDown, m_initial_imgui_input_state.MouseDown, sizeof(io.MouseDown));
+    io.MousePos = m_initial_imgui_input_state.MousePos;
+    io.MouseWheel = m_initial_imgui_input_state.MouseWheel;
+    io.MouseWheelH = m_initial_imgui_input_state.MouseWheelH;
+    io.KeyCtrl = m_initial_imgui_input_state.KeyCtrl;
+    io.KeyShift = m_initial_imgui_input_state.KeyShift;
+    io.KeyAlt = m_initial_imgui_input_state.KeyAlt;
+    io.KeySuper = m_initial_imgui_input_state.KeySuper;
 
+    if (!is_initial_frame) {
         return;
     }
+
+    io.MouseWheel = 0;
+    io.MouseWheelH = 0;
 
     const auto is_d3d11 = g_framework->get_renderer_type() == REFramework::RendererType::D3D11;
 
@@ -94,11 +97,11 @@ void OverlayComponent::update_input() {
     while (vr::VROverlay()->PollNextOverlayEvent(m_overlay_handle, &event, sizeof(event))) {
         switch (event.eventType) {
             case vr::VREvent_MouseButtonDown:
-                SendMessage(hwnd, WM_LBUTTONDOWN, 0, 0);
+                m_initial_imgui_input_state.MouseDown[0] = true;
                 io.MouseDown[0] = true;
                 break;
             case vr::VREvent_MouseButtonUp:
-                SendMessage(hwnd, WM_LBUTTONUP, 0, 0);
+                m_initial_imgui_input_state.MouseDown[0] = false;
                 io.MouseDown[0] = false;
                 break;
             case vr::VREvent_MouseMove: {
@@ -110,36 +113,18 @@ void OverlayComponent::update_input() {
                     (rendertarget_height - raw_coords[1])
                 };
 
-                // make lparam
-                const auto lparam = MAKELPARAM((int32_t)mouse_point[0], (int32_t)mouse_point[1]);
-                SendMessage(hwnd, WM_MOUSEMOVE, 0, lparam);
-
                 // override imgui mouse position
+                m_initial_imgui_input_state.MousePos = mouse_point;
                 io.MousePos = mouse_point;
-                //SetCursorPos((int32_t)mouse_point[0], (int32_t)mouse_point[1]);
             } break;
             case vr::VREvent_ScrollSmooth: {
-                // WM_MOUSEWHEEL
-                //const auto wparam = MAKEWPARAM(0, event.data.scroll.ydelta);
-                //SendMessage(hwnd, WM_MOUSEWHEEL, wparam, 0);
-
-                io.MouseWheel += event.data.scroll.ydelta;
+                m_initial_imgui_input_state.MouseWheel += event.data.scroll.ydelta;
+                io.MouseWheel = event.data.scroll.ydelta;
             } break;
             default:
                 break;
         }
     }
-
-    // Store the current frame's input state
-    memcpy(m_initial_imgui_input_state.KeysDown, io.KeysDown, sizeof(io.KeysDown));
-    memcpy(m_initial_imgui_input_state.MouseDown, io.MouseDown, sizeof(io.MouseDown));
-    m_initial_imgui_input_state.MousePos = io.MousePos;
-    m_initial_imgui_input_state.MouseWheel = io.MouseWheel;
-    m_initial_imgui_input_state.MouseWheelH = io.MouseWheelH;
-    m_initial_imgui_input_state.KeyCtrl = io.KeyCtrl;
-    m_initial_imgui_input_state.KeyShift = io.KeyShift;
-    m_initial_imgui_input_state.KeyAlt = io.KeyAlt;
-    m_initial_imgui_input_state.KeySuper = io.KeySuper;
 }
 
 void OverlayComponent::update_overlay() {
