@@ -23,6 +23,7 @@ extern "C" {
 #include "Mods.hpp"
 #include "sdk/REGlobals.hpp"
 
+#include "ExceptionHandler.hpp"
 #include "LicenseStrings.hpp"
 #include "REFramework.hpp"
 
@@ -856,6 +857,8 @@ bool REFramework::initialize() {
     if (m_initialized) {
         return true;
     }
+
+    reframework::setup_exception_handler();
 
     if (m_first_initialize) {
         m_frames_since_init = 0;

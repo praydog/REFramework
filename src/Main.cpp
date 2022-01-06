@@ -2,6 +2,7 @@
 #include <chrono>
 #include <windows.h>
 
+#include "ExceptionHandler.hpp"
 #include "REFramework.hpp"
 
 HMODULE g_dinput = 0;
@@ -22,6 +23,10 @@ void failed() {
 }
 
 void startup_thread() {
+    // We will set it once here, then do it continuously
+    // every now and then because it gets replaced
+    reframework::setup_exception_handler();
+
 #ifndef NDEBUG
     AllocConsole();
     freopen("CONIN$", "r", stdin);

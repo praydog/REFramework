@@ -136,6 +136,8 @@ set(FRAMEWORK_SRC
     ../include/API.h
     ../include/API.hpp
     API.cpp
+    ExceptionHandler.hpp
+    ExceptionHandler.cpp
     Mod.hpp
     Tool.hpp
     Mods.hpp
