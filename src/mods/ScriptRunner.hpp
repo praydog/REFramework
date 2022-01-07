@@ -8,7 +8,7 @@
 #include <Windows.h>
 
 #include <sol/sol.hpp>
-#include <xbyak/xbyak.h>
+#include <asmjit/asmjit.h>
 
 #include "sdk/RETypeDB.hpp"
 #include "utility/FunctionHook.hpp"
@@ -36,18 +36,22 @@ public:
     };
 
     struct HookedFn {
+        ScriptState& state;
+
         void* target_fn{};
         std::vector<sol::protected_function> script_pre_fns{};
         std::vector<sol::protected_function> script_post_fns{};
         sol::table script_args{};
 
         std::unique_ptr<FunctionHook> fn_hook{};
-        Xbyak::CodeGenerator facilitator_gen{};
+        uintptr_t facilitator_fn{};
         std::vector<uintptr_t> args{};
         std::vector<sdk::RETypeDefinition*> arg_tys{};
         uintptr_t ret_addr{};
         uintptr_t ret_val{};
         sdk::RETypeDefinition* ret_ty{};
+
+        ~HookedFn();
     };
 
     ScriptState();
@@ -88,6 +92,17 @@ public:
 
     auto& lua() { return m_lua; }
 
+    struct [[nodiscard]] LockedJitRuntime {
+        asmjit::JitRuntime& runtime;
+        std::scoped_lock<std::mutex> runtime_mux;
+
+        asmjit::JitRuntime* operator->() {
+            return &runtime;
+        }
+    };
+
+    auto jit_runtime() { return LockedJitRuntime{m_jit_runtime, std::scoped_lock{m_jit_runtime_mux}}; }
+
 private:
     sol::state m_lua{};
 
@@ -106,9 +121,8 @@ private:
     std::vector<sol::protected_function> m_on_script_reset_fns{};
     std::vector<sol::protected_function> m_on_config_save_fns{};
 
-    Xbyak::CodeGenerator m_code{};
-    //std::vector<std::unique_ptr<HookedFn>> m_hooked_fns{};
-
+    asmjit::JitRuntime m_jit_runtime{};
+    std::mutex m_jit_runtime_mux{};
     std::unordered_map<sdk::REMethodDefinition*, std::unique_ptr<HookedFn>> m_hooked_fns{};
 };
 

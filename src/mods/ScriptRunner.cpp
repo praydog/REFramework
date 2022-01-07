@@ -44,6 +44,13 @@ void debug(const char* str) {
 }
 }
 
+ScriptState::HookedFn::~HookedFn() {
+    if (facilitator_fn != 0) {
+        auto rt = state.jit_runtime();
+        rt->release(facilitator_fn);
+    }
+}
+
 ScriptState::ScriptState() {
     std::scoped_lock _{ m_execution_mutex };
 

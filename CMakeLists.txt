@@ -41,17 +41,19 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
 string(REGEX REPLACE "/MD" "/MT" CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
 string(REGEX REPLACE "/MD" "/MT" CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE}")
 
+set(ASMJIT_STATIC ON)
+
 include(FetchContent)
 
-message(STATUS "Fetching xbyak (v6.00)...")
+message(STATUS "Fetching asmjit (2a706fd2ba355808cada31ac1eed8ce28caa6b37)...")
 FetchContent_Declare(
-	xbyak
+	asmjit
 	GIT_REPOSITORY
-		https://github.com/herumi/xbyak.git
+		https://github.com/asmjit/asmjit.git
 	GIT_TAG
-		v6.00
+		2a706fd2ba355808cada31ac1eed8ce28caa6b37
 )
-FetchContent_MakeAvailable(xbyak)
+FetchContent_MakeAvailable(asmjit)
 
 # Target spdlog
 set(CMKR_TARGET spdlog)
@@ -688,7 +690,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	)
 
 	target_link_libraries(RE2 PUBLIC
-		xbyak
+		asmjit::asmjit
 		nlohmann_json
 		spdlog
 		lua
@@ -1104,7 +1106,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	)
 
 	target_link_libraries(RE3 PUBLIC
-		xbyak
+		asmjit::asmjit
 		nlohmann_json
 		spdlog
 		lua
@@ -1520,7 +1522,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	)
 
 	target_link_libraries(RE7 PUBLIC
-		xbyak
+		asmjit::asmjit
 		nlohmann_json
 		spdlog
 		lua
@@ -1936,7 +1938,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	)
 
 	target_link_libraries(RE8 PUBLIC
-		xbyak
+		asmjit::asmjit
 		nlohmann_json
 		spdlog
 		lua
@@ -2352,7 +2354,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	)
 
 	target_link_libraries(DMC5 PUBLIC
-		xbyak
+		asmjit::asmjit
 		nlohmann_json
 		spdlog
 		lua
@@ -2768,7 +2770,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	)
 
 	target_link_libraries(MHRISE PUBLIC
-		xbyak
+		asmjit::asmjit
 		nlohmann_json
 		spdlog
 		lua

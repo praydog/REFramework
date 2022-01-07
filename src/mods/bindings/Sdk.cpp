@@ -883,6 +883,9 @@ void* get_actual_function(void* possible_fn) {
 }
 
 void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function pre_cb, sol::function post_cb, sol::object ignore_jmp_object) {
+    using namespace asmjit;
+    using namespace asmjit::x86;
+
     bool ignore_jmp = false;
     if (ignore_jmp_object.is<bool>()) {
         ignore_jmp = ignore_jmp_object.as<bool>();
@@ -918,7 +921,7 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function pre_cb
         return;
     }
 
-    auto hook = std::make_unique<ScriptState::HookedFn>();
+    auto hook = std::make_unique<ScriptState::HookedFn>(*state);
 
     hook->target_fn = ignore_jmp ? fn->get_function() : detail::get_actual_function(fn->get_function());
 
@@ -949,44 +952,57 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function pre_cb
     auto& args = hook->args;
     auto& arg_tys = hook->arg_tys;
     auto& fn_hook = hook->fn_hook;
-    auto& g = hook->facilitator_gen;
+    auto rt = state->jit_runtime();
+    CodeHolder code{};
+
+    code.init(rt->environment());
+
+    Assembler a{&code};
 
     // Make sure we have room to store the arguments.
     args.resize(2 + fn->get_num_params());
 
     // Generate the facilitator function that will store the arguments, call on_hook, 
     // restore the arguments, and call the original function.
-    Xbyak::Label hook_label{}, args_label{}, this_label{}, on_pre_hook_label{}, on_post_hook_label{}, 
-        ret_addr_label{}, ret_val_label{}, orig_label{}, lock_label{}, unlock_label{};
+    auto hook_label = a.newLabel();
+    auto args_label = a.newLabel();
+    auto this_label = a.newLabel();
+    auto on_pre_hook_label = a.newLabel();
+    auto on_post_hook_label = a.newLabel();
+    auto ret_addr_label = a.newLabel();
+    auto ret_val_label = a.newLabel();
+    auto orig_label = a.newLabel();
+    auto lock_label = a.newLabel();
+    auto unlock_label = a.newLabel();
 
     // Save state.
-    g.push(g.rcx);
-    g.push(g.rdx);
-    g.push(g.r8);
-    g.push(g.r9);
+    a.push(rcx);
+    a.push(rdx);
+    a.push(r8);
+    a.push(r9);
 
     // Lock context.
-    g.mov(g.rcx, g.ptr[g.rip + this_label]);
-    g.sub(g.rsp, 40);
-    g.call(g.ptr[g.rip + lock_label]);
-    g.add(g.rsp, 40);
+    a.mov(rcx, ptr(this_label));
+    a.sub(rsp, 40);
+    a.call(ptr(lock_label));
+    a.add(rsp, 40);
 
     // Restore state.
-    g.pop(g.r9);
-    g.pop(g.r8);
-    g.pop(g.rdx);
-    g.pop(g.rcx);
+    a.pop(r9);
+    a.pop(r8);
+    a.pop(rdx);
+    a.pop(rcx);
 
     // Store args.
     // TODO: Handle all the arguments the function takes.
-    g.mov(g.rax, g.ptr[g.rip + args_label]);
-    g.mov(g.ptr[g.rax], g.rcx); // current thread context.
+    a.mov(rax, ptr(args_label));
+    a.mov(ptr(rax), rcx); // current thread context.
 
     auto args_start_offset = 8;
 
     if (!fn->is_static()) {
         args_start_offset = 16;
-        g.mov(g.ptr[g.rax + 8], g.rdx); // this ptr... probably.
+        a.mov(ptr(rax, 8), rdx); // this ptr... probably.
     }
 
     for (auto i = 0u; i < fn->get_num_params(); ++i) {
@@ -1001,25 +1017,25 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function pre_cb
         switch (args_offset) {
         case 8: // rdx/xmm1
             if (is_float) {
-                g.movq(g.ptr[g.rax + args_offset], g.xmm1);
+                a.movq(ptr(rax, args_offset), xmm1);
             } else {
-                g.mov(g.ptr[g.rax + args_offset], g.rdx);
+                a.mov(ptr(rax, args_offset), rdx);
             }
             break;
 
         case 16: // r8/xmm2
             if (is_float) {
-                g.movq(g.ptr[g.rax + args_offset], g.xmm2);
+                a.movq(ptr(rax, args_offset), xmm2);
             } else {
-                g.mov(g.ptr[g.rax + args_offset], g.r8);
+                a.mov(ptr(rax, args_offset), r8);
             }
             break;
 
         case 24: // r9/xmm3
             if (is_float) {
-                g.movq(g.ptr[g.rax + args_offset], g.xmm3);
+                a.movq(ptr(rax, args_offset), xmm3);
             } else {
-                g.mov(g.ptr[g.rax + args_offset], g.r9);
+                a.mov(ptr(rax, args_offset), r9);
             }
             break;
 
@@ -1030,21 +1046,21 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function pre_cb
     }
 
     // Call on_pre_hook.
-    g.mov(g.rcx, g.ptr[g.rip + this_label]);
-    g.mov(g.rdx, g.ptr[g.rip + hook_label]);
-    g.sub(g.rsp, 40);
-    g.call(g.ptr[g.rip + on_pre_hook_label]);
-    g.add(g.rsp, 40);
+    a.mov(rcx, ptr(this_label));
+    a.mov(rdx, ptr(hook_label));
+    a.sub(rsp, 40);
+    a.call(ptr(on_pre_hook_label));
+    a.add(rsp, 40);
 
     // Save the return value so we can see if we need to call the original later.
-    g.mov(g.r11, g.rax);
+    a.mov(r11, rax);
 
     // Restore args.
-    g.mov(g.rax, g.ptr[g.rip + args_label]);
-    g.mov(g.rcx, g.ptr[g.rax]); // current thread context.
+    a.mov(rax, ptr(args_label));
+    a.mov(rcx, ptr(rax)); // current thread context.
 
     if (!fn->is_static()) {
-        g.mov(g.rdx, g.ptr[g.rax + 8]); // this ptr... probably.
+        a.mov(rdx, ptr(rax, 8)); // this ptr... probably.
     }
 
     for (auto i = 0u; i < fn->get_num_params(); ++i) {
@@ -1059,25 +1075,25 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function pre_cb
         switch (args_offset) {
         case 8: // rdx/xmm1
             if (is_float) {
-                g.movq(g.xmm1, g.ptr[g.rax + args_offset]);
+                a.movq(xmm1, ptr(rax, args_offset));
             } else {
-                g.mov(g.rdx, g.ptr[g.rax + args_offset]);
+                a.mov(rdx, ptr(rax, args_offset));
             }
             break;
 
         case 16: // r8/xmm2
             if (is_float) {
-                g.movq(g.xmm2, g.ptr[g.rax + args_offset]);
+                a.movq(xmm2, ptr(rax, args_offset));
             } else {
-                g.mov(g.r8, g.ptr[g.rax + args_offset]);
+                a.mov(r8, ptr(rax, args_offset));
             }
             break;
 
         case 24: // r9/xmm3
             if (is_float) {
-                g.movq(g.xmm3, g.ptr[g.rax + args_offset]);
+                a.movq(xmm3, ptr(rax, args_offset));
             } else {
-                g.mov(g.r9, g.ptr[g.rax + args_offset]);
+                a.mov(r9, ptr(rax, args_offset));
             }
             break;
 
@@ -1088,101 +1104,104 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function pre_cb
     }
 
     // Call original function.
-    Xbyak::Label ret_label{}, skip_label{};
+    auto ret_label = a.newLabel();
+    auto skip_label = a.newLabel();
 
     // Save return address.
-    g.mov(g.r10, g.ptr[g.rsp]);
-    g.mov(g.rax, g.ptr[g.rip + ret_addr_label]);
-    g.mov(g.ptr[g.rax], g.r10);
+    a.mov(r10, ptr(rsp));
+    a.mov(rax, ptr(ret_addr_label));
+    a.mov(ptr(rax), r10);
 
     // Overwrite return address.
-    g.lea(g.rax, g.ptr[g.rip + ret_label]);
-    g.mov(g.ptr[g.rsp], g.rax);
+    a.lea(rax, ptr(ret_label));
+    a.mov(ptr(rsp), rax);
 
     // Determine if we need to skip the original function or not.
-    g.cmp(g.r11, (int)ScriptState::PreHookResult::CALL_ORIGINAL);
-    g.jnz(skip_label);
+    a.cmp(r11, (int)ScriptState::PreHookResult::CALL_ORIGINAL);
+    a.jnz(skip_label);
 
     // Jmp to original function.
-    g.jmp(g.ptr[g.rip + orig_label]);
+    a.jmp(ptr(orig_label));
 
-    g.L(skip_label);
-    g.add(g.rsp, 8); // pop ret address.
+    a.bind(skip_label);
+    a.add(rsp, 8); // pop ret address.
 
-    g.L(ret_label);
+    a.bind(ret_label);
 
     // Save return value.
-    g.mov(g.rcx, g.ptr[g.rip + ret_val_label]);
+    a.mov(rcx, ptr(ret_val_label));
 
     auto is_ret_ty_float = hook->ret_ty->get_full_name() == "System.Single";
 
     if (is_ret_ty_float) {
-        g.movq(g.ptr[g.rcx], g.xmm0);
+        a.movq(ptr(rcx), xmm0);
     } else {
-        g.mov(g.ptr[g.rcx], g.rax);
+        a.mov(ptr(rcx), rax);
     }
 
     // Call on_post_hook.
-    g.mov(g.rcx, g.ptr[g.rip + this_label]);
-    g.mov(g.rdx, g.ptr[g.rip + hook_label]);
-    g.call(g.ptr[g.rip + on_post_hook_label]);
+    a.mov(rcx, ptr(this_label));
+    a.mov(rdx, ptr(hook_label));
+    a.call(ptr(on_post_hook_label));
 
     // Restore return value.
-    g.mov(g.rcx, g.ptr[g.rip + ret_val_label]);
+    a.mov(rcx, ptr(ret_val_label));
 
     if (is_ret_ty_float) {
-        g.movq(g.xmm0, g.ptr[g.rcx]);
+        a.movq(xmm0, ptr(rcx));
     } else {
-        g.mov(g.rax, g.ptr[g.rcx]);
+        a.mov(rax, ptr(rcx));
     }
 
     // Store state.
-    g.push(g.rax);
-    g.mov(g.r10, g.ptr[g.rip + ret_addr_label]);
-    g.mov(g.r10, g.ptr[g.r10]);
-    g.push(g.r10);
+    a.push(rax);
+    a.mov(r10, ptr(ret_addr_label));
+    a.mov(r10, ptr(r10));
+    a.push(r10);
 
     // Unlock context.
-    g.mov(g.rcx, g.ptr[g.rip + this_label]);
-    g.sub(g.rsp, 32);
-    g.call(g.ptr[g.rip + unlock_label]);
-    g.add(g.rsp, 32);
+    a.mov(rcx, ptr(this_label));
+    a.sub(rsp, 32);
+    a.call(ptr(unlock_label));
+    a.add(rsp, 32);
 
     // Restore state.
-    g.pop(g.r10);
-    g.pop(g.rax);
+    a.pop(r10);
+    a.pop(rax);
 
     // Return.
-    g.jmp(g.r10);
-    
-    g.L(hook_label);
-    g.dq((uint64_t)hook.get());
-    g.L(args_label);
-    g.dq((uint64_t)args.data());
-    g.L(this_label);
-    g.dq((uint64_t)state);
-    g.L(on_pre_hook_label);
-    g.dq((uint64_t)&ScriptState::on_pre_hook_static);
-    g.L(on_post_hook_label);
-    g.dq((uint64_t)&ScriptState::on_post_hook_static);
-    g.L(lock_label);
-    g.dq((uint64_t)&ScriptState::lock_static);
-    g.L(unlock_label);
-    g.dq((uint64_t)&ScriptState::unlock_static);
-    g.L(ret_addr_label);
-    g.dq((uint64_t)&hook->ret_addr);
-    g.L(ret_val_label);
-    g.dq((uint64_t)&hook->ret_val);
-    g.L(orig_label);
+    a.jmp(r10);
+
+    a.bind(hook_label);
+    a.dq((uint64_t)hook.get());
+    a.bind(args_label);
+    a.dq((uint64_t)args.data());
+    a.bind(this_label);
+    a.dq((uint64_t)state);
+    a.bind(on_pre_hook_label);
+    a.dq((uint64_t)&ScriptState::on_pre_hook_static);
+    a.bind(on_post_hook_label);
+    a.dq((uint64_t)&ScriptState::on_post_hook_static);
+    a.bind(lock_label);
+    a.dq((uint64_t)&ScriptState::lock_static);
+    a.bind(unlock_label);
+    a.dq((uint64_t)&ScriptState::unlock_static);
+    a.bind(ret_addr_label);
+    a.dq((uint64_t)&hook->ret_addr);
+    a.bind(ret_val_label);
+    a.dq((uint64_t)&hook->ret_val);
+    a.bind(orig_label);
     // Can't do the following because the hook hasn't been created yet.
-    //g.dq(fn_hook->get_original());
-    g.dq(0);
+    //a.dq(fn_hook->get_original());
+    a.dq(0);
+
+    rt->add(&hook->facilitator_fn, &code);
 
     // Hook the function to our facilitator.
-    fn_hook = std::make_unique<FunctionHook>(hook->target_fn, (void*)g.getCode());
+    fn_hook = std::make_unique<FunctionHook>(hook->target_fn, (void*)hook->facilitator_fn);
 
     // Set the facilitators original function pointer.
-    *(uintptr_t*)orig_label.getAddress() = fn_hook->get_original();
+    *(uintptr_t*)(hook->facilitator_fn + code.labelOffsetFromBase(orig_label)) = fn_hook->get_original();
 
     fn_hook->create();
     hooked_fns.emplace(fn, std::move(hook));
