@@ -1826,6 +1826,7 @@ void VR::on_pre_begin_rendering(void* entry) {
 
     m_in_render = true;
 
+    // Use the gamepad/motion controller sticks to lerp the standing origin back to the center
     if (m_via_hid_gamepad.update()) {
         auto pad = sdk::call_object_func<REManagedObject*>(m_via_hid_gamepad.object, m_via_hid_gamepad.t, "get_LastInputDevice", sdk::get_thread_context(), m_via_hid_gamepad.object);
 
@@ -2533,6 +2534,21 @@ void VR::on_device_reset() {
     m_d3d11.on_reset(this);
     m_d3d12.on_reset(this);
     m_overlay_component.on_reset();
+
+    // so i guess device resets can happen between begin and end rendering...
+    if (m_in_render) {
+        spdlog::info("VR: on_device_reset: in_render");
+
+        // what the fuck
+        if (m_needs_camera_restore) {
+            spdlog::info("VR: on_device_reset: needs_camera_restore");
+            restore_camera();
+        }
+    }
+
+    if (inside_on_end) {
+        spdlog::info("VR: on_device_reset: inside_on_end");
+    }
 }
 
 void VR::on_config_load(const utility::Config& cfg) {
@@ -2542,7 +2558,7 @@ void VR::on_config_load(const utility::Config& cfg) {
 }
 
 void VR::on_config_save(utility::Config& cfg) {
-        for (IModValue& option : m_options) {
+    for (IModValue& option : m_options) {
         option.config_save(cfg);
     }
 }
