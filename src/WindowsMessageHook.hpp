@@ -37,6 +37,8 @@ public:
     WindowsMessageHook& operator=(const WindowsMessageHook& other) = delete;
     WindowsMessageHook& operator=(const WindowsMessageHook&& other) = delete;
 
+    bool is_hook_intact();
+
 private:
     HWND m_wnd;
     WNDPROC m_original_proc;

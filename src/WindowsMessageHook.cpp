@@ -83,3 +83,11 @@ bool WindowsMessageHook::remove() {
 
     return true;
 }
+
+bool WindowsMessageHook::is_hook_intact() {
+    if (!m_wnd) {
+        return false;
+    }
+
+    return GetWindowLongPtr(m_wnd, GWLP_WNDPROC) == (LONG_PTR)&window_proc;
+}

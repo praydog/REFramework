@@ -85,6 +85,14 @@ void REFramework::hook_monitor() {
         }
 
         if (m_initialized && m_wnd != 0 && now - m_last_message_time > std::chrono::seconds(5)) {
+            if (m_windows_message_hook != nullptr && m_windows_message_hook->is_hook_intact()) {
+                spdlog::info("Windows message hook is still intact, ignoring...");
+                m_last_message_time = now;
+                m_last_sendmessage_time = now;
+                m_sent_message = false;
+                return;
+            }
+
             // send dummy message to window to check if our hook is still intact
             if (!m_sent_message) {
                 spdlog::info("Sending initial message hook test");
