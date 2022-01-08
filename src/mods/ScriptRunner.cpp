@@ -45,6 +45,8 @@ void debug(const char* str) {
 }
 
 ScriptState::HookedFn::~HookedFn() {
+    fn_hook.reset();
+
     if (facilitator_fn != 0) {
         auto rt = state.jit_runtime();
         rt->release(facilitator_fn);
