@@ -2146,6 +2146,22 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
         return;
     }
 
+    static auto gui_master_type = sdk::RETypeDB::get()->find_type(game_namespace("gui.GUIMaster"));
+    static auto gui_master_get_instance = gui_master_type->get_method("get_Instance");
+    static auto gui_master_get_input = gui_master_type->get_method("get_Input");
+    static auto gui_master_input_type = gui_master_get_input->get_return_type();
+
+    // ??????
+#ifdef RE2
+    static auto input_set_is_trigger_move_up_d = gui_master_input_type->get_method("set_IsTriggerMoveUpD");
+    static auto input_set_is_trigger_move_down_d = gui_master_input_type->get_method("set_IsTriggerMoveDownD");
+#endif
+
+    auto gui_master = gui_master_get_instance->call<::REManagedObject*>(sdk::get_thread_context());
+    auto gui_input = gui_master != nullptr ? 
+                     gui_master_get_input->call<::REManagedObject*>(sdk::get_thread_context(), gui_master) : 
+                     (::REManagedObject*)nullptr;
+
     auto ctx = sdk::get_thread_context();
 
     static auto get_lstick_method = sdk::get_object_method(input_system, "get_LStick");
@@ -2336,6 +2352,7 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
         // DPad Up: Shortcut Up
         set_button_state(app::ropeway::InputDefine::Kind::SHORTCUT_UP, is_dpad_up_down);
         set_button_state(app::ropeway::InputDefine::Kind::UI_MAP_UP, is_dpad_up_down);
+        set_button_state(app::ropeway::InputDefine::Kind::UI_UP, is_dpad_up_down); // IsTriggerMoveUpD in RE3
 
         // DPad Right: Shortcut Right
         set_button_state(app::ropeway::InputDefine::Kind::SHORTCUT_RIGHT, is_dpad_right_down);
@@ -2343,9 +2360,21 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
         // DPad Down: Shortcut Down
         set_button_state(app::ropeway::InputDefine::Kind::SHORTCUT_DOWN, is_dpad_down_down);
         set_button_state(app::ropeway::InputDefine::Kind::UI_MAP_DOWN, is_dpad_down_down);
+        set_button_state(app::ropeway::InputDefine::Kind::UI_DOWN, is_dpad_down_down); // IsTriggerMoveDownD in RE3
 
         // DPad Left: Shortcut Left
         set_button_state(app::ropeway::InputDefine::Kind::SHORTCUT_LEFT, is_dpad_left_down);
+
+        // well this was really annoying to figure out
+#ifdef RE2
+        if (is_dpad_up_down && gui_input != nullptr) {
+            input_set_is_trigger_move_up_d->call<void*>(ctx, gui_input, true);
+        }
+
+        if (is_dpad_down_down && gui_input != nullptr) {
+            input_set_is_trigger_move_down_d->call<void*>(ctx, gui_input, true);
+        }
+#endif
     } else {
         set_button_state(app::ropeway::InputDefine::Kind::SHORTCUT_UP, left_axis.y > 0.9f);
         set_button_state(app::ropeway::InputDefine::Kind::SHORTCUT_RIGHT, left_axis.x > 0.9f);
