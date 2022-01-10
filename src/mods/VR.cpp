@@ -1243,6 +1243,8 @@ void VR::restore_audio_camera() {
 
     sdk::set_joint_rotation(joint, m_original_audio_camera_rotation);
     sdk::set_joint_position(joint, m_original_audio_camera_position);
+
+    m_needs_audio_restore = false;
 }
 
 void VR::restore_camera() {
@@ -2707,7 +2709,7 @@ void VR::on_draw_ui() {
         m_standing_origin.y = get_position(0).y;
     }
 
-    if (ImGui::Button("Set Standing Origin")) {
+    if (ImGui::Button("Set Standing Origin") || m_set_standing_key->is_key_down_once()) {
         m_standing_origin = get_position(0);
     }
 
@@ -2718,9 +2720,7 @@ void VR::on_draw_ui() {
     //ImGui::DragFloat4("Right Bounds", (float*)&m_right_bounds, 0.005f, -2.0f, 2.0f);
     //ImGui::DragFloat4("Left Bounds", (float*)&m_left_bounds, 0.005f, -2.0f, 2.0f);
 
-    ImGui::DragFloat3("Overlay Rotation", (float*)&m_overlay_rotation, 0.01f, -360.0f, 360.0f);
-    ImGui::DragFloat3("Overlay Position", (float*)&m_overlay_position, 0.01f, -100.0f, 100.0f);
-
+    m_set_standing_key->draw("Set Standing Origin Key");
     m_use_afr->draw("Use AFR");
     m_decoupled_pitch->draw("Decoupled Camera Pitch");
 
@@ -2737,6 +2737,8 @@ void VR::on_draw_ui() {
     m_joystick_deadzone->draw("Joystick Deadzone");
 
     ImGui::DragFloat("UI Scale", &m_ui_scale, 0.005f, 0.0f, 100.0f);
+    ImGui::DragFloat3("Overlay Rotation", (float*)&m_overlay_rotation, 0.01f, -360.0f, 360.0f);
+    ImGui::DragFloat3("Overlay Position", (float*)&m_overlay_position, 0.01f, -100.0f, 100.0f);
 
     ImGui::Separator();
     ImGui::Text("Graphical Options");
