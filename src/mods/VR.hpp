@@ -407,6 +407,7 @@ private:
     const ModToggle::Ptr m_force_lensflares_settings{ ModToggle::create(generate_name("ForceLensFlares"), true) };
 
     ValueList m_options{
+        *m_set_standing_key,
         *m_decoupled_pitch,
         *m_use_afr,
         *m_use_custom_view_distance,

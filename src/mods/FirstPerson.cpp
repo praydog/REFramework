@@ -1188,6 +1188,20 @@ void FirstPerson::update_player_body_rotation(RETransform* transform) {
         return;
     }
 
+    static auto jack_dominator_typedef = sdk::RETypeDB::get()->find_type(game_namespace("JackDominator"));
+    static auto jacked_method = jack_dominator_typedef->get_method("get_Jacked");
+
+    auto jack_dominator = utility::re_component::find<::REComponent*>(transform, jack_dominator_typedef->get_type());
+
+    if (jack_dominator != nullptr) {
+        const auto is_jacked = jacked_method->call<bool>(sdk::get_thread_context(), jack_dominator);
+
+        // using a ladder, being grabbed, jumping down, etc
+        if (is_jacked) {
+            return;
+        }
+    }
+
     auto player_matrix = glm::mat4{ *(glm::quat*)&transform->angles };
 
     auto player_right = *(Vector3f*)&player_matrix[0] * -1.0f;
