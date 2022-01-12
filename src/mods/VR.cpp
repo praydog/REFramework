@@ -952,6 +952,7 @@ void VR::update_hmd_state() {
         memcpy(m_render_poses.data(), m_real_render_poses.data(), sizeof(m_render_poses));
 
         if (wants_reset_origin) {
+            m_rotation_offset = glm::identity<glm::quat>();
             m_standing_origin = get_position_unsafe(vr::k_unTrackedDeviceIndex_Hmd);
         }
     }
@@ -1018,6 +1019,14 @@ void VR::update_action_states() {
 
         //reinitialize_openvr();
         m_request_reinitialize_openvr = true;
+    }
+
+    if (m_recenter_view_key->is_key_down_once()) {
+        recenter_view();
+    }
+
+    if (m_set_standing_key->is_key_down_once()) {
+        set_standing_origin(get_position(0));
     }
 }
 
@@ -1126,8 +1135,8 @@ void VR::update_camera_origin() {
 }
 
 void VR::apply_hmd_transform(::REJoint* camera_joint) {
-    const auto current_hmd_rotation = glm::quat{get_rotation(0)};
-
+    const auto current_hmd_rotation = glm::normalize(m_rotation_offset * glm::quat{get_rotation(0)});
+    
     glm::quat new_rotation{};
     glm::quat camera_rotation{};
     
@@ -1141,7 +1150,7 @@ void VR::apply_hmd_transform(::REJoint* camera_joint) {
         new_rotation = glm::normalize(camera_rotation * current_hmd_rotation);
     }
 
-    auto current_relative_pos = (get_position(0) - m_standing_origin) /*+ current_relative_eye_pos*/;
+    auto current_relative_pos = m_rotation_offset * (get_position(0) - m_standing_origin) /*+ current_relative_eye_pos*/;
     current_relative_pos.w = 0.0f;
 
     auto current_head_pos = camera_rotation * current_relative_pos;
@@ -1534,6 +1543,23 @@ void VR::set_standing_origin(const Vector4f& origin) {
     m_standing_origin = origin;
 }
 
+glm::quat VR::get_rotation_offset() {
+    std::shared_lock _{ m_rotation_mtx };
+
+    return m_rotation_offset;
+}
+
+void VR::set_rotation_offset(const glm::quat& offset) {
+    std::unique_lock _{ m_rotation_mtx };
+
+    m_rotation_offset = offset;
+}
+
+void VR::recenter_view() {
+    set_rotation_offset(glm::inverse(get_rotation(0)));
+    set_rotation_offset(glm::quat{utility::math::remove_y_component(Matrix4x4f{m_rotation_offset})});
+}
+
 Vector4f VR::get_current_offset() {
     if (!m_is_hmd_active) {
         return Vector4f{};
@@ -1564,14 +1590,6 @@ Matrix4x4f VR::get_current_eye_transform(bool flip) {
     }
 
     return m_eyes[vr::Eye_Right];
-}
-
-Matrix4x4f VR::get_current_rotation_offset() {
-    if (!m_is_hmd_active) {
-        return glm::identity<Matrix4x4f>();
-    }
-
-    return glm::extractMatrixRotation(get_current_eye_transform());
 }
 
 Matrix4x4f VR::get_current_projection_matrix(bool flip) {
@@ -2713,6 +2731,10 @@ void VR::on_draw_ui() {
         m_standing_origin = get_position(0);
     }
 
+    if (ImGui::Button("Recenter View") || m_recenter_view_key->is_key_down_once()) {
+        recenter_view();
+    }
+
     if (ImGui::Button("Reinitialize OpenVR")) {
         m_request_reinitialize_openvr = true;
     }
@@ -2720,7 +2742,13 @@ void VR::on_draw_ui() {
     //ImGui::DragFloat4("Right Bounds", (float*)&m_right_bounds, 0.005f, -2.0f, 2.0f);
     //ImGui::DragFloat4("Left Bounds", (float*)&m_left_bounds, 0.005f, -2.0f, 2.0f);
 
+    ImGui::Separator();
+
     m_set_standing_key->draw("Set Standing Origin Key");
+    m_recenter_view_key->draw("Recenter View Key");
+
+    ImGui::Separator();
+
     m_use_afr->draw("Use AFR");
     m_decoupled_pitch->draw("Decoupled Camera Pitch");
 

@@ -95,10 +95,13 @@ public:
     Vector4f get_standing_origin();
     void set_standing_origin(const Vector4f& origin);
 
+    glm::quat get_rotation_offset();
+    void set_rotation_offset(const glm::quat& offset);
+    void recenter_view();
+
     Vector4f get_current_offset();
 
     Matrix4x4f get_current_eye_transform(bool flip = false);
-    Matrix4x4f get_current_rotation_offset();
     Matrix4x4f get_current_projection_matrix(bool flip = false);
 
     auto& get_controllers() const {
@@ -123,6 +126,10 @@ public:
 
     void toggle_hmd_oriented_audio() {
         m_hmd_oriented_audio->toggle();
+    }
+
+    const Matrix4x4f& get_last_render_matrix() {
+        return m_render_camera_matrix;
     }
 
     Vector4f get_position(uint32_t index);
@@ -233,6 +240,7 @@ private:
     std::recursive_mutex m_wwise_mtx{};
     std::shared_mutex m_pose_mtx{};
     std::shared_mutex m_eyes_mtx{};
+    std::shared_mutex m_rotation_mtx{};
 
     REManagedObject* m_main_view{nullptr};
 
@@ -255,6 +263,7 @@ private:
     std::array<vr::TrackedDevicePose_t, vr::k_unMaxTrackedDeviceCount> m_game_poses;
 
     Vector4f m_standing_origin{ 0.0f, 1.5f, 0.0f, 0.0f };
+    glm::quat m_rotation_offset{ glm::identity<glm::quat>() };
 
     std::vector<int32_t> m_controllers{};
     std::unordered_set<int32_t> m_controllers_set{};
@@ -390,6 +399,7 @@ private:
     };
 
     const ModKey::Ptr m_set_standing_key{ ModKey::create(generate_name("SetStandingOriginKey")) };
+    const ModKey::Ptr m_recenter_view_key{ ModKey::create(generate_name("RecenterViewKey")) };
     const ModToggle::Ptr m_decoupled_pitch{ ModToggle::create(generate_name("DecoupledPitch"), false) };
     const ModToggle::Ptr m_use_afr{ ModToggle::create(generate_name("AlternateFrameRendering"), false) };
     const ModToggle::Ptr m_use_custom_view_distance{ ModToggle::create(generate_name("UseCustomViewDistance"), false) };
@@ -408,6 +418,7 @@ private:
 
     ValueList m_options{
         *m_set_standing_key,
+        *m_recenter_view_key,
         *m_decoupled_pitch,
         *m_use_afr,
         *m_use_custom_view_distance,
