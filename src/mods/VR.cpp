@@ -1425,6 +1425,7 @@ void VR::disable_bad_effects() {
     }
 
     if (m_force_vsync_settings->value() && get_vsync_method != nullptr && set_vsync_method != nullptr) {
+#ifndef MHRISE
         const auto vsync = get_vsync_method->call<bool>(context, render_config);
 
         // Disable vsync
@@ -1432,6 +1433,12 @@ void VR::disable_bad_effects() {
             set_vsync_method->call<void*>(context, render_config, false);
             spdlog::info("[VR] VSync disabled");
         }
+#else
+        // We are only calling set_vsync instead of checking with get_vsync in MHRise
+        // because get_VSync has some insane code protection on it for some reason
+        // which would increase frametimes to 15+
+        set_vsync_method->call<void*>(context, render_config, false);
+#endif
     }
 
     if (m_force_volumetrics_settings->value() && get_transparent_buffer_quality_method != nullptr && set_transparent_buffer_quality_method != nullptr) {
