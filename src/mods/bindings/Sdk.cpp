@@ -746,7 +746,12 @@ void* get_actual_function(void* possible_fn) {
 }
 }
 
-void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function pre_cb, sol::function post_cb) {
+void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function pre_cb, sol::function post_cb, sol::object ignore_jmp_object) {
+    bool ignore_jmp = false;
+    if (ignore_jmp_object.is<bool>()) {
+        ignore_jmp = ignore_jmp_object.as<bool>();
+    }
+
     auto sol_state = sol::state_view{s};
     auto state = sol_state.registry()["state"].get<ScriptState*>();
     auto& hooked_fns = state->hooked_fns();
@@ -760,7 +765,7 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function pre_cb
 
     auto hook = std::make_unique<ScriptState::HookedFn>();
 
-    hook->target_fn = detail::get_actual_function(fn->get_function());
+    hook->target_fn = ignore_jmp ? fn->get_function() : detail::get_actual_function(fn->get_function());
     hook->script_pre_fns.emplace_back(pre_cb);
     hook->script_post_fns.emplace_back(post_cb);
     hook->script_args = sol_state.create_table();

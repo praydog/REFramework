@@ -10,3 +10,4 @@ build64_dmc5
 src/sdk/generated
 cmake-build*
 .idea/
+build_vs2019_devmode_DMC5.bat
