@@ -1919,7 +1919,18 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                         };
 
                         static auto gui_driver_typedef = sdk::RETypeDB::get()->find_type(game_namespace("GUIDriver"));
+                        static auto mhrise_npc_head_message_typedef = sdk::RETypeDB::get()->find_type(game_namespace("gui.GuiCommonNpcHeadMessage"));
+                        static auto mhrise_speech_balloon_typedef = sdk::RETypeDB::get()->find_type(game_namespace("gui.GuiCommonNpcSpeechBalloon"));
+                        static auto mhrise_head_message_typedef = sdk::RETypeDB::get()->find_type(game_namespace("gui.GuiCommonHeadMessage"));
+                        static auto mhrise_otomo_head_message_typedef = sdk::RETypeDB::get()->find_type(game_namespace("gui.GuiCommonOtomoHeadMessage"));
 
+                        static auto gameobject_elements_list = {
+                            mhrise_npc_head_message_typedef,
+                            mhrise_speech_balloon_typedef,
+                            mhrise_head_message_typedef,
+                            mhrise_otomo_head_message_typedef
+                        };
+                        
                         // Fix position of interaction icons
                         if (name_hash == "GUI_FloatIcon"_fnv || name_hash == "RogueFloatIcon"_fnv) { // RE2, RE3
                             if (name_hash == "GUI_FloatIcon"_fnv) {
@@ -1939,6 +1950,63 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                                     sdk::call_object_func<Vector4f*>(interact_icon_object->transform, "get_Position", &interact_icon_position, context, interact_icon_object->transform);
 
                                     fix_2d_position(interact_icon_position);
+                                }
+                            }
+                        } else {
+                            // MHRise
+                            for (auto element_type : gameobject_elements_list) {
+                                if (element_type == nullptr) {
+                                    continue;
+                                }
+
+                                auto element_comp = utility::re_component::find(game_object->transform, element_type->get_type());
+
+                                if (element_comp == nullptr) {
+                                    continue;
+                                }
+
+                                static auto get_parent_method = sdk::get_object_method(game_object->transform, "get_Parent");
+                                auto parent = get_parent_method->call<::RETransform*>(context, game_object->transform);
+
+                                if (parent != nullptr) {
+                                    Vector4f offset{};
+
+                                    if (element_type == mhrise_speech_balloon_typedef) {
+                                        static auto pos_data_field = mhrise_speech_balloon_typedef->get_field("posData");
+                                        static auto npc_message_pos = pos_data_field->get_type()->get_field("NpcMessagePos");
+
+                                        auto pos_data = pos_data_field->get_data<::REManagedObject*>(element_comp);
+
+                                        if (pos_data != nullptr) {
+                                            const auto y_offset = npc_message_pos->get_data<float>(pos_data);
+                                            offset = Vector4f{0.0f, y_offset, 0.0f, 0.0f};
+                                        } else {
+                                            offset = Vector4f{0.0f, 1.0f, 0.0f, 0.0f};
+                                        }
+                                    } else if (element_type == mhrise_npc_head_message_typedef) {
+                                        static auto pos_data_field = mhrise_npc_head_message_typedef->get_field("posData");
+                                        static auto npc_message_pos = pos_data_field->get_type()->get_field("NpcMessagePos");
+                                        
+                                        auto pos_data = pos_data_field->get_data<::REManagedObject*>(element_comp);
+
+                                        if (pos_data != nullptr) {
+                                            const auto y_offset = npc_message_pos->get_data<float>(pos_data);
+                                            offset = Vector4f{0.0f, y_offset, 0.0f, 0.0f};
+                                        } else {
+                                            offset = Vector4f{0.0f, 1.0f, 0.0f, 0.0f};
+                                        }
+                                    } else if (element_type == mhrise_head_message_typedef) {
+                                        static auto message_pos_y_field = mhrise_head_message_typedef->get_field("MessagePosY");
+
+                                        const auto y_offset = message_pos_y_field->get_data<float>(element_comp);
+                                        offset = Vector4f{0.0f, y_offset, 0.0f, 0.0f};
+                                    } else if (element_type == mhrise_otomo_head_message_typedef) { //airou and dog
+                                        offset = Vector4f{0.0, 1.0f, 0.0f, 0.0f};
+                                    }
+
+                                    fix_2d_position(sdk::get_transform_position(parent) + offset);
+                                } else {
+                                    fix_2d_position(original_game_object_pos);
                                 }
                             }
                         }
