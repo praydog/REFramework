@@ -2901,6 +2901,23 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
 
         break;
     }
+    case "via.mat4"_fnv: {
+        auto& mat = *(glm::mat4*)data;
+
+        for (int i = 0; i < 4; i++) {
+            ImGui::Text("%f %f %f %f", mat[i].x, mat[i].y, mat[i].z, mat[i].w);
+
+            if (real_data != nullptr) {
+                auto& mat_val = *(glm::mat4*)real_data;
+
+                ImGui::PushID(&mat_val[i]);
+                ImGui::DragFloat4("Set Value", (float*)&mat_val[i], 0.01f, min_float, max_float);
+                ImGui::PopID();
+            }
+        }
+
+        break;
+    };
     case "System.String"_fnv:
     case "via.string"_fnv: {
         if (managed_str) {

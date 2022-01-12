@@ -9,6 +9,11 @@ public:
 
     std::string_view get_name() const override { return "PositionHooks"; };
     std::optional<std::string> on_initialize() override;
+    void on_draw_ui() override;
+
+    auto& get_application_entry_times() {
+        return m_application_entry_times;
+    }
 
 protected:
     void* update_transform_hook_internal(RETransform* t, uint8_t a2, uint32_t a3);
@@ -81,4 +86,15 @@ protected:
     std::unique_ptr<FunctionHook> m_lightshaft_draw_hook;
 
     std::unordered_map<const char*, void (*)(void*)> m_application_entry_hooks;
+
+    struct ApplicationEntryData {
+        std::chrono::nanoseconds callback_time;
+        std::chrono::nanoseconds reframework_pre_time;
+        std::chrono::nanoseconds reframework_post_time;
+    };
+
+    bool m_profiling_enabled{false};
+
+    std::recursive_mutex m_profiler_mutex{};
+    std::unordered_map<const char*, ApplicationEntryData> m_application_entry_times;
 };

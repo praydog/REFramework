@@ -1,3 +1,5 @@
+#include <hde64.h>
+
 #include "Pattern.hpp"
 #include "String.hpp"
 #include "Module.hpp"
@@ -115,6 +117,37 @@ namespace utility {
         }
 
         return {};
+    }
+
+    
+    std::optional<uintptr_t> scan_opcode(uintptr_t ip, size_t num_instructions, uint8_t opcode) {
+        for (size_t i = 0; i < num_instructions; ++i) {
+            hde64s hde{};
+            auto len = hde64_disasm((void*)ip, &hde);
+
+            if (hde.opcode == opcode) {
+                return ip;
+            }
+
+            ip += len;
+        }
+
+        return std::nullopt;
+    }
+
+    std::optional<uintptr_t> scan_disasm(uintptr_t ip, size_t num_instructions, const string& pattern) {
+        for (size_t i = 0; i < num_instructions; ++i) {
+            hde64s hde{};
+            auto len = hde64_disasm((void*)ip, &hde);
+
+            if (auto result = scan(ip, len, pattern); result && *result == ip) {
+                return ip;
+            }
+
+            ip += len;
+        }
+
+        return std::nullopt;
     }
 
     uintptr_t calculate_absolute(uintptr_t address, uint8_t customOffset /*= 4*/) {

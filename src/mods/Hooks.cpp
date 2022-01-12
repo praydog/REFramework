@@ -35,6 +35,50 @@ std::optional<std::string> Hooks::on_initialize() {
     return Mod::on_initialize();
 }
 
+void Hooks::on_draw_ui() {
+    if (!ImGui::CollapsingHeader("Performance")) {
+        return;
+    }
+
+    ImGui::Checkbox("Enable Profiling", &m_profiling_enabled);
+
+    if (!m_profiling_enabled) {
+        return;
+    }
+
+    ImGui::Text("Application Entry Times");
+
+    std::vector<const char*> sorted_times{};
+    std::scoped_lock _{m_profiler_mutex};
+
+    for (auto& entry : m_application_entry_times) {
+        sorted_times.emplace_back(entry.first);
+    }
+
+    std::sort(sorted_times.begin(), sorted_times.end(), [&](const char* a, const char* b) {
+        const auto& a_entry = m_application_entry_times[a];
+        const auto& b_entry = m_application_entry_times[b];
+
+        return a_entry.callback_time + a_entry.reframework_pre_time + a_entry.reframework_post_time 
+                > b_entry.callback_time + b_entry.reframework_pre_time + b_entry.reframework_post_time;
+    });
+
+    for (auto name : sorted_times) {
+        auto& entry = m_application_entry_times[name];
+        
+        ImGui::SetNextItemOpen(true);
+
+        if (ImGui::TreeNode(name)) {
+            ImGui::Text("Game Time: %s: %.2fms", name, entry.callback_time.count() / 1000000.0f);
+            ImGui::Text("REFramework Pre Time: %.2fms", entry.reframework_pre_time.count() / 1000000.0f);
+            ImGui::Text("REFramework Post Time: %.2fms", entry.reframework_post_time.count() / 1000000.0f);
+            ImGui::Text("Total Time: %.2fms", (entry.callback_time + entry.reframework_pre_time + entry.reframework_post_time).count() / 1000000.0f);
+            
+            ImGui::TreePop();
+        }
+    }
+}
+
 std::optional<std::string> Hooks::hook_update_transform() {
     auto game = g_framework->get_module().as<HMODULE>();
 
@@ -567,16 +611,46 @@ void Hooks::global_application_entry_hook_internal(void* entry, const char* name
         return original(entry);
     }
 
-    auto& mods = g_framework->get_mods()->get_mods();
+    if (m_profiling_enabled) {
+        Hooks::ApplicationEntryData profiler_entry{};
+        
+        auto now = std::chrono::high_resolution_clock::now();
+        auto& mods = g_framework->get_mods()->get_mods();
 
-    for (auto& mod : mods) {
-        mod->on_pre_application_entry(entry, name, hash);
-    }
-    
-    original(entry);
+        for (auto& mod : mods) {
+            mod->on_pre_application_entry(entry, name, hash);
+        }
 
-    for (auto& mod : mods) {
-        mod->on_application_entry(entry, name, hash);
+        profiler_entry.reframework_pre_time = std::chrono::high_resolution_clock::now() - now;
+
+        now = std::chrono::high_resolution_clock::now();
+        
+        original(entry);
+
+        profiler_entry.callback_time = std::chrono::high_resolution_clock::now() - now;
+
+        now = std::chrono::high_resolution_clock::now();
+
+        for (auto& mod : mods) {
+            mod->on_application_entry(entry, name, hash);
+        }
+
+        profiler_entry.reframework_post_time = std::chrono::high_resolution_clock::now() - now;
+        
+        std::scoped_lock _{m_profiler_mutex};
+        m_application_entry_times[name] = profiler_entry;
+    } else {
+        auto& mods = g_framework->get_mods()->get_mods();
+
+        for (auto& mod : mods) {
+            mod->on_pre_application_entry(entry, name, hash);
+        }
+        
+        original(entry);
+
+        for (auto& mod : mods) {
+            mod->on_application_entry(entry, name, hash);
+        }
     }
 }
 
