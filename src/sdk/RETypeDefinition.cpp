@@ -469,6 +469,10 @@ via::clr::VMObjType RETypeDefinition::get_vm_obj_type() const {
     return (via::clr::VMObjType)this->object_type;
 }
 
+void RETypeDefinition::set_vm_obj_type(via::clr::VMObjType type) {
+    this->object_type = (uint8_t)type;
+}
+
 bool RETypeDefinition::is_value_type() const {
     return get_vm_obj_type() == via::clr::VMObjType::ValType;
 }
@@ -811,9 +815,10 @@ void* RETypeDefinition::create_instance() const {
     return utility::re_type::create_instance(t);
 }
 
-::REManagedObject* RETypeDefinition::create_instance_full() const {
+::REManagedObject* RETypeDefinition::create_instance_full(bool simplify) {
     static auto system_activator_type = sdk::RETypeDB::get()->find_type("System.Activator");
     static auto create_instance_func = system_activator_type->get_method("CreateInstance(System.Type)");
+    static auto create_instance_alternative_func = system_activator_type->get_method("createInstance(System.Type)");
 
     const auto typeof = this->get_runtime_type();
 
@@ -821,7 +826,20 @@ void* RETypeDefinition::create_instance() const {
         return nullptr;
     }
 
-    return create_instance_func->call<REManagedObject*>(sdk::get_thread_context(), typeof);
+    if (simplify) {
+        // forces the game to use a simplified path for creating the object
+        // because in some cases this function could fail
+        const auto old_obj_type = this->get_vm_obj_type();
+        set_vm_obj_type(via::clr::VMObjType::ValType);
+
+        auto result = create_instance_alternative_func->call<REManagedObject*>(sdk::get_thread_context(), typeof);
+
+        set_vm_obj_type(old_obj_type);
+
+        return result;
+    } else {
+        return create_instance_func->call<REManagedObject*>(sdk::get_thread_context(), typeof);
+    }
 }
 
 bool RETypeDefinition::should_pass_by_pointer() const {

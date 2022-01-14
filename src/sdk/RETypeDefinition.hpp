@@ -320,6 +320,9 @@ struct RETypeDefinition : public sdk::RETypeDefinition_ {
 
     void* get_instance() const;
     void* create_instance() const;
-    ::REManagedObject* create_instance_full() const;
+    ::REManagedObject* create_instance_full(bool simplify = false);
+
+private:    
+    void set_vm_obj_type(via::clr::VMObjType type); // for REFramework shenanigans only!
 };
 } // namespace sdk

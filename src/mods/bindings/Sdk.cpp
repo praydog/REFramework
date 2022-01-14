@@ -280,7 +280,13 @@ sol::object create_resource(sol::this_state s, std::string type_name, std::strin
     return sol::make_object(s, resource_manager->create_resource(t, utility::widen(name)));
 }
 
-sol::object create_instance(sol::this_state s, const char* name) {
+sol::object create_instance(sol::this_state s, const char* name, sol::object simplify_obj) {
+    bool simplify = false;
+
+    if (simplify_obj.is<bool>()) {
+        simplify = simplify_obj.as<bool>();
+    }
+
     if (name == nullptr) {
         return sol::make_object(s, sol::nil);
     }
@@ -291,7 +297,7 @@ sol::object create_instance(sol::this_state s, const char* name) {
         return sol::make_object(s, sol::nil);
     }
 
-    return sol::make_object(s, type_definition->create_instance_full());
+    return sol::make_object(s, type_definition->create_instance_full(simplify));
 }
 
 void* get_real_obj(sol::object obj) {
