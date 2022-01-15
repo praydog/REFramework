@@ -89,6 +89,7 @@ private:
     // Different "configs" for each model
     std::unordered_map<std::string, Vector4f> m_attach_offsets;
     
+    glm::quat m_last_headset_rotation{ glm::identity<glm::quat>() };
     Matrix4x4f m_rotation_offset{ glm::identity<Matrix4x4f>() };
     Matrix4x4f m_interpolated_bone{ glm::identity<Matrix4x4f>() };
     Matrix4x4f m_last_bone_matrix{ glm::identity<Matrix4x4f>() };
@@ -103,6 +104,7 @@ private:
     Vector3f m_last_controller_angles{};
     bool m_has_cutscene_rotation{ false };
     bool m_ignore_next_player_angles{ false };
+    bool m_last_pause_state{false};
     app::ropeway::camera::CameraControlType m_last_camera_type{};
 
     // Don't show first person when the camera is not one of these
