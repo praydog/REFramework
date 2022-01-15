@@ -312,21 +312,22 @@ void VR::wwise_listener_update_hook(void* listener) {
         return;
     }
 
-#if defined(RE2) || defined(RE3)
-    if (FirstPerson::get()->will_be_used()) {
-        original_func(listener);
-        return;
-    }
-#endif
-
-
     if (!mod->m_hmd_oriented_audio->value()) {
         original_func(listener);
         return;
     }
 
     std::scoped_lock _{mod->m_wwise_mtx};
-    mod->update_audio_camera();
+
+#if defined(RE2) || defined(RE3)
+    const auto skip_camera_set = FirstPerson::get()->will_be_used();
+#else
+    const auto skip_camera_set = false;
+#endif
+
+    if (!skip_camera_set) {
+        mod->update_audio_camera();
+    }
 
 #ifndef RE7
     constexpr auto CAMERA_OFFSET = 0x50;
@@ -352,7 +353,9 @@ void VR::wwise_listener_update_hook(void* listener) {
         listener_camera = nullptr;
     }
 
-    mod->restore_audio_camera();
+    if (!skip_camera_set) {
+        mod->restore_audio_camera();
+    }
 }
 
 // put it on the backburner
