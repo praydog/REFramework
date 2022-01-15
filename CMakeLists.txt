@@ -27,6 +27,9 @@ if(CMKR_ROOT_PROJECT)
 	configure_file(cmake.toml cmake.toml COPYONLY)
 endif()
 
+# Options
+option(DEVELOPER_MODE ON)
+
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
 
 # Disable exceptions
@@ -650,6 +653,12 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 		${CMKR_TARGET}
 	)
 
+	if(DEVELOPER_MODE) # developer-mode
+		target_compile_definitions(RE2 PUBLIC
+			DEVELOPER
+		)
+	endif()
+
 	target_compile_features(RE2 PUBLIC
 		cxx_std_20
 	)
@@ -1043,6 +1052,12 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	target_compile_definitions(RE3 PUBLIC
 		${CMKR_TARGET}
 	)
+
+	if(DEVELOPER_MODE) # developer-mode
+		target_compile_definitions(RE3 PUBLIC
+			DEVELOPER
+		)
+	endif()
 
 	target_compile_features(RE3 PUBLIC
 		cxx_std_20
@@ -1438,6 +1453,12 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 		${CMKR_TARGET}
 	)
 
+	if(DEVELOPER_MODE) # developer-mode
+		target_compile_definitions(RE7 PUBLIC
+			DEVELOPER
+		)
+	endif()
+
 	target_compile_features(RE7 PUBLIC
 		cxx_std_20
 	)
@@ -1831,6 +1852,12 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	target_compile_definitions(RE8 PUBLIC
 		${CMKR_TARGET}
 	)
+
+	if(DEVELOPER_MODE) # developer-mode
+		target_compile_definitions(RE8 PUBLIC
+			DEVELOPER
+		)
+	endif()
 
 	target_compile_features(RE8 PUBLIC
 		cxx_std_20
@@ -2226,6 +2253,12 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 		${CMKR_TARGET}
 	)
 
+	if(DEVELOPER_MODE) # developer-mode
+		target_compile_definitions(DMC5 PUBLIC
+			DEVELOPER
+		)
+	endif()
+
 	target_compile_features(DMC5 PUBLIC
 		cxx_std_20
 	)
@@ -2619,6 +2652,12 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	target_compile_definitions(MHRISE PUBLIC
 		${CMKR_TARGET}
 	)
+
+	if(DEVELOPER_MODE) # developer-mode
+		target_compile_definitions(MHRISE PUBLIC
+			DEVELOPER
+		)
+	endif()
 
 	target_compile_features(MHRISE PUBLIC
 		cxx_std_20

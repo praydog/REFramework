@@ -15,8 +15,12 @@ string(REGEX REPLACE "/MD" "/MT" CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELE
 string(REGEX REPLACE "/MD" "/MT" CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE}")
 """
 
+[options]
+DEVELOPER_MODE = true
+
 [conditions]
 msvc-win64 = "MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8"
+developer-mode = "DEVELOPER_MODE"
 
 [fetch-content.xbyak]
 git = "https://github.com/herumi/xbyak.git"
@@ -83,6 +87,7 @@ link-directories = ["dependencies/openvr/lib/win64/"]
 compile-options = ["/GS-", "/bigobj"]
 compile-features = ["cxx_std_20"]
 compile-definitions = ["${CMKR_TARGET}"]
+developer-mode.compile-definitions = ["DEVELOPER"]
 link-libraries = [
     "xbyak",
     "nlohmann_json",
