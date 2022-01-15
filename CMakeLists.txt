@@ -30,6 +30,8 @@ endif()
 # Options
 option(DEVELOPER_MODE ON)
 
+project(reframework)
+
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
 
 # Disable exceptions
@@ -38,8 +40,6 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
 # Statically compile runtime
 string(REGEX REPLACE "/MD" "/MT" CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
 string(REGEX REPLACE "/MD" "/MT" CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE}")
-
-project(reframework)
 
 include(FetchContent)
 
