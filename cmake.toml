@@ -1,0 +1,124 @@
+# Reference: https://build-cpp.github.io/cmkr/cmake-toml
+# to build:
+# > cmake -B build
+# > cmake --build build --config Release
+[project]
+name = "reframework"
+cmake-before = """
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
+
+# Disable exceptions
+# string(REGEX REPLACE "/EHsc" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+
+# Statically compile runtime
+string(REGEX REPLACE "/MD" "/MT" CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
+string(REGEX REPLACE "/MD" "/MT" CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE}")
+"""
+
+[conditions]
+msvc-win64 = "MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8"
+
+[fetch-content.xbyak]
+git = "https://github.com/herumi/xbyak.git"
+tag = "v6.00"
+
+[target.spdlog]
+type = "static"
+sources = ["dependencies/spdlog/src/*.cpp"]
+include-directories = ["dependencies/spdlog/include"]
+compile-definitions = ["SPDLOG_COMPILED_LIB"]
+
+[target.glm_static]
+type = "static"
+sources = ["dependencies/glm/glm/**.cpp"]
+include-directories = ["dependencies/glm"]
+
+[target.minhook]
+type = "static"
+sources = ["dependencies/minhook/src/**.c"]
+include-directories = [
+    "dependencies/minhook/include",
+    "dependencies/minhook/src/hde",
+]
+
+[target.imgui]
+type = "static"
+sources = ["dependencies/imgui/*.cpp"]
+include-directories = ["dependencies/imgui", "src/re2-imgui"]
+compile-definitions = [
+    "IMGUI_USER_CONFIG=\"${CMAKE_SOURCE_DIR}/src/re2-imgui/re2_imconfig.hpp\"",
+]
+
+[target.openvr]
+type = "interface"
+include-directories = ["dependencies/openvr/headers"]
+link-libraries = [
+    "${CMAKE_SOURCE_DIR}/dependencies/openvr/lib/win64/openvr_api.lib",
+]
+cmake-after = """
+file(COPY dependencies/openvr/lib/win64/openvr_api.lib DESTINATION ${CMAKE_BINARY_DIR}/lib)
+file(COPY dependencies/openvr/bin/win64/openvr_api.dll DESTINATION ${CMAKE_BINARY_DIR}/bin)
+"""
+
+[target.lua]
+type = "static"
+sources = ["dependencies/lua/src/*.c"]
+include-directories = ["dependencies/lua/src"]
+
+[target.sol2]
+type = "interface"
+include-directories = ["dependencies/sol2/single/include"]
+
+[target.nlohmann_json]
+type = "interface"
+include-directories = ["dependencies/nlohmann"]
+
+[template.game]
+condition = "msvc-win64"
+type = "shared"
+sources = ["src/**.cpp", "src/**.c"]
+headers = ["src/**.hpp", "src/**.h"]
+include-directories = ["src/", "include/"]
+link-directories = ["dependencies/openvr/lib/win64/"]
+compile-options = ["/GS-", "/bigobj"]
+compile-features = ["cxx_std_20"]
+compile-definitions = ["${CMKR_TARGET}"]
+link-libraries = [
+    "xbyak",
+    "nlohmann_json",
+    "spdlog",
+    "lua",
+    "sol2",
+    "imgui",
+    "minhook",
+    "d3d11",
+    "glm_static",
+    "shlwapi",
+    "openvr",
+    "delayimp",
+]
+
+[template.game.properties]
+OUTPUT_NAME = "dinput8"
+LINK_FLAGS = "/DELAYLOAD:openvr_api.dll"
+RUNTIME_OUTPUT_DIRECTORY = "${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
+LIBRARY_OUTPUT_DIRECTORY = "${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+ARCHIVE_OUTPUT_DIRECTORY = "${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+
+[target.RE2]
+type = "game"
+
+[target.RE3]
+type = "game"
+
+[target.RE7]
+type = "game"
+
+[target.RE8]
+type = "game"
+
+[target.DMC5]
+type = "game"
+
+[target.MHRISE]
+type = "game"
