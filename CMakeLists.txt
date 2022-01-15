@@ -667,6 +667,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	target_compile_options(RE2 PUBLIC
 		"/GS-"
 		"/bigobj"
+		"/EHa"
 	)
 
 	target_include_directories(RE2 PUBLIC
@@ -1068,6 +1069,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	target_compile_options(RE3 PUBLIC
 		"/GS-"
 		"/bigobj"
+		"/EHa"
 	)
 
 	target_include_directories(RE3 PUBLIC
@@ -1469,6 +1471,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	target_compile_options(RE7 PUBLIC
 		"/GS-"
 		"/bigobj"
+		"/EHa"
 	)
 
 	target_include_directories(RE7 PUBLIC
@@ -1870,6 +1873,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	target_compile_options(RE8 PUBLIC
 		"/GS-"
 		"/bigobj"
+		"/EHa"
 	)
 
 	target_include_directories(RE8 PUBLIC
@@ -2271,6 +2275,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	target_compile_options(DMC5 PUBLIC
 		"/GS-"
 		"/bigobj"
+		"/EHa"
 	)
 
 	target_include_directories(DMC5 PUBLIC
@@ -2672,6 +2677,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	target_compile_options(MHRISE PUBLIC
 		"/GS-"
 		"/bigobj"
+		"/EHa"
 	)
 
 	target_include_directories(MHRISE PUBLIC
