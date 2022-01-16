@@ -1,0 +1,49 @@
+name: Dev Release
+on: push
+env:
+  BUILD_TYPE: Release
+jobs:
+  dev-release:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        target: [RE2, RE3, RE7, RE8, DMC5, MHRISE]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      - name: Configure CMake
+        run: cmake -S ${{github.workspace}} -B ${{github.workspace}}/build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DDEVELOPER_MODE=ON
+
+      - name: Build
+        run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}} --target ${{matrix.target}}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v2.3.1
+        with:
+          name: ${{matrix.target}}
+          path: ${{github.workspace}}/build/bin/${{matrix.target}}/dinput8.dll
+          if-no-files-found: error
+
+      - name: Compress release
+        run: |
+          echo ${{github.sha}} > ${{github.workspace}}/reframework_revision.txt
+          7z a ${{github.workspace}}/${{matrix.target}}.zip ${{github.workspace}}/reframework_revision.txt
+          7z a ${{github.workspace}}/${{matrix.target}}.zip ${{github.workspace}}/build/bin/${{matrix.target}}/dinput8.dll
+          7z a ${{github.workspace}}/${{matrix.target}}.zip ${{github.workspace}}/dependencies/openvr/bin/win64/openvr_api.dll
+          7z a ${{github.workspace}}/${{matrix.target}}.zip ${{github.workspace}}/scripts
+          7z rn ${{github.workspace}}/${{matrix.target}}.zip scripts reframework/autorun
+
+      - name: Set outputs
+        id: vars
+        run: echo "::set-output name=sha_short::$(git rev-parse --short HEAD)"
+
+      - name: Release
+        uses: softprops/action-gh-release@v0.1.14
+        with:
+          repository: cursey/reframework-nightly
+          token: ${{secrets.REPO_TOKEN}}
+          tag_name: ${{format('{0}-{1}', github.run_number, steps.vars.outputs.sha_short)}}
+          files: ${{github.workspace}}/${{matrix.target}}.zip
