@@ -28,7 +28,7 @@ if(CMKR_ROOT_PROJECT)
 endif()
 
 # Options
-option(DEVELOPER_MODE ON)
+option(DEVELOPER_MODE "Enable developer mode" ON)
 
 project(reframework)
 

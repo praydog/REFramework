@@ -16,7 +16,7 @@ string(REGEX REPLACE "/MD" "/MT" CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE}
 """
 
 [options]
-DEVELOPER_MODE = true
+DEVELOPER_MODE = { value = true, comment = "Enable developer mode" }
 
 [conditions]
 msvc-win64 = "MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8"
