@@ -146,6 +146,37 @@ std::optional<std::string> IntegrityCheckBypass::on_initialize() {
     spdlog::info("[{:s}]: bypass_integrity_checks: {:x}", get_name().data(), (uintptr_t)m_bypass_integrity_checks);
 #endif
 
+#ifdef MHRISE
+    // this is pretty much what it was like finding this, you just gotta look a little closer!
+    const auto very_cool_type = sdk::RETypeDB::get()->find_type_by_fqn(0x83f09f47);
+    bool patched_cool_method = false;
+
+    if (very_cool_type == nullptr) {
+        spdlog::error("[{:s}]: Could not find very_cool_type!", get_name().data());
+        return Mod::on_initialize();
+    }
+
+    for (auto& method : very_cool_type->get_methods()) {
+        if (utility::hash(method.get_name()) == 0x21c27632fa7ba29b) {
+            if (method.get_function() == nullptr) {
+                spdlog::error("[{:s}]: Could not find very_cool_type::cool_method!", get_name().data());
+                continue;
+            }
+
+            spdlog::info("[{:s}]: Patching very_cool_type method!", get_name().data());
+        
+            static auto patch = Patch::create((uintptr_t)method.get_function(), { 0xB0, 0x00, 0xC3 }, true);
+
+            patched_cool_method = true;
+            break;
+        }
+    }
+
+    if (!patched_cool_method) {
+        spdlog::error("[{:s}]: Could not find very_cool_type method!", get_name().data());
+    }
+#endif
+
     return Mod::on_initialize();
 }
 

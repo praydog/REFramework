@@ -16,7 +16,7 @@
 
 Mods::Mods()
 {
-#if defined(RE3) || defined(RE8)
+#if defined(RE3) || defined(RE8) || defined(MHRISE)
     m_mods.emplace_back(std::make_unique<IntegrityCheckBypass>());
 #endif
 

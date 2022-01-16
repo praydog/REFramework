@@ -545,6 +545,7 @@ struct RETypeDB : public sdk::RETypeDB_ {
     static RETypeDB* get();
 
     sdk::RETypeDefinition* find_type(std::string_view name) const;
+    sdk::RETypeDefinition* find_type_by_fqn(uint32_t fqn) const;
     sdk::RETypeDefinition* get_type(uint32_t index) const;
     sdk::REMethodDefinition* get_method(uint32_t index) const;
     sdk::REField* get_field(uint32_t index) const;

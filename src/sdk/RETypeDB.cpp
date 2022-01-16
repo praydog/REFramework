@@ -47,6 +47,18 @@ sdk::RETypeDefinition* RETypeDB::find_type(std::string_view name) const {
     return g_tdb_type_map[name.data()];
 }
 
+sdk::RETypeDefinition* RETypeDB::find_type_by_fqn(uint32_t fqn) const {
+    for (uint32_t i = 0; i< this->numTypes; ++i) {
+        auto t = get_type(i);
+
+        if (t->get_fqn_hash() == fqn) {
+            return t;
+        }
+    }
+
+    return nullptr;
+}
+
 sdk::REMethodDefinition* get_object_method(::REManagedObject* object, std::string_view name) {
     auto t = utility::re_managed_object::get_type_definition(object);
 

@@ -35,6 +35,7 @@ Supports both DirectX 11 and DirectX 12.
 ## Included Fixes
 * RE8 Startup Crash
 * RE8 Stutters (killing enemies, taking damage, etc...)
+* MHRise crashes related to third party DLLs
 
 ## Included Tools (Developer Mode)
 * Game Objects Display
