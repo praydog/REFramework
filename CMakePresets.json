@@ -2,13 +2,26 @@
     "version": 2,
     "configurePresets": [
         {
-            "name": "MSVC Release",
-            "displayName": "Visual Studio Community 2019 Release - amd64",
+            "name": "vs2019",
+            "displayName": "Visual Studio 2019 - amd64",
             "description": "Using compilers for Visual Studio 16 2019 (x64 architecture)",
             "generator": "Visual Studio 16 2019",
             "toolset": "host=x64",
             "architecture": "x64",
-            "binaryDir": "${sourceDir}/build/",
+            "binaryDir": "${sourceDir}/build",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/"
+            }
+        },
+        {
+            "name": "vs2022",
+            "displayName": "Visual Studio 2022 - amd64",
+            "description": "Using compilers for Visual Studio 17 2022 (x64 architecture)",
+            "generator": "Visual Studio 17 2022",
+            "toolset": "host=x64",
+            "architecture": "x64",
+            "binaryDir": "${sourceDir}/build",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release",
                 "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/"
@@ -17,18 +30,32 @@
     ],
     "buildPresets": [
         {
-            "name": "Release",
+            "name": "Release 2019",
             "description": "",
             "displayName": "Release",
-            "configurePreset": "MSVC Release",
-            "configuration": "Release"
+            "configuration": "Release",
+            "configurePreset": "vs2019"
         },
         {
-            "name": "RelWithDebInfo",
+            "name": "RelWithDebInfo 2019",
             "description": "",
             "displayName": "RelWithDebInfo",
-            "configurePreset": "MSVC Release",
-            "configuration": "RelWithDebInfo"
+            "configuration": "RelWithDebInfo",
+            "configurePreset": "vs2019"
+        },
+        {
+            "name": "Release 2022",
+            "description": "",
+            "displayName": "Release",
+            "configuration": "Release",
+            "configurePreset": "vs2022"
+        },
+        {
+            "name": "RelWithDebInfo 2022",
+            "description": "",
+            "displayName": "RelWithDebInfo",
+            "configuration": "RelWithDebInfo",
+            "configurePreset": "vs2022"
         }
     ]
 }
