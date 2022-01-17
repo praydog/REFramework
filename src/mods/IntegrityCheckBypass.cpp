@@ -149,31 +149,78 @@ std::optional<std::string> IntegrityCheckBypass::on_initialize() {
 #ifdef MHRISE
     // this is pretty much what it was like finding this, you just gotta look a little closer!
     const auto very_cool_type = sdk::RETypeDB::get()->find_type_by_fqn(0x83f09f47);
-    bool patched_cool_method = false;
+    static std::vector<Patch::Ptr> very_cool_patches{};
 
-    if (very_cool_type == nullptr) {
-        spdlog::error("[{:s}]: Could not find very_cool_type!", get_name().data());
-        return Mod::on_initialize();
-    }
+    auto find_method_by_hash = [](sdk::RETypeDefinition* t, size_t hash) -> sdk::REMethodDefinition* {
+        for (auto& method : t->get_methods()) {
+            if (utility::hash(method.get_name()) == hash) {
+                return &method;
+            }
+        }
 
-    for (auto& method : very_cool_type->get_methods()) {
-        if (utility::hash(method.get_name()) == 0x21c27632fa7ba29b) {
-            if (method.get_function() == nullptr) {
-                spdlog::error("[{:s}]: Could not find very_cool_type::cool_method!", get_name().data());
-                continue;
+        return nullptr;
+    };
+
+    if (very_cool_type != nullptr) {
+        auto patch_very_cool_method = [&](size_t hash) {
+            const auto method = find_method_by_hash(very_cool_type, hash);
+
+            if (method == nullptr) {
+                spdlog::error("Could not find very cool method", hash);
+                return false;
             }
 
-            spdlog::info("[{:s}]: Patching very_cool_type method!", get_name().data());
-        
-            static auto patch = Patch::create((uintptr_t)method.get_function(), { 0xB0, 0x00, 0xC3 }, true);
+            if (method->get_function() == nullptr) {
+                spdlog::error("[{:s}]: Could not find very_cool_type::very_cool_method!", get_name().data());
+                return false;
+            }
 
-            patched_cool_method = true;
-            break;
-        }
+            spdlog::info("[{:s}]: Patching very cool method!", get_name().data());
+        
+            very_cool_patches.emplace_back(Patch::create((uintptr_t)method->get_function(), { 0xB0, 0x00, 0xC3 }, true));
+
+            return true;
+        };
+
+        patch_very_cool_method(0x21c27632fa7ba29b);
+        patch_very_cool_method(0x49b943a462e8cf6a);
+    } else {
+        spdlog::error("[{:s}]: Could not find very_cool_type!", get_name().data());
     }
 
-    if (!patched_cool_method) {
-        spdlog::error("[{:s}]: Could not find very_cool_type method!", get_name().data());
+    const auto very_awesome_type = sdk::RETypeDB::get()->find_type_by_fqn(0xce04a0c6);
+
+    if (very_awesome_type != nullptr) {
+        const auto very_awesome_method = find_method_by_hash(very_awesome_type, 0x9f79221341cfcb18);
+
+        if (very_awesome_method != nullptr) {
+            if (very_awesome_method->get_function() == nullptr) {
+                spdlog::error("[{:s}]: Could not find very_awesome_type::very_awesome_method!", get_name().data());
+                return Mod::on_initialize();
+            }
+
+            const auto very_awesome_call = utility::scan_opcode((uintptr_t)very_awesome_method->get_function(), 10, 0xE8);
+
+            if (!very_awesome_call) {
+                spdlog::error("[{:s}]: Could not find very_awesome_call!", get_name().data());
+                return Mod::on_initialize();
+            }
+
+            const auto real_awesome_function = utility::calculate_absolute(*very_awesome_call + 1);
+
+            if (real_awesome_function == 0) {
+                spdlog::error("[{:s}]: Could not find real_awesome_function!", get_name().data());
+                return Mod::on_initialize();
+            }
+
+            spdlog::info("[{:s}]: Patching very awesome method!", get_name().data());
+
+            very_cool_patches.emplace_back(Patch::create(real_awesome_function, { 0xB0, 0x00, 0xC3 }, true));
+        } else {
+            spdlog::error("[{:s}]: Could not find very_awesome_method!", get_name().data());
+        }
+    } else {
+        spdlog::error("[{:s}]: Could not find very_awesome_type!", get_name().data());
     }
 #endif
 
