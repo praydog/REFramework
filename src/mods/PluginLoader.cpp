@@ -8,7 +8,17 @@
 
 #include "PluginLoader.hpp"
 
-REFrameworkPluginVersion g_plugin_version{1, 0, 0};
+REFrameworkPluginVersion g_plugin_version{
+    REFRAMEWORK_PLUGIN_VERSION_MAJOR, REFRAMEWORK_PLUGIN_VERSION_MINOR, REFRAMEWORK_PLUGIN_VERSION_PATCH};
+REFrameworkPluginFunctions g_plugin_functions{
+    reframework_on_initialized,
+    reframework_on_lua_state_created,
+    reframework_on_lua_state_destroyed,
+    reframework_on_frame,
+    reframework_on_pre_application_entry,
+    reframework_on_post_application_entry,
+};
+REFrameworkPluginInitializeParam g_plugin_initialize_param{nullptr, &g_plugin_version, &g_plugin_functions};
 
 std::optional<std::string> PluginLoader::on_initialize() {
     namespace fs = std::filesystem;
@@ -44,6 +54,8 @@ std::optional<std::string> PluginLoader::on_initialize() {
     }
 
     // Call reframework_plugin_required_version on any dlls that export it.
+    g_plugin_initialize_param.reframework_module = g_framework->get_reframework_module();
+
     for (auto it = m_plugins.begin(); it != m_plugins.end();) {
         auto name = it->first;
         auto mod = it->second;
@@ -85,16 +97,6 @@ std::optional<std::string> PluginLoader::on_initialize() {
     }
 
     // Call reframework_plugin_initialize on any dlls that export it.
-    REFrameworkPluginInitializeParam init_param{};
-    init_param.reframework_module = g_framework->get_reframework_module();
-    init_param.plugin_version = g_plugin_version;
-    init_param.on_initialized = reframework_on_initialized;
-    init_param.on_lua_state_created = reframework_on_lua_state_created;
-    init_param.on_lua_state_destroyed = reframework_on_lua_state_destroyed;
-    init_param.on_frame = reframework_on_frame;
-    init_param.on_pre_application_entry = reframework_on_pre_application_entry;
-    init_param.on_post_application_entry = reframework_on_post_application_entry;
-
     for (auto it = m_plugins.begin(); it != m_plugins.end();) {
         auto name = it->first;
         auto mod = it->second;
@@ -106,7 +108,7 @@ std::optional<std::string> PluginLoader::on_initialize() {
 
         spdlog::info("[PluginLoader] Initializing {}...", name);
 
-        if (!init_fn(&init_param)) {
+        if (!init_fn(&g_plugin_initialize_param)) {
             spdlog::error("[PluginLoader] Failed to initialize {}", name);
             m_plugin_load_errors.emplace(name, "Failed to initialize");
             FreeLibrary(mod);

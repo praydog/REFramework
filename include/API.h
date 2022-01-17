@@ -7,6 +7,10 @@
 #define REFRAMEWORK_API __declspec(dllimport)
 #endif
 
+#define REFRAMEWORK_PLUGIN_VERSION_MAJOR 1
+#define REFRAMEWORK_PLUGIN_VERSION_MINOR 0
+#define REFRAMEWORK_PLUGIN_VERSION_PATCH 0
+
 struct lua_State;
 
 typedef void (*REFInitializedCb)();
@@ -39,15 +43,18 @@ typedef struct {
 typedef void (*REFPluginRequiredVersionFn)(REFrameworkPluginVersion*);
 
 typedef struct {
-    void* reframework_module;
-    REFrameworkPluginVersion plugin_version;
-
     REFOnInitializeFn on_initialized;
     REFOnLuaStateCreatedFn on_lua_state_created;
     REFOnLuaStateDestroyedFn on_lua_state_destroyed;
     REFOnFrameFn on_frame;
     REFOnPreApplicationEntryFn on_pre_application_entry;
     REFOnPostApplicationEntryFn on_post_application_entry;
+} REFrameworkPluginFunctions;
+
+typedef struct {
+    void* reframework_module;
+    REFrameworkPluginVersion* version;
+    REFrameworkPluginFunctions* functions;
 } REFrameworkPluginInitializeParam;
 
 typedef bool (*REFPluginInitializeFn)(const REFrameworkPluginInitializeParam*);
