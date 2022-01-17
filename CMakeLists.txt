@@ -332,6 +332,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 		"src/mods/Hooks.cpp"
 		"src/mods/IntegrityCheckBypass.cpp"
 		"src/mods/ManualFlashlight.cpp"
+		"src/mods/PluginLoader.cpp"
 		"src/mods/REFrameworkConfig.cpp"
 		"src/mods/Scene.cpp"
 		"src/mods/ScriptRunner.cpp"
@@ -394,6 +395,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 		"src/mods/Hooks.hpp"
 		"src/mods/IntegrityCheckBypass.hpp"
 		"src/mods/ManualFlashlight.hpp"
+		"src/mods/PluginLoader.hpp"
 		"src/mods/REFrameworkConfig.hpp"
 		"src/mods/Scene.hpp"
 		"src/mods/ScriptRunner.hpp"
@@ -744,6 +746,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 		"src/mods/Hooks.cpp"
 		"src/mods/IntegrityCheckBypass.cpp"
 		"src/mods/ManualFlashlight.cpp"
+		"src/mods/PluginLoader.cpp"
 		"src/mods/REFrameworkConfig.cpp"
 		"src/mods/Scene.cpp"
 		"src/mods/ScriptRunner.cpp"
@@ -806,6 +809,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 		"src/mods/Hooks.hpp"
 		"src/mods/IntegrityCheckBypass.hpp"
 		"src/mods/ManualFlashlight.hpp"
+		"src/mods/PluginLoader.hpp"
 		"src/mods/REFrameworkConfig.hpp"
 		"src/mods/Scene.hpp"
 		"src/mods/ScriptRunner.hpp"
@@ -1156,6 +1160,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 		"src/mods/Hooks.cpp"
 		"src/mods/IntegrityCheckBypass.cpp"
 		"src/mods/ManualFlashlight.cpp"
+		"src/mods/PluginLoader.cpp"
 		"src/mods/REFrameworkConfig.cpp"
 		"src/mods/Scene.cpp"
 		"src/mods/ScriptRunner.cpp"
@@ -1218,6 +1223,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 		"src/mods/Hooks.hpp"
 		"src/mods/IntegrityCheckBypass.hpp"
 		"src/mods/ManualFlashlight.hpp"
+		"src/mods/PluginLoader.hpp"
 		"src/mods/REFrameworkConfig.hpp"
 		"src/mods/Scene.hpp"
 		"src/mods/ScriptRunner.hpp"
@@ -1568,6 +1574,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 		"src/mods/Hooks.cpp"
 		"src/mods/IntegrityCheckBypass.cpp"
 		"src/mods/ManualFlashlight.cpp"
+		"src/mods/PluginLoader.cpp"
 		"src/mods/REFrameworkConfig.cpp"
 		"src/mods/Scene.cpp"
 		"src/mods/ScriptRunner.cpp"
@@ -1630,6 +1637,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 		"src/mods/Hooks.hpp"
 		"src/mods/IntegrityCheckBypass.hpp"
 		"src/mods/ManualFlashlight.hpp"
+		"src/mods/PluginLoader.hpp"
 		"src/mods/REFrameworkConfig.hpp"
 		"src/mods/Scene.hpp"
 		"src/mods/ScriptRunner.hpp"
@@ -1980,6 +1988,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 		"src/mods/Hooks.cpp"
 		"src/mods/IntegrityCheckBypass.cpp"
 		"src/mods/ManualFlashlight.cpp"
+		"src/mods/PluginLoader.cpp"
 		"src/mods/REFrameworkConfig.cpp"
 		"src/mods/Scene.cpp"
 		"src/mods/ScriptRunner.cpp"
@@ -2042,6 +2051,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 		"src/mods/Hooks.hpp"
 		"src/mods/IntegrityCheckBypass.hpp"
 		"src/mods/ManualFlashlight.hpp"
+		"src/mods/PluginLoader.hpp"
 		"src/mods/REFrameworkConfig.hpp"
 		"src/mods/Scene.hpp"
 		"src/mods/ScriptRunner.hpp"
@@ -2392,6 +2402,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 		"src/mods/Hooks.cpp"
 		"src/mods/IntegrityCheckBypass.cpp"
 		"src/mods/ManualFlashlight.cpp"
+		"src/mods/PluginLoader.cpp"
 		"src/mods/REFrameworkConfig.cpp"
 		"src/mods/Scene.cpp"
 		"src/mods/ScriptRunner.cpp"
@@ -2454,6 +2465,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 		"src/mods/Hooks.hpp"
 		"src/mods/IntegrityCheckBypass.hpp"
 		"src/mods/ManualFlashlight.hpp"
+		"src/mods/PluginLoader.hpp"
 		"src/mods/REFrameworkConfig.hpp"
 		"src/mods/Scene.hpp"
 		"src/mods/ScriptRunner.hpp"
@@ -2780,4 +2792,47 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	unset(CMKR_TARGET)
 	unset(CMKR_SOURCES)
 endif()
+
+# Target example_plugin
+set(CMKR_TARGET example_plugin)
+set(example_plugin_SOURCES "")
+
+list(APPEND example_plugin_SOURCES
+	"example_plugin/Plugin.cpp"
+)
+
+list(APPEND example_plugin_SOURCES
+	cmake.toml
+)
+
+set(CMKR_SOURCES ${example_plugin_SOURCES})
+add_library(example_plugin SHARED)
+
+if(example_plugin_SOURCES)
+	target_sources(example_plugin PRIVATE ${example_plugin_SOURCES})
+endif()
+
+source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${example_plugin_SOURCES})
+
+target_include_directories(example_plugin PUBLIC
+	"include/"
+)
+
+set_target_properties(example_plugin PROPERTIES
+	RUNTIME_OUTPUT_DIRECTORY_RELEASE
+		"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
+	RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
+		"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
+	LIBRARY_OUTPUT_DIRECTORY_RELEASE
+		"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+	LIBRARY_OUTPUT_DIRECTORY_RELWITHDEBINFO
+		"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+	ARCHIVE_OUTPUT_DIRECTORY_RELEASE
+		"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+	ARCHIVE_OUTPUT_DIRECTORY_RELWITHDEBINFO
+		"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+)
+
+unset(CMKR_TARGET)
+unset(CMKR_SOURCES)
 

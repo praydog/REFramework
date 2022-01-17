@@ -21,8 +21,10 @@ private:
     void hook_monitor();
 
 public:
-    REFramework();
+    REFramework(HMODULE reframework_module);
     virtual ~REFramework();
+
+    auto get_reframework_module() const { return m_reframework_module; }
 
     bool is_valid() const { return m_valid; }
 
@@ -107,6 +109,8 @@ private:
     bool initialize_windows_message_hook();
 
     void call_on_frame();
+
+    HMODULE m_reframework_module{};
 
     bool m_first_frame{true};
     bool m_is_d3d12{false};

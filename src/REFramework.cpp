@@ -125,8 +125,9 @@ void REFramework::hook_monitor() {
     }
 }
 
-REFramework::REFramework()
-    : m_game_module{GetModuleHandle(0)}
+REFramework::REFramework(HMODULE reframework_module)
+    : m_reframework_module{reframework_module}
+    , m_game_module{GetModuleHandle(0)}
     , m_logger{spdlog::basic_logger_mt("REFramework", "re2_framework_log.txt", true)} {
     spdlog::set_default_logger(m_logger);
     spdlog::flush_on(spdlog::level::info);
