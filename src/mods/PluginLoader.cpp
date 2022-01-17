@@ -88,6 +88,12 @@ std::optional<std::string> PluginLoader::on_initialize() {
     REFrameworkPluginInitializeParam init_param{};
     init_param.reframework_module = g_framework->get_reframework_module();
     init_param.plugin_version = g_plugin_version;
+    init_param.on_initialized = reframework_on_initialized;
+    init_param.on_lua_state_created = reframework_on_lua_state_created;
+    init_param.on_lua_state_destroyed = reframework_on_lua_state_destroyed;
+    init_param.on_frame = reframework_on_frame;
+    init_param.on_pre_application_entry = reframework_on_pre_application_entry;
+    init_param.on_post_application_entry = reframework_on_post_application_entry;
 
     for (auto it = m_plugins.begin(); it != m_plugins.end();) {
         auto name = it->first;
