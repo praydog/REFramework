@@ -89,8 +89,10 @@ std::optional<std::string> PluginLoader::on_initialize() {
     init_param.reframework_module = g_framework->get_reframework_module();
     init_param.plugin_version = g_plugin_version;
 
-    for (auto&& [name, module] : m_plugins) {
-        auto init_fn = (REFPluginInitializeFn)GetProcAddress(module, "reframework_plugin_initialize");
+    for (auto it = m_plugins.begin(); it != m_plugins.end();) {
+        auto name = it->first;
+        auto mod = it->second;
+        auto init_fn = (REFPluginInitializeFn)GetProcAddress(mod, "reframework_plugin_initialize");
 
         if (init_fn == nullptr) {
             continue;
@@ -101,10 +103,12 @@ std::optional<std::string> PluginLoader::on_initialize() {
         if (!init_fn(&init_param)) {
             spdlog::error("[PluginLoader] Failed to initialize {}", name);
             m_plugin_load_errors.emplace(name, "Failed to initialize");
-            FreeLibrary(module);
-            m_plugins.erase(name);
+            FreeLibrary(mod);
+            it = m_plugins.erase(it);
             continue;
         }
+
+        ++it;
     }
 
     return std::nullopt;
