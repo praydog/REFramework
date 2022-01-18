@@ -135,6 +135,22 @@ public:
         return m_state;
     }
 
+    void lock() {
+        m_access_mutex.lock();
+
+        if (m_state) {
+            ScriptState::lock_static(m_state.get());
+        }
+    }
+
+    void unlock() {
+        if (m_state) {
+            ScriptState::unlock_static(m_state.get());
+        }
+
+        m_access_mutex.unlock();
+    }
+
 private:
     std::unique_ptr<ScriptState> m_state{};
     std::recursive_mutex m_access_mutex{};

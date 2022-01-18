@@ -135,6 +135,11 @@ type = "game"
 type = "shared"
 sources = ["example_plugin/Plugin.cpp"]
 include-directories = ["include/"]
+compile-features = ["cxx_std_20"]
+link-libraries = [
+    "lua",
+    "sol2"
+]
 
 [target.example_plugin.properties]
 RUNTIME_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"

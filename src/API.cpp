@@ -70,3 +70,11 @@ bool reframework_on_post_application_entry(const char* name, REFOnPostApplicatio
         APIProxy::get()->add_on_post_application_entry(cppname, cb);
     });   
 }
+
+void reframework_lock_lua() {
+    ScriptRunner::get()->lock();
+}
+
+void reframework_unlock_lua() {
+    ScriptRunner::get()->unlock();
+}
