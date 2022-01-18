@@ -200,10 +200,18 @@ ScriptState::ScriptState() {
         }
     );
 
-
     m_lua.new_usertype<REFramework>("REFramework",
         "is_drawing_ui", &REFramework::is_drawing_ui,
-        "get_game_name", &REFramework::get_game_name
+        "get_game_name", &REFramework::get_game_name,
+        "get_version_string", []() -> std::string { 
+            return (std::stringstream{} 
+            << REFRAMEWORK_PLUGIN_VERSION_MAJOR << "." 
+            << REFRAMEWORK_PLUGIN_VERSION_MINOR << "." 
+            << REFRAMEWORK_PLUGIN_VERSION_PATCH).str(); 
+        },
+        "get_version_major", []() -> int { return REFRAMEWORK_PLUGIN_VERSION_MAJOR; },
+        "get_version_minor", []() -> int { return REFRAMEWORK_PLUGIN_VERSION_MINOR; },
+        "get_version_patch", []() -> int { return REFRAMEWORK_PLUGIN_VERSION_PATCH; }
     );
 
     m_lua["reframework"] = g_framework.get();
