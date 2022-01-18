@@ -2,6 +2,7 @@
 #include <fstream>
 
 #include <json.hpp>
+#include <spdlog/spdlog.h>
 
 #include "../ScriptRunner.hpp"
 
@@ -121,6 +122,7 @@ sol::object load_file(sol::this_state l, const std::string& filepath) try {
     const auto j = json::parse(std::ifstream{detail::get_gamedir() / filepath});
     return detail::decode_any(l, j);
 } catch (const json::exception& e) {
+    spdlog::error("[JSON] Failed to load file {}: {}", filepath, e.what());
     return sol::nil;
 }
 
@@ -135,6 +137,7 @@ bool dump_file(const std::string& filepath, sol::object obj, sol::object indent_
     f << detail::encode_any(obj).dump(indent);
     return true;
 } catch (const std::exception& e) {
+    spdlog::error("[JSON] Failed to dump file {}: {}", filepath, e.what());
     return false;
 }
 
