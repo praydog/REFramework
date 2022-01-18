@@ -14,6 +14,7 @@
 
 #include "bindings/Sdk.hpp"
 #include "bindings/ImGui.hpp"
+#include "bindings/Json.hpp"
 
 #include "ScriptRunner.hpp"
 
@@ -49,6 +50,7 @@ ScriptState::ScriptState() {
     m_lua.open_libraries(sol::lib::base, sol::lib::package, sol::lib::string, sol::lib::math, sol::lib::table, sol::lib::bit32, sol::lib::utf8);
     bindings::open_sdk(this);
     bindings::open_imgui(this);
+    bindings::open_json(this);
 
     auto re = m_lua.create_table();
     re["msg"] = api::re::msg;
