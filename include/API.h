@@ -4,7 +4,12 @@
 #ifdef REFRAMEWORK_EXPORTS
 #define REFRAMEWORK_API __declspec(dllexport)
 #else
+// don't use this unless you really want to.
+#ifdef REFRAMEWORK_IMPORTS
 #define REFRAMEWORK_API __declspec(dllimport)
+#else
+#define REFRAMEWORK_API
+#endif
 #endif
 
 #define REFRAMEWORK_PLUGIN_VERSION_MAJOR 1
@@ -27,6 +32,7 @@ typedef bool (*REFOnFrameFn)(REFOnFrameCb);
 typedef bool (*REFOnPreApplicationEntryFn)(const char*, REFOnPreApplicationEntryCb);
 typedef bool (*REFOnPostApplicationEntryFn)(const char*, REFOnPostApplicationEntryCb);
 
+// Optional imports. Passed through REFrameworkPluginFunctions.
 REFRAMEWORK_API bool reframework_on_initialized(REFInitializedCb cb);
 REFRAMEWORK_API bool reframework_on_lua_state_created(REFLuaStateCreatedCb cb);
 REFRAMEWORK_API bool reframework_on_lua_state_destroyed(REFLuaStateDestroyedCb cb);
