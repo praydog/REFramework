@@ -15,7 +15,7 @@
 
 #include "Mod.hpp"
 
-#include "../include/API.hpp"
+#include "reframework/API.hpp"
 
 class REManagedObject;
 class RETransform;

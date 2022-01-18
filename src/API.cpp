@@ -3,7 +3,7 @@
 
 #include "REFramework.hpp"
 
-#include "../include/API.hpp"
+#include "reframework/API.hpp"
 
 bool reframework_on_initialized(REFInitializedCb cb) {
     return APIProxy::add_on_initialized(cb);

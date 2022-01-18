@@ -4,7 +4,7 @@
 
 #include "Mod.hpp"
 
-#include "../include/API.hpp"
+#include "reframework/API.hpp"
 
 // API manager/proxy to call callbacks added via the C interface
 class APIProxy : public Mod {
