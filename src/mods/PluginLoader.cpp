@@ -62,6 +62,7 @@ std::optional<std::string> PluginLoader::on_initialize() {
         auto required_version_fn = (REFPluginRequiredVersionFn)GetProcAddress(mod, "reframework_plugin_required_version");
 
         if (required_version_fn == nullptr) {
+            ++it;
             continue;
         }
 
@@ -90,7 +91,6 @@ std::optional<std::string> PluginLoader::on_initialize() {
         if (required_version.patch > g_plugin_version.patch) {
             spdlog::warn("[PluginLoader] Plugin {} desires a newer patch version", name);
             m_plugin_load_warnings.emplace(name, "Desires a newer patch version");
-            continue;
         }
 
         ++it;
@@ -103,6 +103,7 @@ std::optional<std::string> PluginLoader::on_initialize() {
         auto init_fn = (REFPluginInitializeFn)GetProcAddress(mod, "reframework_plugin_initialize");
 
         if (init_fn == nullptr) {
+            ++it;
             continue;
         }
 
