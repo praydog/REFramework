@@ -215,6 +215,12 @@ void on_device_reset() {
     g_initialized = false;
 }
 
+bool on_message(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
+    ImGui_ImplWin32_WndProcHandler(hwnd, msg, wparam, lparam);
+
+    return !ImGui::GetIO().WantCaptureMouse && !ImGui::GetIO().WantCaptureKeyboard;
+}
+
 extern "C" __declspec(dllexport) void reframework_plugin_required_version(REFrameworkPluginVersion* version) {
     version->major = REFRAMEWORK_PLUGIN_VERSION_MAJOR;
     version->minor = REFRAMEWORK_PLUGIN_VERSION_MINOR;
@@ -231,6 +237,7 @@ extern "C" __declspec(dllexport) bool reframework_plugin_initialize(const REFram
     functions->on_pre_application_entry("BeginRendering", on_pre_begin_rendering); // Look at via.ModuleEntry or the wiki for valid names here
     functions->on_post_application_entry("EndRendering", on_post_end_rendering);
     functions->on_device_reset(on_device_reset);
+    functions->on_message((REFOnMessageCb)on_message);
 
     return true;
 }

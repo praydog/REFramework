@@ -25,6 +25,7 @@ typedef void (*REFOnFrameCb)();
 typedef void (*REFOnPreApplicationEntryCb)();
 typedef void (*REFOnPostApplicationEntryCb)();
 typedef void (*REFOnDeviceResetCb)();
+typedef bool (*REFOnMessageCb)(void*, unsigned int, unsigned long long, long long);
 
 typedef bool (*REFOnInitializeFn)(REFInitializedCb);
 typedef bool (*REFOnLuaStateCreatedFn)(REFLuaStateCreatedCb);
@@ -34,6 +35,7 @@ typedef bool (*REFOnPreApplicationEntryFn)(const char*, REFOnPreApplicationEntry
 typedef bool (*REFOnPostApplicationEntryFn)(const char*, REFOnPostApplicationEntryCb);
 typedef void (*REFLuaLockUnlockFn)();
 typedef bool (*REFOnDeviceResetFn)(REFOnDeviceResetCb);
+typedef bool (*REFOnMessageFn)(REFOnMessageCb);
 
 // Optional imports. Passed through REFrameworkPluginFunctions.
 REFRAMEWORK_API bool reframework_on_initialized(REFInitializedCb cb);
@@ -45,6 +47,7 @@ REFRAMEWORK_API bool reframework_on_post_application_entry(const char* name, REF
 REFRAMEWORK_API void reframework_lock_lua();
 REFRAMEWORK_API void reframework_unlock_lua();
 REFRAMEWORK_API bool reframework_on_device_reset(REFOnDeviceResetCb cb);
+REFRAMEWORK_API bool reframework_on_message(REFOnMessageCb cb);
 
 typedef struct {
     int major;
@@ -64,6 +67,7 @@ typedef struct {
     REFLuaLockUnlockFn lock_lua;
     REFLuaLockUnlockFn unlock_lua;
     REFOnDeviceResetFn on_device_reset;
+    REFOnMessageFn on_message;
 } REFrameworkPluginFunctions;
 
 #define REFRAMEWORK_RENDERER_D3D11 0

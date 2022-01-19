@@ -81,6 +81,13 @@ bool APIProxy::add_on_device_reset(REFOnDeviceResetCb cb) {
     return true;
 }
 
+bool APIProxy::add_on_message(REFOnMessageCb cb) {
+    std::scoped_lock _{s_api_cb_mtx};
+
+    m_on_message_cbs.push_back(cb);
+    return true;
+}
+
 void APIProxy::on_lua_state_created(sol::state& state) {
     std::scoped_lock _{s_api_cb_mtx};
 
@@ -154,4 +161,16 @@ void APIProxy::on_device_reset() {
     for (auto&& cb : m_on_device_reset_cbs) {
         cb();
     }
+}
+
+bool APIProxy::on_message(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
+    std::scoped_lock _{s_api_cb_mtx};
+
+    for (auto&& cb : m_on_message_cbs) {
+        if (!cb(hwnd, msg, wparam, lparam)) {
+            return false;
+        }
+    }
+
+    return true;
 }

@@ -637,7 +637,17 @@ bool REFramework::on_message(HWND wnd, UINT message, WPARAM w_param, LPARAM l_pa
         }
     }
 
-    return true;
+    bool any_false = false;
+
+    if (m_game_data_initialized) {
+        for (auto& mod : m_mods->get_mods()) {
+            if (!mod->on_message(wnd, message, w_param, l_param)) {
+                any_false = true;
+            }
+        }
+    }
+
+    return !any_false;
 }
 
 // this is unfortunate.

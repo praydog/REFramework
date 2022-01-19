@@ -26,7 +26,8 @@ REFrameworkPluginFunctions g_plugin_functions{
     reframework_on_post_application_entry,
     reframework_lock_lua,
     reframework_unlock_lua,
-    reframework_on_device_reset
+    reframework_on_device_reset,
+    reframework_on_message
 };
 REFrameworkPluginInitializeParam g_plugin_initialize_param{nullptr, &g_plugin_version, &g_plugin_functions, &reframework::g_renderer_data};
 

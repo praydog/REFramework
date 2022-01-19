@@ -88,3 +88,13 @@ REFRAMEWORK_API bool reframework_on_device_reset(REFOnDeviceResetCb cb) {
         APIProxy::get()->add_on_device_reset(cb);
     });
 }
+
+REFRAMEWORK_API bool reframework_on_message(REFOnMessageCb cb) {
+    if (cb == nullptr) {
+        return false;
+    }
+
+    return APIProxy::add_on_initialized([cb]() {
+        APIProxy::get()->add_on_message(cb);
+    });
+}
