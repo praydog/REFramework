@@ -2,6 +2,7 @@
 
 #include "ScriptRunner.hpp"
 
+#include "PluginLoader.hpp"
 #include "APIProxy.hpp"
 
 std::recursive_mutex APIProxy::s_api_cb_mtx{};
@@ -73,6 +74,13 @@ bool APIProxy::add_on_post_application_entry(std::string_view name, REFOnPostApp
     return true;
 }
 
+bool APIProxy::add_on_device_reset(REFOnDeviceResetCb cb) {
+    std::scoped_lock _{s_api_cb_mtx};
+
+    m_on_device_reset_cbs.push_back(cb);
+    return true;
+}
+
 void APIProxy::on_lua_state_created(sol::state& state) {
     std::scoped_lock _{s_api_cb_mtx};
 
@@ -91,6 +99,21 @@ void APIProxy::on_lua_state_destroyed(sol::state& state) {
 
 void APIProxy::on_frame() {
     std::scoped_lock _{s_api_cb_mtx};
+
+    reframework::g_renderer_data.renderer_type = (int)g_framework->get_renderer_type();
+    
+    if (reframework::g_renderer_data.renderer_type == REFRAMEWORK_RENDERER_D3D11) {
+        auto& d3d11 = g_framework->get_d3d11_hook();
+
+        reframework::g_renderer_data.device = d3d11->get_device();
+        reframework::g_renderer_data.swapchain = d3d11->get_swap_chain();
+    } else if (reframework::g_renderer_data.renderer_type == REFRAMEWORK_RENDERER_D3D12) {
+        auto& d3d12 = g_framework->get_d3d12_hook();
+
+        reframework::g_renderer_data.device = d3d12->get_device();
+        reframework::g_renderer_data.swapchain = d3d12->get_swap_chain();
+        reframework::g_renderer_data.command_queue = d3d12->get_command_queue();
+    }
 
     if (!s_on_initialized_cbs.empty()) {
         for (auto&& cb : s_on_initialized_cbs) {
@@ -122,5 +145,13 @@ void APIProxy::on_application_entry(void* entry, const char* name, size_t hash) 
         for (auto&& cb : it->second) {
             cb();
         }
+    }
+}
+
+void APIProxy::on_device_reset() {
+    std::scoped_lock _{s_api_cb_mtx};
+
+    for (auto&& cb : m_on_device_reset_cbs) {
+        cb();
     }
 }

@@ -4,7 +4,12 @@
 
 #include <Windows.h>
 
+#include "reframework/API.hpp"
 #include "Mod.hpp"
+
+namespace reframework {
+extern REFrameworkRendererData g_renderer_data;
+}
 
 class PluginLoader : public Mod {
 public:

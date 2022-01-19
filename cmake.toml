@@ -133,12 +133,14 @@ type = "game"
 
 [target.example_plugin]
 type = "shared"
-sources = ["example_plugin/Plugin.cpp"]
+sources = ["example_plugin/**.cpp", "example_plugin/**.c"]
+headers = ["example_plugin/**.hpp", "example_plugin/**.h"]
 include-directories = ["include/"]
 compile-features = ["cxx_std_20"]
 link-libraries = [
     "lua",
-    "sol2"
+    "sol2",
+    "imgui"
 ]
 
 [target.example_plugin.properties]

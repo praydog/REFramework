@@ -78,3 +78,13 @@ void reframework_lock_lua() {
 void reframework_unlock_lua() {
     ScriptRunner::get()->unlock();
 }
+
+REFRAMEWORK_API bool reframework_on_device_reset(REFOnDeviceResetCb cb) {
+    if (cb == nullptr) {
+        return false;
+    }
+
+    return APIProxy::add_on_initialized([cb]() {
+        APIProxy::get()->add_on_device_reset(cb);
+    });
+}

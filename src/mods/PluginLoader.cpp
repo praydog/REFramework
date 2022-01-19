@@ -10,6 +10,13 @@
 
 REFrameworkPluginVersion g_plugin_version{
     REFRAMEWORK_PLUGIN_VERSION_MAJOR, REFRAMEWORK_PLUGIN_VERSION_MINOR, REFRAMEWORK_PLUGIN_VERSION_PATCH};
+
+namespace reframework {
+REFrameworkRendererData g_renderer_data{
+    REFRAMEWORK_RENDERER_D3D12, nullptr, nullptr, nullptr
+};
+}
+
 REFrameworkPluginFunctions g_plugin_functions{
     reframework_on_initialized,
     reframework_on_lua_state_created,
@@ -19,8 +26,9 @@ REFrameworkPluginFunctions g_plugin_functions{
     reframework_on_post_application_entry,
     reframework_lock_lua,
     reframework_unlock_lua,
+    reframework_on_device_reset
 };
-REFrameworkPluginInitializeParam g_plugin_initialize_param{nullptr, &g_plugin_version, &g_plugin_functions};
+REFrameworkPluginInitializeParam g_plugin_initialize_param{nullptr, &g_plugin_version, &g_plugin_functions, &reframework::g_renderer_data};
 
 std::optional<std::string> PluginLoader::on_initialize() {
     namespace fs = std::filesystem;
@@ -57,6 +65,23 @@ std::optional<std::string> PluginLoader::on_initialize() {
 
     // Call reframework_plugin_required_version on any dlls that export it.
     g_plugin_initialize_param.reframework_module = g_framework->get_reframework_module();
+    reframework::g_renderer_data.renderer_type = (int)g_framework->get_renderer_type();
+    
+    if (reframework::g_renderer_data.renderer_type == REFRAMEWORK_RENDERER_D3D11) {
+        auto& d3d11 = g_framework->get_d3d11_hook();
+
+        reframework::g_renderer_data.device = d3d11->get_device();
+        reframework::g_renderer_data.swapchain = d3d11->get_swap_chain();
+    } else if (reframework::g_renderer_data.renderer_type == REFRAMEWORK_RENDERER_D3D12) {
+        auto& d3d12 = g_framework->get_d3d12_hook();
+
+        reframework::g_renderer_data.device = d3d12->get_device();
+        reframework::g_renderer_data.swapchain = d3d12->get_swap_chain();
+        reframework::g_renderer_data.command_queue = d3d12->get_command_queue();
+    } else {
+        spdlog::error("[PluginLoader] Unsupported renderer type {}", reframework::g_renderer_data.renderer_type);
+        return "PluginLoader: Unsupported renderer type detected";
+    }
 
     for (auto it = m_plugins.begin(); it != m_plugins.end();) {
         auto name = it->first;

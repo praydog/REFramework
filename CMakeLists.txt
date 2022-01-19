@@ -2799,6 +2799,20 @@ set(example_plugin_SOURCES "")
 
 list(APPEND example_plugin_SOURCES
 	"example_plugin/Plugin.cpp"
+	"example_plugin/imgui/imgui_impl_dx11.cpp"
+	"example_plugin/imgui/imgui_impl_dx12.cpp"
+	"example_plugin/imgui/imgui_impl_win32.cpp"
+	"example_plugin/rendering/d3d11.cpp"
+	"example_plugin/rendering/d3d12.cpp"
+	"example_plugin/Plugin.hpp"
+	"example_plugin/imgui/font_robotomedium.hpp"
+	"example_plugin/imgui/re2_imconfig.hpp"
+	"example_plugin/rendering/d3d11.hpp"
+	"example_plugin/rendering/d3d12.hpp"
+	"example_plugin/rendering/shared.hpp"
+	"example_plugin/imgui/imgui_impl_dx11.h"
+	"example_plugin/imgui/imgui_impl_dx12.h"
+	"example_plugin/imgui/imgui_impl_win32.h"
 )
 
 list(APPEND example_plugin_SOURCES
@@ -2814,8 +2828,18 @@ endif()
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${example_plugin_SOURCES})
 
+target_compile_features(example_plugin PUBLIC
+	cxx_std_20
+)
+
 target_include_directories(example_plugin PUBLIC
 	"include/"
+)
+
+target_link_libraries(example_plugin PUBLIC
+	lua
+	sol2
+	imgui
 )
 
 set_target_properties(example_plugin PROPERTIES
