@@ -63,6 +63,7 @@ ScriptState::ScriptState() {
     re["on_draw_ui"] = [this](sol::function fn) { m_on_draw_ui_fns.emplace_back(fn); };
     re["on_frame"] = [this](sol::function fn) { m_on_frame_fns.emplace_back(fn); };
     re["on_script_reset"] = [this](sol::function fn) { m_on_script_reset_fns.emplace_back(fn); };
+    re["on_config_save"] = [this](sol::function fn) { m_on_config_save_fns.emplace_back(fn); };
     m_lua["re"] = re;
 
 
@@ -386,6 +387,18 @@ void ScriptState::on_script_reset() {
     }
 }
 
+void ScriptState::on_config_save() try {
+    std::scoped_lock _{ m_execution_mutex };
+
+    for (auto& fn : m_on_config_save_fns) {
+        handle_protected_result(fn());
+    }
+} catch (const std::exception& e) {
+    OutputDebugString(e.what());
+}
+
+
+
 ScriptState::PreHookResult ScriptState::on_pre_hook(HookedFn* fn) {
     std::scoped_lock _{ m_execution_mutex };
     auto result = PreHookResult::CALL_ORIGINAL;
@@ -488,6 +501,11 @@ void ScriptRunner::on_draw_ui() {
         std::scoped_lock _{ m_access_mutex };
         m_state->on_draw_ui();
     }
+}
+
+void ScriptRunner::on_config_save(utility::Config& cfg) {
+    std::scoped_lock _{m_access_mutex};
+    m_state->on_config_save();
 }
 
 void ScriptRunner::on_pre_application_entry(void* entry, const char* name, size_t hash) {
