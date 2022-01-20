@@ -89,13 +89,13 @@ sol::object decode_any(sol::this_state l, const json& j) {
     }
 }
 
-fs::path get_gamedir() {
+fs::path get_datadir() {
     std::string modpath{};
 
     modpath.resize(1024, 0);
     modpath.resize(GetModuleFileName(nullptr, modpath.data(), modpath.size()));
 
-    return fs::path{modpath}.parent_path();
+    return fs::path{modpath}.parent_path() / "reframework" / "data";
 }
 } // namespace detail
 
@@ -119,7 +119,11 @@ std::string dump_string(sol::object obj, sol::object indent_obj) try {
 }
 
 sol::object load_file(sol::this_state l, const std::string& filepath) try {
-    const auto j = json::parse(std::ifstream{detail::get_gamedir() / filepath});
+    if (filepath.find("..") != std::string::npos) {
+        throw std::runtime_error{"json.load_file does not allow access to parent directories"};
+    }
+
+    const auto j = json::parse(std::ifstream{detail::get_datadir() / filepath});
     return detail::decode_any(l, j);
 } catch (const json::exception& e) {
     spdlog::error("[JSON] Failed to load file {}: {}", filepath, e.what());
@@ -133,7 +137,15 @@ bool dump_file(const std::string& filepath, sol::object obj, sol::object indent_
         indent = indent_obj.as<int>();
     }
 
-    std::ofstream f{detail::get_gamedir() / filepath};
+    if (filepath.find("..") != std::string::npos) {
+        throw std::runtime_error{"json.dump_file does not allow access to parent directories"};
+    }
+
+    auto path = detail::get_datadir() / filepath;
+
+    fs::create_directories(path.parent_path());
+
+    std::ofstream f{path};
     f << detail::encode_any(obj).dump(indent);
     return true;
 } catch (const std::exception& e) {
