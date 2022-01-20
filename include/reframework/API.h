@@ -108,7 +108,7 @@ typedef struct {
 
     const char* (*get_name)(REFrameworkTypeDefinitionHandle);
     const char* (*get_namespace)(REFrameworkTypeDefinitionHandle);
-    bool (*get_full_name)(REFrameworkTypeDefinitionHandle, char* out, unsigned int out_size);
+    bool (*get_full_name)(REFrameworkTypeDefinitionHandle, char* out, unsigned int out_size, unsigned int* out_len);
 
     bool (*has_fieldptr_offset)(REFrameworkTypeDefinitionHandle);
     int (*get_fieldptr_offset)(REFrameworkTypeDefinitionHandle);
@@ -132,8 +132,10 @@ typedef struct {
     REFrameworkFieldHandle (*find_field)(REFrameworkTypeDefinitionHandle, const char*);
     REFrameworkPropertyHandle (*find_property)(REFrameworkTypeDefinitionHandle, const char*); // not implemented yet.
 
-    void (*get_methods)(REFrameworkTypeDefinitionHandle, REFrameworkMethodHandle* out, unsigned int out_size);
-    void (*get_fields)(REFrameworkTypeDefinitionHandle, REFrameworkFieldHandle* out, unsigned int out_size);
+    // out_size is the full size, in bytes of the out buffer
+    // out_len is how many elements were written to the out buffer, not the size of the written data
+    void (*get_methods)(REFrameworkTypeDefinitionHandle, REFrameworkMethodHandle* out, unsigned int out_size, unsigned int* out_len);
+    void (*get_fields)(REFrameworkTypeDefinitionHandle, REFrameworkFieldHandle* out, unsigned int out_size, unsigned int* out_len);
 
     // get_instance usually only used for native singletons
     void* (*get_instance)(REFrameworkTypeDefinitionHandle);

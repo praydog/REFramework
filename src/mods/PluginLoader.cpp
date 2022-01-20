@@ -59,7 +59,7 @@ REFrameworkTDBTypeDefinition g_type_definition_data {
 
     [](REFrameworkTypeDefinitionHandle tdef) { return RETYPEDEF(tdef)->get_name(); },
     [](REFrameworkTypeDefinitionHandle tdef) { return RETYPEDEF(tdef)->get_namespace(); },
-    [](REFrameworkTypeDefinitionHandle tdef, char* out, unsigned int size) {
+    [](REFrameworkTypeDefinitionHandle tdef, char* out, unsigned int size, unsigned int* out_len) {
         auto full_name = RETYPEDEF(tdef)->get_full_name();
 
         if (full_name.size() > size) {
@@ -67,6 +67,11 @@ REFrameworkTDBTypeDefinition g_type_definition_data {
         }
 
         memcpy(out, full_name.c_str(), full_name.size());
+
+        if (out_len != nullptr) {
+            *out_len = full_name.size();
+        }
+
         return true;
     },
 
@@ -91,7 +96,7 @@ REFrameworkTDBTypeDefinition g_type_definition_data {
     [](REFrameworkTypeDefinitionHandle tdef, const char* name) { return (REFrameworkFieldHandle)RETYPEDEF(tdef)->get_field(name); },
     [](REFrameworkTypeDefinitionHandle tdef, const char* name) { return (REFrameworkPropertyHandle)nullptr; },
 
-    [](REFrameworkTypeDefinitionHandle tdef, REFrameworkMethodHandle* out, unsigned int out_size) { 
+    [](REFrameworkTypeDefinitionHandle tdef, REFrameworkMethodHandle* out, unsigned int out_size, unsigned int* out_len) { 
         auto methods = RETYPEDEF(tdef)->get_methods();
 
         if (methods.size() == 0) {
@@ -106,8 +111,12 @@ REFrameworkTDBTypeDefinition g_type_definition_data {
             *out = (REFrameworkMethodHandle)&method;
             out++;
         }
+
+        if (out_len != nullptr) {
+            *out_len = methods.size();
+        }
     },
-    [](REFrameworkTypeDefinitionHandle tdef, REFrameworkFieldHandle* out, unsigned int out_size) { 
+    [](REFrameworkTypeDefinitionHandle tdef, REFrameworkFieldHandle* out, unsigned int out_size, unsigned int* out_len) { 
         auto fields = RETYPEDEF(tdef)->get_fields();
 
         if (fields.size() == 0) {
@@ -121,6 +130,10 @@ REFrameworkTDBTypeDefinition g_type_definition_data {
         for (auto field : fields) {
             *out = (REFrameworkFieldHandle)field;
             out++;
+        }
+
+        if (out_len != nullptr) {
+            *out_len = fields.size();
         }
     },
 

@@ -103,7 +103,7 @@ void internal_frame() {
 
     sol::state_view lua{g_lua};
 
-        // do the same thing but in lua
+    // Get the window size in Lua, and then in C++
     if (!g_loaded_snippets.contains("window_metadata")) {
         g_loaded_snippets["window_metadata"] = lua.load(R"(
             if not my_cool_storage.scene_manager or not my_cool_storage.scene_manager then
@@ -148,6 +148,26 @@ void internal_frame() {
 
     const auto scene_manager = sdk->functions->get_native_singleton("via.SceneManager");
     const auto scene_manager_type = sdk->tdb->find_type(tdb, "via.SceneManager");
+
+    auto get_full_name = [](REFrameworkTypeDefinitionHandle t) -> std::string {
+        std::string buffer{};
+        buffer.resize(256);
+
+        uint32_t real_size{0};
+
+        auto result = g_param->sdk->type_definition->get_full_name(t, &buffer[0], buffer.size(), &real_size);
+
+        if (!result) {
+            return "";
+        }
+
+        buffer.resize(real_size);
+        return buffer;
+    };
+
+    auto scene_manager_full_name = get_full_name(scene_manager_type);
+
+    OutputDebugString((std::stringstream{} << scene_manager_full_name << " Size: " << scene_manager_full_name.size()).str().c_str());
 
     const auto get_main_view = sdk->type_definition->find_method(scene_manager_type, "get_MainView");
     const auto get_main_view_func = (REFGenericFunction)sdk->method->get_function(get_main_view);
