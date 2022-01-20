@@ -103,6 +103,7 @@ void internal_frame() {
 
     sol::state_view lua{g_lua};
 
+        // do the same thing but in lua
     if (!g_loaded_snippets.contains("window_metadata")) {
         g_loaded_snippets["window_metadata"] = lua.load(R"(
             if not my_cool_storage.scene_manager or not my_cool_storage.scene_manager then
@@ -140,11 +141,56 @@ void internal_frame() {
     float window_width = storage["window_width"];
     float window_height = storage["window_height"];
 
-    //OutputDebugString((std::stringstream{} << "Window Size: " << window_width << " " << window_height).str().c_str());
+    // Do the same thing now, but in C++
+    const auto sdk = g_param->sdk;
+    auto vm_context = sdk->functions->get_vm_context();
+    const auto tdb = sdk->functions->get_tdb();
+
+    const auto scene_manager = sdk->functions->get_native_singleton("via.SceneManager");
+    const auto scene_manager_type = sdk->tdb->find_type(tdb, "via.SceneManager");
+
+    const auto get_main_view = sdk->type_definition->find_method(scene_manager_type, "get_MainView");
+    const auto get_main_view_func = (REFGenericFunction)sdk->method->get_function(get_main_view);
+    const auto main_view_type = sdk->method->get_return_type(get_main_view);
+
+    const auto main_view = get_main_view_func(vm_context, scene_manager);
+
+    if (main_view == nullptr) {
+        return;
+    }
+
+    const auto get_size = sdk->type_definition->find_method(main_view_type, "get_Size");
+    const auto get_size_func = (REFGenericFunction)sdk->method->get_function(get_size);
+    const auto size_type = sdk->method->get_return_type(get_size);
+
+    #pragma pack(push, 1)
+    struct {
+        uint8_t dummy_data[128];
+        bool exception_thrown{false};
+    } invoke_out;
+    #pragma pack(pop)
+
+    struct {
+
+    } null_args;
+
+    const int result = sdk->method->invoke(get_size, main_view, (void**)&null_args, 0, &invoke_out, sizeof(invoke_out));
+
+    if (result != REFRAMEWORK_INVOKE_ERROR_NONE) {
+        if (ImGui::Begin("Super Cool Plugin")) {
+            ImGui::Text("Invoke Error: %d", result);
+            ImGui::End();
+        }
+
+        return;
+    }
+
+    const auto size = (float*)&invoke_out;
 
     if (ImGui::Begin("Super Cool Plugin")) {
         ImGui::Text("Hello from the super cool plugin!");
-        ImGui::Text("Game Window Size: %f %f", window_width, window_height);
+        ImGui::Text("Game Window Size from Lua: %f %f", window_width, window_height);
+        ImGui::Text("Game Window Size from C: %f %f", size[0], size[1]);
 
         ImGui::End();
     }

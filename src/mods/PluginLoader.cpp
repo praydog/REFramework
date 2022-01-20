@@ -29,7 +29,264 @@ REFrameworkPluginFunctions g_plugin_functions{
     reframework_on_device_reset,
     reframework_on_message
 };
-REFrameworkPluginInitializeParam g_plugin_initialize_param{nullptr, &g_plugin_version, &g_plugin_functions, &reframework::g_renderer_data};
+
+REFrameworkSDKFunctions g_sdk_functions {
+    []() -> REFrameworkTDBHandle { return (REFrameworkTDBHandle)sdk::RETypeDB::get(); },
+    []() -> void* { return sdk::get_thread_context(); }, // get_vm_context
+    [](const char* name) -> REFrameworkManagedObjectHandle { // typeof
+        auto tdef = sdk::RETypeDB::get()->find_type(name);
+
+        if (tdef == nullptr) {
+            return nullptr;
+        }
+
+        return (REFrameworkManagedObjectHandle)tdef->get_runtime_type();
+    },
+    [](const char* name) -> REFrameworkManagedObjectHandle {
+        return (REFrameworkManagedObjectHandle)g_framework->get_globals()->get(name);
+    },
+    [](const char* name) {
+        return sdk::get_native_singleton(name);
+    }
+};
+
+#define RETYPEDEF(var) ((sdk::RETypeDefinition*)var)
+
+REFrameworkTDBTypeDefinition g_type_definition_data {
+    [](REFrameworkTypeDefinitionHandle tdef) { return RETYPEDEF(tdef)->get_index(); }, 
+    [](REFrameworkTypeDefinitionHandle tdef) { return RETYPEDEF(tdef)->get_size(); }, 
+    [](REFrameworkTypeDefinitionHandle tdef) { return RETYPEDEF(tdef)->get_valuetype_size(); }, 
+
+    [](REFrameworkTypeDefinitionHandle tdef) { return RETYPEDEF(tdef)->get_name(); },
+    [](REFrameworkTypeDefinitionHandle tdef) { return RETYPEDEF(tdef)->get_namespace(); },
+    [](REFrameworkTypeDefinitionHandle tdef, char* out, unsigned int size) {
+        auto full_name = RETYPEDEF(tdef)->get_full_name();
+
+        if (full_name.size() > size) {
+            return false;
+        }
+
+        memcpy(out, full_name.c_str(), full_name.size());
+        return true;
+    },
+
+    [](REFrameworkTypeDefinitionHandle tdef) { return RETYPEDEF(tdef)->has_fieldptr_offset(); }, 
+    [](REFrameworkTypeDefinitionHandle tdef) { return RETYPEDEF(tdef)->get_fieldptr_offset(); }, 
+
+    [](REFrameworkTypeDefinitionHandle tdef) -> uint32_t { return RETYPEDEF(tdef)->get_methods().size(); },
+    [](REFrameworkTypeDefinitionHandle tdef) -> uint32_t { return RETYPEDEF(tdef)->get_fields().size(); },
+    [](REFrameworkTypeDefinitionHandle tdef) -> uint32_t { return RETYPEDEF(tdef)->get_properties().size(); },
+
+    [](REFrameworkTypeDefinitionHandle tdef, REFrameworkTypeDefinitionHandle other) { return RETYPEDEF(tdef)->is_a(RETYPEDEF(other)); },
+    [](REFrameworkTypeDefinitionHandle tdef, const char* name) { return RETYPEDEF(tdef)->is_a(name); },
+    [](REFrameworkTypeDefinitionHandle tdef) { return RETYPEDEF(tdef)->is_value_type(); },
+    [](REFrameworkTypeDefinitionHandle tdef) { return RETYPEDEF(tdef)->is_enum(); },
+    [](REFrameworkTypeDefinitionHandle tdef) { return RETYPEDEF(tdef)->is_by_ref(); },
+    [](REFrameworkTypeDefinitionHandle tdef) { return RETYPEDEF(tdef)->is_pointer(); },
+    [](REFrameworkTypeDefinitionHandle tdef) { return RETYPEDEF(tdef)->is_primitive(); },
+
+    [](REFrameworkTypeDefinitionHandle tdef) { return (unsigned int)RETYPEDEF(tdef)->get_vm_obj_type(); },
+
+    [](REFrameworkTypeDefinitionHandle tdef, const char* name) { return (REFrameworkMethodHandle)RETYPEDEF(tdef)->get_method(name); },
+    [](REFrameworkTypeDefinitionHandle tdef, const char* name) { return (REFrameworkFieldHandle)RETYPEDEF(tdef)->get_field(name); },
+    [](REFrameworkTypeDefinitionHandle tdef, const char* name) { return (REFrameworkPropertyHandle)nullptr; },
+
+    [](REFrameworkTypeDefinitionHandle tdef, REFrameworkMethodHandle* out, unsigned int out_size) { 
+        auto methods = RETYPEDEF(tdef)->get_methods();
+
+        if (methods.size() == 0) {
+            return;
+        }
+
+        if (methods.size() * sizeof(REFrameworkMethodHandle) > out_size) {
+            return;
+        }
+
+        for (auto& method : methods) {
+            *out = (REFrameworkMethodHandle)&method;
+            out++;
+        }
+    },
+    [](REFrameworkTypeDefinitionHandle tdef, REFrameworkFieldHandle* out, unsigned int out_size) { 
+        auto fields = RETYPEDEF(tdef)->get_fields();
+
+        if (fields.size() == 0) {
+            return;
+        }
+
+        if (fields.size() * sizeof(REFrameworkFieldHandle) > out_size) {
+            return;
+        }
+
+        for (auto field : fields) {
+            *out = (REFrameworkFieldHandle)field;
+            out++;
+        }
+    },
+
+    [](REFrameworkTypeDefinitionHandle tdef) { return RETYPEDEF(tdef)->get_instance(); },
+    [](REFrameworkTypeDefinitionHandle tdef) { return RETYPEDEF(tdef)->create_instance(); },
+    [](REFrameworkTypeDefinitionHandle tdef, unsigned int flags) { return (REFrameworkManagedObjectHandle)RETYPEDEF(tdef)->create_instance_full(flags == REFRAMEWORK_CREATE_INSTANCE_FLAGS_SIMPLIFY); },
+
+    [](REFrameworkTypeDefinitionHandle tdef) { return (REFrameworkTypeDefinitionHandle)RETYPEDEF(tdef)->get_parent_type(); },
+    [](REFrameworkTypeDefinitionHandle tdef) { return (REFrameworkTypeDefinitionHandle)RETYPEDEF(tdef)->get_declaring_type(); },
+    [](REFrameworkTypeDefinitionHandle tdef) { return (REFrameworkTypeDefinitionHandle)RETYPEDEF(tdef)->get_underlying_type(); },
+};
+
+#define REMETHOD(var) ((sdk::REMethodDefinition*)var)
+
+REFrameworkTDBMethod g_tdb_method_data {
+    [](REFrameworkMethodHandle method, void* thisptr, void** in_args, unsigned int in_args_size, void* out, unsigned int out_size) {
+        if (sizeof(sdk::InvokeRet) > out_size) {
+            return REFRAMEWORK_INVOKE_ERROR_OUT_TOO_SMALL;
+        }
+
+        auto m = REMETHOD(method);
+
+        if (m->get_num_params() != in_args_size / sizeof(void*)) {
+            return REFRAMEWORK_INVOKE_ERROR_IN_ARGS_SIZE_MISMATCH;
+        }
+
+        std::vector<void*> cpp_args{};
+
+        for (auto i = 0; i < in_args_size / sizeof(void*); i++) {
+            cpp_args.push_back(in_args[i]);
+        }
+
+        auto ret = m->invoke(thisptr, cpp_args);
+
+        memcpy(out, &ret, sizeof(sdk::InvokeRet));
+
+        if (ret.exception_thrown) {
+            return REFRAMEWORK_INVOKE_ERROR_EXCEPTION;
+        }
+
+        return REFRAMEWORK_INVOKE_ERROR_NONE;
+    },
+    [](REFrameworkMethodHandle method) { return REMETHOD(method)->get_function(); },
+    [](REFrameworkMethodHandle method) { return REMETHOD(method)->get_name(); },
+    [](REFrameworkMethodHandle method) { return (REFrameworkTypeDefinitionHandle)REMETHOD(method)->get_return_type(); },
+    [](REFrameworkMethodHandle method) { return REMETHOD(method)->get_num_params(); },
+    [](REFrameworkMethodHandle method) { return REMETHOD(method)->get_index(); },
+    [](REFrameworkMethodHandle method) { return REMETHOD(method)->get_virtual_index(); },
+    [](REFrameworkMethodHandle method) { return REMETHOD(method)->is_static(); },
+    [](REFrameworkMethodHandle method) { return REMETHOD(method)->get_flags(); },
+    [](REFrameworkMethodHandle method) { return REMETHOD(method)->get_impl_flags(); },
+    [](REFrameworkMethodHandle method) { return REMETHOD(method)->get_invoke_id(); }
+};
+
+#define REFIELD(var) ((sdk::REField*)(var))
+
+REFrameworkTDBField g_tdb_field_data {
+    [](REFrameworkFieldHandle field) { return REFIELD(field)->get_name(); },
+
+    [](REFrameworkFieldHandle field) { return (REFrameworkTypeDefinitionHandle)REFIELD(field)->get_declaring_type(); },
+    [](REFrameworkFieldHandle field) { return (REFrameworkTypeDefinitionHandle)REFIELD(field)->get_type(); },
+
+    [](REFrameworkFieldHandle field) { return REFIELD(field)->get_offset_from_base(); },
+    [](REFrameworkFieldHandle field) { return REFIELD(field)->get_offset_from_fieldptr(); },
+    [](REFrameworkFieldHandle field) { return REFIELD(field)->get_flags(); },
+
+    [](REFrameworkFieldHandle field) { return REFIELD(field)->is_static(); },
+    [](REFrameworkFieldHandle field) { return REFIELD(field)->is_literal(); },
+
+    [](REFrameworkFieldHandle field) { return REFIELD(field)->get_init_data(); },
+    [](REFrameworkFieldHandle field, void* obj, bool is_value_type) { return REFIELD(field)->get_data_raw(obj, is_value_type); },
+};
+
+REFrameworkTDBProperty g_tdb_property_data {
+    // todo
+};
+
+#define RETDB(var) ((sdk::RETypeDB*)var)
+
+REFrameworkTDB g_tdb_data {
+    [](REFrameworkTDBHandle tdb) { return RETDB(tdb)->numTypes; },
+    [](REFrameworkTDBHandle tdb) { return RETDB(tdb)->numMethods; },
+    [](REFrameworkTDBHandle tdb) { return RETDB(tdb)->numFields; },
+    [](REFrameworkTDBHandle tdb) { return RETDB(tdb)->numProperties; },
+    [](REFrameworkTDBHandle tdb) { return (unsigned int)RETDB(tdb)->numStringPool; },
+    [](REFrameworkTDBHandle tdb) { return (unsigned int)RETDB(tdb)->numBytePool; },
+    [](REFrameworkTDBHandle tdb) { return (const char*)RETDB(tdb)->stringPool; },
+    [](REFrameworkTDBHandle tdb) { return (unsigned char*)RETDB(tdb)->bytePool; },
+
+    [](REFrameworkTDBHandle tdb, unsigned int index) { return (REFrameworkTypeDefinitionHandle)RETDB(tdb)->get_type(index); },
+    [](REFrameworkTDBHandle tdb, const char* name) { return (REFrameworkTypeDefinitionHandle)RETDB(tdb)->find_type(name); },
+    [](REFrameworkTDBHandle tdb, unsigned int fqn) { return (REFrameworkTypeDefinitionHandle)RETDB(tdb)->find_type_by_fqn(fqn); },
+    [](REFrameworkTDBHandle tdb, unsigned int index) { return (REFrameworkMethodHandle)RETDB(tdb)->get_method(index); },
+    [](REFrameworkTDBHandle tdb, const char* type_name, const char* method_name) -> REFrameworkMethodHandle { 
+        auto t = RETDB(tdb)->find_type(type_name);
+
+        if (t == nullptr) {
+            return nullptr;
+        }
+
+        return (REFrameworkMethodHandle)t->get_method(method_name);
+    },
+
+    [](REFrameworkTDBHandle tdb, unsigned int index) { return (REFrameworkFieldHandle)RETDB(tdb)->get_field(index); },
+    [](REFrameworkTDBHandle tdb, const char* type_name, const char* field_name) -> REFrameworkFieldHandle {
+        auto t = RETDB(tdb)->find_type(type_name);
+
+        if (t == nullptr) {
+            return nullptr;
+        }
+
+        return (REFrameworkFieldHandle)t->get_field(field_name);
+    },
+
+    [](REFrameworkTDBHandle tdb, unsigned int index) { return (REFrameworkPropertyHandle)RETDB(tdb)->get_property(index); },
+};
+
+#define REMANAGEDOBJECT(var) ((::REManagedObject*)var)
+
+REFrameworkManagedObject g_managed_object_data {
+    [](REFrameworkManagedObjectHandle obj) { utility::re_managed_object::add_ref(REMANAGEDOBJECT(obj)); },
+    [](REFrameworkManagedObjectHandle obj) { utility::re_managed_object::release(REMANAGEDOBJECT(obj)); },
+    [](REFrameworkManagedObjectHandle obj) { return (REFrameworkTypeDefinitionHandle)utility::re_managed_object::get_type_definition(REMANAGEDOBJECT(obj)); },
+    [](void* potential_obj) { return utility::re_managed_object::is_managed_object(potential_obj); },
+    [](REFrameworkManagedObjectHandle obj) { return REMANAGEDOBJECT(obj)->referenceCount; }
+};
+
+REFrameworkSDKData g_sdk_data {
+    &g_sdk_functions,
+    &g_tdb_data,
+    &g_type_definition_data,
+    &g_tdb_method_data,
+    &g_tdb_field_data,
+    &g_tdb_property_data,
+    &g_managed_object_data
+};
+
+REFrameworkPluginInitializeParam g_plugin_initialize_param{
+    nullptr, 
+    &g_plugin_version, 
+    &g_plugin_functions, 
+    &reframework::g_renderer_data,
+    &g_sdk_data
+};
+
+void verify_sdk_pointers() {
+    auto verify = [](auto& g) {
+        spdlog::info("Verifying...");
+
+        for (auto i = 0; i < sizeof(g) / sizeof(void*); ++i) {
+            if (((void**)&g)[i] == nullptr) {
+                spdlog::error("SDK pointer is null at index {}", i);
+            }
+        }
+    };
+
+    spdlog::info("Verifying SDK pointers...");
+
+    verify(g_managed_object_data);
+    verify(g_sdk_data);
+    verify(g_type_definition_data);
+    verify(g_tdb_method_data);
+    verify(g_tdb_field_data);
+    verify(g_tdb_property_data);
+    verify(g_tdb_data);
+}
 
 std::optional<std::string> PluginLoader::on_initialize() {
     namespace fs = std::filesystem;
@@ -83,6 +340,8 @@ std::optional<std::string> PluginLoader::on_initialize() {
         spdlog::error("[PluginLoader] Unsupported renderer type {}", reframework::g_renderer_data.renderer_type);
         return "PluginLoader: Unsupported renderer type detected";
     }
+
+    verify_sdk_pointers();
 
     for (auto it = m_plugins.begin(); it != m_plugins.end();) {
         auto name = it->first;
