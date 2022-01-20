@@ -375,16 +375,19 @@ void ScriptState::on_gui_draw_element(REComponent* gui_element, void* context) {
     }
 }
 
-void ScriptState::on_script_reset() {
-    try {
-        std::scoped_lock _{ m_execution_mutex };
+void ScriptState::on_script_reset() try {
+    std::scoped_lock _{ m_execution_mutex };
 
-        for (auto& fn : m_on_script_reset_fns) {
-            handle_protected_result(fn());
-        }
-    } catch (const std::exception& e) {
-        OutputDebugString(e.what());
+    // We first call on_config_save functions so scripts can save prior to reset.
+    for (auto& fn : m_on_config_save_fns) {
+        handle_protected_result(fn());
     }
+
+    for (auto& fn : m_on_script_reset_fns) {
+        handle_protected_result(fn());
+    }
+} catch (const std::exception& e) {
+    OutputDebugString(e.what());
 }
 
 void ScriptState::on_config_save() try {
