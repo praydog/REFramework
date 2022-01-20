@@ -1,3 +1,5 @@
+#include "../REFramework.hpp"
+
 #include "REFrameworkConfig.hpp"
 
 std::shared_ptr<REFrameworkConfig>& REFrameworkConfig::get() {
@@ -19,6 +21,10 @@ void REFrameworkConfig::on_draw_ui() {
     m_menu_key->draw("Menu Key");
     m_remember_menu_state->draw("Remember Menu Open/Closed State");
 
+    if (m_font_size->draw("Font Size")) {
+        g_framework->set_font_size(m_font_size->value());
+    }
+
     ImGui::TreePop();
 }
 
@@ -30,6 +36,8 @@ void REFrameworkConfig::on_config_load(const utility::Config& cfg) {
     if (m_remember_menu_state->value()) {
         g_framework->set_draw_ui(m_menu_open->value(), false);
     }
+    
+    g_framework->set_font_size(m_font_size->value());
 }
 
 void REFrameworkConfig::on_config_save(utility::Config& cfg) {

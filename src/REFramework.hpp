@@ -96,8 +96,11 @@ public:
         return m_hook_monitor_mutex;
     }
 
+    void set_font_size(int size) { m_font_desired_size = size; }
+
 private:
     void consume_input();
+    void update_fonts();
 
     void draw_ui();
     void draw_about();
@@ -130,6 +133,9 @@ private:
     
     ImVec2 m_last_window_pos{};
     ImVec2 m_last_window_size{};
+
+    int m_font_size{};
+    int m_font_desired_size{16};
 
     std::mutex m_input_mutex{};
     std::recursive_mutex m_config_mtx{};

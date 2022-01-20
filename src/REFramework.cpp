@@ -369,6 +369,7 @@ void REFramework::on_frame_d3d11() {
     }
 
     consume_input();
+    update_fonts();
 
     ImGui_ImplDX11_NewFrame();
     ImGui_ImplWin32_NewFrame();
@@ -464,6 +465,7 @@ void REFramework::on_frame_d3d12() {
     }
 
     consume_input();
+    update_fonts();
 
     ImGui_ImplDX12_NewFrame();
     ImGui_ImplWin32_NewFrame();
@@ -710,6 +712,25 @@ void REFramework::consume_input() {
     m_accumulated_mouse_delta[1] = 0.0f;
 }
 
+void REFramework::update_fonts() {
+    if (m_font_size == m_font_desired_size) {
+        return;
+    }
+
+    m_font_size = m_font_desired_size;
+    auto& fonts = ImGui::GetIO().Fonts;
+
+    fonts->Clear();
+    fonts->AddFontFromMemoryCompressedTTF(RobotoMedium_compressed_data, RobotoMedium_compressed_size, (float)m_font_size);
+    fonts->Build();
+
+    if (m_renderer_type == RendererType::D3D11) {
+        ImGui_ImplDX11_InvalidateDeviceObjects();
+    } else if (m_renderer_type == RendererType::D3D12) {
+        ImGui_ImplDX12_InvalidateDeviceObjects();
+    }
+}
+
 void REFramework::draw_ui() {
     std::lock_guard _{m_input_mutex};
 
@@ -900,8 +921,7 @@ void REFramework::set_imgui_style() noexcept {
     colors[ImGuiCol_TitleBgCollapsed] = ImVec4{0.25f, 0.2505f, 0.251f, 1.0f};
 
     // Font
-    auto& io = ImGui::GetIO();
-    io.Fonts->AddFontFromMemoryCompressedTTF(RobotoMedium_compressed_data, RobotoMedium_compressed_size, 16.0f);
+    set_font_size(16);
 }
 
 bool REFramework::initialize() {
