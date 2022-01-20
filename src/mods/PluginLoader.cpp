@@ -297,7 +297,7 @@ std::optional<std::string> PluginLoader::on_initialize() {
     module_path.resize(GetModuleFileName(nullptr, module_path.data(), module_path.size()));
     spdlog::info("[PluginLoader] Module path {}", module_path);
 
-    auto plugin_path = fs::path{module_path}.parent_path() / "plugins";
+    auto plugin_path = fs::path{module_path}.parent_path() / "reframework" / "plugins";
 
     spdlog::info("[PluginLoader] Creating directories {}", plugin_path.string());
     fs::create_directories(plugin_path);
