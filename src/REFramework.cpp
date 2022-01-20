@@ -25,6 +25,7 @@ extern "C" {
 
 #include "ExceptionHandler.hpp"
 #include "LicenseStrings.hpp"
+#include "mods/REFrameworkConfig.hpp"
 #include "REFramework.hpp"
 
 namespace fs = std::filesystem;
@@ -640,7 +641,9 @@ bool REFramework::on_message(HWND wnd, UINT message, WPARAM w_param, LPARAM l_pa
 
 // this is unfortunate.
 void REFramework::on_direct_input_keys(const std::array<uint8_t, 256>& keys) {
-    if (keys[m_menu_key] && m_last_keys[m_menu_key] == 0) {
+    const auto menu_key = REFrameworkConfig::get()->get_menu_key()->value();
+
+    if (keys[menu_key] && m_last_keys[menu_key] == 0) {
         std::lock_guard _{m_input_mutex};
         m_draw_ui = !m_draw_ui;
 
@@ -727,7 +730,7 @@ void REFramework::draw_ui() {
     ImGui::SetNextWindowPos(ImVec2(50, 50), ImGuiCond_::ImGuiCond_Once);
     ImGui::SetNextWindowSize(ImVec2(300, 500), ImGuiCond_::ImGuiCond_Once);
     ImGui::Begin("REFramework", &m_draw_ui);
-    ImGui::Text("Menu Key: Insert");
+    ImGui::Text("Default Menu Key: Insert");
     ImGui::Checkbox("Transparency", &m_ui_option_transparent);
     ImGui::SameLine();
     ImGui::Text("(?)");

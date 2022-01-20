@@ -138,7 +138,6 @@ private:
 
     HWND m_wnd{0};
     HMODULE m_game_module{0};
-    uint8_t m_menu_key{DIK_INSERT};
 
     float m_accumulated_mouse_delta[2]{};
     float m_mouse_delta[2]{};

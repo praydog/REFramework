@@ -11,11 +11,13 @@
 #include "mods/VR.hpp"
 #include "mods/ScriptRunner.hpp"
 #include "mods/APIProxy.hpp"
+#include "mods/REFrameworkConfig.hpp"
 
 #include "Mods.hpp"
 
-Mods::Mods()
-{
+Mods::Mods() {
+    m_mods.emplace_back(REFrameworkConfig::get());
+
 #if defined(RE3) || defined(RE8) || defined(MHRISE)
     m_mods.emplace_back(std::make_unique<IntegrityCheckBypass>());
 #endif
