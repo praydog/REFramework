@@ -47,7 +47,72 @@ REFrameworkSDKFunctions g_sdk_functions {
     },
     [](const char* name) {
         return sdk::get_native_singleton(name);
-    }
+    },
+    // get_managed_singletons
+    [](REFrameworkManagedSingleton* out, unsigned int out_size, unsigned int* out_count) -> REFrameworkResult {
+        auto singletons = g_framework->get_globals()->get_objects();
+
+        if (out_size < singletons.size() * sizeof(REFrameworkManagedSingleton)) {
+            return REFRAMEWORK_ERROR_OUT_TOO_SMALL;
+        }
+
+        uint32_t out_written = 0;
+
+        for (auto instance : singletons) {
+            if (instance == nullptr) {
+                continue;
+            }
+            
+            auto tdef = utility::re_managed_object::get_type_definition(instance);
+
+            out[out_written].instance = (REFrameworkManagedObjectHandle)instance;
+            out[out_written].t = (REFrameworkTypeDefinitionHandle)tdef;
+            out[out_written].type_info = tdef->get_type();
+            
+            ++out_written;
+        }
+
+        if (out_count != nullptr) {
+            *out_count = out_written;
+        }
+
+        return REFRAMEWORK_ERROR_NONE;
+    },
+    // get_native_singletons
+    [](REFrameworkNativeSingleton* out, unsigned int out_size, unsigned int* out_count) -> REFrameworkResult {
+        auto& native_singletons = g_framework->get_globals()->get_native_singleton_types();
+
+        if (out_size < native_singletons.size() * sizeof(REFrameworkNativeSingleton)) {
+            return REFRAMEWORK_ERROR_OUT_TOO_SMALL;
+        }
+
+        uint32_t out_written = 0;
+
+        for (auto t : native_singletons) {
+            if (t == nullptr) {
+                continue;
+            }
+
+            auto instance = utility::re_type::get_singleton_instance(t);
+
+            if (instance == nullptr) {
+                continue;
+            }
+
+            out[out_written].instance = instance;
+            out[out_written].t = (REFrameworkTypeDefinitionHandle)utility::re_type::get_type_definition(t);
+            out[out_written].type_info = t;
+            out[out_written].name = t->name;
+
+            ++out_written;
+        }
+
+        if (out_count != nullptr) {
+            *out_count = out_written;
+        }
+
+        return REFRAMEWORK_ERROR_NONE;
+    },
 };
 
 #define RETYPEDEF(var) ((sdk::RETypeDefinition*)var)
@@ -63,7 +128,7 @@ REFrameworkTDBTypeDefinition g_type_definition_data {
         auto full_name = RETYPEDEF(tdef)->get_full_name();
 
         if (full_name.size() > size) {
-            return false;
+            return REFRAMEWORK_ERROR_OUT_TOO_SMALL;
         }
 
         memcpy(out, full_name.c_str(), full_name.size());
@@ -72,7 +137,7 @@ REFrameworkTDBTypeDefinition g_type_definition_data {
             *out_len = full_name.size();
         }
 
-        return true;
+        return REFRAMEWORK_ERROR_NONE;
     },
 
     [](REFrameworkTypeDefinitionHandle tdef) { return RETYPEDEF(tdef)->has_fieldptr_offset(); }, 
@@ -100,11 +165,11 @@ REFrameworkTDBTypeDefinition g_type_definition_data {
         auto methods = RETYPEDEF(tdef)->get_methods();
 
         if (methods.size() == 0) {
-            return;
+            return REFRAMEWORK_ERROR_NONE;
         }
 
         if (methods.size() * sizeof(REFrameworkMethodHandle) > out_size) {
-            return;
+            return REFRAMEWORK_ERROR_OUT_TOO_SMALL;
         }
 
         for (auto& method : methods) {
@@ -115,16 +180,18 @@ REFrameworkTDBTypeDefinition g_type_definition_data {
         if (out_len != nullptr) {
             *out_len = methods.size();
         }
+
+        return REFRAMEWORK_ERROR_NONE;
     },
     [](REFrameworkTypeDefinitionHandle tdef, REFrameworkFieldHandle* out, unsigned int out_size, unsigned int* out_len) { 
         auto fields = RETYPEDEF(tdef)->get_fields();
 
         if (fields.size() == 0) {
-            return;
+            return REFRAMEWORK_ERROR_NONE;
         }
 
         if (fields.size() * sizeof(REFrameworkFieldHandle) > out_size) {
-            return;
+            return REFRAMEWORK_ERROR_OUT_TOO_SMALL;
         }
 
         for (auto field : fields) {
@@ -135,6 +202,8 @@ REFrameworkTDBTypeDefinition g_type_definition_data {
         if (out_len != nullptr) {
             *out_len = fields.size();
         }
+
+        return REFRAMEWORK_ERROR_NONE;
     },
 
     [](REFrameworkTypeDefinitionHandle tdef) { return RETYPEDEF(tdef)->get_instance(); },
@@ -151,13 +220,13 @@ REFrameworkTDBTypeDefinition g_type_definition_data {
 REFrameworkTDBMethod g_tdb_method_data {
     [](REFrameworkMethodHandle method, void* thisptr, void** in_args, unsigned int in_args_size, void* out, unsigned int out_size) {
         if (sizeof(sdk::InvokeRet) > out_size) {
-            return REFRAMEWORK_INVOKE_ERROR_OUT_TOO_SMALL;
+            return REFRAMEWORK_ERROR_OUT_TOO_SMALL;
         }
 
         auto m = REMETHOD(method);
 
         if (m->get_num_params() != in_args_size / sizeof(void*)) {
-            return REFRAMEWORK_INVOKE_ERROR_IN_ARGS_SIZE_MISMATCH;
+            return REFRAMEWORK_ERROR_IN_ARGS_SIZE_MISMATCH;
         }
 
         std::vector<void*> cpp_args{};
@@ -171,15 +240,41 @@ REFrameworkTDBMethod g_tdb_method_data {
         memcpy(out, &ret, sizeof(sdk::InvokeRet));
 
         if (ret.exception_thrown) {
-            return REFRAMEWORK_INVOKE_ERROR_EXCEPTION;
+            return REFRAMEWORK_ERROR_EXCEPTION;
         }
 
-        return REFRAMEWORK_INVOKE_ERROR_NONE;
+        return REFRAMEWORK_ERROR_NONE;
     },
     [](REFrameworkMethodHandle method) { return REMETHOD(method)->get_function(); },
     [](REFrameworkMethodHandle method) { return REMETHOD(method)->get_name(); },
+    [](REFrameworkMethodHandle method) { return (REFrameworkTypeDefinitionHandle)REMETHOD(method)->get_declaring_type(); },
     [](REFrameworkMethodHandle method) { return (REFrameworkTypeDefinitionHandle)REMETHOD(method)->get_return_type(); },
     [](REFrameworkMethodHandle method) { return REMETHOD(method)->get_num_params(); },
+    [](REFrameworkMethodHandle method, REFrameworkMethodParameter* out, unsigned int out_size, unsigned int* out_len) {
+        const auto num_params = REMETHOD(method)->get_num_params();
+        
+        if (REMETHOD(method)->get_num_params() == 0) {
+            return REFRAMEWORK_ERROR_NONE;
+        }
+
+        if (num_params * sizeof(REFrameworkMethodParameter) > out_size) {
+            return REFRAMEWORK_ERROR_OUT_TOO_SMALL;
+        }
+
+        const auto param_names = REMETHOD(method)->get_param_names();
+        const auto param_types = REMETHOD(method)->get_param_types();
+
+        for (auto i = 0; i < num_params; ++i) {
+            out[i].name = param_names[i];
+            out[i].t = (REFrameworkTypeDefinitionHandle)param_types[i];
+        }
+
+        if (out_len != nullptr) {
+            *out_len = num_params;
+        }
+
+        return REFRAMEWORK_ERROR_NONE;
+    },
     [](REFrameworkMethodHandle method) { return REMETHOD(method)->get_index(); },
     [](REFrameworkMethodHandle method) { return REMETHOD(method)->get_virtual_index(); },
     [](REFrameworkMethodHandle method) { return REMETHOD(method)->is_static(); },

@@ -19,6 +19,14 @@
 #define REFRAMEWORK_RENDERER_D3D11 0
 #define REFRAMEWORK_RENDERER_D3D12 1
 
+#define REFRAMEWORK_ERROR_UNKNOWN -1
+#define REFRAMEWORK_ERROR_NONE 0
+#define REFRAMEWORK_ERROR_OUT_TOO_SMALL 1
+#define REFRAMEWORK_ERROR_EXCEPTION 2
+#define REFRAMEWORK_ERROR_IN_ARGS_SIZE_MISMATCH 3
+
+typedef int REFrameworkResult;
+
 struct lua_State;
 
 typedef void (*REFInitializedCb)();
@@ -102,6 +110,8 @@ DECLARE_REFRAMEWORK_HANDLE(REFrameworkTDBHandle);
 #define REFRAMEWORK_VM_OBJ_TYPE_DELEGATE 4
 #define REFRAMEWORK_VM_OBJ_TYPE_VALTYPE 5
 
+typedef unsigned int REFrameworkVMObjType;
+
 typedef struct {
     unsigned int (*get_index)(REFrameworkTypeDefinitionHandle);
     unsigned int (*get_size)(REFrameworkTypeDefinitionHandle);
@@ -109,7 +119,7 @@ typedef struct {
 
     const char* (*get_name)(REFrameworkTypeDefinitionHandle);
     const char* (*get_namespace)(REFrameworkTypeDefinitionHandle);
-    bool (*get_full_name)(REFrameworkTypeDefinitionHandle, char* out, unsigned int out_size, unsigned int* out_len);
+    REFrameworkResult (*get_full_name)(REFrameworkTypeDefinitionHandle, char* out, unsigned int out_size, unsigned int* out_len);
 
     bool (*has_fieldptr_offset)(REFrameworkTypeDefinitionHandle);
     int (*get_fieldptr_offset)(REFrameworkTypeDefinitionHandle);
@@ -126,7 +136,7 @@ typedef struct {
     bool (*is_pointer)(REFrameworkTypeDefinitionHandle);
     bool (*is_primitive)(REFrameworkTypeDefinitionHandle);
 
-    unsigned int (*get_vm_obj_type)(REFrameworkTypeDefinitionHandle);
+    REFrameworkVMObjType (*get_vm_obj_type)(REFrameworkTypeDefinitionHandle);
 
     // All lookups are cached on our end
     REFrameworkMethodHandle (*find_method)(REFrameworkTypeDefinitionHandle, const char*);
@@ -135,8 +145,8 @@ typedef struct {
 
     // out_size is the full size, in bytes of the out buffer
     // out_len is how many elements were written to the out buffer, not the size of the written data
-    void (*get_methods)(REFrameworkTypeDefinitionHandle, REFrameworkMethodHandle* out, unsigned int out_size, unsigned int* out_len);
-    void (*get_fields)(REFrameworkTypeDefinitionHandle, REFrameworkFieldHandle* out, unsigned int out_size, unsigned int* out_len);
+    REFrameworkResult (*get_methods)(REFrameworkTypeDefinitionHandle, REFrameworkMethodHandle* out, unsigned int out_size, unsigned int* out_count);
+    REFrameworkResult (*get_fields)(REFrameworkTypeDefinitionHandle, REFrameworkFieldHandle* out, unsigned int out_size, unsigned int* out_count);
 
     // get_instance usually only used for native singletons
     void* (*get_instance)(REFrameworkTypeDefinitionHandle);
@@ -167,21 +177,29 @@ struct InvokeRet {
 #pragma pack(pop)
 */
 
-#define REFRAMEWORK_INVOKE_ERROR_NONE 0
-#define REFRAMEWORK_INVOKE_ERROR_EXCEPTION 1
-#define REFRAMEWORK_INVOKE_ERROR_OUT_TOO_SMALL 2
-#define REFRAMEWORK_INVOKE_ERROR_IN_ARGS_SIZE_MISMATCH 3
+typedef struct {
+    const char* name;
+    REFrameworkTypeDefinitionHandle t;
+    unsigned long long reserved;
+} REFrameworkMethodParameter;
 
 typedef void* (*REFGenericFunction)(...);
 
 typedef struct {
     // make sure out size is at least size of InvokeRet
     // each arg is always 8 bytes, even if it's something like a byte
-    int (*invoke)(REFrameworkMethodHandle, void* thisptr, void** in_args, unsigned int in_args_size, void* out, unsigned int out_size);
+    REFrameworkResult (*invoke)(REFrameworkMethodHandle, void* thisptr, void** in_args, unsigned int in_args_size, void* out, unsigned int out_size);
     void* (*get_function)(REFrameworkMethodHandle);
     const char* (*get_name)(REFrameworkMethodHandle);
+    REFrameworkTypeDefinitionHandle (*get_declaring_type)(REFrameworkMethodHandle);
     REFrameworkTypeDefinitionHandle (*get_return_type)(REFrameworkMethodHandle);
+
     unsigned int (*get_num_params)(REFrameworkMethodHandle);
+
+    // out_size is the full size, in bytes of the out buffer
+    // out_count is how many elements were written to the out buffer, not the size of the written data
+    REFrameworkResult (*get_params)(REFrameworkMethodHandle, REFrameworkMethodParameter* out, unsigned int out_size, unsigned int* out_len);
+
     unsigned int (*get_index)(REFrameworkMethodHandle);
     int (*get_virtual_index)(REFrameworkMethodHandle);
     bool (*is_static)(REFrameworkMethodHandle);
@@ -241,11 +259,29 @@ typedef struct {
 } REFrameworkManagedObject;
 
 typedef struct {
+    void* instance;
+    REFrameworkTypeDefinitionHandle t;
+    void* type_info;
+    const char* name; // t is not guaranteed to be non-null so we pass the name along too
+} REFrameworkNativeSingleton;
+
+typedef struct {
+    REFrameworkManagedObjectHandle instance;
+    REFrameworkTypeDefinitionHandle t;
+    void* type_info;
+} REFrameworkManagedSingleton;
+
+typedef struct {
     REFrameworkTDBHandle (*get_tdb)();
     void* (*get_vm_context)(); // per-thread context
     REFrameworkManagedObjectHandle (*typeof)(const char*); // System.Type
     REFrameworkManagedObjectHandle (*get_managed_singleton)(const char*);
     void* (*get_native_singleton)(const char*);
+
+    // out_size is the full size, in bytes of the out buffer
+    // out_count is how many elements were written to the out buffer, not the size of the written data
+    REFrameworkResult (*get_managed_singletons)(REFrameworkManagedSingleton* out, unsigned int out_size, unsigned int* out_count);
+    REFrameworkResult (*get_native_singletons)(REFrameworkNativeSingleton* out, unsigned int out_size, unsigned int* out_count);
 } REFrameworkSDKFunctions;
 
 typedef struct {

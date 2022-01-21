@@ -125,7 +125,7 @@ void internal_frame() {
             my_cool_storage.window_height = size:get_field("h")
 
             return true;
-        )");
+    )");
     }
 
     // Fill in the window size and stuff
@@ -149,7 +149,7 @@ void internal_frame() {
     const auto scene_manager = sdk->functions->get_native_singleton("via.SceneManager");
     const auto scene_manager_type = sdk->tdb->find_type(tdb, "via.SceneManager");
 
-    auto get_full_name = [](REFrameworkTypeDefinitionHandle t) -> std::string {
+    static auto get_full_name = [](REFrameworkTypeDefinitionHandle t) -> std::string {
         std::string buffer{};
         buffer.resize(256);
 
@@ -157,7 +157,7 @@ void internal_frame() {
 
         auto result = g_param->sdk->type_definition->get_full_name(t, &buffer[0], buffer.size(), &real_size);
 
-        if (!result) {
+        if (result != REFRAMEWORK_ERROR_NONE) {
             return "";
         }
 
@@ -196,7 +196,7 @@ void internal_frame() {
 
     const int result = sdk->method->invoke(get_size, main_view, (void**)&null_args, 0, &invoke_out, sizeof(invoke_out));
 
-    if (result != REFRAMEWORK_INVOKE_ERROR_NONE) {
+    if (result != REFRAMEWORK_ERROR_NONE) {
         if (ImGui::Begin("Super Cool Plugin")) {
             ImGui::Text("Invoke Error: %d", result);
             ImGui::End();
@@ -211,6 +211,187 @@ void internal_frame() {
         ImGui::Text("Hello from the super cool plugin!");
         ImGui::Text("Game Window Size from Lua: %f %f", window_width, window_height);
         ImGui::Text("Game Window Size from C: %f %f", size[0], size[1]);
+
+        std::vector<REFrameworkNativeSingleton> native_singletons{};
+        std::vector<REFrameworkManagedSingleton> managed_singletons{};
+
+        native_singletons.resize(1024);
+        managed_singletons.resize(1024);
+
+        uint32_t real_native_singletons_count{0};
+        uint32_t real_managed_singletons_count{0};
+
+        auto result = sdk->functions->get_native_singletons(native_singletons.data(), native_singletons.size() * sizeof(REFrameworkManagedSingleton), &real_native_singletons_count);
+
+        if (result != REFRAMEWORK_ERROR_NONE) {
+            ImGui::Text("Error getting native singletons: %d", result);
+            ImGui::End();
+            return;
+        }
+
+        result = sdk->functions->get_managed_singletons(managed_singletons.data(), managed_singletons.size() * sizeof(REFrameworkManagedSingleton), &real_managed_singletons_count);
+
+        if (result != REFRAMEWORK_ERROR_NONE) {
+            ImGui::Text("Error getting managed singletons: %d", result);
+            ImGui::End();
+            return;
+        }
+
+        native_singletons.resize(real_native_singletons_count);
+        managed_singletons.resize(real_managed_singletons_count);
+
+        static auto generate_method_prototype = [](REFrameworkMethodHandle method) -> std::string {
+            if (method == nullptr) {
+                return "";
+            }
+
+            auto sdk = g_param->sdk;
+
+            std::vector<REFrameworkMethodParameter> params{};
+            params.resize(64);
+
+            uint32_t real_params_count{0};
+            auto result = sdk->method->get_params(method, params.data(), params.size() * sizeof(REFrameworkMethodParameter), &real_params_count);
+
+            if (result != REFRAMEWORK_ERROR_NONE) {
+                return "";
+            }
+
+            params.resize(real_params_count);
+
+            std::stringstream ss{};
+
+            auto return_type = sdk->method->get_return_type(method);
+
+            if (return_type != nullptr) {
+                ss << get_full_name(return_type) << " ";
+            }
+
+            ss << sdk->method->get_name(method) << "(";
+
+            for (auto i = 0; i < params.size(); i++) {
+                auto& param = params[i];
+
+                auto param_type_name = get_full_name(param.t);
+                auto param_name = param.name;
+
+                ss << param_type_name << " " << param_name;
+
+                if (i < params.size() - 1) {
+                    ss << ", ";
+                }
+            }
+
+            ss << ")";
+
+            return ss.str();
+        };
+        
+        static auto display_methods = [](REFrameworkTypeDefinitionHandle t) {
+            if (t == nullptr) {
+                return;
+            }
+
+            std::vector<REFrameworkMethodHandle> methods{};
+            methods.resize(1024);
+
+            auto sdk = g_param->sdk;
+
+            uint32_t real_methods_count{0};
+            auto result = sdk->type_definition->get_methods(t, methods.data(), methods.size() * sizeof(REFrameworkMethodHandle), &real_methods_count);
+
+            if (result == REFRAMEWORK_ERROR_NONE) {
+                methods.resize(real_methods_count);
+
+                for (auto method : methods) {
+                    auto method_name = generate_method_prototype(method);
+
+                    if (ImGui::TreeNode(method_name.c_str(), "%s", method_name.c_str())) {
+                        ImGui::Text("Address: 0x%p", method);
+                        ImGui::TreePop();
+                    }
+                }
+            } else {
+                ImGui::Text("Error getting methods: %d", result);
+            }
+        };
+
+        static auto display_fields = [](REFrameworkTypeDefinitionHandle t) {
+            if (t == nullptr) {
+                return;
+            }
+
+            std::vector<REFrameworkFieldHandle> fields{};
+            fields.resize(1024);
+
+            auto sdk = g_param->sdk;
+
+            uint32_t real_fields_count{0};
+            auto result = sdk->type_definition->get_fields(t, fields.data(), fields.size() * sizeof(REFrameworkFieldHandle), &real_fields_count);
+
+            if (result == REFRAMEWORK_ERROR_NONE) {
+                fields.resize(real_fields_count);
+
+                for (auto field : fields) {
+                    auto field_name = sdk->field->get_name(field);
+
+                    if (ImGui::TreeNode(field_name, "%s", field_name)) {
+                        ImGui::Text("Address: 0x%p", field);
+                        ImGui::TreePop();
+                    }
+                }
+            } else {
+                ImGui::Text("Error getting fields: %d", result);
+            }
+        };
+
+        if (ImGui::TreeNode("Native Singletons")) {
+            for (const auto& native_singleton : native_singletons) {
+                //const auto full_name = get_full_name(native_singleton.t);
+
+                if (ImGui::TreeNode(native_singleton.name, "%s", native_singleton.name)) {
+                    ImGui::Text("Address: 0x%p", native_singleton.instance);
+
+                    if (ImGui::TreeNode("Methods")) {
+                        display_methods(native_singleton.t);
+                        ImGui::TreePop();
+                    }
+
+                    if (ImGui::TreeNode("Fields")) {
+                        display_fields(native_singleton.t);
+                        ImGui::TreePop();
+                    }
+
+                    ImGui::TreePop();
+                }
+            }
+
+            ImGui::TreePop();
+        }
+
+        if (ImGui::TreeNode("Managed Singletons")) {
+            for (const auto& managed_singleton : managed_singletons) {
+                const auto full_name = get_full_name(managed_singleton.t);
+
+                if (ImGui::TreeNode(full_name.c_str(), "%s", full_name.c_str())) {
+                    ImGui::Text("Address: 0x%p", managed_singleton.instance);
+
+                    if (ImGui::TreeNode("Methods")) {
+                        display_methods(managed_singleton.t);
+                        ImGui::TreePop();
+                    }
+
+                    if (ImGui::TreeNode("Fields")) {
+                        display_fields(managed_singleton.t);
+                        ImGui::TreePop();
+                    }
+
+                    ImGui::TreePop();
+                }
+            }
+
+            ImGui::TreePop();
+        }
 
         ImGui::End();
     }
