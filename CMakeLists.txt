@@ -658,6 +658,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	target_compile_definitions(RE2 PUBLIC
 		${CMKR_TARGET}
 		REFRAMEWORK_EXPORTS
+		"REFRAMEWORK_GAME_NAME=\"${CMKR_TARGET}\""
 	)
 
 	if(DEVELOPER_MODE) # developer-mode
@@ -1072,6 +1073,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	target_compile_definitions(RE3 PUBLIC
 		${CMKR_TARGET}
 		REFRAMEWORK_EXPORTS
+		"REFRAMEWORK_GAME_NAME=\"${CMKR_TARGET}\""
 	)
 
 	if(DEVELOPER_MODE) # developer-mode
@@ -1486,6 +1488,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	target_compile_definitions(RE7 PUBLIC
 		${CMKR_TARGET}
 		REFRAMEWORK_EXPORTS
+		"REFRAMEWORK_GAME_NAME=\"${CMKR_TARGET}\""
 	)
 
 	if(DEVELOPER_MODE) # developer-mode
@@ -1900,6 +1903,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	target_compile_definitions(RE8 PUBLIC
 		${CMKR_TARGET}
 		REFRAMEWORK_EXPORTS
+		"REFRAMEWORK_GAME_NAME=\"${CMKR_TARGET}\""
 	)
 
 	if(DEVELOPER_MODE) # developer-mode
@@ -2314,6 +2318,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	target_compile_definitions(DMC5 PUBLIC
 		${CMKR_TARGET}
 		REFRAMEWORK_EXPORTS
+		"REFRAMEWORK_GAME_NAME=\"${CMKR_TARGET}\""
 	)
 
 	if(DEVELOPER_MODE) # developer-mode
@@ -2728,6 +2733,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	target_compile_definitions(MHRISE PUBLIC
 		${CMKR_TARGET}
 		REFRAMEWORK_EXPORTS
+		"REFRAMEWORK_GAME_NAME=\"${CMKR_TARGET}\""
 	)
 
 	if(DEVELOPER_MODE) # developer-mode

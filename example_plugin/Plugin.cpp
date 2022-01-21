@@ -291,6 +291,9 @@ extern "C" __declspec(dllexport) void reframework_plugin_required_version(REFram
     version->major = REFRAMEWORK_PLUGIN_VERSION_MAJOR;
     version->minor = REFRAMEWORK_PLUGIN_VERSION_MINOR;
     version->patch = REFRAMEWORK_PLUGIN_VERSION_PATCH;
+
+    // Optionally, specify a specific game name that this plugin is compatible with.
+    //version->game_name = "MHRISE";
 }
 
 extern "C" __declspec(dllexport) bool reframework_plugin_initialize(const REFrameworkPluginInitializeParam* param) {

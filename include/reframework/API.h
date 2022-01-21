@@ -56,6 +56,7 @@ typedef struct {
     int major;
     int minor;
     int patch;
+    const char* game_name;
 } REFrameworkPluginVersion;
 
 typedef void (*REFPluginRequiredVersionFn)(REFrameworkPluginVersion*);

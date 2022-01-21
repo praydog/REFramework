@@ -9,7 +9,7 @@
 #include "PluginLoader.hpp"
 
 REFrameworkPluginVersion g_plugin_version{
-    REFRAMEWORK_PLUGIN_VERSION_MAJOR, REFRAMEWORK_PLUGIN_VERSION_MINOR, REFRAMEWORK_PLUGIN_VERSION_PATCH};
+    REFRAMEWORK_PLUGIN_VERSION_MAJOR, REFRAMEWORK_PLUGIN_VERSION_MINOR, REFRAMEWORK_PLUGIN_VERSION_PATCH, REFRAMEWORK_GAME_NAME};
 
 namespace reframework {
 REFrameworkRendererData g_renderer_data{
@@ -391,6 +391,14 @@ std::optional<std::string> PluginLoader::on_initialize() {
         if (required_version.patch > g_plugin_version.patch) {
             spdlog::warn("[PluginLoader] Plugin {} desires a newer patch version", name);
             m_plugin_load_warnings.emplace(name, "Desires a newer patch version");
+        }
+
+        if (required_version.game_name != nullptr && std::string_view{required_version.game_name} != g_plugin_version.game_name) {
+            spdlog::error("[PluginLoader] Plugin {} is for a different game {}", name, required_version.game_name);
+            m_plugin_load_errors.emplace(name, "Is for a different game");
+            FreeLibrary(mod);
+            it = m_plugins.erase(it);
+            continue;
         }
 
         ++it;
