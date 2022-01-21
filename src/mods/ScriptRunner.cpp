@@ -14,6 +14,7 @@
 
 #include "bindings/Sdk.hpp"
 #include "bindings/ImGui.hpp"
+#include "bindings/Json.hpp"
 
 #include "ScriptRunner.hpp"
 
@@ -49,6 +50,7 @@ ScriptState::ScriptState() {
     m_lua.open_libraries(sol::lib::base, sol::lib::package, sol::lib::string, sol::lib::math, sol::lib::table, sol::lib::bit32, sol::lib::utf8);
     bindings::open_sdk(this);
     bindings::open_imgui(this);
+    bindings::open_json(this);
 
     auto re = m_lua.create_table();
     re["msg"] = api::re::msg;
@@ -61,6 +63,7 @@ ScriptState::ScriptState() {
     re["on_draw_ui"] = [this](sol::function fn) { m_on_draw_ui_fns.emplace_back(fn); };
     re["on_frame"] = [this](sol::function fn) { m_on_frame_fns.emplace_back(fn); };
     re["on_script_reset"] = [this](sol::function fn) { m_on_script_reset_fns.emplace_back(fn); };
+    re["on_config_save"] = [this](sol::function fn) { m_on_config_save_fns.emplace_back(fn); };
     m_lua["re"] = re;
 
 
@@ -372,17 +375,32 @@ void ScriptState::on_gui_draw_element(REComponent* gui_element, void* context) {
     }
 }
 
-void ScriptState::on_script_reset() {
-    try {
-        std::scoped_lock _{ m_execution_mutex };
+void ScriptState::on_script_reset() try {
+    std::scoped_lock _{ m_execution_mutex };
 
-        for (auto& fn : m_on_script_reset_fns) {
-            handle_protected_result(fn());
-        }
-    } catch (const std::exception& e) {
-        OutputDebugString(e.what());
+    // We first call on_config_save functions so scripts can save prior to reset.
+    for (auto& fn : m_on_config_save_fns) {
+        handle_protected_result(fn());
     }
+
+    for (auto& fn : m_on_script_reset_fns) {
+        handle_protected_result(fn());
+    }
+} catch (const std::exception& e) {
+    OutputDebugString(e.what());
 }
+
+void ScriptState::on_config_save() try {
+    std::scoped_lock _{ m_execution_mutex };
+
+    for (auto& fn : m_on_config_save_fns) {
+        handle_protected_result(fn());
+    }
+} catch (const std::exception& e) {
+    OutputDebugString(e.what());
+}
+
+
 
 ScriptState::PreHookResult ScriptState::on_pre_hook(HookedFn* fn) {
     std::scoped_lock _{ m_execution_mutex };
@@ -488,6 +506,11 @@ void ScriptRunner::on_draw_ui() {
     }
 }
 
+void ScriptRunner::on_config_save(utility::Config& cfg) {
+    std::scoped_lock _{m_access_mutex};
+    m_state->on_config_save();
+}
+
 void ScriptRunner::on_pre_application_entry(void* entry, const char* name, size_t hash) {
     std::scoped_lock _{ m_access_mutex };
 
@@ -550,7 +573,21 @@ void ScriptRunner::reset_scripts() {
     module_path.resize(GetModuleFileName(nullptr, module_path.data(), module_path.size()));
     spdlog::info("[ScriptRunner] Module path {}", module_path);
 
+    // Load from the top-level autorun directory. This is no longer the preferred directory for autorun scripts.
     auto autorun_path = std::filesystem::path{module_path}.parent_path() / "autorun";
+
+    spdlog::info("[ScriptRunner] Loading scripts...");
+
+    for (auto&& entry : std::filesystem::directory_iterator{autorun_path}) {
+        auto&& path = entry.path();
+
+        if (path.has_extension() && path.extension() == ".lua") {
+            m_state->run_script(path.string());
+        }
+    }
+
+    // Load from the reframework/autorun directory. This is the preferred directory for autorun scripts.
+    autorun_path = std::filesystem::path{module_path}.parent_path() / "reframework" / "autorun";
 
     spdlog::info("[ScriptRunner] Creating directories {}", autorun_path.string());
     std::filesystem::create_directories(autorun_path);

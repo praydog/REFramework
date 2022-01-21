@@ -302,6 +302,10 @@ void spacing() {
 void new_line() {
     ImGui::NewLine();
 }
+
+bool collapsing_header(const char* name) {
+    return ImGui::CollapsingHeader(name);
+}
 } // namespace api::imgui
 
 namespace api::draw {
@@ -448,6 +452,7 @@ void bindings::open_imgui(ScriptState* s) {
     imgui["separator"] = api::imgui::separator;
     imgui["spacing"] = api::imgui::spacing;
     imgui["new_line"] = api::imgui::new_line;
+    imgui["collapsing_header"] = api::imgui::collapsing_header;
     lua["imgui"] = imgui;
 
     auto draw = lua.create_table();

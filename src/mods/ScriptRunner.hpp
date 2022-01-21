@@ -65,6 +65,7 @@ public:
     bool on_pre_gui_draw_element(REComponent* gui_element, void* primitive_context);
     void on_gui_draw_element(REComponent* gui_element, void* primitive_context);
     void on_script_reset();
+    void on_config_save();
 
     // Returns true when the original function should be called.
     PreHookResult on_pre_hook(HookedFn* fn);
@@ -103,6 +104,7 @@ private:
     std::vector<sol::protected_function> m_on_draw_ui_fns{};
     std::vector<sol::protected_function> m_on_frame_fns{};
     std::vector<sol::protected_function> m_on_script_reset_fns{};
+    std::vector<sol::protected_function> m_on_config_save_fns{};
 
     Xbyak::CodeGenerator m_code{};
     //std::vector<std::unique_ptr<HookedFn>> m_hooked_fns{};
@@ -119,6 +121,9 @@ public:
 
     void on_frame() override;
     void on_draw_ui() override;
+
+    void on_config_save(utility::Config& cfg) override;
+
     void on_pre_application_entry(void* entry, const char* name, size_t hash) override;
     void on_application_entry(void* entry, const char* name, size_t hash) override;
     void on_pre_update_transform(RETransform* transform) override;
