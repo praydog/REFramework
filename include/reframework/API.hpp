@@ -42,6 +42,8 @@ public:
     struct Field;
     struct Property;
     struct ManagedObject;
+    struct ResourceManager;
+    struct Resource;
 
     struct LuaLocker {
         LuaLocker() {
@@ -97,6 +99,10 @@ public:
 
     inline const auto tdb() const { 
         return (TDB*)sdk()->functions->get_tdb(); 
+    }
+
+    inline const auto resource_manager() const {
+        return (ResourceManager*)sdk()->functions->get_resource_manager();
     }
 
     void lock_lua() {
@@ -579,6 +585,30 @@ public:
 
         uint32_t get_ref_count() const {
             return API::s_instance->sdk()->managed_object->get_ref_count(*this);
+        }
+    };
+
+    struct ResourceManager {
+        operator ::REFrameworkResourceManagerHandle() const {
+            return (::REFrameworkResourceManagerHandle)this;
+        }
+
+        API::Resource* create_resource(std::string_view type_name, std::string_view name) {
+            return (API::Resource*)API::s_instance->sdk()->resource_manager->create_resource(*this, type_name.data(), name.data());
+        }
+    };
+    
+    struct Resource {
+        operator ::REFrameworkResourceHandle() const {
+            return (::REFrameworkResourceHandle)this;
+        }
+
+        void add_ref() {
+            API::s_instance->sdk()->resource->add_ref(*this);
+        }
+
+        void release() {
+            API::s_instance->sdk()->resource->release(*this);
         }
     };
 

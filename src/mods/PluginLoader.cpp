@@ -6,6 +6,8 @@
 #include "REFramework.hpp"
 #include "reframework/API.hpp"
 
+#include "sdk/ResourceManager.hpp"
+
 #include "PluginLoader.hpp"
 
 REFrameworkPluginVersion g_plugin_version{
@@ -32,7 +34,8 @@ REFrameworkPluginFunctions g_plugin_functions{
 
 REFrameworkSDKFunctions g_sdk_functions {
     []() -> REFrameworkTDBHandle { return (REFrameworkTDBHandle)sdk::RETypeDB::get(); },
-    []() -> void* { return sdk::get_thread_context(); }, // get_vm_context
+    []() { return (REFrameworkResourceManagerHandle)sdk::ResourceManager::get(); },
+    []() { return (REFrameworkVMContextHandle)sdk::get_thread_context(); }, // get_vm_context
     [](const char* name) -> REFrameworkManagedObjectHandle { // typeof
         auto tdef = sdk::RETypeDB::get()->find_type(name);
 
@@ -357,6 +360,28 @@ REFrameworkManagedObject g_managed_object_data {
     [](REFrameworkManagedObjectHandle obj) { return REMANAGEDOBJECT(obj)->referenceCount; }
 };
 
+#define RERESOURCEMGR(var) ((sdk::ResourceManager*)var)
+
+REFrameworkResourceManager g_resource_manager_data {
+    [](REFrameworkResourceManagerHandle mgr, const char* type_name, const char* name) -> REFrameworkResourceHandle {
+        // NOT a type definition.
+        auto t = g_framework->get_types()->get(type_name);
+
+        if (t == nullptr) {
+            return nullptr;
+        }
+
+        return (REFrameworkResourceHandle)RERESOURCEMGR(mgr)->create_resource(t, utility::widen(name).c_str());
+    }
+};
+
+#define RERESOURCE(var) ((sdk::Resource*)var)
+
+REFrameworkResource g_resource_data {
+    [](REFrameworkResourceHandle res) { RERESOURCE(res)->add_ref(); },
+    [](REFrameworkResourceHandle res) { RERESOURCE(res)->release(); }
+};
+
 REFrameworkSDKData g_sdk_data {
     &g_sdk_functions,
     &g_tdb_data,
@@ -364,7 +389,9 @@ REFrameworkSDKData g_sdk_data {
     &g_tdb_method_data,
     &g_tdb_field_data,
     &g_tdb_property_data,
-    &g_managed_object_data
+    &g_managed_object_data,
+    &g_resource_manager_data,
+    &g_resource_data
 };
 
 REFrameworkPluginInitializeParam g_plugin_initialize_param{

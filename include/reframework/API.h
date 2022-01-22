@@ -99,6 +99,9 @@ DECLARE_REFRAMEWORK_HANDLE(REFrameworkFieldHandle);
 DECLARE_REFRAMEWORK_HANDLE(REFrameworkPropertyHandle);
 DECLARE_REFRAMEWORK_HANDLE(REFrameworkManagedObjectHandle);
 DECLARE_REFRAMEWORK_HANDLE(REFrameworkTDBHandle);
+DECLARE_REFRAMEWORK_HANDLE(REFrameworkResourceHandle);
+DECLARE_REFRAMEWORK_HANDLE(REFrameworkResourceManagerHandle);
+DECLARE_REFRAMEWORK_HANDLE(REFrameworkVMContextHandle);
 
 #define REFRAMEWORK_CREATE_INSTANCE_FLAGS_NONE 0
 #define REFRAMEWORK_CREATE_INSTANCE_FLAGS_SIMPLIFY 1
@@ -273,11 +276,23 @@ typedef struct {
 } REFrameworkManagedSingleton;
 
 typedef struct {
+    // resource type, and then the path to the resource in the PAK
+    REFrameworkResourceHandle (*create_resource)(REFrameworkResourceManagerHandle, const char* type_name, const char* name);
+} REFrameworkResourceManager;
+
+typedef struct {
+    void (*add_ref)(REFrameworkResourceHandle);
+    void (*release)(REFrameworkResourceHandle);
+} REFrameworkResource;
+
+typedef struct {
     REFrameworkTDBHandle (*get_tdb)();
-    void* (*get_vm_context)(); // per-thread context
-    REFrameworkManagedObjectHandle (*typeof)(const char*); // System.Type
-    REFrameworkManagedObjectHandle (*get_managed_singleton)(const char*);
-    void* (*get_native_singleton)(const char*);
+    REFrameworkResourceManagerHandle (*get_resource_manager)();
+    REFrameworkVMContextHandle (*get_vm_context)(); // per-thread context
+
+    REFrameworkManagedObjectHandle (*typeof)(const char* type_name); // System.Type
+    REFrameworkManagedObjectHandle (*get_managed_singleton)(const char* type_name);
+    void* (*get_native_singleton)(const char* type_name);
 
     // out_size is the full size, in bytes of the out buffer
     // out_count is how many elements were written to the out buffer, not the size of the written data
@@ -293,6 +308,8 @@ typedef struct {
     const REFrameworkTDBField* field;
     const REFrameworkTDBProperty* property;
     const REFrameworkManagedObject* managed_object;
+    const REFrameworkResourceManager* resource_manager;
+    const REFrameworkResource* resource;
 } REFrameworkSDKData;
 
 typedef struct {
