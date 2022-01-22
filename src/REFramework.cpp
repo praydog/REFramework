@@ -757,6 +757,11 @@ void REFramework::draw_ui() {
     m_last_window_size = ImGui::GetWindowSize();
 
     ImGui::End();
+
+    // if we pressed the X button to close the menu.
+    if (m_last_draw_ui && !m_draw_ui) {
+        m_windows_message_hook->window_toggle_cursor(m_cursor_state);
+    }
 }
 
 void REFramework::draw_about() {
