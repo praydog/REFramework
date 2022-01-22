@@ -6,8 +6,9 @@
 D3D12 g_d3d12{};
 
 bool D3D12::initialize() {
-    auto device = (ID3D12Device*)g_param->renderer_data->device;
-    auto swapchain = (IDXGISwapChain3*)g_param->renderer_data->swapchain;
+    const auto renderer_data = reframework::API::get()->param()->renderer_data;
+    auto device = (ID3D12Device*)renderer_data->device;
+    auto swapchain = (IDXGISwapChain3*)renderer_data->swapchain;
 
     if (FAILED(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&this->cmd_allocator)))) {
         return false;
@@ -97,7 +98,8 @@ bool D3D12::initialize() {
 }
 
 void D3D12::render_imgui() {
-    auto command_queue = (ID3D12CommandQueue*)g_param->renderer_data->command_queue;
+    const auto renderer_data = reframework::API::get()->param()->renderer_data;
+    auto command_queue = (ID3D12CommandQueue*)renderer_data->command_queue;
 
     this->cmd_allocator->Reset();
     this->cmd_list->Reset(g_d3d12.cmd_allocator.Get(), nullptr);
@@ -113,7 +115,7 @@ void D3D12::render_imgui() {
     this->cmd_list->ResourceBarrier(1, &barrier);
 
     float clear_color[]{0.0f, 0.0f, 0.0f, 0.0f};
-    auto device = (ID3D12Device*)g_param->renderer_data->device;
+    auto device = (ID3D12Device*)renderer_data->device;
     D3D12_CPU_DESCRIPTOR_HANDLE rts[1]{};
     this->cmd_list->ClearRenderTargetView(this->get_cpu_rtv(device, D3D12::RTV::IMGUI), clear_color, 0, nullptr);
     rts[0] = this->get_cpu_rtv(device, D3D12::RTV::IMGUI);
@@ -125,7 +127,7 @@ void D3D12::render_imgui() {
     this->cmd_list->ResourceBarrier(1, &barrier);
 
     // Draw to the back buffer.
-    auto swapchain = (IDXGISwapChain3*)g_param->renderer_data->swapchain;
+    auto swapchain = (IDXGISwapChain3*)renderer_data->swapchain;
     auto bb_index = swapchain->GetCurrentBackBufferIndex();
     barrier.Transition.pResource = this->rts[bb_index].Get();
     barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;

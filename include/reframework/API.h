@@ -116,6 +116,7 @@ typedef struct {
     unsigned int (*get_index)(REFrameworkTypeDefinitionHandle);
     unsigned int (*get_size)(REFrameworkTypeDefinitionHandle);
     unsigned int (*get_valuetype_size)(REFrameworkTypeDefinitionHandle);
+    unsigned int (*get_fqn)(REFrameworkTypeDefinitionHandle);
 
     const char* (*get_name)(REFrameworkTypeDefinitionHandle);
     const char* (*get_namespace)(REFrameworkTypeDefinitionHandle);

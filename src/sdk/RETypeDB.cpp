@@ -1,5 +1,6 @@
 #include "REFramework.hpp"
 
+#include "reframework/API.hpp"
 #include "RETypeDB.hpp"
 
 namespace sdk {
@@ -10,17 +11,17 @@ RETypeDB* RETypeDB::get() {
 static std::shared_mutex g_tdb_type_mtx{};
 static std::unordered_map<std::string, sdk::RETypeDefinition*> g_tdb_type_map{};
 
-sdk::InvokeRet invoke_object_func(void* obj, sdk::RETypeDefinition* t, std::string_view name, const std::vector<void*>& args) {
+reframework::InvokeRet invoke_object_func(void* obj, sdk::RETypeDefinition* t, std::string_view name, const std::vector<void*>& args) {
     const auto method = t->get_method(name);
 
     if (method == nullptr) {
-        return InvokeRet{};
+        return reframework::InvokeRet{};
     }
 
     return method->invoke(obj, args);
 }
 
-sdk::InvokeRet invoke_object_func(::REManagedObject* obj, std::string_view name, const std::vector<void*>& args) {
+reframework::InvokeRet invoke_object_func(::REManagedObject* obj, std::string_view name, const std::vector<void*>& args) {
    return invoke_object_func((void*)obj, utility::re_managed_object::get_type_definition(obj), name, args);
 }
 
@@ -326,13 +327,13 @@ uint32_t sdk::REMethodDefinition::get_invoke_id() const {
     return invoke_id;
 }
 
-sdk::InvokeRet sdk::REMethodDefinition::invoke(void* object, const std::vector<void*>& args) const {
+reframework::InvokeRet sdk::REMethodDefinition::invoke(void* object, const std::vector<void*>& args) const {
     const auto num_params = get_num_params();
 
     if (num_params != args.size()) {
         //throw std::runtime_error("Invalid number of arguments");
         spdlog::warn("Invalid number of arguments passed to REMethodDefinition::invoke for {}", get_name());
-        return InvokeRet{};
+        return reframework::InvokeRet{};
     }
 
 #ifndef RE7
@@ -348,7 +349,7 @@ sdk::InvokeRet sdk::REMethodDefinition::invoke(void* object, const std::vector<v
         void* object_ptr; //0x0040 aka "this" pointer
     };
 
-    InvokeRet out{};
+    reframework::InvokeRet out{};
 
     StackFrame stack_frame{};
     stack_frame.method = this;

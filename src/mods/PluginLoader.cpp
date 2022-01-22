@@ -121,6 +121,7 @@ REFrameworkTDBTypeDefinition g_type_definition_data {
     [](REFrameworkTypeDefinitionHandle tdef) { return RETYPEDEF(tdef)->get_index(); }, 
     [](REFrameworkTypeDefinitionHandle tdef) { return RETYPEDEF(tdef)->get_size(); }, 
     [](REFrameworkTypeDefinitionHandle tdef) { return RETYPEDEF(tdef)->get_valuetype_size(); }, 
+    [](REFrameworkTypeDefinitionHandle tdef) { return RETYPEDEF(tdef)->get_fqn_hash(); }, 
 
     [](REFrameworkTypeDefinitionHandle tdef) { return RETYPEDEF(tdef)->get_name(); },
     [](REFrameworkTypeDefinitionHandle tdef) { return RETYPEDEF(tdef)->get_namespace(); },
@@ -219,7 +220,7 @@ REFrameworkTDBTypeDefinition g_type_definition_data {
 
 REFrameworkTDBMethod g_tdb_method_data {
     [](REFrameworkMethodHandle method, void* thisptr, void** in_args, unsigned int in_args_size, void* out, unsigned int out_size) {
-        if (sizeof(sdk::InvokeRet) > out_size) {
+        if (sizeof(reframework::InvokeRet) > out_size) {
             return REFRAMEWORK_ERROR_OUT_TOO_SMALL;
         }
 
@@ -237,7 +238,7 @@ REFrameworkTDBMethod g_tdb_method_data {
 
         auto ret = m->invoke(thisptr, cpp_args);
 
-        memcpy(out, &ret, sizeof(sdk::InvokeRet));
+        memcpy(out, &ret, sizeof(reframework::InvokeRet));
 
         if (ret.exception_thrown) {
             return REFRAMEWORK_ERROR_EXCEPTION;

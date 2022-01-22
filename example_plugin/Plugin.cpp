@@ -17,25 +17,14 @@
 
 #include "Plugin.hpp"
 
+using namespace reframework;
+
 lua_State* g_lua{nullptr};
-const REFrameworkPluginInitializeParam* g_param{nullptr};
 
 std::unordered_map<std::string, sol::load_result> g_loaded_snippets{};
-std::recursive_mutex g_lua_mtx{};
+
 HWND g_wnd{};
 bool g_initialized{false};
-
-struct LuaLocker {
-    LuaLocker() {
-        g_lua_mtx.lock();
-        g_param->functions->lock_lua();
-    }
-
-    virtual ~LuaLocker() {
-        g_param->functions->unlock_lua();
-        g_lua_mtx.unlock();
-    }
-};
 
 bool initialize_imgui() {
     if (g_initialized) {
@@ -47,8 +36,10 @@ bool initialize_imgui() {
 
     ImGui::GetIO().IniFilename = "example_dll_ui.ini";
 
+    const auto renderer_data = API::get()->param()->renderer_data;
+
     DXGI_SWAP_CHAIN_DESC swap_desc{};
-    auto swapchain = (IDXGISwapChain*)g_param->renderer_data->swapchain;
+    auto swapchain = (IDXGISwapChain*)renderer_data->swapchain;
     swapchain->GetDesc(&swap_desc);
 
     g_wnd = swap_desc.OutputWindow;
@@ -57,11 +48,11 @@ bool initialize_imgui() {
         return false;
     }
 
-    if (g_param->renderer_data->renderer_type == REFRAMEWORK_RENDERER_D3D11) {
+    if (renderer_data->renderer_type == REFRAMEWORK_RENDERER_D3D11) {
         if (!g_d3d11.initialize()) {
             return false;
         }
-    } else if (g_param->renderer_data->renderer_type == REFRAMEWORK_RENDERER_D3D12) {
+    } else if (renderer_data->renderer_type == REFRAMEWORK_RENDERER_D3D12) {
         if (!g_d3d12.initialize()) {
             return false;
         }
@@ -72,7 +63,7 @@ bool initialize_imgui() {
 }
 
 void on_lua_state_created(lua_State* l) {
-    LuaLocker _{};
+    API::LuaLocker _{};
 
     g_lua = l;
     g_loaded_snippets.clear();
@@ -88,14 +79,14 @@ void on_lua_state_created(lua_State* l) {
 }
 
 void on_lua_state_destroyed(lua_State* l) {
-    LuaLocker _{};
+    API::LuaLocker _{};
 
     g_lua = nullptr;
     g_loaded_snippets.clear();
 }
 
 void internal_frame() {
-    LuaLocker _{};
+    API::LuaLocker _{};
 
     if (g_lua == nullptr) {
         return;
@@ -142,63 +133,36 @@ void internal_frame() {
     float window_height = storage["window_height"];
 
     // Do the same thing now, but in C++
-    const auto sdk = g_param->sdk;
-    auto vm_context = sdk->functions->get_vm_context();
-    const auto tdb = sdk->functions->get_tdb();
+    auto& api = API::get();
+    const auto sdk = api->sdk();
+    const auto tdb = api->tdb();
 
-    const auto scene_manager = sdk->functions->get_native_singleton("via.SceneManager");
-    const auto scene_manager_type = sdk->tdb->find_type(tdb, "via.SceneManager");
+    auto vm_context = api->get_vm_context();
 
-    static auto get_full_name = [](REFrameworkTypeDefinitionHandle t) -> std::string {
-        std::string buffer{};
-        buffer.resize(256);
+    const auto scene_manager = api->get_native_singleton("via.SceneManager");
+    const auto scene_manager_type = tdb->find_type("via.SceneManager");
 
-        uint32_t real_size{0};
-
-        auto result = g_param->sdk->type_definition->get_full_name(t, &buffer[0], buffer.size(), &real_size);
-
-        if (result != REFRAMEWORK_ERROR_NONE) {
-            return "";
-        }
-
-        buffer.resize(real_size);
-        return buffer;
-    };
-
-    auto scene_manager_full_name = get_full_name(scene_manager_type);
+    auto scene_manager_full_name = scene_manager_type->get_full_name();
 
     OutputDebugString((std::stringstream{} << scene_manager_full_name << " Size: " << scene_manager_full_name.size()).str().c_str());
 
-    const auto get_main_view = sdk->type_definition->find_method(scene_manager_type, "get_MainView");
-    const auto get_main_view_func = (REFGenericFunction)sdk->method->get_function(get_main_view);
-    const auto main_view_type = sdk->method->get_return_type(get_main_view);
+    const auto get_main_view = scene_manager_type->find_method("get_MainView");
+    const auto main_view_type = get_main_view->get_return_type();
 
-    const auto main_view = get_main_view_func(vm_context, scene_manager);
+    const auto main_view = get_main_view->call<API::ManagedObject*>(vm_context, scene_manager);
 
     if (main_view == nullptr) {
         return;
     }
 
-    const auto get_size = sdk->type_definition->find_method(main_view_type, "get_Size");
-    const auto get_size_func = (REFGenericFunction)sdk->method->get_function(get_size);
-    const auto size_type = sdk->method->get_return_type(get_size);
+    const auto get_size = main_view_type->find_method("get_Size");
 
-    #pragma pack(push, 1)
-    struct {
-        uint8_t dummy_data[128];
-        bool exception_thrown{false};
-    } invoke_out;
-    #pragma pack(pop)
+    std::vector<void*> get_size_args{};
+    auto invoke_out = get_size->invoke(main_view, get_size_args);
 
-    struct {
-
-    } null_args;
-
-    const int result = sdk->method->invoke(get_size, main_view, (void**)&null_args, 0, &invoke_out, sizeof(invoke_out));
-
-    if (result != REFRAMEWORK_ERROR_NONE) {
+    if (invoke_out.exception_thrown) {
         if (ImGui::Begin("Super Cool Plugin")) {
-            ImGui::Text("Invoke Error: %d", result);
+            ImGui::Text("Invoke threw an exception");
             ImGui::End();
         }
 
@@ -212,6 +176,31 @@ void internal_frame() {
         ImGui::Text("Game Window Size from Lua: %f %f", window_width, window_height);
         ImGui::Text("Game Window Size from C: %f %f", size[0], size[1]);
 
+        // Tests for the TDB
+        const auto num_types = tdb->get_num_types();
+        const auto num_methods = tdb->get_num_methods();
+        const auto num_fields = tdb->get_num_fields();
+        const auto num_properties = tdb->get_num_properties();
+        const auto strings_size = tdb->get_strings_size();
+        const auto raw_data_size = tdb->get_raw_data_size();
+        const auto string_database = tdb->get_string_database();
+        const auto raw_database = tdb->get_raw_database();
+
+        if (ImGui::TreeNode("TDB")) {
+            ImGui::Text("Num types: %d", num_types);
+            ImGui::Text("Num methods: %d", num_methods);
+            ImGui::Text("Num fields: %d", num_fields);
+            ImGui::Text("Num properties: %d", num_properties);
+            ImGui::Text("Strings size: %d", strings_size);
+            ImGui::Text("Raw data size: %d", raw_data_size);
+            ImGui::Text("String database: %p", string_database);
+            ImGui::Text("Raw database: %p", raw_database);
+            ImGui::TreePop();
+        }
+
+        ////////////////////////////////////////////////////////////////////////////////
+        // Dumbed down Object Explorer start
+        ////////////////////////////////////////////////////////////////////////////////
         std::vector<REFrameworkNativeSingleton> native_singletons{};
         std::vector<REFrameworkManagedSingleton> managed_singletons{};
 
@@ -240,39 +229,29 @@ void internal_frame() {
         native_singletons.resize(real_native_singletons_count);
         managed_singletons.resize(real_managed_singletons_count);
 
-        static auto generate_method_prototype = [](REFrameworkMethodHandle method) -> std::string {
+        static auto generate_method_prototype = [](API::Method* method) -> std::string {
             if (method == nullptr) {
                 return "";
             }
 
-            auto sdk = g_param->sdk;
-
-            std::vector<REFrameworkMethodParameter> params{};
-            params.resize(64);
-
-            uint32_t real_params_count{0};
-            auto result = sdk->method->get_params(method, params.data(), params.size() * sizeof(REFrameworkMethodParameter), &real_params_count);
-
-            if (result != REFRAMEWORK_ERROR_NONE) {
-                return "";
-            }
-
-            params.resize(real_params_count);
+            auto params = method->get_params();
 
             std::stringstream ss{};
 
-            auto return_type = sdk->method->get_return_type(method);
+            auto return_type = method->get_return_type();
 
             if (return_type != nullptr) {
-                ss << get_full_name(return_type) << " ";
+                ss << return_type->get_full_name() << " ";
             }
 
-            ss << sdk->method->get_name(method) << "(";
+            ss << method->get_name() << "(";
 
             for (auto i = 0; i < params.size(); i++) {
                 auto& param = params[i];
 
-                auto param_type_name = get_full_name(param.t);
+                const auto param_type = (API::TypeDefinition*)param.t;
+
+                auto param_type_name = param_type->get_full_name();
                 auto param_name = param.name;
 
                 ss << param_type_name << " " << param_name;
@@ -286,81 +265,90 @@ void internal_frame() {
 
             return ss.str();
         };
+
+        static void (*display_type)(void* obj, API::TypeDefinition* t) = nullptr;
         
-        static auto display_methods = [](REFrameworkTypeDefinitionHandle t) {
+        static auto display_methods = [](API::TypeDefinition* t) {
             if (t == nullptr) {
                 return;
             }
 
-            std::vector<REFrameworkMethodHandle> methods{};
-            methods.resize(1024);
+            auto methods = t->get_methods();
 
-            auto sdk = g_param->sdk;
+            for (auto method : methods) {
+                auto method_name = generate_method_prototype(method);
 
-            uint32_t real_methods_count{0};
-            auto result = sdk->type_definition->get_methods(t, methods.data(), methods.size() * sizeof(REFrameworkMethodHandle), &real_methods_count);
-
-            if (result == REFRAMEWORK_ERROR_NONE) {
-                methods.resize(real_methods_count);
-
-                for (auto method : methods) {
-                    auto method_name = generate_method_prototype(method);
-
-                    if (ImGui::TreeNode(method_name.c_str(), "%s", method_name.c_str())) {
-                        ImGui::Text("Address: 0x%p", method);
-                        ImGui::TreePop();
-                    }
+                if (ImGui::TreeNode(method_name.c_str(), "%s", method_name.c_str())) {
+                    ImGui::Text("Address: 0x%p", method);
+                    ImGui::TreePop();
                 }
-            } else {
-                ImGui::Text("Error getting methods: %d", result);
             }
         };
 
-        static auto display_fields = [](REFrameworkTypeDefinitionHandle t) {
+        static auto display_fields = [](void* obj, API::TypeDefinition* t) {
             if (t == nullptr) {
                 return;
             }
 
-            std::vector<REFrameworkFieldHandle> fields{};
-            fields.resize(1024);
+            auto fields = t->get_fields();
 
-            auto sdk = g_param->sdk;
+            for (auto field : fields) {
+                auto field_name = field->get_name();
 
-            uint32_t real_fields_count{0};
-            auto result = sdk->type_definition->get_fields(t, fields.data(), fields.size() * sizeof(REFrameworkFieldHandle), &real_fields_count);
+                const auto type = field->get_type();
+                const std::string type_name = type != nullptr ? type->get_full_name() : "";
+                const auto full_field_name = type_name + " " + field_name;
 
-            if (result == REFRAMEWORK_ERROR_NONE) {
-                fields.resize(real_fields_count);
+                if (ImGui::TreeNode(full_field_name.c_str(), "%s", full_field_name.c_str())) {
+                    ImGui::Text("Address: 0x%p", field);
 
-                for (auto field : fields) {
-                    auto field_name = sdk->field->get_name(field);
-
-                    if (ImGui::TreeNode(field_name, "%s", field_name)) {
-                        ImGui::Text("Address: 0x%p", field);
-                        ImGui::TreePop();
+                    if (type != nullptr) {
+                        if (ImGui::TreeNode(type_name.c_str(), "%s", type_name.c_str())) {
+                            display_type(obj, type);
+                            ImGui::TreePop();
+                        }
                     }
+
+                    const auto offset_from_base = field->get_offset_from_base();
+                    const auto offset_from_fieldptr = field->get_offset_from_fieldptr();
+                    const auto flags = field->get_flags();
+                    const auto is_static = field->is_static();
+                    const auto is_literal = field->is_literal();
+                    const auto init_data = field->get_init_data();
+
+                    ImGui::Text("Offset from base: %d", offset_from_base);
+                    ImGui::Text("Offset from fieldptr: %d", offset_from_fieldptr);
+                    ImGui::Text("Flags: %d", flags);
+                    ImGui::Text("Is static: %d", is_static);
+                    ImGui::Text("Is literal: %d", is_literal);
+                    ImGui::Text("Init data: %p", init_data);
+
+                    ImGui::TreePop();
                 }
-            } else {
-                ImGui::Text("Error getting fields: %d", result);
+            }
+        };
+        
+        display_type = [](void* obj, API::TypeDefinition* t) -> void {
+            if (ImGui::TreeNode("Methods")) {
+                display_methods(t);
+                ImGui::TreePop();
+            }
+
+            if (ImGui::TreeNode("Fields")) {
+                display_fields(obj, t);
+                ImGui::TreePop();
             }
         };
 
-        if (ImGui::TreeNode("Native Singletons")) {
-            for (const auto& native_singleton : native_singletons) {
-                //const auto full_name = get_full_name(native_singleton.t);
+        if (ImGui::TreeNode("Managed Singletons")) {
+            for (const auto& managed_singleton : managed_singletons) {
+                const auto t = (API::TypeDefinition*)managed_singleton.t;
+                const auto full_name = t->get_full_name();
 
-                if (ImGui::TreeNode(native_singleton.name, "%s", native_singleton.name)) {
-                    ImGui::Text("Address: 0x%p", native_singleton.instance);
+                if (ImGui::TreeNode(full_name.c_str(), "%s", full_name.c_str())) {
+                    ImGui::Text("Address: 0x%p", managed_singleton.instance);
 
-                    if (ImGui::TreeNode("Methods")) {
-                        display_methods(native_singleton.t);
-                        ImGui::TreePop();
-                    }
-
-                    if (ImGui::TreeNode("Fields")) {
-                        display_fields(native_singleton.t);
-                        ImGui::TreePop();
-                    }
+                    display_type(managed_singleton.instance, t);
 
                     ImGui::TreePop();
                 }
@@ -369,22 +357,14 @@ void internal_frame() {
             ImGui::TreePop();
         }
 
-        if (ImGui::TreeNode("Managed Singletons")) {
-            for (const auto& managed_singleton : managed_singletons) {
-                const auto full_name = get_full_name(managed_singleton.t);
+        if (ImGui::TreeNode("Native Singletons")) {
+            for (const auto& native_singleton : native_singletons) {
+                const auto t = (API::TypeDefinition*)native_singleton.t;
 
-                if (ImGui::TreeNode(full_name.c_str(), "%s", full_name.c_str())) {
-                    ImGui::Text("Address: 0x%p", managed_singleton.instance);
+                if (ImGui::TreeNode(native_singleton.name, "%s", native_singleton.name)) {
+                    ImGui::Text("Address: 0x%p", native_singleton.instance);
 
-                    if (ImGui::TreeNode("Methods")) {
-                        display_methods(managed_singleton.t);
-                        ImGui::TreePop();
-                    }
-
-                    if (ImGui::TreeNode("Fields")) {
-                        display_fields(managed_singleton.t);
-                        ImGui::TreePop();
-                    }
+                    display_type(native_singleton.instance, t);
 
                     ImGui::TreePop();
                 }
@@ -407,7 +387,9 @@ void on_frame() {
         }
     }
 
-    if (g_param->renderer_data->renderer_type == REFRAMEWORK_RENDERER_D3D11) {
+    const auto renderer_data = API::get()->param()->renderer_data;
+
+    if (renderer_data->renderer_type == REFRAMEWORK_RENDERER_D3D11) {
         ImGui_ImplDX11_NewFrame();
         ImGui_ImplWin32_NewFrame();
         ImGui::NewFrame();
@@ -418,8 +400,8 @@ void on_frame() {
         ImGui::Render();
 
         g_d3d11.render_imgui();
-    } else if (g_param->renderer_data->renderer_type == REFRAMEWORK_RENDERER_D3D12) {
-        auto command_queue = (ID3D12CommandQueue*)g_param->renderer_data->command_queue;
+    } else if (renderer_data->renderer_type == REFRAMEWORK_RENDERER_D3D12) {
+        auto command_queue = (ID3D12CommandQueue*)renderer_data->command_queue;
 
         if (command_queue == nullptr ){
             return;
@@ -449,12 +431,14 @@ void on_post_end_rendering() {
 void on_device_reset() {
     OutputDebugString("Example Device Reset");
 
-    if (g_param->renderer_data->renderer_type == REFRAMEWORK_RENDERER_D3D11) {
+    const auto renderer_data = API::get()->param()->renderer_data;
+
+    if (renderer_data->renderer_type == REFRAMEWORK_RENDERER_D3D11) {
         ImGui_ImplDX11_Shutdown();
         g_d3d11 = {};
     }
 
-    if (g_param->renderer_data->renderer_type == REFRAMEWORK_RENDERER_D3D12) {
+    if (renderer_data->renderer_type == REFRAMEWORK_RENDERER_D3D12) {
         ImGui_ImplDX12_Shutdown();
         g_d3d12 = {};
     }
@@ -478,7 +462,7 @@ extern "C" __declspec(dllexport) void reframework_plugin_required_version(REFram
 }
 
 extern "C" __declspec(dllexport) bool reframework_plugin_initialize(const REFrameworkPluginInitializeParam* param) {
-    g_param = param;
+    API::initialize(param);
 
     const auto functions = param->functions;
     functions->on_lua_state_created(on_lua_state_created);

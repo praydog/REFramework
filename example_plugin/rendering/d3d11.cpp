@@ -6,8 +6,9 @@
 D3D11 g_d3d11{};
 
 bool D3D11::initialize() {
-    auto swapchain = (IDXGISwapChain*)g_param->renderer_data->swapchain;
-    auto device = (ID3D11Device*)g_param->renderer_data->device;
+    const auto renderer_data = reframework::API::get()->param()->renderer_data;
+    auto swapchain = (IDXGISwapChain*)renderer_data->swapchain;
+    auto device = (ID3D11Device*)renderer_data->device;
 
     // Get back buffer.
     ComPtr<ID3D11Texture2D> backbuffer{};
@@ -72,7 +73,8 @@ void D3D11::render_imgui() {
     ComPtr<ID3D11DeviceContext> context{};
     float clear_color[]{0.0f, 0.0f, 0.0f, 0.0f};
 
-    auto device = (ID3D11Device*)g_param->renderer_data->device;
+    const auto renderer_data = reframework::API::get()->param()->renderer_data;
+    auto device = (ID3D11Device*)renderer_data->device;
     device->GetImmediateContext(&context);
     context->ClearRenderTargetView(this->blank_rt_rtv.Get(), clear_color);
     context->ClearRenderTargetView(this->rt_rtv.Get(), clear_color);
