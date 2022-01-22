@@ -134,7 +134,6 @@ void internal_frame() {
 
     // Do the same thing now, but in C++
     auto& api = API::get();
-    const auto sdk = api->sdk();
     const auto tdb = api->tdb();
 
     auto vm_context = api->get_vm_context();
@@ -201,33 +200,8 @@ void internal_frame() {
         ////////////////////////////////////////////////////////////////////////////////
         // Dumbed down Object Explorer start
         ////////////////////////////////////////////////////////////////////////////////
-        std::vector<REFrameworkNativeSingleton> native_singletons{};
-        std::vector<REFrameworkManagedSingleton> managed_singletons{};
-
-        native_singletons.resize(1024);
-        managed_singletons.resize(1024);
-
-        uint32_t real_native_singletons_count{0};
-        uint32_t real_managed_singletons_count{0};
-
-        auto result = sdk->functions->get_native_singletons(native_singletons.data(), native_singletons.size() * sizeof(REFrameworkManagedSingleton), &real_native_singletons_count);
-
-        if (result != REFRAMEWORK_ERROR_NONE) {
-            ImGui::Text("Error getting native singletons: %d", result);
-            ImGui::End();
-            return;
-        }
-
-        result = sdk->functions->get_managed_singletons(managed_singletons.data(), managed_singletons.size() * sizeof(REFrameworkManagedSingleton), &real_managed_singletons_count);
-
-        if (result != REFRAMEWORK_ERROR_NONE) {
-            ImGui::Text("Error getting managed singletons: %d", result);
-            ImGui::End();
-            return;
-        }
-
-        native_singletons.resize(real_native_singletons_count);
-        managed_singletons.resize(real_managed_singletons_count);
+        auto native_singletons = api->get_native_singletons();
+        auto managed_singletons = api->get_managed_singletons();
 
         static auto generate_method_prototype = [](API::Method* method) -> std::string {
             if (method == nullptr) {
