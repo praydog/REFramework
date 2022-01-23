@@ -381,16 +381,15 @@ float VR::get_sharpness_hook(void* tonemapping) {
 std::optional<std::string> VR::on_initialize() {
     auto openvr_error = initialize_openvr();
 
-    if (openvr_error) {
+    if (openvr_error || !m_openvr_loaded) {
         m_is_hmd_active = false;
         m_was_hmd_active = false;
         m_needs_wgp_update = false;
 
-        if (*openvr_error == COULD_NOT_LOAD_OPENVR) {
+        if (!m_openvr_loaded) {
             // this is okay. we're not going to fail the whole thing entirely
             // so we're just going to return OK, but
             // when the VR mod draws its menu, it'll say "VR is not available"
-            m_openvr_loaded = false;
             return Mod::on_initialize();
         }
 
@@ -470,8 +469,12 @@ void VR::on_lua_state_created(sol::state& lua) {
 }
 
 std::optional<std::string> VR::initialize_openvr() {
+    m_openvr_loaded = false;
+
     if (LoadLibraryA("openvr_api.dll") == nullptr) {
-        return COULD_NOT_LOAD_OPENVR.data();
+        m_openvr_dll_missing = true;
+        m_openvr_error = COULD_NOT_LOAD_OPENVR.data();
+        return Mod::on_initialize();
     }
 
     m_d3d12.on_reset(this);
@@ -487,35 +490,41 @@ std::optional<std::string> VR::initialize_openvr() {
 
     // check if error
     if (error != vr::VRInitError_None) {
-        return "VR_Init failed: " + std::string{vr::VR_GetVRInitErrorAsEnglishDescription(error)};
+        m_openvr_error = "VR_Init failed: " + std::string{vr::VR_GetVRInitErrorAsEnglishDescription(error)};
+        return Mod::on_initialize();
     }
 
     if (m_hmd == nullptr) {
-        return "VR_Init failed: HMD is null";
+        m_openvr_error = "VR_Init failed: HMD is null";
+        return Mod::on_initialize();
     }
 
     // get render target size
     m_hmd->GetRecommendedRenderTargetSize(&m_w, &m_h);
 
-    if (!vr::VRCompositor()) {
-        return "VRCompositor failed to initialize.";
+    if (vr::VRCompositor() == nullptr) {
+        m_openvr_error = "VRCompositor failed to initialize.";
+        return Mod::on_initialize();
     }
 
     auto input_error = initialize_openvr_input();
 
     if (input_error) {
-        return input_error;
+        m_openvr_error = *input_error;
+        return Mod::on_initialize();
     }
 
     auto overlay_error = m_overlay_component.on_initialize_openvr();
 
     if (overlay_error) {
-        return overlay_error;
+        m_openvr_error = *overlay_error;
+        return Mod::on_initialize();
     }
     
     m_openvr_loaded = true;
+    m_openvr_error = std::nullopt;
 
-    return std::nullopt;
+    return Mod::on_initialize();
 }
 
 std::optional<std::string> VR::initialize_openvr_input() {
@@ -2791,15 +2800,30 @@ void VR::openvr_input_to_re_engine() {
 
 void VR::on_draw_ui() {
     // create VR tree entry in menu (imgui)
-    ImGui::SetNextTreeNodeOpen(false, ImGuiCond_::ImGuiCond_FirstUseEver);
+    if (m_openvr_loaded) {
+        ImGui::SetNextTreeNodeOpen(false, ImGuiCond_::ImGuiCond_FirstUseEver);
+    } else {
+        if (m_openvr_error && !m_openvr_dll_missing) {
+            ImGui::SetNextTreeNodeOpen(true, ImGuiCond_::ImGuiCond_FirstUseEver);
+        } else {
+            ImGui::SetNextTreeNodeOpen(false, ImGuiCond_::ImGuiCond_FirstUseEver);
+        }
+    }
 
     if (!ImGui::CollapsingHeader(get_name().data())) {
         return;
     }
 
     if (!m_openvr_loaded) {
-        ImGui::Text("VR not loaded: openvr_api.dll not found");
-        ImGui::Text("Please drop the openvr_api.dll file into the game's directory if you want to use VR");
+        if (m_openvr_error && m_openvr_dll_missing) {
+            ImGui::Text("VR not loaded: openvr_api.dll not found");
+            ImGui::Text("Please drop the openvr_api.dll file into the game's directory if you want to use VR");
+        } else if (m_openvr_error) {
+            ImGui::Text("VR not loaded: %s", m_openvr_error->c_str());
+        } else {
+            ImGui::Text("VR not loaded: Unknown error");
+        }
+
         return;
     }
 

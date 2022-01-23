@@ -375,14 +375,17 @@ private:
     bool m_positional_tracking{true};
     bool m_handle_pause{false}; // happens when dashboard opens
 
-    bool m_openvr_loaded{false};
-
     // on the backburner
     bool m_depth_aided_reprojection{false};
+
+    bool m_openvr_loaded{false};
+    bool m_openvr_dll_missing{false};
 
     // == 1 or == 0
     uint8_t m_left_eye_interval{0};
     uint8_t m_right_eye_interval{1};
+
+    std::optional<std::string> m_openvr_error{};
 
     static std::string actions_json;
     static std::string binding_rift_json;
