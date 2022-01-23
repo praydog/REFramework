@@ -352,6 +352,39 @@ void new_line() {
 bool collapsing_header(const char* name) {
     return ImGui::CollapsingHeader(name);
 }
+
+int load_font(const char* filepath, int size, sol::object ranges) {
+    namespace fs = std::filesystem;
+
+    std::string modpath{};
+
+    modpath.resize(1024, 0);
+    modpath.resize(GetModuleFileName(nullptr, modpath.data(), modpath.size()));
+
+    auto fonts_path = fs::path{modpath}.parent_path() / "reframework" / "fonts";
+    auto font_path = fonts_path / filepath;
+
+    fs::create_directories(fonts_path);
+    std::vector<ImWchar> ranges_vec{};
+
+    if (ranges.is<sol::table>()) {
+        sol::table ranges_table = ranges;
+
+        for (auto i = 1u; i <= ranges_table.size(); ++i) {
+            ranges_vec.push_back(ranges_table[i].get<ImWchar>());
+        }
+    }
+
+    return g_framework->add_font(font_path, size, ranges_vec);
+}
+
+void push_font(int font) {
+    ImGui::PushFont(g_framework->get_font(font));
+}
+
+void pop_font() {
+    ImGui::PopFont();
+}
 } // namespace api::imgui
 
 namespace api::draw {
@@ -502,6 +535,9 @@ void bindings::open_imgui(ScriptState* s) {
     imgui["spacing"] = api::imgui::spacing;
     imgui["new_line"] = api::imgui::new_line;
     imgui["collapsing_header"] = api::imgui::collapsing_header;
+    imgui["load_font"] = api::imgui::load_font;
+    imgui["push_font"] = api::imgui::push_font;
+    imgui["pop_font"] = api::imgui::pop_font;
     lua["imgui"] = imgui;
 
     auto draw = lua.create_table();

@@ -712,6 +712,21 @@ void REFramework::consume_input() {
     m_accumulated_mouse_delta[1] = 0.0f;
 }
 
+int REFramework::add_font(const std::filesystem::path& filepath, int size, const std::vector<ImWchar>& ranges) {
+    // Look for a font already matching this description.
+    for (int i = 0; i < m_additional_fonts.size(); ++i) {
+        const auto& font = m_additional_fonts[i];
+
+        if (font.filepath == filepath && font.size == size && font.ranges == ranges) {
+            return i;
+        }
+    }
+
+    m_additional_fonts.emplace_back(filepath, size, ranges, nullptr);
+
+    return m_additional_fonts.size() - 1;
+}
+
 void REFramework::update_fonts() {
     if (m_font_size == m_font_desired_size) {
         return;
@@ -722,6 +737,17 @@ void REFramework::update_fonts() {
 
     fonts->Clear();
     fonts->AddFontFromMemoryCompressedTTF(RobotoMedium_compressed_data, RobotoMedium_compressed_size, (float)m_font_size);
+
+    for (auto& font : m_additional_fonts) {
+        const ImWchar* ranges = nullptr;
+
+        if (!font.ranges.empty()) {
+            ranges = font.ranges.data();
+        }
+
+        font.font = fonts->AddFontFromFileTTF(font.filepath.string().c_str(), (float)font.size, nullptr, ranges);
+    }
+
     fonts->Build();
 
     if (m_renderer_type == RendererType::D3D11) {
