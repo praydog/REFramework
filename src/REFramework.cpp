@@ -1246,6 +1246,8 @@ bool REFramework::init_d3d12() {
         auto& backbuffer = m_d3d12.get_rt(D3D12::RTV::BACKBUFFER_0);
         auto desc = backbuffer->GetDesc();
 
+        spdlog::info("[D3D12] Back buffer format is {}", desc.Format);
+
         D3D12_HEAP_PROPERTIES props{};
         props.Type = D3D12_HEAP_TYPE_DEFAULT;
         props.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
