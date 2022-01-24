@@ -415,14 +415,14 @@ reframework::InvokeRet sdk::REMethodDefinition::invoke(void* object, const std::
     // RE7 doesn't have the invoke wrappers that the newer games use...
     if (num_params > 2) {
         spdlog::warn("REMethodDefinition::invoke for {} has more than 2 parameters, which is not supported at this time (RE7)", get_name());
-        return InvokeRet{};
+        return reframework::InvokeRet{};
     }
 
     const bool is_static = this->is_static();
 
     if (!is_static && object == nullptr) {
         spdlog::warn("REMethodDefinition::invoke for {} is not static, but object is nullptr", get_name());
-        return InvokeRet{};
+        return reframework::InvokeRet{};
     }
 
     auto ret_ty = get_return_type();
@@ -441,7 +441,7 @@ reframework::InvokeRet sdk::REMethodDefinition::invoke(void* object, const std::
         is_ptr = true;
     }
 
-    InvokeRet out{};
+    reframework::InvokeRet out{};
 
     const auto param_types = get_param_types();
     std::vector<size_t> param_hashes{};
