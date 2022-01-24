@@ -80,6 +80,9 @@ typedef struct {
     REFLuaLockUnlockFn unlock_lua;
     REFOnDeviceResetFn on_device_reset;
     REFOnMessageFn on_message;
+    void (*log_error)(const char* format, ...);
+    void (*log_warn)(const char* format, ...);
+    void (*log_info)(const char* format, ...);
 } REFrameworkPluginFunctions;
 
 typedef struct {

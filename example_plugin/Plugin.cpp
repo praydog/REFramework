@@ -476,6 +476,9 @@ extern "C" __declspec(dllexport) bool reframework_plugin_initialize(const REFram
     functions->on_post_application_entry("EndRendering", on_post_end_rendering);
     functions->on_device_reset(on_device_reset);
     functions->on_message((REFOnMessageCb)on_message);
+    functions->log_error("%s %s", "Hello", "error");
+    functions->log_warn("%s %s", "Hello", "warning");
+    functions->log_info("%s %s", "Hello", "info");
 
     return true;
 }

@@ -5,6 +5,7 @@
 
 #include "REFramework.hpp"
 #include "reframework/API.hpp"
+#include "utility/String.hpp"
 
 #include "sdk/ResourceManager.hpp"
 
@@ -29,7 +30,28 @@ REFrameworkPluginFunctions g_plugin_functions{
     reframework_lock_lua,
     reframework_unlock_lua,
     reframework_on_device_reset,
-    reframework_on_message
+    reframework_on_message,
+    [](const char* format, ...) { 
+        va_list args{};
+        va_start(args, format);
+        auto str = utility::format_string(format, args);
+        va_end(args);
+        spdlog::error("[Plugin] {}", str);
+    },
+    [](const char* format, ...) { 
+        va_list args{};
+        va_start(args, format);
+        auto str = utility::format_string(format, args);
+        va_end(args);
+        spdlog::warn("[Plugin] {}", str);
+    },
+    [](const char* format, ...) { 
+        va_list args{};
+        va_start(args, format);
+        auto str = utility::format_string(format, args);
+        va_end(args);
+        spdlog::info("[Plugin] {}", str);
+    },
 };
 
 REFrameworkSDKFunctions g_sdk_functions {
