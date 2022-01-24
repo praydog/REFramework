@@ -406,10 +406,11 @@ void world_text(const char* text, sol::object world_pos_object, ImU32 color = 0x
 }
 
 void text(const char* text, float x, float y, ImU32 color, float font_size = 0.0f) {
-    if (font_size > 0.0f)
+    if (font_size > 0.0f) {
         ImGui::GetBackgroundDrawList()->AddText(NULL, font_size, ImVec2{x, y}, color, text);
-    else
+    } else {
         ImGui::GetBackgroundDrawList()->AddText(ImVec2{x, y}, color, text);
+    }
 }
 
 void filled_rect(float x, float y, float w, float h, ImU32 color) {
