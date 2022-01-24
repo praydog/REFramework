@@ -449,3 +449,15 @@ extern "C" __declspec(dllexport) bool reframework_plugin_initialize(const REFram
 
     return true;
 }
+
+// you DO NOT need to have a DllMain, this is only necessary
+// if your DLL needs to load immediately, like in a raw plugin.
+// or if you want to do some pre-initialization in the DllMain
+// or if you want to do some cleanup in the DllMain
+BOOL APIENTRY DllMain(HANDLE handle, DWORD reason, LPVOID reserved) {
+    if (reason == DLL_PROCESS_ATTACH) {
+        OutputDebugString("Plugin early load test.");
+    }
+
+    return TRUE;
+}

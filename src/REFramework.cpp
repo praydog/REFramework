@@ -21,6 +21,7 @@ extern "C" {
 #include "utility/Scan.hpp"
 
 #include "Mods.hpp"
+#include "mods/PluginLoader.hpp"
 #include "sdk/REGlobals.hpp"
 
 #include "ExceptionHandler.hpp"
@@ -198,6 +199,7 @@ REFramework::REFramework(HMODULE reframework_module)
     std::chrono::steady_clock::time_point next_log = now;
 
     // wait for the game to load (WTF MHRISE??)
+    // once this is done, we can assume the process is unpacked.
     while (LoadLibraryA("d3d12.dll") == nullptr) {
         if (now >= next_log) {
             spdlog::info("[REFramework] Waiting for D3D12...");
@@ -231,6 +233,9 @@ REFramework::REFramework(HMODULE reframework_module)
     m_last_present_time = std::chrono::steady_clock::now();
     m_last_message_time = std::chrono::steady_clock::now();
     m_d3d_monitor_thread = std::make_unique<std::thread>([this]() {
+        // Load the plugins early right after executable unpacking
+        PluginLoader::get()->early_init();
+
         while (true) {
             this->hook_monitor();
             std::this_thread::sleep_for(std::chrono::milliseconds(500));

@@ -3,7 +3,6 @@
 #include <thread>
 #include <windows.h>
 
-#include "mods/PluginLoader.hpp"
 #include "ExceptionHandler.hpp"
 #include "REFramework.hpp"
 
@@ -63,7 +62,6 @@ void startup_thread(HMODULE reframework_module) {
 #endif
 
     if (load_dinput8()) {
-        PluginLoader::get()->early_init();
         g_framework = std::make_unique<REFramework>(reframework_module);
     }
 }
