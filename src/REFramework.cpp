@@ -1300,7 +1300,10 @@ bool REFramework::init_d3d12() {
 
     spdlog::info("[D3D12] Initializing ImGui...");
 
-    if (!ImGui_ImplDX12_Init(device, 1, DXGI_FORMAT_R8G8B8A8_UNORM, m_d3d12.srv_desc_heap.Get(),
+    auto& bb = m_d3d12.get_rt(D3D12::RTV::BACKBUFFER_0);
+    auto bb_desc = bb->GetDesc();
+
+    if (!ImGui_ImplDX12_Init(device, 1, bb_desc.Format, m_d3d12.srv_desc_heap.Get(),
             m_d3d12.get_cpu_srv(device, D3D12::SRV::IMGUI_FONT), m_d3d12.get_gpu_srv(device, D3D12::SRV::IMGUI_FONT))) {
         spdlog::error("[D3D12] Failed to initialize ImGui.");
         return false;
