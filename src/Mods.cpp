@@ -60,7 +60,7 @@ Mods::Mods() {
 #endif
 
     m_mods.emplace_back(APIProxy::get());
-    m_mods.emplace_back(std::make_unique<PluginLoader>());
+    m_mods.emplace_back(PluginLoader::get());
     m_mods.emplace_back(ScriptRunner::get());
 }
 

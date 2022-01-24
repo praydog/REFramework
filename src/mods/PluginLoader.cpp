@@ -424,9 +424,15 @@ void verify_sdk_pointers() {
     verify(g_tdb_data);
 }
 
-std::optional<std::string> PluginLoader::on_initialize() {
+std::shared_ptr<PluginLoader> PluginLoader::get() {
+    static auto instance = std::make_shared<PluginLoader>();
+    return instance;
+}
+
+void PluginLoader::early_init() {
     namespace fs = std::filesystem;
 
+    std::scoped_lock _{m_mux};
     std::string module_path{};
 
     module_path.resize(1024, 0);
@@ -456,6 +462,10 @@ std::optional<std::string> PluginLoader::on_initialize() {
             m_plugins.emplace(path.stem().string(), module);
         }
     }
+}
+
+std::optional<std::string> PluginLoader::on_initialize() {
+    std::scoped_lock _{m_mux};
 
     // Call reframework_plugin_required_version on any dlls that export it.
     g_plugin_initialize_param.reframework_module = g_framework->get_reframework_module();
@@ -558,6 +568,8 @@ void PluginLoader::on_draw_ui() {
     ImGui::SetNextTreeNodeOpen(false, ImGuiCond_Once);
 
     if (ImGui::CollapsingHeader(get_name().data())) {
+        std::scoped_lock _{m_mux};
+
         if (!m_plugins.empty()) {
             ImGui::Text("Loaded plugins:");
 
