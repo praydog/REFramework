@@ -88,13 +88,7 @@ public:
         return m_draw_ui;
     }
 
-    void set_draw_ui(bool state) {
-        if (!state && m_draw_ui && m_game_data_initialized) {
-            save_config();
-        }
-
-        m_draw_ui = state;
-    }
+    void set_draw_ui(bool state, bool should_save = true);
 
     auto& get_hook_monitor_mutex() {
         return m_hook_monitor_mutex;
@@ -121,7 +115,6 @@ private:
     bool m_initialized{false};
     bool m_created_default_cfg{false};
     std::atomic<bool> m_game_data_initialized{false};
-
     // UI
     bool m_draw_ui{true};
     bool m_last_draw_ui{m_draw_ui};
@@ -135,6 +128,7 @@ private:
     ImVec2 m_last_window_size{};
 
     std::mutex m_input_mutex{};
+    std::recursive_mutex m_config_mtx{};
 
     HWND m_wnd{0};
     HMODULE m_game_module{0};

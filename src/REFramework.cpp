@@ -645,18 +645,16 @@ void REFramework::on_direct_input_keys(const std::array<uint8_t, 256>& keys) {
 
     if (keys[menu_key] && m_last_keys[menu_key] == 0) {
         std::lock_guard _{m_input_mutex};
-        m_draw_ui = !m_draw_ui;
 
-        // Save the config if we close the UI
-        if (!m_draw_ui && m_game_data_initialized) {
-            save_config();
-        }
+        set_draw_ui(!m_draw_ui);
     }
 
     m_last_keys = keys;
 }
 
 void REFramework::save_config() {
+    std::scoped_lock _{m_config_mtx};
+
     spdlog::info("Saving config re2_fw_config.txt");
 
     utility::Config cfg{};
@@ -671,6 +669,21 @@ void REFramework::save_config() {
     }
 
     spdlog::info("Saved config");
+}
+
+void REFramework::set_draw_ui(bool state, bool should_save) {
+    std::scoped_lock _{m_config_mtx};
+
+    bool prev_state = m_draw_ui;
+    m_draw_ui = state;
+
+    if (m_game_data_initialized) {
+        REFrameworkConfig::get()->get_menu_open()->value() = state;
+    }
+
+    if (state != prev_state && should_save && m_game_data_initialized) {
+        save_config();
+    }
 }
 
 void REFramework::consume_input() {
@@ -749,6 +762,7 @@ void REFramework::draw_ui() {
         m_mods->on_draw_ui();
     } else if (!m_game_data_initialized) {
         ImGui::TextWrapped("REFramework is currently initializing...");
+        ImGui::TextWrapped("This menu will close after initialization if you have the remember option enabled.");
     } else if (!m_error.empty()) {
         ImGui::TextWrapped("REFramework error: %s", m_error.c_str());
     }
@@ -757,6 +771,11 @@ void REFramework::draw_ui() {
     m_last_window_size = ImGui::GetWindowSize();
 
     ImGui::End();
+
+    // save the menu state in config
+    if (m_draw_ui != m_last_draw_ui) {
+        set_draw_ui(m_draw_ui, true);
+    }
 
     // if we pressed the X button to close the menu.
     if (m_last_draw_ui && !m_draw_ui) {
