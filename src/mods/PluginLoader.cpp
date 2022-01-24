@@ -70,7 +70,7 @@ REFrameworkSDKFunctions g_sdk_functions {
 
             out[out_written].instance = (REFrameworkManagedObjectHandle)instance;
             out[out_written].t = (REFrameworkTypeDefinitionHandle)tdef;
-            out[out_written].type_info = tdef->get_type();
+            out[out_written].type_info = (REFrameworkTypeInfoHandle)tdef->get_type();
             
             ++out_written;
         }
@@ -104,7 +104,7 @@ REFrameworkSDKFunctions g_sdk_functions {
 
             out[out_written].instance = instance;
             out[out_written].t = (REFrameworkTypeDefinitionHandle)utility::re_type::get_type_definition(t);
-            out[out_written].type_info = t;
+            out[out_written].type_info = (REFrameworkTypeInfoHandle)t;
             out[out_written].name = t->name;
 
             ++out_written;
@@ -217,6 +217,7 @@ REFrameworkTDBTypeDefinition g_type_definition_data {
     [](REFrameworkTypeDefinitionHandle tdef) { return (REFrameworkTypeDefinitionHandle)RETYPEDEF(tdef)->get_parent_type(); },
     [](REFrameworkTypeDefinitionHandle tdef) { return (REFrameworkTypeDefinitionHandle)RETYPEDEF(tdef)->get_declaring_type(); },
     [](REFrameworkTypeDefinitionHandle tdef) { return (REFrameworkTypeDefinitionHandle)RETYPEDEF(tdef)->get_underlying_type(); },
+    [](REFrameworkTypeDefinitionHandle tdef) { return (REFrameworkTypeInfoHandle)RETYPEDEF(tdef)->get_type(); }
 };
 
 #define REMETHOD(var) ((sdk::REMethodDefinition*)var)
@@ -357,7 +358,13 @@ REFrameworkManagedObject g_managed_object_data {
     [](REFrameworkManagedObjectHandle obj) { utility::re_managed_object::release(REMANAGEDOBJECT(obj)); },
     [](REFrameworkManagedObjectHandle obj) { return (REFrameworkTypeDefinitionHandle)utility::re_managed_object::get_type_definition(REMANAGEDOBJECT(obj)); },
     [](void* potential_obj) { return utility::re_managed_object::is_managed_object(potential_obj); },
-    [](REFrameworkManagedObjectHandle obj) { return REMANAGEDOBJECT(obj)->referenceCount; }
+    [](REFrameworkManagedObjectHandle obj) { return REMANAGEDOBJECT(obj)->referenceCount; },
+    [](REFrameworkManagedObjectHandle obj) { return utility::re_managed_object::get_size(REMANAGEDOBJECT(obj)); },
+    [](REFrameworkManagedObjectHandle obj) { return (unsigned int)utility::re_managed_object::get_vm_type(REMANAGEDOBJECT(obj)); },
+    [](REFrameworkManagedObjectHandle obj) { return (REFrameworkTypeInfoHandle)utility::re_managed_object::get_type(REMANAGEDOBJECT(obj)); },
+    [](REFrameworkManagedObjectHandle obj) { return (void*)utility::re_managed_object::get_variables(REMANAGEDOBJECT(obj)); },
+    [](REFrameworkManagedObjectHandle obj, const char* name) { return (void*)utility::re_managed_object::get_field_desc(REMANAGEDOBJECT(obj), name); },
+    [](REFrameworkManagedObjectHandle obj, const char* name) { return (void*)utility::re_managed_object::get_method_desc(REMANAGEDOBJECT(obj), name); },
 };
 
 #define RERESOURCEMGR(var) ((sdk::ResourceManager*)var)
@@ -382,6 +389,20 @@ REFrameworkResource g_resource_data {
     [](REFrameworkResourceHandle res) { RERESOURCE(res)->release(); }
 };
 
+#define RETYPEINFO(var) ((::REType*)var)
+
+REFrameworkTypeInfo g_type_info_data {
+    [](REFrameworkTypeInfoHandle ti) -> const char* { return RETYPEINFO(ti)->name; },
+    [](REFrameworkTypeInfoHandle ti) { return (REFrameworkTypeDefinitionHandle)utility::re_type::get_type_definition(RETYPEINFO(ti)); },
+    [](REFrameworkTypeInfoHandle ti) { return utility::re_type::is_clr_type(RETYPEINFO(ti)); },
+    [](REFrameworkTypeInfoHandle ti) { return utility::re_type::is_singleton(RETYPEINFO(ti)); },
+    [](REFrameworkTypeInfoHandle ti) { return utility::re_type::get_singleton_instance(RETYPEINFO(ti)); },
+    [](REFrameworkTypeInfoHandle ti) { return utility::re_type::create_instance(RETYPEINFO(ti)); },
+    [](REFrameworkTypeInfoHandle ti) { return (void*)utility::re_type::get_variables(RETYPEINFO(ti)); },
+    [](REFrameworkTypeInfoHandle ti, const char* name) { return (void*)utility::re_type::get_field_desc(RETYPEINFO(ti), name); },
+    [](REFrameworkTypeInfoHandle ti, const char* name) { return (void*)utility::re_type::get_method_desc(RETYPEINFO(ti), name); }
+};
+
 REFrameworkSDKData g_sdk_data {
     &g_sdk_functions,
     &g_tdb_data,
@@ -391,7 +412,8 @@ REFrameworkSDKData g_sdk_data {
     &g_tdb_property_data,
     &g_managed_object_data,
     &g_resource_manager_data,
-    &g_resource_data
+    &g_resource_data,
+    &g_type_info_data
 };
 
 REFrameworkPluginInitializeParam g_plugin_initialize_param{

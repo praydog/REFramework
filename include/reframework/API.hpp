@@ -44,6 +44,7 @@ public:
     struct ManagedObject;
     struct ResourceManager;
     struct Resource;
+    struct TypeInfo;
 
     struct LuaLocker {
         LuaLocker() {
@@ -81,7 +82,8 @@ public:
 
 public:
     API(const REFrameworkPluginInitializeParam* param) 
-        : m_param{param}
+        : m_param{param},
+        m_sdk{param->sdk}
     {
     }
 
@@ -94,7 +96,7 @@ public:
     }
 
     inline const auto sdk() const {
-        return m_param->sdk;
+        return m_sdk;
     }
 
     inline const auto tdb() const { 
@@ -410,6 +412,10 @@ public:
         API::TypeDefinition* get_underlying_type() const {
             return (API::TypeDefinition*)API::s_instance->sdk()->type_definition->get_underlying_type(*this);
         }
+
+        API::TypeInfo* get_type_info() const {
+            return (API::TypeInfo*)API::s_instance->sdk()->type_definition->get_type_info(*this);
+        }
     };
 
     struct Method {
@@ -586,6 +592,26 @@ public:
         uint32_t get_ref_count() const {
             return API::s_instance->sdk()->managed_object->get_ref_count(*this);
         }
+
+        uint32_t get_vm_obj_type() const {
+            return API::s_instance->sdk()->managed_object->get_vm_obj_type(*this);
+        }
+
+        API::TypeInfo* get_type_info() const {
+            return (API::TypeInfo*)API::s_instance->sdk()->managed_object->get_type_info(*this);
+        }
+
+        void* get_reflection_properties() const {
+            return API::s_instance->sdk()->managed_object->get_reflection_properties(*this);
+        }
+
+        void* get_reflection_property_descriptor(std::string_view name) {
+            return API::s_instance->sdk()->managed_object->get_reflection_property_descriptor(*this, name.data());
+        }
+
+        void* get_reflection_method_descriptor(std::string_view name) {
+            return API::s_instance->sdk()->managed_object->get_reflection_method_descriptor(*this, name.data());
+        }
     };
 
     struct ResourceManager {
@@ -612,8 +638,47 @@ public:
         }
     };
 
+    struct TypeInfo {
+        operator ::REFrameworkTypeInfoHandle() const {
+            return (::REFrameworkTypeInfoHandle)this;
+        }
+
+        const char* get_name() const {
+            return API::s_instance->sdk()->type_info->get_name(*this);
+        }
+
+        API::TypeDefinition* get_type_definition() const {
+            return (API::TypeDefinition*)API::s_instance->sdk()->type_info->get_type_definition(*this);
+        }
+
+        bool is_clr_type() const {
+            return API::s_instance->sdk()->type_info->is_clr_type(*this);
+        }
+
+        bool is_singleton() const {
+            return API::s_instance->sdk()->type_info->is_singleton(*this);
+        }
+
+        void* get_singleton_instance() const {
+            return API::s_instance->sdk()->type_info->get_singleton_instance(*this);
+        }
+
+        void* get_reflection_properties() const {
+            return API::s_instance->sdk()->type_info->get_reflection_properties(*this);
+        }
+
+        void* get_reflection_property_descriptor(std::string_view name) {
+            return API::s_instance->sdk()->type_info->get_reflection_property_descriptor(*this, name.data());
+        }
+
+        void* get_reflection_method_descriptor(std::string_view name) {
+            return API::s_instance->sdk()->type_info->get_reflection_method_descriptor(*this, name.data());
+        }
+    };
+
 private:
     const REFrameworkPluginInitializeParam* m_param;
+    const REFrameworkSDKData* m_sdk;
     std::recursive_mutex m_lua_mtx{};
 };
 }

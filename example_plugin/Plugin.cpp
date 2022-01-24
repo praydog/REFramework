@@ -301,6 +301,40 @@ void internal_frame() {
                 }
             }
         };
+
+        static auto display_managed_object = [](API::ManagedObject* obj) {
+            if (obj == nullptr) {
+                return;
+            }
+
+            auto t = obj->get_type_definition();
+
+            if (t == nullptr) {
+                return;
+            }
+
+            display_type(obj, t);
+        };
+
+        static auto display_type_info = [](void* obj, API::TypeInfo* ti) {
+            if (ti == nullptr) {
+                return;
+            }
+
+            const auto typeinfo_name = ti->get_name();
+            const auto is_singleton = ti->is_singleton();
+            const auto is_clr_type = ti->is_clr_type();
+            
+            ImGui::Text("Name: %s", typeinfo_name);
+            ImGui::Text("Is singleton: %d", is_singleton);
+            ImGui::Text("Is CLR type: %d", is_clr_type);
+
+            if (is_singleton) {
+                const auto instance = ti->get_singleton_instance();
+
+                ImGui::Text("Instance: %p", instance);
+            }
+        };
         
         display_type = [](void* obj, API::TypeDefinition* t) -> void {
             if (ImGui::TreeNode("Methods")) {
@@ -310,6 +344,11 @@ void internal_frame() {
 
             if (ImGui::TreeNode("Fields")) {
                 display_fields(obj, t);
+                ImGui::TreePop();
+            }
+
+            if (ImGui::TreeNode("TypeInfo")) {
+                display_type_info(obj, t->get_type_info());
                 ImGui::TreePop();
             }
         };
@@ -322,7 +361,7 @@ void internal_frame() {
                 if (ImGui::TreeNode(full_name.c_str(), "%s", full_name.c_str())) {
                     ImGui::Text("Address: 0x%p", managed_singleton.instance);
 
-                    display_type(managed_singleton.instance, t);
+                    display_managed_object((API::ManagedObject*)managed_singleton.instance);
 
                     ImGui::TreePop();
                 }

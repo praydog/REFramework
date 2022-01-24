@@ -102,6 +102,7 @@ DECLARE_REFRAMEWORK_HANDLE(REFrameworkTDBHandle);
 DECLARE_REFRAMEWORK_HANDLE(REFrameworkResourceHandle);
 DECLARE_REFRAMEWORK_HANDLE(REFrameworkResourceManagerHandle);
 DECLARE_REFRAMEWORK_HANDLE(REFrameworkVMContextHandle);
+DECLARE_REFRAMEWORK_HANDLE(REFrameworkTypeInfoHandle); // NOT a type definition
 
 #define REFRAMEWORK_CREATE_INSTANCE_FLAGS_NONE 0
 #define REFRAMEWORK_CREATE_INSTANCE_FLAGS_SIMPLIFY 1
@@ -160,6 +161,8 @@ typedef struct {
     REFrameworkTypeDefinitionHandle (*get_parent_type)(REFrameworkTypeDefinitionHandle);
     REFrameworkTypeDefinitionHandle (*get_declaring_type)(REFrameworkTypeDefinitionHandle);
     REFrameworkTypeDefinitionHandle (*get_underlying_type)(REFrameworkTypeDefinitionHandle);
+
+    REFrameworkTypeInfoHandle (*get_type_info)(REFrameworkTypeDefinitionHandle);
 } REFrameworkTDBTypeDefinition;
 
 /*
@@ -260,19 +263,25 @@ typedef struct {
     REFrameworkTypeDefinitionHandle (*get_type_definition)(REFrameworkManagedObjectHandle);
     bool (*is_managed_object)(void*);
     unsigned int (*get_ref_count)(REFrameworkManagedObjectHandle);
+    unsigned int (*get_size)(REFrameworkManagedObjectHandle);
+    unsigned int (*get_vm_obj_type)(REFrameworkManagedObjectHandle);
+    REFrameworkTypeInfoHandle (*get_type_info)(REFrameworkManagedObjectHandle); // NOT a type definition
+    void* (*get_reflection_properties)(REFrameworkManagedObjectHandle);
+    void* (*get_reflection_property_descriptor)(REFrameworkManagedObjectHandle, const char* name);
+    void* (*get_reflection_method_descriptor)(REFrameworkManagedObjectHandle, const char* name);
 } REFrameworkManagedObject;
 
 typedef struct {
     void* instance;
     REFrameworkTypeDefinitionHandle t;
-    void* type_info;
+    REFrameworkTypeInfoHandle type_info;
     const char* name; // t is not guaranteed to be non-null so we pass the name along too
 } REFrameworkNativeSingleton;
 
 typedef struct {
     REFrameworkManagedObjectHandle instance;
     REFrameworkTypeDefinitionHandle t;
-    void* type_info;
+    REFrameworkTypeInfoHandle type_info;
 } REFrameworkManagedSingleton;
 
 typedef struct {
@@ -284,6 +293,19 @@ typedef struct {
     void (*add_ref)(REFrameworkResourceHandle);
     void (*release)(REFrameworkResourceHandle);
 } REFrameworkResource;
+
+// NOT a type definition
+typedef struct {
+    const char* (*get_name)(REFrameworkTypeInfoHandle);
+    REFrameworkTypeDefinitionHandle (*get_type_definition)(REFrameworkTypeInfoHandle);
+    bool (*is_clr_type)(REFrameworkTypeInfoHandle);
+    bool (*is_singleton)(REFrameworkTypeInfoHandle);
+    void* (*get_singleton_instance)(REFrameworkTypeInfoHandle);
+    void* (*create_instance)(REFrameworkTypeInfoHandle);
+    void* (*get_reflection_properties)(REFrameworkTypeInfoHandle);
+    void* (*get_reflection_property_descriptor)(REFrameworkTypeInfoHandle, const char* name);
+    void* (*get_reflection_method_descriptor)(REFrameworkTypeInfoHandle, const char* name);
+} REFrameworkTypeInfo;
 
 typedef struct {
     REFrameworkTDBHandle (*get_tdb)();
@@ -310,6 +332,7 @@ typedef struct {
     const REFrameworkManagedObject* managed_object;
     const REFrameworkResourceManager* resource_manager;
     const REFrameworkResource* resource;
+    const REFrameworkTypeInfo* type_info; // NOT a type definition
 } REFrameworkSDKData;
 
 typedef struct {
