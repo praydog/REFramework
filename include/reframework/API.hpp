@@ -612,6 +612,56 @@ public:
         void* get_reflection_method_descriptor(std::string_view name) {
             return API::s_instance->sdk()->managed_object->get_reflection_method_descriptor(*this, name.data());
         }
+
+        template<typename Ret = void*, typename ...Args>
+        Ret call(std::string_view method_name, Args... args) const {
+            auto t = get_type_definition();
+
+            if (t == nullptr) {
+                return Ret{};
+            }
+
+            auto m = t->find_method(method_name);
+
+            if (m == nullptr) {
+                return Ret{};
+            }
+
+            return m->get_function<Ret (*)(Args...)>()(args...);
+        }
+
+        reframework::InvokeRet invoke(std::string_view method_name, const std::vector<void*>& args) {
+            auto t = get_type_definition();
+
+            if (t == nullptr) {
+                return {};
+            }
+
+            auto m = t->find_method(method_name);
+
+            if (m == nullptr) {
+                return {};
+            }
+
+            return m->invoke(this, args);
+        }
+
+        template<typename T>
+        T* get_field(std::string_view name, bool is_value_type = false) const {
+            auto t = get_type_definition();
+
+            if (t == nullptr) {
+                return nullptr;
+            }
+
+            auto f = t->find_field(name);
+
+            if (f == nullptr) {
+                return nullptr;
+            }
+
+            return f->get_data_raw<T>(this, is_value_type);
+        }
     };
 
     struct ResourceManager {

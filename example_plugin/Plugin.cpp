@@ -154,26 +154,17 @@ void internal_frame() {
         return;
     }
 
-    const auto get_size = main_view_type->find_method("get_Size");
+    float size[3]{};
+    main_view->call("get_Size", &size, vm_context, main_view);
 
-    std::vector<void*> get_size_args{};
-    auto invoke_out = get_size->invoke(main_view, get_size_args);
-
-    if (invoke_out.exception_thrown) {
-        if (ImGui::Begin("Super Cool Plugin")) {
-            ImGui::Text("Invoke threw an exception");
-            ImGui::End();
-        }
-
-        return;
-    }
-
-    const auto size = (float*)&invoke_out;
+    auto get_size_invoke_result = main_view->invoke("get_Size", {});
+    float* size_invoke = (float*)&get_size_invoke_result;
 
     if (ImGui::Begin("Super Cool Plugin")) {
         ImGui::Text("Hello from the super cool plugin!");
         ImGui::Text("Game Window Size from Lua: %f %f", window_width, window_height);
-        ImGui::Text("Game Window Size from C: %f %f", size[0], size[1]);
+        ImGui::Text("Game Window Size from C++ Call: %f %f", size[0], size[1]);
+        ImGui::Text("Game Window Size from C++ Invoke: %f %f", size_invoke[0], size_invoke[1]);
 
         // Tests for the TDB
         const auto num_types = tdb->get_num_types();
