@@ -578,12 +578,16 @@ void ScriptRunner::reset_scripts() {
 
     spdlog::info("[ScriptRunner] Loading scripts...");
 
-    for (auto&& entry : std::filesystem::directory_iterator{autorun_path}) {
-        auto&& path = entry.path();
+    if (std::filesystem::exists(autorun_path)) {
+        for (auto&& entry : std::filesystem::directory_iterator{autorun_path}) {
+            auto&& path = entry.path();
 
-        if (path.has_extension() && path.extension() == ".lua") {
-            m_state->run_script(path.string());
+            if (path.has_extension() && path.extension() == ".lua") {
+                m_state->run_script(path.string());
+            }
         }
+    } else {
+        spdlog::info("[ScriptRunner] Old autorun directory not found, continuing...");
     }
 
     // Load from the reframework/autorun directory. This is the preferred directory for autorun scripts.
