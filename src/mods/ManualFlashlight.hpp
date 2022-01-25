@@ -20,6 +20,13 @@ public:
 // Recreated in REFramework
 class ManualFlashlight : public Mod {
 public:
+    static ManualFlashlight* g_manual_flashlight;
+
+public:
+    ManualFlashlight();
+    
+    void toggle_flashlight();
+    
     std::string_view get_name() const override { return "ManualFlashlight"; }
 
     void on_frame() override;
