@@ -52,6 +52,52 @@ sol::variadic_results drag_float(sol::this_state s, const char* label, float v, 
     return results;
 }
 
+sol::variadic_results drag_float2(sol::this_state s, const char* label, Vector2f v, float v_speed, float v_min, float v_max, const char* display_format = "%.3f") {
+    if (label == nullptr) {
+        label = "";
+    }
+
+    auto changed = ImGui::DragFloat2(label, (float*)&v, v_speed, v_min, v_max, display_format);
+
+    sol::variadic_results results{};
+
+    results.push_back(sol::make_object(s, changed));
+    results.push_back(sol::make_object(s, v));
+
+    return results;
+}
+
+sol::variadic_results drag_float3(sol::this_state s, const char* label, Vector3f v, float v_speed, float v_min, float v_max, const char* display_format = "%.3f") {
+    if (label == nullptr) {
+        label = "";
+    }
+
+    auto changed = ImGui::DragFloat3(label, (float*)&v, v_speed, v_min, v_max, display_format);
+
+    sol::variadic_results results{};
+
+    results.push_back(sol::make_object(s, changed));
+    results.push_back(sol::make_object(s, v));
+
+    return results;
+}
+
+
+sol::variadic_results drag_float4(sol::this_state s, const char* label, Vector4f v, float v_speed, float v_min, float v_max, const char* display_format = "%.3f") {
+    if (label == nullptr) {
+        label = "";
+    }
+
+    auto changed = ImGui::DragFloat4(label, (float*)&v, v_speed, v_min, v_max, display_format);
+
+    sol::variadic_results results{};
+
+    results.push_back(sol::make_object(s, changed));
+    results.push_back(sol::make_object(s, v));
+
+    return results;
+}
+
 sol::variadic_results drag_int(sol::this_state s, const char* label, int v, float v_speed, int v_min, int v_max, const char* display_format = "%d") {
     if (label == nullptr) {
         label = "";
@@ -429,6 +475,9 @@ void bindings::open_imgui(ScriptState* s) {
     imgui["button"] = api::imgui::button;
     imgui["combo"] = api::imgui::combo;
     imgui["drag_float"] = api::imgui::drag_float;
+    imgui["drag_float2"] = api::imgui::drag_float2;
+    imgui["drag_float3"] = api::imgui::drag_float3;
+    imgui["drag_float4"] = api::imgui::drag_float4;
     imgui["drag_int"] = api::imgui::drag_int;
     imgui["slider_float"] = api::imgui::slider_float;
     imgui["slider_int"] = api::imgui::slider_int;
