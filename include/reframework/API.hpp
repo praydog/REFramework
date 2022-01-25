@@ -45,13 +45,14 @@ public:
     struct ResourceManager;
     struct Resource;
     struct TypeInfo;
+    struct VMContext;
 
-    struct LuaLocker {
-        LuaLocker() {
+    struct LuaLock {
+        LuaLock() {
             API::s_instance->lock_lua();
         }
 
-        virtual ~LuaLocker() {
+        virtual ~LuaLock() {
             API::s_instance->unlock_lua();
         }
     };
@@ -117,8 +118,8 @@ public:
         m_lua_mtx.unlock();
     }
 
-    auto get_vm_context() const {
-        return sdk()->functions->get_vm_context();
+    API::VMContext* get_vm_context() const {
+        return (API::VMContext*)sdk()->functions->get_vm_context();
     }
 
     API::ManagedObject* typeof(const char* name) const {
@@ -723,6 +724,28 @@ public:
 
         void* get_reflection_method_descriptor(std::string_view name) {
             return API::s_instance->sdk()->type_info->get_reflection_method_descriptor(*this, name.data());
+        }
+    };
+
+    struct VMContext {
+        operator ::REFrameworkVMContextHandle() const {
+            return (::REFrameworkVMContextHandle)this;
+        }
+
+        bool has_exception() const {
+            return API::s_instance->sdk()->vm_context->has_exception(*this);
+        }
+
+        void unhandled_exception() {
+            API::s_instance->sdk()->vm_context->unhandled_exception(*this);
+        }
+
+        void local_frame_gc() {
+            API::s_instance->sdk()->vm_context->local_frame_gc(*this);
+        }
+
+        void cleanup_after_exception(int32_t old_ref_count) {
+            API::s_instance->sdk()->vm_context->cleanup_after_exception(*this, old_ref_count);
         }
     };
 

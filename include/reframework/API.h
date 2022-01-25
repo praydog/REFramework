@@ -147,6 +147,8 @@ typedef struct {
     REFrameworkVMObjType (*get_vm_obj_type)(REFrameworkTypeDefinitionHandle);
 
     // All lookups are cached on our end
+    // however, the pointers will always stay the same,
+    // so you can cache them on your end e.g. with a static var to get a minor speed increase.
     REFrameworkMethodHandle (*find_method)(REFrameworkTypeDefinitionHandle, const char*);
     REFrameworkFieldHandle (*find_field)(REFrameworkTypeDefinitionHandle, const char*);
     REFrameworkPropertyHandle (*find_property)(REFrameworkTypeDefinitionHandle, const char*); // not implemented yet.
@@ -250,6 +252,8 @@ typedef struct {
     unsigned char* (*get_raw_database)(REFrameworkTDBHandle);
 
     // All lookups are cached on our end
+    // however, the pointers will always stay the same,
+    // so you can cache them on your end e.g. with a static var to get a minor speed increase.
     REFrameworkTypeDefinitionHandle (*get_type)(REFrameworkTDBHandle, unsigned int index);
     REFrameworkTypeDefinitionHandle (*find_type)(REFrameworkTDBHandle, const char* name);
     REFrameworkTypeDefinitionHandle (*find_type_by_fqn)(REFrameworkTDBHandle, unsigned int fqn);
@@ -311,6 +315,13 @@ typedef struct {
 } REFrameworkTypeInfo;
 
 typedef struct {
+    bool (*has_exception)(REFrameworkVMContextHandle);
+    void (*unhandled_exception)(REFrameworkVMContextHandle);
+    void (*local_frame_gc)(REFrameworkVMContextHandle);
+    void (*cleanup_after_exception)(REFrameworkVMContextHandle, int old_reference_count);
+} REFrameworkVMContext;
+
+typedef struct {
     REFrameworkTDBHandle (*get_tdb)();
     REFrameworkResourceManagerHandle (*get_resource_manager)();
     REFrameworkVMContextHandle (*get_vm_context)(); // per-thread context
@@ -323,8 +334,14 @@ typedef struct {
     // out_count is how many elements were written to the out buffer, not the size of the written data
     REFrameworkResult (*get_managed_singletons)(REFrameworkManagedSingleton* out, unsigned int out_size, unsigned int* out_count);
     REFrameworkResult (*get_native_singletons)(REFrameworkNativeSingleton* out, unsigned int out_size, unsigned int* out_count);
+
+    REFrameworkManagedObjectHandle (*create_managed_string)(const wchar_t* str);
+    REFrameworkManagedObjectHandle (*create_managed_string_normal)(const char* str);
 } REFrameworkSDKFunctions;
 
+// these are NOT pointers to the actual objects
+// they are interfaces with functions that take handles to the objects
+// the functions, however, can return the actual objects
 typedef struct {
     const REFrameworkSDKFunctions* functions;
     const REFrameworkTDB* tdb;
@@ -336,6 +353,7 @@ typedef struct {
     const REFrameworkResourceManager* resource_manager;
     const REFrameworkResource* resource;
     const REFrameworkTypeInfo* type_info; // NOT a type definition
+    const REFrameworkVMContext* vm_context;
 } REFrameworkSDKData;
 
 typedef struct {

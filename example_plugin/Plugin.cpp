@@ -63,7 +63,7 @@ bool initialize_imgui() {
 }
 
 void on_lua_state_created(lua_State* l) {
-    API::LuaLocker _{};
+    API::LuaLock _{};
 
     g_lua = l;
     g_loaded_snippets.clear();
@@ -79,14 +79,14 @@ void on_lua_state_created(lua_State* l) {
 }
 
 void on_lua_state_destroyed(lua_State* l) {
-    API::LuaLocker _{};
+    API::LuaLock _{};
 
     g_lua = nullptr;
     g_loaded_snippets.clear();
 }
 
 void internal_frame() {
-    API::LuaLocker _{};
+    API::LuaLock _{};
 
     if (g_lua == nullptr) {
         return;

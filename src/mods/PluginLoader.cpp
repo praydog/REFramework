@@ -138,6 +138,13 @@ REFrameworkSDKFunctions g_sdk_functions {
 
         return REFRAMEWORK_ERROR_NONE;
     },
+    // create_managed_string
+    [](const wchar_t* str) -> REFrameworkManagedObjectHandle {
+        return (REFrameworkManagedObjectHandle)sdk::VM::create_managed_string(str);
+    },
+    [](const char* str) -> REFrameworkManagedObjectHandle {
+        return (REFrameworkManagedObjectHandle)sdk::VM::create_managed_string(utility::widen(str));
+    },
 };
 
 #define RETYPEDEF(var) ((sdk::RETypeDefinition*)var)
@@ -425,6 +432,16 @@ REFrameworkTypeInfo g_type_info_data {
     [](REFrameworkTypeInfoHandle ti, const char* name) { return (void*)utility::re_type::get_method_desc(RETYPEINFO(ti), name); }
 };
 
+#define VMCONTEXT(var) ((sdk::VMContext*)var)
+
+REFrameworkVMContext g_vm_context_data {
+    // has exception
+    [](REFrameworkVMContextHandle ctx) { return VMCONTEXT(ctx)->unkPtr->unkPtr != nullptr; },
+    [](REFrameworkVMContextHandle ctx) { VMCONTEXT(ctx)->unhandled_exception(); },
+    [](REFrameworkVMContextHandle ctx) { VMCONTEXT(ctx)->local_frame_gc(); },
+    [](REFrameworkVMContextHandle ctx, int32_t old) { VMCONTEXT(ctx)->cleanup_after_exception(old); },
+};
+
 REFrameworkSDKData g_sdk_data {
     &g_sdk_functions,
     &g_tdb_data,
@@ -435,7 +452,8 @@ REFrameworkSDKData g_sdk_data {
     &g_managed_object_data,
     &g_resource_manager_data,
     &g_resource_data,
-    &g_type_info_data
+    &g_type_info_data,
+    &g_vm_context_data
 };
 
 REFrameworkPluginInitializeParam g_plugin_initialize_param{
