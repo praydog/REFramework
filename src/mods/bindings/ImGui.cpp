@@ -2,6 +2,7 @@
 
 #include "../ScriptRunner.hpp"
 #include "../../sdk/SceneManager.hpp"
+#include "REFramework.hpp"
 
 #include "ImGui.hpp"
 
@@ -385,6 +386,10 @@ void push_font(int font) {
 void pop_font() {
     ImGui::PopFont();
 }
+
+int get_default_font_size() {
+    return g_framework->get_font_size();
+}
 } // namespace api::imgui
 
 namespace api::draw {
@@ -538,6 +543,7 @@ void bindings::open_imgui(ScriptState* s) {
     imgui["load_font"] = api::imgui::load_font;
     imgui["push_font"] = api::imgui::push_font;
     imgui["pop_font"] = api::imgui::pop_font;
+    imgui["get_default_font_size"] = api::imgui::get_default_font_size;
     lua["imgui"] = imgui;
 
     auto draw = lua.create_table();
