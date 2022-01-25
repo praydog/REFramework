@@ -28,7 +28,7 @@
 #include "utility/Module.hpp"
 
 #include "FirstPerson.hpp"
-
+#include "ManualFlashlight.hpp"
 #include "VR.hpp"
 
 constexpr std::string_view COULD_NOT_LOAD_OPENVR = "Could not load openvr_api.dll";
@@ -2523,9 +2523,21 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
     const auto is_quickturn_down = is_action_active(m_action_re2_quickturn, m_left_joystick) || is_action_active(m_action_re2_quickturn, m_right_joystick);
     const auto is_reset_view_down = is_action_active(m_action_re2_reset_view, m_left_joystick) || is_action_active(m_action_re2_reset_view, m_right_joystick);
     const auto is_change_ammo_down = is_action_active(m_action_re2_change_ammo, m_left_joystick) || is_action_active(m_action_re2_change_ammo, m_right_joystick);
+	const auto is_toggle_flashlight_down = is_action_active(m_action_re2_toggle_flashlight, m_left_joystick);
 
     const auto is_left_system_button_down = is_action_active(m_action_system_button, m_left_joystick);
     const auto is_right_system_button_down = is_action_active(m_action_system_button, m_right_joystick);
+
+    
+    
+#if defined(RE2) || defined(RE3) || defined(RE8)
+    if (is_toggle_flashlight_down && !m_was_flashlight_toggle_down) {            
+        ManualFlashlight::g_manual_flashlight-> toggle_flashlight();
+    }    
+
+    m_was_flashlight_toggle_down = is_toggle_flashlight_down;
+#endif
+
 
 #if defined(RE2) || defined(RE3)
     const auto is_firstperson_toggle_down = is_action_active(m_action_re2_firstperson_toggle, m_left_joystick) || is_action_active(m_action_re2_firstperson_toggle, m_right_joystick);

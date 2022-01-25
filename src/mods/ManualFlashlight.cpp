@@ -4,10 +4,20 @@
 
 using namespace utility;
 
+ManualFlashlight* ManualFlashlight::g_manual_flashlight = nullptr;
+
+ManualFlashlight::ManualFlashlight() {    
+    g_manual_flashlight = this;
+}
+
+void ManualFlashlight::toggle_flashlight() {
+    m_wants_flashlight = !m_wants_flashlight;
+}
+
 void ManualFlashlight::on_frame() {
     // TODO: Add controller support.
     if (m_key->is_key_down_once()) {
-        m_wants_flashlight = !m_wants_flashlight;
+        toggle_flashlight();
     }
 }
 
