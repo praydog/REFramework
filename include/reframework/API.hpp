@@ -118,6 +118,10 @@ public:
         m_lua_mtx.unlock();
     }
 
+    template <typename... Args> void log_error(const char* format, Args... args) { m_param->functions->log_error(format, args...); }
+    template <typename... Args> void log_warn(const char* format, Args... args) { m_param->functions->log_warn(format, args...); }
+    template <typename... Args> void log_info(const char* format, Args... args) { m_param->functions->log_info(format, args...); }
+
     API::VMContext* get_vm_context() const {
         return (API::VMContext*)sdk()->functions->get_vm_context();
     }

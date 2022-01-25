@@ -479,6 +479,9 @@ extern "C" __declspec(dllexport) bool reframework_plugin_initialize(const REFram
     functions->log_error("%s %s", "Hello", "error");
     functions->log_warn("%s %s", "Hello", "warning");
     functions->log_info("%s %s", "Hello", "info");
+    API::get()->log_error("%s %s", "Hello", "error");
+    API::get()->log_warn("%s %s", "Hello", "warning");
+    API::get()->log_info("%s %s", "Hello", "info");
 
     return true;
 }
