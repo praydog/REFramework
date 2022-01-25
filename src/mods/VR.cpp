@@ -2531,14 +2531,9 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
     
     
 #if defined(RE2) || defined(RE3) || defined(RE8)
-    //auto& fp = FirstPerson::get();
-    
-    //if (fp->is_enabled() && fp->will_be_used()) {
-        
-        if (is_toggle_flashlight_down && !m_was_flashlight_toggle_down) {            
-            ManualFlashlight::g_manual_flashlight-> toggle_flashlight();
-        }
-    //}
+    if (is_toggle_flashlight_down && !m_was_flashlight_toggle_down) {            
+        ManualFlashlight::g_manual_flashlight-> toggle_flashlight();
+    }    
 
     m_was_flashlight_toggle_down = is_toggle_flashlight_down;
 #endif
