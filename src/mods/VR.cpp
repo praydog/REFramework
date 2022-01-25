@@ -2714,9 +2714,6 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
     // Change Ammo
     set_button_state(app::ropeway::InputDefine::Kind::CHANGE_BULLET, is_change_ammo_down);
 
-    // Toggle Flashlight
-    set_button_state(app::ropeway::InputDefine::Kind::FLASHLIGHT, is_toggle_flashlight_down);
-
     // Left or Right System Button: Pause
     set_button_state(app::ropeway::InputDefine::Kind::PAUSE, is_left_system_button_down || is_right_system_button_down || m_handle_pause);
     m_handle_pause = false;

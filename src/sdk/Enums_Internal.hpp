@@ -31590,8 +31590,7 @@ namespace app::ropeway::InputDefine {
         UI_MAP_UP = 70368744177664,
         UI_MAP_DOWN = 140737488355328,
         UI_SORT = 281474976710656,
-        UI_DISP = 562949953421312,
-        FLASHLIGHT = 1125899906842624
+        UI_DISP = 562949953421312
     };
 }
 namespace via::gui::detail {
