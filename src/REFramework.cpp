@@ -723,16 +723,18 @@ int REFramework::add_font(const std::filesystem::path& filepath, int size, const
     }
 
     m_additional_fonts.emplace_back(filepath, size, ranges, nullptr);
+    m_fonts_need_updating = true;
 
     return m_additional_fonts.size() - 1;
 }
 
 void REFramework::update_fonts() {
-    if (m_font_size == m_font_desired_size) {
+    if (!m_fonts_need_updating) {
         return;
     }
 
-    m_font_size = m_font_desired_size;
+    m_fonts_need_updating = false;
+
     auto& fonts = ImGui::GetIO().Fonts;
 
     fonts->Clear();

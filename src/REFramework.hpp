@@ -97,9 +97,17 @@ public:
         return m_hook_monitor_mutex;
     }
 
-    void set_font_size(int size) { m_font_desired_size = size; }
-    auto get_font_size() const { return m_font_desired_size; }
+    void set_font_size(int size) { 
+        if (m_font_size != size) {
+            m_font_size = size;
+            m_fonts_need_updating = true;
+        }
+    }
+
+    auto get_font_size() const { return m_font_size; }
+
     int add_font(const std::filesystem::path& filepath, int size, const std::vector<ImWchar>& ranges = {});
+
     ImFont* get_font(int index) const {
         if (index >= 0 && index < m_additional_fonts.size()) {
             return m_additional_fonts[index].font;
@@ -144,9 +152,6 @@ private:
     ImVec2 m_last_window_pos{};
     ImVec2 m_last_window_size{};
 
-    int m_font_size{};
-    int m_font_desired_size{16};
-
     struct AdditionalFont {
         std::filesystem::path filepath{};
         int size{16};
@@ -154,6 +159,8 @@ private:
         ImFont* font{};
     };
 
+    bool m_fonts_need_updating{true};
+    int m_font_size{16};
     std::vector<AdditionalFont> m_additional_fonts{};
 
     std::mutex m_input_mutex{};
