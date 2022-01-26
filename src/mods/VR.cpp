@@ -1867,9 +1867,7 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                 }
 
                 auto& restore_data = g_elements_to_reset.emplace_back(std::make_unique<GUIRestoreData>());
-
-                Vector4f original_game_object_pos{};
-                sdk::call_object_func<Vector3f*>(game_object->transform, "get_Position", &original_game_object_pos, context, game_object->transform);
+                auto original_game_object_pos = sdk::get_transform_position(game_object->transform);
 
                 restore_data->element = gui_element;
                 restore_data->view = view;
@@ -1933,17 +1931,18 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                         auto child = sdk::call_object_func<REManagedObject*>(view, "get_Child", context, view);
 
                         auto fix_2d_position = [&](const Vector4f& target_position) {
-                            auto dir = glm::normalize(target_position - m_render_camera_matrix[3]);
+                            auto delta = target_position - m_render_camera_matrix[3];
+                            delta.w = 0.0f;
+
+                            auto dir = glm::normalize(delta);
                             dir.w = 0.0f;
                             
-                            gui_matrix[3] = camera_position + (dir * m_ui_scale);
-                            gui_matrix[3].w = 1.0f;
-
                             // make matrix from dir
                             const auto look_mat = glm::rowMajor4(glm::lookAtLH(Vector3f{}, Vector3f{ dir }, Vector3f(0.0f, 1.0f, 0.0f)));
-
                             const auto look_rot = glm::quat{look_mat};
-                            const auto new_pos = gui_matrix[3];
+
+                            auto new_pos = target_position;
+                            new_pos.w = 1.0f;
 
                             gui_matrix = look_mat;
                             gui_matrix[3] = new_pos;
@@ -1956,6 +1955,12 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
 
                                 Vector3f half_size{ gui_size.w / 2.0f, gui_size.h / 2.0f, 0.0f };
                                 sdk::call_object_func<void*>(child, "set_Position", context, child, &half_size);
+
+                                const auto scaled_ui_scale = m_ui_scale * 0.01f;
+                                const auto distance = glm::length(delta);
+                                const auto scale = std::clamp<float>(distance * scaled_ui_scale, 0.1f, 100.0f);
+                                Vector4f new_scale{ scale, scale, scale, 1.0f };
+                                sdk::call_object_func<void*>(child, "set_Scale", context, child, &new_scale);
                             }
                         };
 
