@@ -122,13 +122,55 @@ bool D3D12Hook::hook() {
 
     spdlog::info("Creating dummy swapchain");
 
+    // used in CreateSwapChainForHwnd fallback
+    HWND hwnd = 0;
+    WNDCLASSEX wc{};
+
     // we call CreateSwapChainForComposition instead of CreateSwapChainForHwnd
     // because some overlays will have hooks on CreateSwapChainForHwnd
     // and all we're doing is creating a dummy swapchain
     // we don't want to screw up the overlay
     if (FAILED(factory->CreateSwapChainForComposition(command_queue, &swap_chain_desc1, NULL, &swap_chain1))) {
-        spdlog::error("Failed to create D3D12 Dummy DXGI SwapChain");
-        return false;
+        // fallback to CreateSwapChainForHwnd
+        wc.cbSize = sizeof(WNDCLASSEX);
+        wc.style = CS_HREDRAW | CS_VREDRAW;
+        wc.lpfnWndProc = DefWindowProc;
+        wc.cbClsExtra = 0;
+        wc.cbWndExtra = 0;
+        wc.hInstance = GetModuleHandle(NULL);
+        wc.hIcon = NULL;
+        wc.hCursor = NULL;
+        wc.hbrBackground = NULL;
+        wc.lpszMenuName = NULL;
+        wc.lpszClassName = TEXT("REFRAMEWORK_DX12_DUMMY");
+        wc.hIconSm = NULL;
+
+        ::RegisterClassEx(&wc);
+
+        hwnd = ::CreateWindow(wc.lpszClassName, TEXT("REF DX Dummy Window"), WS_OVERLAPPEDWINDOW, 0, 0, 100, 100, NULL, NULL, wc.hInstance, NULL);
+
+        swap_chain_desc1.BufferCount = 3;
+        swap_chain_desc1.Width = 0;
+        swap_chain_desc1.Height = 0;
+        swap_chain_desc1.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        swap_chain_desc1.Flags = DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
+        swap_chain_desc1.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+        swap_chain_desc1.SampleDesc.Count = 1;
+        swap_chain_desc1.SampleDesc.Quality = 0;
+        swap_chain_desc1.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+        swap_chain_desc1.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
+        swap_chain_desc1.Scaling = DXGI_SCALING_STRETCH;
+        swap_chain_desc1.Stereo = FALSE;
+
+        if (FAILED(factory->CreateSwapChainForHwnd(command_queue, hwnd, &swap_chain_desc1, nullptr, nullptr, &swap_chain1))) {
+            if (FAILED(factory->CreateSwapChainForHwnd(command_queue, GetDesktopWindow(), &swap_chain_desc1, nullptr, nullptr, &swap_chain1))) {
+                ::DestroyWindow(hwnd);
+                ::UnregisterClass(wc.lpszClassName, wc.hInstance);
+
+                spdlog::error("Failed to create D3D12 Dummy Swap Chain");
+                return false;
+            }
+        }
     }
 
     spdlog::info("Querying dummy swapchain");
@@ -186,6 +228,14 @@ bool D3D12Hook::hook() {
     factory->Release();
     swap_chain1->Release();
     swap_chain->Release();
+
+    if (hwnd) {
+        ::DestroyWindow(hwnd);
+    }
+
+    if (wc.lpszClassName != nullptr) {
+        ::UnregisterClass(wc.lpszClassName, wc.hInstance);
+    }
 
     return m_hooked;
 }
