@@ -315,7 +315,6 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	set(RE2_SOURCES "")
 
 	list(APPEND RE2_SOURCES
-		"src/API.cpp"
 		"src/D3D11Hook.cpp"
 		"src/D3D12Hook.cpp"
 		"src/DInputHook.cpp"
@@ -730,7 +729,6 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	set(RE3_SOURCES "")
 
 	list(APPEND RE3_SOURCES
-		"src/API.cpp"
 		"src/D3D11Hook.cpp"
 		"src/D3D12Hook.cpp"
 		"src/DInputHook.cpp"
@@ -1145,7 +1143,6 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	set(RE7_SOURCES "")
 
 	list(APPEND RE7_SOURCES
-		"src/API.cpp"
 		"src/D3D11Hook.cpp"
 		"src/D3D12Hook.cpp"
 		"src/DInputHook.cpp"
@@ -1560,7 +1557,6 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	set(RE8_SOURCES "")
 
 	list(APPEND RE8_SOURCES
-		"src/API.cpp"
 		"src/D3D11Hook.cpp"
 		"src/D3D12Hook.cpp"
 		"src/DInputHook.cpp"
@@ -1975,7 +1971,6 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	set(DMC5_SOURCES "")
 
 	list(APPEND DMC5_SOURCES
-		"src/API.cpp"
 		"src/D3D11Hook.cpp"
 		"src/D3D12Hook.cpp"
 		"src/DInputHook.cpp"
@@ -2390,7 +2385,6 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	set(MHRISE_SOURCES "")
 
 	list(APPEND MHRISE_SOURCES
-		"src/API.cpp"
 		"src/D3D11Hook.cpp"
 		"src/D3D12Hook.cpp"
 		"src/DInputHook.cpp"

@@ -8,6 +8,16 @@
 #include "Mod.hpp"
 #include "reframework/API.hpp"
 
+bool reframework_on_lua_state_created(REFLuaStateCreatedCb cb);
+bool reframework_on_lua_state_destroyed(REFLuaStateDestroyedCb cb);
+bool reframework_on_frame(REFOnFrameCb cb);
+bool reframework_on_pre_application_entry(const char* name, REFOnPreApplicationEntryCb cb);
+bool reframework_on_post_application_entry(const char* name, REFOnPostApplicationEntryCb cb);
+void reframework_lock_lua();
+void reframework_unlock_lua();
+bool reframework_on_device_reset(REFOnDeviceResetCb cb);
+bool reframework_on_message(REFOnMessageCb cb);
+
 namespace reframework {
 extern REFrameworkRendererData g_renderer_data;
 }

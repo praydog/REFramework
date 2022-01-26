@@ -32,7 +32,6 @@ public:
     using REFOnDeviceResetCb = std::function<std::remove_pointer<::REFOnDeviceResetCb>::type>;
     using REFOnMessageCb = std::function<std::remove_pointer<::REFOnMessageCb>::type>;
 
-    static bool add_on_initialized(REFInitializedCb cb); // effectively serves as a do-once callback
     bool add_on_lua_state_created(REFLuaStateCreatedCb cb);
     bool add_on_lua_state_destroyed(REFLuaStateDestroyedCb cb);
     bool add_on_frame(REFOnFrameCb cb);
@@ -44,7 +43,6 @@ public:
 private:
     // API Callbacks
     static std::recursive_mutex s_api_cb_mtx;
-    static std::vector<APIProxy::REFInitializedCb> s_on_initialized_cbs;
     std::vector<APIProxy::REFLuaStateCreatedCb> m_on_lua_state_created_cbs;
     std::vector<APIProxy::REFLuaStateDestroyedCb> m_on_lua_state_destroyed_cbs;
     std::vector<APIProxy::REFInitializedCb> m_on_frame_cbs{};

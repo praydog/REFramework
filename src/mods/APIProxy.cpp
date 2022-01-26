@@ -6,18 +6,10 @@
 #include "APIProxy.hpp"
 
 std::recursive_mutex APIProxy::s_api_cb_mtx{};
-std::vector<APIProxy::REFInitializedCb> APIProxy::s_on_initialized_cbs{};
 
 std::shared_ptr<APIProxy>& APIProxy::get() {
     static auto instance = std::make_shared<APIProxy>();
     return instance;
-}
-
-bool APIProxy::add_on_initialized(APIProxy::REFInitializedCb cb) {
-    std::scoped_lock _{s_api_cb_mtx};
-
-    s_on_initialized_cbs.push_back(cb);
-    return true;
 }
 
 bool APIProxy::add_on_lua_state_created(APIProxy::REFLuaStateCreatedCb cb) {
@@ -120,14 +112,6 @@ void APIProxy::on_frame() {
         reframework::g_renderer_data.device = d3d12->get_device();
         reframework::g_renderer_data.swapchain = d3d12->get_swap_chain();
         reframework::g_renderer_data.command_queue = d3d12->get_command_queue();
-    }
-
-    if (!s_on_initialized_cbs.empty()) {
-        for (auto&& cb : s_on_initialized_cbs) {
-            cb();
-        }
-
-        s_on_initialized_cbs.clear();
     }
 
     for (auto&& cb : m_on_frame_cbs) {

@@ -9,6 +9,8 @@
 
 #include "sdk/ResourceManager.hpp"
 
+#include "APIProxy.hpp"
+#include "ScriptRunner.hpp"
 #include "PluginLoader.hpp"
 
 REFrameworkPluginVersion g_plugin_version{
@@ -21,7 +23,6 @@ REFrameworkRendererData g_renderer_data{
 }
 
 REFrameworkPluginFunctions g_plugin_functions{
-    reframework_on_initialized,
     reframework_on_lua_state_created,
     reframework_on_lua_state_destroyed,
     reframework_on_frame,
@@ -658,4 +659,81 @@ void PluginLoader::on_draw_ui() {
             }
         }
     }
+}
+
+bool reframework_on_lua_state_created(REFLuaStateCreatedCb cb) {
+    if (cb == nullptr) {
+        return false;
+    }
+
+    return APIProxy::get()->add_on_lua_state_created(cb);
+}
+
+bool reframework_on_lua_state_destroyed(REFLuaStateDestroyedCb cb) {
+    if (cb == nullptr) {
+        return false;
+    }
+
+
+    return APIProxy::get()->add_on_lua_state_destroyed(cb);
+}
+
+bool reframework_on_frame(REFOnFrameCb cb) {
+    if (cb == nullptr) {
+        return false;
+    }
+
+    return APIProxy::get()->add_on_frame(cb);
+}
+
+bool reframework_on_pre_application_entry(const char* name, REFOnPreApplicationEntryCb cb) {
+    if (cb == nullptr || name == nullptr) {
+        return false;
+    }
+
+    auto cppname = std::string{name};
+
+    if (cppname.empty()) {
+        return false;
+    }
+
+    return APIProxy::get()->add_on_pre_application_entry(cppname, cb);
+}
+
+bool reframework_on_post_application_entry(const char* name, REFOnPostApplicationEntryCb cb) {
+    if (cb == nullptr || name == nullptr) {
+        return false;
+    }
+
+    auto cppname = std::string{name};
+
+    if (cppname.empty()) {
+        return false;
+    }
+
+    return APIProxy::get()->add_on_post_application_entry(cppname, cb);
+}
+
+void reframework_lock_lua() {
+    ScriptRunner::get()->lock();
+}
+
+void reframework_unlock_lua() {
+    ScriptRunner::get()->unlock();
+}
+
+bool reframework_on_device_reset(REFOnDeviceResetCb cb) {
+    if (cb == nullptr) {
+        return false;
+    }
+
+    return APIProxy::get()->add_on_device_reset(cb);
+}
+
+bool reframework_on_message(REFOnMessageCb cb) {
+    if (cb == nullptr) {
+        return false;
+    }
+
+    return APIProxy::get()->add_on_message(cb);
 }

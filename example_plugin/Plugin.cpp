@@ -467,6 +467,7 @@ extern "C" __declspec(dllexport) void reframework_plugin_required_version(REFram
 
 extern "C" __declspec(dllexport) bool reframework_plugin_initialize(const REFrameworkPluginInitializeParam* param) {
     API::initialize(param);
+    ImGui::CreateContext();
 
     const auto functions = param->functions;
     functions->on_lua_state_created(on_lua_state_created);
