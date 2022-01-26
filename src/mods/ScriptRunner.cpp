@@ -407,9 +407,11 @@ ScriptState::PreHookResult ScriptState::on_pre_hook(HookedFn* fn) {
     auto result = PreHookResult::CALL_ORIGINAL;
 
     try {
-        // Call the script function.
-        // TODO: Take return value from the script function into account.
+        if (fn->script_pre_fns.empty()) {
+            return result;
+        }
 
+        // Call the script function.
         // Convert the args to a table that we pass to the script function.
         for (auto i = 0u; i < fn->args.size(); ++i) {
             fn->script_args[i + 1] = (void*)fn->args[i];
@@ -449,6 +451,10 @@ void ScriptState::on_post_hook(HookedFn* fn) {
     std::scoped_lock _{ m_execution_mutex };
 
     try {
+        if (fn->script_post_fns.empty()) {
+            return;
+        }
+
         for (auto&& post_fn : fn->script_post_fns) {
             fn->ret_val = (uintptr_t)handle_protected_result(post_fn((void*)fn->ret_val)).get<void*>();
         }

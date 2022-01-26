@@ -764,16 +764,54 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function pre_cb
 
     if (auto search = hooked_fns.find(fn); search != hooked_fns.end()) {
         auto& hooked_fn = search->second;
-        hooked_fn->script_pre_fns.emplace_back(pre_cb);
-        hooked_fn->script_post_fns.emplace_back(post_cb);
+
+        if (!pre_cb.is<sol::nil_t>()) {
+            if (pre_cb.is<sol::function>()) {
+                hooked_fn->script_pre_fns.emplace_back(pre_cb);
+            } else {
+                throw sol::error("sdk.hook: Pre callback must be a function");
+            }
+        } else {
+            spdlog::info("Nil pre callback passed to sdk.hook");
+        }
+
+        if (!post_cb.is<sol::nil_t>()) {
+            if (post_cb.is<sol::function>()) {
+                hooked_fn->script_post_fns.emplace_back(post_cb);
+            } else {
+                throw sol::error("sdk.hook: Post callback must be a function");
+            }
+        } else {
+            spdlog::info("Nil post callback passed to sdk.hook");
+        }
+
         return;
     }
 
     auto hook = std::make_unique<ScriptState::HookedFn>();
 
     hook->target_fn = ignore_jmp ? fn->get_function() : detail::get_actual_function(fn->get_function());
-    hook->script_pre_fns.emplace_back(pre_cb);
-    hook->script_post_fns.emplace_back(post_cb);
+
+    if (!pre_cb.is<sol::nil_t>()) {
+        if (pre_cb.is<sol::function>()) {
+            hook->script_pre_fns.emplace_back(pre_cb);
+        } else {
+            throw sol::error("sdk.hook: Pre callback must be a function");
+        }
+    } else {
+        spdlog::info("Nil pre callback passed to sdk.hook");
+    }
+
+    if (!post_cb.is<sol::nil_t>()) {
+        if (post_cb.is<sol::function>()) {
+            hook->script_post_fns.emplace_back(post_cb);
+        } else {
+            throw sol::error("sdk.hook: Post callback must be a function");
+        }
+    } else {
+        spdlog::info("Nil post callback passed to sdk.hook");
+    }
+
     hook->script_args = sol_state.create_table();
     hook->arg_tys = fn->get_param_types();
     hook->ret_ty = fn->get_return_type();
