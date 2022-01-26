@@ -354,8 +354,13 @@ bool collapsing_header(const char* name) {
     return ImGui::CollapsingHeader(name);
 }
 
-int load_font(const char* filepath, int size, sol::object ranges) {
+int load_font(sol::object filepath_obj, int size, sol::object ranges) {
     namespace fs = std::filesystem;
+    const char* filepath = "doesnt-exist.not-a-real-font";
+
+    if (filepath_obj.is<const char*>()) {
+        filepath = filepath_obj.as<const char*>();
+    }
 
     std::string modpath{};
 

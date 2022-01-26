@@ -747,7 +747,11 @@ void REFramework::update_fonts() {
             ranges = font.ranges.data();
         }
 
-        font.font = fonts->AddFontFromFileTTF(font.filepath.string().c_str(), (float)font.size, nullptr, ranges);
+        if (fs::exists(font.filepath)) {
+            font.font = fonts->AddFontFromFileTTF(font.filepath.string().c_str(), (float)font.size, nullptr, ranges);
+        } else {
+            font.font = fonts->AddFontFromMemoryCompressedTTF(RobotoMedium_compressed_data, RobotoMedium_compressed_size, (float)font.size, nullptr, ranges);
+        }
     }
 
     fonts->Build();
