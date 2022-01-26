@@ -1376,6 +1376,12 @@ void VR::disable_bad_effects() {
     static auto get_colorspace_method = render_config_t->get_method("get_ColorSpace");
     static auto set_colorspace_method = render_config_t->get_method("set_ColorSpace");
 
+    static auto get_hdrmode_method = render_config_t->get_method("get_HDRMode");
+    static auto set_hdrmode_method = render_config_t->get_method("set_HDRMode");
+
+    static auto get_hdr_display_mode_enable_method = render_config_t->get_method("get_HDRDisplayModeEnable");
+    static auto set_hdr_display_mode_enable_method = render_config_t->get_method("set_HDRDisplayModeEnable");
+
     auto renderer = renderer_t->get_instance();
 
     auto render_config = get_render_config_method->call<::REManagedObject*>(context, renderer);
@@ -1473,12 +1479,28 @@ void VR::disable_bad_effects() {
         }
     }
 
+    if (get_hdrmode_method != nullptr && set_hdrmode_method != nullptr) {
+        // static
+        const auto is_hdr_enabled = get_hdrmode_method->call<bool>(context);
+
+        // Disable HDR
+        if (is_hdr_enabled) {
+            set_hdrmode_method->call<void*>(context, false);
+            
+            if (set_hdr_display_mode_enable_method != nullptr) {
+                set_hdr_display_mode_enable_method->call<void*>(context, false);
+            }
+
+            spdlog::info("[VR] HDR disabled");
+        }
+    }
+
     if (get_colorspace_method != nullptr && set_colorspace_method != nullptr) {
         const auto is_hdr_enabled = get_colorspace_method->call<via::render::ColorSpace>(context, render_config) == via::render::ColorSpace::HDR10;
 
         if (is_hdr_enabled) {
             set_colorspace_method->call<void*>(context, render_config, via::render::ColorSpace::HDTV);
-            spdlog::info("[VR] HDR disabled");
+            spdlog::info("[VR] HDR disabled (ColorSpace)");
         }
     }
 
