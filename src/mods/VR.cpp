@@ -1376,11 +1376,11 @@ void VR::disable_bad_effects() {
     static auto get_colorspace_method = render_config_t->get_method("get_ColorSpace");
     static auto set_colorspace_method = render_config_t->get_method("set_ColorSpace");
 
-    static auto get_hdrmode_method = render_config_t->get_method("get_HDRMode");
-    static auto set_hdrmode_method = render_config_t->get_method("set_HDRMode");
+    static auto get_hdrmode_method = renderer_t->get_method("get_HDRMode");
+    static auto set_hdrmode_method = renderer_t->get_method("set_HDRMode");
 
-    static auto get_hdr_display_mode_enable_method = render_config_t->get_method("get_HDRDisplayModeEnable");
-    static auto set_hdr_display_mode_enable_method = render_config_t->get_method("set_HDRDisplayModeEnable");
+    static auto get_hdr_display_mode_enable_method = renderer_t->get_method("get_HDRDisplayModeEnable");
+    static auto set_hdr_display_mode_enable_method = renderer_t->get_method("set_HDRDisplayModeEnable");
 
     auto renderer = renderer_t->get_instance();
 
