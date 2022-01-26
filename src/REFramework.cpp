@@ -340,6 +340,8 @@ REFramework::~REFramework() {
 void REFramework::on_frame_d3d11() {
     spdlog::debug("on_frame (D3D11)");
 
+    m_renderer_type = RendererType::D3D11;
+
     if (!m_initialized) {
         if (!initialize()) {
             spdlog::error("Failed to initialize REFramework on DirectX 11");
@@ -350,8 +352,6 @@ void REFramework::on_frame_d3d11() {
         m_initialized = true;
         return;
     }
-
-    m_renderer_type = RendererType::D3D11;
     
     if (m_message_hook_requested) {
         initialize_windows_message_hook();
@@ -426,6 +426,8 @@ void REFramework::on_post_present_d3d11() {
 
 // D3D12 Draw funciton
 void REFramework::on_frame_d3d12() {
+    m_renderer_type = RendererType::D3D12;
+
     auto command_queue = m_d3d12_hook->get_command_queue();
 
     //spdlog::debug("on_frame (D3D12)");
@@ -445,8 +447,6 @@ void REFramework::on_frame_d3d12() {
         spdlog::error("Null Command Queue");
         return;
     }
-
-    m_renderer_type = RendererType::D3D12;
 
     if (m_message_hook_requested) {
         initialize_windows_message_hook();
