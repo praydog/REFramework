@@ -15,6 +15,7 @@
 #include "bindings/Sdk.hpp"
 #include "bindings/ImGui.hpp"
 #include "bindings/Json.hpp"
+#include "bindings/FS.hpp"
 
 #include "ScriptRunner.hpp"
 
@@ -51,6 +52,7 @@ ScriptState::ScriptState() {
     bindings::open_sdk(this);
     bindings::open_imgui(this);
     bindings::open_json(this);
+    bindings::open_fs(this);
 
     auto re = m_lua.create_table();
     re["msg"] = api::re::msg;
