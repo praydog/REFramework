@@ -307,7 +307,8 @@ void internal_frame() {
             display_type(obj, t);
         };
 
-        static auto display_type_info = [](void* obj, API::TypeInfo* ti) {
+        static void (*display_type_info)(void* obj, API::TypeInfo* ti) = nullptr;
+        display_type_info = [](void* obj, API::TypeInfo* ti) {
             if (ti == nullptr) {
                 return;
             }
@@ -315,15 +316,38 @@ void internal_frame() {
             const auto typeinfo_name = ti->get_name();
             const auto is_singleton = ti->is_singleton();
             const auto is_clr_type = ti->is_clr_type();
+            const auto deserializer = ti->get_deserializer_fn();
+            const auto crc = ti->get_crc();
+
+            if (const auto parent = ti->get_parent(); parent != nullptr) {
+                if (ImGui::TreeNode(parent->get_name(), "%s", parent->get_name())) {
+                    display_type_info(obj, parent);
+                    ImGui::TreePop();
+                }
+            }
             
             ImGui::Text("Name: %s", typeinfo_name);
             ImGui::Text("Is singleton: %d", is_singleton);
             ImGui::Text("Is CLR type: %d", is_clr_type);
+            ImGui::Text("Deserializer: %p", typeinfo_name);
+            ImGui::Text("CRC: %x", crc);
 
             if (is_singleton) {
                 const auto instance = ti->get_singleton_instance();
 
                 ImGui::Text("Instance: %p", instance);
+            }
+
+            if (auto tdef = ti->get_type_definition(); tdef != nullptr) {
+                if (ImGui::TreeNode("Methods")) {
+                    display_methods(tdef);
+                    ImGui::TreePop();
+                }
+
+                if (ImGui::TreeNode("Fields")) {
+                    display_fields(obj, tdef);
+                    ImGui::TreePop();
+                }
             }
         };
         

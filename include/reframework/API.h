@@ -82,6 +82,8 @@ DECLARE_REFRAMEWORK_HANDLE(REFrameworkResourceHandle);
 DECLARE_REFRAMEWORK_HANDLE(REFrameworkResourceManagerHandle);
 DECLARE_REFRAMEWORK_HANDLE(REFrameworkVMContextHandle);
 DECLARE_REFRAMEWORK_HANDLE(REFrameworkTypeInfoHandle); // NOT a type definition
+DECLARE_REFRAMEWORK_HANDLE(REFrameworkReflectionPropertyHandle); // NOT a TDB property
+DECLARE_REFRAMEWORK_HANDLE(REFrameworkReflectionMethodHandle); // NOT a TDB method
 
 #define REFRAMEWORK_CREATE_INSTANCE_FLAGS_NONE 0
 #define REFRAMEWORK_CREATE_INSTANCE_FLAGS_SIMPLIFY 1
@@ -93,7 +95,19 @@ DECLARE_REFRAMEWORK_HANDLE(REFrameworkTypeInfoHandle); // NOT a type definition
 #define REFRAMEWORK_VM_OBJ_TYPE_DELEGATE 4
 #define REFRAMEWORK_VM_OBJ_TYPE_VALTYPE 5
 
+/*
+struct StackFrame {
+    char pad_0000[8+8]; //0x0000
+    const sdk::REMethodDefinition* method;
+    char pad_0010[24]; //0x0018
+    void* in_data; //0x0030 can point to data
+    void* out_data; //0x0038 can be whatever, can be a dword, can point to data
+    void* object_ptr; //0x0040 aka "this" pointer
+};*/
+
 typedef unsigned int REFrameworkVMObjType;
+typedef void (*REFrameworkInvokeMethod)(void* stack_frame, void* context);
+typedef void* (*REFrameworkReflectionPropertyMethod)(REFrameworkReflectionPropertyHandle* prop, REFrameworkManagedObjectHandle* thisptr, void* out_data);
 
 typedef struct {
     unsigned int (*get_index)(REFrameworkTypeDefinitionHandle);
@@ -250,8 +264,8 @@ typedef struct {
     unsigned int (*get_vm_obj_type)(REFrameworkManagedObjectHandle);
     REFrameworkTypeInfoHandle (*get_type_info)(REFrameworkManagedObjectHandle); // NOT a type definition
     void* (*get_reflection_properties)(REFrameworkManagedObjectHandle);
-    void* (*get_reflection_property_descriptor)(REFrameworkManagedObjectHandle, const char* name);
-    void* (*get_reflection_method_descriptor)(REFrameworkManagedObjectHandle, const char* name);
+    REFrameworkReflectionPropertyHandle (*get_reflection_property_descriptor)(REFrameworkManagedObjectHandle, const char* name);
+    REFrameworkReflectionMethodHandle (*get_reflection_method_descriptor)(REFrameworkManagedObjectHandle, const char* name);
 } REFrameworkManagedObject;
 
 typedef struct {
@@ -286,8 +300,11 @@ typedef struct {
     void* (*get_singleton_instance)(REFrameworkTypeInfoHandle);
     void* (*create_instance)(REFrameworkTypeInfoHandle);
     void* (*get_reflection_properties)(REFrameworkTypeInfoHandle);
-    void* (*get_reflection_property_descriptor)(REFrameworkTypeInfoHandle, const char* name);
-    void* (*get_reflection_method_descriptor)(REFrameworkTypeInfoHandle, const char* name);
+    REFrameworkReflectionPropertyHandle (*get_reflection_property_descriptor)(REFrameworkTypeInfoHandle, const char* name);
+    REFrameworkReflectionMethodHandle (*get_reflection_method_descriptor)(REFrameworkTypeInfoHandle, const char* name);
+    void* (*get_deserializer_fn)(REFrameworkTypeInfoHandle);
+    REFrameworkTypeInfoHandle (*get_parent)(REFrameworkTypeInfoHandle);
+    unsigned int (*get_crc)(REFrameworkTypeInfoHandle);
 } REFrameworkTypeInfo;
 
 typedef struct {
@@ -296,6 +313,18 @@ typedef struct {
     void (*local_frame_gc)(REFrameworkVMContextHandle);
     void (*cleanup_after_exception)(REFrameworkVMContextHandle, int old_reference_count);
 } REFrameworkVMContext;
+
+// NOT a TDB method
+typedef struct {
+    REFrameworkInvokeMethod (*get_function)(REFrameworkReflectionMethodHandle);
+} REFrameworkReflectionMethod;
+
+// NOT a TDB property
+typedef struct {
+    REFrameworkReflectionPropertyMethod (*get_getter)(REFrameworkReflectionPropertyHandle);
+    bool (*is_static)(REFrameworkReflectionPropertyHandle);
+    unsigned int (*get_size)(REFrameworkReflectionPropertyHandle);
+} REFrameworkReflectionProperty;
 
 typedef struct {
     REFrameworkTDBHandle (*get_tdb)();
@@ -330,6 +359,8 @@ typedef struct {
     const REFrameworkResource* resource;
     const REFrameworkTypeInfo* type_info; // NOT a type definition
     const REFrameworkVMContext* vm_context;
+    const REFrameworkReflectionMethod* reflection_method; // NOT a TDB method
+    const REFrameworkReflectionProperty* reflection_property; // NOT a TDB property
 } REFrameworkSDKData;
 
 typedef struct {

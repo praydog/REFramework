@@ -393,8 +393,8 @@ REFrameworkManagedObject g_managed_object_data {
     [](REFrameworkManagedObjectHandle obj) { return (unsigned int)utility::re_managed_object::get_vm_type(REMANAGEDOBJECT(obj)); },
     [](REFrameworkManagedObjectHandle obj) { return (REFrameworkTypeInfoHandle)utility::re_managed_object::get_type(REMANAGEDOBJECT(obj)); },
     [](REFrameworkManagedObjectHandle obj) { return (void*)utility::re_managed_object::get_variables(REMANAGEDOBJECT(obj)); },
-    [](REFrameworkManagedObjectHandle obj, const char* name) { return (void*)utility::re_managed_object::get_field_desc(REMANAGEDOBJECT(obj), name); },
-    [](REFrameworkManagedObjectHandle obj, const char* name) { return (void*)utility::re_managed_object::get_method_desc(REMANAGEDOBJECT(obj), name); },
+    [](REFrameworkManagedObjectHandle obj, const char* name) { return (REFrameworkReflectionPropertyHandle)utility::re_managed_object::get_field_desc(REMANAGEDOBJECT(obj), name); },
+    [](REFrameworkManagedObjectHandle obj, const char* name) { return (REFrameworkReflectionMethodHandle)utility::re_managed_object::get_method_desc(REMANAGEDOBJECT(obj), name); },
 };
 
 #define RERESOURCEMGR(var) ((sdk::ResourceManager*)var)
@@ -429,8 +429,21 @@ REFrameworkTypeInfo g_type_info_data {
     [](REFrameworkTypeInfoHandle ti) { return utility::re_type::get_singleton_instance(RETYPEINFO(ti)); },
     [](REFrameworkTypeInfoHandle ti) { return utility::re_type::create_instance(RETYPEINFO(ti)); },
     [](REFrameworkTypeInfoHandle ti) { return (void*)utility::re_type::get_variables(RETYPEINFO(ti)); },
-    [](REFrameworkTypeInfoHandle ti, const char* name) { return (void*)utility::re_type::get_field_desc(RETYPEINFO(ti), name); },
-    [](REFrameworkTypeInfoHandle ti, const char* name) { return (void*)utility::re_type::get_method_desc(RETYPEINFO(ti), name); }
+    [](REFrameworkTypeInfoHandle ti, const char* name) { return (REFrameworkReflectionPropertyHandle)utility::re_type::get_field_desc(RETYPEINFO(ti), name); },
+    [](REFrameworkTypeInfoHandle ti, const char* name) { return (REFrameworkReflectionMethodHandle)utility::re_type::get_method_desc(RETYPEINFO(ti), name); },
+    [](REFrameworkTypeInfoHandle ti) -> void* {
+        if (RETYPEINFO(ti)->fields == nullptr) {
+            return nullptr;
+        }
+
+        return RETYPEINFO(ti)->fields->deserializer;
+    },
+    [](REFrameworkTypeInfoHandle ti) -> REFrameworkTypeInfoHandle {
+        return (REFrameworkTypeInfoHandle)RETYPEINFO(ti)->super;
+    },
+    [](REFrameworkTypeInfoHandle ti) {
+        return RETYPEINFO(ti)->typeCRC;
+    }
 };
 
 #define VMCONTEXT(var) ((sdk::VMContext*)var)
@@ -441,6 +454,28 @@ REFrameworkVMContext g_vm_context_data {
     [](REFrameworkVMContextHandle ctx) { VMCONTEXT(ctx)->unhandled_exception(); },
     [](REFrameworkVMContextHandle ctx) { VMCONTEXT(ctx)->local_frame_gc(); },
     [](REFrameworkVMContextHandle ctx, int32_t old) { VMCONTEXT(ctx)->cleanup_after_exception(old); },
+};
+
+#define REFLMETHOD(var) ((::FunctionDescriptor*)var)
+
+REFrameworkReflectionMethod g_reflection_method_data {
+    [](REFrameworkReflectionMethodHandle method) -> REFrameworkInvokeMethod {
+        return (REFrameworkInvokeMethod)REFLMETHOD(method)->functionPtr;
+    }
+};
+
+#define REFLPROP(var) ((::VariableDescriptor*)var)
+
+REFrameworkReflectionProperty g_reflection_prop_data {
+    [](REFrameworkReflectionPropertyHandle prop) -> REFrameworkReflectionPropertyMethod {
+        return (REFrameworkReflectionPropertyMethod)REFLPROP(prop)->function;
+    },
+    [](REFrameworkReflectionPropertyHandle prop) { 
+        return utility::reflection_property::is_static(REFLPROP(prop));
+    },
+    [](REFrameworkReflectionPropertyHandle prop) {
+        return utility::reflection_property::get_size(REFLPROP(prop));
+    }
 };
 
 REFrameworkSDKData g_sdk_data {
@@ -454,7 +489,9 @@ REFrameworkSDKData g_sdk_data {
     &g_resource_manager_data,
     &g_resource_data,
     &g_type_info_data,
-    &g_vm_context_data
+    &g_vm_context_data,
+    &g_reflection_method_data,
+    &g_reflection_prop_data,
 };
 
 REFrameworkPluginInitializeParam g_plugin_initialize_param{
