@@ -84,6 +84,10 @@ public:
         return m_inside_present;
     }
 
+    bool is_proton_swapchain() const {
+        return m_using_proton_swapchain;
+    }
+
 protected:
     ID3D12Device4* m_device{ nullptr };
     IDXGISwapChain3* m_swap_chain{ nullptr };
@@ -96,7 +100,9 @@ protected:
     UINT m_render_height{ NULL };
 
     uint32_t m_command_queue_offset{};
+    uint32_t m_proton_swapchain_offset{};
 
+    bool m_using_proton_swapchain{ false };
     bool m_hooked{ false };
     bool m_inside_present{false};
 

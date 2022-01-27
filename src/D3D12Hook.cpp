@@ -180,14 +180,66 @@ bool D3D12Hook::hook() {
         return false;
     }
 
+    spdlog::info("Finding command queue offset");
+
     // Find the command queue offset in the swapchain
     for (auto i = 0; i < 512 * sizeof(void*); i += sizeof(void*)) {
-        auto data = *(ID3D12CommandQueue**)((uintptr_t)swap_chain1 + i);
+        const auto base = (uintptr_t)swap_chain1 + i;
+
+        // reached the end
+        if (IsBadReadPtr((void*)base, sizeof(void*))) {
+            break;
+        }
+
+        auto data = *(ID3D12CommandQueue**)base;
 
         if (data == command_queue) {
             m_command_queue_offset = i;
             spdlog::info("Found command queue offset: {:x}", i);
             break;
+        }
+    }
+
+    // Scan throughout the swapchain for a valid pointer to scan through
+    // this is usually only necessary for Proton
+    if (m_command_queue_offset == 0) {
+        for (auto base = 0; base < 512 * sizeof(void*); base += sizeof(void*)) {
+            const auto pre_scan_base = (uintptr_t)swap_chain1 + base;
+
+            // reached the end
+            if (IsBadReadPtr((void*)pre_scan_base, sizeof(void*))) {
+                break;
+            }
+
+            const auto scan_base = *(uintptr_t*)pre_scan_base;
+
+            if (scan_base == 0 || IsBadReadPtr((void*)scan_base, sizeof(void*))) {
+                continue;
+            }
+
+            for (auto i = 0; i < 512 * sizeof(void*); i += sizeof(void*)) {
+                const auto pre_data = scan_base + i;
+
+                if (IsBadReadPtr((void*)pre_data, sizeof(void*))) {
+                    break;
+                }
+
+                auto data = *(ID3D12CommandQueue**)pre_data;
+
+                if (data == command_queue) {
+                    m_using_proton_swapchain = true;
+                    m_command_queue_offset = i;
+                    m_proton_swapchain_offset = base;
+
+                    spdlog::info("Proton potentially detected");
+                    spdlog::info("Found command queue offset: {:x}", i);
+                    break;
+                }
+            }
+
+            if (m_using_proton_swapchain) {
+                break;
+            }
         }
     }
 
@@ -269,7 +321,12 @@ HRESULT WINAPI D3D12Hook::present(IDXGISwapChain3* swap_chain, UINT sync_interva
     swap_chain->GetDevice(IID_PPV_ARGS(&d3d12->m_device));
 
     if (d3d12->m_device != nullptr) {
-        d3d12->m_command_queue = *(ID3D12CommandQueue**)((uintptr_t)swap_chain + d3d12->m_command_queue_offset);
+        if (d3d12->m_using_proton_swapchain) {
+            const auto real_swapchain = *(uintptr_t*)((uintptr_t)swap_chain + d3d12->m_proton_swapchain_offset);
+            d3d12->m_command_queue = *(ID3D12CommandQueue**)(real_swapchain + d3d12->m_command_queue_offset);
+        } else {
+            d3d12->m_command_queue = *(ID3D12CommandQueue**)((uintptr_t)swap_chain + d3d12->m_command_queue_offset);
+        }
     }
 
     if (d3d12->m_swapchain_0 == nullptr) {
