@@ -4,7 +4,7 @@
 
 #include "Mod.hpp"
 
-#include "../include/API.hpp"
+#include "reframework/API.hpp"
 
 // API manager/proxy to call callbacks added via the C interface
 class APIProxy : public Mod {
@@ -19,6 +19,8 @@ public:
     void on_lua_state_destroyed(sol::state& state) override;
     void on_pre_application_entry(void* entry, const char* name, size_t hash) override;
     void on_application_entry(void* entry, const char* name, size_t hash) override;
+    void on_device_reset() override;
+    bool on_message(HWND wnd, UINT message, WPARAM w_param, LPARAM l_param) override;
 
 public:
     using REFInitializedCb = std::function<std::remove_pointer<::REFInitializedCb>::type>;
@@ -27,21 +29,25 @@ public:
     using REFOnFrameCb = std::function<std::remove_pointer<::REFOnFrameCb>::type>;
     using REFOnPreApplicationEntryCb = std::function<std::remove_pointer<::REFOnPreApplicationEntryCb>::type>;
     using REFOnPostApplicationEntryCb = std::function<std::remove_pointer<::REFOnPostApplicationEntryCb>::type>;
+    using REFOnDeviceResetCb = std::function<std::remove_pointer<::REFOnDeviceResetCb>::type>;
+    using REFOnMessageCb = std::function<std::remove_pointer<::REFOnMessageCb>::type>;
 
-    static bool add_on_initialized(REFInitializedCb cb); // effectively serves as a do-once callback
     bool add_on_lua_state_created(REFLuaStateCreatedCb cb);
     bool add_on_lua_state_destroyed(REFLuaStateDestroyedCb cb);
     bool add_on_frame(REFOnFrameCb cb);
     bool add_on_pre_application_entry(std::string_view name, REFOnPreApplicationEntryCb cb);
     bool add_on_post_application_entry(std::string_view name, REFOnPostApplicationEntryCb cb);
+    bool add_on_device_reset(REFOnDeviceResetCb cb);
+    bool add_on_message(REFOnMessageCb cb);
 
 private:
     // API Callbacks
     static std::recursive_mutex s_api_cb_mtx;
-    static std::vector<APIProxy::REFInitializedCb> s_on_initialized_cbs;
     std::vector<APIProxy::REFLuaStateCreatedCb> m_on_lua_state_created_cbs;
     std::vector<APIProxy::REFLuaStateDestroyedCb> m_on_lua_state_destroyed_cbs;
     std::vector<APIProxy::REFInitializedCb> m_on_frame_cbs{};
+    std::vector<APIProxy::REFOnDeviceResetCb> m_on_device_reset_cbs{};
+    std::vector<APIProxy::REFOnMessageCb> m_on_message_cbs{};
 
     // Application Entry Callbacks
     std::unordered_map<size_t, std::vector<APIProxy::REFOnPreApplicationEntryCb>> m_on_pre_application_entry_cbs{};

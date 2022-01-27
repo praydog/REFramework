@@ -276,6 +276,8 @@ struct RETypeDefinition : public sdk::RETypeDefinition_ {
         sdk::REProperty* begin() const;
         sdk::REProperty* end() const;
 
+        size_t size() const;
+
     private:
         const sdk::RETypeDefinition* m_parent;
     };

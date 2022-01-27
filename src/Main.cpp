@@ -1,6 +1,6 @@
-#include <thread>
 #include <chrono>
 #include <mutex>
+#include <thread>
 #include <windows.h>
 
 #include "ExceptionHandler.hpp"
@@ -21,10 +21,10 @@ bool load_dinput8() {
         return true;
     }
 
-    wchar_t buffer[MAX_PATH]{ 0 };
+    wchar_t buffer[MAX_PATH]{0};
     if (GetSystemDirectoryW(buffer, MAX_PATH) != 0) {
         // Load the original dinput8.dll
-        if ((g_dinput = LoadLibraryW((std::wstring{ buffer } + L"\\dinput8.dll").c_str())) == NULL) {
+        if ((g_dinput = LoadLibraryW((std::wstring{buffer} + L"\\dinput8.dll").c_str())) == NULL) {
             failed();
             return false;
         }
@@ -37,18 +37,19 @@ bool load_dinput8() {
 }
 
 extern "C" {
-    // DirectInput8Create wrapper for dinput8.dll
-    __declspec(dllexport) HRESULT WINAPI direct_input8_create(HINSTANCE hinst, DWORD dw_version, const IID& riidltf, LPVOID* ppv_out, LPUNKNOWN punk_outer) {
-        // This needs to be done because when we include dinput.h in DInputHook,
-        // It is a redefinition, so we assign an export by not using the original name
-        #pragma comment(linker, "/EXPORT:DirectInput8Create=direct_input8_create")
+// DirectInput8Create wrapper for dinput8.dll
+__declspec(dllexport) HRESULT WINAPI
+    direct_input8_create(HINSTANCE hinst, DWORD dw_version, const IID& riidltf, LPVOID* ppv_out, LPUNKNOWN punk_outer) {
+// This needs to be done because when we include dinput.h in DInputHook,
+// It is a redefinition, so we assign an export by not using the original name
+#pragma comment(linker, "/EXPORT:DirectInput8Create=direct_input8_create")
 
-        load_dinput8();
-        return ((decltype(DirectInput8Create)*)GetProcAddress(g_dinput, "DirectInput8Create"))(hinst, dw_version, riidltf, ppv_out, punk_outer);
-    }
+    load_dinput8();
+    return ((decltype(DirectInput8Create)*)GetProcAddress(g_dinput, "DirectInput8Create"))(hinst, dw_version, riidltf, ppv_out, punk_outer);
+}
 }
 
-void startup_thread() {
+void startup_thread(HMODULE reframework_module) {
     // We will set it once here, then do it continuously
     // every now and then because it gets replaced
     reframework::setup_exception_handler();
@@ -61,13 +62,13 @@ void startup_thread() {
 #endif
 
     if (load_dinput8()) {
-        g_framework = std::make_unique<REFramework>();
+        g_framework = std::make_unique<REFramework>(reframework_module);
     }
 }
 
 BOOL APIENTRY DllMain(HANDLE handle, DWORD reason, LPVOID reserved) {
     if (reason == DLL_PROCESS_ATTACH) {
-        CreateThread(nullptr, 0, (LPTHREAD_START_ROUTINE)startup_thread, nullptr, 0, nullptr);
+        CreateThread(nullptr, 0, (LPTHREAD_START_ROUTINE)startup_thread, handle, 0, nullptr);
     }
 
     return TRUE;

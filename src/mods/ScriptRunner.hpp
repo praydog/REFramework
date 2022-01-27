@@ -15,7 +15,7 @@
 
 #include "Mod.hpp"
 
-#include "../include/API.hpp"
+#include "reframework/API.hpp"
 
 class REManagedObject;
 class RETransform;
@@ -133,6 +133,22 @@ public:
 
     const auto& get_state() {
         return m_state;
+    }
+
+    void lock() {
+        m_access_mutex.lock();
+
+        if (m_state) {
+            ScriptState::lock_static(m_state.get());
+        }
+    }
+
+    void unlock() {
+        if (m_state) {
+            ScriptState::unlock_static(m_state.get());
+        }
+
+        m_access_mutex.unlock();
     }
 
 private:

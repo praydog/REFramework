@@ -86,7 +86,7 @@ include-directories = ["src/", "include/"]
 link-directories = ["dependencies/openvr/lib/win64/"]
 compile-options = ["/GS-", "/bigobj", "/EHa"]
 compile-features = ["cxx_std_20"]
-compile-definitions = ["${CMKR_TARGET}", "REFRAMEWORK_EXPORTS"]
+compile-definitions = ["${CMKR_TARGET}", "REFRAMEWORK_EXPORTS", "REFRAMEWORK_GAME_NAME=\"${CMKR_TARGET}\""]
 developer-mode.compile-definitions = ["DEVELOPER"]
 link-libraries = [
     "xbyak",
@@ -130,3 +130,23 @@ type = "game"
 
 [target.MHRISE]
 type = "game"
+
+[target.example_plugin]
+type = "shared"
+sources = ["example_plugin/**.cpp", "example_plugin/**.c"]
+headers = ["example_plugin/**.hpp", "example_plugin/**.h"]
+include-directories = ["include/"]
+compile-features = ["cxx_std_20"]
+link-libraries = [
+    "lua",
+    "sol2",
+    "imgui"
+]
+
+[target.example_plugin.properties]
+RUNTIME_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
+RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO = "${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
+LIBRARY_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+LIBRARY_OUTPUT_DIRECTORY_RELWITHDEBINFO = "${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+ARCHIVE_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+ARCHIVE_OUTPUT_DIRECTORY_RELWITHDEBINFO = "${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"

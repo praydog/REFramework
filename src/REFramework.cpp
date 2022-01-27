@@ -21,6 +21,7 @@ extern "C" {
 #include "utility/Scan.hpp"
 
 #include "Mods.hpp"
+#include "mods/PluginLoader.hpp"
 #include "sdk/REGlobals.hpp"
 
 #include "ExceptionHandler.hpp"
@@ -125,8 +126,9 @@ void REFramework::hook_monitor() {
     }
 }
 
-REFramework::REFramework()
-    : m_game_module{GetModuleHandle(0)}
+REFramework::REFramework(HMODULE reframework_module)
+    : m_reframework_module{reframework_module}
+    , m_game_module{GetModuleHandle(0)}
     , m_logger{spdlog::basic_logger_mt("REFramework", "re2_framework_log.txt", true)} {
     spdlog::set_default_logger(m_logger);
     spdlog::flush_on(spdlog::level::info);
@@ -197,6 +199,7 @@ REFramework::REFramework()
     std::chrono::steady_clock::time_point next_log = now;
 
     // wait for the game to load (WTF MHRISE??)
+    // once this is done, we can assume the process is unpacked.
     while (LoadLibraryA("d3d12.dll") == nullptr) {
         if (now >= next_log) {
             spdlog::info("[REFramework] Waiting for D3D12...");
@@ -230,6 +233,9 @@ REFramework::REFramework()
     m_last_present_time = std::chrono::steady_clock::now();
     m_last_message_time = std::chrono::steady_clock::now();
     m_d3d_monitor_thread = std::make_unique<std::thread>([this]() {
+        // Load the plugins early right after executable unpacking
+        PluginLoader::get()->early_init();
+
         while (true) {
             this->hook_monitor();
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -334,6 +340,8 @@ REFramework::~REFramework() {
 void REFramework::on_frame_d3d11() {
     spdlog::debug("on_frame (D3D11)");
 
+    m_renderer_type = RendererType::D3D11;
+
     if (!m_initialized) {
         if (!initialize()) {
             spdlog::error("Failed to initialize REFramework on DirectX 11");
@@ -344,8 +352,6 @@ void REFramework::on_frame_d3d11() {
         m_initialized = true;
         return;
     }
-
-    m_renderer_type = RendererType::D3D11;
     
     if (m_message_hook_requested) {
         initialize_windows_message_hook();
@@ -420,6 +426,8 @@ void REFramework::on_post_present_d3d11() {
 
 // D3D12 Draw funciton
 void REFramework::on_frame_d3d12() {
+    m_renderer_type = RendererType::D3D12;
+
     auto command_queue = m_d3d12_hook->get_command_queue();
 
     //spdlog::debug("on_frame (D3D12)");
@@ -439,8 +447,6 @@ void REFramework::on_frame_d3d12() {
         spdlog::error("Null Command Queue");
         return;
     }
-
-    m_renderer_type = RendererType::D3D12;
 
     if (m_message_hook_requested) {
         initialize_windows_message_hook();
@@ -636,7 +642,17 @@ bool REFramework::on_message(HWND wnd, UINT message, WPARAM w_param, LPARAM l_pa
         }
     }
 
-    return true;
+    bool any_false = false;
+
+    if (m_game_data_initialized) {
+        for (auto& mod : m_mods->get_mods()) {
+            if (!mod->on_message(wnd, message, w_param, l_param)) {
+                any_false = true;
+            }
+        }
+    }
+
+    return !any_false;
 }
 
 // this is unfortunate.

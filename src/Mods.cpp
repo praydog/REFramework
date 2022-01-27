@@ -1,17 +1,18 @@
 #include <spdlog/spdlog.h>
 
-#include "mods/IntegrityCheckBypass.hpp"
-#include "mods/Hooks.hpp"
-#include "mods/Camera.hpp"
-#include "mods/FirstPerson.hpp"
-#include "mods/DeveloperTools.hpp"
-#include "mods/ManualFlashlight.hpp"
-#include "mods/FreeCam.hpp"
-#include "mods/Scene.hpp"
-#include "mods/VR.hpp"
-#include "mods/ScriptRunner.hpp"
 #include "mods/APIProxy.hpp"
+#include "mods/Camera.hpp"
+#include "mods/DeveloperTools.hpp"
+#include "mods/FirstPerson.hpp"
+#include "mods/FreeCam.hpp"
+#include "mods/Hooks.hpp"
+#include "mods/IntegrityCheckBypass.hpp"
+#include "mods/ManualFlashlight.hpp"
+#include "mods/PluginLoader.hpp"
 #include "mods/REFrameworkConfig.hpp"
+#include "mods/Scene.hpp"
+#include "mods/ScriptRunner.hpp"
+#include "mods/VR.hpp"
 
 #include "Mods.hpp"
 
@@ -26,8 +27,6 @@ Mods::Mods() {
     m_mods.emplace_back(std::make_unique<Hooks>());
 
     m_mods.emplace_back(VR::get());
-    m_mods.emplace_back(ScriptRunner::get());
-    m_mods.emplace_back(APIProxy::get());
 
 #ifndef RE8
 
@@ -59,6 +58,10 @@ Mods::Mods() {
         m_mods.emplace_back(tool);
     }
 #endif
+
+    m_mods.emplace_back(APIProxy::get());
+    m_mods.emplace_back(PluginLoader::get());
+    m_mods.emplace_back(ScriptRunner::get());
 }
 
 std::optional<std::string> Mods::on_initialize() const {

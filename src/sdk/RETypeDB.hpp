@@ -12,9 +12,11 @@ class REParameterDef;
 class REAttributeDef;
 class REManagedObject;
 
-namespace sdk {
+namespace reframework {
 struct InvokeRet;
+}
 
+namespace sdk {
 struct RETypeDefinition;
 struct RETypeImpl;
 struct REField;
@@ -25,8 +27,8 @@ struct REProperty;
 struct REPropertyImpl;
 struct REParameterDef;
 
-sdk::InvokeRet invoke_object_func(void* obj, sdk::RETypeDefinition* t, std::string_view name, const std::vector<void*>& args);
-sdk::InvokeRet invoke_object_func(::REManagedObject* obj, std::string_view name, const std::vector<void*>& args);
+reframework::InvokeRet invoke_object_func(void* obj, sdk::RETypeDefinition* t, std::string_view name, const std::vector<void*>& args);
+reframework::InvokeRet invoke_object_func(::REManagedObject* obj, std::string_view name, const std::vector<void*>& args);
 
 sdk::REMethodDefinition* get_object_method(::REManagedObject* obj, std::string_view name);
 
@@ -575,23 +577,6 @@ struct REField : public sdk::REField_ {
     template <typename T> T& get_data(void* object = nullptr, bool is_value_type = false) const { return *(T*)get_data_raw(object); }
 };
 
-#pragma pack(push, 1)
-struct InvokeRet {
-    union {
-        std::array<uint8_t, 128> bytes{};
-        uint8_t byte;
-        uint16_t word;
-        uint32_t dword;
-        float f;
-        uint64_t qword;
-        double d;
-        void* ptr;
-    };
-
-    bool exception_thrown{false};
-};
-#pragma pack(pop)
-
 struct REMethodDefinition : public sdk::REMethodDefinition_ {
     sdk::RETypeDefinition* get_declaring_type() const;
     sdk::RETypeDefinition* get_return_type() const;
@@ -659,7 +644,7 @@ struct REMethodDefinition : public sdk::REMethodDefinition_ {
     // calling is the actual call to the function
     // invoking is calling a wrapper function that calls the function
     // using an array of arguments
-    InvokeRet invoke(void* object, const std::vector<void*>& args) const;
+    ::reframework::InvokeRet invoke(void* object, const std::vector<void*>& args) const;
 
     uint32_t get_invoke_id() const;
     uint32_t get_num_params() const;

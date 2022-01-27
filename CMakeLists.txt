@@ -315,7 +315,6 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	set(RE2_SOURCES "")
 
 	list(APPEND RE2_SOURCES
-		"src/API.cpp"
 		"src/D3D11Hook.cpp"
 		"src/D3D12Hook.cpp"
 		"src/DInputHook.cpp"
@@ -332,6 +331,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 		"src/mods/Hooks.cpp"
 		"src/mods/IntegrityCheckBypass.cpp"
 		"src/mods/ManualFlashlight.cpp"
+		"src/mods/PluginLoader.cpp"
 		"src/mods/REFrameworkConfig.cpp"
 		"src/mods/Scene.cpp"
 		"src/mods/ScriptRunner.cpp"
@@ -394,6 +394,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 		"src/mods/Hooks.hpp"
 		"src/mods/IntegrityCheckBypass.hpp"
 		"src/mods/ManualFlashlight.hpp"
+		"src/mods/PluginLoader.hpp"
 		"src/mods/REFrameworkConfig.hpp"
 		"src/mods/Scene.hpp"
 		"src/mods/ScriptRunner.hpp"
@@ -656,6 +657,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	target_compile_definitions(RE2 PUBLIC
 		${CMKR_TARGET}
 		REFRAMEWORK_EXPORTS
+		"REFRAMEWORK_GAME_NAME=\"${CMKR_TARGET}\""
 	)
 
 	if(DEVELOPER_MODE) # developer-mode
@@ -727,7 +729,6 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	set(RE3_SOURCES "")
 
 	list(APPEND RE3_SOURCES
-		"src/API.cpp"
 		"src/D3D11Hook.cpp"
 		"src/D3D12Hook.cpp"
 		"src/DInputHook.cpp"
@@ -744,6 +745,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 		"src/mods/Hooks.cpp"
 		"src/mods/IntegrityCheckBypass.cpp"
 		"src/mods/ManualFlashlight.cpp"
+		"src/mods/PluginLoader.cpp"
 		"src/mods/REFrameworkConfig.cpp"
 		"src/mods/Scene.cpp"
 		"src/mods/ScriptRunner.cpp"
@@ -806,6 +808,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 		"src/mods/Hooks.hpp"
 		"src/mods/IntegrityCheckBypass.hpp"
 		"src/mods/ManualFlashlight.hpp"
+		"src/mods/PluginLoader.hpp"
 		"src/mods/REFrameworkConfig.hpp"
 		"src/mods/Scene.hpp"
 		"src/mods/ScriptRunner.hpp"
@@ -1068,6 +1071,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	target_compile_definitions(RE3 PUBLIC
 		${CMKR_TARGET}
 		REFRAMEWORK_EXPORTS
+		"REFRAMEWORK_GAME_NAME=\"${CMKR_TARGET}\""
 	)
 
 	if(DEVELOPER_MODE) # developer-mode
@@ -1139,7 +1143,6 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	set(RE7_SOURCES "")
 
 	list(APPEND RE7_SOURCES
-		"src/API.cpp"
 		"src/D3D11Hook.cpp"
 		"src/D3D12Hook.cpp"
 		"src/DInputHook.cpp"
@@ -1156,6 +1159,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 		"src/mods/Hooks.cpp"
 		"src/mods/IntegrityCheckBypass.cpp"
 		"src/mods/ManualFlashlight.cpp"
+		"src/mods/PluginLoader.cpp"
 		"src/mods/REFrameworkConfig.cpp"
 		"src/mods/Scene.cpp"
 		"src/mods/ScriptRunner.cpp"
@@ -1218,6 +1222,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 		"src/mods/Hooks.hpp"
 		"src/mods/IntegrityCheckBypass.hpp"
 		"src/mods/ManualFlashlight.hpp"
+		"src/mods/PluginLoader.hpp"
 		"src/mods/REFrameworkConfig.hpp"
 		"src/mods/Scene.hpp"
 		"src/mods/ScriptRunner.hpp"
@@ -1480,6 +1485,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	target_compile_definitions(RE7 PUBLIC
 		${CMKR_TARGET}
 		REFRAMEWORK_EXPORTS
+		"REFRAMEWORK_GAME_NAME=\"${CMKR_TARGET}\""
 	)
 
 	if(DEVELOPER_MODE) # developer-mode
@@ -1551,7 +1557,6 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	set(RE8_SOURCES "")
 
 	list(APPEND RE8_SOURCES
-		"src/API.cpp"
 		"src/D3D11Hook.cpp"
 		"src/D3D12Hook.cpp"
 		"src/DInputHook.cpp"
@@ -1568,6 +1573,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 		"src/mods/Hooks.cpp"
 		"src/mods/IntegrityCheckBypass.cpp"
 		"src/mods/ManualFlashlight.cpp"
+		"src/mods/PluginLoader.cpp"
 		"src/mods/REFrameworkConfig.cpp"
 		"src/mods/Scene.cpp"
 		"src/mods/ScriptRunner.cpp"
@@ -1630,6 +1636,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 		"src/mods/Hooks.hpp"
 		"src/mods/IntegrityCheckBypass.hpp"
 		"src/mods/ManualFlashlight.hpp"
+		"src/mods/PluginLoader.hpp"
 		"src/mods/REFrameworkConfig.hpp"
 		"src/mods/Scene.hpp"
 		"src/mods/ScriptRunner.hpp"
@@ -1892,6 +1899,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	target_compile_definitions(RE8 PUBLIC
 		${CMKR_TARGET}
 		REFRAMEWORK_EXPORTS
+		"REFRAMEWORK_GAME_NAME=\"${CMKR_TARGET}\""
 	)
 
 	if(DEVELOPER_MODE) # developer-mode
@@ -1963,7 +1971,6 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	set(DMC5_SOURCES "")
 
 	list(APPEND DMC5_SOURCES
-		"src/API.cpp"
 		"src/D3D11Hook.cpp"
 		"src/D3D12Hook.cpp"
 		"src/DInputHook.cpp"
@@ -1980,6 +1987,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 		"src/mods/Hooks.cpp"
 		"src/mods/IntegrityCheckBypass.cpp"
 		"src/mods/ManualFlashlight.cpp"
+		"src/mods/PluginLoader.cpp"
 		"src/mods/REFrameworkConfig.cpp"
 		"src/mods/Scene.cpp"
 		"src/mods/ScriptRunner.cpp"
@@ -2042,6 +2050,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 		"src/mods/Hooks.hpp"
 		"src/mods/IntegrityCheckBypass.hpp"
 		"src/mods/ManualFlashlight.hpp"
+		"src/mods/PluginLoader.hpp"
 		"src/mods/REFrameworkConfig.hpp"
 		"src/mods/Scene.hpp"
 		"src/mods/ScriptRunner.hpp"
@@ -2304,6 +2313,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	target_compile_definitions(DMC5 PUBLIC
 		${CMKR_TARGET}
 		REFRAMEWORK_EXPORTS
+		"REFRAMEWORK_GAME_NAME=\"${CMKR_TARGET}\""
 	)
 
 	if(DEVELOPER_MODE) # developer-mode
@@ -2375,7 +2385,6 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	set(MHRISE_SOURCES "")
 
 	list(APPEND MHRISE_SOURCES
-		"src/API.cpp"
 		"src/D3D11Hook.cpp"
 		"src/D3D12Hook.cpp"
 		"src/DInputHook.cpp"
@@ -2392,6 +2401,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 		"src/mods/Hooks.cpp"
 		"src/mods/IntegrityCheckBypass.cpp"
 		"src/mods/ManualFlashlight.cpp"
+		"src/mods/PluginLoader.cpp"
 		"src/mods/REFrameworkConfig.cpp"
 		"src/mods/Scene.cpp"
 		"src/mods/ScriptRunner.cpp"
@@ -2454,6 +2464,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 		"src/mods/Hooks.hpp"
 		"src/mods/IntegrityCheckBypass.hpp"
 		"src/mods/ManualFlashlight.hpp"
+		"src/mods/PluginLoader.hpp"
 		"src/mods/REFrameworkConfig.hpp"
 		"src/mods/Scene.hpp"
 		"src/mods/ScriptRunner.hpp"
@@ -2716,6 +2727,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	target_compile_definitions(MHRISE PUBLIC
 		${CMKR_TARGET}
 		REFRAMEWORK_EXPORTS
+		"REFRAMEWORK_GAME_NAME=\"${CMKR_TARGET}\""
 	)
 
 	if(DEVELOPER_MODE) # developer-mode
@@ -2780,4 +2792,71 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	unset(CMKR_TARGET)
 	unset(CMKR_SOURCES)
 endif()
+
+# Target example_plugin
+set(CMKR_TARGET example_plugin)
+set(example_plugin_SOURCES "")
+
+list(APPEND example_plugin_SOURCES
+	"example_plugin/Plugin.cpp"
+	"example_plugin/imgui/imgui_impl_dx11.cpp"
+	"example_plugin/imgui/imgui_impl_dx12.cpp"
+	"example_plugin/imgui/imgui_impl_win32.cpp"
+	"example_plugin/rendering/d3d11.cpp"
+	"example_plugin/rendering/d3d12.cpp"
+	"example_plugin/Plugin.hpp"
+	"example_plugin/imgui/font_robotomedium.hpp"
+	"example_plugin/imgui/re2_imconfig.hpp"
+	"example_plugin/rendering/d3d11.hpp"
+	"example_plugin/rendering/d3d12.hpp"
+	"example_plugin/rendering/shared.hpp"
+	"example_plugin/imgui/imgui_impl_dx11.h"
+	"example_plugin/imgui/imgui_impl_dx12.h"
+	"example_plugin/imgui/imgui_impl_win32.h"
+)
+
+list(APPEND example_plugin_SOURCES
+	cmake.toml
+)
+
+set(CMKR_SOURCES ${example_plugin_SOURCES})
+add_library(example_plugin SHARED)
+
+if(example_plugin_SOURCES)
+	target_sources(example_plugin PRIVATE ${example_plugin_SOURCES})
+endif()
+
+source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${example_plugin_SOURCES})
+
+target_compile_features(example_plugin PUBLIC
+	cxx_std_20
+)
+
+target_include_directories(example_plugin PUBLIC
+	"include/"
+)
+
+target_link_libraries(example_plugin PUBLIC
+	lua
+	sol2
+	imgui
+)
+
+set_target_properties(example_plugin PROPERTIES
+	RUNTIME_OUTPUT_DIRECTORY_RELEASE
+		"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
+	RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
+		"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
+	LIBRARY_OUTPUT_DIRECTORY_RELEASE
+		"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+	LIBRARY_OUTPUT_DIRECTORY_RELWITHDEBINFO
+		"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+	ARCHIVE_OUTPUT_DIRECTORY_RELEASE
+		"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+	ARCHIVE_OUTPUT_DIRECTORY_RELWITHDEBINFO
+		"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+)
+
+unset(CMKR_TARGET)
+unset(CMKR_SOURCES)
 

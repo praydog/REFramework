@@ -4,6 +4,7 @@
 #include "utility/Scan.hpp"
 #include "utility/Module.hpp"
 
+#include "reframework/API.hpp"
 #include "REFramework.hpp"
 #include "ReClass.hpp"
 #include "RETypeDB.hpp"

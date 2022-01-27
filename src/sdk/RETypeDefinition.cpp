@@ -90,7 +90,7 @@ sdk::REProperty* RETypeDefinition::PropertyIterator::begin() const {
     return &(*tdb->properties)[m_parent->member_prop];
 }
 
-sdk::REProperty* RETypeDefinition::PropertyIterator::end()const {
+sdk::REProperty* RETypeDefinition::PropertyIterator::end() const {
     if (m_parent->member_prop == 0) {
         return nullptr;
     }
@@ -100,6 +100,10 @@ sdk::REProperty* RETypeDefinition::PropertyIterator::end()const {
     const auto num_prop = m_parent->num_member_prop;
 
     return &(*tdb->properties)[m_parent->member_prop + num_prop];
+}
+
+size_t RETypeDefinition::PropertyIterator::size() const {
+    return ((uintptr_t)end() - (uintptr_t)begin()) / sizeof(sdk::REProperty);
 }
 
 const char* RETypeDefinition::get_namespace() const {
