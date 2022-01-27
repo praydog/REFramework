@@ -171,6 +171,9 @@ private:
 
     uintptr_t get_original_va(void* ptr);
 
+    bool is_filtered_type(std::string name);
+    bool is_filtered_method(sdk::REMethodDefinition& m);
+
     template <typename T, typename... Args>
     bool stretched_tree_node(T id, Args... args) {
         auto& style = ImGui::GetStyle();
