@@ -209,7 +209,8 @@ private:
     inline static const ImVec4 VARIABLE_COLOR{ 100.0f / 255.0f, 149.0f / 255.0f, 237.0f / 255.0f, 255 / 255.0f };
     inline static const ImVec4 VARIABLE_COLOR_HIGHLIGHT{ 1.0f, 1.0f, 1.0f, 1.0f };
 
-    std::string m_type_name{ "via.typeinfo.TypeInfo" };
+    std::string m_type_name{"via.typeinfo.TypeInfo"};
+    std::string m_type_member{""};
     std::string m_object_address{ "0" };
     std::chrono::system_clock::time_point m_next_refresh;
     std::chrono::system_clock::time_point m_next_refresh_natives{};
