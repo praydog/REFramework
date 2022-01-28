@@ -395,6 +395,90 @@ void pop_font() {
 int get_default_font_size() {
     return g_framework->get_font_size();
 }
+
+sol::variadic_results color_picker3(sol::this_state s, const char* label, Vector3f color, sol::object flags_obj) {
+    if (label == nullptr) {
+        label = "";
+    }
+
+    ImGuiColorEditFlags flags{};
+
+    if (flags_obj.is<int>()) {
+        flags = (ImGuiColorEditFlags)flags_obj.as<int>();
+    }
+
+    auto changed = ImGui::ColorPicker3(label, &color.x, flags);
+
+    sol::variadic_results results{};
+
+    results.push_back(sol::make_object(s, changed));
+    results.push_back(sol::make_object(s, color));
+
+    return results;
+}
+
+sol::variadic_results color_picker4(sol::this_state s, const char* label, Vector4f color, sol::object flags_obj) {
+    if (label == nullptr) {
+        label = "";
+    }
+
+    ImGuiColorEditFlags flags{};
+
+    if (flags_obj.is<int>()) {
+        flags = (ImGuiColorEditFlags)flags_obj.as<int>();
+    }
+
+    auto changed = ImGui::ColorPicker4(label, &color.x, flags);
+
+    sol::variadic_results results{};
+
+    results.push_back(sol::make_object(s, changed));
+    results.push_back(sol::make_object(s, color));
+
+    return results;
+}
+
+sol::variadic_results color_edit3(sol::this_state s, const char* label, Vector3f color, sol::object flags_obj) {
+    if (label == nullptr) {
+        label = "";
+    }
+
+    ImGuiColorEditFlags flags{};
+
+    if (flags_obj.is<int>()) {
+        flags = (ImGuiColorEditFlags)flags_obj.as<int>();
+    }
+
+    auto changed = ImGui::ColorEdit3(label, &color.x, flags);
+
+    sol::variadic_results results{};
+
+    results.push_back(sol::make_object(s, changed));
+    results.push_back(sol::make_object(s, color));
+
+    return results;
+}
+
+sol::variadic_results color_edit4(sol::this_state s, const char* label, Vector4f color, sol::object flags_obj) {
+    if (label == nullptr) {
+        label = "";
+    }
+
+    ImGuiColorEditFlags flags{};
+
+    if (flags_obj.is<int>()) {
+        flags = (ImGuiColorEditFlags)flags_obj.as<int>();
+    }
+
+    auto changed = ImGui::ColorEdit4(label, &color.x, flags);
+
+    sol::variadic_results results{};
+
+    results.push_back(sol::make_object(s, changed));
+    results.push_back(sol::make_object(s, color));
+
+    return results;
+}
 } // namespace api::imgui
 
 namespace api::draw {
@@ -549,6 +633,10 @@ void bindings::open_imgui(ScriptState* s) {
     imgui["push_font"] = api::imgui::push_font;
     imgui["pop_font"] = api::imgui::pop_font;
     imgui["get_default_font_size"] = api::imgui::get_default_font_size;
+    imgui["color_picker3"] = api::imgui::color_picker3;
+    imgui["color_picker4"] = api::imgui::color_picker4;
+    imgui["color_edit3"] = api::imgui::color_edit3;
+    imgui["color_edit4"] = api::imgui::color_edit4;
     lua["imgui"] = imgui;
 
     auto draw = lua.create_table();
