@@ -3443,7 +3443,13 @@ uintptr_t ObjectExplorer::get_original_va(void* ptr) {
 }
 
 bool ObjectExplorer::is_filtered_type(std::string name) {
-    auto t = m_types.find(name)->second;
+    auto it = m_types.find(name);
+
+    if (it == m_types.end() || it->second == nullptr) {
+        return false;
+    }
+
+    auto t = it->second;
     auto tdef = utility::re_type::get_type_definition(t);
     if (tdef == nullptr) {
         return false;
@@ -3458,25 +3464,25 @@ bool ObjectExplorer::is_filtered_type(std::string name) {
 
 bool ObjectExplorer::is_filtered_method(sdk::REMethodDefinition& m) {
     const auto method_name = m.get_name();
-    auto name = m_type_member.data();
-    if (strlen(name) == 0) {
+    const auto name = std::string_view{m_type_member.data()};
+    if (name.empty()) {
         return true;
     }
-    if (strstr(method_name, name)) {
+    if (std::string_view{method_name}.find(name) != std::string_view::npos) {
         return true;
     }
     const auto method_return_type = m.get_return_type();
-    const auto method_return_type_name = method_return_type != nullptr ? method_return_type->get_full_name().c_str() : "";
-    if (strstr(method_return_type_name, name)) {
+    const std::string_view method_return_type_name = method_return_type != nullptr ? method_return_type->get_full_name() : "";
+    if (std::string_view{method_return_type_name}.find(name) != std::string_view::npos) {
         return true;
     }
     const auto method_param_names = m.get_param_names();
-    if (auto i = std::find_if(method_param_names.begin(), method_param_names.end(), [name](auto a) { return strstr(a, name); });
+    if (auto i = std::find_if(method_param_names.begin(), method_param_names.end(), [name](std::string_view a) { return a.find(name) != std::string_view::npos; });
         i != method_param_names.end()) {
         return true;
     }
     const auto method_param_types = m.get_param_types();
-    if (auto i = std::find_if(method_param_types.begin(), method_param_types.end(), [name](auto a) { return strstr(a->get_name(), name); });
+    if (auto i = std::find_if(method_param_types.begin(), method_param_types.end(), [name](auto a) { return std::string_view{a->get_name()}.find(name) != std::string_view::npos; });
         i != method_param_types.end()) {
         return true;
     }
