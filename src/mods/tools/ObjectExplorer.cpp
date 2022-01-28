@@ -310,6 +310,7 @@ genny::Enum* enum_from_name(genny::Namespace* g, const std::string& enum_name) {
 ObjectExplorer::ObjectExplorer()
 {
     m_type_name.reserve(256);
+    m_type_member.reserve(256);
     m_object_address.reserve(256);
 }
 
@@ -428,6 +429,18 @@ void ObjectExplorer::on_draw_dev_ui() {
                 if (auto t = get_type(*i)) {
                     m_displayed_types.push_back(t);
                 }
+            }
+        }
+    }
+
+    if (m_do_init || ImGui::InputText("Method Signature", m_type_member.data(), 256)) {
+        m_displayed_types.clear();
+
+        for (auto i = std::find_if(m_sorted_types.begin(), m_sorted_types.end(), [this](const auto& a) { return is_filtered_type(a); });
+             i != m_sorted_types.end();
+             i = std::find_if(i + 1, m_sorted_types.end(), [this](const auto& a) { return is_filtered_type(a); })) {
+            if (auto t = get_type(*i)) {
+                m_displayed_types.push_back(t);
             }
         }
     }
@@ -2502,6 +2515,9 @@ void ObjectExplorer::display_native_methods(REManagedObject* obj, sdk::RETypeDef
 
     if (ImGui::TreeNode(methods.begin(), "TDB Methods: %i", methods.size())) {
         for (auto& m : methods) {
+            if (!is_filtered_method(m)) {
+                continue;
+            }
             const auto method_name = m.get_name();
             const auto method_return_type = m.get_return_type();
             const auto method_return_type_name = method_return_type != nullptr ? method_return_type->get_full_name() : std::string{};
@@ -3424,4 +3440,45 @@ uintptr_t ObjectExplorer::get_original_va(void* ptr) {
     }
 
     return *utility::get_imagebase_va_from_ptr(m_module_chunk.data(), g_framework->get_module(), ptr);
+}
+
+bool ObjectExplorer::is_filtered_type(std::string name) {
+    auto t = m_types.find(name)->second;
+    auto tdef = utility::re_type::get_type_definition(t);
+    if (tdef == nullptr) {
+        return false;
+    }
+    for (auto& m : tdef->get_methods()) {
+        if (is_filtered_method(m)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool ObjectExplorer::is_filtered_method(sdk::REMethodDefinition& m) {
+    const auto method_name = m.get_name();
+    auto name = m_type_member.data();
+    if (strlen(name) == 0) {
+        return true;
+    }
+    if (strstr(method_name, name)) {
+        return true;
+    }
+    const auto method_return_type = m.get_return_type();
+    const auto method_return_type_name = method_return_type != nullptr ? method_return_type->get_full_name().c_str() : "";
+    if (strstr(method_return_type_name, name)) {
+        return true;
+    }
+    const auto method_param_names = m.get_param_names();
+    if (auto i = std::find_if(method_param_names.begin(), method_param_names.end(), [name](auto a) { return strstr(a, name); });
+        i != method_param_names.end()) {
+        return true;
+    }
+    const auto method_param_types = m.get_param_types();
+    if (auto i = std::find_if(method_param_types.begin(), method_param_types.end(), [name](auto a) { return strstr(a->get_name(), name); });
+        i != method_param_types.end()) {
+        return true;
+    }
+    return false;
 }
