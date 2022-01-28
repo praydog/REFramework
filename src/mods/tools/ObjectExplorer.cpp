@@ -3472,8 +3472,8 @@ bool ObjectExplorer::is_filtered_method(sdk::REMethodDefinition& m) {
         return true;
     }
     const auto method_return_type = m.get_return_type();
-    const std::string_view method_return_type_name = method_return_type != nullptr ? method_return_type->get_full_name() : "";
-    if (std::string_view{method_return_type_name}.find(name) != std::string_view::npos) {
+    const std::string method_return_type_name = method_return_type != nullptr ? method_return_type->get_full_name() : "";
+    if (method_return_type_name.find(name) != std::string::npos) {
         return true;
     }
     const auto method_param_names = m.get_param_names();
