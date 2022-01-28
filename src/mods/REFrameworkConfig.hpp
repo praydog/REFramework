@@ -28,10 +28,12 @@ private:
     ModKey::Ptr m_menu_key{ ModKey::create(generate_name("MenuKey"), DIK_INSERT) };
     ModToggle::Ptr m_menu_open{ ModToggle::create(generate_name("MenuOpen"), true) };
     ModToggle::Ptr m_remember_menu_state{ ModToggle::create(generate_name("RememberMenuState"), false) };
+    ModInt32::Ptr m_font_size{ModInt32::create(generate_name("FontSize"), 16)};
 
     ValueList m_options {
         *m_menu_key,
         *m_menu_open,
-        *m_remember_menu_state
+        *m_remember_menu_state,
+        *m_font_size,
     };
 };

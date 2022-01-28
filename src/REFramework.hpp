@@ -2,6 +2,7 @@
 
 #include <array>
 #include <unordered_set>
+#include <filesystem>
 
 #include <spdlog/spdlog.h>
 #include <imgui.h>
@@ -96,8 +97,28 @@ public:
         return m_hook_monitor_mutex;
     }
 
+    void set_font_size(int size) { 
+        if (m_font_size != size) {
+            m_font_size = size;
+            m_fonts_need_updating = true;
+        }
+    }
+
+    auto get_font_size() const { return m_font_size; }
+
+    int add_font(const std::filesystem::path& filepath, int size, const std::vector<ImWchar>& ranges = {});
+
+    ImFont* get_font(int index) const {
+        if (index >= 0 && index < m_additional_fonts.size()) {
+            return m_additional_fonts[index].font;
+        } else {
+            return nullptr;
+        }
+    }
+
 private:
     void consume_input();
+    void update_fonts();
 
     void draw_ui();
     void draw_about();
@@ -130,6 +151,17 @@ private:
     
     ImVec2 m_last_window_pos{};
     ImVec2 m_last_window_size{};
+
+    struct AdditionalFont {
+        std::filesystem::path filepath{};
+        int size{16};
+        std::vector<ImWchar> ranges{};
+        ImFont* font{};
+    };
+
+    bool m_fonts_need_updating{true};
+    int m_font_size{16};
+    std::vector<AdditionalFont> m_additional_fonts{};
 
     std::mutex m_input_mutex{};
     std::recursive_mutex m_config_mtx{};
