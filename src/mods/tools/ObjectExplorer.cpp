@@ -436,11 +436,13 @@ void ObjectExplorer::on_draw_dev_ui() {
     if (m_do_init || ImGui::InputText("Method Signature", m_type_member.data(), 256)) {
         m_displayed_types.clear();
 
-        for (auto i = std::find_if(m_sorted_types.begin(), m_sorted_types.end(), [this](const auto& a) { return is_filtered_type(a); });
-             i != m_sorted_types.end();
-             i = std::find_if(i + 1, m_sorted_types.end(), [this](const auto& a) { return is_filtered_type(a); })) {
-            if (auto t = get_type(*i)) {
-                m_displayed_types.push_back(t);
+        if (!std::string_view{m_type_member.data()}.empty()) {
+            for (auto i = std::find_if(m_sorted_types.begin(), m_sorted_types.end(), [this](const auto& a) { return is_filtered_type(a); });
+                i != m_sorted_types.end();
+                i = std::find_if(i + 1, m_sorted_types.end(), [this](const auto& a) { return is_filtered_type(a); })) {
+                if (auto t = get_type(*i)) {
+                    m_displayed_types.push_back(t);
+                }
             }
         }
     }
