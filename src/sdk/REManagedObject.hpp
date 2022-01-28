@@ -91,9 +91,18 @@ T* get_field_ptr(::REManagedObject* object) {
         return nullptr;
     }
 
+#ifndef RE7
     // object - 8. Dunno, just what the game does.
-    auto offset = Address(object).deref().sub(sizeof(void*)).to<int32_t>();
+    const auto offset = Address(object).deref().sub(sizeof(void*)).to<int32_t>();
     return Address(object).get(offset).as<T*>();
+#else
+    if (object->info == nullptr) {
+        return nullptr;
+    }
+
+    const auto offset = object->info->size;
+    return Address(object).get(offset).as<T*>();
+#endif
 }
 
 template <typename T> 

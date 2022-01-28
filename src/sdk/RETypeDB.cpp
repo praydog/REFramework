@@ -474,7 +474,6 @@ reframework::InvokeRet sdk::REMethodDefinition::invoke(void* object, const std::
             if (is_static) {
                 if (!is_ptr) {
                     this->call<void*>(out.bytes.data(), sdk::get_thread_context());
-                    out.ptr = out.bytes.data();
                 } else {
                     if (ret_hash == "System.Single"_fnv) {
                         out.f = this->call<float>(sdk::get_thread_context());
@@ -487,7 +486,6 @@ reframework::InvokeRet sdk::REMethodDefinition::invoke(void* object, const std::
             } else {
                 if (!is_ptr) {
                     this->call<void*>(out.bytes.data(), sdk::get_thread_context(), object);
-                    out.ptr = out.bytes.data();
                 } else {
                     if (ret_hash == "System.Single"_fnv) {
                         out.f = this->call<float>(sdk::get_thread_context(), object);
@@ -503,7 +501,6 @@ reframework::InvokeRet sdk::REMethodDefinition::invoke(void* object, const std::
             if (is_static) {
                 if (!is_ptr) {
                     CallHelper<void*, Types...>::create(converted_args.data())(this, out.bytes.data(), sdk::get_thread_context());
-                    out.ptr = out.bytes.data();
                 } else {
                     if (ret_hash == "System.Single"_fnv) {
                         out.f = CallHelper<float, Types...>::create(converted_args.data())(this, sdk::get_thread_context());
@@ -516,7 +513,6 @@ reframework::InvokeRet sdk::REMethodDefinition::invoke(void* object, const std::
             } else {
                 if (!is_ptr) {
                     CallHelper<void*, Types...>::create(converted_args.data())(this, out.bytes.data(), sdk::get_thread_context(), object);
-                    out.ptr = out.bytes.data();
                 } else {
                     if (ret_hash == "System.Single"_fnv) {
                         out.f = CallHelper<float, Types...>::create(converted_args.data())(this, sdk::get_thread_context(), object);
