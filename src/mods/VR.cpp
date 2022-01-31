@@ -125,7 +125,7 @@ Matrix4x4f* VR::camera_get_projection_matrix_hook(REManagedObject* camera, Matri
 
     auto vr = VR::get();
 
-    if (result == nullptr || !g_framework->is_ready() || !vr->m_is_hmd_active) {
+    if (result == nullptr || !g_framework->is_ready() || !vr->m_is_hmd_active || vr->m_disable_projection_matrix_override) {
         return original_func(camera, result);
     }
 
@@ -157,7 +157,7 @@ Matrix4x4f* VR::camera_get_view_matrix_hook(REManagedObject* camera, Matrix4x4f*
 
     auto vr = VR::get();
 
-    if (!vr->m_is_hmd_active) {
+    if (!vr->m_is_hmd_active || vr->m_disable_view_matrix_override) {
         return original_func(camera, result);
     }
 
@@ -2929,6 +2929,9 @@ void VR::on_draw_ui() {
 
     ImGui::Separator();
     ImGui::Text("Debug info");
+    ImGui::Checkbox("Disable Projection Matrix Override", &m_disable_projection_matrix_override);
+    ImGui::Checkbox("Disable View Matrix Override", &m_disable_view_matrix_override);
+
     ImGui::DragFloat4("Raw Left", (float*)&m_raw_projections[0], 0.01f, -100.0f, 100.0f);
     ImGui::DragFloat4("Raw Right", (float*)&m_raw_projections[1], 0.01f, -100.0f, 100.0f);
 

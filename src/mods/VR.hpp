@@ -424,6 +424,9 @@ private:
     const ModToggle::Ptr m_force_volumetrics_settings{ ModToggle::create(generate_name("ForceVolumetrics"), true) };
     const ModToggle::Ptr m_force_lensflares_settings{ ModToggle::create(generate_name("ForceLensFlares"), true) };
 
+    bool m_disable_projection_matrix_override{ false };
+    bool m_disable_view_matrix_override{false};
+
     ValueList m_options{
         *m_set_standing_key,
         *m_recenter_view_key,
