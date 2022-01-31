@@ -218,6 +218,7 @@ private:
     void update_action_states();
     void update_camera(); // if not in firstperson mode
     void update_camera_origin(); // every frame
+    void apply_hmd_transform(glm::quat& rotation, Vector4f& position);
     void apply_hmd_transform(::REJoint* camera_joint);
     void update_audio_camera();
     void update_render_matrix();

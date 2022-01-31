@@ -462,7 +462,10 @@ void VR::on_lua_state_created(sol::state& lua) {
         "is_hmd_active", &VR::is_hmd_active,
         "is_action_active", &VR::is_action_active,
         "is_using_hmd_oriented_audio", &VR::is_using_hmd_oriented_audio,
-        "toggle_hmd_oriented_audio", &VR::toggle_hmd_oriented_audio
+        "toggle_hmd_oriented_audio", &VR::toggle_hmd_oriented_audio,
+        "apply_hmd_transform", [](VR* vr, glm::quat& rotation, Vector4f& position) {
+            vr->apply_hmd_transform(rotation, position);
+        }
     );
 
     lua["vrmod"] = this;
@@ -1149,18 +1152,18 @@ void VR::update_camera_origin() {
     apply_hmd_transform(camera_joint);
 }
 
-void VR::apply_hmd_transform(::REJoint* camera_joint) {
+void VR::apply_hmd_transform(glm::quat& rotation, Vector4f& position) {
     const auto current_hmd_rotation = glm::normalize(m_rotation_offset * glm::quat{get_rotation(0)});
     
     glm::quat new_rotation{};
     glm::quat camera_rotation{};
     
     if (!m_decoupled_pitch->value()) {
-        camera_rotation = m_original_camera_rotation;
-        new_rotation = glm::normalize(m_original_camera_rotation * current_hmd_rotation);
+        camera_rotation = rotation;
+        new_rotation = glm::normalize(rotation * current_hmd_rotation);
     } else if (m_decoupled_pitch->value()) {
         // facing forward matrix
-        const auto camera_rotation_matrix = utility::math::remove_y_component(Matrix4x4f{m_original_camera_rotation});
+        const auto camera_rotation_matrix = utility::math::remove_y_component(Matrix4x4f{rotation});
         camera_rotation = glm::quat{camera_rotation_matrix};
         new_rotation = glm::normalize(camera_rotation * current_hmd_rotation);
     }
@@ -1170,10 +1173,20 @@ void VR::apply_hmd_transform(::REJoint* camera_joint) {
 
     auto current_head_pos = camera_rotation * current_relative_pos;
 
-    sdk::set_joint_rotation(camera_joint, new_rotation);
+    rotation = new_rotation;
+    position = position + current_head_pos;
+}
+
+void VR::apply_hmd_transform(::REJoint* camera_joint) {
+    auto rotation = m_original_camera_rotation;
+    auto position = m_original_camera_position;
+
+    apply_hmd_transform(rotation, position);
+
+    sdk::set_joint_rotation(camera_joint, rotation);
 
     if (m_positional_tracking) {
-        sdk::set_joint_position(camera_joint, m_original_camera_position + current_head_pos);   
+        sdk::set_joint_position(camera_joint, position);   
     }
 }
 
@@ -1204,7 +1217,16 @@ void VR::update_audio_camera() {
     m_original_audio_camera_rotation = sdk::get_joint_rotation(camera_joint);
     m_needs_audio_restore = true;
 
-    apply_hmd_transform(camera_joint);
+    auto rotation = m_original_audio_camera_rotation;
+    auto position = m_original_audio_camera_position;
+
+    apply_hmd_transform(rotation, position);
+
+    sdk::set_joint_rotation(camera_joint, rotation);
+
+    if (m_positional_tracking) {
+        sdk::set_joint_position(camera_joint, position);   
+    }
 }
 
 void VR::update_render_matrix() {
