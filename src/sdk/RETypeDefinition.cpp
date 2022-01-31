@@ -229,6 +229,30 @@ std::string RETypeDefinition::get_full_name() const {
     //full_name += "<not implemented>";
 #endif
 
+    // For arrays
+    if (full_name.empty()) {
+        struct FakeRuntimeType : public ::REManagedObject {
+            const sdk::RETypeDefinition* t{nullptr};
+            uint32_t unk{0};
+        };
+
+        FakeRuntimeType fake_type{};
+        fake_type.t = this;
+
+        // because using normal find_type will loop back to this function and cause a deadlock
+        static auto system_runtime_type = sdk::RETypeDB::get()->find_type_by_fqn(0x99ff88e6);
+        static auto get_full_name_method = system_runtime_type->get_method("get_FullName");
+
+        auto full_name_obj = get_full_name_method->call<::SystemString*>(sdk::get_thread_context(), &fake_type);
+
+        if (full_name_obj != nullptr) {
+            full_name = utility::re_string::get_string(full_name_obj);
+
+            // replace all instance of "+" with "."
+            std::replace(full_name.begin(), full_name.end(), '+', '.');
+        }
+    }
+
     {
         std::unique_lock _{g_full_name_mtx};
         g_full_names[this->get_index()] = full_name;
