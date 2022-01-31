@@ -396,6 +396,88 @@ int get_default_font_size() {
     return g_framework->get_font_size();
 }
 
+sol::variadic_results color_picker(sol::this_state s, const char* label, unsigned int color, sol::object flags_obj) {
+    ImGuiColorEditFlags flags{};
+
+    if (flags_obj.is<int>()) {
+        flags = (ImGuiColorEditFlags)flags_obj.as<int>();
+    }
+
+    auto r = color & 0xFF;
+    auto g = (color >> 8) & 0xFF;
+    auto b = (color >> 16) & 0xFF;
+    auto a = (color >> 24) & 0xFF;
+
+    float col[4]{
+        r / 255.0f,
+        g / 255.0f,
+        b / 255.0f,
+        a / 255.0f,
+    };
+
+    auto changed = ImGui::ColorPicker4(label, col, flags);
+
+    r = (unsigned int)(col[0] * 255.0f);
+    g = (unsigned int)(col[1] * 255.0f);
+    b = (unsigned int)(col[2] * 255.0f);
+    a = (unsigned int)(col[3] * 255.0f);
+
+    unsigned int new_color = 0;
+
+    new_color |= r;
+    new_color |= g << 8;
+    new_color |= b << 16;
+    new_color |= a << 24;
+
+    sol::variadic_results results{};
+
+    results.push_back(sol::make_object(s, changed));
+    results.push_back(sol::make_object(s, new_color));
+
+    return results;
+}
+
+sol::variadic_results color_picker_argb(sol::this_state s, const char* label, unsigned int color, sol::object flags_obj) {
+    ImGuiColorEditFlags flags{};
+
+    if (flags_obj.is<int>()) {
+        flags = (ImGuiColorEditFlags)flags_obj.as<int>();
+    }
+
+    auto r = (color >> 16) & 0xFF;
+    auto g = (color >> 8) & 0xFF;
+    auto b = color & 0xFF;
+    auto a = (color >> 24) & 0xFF;
+
+    float col[4]{
+        r / 255.0f,
+        g / 255.0f,
+        b / 255.0f,
+        a / 255.0f,
+    };
+
+    auto changed = ImGui::ColorPicker4(label, col, flags);
+
+    r = (unsigned int)(col[0] * 255.0f);
+    g = (unsigned int)(col[1] * 255.0f);
+    b = (unsigned int)(col[2] * 255.0f);
+    a = (unsigned int)(col[3] * 255.0f);
+
+    unsigned int new_color = 0;
+
+    new_color |= r << 16;
+    new_color |= g << 8;
+    new_color |= b;
+    new_color |= a << 24;
+
+    sol::variadic_results results{};
+
+    results.push_back(sol::make_object(s, changed));
+    results.push_back(sol::make_object(s, new_color));
+
+    return results;
+}
+
 sol::variadic_results color_picker3(sol::this_state s, const char* label, Vector3f color, sol::object flags_obj) {
     if (label == nullptr) {
         label = "";
@@ -434,6 +516,89 @@ sol::variadic_results color_picker4(sol::this_state s, const char* label, Vector
 
     results.push_back(sol::make_object(s, changed));
     results.push_back(sol::make_object(s, color));
+
+    return results;
+}
+
+sol::variadic_results color_edit(sol::this_state s, const char* label, unsigned int color, sol::object flags_obj) {
+    ImGuiColorEditFlags flags{};
+
+    if (flags_obj.is<int>()) {
+        flags = (ImGuiColorEditFlags)flags_obj.as<int>();
+    }
+
+   
+    auto r = color & 0xFF;
+    auto g = (color >> 8) & 0xFF;
+    auto b = (color >> 16) & 0xFF;
+    auto a = (color >> 24) & 0xFF;
+
+    float col[4]{
+        r / 255.0f,
+        g / 255.0f,
+        b / 255.0f,
+        a / 255.0f,
+    };
+
+    auto changed = ImGui::ColorEdit4(label, col, flags);
+
+    r = (unsigned int)(col[0] * 255.0f);
+    g = (unsigned int)(col[1] * 255.0f);
+    b = (unsigned int)(col[2] * 255.0f);
+    a = (unsigned int)(col[3] * 255.0f);
+
+    unsigned int new_color = 0;
+
+    new_color |= r;
+    new_color |= g << 8;
+    new_color |= b << 16;
+    new_color |= a << 24;
+
+    sol::variadic_results results{};
+
+    results.push_back(sol::make_object(s, changed));
+    results.push_back(sol::make_object(s, new_color));
+
+    return results;
+}
+
+sol::variadic_results color_edit_argb(sol::this_state s, const char* label, unsigned int color, sol::object flags_obj) {
+    ImGuiColorEditFlags flags{};
+
+    if (flags_obj.is<int>()) {
+        flags = (ImGuiColorEditFlags)flags_obj.as<int>();
+    }
+
+    auto r = (color >> 16) & 0xFF;
+    auto g = (color >> 8) & 0xFF;
+    auto b = color & 0xFF;
+    auto a = (color >> 24) & 0xFF;
+
+    float col[4]{
+        r / 255.0f,
+        g / 255.0f,
+        b / 255.0f,
+        a / 255.0f,
+    };
+
+    auto changed = ImGui::ColorEdit4(label, col, flags);
+
+    r = (unsigned int)(col[0] * 255.0f);
+    g = (unsigned int)(col[1] * 255.0f);
+    b = (unsigned int)(col[2] * 255.0f);
+    a = (unsigned int)(col[3] * 255.0f);
+
+    unsigned int new_color = 0;
+
+    new_color |= r << 16;
+    new_color |= g << 8;
+    new_color |= b;
+    new_color |= a << 24;
+
+    sol::variadic_results results{};
+
+    results.push_back(sol::make_object(s, changed));
+    results.push_back(sol::make_object(s, new_color));
 
     return results;
 }
@@ -633,8 +798,12 @@ void bindings::open_imgui(ScriptState* s) {
     imgui["push_font"] = api::imgui::push_font;
     imgui["pop_font"] = api::imgui::pop_font;
     imgui["get_default_font_size"] = api::imgui::get_default_font_size;
+    imgui["color_picker"] = api::imgui::color_picker;
+    imgui["color_picker_argb"] = api::imgui::color_picker_argb;
     imgui["color_picker3"] = api::imgui::color_picker3;
     imgui["color_picker4"] = api::imgui::color_picker4;
+    imgui["color_edit"] = api::imgui::color_edit;
+    imgui["color_edit_argb"] = api::imgui::color_edit_argb;
     imgui["color_edit3"] = api::imgui::color_edit3;
     imgui["color_edit4"] = api::imgui::color_edit4;
     lua["imgui"] = imgui;
