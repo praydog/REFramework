@@ -1968,8 +1968,12 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
 
                             gui_matrix = look_mat;
                             gui_matrix[3] = new_pos;
-                            sdk::set_transform_position(game_object->transform, new_pos);
-                            sdk::set_transform_rotation(game_object->transform, look_rot);
+
+                            // LESSON: DO NOT CALL THESE METHODS ON THE TRANSFORM!
+                            // THEY CAUSE SOME STRANGE BUGS WHEN THE GUI ELEMENT HAS A PARENT TRANSFORM!
+                            // THE GUI RENDERING FUNCTIONS PERFORM ON THE WORLD MATRIX, SO THIS IS NOT NECESSARY.
+                            //sdk::set_transform_position(game_object->transform, new_pos);
+                            //sdk::set_transform_rotation(game_object->transform, look_rot);
                             
                             if (child != nullptr) {
                                 regenny::via::Size gui_size{};
@@ -2116,7 +2120,10 @@ void VR::on_gui_draw_element(REComponent* gui_element, void* primitive_context) 
         auto game_object = utility::re_component::get_game_object(data->element);
 
         if (game_object != nullptr && game_object->transform != nullptr) {
-            sdk::set_transform_position(game_object->transform, data->original_position);
+            //sdk::set_transform_position(game_object->transform, data->original_position);
+
+            auto& gui_matrix = game_object->transform->worldTransform;
+            gui_matrix[3] = data->original_position;
         }
     }
 
