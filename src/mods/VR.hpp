@@ -294,9 +294,11 @@ private:
     vr::VRActionHandle_t m_action_re2_reset_view{};
     vr::VRActionHandle_t m_action_re2_change_ammo{};
     vr::VRActionHandle_t m_action_re2_toggle_flashlight{};
+    vr::VRActionHandle_t m_action_minimap{};
 
     bool m_was_firstperson_toggle_down{false};
     bool m_was_flashlight_toggle_down{false};
+    
     
     std::unordered_map<std::string, std::reference_wrapper<vr::VRActionHandle_t>> m_action_handles {
         { "/actions/default/in/Trigger", m_action_trigger },
@@ -316,7 +318,8 @@ private:
         { "/actions/default/in/RE2_FirstPerson_Toggle", m_action_re2_firstperson_toggle },
         { "/actions/default/in/RE2_Reset_View", m_action_re2_reset_view },
         { "/actions/default/in/RE2_Change_Ammo", m_action_re2_change_ammo },
-        { "/actions/default/in/RE2_Toggle_Flashlight", m_action_re2_toggle_flashlight }
+        { "/actions/default/in/RE2_Toggle_Flashlight", m_action_re2_toggle_flashlight },
+        { "/actions/default/in/MiniMap", m_action_minimap }
     };
 
     // Input sources
