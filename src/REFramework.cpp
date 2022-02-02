@@ -953,7 +953,7 @@ void REFramework::set_imgui_style() noexcept {
     colors[ImGuiCol_TitleBgCollapsed] = ImVec4{0.25f, 0.2505f, 0.251f, 1.0f};
 
     // Font
-    set_font_size(16);
+    set_font_size(m_font_size);
 }
 
 bool REFramework::initialize() {
