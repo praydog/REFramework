@@ -48,7 +48,17 @@ ScriptState::ScriptState() {
     std::scoped_lock _{ m_execution_mutex };
 
     m_lua.registry()["state"] = this;
-    m_lua.open_libraries(sol::lib::base, sol::lib::package, sol::lib::string, sol::lib::math, sol::lib::table, sol::lib::bit32, sol::lib::utf8);
+    m_lua.open_libraries(sol::lib::base, sol::lib::package, sol::lib::string, sol::lib::math, sol::lib::table, sol::lib::bit32, sol::lib::utf8, sol::lib::os);
+    
+    // Restrict os library
+    auto os = m_lua["os"];
+    os["remove"] = sol::nil;
+    os["rename"] = sol::nil;
+    os["execute"] = sol::nil;
+    os["exit"] = sol::nil;
+    os["setlocale"] = sol::nil;
+    os["getenv"] = sol::nil;
+
     bindings::open_sdk(this);
     bindings::open_imgui(this);
     bindings::open_json(this);
