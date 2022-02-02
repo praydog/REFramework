@@ -7,6 +7,52 @@
 #include "ImGui.hpp"
 
 namespace api::imgui {
+ImVec2 create_imvec2(sol::object obj) {
+    ImVec2 out{ 0.0f, 0.0f };
+
+    if (obj.is<Vector2f>()) {
+        auto vec = obj.as<Vector2f>();
+        out.x = vec.x;
+        out.y = vec.y;
+    } else if (obj.is<sol::table>()) {
+        auto table = obj.as<sol::table>();
+
+        if (table.size() == 2) {
+            out.x = table.get<float>(1);
+            out.y = table.get<float>(2);
+        } else {
+            throw sol::error{ "Invalid table passed. Table size must be 2." };
+        }
+    }
+
+    return out;
+};
+
+ImVec4 create_imvec4(sol::object obj) {
+    ImVec4 out{ 0.0f, 0.0f, 0.0f, 0.0f };
+
+    if (obj.is<Vector4f>()) {
+        auto vec = obj.as<Vector4f>();
+        out.x = vec.x;
+        out.y = vec.y;
+        out.z = vec.z;
+        out.w = vec.w;
+    } else if (obj.is<sol::table>()) {
+        auto table = obj.as<sol::table>();
+
+        if (table.size() == 4) {
+            out.x = table.get<float>(1);
+            out.y = table.get<float>(2);
+            out.z = table.get<float>(3);
+            out.w = table.get<float>(4);
+        } else {
+            throw sol::error{ "Invalid table passed. Table size must be 4." };
+        }
+    }
+
+    return out;
+};
+
 bool button(const char* label) {
     if (label == nullptr) {
         label = "";
@@ -644,6 +690,31 @@ sol::variadic_results color_edit4(sol::this_state s, const char* label, Vector4f
 
     return results;
 }
+
+void set_next_window_pos(sol::object pos_obj, sol::object condition_obj, sol::object pivot_obj) {
+    ImGuiCond condition{};
+
+    if (condition_obj.is<int>()) {
+        condition = (ImGuiCond)condition_obj.as<int>();
+    }
+
+    auto pos = create_imvec2(pos_obj);
+    auto pivot = create_imvec2(pivot_obj);
+
+    ImGui::SetNextWindowPos(pos, condition, pivot);
+}
+
+void set_next_window_size(sol::object size_obj, sol::object condition_obj) {
+    ImGuiCond condition{};
+
+    if (condition_obj.is<int>()) {
+        condition = (ImGuiCond)condition_obj.as<int>();
+    }
+
+    auto size = create_imvec2(size_obj);
+
+    ImGui::SetNextWindowSize(size, condition);
+}
 } // namespace api::imgui
 
 namespace api::draw {
@@ -806,6 +877,8 @@ void bindings::open_imgui(ScriptState* s) {
     imgui["color_edit_argb"] = api::imgui::color_edit_argb;
     imgui["color_edit3"] = api::imgui::color_edit3;
     imgui["color_edit4"] = api::imgui::color_edit4;
+    imgui["set_next_window_pos"] = api::imgui::set_next_window_pos;
+    imgui["set_next_window_size"] = api::imgui::set_next_window_size;
     lua["imgui"] = imgui;
 
     auto draw = lua.create_table();
