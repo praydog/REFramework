@@ -253,7 +253,13 @@ void ScriptState::run_script(const std::string& p) {
         auto path = std::filesystem::path(p);
         auto dir = path.parent_path();
 
-        m_lua["package"]["path"] = old_path + ";" + dir.string() + "/?.lua";
+        std::string package_path = m_lua["package"]["path"];
+
+        package_path = old_path + ";" + dir.string() + "/?.lua";
+        package_path = package_path + ";" + dir.string() + "/?/init.lua";
+        package_path = package_path + ";" + dir.string() + "/?.dll";
+
+        m_lua["package"]["path"] = package_path;
         m_lua.safe_script_file(p);
     } catch (const std::exception& e) {
         OutputDebugString(e.what());
