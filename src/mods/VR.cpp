@@ -2868,6 +2868,17 @@ void VR::openvr_input_to_re_engine() {
             m_last_controller_update = now;
         }
     }
+
+#ifdef RE7
+    if (m_handle_pause) {
+        auto menu_manager = sdk::get_managed_singleton<::REManagedObject>("app.MenuManager");
+
+        if (menu_manager != nullptr) {
+            sdk::call_object_func<void*>(menu_manager, "openPauseMenu", sdk::get_thread_context(), menu_manager, 0);
+            m_handle_pause = false;
+        }
+    }
+#endif
 }
 
 void VR::on_draw_ui() {

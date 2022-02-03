@@ -52,10 +52,18 @@ static void* find_native_method(std::string_view type_name, std::string_view met
 
 template <typename T = void>
 T* get_native_singleton(std::string_view type_name);
+
+template<typename T>
+T* get_managed_singleton();
+
+template<typename T, uint32_t Hash>
+T* get_managed_singleton();
 }
 
 // Real meat
 #pragma once
+
+#include "utility/String.hpp"
 
 #include "RETypeDefinition.hpp"
 #include "REManagedObject.hpp"
@@ -736,5 +744,60 @@ T* get_native_singleton(std::string_view type_name) {
     }
 
     return (T*)t->get_instance();
+}
+
+template <typename T>
+T* get_managed_singleton(std::string_view type_name) {
+    auto t = sdk::RETypeDB::get()->find_type(type_name);
+
+    if (t == nullptr) {
+        //spdlog::error("Cannot find type {:s}", type_name.data());
+        return nullptr;
+    }
+
+    auto get_instance_method = t->get_method("get_Instance");
+
+    if (get_instance_method == nullptr) {
+        //spdlog::error("Cannot find get_Instance method");
+        return nullptr;
+    }
+
+    return (T*)get_instance_method->call<T*>(sdk::get_thread_context());
+}
+
+// FNV-1A
+template<typename T, uint32_t Hash>
+T* get_managed_singleton() {
+    static auto t = []() -> sdk::RETypeDefinition* {
+        const auto tdb = sdk::RETypeDB::get();
+
+        for (auto i = 0; i < tdb->numTypes; i++) {
+            auto t = tdb->get_type(i);
+
+            if (t == nullptr) {
+                continue;
+            }
+
+            if (utility::hash(t->get_full_name()) == Hash) {
+                return t;
+            }
+        }
+
+        return nullptr;
+    }();
+
+    if (t == nullptr) {
+        //spdlog::error("Cannot find type {:s}", type_name.data());
+        return nullptr;
+    }
+
+    static auto get_instance_method = t->get_method("get_Instance");
+
+    if (get_instance_method == nullptr) {
+        //spdlog::error("Cannot find get_Instance method");
+        return nullptr;
+    }
+
+    return get_instance_method->call<T*>(sdk::get_thread_context());
 }
 } // namespace sdk
