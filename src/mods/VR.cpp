@@ -1898,6 +1898,8 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                 restore_data->detonemap = sdk::call_object_func<bool>(view, "get_Detonemap", context, view);
                 restore_data->view_type = (via::gui::ViewType)current_view_type;
 
+                original_game_object_pos.w = 0.0f;
+
                 // Set view type to world
                 sdk::call_object_func<void*>(view, "set_ViewType", context, view, (uint32_t)via::gui::ViewType::World);
 
@@ -1924,35 +1926,17 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                     auto camera_object = utility::re_component::get_game_object(camera);
 
                     if (camera_object != nullptr && camera_object->transform != nullptr) {
-                        auto camera_transform = camera_object->transform;
-
-                        const auto& camera_matrix = utility::re_transform::get_joint_matrix_by_index(*camera_transform, 0);
-                        const auto& camera_position = camera_matrix[3];
-                        
-                        original_game_object_pos.w = 0.0f;
-
                         auto& gui_matrix = game_object->transform->worldTransform;
-                        const auto wanted_rotation_mat = glm::extractMatrixRotation(camera_matrix) * Matrix4x4f {
-                            -1, 0, 0, 0,
-                            0, 1, 0, 0,
-                            0, 0, -1, 0,
-                            0, 0, 0, 1
-                        };
-
-                        const auto wanted_rotation = glm::quat{wanted_rotation_mat};
-
-                        gui_matrix = wanted_rotation_mat;
-
-                        //sdk::call_object_func<void*>(game_object->transform, "set_Rotation", context, game_object->transform, &wanted_rotation);
-
-                        //gui_matrix = wanted_rotation_mat;
-                        
-                        gui_matrix[3] = camera_position + (-camera_matrix[2] * m_ui_scale);
-                        gui_matrix[3].w = 1.0f;
-    
                         auto child = sdk::call_object_func<REManagedObject*>(view, "get_Child", context, view);
 
-                        auto fix_2d_position = [&](const Vector4f& target_position) {
+                        auto fix_2d_position = [&](const Vector4f& target_position, 
+                                                    bool screen_correction = true,
+                                                    std::optional<float> custom_ui_scale = std::nullopt)
+                        {
+                            if (!custom_ui_scale) {
+                                custom_ui_scale = m_ui_scale;
+                            }
+
                             auto delta = target_position - m_render_camera_matrix[3];
                             delta.w = 0.0f;
 
@@ -1975,20 +1959,81 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                             //sdk::set_transform_position(game_object->transform, new_pos);
                             //sdk::set_transform_rotation(game_object->transform, look_rot);
                             
-                            if (child != nullptr) {
-                                regenny::via::Size gui_size{};
-                                sdk::call_object_func<void*>(view, "get_ScreenSize", &gui_size, context, view);
+                            const auto scaled_ui_scale = *custom_ui_scale * 0.01f;
+                            const auto distance = glm::length(delta);
+                            const auto scale = std::clamp<float>(distance * scaled_ui_scale, 0.1f, 100.0f);
 
-                                Vector3f half_size{ gui_size.w / 2.0f, gui_size.h / 2.0f, 0.0f };
-                                sdk::call_object_func<void*>(child, "set_Position", context, child, &half_size);
+                            regenny::via::Size gui_size{};
+                            sdk::call_object_func<void*>(view, "get_ScreenSize", &gui_size, context, view);
+                            
+                            auto fix_transform_object = [&](::REManagedObject* object) {
+                                static auto transform_object_type = sdk::RETypeDB::get()->find_type("via.gui.TransformObject");
 
-                                const auto scaled_ui_scale = m_ui_scale * 0.01f;
-                                const auto distance = glm::length(delta);
-                                const auto scale = std::clamp<float>(distance * scaled_ui_scale, 0.1f, 100.0f);
+                                if (object == nullptr) {
+                                    return;
+                                }
+
+                                const auto t = utility::re_managed_object::get_type_definition(object);
+
+                                if (t == nullptr || !t->is_a(transform_object_type)) {
+                                    return;
+                                }
+
+                                //sdk::call_object_func<void*>(object, "set_ResolutionAdjust", context, object, true);
+
+                                if (screen_correction) {
+                                    Vector3f half_size{ gui_size.w / 2.0f, gui_size.h / 2.0f, 0.0f };
+                                    sdk::call_object_func<void*>(object, "set_Position", context, object, &half_size);
+                                }
+
                                 Vector4f new_scale{ scale, scale, scale, 1.0f };
-                                sdk::call_object_func<void*>(child, "set_Scale", context, child, &new_scale);
+                                sdk::call_object_func<void*>(object, "set_Scale", context, object, &new_scale);
+                            };
+
+                            for (auto c = child; c != nullptr; c = sdk::call_object_func<REManagedObject*>(c, "get_Next", context, c)) {
+                                fix_transform_object(c);
                             }
                         };
+
+                        auto camera_transform = camera_object->transform;
+
+                        const auto& camera_matrix = utility::re_transform::get_joint_matrix_by_index(*camera_transform, 0);
+                        const auto& camera_position = camera_matrix[3];
+
+                        glm::quat wanted_rotation{};
+                        
+                        float ui_distance_from_camera = m_ui_scale;
+                        bool wants_fix_2d_pos = false;
+                        bool wants_screen_correction = true;
+
+                        if (name_hash == "damage_ui2102"_fnv) {
+                            ui_distance_from_camera = 5.0f;
+                            wants_screen_correction = false;
+
+                            wanted_rotation = glm::extractMatrixRotation(m_render_camera_matrix) * Matrix4x4f{
+                                -1, 0, 0, 0,
+                                0, 1, 0, 0,
+                                0, 0, -1, 0,
+                                0, 0, 0, 1
+                            };
+                        } else {
+                            wanted_rotation = glm::extractMatrixRotation(camera_matrix) * Matrix4x4f{
+                                -1, 0, 0, 0,
+                                0, 1, 0, 0,
+                                0, 0, -1, 0,
+                                0, 0, 0, 1
+                            };
+                        }
+
+                        const auto wanted_rotation_mat = Matrix4x4f{wanted_rotation};
+                        gui_matrix = wanted_rotation_mat;
+
+                        gui_matrix[3] = camera_position + (wanted_rotation_mat[2] * ui_distance_from_camera);
+                        gui_matrix[3].w = 1.0f;
+
+                        if (wants_fix_2d_pos) {
+                            fix_2d_position(gui_matrix[3], wants_screen_correction, ui_distance_from_camera);
+                        }
 
                         static auto gui_driver_typedef = sdk::RETypeDB::get()->find_type(game_namespace("GUIDriver"));
                         static auto mhrise_npc_head_message_typedef = sdk::RETypeDB::get()->find_type(game_namespace("gui.GuiCommonNpcHeadMessage"));
