@@ -715,6 +715,23 @@ void set_next_window_size(sol::object size_obj, sol::object condition_obj) {
 
     ImGui::SetNextWindowSize(size, condition);
 }
+
+void push_id(sol::object id) {
+    if (id.is<int>()) {
+        ImGui::PushID(id.as<int>());
+    } else if (id.is<const char*>()) {
+        ImGui::PushID(id.as<const char*>());
+    } else if (id.is<void*>()) {
+        ImGui::PushID(id.as<void*>());
+    } else {
+        throw sol::error("Type must be int, const char* or void*");
+    }
+}
+
+void pop_id() {
+    ImGui::PopID();
+}
+
 } // namespace api::imgui
 
 namespace api::draw {
@@ -879,6 +896,8 @@ void bindings::open_imgui(ScriptState* s) {
     imgui["color_edit4"] = api::imgui::color_edit4;
     imgui["set_next_window_pos"] = api::imgui::set_next_window_pos;
     imgui["set_next_window_size"] = api::imgui::set_next_window_size;
+    imgui["push_id"] = api::imgui::push_id;
+    imgui["pop_id"] = api::imgui::pop_id;
     lua["imgui"] = imgui;
 
     auto draw = lua.create_table();
