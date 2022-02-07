@@ -25,7 +25,7 @@ REFrameworkRendererData g_renderer_data{
 REFrameworkPluginFunctions g_plugin_functions{
     reframework_on_lua_state_created,
     reframework_on_lua_state_destroyed,
-    reframework_on_frame,
+    reframework_on_present,
     reframework_on_pre_application_entry,
     reframework_on_post_application_entry,
     reframework_lock_lua,
@@ -715,12 +715,12 @@ bool reframework_on_lua_state_destroyed(REFLuaStateDestroyedCb cb) {
     return APIProxy::get()->add_on_lua_state_destroyed(cb);
 }
 
-bool reframework_on_frame(REFOnFrameCb cb) {
+bool reframework_on_present(REFOnPresentCb cb) {
     if (cb == nullptr) {
         return false;
     }
 
-    return APIProxy::get()->add_on_frame(cb);
+    return APIProxy::get()->add_on_present(cb);
 }
 
 bool reframework_on_pre_application_entry(const char* name, REFOnPreApplicationEntryCb cb) {

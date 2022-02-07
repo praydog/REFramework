@@ -617,6 +617,10 @@ void Hooks::global_application_entry_hook_internal(void* entry, const char* name
         auto now = std::chrono::high_resolution_clock::now();
         auto& mods = g_framework->get_mods()->get_mods();
 
+        if (hash == "BeginRendering"_fnv) {
+            g_framework->run_imgui_frame();
+        }
+
         for (auto& mod : mods) {
             mod->on_pre_application_entry(entry, name, hash);
         }
@@ -640,6 +644,10 @@ void Hooks::global_application_entry_hook_internal(void* entry, const char* name
         std::scoped_lock _{m_profiler_mutex};
         m_application_entry_times[name] = profiler_entry;
     } else {
+        if (hash == "BeginRendering"_fnv) {
+            g_framework->run_imgui_frame();
+        }
+
         auto& mods = g_framework->get_mods()->get_mods();
 
         for (auto& mod : mods) {

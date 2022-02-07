@@ -46,6 +46,8 @@ public:
 
     bool is_ready() const { return m_initialized && m_game_data_initialized; }
 
+    void run_imgui_frame();
+
     void on_frame_d3d11();
     void on_post_present_d3d11();
     void on_frame_d3d12();
@@ -56,7 +58,7 @@ public:
 
     void save_config();
 
-    enum RendererType : uint8_t {
+    enum class RendererType : uint8_t {
         D3D11,
         D3D12
     };
@@ -140,7 +142,9 @@ private:
     bool m_initialized{false};
     bool m_created_default_cfg{false};
     std::atomic<bool> m_game_data_initialized{false};
+    
     // UI
+    bool m_has_frame{false};
     bool m_draw_ui{true};
     bool m_last_draw_ui{m_draw_ui};
     bool m_is_ui_focused{false};
@@ -165,6 +169,7 @@ private:
 
     std::mutex m_input_mutex{};
     std::recursive_mutex m_config_mtx{};
+    std::recursive_mutex m_imgui_mtx{};
 
     HWND m_wnd{0};
     HMODULE m_game_module{0};
@@ -261,17 +266,17 @@ private: // D3D12 members
 
         D3D12_CPU_DESCRIPTOR_HANDLE get_cpu_rtv(ID3D12Device* device, RTV rtv) {
             return {rtv_desc_heap->GetCPUDescriptorHandleForHeapStart().ptr +
-                    (int)rtv * device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV)};
+                    (SIZE_T)rtv * (SIZE_T)device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV)};
         }
 
         D3D12_CPU_DESCRIPTOR_HANDLE get_cpu_srv(ID3D12Device* device, SRV srv) {
             return {srv_desc_heap->GetCPUDescriptorHandleForHeapStart().ptr +
-                    (int)srv * device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV)};
+                    (SIZE_T)srv * (SIZE_T)device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV)};
         }
 
         D3D12_GPU_DESCRIPTOR_HANDLE get_gpu_srv(ID3D12Device* device, SRV srv) {
             return {srv_desc_heap->GetGPUDescriptorHandleForHeapStart().ptr +
-                    (int)srv * device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV)};
+                    (SIZE_T)srv * (SIZE_T)device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV)};
         }
 
         uint32_t rt_width{};

@@ -29,15 +29,15 @@ private:
 
     // initial input state for imgui on the left eye frame
     struct {
-        ImVec2      MousePos;
-        bool        MouseDown[5];
-        float       MouseWheel;
-        float       MouseWheelH;
-        bool        KeyCtrl;
-        bool        KeyShift;
-        bool        KeyAlt;
-        bool        KeySuper;
-        bool        KeysDown[512];
+        ImVec2      MousePos{};
+        bool        MouseDown[5]{};
+        float       MouseWheel{};
+        float       MouseWheelH{};
+        bool        KeyCtrl{};
+        bool        KeyShift{};
+        bool        KeyAlt{};
+        bool        KeySuper{};
+        bool        KeysDown[512]{};
     } m_initial_imgui_input_state;
 
     // overlay handle

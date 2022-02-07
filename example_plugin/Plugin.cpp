@@ -143,7 +143,12 @@ void internal_frame() {
 
     auto scene_manager_full_name = scene_manager_type->get_full_name();
 
-    OutputDebugString((std::stringstream{} << scene_manager_full_name << " Size: " << scene_manager_full_name.size()).str().c_str());
+    static bool print_name_once = true;
+
+    if (print_name_once) {
+        OutputDebugString((std::stringstream{} << scene_manager_full_name << " Size: " << scene_manager_full_name.size()).str().c_str());
+        print_name_once = false;
+    }
 
     const auto get_main_view = scene_manager_type->find_method("get_MainView");
     const auto main_view_type = get_main_view->get_return_type();
@@ -405,7 +410,7 @@ void internal_frame() {
     }
 }
 
-void on_frame() {
+void on_present() {
     if (!g_initialized) {
         if (!initialize_imgui()) {
             OutputDebugString("Failed to initialize imgui");
@@ -496,7 +501,7 @@ extern "C" __declspec(dllexport) bool reframework_plugin_initialize(const REFram
     const auto functions = param->functions;
     functions->on_lua_state_created(on_lua_state_created);
     functions->on_lua_state_destroyed(on_lua_state_destroyed);
-    functions->on_frame(on_frame);
+    functions->on_present(on_present);
     functions->on_pre_application_entry("BeginRendering", on_pre_begin_rendering); // Look at via.ModuleEntry or the wiki for valid names here
     functions->on_post_application_entry("EndRendering", on_post_end_rendering);
     functions->on_device_reset(on_device_reset);

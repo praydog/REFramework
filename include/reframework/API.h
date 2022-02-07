@@ -3,7 +3,7 @@
 
 #define REFRAMEWORK_PLUGIN_VERSION_MAJOR 1
 #define REFRAMEWORK_PLUGIN_VERSION_MINOR 0
-#define REFRAMEWORK_PLUGIN_VERSION_PATCH 0
+#define REFRAMEWORK_PLUGIN_VERSION_PATCH 1
 
 #define REFRAMEWORK_RENDERER_D3D11 0
 #define REFRAMEWORK_RENDERER_D3D12 1
@@ -21,7 +21,7 @@ struct lua_State;
 typedef void (*REFInitializedCb)();
 typedef void (*REFLuaStateCreatedCb)(lua_State*);
 typedef void (*REFLuaStateDestroyedCb)(lua_State*);
-typedef void (*REFOnFrameCb)();
+typedef void (*REFOnPresentCb)();
 typedef void (*REFOnPreApplicationEntryCb)();
 typedef void (*REFOnPostApplicationEntryCb)();
 typedef void (*REFOnDeviceResetCb)();
@@ -30,7 +30,7 @@ typedef bool (*REFOnMessageCb)(void*, unsigned int, unsigned long long, long lon
 typedef bool (*REFOnInitializeFn)(REFInitializedCb);
 typedef bool (*REFOnLuaStateCreatedFn)(REFLuaStateCreatedCb);
 typedef bool (*REFOnLuaStateDestroyedFn)(REFLuaStateDestroyedCb);
-typedef bool (*REFOnFrameFn)(REFOnFrameCb);
+typedef bool (*REFOnPresentFn)(REFOnPresentCb);
 typedef bool (*REFOnPreApplicationEntryFn)(const char*, REFOnPreApplicationEntryCb);
 typedef bool (*REFOnPostApplicationEntryFn)(const char*, REFOnPostApplicationEntryCb);
 typedef void (*REFLuaLockUnlockFn)();
@@ -49,7 +49,7 @@ typedef void (*REFPluginRequiredVersionFn)(REFrameworkPluginVersion*);
 typedef struct {
     REFOnLuaStateCreatedFn on_lua_state_created;
     REFOnLuaStateDestroyedFn on_lua_state_destroyed;
-    REFOnFrameFn on_frame;
+    REFOnPresentFn on_present;
     REFOnPreApplicationEntryFn on_pre_application_entry;
     REFOnPostApplicationEntryFn on_post_application_entry;
     REFLuaLockUnlockFn lock_lua;

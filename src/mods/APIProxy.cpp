@@ -5,15 +5,13 @@
 #include "PluginLoader.hpp"
 #include "APIProxy.hpp"
 
-std::recursive_mutex APIProxy::s_api_cb_mtx{};
-
 std::shared_ptr<APIProxy>& APIProxy::get() {
     static auto instance = std::make_shared<APIProxy>();
     return instance;
 }
 
 bool APIProxy::add_on_lua_state_created(APIProxy::REFLuaStateCreatedCb cb) {
-    std::scoped_lock _{s_api_cb_mtx};
+    std::unique_lock _{m_api_cb_mtx};
 
     m_on_lua_state_created_cbs.push_back(cb);
 
@@ -27,21 +25,21 @@ bool APIProxy::add_on_lua_state_created(APIProxy::REFLuaStateCreatedCb cb) {
 }
 
 bool APIProxy::add_on_lua_state_destroyed(APIProxy::REFLuaStateDestroyedCb cb) {
-    std::scoped_lock _{s_api_cb_mtx};
+    std::unique_lock _{m_api_cb_mtx};
 
     m_on_lua_state_destroyed_cbs.push_back(cb);
     return true;
 }
 
-bool APIProxy::add_on_frame(APIProxy::REFOnFrameCb cb) {
-    std::scoped_lock _{s_api_cb_mtx};
+bool APIProxy::add_on_present(APIProxy::REFOnPresentCb cb) {
+    std::unique_lock _{m_api_cb_mtx};
 
-    m_on_frame_cbs.push_back(cb);
+    m_on_present_cbs.push_back(cb);
     return true;
 }
 
 bool APIProxy::add_on_pre_application_entry(std::string_view name, REFOnPreApplicationEntryCb cb) {
-    std::scoped_lock _{s_api_cb_mtx};
+    std::unique_lock _{m_api_cb_mtx};
 
     if (name.empty()) {
         return false;
@@ -54,7 +52,7 @@ bool APIProxy::add_on_pre_application_entry(std::string_view name, REFOnPreAppli
 }
 
 bool APIProxy::add_on_post_application_entry(std::string_view name, REFOnPostApplicationEntryCb cb) {
-    std::scoped_lock _{s_api_cb_mtx};
+    std::unique_lock _{m_api_cb_mtx};
 
     if (name.empty()) {
         return false;
@@ -67,21 +65,21 @@ bool APIProxy::add_on_post_application_entry(std::string_view name, REFOnPostApp
 }
 
 bool APIProxy::add_on_device_reset(REFOnDeviceResetCb cb) {
-    std::scoped_lock _{s_api_cb_mtx};
+    std::unique_lock _{m_api_cb_mtx};
 
     m_on_device_reset_cbs.push_back(cb);
     return true;
 }
 
 bool APIProxy::add_on_message(REFOnMessageCb cb) {
-    std::scoped_lock _{s_api_cb_mtx};
+    std::unique_lock _{m_api_cb_mtx};
 
     m_on_message_cbs.push_back(cb);
     return true;
 }
 
 void APIProxy::on_lua_state_created(sol::state& state) {
-    std::scoped_lock _{s_api_cb_mtx};
+    std::shared_lock _{m_api_cb_mtx};
 
     for (auto& cb : m_on_lua_state_created_cbs) {
         cb(state.lua_state());
@@ -89,15 +87,15 @@ void APIProxy::on_lua_state_created(sol::state& state) {
 }
 
 void APIProxy::on_lua_state_destroyed(sol::state& state) {
-    std::scoped_lock _{s_api_cb_mtx};
+    std::shared_lock _{m_api_cb_mtx};
 
     for (auto& cb : m_on_lua_state_destroyed_cbs) {
         cb(state.lua_state());
     }
 }
 
-void APIProxy::on_frame() {
-    std::scoped_lock _{s_api_cb_mtx};
+void APIProxy::on_present() {
+    std::shared_lock _{m_api_cb_mtx};
 
     reframework::g_renderer_data.renderer_type = (int)g_framework->get_renderer_type();
     
@@ -114,13 +112,13 @@ void APIProxy::on_frame() {
         reframework::g_renderer_data.command_queue = d3d12->get_command_queue();
     }
 
-    for (auto&& cb : m_on_frame_cbs) {
+    for (auto&& cb : m_on_present_cbs) {
         cb();
     }
 }
 
 void APIProxy::on_pre_application_entry(void* entry, const char* name, size_t hash) {
-    std::scoped_lock _{s_api_cb_mtx};
+    std::shared_lock _{m_api_cb_mtx};
 
     if (auto it = m_on_pre_application_entry_cbs.find(hash); it != m_on_pre_application_entry_cbs.end()) {
         for (auto&& cb : it->second) {
@@ -130,7 +128,7 @@ void APIProxy::on_pre_application_entry(void* entry, const char* name, size_t ha
 }
 
 void APIProxy::on_application_entry(void* entry, const char* name, size_t hash) {
-    std::scoped_lock _{s_api_cb_mtx};
+    std::shared_lock _{m_api_cb_mtx};
 
     if (auto it = m_on_post_application_entry_cbs.find(hash); it != m_on_post_application_entry_cbs.end()) {
         for (auto&& cb : it->second) {
@@ -140,7 +138,7 @@ void APIProxy::on_application_entry(void* entry, const char* name, size_t hash) 
 }
 
 void APIProxy::on_device_reset() {
-    std::scoped_lock _{s_api_cb_mtx};
+    std::shared_lock _{m_api_cb_mtx};
 
     for (auto&& cb : m_on_device_reset_cbs) {
         cb();
@@ -148,7 +146,7 @@ void APIProxy::on_device_reset() {
 }
 
 bool APIProxy::on_message(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
-    std::scoped_lock _{s_api_cb_mtx};
+    std::shared_lock _{m_api_cb_mtx};
 
     for (auto&& cb : m_on_message_cbs) {
         if (!cb(hwnd, msg, wparam, lparam)) {

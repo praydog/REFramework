@@ -10,7 +10,7 @@
 
 bool reframework_on_lua_state_created(REFLuaStateCreatedCb cb);
 bool reframework_on_lua_state_destroyed(REFLuaStateDestroyedCb cb);
-bool reframework_on_frame(REFOnFrameCb cb);
+bool reframework_on_present(REFOnPresentCb cb);
 bool reframework_on_pre_application_entry(const char* name, REFOnPreApplicationEntryCb cb);
 bool reframework_on_post_application_entry(const char* name, REFOnPostApplicationEntryCb cb);
 void reframework_lock_lua();

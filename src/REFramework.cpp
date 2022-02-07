@@ -50,8 +50,8 @@ void REFramework::hook_monitor() {
     const auto renderer_type = get_renderer_type();
 
     if (d3d11 == nullptr || d3d12 == nullptr 
-        || (renderer_type == REFramework::D3D11 && d3d11 != nullptr && !d3d11->is_inside_present()) 
-        || (renderer_type == REFramework::D3D12 && d3d12 != nullptr && !d3d12->is_inside_present())) 
+        || (renderer_type == REFramework::RendererType::D3D11 && d3d11 != nullptr && !d3d11->is_inside_present()) 
+        || (renderer_type == REFramework::RendererType::D3D12 && d3d12 != nullptr && !d3d12->is_inside_present())) 
     {
         // check if present time is more than 5 seconds ago
         if (now - m_last_present_time > std::chrono::seconds(5)) {
@@ -321,6 +321,10 @@ bool REFramework::hook_d3d12() {
 }
 
 REFramework::~REFramework() {
+    spdlog::info("REFramework shutting down...");
+
+    std::scoped_lock _{ m_hook_monitor_mutex };
+
     if (m_is_d3d11) {
         ImGui_ImplDX11_Shutdown();
     }
@@ -336,8 +340,42 @@ REFramework::~REFramework() {
     }
 }
 
+void REFramework::run_imgui_frame() {
+    std::scoped_lock _{ m_imgui_mtx };
+
+    m_has_frame = false;
+
+    if (!m_initialized) {
+        return;
+    }
+
+    const bool is_init_ok = m_error.empty() && m_game_data_initialized;
+
+    consume_input();
+    ImGui_ImplWin32_NewFrame();
+
+    if (is_init_ok) {
+        // Run mod frame callbacks.
+        m_mods->on_pre_imgui_frame();
+    }
+
+    ImGui::NewFrame();
+
+    call_on_frame();
+
+    draw_ui();
+    m_last_draw_ui = m_draw_ui;
+
+    ImGui::EndFrame();
+    ImGui::Render();
+
+    m_has_frame = true;
+}
+
 // D3D11 Draw funciton
 void REFramework::on_frame_d3d11() {
+    std::scoped_lock _{ m_imgui_mtx };
+
     spdlog::debug("on_frame (D3D11)");
 
     m_renderer_type = RendererType::D3D11;
@@ -368,26 +406,23 @@ void REFramework::on_frame_d3d11() {
         }
     }
 
-    consume_input();
     update_fonts();
 
-    ImGui_ImplDX11_NewFrame();
-    ImGui_ImplWin32_NewFrame();
-
-    if (is_init_ok) {
-        // Run mod frame callbacks.
-        m_mods->on_pre_imgui_frame();
+    if (!m_has_frame) {
+        if (!is_init_ok) {
+            ImGui_ImplDX11_NewFrame();
+            // hooks don't run until after initialization, so we just render the imgui window while initalizing.
+            run_imgui_frame();
+        } else {   
+            return;
+        }
+    } else {
+        ImGui_ImplDX11_NewFrame();
     }
 
-    ImGui::NewFrame();
-
-    call_on_frame();
-
-    draw_ui();
-    m_last_draw_ui = m_draw_ui;
-
-    ImGui::EndFrame();
-    ImGui::Render();
+    if (is_init_ok) {
+        m_mods->on_present();
+    }
 
     ComPtr<ID3D11DeviceContext> context{};
     float clear_color[]{0.0f, 0.0f, 0.0f, 0.0f};
@@ -427,6 +462,8 @@ void REFramework::on_post_present_d3d11() {
 
 // D3D12 Draw funciton
 void REFramework::on_frame_d3d12() {
+    std::scoped_lock _{ m_imgui_mtx };
+
     m_renderer_type = RendererType::D3D12;
 
     auto command_queue = m_d3d12_hook->get_command_queue();
@@ -464,26 +501,24 @@ void REFramework::on_frame_d3d12() {
         }
     }
 
-    consume_input();
     update_fonts();
 
-    ImGui_ImplDX12_NewFrame();
-    ImGui_ImplWin32_NewFrame();
 
-    if (is_init_ok) {
-        // Run mod frame callbacks.
-        m_mods->on_pre_imgui_frame();
+    if (!m_has_frame) {
+        if (!is_init_ok) {
+            ImGui_ImplDX12_NewFrame();
+            // hooks don't run until after initialization, so we just render the imgui window while initalizing.
+            run_imgui_frame();
+        } else {   
+            return;
+        }
+    } else {
+        ImGui_ImplDX12_NewFrame();
     }
 
-    ImGui::NewFrame();
-
-    call_on_frame();
-
-    draw_ui();
-    m_last_draw_ui = m_draw_ui;
-
-    ImGui::EndFrame();
-    ImGui::Render();
+    if (is_init_ok) {
+        m_mods->on_present();
+    }
 
     m_d3d12.cmd_allocator->Reset();
     m_d3d12.cmd_list->Reset(m_d3d12.cmd_allocator.Get(), nullptr);
@@ -552,6 +587,8 @@ void REFramework::on_post_present_d3d12() {
 }
 
 void REFramework::on_reset() {
+    std::scoped_lock _{ m_imgui_mtx };
+
     spdlog::info("Reset!");
 
     if (m_initialized) {
@@ -572,6 +609,7 @@ void REFramework::on_reset() {
         m_mods->on_device_reset();
     }
 
+    m_has_frame = false;
     m_first_initialize = false;
     m_initialized = false;
 }

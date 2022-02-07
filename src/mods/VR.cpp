@@ -1682,7 +1682,7 @@ void VR::on_pre_imgui_frame() {
     m_overlay_component.on_pre_imgui_frame();
 }
 
-void VR::on_frame() {
+void VR::on_present() {
     if (!m_openvr_loaded) {
         return;
     }

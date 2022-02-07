@@ -11,6 +11,7 @@ public:
 
     void on_pre_imgui_frame() const;
     void on_frame() const;
+    void on_present() const;
     void on_post_frame() const;
     void on_draw_ui() const;
     void on_device_reset() const;

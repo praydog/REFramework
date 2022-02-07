@@ -96,6 +96,12 @@ void Mods::on_frame() const {
     }
 }
 
+void Mods::on_present() const {
+    for (auto& mod : m_mods) {
+        mod->on_present();
+    }
+}
+
 void Mods::on_post_frame() const {
     for (auto& mod : m_mods) {
         mod->on_post_frame();
