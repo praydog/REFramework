@@ -1126,23 +1126,39 @@ void bindings::open_sdk(ScriptState* s) {
     sdk["hook"] = api::sdk::hook;
     sdk.new_enum("PreHookResult", "CALL_ORIGINAL", ScriptState::PreHookResult::CALL_ORIGINAL, "SKIP_ORIGINAL", ScriptState::PreHookResult::SKIP_ORIGINAL);
     sdk["is_managed_object"] = api::sdk::is_managed_object;
-    sdk["to_managed_object"] = [](sol::this_state s, void* ptr) { return sol::make_object(s, (REManagedObject*)ptr); };
+    sdk["to_managed_object"] = [](sol::this_state s, sol::object ptr) { 
+        if (ptr.is<::REManagedObject*>()) {
+            // no need to convert to managed object.
+            return sol::make_object(s, ptr.as<::REManagedObject*>());
+        } else if (ptr.is<uintptr_t>()) {
+            return sol::make_object(s, (::REManagedObject*)ptr.as<uintptr_t>());
+        } else if (ptr.is<void*>()) {
+            return sol::make_object(s, (::REManagedObject*)ptr.as<void*>());
+        } else {
+            //throw sol::error("Object passed was not a managed object, uintptr_t, or void*.");
+            return sol::make_object(s, sol::nil);
+        }
+    };
     sdk["to_resource"] = [](sol::this_state s, void* ptr) { return sol::make_object(s, (::sdk::Resource*)ptr); };
     sdk["to_double"] = [](void* ptr) { return *(double*)&ptr; };
     sdk["to_float"] = [](void* ptr) { return *(float*)&ptr; };
     sdk["to_int64"] = [](void* ptr) { return *(int64_t*)&ptr; };
     sdk["to_ptr"] = [](sol::object obj) {
         if (obj.is<int64_t>()) {
-            auto n = obj.as<int64_t>();
+            const auto n = obj.as<int64_t>();
             return *(void**)&n;
         } else if (obj.is<double>()) {
-            auto n = obj.as<double>();
+            const auto n = obj.as<double>();
+            return *(void**)&n;
+        } else if (obj.is<bool>()) {
+            const auto n = (uintptr_t)obj.as<bool>();
             return *(void**)&n;
         } else {
             return obj.as<void*>();
         }
     };
     sdk["float_to_ptr"] = [](float f) {
+        uintptr_t n = *(uintptr_t*)&f;
         return *(void**)&f;
     };
     lua["sdk"] = sdk;
@@ -1189,6 +1205,8 @@ void bindings::open_sdk(ScriptState* s) {
         "get_size", &::sdk::RETypeDefinition::get_size,
         "get_valuetype_size", &::sdk::RETypeDefinition::get_valuetype_size,
         "is_value_type", &::sdk::RETypeDefinition::is_value_type,
+        "is_enum", &::sdk::RETypeDefinition::is_enum,
+        "is_array", &::sdk::RETypeDefinition::is_array,
         "is_by_ref", &::sdk::RETypeDefinition::is_by_ref,
         "is_pointer", &::sdk::RETypeDefinition::is_pointer,
         "is_primitive", &::sdk::RETypeDefinition::is_primitive,
@@ -1415,6 +1433,7 @@ void bindings::open_sdk(ScriptState* s) {
         "read_float", &api::sdk::ValueType::read_memory<float>,
         "read_double", &api::sdk::ValueType::read_memory<double>,
         "address", &api::sdk::ValueType::address,
+        "get_address", &api::sdk::ValueType::address,
         "call", &api::sdk::ValueType::call,
         "get_field", &api::sdk::ValueType::get_field,
         "set_field", &api::sdk::ValueType::set_field,

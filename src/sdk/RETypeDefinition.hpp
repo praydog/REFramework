@@ -307,6 +307,7 @@ struct RETypeDefinition : public sdk::RETypeDefinition_ {
     via::clr::VMObjType get_vm_obj_type() const;
     bool is_value_type() const;
     bool is_enum() const;
+    bool is_array() const;
     bool is_by_ref() const;
     bool is_pointer() const;
     bool is_primitive() const;

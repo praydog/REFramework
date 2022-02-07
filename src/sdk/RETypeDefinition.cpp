@@ -519,6 +519,10 @@ bool RETypeDefinition::is_enum() const {
     return this->is_a(enum_type);
 }
 
+bool RETypeDefinition::is_array() const {
+    return get_vm_obj_type() == via::clr::VMObjType::Array;
+}
+
 static std::shared_mutex g_by_ref_mtx{};
 static std::unordered_map<const RETypeDefinition*, bool> g_by_ref_map{};
 

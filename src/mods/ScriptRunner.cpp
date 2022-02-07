@@ -161,6 +161,7 @@ ScriptState::ScriptState() {
                     float, float, float, float,
                     float, float, float, float)
         >(),
+        "identity", []() { return glm::identity<Matrix4x4f>(); },
         "to_quat", [] (Matrix4x4f& m) { return glm::quat(m); },
         "inverse", [] (Matrix4x4f& m) { return glm::inverse(m); },
         "invert", [] (Matrix4x4f& m) { m = glm::inverse(m); },
@@ -184,6 +185,7 @@ ScriptState::ScriptState() {
     // add glm::quat usertype
     m_lua.new_usertype<glm::quat>("Quaternion",
         sol::meta_function::construct, sol::constructors<glm::quat(), glm::quat(float, float, float, float), glm::quat(const Vector3f&)>(),
+        "identity", []() { return glm::identity<glm::quat>(); },
         "x", &glm::quat::x,
         "y", &glm::quat::y,
         "z", &glm::quat::z,
