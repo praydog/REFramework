@@ -447,6 +447,9 @@ void VR::on_lua_state_created(sol::state& lua) {
         "get_rotation_offset", &VR::get_rotation_offset,
         "set_rotation_offset", &VR::set_rotation_offset,
         "recenter_view", &VR::recenter_view,
+        "get_gui_rotation_offset", &VR::get_gui_rotation_offset,
+        "set_gui_rotation_offset", &VR::set_gui_rotation_offset,
+        "recenter_gui", &VR::recenter_gui,
         "get_action_set", &VR::get_action_set,
         "get_active_action_set", &VR::get_active_action_set,
         "get_action_trigger", &VR::get_action_trigger,
@@ -970,7 +973,7 @@ void VR::update_hmd_state() {
         memcpy(m_render_poses.data(), m_real_render_poses.data(), sizeof(m_render_poses));
 
         if (wants_reset_origin) {
-            m_rotation_offset = glm::identity<glm::quat>();
+            set_rotation_offset(glm::identity<glm::quat>());
             m_standing_origin = get_position_unsafe(vr::k_unTrackedDeviceIndex_Hmd);
         }
     }
@@ -1153,7 +1156,8 @@ void VR::update_camera_origin() {
 }
 
 void VR::apply_hmd_transform(glm::quat& rotation, Vector4f& position) {
-    const auto current_hmd_rotation = glm::normalize(m_rotation_offset * glm::quat{get_rotation(0)});
+    const auto rotation_offset = get_rotation_offset();
+    const auto current_hmd_rotation = glm::normalize(rotation_offset * glm::quat{get_rotation(0)});
     
     glm::quat new_rotation{};
     glm::quat camera_rotation{};
@@ -1168,7 +1172,7 @@ void VR::apply_hmd_transform(glm::quat& rotation, Vector4f& position) {
         new_rotation = glm::normalize(camera_rotation * current_hmd_rotation);
     }
 
-    auto current_relative_pos = m_rotation_offset * (get_position(0) - m_standing_origin) /*+ current_relative_eye_pos*/;
+    auto current_relative_pos = rotation_offset * (get_position(0) - m_standing_origin) /*+ current_relative_eye_pos*/;
     current_relative_pos.w = 0.0f;
 
     auto current_head_pos = camera_rotation * current_relative_pos;
@@ -1626,6 +1630,23 @@ void VR::recenter_view() {
     set_rotation_offset(glm::quat{utility::math::remove_y_component(Matrix4x4f{m_rotation_offset})});
 }
 
+glm::quat VR::get_gui_rotation_offset() {
+    std::shared_lock _{ m_gui_mtx };
+
+    return m_gui_rotation_offset;
+}
+
+void VR::set_gui_rotation_offset(const glm::quat& offset) {
+    std::unique_lock _{ m_gui_mtx };
+
+    m_gui_rotation_offset = offset;
+}
+
+void VR::recenter_gui(const glm::quat& from) {
+    set_gui_rotation_offset(glm::inverse(from));
+    set_gui_rotation_offset(glm::quat{utility::math::remove_y_component(Matrix4x4f{m_gui_rotation_offset})});
+}
+
 Vector4f VR::get_current_offset() {
     if (!m_is_hmd_active) {
         return Vector4f{};
@@ -2017,12 +2038,16 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                                 0, 0, 0, 1
                             };
                         } else {
+                            const auto gui_rotation_offset = get_gui_rotation_offset();
+
                             wanted_rotation = glm::extractMatrixRotation(camera_matrix) * Matrix4x4f{
                                 -1, 0, 0, 0,
                                 0, 1, 0, 0,
                                 0, 0, -1, 0,
                                 0, 0, 0, 1
                             };
+
+                            wanted_rotation = gui_rotation_offset * wanted_rotation;
                         }
 
                         const auto wanted_rotation_mat = Matrix4x4f{wanted_rotation};
