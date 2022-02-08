@@ -114,6 +114,9 @@ ScriptState::ScriptState() {
         "length", [](Vector3f& v) { return glm::length(v); },
         "normalize", [](Vector3f& v) { v = glm::normalize(v); },
         "normalized", [](Vector3f& v) { return glm::normalize(v); },
+        "reflect", [](Vector3f& v, Vector3f& normal) { return glm::reflect(v, normal); },
+        "refract", [](Vector3f& v, Vector3f& normal, float eta) { return glm::refract(v, normal, eta); },
+        "lerp", [](Vector3f& v1, Vector3f& v2, float t) { return glm::lerp(v1, v2, t); },
         sol::meta_function::addition, [](Vector3f& lhs, Vector3f& rhs) { return lhs + rhs; },
         sol::meta_function::subtraction, [](Vector3f& lhs, Vector3f& rhs) { return lhs - rhs; },
         sol::meta_function::multiplication, [](Vector3f& lhs, float scalar) { return lhs * scalar; },
@@ -138,6 +141,9 @@ ScriptState::ScriptState() {
         "length", [](Vector4f& v) { return glm::length(v); },
         "normalize", [](Vector4f& v) { v = glm::normalize(v); },
         "normalized", [](Vector4f& v) { return glm::normalize(v); },
+        "reflect", [](Vector4f& v, Vector4f& normal) { return glm::reflect(v, normal); },
+        "refract", [](Vector4f& v, Vector4f& normal, float eta) { return glm::refract(v, normal, eta); },
+        "lerp", [](Vector4f& v1, Vector4f& v2, float t) { return glm::lerp(v1, v2, t); },
         sol::meta_function::addition, [](Vector4f& lhs, Vector4f& rhs) { return lhs + rhs; },
         sol::meta_function::subtraction, [](Vector4f& lhs, Vector4f& rhs) { return lhs - rhs; },
         sol::meta_function::multiplication, [](Vector4f& lhs, float scalar) { return lhs * scalar; },
@@ -165,6 +171,8 @@ ScriptState::ScriptState() {
         "to_quat", [] (Matrix4x4f& m) { return glm::quat(m); },
         "inverse", [] (Matrix4x4f& m) { return glm::inverse(m); },
         "invert", [] (Matrix4x4f& m) { m = glm::inverse(m); },
+        "interpolate", [](Matrix4x4f& m1, Matrix4x4f& m2, float t) { return glm::interpolate(m1, m2, t); },
+        "matrix_rotation", [](Matrix4x4f& m) { return glm::extractMatrixRotation(m); },
         sol::meta_function::multiplication, sol::overload(
             [](Matrix4x4f& lhs, Matrix4x4f& rhs) {
                 return lhs * rhs;
@@ -195,6 +203,10 @@ ScriptState::ScriptState() {
         "invert", [](glm::quat& q) { q = glm::inverse(q); },
         "normalize", [](glm::quat& q) { q = glm::normalize(q); },
         "normalized", [](glm::quat& q) { return glm::normalize(q); },
+        "slerp", [](glm::quat& q1, glm::quat& q2, float t) { return glm::slerp(q1, q2, t); },
+        "dot", [](glm::quat& q1, glm::quat& q2) { return glm::dot(q1, q2); },
+        "length", [](glm::quat& q) { return glm::length(q); },
+        "conjugate", [](glm::quat& q) { return glm::conjugate(q); },
         sol::meta_function::multiplication, sol::overload( 
             [](glm::quat& lhs, glm::quat& rhs) -> glm::quat {
                 return lhs * rhs;
