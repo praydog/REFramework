@@ -1147,6 +1147,8 @@ void bindings::open_sdk(ScriptState* s) {
         if (obj.is<int64_t>()) {
             const auto n = obj.as<int64_t>();
             return *(void**)&n;
+        } else if (obj.is<::REManagedObject*>()) {
+            return (void*)obj.as<::REManagedObject*>();
         } else if (obj.is<double>()) {
             const auto n = obj.as<double>();
             return *(void**)&n;
