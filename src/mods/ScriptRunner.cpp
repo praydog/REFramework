@@ -44,15 +44,6 @@ void debug(const char* str) {
 }
 }
 
-ScriptState::HookedFn::~HookedFn() {
-    fn_hook.reset();
-
-    if (facilitator_fn != 0) {
-        auto rt = state.jit_runtime();
-        rt->release(facilitator_fn);
-    }
-}
-
 ScriptState::ScriptState() {
     std::scoped_lock _{ m_execution_mutex };
 
@@ -262,7 +253,11 @@ ScriptState::ScriptState() {
 
 ScriptState::~ScriptState() {
     std::scoped_lock _{m_execution_mutex};
-    m_hooked_fns.clear();
+    for (auto&& [fn, hook_ids] : m_hooks) {
+        for (auto&& id : hook_ids) {
+            g_hookman.remove(fn, id);
+        }
+    }
 }
 
 void ScriptState::run_script(const std::string& p) {
@@ -447,69 +442,6 @@ void ScriptState::on_config_save() try {
     }
 } catch (const std::exception& e) {
     OutputDebugString(e.what());
-}
-
-
-
-ScriptState::PreHookResult ScriptState::on_pre_hook(HookedFn* fn) {
-    std::scoped_lock _{ m_execution_mutex };
-    auto result = PreHookResult::CALL_ORIGINAL;
-
-    try {
-        if (fn->script_pre_fns.empty()) {
-            return result;
-        }
-
-        // Call the script function.
-        // Convert the args to a table that we pass to the script function.
-        for (auto i = 0u; i < fn->args.size(); ++i) {
-            fn->script_args[i + 1] = (void*)fn->args[i];
-        }
-
-        bool any_skip = false;
-
-        for (auto&& pre_fn : fn->script_pre_fns) {
-            auto script_result = handle_protected_result(pre_fn(fn->script_args)).get<sol::object>();
-
-            if (script_result.is<PreHookResult>()) {
-                result = script_result.as<PreHookResult>();
-
-                if (result == PreHookResult::SKIP_ORIGINAL) {
-                    any_skip = true;
-                }
-            }
-        }
-
-        if (any_skip) {
-            result = PreHookResult::SKIP_ORIGINAL;
-        }
-
-        // Apply the changes to arguments that the script function may have made.
-        for (auto i = 0u; i < fn->args.size(); ++i) {
-            auto arg = fn->script_args[i + 1];
-            fn->args[i] = (uintptr_t)arg.get<void*>();
-        }
-    } catch (const std::exception& e) {
-        OutputDebugString(e.what());
-    }
-
-    return result;
-}
-
-void ScriptState::on_post_hook(HookedFn* fn) {
-    std::scoped_lock _{ m_execution_mutex };
-
-    try {
-        if (fn->script_post_fns.empty()) {
-            return;
-        }
-
-        for (auto&& post_fn : fn->script_post_fns) {
-            fn->ret_val = (uintptr_t)handle_protected_result(post_fn((void*)fn->ret_val)).get<void*>();
-        }
-    } catch (const std::exception& e) {
-        OutputDebugString(e.what());
-    }
 }
 
 std::shared_ptr<ScriptRunner>& ScriptRunner::get() {

@@ -23,6 +23,9 @@ void* get_actual_function(void* possible_fn) {
 }
 }
 
+HookManager::HookedFn::HookedFn(HookManager& hm) : hookman{hm} {
+}
+
 HookManager::HookedFn::~HookedFn() {
     fn_hook.reset();
 
@@ -35,8 +38,8 @@ HookManager::HookedFn::~HookedFn() {
 HookManager::PreHookResult HookManager::HookedFn::on_pre_hook() {
     auto any_skipped = false;
 
-    for (const auto& pre_fn : pre_fns) {
-        if (pre_fn(args) == PreHookResult::SKIP_ORIGINAL) {
+    for (const auto& cb : cbs) {
+        if (cb.pre_fn(this) == PreHookResult::SKIP_ORIGINAL) {
             any_skipped = true;
         }
     } 
@@ -45,24 +48,25 @@ HookManager::PreHookResult HookManager::HookedFn::on_pre_hook() {
 }
 
 void HookManager::HookedFn::on_post_hook() {
-    for (const auto& post_fn : post_fns) {
-        ret_val = post_fn(ret_val);
+    for (const auto& cb : cbs) {
+        cb.post_fn(this);
     }
 }
 
-void HookManager::add(sdk::REMethodDefinition* fn, HookManager::PreHookFn pre_fn, HookManager::PostHookFn post_fn, bool ignore_jmp) {
+HookManager::HookId HookManager::add(sdk::REMethodDefinition* fn, HookManager::PreHookFn pre_fn, HookManager::PostHookFn post_fn, bool ignore_jmp) {
     if (auto search = m_hooked_fns.find(fn); search != m_hooked_fns.end()) {
-        std::scoped_lock _{search->second->mux};
-        search->second->pre_fns.emplace_back(std::move(pre_fn));
-        search->second->post_fns.emplace_back(std::move(post_fn));
-        return;
+        auto& hook = search->second;
+        std::scoped_lock _{hook->mux};
+        auto hook_id = hook->next_hook_id++;
+        hook->cbs.emplace_back(hook_id, std::move(pre_fn), std::move(post_fn));
+        return hook_id;
     }
 
     auto hook = std::make_unique<HookedFn>(*this);
+    auto hook_id = hook->next_hook_id++;
 
     hook->target_fn = ignore_jmp ? fn->get_function() : detail::get_actual_function(fn->get_function());
-    hook->pre_fns.emplace_back(std::move(pre_fn));
-    hook->post_fns.emplace_back(std::move(post_fn));
+    hook->cbs.emplace_back(hook_id, std::move(pre_fn), std::move(post_fn));
     hook->arg_tys = fn->get_param_types();
     hook->ret_ty = fn->get_return_type();
 
@@ -323,4 +327,15 @@ void HookManager::add(sdk::REMethodDefinition* fn, HookManager::PreHookFn pre_fn
 
     fn_hook->create();
     m_hooked_fns.emplace(fn, std::move(hook));
+
+    return hook_id;
+}
+
+void HookManager::remove(sdk::REMethodDefinition* fn, HookId id) {
+    if (auto search = m_hooked_fns.find(fn); search != m_hooked_fns.end()) {
+        auto& hook = search->second;
+        auto& cbs = hook->cbs;
+        std::scoped_lock _{hook->mux};
+        cbs.erase(std::remove_if(cbs.begin(), cbs.end(), [id](const HookCallback& cb) { return cb.id == id; }));
+    }
 }

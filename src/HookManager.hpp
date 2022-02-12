@@ -18,14 +18,24 @@ public:
         SKIP_ORIGINAL,
     };
 
-    using PreHookFn = std::function<PreHookResult(std::vector<uintptr_t>)>;
-    using PostHookFn = std::function<uintptr_t(uintptr_t)>;
+    struct HookedFn;
+    using PreHookFn = std::function<PreHookResult(HookedFn*)>;
+    using PostHookFn = std::function<void(HookedFn*)>;
+    using HookId = size_t;
+
+    struct HookCallback {
+        HookId id{};
+        PreHookFn pre_fn{};
+        PostHookFn post_fn{};
+    };
 
     struct HookedFn {
         HookManager& hookman;
         void* target_fn{};
-        std::vector<PreHookFn> pre_fns{};
-        std::vector<PostHookFn> post_fns{};
+        /* std::vector<PreHookFn> pre_fns{};
+        std::vector<PostHookFn> post_fns{};*/
+        std::vector<HookCallback> cbs{}; 
+        HookId next_hook_id{};
         std::unique_ptr<FunctionHook> fn_hook{};
         uintptr_t facilitator_fn{};
         std::vector<uintptr_t> args{};
@@ -35,6 +45,7 @@ public:
         sdk::RETypeDefinition* ret_ty{};
         std::mutex mux{};
 
+        HookedFn(HookManager& hm);
         ~HookedFn();
 
         PreHookResult on_pre_hook();
@@ -46,10 +57,13 @@ public:
         __declspec(noinline) static void on_post_hook_static(HookedFn* fn) { fn->on_post_hook(); }
     };
 
-    void add(sdk::REMethodDefinition* fn, PreHookFn pre_fn, PostHookFn post_fn, bool ignore_jmp = false);
+    HookId add(sdk::REMethodDefinition* fn, PreHookFn pre_fn, PostHookFn post_fn, bool ignore_jmp = false);
+    void remove(sdk::REMethodDefinition* fn, HookId id);
 
 private:
     asmjit::JitRuntime m_jit{};
     std::mutex m_jit_mux{};
     std::unordered_map<sdk::REMethodDefinition*, std::unique_ptr<HookedFn>> m_hooked_fns{};
 };
+
+inline HookManager g_hookman{};
