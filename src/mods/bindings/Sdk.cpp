@@ -862,11 +862,6 @@ bool is_managed_object(sol::object obj) {
     return utility::re_managed_object::is_managed_object(real_obj);
 }
 
-struct SdkHooks {
-    std::unordered_map<::sdk::REMethodDefinition*, std::vector<sol::protected_function>> pre_fns{};
-    std::unordered_map<::sdk::REMethodDefinition*, std::vector<sol::protected_function>> post_fns{};
-};
-
 void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::protected_function pre_cb, sol::protected_function post_cb, sol::object ignore_jmp_object) {
     auto sol_state = sol::state_view{s};
     auto state = sol_state.registry()["state"].get<ScriptState*>();

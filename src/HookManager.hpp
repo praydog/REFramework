@@ -32,8 +32,6 @@ public:
     struct HookedFn {
         HookManager& hookman;
         void* target_fn{};
-        /* std::vector<PreHookFn> pre_fns{};
-        std::vector<PostHookFn> post_fns{};*/
         std::vector<HookCallback> cbs{}; 
         HookId next_hook_id{};
         std::unique_ptr<FunctionHook> fn_hook{};
