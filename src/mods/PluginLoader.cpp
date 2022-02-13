@@ -11,6 +11,8 @@
 
 #include "APIProxy.hpp"
 #include "ScriptRunner.hpp"
+#include "HookManager.hpp"
+
 #include "PluginLoader.hpp"
 
 REFrameworkPluginVersion g_plugin_version{
@@ -152,6 +154,17 @@ REFrameworkSDKFunctions g_sdk_functions {
     [](const char* str) -> REFrameworkManagedObjectHandle {
         return (REFrameworkManagedObjectHandle)sdk::VM::create_managed_string(utility::widen(str));
     },
+    [](REFrameworkMethodHandle fn, REFPreHookFn pre_fn, REFPostHookFn post_fn, bool ignore_jmp) -> unsigned int {
+        return g_hookman.add((sdk::REMethodDefinition*)fn, [pre_fn](HookManager::HookedFn* fn) { 
+                return (HookManager::PreHookResult)pre_fn((int)fn->args.size(),
+                    (void**)fn->args.data(), (REFrameworkTypeDefinitionHandle*)fn->arg_tys.data());
+            },
+            [post_fn](HookManager::HookedFn* fn) {
+                post_fn((void*)fn->ret_val, (REFrameworkTypeDefinitionHandle)fn->ret_ty);
+            },
+            ignore_jmp);
+    },
+    [](REFrameworkMethodHandle fn, unsigned int id) { g_hookman.remove((sdk::REMethodDefinition*)fn, (HookManager::HookId)id); },
 };
 
 #define RETYPEDEF(var) ((sdk::RETypeDefinition*)var)

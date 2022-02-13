@@ -133,22 +133,29 @@ type = "game"
 [target.MHRISE]
 type = "game"
 
-[target.example_plugin]
+[template.plugin]
 type = "shared"
-sources = ["example_plugin/**.cpp", "example_plugin/**.c"]
-headers = ["example_plugin/**.hpp", "example_plugin/**.h"]
 include-directories = ["include/"]
 compile-features = ["cxx_std_20"]
-link-libraries = [
-    "lua",
-    "sol2",
-    "imgui"
-]
 
-[target.example_plugin.properties]
+[template.plugin.properties]
 RUNTIME_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO = "${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 LIBRARY_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
 LIBRARY_OUTPUT_DIRECTORY_RELWITHDEBINFO = "${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
 ARCHIVE_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
 ARCHIVE_OUTPUT_DIRECTORY_RELWITHDEBINFO = "${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+
+[target.example_plugin]
+type = "plugin"
+sources = ["examples/example_plugin/**.cpp", "examples/example_plugin/**.c"]
+headers = ["examples/example_plugin/**.hpp", "examples/example_plugin/**.h"]
+link-libraries = [
+    "lua",
+    "sol2",
+    "imgui"
+]
+
+[target.weapon_stay_big_plugin]
+type = "plugin"
+sources = ["examples/weapon_stay_big_plugin/weapon_stay_big.cpp"]

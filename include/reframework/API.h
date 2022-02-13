@@ -7,8 +7,8 @@
 #endif
 
 #define REFRAMEWORK_PLUGIN_VERSION_MAJOR 1
-#define REFRAMEWORK_PLUGIN_VERSION_MINOR 0
-#define REFRAMEWORK_PLUGIN_VERSION_PATCH 2
+#define REFRAMEWORK_PLUGIN_VERSION_MINOR 1
+#define REFRAMEWORK_PLUGIN_VERSION_PATCH 0
 
 #define REFRAMEWORK_RENDERER_D3D11 0
 #define REFRAMEWORK_RENDERER_D3D12 1
@@ -18,6 +18,9 @@
 #define REFRAMEWORK_ERROR_OUT_TOO_SMALL 1
 #define REFRAMEWORK_ERROR_EXCEPTION 2
 #define REFRAMEWORK_ERROR_IN_ARGS_SIZE_MISMATCH 3
+
+#define REFRAMEWORK_HOOK_CALL_ORIGINAL 0
+#define REFRAMEWORK_HOOK_SKIP_ORIGINAL 1
 
 typedef int REFrameworkResult;
 
@@ -329,6 +332,9 @@ typedef struct {
     unsigned int (*get_size)(REFrameworkReflectionPropertyHandle);
 } REFrameworkReflectionProperty;
 
+typedef int (*REFPreHookFn)(int argc, void** argv, REFrameworkTypeDefinitionHandle* arg_tys);
+typedef void (*REFPostHookFn)(void* ret_val, REFrameworkTypeDefinitionHandle ret_ty);
+
 typedef struct {
     REFrameworkTDBHandle (*get_tdb)();
     REFrameworkResourceManagerHandle (*get_resource_manager)();
@@ -345,6 +351,9 @@ typedef struct {
 
     REFrameworkManagedObjectHandle (*create_managed_string)(const wchar_t* str);
     REFrameworkManagedObjectHandle (*create_managed_string_normal)(const char* str);
+
+    unsigned int (*add_hook)(REFrameworkMethodHandle, REFPreHookFn, REFPostHookFn, bool ignore_jmp);
+    void (*remove_hook)(REFrameworkMethodHandle, unsigned int);
 } REFrameworkSDKFunctions;
 
 /* these are NOT pointers to the actual objects */

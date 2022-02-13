@@ -2824,21 +2824,21 @@ set(CMKR_TARGET example_plugin)
 set(example_plugin_SOURCES "")
 
 list(APPEND example_plugin_SOURCES
-	"example_plugin/Plugin.cpp"
-	"example_plugin/imgui/imgui_impl_dx11.cpp"
-	"example_plugin/imgui/imgui_impl_dx12.cpp"
-	"example_plugin/imgui/imgui_impl_win32.cpp"
-	"example_plugin/rendering/d3d11.cpp"
-	"example_plugin/rendering/d3d12.cpp"
-	"example_plugin/Plugin.hpp"
-	"example_plugin/imgui/font_robotomedium.hpp"
-	"example_plugin/imgui/re2_imconfig.hpp"
-	"example_plugin/rendering/d3d11.hpp"
-	"example_plugin/rendering/d3d12.hpp"
-	"example_plugin/rendering/shared.hpp"
-	"example_plugin/imgui/imgui_impl_dx11.h"
-	"example_plugin/imgui/imgui_impl_dx12.h"
-	"example_plugin/imgui/imgui_impl_win32.h"
+	"examples/example_plugin/Plugin.cpp"
+	"examples/example_plugin/imgui/imgui_impl_dx11.cpp"
+	"examples/example_plugin/imgui/imgui_impl_dx12.cpp"
+	"examples/example_plugin/imgui/imgui_impl_win32.cpp"
+	"examples/example_plugin/rendering/d3d11.cpp"
+	"examples/example_plugin/rendering/d3d12.cpp"
+	"examples/example_plugin/Plugin.hpp"
+	"examples/example_plugin/imgui/font_robotomedium.hpp"
+	"examples/example_plugin/imgui/re2_imconfig.hpp"
+	"examples/example_plugin/rendering/d3d11.hpp"
+	"examples/example_plugin/rendering/d3d12.hpp"
+	"examples/example_plugin/rendering/shared.hpp"
+	"examples/example_plugin/imgui/imgui_impl_dx11.h"
+	"examples/example_plugin/imgui/imgui_impl_dx12.h"
+	"examples/example_plugin/imgui/imgui_impl_win32.h"
 )
 
 list(APPEND example_plugin_SOURCES
@@ -2869,6 +2869,53 @@ target_link_libraries(example_plugin PUBLIC
 )
 
 set_target_properties(example_plugin PROPERTIES
+	RUNTIME_OUTPUT_DIRECTORY_RELEASE
+		"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
+	RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
+		"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
+	LIBRARY_OUTPUT_DIRECTORY_RELEASE
+		"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+	LIBRARY_OUTPUT_DIRECTORY_RELWITHDEBINFO
+		"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+	ARCHIVE_OUTPUT_DIRECTORY_RELEASE
+		"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+	ARCHIVE_OUTPUT_DIRECTORY_RELWITHDEBINFO
+		"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+)
+
+unset(CMKR_TARGET)
+unset(CMKR_SOURCES)
+
+# Target weapon_stay_big_plugin
+set(CMKR_TARGET weapon_stay_big_plugin)
+set(weapon_stay_big_plugin_SOURCES "")
+
+list(APPEND weapon_stay_big_plugin_SOURCES
+	"examples/weapon_stay_big_plugin/weapon_stay_big.cpp"
+)
+
+list(APPEND weapon_stay_big_plugin_SOURCES
+	cmake.toml
+)
+
+set(CMKR_SOURCES ${weapon_stay_big_plugin_SOURCES})
+add_library(weapon_stay_big_plugin SHARED)
+
+if(weapon_stay_big_plugin_SOURCES)
+	target_sources(weapon_stay_big_plugin PRIVATE ${weapon_stay_big_plugin_SOURCES})
+endif()
+
+source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${weapon_stay_big_plugin_SOURCES})
+
+target_compile_features(weapon_stay_big_plugin PUBLIC
+	cxx_std_20
+)
+
+target_include_directories(weapon_stay_big_plugin PUBLIC
+	"include/"
+)
+
+set_target_properties(weapon_stay_big_plugin PROPERTIES
 	RUNTIME_OUTPUT_DIRECTORY_RELEASE
 		"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 	RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO

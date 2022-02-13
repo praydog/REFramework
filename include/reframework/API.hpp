@@ -517,6 +517,14 @@ public:
         uint32_t get_invoke_id() const {
             return API::s_instance->sdk()->method->get_invoke_id(*this);
         }
+
+        unsigned int add_hook(REFPreHookFn pre_fn, REFPostHookFn post_fn, bool ignore_jmp) const {
+            return API::s_instance->sdk()->functions->add_hook(*this, pre_fn, post_fn, ignore_jmp);
+        }
+
+        void remove_hook(unsigned int hook_id) const {
+            API::s_instance->sdk()->functions->remove_hook(*this, hook_id);
+        }
     };
 
     struct Field {
@@ -667,7 +675,7 @@ public:
                 return nullptr;
             }
 
-            return f->get_data_raw<T>(this, is_value_type);
+            return (T*)f->get_data_raw((void*)this, is_value_type);
         }
     };
 
