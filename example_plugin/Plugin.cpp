@@ -19,6 +19,8 @@
 
 using namespace reframework;
 
+typedef void* (*REFGenericFunction)(...);
+
 lua_State* g_lua{nullptr};
 
 std::unordered_map<std::string, sol::load_result> g_loaded_snippets{};

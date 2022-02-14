@@ -129,7 +129,7 @@ public:
     }
 
     API::ManagedObject* typeof(const char* name) const {
-        return (API::ManagedObject*)sdk()->functions->typeof(name);
+        return (API::ManagedObject*)sdk()->functions->typeof_(name);
     }
 
     API::ManagedObject* get_managed_singleton(std::string_view name) const {
