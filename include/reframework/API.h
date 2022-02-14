@@ -333,7 +333,7 @@ typedef struct {
 } REFrameworkReflectionProperty;
 
 typedef int (*REFPreHookFn)(int argc, void** argv, REFrameworkTypeDefinitionHandle* arg_tys);
-typedef void (*REFPostHookFn)(void* ret_val, REFrameworkTypeDefinitionHandle ret_ty);
+typedef void (*REFPostHookFn)(void** ret_val, REFrameworkTypeDefinitionHandle ret_ty);
 
 typedef struct {
     REFrameworkTDBHandle (*get_tdb)();

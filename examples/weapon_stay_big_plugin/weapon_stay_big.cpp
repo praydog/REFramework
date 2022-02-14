@@ -8,7 +8,7 @@ int pre_start(int argc, void** argv, REFrameworkTypeDefinitionHandle* arg_tys) {
     return REFRAMEWORK_HOOK_CALL_ORIGINAL;
 }
 
-void post_start(void* ret_val, REFrameworkTypeDefinitionHandle ret_ty) {
+void post_start(void** ret_val, REFrameworkTypeDefinitionHandle ret_ty) {
 }
 
 extern "C" __declspec(dllexport) void reframework_plugin_required_version(REFrameworkPluginVersion* version) {

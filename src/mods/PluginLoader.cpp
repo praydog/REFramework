@@ -165,7 +165,7 @@ REFrameworkSDKFunctions g_sdk_functions {
             },
             [post_fn](HookManager::HookedFn* fn) {
                 if (post_fn != nullptr) {
-                    post_fn((void*)fn->ret_val, (REFrameworkTypeDefinitionHandle)fn->ret_ty);
+                    post_fn((void**)&fn->ret_val, (REFrameworkTypeDefinitionHandle)fn->ret_ty);
                 }
             },
             ignore_jmp);
