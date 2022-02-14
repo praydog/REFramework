@@ -874,6 +874,10 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::protected_funct
             auto result = PreHookResult::CALL_ORIGINAL;
 
             try {
+                if (pre_cb.is<sol::nil_t>()) {
+                    return result;
+                }
+
                 auto script_args = state->lua().create_table();
 
                 // Call the script function.
@@ -909,6 +913,10 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::protected_funct
             auto _ = state->scoped_lock();
 
             try {
+                if (post_cb.is<sol::nil_t>()) {
+                    return;
+                }
+
                 auto script_result = post_cb((void*)fn->ret_val);
 
                 if (!script_result.valid()) {

@@ -39,8 +39,10 @@ HookManager::PreHookResult HookManager::HookedFn::on_pre_hook() {
     auto any_skipped = false;
 
     for (const auto& cb : cbs) {
-        if (cb.pre_fn(this) == PreHookResult::SKIP_ORIGINAL) {
-            any_skipped = true;
+        if (cb.pre_fn) {
+            if (cb.pre_fn(this) == PreHookResult::SKIP_ORIGINAL) {
+                any_skipped = true;
+            }
         }
     } 
 
@@ -49,7 +51,9 @@ HookManager::PreHookResult HookManager::HookedFn::on_pre_hook() {
 
 void HookManager::HookedFn::on_post_hook() {
     for (const auto& cb : cbs) {
-        cb.post_fn(this);
+        if (cb.post_fn) {
+            cb.post_fn(this);
+        }
     }
 }
 
