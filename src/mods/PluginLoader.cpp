@@ -22,6 +22,30 @@ REFrameworkRendererData g_renderer_data{
 };
 }
 
+namespace reframework {
+void log_error(const char* format, ...) {
+    va_list args{};
+    va_start(args, format);
+    auto str = utility::format_string(format, args);
+    va_end(args);
+    spdlog::error("[Plugin] {}", str);
+}
+void log_warn(const char* format, ...) {
+    va_list args{};
+    va_start(args, format);
+    auto str = utility::format_string(format, args);
+    va_end(args);
+    spdlog::warn("[Plugin] {}", str);
+}
+void log_info(const char* format, ...) {
+    va_list args{};
+    va_start(args, format);
+    auto str = utility::format_string(format, args);
+    va_end(args);
+    spdlog::info("[Plugin] {}", str);
+}
+}
+
 REFrameworkPluginFunctions g_plugin_functions{
     reframework_on_lua_state_created,
     reframework_on_lua_state_destroyed,
@@ -32,27 +56,9 @@ REFrameworkPluginFunctions g_plugin_functions{
     reframework_unlock_lua,
     reframework_on_device_reset,
     reframework_on_message,
-    [](const char* format, ...) { 
-        va_list args{};
-        va_start(args, format);
-        auto str = utility::format_string(format, args);
-        va_end(args);
-        spdlog::error("[Plugin] {}", str);
-    },
-    [](const char* format, ...) { 
-        va_list args{};
-        va_start(args, format);
-        auto str = utility::format_string(format, args);
-        va_end(args);
-        spdlog::warn("[Plugin] {}", str);
-    },
-    [](const char* format, ...) { 
-        va_list args{};
-        va_start(args, format);
-        auto str = utility::format_string(format, args);
-        va_end(args);
-        spdlog::info("[Plugin] {}", str);
-    },
+    reframework::log_error,
+    reframework::log_warn,
+    reframework::log_info,
 };
 
 REFrameworkSDKFunctions g_sdk_functions {

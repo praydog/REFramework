@@ -760,7 +760,7 @@ int REFramework::add_font(const std::filesystem::path& filepath, int size, const
         }
     }
 
-    m_additional_fonts.emplace_back(filepath, size, ranges, nullptr);
+    m_additional_fonts.emplace_back(REFramework::AdditionalFont{filepath, size, ranges, (ImFont*)nullptr});
     m_fonts_need_updating = true;
 
     return m_additional_fonts.size() - 1;

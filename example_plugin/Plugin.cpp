@@ -169,6 +169,15 @@ void internal_frame() {
 
     if (ImGui::Begin("Super Cool Plugin")) {
         ImGui::Text("Hello from the super cool plugin!");
+#if defined(__clang__)
+        ImGui::Text("Plugin Compiler: Clang");
+#elif defined(_MSC_VER)
+        ImGui::Text("Plugin Compiler: Visual Studio");
+#elif defined(__GNUC__)
+        ImGui::Text("Plugin Compiler: GCC");
+#else
+        ImGui::Text("Plugin Compiler: Unknown");
+#endif
         ImGui::Text("Game Window Size from Lua: %f %f", window_width, window_height);
         ImGui::Text("Game Window Size from C++ Call: %f %f", size[0], size[1]);
         ImGui::Text("Game Window Size from C++ Invoke: %f %f", size_invoke[0], size_invoke[1]);
