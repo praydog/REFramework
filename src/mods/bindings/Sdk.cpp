@@ -265,6 +265,136 @@ void* create_managed_string(const char* text) {
     return ::sdk::VM::create_managed_string(utility::widen(text));
 }
 
+sol::object create_managed_array(sol::this_state s, sol::object t_obj, uint32_t length) {
+    ::REManagedObject* t{nullptr};
+
+    if (t_obj.is<::REManagedObject*>()) {
+        t = t_obj.as<::REManagedObject*>();
+    } else if (t_obj.is<::sdk::RETypeDefinition*>()) {
+        t = t_obj.as<::sdk::RETypeDefinition*>()->get_runtime_type();
+    } else if (t_obj.is<const char*>()) {
+        const auto tdef = ::sdk::RETypeDB::get()->find_type(t_obj.as<const char*>());
+
+        if (tdef != nullptr) {
+            t = tdef->get_runtime_type();
+        }
+    } else {
+        throw sol::error("Invalid type passed to create_managed_array. Must be a runtime type, a type definition, or a type name.");
+    }
+
+    if (t == nullptr) {
+        throw sol::error("Type passed to create_managed_array resolved to null.");
+    }
+
+    auto out = ::sdk::VM::create_managed_array(t, length);
+
+    if (out == nullptr) {
+        return sol::make_object(s, sol::nil);
+    }
+
+    return sol::make_object(s, (::sdk::SystemArray*)out);
+}
+
+sol::object create_sbyte(sol::this_state s, int8_t value) {
+    auto new_obj = ::sdk::VM::create_sbyte(value);
+
+    if (new_obj == nullptr) {
+        return sol::make_object(s, sol::nil);
+    }
+
+    return sol::make_object(s, (::REManagedObject*)new_obj);
+}
+
+sol::object create_byte(sol::this_state s, uint8_t value) {
+    auto new_obj = ::sdk::VM::create_byte(value);
+
+    if (new_obj == nullptr) {
+        return sol::make_object(s, sol::nil);
+    }
+
+    return sol::make_object(s, (::REManagedObject*)new_obj);
+}
+
+sol::object create_int16(sol::this_state s, int16_t value)  {
+    auto new_obj = ::sdk::VM::create_int16(value);
+
+    if (new_obj == nullptr) {
+        return sol::make_object(s, sol::nil);
+    }
+
+    return sol::make_object(s, (::REManagedObject*)new_obj);
+}
+
+sol::object create_uint16(sol::this_state s, uint16_t value)  {
+    auto new_obj = ::sdk::VM::create_uint16(value);
+
+    if (new_obj == nullptr) {
+        return sol::make_object(s, sol::nil);
+    }
+
+    return sol::make_object(s, (::REManagedObject*)new_obj);
+}
+
+sol::object create_int32(sol::this_state s, int32_t value)  {
+    auto new_obj = ::sdk::VM::create_int32(value);
+
+    if (new_obj == nullptr) {
+        return sol::make_object(s, sol::nil);
+    }
+
+    return sol::make_object(s, (::REManagedObject*)new_obj);
+}
+
+sol::object create_uint32(sol::this_state s, int32_t value)  {
+    auto new_obj = ::sdk::VM::create_uint32(value);
+
+    if (new_obj == nullptr) {
+        return sol::make_object(s, sol::nil);
+    }
+
+    return sol::make_object(s, (::REManagedObject*)new_obj);
+}
+
+sol::object create_int64(sol::this_state s, int64_t value)  {
+    auto new_obj = ::sdk::VM::create_int64(value);
+
+    if (new_obj == nullptr) {
+        return sol::make_object(s, sol::nil);
+    }
+
+    return sol::make_object(s, (::REManagedObject*)new_obj);
+}
+
+sol::object create_uint64(sol::this_state s, int64_t value)  {
+    auto new_obj = ::sdk::VM::create_uint64(value);
+
+    if (new_obj == nullptr) {
+        return sol::make_object(s, sol::nil);
+    }
+
+    return sol::make_object(s, (::REManagedObject*)new_obj);
+}
+
+sol::object create_single(sol::this_state s, float value)  {
+    auto new_obj = ::sdk::VM::create_single(value);
+
+    if (new_obj == nullptr) {
+        return sol::make_object(s, sol::nil);
+    }
+
+    return sol::make_object(s, (::REManagedObject*)new_obj);
+}
+
+sol::object create_double(sol::this_state s, double value)  {
+    auto new_obj = ::sdk::VM::create_double(value);
+
+    if (new_obj == nullptr) {
+        return sol::make_object(s, sol::nil);
+    }
+
+    return sol::make_object(s, (::REManagedObject*)new_obj);
+}
+
 sol::object create_resource(sol::this_state s, std::string type_name, std::string name) {
     auto& types = g_framework->get_types();
 
@@ -1114,6 +1244,17 @@ void bindings::open_sdk(ScriptState* s) {
     sdk["get_native_singleton"] = api::sdk::get_native_singleton;
     sdk["get_managed_singleton"] = api::sdk::get_managed_singleton;
     sdk["create_managed_string"] = api::sdk::create_managed_string;
+    sdk["create_managed_array"] = api::sdk::create_managed_array;
+    sdk["create_sbyte"] = api::sdk::create_sbyte;
+    sdk["create_byte"] = api::sdk::create_byte;
+    sdk["create_int16"] = api::sdk::create_int16;
+    sdk["create_uint16"] = api::sdk::create_uint16;
+    sdk["create_int32"] = api::sdk::create_int32;
+    sdk["create_uint32"] = api::sdk::create_uint32;
+    sdk["create_int64"] = api::sdk::create_int64;
+    sdk["create_uint64"] = api::sdk::create_uint64;
+    sdk["create_single"] = api::sdk::create_single;
+    sdk["create_double"] = api::sdk::create_double;
     sdk["create_resource"] = api::sdk::create_resource;
     sdk["create_instance"] = api::sdk::create_instance;
     sdk["find_type_definition"] = api::sdk::find_type_definition;
@@ -1412,6 +1553,9 @@ void bindings::open_sdk(ScriptState* s) {
         "get_elements", &sdk::SystemArray::get_elements,
         sol::meta_function::index, [](sdk::SystemArray* arr, int32_t index) {
             return arr->get_element(index);
+        },
+        sol::meta_function::new_index, [](sdk::SystemArray* arr, int32_t index, ::REManagedObject* value) {
+            arr->set_element(index, value);
         },
         sol::base_classes, sol::bases<::REManagedObject>()
     );

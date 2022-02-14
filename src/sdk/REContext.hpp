@@ -26,6 +26,8 @@ InvokeMethod* get_invoke_table();
 #endif
 
 namespace sdk {
+struct SystemArray;
+    
 struct REStaticTbl {
     uint8_t** elements;
     uint32_t size;
@@ -49,6 +51,18 @@ public:
 
     static sdk::InvokeMethod* get_invoke_table();
     static SystemString* create_managed_string(std::wstring_view str); // System.String
+    static sdk::SystemArray* create_managed_array(::REManagedObject* runtime_type, uint32_t length); // System.Array
+
+    static ::REManagedObject* create_sbyte(int8_t value); // System.SByte
+    static ::REManagedObject* create_byte(uint8_t value); // System.Byte
+    static ::REManagedObject* create_int16(int16_t value); // System.Int16
+    static ::REManagedObject* create_uint16(uint16_t value); // System.UInt16
+    static ::REManagedObject* create_int32(int32_t value); // System.Int32
+    static ::REManagedObject* create_uint32(uint32_t value); // System.UInt32
+    static ::REManagedObject* create_int64(int64_t value); // System.Int64
+    static ::REManagedObject* create_uint64(uint64_t value); // System.UInt64
+    static ::REManagedObject* create_single(float value); // System.Single
+    static ::REManagedObject* create_double(double value); // System.Double
 
 private:
     using ThreadContextFn = REThreadContext* (*)(VM*, int32_t);
