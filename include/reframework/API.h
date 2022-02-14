@@ -8,7 +8,7 @@
 
 #define REFRAMEWORK_PLUGIN_VERSION_MAJOR 1
 #define REFRAMEWORK_PLUGIN_VERSION_MINOR 0
-#define REFRAMEWORK_PLUGIN_VERSION_PATCH 1
+#define REFRAMEWORK_PLUGIN_VERSION_PATCH 2
 
 #define REFRAMEWORK_RENDERER_D3D11 0
 #define REFRAMEWORK_RENDERER_D3D12 1
@@ -112,7 +112,7 @@ struct StackFrame {
 
 typedef unsigned int REFrameworkVMObjType;
 typedef void (*REFrameworkInvokeMethod)(void* stack_frame, void* context);
-typedef void* (*REFrameworkReflectionPropertyMethod)(REFrameworkReflectionPropertyHandle* prop, REFrameworkManagedObjectHandle* thisptr, void* out_data);
+typedef void* (*REFrameworkReflectionPropertyMethod)(REFrameworkReflectionPropertyHandle prop, REFrameworkManagedObjectHandle thisptr, void* out_data);
 
 typedef struct {
     unsigned int (*get_index)(REFrameworkTypeDefinitionHandle);
