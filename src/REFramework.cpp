@@ -352,6 +352,8 @@ void REFramework::run_imgui_frame() {
     const bool is_init_ok = m_error.empty() && m_game_data_initialized;
 
     consume_input();
+    update_fonts();
+    
     ImGui_ImplWin32_NewFrame();
 
     if (is_init_ok) {
@@ -406,10 +408,11 @@ void REFramework::on_frame_d3d11() {
         }
     }
 
-    update_fonts();
-
     if (!m_has_frame) {
         if (!is_init_ok) {
+            update_fonts();
+            invalidate_device_objects();
+
             ImGui_ImplDX11_NewFrame();
             // hooks don't run until after initialization, so we just render the imgui window while initalizing.
             run_imgui_frame();
@@ -417,6 +420,7 @@ void REFramework::on_frame_d3d11() {
             return;
         }
     } else {
+        invalidate_device_objects();
         ImGui_ImplDX11_NewFrame();
     }
 
@@ -501,11 +505,11 @@ void REFramework::on_frame_d3d12() {
         }
     }
 
-    update_fonts();
-
-
     if (!m_has_frame) {
         if (!is_init_ok) {
+            update_fonts();
+            invalidate_device_objects();
+
             ImGui_ImplDX12_NewFrame();
             // hooks don't run until after initialization, so we just render the imgui window while initalizing.
             run_imgui_frame();
@@ -513,6 +517,7 @@ void REFramework::on_frame_d3d12() {
             return;
         }
     } else {
+        invalidate_device_objects();
         ImGui_ImplDX12_NewFrame();
     }
 
@@ -793,12 +798,21 @@ void REFramework::update_fonts() {
     }
 
     fonts->Build();
+    m_wants_device_object_cleanup = true;
+}
+
+void REFramework::invalidate_device_objects() {
+    if (!m_wants_device_object_cleanup) {
+        return;
+    }
 
     if (m_renderer_type == RendererType::D3D11) {
         ImGui_ImplDX11_InvalidateDeviceObjects();
     } else if (m_renderer_type == RendererType::D3D12) {
         ImGui_ImplDX12_InvalidateDeviceObjects();
     }
+
+    m_wants_device_object_cleanup = false;
 }
 
 void REFramework::draw_ui() {

@@ -121,6 +121,7 @@ public:
 private:
     void consume_input();
     void update_fonts();
+    void invalidate_device_objects();
 
     void draw_ui();
     void draw_about();
@@ -145,6 +146,7 @@ private:
     
     // UI
     bool m_has_frame{false};
+    bool m_wants_device_object_cleanup{false};
     bool m_draw_ui{true};
     bool m_last_draw_ui{m_draw_ui};
     bool m_is_ui_focused{false};
