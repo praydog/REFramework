@@ -312,6 +312,7 @@ ObjectExplorer::ObjectExplorer()
     m_type_name.reserve(256);
     m_type_member.reserve(256);
     m_object_address.reserve(256);
+    m_add_component_name.reserve(256);
 }
 
 void ObjectExplorer::on_draw_dev_ui() {
@@ -2011,9 +2012,46 @@ void ObjectExplorer::handle_address(Address address, int32_t offset, Address par
 }
 
 void ObjectExplorer::handle_game_object(REGameObject* game_object) {
+    ImGui::PushID((void*)game_object);
+
+    if (ImGui::InputText("Add Component", m_add_component_name.data(), 256, ImGuiInputTextFlags_::ImGuiInputTextFlags_EnterReturnsTrue)) {
+        const auto tdef = sdk::RETypeDB::get()->find_type(m_add_component_name.data());
+
+        if (tdef != nullptr) {
+            auto typeof_component = tdef->get_runtime_type();
+
+            if (typeof_component != nullptr) {
+                if (tdef->is_a("via.Component")) {
+                    const auto new_comp = sdk::call_object_func<::REComponent*>(game_object, "createComponent(System.Type)", sdk::get_thread_context(), game_object, typeof_component);
+
+                    if (new_comp != nullptr) {
+                        auto& pinned = m_pinned_objects.emplace_back();
+
+                        pinned.address = new_comp;
+                        pinned.name = tdef->get_name();
+                        pinned.path = build_path();
+                        m_add_component_name = "Successfully added component";
+                    } else {
+                        m_add_component_name = "Failed to add component";
+                    }
+                } else {
+                    m_add_component_name = "Type is not a component";
+                }
+            } else {
+                m_add_component_name = "Invalid Type";
+            }
+        } else {
+            m_add_component_name = "Invalid Type";
+        }
+
+        m_add_component_name.reserve(256);
+    }
+
     ImGui::Text("Name: %s", utility::re_string::get_string(game_object->name).c_str());
     make_tree_offset(game_object, offsetof(REGameObject, transform), "Transform");
     make_tree_offset(game_object, offsetof(REGameObject, folder), "Folder");
+
+    ImGui::PopID();
 }
 
 void ObjectExplorer::handle_component(REComponent* component) {

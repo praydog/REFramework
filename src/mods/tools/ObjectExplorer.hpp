@@ -215,6 +215,7 @@ private:
     std::string m_type_name{"via.typeinfo.TypeInfo"};
     std::string m_type_member{""};
     std::string m_object_address{ "0" };
+    std::string m_add_component_name{ "via.Component" };
     std::chrono::system_clock::time_point m_next_refresh;
     std::chrono::system_clock::time_point m_next_refresh_natives{};
 
