@@ -867,7 +867,7 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::protected_funct
     auto state = sol_state.registry()["state"].get<ScriptState*>();
     auto id = g_hookman.add(
         fn,
-        [pre_cb, state](HookManager::HookedFn* fn) -> HookManager::PreHookResult {
+        [pre_cb, state](auto& args, auto& arg_tys) -> HookManager::PreHookResult {
             using PreHookResult = HookManager::PreHookResult;
 
             auto _ = state->scoped_lock();
@@ -882,8 +882,8 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::protected_funct
 
                 // Call the script function.
                 // Convert the args to a table that we pass to the script function.
-                for (auto i = 0u; i < fn->args.size(); ++i) {
-                    script_args[i + 1] = (void*)fn->args[i];
+                for (auto i = 0u; i < args.size(); ++i) {
+                    script_args[i + 1] = (void*)args[i];
                 }
 
                 auto script_result = pre_cb(script_args);
@@ -899,9 +899,9 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::protected_funct
                 }
 
                 // Apply the changes to arguments that the script function may have made.
-                for (auto i = 0u; i < fn->args.size(); ++i) {
+                for (auto i = 0u; i < args.size(); ++i) {
                     auto arg = script_args[i + 1];
-                    fn->args[i] = (uintptr_t)arg.get<void*>();
+                    args[i] = (uintptr_t)arg.get<void*>();
                 }
             } catch (const std::exception& e) {
                 OutputDebugString(e.what());
@@ -909,7 +909,7 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::protected_funct
 
             return result;
         },
-        [post_cb, state](HookManager::HookedFn* fn) { 
+        [post_cb, state](auto& ret_val, auto* ret_ty) {
             auto _ = state->scoped_lock();
 
             try {
@@ -917,13 +917,13 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::protected_funct
                     return;
                 }
 
-                auto script_result = post_cb((void*)fn->ret_val);
+                auto script_result = post_cb((void*)ret_val);
 
                 if (!script_result.valid()) {
                     sol::script_default_on_error(state->lua(), std::move(script_result));
                 }
 
-                fn->ret_val = (uintptr_t)script_result.get<void*>();
+                ret_val = (uintptr_t)script_result.get<void*>();
             } catch (const std::exception& e) {
                 OutputDebugString(e.what());
             }

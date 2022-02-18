@@ -19,8 +19,8 @@ public:
     };
 
     struct HookedFn;
-    using PreHookFn = std::function<PreHookResult(HookedFn*)>;
-    using PostHookFn = std::function<void(HookedFn*)>;
+    using PreHookFn = std::function<PreHookResult(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys)>;
+    using PostHookFn = std::function<void(uintptr_t& ret_val, sdk::RETypeDefinition* ret_ty)>;
     using HookId = size_t;
 
     struct HookCallback {
