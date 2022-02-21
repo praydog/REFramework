@@ -156,7 +156,8 @@ private:
     int32_t get_field_offset(REManagedObject* obj, VariableDescriptor* desc, REType* type_info);
 
     bool widget_with_context(void* address, std::function<bool()> widget);
-    void context_menu(void* address);
+    bool widget_with_context(void* address, const std::string& name, std::function<bool()> widget);
+    void context_menu(void* address, std::optional<std::string> name = std::nullopt);
     void make_same_line_text(std::string_view text, const ImVec4& color);
 
     void make_tree_offset(REManagedObject* object, uint32_t offset, std::string_view name, std::function<void()> widget = nullptr);

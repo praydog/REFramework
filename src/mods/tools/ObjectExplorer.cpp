@@ -2583,7 +2583,7 @@ void ObjectExplorer::display_native_methods(REManagedObject* obj, sdk::RETypeDef
             ss << ")";
             const auto method_prototype = ss.str();
 
-            const auto made_node = widget_with_context(method_ptr, [&]() { return stretched_tree_node(&m, "%s", method_return_type_name.c_str()); });
+            const auto made_node = widget_with_context(method_ptr, method_prototype, [&]() { return stretched_tree_node(&m, "%s", method_return_type_name.c_str()); });
             const auto tree_hovered = ImGui::IsItemHovered();
 
             // Draw the method name with a color
@@ -3203,14 +3203,27 @@ bool ObjectExplorer::widget_with_context(void* address, std::function<bool()> wi
     return ret;
 }
 
-void ObjectExplorer::context_menu(void* address) {
+bool ObjectExplorer::widget_with_context(void* address, const std::string& name, std::function<bool()> widget) {
+    auto ret = widget();
+    context_menu(address, name);
+
+    return ret;
+}
+
+void ObjectExplorer::context_menu(void* address, std::optional<std::string> name) {
     if (ImGui::BeginPopupContextItem()) {
-        if (ImGui::Selectable("Copy")) {
+        if (ImGui::Selectable("Copy Address")) {
             std::stringstream ss;
             ss << std::hex << (uintptr_t)address;
 
             ImGui::SetClipboardText(ss.str().c_str());
         }
+
+        if (name && ImGui::Selectable("Copy Name")) {
+            ImGui::SetClipboardText(name->c_str());
+        }
+
+        const auto is_managed_object = utility::re_managed_object::is_managed_object(address);
 
         if (auto it = std::find_if(m_pinned_objects.begin(), m_pinned_objects.end(), [address](auto& pinned_obj) { return pinned_obj.address == address; }); it != m_pinned_objects.end()) {
             if (ImGui::Selectable("Unpin")) {
@@ -3220,7 +3233,6 @@ void ObjectExplorer::context_menu(void* address) {
             if (ImGui::Selectable("Pin")) {
                 auto& pinned = m_pinned_objects.emplace_back();
 
-                const auto is_managed_object = utility::re_managed_object::is_managed_object(address);
                 const auto type_definition = is_managed_object ? utility::re_managed_object::get_type_definition((REManagedObject*)address) : nullptr;
 
                 pinned.address = address;
@@ -3230,7 +3242,7 @@ void ObjectExplorer::context_menu(void* address) {
         }
 
         // Log component hierarchy to disk
-        if (is_managed_object(address) && utility::re_managed_object::is_a((REManagedObject*)address, "via.Component") && ImGui::Selectable("Log Hierarchy")) {
+        if (is_managed_object && utility::re_managed_object::is_a((REManagedObject*)address, "via.Component") && ImGui::Selectable("Log Hierarchy")) {
             auto comp = (REComponent*)address;
 
             for (auto obj = comp; obj; obj = obj->childComponent) {
