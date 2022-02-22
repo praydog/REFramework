@@ -1542,6 +1542,10 @@ void bindings::open_sdk(ScriptState* s) {
 
     lua.new_usertype<RETransform>("RETransform",
         "calculate_base_transform", &utility::re_transform::calculate_base_transform,
+        "set_position", &sdk::set_transform_position,
+        "set_rotation", &sdk::set_transform_rotation,
+        "get_position", &sdk::get_transform_position,
+        "get_rotation", &sdk::get_transform_rotation,
         sol::base_classes, sol::bases<::REComponent, ::REManagedObject>()
     );
 
