@@ -263,7 +263,7 @@ namespace utility::re_transform {
 }
 
 namespace sdk {
-void set_transform_position(RETransform* transform, const Vector4f& pos);
+void set_transform_position(RETransform* transform, const Vector4f& pos, bool no_dirty = false);
 void set_transform_rotation(RETransform* transform, const glm::quat& rot);
 Vector4f get_transform_position(RETransform* transform);
 glm::quat get_transform_rotation(RETransform* transform);

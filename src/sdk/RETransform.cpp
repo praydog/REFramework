@@ -27,10 +27,28 @@ REJoint* get_transform_joint_by_hash(RETransform* transform, uint32_t hash) {
     return get_joint_by_hash_method->call<REJoint*>(sdk::get_thread_context(), transform, hash);
 }
 
-void set_transform_position(RETransform* transform, const Vector4f& pos) {
-    static auto set_position_method = sdk::RETypeDB::get()->find_type("via.Transform")->get_method("set_Position");
+void set_transform_position(RETransform* transform, const Vector4f& pos, bool no_dirty) {
+    if (!no_dirty) {
+        static auto set_position_method = sdk::RETypeDB::get()->find_type("via.Transform")->get_method("set_Position");
 
-    set_position_method->call<void*>(sdk::get_thread_context(), transform, &pos);
+        set_position_method->call<void*>(sdk::get_thread_context(), transform, &pos);
+    } else {
+        static auto get_parent_method = sdk::RETypeDB::get()->find_type("via.Transform")->get_method("get_Parent");
+        const auto parent_transform = get_parent_method->call<RETransform*>(sdk::get_thread_context(), transform);
+
+        if (parent_transform != nullptr) {
+            const auto parent_position = sdk::get_transform_position(parent_transform);
+            const auto parent_rotation = sdk::get_transform_rotation(parent_transform);
+            const auto local_diff = pos - parent_position;
+            
+            transform->position = glm::vec4{glm::inverse(parent_rotation) * glm::vec3{local_diff}, 1.0f};
+        } else {
+            transform->position = pos;
+        }
+
+        transform->worldTransform[3] = pos;
+        transform->worldTransform[3].w = 1.0f;
+    }
 }
 
 void set_transform_rotation(RETransform* transform, const glm::quat& rot) {

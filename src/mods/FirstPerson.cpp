@@ -7,6 +7,7 @@
 #include "REFramework.hpp"
 #include "sdk/REMath.hpp"
 #include "sdk/MurmurHash.hpp"
+#include "sdk/Application.hpp"
 
 #include "VR.hpp"
 #include "FirstPerson.hpp"
@@ -111,7 +112,7 @@ void FirstPerson::on_draw_ui() {
 
     m_smooth_xz_movement->draw("Smooth XZ Movement (VR)");
     m_smooth_y_movement->draw("Smooth Y Movement (VR)");
-    m_roomscale->draw("Experimental Roomscale (VR)");
+    m_roomscale->draw("Roomscale Movement (VR)");
 
     ImGui::DragFloat4("Scale Debug", (float*)&m_scale_debug.x, 1.0f, -1.0f, 1.0f);
     ImGui::DragFloat4("Scale Debug 2", (float*)&m_scale_debug2.x, 1.0f, -1.0f, 1.0f);
@@ -424,6 +425,9 @@ void FirstPerson::on_pre_application_entry(void* entry, const char* name, size_t
         case "LateUpdateBehavior"_fnv:
             on_pre_late_update_behavior(entry);
             break;
+        case "UnlockScene"_fnv:
+            on_pre_unlock_scene(entry);
+            break;
         default:
             break;
     }
@@ -456,6 +460,10 @@ void FirstPerson::on_pre_update_behavior(void* entry) {
 
 void FirstPerson::on_pre_late_update_behavior(void* entry) {
     on_post_update_motion(entry);
+}
+
+void FirstPerson::on_pre_unlock_scene(void* entry) {
+    update_player_roomscale(m_player_transform);
 }
 
 void FirstPerson::on_post_late_update_behavior(void* entry) {
@@ -1114,20 +1122,6 @@ void FirstPerson::update_player_body_ik(RETransform* transform, bool restore, bo
             rotation = utility::math::remove_y_component(Matrix4x4f{glm::normalize(m_last_controller_rotation_vr)});
         }
 
-        bool updated_transform = false;
-
-        // Experimental roomscale movement.
-        if (m_roomscale->value() && first && glm::length(Vector3f{hmd_offset.x, 0.0f, hmd_offset.z}) > 0.5f) {
-            const auto current_pos = sdk::get_transform_position(transform);
-            sdk::set_transform_position(transform, current_pos + (rotation * Vector4f{ hmd_offset.x, 0.0f, hmd_offset.z, 0.0f }));
-
-            standing_origin = Vector4f{headset_pos.x, standing_origin.y, headset_pos.z, standing_origin.w};
-            vr_mod->set_standing_origin(standing_origin);
-
-            hmd_offset = headset_pos - standing_origin;
-            updated_transform = true;
-        }
-
         // Create a final offset which will keep the player's head where they want
         // while also stabilizing any undesired head movement from the original animation
         Vector4f final_offset{ rotation * hmd_offset };
@@ -1181,24 +1175,7 @@ void FirstPerson::update_player_body_ik(RETransform* transform, bool restore, bo
         // a small side effect is that the player can slightly float, but it's worth it.
         // not a TDB method unfortunately.
         utility::re_managed_object::call_method(ik_leg, "set_CenterAdjust", via::motion::IkLeg::CenterAdjust::None);
-
-        if (updated_transform && center_joint != nullptr) {
-            Vector4f true_cog_pos{};
-            const auto cog_joint_index = ((sdk::Joint*)center_joint)->get_joint_index();
-            sdk::call_object_func<Vector4f*>(via_motion, "getWorldPosition", &true_cog_pos, sdk::get_thread_context(), via_motion, cog_joint_index);
-
-            const auto original_cog_pos = sdk::get_joint_position(center_joint);
-            sdk::set_joint_position(center_joint, true_cog_pos);
-
-            sdk::call_object_func<void*>(ik_leg, "firstUpdate", sdk::get_thread_context(), ik_leg);
-            sdk::call_object_func<void*>(ik_leg, "secondUpdate", sdk::get_thread_context(), ik_leg);
-
-            update_player_arm_ik(transform);
-
-            sdk::set_joint_position(center_joint, original_cog_pos);
-        } else {
-            update_player_arm_ik(transform);
-        }
+        update_player_arm_ik(transform);
     }
 }
 
@@ -1215,18 +1192,8 @@ void FirstPerson::update_player_body_rotation(RETransform* transform) {
         return;
     }
 
-    static auto jack_dominator_typedef = sdk::RETypeDB::get()->find_type(game_namespace("JackDominator"));
-    static auto jacked_method = jack_dominator_typedef->get_method("get_Jacked");
-
-    auto jack_dominator = utility::re_component::find<::REComponent*>(transform, jack_dominator_typedef->get_type());
-
-    if (jack_dominator != nullptr) {
-        const auto is_jacked = jacked_method->call<bool>(sdk::get_thread_context(), jack_dominator);
-
-        // using a ladder, being grabbed, jumping down, etc
-        if (is_jacked) {
-            return;
-        }
+    if (is_jacked(transform)) {
+        return;
     }
 
     auto player_matrix = glm::mat4{ *(glm::quat*)&transform->angles };
@@ -1267,6 +1234,63 @@ void FirstPerson::update_player_body_rotation(RETransform* transform) {
 
     // Finally rotate the player transform to match the camera in a two-dimensional fashion
     transform->angles = *(Vector4f*)&camera_quat;
+}
+
+void FirstPerson::update_player_roomscale(RETransform* transform) {
+    const auto now = std::chrono::steady_clock::now();
+
+    if (transform == nullptr) {
+        m_last_roomscale_failure = now;
+        return;
+    }
+
+    if (!m_enabled->value() || !will_be_used() || m_last_camera_type != app::ropeway::camera::CameraControlType::PLAYER) {
+        m_last_roomscale_failure = now;
+        return;
+    }
+
+    auto vr = VR::get();
+
+    if (!vr->is_hmd_active() || !m_roomscale->value()) {
+        m_last_roomscale_failure = now;
+        return;
+    }
+
+    if (!update_pointers()) {
+        m_last_roomscale_failure = now;
+        return;
+    }
+
+    if (is_jacked(transform)) {
+        m_last_roomscale_failure = now;
+        return;
+    }
+
+    // try to fix some weirdness after exiting cutscenes and stuff
+    if ((now - m_last_roomscale_failure) < std::chrono::milliseconds(1000)) {
+        return;
+    }
+    
+    // Roomscale movement.
+    const auto old_standing_origin = vr->get_standing_origin();
+    const auto old_hmd_pos = vr->get_position(0);
+    const auto hmd_pos = Vector4f{old_hmd_pos.x, old_standing_origin.y, old_hmd_pos.z, old_hmd_pos.w};
+
+    if (glm::length(hmd_pos - old_standing_origin) > 0.01f) {
+        const auto t = sdk::Application::get()->get_delta_time() * 0.1f;
+        const auto standing_origin = glm::lerp(old_standing_origin, hmd_pos, glm::length(hmd_pos - old_standing_origin) * t);
+        vr->set_standing_origin(standing_origin);
+
+        const auto standing_diff = standing_origin - old_standing_origin;
+
+        const auto player_pos = sdk::get_transform_position(transform);
+        const auto& last_render_matrix = vr->get_last_render_matrix();
+        const auto lerp_to = Vector4f{last_render_matrix[3].x, player_pos.y, last_render_matrix[3].z, player_pos.w};
+        const auto new_pos = player_pos + (glm::normalize(lerp_to - player_pos) * glm::length(standing_diff));
+
+        // BAD idea to call this without no_dirty while scene is locked. causes parent objects to get stuck.
+        sdk::set_transform_position(transform, new_pos, true);
+    }
 }
 
 void FirstPerson::update_camera_transform(RETransform* transform) {
@@ -1740,6 +1764,19 @@ bool FirstPerson::is_first_person_allowed() const {
     }
     
     return m_last_camera_type == app::ropeway::camera::CameraControlType::PLAYER;
+}
+
+bool FirstPerson::is_jacked(RETransform* transform) const {
+    static auto jack_dominator_typedef = sdk::RETypeDB::get()->find_type(game_namespace("JackDominator"));
+    static auto jacked_method = jack_dominator_typedef->get_method("get_Jacked");
+
+    auto jack_dominator = utility::re_component::find<::REComponent*>(transform, jack_dominator_typedef->get_type());
+
+    if (jack_dominator != nullptr) {
+        return jacked_method->call<bool>(sdk::get_thread_context(), jack_dominator);
+    }
+
+    return false;
 }
 
 void FirstPerson::on_disabled() {
