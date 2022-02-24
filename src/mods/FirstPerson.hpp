@@ -194,7 +194,8 @@ private:
         *m_fov_mult,
         *m_camera_scale,
         *m_bone_scale,
-        *m_current_fov
+        *m_current_fov,
+        *m_roomscale
     };
 };
 
