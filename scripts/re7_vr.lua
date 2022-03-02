@@ -12,12 +12,12 @@ local last_right_hand_rotation = Quaternion.new(0.0, 0.0, 0.0, 0.0)
 local last_right_hand_position = Vector3f.new(0.0, 0.0, 0.0)
 local last_left_hand_rotation = Quaternion.new(0.0, 0.0, 0.0, 0.0)
 local last_left_hand_position = Vector3f.new(0.0, 0.0, 0.0)
-local left_hand_rotation_vec = Vector3f.new(-0.105 + 0.2, 2.43, 1.16) -- pitch yaw roll?
-local right_hand_rotation_vec = Vector3f.new(-0.105, -2.43, -1.16) -- pitch yaw roll?
+local left_hand_rotation_vec = Vector3f.new(-0.105 + 0.2, 2.28, 1.08) -- pitch yaw roll?
+local right_hand_rotation_vec = Vector3f.new(-0.105, -2.28, -1.08) -- pitch yaw roll?
 local left_hand_rotation_offset = Quaternion.new(left_hand_rotation_vec):normalized()
 local right_hand_rotation_offset = Quaternion.new(right_hand_rotation_vec):normalized()
-local left_hand_position_offset = Vector4f.new(-0.025, 0.075, 0.155, 0.0)
-local right_hand_position_offset = Vector4f.new(0.025, 0.075, 0.155, 0.0)
+local left_hand_position_offset = Vector4f.new(-0.025, 0.045, 0.155, 0.0)
+local right_hand_position_offset = Vector4f.new(0.025, 0.045, 0.155, 0.0)
 
 local ray_typedef = sdk.find_type_definition("via.Ray")
 
@@ -36,6 +36,8 @@ local component_get_gameobject = sdk.find_type_definition("via.Component"):get_m
 local gameobject_get_transform = sdk.find_type_definition("via.GameObject"):get_method("get_Transform")
 
 local cfg_path = "re7_vr/main_config.json"
+
+local queue_recenter = false
 
 local cfg = {
     movement_shake = false,
@@ -389,7 +391,8 @@ local function update_hand_ik()
         return
     end
 
-    if re7.is_in_cutscene then return end
+    --if re7.is_in_cutscene then return end
+    if re7.is_arm_jacked then return end
 
     local left_controller_transform = vrmod:get_transform(controllers[1])
     local right_controller_transform = vrmod:get_transform(controllers[2])
@@ -457,6 +460,11 @@ local neg_forward_identity = Matrix4x4f.new(-1, 0, 0, 0,
                                             0, 1, 0, 0,
                                             0, 0, -1, 0,
                                             0, 0, 0, 1):to_quat()
+
+local neg_identity = Matrix4x4f.new(-1, 0, 0, 0,
+                                    0, -1, 0, 0,
+                                    0, 0, -1, 0,
+                                    0, 0, 0, -1):to_quat()
 
 local head_hash = nil
 local center_hash = nil
@@ -711,20 +719,27 @@ local function fix_player_camera(player_camera)
         return retval
     end
 
-    if re7.is_in_cutscene and needs_cutscene_recenter then
-        vrmod:set_gui_rotation_offset(Quaternion.identity())
-        vrmod:recenter_view()
-
-        -- force the gui to be recentered when we exit the cutscene
-        last_gui_forced_slerp = os.clock()
-        needs_cutscene_recenter = false
-    end
-
     local camera = sdk.get_primary_camera()
 
     -- apply the camera rot to the real camera
     local camera_gameobject = camera:call("get_GameObject")
     local camera_transform = camera_gameobject:call("get_Transform")
+
+    local did_recenter = false
+
+    if re7.is_in_cutscene and needs_cutscene_recenter then
+        --vrmod:recenter_view()
+
+        -- force the gui to be recentered when we exit the cutscene
+        last_gui_forced_slerp = os.clock()
+        last_gui_quat = Quaternion.identity()
+        needs_cutscene_recenter = false
+        did_recenter = true
+        queue_recenter = true
+
+        vrmod:recenter_gui(last_gui_quat)
+    end
+
     --last_real_camera_rotation = camera_transform:call("get_Rotation")
     --last_real_camera_joint_rotation = camera_transform:call("get_Joints")[0]:call("get_Rotation")
 
@@ -744,7 +759,7 @@ local function fix_player_camera(player_camera)
     --local camera_rot = (forward * -1.0):to_quat()
 
     vrmod:apply_hmd_transform(camera_rot, camera_pos)
-
+    
     --local neg_camera_rot = (neg_forward_identity * camera_rot):normalized()
 
     local camera_joint = camera_transform:call("get_Joints")[0]
@@ -761,8 +776,13 @@ local function fix_player_camera(player_camera)
     --joint_set_rotation:call(camera_joint, neg_camera_rot)
 
     -- Joint is used for the actual final rendering of the game world
-    joint_set_position:call(camera_joint, camera_pos_pre_hmd)
-    joint_set_rotation:call(camera_joint, camera_rot_pre_hmd)
+    if not did_recenter then
+        joint_set_position:call(camera_joint, camera_pos_pre_hmd)
+        joint_set_rotation:call(camera_joint, camera_rot_pre_hmd)
+    else
+        joint_set_position:call(camera_joint, camera_pos_pre_hmd)
+        joint_set_rotation:call(camera_joint, camera_rot_pre_hmd)
+    end
 
     -- just update the body IK right after we update the camera.
     update_body_ik(camera_rot_pre_hmd, camera_pos)
@@ -778,7 +798,7 @@ local function fix_player_camera(player_camera)
         local now = os.clock()
 
         -- trigger gui slerp
-        if dot_ang >= 20 then
+        if dot_ang >= 20 or did_recenter then
             last_gui_forced_slerp = os.clock()
         end
 
@@ -790,28 +810,28 @@ local function fix_player_camera(player_camera)
             end
 
             last_gui_quat = last_gui_quat:slerp(new_gui_quat, dot_dist * math.max((1.5 - slerp_time_diff), 0.0))
+
             vrmod:recenter_gui(last_gui_quat)
         end
 
         needs_cutscene_recenter = true
     end
-    
-    --[[local fixed_dir = camera_rot * Vector3f.new(0, 0, 1)
-    fixed_dir.y = fixed_dir.y * -1.0
-    fixed_dir:normalize()
-    local fixed_rot = fixed_dir:to_quat()]]
 
+    local fixed_dir = camera_rot * Vector3f.new(0, 0, -1)
     local fixed_rot = neg_forward_identity * camera_rot
-    local fixed_dir = fixed_rot * Vector3f.new(0, 0, 1)
 
     player_camera:set_field("<CameraRotation>k__BackingField", fixed_rot)
     player_camera:set_field("<CameraPosition>k__BackingField", camera_pos)
 
     player_camera:set_field("CameraRotationWithMovementShake", fixed_rot)
-    player_camera:set_field("CameraPositionWithMovementShake", camera_pos)
+    --player_camera:set_field("CameraPositionWithMovementShake", camera_pos)
     player_camera:set_field("CameraRotationWithCameraShake", fixed_rot)
-    player_camera:set_field("CameraPositionWithCameraShake", camera_pos)
+    --player_camera:set_field("CameraPositionWithCameraShake", camera_pos)
     player_camera:set_field("PrevCameraRotation", fixed_rot)
+    --player_camera:set_field("OldCameraRotation", fixed_rot)
+    --player_camera:set_field("InterpRotationStart", fixed_rot)
+    --player_camera:set_field("<DesiredCameraRot>k__BackingField", fixed_rot)
+    --player_camera:set_field("<OperatedCameraRot>k__BackingField", fixed_rot)
 
     local camera_controller_param = player_camera:get_field("CameraCtrlParam")
 
@@ -827,12 +847,32 @@ local function fix_player_camera(player_camera)
         -- Stop the player from rotating the camera vertically
         if camera_controller then
             local camera_controller_rot = camera_controller:get_field("<rotation>k__BackingField")
-            local controller_forward = camera_controller_rot * Vector3f.new(0.0, 0.0, 1.0)
-            controller_forward.y = 0.0
-            controller_forward:normalize()
-            camera_controller_rot = controller_forward:to_quat()
-            base_transform_solver:set_field("<rotation>k__BackingField", camera_controller_rot)
-            camera_controller:set_field("<rotation>k__BackingField", camera_controller_rot)
+
+            if did_recenter then
+                camera_controller_rot = Quaternion.new(fixed_rot.w, fixed_rot.x, fixed_rot.y, fixed_rot.z)
+                --vrmod:recenter_view()
+            end
+
+            if did_recenter or not re7.is_in_cutscene then
+                local controller_forward = camera_controller_rot * Vector3f.new(0.0, 0.0, 1.0)
+
+                --if not did_recenter then
+                    controller_forward.y = 0.0
+                --end
+
+                camera_controller_rot = controller_forward:normalized():to_quat():normalized()
+
+                base_transform_solver:set_field("<rotation>k__BackingField", camera_controller_rot)
+                camera_controller:set_field("<rotation>k__BackingField", camera_controller_rot)
+            end
+            
+
+            if did_recenter then
+                --player_camera:call("lateUpdate")
+                base_transform_solver:call("update")
+                camera_controller:call("updateOperatedCameraAngle")
+            end
+
             camera_controller:set_field("IsVerticalRotateLimited", true)
             was_vert_limited = true
         end
@@ -840,7 +880,7 @@ local function fix_player_camera(player_camera)
 
     -- stops the camera from pivoting around the player
     -- so we can use VR to look around without the body sticking out
-    if vrmod:is_using_controllers() then
+    --if vrmod:is_using_controllers() then
         local param_container = player_camera:get_field("_CurrentParamContainer")
 
         if param_container ~= nil then
@@ -854,7 +894,7 @@ local function fix_player_camera(player_camera)
                 posture_param:set_field("CameraOffset", current_camera_offset)
             end
         end
-    end
+    --end
 
     local look_ray_offset = player_camera:get_type_definition():get_field("LookRay"):get_offset_from_base()
     local shoot_ray_offset = player_camera:get_type_definition():get_field("ShootRay"):get_offset_from_base()
@@ -868,14 +908,10 @@ local function fix_player_camera(player_camera)
     sdk.set_native_field(sdk.to_ptr(look_ray), ray_typedef, "dir", fixed_dir)
     sdk.set_native_field(sdk.to_ptr(shoot_ray), ray_typedef, "from", camera_pos)
     sdk.set_native_field(sdk.to_ptr(shoot_ray), ray_typedef, "dir", fixed_dir)
-    --look_ray:set_field("from", camera_pos)
-    --look_ray:set_field("dir", new_dir)
 
-    --player_camera:set_field("LookRay", look_ray)
-
-    --look_ray:set_field("from", new_pos)
-    --look_ray:set_field("dir", new_dir)
-    --player_camera:set_field("ShootRay", look_ray)
+    if did_recenter then
+        player_camera:call("lateUpdate")
+    end
 end
 
 local function on_pre_player_camera_update(args)
@@ -907,6 +943,47 @@ local function on_post_player_camera_update(retval)
 
     return retval
 end
+
+local function on_pre_player_interp_rotation(args)
+    local player_camera = sdk.to_managed_object(args[2])
+    
+    local camera = sdk.get_primary_camera()
+    local camera_gameobject = camera:call("get_GameObject")
+    local camera_transform = camera_gameobject:call("get_Transform")
+
+    --[[if re7.is_in_cutscene and needs_cutscene_recenter then
+        vrmod:set_gui_rotation_offset(Quaternion.identity())
+        vrmod:recenter_view()
+
+        transform_set_rotation:call(camera_transform, last_camera_matrix:to_quat())
+
+        local camera_joint = camera_transform:call("get_Joints")[0]
+
+        joint_set_rotation:call(camera_joint, last_camera_matrix:to_quat())
+
+        -- force the gui to be recentered when we exit the cutscene
+        last_gui_forced_slerp = os.clock()
+        needs_cutscene_recenter = false
+    end]]
+
+    re7.is_in_cutscene = true
+    needs_cutscene_recenter = true
+
+    if needs_cutscene_recenter then
+        fix_player_camera(player_camera)
+    end
+end
+
+local function on_post_player_interp_rotation(retval)
+    return retval
+end
+
+-- Normal Ethan camera
+--[[sdk.hook(
+    sdk.find_type_definition("app.PlayerCamera"):get_method("interpRotation"), 
+    on_pre_player_interp_rotation, 
+    on_post_player_interp_rotation
+)]]
 
 -- Normal Ethan camera
 sdk.hook(
@@ -1119,11 +1196,20 @@ re.on_application_entry("LockScene", function()
     end]]
 end)
 
+local last_roomscale_failure = os.clock()
+
 re.on_pre_application_entry("UnlockScene", function()
-    if not vrmod:is_hmd_active() then return end
-    if not re7.transform then return end
-    if not last_camera_matrix then return end
-    if re7.is_in_cutscene then return end
+    if queue_recenter then
+        vrmod:recenter_view()
+        queue_recenter = false
+    end
+
+    if not vrmod:is_hmd_active() then last_roomscale_failure = os.clock() return end
+    if not re7.player or not re7.transform then last_roomscale_failure = os.clock() return end
+    if not last_camera_matrix then last_roomscale_failure = os.clock() return end
+    if re7.is_in_cutscene then last_roomscale_failure = os.clock() return end
+
+    if os.clock() - last_roomscale_failure < 1.0 then return end
 
     local standing_origin = vrmod:get_standing_origin()
     local hmd_pos = vrmod:get_position(0)
@@ -1341,38 +1427,46 @@ re.on_draw_ui(function()
 
     if imgui.tree_node("Debug") then
         imgui.text("Last GUI Dot: " .. tostring(last_gui_dot))
-    end
 
-    if imgui.tree_node("Right Hand IK") then
-        local right_hand_ik = re7.right_hand_ik
+        if imgui.tree_node("Player") then
+            object_explorer:handle_address(re7.player)
 
-        object_explorer:handle_address(right_hand_ik)
-
-        imgui.tree_pop()
-    end
-
-    if imgui.tree_node("Left Hand IK") then
-        local left_hand_ik = re7.left_hand_ik
-
-        object_explorer:handle_address(left_hand_ik)
-
-        imgui.tree_pop()
-    end
-
-    if imgui.button("test dump") then
-        local d = function(name)
-            local obj = sdk.get_managed_singleton(name)
-
-            if obj then
-                local tbl2 = obj_to_table(obj, {})
-                json.dump_file("object_explorer/" .. obj:get_type_definition():get_full_name() .. ".json", tbl2)
-            end
+            imgui.tree_pop()
         end
 
-        --d("app.VrGuiManager")
-        --d("app.vr.VrManager")
-        --d("app.GameManager")
-        d("app.ObjectManager")
+        if imgui.tree_node("Right Hand IK") then
+            local right_hand_ik = re7.right_hand_ik
+    
+            object_explorer:handle_address(right_hand_ik)
+    
+            imgui.tree_pop()
+        end
+    
+        if imgui.tree_node("Left Hand IK") then
+            local left_hand_ik = re7.left_hand_ik
+    
+            object_explorer:handle_address(left_hand_ik)
+    
+            imgui.tree_pop()
+        end
+    
+        if imgui.button("test dump") then
+            local d = function(name)
+                local obj = sdk.get_managed_singleton(name)
+    
+                if obj then
+                    local tbl2 = obj_to_table(obj, {})
+                    json.dump_file("object_explorer/" .. obj:get_type_definition():get_full_name() .. ".json", tbl2)
+                end
+            end
+    
+            --d("app.VrGuiManager")
+            --d("app.vr.VrManager")
+            --d("app.GameManager")
+            d("app.ObjectManager")
+        end
+
+        imgui.tree_pop()
     end
 end)
 
