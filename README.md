@@ -8,8 +8,6 @@ For newer builds, check out the nightly builds below.
 
 [Nightly Developer Builds](https://github.com/praydog/REFramework-nightly/releases)
 
-[AppVeyor Release Builds](https://ci.appveyor.com/project/praydog/reframework/branch/master/artifacts)
-
 [AppVeyor Developer Builds](https://ci.appveyor.com/project/praydog/reframework-dev/build/artifacts)
 
 ### Non-VR
