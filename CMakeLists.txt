@@ -41,17 +41,19 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
 string(REGEX REPLACE "/MD" "/MT" CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
 string(REGEX REPLACE "/MD" "/MT" CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE}")
 
+set(ASMJIT_STATIC ON)
+
 include(FetchContent)
 
-message(STATUS "Fetching xbyak (v6.00)...")
+message(STATUS "Fetching asmjit (2a706fd2ba355808cada31ac1eed8ce28caa6b37)...")
 FetchContent_Declare(
-	xbyak
+	asmjit
 	GIT_REPOSITORY
-		https://github.com/herumi/xbyak.git
+		https://github.com/asmjit/asmjit.git
 	GIT_TAG
-		v6.00
+		2a706fd2ba355808cada31ac1eed8ce28caa6b37
 )
-FetchContent_MakeAvailable(xbyak)
+FetchContent_MakeAvailable(asmjit)
 
 # Target spdlog
 set(CMKR_TARGET spdlog)
@@ -319,6 +321,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 		"src/D3D12Hook.cpp"
 		"src/DInputHook.cpp"
 		"src/ExceptionHandler.cpp"
+		"src/HookManager.cpp"
 		"src/Main.cpp"
 		"src/Mods.cpp"
 		"src/REFramework.cpp"
@@ -381,6 +384,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 		"src/ExceptionHandler.hpp"
 		"src/Genny.hpp"
 		"src/GennyIda.hpp"
+		"src/HookManager.hpp"
 		"src/LicenseStrings.hpp"
 		"src/Mod.hpp"
 		"src/Mods.hpp"
@@ -688,7 +692,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	)
 
 	target_link_libraries(RE2 PUBLIC
-		xbyak
+		asmjit::asmjit
 		nlohmann_json
 		spdlog
 		lua
@@ -735,6 +739,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 		"src/D3D12Hook.cpp"
 		"src/DInputHook.cpp"
 		"src/ExceptionHandler.cpp"
+		"src/HookManager.cpp"
 		"src/Main.cpp"
 		"src/Mods.cpp"
 		"src/REFramework.cpp"
@@ -797,6 +802,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 		"src/ExceptionHandler.hpp"
 		"src/Genny.hpp"
 		"src/GennyIda.hpp"
+		"src/HookManager.hpp"
 		"src/LicenseStrings.hpp"
 		"src/Mod.hpp"
 		"src/Mods.hpp"
@@ -1104,7 +1110,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	)
 
 	target_link_libraries(RE3 PUBLIC
-		xbyak
+		asmjit::asmjit
 		nlohmann_json
 		spdlog
 		lua
@@ -1151,6 +1157,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 		"src/D3D12Hook.cpp"
 		"src/DInputHook.cpp"
 		"src/ExceptionHandler.cpp"
+		"src/HookManager.cpp"
 		"src/Main.cpp"
 		"src/Mods.cpp"
 		"src/REFramework.cpp"
@@ -1213,6 +1220,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 		"src/ExceptionHandler.hpp"
 		"src/Genny.hpp"
 		"src/GennyIda.hpp"
+		"src/HookManager.hpp"
 		"src/LicenseStrings.hpp"
 		"src/Mod.hpp"
 		"src/Mods.hpp"
@@ -1520,7 +1528,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	)
 
 	target_link_libraries(RE7 PUBLIC
-		xbyak
+		asmjit::asmjit
 		nlohmann_json
 		spdlog
 		lua
@@ -1567,6 +1575,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 		"src/D3D12Hook.cpp"
 		"src/DInputHook.cpp"
 		"src/ExceptionHandler.cpp"
+		"src/HookManager.cpp"
 		"src/Main.cpp"
 		"src/Mods.cpp"
 		"src/REFramework.cpp"
@@ -1629,6 +1638,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 		"src/ExceptionHandler.hpp"
 		"src/Genny.hpp"
 		"src/GennyIda.hpp"
+		"src/HookManager.hpp"
 		"src/LicenseStrings.hpp"
 		"src/Mod.hpp"
 		"src/Mods.hpp"
@@ -1936,7 +1946,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	)
 
 	target_link_libraries(RE8 PUBLIC
-		xbyak
+		asmjit::asmjit
 		nlohmann_json
 		spdlog
 		lua
@@ -1983,6 +1993,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 		"src/D3D12Hook.cpp"
 		"src/DInputHook.cpp"
 		"src/ExceptionHandler.cpp"
+		"src/HookManager.cpp"
 		"src/Main.cpp"
 		"src/Mods.cpp"
 		"src/REFramework.cpp"
@@ -2045,6 +2056,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 		"src/ExceptionHandler.hpp"
 		"src/Genny.hpp"
 		"src/GennyIda.hpp"
+		"src/HookManager.hpp"
 		"src/LicenseStrings.hpp"
 		"src/Mod.hpp"
 		"src/Mods.hpp"
@@ -2352,7 +2364,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	)
 
 	target_link_libraries(DMC5 PUBLIC
-		xbyak
+		asmjit::asmjit
 		nlohmann_json
 		spdlog
 		lua
@@ -2399,6 +2411,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 		"src/D3D12Hook.cpp"
 		"src/DInputHook.cpp"
 		"src/ExceptionHandler.cpp"
+		"src/HookManager.cpp"
 		"src/Main.cpp"
 		"src/Mods.cpp"
 		"src/REFramework.cpp"
@@ -2461,6 +2474,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 		"src/ExceptionHandler.hpp"
 		"src/Genny.hpp"
 		"src/GennyIda.hpp"
+		"src/HookManager.hpp"
 		"src/LicenseStrings.hpp"
 		"src/Mod.hpp"
 		"src/Mods.hpp"
@@ -2768,7 +2782,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 	)
 
 	target_link_libraries(MHRISE PUBLIC
-		xbyak
+		asmjit::asmjit
 		nlohmann_json
 		spdlog
 		lua
@@ -2810,21 +2824,21 @@ set(CMKR_TARGET example_plugin)
 set(example_plugin_SOURCES "")
 
 list(APPEND example_plugin_SOURCES
-	"example_plugin/Plugin.cpp"
-	"example_plugin/imgui/imgui_impl_dx11.cpp"
-	"example_plugin/imgui/imgui_impl_dx12.cpp"
-	"example_plugin/imgui/imgui_impl_win32.cpp"
-	"example_plugin/rendering/d3d11.cpp"
-	"example_plugin/rendering/d3d12.cpp"
-	"example_plugin/Plugin.hpp"
-	"example_plugin/imgui/font_robotomedium.hpp"
-	"example_plugin/imgui/re2_imconfig.hpp"
-	"example_plugin/rendering/d3d11.hpp"
-	"example_plugin/rendering/d3d12.hpp"
-	"example_plugin/rendering/shared.hpp"
-	"example_plugin/imgui/imgui_impl_dx11.h"
-	"example_plugin/imgui/imgui_impl_dx12.h"
-	"example_plugin/imgui/imgui_impl_win32.h"
+	"examples/example_plugin/Plugin.cpp"
+	"examples/example_plugin/imgui/imgui_impl_dx11.cpp"
+	"examples/example_plugin/imgui/imgui_impl_dx12.cpp"
+	"examples/example_plugin/imgui/imgui_impl_win32.cpp"
+	"examples/example_plugin/rendering/d3d11.cpp"
+	"examples/example_plugin/rendering/d3d12.cpp"
+	"examples/example_plugin/Plugin.hpp"
+	"examples/example_plugin/imgui/font_robotomedium.hpp"
+	"examples/example_plugin/imgui/re2_imconfig.hpp"
+	"examples/example_plugin/rendering/d3d11.hpp"
+	"examples/example_plugin/rendering/d3d12.hpp"
+	"examples/example_plugin/rendering/shared.hpp"
+	"examples/example_plugin/imgui/imgui_impl_dx11.h"
+	"examples/example_plugin/imgui/imgui_impl_dx12.h"
+	"examples/example_plugin/imgui/imgui_impl_win32.h"
 )
 
 list(APPEND example_plugin_SOURCES
@@ -2855,6 +2869,53 @@ target_link_libraries(example_plugin PUBLIC
 )
 
 set_target_properties(example_plugin PROPERTIES
+	RUNTIME_OUTPUT_DIRECTORY_RELEASE
+		"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
+	RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
+		"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
+	LIBRARY_OUTPUT_DIRECTORY_RELEASE
+		"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+	LIBRARY_OUTPUT_DIRECTORY_RELWITHDEBINFO
+		"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+	ARCHIVE_OUTPUT_DIRECTORY_RELEASE
+		"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+	ARCHIVE_OUTPUT_DIRECTORY_RELWITHDEBINFO
+		"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+)
+
+unset(CMKR_TARGET)
+unset(CMKR_SOURCES)
+
+# Target weapon_stay_big_plugin
+set(CMKR_TARGET weapon_stay_big_plugin)
+set(weapon_stay_big_plugin_SOURCES "")
+
+list(APPEND weapon_stay_big_plugin_SOURCES
+	"examples/weapon_stay_big_plugin/weapon_stay_big.cpp"
+)
+
+list(APPEND weapon_stay_big_plugin_SOURCES
+	cmake.toml
+)
+
+set(CMKR_SOURCES ${weapon_stay_big_plugin_SOURCES})
+add_library(weapon_stay_big_plugin SHARED)
+
+if(weapon_stay_big_plugin_SOURCES)
+	target_sources(weapon_stay_big_plugin PRIVATE ${weapon_stay_big_plugin_SOURCES})
+endif()
+
+source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${weapon_stay_big_plugin_SOURCES})
+
+target_compile_features(weapon_stay_big_plugin PUBLIC
+	cxx_std_20
+)
+
+target_include_directories(weapon_stay_big_plugin PUBLIC
+	"include/"
+)
+
+set_target_properties(weapon_stay_big_plugin PROPERTIES
 	RUNTIME_OUTPUT_DIRECTORY_RELEASE
 		"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 	RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO

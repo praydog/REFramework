@@ -3,6 +3,7 @@
 
 #include <hde64.h>
 
+#include "HookManager.hpp"
 #include "../../sdk/REContext.hpp"
 #include "../../sdk/REManagedObject.hpp"
 #include "../../sdk/RETypeDB.hpp"
@@ -861,331 +862,74 @@ bool is_managed_object(sol::object obj) {
     return utility::re_managed_object::is_managed_object(real_obj);
 }
 
-namespace detail {
-void* get_actual_function(void* possible_fn) {
-    auto actual_fn = possible_fn;
-    auto ip = (uintptr_t)possible_fn;
-
-    // Disassemble the first few instructions to see if there is a jmp to an actual function.
-    for (auto i = 0; i < 10; ++i) {
-        hde64s hde{};
-        auto len = hde64_disasm((void*)ip, &hde);
-        ip += len;
-
-        if (hde.opcode == 0xE9) { // jmp.
-            actual_fn = (void*)(ip + hde.imm.imm32);
-            break;
-        }
-    }
-
-    return actual_fn;
-}
-}
-
-void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::function pre_cb, sol::function post_cb, sol::object ignore_jmp_object) {
-    bool ignore_jmp = false;
-    if (ignore_jmp_object.is<bool>()) {
-        ignore_jmp = ignore_jmp_object.as<bool>();
-    }
-
+void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::protected_function pre_cb, sol::protected_function post_cb, sol::object ignore_jmp_object) {
     auto sol_state = sol::state_view{s};
     auto state = sol_state.registry()["state"].get<ScriptState*>();
-    auto& hooked_fns = state->hooked_fns();
+    auto id = g_hookman.add(
+        fn,
+        [pre_cb, state](auto& args, auto& arg_tys) -> HookManager::PreHookResult {
+            using PreHookResult = HookManager::PreHookResult;
 
-    if (auto search = hooked_fns.find(fn); search != hooked_fns.end()) {
-        auto& hooked_fn = search->second;
+            auto _ = state->scoped_lock();
+            auto result = PreHookResult::CALL_ORIGINAL;
 
-        if (!pre_cb.is<sol::nil_t>()) {
-            if (pre_cb.is<sol::function>()) {
-                hooked_fn->script_pre_fns.emplace_back(pre_cb);
-            } else {
-                throw sol::error("sdk.hook: Pre callback must be a function");
+            try {
+                if (pre_cb.is<sol::nil_t>()) {
+                    return result;
+                }
+
+                auto script_args = state->lua().create_table();
+
+                // Call the script function.
+                // Convert the args to a table that we pass to the script function.
+                for (auto i = 0u; i < args.size(); ++i) {
+                    script_args[i + 1] = (void*)args[i];
+                }
+
+                auto script_result = pre_cb(script_args);
+
+                if (!script_result.valid()) {
+                    sol::script_default_on_error(state->lua(), std::move(script_result));
+                }
+
+                auto script_result_obj = script_result.get<sol::object>();
+
+                if (script_result_obj.is<PreHookResult>()) {
+                    result = script_result_obj.as<PreHookResult>();
+                }
+
+                // Apply the changes to arguments that the script function may have made.
+                for (auto i = 0u; i < args.size(); ++i) {
+                    auto arg = script_args[i + 1];
+                    args[i] = (uintptr_t)arg.get<void*>();
+                }
+            } catch (const std::exception& e) {
+                OutputDebugString(e.what());
             }
-        } else {
-            spdlog::info("Nil pre callback passed to sdk.hook");
-        }
 
-        if (!post_cb.is<sol::nil_t>()) {
-            if (post_cb.is<sol::function>()) {
-                hooked_fn->script_post_fns.emplace_back(post_cb);
-            } else {
-                throw sol::error("sdk.hook: Post callback must be a function");
+            return result;
+        },
+        [post_cb, state](auto& ret_val, auto* ret_ty) {
+            auto _ = state->scoped_lock();
+
+            try {
+                if (post_cb.is<sol::nil_t>()) {
+                    return;
+                }
+
+                auto script_result = post_cb((void*)ret_val);
+
+                if (!script_result.valid()) {
+                    sol::script_default_on_error(state->lua(), std::move(script_result));
+                }
+
+                ret_val = (uintptr_t)script_result.get<void*>();
+            } catch (const std::exception& e) {
+                OutputDebugString(e.what());
             }
-        } else {
-            spdlog::info("Nil post callback passed to sdk.hook");
-        }
-
-        return;
-    }
-
-    auto hook = std::make_unique<ScriptState::HookedFn>();
-
-    hook->target_fn = ignore_jmp ? fn->get_function() : detail::get_actual_function(fn->get_function());
-
-    if (!pre_cb.is<sol::nil_t>()) {
-        if (pre_cb.is<sol::function>()) {
-            hook->script_pre_fns.emplace_back(pre_cb);
-        } else {
-            throw sol::error("sdk.hook: Pre callback must be a function");
-        }
-    } else {
-        spdlog::info("Nil pre callback passed to sdk.hook");
-    }
-
-    if (!post_cb.is<sol::nil_t>()) {
-        if (post_cb.is<sol::function>()) {
-            hook->script_post_fns.emplace_back(post_cb);
-        } else {
-            throw sol::error("sdk.hook: Post callback must be a function");
-        }
-    } else {
-        spdlog::info("Nil post callback passed to sdk.hook");
-    }
-
-    hook->script_args = sol_state.create_table();
-    hook->arg_tys = fn->get_param_types();
-    hook->ret_ty = fn->get_return_type();
-
-    auto& args = hook->args;
-    auto& arg_tys = hook->arg_tys;
-    auto& fn_hook = hook->fn_hook;
-    auto& g = hook->facilitator_gen;
-
-    // Make sure we have room to store the arguments.
-    args.resize(2 + fn->get_num_params());
-
-    // Generate the facilitator function that will store the arguments, call on_hook, 
-    // restore the arguments, and call the original function.
-    Xbyak::Label hook_label{}, args_label{}, this_label{}, on_pre_hook_label{}, on_post_hook_label{}, 
-        ret_addr_label{}, ret_val_label{}, orig_label{}, lock_label{}, unlock_label{};
-
-    // Save state.
-    g.push(g.rcx);
-    g.push(g.rdx);
-    g.push(g.r8);
-    g.push(g.r9);
-
-    // Lock context.
-    g.mov(g.rcx, g.ptr[g.rip + this_label]);
-    g.sub(g.rsp, 40);
-    g.call(g.ptr[g.rip + lock_label]);
-    g.add(g.rsp, 40);
-
-    // Restore state.
-    g.pop(g.r9);
-    g.pop(g.r8);
-    g.pop(g.rdx);
-    g.pop(g.rcx);
-
-    // Store args.
-    // TODO: Handle all the arguments the function takes.
-    g.mov(g.rax, g.ptr[g.rip + args_label]);
-    g.mov(g.ptr[g.rax], g.rcx); // current thread context.
-
-    auto args_start_offset = 8;
-
-    if (!fn->is_static()) {
-        args_start_offset = 16;
-        g.mov(g.ptr[g.rax + 8], g.rdx); // this ptr... probably.
-    }
-
-    for (auto i = 0u; i < fn->get_num_params(); ++i) {
-        auto arg_ty = arg_tys[i];
-        auto args_offset = args_start_offset + (i * 8);
-        auto is_float = false;
-
-        if (arg_ty->get_full_name() == "System.Single") {
-            is_float = true;
-        }
-
-        switch (args_offset) {
-        case 8: // rdx/xmm1
-            if (is_float) {
-                g.movq(g.ptr[g.rax + args_offset], g.xmm1);
-            } else {
-                g.mov(g.ptr[g.rax + args_offset], g.rdx);
-            }
-            break;
-
-        case 16: // r8/xmm2
-            if (is_float) {
-                g.movq(g.ptr[g.rax + args_offset], g.xmm2);
-            } else {
-                g.mov(g.ptr[g.rax + args_offset], g.r8);
-            }
-            break;
-
-        case 24: // r9/xmm3
-            if (is_float) {
-                g.movq(g.ptr[g.rax + args_offset], g.xmm3);
-            } else {
-                g.mov(g.ptr[g.rax + args_offset], g.r9);
-            }
-            break;
-
-        default:
-            // TODO: handle stack args.
-            break;
-        }
-    }
-
-    // Call on_pre_hook.
-    g.mov(g.rcx, g.ptr[g.rip + this_label]);
-    g.mov(g.rdx, g.ptr[g.rip + hook_label]);
-    g.sub(g.rsp, 40);
-    g.call(g.ptr[g.rip + on_pre_hook_label]);
-    g.add(g.rsp, 40);
-
-    // Save the return value so we can see if we need to call the original later.
-    g.mov(g.r11, g.rax);
-
-    // Restore args.
-    g.mov(g.rax, g.ptr[g.rip + args_label]);
-    g.mov(g.rcx, g.ptr[g.rax]); // current thread context.
-
-    if (!fn->is_static()) {
-        g.mov(g.rdx, g.ptr[g.rax + 8]); // this ptr... probably.
-    }
-
-    for (auto i = 0u; i < fn->get_num_params(); ++i) {
-        auto arg_ty = arg_tys[i];
-        auto args_offset = args_start_offset + (i * 8);
-        auto is_float = false;
-
-        if (arg_ty->get_full_name() == "System.Single") {
-            is_float = true;
-        }
-
-        switch (args_offset) {
-        case 8: // rdx/xmm1
-            if (is_float) {
-                g.movq(g.xmm1, g.ptr[g.rax + args_offset]);
-            } else {
-                g.mov(g.rdx, g.ptr[g.rax + args_offset]);
-            }
-            break;
-
-        case 16: // r8/xmm2
-            if (is_float) {
-                g.movq(g.xmm2, g.ptr[g.rax + args_offset]);
-            } else {
-                g.mov(g.r8, g.ptr[g.rax + args_offset]);
-            }
-            break;
-
-        case 24: // r9/xmm3
-            if (is_float) {
-                g.movq(g.xmm3, g.ptr[g.rax + args_offset]);
-            } else {
-                g.mov(g.r9, g.ptr[g.rax + args_offset]);
-            }
-            break;
-
-        default:
-            // TODO: handle stack args.
-            break;
-        }
-    }
-
-    // Call original function.
-    Xbyak::Label ret_label{}, skip_label{};
-
-    // Save return address.
-    g.mov(g.r10, g.ptr[g.rsp]);
-    g.mov(g.rax, g.ptr[g.rip + ret_addr_label]);
-    g.mov(g.ptr[g.rax], g.r10);
-
-    // Overwrite return address.
-    g.lea(g.rax, g.ptr[g.rip + ret_label]);
-    g.mov(g.ptr[g.rsp], g.rax);
-
-    // Determine if we need to skip the original function or not.
-    g.cmp(g.r11, (int)ScriptState::PreHookResult::CALL_ORIGINAL);
-    g.jnz(skip_label);
-
-    // Jmp to original function.
-    g.jmp(g.ptr[g.rip + orig_label]);
-
-    g.L(skip_label);
-    g.add(g.rsp, 8); // pop ret address.
-
-    g.L(ret_label);
-
-    // Save return value.
-    g.mov(g.rcx, g.ptr[g.rip + ret_val_label]);
-
-    auto is_ret_ty_float = hook->ret_ty->get_full_name() == "System.Single";
-
-    if (is_ret_ty_float) {
-        g.movq(g.ptr[g.rcx], g.xmm0);
-    } else {
-        g.mov(g.ptr[g.rcx], g.rax);
-    }
-
-    // Call on_post_hook.
-    g.mov(g.rcx, g.ptr[g.rip + this_label]);
-    g.mov(g.rdx, g.ptr[g.rip + hook_label]);
-    g.call(g.ptr[g.rip + on_post_hook_label]);
-
-    // Restore return value.
-    g.mov(g.rcx, g.ptr[g.rip + ret_val_label]);
-
-    if (is_ret_ty_float) {
-        g.movq(g.xmm0, g.ptr[g.rcx]);
-    } else {
-        g.mov(g.rax, g.ptr[g.rcx]);
-    }
-
-    // Store state.
-    g.push(g.rax);
-    g.mov(g.r10, g.ptr[g.rip + ret_addr_label]);
-    g.mov(g.r10, g.ptr[g.r10]);
-    g.push(g.r10);
-
-    // Unlock context.
-    g.mov(g.rcx, g.ptr[g.rip + this_label]);
-    g.sub(g.rsp, 32);
-    g.call(g.ptr[g.rip + unlock_label]);
-    g.add(g.rsp, 32);
-
-    // Restore state.
-    g.pop(g.r10);
-    g.pop(g.rax);
-
-    // Return.
-    g.jmp(g.r10);
-    
-    g.L(hook_label);
-    g.dq((uint64_t)hook.get());
-    g.L(args_label);
-    g.dq((uint64_t)args.data());
-    g.L(this_label);
-    g.dq((uint64_t)state);
-    g.L(on_pre_hook_label);
-    g.dq((uint64_t)&ScriptState::on_pre_hook_static);
-    g.L(on_post_hook_label);
-    g.dq((uint64_t)&ScriptState::on_post_hook_static);
-    g.L(lock_label);
-    g.dq((uint64_t)&ScriptState::lock_static);
-    g.L(unlock_label);
-    g.dq((uint64_t)&ScriptState::unlock_static);
-    g.L(ret_addr_label);
-    g.dq((uint64_t)&hook->ret_addr);
-    g.L(ret_val_label);
-    g.dq((uint64_t)&hook->ret_val);
-    g.L(orig_label);
-    // Can't do the following because the hook hasn't been created yet.
-    //g.dq(fn_hook->get_original());
-    g.dq(0);
-
-    // Hook the function to our facilitator.
-    fn_hook = std::make_unique<FunctionHook>(hook->target_fn, (void*)g.getCode());
-
-    // Set the facilitators original function pointer.
-    *(uintptr_t*)orig_label.getAddress() = fn_hook->get_original();
-
-    fn_hook->create();
-    hooked_fns.emplace(fn, std::move(hook));
+        },
+        ignore_jmp_object.is<bool>() ? ignore_jmp_object.as<bool>() : false);
+    state->add_hook(fn, id);
 }
 }
 
@@ -1265,7 +1009,7 @@ void bindings::open_sdk(ScriptState* s) {
     sdk["set_native_field"] = api::sdk::set_native_field;
     sdk["get_primary_camera"] = api::sdk::get_primary_camera;
     sdk["hook"] = api::sdk::hook;
-    sdk.new_enum("PreHookResult", "CALL_ORIGINAL", ScriptState::PreHookResult::CALL_ORIGINAL, "SKIP_ORIGINAL", ScriptState::PreHookResult::SKIP_ORIGINAL);
+    sdk.new_enum("PreHookResult", "CALL_ORIGINAL", HookManager::PreHookResult::CALL_ORIGINAL, "SKIP_ORIGINAL", HookManager::PreHookResult::SKIP_ORIGINAL);
     sdk["is_managed_object"] = api::sdk::is_managed_object;
     sdk["to_managed_object"] = [](sol::this_state s, sol::object ptr) { 
         if (ptr.is<::REManagedObject*>()) {

@@ -8,7 +8,7 @@
 #include <Windows.h>
 
 #include <sol/sol.hpp>
-#include <xbyak/xbyak.h>
+#include <asmjit/asmjit.h>
 
 #include "sdk/RETypeDB.hpp"
 #include "utility/FunctionHook.hpp"
@@ -16,6 +16,8 @@
 #include "Mod.hpp"
 
 #include "reframework/API.hpp"
+
+#include "HookManager.hpp"
 
 class REManagedObject;
 class RETransform;
@@ -30,26 +32,6 @@ int sol_lua_push(sol::types<T*>, lua_State* l, T* obj);
 
 class ScriptState {
 public:
-    enum class PreHookResult : int {
-        CALL_ORIGINAL,
-        SKIP_ORIGINAL,
-    };
-
-    struct HookedFn {
-        void* target_fn{};
-        std::vector<sol::protected_function> script_pre_fns{};
-        std::vector<sol::protected_function> script_post_fns{};
-        sol::table script_args{};
-
-        std::unique_ptr<FunctionHook> fn_hook{};
-        Xbyak::CodeGenerator facilitator_gen{};
-        std::vector<uintptr_t> args{};
-        std::vector<sdk::RETypeDefinition*> arg_tys{};
-        uintptr_t ret_addr{};
-        uintptr_t ret_val{};
-        sdk::RETypeDefinition* ret_ty{};
-    };
-
     ScriptState();
     ~ScriptState();
 
@@ -67,26 +49,12 @@ public:
     void on_script_reset();
     void on_config_save();
 
-    // Returns true when the original function should be called.
-    PreHookResult on_pre_hook(HookedFn* fn);
-    void on_post_hook(HookedFn* fn);
-
-    __declspec(noinline) static PreHookResult on_pre_hook_static(ScriptState* s, HookedFn* fn) {
-        return s->on_pre_hook(fn);
-    }
-
-    __declspec(noinline)static void on_post_hook_static(ScriptState* s, HookedFn* fn) {
-        s->on_post_hook(fn);
-    }
-
-    auto& hooked_fns() {
-        return m_hooked_fns;
-    }
-
-    __declspec(noinline) static void lock_static(ScriptState* s) { s->m_execution_mutex.lock(); }
-    __declspec(noinline) static void unlock_static(ScriptState* s) { s->m_execution_mutex.unlock(); }
-
     auto& lua() { return m_lua; }
+    void lock() { m_execution_mutex.lock(); }
+    void unlock() { m_execution_mutex.unlock(); }
+    auto scoped_lock() { return std::scoped_lock{m_execution_mutex}; }
+
+    void add_hook(sdk::REMethodDefinition* fn, HookManager::HookId id) { m_hooks[fn].emplace_back(id); }
 
 private:
     sol::state m_lua{};
@@ -106,10 +74,7 @@ private:
     std::vector<sol::protected_function> m_on_script_reset_fns{};
     std::vector<sol::protected_function> m_on_config_save_fns{};
 
-    Xbyak::CodeGenerator m_code{};
-    //std::vector<std::unique_ptr<HookedFn>> m_hooked_fns{};
-
-    std::unordered_map<sdk::REMethodDefinition*, std::unique_ptr<HookedFn>> m_hooked_fns{};
+    std::unordered_map<sdk::REMethodDefinition*, std::vector<HookManager::HookId>> m_hooks{};
 };
 
 class ScriptRunner : public Mod {
@@ -139,13 +104,13 @@ public:
         m_access_mutex.lock();
 
         if (m_state) {
-            ScriptState::lock_static(m_state.get());
+            m_state->lock();
         }
     }
 
     void unlock() {
         if (m_state) {
-            ScriptState::unlock_static(m_state.get());
+            m_state->unlock();
         }
 
         m_access_mutex.unlock();

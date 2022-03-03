@@ -13,6 +13,8 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
 # Statically compile runtime
 string(REGEX REPLACE "/MD" "/MT" CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
 string(REGEX REPLACE "/MD" "/MT" CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE}")
+
+set(ASMJIT_STATIC ON)
 """
 
 [options]
@@ -22,9 +24,9 @@ DEVELOPER_MODE = { value = true, comment = "Enable developer mode" }
 msvc-win64 = "MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8"
 developer-mode = "DEVELOPER_MODE"
 
-[fetch-content.xbyak]
-git = "https://github.com/herumi/xbyak.git"
-tag = "v6.00"
+[fetch-content.asmjit]
+git = "https://github.com/asmjit/asmjit.git"
+tag = "2a706fd2ba355808cada31ac1eed8ce28caa6b37"
 
 [target.spdlog]
 type = "static"
@@ -89,7 +91,7 @@ compile-features = ["cxx_std_20"]
 compile-definitions = ["${CMKR_TARGET}", "REFRAMEWORK_EXPORTS", "REFRAMEWORK_GAME_NAME=\"${CMKR_TARGET}\""]
 developer-mode.compile-definitions = ["DEVELOPER"]
 link-libraries = [
-    "xbyak",
+    "asmjit::asmjit",
     "nlohmann_json",
     "spdlog",
     "lua",
@@ -131,22 +133,29 @@ type = "game"
 [target.MHRISE]
 type = "game"
 
-[target.example_plugin]
+[template.plugin]
 type = "shared"
-sources = ["example_plugin/**.cpp", "example_plugin/**.c"]
-headers = ["example_plugin/**.hpp", "example_plugin/**.h"]
 include-directories = ["include/"]
 compile-features = ["cxx_std_20"]
-link-libraries = [
-    "lua",
-    "sol2",
-    "imgui"
-]
 
-[target.example_plugin.properties]
+[template.plugin.properties]
 RUNTIME_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO = "${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 LIBRARY_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
 LIBRARY_OUTPUT_DIRECTORY_RELWITHDEBINFO = "${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
 ARCHIVE_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
 ARCHIVE_OUTPUT_DIRECTORY_RELWITHDEBINFO = "${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+
+[target.example_plugin]
+type = "plugin"
+sources = ["examples/example_plugin/**.cpp", "examples/example_plugin/**.c"]
+headers = ["examples/example_plugin/**.hpp", "examples/example_plugin/**.h"]
+link-libraries = [
+    "lua",
+    "sol2",
+    "imgui"
+]
+
+[target.weapon_stay_big_plugin]
+type = "plugin"
+sources = ["examples/weapon_stay_big_plugin/weapon_stay_big.cpp"]
