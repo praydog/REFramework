@@ -1626,8 +1626,11 @@ void VR::set_rotation_offset(const glm::quat& offset) {
 }
 
 void VR::recenter_view() {
-    set_rotation_offset(glm::inverse(get_rotation(0)));
-    set_rotation_offset(glm::quat{utility::math::remove_y_component(Matrix4x4f{m_rotation_offset})});
+    const auto forward = glm::normalize(glm::quat{get_rotation(0)} * Vector3f{ 0.0f, 0.0f, 1.0f });
+    const auto flattened_forward = glm::normalize(Vector3f{forward.x, 0.0f, forward.z});
+    const auto new_rotation_offset = glm::normalize(glm::inverse(utility::math::to_quat(flattened_forward)));
+
+    set_rotation_offset(new_rotation_offset);
 }
 
 glm::quat VR::get_gui_rotation_offset() {
