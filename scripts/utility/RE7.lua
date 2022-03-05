@@ -49,22 +49,33 @@ local CallbackManager = {
 
 local callbacks = CallbackManager:new()
 
-local re7 = {
-    player = nil,
-    transform = nil,
-    weapon = nil,
-    weapon_gameobject = nil,
-    inventory = nil,
-    hand_touch = nil,
-    right_hand_ik = nil,
-    left_hand_ik = nil,
-    is_in_cutscene = false,
-    is_arm_jacked = false,
-    event_action_controller = nil,
-    wants_block = false,
-    num_active_tasks = 0,
-    active_tasks = {}
-}
+local function initialize_re7(re7)
+    re7 = re7 or {}
+
+    re7.player = nil
+    re7.transform = nil
+    re7.weapon = nil
+    re7.weapon_gameobject = nil
+    re7.inventory = nil
+    re7.hand_touch = nil
+    re7.right_hand_ik = nil
+    re7.left_hand_ik = nil
+    re7.is_in_cutscene = false
+    re7.is_arm_jacked = false
+    re7.event_action_controller = nil
+    re7.wants_block = false
+    re7.movement_speed_rate = 0.0
+    re7.movement_speed_vector = Vector3f.new(0, 0, 0)
+    re7.num_active_tasks = 0
+    re7.active_tasks = {}
+    re7.application = sdk.get_native_singleton("via.Application")
+    re7.application_type = sdk.find_type_definition("via.Application")
+    re7.delta_time = 0.0
+
+    return re7
+end
+
+local re7 = initialize_re7()
 
 local known_typeofs = {}
 
@@ -97,19 +108,15 @@ re.on_pre_application_entry("UpdateBehavior", function()
     re7.player = re7.get_localplayer()
     local player = re7.player
 
-    if player == nil then
-        re7.weapon = nil
-        re7.weapon_gameobject = nil
-        re7.event_action_controller = nil
-        re7.is_in_cutscene = false
-        re7.num_active_tasks = 0
-        re7.active_tasks = {}
+    if player == nil or not re7.application then
+        initialize_re7(re7)
         return
     end
 
     re7.transform = player:call("get_Transform")
     re7.inventory = get_component(player, "app.Inventory")
     re7.hand_touch = get_component(player, "app.PlayerHandTouch")
+    re7.delta_time = sdk.call_native_func(re7.application, re7.application_type, "get_DeltaTime")
 
     if re7.hand_touch == nil then
         re7.right_hand_ik = nil
@@ -236,6 +243,8 @@ local player_motion_controller_type = sdk.find_type_definition("app.PlayerMotion
 local update_postural_camera_motion_method = player_motion_controller_type:get_method("updatePosturalCameraMotion")
 local ch8_player_motion_controller_type = sdk.find_type_definition("app.CH8PlayerMotionController")
 local ch8_update_postural_camera_motion_method = ch8_player_motion_controller_type:get_method("updatePosturalCameraMotion")
+local ch9_player_motion_controller_type = sdk.find_type_definition("app.CH9PlayerMotionController")
+local ch9_update_postural_camera_motion_method = ch9_player_motion_controller_type:get_method("updatePosturalCameraMotion")
 
 local postural_camera_motion_args = nil
 
@@ -259,8 +268,39 @@ local function on_post_update_postural_camera_motion(retval)
     return retval
 end
 
+-- ethan
 sdk.hook(update_postural_camera_motion_method, on_pre_update_postural_camera_motion, on_post_update_postural_camera_motion)
+-- chris
 sdk.hook(ch8_update_postural_camera_motion_method, on_pre_update_postural_camera_motion, on_post_update_postural_camera_motion)
+-- ch9 (end of zoe?)
+sdk.hook(ch9_update_postural_camera_motion_method, on_pre_update_postural_camera_motion, on_post_update_postural_camera_motion)
+
+local player_movement_type = sdk.find_type_definition("app.PlayerMovement")
+local player_movement_late_update_method = player_movement_type:get_method("doLateUpdate")
+local ch8_player_movement_type = sdk.find_type_definition("app.CH8PlayerMovement")
+local ch8_player_movement_late_update_method = ch8_player_movement_type:get_method("doLateUpdate")
+local ch9_player_movement_type = sdk.find_type_definition("app.CH9PlayerMovement")
+local ch9_player_movement_late_update_method = ch9_player_movement_type:get_method("doLateUpdate")
+
+local player_movement_args = nil
+
+local function on_pre_player_movement_late_update(args)
+    player_movement_args = args
+end
+
+local function on_post_player_movement_late_update(retval)
+    local args = player_movement_args
+    local movement = sdk.to_managed_object(args[2])
+
+    re7.movement_speed_rate = movement:get_field("_SpeedRate")
+    re7.movement_speed_vector = movement:get_field("_MoveSpeedVector")
+
+    return retval
+end
+
+sdk.hook(player_movement_late_update_method, on_pre_player_movement_late_update, on_post_player_movement_late_update)
+sdk.hook(ch8_player_movement_late_update_method, on_pre_player_movement_late_update, on_post_player_movement_late_update)
+sdk.hook(ch9_player_movement_late_update_method, on_pre_player_movement_late_update, on_post_player_movement_late_update)
 
 function re7.notify_event_task_created(callback)
     callbacks["event_task_create"]:add(callback)
