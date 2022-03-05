@@ -476,7 +476,7 @@ reframework::InvokeRet sdk::REMethodDefinition::invoke(void* object, const std::
                     this->call<void*>(out.bytes.data(), sdk::get_thread_context());
                 } else {
                     if (ret_hash == "System.Single"_fnv) {
-                        out.f = this->call<float>(sdk::get_thread_context());
+                        out.d = (double)this->call<float>(sdk::get_thread_context());
                     } else if (ret_hash == "System.Double"_fnv) {
                         out.d = this->call<double>(sdk::get_thread_context());
                     } else {
@@ -488,7 +488,7 @@ reframework::InvokeRet sdk::REMethodDefinition::invoke(void* object, const std::
                     this->call<void*>(out.bytes.data(), sdk::get_thread_context(), object);
                 } else {
                     if (ret_hash == "System.Single"_fnv) {
-                        out.f = this->call<float>(sdk::get_thread_context(), object);
+                        out.d = (double)this->call<float>(sdk::get_thread_context(), object);
                     } else if (ret_hash == "System.Double"_fnv) {
                         out.d = this->call<double>(sdk::get_thread_context(), object);
                     } else {
@@ -503,7 +503,7 @@ reframework::InvokeRet sdk::REMethodDefinition::invoke(void* object, const std::
                     CallHelper<void*, Types...>::create(converted_args.data())(this, out.bytes.data(), sdk::get_thread_context());
                 } else {
                     if (ret_hash == "System.Single"_fnv) {
-                        out.f = CallHelper<float, Types...>::create(converted_args.data())(this, sdk::get_thread_context());
+                        out.d = (double)CallHelper<float, Types...>::create(converted_args.data())(this, sdk::get_thread_context());
                     } else if (ret_hash == "System.Double"_fnv) {
                         out.d = CallHelper<double, Types...>::create(converted_args.data())(this, sdk::get_thread_context());
                     } else {
@@ -515,7 +515,7 @@ reframework::InvokeRet sdk::REMethodDefinition::invoke(void* object, const std::
                     CallHelper<void*, Types...>::create(converted_args.data())(this, out.bytes.data(), sdk::get_thread_context(), object);
                 } else {
                     if (ret_hash == "System.Single"_fnv) {
-                        out.f = CallHelper<float, Types...>::create(converted_args.data())(this, sdk::get_thread_context(), object);
+                        out.d = (double)CallHelper<float, Types...>::create(converted_args.data())(this, sdk::get_thread_context(), object);
                     } else if (ret_hash == "System.Double"_fnv) {
                         out.d = CallHelper<double, Types...>::create(converted_args.data())(this, sdk::get_thread_context(), object);
                     } else {
