@@ -2,13 +2,9 @@
 A mod framework, scripting platform, and modding tool for RE Engine games. Inspired by and uses code from [Kanan](https://github.com/cursey/kanan-new)
 
 ## Installation
-The last stable build can be downloaded from the [Releases](https://github.com/praydog/REFramework/releases) page. The prerequisite files for VR can be found in these releases. 
+The last stable build can be downloaded from the [Releases](https://github.com/praydog/REFramework/releases) page.
 
-For newer builds, check out the nightly builds below.
-
-[Nightly Developer Builds](https://github.com/praydog/REFramework-nightly/releases)
-
-[AppVeyor Developer Builds](https://ci.appveyor.com/project/praydog/reframework-dev/build/artifacts)
+For newer builds, check out the [Nightly Developer Builds](https://github.com/praydog/REFramework-nightly/releases)
 
 ### Non-VR
 * Extract the whole zip file except `openvr_api.dll` into your corresponding game folder.
