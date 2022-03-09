@@ -43,7 +43,7 @@ jobs:
       - name: Release
         uses: softprops/action-gh-release@v0.1.14
         with:
-          repository: cursey/reframework-nightly
+          repository: praydog/REFramework-nightly
           token: ${{secrets.REPO_TOKEN}}
           tag_name: ${{format('{0}-{1}', github.run_number, steps.vars.outputs.sha_short)}}
           files: ${{github.workspace}}/${{matrix.target}}.zip
