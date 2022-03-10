@@ -82,8 +82,10 @@ bool D3D12Hook::hook() {
             spdlog::error("Failed to create D3D12 Dummy device");
             return false;
         }
-
     }
+
+    spdlog::info("Dummy device: {:x}", (uintptr_t)device);
+
     // Manually get CreateDXGIFactory export because the user may be running Windows 7
     const auto dxgi_module = LoadLibraryA("dxgi.dll");
     if (dxgi_module == nullptr) {
