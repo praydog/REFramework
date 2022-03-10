@@ -458,6 +458,9 @@ void VR::on_lua_state_created(sol::state& lua) {
         "get_action_joystick_click", &VR::get_action_joystick_click,
         "get_action_a_button", &VR::get_action_a_button,
         "get_action_b_button", &VR::get_action_b_button,
+        "get_action_weapon_dial", &VR::get_action_weapon_dial,
+        "get_action_minimap", &VR::get_action_minimap,
+        "get_action_block", &VR::get_action_block,
         "get_left_joystick", &VR::get_left_joystick,
         "get_right_joystick", &VR::get_right_joystick,
         "is_using_controllers", &VR::is_using_controllers,
@@ -1646,8 +1649,11 @@ void VR::set_gui_rotation_offset(const glm::quat& offset) {
 }
 
 void VR::recenter_gui(const glm::quat& from) {
-    set_gui_rotation_offset(glm::inverse(from));
-    set_gui_rotation_offset(glm::quat{utility::math::remove_y_component(Matrix4x4f{m_gui_rotation_offset})});
+    const auto forward = glm::normalize(glm::quat{from} * Vector3f{ 0.0f, 0.0f, 1.0f });
+    const auto flattened_forward = glm::normalize(Vector3f{forward.x, 0.0f, forward.z});
+    const auto new_gui_offset = glm::normalize(glm::inverse(utility::math::to_quat(flattened_forward)));
+
+    set_gui_rotation_offset(new_gui_offset);
 }
 
 Vector4f VR::get_current_offset() {

@@ -165,6 +165,9 @@ public:
     auto get_action_joystick_click() const { return m_action_joystick_click; }
     auto get_action_a_button() const { return m_action_a_button; }
     auto get_action_b_button() const { return m_action_b_button; }
+    auto get_action_weapon_dial() const { return m_action_weapon_dial; }
+    auto get_action_minimap() const { return m_action_minimap; }
+    auto get_action_block() const { return m_action_block; }
     auto get_left_joystick() const { return m_left_joystick; }
     auto get_right_joystick() const { return m_right_joystick; }
 
@@ -302,6 +305,7 @@ private:
     vr::VRActionHandle_t m_action_re2_change_ammo{};
     vr::VRActionHandle_t m_action_re2_toggle_flashlight{};
     vr::VRActionHandle_t m_action_minimap{};
+    vr::VRActionHandle_t m_action_block{};
 
     bool m_was_firstperson_toggle_down{false};
     bool m_was_flashlight_toggle_down{false};
@@ -326,7 +330,8 @@ private:
         { "/actions/default/in/RE2_Reset_View", m_action_re2_reset_view },
         { "/actions/default/in/RE2_Change_Ammo", m_action_re2_change_ammo },
         { "/actions/default/in/RE2_Toggle_Flashlight", m_action_re2_toggle_flashlight },
-        { "/actions/default/in/MiniMap", m_action_minimap }
+        { "/actions/default/in/MiniMap", m_action_minimap },
+        { "/actions/default/in/Block", m_action_block },
     };
 
     // Input sources
