@@ -89,6 +89,14 @@ local function update_pad_device(device)
     if not vrmod:is_hmd_active() then
         return
     end
+    
+    local menu_manager = sdk.get_managed_singleton("app.MenuManager")
+    local is_inventory_open = false
+
+    if menu_manager ~= nil then
+        is_inventory_open = menu_manager:call("isOpenInventoryMenu")
+        is_inventory_open = is_inventory_open or menu_manager:call("isOpenItemBoxMenu")
+    end
 
     local raw_left_stick_axis = vrmod:get_left_stick_axis()
     
@@ -138,6 +146,9 @@ local function update_pad_device(device)
     local action_a_button = vrmod:get_action_a_button()
     local action_b_button = vrmod:get_action_b_button()
     local action_joystick_click = vrmod:get_action_joystick_click()
+    local action_weapon_dial = vrmod:get_action_weapon_dial()
+    local action_minimap = vrmod:get_action_minimap()
+    local action_block = vrmod:get_action_block()
 
     local right_joystick = vrmod:get_right_joystick()
     local left_joystick = vrmod:get_left_joystick()
@@ -145,6 +156,10 @@ local function update_pad_device(device)
     if vrmod:is_action_active(action_trigger, right_joystick) then
         device:call("set_AnalogR", 1.0)
         cur_button = cur_button | via.hid.GamePadButton.RTrigBottom
+
+        if is_inventory_open then
+            cur_button = cur_button | via.hid.GamePadButton.RTrigTop
+        end
     end
 
     -- gripping right joystick causes "left trigger" to be pressed (aiming)
@@ -153,7 +168,7 @@ local function update_pad_device(device)
         device:call("set_AnalogL", 1.0)
     end
 
-    if vrmod:is_action_active(action_trigger, left_joystick) then
+    if vrmod:is_action_active(action_weapon_dial, left_joystick) or vrmod:is_action_active(action_weapon_dial, right_joystick) then
         -- DPad mimickry
         if vr_left_stick_axis.y >= 0.9 then
             cur_button = cur_button | via.hid.GamePadButton.LUp
@@ -166,9 +181,12 @@ local function update_pad_device(device)
         elseif vr_left_stick_axis.x <= -0.9 then
             cur_button = cur_button | via.hid.GamePadButton.LLeft
         end
+    end
 
-        -- set right bumper instead of left trigger
-        cur_button = cur_button | via.hid.GamePadButton.LTrigTop
+    if vrmod:is_action_active(action_trigger, left_joystick) then
+        if is_inventory_open then
+            cur_button = cur_button | via.hid.GamePadButton.LTrigTop
+        end
 
         -- set right bumper (heal) if holding both trigger and grip
         if vrmod:is_action_active(action_grip, left_joystick) then
@@ -176,8 +194,9 @@ local function update_pad_device(device)
         end
     end
 
-    if re7.wants_block then
+    if re7.wants_block or vrmod:is_action_active(action_block, left_joystick) or vrmod:is_action_active(action_block, right_joystick) then
         cur_button = cur_button | via.hid.GamePadButton.LTrigTop
+        re7.wants_block = true
     end
 
     if vrmod:is_action_active(action_a_button, right_joystick) then
@@ -202,6 +221,10 @@ local function update_pad_device(device)
 
     if vrmod:is_action_active(action_joystick_click, left_joystick) then
         cur_button = cur_button | via.hid.GamePadButton.LStickPush
+    end
+
+    if vrmod:is_action_active(action_minimap, right_joystick) or vrmod:is_action_active(action_minimap, left_joystick) then
+        cur_button = cur_button | via.hid.GamePadButton.CLeft
     end
 
     device:call("set_Button", cur_button)
