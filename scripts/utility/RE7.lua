@@ -58,10 +58,12 @@ local function initialize_re7(re7)
     re7.weapon_gameobject = nil
     re7.inventory = nil
     re7.hand_touch = nil
+    re7.order = nil
     re7.right_hand_ik = nil
     re7.left_hand_ik = nil
     re7.is_in_cutscene = false
     re7.is_arm_jacked = false
+    re7.is_grapple_aim = false
     re7.event_action_controller = nil
     re7.wants_block = false
     re7.movement_speed_rate = 0.0
@@ -116,7 +118,12 @@ re.on_pre_application_entry("UpdateBehavior", function()
     re7.transform = player:call("get_Transform")
     re7.inventory = get_component(player, "app.Inventory")
     re7.hand_touch = get_component(player, "app.PlayerHandTouch")
+    re7.order = get_component(player, "app.PlayerOrder")
     re7.delta_time = sdk.call_native_func(re7.application, re7.application_type, "get_DeltaTime")
+
+    if re7.order ~= nil then
+        re7.is_grapple_aim = re7.order:get_field("IsGrappleAimEnable")
+    end
 
     if re7.hand_touch == nil then
         re7.right_hand_ik = nil

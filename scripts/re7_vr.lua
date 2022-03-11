@@ -341,11 +341,29 @@ local function calculate_tpose_world(joint, depth)
 
     local cur_joint = joint
 
-    for i=0, depth do
-        local parent = cur_joint:call("get_Parent")
-        table.insert(joints, parent)
-        cur_joint = parent
+    for i=1, depth do
+        cur_joint = cur_joint:call("get_Parent")
+        table.insert(joints, cur_joint)
     end
+
+    local parent_pos = joint_get_position:call(cur_joint)
+    local parent_rot = joint_get_rotation:call(cur_joint)
+    local original_parent_pos = player_pos + (player_rot * player_transform:calculate_base_transform(cur_joint)[3])
+
+    for i=1, depth do
+        local joint = joints[depth-i]
+
+        local original_pos = player_pos + (player_rot * player_transform:calculate_base_transform(joint)[3])
+        local diff = original_pos - original_parent_pos
+        local updated_pos = parent_pos + diff
+        
+        original_parent_pos = original_pos
+        parent_pos = updated_pos
+    end
+
+    local original_pos = player_pos + (player_rot * player_transform:calculate_base_transform(joint)[3])
+    local diff = original_pos - original_parent_pos
+    return parent_pos + diff
 end
 
 local function set_hand_joints_to_tpose(hand_ik)
@@ -378,8 +396,11 @@ local function set_hand_joints_to_tpose(hand_ik)
 
     if #joints > 0 and joints[1] ~= nil then
         table.insert(joints, 1, joints[1]:call("get_Parent"))
-        table.insert(joints, 1, joints[1]:call("get_Parent"))
-        table.insert(joints, 1, joints[1]:call("get_Parent"))
+
+        if not re7.is_grapple_aim then
+            table.insert(joints, 1, joints[1]:call("get_Parent"))
+            table.insert(joints, 1, joints[1]:call("get_Parent"))
+        end
     end
 
     for i, joint in ipairs(joints) do
@@ -586,7 +607,15 @@ local function update_body_ik(camera_rotation, camera_pos)
     local original_head_pos = motion:call("getWorldPosition", head_index)
     --local original_chest_pos = motion:call("getWorldPosition", chest_index)
 
-    original_head_pos = transform_rot * original_head_pos
+    local normal_dir = camera_rotation * Vector3f.new(0, 0, 1)
+    local flattened_dir = camera_rotation * Vector3f.new(0, 0, 1)
+    flattened_dir.y = 0.0
+    flattened_dir:normalize()
+
+    original_head_pos = calculate_tpose_world(head_joint, 4)
+    original_head_pos = original_head_pos + (flattened_dir * (math.abs(normal_dir.y) * -0.1)) + (flattened_dir * 0.025)
+
+    --original_head_pos = transform_rot * original_head_pos
     --original_head_pos = transform:call("getJointByName", "root"):call("get_Rotation") * original_head_pos
     --original_head_pos = transform_rot * transform:calculate_base_transform(head_joint)[3]
     --original_chest_pos = transform_rot * original_chest_pos
@@ -610,7 +639,7 @@ local function update_body_ik(camera_rotation, camera_pos)
     local center_pos = center_joint:call("get_Position")
     local transform_pos = transform:call("get_Position")]]
 
-    local diff_to_camera = ((camera_pos - transform_pos) - original_head_pos)
+    local diff_to_camera = ((camera_pos) - original_head_pos)
 
     --ik_leg:call("set_CenterJointName", "Hip")
     ik_leg:call("set_CenterOffset", diff_to_camera)
@@ -867,7 +896,7 @@ local function fix_player_camera(player_camera)
     --last_gui_offset = last_gui_offset * (camera_rot:inverse() * camera_rot_pre_hmd)
 
     -- just update the body IK right after we update the camera.
-    update_body_ik(camera_rot_pre_hmd, camera_pos)
+    update_body_ik(camera_rot, camera_pos)
 
     -- Slerp the gui around
     slerp_gui(re7.is_in_cutscene and (camera_rot_pre_hmd * camera_rot:inverse()) or vrmod:get_rotation(0):to_quat():inverse())
