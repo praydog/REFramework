@@ -258,8 +258,18 @@ void* get_native_singleton(const char* name) {
     return (void*)::sdk::get_native_singleton<void>(name);
 }
 
-auto get_managed_singleton(const char* name) {
-    return g_framework->get_globals()->get(name);
+auto get_managed_singleton(sol::this_state s, const char* name) {
+    if (name == nullptr) {
+        return sol::make_object(s, sol::nil);
+    }
+
+    auto out = ::sdk::get_managed_singleton<::REManagedObject>(name);
+
+    if (out == nullptr) {
+        return sol::make_object(s, sol::nil);
+    }
+
+    return sol::make_object(s, out);
 }
 
 void* create_managed_string(const char* text) {
