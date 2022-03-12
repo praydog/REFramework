@@ -438,6 +438,7 @@ private:
     const ModToggle::Ptr m_force_lensdistortion_settings{ ModToggle::create(generate_name("ForceLensDistortion"), true) };
     const ModToggle::Ptr m_force_volumetrics_settings{ ModToggle::create(generate_name("ForceVolumetrics"), true) };
     const ModToggle::Ptr m_force_lensflares_settings{ ModToggle::create(generate_name("ForceLensFlares"), true) };
+    const ModToggle::Ptr m_force_dynamic_shadows_settings{ ModToggle::create(generate_name("ForceDynamicShadows"), true) };
 
     bool m_disable_projection_matrix_override{ false };
     bool m_disable_view_matrix_override{false};
@@ -458,7 +459,8 @@ private:
         *m_force_vsync_settings,
         *m_force_lensdistortion_settings,
         *m_force_volumetrics_settings,
-        *m_force_lensflares_settings
+        *m_force_lensflares_settings,
+        *m_force_dynamic_shadows_settings
     };
 
     bool m_use_rotation{true};

@@ -1405,6 +1405,9 @@ void VR::disable_bad_effects() {
     static auto get_colorspace_method = render_config_t->get_method("get_ColorSpace");
     static auto set_colorspace_method = render_config_t->get_method("set_ColorSpace");
 
+    static auto get_dynamic_shadow_enable_method = render_config_t->get_method("get_DynamicShadowEnable");
+    static auto set_dynamic_shadow_enable_method = render_config_t->get_method("set_DynamicShadowEnable");
+
     static auto get_hdrmode_method = renderer_t->get_method("get_HDRMode");
     static auto set_hdrmode_method = renderer_t->get_method("set_HDRMode");
 
@@ -1530,6 +1533,16 @@ void VR::disable_bad_effects() {
         if (is_hdr_enabled) {
             set_colorspace_method->call<void*>(context, render_config, via::render::ColorSpace::HDTV);
             spdlog::info("[VR] HDR disabled (ColorSpace)");
+        }
+    }
+
+    if (m_force_dynamic_shadows_settings->value() && get_dynamic_shadow_enable_method != nullptr && set_dynamic_shadow_enable_method != nullptr) {
+        const auto is_dynamic_shadow_enabled = get_dynamic_shadow_enable_method->call<bool>(context, render_config);
+
+        // Enable dynamic shadows
+        if (!is_dynamic_shadow_enabled) {
+            set_dynamic_shadow_enable_method->call<void*>(context, render_config, true);
+            spdlog::info("[VR] Dynamic shadows enabled");
         }
     }
 
@@ -3049,6 +3062,7 @@ void VR::on_draw_ui() {
     m_force_lensdistortion_settings->draw("Force Disable Lens Distortion");
     m_force_volumetrics_settings->draw("Force Disable Volumetrics");
     m_force_lensflares_settings->draw("Force Disable Lens Flares");
+    m_force_dynamic_shadows_settings->draw("Force Enable Dynamic Shadows");
 
     ImGui::Separator();
     ImGui::Text("Debug info");
