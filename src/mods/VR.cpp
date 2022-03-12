@@ -2049,7 +2049,7 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                         bool wants_fix_2d_pos = false;
                         bool wants_screen_correction = true;
 
-                        if (name_hash == "damage_ui2102"_fnv) {
+                        if (name_hash == "damage_ui2102"_fnv || name_hash == "NightVision_Filter"_fnv) {
                             ui_distance_from_camera = 5.0f;
                             wants_screen_correction = false;
 
