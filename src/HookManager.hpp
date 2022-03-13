@@ -41,7 +41,7 @@ public:
         uintptr_t ret_addr{};
         uintptr_t ret_val{};
         sdk::RETypeDefinition* ret_ty{};
-        std::mutex mux{};
+        std::recursive_mutex mux{};
 
         HookedFn(HookManager& hm);
         ~HookedFn();
