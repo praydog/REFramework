@@ -1,5 +1,5 @@
 name: Dev Release
-on: push
+on: [push, workflow_dispatch]
 env:
   BUILD_TYPE: Release
 jobs:
@@ -45,5 +45,5 @@ jobs:
         with:
           repository: praydog/REFramework-nightly
           token: ${{secrets.REPO_TOKEN}}
-          tag_name: ${{format('{0}-{1}', github.run_number, steps.vars.outputs.sha_short)}}
+          tag_name: ${{format('v1.{0}-{1}', github.run_number, steps.vars.outputs.sha_short)}}
           files: ${{github.workspace}}/${{matrix.target}}.zip
