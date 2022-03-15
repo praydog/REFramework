@@ -3,6 +3,7 @@
 #include <fstream>
 #include <imgui.h>
 #include <imgui_internal.h>
+#include <glm/gtx/transform.hpp>
 
 #if defined(RE2) || defined(RE3) || defined(DMC5)
 #include "sdk/regenny/re3/via/Window.hpp"
@@ -1878,7 +1879,16 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
         case "GUIBlackMask"_fnv:
         case "GenomeCodexGUI"_fnv:
         case "sm42_020_keystrokeDevice01A_gimmick"_fnv: // this one is the keypad in the locker room...
+#ifdef RE7
+        case "HUD"_fnv: // not a hero
+#endif
             return true;
+
+#if defined(RE2) || defined(RE3)
+        // the weird buggy overlay in the inventory
+        case "GuiBack"_fnv:
+            return false;
+#endif
 
         default:
             break;
@@ -1931,6 +1941,9 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                     return true;
                 }
 
+                auto ui_scale = m_ui_scale_option->value();
+                const auto world_ui_scale = m_world_ui_scale_option->value();
+
                 auto& restore_data = g_elements_to_reset.emplace_back(std::make_unique<GUIRestoreData>());
                 auto original_game_object_pos = sdk::get_transform_position(game_object->transform);
 
@@ -1977,7 +1990,7 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                                                     std::optional<float> custom_ui_scale = std::nullopt)
                         {
                             if (!custom_ui_scale) {
-                                custom_ui_scale = m_ui_scale;
+                                custom_ui_scale = world_ui_scale;
                             }
 
                             auto delta = target_position - m_render_camera_matrix[3];
@@ -2045,13 +2058,64 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
 
                         glm::quat wanted_rotation{};
                         
-                        float ui_distance_from_camera = m_ui_scale;
-                        bool wants_fix_2d_pos = false;
-                        bool wants_screen_correction = true;
+                        bool wants_face_glue = false;
+                        auto ui_distance = m_ui_distance_option->value();
 
-                        if (name_hash == "damage_ui2102"_fnv || name_hash == "NightVision_Filter"_fnv) {
-                            ui_distance_from_camera = 5.0f;
-                            wants_screen_correction = false;
+                        switch (name_hash) {
+                        case "damage_ui2102"_fnv:
+                        case "NightVision_Filter"_fnv:
+                            wants_face_glue = true;
+                            break;
+                        default:
+                            break;
+                        };
+
+                        float right_world_adjust{};
+
+                        switch (name_hash) {
+                        case "GuiFront"_fnv:
+                        case "GUI_Pause"_fnv:
+                        case "GUIPause"_fnv:
+                        case "GUIMapBg"_fnv:
+                        case "BG"_fnv:
+                            ui_distance += 0.1f; // give everything a little pop in the inventory.
+                            break;
+                        case "GUI_MapBG"_fnv:
+                        case "GUI_Map"_fnv:
+                        case "GUI_MapGrid"_fnv:
+                        case "GUIMap"_fnv:
+                        case "GUIMapIcon"_fnv:
+                            ui_distance -= 0.025f; // give everything a little pop in the inventory.
+                            break;
+                        case "GuiCaption"_fnv:
+                        case "GUIInventory"_fnv:
+                        case "GUIInventoryCraft"_fnv:
+                        case "GUIInventoryKeyItem"_fnv:
+                        case "GUIInventoryTreasure"_fnv:
+                        case "GUIBinder"_fnv:
+                        case "GUIEquip"_fnv:
+                            ui_distance -= 0.1f; // give everything a little pop in the inventory.
+                            break;
+                        case "GUI_RemainingBullet"_fnv:
+                            right_world_adjust = 0.15f;
+                            break;
+                        case "GUI_Reticle"_fnv:
+                        case "ReticleGUI"_fnv:
+                        case "GUIReticle"_fnv:
+                            ui_distance = 5.0f;
+                            ui_scale = 2.0f;
+                            break;
+                        default:
+                            break;
+                        }
+
+                        if (ui_distance < 0.0f) {
+                            ui_distance = 0.0f;
+                        }
+
+                        // glues the GUI to the camera rotation and position
+                        if (wants_face_glue) {
+                            ui_distance = 5.0f;
 
                             wanted_rotation = glm::extractMatrixRotation(m_render_camera_matrix) * Matrix4x4f{
                                 -1, 0, 0, 0,
@@ -2073,13 +2137,15 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                         }
 
                         const auto wanted_rotation_mat = Matrix4x4f{wanted_rotation};
-                        gui_matrix = wanted_rotation_mat;
 
-                        gui_matrix[3] = camera_position + (wanted_rotation_mat[2] * ui_distance_from_camera);
+                        gui_matrix = wanted_rotation_mat;
+                        gui_matrix[3] = camera_position + (wanted_rotation_mat[2] * ui_distance) + (wanted_rotation_mat[0] * right_world_adjust);
                         gui_matrix[3].w = 1.0f;
 
-                        if (wants_fix_2d_pos) {
-                            fix_2d_position(gui_matrix[3], wants_screen_correction, ui_distance_from_camera);
+                        // Scales the GUI so it's not massive.
+                        if (!wants_face_glue) {
+                            const auto scale = 1.0f / ui_scale;
+                            gui_matrix = glm::scale(gui_matrix, Vector3f{ scale, scale, scale });
                         }
 
                         static auto gui_driver_typedef = sdk::RETypeDB::get()->find_type(game_namespace("GUIDriver"));
@@ -3053,7 +3119,10 @@ void VR::on_draw_ui() {
     m_motion_controls_inactivity_timer->draw("Inactivity Timer");
     m_joystick_deadzone->draw("Joystick Deadzone");
 
-    ImGui::DragFloat("UI Scale", &m_ui_scale, 0.005f, 0.0f, 100.0f);
+    m_ui_scale_option->draw("2D UI Scale");
+    m_ui_distance_option->draw("2D UI Distance");
+    m_world_ui_scale_option->draw("World-Space UI Scale");
+
     ImGui::DragFloat3("Overlay Rotation", (float*)&m_overlay_rotation, 0.01f, -360.0f, 360.0f);
     ImGui::DragFloat3("Overlay Position", (float*)&m_overlay_position, 0.01f, -100.0f, 100.0f);
 

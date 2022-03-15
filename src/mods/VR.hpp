@@ -173,7 +173,7 @@ public:
 
     const auto& get_action_handles() const { return m_action_handles;}
 
-    auto get_ui_scale() const { return m_ui_scale; }
+    auto get_ui_scale() const { return m_ui_scale_option->value(); }
     const auto& get_raw_projections() const { return m_raw_projections; }
 
 private:
@@ -368,7 +368,6 @@ private:
     sdk::helpers::NativeObject m_via_hid_gamepad{ "via.hid.GamePad" };
 
     // options
-    float m_ui_scale{15.0f};
     int m_frame_count{};
     int m_last_frame_count{-1};
     int m_left_eye_frame_count{0};
@@ -430,6 +429,9 @@ private:
     const ModSlider::Ptr m_view_distance{ ModSlider::create(generate_name("CustomViewDistance"), 10.0f, 3000.0f, 500.0f) };
     const ModSlider::Ptr m_motion_controls_inactivity_timer{ ModSlider::create(generate_name("MotionControlsInactivityTimer"), 10.0f, 100.0f, 10.0f) };
     const ModSlider::Ptr m_joystick_deadzone{ ModSlider::create(generate_name("JoystickDeadzone"), 0.01f, 0.9f, 0.15f) };
+    const ModSlider::Ptr m_ui_scale_option{ ModSlider::create(generate_name("2DUIScale"), 1.0f, 100.0f, 12.0f) };
+    const ModSlider::Ptr m_ui_distance_option{ ModSlider::create(generate_name("2DUIDistance"), 0.01f, 100.0f, 1.0f) };
+    const ModSlider::Ptr m_world_ui_scale_option{ ModSlider::create(generate_name("WorldSpaceUIScale"), 1.0f, 100.0f, 15.0f) };
 
     const ModToggle::Ptr m_force_fps_settings{ ModToggle::create(generate_name("ForceFPS"), true) };
     const ModToggle::Ptr m_force_aa_settings{ ModToggle::create(generate_name("ForceAntiAliasing"), true) };
@@ -460,7 +462,10 @@ private:
         *m_force_lensdistortion_settings,
         *m_force_volumetrics_settings,
         *m_force_lensflares_settings,
-        *m_force_dynamic_shadows_settings
+        *m_force_dynamic_shadows_settings,
+        *m_ui_scale_option,
+        *m_ui_distance_option,
+        *m_world_ui_scale_option
     };
 
     bool m_use_rotation{true};
