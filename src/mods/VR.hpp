@@ -360,6 +360,8 @@ private:
     Vector4f m_original_camera_position{ 0.0f, 0.0f, 0.0f, 0.0f };
     glm::quat m_original_camera_rotation{ glm::identity<glm::quat>() };
 
+    Matrix4x4f m_original_camera_matrix{ glm::identity<Matrix4x4f>() };
+
     Vector4f m_original_audio_camera_position{ 0.0f, 0.0f, 0.0f, 0.0f };
     glm::quat m_original_audio_camera_rotation{ glm::identity<glm::quat>() };
 

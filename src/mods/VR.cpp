@@ -1095,6 +1095,24 @@ void VR::update_camera() {
 #if defined(RE2) || defined(RE3)
     if (FirstPerson::get()->will_be_used()) {
         m_needs_camera_restore = false;
+
+        auto camera_object = utility::re_component::get_game_object(camera);
+
+        if (camera_object == nullptr || camera_object->transform == nullptr) {
+            return;
+        }
+
+        auto camera_joint = utility::re_transform::get_joint(*camera_object->transform, 0);
+
+        if (camera_joint == nullptr) {
+            return;
+        }
+
+        m_original_camera_position = sdk::get_joint_position(camera_joint);
+        m_original_camera_rotation = sdk::get_joint_rotation(camera_joint);
+        m_original_camera_matrix = Matrix4x4f{m_original_camera_rotation};
+        m_original_camera_matrix[3] = m_original_camera_position;
+
         return;
     }
 #endif
@@ -1154,6 +1172,8 @@ void VR::update_camera_origin() {
     if (!inside_on_end) {
         m_original_camera_position = sdk::get_joint_position(camera_joint);
         m_original_camera_rotation = sdk::get_joint_rotation(camera_joint);
+        m_original_camera_matrix = Matrix4x4f{m_original_camera_rotation};
+        m_original_camera_matrix[3] = m_original_camera_position;
     }
 
     apply_hmd_transform(camera_joint);
@@ -2053,7 +2073,7 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
 
                         auto camera_transform = camera_object->transform;
 
-                        const auto& camera_matrix = utility::re_transform::get_joint_matrix_by_index(*camera_transform, 0);
+                        const auto& camera_matrix = m_original_camera_matrix;
                         const auto& camera_position = camera_matrix[3];
 
                         glm::quat wanted_rotation{};
