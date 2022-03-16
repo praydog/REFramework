@@ -344,6 +344,7 @@ private:
     std::bitset<64> m_button_states_up{};
     std::chrono::steady_clock::time_point m_last_controller_update{};
     std::chrono::steady_clock::time_point m_last_interaction_display{};
+    std::chrono::steady_clock::time_point m_backbuffer_inconsistency_start{};
     std::chrono::nanoseconds m_last_input_delay{};
     std::chrono::nanoseconds m_avg_input_delay{};
 
@@ -393,6 +394,8 @@ private:
     bool m_request_reinitialize_openvr{false};
     bool m_positional_tracking{true};
     bool m_handle_pause{false}; // happens when dashboard opens
+    bool m_is_d3d12{false};
+    bool m_backbuffer_inconsistency{false};
 
     // on the backburner
     bool m_depth_aided_reprojection{false};

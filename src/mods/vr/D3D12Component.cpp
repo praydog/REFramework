@@ -8,7 +8,7 @@ namespace vrmod {
 vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
     wait_for_texture_copy(INFINITE);
 
-    if (m_left_eye_tex == nullptr) {
+    if (m_left_eye_tex == nullptr || m_force_reset) {
         setup();
     }
 
@@ -141,15 +141,18 @@ void D3D12Component::setup() {
 
     if (FAILED(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_cmd_allocator)))) {
         spdlog::error("[VR] Failed to create command allocator.");
+        return;
     }
 
     if (FAILED(device->CreateCommandList(
             0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_cmd_allocator.Get(), nullptr, IID_PPV_ARGS(&m_cmd_list)))) {
         spdlog::error("[VR] Failed to create command list.");
+        return;
     }
 
     if (FAILED(device->CreateFence(m_fence_value, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence)))) {
         spdlog::error("[VR] Failed to create fence.");
+        return;
     }
 
     m_fence_event = CreateEvent(nullptr, FALSE, FALSE, nullptr);
@@ -158,9 +161,12 @@ void D3D12Component::setup() {
 
     if (FAILED(swapchain->GetBuffer(0, IID_PPV_ARGS(&backbuffer)))) {
         spdlog::error("[VR] Failed to get back buffer.");
+        return;
     }
 
     auto backbuffer_desc = backbuffer->GetDesc();
+
+    spdlog::info("[VR] D3D12 Backbuffer width: {}, height: {}", backbuffer_desc.Width, backbuffer_desc.Height);
 
     D3D12_HEAP_PROPERTIES heap_props{};
     heap_props.Type = D3D12_HEAP_TYPE_DEFAULT;
@@ -170,14 +176,20 @@ void D3D12Component::setup() {
     if (FAILED(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &backbuffer_desc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr,
             IID_PPV_ARGS(&m_left_eye_tex)))) {
         spdlog::error("[VR] Failed to create left eye texture.");
+        return;
     }
 
     if (FAILED(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &backbuffer_desc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr,
             IID_PPV_ARGS(&m_right_eye_tex)))) {
         spdlog::error("[VR] Failed to create right eye texture.");
+        return;
     }
 
+    m_backbuffer_size[0] = backbuffer_desc.Width;
+    m_backbuffer_size[1] = backbuffer_desc.Height;
+
     spdlog::info("[VR] d3d12 textures have been setup");
+    m_force_reset = false;
 }
 
 void D3D12Component::copy_texture(ID3D12Resource* src, ID3D12Resource* dst) {

@@ -90,6 +90,38 @@ float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
 #endif
             window->width = mod->get_hmd_width();
             window->height = mod->get_hmd_height();
+
+            if (mod->m_is_d3d12) {
+                const auto& backbuffer_size = mod->m_d3d12.get_backbuffer_size();
+
+                if (backbuffer_size[0] > 0 && backbuffer_size[1] > 0) {
+                    if (std::abs((int)backbuffer_size[0] - (int)window->width) > 50 || std::abs((int)backbuffer_size[1] - (int)window->height) > 50) {
+                        const auto now = std::chrono::steady_clock::now();
+
+                        if (!mod->m_backbuffer_inconsistency) {
+                            mod->m_backbuffer_inconsistency_start = now;
+                        }
+
+                        mod->m_backbuffer_inconsistency = true;
+
+                        const auto is_true_inconsistency = (now - mod->m_backbuffer_inconsistency_start) >= std::chrono::seconds(1);
+
+                        if (is_true_inconsistency) {
+                            mod->m_d3d12.force_reset();
+
+                            // Force a reset of the backbuffer size
+                            window->width = backbuffer_size[0];
+                            window->height = backbuffer_size[1];
+
+                            if ((now - mod->m_backbuffer_inconsistency_start) >= std::chrono::seconds(2)) {
+                                mod->m_backbuffer_inconsistency = false;
+                            }
+                        }
+                    }
+                } else {
+                    mod->m_backbuffer_inconsistency = false;
+                }
+            }
         } else {
 #ifndef RE7
             window->width = (uint32_t)window->borderless_size.w;
@@ -1787,6 +1819,7 @@ void VR::on_present() {
     if (renderer == REFramework::RendererType::D3D11) {
         e = m_d3d11.on_frame(this);
     } else if (renderer == REFramework::RendererType::D3D12) {
+        m_is_d3d12 = true;
         e = m_d3d12.on_frame(this);
     }
 
@@ -3174,6 +3207,7 @@ void VR::on_draw_ui() {
 
 void VR::on_device_reset() {
     spdlog::info("VR: on_device_reset");
+    m_backbuffer_inconsistency = false;
     m_d3d11.on_reset(this);
     m_d3d12.on_reset(this);
     m_overlay_component.on_reset();
