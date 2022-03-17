@@ -924,7 +924,7 @@ void REFramework::draw_about() {
             const char* text;
         };
 
-        static constexpr std::array<License, 9> licenses{
+        static constexpr std::array<License, 10> licenses{
             License{ "glm", license::glm },
             License{ "imgui", license::imgui },
             License{ "minhook", license::minhook },
@@ -934,6 +934,7 @@ void REFramework::draw_about() {
             License{ "lua", license::lua },
             License{ "sol", license::sol },
             License{ "json", license::json },
+            License{ "asmjit", license::asmjit },
         };
 
         for (const auto& license : licenses) {
