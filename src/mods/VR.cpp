@@ -3092,6 +3092,18 @@ void VR::openvr_input_to_re_engine() {
         }
     }
 #endif
+
+#ifdef RE8
+    if (m_handle_pause) {
+        auto game_event_trigger_manager = sdk::get_managed_singleton<::REManagedObject>("app.GameEventTriggerManager");
+
+        if (game_event_trigger_manager != nullptr) {
+            constexpr uint32_t PAUSE_EVENT = 0xA15AC305;
+            sdk::call_object_func<void*>(game_event_trigger_manager, "trigger(System.UInt32)", sdk::get_thread_context(), game_event_trigger_manager, PAUSE_EVENT);
+            m_handle_pause = false;
+        }
+    }
+#endif
 }
 
 void VR::on_draw_ui() {
