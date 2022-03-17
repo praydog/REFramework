@@ -91,6 +91,7 @@ ScriptState::ScriptState() {
     // add vec2 usertype
     m_lua.new_usertype<Vector2f>("Vector2f",
         sol::meta_function::construct, sol::constructors<Vector4f(float, float)>(),
+        "clone", [](Vector2f& v) -> Vector2f { return v; },
         "x", &Vector2f::x, 
         "y", &Vector2f::y, 
         "dot", [](Vector2f& v1, Vector2f& v2) { return glm::dot(v1, v2); },
@@ -106,6 +107,7 @@ ScriptState::ScriptState() {
     // add vec3 usertype
     m_lua.new_usertype<Vector3f>("Vector3f",
         sol::meta_function::construct, sol::constructors<Vector4f(float, float, float)>(),
+        "clone", [](Vector3f& v) -> Vector3f { return v; },
         "x", &Vector3f::x,
         "y", &Vector3f::y,
         "z", &Vector3f::z,
@@ -132,6 +134,7 @@ ScriptState::ScriptState() {
     // add vec4 usertype
     m_lua.new_usertype<Vector4f>("Vector4f",
         sol::meta_function::construct, sol::constructors<Vector4f(float, float, float, float)>(),
+        "clone", [](Vector4f& v) -> Vector4f { return v; },
         "x", &Vector4f::x,
         "y", &Vector4f::y,
         "z", &Vector4f::z,
@@ -167,6 +170,7 @@ ScriptState::ScriptState() {
                     float, float, float, float,
                     float, float, float, float)
         >(),
+        "clone", [](Matrix4x4f& m) -> Matrix4x4f { return m; },
         "identity", []() { return glm::identity<Matrix4x4f>(); },
         "to_quat", [] (Matrix4x4f& m) { return glm::quat(m); },
         "inverse", [] (Matrix4x4f& m) { return glm::inverse(m); },
@@ -193,6 +197,7 @@ ScriptState::ScriptState() {
     // add glm::quat usertype
     m_lua.new_usertype<glm::quat>("Quaternion",
         sol::meta_function::construct, sol::constructors<glm::quat(), glm::quat(float, float, float, float), glm::quat(const Vector3f&)>(),
+        "clone", [](glm::quat& q) -> glm::quat { return q; },
         "identity", []() { return glm::identity<glm::quat>(); },
         "x", &glm::quat::x,
         "y", &glm::quat::y,
