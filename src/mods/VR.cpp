@@ -91,31 +91,26 @@ float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
             window->width = mod->get_hmd_width();
             window->height = mod->get_hmd_height();
 
-            if (mod->m_is_d3d12) {
+            if (mod->m_is_d3d12 && mod->m_d3d12.is_initialized()) {
                 const auto& backbuffer_size = mod->m_d3d12.get_backbuffer_size();
 
                 if (backbuffer_size[0] > 0 && backbuffer_size[1] > 0) {
                     if (std::abs((int)backbuffer_size[0] - (int)window->width) > 50 || std::abs((int)backbuffer_size[1] - (int)window->height) > 50) {
-                        const auto now = std::chrono::steady_clock::now();
+                        const auto now = mod->m_frame_count;
 
                         if (!mod->m_backbuffer_inconsistency) {
                             mod->m_backbuffer_inconsistency_start = now;
+                            mod->m_backbuffer_inconsistency = true;
                         }
 
-                        mod->m_backbuffer_inconsistency = true;
-
-                        const auto is_true_inconsistency = (now - mod->m_backbuffer_inconsistency_start) >= std::chrono::seconds(1);
+                        const auto is_true_inconsistency = (now - mod->m_backbuffer_inconsistency_start) >= 5;
 
                         if (is_true_inconsistency) {
-                            mod->m_d3d12.force_reset();
-
                             // Force a reset of the backbuffer size
-                            window->width = backbuffer_size[0];
-                            window->height = backbuffer_size[1];
+                            window->width = mod->get_hmd_width() + 1;
+                            window->height = mod->get_hmd_height() + 1;
 
-                            if ((now - mod->m_backbuffer_inconsistency_start) >= std::chrono::seconds(2)) {
-                                mod->m_backbuffer_inconsistency = false;
-                            }
+                            // m_backbuffer_inconsistency gets set to false on device reset.
                         }
                     }
                 } else {
@@ -123,6 +118,8 @@ float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
                 }
             }
         } else {
+            mod->m_backbuffer_inconsistency = false;
+
 #ifndef RE7
             window->width = (uint32_t)window->borderless_size.w;
             window->height = (uint32_t)window->borderless_size.h;

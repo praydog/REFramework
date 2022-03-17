@@ -344,7 +344,7 @@ private:
     std::bitset<64> m_button_states_up{};
     std::chrono::steady_clock::time_point m_last_controller_update{};
     std::chrono::steady_clock::time_point m_last_interaction_display{};
-    std::chrono::steady_clock::time_point m_backbuffer_inconsistency_start{};
+    uint32_t m_backbuffer_inconsistency_start{};
     std::chrono::nanoseconds m_last_input_delay{};
     std::chrono::nanoseconds m_avg_input_delay{};
 

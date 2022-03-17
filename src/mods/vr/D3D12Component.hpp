@@ -20,6 +20,10 @@ public:
 		return m_backbuffer_size;
 	}
 
+	auto is_initialized() const {
+		return m_left_eye_tex != nullptr;
+	}
+
 private:
 	void wait_for_texture_copy(uint32_t ms);
 
