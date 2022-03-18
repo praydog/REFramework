@@ -58,6 +58,9 @@ T* get_managed_singleton();
 
 template<typename T, uint32_t Hash>
 T* get_managed_singleton();
+
+template<typename T = ::REManagedObject>
+T* create_instance(std::string_view type_name, bool simplify = false);
 }
 
 // Real meat
@@ -799,5 +802,17 @@ T* get_managed_singleton() {
     }
 
     return get_instance_method->call<T*>(sdk::get_thread_context());
+}
+
+template<typename T>
+T* create_instance(std::string_view type_name, bool simplify) {
+    auto t = sdk::RETypeDB::get()->find_type(type_name);
+
+    if (t == nullptr) {
+        //spdlog::error("Cannot find type {:s}", type_name.data());
+        return nullptr;
+    }
+
+    return (T*)t->create_instance_full(simplify);
 }
 } // namespace sdk

@@ -3095,13 +3095,28 @@ void VR::openvr_input_to_re_engine() {
 
 #ifdef RE8
     if (m_handle_pause) {
-        auto game_event_trigger_manager = sdk::get_managed_singleton<::REManagedObject>("app.GameEventTriggerManager");
+        auto gui_manager = sdk::get_managed_singleton<::REManagedObject>("app.GUIManager");
 
-        if (game_event_trigger_manager != nullptr) {
-            constexpr uint32_t PAUSE_EVENT = 0xA15AC305;
-            sdk::call_object_func<void*>(game_event_trigger_manager, "trigger(System.UInt32)", sdk::get_thread_context(), game_event_trigger_manager, PAUSE_EVENT);
-            m_handle_pause = false;
+        if (gui_manager != nullptr) {
+            constexpr uint32_t PAUSE_ALIAS = 0x7DEE1056;
+            const auto gui_handle = sdk::call_object_func<::REManagedObject*>(gui_manager, "findGUI(System.UInt32)", sdk::get_thread_context(), gui_manager, PAUSE_ALIAS);
+
+            if (gui_handle != nullptr) {
+                auto driver = sdk::call_object_func<::REManagedObject*>(gui_handle, "get_driver", sdk::get_thread_context(), gui_handle);
+
+                if (driver != nullptr) {
+                    const auto fake_param = sdk::create_instance("app.GUIRequest.Parameter");
+
+                    if (fake_param != nullptr) {
+                        sdk::call_object_func<void*>(driver, "show", sdk::get_thread_context(), driver, fake_param);
+                    } else {
+                        spdlog::error("Failed to create fake app.GUIRequest.Parameter, cannot pause!");
+                    }
+                }
+            }
         }
+
+        m_handle_pause = false;
     }
 #endif
 }
