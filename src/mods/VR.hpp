@@ -186,6 +186,7 @@ private:
     static float* get_size_hook(REManagedObject* scene_view, float* result);
     static void inputsystem_update_hook(void* ctx, REManagedObject* input_system);
     static Matrix4x4f* camera_get_projection_matrix_hook(REManagedObject* camera, Matrix4x4f* result);
+    static Matrix4x4f* gui_camera_get_projection_matrix_hook(REManagedObject* camera, Matrix4x4f* result);
     static Matrix4x4f* camera_get_view_matrix_hook(REManagedObject* camera, Matrix4x4f* result);
     static void overlay_draw_hook(void* layer, void* render_context);
     static void wwise_listener_update_hook(void* listener);

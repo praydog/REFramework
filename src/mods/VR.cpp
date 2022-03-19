@@ -52,6 +52,7 @@ std::shared_ptr<VR>& VR::get() {
 std::unique_ptr<FunctionHook> g_get_size_hook{};
 std::unique_ptr<FunctionHook> g_input_hook{};
 std::unique_ptr<FunctionHook> g_projection_matrix_hook{};
+std::unique_ptr<FunctionHook> g_projection_matrix_hook2{};
 std::unique_ptr<FunctionHook> g_view_matrix_hook{};
 std::unique_ptr<FunctionHook> g_overlay_draw_hook{};
 std::unique_ptr<FunctionHook> g_wwise_listener_update_hook{};
@@ -159,9 +160,37 @@ Matrix4x4f* VR::camera_get_projection_matrix_hook(REManagedObject* camera, Matri
         return original_func(camera, result);
     }
 
-    if (camera != sdk::get_primary_camera()) {
+    /*if (camera != sdk::get_primary_camera()) {
+        return original_func(camera, result);
+    }*/
+
+    if (!vr->m_in_render) {
+       // return original_func(camera, result);
+    }
+
+    if (vr->m_in_lightshaft) {
+        //return original_func(camera, result);
+    }
+
+    // Get the projection matrix for the correct eye
+    // For some reason we need to flip the projection matrix here?
+    *result = vr->get_current_projection_matrix(false);
+
+    return result;
+}
+
+Matrix4x4f* VR::gui_camera_get_projection_matrix_hook(REManagedObject* camera, Matrix4x4f* result) {
+    auto original_func = g_projection_matrix_hook2->get_original<decltype(VR::gui_camera_get_projection_matrix_hook)>();
+
+    auto vr = VR::get();
+
+    if (result == nullptr || !g_framework->is_ready() || !vr->m_is_hmd_active || vr->m_disable_projection_matrix_override) {
         return original_func(camera, result);
     }
+
+    /*if (camera != sdk::get_primary_camera()) {
+        return original_func(camera, result);
+    }*/
 
     if (!vr->m_in_render) {
        // return original_func(camera, result);
@@ -694,6 +723,37 @@ std::optional<std::string> VR::hijack_camera() {
 
     if (!g_projection_matrix_hook->create()) {
         return "VR init failed: via.Camera.get_ProjectionMatrix native function hook failed.";
+    }
+
+    spdlog::info("Hooked via.Camera.get_ProjectionMatrix");
+
+    const auto get_projection_matrix = native_func;
+
+    ///////////////////////////////
+    // Hook GUI camera projection matrix start
+    ///////////////////////////////
+    func = sdk::find_native_method("via.gui.GUICamera", "get_ProjectionMatrix");
+
+    if (func != nullptr) {
+        spdlog::info("via.gui.GUICamera.get_ProjectionMatrix: {:x}", (uintptr_t)func);
+        
+        // Pattern scan for the native function call
+        ref = utility::scan((uintptr_t)func, 0x100, "49 8B C8 E8");
+
+        if (ref) {
+            native_func = utility::calculate_absolute(*ref + 4);
+
+            if (native_func != get_projection_matrix) {
+                // Hook the native function
+                g_projection_matrix_hook2 = std::make_unique<FunctionHook>(native_func, gui_camera_get_projection_matrix_hook);
+
+                if (g_projection_matrix_hook2->create()) {
+                    spdlog::info("Hooked via.gui.GUICamera.get_ProjectionMatrix");
+                }
+            } else {
+                spdlog::info("Did not hook via.gui.GUICamera.get_ProjectionMatrix, same as via.Camera.get_ProjectionMatrix");
+            }
+        }
     }
 
     ///////////////////////////////
