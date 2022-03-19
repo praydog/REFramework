@@ -38,6 +38,7 @@ local transform_get_rotation = sdk.find_type_definition("via.Transform"):get_met
 local transform_set_position = sdk.find_type_definition("via.Transform"):get_method("set_Position")
 local transform_set_rotation = sdk.find_type_definition("via.Transform"):get_method("set_Rotation")
 local transform_get_joints = sdk.find_type_definition("via.Transform"):get_method("get_Joints")
+local transform_get_joint_by_hash = sdk.find_type_definition("via.Transform"):get_method("getJointByHash")
 
 local joint_get_position = sdk.find_type_definition("via.Joint"):get_method("get_Position")
 local joint_get_rotation = sdk.find_type_definition("via.Joint"):get_method("get_Rotation")
@@ -59,6 +60,7 @@ local last_gui_dot = 0.0
 local last_gui_forced_slerp = os.clock()
 local needs_cutscene_recenter = false
 local last_inventory_open_time = 0.0
+local head_hash = nil
 
 local cfg = {
     movement_shake = false,
@@ -458,7 +460,7 @@ local function set_hand_joints_to_tpose(hand_ik)
 
     for i, hash in ipairs(hashes) do
         if hash and hash ~= 0 then
-            local joint = player_transform:call("getJointByHash", hash)
+            local joint = transform_get_joint_by_hash:call(player_transform, hash)
 
             if joint then
                 table.insert(joints, joint_get_parent:call(joint))
@@ -502,7 +504,7 @@ end
 
 local function update_hand_ik()
     if not re8.player then return end
-    if not vrmod:is_hmd_active() or not vrmod:is_using_controllers() then return end
+    if not vrmod:is_hmd_active() then return end
 
     local controllers = vrmod:get_controllers()
 
@@ -515,7 +517,37 @@ local function update_hand_ik()
     end
 
     --if re8.is_in_cutscene then return end
-    if re8.is_arm_jacked then return end
+    if not re8.can_use_hands then return end
+
+    if not vrmod:is_using_controllers() then
+        --[[set_hand_joints_to_tpose(re8.left_hand_ik)
+        set_hand_joints_to_tpose(re8.right_hand_ik)
+        re8.left_hand_ik:call("calc")
+        re8.right_hand_ik:call("calc")]]
+        return
+    end
+
+    local player = re8.player
+    local original_head_rotation = nil
+    local head_joint = nil
+    local motion = player:call("getComponent(System.Type)", sdk.typeof("via.motion.Motion"))
+
+    -- the Point of this is to fix the head rotation during cutscenes
+    -- because the camera seems to be parented to the head during these events
+    -- so modifying the joint when we set the tpose won't cause some extremely jarring movement
+    if motion then
+        local transform = re8.transform
+
+        if not head_hash then
+            head_hash = get_joint_hash(transform, motion, "Head")
+        end
+    
+        head_joint = transform_get_joint_by_hash:call(transform, head_hash)
+
+        if head_joint then
+            original_head_rotation = joint_get_rotation:call(head_joint)
+        end
+    end
 
     local left_controller_transform = vrmod:get_transform(controllers[1])
     local right_controller_transform = vrmod:get_transform(controllers[2])
@@ -573,6 +605,10 @@ local function update_hand_ik()
     re8.right_hand_ik:call("calc")
 
     --re8.transform:call("getJointByHash", re8.right_hand_ik:get_field("HashJoint2")):call("set_Position", new_pos)
+
+    if head_joint ~= nil and original_head_rotation ~= nil then
+        joint_set_rotation:call(head_joint, original_head_rotation)
+    end
 end
 
 local last_real_camera_rotation = Quaternion.new(1, 0, 0, 0)
@@ -589,7 +625,6 @@ local neg_identity = Matrix4x4f.new(-1, 0, 0, 0,
                                     0, 0, -1, 0,
                                     0, 0, 0, -1):to_quat()
 
-local head_hash = nil
 local center_hash = nil
 local chest_hash = nil
 
@@ -630,6 +665,10 @@ local function update_body_ik(camera_rotation, camera_pos)
     local ik_leg = player:call("getComponent(System.Type)", sdk.typeof("via.motion.IkLeg"))
 
     if not ik_leg then
+        if not vrmod:is_using_controllers() then
+            return
+        end
+
         ik_leg = player:call("createComponent(System.Type)", sdk.typeof("via.motion.IkLeg"))
 
         if not ik_leg then
@@ -638,9 +677,17 @@ local function update_body_ik(camera_rotation, camera_pos)
         end
     end
 
-    if re8.is_in_cutscene or not vrmod:is_hmd_active() then
+    if re8.is_in_cutscene or not vrmod:is_hmd_active() or not vrmod:is_using_controllers() then
         --ik_leg:call("set_Enabled", false)
         ik_leg:call("set_CenterOffset", Vector3f.new(0, 0, 0))
+        ik_leg:call("setCenterAdjust", 0)
+        ik_leg:call("set_CenterPositionCtrl", 2) -- world offset
+        ik_leg:call("set_GroundContactUpDistance", 0.0) -- Fixes the whole player being jarringly moved upwards.
+
+        if not vrmod:is_using_controllers() then
+            ik_leg:call("destroy", ik_leg)
+        end
+        
         return
     else
         ik_leg:call("set_Enabled", true)
@@ -670,9 +717,9 @@ local function update_body_ik(camera_rotation, camera_pos)
     local transform_rot = transform:call("get_Rotation")
     local transform_pos = transform:call("get_Position")
 
-    local head_joint = transform:call("getJointByHash", head_hash)
+    local head_joint = transform_get_joint_by_hash:call(transform, head_hash)
     --local chest_joint = transform:call("getJointByHash", chest_hash)
-    local hip_joint = transform:call("getJointByHash", center_hash)
+    --local hip_joint = transform:call("getJointByHash", center_hash)
 
     --local head_index = motion:call("getJointIndexByNameHash", head_hash)
     --chest_index = motion:call("getJointIndexByNameHash", chest_hash)
@@ -685,6 +732,10 @@ local function update_body_ik(camera_rotation, camera_pos)
     flattened_dir:normalize()
 
     local original_head_pos = calculate_tpose_world(head_joint, 4) + (flattened_dir * (math.abs(normal_dir.y) * -0.1)) + (flattened_dir * 0.025)
+
+    --[[if not vrmod:is_using_controllers() then
+        original_head_pos = joint_get_position:call(head_joint) + (flattened_dir * (math.abs(normal_dir.y) * -0.1)) + (flattened_dir * 0.025)
+    end]]
 
     --original_head_pos = transform_rot * original_head_pos
     --original_head_pos = transform:call("getJointByName", "root"):call("get_Rotation") * original_head_pos
@@ -878,6 +929,12 @@ local function slerp_gui(new_gui_quat)
 end
 
 local last_hmd_active_state = false
+local wants_posture_param_restore = false
+local modified_posture_param = nil
+local original_posture_camera_offset = Vector3f.new(0.0, 0.0, 0.0)
+
+local function pre_fix_player_camera(player_camera)
+end
 
 local function fix_player_camera(player_camera)
     if not vrmod:is_hmd_active() then
@@ -900,6 +957,10 @@ local function fix_player_camera(player_camera)
             if base_transform_solver then
                 local camera_controller = base_transform_solver:get_field("CurrentController")
 
+                if not camera_controller then
+                    camera_controller = base_transform_solver:get_field("<CurrentController>k__BackingField")
+                end
+
                 -- Stop the player from rotating the camera vertically
                 if camera_controller then
                     camera_controller:set_field("IsVerticalRotateLimited", false)
@@ -914,6 +975,8 @@ local function fix_player_camera(player_camera)
 
         return retval
     end
+
+    re8.upper_body_transform_rate = player_camera:get_field("<upperBodyTransformRate>k__BackingField")
 
     last_hmd_active_state = true
 
@@ -938,12 +1001,6 @@ local function fix_player_camera(player_camera)
         end
     end
 
-    local camera = sdk.get_primary_camera()
-
-    -- apply the camera rot to the real camera
-    local camera_gameobject = camera:call("get_GameObject")
-    local camera_transform = camera_gameobject:call("get_Transform")
-
     local wants_recenter = false
 
     if re8.is_in_cutscene and not last_cutscene_state then
@@ -964,11 +1021,37 @@ local function fix_player_camera(player_camera)
         vrmod:recenter_gui(vrmod:get_rotation(0):to_quat())
     end
 
+    local camera = sdk.get_primary_camera()
+
+    -- apply the camera rot to the real camera
+    local camera_gameobject = camera:call("get_GameObject")
+    local camera_transform = camera_gameobject:call("get_Transform")
+
     local camera_rot = transform_get_rotation:call(camera_transform)
     local camera_pos = transform_get_position:call(camera_transform)
 
-    local camera_rot_pre_hmd = Quaternion.new(camera_rot.w, camera_rot.x, camera_rot.y, camera_rot.z)
-    local camera_pos_pre_hmd = Vector3f.new(camera_pos.x, camera_pos.y, camera_pos.z)
+    -- fix camera position.
+    if is_maximum_controllable and vrmod:is_using_controllers() then
+        local param_container = player_camera:get_field("_CurrentParamContainer")
+
+        if param_container == nil then
+            param_container = player_camera:get_field("CurrentParamContainer")
+        end
+
+        if param_container ~= nil then
+            local posture_param = param_container:get_field("PostureParam")
+
+            if posture_param ~= nil then
+                local current_camera_offset = posture_param:get_field("CameraOffset")
+
+                current_camera_offset.y = 0.0
+                camera_pos = camera_pos + (camera_rot * current_camera_offset)
+            end
+        end
+    end
+
+    local camera_rot_pre_hmd = camera_rot:clone()
+    local camera_pos_pre_hmd = camera_pos:clone()
 
     -- So the camera doesn't spin uncontrollably when attacking or the camera moves outside of player control.
     local camera_rot_no_shake = player_camera:get_field("<CameraRotation>k__BackingField")
@@ -1016,6 +1099,10 @@ local function fix_player_camera(player_camera)
     player_camera:set_field("<CameraRotation>k__BackingField", fixed_rot)
     player_camera:set_field("<CameraPosition>k__BackingField", camera_pos)
 
+    if is_re8 then
+        player_camera:set_field("FixedAimRotation", fixed_rot) -- RE8
+    end
+
     player_camera:set_field("CameraRotationWithMovementShake", fixed_rot)
     --player_camera:set_field("CameraPositionWithMovementShake", camera_pos)
     player_camera:set_field("CameraRotationWithCameraShake", fixed_rot)
@@ -1056,10 +1143,9 @@ local function fix_player_camera(player_camera)
             end
 
             local controller_forward = camera_controller_rot * Vector3f.new(0.0, 0.0, 1.0)
-            controller_forward.y = 0.0
-
+            controller_forward.y = 0.0  
             camera_controller_rot = controller_forward:normalized():to_quat()
-
+            
             --if wants_recenter or not re8.is_in_cutscene then
             if not re8.is_in_cutscene or is_maximum_controllable then
                 if not re8.is_in_cutscene then
@@ -1086,7 +1172,7 @@ local function fix_player_camera(player_camera)
                 maximum_operatable_controller:set_field("<rotation>k__BackingField", camera_controller_rot)
             end]]
         
-            camera_controller:set_field("IsVerticalRotateLimited", true)
+            camera_controller:set_field("IsVerticalRotateLimited", is_maximum_controllable)
             was_vert_limited = true
         end
     end
@@ -1094,7 +1180,7 @@ local function fix_player_camera(player_camera)
     -- stops the camera from pivoting around the player
     -- so we can use VR to look around without the body sticking out
     --if vrmod:is_using_controllers() then
-    if not re8.is_in_cutscene then
+    --[[if not re8.is_in_cutscene then
         local param_container = player_camera:get_field("_CurrentParamContainer")
 
         if param_container == nil then
@@ -1112,7 +1198,7 @@ local function fix_player_camera(player_camera)
                 posture_param:set_field("CameraOffset", current_camera_offset)
             end
         end
-    end
+    end]]
 
     local look_ray_offset = player_camera:get_type_definition():get_field("LookRay"):get_offset_from_base()
     local shoot_ray_offset = player_camera:get_type_definition():get_field("ShootRay"):get_offset_from_base()
@@ -1133,6 +1219,8 @@ local function on_pre_player_camera_update(args)
     if not vrmod:is_hmd_active() then
         return
     end
+
+    pre_fix_player_camera(sdk.to_managed_object(args[2]))
 
     --local player_camera = sdk.to_managed_object(args[2])
     --fix_player_camera(player_camera)
@@ -1691,6 +1779,7 @@ re.on_draw_ui(function()
         imgui.text("Is arm jacked: " .. tostring(re8.is_arm_jacked))
         imgui.text("Is motion play: " .. tostring(re8.is_motion_play))
         imgui.text("Is in cutscene: " .. tostring(re8.is_in_cutscene))
+        imgui.text("Can use hands: " .. tostring(re8.can_use_hands))
 
         imgui.tree_pop()
     end

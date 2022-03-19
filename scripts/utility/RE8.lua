@@ -74,6 +74,7 @@ local function initialize_re8(re8)
     re8.is_grapple_aim = false
     re8.is_motion_play = false
     re8.has_postural_camera_control = true
+    re8.can_use_hands = true
     re8.updater = nil
     re8.event_action_controller = nil
     re8.game_event_action_controller = nil
@@ -160,6 +161,7 @@ end
 
 function re8.update_in_cutscene_state()
     re8.is_in_cutscene = re8.num_active_tasks > 0 or not re8.has_postural_camera_control or re8.is_arm_jacked or re8.is_motion_play
+    re8.can_use_hands = not re8.is_arm_jacked and not re8.is_motion_play
 end
 
 re.on_pre_application_entry("UpdateBehavior", function()
@@ -301,10 +303,25 @@ end
 local function on_post_update_postural_camera_motion(retval)
     local args = postural_camera_motion_args
     local controller = sdk.to_managed_object(args[2])
-    local game_object = controller:call("get_GameObject")
 
-    if game_object ~= re8.player then
-        return retval
+    if is_re7 then
+        local game_object = controller:call("get_GameObject")
+
+        if game_object ~= re8.player then
+            return retval
+        end
+    else
+        local motion = controller:get_field("Motion")
+
+        if motion == nil then
+            return retval
+        end
+
+        local game_object = motion:call("get_GameObject")
+
+        if game_object ~= re8.player then
+            return retval
+        end
     end
 
     re8.is_arm_jacked = controller:get_field("IsRArmJacked")
