@@ -118,7 +118,9 @@ void OverlayComponent::update_input() {
                 io.MousePos = mouse_point;
             } break;
             case vr::VREvent_ScrollSmooth: {
+                m_initial_imgui_input_state.MouseWheelH += event.data.scroll.xdelta;
                 m_initial_imgui_input_state.MouseWheel += event.data.scroll.ydelta;
+                io.MouseWheelH = event.data.scroll.xdelta;
                 io.MouseWheel = event.data.scroll.ydelta;
             } break;
             default:
