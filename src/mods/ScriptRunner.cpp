@@ -565,25 +565,8 @@ void ScriptRunner::reset_scripts() {
     module_path.resize(GetModuleFileName(nullptr, module_path.data(), module_path.size()));
     spdlog::info("[ScriptRunner] Module path {}", module_path);
 
-    // Load from the top-level autorun directory. This is no longer the preferred directory for autorun scripts.
-    auto autorun_path = std::filesystem::path{module_path}.parent_path() / "autorun";
-
-    spdlog::info("[ScriptRunner] Loading scripts...");
-
-    if (std::filesystem::exists(autorun_path)) {
-        for (auto&& entry : std::filesystem::directory_iterator{autorun_path}) {
-            auto&& path = entry.path();
-
-            if (path.has_extension() && path.extension() == ".lua") {
-                m_state->run_script(path.string());
-            }
-        }
-    } else {
-        spdlog::info("[ScriptRunner] Old autorun directory not found, continuing...");
-    }
-
-    // Load from the reframework/autorun directory. This is the preferred directory for autorun scripts.
-    autorun_path = std::filesystem::path{module_path}.parent_path() / "reframework" / "autorun";
+    // Load from the reframework/autorun directory.
+    auto autorun_path = std::filesystem::path{module_path}.parent_path() / "reframework" / "autorun";
 
     spdlog::info("[ScriptRunner] Creating directories {}", autorun_path.string());
     std::filesystem::create_directories(autorun_path);
