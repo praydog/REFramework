@@ -69,13 +69,17 @@ local function initialize_re8(re8)
     re8.order = nil
     re8.right_hand_ik = nil
     re8.left_hand_ik = nil
+    re8.right_hand_ik_transform = nil
+    re8.left_hand_ik_transform = nil
     re8.is_in_cutscene = false
     re8.is_arm_jacked = false
     re8.is_grapple_aim = false
     re8.is_motion_play = false
+    re8.is_reloading = false
     re8.has_postural_camera_control = true
     re8.can_use_hands = true
     re8.updater = nil
+    re8.status = nil
     re8.event_action_controller = nil
     re8.game_event_action_controller = nil
     re8.wants_block = false
@@ -135,7 +139,19 @@ end
 
 function re8.get_weapon_object(player)
     if is_re7 then
-        return nil
+        local player_gun = get_component(re8.player, "app.PlayerGun")
+
+        if not player_gun then
+            return nil
+        end
+
+        local equipped_weapon = player_gun:get_field("WeaponGun")
+    
+        if not equipped_weapon then
+            return nil
+        end
+
+        return equipped_weapon
     elseif is_re8 then
         if not re8.updater then
             return nil
@@ -179,6 +195,16 @@ re.on_pre_application_entry("UpdateBehavior", function()
     re8.order = get_component(player, "app.PlayerOrder")
     re8.updater = get_component(player, "app.PlayerUpdater")
     re8.delta_time = sdk.call_native_func(re8.application, re8.application_type, "get_DeltaTime")
+
+    if is_re7 then
+        re8.status = get_component(player, "app.PlayerStatus")
+    elseif re8.updater ~= nil then
+        re8.status = re8.updater:call("get_playerstatus")
+    end
+
+    if re8.status ~= nil then
+        re8.is_reloading = re8.status:call("get_isReload")
+    end
 
     if re8.order ~= nil then
         re8.is_grapple_aim = re8.order:get_field("IsGrappleAimEnable")

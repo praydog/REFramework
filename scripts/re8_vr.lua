@@ -60,6 +60,7 @@ local last_gui_dot = 0.0
 local last_gui_forced_slerp = os.clock()
 local needs_cutscene_recenter = false
 local last_inventory_open_time = 0.0
+local last_shop_open_time = 0.0
 local head_hash = nil
 
 local cfg = {
@@ -110,6 +111,7 @@ local is_inventory_open = false
 
 local function update_pad_device(device)
     if not vrmod:is_hmd_active() then
+        re8.is_holding_left_grip = false
         return
     end
 
@@ -220,6 +222,8 @@ local function update_pad_device(device)
             cur_button = cur_button | via.hid.GamePadButton.RTrigTop
         end
     end
+    
+    re8.is_holding_left_grip = vrmod:is_action_active(action_grip, left_joystick)
 
     if re8.wants_block or vrmod:is_action_active(action_block, left_joystick) or vrmod:is_action_active(action_block, right_joystick) then
         cur_button = cur_button | via.hid.GamePadButton.LTrigTop
@@ -260,6 +264,7 @@ end
 
 local function update_padman(padman)
     if not vrmod:is_hmd_active() or not vrmod:is_using_controllers() then
+        re8.is_holding_left_grip = false
         return
     end
 
@@ -520,6 +525,8 @@ local function update_hand_ik()
     if not re8.can_use_hands then return end
 
     if not vrmod:is_using_controllers() then
+        re8.was_gripping_weapon = false
+        re8.is_holding_left_grip = false
         --[[set_hand_joints_to_tpose(re8.left_hand_ik)
         set_hand_joints_to_tpose(re8.right_hand_ik)
         re8.left_hand_ik:call("calc")
@@ -531,6 +538,12 @@ local function update_hand_ik()
     local original_head_rotation = nil
     local head_joint = nil
     local motion = player:call("getComponent(System.Type)", sdk.typeof("via.motion.Motion"))
+
+    local original_right_rot = Quaternion.identity()
+    local original_left_rot_relative = Quaternion.identity()
+    local original_left_pos_relative = Vector3f.new(0, 0, 0)
+    local original_right_rot_relative = Quaternion.identity()
+    local original_right_pos_relative = Vector3f.new(0, 0, 0)
 
     -- the Point of this is to fix the head rotation during cutscenes
     -- because the camera seems to be parented to the head during these events
@@ -547,6 +560,32 @@ local function update_hand_ik()
         if head_joint then
             original_head_rotation = joint_get_rotation:call(head_joint)
         end
+
+        local left_hash = nil
+        local right_hash = nil
+    
+        if is_re7 then
+            left_hash = re8.left_hand_ik:get_field("HashJoint2")
+            right_hash = re8.right_hand_ik:get_field("HashJoint2")
+        elseif is_re8 then
+            left_hash = re8.left_hand_ik:get_field("<HashJoint2>k__BackingField")
+            right_hash = re8.right_hand_ik:get_field("<HashJoint2>k__BackingField")
+        end
+        
+        
+        local left_index = motion:call("getJointIndexByNameHash", left_hash)
+        local right_index = motion:call("getJointIndexByNameHash", right_hash)
+
+        local original_left_pos = motion:call("getWorldPosition", left_index)
+        local original_right_pos = motion:call("getWorldPosition", right_index)
+        local original_left_rot = motion:call("getWorldRotation", left_index)
+        original_right_rot = motion:call("getWorldRotation", right_index)
+
+        original_left_pos_relative = original_right_rot:inverse() * (original_left_pos - original_right_pos)
+        original_left_rot_relative = original_right_rot:inverse() * original_left_rot
+
+        original_right_pos_relative = original_left_rot:inverse() * (original_right_pos - original_left_pos)
+        original_right_rot_relative = original_left_rot:inverse() * original_right_rot
     end
 
     local left_controller_transform = vrmod:get_transform(controllers[1])
@@ -572,39 +611,79 @@ local function update_hand_ik()
 
     vrmod:apply_hmd_transform(fake_quat, updated_camera_pos)
 
-    local new_rotation = original_camera_rotation * left_controller_rotation * left_hand_rotation_offset
-    local new_pos = updated_camera_pos
+    local rh_rotation = original_camera_rotation * right_controller_rotation * right_hand_rotation_offset
+    local rh_pos = updated_camera_pos
+                + ((original_camera_rotation * right_controller_offset) 
+                + ((original_camera_rotation * right_controller_rotation):normalized() * right_hand_position_offset))
+
+    rh_pos.w = 1.0
+
+    local lh_grip_position = rh_pos + (rh_rotation:normalized() * original_left_pos_relative)
+    lh_grip_position.w = 1.0
+
+    local lh_rotation = original_camera_rotation * left_controller_rotation * left_hand_rotation_offset
+    local lh_pos = updated_camera_pos
                 + ((original_camera_rotation * left_controller_offset) 
                 + ((original_camera_rotation * left_controller_rotation):normalized() * left_hand_position_offset))
+    
+    lh_pos.w = 1.0
 
-    last_left_hand_position = new_pos
-    last_left_hand_rotation = new_rotation
+    local lh_delta_to_rh = (lh_pos - rh_pos)
+    local lh_grip_delta_to_rh = (lh_grip_position - rh_pos)
+    local lh_grip_delta = (lh_grip_position - lh_pos)
+    local lh_grip_distance = lh_grip_delta:length()
+
+    -- Lets the player hold their left hand near the original (grip) position of the weapon
+    if lh_grip_distance <= 0.1 or (re8.was_gripping_weapon and re8.is_holding_left_grip) then
+        local original_grip_rot = lh_grip_delta_to_rh:normalized():to_quat()
+        local current_grip_rot = lh_delta_to_rh:normalized():to_quat()
+
+        local grip_rot_delta = (current_grip_rot * original_grip_rot:inverse()):normalized()
+
+        -- Adjust the right hand rotation
+        rh_rotation = (grip_rot_delta * rh_rotation):normalized()
+
+        -- Adjust the grip position
+        lh_grip_position = rh_pos + (rh_rotation * original_left_pos_relative)
+        lh_grip_position.w = 1.0
+
+        -- Set the left hand position and rotation to the grip position
+        lh_pos = lh_grip_position
+        lh_rotation = rh_rotation * original_left_rot_relative
+
+        re8.was_gripping_weapon = true
+    else
+        re8.was_gripping_weapon = false
+
+        if re8.is_reloading then
+            lh_pos = lh_grip_position
+            lh_rotation = rh_rotation * original_left_rot_relative
+        else
+            lh_pos = lh_pos
+            lh_rotation = lh_rotation
+        end
+    end
+
+    last_left_hand_position = lh_pos:clone()
+    last_left_hand_rotation = lh_rotation:clone()
 
     set_hand_joints_to_tpose(re8.left_hand_ik)
 
-    transform_set_position:call(re8.left_hand_ik_transform, new_pos)
-    transform_set_rotation:call(re8.left_hand_ik_transform, new_rotation)
+    re8.left_hand_ik_transform:set_position(lh_pos)
+    re8.left_hand_ik_transform:set_rotation(lh_rotation)
     re8.left_hand_ik:set_field("Transition", 1.0)
     re8.left_hand_ik:call("calc")
 
-    --re8.transform:call("getJointByHash", re8.left_hand_ik:get_field("HashJoint2")):call("set_Position", new_pos)
-
-    new_rotation = original_camera_rotation * right_controller_rotation * right_hand_rotation_offset
-    new_pos = updated_camera_pos
-                + ((original_camera_rotation * right_controller_offset) 
-                + ((original_camera_rotation * right_controller_rotation):normalized() * right_hand_position_offset))
-            
-    last_right_hand_position = new_pos
-    last_right_hand_rotation = new_rotation
-
     set_hand_joints_to_tpose(re8.right_hand_ik)
-    
-    transform_set_position:call(re8.right_hand_ik_transform, new_pos)
-    transform_set_rotation:call(re8.right_hand_ik_transform, new_rotation)
+
+    last_right_hand_position = rh_pos:clone()
+    last_right_hand_rotation = rh_rotation:clone()
+    last_right_hand_position.w = 1.0
+
+    re8.right_hand_ik_transform:set_position(rh_pos)
+    re8.right_hand_ik_transform:set_rotation(rh_rotation)
     re8.right_hand_ik:set_field("Transition", 1.0)
     re8.right_hand_ik:call("calc")
-
-    --re8.transform:call("getJointByHash", re8.right_hand_ik:get_field("HashJoint2")):call("set_Position", new_pos)
 
     if head_joint ~= nil and original_head_rotation ~= nil then
         joint_set_rotation:call(head_joint, original_head_rotation)
@@ -781,7 +860,7 @@ local function on_pre_shoot(args)
     local weapon = sdk.to_managed_object(args[2])
     local ray = args[3]
 
-    if is_re7 then
+   --[[if is_re7 then
         local muzzle_joint = weapon:call("get_muzzleJoint")
 
         if muzzle_joint then
@@ -799,14 +878,14 @@ local function on_pre_shoot(args)
         else
             log.info("No muzzle joint found")
         end
-    elseif is_re8 then
+    elseif is_re8 then]]
         local pos = last_muzzle_pos + (last_muzzle_forward * 0.01)
         local from = Vector4f.new(pos.x, pos.y, pos.z, 1.0)
-        local dir = Vector4f.new(last_muzzle_forward.x, last_muzzle_forward.y, last_muzzle_forward.z, 0.0)
+        local dir = Vector4f.new(last_muzzle_forward.x, last_muzzle_forward.y, last_muzzle_forward.z, 1.0)
 
         sdk.set_native_field(ray, ray_typedef, "from", pos)
         sdk.set_native_field(ray, ray_typedef, "dir", dir)
-    end
+    --end
 
     --sdk.call_native_func(ray, ray_typedef, ".ctor(via.vec3, via.vec3)", last_muzzle_pos, last_muzzle_forward)
 end
@@ -1207,8 +1286,18 @@ local function fix_player_camera(player_camera)
     
     sdk.set_native_field(sdk.to_ptr(look_ray), ray_typedef, "from", camera_pos)
     sdk.set_native_field(sdk.to_ptr(look_ray), ray_typedef, "dir", fixed_dir)
-    sdk.set_native_field(sdk.to_ptr(shoot_ray), ray_typedef, "from", camera_pos)
-    sdk.set_native_field(sdk.to_ptr(shoot_ray), ray_typedef, "dir", fixed_dir)
+
+    if vrmod:is_using_controllers() then
+        local pos = last_muzzle_pos + (last_muzzle_forward * 0.01)
+        local from = Vector4f.new(pos.x, pos.y, pos.z, 1.0)
+        local dir = Vector4f.new(last_muzzle_forward.x, last_muzzle_forward.y, last_muzzle_forward.z, 1.0)
+
+        sdk.set_native_field(sdk.to_ptr(shoot_ray), ray_typedef, "from", from)
+        sdk.set_native_field(sdk.to_ptr(shoot_ray), ray_typedef, "dir", dir)
+    else
+        sdk.set_native_field(sdk.to_ptr(shoot_ray), ray_typedef, "from", camera_pos)
+        sdk.set_native_field(sdk.to_ptr(shoot_ray), ray_typedef, "dir", fixed_dir)
+    end
 
     last_cutscene_state = re8.is_in_cutscene
 end
@@ -1550,7 +1639,7 @@ re.on_application_entry("BeginRendering", function()
         last_camera_matrix = camera:call("get_WorldMatrix")
     end
 
-    if is_re8 and re8.weapon then
+    if re8.weapon then
         -- for some reason calling get_muzzleJoint causes lua to randomly freak out
         -- so we're just going to directly grab the field instead
         local muzzle_joint = re8.weapon:get_field("MuzzleJoint")
@@ -1757,6 +1846,14 @@ re.on_draw_ui(function()
     
             imgui.tree_pop()
         end
+
+        if imgui.tree_node("Weapon") then
+            local weapon = re8.weapon
+    
+            object_explorer:handle_address(weapon)
+    
+            imgui.tree_pop()
+        end
     
         if imgui.button("test dump") then
             local d = function(name)
@@ -1807,6 +1904,14 @@ for i, v in ipairs(reticle_names) do
     reticle_names[v] = true
 end
 
+local shop_names = {
+    "GUIShopBg",
+}
+
+for i, v in ipairs(shop_names) do
+    shop_names[v] = true
+end
+
 re.on_pre_gui_draw_element(function(element, context)
     if not vrmod:is_hmd_active() then return true end
 
@@ -1825,6 +1930,28 @@ re.on_pre_gui_draw_element(function(element, context)
 
     if re8_inventory_names[name] then
         last_inventory_open_time = os.clock()
+    end
+
+    if shop_names[name] then
+        vrmod:set_gui_rotation_offset(Quaternion.identity())
+        last_shop_open_time = os.clock()
+
+        local transform = game_object:call("get_Transform")
+        local old_pos = transform:get_position()
+        
+        local camera_pos = sdk.get_primary_camera():call("get_WorldMatrix")[3]
+        local camera_forward = sdk.get_primary_camera():call("get_WorldMatrix")[2]
+
+        local old_distance = (old_pos - camera_pos):length()
+
+        camera_forward.y = 0.0
+        camera_forward = camera_forward:normalized()
+
+        local new_pos = (camera_pos - (camera_forward * old_distance))
+        local new_rot = camera_forward:to_quat()
+
+        transform:set_position(new_pos, true)
+        transform:set_rotation(new_rot, true)
     end
 
     return true
