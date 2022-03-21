@@ -21,7 +21,7 @@ void* get_actual_function(void* possible_fn) {
     }
 
     if (possible_fn != actual_fn) {
-        spdlog::info("[HookManager] Using actual function @ {:x} for wrapper function @ {:x}", actual_fn, possible_fn);
+        spdlog::info("[HookManager] Using actual function @ {:p} for wrapper function @ {:p}", actual_fn, possible_fn);
     }
 
     return actual_fn;
