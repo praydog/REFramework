@@ -875,71 +875,7 @@ bool is_managed_object(sol::object obj) {
 void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::protected_function pre_cb, sol::protected_function post_cb, sol::object ignore_jmp_object) {
     auto sol_state = sol::state_view{s};
     auto state = sol_state.registry()["state"].get<ScriptState*>();
-    auto id = g_hookman.add(
-        fn,
-        [pre_cb, state](auto& args, auto& arg_tys) -> HookManager::PreHookResult {
-            using PreHookResult = HookManager::PreHookResult;
-
-            auto _ = state->scoped_lock();
-            auto result = PreHookResult::CALL_ORIGINAL;
-
-            try {
-                if (pre_cb.is<sol::nil_t>()) {
-                    return result;
-                }
-
-                auto script_args = state->lua().create_table();
-
-                // Call the script function.
-                // Convert the args to a table that we pass to the script function.
-                for (auto i = 0u; i < args.size(); ++i) {
-                    script_args[i + 1] = (void*)args[i];
-                }
-
-                auto script_result = pre_cb(script_args);
-
-                if (!script_result.valid()) {
-                    sol::script_default_on_error(state->lua(), std::move(script_result));
-                }
-
-                auto script_result_obj = script_result.get<sol::object>();
-
-                if (script_result_obj.is<PreHookResult>()) {
-                    result = script_result_obj.as<PreHookResult>();
-                }
-
-                // Apply the changes to arguments that the script function may have made.
-                for (auto i = 0u; i < args.size(); ++i) {
-                    auto arg = script_args[i + 1];
-                    args[i] = (uintptr_t)arg.get<void*>();
-                }
-            } catch (const std::exception& e) {
-                OutputDebugString(e.what());
-            }
-
-            return result;
-        },
-        [post_cb, state](auto& ret_val, auto* ret_ty) {
-            auto _ = state->scoped_lock();
-
-            try {
-                if (post_cb.is<sol::nil_t>()) {
-                    return;
-                }
-
-                auto script_result = post_cb((void*)ret_val);
-
-                if (!script_result.valid()) {
-                    sol::script_default_on_error(state->lua(), std::move(script_result));
-                }
-
-                ret_val = (uintptr_t)script_result.get<void*>();
-            } catch (const std::exception& e) {
-                OutputDebugString(e.what());
-            }
-        },
-        ignore_jmp_object.is<bool>() ? ignore_jmp_object.as<bool>() : false);
-    state->add_hook(fn, id);
+    state->add_hook(fn, pre_cb, post_cb, ignore_jmp_object);
 }
 }
 

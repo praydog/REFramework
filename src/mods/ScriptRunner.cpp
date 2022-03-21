@@ -445,8 +445,89 @@ void ScriptState::on_config_save() try {
     for (auto& fn : m_on_config_save_fns) {
         handle_protected_result(fn());
     }
-} catch (const std::exception& e) {
+}
+catch (const std::exception& e) {
     OutputDebugString(e.what());
+}
+
+void ScriptState::add_hook(
+    sdk::REMethodDefinition* fn, sol::protected_function pre_cb, sol::protected_function post_cb, sol::object ignore_jmp_obj) {
+    m_hooks_to_add.emplace_back(fn, pre_cb, post_cb, ignore_jmp_obj);
+}
+
+void ScriptState::install_hooks() {
+    for (; !m_hooks_to_add.empty(); m_hooks_to_add.pop_front()) {
+        auto hookdef = m_hooks_to_add.front();
+        auto fn = hookdef.fn;
+        auto pre_cb = hookdef.pre_cb;
+        auto post_cb = hookdef.post_cb;
+        auto ignore_jmp_object = hookdef.ignore_jmp_obj;
+        auto id = g_hookman.add(
+            fn,
+            [pre_cb, state = this](auto& args, auto& arg_tys) -> HookManager::PreHookResult {
+                using PreHookResult = HookManager::PreHookResult;
+
+                auto _ = state->scoped_lock();
+                auto result = PreHookResult::CALL_ORIGINAL;
+
+                try {
+                    if (pre_cb.is<sol::nil_t>()) {
+                        return result;
+                    }
+
+                    auto script_args = state->lua().create_table();
+
+                    // Call the script function.
+                    // Convert the args to a table that we pass to the script function.
+                    for (auto i = 0u; i < args.size(); ++i) {
+                        script_args[i + 1] = (void*)args[i];
+                    }
+
+                    auto script_result = pre_cb(script_args);
+
+                    if (!script_result.valid()) {
+                        sol::script_default_on_error(state->lua(), std::move(script_result));
+                    }
+
+                    auto script_result_obj = script_result.get<sol::object>();
+
+                    if (script_result_obj.is<PreHookResult>()) {
+                        result = script_result_obj.as<PreHookResult>();
+                    }
+
+                    // Apply the changes to arguments that the script function may have made.
+                    for (auto i = 0u; i < args.size(); ++i) {
+                        auto arg = script_args[i + 1];
+                        args[i] = (uintptr_t)arg.get<void*>();
+                    }
+                } catch (const std::exception& e) {
+                    OutputDebugString(e.what());
+                }
+
+                return result;
+            },
+            [post_cb, state = this](auto& ret_val, auto* ret_ty) {
+                auto _ = state->scoped_lock();
+
+                try {
+                    if (post_cb.is<sol::nil_t>()) {
+                        return;
+                    }
+
+                    auto script_result = post_cb((void*)ret_val);
+
+                    if (!script_result.valid()) {
+                        sol::script_default_on_error(state->lua(), std::move(script_result));
+                    }
+
+                    ret_val = (uintptr_t)script_result.get<void*>();
+                } catch (const std::exception& e) {
+                    OutputDebugString(e.what());
+                }
+            },
+            ignore_jmp_object.is<bool>() ? ignore_jmp_object.as<bool>() : false);
+        m_hooks[fn].emplace_back(id);
+    }
 }
 
 std::shared_ptr<ScriptRunner>& ScriptRunner::get() {
@@ -464,6 +545,10 @@ std::optional<std::string> ScriptRunner::on_initialize() {
 void ScriptRunner::on_frame() {
     std::scoped_lock _{m_access_mutex};
     m_state->on_frame();
+
+    // install_hooks gets called here because it ensures hooks get installed the next frame after they've been 
+    // enqueued. This prevents a race that can occur if hooks were installed immediately during script loading.
+    m_state->install_hooks();
 }
 
 void ScriptRunner::on_draw_ui() {

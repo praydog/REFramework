@@ -1,5 +1,6 @@
 #pragma once
 
+#include <deque>
 #include <vector>
 #include <unordered_map>
 #include <memory>
@@ -54,7 +55,11 @@ public:
     void unlock() { m_execution_mutex.unlock(); }
     auto scoped_lock() { return std::scoped_lock{m_execution_mutex}; }
 
-    void add_hook(sdk::REMethodDefinition* fn, HookManager::HookId id) { m_hooks[fn].emplace_back(id); }
+    // add_hook enqueues the hook definition to be installed the next time install_hooks is called.
+    void add_hook(sdk::REMethodDefinition* fn, sol::protected_function pre_cb, sol::protected_function post_cb, sol::object ignore_jmp_obj);
+
+    // install_hooks goes through the queue of added hooks and actually creates them. The queue is emptied as a result.
+    void install_hooks();
 
 private:
     sol::state m_lua{};
@@ -74,6 +79,14 @@ private:
     std::vector<sol::protected_function> m_on_script_reset_fns{};
     std::vector<sol::protected_function> m_on_config_save_fns{};
 
+    struct HookDef {
+        sdk::REMethodDefinition* fn;
+        sol::protected_function pre_cb;
+        sol::protected_function post_cb;
+        sol::object ignore_jmp_obj;
+    };
+
+    std::deque<HookDef> m_hooks_to_add{};
     std::unordered_map<sdk::REMethodDefinition*, std::vector<HookManager::HookId>> m_hooks{};
 };
 
