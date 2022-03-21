@@ -120,6 +120,10 @@ private:
     std::unique_ptr<ScriptState> m_state{};
     std::recursive_mutex m_access_mutex{};
 
+    // A list of Lua files that have been explicitly loaded either through the user manually loading the script, or
+    // because the script was in the autorun directory.
+    std::vector<std::string> m_loaded_scripts{}; 
+
     // Resets the ScriptState and runs autorun scripts again.
     void reset_scripts();
 };

@@ -484,11 +484,22 @@ void ScriptRunner::on_draw_ui() {
             if (GetOpenFileName(&ofn) != FALSE) {
                 std::scoped_lock _{ m_access_mutex };
                 m_state->run_script(file);
+                m_loaded_scripts.emplace_back(std::filesystem::path{file}.filename().string());
             }
         }
 
         if (ImGui::Button("Reset scripts")) {
             reset_scripts();
+        }
+
+        if (!m_loaded_scripts.empty()) {
+            ImGui::Text("Loaded scripts:");
+
+            for (auto&& name : m_loaded_scripts) {
+                ImGui::Text(name.c_str());
+            }
+        } else {
+            ImGui::Text("No scripts loaded.");
         }
     }
 
@@ -558,6 +569,7 @@ void ScriptRunner::reset_scripts() {
     // the FirstPerson mod would attempt to hook an already hooked function
     m_state.reset();
     m_state = std::make_unique<ScriptState>();
+    m_loaded_scripts.clear();
 
     std::string module_path{};
 
@@ -577,6 +589,7 @@ void ScriptRunner::reset_scripts() {
 
         if (path.has_extension() && path.extension() == ".lua") {
             m_state->run_script(path.string());
+            m_loaded_scripts.emplace_back(path.filename().string());
         }
     }
 }
