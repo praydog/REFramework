@@ -1,4 +1,5 @@
 #include <hde64.h>
+#include <spdlog/spdlog.h>
 
 #include "HookManager.hpp"
 
@@ -17,6 +18,10 @@ void* get_actual_function(void* possible_fn) {
             actual_fn = (void*)(ip + hde.imm.imm32);
             break;
         }
+    }
+
+    if (possible_fn != actual_fn) {
+        spdlog::info("[HookManager] Using actual function @ {:x} for wrapper function @ {:x}", actual_fn, possible_fn);
     }
 
     return actual_fn;
@@ -58,18 +63,34 @@ void HookManager::HookedFn::on_post_hook() {
 }
 
 HookManager::HookId HookManager::add(sdk::REMethodDefinition* fn, HookManager::PreHookFn pre_fn, HookManager::PostHookFn post_fn, bool ignore_jmp) {
+    auto target_fn = ignore_jmp ? fn->get_function() : detail::get_actual_function(fn->get_function());
+
+    spdlog::info("[HookManager] Adding hook for '{}' @ {:p}...", fn->get_name(), target_fn);
+
     if (auto search = m_hooked_fns.find(fn); search != m_hooked_fns.end()) {
+        spdlog::info("[HookManager] Reusing existing hook...");
+
         auto& hook = search->second;
         std::scoped_lock _{hook->mux};
         auto hook_id = hook->next_hook_id++;
+
+        spdlog::info("[HookManager] Hook assigned ID {}", hook_id);
+
         hook->cbs.emplace_back(hook_id, std::move(pre_fn), std::move(post_fn));
+
+        spdlog::info("[HookManager] Hook {} added for '{}' @ {:p}", hook_id, fn->get_name(), target_fn);
+
         return hook_id;
     }
+
+    spdlog::info("[HookManager] Creating a new hook...");
 
     auto hook = std::make_unique<HookedFn>(*this);
     auto hook_id = hook->next_hook_id++;
 
-    hook->target_fn = ignore_jmp ? fn->get_function() : detail::get_actual_function(fn->get_function());
+    spdlog::info("[HookManager] Hook assigned ID {}", hook_id);
+
+    hook->target_fn = target_fn;
     hook->cbs.emplace_back(hook_id, std::move(pre_fn), std::move(post_fn));
     hook->arg_tys = fn->get_param_types();
     hook->ret_ty = fn->get_return_type();
@@ -332,11 +353,15 @@ HookManager::HookId HookManager::add(sdk::REMethodDefinition* fn, HookManager::P
     fn_hook->create();
     m_hooked_fns.emplace(fn, std::move(hook));
 
+    spdlog::info("[HookManager] Hook {} added for '{}' @ {:p}", hook_id, fn->get_name(), target_fn);
+
     return hook_id;
 }
 
 void HookManager::remove(sdk::REMethodDefinition* fn, HookId id) {
     if (auto search = m_hooked_fns.find(fn); search != m_hooked_fns.end()) {
+        spdlog::info("[HookManager] Removing hook ID {} from '{}'", id, fn->get_name());
+
         auto& hook = search->second;
         auto& cbs = hook->cbs;
         std::scoped_lock _{hook->mux};
