@@ -845,7 +845,7 @@ void FirstPerson::update_player_arm_ik(RETransform* transform) {
     const bool is_reloading = player_condition != nullptr ? sdk::call_object_func_easy<bool>(player_condition, "get_IsReload") : false;
     const bool is_aiming = player_condition != nullptr ? sdk::call_object_func_easy<bool>(player_condition, "get_IsHold") : false;
     
-    if (is_aiming && (lh_grip_distance <= 0.1 || (m_was_gripping_weapon && is_holding_left_grip))) {
+    if (is_aiming && !is_reloading && (lh_grip_distance <= 0.1 || (m_was_gripping_weapon && is_holding_left_grip))) {
         const auto original_grip_rot = utility::math::to_quat(glm::normalize(lh_grip_delta_to_rh));
         const auto current_grip_rot = utility::math::to_quat(glm::normalize(lh_delta_to_rh));
 
