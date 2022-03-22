@@ -53,6 +53,10 @@ public:
     // non-virtual callbacks called from lua
     bool on_pre_flashlight_apply_transform(::REManagedObject* flashlight_component);
 
+    bool was_gripping_weapon() const {
+        return m_was_gripping_weapon;
+    }
+
 protected:
     // gross
     bool list_box_handler_attach(void* data, int idx, const char** out_text) {
@@ -156,6 +160,7 @@ private:
     void on_disabled();
     bool m_wants_disable{false};
     bool m_was_hmd_active{false};
+    bool m_was_gripping_weapon{false};
 
 
     const ModToggle::Ptr m_smooth_xz_movement{ ModToggle::create(generate_name("SmoothXZMovementVR"), true) };

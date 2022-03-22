@@ -38,6 +38,12 @@ T call_object_func(void* obj, sdk::RETypeDefinition* t, std::string_view name, A
 template <typename T, typename... Args> 
 T call_object_func(::REManagedObject* obj, std::string_view name, Args... args);
 
+template <typename T, typename... Args>
+T call_object_func_easy(::REManagedObject* obj, std::string_view name, Args... args);
+
+template <typename T, typename... Args>
+T call_object_func_easy_bigret(::REManagedObject* obj, std::string_view name, Args... args);
+
 template<typename T>
 T* get_object_field(void* obj, sdk::RETypeDefinition* t, std::string_view name, bool is_value_type = false);
 
@@ -682,6 +688,26 @@ T call_object_func(::REManagedObject* obj, std::string_view name, Args... args) 
     auto def = utility::re_managed_object::get_type_definition(obj);
 
     return call_object_func<T>((void*)obj, def, name, args...);
+}
+
+template <typename T, typename... Args> 
+T call_object_func_easy(::REManagedObject* obj, std::string_view name, Args... args) {
+    if constexpr (sizeof(T) > sizeof(void*)) {
+        return call_object_func_easy_bigret<T>(obj, name, args...);
+    }
+
+    auto def = utility::re_managed_object::get_type_definition(obj);
+    return call_object_func<T>((void*)obj, def, name, sdk::get_thread_context(), obj, args...);
+}
+
+template <typename T, typename... Args> 
+T call_object_func_easy_bigret(::REManagedObject* obj, std::string_view name, Args... args) {
+    auto def = utility::re_managed_object::get_type_definition(obj);
+
+    T out{};
+    call_object_func<T*>((void*)obj, def, name, &out, sdk::get_thread_context(), obj, args...);
+
+    return out;
 }
 
 template<typename T>

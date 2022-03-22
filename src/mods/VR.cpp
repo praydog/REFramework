@@ -2879,6 +2879,12 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
     m_was_firstperson_toggle_down = is_firstperson_toggle_down;
 #endif
 
+#if defined(RE2) || defined(RE3)
+    const auto is_gripping_weapon = FirstPerson::get()->was_gripping_weapon();
+#else
+    const auto is_gripping_weapon = false;
+#endif
+
     // Current actual button bits used by the game
     auto& button_bits_down = *sdk::get_object_field<uint64_t>(button_bits_obj, "Down");
     auto& button_bits_on = *sdk::get_object_field<uint64_t>(button_bits_obj, "On");
@@ -2946,7 +2952,7 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
     set_button_state(app::ropeway::InputDefine::Kind::UI_SHIFT_RIGHT, is_grip_down);
 
     // Left Grip: Alternate aim (grenades, knives, etc), UI left (LB)
-    set_button_state(app::ropeway::InputDefine::Kind::SUPPORT_HOLD, is_left_grip_down);
+    set_button_state(app::ropeway::InputDefine::Kind::SUPPORT_HOLD, is_left_grip_down && !is_gripping_weapon);   
     set_button_state(app::ropeway::InputDefine::Kind::UI_SHIFT_LEFT, is_left_grip_down);
 
     // Right Trigger (RB): Attack, Alternate UI right (RT), GE_RTrigBottom (quick time event), GE_RTrigTop (another quick time event)

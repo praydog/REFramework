@@ -472,11 +472,13 @@ void FirstPerson::on_post_late_update_behavior(void* entry) {
 
 void FirstPerson::on_post_update_motion(void* entry, bool true_motion) {
     if (!will_be_used()) {
+        m_was_gripping_weapon = false;
         return;
     }
 
     // check it every time i guess becuase who knows what's going to happen.
     if (!update_pointers()) {
+        m_was_gripping_weapon = false;
         return;
     }
 
@@ -706,11 +708,13 @@ void FirstPerson::update_player_vr(RETransform* transform, bool first) {
 
 void FirstPerson::update_player_arm_ik(RETransform* transform) {
     if (!m_enabled->value() || m_camera_system == nullptr) {
+        m_was_gripping_weapon = false;
         return;
     }
 
     // so we don't go spinning everywhere in cutscenes
     if (m_last_camera_type != app::ropeway::camera::CameraControlType::PLAYER) {
+        m_was_gripping_weapon = false;
         return;
     }
 
@@ -718,6 +722,7 @@ void FirstPerson::update_player_arm_ik(RETransform* transform) {
     auto& controllers = vr_mod->get_controllers();
 
     if (controllers.empty()) {
+        m_was_gripping_weapon = false;
         return;
     }
 
@@ -725,16 +730,39 @@ void FirstPerson::update_player_arm_ik(RETransform* transform) {
     const auto is_using_controllers = vr_mod->is_using_controllers();
 
     if (!is_hmd_active || !is_using_controllers) {
+        m_was_gripping_weapon = false;
         return;
     }
 
     auto context = sdk::get_thread_context();
 
-    auto update_joint = [&](uint32_t hash, int32_t controller_index) {
+    static auto l_arm_wrist_hash = sdk::murmur_hash::calc32(L"l_arm_wrist");
+    static auto r_arm_wrist_hash = sdk::murmur_hash::calc32(L"r_arm_wrist");
+
+    static auto via_motion_def = sdk::RETypeDB::get()->find_type("via.motion.Motion");
+    const auto via_motion = utility::re_component::find<REComponent>(transform, via_motion_def->type);
+
+    glm::quat original_left_rot_relative{glm::identity<glm::quat>()};
+    Vector4f original_left_pos_relative{};
+
+    if (via_motion != nullptr) {
+        const auto left_index = sdk::call_object_func_easy<uint32_t>(via_motion, "getJointIndexByNameHash", l_arm_wrist_hash);
+        const auto right_index = sdk::call_object_func_easy<uint32_t>(via_motion, "getJointIndexByNameHash", r_arm_wrist_hash);
+
+        const auto original_left_pos = sdk::call_object_func_easy<Vector4f>(via_motion, "getWorldPosition", left_index);
+        const auto original_right_pos = sdk::call_object_func_easy<Vector4f>(via_motion, "getWorldPosition", right_index);
+        const auto original_left_rot = sdk::call_object_func_easy<glm::quat>(via_motion, "getWorldRotation", left_index);
+        const auto original_right_rot = sdk::call_object_func_easy<glm::quat>(via_motion, "getWorldRotation", right_index);
+
+        original_left_pos_relative = glm::inverse(original_right_rot) * (original_left_pos - original_right_pos);
+        original_left_rot_relative = glm::inverse(original_right_rot) * original_left_rot;
+    }
+
+    auto calculate_joint_pos_rot = [&](uint32_t hash, int32_t controller_index) -> std::tuple<glm::quat, Vector4f> {
         auto wrist_joint = sdk::get_transform_joint_by_hash(transform, hash);
 
         if (wrist_joint == nullptr) {
-            return;
+            return std::make_tuple<glm::quat, Vector4f>(glm::identity<glm::quat>(), Vector4f{});
         }
 
         auto& wrist = utility::re_transform::get_joint_matrix(*transform, wrist_joint);
@@ -796,6 +824,63 @@ void FirstPerson::update_player_arm_ik(RETransform* transform) {
 
         auto new_pos = m_last_camera_matrix_pre_vr[3] + hand_pos;
         new_pos.w = 1.0f;
+
+        return std::make_tuple(rotation_quat, new_pos);
+    };
+
+    auto [rh_rotation, rh_pos] = calculate_joint_pos_rot(r_arm_wrist_hash, 1);
+    auto [lh_rotation, lh_pos] = calculate_joint_pos_rot(l_arm_wrist_hash, 0);
+
+    auto lh_grip_position = rh_pos + (rh_rotation * original_left_pos_relative);
+    const auto lh_delta_to_rh = (lh_pos - rh_pos);
+    const auto lh_grip_delta_to_rh = (lh_grip_position - rh_pos);
+    const auto lh_grip_delta = (lh_grip_position - lh_pos);
+    const auto lh_grip_distance = glm::length(lh_grip_delta);
+
+    const auto vr = VR::get();
+    const auto is_holding_left_grip = vr->is_action_active(vr->get_action_grip(), vr->get_left_joystick());
+
+    static auto player_condition_def = sdk::RETypeDB::get()->find_type(game_namespace("survivor.SurvivorCondition"));
+    const auto player_condition = utility::re_component::find<REComponent>(transform, player_condition_def->get_type());
+    const bool is_reloading = player_condition != nullptr ? sdk::call_object_func_easy<bool>(player_condition, "get_IsReload") : false;
+    const bool is_aiming = player_condition != nullptr ? sdk::call_object_func_easy<bool>(player_condition, "get_IsHold") : false;
+    
+    if (is_aiming && (lh_grip_distance <= 0.1 || (m_was_gripping_weapon && is_holding_left_grip))) {
+        const auto original_grip_rot = utility::math::to_quat(glm::normalize(lh_grip_delta_to_rh));
+        const auto current_grip_rot = utility::math::to_quat(glm::normalize(lh_delta_to_rh));
+
+        const auto grip_rot_delta = glm::normalize(current_grip_rot * glm::inverse(original_grip_rot));
+
+        // Adjust the right hand rotation
+        rh_rotation = glm::normalize(grip_rot_delta * rh_rotation);
+
+        // Adjust the grip position
+        lh_grip_position = rh_pos + (rh_rotation * original_left_pos_relative);
+        lh_grip_position.w = 1.0f;
+
+        // Set the left hand position and rotation to the grip position
+        lh_pos = lh_grip_position;
+        lh_rotation = rh_rotation * original_left_rot_relative;
+
+        m_was_gripping_weapon = true;
+    } else {
+        m_was_gripping_weapon = false;
+
+        if (is_reloading) {
+            lh_pos = lh_grip_position;
+            lh_rotation = rh_rotation * original_left_rot_relative;
+        } else {
+            lh_pos = lh_pos;
+            lh_rotation = lh_rotation;
+        }
+    }
+
+    auto update_joint = [&](uint32_t hash, int32_t controller_index, glm::quat& rotation_quat, Vector4f& new_pos) {
+        auto wrist_joint = sdk::get_transform_joint_by_hash(transform, hash);
+
+        if (wrist_joint == nullptr) {
+            return;
+        }
 
         // Get Arm IK component
         static auto arm_fit_t = sdk::RETypeDB::get()->find_type(game_namespace("IkArmFit"));
@@ -943,11 +1028,8 @@ void FirstPerson::update_player_arm_ik(RETransform* transform) {
     };
 
     if (is_using_controllers)  {
-        static auto l_arm_wrist_hash = sdk::murmur_hash::calc32(L"l_arm_wrist");
-        static auto r_arm_wrist_hash = sdk::murmur_hash::calc32(L"r_arm_wrist");
-
-        update_joint(l_arm_wrist_hash, 0);
-        update_joint(r_arm_wrist_hash, 1);
+        update_joint(l_arm_wrist_hash, 0, lh_rotation, lh_pos);
+        update_joint(r_arm_wrist_hash, 1, rh_rotation, rh_pos);
     }
 }
 
@@ -1063,14 +1145,17 @@ void FirstPerson::update_player_muzzle_behavior(RETransform* transform, bool res
 
 void FirstPerson::update_player_body_ik(RETransform* transform, bool restore, bool first) {
     if (!restore && !m_enabled->value()) {
+        m_was_gripping_weapon = false;
         return;
     }
 
     if (m_camera_system == nullptr) {
+        m_was_gripping_weapon = false;
         return;
     }
 
     if (m_last_camera_type != app::ropeway::camera::CameraControlType::PLAYER) {
+        m_was_gripping_weapon = false;
         return;
     }
 
@@ -1780,6 +1865,8 @@ bool FirstPerson::is_jacked(RETransform* transform) const {
 }
 
 void FirstPerson::on_disabled() {
+    m_was_gripping_weapon = false;
+
     VR::get()->set_rotation_offset(glm::identity<glm::quat>());
 
     if (!update_pointers()) {
