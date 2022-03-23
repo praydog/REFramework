@@ -504,6 +504,10 @@ bool FirstPerson::on_pre_flashlight_apply_transform(::REManagedObject* flashligh
         return true;
     }
 
+    if (m_was_gripping_weapon) {
+        return true;
+    }
+
     static auto via_render_mesh = sdk::RETypeDB::get()->find_type("via.render.Mesh");
     static auto via_render_mesh_enabled = via_render_mesh->get_method("get_Enabled");
 
@@ -846,17 +850,20 @@ void FirstPerson::update_player_arm_ik(RETransform* transform) {
     const bool is_aiming = player_condition != nullptr ? sdk::call_object_func_easy<bool>(player_condition, "get_IsHold") : false;
     
     if (is_aiming && !is_reloading && (lh_grip_distance <= 0.1 || (m_was_gripping_weapon && is_holding_left_grip))) {
-        const auto original_grip_rot = utility::math::to_quat(glm::normalize(lh_grip_delta_to_rh));
-        const auto current_grip_rot = utility::math::to_quat(glm::normalize(lh_delta_to_rh));
+        // pistol "fix"
+        if (glm::length(Vector3f{original_left_pos_relative}) >= 0.1f) {
+            const auto original_grip_rot = utility::math::to_quat(glm::normalize(lh_grip_delta_to_rh));
+            const auto current_grip_rot = utility::math::to_quat(glm::normalize(lh_delta_to_rh));
 
-        const auto grip_rot_delta = glm::normalize(current_grip_rot * glm::inverse(original_grip_rot));
+            const auto grip_rot_delta = glm::normalize(current_grip_rot * glm::inverse(original_grip_rot));
 
-        // Adjust the right hand rotation
-        rh_rotation = glm::normalize(grip_rot_delta * rh_rotation);
+            // Adjust the right hand rotation
+            rh_rotation = glm::normalize(grip_rot_delta * rh_rotation);
 
-        // Adjust the grip position
-        lh_grip_position = rh_pos + (rh_rotation * original_left_pos_relative);
-        lh_grip_position.w = 1.0f;
+            // Adjust the grip position
+            lh_grip_position = rh_pos + (rh_rotation * original_left_pos_relative);
+            lh_grip_position.w = 1.0f;
+        }
 
         // Set the left hand position and rotation to the grip position
         lh_pos = lh_grip_position;
@@ -996,6 +1003,7 @@ void FirstPerson::update_player_arm_ik(RETransform* transform) {
                     // Set the target matrix to the VR controller's position (new_pos, rotation_quat)
                     target_matrix = Matrix4x4f{ rotation_quat };
                     target_matrix[3] = new_pos;
+                    target_matrix[3].w = 1.0f;
 
                     //spdlog::info("About to call updateIk");
 
