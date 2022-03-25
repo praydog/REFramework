@@ -188,7 +188,7 @@ Matrix4x4f* VR::gui_camera_get_projection_matrix_hook(REManagedObject* camera, M
 
     auto vr = VR::get();
 
-    if (result == nullptr || !g_framework->is_ready() || !vr->m_is_hmd_active || vr->m_disable_projection_matrix_override) {
+    if (result == nullptr || !g_framework->is_ready() || !vr->m_is_hmd_active || vr->m_disable_gui_camera_projection_matrix_override) {
         return original_func(camera, result);
     }
 
@@ -3288,6 +3288,7 @@ void VR::on_draw_ui() {
     ImGui::Separator();
     ImGui::Text("Debug info");
     ImGui::Checkbox("Disable Projection Matrix Override", &m_disable_projection_matrix_override);
+    ImGui::Checkbox("Disable GUI Projection Matrix Override", &m_disable_gui_camera_projection_matrix_override);
     ImGui::Checkbox("Disable View Matrix Override", &m_disable_view_matrix_override);
     ImGui::Checkbox("Disable Backbuffer Size Override", &m_disable_backbuffer_size_override);
 

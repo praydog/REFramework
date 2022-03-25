@@ -451,6 +451,7 @@ private:
     const ModToggle::Ptr m_force_dynamic_shadows_settings{ ModToggle::create(generate_name("ForceDynamicShadows"), true) };
 
     bool m_disable_projection_matrix_override{ false };
+    bool m_disable_gui_camera_projection_matrix_override{ false };
     bool m_disable_view_matrix_override{false};
     bool m_disable_backbuffer_size_override{false};
 
