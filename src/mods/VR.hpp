@@ -450,6 +450,7 @@ private:
 
     bool m_disable_projection_matrix_override{ false };
     bool m_disable_view_matrix_override{false};
+    bool m_disable_backbuffer_size_override{false};
 
     ValueList m_options{
         *m_set_standing_key,

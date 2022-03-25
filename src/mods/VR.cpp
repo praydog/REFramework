@@ -72,6 +72,10 @@ float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
 
     auto mod = VR::get();
 
+    if (mod->m_disable_backbuffer_size_override) {
+        return original_func(scene_view, result);
+    }
+
     auto regenny_view = (regenny::via::SceneView*)scene_view;
     auto window = regenny_view->window;
 
@@ -3285,6 +3289,7 @@ void VR::on_draw_ui() {
     ImGui::Text("Debug info");
     ImGui::Checkbox("Disable Projection Matrix Override", &m_disable_projection_matrix_override);
     ImGui::Checkbox("Disable View Matrix Override", &m_disable_view_matrix_override);
+    ImGui::Checkbox("Disable Backbuffer Size Override", &m_disable_backbuffer_size_override);
 
     ImGui::DragFloat4("Raw Left", (float*)&m_raw_projections[0], 0.01f, -100.0f, 100.0f);
     ImGui::DragFloat4("Raw Right", (float*)&m_raw_projections[1], 0.01f, -100.0f, 100.0f);
