@@ -1806,7 +1806,7 @@ json.dump_file("object_explorer/" .. __object_explorer_object_path .. ".json", t
 
 collectgarbage("collect")]] -- force a GC to free up the memory
 
-local function on_pre_order_vibration(args)
+local function re8_on_pre_order_vibration(args)
     if not vrmod:is_using_controllers() then
         return
     end
@@ -1831,14 +1831,16 @@ local function on_pre_order_vibration(args)
     end
 end
 
-local function on_post_order_vibration(retval)
+local function re8_on_post_order_vibration(retval)
     return retval
 end
 
-local vibrationmanager_t = sdk.find_type_definition("app.HIDVibrationManager")
-sdk.hook(vibrationmanager_t:get_method("OrderVibration(app.VibrationTask)"), on_pre_order_vibration, on_post_order_vibration)
+if is_re8 then
+    local vibrationmanager_t = sdk.find_type_definition("app.HIDVibrationManager")
+    sdk.hook(vibrationmanager_t:get_method("OrderVibration(app.VibrationTask)"), re8_on_pre_order_vibration, re8_on_post_order_vibration)
+end
 
-local function on_pre_order_vibration2(args)
+local function re8_on_pre_order_vibration2(args)
     if not vrmod:is_using_controllers() then
         return
     end
@@ -1857,12 +1859,41 @@ local function on_pre_order_vibration2(args)
     --end
 end
 
-local function on_post_order_vibration2(retval)
+local function re8_on_post_order_vibration2(retval)
     return retval
 end
 
-local vibmethod2 = vibrationmanager_t:get_method("OrderVibration(System.Single, System.Single, System.Single, System.Boolean, System.Int32, System.Boolean, System.Single, System.Single, via.GameObject, System.Single, System.Single)")
-sdk.hook(vibmethod2, on_pre_order_vibration2, on_post_order_vibration2)
+if is_re8 then
+    local vibrationmanager_t = sdk.find_type_definition("app.HIDVibrationManager")
+    local vibmethod2 = vibrationmanager_t:get_method("OrderVibration(System.Single, System.Single, System.Single, System.Boolean, System.Int32, System.Boolean, System.Single, System.Single, via.GameObject, System.Single, System.Single)")
+    sdk.hook(vibmethod2, re8_on_pre_order_vibration2, re8_on_post_order_vibration2)
+end
+
+local function re7_on_pre_request_add_vibration(args)
+    if not vrmod:is_using_controllers() then
+        return
+    end
+
+    local param = sdk.to_managed_object(args[3])
+    local duration = sdk.to_float(args[4])
+
+    local power = param:get_field("HighMotorPower")
+
+    local left_joystick = vrmod:get_left_joystick()
+    vrmod:trigger_haptic_vibration(0.0, duration, 1, power, left_joystick)
+
+    local right_joystick = vrmod:get_right_joystick()
+    vrmod:trigger_haptic_vibration(0.0, duration, 1, power, right_joystick)
+end
+
+local function re7_on_post_request_add_vibration(retval)
+    return retval
+end
+
+if is_re7 then
+    local vibrationmanager_t = sdk.find_type_definition("app.VibrationManager")
+    sdk.hook(vibrationmanager_t:get_method("requestAdd(app.VibrationParam, System.Single)"), re7_on_pre_request_add_vibration, re7_on_post_request_add_vibration)
+end
 
 re.on_draw_ui(function()
     local changed = false
