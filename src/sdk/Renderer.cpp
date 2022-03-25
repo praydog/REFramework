@@ -103,6 +103,28 @@ RenderLayer* RenderLayer::find_layer(::REType* layer_type) {
     return nullptr;
 }
 
+std::tuple<RenderLayer*, RenderLayer*> RenderLayer::find_layer_recursive(::REType* layer_type) {
+    const auto& layers = get_layers();
+
+    for (auto layer : layers) {
+        if (layer->info == nullptr || layer->info->classInfo == nullptr) {
+            continue;
+        }
+
+        const auto t = utility::re_managed_object::get_type(layer);
+
+        if (t == layer_type) {
+            return std::make_tuple(this, layer);
+        }
+
+        if (auto f = layer->find_layer_recursive(layer_type); std::get<0>(f) != nullptr && std::get<1>(f) != nullptr) {
+            return f;
+        }
+    }
+
+    return std::make_tuple<RenderLayer*, RenderLayer*>(nullptr, nullptr);
+}
+
 RenderLayer* RenderLayer::get_parent() {
     return sdk::call_object_func<RenderLayer*>(this, "get_Parent", sdk::get_thread_context(), this);
 }
@@ -285,7 +307,7 @@ RenderLayer* find_layer(::REType* layer_type) {
     if (layers_offset == 0) {
         spdlog::info("[Renderer] Finding layers_offset");
 
-        for (uint32_t i = 0; i < 0x2000; i += sizeof(void*)) {
+        for (uint32_t i = 0; i < 0x10000; i += sizeof(void*)) {
             const auto ptr = *(REManagedObject**)((uintptr_t)renderer + i);
 
             if (ptr == nullptr) {

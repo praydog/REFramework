@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <tuple>
 
 #include "ReClass.hpp"
 #include "RENativeArray.hpp"
@@ -14,6 +15,7 @@ public:
     RenderLayer* add_layer(::REType* layer_type, uint32_t priority, uint8_t offset = 0);
     sdk::NativeArray<RenderLayer*>& get_layers();
     RenderLayer* find_layer(::REType* layer_type);
+    std::tuple<RenderLayer*, RenderLayer*> find_layer_recursive(::REType* layer_type); // parent, type
 
     RenderLayer* get_parent();
     RenderLayer* find_parent(::REType* layer_type);
