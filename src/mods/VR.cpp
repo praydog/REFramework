@@ -534,7 +534,8 @@ void VR::on_lua_state_created(sol::state& lua) {
         "toggle_hmd_oriented_audio", &VR::toggle_hmd_oriented_audio,
         "apply_hmd_transform", [](VR* vr, glm::quat& rotation, Vector4f& position) {
             vr->apply_hmd_transform(rotation, position);
-        }
+        },
+        "trigger_haptic_vibration", &VR::trigger_haptic_vibration
     );
 
     lua["vrmod"] = this;
@@ -1867,7 +1868,6 @@ void VR::on_present() {
         return;
     }
 
-    m_main_view = sdk::get_main_view();
     m_submitted = false;
 
     const auto renderer = g_framework->get_renderer_type();
@@ -3466,4 +3466,12 @@ Vector2f VR::get_left_stick_axis() const {
 
 Vector2f VR::get_right_stick_axis() const {
     return get_joystick_axis(m_right_joystick);
+}
+
+void VR::trigger_haptic_vibration(float seconds_from_now, float duration, float frequency, float amplitude, vr::VRInputValueHandle_t source) {
+    if (!m_openvr_loaded || !is_using_controllers()) {
+        return;
+    }
+
+    vr::VRInput()->TriggerHapticVibrationAction(m_action_haptic, seconds_from_now, duration, frequency, amplitude, source);
 }

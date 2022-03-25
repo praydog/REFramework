@@ -157,6 +157,8 @@ public:
     Vector2f get_left_stick_axis() const;
     Vector2f get_right_stick_axis() const;
 
+    void trigger_haptic_vibration(float seconds_from_now, float duration, float frequency, float amplitude, vr::VRInputValueHandle_t source = vr::k_ulInvalidInputValueHandle);
+    
     auto get_action_set() const { return m_action_set; }
     auto& get_active_action_set() const { return m_active_action_set; }
     auto get_action_trigger() const { return m_action_trigger; }
@@ -252,8 +254,6 @@ private:
     std::shared_mutex m_eyes_mtx{};
     std::shared_mutex m_rotation_mtx{};
 
-    REManagedObject* m_main_view{nullptr};
-
     vr::VRTextureBounds_t m_right_bounds{ 0.0f, 0.0f, 1.0f, 1.0f };
     vr::VRTextureBounds_t m_left_bounds{ 0.0f, 0.0f, 1.0f, 1.0f };
 
@@ -307,6 +307,7 @@ private:
     vr::VRActionHandle_t m_action_re2_toggle_flashlight{};
     vr::VRActionHandle_t m_action_minimap{};
     vr::VRActionHandle_t m_action_block{};
+    vr::VRActionHandle_t m_action_haptic{};
 
     bool m_was_firstperson_toggle_down{false};
     bool m_was_flashlight_toggle_down{false};
@@ -333,6 +334,7 @@ private:
         { "/actions/default/in/RE2_Toggle_Flashlight", m_action_re2_toggle_flashlight },
         { "/actions/default/in/MiniMap", m_action_minimap },
         { "/actions/default/in/Block", m_action_block },
+        { "/actions/default/out/Haptic", m_action_haptic }
     };
 
     // Input sources
