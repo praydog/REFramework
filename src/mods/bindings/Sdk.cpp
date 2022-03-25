@@ -1053,8 +1053,25 @@ void bindings::open_sdk(ScriptState* s) {
             return false;
         },
         "create_instance", &::sdk::RETypeDefinition::create_instance_full);
+
+    auto method_call = [](sdk::REMethodDefinition* def, sol::object obj, sol::variadic_args va) {
+        auto l = va.lua_state();
+
+        auto real_obj = ::api::sdk::get_real_obj(obj);
+        auto ret_val = def->invoke(real_obj, ::api::sdk::build_args(va));
+
+        if (ret_val.exception_thrown) {
+            throw sol::error("Invoke threw an exception");
+        }
+
+        // Convert return values to the correct Lua types.
+        auto ret_ty = def->get_return_type();
+
+        return ::api::sdk::parse_data(l, &ret_val, ret_ty, true);
+    };
     
     lua.new_usertype<sdk::REMethodDefinition>("REMethodDefinition",
+        sol::meta_function::call, method_call,
         "get_name", &sdk::REMethodDefinition::get_name,
         "get_return_type", &sdk::REMethodDefinition::get_return_type,
         "get_function", &sdk::REMethodDefinition::get_function,
@@ -1063,21 +1080,7 @@ void bindings::open_sdk(ScriptState* s) {
         "get_param_types", &sdk::REMethodDefinition::get_param_types,
         "get_param_names", &sdk::REMethodDefinition::get_param_names,
         "is_static", &sdk::REMethodDefinition::is_static,
-        "call", [](sdk::REMethodDefinition* def, sol::object obj, sol::variadic_args va) {
-            auto l = va.lua_state();
-
-            auto real_obj = ::api::sdk::get_real_obj(obj);
-            auto ret_val = def->invoke(real_obj, ::api::sdk::build_args(va));
-
-            if (ret_val.exception_thrown) {
-                throw sol::error("Invoke threw an exception");
-            }
-
-            // Convert return values to the correct Lua types.
-            auto ret_ty = def->get_return_type();
-
-            return ::api::sdk::parse_data(l, &ret_val, ret_ty, true);
-        }
+        "call", method_call
     );
     
     lua.new_usertype<sdk::REField>("REField",
