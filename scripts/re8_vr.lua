@@ -514,15 +514,20 @@ local function update_hand_ik()
     local controllers = vrmod:get_controllers()
 
     if #controllers == 0 then
+        re8.was_gripping_weapon = false
         return
     end
 
     if not re8.left_hand_ik or not re8.right_hand_ik then
+        re8.was_gripping_weapon = false
         return
     end
 
     --if re8.is_in_cutscene then return end
-    if not re8.can_use_hands then return end
+    if not re8.can_use_hands then
+        re8.was_gripping_weapon = false
+        return 
+    end
 
     if not vrmod:is_using_controllers() then
         re8.was_gripping_weapon = false
@@ -633,28 +638,28 @@ local function update_hand_ik()
     local lh_grip_delta = (lh_grip_position - lh_pos)
     local lh_grip_distance = lh_grip_delta:length()
 
+    re8.was_gripping_weapon = lh_grip_distance <= 0.1 or (re8.was_gripping_weapon and re8.is_holding_left_grip)
+
     -- Lets the player hold their left hand near the original (grip) position of the weapon
-    if lh_grip_distance <= 0.1 or (re8.was_gripping_weapon and re8.is_holding_left_grip) then
-        local original_grip_rot = lh_grip_delta_to_rh:normalized():to_quat()
-        local current_grip_rot = lh_delta_to_rh:normalized():to_quat()
+    if re8.was_gripping_weapon and not re8.is_reloading then
+        if original_left_pos_relative:length() >= 0.1 then
+            local original_grip_rot = lh_grip_delta_to_rh:normalized():to_quat()
+            local current_grip_rot = lh_delta_to_rh:normalized():to_quat()
 
-        local grip_rot_delta = (current_grip_rot * original_grip_rot:inverse()):normalized()
+            local grip_rot_delta = (current_grip_rot * original_grip_rot:inverse()):normalized()
 
-        -- Adjust the right hand rotation
-        rh_rotation = (grip_rot_delta * rh_rotation):normalized()
+            -- Adjust the right hand rotation
+            rh_rotation = (grip_rot_delta * rh_rotation):normalized()
 
-        -- Adjust the grip position
-        lh_grip_position = rh_pos + (rh_rotation * original_left_pos_relative)
-        lh_grip_position.w = 1.0
+            -- Adjust the grip position
+            lh_grip_position = rh_pos + (rh_rotation * original_left_pos_relative)
+            lh_grip_position.w = 1.0
+        end
 
         -- Set the left hand position and rotation to the grip position
         lh_pos = lh_grip_position
         lh_rotation = rh_rotation * original_left_rot_relative
-
-        re8.was_gripping_weapon = true
     else
-        re8.was_gripping_weapon = false
-
         if re8.is_reloading then
             lh_pos = lh_grip_position
             lh_rotation = rh_rotation * original_left_rot_relative
@@ -1801,6 +1806,64 @@ json.dump_file("object_explorer/" .. __object_explorer_object_path .. ".json", t
 
 collectgarbage("collect")]] -- force a GC to free up the memory
 
+local function on_pre_order_vibration(args)
+    if not vrmod:is_using_controllers() then
+        return
+    end
+
+    local task = sdk.to_managed_object(args[3])
+
+    local left_power = task:get_field("MotorPower_0")
+    local right_power = task:get_field("MotorPower_1")
+    local duration = task:get_field("TimeSeconds")
+
+    if left_power > 0 then
+        local left_joystick = vrmod:get_left_joystick()
+        vrmod:trigger_haptic_vibration(0.0, duration, 1, left_power, left_joystick)
+    elseif re8.was_gripping_weapon then
+        local left_joystick = vrmod:get_left_joystick()
+        vrmod:trigger_haptic_vibration(0.0, duration, 1, right_power, left_joystick)
+    end
+
+    if right_power > 0 then
+        local right_joystick = vrmod:get_right_joystick()
+        vrmod:trigger_haptic_vibration(0.0, duration, 1, right_power, right_joystick)
+    end
+end
+
+local function on_post_order_vibration(retval)
+    return retval
+end
+
+local vibrationmanager_t = sdk.find_type_definition("app.HIDVibrationManager")
+sdk.hook(vibrationmanager_t:get_method("OrderVibration(app.VibrationTask)"), on_pre_order_vibration, on_post_order_vibration)
+
+local function on_pre_order_vibration2(args)
+    if not vrmod:is_using_controllers() then
+        return
+    end
+
+    local left_power = sdk.to_float(args[4])
+    local duration = sdk.to_float(args[3])
+
+    if left_power > 0 then
+        local left_joystick = vrmod:get_left_joystick()
+        vrmod:trigger_haptic_vibration(0.0, duration, 1, left_power, left_joystick)
+    end
+
+    --if right_power > 0 then
+        local right_joystick = vrmod:get_right_joystick()
+        vrmod:trigger_haptic_vibration(0.0, duration, 1, left_power, right_joystick)
+    --end
+end
+
+local function on_post_order_vibration2(retval)
+    return retval
+end
+
+local vibmethod2 = vibrationmanager_t:get_method("OrderVibration(System.Single, System.Single, System.Single, System.Boolean, System.Int32, System.Boolean, System.Single, System.Single, via.GameObject, System.Single, System.Single)")
+sdk.hook(vibmethod2, on_pre_order_vibration2, on_post_order_vibration2)
+
 re.on_draw_ui(function()
     local changed = false
     
@@ -1882,13 +1945,15 @@ re.on_draw_ui(function()
     end
 end)
 
+-- GUI elements that require usage of LB RB
 local re8_inventory_names = {
     "GUIInventory",
     "GUIInventoryMenu",
     "GUIInventoryTreasure",
     "GUIInventoryCraft",
     "GUIInventoryKeyItem",
-    "GUIMap"
+    "GUIMap",
+    "GUIShopBg"
 }
 
 for i, v in ipairs(re8_inventory_names) do
