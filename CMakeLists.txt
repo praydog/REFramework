@@ -29,6 +29,13 @@ endif()
 
 # Options
 option(DEVELOPER_MODE "Enable developer mode" ON)
+option(REF_BUILD_RE2_SDK OFF)
+option(REF_BUILD_RE3_SDK OFF)
+option(REF_BUILD_RE7_SDK OFF)
+option(REF_BUILD_RE8_SDK OFF)
+option(REF_BUILD_DMC5_SDK OFF)
+option(REF_BUILD_MHRISE_SDK OFF)
+option(REF_BUILD_FRAMEWORK "Enable building the full REFramework" ON)
 
 project(reframework)
 
@@ -166,161 +173,171 @@ unset(CMKR_TARGET)
 unset(CMKR_SOURCES)
 
 # Target imgui
-set(CMKR_TARGET imgui)
-set(imgui_SOURCES "")
+if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
+	set(CMKR_TARGET imgui)
+	set(imgui_SOURCES "")
 
-list(APPEND imgui_SOURCES
-	"dependencies/imgui/imgui.cpp"
-	"dependencies/imgui/imgui_demo.cpp"
-	"dependencies/imgui/imgui_draw.cpp"
-	"dependencies/imgui/imgui_tables.cpp"
-	"dependencies/imgui/imgui_widgets.cpp"
-)
+	list(APPEND imgui_SOURCES
+		"dependencies/imgui/imgui.cpp"
+		"dependencies/imgui/imgui_demo.cpp"
+		"dependencies/imgui/imgui_draw.cpp"
+		"dependencies/imgui/imgui_tables.cpp"
+		"dependencies/imgui/imgui_widgets.cpp"
+	)
 
-list(APPEND imgui_SOURCES
-	cmake.toml
-)
+	list(APPEND imgui_SOURCES
+		cmake.toml
+	)
 
-set(CMKR_SOURCES ${imgui_SOURCES})
-add_library(imgui STATIC)
+	set(CMKR_SOURCES ${imgui_SOURCES})
+	add_library(imgui STATIC)
 
-if(imgui_SOURCES)
-	target_sources(imgui PRIVATE ${imgui_SOURCES})
+	if(imgui_SOURCES)
+		target_sources(imgui PRIVATE ${imgui_SOURCES})
+	endif()
+
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${imgui_SOURCES})
+
+	target_compile_definitions(imgui PUBLIC
+		"IMGUI_USER_CONFIG=\"${CMAKE_SOURCE_DIR}/src/re2-imgui/re2_imconfig.hpp\""
+	)
+
+	target_include_directories(imgui PUBLIC
+		"dependencies/imgui"
+		"src/re2-imgui"
+	)
+
+	unset(CMKR_TARGET)
+	unset(CMKR_SOURCES)
 endif()
-
-source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${imgui_SOURCES})
-
-target_compile_definitions(imgui PUBLIC
-	"IMGUI_USER_CONFIG=\"${CMAKE_SOURCE_DIR}/src/re2-imgui/re2_imconfig.hpp\""
-)
-
-target_include_directories(imgui PUBLIC
-	"dependencies/imgui"
-	"src/re2-imgui"
-)
-
-unset(CMKR_TARGET)
-unset(CMKR_SOURCES)
 
 # Target openvr
-set(CMKR_TARGET openvr)
-set(openvr_SOURCES "")
+if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
+	set(CMKR_TARGET openvr)
+	set(openvr_SOURCES "")
 
-set(CMKR_SOURCES ${openvr_SOURCES})
-add_library(openvr INTERFACE)
+	set(CMKR_SOURCES ${openvr_SOURCES})
+	add_library(openvr INTERFACE)
 
-if(openvr_SOURCES)
-	target_sources(openvr INTERFACE ${openvr_SOURCES})
+	if(openvr_SOURCES)
+		target_sources(openvr INTERFACE ${openvr_SOURCES})
+	endif()
+
+	target_include_directories(openvr INTERFACE
+		"dependencies/openvr/headers"
+	)
+
+	target_link_libraries(openvr INTERFACE
+		"${CMAKE_SOURCE_DIR}/dependencies/openvr/lib/win64/openvr_api.lib"
+	)
+
+	file(COPY dependencies/openvr/lib/win64/openvr_api.lib DESTINATION ${CMAKE_BINARY_DIR}/lib)
+	file(COPY dependencies/openvr/bin/win64/openvr_api.dll DESTINATION ${CMAKE_BINARY_DIR}/bin)
+
+	unset(CMKR_TARGET)
+	unset(CMKR_SOURCES)
 endif()
-
-target_include_directories(openvr INTERFACE
-	"dependencies/openvr/headers"
-)
-
-target_link_libraries(openvr INTERFACE
-	"${CMAKE_SOURCE_DIR}/dependencies/openvr/lib/win64/openvr_api.lib"
-)
-
-file(COPY dependencies/openvr/lib/win64/openvr_api.lib DESTINATION ${CMAKE_BINARY_DIR}/lib)
-file(COPY dependencies/openvr/bin/win64/openvr_api.dll DESTINATION ${CMAKE_BINARY_DIR}/bin)
-
-unset(CMKR_TARGET)
-unset(CMKR_SOURCES)
 
 # Target lua
-set(CMKR_TARGET lua)
-set(lua_SOURCES "")
+if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
+	set(CMKR_TARGET lua)
+	set(lua_SOURCES "")
 
-list(APPEND lua_SOURCES
-	"dependencies/lua/src/lapi.c"
-	"dependencies/lua/src/lauxlib.c"
-	"dependencies/lua/src/lbaselib.c"
-	"dependencies/lua/src/lcode.c"
-	"dependencies/lua/src/lcorolib.c"
-	"dependencies/lua/src/lctype.c"
-	"dependencies/lua/src/ldblib.c"
-	"dependencies/lua/src/ldebug.c"
-	"dependencies/lua/src/ldo.c"
-	"dependencies/lua/src/ldump.c"
-	"dependencies/lua/src/lfunc.c"
-	"dependencies/lua/src/lgc.c"
-	"dependencies/lua/src/linit.c"
-	"dependencies/lua/src/liolib.c"
-	"dependencies/lua/src/llex.c"
-	"dependencies/lua/src/lmathlib.c"
-	"dependencies/lua/src/lmem.c"
-	"dependencies/lua/src/loadlib.c"
-	"dependencies/lua/src/lobject.c"
-	"dependencies/lua/src/lopcodes.c"
-	"dependencies/lua/src/loslib.c"
-	"dependencies/lua/src/lparser.c"
-	"dependencies/lua/src/lstate.c"
-	"dependencies/lua/src/lstring.c"
-	"dependencies/lua/src/lstrlib.c"
-	"dependencies/lua/src/ltable.c"
-	"dependencies/lua/src/ltablib.c"
-	"dependencies/lua/src/ltm.c"
-	"dependencies/lua/src/lundump.c"
-	"dependencies/lua/src/lutf8lib.c"
-	"dependencies/lua/src/lvm.c"
-	"dependencies/lua/src/lzio.c"
-)
+	list(APPEND lua_SOURCES
+		"dependencies/lua/src/lapi.c"
+		"dependencies/lua/src/lauxlib.c"
+		"dependencies/lua/src/lbaselib.c"
+		"dependencies/lua/src/lcode.c"
+		"dependencies/lua/src/lcorolib.c"
+		"dependencies/lua/src/lctype.c"
+		"dependencies/lua/src/ldblib.c"
+		"dependencies/lua/src/ldebug.c"
+		"dependencies/lua/src/ldo.c"
+		"dependencies/lua/src/ldump.c"
+		"dependencies/lua/src/lfunc.c"
+		"dependencies/lua/src/lgc.c"
+		"dependencies/lua/src/linit.c"
+		"dependencies/lua/src/liolib.c"
+		"dependencies/lua/src/llex.c"
+		"dependencies/lua/src/lmathlib.c"
+		"dependencies/lua/src/lmem.c"
+		"dependencies/lua/src/loadlib.c"
+		"dependencies/lua/src/lobject.c"
+		"dependencies/lua/src/lopcodes.c"
+		"dependencies/lua/src/loslib.c"
+		"dependencies/lua/src/lparser.c"
+		"dependencies/lua/src/lstate.c"
+		"dependencies/lua/src/lstring.c"
+		"dependencies/lua/src/lstrlib.c"
+		"dependencies/lua/src/ltable.c"
+		"dependencies/lua/src/ltablib.c"
+		"dependencies/lua/src/ltm.c"
+		"dependencies/lua/src/lundump.c"
+		"dependencies/lua/src/lutf8lib.c"
+		"dependencies/lua/src/lvm.c"
+		"dependencies/lua/src/lzio.c"
+	)
 
-list(APPEND lua_SOURCES
-	cmake.toml
-)
+	list(APPEND lua_SOURCES
+		cmake.toml
+	)
 
-set(CMKR_SOURCES ${lua_SOURCES})
-add_library(lua STATIC)
+	set(CMKR_SOURCES ${lua_SOURCES})
+	add_library(lua STATIC)
 
-if(lua_SOURCES)
-	target_sources(lua PRIVATE ${lua_SOURCES})
+	if(lua_SOURCES)
+		target_sources(lua PRIVATE ${lua_SOURCES})
+	endif()
+
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${lua_SOURCES})
+
+	target_include_directories(lua PUBLIC
+		"dependencies/lua/src"
+	)
+
+	unset(CMKR_TARGET)
+	unset(CMKR_SOURCES)
 endif()
-
-source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${lua_SOURCES})
-
-target_include_directories(lua PUBLIC
-	"dependencies/lua/src"
-)
-
-unset(CMKR_TARGET)
-unset(CMKR_SOURCES)
 
 # Target sol2
-set(CMKR_TARGET sol2)
-set(sol2_SOURCES "")
+if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
+	set(CMKR_TARGET sol2)
+	set(sol2_SOURCES "")
 
-set(CMKR_SOURCES ${sol2_SOURCES})
-add_library(sol2 INTERFACE)
+	set(CMKR_SOURCES ${sol2_SOURCES})
+	add_library(sol2 INTERFACE)
 
-if(sol2_SOURCES)
-	target_sources(sol2 INTERFACE ${sol2_SOURCES})
+	if(sol2_SOURCES)
+		target_sources(sol2 INTERFACE ${sol2_SOURCES})
+	endif()
+
+	target_include_directories(sol2 INTERFACE
+		"dependencies/sol2/single/include"
+	)
+
+	unset(CMKR_TARGET)
+	unset(CMKR_SOURCES)
 endif()
-
-target_include_directories(sol2 INTERFACE
-	"dependencies/sol2/single/include"
-)
-
-unset(CMKR_TARGET)
-unset(CMKR_SOURCES)
 
 # Target nlohmann_json
-set(CMKR_TARGET nlohmann_json)
-set(nlohmann_json_SOURCES "")
+if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
+	set(CMKR_TARGET nlohmann_json)
+	set(nlohmann_json_SOURCES "")
 
-set(CMKR_SOURCES ${nlohmann_json_SOURCES})
-add_library(nlohmann_json INTERFACE)
+	set(CMKR_SOURCES ${nlohmann_json_SOURCES})
+	add_library(nlohmann_json INTERFACE)
 
-if(nlohmann_json_SOURCES)
-	target_sources(nlohmann_json INTERFACE ${nlohmann_json_SOURCES})
+	if(nlohmann_json_SOURCES)
+		target_sources(nlohmann_json INTERFACE ${nlohmann_json_SOURCES})
+	endif()
+
+	target_include_directories(nlohmann_json INTERFACE
+		"dependencies/nlohmann"
+	)
+
+	unset(CMKR_TARGET)
+	unset(CMKR_SOURCES)
 endif()
-
-target_include_directories(nlohmann_json INTERFACE
-	"dependencies/nlohmann"
-)
-
-unset(CMKR_TARGET)
-unset(CMKR_SOURCES)
 
 # Target utility
 set(CMKR_TARGET utility)
@@ -381,7 +398,7 @@ unset(CMKR_TARGET)
 unset(CMKR_SOURCES)
 
 # Target RE2SDK
-if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
+if(REF_BUILD_RE2_SDK OR REF_BUILD_FRAMEWORK) # build-re2-sdk
 	set(CMKR_TARGET RE2SDK)
 	set(RE2SDK_SOURCES "")
 
@@ -662,7 +679,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 endif()
 
 # Target RE2
-if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
+if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	set(CMKR_TARGET RE2)
 	set(RE2_SOURCES "")
 
@@ -828,7 +845,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 endif()
 
 # Target RE3SDK
-if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
+if(REF_BUILD_RE3_SDK OR REF_BUILD_FRAMEWORK) # build-re3-sdk
 	set(CMKR_TARGET RE3SDK)
 	set(RE3SDK_SOURCES "")
 
@@ -1109,7 +1126,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 endif()
 
 # Target RE3
-if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
+if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	set(CMKR_TARGET RE3)
 	set(RE3_SOURCES "")
 
@@ -1275,7 +1292,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 endif()
 
 # Target RE7SDK
-if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
+if(REF_BUILD_RE7_SDK OR REF_BUILD_FRAMEWORK) # build-re7-sdk
 	set(CMKR_TARGET RE7SDK)
 	set(RE7SDK_SOURCES "")
 
@@ -1556,7 +1573,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 endif()
 
 # Target RE7
-if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
+if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	set(CMKR_TARGET RE7)
 	set(RE7_SOURCES "")
 
@@ -1722,7 +1739,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 endif()
 
 # Target RE8SDK
-if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
+if(REF_BUILD_RE8_SDK OR REF_BUILD_FRAMEWORK) # build-re8-sdk
 	set(CMKR_TARGET RE8SDK)
 	set(RE8SDK_SOURCES "")
 
@@ -2003,7 +2020,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 endif()
 
 # Target RE8
-if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
+if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	set(CMKR_TARGET RE8)
 	set(RE8_SOURCES "")
 
@@ -2169,7 +2186,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 endif()
 
 # Target DMC5SDK
-if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
+if(REF_BUILD_DMC5_SDK OR REF_BUILD_FRAMEWORK) # build-dmc5-sdk
 	set(CMKR_TARGET DMC5SDK)
 	set(DMC5SDK_SOURCES "")
 
@@ -2450,7 +2467,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 endif()
 
 # Target DMC5
-if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
+if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	set(CMKR_TARGET DMC5)
 	set(DMC5_SOURCES "")
 
@@ -2616,7 +2633,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 endif()
 
 # Target MHRISESDK
-if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
+if(REF_BUILD_MHRISE_SDK OR REF_BUILD_FRAMEWORK) # build-mhrise-sdk
 	set(CMKR_TARGET MHRISESDK)
 	set(MHRISESDK_SOURCES "")
 
@@ -2897,7 +2914,7 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 endif()
 
 # Target MHRISE
-if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
+if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	set(CMKR_TARGET MHRISE)
 	set(MHRISE_SOURCES "")
 
@@ -3063,116 +3080,120 @@ if(MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) # msvc-win64
 endif()
 
 # Target example_plugin
-set(CMKR_TARGET example_plugin)
-set(example_plugin_SOURCES "")
+if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
+	set(CMKR_TARGET example_plugin)
+	set(example_plugin_SOURCES "")
 
-list(APPEND example_plugin_SOURCES
-	"examples/example_plugin/Plugin.cpp"
-	"examples/example_plugin/imgui/imgui_impl_dx11.cpp"
-	"examples/example_plugin/imgui/imgui_impl_dx12.cpp"
-	"examples/example_plugin/imgui/imgui_impl_win32.cpp"
-	"examples/example_plugin/rendering/d3d11.cpp"
-	"examples/example_plugin/rendering/d3d12.cpp"
-	"examples/example_plugin/Plugin.hpp"
-	"examples/example_plugin/imgui/font_robotomedium.hpp"
-	"examples/example_plugin/imgui/re2_imconfig.hpp"
-	"examples/example_plugin/rendering/d3d11.hpp"
-	"examples/example_plugin/rendering/d3d12.hpp"
-	"examples/example_plugin/rendering/shared.hpp"
-	"examples/example_plugin/imgui/imgui_impl_dx11.h"
-	"examples/example_plugin/imgui/imgui_impl_dx12.h"
-	"examples/example_plugin/imgui/imgui_impl_win32.h"
-)
+	list(APPEND example_plugin_SOURCES
+		"examples/example_plugin/Plugin.cpp"
+		"examples/example_plugin/imgui/imgui_impl_dx11.cpp"
+		"examples/example_plugin/imgui/imgui_impl_dx12.cpp"
+		"examples/example_plugin/imgui/imgui_impl_win32.cpp"
+		"examples/example_plugin/rendering/d3d11.cpp"
+		"examples/example_plugin/rendering/d3d12.cpp"
+		"examples/example_plugin/Plugin.hpp"
+		"examples/example_plugin/imgui/font_robotomedium.hpp"
+		"examples/example_plugin/imgui/re2_imconfig.hpp"
+		"examples/example_plugin/rendering/d3d11.hpp"
+		"examples/example_plugin/rendering/d3d12.hpp"
+		"examples/example_plugin/rendering/shared.hpp"
+		"examples/example_plugin/imgui/imgui_impl_dx11.h"
+		"examples/example_plugin/imgui/imgui_impl_dx12.h"
+		"examples/example_plugin/imgui/imgui_impl_win32.h"
+	)
 
-list(APPEND example_plugin_SOURCES
-	cmake.toml
-)
+	list(APPEND example_plugin_SOURCES
+		cmake.toml
+	)
 
-set(CMKR_SOURCES ${example_plugin_SOURCES})
-add_library(example_plugin SHARED)
+	set(CMKR_SOURCES ${example_plugin_SOURCES})
+	add_library(example_plugin SHARED)
 
-if(example_plugin_SOURCES)
-	target_sources(example_plugin PRIVATE ${example_plugin_SOURCES})
+	if(example_plugin_SOURCES)
+		target_sources(example_plugin PRIVATE ${example_plugin_SOURCES})
+	endif()
+
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${example_plugin_SOURCES})
+
+	target_compile_features(example_plugin PUBLIC
+		cxx_std_20
+	)
+
+	target_include_directories(example_plugin PUBLIC
+		"include/"
+	)
+
+	target_link_libraries(example_plugin PUBLIC
+		lua
+		sol2
+		imgui
+	)
+
+	set_target_properties(example_plugin PROPERTIES
+		RUNTIME_OUTPUT_DIRECTORY_RELEASE
+			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
+		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
+			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
+		LIBRARY_OUTPUT_DIRECTORY_RELEASE
+			"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+		LIBRARY_OUTPUT_DIRECTORY_RELWITHDEBINFO
+			"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+		ARCHIVE_OUTPUT_DIRECTORY_RELEASE
+			"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+		ARCHIVE_OUTPUT_DIRECTORY_RELWITHDEBINFO
+			"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+	)
+
+	unset(CMKR_TARGET)
+	unset(CMKR_SOURCES)
 endif()
-
-source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${example_plugin_SOURCES})
-
-target_compile_features(example_plugin PUBLIC
-	cxx_std_20
-)
-
-target_include_directories(example_plugin PUBLIC
-	"include/"
-)
-
-target_link_libraries(example_plugin PUBLIC
-	lua
-	sol2
-	imgui
-)
-
-set_target_properties(example_plugin PROPERTIES
-	RUNTIME_OUTPUT_DIRECTORY_RELEASE
-		"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
-	RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
-		"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
-	LIBRARY_OUTPUT_DIRECTORY_RELEASE
-		"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
-	LIBRARY_OUTPUT_DIRECTORY_RELWITHDEBINFO
-		"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
-	ARCHIVE_OUTPUT_DIRECTORY_RELEASE
-		"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
-	ARCHIVE_OUTPUT_DIRECTORY_RELWITHDEBINFO
-		"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
-)
-
-unset(CMKR_TARGET)
-unset(CMKR_SOURCES)
 
 # Target weapon_stay_big_plugin
-set(CMKR_TARGET weapon_stay_big_plugin)
-set(weapon_stay_big_plugin_SOURCES "")
+if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
+	set(CMKR_TARGET weapon_stay_big_plugin)
+	set(weapon_stay_big_plugin_SOURCES "")
 
-list(APPEND weapon_stay_big_plugin_SOURCES
-	"examples/weapon_stay_big_plugin/weapon_stay_big.cpp"
-)
+	list(APPEND weapon_stay_big_plugin_SOURCES
+		"examples/weapon_stay_big_plugin/weapon_stay_big.cpp"
+	)
 
-list(APPEND weapon_stay_big_plugin_SOURCES
-	cmake.toml
-)
+	list(APPEND weapon_stay_big_plugin_SOURCES
+		cmake.toml
+	)
 
-set(CMKR_SOURCES ${weapon_stay_big_plugin_SOURCES})
-add_library(weapon_stay_big_plugin SHARED)
+	set(CMKR_SOURCES ${weapon_stay_big_plugin_SOURCES})
+	add_library(weapon_stay_big_plugin SHARED)
 
-if(weapon_stay_big_plugin_SOURCES)
-	target_sources(weapon_stay_big_plugin PRIVATE ${weapon_stay_big_plugin_SOURCES})
+	if(weapon_stay_big_plugin_SOURCES)
+		target_sources(weapon_stay_big_plugin PRIVATE ${weapon_stay_big_plugin_SOURCES})
+	endif()
+
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${weapon_stay_big_plugin_SOURCES})
+
+	target_compile_features(weapon_stay_big_plugin PUBLIC
+		cxx_std_20
+	)
+
+	target_include_directories(weapon_stay_big_plugin PUBLIC
+		"include/"
+	)
+
+	set_target_properties(weapon_stay_big_plugin PROPERTIES
+		RUNTIME_OUTPUT_DIRECTORY_RELEASE
+			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
+		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
+			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
+		LIBRARY_OUTPUT_DIRECTORY_RELEASE
+			"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+		LIBRARY_OUTPUT_DIRECTORY_RELWITHDEBINFO
+			"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+		ARCHIVE_OUTPUT_DIRECTORY_RELEASE
+			"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+		ARCHIVE_OUTPUT_DIRECTORY_RELWITHDEBINFO
+			"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+	)
+
+	unset(CMKR_TARGET)
+	unset(CMKR_SOURCES)
 endif()
-
-source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${weapon_stay_big_plugin_SOURCES})
-
-target_compile_features(weapon_stay_big_plugin PUBLIC
-	cxx_std_20
-)
-
-target_include_directories(weapon_stay_big_plugin PUBLIC
-	"include/"
-)
-
-set_target_properties(weapon_stay_big_plugin PROPERTIES
-	RUNTIME_OUTPUT_DIRECTORY_RELEASE
-		"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
-	RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
-		"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
-	LIBRARY_OUTPUT_DIRECTORY_RELEASE
-		"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
-	LIBRARY_OUTPUT_DIRECTORY_RELWITHDEBINFO
-		"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
-	ARCHIVE_OUTPUT_DIRECTORY_RELEASE
-		"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
-	ARCHIVE_OUTPUT_DIRECTORY_RELWITHDEBINFO
-		"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
-)
-
-unset(CMKR_TARGET)
-unset(CMKR_SOURCES)
 

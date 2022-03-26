@@ -30,10 +30,23 @@ endif()
 
 [options]
 DEVELOPER_MODE = { value = true, comment = "Enable developer mode" }
+REF_BUILD_RE2_SDK = false
+REF_BUILD_RE3_SDK = false
+REF_BUILD_RE7_SDK = false
+REF_BUILD_RE8_SDK = false
+REF_BUILD_DMC5_SDK = false
+REF_BUILD_MHRISE_SDK = false
+REF_BUILD_FRAMEWORK = { value = true, comment = "Enable building the full REFramework" }
 
 [conditions]
-msvc-win64 = "MSVC AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8"
 developer-mode = "DEVELOPER_MODE"
+build-framework = "REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8"
+build-re2-sdk = "REF_BUILD_RE2_SDK OR REF_BUILD_FRAMEWORK"
+build-re3-sdk = "REF_BUILD_RE3_SDK OR REF_BUILD_FRAMEWORK"
+build-re7-sdk = "REF_BUILD_RE7_SDK OR REF_BUILD_FRAMEWORK"
+build-re8-sdk = "REF_BUILD_RE8_SDK OR REF_BUILD_FRAMEWORK"
+build-dmc5-sdk = "REF_BUILD_DMC5_SDK OR REF_BUILD_FRAMEWORK"
+build-mhrise-sdk = "REF_BUILD_MHRISE_SDK OR REF_BUILD_FRAMEWORK"
 
 [fetch-content.asmjit]
 git = "https://github.com/asmjit/asmjit.git"
@@ -65,6 +78,7 @@ include-directories = ["dependencies/imgui", "src/re2-imgui"]
 compile-definitions = [
     "IMGUI_USER_CONFIG=\"${CMAKE_SOURCE_DIR}/src/re2-imgui/re2_imconfig.hpp\"",
 ]
+condition = "build-framework"
 
 [target.openvr]
 type = "interface"
@@ -76,19 +90,23 @@ cmake-after = """
 file(COPY dependencies/openvr/lib/win64/openvr_api.lib DESTINATION ${CMAKE_BINARY_DIR}/lib)
 file(COPY dependencies/openvr/bin/win64/openvr_api.dll DESTINATION ${CMAKE_BINARY_DIR}/bin)
 """
+condition = "build-framework"
 
 [target.lua]
 type = "static"
 sources = ["dependencies/lua/src/*.c"]
 include-directories = ["dependencies/lua/src"]
+condition = "build-framework"
 
 [target.sol2]
 type = "interface"
 include-directories = ["dependencies/sol2/single/include"]
+condition = "build-framework"
 
 [target.nlohmann_json]
 type = "interface"
 include-directories = ["dependencies/nlohmann"]
+condition = "build-framework"
 
 [target.utility]
 type = "static"
@@ -102,7 +120,6 @@ link-libraries = [
 ]
 
 [template.sdk]
-condition = "msvc-win64"
 type = "static"
 sources = ["shared/sdk/**.cpp", "shared/sdk/**.c"]
 headers = ["shared/sdk/**.hpp", "shared/sdk/**.h"]
@@ -116,7 +133,7 @@ link-libraries = [
 ]
 
 [template.game]
-condition = "msvc-win64"
+condition = "build-framework"
 type = "shared"
 sources = ["src/**.cpp", "src/**.c"]
 headers = ["src/**.hpp", "src/**.h"]
@@ -156,6 +173,7 @@ ARCHIVE_OUTPUT_DIRECTORY_RELWITHDEBINFO = "${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET
 [target.RE2SDK]
 type = "sdk"
 compile-definitions = ["RE2"]
+condition = "build-re2-sdk"
 
 [target.RE2]
 type = "game"
@@ -163,6 +181,7 @@ type = "game"
 [target.RE3SDK]
 type = "sdk"
 compile-definitions = ["RE3"]
+condition = "build-re3-sdk"
 
 [target.RE3]
 type = "game"
@@ -170,6 +189,7 @@ type = "game"
 [target.RE7SDK]
 type = "sdk"
 compile-definitions = ["RE7"]
+condition = "build-re7-sdk"
 
 [target.RE7]
 type = "game"
@@ -177,6 +197,7 @@ type = "game"
 [target.RE8SDK]
 type = "sdk"
 compile-definitions = ["RE8"]
+condition = "build-re8-sdk"
 
 [target.RE8]
 type = "game"
@@ -184,6 +205,7 @@ type = "game"
 [target.DMC5SDK]
 type = "sdk"
 compile-definitions = ["DMC5"]
+condition = "build-dmc5-sdk"
 
 [target.DMC5]
 type = "game"
@@ -191,6 +213,7 @@ type = "game"
 [target.MHRISESDK]
 type = "sdk"
 compile-definitions = ["MHRISE"]
+condition = "build-mhrise-sdk"
 
 [target.MHRISE]
 type = "game"
@@ -199,6 +222,7 @@ type = "game"
 type = "shared"
 include-directories = ["include/"]
 compile-features = ["cxx_std_20"]
+condition = "build-framework"
 
 [template.plugin.properties]
 RUNTIME_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
