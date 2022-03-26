@@ -30,6 +30,12 @@ public:
 public:
     sdk::Resource* create_resource(void* type_info, std::wstring_view name);
 
+    static auto get_create_resource_function() {
+        update_pointers();
+
+        return s_create_resource_fn;
+    }
+
 private:
     friend class sdk::Resource;
 

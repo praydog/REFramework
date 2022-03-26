@@ -5,7 +5,6 @@
 #include "utility/Module.hpp"
 
 #include "reframework/API.hpp"
-#include "REFramework.hpp"
 #include "ReClass.hpp"
 #include "RETypeDB.hpp"
 #include "REContext.hpp"
@@ -78,7 +77,7 @@ namespace sdk {
         // Version 1
         //auto ref = utility::scan(g_framework->getModule().as<HMODULE>(), "48 8B 0D ? ? ? ? BA FF FF FF FF E8 ? ? ? ? 48 89 C3");
 
-        auto mod = g_framework->get_module().as<HMODULE>();
+        auto mod = utility::get_executable();
         auto start = (uintptr_t)mod;
         auto end = (uintptr_t)start + *utility::get_module_size(mod);
 
@@ -227,7 +226,7 @@ namespace sdk {
         //auto ref = utility::scan(g_framework->getModule().as<HMODULE>(), "48 83 78 18 00 74 ? 48 89 D9 E8 ? ? ? ? 48 89 D9 E8 ? ? ? ?");
 
         // Version 2 Dec 17th, 2019 game.exe+0x20437C (works on old version too)
-        auto ref = utility::scan(g_framework->get_module().as<HMODULE>(), "48 83 78 18 00 74 ? 48 ? ? E8 ? ? ? ? 48 ? ? E8 ? ? ? ? 48 ? ? E8 ? ? ? ?");
+        auto ref = utility::scan(utility::get_executable(), "48 83 78 18 00 74 ? 48 ? ? E8 ? ? ? ? 48 ? ? E8 ? ? ? ? 48 ? ? E8 ? ? ? ?");
 
         if (!ref) {
             spdlog::error("We're going to crash");

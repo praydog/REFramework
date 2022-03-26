@@ -262,7 +262,7 @@ void FreeCam::on_update_transform(RETransform* transform) {
 bool FreeCam::update_pointers() {
 #if defined(RE2) || defined(RE3)
     if (m_survivor_manager == nullptr) {
-        auto& globals = *g_framework->get_globals();
+        auto& globals = *reframework::get_globals();
         m_survivor_manager = globals.get<RopewaySurvivorManager>(game_namespace("SurvivorManager"));
         return false;
     }
@@ -270,7 +270,7 @@ bool FreeCam::update_pointers() {
 
 #ifdef RE8
     if (m_props_manager == nullptr) {
-        auto& globals = *g_framework->get_globals();
+        auto& globals = *reframework::get_globals();
         m_props_manager = globals.get<AppPropsManager>(game_namespace("PropsManager"));
         return false;
     }

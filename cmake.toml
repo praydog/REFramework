@@ -90,18 +90,45 @@ include-directories = ["dependencies/sol2/single/include"]
 type = "interface"
 include-directories = ["dependencies/nlohmann"]
 
+[target.utility]
+type = "static"
+sources = ["shared/utility/**.cpp", "shared/utility/**.c"]
+headers = ["shared/utility/**.hpp", "shared/utility/**.h"]
+compile-options = ["/EHa"]
+compile-features = ["cxx_std_20"]
+link-libraries = [
+    "spdlog",
+    "minhook"
+]
+
+[template.sdk]
+condition = "msvc-win64"
+type = "static"
+sources = ["shared/sdk/**.cpp", "shared/sdk/**.c"]
+headers = ["shared/sdk/**.hpp", "shared/sdk/**.h"]
+include-directories = ["shared/", "include/"]
+compile-options = ["/EHa"]
+compile-features = ["cxx_std_20"]
+link-libraries = [
+    "glm_static",
+    "spdlog",
+    "utility"
+]
+
 [template.game]
 condition = "msvc-win64"
 type = "shared"
 sources = ["src/**.cpp", "src/**.c"]
 headers = ["src/**.hpp", "src/**.h"]
-include-directories = ["src/", "include/"]
+include-directories = ["shared/", "src/", "include/"]
 link-directories = ["dependencies/openvr/lib/win64/"]
 compile-options = ["/GS-", "/bigobj", "/EHa"]
 compile-features = ["cxx_std_20"]
 compile-definitions = ["${CMKR_TARGET}", "REFRAMEWORK_EXPORTS", "REFRAMEWORK_GAME_NAME=\"${CMKR_TARGET}\""]
 developer-mode.compile-definitions = ["DEVELOPER"]
 link-libraries = [
+    "${CMKR_TARGET}SDK",
+    "utility",
     "asmjit::asmjit",
     "nlohmann_json",
     "spdlog",
@@ -126,20 +153,44 @@ LIBRARY_OUTPUT_DIRECTORY_RELWITHDEBINFO = "${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET
 ARCHIVE_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
 ARCHIVE_OUTPUT_DIRECTORY_RELWITHDEBINFO = "${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
 
+[target.RE2SDK]
+type = "sdk"
+compile-definitions = ["RE2"]
+
 [target.RE2]
 type = "game"
+
+[target.RE3SDK]
+type = "sdk"
+compile-definitions = ["RE3"]
 
 [target.RE3]
 type = "game"
 
+[target.RE7SDK]
+type = "sdk"
+compile-definitions = ["RE7"]
+
 [target.RE7]
 type = "game"
+
+[target.RE8SDK]
+type = "sdk"
+compile-definitions = ["RE8"]
 
 [target.RE8]
 type = "game"
 
+[target.DMC5SDK]
+type = "sdk"
+compile-definitions = ["DMC5"]
+
 [target.DMC5]
 type = "game"
+
+[target.MHRISESDK]
+type = "sdk"
+compile-definitions = ["MHRISE"]
 
 [target.MHRISE]
 type = "game"

@@ -1,6 +1,8 @@
+#include <spdlog/spdlog.h>
+
 #include "RETypeDB.hpp"
-#include "../REFramework.hpp"
-#include "../utility/Scan.hpp"
+#include "utility/Scan.hpp"
+#include "utility/Module.hpp"
 
 #include "Application.hpp"
 
@@ -24,7 +26,7 @@ Application::Function* Application::get_functions() {
     static int32_t functions_offset = -1;
 
     if (functions_offset == -1) {
-        const auto mod = g_framework->get_module().as<HMODULE>();
+        const auto mod = utility::get_executable();
 
         auto ref = utility::scan(mod, "44 8B ? ? ? 00 00 4C 8D ? ? ? ? 00 41");
 

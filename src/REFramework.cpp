@@ -23,6 +23,7 @@ extern "C" {
 #include "Mods.hpp"
 #include "mods/PluginLoader.hpp"
 #include "sdk/REGlobals.hpp"
+#include "sdk/SDK.hpp"
 
 #include "ExceptionHandler.hpp"
 #include "LicenseStrings.hpp"
@@ -1166,8 +1167,7 @@ bool REFramework::initialize() {
 
         // Game specific initialization stuff
         std::thread init_thread([this]() {
-            m_types = std::make_unique<RETypes>();
-            m_globals = std::make_unique<REGlobals>();
+            reframework::initialize_sdk();
             m_mods = std::make_unique<Mods>();
 
             auto e = m_mods->on_initialize();

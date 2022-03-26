@@ -35,12 +35,8 @@ public:
 
     const auto& get_mods() const { return m_mods; }
 
-    const auto& get_types() const { return m_types; }
-
     const auto& get_mouse_delta() const { return m_mouse_delta; }
     const auto& get_keyboard_state() const { return m_last_keys; }
-
-    const auto& get_globals() const { return m_globals; }
 
     Address get_module() const { return m_game_module; }
 
@@ -189,8 +185,6 @@ private:
 
     // Game-specific stuff
     std::unique_ptr<Mods> m_mods;
-    std::unique_ptr<REGlobals> m_globals;
-    std::unique_ptr<RETypes> m_types;
 
     std::recursive_mutex m_hook_monitor_mutex{};
     std::unique_ptr<std::thread> m_d3d_monitor_thread{};

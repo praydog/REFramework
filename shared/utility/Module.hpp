@@ -32,4 +32,6 @@ namespace utility {
     // Note: This function doesn't validate the dll's headers so make sure you've
     // done so before calling it.
     std::optional<uintptr_t> ptr_from_rva(uint8_t* dll, uintptr_t rva);
+
+    HMODULE get_executable();
 }

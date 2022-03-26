@@ -1,5 +1,7 @@
-#include "../utility/Scan.hpp"
-#include "../REFramework.hpp"
+#include <spdlog/spdlog.h>
+
+#include "utility/Scan.hpp"
+#include "utility/Module.hpp"
 
 #include "Application.hpp"
 #include "RETypeDB.hpp"
@@ -15,7 +17,7 @@ RenderLayer* RenderLayer::add_layer(::REType* layer_type, uint32_t priority, uin
     if (add_layer_fn == nullptr) {
         spdlog::info("[Renderer] Finding RenderLayer::AddLayer");
 
-        const auto mod = g_framework->get_module().as<HMODULE>();
+        const auto mod = utility::get_executable();
         
         auto ref = utility::scan(mod, "41 B8 00 00 00 05 48 8B F8 E8 ? ? ? ?"); // mov r8d, 5000000h; call add_layer
 
@@ -208,7 +210,7 @@ void add_scene_view(void* scene_view) {
         // String refs in the function containing this pattern:
         // L"Renderer::DelayEndTask"
         // L"Renderer::DelayReleaseTask"
-        const auto mod = g_framework->get_module().as<HMODULE>();
+        const auto mod = utility::get_executable();
         auto ref = utility::scan(mod, "4C 8D 05 ? ? ? ? 48 8D ? ? 48 8D ? 08 E8 ? ? ? ? 48 ? ? FF 15");
 
         if (!ref) {
@@ -231,7 +233,7 @@ void remove_scene_view(void* scene_view) {
         spdlog::info("[Renderer] Finding remove_scene_view_fn");
 
         // Almost the same as add_scene_view pattern, is set up right after add_scene_view
-        const auto mod = g_framework->get_module().as<HMODULE>();
+        const auto mod = utility::get_executable();
         auto ref = utility::scan(mod, "4C 8D 05 ? ? ? ? 48 8D ? ? ? 48 8D ? 28 E8 ? ? ? ? 48 ? ? FF 15");
 
         if (!ref) {

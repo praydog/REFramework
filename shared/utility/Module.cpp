@@ -176,6 +176,10 @@ namespace utility {
         return original_bytes;
     }
 
+    HMODULE get_executable() {
+        return GetModuleHandle(nullptr);
+    }
+
     optional<uintptr_t> ptr_from_rva(uint8_t* dll, uintptr_t rva) {
         // Get the first section.
         auto dosHeader = (PIMAGE_DOS_HEADER)&dll[0];

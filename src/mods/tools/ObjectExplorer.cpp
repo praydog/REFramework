@@ -335,12 +335,12 @@ void ObjectExplorer::on_draw_dev_ui() {
     // List of globals to choose from
     if (ImGui::CollapsingHeader("Singletons")) {
         if (curtime > m_next_refresh) {
-            g_framework->get_globals()->safe_refresh();
+            reframework::get_globals()->safe_refresh();
             m_next_refresh = curtime + std::chrono::seconds(1);
         }
 
         // make a copy, we want to sort by name
-        auto singletons = g_framework->get_globals()->get_objects();
+        auto singletons = reframework::get_globals()->get_objects();
 
         // first loop, sort
         std::sort(singletons.begin(), singletons.end(), [](REManagedObject* a, REManagedObject* b) {
@@ -379,12 +379,12 @@ void ObjectExplorer::on_draw_dev_ui() {
     }
 
     if (ImGui::CollapsingHeader("Native Singletons")) {
-        auto& native_singletons = g_framework->get_globals()->get_native_singleton_types();
+        auto& native_singletons = reframework::get_globals()->get_native_singleton_types();
 
         // Display the nodes
         for (auto t : native_singletons) {
             if (curtime > m_next_refresh_natives) {
-                g_framework->get_globals()->safe_refresh_native();
+                reframework::get_globals()->safe_refresh_native();
                 m_next_refresh_natives = curtime + std::chrono::seconds(1);
             }
 
@@ -648,7 +648,7 @@ void ObjectExplorer::generate_sdk() {
     json il2cpp_dump{};
 
 #ifdef TDB_DUMP_ALLOWED
-    auto tdb = (sdk::RETypeDB*)g_framework->get_types()->get_type_db();
+    auto tdb = (sdk::RETypeDB*)reframework::get_types()->get_type_db();
 
     // Types
     for (uint32_t i = 0; i < tdb->numTypes; ++i) {
@@ -1569,7 +1569,7 @@ void ObjectExplorer::generate_sdk() {
             auto m = c->static_function("get_type_info")->returns(g->type(TYPE_INFO_NAME)->ptr());
 
             std::stringstream os{};
-            os << "return g_framework->get_types()->get(\"" << t->name << "\");";
+            os << "return reframework::get_types()->get(\"" << t->name << "\");";
 
             m->procedure(os.str());
         }
@@ -2442,7 +2442,7 @@ void ObjectExplorer::display_native_fields(REManagedObject* obj, sdk::RETypeDefi
 
     bool owner_is_valuetype = tdef->get_vm_obj_type() == via::clr::VMObjType::ValType;
 
-    auto tdb = g_framework->get_types()->get_type_db();
+    auto tdb = reframework::get_types()->get_type_db();
 
     if (ImGui::TreeNode(*fields.begin(), "TDB Fields: %i", fields.size())) {
         for (auto f : fields) {
@@ -2547,7 +2547,7 @@ void ObjectExplorer::display_native_methods(REManagedObject* obj, sdk::RETypeDef
 
     const auto is_real_object = utility::re_managed_object::is_managed_object(obj);
     auto methods = tdef->get_methods();
-    auto tdb = g_framework->get_types()->get_type_db();
+    auto tdb = reframework::get_types()->get_type_db();
 
     if (methods.size() == 0) {
         return;
@@ -3303,7 +3303,7 @@ bool ObjectExplorer::is_managed_object(Address address) const {
 }
 
 void ObjectExplorer::populate_classes() {
-    auto& type_list = *g_framework->get_types()->get_raw_types();
+    auto& type_list = *reframework::get_types()->get_raw_types();
     spdlog::info("TypeList: {:x}", (uintptr_t)&type_list);
 
     // I don't know why but it can extend past the size.

@@ -3,10 +3,10 @@
 
 #include <imgui.h>
 
-#include "../sdk/REContext.hpp"
-#include "../sdk/REManagedObject.hpp"
-#include "../sdk/RETypeDB.hpp"
-#include "../sdk/SceneManager.hpp"
+#include "sdk/REContext.hpp"
+#include "sdk/REManagedObject.hpp"
+#include "sdk/RETypeDB.hpp"
+#include "sdk/SceneManager.hpp"
 
 #include "utility/String.hpp"
 

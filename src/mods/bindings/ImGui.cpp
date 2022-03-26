@@ -1,7 +1,7 @@
 #include <imgui.h>
 
 #include "../ScriptRunner.hpp"
-#include "../../sdk/SceneManager.hpp"
+#include "sdk/SceneManager.hpp"
 #include "REFramework.hpp"
 
 #include "ImGui.hpp"

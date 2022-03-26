@@ -3,10 +3,15 @@
 #include "utility/Scan.hpp"
 #include "utility/Module.hpp"
 
-#include "REFramework.hpp"
-#include "REContext.hpp"
 #include "RETypeDB.hpp"
 #include "RETypes.hpp"
+
+namespace reframework {
+std::unique_ptr<RETypes>& get_types() {
+    static auto types = std::make_unique<RETypes>();
+    return types;
+}
+}
 
 std::string game_namespace(std::string_view base_name)
 {
@@ -26,7 +31,7 @@ RETypes::RETypes() {
 
     // RE2, RE3, RE8, DMC5
     auto pat = "48 8d 0d ? ? ? ? e8 ? ? ? ? 48 8d 05 ? ? ? ? 48 89 03";
-    const auto mod = g_framework->get_module().as<HMODULE>();
+    const auto mod = utility::get_executable();
 
     auto types_offset = 3;
     auto ref = utility::scan(mod, pat);
@@ -75,9 +80,9 @@ RETypes::RETypes() {
     m_raw_types = (TypeList*)(utility::calculate_absolute(*ref + types_offset));
     spdlog::info("Initial TypeList: {:x}", (uintptr_t)m_raw_types);
 
-    const auto start = g_framework->get_module();
+    const auto start = (uintptr_t)utility::get_executable();
     const auto module_size = utility::get_module_size(mod);
-    const auto module_end = g_framework->get_module() + *module_size;
+    const auto module_end = (uintptr_t)utility::get_executable() + *module_size;
 
     if (!re7_version) {
         bool found_something = false;

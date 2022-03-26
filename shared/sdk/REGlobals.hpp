@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <functional>
+#include <memory>
 
 #include "ReClass.hpp"
 
@@ -55,3 +56,7 @@ private:
 
     std::mutex m_map_mutex{};
 };
+
+namespace reframework {
+std::unique_ptr<REGlobals>& get_globals();
+}

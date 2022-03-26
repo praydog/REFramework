@@ -50,7 +50,7 @@ namespace utility::re_component {
             REClassInfo *info;
         } arg{};
 
-        auto t = g_framework->get_types()->get(name);
+        auto t = reframework::get_types()->get(name);
 
         if (t == nullptr || t->classInfo == nullptr) {
             return nullptr;

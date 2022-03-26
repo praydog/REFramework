@@ -42,7 +42,7 @@ void Camera::on_update_transform(RETransform* transform) {
 
     // Cache off "AppPropsManager" once.
     if (m_props_manager == nullptr) {
-        m_props_manager = g_framework->get_globals()->get<AppPropsManager>(game_namespace("PropsManager"));
+        m_props_manager = reframework::get_globals()->get<AppPropsManager>(game_namespace("PropsManager"));
         if (m_props_manager == nullptr) {
             return;
         }

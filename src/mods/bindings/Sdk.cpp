@@ -4,12 +4,12 @@
 #include <hde64.h>
 
 #include "HookManager.hpp"
-#include "../../sdk/REContext.hpp"
-#include "../../sdk/REManagedObject.hpp"
-#include "../../sdk/RETypeDB.hpp"
-#include "../../sdk/SceneManager.hpp"
-#include "../../sdk/ResourceManager.hpp"
-#include "../../utility/Memory.hpp"
+#include "sdk/REContext.hpp"
+#include "sdk/REManagedObject.hpp"
+#include "sdk/RETypeDB.hpp"
+#include "sdk/SceneManager.hpp"
+#include "sdk/ResourceManager.hpp"
+#include "utility/Memory.hpp"
 
 #include "../ScriptRunner.hpp"
 #include <lstate.h> // weird include order because of sol
@@ -407,7 +407,7 @@ sol::object create_double(sol::this_state s, double value)  {
 }
 
 sol::object create_resource(sol::this_state s, std::string type_name, std::string name) {
-    auto& types = g_framework->get_types();
+    auto& types = reframework::get_types();
 
     // NOT a type definition!!
     // this is a via::typeinfo::TypeInfo

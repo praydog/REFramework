@@ -59,7 +59,7 @@ void ManualFlashlight::on_update_transform(RETransform* transform) {
 
 #ifndef RE8
     if (m_illumination_manager == nullptr) {
-        m_illumination_manager = g_framework->get_globals()->get<RopewayIlluminationManager>(game_namespace("IlluminationManager"));
+        m_illumination_manager = reframework::get_globals()->get<RopewayIlluminationManager>(game_namespace("IlluminationManager"));
         if (m_illumination_manager == nullptr) {
             return;
         }
@@ -80,7 +80,7 @@ void ManualFlashlight::on_update_transform(RETransform* transform) {
 
     // Cache off "AppPropsManager" once.
     if (m_props_manager == nullptr) {
-        m_props_manager = g_framework->get_globals()->get<AppPropsManager>(game_namespace("PropsManager"));
+        m_props_manager = reframework::get_globals()->get<AppPropsManager>(game_namespace("PropsManager"));
         if (m_props_manager == nullptr) {
             return;
         }

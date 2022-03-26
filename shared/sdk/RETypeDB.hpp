@@ -17,6 +17,7 @@ struct InvokeRet;
 }
 
 namespace sdk {
+class RETypeDB;
 struct RETypeDefinition;
 struct RETypeImpl;
 struct REField;

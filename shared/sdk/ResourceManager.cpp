@@ -1,9 +1,9 @@
 #include <spdlog/spdlog.h>
 #include <hde64.h>
 
-#include "../utility/Scan.hpp"
+#include "utility/Scan.hpp"
+#include "utility/Module.hpp"
 
-#include "../REFramework.hpp"
 #include "RETypeDB.hpp"
 #include "ResourceManager.hpp"
 
@@ -40,7 +40,7 @@ void ResourceManager::update_pointers() {
     if (s_create_resource_fn == nullptr) {
         spdlog::info("[ResourceManager::create_resource] Finding function...");
 
-        const auto mod = g_framework->get_module().as<HMODULE>();
+        const auto mod = utility::get_executable();
         const auto string_ptr = utility::scan_string(mod, L"systems/rendering/AmbientBRDF.tex"); // common string that is used in all the games
 
         if (!string_ptr) {

@@ -3,8 +3,9 @@
 #include <shared_mutex>
 #include <unordered_map>
 #include <unordered_set>
+#include <memory>
 
-//#include "ReClass.hpp"
+#include "ReClass.hpp"
 
 std::string game_namespace(std::string_view base_name);
 
@@ -65,3 +66,7 @@ private:
 
     std::shared_mutex m_map_mutex{};
 };
+
+namespace reframework {
+std::unique_ptr<RETypes>& get_types();
+}

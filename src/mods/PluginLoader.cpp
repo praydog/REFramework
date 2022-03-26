@@ -77,14 +77,14 @@ REFrameworkSDKFunctions g_sdk_functions {
         return (REFrameworkManagedObjectHandle)tdef->get_runtime_type();
     },
     [](const char* name) -> REFrameworkManagedObjectHandle {
-        return (REFrameworkManagedObjectHandle)g_framework->get_globals()->get(name);
+        return (REFrameworkManagedObjectHandle)reframework::get_globals()->get(name);
     },
     [](const char* name) {
         return sdk::get_native_singleton(name);
     },
     // get_managed_singletons
     [](REFrameworkManagedSingleton* out, unsigned int out_size, unsigned int* out_count) -> REFrameworkResult {
-        auto singletons = g_framework->get_globals()->get_objects();
+        auto singletons = reframework::get_globals()->get_objects();
 
         if (out_size < singletons.size() * sizeof(REFrameworkManagedSingleton)) {
             return REFRAMEWORK_ERROR_OUT_TOO_SMALL;
@@ -114,7 +114,7 @@ REFrameworkSDKFunctions g_sdk_functions {
     },
     // get_native_singletons
     [](REFrameworkNativeSingleton* out, unsigned int out_size, unsigned int* out_count) -> REFrameworkResult {
-        auto& native_singletons = g_framework->get_globals()->get_native_singleton_types();
+        auto& native_singletons = reframework::get_globals()->get_native_singleton_types();
 
         if (out_size < native_singletons.size() * sizeof(REFrameworkNativeSingleton)) {
             return REFRAMEWORK_ERROR_OUT_TOO_SMALL;
@@ -427,7 +427,7 @@ REFrameworkManagedObject g_managed_object_data {
 REFrameworkResourceManager g_resource_manager_data {
     [](REFrameworkResourceManagerHandle mgr, const char* type_name, const char* name) -> REFrameworkResourceHandle {
         // NOT a type definition.
-        auto t = g_framework->get_types()->get(type_name);
+        auto t = reframework::get_types()->get(type_name);
 
         if (t == nullptr) {
             return nullptr;

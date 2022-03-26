@@ -246,7 +246,7 @@ void IntegrityCheckBypass::on_frame() {
 #ifdef RE8
 void IntegrityCheckBypass::disable_update_timers(const std::string& name) const {
     // get the singleton correspdonding to the given name
-    auto manager = g_framework->get_globals()->get<REManagedObject>(name);
+    auto manager = reframework::get_globals()->get<REManagedObject>(name);
 
     // If the interact manager is null, we're probably not in the game
     if (manager == nullptr || manager->info == nullptr || manager->info->classInfo == nullptr) {

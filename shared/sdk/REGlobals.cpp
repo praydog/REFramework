@@ -5,16 +5,23 @@
 
 #include "RETypeDB.hpp"
 #include "REType.hpp"
+#include "RETypes.hpp"
 
-#include "REFramework.hpp"
 #include "REGlobals.hpp"
+
+namespace reframework {
+std::unique_ptr<REGlobals>& get_globals() {
+    static auto globals = std::make_unique<REGlobals>();
+    return globals;
+}
+}
 
 REGlobals::REGlobals() {
     spdlog::info("REGlobals initialization");
 
     m_object_list.reserve(2048);
 
-    auto mod = g_framework->get_module().as<HMODULE>();
+    auto mod = utility::get_executable();
     auto start = (uintptr_t)mod;
     auto end = (uintptr_t)start + *utility::get_module_size(mod);
 
@@ -48,7 +55,7 @@ REGlobals::REGlobals() {
     if (m_objects.empty()) {
         spdlog::info("Usual pattern for REGlobals not working, falling back to scanning for SingletonBehavior types");
 
-        auto& types = g_framework->get_types();
+        auto& types = reframework::get_types();
         auto& type_list = types->get_types();
 
         for (auto t : type_list) {
@@ -184,7 +191,7 @@ void REGlobals::safe_refresh_native() {
 }
 
 void REGlobals::refresh_natives() {
-    auto& types = g_framework->get_types()->get_types();
+    auto& types = reframework::get_types()->get_types();
 
     m_native_singleton_types.clear();
 

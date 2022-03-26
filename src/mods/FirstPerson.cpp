@@ -624,7 +624,7 @@ bool FirstPerson::update_pointers() {
         m_camera_system == nullptr || m_camera_system->ownerGameObject == nullptr || m_sweet_light_manager == nullptr || m_sweet_light_manager->ownerGameObject == nullptr
         || m_gui_master == nullptr) 
     {
-        auto& globals = *g_framework->get_globals();
+        auto& globals = *reframework::get_globals();
         m_sweet_light_manager = globals.get<RopewaySweetLightManager>(game_namespace("SweetLightManager"));
         m_camera_system = globals.get<RopewayCameraSystem>(game_namespace("camera.CameraSystem"));
         m_post_effect_controller = globals.get<RopewayPostEffectController>(game_namespace("posteffect.PostEffectController"));

@@ -1,6 +1,5 @@
 #include <shared_mutex>
 
-#include "../REFramework.hpp"
 #include "ReClass.hpp"
 
 #include "RETypeDefinition.hpp"
@@ -48,7 +47,7 @@ uint32_t utility::re_type::get_value_type_size(::REType* t) {
 #if defined(RE8) || defined(MHRISE)
     auto class_info = (sdk::RETypeDefVersion69*)t->classInfo;
 
-    return (*g_framework->get_types()->get_type_db()->typesImpl)[class_info->impl_index].field_size;
+    return (*reframework::get_types()->get_type_db()->typesImpl)[class_info->impl_index].field_size;
 #else
 #ifndef RE7
     auto class_info = t->classInfo;

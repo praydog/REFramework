@@ -2,8 +2,6 @@
 #include <mutex>
 #include <shared_mutex>
 
-#include "REFramework.hpp"
-
 #include "RETypeDB.hpp"
 #include "RETypeDefinition.hpp"
 

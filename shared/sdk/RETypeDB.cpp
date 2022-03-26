@@ -1,11 +1,11 @@
-#include "REFramework.hpp"
+#include <spdlog/spdlog.h>
 
 #include "reframework/API.hpp"
 #include "RETypeDB.hpp"
 
 namespace sdk {
 RETypeDB* RETypeDB::get() {
-    return g_framework->get_types()->get_type_db();
+    return VM::get()->get_type_db();
 }
 
 static std::shared_mutex g_tdb_type_mtx{};

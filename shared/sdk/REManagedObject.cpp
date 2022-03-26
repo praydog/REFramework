@@ -1,10 +1,10 @@
 #include <spdlog/spdlog.h>
 
 #include "utility/Scan.hpp"
+#include "utility/Module.hpp"
 
 #include "ReClass.hpp"
 
-#include "REFramework.hpp"
 #include "REManagedObject.hpp"
 
 namespace utility::re_managed_object {
@@ -24,7 +24,7 @@ void add_ref(REManagedObject* object) {
         spdlog::info("[REManagedObject] Finding add_ref function...");
 
         for (auto pattern : possible_patterns) {
-            auto address = utility::scan(g_framework->get_module().as<HMODULE>(), pattern.data());
+            auto address = utility::scan(utility::get_executable(), pattern.data());
 
             if (address) {
                 add_ref_func = (decltype(add_ref_func))*address;
@@ -64,7 +64,7 @@ void release(REManagedObject* object) {
         spdlog::info("[REManagedObject] Finding release function...");
 
         for (auto pattern : possible_patterns) {
-            auto address = utility::scan(g_framework->get_module().as<HMODULE>(), pattern.data());
+            auto address = utility::scan(utility::get_executable(), pattern.data());
 
             if (address) {
                 release_func = (decltype(release_func))*address;
