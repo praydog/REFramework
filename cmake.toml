@@ -37,6 +37,7 @@ REF_BUILD_RE8_SDK = false
 REF_BUILD_DMC5_SDK = false
 REF_BUILD_MHRISE_SDK = false
 REF_BUILD_FRAMEWORK = { value = true, comment = "Enable building the full REFramework" }
+REF_BUILD_DEPENDENCIES = { value = true, comment = "Enable building dependencies" }
 
 [conditions]
 developer-mode = "DEVELOPER_MODE"
@@ -47,6 +48,7 @@ build-re7-sdk = "REF_BUILD_RE7_SDK OR REF_BUILD_FRAMEWORK"
 build-re8-sdk = "REF_BUILD_RE8_SDK OR REF_BUILD_FRAMEWORK"
 build-dmc5-sdk = "REF_BUILD_DMC5_SDK OR REF_BUILD_FRAMEWORK"
 build-mhrise-sdk = "REF_BUILD_MHRISE_SDK OR REF_BUILD_FRAMEWORK"
+build-framework-dependencies = "REF_BUILD_DEPENDENCIES AND CMAKE_SIZEOF_VOID_P EQUAL 8"
 
 [fetch-content.asmjit]
 git = "https://github.com/asmjit/asmjit.git"
@@ -57,11 +59,13 @@ type = "static"
 sources = ["dependencies/spdlog/src/*.cpp"]
 include-directories = ["dependencies/spdlog/include"]
 compile-definitions = ["SPDLOG_COMPILED_LIB"]
+condition = "build-framework-dependencies"
 
 [target.glm_static]
 type = "static"
 sources = ["dependencies/glm/glm/**.cpp"]
 include-directories = ["dependencies/glm"]
+condition = "build-framework-dependencies"
 
 [target.minhook]
 type = "static"
@@ -70,6 +74,8 @@ include-directories = [
     "dependencies/minhook/include",
     "dependencies/minhook/src/hde",
 ]
+condition = "build-framework-dependencies"
+
 
 [target.imgui]
 type = "static"
@@ -128,7 +134,9 @@ compile-options = ["/EHa"]
 compile-features = ["cxx_std_20"]
 link-libraries = [
     "glm_static",
-    "spdlog",
+    "spdlog"
+]
+private-link-libraries = [
     "utility"
 ]
 

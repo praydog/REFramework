@@ -1,3 +1,5 @@
+#include <algorithm>
+
 #include <spdlog/spdlog.h>
 
 #include "utility/Scan.hpp"

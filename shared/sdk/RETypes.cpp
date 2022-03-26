@@ -96,7 +96,7 @@ RETypes::RETypes() {
             auto potential_types_ptr = utility::calculate_absolute(*i + 3);
 
             // Log the potential type if it's not already in the map
-            if (!references.contains(potential_types_ptr)) {
+            if (references.find(potential_types_ptr) != references.end()) {
                 spdlog::info("Potential ref: {:x}", (uintptr_t)*i);
                 spdlog::info("Potential TypeList: {:x}", (uintptr_t)potential_types_ptr);
             }

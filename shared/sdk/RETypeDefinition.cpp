@@ -1,6 +1,8 @@
 #include <deque>
 #include <mutex>
 #include <shared_mutex>
+#include <execution>
+#include <sstream>
 
 #include "RETypeDB.hpp"
 #include "RETypeDefinition.hpp"
@@ -247,7 +249,7 @@ std::string RETypeDefinition::get_full_name() const {
             full_name = utility::re_string::get_string(full_name_obj);
 
             // replace all instance of "+" with "."
-            std::replace(full_name.begin(), full_name.end(), '+', '.');
+            std::replace(std::execution::seq, full_name.begin(), full_name.end(), '+', '.');
         }
     }
 

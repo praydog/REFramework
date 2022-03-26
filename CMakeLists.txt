@@ -36,6 +36,7 @@ option(REF_BUILD_RE8_SDK OFF)
 option(REF_BUILD_DMC5_SDK OFF)
 option(REF_BUILD_MHRISE_SDK OFF)
 option(REF_BUILD_FRAMEWORK "Enable building the full REFramework" ON)
+option(REF_BUILD_DEPENDENCIES "Enable building dependencies" ON)
 
 project(reframework)
 
@@ -74,103 +75,109 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(asmjit)
 
 # Target spdlog
-set(CMKR_TARGET spdlog)
-set(spdlog_SOURCES "")
+if(REF_BUILD_DEPENDENCIES AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework-dependencies
+	set(CMKR_TARGET spdlog)
+	set(spdlog_SOURCES "")
 
-list(APPEND spdlog_SOURCES
-	"dependencies/spdlog/src/async.cpp"
-	"dependencies/spdlog/src/cfg.cpp"
-	"dependencies/spdlog/src/color_sinks.cpp"
-	"dependencies/spdlog/src/file_sinks.cpp"
-	"dependencies/spdlog/src/fmt.cpp"
-	"dependencies/spdlog/src/spdlog.cpp"
-	"dependencies/spdlog/src/stdout_sinks.cpp"
-)
+	list(APPEND spdlog_SOURCES
+		"dependencies/spdlog/src/async.cpp"
+		"dependencies/spdlog/src/cfg.cpp"
+		"dependencies/spdlog/src/color_sinks.cpp"
+		"dependencies/spdlog/src/file_sinks.cpp"
+		"dependencies/spdlog/src/fmt.cpp"
+		"dependencies/spdlog/src/spdlog.cpp"
+		"dependencies/spdlog/src/stdout_sinks.cpp"
+	)
 
-list(APPEND spdlog_SOURCES
-	cmake.toml
-)
+	list(APPEND spdlog_SOURCES
+		cmake.toml
+	)
 
-set(CMKR_SOURCES ${spdlog_SOURCES})
-add_library(spdlog STATIC)
+	set(CMKR_SOURCES ${spdlog_SOURCES})
+	add_library(spdlog STATIC)
 
-if(spdlog_SOURCES)
-	target_sources(spdlog PRIVATE ${spdlog_SOURCES})
+	if(spdlog_SOURCES)
+		target_sources(spdlog PRIVATE ${spdlog_SOURCES})
+	endif()
+
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${spdlog_SOURCES})
+
+	target_compile_definitions(spdlog PUBLIC
+		SPDLOG_COMPILED_LIB
+	)
+
+	target_include_directories(spdlog PUBLIC
+		"dependencies/spdlog/include"
+	)
+
+	unset(CMKR_TARGET)
+	unset(CMKR_SOURCES)
 endif()
-
-source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${spdlog_SOURCES})
-
-target_compile_definitions(spdlog PUBLIC
-	SPDLOG_COMPILED_LIB
-)
-
-target_include_directories(spdlog PUBLIC
-	"dependencies/spdlog/include"
-)
-
-unset(CMKR_TARGET)
-unset(CMKR_SOURCES)
 
 # Target glm_static
-set(CMKR_TARGET glm_static)
-set(glm_static_SOURCES "")
+if(REF_BUILD_DEPENDENCIES AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework-dependencies
+	set(CMKR_TARGET glm_static)
+	set(glm_static_SOURCES "")
 
-list(APPEND glm_static_SOURCES
-	"dependencies/glm/glm/detail/glm.cpp"
-)
+	list(APPEND glm_static_SOURCES
+		"dependencies/glm/glm/detail/glm.cpp"
+	)
 
-list(APPEND glm_static_SOURCES
-	cmake.toml
-)
+	list(APPEND glm_static_SOURCES
+		cmake.toml
+	)
 
-set(CMKR_SOURCES ${glm_static_SOURCES})
-add_library(glm_static STATIC)
+	set(CMKR_SOURCES ${glm_static_SOURCES})
+	add_library(glm_static STATIC)
 
-if(glm_static_SOURCES)
-	target_sources(glm_static PRIVATE ${glm_static_SOURCES})
+	if(glm_static_SOURCES)
+		target_sources(glm_static PRIVATE ${glm_static_SOURCES})
+	endif()
+
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${glm_static_SOURCES})
+
+	target_include_directories(glm_static PUBLIC
+		"dependencies/glm"
+	)
+
+	unset(CMKR_TARGET)
+	unset(CMKR_SOURCES)
 endif()
-
-source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${glm_static_SOURCES})
-
-target_include_directories(glm_static PUBLIC
-	"dependencies/glm"
-)
-
-unset(CMKR_TARGET)
-unset(CMKR_SOURCES)
 
 # Target minhook
-set(CMKR_TARGET minhook)
-set(minhook_SOURCES "")
+if(REF_BUILD_DEPENDENCIES AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework-dependencies
+	set(CMKR_TARGET minhook)
+	set(minhook_SOURCES "")
 
-list(APPEND minhook_SOURCES
-	"dependencies/minhook/src/buffer.c"
-	"dependencies/minhook/src/hde/hde32.c"
-	"dependencies/minhook/src/hde/hde64.c"
-	"dependencies/minhook/src/hook.c"
-	"dependencies/minhook/src/trampoline.c"
-)
+	list(APPEND minhook_SOURCES
+		"dependencies/minhook/src/buffer.c"
+		"dependencies/minhook/src/hde/hde32.c"
+		"dependencies/minhook/src/hde/hde64.c"
+		"dependencies/minhook/src/hook.c"
+		"dependencies/minhook/src/trampoline.c"
+	)
 
-list(APPEND minhook_SOURCES
-	cmake.toml
-)
+	list(APPEND minhook_SOURCES
+		cmake.toml
+	)
 
-set(CMKR_SOURCES ${minhook_SOURCES})
-add_library(minhook STATIC)
+	set(CMKR_SOURCES ${minhook_SOURCES})
+	add_library(minhook STATIC)
 
-if(minhook_SOURCES)
-	target_sources(minhook PRIVATE ${minhook_SOURCES})
+	if(minhook_SOURCES)
+		target_sources(minhook PRIVATE ${minhook_SOURCES})
+	endif()
+
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${minhook_SOURCES})
+
+	target_include_directories(minhook PUBLIC
+		"dependencies/minhook/include"
+		"dependencies/minhook/src/hde"
+	)
+
+	unset(CMKR_TARGET)
+	unset(CMKR_SOURCES)
 endif()
-
-source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${minhook_SOURCES})
-
-target_include_directories(minhook PUBLIC
-	"dependencies/minhook/include"
-	"dependencies/minhook/src/hde"
-)
-
-unset(CMKR_TARGET)
-unset(CMKR_SOURCES)
 
 # Target imgui
 if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
@@ -667,6 +674,9 @@ if(REF_BUILD_RE2_SDK OR REF_BUILD_FRAMEWORK) # build-re2-sdk
 	target_link_libraries(RE2SDK PUBLIC
 		glm_static
 		spdlog
+	)
+
+	target_link_libraries(RE2SDK PRIVATE
 		utility
 	)
 
@@ -1114,6 +1124,9 @@ if(REF_BUILD_RE3_SDK OR REF_BUILD_FRAMEWORK) # build-re3-sdk
 	target_link_libraries(RE3SDK PUBLIC
 		glm_static
 		spdlog
+	)
+
+	target_link_libraries(RE3SDK PRIVATE
 		utility
 	)
 
@@ -1561,6 +1574,9 @@ if(REF_BUILD_RE7_SDK OR REF_BUILD_FRAMEWORK) # build-re7-sdk
 	target_link_libraries(RE7SDK PUBLIC
 		glm_static
 		spdlog
+	)
+
+	target_link_libraries(RE7SDK PRIVATE
 		utility
 	)
 
@@ -2008,6 +2024,9 @@ if(REF_BUILD_RE8_SDK OR REF_BUILD_FRAMEWORK) # build-re8-sdk
 	target_link_libraries(RE8SDK PUBLIC
 		glm_static
 		spdlog
+	)
+
+	target_link_libraries(RE8SDK PRIVATE
 		utility
 	)
 
@@ -2455,6 +2474,9 @@ if(REF_BUILD_DMC5_SDK OR REF_BUILD_FRAMEWORK) # build-dmc5-sdk
 	target_link_libraries(DMC5SDK PUBLIC
 		glm_static
 		spdlog
+	)
+
+	target_link_libraries(DMC5SDK PRIVATE
 		utility
 	)
 
@@ -2902,6 +2924,9 @@ if(REF_BUILD_MHRISE_SDK OR REF_BUILD_FRAMEWORK) # build-mhrise-sdk
 	target_link_libraries(MHRISESDK PUBLIC
 		glm_static
 		spdlog
+	)
+
+	target_link_libraries(MHRISESDK PRIVATE
 		utility
 	)
 

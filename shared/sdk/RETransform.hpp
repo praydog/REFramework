@@ -145,7 +145,7 @@ namespace utility::re_transform {
     }
 
     static std::vector<REJoint*> get_all_children(const ::RETransform& transform, REJoint* parent, std::unordered_set<REJoint*>& visited) {
-        if (parent->info == nullptr || visited.contains(parent)) {
+        if (parent->info == nullptr || visited.count(parent) > 0) {
             return {};
         }
 
