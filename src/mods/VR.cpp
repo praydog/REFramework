@@ -358,6 +358,15 @@ void VR::overlay_draw_hook(void* layer, void* render_ctx) {
         original_func(layer, render_ctx);
         return;
     }
+
+    // NOT RE3
+    // for some reason RE3 has weird issues with the overlay rendering
+    // causing double vision
+#ifndef RE3
+    if (mod->m_allow_engine_overlays->value()) {
+        original_func(layer, render_ctx);
+    }
+#endif
 }
 
 void VR::wwise_listener_update_hook(void* listener) {
@@ -3284,6 +3293,7 @@ void VR::on_draw_ui() {
     m_force_volumetrics_settings->draw("Force Disable Volumetrics");
     m_force_lensflares_settings->draw("Force Disable Lens Flares");
     m_force_dynamic_shadows_settings->draw("Force Enable Dynamic Shadows");
+    m_allow_engine_overlays->draw("Allow Engine Overlays");
 
     ImGui::Separator();
     ImGui::Text("Debug info");

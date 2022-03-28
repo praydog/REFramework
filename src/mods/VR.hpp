@@ -449,6 +449,7 @@ private:
     const ModToggle::Ptr m_force_volumetrics_settings{ ModToggle::create(generate_name("ForceVolumetrics"), true) };
     const ModToggle::Ptr m_force_lensflares_settings{ ModToggle::create(generate_name("ForceLensFlares"), true) };
     const ModToggle::Ptr m_force_dynamic_shadows_settings{ ModToggle::create(generate_name("ForceDynamicShadows"), true) };
+    const ModToggle::Ptr m_allow_engine_overlays{ ModToggle::create(generate_name("AllowEngineOverlays"), true) };
 
     bool m_disable_projection_matrix_override{ false };
     bool m_disable_gui_camera_projection_matrix_override{ false };
@@ -475,7 +476,8 @@ private:
         *m_force_dynamic_shadows_settings,
         *m_ui_scale_option,
         *m_ui_distance_option,
-        *m_world_ui_scale_option
+        *m_world_ui_scale_option,
+        *m_allow_engine_overlays
     };
 
     bool m_use_rotation{true};
