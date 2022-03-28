@@ -62,8 +62,8 @@ void GameObjectsDisplay::on_frame() {
 
     auto context = sdk::get_thread_context();
 
-    static auto scene_def = sdk::RETypeDB::get()->find_type("via.Scene");
-    auto first_transform = sdk::call_object_func<RETransform*>(scene, scene_def, "get_FirstTransform", context, scene);
+    static auto scene_def = sdk::find_type_definition("via.Scene");
+    auto first_transform = sdk::call_native_func_easy<RETransform*>(scene, scene_def, "get_FirstTransform");
 
     if (first_transform == nullptr) {
         return;
@@ -76,7 +76,7 @@ void GameObjectsDisplay::on_frame() {
     static auto get_axisz_method = transform_def->get_method("get_AxisZ");
 
     auto math = sdk::get_native_singleton("via.math");
-    auto math_t = sdk::RETypeDB::get()->find_type("via.math");
+    auto math_t = sdk::find_type_definition("via.math");
 
     auto camera = sdk::get_primary_camera();
 

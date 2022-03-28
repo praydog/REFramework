@@ -183,7 +183,7 @@ void FreeCam::on_update_transform(RETransform* transform) {
 #ifndef RE7
         const auto delta = re_component::get_delta_time(transform);
 #else
-        const auto delta = sdk::call_object_func<float>(m_application.object, m_application.t, "get_DeltaTime", sdk::get_thread_context(), m_application.object);
+        const auto delta = sdk::call_native_func_easy<float>(m_application.object, m_application.t, "get_DeltaTime");
 #endif
 
         // The rotation speed gets scaled down here heavily since "1.0f" is way too fast... This makes the slider a bit more user-friendly.
@@ -191,7 +191,7 @@ void FreeCam::on_update_transform(RETransform* transform) {
         const auto rotation_speed = m_rotation_speed->value();
         const auto rotation_speed_kbm = rotation_speed * 0.05f;
 
-        auto pad = sdk::call_object_func<REManagedObject*>(m_via_hid_gamepad.object, m_via_hid_gamepad.t, "get_LastInputDevice", sdk::get_thread_context(), m_via_hid_gamepad.object);
+        auto pad = sdk::call_native_func_easy<REManagedObject*>(m_via_hid_gamepad.object, m_via_hid_gamepad.t, "get_LastInputDevice");
 
         // Controller support
         if (pad != nullptr) {

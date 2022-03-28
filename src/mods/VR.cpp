@@ -794,7 +794,7 @@ std::optional<std::string> VR::hijack_camera() {
 std::optional<std::string> VR::hijack_overlay_renderer() {
     // We're going to make via.render.layer.Overlay.Draw() return early
     // For some reason this fixes 3D GUI rendering in RE3 in VR
-    auto t = sdk::RETypeDB::get()->find_type("via.render.layer.Overlay");
+    auto t = sdk::find_type_definition("via.render.layer.Overlay");
 
     if (t == nullptr) {
         return "VR init failed: via.render.layer.Overlay type not found.";
@@ -856,7 +856,7 @@ std::optional<std::string> VR::hijack_overlay_renderer() {
     }*/
 
     // ASDAFASFF
-    /*t = sdk::RETypeDB::get()->find_type("via.render.layer.PostShadowCast");
+    /*t = sdk::find_type_definition("via.render.layer.PostShadowCast");
 
     if (t == nullptr) {
         return "VR init failed: via.render.layer.PostShadowCast type not found.";
@@ -889,7 +889,7 @@ std::optional<std::string> VR::hijack_overlay_renderer() {
 }
 
 std::optional<std::string> VR::hijack_wwise_listeners() {
-    const auto t = sdk::RETypeDB::get()->find_type("via.wwise.WwiseListener");
+    const auto t = sdk::find_type_definition("via.wwise.WwiseListener");
 
     if (t == nullptr) {
         return "VR init failed: via.wwise.WwiseListener type not found.";
@@ -1165,7 +1165,7 @@ void VR::update_camera() {
         return;
     }
 
-    static auto via_camera = sdk::RETypeDB::get()->find_type("via.Camera");
+    static auto via_camera = sdk::find_type_definition("via.Camera");
     static auto get_near_clip_plane_method = via_camera->get_method("get_NearClipPlane");
     static auto get_far_clip_plane_method = via_camera->get_method("get_FarClipPlane");
     static auto set_far_clip_plane_method = via_camera->get_method("set_FarClipPlane");
@@ -1467,7 +1467,7 @@ void VR::set_lens_distortion(bool value) {
         return;
     }
 
-    static auto lens_distortion_tdef = sdk::RETypeDB::get()->find_type(game_namespace("LensDistortionController"));
+    static auto lens_distortion_tdef = sdk::find_type_definition(game_namespace("LensDistortionController"));
     static auto lens_distortion_t = lens_distortion_tdef->get_type();
 
     auto lens_distortion_component = utility::re_component::find(camera, lens_distortion_t);
@@ -1490,11 +1490,11 @@ void VR::disable_bad_effects() {
     auto application = sdk::Application::get();
 
     // minor optimizations to prevent hashing and map lookups every frame
-    static auto renderer_t = sdk::RETypeDB::get()->find_type("via.render.Renderer");
+    static auto renderer_t = sdk::find_type_definition("via.render.Renderer");
 
     static auto get_render_config_method = renderer_t->get_method("get_RenderConfig");
 
-    static auto render_config_t = sdk::RETypeDB::get()->find_type("via.render.RenderConfig");
+    static auto render_config_t = sdk::find_type_definition("via.render.RenderConfig");
 
     static auto get_framerate_setting_method = render_config_t->get_method("get_FramerateSetting");
     static auto set_framerate_setting_method = render_config_t->get_method("set_FramerateSetting");
@@ -1681,7 +1681,7 @@ void VR::disable_bad_effects() {
     }
 
     auto get_type = [](std::string name) {
-        auto tdef = sdk::RETypeDB::get()->find_type(name);
+        auto tdef = sdk::find_type_definition(name);
         return tdef->get_type();
     };
 
@@ -1707,10 +1707,10 @@ int32_t VR::get_frame_count() const {
 }
 
 int32_t VR::get_game_frame_count() const {
-    static auto renderer_type = sdk::RETypeDB::get()->find_type("via.render.Renderer");
+    static auto renderer_type = sdk::find_type_definition("via.render.Renderer");
 
     if (renderer_type == nullptr) {
-        renderer_type = sdk::RETypeDB::get()->find_type("via.render.Renderer");
+        renderer_type = sdk::find_type_definition("via.render.Renderer");
         spdlog::warn("VR: Failed to find renderer type, trying again next time");
         return 0;
     }
@@ -2040,7 +2040,7 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                 static sdk::RETypeDefinition* via_render_mesh_typedef = nullptr;
 
                 if (via_render_mesh_typedef == nullptr) {
-                    via_render_mesh_typedef = sdk::RETypeDB::get()->find_type("via.render.Mesh");
+                    via_render_mesh_typedef = sdk::find_type_definition("via.render.Mesh");
 
                     // wait
                     if (via_render_mesh_typedef == nullptr) {
@@ -2137,7 +2137,7 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                             sdk::call_object_func<void*>(view, "get_ScreenSize", &gui_size, context, view);
                             
                             auto fix_transform_object = [&](::REManagedObject* object) {
-                                static auto transform_object_type = sdk::RETypeDB::get()->find_type("via.gui.TransformObject");
+                                static auto transform_object_type = sdk::find_type_definition("via.gui.TransformObject");
 
                                 if (object == nullptr) {
                                     return;
@@ -2262,11 +2262,11 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                             gui_matrix = glm::scale(gui_matrix, Vector3f{ scale, scale, scale });
                         }
 
-                        static auto gui_driver_typedef = sdk::RETypeDB::get()->find_type(game_namespace("GUIDriver"));
-                        static auto mhrise_npc_head_message_typedef = sdk::RETypeDB::get()->find_type(game_namespace("gui.GuiCommonNpcHeadMessage"));
-                        static auto mhrise_speech_balloon_typedef = sdk::RETypeDB::get()->find_type(game_namespace("gui.GuiCommonNpcSpeechBalloon"));
-                        static auto mhrise_head_message_typedef = sdk::RETypeDB::get()->find_type(game_namespace("gui.GuiCommonHeadMessage"));
-                        static auto mhrise_otomo_head_message_typedef = sdk::RETypeDB::get()->find_type(game_namespace("gui.GuiCommonOtomoHeadMessage"));
+                        static auto gui_driver_typedef = sdk::find_type_definition(game_namespace("GUIDriver"));
+                        static auto mhrise_npc_head_message_typedef = sdk::find_type_definition(game_namespace("gui.GuiCommonNpcHeadMessage"));
+                        static auto mhrise_speech_balloon_typedef = sdk::find_type_definition(game_namespace("gui.GuiCommonNpcSpeechBalloon"));
+                        static auto mhrise_head_message_typedef = sdk::find_type_definition(game_namespace("gui.GuiCommonHeadMessage"));
+                        static auto mhrise_otomo_head_message_typedef = sdk::find_type_definition(game_namespace("gui.GuiCommonOtomoHeadMessage"));
 
                         static auto gameobject_elements_list = {
                             mhrise_npc_head_message_typedef,
@@ -2357,7 +2357,7 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
 
                         // ... RE7
                         if (child != nullptr && utility::re_managed_object::get_field<wchar_t*>(child, "Name") == std::wstring_view(L"c_interact")) {
-                            static auto ui_world_pos_attach_typedef = sdk::RETypeDB::get()->find_type("app.UIWorldPosAttach");
+                            static auto ui_world_pos_attach_typedef = sdk::find_type_definition("app.UIWorldPosAttach");
                             auto world_pos_attach_comp = utility::re_component::find(game_object->transform, ui_world_pos_attach_typedef->get_type());
 
                             // Fix the world position of the gui element
@@ -2429,7 +2429,7 @@ void VR::on_pre_update_before_lock_scene(void* ctx) {
 void VR::on_pre_lightshaft_draw(void* shaft, void* render_context) {
     m_in_lightshaft = true;
 
-    /*static auto transparent_layer_t = sdk::RETypeDB::get()->find_type("via.render.layer.Transparent");
+    /*static auto transparent_layer_t = sdk::find_type_definition("via.render.layer.Transparent");
     auto transparent_layer = sdk::renderer::find_layer(transparent_layer_t->type);
 
     spdlog::info("transparent layer: {:x}", (uintptr_t)transparent_layer);
@@ -2438,7 +2438,7 @@ void VR::on_pre_lightshaft_draw(void* shaft, void* render_context) {
         return;
     }
 
-    static auto scene_layer_t = sdk::RETypeDB::get()->find_type("via.render.layer.Scene");
+    static auto scene_layer_t = sdk::find_type_definition("via.render.layer.Scene");
     auto scene_layer = transparent_layer->find_parent(scene_layer_t->type);
 
     spdlog::info("scene layer: {:x}", (uintptr_t)scene_layer);
@@ -2467,7 +2467,7 @@ void VR::on_pre_begin_rendering(void* entry) {
 
     // Use the gamepad/motion controller sticks to lerp the standing origin back to the center
     if (m_via_hid_gamepad.update()) {
-        auto pad = sdk::call_object_func<REManagedObject*>(m_via_hid_gamepad.object, m_via_hid_gamepad.t, "get_LastInputDevice", sdk::get_thread_context(), m_via_hid_gamepad.object);
+        auto pad = sdk::call_native_func_easy<REManagedObject*>(m_via_hid_gamepad.object, m_via_hid_gamepad.t, "get_LastInputDevice");
 
         if (pad != nullptr) {
             // Move direction
@@ -2588,7 +2588,7 @@ void VR::on_end_rendering(void* entry) {
         // Try to render again for the right eye
         auto app = sdk::Application::get();
 
-        static auto app_type = sdk::RETypeDB::get()->find_type("via.Application");
+        static auto app_type = sdk::find_type_definition("via.Application");
         static auto set_max_delta_time_fn = app_type->get_method("set_MaxDeltaTime");
 
         // RE8 and onwards...
@@ -2790,7 +2790,7 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
         return;
     }
 
-    static auto gui_master_type = sdk::RETypeDB::get()->find_type(game_namespace("gui.GUIMaster"));
+    static auto gui_master_type = sdk::find_type_definition(game_namespace("gui.GUIMaster"));
     static auto gui_master_get_instance = gui_master_type->get_method("get_Instance");
     static auto gui_master_get_input = gui_master_type->get_method("get_Input");
     static auto gui_master_input_type = gui_master_get_input->get_return_type();

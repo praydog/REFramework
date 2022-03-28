@@ -508,7 +508,7 @@ bool FirstPerson::on_pre_flashlight_apply_transform(::REManagedObject* flashligh
         return true;
     }
 
-    static auto via_render_mesh = sdk::RETypeDB::get()->find_type("via.render.Mesh");
+    static auto via_render_mesh = sdk::find_type_definition("via.render.Mesh");
     static auto via_render_mesh_enabled = via_render_mesh->get_method("get_Enabled");
 
     auto flashlight_go = ((::REComponent*)flashlight_component)->ownerGameObject;
@@ -550,7 +550,7 @@ bool FirstPerson::on_pre_flashlight_apply_transform(::REManagedObject* flashligh
     }
 
     static auto root_hash = sdk::murmur_hash::calc32("root");
-    static auto via_transform = sdk::RETypeDB::get()->find_type("via.Transform");
+    static auto via_transform = sdk::find_type_definition("via.Transform");
     static auto via_transform_get_joint_by_hash = via_transform->get_method("getJointByHash");
 
     auto root_joint = via_transform_get_joint_by_hash->call<::REJoint*>(sdk::get_thread_context(), flashlight_transform, root_hash);
@@ -743,7 +743,7 @@ void FirstPerson::update_player_arm_ik(RETransform* transform) {
     static auto l_arm_wrist_hash = sdk::murmur_hash::calc32(L"l_arm_wrist");
     static auto r_arm_wrist_hash = sdk::murmur_hash::calc32(L"r_arm_wrist");
 
-    static auto via_motion_def = sdk::RETypeDB::get()->find_type("via.motion.Motion");
+    static auto via_motion_def = sdk::find_type_definition("via.motion.Motion");
     const auto via_motion = utility::re_component::find<REComponent>(transform, via_motion_def->type);
 
     glm::quat original_left_rot_relative{glm::identity<glm::quat>()};
@@ -844,7 +844,7 @@ void FirstPerson::update_player_arm_ik(RETransform* transform) {
     const auto vr = VR::get();
     const auto is_holding_left_grip = vr->is_action_active(vr->get_action_grip(), vr->get_left_joystick());
 
-    static auto player_condition_def = sdk::RETypeDB::get()->find_type(game_namespace("survivor.SurvivorCondition"));
+    static auto player_condition_def = sdk::find_type_definition(game_namespace("survivor.SurvivorCondition"));
     const auto player_condition = utility::re_component::find<REComponent>(transform, player_condition_def->get_type());
     const bool is_reloading = player_condition != nullptr ? sdk::call_object_func_easy<bool>(player_condition, "get_IsReload") : false;
     const bool is_aiming = player_condition != nullptr ? sdk::call_object_func_easy<bool>(player_condition, "get_IsHold") : false;
@@ -890,7 +890,7 @@ void FirstPerson::update_player_arm_ik(RETransform* transform) {
         }
 
         // Get Arm IK component
-        static auto arm_fit_t = sdk::RETypeDB::get()->find_type(game_namespace("IkArmFit"));
+        static auto arm_fit_t = sdk::find_type_definition(game_namespace("IkArmFit"));
         auto arm_fit = utility::re_component::find<REComponent>(transform, arm_fit_t->get_type());
 
         // We will use the game's IK system instead of building our own because it's a pain in the ass
@@ -1074,7 +1074,7 @@ void FirstPerson::update_player_muzzle_behavior(RETransform* transform, bool res
 
     // We're going to modify the player's weapon (gun) to fire from the muzzle instead of the camera
     // Luckily the game has that built-in so we don't really need to hook anything
-    static auto equipment_t = sdk::RETypeDB::get()->find_type(game_namespace("survivor.Equipment"));
+    static auto equipment_t = sdk::find_type_definition(game_namespace("survivor.Equipment"));
     auto equipment = utility::re_component::find<REComponent>(transform, equipment_t->get_type());
 
     if (equipment != nullptr) {
@@ -1085,8 +1085,8 @@ void FirstPerson::update_player_muzzle_behavior(RETransform* transform, bool res
             auto main_weapon_game_object = sdk::call_object_func<REGameObject*>(main_weapon, "get_GameObject", context, main_weapon);
             auto main_weapon_transform = main_weapon_game_object != nullptr ? main_weapon_game_object->transform : (RETransform*)nullptr;
 
-            static auto implement_gun_typedef = sdk::RETypeDB::get()->find_type(game_namespace("implement.Gun"));
-            static auto implement_melee_typedef = sdk::RETypeDB::get()->find_type(game_namespace("implement.Melee"));
+            static auto implement_gun_typedef = sdk::find_type_definition(game_namespace("implement.Gun"));
+            static auto implement_melee_typedef = sdk::find_type_definition(game_namespace("implement.Melee"));
 
             auto main_weapon_t = utility::re_managed_object::get_type_definition(main_weapon);
 
@@ -1099,7 +1099,7 @@ void FirstPerson::update_player_muzzle_behavior(RETransform* transform, bool res
 
                     // Set the fire bullet type to AlongMuzzle, which fires from the muzzle's position and rotation
                     if (is_using_controllers && !restore) {
-                        static auto throw_grenade_generator_type = sdk::RETypeDB::get()->find_type(game_namespace("weapon.generator.ThrowGrenadeGenerator"));
+                        static auto throw_grenade_generator_type = sdk::find_type_definition(game_namespace("weapon.generator.ThrowGrenadeGenerator"));
                         auto shell_generator = *sdk::get_object_field<REManagedObject*>(main_weapon, "<ShellGenerator>k__BackingField");
                         auto is_grenade = false;
 
@@ -1185,8 +1185,8 @@ void FirstPerson::update_player_body_ik(RETransform* transform, bool restore, bo
         }
     }
 
-    static auto ik_leg_def = sdk::RETypeDB::get()->find_type("via.motion.IkLeg");
-    static auto via_motion_def = sdk::RETypeDB::get()->find_type("via.motion.Motion");
+    static auto ik_leg_def = sdk::find_type_definition("via.motion.IkLeg");
+    static auto via_motion_def = sdk::find_type_definition("via.motion.Motion");
     auto ik_leg = utility::re_component::find<REComponent>(transform, ik_leg_def->type);
     auto via_motion = utility::re_component::find<REComponent>(transform, via_motion_def->type);
 
@@ -1860,7 +1860,7 @@ bool FirstPerson::is_first_person_allowed() const {
 }
 
 bool FirstPerson::is_jacked(RETransform* transform) const {
-    static auto jack_dominator_typedef = sdk::RETypeDB::get()->find_type(game_namespace("JackDominator"));
+    static auto jack_dominator_typedef = sdk::find_type_definition(game_namespace("JackDominator"));
     static auto jacked_method = jack_dominator_typedef->get_method("get_Jacked");
 
     auto jack_dominator = utility::re_component::find<::REComponent*>(transform, jack_dominator_typedef->get_type());

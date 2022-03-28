@@ -7,7 +7,7 @@
 
 namespace sdk::murmur_hash {
 sdk::RETypeDefinition* type() {
-    static auto t = sdk::RETypeDB::get()->find_type("via.murmur_hash");
+    static auto t = sdk::find_type_definition("via.murmur_hash");
     return t;
 }
 

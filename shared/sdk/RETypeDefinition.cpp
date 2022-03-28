@@ -305,7 +305,7 @@ sdk::RETypeDefinition* RETypeDefinition::get_underlying_type() const {
     const auto underlying_type = get_underlying_type_method->call<::REManagedObject*>(sdk::get_thread_context(), this->get_runtime_type());
 
     if (underlying_type != nullptr) {
-        static auto system_runtime_type_type = sdk::RETypeDB::get()->find_type("System.RuntimeType");
+        static auto system_runtime_type_type = sdk::find_type_definition("System.RuntimeType");
         static auto get_name_method = system_runtime_type_type->get_method("get_FullName");
 
         const auto full_name = get_name_method->call<::REManagedObject*>(sdk::get_thread_context(), underlying_type);
@@ -316,7 +316,7 @@ sdk::RETypeDefinition* RETypeDefinition::get_underlying_type() const {
 
             managed_str->referenceCount = 0;
 
-            auto type_definition = sdk::RETypeDB::get()->find_type(str);
+            auto type_definition = sdk::find_type_definition(str);
             
             std::unique_lock _{ g_underlying_mtx };
             g_underlying_types[this] = type_definition;
@@ -490,7 +490,7 @@ bool RETypeDefinition::is_a(sdk::RETypeDefinition* other) const {
 }
 
 bool RETypeDefinition::is_a(std::string_view other) const {
-    return this->is_a(RETypeDB::get()->find_type(other));
+    return this->is_a(sdk::find_type_definition(other));
 }
 
 via::clr::VMObjType RETypeDefinition::get_vm_obj_type() const {
@@ -509,7 +509,7 @@ bool RETypeDefinition::is_enum() const {
     static sdk::RETypeDefinition* enum_type = nullptr;
 
     if (enum_type == nullptr) {
-        enum_type = RETypeDB::get()->find_type("System.Enum");
+        enum_type = sdk::find_type_definition("System.Enum");
     }
 
     if (!this->is_value_type()) {
@@ -730,8 +730,8 @@ static std::shared_mutex g_runtime_type_mtx{};
     }
 
 #ifndef RE7
-    static auto appdomain_type = sdk::RETypeDB::get()->find_type("System.AppDomain");
-    static auto assembly_type = sdk::RETypeDB::get()->find_type("System.Reflection.Assembly");
+    static auto appdomain_type = sdk::find_type_definition("System.AppDomain");
+    static auto assembly_type = sdk::find_type_definition("System.Reflection.Assembly");
     static auto get_current_domain_func = appdomain_type->get_method("get_CurrentDomain");
     static auto get_assemblies_func = appdomain_type->get_method("GetAssemblies");
     static auto get_assembly_type_func = assembly_type->get_method("GetType(System.String)");
@@ -848,7 +848,7 @@ void* RETypeDefinition::create_instance() const {
 }
 
 ::REManagedObject* RETypeDefinition::create_instance_full(bool simplify) {
-    static auto system_activator_type = sdk::RETypeDB::get()->find_type("System.Activator");
+    static auto system_activator_type = sdk::find_type_definition("System.Activator");
     static auto create_instance_func = system_activator_type->get_method("CreateInstance(System.Type)");
     static auto create_instance_alternative_func = system_activator_type->get_method("createInstance(System.Type)");
 

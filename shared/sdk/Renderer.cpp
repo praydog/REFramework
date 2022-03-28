@@ -352,14 +352,14 @@ RenderLayer* find_layer(::REType* layer_type) {
 }
 
 sdk::renderer::layer::Output* get_output_layer() {
-    auto renderer_t = sdk::RETypeDB::get()->find_type("via.render.Renderer");
+    auto renderer_t = sdk::find_type_definition("via.render.Renderer");
 
     if (renderer_t == nullptr) {
         spdlog::error("[Renderer] Failed to find via.render.Renderer type");
         return nullptr;
     }
 
-    return sdk::call_object_func<sdk::renderer::layer::Output*>(nullptr, renderer_t, "getOutputLayer", sdk::get_thread_context(), nullptr);
+    return sdk::call_native_func<sdk::renderer::layer::Output*>(nullptr, renderer_t, "getOutputLayer", sdk::get_thread_context(), nullptr);
 }
 
 void*& layer::Output::get_present_state() {

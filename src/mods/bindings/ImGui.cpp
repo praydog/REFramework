@@ -744,8 +744,8 @@ std::optional<Vector2f> world_to_screen(sol::object world_pos_object) {
 
     auto context = sdk::get_thread_context();
 
-    static auto scene_def = sdk::RETypeDB::get()->find_type("via.Scene");
-    auto first_transform = sdk::call_object_func<RETransform*>(scene, scene_def, "get_FirstTransform", context, scene);
+    static auto scene_def = sdk::find_type_definition("via.Scene");
+    auto first_transform = sdk::call_native_func_easy<RETransform*>(scene, scene_def, "get_FirstTransform");
 
     if (first_transform == nullptr) {
         return std::nullopt;
@@ -775,7 +775,7 @@ std::optional<Vector2f> world_to_screen(sol::object world_pos_object) {
     static auto get_gameobject_method = transform_def->get_method("get_GameObject");
     static auto get_position_method = transform_def->get_method("get_Position");
     static auto get_axisz_method = transform_def->get_method("get_AxisZ");
-    static auto math_t = sdk::RETypeDB::get()->find_type("via.math");
+    static auto math_t = sdk::find_type_definition("via.math");
 
     auto camera = sdk::get_primary_camera();
 

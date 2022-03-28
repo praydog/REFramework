@@ -70,6 +70,59 @@ sdk::REMethodDefinition* get_object_method(::REManagedObject* object, std::strin
     return t->get_method(name);
 }
 
+
+sdk::RETypeDefinition* find_type_definition(std::string_view type_name) {
+    auto tdb = sdk::RETypeDB::get();
+
+    if (tdb == nullptr) {
+        return nullptr;
+    }
+
+    return tdb->find_type(type_name);
+}
+
+sdk::RETypeDefinition* find_type_definition_by_fqn(uint32_t fqn) {
+    auto tdb = sdk::RETypeDB::get();
+
+    if (tdb == nullptr) {
+        return nullptr;
+    }
+
+    return tdb->find_type_by_fqn(fqn);
+}
+
+sdk::REMethodDefinition* find_method_definition(std::string_view type_name, std::string_view method_name) {
+    auto t = find_type_definition(type_name);
+
+    if (t == nullptr) {
+        return nullptr;
+    }
+
+    return t->get_method(method_name);
+}
+
+void* find_native_method(sdk::RETypeDefinition* t, std::string_view method_name) {
+    const auto method = t->get_method(method_name);
+
+    if (method == nullptr) {
+        // spdlog::error("Cannot find {:s}", method_name.data());
+        return nullptr;
+    }
+
+    return method->get_function();
+}
+
+void* find_native_method(std::string_view type_name, std::string_view method_name) {
+    auto t = sdk::find_type_definition(type_name);
+
+    if (t == nullptr) {
+        //spdlog::error("Cannot find type {:s}", type_name.data());
+        return nullptr;
+    }
+
+    return find_native_method(t, method_name);
+}
+
 sdk::RETypeDefinition* RETypeDB::get_type(uint32_t index) const {
     if (index >= this->numTypes) {
         return nullptr;

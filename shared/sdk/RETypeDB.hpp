@@ -17,7 +17,7 @@ struct InvokeRet;
 }
 
 namespace sdk {
-class RETypeDB;
+struct RETypeDB;
 struct RETypeDefinition;
 struct RETypeImpl;
 struct REField;
@@ -33,17 +33,24 @@ reframework::InvokeRet invoke_object_func(::REManagedObject* obj, std::string_vi
 
 sdk::REMethodDefinition* get_object_method(::REManagedObject* obj, std::string_view name);
 
+sdk::RETypeDefinition* find_type_definition(std::string_view type_name);
+sdk::RETypeDefinition* find_type_definition_by_fqn(uint32_t fqn);
+sdk::REMethodDefinition* find_method_definition(std::string_view type_name, std::string_view method_name);
+
+void* find_native_method(sdk::RETypeDefinition* t, std::string_view method_name);
+void* find_native_method(std::string_view type_name, std::string_view method_name);
+
 template <typename T, typename... Args> 
-T call_object_func(void* obj, sdk::RETypeDefinition* t, std::string_view name, Args... args);
+T call_native_func(void* obj, sdk::RETypeDefinition* t, std::string_view name, Args... args);
+
+template <typename T, typename... Args>
+T call_native_func_easy(void* obj, sdk::RETypeDefinition* t, std::string_view name, Args... args);
 
 template <typename T, typename... Args> 
 T call_object_func(::REManagedObject* obj, std::string_view name, Args... args);
 
 template <typename T, typename... Args>
 T call_object_func_easy(::REManagedObject* obj, std::string_view name, Args... args);
-
-template <typename T, typename... Args>
-T call_object_func_easy_bigret(::REManagedObject* obj, std::string_view name, Args... args);
 
 template<typename T>
 T* get_object_field(void* obj, sdk::RETypeDefinition* t, std::string_view name, bool is_value_type = false);
@@ -53,9 +60,6 @@ T* get_object_field(::REManagedObject* obj, std::string_view name, bool is_value
 
 template<typename T>
 T* get_static_field(std::string_view type_name, std::string_view name, bool is_value_type = false);
-
-static void* find_native_method(sdk::RETypeDefinition* t, std::string_view method_name);
-static void* find_native_method(std::string_view type_name, std::string_view method_name);
 
 template <typename T = void>
 T* get_native_singleton(std::string_view type_name);
@@ -618,11 +622,6 @@ struct REMethodDefinition : public sdk::REMethodDefinition_ {
         return get_function_t<T (*)(Args...)>()(args...);
     }
 
-    template <typename T = void, typename... Args> 
-    T operator()(Args... args) const { 
-        return get_function_t<T (*)(Args...)>()(args...); 
-    }
-
     template <typename Ret = void*, typename ...Types>
     struct CallHelper {
         template<size_t... I>
@@ -658,6 +657,54 @@ struct REMethodDefinition : public sdk::REMethodDefinition_ {
         };
     };
 
+    template <typename ...Types>
+    struct CallHelperRet {
+        template<size_t... I>
+        struct Dispatcher {
+            Dispatcher(const REMethodDefinition* t, auto&& args) 
+            : target{t}, 
+            args(args) 
+            {
+
+            }
+
+            template<typename T>
+            operator T() {
+                if constexpr (sizeof(T) > sizeof(void*)) {
+                    T out{};
+                    target->call<T>(&out, std::get<I>(args)...);
+                    return out;
+                }
+
+                return target->call<T>(std::get<I>(args)...);
+            }
+
+            std::tuple<Types...> args;
+            const REMethodDefinition* target;
+        };
+
+        template <size_t N, typename S = std::make_index_sequence<N>>
+        struct Packer {
+            template<size_t... I>
+            static auto pack(const sdk::REMethodDefinition* target, auto&& args, std::index_sequence<I...>) {
+                return Dispatcher<I...>{target, args};
+            }
+
+            static auto pack(const sdk::REMethodDefinition* target, auto&& args) {
+                return pack(target, args, S{});
+            }
+        };
+
+        static auto create(const sdk::REMethodDefinition* target, Types... args) {
+            return Packer<sizeof...(Types)>::pack(target, std::make_tuple(args...));
+        }
+    };
+
+    template <typename... Args> 
+    auto operator()(Args... args) const {
+        return CallHelperRet<Args...>::create(this, args...);
+    }
+
     // calling and invoking are two different things
     // calling is the actual call to the function
     // invoking is calling a wrapper function that calls the function
@@ -673,7 +720,7 @@ struct REMethodDefinition : public sdk::REMethodDefinition_ {
 };
 
 template <typename T, typename... Args> 
-T call_object_func(void* obj, sdk::RETypeDefinition* t, std::string_view name, Args... args) {
+T call_native_func(void* obj, sdk::RETypeDefinition* t, std::string_view name, Args... args) {
     const auto method = t->get_method(name);
 
     if (method == nullptr) {
@@ -684,35 +731,43 @@ T call_object_func(void* obj, sdk::RETypeDefinition* t, std::string_view name, A
     return method->call<T>(args...);
 }
 
+template <typename T, typename... Args>
+T call_native_func_easy(void* obj, sdk::RETypeDefinition* t, std::string_view name, Args... args) {
+    if constexpr (sizeof(T) > sizeof(void*)) {
+        T out{};
+        call_native_func<T*>((void*)obj, t, name, &out, sdk::get_thread_context(), obj, args...);
+
+        return out;
+    }
+
+    // todo, fix statics?
+    return call_native_func<T>((void*)obj, t, name, sdk::get_thread_context(), obj, args...);
+}
+
 template <typename T, typename... Args> 
 T call_object_func(::REManagedObject* obj, std::string_view name, Args... args) {
     auto def = utility::re_managed_object::get_type_definition(obj);
 
-    return call_object_func<T>((void*)obj, def, name, args...);
+    return call_native_func<T>((void*)obj, def, name, args...);
 }
 
 template <typename T, typename... Args> 
 T call_object_func_easy(::REManagedObject* obj, std::string_view name, Args... args) {
     if constexpr (sizeof(T) > sizeof(void*)) {
-        return call_object_func_easy_bigret<T>(obj, name, args...);
+        auto def = utility::re_managed_object::get_type_definition(obj);
+
+        T out{};
+        call_native_func<T*>((void*)obj, def, name, &out, sdk::get_thread_context(), obj, args...);
+
+        return out;
     }
 
     auto def = utility::re_managed_object::get_type_definition(obj);
-    return call_object_func<T>((void*)obj, def, name, sdk::get_thread_context(), obj, args...);
-}
-
-template <typename T, typename... Args> 
-T call_object_func_easy_bigret(::REManagedObject* obj, std::string_view name, Args... args) {
-    auto def = utility::re_managed_object::get_type_definition(obj);
-
-    T out{};
-    call_object_func<T*>((void*)obj, def, name, &out, sdk::get_thread_context(), obj, args...);
-
-    return out;
+    return call_native_func<T>((void*)obj, def, name, sdk::get_thread_context(), obj, args...);
 }
 
 template<typename T>
-T* get_object_field(void* obj, sdk::RETypeDefinition* t, std::string_view name, bool is_value_type) {
+T* get_native_field(void* obj, sdk::RETypeDefinition* t, std::string_view name, bool is_value_type) {
     const auto field = t->get_field(name);
 
     if (field == nullptr) {
@@ -727,46 +782,24 @@ template<typename T>
 T* get_object_field(::REManagedObject* obj, std::string_view name, bool is_value_type) {
     auto def = utility::re_managed_object::get_type_definition(obj);
 
-    return get_object_field<T>((void*)obj, def, name, is_value_type);
+    return get_native_field<T>((void*)obj, def, name, is_value_type);
 }
 
 template<typename T>
 T* get_static_field(std::string_view type_name, std::string_view name, bool is_value_type) {
-    const auto t = sdk::RETypeDB::get()->find_type(type_name);
+    const auto t = sdk::find_type_definition(type_name);
 
     if (t == nullptr) {
         // spdlog::error("Cannot find type {:s}", type_name.data());
         return nullptr;
     }
 
-    return get_object_field<T>((void*)nullptr, t, name, is_value_type);
-}
-
-static void* find_native_method(sdk::RETypeDefinition* t, std::string_view method_name) {
-    const auto method = t->get_method(method_name);
-
-    if (method == nullptr) {
-        // spdlog::error("Cannot find {:s}", method_name.data());
-        return nullptr;
-    }
-
-    return method->get_function();
-}
-
-static void* find_native_method(std::string_view type_name, std::string_view method_name) {
-    auto t = sdk::RETypeDB::get()->find_type(type_name);
-
-    if (t == nullptr) {
-        //spdlog::error("Cannot find type {:s}", type_name.data());
-        return nullptr;
-    }
-
-    return find_native_method(t, method_name);
+    return get_native_field<T>((void*)nullptr, t, name, is_value_type);
 }
 
 template <typename T>
 T* get_native_singleton(std::string_view type_name) {
-    auto t = sdk::RETypeDB::get()->find_type(type_name);
+    auto t = sdk::find_type_definition(type_name);
 
     if (t == nullptr) {
         //spdlog::error("Cannot find type {:s}", type_name.data());
@@ -778,7 +811,7 @@ T* get_native_singleton(std::string_view type_name) {
 
 template <typename T>
 T* get_managed_singleton(std::string_view type_name) {
-    auto t = sdk::RETypeDB::get()->find_type(type_name);
+    auto t = sdk::find_type_definition(type_name);
 
     if (t == nullptr) {
         //spdlog::error("Cannot find type {:s}", type_name.data());
@@ -833,7 +866,7 @@ T* get_managed_singleton() {
 
 template<typename T>
 T* create_instance(std::string_view type_name, bool simplify) {
-    auto t = sdk::RETypeDB::get()->find_type(type_name);
+    auto t = sdk::find_type_definition(type_name);
 
     if (t == nullptr) {
         //spdlog::error("Cannot find type {:s}", type_name.data());

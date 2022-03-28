@@ -4,7 +4,7 @@
 
 namespace sdk {
 Vector4f sdk::get_transform_position(RETransform* transform) {
-    static auto get_position_method = sdk::RETypeDB::get()->find_type("via.Transform")->get_method("get_Position");
+    static auto get_position_method = sdk::find_type_definition("via.Transform")->get_method("get_Position");
 
     Vector4f out{};
     get_position_method->call<Vector4f*>(&out, sdk::get_thread_context(), transform);
@@ -13,7 +13,7 @@ Vector4f sdk::get_transform_position(RETransform* transform) {
 }
 
 glm::quat sdk::get_transform_rotation(RETransform* transform) {
-    static auto get_rotation_method = sdk::RETypeDB::get()->find_type("via.Transform")->get_method("get_Rotation");
+    static auto get_rotation_method = sdk::find_type_definition("via.Transform")->get_method("get_Rotation");
 
     glm::quat out{};
     get_rotation_method->call<glm::quat*>(&out, sdk::get_thread_context(), transform);
@@ -22,18 +22,18 @@ glm::quat sdk::get_transform_rotation(RETransform* transform) {
 }
 
 REJoint* get_transform_joint_by_hash(RETransform* transform, uint32_t hash) {
-    static auto get_joint_by_hash_method = sdk::RETypeDB::get()->find_type("via.Transform")->get_method("getJointByHash");
+    static auto get_joint_by_hash_method = sdk::find_type_definition("via.Transform")->get_method("getJointByHash");
     
     return get_joint_by_hash_method->call<REJoint*>(sdk::get_thread_context(), transform, hash);
 }
 
 void set_transform_position(RETransform* transform, const Vector4f& pos, bool no_dirty) {
     if (!no_dirty) {
-        static auto set_position_method = sdk::RETypeDB::get()->find_type("via.Transform")->get_method("set_Position");
+        static auto set_position_method = sdk::find_type_definition("via.Transform")->get_method("set_Position");
 
         set_position_method->call<void*>(sdk::get_thread_context(), transform, &pos);
     } else {
-        static auto get_parent_method = sdk::RETypeDB::get()->find_type("via.Transform")->get_method("get_Parent");
+        static auto get_parent_method = sdk::find_type_definition("via.Transform")->get_method("get_Parent");
         const auto parent_transform = get_parent_method->call<RETransform*>(sdk::get_thread_context(), transform);
 
         if (parent_transform != nullptr) {
@@ -52,7 +52,7 @@ void set_transform_position(RETransform* transform, const Vector4f& pos, bool no
 }
 
 void set_transform_rotation(RETransform* transform, const glm::quat& rot) {
-    static auto set_rotation_method = sdk::RETypeDB::get()->find_type("via.Transform")->get_method("set_Rotation");
+    static auto set_rotation_method = sdk::find_type_definition("via.Transform")->get_method("set_Rotation");
 
     set_rotation_method->call<void*>(sdk::get_thread_context(), transform, &rot);
 }
@@ -73,19 +73,19 @@ REJoint* sdk::get_joint_parent(REJoint* joint) {
 };
 
 void sdk::set_joint_position(REJoint* joint, const Vector4f& position) {
-    static auto set_position_method = sdk::RETypeDB::get()->find_type("via.Joint")->get_method("set_Position");
+    static auto set_position_method = sdk::find_type_definition("via.Joint")->get_method("set_Position");
 
     set_position_method->call<void*>(sdk::get_thread_context(), joint, &position);
 };
 
 void sdk::set_joint_rotation(REJoint* joint, const glm::quat& rotation) {
-    static auto set_rotation_method = sdk::RETypeDB::get()->find_type("via.Joint")->get_method("set_Rotation");
+    static auto set_rotation_method = sdk::find_type_definition("via.Joint")->get_method("set_Rotation");
 
     set_rotation_method->call<void*>(sdk::get_thread_context(), joint, &rotation);
 };
 
 glm::quat sdk::get_joint_rotation(REJoint* joint) {
-    static auto get_rotation_method = sdk::RETypeDB::get()->find_type("via.Joint")->get_method("get_Rotation");
+    static auto get_rotation_method = sdk::find_type_definition("via.Joint")->get_method("get_Rotation");
 
     glm::quat rotation{};
     get_rotation_method->call<glm::quat*>(&rotation, sdk::get_thread_context(), joint);
@@ -94,7 +94,7 @@ glm::quat sdk::get_joint_rotation(REJoint* joint) {
 };
 
 Vector4f sdk::get_joint_position(REJoint* joint) {
-    static auto get_position_method = sdk::RETypeDB::get()->find_type("via.Joint")->get_method("get_Position");
+    static auto get_position_method = sdk::find_type_definition("via.Joint")->get_method("get_Position");
 
     Vector4f position{};
     get_position_method->call<Vector4f*>(&position, sdk::get_thread_context(), joint);
@@ -103,7 +103,7 @@ Vector4f sdk::get_joint_position(REJoint* joint) {
 };
 
 glm::quat sdk::get_joint_local_rotation(REJoint* joint) {
-    static auto get_local_rotation_method = sdk::RETypeDB::get()->find_type("via.Joint")->get_method("get_LocalRotation");
+    static auto get_local_rotation_method = sdk::find_type_definition("via.Joint")->get_method("get_LocalRotation");
 
     glm::quat rotation{};
     get_local_rotation_method->call<glm::quat*>(&rotation, sdk::get_thread_context(), joint);
@@ -112,7 +112,7 @@ glm::quat sdk::get_joint_local_rotation(REJoint* joint) {
 };
 
 Vector4f sdk::get_joint_local_position(REJoint* joint) {
-    static auto get_local_position_method = sdk::RETypeDB::get()->find_type("via.Joint")->get_method("get_LocalPosition");
+    static auto get_local_position_method = sdk::find_type_definition("via.Joint")->get_method("get_LocalPosition");
 
     Vector4f position{};
     get_local_position_method->call<Vector4f*>(&position, sdk::get_thread_context(), joint);
@@ -121,13 +121,13 @@ Vector4f sdk::get_joint_local_position(REJoint* joint) {
 };
 
 void sdk::set_joint_local_rotation(REJoint* joint, const glm::quat& rotation) {
-    static auto set_local_rotation_method = sdk::RETypeDB::get()->find_type("via.Joint")->get_method("set_LocalRotation");
+    static auto set_local_rotation_method = sdk::find_type_definition("via.Joint")->get_method("set_LocalRotation");
 
     set_local_rotation_method->call<void*>(sdk::get_thread_context(), joint, &rotation);
 };
 
 void sdk::set_joint_local_position(REJoint* joint, const Vector4f& position) {
-    static auto set_local_position_method = sdk::RETypeDB::get()->find_type("via.Joint")->get_method("set_LocalPosition");
+    static auto set_local_position_method = sdk::find_type_definition("via.Joint")->get_method("set_LocalPosition");
 
     set_local_position_method->call<void*>(sdk::get_thread_context(), joint, &position);
 };
@@ -136,8 +136,8 @@ void sdk::set_joint_local_position(REJoint* joint, const Vector4f& position) {
 
 namespace utility::re_transform {
 glm::mat4 re_transform::calculate_base_transform(const ::RETransform& transform, REJoint* target) {
-    static auto get_base_local_rotation_method = sdk::RETypeDB::get()->find_type("via.Joint")->get_method("get_BaseLocalRotation");
-    static auto get_base_local_position_method = sdk::RETypeDB::get()->find_type("via.Joint")->get_method("get_BaseLocalPosition");
+    static auto get_base_local_rotation_method = sdk::find_type_definition("via.Joint")->get_method("get_BaseLocalRotation");
+    static auto get_base_local_position_method = sdk::find_type_definition("via.Joint")->get_method("get_BaseLocalPosition");
 
     if (target == nullptr) {
         return glm::identity<glm::mat4>();

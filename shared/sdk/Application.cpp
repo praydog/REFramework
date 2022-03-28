@@ -8,7 +8,7 @@
 
 namespace sdk {
 RETypeDefinition* Application::get_type() {
-    return sdk::RETypeDB::get()->find_type("via.Application");
+    return sdk::find_type_definition("via.Application");
 }
 
 Application* Application::get() {
@@ -66,7 +66,7 @@ Application::Function* Application::get_function(std::string_view name) {
         return nullptr;
     }
 
-    const auto module_entry_enum = sdk::RETypeDB::get()->find_type("via.ModuleEntry");
+    const auto module_entry_enum = sdk::find_type_definition("via.ModuleEntry");
     /*const auto function_index = sdk::get_object_field<uint16_t>(nullptr, module_entry_enum, name, true);
 
     if (function_index == nullptr) {
@@ -86,7 +86,7 @@ Application::Function* Application::get_function(std::string_view name) {
 std::vector<Application::Function*> Application::generate_chain(std::string_view start_name, std::string_view end_name) {
     std::vector<Function*> chain{};
     
-    const auto module_entry_enum = sdk::RETypeDB::get()->find_type("via.ModuleEntry");
+    const auto module_entry_enum = sdk::find_type_definition("via.ModuleEntry");
     //const auto start_index = sdk::get_object_field<uint16_t>(nullptr, module_entry_enum, start_name, true);
     //const auto end_index = sdk::get_object_field<uint16_t>(nullptr, module_entry_enum, end_name, true);
 
@@ -118,7 +118,7 @@ float Application::get_delta_time() {
         return 0.0f;
     }
 
-    return sdk::call_object_func<float>(this, application_type, "get_DeltaTime", sdk::get_thread_context(), this);
+    return sdk::call_native_func_easy<float>(this, application_type, "get_DeltaTime");
 }
 
 float Application::get_max_fps() {

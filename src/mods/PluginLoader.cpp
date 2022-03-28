@@ -68,7 +68,7 @@ REFrameworkSDKFunctions g_sdk_functions {
     []() { return (REFrameworkResourceManagerHandle)sdk::ResourceManager::get(); },
     []() { return (REFrameworkVMContextHandle)sdk::get_thread_context(); }, // get_vm_context
     [](const char* name) -> REFrameworkManagedObjectHandle { // typeof
-        auto tdef = sdk::RETypeDB::get()->find_type(name);
+        auto tdef = sdk::find_type_definition(name);
 
         if (tdef == nullptr) {
             return nullptr;

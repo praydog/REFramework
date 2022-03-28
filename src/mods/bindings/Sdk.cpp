@@ -241,7 +241,7 @@ void* get_thread_context() {
 }
 
 auto find_type_definition(const char* name) {
-    return ::sdk::RETypeDB::get()->find_type(name);
+    return ::sdk::find_type_definition(name);
 }
 
 sol::object typeof(sol::this_state s, const char* name) {
@@ -284,7 +284,7 @@ sol::object create_managed_array(sol::this_state s, sol::object t_obj, uint32_t 
     } else if (t_obj.is<::sdk::RETypeDefinition*>()) {
         t = t_obj.as<::sdk::RETypeDefinition*>()->get_runtime_type();
     } else if (t_obj.is<const char*>()) {
-        const auto tdef = ::sdk::RETypeDB::get()->find_type(t_obj.as<const char*>());
+        const auto tdef = ::sdk::find_type_definition(t_obj.as<const char*>());
 
         if (tdef != nullptr) {
             t = tdef->get_runtime_type();
@@ -565,7 +565,7 @@ sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_t
             return sol::make_object<glm::quat>(l, ret_val_q);
         }
         case "via.GameObjectRef"_fnv: {
-            static auto object_ref_type = ::sdk::RETypeDB::get()->find_type("via.GameObjectRef");
+            static auto object_ref_type = ::sdk::find_type_definition("via.GameObjectRef");
             static auto get_target_func = object_ref_type->get_method("get_Target");
             auto obj = get_target_func->call<::REManagedObject*>(sdk::get_thread_context(), data);
 

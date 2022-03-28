@@ -1579,7 +1579,7 @@ void ObjectExplorer::generate_sdk() {
             auto m = c->static_function("get_type_definition")->returns(g->type(TYPE_DEFINITION_NAME)->ptr());
 
             std::stringstream os{};
-            os << "static auto t = sdk::RETypeDB::get()->find_type(\"" << t->name << "\");\n";
+            os << "static auto t = sdk::find_type_definition(\"" << t->name << "\");\n";
             os << "return t;";
 
             m->procedure(os.str());
@@ -2015,7 +2015,7 @@ void ObjectExplorer::handle_game_object(REGameObject* game_object) {
     ImGui::PushID((void*)game_object);
 
     if (ImGui::InputText("Add Component", m_add_component_name.data(), 256, ImGuiInputTextFlags_::ImGuiInputTextFlags_EnterReturnsTrue)) {
-        const auto tdef = sdk::RETypeDB::get()->find_type(m_add_component_name.data());
+        const auto tdef = sdk::find_type_definition(m_add_component_name.data());
 
         if (tdef != nullptr) {
             auto typeof_component = tdef->get_runtime_type();
@@ -2769,8 +2769,8 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
     // yay for compile time string hashing
     switch (utility::hash(type_name)) {
     case "via.GameObjectRef"_fnv: {
-        static auto object_ref_type = sdk::RETypeDB::get()->find_type("via.GameObjectRef");
-        auto obj = sdk::call_object_func<REGameObject*>(data, object_ref_type, "get_Target", sdk::get_thread_context(), data);
+        static auto object_ref_type = sdk::find_type_definition("via.GameObjectRef");
+        auto obj = sdk::call_native_func_easy<REGameObject*>(data, object_ref_type, "get_Target");
 
         if (obj != nullptr && is_managed_object(obj)) {
             if (widget_with_context(obj, [&]() { return ImGui::TreeNode(obj, "Ref Target: 0x%p", obj); })) {

@@ -8,7 +8,7 @@ bool sdk::helpers::NativeObject::update() {
     }
 
     this->object = sdk::get_native_singleton(this->name);
-    this->t = sdk::RETypeDB::get()->find_type(this->name);
+    this->t = sdk::find_type_definition(this->name);
 
     return this->object != nullptr && this->t != nullptr;
 }

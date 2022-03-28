@@ -324,14 +324,14 @@ namespace sdk {
     }
 
     sdk::SystemArray* VM::create_managed_array(::REManagedObject* runtime_type, uint32_t length) {
-        static auto system_array_type = sdk::RETypeDB::get()->find_type("System.Array");
+        static auto system_array_type = sdk::find_type_definition("System.Array");
         static auto create_instance_method = system_array_type->get_method("CreateInstance");
 
         return create_instance_method->call<sdk::SystemArray*>(sdk::get_thread_context(), runtime_type, length);
     }
 
     ::REManagedObject* VM::create_sbyte(int8_t value)  {
-        static auto sbyte_type = ::sdk::RETypeDB::get()->find_type("System.SByte");
+        static auto sbyte_type = ::sdk::find_type_definition("System.SByte");
         static auto value_field = sbyte_type->get_field("mValue");
         auto new_obj = sbyte_type->create_instance_full();
 
@@ -344,7 +344,7 @@ namespace sdk {
     }
 
     ::REManagedObject* VM::create_byte(uint8_t value) {
-        static auto byte_type = ::sdk::RETypeDB::get()->find_type("System.Byte");
+        static auto byte_type = ::sdk::find_type_definition("System.Byte");
         static auto value_field = byte_type->get_field("mValue");
         auto new_obj = byte_type->create_instance_full();
 
@@ -357,7 +357,7 @@ namespace sdk {
     }
 
     ::REManagedObject* VM::create_int16(int16_t value) {
-        static auto int16_type = ::sdk::RETypeDB::get()->find_type("System.Int16");
+        static auto int16_type = ::sdk::find_type_definition("System.Int16");
         static auto value_field = int16_type->get_field("mValue");
         auto new_obj = int16_type->create_instance_full();
 
@@ -370,7 +370,7 @@ namespace sdk {
     }
 
     ::REManagedObject* VM::create_uint16(uint16_t value) {
-        static auto uint16_type = ::sdk::RETypeDB::get()->find_type("System.UInt16");
+        static auto uint16_type = ::sdk::find_type_definition("System.UInt16");
         static auto value_field = uint16_type->get_field("mValue");
         auto new_obj = uint16_type->create_instance_full();
 
@@ -383,7 +383,7 @@ namespace sdk {
     }
 
     ::REManagedObject* VM::create_int32(int32_t value) {
-        static auto int32_type = ::sdk::RETypeDB::get()->find_type("System.Int32");
+        static auto int32_type = ::sdk::find_type_definition("System.Int32");
         static auto value_field = int32_type->get_field("mValue");
         auto new_obj = int32_type->create_instance_full();
 
@@ -396,7 +396,7 @@ namespace sdk {
     }
 
     ::REManagedObject* VM::create_uint32(uint32_t value) {
-        static auto uint32_type = ::sdk::RETypeDB::get()->find_type("System.UInt32");
+        static auto uint32_type = ::sdk::find_type_definition("System.UInt32");
         static auto value_field = uint32_type->get_field("mValue");
         auto new_obj = uint32_type->create_instance_full();
 
@@ -409,7 +409,7 @@ namespace sdk {
     }
 
     ::REManagedObject* VM::create_int64(int64_t value) {
-        static auto int64_type = ::sdk::RETypeDB::get()->find_type("System.Int64");
+        static auto int64_type = ::sdk::find_type_definition("System.Int64");
         static auto value_field = int64_type->get_field("mValue");
         auto new_obj = int64_type->create_instance_full();
 
@@ -422,7 +422,7 @@ namespace sdk {
     }
 
     ::REManagedObject* VM::create_uint64(uint64_t value) {
-        static auto uint64_type = ::sdk::RETypeDB::get()->find_type("System.UInt64");
+        static auto uint64_type = ::sdk::find_type_definition("System.UInt64");
         static auto value_field = uint64_type->get_field("mValue");
         auto new_obj = uint64_type->create_instance_full();
 
@@ -436,7 +436,7 @@ namespace sdk {
 
 
     ::REManagedObject* VM::create_single(float value) {
-        static auto float_type = ::sdk::RETypeDB::get()->find_type("System.Single");
+        static auto float_type = ::sdk::find_type_definition("System.Single");
         static auto value_field = float_type->get_field("mValue");
         auto new_obj = float_type->create_instance_full();
 
@@ -449,7 +449,7 @@ namespace sdk {
     }
 
     ::REManagedObject* VM::create_double(double value) {
-        static auto double_type = ::sdk::RETypeDB::get()->find_type("System.Double");
+        static auto double_type = ::sdk::find_type_definition("System.Double");
         static auto value_field = double_type->get_field("mValue");
         auto new_obj = double_type->create_instance_full();
 
