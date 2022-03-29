@@ -876,9 +876,15 @@ local function on_pre_shoot(args)
         return
     end
 
+    local weapon = sdk.to_managed_object(args[2])
+
+    -- this happens in RE7 with the turrets.
+    if weapon ~= re8.weapon then
+        return
+    end
+
     update_hand_ik()
 
-    local weapon = sdk.to_managed_object(args[2])
     local ray = args[3]
 
    --[[if is_re7 then
