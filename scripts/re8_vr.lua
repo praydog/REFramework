@@ -3,7 +3,7 @@ local is_re7 = game_name == "re7"
 local is_re8 = game_name == "re8"
 
 if not is_re7 and not is_re8 then
-    msg("Error: Game is not RE7 or RE8.")
+    re.msg("Error: Game is not RE7 or RE8.")
     return
 end
 
@@ -49,6 +49,12 @@ local joint_get_parent = sdk.find_type_definition("via.Joint"):get_method("get_P
 local component_get_gameobject = sdk.find_type_definition("via.Component"):get_method("get_GameObject")
 local gameobject_get_transform = sdk.find_type_definition("via.GameObject"):get_method("get_Transform")
 
+local motion_get_joint_index_by_name_hash = sdk.find_type_definition("via.motion.Motion"):get_method("getJointIndexByNameHash")
+local motion_get_world_position = sdk.find_type_definition("via.motion.Motion"):get_method("getWorldPosition")
+local motion_get_world_rotation = sdk.find_type_definition("via.motion.Motion"):get_method("getWorldRotation")
+
+local cast_ray_method = sdk.find_type_definition("via.physics.System"):get_method("castRay(via.physics.CastRayQuery, via.physics.CastRayResult)")
+
 local cfg_path = "re7_vr/main_config.json"
 
 local queue_recenter = false
@@ -61,11 +67,13 @@ local last_gui_forced_slerp = os.clock()
 local needs_cutscene_recenter = false
 local last_inventory_open_time = 0.0
 local last_shop_open_time = 0.0
+local last_scope_time = 0.0
 local head_hash = nil
 
 local cfg = {
     movement_shake = false,
-    all_camera_shake = true
+    all_camera_shake = true,
+    disable_crosshair = false
 }
 
 local function load_cfg()
@@ -85,6 +93,14 @@ load_cfg()
 
 statics.generate_global("via.hid.GamePadButton")
 statics.generate_global("via.hid.MouseButton")
+
+local CollisionLayer = nil
+
+if is_re8 then
+    CollisionLayer = statics.generate("app.CollisionManager.Layer")
+elseif is_re7 then
+    CollisionLayer = statics.generate("app.Collision.CollisionSystem.Layer")
+end
 
 if is_re7 then
     statics.generate_global("app.HIDManager.InputMode")
@@ -578,13 +594,13 @@ local function update_hand_ik()
         end
         
         
-        local left_index = motion:call("getJointIndexByNameHash", left_hash)
-        local right_index = motion:call("getJointIndexByNameHash", right_hash)
+        local left_index = motion_get_joint_index_by_name_hash(motion, left_hash)
+        local right_index = motion_get_joint_index_by_name_hash(motion, right_hash)
 
-        local original_left_pos = motion:call("getWorldPosition", left_index)
-        local original_right_pos = motion:call("getWorldPosition", right_index)
-        local original_left_rot = motion:call("getWorldRotation", left_index)
-        original_right_rot = motion:call("getWorldRotation", right_index)
+        local original_left_pos = motion_get_world_position(motion, left_index)
+        local original_right_pos = motion_get_world_position(motion, right_index)
+        local original_left_rot = motion_get_world_rotation(motion, left_index)
+        original_right_rot = motion_get_world_rotation(motion, right_index)
 
         original_left_pos_relative = original_right_rot:inverse() * (original_left_pos - original_right_pos)
         original_left_rot_relative = original_right_rot:inverse() * original_left_rot
@@ -884,11 +900,11 @@ local function on_pre_shoot(args)
             log.info("No muzzle joint found")
         end
     elseif is_re8 then]]
-        local pos = last_muzzle_pos + (last_muzzle_forward * 0.01)
+        local pos = last_muzzle_pos + (last_muzzle_forward * 0.02)
         local from = Vector4f.new(pos.x, pos.y, pos.z, 1.0)
         local dir = Vector4f.new(last_muzzle_forward.x, last_muzzle_forward.y, last_muzzle_forward.z, 1.0)
 
-        sdk.set_native_field(ray, ray_typedef, "from", pos)
+        sdk.set_native_field(ray, ray_typedef, "from", from)
         sdk.set_native_field(ray, ray_typedef, "dir", dir)
     --end
 
@@ -971,6 +987,70 @@ elseif is_re8 then
             return retval
         end
     )
+end
+
+local function cast_ray(start_pos, end_pos)
+    local via_physics_system = sdk.get_native_singleton("via.physics.System")
+	local ray_query = sdk.create_instance("via.physics.CastRayQuery")
+    local ray_result = sdk.create_instance("via.physics.CastRayResult")
+
+    ray_query:call("setRay(via.vec3, via.vec3)", start_pos, end_pos)
+	ray_query:call("clearOptions")
+	ray_query:call("enableAllHits")
+	ray_query:call("enableNearSort")
+	--ray_query:call("enableFrontFacingTriangleHits")
+	--ray_query:call("disableBackFacingTriangleHits")
+	local filter_info = ray_query:call("get_FilterInfo")
+	filter_info:call("set_Group", 0)
+	filter_info:call("set_MaskBits", 0xFFFFFFFF & ~1) -- everything except the player.
+    
+    local target_layers = {
+        CollisionLayer.Attack,
+        CollisionLayer.Bullet
+    }
+
+    for i=1, 2 do 
+        filter_info:call("set_Layer", target_layers[i])
+        ray_query:call("set_FilterInfo", filter_info)
+        cast_ray_method:call(via_physics_system, ray_query, ray_result)
+
+        if ray_result:call("get_NumContactPoints") > 0 then
+            break
+        end
+    end
+
+	return ray_result
+end
+
+local function update_crosshair_world_pos(start_pos, end_pos)
+    if not vrmod:is_hmd_active() then return end
+
+    if os.clock() - last_scope_time > 0.2 then
+        if vrmod:is_using_controllers() and cfg.disable_crosshair then
+            return
+        end
+    end
+    
+    local ray_result = cast_ray(start_pos, end_pos)
+
+    if ray_result:call("get_NumContactPoints") > 0 then
+        local contact_point = ray_result:call("getContactPoint(System.UInt32)", 0)
+
+        if contact_point then
+            re8.crosshair_dir = (end_pos - start_pos):normalized()
+            re8.crosshair_pos = contact_point:get_field("Position")
+            re8.crosshair_normal = contact_point:get_field("Normal")
+            re8.crosshair_distance = contact_point:get_field("Distance")
+        end
+    else
+        re8.crosshair_dir = (end_pos - start_pos):normalized()
+        if re8.crosshair_distance then
+            re8.crosshair_pos = start_pos + (re8.crosshair_dir * re8.crosshair_distance)
+        else
+            re8.crosshair_pos = start_pos + (re8.crosshair_dir * 10.0)
+            re8.crosshair_distance = 10.0
+        end
+    end
 end
 
 local last_camera_update_args = nil
@@ -1293,15 +1373,21 @@ local function fix_player_camera(player_camera)
     sdk.set_native_field(sdk.to_ptr(look_ray), ray_typedef, "dir", fixed_dir)
 
     if vrmod:is_using_controllers() then
-        local pos = last_muzzle_pos + (last_muzzle_forward * 0.01)
+        local pos = last_muzzle_pos + (last_muzzle_forward * 0.02)
+        --local scooted_pos = last_muzzle_pos - (last_muzzle_forward * 2)
+        --local scooted_from = Vector4f.new(scooted_pos.x, scooted_pos.y, scooted_pos.z, 1.0)
         local from = Vector4f.new(pos.x, pos.y, pos.z, 1.0)
         local dir = Vector4f.new(last_muzzle_forward.x, last_muzzle_forward.y, last_muzzle_forward.z, 1.0)
 
         sdk.set_native_field(sdk.to_ptr(shoot_ray), ray_typedef, "from", from)
         sdk.set_native_field(sdk.to_ptr(shoot_ray), ray_typedef, "dir", dir)
+
+        update_crosshair_world_pos(pos, pos + (last_muzzle_forward * 1000.0))
     else
         sdk.set_native_field(sdk.to_ptr(shoot_ray), ray_typedef, "from", camera_pos)
         sdk.set_native_field(sdk.to_ptr(shoot_ray), ray_typedef, "dir", fixed_dir)
+
+        update_crosshair_world_pos(camera_pos, camera_pos + (fixed_dir * 1000.0))
     end
 
     last_cutscene_state = re8.is_in_cutscene
@@ -1629,6 +1715,11 @@ re.on_pre_application_entry("UnlockScene", function()
     end
 end)
 
+local via_murmur_hash = sdk.find_type_definition("via.murmur_hash")
+local via_murmur_hash_calc32 = via_murmur_hash:get_method("calc32")
+local vfx_muzzle1_hash = via_murmur_hash_calc32:call(nil, "vfx_muzzle1")
+local vfx_muzzle2_hash = via_murmur_hash_calc32:call(nil, "vfx_muzzle2")
+
 re.on_application_entry("BeginRendering", function()
     if not vrmod:is_hmd_active() then return end
     local camera = sdk.get_primary_camera()
@@ -1649,9 +1740,31 @@ re.on_application_entry("BeginRendering", function()
         -- so we're just going to directly grab the field instead
         local muzzle_joint = re8.weapon:get_field("MuzzleJoint")
 
+        if muzzle_joint == nil then
+            local weapon_gameobject = nil
+            
+            if is_re7 then
+                weapon_gameobject = re8.weapon:call("get_GameObject")
+            elseif is_re8 then
+                weapon_gameobject = re8.weapon:get_field("<owner>k__BackingField")
+            end
+
+            if weapon_gameobject ~= nil then
+                local transform = gameobject_get_transform(weapon_gameobject)
+
+                if transform ~= nil then
+                    muzzle_joint = transform_get_joint_by_hash(transform, vfx_muzzle1_hash)
+
+                    if not muzzle_joint then
+                        muzzle_joint = transform_get_joint_by_hash(transform, vfx_muzzle2_hash)
+                    end
+                end
+            end
+        end
+
         if muzzle_joint then
-            local muzzle_position = muzzle_joint:call("get_Position")
-            local muzzle_rotation = muzzle_joint:call("get_Rotation")
+            local muzzle_position = joint_get_position(muzzle_joint)
+            local muzzle_rotation = joint_get_rotation(muzzle_joint)
     
             last_muzzle_pos = muzzle_position
             last_muzzle_rot = muzzle_rotation
@@ -1895,11 +2008,24 @@ if is_re7 then
     sdk.hook(vibrationmanager_t:get_method("requestAdd(app.VibrationParam, System.Single)"), re7_on_pre_request_add_vibration, re7_on_post_request_add_vibration)
 end
 
+local cached_contact_pos = nil
+
+re.on_frame(function()
+    if cached_contact_pos then
+        local screen = draw.world_to_screen(cached_contact_pos)
+
+        if screen then
+            draw.filled_rect(screen.x - 10, screen.y - 10, 5, 5, 0xFFFFFFFF)
+        end
+    end
+end)
+
 re.on_draw_ui(function()
     local changed = false
     
     changed, cfg.movement_shake = imgui.checkbox("Movement Shake", cfg.movement_shake)
     changed, cfg.all_camera_shake = imgui.checkbox("All Other Camera Shakes", cfg.all_camera_shake)
+    changed, cfg.disable_crosshair = imgui.checkbox("Disable Crosshair", cfg.disable_crosshair)
 
     changed, left_hand_rotation_vec = imgui.drag_float3("Left Hand Rotation Offset", left_hand_rotation_vec, 0.005, -5.0, 5.0)
 
@@ -1918,6 +2044,22 @@ re.on_draw_ui(function()
 
     if imgui.tree_node("Debug") then
         imgui.text("Last GUI Dot: " .. tostring(last_gui_dot))
+
+        if imgui.button("Cast ray") then
+            local camera = sdk.get_primary_camera()
+            local start_pos = camera:call("get_WorldMatrix")[3]
+            local end_pos = start_pos - (camera:call("get_WorldMatrix")[2] * 1000.0)
+
+            log.debug("Casting from " .. tostring(start_pos.x) .. tostring(start_pos.y) .. tostring(start_pos.z))
+
+            local ray_result = cast_ray(start_pos, end_pos)
+            local contact_point = ray_result:call("getContactPoint(System.UInt32)", 0)
+            local contact_pos = contact_point:get_field("Position")
+            
+            cached_contact_pos = contact_pos
+
+            log.debug("hit: " .. tostring(contact_pos.x) .. ", " .. tostring(contact_pos.y) .. ", " .. tostring(contact_pos.z))
+        end
 
         if imgui.tree_node("Player") then
             object_explorer:handle_address(re8.player)
@@ -2000,12 +2142,31 @@ for i, v in ipairs(reticle_names) do
     reticle_names[v] = true
 end
 
+local scope_names = {
+    "GUIScope"
+}
+
+for i, v in ipairs(scope_names) do
+    scope_names[v] = true
+end
+
 local shop_names = {
     "GUIShopBg",
 }
 
 for i, v in ipairs(shop_names) do
     shop_names[v] = true
+end
+
+local function read_vec4(obj, offset)
+    return Vector4f.new(obj:read_float(offset), obj:read_float(offset + 4), obj:read_float(offset + 8), obj:read_float(offset + 12))
+end
+
+local function write_vec4(obj, vec, offset)
+    obj:write_float(offset, vec.x)
+    obj:write_float(offset + 4, vec.y)
+    obj:write_float(offset + 8, vec.z)
+    obj:write_float(offset + 12, vec.w)
 end
 
 re.on_pre_gui_draw_element(function(element, context)
@@ -2019,8 +2180,52 @@ re.on_pre_gui_draw_element(function(element, context)
     --log.info("drawing element: " .. name)
 
     if reticle_names[name] then
-        if vrmod:is_using_controllers() then
+        if cfg.disable_crosshair and vrmod:is_using_controllers() then
             return false
+        end
+    end
+
+    if scope_names[name] then
+        last_scope_time = os.clock()
+    end
+
+    -- set the world position of the crosshair/reticle to the trace end position
+    -- also fixes scopes.
+    if reticle_names[name] or scope_names[name] then
+        if re8.crosshair_pos then
+            local transform = game_object:call("get_Transform")
+
+            if transform then
+                --[[if transform.set_position ~= nil then
+                    transform:set_position(re8.crosshair_pos, true)
+                else
+                    transform_set_position(transform, re8.crosshair_pos)
+                end]]
+
+                local new_mat = re8.crosshair_dir:to_quat():to_mat4()
+                local distance = re8.crosshair_distance * 0.1
+                if distance > 10 then
+                    distance = 10
+                end
+
+                if distance < 0.3 then
+                    distance = 0.3
+                end
+
+                local crosshair_pos = Vector4f.new(re8.crosshair_pos.x, re8.crosshair_pos.y, re8.crosshair_pos.z, 1.0)
+
+                if is_re8 then
+                    write_vec4(transform, new_mat[0] * distance, 0x80)
+                    write_vec4(transform, new_mat[1] * distance, 0x90)
+                    write_vec4(transform, new_mat[2] * distance, 0xA0)
+                    write_vec4(transform, crosshair_pos, 0xB0)
+                elseif is_re7 then
+                    write_vec4(transform, new_mat[0] * distance, 0x90)
+                    write_vec4(transform, new_mat[1] * distance, 0xA0)
+                    write_vec4(transform, new_mat[2] * distance, 0xB0)
+                    write_vec4(transform, crosshair_pos, 0xC0)
+                end
+            end
         end
     end
 
@@ -2035,8 +2240,9 @@ re.on_pre_gui_draw_element(function(element, context)
         local transform = game_object:call("get_Transform")
         local old_pos = transform:get_position()
         
-        local camera_pos = sdk.get_primary_camera():call("get_WorldMatrix")[3]
-        local camera_forward = sdk.get_primary_camera():call("get_WorldMatrix")[2]
+        local camera = sdk.get_primary_camera()
+        local camera_pos = camera:call("get_WorldMatrix")[3]
+        local camera_forward = camera:call("get_WorldMatrix")[2]
 
         local old_distance = (old_pos - camera_pos):length()
 
