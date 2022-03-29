@@ -206,7 +206,11 @@ Matrix4x4f* VR::gui_camera_get_projection_matrix_hook(REManagedObject* camera, M
 
     // Get the projection matrix for the correct eye
     // For some reason we need to flip the projection matrix here?
+#ifndef RE7
     *result = vr->get_current_projection_matrix(false);
+#else
+    *result = vr->get_current_projection_matrix(true);
+#endif
 
     return result;
 }
@@ -2002,9 +2006,6 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
         case "GUIBlackMask"_fnv:
         case "GenomeCodexGUI"_fnv:
         case "sm42_020_keystrokeDevice01A_gimmick"_fnv: // this one is the keypad in the locker room...
-#ifdef RE7
-        case "HUD"_fnv: // not a hero
-#endif
             return true;
 
 #if defined(RE2) || defined(RE3)
@@ -2034,6 +2035,19 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
             default:
                 break;
             }
+        }
+#endif
+
+#ifdef RE7
+        if (name_hash == "HUD"_fnv) { // not a hero
+            game_object->transform->worldTransform = Matrix4x4f{ 
+                3.0f, 0.0f, 0.0f, 0.0f,
+                0.0f, 3.0f, 0.0f, 0.0f,
+                0.0f, 0.0f, 3.0f, 0.0f,
+                0.0f, 0.0f, 0.0f, 1.0f
+            };
+
+            return true;
         }
 #endif
 
