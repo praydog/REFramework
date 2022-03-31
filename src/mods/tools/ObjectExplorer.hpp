@@ -121,6 +121,9 @@ struct ParsedType {
 
 class ObjectExplorer : public Tool {
 public:
+    static std::shared_ptr<ObjectExplorer>& get();
+
+public:
     ObjectExplorer();
 
     std::string_view get_name() const override { return "ObjectExplorer"; };
@@ -129,6 +132,8 @@ public:
     void on_frame() override;
     void on_lua_state_created(sol::state& lua) override;
 
+    void handle_address(Address address, int32_t offset = -1, Address parent = nullptr, Address real_address = nullptr);
+    
 private:
     void display_pins();
 
@@ -140,7 +145,6 @@ private:
 #endif
     void generate_sdk();
 
-    void handle_address(Address address, int32_t offset = -1, Address parent = nullptr, Address real_address = nullptr);
     void handle_game_object(REGameObject* game_object);
     void handle_component(REComponent* component);
     void handle_transform(RETransform* transform);

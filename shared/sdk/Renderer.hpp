@@ -14,21 +14,33 @@ class RenderLayer : public REManagedObject {
 public:
     RenderLayer* add_layer(::REType* layer_type, uint32_t priority, uint8_t offset = 0);
     sdk::NativeArray<RenderLayer*>& get_layers();
-    RenderLayer* find_layer(::REType* layer_type);
-    std::tuple<RenderLayer*, RenderLayer*> find_layer_recursive(::REType* layer_type); // parent, type
+    RenderLayer** find_layer(::REType* layer_type);
+    std::tuple<RenderLayer*, RenderLayer**> find_layer_recursive(::REType* layer_type); // parent, type
 
     RenderLayer* get_parent();
     RenderLayer* find_parent(::REType* layer_type);
+    RenderLayer* clone(bool recursive = false);
+    void clone(RenderLayer* other, bool recursive = false);
+    void clone_layers(RenderLayer* other, bool recursive = false);
 
-#if defined(RE8) || defined(MHRISE)
+#if TDB_VER >= 69
     static constexpr uint32_t DRAW_VTABLE_INDEX = 14;
-#elif defined(RE7)
-    static constexpr uint32_t DRAW_VTABLE_INDEX = 10;
-#else
+#elif TDB_VER > 49
     static constexpr uint32_t DRAW_VTABLE_INDEX = 12;
+#else
+    static constexpr uint32_t DRAW_VTABLE_INDEX = 10;
 #endif
 
     static constexpr uint32_t UPDATE_VTABLE_INDEX = DRAW_VTABLE_INDEX + 1;
+
+    // only verified in RE8 and RE2.
+#if TDB_VER >= 69
+    static constexpr uint32_t NUM_PRIORITY_OFFSETS = 7;
+#elif TDB_VER >= 66
+    static constexpr uint32_t NUM_PRIORITY_OFFSETS = 6;
+#else
+    static constexpr uint32_t NUM_PRIORITY_OFFSETS = 0;
+#endif
 
     void draw(void* render_context) {
         const auto vtable = *(void(***)(void*, void*))this;
@@ -44,10 +56,34 @@ public:
     uint32_t m_id;
     uint32_t m_render_output_id;
     uint32_t m_render_output_id_2;
-    uint32_t m_priority;
 
-    // more stuff below, map it later
+#ifdef RE7
+    sdk::renderer::RenderLayer* m_parent;
+    sdk::NativeArray<sdk::renderer::RenderLayer*> m_layers;
+    uint32_t m_priority;
+#else
+    uint32_t m_priority;
+    uint32_t m_priority_offsets[NUM_PRIORITY_OFFSETS];
+    sdk::renderer::RenderLayer* m_parent;
+    sdk::NativeArray<sdk::renderer::RenderLayer*> m_layers;
+#endif
+
+    struct {
+        void* DebugInfo;
+        uint32_t LockCount;
+        uint32_t RecursionCount;
+        void* OwningThread;
+        void* LockSemaphore;
+        uintptr_t SpinCount;
+    } m_cs;
+    uint32_t m_version;
 };
+
+#ifdef RE7
+static_assert(offsetof(RenderLayer, m_priority) == 0x48, "RenderLayer::m_priority offset is wrong");
+static_assert(offsetof(RenderLayer, m_layers) == 0x38, "RenderLayer::m_layers offset is wrong");
+static_assert(offsetof(RenderLayer, m_parent) == 0x30, "RenderLayer::m_parent offset is wrong");
+#endif
 
 namespace layer {
 class Output : public sdk::renderer::RenderLayer {

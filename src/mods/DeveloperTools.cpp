@@ -5,7 +5,7 @@
 
 DeveloperTools::DeveloperTools() {
     m_tools.emplace_back(std::make_shared<GameObjectsDisplay>());
-    m_tools.emplace_back(std::make_shared<ObjectExplorer>());
+    m_tools.emplace_back(ObjectExplorer::get());
 }
 
 void DeveloperTools::on_draw_ui() {

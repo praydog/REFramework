@@ -307,6 +307,12 @@ genny::Enum* enum_from_name(genny::Namespace* g, const std::string& enum_name) {
     return new_ns->enum_(namespaces.back());
 }
 
+std::shared_ptr<ObjectExplorer>& ObjectExplorer::get() {
+    static auto instance = std::make_shared<ObjectExplorer>();
+
+    return instance;
+}
+
 ObjectExplorer::ObjectExplorer()
 {
     m_type_name.reserve(256);

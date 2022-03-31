@@ -1,4 +1,5 @@
 #include <spdlog/spdlog.h>
+#include <Zydis/Zydis.h>
 
 #include "utility/Scan.hpp"
 #include "utility/Module.hpp"
@@ -7,6 +8,48 @@
 #include "RETypeDB.hpp"
 
 #include "Renderer.hpp"
+
+namespace detail {
+using AddSceneViewFn = void (*)(void*);
+AddSceneViewFn get_add_scene_view() {
+    static void (*add_scene_view_fn)(void*) = nullptr;
+
+    if (add_scene_view_fn == nullptr) {
+        spdlog::info("[Renderer] Finding add_scene_view_fn");
+
+        /*
+        .text:0000000142952B16 41 8B 86 B4 0A 00 00                          mov     eax, [r14+0AB4h]
+        .text:0000000142952B1D 83 E0 01                                      and     eax, 1
+        .text:0000000142952B20 48 83 C0 1C                                   add     rax, 1Ch
+        .text:0000000142952B24 48 69 C0 88 00 00 00                          imul    rax, 88h
+        .text:0000000142952B2B 49 03 C6                                      add     rax, r14
+        .text:0000000142952B2E 49 89 86 F0 0F 00 00                          mov     [r14+0FF0h], rax
+        .text:0000000142952B35 48 8B 3D 4C 0C 39 06                          mov     rdi, cs:g_scene_manager
+        .text:0000000142952B3C 48 8B 5F 20                                   mov     rbx, [rdi+20h]
+        .text:0000000142952B40 48 8B CB                                      mov     rcx, rbx        ; lpCriticalSection
+        .text:0000000142952B43 FF 15 67 E7 F6 01                             call    cs:EnterCriticalSection
+        .text:0000000142952B49 45 33 C9                                      xor     r9d, r9d
+        .text:0000000142952B4C 4C 8D 05 8D 0F 00 00                          lea     r8, addSceneView(via::SceneView*)
+        */
+        // String refs in the function containing this pattern:
+        // L"Renderer::DelayEndTask"
+        // L"Renderer::DelayReleaseTask"
+        const auto mod = utility::get_executable();
+        auto ref = utility::scan(mod, "4C 8D 05 ? ? ? ? 48 8D ? ? 48 8D ? 08 E8 ? ? ? ? 48 ? ? FF 15");
+
+        if (!ref) {
+            spdlog::error("[Renderer] Failed to find add_scene_view_fn");
+            return nullptr;
+        }
+
+        add_scene_view_fn = (decltype(add_scene_view_fn))utility::calculate_absolute(*ref + 3);
+
+        spdlog::info("[Renderer] add_scene_view_fn: {:x}", (uintptr_t)add_scene_view_fn);
+    }
+
+    return add_scene_view_fn;
+}
+}
 
 namespace sdk {
 namespace renderer {
@@ -26,16 +69,88 @@ RenderLayer* RenderLayer::add_layer(::REType* layer_type, uint32_t priority, uin
             ref = utility::scan(mod, "41 B8 00 00 00 05 48 89 C7 E8 ? ? ? ?"); // mov r8d, 5000000h; call add_layer
 
             if (!ref) {
-                spdlog::error("[Renderer] Failed to find add_layer");
-                return nullptr;
+                auto add_scene_view_fn = detail::get_add_scene_view();
+
+                if (add_scene_view_fn != nullptr) {
+                    // Use a disassembler to scan through the function
+                    // to find the call to add_scene_view_fn
+                    // the function will be called multiple times, and will be the most called function within AddSceneView
+                    spdlog::info("[Renderer] Scanning for RenderLayer::AddLayer using disassembler");
+                    const auto potential_jmp = utility::scan_opcode((uintptr_t)add_scene_view_fn, 4, 0xE9);
+
+                    if (potential_jmp) {
+                        add_scene_view_fn = (decltype(add_scene_view_fn))utility::calculate_absolute(*potential_jmp + 1);
+                        spdlog::info("[Renderer] Jmp detected, add_scene_view_fn: {:x}", (uintptr_t)add_scene_view_fn);
+                    }
+
+                    uintptr_t ip = (uintptr_t)add_scene_view_fn;
+
+                    std::unordered_map<uintptr_t, uint32_t> calls;
+                    uintptr_t best_call = 0;
+
+                    ZydisDecoder decoder;
+                    ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_64, ZYDIS_STACK_WIDTH_64);
+                    ZydisDecodedInstruction is{};
+                    ZydisDecodedOperand ops[ZYDIS_MAX_OPERAND_COUNT_VISIBLE]{};
+
+                    for (auto i = 0 ; i < 150; ++i) {
+                        if (ZYAN_FAILED(
+                            ZydisDecoderDecodeFull(
+                                &decoder, (void*)ip, 256, &is,
+                                ops, ZYDIS_MAX_OPERAND_COUNT_VISIBLE, ZYDIS_DFLAG_VISIBLE_OPERANDS_ONLY))) 
+                        {
+                            spdlog::error("[Renderer] Failed to decode instruction @ 0x{:x} ({:x})", ip, ip - (uintptr_t)add_scene_view_fn);
+                            break;
+                        }
+
+                        if (is.mnemonic == ZYDIS_MNEMONIC_RET || is.mnemonic == ZYDIS_MNEMONIC_INT3) {
+                            spdlog::error("[Renderer] Encountering RET or INT3 @ 0x{:x} ({:x})", ip, ip - (uintptr_t)add_scene_view_fn);
+                            break;
+                        }
+
+                        if (is.opcode == 0xE8) {
+                            const auto addr = utility::calculate_absolute(ip + 1);
+                            calls[addr]++;
+
+                            if (best_call != 0) {
+                                if (calls[best_call] < calls[addr]) {
+                                    best_call = addr;
+                                }
+                            } else {
+                                best_call = addr;
+                            }
+
+                            if (calls[addr] >= 3) {
+                                spdlog::info("[Renderer] Found 3 calls to add_scene_view_fn, stopping scan");
+                                break;
+                            }
+                        }
+
+                        ip += is.length;
+                    }
+
+                    if (best_call != 0) {
+                        spdlog::info("[Renderer] RenderLayer::AddLayer found at {:x}", best_call);
+                        add_layer_fn = (decltype(add_layer_fn))best_call;
+                    } else {
+                        spdlog::error("[Renderer] Failed to find RenderLayer::AddLayer using a disassembler");
+                    }
+                }
+
+                if (!ref && add_layer_fn == nullptr) {
+                    spdlog::error("[Renderer] Failed to find add_layer");
+                    return nullptr;
+                }
             }
         }
 
-        add_layer_fn = (decltype(add_layer_fn))utility::calculate_absolute(*ref + 10);
+        if (add_layer_fn == nullptr) {
+            add_layer_fn = (decltype(add_layer_fn))utility::calculate_absolute(*ref + 10);
 
-        if (add_layer_fn == nullptr || IsBadReadPtr(add_layer_fn, sizeof(add_layer_fn))) {
-            spdlog::error("[Renderer] Failed to calculate add_layer");
-            return nullptr;
+            if (add_layer_fn == nullptr || IsBadReadPtr(add_layer_fn, sizeof(add_layer_fn))) {
+                spdlog::error("[Renderer] Failed to calculate add_layer");
+                return nullptr;
+            }
         }
 
         spdlog::info("[Renderer] RenderLayer::AddLayer: {:x}", (uintptr_t)add_layer_fn);
@@ -87,10 +202,10 @@ sdk::NativeArray<RenderLayer*>& RenderLayer::get_layers() {
     return *(sdk::NativeArray<RenderLayer*>*)((uintptr_t)this + layers_offset);
 }
 
-RenderLayer* RenderLayer::find_layer(::REType* layer_type) {
+RenderLayer** RenderLayer::find_layer(::REType* layer_type) {
     const auto& layers = get_layers();
 
-    for (auto layer : layers) {
+    for (auto& layer : layers) {
         if (layer->info == nullptr || layer->info->classInfo == nullptr) {
             continue;
         }
@@ -98,17 +213,17 @@ RenderLayer* RenderLayer::find_layer(::REType* layer_type) {
         const auto t = utility::re_managed_object::get_type(layer);
 
         if (t == layer_type) {
-            return layer;
+            return &layer;
         }
     }
 
     return nullptr;
 }
 
-std::tuple<RenderLayer*, RenderLayer*> RenderLayer::find_layer_recursive(::REType* layer_type) {
+std::tuple<RenderLayer*, RenderLayer**> RenderLayer::find_layer_recursive(::REType* layer_type) {
     const auto& layers = get_layers();
 
-    for (auto layer : layers) {
+    for (auto& layer : layers) {
         if (layer->info == nullptr || layer->info->classInfo == nullptr) {
             continue;
         }
@@ -116,7 +231,7 @@ std::tuple<RenderLayer*, RenderLayer*> RenderLayer::find_layer_recursive(::RETyp
         const auto t = utility::re_managed_object::get_type(layer);
 
         if (t == layer_type) {
-            return std::make_tuple(this, layer);
+            return std::make_tuple<RenderLayer*, RenderLayer**>(this, &layer);
         }
 
         if (auto f = layer->find_layer_recursive(layer_type); std::get<0>(f) != nullptr && std::get<1>(f) != nullptr) {
@@ -124,7 +239,7 @@ std::tuple<RenderLayer*, RenderLayer*> RenderLayer::find_layer_recursive(::RETyp
         }
     }
 
-    return std::make_tuple<RenderLayer*, RenderLayer*>(nullptr, nullptr);
+    return std::make_tuple<RenderLayer*, RenderLayer**>(nullptr, nullptr);
 }
 
 RenderLayer* RenderLayer::get_parent() {
@@ -145,6 +260,54 @@ RenderLayer* RenderLayer::find_parent(::REType* layer_type) {
     }
 
     return nullptr;
+}
+
+RenderLayer* RenderLayer::clone(bool recursive) {
+    auto new_layer = (RenderLayer*)utility::re_managed_object::get_type_definition(this)->create_instance_full();
+
+    if (new_layer == nullptr) {
+        spdlog::error("[Renderer] Failed to clone layer");
+        return nullptr;
+    }
+
+    new_layer->clone(this, recursive);
+
+    return new_layer;
+}
+
+void RenderLayer::clone(RenderLayer* other, bool recursive) {
+    this->m_parent = other->m_parent;
+    this->m_priority = other->m_priority;
+
+#ifndef RE7
+    for (auto i = 0; i < sdk::renderer::RenderLayer::NUM_PRIORITY_OFFSETS; ++i) {
+        this->m_priority_offsets[i] = other->m_priority_offsets[i];
+    }
+#endif
+
+    this->clone_layers(other, recursive);
+}
+
+void RenderLayer::clone_layers(RenderLayer* other, bool recursive) {
+    for (auto child_layer : other->get_layers()) {
+        const auto def = utility::re_managed_object::get_type_definition(child_layer);
+
+        if (def == nullptr) {
+            continue;
+        }
+
+        const auto t = def->get_type();
+
+        if (t == nullptr) {
+            continue;
+        }
+
+        auto new_child_layer = add_layer(t, child_layer->m_priority);
+
+        if (recursive && new_child_layer != nullptr) {
+            new_child_layer->clone_layers(child_layer, recursive);
+        }
+    }
 }
 
 void* get_renderer() {
@@ -188,42 +351,7 @@ void end_update_primitive() {
 }
 
 void add_scene_view(void* scene_view) {
-    static void (*add_scene_view_fn)(void*) = nullptr;
-
-    if (add_scene_view_fn == nullptr) {
-        spdlog::info("[Renderer] Finding add_scene_view_fn");
-
-        /*
-        .text:0000000142952B16 41 8B 86 B4 0A 00 00                          mov     eax, [r14+0AB4h]
-        .text:0000000142952B1D 83 E0 01                                      and     eax, 1
-        .text:0000000142952B20 48 83 C0 1C                                   add     rax, 1Ch
-        .text:0000000142952B24 48 69 C0 88 00 00 00                          imul    rax, 88h
-        .text:0000000142952B2B 49 03 C6                                      add     rax, r14
-        .text:0000000142952B2E 49 89 86 F0 0F 00 00                          mov     [r14+0FF0h], rax
-        .text:0000000142952B35 48 8B 3D 4C 0C 39 06                          mov     rdi, cs:g_scene_manager
-        .text:0000000142952B3C 48 8B 5F 20                                   mov     rbx, [rdi+20h]
-        .text:0000000142952B40 48 8B CB                                      mov     rcx, rbx        ; lpCriticalSection
-        .text:0000000142952B43 FF 15 67 E7 F6 01                             call    cs:EnterCriticalSection
-        .text:0000000142952B49 45 33 C9                                      xor     r9d, r9d
-        .text:0000000142952B4C 4C 8D 05 8D 0F 00 00                          lea     r8, addSceneView(via::SceneView*)
-        */
-        // String refs in the function containing this pattern:
-        // L"Renderer::DelayEndTask"
-        // L"Renderer::DelayReleaseTask"
-        const auto mod = utility::get_executable();
-        auto ref = utility::scan(mod, "4C 8D 05 ? ? ? ? 48 8D ? ? 48 8D ? 08 E8 ? ? ? ? 48 ? ? FF 15");
-
-        if (!ref) {
-            spdlog::error("[Renderer] Failed to find add_scene_view_fn");
-            return;
-        }
-
-        add_scene_view_fn = (decltype(add_scene_view_fn))utility::calculate_absolute(*ref + 3);
-
-        spdlog::info("[Renderer] add_scene_view_fn: {:x}", (uintptr_t)add_scene_view_fn);
-    }
-
-    add_scene_view_fn(scene_view);
+    detail::get_add_scene_view()(scene_view);
 }
 
 void remove_scene_view(void* scene_view) {
@@ -272,7 +400,21 @@ RenderLayer* get_root_layer() {
         // Resolve the jmp to the real function
         if (((uint8_t*)get_output_layer_fn)[0] == 0xE9) {
             get_output_layer_fn = (decltype(get_output_layer_fn))utility::calculate_absolute((uintptr_t)get_output_layer_fn + 1);
+        } else {
+            // Scan for jump with disassembler
+            spdlog::info("[Renderer] Scanning for getOutputLayer jmp");
+
+            const auto potential_jmp = utility::scan_opcode((uintptr_t)get_output_layer_fn, 10, 0xE9);
+
+            if (potential_jmp) {
+                get_output_layer_fn = (decltype(get_output_layer_fn))utility::calculate_absolute(*potential_jmp + 1);
+                spdlog::info("[Renderer] Found getOutputLayer jmp, new function {:x}", (uintptr_t)get_output_layer_fn);
+            } else {
+                spdlog::info("[Renderer] No jmp found");
+            }
         }
+
+        spdlog::info("[Renderer] Real getOutputLayer: {:x}", (uintptr_t)get_output_layer_fn);
 
         // Find the offset to the root layer (RE3, RE8)
         auto ref = utility::scan((uintptr_t)get_output_layer_fn, 0x100, "48 8B 81 ? ? ? ?");
@@ -280,6 +422,11 @@ RenderLayer* get_root_layer() {
         if (!ref) {
             // Fallback pattern to scan for (RE2)
             ref = utility::scan((uintptr_t)get_output_layer_fn, 0x100, "4C 8B 80 ? ? ? ?");
+
+            // fallback pattern to scan for (RE7)
+            if (!ref) {
+                ref = utility::scan((uintptr_t)get_output_layer_fn, 0x100, "4C 8B 89 ? ? ? ?"); // mov r9, [rcx+?]
+            }
 
             if (!ref) {
                 spdlog::error("[Renderer] Failed to find root_layer_offset");
