@@ -220,7 +220,7 @@ RenderLayer** RenderLayer::find_layer(::REType* layer_type) {
     return nullptr;
 }
 
-std::tuple<RenderLayer*, RenderLayer**> RenderLayer::find_layer_recursive(::REType* layer_type) {
+std::tuple<RenderLayer*, RenderLayer**> RenderLayer::find_layer_recursive(const ::REType* layer_type) {
     const auto& layers = get_layers();
 
     for (auto& layer : layers) {
@@ -240,6 +240,22 @@ std::tuple<RenderLayer*, RenderLayer**> RenderLayer::find_layer_recursive(::RETy
     }
 
     return std::make_tuple<RenderLayer*, RenderLayer**>(nullptr, nullptr);
+}
+
+std::tuple<RenderLayer*, RenderLayer**> RenderLayer::find_layer_recursive(std::string_view type_name) {
+    const auto def = sdk::find_type_definition(type_name);
+
+    if (def == nullptr) {
+        return std::make_tuple<RenderLayer*, RenderLayer**>(nullptr, nullptr);
+    }
+
+    const auto t = def->get_type();
+
+    if (t == nullptr) {
+        return std::make_tuple<RenderLayer*, RenderLayer**>(nullptr, nullptr);
+    }
+
+    return find_layer_recursive(t);
 }
 
 RenderLayer* RenderLayer::get_parent() {
