@@ -47,6 +47,8 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
 # string(REGEX REPLACE "/EHsc" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 
 set(ASMJIT_STATIC ON)
+set(ZYDIS_BUILD_EXAMPLES OFF)
+
 
 if ("${CMAKE_BUILD_TYPE}" MATCHES "Release")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MT")
@@ -73,6 +75,16 @@ FetchContent_Declare(
 		2a706fd2ba355808cada31ac1eed8ce28caa6b37
 )
 FetchContent_MakeAvailable(asmjit)
+
+message(STATUS "Fetching zydis (3f5a3ad8e16658c62d7033e9373232d19480d3cc)...")
+FetchContent_Declare(
+	zydis
+	GIT_REPOSITORY
+		https://github.com/zyantific/zydis
+	GIT_TAG
+		3f5a3ad8e16658c62d7033e9373232d19480d3cc
+)
+FetchContent_MakeAvailable(zydis)
 
 # Target spdlog
 if(REF_BUILD_DEPENDENCIES AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework-dependencies
@@ -674,6 +686,7 @@ if(REF_BUILD_RE2_SDK OR REF_BUILD_FRAMEWORK) # build-re2-sdk
 	target_link_libraries(RE2SDK PUBLIC
 		glm_static
 		spdlog
+		Zydis
 	)
 
 	target_link_libraries(RE2SDK PRIVATE
@@ -1124,6 +1137,7 @@ if(REF_BUILD_RE3_SDK OR REF_BUILD_FRAMEWORK) # build-re3-sdk
 	target_link_libraries(RE3SDK PUBLIC
 		glm_static
 		spdlog
+		Zydis
 	)
 
 	target_link_libraries(RE3SDK PRIVATE
@@ -1574,6 +1588,7 @@ if(REF_BUILD_RE7_SDK OR REF_BUILD_FRAMEWORK) # build-re7-sdk
 	target_link_libraries(RE7SDK PUBLIC
 		glm_static
 		spdlog
+		Zydis
 	)
 
 	target_link_libraries(RE7SDK PRIVATE
@@ -2024,6 +2039,7 @@ if(REF_BUILD_RE8_SDK OR REF_BUILD_FRAMEWORK) # build-re8-sdk
 	target_link_libraries(RE8SDK PUBLIC
 		glm_static
 		spdlog
+		Zydis
 	)
 
 	target_link_libraries(RE8SDK PRIVATE
@@ -2474,6 +2490,7 @@ if(REF_BUILD_DMC5_SDK OR REF_BUILD_FRAMEWORK) # build-dmc5-sdk
 	target_link_libraries(DMC5SDK PUBLIC
 		glm_static
 		spdlog
+		Zydis
 	)
 
 	target_link_libraries(DMC5SDK PRIVATE
@@ -2924,6 +2941,7 @@ if(REF_BUILD_MHRISE_SDK OR REF_BUILD_FRAMEWORK) # build-mhrise-sdk
 	target_link_libraries(MHRISESDK PUBLIC
 		glm_static
 		spdlog
+		Zydis
 	)
 
 	target_link_libraries(MHRISESDK PRIVATE

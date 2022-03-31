@@ -12,6 +12,8 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
 # string(REGEX REPLACE "/EHsc" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 
 set(ASMJIT_STATIC ON)
+set(ZYDIS_BUILD_EXAMPLES OFF)
+
 
 if ("${CMAKE_BUILD_TYPE}" MATCHES "Release")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MT")
@@ -53,6 +55,10 @@ build-framework-dependencies = "REF_BUILD_DEPENDENCIES AND CMAKE_SIZEOF_VOID_P E
 [fetch-content.asmjit]
 git = "https://github.com/asmjit/asmjit.git"
 tag = "2a706fd2ba355808cada31ac1eed8ce28caa6b37"
+
+[fetch-content.zydis]
+git = "https://github.com/zyantific/zydis"
+tag = "3f5a3ad8e16658c62d7033e9373232d19480d3cc"
 
 [target.spdlog]
 type = "static"
@@ -134,7 +140,8 @@ compile-options = ["/EHa"]
 compile-features = ["cxx_std_20"]
 link-libraries = [
     "glm_static",
-    "spdlog"
+    "spdlog",
+    "Zydis"
 ]
 private-link-libraries = [
     "utility"
