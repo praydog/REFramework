@@ -921,11 +921,11 @@ void REFramework::draw_about() {
         ImGui::TreePush("Licenses");
 
         struct License {
-            const char* name;
-            const char* text;
+            std::string name;
+            std::string text;
         };
 
-        static constexpr std::array<License, 10> licenses{
+        static std::array<License, 11> licenses{
             License{ "glm", license::glm },
             License{ "imgui", license::imgui },
             License{ "minhook", license::minhook },
@@ -936,11 +936,12 @@ void REFramework::draw_about() {
             License{ "sol", license::sol },
             License{ "json", license::json },
             License{ "asmjit", license::asmjit },
+            License{ "zydis", utility::narrow(license::zydis) },
         };
 
         for (const auto& license : licenses) {
-            if (ImGui::CollapsingHeader(license.name)) {
-                ImGui::TextWrapped(license.text);
+            if (ImGui::CollapsingHeader(license.name.c_str())) {
+                ImGui::TextWrapped(license.text.c_str());
             }
         }
 
