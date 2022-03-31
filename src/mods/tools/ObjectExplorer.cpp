@@ -11,6 +11,7 @@
 #include "utility/Scan.hpp"
 #include "utility/Module.hpp"
 #include "utility/Memory.hpp"
+#include "sdk/Renderer.hpp"
 
 #include "Genny.hpp"
 #include "GennyIda.hpp"
@@ -398,6 +399,29 @@ void ObjectExplorer::on_draw_dev_ui() {
 
             if (obj != nullptr) {
                 handle_type((REManagedObject*)obj, t);
+            }
+        }
+    }
+
+    if (ImGui::CollapsingHeader("Renderer")) {
+        auto root_layer = sdk::renderer::get_root_layer();
+        ImGui::Text("Root layer: 0x%p", root_layer);
+
+        if (root_layer != nullptr) {
+            auto [scene_parent, scene_layer] = root_layer->find_layer_recursive("via.render.layer.Scene");
+
+            if (scene_layer != nullptr) {
+                ImGui::Text("Scene layer: 0x%p", *scene_layer);
+            }
+
+            if (ImGui::TreeNode("Root Layer")) {
+                handle_address((void*)root_layer);
+                ImGui::TreePop();
+            }
+
+            if (scene_layer != nullptr && ImGui::TreeNode("Scene Layer")) {
+                handle_address((void*)*scene_layer);
+                ImGui::TreePop();
             }
         }
     }
@@ -1946,6 +1970,10 @@ void ObjectExplorer::handle_address(Address address, int32_t offset, Address par
             handle_component(address.as<REComponent*>());
         }
 
+        if (utility::re_managed_object::is_a(object, "via.render.RenderLayer")) {
+            handle_render_layer(address.as<sdk::renderer::RenderLayer*>());
+        }
+
         handle_type(object, utility::re_managed_object::get_type(object));
 
         if (utility::re_managed_object::get_vm_type(object) == via::clr::VMObjType::Array) {
@@ -2130,6 +2158,21 @@ void ObjectExplorer::handle_component(REComponent* component) {
 
 void ObjectExplorer::handle_transform(RETransform* transform) {
 
+}
+
+void ObjectExplorer::handle_render_layer(sdk::renderer::RenderLayer* layer) {
+    auto made_node = ImGui::TreeNode(&layer->m_layers, "Child Layers");
+    context_menu(&layer->m_layers);
+
+    if (made_node) {
+        int32_t count = 0;
+
+        for (auto child_layer : layer->get_layers()) {
+            handle_address(child_layer, count++, layer);
+        }
+
+        ImGui::TreePop();
+    }
 }
 
 void ObjectExplorer::handle_type(REManagedObject* obj, REType* t) {

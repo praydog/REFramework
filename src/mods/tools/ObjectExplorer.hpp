@@ -31,6 +31,10 @@
 
 namespace sdk {
 struct RETypeDefinition;
+
+namespace renderer {
+class RenderLayer;
+}
 }
 
 namespace genny {
@@ -148,6 +152,7 @@ private:
     void handle_game_object(REGameObject* game_object);
     void handle_component(REComponent* component);
     void handle_transform(RETransform* transform);
+    void handle_render_layer(sdk::renderer::RenderLayer* layer);
     void handle_type(REManagedObject* obj, REType* t);
 
     void display_enum_value(std::string_view name, int64_t value);
