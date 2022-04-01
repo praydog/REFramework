@@ -20,6 +20,12 @@
 
 #include "Mod.hpp"
 
+namespace sdk {
+namespace renderer {
+class RenderLayer;
+}
+}
+
 class REManagedObject;
 
 class VR : public Mod {
@@ -190,7 +196,8 @@ private:
     static Matrix4x4f* camera_get_projection_matrix_hook(REManagedObject* camera, Matrix4x4f* result);
     static Matrix4x4f* gui_camera_get_projection_matrix_hook(REManagedObject* camera, Matrix4x4f* result);
     static Matrix4x4f* camera_get_view_matrix_hook(REManagedObject* camera, Matrix4x4f* result);
-    static void overlay_draw_hook(void* layer, void* render_context);
+    static void overlay_draw_hook(sdk::renderer::RenderLayer* layer, void* render_context);
+    static void post_effect_draw_hook(sdk::renderer::RenderLayer* layer, void* render_context);
     static void wwise_listener_update_hook(void* listener);
 
     //static float get_sharpness_hook(void* tonemapping);
@@ -201,7 +208,7 @@ private:
     std::optional<std::string> hijack_resolution();
     std::optional<std::string> hijack_input();
     std::optional<std::string> hijack_camera();
-    std::optional<std::string> hijack_overlay_renderer();
+    std::optional<std::string> hijack_render_layer(std::string_view type_name, std::unique_ptr<FunctionHook>& hook, Address destination);
     std::optional<std::string> hijack_wwise_listeners(); // audio hook
 
     std::optional<std::string> reinitialize_openvr() {
@@ -236,6 +243,7 @@ private:
     void restore_camera(); // After rendering
     void set_lens_distortion(bool value);
     void disable_bad_effects();
+    void fix_temporal_effects();
 
     // input functions
     // Purpose: "Emulate" OpenVR input to the game
@@ -455,6 +463,8 @@ private:
     bool m_disable_gui_camera_projection_matrix_override{ false };
     bool m_disable_view_matrix_override{false};
     bool m_disable_backbuffer_size_override{false};
+    bool m_disable_temporal_fix{false};
+    bool m_disable_post_effect_fix{false};
 
     ValueList m_options{
         *m_set_standing_key,

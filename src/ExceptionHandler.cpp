@@ -3,6 +3,8 @@
 #include <spdlog/spdlog.h>
 
 #include "utility/Module.hpp"
+#include "utility/Scan.hpp"
+#include "utility/Patch.hpp"
 
 #include "ExceptionHandler.hpp"
 
@@ -38,6 +40,30 @@ LONG WINAPI reframework::global_exception_handler(struct _EXCEPTION_POINTERS* ei
     const auto module_within = utility::get_module_within(ei->ContextRecord->Rip);
 
     if (module_within) {
+#ifdef RE8
+        // funny way to fix a crash.
+        if (*module_within == utility::get_executable() && (uint32_t)ei->ContextRecord->Rcx == 0xFFFFFFFF) {
+            spdlog::info("Attempting to fix RE8 overlay draw crash...");
+
+            if (utility::scan(ei->ContextRecord->Rip, 4, "48 8B 9C CE")) {
+                const auto offset = *(uint32_t*)(ei->ContextRecord->Rip + 4);
+                std::vector<uint8_t> patch_bytes{ 0x48, 0x8B, 0x9E, 0x00, 0x00, 0x00, 0x00, 0x90 };
+                *(uint32_t*)(patch_bytes.data() + 3) = offset;
+                std::vector<int16_t> patch_int16_bytes{};
+
+                for (auto& patch_byte : patch_bytes) {
+                    patch_int16_bytes.push_back(patch_byte);
+                }
+
+                static auto patch = Patch::create(ei->ContextRecord->Rip, patch_int16_bytes);
+                spdlog::info("Successfully patched RE8 overlay draw crash.");
+                return EXCEPTION_CONTINUE_EXECUTION;
+            } else {
+                spdlog::info("Instructions did not match RE8 overlay draw crash.");
+            }
+        }
+#endif
+
         const auto module_path = utility::get_module_path(*module_within);
 
         if (module_path) {

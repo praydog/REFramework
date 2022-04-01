@@ -55,6 +55,7 @@ std::unique_ptr<FunctionHook> g_projection_matrix_hook{};
 std::unique_ptr<FunctionHook> g_projection_matrix_hook2{};
 std::unique_ptr<FunctionHook> g_view_matrix_hook{};
 std::unique_ptr<FunctionHook> g_overlay_draw_hook{};
+std::unique_ptr<FunctionHook> g_post_effect_draw_hook{};
 std::unique_ptr<FunctionHook> g_wwise_listener_update_hook{};
 //std::unique_ptr<FunctionHook> g_get_sharpness_hook{};
 
@@ -346,7 +347,7 @@ void VR::inputsystem_update_hook(void* ctx, REManagedObject* input_system) {
     mod->openvr_input_to_re2_re3(input_system);
 }
 
-void VR::overlay_draw_hook(void* layer, void* render_ctx) {
+void VR::overlay_draw_hook(sdk::renderer::RenderLayer* layer, void* render_ctx) {
     auto original_func = g_overlay_draw_hook->get_original<decltype(VR::overlay_draw_hook)>();
 
     if (!g_framework->is_ready()) {
@@ -371,6 +372,64 @@ void VR::overlay_draw_hook(void* layer, void* render_ctx) {
         original_func(layer, render_ctx);
     }
 #endif
+}
+
+void VR::post_effect_draw_hook(sdk::renderer::RenderLayer* layer, void* render_ctx) {
+    auto original_func = g_post_effect_draw_hook->get_original<decltype(VR::post_effect_draw_hook)>();
+
+    if (!g_framework->is_ready()) {
+        original_func(layer, render_ctx);
+        return;
+    }
+
+    auto mod = VR::get();
+
+    if (!mod->m_is_hmd_active) {
+        original_func(layer, render_ctx);
+        return;
+    }
+
+    auto scene_layer = layer->get_parent();
+    uint32_t previous_distortion_type = 0;
+
+    const auto camera = sdk::get_primary_camera();
+
+    if (camera == nullptr) {
+        original_func(layer, render_ctx);
+        return;
+    }
+    
+    static auto render_output_type = sdk::find_type_definition("via.render.RenderOutput")->get_type();
+    auto render_output_component = utility::re_component::find(camera, render_output_type);
+
+    if (render_output_component == nullptr) {
+        original_func(layer, render_ctx);
+        return;
+    }
+
+    if (!mod->m_disable_post_effect_fix) {
+        // Set the distortion type back to flatscreen mode
+        // this will fix various graphical bugs
+        //sdk::call_object_func_easy<void*>(render_output_component, "set_DistortionType", 0); // None
+
+        if (scene_layer != nullptr) {
+            previous_distortion_type = sdk::call_object_func_easy<uint32_t>(scene_layer, "get_DistortionType");
+            sdk::call_object_func_easy<void*>(scene_layer, "set_DistortionType", 0); // None
+        }
+    }
+
+    // call the original func
+    original_func(layer, render_ctx);
+    
+    if (!mod->m_disable_post_effect_fix) {
+        // Restore the distortion type back to VR mode
+        // to fix TAA
+        if (scene_layer != nullptr) {
+            sdk::call_object_func_easy<void*>(scene_layer, "set_DistortionType", previous_distortion_type); // Left
+        }
+
+        //mod->fix_temporal_effects();
+    }
 }
 
 void VR::wwise_listener_update_hook(void* listener) {
@@ -490,11 +549,18 @@ std::optional<std::string> VR::on_initialize() {
         return hijack_error;
     }
 
-    hijack_error = hijack_overlay_renderer();
+    hijack_error = hijack_render_layer("via.render.layer.Overlay", g_overlay_draw_hook, &VR::overlay_draw_hook);
 
     if (hijack_error) {
         return hijack_error;
     }
+
+    hijack_error = hijack_render_layer("via.render.layer.PostEffect", g_post_effect_draw_hook, &VR::post_effect_draw_hook);
+
+    if (hijack_error) {
+        return hijack_error;
+    }
+
 
     hijack_error = hijack_wwise_listeners();
 
@@ -804,28 +870,28 @@ std::optional<std::string> VR::hijack_camera() {
     return std::nullopt;
 }
 
-std::optional<std::string> VR::hijack_overlay_renderer() {
+std::optional<std::string> VR::hijack_render_layer(std::string_view type_name, std::unique_ptr<FunctionHook>& hook, Address destination) {
     // We're going to make via.render.layer.Overlay.Draw() return early
     // For some reason this fixes 3D GUI rendering in RE3 in VR
-    auto t = sdk::find_type_definition("via.render.layer.Overlay");
+    auto t = sdk::find_type_definition(type_name);
 
     if (t == nullptr) {
-        return "VR init failed: via.render.layer.Overlay type not found.";
+        return std::string{"VR init failed: "} + type_name.data() + " type not found.";
     }
 
     void* fake_obj = t->create_instance();
 
-    if (fake_obj == nullptr) {
-        return "VR init failed: Failed to create fake via.render.layer.Overlay instance.";
+    if (fake_obj == nullptr) { 
+        return std::string{"VR init failed: "} + "Failed to create fake " + type_name.data() + " instance.";
     }
 
     auto obj_vtable = *(uintptr_t**)fake_obj;
 
     if (obj_vtable == nullptr) {
-        return "VR init failed: via.render.layer.Overlay vtable not found.";
+        return std::string{"VR init failed: "} + type_name.data() + " vtable not found.";
     }
 
-    spdlog::info("via.render.layer.Overlay vtable: {:x}", (uintptr_t)obj_vtable - g_framework->get_module());
+    spdlog::info("{:s} vtable: {:x}", type_name, (uintptr_t)obj_vtable - g_framework->get_module());
 
     auto draw_native = obj_vtable[sdk::renderer::RenderLayer::DRAW_VTABLE_INDEX];
 
@@ -833,15 +899,15 @@ std::optional<std::string> VR::hijack_overlay_renderer() {
         return "VR init failed: via.render.layer.Overlay draw native not found.";
     }
 
-    spdlog::info("via.render.layer.Overlay.Draw: {:x}", (uintptr_t)draw_native);
+    spdlog::info("{:s}.Draw: {:x}", type_name, (uintptr_t)draw_native);
 
     // Set the first byte to the ret instruction
     //m_overlay_draw_patch = Patch::create(draw_native, { 0xC3 });
 
-    g_overlay_draw_hook = std::make_unique<FunctionHook>(draw_native, overlay_draw_hook);
+    hook = std::make_unique<FunctionHook>(draw_native, destination);
 
-    if (!g_overlay_draw_hook->create()) {
-        return "VR init failed: via.render.layer.Overlay draw native function hook failed.";
+    if (!hook->create()) {
+        return std::string{"VR init failed: "} + type_name.data() + " draw native function hook failed.";
     }
 
     // Hook get_Sharpness
@@ -1715,6 +1781,33 @@ void VR::disable_bad_effects() {
 #endif
 }
 
+void VR::fix_temporal_effects() {
+    // this is SO DUMB!!!!!
+    const auto camera = sdk::get_primary_camera();
+
+    if (camera == nullptr) {
+        return;
+    }
+    
+    static auto render_output_type = sdk::find_type_definition("via.render.RenderOutput")->get_type();
+    auto render_output_component = utility::re_component::find(camera, render_output_type);
+
+    if (render_output_component == nullptr) {
+        return;
+    }
+
+    if (!m_is_hmd_active || m_disable_temporal_fix) {
+        sdk::call_object_func_easy<void*>(render_output_component, "set_DistortionType", 0); // None
+        return;
+    }
+
+    if (m_frame_count % 2 == m_left_eye_interval) {
+        sdk::call_object_func_easy<void*>(render_output_component, "set_DistortionType", 1); // left
+    } else {
+        sdk::call_object_func_easy<void*>(render_output_component, "set_DistortionType", 2); // right
+    }
+}
+
 int32_t VR::get_frame_count() const {
     return get_game_frame_count();
 }
@@ -2561,6 +2654,8 @@ void VR::on_pre_begin_rendering(void* entry) {
 
     const auto should_update_camera = (m_frame_count % 2 == m_left_eye_interval) || is_using_afr();
 
+    fix_temporal_effects();
+
     if (!inside_on_end && should_update_camera) {
         update_camera();
     } else if (inside_on_end) {
@@ -3315,6 +3410,8 @@ void VR::on_draw_ui() {
     ImGui::Checkbox("Disable GUI Projection Matrix Override", &m_disable_gui_camera_projection_matrix_override);
     ImGui::Checkbox("Disable View Matrix Override", &m_disable_view_matrix_override);
     ImGui::Checkbox("Disable Backbuffer Size Override", &m_disable_backbuffer_size_override);
+    ImGui::Checkbox("Disable Temporal Fix", &m_disable_temporal_fix);
+    ImGui::Checkbox("Disable Post Effect Fix", &m_disable_post_effect_fix);
 
     ImGui::DragFloat4("Raw Left", (float*)&m_raw_projections[0], 0.01f, -100.0f, 100.0f);
     ImGui::DragFloat4("Raw Right", (float*)&m_raw_projections[1], 0.01f, -100.0f, 100.0f);
