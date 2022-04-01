@@ -318,6 +318,10 @@ void RenderLayer::clone_layers(RenderLayer* other, bool recursive) {
             continue;
         }
 
+        if (this->find_layer(t) != nullptr) {
+            continue;
+        }
+
         auto new_child_layer = add_layer(t, child_layer->m_priority);
 
         if (recursive && new_child_layer != nullptr) {
@@ -531,11 +535,11 @@ void*& layer::Output::get_present_state() {
     if (output_target_offset == 0) {
         spdlog::info("[Renderer] Finding output_target_offset");
 
-        auto get_scene_view_fn = sdk::find_native_method("via.render.Renderer", "get_SceneView");
+        auto get_scene_view_fn = sdk::find_native_method("via.render.layer.Output", "get_SceneView");
 
         if (get_scene_view_fn == nullptr) {
             spdlog::error("[Renderer] Failed to find get_SceneView");
-            return *(void**)((uintptr_t)this + 0);
+            return *(void**)((uintptr_t)this + sdk::find_type_definition("via.render.RenderLayer")->get_size());
         }
 
         // Resolve the jmp to the real function
