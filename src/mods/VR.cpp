@@ -27,6 +27,7 @@
 #include "utility/Scan.hpp"
 #include "utility/FunctionHook.hpp"
 #include "utility/Module.hpp"
+#include "utility/Memory.hpp"
 
 #include "FirstPerson.hpp"
 #include "ManualFlashlight.hpp"
@@ -960,8 +961,12 @@ std::optional<std::string> VR::hijack_render_layer(VR::RenderLayerHook<sdk::rend
     // Set the first byte to the ret instruction
     //m_overlay_draw_patch = Patch::create(draw_native, { 0xC3 });
 
-    if (!hook.hook_draw(draw_native)) {
-        return std::string{"VR init failed: "} + hook.name + " draw native function hook failed.";
+    if (!utility::is_stub_code((uint8_t*)draw_native)) {
+        if (!hook.hook_draw(draw_native)) {
+            return std::string{"VR init failed: "} + hook.name + " draw native function hook failed.";
+        }
+    } else {
+        spdlog::info("Skipping draw hook for {:s}, stub code detected", hook.name);
     }
 
     auto update_native = obj_vtable[sdk::renderer::RenderLayer::UPDATE_VTABLE_INDEX];
@@ -972,8 +977,12 @@ std::optional<std::string> VR::hijack_render_layer(VR::RenderLayerHook<sdk::rend
 
     spdlog::info("{:s}.Update: {:x}", hook.name, (uintptr_t)update_native);
 
-    if (!hook.hook_update(update_native)) {
-        return std::string{"VR init failed: "} + hook.name + " update native function hook failed.";
+    if (!utility::is_stub_code((uint8_t*)update_native)) {
+        if (!hook.hook_update(update_native)) {
+            return std::string{"VR init failed: "} + hook.name + " update native function hook failed.";
+        }
+    } else {
+        spdlog::info("Skipping update hook for {:s}, stub code detected", hook.name);
     }
 
     // Hook get_Sharpness
