@@ -600,5 +600,9 @@ REManagedObject*& layer::Output::get_scene_view() {
 
     return *(REManagedObject**)((uintptr_t)get_present_state() + scene_view_offset);
 }
+
+sdk::renderer::SceneInfo* layer::Scene::get_scene_info() {
+    return utility::re_managed_object::get_field<SceneInfo*>(this, "SceneInfo");
+}
 }
 }

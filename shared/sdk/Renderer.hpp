@@ -10,6 +10,16 @@ class REType;
 
 namespace sdk {
 namespace renderer {
+struct SceneInfo {
+    Matrix4x4f view_projection_matrix;
+    Matrix4x4f view_matrix;
+    Matrix4x4f inverse_view_matrix;
+    Matrix4x4f projection_matrix;
+    Matrix4x4f inverse_projection_matrix;
+    Matrix4x4f inverse_view_projection_matrix;
+    Matrix4x4f old_view_projection_matrix;
+};
+
 class RenderLayer : public REManagedObject {
 public:
     RenderLayer* add_layer(::REType* layer_type, uint32_t priority, uint8_t offset = 0);
@@ -93,6 +103,17 @@ public:
     // so we can modify it.
     void*& get_present_state(); // via.render.OutputTargetState
     REManagedObject*& get_scene_view();
+};
+
+class Scene : public sdk::renderer::RenderLayer {
+public:
+    sdk::renderer::SceneInfo* get_scene_info();
+};
+
+class Overlay : public sdk::renderer::RenderLayer {
+};
+
+class PostEffect : public sdk::renderer::RenderLayer {
 };
 }
 

@@ -14,17 +14,12 @@
 #include "utility/Patch.hpp"
 #include "sdk/Math.hpp"
 #include "sdk/helpers/NativeObject.hpp"
+#include "sdk/Renderer.hpp"
 #include "vr/D3D11Component.hpp"
 #include "vr/D3D12Component.hpp"
 #include "vr/OverlayComponent.hpp"
 
 #include "Mod.hpp"
-
-namespace sdk {
-namespace renderer {
-class RenderLayer;
-}
-}
 
 class REManagedObject;
 
@@ -184,6 +179,37 @@ public:
     auto get_ui_scale() const { return m_ui_scale_option->value(); }
     const auto& get_raw_projections() const { return m_raw_projections; }
 
+    template<typename T=sdk::renderer::RenderLayer>
+    struct RenderLayerHook {
+        RenderLayerHook() = delete;
+        RenderLayerHook(std::string_view name)
+            : name{name}
+        {
+
+        }
+
+        static void draw(T* layer, void* render_context);
+        static void update(T* layer, void* render_context);
+
+        std::unique_ptr<FunctionHook> draw_hook{};
+        std::unique_ptr<FunctionHook> update_hook{};
+        std::string name{};
+
+        virtual bool hook_draw(Address target) {
+            draw_hook = std::make_unique<FunctionHook>(target, &RenderLayerHook<T>::draw);
+            return draw_hook->create();
+        }
+
+        virtual bool hook_update(Address target) {
+            update_hook = std::make_unique<FunctionHook>(target, &RenderLayerHook<T>::update);
+            return update_hook->create();
+        }
+
+        operator RenderLayerHook<sdk::renderer::RenderLayer>&() {
+            return *(RenderLayerHook<sdk::renderer::RenderLayer>*)this;
+        }
+    };
+
 private:
     Vector4f get_position_unsafe(uint32_t index);
     Vector4f get_velocity_unsafe(uint32_t index);
@@ -208,7 +234,7 @@ private:
     std::optional<std::string> hijack_resolution();
     std::optional<std::string> hijack_input();
     std::optional<std::string> hijack_camera();
-    std::optional<std::string> hijack_render_layer(std::string_view type_name, std::unique_ptr<FunctionHook>& hook, Address destination);
+    std::optional<std::string> hijack_render_layer(VR::RenderLayerHook<sdk::renderer::RenderLayer>& hook);
     std::optional<std::string> hijack_wwise_listeners(); // audio hook
 
     std::optional<std::string> reinitialize_openvr() {
@@ -254,6 +280,12 @@ private:
     // Sets overlay layer to return instantly
     // causes world-space gui elements to render properly
     Patch::Ptr m_overlay_draw_patch{};
+
+    struct {
+        RenderLayerHook<sdk::renderer::layer::Overlay> overlay{"via.render.layer.Overlay"};
+        RenderLayerHook<sdk::renderer::layer::PostEffect> post_effect{"via.render.layer.PostEffect"};
+        RenderLayerHook<sdk::renderer::layer::Scene> scene{"via.render.layer.Scene"};
+    } m_layer_hooks;
     
     std::recursive_mutex m_openvr_mtx{};
     std::recursive_mutex m_wwise_mtx{};

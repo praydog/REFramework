@@ -347,8 +347,9 @@ void VR::inputsystem_update_hook(void* ctx, REManagedObject* input_system) {
     mod->openvr_input_to_re2_re3(input_system);
 }
 
-void VR::overlay_draw_hook(sdk::renderer::RenderLayer* layer, void* render_ctx) {
-    auto original_func = g_overlay_draw_hook->get_original<decltype(VR::overlay_draw_hook)>();
+void VR::RenderLayerHook<sdk::renderer::layer::Overlay>::draw(sdk::renderer::layer::Overlay* layer, void* render_ctx) {
+    auto mod = VR::get();
+    auto original_func = mod->m_layer_hooks.overlay.draw_hook->get_original<decltype(VR::RenderLayerHook<sdk::renderer::layer::Overlay>::draw)>();
 
     if (!g_framework->is_ready()) {
         original_func(layer, render_ctx);
@@ -357,8 +358,6 @@ void VR::overlay_draw_hook(sdk::renderer::RenderLayer* layer, void* render_ctx) 
 
     // just don't render anything at all.
     // overlays just seem to break stuff in VR.
-    auto mod = VR::get();
-
     if (!mod->m_is_hmd_active) {
         original_func(layer, render_ctx);
         return;
@@ -374,17 +373,23 @@ void VR::overlay_draw_hook(sdk::renderer::RenderLayer* layer, void* render_ctx) 
 #endif
 }
 
-void VR::post_effect_draw_hook(sdk::renderer::RenderLayer* layer, void* render_ctx) {
-    auto original_func = g_post_effect_draw_hook->get_original<decltype(VR::post_effect_draw_hook)>();
+void VR::RenderLayerHook<sdk::renderer::layer::Overlay>::update(sdk::renderer::layer::Overlay* layer, void* render_ctx) {
+    auto mod = VR::get();
+    auto original_func = mod->m_layer_hooks.overlay.update_hook->get_original<decltype(VR::RenderLayerHook<sdk::renderer::layer::Overlay>::update)>();
 
-    if (!g_framework->is_ready()) {
+    if (!g_framework->is_ready() || !mod->m_is_hmd_active) {
         original_func(layer, render_ctx);
         return;
     }
 
-    auto mod = VR::get();
+    original_func(layer, render_ctx);
+}
 
-    if (!mod->m_is_hmd_active) {
+void VR::RenderLayerHook<sdk::renderer::layer::PostEffect>::draw(sdk::renderer::layer::PostEffect* layer, void* render_ctx) {
+    auto mod = VR::get();
+    auto original_func = mod->m_layer_hooks.post_effect.draw_hook->get_original<decltype(VR::RenderLayerHook<sdk::renderer::layer::PostEffect>::draw)>();
+
+    if (!g_framework->is_ready() || !mod->m_is_hmd_active) {
         original_func(layer, render_ctx);
         return;
     }
@@ -430,6 +435,52 @@ void VR::post_effect_draw_hook(sdk::renderer::RenderLayer* layer, void* render_c
 
         //mod->fix_temporal_effects();
     }
+}
+
+void VR::RenderLayerHook<sdk::renderer::layer::PostEffect>::update(sdk::renderer::layer::PostEffect* layer, void* render_ctx) {
+    auto mod = VR::get();
+    auto original_func = mod->m_layer_hooks.post_effect.update_hook->get_original<decltype(VR::RenderLayerHook<sdk::renderer::layer::PostEffect>::update)>();
+
+    if (!g_framework->is_ready() || !mod->m_is_hmd_active) {
+        original_func(layer, render_ctx);
+        return;
+    }
+
+    original_func(layer, render_ctx);
+}
+
+void VR::RenderLayerHook<sdk::renderer::layer::Scene>::draw(sdk::renderer::layer::Scene* layer, void* render_ctx) {
+    auto mod = VR::get();
+    auto original_func = mod->m_layer_hooks.scene.draw_hook->get_original<decltype(VR::RenderLayerHook<sdk::renderer::layer::Scene>::draw)>();
+
+    if (!g_framework->is_ready() || !mod->m_is_hmd_active) {
+        original_func(layer, render_ctx);
+        return;
+    }
+
+    original_func(layer, render_ctx);
+}
+
+void VR::RenderLayerHook<sdk::renderer::layer::Scene>::update(sdk::renderer::layer::Scene* layer, void* render_ctx) {
+    auto mod = VR::get();
+    auto original_func = mod->m_layer_hooks.scene.update_hook->get_original<decltype(VR::RenderLayerHook<sdk::renderer::layer::Scene>::update)>();
+
+    if (!g_framework->is_ready() || !mod->m_is_hmd_active) {
+        original_func(layer, render_ctx);
+        return;
+    }
+
+    auto scene_info = layer->get_scene_info();
+
+    if (mod->m_disable_temporal_fix) {
+        original_func(layer, render_ctx);
+        return;
+    }
+
+    // Temporal fix
+    const auto prev_view_proj = scene_info->view_projection_matrix;
+    original_func(layer, render_ctx);
+    scene_info->old_view_projection_matrix = prev_view_proj;
 }
 
 void VR::wwise_listener_update_hook(void* listener) {
@@ -549,18 +600,23 @@ std::optional<std::string> VR::on_initialize() {
         return hijack_error;
     }
 
-    hijack_error = hijack_render_layer("via.render.layer.Overlay", g_overlay_draw_hook, &VR::overlay_draw_hook);
+    hijack_error = hijack_render_layer(m_layer_hooks.overlay);
 
     if (hijack_error) {
         return hijack_error;
     }
 
-    hijack_error = hijack_render_layer("via.render.layer.PostEffect", g_post_effect_draw_hook, &VR::post_effect_draw_hook);
+    hijack_error = hijack_render_layer(m_layer_hooks.post_effect);
 
     if (hijack_error) {
         return hijack_error;
     }
 
+    hijack_error = hijack_render_layer(m_layer_hooks.scene);
+
+    if (hijack_error) {
+        return hijack_error;
+    }
 
     hijack_error = hijack_wwise_listeners();
 
@@ -870,44 +926,54 @@ std::optional<std::string> VR::hijack_camera() {
     return std::nullopt;
 }
 
-std::optional<std::string> VR::hijack_render_layer(std::string_view type_name, std::unique_ptr<FunctionHook>& hook, Address destination) {
+std::optional<std::string> VR::hijack_render_layer(VR::RenderLayerHook<sdk::renderer::RenderLayer>& hook) {
     // We're going to make via.render.layer.Overlay.Draw() return early
     // For some reason this fixes 3D GUI rendering in RE3 in VR
-    auto t = sdk::find_type_definition(type_name);
+    auto t = sdk::find_type_definition(hook.name);
 
     if (t == nullptr) {
-        return std::string{"VR init failed: "} + type_name.data() + " type not found.";
+        return std::string{"VR init failed: "} + hook.name + " type not found.";
     }
 
     void* fake_obj = t->create_instance();
 
     if (fake_obj == nullptr) { 
-        return std::string{"VR init failed: "} + "Failed to create fake " + type_name.data() + " instance.";
+        return std::string{"VR init failed: "} + "Failed to create fake " + hook.name + " instance.";
     }
 
     auto obj_vtable = *(uintptr_t**)fake_obj;
 
     if (obj_vtable == nullptr) {
-        return std::string{"VR init failed: "} + type_name.data() + " vtable not found.";
+        return std::string{"VR init failed: "} + hook.name + " vtable not found.";
     }
 
-    spdlog::info("{:s} vtable: {:x}", type_name, (uintptr_t)obj_vtable - g_framework->get_module());
+    spdlog::info("{:s} vtable: {:x}", hook.name, (uintptr_t)obj_vtable - g_framework->get_module());
 
     auto draw_native = obj_vtable[sdk::renderer::RenderLayer::DRAW_VTABLE_INDEX];
 
     if (draw_native == 0) {
-        return "VR init failed: via.render.layer.Overlay draw native not found.";
+        return std::string{"VR init failed: "} + hook.name + " draw native not found.";
     }
 
-    spdlog::info("{:s}.Draw: {:x}", type_name, (uintptr_t)draw_native);
+    spdlog::info("{:s}.Draw: {:x}", hook.name, (uintptr_t)draw_native);
 
     // Set the first byte to the ret instruction
     //m_overlay_draw_patch = Patch::create(draw_native, { 0xC3 });
 
-    hook = std::make_unique<FunctionHook>(draw_native, destination);
+    if (!hook.hook_draw(draw_native)) {
+        return std::string{"VR init failed: "} + hook.name + " draw native function hook failed.";
+    }
 
-    if (!hook->create()) {
-        return std::string{"VR init failed: "} + type_name.data() + " draw native function hook failed.";
+    auto update_native = obj_vtable[sdk::renderer::RenderLayer::UPDATE_VTABLE_INDEX];
+
+    if (update_native == 0) {
+        return std::string{"VR init failed: "} + hook.name + " update native not found.";
+    }
+
+    spdlog::info("{:s}.Update: {:x}", hook.name, (uintptr_t)update_native);
+
+    if (!hook.hook_update(update_native)) {
+        return std::string{"VR init failed: "} + hook.name + " update native function hook failed.";
     }
 
     // Hook get_Sharpness
@@ -2654,8 +2720,6 @@ void VR::on_pre_begin_rendering(void* entry) {
 
     const auto should_update_camera = (m_frame_count % 2 == m_left_eye_interval) || is_using_afr();
 
-    fix_temporal_effects();
-
     if (!inside_on_end && should_update_camera) {
         update_camera();
     } else if (inside_on_end) {
@@ -2664,6 +2728,7 @@ void VR::on_pre_begin_rendering(void* entry) {
 
     // update our internally stored render matrix
     update_render_matrix();
+    //fix_temporal_effects(); // BAD way to do it!
 }
 
 void VR::on_begin_rendering(void* entry) {
