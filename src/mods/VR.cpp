@@ -2347,13 +2347,17 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                                     sdk::call_object_func<void*>(object, "set_Position", context, object, &half_size);
                                 }
 
-                                Vector4f new_scale{ scale, scale, scale, 1.0f };
+                                //Vector4f new_scale{ scale, scale, scale, 1.0f };
+                                const auto old_scale = sdk::call_object_func_easy<Vector4f>(object, "get_Scale");
+                                Vector4f new_scale{ old_scale.y, old_scale.y, old_scale.z, 1.0f };
                                 sdk::call_object_func<void*>(object, "set_Scale", context, object, &new_scale);
                             };
 
                             for (auto c = child; c != nullptr; c = sdk::call_object_func<REManagedObject*>(c, "get_Next", context, c)) {
                                 fix_transform_object(c);
                             }
+
+                            gui_matrix = glm::scale(gui_matrix, Vector3f{ scale, scale, scale });
                         };
 
                         auto camera_transform = camera_object->transform;
