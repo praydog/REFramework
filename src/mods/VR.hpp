@@ -171,6 +171,10 @@ public:
     auto get_action_weapon_dial() const { return m_action_weapon_dial; }
     auto get_action_minimap() const { return m_action_minimap; }
     auto get_action_block() const { return m_action_block; }
+    auto get_action_dpad_up() const { return m_action_dpad_up; }
+    auto get_action_dpad_down() const { return m_action_dpad_down; }
+    auto get_action_dpad_left() const { return m_action_dpad_left; }
+    auto get_action_dpad_right() const { return m_action_dpad_right; }
     auto get_left_joystick() const { return m_left_joystick; }
     auto get_right_joystick() const { return m_right_joystick; }
 
