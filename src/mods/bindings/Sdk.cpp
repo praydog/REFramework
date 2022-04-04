@@ -272,8 +272,18 @@ auto get_managed_singleton(sol::this_state s, const char* name) {
     return sol::make_object(s, out);
 }
 
-void* create_managed_string(const char* text) {
-    return ::sdk::VM::create_managed_string(utility::widen(text));
+sol::object create_managed_string(sol::this_state s, const char* text) {
+    if (text == nullptr) {
+        return sol::make_object(s, sol::nil);
+    }
+
+    auto new_str = ::sdk::VM::create_managed_string(utility::widen(text));
+
+    if (new_str == nullptr) {
+        return sol::make_object(s, sol::nil);
+    }
+
+    return sol::make_object(s, (::REManagedObject*)new_str);
 }
 
 sol::object create_managed_array(sol::this_state s, sol::object t_obj, uint32_t length) {
@@ -786,7 +796,7 @@ std::vector<void*>& build_args(sol::variadic_args va) {
             args.push_back((void*)n);
         } else if (lua_isstring(l, i)) {
             auto s = lua_tostring(l, i);
-            args.push_back(create_managed_string(s));
+            args.push_back(::sdk::VM::create_managed_string(utility::widen(s)));
         } else if (arg.is<Vector2f>()) {
             auto& v = arg.as<Vector2f&>();
             args.push_back((void*)&vec_storage.emplace_back(v.x, v.y, 0.0f, 0.0f));
