@@ -604,5 +604,17 @@ REManagedObject*& layer::Output::get_scene_view() {
 sdk::renderer::SceneInfo* layer::Scene::get_scene_info() {
     return utility::re_managed_object::get_field<SceneInfo*>(this, "SceneInfo");
 }
+
+sdk::renderer::SceneInfo* layer::Scene::get_depth_distortion_scene_info() {
+    return utility::re_managed_object::get_field<SceneInfo*>(this, "DepthDistortionSceneInfo");
+}
+
+sdk::renderer::SceneInfo* layer::Scene::get_filter_scene_info() {
+    return utility::re_managed_object::get_field<SceneInfo*>(this, "FilterSceneInfo");
+}
+
+sdk::renderer::SceneInfo* layer::Scene::get_jitter_disable_scene_info() {
+    return utility::re_managed_object::get_field<SceneInfo*>(this, "JitterDisableSceneInfo");
+}
 }
 }
