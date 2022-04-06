@@ -1944,9 +1944,7 @@ void VR::set_rotation_offset(const glm::quat& offset) {
 }
 
 void VR::recenter_view() {
-    const auto forward = glm::normalize(glm::quat{get_rotation(0)} * Vector3f{ 0.0f, 0.0f, 1.0f });
-    const auto flattened_forward = glm::normalize(Vector3f{forward.x, 0.0f, forward.z});
-    const auto new_rotation_offset = glm::normalize(glm::inverse(utility::math::to_quat(flattened_forward)));
+    const auto new_rotation_offset = glm::normalize(glm::inverse(utility::math::flatten(glm::quat{get_rotation(0)})));
 
     set_rotation_offset(new_rotation_offset);
 }
@@ -1964,10 +1962,7 @@ void VR::set_gui_rotation_offset(const glm::quat& offset) {
 }
 
 void VR::recenter_gui(const glm::quat& from) {
-    const auto forward = glm::normalize(glm::quat{from} * Vector3f{ 0.0f, 0.0f, 1.0f });
-    const auto flattened_forward = glm::normalize(Vector3f{forward.x, 0.0f, forward.z});
-    const auto new_gui_offset = glm::normalize(glm::inverse(utility::math::to_quat(flattened_forward)));
-
+    const auto new_gui_offset = glm::normalize(glm::inverse(utility::math::flatten(from)));
     set_gui_rotation_offset(new_gui_offset);
 }
 
@@ -2447,6 +2442,24 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                                 0, 0, -1, 0,
                                 0, 0, 0, 1
                             };
+
+                            if (m_decoupled_pitch->value()) {
+                                bool is_exception = false;
+
+                                switch (name_hash) {
+                                    case "GUIReticle"_fnv:[[fallthrough]];
+                                    case "ReticleGUI"_fnv:[[fallthrough]];
+                                    case "GUI_Reticle"_fnv:
+                                        is_exception = true;
+                                        break;
+                                    default:
+                                        break;
+                                }
+
+                                if (!is_exception) {
+                                    wanted_rotation = utility::math::flatten(wanted_rotation);
+                                }
+                            }
 
                             wanted_rotation = gui_rotation_offset * wanted_rotation;
                         }

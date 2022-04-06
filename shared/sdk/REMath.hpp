@@ -62,4 +62,10 @@ static quat to_quat(const vec3& v) {
 
     return glm::quat{mat};
 }
+
+static quat flatten(const quat& q) {
+    const auto forward = glm::normalize(glm::quat{q} * Vector3f{ 0.0f, 0.0f, 1.0f });
+    const auto flattened_forward = glm::normalize(Vector3f{forward.x, 0.0f, forward.z});
+    return utility::math::to_quat(flattened_forward);
+}
 }
