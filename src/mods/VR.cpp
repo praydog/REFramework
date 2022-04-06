@@ -664,6 +664,7 @@ void VR::on_lua_state_created(sol::state& lua) {
         "get_action_dpad_down", &VR::get_action_dpad_down,
         "get_action_dpad_left", &VR::get_action_dpad_left,
         "get_action_dpad_right", &VR::get_action_dpad_right,
+        "get_action_heal", &VR::get_action_heal,
         "get_left_joystick", &VR::get_left_joystick,
         "get_right_joystick", &VR::get_right_joystick,
         "is_using_controllers", &VR::is_using_controllers,

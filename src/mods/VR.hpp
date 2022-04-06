@@ -175,6 +175,7 @@ public:
     auto get_action_dpad_down() const { return m_action_dpad_down; }
     auto get_action_dpad_left() const { return m_action_dpad_left; }
     auto get_action_dpad_right() const { return m_action_dpad_right; }
+    auto get_action_heal() const { return m_action_heal; }
     auto get_left_joystick() const { return m_left_joystick; }
     auto get_right_joystick() const { return m_right_joystick; }
 
@@ -352,6 +353,7 @@ private:
     vr::VRActionHandle_t m_action_minimap{};
     vr::VRActionHandle_t m_action_block{};
     vr::VRActionHandle_t m_action_haptic{};
+    vr::VRActionHandle_t m_action_heal{};
 
     bool m_was_firstperson_toggle_down{false};
     bool m_was_flashlight_toggle_down{false};
@@ -378,7 +380,10 @@ private:
         { "/actions/default/in/RE2_Toggle_Flashlight", m_action_re2_toggle_flashlight },
         { "/actions/default/in/MiniMap", m_action_minimap },
         { "/actions/default/in/Block", m_action_block },
-        { "/actions/default/out/Haptic", m_action_haptic }
+        { "/actions/default/in/Heal", m_action_heal },
+
+        // Out
+        { "/actions/default/out/Haptic", m_action_haptic },
     };
 
     // Input sources

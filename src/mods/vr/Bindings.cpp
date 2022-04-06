@@ -118,6 +118,10 @@ std::string VR::actions_json = R"(
       "type": "boolean"
     },
     {
+      "name": "/actions/default/in/Heal",
+      "type": "boolean"
+    },
+    {
       "name": "/actions/default/out/Haptic",
       "type": "vibration"
     }
@@ -188,7 +192,21 @@ std::string VR::bindings_oculus_touch_json = R"(
    
    "bindings" : {
       "/actions/default" : {
-         "chords" : [],
+         "chords": [
+            {
+               "inputs": [
+                  [
+                     "/user/hand/left/input/grip",
+                     "click"
+                  ],
+                  [
+                     "/user/hand/left/input/trigger",
+                     "click"
+                  ]
+               ],
+               "output": "/actions/default/in/heal"
+            }
+         ],
          "haptics" : [
             {
                "output" : "/actions/default/out/haptic",
@@ -433,7 +451,21 @@ std::string VR::bindings_vive_controller = R"(
    
    "bindings" : {
       "/actions/default" : {
-         "chords" : [],
+         "chords": [
+            {
+               "inputs": [
+                  [
+                     "/user/hand/left/input/grip",
+                     "click"
+                  ],
+                  [
+                     "/user/hand/left/input/trigger",
+                     "click"
+                  ]
+               ],
+               "output": "/actions/default/in/heal"
+            }
+         ],
          "haptics" : [
             {
                "output" : "/actions/default/out/haptic",
@@ -577,7 +609,21 @@ std::string VR::bindings_knuckles = R"(
    
    "bindings" : {
       "/actions/default" : {
-         "chords" : [],
+         "chords": [
+            {
+               "inputs": [
+                  [
+                     "/user/hand/left/input/grip",
+                     "click"
+                  ],
+                  [
+                     "/user/hand/left/input/trigger",
+                     "click"
+                  ]
+               ],
+               "output": "/actions/default/in/heal"
+            }
+         ],
          "haptics" : [
             {
                "output" : "/actions/default/out/haptic",
