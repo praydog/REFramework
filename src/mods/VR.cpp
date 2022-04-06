@@ -675,7 +675,8 @@ void VR::on_lua_state_created(sol::state& lua) {
         "apply_hmd_transform", [](VR* vr, glm::quat& rotation, Vector4f& position) {
             vr->apply_hmd_transform(rotation, position);
         },
-        "trigger_haptic_vibration", &VR::trigger_haptic_vibration
+        "trigger_haptic_vibration", &VR::trigger_haptic_vibration,
+        "get_last_render_matrix", &VR::get_last_render_matrix
     );
 
     lua["vrmod"] = this;
