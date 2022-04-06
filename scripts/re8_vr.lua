@@ -527,6 +527,10 @@ local function calculate_tpose_world(joint, depth)
 end
 
 local function set_hand_joints_to_tpose(hand_ik)
+    -- fixes an instance in not a hero where
+    -- chris is supposed to jump down something without tripping a laser
+    if re8.is_in_cutscene then return end
+
     local hashes = {
     }
 
@@ -841,7 +845,7 @@ local function update_body_ik(camera_rotation, camera_pos)
     local ik_leg = player:call("getComponent(System.Type)", sdk.typeof("via.motion.IkLeg"))
 
     if not ik_leg then
-        if not vrmod:is_using_controllers() then
+        if not vrmod:is_using_controllers() or re8.is_in_cutscene then
             return
         end
 
