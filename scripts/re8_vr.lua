@@ -249,6 +249,7 @@ local function update_pad_device(device)
     local action_dpad_down = vrmod:get_action_dpad_down()
     local action_dpad_left = vrmod:get_action_dpad_left()
     local action_dpad_right = vrmod:get_action_dpad_right()
+    local action_heal = vrmod:get_action_heal()
 
     local right_joystick = vrmod:get_right_joystick()
     local left_joystick = vrmod:get_left_joystick()
@@ -305,9 +306,13 @@ local function update_pad_device(device)
         end
 
         -- set right bumper (heal) if holding both trigger and grip
-        if vrmod:is_action_active(action_grip, left_joystick) then
+        --[[if vrmod:is_action_active(action_grip, left_joystick) then
             cur_button = cur_button | via.hid.GamePadButton.RTrigTop
-        end
+        end]]
+    end
+
+    if vrmod:is_action_active(action_heal, left_joystick) or vrmod:is_action_active(action_heal, right_joystick) then
+        cur_button = cur_button | via.hid.GamePadButton.RTrigTop
     end
     
     re8.is_holding_left_grip = vrmod:is_action_active(action_grip, left_joystick)
