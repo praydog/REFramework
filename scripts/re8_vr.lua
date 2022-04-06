@@ -127,6 +127,11 @@ end
 
 local is_inventory_open = false
 
+local via_murmur_hash = sdk.find_type_definition("via.murmur_hash")
+local via_murmur_hash_calc32 = via_murmur_hash:get_method("calc32")
+local vfx_muzzle1_hash = via_murmur_hash_calc32:call(nil, "vfx_muzzle1")
+local vfx_muzzle2_hash = via_murmur_hash_calc32:call(nil, "vfx_muzzle2")
+
 local function update_muzzle_data()
     if re8.weapon then
         -- for some reason calling get_muzzleJoint causes lua to randomly freak out
@@ -1803,11 +1808,6 @@ re.on_pre_application_entry("UnlockScene", function()
         re8.transform:set_position(player_pos, true) -- NO DIRTY
     end
 end)
-
-local via_murmur_hash = sdk.find_type_definition("via.murmur_hash")
-local via_murmur_hash_calc32 = via_murmur_hash:get_method("calc32")
-local vfx_muzzle1_hash = via_murmur_hash_calc32:call(nil, "vfx_muzzle1")
-local vfx_muzzle2_hash = via_murmur_hash_calc32:call(nil, "vfx_muzzle2")
 
 --[[re.on_application_entry("BeginRendering", function()
 
