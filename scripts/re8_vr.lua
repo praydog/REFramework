@@ -32,6 +32,8 @@ local ray_typedef = sdk.find_type_definition("via.Ray")
 local last_muzzle_pos = Vector4f.new(0.0, 0.0, 0.0, 1.0)
 local last_muzzle_rot = Quaternion.new(0.0, 0.0, 0.0, 0.0)
 local last_muzzle_forward = Vector4f.new(0.0, 0.0, 0.0, 1.0)
+local last_shoot_pos = Vector4f.new(0.0, 0.0, 0.0, 1.0)
+local last_shoot_dir = Vector4f.new(0.0, 0.0, 0.0, 1.0)
 
 local transform_get_position = sdk.find_type_definition("via.Transform"):get_method("get_Position")
 local transform_get_rotation = sdk.find_type_definition("via.Transform"):get_method("get_Rotation")
@@ -124,6 +126,50 @@ local function set_inputmode(mode)
 end
 
 local is_inventory_open = false
+
+local function update_muzzle_data()
+    if re8.weapon then
+        -- for some reason calling get_muzzleJoint causes lua to randomly freak out
+        -- so we're just going to directly grab the field instead
+        local muzzle_joint = re8.weapon:get_field("MuzzleJoint")
+
+        if muzzle_joint == nil then
+            local weapon_gameobject = nil
+            
+            if is_re7 then
+                weapon_gameobject = re8.weapon:call("get_GameObject")
+            elseif is_re8 then
+                weapon_gameobject = re8.weapon:get_field("<owner>k__BackingField")
+            end
+
+            if weapon_gameobject ~= nil then
+                local transform = gameobject_get_transform(weapon_gameobject)
+
+                if transform ~= nil then
+                    muzzle_joint = transform_get_joint_by_hash(transform, vfx_muzzle1_hash)
+
+                    if not muzzle_joint then
+                        muzzle_joint = transform_get_joint_by_hash(transform, vfx_muzzle2_hash)
+                    end
+                end
+            end
+        end
+
+        if muzzle_joint then
+            local muzzle_position = joint_get_position(muzzle_joint)
+            local muzzle_rotation = joint_get_rotation(muzzle_joint)
+    
+            last_muzzle_pos = muzzle_position
+            last_muzzle_rot = muzzle_rotation
+            last_muzzle_forward = muzzle_joint:call("get_AxisZ")
+
+            if vrmod:is_using_controllers() then
+                last_shoot_dir = last_muzzle_forward
+                last_shoot_pos = last_muzzle_pos
+            end
+        end
+    end
+end
 
 local function update_pad_device(device)
     if not vrmod:is_hmd_active() then
@@ -1408,12 +1454,17 @@ local function fix_player_camera(player_camera)
         sdk.set_native_field(sdk.to_ptr(shoot_ray), ray_typedef, "from", from)
         sdk.set_native_field(sdk.to_ptr(shoot_ray), ray_typedef, "dir", dir)
 
-        update_crosshair_world_pos(pos, pos + (last_muzzle_forward * 1000.0))
+        -- called in LockScene
+        --update_crosshair_world_pos(pos, pos + (last_muzzle_forward * 1000.0))
     else
+        last_shoot_pos = camera_pos
+        last_shoot_dir = fixed_dir
+
         sdk.set_native_field(sdk.to_ptr(shoot_ray), ray_typedef, "from", camera_pos)
         sdk.set_native_field(sdk.to_ptr(shoot_ray), ray_typedef, "dir", fixed_dir)
 
-        update_crosshair_world_pos(camera_pos, camera_pos + (fixed_dir * 1000.0))
+        -- called in LockScene
+        --update_crosshair_world_pos(camera_pos, camera_pos + (fixed_dir * 1000.0))
     end
 
     last_cutscene_state = re8.is_in_cutscene
@@ -1681,6 +1732,14 @@ re.on_application_entry("UpdateHID", function()
 end)
 
 re.on_application_entry("LockScene", function()
+    if not vrmod:is_hmd_active() then return end
+
+    update_muzzle_data()
+
+    if last_shoot_pos then
+        local pos = last_shoot_pos + (last_shoot_dir * 0.02)
+        update_crosshair_world_pos(pos, pos + (last_shoot_dir * 1000.0))
+    end
     
     --[[if not vrmod:is_hmd_active() then return end
     local camera = sdk.get_primary_camera()
@@ -1704,7 +1763,11 @@ re.on_pre_application_entry("UnlockScene", function()
     end
 
     if not vrmod:is_hmd_active() then last_roomscale_failure = os.clock() return end
+
+    last_camera_matrix = vrmod:get_last_render_matrix()
+
     if not re8.player or not re8.transform then last_roomscale_failure = os.clock() return end
+    if not re8.status then last_roomscale_failure = os.clock() return end -- in the main menu or something.
     if not last_camera_matrix then last_roomscale_failure = os.clock() return end
     if re8.is_in_cutscene then last_roomscale_failure = os.clock() return end
 
@@ -1746,58 +1809,9 @@ local via_murmur_hash_calc32 = via_murmur_hash:get_method("calc32")
 local vfx_muzzle1_hash = via_murmur_hash_calc32:call(nil, "vfx_muzzle1")
 local vfx_muzzle2_hash = via_murmur_hash_calc32:call(nil, "vfx_muzzle2")
 
-re.on_application_entry("BeginRendering", function()
-    if not vrmod:is_hmd_active() then return end
-    local camera = sdk.get_primary_camera()
+--[[re.on_application_entry("BeginRendering", function()
 
-    if camera ~= nil then
-        --local camera_gameobject = camera:call("get_GameObject")
-        --[[local camera_transform = camera_gameobject:call("get_Transform")
-        local camera_joint = camera_transform:call("get_Joints")[0]
-
-        last_camera_matrix = joint_get_rotation:call(camera_joint):to_mat4()
-        last_camera_matrix[3] = joint_get_position:call(camera_joint)]]
-
-        last_camera_matrix = camera:call("get_WorldMatrix")
-    end
-
-    if re8.weapon then
-        -- for some reason calling get_muzzleJoint causes lua to randomly freak out
-        -- so we're just going to directly grab the field instead
-        local muzzle_joint = re8.weapon:get_field("MuzzleJoint")
-
-        if muzzle_joint == nil then
-            local weapon_gameobject = nil
-            
-            if is_re7 then
-                weapon_gameobject = re8.weapon:call("get_GameObject")
-            elseif is_re8 then
-                weapon_gameobject = re8.weapon:get_field("<owner>k__BackingField")
-            end
-
-            if weapon_gameobject ~= nil then
-                local transform = gameobject_get_transform(weapon_gameobject)
-
-                if transform ~= nil then
-                    muzzle_joint = transform_get_joint_by_hash(transform, vfx_muzzle1_hash)
-
-                    if not muzzle_joint then
-                        muzzle_joint = transform_get_joint_by_hash(transform, vfx_muzzle2_hash)
-                    end
-                end
-            end
-        end
-
-        if muzzle_joint then
-            local muzzle_position = joint_get_position(muzzle_joint)
-            local muzzle_rotation = joint_get_rotation(muzzle_joint)
-    
-            last_muzzle_pos = muzzle_position
-            last_muzzle_rot = muzzle_rotation
-            last_muzzle_forward = muzzle_joint:call("get_AxisZ")
-        end
-    end
-end)
+end)]]
 
 re.on_config_save(function()
     json.dump_file(cfg_path, cfg)
