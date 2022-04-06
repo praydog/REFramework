@@ -194,6 +194,10 @@ local function update_pad_device(device)
     local action_weapon_dial = vrmod:get_action_weapon_dial()
     local action_minimap = vrmod:get_action_minimap()
     local action_block = vrmod:get_action_block()
+    local action_dpad_up = vrmod:get_action_dpad_up()
+    local action_dpad_down = vrmod:get_action_dpad_down()
+    local action_dpad_left = vrmod:get_action_dpad_left()
+    local action_dpad_right = vrmod:get_action_dpad_right()
 
     local right_joystick = vrmod:get_right_joystick()
     local left_joystick = vrmod:get_left_joystick()
@@ -225,6 +229,22 @@ local function update_pad_device(device)
             cur_button = cur_button | via.hid.GamePadButton.LRight
         elseif vr_left_stick_axis.x <= -0.9 then
             cur_button = cur_button | via.hid.GamePadButton.LLeft
+        end
+    else
+        if vrmod:is_action_active(action_dpad_up, left_joystick) then
+            cur_button = cur_button | via.hid.GamePadButton.LUp
+        end
+
+        if vrmod:is_action_active(action_dpad_down, left_joystick) then
+            cur_button = cur_button | via.hid.GamePadButton.LDown
+        end
+
+        if vrmod:is_action_active(action_dpad_left, left_joystick) then
+            cur_button = cur_button | via.hid.GamePadButton.LLeft
+        end
+
+        if vrmod:is_action_active(action_dpad_right, left_joystick) then
+            cur_button = cur_button | via.hid.GamePadButton.LRight
         end
     end
 
