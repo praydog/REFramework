@@ -111,6 +111,7 @@ public:
     sdk::renderer::SceneInfo* get_depth_distortion_scene_info();
     sdk::renderer::SceneInfo* get_filter_scene_info();
     sdk::renderer::SceneInfo* get_jitter_disable_scene_info();
+    sdk::renderer::SceneInfo* get_z_prepass_scene_info();
 };
 
 class Overlay : public sdk::renderer::RenderLayer {
