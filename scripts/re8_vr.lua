@@ -1038,6 +1038,8 @@ local function on_pre_throwable_late_update(args)
         throwable_was_right_grip_down = false
     end
 
+    last_throwable_update = os.clock()
+
     local action_grip = vrmod:get_action_grip()
     local right_joystick = vrmod:get_right_joystick()
     --local left_joystick = vrmod:get_left_joystick()
