@@ -682,11 +682,13 @@ local function update_hand_ik()
         local original_left_rot = motion_get_world_rotation(motion, left_index)
         original_right_rot = motion_get_world_rotation(motion, right_index)
 
-        original_left_pos_relative = original_right_rot:inverse() * (original_left_pos - original_right_pos)
-        original_left_rot_relative = original_right_rot:inverse() * original_left_rot
+        local right_rot_inverse = original_right_rot:inverse()
+        original_left_pos_relative = right_rot_inverse * (original_left_pos - original_right_pos)
+        original_left_rot_relative = right_rot_inverse * original_left_rot
 
-        original_right_pos_relative = original_left_rot:inverse() * (original_right_pos - original_left_pos)
-        original_right_rot_relative = original_left_rot:inverse() * original_right_rot
+        local left_rot_inverse = original_left_rot:inverse()
+        original_right_pos_relative = left_rot_inverse * (original_right_pos - original_left_pos)
+        original_right_rot_relative = left_rot_inverse * original_right_rot
     end
 
     local left_controller_transform = vrmod:get_transform(controllers[1])
@@ -704,13 +706,13 @@ local function update_hand_ik()
     local camera_rotation = last_camera_matrix:to_quat()
 
     local original_camera_matrix = camera:call("get_WorldMatrix")
-    local original_camera_rotation_pre = original_camera_matrix:to_quat()
-    local original_camera_rotation = (original_camera_rotation_pre * vrmod:get_rotation_offset()):normalized()
-
-    local fake_quat = Quaternion.new(original_camera_rotation_pre.w, original_camera_rotation_pre.x, original_camera_rotation_pre.y, original_camera_rotation_pre.z)
+    local original_camera_rotation = original_camera_matrix:to_quat()
     local updated_camera_pos = original_camera_matrix[3]
 
-    vrmod:apply_hmd_transform(fake_quat, updated_camera_pos)
+    vrmod:apply_hmd_transform(original_camera_rotation, updated_camera_pos)
+
+    -- Handles decoupled camera pitch
+    original_camera_rotation = (original_camera_rotation * hmd_transform:to_quat():inverse()):normalized()
 
     local rh_rotation = original_camera_rotation * right_controller_rotation * right_hand_rotation_offset
     local rh_pos = updated_camera_pos
