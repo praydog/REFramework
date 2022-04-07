@@ -16,6 +16,7 @@ local renderer_type = sdk.find_type_definition("via.render.Renderer")
 
 local GamePadButton = statics.generate("via.hid.GamePadButton")
 
+local last_original_right_hand_rotation = Quaternion.new(0.0, 0.0, 0.0, 0.0)
 local last_camera_matrix = Matrix4x4f.new()
 local last_right_hand_rotation = Quaternion.new(0.0, 0.0, 0.0, 0.0)
 local last_right_hand_position = Vector3f.new(0.0, 0.0, 0.0)
@@ -71,6 +72,12 @@ local last_inventory_open_time = 0.0
 local last_shop_open_time = 0.0
 local last_scope_time = 0.0
 local head_hash = nil
+
+
+local neg_forward_identity = Matrix4x4f.new(-1, 0, 0, 0,
+                                            0, 1, 0, 0,
+                                            0, 0, -1, 0,
+                                            0, 0, 0, 1):to_quat()
 
 local cfg = {
     movement_shake = false,
@@ -172,6 +179,16 @@ local function update_muzzle_data()
                 last_shoot_dir = last_muzzle_forward
                 last_shoot_pos = last_muzzle_pos
             end
+        elseif vrmod:is_using_controllers() then
+            last_muzzle_pos = last_right_hand_position
+            last_muzzle_rot = last_camera_matrix:to_quat()
+            last_muzzle_forward = (last_muzzle_rot * Vector3f.new(0, 0, -1)):normalized()
+
+            last_shoot_dir = last_muzzle_forward
+            last_shoot_pos = last_muzzle_pos
+        else
+            last_muzzle_pos = last_shoot_pos
+            last_muzzle_forward = last_shoot_dir
         end
     end
 end
@@ -783,6 +800,8 @@ local function update_hand_ik()
     last_right_hand_rotation = rh_rotation:clone()
     last_right_hand_position.w = 1.0
 
+    last_original_right_hand_rotation = (last_right_hand_rotation * right_hand_rotation_offset:inverse()):normalized()
+
     re8.right_hand_ik_transform:set_position(rh_pos)
     re8.right_hand_ik_transform:set_rotation(rh_rotation)
     re8.right_hand_ik:set_field("Transition", 1.0)
@@ -796,11 +815,6 @@ end
 local last_real_camera_rotation = Quaternion.new(1, 0, 0, 0)
 local last_real_camera_joint_rotation = Quaternion.new(1, 0, 0, 0)
 local last_real_camera_joint_pos = Vector3f.new(0, 0, 0)
-
-local neg_forward_identity = Matrix4x4f.new(-1, 0, 0, 0,
-                                            0, 1, 0, 0,
-                                            0, 0, -1, 0,
-                                            0, 0, 0, 1):to_quat()
 
 local neg_identity = Matrix4x4f.new(-1, 0, 0, 0,
                                     0, -1, 0, 0,
@@ -1007,6 +1021,107 @@ if is_re7 then
     sdk.hook(sdk.find_type_definition("app.WeaponGun"):get_method("shoot"), on_pre_shoot, on_post_shoot)
 elseif is_re8 then
     sdk.hook(sdk.find_type_definition("app.WeaponGunCore"):get_method("shoot"), on_pre_shoot, on_post_shoot)
+end
+
+local throwable_was_right_grip_down = false
+local throw_ray = ValueType.new(sdk.find_type_definition("via.Ray"))
+local inside_throw = false
+local last_throwable_update = os.clock()
+
+local function on_pre_throwable_late_update(args)
+    if not vrmod:is_hmd_active() or not vrmod:is_using_controllers() then return end
+
+    local weapon = sdk.to_managed_object(args[2])
+    if weapon ~= re8.weapon then return end
+
+    if os.clock() - last_throwable_update > 1.0 then
+        throwable_was_right_grip_down = false
+    end
+
+    local action_grip = vrmod:get_action_grip()
+    local right_joystick = vrmod:get_right_joystick()
+    --local left_joystick = vrmod:get_left_joystick()
+    local is_grip_down = vrmod:is_action_active(action_grip, right_joystick)
+
+    if not is_grip_down and throwable_was_right_grip_down then
+        local vel_norm = Vector3f.new(0.0, 1.0, 0.0):normalized()
+        local from = Vector3f.new(last_right_hand_position.x, last_right_hand_position.y, last_right_hand_position.z)
+
+        from = Vector4f.new(from.x, from.y, from.z, 1.0)
+        vel_norm = Vector4f.new(vel_norm.x, vel_norm.y, vel_norm.z, 1.0)
+
+        -- some BS to just throw it
+        -- we will fix it inside on_post_bomb_activate_throwable
+        -- by modifying the rigid body's velocity
+        throw_ray:set_field("from", from)
+        throw_ray:set_field("dir", vel_norm)
+
+        inside_throw = true
+        pcall(weapon.call, weapon, "throwWeapon", throw_ray)
+        inside_throw = false
+    end
+
+    throwable_was_right_grip_down = is_grip_down
+end
+
+local function on_post_throwable_late_update(retval)
+    return retval
+end
+
+local bomb_args = nil
+
+local function on_pre_bomb_activate_throwable(args)
+    if not inside_throw then return end
+
+    bomb_args = args
+end
+
+local function on_post_bomb_activate_throwable(retval)
+    if not inside_throw or bomb_args == nil then
+        return retval
+    end
+
+    local bomb = sdk.to_managed_object(bomb_args[2])
+    local physics_rigid_body = bomb:get_field("<rigidBodySet>k__BackingField")
+
+    if physics_rigid_body == nil then
+        return retval
+    end
+
+    local rigid_body = physics_rigid_body:get_field("RigidBodySet")
+
+    if rigid_body == nil then
+        return retval
+    end
+
+    -- Physical throwing logic
+    local controllers = vrmod:get_controllers()
+    local right_velocity = vrmod:get_velocity(controllers[2])
+    local right_angular_velocity = vrmod:get_angular_velocity(controllers[2])
+
+    local original_camera_rotation = last_camera_matrix:to_quat()
+
+    local hmd_transform = vrmod:get_transform(0)
+    local hmd_rotation = hmd_transform:to_quat()
+
+    local rotation = (original_camera_rotation * hmd_rotation:inverse()):normalized()
+    right_velocity = rotation * right_velocity
+
+    rigid_body:call("setLinearVelocity", 0, right_velocity)
+    rigid_body:call("setAngularVelocity", 0, rotation * right_angular_velocity)
+
+    log.info("Thrown bomb!!!!")
+
+    bomb_args = nil
+
+    return retval
+end
+
+if is_re7 then
+    --sdk.hook(sdk.find_type_definition("app.WeaponThrowable"):get_method("lateUpdate"), on_pre_throwable_late_update, on_post_throwable_late_update)
+else
+    sdk.hook(sdk.find_type_definition("app.WeaponThrowableCore"):get_method("lateUpdate"), on_pre_throwable_late_update, on_post_throwable_late_update)
+    sdk.hook(sdk.find_type_definition("app.BombDefault"):get_method("activateThrowable"), on_pre_bomb_activate_throwable, on_post_bomb_activate_throwable)
 end
 
 local old_camera_rot = nil
