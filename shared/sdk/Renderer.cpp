@@ -620,5 +620,21 @@ sdk::renderer::SceneInfo* layer::Scene::get_jitter_disable_scene_info() {
 sdk::renderer::SceneInfo* layer::Scene::get_z_prepass_scene_info() {
     return utility::re_managed_object::get_field<SceneInfo*>(this, "ZPrepassSceneInfo");
 }
+
+void* layer::Scene::get_depth_stencil_d3d12() {
+    const auto tex = utility::re_managed_object::get_field<void*>(this, "DepthStencilTex");
+
+    if (tex == nullptr) {
+        return nullptr;
+    }
+
+    const auto internal_resource = Address{tex}.get(0x98).to<void*>();
+
+    if (internal_resource == nullptr) {
+        return nullptr;
+    }
+
+    return *(void**)((uintptr_t)internal_resource + 0x10);
+}
 }
 }
