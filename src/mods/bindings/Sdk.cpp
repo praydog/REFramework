@@ -103,6 +103,16 @@ void add_ref(lua_State* l, ::REManagedObject* obj, bool force = false) {
 
     return obj;
 }
+
+::REManagedObject* add_ref_permanent(sol::this_state s, ::REManagedObject* obj) {
+    if (!utility::re_managed_object::is_managed_object(obj)) {
+        throw sol::error{(std::stringstream{} << "add_ref_permanent: " << (uintptr_t)obj << " is not a managed object").str()};
+    }
+
+    utility::re_managed_object::add_ref(obj);
+
+    return obj;
+}
 }
 
 // specialization for REManagedObject to automatically add a reference
@@ -1134,6 +1144,7 @@ void bindings::open_sdk(ScriptState* s) {
     lua.new_usertype<::REManagedObject>("REManagedObject",
         sol::meta_function::equal_to, [s](REManagedObject* lhs, REManagedObject* rhs) { return lhs == rhs; },
         "add_ref", &api::re_managed_object::add_ref,
+        "add_ref_permanent", &api::re_managed_object::add_ref_permanent,
         "release", [](sol::this_state s, ::REManagedObject* obj) {
             auto l = s.lua_state();
             auto sv = sol::state_view(l);
