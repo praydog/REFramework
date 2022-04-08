@@ -1061,6 +1061,17 @@ local function on_pre_throwable_late_update(args)
         inside_throw = true
         pcall(weapon.call, weapon, "throwWeapon", throw_ray)
         inside_throw = false
+
+        local inventory = re8.updater:get_field("References"):call("get_inventory")
+
+        -- Decrement the grenade count
+        if inventory ~= nil then
+            local work = re8.weapon:call("get_work")
+
+            if work ~= nil then
+                inventory:call("reduceItem(app.ItemCore.InstanceWork, System.Int32, System.Boolean)", work, 1, false)
+            end
+        end
     end
 
     throwable_was_right_grip_down = is_grip_down
