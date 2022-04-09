@@ -1026,6 +1026,7 @@ end
 local throwable_was_right_grip_down = false
 local throw_ray = ValueType.new(sdk.find_type_definition("via.Ray"))
 local inside_throw = false
+local threw_bomb = false
 local last_throwable_update = os.clock()
 
 local function on_pre_throwable_late_update(args)
@@ -1065,13 +1066,15 @@ local function on_pre_throwable_late_update(args)
         local inventory = re8.updater:get_field("References"):call("get_inventory")
 
         -- Decrement the grenade count
-        if inventory ~= nil then
+        if threw_bomb and inventory ~= nil then
             local work = re8.weapon:call("get_work")
 
             if work ~= nil then
                 inventory:call("reduceItem(app.ItemCore.InstanceWork, System.Int32, System.Boolean)", work, 1, false)
             end
         end
+
+        threw_bomb = false
     end
 
     throwable_was_right_grip_down = is_grip_down
@@ -1122,10 +1125,9 @@ local function on_post_bomb_activate_throwable(retval)
 
     rigid_body:call("setLinearVelocity", 0, right_velocity)
     rigid_body:call("setAngularVelocity", 0, rotation * right_angular_velocity)
-
-    log.info("Thrown bomb!!!!")
-
+    
     bomb_args = nil
+    threw_bomb = true
 
     return retval
 end
