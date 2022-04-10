@@ -57,6 +57,7 @@ local motion_get_world_position = sdk.find_type_definition("via.motion.Motion"):
 local motion_get_world_rotation = sdk.find_type_definition("via.motion.Motion"):get_method("getWorldRotation")
 
 local cast_ray_method = sdk.find_type_definition("via.physics.System"):get_method("castRay(via.physics.CastRayQuery, via.physics.CastRayResult)")
+local cast_ray_async_method = sdk.find_type_definition("via.physics.System"):get_method("castRayAsync(via.physics.CastRayQuery, via.physics.CastRayResult)")
 
 local cfg_path = "re7_vr/main_config.json"
 
@@ -104,11 +105,14 @@ statics.generate_global("via.hid.GamePadButton")
 statics.generate_global("via.hid.MouseButton")
 
 local CollisionLayer = nil
+local CollisionFilter = nil
 
 if is_re8 then
     CollisionLayer = statics.generate("app.CollisionManager.Layer")
+    CollisionFilter = statics.generate("app.CollisionManager.Filter")
 elseif is_re7 then
     CollisionLayer = statics.generate("app.Collision.CollisionSystem.Layer")
+    CollisionFilter = statics.generate("app.Collision.CollisionSystem.Filter")
 end
 
 if is_re7 then
@@ -1125,7 +1129,7 @@ local function on_post_bomb_activate_throwable(retval)
 
     rigid_body:call("setLinearVelocity", 0, right_velocity)
     rigid_body:call("setAngularVelocity", 0, rotation * right_angular_velocity)
-    
+
     bomb_args = nil
     threw_bomb = true
 
@@ -1207,7 +1211,14 @@ elseif is_re8 then
     )
 end
 
-local function cast_ray(start_pos, end_pos)
+local crosshair_bullet_ray_result = nil
+local crosshair_attack_ray_result = nil
+
+local function cast_ray(start_pos, end_pos, layer)
+    if layer == nil then
+        layer = CollisionLayer.Bullet
+    end
+
     local via_physics_system = sdk.get_native_singleton("via.physics.System")
 	local ray_query = sdk.create_instance("via.physics.CastRayQuery")
     local ray_result = sdk.create_instance("via.physics.CastRayResult")
@@ -1218,24 +1229,39 @@ local function cast_ray(start_pos, end_pos)
 	ray_query:call("enableNearSort")
 	--ray_query:call("enableFrontFacingTriangleHits")
 	--ray_query:call("disableBackFacingTriangleHits")
-	local filter_info = ray_query:call("get_FilterInfo")
+    local filter_info = ray_query:call("get_FilterInfo")
 	filter_info:call("set_Group", 0)
 	filter_info:call("set_MaskBits", 0xFFFFFFFF & ~1) -- everything except the player.
-    
-    local target_layers = {
-        CollisionLayer.Attack,
-        CollisionLayer.Bullet
-    }
 
-    for i=1, 2 do 
-        filter_info:call("set_Layer", target_layers[i])
-        ray_query:call("set_FilterInfo", filter_info)
-        cast_ray_method:call(via_physics_system, ray_query, ray_result)
+    filter_info:call("set_Layer", layer)
+    ray_query:call("set_FilterInfo", filter_info)
+    cast_ray_method:call(via_physics_system, ray_query, ray_result)
 
-        if ray_result:call("get_NumContactPoints") > 0 then
-            break
-        end
+	return ray_result
+end
+
+local function cast_ray_async(ray_result, start_pos, end_pos, layer)
+    if layer == nil then
+        layer = CollisionLayer.Bullet
     end
+
+    local via_physics_system = sdk.get_native_singleton("via.physics.System")
+	local ray_query = sdk.create_instance("via.physics.CastRayQuery")
+    local ray_result = ray_result or sdk.create_instance("via.physics.CastRayResult")
+
+    ray_query:call("setRay(via.vec3, via.vec3)", start_pos, end_pos)
+	ray_query:call("clearOptions")
+	ray_query:call("enableAllHits")
+	ray_query:call("enableNearSort")
+	--ray_query:call("enableFrontFacingTriangleHits")
+	--ray_query:call("disableBackFacingTriangleHits")
+    local filter_info = ray_query:call("get_FilterInfo")
+	filter_info:call("set_Group", 0)
+	filter_info:call("set_MaskBits", 0xFFFFFFFF & ~1) -- everything except the player.
+
+    filter_info:call("set_Layer", layer)
+    ray_query:call("set_FilterInfo", filter_info)
+    cast_ray_async_method:call(via_physics_system, ray_query, ray_result)
 
 	return ray_result
 end
@@ -1249,25 +1275,46 @@ local function update_crosshair_world_pos(start_pos, end_pos)
         end
     end
     
-    local ray_result = cast_ray(start_pos, end_pos)
+    -- asynchronous raycast
+    if crosshair_attack_ray_result == nil or crosshair_bullet_ray_result == nil then
+        crosshair_attack_ray_result = cast_ray_async(crosshair_ray_result, start_pos, end_pos, CollisionLayer.Attack)
+        crosshair_bullet_ray_result = cast_ray_async(crosshair_ray_result, start_pos, end_pos, CollisionLayer.Bullet)
+        crosshair_attack_ray_result:add_ref()
+        crosshair_bullet_ray_result:add_ref()
+    end
 
-    if ray_result:call("get_NumContactPoints") > 0 then
-        local contact_point = ray_result:call("getContactPoint(System.UInt32)", 0)
+    local finished = crosshair_attack_ray_result:call("get_Finished") == true and crosshair_bullet_ray_result:call("get_Finished")
+    local attack_hit = finished and crosshair_attack_ray_result:call("get_NumContactPoints") > 0
+    local any_hit = finished and (attack_hit or crosshair_bullet_ray_result:call("get_NumContactPoints") > 0)
+
+    if finished and any_hit then
+        local best_result = attack_hit and crosshair_attack_ray_result or crosshair_bullet_ray_result
+        local contact_point = best_result:call("getContactPoint(System.UInt32)", 0)
 
         if contact_point then
             re8.crosshair_dir = (end_pos - start_pos):normalized()
-            re8.crosshair_pos = contact_point:get_field("Position")
             re8.crosshair_normal = contact_point:get_field("Normal")
             re8.crosshair_distance = contact_point:get_field("Distance")
+
+            --re8.crosshair_pos = contact_point:get_field("Position") -- We don't use the position because the cast was asynchronous
+            -- instead we get the distance to the impact and add it to the current position
+            re8.crosshair_pos = start_pos + (re8.crosshair_dir * re8.crosshair_distance)
         end
     else
         re8.crosshair_dir = (end_pos - start_pos):normalized()
+
         if re8.crosshair_distance then
             re8.crosshair_pos = start_pos + (re8.crosshair_dir * re8.crosshair_distance)
         else
             re8.crosshair_pos = start_pos + (re8.crosshair_dir * 10.0)
             re8.crosshair_distance = 10.0
         end
+    end
+    
+    if finished then
+        -- restart it.
+        cast_ray_async(crosshair_attack_ray_result, start_pos, end_pos, CollisionLayer.Attack)
+        cast_ray_async(crosshair_bullet_ray_result, start_pos, end_pos, CollisionLayer.Bullet)
     end
 end
 
