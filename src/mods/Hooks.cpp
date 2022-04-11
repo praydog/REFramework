@@ -51,8 +51,13 @@ void Hooks::on_draw_ui() {
     std::vector<const char*> sorted_times{};
     std::scoped_lock _{m_profiler_mutex};
 
+    std::chrono::high_resolution_clock::duration total_reframework_time{};
+    std::chrono::high_resolution_clock::duration total_game_time{};
+
     for (auto& entry : m_application_entry_times) {
         sorted_times.emplace_back(entry.first);
+        total_reframework_time += entry.second.reframework_pre_time + entry.second.reframework_post_time;
+        total_game_time += entry.second.callback_time;
     }
 
     std::sort(sorted_times.begin(), sorted_times.end(), [&](const char* a, const char* b) {
@@ -62,6 +67,9 @@ void Hooks::on_draw_ui() {
         return a_entry.callback_time + a_entry.reframework_pre_time + a_entry.reframework_post_time 
                 > b_entry.callback_time + b_entry.reframework_pre_time + b_entry.reframework_post_time;
     });
+
+    ImGui::Text("Total REFramework Time: %.3fms", std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(total_reframework_time).count());
+    ImGui::Text("Total Game Time: %.3fms", std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(total_game_time).count());
 
     for (auto name : sorted_times) {
         auto& entry = m_application_entry_times[name];
