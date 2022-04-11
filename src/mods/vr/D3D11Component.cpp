@@ -193,5 +193,11 @@ void D3D11Component::OpenXR::initialize() {
     auto device = hook->get_device();
 
     this->binding.device = device;
+
+    PFN_xrGetD3D11GraphicsRequirementsKHR fn = nullptr;
+    xrGetInstanceProcAddr(VR::get()->m_openxr.instance, "xrGetD3D11GraphicsRequirementsKHR", (PFN_xrVoidFunction*)(&fn));
+
+    XrGraphicsRequirementsD3D11KHR gr{XR_TYPE_GRAPHICS_REQUIREMENTS_D3D11_KHR};
+    fn(VR::get()->m_openxr.instance, VR::get()->m_openxr.system, &gr);
 }
 } // namespace vrmod

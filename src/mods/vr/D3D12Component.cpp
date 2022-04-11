@@ -240,5 +240,11 @@ void D3D12Component::OpenXR::initialize() {
 
     this->binding.device = device;
     this->binding.queue = command_queue;
+
+    PFN_xrGetD3D12GraphicsRequirementsKHR fn = nullptr;
+    xrGetInstanceProcAddr(VR::get()->m_openxr.instance, "xrGetD3D12GraphicsRequirementsKHR", (PFN_xrVoidFunction*)(&fn));
+
+    XrGraphicsRequirementsD3D12KHR gr{XR_TYPE_GRAPHICS_REQUIREMENTS_D3D12_KHR};
+    fn(VR::get()->m_openxr.instance, VR::get()->m_openxr.system, &gr);
 }
 } // namespace vrmod

@@ -583,6 +583,12 @@ std::optional<std::string> VR::on_initialize() {
         return openvr_error;
     }
 
+    auto openxr_error = initialize_openxr();
+
+    if (openxr_error || !m_openxr.loaded) {
+        // TODO: do something here
+    }
+
     auto hijack_error = hijack_resolution();
 
     if (hijack_error) {
@@ -879,6 +885,8 @@ std::optional<std::string> VR::initialize_openxr() {
 
     XrReferenceSpaceCreateInfo space_create_info{XR_TYPE_REFERENCE_SPACE_CREATE_INFO};
     space_create_info.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_STAGE;
+    space_create_info.poseInReferenceSpace = {};
+    space_create_info.poseInReferenceSpace.orientation.w = 1.0f;
 
     result = xrCreateReferenceSpace(m_openxr.session, &space_create_info, &m_openxr.space);
 
@@ -3581,6 +3589,10 @@ void VR::on_draw_ui() {
 
     if (!ImGui::CollapsingHeader(get_name().data())) {
         return;
+    }
+
+    if (m_openxr.error) {
+        ImGui::Text("OpenXR Error: %s", m_openxr.error->c_str());
     }
 
     if (!m_openvr_loaded) {
