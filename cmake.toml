@@ -14,6 +14,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
 set(ASMJIT_STATIC ON CACHE BOOL "" FORCE)
 set(ZYDIS_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(ZYDIS_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+set(DYNAMIC_LOADER ON CACHE BOOL "" FORCE) # OpenXR
 
 
 if ("${CMAKE_BUILD_TYPE}" MATCHES "Release")
@@ -60,6 +61,10 @@ tag = "2a706fd2ba355808cada31ac1eed8ce28caa6b37"
 [fetch-content.zydis]
 git = "https://github.com/zyantific/zydis"
 tag = "3f5a3ad8e16658c62d7033e9373232d19480d3cc"
+
+[fetch-content.openxr]
+git = "https://github.com/KhronosGroup/OpenXR-SDK"
+tag = "458984d7f59d1ae6dc1b597d94b02e4f7132eaba"
 
 [target.spdlog]
 type = "static"
@@ -173,12 +178,13 @@ link-libraries = [
     "glm_static",
     "shlwapi",
     "openvr",
+    "openxr_loader",
     "delayimp",
 ]
 
 [template.game.properties]
 OUTPUT_NAME = "dinput8"
-LINK_FLAGS = "/DELAYLOAD:openvr_api.dll"
+LINK_FLAGS = "/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll"
 RUNTIME_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO = "${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 LIBRARY_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"

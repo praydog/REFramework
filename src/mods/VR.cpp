@@ -792,6 +792,167 @@ std::optional<std::string> VR::initialize_openvr_input() {
     return std::nullopt;
 }
 
+std::optional<std::string> VR::initialize_openxr() {
+    if (LoadLibraryA("openxr_loader.dll") == nullptr) {
+        m_openxr.loaded = false;
+        m_openxr.error = "Could not load openxr_loader.dll";
+
+        return std::nullopt;
+    }
+
+    // Step 1: Create an instance
+    spdlog::info("[VR] Creating OpenXR instance");
+
+    std::vector<const char*> extensions{};
+
+    if (g_framework->is_dx12()) {
+        extensions.push_back(XR_KHR_D3D12_ENABLE_EXTENSION_NAME);
+    } else {
+        extensions.push_back(XR_KHR_D3D11_ENABLE_EXTENSION_NAME);
+    }
+
+    XrInstanceCreateInfo instance_create_info{XR_TYPE_INSTANCE_CREATE_INFO};
+    instance_create_info.next = nullptr;
+    instance_create_info.enabledExtensionCount = (uint32_t)extensions.size();
+    instance_create_info.enabledExtensionNames = extensions.data();
+
+    strcpy(instance_create_info.applicationInfo.applicationName, g_framework->get_game_name());
+    instance_create_info.applicationInfo.apiVersion = XR_CURRENT_API_VERSION;
+
+    auto result = xrCreateInstance(&instance_create_info, &m_openxr.instance);
+
+    // we can't convert the result to a string here
+    // because the function requires the instance to be valid
+    if (result != XR_SUCCESS) {
+        m_openxr.error = "Could not create openxr instance: " + std::to_string((uint32_t)result);
+        spdlog::error("[VR] {}", m_openxr.error.value());
+
+        return std::nullopt;
+    }
+    
+    // Step 2: Create a system
+    spdlog::info("[VR] Creating OpenXR system");
+
+    XrSystemGetInfo system_info{XR_TYPE_SYSTEM_GET_INFO};
+    system_info.formFactor = m_openxr.form_factor;
+
+    result = xrGetSystem(m_openxr.instance, &system_info, &m_openxr.system);
+
+    std::string result_string{};
+    result_string.resize(XR_MAX_RESULT_STRING_SIZE);
+
+    if (result != XR_SUCCESS) {
+        xrResultToString(m_openxr.instance, result, result_string.data());
+        m_openxr.error = "Could not create openxr system: " + result_string;
+        spdlog::error("[VR] {}", m_openxr.error.value());
+
+        return std::nullopt;
+    }
+
+    // Step 3: Create a session
+    spdlog::info("[VR] Creating OpenXR session");
+
+    XrSessionCreateInfo session_create_info{XR_TYPE_SESSION_CREATE_INFO};
+
+    if (g_framework->is_dx12()) {
+        m_d3d12.openxr().initialize();
+        session_create_info.next = &m_d3d12.openxr().binding;
+    } else {
+        m_d3d11.openxr().initialize();
+        session_create_info.next = &m_d3d11.openxr().binding;
+    }
+
+    session_create_info.systemId = m_openxr.system;
+
+    result = xrCreateSession(m_openxr.instance, &session_create_info, &m_openxr.session);
+
+    if (result != XR_SUCCESS) {
+        xrResultToString(m_openxr.instance, result, result_string.data());
+        m_openxr.error = "Could not create openxr session: " + result_string;
+        spdlog::error("[VR] {}", m_openxr.error.value());
+
+        return std::nullopt;
+    }
+
+    // Step 4: Create a space
+    spdlog::info("[VR] Creating OpenXR space");
+
+    XrReferenceSpaceCreateInfo space_create_info{XR_TYPE_REFERENCE_SPACE_CREATE_INFO};
+    space_create_info.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_STAGE;
+
+    result = xrCreateReferenceSpace(m_openxr.session, &space_create_info, &m_openxr.space);
+
+    if (result != XR_SUCCESS) {
+        xrResultToString(m_openxr.instance, result, result_string.data());
+        m_openxr.error = "Could not create openxr space: " + result_string;
+        spdlog::error("[VR] {}", m_openxr.error.value());
+
+        return std::nullopt;
+    }
+
+    // Step 5: Get the system properties
+    spdlog::info("[VR] Getting OpenXR system properties");
+
+    XrSystemProperties system_properties{XR_TYPE_SYSTEM_PROPERTIES};
+    result = xrGetSystemProperties(m_openxr.instance, m_openxr.system, &system_properties);
+
+    if (result != XR_SUCCESS) {
+        xrResultToString(m_openxr.instance, result, result_string.data());
+        m_openxr.error = "Could not get system properties: " + result_string;
+        spdlog::error("[VR] {}", m_openxr.error.value());
+
+        return std::nullopt;
+    }
+
+    spdlog::info("[VR] OpenXR system Name: {}", system_properties.systemName);
+    spdlog::info("[VR] OpenXR system Vendor: {}", system_properties.vendorId);
+    spdlog::info("[VR] OpenXR system max width: {}", system_properties.graphicsProperties.maxSwapchainImageWidth);
+    spdlog::info("[VR] OpenXR system max height: {}", system_properties.graphicsProperties.maxSwapchainImageHeight);
+    spdlog::info("[VR] OpenXR system supports {} layers", system_properties.graphicsProperties.maxLayerCount);
+    spdlog::info("[VR] OpenXR system orientation: {}", system_properties.trackingProperties.orientationTracking);
+    spdlog::info("[VR] OpenXR system position: {}", system_properties.trackingProperties.positionTracking);
+
+    // Step 6: Get the view configuration properties
+    uint32_t view_count{};
+    result = xrEnumerateViewConfigurationViews(m_openxr.instance, m_openxr.system, m_openxr.view_config, 0, &view_count, nullptr);
+    if (result != XR_SUCCESS) {
+        xrResultToString(m_openxr.instance, result, result_string.data());
+        m_openxr.error = "Could not get view configuration properties: " + result_string;
+        spdlog::error("[VR] {}", m_openxr.error.value());
+
+        return std::nullopt;
+    }
+
+    m_openxr.view_configs.resize(view_count, {XR_TYPE_VIEW_CONFIGURATION_VIEW});
+    result = xrEnumerateViewConfigurationViews(m_openxr.instance, m_openxr.system, m_openxr.view_config, view_count, &view_count, m_openxr.view_configs.data());
+    if (result != XR_SUCCESS) {
+        xrResultToString(m_openxr.instance, result, result_string.data());
+        m_openxr.error = "Could not get view configuration properties: " + result_string;
+        spdlog::error("[VR] {}", m_openxr.error.value());
+
+        return std::nullopt;
+    }
+
+    // Step 7: Create a view
+    m_openxr.views.resize(view_count, {XR_TYPE_VIEW});
+
+    // Step 8: Create a swapchain
+    spdlog::info("[VR] Creating OpenXR swapchain");
+
+    if (view_count == 0) {
+        m_openxr.error = "No view configurations found";
+        spdlog::error("[VR] {}", m_openxr.error.value());
+
+        return std::nullopt;
+    }
+
+
+
+    m_openxr.loaded = true;
+
+    return std::nullopt;
+}
+
 std::optional<std::string> VR::hijack_resolution() {
     // We're going to hook via.SceneView.get_Size so we can
     // spoof the render target size to the HMD's resolution.

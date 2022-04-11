@@ -4,6 +4,12 @@
 #include <dxgi.h>
 #include <wrl.h>
 
+#define XR_USE_PLATFORM_WIN32
+#define XR_USE_GRAPHICS_API_D3D11
+#define XR_USE_GRAPHICS_API_D3D12
+#include <openxr/openxr.h>
+#include <openxr/openxr_platform.h>
+
 class VR;
 
 namespace vrmod {
@@ -24,6 +30,10 @@ public:
 		return m_left_eye_tex != nullptr;
 	}
 
+	auto& openxr() {
+        return m_openxr;
+    }
+
 private:
 	void wait_for_texture_copy(uint32_t ms);
 
@@ -41,6 +51,11 @@ private:
 
 	ComPtr<ID3D12Resource> m_left_eye_tex{};
 	ComPtr<ID3D12Resource> m_right_eye_tex{}; 
+
+	struct OpenXR {
+		void initialize();
+		XrGraphicsBindingD3D12KHR binding{XR_TYPE_GRAPHICS_BINDING_D3D12_KHR};
+	} m_openxr;
 
     void setup();
     void copy_texture(ID3D12Resource* src, ID3D12Resource* dst);

@@ -186,4 +186,12 @@ void D3D11Component::setup() {
 
     spdlog::info("[VR] d3d11 textures have been setup");
 }
+
+void D3D11Component::OpenXR::initialize() {
+    auto& hook = g_framework->get_d3d11_hook();
+
+    auto device = hook->get_device();
+
+    this->binding.device = device;
+}
 } // namespace vrmod

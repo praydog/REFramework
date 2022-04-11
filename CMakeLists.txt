@@ -49,6 +49,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
 set(ASMJIT_STATIC ON CACHE BOOL "" FORCE)
 set(ZYDIS_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(ZYDIS_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+set(DYNAMIC_LOADER ON CACHE BOOL "" FORCE) # OpenXR
 
 
 if ("${CMAKE_BUILD_TYPE}" MATCHES "Release")
@@ -86,6 +87,16 @@ FetchContent_Declare(
 		3f5a3ad8e16658c62d7033e9373232d19480d3cc
 )
 FetchContent_MakeAvailable(zydis)
+
+message(STATUS "Fetching openxr (458984d7f59d1ae6dc1b597d94b02e4f7132eaba)...")
+FetchContent_Declare(
+	openxr
+	GIT_REPOSITORY
+		https://github.com/KhronosGroup/OpenXR-SDK
+	GIT_TAG
+		458984d7f59d1ae6dc1b597d94b02e4f7132eaba
+)
+FetchContent_MakeAvailable(openxr)
 
 # Target spdlog
 if(REF_BUILD_DEPENDENCIES AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework-dependencies
@@ -842,6 +853,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		glm_static
 		shlwapi
 		openvr
+		openxr_loader
 		delayimp
 	)
 
@@ -849,7 +861,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		OUTPUT_NAME
 			dinput8
 		LINK_FLAGS
-			"/DELAYLOAD:openvr_api.dll"
+			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll"
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE
 			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
@@ -1293,6 +1305,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		glm_static
 		shlwapi
 		openvr
+		openxr_loader
 		delayimp
 	)
 
@@ -1300,7 +1313,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		OUTPUT_NAME
 			dinput8
 		LINK_FLAGS
-			"/DELAYLOAD:openvr_api.dll"
+			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll"
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE
 			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
@@ -1744,6 +1757,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		glm_static
 		shlwapi
 		openvr
+		openxr_loader
 		delayimp
 	)
 
@@ -1751,7 +1765,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		OUTPUT_NAME
 			dinput8
 		LINK_FLAGS
-			"/DELAYLOAD:openvr_api.dll"
+			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll"
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE
 			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
@@ -2195,6 +2209,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		glm_static
 		shlwapi
 		openvr
+		openxr_loader
 		delayimp
 	)
 
@@ -2202,7 +2217,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		OUTPUT_NAME
 			dinput8
 		LINK_FLAGS
-			"/DELAYLOAD:openvr_api.dll"
+			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll"
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE
 			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
@@ -2646,6 +2661,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		glm_static
 		shlwapi
 		openvr
+		openxr_loader
 		delayimp
 	)
 
@@ -2653,7 +2669,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		OUTPUT_NAME
 			dinput8
 		LINK_FLAGS
-			"/DELAYLOAD:openvr_api.dll"
+			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll"
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE
 			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
@@ -3097,6 +3113,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		glm_static
 		shlwapi
 		openvr
+		openxr_loader
 		delayimp
 	)
 
@@ -3104,7 +3121,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		OUTPUT_NAME
 			dinput8
 		LINK_FLAGS
-			"/DELAYLOAD:openvr_api.dll"
+			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll"
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE
 			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO

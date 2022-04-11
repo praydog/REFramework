@@ -231,4 +231,14 @@ void D3D12Component::copy_texture(ID3D12Resource* src, ID3D12Resource* dst) {
         m_cmd_list->ResourceBarrier(2, barriers);
     }
 }
+
+void D3D12Component::OpenXR::initialize() {
+	auto& hook = g_framework->get_d3d12_hook();
+
+    auto device = hook->get_device();
+    auto command_queue = hook->get_command_queue();
+
+    this->binding.device = device;
+    this->binding.queue = command_queue;
+}
 } // namespace vrmod

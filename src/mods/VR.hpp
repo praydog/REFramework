@@ -4,12 +4,20 @@
 #include <bitset>
 #include <memory>
 #include <shared_mutex>
+
 #include <openvr.h>
 
 #include <d3d11.h>
 #include <d3d12.h>
 #include <dxgi.h>
 #include <wrl.h>
+
+#define XR_USE_PLATFORM_WIN32
+#define XR_USE_GRAPHICS_API_D3D11
+#define XR_USE_GRAPHICS_API_D3D12
+#include <openxr/openxr.h>
+#include <openxr/openxr_platform.h>
+
 
 #include "utility/Patch.hpp"
 #include "sdk/Math.hpp"
@@ -236,6 +244,7 @@ private:
     // initialization functions
     std::optional<std::string> initialize_openvr();
     std::optional<std::string> initialize_openvr_input();
+    std::optional<std::string> initialize_openxr();
     std::optional<std::string> hijack_resolution();
     std::optional<std::string> hijack_input();
     std::optional<std::string> hijack_camera();
@@ -308,6 +317,24 @@ private:
     float m_nearz{ 0.1f };
     float m_farz{ 3000.0f };
 
+    struct {
+        bool loaded{false};
+        std::optional<std::string> error{};
+
+        XrInstance instance{XR_NULL_HANDLE};
+        XrSession session{XR_NULL_HANDLE};
+        XrSpace space{XR_NULL_HANDLE};
+        XrSystemId system{XR_NULL_SYSTEM_ID};
+        XrFormFactor form_factor{XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY};
+        XrViewConfigurationType view_config{XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO};
+        XrEnvironmentBlendMode blend_mode{XR_ENVIRONMENT_BLEND_MODE_OPAQUE};
+
+        std::vector<XrViewConfigurationView> view_configs{};
+        std::vector<XrSwapchain> swapchains{};
+        std::vector<XrView> views{};
+    } m_openxr;
+
+    // OpenVR
     vr::IVRSystem* m_hmd{nullptr};
 
     // Poses
