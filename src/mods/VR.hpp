@@ -456,6 +456,10 @@ private:
             if (result == XR_SUCCESS) {
                 spdlog::info("VR: xrEvent: {}", this->get_structure_string(bh->type));
 
+                if (callback) {
+                    callback(&edb);
+                }
+
                 if (bh->type == XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED) {
                     const auto ev = (XrEventDataSessionStateChanged*)&edb;
 
