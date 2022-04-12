@@ -31,6 +31,48 @@
 
 class REManagedObject;
 
+struct VRRuntime {
+    enum class Type : uint8_t {
+        NONE,
+        OPENXR,
+        OPENVR,
+        OCULUS, // Not implemented
+    };
+
+    virtual ~VRRuntime() {};
+
+    virtual bool ready() const {
+        return this->loaded;
+    }
+
+    virtual Type type() const { 
+        return Type::NONE;
+    }
+
+    bool is_openxr() const {
+        return this->type() == Type::OPENXR;
+    }
+
+    bool is_openvr() const {
+        return this->type() == Type::OPENVR;
+    }
+
+    bool is_oculus() const {
+        return this->type() == Type::OCULUS;
+    }
+
+    bool loaded{false};
+    bool wants_reinitialize{false};
+    bool dll_missing{false};
+
+    // in the case of OpenVR we always need at least one initial WaitGetPoses before the game will render
+    // even if we don't have anything to submit yet, otherwise the compositor
+    // will return VRCompositorError_DoNotHaveFocus
+    bool needs_pose_update{true};
+    
+    std::optional<std::string> error{};
+};
+
 class VR : public Mod {
 public:
     static std::shared_ptr<VR>& get();
@@ -72,8 +114,19 @@ public:
     void on_pre_wait_rendering(void* entry);
     void on_wait_rendering(void* entry);
 
+    template<typename T = VRRuntime>
+    T* get_runtime() const {
+        if (m_openvr.loaded) {
+            return (T*)&m_openvr;
+        } else if (m_openxr.loaded) {
+            return (T*)&m_openxr;
+        }
+        
+        return (T*)&m_null_runtime;
+    }
+
     auto get_hmd() const {
-        return m_hmd;
+        return m_openvr.hmd;
     }
 
     auto& get_poses() const {
@@ -126,11 +179,15 @@ public:
     }
 
     bool is_hmd_active() const {
-        return m_is_hmd_active && m_wgp_initialized;
+        return get_runtime()->ready();
     }
     
     bool is_openvr_loaded() const {
-        return m_openvr_loaded;
+        return m_openvr.loaded;
+    }
+
+    bool is_openxr_loaded() const {
+        return m_openxr.loaded;
     }
 
     bool is_using_hmd_oriented_audio() {
@@ -317,7 +374,9 @@ private:
     float m_nearz{ 0.1f };
     float m_farz{ 3000.0f };
 
-    struct OpenXR {
+    VRRuntime m_null_runtime{};
+
+    struct OpenXR : public VRRuntime {
         std::string get_result_string(XrResult result) {
             std::string result_string{};
             result_string.resize(XR_MAX_RESULT_STRING_SIZE);
@@ -326,19 +385,29 @@ private:
             return result_string;
         }
 
+        std::string get_structure_string(XrStructureType type) {
+            std::string structure_string{};
+            structure_string.resize(XR_MAX_STRUCTURE_NAME_SIZE);
+            xrStructureTypeToString(this->instance, type, structure_string.data());
+
+            return structure_string;
+        }
+
         struct Swapchain {
             XrSwapchain handle;
             int32_t width;
             int32_t height;
         };
 
-        bool ready() const {
-            return this->loaded && this->session_ready;
+        VRRuntime::Type type() const override { 
+            return VRRuntime::Type::OPENXR;
         }
 
-        bool loaded{false};
+        bool ready() const override {
+            return VRRuntime::ready() && this->session_ready;
+        }
+
         bool session_ready{false};
-        std::optional<std::string> error{};
 
         XrInstance instance{XR_NULL_HANDLE};
         XrSession session{XR_NULL_HANDLE};
@@ -353,8 +422,28 @@ private:
         std::vector<XrView> views{};
     } m_openxr;
 
-    // OpenVR
-    vr::IVRSystem* m_hmd{nullptr};
+    struct OpenVR : public VRRuntime {
+        VRRuntime::Type type() const override { 
+            return VRRuntime::Type::OPENVR;
+        }
+
+        bool ready() const override {
+            return VRRuntime::ready() && this->is_hmd_active && this->wgp_initialized;
+        }
+
+        bool is_hmd_active{false};
+        bool was_hmd_active{true};
+        bool wgp_initialized{false};
+
+        vr::IVRSystem* hmd{nullptr};
+
+        std::array<vr::TrackedDevicePose_t, vr::k_unMaxTrackedDeviceCount> real_render_poses;
+        std::array<vr::TrackedDevicePose_t, vr::k_unMaxTrackedDeviceCount> real_game_poses;
+
+        std::array<vr::TrackedDevicePose_t, vr::k_unMaxTrackedDeviceCount> render_poses;
+        std::array<vr::TrackedDevicePose_t, vr::k_unMaxTrackedDeviceCount> game_poses;
+    } m_openvr;
+
 
     // Poses
     std::array<vr::TrackedDevicePose_t, vr::k_unMaxTrackedDeviceCount> m_real_render_poses;
@@ -476,20 +565,12 @@ private:
 
     bool m_submitted{false};
     bool m_present_finished{false};
-    // we always need at least one initial WaitGetPoses before the game will render
-    // even if we don't have anything to submit yet, otherwise the compositor
-    // will return VRCompositorError_DoNotHaveFocus
-    bool m_needs_wgp_update{true};
     //bool m_disable_sharpening{true};
 
-    bool m_is_hmd_active{true};
-    bool m_was_hmd_active{true};
-    bool m_wgp_initialized{false};
     bool m_needs_camera_restore{false};
     bool m_needs_audio_restore{false};
     bool m_in_render{false};
     bool m_in_lightshaft{false};
-    bool m_request_reinitialize_openvr{false};
     bool m_positional_tracking{true};
     bool m_handle_pause{false}; // happens when dashboard opens
     bool m_is_d3d12{false};
@@ -498,14 +579,9 @@ private:
     // on the backburner
     bool m_depth_aided_reprojection{false};
 
-    bool m_openvr_loaded{false};
-    bool m_openvr_dll_missing{false};
-
     // == 1 or == 0
     uint8_t m_left_eye_interval{0};
     uint8_t m_right_eye_interval{1};
-
-    std::optional<std::string> m_openvr_error{};
 
     static std::string actions_json;
     static std::string binding_rift_json;

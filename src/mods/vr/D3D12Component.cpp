@@ -71,6 +71,10 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
                     spdlog::error("[VR] xrAcquireSwapchainImage failed: {}", vr->m_openxr.get_result_string(result));
                 }
 
+                XrSwapchainImageWaitInfo wait_info{XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO};
+                wait_info.timeout = XR_INFINITE_DURATION;
+                xrWaitSwapchainImage(swapchain.handle, &wait_info);
+
                 copy_texture(backbuffer.Get(), m_openxr.contexts[0].textures[swapchain_index].texture);
             }
         }
@@ -91,6 +95,10 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
             if (result != XR_SUCCESS) {
                 spdlog::error("[VR] xrAcquireSwapchainImage failed: {}", vr->m_openxr.get_result_string(result));
             }
+
+            XrSwapchainImageWaitInfo wait_info{XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO};
+            wait_info.timeout = XR_INFINITE_DURATION;
+            xrWaitSwapchainImage(swapchain.handle, &wait_info);
 
             copy_texture(backbuffer.Get(), m_openxr.contexts[1].textures[swapchain_index].texture);
         }
@@ -131,10 +139,6 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
             if (m_openxr.frame_state.shouldRender == XR_TRUE) {
                 for (auto i = 0; i < view_count; ++i) {
                     const auto& swapchain = vr->m_openxr.swapchains[i];
-
-                    XrSwapchainImageWaitInfo wait_info{XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO};
-                    wait_info.timeout = XR_INFINITE_DURATION;
-                    xrWaitSwapchainImage(swapchain.handle, &wait_info);
 
                     projection_layer_views[i] = {XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW};
                     projection_layer_views[i].pose = vr->m_openxr.views[i].pose;
@@ -188,9 +192,9 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
         ////////////////////////////////////////////////////////////////////////////////
         // OpenVR start ////////////////////////////////////////////////////////////////
         ////////////////////////////////////////////////////////////////////////////////
-        if (vr->m_needs_wgp_update) {
+        if (vr->get_runtime()->needs_pose_update) {
             vr->m_submitted = false;
-            spdlog::info("[VR] Needed WGP update inside present (frame {})", vr->m_frame_count);
+            spdlog::info("[VR] Runtime needed pose update inside present (frame {})", vr->m_frame_count);
             return vr::VRCompositorError_None;
         }
 

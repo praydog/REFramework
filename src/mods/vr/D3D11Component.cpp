@@ -46,7 +46,7 @@ vr::EVRCompositorError D3D11Component::on_frame(VR* vr) {
 
         if (vr->m_depth_aided_reprojection) {
             context->CopyResource(m_left_eye_depthstencil.Get(), hook->get_last_depthstencil_used().Get());
-            m_left_eye_proj = vr->m_hmd->GetProjectionMatrix(vr::Eye_Left, vr->m_nearz, vr->m_farz);
+            m_left_eye_proj = vr->m_openvr.hmd->GetProjectionMatrix(vr::Eye_Left, vr->m_nearz, vr->m_farz);
         }
     } else {
         // Copy the back buffer to the right eye texture.
@@ -54,7 +54,7 @@ vr::EVRCompositorError D3D11Component::on_frame(VR* vr) {
 
         if (vr->m_depth_aided_reprojection) {
             context->CopyResource(m_right_eye_depthstencil.Get(), hook->get_last_depthstencil_used().Get());
-            m_right_eye_proj = vr->m_hmd->GetProjectionMatrix(vr::Eye_Right, vr->m_nearz, vr->m_farz);
+            m_right_eye_proj = vr->m_openvr.hmd->GetProjectionMatrix(vr::Eye_Right, vr->m_nearz, vr->m_farz);
         }
     }
 
