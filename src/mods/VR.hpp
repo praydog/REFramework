@@ -497,7 +497,7 @@ private:
             XrViewLocateInfo view_locate_info{XR_TYPE_VIEW_LOCATE_INFO};
             view_locate_info.viewConfigurationType = this->view_config;
             view_locate_info.displayTime = this->frame_state.predictedDisplayTime;
-            view_locate_info.space = this->space;
+            view_locate_info.space = this->view_space;
 
             auto result = xrLocateViews(this->session, &view_locate_info, &this->view_state, (uint32_t)this->views.size(), &view_count, this->views.data());
 
@@ -613,8 +613,15 @@ private:
             std::unique_lock __{ this->eyes_mtx };
 
             for (auto i = 0; i < 2; ++i) {
+                const auto& pose = this->views[i].pose;
                 const auto& fov = this->views[i].fov;
+
+                // Update projection matrix
                 XrMatrix4x4f_CreateProjection((XrMatrix4x4f*)&this->projections[i], GRAPHICS_D3D, fov.angleLeft, fov.angleRight, fov.angleUp, fov.angleDown, nearz, farz);
+
+                // Update view matrix
+                this->eyes[i] = Matrix4x4f{*(glm::quat*)&pose.orientation};
+                this->eyes[i][3] = Vector4f{*(Vector3f*)&pose.position, 1.0f};
             }
 
             return VRRuntime::Error::SUCCESS;
@@ -625,6 +632,7 @@ private:
         XrInstance instance{XR_NULL_HANDLE};
         XrSession session{XR_NULL_HANDLE};
         XrSpace space{XR_NULL_HANDLE};
+        XrSpace view_space{XR_NULL_HANDLE}; // for generating view matrices
         XrSystemId system{XR_NULL_SYSTEM_ID};
         XrFormFactor form_factor{XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY};
         XrViewConfigurationType view_config{XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO};

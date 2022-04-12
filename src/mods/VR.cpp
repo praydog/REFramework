@@ -946,6 +946,22 @@ std::optional<std::string> VR::initialize_openxr() {
         }
     }
 
+    if (m_openxr.view_space == XR_NULL_HANDLE) {
+        XrReferenceSpaceCreateInfo space_create_info{XR_TYPE_REFERENCE_SPACE_CREATE_INFO};
+        space_create_info.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_VIEW;
+        space_create_info.poseInReferenceSpace = {};
+        space_create_info.poseInReferenceSpace.orientation.w = 1.0f;
+
+        result = xrCreateReferenceSpace(m_openxr.session, &space_create_info, &m_openxr.view_space);
+
+        if (result != XR_SUCCESS) {
+            m_openxr.error = "Could not create openxr view space: " + m_openxr.get_result_string(result);
+            spdlog::error("[VR] {}", m_openxr.error.value());
+
+            return std::nullopt;
+        }
+    }
+
     // Step 5: Get the system properties
     spdlog::info("[VR] Getting OpenXR system properties");
 
