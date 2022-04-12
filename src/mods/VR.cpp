@@ -799,7 +799,11 @@ std::optional<std::string> VR::initialize_openvr_input() {
 }
 
 std::optional<std::string> VR::initialize_openxr() {
+    spdlog::info("[VR] Initializing OpenXR");
+
     if (LoadLibraryA("openxr_loader.dll") == nullptr) {
+        spdlog::info("[VR] Could not load openxr_loader.dll");
+
         m_openxr.loaded = false;
         m_openxr.error = "Could not load openxr_loader.dll";
 
@@ -809,50 +813,58 @@ std::optional<std::string> VR::initialize_openxr() {
     // Step 1: Create an instance
     spdlog::info("[VR] Creating OpenXR instance");
 
-    std::vector<const char*> extensions{};
+    XrResult result{XR_SUCCESS};
 
-    if (g_framework->is_dx12()) {
-        extensions.push_back(XR_KHR_D3D12_ENABLE_EXTENSION_NAME);
+    // We may just be restarting OpenXR, so try to find an existing instance first
+    if (m_openxr.instance == XR_NULL_HANDLE) {
+        std::vector<const char*> extensions{};
+
+        if (g_framework->is_dx12()) {
+            extensions.push_back(XR_KHR_D3D12_ENABLE_EXTENSION_NAME);
+        } else {
+            extensions.push_back(XR_KHR_D3D11_ENABLE_EXTENSION_NAME);
+        }
+
+        XrInstanceCreateInfo instance_create_info{XR_TYPE_INSTANCE_CREATE_INFO};
+        instance_create_info.next = nullptr;
+        instance_create_info.enabledExtensionCount = (uint32_t)extensions.size();
+        instance_create_info.enabledExtensionNames = extensions.data();
+
+        strcpy(instance_create_info.applicationInfo.applicationName, g_framework->get_game_name());
+        instance_create_info.applicationInfo.apiVersion = XR_CURRENT_API_VERSION;
+        
+        result = xrCreateInstance(&instance_create_info, &m_openxr.instance);
+
+        // we can't convert the result to a string here
+        // because the function requires the instance to be valid
+        if (result != XR_SUCCESS) {
+            m_openxr.error = "Could not create openxr instance: " + std::to_string((int32_t)result);
+            spdlog::error("[VR] {}", m_openxr.error.value());
+
+            return std::nullopt;
+        }
     } else {
-        extensions.push_back(XR_KHR_D3D11_ENABLE_EXTENSION_NAME);
-    }
-
-    XrInstanceCreateInfo instance_create_info{XR_TYPE_INSTANCE_CREATE_INFO};
-    instance_create_info.next = nullptr;
-    instance_create_info.enabledExtensionCount = (uint32_t)extensions.size();
-    instance_create_info.enabledExtensionNames = extensions.data();
-
-    strcpy(instance_create_info.applicationInfo.applicationName, g_framework->get_game_name());
-    instance_create_info.applicationInfo.apiVersion = XR_CURRENT_API_VERSION;
-
-    auto result = xrCreateInstance(&instance_create_info, &m_openxr.instance);
-
-    // we can't convert the result to a string here
-    // because the function requires the instance to be valid
-    if (result != XR_SUCCESS) {
-        m_openxr.error = "Could not create openxr instance: " + std::to_string((uint32_t)result);
-        spdlog::error("[VR] {}", m_openxr.error.value());
-
-        return std::nullopt;
+        spdlog::info("[VR] Found existing openxr instance");
     }
     
     // Step 2: Create a system
     spdlog::info("[VR] Creating OpenXR system");
 
-    XrSystemGetInfo system_info{XR_TYPE_SYSTEM_GET_INFO};
-    system_info.formFactor = m_openxr.form_factor;
+    // We may just be restarting OpenXR, so try to find an existing system first
+    if (m_openxr.system == XR_NULL_SYSTEM_ID) {
+        XrSystemGetInfo system_info{XR_TYPE_SYSTEM_GET_INFO};
+        system_info.formFactor = m_openxr.form_factor;
 
-    result = xrGetSystem(m_openxr.instance, &system_info, &m_openxr.system);
+        result = xrGetSystem(m_openxr.instance, &system_info, &m_openxr.system);
 
-    std::string result_string{};
-    result_string.resize(XR_MAX_RESULT_STRING_SIZE);
+        if (result != XR_SUCCESS) {
+            m_openxr.error = "Could not create openxr system: " + m_openxr.get_result_string(result);
+            spdlog::error("[VR] {}", m_openxr.error.value());
 
-    if (result != XR_SUCCESS) {
-        xrResultToString(m_openxr.instance, result, result_string.data());
-        m_openxr.error = "Could not create openxr system: " + result_string;
-        spdlog::error("[VR] {}", m_openxr.error.value());
-
-        return std::nullopt;
+            return std::nullopt;
+        }
+    } else {
+        spdlog::info("[VR] Found existing openxr system");
     }
 
     // Step 3: Create a session
@@ -873,8 +885,7 @@ std::optional<std::string> VR::initialize_openxr() {
     result = xrCreateSession(m_openxr.instance, &session_create_info, &m_openxr.session);
 
     if (result != XR_SUCCESS) {
-        xrResultToString(m_openxr.instance, result, result_string.data());
-        m_openxr.error = "Could not create openxr session: " + result_string;
+        m_openxr.error = "Could not create openxr session: " + m_openxr.get_result_string(result);
         spdlog::error("[VR] {}", m_openxr.error.value());
 
         return std::nullopt;
@@ -883,19 +894,22 @@ std::optional<std::string> VR::initialize_openxr() {
     // Step 4: Create a space
     spdlog::info("[VR] Creating OpenXR space");
 
-    XrReferenceSpaceCreateInfo space_create_info{XR_TYPE_REFERENCE_SPACE_CREATE_INFO};
-    space_create_info.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_STAGE;
-    space_create_info.poseInReferenceSpace = {};
-    space_create_info.poseInReferenceSpace.orientation.w = 1.0f;
+    // We may just be restarting OpenXR, so try to find an existing space first
 
-    result = xrCreateReferenceSpace(m_openxr.session, &space_create_info, &m_openxr.space);
+    if (m_openxr.space == XR_NULL_HANDLE) {
+        XrReferenceSpaceCreateInfo space_create_info{XR_TYPE_REFERENCE_SPACE_CREATE_INFO};
+        space_create_info.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_STAGE;
+        space_create_info.poseInReferenceSpace = {};
+        space_create_info.poseInReferenceSpace.orientation.w = 1.0f;
 
-    if (result != XR_SUCCESS) {
-        xrResultToString(m_openxr.instance, result, result_string.data());
-        m_openxr.error = "Could not create openxr space: " + result_string;
-        spdlog::error("[VR] {}", m_openxr.error.value());
+        result = xrCreateReferenceSpace(m_openxr.session, &space_create_info, &m_openxr.space);
 
-        return std::nullopt;
+        if (result != XR_SUCCESS) {
+            m_openxr.error = "Could not create openxr space: " + m_openxr.get_result_string(result);
+            spdlog::error("[VR] {}", m_openxr.error.value());
+
+            return std::nullopt;
+        }
     }
 
     // Step 5: Get the system properties
@@ -905,8 +919,7 @@ std::optional<std::string> VR::initialize_openxr() {
     result = xrGetSystemProperties(m_openxr.instance, m_openxr.system, &system_properties);
 
     if (result != XR_SUCCESS) {
-        xrResultToString(m_openxr.instance, result, result_string.data());
-        m_openxr.error = "Could not get system properties: " + result_string;
+        m_openxr.error = "Could not get system properties: " + m_openxr.get_result_string(result);
         spdlog::error("[VR] {}", m_openxr.error.value());
 
         return std::nullopt;
@@ -924,8 +937,7 @@ std::optional<std::string> VR::initialize_openxr() {
     uint32_t view_count{};
     result = xrEnumerateViewConfigurationViews(m_openxr.instance, m_openxr.system, m_openxr.view_config, 0, &view_count, nullptr);
     if (result != XR_SUCCESS) {
-        xrResultToString(m_openxr.instance, result, result_string.data());
-        m_openxr.error = "Could not get view configuration properties: " + result_string;
+        m_openxr.error = "Could not get view configuration properties: " + m_openxr.get_result_string(result);
         spdlog::error("[VR] {}", m_openxr.error.value());
 
         return std::nullopt;
@@ -934,8 +946,7 @@ std::optional<std::string> VR::initialize_openxr() {
     m_openxr.view_configs.resize(view_count, {XR_TYPE_VIEW_CONFIGURATION_VIEW});
     result = xrEnumerateViewConfigurationViews(m_openxr.instance, m_openxr.system, m_openxr.view_config, view_count, &view_count, m_openxr.view_configs.data());
     if (result != XR_SUCCESS) {
-        xrResultToString(m_openxr.instance, result, result_string.data());
-        m_openxr.error = "Could not get view configuration properties: " + result_string;
+        m_openxr.error = "Could not get view configuration properties: " + m_openxr.get_result_string(result);
         spdlog::error("[VR] {}", m_openxr.error.value());
 
         return std::nullopt;
@@ -973,6 +984,8 @@ std::optional<std::string> VR::initialize_openxr() {
             return std::nullopt;
         }
     }
+
+
 
     m_openxr.loaded = true;
 
@@ -1381,7 +1394,7 @@ void VR::update_hmd_state() {
 
     bool wants_reset_origin = false;
 
-    // Process events
+    // Process OpenVR events
     vr::VREvent_t event{};
     while (m_hmd->PollNextEvent(&event, sizeof(event))) {
         switch ((vr::EVREventType)event.eventType) {
@@ -1408,6 +1421,7 @@ void VR::update_hmd_state() {
         }
     }
 
+    // Process OpenXR events
     if (m_openxr.loaded) {
         XrEventDataBuffer edb{XR_TYPE_EVENT_DATA_BUFFER};
         auto result = xrPollEvent(m_openxr.instance, &edb);
@@ -1415,10 +1429,13 @@ void VR::update_hmd_state() {
         const auto bh = (XrEventDataBaseHeader*)&edb;
 
         if (result == XR_SUCCESS) {
-            if (bh->type == XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED) {
-                spdlog::info("VR: XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED");
+            spdlog::info("VR: xrEvent: {}", m_openxr.get_structure_string(bh->type));
 
+            if (bh->type == XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED) {
                 const auto ev = (XrEventDataSessionStateChanged*)&edb;
+
+                spdlog::info("VR: XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED {}", ev->state);
+
                 if (ev->state == XR_SESSION_STATE_READY) {
                     spdlog::info("VR: XR_SESSION_STATE_READY");
                     
@@ -1429,10 +1446,28 @@ void VR::update_hmd_state() {
                     result = xrBeginSession(m_openxr.session, &session_begin_info);
 
                     if (result != XR_SUCCESS) {
+                        m_openxr.error = std::string{"xrBeginSessionFailed: "} + m_openxr.get_result_string(result);
                         spdlog::error("VR: xrBeginSession failed: {}", m_openxr.get_result_string(result));
+                    } else {
+                        m_openxr.session_ready = true;
                     }
-                } 
+                } else if (ev->state == XR_SESSION_STATE_LOSS_PENDING) {
+                    spdlog::info("VR: XR_SESSION_STATE_LOSS_PENDING");
+                    m_openxr.wants_reinitialize = true;
+                } else if (ev->state == XR_SESSION_STATE_STOPPING) {
+                    spdlog::info("VR: XR_SESSION_STATE_STOPPING");
+                    if (m_openxr.ready()) {
+                        xrEndSession(m_openxr.session);
+                        m_openxr.session_ready = false;
+
+                        if (m_openxr.wants_reinitialize) {
+                            initialize_openxr();
+                        }
+                    }
+                }
             }
+        } else if (result != XR_EVENT_UNAVAILABLE) {
+            spdlog::error("VR: xrPollEvent failed: {}", m_openxr.get_result_string(result));
         }
     }
 
