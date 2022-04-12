@@ -3736,12 +3736,12 @@ void VR::on_draw_ui() {
         }
 
         if (runtime->error && runtime->dll_missing) {
-            ImGui::Text("%s not loaded: %s not found");
-            ImGui::Text("Please drop the %s file into the game's directory if you want to use VR");
+            ImGui::Text("%s not loaded: %s not found", api_name.data(), dll_name.data());
+            ImGui::Text("Please drop the %s file into the game's directory if you want to use VR", dll_name.data());
         } else if (runtime->error) {
-            ImGui::Text("%s not loaded: %s", runtime->error->c_str());
+            ImGui::Text("%s not loaded: %s", api_name.data(), runtime->error->c_str());
         } else {
-            ImGui::Text("%s not loaded: Unknown error");
+            ImGui::Text("%s not loaded: Unknown error", api_name.data());
         }
     };
 
