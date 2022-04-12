@@ -318,13 +318,26 @@ private:
     float m_farz{ 3000.0f };
 
     struct OpenXR {
+        std::string get_result_string(XrResult result) {
+            std::string result_string{};
+            result_string.resize(XR_MAX_RESULT_STRING_SIZE);
+            xrResultToString(this->instance, result, result_string.data());
+
+            return result_string;
+        }
+
         struct Swapchain {
             XrSwapchain handle;
             int32_t width;
             int32_t height;
         };
 
+        bool ready() const {
+            return this->loaded && this->session_ready;
+        }
+
         bool loaded{false};
+        bool session_ready{false};
         std::optional<std::string> error{};
 
         XrInstance instance{XR_NULL_HANDLE};

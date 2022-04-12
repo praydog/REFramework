@@ -1408,6 +1408,34 @@ void VR::update_hmd_state() {
         }
     }
 
+    if (m_openxr.loaded) {
+        XrEventDataBuffer edb{XR_TYPE_EVENT_DATA_BUFFER};
+        auto result = xrPollEvent(m_openxr.instance, &edb);
+
+        const auto bh = (XrEventDataBaseHeader*)&edb;
+
+        if (result == XR_SUCCESS) {
+            if (bh->type == XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED) {
+                spdlog::info("VR: XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED");
+
+                const auto ev = (XrEventDataSessionStateChanged*)&edb;
+                if (ev->state == XR_SESSION_STATE_READY) {
+                    spdlog::info("VR: XR_SESSION_STATE_READY");
+                    
+                    // Begin the session
+                    XrSessionBeginInfo session_begin_info{XR_TYPE_SESSION_BEGIN_INFO};
+                    session_begin_info.primaryViewConfigurationType = m_openxr.view_config;
+
+                    result = xrBeginSession(m_openxr.session, &session_begin_info);
+
+                    if (result != XR_SUCCESS) {
+                        spdlog::error("VR: xrBeginSession failed: {}", m_openxr.get_result_string(result));
+                    }
+                } 
+            }
+        }
+    }
+
     // Update the poses used for the game
     // If we used the data directly from the WaitGetPoses call, we would have to lock a different mutex and wait a long time
     // This is because the WaitGetPoses call is blocking, and we don't want to block any game logic

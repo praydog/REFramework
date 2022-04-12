@@ -42,9 +42,60 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
 
     // If m_frame_count is even, we're rendering the left eye.
     if (vr->m_frame_count % 2 == vr->m_left_eye_interval) {
+        // OpenXR texture
+        if (vr->m_openxr.ready()) {
+            XrFrameWaitInfo frame_wait_info{XR_TYPE_FRAME_WAIT_INFO};
+            m_openxr.frame_state = {XR_TYPE_FRAME_STATE};
+            auto result = xrWaitFrame(vr->m_openxr.session, &frame_wait_info, &m_openxr.frame_state);
+
+            if (result != XR_SUCCESS) {
+                spdlog::error("[VR] xrWaitFrame failed: {}", vr->m_openxr.get_result_string(result));
+            }
+
+            XrFrameBeginInfo frame_begin_info{XR_TYPE_FRAME_BEGIN_INFO};
+            result = xrBeginFrame(vr->m_openxr.session, &frame_begin_info);
+
+            if (result != XR_SUCCESS) {
+                spdlog::error("[VR] xrBeginFrame failed: {}", vr->m_openxr.get_result_string(result));
+            }
+
+            if (m_openxr.frame_state.shouldRender == XR_TRUE) {
+                const auto& swapchain = vr->m_openxr.swapchains[0];
+
+                XrSwapchainImageAcquireInfo acquire_info{XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO};
+
+                uint32_t swapchain_index{};
+                result = xrAcquireSwapchainImage(swapchain.handle, &acquire_info, &swapchain_index);
+
+                if (result != XR_SUCCESS) {
+                    spdlog::error("[VR] xrAcquireSwapchainImage failed: {}", vr->m_openxr.get_result_string(result));
+                }
+
+                copy_texture(backbuffer.Get(), m_openxr.contexts[0].textures[swapchain_index].texture);
+            }
+        }
+
+        // OpenVR texture
         // Copy the back buffer to the left eye texture (m_left_eye_tex0 holds the intermediate frame).
         copy_texture(backbuffer.Get(), m_left_eye_tex.Get());
     } else {
+        // OpenXR texture
+        if (vr->m_openxr.ready() && m_openxr.frame_state.shouldRender == XR_TRUE) {
+            const auto& swapchain = vr->m_openxr.swapchains[1];
+
+            XrSwapchainImageAcquireInfo acquire_info{XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO};
+
+            uint32_t swapchain_index{};
+            auto result = xrAcquireSwapchainImage(swapchain.handle, &acquire_info, &swapchain_index);
+
+            if (result != XR_SUCCESS) {
+                spdlog::error("[VR] xrAcquireSwapchainImage failed: {}", vr->m_openxr.get_result_string(result));
+            }
+
+            copy_texture(backbuffer.Get(), m_openxr.contexts[1].textures[swapchain_index].texture);
+        }
+
+        // OpenVR texture
         // Copy the back buffer to the right eye texture.
         copy_texture(backbuffer.Get(), m_right_eye_tex.Get());
     }
@@ -52,7 +103,55 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
     vr::EVRCompositorError e = vr::EVRCompositorError::VRCompositorError_None;
 
     if (vr->m_frame_count % 2 == vr->m_right_eye_interval) {
-        // Wait for GPU to finish copying the textures.
+        ////////////////////////////////////////////////////////////////////////////////
+        // OpenXR start ////////////////////////////////////////////////////////////////
+        ////////////////////////////////////////////////////////////////////////////////
+        std::vector<XrCompositionLayerBaseHeader*> layers{};
+        XrCompositionLayerProjection layer{XR_TYPE_COMPOSITION_LAYER_PROJECTION};
+        std::vector<XrCompositionLayerProjectionView> projection_layer_views{};
+
+        XrViewState view_state{XR_TYPE_VIEW_STATE};
+
+        if (vr->m_openxr.ready()) {
+            uint32_t view_count{};
+
+            XrViewLocateInfo view_locate_info{XR_TYPE_VIEW_LOCATE_INFO};
+            view_locate_info.viewConfigurationType = vr->m_openxr.view_config;
+            view_locate_info.displayTime = m_openxr.frame_state.predictedDisplayTime;
+            view_locate_info.space = vr->m_openxr.space;
+
+            auto result = xrLocateViews(vr->m_openxr.session, &view_locate_info, &view_state, (uint32_t)vr->m_openxr.views.size(), &view_count, vr->m_openxr.views.data());
+
+            if (result != XR_SUCCESS) {
+                spdlog::error("[VR] xrLocateViews failed: {}", vr->m_openxr.get_result_string(result));
+            }
+
+            projection_layer_views.resize(view_count);
+
+            if (m_openxr.frame_state.shouldRender == XR_TRUE) {
+                for (auto i = 0; i < view_count; ++i) {
+                    const auto& swapchain = vr->m_openxr.swapchains[i];
+
+                    XrSwapchainImageWaitInfo wait_info{XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO};
+                    wait_info.timeout = XR_INFINITE_DURATION;
+                    xrWaitSwapchainImage(swapchain.handle, &wait_info);
+
+                    projection_layer_views[i] = {XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW};
+                    projection_layer_views[i].pose = vr->m_openxr.views[i].pose;
+                    projection_layer_views[i].fov = vr->m_openxr.views[i].fov;
+                    projection_layer_views[i].subImage.swapchain = swapchain.handle;
+                    projection_layer_views[i].subImage.imageRect.offset = {0, 0};
+                    projection_layer_views[i].subImage.imageRect.extent = {swapchain.width, swapchain.height};
+                }
+                
+                layer.space = vr->m_openxr.space;
+                layer.viewCount = (uint32_t)projection_layer_views.size();
+                layer.views = projection_layer_views.data();
+                layers.push_back((XrCompositionLayerBaseHeader*)&layer);
+            }   
+        }
+
+        // Wait for GPU to finish copying the textures for both OpenXR and OpenVR.
         m_cmd_list->Close();
         command_queue->ExecuteCommandLists(1, (ID3D12CommandList* const*)m_cmd_list.GetAddressOf());
         command_queue->Signal(m_fence.Get(), ++m_fence_value);
@@ -60,6 +159,35 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
         m_waiting_for_fence = true;
         // we don't wait for the fence here because it will cause cause bad perf and in turn reprojection to occur
 
+        if (vr->m_openxr.ready() && m_openxr.frame_state.shouldRender == XR_TRUE) {
+            for (auto i = 0; i < vr->m_openxr.swapchains.size(); ++i) {
+                const auto& swapchain = vr->m_openxr.swapchains[i];
+
+                XrSwapchainImageReleaseInfo releaseInfo{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
+                auto result = xrReleaseSwapchainImage(swapchain.handle, &releaseInfo);
+
+                if (result != XR_SUCCESS) {
+                    spdlog::error("[VR] xrReleaseSwapchainImage failed: {}", vr->m_openxr.get_result_string(result));
+                }
+            }
+        }
+
+        if (vr->m_openxr.ready()) {
+            XrFrameEndInfo frame_end_info{XR_TYPE_FRAME_END_INFO};
+            frame_end_info.displayTime = m_openxr.frame_state.predictedDisplayTime;
+            frame_end_info.environmentBlendMode = vr->m_openxr.blend_mode;
+            frame_end_info.layerCount = (uint32_t)layers.size();
+            frame_end_info.layers = layers.data();
+            auto result = xrEndFrame(vr->m_openxr.session, &frame_end_info);
+
+            if (result != XR_SUCCESS) {
+                spdlog::error("[VR] xrEndFrame failed: {}", vr->m_openxr.get_result_string(result));
+            }
+        }
+
+        ////////////////////////////////////////////////////////////////////////////////
+        // OpenVR start ////////////////////////////////////////////////////////////////
+        ////////////////////////////////////////////////////////////////////////////////
         if (vr->m_needs_wgp_update) {
             vr->m_submitted = false;
             spdlog::info("[VR] Needed WGP update inside present (frame {})", vr->m_frame_count);

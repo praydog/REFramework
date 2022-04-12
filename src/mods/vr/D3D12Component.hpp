@@ -55,13 +55,14 @@ private:
 	struct OpenXR {
 		void initialize();
 		std::optional<std::string> create_swapchains();
-		
+
 		XrGraphicsBindingD3D12KHR binding{XR_TYPE_GRAPHICS_BINDING_D3D12_KHR};
 
 		struct SwapchainContext {
 			std::vector<XrSwapchainImageD3D12KHR> textures{};
 		};
 
+		XrFrameState frame_state{};
 		std::vector<SwapchainContext> contexts{};
 	} m_openxr;
 
