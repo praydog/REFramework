@@ -833,6 +833,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"shared/"
 		"src/"
 		"include/"
+		"${OPENXR_SOURCE_DIR}/src"
 	)
 
 	target_link_directories(RE2 PUBLIC
@@ -1285,6 +1286,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"shared/"
 		"src/"
 		"include/"
+		"${OPENXR_SOURCE_DIR}/src"
 	)
 
 	target_link_directories(RE3 PUBLIC
@@ -1737,6 +1739,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"shared/"
 		"src/"
 		"include/"
+		"${OPENXR_SOURCE_DIR}/src"
 	)
 
 	target_link_directories(RE7 PUBLIC
@@ -2189,6 +2192,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"shared/"
 		"src/"
 		"include/"
+		"${OPENXR_SOURCE_DIR}/src"
 	)
 
 	target_link_directories(RE8 PUBLIC
@@ -2641,6 +2645,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"shared/"
 		"src/"
 		"include/"
+		"${OPENXR_SOURCE_DIR}/src"
 	)
 
 	target_link_directories(DMC5 PUBLIC
@@ -3093,6 +3098,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"shared/"
 		"src/"
 		"include/"
+		"${OPENXR_SOURCE_DIR}/src"
 	)
 
 	target_link_directories(MHRISE PUBLIC

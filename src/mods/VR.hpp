@@ -17,6 +17,7 @@
 #define XR_USE_GRAPHICS_API_D3D12
 #include <openxr/openxr.h>
 #include <openxr/openxr_platform.h>
+#include <common/xr_linear.h>
 
 
 #include "utility/Patch.hpp"
@@ -44,6 +45,11 @@ struct VRRuntime {
         OCULUS, // Not implemented
     };
 
+    enum class Eye : uint8_t {
+        LEFT,
+        RIGHT,
+    };
+
     virtual ~VRRuntime() {};
 
     virtual std::string_view name() const {
@@ -58,6 +64,10 @@ struct VRRuntime {
         return Type::NONE;
     }
 
+    virtual Error synchronize_frame() {
+        return Error::SUCCESS;
+    }
+
     virtual Error update_poses() {
         return Error::SUCCESS;
     }
@@ -67,6 +77,18 @@ struct VRRuntime {
     }
 
     virtual Error consume_events(std::function<void(void*)> callback) {
+        return Error::SUCCESS;
+    }
+
+    virtual uint32_t get_width() const {
+        return 0;
+    }
+
+    virtual uint32_t get_height() const {
+        return 0;
+    }
+
+    virtual Error update_matrices(float nearz, float farz) {
         return Error::SUCCESS;
     }
 
@@ -94,10 +116,15 @@ struct VRRuntime {
     bool handle_pause{false};
     bool wants_reset_origin{false};
 
-    uint32_t w{0};
-    uint32_t h{0};
-
     std::optional<std::string> error{};
+
+    std::array<Matrix4x4f, 2> projections{};
+    std::array<Matrix4x4f, 2> eyes{};
+
+    std::shared_mutex projections_mtx{};
+    std::shared_mutex eyes_mtx{};
+
+    Vector4f raw_projections[2]{};
 };
 
 class VR : public Mod {
@@ -161,11 +188,11 @@ public:
     }
 
     auto get_hmd_width() const {
-        return get_runtime()->w;
+        return get_runtime()->get_width();
     }
 
     auto get_hmd_height() const {
-        return get_runtime()->h;
+        return get_runtime()->get_height();
     }
 
     auto get_last_controller_update() const {
@@ -241,7 +268,7 @@ public:
     }
 
     const auto& get_eyes() const {
-        return m_eyes;
+        return get_runtime()->eyes;
     }
     
     bool is_action_active(vr::VRActionHandle_t action, vr::VRInputValueHandle_t source = vr::k_ulInvalidInputValueHandle) const;
@@ -274,7 +301,7 @@ public:
     const auto& get_action_handles() const { return m_action_handles;}
 
     auto get_ui_scale() const { return m_ui_scale_option->value(); }
-    const auto& get_raw_projections() const { return m_raw_projections; }
+    const auto& get_raw_projections() const { return get_runtime()->raw_projections; }
 
     template<typename T=sdk::renderer::RenderLayer>
     struct RenderLayerHook {
@@ -389,7 +416,6 @@ private:
     std::recursive_mutex m_wwise_mtx{};
     std::shared_mutex m_pose_mtx{};
     std::shared_mutex m_gui_mtx{};
-    std::shared_mutex m_eyes_mtx{};
     std::shared_mutex m_rotation_mtx{};
 
     vr::VRTextureBounds_t m_right_bounds{ 0.0f, 0.0f, 1.0f, 1.0f };
@@ -438,13 +464,88 @@ private:
             return VRRuntime::ready() && this->session_ready;
         }
 
+        VRRuntime::Error synchronize_frame() override {
+            if (!this->session_ready) {
+                return VRRuntime::Error::SUCCESS;
+            }
+
+            XrFrameWaitInfo frame_wait_info{XR_TYPE_FRAME_WAIT_INFO};
+            this->frame_state = {XR_TYPE_FRAME_STATE};
+            auto result = xrWaitFrame(this->session, &frame_wait_info, &this->frame_state);
+
+            if (result != XR_SUCCESS) {
+                spdlog::error("[VR] xrWaitFrame failed: {}", this->get_result_string(result));
+                return (VRRuntime::Error)result;
+            }
+
+            return VRRuntime::Error::SUCCESS;
+        }
+
         VRRuntime::Error update_poses() override {
+            if (!this->session_ready) {
+                return VRRuntime::Error::SUCCESS;
+            }
+
+            if (!this->needs_pose_update) {
+                return VRRuntime::Error::SUCCESS;
+            }
+
+            this->view_state = {XR_TYPE_VIEW_STATE};
+
+            uint32_t view_count{};
+
+            XrViewLocateInfo view_locate_info{XR_TYPE_VIEW_LOCATE_INFO};
+            view_locate_info.viewConfigurationType = this->view_config;
+            view_locate_info.displayTime = this->frame_state.predictedDisplayTime;
+            view_locate_info.space = this->space;
+
+            auto result = xrLocateViews(this->session, &view_locate_info, &this->view_state, (uint32_t)this->views.size(), &view_count, this->views.data());
+
+            if (result != XR_SUCCESS) {
+                spdlog::error("[VR] xrLocateViews failed: {}", this->get_result_string(result));
+                return (VRRuntime::Error)result;
+            }
+
             this->needs_pose_update = false;
             return VRRuntime::Error::SUCCESS;
         }
 
         VRRuntime::Error update_render_target_size() override {
+            uint32_t view_count{};
+            auto result = xrEnumerateViewConfigurationViews(this->instance, this->system, this->view_config, 0, &view_count, nullptr); 
+            if (result != XR_SUCCESS) {
+                this->error = "Could not get view configuration properties: " + this->get_result_string(result);
+                spdlog::error("[VR] {}", this->error.value());
+
+                return (VRRuntime::Error)result;
+            }
+
+            this->view_configs.resize(view_count, {XR_TYPE_VIEW_CONFIGURATION_VIEW});
+            result = xrEnumerateViewConfigurationViews(this->instance, this->system, this->view_config, view_count, &view_count, this->view_configs.data());
+            if (result != XR_SUCCESS) {
+                this->error = "Could not get view configuration properties: " + this->get_result_string(result);
+                spdlog::error("[VR] {}", this->error.value());
+
+                return (VRRuntime::Error)result;
+            }
+
             return VRRuntime::Error::SUCCESS;
+        }
+
+        uint32_t get_width() const override {
+            if (this->view_configs.empty()) {
+                return 0;
+            }
+
+            return this->view_configs[0].recommendedImageRectWidth;
+        }
+
+        uint32_t get_height() const override {
+            if (this->view_configs.empty()) {
+                return 0;
+            }
+
+            return this->view_configs[0].recommendedImageRectHeight;
         }
 
         VRRuntime::Error consume_events(std::function<void(void*)> callback) override {
@@ -504,6 +605,21 @@ private:
             return VRRuntime::Error::SUCCESS;
         }
 
+        VRRuntime::Error update_matrices(float nearz, float farz) override {
+            if (!this->session_ready || this->views.empty()) {
+                return VRRuntime::Error::SUCCESS;
+            }
+
+            std::unique_lock __{ this->eyes_mtx };
+
+            for (auto i = 0; i < 2; ++i) {
+                const auto& fov = this->views[i].fov;
+                XrMatrix4x4f_CreateProjection((XrMatrix4x4f*)&this->projections[i], GRAPHICS_D3D, fov.angleLeft, fov.angleRight, fov.angleUp, fov.angleDown, nearz, farz);
+            }
+
+            return VRRuntime::Error::SUCCESS;
+        }
+
         bool session_ready{false};
 
         XrInstance instance{XR_NULL_HANDLE};
@@ -513,6 +629,8 @@ private:
         XrFormFactor form_factor{XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY};
         XrViewConfigurationType view_config{XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO};
         XrEnvironmentBlendMode blend_mode{XR_ENVIRONMENT_BLEND_MODE_OPAQUE};
+        XrViewState view_state{XR_TYPE_VIEW_STATE};
+        XrFrameState frame_state{XR_TYPE_FRAME_STATE};
 
         std::vector<XrViewConfigurationView> view_configs{};
         std::vector<Swapchain> swapchains{};
@@ -532,6 +650,11 @@ private:
             return VRRuntime::ready() && this->is_hmd_active && this->got_first_poses;
         }
 
+        VRRuntime::Error synchronize_frame() override {
+            // just call update_poses, in OpenVR WaitGetPoses updates the poses and syncs the frame at the same time
+            return this->update_poses();
+        }
+
         VRRuntime::Error update_poses() override {
             if (!this->needs_pose_update) {
                 return VRRuntime::Error::SUCCESS;
@@ -548,6 +671,14 @@ private:
             this->hmd->GetRecommendedRenderTargetSize(&this->w, &this->h);
 
             return VRRuntime::Error::SUCCESS;
+        }
+
+        uint32_t get_width() const override {
+            return this->w;
+        }
+
+        uint32_t get_height() const override {
+            return this->h;
         }
 
         VRRuntime::Error consume_events(std::function<void(void*)> callback) override {
@@ -585,8 +716,31 @@ private:
             return VRRuntime::Error::SUCCESS;
         }
 
+        VRRuntime::Error update_matrices(float nearz, float farz) override{
+            std::unique_lock __{ this->eyes_mtx };
+            const auto local_left = this->hmd->GetEyeToHeadTransform(vr::Eye_Left);
+            const auto local_right = this->hmd->GetEyeToHeadTransform(vr::Eye_Right);
+
+            this->eyes[vr::Eye_Left] = glm::rowMajor4(Matrix4x4f{ *(Matrix3x4f*)&local_left } );
+            this->eyes[vr::Eye_Right] = glm::rowMajor4(Matrix4x4f{ *(Matrix3x4f*)&local_right } );
+
+            auto pleft = this->hmd->GetProjectionMatrix(vr::Eye_Left, nearz, farz);
+            auto pright = this->hmd->GetProjectionMatrix(vr::Eye_Right, nearz, farz);
+
+            this->projections[vr::Eye_Left] = glm::rowMajor4(Matrix4x4f{ *(Matrix4x4f*)&pleft } );
+            this->projections[vr::Eye_Right] = glm::rowMajor4(Matrix4x4f{ *(Matrix4x4f*)&pright } );
+
+            this->hmd->GetProjectionRaw(vr::Eye_Left, &this->raw_projections[vr::Eye_Left][0], &this->raw_projections[vr::Eye_Left][1], &this->raw_projections[vr::Eye_Left][2], &this->raw_projections[vr::Eye_Left][3]);
+            this->hmd->GetProjectionRaw(vr::Eye_Right, &this->raw_projections[vr::Eye_Right][0], &this->raw_projections[vr::Eye_Right][1], &this->raw_projections[vr::Eye_Right][2], &this->raw_projections[vr::Eye_Right][3]);
+
+            return VRRuntime::Error::SUCCESS;
+        }
+
         bool is_hmd_active{false};
         bool was_hmd_active{true};
+
+        uint32_t w{0};
+        uint32_t h{0};
 
         vr::IVRSystem* hmd{nullptr};
 
@@ -603,9 +757,6 @@ private:
 
     std::vector<int32_t> m_controllers{};
     std::unordered_set<int32_t> m_controllers_set{};
-
-    std::array<Matrix4x4f, 2> m_eyes{};
-    std::array<Matrix4x4f, 2> m_projections{};
 
     // Action set handles
     vr::VRActionSetHandle_t m_action_set{};

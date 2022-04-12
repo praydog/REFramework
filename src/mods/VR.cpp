@@ -968,31 +968,17 @@ std::optional<std::string> VR::initialize_openxr() {
     spdlog::info("[VR] OpenXR system position: {}", system_properties.trackingProperties.positionTracking);
 
     // Step 6: Get the view configuration properties
-    uint32_t view_count{};
-    result = xrEnumerateViewConfigurationViews(m_openxr.instance, m_openxr.system, m_openxr.view_config, 0, &view_count, nullptr);
-    if (result != XR_SUCCESS) {
-        m_openxr.error = "Could not get view configuration properties: " + m_openxr.get_result_string(result);
-        spdlog::error("[VR] {}", m_openxr.error.value());
-
-        return std::nullopt;
-    }
-
-    m_openxr.view_configs.resize(view_count, {XR_TYPE_VIEW_CONFIGURATION_VIEW});
-    result = xrEnumerateViewConfigurationViews(m_openxr.instance, m_openxr.system, m_openxr.view_config, view_count, &view_count, m_openxr.view_configs.data());
-    if (result != XR_SUCCESS) {
-        m_openxr.error = "Could not get view configuration properties: " + m_openxr.get_result_string(result);
-        spdlog::error("[VR] {}", m_openxr.error.value());
-
-        return std::nullopt;
-    }
+    m_openxr.update_render_target_size();
 
     // Step 7: Create a view
-    m_openxr.views.resize(view_count, {XR_TYPE_VIEW});
+    if (!m_openxr.view_configs.empty()){
+        m_openxr.views.resize(m_openxr.view_configs.size(), {XR_TYPE_VIEW});
+    }
 
     // Step 8: Create a swapchain
     spdlog::info("[VR] Creating OpenXR swapchain");
 
-    if (view_count == 0) {
+    if (m_openxr.view_configs.empty()) {
         m_openxr.error = "No view configurations found";
         spdlog::error("[VR] {}", m_openxr.error.value());
 
@@ -1018,8 +1004,6 @@ std::optional<std::string> VR::initialize_openxr() {
             return std::nullopt;
         }
     }
-
-
 
     m_openxr.loaded = true;
 
@@ -1351,46 +1335,51 @@ bool VR::detect_controllers() {
         return true;
     }
 
-    auto left_joystick_origin_error = vr::EVRInputError::VRInputError_None;
-    auto right_joystick_origin_error = vr::EVRInputError::VRInputError_None;
+    if (get_runtime()->is_openvr()) {
+        auto left_joystick_origin_error = vr::EVRInputError::VRInputError_None;
+        auto right_joystick_origin_error = vr::EVRInputError::VRInputError_None;
 
-    vr::InputOriginInfo_t left_joystick_origin_info{};
-    vr::InputOriginInfo_t right_joystick_origin_info{};
+        vr::InputOriginInfo_t left_joystick_origin_info{};
+        vr::InputOriginInfo_t right_joystick_origin_info{};
 
-    // Get input origin info for the joysticks
-    // get the source input device handles for the joysticks
-    auto left_joystick_error = vr::VRInput()->GetInputSourceHandle("/user/hand/left", &m_left_joystick);
+        // Get input origin info for the joysticks
+        // get the source input device handles for the joysticks
+        auto left_joystick_error = vr::VRInput()->GetInputSourceHandle("/user/hand/left", &m_left_joystick);
 
-    if (left_joystick_error != vr::VRInputError_None) {
-        return false;
+        if (left_joystick_error != vr::VRInputError_None) {
+            return false;
+        }
+
+        auto right_joystick_error = vr::VRInput()->GetInputSourceHandle("/user/hand/right", &m_right_joystick);
+
+        if (right_joystick_error != vr::VRInputError_None) {
+            return false;
+        }
+
+        left_joystick_origin_info = {};
+        right_joystick_origin_info = {};
+
+        left_joystick_origin_error = vr::VRInput()->GetOriginTrackedDeviceInfo(m_left_joystick, &left_joystick_origin_info, sizeof(left_joystick_origin_info));
+        right_joystick_origin_error = vr::VRInput()->GetOriginTrackedDeviceInfo(m_right_joystick, &right_joystick_origin_info, sizeof(right_joystick_origin_info));
+        if (left_joystick_origin_error != vr::EVRInputError::VRInputError_None || right_joystick_origin_error != vr::EVRInputError::VRInputError_None) {
+            return false;
+        }
+
+        // Instead of manually going through the devices,
+        // We do this. The order of the devices isn't always guaranteed to be
+        // Left, and then right. Using the input state handles will always
+        // Get us the correct device indices.
+        m_controllers.push_back(left_joystick_origin_info.trackedDeviceIndex);
+        m_controllers.push_back(right_joystick_origin_info.trackedDeviceIndex);
+        m_controllers_set.insert(left_joystick_origin_info.trackedDeviceIndex);
+        m_controllers_set.insert(right_joystick_origin_info.trackedDeviceIndex);
+
+        spdlog::info("Left Hand: {}", left_joystick_origin_info.trackedDeviceIndex);
+        spdlog::info("Right Hand: {}", right_joystick_origin_info.trackedDeviceIndex);
+    } else {
+        // TODO!!!!!
     }
 
-    auto right_joystick_error = vr::VRInput()->GetInputSourceHandle("/user/hand/right", &m_right_joystick);
-
-    if (right_joystick_error != vr::VRInputError_None) {
-        return false;
-    }
-
-    left_joystick_origin_info = {};
-    right_joystick_origin_info = {};
-
-    left_joystick_origin_error = vr::VRInput()->GetOriginTrackedDeviceInfo(m_left_joystick, &left_joystick_origin_info, sizeof(left_joystick_origin_info));
-    right_joystick_origin_error = vr::VRInput()->GetOriginTrackedDeviceInfo(m_right_joystick, &right_joystick_origin_info, sizeof(right_joystick_origin_info));
-    if (left_joystick_origin_error != vr::EVRInputError::VRInputError_None || right_joystick_origin_error != vr::EVRInputError::VRInputError_None) {
-        return false;
-    }
-
-    // Instead of manually going through the devices,
-    // We do this. The order of the devices isn't always guaranteed to be
-    // Left, and then right. Using the input state handles will always
-    // Get us the correct device indices.
-    m_controllers.push_back(left_joystick_origin_info.trackedDeviceIndex);
-    m_controllers.push_back(right_joystick_origin_info.trackedDeviceIndex);
-    m_controllers_set.insert(left_joystick_origin_info.trackedDeviceIndex);
-    m_controllers_set.insert(right_joystick_origin_info.trackedDeviceIndex);
-
-    spdlog::info("Left Hand: {}", left_joystick_origin_info.trackedDeviceIndex);
-    spdlog::info("Right Hand: {}", right_joystick_origin_info.trackedDeviceIndex);
 
     return true;
 }
@@ -1424,8 +1413,8 @@ void VR::update_hmd_state() {
     //update_action_states();
 
     auto runtime = get_runtime();
+    runtime->synchronize_frame();
     runtime->update_poses();
-    runtime->consume_events(nullptr);
 
     // Update the poses used for the game
     // If we used the data directly from the WaitGetPoses call, we would have to lock a different mutex and wait a long time
@@ -1448,25 +1437,7 @@ void VR::update_hmd_state() {
         }
     }
 
-    if (runtime->is_openvr()) {
-        std::unique_lock __{ m_eyes_mtx };
-        const auto local_left = m_openvr.hmd->GetEyeToHeadTransform(vr::Eye_Left);
-        const auto local_right = m_openvr.hmd->GetEyeToHeadTransform(vr::Eye_Right);
-
-        m_eyes[vr::Eye_Left] = glm::rowMajor4(Matrix4x4f{ *(Matrix3x4f*)&local_left } );
-        m_eyes[vr::Eye_Right] = glm::rowMajor4(Matrix4x4f{ *(Matrix3x4f*)&local_right } );
-
-        auto pleft = m_openvr.hmd->GetProjectionMatrix(vr::Eye_Left, m_nearz, m_farz);
-        auto pright = m_openvr.hmd->GetProjectionMatrix(vr::Eye_Right, m_nearz, m_farz);
-
-        m_projections[vr::Eye_Left] = glm::rowMajor4(Matrix4x4f{ *(Matrix4x4f*)&pleft } );
-        m_projections[vr::Eye_Right] = glm::rowMajor4(Matrix4x4f{ *(Matrix4x4f*)&pright } );
-
-        m_openvr.hmd->GetProjectionRaw(vr::Eye_Left, &m_raw_projections[vr::Eye_Left][0], &m_raw_projections[vr::Eye_Left][1], &m_raw_projections[vr::Eye_Left][2], &m_raw_projections[vr::Eye_Left][3]);
-        m_openvr.hmd->GetProjectionRaw(vr::Eye_Right, &m_raw_projections[vr::Eye_Right][0], &m_raw_projections[vr::Eye_Right][1], &m_raw_projections[vr::Eye_Right][2], &m_raw_projections[vr::Eye_Right][3]);
-    } else {
-        // TODO: Implement this for OpenXR
-    }
+    runtime->update_matrices(m_nearz, m_farz);
 
     // On first run, set the standing origin to the headset position
     if (!runtime->got_first_poses) {
@@ -2189,14 +2160,14 @@ Vector4f VR::get_current_offset() {
         return Vector4f{};
     }
 
-    std::shared_lock _{ m_eyes_mtx };
+    std::shared_lock _{ get_runtime()->eyes_mtx };
 
     if (m_frame_count % 2 == m_left_eye_interval) {
         //return Vector4f{m_eye_distance * -1.0f, 0.0f, 0.0f, 0.0f};
-        return m_eyes[vr::Eye_Left][3];
+        return get_runtime()->eyes[vr::Eye_Left][3];
     }
     
-    return m_eyes[vr::Eye_Right][3];
+    return get_runtime()->eyes[vr::Eye_Right][3];
     //return Vector4f{m_eye_distance, 0.0f, 0.0f, 0.0f};
 }
 
@@ -2205,15 +2176,15 @@ Matrix4x4f VR::get_current_eye_transform(bool flip) {
         return glm::identity<Matrix4x4f>();
     }
 
-    std::shared_lock _{m_eyes_mtx};
+    std::shared_lock _{get_runtime()->eyes_mtx};
 
     auto mod_count = flip ? m_right_eye_interval : m_left_eye_interval;
 
     if (m_frame_count % 2 == mod_count) {
-        return m_eyes[vr::Eye_Left];
+        return get_runtime()->eyes[vr::Eye_Left];
     }
 
-    return m_eyes[vr::Eye_Right];
+    return get_runtime()->eyes[vr::Eye_Right];
 }
 
 Matrix4x4f VR::get_current_projection_matrix(bool flip) {
@@ -2221,15 +2192,15 @@ Matrix4x4f VR::get_current_projection_matrix(bool flip) {
         return glm::identity<Matrix4x4f>();
     }
 
-    std::shared_lock _{m_eyes_mtx};
+    std::shared_lock _{get_runtime()->eyes_mtx};
 
     auto mod_count = flip ? m_right_eye_interval : m_left_eye_interval;
 
     if (m_frame_count % 2 == mod_count) {
-        return m_projections[vr::Eye_Left];
+        return get_runtime()->projections[(uint32_t)VRRuntime::Eye::LEFT];
     }
 
-    return m_projections[vr::Eye_Right];
+    return get_runtime()->projections[(uint32_t)VRRuntime::Eye::RIGHT];
 }
 
 void VR::on_pre_imgui_frame() {
@@ -2972,6 +2943,10 @@ void VR::on_pre_begin_rendering(void* entry) {
         spdlog::info("VR: on_pre_wait_rendering: inside on end!");
     }
 
+    if (!inside_on_end) {
+        runtime->consume_events(nullptr);
+    }
+
     // Call WaitGetPoses
     if (runtime->needs_pose_update && !inside_on_end) {
         update_hmd_state();
@@ -3685,7 +3660,7 @@ void VR::on_draw_ui() {
     }
 
     // draw VR tree entry in menu (imgui)
-    ImGui::Text("Render Resolution: %d x %d", get_runtime()->w, get_runtime()->h);
+    ImGui::Text("Render Resolution: %d x %d", get_runtime()->get_width(), get_runtime()->get_height());
     ImGui::Text("Resolution can be changed in SteamVR");
     ImGui::Separator();
 

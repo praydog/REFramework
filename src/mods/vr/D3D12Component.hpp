@@ -62,7 +62,6 @@ private:
 			std::vector<XrSwapchainImageD3D12KHR> textures{};
 		};
 
-		XrFrameState frame_state{};
 		std::vector<SwapchainContext> contexts{};
 	} m_openxr;
 
