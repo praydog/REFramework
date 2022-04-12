@@ -247,4 +247,96 @@ void D3D12Component::OpenXR::initialize() {
     XrGraphicsRequirementsD3D12KHR gr{XR_TYPE_GRAPHICS_REQUIREMENTS_D3D12_KHR};
     fn(VR::get()->m_openxr.instance, VR::get()->m_openxr.system, &gr);
 }
+
+std::optional<std::string> D3D12Component::OpenXR::create_swapchains() {
+    spdlog::info("[VR] Creating OpenXR swapchains for D3D12");
+    
+    auto& hook = g_framework->get_d3d12_hook();
+    auto device = hook->get_device();
+    auto swapchain = hook->get_swap_chain();
+
+    ComPtr<ID3D12Resource> backbuffer{};
+
+    // Get the existing backbuffer
+    // so we can get the format and stuff.
+    if (FAILED(swapchain->GetBuffer(0, IID_PPV_ARGS(&backbuffer)))) {
+        spdlog::error("[VR] Failed to get back buffer.");
+        return "Failed to get back buffer.";
+    }
+
+    D3D12_HEAP_PROPERTIES heap_props{};
+    heap_props.Type = D3D12_HEAP_TYPE_DEFAULT;
+    heap_props.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+    heap_props.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+
+    auto backbuffer_desc = backbuffer->GetDesc();
+    auto vr = VR::get();
+    auto& openxr = vr->m_openxr;
+
+    this->contexts.clear();
+    this->contexts.resize(openxr.views.size());
+    
+    for (auto i = 0; i < openxr.views.size(); ++i) {
+        const auto& vp = openxr.view_configs[i];
+
+        spdlog::info("[VR] Creating swapchain for eye {}", i);
+        spdlog::info("[VR] Width: {}", vp.recommendedImageRectWidth);
+        spdlog::info("[VR] Height: {}", vp.recommendedImageRectHeight);
+
+        // Create the swapchain.
+        XrSwapchainCreateInfo swapchain_create_info{XR_TYPE_SWAPCHAIN_CREATE_INFO};
+        swapchain_create_info.arraySize = 1;
+        swapchain_create_info.format = backbuffer_desc.Format;
+        swapchain_create_info.width = vp.recommendedImageRectWidth;
+        swapchain_create_info.height = vp.recommendedImageRectHeight;
+        swapchain_create_info.mipCount = 1;
+        swapchain_create_info.faceCount = 1;
+        swapchain_create_info.sampleCount = backbuffer_desc.SampleDesc.Count;
+        swapchain_create_info.usageFlags = XR_SWAPCHAIN_USAGE_SAMPLED_BIT | XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT;
+
+        VR::OpenXR::Swapchain swapchain{};
+        swapchain.width = swapchain_create_info.width;
+        swapchain.height = swapchain_create_info.height;
+
+        if (xrCreateSwapchain(openxr.session, &swapchain_create_info, &swapchain.handle) != XR_SUCCESS) {
+            spdlog::error("[VR] D3D12: Failed to create swapchain.");
+            return "Failed to create swapchain.";
+        }
+
+        vr->m_openxr.swapchains.push_back(swapchain);
+
+        uint32_t image_count{};
+        auto result = xrEnumerateSwapchainImages(swapchain.handle, 0, &image_count, nullptr);
+
+        if (result != XR_SUCCESS) {
+            spdlog::error("[VR] Failed to enumerate swapchain images.");
+            return "Failed to enumerate swapchain images.";
+        }
+
+        auto& ctx = this->contexts[i];
+
+        ctx.textures.clear();
+        ctx.textures.resize(image_count);
+
+        for (uint32_t j = 0; j < image_count; ++j) {
+            spdlog::info("[VR] Creating swapchain image {} for swapchain {}", j, i);
+
+            ctx.textures[j] = {XR_TYPE_SWAPCHAIN_IMAGE_D3D12_KHR};
+
+            if (FAILED(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &backbuffer_desc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr, IID_PPV_ARGS(&ctx.textures[j].texture)))) {
+                spdlog::error("[VR] Failed to create swapchain texture {} {}", i, j);
+                return "Failed to create swapchain texture.";
+            }
+        }
+
+        result = xrEnumerateSwapchainImages(swapchain.handle, image_count, &image_count, (XrSwapchainImageBaseHeader*)&ctx.textures[0]);
+
+        if (result != XR_SUCCESS) {
+            spdlog::error("[VR] Failed to enumerate swapchain images after texture creation.");
+            return "Failed to enumerate swapchain images after texture creation.";
+        }
+    }
+
+    return std::nullopt;
+}
 } // namespace vrmod

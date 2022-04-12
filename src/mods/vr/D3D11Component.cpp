@@ -200,4 +200,9 @@ void D3D11Component::OpenXR::initialize() {
     XrGraphicsRequirementsD3D11KHR gr{XR_TYPE_GRAPHICS_REQUIREMENTS_D3D11_KHR};
     fn(VR::get()->m_openxr.instance, VR::get()->m_openxr.system, &gr);
 }
+
+std::optional<std::string> D3D11Component::OpenXR::create_swapchains() {
+    // TODO: implement
+    return std::nullopt;
+}
 } // namespace vrmod

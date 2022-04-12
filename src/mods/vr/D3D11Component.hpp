@@ -35,7 +35,9 @@ private:
 
     struct OpenXR {
         void initialize();
+        std::optional<std::string> create_swapchains();
         XrGraphicsBindingD3D11KHR binding{XR_TYPE_GRAPHICS_BINDING_D3D11_KHR};
+        std::vector<XrSwapchainImageD3D11KHR> m_swapchain_images{};
     } m_openxr;
 
     void setup();

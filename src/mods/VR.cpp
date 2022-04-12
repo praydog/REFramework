@@ -954,7 +954,25 @@ std::optional<std::string> VR::initialize_openxr() {
         return std::nullopt;
     }
 
+    if (g_framework->is_dx12()) {
+        auto err = m_d3d12.openxr().create_swapchains();
 
+        if (err) {
+            m_openxr.error = err.value();
+            spdlog::error("[VR] {}", m_openxr.error.value());
+
+            return std::nullopt;
+        }
+    } else {
+        auto err = m_d3d11.openxr().create_swapchains();
+
+        if (err) {
+            m_openxr.error = err.value();
+            spdlog::error("[VR] {}", m_openxr.error.value());
+
+            return std::nullopt;
+        }
+    }
 
     m_openxr.loaded = true;
 

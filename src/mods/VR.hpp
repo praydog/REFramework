@@ -317,7 +317,13 @@ private:
     float m_nearz{ 0.1f };
     float m_farz{ 3000.0f };
 
-    struct {
+    struct OpenXR {
+        struct Swapchain {
+            XrSwapchain handle;
+            int32_t width;
+            int32_t height;
+        };
+
         bool loaded{false};
         std::optional<std::string> error{};
 
@@ -330,7 +336,7 @@ private:
         XrEnvironmentBlendMode blend_mode{XR_ENVIRONMENT_BLEND_MODE_OPAQUE};
 
         std::vector<XrViewConfigurationView> view_configs{};
-        std::vector<XrSwapchain> swapchains{};
+        std::vector<Swapchain> swapchains{};
         std::vector<XrView> views{};
     } m_openxr;
 
