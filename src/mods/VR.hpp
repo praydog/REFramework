@@ -32,6 +32,11 @@
 class REManagedObject;
 
 struct VRRuntime {
+    enum class Error : uint64_t {
+        SUCCESS = 0,
+        // rest of the error codes will be from the specific VR runtime
+    };
+
     enum class Type : uint8_t {
         NONE,
         OPENXR,
@@ -41,12 +46,28 @@ struct VRRuntime {
 
     virtual ~VRRuntime() {};
 
+    virtual std::string_view name() const {
+        return "NONE";
+    }
+
     virtual bool ready() const {
         return this->loaded;
     }
 
     virtual Type type() const { 
         return Type::NONE;
+    }
+
+    virtual Error update_poses() {
+        return Error::SUCCESS;
+    }
+
+    virtual Error update_render_target_size() {
+        return Error::SUCCESS;
+    }
+
+    virtual Error consume_events(std::function<void(void*)> callback) {
+        return Error::SUCCESS;
     }
 
     bool is_openxr() const {
@@ -69,7 +90,13 @@ struct VRRuntime {
     // even if we don't have anything to submit yet, otherwise the compositor
     // will return VRCompositorError_DoNotHaveFocus
     bool needs_pose_update{true};
-    
+    bool got_first_poses{false};
+    bool handle_pause{false};
+    bool wants_reset_origin{false};
+
+    uint32_t w{0};
+    uint32_t h{0};
+
     std::optional<std::string> error{};
 };
 
@@ -129,16 +156,16 @@ public:
         return m_openvr.hmd;
     }
 
-    auto& get_poses() const {
-        return m_render_poses;
+    auto& get_openvr_poses() const {
+        return m_openvr.render_poses;
     }
 
     auto get_hmd_width() const {
-        return m_w;
+        return get_runtime()->w;
     }
 
     auto get_hmd_height() const {
-        return m_h;
+        return get_runtime()->h;
     }
 
     auto get_last_controller_update() const {
@@ -403,8 +430,74 @@ private:
             return VRRuntime::Type::OPENXR;
         }
 
+        std::string_view name() const override {
+            return "OpenXR";
+        }
+
         bool ready() const override {
             return VRRuntime::ready() && this->session_ready;
+        }
+
+        VRRuntime::Error update_poses() override {
+            this->needs_pose_update = false;
+            return VRRuntime::Error::SUCCESS;
+        }
+
+        VRRuntime::Error update_render_target_size() override {
+            return VRRuntime::Error::SUCCESS;
+        }
+
+        VRRuntime::Error consume_events(std::function<void(void*)> callback) override {
+            XrEventDataBuffer edb{XR_TYPE_EVENT_DATA_BUFFER};
+            auto result = xrPollEvent(this->instance, &edb);
+
+            const auto bh = (XrEventDataBaseHeader*)&edb;
+
+            if (result == XR_SUCCESS) {
+                spdlog::info("VR: xrEvent: {}", this->get_structure_string(bh->type));
+
+                if (bh->type == XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED) {
+                    const auto ev = (XrEventDataSessionStateChanged*)&edb;
+
+                    spdlog::info("VR: XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED {}", ev->state);
+
+                    if (ev->state == XR_SESSION_STATE_READY) {
+                        spdlog::info("VR: XR_SESSION_STATE_READY");
+                        
+                        // Begin the session
+                        XrSessionBeginInfo session_begin_info{XR_TYPE_SESSION_BEGIN_INFO};
+                        session_begin_info.primaryViewConfigurationType = this->view_config;
+
+                        result = xrBeginSession(this->session, &session_begin_info);
+
+                        if (result != XR_SUCCESS) {
+                            this->error = std::string{"xrBeginSessionFailed: "} + this->get_result_string(result);
+                            spdlog::error("VR: xrBeginSession failed: {}", this->get_result_string(result));
+                        } else {
+                            this->session_ready = true;
+                        }
+                    } else if (ev->state == XR_SESSION_STATE_LOSS_PENDING) {
+                        spdlog::info("VR: XR_SESSION_STATE_LOSS_PENDING");
+                        this->wants_reinitialize = true;
+                    } else if (ev->state == XR_SESSION_STATE_STOPPING) {
+                        spdlog::info("VR: XR_SESSION_STATE_STOPPING");
+
+                        if (this->ready()) {
+                            xrEndSession(this->session);
+                            this->session_ready = false;
+
+                            if (this->wants_reinitialize) {
+                                //initialize_openxr();
+                            }
+                        }
+                    }
+                }
+            } else if (result != XR_EVENT_UNAVAILABLE) {
+                spdlog::error("VR: xrPollEvent failed: {}", this->get_result_string(result));
+                return (VRRuntime::Error)result;
+            }
+
+            return VRRuntime::Error::SUCCESS;
         }
 
         bool session_ready{false};
@@ -423,17 +516,73 @@ private:
     } m_openxr;
 
     struct OpenVR : public VRRuntime {
+        std::string_view name() const override {
+            return "OpenVR";
+        }
+
         VRRuntime::Type type() const override { 
             return VRRuntime::Type::OPENVR;
         }
 
         bool ready() const override {
-            return VRRuntime::ready() && this->is_hmd_active && this->wgp_initialized;
+            return VRRuntime::ready() && this->is_hmd_active && this->got_first_poses;
+        }
+
+        VRRuntime::Error update_poses() override {
+            if (!this->needs_pose_update) {
+                return VRRuntime::Error::SUCCESS;
+            }
+
+            vr::VRCompositor()->SetTrackingSpace(vr::TrackingUniverseStanding);
+            auto ret = vr::VRCompositor()->WaitGetPoses(this->real_render_poses.data(), vr::k_unMaxTrackedDeviceCount, this->real_game_poses.data(), vr::k_unMaxTrackedDeviceCount);
+
+            this->needs_pose_update = !(ret == vr::VRCompositorError_None);
+            return (VRRuntime::Error)ret;
+        }
+
+        VRRuntime::Error update_render_target_size() override {
+            this->hmd->GetRecommendedRenderTargetSize(&this->w, &this->h);
+
+            return VRRuntime::Error::SUCCESS;
+        }
+
+        VRRuntime::Error consume_events(std::function<void(void*)> callback) override {
+            // Process OpenVR events
+            vr::VREvent_t event{};
+            while (this->hmd->PollNextEvent(&event, sizeof(event))) {
+                if (callback) {
+                    callback(&event);
+                }
+
+                switch ((vr::EVREventType)event.eventType) {
+                    // Detect whether video settings changed
+                    case vr::VREvent_SteamVRSectionSettingChanged: {
+                        spdlog::info("VR: VREvent_SteamVRSectionSettingChanged");
+                        update_render_target_size();
+                    } break;
+
+                    // Detect whether SteamVR reset the standing/seated pose
+                    case vr::VREvent_SeatedZeroPoseReset: [[fallthrough]];
+                    case vr::VREvent_StandingZeroPoseReset: {
+                        spdlog::info("VR: VREvent_SeatedZeroPoseReset");
+                        this->wants_reset_origin = true;
+                    } break;
+
+                    case vr::VREvent_DashboardActivated: {
+                        this->handle_pause = true;
+                    } break;
+
+                    default:
+                        spdlog::info("VR: Unknown event: {}", (uint32_t)event.eventType);
+                        break;
+                }
+            }
+            
+            return VRRuntime::Error::SUCCESS;
         }
 
         bool is_hmd_active{false};
         bool was_hmd_active{true};
-        bool wgp_initialized{false};
 
         vr::IVRSystem* hmd{nullptr};
 
@@ -443,14 +592,6 @@ private:
         std::array<vr::TrackedDevicePose_t, vr::k_unMaxTrackedDeviceCount> render_poses;
         std::array<vr::TrackedDevicePose_t, vr::k_unMaxTrackedDeviceCount> game_poses;
     } m_openvr;
-
-
-    // Poses
-    std::array<vr::TrackedDevicePose_t, vr::k_unMaxTrackedDeviceCount> m_real_render_poses;
-    std::array<vr::TrackedDevicePose_t, vr::k_unMaxTrackedDeviceCount> m_real_game_poses;
-
-    std::array<vr::TrackedDevicePose_t, vr::k_unMaxTrackedDeviceCount> m_render_poses;
-    std::array<vr::TrackedDevicePose_t, vr::k_unMaxTrackedDeviceCount> m_game_poses;
 
     Vector4f m_standing_origin{ 0.0f, 1.5f, 0.0f, 0.0f };
     glm::quat m_rotation_offset{ glm::identity<glm::quat>() };
@@ -538,7 +679,6 @@ private:
     std::condition_variable m_present_finished_cv{};
     std::mutex m_present_finished_mtx{};
     
-    uint32_t m_w{0}, m_h{0};
     Vector4f m_raw_projections[2]{};
 
     vrmod::D3D11Component m_d3d11{};
@@ -572,7 +712,6 @@ private:
     bool m_in_render{false};
     bool m_in_lightshaft{false};
     bool m_positional_tracking{true};
-    bool m_handle_pause{false}; // happens when dashboard opens
     bool m_is_d3d12{false};
     bool m_backbuffer_inconsistency{false};
 
