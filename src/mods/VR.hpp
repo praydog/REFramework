@@ -491,6 +491,7 @@ private:
             }
 
             this->view_state = {XR_TYPE_VIEW_STATE};
+            this->stage_view_state = {XR_TYPE_VIEW_STATE};
 
             uint32_t view_count{};
 
@@ -502,7 +503,19 @@ private:
             auto result = xrLocateViews(this->session, &view_locate_info, &this->view_state, (uint32_t)this->views.size(), &view_count, this->views.data());
 
             if (result != XR_SUCCESS) {
-                spdlog::error("[VR] xrLocateViews failed: {}", this->get_result_string(result));
+                spdlog::error("[VR] xrLocateViews for view space failed: {}", this->get_result_string(result));
+                return (VRRuntime::Error)result;
+            }
+
+            view_locate_info = {XR_TYPE_VIEW_LOCATE_INFO};
+            view_locate_info.viewConfigurationType = this->view_config;
+            view_locate_info.displayTime = this->frame_state.predictedDisplayTime;
+            view_locate_info.space = this->stage_space;
+
+            result = xrLocateViews(this->session, &view_locate_info, &this->stage_view_state, (uint32_t)this->stage_views.size(), &view_count, this->stage_views.data());
+
+            if (result != XR_SUCCESS) {
+                spdlog::error("[VR] xrLocateViews for stage space failed: {}", this->get_result_string(result));
                 return (VRRuntime::Error)result;
             }
 
@@ -617,7 +630,7 @@ private:
                 const auto& fov = this->views[i].fov;
 
                 // Update projection matrix
-                XrMatrix4x4f_CreateProjection((XrMatrix4x4f*)&this->projections[i], GRAPHICS_D3D, fov.angleLeft, fov.angleRight, fov.angleUp, fov.angleDown, nearz, farz);
+                XrMatrix4x4f_CreateProjection((XrMatrix4x4f*)&this->projections[i], GRAPHICS_D3D, tan(fov.angleLeft), tan(fov.angleRight), tan(fov.angleUp), tan(fov.angleDown), nearz, farz);
 
                 // Update view matrix
                 this->eyes[i] = Matrix4x4f{*(glm::quat*)&pose.orientation};
@@ -631,18 +644,20 @@ private:
 
         XrInstance instance{XR_NULL_HANDLE};
         XrSession session{XR_NULL_HANDLE};
-        XrSpace space{XR_NULL_HANDLE};
+        XrSpace stage_space{XR_NULL_HANDLE};
         XrSpace view_space{XR_NULL_HANDLE}; // for generating view matrices
         XrSystemId system{XR_NULL_SYSTEM_ID};
         XrFormFactor form_factor{XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY};
         XrViewConfigurationType view_config{XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO};
         XrEnvironmentBlendMode blend_mode{XR_ENVIRONMENT_BLEND_MODE_OPAQUE};
         XrViewState view_state{XR_TYPE_VIEW_STATE};
+        XrViewState stage_view_state{XR_TYPE_VIEW_STATE};
         XrFrameState frame_state{XR_TYPE_FRAME_STATE};
 
         std::vector<XrViewConfigurationView> view_configs{};
         std::vector<Swapchain> swapchains{};
         std::vector<XrView> views{};
+        std::vector<XrView> stage_views{};
     } m_openxr;
 
     struct OpenVR : public VRRuntime {

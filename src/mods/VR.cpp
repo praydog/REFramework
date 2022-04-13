@@ -930,16 +930,16 @@ std::optional<std::string> VR::initialize_openxr() {
 
     // We may just be restarting OpenXR, so try to find an existing space first
 
-    if (m_openxr.space == XR_NULL_HANDLE) {
+    if (m_openxr.stage_space == XR_NULL_HANDLE) {
         XrReferenceSpaceCreateInfo space_create_info{XR_TYPE_REFERENCE_SPACE_CREATE_INFO};
         space_create_info.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_STAGE;
         space_create_info.poseInReferenceSpace = {};
         space_create_info.poseInReferenceSpace.orientation.w = 1.0f;
 
-        result = xrCreateReferenceSpace(m_openxr.session, &space_create_info, &m_openxr.space);
+        result = xrCreateReferenceSpace(m_openxr.session, &space_create_info, &m_openxr.stage_space);
 
         if (result != XR_SUCCESS) {
-            m_openxr.error = "Could not create openxr space: " + m_openxr.get_result_string(result);
+            m_openxr.error = "Could not create openxr stage space: " + m_openxr.get_result_string(result);
             spdlog::error("[VR] {}", m_openxr.error.value());
 
             return std::nullopt;
@@ -989,6 +989,7 @@ std::optional<std::string> VR::initialize_openxr() {
     // Step 7: Create a view
     if (!m_openxr.view_configs.empty()){
         m_openxr.views.resize(m_openxr.view_configs.size(), {XR_TYPE_VIEW});
+        m_openxr.stage_views.resize(m_openxr.view_configs.size(), {XR_TYPE_VIEW});
     }
 
     // Step 8: Create a swapchain
@@ -3800,6 +3801,7 @@ Vector4f VR::get_position(uint32_t index) {
     }
 
     std::shared_lock _{ m_pose_mtx };
+    std::shared_lock __{ get_runtime()->eyes_mtx };
 
     return get_position_unsafe(index);
 }
@@ -3836,6 +3838,13 @@ Vector4f VR::get_position_unsafe(uint32_t index) {
         result.w = 1.0f;
 
         return result;
+    } else if (get_runtime()->is_openxr()) {
+        // HMD position
+        if (index == 0 && !m_openxr.stage_views.empty()) {
+            return Vector4f{ *(Vector3f*)&m_openxr.stage_views[0].pose.position, 0.0f };
+        }
+
+        return Vector4f{};
     } else {
         return Vector4f{};
     }
@@ -3882,6 +3891,16 @@ Matrix4x4f VR::get_rotation(uint32_t index) {
         auto& pose = get_openvr_poses()[index];
         auto matrix = Matrix4x4f{ *(Matrix3x4f*)&pose.mDeviceToAbsoluteTracking };
         return glm::extractMatrixRotation(glm::rowMajor4(matrix));
+    } else if (get_runtime()->is_openxr()) {
+        std::shared_lock _{ m_pose_mtx };
+        std::shared_lock __{ get_runtime()->eyes_mtx };
+
+        // HMD rotation
+        if (index == 0 && !m_openxr.stage_views.empty()) {
+            return Matrix4x4f{*(glm::quat*)&m_openxr.stage_views[0].pose.orientation};
+        }
+
+        return glm::identity<Matrix4x4f>();
     } else {
         spdlog::error("VR: get_rotation: not implemented for {}", get_runtime()->name());
         return glm::identity<Matrix4x4f>();

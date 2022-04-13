@@ -117,34 +117,21 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
         XrViewState view_state{XR_TYPE_VIEW_STATE};
 
         if (vr->get_runtime()->is_openxr() && vr->m_openxr.ready()) {
-            uint32_t view_count{};
-
-            XrViewLocateInfo view_locate_info{XR_TYPE_VIEW_LOCATE_INFO};
-            view_locate_info.viewConfigurationType = vr->m_openxr.view_config;
-            view_locate_info.displayTime = vr->m_openxr.frame_state.predictedDisplayTime;
-            view_locate_info.space = vr->m_openxr.space;
-
-            auto result = xrLocateViews(vr->m_openxr.session, &view_locate_info, &view_state, (uint32_t)vr->m_openxr.views.size(), &view_count, vr->m_openxr.views.data());
-
-            if (result != XR_SUCCESS) {
-                spdlog::error("[VR] xrLocateViews failed: {}", vr->m_openxr.get_result_string(result));
-            }
-
-            projection_layer_views.resize(view_count);
+            projection_layer_views.resize(vr->m_openxr.stage_views.size());
 
             if (vr->m_openxr.frame_state.shouldRender == XR_TRUE) {
-                for (auto i = 0; i < view_count; ++i) {
+                for (auto i = 0; i < projection_layer_views.size(); ++i) {
                     const auto& swapchain = vr->m_openxr.swapchains[i];
 
                     projection_layer_views[i] = {XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW};
-                    projection_layer_views[i].pose = vr->m_openxr.views[i].pose;
-                    projection_layer_views[i].fov = vr->m_openxr.views[i].fov;
+                    projection_layer_views[i].pose = vr->m_openxr.stage_views[i].pose;
+                    projection_layer_views[i].fov = vr->m_openxr.stage_views[i].fov;
                     projection_layer_views[i].subImage.swapchain = swapchain.handle;
                     projection_layer_views[i].subImage.imageRect.offset = {0, 0};
                     projection_layer_views[i].subImage.imageRect.extent = {swapchain.width, swapchain.height};
                 }
                 
-                layer.space = vr->m_openxr.space;
+                layer.space = vr->m_openxr.stage_space;
                 layer.viewCount = (uint32_t)projection_layer_views.size();
                 layer.views = projection_layer_views.data();
                 layers.push_back((XrCompositionLayerBaseHeader*)&layer);
