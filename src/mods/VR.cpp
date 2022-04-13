@@ -1430,7 +1430,11 @@ void VR::update_hmd_state() {
     //update_action_states();
 
     auto runtime = get_runtime();
-    runtime->synchronize_frame();
+    
+    if (runtime->get_synchronize_stage() == VRRuntime::SynchronizeStage::EARLY) {
+        runtime->synchronize_frame();
+    }
+    
     runtime->update_poses();
 
     // Update the poses used for the game
@@ -1439,18 +1443,11 @@ void VR::update_hmd_state() {
     {
         std::unique_lock _{ m_pose_mtx };
 
-        auto openvr = get_runtime<VR::OpenVR>();
-
-        if (runtime->is_openvr()) {
-            memcpy(openvr->game_poses.data(), openvr->real_game_poses.data(), sizeof(openvr->game_poses));
-            memcpy(openvr->render_poses.data(), openvr->real_render_poses.data(), sizeof(openvr->render_poses));
-        } else {
-            // TODO: Implement this for OpenXR
-        }
-
-        if (runtime->wants_reset_origin) {
+        if (runtime->wants_reset_origin && runtime->ready()) {
             set_rotation_offset(glm::identity<glm::quat>());
             m_standing_origin = get_position_unsafe(vr::k_unTrackedDeviceIndex_Hmd);
+
+            runtime->wants_reset_origin = false;
         }
     }
 
@@ -3841,7 +3838,7 @@ Vector4f VR::get_position_unsafe(uint32_t index) {
     } else if (get_runtime()->is_openxr()) {
         // HMD position
         if (index == 0 && !m_openxr.stage_views.empty()) {
-            return Vector4f{ *(Vector3f*)&m_openxr.stage_views[0].pose.position, 0.0f };
+            return Vector4f{ *(Vector3f*)&m_openxr.stage_views[0].pose.position, 1.0f };
         }
 
         return Vector4f{};

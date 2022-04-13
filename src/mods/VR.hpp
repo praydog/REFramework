@@ -50,6 +50,11 @@ struct VRRuntime {
         RIGHT,
     };
 
+    enum class SynchronizeStage : uint8_t { 
+        EARLY,
+        LATE
+    };
+
     virtual ~VRRuntime() {};
 
     virtual std::string_view name() const {
@@ -92,6 +97,10 @@ struct VRRuntime {
         return Error::SUCCESS;
     }
 
+    virtual SynchronizeStage get_synchronize_stage() const {
+        return SynchronizeStage::EARLY;
+    }
+
     bool is_openxr() const {
         return this->type() == Type::OPENXR;
     }
@@ -114,7 +123,7 @@ struct VRRuntime {
     bool needs_pose_update{true};
     bool got_first_poses{false};
     bool handle_pause{false};
-    bool wants_reset_origin{false};
+    bool wants_reset_origin{true};
 
     std::optional<std::string> error{};
 
@@ -640,6 +649,11 @@ private:
             return VRRuntime::Error::SUCCESS;
         }
 
+        SynchronizeStage get_synchronize_stage() const override {
+            return SynchronizeStage::LATE;
+        }
+
+
         bool session_ready{false};
 
         XrInstance instance{XR_NULL_HANDLE};
@@ -674,8 +688,14 @@ private:
         }
 
         VRRuntime::Error synchronize_frame() override {
-            // just call update_poses, in OpenVR WaitGetPoses updates the poses and syncs the frame at the same time
-            return this->update_poses();
+            /*if (!this->needs_pose_update) {
+                return VRRuntime::Error::SUCCESS;
+            }*/
+
+            vr::VRCompositor()->SetTrackingSpace(vr::TrackingUniverseStanding);
+            auto ret = vr::VRCompositor()->WaitGetPoses(this->real_render_poses.data(), vr::k_unMaxTrackedDeviceCount, this->real_game_poses.data(), vr::k_unMaxTrackedDeviceCount);
+
+            return (VRRuntime::Error)ret;
         }
 
         VRRuntime::Error update_poses() override {
@@ -683,11 +703,11 @@ private:
                 return VRRuntime::Error::SUCCESS;
             }
 
-            vr::VRCompositor()->SetTrackingSpace(vr::TrackingUniverseStanding);
-            auto ret = vr::VRCompositor()->WaitGetPoses(this->real_render_poses.data(), vr::k_unMaxTrackedDeviceCount, this->real_game_poses.data(), vr::k_unMaxTrackedDeviceCount);
+            std::unique_lock _{ VR::get()->m_pose_mtx };
 
-            this->needs_pose_update = !(ret == vr::VRCompositorError_None);
-            return (VRRuntime::Error)ret;
+            memcpy(this->render_poses.data(), this->real_render_poses.data(), sizeof(this->render_poses));
+            this->needs_pose_update = false;
+            return VRRuntime::Error::SUCCESS;
         }
 
         VRRuntime::Error update_render_target_size() override {
@@ -757,6 +777,10 @@ private:
             this->hmd->GetProjectionRaw(vr::Eye_Right, &this->raw_projections[vr::Eye_Right][0], &this->raw_projections[vr::Eye_Right][1], &this->raw_projections[vr::Eye_Right][2], &this->raw_projections[vr::Eye_Right][3]);
 
             return VRRuntime::Error::SUCCESS;
+        }
+
+        SynchronizeStage get_synchronize_stage() const override {
+            return SynchronizeStage::EARLY;
         }
 
         bool is_hmd_active{false};
