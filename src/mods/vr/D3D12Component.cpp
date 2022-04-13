@@ -422,13 +422,13 @@ std::optional<std::string> D3D12Component::OpenXR::create_swapchains() {
         // Create the swapchain.
         XrSwapchainCreateInfo swapchain_create_info{XR_TYPE_SWAPCHAIN_CREATE_INFO};
         swapchain_create_info.arraySize = 1;
-        swapchain_create_info.format = backbuffer_desc.Format;
+        swapchain_create_info.format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
         swapchain_create_info.width = vp.recommendedImageRectWidth;
         swapchain_create_info.height = vp.recommendedImageRectHeight;
         swapchain_create_info.mipCount = 1;
         swapchain_create_info.faceCount = 1;
         swapchain_create_info.sampleCount = backbuffer_desc.SampleDesc.Count;
-        swapchain_create_info.usageFlags = XR_SWAPCHAIN_USAGE_SAMPLED_BIT | XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT;
+        swapchain_create_info.usageFlags = XR_SWAPCHAIN_USAGE_SAMPLED_BIT | XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT | XR_SWAPCHAIN_USAGE_MUTABLE_FORMAT_BIT;
 
         VR::OpenXR::Swapchain swapchain{};
         swapchain.width = swapchain_create_info.width;
