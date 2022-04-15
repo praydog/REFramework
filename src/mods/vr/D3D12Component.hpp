@@ -56,12 +56,17 @@ private:
 		bool waiting_for_fence{false};
 		bool has_commands{false};
 	} m_resource_copier;
+	};
+
+	// Mimicking what OpenXR does.
+	std::array<ResourceCopier, 6> m_copiers{};
+	std::array<ComPtr<ID3D12Resource>, 3> m_left_eye_tex{};
+	std::array<ComPtr<ID3D12Resource>, 3> m_right_eye_tex{};
+	uint32_t m_counter{0};
+	uint32_t m_texture_counter{0};
 
 	uint32_t m_backbuffer_size[2]{};
 	bool m_force_reset{false};
-
-	ComPtr<ID3D12Resource> m_left_eye_tex{};
-	ComPtr<ID3D12Resource> m_right_eye_tex{}; 
 
 	struct OpenXR {
 		void initialize(XrSessionCreateInfo& session_info);
