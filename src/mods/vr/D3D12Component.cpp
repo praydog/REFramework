@@ -71,7 +71,8 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
         // OpenVR texture
         // Copy the back buffer to the right eye texture.
         if (runtime->is_openvr()) {
-            m_resource_copier.copy(backbuffer.Get(), m_right_eye_tex.Get());
+            copier.copy(backbuffer.Get(), m_right_eye_tex[m_texture_counter % m_right_eye_tex.size()].Get());
+            copier.execute();
         }
     }
 

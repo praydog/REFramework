@@ -28,7 +28,7 @@ public:
 	}
 
 	auto is_initialized() const {
-		return m_left_eye_tex != nullptr;
+		return m_left_eye_tex[0] != nullptr;
 	}
 
 	auto& openxr() {
@@ -55,7 +55,6 @@ private:
 
 		bool waiting_for_fence{false};
 		bool has_commands{false};
-	} m_resource_copier;
 	};
 
 	// Mimicking what OpenXR does.
