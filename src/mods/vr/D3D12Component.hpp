@@ -36,7 +36,7 @@ public:
     }
 
 private:
-	void wait_for_texture_copy(uint32_t ms);
+    void setup();
 
     template <typename T> using ComPtr = Microsoft::WRL::ComPtr<T>;
 
@@ -71,6 +71,7 @@ private:
 	struct OpenXR {
 		void initialize(XrSessionCreateInfo& session_info);
 		std::optional<std::string> create_swapchains();
+		void copy(uint32_t swapchain_idx, ID3D12Resource* src);
 
 		XrGraphicsBindingD3D12KHR binding{XR_TYPE_GRAPHICS_BINDING_D3D12_KHR};
 
@@ -86,8 +87,6 @@ private:
 
 		std::vector<SwapchainContext> contexts{};
 	} m_openxr;
-
-    void setup();
 
 	std::array<ComPtr<ID3D12Resource>, 2> m_prev_backbuffers{};
 };

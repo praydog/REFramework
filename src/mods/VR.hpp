@@ -474,7 +474,8 @@ private:
         }
 
         VRRuntime::Error synchronize_frame() override {
-            if (!this->session_ready) {
+            // cant sync frame between begin and endframe
+            if (!this->session_ready || this->frame_began) {
                 return VRRuntime::Error::SUCCESS;
             }
 
@@ -651,17 +652,17 @@ private:
         }
 
         SynchronizeStage get_synchronize_stage() const override {
-            return SynchronizeStage::LATE;
+            return this->custom_stage;
         }
 
         XrResult begin_frame() {
             if (!this->ready()) {
-                spdlog::info("VR: begin_frame: not ready");
+                //spdlog::info("VR: begin_frame: not ready");
                 return XR_ERROR_SESSION_NOT_READY;
             }
 
             if (this->frame_began) {
-                spdlog::info("VR: begin_frame called while frame already began");
+                spdlog::info("[VR] begin_frame called while frame already began");
                 return XR_SUCCESS;
             }
 
@@ -672,12 +673,17 @@ private:
                 spdlog::error("[VR] xrBeginFrame failed: {}", this->get_result_string(result));
             }
 
-            this->frame_began = result == XR_SUCCESS;
+            this->frame_began = result == XR_SUCCESS || result == XR_FRAME_DISCARDED; // discarded means endFrame was not called
 
             return result;
         }
 
         XrResult end_frame(const XrFrameEndInfo& frame_end_info) {
+            if (!this->frame_began) {
+                spdlog::info("[VR] end_frame called while frame not begun");
+                return XR_ERROR_CALL_ORDER_INVALID;
+            }
+
             auto result = xrEndFrame(this->session, &frame_end_info);
 
             if (result != XR_SUCCESS) {
@@ -691,6 +697,8 @@ private:
 
         bool session_ready{false};
         bool frame_began{false};
+
+        SynchronizeStage custom_stage{SynchronizeStage::EARLY};
 
         XrInstance instance{XR_NULL_HANDLE};
         XrSession session{XR_NULL_HANDLE};

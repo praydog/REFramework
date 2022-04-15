@@ -101,7 +101,7 @@ float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
 
                 if (backbuffer_size[0] > 0 && backbuffer_size[1] > 0) {
                     if (std::abs((int)backbuffer_size[0] - (int)window->width) > 50 || std::abs((int)backbuffer_size[1] - (int)window->height) > 50) {
-                        const auto now = mod->m_frame_count;
+                        const auto now = mod->get_game_frame_count();
 
                         if (!mod->m_backbuffer_inconsistency) {
                             mod->m_backbuffer_inconsistency_start = now;
@@ -114,6 +114,9 @@ float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
                             // Force a reset of the backbuffer size
                             window->width = mod->get_hmd_width() + 1;
                             window->height = mod->get_hmd_height() + 1;
+
+                            spdlog::info("[VR] Previous backbuffer size: {}x{}", backbuffer_size[0], backbuffer_size[1]);
+                            spdlog::info("[VR] Backbuffer size inconsistency detected, resetting backbuffer size to {}x{}", window->width, window->height);
 
                             // m_backbuffer_inconsistency gets set to false on device reset.
                         }
@@ -2927,6 +2930,8 @@ void VR::on_pre_begin_rendering(void* entry) {
 
         m_openvr.wants_reinitialize = false;
         reinitialize_openvr();
+    } else {
+        // TODO: implement for OpenXR
     }
 
     detect_controllers();
@@ -2963,6 +2968,10 @@ void VR::on_pre_begin_rendering(void* entry) {
     // Call WaitGetPoses
     if (runtime->needs_pose_update && !inside_on_end) {
         update_hmd_state();
+    }
+
+    if (!inside_on_end && runtime->is_openxr() && runtime->get_synchronize_stage() == VRRuntime::SynchronizeStage::EARLY) {
+        m_openxr.begin_frame();
     }
 
     if (runtime->needs_pose_update) {
@@ -3673,8 +3682,19 @@ void VR::on_draw_ui() {
     }
 
     // draw VR tree entry in menu (imgui)
+    ImGui::Text("VR Runtime");
     ImGui::Text("Render Resolution: %d x %d", get_runtime()->get_width(), get_runtime()->get_height());
-    ImGui::Text("Resolution can be changed in SteamVR");
+
+    if (get_runtime()->is_openvr()) {
+        ImGui::Text("Resolution can be changed in SteamVR");
+    }
+
+    if (get_runtime()->is_openxr()) {
+        ImGui::Separator();
+        ImGui::Text("OpenXR options");
+        ImGui::Checkbox("Late Synchronization", (bool*)&m_openxr.custom_stage);
+    }
+
     ImGui::Separator();
 
     if (ImGui::Button("Set Standing Height")) {
