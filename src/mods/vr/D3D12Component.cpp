@@ -6,7 +6,7 @@
 
 namespace vrmod {
 vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
-    wait_for_texture_copy(INFINITE);
+    m_resource_copier.wait(INFINITE);
 
     if (m_left_eye_tex == nullptr || m_force_reset) {
         setup();
@@ -33,67 +33,41 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
     // get back buffer
     ComPtr<ID3D12Resource> backbuffer{};
 
-    swapchain->GetBuffer(swapchain->GetCurrentBackBufferIndex(), IID_PPV_ARGS(&backbuffer));
+    if (FAILED(swapchain->GetBuffer(swapchain->GetCurrentBackBufferIndex(), IID_PPV_ARGS(&backbuffer)))) {
+        spdlog::error("[VR] Failed to get back buffer");
+        return vr::VRCompositorError_None;
+    }
 
     if (backbuffer == nullptr) {
         spdlog::error("[VR] Failed to get back buffer.");
-        return vr::VRCompositorError_None;;
+        return vr::VRCompositorError_None;
     }
+
+    auto runtime = vr->get_runtime();
 
     // If m_frame_count is even, we're rendering the left eye.
     if (vr->m_frame_count % 2 == vr->m_left_eye_interval) {
         // OpenXR texture
-        if (vr->get_runtime()->is_openxr() && vr->m_openxr.ready()) {
-            if (vr->m_openxr.frame_state.shouldRender == XR_TRUE) {
-                const auto& swapchain = vr->m_openxr.swapchains[0];
-
-                XrSwapchainImageAcquireInfo acquire_info{XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO};
-
-                uint32_t swapchain_index{};
-                auto result = xrAcquireSwapchainImage(swapchain.handle, &acquire_info, &swapchain_index);
-
-                if (result != XR_SUCCESS) {
-                    spdlog::error("[VR] xrAcquireSwapchainImage failed: {}", vr->m_openxr.get_result_string(result));
-                }
-
-                XrSwapchainImageWaitInfo wait_info{XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO};
-                wait_info.timeout = XR_INFINITE_DURATION;
-                xrWaitSwapchainImage(swapchain.handle, &wait_info);
-
-                copy_texture(backbuffer.Get(), m_openxr.contexts[0].textures[swapchain_index].texture);
-            }
+        if (runtime->is_openxr() && vr->m_openxr.ready()) {
+            m_prev_backbuffers[0] = backbuffer.Get();
         }
 
         // OpenVR texture
         // Copy the back buffer to the left eye texture (m_left_eye_tex0 holds the intermediate frame).
-        if (vr->get_runtime()->is_openvr()) {
-            copy_texture(backbuffer.Get(), m_left_eye_tex.Get());
+        if (runtime->is_openvr()) {
+            m_resource_copier.copy(backbuffer.Get(), m_left_eye_tex.Get());
         }
     } else {
         // OpenXR texture
-        if (vr->get_runtime()->is_openxr() && vr->m_openxr.ready() && vr->m_openxr.frame_state.shouldRender == XR_TRUE) {
-            const auto& swapchain = vr->m_openxr.swapchains[1];
-
-            XrSwapchainImageAcquireInfo acquire_info{XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO};
-
-            uint32_t swapchain_index{};
-            auto result = xrAcquireSwapchainImage(swapchain.handle, &acquire_info, &swapchain_index);
-
-            if (result != XR_SUCCESS) {
-                spdlog::error("[VR] xrAcquireSwapchainImage failed: {}", vr->m_openxr.get_result_string(result));
-            }
-
-            XrSwapchainImageWaitInfo wait_info{XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO};
-            wait_info.timeout = XR_INFINITE_DURATION;
-            xrWaitSwapchainImage(swapchain.handle, &wait_info);
-
-            copy_texture(backbuffer.Get(), m_openxr.contexts[1].textures[swapchain_index].texture);
+        if (runtime->is_openxr() && vr->m_openxr.ready()) {
+            //copy_texture(backbuffer.Get(), m_openxr.contexts[1].textures[swapchain_index].texture);
+            m_prev_backbuffers[1] = backbuffer.Get();
         }
 
         // OpenVR texture
         // Copy the back buffer to the right eye texture.
-        if (vr->get_runtime()->is_openvr()) {
-            copy_texture(backbuffer.Get(), m_right_eye_tex.Get());
+        if (runtime->is_openvr()) {
+            m_resource_copier.copy(backbuffer.Get(), m_right_eye_tex.Get());
         }
     }
 
@@ -103,86 +77,122 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
         ////////////////////////////////////////////////////////////////////////////////
         // OpenXR start ////////////////////////////////////////////////////////////////
         ////////////////////////////////////////////////////////////////////////////////
-        std::vector<XrCompositionLayerBaseHeader*> layers{};
-        XrCompositionLayerProjection layer{XR_TYPE_COMPOSITION_LAYER_PROJECTION};
-        std::vector<XrCompositionLayerProjectionView> projection_layer_views{};
+        if (runtime->ready() && runtime->get_synchronize_stage() == VRRuntime::SynchronizeStage::LATE) {
+            runtime->synchronize_frame();
 
-        XrViewState view_state{XR_TYPE_VIEW_STATE};
-
-        if (vr->get_runtime()->get_synchronize_stage() == VRRuntime::SynchronizeStage::LATE) {
-            vr->get_runtime()->synchronize_frame();
+            if (!runtime->got_first_poses) {
+                runtime->update_poses();
+            }
         }
 
-        if (vr->get_runtime()->is_openxr() && vr->m_openxr.ready()) {
-            XrFrameBeginInfo frame_begin_info{XR_TYPE_FRAME_BEGIN_INFO};
-            auto result = xrBeginFrame(vr->m_openxr.session, &frame_begin_info);
+        if (runtime->is_openxr() && vr->m_openxr.ready()) {
+            for (auto i = 0; i < vr->m_openxr.swapchains.size(); ++i) {
+                if (m_prev_backbuffers[i % 2] == nullptr) {
+                    continue;
+                }
 
-            if (result != XR_SUCCESS) {
-                spdlog::error("[VR] xrBeginFrame failed: {}", vr->m_openxr.get_result_string(result));
+                if (vr->m_openxr.frame_state.shouldRender != XR_TRUE) {
+                    continue;
+                }
+
+                if (this->m_openxr.contexts[i].num_textures_acquired > 0) {
+                    spdlog::info("[VR] Already acquired textures for swapchain {}?", i);
+                }
+
+                const auto& swapchain = vr->m_openxr.swapchains[i];
+
+                XrSwapchainImageAcquireInfo acquire_info{XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO};
+
+                uint32_t swapchain_index{};
+                auto result = xrAcquireSwapchainImage(swapchain.handle, &acquire_info, &swapchain_index);
+
+                if (result != XR_SUCCESS) {
+                    spdlog::error("[VR] xrAcquireSwapchainImage failed: {}", vr->m_openxr.get_result_string(result));
+                } else {
+                    auto& ctx = this->m_openxr.contexts[i];
+                    ctx.num_textures_acquired++;
+
+                    XrSwapchainImageWaitInfo wait_info{XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO};
+                    //wait_info.timeout = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::seconds(1)).count();
+                    wait_info.timeout = XR_INFINITE_DURATION;
+                    result = xrWaitSwapchainImage(swapchain.handle, &wait_info);
+
+                    if (result != XR_SUCCESS) {
+                        spdlog::error("[VR] xrWaitSwapchainImage failed: {}", vr->m_openxr.get_result_string(result));
+                    } else {
+                        auto& texture_ctx = ctx.texture_contexts[swapchain_index];
+                        texture_ctx.copier.wait(INFINITE);
+                        texture_ctx.copier.copy(
+                            m_prev_backbuffers[i % 2].Get(), 
+                            ctx.textures[swapchain_index].texture, 
+                            D3D12_RESOURCE_STATE_PRESENT, 
+                            D3D12_RESOURCE_STATE_RENDER_TARGET);
+                        texture_ctx.copier.execute();
+
+                        XrSwapchainImageReleaseInfo release_info{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
+                        auto result = xrReleaseSwapchainImage(swapchain.handle, &release_info);
+
+                        if (result != XR_SUCCESS) {
+                            spdlog::error("[VR] xrReleaseSwapchainImage failed: {}", vr->m_openxr.get_result_string(result));
+                            continue;
+                        }
+
+                        ctx.num_textures_acquired--;
+                    }
+                }
             }
 
-            projection_layer_views.resize(vr->m_openxr.stage_views.size());
+            vr->m_openxr.begin_frame();
 
+            std::vector<XrCompositionLayerBaseHeader*> layers{};
+            std::vector<XrCompositionLayerProjectionView> projection_layer_views{};
+
+            // we CANT push the layers every time, it cause some layer error
+            // in xrEndFrame, so we must only do it when shouldRender is true
             if (vr->m_openxr.frame_state.shouldRender == XR_TRUE) {
+                projection_layer_views.resize(vr->m_openxr.stage_views.size(), {XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW});
+
                 for (auto i = 0; i < projection_layer_views.size(); ++i) {
                     const auto& swapchain = vr->m_openxr.swapchains[i];
 
-                    projection_layer_views[i] = {XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW};
+                    projection_layer_views[i].type = XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW;
                     projection_layer_views[i].pose = vr->m_openxr.stage_views[i].pose;
                     projection_layer_views[i].fov = vr->m_openxr.stage_views[i].fov;
                     projection_layer_views[i].subImage.swapchain = swapchain.handle;
                     projection_layer_views[i].subImage.imageRect.offset = {0, 0};
                     projection_layer_views[i].subImage.imageRect.extent = {swapchain.width, swapchain.height};
                 }
-                
+
+                XrCompositionLayerProjection layer{XR_TYPE_COMPOSITION_LAYER_PROJECTION};
                 layer.space = vr->m_openxr.stage_space;
                 layer.viewCount = (uint32_t)projection_layer_views.size();
                 layer.views = projection_layer_views.data();
                 layers.push_back((XrCompositionLayerBaseHeader*)&layer);
-            }   
-        }
-
-        // Wait for GPU to finish copying the textures for both OpenXR and OpenVR.
-        m_cmd_list->Close();
-        command_queue->ExecuteCommandLists(1, (ID3D12CommandList* const*)m_cmd_list.GetAddressOf());
-        command_queue->Signal(m_fence.Get(), ++m_fence_value);
-        m_fence->SetEventOnCompletion(m_fence_value, m_fence_event);
-        m_waiting_for_fence = true;
-        // we don't wait for the fence here because it will cause cause bad perf and in turn reprojection to occur
-
-        if (vr->get_runtime()->is_openxr() && vr->m_openxr.ready() && vr->m_openxr.frame_state.shouldRender == XR_TRUE) {
-            for (auto i = 0; i < vr->m_openxr.swapchains.size(); ++i) {
-                const auto& swapchain = vr->m_openxr.swapchains[i];
-
-                XrSwapchainImageReleaseInfo releaseInfo{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
-                auto result = xrReleaseSwapchainImage(swapchain.handle, &releaseInfo);
-
-                if (result != XR_SUCCESS) {
-                    spdlog::error("[VR] xrReleaseSwapchainImage failed: {}", vr->m_openxr.get_result_string(result));
-                }
             }
-        }
 
-        if (vr->get_runtime()->is_openxr() && vr->m_openxr.ready()) {
             XrFrameEndInfo frame_end_info{XR_TYPE_FRAME_END_INFO};
             frame_end_info.displayTime = vr->m_openxr.frame_state.predictedDisplayTime;
             frame_end_info.environmentBlendMode = vr->m_openxr.blend_mode;
             frame_end_info.layerCount = (uint32_t)layers.size();
             frame_end_info.layers = layers.data();
-            auto result = xrEndFrame(vr->m_openxr.session, &frame_end_info);
 
-            if (result != XR_SUCCESS) {
-                spdlog::error("[VR] xrEndFrame failed: {}", vr->m_openxr.get_result_string(result));
-            } else {
-                vr->m_submitted = true;
-            }
+            //spdlog::info("[VR] Ending frame, {} layers", frame_end_info.layerCount);
+            //spdlog::info("[VR] Ending frame, layer ptr: {:x}", (uintptr_t)frame_end_info.layers);
+
+            auto result = vr->m_openxr.end_frame(frame_end_info);
+
+            vr->m_submitted = result == XR_SUCCESS;
         }
+
+        // Wait for GPU to finish copying the textures for both OpenXR and OpenVR.
+        m_resource_copier.execute();
+        // we don't wait for the fence here because it will cause cause bad perf and in turn reprojection to occur
 
         ////////////////////////////////////////////////////////////////////////////////
         // OpenVR start ////////////////////////////////////////////////////////////////
         ////////////////////////////////////////////////////////////////////////////////
-        if (vr->get_runtime()->is_openvr()) {
-            if (vr->get_runtime()->needs_pose_update) {
+        if (runtime->is_openvr()) {
+            if (runtime->needs_pose_update) {
                 vr->m_submitted = false;
                 spdlog::info("[VR] Runtime needed pose update inside present (frame {})", vr->m_frame_count);
                 return vr::VRCompositorError_None;
@@ -231,39 +241,12 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
 }
 
 void D3D12Component::on_reset(VR* vr) {
-    wait_for_texture_copy(2000);
-
-    m_cmd_allocator.Reset();
-    m_cmd_list.Reset();
-    m_fence.Reset();
-    m_fence_value = 0;
-    CloseHandle(m_fence_event);
-    m_fence_event = 0;
-    m_waiting_for_fence = false;
+    m_resource_copier.reset();
     m_left_eye_tex.Reset();
     m_right_eye_tex.Reset();
 
-    if (vr->get_runtime()->is_openxr() && vr->m_openxr.ready()) {
-        for (auto i = 0; i < vr->m_openxr.swapchains.size(); ++i) {
-            const auto& swapchain = vr->m_openxr.swapchains[i];
-
-            XrSwapchainImageReleaseInfo releaseInfo{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
-            auto result = xrReleaseSwapchainImage(swapchain.handle, &releaseInfo);
-
-            if (result != XR_SUCCESS) {
-                spdlog::error("[VR] xrReleaseSwapchainImage failed: {}", vr->m_openxr.get_result_string(result));
-            }
-        }
-    }
-}
-
-void D3D12Component::wait_for_texture_copy(uint32_t ms) {
-	if (m_fence_event && m_waiting_for_fence) {
-        WaitForSingleObject(m_fence_event, ms);
-        ResetEvent(m_fence_event);
-        m_waiting_for_fence = false;
-        m_cmd_allocator->Reset();
-        m_cmd_list->Reset(m_cmd_allocator.Get(), nullptr);
+    for (auto& backbuffer : m_prev_backbuffers) {
+        backbuffer.Reset();
     }
 }
 
@@ -275,23 +258,7 @@ void D3D12Component::setup() {
     auto device = hook->get_device();
     auto swapchain = hook->get_swap_chain();
 
-    if (FAILED(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_cmd_allocator)))) {
-        spdlog::error("[VR] Failed to create command allocator.");
-        return;
-    }
-
-    if (FAILED(device->CreateCommandList(
-            0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_cmd_allocator.Get(), nullptr, IID_PPV_ARGS(&m_cmd_list)))) {
-        spdlog::error("[VR] Failed to create command list.");
-        return;
-    }
-
-    if (FAILED(device->CreateFence(m_fence_value, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence)))) {
-        spdlog::error("[VR] Failed to create fence.");
-        return;
-    }
-
-    m_fence_event = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+    m_resource_copier.setup();
 
     ComPtr<ID3D12Resource> backbuffer{};
 
@@ -328,47 +295,7 @@ void D3D12Component::setup() {
     m_force_reset = false;
 }
 
-void D3D12Component::copy_texture(ID3D12Resource* src, ID3D12Resource* dst) {
-    // Switch src into copy source.
-    D3D12_RESOURCE_BARRIER src_barrier{};
-
-    src_barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-    src_barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-    src_barrier.Transition.pResource = src;
-    src_barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-    src_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
-    src_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
-
-    // Switch dst into copy destination.
-    D3D12_RESOURCE_BARRIER dst_barrier{};
-    dst_barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-    dst_barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-    dst_barrier.Transition.pResource = dst;
-    dst_barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-    dst_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
-    dst_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
-
-    {
-        D3D12_RESOURCE_BARRIER barriers[2]{src_barrier, dst_barrier};
-        m_cmd_list->ResourceBarrier(2, barriers);
-    }
-
-    // Copy the resource.
-    m_cmd_list->CopyResource(dst, src);
-
-    // Switch back to present.
-    src_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
-    src_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
-    dst_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
-    dst_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
-
-    {
-        D3D12_RESOURCE_BARRIER barriers[2]{src_barrier, dst_barrier};
-        m_cmd_list->ResourceBarrier(2, barriers);
-    }
-}
-
-void D3D12Component::OpenXR::initialize() {
+void D3D12Component::OpenXR::initialize(XrSessionCreateInfo& session_info) {
 	auto& hook = g_framework->get_d3d12_hook();
 
     auto device = hook->get_device();
@@ -382,6 +309,8 @@ void D3D12Component::OpenXR::initialize() {
 
     XrGraphicsRequirementsD3D12KHR gr{XR_TYPE_GRAPHICS_REQUIREMENTS_D3D12_KHR};
     fn(VR::get()->m_openxr.instance, VR::get()->m_openxr.system, &gr);
+
+    session_info.next = &this->binding;
 }
 
 std::optional<std::string> D3D12Component::OpenXR::create_swapchains() {
@@ -419,6 +348,9 @@ std::optional<std::string> D3D12Component::OpenXR::create_swapchains() {
         spdlog::info("[VR] Width: {}", vp.recommendedImageRectWidth);
         spdlog::info("[VR] Height: {}", vp.recommendedImageRectHeight);
 
+        backbuffer_desc.Width = vp.recommendedImageRectWidth;
+        backbuffer_desc.Height = vp.recommendedImageRectHeight;
+
         // Create the swapchain.
         XrSwapchainCreateInfo swapchain_create_info{XR_TYPE_SWAPCHAIN_CREATE_INFO};
         swapchain_create_info.arraySize = 1;
@@ -428,7 +360,7 @@ std::optional<std::string> D3D12Component::OpenXR::create_swapchains() {
         swapchain_create_info.mipCount = 1;
         swapchain_create_info.faceCount = 1;
         swapchain_create_info.sampleCount = backbuffer_desc.SampleDesc.Count;
-        swapchain_create_info.usageFlags = XR_SWAPCHAIN_USAGE_SAMPLED_BIT | XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT | XR_SWAPCHAIN_USAGE_MUTABLE_FORMAT_BIT;
+        swapchain_create_info.usageFlags = XR_SWAPCHAIN_USAGE_SAMPLED_BIT | XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT | XR_SWAPCHAIN_USAGE_TRANSFER_DST_BIT;
 
         VR::OpenXR::Swapchain swapchain{};
         swapchain.width = swapchain_create_info.width;
@@ -453,13 +385,19 @@ std::optional<std::string> D3D12Component::OpenXR::create_swapchains() {
 
         ctx.textures.clear();
         ctx.textures.resize(image_count);
+        ctx.texture_contexts.clear();
+        ctx.texture_contexts.resize(image_count);
 
         for (uint32_t j = 0; j < image_count; ++j) {
             spdlog::info("[VR] Creating swapchain image {} for swapchain {}", j, i);
 
             ctx.textures[j] = {XR_TYPE_SWAPCHAIN_IMAGE_D3D12_KHR};
+            ctx.texture_contexts[j].copier.setup();
 
-            if (FAILED(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &backbuffer_desc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr, IID_PPV_ARGS(&ctx.textures[j].texture)))) {
+            backbuffer_desc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+            backbuffer_desc.Flags &= ~D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE;
+
+            if (FAILED(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &backbuffer_desc, D3D12_RESOURCE_STATE_RENDER_TARGET, nullptr, IID_PPV_ARGS(&ctx.textures[j].texture)))) {
                 spdlog::error("[VR] Failed to create swapchain texture {} {}", i, j);
                 return "Failed to create swapchain texture.";
             }
@@ -474,5 +412,110 @@ std::optional<std::string> D3D12Component::OpenXR::create_swapchains() {
     }
 
     return std::nullopt;
+}
+
+void D3D12Component::ResourceCopier::setup() {
+    auto& hook = g_framework->get_d3d12_hook();
+    auto device = hook->get_device();
+
+    if (FAILED(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&this->cmd_allocator)))) {
+        spdlog::error("[VR] Failed to create command allocator.");
+        return;
+    }
+
+    if (FAILED(device->CreateCommandList(
+            0, D3D12_COMMAND_LIST_TYPE_DIRECT, this->cmd_allocator.Get(), nullptr, IID_PPV_ARGS(&this->cmd_list)))) {
+        spdlog::error("[VR] Failed to create command list.");
+        return;
+    }
+
+    if (FAILED(device->CreateFence(this->fence_value, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&this->fence)))) {
+        spdlog::error("[VR] Failed to create fence.");
+        return;
+    }
+
+    this->fence_event = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+}
+
+void D3D12Component::ResourceCopier::reset() {
+    this->wait(2000);
+    //this->on_post_present(VR::get().get());
+
+    this->cmd_allocator.Reset();
+    this->cmd_list.Reset();
+    this->fence.Reset();
+    this->fence_value = 0;
+    CloseHandle(this->fence_event);
+    this->fence_event = 0;
+    this->waiting_for_fence = false;
+}
+
+void D3D12Component::ResourceCopier::wait(uint32_t ms) {
+	if (this->fence_event && this->waiting_for_fence) {
+        WaitForSingleObject(this->fence_event, ms);
+        ResetEvent(this->fence_event);
+        this->waiting_for_fence = false;
+        this->cmd_allocator->Reset();
+        this->cmd_list->Reset(this->cmd_allocator.Get(), nullptr);
+        this->has_commands = false;
+    }
+}
+
+void D3D12Component::ResourceCopier::copy(ID3D12Resource* src, ID3D12Resource* dst, D3D12_RESOURCE_STATES src_state, D3D12_RESOURCE_STATES dst_state) {
+    // Switch src into copy source.
+    D3D12_RESOURCE_BARRIER src_barrier{};
+
+    src_barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+    src_barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+    src_barrier.Transition.pResource = src;
+    src_barrier.Transition.Subresource = 0;
+    src_barrier.Transition.StateBefore = src_state;
+    src_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
+
+    // Switch dst into copy destination.
+    D3D12_RESOURCE_BARRIER dst_barrier{};
+    dst_barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+    dst_barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+    dst_barrier.Transition.pResource = dst;
+    dst_barrier.Transition.Subresource = 0;
+    dst_barrier.Transition.StateBefore = dst_state;
+    dst_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
+
+    {
+        D3D12_RESOURCE_BARRIER barriers[2]{src_barrier, dst_barrier};
+        this->cmd_list->ResourceBarrier(2, barriers);
+    }
+
+    // Copy the resource.
+    this->cmd_list->CopyResource(dst, src);
+
+    // Switch back to present.
+    src_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
+    src_barrier.Transition.StateAfter = src_state;
+    dst_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
+    dst_barrier.Transition.StateAfter = dst_state;
+
+    {
+        D3D12_RESOURCE_BARRIER barriers[2]{src_barrier, dst_barrier};
+        this->cmd_list->ResourceBarrier(2, barriers);
+    }
+
+    this->has_commands = true;
+}
+
+void D3D12Component::ResourceCopier::execute() {
+    if (this->has_commands) {
+        if (FAILED(this->cmd_list->Close())) {
+            spdlog::error("[VR] Failed to close command list.");
+            return;
+        }
+        
+        auto command_queue = g_framework->get_d3d12_hook()->get_command_queue();
+        command_queue->ExecuteCommandLists(1, (ID3D12CommandList* const*)this->cmd_list.GetAddressOf());
+        command_queue->Signal(this->fence.Get(), ++this->fence_value);
+        this->fence->SetEventOnCompletion(this->fence_value, this->fence_event);
+        this->waiting_for_fence = true;
+        this->has_commands = false;
+    }
 }
 } // namespace vrmod

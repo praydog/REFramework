@@ -529,6 +529,7 @@ private:
             }
 
             this->needs_pose_update = false;
+            this->got_first_poses = true;
             return VRRuntime::Error::SUCCESS;
         }
 
@@ -653,8 +654,43 @@ private:
             return SynchronizeStage::LATE;
         }
 
+        XrResult begin_frame() {
+            if (!this->ready()) {
+                spdlog::info("VR: begin_frame: not ready");
+                return XR_ERROR_SESSION_NOT_READY;
+            }
+
+            if (this->frame_began) {
+                spdlog::info("VR: begin_frame called while frame already began");
+                return XR_SUCCESS;
+            }
+
+            XrFrameBeginInfo frame_begin_info{XR_TYPE_FRAME_BEGIN_INFO};
+            auto result = xrBeginFrame(this->session, &frame_begin_info);
+
+            if (result != XR_SUCCESS) {
+                spdlog::error("[VR] xrBeginFrame failed: {}", this->get_result_string(result));
+            }
+
+            this->frame_began = result == XR_SUCCESS;
+
+            return result;
+        }
+
+        XrResult end_frame(const XrFrameEndInfo& frame_end_info) {
+            auto result = xrEndFrame(this->session, &frame_end_info);
+
+            if (result != XR_SUCCESS) {
+                spdlog::error("[VR] xrEndFrame failed: {}", this->get_result_string(result));
+            }
+            
+            this->frame_began = false;
+
+            return result;
+        }
 
         bool session_ready{false};
+        bool frame_began{false};
 
         XrInstance instance{XR_NULL_HANDLE};
         XrSession session{XR_NULL_HANDLE};

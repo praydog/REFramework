@@ -187,7 +187,7 @@ void D3D11Component::setup() {
     spdlog::info("[VR] d3d11 textures have been setup");
 }
 
-void D3D11Component::OpenXR::initialize() {
+void D3D11Component::OpenXR::initialize(XrSessionCreateInfo& session_info) {
     auto& hook = g_framework->get_d3d11_hook();
 
     auto device = hook->get_device();
@@ -199,6 +199,8 @@ void D3D11Component::OpenXR::initialize() {
 
     XrGraphicsRequirementsD3D11KHR gr{XR_TYPE_GRAPHICS_REQUIREMENTS_D3D11_KHR};
     fn(VR::get()->m_openxr.instance, VR::get()->m_openxr.system, &gr);
+
+    session_info.next = &this->binding;
 }
 
 std::optional<std::string> D3D11Component::OpenXR::create_swapchains() {

@@ -907,11 +907,9 @@ std::optional<std::string> VR::initialize_openxr() {
     XrSessionCreateInfo session_create_info{XR_TYPE_SESSION_CREATE_INFO};
 
     if (g_framework->is_dx12()) {
-        m_d3d12.openxr().initialize();
-        session_create_info.next = &m_d3d12.openxr().binding;
+        m_d3d12.openxr().initialize(session_create_info);
     } else {
-        m_d3d11.openxr().initialize();
-        session_create_info.next = &m_d3d11.openxr().binding;
+        m_d3d11.openxr().initialize(session_create_info);
     }
 
     session_create_info.systemId = m_openxr.system;
@@ -932,7 +930,7 @@ std::optional<std::string> VR::initialize_openxr() {
 
     if (m_openxr.stage_space == XR_NULL_HANDLE) {
         XrReferenceSpaceCreateInfo space_create_info{XR_TYPE_REFERENCE_SPACE_CREATE_INFO};
-        space_create_info.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_STAGE;
+        space_create_info.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_LOCAL;
         space_create_info.poseInReferenceSpace = {};
         space_create_info.poseInReferenceSpace.orientation.w = 1.0f;
 

@@ -16,6 +16,7 @@ namespace vrmod {
 class D3D12Component {
 public:
     vr::EVRCompositorError on_frame(VR* vr);
+
     void on_reset(VR* vr);
 
 	void force_reset() {
@@ -39,33 +40,50 @@ private:
 
     template <typename T> using ComPtr = Microsoft::WRL::ComPtr<T>;
 
-	ComPtr<ID3D12CommandAllocator> m_cmd_allocator{};
-	ComPtr<ID3D12GraphicsCommandList> m_cmd_list{};
-	ComPtr<ID3D12Fence> m_fence{};
-	UINT64 m_fence_value{};
-	HANDLE m_fence_event{};
+	struct ResourceCopier {
+		void setup();
+		void reset();
+		void wait(uint32_t ms);
+		void copy(ID3D12Resource* src, ID3D12Resource* dst, D3D12_RESOURCE_STATES src_state = D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATES dst_state = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+		void execute();
+
+		ComPtr<ID3D12CommandAllocator> cmd_allocator{};
+		ComPtr<ID3D12GraphicsCommandList> cmd_list{};
+		ComPtr<ID3D12Fence> fence{};
+		UINT64 fence_value{};
+		HANDLE fence_event{};
+
+		bool waiting_for_fence{false};
+		bool has_commands{false};
+	} m_resource_copier;
 
 	uint32_t m_backbuffer_size[2]{};
 	bool m_force_reset{false};
-	bool m_waiting_for_fence{false};
 
 	ComPtr<ID3D12Resource> m_left_eye_tex{};
 	ComPtr<ID3D12Resource> m_right_eye_tex{}; 
 
 	struct OpenXR {
-		void initialize();
+		void initialize(XrSessionCreateInfo& session_info);
 		std::optional<std::string> create_swapchains();
 
 		XrGraphicsBindingD3D12KHR binding{XR_TYPE_GRAPHICS_BINDING_D3D12_KHR};
 
 		struct SwapchainContext {
+			struct TextureContext {
+				ResourceCopier copier;
+			};
+
 			std::vector<XrSwapchainImageD3D12KHR> textures{};
+			std::vector<TextureContext> texture_contexts{};
+			uint32_t num_textures_acquired{0};
 		};
 
 		std::vector<SwapchainContext> contexts{};
 	} m_openxr;
 
     void setup();
-    void copy_texture(ID3D12Resource* src, ID3D12Resource* dst);
+
+	std::array<ComPtr<ID3D12Resource>, 2> m_prev_backbuffers{};
 };
 }

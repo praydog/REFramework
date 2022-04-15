@@ -34,7 +34,7 @@ private:
     vr::HmdMatrix44_t m_right_eye_proj{};
 
     struct OpenXR {
-        void initialize();
+        void initialize(XrSessionCreateInfo& session_info);
         std::optional<std::string> create_swapchains();
         XrGraphicsBindingD3D11KHR binding{XR_TYPE_GRAPHICS_BINDING_D3D11_KHR};
         std::vector<XrSwapchainImageD3D11KHR> m_swapchain_images{};
