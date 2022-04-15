@@ -2931,8 +2931,9 @@ void VR::on_pre_begin_rendering(void* entry) {
 
     detect_controllers();
 
-    actual_frame_count = get_game_frame_count();
-    m_frame_count = actual_frame_count;
+    //actual_frame_count = get_game_frame_count();
+    m_frame_count++;
+    actual_frame_count = m_frame_count;
 
     /*if (!inside_on_end) {
         spdlog::info("VR: frame count: {}", m_frame_count);
