@@ -28,7 +28,7 @@ public:
 	}
 
 	auto is_initialized() const {
-		return m_left_eye_tex[0] != nullptr;
+		return m_openvr.left_eye_tex[0].texture != nullptr;
 	}
 
 	auto& openxr() {
@@ -58,14 +58,54 @@ private:
 	};
 
 	// Mimicking what OpenXR does.
-	std::array<ResourceCopier, 6> m_copiers{};
-	std::array<ComPtr<ID3D12Resource>, 3> m_left_eye_tex{};
-	std::array<ComPtr<ID3D12Resource>, 3> m_right_eye_tex{};
-	uint32_t m_counter{0};
-	uint32_t m_texture_counter{0};
+	struct OpenVR {
+		struct TextureContext {
+			ResourceCopier copier{};
+			ComPtr<ID3D12Resource> texture{};
+		};
 
-	uint32_t m_backbuffer_size[2]{};
-	bool m_force_reset{false};
+		TextureContext& get_left() {
+			auto& ctx = this->left_eye_tex[this->texture_counter % left_eye_tex.size()];
+
+			return ctx;
+		}
+
+		TextureContext& get_right() {
+			auto& ctx = this->right_eye_tex[this->texture_counter % right_eye_tex.size()];
+
+			return ctx;
+		}
+
+		TextureContext& acquire_left() {
+			auto& ctx = get_left();
+			ctx.copier.wait(INFINITE);
+
+			return ctx;
+		}
+
+		TextureContext& acquire_right() {
+			auto& ctx = get_right();
+			ctx.copier.wait(INFINITE);
+
+			return ctx;
+		}
+
+		void copy_left(ID3D12Resource* src) {
+			auto& ctx = this->acquire_left();
+			ctx.copier.copy(src, ctx.texture.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+			ctx.copier.execute();
+		}
+
+		void copy_right(ID3D12Resource* src) {
+			auto& ctx = this->acquire_right();
+			ctx.copier.copy(src, ctx.texture.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+			ctx.copier.execute();
+		}
+
+		std::array<TextureContext, 3> left_eye_tex{};
+		std::array<TextureContext, 3> right_eye_tex{};
+		uint32_t texture_counter{0};
+	} m_openvr;
 
 	struct OpenXR {
 		void initialize(XrSessionCreateInfo& session_info);
@@ -88,5 +128,7 @@ private:
 	} m_openxr;
 
 	std::array<ComPtr<ID3D12Resource>, 2> m_prev_backbuffers{};
+	uint32_t m_backbuffer_size[2]{};
+	bool m_force_reset{false};
 };
 }
