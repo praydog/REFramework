@@ -2260,12 +2260,16 @@ void VR::on_present() {
         return;
     }
 
-    m_submitted = false;
-
-    const auto renderer = g_framework->get_renderer_type();
-
     // attempt to fix crash when reinitializing openvr
     std::scoped_lock _{m_openvr_mtx};
+
+    {
+        std::scoped_lock _{m_present_finished_mtx};
+        m_present_finished = false;
+        m_submitted = false;
+    }
+
+    const auto renderer = g_framework->get_renderer_type();
 
     vr::EVRCompositorError e = vr::EVRCompositorError::VRCompositorError_None;
 
@@ -2281,34 +2285,15 @@ void VR::on_present() {
         openvr->got_first_poses = false;
         openvr->needs_pose_update = true;
     }
-}
 
-void VR::on_post_present() {
-    auto runtime = get_runtime();
-
-    if (!runtime->ready()) {
-        return;
-    }
-
-    // Unlock the m_present_finished conditional variable
-    // Which will synchronize WaitGetPoses() properly
-    // inside on_pre_wait_rendering()
-    // we can't do it here because the game logic thread executes out of sync otherwise
-    // causing jittery HMD rotation
     auto unlock_present = [&]() {
         {
-            std::lock_guard _{m_present_finished_mtx};
+            std::scoped_lock _{m_present_finished_mtx};
             m_present_finished = true;
         }
 
         m_present_finished_cv.notify_all();
     };
-    
-    if (m_frame_count == m_last_frame_count) {
-        return;
-    }
-
-    std::scoped_lock _{m_openvr_mtx};
 
     m_last_frame_count = m_frame_count;
 
@@ -2317,16 +2302,19 @@ void VR::on_post_present() {
             m_overlay_component.on_post_compositor_submit();
 
             if (runtime->is_openvr()) {
+                //vr::VRCompositor()->SetExplicitTimingMode(vr::VRCompositorTimingMode_Explicit_ApplicationPerformsPostPresentHandoff);
                 vr::VRCompositor()->PostPresentHandoff();
             }
         }
 
         runtime->needs_pose_update = true;
         m_submitted = false;
-        unlock_present();
-    } else { // always unlocks every frame so we don't cause a deadlock on AFR
-        unlock_present();
     }
+
+    unlock_present();
+}
+
+void VR::on_post_present() {
 }
 
 void VR::on_update_transform(RETransform* transform) {
