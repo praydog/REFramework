@@ -678,17 +678,48 @@ private:
             return result;
         }
 
-        XrResult end_frame(const XrFrameEndInfo& frame_end_info) {
+        XrResult end_frame() {
             if (!this->frame_began) {
                 spdlog::info("[VR] end_frame called while frame not begun");
                 return XR_ERROR_CALL_ORDER_INVALID;
             }
 
-            auto result = xrEndFrame(this->session, &frame_end_info);
+            std::vector<XrCompositionLayerBaseHeader*> layers{};
+            std::vector<XrCompositionLayerProjectionView> projection_layer_views{};
 
-            if (result != XR_SUCCESS) {
-                spdlog::error("[VR] xrEndFrame failed: {}", this->get_result_string(result));
+            // we CANT push the layers every time, it cause some layer error
+            // in xrEndFrame, so we must only do it when shouldRender is true
+            if (this->frame_state.shouldRender == XR_TRUE) {
+                projection_layer_views.resize(this->stage_views.size(), {XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW});
+
+                for (auto i = 0; i < projection_layer_views.size(); ++i) {
+                    const auto& swapchain = this->swapchains[i];
+
+                    projection_layer_views[i].type = XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW;
+                    projection_layer_views[i].pose = this->stage_views[i].pose;
+                    projection_layer_views[i].fov = this->stage_views[i].fov;
+                    projection_layer_views[i].subImage.swapchain = swapchain.handle;
+                    projection_layer_views[i].subImage.imageRect.offset = {0, 0};
+                    projection_layer_views[i].subImage.imageRect.extent = {swapchain.width, swapchain.height};
+                }
+
+                XrCompositionLayerProjection layer{XR_TYPE_COMPOSITION_LAYER_PROJECTION};
+                layer.space = this->stage_space;
+                layer.viewCount = (uint32_t)projection_layer_views.size();
+                layer.views = projection_layer_views.data();
+                layers.push_back((XrCompositionLayerBaseHeader*)&layer);
             }
+
+            XrFrameEndInfo frame_end_info{XR_TYPE_FRAME_END_INFO};
+            frame_end_info.displayTime = this->frame_state.predictedDisplayTime;
+            frame_end_info.environmentBlendMode = this->blend_mode;
+            frame_end_info.layerCount = (uint32_t)layers.size();
+            frame_end_info.layers = layers.data();
+
+            //spdlog::info("[VR] Ending frame, {} layers", frame_end_info.layerCount);
+            //spdlog::info("[VR] Ending frame, layer ptr: {:x}", (uintptr_t)frame_end_info.layers);
+
+            auto result = xrEndFrame(this->session, &frame_end_info);
             
             this->frame_began = false;
 

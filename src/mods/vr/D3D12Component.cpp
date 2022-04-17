@@ -123,54 +123,19 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
                 vr->m_openxr.begin_frame();
             }
 
-            std::vector<XrCompositionLayerBaseHeader*> layers{};
-            std::vector<XrCompositionLayerProjectionView> projection_layer_views{};
-
-            // we CANT push the layers every time, it cause some layer error
-            // in xrEndFrame, so we must only do it when shouldRender is true
-            if (vr->m_openxr.frame_state.shouldRender == XR_TRUE) {
-                projection_layer_views.resize(vr->m_openxr.stage_views.size(), {XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW});
-
-                for (auto i = 0; i < projection_layer_views.size(); ++i) {
-                    const auto& swapchain = vr->m_openxr.swapchains[i];
-
-                    projection_layer_views[i].type = XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW;
-                    projection_layer_views[i].pose = vr->m_openxr.stage_views[i].pose;
-                    projection_layer_views[i].fov = vr->m_openxr.stage_views[i].fov;
-                    projection_layer_views[i].subImage.swapchain = swapchain.handle;
-                    projection_layer_views[i].subImage.imageRect.offset = {0, 0};
-                    projection_layer_views[i].subImage.imageRect.extent = {swapchain.width, swapchain.height};
-                }
-
-                XrCompositionLayerProjection layer{XR_TYPE_COMPOSITION_LAYER_PROJECTION};
-                layer.space = vr->m_openxr.stage_space;
-                layer.viewCount = (uint32_t)projection_layer_views.size();
-                layer.views = projection_layer_views.data();
-                layers.push_back((XrCompositionLayerBaseHeader*)&layer);
-            }
-
-            XrFrameEndInfo frame_end_info{XR_TYPE_FRAME_END_INFO};
-            frame_end_info.displayTime = vr->m_openxr.frame_state.predictedDisplayTime;
-            frame_end_info.environmentBlendMode = vr->m_openxr.blend_mode;
-            frame_end_info.layerCount = (uint32_t)layers.size();
-            frame_end_info.layers = layers.data();
-
-            //spdlog::info("[VR] Ending frame, {} layers", frame_end_info.layerCount);
-            //spdlog::info("[VR] Ending frame, layer ptr: {:x}", (uintptr_t)frame_end_info.layers);
-
-            auto result = vr->m_openxr.end_frame(frame_end_info);
+            auto result = vr->m_openxr.end_frame();
 
             if (result == XR_ERROR_LAYER_INVALID) {
                 spdlog::info("[VR] Attempting to correct invalid layer");
                 
-                for (auto& ctx : this->m_openxr.contexts) {
+                for (auto& ctx : m_openxr.contexts) {
                     for (auto& texture_ctx : ctx.texture_contexts) {
                         texture_ctx.copier.wait(INFINITE);
                     }
                 }
 
                 spdlog::info("[VR] Calling xrEndFrame again");
-                result = vr->m_openxr.end_frame(frame_end_info);
+                result = vr->m_openxr.end_frame();
             }
 
             vr->m_openxr.needs_pose_update = true;
