@@ -1893,6 +1893,9 @@ void VR::disable_bad_effects() {
     static auto get_hdr_display_mode_enable_method = renderer_t->get_method("get_HDRDisplayModeEnable");
     static auto set_hdr_display_mode_enable_method = renderer_t->get_method("set_HDRDisplayModeEnable");
 
+    static auto get_delay_render_enable_method = renderer_t->get_method("get_DelayRenderEnable");
+    static auto set_delay_render_enable_method = renderer_t->get_method("set_DelayRenderEnable");
+
     auto renderer = renderer_t->get_instance();
 
     auto render_config = get_render_config_method->call<::REManagedObject*>(context, renderer);
@@ -2022,6 +2025,16 @@ void VR::disable_bad_effects() {
         if (!is_dynamic_shadow_enabled) {
             set_dynamic_shadow_enable_method->call<void*>(context, render_config, true);
             spdlog::info("[VR] Dynamic shadows enabled");
+        }
+    }
+
+    // no option for this, just do it.
+    if (get_delay_render_enable_method != nullptr && set_delay_render_enable_method != nullptr) {
+        const auto is_delay_render_enabled = get_delay_render_enable_method->call<bool>(context);
+
+        if (is_delay_render_enabled == m_enable_asynchronous_rendering) {
+            set_delay_render_enable_method->call<void*>(context, !m_enable_asynchronous_rendering);
+            spdlog::info("[VR] Delay render modified");
         }
     }
 

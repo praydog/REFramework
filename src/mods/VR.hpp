@@ -1044,6 +1044,7 @@ private:
     bool m_disable_backbuffer_size_override{false};
     bool m_disable_temporal_fix{false};
     bool m_disable_post_effect_fix{false};
+    bool m_enable_asynchronous_rendering{true};
 
     ValueList m_options{
         *m_set_standing_key,
