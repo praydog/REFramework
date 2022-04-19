@@ -10,13 +10,6 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
         setup();
     }
 
-    // for some reason this happens.
-    // causes all sorts of weird bugs
-    // but it usually happens after removing the headset
-    if (vr->m_frame_count == vr->m_last_frame_count) {
-        return vr::VRCompositorError_None;
-    }
-
     auto& hook = g_framework->get_d3d12_hook();
     
     // get device
@@ -42,12 +35,12 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
     }
 
     auto runtime = vr->get_runtime();
+    const auto frame_count = vr->m_render_frame_count;
 
     // If m_frame_count is even, we're rendering the left eye.
-    if (vr->m_frame_count % 2 == vr->m_left_eye_interval) {
+    if (frame_count % 2 == vr->m_left_eye_interval) {
         // OpenXR texture
         if (runtime->is_openxr() && vr->m_openxr.ready()) {
-            m_prev_backbuffers[0] = backbuffer.Get();
             m_openxr.copy(0, backbuffer.Get());
         }
 
@@ -74,7 +67,6 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
     } else {
         // OpenXR texture
         if (runtime->is_openxr() && vr->m_openxr.ready()) {
-            m_prev_backbuffers[1] = backbuffer.Get();
             m_openxr.copy(1, backbuffer.Get());
         }
 
@@ -106,7 +98,7 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
 
     vr::EVRCompositorError e = vr::EVRCompositorError::VRCompositorError_None;
 
-    if (vr->m_frame_count % 2 == vr->m_right_eye_interval) {
+    if (frame_count % 2 == vr->m_right_eye_interval) {
         ////////////////////////////////////////////////////////////////////////////////
         // OpenXR start ////////////////////////////////////////////////////////////////
         ////////////////////////////////////////////////////////////////////////////////
@@ -160,6 +152,8 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
 }
 
 void D3D12Component::on_reset(VR* vr) {
+    auto runtime = vr->get_runtime();
+
     for (auto& ctx : m_openvr.left_eye_tex) {
         ctx.copier.reset();
         ctx.texture.Reset();
@@ -170,11 +164,18 @@ void D3D12Component::on_reset(VR* vr) {
         ctx.texture.Reset();
     }
 
-    m_openvr.texture_counter = 0;
+    if (runtime->is_openxr()) {
+        for (auto& ctx : m_openxr.contexts) {
+            for (auto& texture_ctx : ctx.texture_contexts) {
+                texture_ctx.copier.wait(2000);
+            }
+        }
 
-    for (auto& backbuffer : m_prev_backbuffers) {
-        backbuffer.Reset();
+        // end the frame before something terrible happens
+        //vr->m_openxr.end_frame();
     }
+
+    m_openvr.texture_counter = 0;
 }
 
 void D3D12Component::setup() {

@@ -2269,10 +2269,6 @@ void VR::on_present() {
         }
     }
 
-    if (m_frame_count == m_last_frame_count) {
-        return;
-    }
-
     // attempt to fix crash when reinitializing openvr
     std::scoped_lock _{m_openvr_mtx};
 
@@ -2308,7 +2304,7 @@ void VR::on_present() {
         m_present_finished_cv.notify_all();
     };
 
-    m_last_frame_count = m_frame_count;
+    m_last_frame_count = m_render_frame_count;
 
     if (m_submitted || runtime->needs_pose_update) {
         if (m_submitted) {
@@ -2961,24 +2957,16 @@ void VR::on_pre_begin_rendering(void* entry) {
     if (runtime->needs_pose_update && inside_on_end) {
         spdlog::info("VR: on_pre_wait_rendering: inside on end!");
     }
-
-    if (!inside_on_end) {
-        runtime->consume_events(nullptr);
-    }
-
+    
     // Call WaitGetPoses
-    if (runtime->needs_pose_update && !inside_on_end) {
+    if (!inside_on_end && m_frame_count % 2 == m_left_eye_interval) {
+        runtime->consume_events(nullptr);
         update_hmd_state();
     }
 
     if (!inside_on_end && runtime->is_openxr() && runtime->get_synchronize_stage() == VRRuntime::SynchronizeStage::EARLY) {
         m_openxr.begin_frame();
     }
-
-    if (runtime->needs_pose_update) {
-        return;
-    }
-
     const auto should_update_camera = (m_frame_count % 2 == m_left_eye_interval) || is_using_afr();
 
     if (!inside_on_end && should_update_camera) {
@@ -3002,6 +2990,12 @@ void VR::on_pre_end_rendering(void* entry) {
 }
 
 void VR::on_end_rendering(void* entry) {
+    // we set this because we've enabled asynchronous rendering
+    // by the time the next frame (right eye) starts,
+    // the frame count might get modified, screwing up our logic
+    // so we need a render frame count to compare against
+    m_render_frame_count = m_frame_count;
+
     auto runtime = get_runtime();
 
     if (!runtime->loaded) {
@@ -3009,7 +3003,7 @@ void VR::on_end_rendering(void* entry) {
     }
 
     // TODO: Check later if this is even necessary
-    if ((!runtime->ready() || runtime->needs_pose_update) && !inside_on_end) {
+    if ((!runtime->ready()) && !inside_on_end) {
         restore_camera();
 
         inside_on_end = false;
@@ -3029,7 +3023,7 @@ void VR::on_end_rendering(void* entry) {
     // Only render again on even (left eye) frames
     // We're checking == 1 because at this point, the frame has finished.
     // Meaning the previous frame was a left eye frame.
-    if (!inside_on_end && m_frame_count % 2 == m_left_eye_interval) {
+    if (!inside_on_end && m_render_frame_count % 2 == m_left_eye_interval) {
         inside_on_end = true;
         
         // Try to render again for the right eye
@@ -3053,6 +3047,7 @@ void VR::on_end_rendering(void* entry) {
 
             // Remove these from the chain (std::vector)
             auto entries_to_remove = std::vector<std::string> {
+                "WaitRendering",
                 "UpdatePhysicsCharacterController",
                 "UpdateTelemetry",
                 "UpdateMovie", // Causes movies to play twice as fast if ran again
@@ -3077,6 +3072,7 @@ void VR::on_end_rendering(void* entry) {
             }
         }
 
+        sdk::renderer::wait_rendering();
         sdk::renderer::begin_update_primitive();
 
         //static auto update_geometry = app->get_function("UpdateGeometry");
@@ -3133,6 +3129,9 @@ void VR::on_end_rendering(void* entry) {
 }
 
 void VR::on_pre_wait_rendering(void* entry) {
+}
+
+void VR::on_wait_rendering(void* entry) {
     if (!get_runtime()->loaded) {
         return;
     }
@@ -3145,7 +3144,7 @@ void VR::on_pre_wait_rendering(void* entry) {
 
     // wait for m_present_finished (std::condition_variable)
     // to be signaled
-    {
+    /*if (!inside_on_end) {
         std::unique_lock lock{m_present_finished_mtx};
         const auto now = std::chrono::steady_clock::now();
         
@@ -3154,10 +3153,7 @@ void VR::on_pre_wait_rendering(void* entry) {
         }
 
         m_present_finished = false;
-    }
-}
-
-void VR::on_wait_rendering(void* entry) {
+    }*/
 }
 
 void VR::on_pre_application_entry(void* entry, const char* name, size_t hash) {
@@ -3767,6 +3763,7 @@ void VR::on_draw_ui() {
     ImGui::Checkbox("Disable Backbuffer Size Override", &m_disable_backbuffer_size_override);
     ImGui::Checkbox("Disable Temporal Fix", &m_disable_temporal_fix);
     ImGui::Checkbox("Disable Post Effect Fix", &m_disable_post_effect_fix);
+    ImGui::Checkbox("Enable Asynchronous Rendering", &m_enable_asynchronous_rendering);
 
     ImGui::DragFloat4("Raw Left", (float*)&m_raw_projections[0], 0.01f, -100.0f, 100.0f);
     ImGui::DragFloat4("Raw Right", (float*)&m_raw_projections[1], 0.01f, -100.0f, 100.0f);

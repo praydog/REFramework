@@ -976,6 +976,7 @@ private:
 
     // options
     int m_frame_count{};
+    int m_render_frame_count{};
     int m_last_frame_count{-1};
     int m_left_eye_frame_count{0};
     int m_right_eye_frame_count{0};

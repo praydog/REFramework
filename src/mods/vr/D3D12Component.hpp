@@ -127,7 +127,6 @@ private:
 		std::vector<SwapchainContext> contexts{};
 	} m_openxr;
 
-	std::array<ComPtr<ID3D12Resource>, 2> m_prev_backbuffers{};
 	uint32_t m_backbuffer_size[2]{};
 	bool m_force_reset{false};
 };
