@@ -3689,7 +3689,8 @@ void VR::on_draw_ui() {
     if (get_runtime()->is_openxr()) {
         ImGui::Separator();
         ImGui::Text("OpenXR options");
-        ImGui::Checkbox("Late Synchronization", (bool*)&m_openxr.custom_stage);
+
+        ImGui::Combo("Sync Mode", (int*)&m_openxr.custom_stage, "Early\0Late\0Very Late\0");
     }
 
     ImGui::Separator();

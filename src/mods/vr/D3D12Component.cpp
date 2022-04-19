@@ -102,7 +102,7 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
         ////////////////////////////////////////////////////////////////////////////////
         // OpenXR start ////////////////////////////////////////////////////////////////
         ////////////////////////////////////////////////////////////////////////////////
-        if (runtime->ready() && runtime->get_synchronize_stage() == VRRuntime::SynchronizeStage::LATE) {
+        if (runtime->ready() && runtime->get_synchronize_stage() == VRRuntime::SynchronizeStage::VERY_LATE) {
             runtime->synchronize_frame();
 
             if (!runtime->got_first_poses) {
@@ -111,7 +111,7 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
         }
 
         if (runtime->is_openxr() && vr->m_openxr.ready()) {
-            if (runtime->get_synchronize_stage() == VRRuntime::SynchronizeStage::LATE) {
+            if (runtime->get_synchronize_stage() == VRRuntime::SynchronizeStage::VERY_LATE || !vr->m_openxr.frame_began) {
                 vr->m_openxr.begin_frame();
             }
 
@@ -242,6 +242,8 @@ void D3D12Component::OpenXR::initialize(XrSessionCreateInfo& session_info) {
     xrGetInstanceProcAddr(VR::get()->m_openxr.instance, "xrGetD3D12GraphicsRequirementsKHR", (PFN_xrVoidFunction*)(&fn));
 
     XrGraphicsRequirementsD3D12KHR gr{XR_TYPE_GRAPHICS_REQUIREMENTS_D3D12_KHR};
+    gr.adapterLuid = device->GetAdapterLuid();
+    gr.minFeatureLevel = D3D_FEATURE_LEVEL_11_0;
     fn(VR::get()->m_openxr.instance, VR::get()->m_openxr.system, &gr);
 
     session_info.next = &this->binding;
