@@ -50,9 +50,10 @@ struct VRRuntime {
         RIGHT,
     };
 
-    enum class SynchronizeStage : uint8_t { 
+    enum class SynchronizeStage : int32_t { 
         EARLY,
-        LATE
+        LATE,
+        VERY_LATE
     };
 
     virtual ~VRRuntime() {};
@@ -474,9 +475,11 @@ private:
         }
 
         VRRuntime::Error synchronize_frame() override {
+            std::scoped_lock _{sync_mtx};
+
             // cant sync frame between begin and endframe
             if (!this->session_ready || this->frame_began) {
-                return VRRuntime::Error::SUCCESS;
+                return (VRRuntime::Error)-1;
             }
 
             XrFrameWaitInfo frame_wait_info{XR_TYPE_FRAME_WAIT_INFO};
@@ -492,13 +495,15 @@ private:
         }
 
         VRRuntime::Error update_poses() override {
+            std::scoped_lock _{sync_mtx};
+
             if (!this->session_ready) {
                 return VRRuntime::Error::SUCCESS;
             }
 
-            if (!this->needs_pose_update) {
+            /*if (!this->needs_pose_update) {
                 return VRRuntime::Error::SUCCESS;
-            }
+            }*/
 
             this->view_state = {XR_TYPE_VIEW_STATE};
             this->stage_view_state = {XR_TYPE_VIEW_STATE};
@@ -573,12 +578,14 @@ private:
         }
 
         VRRuntime::Error consume_events(std::function<void(void*)> callback) override {
+            std::scoped_lock _{sync_mtx};
+
             XrEventDataBuffer edb{XR_TYPE_EVENT_DATA_BUFFER};
             auto result = xrPollEvent(this->instance, &edb);
 
             const auto bh = (XrEventDataBaseHeader*)&edb;
 
-            if (result == XR_SUCCESS) {
+            while (result == XR_SUCCESS) {
                 spdlog::info("VR: xrEvent: {}", this->get_structure_string(bh->type));
 
                 if (callback) {
@@ -621,7 +628,12 @@ private:
                         }
                     }
                 }
-            } else if (result != XR_EVENT_UNAVAILABLE) {
+
+                edb = {XR_TYPE_EVENT_DATA_BUFFER};
+                result = xrPollEvent(this->instance, &edb);
+            } 
+            
+            if (result != XR_EVENT_UNAVAILABLE) {
                 spdlog::error("VR: xrPollEvent failed: {}", this->get_result_string(result));
                 return (VRRuntime::Error)result;
             }
@@ -656,7 +668,9 @@ private:
         }
 
         XrResult begin_frame() {
-            if (!this->ready()) {
+            std::scoped_lock _{sync_mtx};
+
+            if (!this->ready() || !this->got_first_poses) {
                 //spdlog::info("VR: begin_frame: not ready");
                 return XR_ERROR_SESSION_NOT_READY;
             }
@@ -673,12 +687,23 @@ private:
                 spdlog::error("[VR] xrBeginFrame failed: {}", this->get_result_string(result));
             }
 
+            if (result == XR_ERROR_CALL_ORDER_INVALID) {
+                synchronize_frame();
+                result = xrBeginFrame(this->session, &frame_begin_info);
+            }
+
             this->frame_began = result == XR_SUCCESS || result == XR_FRAME_DISCARDED; // discarded means endFrame was not called
 
             return result;
         }
 
         XrResult end_frame() {
+            std::scoped_lock _{sync_mtx};
+
+            if (!this->ready() || !this->got_first_poses) {
+                return XR_ERROR_SESSION_NOT_READY;
+            }
+
             if (!this->frame_began) {
                 spdlog::info("[VR] end_frame called while frame not begun");
                 return XR_ERROR_CALL_ORDER_INVALID;
@@ -721,6 +746,10 @@ private:
 
             auto result = xrEndFrame(this->session, &frame_end_info);
             
+            if (result != XR_SUCCESS) {
+                spdlog::error("[VR] xrEndFrame failed: {}", this->get_result_string(result));
+            }
+            
             this->frame_began = false;
 
             return result;
@@ -728,6 +757,8 @@ private:
 
         bool session_ready{false};
         bool frame_began{false};
+
+        std::recursive_mutex sync_mtx{};
 
         SynchronizeStage custom_stage{SynchronizeStage::EARLY};
 

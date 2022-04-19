@@ -3775,6 +3775,8 @@ void VR::on_draw_ui() {
 }
 
 void VR::on_device_reset() {
+    std::scoped_lock _{m_openxr.sync_mtx};
+
     spdlog::info("VR: on_device_reset");
     m_backbuffer_inconsistency = false;
     m_d3d11.on_reset(this);
