@@ -1453,7 +1453,7 @@ void VR::update_hmd_state() {
     // If we used the data directly from the WaitGetPoses call, we would have to lock a different mutex and wait a long time
     // This is because the WaitGetPoses call is blocking, and we don't want to block any game logic
     {
-        std::unique_lock _{ m_pose_mtx };
+        std::unique_lock _{ runtime->pose_mtx };
 
         if (runtime->wants_reset_origin && runtime->ready()) {
             set_rotation_offset(glm::identity<glm::quat>());
@@ -2142,19 +2142,19 @@ int32_t VR::get_game_frame_count() const {
 }
 
 float VR::get_standing_height() {
-    std::shared_lock _{ m_pose_mtx };
+    std::shared_lock _{ get_runtime()->pose_mtx };
 
     return m_standing_origin.y;
 }
 
 Vector4f VR::get_standing_origin() {
-    std::shared_lock _{ m_pose_mtx };
+    std::shared_lock _{ get_runtime()->pose_mtx };
 
     return m_standing_origin;
 }
 
 void VR::set_standing_origin(const Vector4f& origin) {
-    std::unique_lock _{ m_pose_mtx };
+    std::unique_lock _{ get_runtime()->pose_mtx };
     
     m_standing_origin = origin;
 }
@@ -2261,7 +2261,7 @@ void VR::on_present() {
         return;
     }
 
-    auto openvr = get_runtime<VR::OpenVR>();
+    auto openvr = get_runtime<runtimes::OpenVR>();
 
     if (runtime->is_openvr()) {
         if (openvr->got_first_poses) {
@@ -3827,7 +3827,7 @@ Vector4f VR::get_position(uint32_t index) {
         return Vector4f{};
     }
 
-    std::shared_lock _{ m_pose_mtx };
+    std::shared_lock _{ get_runtime()->pose_mtx };
     std::shared_lock __{ get_runtime()->eyes_mtx };
 
     return get_position_unsafe(index);
@@ -3838,7 +3838,7 @@ Vector4f VR::get_velocity(uint32_t index) {
         return Vector4f{};
     }
 
-    std::shared_lock _{ m_pose_mtx };
+    std::shared_lock _{ get_runtime()->pose_mtx };
 
     return get_velocity_unsafe(index);
 }
@@ -3848,7 +3848,7 @@ Vector4f VR::get_angular_velocity(uint32_t index) {
         return Vector4f{};
     }
 
-    std::shared_lock _{ m_pose_mtx };
+    std::shared_lock _{ get_runtime()->pose_mtx };
 
     return get_angular_velocity_unsafe(index);
 }
@@ -3913,13 +3913,13 @@ Matrix4x4f VR::get_rotation(uint32_t index) {
             return glm::identity<Matrix4x4f>();
         }
 
-        std::shared_lock _{ m_pose_mtx };
+        std::shared_lock _{ get_runtime()->pose_mtx };
 
         auto& pose = get_openvr_poses()[index];
         auto matrix = Matrix4x4f{ *(Matrix3x4f*)&pose.mDeviceToAbsoluteTracking };
         return glm::extractMatrixRotation(glm::rowMajor4(matrix));
     } else if (get_runtime()->is_openxr()) {
-        std::shared_lock _{ m_pose_mtx };
+        std::shared_lock _{ get_runtime()->pose_mtx };
         std::shared_lock __{ get_runtime()->eyes_mtx };
 
         // HMD rotation
@@ -3941,7 +3941,7 @@ Matrix4x4f VR::get_transform(uint32_t index) {
             return glm::identity<Matrix4x4f>();
         }
 
-        std::shared_lock _{ m_pose_mtx };
+        std::shared_lock _{ get_runtime()->pose_mtx };
 
         auto& pose = get_openvr_poses()[index];
         auto matrix = Matrix4x4f{ *(Matrix3x4f*)&pose.mDeviceToAbsoluteTracking };
@@ -3958,7 +3958,7 @@ vr::HmdMatrix34_t VR::get_raw_transform(uint32_t index) {
             return vr::HmdMatrix34_t{};
         }
 
-        std::shared_lock _{ m_pose_mtx };
+        std::shared_lock _{ get_runtime()->pose_mtx };
 
         auto& pose = get_openvr_poses()[index];
         return pose.mDeviceToAbsoluteTracking;

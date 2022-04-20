@@ -296,7 +296,7 @@ std::optional<std::string> D3D12Component::OpenXR::create_swapchains() {
         swapchain_create_info.sampleCount = backbuffer_desc.SampleDesc.Count;
         swapchain_create_info.usageFlags = XR_SWAPCHAIN_USAGE_SAMPLED_BIT | XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT | XR_SWAPCHAIN_USAGE_TRANSFER_DST_BIT;
 
-        VR::OpenXR::Swapchain swapchain{};
+        runtimes::OpenXR::Swapchain swapchain{};
         swapchain.width = swapchain_create_info.width;
         swapchain.height = swapchain_create_info.height;
 
