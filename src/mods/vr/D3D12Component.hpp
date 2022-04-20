@@ -41,6 +41,10 @@ private:
     template <typename T> using ComPtr = Microsoft::WRL::ComPtr<T>;
 
 	struct ResourceCopier {
+		virtual ~ResourceCopier() {
+			this->reset();
+		}
+
 		void setup();
 		void reset();
 		void wait(uint32_t ms);
@@ -110,17 +114,26 @@ private:
 	struct OpenXR {
 		void initialize(XrSessionCreateInfo& session_info);
 		std::optional<std::string> create_swapchains();
+		void destroy_swapchains();
 		void copy(uint32_t swapchain_idx, ID3D12Resource* src);
+		void wait_for_all_copies() {
+
+			for (auto& ctx : this->contexts) {
+				for (auto& texture_ctx : ctx.texture_contexts) {
+					texture_ctx->copier.wait(INFINITE);
+				}
+			}
+		}
 
 		XrGraphicsBindingD3D12KHR binding{XR_TYPE_GRAPHICS_BINDING_D3D12_KHR};
 
 		struct SwapchainContext {
 			struct TextureContext {
-				ResourceCopier copier;
+				ResourceCopier copier{};
 			};
 
 			std::vector<XrSwapchainImageD3D12KHR> textures{};
-			std::vector<TextureContext> texture_contexts{};
+			std::vector<std::unique_ptr<TextureContext>> texture_contexts{};
 			uint32_t num_textures_acquired{0};
 		};
 
