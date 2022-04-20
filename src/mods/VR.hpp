@@ -536,6 +536,13 @@ private:
                 return (VRRuntime::Error)result;
             }
 
+            result = xrLocateSpace(this->view_space, this->stage_space, display_time, &this->view_space_location);
+
+            if (result != XR_SUCCESS) {
+                spdlog::error("[VR] xrLocateSpace for view space failed: {}", this->get_result_string(result));
+                return (VRRuntime::Error)result;
+            }
+
             this->needs_pose_update = false;
             this->got_first_poses = true;
             return VRRuntime::Error::SUCCESS;
@@ -776,6 +783,8 @@ private:
         XrViewState view_state{XR_TYPE_VIEW_STATE};
         XrViewState stage_view_state{XR_TYPE_VIEW_STATE};
         XrFrameState frame_state{XR_TYPE_FRAME_STATE};
+
+        XrSpaceLocation view_space_location{XR_TYPE_SPACE_LOCATION};
 
         std::vector<XrViewConfigurationView> view_configs{};
         std::vector<Swapchain> swapchains{};

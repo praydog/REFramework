@@ -3912,7 +3912,8 @@ Matrix4x4f VR::get_rotation(uint32_t index) {
 
         // HMD rotation
         if (index == 0 && !m_openxr.stage_views.empty()) {
-            return Matrix4x4f{*(glm::quat*)&m_openxr.stage_views[0].pose.orientation};
+            return Matrix4x4f{*(glm::quat*)&m_openxr.view_space_location.pose.orientation};
+            //return Matrix4x4f{*(glm::quat*)&m_openxr.stage_views[0].pose.orientation};
         }
 
         return glm::identity<Matrix4x4f>();
