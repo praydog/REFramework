@@ -3,6 +3,7 @@
 #include <d3d12.h>
 #include <dxgi.h>
 #include <wrl.h>
+#include <mutex>
 
 #define XR_USE_PLATFORM_WIN32
 #define XR_USE_GRAPHICS_API_D3D11
@@ -56,6 +57,8 @@ private:
 		ComPtr<ID3D12Fence> fence{};
 		UINT64 fence_value{};
 		HANDLE fence_event{};
+
+		std::recursive_mutex mtx{};
 
 		bool waiting_for_fence{false};
 		bool has_commands{false};
@@ -117,6 +120,7 @@ private:
 		void destroy_swapchains();
 		void copy(uint32_t swapchain_idx, ID3D12Resource* src);
 		void wait_for_all_copies() {
+			std::scoped_lock _{this->mtx};
 
 			for (auto& ctx : this->contexts) {
 				for (auto& texture_ctx : ctx.texture_contexts) {
@@ -138,6 +142,7 @@ private:
 		};
 
 		std::vector<SwapchainContext> contexts{};
+		std::recursive_mutex mtx{};
 	} m_openxr;
 
 	uint32_t m_backbuffer_size[2]{};

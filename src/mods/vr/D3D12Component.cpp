@@ -244,6 +244,8 @@ void D3D12Component::OpenXR::initialize(XrSessionCreateInfo& session_info) {
 }
 
 std::optional<std::string> D3D12Component::OpenXR::create_swapchains() {
+    std::scoped_lock _{this->mtx};
+
     spdlog::info("[VR] Creating OpenXR swapchains for D3D12");
 
     this->destroy_swapchains();
@@ -348,6 +350,7 @@ std::optional<std::string> D3D12Component::OpenXR::create_swapchains() {
 }
 
 void D3D12Component::OpenXR::destroy_swapchains() {
+    std::scoped_lock _{this->mtx};
 
 	if (this->contexts.empty()) {
         return;
@@ -379,9 +382,16 @@ void D3D12Component::OpenXR::destroy_swapchains() {
 }
 
 void D3D12Component::OpenXR::copy(uint32_t swapchain_idx, ID3D12Resource* resource) {
+    std::scoped_lock _{this->mtx};
+
     auto vr = VR::get();
 
     if (vr->m_openxr.frame_state.shouldRender != XR_TRUE) {
+        return;
+    }
+
+    if (!vr->m_openxr.frame_began) {
+        spdlog::error("[VR] OpenXR: Frame not begun when trying to copy.");
         return;
     }
 
@@ -396,6 +406,19 @@ void D3D12Component::OpenXR::copy(uint32_t swapchain_idx, ID3D12Resource* resour
 
     uint32_t texture_index{};
     auto result = xrAcquireSwapchainImage(swapchain.handle, &acquire_info, &texture_index);
+
+    if (result == XR_ERROR_RUNTIME_FAILURE) {
+        spdlog::error("[VR] xrAcquireSwapchainImage failed: {}", vr->m_openxr.get_result_string(result));
+        spdlog::info("[VR] Attempting to correct...");
+
+        for (auto& texture_ctx : ctx.texture_contexts) {
+            texture_ctx->copier.reset();
+        }
+
+        texture_index = 0;
+        result = xrAcquireSwapchainImage(swapchain.handle, &acquire_info, &texture_index);
+    }
+
 
     if (result != XR_SUCCESS) {
         spdlog::error("[VR] xrAcquireSwapchainImage failed: {}", vr->m_openxr.get_result_string(result));
@@ -422,6 +445,24 @@ void D3D12Component::OpenXR::copy(uint32_t swapchain_idx, ID3D12Resource* resour
             XrSwapchainImageReleaseInfo release_info{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
             auto result = xrReleaseSwapchainImage(swapchain.handle, &release_info);
 
+            // SteamVR shenanigans.
+            if (result == XR_ERROR_RUNTIME_FAILURE) {
+                spdlog::error("[VR] xrReleaseSwapchainImage failed: {}", vr->m_openxr.get_result_string(result));
+                spdlog::info("[VR] Attempting to correct...");
+
+                result = xrWaitSwapchainImage(swapchain.handle, &wait_info);
+
+                if (result != XR_SUCCESS) {
+                    spdlog::error("[VR] xrWaitSwapchainImage failed: {}", vr->m_openxr.get_result_string(result));
+                }
+
+                for (auto& texture_ctx : ctx.texture_contexts) {
+                    texture_ctx->copier.wait(INFINITE);
+                }
+
+                result = xrReleaseSwapchainImage(swapchain.handle, &release_info);
+            }
+
             if (result != XR_SUCCESS) {
                 spdlog::error("[VR] xrReleaseSwapchainImage failed: {}", vr->m_openxr.get_result_string(result));
                 return;
@@ -433,6 +474,8 @@ void D3D12Component::OpenXR::copy(uint32_t swapchain_idx, ID3D12Resource* resour
 }
 
 void D3D12Component::ResourceCopier::setup() {
+    std::scoped_lock _{this->mtx};
+
     auto& hook = g_framework->get_d3d12_hook();
     auto device = hook->get_device();
 
@@ -456,6 +499,7 @@ void D3D12Component::ResourceCopier::setup() {
 }
 
 void D3D12Component::ResourceCopier::reset() {
+    std::scoped_lock _{this->mtx};
     this->wait(2000);
     //this->on_post_present(VR::get().get());
 
@@ -469,6 +513,8 @@ void D3D12Component::ResourceCopier::reset() {
 }
 
 void D3D12Component::ResourceCopier::wait(uint32_t ms) {
+    std::scoped_lock _{this->mtx};
+
 	if (this->fence_event && this->waiting_for_fence) {
         WaitForSingleObject(this->fence_event, ms);
         ResetEvent(this->fence_event);
@@ -480,6 +526,8 @@ void D3D12Component::ResourceCopier::wait(uint32_t ms) {
 }
 
 void D3D12Component::ResourceCopier::copy(ID3D12Resource* src, ID3D12Resource* dst, D3D12_RESOURCE_STATES src_state, D3D12_RESOURCE_STATES dst_state) {
+    std::scoped_lock _{this->mtx};
+
     // Switch src into copy source.
     D3D12_RESOURCE_BARRIER src_barrier{};
 
@@ -522,6 +570,8 @@ void D3D12Component::ResourceCopier::copy(ID3D12Resource* src, ID3D12Resource* d
 }
 
 void D3D12Component::ResourceCopier::execute() {
+    std::scoped_lock _{this->mtx};
+    
     if (this->has_commands) {
         if (FAILED(this->cmd_list->Close())) {
             spdlog::error("[VR] Failed to close command list.");
