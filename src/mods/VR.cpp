@@ -609,6 +609,11 @@ std::optional<std::string> VR::on_initialize() {
         if (openxr_error || !m_openxr.loaded) {
             m_openxr.needs_pose_update = false;
         }
+    } else {
+        m_openxr.error = 
+R"(OpenVR loaded first.
+If you want to use OpenXR, remove the openvr_api.dll from your game folder, 
+and place the openxr_loader.dll in the same folder.)";
     }
 
     if (!get_runtime()->loaded) {
