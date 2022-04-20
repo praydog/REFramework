@@ -70,6 +70,10 @@ struct VRRuntime {
         return Type::NONE;
     }
 
+    virtual void destroy() {
+        this->loaded = false;
+    }
+
     virtual Error synchronize_frame() {
         return Error::SUCCESS;
     }
@@ -806,9 +810,9 @@ private:
         }
 
         VRRuntime::Error synchronize_frame() override {
-            /*if (!this->needs_pose_update) {
+            if (this->got_first_poses && !this->is_hmd_active) {
                 return VRRuntime::Error::SUCCESS;
-            }*/
+            }
 
             vr::VRCompositor()->SetTrackingSpace(vr::TrackingUniverseStanding);
             auto ret = vr::VRCompositor()->WaitGetPoses(this->real_render_poses.data(), vr::k_unMaxTrackedDeviceCount, this->real_game_poses.data(), vr::k_unMaxTrackedDeviceCount);
@@ -817,7 +821,7 @@ private:
         }
 
         VRRuntime::Error update_poses() override {
-            if (!this->needs_pose_update) {
+            if (!this->ready()) {
                 return VRRuntime::Error::SUCCESS;
             }
 

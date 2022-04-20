@@ -1432,13 +1432,19 @@ bool VR::is_any_action_down() {
     return false;
 }
 
-void VR::update_hmd_state() {
     //update_action_states();
+void VR::update_hmd_state() {
 
     auto runtime = get_runtime();
     
     if (runtime->get_synchronize_stage() == VRRuntime::SynchronizeStage::EARLY) {
-        runtime->synchronize_frame();
+        if (runtime->synchronize_frame() != VRRuntime::Error::SUCCESS) {
+            return;
+        }
+
+        if (runtime->is_openxr()) {
+            m_openxr.begin_frame();
+        }
     }
     
     runtime->update_poses();
@@ -2961,9 +2967,6 @@ void VR::on_pre_begin_rendering(void* entry) {
         update_hmd_state();
     }
 
-    if (!inside_on_end && runtime->is_openxr() && runtime->get_synchronize_stage() == VRRuntime::SynchronizeStage::EARLY) {
-        m_openxr.begin_frame();
-    }
     const auto should_update_camera = (m_frame_count % 2 == m_left_eye_interval) || is_using_afr();
 
     if (!inside_on_end && should_update_camera) {
@@ -2982,8 +2985,21 @@ void VR::on_begin_rendering(void* entry) {
 }
 
 void VR::on_pre_end_rendering(void* entry) {
+    auto runtime = get_runtime();
 
-    //spdlog::info("EndRendering");
+    if (!runtime->loaded) {
+        return;
+    }
+
+    if (runtime->ready() && runtime->is_openxr() && m_frame_count % 2 == m_left_eye_interval) {
+        const auto stage = runtime->get_synchronize_stage();
+
+        if (stage == VRRuntime::SynchronizeStage::LATE) {
+            if (m_openxr.synchronize_frame() == VRRuntime::Error::SUCCESS) {
+                m_openxr.begin_frame();
+            }
+        }
+    }
 }
 
 void VR::on_end_rendering(void* entry) {
