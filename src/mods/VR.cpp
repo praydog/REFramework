@@ -3675,7 +3675,7 @@ void VR::on_draw_ui() {
     }
 
     // draw VR tree entry in menu (imgui)
-    ImGui::Text("VR Runtime");
+    ImGui::Text("VR Runtime: %s", get_runtime()->name().data());
     ImGui::Text("Render Resolution: %d x %d", get_runtime()->get_width(), get_runtime()->get_height());
 
     if (get_runtime()->is_openvr()) {
