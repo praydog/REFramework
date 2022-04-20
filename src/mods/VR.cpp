@@ -3092,10 +3092,6 @@ void VR::on_end_rendering(void* entry) {
         // So, we manually call BeginEffect, and then EndUpdateEffect
         // Which somehow solves the crash.
         // We don't call UpdateEffect because it will make effects appear to run at a higher framerate
-        if (begin_update_primitive != nullptr) {
-            begin_update_primitive->func(begin_update_primitive->entry);
-        }
-
         if (begin_update_effect != nullptr) {
             begin_update_effect->func(begin_update_effect->entry);
         }
