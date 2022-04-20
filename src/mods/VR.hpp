@@ -510,9 +510,11 @@ private:
 
             uint32_t view_count{};
 
+            const auto display_time = this->frame_state.predictedDisplayTime + (this->frame_state.predictedDisplayPeriod * this->prediction_scale);
+
             XrViewLocateInfo view_locate_info{XR_TYPE_VIEW_LOCATE_INFO};
             view_locate_info.viewConfigurationType = this->view_config;
-            view_locate_info.displayTime = this->frame_state.predictedDisplayTime;
+            view_locate_info.displayTime = display_time;
             view_locate_info.space = this->view_space;
 
             auto result = xrLocateViews(this->session, &view_locate_info, &this->view_state, (uint32_t)this->views.size(), &view_count, this->views.data());
@@ -524,7 +526,7 @@ private:
 
             view_locate_info = {XR_TYPE_VIEW_LOCATE_INFO};
             view_locate_info.viewConfigurationType = this->view_config;
-            view_locate_info.displayTime = this->frame_state.predictedDisplayTime;
+            view_locate_info.displayTime = display_time;
             view_locate_info.space = this->stage_space;
 
             result = xrLocateViews(this->session, &view_locate_info, &this->stage_view_state, (uint32_t)this->stage_views.size(), &view_count, this->stage_views.data());
@@ -755,6 +757,7 @@ private:
             return result;
         }
 
+        float prediction_scale{0.0f};
         bool session_ready{false};
         bool frame_began{false};
 

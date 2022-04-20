@@ -3761,6 +3761,8 @@ void VR::on_draw_ui() {
     ImGui::Checkbox("Disable Temporal Fix", &m_disable_temporal_fix);
     ImGui::Checkbox("Disable Post Effect Fix", &m_disable_post_effect_fix);
     ImGui::Checkbox("Enable Asynchronous Rendering", &m_enable_asynchronous_rendering);
+    
+    ImGui::SliderFloat("Prediction Scale", &m_openxr.prediction_scale, 0.0f, 25.0f);
 
     ImGui::DragFloat4("Raw Left", (float*)&m_raw_projections[0], 0.01f, -100.0f, 100.0f);
     ImGui::DragFloat4("Raw Right", (float*)&m_raw_projections[1], 0.01f, -100.0f, 100.0f);
