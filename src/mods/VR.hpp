@@ -984,9 +984,8 @@ private:
     std::chrono::nanoseconds m_last_input_delay{};
     std::chrono::nanoseconds m_avg_input_delay{};
 
-    std::condition_variable m_present_finished_cv{};
-    std::mutex m_present_finished_mtx{};
-    
+    HANDLE m_present_finished_event{CreateEvent(nullptr, TRUE, FALSE, nullptr)};
+
     Vector4f m_raw_projections[2]{};
 
     vrmod::D3D11Component m_d3d11{};
@@ -1013,7 +1012,6 @@ private:
     int m_right_eye_frame_count{0};
 
     bool m_submitted{false};
-    bool m_present_finished{false};
     //bool m_disable_sharpening{true};
 
     bool m_needs_camera_restore{false};

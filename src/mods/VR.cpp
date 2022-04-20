@@ -2245,6 +2245,10 @@ void VR::on_pre_imgui_frame() {
 }
 
 void VR::on_present() {
+    if ((m_render_frame_count + 1) % 2 == m_left_eye_interval) {
+        ResetEvent(m_present_finished_event);
+    }
+
     auto runtime = get_runtime();
 
     if (!get_runtime()->loaded) {
@@ -2276,12 +2280,7 @@ void VR::on_present() {
 
     // attempt to fix crash when reinitializing openvr
     std::scoped_lock _{m_openvr_mtx};
-
-    {
-        std::scoped_lock _{m_present_finished_mtx};
-        m_present_finished = false;
-        m_submitted = false;
-    }
+    m_submitted = false;
 
     const auto renderer = g_framework->get_renderer_type();
 
@@ -2300,15 +2299,6 @@ void VR::on_present() {
         openvr->needs_pose_update = true;
     }
 
-    auto unlock_present = [&]() {
-        {
-            std::scoped_lock _{m_present_finished_mtx};
-            m_present_finished = true;
-        }
-
-        m_present_finished_cv.notify_all();
-    };
-
     m_last_frame_count = m_render_frame_count;
 
     if (m_submitted || runtime->needs_pose_update) {
@@ -2325,7 +2315,9 @@ void VR::on_present() {
         m_submitted = false;
     }
 
-    unlock_present();
+    if (m_render_frame_count + 1 % 2 == m_left_eye_interval) {
+        SetEvent(m_present_finished_event);
+    }
 }
 
 void VR::on_post_present() {
@@ -3149,16 +3141,15 @@ void VR::on_wait_rendering(void* entry) {
 
     // wait for m_present_finished (std::condition_variable)
     // to be signaled
-    /*if (!inside_on_end) {
-        std::unique_lock lock{m_present_finished_mtx};
-        const auto now = std::chrono::steady_clock::now();
-        
-        if (!m_present_finished_cv.wait_until(lock, now + std::chrono::milliseconds(333), [&]() { return m_present_finished; })) {
+    // only on the left eye interval because we need the right eye
+    // to start render work as soon as possible
+    if ((m_frame_count + 1 % 2) == m_left_eye_interval) {
+        if (WaitForSingleObject(m_present_finished_event, 333) == WAIT_TIMEOUT) {
             timed_out = true;
         }
 
-        m_present_finished = false;
-    }*/
+        ResetEvent(m_present_finished_event);
+    }
 }
 
 void VR::on_pre_application_entry(void* entry, const char* name, size_t hash) {
