@@ -160,7 +160,7 @@ void D3D12Component::on_reset(VR* vr) {
         ctx.texture.Reset();
     }
 
-    if (runtime->is_openxr()) {
+    if (runtime->is_openxr() && runtime->loaded) {
         m_openxr.create_swapchains();
 
         // end the frame before something terrible happens
@@ -224,6 +224,8 @@ void D3D12Component::setup() {
 }
 
 void D3D12Component::OpenXR::initialize(XrSessionCreateInfo& session_info) {
+    std::scoped_lock _{this->mtx};
+
 	auto& hook = g_framework->get_d3d12_hook();
 
     auto device = hook->get_device();

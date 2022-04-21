@@ -11,6 +11,10 @@ VRRuntime::Error OpenVR::synchronize_frame() {
     vr::VRCompositor()->SetTrackingSpace(vr::TrackingUniverseStanding);
     auto ret = vr::VRCompositor()->WaitGetPoses(this->real_render_poses.data(), vr::k_unMaxTrackedDeviceCount, this->real_game_poses.data(), vr::k_unMaxTrackedDeviceCount);
 
+    if (ret == vr::VRCompositorError_None) {
+        this->got_first_sync = true;
+    }
+
     return (VRRuntime::Error)ret;
 }
 

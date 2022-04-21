@@ -32,6 +32,8 @@ VRRuntime::Error OpenXR::synchronize_frame() {
     if (result != XR_SUCCESS) {
         spdlog::error("[VR] xrWaitFrame failed: {}", this->get_result_string(result));
         return (VRRuntime::Error)result;
+    } else {
+        this->got_first_sync = true;
     }
 
     return VRRuntime::Error::SUCCESS;

@@ -734,8 +734,11 @@ std::optional<std::string> VR::initialize_openvr() {
         return Mod::on_initialize();
     }
 
-    m_d3d12.on_reset(this);
-    m_d3d11.on_reset(this);
+    if (g_framework->is_dx12()) {
+        m_d3d12.on_reset(this);
+    } else {
+        m_d3d11.on_reset(this);
+    }
 
     m_openvr.needs_pose_update = true;
     m_openvr.got_first_poses = false;
@@ -846,8 +849,11 @@ std::optional<std::string> VR::initialize_openxr() {
         return std::nullopt;
     }
 
-    m_d3d12.on_reset(this);
-    m_d3d11.on_reset(this);
+    if (g_framework->is_dx12()) {
+        m_d3d12.on_reset(this);
+    } else {
+        m_d3d11.on_reset(this);
+    }
 
     m_openxr.needs_pose_update = true;
     m_openxr.got_first_poses = false;
@@ -1432,18 +1438,20 @@ bool VR::is_any_action_down() {
     return false;
 }
 
-    //update_action_states();
 void VR::update_hmd_state() {
-
     auto runtime = get_runtime();
     
     if (runtime->get_synchronize_stage() == VRRuntime::SynchronizeStage::EARLY) {
-        if (runtime->synchronize_frame() != VRRuntime::Error::SUCCESS) {
-            return;
-        }
-
         if (runtime->is_openxr()) {
+            if (!runtime->got_first_sync || runtime->synchronize_frame() != VRRuntime::Error::SUCCESS) {
+                return;
+            }
+
             m_openxr.begin_frame();
+        } else {
+            if (runtime->synchronize_frame() != VRRuntime::Error::SUCCESS) {
+                return;
+            }
         }
     }
     
@@ -2290,11 +2298,18 @@ void VR::on_present() {
     std::scoped_lock _{m_openvr_mtx};
     m_submitted = false;
 
+    // if we don't do this then D3D11 OpenXR freezes for some reason.
+    if (!runtime->got_first_sync) {
+        runtime->synchronize_frame();
+        runtime->update_poses();
+    }
+
     const auto renderer = g_framework->get_renderer_type();
 
     vr::EVRCompositorError e = vr::EVRCompositorError::VRCompositorError_None;
 
     if (renderer == REFramework::RendererType::D3D11) {
+        m_is_d3d12 = false;
         e = m_d3d11.on_frame(this);
     } else if (renderer == REFramework::RendererType::D3D12) {
         m_is_d3d12 = true;
@@ -2323,7 +2338,7 @@ void VR::on_present() {
         m_submitted = false;
     }
 
-    if (m_render_frame_count + 1 % 2 == m_left_eye_interval) {
+    if ((m_render_frame_count + 1) % 2 == m_left_eye_interval) {
         SetEvent(m_present_finished_event);
     }
 }
@@ -3157,7 +3172,7 @@ void VR::on_wait_rendering(void* entry) {
     // to be signaled
     // only on the left eye interval because we need the right eye
     // to start render work as soon as possible
-    if ((m_frame_count + 1 % 2) == m_left_eye_interval) {
+    if (((m_frame_count + 1) % 2) == m_left_eye_interval) {
         if (WaitForSingleObject(m_present_finished_event, 333) == WAIT_TIMEOUT) {
             timed_out = true;
         }
@@ -3791,8 +3806,14 @@ void VR::on_device_reset() {
 
     spdlog::info("VR: on_device_reset");
     m_backbuffer_inconsistency = false;
-    m_d3d11.on_reset(this);
-    m_d3d12.on_reset(this);
+    if (g_framework->is_dx11()) {
+        m_d3d11.on_reset(this);
+    }
+
+    if (g_framework->is_dx12()) {
+        m_d3d12.on_reset(this);
+    }
+
     m_overlay_component.on_reset();
 
     // so i guess device resets can happen between begin and end rendering...

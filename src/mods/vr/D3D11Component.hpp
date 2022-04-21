@@ -36,8 +36,18 @@ private:
     struct OpenXR {
         void initialize(XrSessionCreateInfo& session_info);
         std::optional<std::string> create_swapchains();
+        void destroy_swapchains();
+        void copy(uint32_t swapchain_idx, ID3D11Texture2D* resource);
+
         XrGraphicsBindingD3D11KHR binding{XR_TYPE_GRAPHICS_BINDING_D3D11_KHR};
-        std::vector<XrSwapchainImageD3D11KHR> m_swapchain_images{};
+
+        struct SwapchainContext {
+			std::vector<XrSwapchainImageD3D11KHR> textures{};
+			uint32_t num_textures_acquired{0};
+		};
+
+        std::vector<SwapchainContext> contexts{};
+		std::recursive_mutex mtx{};
     } m_openxr;
 
     void setup();
