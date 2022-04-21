@@ -71,7 +71,7 @@ VRRuntime::Error OpenVR::consume_events(std::function<void(void*)> callback) {
                 break;
         }
     }
-    
+
     return VRRuntime::Error::SUCCESS;
 }
 

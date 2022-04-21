@@ -4,6 +4,10 @@
 
 namespace runtimes {
 struct OpenVR : public VRRuntime {
+    OpenVR() {
+        this->custom_stage = SynchronizeStage::EARLY;
+    }
+
     std::string_view name() const override {
         return "OpenVR";
     }
@@ -26,10 +30,6 @@ struct OpenVR : public VRRuntime {
     VRRuntime::Error consume_events(std::function<void(void*)> callback) override;
 
     VRRuntime::Error update_matrices(float nearz, float farz) override;
-
-    SynchronizeStage get_synchronize_stage() const override {
-        return SynchronizeStage::EARLY;
-    }
 
     bool is_hmd_active{false};
     bool was_hmd_active{true};

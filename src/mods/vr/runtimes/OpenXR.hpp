@@ -16,6 +16,10 @@
 
 namespace runtimes{
 struct OpenXR : public VRRuntime {
+    OpenXR() {
+        this->custom_stage = SynchronizeStage::EARLY;
+    }
+
     std::string get_result_string(XrResult result);
     std::string get_structure_string(XrStructureType type);
 
@@ -47,10 +51,6 @@ struct OpenXR : public VRRuntime {
 
     VRRuntime::Error update_matrices(float nearz, float farz) override;
 
-    SynchronizeStage get_synchronize_stage() const override {
-        return this->custom_stage;
-    }
-
     XrResult begin_frame();
     XrResult end_frame();
 
@@ -59,8 +59,6 @@ struct OpenXR : public VRRuntime {
     bool frame_began{false};
 
     std::recursive_mutex sync_mtx{};
-
-    SynchronizeStage custom_stage{SynchronizeStage::EARLY};
 
     XrInstance instance{XR_NULL_HANDLE};
     XrSession session{XR_NULL_HANDLE};

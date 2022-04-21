@@ -2993,11 +2993,11 @@ void VR::on_pre_end_rendering(void* entry) {
         return;
     }
 
-    if (runtime->ready() && runtime->is_openxr() && m_frame_count % 2 == m_left_eye_interval) {
+    if (runtime->ready() && m_frame_count % 2 == m_left_eye_interval) {
         const auto stage = runtime->get_synchronize_stage();
 
-        if (stage == VRRuntime::SynchronizeStage::LATE) {
-            if (m_openxr.synchronize_frame() == VRRuntime::Error::SUCCESS) {
+        if (stage == VRRuntime::SynchronizeStage::LATE && runtime->synchronize_frame() == VRRuntime::Error::SUCCESS) {
+            if (runtime->is_openxr()) {
                 m_openxr.begin_frame();
             }
         }
@@ -3697,12 +3697,11 @@ void VR::on_draw_ui() {
     }
 
     if (get_runtime()->is_openxr()) {
-        ImGui::Separator();
-        ImGui::Text("OpenXR options");
-
-        ImGui::Combo("Sync Mode", (int*)&m_openxr.custom_stage, "Early\0Late\0Very Late\0");
+        //ImGui::Separator();
+        //ImGui::Text("OpenXR options");
     }
-
+    
+    ImGui::Combo("Sync Mode", (int*)&get_runtime()->custom_stage, "Early\0Late\0Very Late\0");
     ImGui::Separator();
 
     if (ImGui::Button("Set Standing Height")) {

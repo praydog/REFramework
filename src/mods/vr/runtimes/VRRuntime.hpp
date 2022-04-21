@@ -81,7 +81,7 @@ struct VRRuntime {
     }
 
     virtual SynchronizeStage get_synchronize_stage() const {
-        return SynchronizeStage::EARLY;
+        return this->custom_stage;
     }
 
     bool is_openxr() const {
@@ -114,4 +114,6 @@ struct VRRuntime {
     std::shared_mutex pose_mtx{};
 
     Vector4f raw_projections[2]{};
+
+    SynchronizeStage custom_stage{SynchronizeStage::EARLY};
 };
