@@ -113,6 +113,59 @@ void add_ref(lua_State* l, ::REManagedObject* obj, bool force = false) {
 
     return obj;
 }
+
+void release(sol::this_state s, ::REManagedObject* obj, bool force = false) {
+    auto l = s.lua_state();
+    auto sv = sol::state_view(l);
+
+    sol::lua_table objects = sv["_sol_lua_push_objects"];
+    sol::lua_table ref_counts = sv["_sol_lua_push_ref_counts"];
+    sol::lua_table ephemeral_counts = sv["_sol_lua_push_ephemeral_counts"];
+
+    if (std::optional<int> ref_count = ref_counts[(uintptr_t)obj]; ref_count && *ref_count > 0) {
+        // because of our internal refcount keeping, we shouldn't need to double check
+        // whether it's an actual object or not. hopefully?
+        //if (utility::re_managed_object::is_managed_object(obj)) {
+            utility::re_managed_object::release(obj);
+        //}
+
+        int new_ref_count = *ref_count - 1;
+
+        if (new_ref_count == 0) {
+            if (sol::object object = ephemeral_counts[(uintptr_t)obj]; !object.valid()) {
+                objects[(uintptr_t)obj] = sol::make_object(l, sol::nil);
+            }
+
+            ref_counts[(uintptr_t)obj] = sol::make_object(l, sol::nil);
+        } else {
+            ref_counts[(uintptr_t)obj] = new_ref_count;
+        }
+
+        //ephemeral_counts[(uintptr_t)obj] = sol::make_object(l, sol::nil);
+    } else if (std::optional<int> ephemeral_count = ephemeral_counts[(uintptr_t)obj]; ephemeral_count && *ephemeral_count > 0) {
+        if (force && utility::re_managed_object::is_managed_object(obj)) {
+            utility::re_managed_object::release(obj);
+        }
+
+        // ephemeral counts don't actually release the object, they just decrement the count.
+        int new_ephemeral_count = *ephemeral_count - 1;
+
+        if (new_ephemeral_count == 0) {
+            objects[(uintptr_t)obj] = sol::make_object(l, sol::nil);
+            ephemeral_counts[(uintptr_t)obj] = sol::make_object(l, sol::nil);
+        } else {
+            ephemeral_counts[(uintptr_t)obj] = new_ephemeral_count;
+        }
+    } else {
+        if (force) {
+            if (utility::re_managed_object::is_managed_object(obj)) {
+                utility::re_managed_object::release(obj);
+            }
+        } else {
+            spdlog::warn("REManagedObject:release attempted to release an object that was not managed by our Lua state");
+        }
+    }
+}
 }
 
 // specialization for REManagedObject to automatically add a reference
@@ -1145,47 +1198,11 @@ void bindings::open_sdk(ScriptState* s) {
         sol::meta_function::equal_to, [s](REManagedObject* lhs, REManagedObject* rhs) { return lhs == rhs; },
         "add_ref", &api::re_managed_object::add_ref,
         "add_ref_permanent", &api::re_managed_object::add_ref_permanent,
+        "force_release", [](sol::this_state s, ::REManagedObject* obj) {
+            api::re_managed_object::release(s, obj, true);
+        },
         "release", [](sol::this_state s, ::REManagedObject* obj) {
-            auto l = s.lua_state();
-            auto sv = sol::state_view(l);
-
-            sol::lua_table objects = sv["_sol_lua_push_objects"];
-            sol::lua_table ref_counts = sv["_sol_lua_push_ref_counts"];
-            sol::lua_table ephemeral_counts = sv["_sol_lua_push_ephemeral_counts"];
-
-            if (std::optional<int> ref_count = ref_counts[(uintptr_t)obj]; ref_count && *ref_count > 0) {
-                // because of our internal refcount keeping, we shouldn't need to double check
-                // whether it's an actual object or not. hopefully?
-                //if (utility::re_managed_object::is_managed_object(obj)) {
-                    utility::re_managed_object::release(obj);
-                //}
-
-                int new_ref_count = *ref_count - 1;
-
-                if (new_ref_count == 0) {
-                    if (sol::object object = ephemeral_counts[(uintptr_t)obj]; !object.valid()) {
-                        objects[(uintptr_t)obj] = sol::make_object(l, sol::nil);
-                    }
-
-                    ref_counts[(uintptr_t)obj] = sol::make_object(l, sol::nil);
-                } else {
-                    ref_counts[(uintptr_t)obj] = new_ref_count;
-                }
-
-                //ephemeral_counts[(uintptr_t)obj] = sol::make_object(l, sol::nil);
-            } else if (std::optional<int> ephemeral_count = ephemeral_counts[(uintptr_t)obj]; ephemeral_count && *ephemeral_count > 0) {
-                // ephemeral counts don't actually release the object, they just decrement the count.
-                int new_ephemeral_count = *ephemeral_count - 1;
-
-                if (new_ephemeral_count == 0) {
-                    objects[(uintptr_t)obj] = sol::make_object(l, sol::nil);
-                    ephemeral_counts[(uintptr_t)obj] = sol::make_object(l, sol::nil);
-                } else {
-                    ephemeral_counts[(uintptr_t)obj] = new_ephemeral_count;
-                }
-            } else {
-                spdlog::warn("REManagedObject:release attempted to release an object that was not managed by our Lua state");
-            }
+            api::re_managed_object::release(s, obj, false);
         },
         "get_reference_count", [] (::REManagedObject* obj) { return obj->referenceCount; },
         "get_address", [](REManagedObject* obj) { return (uintptr_t)obj; },
