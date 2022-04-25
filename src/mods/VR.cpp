@@ -4106,7 +4106,7 @@ void VR::trigger_haptic_vibration(float seconds_from_now, float duration, float 
 
     if (get_runtime()->is_openvr()) {
         vr::VRInput()->TriggerHapticVibrationAction(m_action_haptic, seconds_from_now, duration, frequency, amplitude, source);
-    } else {
-        // Not implemented yet
+    } else if (get_runtime()->is_openxr()) {
+        m_openxr.trigger_haptic_vibration(duration, frequency, amplitude, (VRRuntime::Hand)source);
     }
 }

@@ -1,3 +1,5 @@
+#include <chrono>
+
 #include <json.hpp>
 #include <utility/String.hpp>
 
@@ -645,6 +647,29 @@ Vector2f OpenXR::get_right_stick_axis() const {
     }
 
     return *(Vector2f*)&axis.currentState;
+}
+
+void OpenXR::trigger_haptic_vibration(float duration, float frequency, float amplitude, VRRuntime::Hand source) const {
+    if (!this->action_set.action_map.contains("haptic")) {
+        return;
+    }
+
+    XrHapticActionInfo haptic_info{XR_TYPE_HAPTIC_ACTION_INFO};
+    haptic_info.action = this->action_set.action_map.find("haptic")->second;
+    haptic_info.subactionPath = this->hands[source].path;
+
+    XrHapticVibration vibration{XR_TYPE_HAPTIC_VIBRATION};
+    vibration.amplitude = amplitude;
+    vibration.frequency = frequency;
+
+    // cast the duration from seconds to nanoseconds
+    vibration.duration = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::duration<float>(duration)).count();
+
+    auto result = xrApplyHapticFeedback(this->session, &haptic_info, (XrHapticBaseHeader*)&vibration);
+
+    if (result != XR_SUCCESS) {
+        spdlog::error("[VR] Failed to apply haptic feedback: {}", this->get_result_string(result));
+    }
 }
 
 XrResult OpenXR::begin_frame() {

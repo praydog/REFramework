@@ -87,6 +87,8 @@ public:
     Vector2f get_left_stick_axis() const;
     Vector2f get_right_stick_axis() const;
 
+    void trigger_haptic_vibration(float duration, float frequency, float amplitude, VRRuntime::Hand source) const;
+
 public: 
     // OpenXR specific fields
     float prediction_scale{0.0f};
