@@ -3,7 +3,7 @@
 #include "VRRuntime.hpp"
 
 namespace runtimes {
-struct OpenVR : public VRRuntime {
+struct OpenVR final : public VRRuntime {
     OpenVR() {
         this->custom_stage = SynchronizeStage::EARLY;
     }

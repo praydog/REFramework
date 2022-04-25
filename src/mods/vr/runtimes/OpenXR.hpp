@@ -15,13 +15,10 @@
 #include <common/xr_linear.h>
 
 namespace runtimes{
-struct OpenXR : public VRRuntime {
+struct OpenXR final : public VRRuntime {
     OpenXR() {
         this->custom_stage = SynchronizeStage::EARLY;
     }
-
-    std::string get_result_string(XrResult result);
-    std::string get_structure_string(XrStructureType type);
 
     struct Swapchain {
         XrSwapchain handle;
@@ -51,6 +48,13 @@ struct OpenXR : public VRRuntime {
 
     VRRuntime::Error update_matrices(float nearz, float farz) override;
 
+public: 
+    // OpenXR specific methods
+    std::string get_result_string(XrResult result);
+    std::string get_structure_string(XrStructureType type);
+
+    std::optional<std::string> initialize_actions(const std::string& json_string);
+
     XrResult begin_frame();
     XrResult end_frame();
 
@@ -73,6 +77,8 @@ struct OpenXR : public VRRuntime {
         spdlog::info("{} took {} ms", name, dur);
     }
 
+public: 
+    // OpenXR specific fields
     float prediction_scale{0.0f};
     bool session_ready{false};
     bool frame_began{false};
@@ -100,5 +106,18 @@ struct OpenXR : public VRRuntime {
     std::vector<Swapchain> swapchains{};
     std::vector<XrView> views{};
     std::vector<XrView> stage_views{};
+
+    struct ActionSet {
+        XrActionSet handle;
+        std::vector<XrAction> actions{};
+        std::unordered_map<std::string, XrAction> action_map{}; // XrActions are handles so it's okay.
+    } action_set;
+
+    struct HandData {
+        XrSpace space{XR_NULL_HANDLE};
+        XrPath path{XR_NULL_PATH};
+    };
+
+    std::array<HandData, 2> hands{};
 };
 }

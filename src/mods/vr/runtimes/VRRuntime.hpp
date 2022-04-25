@@ -34,6 +34,11 @@ struct VRRuntime {
         VERY_LATE
     };
 
+    enum Hand : uint8_t {
+        LEFT,
+        RIGHT,
+    };
+
     virtual ~VRRuntime() {};
 
     virtual std::string_view name() const {
@@ -82,6 +87,10 @@ struct VRRuntime {
 
     virtual SynchronizeStage get_synchronize_stage() const {
         return this->custom_stage;
+    }
+
+    virtual Error update_input() const {
+        return Error::SUCCESS;
     }
 
     bool is_openxr() const {

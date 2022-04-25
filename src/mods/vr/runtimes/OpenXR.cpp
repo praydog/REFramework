@@ -1,22 +1,11 @@
+#include <json.hpp>
+#include <utility/String.hpp>
+
 #include "OpenXR.hpp"
 
+using namespace nlohmann;
+
 namespace runtimes {
-std::string OpenXR::get_result_string(XrResult result) {
-    std::string result_string{};
-    result_string.resize(XR_MAX_RESULT_STRING_SIZE);
-    xrResultToString(this->instance, result, result_string.data());
-
-    return result_string;
-}
-
-std::string OpenXR::get_structure_string(XrStructureType type) {
-    std::string structure_string{};
-    structure_string.resize(XR_MAX_STRUCTURE_NAME_SIZE);
-    xrStructureTypeToString(this->instance, type, structure_string.data());
-
-    return structure_string;
-}
-
 VRRuntime::Error OpenXR::synchronize_frame() {
     std::scoped_lock _{sync_mtx};
 
@@ -221,6 +210,153 @@ VRRuntime::Error OpenXR::update_matrices(float nearz, float farz) {
     }
 
     return VRRuntime::Error::SUCCESS;
+}
+
+std::string OpenXR::get_result_string(XrResult result) {
+    std::string result_string{};
+    result_string.resize(XR_MAX_RESULT_STRING_SIZE);
+    xrResultToString(this->instance, result, result_string.data());
+
+    return result_string;
+}
+
+std::string OpenXR::get_structure_string(XrStructureType type) {
+    std::string structure_string{};
+    structure_string.resize(XR_MAX_STRUCTURE_NAME_SIZE);
+    xrStructureTypeToString(this->instance, type, structure_string.data());
+
+    return structure_string;
+}
+
+std::optional<std::string> OpenXR::initialize_actions(const std::string& json_string) {
+    spdlog::info("[VR] Initializing actions");
+
+    if (auto result = xrStringToPath(this->instance, "/user/hand/left", &this->hands[VRRuntime::Hand::LEFT].path); result != XR_SUCCESS) {
+        return "xrStringToPath failed (left): " + this->get_result_string(result);
+    }
+
+    if (auto result = xrStringToPath(this->instance, "/user/hand/right", &this->hands[VRRuntime::Hand::RIGHT].path); result != XR_SUCCESS) {
+        return "xrStringToPath failed (right): " + this->get_result_string(result);
+    }
+
+    if (json_string.empty()) {
+        return std::nullopt;
+    }
+
+    spdlog::info("[VR] Creating action set");
+
+    XrActionSetCreateInfo action_set_create_info{XR_TYPE_ACTION_SET_CREATE_INFO};
+    strcpy(action_set_create_info.actionSetName, "default");
+    strcpy(action_set_create_info.localizedActionSetName, "Default");
+    action_set_create_info.priority = 0;
+
+    if (auto result = xrCreateActionSet(this->instance, &action_set_create_info, &this->action_set.handle); result != XR_SUCCESS) {
+        return "xrCreateActionSet failed: " + this->get_result_string(result);
+    }
+
+    // Parse the JSON string using nlohmann
+    json actions_json{};
+
+    try {
+        actions_json = json::parse(json_string);
+    } catch (const std::exception& e) {
+        return std::string{"json parse failed: "} + e.what();
+    }
+
+    if (actions_json.count("actions") == 0) {
+        return "json missing actions";
+    }
+
+    auto actions_list = actions_json["actions"];
+
+    bool has_pose_action = false;
+
+    for (auto& action : actions_list) {
+        XrActionCreateInfo action_create_info{XR_TYPE_ACTION_CREATE_INFO};
+        auto action_name = action["name"].get<std::string>();
+
+        if (auto it = action_name.find_last_of("/"); it != std::string::npos) {
+            action_name = action_name.substr(it + 1);
+        }
+
+        auto localized_action_name = action_name;
+        std::transform(action_name.begin(), action_name.end(), action_name.begin(), ::tolower);
+
+        strcpy(action_create_info.actionName, action_name.c_str());
+        strcpy(action_create_info.localizedActionName, localized_action_name.c_str());
+
+        if (action_name == "pose") {
+            has_pose_action = true;
+        }
+
+        // Translate the OpenVR action types to OpenXR action types
+        switch (utility::hash(action["type"].get<std::string>())) {
+            case "bool"_fnv:
+                action_create_info.actionType = XR_ACTION_TYPE_BOOLEAN_INPUT;
+                break;
+            case "skeleton"_fnv: // idk what this is in OpenXR
+                continue;
+            case "pose"_fnv:
+                action_create_info.actionType = XR_ACTION_TYPE_POSE_INPUT;
+                break;
+            case "vector1"_fnv:
+                action_create_info.actionType = XR_ACTION_TYPE_FLOAT_INPUT;
+                break;
+            case "vector2"_fnv:
+                action_create_info.actionType = XR_ACTION_TYPE_VECTOR2F_INPUT;
+                break;
+            case "vibration"_fnv:
+                action_create_info.actionType = XR_ACTION_TYPE_VIBRATION_OUTPUT;
+                break;
+        }
+        
+        // Create the action
+        XrAction xr_action{};
+        if (auto result = xrCreateAction(this->action_set.handle, &action_create_info, &xr_action); result != XR_SUCCESS) {
+            return "xrCreateAction failed for " + action_name + ": " + this->get_result_string(result);
+        }
+
+        spdlog::info("[VR] Created action {}", action_name);
+
+        this->action_set.actions.push_back(xr_action);
+        this->action_set.action_map[action_name] = xr_action;
+    }
+
+    if (!has_pose_action) {
+        return "json missing pose action";
+    }
+
+    // TODO: Suggest bindings
+    /*
+    do the suggest bindings
+    */
+
+    // Create the action spaces for each hand
+    for (auto i = 0; i < 2; ++i) {
+        spdlog::info("[VR] Creating action space for hand {}", i);
+        
+        XrActionSpaceCreateInfo action_space_create_info{XR_TYPE_ACTION_SPACE_CREATE_INFO};
+        action_space_create_info.action = this->action_set.action_map["pose"];
+        action_space_create_info.subactionPath = this->hands[i].path;
+        action_space_create_info.poseInActionSpace.orientation.w = 1.0f;
+
+        if (auto result = xrCreateActionSpace(this->session, &action_space_create_info, &this->hands[i].space); result != XR_SUCCESS) {
+            return "xrCreateActionSpace failed (" + std::to_string(i) + ")" + this->get_result_string(result);
+        }
+    }
+
+    // Attach the action set to the session
+    spdlog::info("[VR] Attaching action set to session");
+
+    XrSessionActionSetsAttachInfo action_sets_attach_info{XR_TYPE_SESSION_ACTION_SETS_ATTACH_INFO};
+    action_sets_attach_info.countActionSets = 1;
+    action_sets_attach_info.actionSets = &this->action_set.handle;
+
+    if (auto result = xrAttachSessionActionSets(this->session, &action_sets_attach_info); result != XR_SUCCESS) {
+        return "xrAttachSessionActionSets failed: " + this->get_result_string(result);
+    }
+
+    return std::nullopt;
 }
 
 XrResult OpenXR::begin_frame() {

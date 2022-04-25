@@ -1034,6 +1034,13 @@ std::optional<std::string> VR::initialize_openxr() {
         }
     }
 
+    if (auto err = m_openxr.initialize_actions(VR::actions_json)) {
+        m_openxr.error = err.value();
+        spdlog::error("[VR] {}", m_openxr.error.value());
+
+        return std::nullopt;
+    }
+
     m_openxr.loaded = true;
 
     return std::nullopt;
