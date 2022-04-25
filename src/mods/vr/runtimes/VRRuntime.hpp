@@ -12,7 +12,8 @@
 #include <sdk/Math.hpp>
 
 struct VRRuntime {
-    enum class Error : uint64_t {
+    enum class Error : int64_t {
+        UNSPECIFIED = -1,
         SUCCESS = 0,
         // rest of the error codes will be from the specific VR runtime
     };

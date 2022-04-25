@@ -14,6 +14,10 @@ VRRuntime::Error OpenXR::synchronize_frame() {
         return (VRRuntime::Error)-1;
     }
 
+    if (this->frame_synced) {
+        return VRRuntime::Error::SUCCESS;
+    }
+
     this->begin_profile();
 
     XrFrameWaitInfo frame_wait_info{XR_TYPE_FRAME_WAIT_INFO};
@@ -27,6 +31,7 @@ VRRuntime::Error OpenXR::synchronize_frame() {
         return (VRRuntime::Error)result;
     } else {
         this->got_first_sync = true;
+        this->frame_synced = true;
     }
 
     return VRRuntime::Error::SUCCESS;
@@ -50,6 +55,10 @@ VRRuntime::Error OpenXR::update_poses() {
     uint32_t view_count{};
 
     const auto display_time = this->frame_state.predictedDisplayTime + (this->frame_state.predictedDisplayPeriod * this->prediction_scale);
+
+    if (display_time == 0) {
+        return VRRuntime::Error::SUCCESS;
+    }
 
     XrViewLocateInfo view_locate_info{XR_TYPE_VIEW_LOCATE_INFO};
     view_locate_info.viewConfigurationType = this->view_config;
@@ -151,6 +160,7 @@ VRRuntime::Error OpenXR::consume_events(std::function<void(void*)> callback) {
 
         if (bh->type == XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED) {
             const auto ev = (XrEventDataSessionStateChanged*)&edb;
+            this->session_state = ev->state;
 
             spdlog::info("VR: XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED {}", ev->state);
 
@@ -168,6 +178,7 @@ VRRuntime::Error OpenXR::consume_events(std::function<void(void*)> callback) {
                     spdlog::error("VR: xrBeginSession failed: {}", this->get_result_string(result));
                 } else {
                     this->session_ready = true;
+                    synchronize_frame();
                 }
             } else if (ev->state == XR_SESSION_STATE_LOSS_PENDING) {
                 spdlog::info("VR: XR_SESSION_STATE_LOSS_PENDING");
@@ -178,6 +189,8 @@ VRRuntime::Error OpenXR::consume_events(std::function<void(void*)> callback) {
                 if (this->ready()) {
                     xrEndSession(this->session);
                     this->session_ready = false;
+                    this->frame_synced = false;
+                    this->frame_began = false;
 
                     if (this->wants_reinitialize) {
                         //initialize_openxr();
@@ -222,6 +235,10 @@ VRRuntime::Error OpenXR::update_matrices(float nearz, float farz) {
 }
 
 VRRuntime::Error OpenXR::update_input() {
+    if (!this->ready() || this->session_state != XR_SESSION_STATE_FOCUSED) {
+        return (VRRuntime::Error)XR_ERROR_SESSION_NOT_READY;
+    }
+
     XrActiveActionSet active_action_set{this->action_set.handle, XR_NULL_PATH};
     XrActionsSyncInfo sync_info{XR_TYPE_ACTIONS_SYNC_INFO};
     sync_info.countActiveActionSets = 1;
@@ -258,7 +275,7 @@ VRRuntime::Error OpenXR::update_input() {
     return VRRuntime::Error::SUCCESS;
 }
 
-std::string OpenXR::get_result_string(XrResult result) {
+std::string OpenXR::get_result_string(XrResult result) const {
     std::string result_string{};
     result_string.resize(XR_MAX_RESULT_STRING_SIZE);
     xrResultToString(this->instance, result, result_string.data());
@@ -266,7 +283,7 @@ std::string OpenXR::get_result_string(XrResult result) {
     return result_string;
 }
 
-std::string OpenXR::get_structure_string(XrStructureType type) {
+std::string OpenXR::get_structure_string(XrStructureType type) const {
     std::string structure_string{};
     structure_string.resize(XR_MAX_STRUCTURE_NAME_SIZE);
     xrStructureTypeToString(this->instance, type, structure_string.data());
@@ -297,7 +314,7 @@ std::optional<std::string> OpenXR::initialize_actions(const std::string& json_st
     spdlog::info("[VR] Creating action set");
 
     XrActionSetCreateInfo action_set_create_info{XR_TYPE_ACTION_SET_CREATE_INFO};
-    strcpy(action_set_create_info.actionSetName, "default");
+    strcpy(action_set_create_info.actionSetName, "defaultopenxr");
     strcpy(action_set_create_info.localizedActionSetName, "Default");
     action_set_create_info.priority = 0;
 
@@ -319,7 +336,6 @@ std::optional<std::string> OpenXR::initialize_actions(const std::string& json_st
     }
 
     auto actions_list = actions_json["actions"];
-
     bool has_pose_action = false;
 
     for (auto& action : actions_list) {
@@ -336,7 +352,7 @@ std::optional<std::string> OpenXR::initialize_actions(const std::string& json_st
         strcpy(action_create_info.actionName, action_name.c_str());
         strcpy(action_create_info.localizedActionName, localized_action_name.c_str());
 
-        action_create_info.countSubactionPaths = hand_paths.size();
+        action_create_info.countSubactionPaths = (uint32_t)hand_paths.size();
         action_create_info.subactionPaths = hand_paths.data();
 
         if (action_name == "pose") {
@@ -345,7 +361,7 @@ std::optional<std::string> OpenXR::initialize_actions(const std::string& json_st
 
         // Translate the OpenVR action types to OpenXR action types
         switch (utility::hash(action["type"].get<std::string>())) {
-            case "bool"_fnv:
+            case "boolean"_fnv:
                 action_create_info.actionType = XR_ACTION_TYPE_BOOLEAN_INPUT;
                 break;
             case "skeleton"_fnv: // idk what this is in OpenXR
@@ -362,15 +378,17 @@ std::optional<std::string> OpenXR::initialize_actions(const std::string& json_st
             case "vibration"_fnv:
                 action_create_info.actionType = XR_ACTION_TYPE_VIBRATION_OUTPUT;
                 break;
+            default:
+                continue;
         }
         
         // Create the action
-        XrAction xr_action{};
+        XrAction xr_action{XR_NULL_HANDLE};
         if (auto result = xrCreateAction(this->action_set.handle, &action_create_info, &xr_action); result != XR_SUCCESS) {
             return "xrCreateAction failed for " + action_name + ": " + this->get_result_string(result);
         }
 
-        spdlog::info("[VR] Created action {}", action_name);
+        spdlog::info("[VR] Created action {} with handle {:x}", action_name, (uintptr_t)xr_action);
 
         this->action_set.actions.push_back(xr_action);
         this->action_set.action_map[action_name] = xr_action;
@@ -380,34 +398,59 @@ std::optional<std::string> OpenXR::initialize_actions(const std::string& json_st
         return "json missing pose action";
     }
 
+    std::vector<XrActionSuggestedBinding> bindings{};
+
     // Suggest bindings
-    for (const auto& action_string : OpenXR::s_action_strings) {
+    for (const auto& map_it : OpenXR::s_bindings_map) {
+        const auto& action_string = map_it.first;
+
         for (auto i = 0; i < 2; ++i) {
             auto hand_string = action_string;
             auto it = hand_string.find('*');
+            auto index = i;
+            bool wildcard = false;
 
-            if (i == VRRuntime::Hand::LEFT) {
-                hand_string.erase(it, 1);
-                hand_string.insert(it, "left");
-            } else if (i == VRRuntime::Hand::RIGHT) {
-                hand_string.erase(it, 1);
-                hand_string.insert(it, "right");
+            if (it != std::string::npos) {
+                if (i == VRRuntime::Hand::LEFT) {
+                    hand_string.erase(it, 1);
+                    hand_string.insert(it, "left");
+                } else if (i == VRRuntime::Hand::RIGHT) {
+                    hand_string.erase(it, 1);
+                    hand_string.insert(it, "right");
+                }
+
+                wildcard = true;
+            } else {
+                if (hand_string.find("left") != std::string::npos) {
+                    index = VRRuntime::Hand::LEFT;
+                } else if (hand_string.find("right") != std::string::npos) {
+                    index = VRRuntime::Hand::RIGHT;
+                }
             }
 
             spdlog::info("[VR] {}", hand_string);
 
-            XrPath p{};
+            XrPath p{XR_NULL_PATH};
             auto result = xrStringToPath(this->instance, hand_string.c_str(), &p);
 
-            if (result != XR_SUCCESS) {
+            if (result != XR_SUCCESS || p == XR_NULL_PATH) {
                 spdlog::error("[VR] Failed to find path for {}", hand_string);
                 continue;
             }
 
-            this->hands[i].path_map[hand_string] = p;
+            this->hands[index].path_map[hand_string] = p;
+
+            if (this->action_set.action_map.contains(map_it.second)) {
+                bindings.push_back({ this->action_set.action_map[map_it.second], p });
+            }
+
+            if (!wildcard) {
+                break;
+            }
         }
     }
 
+    // Oculus
     {
         XrPath oculus_interaction_profile_path{};
 
@@ -416,10 +459,6 @@ std::optional<std::string> OpenXR::initialize_actions(const std::string& json_st
         if (result != XR_SUCCESS) {
             return "xrStringToPath failed for oculus interaction profile: " + this->get_result_string(result);
         }
-
-        std::vector<XrActionSuggestedBinding> bindings{};
-        bindings.push_back({ this->action_set.action_map["pose"], this->hands[VRRuntime::Hand::LEFT].path_map["/user/hand/left/input/grip/pose"] });
-        bindings.push_back({ this->action_set.action_map["pose"], this->hands[VRRuntime::Hand::RIGHT].path_map["/user/hand/right/input/grip/pose"] });
 
         XrInteractionProfileSuggestedBinding suggested_bindings{XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING};
         suggested_bindings.interactionProfile = oculus_interaction_profile_path;
@@ -461,10 +500,63 @@ std::optional<std::string> OpenXR::initialize_actions(const std::string& json_st
     return std::nullopt;
 }
 
+bool OpenXR::is_action_active(XrAction action, VRRuntime::Hand hand) const {
+    if (hand > VRRuntime::Hand::RIGHT) {
+        return false;
+    }
+
+    XrActionStateGetInfo get_info{XR_TYPE_ACTION_STATE_GET_INFO};
+    get_info.action = action;
+    get_info.subactionPath = this->hands[hand].path;
+    
+    XrActionStateBoolean active{XR_TYPE_ACTION_STATE_BOOLEAN};
+    auto result = xrGetActionStateBoolean(this->session, &get_info, &active);
+
+    if (result != XR_SUCCESS) {
+        spdlog::error("[VR] Failed to get action state: {}", this->get_result_string(result));
+        return false;
+    }
+
+    return active.isActive == XR_TRUE && active.currentState == XR_TRUE;
+}
+
+bool OpenXR::is_action_active(std::string_view action_name, VRRuntime::Hand hand) const {
+    if (!this->action_set.action_map.contains(action_name.data()) || hand > VRRuntime::Hand::RIGHT) {
+        return false;
+    }
+
+    XrActionStateGetInfo get_info{XR_TYPE_ACTION_STATE_GET_INFO};
+    get_info.action = this->action_set.action_map.find(action_name.data())->second;
+    get_info.subactionPath = this->hands[hand].path;
+    
+    XrActionStateBoolean active{};
+    auto result = xrGetActionStateBoolean(this->session, &get_info, &active);
+
+    if (result != XR_SUCCESS) {
+        spdlog::error("[VR] Failed to get action state for {}: {}", action_name, this->get_result_string(result));
+        return false;
+    }
+
+    return active.isActive == XR_TRUE && active.currentState == XR_TRUE;
+}
+
+std::string OpenXR::translate_openvr_action_name(std::string action_name) const {
+    if (action_name.empty()) {
+        return action_name;
+    }
+
+    if (auto it = action_name.find_last_of("/"); it != std::string::npos) {
+        action_name = action_name.substr(it + 1);
+    }
+
+    std::transform(action_name.begin(), action_name.end(), action_name.begin(), ::tolower);
+    return action_name;
+}
+
 XrResult OpenXR::begin_frame() {
     std::scoped_lock _{sync_mtx};
 
-    if (!this->ready() || !this->got_first_poses) {
+    if (!this->ready() || !this->got_first_poses || !this->frame_synced) {
         //spdlog::info("VR: begin_frame: not ready");
         return XR_ERROR_SESSION_NOT_READY;
     }
@@ -498,7 +590,7 @@ XrResult OpenXR::begin_frame() {
 XrResult OpenXR::end_frame() {
     std::scoped_lock _{sync_mtx};
 
-    if (!this->ready() || !this->got_first_poses) {
+    if (!this->ready() || !this->got_first_poses || !this->frame_synced) {
         return XR_ERROR_SESSION_NOT_READY;
     }
 
@@ -551,6 +643,7 @@ XrResult OpenXR::end_frame() {
     }
     
     this->frame_began = false;
+    this->frame_synced = false;
 
     return result;
 }

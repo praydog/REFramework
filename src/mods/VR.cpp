@@ -1034,7 +1034,7 @@ std::optional<std::string> VR::initialize_openxr() {
         }
     }
 
-    if (auto err = m_openxr.initialize_actions(VR::actions_json)) {
+    if (auto err = initialize_openxr_input()) {
         m_openxr.error = err.value();
         spdlog::error("[VR] {}", m_openxr.error.value());
 
@@ -1042,6 +1042,29 @@ std::optional<std::string> VR::initialize_openxr() {
     }
 
     m_openxr.loaded = true;
+
+    return std::nullopt;
+}
+
+std::optional<std::string> VR::initialize_openxr_input() {
+    if (auto err = m_openxr.initialize_actions(VR::actions_json)) {
+        m_openxr.error = err.value();
+        spdlog::error("[VR] {}", m_openxr.error.value());
+
+        return std::nullopt;
+    }
+    
+    for (auto& it : m_action_handles) {
+        auto openxr_action_name = m_openxr.translate_openvr_action_name(it.first);
+
+        if (m_openxr.action_set.action_map.contains(openxr_action_name)) {
+            it.second.get() = (decltype(it.second)::type)m_openxr.action_set.action_map[openxr_action_name];
+            spdlog::info("[VR] Successfully mapped action {} to {}", it.first, openxr_action_name);
+        }
+    }
+
+    m_left_joystick = (decltype(m_left_joystick))VRRuntime::Hand::LEFT;
+    m_right_joystick = (decltype(m_right_joystick))VRRuntime::Hand::RIGHT;
 
     return std::nullopt;
 }
@@ -3269,19 +3292,6 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
         return;
     }
 
-    if (!m_openvr.loaded) {
-        // TODO!!!!!!!!!
-        return;
-    }
-
-    // Get OpenVR input system
-    auto openvr_input = vr::VRInput();
-
-    if (openvr_input == nullptr) {
-        spdlog::error("[VR] Failed to get OpenVR input system.");
-        return;
-    }
-
     static auto gui_master_type = sdk::find_type_definition(game_namespace("gui.GUIMaster"));
     static auto gui_master_get_instance = gui_master_type->get_method("get_Instance");
     static auto gui_master_get_input = gui_master_type->get_method("get_Input");
@@ -4031,10 +4041,11 @@ bool VR::is_action_active(vr::VRActionHandle_t action, vr::VRInputValueHandle_t 
         vr::VRInput()->GetDigitalActionData(action, &data, sizeof(data), source);
 
         return data.bActive && data.bState;
-    } else {
-        // Not implemented yet
-        return false;
+    } else if (get_runtime()->is_openxr()) {
+        return m_openxr.is_action_active((XrAction)action, (VRRuntime::Hand)source);
     }
+
+    return false;
 }
 
 Vector2f VR::get_joystick_axis(vr::VRInputValueHandle_t handle) const {

@@ -51,8 +51,8 @@ struct OpenXR final : public VRRuntime {
 
 public: 
     // OpenXR specific methods
-    std::string get_result_string(XrResult result);
-    std::string get_structure_string(XrStructureType type);
+    std::string get_result_string(XrResult result) const;
+    std::string get_structure_string(XrStructureType type) const;
 
     std::optional<std::string> initialize_actions(const std::string& json_string);
 
@@ -78,11 +78,16 @@ public:
         spdlog::info("{} took {} ms", name, dur);
     }
 
+    bool is_action_active(XrAction action, VRRuntime::Hand hand) const;
+    bool is_action_active(std::string_view action_name, VRRuntime::Hand hand) const;
+    std::string translate_openvr_action_name(std::string action_name) const;
+
 public: 
     // OpenXR specific fields
     float prediction_scale{0.0f};
     bool session_ready{false};
     bool frame_began{false};
+    bool frame_synced{false};
     bool profile_calls{false};
 
     std::chrono::high_resolution_clock::time_point profiler_start_time{};
@@ -100,6 +105,8 @@ public:
     XrViewState view_state{XR_TYPE_VIEW_STATE};
     XrViewState stage_view_state{XR_TYPE_VIEW_STATE};
     XrFrameState frame_state{XR_TYPE_FRAME_STATE};
+
+    XrSessionState session_state{XR_SESSION_STATE_UNKNOWN};
 
     XrSpaceLocation view_space_location{XR_TYPE_SPACE_LOCATION};
 
@@ -124,8 +131,16 @@ public:
 
     std::array<HandData, 2> hands{};
 
-    static inline std::vector<std::string> s_action_strings{
-        "/user/hand/*/input/grip/pose",
+public:
+    static inline std::unordered_map<std::string, std::string> s_bindings_map {
+        {"/user/hand/*/input/grip/pose", "pose"},
+        {"/user/hand/*/input/trigger/value", "trigger"}, // oculus?
+        {"/user/hand/*/input/squeeze/value", "squeeze"}, // oculus?
+        {"/user/hand/left/input/x/click", "abutton"}, // oculus?
+        {"/user/hand/left/input/y/click", "bbutton"}, // oculus?
+        {"/user/hand/right/input/a/click", "abutton"}, // oculus?
+        {"/user/hand/right/input/b/click", "bbutton"}, // oculus?
+        //{"/user/hand/right/input/y/click", "re3_dodge"}, // MAKE IT A MULTIMAP LATER.
     };
 };
 }
