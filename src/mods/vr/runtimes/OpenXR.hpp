@@ -47,6 +47,7 @@ struct OpenXR final : public VRRuntime {
     VRRuntime::Error consume_events(std::function<void(void*)> callback) override;
 
     VRRuntime::Error update_matrices(float nearz, float farz) override;
+    VRRuntime::Error update_input() override;
 
 public: 
     // OpenXR specific methods
@@ -116,8 +117,15 @@ public:
     struct HandData {
         XrSpace space{XR_NULL_HANDLE};
         XrPath path{XR_NULL_PATH};
+        XrSpaceLocation location{XR_TYPE_SPACE_LOCATION};
+        std::unordered_map<std::string, XrPath> path_map{};
+        bool active{false};
     };
 
     std::array<HandData, 2> hands{};
+
+    static inline std::vector<std::string> s_action_strings{
+        "/user/hand/*/input/grip/pose",
+    };
 };
 }

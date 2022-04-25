@@ -89,7 +89,7 @@ struct VRRuntime {
         return this->custom_stage;
     }
 
-    virtual Error update_input() const {
+    virtual Error update_input() {
         return Error::SUCCESS;
     }
 

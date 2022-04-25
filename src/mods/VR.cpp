@@ -1412,8 +1412,15 @@ bool VR::detect_controllers() {
 
         spdlog::info("Left Hand: {}", left_joystick_origin_info.trackedDeviceIndex);
         spdlog::info("Right Hand: {}", right_joystick_origin_info.trackedDeviceIndex);
-    } else {
-        // TODO!!!!!
+    } else if (get_runtime()->is_openxr()) {
+        // ezpz
+        m_controllers.push_back(1);
+        m_controllers.push_back(2);
+        m_controllers_set.insert(1);
+        m_controllers_set.insert(2);
+
+        spdlog::info("Left Hand: {}", 1);
+        spdlog::info("Right Hand: {}", 2);
     }
 
 
@@ -1528,6 +1535,8 @@ void VR::update_action_states() {
             //reinitialize_openvr();
             runtime->wants_reinitialize = true;
         }   
+    } else {
+        get_runtime()->update_input();
     }
 
     if (m_recenter_view_key->is_key_down_once()) {
@@ -3898,6 +3907,12 @@ Vector4f VR::get_position_unsafe(uint32_t index) {
         // HMD position
         if (index == 0 && !m_openxr.stage_views.empty()) {
             return Vector4f{ *(Vector3f*)&m_openxr.stage_views[0].pose.position, 1.0f };
+        } else if (index > 0) {
+            if (index == VRRuntime::Hand::LEFT+1) {
+                return Vector4f{ *(Vector3f*)&m_openxr.hands[VRRuntime::Hand::LEFT].location.pose.position, 1.0f };
+            } else if (index == VRRuntime::Hand::RIGHT+1) {
+                return Vector4f{ *(Vector3f*)&m_openxr.hands[VRRuntime::Hand::RIGHT].location.pose.position, 1.0f };
+            }
         }
 
         return Vector4f{};
@@ -3955,6 +3970,12 @@ Matrix4x4f VR::get_rotation(uint32_t index) {
         if (index == 0 && !m_openxr.stage_views.empty()) {
             return Matrix4x4f{*(glm::quat*)&m_openxr.view_space_location.pose.orientation};
             //return Matrix4x4f{*(glm::quat*)&m_openxr.stage_views[0].pose.orientation};
+        } else if (index > 0) {
+            if (index == VRRuntime::Hand::LEFT+1) {
+                return Matrix4x4f{*(glm::quat*)&m_openxr.hands[VRRuntime::Hand::LEFT].location.pose.orientation};
+            } else if (index == VRRuntime::Hand::RIGHT+1) {
+                return Matrix4x4f{*(glm::quat*)&m_openxr.hands[VRRuntime::Hand::RIGHT].location.pose.orientation};
+            }
         }
 
         return glm::identity<Matrix4x4f>();

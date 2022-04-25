@@ -82,6 +82,15 @@ VRRuntime::Error OpenXR::update_poses() {
         return (VRRuntime::Error)result;
     }
 
+    for (auto& hand : this->hands) {
+        result = xrLocateSpace(hand.space, this->stage_space, display_time, &hand.location);
+
+        if (result != XR_SUCCESS) {
+            spdlog::error("[VR] xrLocateSpace for hand space failed: {}", this->get_result_string(result));
+            return (VRRuntime::Error)result;
+        }
+    }
+
     this->needs_pose_update = false;
     this->got_first_poses = true;
     return VRRuntime::Error::SUCCESS;
@@ -212,6 +221,43 @@ VRRuntime::Error OpenXR::update_matrices(float nearz, float farz) {
     return VRRuntime::Error::SUCCESS;
 }
 
+VRRuntime::Error OpenXR::update_input() {
+    XrActiveActionSet active_action_set{this->action_set.handle, XR_NULL_PATH};
+    XrActionsSyncInfo sync_info{XR_TYPE_ACTIONS_SYNC_INFO};
+    sync_info.countActiveActionSets = 1;
+    sync_info.activeActionSets = &active_action_set;
+
+    auto result = xrSyncActions(this->session, &sync_info);
+
+    if (result != XR_SUCCESS) {
+        spdlog::error("[VR] Failed to sync actions: {}", this->get_result_string(result));
+
+        return (VRRuntime::Error)result;
+    }
+
+    for (auto i = 0; i < 2; ++i) {
+        XrActionStateGetInfo get_info{XR_TYPE_ACTION_STATE_GET_INFO};
+        get_info.subactionPath = this->hands[i].path;
+        get_info.action = this->action_set.action_map["pose"];
+
+        XrActionStatePose pose_state{XR_TYPE_ACTION_STATE_POSE};
+
+        result = xrGetActionStatePose(this->session, &get_info, &pose_state);
+
+        if (result != XR_SUCCESS) {
+            spdlog::error("[VR] Failed to get action state pose {}: {}", i, this->get_result_string(result));
+
+            return (VRRuntime::Error)result;
+        }
+
+        this->hands[i].active = pose_state.isActive;
+        // TODO: Other hand inputs
+    }
+
+    // TODO: Other non-hand specific inputs
+    return VRRuntime::Error::SUCCESS;
+}
+
 std::string OpenXR::get_result_string(XrResult result) {
     std::string result_string{};
     result_string.resize(XR_MAX_RESULT_STRING_SIZE);
@@ -238,6 +284,11 @@ std::optional<std::string> OpenXR::initialize_actions(const std::string& json_st
     if (auto result = xrStringToPath(this->instance, "/user/hand/right", &this->hands[VRRuntime::Hand::RIGHT].path); result != XR_SUCCESS) {
         return "xrStringToPath failed (right): " + this->get_result_string(result);
     }
+
+    std::array<XrPath, 2> hand_paths{
+        this->hands[VRRuntime::Hand::LEFT].path, 
+        this->hands[VRRuntime::Hand::RIGHT].path
+    };
 
     if (json_string.empty()) {
         return std::nullopt;
@@ -285,6 +336,9 @@ std::optional<std::string> OpenXR::initialize_actions(const std::string& json_st
         strcpy(action_create_info.actionName, action_name.c_str());
         strcpy(action_create_info.localizedActionName, localized_action_name.c_str());
 
+        action_create_info.countSubactionPaths = hand_paths.size();
+        action_create_info.subactionPaths = hand_paths.data();
+
         if (action_name == "pose") {
             has_pose_action = true;
         }
@@ -326,10 +380,58 @@ std::optional<std::string> OpenXR::initialize_actions(const std::string& json_st
         return "json missing pose action";
     }
 
-    // TODO: Suggest bindings
-    /*
-    do the suggest bindings
-    */
+    // Suggest bindings
+    for (const auto& action_string : OpenXR::s_action_strings) {
+        for (auto i = 0; i < 2; ++i) {
+            auto hand_string = action_string;
+            auto it = hand_string.find('*');
+
+            if (i == VRRuntime::Hand::LEFT) {
+                hand_string.erase(it, 1);
+                hand_string.insert(it, "left");
+            } else if (i == VRRuntime::Hand::RIGHT) {
+                hand_string.erase(it, 1);
+                hand_string.insert(it, "right");
+            }
+
+            spdlog::info("[VR] {}", hand_string);
+
+            XrPath p{};
+            auto result = xrStringToPath(this->instance, hand_string.c_str(), &p);
+
+            if (result != XR_SUCCESS) {
+                spdlog::error("[VR] Failed to find path for {}", hand_string);
+                continue;
+            }
+
+            this->hands[i].path_map[hand_string] = p;
+        }
+    }
+
+    {
+        XrPath oculus_interaction_profile_path{};
+
+        auto result = xrStringToPath(this->instance, "/interaction_profiles/oculus/touch_controller", &oculus_interaction_profile_path);
+
+        if (result != XR_SUCCESS) {
+            return "xrStringToPath failed for oculus interaction profile: " + this->get_result_string(result);
+        }
+
+        std::vector<XrActionSuggestedBinding> bindings{};
+        bindings.push_back({ this->action_set.action_map["pose"], this->hands[VRRuntime::Hand::LEFT].path_map["/user/hand/left/input/grip/pose"] });
+        bindings.push_back({ this->action_set.action_map["pose"], this->hands[VRRuntime::Hand::RIGHT].path_map["/user/hand/right/input/grip/pose"] });
+
+        XrInteractionProfileSuggestedBinding suggested_bindings{XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING};
+        suggested_bindings.interactionProfile = oculus_interaction_profile_path;
+        suggested_bindings.countSuggestedBindings = (uint32_t)bindings.size();
+        suggested_bindings.suggestedBindings = bindings.data();
+
+        result = xrSuggestInteractionProfileBindings(this->instance, &suggested_bindings);
+
+        if (result != XR_SUCCESS) {
+            return "xrSuggestInteractionProfileBindings failed for oculus interaction profile: " + this->get_result_string(result);
+        }
+    }
 
     // Create the action spaces for each hand
     for (auto i = 0; i < 2; ++i) {
