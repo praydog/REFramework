@@ -146,7 +146,7 @@ public:
     static inline std::unordered_map<std::string, std::string> s_bindings_map {
         {"/user/hand/*/input/aim/pose", "pose"},
         {"/user/hand/*/input/trigger/value", "trigger"}, // oculus?
-        {"/user/hand/*/input/squeeze/value", "squeeze"}, // oculus?
+        {"/user/hand/*/input/squeeze/value", "grip"}, // oculus?
         {"/user/hand/*/input/x/click", "abutton"}, // oculus?
         {"/user/hand/*/input/y/click", "bbutton"}, // oculus?
         {"/user/hand/*/input/a/click", "abutton"}, // oculus?

@@ -398,8 +398,14 @@ std::optional<std::string> OpenXR::initialize_actions(const std::string& json_st
         // Translate the OpenVR action types to OpenXR action types
         switch (utility::hash(action["type"].get<std::string>())) {
             case "boolean"_fnv:
-                action_create_info.actionType = XR_ACTION_TYPE_BOOLEAN_INPUT;
-                out_actions = &this->action_set.bool_actions;
+                if (action["type"].get<std::string>().ends_with("/value")) {
+                    action_create_info.actionType = XR_ACTION_TYPE_FLOAT_INPUT;
+                    out_actions = &this->action_set.float_actions;
+                } else {
+                    action_create_info.actionType = XR_ACTION_TYPE_BOOLEAN_INPUT;
+                    out_actions = &this->action_set.bool_actions;
+                }
+                
                 break;
             case "skeleton"_fnv: // idk what this is in OpenXR
                 continue;
