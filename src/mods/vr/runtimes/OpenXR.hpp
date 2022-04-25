@@ -143,10 +143,15 @@ public:
     std::array<HandData, 2> hands{};
 
 public:
-    static inline std::unordered_map<std::string, std::string> s_bindings_map {
+    struct InteractionBinding {
+        std::string interaction_path_name{};
+        std::string action_name{};
+    };
+
+    static inline std::vector<InteractionBinding> s_bindings_map {
         {"/user/hand/*/input/aim/pose", "pose"},
-        {"/user/hand/*/input/trigger/value", "trigger"}, // oculus?
-        {"/user/hand/*/input/squeeze/value", "grip"}, // oculus?
+        {"/user/hand/*/input/trigger", "trigger"}, // oculus?
+        {"/user/hand/*/input/squeeze", "grip"}, // oculus?
         {"/user/hand/*/input/x/click", "abutton"}, // oculus?
         {"/user/hand/*/input/y/click", "bbutton"}, // oculus?
         {"/user/hand/*/input/a/click", "abutton"}, // oculus?
@@ -158,7 +163,9 @@ public:
         {"/user/hand/*/input/trackpad", "joystick"}, // vive & others
         {"/user/hand/*/input/trackpad/click", "joystickclick"}, // vive & others
         {"/user/hand/*/output/haptic", "haptic"}, // most of them
-        //{"/user/hand/right/input/y/click", "re3_dodge"}, // MAKE IT A MULTIMAP LATER.
+
+        {"/user/hand/right/input/a/click", "re3_dodge"},
+        {"/user/hand/left/input/trigger", "weapondial_start"},
     };
 
     static inline std::vector<std::string> s_supported_controllers {

@@ -446,14 +446,14 @@ std::optional<std::string> OpenXR::initialize_actions(const std::string& json_st
 
         // Suggest bindings
         for (const auto& map_it : OpenXR::s_bindings_map) {
-            if (map_it.second != action_name) {
+            if (map_it.action_name != action_name) {
                 continue;
             }
 
-            const auto& action_string = map_it.first;
+            const auto& interaction_string = map_it.interaction_path_name;
 
             for (auto i = 0; i < 2; ++i) {
-                auto hand_string = action_string;
+                auto hand_string = interaction_string;
                 auto it = hand_string.find('*');
                 auto index = i;
                 bool wildcard = false;
@@ -491,10 +491,10 @@ std::optional<std::string> OpenXR::initialize_actions(const std::string& json_st
                     continue;
                 }
 
-                if (this->action_set.action_map.contains(map_it.second)) {
+                if (this->action_set.action_map.contains(map_it.action_name)) {
                     for (const auto& controller : s_supported_controllers) {
-                        if (attempt_add_binding(controller, { this->action_set.action_map[map_it.second], p })) {
-                            this->hands[index].path_map[map_it.second] = p;
+                        if (attempt_add_binding(controller, { this->action_set.action_map[map_it.action_name], p })) {
+                            this->hands[index].path_map[map_it.action_name] = p;
                         }
                     }
                 }
