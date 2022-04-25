@@ -338,6 +338,8 @@ std::optional<std::string> OpenXR::initialize_actions(const std::string& json_st
     auto actions_list = actions_json["actions"];
     bool has_pose_action = false;
 
+    std::vector<XrActionSuggestedBinding> bindings{};
+
     for (auto& action : actions_list) {
         XrActionCreateInfo action_create_info{XR_TYPE_ACTION_CREATE_INFO};
         auto action_name = action["name"].get<std::string>();
@@ -392,62 +394,71 @@ std::optional<std::string> OpenXR::initialize_actions(const std::string& json_st
 
         this->action_set.actions.push_back(xr_action);
         this->action_set.action_map[action_name] = xr_action;
+
+        // Suggest bindings
+        for (const auto& map_it : OpenXR::s_bindings_map) {
+            if (map_it.second != action_name) {
+                continue;
+            }
+
+            const auto& action_string = map_it.first;
+
+            for (auto i = 0; i < 2; ++i) {
+                auto hand_string = action_string;
+                auto it = hand_string.find('*');
+                auto index = i;
+                bool wildcard = false;
+
+                if (it != std::string::npos) {
+                    if (i == VRRuntime::Hand::LEFT) {
+                        hand_string.erase(it, 1);
+                        hand_string.insert(it, "left");
+                    } else if (i == VRRuntime::Hand::RIGHT) {
+                        hand_string.erase(it, 1);
+                        hand_string.insert(it, "right");
+                    }
+
+                    wildcard = true;
+                } else {
+                    if (hand_string.find("left") != std::string::npos) {
+                        index = VRRuntime::Hand::LEFT;
+                    } else if (hand_string.find("right") != std::string::npos) {
+                        index = VRRuntime::Hand::RIGHT;
+                    }
+                }
+
+                if (action_create_info.actionType == XR_ACTION_TYPE_VECTOR2F_INPUT) {
+                    if (hand_string.ends_with("/x") || hand_string.ends_with("/y")) {
+                        hand_string = hand_string.substr(0, hand_string.size() - 2);
+                    }
+                }
+
+                spdlog::info("[VR] {}", hand_string);
+
+                XrPath p{XR_NULL_PATH};
+
+                auto result = xrStringToPath(this->instance, hand_string.c_str(), &p);
+
+                if (result != XR_SUCCESS || p == XR_NULL_PATH) {
+                    spdlog::error("[VR] Failed to find path for {}", hand_string);
+                    continue;
+                }
+
+                if (this->action_set.action_map.contains(map_it.second)) {
+                    bindings.push_back({ this->action_set.action_map[map_it.second], p });
+                }
+
+                this->hands[index].path_map[map_it.second] = p;
+
+                if (!wildcard) {
+                    break;
+                }
+            }
+        }
     }
 
     if (!has_pose_action) {
         return "json missing pose action";
-    }
-
-    std::vector<XrActionSuggestedBinding> bindings{};
-
-    // Suggest bindings
-    for (const auto& map_it : OpenXR::s_bindings_map) {
-        const auto& action_string = map_it.first;
-
-        for (auto i = 0; i < 2; ++i) {
-            auto hand_string = action_string;
-            auto it = hand_string.find('*');
-            auto index = i;
-            bool wildcard = false;
-
-            if (it != std::string::npos) {
-                if (i == VRRuntime::Hand::LEFT) {
-                    hand_string.erase(it, 1);
-                    hand_string.insert(it, "left");
-                } else if (i == VRRuntime::Hand::RIGHT) {
-                    hand_string.erase(it, 1);
-                    hand_string.insert(it, "right");
-                }
-
-                wildcard = true;
-            } else {
-                if (hand_string.find("left") != std::string::npos) {
-                    index = VRRuntime::Hand::LEFT;
-                } else if (hand_string.find("right") != std::string::npos) {
-                    index = VRRuntime::Hand::RIGHT;
-                }
-            }
-
-            spdlog::info("[VR] {}", hand_string);
-
-            XrPath p{XR_NULL_PATH};
-            auto result = xrStringToPath(this->instance, hand_string.c_str(), &p);
-
-            if (result != XR_SUCCESS || p == XR_NULL_PATH) {
-                spdlog::error("[VR] Failed to find path for {}", hand_string);
-                continue;
-            }
-
-            this->hands[index].path_map[hand_string] = p;
-
-            if (this->action_set.action_map.contains(map_it.second)) {
-                bindings.push_back({ this->action_set.action_map[map_it.second], p });
-            }
-
-            if (!wildcard) {
-                break;
-            }
-        }
     }
 
     // Oculus
@@ -529,7 +540,7 @@ bool OpenXR::is_action_active(std::string_view action_name, VRRuntime::Hand hand
     get_info.action = this->action_set.action_map.find(action_name.data())->second;
     get_info.subactionPath = this->hands[hand].path;
     
-    XrActionStateBoolean active{};
+    XrActionStateBoolean active{XR_TYPE_ACTION_STATE_BOOLEAN};
     auto result = xrGetActionStateBoolean(this->session, &get_info, &active);
 
     if (result != XR_SUCCESS) {
@@ -551,6 +562,48 @@ std::string OpenXR::translate_openvr_action_name(std::string action_name) const 
 
     std::transform(action_name.begin(), action_name.end(), action_name.begin(), ::tolower);
     return action_name;
+}
+
+Vector2f OpenXR::get_left_stick_axis() const {
+    if (!this->action_set.action_map.contains("joystick")) {
+        return Vector2f{};
+    }
+
+    auto action = this->action_set.action_map.find("joystick")->second;
+
+    XrActionStateGetInfo get_info{XR_TYPE_ACTION_STATE_GET_INFO};
+    get_info.action = this->action_set.action_map.find("joystick")->second;
+    get_info.subactionPath = this->hands[VRRuntime::Hand::LEFT].path;
+
+    XrActionStateVector2f axis{XR_TYPE_ACTION_STATE_VECTOR2F};
+    auto result = xrGetActionStateVector2f(this->session, &get_info, &axis);
+
+    if (result != XR_SUCCESS) {
+        spdlog::error("[VR] Failed to get stick action state: {}", this->get_result_string(result));
+        return Vector2f{};
+    }
+
+    return *(Vector2f*)&axis.currentState;
+}
+
+Vector2f OpenXR::get_right_stick_axis() const {
+    if (!this->action_set.action_map.contains("joystick")) {
+        return Vector2f{};
+    }
+
+    XrActionStateGetInfo get_info{XR_TYPE_ACTION_STATE_GET_INFO};
+    get_info.action = this->action_set.action_map.find("joystick")->second;
+    get_info.subactionPath = this->hands[VRRuntime::Hand::RIGHT].path;
+
+    XrActionStateVector2f axis{XR_TYPE_ACTION_STATE_VECTOR2F};
+    auto result = xrGetActionStateVector2f(this->session, &get_info, &axis);
+
+    if (result != XR_SUCCESS) {
+        spdlog::error("[VR] Failed to get stick action state: {}", this->get_result_string(result));
+        return Vector2f{};
+    }
+
+    return *(Vector2f*)&axis.currentState;
 }
 
 XrResult OpenXR::begin_frame() {

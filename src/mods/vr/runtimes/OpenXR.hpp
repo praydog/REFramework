@@ -82,6 +82,9 @@ public:
     bool is_action_active(std::string_view action_name, VRRuntime::Hand hand) const;
     std::string translate_openvr_action_name(std::string action_name) const;
 
+    Vector2f get_left_stick_axis() const;
+    Vector2f get_right_stick_axis() const;
+
 public: 
     // OpenXR specific fields
     float prediction_scale{0.0f};
@@ -133,13 +136,15 @@ public:
 
 public:
     static inline std::unordered_map<std::string, std::string> s_bindings_map {
-        {"/user/hand/*/input/grip/pose", "pose"},
+        {"/user/hand/*/input/aim/pose", "pose"},
         {"/user/hand/*/input/trigger/value", "trigger"}, // oculus?
         {"/user/hand/*/input/squeeze/value", "squeeze"}, // oculus?
         {"/user/hand/left/input/x/click", "abutton"}, // oculus?
         {"/user/hand/left/input/y/click", "bbutton"}, // oculus?
         {"/user/hand/right/input/a/click", "abutton"}, // oculus?
         {"/user/hand/right/input/b/click", "bbutton"}, // oculus?
+        {"/user/hand/*/input/thumbstick", "joystick"}, // oculus?
+        {"/user/hand/*/input/thumbstick/click", "joystickclick"}, // oculus?
         //{"/user/hand/right/input/y/click", "re3_dodge"}, // MAKE IT A MULTIMAP LATER.
     };
 };

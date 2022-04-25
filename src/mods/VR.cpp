@@ -4061,10 +4061,17 @@ Vector2f VR::get_joystick_axis(vr::VRInputValueHandle_t handle) const {
         const auto out = Vector2f{ data.x, data.y };
 
         return glm::length(out) > deadzone ? out : Vector2f{};
-    } else {
-        // Not implemented yet
-        return Vector2f{};
+    } else if (get_runtime()->is_openxr()) {
+        if (handle == (vr::VRInputValueHandle_t)VRRuntime::Hand::LEFT) {
+            auto out = m_openxr.get_left_stick_axis();
+            return glm::length(out) > m_joystick_deadzone->value() ? out : Vector2f{};
+        } else if (handle == (vr::VRInputValueHandle_t)VRRuntime::Hand::RIGHT) {
+            auto out = m_openxr.get_right_stick_axis();
+            return glm::length(out) > m_joystick_deadzone->value() ? out : Vector2f{};
+        }
     }
+
+    return Vector2f{};
 }
 
 Vector2f VR::get_left_stick_axis() const {

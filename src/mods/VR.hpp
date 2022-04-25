@@ -128,8 +128,7 @@ public:
     }
 
     bool is_using_controllers() const {
-        return !m_controllers.empty();
-        //return !m_controllers.empty() && (std::chrono::steady_clock::now() - m_last_controller_update) <= std::chrono::seconds((int32_t)m_motion_controls_inactivity_timer->value());
+        return !m_controllers.empty() && (std::chrono::steady_clock::now() - m_last_controller_update) <= std::chrono::seconds((int32_t)m_motion_controls_inactivity_timer->value());
     }
 
     bool is_hmd_active() const {
