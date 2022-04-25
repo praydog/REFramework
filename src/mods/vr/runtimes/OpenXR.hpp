@@ -1,6 +1,6 @@
 #pragma once
 
-#include "VRRuntime.hpp"
+#include <unordered_set>
 
 #include <d3d11.h>
 #include <d3d12.h>
@@ -13,6 +13,8 @@
 #include <openxr/openxr.h>
 #include <openxr/openxr_platform.h>
 #include <common/xr_linear.h>
+
+#include "VRRuntime.hpp"
 
 namespace runtimes{
 struct OpenXR final : public VRRuntime {
@@ -122,6 +124,12 @@ public:
         XrActionSet handle;
         std::vector<XrAction> actions{};
         std::unordered_map<std::string, XrAction> action_map{}; // XrActions are handles so it's okay.
+
+        std::unordered_set<XrAction> float_actions{};
+        std::unordered_set<XrAction> vector2_actions{};
+        std::unordered_set<XrAction> bool_actions{};
+        std::unordered_set<XrAction> pose_actions{};
+        std::unordered_set<XrAction> vibration_actions{};
     } action_set;
 
     struct HandData {
@@ -139,13 +147,27 @@ public:
         {"/user/hand/*/input/aim/pose", "pose"},
         {"/user/hand/*/input/trigger/value", "trigger"}, // oculus?
         {"/user/hand/*/input/squeeze/value", "squeeze"}, // oculus?
-        {"/user/hand/left/input/x/click", "abutton"}, // oculus?
-        {"/user/hand/left/input/y/click", "bbutton"}, // oculus?
-        {"/user/hand/right/input/a/click", "abutton"}, // oculus?
-        {"/user/hand/right/input/b/click", "bbutton"}, // oculus?
+        {"/user/hand/*/input/x/click", "abutton"}, // oculus?
+        {"/user/hand/*/input/y/click", "bbutton"}, // oculus?
+        {"/user/hand/*/input/a/click", "abutton"}, // oculus?
+        {"/user/hand/*/input/b/click", "bbutton"}, // oculus?
         {"/user/hand/*/input/thumbstick", "joystick"}, // oculus?
         {"/user/hand/*/input/thumbstick/click", "joystickclick"}, // oculus?
+        {"/user/hand/*/input/system/click", "systembutton"}, // oculus/vive/index
+
+        {"/user/hand/*/input/trackpad", "joystick"}, // vive & others
+        {"/user/hand/*/input/trackpad/click", "joystickclick"}, // vive & others
+        {"/user/hand/*/output/haptic", "haptic"}, // most of them
         //{"/user/hand/right/input/y/click", "re3_dodge"}, // MAKE IT A MULTIMAP LATER.
+    };
+
+    static inline std::vector<std::string> s_supported_controllers {
+        "/interaction_profiles/khr/simple_controller",
+        "/interaction_profiles/oculus/touch_controller",
+        "/interaction_profiles/oculus/go_controller",
+        "/interaction_profiles/valve/index_controller",
+        "/interaction_profiles/microsoft/motion_controller",
+        "/interaction_profiles/htc/vive_controller",
     };
 };
 }

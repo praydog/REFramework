@@ -338,7 +338,36 @@ std::optional<std::string> OpenXR::initialize_actions(const std::string& json_st
     auto actions_list = actions_json["actions"];
     bool has_pose_action = false;
 
-    std::vector<XrActionSuggestedBinding> bindings{};
+    std::unordered_map<std::string, std::vector<XrActionSuggestedBinding>> profile_bindings{};
+
+    for (const auto& controller : s_supported_controllers) {
+        profile_bindings[controller] = {};
+    }
+
+    auto attempt_add_binding = [&](const std::string& interaction_profile, const XrActionSuggestedBinding& binding) {
+        XrPath interaction_profile_path{};
+        auto result = xrStringToPath(this->instance, interaction_profile.c_str(), &interaction_profile_path);
+        auto& bindings = profile_bindings[interaction_profile];
+
+        if (result == XR_SUCCESS) {
+            bindings.push_back(binding);
+
+            XrInteractionProfileSuggestedBinding suggested_bindings{XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING};
+            suggested_bindings.interactionProfile = interaction_profile_path;
+            suggested_bindings.countSuggestedBindings = (uint32_t)bindings.size();
+            suggested_bindings.suggestedBindings = bindings.data();
+
+            result = xrSuggestInteractionProfileBindings(this->instance, &suggested_bindings);
+
+            if (result != XR_SUCCESS) {
+                bindings.pop_back();
+                spdlog::info("Bad binding passed to xrSuggestInteractionProfileBindings: {}", this->get_result_string(result));
+                return;
+            }
+        } else {
+            spdlog::info("Bad interaction profile passed to xrStringToPath: {}", this->get_result_string(result));
+        }
+    };
 
     for (auto& action : actions_list) {
         XrActionCreateInfo action_create_info{XR_TYPE_ACTION_CREATE_INFO};
@@ -361,24 +390,31 @@ std::optional<std::string> OpenXR::initialize_actions(const std::string& json_st
             has_pose_action = true;
         }
 
+        std::unordered_set<XrAction>* out_actions = nullptr;
+
         // Translate the OpenVR action types to OpenXR action types
         switch (utility::hash(action["type"].get<std::string>())) {
             case "boolean"_fnv:
                 action_create_info.actionType = XR_ACTION_TYPE_BOOLEAN_INPUT;
+                out_actions = &this->action_set.bool_actions;
                 break;
             case "skeleton"_fnv: // idk what this is in OpenXR
                 continue;
             case "pose"_fnv:
                 action_create_info.actionType = XR_ACTION_TYPE_POSE_INPUT;
+                out_actions = &this->action_set.pose_actions;
                 break;
             case "vector1"_fnv:
                 action_create_info.actionType = XR_ACTION_TYPE_FLOAT_INPUT;
+                out_actions = &this->action_set.float_actions;
                 break;
             case "vector2"_fnv:
                 action_create_info.actionType = XR_ACTION_TYPE_VECTOR2F_INPUT;
+                out_actions = &this->action_set.vector2_actions;
                 break;
             case "vibration"_fnv:
                 action_create_info.actionType = XR_ACTION_TYPE_VIBRATION_OUTPUT;
+                out_actions = &this->action_set.vibration_actions;
                 break;
             default:
                 continue;
@@ -388,6 +424,10 @@ std::optional<std::string> OpenXR::initialize_actions(const std::string& json_st
         XrAction xr_action{XR_NULL_HANDLE};
         if (auto result = xrCreateAction(this->action_set.handle, &action_create_info, &xr_action); result != XR_SUCCESS) {
             return "xrCreateAction failed for " + action_name + ": " + this->get_result_string(result);
+        }
+
+        if (out_actions != nullptr) {
+            out_actions->insert(xr_action);
         }
 
         spdlog::info("[VR] Created action {} with handle {:x}", action_name, (uintptr_t)xr_action);
@@ -427,25 +467,25 @@ std::optional<std::string> OpenXR::initialize_actions(const std::string& json_st
                     }
                 }
 
-                if (action_create_info.actionType == XR_ACTION_TYPE_VECTOR2F_INPUT) {
-                    if (hand_string.ends_with("/x") || hand_string.ends_with("/y")) {
-                        hand_string = hand_string.substr(0, hand_string.size() - 2);
-                    }
-                }
-
                 spdlog::info("[VR] {}", hand_string);
 
                 XrPath p{XR_NULL_PATH};
-
                 auto result = xrStringToPath(this->instance, hand_string.c_str(), &p);
 
                 if (result != XR_SUCCESS || p == XR_NULL_PATH) {
                     spdlog::error("[VR] Failed to find path for {}", hand_string);
+
+                    if (!wildcard) {
+                        break;
+                    }
+
                     continue;
                 }
 
                 if (this->action_set.action_map.contains(map_it.second)) {
-                    bindings.push_back({ this->action_set.action_map[map_it.second], p });
+                    for (const auto& controller : s_supported_controllers) {
+                        attempt_add_binding(controller, { this->action_set.action_map[map_it.second], p });
+                    }
                 }
 
                 this->hands[index].path_map[map_it.second] = p;
@@ -459,28 +499,6 @@ std::optional<std::string> OpenXR::initialize_actions(const std::string& json_st
 
     if (!has_pose_action) {
         return "json missing pose action";
-    }
-
-    // Oculus
-    {
-        XrPath oculus_interaction_profile_path{};
-
-        auto result = xrStringToPath(this->instance, "/interaction_profiles/oculus/touch_controller", &oculus_interaction_profile_path);
-
-        if (result != XR_SUCCESS) {
-            return "xrStringToPath failed for oculus interaction profile: " + this->get_result_string(result);
-        }
-
-        XrInteractionProfileSuggestedBinding suggested_bindings{XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING};
-        suggested_bindings.interactionProfile = oculus_interaction_profile_path;
-        suggested_bindings.countSuggestedBindings = (uint32_t)bindings.size();
-        suggested_bindings.suggestedBindings = bindings.data();
-
-        result = xrSuggestInteractionProfileBindings(this->instance, &suggested_bindings);
-
-        if (result != XR_SUCCESS) {
-            return "xrSuggestInteractionProfileBindings failed for oculus interaction profile: " + this->get_result_string(result);
-        }
     }
 
     // Create the action spaces for each hand
@@ -520,15 +538,29 @@ bool OpenXR::is_action_active(XrAction action, VRRuntime::Hand hand) const {
     get_info.action = action;
     get_info.subactionPath = this->hands[hand].path;
     
-    XrActionStateBoolean active{XR_TYPE_ACTION_STATE_BOOLEAN};
-    auto result = xrGetActionStateBoolean(this->session, &get_info, &active);
+    if (this->action_set.bool_actions.contains(action)) {
+        XrActionStateBoolean active{XR_TYPE_ACTION_STATE_BOOLEAN};
+        auto result = xrGetActionStateBoolean(this->session, &get_info, &active);
 
-    if (result != XR_SUCCESS) {
-        spdlog::error("[VR] Failed to get action state: {}", this->get_result_string(result));
-        return false;
-    }
+        if (result != XR_SUCCESS) {
+            spdlog::error("[VR] Failed to get action state: {}", this->get_result_string(result));
+            return false;
+        }
 
-    return active.isActive == XR_TRUE && active.currentState == XR_TRUE;
+        return active.isActive == XR_TRUE && active.currentState == XR_TRUE;
+    } else if (this->action_set.float_actions.contains(action)) {
+        XrActionStateFloat active{XR_TYPE_ACTION_STATE_FLOAT};
+        auto result = xrGetActionStateFloat(this->session, &get_info, &active);
+
+        if (result != XR_SUCCESS) {
+            spdlog::error("[VR] Failed to get action state: {}", this->get_result_string(result));
+            return false;
+        }
+
+        return active.isActive == XR_TRUE && active.currentState > 0.0f;
+    } // idk?
+
+    return false;
 }
 
 bool OpenXR::is_action_active(std::string_view action_name, VRRuntime::Hand hand) const {
