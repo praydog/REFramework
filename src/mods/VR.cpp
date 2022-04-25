@@ -1457,7 +1457,11 @@ void VR::update_hmd_state() {
     
     if (runtime->get_synchronize_stage() == VRRuntime::SynchronizeStage::EARLY) {
         if (runtime->is_openxr()) {
-            if (!runtime->got_first_sync || runtime->synchronize_frame() != VRRuntime::Error::SUCCESS) {
+            if (g_framework->get_renderer_type() == REFramework::RendererType::D3D11) {
+                if (!runtime->got_first_sync || runtime->synchronize_frame() != VRRuntime::Error::SUCCESS) {
+                    return;
+                }  
+            } else if (runtime->synchronize_frame() != VRRuntime::Error::SUCCESS) {
                 return;
             }
 
@@ -2314,17 +2318,16 @@ void VR::on_present() {
     std::scoped_lock _{m_openvr_mtx};
     m_submitted = false;
 
-    // if we don't do this then D3D11 OpenXR freezes for some reason.
-    if (!runtime->got_first_sync) {
-        runtime->synchronize_frame();
-        runtime->update_poses();
-    }
-
     const auto renderer = g_framework->get_renderer_type();
-
     vr::EVRCompositorError e = vr::EVRCompositorError::VRCompositorError_None;
 
     if (renderer == REFramework::RendererType::D3D11) {
+        // if we don't do this then D3D11 OpenXR freezes for some reason.
+        if (!runtime->got_first_sync) {
+            runtime->synchronize_frame();
+            runtime->update_poses();
+        }
+
         m_is_d3d12 = false;
         e = m_d3d11.on_frame(this);
     } else if (renderer == REFramework::RendererType::D3D12) {
