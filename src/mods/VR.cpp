@@ -3992,10 +3992,9 @@ Matrix4x4f VR::get_rotation(uint32_t index) {
         }
 
         return glm::identity<Matrix4x4f>();
-    } else {
-        spdlog::error("VR: get_rotation: not implemented for {}", get_runtime()->name());
-        return glm::identity<Matrix4x4f>();
     }
+
+    return glm::identity<Matrix4x4f>();
 }
 
 Matrix4x4f VR::get_transform(uint32_t index) {
@@ -4009,10 +4008,28 @@ Matrix4x4f VR::get_transform(uint32_t index) {
         auto& pose = get_openvr_poses()[index];
         auto matrix = Matrix4x4f{ *(Matrix3x4f*)&pose.mDeviceToAbsoluteTracking };
         return glm::rowMajor4(matrix);
-    } else {
-        spdlog::error("VR: get_transform: not implemented for {}", get_runtime()->name());
-        return glm::identity<Matrix4x4f>();
+    } else if (get_runtime()->is_openxr()) {
+        std::shared_lock _{ get_runtime()->pose_mtx };
+
+        // HMD rotation
+        if (index == 0 && !m_openxr.stage_views.empty()) {
+            auto mat = Matrix4x4f{*(glm::quat*)&m_openxr.view_space_location.pose.orientation};
+            mat[3] = Vector4f{*(Vector3f*)&m_openxr.view_space_location.pose.position, 1.0f};
+            return mat;
+        } else if (index > 0) {
+            if (index == VRRuntime::Hand::LEFT+1) {
+                auto mat = Matrix4x4f{*(glm::quat*)&m_openxr.hands[VRRuntime::Hand::LEFT].location.pose.orientation};
+                mat[3] = Vector4f{*(Vector3f*)&m_openxr.hands[VRRuntime::Hand::LEFT].location.pose.position, 1.0f};
+                return mat;
+            } else if (index == VRRuntime::Hand::RIGHT+1) {
+                auto mat = Matrix4x4f{*(glm::quat*)&m_openxr.hands[VRRuntime::Hand::RIGHT].location.pose.orientation};
+                mat[3] = Vector4f{*(Vector3f*)&m_openxr.hands[VRRuntime::Hand::RIGHT].location.pose.position, 1.0f};
+                return mat;
+            }
+        }
     }
+
+    return glm::identity<Matrix4x4f>();
 }
 
 vr::HmdMatrix34_t VR::get_raw_transform(uint32_t index) {
