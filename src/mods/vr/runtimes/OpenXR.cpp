@@ -25,9 +25,13 @@ VRRuntime::Error OpenXR::synchronize_frame() {
         return (VRRuntime::Error)-1;
     }
 
+    this->begin_profile();
+
     XrFrameWaitInfo frame_wait_info{XR_TYPE_FRAME_WAIT_INFO};
     this->frame_state = {XR_TYPE_FRAME_STATE};
     auto result = xrWaitFrame(this->session, &frame_wait_info, &this->frame_state);
+
+    this->end_profile("xrWaitFrame");
 
     if (result != XR_SUCCESS) {
         spdlog::error("[VR] xrWaitFrame failed: {}", this->get_result_string(result));
@@ -232,8 +236,12 @@ XrResult OpenXR::begin_frame() {
         return XR_SUCCESS;
     }
 
+    this->begin_profile();
+
     XrFrameBeginInfo frame_begin_info{XR_TYPE_FRAME_BEGIN_INFO};
     auto result = xrBeginFrame(this->session, &frame_begin_info);
+
+    this->end_profile("xrBeginFrame");
 
     if (result != XR_SUCCESS) {
         spdlog::error("[VR] xrBeginFrame failed: {}", this->get_result_string(result));
@@ -296,7 +304,9 @@ XrResult OpenXR::end_frame() {
     //spdlog::info("[VR] Ending frame, {} layers", frame_end_info.layerCount);
     //spdlog::info("[VR] Ending frame, layer ptr: {:x}", (uintptr_t)frame_end_info.layers);
 
+    this->begin_profile();
     auto result = xrEndFrame(this->session, &frame_end_info);
+    this->end_profile("xrEndFrame");
     
     if (result != XR_SUCCESS) {
         spdlog::error("[VR] xrEndFrame failed: {}", this->get_result_string(result));

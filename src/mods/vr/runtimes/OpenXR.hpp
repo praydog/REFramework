@@ -54,9 +54,31 @@ struct OpenXR : public VRRuntime {
     XrResult begin_frame();
     XrResult end_frame();
 
+    void begin_profile() {
+        if (!this->profile_calls) {
+            return;
+        }
+
+        this->profiler_start_time = std::chrono::high_resolution_clock::now();
+    }
+
+    void end_profile(std::string_view name) {
+        if (!this->profile_calls) {
+            return;
+        }
+
+        const auto end_time = std::chrono::high_resolution_clock::now();
+        const auto dur = std::chrono::duration<float, std::milli>(end_time - this->profiler_start_time).count();
+
+        spdlog::info("{} took {} ms", name, dur);
+    }
+
     float prediction_scale{0.0f};
     bool session_ready{false};
     bool frame_began{false};
+    bool profile_calls{false};
+
+    std::chrono::high_resolution_clock::time_point profiler_start_time{};
 
     std::recursive_mutex sync_mtx{};
 
