@@ -344,7 +344,7 @@ std::optional<std::string> OpenXR::initialize_actions(const std::string& json_st
         profile_bindings[controller] = {};
     }
 
-    auto attempt_add_binding = [&](const std::string& interaction_profile, const XrActionSuggestedBinding& binding) {
+    auto attempt_add_binding = [&](const std::string& interaction_profile, const XrActionSuggestedBinding& binding) -> bool {
         XrPath interaction_profile_path{};
         auto result = xrStringToPath(this->instance, interaction_profile.c_str(), &interaction_profile_path);
         auto& bindings = profile_bindings[interaction_profile];
@@ -362,10 +362,13 @@ std::optional<std::string> OpenXR::initialize_actions(const std::string& json_st
             if (result != XR_SUCCESS) {
                 bindings.pop_back();
                 spdlog::info("Bad binding passed to xrSuggestInteractionProfileBindings: {}", this->get_result_string(result));
-                return;
+                return false;
             }
+
+            return true;
         } else {
             spdlog::info("Bad interaction profile passed to xrStringToPath: {}", this->get_result_string(result));
+            return false;
         }
     };
 
@@ -484,11 +487,11 @@ std::optional<std::string> OpenXR::initialize_actions(const std::string& json_st
 
                 if (this->action_set.action_map.contains(map_it.second)) {
                     for (const auto& controller : s_supported_controllers) {
-                        attempt_add_binding(controller, { this->action_set.action_map[map_it.second], p });
+                        if (attempt_add_binding(controller, { this->action_set.action_map[map_it.second], p })) {
+                            this->hands[index].path_map[map_it.second] = p;
+                        }
                     }
                 }
-
-                this->hands[index].path_map[map_it.second] = p;
 
                 if (!wildcard) {
                     break;
