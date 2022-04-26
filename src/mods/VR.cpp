@@ -3950,6 +3950,9 @@ Vector4f VR::get_velocity_unsafe(uint32_t index) {
         }
 
         // todo: implement HMD velocity
+        if (index == 0) {
+            return Vector4f{};
+        }
 
         return Vector4f{ *(Vector3f*)&m_openxr.hands[index-1].velocity.linearVelocity, 1.0f };
     }
@@ -3973,6 +3976,9 @@ Vector4f VR::get_angular_velocity_unsafe(uint32_t index) {
         }
 
         // todo: implement HMD velocity
+        if (index == 0) {
+            return Vector4f{};
+        }
     
         return Vector4f{ *(Vector3f*)&m_openxr.hands[index-1].velocity.angularVelocity, 1.0f };
     }
