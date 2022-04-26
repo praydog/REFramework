@@ -3917,21 +3917,21 @@ Vector4f VR::get_position_unsafe(uint32_t index) {
 
         return result;
     } else if (get_runtime()->is_openxr()) {
+        if (index >= 3) {
+            return Vector4f{};
+        }
+
         // HMD position
         if (index == 0 && !m_openxr.stage_views.empty()) {
             return Vector4f{ *(Vector3f*)&m_openxr.stage_views[0].pose.position, 1.0f };
         } else if (index > 0) {
-            if (index == VRRuntime::Hand::LEFT+1) {
-                return Vector4f{ *(Vector3f*)&m_openxr.hands[VRRuntime::Hand::LEFT].location.pose.position, 1.0f };
-            } else if (index == VRRuntime::Hand::RIGHT+1) {
-                return Vector4f{ *(Vector3f*)&m_openxr.hands[VRRuntime::Hand::RIGHT].location.pose.position, 1.0f };
-            }
+            return Vector4f{ *(Vector3f*)&m_openxr.hands[index-1].location.pose.position, 1.0f };
         }
 
         return Vector4f{};
-    } else {
-        return Vector4f{};
-    }
+    } 
+
+    return Vector4f{};
 }
 
 Vector4f VR::get_velocity_unsafe(uint32_t index) {
@@ -3944,9 +3944,17 @@ Vector4f VR::get_velocity_unsafe(uint32_t index) {
         const auto& velocity = pose.vVelocity;
 
         return Vector4f{ velocity.v[0], velocity.v[1], velocity.v[2], 0.0f };
-    } else {
-        return Vector4f{};
+    } else if (get_runtime()->is_openxr()) {
+        if (index >= 3) {
+            return Vector4f{};
+        }
+
+        // todo: implement HMD velocity
+
+        return Vector4f{ *(Vector3f*)&m_openxr.hands[index-1].velocity.linearVelocity, 1.0f };
     }
+
+    return Vector4f{};
 }
 
 Vector4f VR::get_angular_velocity_unsafe(uint32_t index) {
@@ -3959,9 +3967,17 @@ Vector4f VR::get_angular_velocity_unsafe(uint32_t index) {
         const auto& angular_velocity = pose.vAngularVelocity;
 
         return Vector4f{ angular_velocity.v[0], angular_velocity.v[1], angular_velocity.v[2], 0.0f };
-    } else {
-        return Vector4f{};
+    } else if (get_runtime()->is_openxr()) {
+        if (index >= 3) {
+            return Vector4f{};
+        }
+
+        // todo: implement HMD velocity
+    
+        return Vector4f{ *(Vector3f*)&m_openxr.hands[index-1].velocity.angularVelocity, 1.0f };
     }
+
+    return Vector4f{};
 }
 
 Matrix4x4f VR::get_rotation(uint32_t index) {

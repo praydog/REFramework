@@ -138,6 +138,7 @@ public:
         XrSpace space{XR_NULL_HANDLE};
         XrPath path{XR_NULL_PATH};
         XrSpaceLocation location{XR_TYPE_SPACE_LOCATION};
+        XrSpaceVelocity velocity{XR_TYPE_SPACE_VELOCITY};
         std::unordered_map<std::string, XrPath> path_map{};
         bool active{false};
     };

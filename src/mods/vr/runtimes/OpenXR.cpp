@@ -94,6 +94,7 @@ VRRuntime::Error OpenXR::update_poses() {
     }
 
     for (auto& hand : this->hands) {
+        hand.location.next = &hand.velocity;
         result = xrLocateSpace(hand.space, this->stage_space, display_time, &hand.location);
 
         if (result != XR_SUCCESS) {
