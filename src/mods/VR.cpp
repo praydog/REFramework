@@ -709,6 +709,7 @@ void VR::on_lua_state_created(sol::state& lua) {
         "get_right_joystick", &VR::get_right_joystick,
         "is_using_controllers", &VR::is_using_controllers,
         "is_openvr_loaded", &VR::is_openvr_loaded,
+        "is_openxr_loaded", &VR::is_openxr_loaded,
         "is_hmd_active", &VR::is_hmd_active,
         "is_action_active", &VR::is_action_active,
         "is_using_hmd_oriented_audio", &VR::is_using_hmd_oriented_audio,
@@ -3923,7 +3924,7 @@ Vector4f VR::get_position_unsafe(uint32_t index) {
 
         // HMD position
         if (index == 0 && !m_openxr.stage_views.empty()) {
-            return Vector4f{ *(Vector3f*)&m_openxr.stage_views[0].pose.position, 1.0f };
+            return Vector4f{ *(Vector3f*)&m_openxr.view_space_location.pose.position, 1.0f };
         } else if (index > 0) {
             return Vector4f{ *(Vector3f*)&m_openxr.hands[index-1].location.pose.position, 1.0f };
         }
@@ -3954,7 +3955,7 @@ Vector4f VR::get_velocity_unsafe(uint32_t index) {
             return Vector4f{};
         }
 
-        return Vector4f{ *(Vector3f*)&m_openxr.hands[index-1].velocity.linearVelocity, 1.0f };
+        return Vector4f{ *(Vector3f*)&m_openxr.hands[index-1].velocity.linearVelocity, 0.0f };
     }
 
     return Vector4f{};
@@ -3980,7 +3981,7 @@ Vector4f VR::get_angular_velocity_unsafe(uint32_t index) {
             return Vector4f{};
         }
     
-        return Vector4f{ *(Vector3f*)&m_openxr.hands[index-1].velocity.angularVelocity, 1.0f };
+        return Vector4f{ *(Vector3f*)&m_openxr.hands[index-1].velocity.angularVelocity, 0.0f };
     }
 
     return Vector4f{};
