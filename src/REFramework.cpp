@@ -925,7 +925,7 @@ void REFramework::draw_about() {
             std::string text;
         };
 
-        static std::array<License, 11> licenses{
+        static std::array<License, 12> licenses{
             License{ "glm", license::glm },
             License{ "imgui", license::imgui },
             License{ "minhook", license::minhook },
@@ -937,6 +937,7 @@ void REFramework::draw_about() {
             License{ "json", license::json },
             License{ "asmjit", license::asmjit },
             License{ "zydis", utility::narrow(license::zydis) },
+            License{ "openxr", license::openxr },
         };
 
         for (const auto& license : licenses) {
