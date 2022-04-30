@@ -3,7 +3,6 @@ local is_re7 = game_name == "re7"
 local is_re8 = game_name == "re8"
 
 if not is_re7 and not is_re8 then
-    re.msg("Error: Game is not RE7 or RE8.")
     return
 end
 
@@ -16,18 +15,40 @@ local renderer_type = sdk.find_type_definition("via.render.Renderer")
 
 local GamePadButton = statics.generate("via.hid.GamePadButton")
 
+local openxr = {
+    left_hand_rotation_vec = Vector3f.new(0.186417 + 0.2, 2.820591, 1.221779), -- pitch yaw roll?
+    right_hand_rotation_vec = Vector3f.new(0.186417, -2.820591, -1.221779), -- pitch yaw roll?
+    left_hand_position_offset = Vector4f.new(-0.036934, 0.069525, 0.017501, 0.0),
+    right_hand_position_offset = Vector4f.new(0.036934, 0.069525, 0.017501, 0.0)
+}
+
+local is_openxr = vrmod:is_openxr_loaded()
+
 local last_original_right_hand_rotation = Quaternion.new(0.0, 0.0, 0.0, 0.0)
 local last_camera_matrix = Matrix4x4f.new()
 local last_right_hand_rotation = Quaternion.new(0.0, 0.0, 0.0, 0.0)
 local last_right_hand_position = Vector3f.new(0.0, 0.0, 0.0)
 local last_left_hand_rotation = Quaternion.new(0.0, 0.0, 0.0, 0.0)
 local last_left_hand_position = Vector3f.new(0.0, 0.0, 0.0)
+
 local left_hand_rotation_vec = Vector3f.new(-0.105 + 0.2, 2.37, 1.10) -- pitch yaw roll?
 local right_hand_rotation_vec = Vector3f.new(-0.105, -2.37, -1.10) -- pitch yaw roll?
+
+if is_openxr then
+    left_hand_rotation_vec = openxr.left_hand_rotation_vec:clone()
+    right_hand_rotation_vec = openxr.right_hand_rotation_vec:clone()
+end
+
 local left_hand_rotation_offset = Quaternion.new(left_hand_rotation_vec):normalized()
 local right_hand_rotation_offset = Quaternion.new(right_hand_rotation_vec):normalized()
+
 local left_hand_position_offset = Vector4f.new(-0.025, 0.045, 0.155, 0.0)
 local right_hand_position_offset = Vector4f.new(0.025, 0.045, 0.155, 0.0)
+
+if is_openxr then
+    left_hand_position_offset = openxr.left_hand_position_offset:clone()
+    right_hand_position_offset = openxr.right_hand_position_offset:clone()
+end
 
 local ray_typedef = sdk.find_type_definition("via.Ray")
 local last_muzzle_pos = Vector4f.new(0.0, 0.0, 0.0, 1.0)
@@ -575,8 +596,8 @@ local function set_hand_joints_to_tpose(hand_ik)
     local current_positions = {}
 
     local player_transform = re8.transform
-    local player_pos = transform_get_position:call(player_transform)
-    local player_rot = transform_get_rotation:call(player_transform)
+    local player_pos = player_transform:get_position()
+    local player_rot = player_transform:get_rotation()
 
     local joints = {}
 
@@ -2156,7 +2177,7 @@ local function re8_on_pre_order_vibration(args)
 
     local left_power = task:get_field("MotorPower_0")
     local right_power = task:get_field("MotorPower_1")
-    local duration = task:get_field("TimeSeconds")
+    local duration = task:get_field("TimeSecond")
 
     if left_power > 0 then
         local left_joystick = vrmod:get_left_joystick()
@@ -2248,6 +2269,8 @@ re.on_frame(function()
     end
 end)
 
+local debug_adjust_hand_offset = false
+
 re.on_draw_ui(function()
     local changed = false
     
@@ -2271,6 +2294,59 @@ re.on_draw_ui(function()
     changed, right_hand_position_offset = imgui.drag_float4("Right Hand Position Offset", right_hand_position_offset, 0.005, -5.0, 5.0)
 
     if imgui.tree_node("Debug") then
+        changed, debug_adjust_hand_offset = imgui.checkbox("Adjust Hand Offset", debug_adjust_hand_offset)
+
+        if debug_adjust_hand_offset then
+            local left_axis = vrmod:get_left_stick_axis()
+            local right_axis = vrmod:get_right_stick_axis()
+            local right_joystick = vrmod:get_right_joystick()
+            local left_joystick = vrmod:get_left_joystick()
+            local action_grip = vrmod:get_action_grip()
+            local action_trigger = vrmod:get_action_trigger()
+
+            local is_right_grip_active = vrmod:is_action_active(action_grip, right_joystick)
+            local is_left_grip_active = vrmod:is_action_active(action_grip, left_joystick)
+            local is_right_trigger_active = vrmod:is_action_active(action_trigger, right_joystick)
+            local is_left_trigger_active = vrmod:is_action_active(action_trigger, left_joystick)
+
+            -- adjust the rotation offset based on how the user is moving the controller
+            if not is_right_trigger_active then
+                if not is_right_grip_active then
+                    right_hand_rotation_vec.x = right_hand_rotation_vec.x + (right_axis.y * 0.001)
+                    right_hand_rotation_vec.y = right_hand_rotation_vec.y + (right_axis.x * 0.001)
+                else
+                    right_hand_rotation_vec.z = right_hand_rotation_vec.z + ((right_axis.y + right_axis.x) * 0.001)
+                end
+            else
+                if not is_right_grip_active then
+                    right_hand_position_offset.x = right_hand_position_offset.x + (right_axis.y * 0.001)
+                    right_hand_position_offset.y = right_hand_position_offset.y + (right_axis.x * 0.001)
+                else
+                    right_hand_position_offset.z = right_hand_position_offset.z + ((right_axis.y + right_axis.x) * 0.001)
+                end
+            end
+
+            right_hand_rotation_offset = Quaternion.new(right_hand_rotation_vec):normalized()
+
+            if not is_left_trigger_active then
+                if not is_left_grip_active then
+                    left_hand_rotation_vec.x = left_hand_rotation_vec.x + (left_axis.y * 0.001)
+                    left_hand_rotation_vec.y = left_hand_rotation_vec.y + (left_axis.x * 0.001)
+                else
+                    left_hand_rotation_vec.z = left_hand_rotation_vec.z + ((left_axis.y + left_axis.x) * 0.001)
+                end
+            else
+                if not is_left_grip_active then
+                    left_hand_position_offset.x = left_hand_position_offset.x + (left_axis.y * 0.001)
+                    left_hand_position_offset.y = left_hand_position_offset.y + (left_axis.x * 0.001)
+                else
+                    left_hand_position_offset.z = left_hand_position_offset.z + ((left_axis.y + left_axis.x) * 0.001)
+                end
+            end
+
+            left_hand_rotation_offset = Quaternion.new(left_hand_rotation_vec):normalized()
+        end
+
         imgui.text("Last GUI Dot: " .. tostring(last_gui_dot))
 
         if imgui.button("Cast ray") then
@@ -2291,6 +2367,12 @@ re.on_draw_ui(function()
 
         if imgui.tree_node("Player") then
             object_explorer:handle_address(re8.player)
+
+            imgui.tree_pop()
+        end
+
+        if imgui.tree_node("Inventory") then
+            object_explorer:handle_address(re8.inventory)
 
             imgui.tree_pop()
         end

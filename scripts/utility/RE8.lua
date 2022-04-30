@@ -190,10 +190,24 @@ re.on_pre_application_entry("UpdateBehavior", function()
     end
 
     re8.transform = player:call("get_Transform")
-    re8.inventory = get_component(player, "app.Inventory")
     re8.hand_touch = get_component(player, "app.PlayerHandTouch")
     re8.order = get_component(player, "app.PlayerOrder")
     re8.updater = get_component(player, "app.PlayerUpdater")
+    
+    if is_re7 then
+        re8.inventory = get_component(player, "app.Inventory")
+    elseif re8.updater ~= nil then
+        local container = re8.updater:get_field("playerContainer")
+
+        if container then
+            re8.inventory = container:call("get_inventory")
+        else
+            re8.inventory = nil
+        end
+    else
+        re8.inventory = nil
+    end
+
     re8.delta_time = sdk.call_native_func(re8.application, re8.application_type, "get_DeltaTime")
 
     if is_re7 then
