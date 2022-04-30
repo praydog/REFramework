@@ -110,6 +110,10 @@ public:
         return (ResourceManager*)sdk()->functions->get_resource_manager();
     }
 
+    inline const auto reframework() const {
+        return (REFramework*)param()->functions;
+    }
+
     void lock_lua() {
         m_lua_mtx.lock();
         m_param->functions->lock_lua();
@@ -252,6 +256,16 @@ public:
 
         API::Property* get_property(uint32_t index) const {
             return (API::Property*)API::s_instance->sdk()->tdb->get_property(*this, index);
+        }
+    };
+
+    struct REFramework {
+        operator ::REFrameworkHandle() {
+            return (::REFrameworkHandle)this;
+        }
+
+        bool is_drawing_ui() const {
+            return API::s_instance->param()->functions->is_drawing_ui();
         }
     };
 
