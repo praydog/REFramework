@@ -3286,6 +3286,26 @@ void VR::on_update_hid(void* entry) {
 #if not defined(RE2) and not defined(RE3)
     this->openvr_input_to_re_engine();
 #endif
+
+#ifdef RE8
+    if (get_runtime()->handle_pause) {
+        auto padman = sdk::get_managed_singleton<::REManagedObject>(game_namespace("HIDPadManager"));
+
+        if (padman != nullptr) {
+            auto merged_pad = sdk::call_object_func_easy<::REManagedObject*>(padman, "get_mergedPad");
+
+            if (merged_pad != nullptr) {
+                auto device = sdk::get_object_field<::REManagedObject*>(merged_pad, "Device");
+
+                if (device != nullptr && *device != nullptr) {
+                    sdk::call_object_func_easy<void*>(*device, "set_Button", via::hid::GamePadButton::CRight);
+                }
+            }
+        }
+
+        get_runtime()->handle_pause = false;
+    }
+#endif
 }
 
 void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
@@ -3663,33 +3683,6 @@ void VR::openvr_input_to_re_engine() {
             sdk::call_object_func<void*>(menu_manager, "openPauseMenu", sdk::get_thread_context(), menu_manager, 0);
             get_runtime()->handle_pause = false;
         }
-    }
-#endif
-
-#ifdef RE8
-    if (get_runtime()->handle_pause) {
-        auto gui_manager = sdk::get_managed_singleton<::REManagedObject>("app.GUIManager");
-
-        if (gui_manager != nullptr) {
-            constexpr uint32_t PAUSE_ALIAS = 0x7DEE1056;
-            const auto gui_handle = sdk::call_object_func<::REManagedObject*>(gui_manager, "findGUI(System.UInt32)", sdk::get_thread_context(), gui_manager, PAUSE_ALIAS);
-
-            if (gui_handle != nullptr) {
-                auto driver = sdk::call_object_func<::REManagedObject*>(gui_handle, "get_driver", sdk::get_thread_context(), gui_handle);
-
-                if (driver != nullptr) {
-                    const auto fake_param = sdk::create_instance("app.GUIRequest.Parameter");
-
-                    if (fake_param != nullptr) {
-                        sdk::call_object_func<void*>(driver, "show", sdk::get_thread_context(), driver, fake_param);
-                    } else {
-                        spdlog::error("Failed to create fake app.GUIRequest.Parameter, cannot pause!");
-                    }
-                }
-            }
-        }
-
-        get_runtime()->handle_pause = false;
     }
 #endif
 }
