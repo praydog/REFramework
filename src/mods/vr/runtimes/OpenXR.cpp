@@ -135,7 +135,7 @@ uint32_t OpenXR::get_width() const {
         return 0;
     }
 
-    return this->view_configs[0].recommendedImageRectWidth;
+    return (uint32_t)((float)this->view_configs[0].recommendedImageRectWidth * this->resolution_scale);
 }
 
 uint32_t OpenXR::get_height() const {
@@ -143,7 +143,7 @@ uint32_t OpenXR::get_height() const {
         return 0;
     }
 
-    return this->view_configs[0].recommendedImageRectHeight;
+    return (uint32_t)((float)this->view_configs[0].recommendedImageRectHeight * this->resolution_scale);
 }
 
 VRRuntime::Error OpenXR::consume_events(std::function<void(void*)> callback) {

@@ -1015,11 +1015,14 @@ std::optional<std::string> VR::initialize_openxr() {
         return std::nullopt;
     }
 
+    m_openxr.loaded = true;
+
     if (g_framework->is_dx12()) {
         auto err = m_d3d12.openxr().create_swapchains();
 
         if (err) {
             m_openxr.error = err.value();
+            m_openxr.loaded = false;
             spdlog::error("[VR] {}", m_openxr.error.value());
 
             return std::nullopt;
@@ -1029,6 +1032,7 @@ std::optional<std::string> VR::initialize_openxr() {
 
         if (err) {
             m_openxr.error = err.value();
+            m_openxr.loaded = false;
             spdlog::error("[VR] {}", m_openxr.error.value());
 
             return std::nullopt;
@@ -1037,12 +1041,11 @@ std::optional<std::string> VR::initialize_openxr() {
 
     if (auto err = initialize_openxr_input()) {
         m_openxr.error = err.value();
+        m_openxr.loaded = false;
         spdlog::error("[VR] {}", m_openxr.error.value());
 
         return std::nullopt;
     }
-
-    m_openxr.loaded = true;
 
     return std::nullopt;
 }
@@ -3732,11 +3735,10 @@ void VR::on_draw_ui() {
 
     if (get_runtime()->is_openvr()) {
         ImGui::Text("Resolution can be changed in SteamVR");
-    }
-
-    if (get_runtime()->is_openxr()) {
-        //ImGui::Separator();
-        //ImGui::Text("OpenXR options");
+    } else if (get_runtime()->is_openxr()) {
+        if (m_resolution_scale->draw("Resolution Scale")) {
+            m_openxr.resolution_scale = m_resolution_scale->value();
+        }
     }
     
     ImGui::Combo("Sync Mode", (int*)&get_runtime()->custom_stage, "Early\0Late\0Very Late\0");
@@ -3773,9 +3775,6 @@ void VR::on_draw_ui() {
 
     if (ImGui::Checkbox("Positional Tracking", &m_positional_tracking)) {
     }
-
-    /*if (ImGui::Checkbox("Depth Aided Reprojection", &m_depth_aided_reprojection)) {
-    }*/
 
     m_hmd_oriented_audio->draw("Head Oriented Audio");
     m_use_custom_view_distance->draw("Use Custom View Distance");
@@ -3859,6 +3858,8 @@ void VR::on_config_load(const utility::Config& cfg) {
     for (IModValue& option : m_options) {
         option.config_load(cfg);
     }
+
+    m_openxr.resolution_scale = m_resolution_scale->value();
 }
 
 void VR::on_config_save(utility::Config& cfg) {

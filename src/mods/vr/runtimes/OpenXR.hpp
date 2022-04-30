@@ -123,6 +123,8 @@ public:
     std::vector<XrView> views{};
     std::vector<XrView> stage_views{};
 
+    float resolution_scale{1.0f};
+
     struct Action {
         std::vector<XrAction> action_collection{};
     };
