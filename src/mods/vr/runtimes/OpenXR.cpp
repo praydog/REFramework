@@ -256,6 +256,11 @@ VRRuntime::Error OpenXR::update_input() {
     }
 
     for (auto i = 0; i < 2; ++i) {
+        if (this->is_action_active_once("systembutton", (VRRuntime::Hand)i)) {
+            this->handle_pause = true;
+        }
+
+        // Update controller pose state
         XrActionStateGetInfo get_info{XR_TYPE_ACTION_STATE_GET_INFO};
         get_info.subactionPath = this->hands[i].path;
         get_info.action = this->action_set.action_map["pose"];
@@ -364,7 +369,7 @@ std::optional<std::string> OpenXR::initialize_actions(const std::string& json_st
 
             if (result != XR_SUCCESS) {
                 bindings.pop_back();
-                spdlog::info("Bad binding passed to xrSuggestInteractionProfileBindings: {}", this->get_result_string(result));
+                spdlog::info("Bad binding passed to xrSuggestInteractionProfileBindings from {}: {}", interaction_profile, this->get_result_string(result));
                 return false;
             }
 
@@ -593,6 +598,26 @@ bool OpenXR::is_action_active(std::string_view action_name, VRRuntime::Hand hand
     }
 
     return active.isActive == XR_TRUE && active.currentState == XR_TRUE;
+}
+
+bool OpenXR::is_action_active_once(std::string_view action_name, VRRuntime::Hand hand) const {
+    if (!this->action_set.action_map.contains(action_name.data()) || hand > VRRuntime::Hand::RIGHT) {
+        return false;
+    }
+
+    XrActionStateGetInfo get_info{XR_TYPE_ACTION_STATE_GET_INFO};
+    get_info.action = this->action_set.action_map.find(action_name.data())->second;
+    get_info.subactionPath = this->hands[hand].path;
+    
+    XrActionStateBoolean active{XR_TYPE_ACTION_STATE_BOOLEAN};
+    auto result = xrGetActionStateBoolean(this->session, &get_info, &active);
+
+    if (result != XR_SUCCESS) {
+        spdlog::error("[VR] Failed to get action state for {}: {}", action_name, this->get_result_string(result));
+        return false;
+    }
+
+    return active.isActive == XR_TRUE && active.currentState == XR_TRUE && active.changedSinceLastSync == XR_TRUE;
 }
 
 std::string OpenXR::translate_openvr_action_name(std::string action_name) const {

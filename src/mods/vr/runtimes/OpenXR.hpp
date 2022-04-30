@@ -82,6 +82,7 @@ public:
 
     bool is_action_active(XrAction action, VRRuntime::Hand hand) const;
     bool is_action_active(std::string_view action_name, VRRuntime::Hand hand) const;
+    bool is_action_active_once(std::string_view action_name, VRRuntime::Hand hand) const;
     std::string translate_openvr_action_name(std::string action_name) const;
 
     Vector2f get_left_stick_axis() const;
@@ -122,6 +123,10 @@ public:
     std::vector<XrView> views{};
     std::vector<XrView> stage_views{};
 
+    struct Action {
+        std::vector<XrAction> action_collection{};
+    };
+
     struct ActionSet {
         XrActionSet handle;
         std::vector<XrAction> actions{};
@@ -154,7 +159,7 @@ public:
     static inline std::vector<InteractionBinding> s_bindings_map {
         {"/user/hand/*/input/grip/pose", "pose"},
         {"/user/hand/*/input/trigger", "trigger"}, // oculus?
-        {"/user/hand/*/input/squeeze", "grip"}, // oculus?
+        {"/user/hand/*/input/squeeze", "grip"}, // oculus/vive/index
         {"/user/hand/*/input/x/click", "abutton"}, // oculus?
         {"/user/hand/*/input/y/click", "bbutton"}, // oculus?
         {"/user/hand/*/input/a/click", "abutton"}, // oculus?
@@ -162,6 +167,7 @@ public:
         {"/user/hand/*/input/thumbstick", "joystick"}, // oculus?
         {"/user/hand/*/input/thumbstick/click", "joystickclick"}, // oculus?
         {"/user/hand/*/input/system/click", "systembutton"}, // oculus/vive/index
+        {"/user/hand/*/input/menu/click", "systembutton"}, // oculus/vive/index
 
         {"/user/hand/*/input/trackpad", "joystick"}, // vive & others
         {"/user/hand/*/input/trackpad/click", "joystickclick"}, // vive & others
