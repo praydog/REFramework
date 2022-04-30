@@ -67,6 +67,7 @@ typedef struct {
     void (*log_error)(const char* format, ...);
     void (*log_warn)(const char* format, ...);
     void (*log_info)(const char* format, ...);
+    bool (*is_drawing_ui)();
 } REFrameworkPluginFunctions;
 
 typedef struct {
@@ -86,6 +87,7 @@ DECLARE_REFRAMEWORK_HANDLE(REFrameworkFieldHandle);
 DECLARE_REFRAMEWORK_HANDLE(REFrameworkPropertyHandle);
 DECLARE_REFRAMEWORK_HANDLE(REFrameworkManagedObjectHandle);
 DECLARE_REFRAMEWORK_HANDLE(REFrameworkTDBHandle);
+DECLARE_REFRAMEWORK_HANDLE(REFrameworkHandle);
 DECLARE_REFRAMEWORK_HANDLE(REFrameworkResourceHandle);
 DECLARE_REFRAMEWORK_HANDLE(REFrameworkResourceManagerHandle);
 DECLARE_REFRAMEWORK_HANDLE(REFrameworkVMContextHandle);

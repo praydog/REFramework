@@ -46,9 +46,12 @@ void log_info(const char* format, ...) {
     va_end(args);
     spdlog::info("[Plugin] {}", str);
 }
+bool is_drawing_ui() {
+    return g_framework->is_drawing_ui();
+}
 }
 
-REFrameworkPluginFunctions g_plugin_functions{
+REFrameworkPluginFunctions g_plugin_functions {
     reframework_on_lua_state_created,
     reframework_on_lua_state_destroyed,
     reframework_on_present,
@@ -61,6 +64,7 @@ REFrameworkPluginFunctions g_plugin_functions{
     reframework::log_error,
     reframework::log_warn,
     reframework::log_info,
+    reframework::is_drawing_ui
 };
 
 REFrameworkSDKFunctions g_sdk_functions {
