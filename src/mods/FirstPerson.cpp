@@ -287,7 +287,7 @@ void FirstPerson::on_config_load(const utility::Config& cfg) {
 
     if (VR::get()->is_openxr_loaded()) {
         m_right_hand_rotation_offset = Vector3f{ 0.28f, -2.982f, -1.495f };
-        m_left_hand_rotation_offset = Vector3f{ m_right_hand_rotation_offset.x + 0.2f, -m_right_hand_rotation_offset.y, -m_right_hand_rotation_offset.z };
+        m_left_hand_rotation_offset = Vector3f{ m_right_hand_rotation_offset.x + 0.2f, -(m_right_hand_rotation_offset.y + 0.1f), -m_right_hand_rotation_offset.z };
         m_right_hand_position_offset = Vector4f{ 0.052f, 0.084f, 0.02f, 0.0f };
         m_left_hand_position_offset = Vector4f{ -m_right_hand_position_offset.x, m_right_hand_position_offset.y, m_right_hand_position_offset.z, 0.0f };
     }
