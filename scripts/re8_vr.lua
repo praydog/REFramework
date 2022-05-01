@@ -279,6 +279,8 @@ local function update_pad_device(device)
         end
     end
 
+    --cur_button = cur_button | via.hid.GamePadButton.CRight
+
     local action_trigger = vrmod:get_action_trigger()
     local action_grip = vrmod:get_action_grip()
     local action_a_button = vrmod:get_action_a_button()
@@ -2009,6 +2011,7 @@ local function hijack_capsules(weapon_pos, weapon_rotation, collidable)
 end
 
 local function melee_attack()
+    if not is_re8 then return end --TODO: RE7
     if not vrmod:is_hmd_active() or not vrmod:is_using_controllers() then return end
 
     local right_controller = vrmod:get_controllers()[2]
@@ -2092,11 +2095,6 @@ local function melee_attack()
     end
 
     --hit_controller:get_field("ProcAttack"):call("update")
-
-
-    --log.info(tostring(num_collidables))
-
-    --hit_controller:call("updateRequestedCollider")
 end
 
 --sdk.hook(sdk.find_type_definition("app.ProcCollider"):get_method("update"), function(args) melee_attack() end, nil)
