@@ -1999,8 +1999,11 @@ local function melee_attack(hit_controller)
 
     rcol:call("updatePose")
 
+    if not last_melee_request_state then
+        last_melee = now
+    end
+
     last_melee_request_state = true
-    last_melee = now
     
     for i=0, num_request_sets - 1 do
         if is_re7 then
