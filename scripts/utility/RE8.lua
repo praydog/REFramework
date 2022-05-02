@@ -139,19 +139,13 @@ end
 
 function re8.get_weapon_object(player)
     if is_re7 then
-        local player_gun = get_component(re8.player, "app.PlayerGun")
+        local equip_manager = get_component(player, "app.EquipManager")
 
-        if not player_gun then
+        if not equip_manager then
             return nil
         end
 
-        local equipped_weapon = player_gun:get_field("WeaponGun")
-    
-        if not equipped_weapon then
-            return nil
-        end
-
-        return equipped_weapon
+        return equip_manager:call("get_equipWeaponRight")
     elseif is_re8 then
         if not re8.updater then
             return nil

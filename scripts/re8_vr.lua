@@ -1936,105 +1936,46 @@ end)
 end)]]
 
 local last_melee = os.clock()
-local known_colliders = {}
+local last_melee_request_state = false
 
-local ContinuousCapsuleShape = sdk.find_type_definition("via.physics.ContinuousCapsuleShape")
-local CapsuleShape = sdk.find_type_definition("via.physics.CapsuleShape")
-
-local shape_set_capsule = CapsuleShape:get_method("set_Capsule")
-local shape_get_capsule = CapsuleShape:get_method("get_Capsule")
-local continuous_shape_set_capsule = ContinuousCapsuleShape:get_method("set_Capsule")
-local continuous_shape_get_capsule = ContinuousCapsuleShape:get_method("get_Capsule")
-local continuous_shape_get_previous_capsule = ContinuousCapsuleShape:get_method("get_PreviousCapsule")
-
-local function hijack_capsules(weapon_pos, weapon_rotation, collidable)
-    if collidable == nil then return end
-    
-    local transformed_shape = collidable:call("get_TransformedShape")
-
-    if transformed_shape ~= nil and transformed_shape:get_type_definition() == ContinuousCapsuleShape then
-        local untransformed_shape = collidable:call("get_Shape")
-        local untransformed_capsule = continuous_shape_get_capsule(untransformed_shape)
-
-        local transformed_capsule = continuous_shape_get_capsule(transformed_shape)
-
-        if untransformed_capsule ~= nil and transformed_capsule ~= nil then
-            local utp0 = untransformed_capsule:get_field("p0")
-            local utp1 = untransformed_capsule:get_field("p1")
-
-            local p0 = transformed_capsule:get_field("p0")
-            local p1 = transformed_capsule:get_field("p1")
-            local r = transformed_capsule:get_field("r")
-
-            local delta = utp1 - utp0
-            local dir = delta:normalized()
-
-            --original_capsules[collidable] = { p0, p1, r }
-
-            local new_p0 = weapon_pos:clone()
-            local new_p1 = override_capsule_end
-
-            --if new_p1 == nil then
-                new_p1 = weapon_pos + (weapon_rotation * Vector3f.new(0, 0, delta:length()))
-            --end
-
-            log.info(string.format("%x", transformed_shape:get_address()))
-            log.info(tostring(p0.x) .. " " .. tostring(p0.y) .. " " .. tostring(p0.z))
-            log.info(" " .. tostring(weapon_pos.x) .. " " .. tostring(weapon_pos.y) .. " " .. tostring(weapon_pos.z))
-
-            --new_p0 = Vector4f.new(new_p0.x, new_p0.y, new_p0.z, 1)
-            --new_p1 = Vector4f.new(new_p1.x, new_p1.y, new_p1.z, 1)
-
-            transformed_capsule:set_field("p0", new_p0)
-            transformed_capsule:set_field("p1", new_p1)
-            transformed_capsule:set_field("r", 0.01)
-
-            --table.insert(capsule_origins, { new_p0, new_p1 })
-
-            --untransformed_capsule:set_field("p1", (last_weapon_rotation * Vector3f.new(0, 0, 1.0)))
-
-            --transformed_shape:call("set_Capsule", transformed_capsule)
-            --untransformed_shape:call("set_Capsule", untransformed_capsule)
-
-            local sz = ContinuousCapsuleShape:get_valuetype_size()
-
-            for i=0, sz/4 do
-                --transformed_shape:write_float(0x60 + (i * 4), transformed_capsule:read_float(i * 4))
-                transformed_shape:write_float(0x90 + (i * 4), transformed_capsule:read_float(i * 4))
-            end
-            --transformed_shape:write_float(0xC8, 0.0)
-            --continuous_shape_set_capsule(transformed_shape, transformed_capsule)
-
-            collidable:call("set_UpdateShape", true)
-        end
-    end
-end
-
-local function melee_attack()
-    if not is_re8 then return end --TODO: RE7
+local function melee_attack(hit_controller)
     if not vrmod:is_hmd_active() or not vrmod:is_using_controllers() then return end
-
-    local right_controller = vrmod:get_controllers()[2]
-    local right_controller_velocity = vrmod:get_velocity(right_controller)
-    local right_controller_speed = right_controller_velocity:length()
-
-    if right_controller_speed < 2.5 then return end
-
-    local now = os.clock()
-
-    if now - last_melee < 0.1 then
-        return
-    end
-
-    last_melee = now
+    if re8.is_in_cutscene or not re8.can_use_hands then return end
 
     if not re8.weapon then
         return
     end
 
-    local hit_controller = re8.weapon:call("get_hitController")
+    local real_hit_controller = re8.weapon:call("get_hitController")
 
-    if not hit_controller then
+    if not real_hit_controller then
+        return
+    end
+    
+    -- RE7
+    if hit_controller ~= nil and hit_controller ~= real_hit_controller then
+        return
+    end
+
+    local right_controller = vrmod:get_controllers()[2]
+    local right_controller_velocity = vrmod:get_velocity(right_controller)
+    local right_controller_angular_velocity = vrmod:get_angular_velocity(right_controller)
+    local right_controller_speed = right_controller_velocity:length()
+    local right_controller_angular_speed = right_controller_angular_velocity:length()
+
+    if right_controller_speed < 2.2 and right_controller_angular_speed < 20 then
+        last_melee_request_state = false
+        return 
+    end
+
+    local action_grip = vrmod:get_action_grip()
+    local right_joystick = vrmod:get_right_joystick()
+    local is_stab = vrmod:is_action_active(action_grip, right_joystick)
+
+    local cooldown_time = is_stab and 1.0 or 0.5
+    local now = os.clock()
+
+    if not last_melee_request_state and now - last_melee < cooldown_time then
         return
     end
 
@@ -2044,67 +1985,99 @@ local function melee_attack()
         return
     end
 
-    local collider_handler = hit_controller:get_field("RequestedColliderHandler")
-    local registered_collider_handler = hit_controller:get_field("RegisteredColliderHandler")
+    local collider_handler = is_re8 and hit_controller:get_field("RequestedColliderHandler")
+    local registered_collider_handler = is_re8 and hit_controller:get_field("RegisteredColliderHandler")
 
-    if not collider_handler or not registered_collider_handler then
-        return
+    if is_re8 then
+        if not collider_handler or not registered_collider_handler then
+            return
+        end
     end
 
-    local resource_id = hit_controller:get_field("RequestSetResourceIndex")
-    local num_request_sets = rcol:call("getNumRequestSets(System.UInt32)", resource_id)
-    local owner = hit_controller:call("get_AttackOwner")
-    local weapon_gameobject = hit_controller:call("get_GameObject")
-    local weapon_transform = weapon_gameobject:call("get_Transform")
-    local weapon_position = weapon_transform:get_position()
-    local weapon_rotation = weapon_transform:get_rotation()
+    local resource_id = is_re8 and hit_controller:get_field("RequestSetResourceIndex")
+    local num_request_sets = is_re8 and rcol:call("getNumRequestSets(System.UInt32)", resource_id) or rcol:call("get_NumRequestSets")
 
     rcol:call("updatePose")
 
+    last_melee_request_state = true
+    last_melee = now
+    
     for i=0, num_request_sets - 1 do
-        local num_collidables = rcol:call("getNumCollidables(System.UInt32, System.UInt32)", resource_id, i)
-        local userdata = rcol:call("getRequestSetUserData(System.UInt32, System.UInt32)", resource_id, i)
+        if is_re7 then
+            local num_collidables = rcol:call("getNumCollidablesFromIndex", i)
+            local userdata = rcol:call("getRequestSetUserDataFromIndex", i)
 
-        if userdata:get_type_definition():is_a("app.ContactUserData") then
-            for j=0, num_collidables - 1 do
-                local collidable = rcol:call("getCollidable(System.UInt32, System.UInt32, System.UInt32)", resource_id, i, j)
-                known_colliders[collidable] = true
+            if userdata ~= nil and userdata:get_type_definition():is_a("app.Collision.ContactBaseUserData") then
+                for j=0, num_collidables - 1 do
+                    local collidable = rcol:call("getCollidableFromIndex", i, j)
 
-                collidable:call("set_Enabled", true)
-                collidable:call("enable")
-                collidable:call("set_UpdateShape", true)
+                    collidable:call("set_Enabled", true)
+                    collidable:call("enable")
+                    --collidable:call("set_UpdateShape", true)
+                end
+            end
 
-                --hit_controller:call("clearUserData")
-                --hit_controller:call("clearBuffer", userdata)
-
-                collider_handler:call("Invoke", userdata, collidable, j, owner)
-
-                hit_controller:call("setManualRequest", i)
-
-                --hit_controller:call("testAttack", userdata, collidable, j, owner)
-
-                --hit_controller:call("calcDisplacement", userdata, collidable, j, owner)
-                --hit_controller:call("hitEnvironment", userdata, collidable, j, owner)
-
-                --local userdata = collidable:call("get_UserData")
-
-                --log.info(userdata:get_type_definition():get_full_name())
-                --log.info(string.format("%i %i %i 0x%x", resource_id, i, j, collidable:get_address()))
+            if not is_stab then
+                hit_controller:call("addManualRequest", 0)
+            elseif i > 0 then
+                hit_controller:call("addManualRequest", i)
+            end
+        else
+            local num_collidables = rcol:call("getNumCollidables(System.UInt32, System.UInt32)", resource_id, i)
+            local userdata = rcol:call("getRequestSetUserData(System.UInt32, System.UInt32)", resource_id, i)
+    
+            if userdata:get_type_definition():is_a("app.ContactUserData") then
+                for j=0, num_collidables - 1 do
+                    local collidable = rcol:call("getCollidable(System.UInt32, System.UInt32, System.UInt32)", resource_id, i, j)
+                    --known_colliders[collidable] = true
+    
+                    collidable:call("set_Enabled", true)
+                    collidable:call("enable")
+                    collidable:call("set_UpdateShape", true)
+         
+                    if not is_stab then
+                        hit_controller:call("setManualRequest", 0)
+                    elseif i > 0 then
+                        hit_controller:call("setManualRequest", i)
+                    end
+                end
             end
         end
     end
 
-    --hit_controller:get_field("ProcAttack"):call("update")
+    if is_stab then
+        vrmod:trigger_haptic_vibration(0.0, 0.1, 1, 5, vrmod:get_right_joystick())
+    else
+        vrmod:trigger_haptic_vibration(0.0, 0.1, 1, 0.5, vrmod:get_right_joystick())
+    end
 end
 
---sdk.hook(sdk.find_type_definition("app.ProcCollider"):get_method("update"), function(args) melee_attack() end, nil)
+local hit_controller_args = nil
+
+local function on_pre_hit_controller_update(args)
+    hit_controller_args = args
+end
+
+local function on_post_hit_controller_update(args)
+    if not vrmod:is_hmd_active() or not vrmod:is_using_controllers() then return end
+    if re8.is_in_cutscene or not re8.can_use_hands then return end
+
+    local hit_controller = sdk.to_managed_object(hit_controller_args[2])
+
+    melee_attack(hit_controller)
+end
+
+if is_re7 then
+    sdk.hook(sdk.find_type_definition("app.Collision.HitController"):get_method("update"), on_pre_hit_controller_update, on_post_hit_controller_update)
+else
+    sdk.hook(sdk.find_type_definition("app.HitController"):get_method("update"), on_pre_hit_controller_update, on_post_hit_controller_update)
+end
 
 re.on_application_entry("LateUpdateBehavior", function()
     update_hand_ik()
 end)
 
 re.on_application_entry("UpdateBehavior", function()
-    melee_attack()
 end)
 
 local do_once = true
