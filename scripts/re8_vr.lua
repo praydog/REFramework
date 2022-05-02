@@ -104,7 +104,8 @@ local neg_forward_identity = Matrix4x4f.new(-1, 0, 0, 0,
 local cfg = {
     movement_shake = false,
     all_camera_shake = true,
-    disable_crosshair = false
+    disable_crosshair = false,
+    no_melee_cooldown = false,
 }
 
 local function load_cfg()
@@ -1975,8 +1976,10 @@ local function melee_attack(hit_controller)
     local cooldown_time = is_stab and 1.0 or 0.5
     local now = os.clock()
 
-    if not last_melee_request_state and now - last_melee < cooldown_time then
-        return
+    if not cfg.no_melee_cooldown then
+        if not last_melee_request_state and now - last_melee < cooldown_time then
+            return
+        end
     end
 
     local rcol = hit_controller:get_field("RequestSetCollider")
@@ -2429,6 +2432,12 @@ re.on_draw_ui(function()
     changed, cfg.movement_shake = imgui.checkbox("Movement Shake", cfg.movement_shake)
     changed, cfg.all_camera_shake = imgui.checkbox("All Other Camera Shakes", cfg.all_camera_shake)
     changed, cfg.disable_crosshair = imgui.checkbox("Disable Crosshair", cfg.disable_crosshair)
+
+    if imgui.tree_node("Cheats") then
+        changed, cfg.no_melee_cooldown = imgui.checkbox("No Melee Cooldown", cfg.no_melee_cooldown)
+
+        imgui.tree_pop()
+    end
 
     changed, left_hand_rotation_vec = imgui.drag_float3("Left Hand Rotation Offset", left_hand_rotation_vec, 0.005, -5.0, 5.0)
 
