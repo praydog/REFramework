@@ -2411,6 +2411,10 @@ local function re7_on_pre_request_add_vibration(args)
     local param = sdk.to_managed_object(args[3])
     local duration = sdk.to_float(args[4])
 
+    if duration == 0 then
+        duration = 0.1
+    end
+
     local power = param:get_field("HighMotorPower")
 
     local left_joystick = vrmod:get_left_joystick()
