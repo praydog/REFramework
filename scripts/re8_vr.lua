@@ -229,7 +229,7 @@ local function update_pad_device(device)
         local menu_manager = sdk.get_managed_singleton("app.MenuManager")
 
         if menu_manager ~= nil then
-            is_inventory_open = menu_manager:call("isOpenInventoryMenu")
+            is_inventory_open = menu_manager:call("isOpenInventoryMenu") or (os.clock() - last_inventory_open_time) < 0.25
         end
     elseif is_re8 then
         is_inventory_open = (os.clock() - last_inventory_open_time) < 0.25
@@ -1838,7 +1838,7 @@ elseif is_re8 then
     )
 end
 
-local function check_player_hands_up()
+local function update_player_gestures()
     local player = re8.player
 
     if not player then 
@@ -1896,7 +1896,7 @@ end
 local should_reset_view_no_player = false
 
 re.on_pre_application_entry("UpdateBehavior", function()
-    check_player_hands_up()
+    update_player_gestures()
 
     if not re8.player then
         if should_reset_view_no_player then
@@ -1936,8 +1936,10 @@ end)
     update_hand_ik()
 end)]]
 
-local last_melee = os.clock()
-local last_melee_request_state = false
+local last_melee = {os.clock(), os.clock()}
+local last_melee_request_state = {false, false}
+local swing_history = { 0, 0, 0, 0 }
+local swing_index = 0
 
 local function melee_attack(hit_controller)
     if not vrmod:is_hmd_active() or not vrmod:is_using_controllers() then return end
@@ -1947,15 +1949,23 @@ local function melee_attack(hit_controller)
         return
     end
 
-    local real_hit_controller = re8.weapon:call("get_hitController")
+    local is_end_of_zoe_melee = is_re7 and re8.weapon:get_type_definition():is_a("app.CH9WeaponMelee")
 
-    if not real_hit_controller then
-        return
-    end
-    
-    -- RE7
-    if hit_controller ~= nil and hit_controller ~= real_hit_controller then
-        return
+    if not is_end_of_zoe_melee then
+        local real_hit_controller = re8.weapon:call("get_hitController")
+
+        if not real_hit_controller then
+            return
+        end
+        
+        -- RE7
+        if hit_controller ~= nil and hit_controller ~= real_hit_controller then
+            return
+        end
+    else
+        if re8.hit_controller ~= hit_controller then
+            return
+        end
     end
 
     local right_controller = vrmod:get_controllers()[2]
@@ -1964,21 +1974,61 @@ local function melee_attack(hit_controller)
     local right_controller_speed = right_controller_velocity:length()
     local right_controller_angular_speed = right_controller_angular_velocity:length()
 
-    if right_controller_speed < 2.2 and right_controller_angular_speed < 20 then
-        last_melee_request_state = false
+    local left_controller = vrmod:get_controllers()[1]
+    local left_controller_velocity = vrmod:get_velocity(left_controller)
+    local left_controller_angular_velocity = vrmod:get_angular_velocity(left_controller)
+    local left_controller_speed = left_controller_velocity:length()
+    local left_controller_angular_speed = left_controller_angular_velocity:length()
+
+    local is_right_swing = right_controller_speed >= 2.2 or right_controller_angular_speed >= 20
+    local is_left_swing = is_end_of_zoe_melee and left_controller_speed >= 2.2 or left_controller_angular_speed >= 20
+
+    if not is_left_swing then
+        last_melee_request_state[1] = false
+    end
+
+    if not is_right_swing then
+        last_melee_request_state[2] = false
+    end
+
+    if not is_right_swing and not is_left_swing then
         return 
+    end
+
+    -- only end of zoe can left swing
+    if not is_right_swing and is_left_swing then
+        if not is_end_of_zoe_melee then
+            return
+        end
     end
 
     local action_grip = vrmod:get_action_grip()
     local right_joystick = vrmod:get_right_joystick()
     local is_stab = vrmod:is_action_active(action_grip, right_joystick)
 
-    local cooldown_time = is_stab and 1.0 or 0.5
+    local light_cooldown_time = is_end_of_zoe_melee and 0.5 or 0.5
+    local cooldown_time = (is_stab and not is_end_of_zoe_melee) and 1.0 or light_cooldown_time
     local now = os.clock()
 
     if not cfg.no_melee_cooldown then
-        if not last_melee_request_state and now - last_melee < cooldown_time then
-            return
+        if is_left_swing then
+            if not last_melee_request_state[1] and now - last_melee[1] < cooldown_time then
+                if not is_end_of_zoe_melee then
+                    return
+                else
+                    is_left_swing = false
+                end
+            end
+        end
+
+        if is_right_swing then
+            if not last_melee_request_state[2] and now - last_melee[2] < cooldown_time then
+                if not is_end_of_zoe_melee then
+                    return
+                else
+                    is_right_swing = false
+                end
+            end
         end
     end
 
@@ -2002,59 +2052,89 @@ local function melee_attack(hit_controller)
 
     rcol:call("updatePose")
 
-    if not last_melee_request_state then
-        last_melee = now
+    if is_left_swing then
+        if not last_melee_request_state[1] then
+            last_melee[1] = now
+        end
+
+        last_melee_request_state[1] = true
     end
 
-    last_melee_request_state = true
+    if is_right_swing then
+        if not last_melee_request_state[2] then
+            last_melee[2] = now
+        end
+
+        last_melee_request_state[2] = true
+    end
     
-    for i=0, num_request_sets - 1 do
-        if is_re7 then
-            local num_collidables = rcol:call("getNumCollidablesFromIndex", i)
-            local userdata = rcol:call("getRequestSetUserDataFromIndex", i)
+    if not is_end_of_zoe_melee then
+        for i=0, num_request_sets - 1 do
+            if is_re7 then
+                local num_collidables = rcol:call("getNumCollidablesFromIndex", i)
+                local userdata = rcol:call("getRequestSetUserDataFromIndex", i)
 
-            if userdata ~= nil and userdata:get_type_definition():is_a("app.Collision.ContactBaseUserData") then
-                for j=0, num_collidables - 1 do
-                    local collidable = rcol:call("getCollidableFromIndex", i, j)
+                if userdata ~= nil and userdata:get_type_definition():is_a("app.Collision.ContactBaseUserData") then
+                    for j=0, num_collidables - 1 do
+                        local collidable = rcol:call("getCollidableFromIndex", i, j)
 
-                    collidable:call("set_Enabled", true)
-                    collidable:call("enable")
-                    --collidable:call("set_UpdateShape", true)
+                        collidable:call("set_Enabled", true)
+                        collidable:call("enable")
+                        --collidable:call("set_UpdateShape", true)
+                    end
+
+                    log.info(tostring(i) .. ": " ..userdata:get_type_definition():get_full_name())
                 end
-            end
 
-            if not is_stab then
-                hit_controller:call("addManualRequest", 0)
-            elseif i > 0 then
-                hit_controller:call("addManualRequest", i)
-            end
-        else
-            local num_collidables = rcol:call("getNumCollidables(System.UInt32, System.UInt32)", resource_id, i)
-            local userdata = rcol:call("getRequestSetUserData(System.UInt32, System.UInt32)", resource_id, i)
-    
-            if userdata:get_type_definition():is_a("app.ContactUserData") then
-                for j=0, num_collidables - 1 do
-                    local collidable = rcol:call("getCollidable(System.UInt32, System.UInt32, System.UInt32)", resource_id, i, j)
-                    --known_colliders[collidable] = true
-    
-                    collidable:call("set_Enabled", true)
-                    collidable:call("enable")
-                    collidable:call("set_UpdateShape", true)
-         
-                    if not is_stab then
-                        hit_controller:call("setManualRequest", 0)
-                    elseif i > 0 then
-                        hit_controller:call("setManualRequest", i)
+                if not is_stab then
+                    hit_controller:call("addManualRequest", 0)
+                elseif i > 0 then
+                    hit_controller:call("addManualRequest", i)
+                end
+            else
+                local num_collidables = rcol:call("getNumCollidables(System.UInt32, System.UInt32)", resource_id, i)
+                local userdata = rcol:call("getRequestSetUserData(System.UInt32, System.UInt32)", resource_id, i)
+        
+                if userdata:get_type_definition():is_a("app.ContactUserData") then
+                    for j=0, num_collidables - 1 do
+                        local collidable = rcol:call("getCollidable(System.UInt32, System.UInt32, System.UInt32)", resource_id, i, j)
+                        --known_colliders[collidable] = true
+        
+                        collidable:call("set_Enabled", true)
+                        collidable:call("enable")
+                        collidable:call("set_UpdateShape", true)
+            
+                        if not is_stab then
+                            hit_controller:call("setManualRequest", 0)
+                        elseif i > 0 then
+                            hit_controller:call("setManualRequest", i)
+                        end
                     end
                 end
             end
         end
+    else
+        --hit_controller:call("addManualRequest", 25) -- fucking SUPER punch!!!
+
+        if is_right_swing then
+            hit_controller:call("addManualRequest", 16)
+        end
+
+        if is_left_swing then
+            hit_controller:call("addManualRequest", 11)
+        end
     end
 
-    if is_stab then
-        vrmod:trigger_haptic_vibration(0.0, 0.1, 1, 5, vrmod:get_right_joystick())
-    else
-        vrmod:trigger_haptic_vibration(0.0, 0.1, 1, 0.5, vrmod:get_right_joystick())
+    if is_right_swing then
+        if is_stab or is_end_of_zoe_melee then
+            vrmod:trigger_haptic_vibration(0.0, 0.1, 1, 5, vrmod:get_right_joystick())
+        else
+            vrmod:trigger_haptic_vibration(0.0, 0.1, 1, 0.5, vrmod:get_right_joystick())
+        end
+    end
+    
+    if is_left_swing then
+        vrmod:trigger_haptic_vibration(0.0, 0.1, 1, 5, vrmod:get_left_joystick())
     end
 end
 
@@ -2425,6 +2505,7 @@ re.on_frame(function()
 end)
 
 local debug_adjust_hand_offset = false
+local debug_hit_controller = false
 
 re.on_draw_ui(function()
     local changed = false
@@ -2562,6 +2643,66 @@ re.on_draw_ui(function()
             imgui.tree_pop()
         end
 
+        if imgui.tree_node("Left Weapon") then
+            local left_weapon = re8.left_weapon
+    
+            object_explorer:handle_address(left_weapon)
+    
+            imgui.tree_pop()
+        end
+
+        if imgui.tree_node("Hit Controller") then
+            local hit_controller = re8.hit_controller
+
+            changed, debug_hit_controller = imgui.checkbox("Debug hit controller", debug_hit_controller)
+
+            if debug_hit_controller then
+                local rcol = hit_controller:get_field("RequestSetCollider")
+
+                if not rcol then
+                    return
+                end
+
+                local num_request_sets = is_re8 and rcol:call("getNumRequestSets(System.UInt32)", resource_id) or rcol:call("get_NumRequestSets")
+            
+                
+                for i=0, num_request_sets - 1 do
+                    if is_re7 then
+                        
+                        local num_collidables = rcol:call("getNumCollidablesFromIndex", i)
+                        local userdata = rcol:call("getRequestSetUserDataFromIndex", i)
+            
+                        if userdata ~= nil and userdata:get_type_definition():is_a("app.Collision.ContactBaseUserData") then
+                            for j=0, num_collidables - 1 do
+                                local collidable = rcol:call("getCollidableFromIndex", i, j)
+
+                                if collidable then
+                                    local shape = collidable:call("get_TransformedShape")
+
+                                    if imgui.button(tostring(i) .. ", " .. tostring(j) .. ": " .. shape:get_type_definition():get_full_name()) then
+                                        hit_controller:call("addManualRequest", i)
+                                    end
+
+                                    if shape:get_type_definition():is_a("via.physics.CapsuleShape") then
+                                        local pos = shape:call("get_PosA")
+                                        local pos_screen = draw.world_to_screen(pos)
+
+                                        if pos_screen then
+                                            draw.text(tostring(i), pos_screen.x, pos_screen.y, 0xffffffff)
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+    
+            object_explorer:handle_address(hit_controller)
+    
+            imgui.tree_pop()
+        end
+
         if imgui.tree_node("Weapon Colliders") then
             local i = 0
             for collider, _ in pairs(known_colliders) do
@@ -2613,12 +2754,28 @@ local re8_inventory_names = {
     "GUIShopBg"
 }
 
+local re7_inventory_names = {
+    "CH9PauseMenu",
+    "CH9MapMaskGUI",
+    "CH9MultiSubMenu",
+    "PauseMenu",
+    "MapMaskGUI",
+    "MultiSubMenu",
+    "FileMenu",
+}
+
 for i, v in ipairs(re8_inventory_names) do
     re8_inventory_names[v] = true
 end
 
+for i, v in ipairs(re7_inventory_names) do
+    re7_inventory_names[v] = true
+end
+
 local reticle_names = {
     "ReticleGUI",
+    "CH8ReticleGUI",
+    "CH9ReticleGUI",
     "GUIReticle"
 }
 
@@ -2713,7 +2870,7 @@ re.on_pre_gui_draw_element(function(element, context)
         end
     end
 
-    if re8_inventory_names[name] then
+    if re8_inventory_names[name] or re7_inventory_names[name] then
         last_inventory_open_time = os.clock()
     end
 

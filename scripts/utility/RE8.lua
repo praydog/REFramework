@@ -63,7 +63,7 @@ local function initialize_re8(re8)
     re8.player = nil
     re8.transform = nil
     re8.weapon = nil
-    re8.weapon_gameobject = nil
+    re8.left_weapon = nil
     re8.inventory = nil
     re8.hand_touch = nil
     re8.order = nil
@@ -82,6 +82,7 @@ local function initialize_re8(re8)
     re8.status = nil
     re8.event_action_controller = nil
     re8.game_event_action_controller = nil
+    re8.hit_controller = nil
     re8.wants_block = false
     re8.movement_speed_rate = 0.0
     re8.movement_speed_vector = Vector3f.new(0, 0, 0)
@@ -145,7 +146,7 @@ function re8.get_weapon_object(player)
             return nil
         end
 
-        return equip_manager:call("get_equipWeaponRight")
+        return equip_manager:call("get_equipWeaponRight"), equip_manager:call("get_equipWeaponLeft")
     elseif is_re8 then
         if not re8.updater then
             return nil
@@ -250,14 +251,20 @@ re.on_pre_application_entry("UpdateBehavior", function()
         re8.is_motion_play = false
     end
 
-    local weapon = re8.get_weapon_object(player)
+    local weapon, left_weapon = re8.get_weapon_object(player)
 
     if weapon == nil then
         re8.weapon = nil
+        re8.left_weapon = nil
         return
     end
 
     re8.weapon = weapon
+    re8.left_weapon = left_weapon
+
+    if is_re7 then
+        re8.hit_controller = get_component(player, "app.Collision.HitController")
+    end
 
     re8.update_in_cutscene_state()
 end)
