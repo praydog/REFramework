@@ -8,6 +8,10 @@ struct OpenVR final : public VRRuntime {
         this->custom_stage = SynchronizeStage::EARLY;
     }
 
+    virtual ~OpenVR() {
+        this->destroy();
+    }
+
     std::string_view name() const override {
         return "OpenVR";
     }
@@ -28,8 +32,9 @@ struct OpenVR final : public VRRuntime {
     uint32_t get_height() const override;
 
     VRRuntime::Error consume_events(std::function<void(void*)> callback) override;
-
     VRRuntime::Error update_matrices(float nearz, float farz) override;
+
+    void destroy() override;
 
     bool is_hmd_active{false};
     bool was_hmd_active{true};

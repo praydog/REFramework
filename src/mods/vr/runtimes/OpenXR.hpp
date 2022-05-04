@@ -21,6 +21,10 @@ struct OpenXR final : public VRRuntime {
     OpenXR() {
         this->custom_stage = SynchronizeStage::EARLY;
     }
+    
+    virtual ~OpenXR() {
+        this->destroy();
+    }
 
     struct Swapchain {
         XrSwapchain handle;
@@ -50,6 +54,8 @@ struct OpenXR final : public VRRuntime {
 
     VRRuntime::Error update_matrices(float nearz, float farz) override;
     VRRuntime::Error update_input() override;
+
+    void destroy() override;
 
 public: 
     // OpenXR specific methods

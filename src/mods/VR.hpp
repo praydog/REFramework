@@ -69,21 +69,15 @@ public:
 
     template<typename T = VRRuntime>
     T* get_runtime() const {
-        if (m_openvr.loaded) {
-            return (T*)&m_openvr;
-        } else if (m_openxr.loaded) {
-            return (T*)&m_openxr;
-        }
-        
-        return (T*)&m_null_runtime;
+        return (T*)m_runtime.get();
     }
 
     auto get_hmd() const {
-        return m_openvr.hmd;
+        return m_openvr->hmd;
     }
 
     auto& get_openvr_poses() const {
-        return m_openvr.render_poses;
+        return m_openvr->render_poses;
     }
 
     auto get_hmd_width() const {
@@ -136,11 +130,11 @@ public:
     }
     
     bool is_openvr_loaded() const {
-        return m_openvr.loaded;
+        return m_openvr != nullptr && m_openvr->loaded;
     }
 
     bool is_openxr_loaded() const {
-        return m_openxr.loaded;
+        return m_openxr != nullptr && m_openxr->loaded;
     }
 
     bool is_using_hmd_oriented_audio() {
@@ -259,21 +253,50 @@ private:
     std::optional<std::string> hijack_wwise_listeners(); // audio hook
 
     std::optional<std::string> reinitialize_openvr() {
-        spdlog::info("Reinitializing openvr");
+        spdlog::info("Reinitializing OpenVR");
+        std::scoped_lock _{m_openvr_mtx};
 
-        vr::VR_Shutdown();
+        m_runtime.reset();
+        m_runtime = std::make_shared<VRRuntime>();
+        m_openvr.reset();
 
         // Reinitialize openvr input, hopefully this fixes the issue
         m_controllers.clear();
         m_controllers_set.clear();
 
-        auto input_error = initialize_openvr();
+        auto e = initialize_openvr();
 
-        if (input_error) {
-            spdlog::error("Failed to reinitialize openvr: {}", *input_error);
+        if (e) {
+            spdlog::error("Failed to reinitialize OpenVR: {}", *e);
         }
 
-        return input_error;
+        return e;
+    }
+
+    std::optional<std::string> reinitialize_openxr() {
+        spdlog::info("Reinitializing OpenXR");
+        std::scoped_lock _{m_openvr_mtx};
+
+        if (m_is_d3d12) {
+            m_d3d12.openxr().destroy_swapchains();
+        } else {
+            m_d3d11.openxr().destroy_swapchains();
+        }
+
+        m_openxr.reset();
+        m_runtime.reset();
+        m_runtime = std::make_shared<VRRuntime>();
+        
+        m_controllers.clear();
+        m_controllers_set.clear();
+
+        auto e = initialize_openxr();
+
+        if (e) {
+            spdlog::error("Failed to reinitialize OpenXR: {}", *e);
+        }
+
+        return e;
     }
 
     bool detect_controllers();
@@ -322,10 +345,9 @@ private:
     float m_nearz{ 0.1f };
     float m_farz{ 3000.0f };
 
-    VRRuntime m_null_runtime{};
-
-    runtimes::OpenXR m_openxr;
-    runtimes::OpenVR m_openvr;
+    std::shared_ptr<VRRuntime> m_runtime{std::make_shared<VRRuntime>()}; // will point to the real runtime if it exists
+    std::shared_ptr<runtimes::OpenVR> m_openvr{std::make_shared<runtimes::OpenVR>()};
+    std::shared_ptr<runtimes::OpenXR> m_openxr{std::make_shared<runtimes::OpenXR>()};
 
     Vector4f m_standing_origin{ 0.0f, 1.5f, 0.0f, 0.0f };
     glm::quat m_rotation_offset{ glm::identity<glm::quat>() };

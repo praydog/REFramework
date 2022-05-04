@@ -98,5 +98,11 @@ VRRuntime::Error OpenVR::update_matrices(float nearz, float farz){
 
     return VRRuntime::Error::SUCCESS;
 }
+
+void OpenVR::destroy() {
+    if (this->loaded) {
+        vr::VR_Shutdown();
+    }
+}
 }
 

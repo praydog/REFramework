@@ -40,7 +40,7 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
     // If m_frame_count is even, we're rendering the left eye.
     if (frame_count % 2 == vr->m_left_eye_interval) {
         // OpenXR texture
-        if (runtime->is_openxr() && vr->m_openxr.ready()) {
+        if (runtime->is_openxr() && vr->m_openxr->ready()) {
             m_openxr.copy(0, backbuffer.Get());
         }
 
@@ -66,7 +66,7 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
         }
     } else {
         // OpenXR texture
-        if (runtime->is_openxr() && vr->m_openxr.ready()) {
+        if (runtime->is_openxr() && vr->m_openxr->ready()) {
             m_openxr.copy(1, backbuffer.Get());
         }
 
@@ -110,12 +110,12 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
             }
         }
 
-        if (runtime->is_openxr() && vr->m_openxr.ready()) {
-            if (runtime->get_synchronize_stage() == VRRuntime::SynchronizeStage::VERY_LATE || !vr->m_openxr.frame_began) {
-                vr->m_openxr.begin_frame();
+        if (runtime->is_openxr() && vr->m_openxr->ready()) {
+            if (runtime->get_synchronize_stage() == VRRuntime::SynchronizeStage::VERY_LATE || !vr->m_openxr->frame_began) {
+                vr->m_openxr->begin_frame();
             }
 
-            auto result = vr->m_openxr.end_frame();
+            auto result = vr->m_openxr->end_frame();
 
             if (result == XR_ERROR_LAYER_INVALID) {
                 spdlog::info("[VR] Attempting to correct invalid layer");
@@ -123,10 +123,10 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
                 m_openxr.wait_for_all_copies();
 
                 spdlog::info("[VR] Calling xrEndFrame again");
-                result = vr->m_openxr.end_frame();
+                result = vr->m_openxr->end_frame();
             }
 
-            vr->m_openxr.needs_pose_update = true;
+            vr->m_openxr->needs_pose_update = true;
             vr->m_submitted = result == XR_SUCCESS;
         }
 
@@ -235,12 +235,12 @@ void D3D12Component::OpenXR::initialize(XrSessionCreateInfo& session_info) {
     this->binding.queue = command_queue;
 
     PFN_xrGetD3D12GraphicsRequirementsKHR fn = nullptr;
-    xrGetInstanceProcAddr(VR::get()->m_openxr.instance, "xrGetD3D12GraphicsRequirementsKHR", (PFN_xrVoidFunction*)(&fn));
+    xrGetInstanceProcAddr(VR::get()->m_openxr->instance, "xrGetD3D12GraphicsRequirementsKHR", (PFN_xrVoidFunction*)(&fn));
 
     XrGraphicsRequirementsD3D12KHR gr{XR_TYPE_GRAPHICS_REQUIREMENTS_D3D12_KHR};
     gr.adapterLuid = device->GetAdapterLuid();
     gr.minFeatureLevel = D3D_FEATURE_LEVEL_11_0;
-    fn(VR::get()->m_openxr.instance, VR::get()->m_openxr.system, &gr);
+    fn(VR::get()->m_openxr->instance, VR::get()->m_openxr->system, &gr);
 
     session_info.next = &this->binding;
 }
@@ -275,9 +275,9 @@ std::optional<std::string> D3D12Component::OpenXR::create_swapchains() {
     auto& openxr = vr->m_openxr;
 
     this->contexts.clear();
-    this->contexts.resize(openxr.views.size());
+    this->contexts.resize(openxr->views.size());
     
-    for (auto i = 0; i < openxr.views.size(); ++i) {
+    for (auto i = 0; i < openxr->views.size(); ++i) {
         spdlog::info("[VR] Creating swapchain for eye {}", i);
         spdlog::info("[VR] Width: {}", vr->get_hmd_width());
         spdlog::info("[VR] Height: {}", vr->get_hmd_height());
@@ -300,12 +300,12 @@ std::optional<std::string> D3D12Component::OpenXR::create_swapchains() {
         swapchain.width = swapchain_create_info.width;
         swapchain.height = swapchain_create_info.height;
 
-        if (xrCreateSwapchain(openxr.session, &swapchain_create_info, &swapchain.handle) != XR_SUCCESS) {
+        if (xrCreateSwapchain(openxr->session, &swapchain_create_info, &swapchain.handle) != XR_SUCCESS) {
             spdlog::error("[VR] D3D12: Failed to create swapchain.");
             return "Failed to create swapchain.";
         }
 
-        vr->m_openxr.swapchains.push_back(swapchain);
+        vr->m_openxr->swapchains.push_back(swapchain);
 
         uint32_t image_count{};
         auto result = xrEnumerateSwapchainImages(swapchain.handle, 0, &image_count, nullptr);
@@ -362,7 +362,7 @@ void D3D12Component::OpenXR::destroy_swapchains() {
         auto& ctx = this->contexts[i];
         ctx.texture_contexts.clear();
 
-        auto result = xrDestroySwapchain(VR::get()->m_openxr.swapchains[i].handle);
+        auto result = xrDestroySwapchain(VR::get()->m_openxr->swapchains[i].handle);
 
         if (result != XR_SUCCESS) {
             spdlog::error("[VR] Failed to destroy swapchain {}.", i);
@@ -378,7 +378,7 @@ void D3D12Component::OpenXR::destroy_swapchains() {
     }
 
     this->contexts.clear();
-    VR::get()->m_openxr.swapchains.clear();
+    VR::get()->m_openxr->swapchains.clear();
 }
 
 void D3D12Component::OpenXR::copy(uint32_t swapchain_idx, ID3D12Resource* resource) {
@@ -386,20 +386,22 @@ void D3D12Component::OpenXR::copy(uint32_t swapchain_idx, ID3D12Resource* resour
 
     auto vr = VR::get();
 
-    if (vr->m_openxr.frame_state.shouldRender != XR_TRUE) {
+    if (vr->m_openxr->frame_state.shouldRender != XR_TRUE) {
         return;
     }
 
-    if (!vr->m_openxr.frame_began) {
-        spdlog::error("[VR] OpenXR: Frame not begun when trying to copy.");
-        return;
+    if (!vr->m_openxr->frame_began) {
+        if (vr->m_openxr->get_synchronize_stage() != VRRuntime::SynchronizeStage::VERY_LATE) {
+            spdlog::error("[VR] OpenXR: Frame not begun when trying to copy.");
+            return;
+        }
     }
 
     if (this->contexts[swapchain_idx].num_textures_acquired > 0) {
         spdlog::info("[VR] Already acquired textures for swapchain {}?", swapchain_idx);
     }
 
-    const auto& swapchain = vr->m_openxr.swapchains[swapchain_idx];
+    const auto& swapchain = vr->m_openxr->swapchains[swapchain_idx];
     auto& ctx = this->contexts[swapchain_idx];
 
     XrSwapchainImageAcquireInfo acquire_info{XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO};
@@ -408,7 +410,7 @@ void D3D12Component::OpenXR::copy(uint32_t swapchain_idx, ID3D12Resource* resour
     auto result = xrAcquireSwapchainImage(swapchain.handle, &acquire_info, &texture_index);
 
     if (result == XR_ERROR_RUNTIME_FAILURE) {
-        spdlog::error("[VR] xrAcquireSwapchainImage failed: {}", vr->m_openxr.get_result_string(result));
+        spdlog::error("[VR] xrAcquireSwapchainImage failed: {}", vr->m_openxr->get_result_string(result));
         spdlog::info("[VR] Attempting to correct...");
 
         for (auto& texture_ctx : ctx.texture_contexts) {
@@ -421,7 +423,7 @@ void D3D12Component::OpenXR::copy(uint32_t swapchain_idx, ID3D12Resource* resour
 
 
     if (result != XR_SUCCESS) {
-        spdlog::error("[VR] xrAcquireSwapchainImage failed: {}", vr->m_openxr.get_result_string(result));
+        spdlog::error("[VR] xrAcquireSwapchainImage failed: {}", vr->m_openxr->get_result_string(result));
     } else {
         ctx.num_textures_acquired++;
 
@@ -431,7 +433,7 @@ void D3D12Component::OpenXR::copy(uint32_t swapchain_idx, ID3D12Resource* resour
         result = xrWaitSwapchainImage(swapchain.handle, &wait_info);
 
         if (result != XR_SUCCESS) {
-            spdlog::error("[VR] xrWaitSwapchainImage failed: {}", vr->m_openxr.get_result_string(result));
+            spdlog::error("[VR] xrWaitSwapchainImage failed: {}", vr->m_openxr->get_result_string(result));
         } else {
             auto& texture_ctx = ctx.texture_contexts[texture_index];
             texture_ctx->copier.wait(INFINITE);
@@ -447,13 +449,13 @@ void D3D12Component::OpenXR::copy(uint32_t swapchain_idx, ID3D12Resource* resour
 
             // SteamVR shenanigans.
             if (result == XR_ERROR_RUNTIME_FAILURE) {
-                spdlog::error("[VR] xrReleaseSwapchainImage failed: {}", vr->m_openxr.get_result_string(result));
+                spdlog::error("[VR] xrReleaseSwapchainImage failed: {}", vr->m_openxr->get_result_string(result));
                 spdlog::info("[VR] Attempting to correct...");
 
                 result = xrWaitSwapchainImage(swapchain.handle, &wait_info);
 
                 if (result != XR_SUCCESS) {
-                    spdlog::error("[VR] xrWaitSwapchainImage failed: {}", vr->m_openxr.get_result_string(result));
+                    spdlog::error("[VR] xrWaitSwapchainImage failed: {}", vr->m_openxr->get_result_string(result));
                 }
 
                 for (auto& texture_ctx : ctx.texture_contexts) {
@@ -464,7 +466,7 @@ void D3D12Component::OpenXR::copy(uint32_t swapchain_idx, ID3D12Resource* resour
             }
 
             if (result != XR_SUCCESS) {
-                spdlog::error("[VR] xrReleaseSwapchainImage failed: {}", vr->m_openxr.get_result_string(result));
+                spdlog::error("[VR] xrReleaseSwapchainImage failed: {}", vr->m_openxr->get_result_string(result));
                 return;
             }
 

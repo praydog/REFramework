@@ -283,6 +283,33 @@ VRRuntime::Error OpenXR::update_input() {
     return VRRuntime::Error::SUCCESS;
 }
 
+void OpenXR::destroy() {
+    if (!this->loaded) {
+        return;
+    }
+
+    std::scoped_lock _{sync_mtx};
+
+    if (this->session != nullptr) {
+        if (this->session_ready) {
+            xrEndSession(this->session);
+        }
+
+        xrDestroySession(this->session);
+    }
+
+    if (this->instance != nullptr) {
+        xrDestroyInstance(this->instance);
+        this->instance = nullptr;
+    }
+
+    this->session = nullptr;
+    this->session_ready = false;
+    this->system = XR_NULL_SYSTEM_ID;
+    this->frame_synced = false;
+    this->frame_began = false;
+}
+
 std::string OpenXR::get_result_string(XrResult result) const {
     std::string result_string{};
     result_string.resize(XR_MAX_RESULT_STRING_SIZE);
