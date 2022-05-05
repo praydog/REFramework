@@ -261,17 +261,17 @@ std::optional<std::string> D3D11Component::OpenXR::create_swapchains() {
         const auto& vp = openxr.view_configs[i];
 
         spdlog::info("[VR] Creating swapchain for eye {}", i);
-        spdlog::info("[VR] Width: {}", vp.recommendedImageRectWidth);
-        spdlog::info("[VR] Height: {}", vp.recommendedImageRectHeight);
+        spdlog::info("[VR] Width: {}", vr->get_hmd_width());
+        spdlog::info("[VR] Height: {}", vr->get_hmd_height());
 
-        backbuffer_desc.Width = vp.recommendedImageRectWidth;
-        backbuffer_desc.Height = vp.recommendedImageRectHeight;
+        backbuffer_desc.Width = vr->get_hmd_width();
+        backbuffer_desc.Height = vr->get_hmd_height();
 
         XrSwapchainCreateInfo swapchain_create_info{XR_TYPE_SWAPCHAIN_CREATE_INFO};
         swapchain_create_info.arraySize = 1;
         swapchain_create_info.format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
-        swapchain_create_info.width = vp.recommendedImageRectWidth;
-        swapchain_create_info.height = vp.recommendedImageRectHeight;
+        swapchain_create_info.width = backbuffer_desc.Width;
+        swapchain_create_info.height = backbuffer_desc.Height;
         swapchain_create_info.mipCount = 1;
         swapchain_create_info.faceCount = 1;
         swapchain_create_info.sampleCount = backbuffer_desc.SampleDesc.Count;
