@@ -811,11 +811,23 @@ void OpenXR::trigger_haptic_vibration(float duration, float frequency, float amp
 }
 
 void OpenXR::display_bindings_editor() {
-    ImGui::Text("Interaction Profile: %s", this->get_current_interaction_profile().c_str());
+    const auto current_interaction_profile = this->get_current_interaction_profile();
+    ImGui::Text("Interaction Profile: %s", current_interaction_profile.c_str());
+
+    if (ImGui::Button("Restore Default Bindings")) {
+        auto filename = current_interaction_profile + ".json";
+        
+        // replace the slashes with underscores
+        std::replace(filename.begin(), filename.end(), '/', '_');
+
+        if (std::filesystem::exists(filename)) {
+            // Delete the file
+            std::filesystem::remove(filename);
+            this->wants_reinitialize = true;
+        }
+    }
 
     auto display_hand = [&](const std::string& name, uint32_t index) {
-        const auto current_interaction_profile = this->get_current_interaction_profile();
-
         if (current_interaction_profile.empty() || current_interaction_profile == "XR_NULL_PATH") {
             ImGui::Text("Interaction profile not loaded, try putting on your headset.");
             return;
