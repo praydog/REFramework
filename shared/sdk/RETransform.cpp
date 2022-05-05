@@ -180,18 +180,21 @@ void calculate_base_transforms(const ::RETransform& transform, REJoint* target, 
     }
 
     if (target == nullptr) {
+        out[target] = glm::identity<glm::mat4>();
         return;
     }
 
     auto parent = target->info->parentJoint;
 
     if (parent == -1) {
+        out[target] = glm::identity<glm::mat4>();
         return;
     }
 
     auto parent_joint = get_joint(transform, parent);
 
     if (parent_joint == nullptr) {
+        out[target] = glm::identity<glm::mat4>();
         return;
     }
 
@@ -200,6 +203,7 @@ void calculate_base_transforms(const ::RETransform& transform, REJoint* target, 
     auto it = out.find(parent_joint);
 
     if (it == out.end()) {
+        out[target] = glm::identity<glm::mat4>();
         return;
     }
 
@@ -214,7 +218,7 @@ void calculate_base_transforms(const ::RETransform& transform, REJoint* target, 
     // Convert to matrix
     const auto base_transform = glm::translate(glm::mat4(1.0f), glm::vec3(base_position.x, base_position.y, base_position.z)) * glm::mat4_cast(base_rotation);
 
-    out[parent_joint] = parent_transform * base_transform;
+    out[target] = parent_transform * base_transform;
 }
 
 void apply_joints_tpose(::RETransform& transform, const std::vector<REJoint*>& joints_initial, uint32_t additional_parents) {
