@@ -260,6 +260,7 @@ namespace utility::re_transform {
     }
 
     glm::mat4 calculate_base_transform(const ::RETransform& transform, REJoint* target);
+    void apply_joints_tpose(::RETransform& transform, const std::vector<REJoint*>& joints, uint32_t additional_parents = 0);
 }
 
 namespace sdk {

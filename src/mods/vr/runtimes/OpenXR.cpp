@@ -13,7 +13,7 @@ VRRuntime::Error OpenXR::synchronize_frame() {
 
     // cant sync frame between begin and endframe
     if (!this->session_ready || this->frame_began) {
-        return (VRRuntime::Error)-1;
+        return VRRuntime::Error::UNSPECIFIED;
     }
 
     if (this->frame_synced) {
