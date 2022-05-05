@@ -171,6 +171,52 @@ glm::mat4 re_transform::calculate_base_transform(const ::RETransform& transform,
     return parent_transform * base_transform;
 }
 
+void calculate_base_transforms(const ::RETransform& transform, REJoint* target, std::unordered_map<REJoint*, glm::mat4>& out) {
+    static auto get_base_local_rotation_method = sdk::find_type_definition("via.Joint")->get_method("get_BaseLocalRotation");
+    static auto get_base_local_position_method = sdk::find_type_definition("via.Joint")->get_method("get_BaseLocalPosition");
+
+    if (auto it = out.find(target); it != out.end()) {
+        return;
+    }
+
+    if (target == nullptr) {
+        return;
+    }
+
+    auto parent = target->info->parentJoint;
+
+    if (parent == -1) {
+        return;
+    }
+
+    auto parent_joint = get_joint(transform, parent);
+
+    if (parent_joint == nullptr) {
+        return;
+    }
+
+    calculate_base_transforms(transform, parent_joint, out);
+
+    auto it = out.find(parent_joint);
+
+    if (it == out.end()) {
+        return;
+    }
+
+    const auto& parent_transform = it->second;
+
+    glm::quat base_rotation{};
+    get_base_local_rotation_method->call<glm::quat*>(&base_rotation, sdk::get_thread_context(), target);
+
+    Vector4f base_position{};
+    get_base_local_position_method->call<Vector4f*>(&base_position, sdk::get_thread_context(), target);
+
+    // Convert to matrix
+    const auto base_transform = glm::translate(glm::mat4(1.0f), glm::vec3(base_position.x, base_position.y, base_position.z)) * glm::mat4_cast(base_rotation);
+
+    out[parent_joint] = parent_transform * base_transform;
+}
+
 void apply_joints_tpose(::RETransform& transform, const std::vector<REJoint*>& joints_initial, uint32_t additional_parents) {
     if (joints_initial.empty() || joints_initial[0] == nullptr) {
         spdlog::info("No joints to apply tpose");
@@ -182,23 +228,23 @@ void apply_joints_tpose(::RETransform& transform, const std::vector<REJoint*>& j
     auto player_pos = sdk::get_transform_position(&transform);
     auto player_rot = sdk::get_transform_rotation(&transform);
 
-    if (joints[0] != nullptr) {
-        joints.insert(joints.begin(), sdk::get_joint_parent(joints[0]));
+    joints.insert(joints.begin(), sdk::get_joint_parent(joints[0]));
 
-        for (auto i = 0; i < additional_parents; i++) {
-            auto parent = sdk::get_joint_parent(joints[0]);
+    for (auto i = 0; i < additional_parents; i++) {
+        auto parent = sdk::get_joint_parent(joints[0]);
 
-            if (parent == nullptr) {
-                break;
-            }
-
-            joints.insert(joints.begin(), parent);
+        if (parent == nullptr) {
+            break;
         }
+
+        joints.insert(joints.begin(), parent);
     }
 
     std::vector<Vector3f> original_positions(joints.size());
     std::vector<glm::quat> original_rotations(joints.size());
     std::vector<Vector3f> current_positions(joints.size());
+
+    std::unordered_map<REJoint*, glm::mat4> base_transforms{};
 
     for (auto i = 0; i < joints.size(); i++) {
         auto joint = joints[i];
@@ -207,7 +253,15 @@ void apply_joints_tpose(::RETransform& transform, const std::vector<REJoint*>& j
             continue;
         }
 
-        auto base_transform = utility::re_transform::calculate_base_transform(transform, joint);
+        utility::re_transform::calculate_base_transforms(transform, joint, base_transforms);
+
+        auto it = base_transforms.find(joint);
+
+        if (it == base_transforms.end()) {
+            continue;
+        }
+
+        const auto& base_transform = it->second;
 
         original_positions[i] = player_pos + (player_rot * base_transform[3]);
         original_rotations[i] = player_rot * glm::quat_cast(base_transform);
