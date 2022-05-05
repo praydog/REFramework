@@ -1,7 +1,10 @@
 #include <chrono>
+#include <filesystem>
+#include <fstream>
 
 #include <json.hpp>
 #include <utility/String.hpp>
+#include <imgui.h>
 
 #include "OpenXR.hpp"
 
@@ -326,6 +329,43 @@ std::string OpenXR::get_structure_string(XrStructureType type) const {
     return structure_string;
 }
 
+std::string OpenXR::get_path_string(XrPath path) const {
+    if (path == XR_NULL_PATH) {
+        return "XR_NULL_PATH";
+    }
+
+    std::string path_string{};
+    path_string.resize(XR_MAX_PATH_LENGTH);
+
+    uint32_t real_size{};
+
+    if (auto result = xrPathToString(this->instance, path, XR_MAX_PATH_LENGTH, &real_size, path_string.data()); result != XR_SUCCESS) {
+        spdlog::error("[VR] Failed to get path string: {}", this->get_result_string(result));
+        return "";
+    }
+
+    path_string.resize(real_size-1);
+    return path_string;
+}
+
+std::string OpenXR::get_current_interaction_profile() const {
+    XrInteractionProfileState state{XR_TYPE_INTERACTION_PROFILE_STATE};
+    if (xrGetCurrentInteractionProfile(this->session, this->hands[0].path, &state) != XR_SUCCESS) {
+        return "";
+    }
+
+    return this->get_path_string(state.interactionProfile);
+}
+
+XrPath OpenXR::get_current_interaction_profile_path() const {
+    XrInteractionProfileState state{XR_TYPE_INTERACTION_PROFILE_STATE};
+    if (xrGetCurrentInteractionProfile(this->session, this->hands[0].path, &state) != XR_SUCCESS) {
+        return XR_NULL_PATH;
+    }
+
+    return state.interactionProfile;
+}
+
 std::optional<std::string> OpenXR::initialize_actions(const std::string& json_string) {
     spdlog::info("[VR] Initializing actions");
 
@@ -478,6 +518,7 @@ std::optional<std::string> OpenXR::initialize_actions(const std::string& json_st
 
         this->action_set.actions.push_back(xr_action);
         this->action_set.action_map[action_name] = xr_action;
+        this->action_set.action_names[xr_action] = action_name;
 
         // Suggest bindings
         for (const auto& map_it : OpenXR::s_bindings_map) {
@@ -529,7 +570,7 @@ std::optional<std::string> OpenXR::initialize_actions(const std::string& json_st
                 if (this->action_set.action_map.contains(map_it.action_name)) {
                     for (const auto& controller : s_supported_controllers) {
                         if (attempt_add_binding(controller, { this->action_set.action_map[map_it.action_name], p })) {
-                            this->hands[index].path_map[map_it.action_name] = p;
+                            this->hands[index].path_map[controller][map_it.action_name] = p;
                         }
                     }
                 }
@@ -543,6 +584,50 @@ std::optional<std::string> OpenXR::initialize_actions(const std::string& json_st
 
     if (!has_pose_action) {
         return "json missing pose action";
+    }
+
+    // Check for json files that will override the default suggested bindings
+    for (const auto& controller : s_supported_controllers) {
+        auto filename = controller + ".json";
+
+        // replace the slashes with underscores
+        std::replace(filename.begin(), filename.end(), '/', '_');
+
+        // check if the file exists
+        if (std::filesystem::exists(filename)) {
+            spdlog::info("[VR] Loading bindings for {}", filename);
+
+            profile_bindings[controller].clear();
+
+            this->hands[VRRuntime::Hand::LEFT].path_map[controller].clear();
+            this->hands[VRRuntime::Hand::RIGHT].path_map[controller].clear();
+
+            // load the json file
+            auto j = nlohmann::json::parse(std::ifstream(filename));
+
+            for (auto it : j["bindings"]) {
+                auto action_str = it["action"].get<std::string>();
+                auto path_str = it["path"].get<std::string>();
+
+                XrPath p{XR_NULL_PATH};
+                auto result = xrStringToPath(this->instance, path_str.c_str(), &p);
+
+                if (result != XR_SUCCESS || p == XR_NULL_PATH) {
+                    spdlog::error("[VR] Failed to find path for {}", path_str);
+                    continue;
+                }
+
+                const auto hand_idx = path_str.find("/left/") != std::string::npos ? VRRuntime::Hand::LEFT : VRRuntime::Hand::RIGHT;
+
+                if (this->action_set.action_map.contains(action_str)) {
+                    for (const auto& controller : s_supported_controllers) {
+                        if (attempt_add_binding(controller, { this->action_set.action_map[action_str], p })) {
+                            this->hands[hand_idx].path_map[controller][action_str] = p;
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // Create the action spaces for each hand
@@ -723,6 +808,84 @@ void OpenXR::trigger_haptic_vibration(float duration, float frequency, float amp
     if (result != XR_SUCCESS) {
         spdlog::error("[VR] Failed to apply haptic feedback: {}", this->get_result_string(result));
     }
+}
+
+void OpenXR::display_bindings_editor() {
+    ImGui::Text("Interaction Profile: %s", this->get_current_interaction_profile().c_str());
+
+    auto display_hand = [&](const std::string& name, uint32_t index) {
+        const auto current_interaction_profile = this->get_current_interaction_profile();
+
+        if (current_interaction_profile.empty() || current_interaction_profile == "XR_NULL_PATH") {
+            ImGui::Text("Interaction profile not loaded, try putting on your headset.");
+            return;
+        }
+
+        if (ImGui::TreeNode(name.data())) {
+            auto& hand = this->hands[index];
+
+            std::vector<std::string> known_actions{};
+            std::vector<const char*> known_actions_cstr{};
+
+            for (auto action :this->action_set.actions) {
+                known_actions.push_back(this->action_set.action_names[action]);
+            }
+
+            for (auto& it : known_actions) {
+                known_actions_cstr.push_back(it.data());
+            };
+
+            auto& path_map = hand.path_map[current_interaction_profile];
+            
+            for (auto& it : path_map) {
+                int current_combo_index = 0;
+
+                for (auto i = 0; i < known_actions.size(); i++) {
+                    if (known_actions[i] == it.first) {
+                        current_combo_index = i;
+                        break;
+                    }
+                }
+                
+                auto combo_name = this->get_path_string(it.second) + ": " + known_actions[current_combo_index];
+
+                if (ImGui::Combo(combo_name.c_str(), &current_combo_index, known_actions_cstr.data(), known_actions_cstr.size())) {
+                    path_map.erase(it.first);
+                    path_map[known_actions[current_combo_index]] = it.second;
+
+                    nlohmann::json j;
+
+                    for (auto& it : this->hands[VRRuntime::Hand::LEFT].path_map[current_interaction_profile]) {
+                        nlohmann::json binding{};
+                        binding["action"] = it.first;
+                        binding["path"] = this->get_path_string(it.second);
+                        j["bindings"].push_back(binding);
+                    }
+
+                    for (auto& it : this->hands[VRRuntime::Hand::RIGHT].path_map[current_interaction_profile]) {
+                        nlohmann::json binding{};
+                        binding["action"] = it.first;
+                        binding["path"] = this->get_path_string(it.second);
+                        j["bindings"].push_back(binding);
+                    }
+                    
+                    auto filename = this->get_current_interaction_profile() + ".json";
+                    
+                    // replace the slashes with underscores
+                    std::replace(filename.begin(), filename.end(), '/', '_');
+                    std::ofstream(filename) << j.dump(4);
+
+                    this->wants_reinitialize = true;
+                    break;
+                }
+            }
+
+            ImGui::TreePop();
+        }
+    };
+
+    display_hand("Left", 0);
+    display_hand("Right", 1);
 }
 
 XrResult OpenXR::begin_frame() {

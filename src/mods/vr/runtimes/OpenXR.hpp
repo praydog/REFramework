@@ -61,6 +61,9 @@ public:
     // OpenXR specific methods
     std::string get_result_string(XrResult result) const;
     std::string get_structure_string(XrStructureType type) const;
+    std::string get_path_string(XrPath path) const;
+    std::string get_current_interaction_profile() const;
+    XrPath get_current_interaction_profile_path() const;
 
     std::optional<std::string> initialize_actions(const std::string& json_string);
 
@@ -95,6 +98,7 @@ public:
     Vector2f get_right_stick_axis() const;
 
     void trigger_haptic_vibration(float duration, float frequency, float amplitude, VRRuntime::Hand source) const;
+    void display_bindings_editor();
 
 public: 
     // OpenXR specific fields
@@ -139,6 +143,7 @@ public:
         XrActionSet handle;
         std::vector<XrAction> actions{};
         std::unordered_map<std::string, XrAction> action_map{}; // XrActions are handles so it's okay.
+        std::unordered_map<XrAction, std::string> action_names{};
 
         std::unordered_set<XrAction> float_actions{};
         std::unordered_set<XrAction> vector2_actions{};
@@ -152,7 +157,8 @@ public:
         XrPath path{XR_NULL_PATH};
         XrSpaceLocation location{XR_TYPE_SPACE_LOCATION};
         XrSpaceVelocity velocity{XR_TYPE_SPACE_VELOCITY};
-        std::unordered_map<std::string, XrPath> path_map{};
+        // interaction profile -> action -> path map
+        std::unordered_map<std::string, std::unordered_map<std::string, XrPath>> path_map{};
         bool active{false};
     };
 

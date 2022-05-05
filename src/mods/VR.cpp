@@ -1052,6 +1052,8 @@ std::optional<std::string> VR::initialize_openxr() {
         return std::nullopt;
     }
 
+    detect_controllers();
+
     return std::nullopt;
 }
 
@@ -3744,6 +3746,11 @@ void VR::on_draw_ui() {
     if (get_runtime()->is_openvr()) {
         ImGui::Text("Resolution can be changed in SteamVR");
     } else if (get_runtime()->is_openxr()) {
+        if (ImGui::TreeNode("Bindings")) {
+            m_openxr->display_bindings_editor();
+            ImGui::TreePop();
+        }
+
         if (m_resolution_scale->draw("Resolution Scale")) {
             m_openxr->resolution_scale = m_resolution_scale->value();
         }
