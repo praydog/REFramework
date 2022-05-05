@@ -834,7 +834,10 @@ void OpenXR::display_bindings_editor() {
         }
 
         if (ImGui::TreeNode(name.data())) {
+            ImGui::PushID(name.data());
+
             auto& hand = this->hands[index];
+            auto& path_map = hand.path_map[current_interaction_profile];
 
             std::vector<std::string> known_actions{};
             std::vector<const char*> known_actions_cstr{};
@@ -846,10 +849,10 @@ void OpenXR::display_bindings_editor() {
             for (auto& it : known_actions) {
                 known_actions_cstr.push_back(it.data());
             };
-
-            auto& path_map = hand.path_map[current_interaction_profile];
             
             for (auto& it : path_map) {
+                ImGui::PushID(it.first.data());
+
                 int current_combo_index = 0;
 
                 for (auto i = 0; i < known_actions.size(); i++) {
@@ -858,46 +861,80 @@ void OpenXR::display_bindings_editor() {
                         break;
                     }
                 }
+
+                if (ImGui::Button("X")) {
+                    path_map.erase(it.first);
+
+                    this->save_bindings();
+                    ImGui::PopID();
+                    break;
+                }
                 
                 auto combo_name = this->get_path_string(it.second) + ": " + known_actions[current_combo_index];
 
+                ImGui::SameLine();
                 if (ImGui::Combo(combo_name.c_str(), &current_combo_index, known_actions_cstr.data(), known_actions_cstr.size())) {
                     path_map.erase(it.first);
                     path_map[known_actions[current_combo_index]] = it.second;
 
-                    nlohmann::json j;
+                    this->save_bindings();
+                    ImGui::PopID();
 
-                    for (auto& it : this->hands[VRRuntime::Hand::LEFT].path_map[current_interaction_profile]) {
-                        nlohmann::json binding{};
-                        binding["action"] = it.first;
-                        binding["path"] = this->get_path_string(it.second);
-                        j["bindings"].push_back(binding);
-                    }
-
-                    for (auto& it : this->hands[VRRuntime::Hand::RIGHT].path_map[current_interaction_profile]) {
-                        nlohmann::json binding{};
-                        binding["action"] = it.first;
-                        binding["path"] = this->get_path_string(it.second);
-                        j["bindings"].push_back(binding);
-                    }
-                    
-                    auto filename = this->get_current_interaction_profile() + ".json";
-                    
-                    // replace the slashes with underscores
-                    std::replace(filename.begin(), filename.end(), '/', '_');
-                    std::ofstream(filename) << j.dump(4);
-
-                    this->wants_reinitialize = true;
                     break;
+                }
+
+                ImGui::PopID();
+            }
+
+            // Create a way to add a completely new binding
+            // Create a textbox for inputting the path for the new binding
+            ImGui::InputText("New Binding (e.g. /user/hand/left/input/trigger)", hand.ui.new_path_name, XR_MAX_PATH_LENGTH);
+            ImGui::Combo("Action", &hand.ui.action_combo_index, known_actions_cstr.data(), known_actions_cstr.size());
+
+            if (ImGui::Button("Add Binding")) {
+                XrPath p{};
+                if (xrStringToPath(this->instance, hand.ui.new_path_name, &p) != XR_SUCCESS) {
+                    spdlog::error("[VR] Failed to convert path: {}", hand.ui.new_path_name);
+                } else {
+                    path_map[known_actions[hand.ui.action_combo_index]] = p;
+                    this->save_bindings();
                 }
             }
 
+            ImGui::PopID();
             ImGui::TreePop();
         }
     };
 
     display_hand("Left", 0);
     display_hand("Right", 1);
+}
+
+void OpenXR::save_bindings() {
+    const auto current_interaction_profile = this->get_current_interaction_profile();
+    nlohmann::json j;
+
+    for (auto& it : this->hands[VRRuntime::Hand::LEFT].path_map[current_interaction_profile]) {
+        nlohmann::json binding{};
+        binding["action"] = it.first;
+        binding["path"] = this->get_path_string(it.second);
+        j["bindings"].push_back(binding);
+    }
+
+    for (auto& it : this->hands[VRRuntime::Hand::RIGHT].path_map[current_interaction_profile]) {
+        nlohmann::json binding{};
+        binding["action"] = it.first;
+        binding["path"] = this->get_path_string(it.second);
+        j["bindings"].push_back(binding);
+    }
+
+    auto filename = current_interaction_profile + ".json";
+    
+    // replace the slashes with underscores
+    std::replace(filename.begin(), filename.end(), '/', '_');
+    std::ofstream(filename) << j.dump(4);
+
+    this->wants_reinitialize = true;
 }
 
 XrResult OpenXR::begin_frame() {

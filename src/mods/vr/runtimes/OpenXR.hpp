@@ -99,6 +99,7 @@ public:
 
     void trigger_haptic_vibration(float duration, float frequency, float amplitude, VRRuntime::Hand source) const;
     void display_bindings_editor();
+    void save_bindings();
 
 public: 
     // OpenXR specific fields
@@ -160,6 +161,12 @@ public:
         // interaction profile -> action -> path map
         std::unordered_map<std::string, std::unordered_map<std::string, XrPath>> path_map{};
         bool active{false};
+
+        struct UI {
+            char new_path_name[XR_MAX_PATH_LENGTH]{};
+            uint32_t new_path_name_length{0};
+            int action_combo_index{0};
+        } ui;
     };
 
     std::array<HandData, 2> hands{};
