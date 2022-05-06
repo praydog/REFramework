@@ -127,7 +127,9 @@ void D3D11Component::on_reset(VR* vr) {
     m_right_eye_depthstencil.Reset();
 
     if (vr->get_runtime()->is_openxr() && vr->get_runtime()->loaded) {
-        m_openxr.create_swapchains();
+        if (m_openxr.last_resolution[0] != vr->get_hmd_width() || m_openxr.last_resolution[1] != vr->get_hmd_height()) {
+            m_openxr.create_swapchains();
+        }
     }
 }
 
@@ -328,6 +330,8 @@ std::optional<std::string> D3D11Component::OpenXR::create_swapchains() {
             return "Failed to enumerate swapchain images after texture creation.";
         }
     }
+
+    this->last_resolution = {vr->get_hmd_width(), vr->get_hmd_height()};
 
     spdlog::info("[VR] Successfully created OpenXR swapchains for D3D11");
 

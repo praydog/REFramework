@@ -48,6 +48,7 @@ private:
 
         std::vector<SwapchainContext> contexts{};
 		std::recursive_mutex mtx{};
+        std::array<uint32_t, 2> last_resolution{};
     } m_openxr;
 
     void setup();
