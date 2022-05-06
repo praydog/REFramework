@@ -246,6 +246,7 @@ private:
     std::optional<std::string> initialize_openvr_input();
     std::optional<std::string> initialize_openxr();
     std::optional<std::string> initialize_openxr_input();
+    std::optional<std::string> initialize_openxr_swapchains();
     std::optional<std::string> hijack_resolution();
     std::optional<std::string> hijack_input();
     std::optional<std::string> hijack_camera();
@@ -466,6 +467,7 @@ private:
     bool m_positional_tracking{true};
     bool m_is_d3d12{false};
     bool m_backbuffer_inconsistency{false};
+    bool m_init_finished{false};
 
     // on the backburner
     bool m_depth_aided_reprojection{false};

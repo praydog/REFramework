@@ -665,6 +665,8 @@ and place the openxr_loader.dll in the same folder.)";
         return hijack_error;
     }
 
+    m_init_finished = true;
+
     // all OK
     return Mod::on_initialize();
 }
@@ -1009,9 +1011,6 @@ std::optional<std::string> VR::initialize_openxr() {
         m_openxr->stage_views.resize(m_openxr->view_configs.size(), {XR_TYPE_VIEW});
     }
 
-    // Step 8: Create a swapchain
-    spdlog::info("[VR] Creating OpenXR swapchain");
-
     if (m_openxr->view_configs.empty()) {
         m_openxr->error = "No view configurations found";
         spdlog::error("[VR] {}", m_openxr->error.value());
@@ -1022,28 +1021,6 @@ std::optional<std::string> VR::initialize_openxr() {
     m_openxr->loaded = true;
     m_runtime = m_openxr;
 
-    if (g_framework->is_dx12()) {
-        auto err = m_d3d12.openxr().create_swapchains();
-
-        if (err) {
-            m_openxr->error = err.value();
-            m_openxr->loaded = false;
-            spdlog::error("[VR] {}", m_openxr->error.value());
-
-            return std::nullopt;
-        }
-    } else {
-        auto err = m_d3d11.openxr().create_swapchains();
-
-        if (err) {
-            m_openxr->error = err.value();
-            m_openxr->loaded = false;
-            spdlog::error("[VR] {}", m_openxr->error.value());
-
-            return std::nullopt;
-        }
-    }
-
     if (auto err = initialize_openxr_input()) {
         m_openxr->error = err.value();
         m_openxr->loaded = false;
@@ -1053,6 +1030,12 @@ std::optional<std::string> VR::initialize_openxr() {
     }
 
     detect_controllers();
+
+    if (m_init_finished) {
+        // This is usually done in on_config_load
+        // but the runtime can be reinitialized, so we do it here instead
+        initialize_openxr_swapchains();
+    }
 
     return std::nullopt;
 }
@@ -1076,6 +1059,38 @@ std::optional<std::string> VR::initialize_openxr_input() {
 
     m_left_joystick = (decltype(m_left_joystick))VRRuntime::Hand::LEFT;
     m_right_joystick = (decltype(m_right_joystick))VRRuntime::Hand::RIGHT;
+
+    return std::nullopt;
+}
+
+std::optional<std::string> VR::initialize_openxr_swapchains() {
+    // This depends on the config being loaded.
+    if (!m_init_finished) {
+        return std::nullopt;
+    }
+
+    spdlog::info("[VR] Creating OpenXR swapchain");
+
+    if (g_framework->is_dx12()) {
+        auto err = m_d3d12.openxr().create_swapchains();
+
+        if (err) {
+            m_openxr->error = err.value();
+            m_openxr->loaded = false;
+            spdlog::error("[VR] {}", m_openxr->error.value());
+
+            return m_openxr->error;
+        }
+    } else {
+        auto err = m_d3d11.openxr().create_swapchains();
+
+        if (err) {
+            m_openxr->error = err.value();
+            m_openxr->loaded = false;
+            spdlog::error("[VR] {}", m_openxr->error.value());
+            return m_openxr->error;
+        }
+    }
 
     return std::nullopt;
 }
@@ -3874,7 +3889,13 @@ void VR::on_config_load(const utility::Config& cfg) {
         option.config_load(cfg);
     }
 
-    m_openxr->resolution_scale = m_resolution_scale->value();
+    // Run the rest of OpenXR initialization code here that depends on config values
+    if (get_runtime()->is_openxr() && get_runtime()->loaded) {
+        spdlog::info("[VR] Finishing up OpenXR initialization");
+
+        m_openxr->resolution_scale = m_resolution_scale->value();
+        initialize_openxr_swapchains();
+    }
 }
 
 void VR::on_config_save(utility::Config& cfg) {
