@@ -24,6 +24,10 @@ public:
         return m_inside_present;
     }
 
+    void ignore_next_present() {
+        m_ignore_next_present = true;
+    }
+
     bool hook();
     bool unhook();
 
@@ -46,6 +50,7 @@ protected:
     IDXGISwapChain* m_swapchain_1{};
     bool m_hooked{ false };
     bool m_inside_present{false};
+    bool m_ignore_next_present{false};
 
     std::unique_ptr<PointerHook> m_present_hook{};
     std::unique_ptr<PointerHook> m_resize_buffers_hook{};

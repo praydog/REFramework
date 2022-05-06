@@ -49,6 +49,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
 set(ASMJIT_STATIC ON CACHE BOOL "" FORCE)
 set(ZYDIS_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(ZYDIS_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+set(DYNAMIC_LOADER ON CACHE BOOL "" FORCE) # OpenXR
 
 
 if ("${CMAKE_BUILD_TYPE}" MATCHES "Release")
@@ -86,6 +87,16 @@ FetchContent_Declare(
 		3f5a3ad8e16658c62d7033e9373232d19480d3cc
 )
 FetchContent_MakeAvailable(zydis)
+
+message(STATUS "Fetching openxr (458984d7f59d1ae6dc1b597d94b02e4f7132eaba)...")
+FetchContent_Declare(
+	openxr
+	GIT_REPOSITORY
+		https://github.com/KhronosGroup/OpenXR-SDK
+	GIT_TAG
+		458984d7f59d1ae6dc1b597d94b02e4f7132eaba
+)
+FetchContent_MakeAvailable(openxr)
 
 # Target spdlog
 if(REF_BUILD_DEPENDENCIES AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework-dependencies
@@ -740,6 +751,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/D3D11Component.cpp"
 		"src/mods/vr/D3D12Component.cpp"
 		"src/mods/vr/OverlayComponent.cpp"
+		"src/mods/vr/runtimes/OpenVR.cpp"
+		"src/mods/vr/runtimes/OpenXR.cpp"
 		"src/re2-imgui/imgui_impl_dx11.cpp"
 		"src/re2-imgui/imgui_impl_dx12.cpp"
 		"src/re2-imgui/imgui_impl_win32.cpp"
@@ -778,6 +791,9 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/D3D11Component.hpp"
 		"src/mods/vr/D3D12Component.hpp"
 		"src/mods/vr/OverlayComponent.hpp"
+		"src/mods/vr/runtimes/OpenVR.hpp"
+		"src/mods/vr/runtimes/OpenXR.hpp"
+		"src/mods/vr/runtimes/VRRuntime.hpp"
 		"src/re2-imgui/font_robotomedium.hpp"
 		"src/re2-imgui/re2_imconfig.hpp"
 		"src/re2-imgui/imgui_impl_dx11.h"
@@ -822,6 +838,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"shared/"
 		"src/"
 		"include/"
+		"${OPENXR_SOURCE_DIR}/src"
 	)
 
 	target_link_directories(RE2 PUBLIC
@@ -842,6 +859,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		glm_static
 		shlwapi
 		openvr
+		openxr_loader
 		delayimp
 	)
 
@@ -849,7 +867,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		OUTPUT_NAME
 			dinput8
 		LINK_FLAGS
-			"/DELAYLOAD:openvr_api.dll"
+			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll"
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE
 			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
@@ -1191,6 +1209,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/D3D11Component.cpp"
 		"src/mods/vr/D3D12Component.cpp"
 		"src/mods/vr/OverlayComponent.cpp"
+		"src/mods/vr/runtimes/OpenVR.cpp"
+		"src/mods/vr/runtimes/OpenXR.cpp"
 		"src/re2-imgui/imgui_impl_dx11.cpp"
 		"src/re2-imgui/imgui_impl_dx12.cpp"
 		"src/re2-imgui/imgui_impl_win32.cpp"
@@ -1229,6 +1249,9 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/D3D11Component.hpp"
 		"src/mods/vr/D3D12Component.hpp"
 		"src/mods/vr/OverlayComponent.hpp"
+		"src/mods/vr/runtimes/OpenVR.hpp"
+		"src/mods/vr/runtimes/OpenXR.hpp"
+		"src/mods/vr/runtimes/VRRuntime.hpp"
 		"src/re2-imgui/font_robotomedium.hpp"
 		"src/re2-imgui/re2_imconfig.hpp"
 		"src/re2-imgui/imgui_impl_dx11.h"
@@ -1273,6 +1296,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"shared/"
 		"src/"
 		"include/"
+		"${OPENXR_SOURCE_DIR}/src"
 	)
 
 	target_link_directories(RE3 PUBLIC
@@ -1293,6 +1317,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		glm_static
 		shlwapi
 		openvr
+		openxr_loader
 		delayimp
 	)
 
@@ -1300,7 +1325,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		OUTPUT_NAME
 			dinput8
 		LINK_FLAGS
-			"/DELAYLOAD:openvr_api.dll"
+			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll"
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE
 			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
@@ -1642,6 +1667,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/D3D11Component.cpp"
 		"src/mods/vr/D3D12Component.cpp"
 		"src/mods/vr/OverlayComponent.cpp"
+		"src/mods/vr/runtimes/OpenVR.cpp"
+		"src/mods/vr/runtimes/OpenXR.cpp"
 		"src/re2-imgui/imgui_impl_dx11.cpp"
 		"src/re2-imgui/imgui_impl_dx12.cpp"
 		"src/re2-imgui/imgui_impl_win32.cpp"
@@ -1680,6 +1707,9 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/D3D11Component.hpp"
 		"src/mods/vr/D3D12Component.hpp"
 		"src/mods/vr/OverlayComponent.hpp"
+		"src/mods/vr/runtimes/OpenVR.hpp"
+		"src/mods/vr/runtimes/OpenXR.hpp"
+		"src/mods/vr/runtimes/VRRuntime.hpp"
 		"src/re2-imgui/font_robotomedium.hpp"
 		"src/re2-imgui/re2_imconfig.hpp"
 		"src/re2-imgui/imgui_impl_dx11.h"
@@ -1724,6 +1754,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"shared/"
 		"src/"
 		"include/"
+		"${OPENXR_SOURCE_DIR}/src"
 	)
 
 	target_link_directories(RE7 PUBLIC
@@ -1744,6 +1775,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		glm_static
 		shlwapi
 		openvr
+		openxr_loader
 		delayimp
 	)
 
@@ -1751,7 +1783,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		OUTPUT_NAME
 			dinput8
 		LINK_FLAGS
-			"/DELAYLOAD:openvr_api.dll"
+			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll"
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE
 			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
@@ -2093,6 +2125,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/D3D11Component.cpp"
 		"src/mods/vr/D3D12Component.cpp"
 		"src/mods/vr/OverlayComponent.cpp"
+		"src/mods/vr/runtimes/OpenVR.cpp"
+		"src/mods/vr/runtimes/OpenXR.cpp"
 		"src/re2-imgui/imgui_impl_dx11.cpp"
 		"src/re2-imgui/imgui_impl_dx12.cpp"
 		"src/re2-imgui/imgui_impl_win32.cpp"
@@ -2131,6 +2165,9 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/D3D11Component.hpp"
 		"src/mods/vr/D3D12Component.hpp"
 		"src/mods/vr/OverlayComponent.hpp"
+		"src/mods/vr/runtimes/OpenVR.hpp"
+		"src/mods/vr/runtimes/OpenXR.hpp"
+		"src/mods/vr/runtimes/VRRuntime.hpp"
 		"src/re2-imgui/font_robotomedium.hpp"
 		"src/re2-imgui/re2_imconfig.hpp"
 		"src/re2-imgui/imgui_impl_dx11.h"
@@ -2175,6 +2212,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"shared/"
 		"src/"
 		"include/"
+		"${OPENXR_SOURCE_DIR}/src"
 	)
 
 	target_link_directories(RE8 PUBLIC
@@ -2195,6 +2233,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		glm_static
 		shlwapi
 		openvr
+		openxr_loader
 		delayimp
 	)
 
@@ -2202,7 +2241,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		OUTPUT_NAME
 			dinput8
 		LINK_FLAGS
-			"/DELAYLOAD:openvr_api.dll"
+			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll"
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE
 			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
@@ -2544,6 +2583,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/D3D11Component.cpp"
 		"src/mods/vr/D3D12Component.cpp"
 		"src/mods/vr/OverlayComponent.cpp"
+		"src/mods/vr/runtimes/OpenVR.cpp"
+		"src/mods/vr/runtimes/OpenXR.cpp"
 		"src/re2-imgui/imgui_impl_dx11.cpp"
 		"src/re2-imgui/imgui_impl_dx12.cpp"
 		"src/re2-imgui/imgui_impl_win32.cpp"
@@ -2582,6 +2623,9 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/D3D11Component.hpp"
 		"src/mods/vr/D3D12Component.hpp"
 		"src/mods/vr/OverlayComponent.hpp"
+		"src/mods/vr/runtimes/OpenVR.hpp"
+		"src/mods/vr/runtimes/OpenXR.hpp"
+		"src/mods/vr/runtimes/VRRuntime.hpp"
 		"src/re2-imgui/font_robotomedium.hpp"
 		"src/re2-imgui/re2_imconfig.hpp"
 		"src/re2-imgui/imgui_impl_dx11.h"
@@ -2626,6 +2670,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"shared/"
 		"src/"
 		"include/"
+		"${OPENXR_SOURCE_DIR}/src"
 	)
 
 	target_link_directories(DMC5 PUBLIC
@@ -2646,6 +2691,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		glm_static
 		shlwapi
 		openvr
+		openxr_loader
 		delayimp
 	)
 
@@ -2653,7 +2699,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		OUTPUT_NAME
 			dinput8
 		LINK_FLAGS
-			"/DELAYLOAD:openvr_api.dll"
+			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll"
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE
 			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
@@ -2995,6 +3041,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/D3D11Component.cpp"
 		"src/mods/vr/D3D12Component.cpp"
 		"src/mods/vr/OverlayComponent.cpp"
+		"src/mods/vr/runtimes/OpenVR.cpp"
+		"src/mods/vr/runtimes/OpenXR.cpp"
 		"src/re2-imgui/imgui_impl_dx11.cpp"
 		"src/re2-imgui/imgui_impl_dx12.cpp"
 		"src/re2-imgui/imgui_impl_win32.cpp"
@@ -3033,6 +3081,9 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/D3D11Component.hpp"
 		"src/mods/vr/D3D12Component.hpp"
 		"src/mods/vr/OverlayComponent.hpp"
+		"src/mods/vr/runtimes/OpenVR.hpp"
+		"src/mods/vr/runtimes/OpenXR.hpp"
+		"src/mods/vr/runtimes/VRRuntime.hpp"
 		"src/re2-imgui/font_robotomedium.hpp"
 		"src/re2-imgui/re2_imconfig.hpp"
 		"src/re2-imgui/imgui_impl_dx11.h"
@@ -3077,6 +3128,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"shared/"
 		"src/"
 		"include/"
+		"${OPENXR_SOURCE_DIR}/src"
 	)
 
 	target_link_directories(MHRISE PUBLIC
@@ -3097,6 +3149,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		glm_static
 		shlwapi
 		openvr
+		openxr_loader
 		delayimp
 	)
 
@@ -3104,7 +3157,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		OUTPUT_NAME
 			dinput8
 		LINK_FLAGS
-			"/DELAYLOAD:openvr_api.dll"
+			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll"
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE
 			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO

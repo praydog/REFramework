@@ -88,6 +88,10 @@ public:
         return m_using_proton_swapchain;
     }
 
+    void ignore_next_present() {
+        m_ignore_next_present = true;
+    }
+
 protected:
     ID3D12Device4* m_device{ nullptr };
     IDXGISwapChain3* m_swap_chain{ nullptr };
@@ -105,6 +109,7 @@ protected:
     bool m_using_proton_swapchain{ false };
     bool m_hooked{ false };
     bool m_inside_present{false};
+    bool m_ignore_next_present{false};
 
     std::unique_ptr<PointerHook> m_present_hook{};
     std::unique_ptr<PointerHook> m_resize_buffers_hook{};

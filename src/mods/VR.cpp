@@ -33,8 +33,6 @@
 #include "ManualFlashlight.hpp"
 #include "VR.hpp"
 
-constexpr std::string_view COULD_NOT_LOAD_OPENVR = "Could not load openvr_api.dll";
-
 bool inside_on_end = false;
 uint32_t actual_frame_count = 0;
 
@@ -89,7 +87,7 @@ float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
 
     // Set the window size, which will increase the size of the backbuffer
     if (window != nullptr) {
-        if (mod->m_is_hmd_active) {
+        if (mod->is_hmd_active()) {
 #ifdef RE7
             if (!g_previous_size) {
                 g_previous_size = regenny::via::Size{ (float)window->width, (float)window->height };
@@ -103,7 +101,7 @@ float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
 
                 if (backbuffer_size[0] > 0 && backbuffer_size[1] > 0) {
                     if (std::abs((int)backbuffer_size[0] - (int)window->width) > 50 || std::abs((int)backbuffer_size[1] - (int)window->height) > 50) {
-                        const auto now = mod->m_frame_count;
+                        const auto now = mod->get_game_frame_count();
 
                         if (!mod->m_backbuffer_inconsistency) {
                             mod->m_backbuffer_inconsistency_start = now;
@@ -116,6 +114,9 @@ float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
                             // Force a reset of the backbuffer size
                             window->width = mod->get_hmd_width() + 1;
                             window->height = mod->get_hmd_height() + 1;
+
+                            spdlog::info("[VR] Previous backbuffer size: {}x{}", backbuffer_size[0], backbuffer_size[1]);
+                            spdlog::info("[VR] Backbuffer size inconsistency detected, resetting backbuffer size to {}x{}", window->width, window->height);
 
                             // m_backbuffer_inconsistency gets set to false on device reset.
                         }
@@ -162,7 +163,7 @@ Matrix4x4f* VR::camera_get_projection_matrix_hook(REManagedObject* camera, Matri
 
     auto vr = VR::get();
 
-    if (result == nullptr || !g_framework->is_ready() || !vr->m_is_hmd_active || vr->m_disable_projection_matrix_override) {
+    if (result == nullptr || !g_framework->is_ready() || !vr->is_hmd_active() || vr->m_disable_projection_matrix_override) {
         return original_func(camera, result);
     }
 
@@ -190,7 +191,7 @@ Matrix4x4f* VR::gui_camera_get_projection_matrix_hook(REManagedObject* camera, M
 
     auto vr = VR::get();
 
-    if (result == nullptr || !g_framework->is_ready() || !vr->m_is_hmd_active || vr->m_disable_gui_camera_projection_matrix_override) {
+    if (result == nullptr || !g_framework->is_ready() || !vr->is_hmd_active() || vr->m_disable_gui_camera_projection_matrix_override) {
         return original_func(camera, result);
     }
 
@@ -226,7 +227,7 @@ Matrix4x4f* VR::camera_get_view_matrix_hook(REManagedObject* camera, Matrix4x4f*
 
     auto vr = VR::get();
 
-    if (!vr->m_is_hmd_active || vr->m_disable_view_matrix_override) {
+    if (!vr->is_hmd_active() || vr->m_disable_view_matrix_override) {
         return original_func(camera, result);
     }
 
@@ -359,7 +360,7 @@ void VR::RenderLayerHook<sdk::renderer::layer::Overlay>::draw(sdk::renderer::lay
 
     // just don't render anything at all.
     // overlays just seem to break stuff in VR.
-    if (!mod->m_is_hmd_active) {
+    if (!mod->is_hmd_active()) {
         original_func(layer, render_ctx);
         return;
     }
@@ -378,7 +379,7 @@ void VR::RenderLayerHook<sdk::renderer::layer::Overlay>::update(sdk::renderer::l
     auto mod = VR::get();
     auto original_func = mod->m_layer_hooks.overlay.update_hook->get_original<decltype(VR::RenderLayerHook<sdk::renderer::layer::Overlay>::update)>();
 
-    if (!g_framework->is_ready() || !mod->m_is_hmd_active) {
+    if (!g_framework->is_ready() || !mod->is_hmd_active()) {
         original_func(layer, render_ctx);
         return;
     }
@@ -390,7 +391,7 @@ void VR::RenderLayerHook<sdk::renderer::layer::PostEffect>::draw(sdk::renderer::
     auto mod = VR::get();
     auto original_func = mod->m_layer_hooks.post_effect.draw_hook->get_original<decltype(VR::RenderLayerHook<sdk::renderer::layer::PostEffect>::draw)>();
 
-    if (!g_framework->is_ready() || !mod->m_is_hmd_active) {
+    if (!g_framework->is_ready() || !mod->is_hmd_active()) {
         original_func(layer, render_ctx);
         return;
     }
@@ -442,7 +443,7 @@ void VR::RenderLayerHook<sdk::renderer::layer::PostEffect>::update(sdk::renderer
     auto mod = VR::get();
     auto original_func = mod->m_layer_hooks.post_effect.update_hook->get_original<decltype(VR::RenderLayerHook<sdk::renderer::layer::PostEffect>::update)>();
 
-    if (!g_framework->is_ready() || !mod->m_is_hmd_active) {
+    if (!g_framework->is_ready() || !mod->is_hmd_active()) {
         original_func(layer, render_ctx);
         return;
     }
@@ -454,7 +455,7 @@ void VR::RenderLayerHook<sdk::renderer::layer::Scene>::draw(sdk::renderer::layer
     auto mod = VR::get();
     auto original_func = mod->m_layer_hooks.scene.draw_hook->get_original<decltype(VR::RenderLayerHook<sdk::renderer::layer::Scene>::draw)>();
 
-    if (!g_framework->is_ready() || !mod->m_is_hmd_active) {
+    if (!g_framework->is_ready() || !mod->is_hmd_active()) {
         original_func(layer, render_ctx);
         return;
     }
@@ -466,22 +467,51 @@ void VR::RenderLayerHook<sdk::renderer::layer::Scene>::update(sdk::renderer::lay
     auto mod = VR::get();
     auto original_func = mod->m_layer_hooks.scene.update_hook->get_original<decltype(VR::RenderLayerHook<sdk::renderer::layer::Scene>::update)>();
 
-    if (!g_framework->is_ready() || !mod->m_is_hmd_active) {
+    if (!g_framework->is_ready() || !mod->is_hmd_active()) {
         original_func(layer, render_ctx);
         return;
     }
-
-    auto scene_info = layer->get_scene_info();
 
     if (mod->m_disable_temporal_fix) {
         original_func(layer, render_ctx);
         return;
     }
 
+    auto scene_info = layer->get_scene_info();
+    auto depth_distortion_scene_info = layer->get_depth_distortion_scene_info();
+    auto filter_scene_info = layer->get_filter_scene_info();
+    auto jitter_disable_scene_info = layer->get_jitter_disable_scene_info();
+    auto z_prepass_scene_info = layer->get_z_prepass_scene_info();
+
+    struct Data {
+        Data(sdk::renderer::SceneInfo* info) 
+            : scene_info(info)
+        {
+            if (scene_info != nullptr) {
+                this->view_projection_matrix = scene_info->view_projection_matrix;
+            }
+        }
+
+        sdk::renderer::SceneInfo* scene_info;
+        Matrix4x4f view_projection_matrix;
+    };
+
+    std::array<Data, 5> data {
+        Data{ scene_info },
+        Data{ depth_distortion_scene_info },
+        Data{ filter_scene_info },
+        Data{ jitter_disable_scene_info },
+        Data{ z_prepass_scene_info },
+    };
+
     // Temporal fix
-    const auto prev_view_proj = scene_info->view_projection_matrix;
     original_func(layer, render_ctx);
-    scene_info->old_view_projection_matrix = prev_view_proj;
+    
+    for (auto& d : data) {
+        if (d.scene_info != nullptr) {
+            d.scene_info->old_view_projection_matrix = d.view_projection_matrix;
+        }
+    }
 }
 
 void VR::wwise_listener_update_hook(void* listener) {
@@ -494,7 +524,7 @@ void VR::wwise_listener_update_hook(void* listener) {
 
     auto mod = VR::get();
 
-    if (!mod->m_is_hmd_active || !mod->m_openvr_loaded) {
+    if (!mod->is_hmd_active() || !mod->get_runtime()->loaded) {
         original_func(listener);
         return;
     }
@@ -568,19 +598,29 @@ float VR::get_sharpness_hook(void* tonemapping) {
 std::optional<std::string> VR::on_initialize() {
     auto openvr_error = initialize_openvr();
 
-    if (openvr_error || !m_openvr_loaded) {
-        m_is_hmd_active = false;
-        m_was_hmd_active = false;
-        m_needs_wgp_update = false;
+    if (openvr_error || !m_openvr->loaded) {
+        m_openvr->is_hmd_active = false;
+        m_openvr->was_hmd_active = false;
+        m_openvr->needs_pose_update = false;
 
-        if (!m_openvr_loaded) {
-            // this is okay. we're not going to fail the whole thing entirely
-            // so we're just going to return OK, but
-            // when the VR mod draws its menu, it'll say "VR is not available"
-            return Mod::on_initialize();
+        // Attempt to load OpenXR instead
+        auto openxr_error = initialize_openxr();
+
+        if (openxr_error || !m_openxr->loaded) {
+            m_openxr->needs_pose_update = false;
         }
+    } else {
+        m_openxr->error = 
+R"(OpenVR loaded first.
+If you want to use OpenXR, remove the openvr_api.dll from your game folder, 
+and place the openxr_loader.dll in the same folder.)";
+    }
 
-        return openvr_error;
+    if (!get_runtime()->loaded) {
+        // this is okay. we're not going to fail the whole thing entirely
+        // so we're just going to return OK, but
+        // when the VR mod draws its menu, it'll say "VR is not available"
+        return Mod::on_initialize();
     }
 
     auto hijack_error = hijack_resolution();
@@ -669,6 +709,7 @@ void VR::on_lua_state_created(sol::state& lua) {
         "get_right_joystick", &VR::get_right_joystick,
         "is_using_controllers", &VR::is_using_controllers,
         "is_openvr_loaded", &VR::is_openvr_loaded,
+        "is_openxr_loaded", &VR::is_openxr_loaded,
         "is_hmd_active", &VR::is_hmd_active,
         "is_action_active", &VR::is_action_active,
         "is_using_hmd_oriented_audio", &VR::is_using_hmd_oriented_audio,
@@ -684,60 +725,67 @@ void VR::on_lua_state_created(sol::state& lua) {
 }
 
 std::optional<std::string> VR::initialize_openvr() {
-    m_openvr_loaded = false;
+    m_openvr = std::make_shared<runtimes::OpenVR>();
+    m_openvr->loaded = false;
 
     if (LoadLibraryA("openvr_api.dll") == nullptr) {
-        m_openvr_dll_missing = true;
-        m_openvr_error = COULD_NOT_LOAD_OPENVR.data();
+        spdlog::info("[VR] Could not load openvr_api.dll");
+
+        m_openvr->dll_missing = true;
+        m_openvr->error = "Could not load openvr_api.dll";
         return Mod::on_initialize();
     }
 
-    m_d3d12.on_reset(this);
-    m_d3d11.on_reset(this);
+    if (g_framework->is_dx12()) {
+        m_d3d12.on_reset(this);
+    } else {
+        m_d3d11.on_reset(this);
+    }
 
-    m_needs_wgp_update = true;
-    m_wgp_initialized = false;
-    m_is_hmd_active = true;
-    m_was_hmd_active = true;
+    m_openvr->needs_pose_update = true;
+    m_openvr->got_first_poses = false;
+    m_openvr->is_hmd_active = true;
+    m_openvr->was_hmd_active = true;
 
     auto error = vr::VRInitError_None;
-	m_hmd = vr::VR_Init(&error, vr::VRApplication_Scene);
+	m_openvr->hmd = vr::VR_Init(&error, vr::VRApplication_Scene);
 
     // check if error
     if (error != vr::VRInitError_None) {
-        m_openvr_error = "VR_Init failed: " + std::string{vr::VR_GetVRInitErrorAsEnglishDescription(error)};
+        m_openvr->error = "VR_Init failed: " + std::string{vr::VR_GetVRInitErrorAsEnglishDescription(error)};
         return Mod::on_initialize();
     }
 
-    if (m_hmd == nullptr) {
-        m_openvr_error = "VR_Init failed: HMD is null";
+    if (m_openvr->hmd == nullptr) {
+        m_openvr->error = "VR_Init failed: HMD is null";
         return Mod::on_initialize();
     }
 
     // get render target size
-    m_hmd->GetRecommendedRenderTargetSize(&m_w, &m_h);
+    m_openvr->update_render_target_size();
 
     if (vr::VRCompositor() == nullptr) {
-        m_openvr_error = "VRCompositor failed to initialize.";
+        m_openvr->error = "VRCompositor failed to initialize.";
         return Mod::on_initialize();
     }
 
     auto input_error = initialize_openvr_input();
 
     if (input_error) {
-        m_openvr_error = *input_error;
+        m_openvr->error = *input_error;
         return Mod::on_initialize();
     }
 
     auto overlay_error = m_overlay_component.on_initialize_openvr();
 
     if (overlay_error) {
-        m_openvr_error = *overlay_error;
+        m_openvr->error = *overlay_error;
         return Mod::on_initialize();
     }
     
-    m_openvr_loaded = true;
-    m_openvr_error = std::nullopt;
+    m_openvr->loaded = true;
+    m_openvr->error = std::nullopt;
+    m_runtime = m_openvr;
 
     return Mod::on_initialize();
 }
@@ -788,6 +836,246 @@ std::optional<std::string> VR::initialize_openvr_input() {
     m_active_action_set.nPriority = 0;
 
     detect_controllers();
+
+    return std::nullopt;
+}
+
+std::optional<std::string> VR::initialize_openxr() {
+    m_openxr = std::make_shared<runtimes::OpenXR>();
+
+    spdlog::info("[VR] Initializing OpenXR");
+
+    if (LoadLibraryA("openxr_loader.dll") == nullptr) {
+        spdlog::info("[VR] Could not load openxr_loader.dll");
+
+        m_openxr->loaded = false;
+        m_openxr->error = "Could not load openxr_loader.dll";
+
+        return std::nullopt;
+    }
+
+    if (g_framework->is_dx12()) {
+        m_d3d12.on_reset(this);
+    } else {
+        m_d3d11.on_reset(this);
+    }
+
+    m_openxr->needs_pose_update = true;
+    m_openxr->got_first_poses = false;
+
+    // Step 1: Create an instance
+    spdlog::info("[VR] Creating OpenXR instance");
+
+    XrResult result{XR_SUCCESS};
+
+    // We may just be restarting OpenXR, so try to find an existing instance first
+    if (m_openxr->instance == XR_NULL_HANDLE) {
+        std::vector<const char*> extensions{};
+
+        if (g_framework->is_dx12()) {
+            extensions.push_back(XR_KHR_D3D12_ENABLE_EXTENSION_NAME);
+        } else {
+            extensions.push_back(XR_KHR_D3D11_ENABLE_EXTENSION_NAME);
+        }
+
+        XrInstanceCreateInfo instance_create_info{XR_TYPE_INSTANCE_CREATE_INFO};
+        instance_create_info.next = nullptr;
+        instance_create_info.enabledExtensionCount = (uint32_t)extensions.size();
+        instance_create_info.enabledExtensionNames = extensions.data();
+
+        strcpy(instance_create_info.applicationInfo.applicationName, g_framework->get_game_name());
+        instance_create_info.applicationInfo.apiVersion = XR_CURRENT_API_VERSION;
+        
+        result = xrCreateInstance(&instance_create_info, &m_openxr->instance);
+
+        // we can't convert the result to a string here
+        // because the function requires the instance to be valid
+        if (result != XR_SUCCESS) {
+            m_openxr->error = "Could not create openxr instance: " + std::to_string((int32_t)result);
+            spdlog::error("[VR] {}", m_openxr->error.value());
+
+            return std::nullopt;
+        }
+    } else {
+        spdlog::info("[VR] Found existing openxr instance");
+    }
+    
+    // Step 2: Create a system
+    spdlog::info("[VR] Creating OpenXR system");
+
+    // We may just be restarting OpenXR, so try to find an existing system first
+    if (m_openxr->system == XR_NULL_SYSTEM_ID) {
+        XrSystemGetInfo system_info{XR_TYPE_SYSTEM_GET_INFO};
+        system_info.formFactor = m_openxr->form_factor;
+
+        result = xrGetSystem(m_openxr->instance, &system_info, &m_openxr->system);
+
+        if (result != XR_SUCCESS) {
+            m_openxr->error = "Could not create openxr system: " + m_openxr->get_result_string(result);
+            spdlog::error("[VR] {}", m_openxr->error.value());
+
+            return std::nullopt;
+        }
+    } else {
+        spdlog::info("[VR] Found existing openxr system");
+    }
+
+    // Step 3: Create a session
+    spdlog::info("[VR] Creating OpenXR session");
+
+    XrSessionCreateInfo session_create_info{XR_TYPE_SESSION_CREATE_INFO};
+
+    if (g_framework->is_dx12()) {
+        m_d3d12.openxr().initialize(session_create_info);
+    } else {
+        m_d3d11.openxr().initialize(session_create_info);
+    }
+
+    session_create_info.systemId = m_openxr->system;
+
+    result = xrCreateSession(m_openxr->instance, &session_create_info, &m_openxr->session);
+
+    if (result != XR_SUCCESS) {
+        m_openxr->error = "Could not create openxr session: " + m_openxr->get_result_string(result);
+        spdlog::error("[VR] {}", m_openxr->error.value());
+
+        return std::nullopt;
+    }
+
+    // Step 4: Create a space
+    spdlog::info("[VR] Creating OpenXR space");
+
+    // We may just be restarting OpenXR, so try to find an existing space first
+
+    if (m_openxr->stage_space == XR_NULL_HANDLE) {
+        XrReferenceSpaceCreateInfo space_create_info{XR_TYPE_REFERENCE_SPACE_CREATE_INFO};
+        space_create_info.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_LOCAL;
+        space_create_info.poseInReferenceSpace = {};
+        space_create_info.poseInReferenceSpace.orientation.w = 1.0f;
+
+        result = xrCreateReferenceSpace(m_openxr->session, &space_create_info, &m_openxr->stage_space);
+
+        if (result != XR_SUCCESS) {
+            m_openxr->error = "Could not create openxr stage space: " + m_openxr->get_result_string(result);
+            spdlog::error("[VR] {}", m_openxr->error.value());
+
+            return std::nullopt;
+        }
+    }
+
+    if (m_openxr->view_space == XR_NULL_HANDLE) {
+        XrReferenceSpaceCreateInfo space_create_info{XR_TYPE_REFERENCE_SPACE_CREATE_INFO};
+        space_create_info.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_VIEW;
+        space_create_info.poseInReferenceSpace = {};
+        space_create_info.poseInReferenceSpace.orientation.w = 1.0f;
+
+        result = xrCreateReferenceSpace(m_openxr->session, &space_create_info, &m_openxr->view_space);
+
+        if (result != XR_SUCCESS) {
+            m_openxr->error = "Could not create openxr view space: " + m_openxr->get_result_string(result);
+            spdlog::error("[VR] {}", m_openxr->error.value());
+
+            return std::nullopt;
+        }
+    }
+
+    // Step 5: Get the system properties
+    spdlog::info("[VR] Getting OpenXR system properties");
+
+    XrSystemProperties system_properties{XR_TYPE_SYSTEM_PROPERTIES};
+    result = xrGetSystemProperties(m_openxr->instance, m_openxr->system, &system_properties);
+
+    if (result != XR_SUCCESS) {
+        m_openxr->error = "Could not get system properties: " + m_openxr->get_result_string(result);
+        spdlog::error("[VR] {}", m_openxr->error.value());
+
+        return std::nullopt;
+    }
+
+    spdlog::info("[VR] OpenXR system Name: {}", system_properties.systemName);
+    spdlog::info("[VR] OpenXR system Vendor: {}", system_properties.vendorId);
+    spdlog::info("[VR] OpenXR system max width: {}", system_properties.graphicsProperties.maxSwapchainImageWidth);
+    spdlog::info("[VR] OpenXR system max height: {}", system_properties.graphicsProperties.maxSwapchainImageHeight);
+    spdlog::info("[VR] OpenXR system supports {} layers", system_properties.graphicsProperties.maxLayerCount);
+    spdlog::info("[VR] OpenXR system orientation: {}", system_properties.trackingProperties.orientationTracking);
+    spdlog::info("[VR] OpenXR system position: {}", system_properties.trackingProperties.positionTracking);
+
+    // Step 6: Get the view configuration properties
+    m_openxr->update_render_target_size();
+
+    // Step 7: Create a view
+    if (!m_openxr->view_configs.empty()){
+        m_openxr->views.resize(m_openxr->view_configs.size(), {XR_TYPE_VIEW});
+        m_openxr->stage_views.resize(m_openxr->view_configs.size(), {XR_TYPE_VIEW});
+    }
+
+    // Step 8: Create a swapchain
+    spdlog::info("[VR] Creating OpenXR swapchain");
+
+    if (m_openxr->view_configs.empty()) {
+        m_openxr->error = "No view configurations found";
+        spdlog::error("[VR] {}", m_openxr->error.value());
+
+        return std::nullopt;
+    }
+
+    m_openxr->loaded = true;
+    m_runtime = m_openxr;
+
+    if (g_framework->is_dx12()) {
+        auto err = m_d3d12.openxr().create_swapchains();
+
+        if (err) {
+            m_openxr->error = err.value();
+            m_openxr->loaded = false;
+            spdlog::error("[VR] {}", m_openxr->error.value());
+
+            return std::nullopt;
+        }
+    } else {
+        auto err = m_d3d11.openxr().create_swapchains();
+
+        if (err) {
+            m_openxr->error = err.value();
+            m_openxr->loaded = false;
+            spdlog::error("[VR] {}", m_openxr->error.value());
+
+            return std::nullopt;
+        }
+    }
+
+    if (auto err = initialize_openxr_input()) {
+        m_openxr->error = err.value();
+        m_openxr->loaded = false;
+        spdlog::error("[VR] {}", m_openxr->error.value());
+
+        return std::nullopt;
+    }
+
+    detect_controllers();
+
+    return std::nullopt;
+}
+
+std::optional<std::string> VR::initialize_openxr_input() {
+    if (auto err = m_openxr->initialize_actions(VR::actions_json)) {
+        m_openxr->error = err.value();
+        spdlog::error("[VR] {}", m_openxr->error.value());
+
+        return std::nullopt;
+    }
+    
+    for (auto& it : m_action_handles) {
+        auto openxr_action_name = m_openxr->translate_openvr_action_name(it.first);
+
+        if (m_openxr->action_set.action_map.contains(openxr_action_name)) {
+            it.second.get() = (decltype(it.second)::type)m_openxr->action_set.action_map[openxr_action_name];
+            spdlog::info("[VR] Successfully mapped action {} to {}", it.first, openxr_action_name);
+        }
+    }
+
+    m_left_joystick = (decltype(m_left_joystick))VRRuntime::Hand::LEFT;
+    m_right_joystick = (decltype(m_right_joystick))VRRuntime::Hand::RIGHT;
 
     return std::nullopt;
 }
@@ -1117,52 +1405,64 @@ bool VR::detect_controllers() {
         return true;
     }
 
-    auto left_joystick_origin_error = vr::EVRInputError::VRInputError_None;
-    auto right_joystick_origin_error = vr::EVRInputError::VRInputError_None;
+    if (get_runtime()->is_openvr()) {
+        auto left_joystick_origin_error = vr::EVRInputError::VRInputError_None;
+        auto right_joystick_origin_error = vr::EVRInputError::VRInputError_None;
 
-    vr::InputOriginInfo_t left_joystick_origin_info{};
-    vr::InputOriginInfo_t right_joystick_origin_info{};
+        vr::InputOriginInfo_t left_joystick_origin_info{};
+        vr::InputOriginInfo_t right_joystick_origin_info{};
 
-    // Get input origin info for the joysticks
-    // get the source input device handles for the joysticks
-    auto left_joystick_error = vr::VRInput()->GetInputSourceHandle("/user/hand/left", &m_left_joystick);
+        // Get input origin info for the joysticks
+        // get the source input device handles for the joysticks
+        auto left_joystick_error = vr::VRInput()->GetInputSourceHandle("/user/hand/left", &m_left_joystick);
 
-    if (left_joystick_error != vr::VRInputError_None) {
-        return false;
+        if (left_joystick_error != vr::VRInputError_None) {
+            return false;
+        }
+
+        auto right_joystick_error = vr::VRInput()->GetInputSourceHandle("/user/hand/right", &m_right_joystick);
+
+        if (right_joystick_error != vr::VRInputError_None) {
+            return false;
+        }
+
+        left_joystick_origin_info = {};
+        right_joystick_origin_info = {};
+
+        left_joystick_origin_error = vr::VRInput()->GetOriginTrackedDeviceInfo(m_left_joystick, &left_joystick_origin_info, sizeof(left_joystick_origin_info));
+        right_joystick_origin_error = vr::VRInput()->GetOriginTrackedDeviceInfo(m_right_joystick, &right_joystick_origin_info, sizeof(right_joystick_origin_info));
+        if (left_joystick_origin_error != vr::EVRInputError::VRInputError_None || right_joystick_origin_error != vr::EVRInputError::VRInputError_None) {
+            return false;
+        }
+
+        // Instead of manually going through the devices,
+        // We do this. The order of the devices isn't always guaranteed to be
+        // Left, and then right. Using the input state handles will always
+        // Get us the correct device indices.
+        m_controllers.push_back(left_joystick_origin_info.trackedDeviceIndex);
+        m_controllers.push_back(right_joystick_origin_info.trackedDeviceIndex);
+        m_controllers_set.insert(left_joystick_origin_info.trackedDeviceIndex);
+        m_controllers_set.insert(right_joystick_origin_info.trackedDeviceIndex);
+
+        spdlog::info("Left Hand: {}", left_joystick_origin_info.trackedDeviceIndex);
+        spdlog::info("Right Hand: {}", right_joystick_origin_info.trackedDeviceIndex);
+    } else if (get_runtime()->is_openxr()) {
+        // ezpz
+        m_controllers.push_back(1);
+        m_controllers.push_back(2);
+        m_controllers_set.insert(1);
+        m_controllers_set.insert(2);
+
+        spdlog::info("Left Hand: {}", 1);
+        spdlog::info("Right Hand: {}", 2);
     }
 
-    auto right_joystick_error = vr::VRInput()->GetInputSourceHandle("/user/hand/right", &m_right_joystick);
-
-    if (right_joystick_error != vr::VRInputError_None) {
-        return false;
-    }
-
-    left_joystick_origin_info = {};
-    right_joystick_origin_info = {};
-
-    left_joystick_origin_error = vr::VRInput()->GetOriginTrackedDeviceInfo(m_left_joystick, &left_joystick_origin_info, sizeof(left_joystick_origin_info));
-    right_joystick_origin_error = vr::VRInput()->GetOriginTrackedDeviceInfo(m_right_joystick, &right_joystick_origin_info, sizeof(right_joystick_origin_info));
-    if (left_joystick_origin_error != vr::EVRInputError::VRInputError_None || right_joystick_origin_error != vr::EVRInputError::VRInputError_None) {
-        return false;
-    }
-
-    // Instead of manually going through the devices,
-    // We do this. The order of the devices isn't always guaranteed to be
-    // Left, and then right. Using the input state handles will always
-    // Get us the correct device indices.
-    m_controllers.push_back(left_joystick_origin_info.trackedDeviceIndex);
-    m_controllers.push_back(right_joystick_origin_info.trackedDeviceIndex);
-    m_controllers_set.insert(left_joystick_origin_info.trackedDeviceIndex);
-    m_controllers_set.insert(right_joystick_origin_info.trackedDeviceIndex);
-
-    spdlog::info("Left Hand: {}", left_joystick_origin_info.trackedDeviceIndex);
-    spdlog::info("Right Hand: {}", right_joystick_origin_info.trackedDeviceIndex);
 
     return true;
 }
 
 bool VR::is_any_action_down() {
-    if (!m_is_hmd_active || !m_openvr_loaded || !is_using_controllers()) {
+    if (!m_runtime->ready() || !is_using_controllers()) {
         return false;
     }
 
@@ -1187,79 +1487,50 @@ bool VR::is_any_action_down() {
 }
 
 void VR::update_hmd_state() {
-    //update_action_states();
+    auto runtime = get_runtime();
+    
+    if (runtime->get_synchronize_stage() == VRRuntime::SynchronizeStage::EARLY) {
+        if (runtime->is_openxr()) {
+            if (g_framework->get_renderer_type() == REFramework::RendererType::D3D11) {
+                if (!runtime->got_first_sync || runtime->synchronize_frame() != VRRuntime::Error::SUCCESS) {
+                    return;
+                }  
+            } else if (runtime->synchronize_frame() != VRRuntime::Error::SUCCESS) {
+                return;
+            }
 
-    vr::VRCompositor()->SetTrackingSpace(vr::TrackingUniverseStanding);
-    vr::VRCompositor()->WaitGetPoses(m_real_render_poses.data(), vr::k_unMaxTrackedDeviceCount, m_real_game_poses.data(), vr::k_unMaxTrackedDeviceCount);
-
-    bool wants_reset_origin = false;
-
-    // Process events
-    vr::VREvent_t event{};
-    while (m_hmd->PollNextEvent(&event, sizeof(event))) {
-        switch ((vr::EVREventType)event.eventType) {
-            // Detect whether video settings changed
-            case vr::VREvent_SteamVRSectionSettingChanged: {
-                spdlog::info("VR: VREvent_SteamVRSectionSettingChanged");
-                m_hmd->GetRecommendedRenderTargetSize(&m_w, &m_h);
-            } break;
-
-            // Detect whether SteamVR reset the standing/seated pose
-            case vr::VREvent_SeatedZeroPoseReset: [[fallthrough]];
-            case vr::VREvent_StandingZeroPoseReset: {
-                spdlog::info("VR: VREvent_SeatedZeroPoseReset");
-                wants_reset_origin = true;
-            } break;
-
-            case vr::VREvent_DashboardActivated: {
-                m_handle_pause = true;
-            } break;
-
-            default:
-                spdlog::info("VR: Unknown event: {}", (uint32_t)event.eventType);
-                break;
+            m_openxr->begin_frame();
+        } else {
+            if (runtime->synchronize_frame() != VRRuntime::Error::SUCCESS) {
+                return;
+            }
         }
     }
+    
+    runtime->update_poses();
 
     // Update the poses used for the game
     // If we used the data directly from the WaitGetPoses call, we would have to lock a different mutex and wait a long time
     // This is because the WaitGetPoses call is blocking, and we don't want to block any game logic
     {
-        std::unique_lock _{ m_pose_mtx };
+        std::unique_lock _{ runtime->pose_mtx };
 
-        memcpy(m_game_poses.data(), m_real_game_poses.data(), sizeof(m_game_poses));
-        memcpy(m_render_poses.data(), m_real_render_poses.data(), sizeof(m_render_poses));
-
-        if (wants_reset_origin) {
+        if (runtime->wants_reset_origin && runtime->ready()) {
             set_rotation_offset(glm::identity<glm::quat>());
             m_standing_origin = get_position_unsafe(vr::k_unTrackedDeviceIndex_Hmd);
+
+            runtime->wants_reset_origin = false;
         }
     }
 
-    {
-        std::unique_lock __{ m_eyes_mtx };
-        const auto local_left = m_hmd->GetEyeToHeadTransform(vr::Eye_Left);
-        const auto local_right = m_hmd->GetEyeToHeadTransform(vr::Eye_Right);
-
-        m_eyes[vr::Eye_Left] = glm::rowMajor4(Matrix4x4f{ *(Matrix3x4f*)&local_left } );
-        m_eyes[vr::Eye_Right] = glm::rowMajor4(Matrix4x4f{ *(Matrix3x4f*)&local_right } );
-
-        auto pleft = m_hmd->GetProjectionMatrix(vr::Eye_Left, m_nearz, m_farz);
-        auto pright = m_hmd->GetProjectionMatrix(vr::Eye_Right, m_nearz, m_farz);
-
-        m_projections[vr::Eye_Left] = glm::rowMajor4(Matrix4x4f{ *(Matrix4x4f*)&pleft } );
-        m_projections[vr::Eye_Right] = glm::rowMajor4(Matrix4x4f{ *(Matrix4x4f*)&pright } );
-
-        m_hmd->GetProjectionRaw(vr::Eye_Left, &m_raw_projections[vr::Eye_Left][0], &m_raw_projections[vr::Eye_Left][1], &m_raw_projections[vr::Eye_Left][2], &m_raw_projections[vr::Eye_Left][3]);
-        m_hmd->GetProjectionRaw(vr::Eye_Right, &m_raw_projections[vr::Eye_Right][0], &m_raw_projections[vr::Eye_Right][1], &m_raw_projections[vr::Eye_Right][2], &m_raw_projections[vr::Eye_Right][3]);
-    }
+    runtime->update_matrices(m_nearz, m_farz);
 
     // On first run, set the standing origin to the headset position
-    if (!m_wgp_initialized) {
+    if (!runtime->got_first_poses) {
         m_standing_origin = get_position(vr::k_unTrackedDeviceIndex_Hmd);
     }
 
-    m_wgp_initialized = true;
+    runtime->got_first_poses = true;
 
     // Forcefully update the camera transform after submitting the frame
     // because the game logic thread does not run in sync with the rendering thread
@@ -1275,29 +1546,35 @@ void VR::update_hmd_state() {
 }
 
 void VR::update_action_states() {
-    if (m_request_reinitialize_openvr) {
+    auto runtime = get_runtime();
+
+    if (runtime->wants_reinitialize) {
         return;
     }
 
-    const auto start_time = std::chrono::high_resolution_clock::now();
+    if (runtime->is_openvr()) {
+        const auto start_time = std::chrono::high_resolution_clock::now();
 
-    auto error = vr::VRInput()->UpdateActionState(&m_active_action_set, sizeof(m_active_action_set), 1);
+        auto error = vr::VRInput()->UpdateActionState(&m_active_action_set, sizeof(m_active_action_set), 1);
 
-    if (error != vr::VRInputError_None) {
-        spdlog::error("VRInput failed to update action state: {}", (uint32_t)error);
-    }
+        if (error != vr::VRInputError_None) {
+            spdlog::error("VRInput failed to update action state: {}", (uint32_t)error);
+        }
 
-    const auto end_time = std::chrono::high_resolution_clock::now();
-    const auto time_delta = end_time - start_time;
+        const auto end_time = std::chrono::high_resolution_clock::now();
+        const auto time_delta = end_time - start_time;
 
-    m_last_input_delay = time_delta;
-    m_avg_input_delay = (m_avg_input_delay + time_delta) / 2;
+        m_last_input_delay = time_delta;
+        m_avg_input_delay = (m_avg_input_delay + time_delta) / 2;
 
-    if ((end_time - start_time) >= std::chrono::milliseconds(30)) {
-        spdlog::warn("VRInput update action state took too long: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count());
+        if ((end_time - start_time) >= std::chrono::milliseconds(30)) {
+            spdlog::warn("VRInput update action state took too long: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count());
 
-        //reinitialize_openvr();
-        m_request_reinitialize_openvr = true;
+            //reinitialize_openvr();
+            runtime->wants_reinitialize = true;
+        }   
+    } else {
+        get_runtime()->update_input();
     }
 
     if (m_recenter_view_key->is_key_down_once()) {
@@ -1310,7 +1587,7 @@ void VR::update_action_states() {
 }
 
 void VR::update_camera() {
-    if (!m_is_hmd_active) {
+    if (!is_hmd_active()) {
         m_needs_camera_restore = false;
         return;
     }
@@ -1392,7 +1669,7 @@ void VR::update_camera() {
 }
 
 void VR::update_camera_origin() {
-    if (!m_is_hmd_active) {
+    if (!is_hmd_active()) {
         return;
     }
 
@@ -1473,7 +1750,7 @@ void VR::apply_hmd_transform(::REJoint* camera_joint) {
 }
 
 void VR::update_audio_camera() {
-    if (!m_is_hmd_active) {
+    if (!is_hmd_active()) {
         return;
     }
 
@@ -1689,6 +1966,9 @@ void VR::disable_bad_effects() {
     static auto get_hdr_display_mode_enable_method = renderer_t->get_method("get_HDRDisplayModeEnable");
     static auto set_hdr_display_mode_enable_method = renderer_t->get_method("set_HDRDisplayModeEnable");
 
+    static auto get_delay_render_enable_method = renderer_t->get_method("get_DelayRenderEnable");
+    static auto set_delay_render_enable_method = renderer_t->get_method("set_DelayRenderEnable");
+
     auto renderer = renderer_t->get_instance();
 
     auto render_config = get_render_config_method->call<::REManagedObject*>(context, renderer);
@@ -1821,6 +2101,18 @@ void VR::disable_bad_effects() {
         }
     }
 
+    // Causes crashes on D3D11.
+    if (g_framework->get_renderer_type() == REFramework::RendererType::D3D12) {
+        if (get_delay_render_enable_method != nullptr && set_delay_render_enable_method != nullptr) {
+            const auto is_delay_render_enabled = get_delay_render_enable_method->call<bool>(context);
+
+            if (is_delay_render_enabled == m_enable_asynchronous_rendering) {
+                set_delay_render_enable_method->call<void*>(context, !m_enable_asynchronous_rendering);
+                spdlog::info("[VR] Delay render modified");
+            }
+        }
+    }
+
 #ifdef RE7
     auto camera = sdk::get_primary_camera();
 
@@ -1877,7 +2169,7 @@ void VR::fix_temporal_effects() {
         return;
     }
 
-    if (!m_is_hmd_active || m_disable_temporal_fix) {
+    if (!get_runtime()->ready() || m_disable_temporal_fix) {
         sdk::call_object_func_easy<void*>(render_output_component, "set_DistortionType", 0); // None
         return;
     }
@@ -1914,19 +2206,19 @@ int32_t VR::get_game_frame_count() const {
 }
 
 float VR::get_standing_height() {
-    std::shared_lock _{ m_pose_mtx };
+    std::shared_lock _{ get_runtime()->pose_mtx };
 
     return m_standing_origin.y;
 }
 
 Vector4f VR::get_standing_origin() {
-    std::shared_lock _{ m_pose_mtx };
+    std::shared_lock _{ get_runtime()->pose_mtx };
 
     return m_standing_origin;
 }
 
 void VR::set_standing_origin(const Vector4f& origin) {
-    std::unique_lock _{ m_pose_mtx };
+    std::unique_lock _{ get_runtime()->pose_mtx };
     
     m_standing_origin = origin;
 }
@@ -1967,55 +2259,55 @@ void VR::recenter_gui(const glm::quat& from) {
 }
 
 Vector4f VR::get_current_offset() {
-    if (!m_is_hmd_active) {
+    if (!is_hmd_active()) {
         return Vector4f{};
     }
 
-    std::shared_lock _{ m_eyes_mtx };
+    std::shared_lock _{ get_runtime()->eyes_mtx };
 
     if (m_frame_count % 2 == m_left_eye_interval) {
         //return Vector4f{m_eye_distance * -1.0f, 0.0f, 0.0f, 0.0f};
-        return m_eyes[vr::Eye_Left][3];
+        return get_runtime()->eyes[vr::Eye_Left][3];
     }
     
-    return m_eyes[vr::Eye_Right][3];
+    return get_runtime()->eyes[vr::Eye_Right][3];
     //return Vector4f{m_eye_distance, 0.0f, 0.0f, 0.0f};
 }
 
 Matrix4x4f VR::get_current_eye_transform(bool flip) {
-    if (!m_is_hmd_active) {
+    if (!is_hmd_active()) {
         return glm::identity<Matrix4x4f>();
     }
 
-    std::shared_lock _{m_eyes_mtx};
+    std::shared_lock _{get_runtime()->eyes_mtx};
 
     auto mod_count = flip ? m_right_eye_interval : m_left_eye_interval;
 
     if (m_frame_count % 2 == mod_count) {
-        return m_eyes[vr::Eye_Left];
+        return get_runtime()->eyes[vr::Eye_Left];
     }
 
-    return m_eyes[vr::Eye_Right];
+    return get_runtime()->eyes[vr::Eye_Right];
 }
 
 Matrix4x4f VR::get_current_projection_matrix(bool flip) {
-    if (!m_is_hmd_active) {
+    if (!is_hmd_active()) {
         return glm::identity<Matrix4x4f>();
     }
 
-    std::shared_lock _{m_eyes_mtx};
+    std::shared_lock _{get_runtime()->eyes_mtx};
 
     auto mod_count = flip ? m_right_eye_interval : m_left_eye_interval;
 
     if (m_frame_count % 2 == mod_count) {
-        return m_projections[vr::Eye_Left];
+        return get_runtime()->projections[(uint32_t)VRRuntime::Eye::LEFT];
     }
 
-    return m_projections[vr::Eye_Right];
+    return get_runtime()->projections[(uint32_t)VRRuntime::Eye::RIGHT];
 }
 
 void VR::on_pre_imgui_frame() {
-    if (!m_openvr_loaded || !m_is_hmd_active || !m_wgp_initialized) {
+    if (!get_runtime()->ready()) {
         return;
     }
 
@@ -2023,43 +2315,54 @@ void VR::on_pre_imgui_frame() {
 }
 
 void VR::on_present() {
-    if (!m_openvr_loaded) {
+    if ((m_render_frame_count + 1) % 2 == m_left_eye_interval) {
+        ResetEvent(m_present_finished_event);
+    }
+
+    auto runtime = get_runtime();
+
+    if (!get_runtime()->loaded) {
         return;
     }
 
-    if (m_wgp_initialized) {
-        const auto hmd_activity = m_hmd->GetTrackedDeviceActivityLevel(vr::k_unTrackedDeviceIndex_Hmd);
-        m_is_hmd_active = hmd_activity == vr::k_EDeviceActivityLevel_UserInteraction || hmd_activity == vr::k_EDeviceActivityLevel_UserInteraction_Timeout;
+    auto openvr = get_runtime<runtimes::OpenVR>();
 
-        // upon headset re-entry, reinitialize OpenVR
-        if (m_is_hmd_active && !m_was_hmd_active) {
-            m_request_reinitialize_openvr = true;
+    if (runtime->is_openvr()) {
+        if (openvr->got_first_poses) {
+            const auto hmd_activity = openvr->hmd->GetTrackedDeviceActivityLevel(vr::k_unTrackedDeviceIndex_Hmd);
+            openvr->is_hmd_active = hmd_activity == vr::k_EDeviceActivityLevel_UserInteraction || hmd_activity == vr::k_EDeviceActivityLevel_UserInteraction_Timeout;
+
+            // upon headset re-entry, reinitialize OpenVR
+            if (openvr->is_hmd_active && !openvr->was_hmd_active) {
+                openvr->wants_reinitialize = true;
+            }
+
+            openvr->was_hmd_active = openvr->is_hmd_active;
+
+            if (!is_hmd_active()) {
+                return;
+            }
+        } else {
+            openvr->is_hmd_active = true; // We need to force out an initial WaitGetPoses call
+            openvr->was_hmd_active = true;
         }
-
-        m_was_hmd_active = m_is_hmd_active;
-
-        if (!m_is_hmd_active) {
-            return;
-        }
-    } else {
-        m_is_hmd_active = true; // We need to force out an initial WaitGetPoses call
-        m_was_hmd_active = true;
     }
-
-    if (m_frame_count == m_last_frame_count) {
-        return;
-    }
-
-    m_submitted = false;
-
-    const auto renderer = g_framework->get_renderer_type();
 
     // attempt to fix crash when reinitializing openvr
     std::scoped_lock _{m_openvr_mtx};
+    m_submitted = false;
 
+    const auto renderer = g_framework->get_renderer_type();
     vr::EVRCompositorError e = vr::EVRCompositorError::VRCompositorError_None;
 
     if (renderer == REFramework::RendererType::D3D11) {
+        // if we don't do this then D3D11 OpenXR freezes for some reason.
+        if (!runtime->got_first_sync) {
+            runtime->synchronize_frame();
+            runtime->update_poses();
+        }
+
+        m_is_d3d12 = false;
         e = m_d3d11.on_frame(this);
     } else if (renderer == REFramework::RendererType::D3D12) {
         m_is_d3d12 = true;
@@ -2067,51 +2370,33 @@ void VR::on_present() {
     }
 
     // force a waitgetposes call to fix this...
-    if (e == vr::EVRCompositorError::VRCompositorError_AlreadySubmitted) {
-        m_wgp_initialized = false;
-        m_needs_wgp_update = true;
+    if (e == vr::EVRCompositorError::VRCompositorError_AlreadySubmitted && runtime->is_openvr()) {
+        openvr->got_first_poses = false;
+        openvr->needs_pose_update = true;
+    }
+
+    m_last_frame_count = m_render_frame_count;
+
+    if (m_submitted || runtime->needs_pose_update) {
+        if (m_submitted) {
+            m_overlay_component.on_post_compositor_submit();
+
+            if (runtime->is_openvr()) {
+                //vr::VRCompositor()->SetExplicitTimingMode(vr::VRCompositorTimingMode_Explicit_ApplicationPerformsPostPresentHandoff);
+                vr::VRCompositor()->PostPresentHandoff();
+            }
+        }
+
+        runtime->needs_pose_update = true;
+        m_submitted = false;
+    }
+
+    if ((m_render_frame_count + 1) % 2 == m_left_eye_interval) {
+        SetEvent(m_present_finished_event);
     }
 }
 
 void VR::on_post_present() {
-    if (!m_is_hmd_active || !m_openvr_loaded) {
-        return;
-    }
-
-    // Unlock the m_present_finished conditional variable
-    // Which will synchronize WaitGetPoses() properly
-    // inside on_pre_wait_rendering()
-    // we can't do it here because the game logic thread executes out of sync otherwise
-    // causing jittery HMD rotation
-    auto unlock_present = [&]() {
-        {
-            std::lock_guard _{m_present_finished_mtx};
-            m_present_finished = true;
-        }
-
-        m_present_finished_cv.notify_all();
-    };
-    
-    if (m_frame_count == m_last_frame_count) {
-        return;
-    }
-
-    std::scoped_lock _{m_openvr_mtx};
-
-    m_last_frame_count = m_frame_count;
-
-    if (m_submitted || m_needs_wgp_update) {
-        if (m_submitted) {
-            m_overlay_component.on_post_compositor_submit();
-            vr::VRCompositor()->PostPresentHandoff();
-        }
-
-        m_needs_wgp_update = true;
-        m_submitted = false;
-        unlock_present();
-    } else { // always unlocks every frame so we don't cause a deadlock on AFR
-        unlock_present();
-    }
 }
 
 void VR::on_update_transform(RETransform* transform) {
@@ -2150,7 +2435,7 @@ thread_local std::vector<std::unique_ptr<GUIRestoreData>> g_elements_to_reset{};
 bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_context) {
     inside_gui_draw = true;
 
-    if (!m_is_hmd_active || !m_openvr_loaded) {
+    if (!get_runtime()->ready()) {
         return true;
     }
 
@@ -2165,6 +2450,7 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
         switch (name_hash) {
         // Don't mess with this, causes weird black boxes on the sides of the screen
         case "GUI_PillarBox"_fnv:
+        case "GUIEventPillar"_fnv:
         // These allow the cutscene transitions to display (fade to black)
         case "BlackFade"_fnv:
         case "WhiteFade"_fnv:
@@ -2673,7 +2959,9 @@ void VR::on_lightshaft_draw(void* shaft, void* render_context) {
 thread_local bool timed_out = false;
 
 void VR::on_pre_begin_rendering(void* entry) {
-    if (!m_openvr_loaded) {
+    auto runtime = get_runtime();
+
+    if (!runtime->loaded) {
         return;
     }
 
@@ -2707,17 +2995,23 @@ void VR::on_pre_begin_rendering(void* entry) {
         // will probably require some game-specific code
     }
 
-    if (!inside_on_end && m_request_reinitialize_openvr) {
+    if (!inside_on_end && runtime->wants_reinitialize) {
         std::scoped_lock _{m_openvr_mtx};
 
-        m_request_reinitialize_openvr = false;
-        reinitialize_openvr();
+        if (runtime->is_openvr()) {
+            m_openvr->wants_reinitialize = false;
+            reinitialize_openvr();
+        } else if (runtime->is_openxr()) {
+            m_openxr->wants_reinitialize = false;
+            reinitialize_openxr();
+        }
     }
 
     detect_controllers();
 
-    actual_frame_count = get_game_frame_count();
-    m_frame_count = actual_frame_count;
+    //actual_frame_count = get_game_frame_count();
+    m_frame_count++;
+    actual_frame_count = m_frame_count;
 
     /*if (!inside_on_end) {
         spdlog::info("VR: frame count: {}", m_frame_count);
@@ -2736,18 +3030,14 @@ void VR::on_pre_begin_rendering(void* entry) {
         return;
     }
 
-    if (m_needs_wgp_update && inside_on_end) {
+    if (runtime->needs_pose_update && inside_on_end) {
         spdlog::info("VR: on_pre_wait_rendering: inside on end!");
     }
-
+    
     // Call WaitGetPoses
-    if (m_needs_wgp_update && !inside_on_end) {
-        m_needs_wgp_update = false;
+    if (!inside_on_end && m_frame_count % 2 == m_left_eye_interval) {
+        runtime->consume_events(nullptr);
         update_hmd_state();
-    }
-
-    if (m_needs_wgp_update) {
-        return;
     }
 
     const auto should_update_camera = (m_frame_count % 2 == m_left_eye_interval) || is_using_afr();
@@ -2768,16 +3058,38 @@ void VR::on_begin_rendering(void* entry) {
 }
 
 void VR::on_pre_end_rendering(void* entry) {
+    auto runtime = get_runtime();
 
-    //spdlog::info("EndRendering");
-}
-
-void VR::on_end_rendering(void* entry) {
-    if (!m_openvr_loaded) {
+    if (!runtime->loaded) {
         return;
     }
 
-    if ((!m_is_hmd_active || m_needs_wgp_update) && !inside_on_end) {
+    if (runtime->ready() && m_frame_count % 2 == m_left_eye_interval) {
+        const auto stage = runtime->get_synchronize_stage();
+
+        if (stage == VRRuntime::SynchronizeStage::LATE && runtime->synchronize_frame() == VRRuntime::Error::SUCCESS) {
+            if (runtime->is_openxr()) {
+                m_openxr->begin_frame();
+            }
+        }
+    }
+}
+
+void VR::on_end_rendering(void* entry) {
+    // we set this because we've enabled asynchronous rendering
+    // by the time the next frame (right eye) starts,
+    // the frame count might get modified, screwing up our logic
+    // so we need a render frame count to compare against
+    m_render_frame_count = m_frame_count;
+
+    auto runtime = get_runtime();
+
+    if (!runtime->loaded) {
+        return;
+    }
+
+    // TODO: Check later if this is even necessary
+    if ((!runtime->ready()) && !inside_on_end) {
         restore_camera();
 
         inside_on_end = false;
@@ -2797,7 +3109,7 @@ void VR::on_end_rendering(void* entry) {
     // Only render again on even (left eye) frames
     // We're checking == 1 because at this point, the frame has finished.
     // Meaning the previous frame was a left eye frame.
-    if (!inside_on_end && m_frame_count % 2 == m_left_eye_interval) {
+    if (!inside_on_end && m_render_frame_count % 2 == m_left_eye_interval) {
         inside_on_end = true;
         
         // Try to render again for the right eye
@@ -2821,6 +3133,7 @@ void VR::on_end_rendering(void* entry) {
 
             // Remove these from the chain (std::vector)
             auto entries_to_remove = std::vector<std::string> {
+                "WaitRendering",
                 "UpdatePhysicsCharacterController",
                 "UpdateTelemetry",
                 "UpdateMovie", // Causes movies to play twice as fast if ran again
@@ -2845,6 +3158,7 @@ void VR::on_end_rendering(void* entry) {
             }
         }
 
+        sdk::renderer::wait_rendering();
         sdk::renderer::begin_update_primitive();
 
         //static auto update_geometry = app->get_function("UpdateGeometry");
@@ -2867,10 +3181,6 @@ void VR::on_end_rendering(void* entry) {
         // So, we manually call BeginEffect, and then EndUpdateEffect
         // Which somehow solves the crash.
         // We don't call UpdateEffect because it will make effects appear to run at a higher framerate
-        if (begin_update_primitive != nullptr) {
-            begin_update_primitive->func(begin_update_primitive->entry);
-        }
-
         if (begin_update_effect != nullptr) {
             begin_update_effect->func(begin_update_effect->entry);
         }
@@ -2901,35 +3211,34 @@ void VR::on_end_rendering(void* entry) {
 }
 
 void VR::on_pre_wait_rendering(void* entry) {
-    if (!m_openvr_loaded) {
+}
+
+void VR::on_wait_rendering(void* entry) {
+    if (!get_runtime()->loaded) {
         return;
     }
 
     timed_out = false;
 
-    if (!m_is_hmd_active) {
+    if (!is_hmd_active()) {
         return;
     }
 
     // wait for m_present_finished (std::condition_variable)
     // to be signaled
-    {
-        std::unique_lock lock{m_present_finished_mtx};
-        const auto now = std::chrono::steady_clock::now();
-        
-        if (!m_present_finished_cv.wait_until(lock, now + std::chrono::milliseconds(333), [&]() { return m_present_finished; })) {
+    // only on the left eye interval because we need the right eye
+    // to start render work as soon as possible
+    if (((m_frame_count + 1) % 2) == m_left_eye_interval) {
+        if (WaitForSingleObject(m_present_finished_event, 333) == WAIT_TIMEOUT) {
             timed_out = true;
         }
 
-        m_present_finished = false;
+        ResetEvent(m_present_finished_event);
     }
 }
 
-void VR::on_wait_rendering(void* entry) {
-}
-
 void VR::on_pre_application_entry(void* entry, const char* name, size_t hash) {
-    if (!m_openvr_loaded) {
+    if (!get_runtime()->loaded) {
         return;
     }
 
@@ -2952,7 +3261,7 @@ void VR::on_pre_application_entry(void* entry, const char* name, size_t hash) {
 }
 
 void VR::on_application_entry(void* entry, const char* name, size_t hash) {
-    if (!m_openvr_loaded) {
+    if (!get_runtime()->loaded) {
         return;
     }
 
@@ -2975,7 +3284,7 @@ void VR::on_application_entry(void* entry, const char* name, size_t hash) {
 }
 
 void VR::on_pre_update_hid(void* entry) {
-    if (!m_openvr_loaded || !m_is_hmd_active) {
+    if (!get_runtime()->loaded || !is_hmd_active()) {
         return;
     }
 
@@ -2983,25 +3292,37 @@ void VR::on_pre_update_hid(void* entry) {
 }
 
 void VR::on_update_hid(void* entry) {
-    if (!m_openvr_loaded || !m_is_hmd_active) {
+    if (!get_runtime()->loaded || !is_hmd_active()) {
         return;
     }
 
 #if not defined(RE2) and not defined(RE3)
     this->openvr_input_to_re_engine();
 #endif
+
+#ifdef RE8
+    if (get_runtime()->handle_pause) {
+        auto padman = sdk::get_managed_singleton<::REManagedObject>(game_namespace("HIDPadManager"));
+
+        if (padman != nullptr) {
+            auto merged_pad = sdk::call_object_func_easy<::REManagedObject*>(padman, "get_mergedPad");
+
+            if (merged_pad != nullptr) {
+                auto device = sdk::get_object_field<::REManagedObject*>(merged_pad, "Device");
+
+                if (device != nullptr && *device != nullptr) {
+                    sdk::call_object_func_easy<void*>(*device, "set_Button", via::hid::GamePadButton::CRight);
+                }
+            }
+        }
+
+        get_runtime()->handle_pause = false;
+    }
+#endif
 }
 
 void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
-    if (!m_openvr_loaded) {
-        return;
-    }
-
-    // Get OpenVR input system
-    auto openvr_input = vr::VRInput();
-
-    if (openvr_input == nullptr) {
-        spdlog::error("[VR] Failed to get OpenVR input system.");
+    if (!get_runtime()->loaded) {
         return;
     }
 
@@ -3268,8 +3589,8 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
     set_button_state(app::ropeway::InputDefine::Kind::MINIMAP, is_minimap_down);
 
     // Left or Right System Button: Pause
-    set_button_state(app::ropeway::InputDefine::Kind::PAUSE, is_left_system_button_down || is_right_system_button_down || m_handle_pause);
-    m_handle_pause = false;
+    set_button_state(app::ropeway::InputDefine::Kind::PAUSE, is_left_system_button_down || is_right_system_button_down || get_runtime()->handle_pause);
+    get_runtime()->handle_pause = false;
 
     // Fixes QTE bound to triggers
     if (is_using_controller) {
@@ -3368,50 +3689,23 @@ void VR::openvr_input_to_re_engine() {
     }
 
 #ifdef RE7
-    if (m_handle_pause) {
+    if (get_runtime()->handle_pause) {
         auto menu_manager = sdk::get_managed_singleton<::REManagedObject>("app.MenuManager");
 
         if (menu_manager != nullptr) {
             sdk::call_object_func<void*>(menu_manager, "openPauseMenu", sdk::get_thread_context(), menu_manager, 0);
-            m_handle_pause = false;
+            get_runtime()->handle_pause = false;
         }
-    }
-#endif
-
-#ifdef RE8
-    if (m_handle_pause) {
-        auto gui_manager = sdk::get_managed_singleton<::REManagedObject>("app.GUIManager");
-
-        if (gui_manager != nullptr) {
-            constexpr uint32_t PAUSE_ALIAS = 0x7DEE1056;
-            const auto gui_handle = sdk::call_object_func<::REManagedObject*>(gui_manager, "findGUI(System.UInt32)", sdk::get_thread_context(), gui_manager, PAUSE_ALIAS);
-
-            if (gui_handle != nullptr) {
-                auto driver = sdk::call_object_func<::REManagedObject*>(gui_handle, "get_driver", sdk::get_thread_context(), gui_handle);
-
-                if (driver != nullptr) {
-                    const auto fake_param = sdk::create_instance("app.GUIRequest.Parameter");
-
-                    if (fake_param != nullptr) {
-                        sdk::call_object_func<void*>(driver, "show", sdk::get_thread_context(), driver, fake_param);
-                    } else {
-                        spdlog::error("Failed to create fake app.GUIRequest.Parameter, cannot pause!");
-                    }
-                }
-            }
-        }
-
-        m_handle_pause = false;
     }
 #endif
 }
 
 void VR::on_draw_ui() {
     // create VR tree entry in menu (imgui)
-    if (m_openvr_loaded) {
+    if (get_runtime()->loaded) {
         ImGui::SetNextTreeNodeOpen(false, ImGuiCond_::ImGuiCond_FirstUseEver);
     } else {
-        if (m_openvr_error && !m_openvr_dll_missing) {
+        if (m_openvr->error && !m_openvr->dll_missing) {
             ImGui::SetNextTreeNodeOpen(true, ImGuiCond_::ImGuiCond_FirstUseEver);
         } else {
             ImGui::SetNextTreeNodeOpen(false, ImGuiCond_::ImGuiCond_FirstUseEver);
@@ -3422,22 +3716,47 @@ void VR::on_draw_ui() {
         return;
     }
 
-    if (!m_openvr_loaded) {
-        if (m_openvr_error && m_openvr_dll_missing) {
-            ImGui::Text("VR not loaded: openvr_api.dll not found");
-            ImGui::Text("Please drop the openvr_api.dll file into the game's directory if you want to use VR");
-        } else if (m_openvr_error) {
-            ImGui::Text("VR not loaded: %s", m_openvr_error->c_str());
-        } else {
-            ImGui::Text("VR not loaded: Unknown error");
+    auto display_error = [](auto& runtime, std::string dll_name) {
+        if (runtime == nullptr || !runtime->error && runtime->loaded) {
+            return;
         }
 
+        if (runtime->error && runtime->dll_missing) {
+            ImGui::Text("%s not loaded: %s not found", runtime->name().data(), dll_name.data());
+            ImGui::Text("Please drop the %s file into the game's directory if you want to use VR", dll_name.data());
+        } else if (runtime->error) {
+            ImGui::Text("%s not loaded: %s", runtime->name().data(), runtime->error->c_str());
+        } else {
+            ImGui::Text("%s not loaded: Unknown error", runtime->name().data());
+        }
+    };
+
+    display_error(m_openxr, "openxr_loader.dll");
+    display_error(m_openvr, "openvr_api.dll");
+
+    if (!get_runtime()->loaded) {
+        ImGui::Text("No runtime loaded.");
         return;
     }
 
     // draw VR tree entry in menu (imgui)
-    ImGui::Text("Render Resolution: %d x %d", m_w, m_h);
-    ImGui::Text("Resolution can be changed in SteamVR");
+    ImGui::Text("VR Runtime: %s", get_runtime()->name().data());
+    ImGui::Text("Render Resolution: %d x %d", get_runtime()->get_width(), get_runtime()->get_height());
+
+    if (get_runtime()->is_openvr()) {
+        ImGui::Text("Resolution can be changed in SteamVR");
+    } else if (get_runtime()->is_openxr()) {
+        if (ImGui::TreeNode("Bindings")) {
+            m_openxr->display_bindings_editor();
+            ImGui::TreePop();
+        }
+
+        if (m_resolution_scale->draw("Resolution Scale")) {
+            m_openxr->resolution_scale = m_resolution_scale->value();
+        }
+    }
+    
+    ImGui::Combo("Sync Mode", (int*)&get_runtime()->custom_stage, "Early\0Late\0Very Late\0");
     ImGui::Separator();
 
     if (ImGui::Button("Set Standing Height")) {
@@ -3452,8 +3771,8 @@ void VR::on_draw_ui() {
         recenter_view();
     }
 
-    if (ImGui::Button("Reinitialize OpenVR")) {
-        m_request_reinitialize_openvr = true;
+    if (ImGui::Button("Reinitialize Runtime")) {
+        get_runtime()->wants_reinitialize = true;
     }
 
     //ImGui::DragFloat4("Right Bounds", (float*)&m_right_bounds, 0.005f, -2.0f, 2.0f);
@@ -3471,9 +3790,6 @@ void VR::on_draw_ui() {
 
     if (ImGui::Checkbox("Positional Tracking", &m_positional_tracking)) {
     }
-
-    /*if (ImGui::Checkbox("Depth Aided Reprojection", &m_depth_aided_reprojection)) {
-    }*/
 
     m_hmd_oriented_audio->draw("Head Oriented Audio");
     m_use_custom_view_distance->draw("Use Custom View Distance");
@@ -3509,6 +3825,9 @@ void VR::on_draw_ui() {
     ImGui::Checkbox("Disable Backbuffer Size Override", &m_disable_backbuffer_size_override);
     ImGui::Checkbox("Disable Temporal Fix", &m_disable_temporal_fix);
     ImGui::Checkbox("Disable Post Effect Fix", &m_disable_post_effect_fix);
+    ImGui::Checkbox("Enable Asynchronous Rendering", &m_enable_asynchronous_rendering);
+    
+    ImGui::SliderFloat("Prediction Scale", &m_openxr->prediction_scale, 0.0f, 25.0f);
 
     ImGui::DragFloat4("Raw Left", (float*)&m_raw_projections[0], 0.01f, -100.0f, 100.0f);
     ImGui::DragFloat4("Raw Right", (float*)&m_raw_projections[1], 0.01f, -100.0f, 100.0f);
@@ -3520,10 +3839,18 @@ void VR::on_draw_ui() {
 }
 
 void VR::on_device_reset() {
+    std::scoped_lock _{m_openxr->sync_mtx};
+
     spdlog::info("VR: on_device_reset");
     m_backbuffer_inconsistency = false;
-    m_d3d11.on_reset(this);
-    m_d3d12.on_reset(this);
+    if (g_framework->is_dx11()) {
+        m_d3d11.on_reset(this);
+    }
+
+    if (g_framework->is_dx12()) {
+        m_d3d12.on_reset(this);
+    }
+
     m_overlay_component.on_reset();
 
     // so i guess device resets can happen between begin and end rendering...
@@ -3546,6 +3873,8 @@ void VR::on_config_load(const utility::Config& cfg) {
     for (IModValue& option : m_options) {
         option.config_load(cfg);
     }
+
+    m_openxr->resolution_scale = m_resolution_scale->value();
 }
 
 void VR::on_config_save(utility::Config& cfg) {
@@ -3559,7 +3888,8 @@ Vector4f VR::get_position(uint32_t index) {
         return Vector4f{};
     }
 
-    std::shared_lock _{ m_pose_mtx };
+    std::shared_lock _{ get_runtime()->pose_mtx };
+    std::shared_lock __{ get_runtime()->eyes_mtx };
 
     return get_position_unsafe(index);
 }
@@ -3569,7 +3899,7 @@ Vector4f VR::get_velocity(uint32_t index) {
         return Vector4f{};
     }
 
-    std::shared_lock _{ m_pose_mtx };
+    std::shared_lock _{ get_runtime()->pose_mtx };
 
     return get_velocity_unsafe(index);
 }
@@ -3579,104 +3909,218 @@ Vector4f VR::get_angular_velocity(uint32_t index) {
         return Vector4f{};
     }
 
-    std::shared_lock _{ m_pose_mtx };
+    std::shared_lock _{ get_runtime()->pose_mtx };
 
     return get_angular_velocity_unsafe(index);
 }
 
 Vector4f VR::get_position_unsafe(uint32_t index) {
-    if (index >= vr::k_unMaxTrackedDeviceCount) {
+    if (get_runtime()->is_openvr()) {
+        if (index >= vr::k_unMaxTrackedDeviceCount) {
+            return Vector4f{};
+        }
+
+        auto& pose = get_openvr_poses()[index];
+        auto matrix = Matrix4x4f{ *(Matrix3x4f*)&pose.mDeviceToAbsoluteTracking };
+        auto result = glm::rowMajor4(matrix)[3];
+        result.w = 1.0f;
+
+        return result;
+    } else if (get_runtime()->is_openxr()) {
+        if (index >= 3) {
+            return Vector4f{};
+        }
+
+        // HMD position
+        if (index == 0 && !m_openxr->stage_views.empty()) {
+            return Vector4f{ *(Vector3f*)&m_openxr->view_space_location.pose.position, 1.0f };
+        } else if (index > 0) {
+            return Vector4f{ *(Vector3f*)&m_openxr->hands[index-1].location.pose.position, 1.0f };
+        }
+
         return Vector4f{};
-    }
+    } 
 
-    auto& pose = get_poses()[index];
-    auto matrix = Matrix4x4f{ *(Matrix3x4f*)&pose.mDeviceToAbsoluteTracking };
-    auto result = glm::rowMajor4(matrix)[3];
-    result.w = 1.0f;
-
-    return result;
+    return Vector4f{};
 }
 
 Vector4f VR::get_velocity_unsafe(uint32_t index) {
-    if (index >= vr::k_unMaxTrackedDeviceCount) {
-        return Vector4f{};
+    if (get_runtime()->is_openvr()) {
+        if (index >= vr::k_unMaxTrackedDeviceCount) {
+            return Vector4f{};
+        }
+
+        const auto& pose = get_openvr_poses()[index];
+        const auto& velocity = pose.vVelocity;
+
+        return Vector4f{ velocity.v[0], velocity.v[1], velocity.v[2], 0.0f };
+    } else if (get_runtime()->is_openxr()) {
+        if (index >= 3) {
+            return Vector4f{};
+        }
+
+        // todo: implement HMD velocity
+        if (index == 0) {
+            return Vector4f{};
+        }
+
+        return Vector4f{ *(Vector3f*)&m_openxr->hands[index-1].velocity.linearVelocity, 0.0f };
     }
 
-    const auto& pose = get_poses()[index];
-    const auto& velocity = pose.vVelocity;
-
-    return Vector4f{ velocity.v[0], velocity.v[1], velocity.v[2], 0.0f };
+    return Vector4f{};
 }
 
 Vector4f VR::get_angular_velocity_unsafe(uint32_t index) {
-    if (index >= vr::k_unMaxTrackedDeviceCount) {
-        return Vector4f{};
+    if (get_runtime()->is_openvr()) {
+        if (index >= vr::k_unMaxTrackedDeviceCount) {
+            return Vector4f{};
+        }
+
+        const auto& pose = get_openvr_poses()[index];
+        const auto& angular_velocity = pose.vAngularVelocity;
+
+        return Vector4f{ angular_velocity.v[0], angular_velocity.v[1], angular_velocity.v[2], 0.0f };
+    } else if (get_runtime()->is_openxr()) {
+        if (index >= 3) {
+            return Vector4f{};
+        }
+
+        // todo: implement HMD velocity
+        if (index == 0) {
+            return Vector4f{};
+        }
+    
+        return Vector4f{ *(Vector3f*)&m_openxr->hands[index-1].velocity.angularVelocity, 0.0f };
     }
 
-    const auto& pose = get_poses()[index];
-    const auto& angular_velocity = pose.vAngularVelocity;
-
-    return Vector4f{ angular_velocity.v[0], angular_velocity.v[1], angular_velocity.v[2], 0.0f };
+    return Vector4f{};
 }
 
 Matrix4x4f VR::get_rotation(uint32_t index) {
-    if (index >= vr::k_unMaxTrackedDeviceCount) {
+    if (get_runtime()->is_openvr()) {
+        if (index >= vr::k_unMaxTrackedDeviceCount) {
+            return glm::identity<Matrix4x4f>();
+        }
+
+        std::shared_lock _{ get_runtime()->pose_mtx };
+
+        auto& pose = get_openvr_poses()[index];
+        auto matrix = Matrix4x4f{ *(Matrix3x4f*)&pose.mDeviceToAbsoluteTracking };
+        return glm::extractMatrixRotation(glm::rowMajor4(matrix));
+    } else if (get_runtime()->is_openxr()) {
+        std::shared_lock _{ get_runtime()->pose_mtx };
+        std::shared_lock __{ get_runtime()->eyes_mtx };
+
+        // HMD rotation
+        if (index == 0 && !m_openxr->stage_views.empty()) {
+            return Matrix4x4f{*(glm::quat*)&m_openxr->view_space_location.pose.orientation};
+            //return Matrix4x4f{*(glm::quat*)&m_openxr->stage_views[0].pose.orientation};
+        } else if (index > 0) {
+            if (index == VRRuntime::Hand::LEFT+1) {
+                return Matrix4x4f{*(glm::quat*)&m_openxr->hands[VRRuntime::Hand::LEFT].location.pose.orientation};
+            } else if (index == VRRuntime::Hand::RIGHT+1) {
+                return Matrix4x4f{*(glm::quat*)&m_openxr->hands[VRRuntime::Hand::RIGHT].location.pose.orientation};
+            }
+        }
+
         return glm::identity<Matrix4x4f>();
     }
 
-    std::shared_lock _{ m_pose_mtx };
-
-    auto& pose = get_poses()[index];
-    auto matrix = Matrix4x4f{ *(Matrix3x4f*)&pose.mDeviceToAbsoluteTracking };
-    return glm::extractMatrixRotation(glm::rowMajor4(matrix));
+    return glm::identity<Matrix4x4f>();
 }
 
 Matrix4x4f VR::get_transform(uint32_t index) {
-    if (index >= vr::k_unMaxTrackedDeviceCount) {
-        return glm::identity<Matrix4x4f>();
+    if (get_runtime()->is_openvr()) {
+        if (index >= vr::k_unMaxTrackedDeviceCount) {
+            return glm::identity<Matrix4x4f>();
+        }
+
+        std::shared_lock _{ get_runtime()->pose_mtx };
+
+        auto& pose = get_openvr_poses()[index];
+        auto matrix = Matrix4x4f{ *(Matrix3x4f*)&pose.mDeviceToAbsoluteTracking };
+        return glm::rowMajor4(matrix);
+    } else if (get_runtime()->is_openxr()) {
+        std::shared_lock _{ get_runtime()->pose_mtx };
+
+        // HMD rotation
+        if (index == 0 && !m_openxr->stage_views.empty()) {
+            auto mat = Matrix4x4f{*(glm::quat*)&m_openxr->view_space_location.pose.orientation};
+            mat[3] = Vector4f{*(Vector3f*)&m_openxr->view_space_location.pose.position, 1.0f};
+            return mat;
+        } else if (index > 0) {
+            if (index == VRRuntime::Hand::LEFT+1) {
+                auto mat = Matrix4x4f{*(glm::quat*)&m_openxr->hands[VRRuntime::Hand::LEFT].location.pose.orientation};
+                mat[3] = Vector4f{*(Vector3f*)&m_openxr->hands[VRRuntime::Hand::LEFT].location.pose.position, 1.0f};
+                return mat;
+            } else if (index == VRRuntime::Hand::RIGHT+1) {
+                auto mat = Matrix4x4f{*(glm::quat*)&m_openxr->hands[VRRuntime::Hand::RIGHT].location.pose.orientation};
+                mat[3] = Vector4f{*(Vector3f*)&m_openxr->hands[VRRuntime::Hand::RIGHT].location.pose.position, 1.0f};
+                return mat;
+            }
+        }
     }
 
-    std::shared_lock _{ m_pose_mtx };
-
-    auto& pose = get_poses()[index];
-    auto matrix = Matrix4x4f{ *(Matrix3x4f*)&pose.mDeviceToAbsoluteTracking };
-    return glm::rowMajor4(matrix);
+    return glm::identity<Matrix4x4f>();
 }
 
 vr::HmdMatrix34_t VR::get_raw_transform(uint32_t index) {
-    if (index >= vr::k_unMaxTrackedDeviceCount) {
+    if (get_runtime()->is_openvr()) {
+        if (index >= vr::k_unMaxTrackedDeviceCount) {
+            return vr::HmdMatrix34_t{};
+        }
+
+        std::shared_lock _{ get_runtime()->pose_mtx };
+
+        auto& pose = get_openvr_poses()[index];
+        return pose.mDeviceToAbsoluteTracking;
+    } else {
+        spdlog::error("VR: get_raw_transform: not implemented for {}", get_runtime()->name());
         return vr::HmdMatrix34_t{};
     }
-
-    std::shared_lock _{ m_pose_mtx };
-
-    auto& pose = get_poses()[index];
-    return pose.mDeviceToAbsoluteTracking;
 }
 
 bool VR::is_action_active(vr::VRActionHandle_t action, vr::VRInputValueHandle_t source) const {
-    if (!m_openvr_loaded) {
+    if (!get_runtime()->loaded) {
         return false;
     }
 
-    vr::InputDigitalActionData_t data{};
-	vr::VRInput()->GetDigitalActionData(action, &data, sizeof(data), source);
+    if (get_runtime()->is_openvr()) {
+        vr::InputDigitalActionData_t data{};
+        vr::VRInput()->GetDigitalActionData(action, &data, sizeof(data), source);
 
-    return data.bActive && data.bState;
+        return data.bActive && data.bState;
+    } else if (get_runtime()->is_openxr()) {
+        return m_openxr->is_action_active((XrAction)action, (VRRuntime::Hand)source);
+    }
+
+    return false;
 }
 
 Vector2f VR::get_joystick_axis(vr::VRInputValueHandle_t handle) const {
-    if (!m_openvr_loaded) {
+    if (!get_runtime()->loaded) {
         return Vector2f{};
     }
 
-    vr::InputAnalogActionData_t data{};
-    vr::VRInput()->GetAnalogActionData(m_action_joystick, &data, sizeof(data), handle);
+    if (get_runtime()->is_openvr()) {
+        vr::InputAnalogActionData_t data{};
+        vr::VRInput()->GetAnalogActionData(m_action_joystick, &data, sizeof(data), handle);
 
-    const auto deadzone = m_joystick_deadzone->value();
-    const auto out = Vector2f{ data.x, data.y };
+        const auto deadzone = m_joystick_deadzone->value();
+        const auto out = Vector2f{ data.x, data.y };
 
-    return glm::length(out) > deadzone ? out : Vector2f{};
+        return glm::length(out) > deadzone ? out : Vector2f{};
+    } else if (get_runtime()->is_openxr()) {
+        if (handle == (vr::VRInputValueHandle_t)VRRuntime::Hand::LEFT) {
+            auto out = m_openxr->get_left_stick_axis();
+            return glm::length(out) > m_joystick_deadzone->value() ? out : Vector2f{};
+        } else if (handle == (vr::VRInputValueHandle_t)VRRuntime::Hand::RIGHT) {
+            auto out = m_openxr->get_right_stick_axis();
+            return glm::length(out) > m_joystick_deadzone->value() ? out : Vector2f{};
+        }
+    }
+
+    return Vector2f{};
 }
 
 Vector2f VR::get_left_stick_axis() const {
@@ -3688,9 +4132,13 @@ Vector2f VR::get_right_stick_axis() const {
 }
 
 void VR::trigger_haptic_vibration(float seconds_from_now, float duration, float frequency, float amplitude, vr::VRInputValueHandle_t source) {
-    if (!m_openvr_loaded || !is_using_controllers()) {
+    if (!get_runtime()->loaded || !is_using_controllers()) {
         return;
     }
 
-    vr::VRInput()->TriggerHapticVibrationAction(m_action_haptic, seconds_from_now, duration, frequency, amplitude, source);
+    if (get_runtime()->is_openvr()) {
+        vr::VRInput()->TriggerHapticVibrationAction(m_action_haptic, seconds_from_now, duration, frequency, amplitude, source);
+    } else if (get_runtime()->is_openxr()) {
+        m_openxr->trigger_haptic_vibration(duration, frequency, amplitude, (VRRuntime::Hand)source);
+    }
 }

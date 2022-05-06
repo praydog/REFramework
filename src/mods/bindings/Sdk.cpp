@@ -1273,6 +1273,27 @@ void bindings::open_sdk(ScriptState* s) {
 
     lua.new_usertype<RETransform>("RETransform",
         "calculate_base_transform", &utility::re_transform::calculate_base_transform,
+        "apply_joints_tpose", [](RETransform* t, sol::object joints, uint32_t additional_parents) {
+            if (t == nullptr) {
+                return;
+            }
+
+            if (!joints.is<sol::table>()) {
+                throw sol::error("RETransform:apply_joints_tpose expected a table of joints");
+                return;
+            }
+
+            std::vector<::REJoint*> joints_vec{};
+            auto joint_tbl = joints.as<sol::table>();
+
+            // convert sol::table to std::vector
+            for (auto i = 1; i <= joint_tbl.size(); i++) {
+                auto joint = joint_tbl.get<::REManagedObject*>(i);
+                joints_vec.push_back((::REJoint*)joint);
+            }
+
+            utility::re_transform::apply_joints_tpose(*t, joints_vec, additional_parents);
+        },
         "set_position", &sdk::set_transform_position,
         "set_rotation", &sdk::set_transform_rotation,
         "get_position", &sdk::get_transform_position,

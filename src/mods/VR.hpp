@@ -4,6 +4,7 @@
 #include <bitset>
 #include <memory>
 #include <shared_mutex>
+
 #include <openvr.h>
 
 #include <d3d11.h>
@@ -18,6 +19,8 @@
 #include "vr/D3D11Component.hpp"
 #include "vr/D3D12Component.hpp"
 #include "vr/OverlayComponent.hpp"
+#include "vr/runtimes/OpenXR.hpp"
+#include "vr/runtimes/OpenVR.hpp"
 
 #include "Mod.hpp"
 
@@ -64,20 +67,25 @@ public:
     void on_pre_wait_rendering(void* entry);
     void on_wait_rendering(void* entry);
 
-    auto get_hmd() const {
-        return m_hmd;
+    template<typename T = VRRuntime>
+    T* get_runtime() const {
+        return (T*)m_runtime.get();
     }
 
-    auto& get_poses() const {
-        return m_render_poses;
+    auto get_hmd() const {
+        return m_openvr->hmd;
+    }
+
+    auto& get_openvr_poses() const {
+        return m_openvr->render_poses;
     }
 
     auto get_hmd_width() const {
-        return m_w;
+        return get_runtime()->get_width();
     }
 
     auto get_hmd_height() const {
-        return m_h;
+        return get_runtime()->get_height();
     }
 
     auto get_last_controller_update() const {
@@ -118,11 +126,15 @@ public:
     }
 
     bool is_hmd_active() const {
-        return m_is_hmd_active && m_wgp_initialized;
+        return get_runtime()->ready();
     }
     
     bool is_openvr_loaded() const {
-        return m_openvr_loaded;
+        return m_openvr != nullptr && m_openvr->loaded;
+    }
+
+    bool is_openxr_loaded() const {
+        return m_openxr != nullptr && m_openxr->loaded;
     }
 
     bool is_using_hmd_oriented_audio() {
@@ -144,12 +156,8 @@ public:
     Matrix4x4f get_transform(uint32_t index);
     vr::HmdMatrix34_t get_raw_transform(uint32_t index);
 
-    auto& get_pose_mutex() {
-        return m_pose_mtx;
-    }
-
     const auto& get_eyes() const {
-        return m_eyes;
+        return get_runtime()->eyes;
     }
     
     bool is_action_active(vr::VRActionHandle_t action, vr::VRInputValueHandle_t source = vr::k_ulInvalidInputValueHandle) const;
@@ -182,7 +190,7 @@ public:
     const auto& get_action_handles() const { return m_action_handles;}
 
     auto get_ui_scale() const { return m_ui_scale_option->value(); }
-    const auto& get_raw_projections() const { return m_raw_projections; }
+    const auto& get_raw_projections() const { return get_runtime()->raw_projections; }
 
     template<typename T=sdk::renderer::RenderLayer>
     struct RenderLayerHook {
@@ -236,6 +244,8 @@ private:
     // initialization functions
     std::optional<std::string> initialize_openvr();
     std::optional<std::string> initialize_openvr_input();
+    std::optional<std::string> initialize_openxr();
+    std::optional<std::string> initialize_openxr_input();
     std::optional<std::string> hijack_resolution();
     std::optional<std::string> hijack_input();
     std::optional<std::string> hijack_camera();
@@ -243,21 +253,50 @@ private:
     std::optional<std::string> hijack_wwise_listeners(); // audio hook
 
     std::optional<std::string> reinitialize_openvr() {
-        spdlog::info("Reinitializing openvr");
+        spdlog::info("Reinitializing OpenVR");
+        std::scoped_lock _{m_openvr_mtx};
 
-        vr::VR_Shutdown();
+        m_runtime.reset();
+        m_runtime = std::make_shared<VRRuntime>();
+        m_openvr.reset();
 
         // Reinitialize openvr input, hopefully this fixes the issue
         m_controllers.clear();
         m_controllers_set.clear();
 
-        auto input_error = initialize_openvr();
+        auto e = initialize_openvr();
 
-        if (input_error) {
-            spdlog::error("Failed to reinitialize openvr: {}", *input_error);
+        if (e) {
+            spdlog::error("Failed to reinitialize OpenVR: {}", *e);
         }
 
-        return input_error;
+        return e;
+    }
+
+    std::optional<std::string> reinitialize_openxr() {
+        spdlog::info("Reinitializing OpenXR");
+        std::scoped_lock _{m_openvr_mtx};
+
+        if (m_is_d3d12) {
+            m_d3d12.openxr().destroy_swapchains();
+        } else {
+            m_d3d11.openxr().destroy_swapchains();
+        }
+
+        m_openxr.reset();
+        m_runtime.reset();
+        m_runtime = std::make_shared<VRRuntime>();
+        
+        m_controllers.clear();
+        m_controllers_set.clear();
+
+        auto e = initialize_openxr();
+
+        if (e) {
+            spdlog::error("Failed to reinitialize OpenXR: {}", *e);
+        }
+
+        return e;
     }
 
     bool detect_controllers();
@@ -294,9 +333,7 @@ private:
     
     std::recursive_mutex m_openvr_mtx{};
     std::recursive_mutex m_wwise_mtx{};
-    std::shared_mutex m_pose_mtx{};
     std::shared_mutex m_gui_mtx{};
-    std::shared_mutex m_eyes_mtx{};
     std::shared_mutex m_rotation_mtx{};
 
     vr::VRTextureBounds_t m_right_bounds{ 0.0f, 0.0f, 1.0f, 1.0f };
@@ -308,14 +345,9 @@ private:
     float m_nearz{ 0.1f };
     float m_farz{ 3000.0f };
 
-    vr::IVRSystem* m_hmd{nullptr};
-
-    // Poses
-    std::array<vr::TrackedDevicePose_t, vr::k_unMaxTrackedDeviceCount> m_real_render_poses;
-    std::array<vr::TrackedDevicePose_t, vr::k_unMaxTrackedDeviceCount> m_real_game_poses;
-
-    std::array<vr::TrackedDevicePose_t, vr::k_unMaxTrackedDeviceCount> m_render_poses;
-    std::array<vr::TrackedDevicePose_t, vr::k_unMaxTrackedDeviceCount> m_game_poses;
+    std::shared_ptr<VRRuntime> m_runtime{std::make_shared<VRRuntime>()}; // will point to the real runtime if it exists
+    std::shared_ptr<runtimes::OpenVR> m_openvr{std::make_shared<runtimes::OpenVR>()};
+    std::shared_ptr<runtimes::OpenXR> m_openxr{std::make_shared<runtimes::OpenXR>()};
 
     Vector4f m_standing_origin{ 0.0f, 1.5f, 0.0f, 0.0f };
     glm::quat m_rotation_offset{ glm::identity<glm::quat>() };
@@ -323,9 +355,6 @@ private:
 
     std::vector<int32_t> m_controllers{};
     std::unordered_set<int32_t> m_controllers_set{};
-
-    std::array<Matrix4x4f, 2> m_eyes{};
-    std::array<Matrix4x4f, 2> m_projections{};
 
     // Action set handles
     vr::VRActionSetHandle_t m_action_set{};
@@ -400,10 +429,8 @@ private:
     std::chrono::nanoseconds m_last_input_delay{};
     std::chrono::nanoseconds m_avg_input_delay{};
 
-    std::condition_variable m_present_finished_cv{};
-    std::mutex m_present_finished_mtx{};
-    
-    uint32_t m_w{0}, m_h{0};
+    HANDLE m_present_finished_event{CreateEvent(nullptr, TRUE, FALSE, nullptr)};
+
     Vector4f m_raw_projections[2]{};
 
     vrmod::D3D11Component m_d3d11{};
@@ -424,42 +451,28 @@ private:
 
     // options
     int m_frame_count{};
+    int m_render_frame_count{};
     int m_last_frame_count{-1};
     int m_left_eye_frame_count{0};
     int m_right_eye_frame_count{0};
 
     bool m_submitted{false};
-    bool m_present_finished{false};
-    // we always need at least one initial WaitGetPoses before the game will render
-    // even if we don't have anything to submit yet, otherwise the compositor
-    // will return VRCompositorError_DoNotHaveFocus
-    bool m_needs_wgp_update{true};
     //bool m_disable_sharpening{true};
 
-    bool m_is_hmd_active{true};
-    bool m_was_hmd_active{true};
-    bool m_wgp_initialized{false};
     bool m_needs_camera_restore{false};
     bool m_needs_audio_restore{false};
     bool m_in_render{false};
     bool m_in_lightshaft{false};
-    bool m_request_reinitialize_openvr{false};
     bool m_positional_tracking{true};
-    bool m_handle_pause{false}; // happens when dashboard opens
     bool m_is_d3d12{false};
     bool m_backbuffer_inconsistency{false};
 
     // on the backburner
     bool m_depth_aided_reprojection{false};
 
-    bool m_openvr_loaded{false};
-    bool m_openvr_dll_missing{false};
-
     // == 1 or == 0
     uint8_t m_left_eye_interval{0};
     uint8_t m_right_eye_interval{1};
-
-    std::optional<std::string> m_openvr_error{};
 
     static std::string actions_json;
     static std::string binding_rift_json;
@@ -489,6 +502,7 @@ private:
     const ModSlider::Ptr m_ui_scale_option{ ModSlider::create(generate_name("2DUIScale"), 1.0f, 100.0f, 12.0f) };
     const ModSlider::Ptr m_ui_distance_option{ ModSlider::create(generate_name("2DUIDistance"), 0.01f, 100.0f, 1.0f) };
     const ModSlider::Ptr m_world_ui_scale_option{ ModSlider::create(generate_name("WorldSpaceUIScale"), 1.0f, 100.0f, 15.0f) };
+    const ModSlider::Ptr m_resolution_scale{ ModSlider::create(generate_name("OpenXRResolutionScale"), 0.1f, 5.0f, 1.0f) };
 
     const ModToggle::Ptr m_force_fps_settings{ ModToggle::create(generate_name("ForceFPS"), true) };
     const ModToggle::Ptr m_force_aa_settings{ ModToggle::create(generate_name("ForceAntiAliasing"), true) };
@@ -506,6 +520,7 @@ private:
     bool m_disable_backbuffer_size_override{false};
     bool m_disable_temporal_fix{false};
     bool m_disable_post_effect_fix{false};
+    bool m_enable_asynchronous_rendering{true};
 
     ValueList m_options{
         *m_set_standing_key,
@@ -528,7 +543,8 @@ private:
         *m_ui_scale_option,
         *m_ui_distance_option,
         *m_world_ui_scale_option,
-        *m_allow_engine_overlays
+        *m_allow_engine_overlays,
+        *m_resolution_scale
     };
 
     bool m_use_rotation{true};

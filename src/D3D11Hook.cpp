@@ -140,14 +140,14 @@ HRESULT WINAPI D3D11Hook::present(IDXGISwapChain* swap_chain, UINT sync_interval
 
     swap_chain->GetDevice(__uuidof(d3d11->m_device), (void**)&d3d11->m_device);
 
-    if (d3d11->m_set_render_targets_hook == nullptr) {
+    /*if (d3d11->m_set_render_targets_hook == nullptr) {
         ComPtr<ID3D11DeviceContext> context{};
 
         d3d11->m_device->GetImmediateContext(&context);
         auto& set_render_targets_fn = (*(void***)context.Get())[33];
         d3d11->m_set_render_targets_hook = std::make_unique<PointerHook>(&set_render_targets_fn, (void*)&set_render_targets);
         OutputDebugString("Hooked ID3D11DeviceContext::SetRenderTargets");
-    }
+    }*/
 
     /*if (GetAsyncKeyState(VK_INSERT) & 1) {
         OutputDebugString(fmt::format("Depth stencil @ {:p} used", (void*)d3d11->m_last_depthstencil_used.Get()).c_str());
@@ -157,7 +157,13 @@ HRESULT WINAPI D3D11Hook::present(IDXGISwapChain* swap_chain, UINT sync_interval
         d3d11->m_on_present(*d3d11);
     }
 
-    auto result = present_fn(swap_chain, sync_interval, flags);
+    HRESULT result = S_OK;
+
+    if (!d3d11->m_ignore_next_present) {
+        result = present_fn(swap_chain, sync_interval, flags);
+    } else {
+        d3d11->m_ignore_next_present = false;
+    }
 
     if (d3d11->m_on_post_present) {
         d3d11->m_on_post_present(*d3d11);

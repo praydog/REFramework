@@ -114,6 +114,59 @@ void FirstPerson::on_draw_ui() {
     m_smooth_y_movement->draw("Smooth Y Movement (VR)");
     m_roomscale->draw("Roomscale Movement (VR)");
 
+    static bool adjust_hand_offset{false};
+    ImGui::Checkbox("Adjust Hand Offset", &adjust_hand_offset);
+
+    if (adjust_hand_offset) {
+        auto vr = VR::get();
+        const auto left_axis = vr->get_left_stick_axis();
+        const auto right_axis = vr->get_right_stick_axis();
+        const auto right_joystick = vr->get_right_joystick();
+        const auto left_joystick = vr->get_left_joystick();
+        const auto action_grip = vr->get_action_grip();
+        const auto action_trigger = vr->get_action_trigger();
+
+        const auto is_right_grip_active = vr->is_action_active(action_grip, right_joystick);
+        const auto is_left_grip_active = vr->is_action_active(action_grip, left_joystick);
+        const auto is_right_trigger_active = vr->is_action_active(action_trigger, right_joystick);
+        const auto is_left_trigger_active = vr->is_action_active(action_trigger, left_joystick);
+
+        // adjust the rotation offset based on how the user is moving the controller
+        if (!is_right_trigger_active) {
+            if (!is_right_grip_active) {
+                m_right_hand_rotation_offset.x = m_right_hand_rotation_offset.x + (right_axis.y * 0.001);
+                m_right_hand_rotation_offset.y = m_right_hand_rotation_offset.y + (right_axis.x * 0.001);
+            }
+            else {
+                m_right_hand_rotation_offset.z = m_right_hand_rotation_offset.z + ((right_axis.y + right_axis.x) * 0.001);
+            }
+        } else {
+            if (!is_right_grip_active) {
+                m_right_hand_position_offset.x = m_right_hand_position_offset.x + (right_axis.y * 0.001);
+                m_right_hand_position_offset.y = m_right_hand_position_offset.y + (right_axis.x * 0.001);
+            }
+            else {
+                m_right_hand_position_offset.z = m_right_hand_position_offset.z + ((right_axis.y + right_axis.x) * 0.001);
+            }
+        }
+
+        if (!is_left_trigger_active) {
+            if (!is_left_grip_active) {
+                m_left_hand_rotation_offset.x = m_left_hand_rotation_offset.x + (left_axis.y * 0.001);
+                m_left_hand_rotation_offset.y = m_left_hand_rotation_offset.y + (left_axis.x * 0.001);
+            } else {
+                m_left_hand_rotation_offset.z = m_left_hand_rotation_offset.z + ((left_axis.y + left_axis.x) * 0.001);
+            }
+        } else {
+            if (!is_left_grip_active) {
+                m_left_hand_position_offset.x = m_left_hand_position_offset.x + (left_axis.y * 0.001);
+                m_left_hand_position_offset.y = m_left_hand_position_offset.y + (left_axis.x * 0.001);
+            } else {
+                m_left_hand_position_offset.z = m_left_hand_position_offset.z + ((left_axis.y + left_axis.x) * 0.001);
+            }
+        }
+    }
+
     ImGui::DragFloat4("Scale Debug", (float*)&m_scale_debug.x, 1.0f, -1.0f, 1.0f);
     ImGui::DragFloat4("Scale Debug 2", (float*)&m_scale_debug2.x, 1.0f, -1.0f, 1.0f);
     ImGui::DragFloat4("Offset Debug", (float*)&m_offset_debug.x, 1.0f, -1.0f, 1.0f);
@@ -230,6 +283,13 @@ void FirstPerson::on_config_load(const utility::Config& cfg) {
     // turn the patch on
     if (m_disable_vignette->value()) {
         //m_disable_vignettePatch->toggle(m_disable_vignette->value());
+    }
+
+    if (VR::get()->is_openxr_loaded()) {
+        m_right_hand_rotation_offset = Vector3f{ 0.28f, -2.982f, -1.495f };
+        m_left_hand_rotation_offset = Vector3f{ m_right_hand_rotation_offset.x + 0.2f, -(m_right_hand_rotation_offset.y + 0.1f), -m_right_hand_rotation_offset.z };
+        m_right_hand_position_offset = Vector4f{ 0.052f, 0.084f, 0.02f, 0.0f };
+        m_left_hand_position_offset = Vector4f{ -m_right_hand_position_offset.x, m_right_hand_position_offset.y, m_right_hand_position_offset.z, 0.0f };
     }
 }
 
