@@ -24,6 +24,10 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
     // get back buffer
     ComPtr<ID3D12Resource> backbuffer{};
 
+    if (m_prev_backbuffer == nullptr) {
+        m_prev_backbuffer = backbuffer;
+    }
+
     if (FAILED(swapchain->GetBuffer(swapchain->GetCurrentBackBufferIndex(), IID_PPV_ARGS(&backbuffer)))) {
         spdlog::error("[VR] Failed to get back buffer");
         return vr::VRCompositorError_None;
@@ -142,7 +146,16 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
 
             //++m_openvr.texture_counter;
         }
+
+        // Allows the desktop window to be recorded.
+        if (m_prev_backbuffer != backbuffer && m_prev_backbuffer != nullptr) {
+            m_generic_copiers[frame_count % 3].wait(INFINITE);
+            m_generic_copiers[frame_count % 3].copy(m_prev_backbuffer.Get(), backbuffer.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_PRESENT);
+            m_generic_copiers[frame_count % 3].execute();
+        }
     }
+
+    m_prev_backbuffer = backbuffer;
 
     return e;
 }
@@ -160,6 +173,10 @@ void D3D12Component::on_reset(VR* vr) {
         ctx.texture.Reset();
     }
 
+    for (auto& copier : m_generic_copiers) {
+        copier.reset();
+    }
+
     if (runtime->is_openxr() && runtime->loaded) {
         m_openxr.create_swapchains();
 
@@ -169,11 +186,14 @@ void D3D12Component::on_reset(VR* vr) {
         //vr->m_openxr.end_frame();
     }
 
+    m_prev_backbuffer = nullptr;
     m_openvr.texture_counter = 0;
 }
 
 void D3D12Component::setup() {
     spdlog::info("[VR] Setting up d3d12 textures...");
+    
+    m_prev_backbuffer = nullptr;
 
     auto& hook = g_framework->get_d3d12_hook();
 
@@ -214,6 +234,10 @@ void D3D12Component::setup() {
         }
 
         ctx.copier.setup();
+    }
+
+    for (auto& copier : m_generic_copiers) {
+        copier.setup();
     }
 
     m_backbuffer_size[0] = backbuffer_desc.Width;

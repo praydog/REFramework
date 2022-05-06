@@ -157,7 +157,13 @@ HRESULT WINAPI D3D11Hook::present(IDXGISwapChain* swap_chain, UINT sync_interval
         d3d11->m_on_present(*d3d11);
     }
 
-    auto result = present_fn(swap_chain, sync_interval, flags);
+    HRESULT result = S_OK;
+
+    if (!d3d11->m_ignore_next_present) {
+        result = present_fn(swap_chain, sync_interval, flags);
+    } else {
+        d3d11->m_ignore_next_present = false;
+    }
 
     if (d3d11->m_on_post_present) {
         d3d11->m_on_post_present(*d3d11);

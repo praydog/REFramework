@@ -111,6 +111,8 @@ vr::EVRCompositorError D3D11Component::on_frame(VR* vr) {
 
             vr->m_submitted = true;
         }
+
+        hook->ignore_next_present();
     }
 
     return vr::VRCompositorError_None;

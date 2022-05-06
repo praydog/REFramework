@@ -362,7 +362,14 @@ HRESULT WINAPI D3D12Hook::present(IDXGISwapChain3* swap_chain, UINT sync_interva
     }
 
     g_inside_present = true;
-    last_present_result = present_fn(swap_chain, sync_interval, flags);
+    
+    if (!d3d12->m_ignore_next_present) {
+        last_present_result = present_fn(swap_chain, sync_interval, flags);
+    } else {
+        last_present_result = S_OK;
+        d3d12->m_ignore_next_present = false;
+    }
+
     g_inside_present = false;
 
     if (d3d12->m_on_post_present) {

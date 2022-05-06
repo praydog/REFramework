@@ -64,6 +64,9 @@ private:
 		bool has_commands{false};
 	};
 
+	ComPtr<ID3D12Resource> m_prev_backbuffer{};
+	std::array<ResourceCopier, 3> m_generic_copiers{};
+
 	// Mimicking what OpenXR does.
 	struct OpenVR {
 		struct TextureContext {
