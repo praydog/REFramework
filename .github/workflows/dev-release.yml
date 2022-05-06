@@ -33,6 +33,7 @@ jobs:
           7z a ${{github.workspace}}/${{matrix.target}}.zip ${{github.workspace}}/reframework_revision.txt
           7z a ${{github.workspace}}/${{matrix.target}}.zip ${{github.workspace}}/build/bin/${{matrix.target}}/dinput8.dll
           7z a ${{github.workspace}}/${{matrix.target}}.zip ${{github.workspace}}/dependencies/openvr/bin/win64/openvr_api.dll
+          7z a ${{github.workspace}}/${{matrix.target}}.zip ${{github.workspace}}/build/_deps/openxr-build/src/loader/${{env.BUILD_TYPE}}/openxr_loader.dll
           7z a ${{github.workspace}}/${{matrix.target}}.zip ${{github.workspace}}/scripts
           7z rn ${{github.workspace}}/${{matrix.target}}.zip scripts reframework/autorun
 
