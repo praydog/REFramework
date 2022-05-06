@@ -103,7 +103,7 @@ public:
 
 public: 
     // OpenXR specific fields
-    float prediction_scale{0.0f};
+    double prediction_scale{0.0};
     bool session_ready{false};
     bool frame_began{false};
     bool frame_synced{false};

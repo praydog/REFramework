@@ -59,7 +59,7 @@ VRRuntime::Error OpenXR::update_poses() {
 
     uint32_t view_count{};
 
-    const auto display_time = this->frame_state.predictedDisplayTime + (this->frame_state.predictedDisplayPeriod * this->prediction_scale);
+    const auto display_time = this->frame_state.predictedDisplayTime + (XrDuration)(this->frame_state.predictedDisplayPeriod * this->prediction_scale);
 
     if (display_time == 0) {
         return VRRuntime::Error::SUCCESS;
