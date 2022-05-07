@@ -923,7 +923,7 @@ std::optional<std::string> VR::initialize_openxr() {
     }
 
     // Step 3: Create a session
-    spdlog::info("[VR] Creating OpenXR session");
+    spdlog::info("[VR] Initializing graphics info");
 
     XrSessionCreateInfo session_create_info{XR_TYPE_SESSION_CREATE_INFO};
 
@@ -933,8 +933,8 @@ std::optional<std::string> VR::initialize_openxr() {
         m_d3d11.openxr().initialize(session_create_info);
     }
 
+    spdlog::info("[VR] Creating OpenXR session");
     session_create_info.systemId = m_openxr->system;
-
     result = xrCreateSession(m_openxr->instance, &session_create_info, &m_openxr->session);
 
     if (result != XR_SUCCESS) {

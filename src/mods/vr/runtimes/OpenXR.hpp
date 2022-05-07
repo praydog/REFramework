@@ -62,6 +62,7 @@ public:
     std::string get_result_string(XrResult result) const;
     std::string get_structure_string(XrStructureType type) const;
     std::string get_path_string(XrPath path) const;
+    XrPath get_path(const std::string& path) const;
     std::string get_current_interaction_profile() const;
     XrPath get_current_interaction_profile_path() const;
 
@@ -92,6 +93,7 @@ public:
     bool is_action_active(XrAction action, VRRuntime::Hand hand) const;
     bool is_action_active(std::string_view action_name, VRRuntime::Hand hand) const;
     bool is_action_active_once(std::string_view action_name, VRRuntime::Hand hand) const;
+    Vector2f get_action_axis(XrAction action, VRRuntime::Hand hand) const;
     std::string translate_openvr_action_name(std::string action_name) const;
 
     Vector2f get_left_stick_axis() const;
@@ -153,19 +155,44 @@ public:
         std::unordered_set<XrAction> vibration_actions{};
     } action_set;
 
+    struct VectorActivator {
+        Vector2f value{};
+        std::string action_name{};
+    };
+
+    struct VectorActivatorTrue {
+        Vector2f value{};
+        XrAction action{};
+    };
+
     struct HandData {
         XrSpace space{XR_NULL_HANDLE};
         XrPath path{XR_NULL_PATH};
         XrSpaceLocation location{XR_TYPE_SPACE_LOCATION};
         XrSpaceVelocity velocity{XR_TYPE_SPACE_VELOCITY};
+        
         // interaction profile -> action -> path map
-        std::unordered_map<std::string, std::unordered_map<std::string, XrPath>> path_map{};
+        struct InteractionProfile {
+            std::unordered_map<std::string, XrPath> path_map{};
+            std::unordered_map<XrAction, std::vector<VectorActivatorTrue>> vector_activators{};
+            std::unordered_map<XrAction, XrAction> action_vector_associations{};
+        };
+
+        std::unordered_map<std::string, InteractionProfile> profiles{};
+        std::unordered_map<XrAction, bool> forced_actions{};
+        std::unordered_map<XrAction, bool> prev_action_states{};
+
         bool active{false};
 
         struct UI {
             char new_path_name[XR_MAX_PATH_LENGTH]{};
             uint32_t new_path_name_length{0};
             int action_combo_index{0};
+
+            int activator_combo_index{0};
+            int modifier_combo_index{0};
+            int output_combo_index{0};
+            Vector2f output_vector2{};
         } ui;
     };
 
@@ -175,6 +202,13 @@ public:
     struct InteractionBinding {
         std::string interaction_path_name{};
         std::string action_name{};
+    };
+
+    struct ActionVectorAssociation {
+        VRRuntime::Hand hand{};
+        std::string action_modifier{};
+        std::string action_activator{};
+        std::vector<VectorActivator> vector_activators{};
     };
 
     static inline std::vector<InteractionBinding> s_bindings_map {
@@ -190,12 +224,25 @@ public:
         {"/user/hand/*/input/system/click", "systembutton"}, // oculus/vive/index
         {"/user/hand/*/input/menu/click", "systembutton"}, // oculus/vive/index
 
-        {"/user/hand/*/input/trackpad", "joystick"}, // vive & others
-        {"/user/hand/*/input/trackpad/click", "joystickclick"}, // vive & others
+        {"/user/hand/*/input/trackpad", "touchpad"}, // vive & others
+        {"/user/hand/*/input/trackpad/click", "touchpadclick"}, // vive & others
         {"/user/hand/*/output/haptic", "haptic"}, // most of them
 
         {"/user/hand/right/input/a/click", "re3_dodge"},
         {"/user/hand/left/input/trigger", "weapondial_start"},
+    };
+
+    static inline std::vector<ActionVectorAssociation> s_action_vector_associations {
+        { 
+            VRRuntime::Hand::LEFT, "touchpad", "touchpadclick", {
+            { {0.0, -1.0f}, "abutton" },
+            { {1.0f, 0.0f}, "bbutton" },
+        }},
+        { 
+            VRRuntime::Hand::RIGHT, "touchpad", "touchpadclick", {
+            { {0.0, -1.0f}, "abutton" },
+            { {-1.0f, 0.0f}, "bbutton" },
+        }},
     };
 
     static inline std::vector<std::string> s_supported_controllers {

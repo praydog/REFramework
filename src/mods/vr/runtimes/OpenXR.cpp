@@ -258,14 +258,15 @@ VRRuntime::Error OpenXR::update_input() {
         return (VRRuntime::Error)result;
     }
 
+    const auto current_interaction_profile = this->get_current_interaction_profile();
+
     for (auto i = 0; i < 2; ++i) {
-        if (this->is_action_active_once("systembutton", (VRRuntime::Hand)i)) {
-            this->handle_pause = true;
-        }
+        auto& hand = this->hands[i];
+        hand.forced_actions.clear();
 
         // Update controller pose state
         XrActionStateGetInfo get_info{XR_TYPE_ACTION_STATE_GET_INFO};
-        get_info.subactionPath = this->hands[i].path;
+        get_info.subactionPath = hand.path;
         get_info.action = this->action_set.action_map["pose"];
 
         XrActionStatePose pose_state{XR_TYPE_ACTION_STATE_POSE};
@@ -278,8 +279,29 @@ VRRuntime::Error OpenXR::update_input() {
             return (VRRuntime::Error)result;
         }
 
-        this->hands[i].active = pose_state.isActive;
-        // TODO: Other hand inputs
+        hand.active = pose_state.isActive;
+
+        // Handle vector activator stuff
+        for (auto& it : hand.profiles[current_interaction_profile].vector_activators) {
+            const auto activator = it.first;
+            const auto modifier = hand.profiles[current_interaction_profile].action_vector_associations[activator];
+
+            if (this->is_action_active(activator, (VRRuntime::Hand)i)) {
+                const auto axis = this->get_action_axis(modifier, (VRRuntime::Hand)i);
+                
+                for (const auto& output : it.second) {
+                    const auto distance = glm::length(output.value - axis);
+
+                    if (distance < 0.7f) {
+                        hand.forced_actions[output.action] = true;
+                    }
+                }
+            }
+        }
+
+        if (this->is_action_active_once("systembutton", (VRRuntime::Hand)i)) {
+            this->handle_pause = true;
+        }
     }
 
     // TODO: Other non-hand specific inputs
@@ -346,6 +368,17 @@ std::string OpenXR::get_path_string(XrPath path) const {
 
     path_string.resize(real_size-1);
     return path_string;
+}
+
+XrPath OpenXR::get_path(const std::string& path) const {
+    XrPath path_handle{XR_NULL_PATH};
+
+    if (auto result = xrStringToPath(this->instance, path.c_str(), &path_handle); result != XR_SUCCESS) {
+        spdlog::error("[VR] Failed to get path: {}", this->get_result_string(result));
+        return XR_NULL_PATH;
+    }
+
+    return path_handle;
 }
 
 std::string OpenXR::get_current_interaction_profile() const {
@@ -570,7 +603,7 @@ std::optional<std::string> OpenXR::initialize_actions(const std::string& json_st
                 if (this->action_set.action_map.contains(map_it.action_name)) {
                     for (const auto& controller : s_supported_controllers) {
                         if (attempt_add_binding(controller, { this->action_set.action_map[map_it.action_name], p })) {
-                            this->hands[index].path_map[controller][map_it.action_name] = p;
+                            this->hands[index].profiles[controller].path_map[map_it.action_name] = p;
                         }
                     }
                 }
@@ -588,6 +621,22 @@ std::optional<std::string> OpenXR::initialize_actions(const std::string& json_st
 
     // Check for json files that will override the default suggested bindings
     for (const auto& controller : s_supported_controllers) {
+        // Create default action vector associations
+        for (const auto& association : s_action_vector_associations) {
+            auto& hand = this->hands[association.hand];
+            auto& hand_profile = hand.profiles[controller];
+            auto& action_map = this->action_set.action_map;
+            const auto action_activator = action_map[association.action_activator];
+            const auto action_modifier = action_map[association.action_modifier];
+
+            hand_profile.action_vector_associations[action_activator] = action_modifier;
+
+            for (const auto& vector_activator : association.vector_activators) {
+                const auto output_action = action_map[vector_activator.action_name];
+                hand_profile.vector_activators[action_activator].push_back({ vector_activator.value, output_action });
+            }
+        }
+
         auto filename = controller + ".json";
 
         // replace the slashes with underscores
@@ -599,8 +648,12 @@ std::optional<std::string> OpenXR::initialize_actions(const std::string& json_st
 
             profile_bindings[controller].clear();
 
-            this->hands[VRRuntime::Hand::LEFT].path_map[controller].clear();
-            this->hands[VRRuntime::Hand::RIGHT].path_map[controller].clear();
+            this->hands[VRRuntime::Hand::LEFT].profiles[controller].vector_activators.clear();
+            this->hands[VRRuntime::Hand::RIGHT].profiles[controller].vector_activators.clear();
+            this->hands[VRRuntime::Hand::LEFT].profiles[controller].action_vector_associations.clear();
+            this->hands[VRRuntime::Hand::RIGHT].profiles[controller].action_vector_associations.clear();
+            this->hands[VRRuntime::Hand::LEFT].profiles[controller].path_map.clear();
+            this->hands[VRRuntime::Hand::RIGHT].profiles[controller].path_map.clear();
 
             // load the json file
             auto j = nlohmann::json::parse(std::ifstream(filename));
@@ -620,10 +673,36 @@ std::optional<std::string> OpenXR::initialize_actions(const std::string& json_st
                 const auto hand_idx = path_str.find("/left/") != std::string::npos ? VRRuntime::Hand::LEFT : VRRuntime::Hand::RIGHT;
 
                 if (this->action_set.action_map.contains(action_str)) {
-                    for (const auto& controller : s_supported_controllers) {
-                        if (attempt_add_binding(controller, { this->action_set.action_map[action_str], p })) {
-                            this->hands[hand_idx].path_map[controller][action_str] = p;
-                        }
+                    if (attempt_add_binding(controller, { this->action_set.action_map[action_str], p })) {
+                        this->hands[hand_idx].profiles[controller].path_map[action_str] = p;
+                    }
+                }
+            }
+
+            for (auto it : j["vector2_associations"]) {
+                const auto activator_name = it["activator"].get<std::string>();
+                const auto modifier_name = it["modifier"].get<std::string>();
+                const auto path_name = it["path"].get<std::string>();
+                const auto path = this->get_path(path_name);
+
+                for (auto output : it["outputs"]) {
+                    const auto action_name = output["action"].get<std::string>();
+                    
+                    auto value_json = output["value"];
+                    const auto value = Vector2f{value_json["x"].get<float>(), value_json["y"].get<float>()};
+
+                    if (this->action_set.action_map.contains(action_name)) {
+                        auto& hand = path == this->hands[VRRuntime::Hand::LEFT].path ? this->hands[VRRuntime::Hand::LEFT] : this->hands[VRRuntime::Hand::RIGHT];
+                        auto& hand_profile = hand.profiles[controller];
+
+                        spdlog::info("[VR] Adding vector2 association for {} {}", controller, path_name);
+
+                        const auto output_action = this->action_set.action_map[action_name];
+                        const auto action_modifier = this->action_set.action_map[modifier_name];
+                        const auto action_activator = this->action_set.action_map[activator_name];
+
+                        hand_profile.vector_activators[action_activator].push_back({ value, output_action });
+                        hand_profile.action_vector_associations[action_activator] = action_modifier;
                     }
                 }
             }
@@ -663,6 +742,12 @@ bool OpenXR::is_action_active(XrAction action, VRRuntime::Hand hand) const {
         return false;
     }
 
+    if (auto it = this->hands[hand].forced_actions.find(action); it != this->hands[hand].forced_actions.end()) {
+        if (it->second) {
+            return true;
+        }
+    }
+
     XrActionStateGetInfo get_info{XR_TYPE_ACTION_STATE_GET_INFO};
     get_info.action = action;
     get_info.subactionPath = this->hands[hand].path;
@@ -697,8 +782,16 @@ bool OpenXR::is_action_active(std::string_view action_name, VRRuntime::Hand hand
         return false;
     }
 
+    auto action = this->action_set.action_map.find(action_name.data())->second;
+
+    if (auto it = this->hands[hand].forced_actions.find(action); it != this->hands[hand].forced_actions.end()) {
+        if (it->second) {
+            return true;
+        }
+    }
+
     XrActionStateGetInfo get_info{XR_TYPE_ACTION_STATE_GET_INFO};
-    get_info.action = this->action_set.action_map.find(action_name.data())->second;
+    get_info.action = action;
     get_info.subactionPath = this->hands[hand].path;
     
     XrActionStateBoolean active{XR_TYPE_ACTION_STATE_BOOLEAN};
@@ -717,8 +810,16 @@ bool OpenXR::is_action_active_once(std::string_view action_name, VRRuntime::Hand
         return false;
     }
 
+    auto action = this->action_set.action_map.find(action_name.data())->second;
+
+    if (auto it = this->hands[hand].forced_actions.find(action); it != this->hands[hand].forced_actions.end()) {
+        if (it->second) {
+            return true;
+        }
+    }
+
     XrActionStateGetInfo get_info{XR_TYPE_ACTION_STATE_GET_INFO};
-    get_info.action = this->action_set.action_map.find(action_name.data())->second;
+    get_info.action = action;
     get_info.subactionPath = this->hands[hand].path;
     
     XrActionStateBoolean active{XR_TYPE_ACTION_STATE_BOOLEAN};
@@ -730,6 +831,22 @@ bool OpenXR::is_action_active_once(std::string_view action_name, VRRuntime::Hand
     }
 
     return active.isActive == XR_TRUE && active.currentState == XR_TRUE && active.changedSinceLastSync == XR_TRUE;
+}
+
+Vector2f OpenXR::get_action_axis(XrAction action, VRRuntime::Hand hand) const {
+    XrActionStateGetInfo get_info{XR_TYPE_ACTION_STATE_GET_INFO};
+    get_info.action = action;
+    get_info.subactionPath = this->hands[hand].path;
+
+    XrActionStateVector2f axis{XR_TYPE_ACTION_STATE_VECTOR2F};
+    auto result = xrGetActionStateVector2f(this->session, &get_info, &axis);
+
+    if (result != XR_SUCCESS) {
+        spdlog::error("[VR] Failed to get stick action state: {}", this->get_result_string(result));
+        return Vector2f{};
+    }
+
+    return *(Vector2f*)&axis.currentState;
 }
 
 std::string OpenXR::translate_openvr_action_name(std::string action_name) const {
@@ -750,11 +867,23 @@ Vector2f OpenXR::get_left_stick_axis() const {
         return Vector2f{};
     }
 
-    auto action = this->action_set.action_map.find("joystick")->second;
+    const auto& hand = this->hands[VRRuntime::Hand::LEFT];
+    auto profile_it = hand.profiles.find(this->get_current_interaction_profile());
+
+    if (profile_it == hand.profiles.end()) {
+        return Vector2f{};
+    }
+
+    const auto& hand_profile = profile_it->second;
+
+    auto joystick_action = this->action_set.action_map.find("joystick")->second;
+    auto touchpad_action = this->action_set.action_map.find("touchpad")->second;
+
+    auto action = hand_profile.path_map.contains("joystick") ? joystick_action : touchpad_action;
 
     XrActionStateGetInfo get_info{XR_TYPE_ACTION_STATE_GET_INFO};
-    get_info.action = this->action_set.action_map.find("joystick")->second;
-    get_info.subactionPath = this->hands[VRRuntime::Hand::LEFT].path;
+    get_info.action = action;
+    get_info.subactionPath = hand.path;
 
     XrActionStateVector2f axis{XR_TYPE_ACTION_STATE_VECTOR2F};
     auto result = xrGetActionStateVector2f(this->session, &get_info, &axis);
@@ -772,9 +901,23 @@ Vector2f OpenXR::get_right_stick_axis() const {
         return Vector2f{};
     }
 
+    const auto& hand = this->hands[VRRuntime::Hand::RIGHT];
+    auto profile_it = hand.profiles.find(this->get_current_interaction_profile());
+
+    if (profile_it == hand.profiles.end()) {
+        return Vector2f{};
+    }
+
+    const auto& hand_profile = profile_it->second;
+
+    auto joystick_action = this->action_set.action_map.find("joystick")->second;
+    auto touchpad_action = this->action_set.action_map.find("touchpad")->second;
+
+    auto action = hand_profile.path_map.contains("joystick") ? joystick_action : touchpad_action;
+
     XrActionStateGetInfo get_info{XR_TYPE_ACTION_STATE_GET_INFO};
-    get_info.action = this->action_set.action_map.find("joystick")->second;
-    get_info.subactionPath = this->hands[VRRuntime::Hand::RIGHT].path;
+    get_info.action = action;
+    get_info.subactionPath = hand.path;
 
     XrActionStateVector2f axis{XR_TYPE_ACTION_STATE_VECTOR2F};
     auto result = xrGetActionStateVector2f(this->session, &get_info, &axis);
@@ -827,6 +970,10 @@ void OpenXR::display_bindings_editor() {
         }
     }
 
+    if (ImGui::Button("Save Bindings")) {
+        this->save_bindings();
+    }
+
     auto display_hand = [&](const std::string& name, uint32_t index) {
         if (current_interaction_profile.empty() || current_interaction_profile == "XR_NULL_PATH") {
             ImGui::Text("Interaction profile not loaded, try putting on your headset.");
@@ -837,10 +984,28 @@ void OpenXR::display_bindings_editor() {
             ImGui::PushID(name.data());
 
             auto& hand = this->hands[index];
-            auto& path_map = hand.path_map[current_interaction_profile];
+
+            for (auto& it : hand.profiles[current_interaction_profile].vector_activators) {
+                const auto activator = it.first;
+                const auto modifier = hand.profiles[current_interaction_profile].action_vector_associations[activator];
+
+                if (this->is_action_active(activator, (VRRuntime::Hand)index)) {
+                    const auto axis = this->get_action_axis(modifier, (VRRuntime::Hand)index);
+                    
+                    for (const auto& output : it.second) {
+                        const auto distance = glm::length(output.value - axis);
+                        ImGui::Text("%s: %.2f", this->action_set.action_names[output.action].data(), distance);
+                    }
+                }
+            }
+
+            auto& path_map = hand.profiles[current_interaction_profile].path_map;
 
             std::vector<std::string> known_actions{};
             std::vector<const char*> known_actions_cstr{};
+
+            std::vector<std::string> known_vector2_actions{};
+            std::vector<const char*> known_vector2_actions_cstr{};
 
             for (auto action :this->action_set.actions) {
                 known_actions.push_back(this->action_set.action_names[action]);
@@ -849,6 +1014,14 @@ void OpenXR::display_bindings_editor() {
             for (auto& it : known_actions) {
                 known_actions_cstr.push_back(it.data());
             };
+
+            for (auto action : this->action_set.vector2_actions) {
+                known_vector2_actions.push_back(this->action_set.action_names[action]);
+            }
+
+            for (auto& it : known_vector2_actions) {
+                known_vector2_actions_cstr.push_back(it.data());
+            }
             
             for (auto& it : path_map) {
                 ImGui::PushID(it.first.data());
@@ -901,6 +1074,92 @@ void OpenXR::display_bindings_editor() {
                 }
             }
 
+            ImGui::Text("Vector2 Associations");
+            for (auto& it : hand.profiles[current_interaction_profile].vector_activators) {
+                const auto activator = it.first;
+                const auto modifier = hand.profiles[current_interaction_profile].action_vector_associations[activator];
+
+                const auto activator_name = this->action_set.action_names[activator];
+                const auto modifier_name = this->action_set.action_names[modifier];
+
+                int activator_combo_index = 0;
+                int modifier_combo_index = 0;
+
+                for (auto i = 0; i < known_actions.size(); i++) {
+                    if (known_actions[i] == activator_name) {
+                        activator_combo_index = i;
+                        break;
+                    }
+                }
+
+                for (auto i = 0; i < known_vector2_actions.size(); i++) {
+                    if (known_vector2_actions[i] == modifier_name) {
+                        modifier_combo_index = i;
+                        break;
+                    }
+                }
+
+                ImGui::PushID(modifier_name.data());
+                
+                if (ImGui::Combo(modifier_name.data(), &modifier_combo_index, known_vector2_actions_cstr.data(), known_vector2_actions_cstr.size())) {
+                    hand.profiles[current_interaction_profile].action_vector_associations[activator] = this->action_set.action_map[known_vector2_actions[modifier_combo_index]];
+                }
+                
+                ImGui::PushID(activator_name.data());
+                ImGui::Indent();
+
+                if (ImGui::Combo(activator_name.data(), &activator_combo_index, known_actions_cstr.data(), known_actions_cstr.size())) {
+                    const auto old_outputs = hand.profiles[current_interaction_profile].vector_activators[activator];
+                    const auto new_activator = this->action_set.action_map[known_actions[activator_combo_index]];
+
+                    hand.profiles[current_interaction_profile].action_vector_associations.erase(activator);
+                    hand.profiles[current_interaction_profile].action_vector_associations[new_activator] = modifier;
+                    hand.profiles[current_interaction_profile].vector_activators.erase(activator);
+                    hand.profiles[current_interaction_profile].vector_activators[new_activator] = old_outputs;
+                }
+
+                ImGui::Indent();
+                for (auto& output : it.second) {
+                    int output_combo_index = 0;
+                    const auto output_name = this->action_set.action_names[output.action];
+
+                    for (auto i = 0; i < known_actions.size(); i++) {
+                        if (known_actions[i] == output_name) {
+                            output_combo_index = i;
+                            break;
+                        }
+                    }
+
+                    ImGui::PushID(output_name.data());
+
+                    if (ImGui::Combo(output_name.data(), &output_combo_index, known_actions_cstr.data(), known_actions_cstr.size())) {
+                        output.action = this->action_set.action_map[known_actions[output_combo_index]];
+                    }
+
+                    ImGui::SliderFloat2("Value", &output.value[0], -1.0f, 1.0f);
+                    ImGui::PopID();
+                }
+
+                ImGui::Unindent();
+                ImGui::Unindent();
+                ImGui::PopID();
+                ImGui::PopID();
+            }
+
+            ImGui::Combo("New Vector2 Activator", &hand.ui.activator_combo_index, known_actions_cstr.data(), known_actions_cstr.size());
+            ImGui::Combo("New Vector2 Modifier", &hand.ui.modifier_combo_index, known_vector2_actions_cstr.data(), known_vector2_actions_cstr.size());
+            ImGui::Combo("New Vector2 Output", &hand.ui.output_combo_index, known_actions_cstr.data(), known_actions_cstr.size());
+            ImGui::SliderFloat2("New Vector2 Value", &hand.ui.output_vector2[0], -1.0f, 1.0f);
+
+            if (ImGui::Button("Add Vector2 Association")) {
+                const auto activator = this->action_set.action_map[known_actions[hand.ui.activator_combo_index]];
+                const auto modifier = this->action_set.action_map[known_vector2_actions[hand.ui.modifier_combo_index]];
+                const auto output = this->action_set.action_map[known_actions[hand.ui.output_combo_index]];
+
+                hand.profiles[current_interaction_profile].action_vector_associations[activator] = modifier;
+                hand.profiles[current_interaction_profile].vector_activators[activator].push_back({hand.ui.output_vector2, output});
+            }
+
             ImGui::PopID();
             ImGui::TreePop();
         }
@@ -914,18 +1173,41 @@ void OpenXR::save_bindings() {
     const auto current_interaction_profile = this->get_current_interaction_profile();
     nlohmann::json j;
 
-    for (auto& it : this->hands[VRRuntime::Hand::LEFT].path_map[current_interaction_profile]) {
-        nlohmann::json binding{};
-        binding["action"] = it.first;
-        binding["path"] = this->get_path_string(it.second);
-        j["bindings"].push_back(binding);
-    }
+    for (auto& hand : this->hands) {
+        for (auto& it : hand.profiles[current_interaction_profile].path_map) {
+            nlohmann::json binding{};
+            binding["action"] = it.first;
+            binding["path"] = this->get_path_string(it.second);
+            j["bindings"].push_back(binding);
+        }
 
-    for (auto& it : this->hands[VRRuntime::Hand::RIGHT].path_map[current_interaction_profile]) {
-        nlohmann::json binding{};
-        binding["action"] = it.first;
-        binding["path"] = this->get_path_string(it.second);
-        j["bindings"].push_back(binding);
+        for (auto& it : hand.profiles[current_interaction_profile].vector_activators) {
+            const auto activator = it.first;
+            const auto modifier = hand.profiles[current_interaction_profile].action_vector_associations[activator];
+
+            const auto activator_name = this->action_set.action_names[activator];
+            const auto modifier_name = this->action_set.action_names[modifier];
+
+            nlohmann::json vector2_association{};
+            vector2_association["path"] = this->get_path_string(hand.path);
+            vector2_association["activator"] = activator_name;
+            vector2_association["modifier"] = modifier_name;
+
+            nlohmann::json outputs{};
+            for (auto& output : it.second) {
+                const auto output_name = this->action_set.action_names[output.action];
+
+                nlohmann::json output_json{};
+                output_json["action"] = output_name;
+                output_json["value"]["x"] = output.value.x;
+                output_json["value"]["y"] = output.value.y;
+
+                outputs.push_back(output_json);
+            }
+
+            vector2_association["outputs"] = outputs;
+            j["vector2_associations"].push_back(vector2_association);
+        }
     }
 
     auto filename = current_interaction_profile + ".json";
