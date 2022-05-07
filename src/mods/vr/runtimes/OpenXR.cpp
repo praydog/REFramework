@@ -1142,6 +1142,10 @@ void OpenXR::display_bindings_editor() {
                     ImGui::PopID();
                 }
 
+                if (ImGui::Button("Insert New Output")) {
+                    hand.profiles[current_interaction_profile].vector_activators[activator].push_back({});
+                }
+
                 ImGui::Unindent();
                 ImGui::Unindent();
                 ImGui::PopID();
