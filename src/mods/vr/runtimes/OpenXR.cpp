@@ -1076,6 +1076,8 @@ void OpenXR::display_bindings_editor() {
 
             ImGui::Text("Vector2 Associations");
             for (auto& it : hand.profiles[current_interaction_profile].vector_activators) {
+                ImGui::PushID(&it.first);
+
                 const auto activator = it.first;
                 const auto modifier = hand.profiles[current_interaction_profile].action_vector_associations[activator];
 
@@ -1143,6 +1145,8 @@ void OpenXR::display_bindings_editor() {
                 ImGui::Unindent();
                 ImGui::Unindent();
                 ImGui::PopID();
+                ImGui::PopID();
+
                 ImGui::PopID();
             }
 
