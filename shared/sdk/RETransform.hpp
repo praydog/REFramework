@@ -261,6 +261,7 @@ namespace utility::re_transform {
 
     glm::mat4 calculate_base_transform(const ::RETransform& transform, REJoint* target);
     void calculate_base_transforms(const ::RETransform& transform, REJoint* target, std::unordered_map<REJoint*, glm::mat4>& out);
+    Vector4f calculate_tpose_pos_world(::RETransform& transform, REJoint* target, uint32_t depth=1);
     void apply_joints_tpose(::RETransform& transform, const std::vector<REJoint*>& joints, uint32_t additional_parents = 0);
 }
 

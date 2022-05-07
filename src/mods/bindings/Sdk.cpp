@@ -1273,6 +1273,7 @@ void bindings::open_sdk(ScriptState* s) {
 
     lua.new_usertype<RETransform>("RETransform",
         "calculate_base_transform", &utility::re_transform::calculate_base_transform,
+        "calculate_tpose_pos_world", &utility::re_transform::calculate_tpose_pos_world,
         "apply_joints_tpose", [](RETransform* t, sol::object joints, uint32_t additional_parents) {
             if (t == nullptr) {
                 return;

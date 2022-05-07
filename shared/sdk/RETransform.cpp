@@ -233,6 +233,50 @@ void calculate_base_transforms(const ::RETransform& transform, REJoint* target, 
     out[target] = parent_transform * base_transform;
 }
 
+Vector4f calculate_tpose_pos_world(::RETransform& transform, REJoint* joint, uint32_t depth) {
+    if (depth == 0) {
+        depth = 1;
+    }
+
+    const auto player_pos = sdk::get_transform_position(&transform);
+    const auto player_rot = sdk::get_transform_rotation(&transform);
+
+    std::vector<::REJoint*> joints{};
+
+    auto cur_joint = joint;
+
+    for (auto i = 0; i < depth; ++i) {
+        cur_joint = sdk::get_joint_parent(cur_joint);
+        joints.push_back(cur_joint);
+    }
+
+    std::unordered_map<REJoint*, glm::mat4> known_joints{};
+    utility::re_transform::calculate_base_transforms(transform, joint, known_joints);
+    utility::re_transform::calculate_base_transforms(transform, cur_joint, known_joints);
+
+    auto parent_pos = sdk::get_joint_position(cur_joint);
+    auto parent_rot = sdk::get_joint_rotation(cur_joint);
+    auto original_parent_pos = player_pos + (player_rot * known_joints[cur_joint][3]);
+
+    for (auto i = 0; i < depth; ++i) {
+        auto joint = joints[depth-i];
+
+        utility::re_transform::calculate_base_transforms(transform, cur_joint, known_joints);
+
+        auto original_pos = player_pos + (player_rot * known_joints[joint][3]);
+        const auto diff = original_pos - original_parent_pos;
+        const auto updated_pos = parent_pos + diff;
+        
+        original_parent_pos = original_pos;
+        parent_pos = updated_pos;
+    }
+
+    const auto original_pos = player_pos + (player_rot * known_joints[joint][3]);
+    const auto diff = original_pos - original_parent_pos;
+
+    return parent_pos + diff;
+}
+
 void apply_joints_tpose(::RETransform& transform, const std::vector<REJoint*>& joints_initial, uint32_t additional_parents) {
     if (joints_initial.empty() || joints_initial[0] == nullptr) {
         spdlog::info("No joints to apply tpose");
