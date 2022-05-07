@@ -26,10 +26,6 @@ local is_openxr = vrmod:is_openxr_loaded()
 
 local last_original_right_hand_rotation = Quaternion.new(0.0, 0.0, 0.0, 0.0)
 local last_camera_matrix = Matrix4x4f.new()
-local last_right_hand_rotation = Quaternion.new(0.0, 0.0, 0.0, 0.0)
-local last_right_hand_position = Vector3f.new(0.0, 0.0, 0.0)
-local last_left_hand_rotation = Quaternion.new(0.0, 0.0, 0.0, 0.0)
-local last_left_hand_position = Vector3f.new(0.0, 0.0, 0.0)
 
 local left_hand_rotation_vec = Vector3f.new(-0.105 + 0.2, 2.37, 1.10) -- pitch yaw roll?
 local right_hand_rotation_vec = Vector3f.new(-0.105, -2.37, -1.10) -- pitch yaw roll?
@@ -49,6 +45,11 @@ if is_openxr then
     left_hand_position_offset = openxr.left_hand_position_offset:clone()
     right_hand_position_offset = openxr.right_hand_position_offset:clone()
 end
+
+re8vr.left_hand_rotation_offset = left_hand_rotation_offset
+re8vr.right_hand_rotation_offset = right_hand_rotation_offset
+re8vr.left_hand_position_offset = left_hand_position_offset
+re8vr.right_hand_position_offset = right_hand_position_offset
 
 local ray_typedef = sdk.find_type_definition("via.Ray")
 local last_muzzle_pos = Vector4f.new(0.0, 0.0, 0.0, 1.0)
@@ -206,7 +207,7 @@ local function update_muzzle_data()
                 last_shoot_pos = last_muzzle_pos
             end
         elseif vrmod:is_using_controllers() then
-            last_muzzle_pos = last_right_hand_position
+            last_muzzle_pos = re8vr.last_right_hand_position
             last_muzzle_rot = last_camera_matrix:to_quat()
             last_muzzle_forward = (last_muzzle_rot * Vector3f.new(0, 0, -1)):normalized()
 
@@ -221,7 +222,7 @@ end
 
 local function update_pad_device(device)
     if not vrmod:is_hmd_active() then
-        re8.is_holding_left_grip = false
+        re8vr.is_holding_left_grip = false
         return
     end
 
@@ -360,7 +361,7 @@ local function update_pad_device(device)
         cur_button = cur_button | via.hid.GamePadButton.RTrigTop
     end
     
-    re8.is_holding_left_grip = vrmod:is_action_active(action_grip, left_joystick)
+    re8vr.is_holding_left_grip = vrmod:is_action_active(action_grip, left_joystick)
 
     if re8.wants_block or vrmod:is_action_active(action_block, left_joystick) or vrmod:is_action_active(action_block, right_joystick) then
         cur_button = cur_button | via.hid.GamePadButton.LTrigTop
@@ -401,7 +402,7 @@ end
 
 local function update_padman(padman)
     if not vrmod:is_hmd_active() or not vrmod:is_using_controllers() then
-        re8.is_holding_left_grip = false
+        re8vr.is_holding_left_grip = false
         return
     end
 
@@ -529,315 +530,8 @@ sdk.hook(
     on_post_try_guard_start
 )
 
-local function calculate_tpose_world(joint, depth)
-    if not depth then
-        depth = 1
-    end
-
-    local original_positions = {}
-    local original_rotations = {}
-    local current_positions = {}
-
-    local player_transform = re8.transform
-    local player_pos = transform_get_position:call(player_transform)
-    local player_rot = transform_get_rotation:call(player_transform)
-
-    local joints = {}
-
-    local cur_joint = joint
-
-    for i=1, depth do
-        cur_joint = joint_get_parent:call(cur_joint)
-        table.insert(joints, cur_joint)
-    end
-
-    local parent_pos = joint_get_position:call(cur_joint)
-    local parent_rot = joint_get_rotation:call(cur_joint)
-    local original_parent_pos = player_pos + (player_rot * player_transform:calculate_base_transform(cur_joint)[3])
-
-    for i=1, depth do
-        local joint = joints[depth-i]
-
-        local original_pos = player_pos + (player_rot * player_transform:calculate_base_transform(joint)[3])
-        local diff = original_pos - original_parent_pos
-        local updated_pos = parent_pos + diff
-        
-        original_parent_pos = original_pos
-        parent_pos = updated_pos
-    end
-
-    local original_pos = player_pos + (player_rot * player_transform:calculate_base_transform(joint)[3])
-    local diff = original_pos - original_parent_pos
-    return parent_pos + diff
-end
-
-local function set_hand_joints_to_tpose(hand_ik)
-    -- fixes an instance in not a hero where
-    -- chris is supposed to jump down something without tripping a laser
-    if re8.is_in_cutscene then return end
-
-    local hashes = {
-    }
-
-    if is_re7 then
-        hashes = {
-            hand_ik:get_field("HashJoint0"),
-            hand_ik:get_field("HashJoint1"),
-            hand_ik:get_field("HashJoint2"),
-            hand_ik:get_field("HashJoint3")
-        }
-    elseif is_re8 then
-        hashes = {
-            hand_ik:get_field("<HashJoint0>k__BackingField"),
-            hand_ik:get_field("<HashJoint1>k__BackingField"),
-            hand_ik:get_field("<HashJoint2>k__BackingField")
-        }
-    end
-
-    local original_positions = {}
-    local original_rotations = {}
-    local current_positions = {}
-
-    local player_transform = re8.transform
-    local player_pos = player_transform:get_position()
-    local player_rot = player_transform:get_rotation()
-
-    local joints = {}
-
-    for i, hash in ipairs(hashes) do
-        if hash and hash ~= 0 then
-            local joint = transform_get_joint_by_hash:call(player_transform, hash)
-
-            if joint then
-                table.insert(joints, joint_get_parent:call(joint))
-            end
-        end
-    end
-
-    if #joints > 0 and joints[1] ~= nil then
-        table.insert(joints, 1, joint_get_parent:call(joints[1]))
-
-        if not re8.is_grapple_aim then
-            table.insert(joints, 1, joint_get_parent:call(joints[1]))
-            table.insert(joints, 1, joint_get_parent:call(joints[1]))
-        end
-    end
-
-    for i, joint in ipairs(joints) do
-        local base_transform = player_transform:calculate_base_transform(joint)
-        original_positions[i] = player_pos + (player_rot * base_transform[3])
-        original_rotations[i] = player_rot * base_transform:to_quat()
-        current_positions[i] = joint_get_position:call(joint)
-    end
-
-    -- second pass
-    for i, joint in ipairs(joints) do
-        if joint then
-            local next_joint = joints[i + 1]
-
-            if next_joint ~= nil then
-                local diff = original_positions[i + 1] - original_positions[i]
-                local updated_pos = current_positions[i] + diff
-
-                joint_set_position:call(next_joint, updated_pos)
-                joint_set_rotation:call(next_joint, original_rotations[i+1])
-
-                current_positions[i + 1] = updated_pos
-            end
-        end
-    end
-end
-
 local function update_hand_ik()
-    if not re8.player then return end
-    if not vrmod:is_hmd_active() then return end
-
-    local controllers = vrmod:get_controllers()
-
-    if #controllers == 0 then
-        re8.was_gripping_weapon = false
-        return
-    end
-
-    if not re8.left_hand_ik or not re8.right_hand_ik then
-        re8.was_gripping_weapon = false
-        return
-    end
-
-    --if re8.is_in_cutscene then return end
-    if not re8.can_use_hands then
-        re8.was_gripping_weapon = false
-        return 
-    end
-
-    if not vrmod:is_using_controllers() then
-        re8.was_gripping_weapon = false
-        re8.is_holding_left_grip = false
-        --[[set_hand_joints_to_tpose(re8.left_hand_ik)
-        set_hand_joints_to_tpose(re8.right_hand_ik)
-        re8.left_hand_ik:call("calc")
-        re8.right_hand_ik:call("calc")]]
-        return
-    end
-
-    local player = re8.player
-    local original_head_rotation = nil
-    local head_joint = nil
-    local motion = player:call("getComponent(System.Type)", sdk.typeof("via.motion.Motion"))
-
-    local original_right_rot = Quaternion.identity()
-    local original_left_rot_relative = Quaternion.identity()
-    local original_left_pos_relative = Vector3f.new(0, 0, 0)
-    local original_right_rot_relative = Quaternion.identity()
-    local original_right_pos_relative = Vector3f.new(0, 0, 0)
-
-    -- the Point of this is to fix the head rotation during cutscenes
-    -- because the camera seems to be parented to the head during these events
-    -- so modifying the joint when we set the tpose won't cause some extremely jarring movement
-    if motion then
-        local transform = re8.transform
-
-        if not head_hash then
-            head_hash = get_joint_hash(transform, motion, "Head")
-        end
-    
-        head_joint = transform_get_joint_by_hash:call(transform, head_hash)
-
-        if head_joint then
-            original_head_rotation = joint_get_rotation:call(head_joint)
-        end
-
-        local left_hash = nil
-        local right_hash = nil
-    
-        if is_re7 then
-            left_hash = re8.left_hand_ik:get_field("HashJoint2")
-            right_hash = re8.right_hand_ik:get_field("HashJoint2")
-        elseif is_re8 then
-            left_hash = re8.left_hand_ik:get_field("<HashJoint2>k__BackingField")
-            right_hash = re8.right_hand_ik:get_field("<HashJoint2>k__BackingField")
-        end
-        
-        
-        local left_index = motion_get_joint_index_by_name_hash(motion, left_hash)
-        local right_index = motion_get_joint_index_by_name_hash(motion, right_hash)
-
-        local original_left_pos = motion_get_world_position(motion, left_index)
-        local original_right_pos = motion_get_world_position(motion, right_index)
-        local original_left_rot = motion_get_world_rotation(motion, left_index)
-        original_right_rot = motion_get_world_rotation(motion, right_index)
-
-        local right_rot_inverse = original_right_rot:inverse()
-        original_left_pos_relative = right_rot_inverse * (original_left_pos - original_right_pos)
-        original_left_rot_relative = right_rot_inverse * original_left_rot
-
-        local left_rot_inverse = original_left_rot:inverse()
-        original_right_pos_relative = left_rot_inverse * (original_right_pos - original_left_pos)
-        original_right_rot_relative = left_rot_inverse * original_right_rot
-    end
-
-    local left_controller_transform = vrmod:get_transform(controllers[1])
-    local right_controller_transform = vrmod:get_transform(controllers[2])
-    local left_controller_rotation = left_controller_transform:to_quat()
-    local right_controller_rotation = right_controller_transform:to_quat()
-
-    local hmd_transform = vrmod:get_transform(0)
-    --local hmd_rotation = (vrmod:get_rotation_offset() * hmd_transform:to_quat()):normalized()
-
-    local left_controller_offset = left_controller_transform[3] - hmd_transform[3]
-    local right_controller_offset = right_controller_transform[3] - hmd_transform[3]
-
-    local camera = sdk.get_primary_camera()
-    local camera_rotation = last_camera_matrix:to_quat()
-
-    local original_camera_matrix = camera:call("get_WorldMatrix")
-    local original_camera_rotation = original_camera_matrix:to_quat()
-    local updated_camera_pos = original_camera_matrix[3]
-
-    vrmod:apply_hmd_transform(original_camera_rotation, updated_camera_pos)
-
-    -- Handles decoupled camera pitch
-    original_camera_rotation = (original_camera_rotation * hmd_transform:to_quat():inverse()):normalized()
-
-    local rh_rotation = original_camera_rotation * right_controller_rotation * right_hand_rotation_offset
-    local rh_pos = updated_camera_pos
-                + ((original_camera_rotation * right_controller_offset) 
-                + ((original_camera_rotation * right_controller_rotation):normalized() * right_hand_position_offset))
-
-    rh_pos.w = 1.0
-
-    local lh_grip_position = rh_pos + (rh_rotation:normalized() * original_left_pos_relative)
-    lh_grip_position.w = 1.0
-
-    local lh_rotation = original_camera_rotation * left_controller_rotation * left_hand_rotation_offset
-    local lh_pos = updated_camera_pos
-                + ((original_camera_rotation * left_controller_offset) 
-                + ((original_camera_rotation * left_controller_rotation):normalized() * left_hand_position_offset))
-    
-    lh_pos.w = 1.0
-
-    local lh_delta_to_rh = (lh_pos - rh_pos)
-    local lh_grip_delta_to_rh = (lh_grip_position - rh_pos)
-    local lh_grip_delta = (lh_grip_position - lh_pos)
-    local lh_grip_distance = lh_grip_delta:length()
-
-    re8.was_gripping_weapon = lh_grip_distance <= 0.1 or (re8.was_gripping_weapon and re8.is_holding_left_grip)
-
-    -- Lets the player hold their left hand near the original (grip) position of the weapon
-    if re8.was_gripping_weapon and not re8.is_reloading then
-        if original_left_pos_relative:length() >= 0.1 then
-            local original_grip_rot = lh_grip_delta_to_rh:normalized():to_quat()
-            local current_grip_rot = lh_delta_to_rh:normalized():to_quat()
-
-            local grip_rot_delta = (current_grip_rot * original_grip_rot:inverse()):normalized()
-
-            -- Adjust the right hand rotation
-            rh_rotation = (grip_rot_delta * rh_rotation):normalized()
-
-            -- Adjust the grip position
-            lh_grip_position = rh_pos + (rh_rotation * original_left_pos_relative)
-            lh_grip_position.w = 1.0
-        end
-
-        -- Set the left hand position and rotation to the grip position
-        lh_pos = lh_grip_position
-        lh_rotation = rh_rotation * original_left_rot_relative
-    else
-        if re8.is_reloading then
-            lh_pos = lh_grip_position
-            lh_rotation = rh_rotation * original_left_rot_relative
-        else
-            lh_pos = lh_pos
-            lh_rotation = lh_rotation
-        end
-    end
-
-    last_left_hand_position = lh_pos:clone()
-    last_left_hand_rotation = lh_rotation:clone()
-
-    set_hand_joints_to_tpose(re8.left_hand_ik)
-
-    re8.left_hand_ik_transform:set_position(lh_pos)
-    re8.left_hand_ik_transform:set_rotation(lh_rotation)
-    re8.left_hand_ik:set_field("Transition", 1.0)
-    re8.left_hand_ik:call("calc")
-
-    set_hand_joints_to_tpose(re8.right_hand_ik)
-
-    last_right_hand_position = rh_pos:clone()
-    last_right_hand_rotation = rh_rotation:clone()
-    last_right_hand_position.w = 1.0
-
-    last_original_right_hand_rotation = (last_right_hand_rotation * right_hand_rotation_offset:inverse()):normalized()
-
-    re8.right_hand_ik_transform:set_position(rh_pos)
-    re8.right_hand_ik_transform:set_rotation(rh_rotation)
-    re8.right_hand_ik:set_field("Transition", 1.0)
-    re8.right_hand_ik:call("calc")
-
-    if head_joint ~= nil and original_head_rotation ~= nil then
-        joint_set_rotation:call(head_joint, original_head_rotation)
-    end
+    re8vr:update_hand_ik()
 end
 
 local last_real_camera_rotation = Quaternion.new(1, 0, 0, 0)
@@ -883,116 +577,7 @@ end
 local zero_vec = Vector3f.new(0, 0, 0)
 
 local function update_body_ik(camera_rotation, camera_pos)
-    if not re8.player then return end
-
-    local player = re8.player
-    local ik_leg = player:call("getComponent(System.Type)", sdk.typeof("via.motion.IkLeg"))
-
-    if not ik_leg then
-        if not vrmod:is_using_controllers() or re8.is_in_cutscene then
-            return
-        end
-
-        ik_leg = player:call("createComponent(System.Type)", sdk.typeof("via.motion.IkLeg"))
-
-        if not ik_leg then
-            log.error("Failed to create IK leg component")
-            return
-        end
-    end
-
-    if re8.is_in_cutscene or not vrmod:is_hmd_active() or not vrmod:is_using_controllers() then
-        --ik_leg:call("set_Enabled", false)
-        ik_leg:call("set_CenterOffset", Vector3f.new(0, 0, 0))
-        ik_leg:call("setCenterAdjust", 0)
-        ik_leg:call("set_CenterPositionCtrl", 2) -- world offset
-        ik_leg:call("set_GroundContactUpDistance", 0.0) -- Fixes the whole player being jarringly moved upwards.
-
-        if not vrmod:is_using_controllers() then
-            ik_leg:call("destroy", ik_leg)
-        end
-        
-        return
-    else
-        ik_leg:call("set_Enabled", true)
-    end
-
-    local motion = player:call("getComponent(System.Type)", sdk.typeof("via.motion.Motion"))
-
-    if not motion then
-        log.error("Failed to get motion component")
-        return
-    end
-
-    local transform = player:call("get_Transform")
-
-    if not head_hash then
-        head_hash = get_joint_hash(transform, motion, "Head")
-    end
-
-    --[[if not chest_hash then
-        chest_hash = get_joint_hash(transform, motion, "Chest")
-    end]]
-
-    if not center_hash then
-        center_hash = get_joint_hash(transform, motion, "Hip")
-    end
-
-    local transform_rot = transform:call("get_Rotation")
-    local transform_pos = transform:call("get_Position")
-
-    local head_joint = transform_get_joint_by_hash:call(transform, head_hash)
-    --local chest_joint = transform:call("getJointByHash", chest_hash)
-    --local hip_joint = transform:call("getJointByHash", center_hash)
-
-    --local head_index = motion:call("getJointIndexByNameHash", head_hash)
-    --chest_index = motion:call("getJointIndexByNameHash", chest_hash)
-    --local original_head_pos = motion:call("getWorldPosition", head_index)
-    --local original_chest_pos = motion:call("getWorldPosition", chest_index)
-
-    local normal_dir = camera_rotation * Vector3f.new(0, 0, 1)
-    local flattened_dir = camera_rotation * Vector3f.new(0, 0, 1)
-    flattened_dir.y = 0.0
-    flattened_dir:normalize()
-
-    local original_head_pos = calculate_tpose_world(head_joint, 4) + (flattened_dir * (math.abs(normal_dir.y) * -0.1)) + (flattened_dir * 0.025)
-
-    --[[if not vrmod:is_using_controllers() then
-        original_head_pos = joint_get_position:call(head_joint) + (flattened_dir * (math.abs(normal_dir.y) * -0.1)) + (flattened_dir * 0.025)
-    end]]
-
-    --original_head_pos = transform_rot * original_head_pos
-    --original_head_pos = transform:call("getJointByName", "root"):call("get_Rotation") * original_head_pos
-    --original_head_pos = transform_rot * transform:calculate_base_transform(head_joint)[3]
-    --original_chest_pos = transform_rot * original_chest_pos
-
-    --original_head_pos.x = original_chest_pos.x
-    --original_head_pos.z = original_chest_pos.z
-
-    --[[local center_index = motion:call("getJointIndexByNameHash", center_hash)
-    local original_center_pos = motion:call("getWorldPosition", center_index)
-
-    original_center_pos = transform_rot * original_center_pos
-
-    local current_center_pos = transform:call("getJointByHash", center_hash):call("get_Position")
-    local center_diff = (original_center_pos * -1.0)
-    center_diff.y = 0.0]]
-
-    --local current_head_pos = transform:call("getJointByName", "Head"):call("get_Position")
-
-    --[[local center_joint = transform:call("getJointByName", "Hip")
-
-    local center_pos = center_joint:call("get_Position")
-    local transform_pos = transform:call("get_Position")]]
-
-    local diff_to_camera = ((camera_pos) - original_head_pos)
-
-    --ik_leg:call("set_CenterJointName", "Hip")
-    ik_leg:call("set_CenterOffset", diff_to_camera)
-    ik_leg:call("setCenterAdjust", 0)
-    ik_leg:call("set_CenterPositionCtrl", 2) -- world offset
-    ik_leg:call("set_GroundContactUpDistance", 0.0) -- Fixes the whole player being jarringly moved upwards.
-    --ik_leg:call("set_UpdateTiming", 2) -- ConstraintsBegin
+    re8vr:update_body_ik(camera_rotation, camera_pos)
 end
 
 local function on_pre_shoot(args)
@@ -1011,33 +596,12 @@ local function on_pre_shoot(args)
 
     local ray = args[3]
 
-   --[[if is_re7 then
-        local muzzle_joint = weapon:call("get_muzzleJoint")
+    local pos = last_muzzle_pos + (last_muzzle_forward * 0.02)
+    local from = Vector4f.new(pos.x, pos.y, pos.z, 1.0)
+    local dir = Vector4f.new(last_muzzle_forward.x, last_muzzle_forward.y, last_muzzle_forward.z, 1.0)
 
-        if muzzle_joint then
-            local muzzle_pos = joint_get_position:call(muzzle_joint)
-            local muzzle_forward = joint_get_rotation:call(muzzle_joint) * Vector3f.new(0, 0, 1)
-
-            local pos = muzzle_pos + (muzzle_forward * 0.01)
-            local from = Vector4f.new(pos.x, pos.y, pos.z, 1.0)
-            local dir = Vector4f.new(forward.x, forward.y, forward.z, 0.0)
-
-            -- nudge the start position slightly forward because
-            -- apparently the bullets can collide with the weapon.... wtf
-            sdk.set_native_field(ray, ray_typedef, "from", from)
-            sdk.set_native_field(ray, ray_typedef, "dir", dir)
-        else
-            log.info("No muzzle joint found")
-        end
-    elseif is_re8 then]]
-        local pos = last_muzzle_pos + (last_muzzle_forward * 0.02)
-        local from = Vector4f.new(pos.x, pos.y, pos.z, 1.0)
-        local dir = Vector4f.new(last_muzzle_forward.x, last_muzzle_forward.y, last_muzzle_forward.z, 1.0)
-
-        sdk.set_native_field(ray, ray_typedef, "from", from)
-        sdk.set_native_field(ray, ray_typedef, "dir", dir)
-    --end
-
+    sdk.set_native_field(ray, ray_typedef, "from", from)
+    sdk.set_native_field(ray, ray_typedef, "dir", dir)
     --sdk.call_native_func(ray, ray_typedef, ".ctor(via.vec3, via.vec3)", last_muzzle_pos, last_muzzle_forward)
 end
 
@@ -1076,9 +640,8 @@ local function on_pre_throwable_late_update(args)
 
     if not is_grip_down and throwable_was_right_grip_down then
         local vel_norm = Vector3f.new(0.0, 1.0, 0.0):normalized()
-        local from = Vector3f.new(last_right_hand_position.x, last_right_hand_position.y, last_right_hand_position.z)
+        local from = re8vr.last_right_hand_position
 
-        from = Vector4f.new(from.x, from.y, from.z, 1.0)
         vel_norm = Vector4f.new(vel_norm.x, vel_norm.y, vel_norm.z, 1.0)
 
         -- some BS to just throw it
@@ -1360,7 +923,7 @@ local function slerp_gui(new_gui_quat)
     local now = os.clock()
 
     -- trigger gui slerp
-    if dot_ang >= 20 or re8.is_in_cutscene then
+    if dot_ang >= 20 or re8vr.is_in_cutscene then
         last_gui_forced_slerp = now
     end
 
@@ -1374,7 +937,7 @@ local function slerp_gui(new_gui_quat)
         last_gui_quat = last_gui_quat:slerp(new_gui_quat, dot_dist * math.max((GUI_MAX_SLERP_TIME - slerp_time_diff) * re8.delta_time, 0.0))
     end
 
-    if re8.is_in_cutscene then
+    if re8vr.is_in_cutscene then
         vrmod:recenter_gui(last_gui_quat)
     else
         vrmod:recenter_gui(last_gui_quat * new_gui_quat:inverse())
@@ -1444,19 +1007,19 @@ local function fix_player_camera(player_camera)
         end
 
         if current_type ~= 0 then -- MaximumOperatable
-            re8.is_in_cutscene = true
+            re8vr.is_in_cutscene = true
             is_maximum_controllable = false
             last_time_not_maximum_controllable = os.clock()
         else
             if os.clock() - last_time_not_maximum_controllable <= 1.0 then
-                re8.is_in_cutscene = true
+                re8vr.is_in_cutscene = true
             end
         end
     end
 
     local wants_recenter = false
 
-    if re8.is_in_cutscene and not last_cutscene_state then
+    if re8vr.is_in_cutscene and not last_cutscene_state then
         --vrmod:recenter_view()
 
         -- force the gui to be recentered when we exit the cutscene
@@ -1466,7 +1029,7 @@ local function fix_player_camera(player_camera)
         --queue_recenter = true
 
         vrmod:recenter_gui(last_gui_quat)
-    elseif not re8.is_in_cutscene and last_cutscene_state then
+    elseif not re8vr.is_in_cutscene and last_cutscene_state then
         last_gui_forced_slerp = os.clock()
         last_gui_quat = vrmod:get_rotation(0):to_quat():inverse()
         wants_recenter = true
@@ -1524,7 +1087,7 @@ local function fix_player_camera(player_camera)
 
     -- Joint is used for the actual final rendering of the game world
     --if not wants_recenter then
-    if re8.is_in_cutscene then
+    if re8vr.is_in_cutscene then
         joint_set_position:call(camera_joint, camera_pos_pre_hmd)
         joint_set_rotation:call(camera_joint, camera_rot_pre_hmd)
     else
@@ -1543,7 +1106,7 @@ local function fix_player_camera(player_camera)
     update_body_ik(camera_rot, camera_pos)
 
     -- Slerp the gui around
-    slerp_gui(re8.is_in_cutscene and (camera_rot_pre_hmd * camera_rot:inverse()) or vrmod:get_rotation(0):to_quat():inverse())
+    slerp_gui(re8vr.is_in_cutscene and (camera_rot_pre_hmd * camera_rot:inverse()) or vrmod:get_rotation(0):to_quat():inverse())
 
     local fixed_dir = ((neg_forward_identity * camera_rot_no_shake) * Vector3f.new(0, 0, -1)):normalized()
     local fixed_rot = fixed_dir:to_quat()
@@ -1585,7 +1148,7 @@ local function fix_player_camera(player_camera)
         if camera_controller then
             local camera_controller_rot = Quaternion.identity()
 
-            if re8.is_in_cutscene then
+            if re8vr.is_in_cutscene then
                 if is_re7 then
                     camera_controller_rot = camera_controller:get_field("<rotation>k__BackingField")
                 elseif is_re8 then
@@ -1599,9 +1162,9 @@ local function fix_player_camera(player_camera)
             controller_forward.y = 0.0  
             camera_controller_rot = controller_forward:normalized():to_quat()
             
-            --if wants_recenter or not re8.is_in_cutscene then
-            if not re8.is_in_cutscene or is_maximum_controllable then
-                if not re8.is_in_cutscene then
+            --if wants_recenter or not re8vr.is_in_cutscene then
+            if not re8vr.is_in_cutscene or is_maximum_controllable then
+                if not re8vr.is_in_cutscene then
                     vrmod:recenter_view()
                 end
                 
@@ -1633,7 +1196,7 @@ local function fix_player_camera(player_camera)
     -- stops the camera from pivoting around the player
     -- so we can use VR to look around without the body sticking out
     --if vrmod:is_using_controllers() then
-    --[[if not re8.is_in_cutscene then
+    --[[if not re8vr.is_in_cutscene then
         local param_container = player_camera:get_field("_CurrentParamContainer")
 
         if param_container == nil then
@@ -1684,7 +1247,7 @@ local function fix_player_camera(player_camera)
         --update_crosshair_world_pos(camera_pos, camera_pos + (fixed_dir * 1000.0))
     end
 
-    last_cutscene_state = re8.is_in_cutscene
+    last_cutscene_state = re8vr.is_in_cutscene
 end
 
 local function on_pre_player_camera_update(args)
@@ -1726,7 +1289,7 @@ local function on_pre_player_interp_rotation(args)
     local camera_gameobject = camera:call("get_GameObject")
     local camera_transform = camera_gameobject:call("get_Transform")
 
-    re8.is_in_cutscene = true
+    re8vr.is_in_cutscene = true
     fix_player_camera(player_camera)
 end
 
@@ -1839,7 +1402,7 @@ elseif is_re8 then
 end
 
 local function update_player_gestures()
-    local player = re8.player
+    local player = re8vr.player
 
     if not player then 
         re8.wants_block = false
@@ -1898,7 +1461,7 @@ local should_reset_view_no_player = false
 re.on_pre_application_entry("UpdateBehavior", function()
     update_player_gestures()
 
-    if not re8.player then
+    if not re8vr.player then
         if should_reset_view_no_player then
             vrmod:recenter_view()
             vrmod:set_gui_rotation_offset(Quaternion.identity())
@@ -1943,7 +1506,7 @@ local swing_index = 0
 
 local function melee_attack(hit_controller)
     if not vrmod:is_hmd_active() or not vrmod:is_using_controllers() then return end
-    if re8.is_in_cutscene or not re8.can_use_hands then return end
+    if re8vr.is_in_cutscene or not re8vr.can_use_hands then return end
 
     if not re8.weapon then
         return
@@ -2146,7 +1709,7 @@ end
 
 local function on_post_hit_controller_update(args)
     if not vrmod:is_hmd_active() or not vrmod:is_using_controllers() then return end
-    if re8.is_in_cutscene or not re8.can_use_hands then return end
+    if re8vr.is_in_cutscene or not re8vr.can_use_hands then return end
 
     local hit_controller = sdk.to_managed_object(hit_controller_args[2])
 
@@ -2211,10 +1774,10 @@ re.on_pre_application_entry("UnlockScene", function()
 
     last_camera_matrix = vrmod:get_last_render_matrix()
 
-    if not re8.player or not re8.transform then last_roomscale_failure = os.clock() return end
+    if not re8vr.player or not re8.transform then last_roomscale_failure = os.clock() return end
     if not re8.status then last_roomscale_failure = os.clock() return end -- in the main menu or something.
     if not last_camera_matrix then last_roomscale_failure = os.clock() return end
-    if re8.is_in_cutscene then last_roomscale_failure = os.clock() return end
+    if re8vr.is_in_cutscene then last_roomscale_failure = os.clock() return end
 
     if os.clock() - last_roomscale_failure < 1.0 then return end
 
@@ -2413,7 +1976,7 @@ local function re8_on_pre_order_vibration(args)
     if left_power > 0 then
         local left_joystick = vrmod:get_left_joystick()
         vrmod:trigger_haptic_vibration(0.0, duration, 1, left_power, left_joystick)
-    elseif re8.was_gripping_weapon then
+    elseif re8vr.was_gripping_weapon then
         local left_joystick = vrmod:get_left_joystick()
         vrmod:trigger_haptic_vibration(0.0, duration, 1, right_power, left_joystick)
     end
@@ -2608,7 +2171,7 @@ re.on_draw_ui(function()
         end
 
         if imgui.tree_node("Player") then
-            object_explorer:handle_address(re8.player)
+            object_explorer:handle_address(re8vr.player)
 
             imgui.tree_pop()
         end
@@ -2620,7 +2183,7 @@ re.on_draw_ui(function()
         end
 
         if imgui.tree_node("Right Hand IK") then
-            local right_hand_ik = re8.right_hand_ik
+            local right_hand_ik = re8vr.right_hand_ik
     
             object_explorer:handle_address(right_hand_ik)
     
@@ -2628,7 +2191,7 @@ re.on_draw_ui(function()
         end
     
         if imgui.tree_node("Left Hand IK") then
-            local left_hand_ik = re8.left_hand_ik
+            local left_hand_ik = re8vr.left_hand_ik
     
             object_explorer:handle_address(left_hand_ik)
     
@@ -2736,8 +2299,8 @@ re.on_draw_ui(function()
         imgui.text("Has postural camera control: " .. tostring(re8.has_postural_camera_control))
         imgui.text("Is arm jacked: " .. tostring(re8.is_arm_jacked))
         imgui.text("Is motion play: " .. tostring(re8.is_motion_play))
-        imgui.text("Is in cutscene: " .. tostring(re8.is_in_cutscene))
-        imgui.text("Can use hands: " .. tostring(re8.can_use_hands))
+        imgui.text("Is in cutscene: " .. tostring(re8vr.is_in_cutscene))
+        imgui.text("Can use hands: " .. tostring(re8vr.can_use_hands))
 
         imgui.tree_pop()
     end

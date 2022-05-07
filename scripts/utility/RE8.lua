@@ -60,24 +60,24 @@ local callbacks = CallbackManager:new()
 local function initialize_re8(re8)
     re8 = re8 or {}
 
-    re8.player = nil
+    re8vr.player = nil
     re8.transform = nil
     re8.weapon = nil
     re8.left_weapon = nil
     re8.inventory = nil
     re8.hand_touch = nil
     re8.order = nil
-    re8.right_hand_ik = nil
-    re8.left_hand_ik = nil
-    re8.right_hand_ik_transform = nil
-    re8.left_hand_ik_transform = nil
-    re8.is_in_cutscene = false
+    re8vr.right_hand_ik = nil
+    re8vr.left_hand_ik = nil
+    re8vr.right_hand_ik_transform = nil
+    re8vr.left_hand_ik_transform = nil
+    re8vr.is_in_cutscene = false
     re8.is_arm_jacked = false
-    re8.is_grapple_aim = false
+    re8vr.is_grapple_aim = false
     re8.is_motion_play = false
-    re8.is_reloading = false
+    re8vr.is_reloading = false
     re8.has_postural_camera_control = true
-    re8.can_use_hands = true
+    re8vr.can_use_hands = true
     re8.updater = nil
     re8.status = nil
     re8.event_action_controller = nil
@@ -171,13 +171,13 @@ function re8.get_weapon_object(player)
 end
 
 function re8.update_in_cutscene_state()
-    re8.is_in_cutscene = re8.num_active_tasks > 0 or not re8.has_postural_camera_control or re8.is_arm_jacked or re8.is_motion_play
-    re8.can_use_hands = not re8.is_arm_jacked and not re8.is_motion_play
+    re8vr.is_in_cutscene = re8.num_active_tasks > 0 or not re8.has_postural_camera_control or re8.is_arm_jacked or re8.is_motion_play
+    re8vr.can_use_hands = not re8.is_arm_jacked and not re8.is_motion_play
 end
 
 re.on_pre_application_entry("UpdateBehavior", function()
-    re8.player = re8.get_localplayer()
-    local player = re8.player
+    re8vr.player = re8.get_localplayer()
+    local player = re8vr.player
 
     if player == nil or not re8.application then
         initialize_re8(re8)
@@ -212,32 +212,41 @@ re.on_pre_application_entry("UpdateBehavior", function()
     end
 
     if re8.status ~= nil then
-        re8.is_reloading = re8.status:call("get_isReload")
+        re8vr.is_reloading = re8.status:call("get_isReload")
+        re8vr.is_reloading = re8vr.is_reloading
     end
 
     if re8.order ~= nil then
-        re8.is_grapple_aim = re8.order:get_field("IsGrappleAimEnable")
+        re8vr.is_grapple_aim = re8.order:get_field("IsGrappleAimEnable")
     end
 
     if re8.hand_touch == nil then
-        re8.right_hand_ik = nil
-        re8.left_hand_ik = nil
+        re8vr.right_hand_ik = nil
+        re8vr.left_hand_ik = nil
+        re8vr.right_hand_ik_object = nil
+        re8vr.left_hand_ik_object = nil
+        re8vr.right_hand_ik_transform = nil
+        re8vr.left_hand_ik_transform = nil
     else
         local hand_ik = re8.hand_touch:get_field("HandIK"):get_elements()
 
         if #hand_ik < 2 then
             log.info("no hand ik")
-            re8.right_hand_ik = nil
-            re8.left_hand_ik = nil
+            re8vr.right_hand_ik = nil
+            re8vr.left_hand_ik = nil
+            re8vr.right_hand_ik_object = nil
+            re8vr.left_hand_ik_object = nil
+            re8vr.right_hand_ik_transform = nil
+            re8vr.left_hand_ik_transform = nil
         else
-            re8.right_hand_ik = hand_ik[1]
-            re8.left_hand_ik = hand_ik[2]
+            re8vr.right_hand_ik = hand_ik[1]
+            re8vr.left_hand_ik = hand_ik[2]
 
-            if re8.right_hand_ik and re8.left_hand_ik then
-                re8.right_hand_ik_object = re8.right_hand_ik:get_field("TargetGameObject")
-                re8.left_hand_ik_object = re8.left_hand_ik:get_field("TargetGameObject") 
-                re8.right_hand_ik_transform = re8.right_hand_ik:get_field("Target")
-                re8.left_hand_ik_transform = re8.left_hand_ik:get_field("Target")
+            if re8vr.right_hand_ik and re8vr.left_hand_ik then
+                re8vr.right_hand_ik_object = re8vr.right_hand_ik:get_field("TargetGameObject")
+                re8vr.left_hand_ik_object = re8vr.left_hand_ik:get_field("TargetGameObject") 
+                re8vr.right_hand_ik_transform = re8vr.right_hand_ik:get_field("Target")
+                re8vr.left_hand_ik_transform = re8vr.left_hand_ik:get_field("Target")
             end
         end
     end
@@ -348,7 +357,7 @@ local function on_post_update_postural_camera_motion(retval)
     if is_re7 then
         local game_object = controller:call("get_GameObject")
 
-        if game_object ~= re8.player then
+        if game_object ~= re8vr.player then
             return retval
         end
     else
@@ -360,7 +369,7 @@ local function on_post_update_postural_camera_motion(retval)
 
         local game_object = motion:call("get_GameObject")
 
-        if game_object ~= re8.player then
+        if game_object ~= re8vr.player then
             return retval
         end
     end
