@@ -599,6 +599,10 @@ std::optional<std::string> VR::on_initialize() {
     auto openvr_error = initialize_openvr();
 
     if (openvr_error || !m_openvr->loaded) {
+        if (m_openvr->error) {
+            spdlog::info("OpenVR failed to load: {}", *m_openvr->error);
+        }
+
         m_openvr->is_hmd_active = false;
         m_openvr->was_hmd_active = false;
         m_openvr->needs_pose_update = false;
