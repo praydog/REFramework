@@ -159,6 +159,9 @@ public:
     const auto& get_eyes() const {
         return get_runtime()->eyes;
     }
+
+    void apply_hmd_transform(glm::quat& rotation, Vector4f& position);
+    void apply_hmd_transform(::REJoint* camera_joint);
     
     bool is_action_active(vr::VRActionHandle_t action, vr::VRInputValueHandle_t source = vr::k_ulInvalidInputValueHandle) const;
     Vector2f get_joystick_axis(vr::VRInputValueHandle_t handle) const;
@@ -306,8 +309,6 @@ private:
     void update_action_states();
     void update_camera(); // if not in firstperson mode
     void update_camera_origin(); // every frame
-    void apply_hmd_transform(glm::quat& rotation, Vector4f& position);
-    void apply_hmd_transform(::REJoint* camera_joint);
     void update_audio_camera();
     void update_render_matrix();
     void restore_audio_camera(); // after wwise listener update

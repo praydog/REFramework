@@ -29,6 +29,12 @@ REJoint* get_transform_joint_by_hash(RETransform* transform, uint32_t hash) {
     return get_joint_by_hash_method->call<REJoint*>(sdk::get_thread_context(), transform, hash);
 }
 
+REJoint* get_transform_joint_by_name(RETransform* transform, std::wstring_view name) {
+    static auto get_joint_by_name_method = sdk::find_type_definition("via.Transform")->get_method("getJointByName");
+
+    return get_joint_by_name_method->call<REJoint*>(sdk::get_thread_context(), transform, sdk::VM::create_managed_string(name));
+}
+
 void set_transform_position(RETransform* transform, const Vector4f& pos, bool no_dirty) {
     if (!no_dirty) {
         static auto set_position_method = sdk::find_type_definition("via.Transform")->get_method("set_Position");
@@ -73,6 +79,12 @@ REJoint* sdk::get_joint_parent(REJoint* joint) {
 
     return utility::re_transform::get_joint(*joint_transform, joint->info->parentJoint);
 };
+
+uint32_t get_joint_hash(REJoint* joint) {
+    static auto get_hash_method = sdk::find_type_definition("via.Joint")->get_method("get_NameHash");
+
+    return get_hash_method->call<uint32_t>(sdk::get_thread_context(), joint);
+}
 
 void sdk::set_joint_position(REJoint* joint, const Vector4f& position) {
     static auto set_position_method = sdk::find_type_definition("via.Joint")->get_method("set_Position");

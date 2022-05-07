@@ -13,6 +13,7 @@
 #include "mods/Scene.hpp"
 #include "mods/ScriptRunner.hpp"
 #include "mods/VR.hpp"
+#include "mods/vr/games/RE8VR.hpp"
 
 #include "Mods.hpp"
 
@@ -27,6 +28,10 @@ Mods::Mods() {
     m_mods.emplace_back(std::make_unique<Hooks>());
 
     m_mods.emplace_back(VR::get());
+
+#if defined(RE8) || defined(RE7)
+    m_mods.emplace_back(RE8VR::get());
+#endif
 
 #ifndef RE8
 
