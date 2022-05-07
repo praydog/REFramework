@@ -17,13 +17,23 @@ public:
     void on_lua_state_created(sol::state& lua) override;
     void on_lua_state_destroyed(sol::state& lua) override;
 
-    void set_hand_joints_to_tpose(::REManagedObject* player, ::REManagedObject* hand_ik);
-    void update_hand_ik(
-        ::REManagedObject* player, 
-        ::REManagedObject* left_hand_ik, 
-        ::REManagedObject* right_hand_ik);
+    void set_hand_joints_to_tpose(::REManagedObject* hand_ik);
+    void update_hand_ik();
+    void update_body_ik(glm::quat* camera_rotation, Vector4f* camera_pos);
 
 private:
+    union {
+        ::REGameObject* m_player{nullptr};
+        ::REManagedObject* m_player_downcast;
+    };
+
+    ::REManagedObject* m_left_hand_ik{nullptr};
+    ::REManagedObject* m_right_hand_ik{nullptr};
+    ::RETransform* m_left_hand_ik_transform{nullptr};
+    ::RETransform* m_right_hand_ik_transform{nullptr};
+    ::REManagedObject* m_left_hand_ik_object{nullptr};
+    ::REManagedObject* m_right_hand_ik_object{nullptr};
+
     Vector4f m_left_hand_position_offset{};
     Vector4f m_right_hand_position_offset{};
     glm::quat m_left_hand_rotation_offset{};

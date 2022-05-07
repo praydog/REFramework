@@ -1,4 +1,5 @@
 #include <sdk/SceneManager.hpp>
+#include <sdk/MurmurHash.hpp>
 #include "../../../mods/VR.hpp"
 
 #include "RE8VR.hpp"
@@ -19,6 +20,13 @@ std::optional<std::string> RE8VR::on_initialize() {
 
 void RE8VR::on_lua_state_created(sol::state& lua) {
     lua.new_usertype<RE8VR>("RE8VR",
+        "player", &RE8VR::m_player_downcast,
+        "left_hand_ik", &RE8VR::m_left_hand_ik,
+        "right_hand_ik", &RE8VR::m_right_hand_ik,
+        "left_hand_ik_transform", &RE8VR::m_left_hand_ik_transform,
+        "right_hand_ik_transform", &RE8VR::m_right_hand_ik_transform,
+        "left_hand_ik_object", &RE8VR::m_left_hand_ik_object,
+        "right_hand_ik_object", &RE8VR::m_right_hand_ik_object,
         "left_hand_position_offset", &RE8VR::m_left_hand_position_offset,
         "right_hand_position_offset", &RE8VR::m_right_hand_position_offset,
         "left_hand_rotation_offset", &RE8VR::m_left_hand_rotation_offset,
@@ -34,7 +42,8 @@ void RE8VR::on_lua_state_created(sol::state& lua) {
         "is_reloading", &RE8VR::m_is_reloading,
         "can_use_hands", &RE8VR::m_can_use_hands,
         "set_hand_joints_to_tpose", &RE8VR::set_hand_joints_to_tpose,
-        "update_hand_ik", &RE8VR::update_hand_ik);
+        "update_hand_ik", &RE8VR::update_hand_ik,
+        "update_body_ik", &RE8VR::update_body_ik);
 
     lua["re8vr"] = this;
 }
@@ -43,10 +52,10 @@ void RE8VR::on_lua_state_destroyed(sol::state& lua) {
     
 }
 
-void RE8VR::set_hand_joints_to_tpose(::REManagedObject* player, ::REManagedObject* hand_ik) {
-    //fixes an instance in not a hero where
+void RE8VR::set_hand_joints_to_tpose(::REManagedObject* hand_ik) {
+    //fixes an instance in!a hero where
     // chris is supposed to jump down something without tripping a laser
-    if (m_is_in_cutscene) {
+    if (m_player == nullptr || m_is_in_cutscene) {
         return;
     }
 
@@ -66,7 +75,7 @@ void RE8VR::set_hand_joints_to_tpose(::REManagedObject* player, ::REManagedObjec
 #endif
 
     std::vector<::REJoint*> joints{};
-    auto player_transform = ((::REGameObject*)player)->transform;
+    auto player_transform = m_player->transform;
 
     for (auto hash : hashes) {
         if (hash == 0) {
@@ -89,7 +98,7 @@ void RE8VR::set_hand_joints_to_tpose(::REManagedObject* player, ::REManagedObjec
     utility::re_transform::apply_joints_tpose(*player_transform, joints, additional_parents);
 }
 
-void RE8VR::update_hand_ik(::REManagedObject* player, ::REManagedObject* left_hand_ik, ::REManagedObject* right_hand_ik) {
+void RE8VR::update_hand_ik() {
     static auto motion_get_joint_index_by_name_hash = sdk::find_type_definition("via.motion.Motion")->get_method("getJointIndexByNameHash");
     static auto motion_get_world_position = sdk::find_type_definition("via.motion.Motion")->get_method("getWorldPosition");
     static auto motion_get_world_rotation = sdk::find_type_definition("via.motion.Motion")->get_method("getWorldRotation");
@@ -98,6 +107,12 @@ void RE8VR::update_hand_ik(::REManagedObject* player, ::REManagedObject* left_ha
     static uint32_t head_hash = 0;
 
     auto vr = VR::get();
+    
+    if (m_player == nullptr || m_left_hand_ik == nullptr || m_right_hand_ik == nullptr) {
+        m_was_gripping_weapon = false;
+        m_is_holding_left_grip = false;
+        return;
+    }
 
     if (!vr->is_hmd_active() || !vr->is_using_controllers()) {
         m_was_gripping_weapon = false;
@@ -112,9 +127,8 @@ void RE8VR::update_hand_ik(::REManagedObject* player, ::REManagedObject* left_ha
 
     const auto controllers = vr->get_controllers();
 
-    auto player_gameobj = (::REGameObject*)player;
     ::REJoint* head_joint = nullptr;
-    auto motion = utility::re_component::find<::REManagedObject>(player_gameobj->transform, motion_type);
+    auto motion = utility::re_component::find<::REManagedObject>(m_player->transform, motion_type);
 
     std::optional<glm::quat> original_head_rotation{};
     auto original_right_rot = glm::identity<glm::quat>();
@@ -124,7 +138,7 @@ void RE8VR::update_hand_ik(::REManagedObject* player, ::REManagedObject* left_ha
     auto original_right_pos_relative = Vector4f{0, 0, 0, 1};
 
     if (motion != nullptr) {
-        auto transform = player_gameobj->transform;
+        auto transform = m_player->transform;
 
         if (head_hash == 0) {
             auto head_joint = sdk::get_transform_joint_by_name(transform, L"Head");
@@ -146,11 +160,11 @@ void RE8VR::update_hand_ik(::REManagedObject* player, ::REManagedObject* left_ha
         uint32_t right_hash = 0;
 
 #ifdef RE7
-        left_hash = *sdk::get_object_field<uint32_t>(left_hand_ik, "HashJoint2");
-        right_hash = *sdk::get_object_field<uint32_t>(right_hand_ik, "HashJoint2");
+        left_hash = *sdk::get_object_field<uint32_t>(m_left_hand_ik, "HashJoint2");
+        right_hash = *sdk::get_object_field<uint32_t>(m_right_hand_ik, "HashJoint2");
 #else
-        left_hash = *sdk::get_object_field<uint32_t>(left_hand_ik, "<HashJoint2>k__BackingField");
-        right_hash = *sdk::get_object_field<uint32_t>(right_hand_ik, "<HashJoint2>k__BackingField");
+        left_hash = *sdk::get_object_field<uint32_t>(m_left_hand_ik, "<HashJoint2>k__BackingField");
+        right_hash = *sdk::get_object_field<uint32_t>(m_right_hand_ik, "<HashJoint2>k__BackingField");
 #endif
 
         const auto left_index = motion_get_joint_index_by_name_hash->call<uint32_t>(sdk::get_thread_context(), motion, left_hash);
@@ -249,26 +263,23 @@ void RE8VR::update_hand_ik(::REManagedObject* player, ::REManagedObject* left_ha
         }
     }
 
-    auto left_hand_ik_transform = *sdk::get_object_field<::RETransform*>(left_hand_ik, "Target");
-    auto right_hand_ik_transform = *sdk::get_object_field<::RETransform*>(right_hand_ik, "Target");
-
     m_last_left_hand_position = lh_pos;
     m_last_left_hand_rotation = lh_rotation;
     m_last_left_hand_rotation.w = 1.0f;
 
-    set_hand_joints_to_tpose(player, left_hand_ik);
+    set_hand_joints_to_tpose(m_left_hand_ik);
 
-    sdk::set_transform_position(left_hand_ik_transform, lh_pos);
-    sdk::set_transform_rotation(left_hand_ik_transform, lh_rotation);
-    *sdk::get_object_field<float>(left_hand_ik, "Transition") = 1.0f;
-    sdk::call_object_func_easy<void*>(left_hand_ik, "calc");
+    sdk::set_transform_position(m_left_hand_ik_transform, lh_pos);
+    sdk::set_transform_rotation(m_left_hand_ik_transform, lh_rotation);
+    *sdk::get_object_field<float>(m_left_hand_ik, "Transition") = 1.0f;
+    sdk::call_object_func_easy<void*>(m_left_hand_ik, "calc");
 
-    set_hand_joints_to_tpose(player, right_hand_ik);
+    set_hand_joints_to_tpose(m_right_hand_ik);
 
-    sdk::set_transform_position(right_hand_ik_transform, rh_pos);
-    sdk::set_transform_rotation(right_hand_ik_transform, rh_rotation);
-    *sdk::get_object_field<float>(right_hand_ik, "Transition") = 1.0f;
-    sdk::call_object_func_easy<void*>(right_hand_ik, "calc");
+    sdk::set_transform_position(m_right_hand_ik_transform, rh_pos);
+    sdk::set_transform_rotation(m_right_hand_ik_transform, rh_rotation);
+    *sdk::get_object_field<float>(m_right_hand_ik, "Transition") = 1.0f;
+    sdk::call_object_func_easy<void*>(m_right_hand_ik, "calc");
 
     m_last_right_hand_position = rh_pos;
     m_last_right_hand_rotation = rh_rotation;
@@ -277,5 +288,89 @@ void RE8VR::update_hand_ik(::REManagedObject* player, ::REManagedObject* left_ha
     if (head_joint != nullptr && original_head_rotation) {
         sdk::set_joint_rotation(head_joint, *original_head_rotation);
     }
+}
+
+void RE8VR::update_body_ik(glm::quat* camera_rotation, Vector4f* camera_pos) {
+    if (m_player == nullptr) {
+        return;
+    }
+
+    static auto via_motion_ik_leg = sdk::find_type_definition("via.motion.IkLeg");
+    static auto via_motion_ik_leg_type = via_motion_ik_leg->get_type();
+    static auto via_motion_motion = sdk::find_type_definition("via.motion.Motion");
+    static auto via_motion_motion_type = via_motion_motion->get_type();
+    static auto ik_leg_set_center_offset = via_motion_ik_leg->get_method("set_CenterOffset");
+    static auto ik_leg_set_center_adjust = via_motion_ik_leg->get_method("setCenterAdjust");
+    static auto ik_leg_set_center_position_ctrl = via_motion_ik_leg->get_method("set_CenterPositionCtrl");
+    static auto ik_leg_set_ground_contact_up_distance = via_motion_ik_leg->get_method("set_GroundContactUpDistance");
+    static auto ik_leg_set_enabled = via_motion_ik_leg->get_method("set_Enabled");
+
+    auto vr = VR::get();
+    auto ik_leg = utility::re_component::find<::REManagedObject>(m_player->transform, via_motion_ik_leg_type);
+
+    if (ik_leg == nullptr) {
+        if (!vr->is_using_controllers() || m_is_in_cutscene || camera_rotation == nullptr || camera_pos == nullptr) {
+            return;
+        }
+
+        ik_leg = sdk::call_object_func_easy<::REManagedObject*>(m_player, "createComponent(System.Type)", via_motion_ik_leg->get_runtime_type());
+
+        if (ik_leg == nullptr) {
+            spdlog::error("[RE8VR] Failed to create IK leg component");
+            return;
+        }
+    }
+
+    if (m_is_in_cutscene || !vr->is_hmd_active() || !vr->is_using_controllers()) {
+        //ik_leg:call("set_Enabled", false)
+        const auto zero_vec = Vector4f(0.0f, 0.0f, 0.0f, 1.0f);
+        ik_leg_set_center_offset->call(sdk::get_thread_context(), ik_leg, &zero_vec);
+        ik_leg_set_center_adjust->call(sdk::get_thread_context(), ik_leg, 0);
+        ik_leg_set_center_position_ctrl->call(sdk::get_thread_context(), ik_leg, 2); // world offset
+        ik_leg_set_ground_contact_up_distance->call(sdk::get_thread_context(), ik_leg, 0.0f); // Fixes the whole player being jarringly moved upwards.
+
+        if (!vr->is_using_controllers()) {
+            sdk::call_object_func<void*>(ik_leg, "destroy", sdk::get_thread_context(), ik_leg);
+        }
+        
+        return;
+    } else {
+        ik_leg_set_enabled->call(sdk::get_thread_context(), ik_leg, true);
+    }
+
+    if (camera_rotation == nullptr || camera_pos == nullptr) {
+        return;
+    }
+
+    auto motion = utility::re_component::find<::REManagedObject>(m_player->transform, via_motion_motion_type);
+
+    if (motion == nullptr) {
+        spdlog::error("[RE8VR] Failed to get motion component");
+        return;
+    }
+
+    auto transform = m_player->transform;
+
+    static uint32_t head_hash = sdk::murmur_hash::calc32("Head");
+    
+    const auto transform_rot = sdk::get_transform_rotation(transform);
+    const auto transform_pos = sdk::get_transform_position(transform);
+
+    auto head_joint = sdk::get_transform_joint_by_hash(transform, head_hash);
+
+    const auto normal_dir = *camera_rotation * Vector3f{0, 0, 1};
+    auto flattened_dir = *camera_rotation * Vector3f{0, 0, 1};
+    flattened_dir.y = 0.0f;
+    flattened_dir = glm::normalize(flattened_dir);
+
+    const auto original_head_pos = Vector3f{utility::re_transform::calculate_tpose_pos_world(*transform, head_joint, 4)} + (flattened_dir * (glm::abs(normal_dir.y) * -0.1f)) + (flattened_dir * 0.025f);
+    const auto diff_to_camera = Vector4f{(Vector3f{*camera_pos} - original_head_pos), 1.0f};
+
+    //ik_leg:call("set_CenterJointName", "Hip")
+    ik_leg_set_center_offset->call(sdk::get_thread_context(), ik_leg, &diff_to_camera);
+    ik_leg_set_center_adjust->call(sdk::get_thread_context(), ik_leg, 0);
+    ik_leg_set_center_position_ctrl->call(sdk::get_thread_context(), ik_leg, 2); // world offset
+    ik_leg_set_ground_contact_up_distance->call(sdk::get_thread_context(), ik_leg, 0.0f); // Fixes the whole player being jarringly moved upwards.
+    //ik_leg:call("set_UpdateTiming", 2) -- ConstraintsBegin
 }
 
