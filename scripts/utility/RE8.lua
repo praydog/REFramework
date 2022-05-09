@@ -62,9 +62,9 @@ local function initialize_re8(re8)
 
     re8vr.player = nil
     re8.transform = nil
-    re8.weapon = nil
+    re8vr.weapon = nil
     re8.left_weapon = nil
-    re8.inventory = nil
+    re8vr.inventory = nil
     re8.hand_touch = nil
     re8.order = nil
     re8vr.right_hand_ik = nil
@@ -78,12 +78,13 @@ local function initialize_re8(re8)
     re8vr.is_reloading = false
     re8.has_postural_camera_control = true
     re8vr.can_use_hands = true
-    re8.updater = nil
+    re8vr.updater = nil
     re8.status = nil
     re8.event_action_controller = nil
     re8.game_event_action_controller = nil
     re8.hit_controller = nil
-    re8.wants_block = false
+    re8vr.wants_block = false
+    re8vr.wants_heal = false
     re8.movement_speed_rate = 0.0
     re8.movement_speed_vector = Vector3f.new(0, 0, 0)
     re8.num_active_tasks = 0
@@ -148,11 +149,11 @@ function re8.get_weapon_object(player)
 
         return equip_manager:call("get_equipWeaponRight"), equip_manager:call("get_equipWeaponLeft")
     elseif is_re8 then
-        if not re8.updater then
+        if not re8vr.updater then
             return nil
         end
 
-        local player_gun = re8.updater:call("get_playerGun")
+        local player_gun = re8vr.updater:call("get_playerGun")
 
         if not player_gun then
             return nil
@@ -187,28 +188,28 @@ re.on_pre_application_entry("UpdateBehavior", function()
     re8.transform = player:call("get_Transform")
     re8.hand_touch = get_component(player, "app.PlayerHandTouch")
     re8.order = get_component(player, "app.PlayerOrder")
-    re8.updater = get_component(player, "app.PlayerUpdater")
+    re8vr.updater = get_component(player, "app.PlayerUpdater")
     
     if is_re7 then
-        re8.inventory = get_component(player, "app.Inventory")
-    elseif re8.updater ~= nil then
-        local container = re8.updater:get_field("playerContainer")
+        re8vr.inventory = get_component(player, "app.Inventory")
+    elseif re8vr.updater ~= nil then
+        local container = re8vr.updater:get_field("playerContainer")
 
         if container then
-            re8.inventory = container:call("get_inventory")
+            re8vr.inventory = container:call("get_inventory")
         else
-            re8.inventory = nil
+            re8vr.inventory = nil
         end
     else
-        re8.inventory = nil
+        re8vr.inventory = nil
     end
 
     re8.delta_time = sdk.call_native_func(re8.application, re8.application_type, "get_DeltaTime")
 
     if is_re7 then
         re8.status = get_component(player, "app.PlayerStatus")
-    elseif re8.updater ~= nil then
-        re8.status = re8.updater:call("get_playerstatus")
+    elseif re8vr.updater ~= nil then
+        re8.status = re8vr.updater:call("get_playerstatus")
     end
 
     if re8.status ~= nil then
@@ -263,12 +264,12 @@ re.on_pre_application_entry("UpdateBehavior", function()
     local weapon, left_weapon = re8.get_weapon_object(player)
 
     if weapon == nil then
-        re8.weapon = nil
+        re8vr.weapon = nil
         re8.left_weapon = nil
         return
     end
 
-    re8.weapon = weapon
+    re8vr.weapon = weapon
     re8.left_weapon = left_weapon
 
     if is_re7 then

@@ -167,18 +167,18 @@ local vfx_muzzle1_hash = via_murmur_hash_calc32:call(nil, "vfx_muzzle1")
 local vfx_muzzle2_hash = via_murmur_hash_calc32:call(nil, "vfx_muzzle2")
 
 local function update_muzzle_data()
-    if re8.weapon then
+    if re8vr.weapon then
         -- for some reason calling get_muzzleJoint causes lua to randomly freak out
         -- so we're just going to directly grab the field instead
-        local muzzle_joint = re8.weapon:get_field("MuzzleJoint")
+        local muzzle_joint = re8vr.weapon:get_field("MuzzleJoint")
 
         if muzzle_joint == nil then
             local weapon_gameobject = nil
             
             if is_re7 then
-                weapon_gameobject = re8.weapon:call("get_GameObject")
+                weapon_gameobject = re8vr.weapon:call("get_GameObject")
             elseif is_re8 then
-                weapon_gameobject = re8.weapon:get_field("<owner>k__BackingField")
+                weapon_gameobject = re8vr.weapon:get_field("<owner>k__BackingField")
             end
 
             if weapon_gameobject ~= nil then
@@ -357,15 +357,16 @@ local function update_pad_device(device)
         end]]
     end
 
-    if vrmod:is_action_active(action_heal, left_joystick) or vrmod:is_action_active(action_heal, right_joystick) then
+    if re8vr.wants_heal or vrmod:is_action_active(action_heal, left_joystick) or vrmod:is_action_active(action_heal, right_joystick) then
         cur_button = cur_button | via.hid.GamePadButton.RTrigTop
+        re8vr.wants_heal = false
     end
     
     re8vr.is_holding_left_grip = vrmod:is_action_active(action_grip, left_joystick)
 
-    if re8.wants_block or vrmod:is_action_active(action_block, left_joystick) or vrmod:is_action_active(action_block, right_joystick) then
+    if re8vr.wants_block or vrmod:is_action_active(action_block, left_joystick) or vrmod:is_action_active(action_block, right_joystick) then
         cur_button = cur_button | via.hid.GamePadButton.LTrigTop
-        re8.wants_block = true
+        re8vr.wants_block = true
     end
 
     if vrmod:is_action_active(action_a_button, right_joystick) then
@@ -511,13 +512,13 @@ local function on_pre_try_guard_start(args)
     end
 
     -- this will only allow blocking by physically holding your hands up.
-    if not re8.wants_block then
+    if not re8vr.wants_block then
         return sdk.PreHookResult.SKIP_ORIGINAL
     end
 end
 
 local function on_post_try_guard_start(retval)
-    if not vrmod:is_hmd_active() or not vrmod:is_using_controllers() or re8.wants_block then
+    if not vrmod:is_hmd_active() or not vrmod:is_using_controllers() or re8vr.wants_block then
         return retval
     end
 
@@ -588,7 +589,7 @@ local function on_pre_shoot(args)
     local weapon = sdk.to_managed_object(args[2])
 
     -- this happens in RE7 with the turrets.
-    if weapon ~= re8.weapon then
+    if weapon ~= re8vr.weapon then
         return
     end
 
@@ -625,7 +626,7 @@ local function on_pre_throwable_late_update(args)
     if not vrmod:is_hmd_active() or not vrmod:is_using_controllers() then return end
 
     local weapon = sdk.to_managed_object(args[2])
-    if weapon ~= re8.weapon then return end
+    if weapon ~= re8vr.weapon then return end
 
     if os.clock() - last_throwable_update > 1.0 then
         throwable_was_right_grip_down = false
@@ -654,11 +655,11 @@ local function on_pre_throwable_late_update(args)
         pcall(weapon.call, weapon, "throwWeapon", throw_ray)
         inside_throw = false
 
-        local inventory = re8.updater:get_field("References"):call("get_inventory")
+        local inventory = re8vr.updater:get_field("References"):call("get_inventory")
 
         -- Decrement the grenade count
         if threw_bomb and inventory ~= nil then
-            local work = re8.weapon:call("get_work")
+            local work = re8vr.weapon:call("get_work")
 
             if work ~= nil then
                 inventory:call("reduceItem(app.ItemCore.InstanceWork, System.Int32, System.Boolean)", work, 1, false)
@@ -1098,6 +1099,8 @@ local function fix_player_camera(player_camera)
 
         joint_set_position:call(camera_joint, camera_pos_pre_hmd)
         joint_set_rotation:call(camera_joint, camera_rot_pre_hmd * forward:to_quat())
+
+        --camera_rot = camera_rot_pre_hmd * forward:to_quat()
     end
 
     --last_gui_offset = last_gui_offset * (camera_rot:inverse() * camera_rot_pre_hmd)
@@ -1401,11 +1404,31 @@ elseif is_re8 then
     )
 end
 
+local heal_gesture = {
+    --[[last_bottom_time = 0,
+    last_top_time = 0,
+    heal_bounds_lo = Vector3f.new(-0.2, 0.0, -0.2),
+    heal_bounds_hi = Vector3f.new(0.2, 0.1, 0.2)]]
+    was_grip_down = false,
+    was_trigger_down = false,
+    last_grip_weapon = nil,
+    last_grab_time = 0,
+}
+
 local function update_player_gestures()
+    re8vr:update_player_gestures()
+
+    if true then
+        return
+    end
+
     local player = re8vr.player
 
     if not player then 
-        re8.wants_block = false
+        re8vr.wants_block = false
+        re8vr.wants_heal = false
+        heal_gesture.was_grip_down = false
+        heal_gesture.was_trigger_down = false
         return 
     end
 
@@ -1415,7 +1438,10 @@ local function update_player_gestures()
 
     local controllers = vrmod:get_controllers()
     if #controllers < 2 then
-        re8.wants_block = false
+        re8vr.wants_block = false
+        re8vr.wants_heal = false
+        heal_gesture.was_grip_down = false
+        heal_gesture.was_trigger_down = false
         return
     end
 
@@ -1425,32 +1451,297 @@ local function update_player_gestures()
 
     local delta_to_left = left_hand[3] - hmd[3]
     local delta_to_right = right_hand[3] - hmd[3]
+    delta_to_left.w = 0
+    delta_to_right.w = 0
     local dir_to_left = delta_to_left:normalized()
     local dir_to_right = delta_to_right:normalized()
 
     local hmd_forward = hmd[2]
+    local flattened_forward = Vector3f.new(hmd_forward.x, 0, hmd_forward.z):normalized()
 
-    local left_hand_dot = math.abs(hmd_forward:dot(dir_to_left))
-    local right_hand_dot = math.abs(hmd_forward:dot(dir_to_right))
+    local right_hand_dot_flat_raw = flattened_forward:dot(dir_to_right)
 
-    local left_hand_in_front = left_hand_dot >= 0.8
-    local right_hand_in_front = right_hand_dot >= 0.8
+    local left_hand_dot_raw = hmd_forward:dot(dir_to_left)
+    local right_hand_dot_raw = hmd_forward:dot(dir_to_right)
 
-    local first_test = left_hand_in_front and right_hand_in_front
+    local left_hand_dot = math.abs(left_hand_dot_raw)
+    local right_hand_dot = math.abs(right_hand_dot_raw)
 
-    if not first_test then
-        re8.wants_block = false
-        return
+    local check_hands_up = function()
+        local left_hand_in_front = left_hand_dot >= 0.8
+        local right_hand_in_front = right_hand_dot >= 0.8
+    
+        local first_test = left_hand_in_front and right_hand_in_front
+    
+        if not first_test then
+            re8vr.wants_block = false
+            return
+        end
+    
+        -- now we need to check if the hands are facing up
+        local left_hand_up_dot = math.abs(hmd_forward:dot(left_hand[0]))
+        local right_hand_up_dot = math.abs(hmd_forward:dot(right_hand[0]))
+    
+        left_hand_up = left_hand_up_dot >= 0.5
+        right_hand_up = right_hand_up_dot >= 0.5
+    
+        re8vr.wants_block = left_hand_up and right_hand_up
     end
 
-    -- now we need to check if the hands are facing up
-    local left_hand_up_dot = math.abs(hmd_forward:dot(left_hand[0]))
-    local right_hand_up_dot = math.abs(hmd_forward:dot(right_hand[0]))
+    -- this one will check whether the user is
+    -- shaking their right hand over their left hand
+    -- to initiate a heal
+    local check_heal_gesture = function()
+        if re8vr.was_gripping_weapon or re8vr.is_reloading then
+            re8vr.wants_heal = false
+            heal_gesture.was_grip_down = false
+            heal_gesture.was_trigger_down = false
+            heal_gesture.last_grip_weapon = nil
+            return
+        end
 
-    left_hand_up = left_hand_up_dot >= 0.5
-    right_hand_up = right_hand_up_dot >= 0.5
+        local right_hand_behind = right_hand_dot_flat_raw >= 0.2
 
-    re8.wants_block = left_hand_up and right_hand_up
+        --[[local left_hand_pos = re8vr.last_left_hand_position
+        local right_hand_pos = re8vr.last_right_hand_position
+
+        -- we will have one intersection box near the hand
+        -- and then another above the hand
+        -- the user must shake their hands between these two boxes to initiate a heal
+        local bottom_start = left_hand_pos + heal_gesture.heal_bounds_lo
+        local bottom_end = left_hand_pos + heal_gesture.heal_bounds_hi
+
+        --local top_start = left_hand_pos + Vector3f.new(0, heal_gesture.heal_bounds_hi.y + 0.1, 0) + heal_gesture.heal_bounds_lo
+        --local top_end = left_hand_pos + Vector3f.new(0, heal_gesture.heal_bounds_hi.y + 0.1, 0) + heal_gesture.heal_bounds_hi
+
+        local now = os.clock()
+        local is_in_bottom_box = false
+
+        -- check if right hand is within the bottom intersection box
+        if right_hand_pos.x >= bottom_start.x and right_hand_pos.x <= bottom_end.x
+        and right_hand_pos.y >= bottom_start.y and right_hand_pos.y <= bottom_end.y
+        and right_hand_pos.z >= bottom_start.z and right_hand_pos.z <= bottom_end.z then
+            heal_gesture.last_bottom_time = now
+            is_in_bottom_box = true
+        end]]
+
+        -- check if right hand is within the top intersection box
+        --[[if right_hand_pos.x >= top_start.x and right_hand_pos.x <= top_end.x
+        and right_hand_pos.y >= top_start.y and right_hand_pos.y <= top_end.y
+        and right_hand_pos.z >= top_start.z and right_hand_pos.z <= top_end.z then
+            heal_gesture.last_top_time = now
+        end]]
+
+        --[[if now - heal_gesture.last_bottom_time > 0.1 then
+            re8vr.wants_heal = false
+            return
+        end]]
+
+        --[[if now - heal_gesture.last_top_time > 0.5 then
+            re8vr.wants_heal = false
+            return
+        end]]
+
+        local right_joystick = vrmod:get_right_joystick()
+        local action_trigger = vrmod:get_action_trigger()
+        local action_grip = vrmod:get_action_grip()
+        local is_trigger_down = vrmod:is_action_active(action_trigger, right_joystick)
+        local is_grip_down = vrmod:is_action_active(action_grip, right_joystick)
+
+        --[[if is_b_button_down then
+            re8vr.wants_heal = true
+        end]]
+
+        local items_list = is_re8 and re8vr.inventory:get_field("<items>k__BackingField")
+        local weapon_change = is_re8 and re8vr.updater:call("get_playerWeaponChange")
+        local mesh_controller = is_re8 and re8vr.updater:call("get_playerMeshController")
+
+        if is_re7 then
+            items_list = re8vr.inventory:get_field("_ItemList")
+            weapon_change = GameObject.get_component(re8vr.player, "app.PlayerWeaponChange")
+            mesh_controller = GameObject.get_component(re8vr.player, "app.PlayerMeshController")
+        end
+
+        local now = os.clock()
+
+        if items_list then
+            local items = items_list:get_field("mItems"):get_elements()
+
+            for i, item in ipairs(items) do
+                local is_medicine = is_re8 and item:get_type_definition():is_a("app.MedicineCore")
+
+                if is_re7 then
+                    local item_internal = item:get_field("Item")
+
+                    if item_internal then
+                        is_medicine = item_internal:get_field("ItemDataID"):find("Remedy") ~= nil
+                    end
+                end
+
+                if is_medicine then
+                    local item_internal = is_re7 and item:get_field("Item") or item
+                    local owner = is_re8 and item:get_field("<owner>k__BackingField") or item:get_field("Owner")
+
+                    if weapon_change and mesh_controller then
+                        local current_mesh = mesh_controller:get_field("WeaponMesh")
+                        local item_mesh = GameObject.get_component(owner, "via.render.Mesh")
+                        local is_same_mesh = current_mesh == item_mesh
+                        local owner_transform = owner:call("get_Transform")
+
+                        if current_mesh == nil then
+                            heal_gesture.was_grip_down = false
+                            heal_gesture.was_trigger_down = false
+                        end
+
+                        -- just keep "switching" to it, fixes some bugs
+                        --[[if (is_same_mesh and owner_transform:call("get_Parent") ~= re8.transform) then
+                            vrmod:trigger_haptic_vibration(0.0, 0.1, 1, 5, vrmod:get_right_joystick())
+
+                            if is_re8 then
+                                weapon_change:call("equipOtherObject", owner)
+                                item:call("setActive", true)
+                            else
+                                --weapon_change:call("removeWeapon")
+                                --weapon_change:call("equipWeapon", item_internal, item_internal:get_field("<weapon>k__BackingField"))
+                                --item_internal:get_field("<weapon>k__BackingField"):call("onEquip", re8vr.player, 0)
+                            end
+                        end]]
+
+                        local dequip_item = function()
+                            if is_re7 then
+                                local equip_manager = GameObject.get_component(re8vr.player, "app.EquipManager")
+                                if not equip_manager then return end
+
+                                weapon_change:call("removeWeapon")
+                                mesh_controller:call("onEquipWeaponChanged", nil, item_internal:get_field("<weapon>k__BackingField"))
+
+                                local current_equipped_right = equip_manager:get_field("<equipWeaponRight>k__BackingField")
+                                local item_weapon = item_internal:get_field("<weapon>k__BackingField")
+
+                                if current_equipped_right == item_weapon then
+                                    if current_equipped_right ~= nil then
+                                        current_equipped_right:force_release()
+                                    end
+                                    
+                                    equip_manager:set_field("<equipWeaponRight>k__BackingField", nil)
+                                end
+                            else
+                                local equip_manager = re8vr.updater:call("get_equipController")
+                                if not equip_manager then return end
+
+                                weapon_change:call("removeWeaponWithNoAction")
+
+                                local current_equipped_right = equip_manager:get_field("<equipWeaponRight>k__BackingField")
+
+                                if current_equipped_right ~= nil then
+                                    current_equipped_right:force_release()
+                                    equip_manager:set_field("<equipWeaponRight>k__BackingField", nil)
+                                end
+                            end
+                        end
+
+                        if not is_same_mesh then
+                            if (right_hand_behind and not heal_gesture.was_grip_down and delta_to_right:length() <= 1.0) or (now - heal_gesture.last_grab_time) < 0.5 then
+                                vrmod:trigger_haptic_vibration(0.0, 0.1, 1, 5, vrmod:get_right_joystick())
+
+                                if is_grip_down then
+                                    if is_re8 then
+                                        local equip_manager = re8vr.updater:call("get_equipController")
+
+                                        item:call("setActive", true)
+                                        weapon_change:call("removeWeaponWithNoAction")
+
+                                        if equip_manager then
+                                            equip_manager:call("equipObject", owner)
+                                        end
+
+                                        --weapon_change:call("equipOtherObject", owner)
+
+                                        heal_gesture.last_grab_time = now
+                                    else
+                                        local equip_manager = GameObject.get_component(re8vr.player, "app.EquipManager")
+                                        local current_equipped_right = equip_manager:get_field("<equipWeaponRight>k__BackingField")
+                                        local item_weapon = item_internal:get_field("<weapon>k__BackingField")
+
+                                        weapon_change:call("removeWeapon")
+                                        equip_manager:call("equipWeapon(app.Weapon, app.CharacterDefine.Hand)", item_internal:get_field("<weapon>k__BackingField"), 0)
+                                        weapon_change:call("equipWeapon", item_internal, item_weapon)
+
+                                        if re8vr.weapon then
+                                            mesh_controller:call("onEquipWeaponChanged", item_weapon, re8vr.weapon)
+                                        end
+
+                                        if current_equipped_right ~= item_weapon then
+                                            if current_equipped_right ~= nil then
+                                                current_equipped_right:force_release()
+                                            end
+                                            
+                                            equip_manager:set_field("<equipWeaponRight>k__BackingField", item_weapon:add_ref_permanent())
+                                        end
+
+                                        heal_gesture.last_grab_time = now
+
+                                        --equip_manager:call("equipWeapon(app.Weapon, app.CharacterDefine.Hand)", item_internal:get_field("<weapon>k__BackingField"), 0)
+                                        --mesh_controller:call("onEquipWeaponChanged", item_internal:get_field("<weapon>k__BackingField"), re8vr.weapon)
+                                        --equip_manager:set_field("<equipWeaponRight>k__BackingField", item_internal:get_field("<weapon>k__BackingField"))
+                                        --item_internal:get_field("<weapon>k__BackingField"):call("onEquip", re8vr.player, 0)
+                                    end
+
+                                    --owner_transform:set_rotation(re8vr.last_right_hand_rotation)
+                                end
+                            end
+                        elseif is_trigger_down then
+                            --re8vr.wants_heal = true
+                            if is_re7 and not heal_gesture.was_trigger_down then
+                                --item_internal:call("useItem", re8vr.player)
+                                if weapon_change then
+                                    local item_weapon = item_internal:get_field("<weapon>k__BackingField")
+
+                                    dequip_item()
+                                    --weapon_change:call("requestUseItem", item_internal, true)
+                                    weapon_change:call("useItem", item_internal, item_weapon)
+                                end
+                            elseif is_re8 and not heal_gesture.was_trigger_down then
+                                if weapon_change then
+                                    weapon_change:call("requestUseItem", item, false, false)
+                                end
+                            end
+                        elseif not is_grip_down then
+                            -- todo: restore old weapon?
+                            if is_re7 and is_same_mesh then
+                                --dequip_item()
+                                weapon_change:call("removeWeapon")
+                                mesh_controller:call("onEquipWeaponChanged", nil, item_internal:get_field("<weapon>k__BackingField"))
+                            elseif is_re8 and is_same_mesh then
+                                weapon_change:call("removeWeaponWithNoAction")
+                                item:call("setActive", false)
+                            end
+                        end
+                        
+                        -- if usingEffect is not null, the item is currently being used
+                        if not is_trigger_down and item:get_field("usingEffect") == nil then
+                            if not is_re7 then
+                                owner_transform:call("set_LocalRotation", Quaternion.new(0.728, 0.409, 0.222, 0.504))
+                            end
+                        end
+                    else
+                        log.info("no weapon change")
+                    end
+
+                    break
+                end
+            end
+        else
+            log.info("no items")
+        end
+
+        heal_gesture.was_grip_down = is_grip_down and heal_gesture.last_grip_weapon == re8vr.weapon
+        heal_gesture.was_trigger_down = is_trigger_down and heal_gesture.last_grip_weapon == re8vr.weapon
+        heal_gesture.last_grip_weapon = re8vr.weapon
+    end
+
+    check_hands_up()
+    check_heal_gesture()
 
     --log.info("left hand dot: " .. tostring(left_hand_dot))
     --log.info("right hand dot: " .. tostring(right_hand_dot))
@@ -1508,14 +1799,14 @@ local function melee_attack(hit_controller)
     if not vrmod:is_hmd_active() or not vrmod:is_using_controllers() then return end
     if re8vr.is_in_cutscene or not re8vr.can_use_hands then return end
 
-    if not re8.weapon then
+    if not re8vr.weapon then
         return
     end
 
-    local is_end_of_zoe_melee = is_re7 and re8.weapon:get_type_definition():is_a("app.CH9WeaponMelee")
+    local is_end_of_zoe_melee = is_re7 and re8vr.weapon:get_type_definition():is_a("app.CH9WeaponMelee")
 
     if not is_end_of_zoe_melee then
-        local real_hit_controller = re8.weapon:call("get_hitController")
+        local real_hit_controller = re8vr.weapon:call("get_hitController")
 
         if not real_hit_controller then
             return
@@ -2069,6 +2360,24 @@ end)
 
 local debug_adjust_hand_offset = false
 local debug_hit_controller = false
+local debug_hands = false
+
+re.on_frame(function()
+    if debug_hands and vrmod:is_using_controllers() then
+        local controllers = vrmod:get_controllers()
+        local left_index = controllers[1]
+        local right_index = controllers[2]
+
+        local left_transform = re8vr.last_left_hand_rotation:to_mat4()
+        local right_transform = re8vr.last_right_hand_rotation:to_mat4()
+
+        left_transform[3] = re8vr.last_left_hand_position
+        right_transform[3] = re8vr.last_right_hand_position
+
+        draw.matrix44(left_transform)
+        draw.matrix44(right_transform)
+    end
+end)
 
 re.on_draw_ui(function()
     local changed = false
@@ -2100,6 +2409,7 @@ re.on_draw_ui(function()
 
     if imgui.tree_node("Debug") then
         changed, debug_adjust_hand_offset = imgui.checkbox("Adjust Hand Offset", debug_adjust_hand_offset)
+        changed, debug_hands = imgui.checkbox("Debug Hands", debug_hands)
 
         if debug_adjust_hand_offset then
             local left_axis = vrmod:get_left_stick_axis()
@@ -2117,39 +2427,39 @@ re.on_draw_ui(function()
             -- adjust the rotation offset based on how the user is moving the controller
             if not is_right_trigger_active then
                 if not is_right_grip_active then
-                    right_hand_rotation_vec.x = right_hand_rotation_vec.x + (right_axis.y * 0.001)
-                    right_hand_rotation_vec.y = right_hand_rotation_vec.y + (right_axis.x * 0.001)
+                    re8vr.right_hand_rotation_vec.x = right_hand_rotation_vec.x + (right_axis.y * 0.001)
+                    re8vr.right_hand_rotation_vec.y = right_hand_rotation_vec.y + (right_axis.x * 0.001)
                 else
-                    right_hand_rotation_vec.z = right_hand_rotation_vec.z + ((right_axis.y + right_axis.x) * 0.001)
+                    re8vr.right_hand_rotation_vec.z = right_hand_rotation_vec.z + ((right_axis.y + right_axis.x) * 0.001)
                 end
             else
                 if not is_right_grip_active then
-                    right_hand_position_offset.x = right_hand_position_offset.x + (right_axis.y * 0.001)
-                    right_hand_position_offset.y = right_hand_position_offset.y + (right_axis.x * 0.001)
+                    re8vr.right_hand_position_offset.x = right_hand_position_offset.x + (right_axis.y * 0.001)
+                    re8vr.right_hand_position_offset.y = right_hand_position_offset.y + (right_axis.x * 0.001)
                 else
-                    right_hand_position_offset.z = right_hand_position_offset.z + ((right_axis.y + right_axis.x) * 0.001)
+                    re8vr.right_hand_position_offset.z = right_hand_position_offset.z + ((right_axis.y + right_axis.x) * 0.001)
                 end
             end
 
-            right_hand_rotation_offset = Quaternion.new(right_hand_rotation_vec):normalized()
+            re8vr.right_hand_rotation_offset = Quaternion.new(right_hand_rotation_vec):normalized()
 
             if not is_left_trigger_active then
                 if not is_left_grip_active then
-                    left_hand_rotation_vec.x = left_hand_rotation_vec.x + (left_axis.y * 0.001)
-                    left_hand_rotation_vec.y = left_hand_rotation_vec.y + (left_axis.x * 0.001)
+                    re8vr.left_hand_rotation_vec.x = left_hand_rotation_vec.x + (left_axis.y * 0.001)
+                    re8vr.left_hand_rotation_vec.y = left_hand_rotation_vec.y + (left_axis.x * 0.001)
                 else
-                    left_hand_rotation_vec.z = left_hand_rotation_vec.z + ((left_axis.y + left_axis.x) * 0.001)
+                    re8vr.left_hand_rotation_vec.z = left_hand_rotation_vec.z + ((left_axis.y + left_axis.x) * 0.001)
                 end
             else
                 if not is_left_grip_active then
-                    left_hand_position_offset.x = left_hand_position_offset.x + (left_axis.y * 0.001)
-                    left_hand_position_offset.y = left_hand_position_offset.y + (left_axis.x * 0.001)
+                    re8vr.left_hand_position_offset.x = left_hand_position_offset.x + (left_axis.y * 0.001)
+                    re8vr.left_hand_position_offset.y = left_hand_position_offset.y + (left_axis.x * 0.001)
                 else
-                    left_hand_position_offset.z = left_hand_position_offset.z + ((left_axis.y + left_axis.x) * 0.001)
+                    re8vr.left_hand_position_offset.z = left_hand_position_offset.z + ((left_axis.y + left_axis.x) * 0.001)
                 end
             end
 
-            left_hand_rotation_offset = Quaternion.new(left_hand_rotation_vec):normalized()
+            re8vr.left_hand_rotation_offset = Quaternion.new(left_hand_rotation_vec):normalized()
         end
 
         imgui.text("Last GUI Dot: " .. tostring(last_gui_dot))
@@ -2177,7 +2487,7 @@ re.on_draw_ui(function()
         end
 
         if imgui.tree_node("Inventory") then
-            object_explorer:handle_address(re8.inventory)
+            object_explorer:handle_address(re8vr.inventory)
 
             imgui.tree_pop()
         end
@@ -2199,7 +2509,7 @@ re.on_draw_ui(function()
         end
 
         if imgui.tree_node("Weapon") then
-            local weapon = re8.weapon
+            local weapon = re8vr.weapon
     
             object_explorer:handle_address(weapon)
     
