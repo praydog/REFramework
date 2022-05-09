@@ -588,8 +588,9 @@ void RE8VR::update_heal_gesture() {
     };
 
     if (!is_same_mesh) {
-        if ((right_hand_behind && !m_heal_gesture.was_grip_down && glm::length(m_hmd_delta_to_right) <= 1.0f) 
-            || (now - m_heal_gesture.last_grab_time) < std::chrono::milliseconds(500)) 
+        if (!is_trigger_down && (
+            (right_hand_behind && !m_heal_gesture.was_grip_down && glm::length(m_hmd_delta_to_right) <= 1.0f) 
+            || (now - m_heal_gesture.last_grab_time) < std::chrono::milliseconds(500))) 
         {
             vr->trigger_haptic_vibration(0.0f, 0.1f, 1.0f, 5.0f, right_joystick);
 
