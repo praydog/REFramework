@@ -582,11 +582,7 @@ void RE8VR::update_heal_gesture() {
         auto current_equipped_right = *sdk::get_object_field<::REManagedObject*>(equip_manager, "<equipWeaponRight>k__BackingField");
 
         if (current_equipped_right == item_weapon) {
-            if (current_equipped_right != nullptr) {
-                utility::re_managed_object::release(current_equipped_right);
-            }
-
-            *sdk::get_object_field<::REManagedObject*>(equip_manager, "<equipWeaponRight>k__BackingField") = nullptr;
+           sdk::call_object_func_easy<void*>(equip_manager, "set_equipWeaponRight", nullptr);
         }
 #endif
     };
@@ -629,12 +625,7 @@ void RE8VR::update_heal_gesture() {
                 }
 
                 if (current_equipped_right != item_weapon) {
-                    if (current_equipped_right != nullptr) {
-                        utility::re_managed_object::release(current_equipped_right);
-                    }
-
-                    *sdk::get_object_field<::REManagedObject*>(equip_manager, "<equipWeaponRight>k__BackingField") = item_weapon;
-                    utility::re_managed_object::add_ref(item_weapon);
+                    sdk::call_object_func_easy<void*>(equip_manager, "set_equipWeaponRight", item_weapon);
                 }
 
                 m_heal_gesture.last_grab_time = now;
