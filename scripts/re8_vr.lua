@@ -107,6 +107,7 @@ local cfg = {
     all_camera_shake = true,
     disable_crosshair = false,
     no_melee_cooldown = false,
+    roomscale_movement = true,
 }
 
 local function load_cfg()
@@ -935,7 +936,7 @@ local function slerp_gui(new_gui_quat)
             last_gui_forced_slerp = now
         end
 
-        last_gui_quat = last_gui_quat:slerp(new_gui_quat, dot_dist * math.max((GUI_MAX_SLERP_TIME - slerp_time_diff) * re8.delta_time, 0.0))
+        last_gui_quat = last_gui_quat:slerp(new_gui_quat, dot_dist * math.max((GUI_MAX_SLERP_TIME - slerp_time_diff) * re8vr.delta_time, 0.0))
     end
 
     if re8vr.is_in_cutscene then
@@ -1404,17 +1405,6 @@ elseif is_re8 then
     )
 end
 
-local heal_gesture = {
-    --[[last_bottom_time = 0,
-    last_top_time = 0,
-    heal_bounds_lo = Vector3f.new(-0.2, 0.0, -0.2),
-    heal_bounds_hi = Vector3f.new(0.2, 0.1, 0.2)]]
-    was_grip_down = false,
-    was_trigger_down = false,
-    last_grip_weapon = nil,
-    last_grab_time = 0,
-}
-
 local function update_player_gestures()
     re8vr:update_player_gestures()
 end
@@ -1489,7 +1479,7 @@ local function melee_attack(hit_controller)
             return
         end
     else
-        if re8.hit_controller ~= hit_controller then
+        if re8vr.hit_controller ~= hit_controller then
             return
         end
     end
@@ -1737,8 +1727,8 @@ re.on_pre_application_entry("UnlockScene", function()
 
     last_camera_matrix = vrmod:get_last_render_matrix()
 
-    if not re8vr.player or not re8.transform then last_roomscale_failure = os.clock() return end
-    if not re8.status then last_roomscale_failure = os.clock() return end -- in the main menu or something.
+    if not re8vr.player or not re8vr.transform then last_roomscale_failure = os.clock() return end
+    if not re8vr.status then last_roomscale_failure = os.clock() return end -- in the main menu or something.
     if not last_camera_matrix then last_roomscale_failure = os.clock() return end
     if re8vr.is_in_cutscene then last_roomscale_failure = os.clock() return end
 
@@ -1750,7 +1740,7 @@ re.on_pre_application_entry("UnlockScene", function()
     hmd_pos.y = 0.0
     standing_origin.y = 0.0
 
-    if (hmd_pos - standing_origin):length() >= 0.01 then
+    if (hmd_pos - standing_origin):length() >= 0.01 and cfg.roomscale_movement then
         standing_origin = vrmod:get_standing_origin()
         hmd_pos.y = standing_origin.y
 
@@ -1762,7 +1752,7 @@ re.on_pre_application_entry("UnlockScene", function()
 
         vrmod:set_standing_origin(standing_origin)
 
-        local player_pos = transform_get_position:call(re8.transform)
+        local player_pos = transform_get_position:call(re8vr.transform)
         local lerp_to = Vector3f.new(last_camera_matrix[3].x, player_pos.y, last_camera_matrix[3].z)
 
         player_pos = player_pos + ((lerp_to - player_pos):normalized() * standing_diff:length())
@@ -1770,8 +1760,8 @@ re.on_pre_application_entry("UnlockScene", function()
         --player_pos.x = last_camera_matrix[3].x
         --player_pos.z = last_camera_matrix[3].z
         
-        --transform_set_position:call(re8.transform, player_pos)
-        re8.transform:set_position(player_pos, true) -- NO DIRTY
+        --transform_set_position:call(re8vr.transform, player_pos)
+        re8vr.transform:set_position(player_pos, true) -- NO DIRTY
     end
 end)
 
@@ -2057,6 +2047,7 @@ re.on_draw_ui(function()
     changed, cfg.movement_shake = imgui.checkbox("Movement Shake", cfg.movement_shake)
     changed, cfg.all_camera_shake = imgui.checkbox("All Other Camera Shakes", cfg.all_camera_shake)
     changed, cfg.disable_crosshair = imgui.checkbox("Disable Crosshair", cfg.disable_crosshair)
+    changed, cfg.roomscale_movement = imgui.checkbox("Roomscale Movement", cfg.roomscale_movement)
 
     if imgui.tree_node("Cheats") then
         changed, cfg.no_melee_cooldown = imgui.checkbox("No Melee Cooldown", cfg.no_melee_cooldown)
@@ -2188,16 +2179,8 @@ re.on_draw_ui(function()
             imgui.tree_pop()
         end
 
-        if imgui.tree_node("Left Weapon") then
-            local left_weapon = re8.left_weapon
-    
-            object_explorer:handle_address(left_weapon)
-    
-            imgui.tree_pop()
-        end
-
         if imgui.tree_node("Hit Controller") then
-            local hit_controller = re8.hit_controller
+            local hit_controller = re8vr.hit_controller
 
             changed, debug_hit_controller = imgui.checkbox("Debug hit controller", debug_hit_controller)
 
@@ -2280,7 +2263,7 @@ re.on_draw_ui(function()
         imgui.text("Num tasks: " .. tostring(re8.num_active_tasks))
         imgui.text("Has postural camera control: " .. tostring(re8.has_postural_camera_control))
         imgui.text("Is arm jacked: " .. tostring(re8.is_arm_jacked))
-        imgui.text("Is motion play: " .. tostring(re8.is_motion_play))
+        imgui.text("Is motion play: " .. tostring(re8vr.is_motion_play))
         imgui.text("Is in cutscene: " .. tostring(re8vr.is_in_cutscene))
         imgui.text("Can use hands: " .. tostring(re8vr.can_use_hands))
 

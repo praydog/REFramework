@@ -61,12 +61,11 @@ local function initialize_re8(re8)
     re8 = re8 or {}
 
     re8vr.player = nil
-    re8.transform = nil
+    re8vr.transform = nil
     re8vr.weapon = nil
-    re8.left_weapon = nil
     re8vr.inventory = nil
-    re8.hand_touch = nil
-    re8.order = nil
+    re8vr.hand_touch = nil
+    re8vr.order = nil
     re8vr.right_hand_ik = nil
     re8vr.left_hand_ik = nil
     re8vr.right_hand_ik_transform = nil
@@ -74,15 +73,15 @@ local function initialize_re8(re8)
     re8vr.is_in_cutscene = false
     re8.is_arm_jacked = false
     re8vr.is_grapple_aim = false
-    re8.is_motion_play = false
+    re8vr.is_motion_play = false
     re8vr.is_reloading = false
     re8.has_postural_camera_control = true
     re8vr.can_use_hands = true
     re8vr.updater = nil
-    re8.status = nil
-    re8.event_action_controller = nil
-    re8.game_event_action_controller = nil
-    re8.hit_controller = nil
+    re8vr.status = nil
+    re8vr.event_action_controller = nil
+    re8vr.game_event_action_controller = nil
+    re8vr.hit_controller = nil
     re8vr.wants_block = false
     re8vr.wants_heal = false
     re8.movement_speed_rate = 0.0
@@ -91,7 +90,7 @@ local function initialize_re8(re8)
     re8.active_tasks = {}
     re8.application = sdk.get_native_singleton("via.Application")
     re8.application_type = sdk.find_type_definition("via.Application")
-    re8.delta_time = 0.0
+    re8vr.delta_time = 0.0
 
     return re8
 end
@@ -117,163 +116,23 @@ local function get_component(game_object, type_name)
     return game_object:call("getComponent(System.Type)", t)
 end
 
-if is_re7 then
-    re8.get_localplayer = function()
-        local object_man = sdk.get_managed_singleton("app.ObjectManager")
-
-        if not object_man then
-            return nil
-        end
-
-        return object_man:get_field("PlayerObj")
-    end
-elseif is_re8 then
-    re8.get_localplayer = function()
-        local propsman = sdk.get_managed_singleton("app.PropsManager")
-
-        if not propsman then
-            return nil
-        end
-
-        return propsman:get_field("<Player>k__BackingField")
-    end
+function re8.get_localplayer()
+    return re8vr:get_localplayer()
 end
 
 function re8.get_weapon_object(player)
-    if is_re7 then
-        local equip_manager = get_component(player, "app.EquipManager")
-
-        if not equip_manager then
-            return nil
-        end
-
-        return equip_manager:call("get_equipWeaponRight"), equip_manager:call("get_equipWeaponLeft")
-    elseif is_re8 then
-        if not re8vr.updater then
-            return nil
-        end
-
-        local player_gun = re8vr.updater:call("get_playerGun")
-
-        if not player_gun then
-            return nil
-        end
-
-        local equipped_weapon = player_gun:call("get_equipWeaponObject")
-    
-        if not equipped_weapon then
-            return nil
-        end
-
-        return equipped_weapon
-    end
-
-    return nil
+    return re8vr:get_weapon_object(player)
 end
 
 function re8.update_in_cutscene_state()
-    re8vr.is_in_cutscene = re8.num_active_tasks > 0 or not re8.has_postural_camera_control or re8.is_arm_jacked or re8.is_motion_play
-    re8vr.can_use_hands = not re8.is_arm_jacked and not re8.is_motion_play
+    re8vr.is_in_cutscene = re8.num_active_tasks > 0 or not re8.has_postural_camera_control or re8.is_arm_jacked or re8vr.is_motion_play
+    re8vr.can_use_hands = not re8.is_arm_jacked and not re8vr.is_motion_play
 end
 
 re.on_pre_application_entry("UpdateBehavior", function()
-    re8vr.player = re8.get_localplayer()
-    local player = re8vr.player
-
-    if player == nil or not re8.application then
+    if not re8vr:update_pointers() or not re8.application then
         initialize_re8(re8)
         return
-    end
-
-    re8.transform = player:call("get_Transform")
-    re8.hand_touch = get_component(player, "app.PlayerHandTouch")
-    re8.order = get_component(player, "app.PlayerOrder")
-    re8vr.updater = get_component(player, "app.PlayerUpdater")
-    
-    if is_re7 then
-        re8vr.inventory = get_component(player, "app.Inventory")
-    elseif re8vr.updater ~= nil then
-        local container = re8vr.updater:get_field("playerContainer")
-
-        if container then
-            re8vr.inventory = container:call("get_inventory")
-        else
-            re8vr.inventory = nil
-        end
-    else
-        re8vr.inventory = nil
-    end
-
-    re8.delta_time = sdk.call_native_func(re8.application, re8.application_type, "get_DeltaTime")
-
-    if is_re7 then
-        re8.status = get_component(player, "app.PlayerStatus")
-    elseif re8vr.updater ~= nil then
-        re8.status = re8vr.updater:call("get_playerstatus")
-    end
-
-    if re8.status ~= nil then
-        re8vr.is_reloading = re8.status:call("get_isReload")
-        re8vr.is_reloading = re8vr.is_reloading
-    end
-
-    if re8.order ~= nil then
-        re8vr.is_grapple_aim = re8.order:get_field("IsGrappleAimEnable")
-    end
-
-    if re8.hand_touch == nil then
-        re8vr.right_hand_ik = nil
-        re8vr.left_hand_ik = nil
-        re8vr.right_hand_ik_object = nil
-        re8vr.left_hand_ik_object = nil
-        re8vr.right_hand_ik_transform = nil
-        re8vr.left_hand_ik_transform = nil
-    else
-        local hand_ik = re8.hand_touch:get_field("HandIK"):get_elements()
-
-        if #hand_ik < 2 then
-            log.info("no hand ik")
-            re8vr.right_hand_ik = nil
-            re8vr.left_hand_ik = nil
-            re8vr.right_hand_ik_object = nil
-            re8vr.left_hand_ik_object = nil
-            re8vr.right_hand_ik_transform = nil
-            re8vr.left_hand_ik_transform = nil
-        else
-            re8vr.right_hand_ik = hand_ik[1]
-            re8vr.left_hand_ik = hand_ik[2]
-
-            if re8vr.right_hand_ik and re8vr.left_hand_ik then
-                re8vr.right_hand_ik_object = re8vr.right_hand_ik:get_field("TargetGameObject")
-                re8vr.left_hand_ik_object = re8vr.left_hand_ik:get_field("TargetGameObject") 
-                re8vr.right_hand_ik_transform = re8vr.right_hand_ik:get_field("Target")
-                re8vr.left_hand_ik_transform = re8vr.left_hand_ik:get_field("Target")
-            end
-        end
-    end
-
-    re8.event_action_controller = get_component(player, "app.EventActionController")
-    re8.game_event_action_controller = get_component(player, "app.GameEventActionController")
-
-    if is_re8 and re8.game_event_action_controller ~= nil then
-        re8.is_motion_play = re8.game_event_action_controller:get_field("_isMotionPlay")
-    else
-        re8.is_motion_play = false
-    end
-
-    local weapon, left_weapon = re8.get_weapon_object(player)
-
-    if weapon == nil then
-        re8vr.weapon = nil
-        re8.left_weapon = nil
-        return
-    end
-
-    re8vr.weapon = weapon
-    re8.left_weapon = left_weapon
-
-    if is_re7 then
-        re8.hit_controller = get_component(player, "app.Collision.HitController")
     end
 
     re8.update_in_cutscene_state()
@@ -283,7 +142,7 @@ local event_action_controller_type = sdk.find_type_definition("app.EventActionCo
 local request_task_method = event_action_controller_type:get_method("requestTask")
 
 local function on_pre_event_request_task(args)
-    if re8.event_action_controller == nil or sdk.to_ptr(args[2]) == nil or sdk.to_int64(args[2]) ~= re8.event_action_controller:get_address() then
+    if re8vr.event_action_controller == nil or sdk.to_ptr(args[2]) == nil or sdk.to_int64(args[2]) ~= re8vr.event_action_controller:get_address() then
         return sdk.PreHookResult.CALL_ORIGINAL
     end
 
