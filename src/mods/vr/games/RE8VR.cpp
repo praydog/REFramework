@@ -1,6 +1,8 @@
 #if defined(RE7) || defined(RE8)
 #include <sdk/SceneManager.hpp>
 #include <sdk/MurmurHash.hpp>
+#include <sdk/Application.hpp>
+
 #include "../../../mods/VR.hpp"
 
 #include "RE8VR.hpp"
@@ -22,9 +24,16 @@ std::optional<std::string> RE8VR::on_initialize() {
 void RE8VR::on_lua_state_created(sol::state& lua) {
     lua.new_usertype<RE8VR>("RE8VR",
         "player", &RE8VR::m_player_downcast,
+        "transform", &RE8VR::m_transform,
         "inventory", &RE8VR::m_inventory,
         "updater", &RE8VR::m_updater,
         "weapon", &RE8VR::m_weapon,
+        "hand_touch", &RE8VR::m_hand_touch,
+        "order", &RE8VR::m_order,
+        "status", &RE8VR::m_status,
+        "event_action_controller", &RE8VR::m_event_action_controller,
+        "game_event_action_controller", &RE8VR::m_game_event_action_controller,
+        "hit_controller", &RE8VR::m_hit_controller,
         "left_hand_ik", &RE8VR::m_left_hand_ik,
         "right_hand_ik", &RE8VR::m_right_hand_ik,
         "left_hand_ik_transform", &RE8VR::m_left_hand_ik_transform,
@@ -44,19 +53,46 @@ void RE8VR::on_lua_state_created(sol::state& lua) {
         "is_in_cutscene", &RE8VR::m_is_in_cutscene,
         "is_grapple_aim", &RE8VR::m_is_grapple_aim,
         "is_reloading", &RE8VR::m_is_reloading,
+        "is_motion_play", &RE8VR::m_is_motion_play,
         "can_use_hands", &RE8VR::m_can_use_hands,
         "wants_block", &RE8VR::m_wants_block,
         "wants_heal", &RE8VR::m_wants_heal,
+        "delta_time", &RE8VR::m_delta_time,
         "set_hand_joints_to_tpose", &RE8VR::set_hand_joints_to_tpose,
         "update_hand_ik", &RE8VR::update_hand_ik,
         "update_body_ik", &RE8VR::update_body_ik,
-        "update_player_gestures", &RE8VR::update_player_gestures);
+        "update_player_gestures", &RE8VR::update_player_gestures,
+        "update_pointers", &RE8VR::update_pointers,
+        "update_ik_pointers", &RE8VR::update_ik_pointers,
+        "fix_player_camera", &RE8VR::fix_player_camera,
+        "get_localplayer", &RE8VR::get_localplayer,
+        "get_weapon_object", &RE8VR::get_weapon_object);
 
     lua["re8vr"] = this;
 }
 
 void RE8VR::on_lua_state_destroyed(sol::state& lua) {
     
+}
+
+void RE8VR::reset_data() {
+    m_player = nullptr;
+    m_transform = nullptr;
+    m_inventory = nullptr;
+    m_updater = nullptr;
+    m_weapon = nullptr;
+    m_hand_touch = nullptr;
+    m_order = nullptr;
+    m_status = nullptr;
+    m_event_action_controller = nullptr;
+    m_game_event_action_controller = nullptr;
+    m_hit_controller = nullptr;
+    m_left_hand_ik = nullptr;
+    m_right_hand_ik = nullptr;
+    m_left_hand_ik_transform = nullptr;
+    m_right_hand_ik_transform = nullptr;
+    m_left_hand_ik_object = nullptr;
+    m_right_hand_ik_object = nullptr;
 }
 
 void RE8VR::set_hand_joints_to_tpose(::REManagedObject* hand_ik) {
@@ -407,6 +443,207 @@ void RE8VR::update_player_gestures() {
 
     update_block_gesture();
     update_heal_gesture();
+}
+
+void RE8VR::fix_player_camera(::REManagedObject* player_camera) {
+    
+}
+
+::REGameObject* RE8VR::get_localplayer() const {
+#ifdef RE7
+    auto object_man = sdk::get_managed_singleton<::REManagedObject>("app.ObjectManager");
+
+    if (object_man == nullptr) {
+        return nullptr;
+    }
+
+    static auto field = sdk::find_type_definition("app.ObjectManager")->get_field("PlayerObj");
+
+    return field->get_data<::REGameObject*>(object_man);
+#else
+    auto propsman = sdk::get_managed_singleton<::REManagedObject>("app.PropsManager");
+
+    if (propsman == nullptr) {
+        return nullptr;
+    }
+
+    static auto field = sdk::find_type_definition("app.PropsManager")->get_field("<Player>k__BackingField");
+
+    return field->get_data<::REGameObject*>(propsman);
+#endif
+}
+
+::REManagedObject* RE8VR::get_weapon_object(::REGameObject* player) const {
+#ifdef RE7
+    static auto equip_manager_type = sdk::find_type_definition("app.EquipManager")->get_type();
+    auto equip_manager = utility::re_component::find<::REManagedObject>(player->transform, equip_manager_type);
+
+    if (equip_manager == nullptr) {
+        return nullptr;
+    }
+
+    static auto get_equip_weapon_right_method = sdk::find_method_definition("app.EquipManager", "get_equipWeaponRight");
+
+    return get_equip_weapon_right_method->call<::REManagedObject*>(sdk::get_thread_context(), equip_manager);
+#else
+    if (m_updater == nullptr) {
+        return nullptr;
+    }
+
+    static auto get_player_gun_method = sdk::find_method_definition("app.PlayerUpdater", "get_playerGun");
+
+    auto player_gun = get_player_gun_method->call<::REGameObject*>(sdk::get_thread_context(), m_updater);
+
+    if (player_gun == nullptr) {
+        return nullptr;
+    }
+
+    static auto get_equip_weapon_object_method = sdk::find_method_definition("app.PlayerGun", "get_equipWeaponObject");
+
+    return get_equip_weapon_object_method->call<::REManagedObject*>(sdk::get_thread_context(), player_gun);
+#endif
+}
+
+bool RE8VR::update_pointers() {
+    m_player = get_localplayer();
+
+    if (m_player == nullptr) {
+        reset_data();
+        return false;
+    }
+    
+    m_transform = m_player->transform;
+
+    if (m_transform == nullptr) {
+        reset_data();
+        return false;
+    }
+
+    m_delta_time = sdk::Application::get()->get_delta_time();
+
+    auto get_ambiguous_re_type = [](std::string_view name) -> ::REType* {
+        auto tdef = sdk::find_type_definition(name);
+
+        if (tdef == nullptr) {
+            return nullptr;
+        }
+
+        return tdef->get_type();
+    };
+
+    auto assign_component = [this](::REManagedObject*& a, ::REType* t) {
+        if (t == nullptr) {
+            a = nullptr;
+            return;
+        }
+
+        a = utility::re_component::find<::REManagedObject>(m_player->transform, t);
+    };
+
+    static auto hand_touch_type = get_ambiguous_re_type("app.PlayerHandTouch");
+    assign_component(m_hand_touch, hand_touch_type);
+
+    static auto updater_type = get_ambiguous_re_type("app.PlayerUpdater");
+    assign_component(m_updater, updater_type);
+
+    static auto order_type = get_ambiguous_re_type("app.PlayerOrder");
+    assign_component(m_order, order_type);
+
+    static auto event_action_controller_type = get_ambiguous_re_type("app.EventActionController");
+    assign_component(m_event_action_controller, event_action_controller_type);
+
+    static auto game_event_action_controller_type = get_ambiguous_re_type("app.GameEventActionController");
+    assign_component(m_game_event_action_controller, game_event_action_controller_type);
+
+#ifdef RE7
+    static auto hit_controller_type = get_ambiguous_re_type("app.Collision.HitController");
+    assign_component(m_hit_controller, hit_controller_type);
+#else
+    // TODO
+#endif
+
+#ifdef RE8
+    if (m_game_event_action_controller != nullptr) {
+        m_is_motion_play = *sdk::get_object_field<bool>(m_game_event_action_controller, "_isMotionPlay");
+    }
+#else 
+    m_is_motion_play = false;
+#endif
+
+    if (m_order != nullptr) {
+        m_is_grapple_aim = *sdk::get_object_field<bool>(m_order, "IsGrappleAimEnable");
+    }
+
+    m_weapon = get_weapon_object(m_player);
+
+    static auto inventory_type = get_ambiguous_re_type("app.Inventory");
+
+#ifdef RE7
+    assign_component(m_inventory, inventory_type);
+
+    static auto status_type = get_ambiguous_re_type("app.PlayerStatus");
+    assign_component(m_status, status_type);
+#else
+    if (m_updater != nullptr) {
+        m_status = sdk::call_object_func_easy<::REManagedObject*>(m_updater, "get_playerstatus");
+
+        auto container = *sdk::get_object_field<::REManagedObject*>(m_updater, "playerContainer");
+
+        if (container != nullptr) {
+            m_inventory = sdk::call_object_func_easy<::REManagedObject*>(container, "get_inventory");
+        } else {
+            m_inventory = nullptr;
+        }
+    } else {
+        m_status = nullptr;
+        m_inventory = nullptr;
+    }
+#endif
+
+    if (m_status != nullptr) {
+        m_is_reloading = sdk::call_object_func_easy<bool>(m_status, "get_isReload");
+    }
+
+    update_ik_pointers();
+    return true;
+}
+
+bool RE8VR::update_ik_pointers() {
+    auto reset_hand_ik = [&]() {
+        m_right_hand_ik = nullptr;
+        m_left_hand_ik = nullptr;
+        m_right_hand_ik_object = nullptr;
+        m_left_hand_ik_object = nullptr;
+        m_right_hand_ik_transform = nullptr;
+        m_left_hand_ik_transform = nullptr;
+    };
+
+    if (m_hand_touch == nullptr) {
+        reset_hand_ik();
+        return false;
+    }
+
+    auto hand_ik = *sdk::get_object_field<sdk::SystemArray*>(m_hand_touch, "HandIK");
+
+    if (hand_ik == nullptr || hand_ik->size() < 2) {
+        spdlog::info("[RE8VR] HandIK is null or empty");
+        reset_hand_ik();
+        return false;
+    }
+
+    m_right_hand_ik = hand_ik->get_element(0);
+    m_left_hand_ik = hand_ik->get_element(1);
+
+    if (m_right_hand_ik != nullptr && m_left_hand_ik != nullptr) {
+        m_right_hand_ik_object = *sdk::get_object_field<::REGameObject*>(m_right_hand_ik, "TargetGameObject");
+        m_left_hand_ik_object = *sdk::get_object_field<::REGameObject*>(m_left_hand_ik, "TargetGameObject");
+        m_right_hand_ik_transform = *sdk::get_object_field<::RETransform*>(m_right_hand_ik, "Target");
+        m_left_hand_ik_transform = *sdk::get_object_field<::RETransform*>(m_left_hand_ik, "Target");
+    } else {
+        return false;
+    }
+
+    return true;
 }
 
 void RE8VR::update_block_gesture() {

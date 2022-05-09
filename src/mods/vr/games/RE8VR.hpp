@@ -19,23 +19,40 @@ public:
     void on_lua_state_created(sol::state& lua) override;
     void on_lua_state_destroyed(sol::state& lua) override;
 
+    void reset_data();
+
     void set_hand_joints_to_tpose(::REManagedObject* hand_ik);
     void update_hand_ik();
     void update_body_ik(glm::quat* camera_rotation, Vector4f* camera_pos);
     void update_player_gestures();
+    void fix_player_camera(::REManagedObject* player_camera);
+
+    ::REGameObject* get_localplayer() const;
+    ::REManagedObject* get_weapon_object(::REGameObject* player) const;
+
+    bool update_pointers();
+    bool update_ik_pointers();
 
 private:
     void update_block_gesture();
     void update_heal_gesture();
-
+    
     union {
         ::REGameObject* m_player{nullptr};
         ::REManagedObject* m_player_downcast;
     };
 
+    ::RETransform* m_transform{nullptr};
+
     ::REManagedObject* m_inventory{nullptr};
     ::REManagedObject* m_updater{nullptr};
     ::REManagedObject* m_weapon{nullptr};
+    ::REManagedObject* m_hand_touch{nullptr};
+    ::REManagedObject* m_order{nullptr};
+    ::REManagedObject* m_status{nullptr};
+    ::REManagedObject* m_event_action_controller{nullptr};
+    ::REManagedObject* m_game_event_action_controller{nullptr};
+    ::REManagedObject* m_hit_controller{nullptr};
 
     ::REManagedObject* m_left_hand_ik{nullptr};
     ::REManagedObject* m_right_hand_ik{nullptr};
@@ -60,6 +77,7 @@ private:
     bool m_is_grapple_aim{false};
     bool m_is_reloading{false};
     bool m_can_use_hands{true};
+    bool m_is_motion_play{false};
 
     bool m_wants_block{false};
     bool m_wants_heal{false};
@@ -69,6 +87,8 @@ private:
 
     Vector3f m_hmd_dir_to_left{};
     Vector3f m_hmd_dir_to_right{};
+
+    float m_delta_time{1.0f/60.0f};
 
     struct HealGesture {
         bool was_grip_down{false};
