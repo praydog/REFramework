@@ -1,3 +1,4 @@
+#if defined(RE7) || defined(RE8)
 #include <sdk/SceneManager.hpp>
 #include <sdk/MurmurHash.hpp>
 #include "../../../mods/VR.hpp"
@@ -21,6 +22,9 @@ std::optional<std::string> RE8VR::on_initialize() {
 void RE8VR::on_lua_state_created(sol::state& lua) {
     lua.new_usertype<RE8VR>("RE8VR",
         "player", &RE8VR::m_player_downcast,
+        "inventory", &RE8VR::m_inventory,
+        "updater", &RE8VR::m_updater,
+        "weapon", &RE8VR::m_weapon,
         "left_hand_ik", &RE8VR::m_left_hand_ik,
         "right_hand_ik", &RE8VR::m_right_hand_ik,
         "left_hand_ik_transform", &RE8VR::m_left_hand_ik_transform,
@@ -41,9 +45,12 @@ void RE8VR::on_lua_state_created(sol::state& lua) {
         "is_grapple_aim", &RE8VR::m_is_grapple_aim,
         "is_reloading", &RE8VR::m_is_reloading,
         "can_use_hands", &RE8VR::m_can_use_hands,
+        "wants_block", &RE8VR::m_wants_block,
+        "wants_heal", &RE8VR::m_wants_heal,
         "set_hand_joints_to_tpose", &RE8VR::set_hand_joints_to_tpose,
         "update_hand_ik", &RE8VR::update_hand_ik,
-        "update_body_ik", &RE8VR::update_body_ik);
+        "update_body_ik", &RE8VR::update_body_ik,
+        "update_player_gestures", &RE8VR::update_player_gestures);
 
     lua["re8vr"] = this;
 }
@@ -374,3 +381,299 @@ void RE8VR::update_body_ik(glm::quat* camera_rotation, Vector4f* camera_pos) {
     //ik_leg:call("set_UpdateTiming", 2) -- ConstraintsBegin
 }
 
+void RE8VR::update_player_gestures() {
+    auto vr = VR::get();
+
+    if (m_player == nullptr || !vr->is_using_controllers()) {
+        m_wants_block = false;
+        m_wants_heal = false;
+        m_heal_gesture.was_grip_down = false;
+        m_heal_gesture.was_trigger_down = false;
+        
+        return;
+    }
+
+    const auto& controllers = vr->get_controllers();
+
+    const auto hmd = vr->get_transform(0);
+    const auto left_hand = vr->get_transform(controllers[0]);
+    const auto right_hand = vr->get_transform(controllers[1]);
+
+    m_hmd_delta_to_left = left_hand[3] - hmd[3];
+    m_hmd_delta_to_right = right_hand[3] - hmd[3];
+
+    m_hmd_dir_to_left = glm::normalize(m_hmd_delta_to_left);
+    m_hmd_dir_to_right = glm::normalize(m_hmd_delta_to_right);
+
+    update_block_gesture();
+    update_heal_gesture();
+}
+
+void RE8VR::update_block_gesture() {
+    auto vr = VR::get();
+
+    const auto& controllers = vr->get_controllers();
+    const auto left_hand = vr->get_transform(controllers[0]);
+    const auto right_hand = vr->get_transform(controllers[1]);
+    const auto hmd_forward = vr->get_transform(0)[2];
+
+    const auto left_hand_dot_raw = glm::dot(Vector3f{hmd_forward}, m_hmd_dir_to_left);
+    const auto right_hand_dot_raw = glm::dot(Vector3f{hmd_forward}, m_hmd_dir_to_right);
+    const auto left_hand_dot = glm::abs(left_hand_dot_raw);
+    const auto right_hand_dot = glm::abs(right_hand_dot_raw);
+
+    const auto left_hand_in_front = left_hand_dot >= 0.8f;
+    const auto right_hand_in_front = right_hand_dot >= 0.8f;
+
+    const auto first_test = left_hand_in_front && right_hand_in_front;
+
+    if (!first_test) {
+        m_wants_block = false;
+        return;
+    }
+
+    // now we need to check if the hands are facing up
+    const auto left_hand_up_dot = glm::abs(glm::dot(hmd_forward, left_hand[0]));
+    const auto right_hand_up_dot = glm::abs(glm::dot(hmd_forward, right_hand[0]));
+
+    const auto left_hand_up = left_hand_up_dot >= 0.5f;
+    const auto right_hand_up = right_hand_up_dot >= 0.5f;
+
+    m_wants_block = left_hand_up && right_hand_up;
+}
+
+void RE8VR::update_heal_gesture() {
+#ifdef RE7
+    if (m_inventory == nullptr) {
+#else
+    if (m_inventory == nullptr || m_updater == nullptr) {
+#endif
+        m_wants_heal = false;
+        m_heal_gesture.was_grip_down = false;
+        m_heal_gesture.was_trigger_down = false;
+
+        return;
+    }
+
+    auto vr = VR::get();
+
+    const auto hmd_forward = vr->get_transform(0)[2];
+    const auto flattened_forward = glm::normalize(Vector3f{hmd_forward.x, 0.0f, hmd_forward.z});
+
+    const auto right_hand_dot_flat_raw = glm::dot(flattened_forward, m_hmd_dir_to_right);
+    const auto right_hand_behind = right_hand_dot_flat_raw >= 0.2f;
+
+    const auto right_joystick = vr->get_right_joystick();
+    const auto action_trigger = vr->get_action_trigger();
+    const auto action_grip = vr->get_action_grip();
+    const auto is_trigger_down = vr->is_action_active(action_trigger, right_joystick);
+    const auto is_grip_down = vr->is_action_active(action_grip, right_joystick);
+
+#ifdef RE8
+    static auto app_medicine_core = sdk::find_type_definition("app.MedicineCore");
+
+    auto items_list = *sdk::get_object_field<::REManagedObject*>(m_inventory, "<items>k__BackingField");
+    auto weapon_change = sdk::call_object_func_easy<::REManagedObject*>(m_updater, "get_playerWeaponChange");
+    auto mesh_controller = sdk::call_object_func_easy<::REManagedObject*>(m_updater, "get_playerMeshController");
+#else
+    static auto app_player_weapon_change = sdk::find_type_definition("app.PlayerWeaponChange");
+    static auto app_player_mesh_controller = sdk::find_type_definition("app.PlayerMeshController");
+    static auto app_player_weapon_change_type = app_player_weapon_change->get_type();
+    static auto app_player_mesh_controller_type = app_player_mesh_controller->get_type();
+
+    auto items_list = *sdk::get_object_field<::REManagedObject*>(m_inventory, "_ItemList");
+    auto weapon_change = utility::re_component::find<::REManagedObject>(m_player->transform, app_player_weapon_change_type);
+    auto mesh_controller = utility::re_component::find<::REManagedObject>(m_player->transform, app_player_mesh_controller_type);
+#endif
+
+    if (items_list == nullptr || weapon_change == nullptr || mesh_controller == nullptr) {
+        spdlog::info("[RE8VR] Could not find inventory, weapon change, or mesh controller");
+        return;
+    }
+
+    const auto now = std::chrono::steady_clock::now();
+    auto items = *sdk::get_object_field<sdk::SystemArray*>(items_list, "mItems");
+
+    if (items == nullptr) {
+        spdlog::info("[RE8VR] mItems is null");
+        return;
+    }
+
+    ::REManagedObject* medicine_item = nullptr;
+
+    for (auto i = 0; i < items->size(); i++) {
+        auto item = items->get_element(i);
+
+        if (item == nullptr) {
+            continue;
+        }
+
+#ifdef RE8
+        const auto is_medicine = utility::re_managed_object::get_type_definition(item)->is_a(app_medicine_core);
+#else
+        bool is_medicine = false;
+        auto item_internal = *sdk::get_object_field<::REManagedObject*>(item, "Item");
+
+        if (item_internal != nullptr) {
+            auto item_name = *sdk::get_object_field<::SystemString*>(item_internal, "ItemDataID");
+
+            if (item_name != nullptr) {
+                is_medicine = utility::re_string::get_string(item_name).find("Remedy") != std::string::npos;
+            }
+        }
+#endif
+
+        if (is_medicine) {
+            medicine_item = item;
+            break;
+        }
+    }
+
+    if (medicine_item == nullptr) {
+        m_wants_heal = false;
+        m_heal_gesture.was_grip_down = false;
+        m_heal_gesture.was_trigger_down = false;
+
+        return;
+    }
+
+#ifdef RE7
+    auto item_internal = *sdk::get_object_field<::REManagedObject*>(medicine_item, "Item");
+    auto owner = *sdk::get_object_field<::REGameObject*>(medicine_item, "Owner");
+#else
+    auto owner = *sdk::get_object_field<::REGameObject*>(medicine_item, "<owner>k__BackingField");
+#endif
+
+    if (owner == nullptr) {
+        m_wants_heal = false;
+        m_heal_gesture.was_grip_down = false;
+        m_heal_gesture.was_trigger_down = false;
+
+        spdlog::info("[RE8VR] Medicine has no owner");
+
+        return;
+    }
+
+    static auto via_render_mesh = sdk::find_type_definition("via.render.Mesh");
+    static auto via_render_mesh_type = via_render_mesh->get_type();
+
+    auto current_mesh = *sdk::get_object_field<::REManagedObject*>(mesh_controller, "WeaponMesh");
+    auto item_mesh = utility::re_component::find<::REManagedObject>(owner->transform, via_render_mesh_type);
+
+    const auto is_same_mesh = current_mesh == item_mesh;
+
+    if (current_mesh == nullptr) {
+        m_heal_gesture.was_grip_down = false;
+        m_heal_gesture.was_trigger_down = false;
+    }
+
+    auto dequip_item = [&]() {
+#ifdef RE7
+        auto equip_manager = utility::re_component::find<::REManagedObject>(m_player->transform, "app.EquipManager");
+        if (equip_manager == nullptr) {
+            return;
+        }
+
+        auto item_weapon = *sdk::get_object_field<::REManagedObject*>(item_internal, "<weapon>k__BackingField");
+
+        sdk::call_object_func_easy<void*>(weapon_change, "removeWeapon");
+        sdk::call_object_func_easy<void*>(mesh_controller, "onEquipWeaponChanged", nullptr, item_weapon);
+
+        auto current_equipped_right = *sdk::get_object_field<::REManagedObject*>(equip_manager, "<equipWeaponRight>k__BackingField");
+
+        if (current_equipped_right == item_weapon) {
+            if (current_equipped_right != nullptr) {
+                utility::re_managed_object::release(current_equipped_right);
+            }
+
+            *sdk::get_object_field<::REManagedObject*>(equip_manager, "<equipWeaponRight>k__BackingField") = nullptr;
+        }
+#endif
+    };
+
+    if (!is_same_mesh) {
+        if ((right_hand_behind && !m_heal_gesture.was_grip_down && glm::length(m_hmd_delta_to_right) <= 1.0f) 
+            || (now - m_heal_gesture.last_grab_time) < std::chrono::milliseconds(500)) 
+        {
+            vr->trigger_haptic_vibration(0.0f, 0.1f, 1.0f, 5.0f, right_joystick);
+
+            if (is_grip_down) {
+#ifdef RE8
+                auto equip_manager = sdk::call_object_func_easy<::REManagedObject*>(m_updater, "get_equipController");
+
+                sdk::call_object_func_easy<void*>(medicine_item, "setActive", true);
+                sdk::call_object_func_easy<void*>(weapon_change, "removeWeaponWithNoAction");
+
+                if (equip_manager != nullptr) {
+                    sdk::call_object_func_easy<void*>(equip_manager, "equipObject", owner);
+                }
+
+                m_heal_gesture.last_grab_time = now;
+#else
+                auto equip_manager = utility::re_component::find<::REManagedObject>(m_player->transform, "app.EquipManager");
+
+                if (equip_manager == nullptr) {
+                    spdlog::info("[RE8VR] No equip manager found");
+                    return;
+                }
+
+                auto current_equipped_right = *sdk::get_object_field<::REManagedObject*>(equip_manager, "<equipWeaponRight>k__BackingField");
+                auto item_weapon = *sdk::get_object_field<::REManagedObject*>(item_internal, "<weapon>k__BackingField");
+
+                sdk::call_object_func_easy<void*>(weapon_change, "removeWeapon");
+                sdk::call_object_func_easy<void*>(equip_manager, "equipWeapon(app.Weapon, app.CharacterDefine.Hand)", item_weapon, 0);
+                sdk::call_object_func_easy<void*>(weapon_change, "equipWeapon", item_internal, item_weapon);
+
+                if (m_weapon != nullptr) {
+                    sdk::call_object_func_easy<void*>(mesh_controller, "onEquipWeaponChanged", item_weapon, m_weapon);
+                }
+
+                if (current_equipped_right != item_weapon) {
+                    if (current_equipped_right != nullptr) {
+                        utility::re_managed_object::release(current_equipped_right);
+                    }
+
+                    *sdk::get_object_field<::REManagedObject*>(equip_manager, "<equipWeaponRight>k__BackingField") = item_weapon;
+                    utility::re_managed_object::add_ref(item_weapon);
+                }
+
+                m_heal_gesture.last_grab_time = now;
+#endif
+            }
+        }
+    } else if (is_trigger_down) {
+        if (!m_heal_gesture.was_trigger_down) {
+#ifdef RE7
+            auto item_weapon = *sdk::get_object_field<::REManagedObject*>(item_internal, "<weapon>k__BackingField");
+
+            dequip_item();
+            sdk::call_object_func_easy<void*>(weapon_change, "useItem", item_internal, item_weapon);
+#else
+            sdk::call_object_func_easy<void*>(weapon_change, "requestUseItem", medicine_item, false, false);
+#endif
+        }
+    } else if (!is_grip_down) {
+        if (is_same_mesh) {
+#ifdef RE7
+            auto item_weapon = *sdk::get_object_field<::REManagedObject*>(item_internal, "<weapon>k__BackingField");
+            sdk::call_object_func_easy<void*>(weapon_change, "removeWeapon");
+            sdk::call_object_func_easy<void*>(mesh_controller, "onEquipWeaponChanged", nullptr, item_weapon);
+#else
+            sdk::call_object_func_easy<void*>(weapon_change, "removeWeaponWithNoAction");
+            sdk::call_object_func_easy<void*>(medicine_item, "setActive", false);
+#endif
+        }
+    }
+
+    m_heal_gesture.was_grip_down = is_grip_down && m_heal_gesture.last_grip_weapon == m_weapon; 
+    m_heal_gesture.was_trigger_down = is_trigger_down && m_heal_gesture.last_grip_weapon == m_weapon;
+    m_heal_gesture.last_grip_weapon = m_weapon;
+
+#ifdef RE8
+    // In RE8 the medicine is rotated all weird.
+    if (!is_trigger_down && *sdk::get_object_field<::REManagedObject*>(medicine_item, "usingEffect") == nullptr) {
+        sdk::call_object_func_easy<void*>(owner->transform, "set_LocalRotation", &m_heal_gesture.re8_medicine_rotation);
+    }
+#endif
+}
+#endif

@@ -1,6 +1,8 @@
 // Even though this is called RE8VR, it also affects RE7.
 #pragma once
 
+#if defined(RE7) || defined(RE8)
+#include <chrono>
 #include <sdk/REMath.hpp>
 
 #include "../../../Mod.hpp"
@@ -20,12 +22,20 @@ public:
     void set_hand_joints_to_tpose(::REManagedObject* hand_ik);
     void update_hand_ik();
     void update_body_ik(glm::quat* camera_rotation, Vector4f* camera_pos);
+    void update_player_gestures();
 
 private:
+    void update_block_gesture();
+    void update_heal_gesture();
+
     union {
         ::REGameObject* m_player{nullptr};
         ::REManagedObject* m_player_downcast;
     };
+
+    ::REManagedObject* m_inventory{nullptr};
+    ::REManagedObject* m_updater{nullptr};
+    ::REManagedObject* m_weapon{nullptr};
 
     ::REManagedObject* m_left_hand_ik{nullptr};
     ::REManagedObject* m_right_hand_ik{nullptr};
@@ -50,4 +60,25 @@ private:
     bool m_is_grapple_aim{false};
     bool m_is_reloading{false};
     bool m_can_use_hands{true};
+
+    bool m_wants_block{false};
+    bool m_wants_heal{false};
+
+    Vector3f m_hmd_delta_to_left{};
+    Vector3f m_hmd_delta_to_right{};
+
+    Vector3f m_hmd_dir_to_left{};
+    Vector3f m_hmd_dir_to_right{};
+
+    struct HealGesture {
+        bool was_grip_down{false};
+        bool was_trigger_down{false};
+        ::REManagedObject* last_grip_weapon{nullptr};
+        std::chrono::steady_clock::time_point last_grab_time{};
+
+        glm::quat re8_medicine_rotation{0.728f, 0.409f, 0.222f, 0.504f};
+    };
+
+    HealGesture m_heal_gesture;
 };
+#endif
