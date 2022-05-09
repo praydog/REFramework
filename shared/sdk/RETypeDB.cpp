@@ -466,7 +466,7 @@ reframework::InvokeRet sdk::REMethodDefinition::invoke(void* object, const std::
     return out;
 #else
     // RE7 doesn't have the invoke wrappers that the newer games use...
-    if (num_params > 2) {
+    if (num_params > 3) {
         spdlog::warn("REMethodDefinition::invoke for {} has more than 2 parameters, which is not supported at this time (RE7)", get_name());
         return reframework::InvokeRet{};
     }
@@ -623,8 +623,141 @@ reframework::InvokeRet sdk::REMethodDefinition::invoke(void* object, const std::
         return out;
 
         break;
+    case 3:
+        // uhhhhhhh now this is just getting ridiculous
+        switch (param_hashes[0]) {
+        case "System.Single"_fnv:
+            switch (param_hashes[1]) {
+            case "System.Single"_fnv:
+                switch (param_hashes[2]) {
+                case "System.Single"_fnv:
+                    unpack_and_call.operator()<float, float, float>();
+                    break;
+                case "System.Double"_fnv:
+                    unpack_and_call.operator()<float, float, double>();
+                    break;
+                default:
+                    unpack_and_call.operator()<float, float, void*>();
+                    break;
+                }
+                break;
+            case "System.Double"_fnv:
+                switch (param_hashes[2]) {
+                case "System.Single"_fnv:
+                    unpack_and_call.operator()<float, double, float>();
+                    break;
+                case "System.Double"_fnv:
+                    unpack_and_call.operator()<float, double, double>();
+                    break;
+                default:
+                    unpack_and_call.operator()<float, double, void*>();
+                    break;
+                }
+                break;
+            default:
+                switch (param_hashes[2]) {
+                case "System.Single"_fnv:
+                    unpack_and_call.operator()<float, void*, float>();
+                    break;
+                case "System.Double"_fnv:
+                    unpack_and_call.operator()<float, void*, double>();
+                    break;
+                default:
+                    unpack_and_call.operator()<float, void*, void*>();
+                    break;
+                }
+                break;
+            }
+            break;
+        case "System.Double"_fnv:
+            switch (param_hashes[1]) {
+            case "System.Single"_fnv:
+                switch (param_hashes[2]) {
+                case "System.Single"_fnv:
+                    unpack_and_call.operator()<double, float, float>();
+                    break;
+                case "System.Double"_fnv:
+                    unpack_and_call.operator()<double, float, double>();
+                    break;
+                default:
+                    unpack_and_call.operator()<double, float, void*>();
+                    break;
+                }
+                break;
+            case "System.Double"_fnv:
+                switch (param_hashes[2]) {
+                case "System.Single"_fnv:
+                    unpack_and_call.operator()<double, double, float>();
+                    break;
+                case "System.Double"_fnv:
+                    unpack_and_call.operator()<double, double, double>();
+                    break;
+                default:
+                    unpack_and_call.operator()<double, double, void*>();
+                    break;
+                }
+                break;
+            default:
+                switch (param_hashes[2]) {
+                case "System.Single"_fnv:
+                    unpack_and_call.operator()<double, void*, float>();
+                    break;
+                case "System.Double"_fnv:
+                    unpack_and_call.operator()<double, void*, double>();
+                    break;
+                default:
+                    unpack_and_call.operator()<double, void*, void*>();
+                    break;
+                }
+                break;
+            }
+            break;
+        default:
+            switch (param_hashes[1]) {
+            case "System.Single"_fnv:
+                switch (param_hashes[2]) {
+                case "System.Single"_fnv:
+                    unpack_and_call.operator()<void*, float, float>();
+                    break;
+                case "System.Double"_fnv:
+                    unpack_and_call.operator()<void*, float, double>();
+                    break;
+                default:
+                    unpack_and_call.operator()<void*, float, void*>();
+                    break;
+                }
+                break;
+            case "System.Double"_fnv:
+                switch (param_hashes[2]) {
+                case "System.Single"_fnv:
+                    unpack_and_call.operator()<void*, double, float>();
+                    break;
+                case "System.Double"_fnv:
+                    unpack_and_call.operator()<void*, double, double>();
+                    break;
+                default:
+                    unpack_and_call.operator()<void*, double, void*>();
+                    break;
+                }
+                break;
+            default:
+                switch (param_hashes[2]) {
+                case "System.Single"_fnv:
+                    unpack_and_call.operator()<void*, void*, float>();
+                    break;
+                case "System.Double"_fnv:
+                    unpack_and_call.operator()<void*, void*, double>();
+                    break;
+                default:
+                    unpack_and_call.operator()<void*, void*, void*>();
+                    break;
+                }
+                break;
+            }
+            break;
+        }
     default:
-        // for now, we aren't going to handle the case where there are more than 2 parameters
+        // for now, we aren't going to handle the case where there are more than 3 parameters
         // because that will get very very messy
         // maybe try to fix it with templates or JIT or something...
         // but for now, just return an empty struct
