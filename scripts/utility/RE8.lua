@@ -249,14 +249,20 @@ sdk.hook(update_postural_camera_motion_method, on_pre_update_postural_camera_mot
 
 if is_re7 then
     local ch8_player_motion_controller_type = sdk.find_type_definition("app.CH8PlayerMotionController")
-    local ch8_update_postural_camera_motion_method = ch8_player_motion_controller_type:get_method("updatePosturalCameraMotion")
     local ch9_player_motion_controller_type = sdk.find_type_definition("app.CH9PlayerMotionController")
-    local ch9_update_postural_camera_motion_method = ch9_player_motion_controller_type:get_method("updatePosturalCameraMotion")
 
-    -- chris
-    sdk.hook(ch8_update_postural_camera_motion_method, on_pre_update_postural_camera_motion, on_post_update_postural_camera_motion)
-    -- ch9 (end of zoe?)
-    sdk.hook(ch9_update_postural_camera_motion_method, on_pre_update_postural_camera_motion, on_post_update_postural_camera_motion)
+    if ch8_player_motion_controller_type then
+        local ch8_update_postural_camera_motion_method = ch8_player_motion_controller_type:get_method("updatePosturalCameraMotion")
+        -- chris
+        sdk.hook(ch8_update_postural_camera_motion_method, on_pre_update_postural_camera_motion, on_post_update_postural_camera_motion)
+    end
+
+    if ch9_player_motion_controller_type ~= nil then
+        local ch9_update_postural_camera_motion_method = ch9_player_motion_controller_type:get_method("updatePosturalCameraMotion")
+
+        -- ch9 (end of zoe?)
+        sdk.hook(ch9_update_postural_camera_motion_method, on_pre_update_postural_camera_motion, on_post_update_postural_camera_motion)
+    end
 end
 
 local player_movement_args = nil
@@ -300,12 +306,19 @@ end
 
 if is_re7 then
     local ch8_player_movement_type = sdk.find_type_definition("app.CH8PlayerMovement")
-    local ch8_player_movement_late_update_method = ch8_player_movement_type:get_method("doLateUpdate")
-    local ch9_player_movement_type = sdk.find_type_definition("app.CH9PlayerMovement")
-    local ch9_player_movement_late_update_method = ch9_player_movement_type:get_method("doLateUpdate")
 
-    sdk.hook(ch8_player_movement_late_update_method, on_pre_player_movement_late_update, on_post_player_movement_late_update)
-    sdk.hook(ch9_player_movement_late_update_method, on_pre_player_movement_late_update, on_post_player_movement_late_update)
+    if ch8_player_movement_type ~= nil then
+        local ch8_player_movement_late_update_method = ch8_player_movement_type:get_method("doLateUpdate")
+        sdk.hook(ch8_player_movement_late_update_method, on_pre_player_movement_late_update, on_post_player_movement_late_update)
+    end
+
+    local ch9_player_movement_type = sdk.find_type_definition("app.CH9PlayerMovement")
+
+    if ch8_player_movement_type ~= nil then
+        local ch9_player_movement_late_update_method = ch9_player_movement_type:get_method("doLateUpdate")
+
+        sdk.hook(ch9_player_movement_late_update_method, on_pre_player_movement_late_update, on_post_player_movement_late_update)
+    end
 end
 
 function re8.notify_event_task_created(callback)

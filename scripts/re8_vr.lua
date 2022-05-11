@@ -104,7 +104,7 @@ local neg_forward_identity = Matrix4x4f.new(-1, 0, 0, 0,
 
 local cfg = {
     movement_shake = false,
-    all_camera_shake = true,
+    all_camera_shake = false,
     disable_crosshair = false,
     no_melee_cooldown = false,
     roomscale_movement = true,
@@ -1316,19 +1316,27 @@ sdk.hook(
 )
 
 if is_re7 then
+    local ch8pcam = sdk.find_type_definition("app.CH8PlayerCamera")
+
     -- Not a hero camera
-    sdk.hook(
-        sdk.find_type_definition("app.CH8PlayerCamera"):get_method("lateUpdate"), 
-        on_pre_player_camera_update, 
-        on_post_player_camera_update
-    )
+    if ch8pcam ~= nil then
+        sdk.hook(
+            ch8pcam:get_method("lateUpdate"), 
+            on_pre_player_camera_update, 
+            on_post_player_camera_update
+        )
+    end
+
+    local ch9pcam = sdk.find_type_definition("app.CH9PlayerCamera")
 
     -- idk the other DLC?
-    sdk.hook(
-        sdk.find_type_definition("app.CH9PlayerCamera"):get_method("lateUpdate"), 
-        on_pre_player_camera_update, 
-        on_post_player_camera_update
-    )
+    if ch9pcam ~= nil then
+        sdk.hook(
+            ch9pcam:get_method("lateUpdate"), 
+            on_pre_player_camera_update, 
+            on_post_player_camera_update
+        )
+    end
 end
 
 -- Zero out the camera shake
