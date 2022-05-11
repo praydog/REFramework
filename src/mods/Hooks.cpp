@@ -113,10 +113,16 @@ std::optional<std::string> Hooks::hook_update_transform() {
         update_transform_call = utility::scan(game, "0F B6 D1 48 8B CB E8 ? ? ? ? 48 8B 9B ? ? ? ?");
 
         if (!update_transform_call) {
-            return "Unable to find UpdateTransform pattern.";
-        }
+            update_transform_call = utility::scan(game, "0F B6 D0 48 8B CB E8 ? ? ? ? 48 8B 9B ? ? ? ?");
 
-        absolute_offset = 7;
+            if (!update_transform_call) {
+                return "Unable to find UpdateTransform pattern.";
+            }
+
+            absolute_offset = 7;
+        } else {
+            absolute_offset = 7;
+        }
     }
 
     auto update_transform = utility::calculate_absolute(*update_transform_call + absolute_offset);
