@@ -156,6 +156,12 @@ local function set_inputmode(mode)
     local hid_manager = sdk.get_managed_singleton(sdk.game_namespace("HIDManager"))
 
     if hid_manager then
+        local current_mode = hid_manager:call("get_InputMode")
+
+        if is_re8 and current_mode ~= mode then
+            hid_manager:set_field("<changedCursorShow>k__BackingField", false)
+        end
+
         hid_manager:call("set_inputMode", mode)
     end
 end
