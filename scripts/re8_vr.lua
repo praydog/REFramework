@@ -2293,7 +2293,14 @@ local re8_inventory_names = {
     "GUIInventoryCraft",
     "GUIInventoryKeyItem",
     "GUIMap",
-    "GUIShopBg"
+    "GUIShopBg",
+    "GUIFigureList",
+    "GUIBonusMenu",
+    "GUIMainMenu",
+    "GUIPhotoMode",
+    "GUIPause",
+    "GUISaveLoad",
+    "GUIBinder"
 }
 
 local re7_inventory_names = {
@@ -2412,7 +2419,7 @@ re.on_pre_gui_draw_element(function(element, context)
         end
     end
 
-    if re8_inventory_names[name] or re7_inventory_names[name] then
+    if re8vr.player == nil or re8_inventory_names[name] or re7_inventory_names[name] then
         last_inventory_open_time = os.clock()
     end
 
