@@ -120,9 +120,9 @@ struct VRRuntime {
     std::array<Matrix4x4f, 2> projections{};
     std::array<Matrix4x4f, 2> eyes{};
 
-    std::shared_mutex projections_mtx{};
-    std::shared_mutex eyes_mtx{};
-    std::shared_mutex pose_mtx{};
+    mutable std::shared_mutex projections_mtx{};
+    mutable std::shared_mutex eyes_mtx{};
+    mutable std::shared_mutex pose_mtx{};
 
     Vector4f raw_projections[2]{};
 

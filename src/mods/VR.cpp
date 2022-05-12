@@ -1768,6 +1768,31 @@ void VR::apply_hmd_transform(::REJoint* camera_joint) {
     }
 }
 
+bool VR::is_hand_behind_head(VRRuntime::Hand hand, float sensitivity) const {
+    if (hand > VRRuntime::Hand::RIGHT || !is_using_controllers()) {
+        return false;
+    }
+
+    uint32_t hand_index = get_controllers()[(uint32_t)hand];
+
+    const auto hmd = get_transform(0);
+    const auto hand_pos = get_position(hand_index);
+    const auto hmd_delta = Vector3f{hand_pos - hmd[3]};
+    const auto distance = glm::length(hmd_delta);
+
+    if (distance >= 0.3f) {
+        return false;
+    }
+
+    const auto hmd_dir = glm::normalize(hmd_delta);
+
+    const auto& hmd_forward = hmd[2];
+    const auto flattened_forward = glm::normalize(Vector3f{hmd_forward.x, 0.0f, hmd_forward.z});
+
+    const auto hand_dot_flat_raw = glm::dot(flattened_forward, hmd_dir);
+    return hand_dot_flat_raw >= sensitivity;
+}
+
 void VR::update_audio_camera() {
     if (!is_hmd_active()) {
         return;
@@ -3396,8 +3421,9 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
     const auto is_left_joystick_click_down = is_action_active(m_action_joystick_click, m_left_joystick);
     const auto is_right_joystick_click_down = is_action_active(m_action_joystick_click, m_right_joystick);
 
+    const auto is_minimap_down = is_action_active(m_action_minimap, m_left_joystick) || is_action_active(m_action_minimap, m_right_joystick);
     const auto is_left_a_button_down = is_action_active(m_action_a_button, m_left_joystick);
-    const auto is_left_b_button_down = is_action_active(m_action_b_button, m_left_joystick);
+    const auto is_left_b_button_down = !is_minimap_down && is_action_active(m_action_b_button, m_left_joystick);
     const auto is_right_a_button_down = is_action_active(m_action_a_button, m_right_joystick);
     const auto is_right_b_button_down = is_action_active(m_action_b_button, m_right_joystick);
 
@@ -3411,7 +3437,6 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
     const auto is_quickturn_down = is_action_active(m_action_re2_quickturn, m_left_joystick) || is_action_active(m_action_re2_quickturn, m_right_joystick);
     const auto is_reset_view_down = is_action_active(m_action_re2_reset_view, m_left_joystick) || is_action_active(m_action_re2_reset_view, m_right_joystick);
     const auto is_change_ammo_down = is_action_active(m_action_re2_change_ammo, m_left_joystick) || is_action_active(m_action_re2_change_ammo, m_right_joystick);
-    const auto is_minimap_down = is_action_active(m_action_minimap, m_left_joystick) || is_action_active(m_action_minimap, m_right_joystick);
 	const auto is_toggle_flashlight_down = is_action_active(m_action_re2_toggle_flashlight, m_left_joystick);
 
     const auto is_left_system_button_down = is_action_active(m_action_system_button, m_left_joystick);
@@ -3910,7 +3935,7 @@ void VR::on_config_save(utility::Config& cfg) {
     }
 }
 
-Vector4f VR::get_position(uint32_t index) {
+Vector4f VR::get_position(uint32_t index) const {
     if (index >= vr::k_unMaxTrackedDeviceCount) {
         return Vector4f{};
     }
@@ -3921,7 +3946,7 @@ Vector4f VR::get_position(uint32_t index) {
     return get_position_unsafe(index);
 }
 
-Vector4f VR::get_velocity(uint32_t index) {
+Vector4f VR::get_velocity(uint32_t index) const {
     if (index >= vr::k_unMaxTrackedDeviceCount) {
         return Vector4f{};
     }
@@ -3931,7 +3956,7 @@ Vector4f VR::get_velocity(uint32_t index) {
     return get_velocity_unsafe(index);
 }
 
-Vector4f VR::get_angular_velocity(uint32_t index) {
+Vector4f VR::get_angular_velocity(uint32_t index) const {
     if (index >= vr::k_unMaxTrackedDeviceCount) {
         return Vector4f{};
     }
@@ -3941,7 +3966,7 @@ Vector4f VR::get_angular_velocity(uint32_t index) {
     return get_angular_velocity_unsafe(index);
 }
 
-Vector4f VR::get_position_unsafe(uint32_t index) {
+Vector4f VR::get_position_unsafe(uint32_t index) const {
     if (get_runtime()->is_openvr()) {
         if (index >= vr::k_unMaxTrackedDeviceCount) {
             return Vector4f{};
@@ -3971,7 +3996,7 @@ Vector4f VR::get_position_unsafe(uint32_t index) {
     return Vector4f{};
 }
 
-Vector4f VR::get_velocity_unsafe(uint32_t index) {
+Vector4f VR::get_velocity_unsafe(uint32_t index) const {
     if (get_runtime()->is_openvr()) {
         if (index >= vr::k_unMaxTrackedDeviceCount) {
             return Vector4f{};
@@ -3997,7 +4022,7 @@ Vector4f VR::get_velocity_unsafe(uint32_t index) {
     return Vector4f{};
 }
 
-Vector4f VR::get_angular_velocity_unsafe(uint32_t index) {
+Vector4f VR::get_angular_velocity_unsafe(uint32_t index) const {
     if (get_runtime()->is_openvr()) {
         if (index >= vr::k_unMaxTrackedDeviceCount) {
             return Vector4f{};
@@ -4023,7 +4048,7 @@ Vector4f VR::get_angular_velocity_unsafe(uint32_t index) {
     return Vector4f{};
 }
 
-Matrix4x4f VR::get_rotation(uint32_t index) {
+Matrix4x4f VR::get_rotation(uint32_t index) const {
     if (get_runtime()->is_openvr()) {
         if (index >= vr::k_unMaxTrackedDeviceCount) {
             return glm::identity<Matrix4x4f>();
@@ -4056,7 +4081,7 @@ Matrix4x4f VR::get_rotation(uint32_t index) {
     return glm::identity<Matrix4x4f>();
 }
 
-Matrix4x4f VR::get_transform(uint32_t index) {
+Matrix4x4f VR::get_transform(uint32_t index) const {
     if (get_runtime()->is_openvr()) {
         if (index >= vr::k_unMaxTrackedDeviceCount) {
             return glm::identity<Matrix4x4f>();
@@ -4091,7 +4116,7 @@ Matrix4x4f VR::get_transform(uint32_t index) {
     return glm::identity<Matrix4x4f>();
 }
 
-vr::HmdMatrix34_t VR::get_raw_transform(uint32_t index) {
+vr::HmdMatrix34_t VR::get_raw_transform(uint32_t index) const {
     if (get_runtime()->is_openvr()) {
         if (index >= vr::k_unMaxTrackedDeviceCount) {
             return vr::HmdMatrix34_t{};
@@ -4111,17 +4136,23 @@ bool VR::is_action_active(vr::VRActionHandle_t action, vr::VRInputValueHandle_t 
     if (!get_runtime()->loaded) {
         return false;
     }
+    
+    bool active = false;
 
     if (get_runtime()->is_openvr()) {
         vr::InputDigitalActionData_t data{};
         vr::VRInput()->GetDigitalActionData(action, &data, sizeof(data), source);
 
-        return data.bActive && data.bState;
+        active = data.bActive && data.bState;
     } else if (get_runtime()->is_openxr()) {
-        return m_openxr->is_action_active((XrAction)action, (VRRuntime::Hand)source);
+        active = m_openxr->is_action_active((XrAction)action, (VRRuntime::Hand)source);
     }
 
-    return false;
+    if (!active && action == m_action_minimap) {
+        active = is_action_active(m_action_b_button, m_left_joystick) && is_hand_behind_head(VRRuntime::Hand::LEFT);
+    }
+
+    return active;
 }
 
 Vector2f VR::get_joystick_axis(vr::VRInputValueHandle_t handle) const {

@@ -204,7 +204,7 @@ VRRuntime::Error OpenXR::consume_events(std::function<void(void*)> callback) {
                 }
             }
         } else if (bh->type == XR_TYPE_EVENT_DATA_REFERENCE_SPACE_CHANGE_PENDING) {
-            this->wants_reset_origin = true;;
+            this->wants_reset_origin = true;
         }
 
         edb = {XR_TYPE_EVENT_DATA_BUFFER};

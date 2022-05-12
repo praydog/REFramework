@@ -149,12 +149,12 @@ public:
         return m_render_camera_matrix;
     }
 
-    Vector4f get_position(uint32_t index);
-    Vector4f get_velocity(uint32_t index);
-    Vector4f get_angular_velocity(uint32_t index);
-    Matrix4x4f get_rotation(uint32_t index);
-    Matrix4x4f get_transform(uint32_t index);
-    vr::HmdMatrix34_t get_raw_transform(uint32_t index);
+    Vector4f get_position(uint32_t index)  const;
+    Vector4f get_velocity(uint32_t index)  const;
+    Vector4f get_angular_velocity(uint32_t index)  const;
+    Matrix4x4f get_rotation(uint32_t index)  const;
+    Matrix4x4f get_transform(uint32_t index) const;
+    vr::HmdMatrix34_t get_raw_transform(uint32_t index) const;
 
     const auto& get_eyes() const {
         return get_runtime()->eyes;
@@ -163,6 +163,7 @@ public:
     void apply_hmd_transform(glm::quat& rotation, Vector4f& position);
     void apply_hmd_transform(::REJoint* camera_joint);
     
+    bool is_hand_behind_head(VRRuntime::Hand hand, float sensitivity = 0.2f) const;
     bool is_action_active(vr::VRActionHandle_t action, vr::VRInputValueHandle_t source = vr::k_ulInvalidInputValueHandle) const;
     Vector2f get_joystick_axis(vr::VRInputValueHandle_t handle) const;
 
@@ -227,9 +228,9 @@ public:
     };
 
 private:
-    Vector4f get_position_unsafe(uint32_t index);
-    Vector4f get_velocity_unsafe(uint32_t index);
-    Vector4f get_angular_velocity_unsafe(uint32_t index);
+    Vector4f get_position_unsafe(uint32_t index) const;
+    Vector4f get_velocity_unsafe(uint32_t index) const;
+    Vector4f get_angular_velocity_unsafe(uint32_t index) const;
 
 private:
     // Hooks
@@ -333,10 +334,10 @@ private:
         RenderLayerHook<sdk::renderer::layer::Scene> scene{"via.render.layer.Scene"};
     } m_layer_hooks;
     
-    std::recursive_mutex m_openvr_mtx{};
-    std::recursive_mutex m_wwise_mtx{};
-    std::shared_mutex m_gui_mtx{};
-    std::shared_mutex m_rotation_mtx{};
+    mutable std::recursive_mutex m_openvr_mtx{};
+    mutable std::recursive_mutex m_wwise_mtx{};
+    mutable std::shared_mutex m_gui_mtx{};
+    mutable std::shared_mutex m_rotation_mtx{};
 
     vr::VRTextureBounds_t m_right_bounds{ 0.0f, 0.0f, 1.0f, 1.0f };
     vr::VRTextureBounds_t m_left_bounds{ 0.0f, 0.0f, 1.0f, 1.0f };
