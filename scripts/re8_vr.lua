@@ -1380,6 +1380,13 @@ local function on_pre_upper_vertical_update(args)
         return
     end
 
+    -- updating the hand IK here fixes shadows.
+    re8vr:update_hand_ik()
+
+    if not re8vr.is_in_cutscene and re8vr.can_use_hands and not re8vr.is_grapple_aim then
+        return sdk.PreHookResult.SKIP_ORIGINAL
+    end
+
     --[[local upper_vertical = sdk.to_managed_object(args[2])
 
     if not last_camera_update_args then return end
@@ -2193,6 +2200,26 @@ re.on_draw_ui(function()
             imgui.tree_pop()
         end
 
+        if imgui.tree_node("Shadow") then
+            --if not vrmod:is_using_controllers() then return end
+        
+            if is_re7 then
+                local mesh_controller = re8vr.player and GameObject.get_component(re8vr.player, "app.PlayerMeshController") or nil
+
+                if mesh_controller then
+                    local upper_shadow_mesh = mesh_controller:get_field("UpperBodyShadowMesh")
+
+                    if upper_shadow_mesh then
+                
+                        local shadow_body_gameobject = upper_shadow_mesh:call("get_GameObject")
+                        if shadow_body_gameobject then
+                            object_explorer:handle_address(shadow_body_gameobject)
+                        end
+                    end
+                end
+            end
+        end
+
         if imgui.tree_node("Hit Controller") then
             local hit_controller = re8vr.hit_controller
 
@@ -2280,6 +2307,7 @@ re.on_draw_ui(function()
         imgui.text("Is motion play: " .. tostring(re8vr.is_motion_play))
         imgui.text("Is in cutscene: " .. tostring(re8vr.is_in_cutscene))
         imgui.text("Can use hands: " .. tostring(re8vr.can_use_hands))
+        imgui.text("Is grapple aim: " .. tostring(re8vr.is_grapple_aim))
 
         imgui.tree_pop()
     end
