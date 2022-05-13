@@ -72,6 +72,8 @@ namespace utility::re_array {
 
 #if defined(RE8) || defined(MHRISE)
         const auto element_size = utility::re_type::get_value_type_size(container->containedType->type);
+#elif defined(RE7)
+        const auto element_size = container->containedType->classInfo->elementSize;
 #else
         const auto element_size = container->info->classInfo->elementSize;
 #endif

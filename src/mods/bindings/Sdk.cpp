@@ -964,8 +964,14 @@ bool is_valid_offset(::REManagedObject* obj, int32_t offset) {
         return false;
     }
 
+    auto size = typedefinition->get_size();
+
+    if (typedefinition->is_array()) {
+        size = utility::re_managed_object::get_size(obj);
+    }
+
     // trying to limit the impact of this function.
-    if (offset < -0x1000 || (uint32_t)offset >= typedefinition->get_size()) {
+    if (offset < -0x1000 || (uint32_t)offset >= size) {
         return false;
     }
 
@@ -1214,6 +1220,7 @@ void bindings::open_sdk(ScriptState* s) {
 
             return api::sdk::get_native_field(sol::make_object(s->lua(), obj), utility::re_managed_object::get_type_definition(obj), name); 
         },
+        "get_object_size", &utility::re_managed_object::get_size,
         "set_field", [s](REManagedObject* obj, const char* name, sol::object value) {
             if (obj == nullptr) {
                 return;
