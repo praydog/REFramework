@@ -33,6 +33,18 @@ std::optional<std::string> RE8VR::on_initialize() {
     return std::nullopt;
 }
 
+void RE8VR::on_config_load(const utility::Config& cfg) {
+    for (IModValue& option : m_options) {
+        option.config_load(cfg);
+    }
+}
+
+void RE8VR::on_config_save(utility::Config& cfg) {
+    for (IModValue& option : m_options) {
+        option.config_save(cfg);
+    }
+}
+
 void RE8VR::on_lua_state_created(sol::state& lua) {
     lua.new_usertype<RE8VR>("RE8VR",
         "player", &RE8VR::m_player_downcast,
@@ -86,6 +98,43 @@ void RE8VR::on_lua_state_created(sol::state& lua) {
 
 void RE8VR::on_lua_state_destroyed(sol::state& lua) {
     
+}
+
+void RE8VR::on_draw_ui() {
+    ImGui::SetNextTreeNodeOpen(false, ImGuiCond_::ImGuiCond_FirstUseEver);
+
+    if (!ImGui::CollapsingHeader(get_name().data())) {
+        return;
+    }
+
+    m_hide_upper_body->draw("Hide Upper Body");
+    m_hide_lower_body->draw("Hide Lower Body");
+    m_hide_arms->draw("Hide Arms");
+    m_hide_upper_body_cutscenes->draw("Auto Hide Upper Body in Cutscenes");
+    m_hide_lower_body_cutscenes->draw("Auto Hide Lower Body in Cutscenes");
+}
+
+void RE8VR::on_pre_application_entry(void* entry, const char* name, size_t hash) {
+    switch (hash) {
+    case "LockScene"_fnv:
+        break;
+    default:
+        break;
+    }
+}
+
+void RE8VR::on_application_entry(void* entry, const char* name, size_t hash) {
+    
+}
+
+void RE8VR::on_pre_lock_scene(void* entry) {
+    auto& vr = VR::get();
+
+    if (!vr->is_hmd_active()) {
+        return;
+    }
+
+    fix_player_shadow();
 }
 
 void RE8VR::reset_data() {
@@ -503,6 +552,8 @@ void RE8VR::fix_player_shadow() {
 
     static auto via_render_mesh = sdk::find_type_definition("via.render.Mesh");
     static auto set_draw_shadow_cast_method = via_render_mesh->get_method("set_DrawShadowCast");
+    static auto set_enabled_method = via_render_mesh->get_method("set_Enabled");
+    static auto set_draw_default_method = via_render_mesh->get_method("set_DrawDefault");
 
     auto toggle_shadow = [&](sdk::REField* field, bool state) {
         if (field == nullptr) {
@@ -522,6 +573,26 @@ void RE8VR::fix_player_shadow() {
         }
 
         set_draw_shadow_cast_method->call(sdk::get_thread_context(), mesh, state);
+    };
+
+    auto toggle_enabled = [&](sdk::REField* field, bool state) {
+        if (field == nullptr) {
+            return;
+        }
+
+        auto data = (::REManagedObject**)field->get_data_raw(mesh_controller);
+
+        if (data == nullptr) {
+            return;
+        }
+
+        auto mesh = *data;
+
+        if (mesh == nullptr) {
+            return;
+        }
+
+        set_draw_default_method->call(sdk::get_thread_context(), mesh, state);
     };
 
     auto copy_joint = [&](uint32_t hash, ::RETransform* src, ::RETransform* dest) {
@@ -595,6 +666,12 @@ void RE8VR::fix_player_shadow() {
         }
     }
 
+    const auto in_cutscene = m_is_in_cutscene || !m_can_use_hands || m_is_grapple_aim;
+
+    const auto wants_hide_upper_body = m_hide_upper_body->value() || (in_cutscene && m_hide_upper_body_cutscenes->value());
+    const auto wants_hide_lower_body = m_hide_lower_body->value() || (in_cutscene && m_hide_lower_body_cutscenes->value());
+    const auto wants_hide_arms = m_hide_arms->value();
+
     // These are the meshes for the real player body.
     toggle_shadow(upper_body_mesh_field, true);
     toggle_shadow(lower_body_mesh_field, true);
@@ -606,6 +683,12 @@ void RE8VR::fix_player_shadow() {
     toggle_shadow(lower_body_shadow_mesh_field, false);
     toggle_shadow(l_arm_shadow_mesh_field, false);
     toggle_shadow(r_arm_shadow_mesh_field, false);
+
+    // Disable drawing of the player body if the user wants it.
+    toggle_enabled(upper_body_mesh_field, !wants_hide_upper_body);
+    toggle_enabled(lower_body_mesh_field, !wants_hide_lower_body);
+    toggle_enabled(l_arm_mesh_field, !wants_hide_arms);
+    toggle_enabled(r_arm_mesh_field, !wants_hide_arms);
 }
 
 ::REGameObject* RE8VR::get_localplayer() const {

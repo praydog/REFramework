@@ -18,8 +18,19 @@ public:
     }
 
     std::optional<std::string> on_initialize() override;
+    void on_config_load(const utility::Config& cfg) override;
+    void on_config_save(utility::Config& cfg) override;
+
     void on_lua_state_created(sol::state& lua) override;
     void on_lua_state_destroyed(sol::state& lua) override;
+
+    void on_draw_ui() override;
+
+    void on_pre_application_entry(void* entry, const char* name, size_t hash) override;
+    void on_application_entry(void* entry, const char* name, size_t hash) override;
+
+    // non-virtual callbacks
+    void on_pre_lock_scene(void* entry);
 
     void reset_data();
 
@@ -42,6 +53,21 @@ private:
 
     static HookManager::PreHookResult pre_shadow_late_update(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys);
     static void post_shadow_late_update(uintptr_t& ret_val, sdk::RETypeDefinition* ret_ty);
+
+private:
+    const ModToggle::Ptr m_hide_upper_body{ ModToggle::create(generate_name("HideUpperBody"), false) };
+    const ModToggle::Ptr m_hide_lower_body{ ModToggle::create(generate_name("HideLowerBody"), false) };
+    const ModToggle::Ptr m_hide_arms{ ModToggle::create(generate_name("HideArms"), false) };
+    const ModToggle::Ptr m_hide_upper_body_cutscenes{ ModToggle::create(generate_name("AutoHideUpperBodyCutscenes"), true) };
+    const ModToggle::Ptr m_hide_lower_body_cutscenes{ ModToggle::create(generate_name("AutoHideLowerBodyCutscenes"), true) };
+
+    ValueList m_options {
+        *m_hide_upper_body,
+        *m_hide_lower_body,
+        *m_hide_arms,
+        *m_hide_upper_body_cutscenes,
+        *m_hide_lower_body_cutscenes
+    };
 
     union {
         ::REGameObject* m_player{nullptr};
