@@ -1381,11 +1381,11 @@ local function on_pre_upper_vertical_update(args)
     end
 
     -- updating the hand IK here fixes shadows.
-    re8vr:update_hand_ik()
+    --[[re8vr:update_hand_ik()
 
     if not re8vr.is_in_cutscene and re8vr.can_use_hands and not re8vr.is_grapple_aim then
         return sdk.PreHookResult.SKIP_ORIGINAL
-    end
+    end]]
 
     --[[local upper_vertical = sdk.to_managed_object(args[2])
 
@@ -1737,6 +1737,7 @@ re.on_application_entry("LockScene", function()
 end)
 
 local last_roomscale_failure = os.clock()
+local last_seen_player = nil
 
 re.on_pre_application_entry("UnlockScene", function()
     if queue_recenter then
@@ -1752,6 +1753,12 @@ re.on_pre_application_entry("UnlockScene", function()
     if not re8vr.status then last_roomscale_failure = os.clock() return end -- in the main menu or something.
     if not last_camera_matrix then last_roomscale_failure = os.clock() return end
     if re8vr.is_in_cutscene then last_roomscale_failure = os.clock() return end
+    if re8vr.is_grapple_aim then last_roomscale_failure = os.clock() return end
+
+    if re8vr.player ~= last_seen_player then
+        last_roomscale_failure = os.clock()
+        last_seen_player = re8vr.player
+    end
 
     if os.clock() - last_roomscale_failure < 1.0 then return end
 
