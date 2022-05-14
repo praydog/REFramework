@@ -26,6 +26,7 @@ public:
     void update_body_ik(glm::quat* camera_rotation, Vector4f* camera_pos);
     void update_player_gestures();
     void fix_player_camera(::REManagedObject* player_camera);
+    void fix_player_shadow();
 
     ::REGameObject* get_localplayer() const;
     ::REManagedObject* get_weapon_object(::REGameObject* player) const;

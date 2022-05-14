@@ -65,6 +65,7 @@ void RE8VR::on_lua_state_created(sol::state& lua) {
         "update_pointers", &RE8VR::update_pointers,
         "update_ik_pointers", &RE8VR::update_ik_pointers,
         "fix_player_camera", &RE8VR::fix_player_camera,
+        "fix_player_shadow", &RE8VR::fix_player_shadow,
         "get_localplayer", &RE8VR::get_localplayer,
         "get_weapon_object", &RE8VR::get_weapon_object);
 
@@ -447,6 +448,80 @@ void RE8VR::update_player_gestures() {
 
 void RE8VR::fix_player_camera(::REManagedObject* player_camera) {
     
+}
+
+void RE8VR::fix_player_shadow() {
+    if (m_player == nullptr || m_player->transform == nullptr) {
+        return;
+    }
+
+    auto vr = VR::get();
+
+    if (!vr->is_using_controllers()) {
+        return;
+    }
+
+    static auto app_player_mesh_controller = sdk::find_type_definition("app.PlayerMeshController");
+
+#ifdef RE8
+    if (m_updater == nullptr) {
+        return;
+    }
+
+    auto mesh_controller = sdk::call_object_func_easy<::REManagedObject*>(m_updater, "get_playerMeshController");
+#else
+    static auto app_player_mesh_controller_type = app_player_mesh_controller->get_type();
+    auto mesh_controller = utility::re_component::find<::REManagedObject>(m_player->transform, app_player_mesh_controller_type);
+#endif
+
+    if (mesh_controller == nullptr) {
+        return;
+    }
+
+    static auto upper_body_mesh_field = app_player_mesh_controller->get_field("UpperBodyMesh");
+    static auto lower_body_mesh_field = app_player_mesh_controller->get_field("LowerBodyMesh");
+    static auto l_arm_mesh_field = app_player_mesh_controller->get_field("LArmMesh");
+    static auto r_arm_mesh_field = app_player_mesh_controller->get_field("RArmMesh");
+
+    static auto upper_body_shadow_mesh_field = app_player_mesh_controller->get_field("UpperBodyShadowMesh");
+    static auto lower_body_shadow_mesh_field = app_player_mesh_controller->get_field("LowerBodyShadowMesh");
+    static auto l_arm_shadow_mesh_field = app_player_mesh_controller->get_field("LArmShadowMesh");
+    static auto r_arm_shadow_mesh_field = app_player_mesh_controller->get_field("RArmShadowMesh");
+
+    static auto via_render_mesh = sdk::find_type_definition("via.render.Mesh");
+    static auto set_draw_shadow_cast_method = via_render_mesh->get_method("set_DrawShadowCast");
+
+    auto toggle_shadow = [&](sdk::REField* field, bool state) {
+        if (field == nullptr) {
+            return;
+        }
+
+        auto data = (::REManagedObject**)field->get_data_raw(mesh_controller);
+
+        if (data == nullptr) {
+            return;
+        }
+
+        auto mesh = *data;
+
+        if (mesh == nullptr) {
+            return;
+        }
+
+        set_draw_shadow_cast_method->call(sdk::get_thread_context(), mesh, state);
+    };
+
+    // These are the meshes for the real player body.
+    toggle_shadow(upper_body_mesh_field, true);
+    toggle_shadow(lower_body_mesh_field, true);
+    toggle_shadow(l_arm_mesh_field, true);
+    toggle_shadow(r_arm_mesh_field, true);
+
+    // This is the fake player shadow meshes.
+    toggle_shadow(upper_body_shadow_mesh_field, false);
+    toggle_shadow(lower_body_shadow_mesh_field, false);
+    toggle_shadow(l_arm_shadow_mesh_field, false);
+    toggle_shadow(r_arm_shadow_mesh_field, false);
 }
 
 ::REGameObject* RE8VR::get_localplayer() const {
