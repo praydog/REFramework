@@ -117,6 +117,7 @@ void RE8VR::on_draw_ui() {
 void RE8VR::on_pre_application_entry(void* entry, const char* name, size_t hash) {
     switch (hash) {
     case "LockScene"_fnv:
+        on_pre_lock_scene(entry);
         break;
     default:
         break;
