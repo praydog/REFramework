@@ -3,6 +3,7 @@
 #include <sdk/MurmurHash.hpp>
 #include <sdk/Application.hpp>
 
+#include "HookManager.hpp"
 #include "../../../mods/VR.hpp"
 
 #include "RE8VR.hpp"
@@ -18,6 +19,17 @@ std::shared_ptr<RE8VR>& RE8VR::get() {
 }
 
 std::optional<std::string> RE8VR::on_initialize() {
+    auto app_player_shadow_late_update = sdk::find_method_definition("app.PlayerShadow", "lateUpdate");
+
+    if (app_player_shadow_late_update == nullptr) {
+        spdlog::info("[RE8VR] Could not find app.PlayerShadow.lateUpdate");
+        spdlog::info("[RE8VR] Shadows may look abnormal");
+    } else {
+        spdlog::info("[RE8VR] Found app.PlayerShadow.lateUpdate");
+
+        g_hookman.add(app_player_shadow_late_update, &RE8VR::pre_shadow_late_update, &RE8VR::post_shadow_late_update);
+    }
+
     return std::nullopt;
 }
 
@@ -487,6 +499,7 @@ void RE8VR::fix_player_shadow() {
     static auto lower_body_shadow_mesh_field = app_player_mesh_controller->get_field("LowerBodyShadowMesh");
     static auto l_arm_shadow_mesh_field = app_player_mesh_controller->get_field("LArmShadowMesh");
     static auto r_arm_shadow_mesh_field = app_player_mesh_controller->get_field("RArmShadowMesh");
+    static auto head_shadow_mesh_field = app_player_mesh_controller->get_field("HeadShadowMesh");
 
     static auto via_render_mesh = sdk::find_type_definition("via.render.Mesh");
     static auto set_draw_shadow_cast_method = via_render_mesh->get_method("set_DrawShadowCast");
@@ -510,6 +523,77 @@ void RE8VR::fix_player_shadow() {
 
         set_draw_shadow_cast_method->call(sdk::get_thread_context(), mesh, state);
     };
+
+    auto copy_joint = [&](uint32_t hash, ::RETransform* src, ::RETransform* dest) {
+        if (src == nullptr || dest == nullptr) {
+            return;
+        }
+
+        auto src_joint = sdk::get_transform_joint_by_hash(src, hash);
+        auto dst_joint = sdk::get_transform_joint_by_hash(dest, hash);
+
+        if (src_joint == nullptr || dst_joint == nullptr) {
+            return;
+        }
+
+        sdk::set_joint_position(dst_joint, sdk::get_joint_position(src_joint));
+        sdk::set_joint_rotation(dst_joint, sdk::get_joint_rotation(src_joint));
+    };
+
+    auto upper_mesh_ptr = (::REComponent**)upper_body_shadow_mesh_field->get_data_raw(mesh_controller);
+    auto head_mesh_ptr = (::REComponent**)head_shadow_mesh_field->get_data_raw(mesh_controller);
+
+    auto copy_mesh = [&](::REComponent** meshcomp) {
+        if (meshcomp != nullptr) {
+            auto mesh = *meshcomp;
+
+            if (mesh != nullptr) {
+                auto mesh_gameobject = mesh->ownerGameObject;
+
+                if (mesh_gameobject != nullptr && mesh_gameobject->transform != nullptr) {
+                    static auto head_hash = sdk::murmur_hash::calc32("Head");
+                    static auto neck_hash = sdk::murmur_hash::calc32("Neck");
+                    static auto neck_1_hash = sdk::murmur_hash::calc32("Neck_1");
+                    static auto neck_0_hash = sdk::murmur_hash::calc32("Neck_0");
+                    static auto chest_hash = sdk::murmur_hash::calc32("Chest");
+                    
+                    // Must be done in reverse order to preserve the head position.
+                    copy_joint(chest_hash, m_player->transform, mesh_gameobject->transform);
+                    copy_joint(neck_hash, m_player->transform, mesh_gameobject->transform);
+                    copy_joint(neck_0_hash, m_player->transform, mesh_gameobject->transform);
+                    copy_joint(neck_1_hash, m_player->transform, mesh_gameobject->transform);
+                    copy_joint(head_hash, m_player->transform, mesh_gameobject->transform);
+                }
+            }
+        }
+    };
+
+    copy_mesh(upper_mesh_ptr);
+    copy_mesh(head_mesh_ptr);
+
+    // Fix the head joint of the shadow mesh.
+    if (upper_mesh_ptr != nullptr) {
+        auto upper_mesh = *upper_mesh_ptr;
+
+        if (upper_mesh != nullptr) {
+            auto mesh_gameobject = upper_mesh->ownerGameObject;
+
+            if (mesh_gameobject != nullptr && mesh_gameobject->transform != nullptr) {
+                static auto head_hash = sdk::murmur_hash::calc32("Head");
+                static auto neck_hash = sdk::murmur_hash::calc32("Neck");
+                static auto neck_1_hash = sdk::murmur_hash::calc32("Neck_1");
+                static auto neck_0_hash = sdk::murmur_hash::calc32("Neck_0");
+                static auto chest_hash = sdk::murmur_hash::calc32("Chest");
+                
+                // Must be done in reverse order to preserve the head position.
+                copy_joint(chest_hash, m_player->transform, mesh_gameobject->transform);
+                copy_joint(neck_hash, m_player->transform, mesh_gameobject->transform);
+                copy_joint(neck_0_hash, m_player->transform, mesh_gameobject->transform);
+                copy_joint(neck_1_hash, m_player->transform, mesh_gameobject->transform);
+                copy_joint(head_hash, m_player->transform, mesh_gameobject->transform);
+            }
+        }
+    }
 
     // These are the meshes for the real player body.
     toggle_shadow(upper_body_mesh_field, true);
@@ -752,6 +836,28 @@ void RE8VR::update_block_gesture() {
     const auto right_hand_up = right_hand_up_dot >= 0.5f;
 
     m_wants_block = left_hand_up && right_hand_up;
+}
+
+HookManager::PreHookResult RE8VR::pre_shadow_late_update(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys) {
+    auto& vr = VR::get();
+    auto& re8vr = RE8VR::get();
+
+    if (re8vr->m_player == nullptr || re8vr->m_transform == nullptr) {
+        return HookManager::PreHookResult::CALL_ORIGINAL;
+    }
+
+    if (!vr->is_using_controllers()) {
+        return HookManager::PreHookResult::CALL_ORIGINAL;
+    }
+
+    if (!re8vr->m_is_in_cutscene && re8vr->m_can_use_hands && !re8vr->m_is_grapple_aim) {
+        return HookManager::PreHookResult::SKIP_ORIGINAL;
+    }
+
+    return HookManager::PreHookResult::CALL_ORIGINAL;
+}
+
+void RE8VR::post_shadow_late_update(uintptr_t& ret_val, sdk::RETypeDefinition* ret_ty) {
 }
 
 void RE8VR::update_heal_gesture() {

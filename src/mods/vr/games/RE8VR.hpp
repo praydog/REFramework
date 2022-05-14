@@ -4,7 +4,9 @@
 #if defined(RE7) || defined(RE8)
 #include <chrono>
 #include <sdk/REMath.hpp>
+#include <reframework/API.h>
 
+#include "HookManager.hpp"
 #include "../../../Mod.hpp"
 
 class RE8VR : public Mod {
@@ -37,7 +39,10 @@ public:
 private:
     void update_block_gesture();
     void update_heal_gesture();
-    
+
+    static HookManager::PreHookResult pre_shadow_late_update(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys);
+    static void post_shadow_late_update(uintptr_t& ret_val, sdk::RETypeDefinition* ret_ty);
+
     union {
         ::REGameObject* m_player{nullptr};
         ::REManagedObject* m_player_downcast;
