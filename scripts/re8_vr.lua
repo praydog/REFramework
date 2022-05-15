@@ -1486,6 +1486,16 @@ local function melee_attack(hit_controller)
         return
     end
 
+    if is_re7 then
+        local go = re8vr.weapon:call("get_GameObject")
+
+        if go ~= nil then
+            if go:call("get_Name"):find("Timebomb") ~= nil then
+                return
+            end
+        end
+    end
+
     local is_end_of_zoe_melee = is_re7 and re8vr.weapon:get_type_definition():is_a("app.CH9WeaponMelee")
 
     if not is_end_of_zoe_melee then
