@@ -519,7 +519,7 @@ void RE8VR::fix_player_shadow() {
 
     auto vr = VR::get();
 
-    if (!vr->is_using_controllers()) {
+    if (!vr->is_hmd_active()) {
         return;
     }
 
@@ -668,9 +668,10 @@ void RE8VR::fix_player_shadow() {
     }
 
     const auto in_cutscene = m_is_in_cutscene || !m_can_use_hands || m_is_grapple_aim;
+    const auto using_controllers = vr->is_using_controllers();
 
-    const auto wants_hide_upper_body = m_hide_upper_body->value() || (in_cutscene && m_hide_upper_body_cutscenes->value());
-    const auto wants_hide_lower_body = m_hide_lower_body->value() || (in_cutscene && m_hide_lower_body_cutscenes->value());
+    const auto wants_hide_upper_body = !using_controllers || m_hide_upper_body->value() || (in_cutscene && m_hide_upper_body_cutscenes->value());
+    const auto wants_hide_lower_body = !using_controllers || m_hide_lower_body->value() || (in_cutscene && m_hide_lower_body_cutscenes->value());
     const auto wants_hide_arms = m_hide_arms->value();
 
     // These are the meshes for the real player body.
