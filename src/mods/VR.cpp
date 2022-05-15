@@ -1773,7 +1773,7 @@ bool VR::is_hand_behind_head(VRRuntime::Hand hand, float sensitivity) const {
         return false;
     }
 
-    uint32_t hand_index = get_controllers()[(uint32_t)hand];
+    const auto hand_index = get_controllers()[(uint32_t)hand];
 
     const auto hmd = get_transform(0);
     const auto hand_pos = get_position(hand_index);
@@ -2900,17 +2900,17 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                         }
 
                         // ... RE7
-                        if (child != nullptr && utility::re_managed_object::get_field<wchar_t*>(child, "Name") == std::wstring_view(L"c_interact")) {
-                            static auto ui_world_pos_attach_typedef = sdk::find_type_definition("app.UIWorldPosAttach");
-                            auto world_pos_attach_comp = utility::re_component::find(game_object->transform, ui_world_pos_attach_typedef->get_type());
+#ifdef RE7
+                        static auto ui_world_pos_attach_typedef = sdk::find_type_definition("app.UIWorldPosAttach");
+                        auto world_pos_attach_comp = utility::re_component::find(game_object->transform, ui_world_pos_attach_typedef->get_type());
 
-                            // Fix the world position of the gui element
-                            if (world_pos_attach_comp != nullptr) {
-                                const auto& target_pos = *sdk::get_object_field<Vector4f>(world_pos_attach_comp, "_NowTargetPos");
-
-                                fix_2d_position(target_pos);
-                            }
+                        // Fix the world position of the gui element
+                        if (world_pos_attach_comp != nullptr) {
+                            const auto& target_pos = *sdk::get_object_field<Vector4f>(world_pos_attach_comp, "_NowTargetPos");
+                            
+                            fix_2d_position(target_pos);
                         }
+#endif
                     }
                 }
             }
