@@ -7,10 +7,10 @@ The last stable build can be downloaded from the [Releases](https://github.com/p
 For newer builds, check out the [Nightly Developer Builds](https://github.com/praydog/REFramework-nightly/releases)
 
 ### Non-VR
-* Extract the whole zip file except `openvr_api.dll` into your corresponding game folder.
+* Extract the whole zip file except `openvr_api.dll` and `openxr_loader.dll` into your corresponding game folder.
 
 ### VR
-* Install SteamVR
+* Install SteamVR (unless you're using OpenXR on a supported headset)
 * Extract the whole zip file into your corresponding game folder.
 
 [VR Troubleshooting/FAQ](https://github.com/praydog/REFramework/wiki/VR-Troubleshooting)
@@ -23,7 +23,7 @@ Supports both DirectX 11 and DirectX 12.
 * Lua Scripting API (All games)
 * VR
   * Generic 6DOF VR support for all games
-  * Motion controls for RE2/RE3 (RE7 and RE8 motion controls are still WIP!)
+  * Motion controls for RE2/RE3/RE7/RE8
 * First Person (RE2, RE3)
 * Free Camera (All games)
 * Scene Timescale (All games)
