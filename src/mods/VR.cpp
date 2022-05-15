@@ -2577,6 +2577,10 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                     return true;
                 }
 
+#ifdef RE7
+                static auto ui_world_pos_attach_typedef = sdk::find_type_definition("app.UIWorldPosAttach");
+#endif
+
                 auto ui_scale = m_ui_scale_option->value();
                 const auto world_ui_scale = m_world_ui_scale_option->value();
 
@@ -2687,6 +2691,27 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                             for (auto c = child; c != nullptr; c = sdk::call_object_func<REManagedObject*>(c, "get_Next", context, c)) {
                                 fix_transform_object(c);
                             }
+
+                            // Fix for other kinds of world pos attach elements.
+#ifdef RE7
+                            if (name_hash == "InteractOperationCursor"_fnv) {
+                                auto world_pos_attach_comp = utility::re_component::find(game_object->transform, ui_world_pos_attach_typedef->get_type());
+
+                                // Fix the world position of the gui element
+                                if (world_pos_attach_comp != nullptr) {
+                                    auto target_cache = sdk::get_object_field<::REManagedObject*>(world_pos_attach_comp, "_TargetGUIElem");
+
+                                    if (target_cache != nullptr && *target_cache != nullptr) {
+                                        auto element = sdk::get_object_field<::REManagedObject*>(*target_cache, "_Element");
+
+                                        if (element != nullptr && *element != nullptr) {
+                                            Vector3f zero_size{ 0.0f, 0.0f, 0.0f };
+                                            sdk::call_object_func<void*>(*element, "set_Position", context, *element, &zero_size);
+                                        }
+                                    }
+                                }
+                            }
+#endif
 
                             gui_matrix = glm::scale(gui_matrix, Vector3f{ scale, scale, scale });
                         };
@@ -2901,7 +2926,6 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
 
                         // ... RE7
 #ifdef RE7
-                        static auto ui_world_pos_attach_typedef = sdk::find_type_definition("app.UIWorldPosAttach");
                         auto world_pos_attach_comp = utility::re_component::find(game_object->transform, ui_world_pos_attach_typedef->get_type());
 
                         // Fix the world position of the gui element
