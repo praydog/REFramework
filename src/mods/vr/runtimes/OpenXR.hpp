@@ -237,11 +237,13 @@ public:
             VRRuntime::Hand::LEFT, "touchpad", "touchpadclick", {
             { {0.0, -1.0f}, "abutton" },
             { {1.0f, 0.0f}, "bbutton" },
+            { {0.0f, 1.0f}, "joystickclick" }
         }},
         { 
             VRRuntime::Hand::RIGHT, "touchpad", "touchpadclick", {
             { {0.0, -1.0f}, "abutton" },
             { {-1.0f, 0.0f}, "bbutton" },
+            { {0.0f, 1.0f}, "joystickclick" }
         }},
     };
 
