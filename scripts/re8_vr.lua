@@ -92,6 +92,7 @@ local last_gui_dot = 0.0
 local last_gui_forced_slerp = os.clock()
 local needs_cutscene_recenter = false
 local last_inventory_open_time = 0.0
+local last_book_open_time = 0.0
 local last_shop_open_time = 0.0
 local last_scope_time = 0.0
 local head_hash = nil
@@ -263,6 +264,8 @@ local function update_pad_device(device)
 
     -- set cur_button | according to the right stick axis
     if is_re8 then
+        local is_book_open = os.clock() - last_book_open_time < 0.25
+
         if vr_right_stick_axis.x > 0.1 then
             cur_button = cur_button | via.hid.GamePadButton.EmuRright
         elseif vr_right_stick_axis.x < -0.1 then
@@ -276,14 +279,30 @@ local function update_pad_device(device)
         end
     
         if vr_left_stick_axis.x > 0.1 then
+            if is_book_open then
+                cur_button = cur_button | via.hid.GamePadButton.LRight
+            end
+
             cur_button = cur_button | via.hid.GamePadButton.EmuLright
         elseif vr_left_stick_axis.x < -0.1 then
+            if is_book_open then
+                cur_button = cur_button | via.hid.GamePadButton.LLeft
+            end
+
             cur_button = cur_button | via.hid.GamePadButton.EmuLleft
         end
     
         if vr_left_stick_axis.y > 0.1 then
+            if is_book_open then
+                cur_button = cur_button | via.hid.GamePadButton.LUp
+            end
+
             cur_button = cur_button | via.hid.GamePadButton.EmuLup
         elseif vr_left_stick_axis.y < -0.1 then
+            if is_book_open then
+                cur_button = cur_button | via.hid.GamePadButton.LDown
+            end
+
             cur_button = cur_button | via.hid.GamePadButton.EmuLdown
         end
     end
@@ -2358,12 +2377,20 @@ local re7_inventory_names = {
     "FileMenu",
 }
 
+local re8_book_names = {
+    "GUIBook"
+}
+
 for i, v in ipairs(re8_inventory_names) do
     re8_inventory_names[v] = true
 end
 
 for i, v in ipairs(re7_inventory_names) do
     re7_inventory_names[v] = true
+end
+
+for i, v in ipairs(re8_book_names) do
+    re8_book_names[v] = true
 end
 
 local reticle_names = {
@@ -2466,6 +2493,10 @@ re.on_pre_gui_draw_element(function(element, context)
 
     if re8vr.player == nil or re8_inventory_names[name] or re7_inventory_names[name] then
         last_inventory_open_time = os.clock()
+    end
+
+    if is_re8 and re8_book_names[name] then
+        last_book_open_time = os.clock()
     end
 
     if shop_names[name] then
