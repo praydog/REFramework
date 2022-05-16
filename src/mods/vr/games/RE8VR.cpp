@@ -1166,9 +1166,25 @@ void RE8VR::update_heal_gesture() {
     m_heal_gesture.last_grip_weapon = m_weapon;
 
 #ifdef RE8
+    static auto common_use_remedy_action = *sdk::get_static_field<::REManagedObject*>("app.PlayerDefineEnumLikeArray.UpperActionID", "CommonUseRemedy");
+
+    const auto is_syringe = utility::re_string::get_string(owner->name) == "ri1022_Inventory";
+    const auto upper_action_id = *sdk::get_object_field<::REManagedObject*>(m_status, "<upperActionID>k__BackingField");
+    const auto using_effect = *sdk::get_object_field<::REManagedObject*>(medicine_item, "usingEffect") != nullptr
+                                || upper_action_id == common_use_remedy_action;
+
+
+
     // In RE8 the medicine is rotated all weird.
-    if (!is_trigger_down && *sdk::get_object_field<::REManagedObject*>(medicine_item, "usingEffect") == nullptr) {
-        sdk::call_object_func_easy<void*>(owner->transform, "set_LocalRotation", &m_heal_gesture.re8_medicine_rotation);
+    if (!is_trigger_down && !using_effect) {
+        if (!is_syringe) {
+            sdk::call_object_func_easy<void*>(owner->transform, "set_LocalRotation", &m_heal_gesture.re8_medicine_rotation);
+        } else {
+            sdk::call_object_func_easy<void*>(owner->transform, "set_LocalRotation", &m_heal_gesture.re8_syringe_rotation);
+        }
+    } else if (is_syringe && using_effect) {
+        glm::quat zero_rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+        sdk::call_object_func_easy<void*>(owner->transform, "set_LocalRotation", &zero_rotation);
     }
 #endif
 }

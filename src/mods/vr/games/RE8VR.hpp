@@ -130,6 +130,7 @@ private:
         std::chrono::steady_clock::time_point last_grab_time{};
 
         glm::quat re8_medicine_rotation{0.728f, 0.409f, 0.222f, 0.504f};
+        glm::quat re8_syringe_rotation{-0.375f, -0.322f, 0.515f, -0.701f};
     };
 
     HealGesture m_heal_gesture;
