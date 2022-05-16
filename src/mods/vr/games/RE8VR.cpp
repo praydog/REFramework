@@ -78,6 +78,7 @@ void RE8VR::on_lua_state_created(sol::state& lua) {
         "is_grapple_aim", &RE8VR::m_is_grapple_aim,
         "is_reloading", &RE8VR::m_is_reloading,
         "is_motion_play", &RE8VR::m_is_motion_play,
+        "has_vehicle", &RE8VR::m_has_vehicle,
         "can_use_hands", &RE8VR::m_can_use_hands,
         "wants_block", &RE8VR::m_wants_block,
         "wants_heal", &RE8VR::m_wants_heal,
@@ -226,7 +227,7 @@ void RE8VR::update_hand_ik() {
         return;
     }
 
-    if (!m_can_use_hands) {
+    if (!m_can_use_hands || m_has_vehicle) {
         m_was_gripping_weapon = false;
         return;
     }
@@ -427,7 +428,7 @@ void RE8VR::update_body_ik(glm::quat* camera_rotation, Vector4f* camera_pos) {
         }
     }
 
-    if (m_is_in_cutscene || !vr->is_hmd_active() || !vr->is_using_controllers()) {
+    if (m_is_in_cutscene || m_has_vehicle || !vr->is_hmd_active() || !vr->is_using_controllers()) {
         //ik_leg:call("set_Enabled", false)
         const auto zero_vec = Vector4f(0.0f, 0.0f, 0.0f, 1.0f);
         ik_leg_set_center_offset->call(sdk::get_thread_context(), ik_leg, &zero_vec);
@@ -667,7 +668,7 @@ void RE8VR::fix_player_shadow() {
         }
     }
 
-    const auto in_cutscene = m_is_in_cutscene || !m_can_use_hands || m_is_grapple_aim;
+    const auto in_cutscene = m_is_in_cutscene || !m_can_use_hands || m_is_grapple_aim || m_has_vehicle;
     const auto using_controllers = vr->is_using_controllers();
 
     const auto wants_hide_upper_body = !using_controllers || m_hide_upper_body->value() || (in_cutscene && m_hide_upper_body_cutscenes->value());

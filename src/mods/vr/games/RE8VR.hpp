@@ -110,6 +110,7 @@ private:
     bool m_is_reloading{false};
     bool m_can_use_hands{true};
     bool m_is_motion_play{false};
+    bool m_has_vehicle{false};
 
     bool m_wants_block{false};
     bool m_wants_heal{false};
