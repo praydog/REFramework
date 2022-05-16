@@ -148,10 +148,12 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
         }
 
         // Allows the desktop window to be recorded.
-        if (runtime->ready() && m_prev_backbuffer != backbuffer && m_prev_backbuffer != nullptr) {
-            m_generic_copiers[frame_count % 3].wait(INFINITE);
-            m_generic_copiers[frame_count % 3].copy(m_prev_backbuffer.Get(), backbuffer.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_PRESENT);
-            m_generic_copiers[frame_count % 3].execute();
+        if (vr->m_desktop_fix->value()) {
+            if (runtime->ready() && m_prev_backbuffer != backbuffer && m_prev_backbuffer != nullptr) {
+                m_generic_copiers[frame_count % 3].wait(INFINITE);
+                m_generic_copiers[frame_count % 3].copy(m_prev_backbuffer.Get(), backbuffer.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_PRESENT);
+                m_generic_copiers[frame_count % 3].execute();
+            }
         }
     }
 

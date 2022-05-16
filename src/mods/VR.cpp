@@ -3884,6 +3884,7 @@ void VR::on_draw_ui() {
     m_force_lensflares_settings->draw("Force Disable Lens Flares");
     m_force_dynamic_shadows_settings->draw("Force Enable Dynamic Shadows");
     m_allow_engine_overlays->draw("Allow Engine Overlays");
+    m_desktop_fix->draw("Desktop Recording Fix");
 
     ImGui::Separator();
     ImGui::Text("Debug info");

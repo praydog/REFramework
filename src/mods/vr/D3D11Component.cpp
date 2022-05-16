@@ -112,7 +112,7 @@ vr::EVRCompositorError D3D11Component::on_frame(VR* vr) {
             vr->m_submitted = true;
         }
 
-        if (runtime->ready()) {
+        if (runtime->ready() && vr->m_desktop_fix->value()) {
             hook->ignore_next_present();
         }
     }
