@@ -52,11 +52,7 @@ re8vr.left_hand_position_offset = left_hand_position_offset
 re8vr.right_hand_position_offset = right_hand_position_offset
 
 local ray_typedef = sdk.find_type_definition("via.Ray")
-local last_muzzle_pos = Vector4f.new(0.0, 0.0, 0.0, 1.0)
 local last_muzzle_rot = Quaternion.new(0.0, 0.0, 0.0, 0.0)
-local last_muzzle_forward = Vector4f.new(0.0, 0.0, 0.0, 1.0)
-local last_shoot_pos = Vector4f.new(0.0, 0.0, 0.0, 1.0)
-local last_shoot_dir = Vector4f.new(0.0, 0.0, 0.0, 1.0)
 
 local transform_get_position = sdk.find_type_definition("via.Transform"):get_method("get_Position")
 local transform_get_rotation = sdk.find_type_definition("via.Transform"):get_method("get_Rotation")
@@ -96,7 +92,6 @@ local last_book_open_time = 0.0
 local last_shop_open_time = 0.0
 local last_scope_time = 0.0
 local head_hash = nil
-local in_re8_end_game_event = false
 
 local neg_forward_identity = Matrix4x4f.new(-1, 0, 0, 0,
                                             0, 1, 0, 0,
@@ -206,24 +201,24 @@ local function update_muzzle_data()
             local muzzle_position = joint_get_position(muzzle_joint)
             local muzzle_rotation = joint_get_rotation(muzzle_joint)
     
-            last_muzzle_pos = muzzle_position
+            re8vr.last_muzzle_pos = muzzle_position
             last_muzzle_rot = muzzle_rotation
-            last_muzzle_forward = muzzle_joint:call("get_AxisZ")
+            re8vr.last_muzzle_forward = muzzle_joint:call("get_AxisZ")
 
             if vrmod:is_using_controllers() then
-                last_shoot_dir = last_muzzle_forward
-                last_shoot_pos = last_muzzle_pos
+                re8vr.last_shoot_dir = re8vr.last_muzzle_forward
+                re8vr.last_shoot_pos = re8vr.last_muzzle_pos
             end
         elseif vrmod:is_using_controllers() then
-            last_muzzle_pos = re8vr.last_right_hand_position
+            re8vr.last_muzzle_pos = re8vr.last_right_hand_position
             last_muzzle_rot = last_camera_matrix:to_quat()
-            last_muzzle_forward = (last_muzzle_rot * Vector3f.new(0, 0, -1)):normalized()
+            re8vr.last_muzzle_forward = (last_muzzle_rot * Vector3f.new(0, 0, -1)):normalized()
 
-            last_shoot_dir = last_muzzle_forward
-            last_shoot_pos = last_muzzle_pos
+            re8vr.last_shoot_dir = re8vr.last_muzzle_forward
+            re8vr.last_shoot_pos = re8vr.last_muzzle_pos
         else
-            last_muzzle_pos = last_shoot_pos
-            last_muzzle_forward = last_shoot_dir
+            re8vr.last_muzzle_pos = re8vr.last_shoot_pos
+            re8vr.last_muzzle_forward = re8vr.last_shoot_dir
         end
     end
 end
@@ -560,7 +555,7 @@ sdk.hook(
 )
 
 local function update_hand_ik()
-    if in_re8_end_game_event then return end
+    if re8vr.in_re8_end_game_event then return end
 
     re8vr:update_hand_ik()
 end
@@ -608,7 +603,7 @@ end
 local zero_vec = Vector3f.new(0, 0, 0)
 
 local function update_body_ik(camera_rotation, camera_pos)
-    if in_re8_end_game_event then return end
+    if re8vr.in_re8_end_game_event then return end
 
     re8vr:update_body_ik(camera_rotation, camera_pos)
 end
@@ -629,13 +624,13 @@ local function on_pre_shoot(args)
 
     local ray = args[3]
 
-    local pos = last_muzzle_pos + (last_muzzle_forward * 0.02)
+    local pos = re8vr.last_muzzle_pos + (re8vr.last_muzzle_forward * 0.02)
     local from = Vector4f.new(pos.x, pos.y, pos.z, 1.0)
-    local dir = Vector4f.new(last_muzzle_forward.x, last_muzzle_forward.y, last_muzzle_forward.z, 1.0)
+    local dir = Vector4f.new(re8vr.last_muzzle_forward.x, re8vr.last_muzzle_forward.y, re8vr.last_muzzle_forward.z, 1.0)
 
     sdk.set_native_field(ray, ray_typedef, "from", from)
     sdk.set_native_field(ray, ray_typedef, "dir", dir)
-    --sdk.call_native_func(ray, ray_typedef, ".ctor(via.vec3, via.vec3)", last_muzzle_pos, last_muzzle_forward)
+    --sdk.call_native_func(ray, ray_typedef, ".ctor(via.vec3, via.vec3)", re8vr.last_muzzle_pos, re8vr.last_muzzle_forward)
 end
 
 local function on_post_shoot(retval)
@@ -944,8 +939,8 @@ local last_time_not_maximum_controllable = 0.0
 local GUI_MAX_SLERP_TIME = 1.5
 
 local function slerp_gui(new_gui_quat)
-    if re8.movement_speed_rate > 0.0 then
-        last_gui_forced_slerp = os.clock() - ((1.0 - re8.movement_speed_rate))
+    if re8vr.movement_speed_rate > 0.0 then
+        last_gui_forced_slerp = os.clock() - ((1.0 - re8vr.movement_speed_rate))
     end
 
     last_gui_dot = last_gui_quat:dot(new_gui_quat)
@@ -1001,6 +996,11 @@ local function pre_fix_player_camera(player_camera)
 end
 
 local function fix_player_camera(player_camera)
+    if true then
+        re8vr:fix_player_camera(player_camera)
+        return
+    end
+
     if not vrmod:is_hmd_active() then
         -- so the camera doesnt go wacky
         if last_hmd_active_state then
@@ -1034,13 +1034,10 @@ local function fix_player_camera(player_camera)
             was_vert_limited = false
         end
 
-        last_real_camera_rotation = nil
-        last_real_camera_joint_rotation = nil
-
         return retval
     end
 
-    in_re8_end_game_event = false
+    re8vr.in_re8_end_game_event = false
 
     -- Check whether we're in the event at the end of RE8
     -- and return early if we are.
@@ -1051,13 +1048,11 @@ local function fix_player_camera(player_camera)
             local event_name = event_action:get_field("_EventName")
 
             if re8_end_game_events[event_name] ~= nil then
-                in_re8_end_game_event = true
+                re8vr.in_re8_end_game_event = true
                 return
             end
         end
     end
-
-    re8.upper_body_transform_rate = player_camera:get_field("<upperBodyTransformRate>k__BackingField")
 
     last_hmd_active_state = true
 
@@ -1071,7 +1066,7 @@ local function fix_player_camera(player_camera)
             current_type = current_type:get_field("Value")
             re8vr.has_vehicle = player_camera:get_field("RideVehicleObject") ~= nil
 
-            if re8vr.has_vehicle and re8.is_arm_jacked then return end
+            if re8vr.has_vehicle and re8vr.is_arm_jacked then return end
         end
 
         if current_type ~= 0 and not re8vr.has_vehicle then -- MaximumOperatable
@@ -1153,8 +1148,6 @@ local function fix_player_camera(player_camera)
     -- and determining where the player is looking
     transform_set_position:call(camera_transform, camera_pos)
     transform_set_rotation:call(camera_transform, camera_rot)
-    last_real_camera_joint_rotation = camera_rot_pre_hmd
-    last_real_camera_joint_pos = camera_pos_pre_hmd
 
     -- Joint is used for the actual final rendering of the game world
     --if not wants_recenter then
@@ -1193,10 +1186,10 @@ local function fix_player_camera(player_camera)
     end
 
     player_camera:set_field("CameraRotationWithMovementShake", fixed_rot)
-    --player_camera:set_field("CameraPositionWithMovementShake", camera_pos)
     player_camera:set_field("CameraRotationWithCameraShake", fixed_rot)
-    --player_camera:set_field("CameraPositionWithCameraShake", camera_pos)
     player_camera:set_field("PrevCameraRotation", fixed_rot)
+    --player_camera:set_field("CameraPositionWithMovementShake", camera_pos)
+    --player_camera:set_field("CameraPositionWithCameraShake", camera_pos)
     --player_camera:set_field("OldCameraRotation", fixed_rot)
     --player_camera:set_field("InterpRotationStart", fixed_rot)
     --player_camera:set_field("<DesiredCameraRot>k__BackingField", fixed_rot)
@@ -1298,20 +1291,20 @@ local function fix_player_camera(player_camera)
     sdk.set_native_field(sdk.to_ptr(look_ray), ray_typedef, "dir", fixed_dir)
 
     if not re8vr.has_vehicle and vrmod:is_using_controllers() and re8vr.weapon ~= nil then
-        local pos = last_muzzle_pos + (last_muzzle_forward * 0.02)
-        --local scooted_pos = last_muzzle_pos - (last_muzzle_forward * 2)
+        local pos = re8vr.last_muzzle_pos + (re8vr.last_muzzle_forward * 0.02)
+        --local scooted_pos = re8vr.last_muzzle_pos - (re8vr.last_muzzle_forward * 2)
         --local scooted_from = Vector4f.new(scooted_pos.x, scooted_pos.y, scooted_pos.z, 1.0)
         local from = Vector4f.new(pos.x, pos.y, pos.z, 1.0)
-        local dir = Vector4f.new(last_muzzle_forward.x, last_muzzle_forward.y, last_muzzle_forward.z, 1.0)
+        local dir = Vector4f.new(re8vr.last_muzzle_forward.x, re8vr.last_muzzle_forward.y, re8vr.last_muzzle_forward.z, 1.0)
 
         sdk.set_native_field(sdk.to_ptr(shoot_ray), ray_typedef, "from", from)
         sdk.set_native_field(sdk.to_ptr(shoot_ray), ray_typedef, "dir", dir)
 
         -- called in LockScene
-        --update_crosshair_world_pos(pos, pos + (last_muzzle_forward * 1000.0))
+        --update_crosshair_world_pos(pos, pos + (re8vr.last_muzzle_forward * 1000.0))
     else
-        last_shoot_pos = camera_pos
-        last_shoot_dir = fixed_dir
+        re8vr.last_shoot_pos = camera_pos
+        re8vr.last_shoot_dir = fixed_dir
 
         sdk.set_native_field(sdk.to_ptr(shoot_ray), ray_typedef, "from", camera_pos)
         sdk.set_native_field(sdk.to_ptr(shoot_ray), ray_typedef, "dir", fixed_dir)
@@ -1329,7 +1322,7 @@ if is_re8 then
             return
         end
 
-        if re8.is_arm_jacked then
+        if re8vr.is_arm_jacked then
             return
         end
 
@@ -1813,9 +1806,9 @@ re.on_application_entry("LockScene", function()
 
     update_muzzle_data()
 
-    if last_shoot_pos then
-        local pos = last_shoot_pos + (last_shoot_dir * 0.02)
-        update_crosshair_world_pos(pos, pos + (last_shoot_dir * 1000.0))
+    if re8vr.last_shoot_pos then
+        local pos = re8vr.last_shoot_pos + (re8vr.last_shoot_dir * 0.02)
+        update_crosshair_world_pos(pos, pos + (re8vr.last_shoot_dir * 1000.0))
     end
     
     --[[if not vrmod:is_hmd_active() then return end
@@ -2405,12 +2398,14 @@ re.on_draw_ui(function()
 
         imgui.text("Num tasks: " .. tostring(re8.num_active_tasks))
         imgui.text("Has postural camera control: " .. tostring(re8.has_postural_camera_control))
-        imgui.text("Is arm jacked: " .. tostring(re8.is_arm_jacked))
+        imgui.text("Is arm jacked: " .. tostring(re8vr.is_arm_jacked))
         imgui.text("Is motion play: " .. tostring(re8vr.is_motion_play))
         imgui.text("Is in cutscene: " .. tostring(re8vr.is_in_cutscene))
         imgui.text("Can use hands: " .. tostring(re8vr.can_use_hands))
         imgui.text("Is grapple aim: " .. tostring(re8vr.is_grapple_aim))
-        imgui.text("In RE8 end game event: " .. tostring(in_re8_end_game_event))
+        imgui.text("In RE8 end game event: " .. tostring(re8vr.in_re8_end_game_event))
+        imgui.text("Has vehicle: " .. tostring(re8vr.has_vehicle))
+
 
         imgui.tree_pop()
     end

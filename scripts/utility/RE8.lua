@@ -71,7 +71,7 @@ local function initialize_re8(re8)
     re8vr.right_hand_ik_transform = nil
     re8vr.left_hand_ik_transform = nil
     re8vr.is_in_cutscene = false
-    re8.is_arm_jacked = false
+    re8vr.is_arm_jacked = false
     re8vr.is_grapple_aim = false
     re8vr.is_motion_play = false
     re8vr.is_reloading = false
@@ -84,7 +84,7 @@ local function initialize_re8(re8)
     re8vr.hit_controller = nil
     re8vr.wants_block = false
     re8vr.wants_heal = false
-    re8.movement_speed_rate = 0.0
+    re8vr.movement_speed_rate = 0.0
     re8.movement_speed_vector = Vector3f.new(0, 0, 0)
     re8.num_active_tasks = 0
     re8.active_tasks = {}
@@ -125,8 +125,8 @@ function re8.get_weapon_object(player)
 end
 
 function re8.update_in_cutscene_state()
-    re8vr.is_in_cutscene = re8.num_active_tasks > 0 or not re8.has_postural_camera_control or re8.is_arm_jacked or re8vr.is_motion_play
-    re8vr.can_use_hands = not re8.is_arm_jacked and not re8vr.is_motion_play
+    re8vr.is_in_cutscene = re8.num_active_tasks > 0 or not re8.has_postural_camera_control or re8vr.is_arm_jacked or re8vr.is_motion_play
+    re8vr.can_use_hands = not re8vr.is_arm_jacked and not re8vr.is_motion_play
 end
 
 re.on_pre_application_entry("UpdateBehavior", function()
@@ -234,7 +234,7 @@ local function on_post_update_postural_camera_motion(retval)
         end
     end
 
-    re8.is_arm_jacked = controller:get_field("IsRArmJacked")
+    re8vr.is_arm_jacked = controller:get_field("IsRArmJacked")
     re8.has_postural_camera_control = controller:get_field("IsPosturalCameraControl")
     re8.update_in_cutscene_state()
 
@@ -275,7 +275,7 @@ local function re7_on_post_player_movement_late_update(retval)
     local args = player_movement_args
     local movement = sdk.to_managed_object(args[2])
 
-    re8.movement_speed_rate = movement:get_field("_SpeedRate")
+    re8vr.movement_speed_rate = movement:get_field("_SpeedRate")
     re8.movement_speed_vector = movement:get_field("_MoveSpeedVector")
 
     return retval
@@ -285,7 +285,7 @@ local function re8_on_post_player_movement_late_update(retval)
     local args = player_movement_args
     local movement = sdk.to_managed_object(args[2])
 
-    re8.movement_speed_rate = movement:get_field("SpeedRate")
+    re8vr.movement_speed_rate = movement:get_field("SpeedRate")
     re8.movement_speed_vector = movement:get_field("MoveSpeedVector")
 
     return retval
