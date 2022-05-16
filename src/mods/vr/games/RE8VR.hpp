@@ -40,6 +40,7 @@ public:
     void update_player_gestures();
     void fix_player_camera(::REManagedObject* player_camera);
     void fix_player_shadow();
+    void slerp_gui(const glm::quat& new_gui_quat);
 
     ::REGameObject* get_localplayer() const;
     ::REManagedObject* get_weapon_object(::REGameObject* player) const;
@@ -109,8 +110,10 @@ private:
     bool m_is_grapple_aim{false};
     bool m_is_reloading{false};
     bool m_can_use_hands{true};
+    bool m_is_arm_jacked{false};
     bool m_is_motion_play{false};
     bool m_has_vehicle{false};
+    bool m_in_re8_end_game_event{false};
 
     bool m_wants_block{false};
     bool m_wants_heal{false};
@@ -121,7 +124,13 @@ private:
     Vector3f m_hmd_dir_to_left{};
     Vector3f m_hmd_dir_to_right{};
 
+    Vector3f m_last_shoot_pos{};
+    Vector3f m_last_shoot_dir{};
+    Vector3f m_last_muzzle_pos{};
+    Vector3f m_last_muzzle_forward{};
+
     float m_delta_time{1.0f/60.0f};
+    float m_movement_speed_rate{0.0f};
 
     struct HealGesture {
         bool was_grip_down{false};
@@ -134,5 +143,31 @@ private:
     };
 
     HealGesture m_heal_gesture;
+
+    struct CameraData {
+        bool last_hmd_active_state{false};
+        bool was_vert_limited{false};
+        bool last_cutscene_state{false};
+        float last_gui_dot{0.0f};
+        glm::quat last_gui_quat{glm::identity<glm::quat>()};
+        std::chrono::steady_clock::time_point last_time_not_maximum_controllable{};
+        std::chrono::steady_clock::time_point last_gui_forced_slerp{};
+    };
+
+    CameraData m_camera_data;
+
+    static inline std::unordered_set<std::string> s_re8_end_game_events {
+        "c32e390_01",
+        "c32e390_02",
+        "c32e390_03",
+        "c32e390_04",
+        "c32e390_05",
+        "c32e390_06",
+        "c32e390_07",
+        "c32e390_08",
+        "c32e390_09",
+    };
+
+    static constexpr inline auto GUI_MAX_SLERP_TIME = 1.5f;
 };
 #endif

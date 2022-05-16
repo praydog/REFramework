@@ -72,17 +72,24 @@ void RE8VR::on_lua_state_created(sol::state& lua) {
         "last_right_hand_rotation", &RE8VR::m_last_right_hand_rotation,
         "last_left_hand_position", &RE8VR::m_last_left_hand_position,
         "last_left_hand_rotation", &RE8VR::m_last_left_hand_rotation,
+        "last_shoot_pos", &RE8VR::m_last_shoot_pos,
+        "last_shoot_dir", &RE8VR::m_last_shoot_dir,
+        "last_muzzle_pos", &RE8VR::m_last_muzzle_pos,
+        "last_muzzle_forward", &RE8VR::m_last_muzzle_forward,
         "was_gripping_weapon", &RE8VR::m_was_gripping_weapon,
         "is_holding_left_grip", &RE8VR::m_is_holding_left_grip,
         "is_in_cutscene", &RE8VR::m_is_in_cutscene,
         "is_grapple_aim", &RE8VR::m_is_grapple_aim,
         "is_reloading", &RE8VR::m_is_reloading,
         "is_motion_play", &RE8VR::m_is_motion_play,
+        "in_re8_end_game_event", &RE8VR::m_in_re8_end_game_event,
         "has_vehicle", &RE8VR::m_has_vehicle,
         "can_use_hands", &RE8VR::m_can_use_hands,
+        "is_arm_jacked", &RE8VR::m_is_arm_jacked,
         "wants_block", &RE8VR::m_wants_block,
         "wants_heal", &RE8VR::m_wants_heal,
         "delta_time", &RE8VR::m_delta_time,
+        "movement_speed_rate", &RE8VR::m_movement_speed_rate,
         "set_hand_joints_to_tpose", &RE8VR::set_hand_joints_to_tpose,
         "update_hand_ik", &RE8VR::update_hand_ik,
         "update_body_ik", &RE8VR::update_body_ik,
@@ -206,6 +213,10 @@ void RE8VR::set_hand_joints_to_tpose(::REManagedObject* hand_ik) {
 }
 
 void RE8VR::update_hand_ik() {
+    if (m_in_re8_end_game_event) {
+        return;
+    }
+
     static auto motion_get_joint_index_by_name_hash = sdk::find_type_definition("via.motion.Motion")->get_method("getJointIndexByNameHash");
     static auto motion_get_world_position = sdk::find_type_definition("via.motion.Motion")->get_method("getWorldPosition");
     static auto motion_get_world_rotation = sdk::find_type_definition("via.motion.Motion")->get_method("getWorldRotation");
@@ -402,6 +413,10 @@ void RE8VR::update_body_ik(glm::quat* camera_rotation, Vector4f* camera_pos) {
         return;
     }
 
+    if (m_in_re8_end_game_event) {
+        return;
+    }
+
     static auto via_motion_ik_leg = sdk::find_type_definition("via.motion.IkLeg");
     static auto via_motion_ik_leg_type = via_motion_ik_leg->get_type();
     static auto via_motion_motion = sdk::find_type_definition("via.motion.Motion");
@@ -510,7 +525,337 @@ void RE8VR::update_player_gestures() {
 }
 
 void RE8VR::fix_player_camera(::REManagedObject* player_camera) {
+    auto& vr = VR::get();
+
+    m_in_re8_end_game_event = false;
+
+    if (!vr->is_hmd_active()) {
+        // so the camera doesn't go wacky
+        if (m_camera_data.last_hmd_active_state) {
+            // disables the body IK component
+            update_body_ik(nullptr, nullptr);
+
+            vr->set_gui_rotation_offset(glm::identity<glm::quat>());
+            vr->recenter_view();
+
+            m_camera_data.last_hmd_active_state = false;
+        }
+
+        // Restore the vertical camera movement after taking headset off/not using controllers
+        if (m_camera_data.was_vert_limited) {
+           auto base_transform_solver = sdk::get_object_field<::REManagedObject*>(player_camera, "BaseTransSolver");
+
+            if (base_transform_solver != nullptr && *base_transform_solver != nullptr) {
+                auto camera_controller = sdk::get_object_field<::REManagedObject*>(*base_transform_solver, "CurrentController");
     
+                if (camera_controller == nullptr) {
+                    camera_controller = sdk::get_object_field<::REManagedObject*>(*base_transform_solver, "<CurrentController>k__BackingField");
+                }
+    
+                if (camera_controller != nullptr && *camera_controller != nullptr) {
+                    *sdk::get_object_field<bool>(*camera_controller, "IsVerticalRotateLimited") = false;
+                }
+            }
+
+           m_camera_data.was_vert_limited = false;
+        }
+
+        return;
+    }
+
+#ifdef RE8
+    /*
+    Check whether we're in the event at the end of RE8
+    and return early if we are.
+    */
+    if (m_is_in_cutscene && m_game_event_action_controller != nullptr) {
+        auto event_action = sdk::get_object_field<::REManagedObject*>(m_game_event_action_controller, "_GameEventAction");
+
+        if (event_action != nullptr && *event_action != nullptr) {
+            auto event_name = sdk::get_object_field<::SystemString*>(*event_action, "_EventName");
+
+            if (event_name != nullptr && *event_name != nullptr) {
+                if (s_re8_end_game_events.contains(utility::re_string::get_string(*event_name))) {
+                    m_in_re8_end_game_event = true;
+                    return;
+                }
+            }
+        }
+    }
+#endif
+
+    m_camera_data.last_hmd_active_state = true;
+
+    auto base_transform_solver = sdk::get_object_field<::REManagedObject*>(player_camera, "BaseTransSolver");
+    auto is_maximum_controllable = true;
+
+    if (base_transform_solver != nullptr && *base_transform_solver != nullptr) {
+#ifdef RE8
+        auto current_type_obj = *sdk::get_object_field<::REManagedObject*>(*base_transform_solver, "<currentType>k__BackingField");
+        auto current_type = *sdk::get_object_field<int>(current_type_obj, "Value");
+
+        auto vehicle = sdk::get_object_field<::REGameObject*>(player_camera, "RideVehicleObject");
+        m_has_vehicle = vehicle != nullptr && *vehicle != nullptr;
+
+        // Fixes special cutscene near the end of the game.
+        if (m_has_vehicle && m_is_arm_jacked) {
+            return;
+        }
+#else
+        auto current_type = *sdk::get_object_field<int>(*base_transform_solver, "<currentType>k__BackingField");
+#endif
+
+        if (current_type != 0 && !m_has_vehicle) { // MaximumOperatable
+            m_is_in_cutscene = true;
+            is_maximum_controllable = false;
+            m_camera_data.last_time_not_maximum_controllable = std::chrono::steady_clock::now();
+        } else {
+            if (std::chrono::steady_clock::now() - m_camera_data.last_time_not_maximum_controllable <= std::chrono::seconds(1)) {
+                m_is_in_cutscene = true;
+            }
+
+            if (m_has_vehicle) {
+                m_is_in_cutscene = false;
+            }
+        }
+    }
+
+    auto wants_recenter = false;
+
+    if (m_is_in_cutscene && !m_camera_data.last_cutscene_state) {
+        // force the gui to be recentered when we exit the cutscene
+        m_camera_data.last_gui_forced_slerp = std::chrono::steady_clock::now();
+        m_camera_data.last_gui_quat = glm::identity<glm::quat>();
+        wants_recenter = true;
+
+        vr->recenter_gui(m_camera_data.last_gui_quat);
+    } else if (!m_is_in_cutscene && m_camera_data.last_cutscene_state) {
+        m_camera_data.last_gui_forced_slerp = std::chrono::steady_clock::now();
+        m_camera_data.last_gui_quat = glm::inverse(glm::quat{vr->get_rotation(0)});
+        wants_recenter = true;
+
+        vr->recenter_gui(glm::quat{vr->get_rotation(0)});
+    }
+
+    auto camera = sdk::get_primary_camera();
+
+    if (camera == nullptr) {
+        return;
+    }
+
+    auto camera_gameobject = sdk::call_object_func_easy<::REGameObject*>(camera, "get_GameObject");
+    if (camera_gameobject == nullptr) {
+        return;
+    }
+
+    auto camera_transform = camera_gameobject->transform;
+    if (camera_transform == nullptr) {
+        return;
+    }
+
+    auto camera_rot = sdk::get_transform_rotation(camera_transform);
+    auto camera_pos = sdk::get_transform_position(camera_transform);
+
+    // fix camera position.
+    if (is_maximum_controllable && vr->is_using_controllers()) {
+        auto param_container = sdk::get_object_field<::REManagedObject*>(player_camera, "_CurrentParamContainer");
+
+        if (param_container == nullptr) {
+            param_container = sdk::get_object_field<::REManagedObject*>(player_camera, "CurrentParamContainer");
+        }
+
+        if (param_container != nullptr && *param_container != nullptr) {
+            auto posture_param = sdk::get_object_field<::REManagedObject*>(*param_container, "PostureParam");
+
+            if (posture_param != nullptr && *posture_param != nullptr) {
+                auto current_camera_offset_ptr = sdk::get_object_field<glm::vec4>(*posture_param, "CameraOffset");
+
+                if (current_camera_offset_ptr != nullptr) {
+                    auto current_camera_offset = *current_camera_offset_ptr;
+                    current_camera_offset.y = 0.0f;
+                    camera_pos += camera_rot * current_camera_offset;
+                    camera_pos.w = 1.0f;
+                }
+            }
+        }
+    }
+
+    auto camera_rot_pre_hmd = camera_rot;
+    auto camera_pos_pre_hmd = camera_pos;
+
+    auto camera_rot_no_shake = *sdk::get_object_field<glm::quat>(player_camera, "<CameraRotation>k__BackingField");
+
+    Vector4f zero_v4{0.0f, 0.0f, 0.0f, 0.0f};
+    vr->apply_hmd_transform(camera_rot_no_shake, zero_v4);
+    vr->apply_hmd_transform(camera_rot, camera_pos);
+    camera_pos.w = 1.0f;
+
+    auto camera_joint = utility::re_transform::get_joint(*camera_transform, 0);
+
+    if (camera_joint == nullptr) {
+        return;
+    }
+
+    // Transform is used for things like Ethan's light
+    // and determining where the player is looking
+    sdk::set_transform_position(camera_transform, camera_pos);
+    sdk::set_transform_rotation(camera_transform, camera_rot);
+    
+    // Joint is used for the actual final rendering of the game world
+    if (m_is_in_cutscene) {
+        sdk::set_joint_position(camera_joint, camera_pos_pre_hmd);
+        sdk::set_joint_rotation(camera_joint, camera_rot_pre_hmd);
+    } else {
+        const auto rot_delta = glm::inverse(camera_rot_pre_hmd) * camera_rot;
+
+        auto forward = rot_delta * Vector3f{0.0f, 0.0f, 1.0f};
+        forward = glm::normalize(Vector3f{forward.x, 0.0, forward.z});
+
+        sdk::set_joint_position(camera_joint, camera_pos_pre_hmd);
+        sdk::set_joint_rotation(camera_joint, camera_rot_pre_hmd * utility::math::to_quat(forward));
+    }
+
+    update_body_ik(&camera_rot, &camera_pos);
+
+    glm::quat slerp_quat{};
+
+    if (m_is_in_cutscene) {
+        slerp_quat = camera_rot_pre_hmd * glm::inverse(camera_rot);
+    } else {
+        slerp_quat = glm::inverse(glm::quat{vr->get_rotation(0)});
+    }
+
+    slerp_gui(slerp_quat);
+
+    static auto neg_forward_identity = glm::quat{Matrix4x4f{-1, 0, 0, 0,
+                                                            0, 1, 0, 0,
+                                                            0, 0, -1, 0,
+                                                            0, 0, 0, 1}};
+
+    const auto fixed_dir = glm::normalize((neg_forward_identity * camera_rot_no_shake) * Vector3f{0.0f, 0.0f, -1.0f});
+    const auto fixed_rot = utility::math::to_quat(fixed_dir);
+
+    *sdk::get_object_field<glm::quat>(player_camera, "<CameraRotation>k__BackingField") = fixed_rot;
+    *sdk::get_object_field<glm::vec4>(player_camera, "<CameraPosition>k__BackingField") = camera_pos;
+
+#ifdef RE8
+    *sdk::get_object_field<glm::quat>(player_camera, "FixedAimRotation") = fixed_rot;
+#endif
+
+    *sdk::get_object_field<glm::quat>(player_camera, "CameraRotationWithMovementShake") = fixed_rot;
+    *sdk::get_object_field<glm::quat>(player_camera, "CameraRotationWithCameraShake") = fixed_rot;
+    *sdk::get_object_field<glm::quat>(player_camera, "PrevCameraRotation") = fixed_rot;
+
+    auto camera_controller_param = sdk::get_object_field<::REManagedObject*>(player_camera, "CameraCtrlParam");
+
+    if (camera_controller_param != nullptr) {
+        *sdk::get_object_field<glm::quat>(*camera_controller_param, "CameraRotation") = fixed_rot;
+    }
+
+    if (base_transform_solver != nullptr && *base_transform_solver != nullptr) {
+        auto camera_controller = sdk::get_object_field<::REManagedObject*>(*base_transform_solver, "CurrentController");
+
+        if (camera_controller == nullptr) {
+            camera_controller = sdk::get_object_field<::REManagedObject*>(*base_transform_solver, "<CurrentController>k__BackingField");
+        }
+
+        if (camera_controller != nullptr && *camera_controller != nullptr) {
+            auto camera_controller_rot = glm::identity<glm::quat>();
+
+            if (m_is_in_cutscene) {
+#ifdef RE7
+                camera_controller_rot = *sdk::get_object_field<glm::quat>(*camera_controller, "<rotation>k__BackingField");
+#else
+                camera_controller_rot = *sdk::get_object_field<glm::quat>(*camera_controller, "<Rotation>k__BackingField");
+#endif
+            } else {
+                camera_controller_rot = fixed_rot;
+            }
+
+            camera_controller_rot = utility::math::flatten(camera_controller_rot);
+            
+            if (!m_is_in_cutscene || is_maximum_controllable) {
+                if (!m_is_in_cutscene) {
+                    vr->recenter_view();
+                }
+#ifdef RE7
+                *sdk::get_object_field<glm::quat>(*camera_controller, "<rotation>k__BackingField") = camera_controller_rot;
+#else
+                *sdk::get_object_field<glm::quat>(*camera_controller, "<Rotation>k__BackingField") = camera_controller_rot;
+#endif
+            }
+
+            *sdk::get_object_field<glm::quat>(*base_transform_solver, "<rotation>k__BackingField") = camera_controller_rot;
+            *sdk::get_object_field<bool>(*camera_controller, "IsVerticalRotateLimited") = is_maximum_controllable;
+
+            m_camera_data.was_vert_limited = true;
+        }
+    }
+
+    struct Ray {
+        glm::vec4 from;
+        glm::vec4 dir;
+    };
+
+    auto look_ray = sdk::get_object_field<Ray>(player_camera, "LookRay");
+    auto shoot_ray = sdk::get_object_field<Ray>(player_camera, "ShootRay");
+
+    if (look_ray != nullptr) {
+        look_ray->from = glm::vec4{camera_pos.x, camera_pos.y, camera_pos.z, 1.0f};
+        look_ray->dir = glm::vec4{fixed_dir.x, fixed_dir.y, fixed_dir.z, 1.0f};
+    }
+
+    if (shoot_ray != nullptr) {
+        if (!m_has_vehicle && vr->is_using_controllers() && m_weapon != nullptr) {
+            const auto pos = m_last_muzzle_pos + (m_last_muzzle_forward * 0.02f);
+
+            shoot_ray->from = glm::vec4{pos.x, pos.y, pos.z, 1.0f};
+            shoot_ray->dir = glm::vec4{m_last_muzzle_forward.x, m_last_muzzle_forward.y, m_last_muzzle_forward.z, 1.0f};
+        } else {
+            m_last_shoot_pos = camera_pos;
+            m_last_shoot_dir = fixed_dir;
+
+            shoot_ray->from = glm::vec4{camera_pos.x, camera_pos.y, camera_pos.z, 1.0f};
+            shoot_ray->dir = glm::vec4{fixed_dir.x, fixed_dir.y, fixed_dir.z, 1.0f};
+        }
+    }
+
+    m_camera_data.last_cutscene_state = m_is_in_cutscene;
+}
+
+void RE8VR::slerp_gui(const glm::quat& new_gui_quat) {
+    if (m_movement_speed_rate > 0.0f) {
+        m_camera_data.last_gui_forced_slerp = std::chrono::steady_clock::now() - std::chrono::duration_cast<std::chrono::seconds>(std::chrono::duration<float>(1.0f - m_movement_speed_rate));
+    }
+    
+
+    m_camera_data.last_gui_dot = glm::dot(m_camera_data.last_gui_quat, new_gui_quat);
+    const auto dot_dist = 1.0f - std::abs(m_camera_data.last_gui_dot);
+    const auto dot_ang = std::acos(std::abs(m_camera_data.last_gui_dot)) * (180.0f / glm::pi<float>());
+    m_camera_data.last_gui_dot = dot_ang;
+
+    auto now = std::chrono::steady_clock::now();
+
+    // trigger gui slerp
+    if (dot_ang >= 20.0f || m_is_in_cutscene) {
+        m_camera_data.last_gui_forced_slerp = now;
+    }
+
+    const auto slerp_time_diff = std::chrono::duration<float>(now - m_camera_data.last_gui_forced_slerp).count();
+
+    if (slerp_time_diff <= GUI_MAX_SLERP_TIME) {
+        if (dot_ang >= 10.0f) {
+            m_camera_data.last_gui_forced_slerp = now;
+        }
+
+        m_camera_data.last_gui_quat = glm::slerp(m_camera_data.last_gui_quat, new_gui_quat, dot_dist * std::max((GUI_MAX_SLERP_TIME - slerp_time_diff) * m_delta_time, 0.0f));
+    }
+
+    if (m_is_in_cutscene) {
+        VR::get()->recenter_gui(m_camera_data.last_gui_quat);
+    } else {
+        VR::get()->recenter_gui(m_camera_data.last_gui_quat * glm::inverse(new_gui_quat));
+    }
 }
 
 void RE8VR::fix_player_shadow() {
