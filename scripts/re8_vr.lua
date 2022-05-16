@@ -96,7 +96,7 @@ local last_book_open_time = 0.0
 local last_shop_open_time = 0.0
 local last_scope_time = 0.0
 local head_hash = nil
-
+local in_re8_end_game_event = false
 
 local neg_forward_identity = Matrix4x4f.new(-1, 0, 0, 0,
                                             0, 1, 0, 0,
@@ -323,6 +323,8 @@ local function update_pad_device(device)
     local action_dpad_right = vrmod:get_action_dpad_right()
     local action_heal = vrmod:get_action_heal()
 
+    local is_minimap_active = vrmod:is_action_active(action_minimap, right_joystick) or vrmod:is_action_active(action_minimap, left_joystick)
+
     local right_joystick = vrmod:get_right_joystick()
     local left_joystick = vrmod:get_left_joystick()
 
@@ -407,7 +409,7 @@ local function update_pad_device(device)
         cur_button = cur_button | via.hid.GamePadButton.Cancel | via.hid.GamePadButton.RRight
     end
 
-    if vrmod:is_action_active(action_b_button, left_joystick) then
+    if not is_minimap_active and vrmod:is_action_active(action_b_button, left_joystick) then
         cur_button = cur_button | via.hid.GamePadButton.RUp
     end
 
@@ -419,7 +421,7 @@ local function update_pad_device(device)
         cur_button = cur_button | via.hid.GamePadButton.LStickPush
     end
 
-    if vrmod:is_action_active(action_minimap, right_joystick) or vrmod:is_action_active(action_minimap, left_joystick) then
+    if is_minimap_active then
         cur_button = cur_button | via.hid.GamePadButton.CLeft
     end
 
@@ -558,6 +560,8 @@ sdk.hook(
 )
 
 local function update_hand_ik()
+    if in_re8_end_game_event then return end
+
     re8vr:update_hand_ik()
 end
 
@@ -604,6 +608,8 @@ end
 local zero_vec = Vector3f.new(0, 0, 0)
 
 local function update_body_ik(camera_rotation, camera_pos)
+    if in_re8_end_game_event then return end
+
     re8vr:update_body_ik(camera_rotation, camera_pos)
 end
 
@@ -975,6 +981,21 @@ local last_hmd_active_state = false
 local wants_posture_param_restore = false
 local modified_posture_param = nil
 local original_posture_camera_offset = Vector3f.new(0.0, 0.0, 0.0)
+local re8_end_game_events = {
+    "c32e390_01",
+    "c32e390_02",
+    "c32e390_03",
+    "c32e390_04",
+    "c32e390_05",
+    "c32e390_06",
+    "c32e390_07",
+    "c32e390_08",
+    "c32e390_09",
+}
+
+for i, v in ipairs(re8_end_game_events) do
+    re8_end_game_events[v] = true
+end
 
 local function pre_fix_player_camera(player_camera)
 end
@@ -1019,6 +1040,23 @@ local function fix_player_camera(player_camera)
         return retval
     end
 
+    in_re8_end_game_event = false
+
+    -- Check whether we're in the event at the end of RE8
+    -- and return early if we are.
+    if is_re8 and re8vr.is_in_cutscene and re8vr.game_event_action_controller ~= nil then
+        local event_action = re8vr.game_event_action_controller:get_field("_GameEventAction")
+
+        if event_action ~= nil then
+            local event_name = event_action:get_field("_EventName")
+
+            if re8_end_game_events[event_name] ~= nil then
+                in_re8_end_game_event = true
+                return
+            end
+        end
+    end
+
     re8.upper_body_transform_rate = player_camera:get_field("<upperBodyTransformRate>k__BackingField")
 
     last_hmd_active_state = true
@@ -1031,15 +1069,22 @@ local function fix_player_camera(player_camera)
 
         if is_re8 then
             current_type = current_type:get_field("Value")
+            re8vr.has_vehicle = player_camera:get_field("RideVehicleObject") ~= nil
+
+            if re8vr.has_vehicle and re8.is_arm_jacked then return end
         end
 
-        if current_type ~= 0 then -- MaximumOperatable
+        if current_type ~= 0 and not re8vr.has_vehicle then -- MaximumOperatable
             re8vr.is_in_cutscene = true
             is_maximum_controllable = false
             last_time_not_maximum_controllable = os.clock()
         else
             if os.clock() - last_time_not_maximum_controllable <= 1.0 then
                 re8vr.is_in_cutscene = true
+            end
+
+            if re8vr.has_vehicle then
+                re8vr.is_in_cutscene = false
             end
         end
     end
@@ -1108,7 +1153,6 @@ local function fix_player_camera(player_camera)
     -- and determining where the player is looking
     transform_set_position:call(camera_transform, camera_pos)
     transform_set_rotation:call(camera_transform, camera_rot)
-    
     last_real_camera_joint_rotation = camera_rot_pre_hmd
     last_real_camera_joint_pos = camera_pos_pre_hmd
 
@@ -1253,7 +1297,7 @@ local function fix_player_camera(player_camera)
     sdk.set_native_field(sdk.to_ptr(look_ray), ray_typedef, "from", camera_pos)
     sdk.set_native_field(sdk.to_ptr(look_ray), ray_typedef, "dir", fixed_dir)
 
-    if vrmod:is_using_controllers() then
+    if not re8vr.has_vehicle and vrmod:is_using_controllers() and re8vr.weapon ~= nil then
         local pos = last_muzzle_pos + (last_muzzle_forward * 0.02)
         --local scooted_pos = last_muzzle_pos - (last_muzzle_forward * 2)
         --local scooted_from = Vector4f.new(scooted_pos.x, scooted_pos.y, scooted_pos.z, 1.0)
@@ -1277,6 +1321,28 @@ local function fix_player_camera(player_camera)
     end
 
     last_cutscene_state = re8vr.is_in_cutscene
+end
+
+if is_re8 then
+    local on_pre_cannon_calcShootPosRot = function(args)
+        if not vrmod:is_hmd_active() then
+            return
+        end
+
+        if re8.is_arm_jacked then
+            return
+        end
+
+        -- Causes the bullet to come out of the player's face
+        -- Not ideal, but it fixes being unable to aim downwards during the tank fight.
+        return sdk.PreHookResult.SKIP_ORIGINAL
+    end
+
+    local on_post_cannon_calcShootPosRot = function(retval)
+        return retval
+    end
+
+    sdk.hook(sdk.find_type_definition("app.CannonRoaderCore"):get_method("calcShootPosRot"), on_pre_cannon_calcShootPosRot, on_post_cannon_calcShootPosRot)
 end
 
 local function on_pre_player_camera_update(args)
@@ -2344,6 +2410,7 @@ re.on_draw_ui(function()
         imgui.text("Is in cutscene: " .. tostring(re8vr.is_in_cutscene))
         imgui.text("Can use hands: " .. tostring(re8vr.can_use_hands))
         imgui.text("Is grapple aim: " .. tostring(re8vr.is_grapple_aim))
+        imgui.text("In RE8 end game event: " .. tostring(in_re8_end_game_event))
 
         imgui.tree_pop()
     end
