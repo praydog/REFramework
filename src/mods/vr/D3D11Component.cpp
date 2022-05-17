@@ -50,9 +50,11 @@ vr::EVRCompositorError D3D11Component::on_frame(VR* vr) {
             m_openxr.copy(0, backbuffer.Get());
         }
 
+        // Copy the back buffer to the left eye texture
+        // always do it because are using this for the desktop recording fix
+        context->CopyResource(m_left_eye_tex.Get(), backbuffer.Get());
+
         if (runtime->is_openvr()) {
-            // Copy the back buffer to the left eye texture (m_left_eye_tex0 holds the intermediate frame).
-            context->CopyResource(m_left_eye_tex.Get(), backbuffer.Get());
             vr::Texture_t left_eye{(void*)m_left_eye_tex.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto};
 
             auto e = vr::VRCompositor()->Submit(vr::Eye_Left, &left_eye, &vr->m_left_bounds);
@@ -113,7 +115,7 @@ vr::EVRCompositorError D3D11Component::on_frame(VR* vr) {
         }
 
         if (runtime->ready() && vr->m_desktop_fix->value()) {
-            hook->ignore_next_present();
+            context->CopyResource(backbuffer.Get(), m_left_eye_tex.Get());
         }
     }
 
