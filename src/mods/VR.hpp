@@ -518,6 +518,7 @@ private:
     const ModToggle::Ptr m_force_dynamic_shadows_settings{ ModToggle::create(generate_name("ForceDynamicShadows"), true) };
     const ModToggle::Ptr m_allow_engine_overlays{ ModToggle::create(generate_name("AllowEngineOverlays"), true) };
     const ModToggle::Ptr m_desktop_fix{ ModToggle::create(generate_name("DesktopRecordingFix"), true) };
+    const ModToggle::Ptr m_desktop_fix_skip_present{ ModToggle::create(generate_name("DesktopRecordingFixSkipPresent"), true) };
 
     bool m_disable_projection_matrix_override{ false };
     bool m_disable_gui_camera_projection_matrix_override{ false };
@@ -551,6 +552,7 @@ private:
         *m_allow_engine_overlays,
         *m_resolution_scale,
         *m_desktop_fix,
+        *m_desktop_fix_skip_present
     };
 
     bool m_use_rotation{true};

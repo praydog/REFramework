@@ -3884,7 +3884,14 @@ void VR::on_draw_ui() {
     m_force_lensflares_settings->draw("Force Disable Lens Flares");
     m_force_dynamic_shadows_settings->draw("Force Enable Dynamic Shadows");
     m_allow_engine_overlays->draw("Allow Engine Overlays");
-    m_desktop_fix->draw("Desktop Recording Fix");
+
+    if (ImGui::TreeNode("Desktop Recording Fix")) {
+        ImGui::PushID("Desktop");
+        m_desktop_fix->draw("Enabled");
+        m_desktop_fix_skip_present->draw("Skip Present");
+        ImGui::PopID();
+        ImGui::TreePop();
+    }
 
     ImGui::Separator();
     ImGui::Text("Debug info");
