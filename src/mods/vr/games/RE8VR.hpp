@@ -42,7 +42,7 @@ public:
     void fix_player_shadow();
     void slerp_gui(const glm::quat& new_gui_quat);
 
-    ::REGameObject* get_localplayer() const;
+    ::REManagedObject* get_localplayer() const;
     ::REManagedObject* get_weapon_object(::REGameObject* player) const;
 
     bool update_pointers();

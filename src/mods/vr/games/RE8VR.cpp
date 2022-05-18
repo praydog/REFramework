@@ -4,6 +4,10 @@
 #include <sdk/Application.hpp>
 
 #include "HookManager.hpp"
+
+// Reminder: THIS MUST BE INCLUDED OR THE LOG FILE WILL BALLOON TO GIGANTIC SIZE
+// AND THE GAME MAY CRASH. THIS IS REQUIRED FOR THE sol_lua_push DECLARATION.
+#include "../../../mods/ScriptRunner.hpp"
 #include "../../../mods/VR.hpp"
 
 #include "RE8VR.hpp"
@@ -1039,7 +1043,7 @@ void RE8VR::fix_player_shadow() {
     toggle_enabled(r_arm_mesh_field, !wants_hide_arms);
 }
 
-::REGameObject* RE8VR::get_localplayer() const {
+::REManagedObject* RE8VR::get_localplayer() const {
 #ifdef RE7
     auto object_man = sdk::get_managed_singleton<::REManagedObject>("app.ObjectManager");
 
@@ -1049,7 +1053,7 @@ void RE8VR::fix_player_shadow() {
 
     static auto field = sdk::find_type_definition("app.ObjectManager")->get_field("PlayerObj");
 
-    return field->get_data<::REGameObject*>(object_man);
+    return field->get_data<::REManagedObject*>(object_man);
 #else
     auto propsman = sdk::get_managed_singleton<::REManagedObject>("app.PropsManager");
 
@@ -1059,7 +1063,7 @@ void RE8VR::fix_player_shadow() {
 
     static auto field = sdk::find_type_definition("app.PropsManager")->get_field("<Player>k__BackingField");
 
-    return field->get_data<::REGameObject*>(propsman);
+    return field->get_data<::REManagedObject*>(propsman);
 #endif
 }
 
@@ -1095,7 +1099,7 @@ void RE8VR::fix_player_shadow() {
 }
 
 bool RE8VR::update_pointers() {
-    m_player = get_localplayer();
+    m_player_downcast = get_localplayer();
 
     if (m_player == nullptr) {
         reset_data();
