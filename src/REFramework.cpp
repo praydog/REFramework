@@ -1251,8 +1251,9 @@ bool REFramework::init_d3d11() {
     D3D11_TEXTURE2D_DESC backbuffer_desc{};
 
     backbuffer->GetDesc(&backbuffer_desc);
-
     backbuffer_desc.BindFlags |= D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+
+    spdlog::info("[D3D11] Back buffer format is {}", backbuffer_desc.Format);
 
     // Create our blank render target.
     spdlog::info("[D3D11] Creating render targets...");
