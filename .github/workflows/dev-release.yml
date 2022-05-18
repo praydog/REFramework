@@ -49,5 +49,6 @@ jobs:
         with:
           repository: praydog/REFramework-nightly
           token: ${{secrets.REPO_TOKEN}}
-          tag_name: ${{format('v1.{0}-{1}', github.run_number, steps.vars.outputs.sha_short)}}
+          name: ${{format('v1.{0}-{1}', github.run_number, steps.vars.outputs.sha_short)}}
+          tag_name: latest
           files: ${{github.workspace}}/${{matrix.target}}.zip
