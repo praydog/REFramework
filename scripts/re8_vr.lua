@@ -90,6 +90,7 @@ local needs_cutscene_recenter = false
 local last_inventory_open_time = 0.0
 local last_book_open_time = 0.0
 local last_shop_open_time = 0.0
+local last_map_open_time = 0.0
 local last_scope_time = 0.0
 local head_hash = nil
 
@@ -256,6 +257,7 @@ local function update_pad_device(device)
     -- EmuRright
     -- EmuRdown
     -- EmuRleft
+    local is_map_open = os.clock() - last_map_open_time < 0.25
 
     -- set cur_button | according to the right stick axis
     if is_re8 then
@@ -299,6 +301,14 @@ local function update_pad_device(device)
             end
 
             cur_button = cur_button | via.hid.GamePadButton.EmuLdown
+        end
+    end
+
+    if is_map_open then
+        if vr_right_stick_axis.y >= 0.9 then
+            cur_button = cur_button | via.hid.GamePadButton.LUp
+        elseif vr_right_stick_axis.y <= -0.9 then
+            cur_button = cur_button | via.hid.GamePadButton.LDown
         end
     end
 
@@ -2443,6 +2453,17 @@ local re8_book_names = {
     "GUIBook"
 }
 
+-- UI elements that require use of the dpad up/down
+local re7_map_names = {
+    "MapMaskGUI",
+    "Ch9MapMaskGUI"
+}
+
+local re8_map_names = {
+    "GUIMap",
+    "GUIBinder"
+}
+
 for i, v in ipairs(re8_inventory_names) do
     re8_inventory_names[v] = true
 end
@@ -2453,6 +2474,14 @@ end
 
 for i, v in ipairs(re8_book_names) do
     re8_book_names[v] = true
+end
+
+for i, v in ipairs(re7_map_names) do
+    re7_map_names[v] = true
+end
+
+for i, v in ipairs(re8_map_names) do
+    re8_map_names[v] = true
 end
 
 local reticle_names = {
@@ -2559,6 +2588,10 @@ re.on_pre_gui_draw_element(function(element, context)
 
     if is_re8 and re8_book_names[name] then
         last_book_open_time = os.clock()
+    end
+
+    if (is_re7 and re7_map_names[name]) or (is_re8 and re8_map_names[name]) then
+        last_map_open_time = os.clock()
     end
 
     if shop_names[name] then
