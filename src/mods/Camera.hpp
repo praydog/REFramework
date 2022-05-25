@@ -2,8 +2,6 @@
 
 #include "Mod.hpp"
 
-#ifdef RE8
-
 class RenderToneMappingInternal {
 public:
 	char pad_0000[336]; //0x0000
@@ -66,23 +64,32 @@ public:
     void on_draw_ui() override;
 
     void on_update_transform(RETransform* transform);
+    void on_application_entry(void* entry, const char* name, size_t hash) override;
 
 private:
     const ModToggle::Ptr m_enabled{ ModToggle::create(generate_name("Enabled"), false) };
     const ModToggle::Ptr m_disable_vignette{ ModToggle::create(generate_name("DisableVignette"), true) };
     const ModSlider::Ptr m_vignette_brightness{ ModSlider::create(generate_name("VignetteBrightness"), -1.0, 1.0, 0.0f ) };
+
+#ifdef RE8
     const ModSlider::Ptr m_fov{ ModSlider::create(generate_name("FOV"), 0.0f, 180.0f, 81.0f) };
     const ModSlider::Ptr m_fov_aiming{ ModSlider::create(generate_name("FOVAiming"), 0.0f, 180.0f, 70.0f) };
+#endif
 
     ValueList m_options{
         *m_enabled,
         *m_disable_vignette,
         *m_vignette_brightness,
+
+#ifdef RE8
         *m_fov,
         *m_fov_aiming
+#endif
     };
 
+#ifdef RE8
     AppPropsManager* m_props_manager{ nullptr };
+#endif
     RECamera* m_camera{ nullptr };
     REGameObject* m_player{ nullptr };
     RenderToneMapping* m_tone_map{ nullptr };
@@ -103,7 +110,7 @@ private:
         return m != nullptr;
     }
 
-    void on_cam_transform(RETransform* transform) noexcept;
+    void update_vignetting() noexcept;
     void on_player_transform(RETransform* transform) noexcept;
     void on_disabled() noexcept;
 
@@ -111,5 +118,3 @@ private:
     void set_vignette_brightness(float value) noexcept;
     void set_fov(float fov, float aiming_fov) noexcept;
 };
-
-#endif

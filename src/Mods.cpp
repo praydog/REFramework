@@ -34,14 +34,13 @@ Mods::Mods() {
 #endif
 
 #ifndef RE8
-
 #if defined(RE2) || defined(RE3)
     m_mods.emplace_back(FirstPerson::get());
 #endif
-
-#else
-    m_mods.emplace_back(std::make_unique<Camera>());
 #endif
+
+    // All games!!!!
+    m_mods.emplace_back(std::make_unique<Camera>());
 
 #if defined(RE2) || defined(RE3) || defined(RE8)
     m_mods.emplace_back(std::make_unique<ManualFlashlight>());
