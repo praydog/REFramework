@@ -3959,6 +3959,10 @@ void VR::on_config_load(const utility::Config& cfg) {
         m_openxr->resolution_scale = m_resolution_scale->value();
         initialize_openxr_swapchains();
     }
+
+    if (m_motion_controls_inactivity_timer->value() <= 10.0f) {
+        m_motion_controls_inactivity_timer->value() = 30.0f;
+    }
 }
 
 void VR::on_config_save(utility::Config& cfg) {
