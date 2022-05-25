@@ -28,7 +28,8 @@ Supports both DirectX 11 and DirectX 12.
 * Free Camera (All games)
 * Scene Timescale (All games)
 * Manual Flashlight (RE2, RE3, RE8)
-* FOV Slider & Vignette Disabler (RE2, RE3, RE8)
+* FOV Slider (RE2, RE3, RE8)
+* Vignette Disabler (All games)
 
 ## Included Fixes
 * RE8 Startup Crash
