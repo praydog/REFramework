@@ -2,8 +2,8 @@
 
 #include <d3d11.h>
 #include <dxgi.h>
-#include <wrl.h>
 #include <openvr.h>
+#include <wrl.h>
 
 #define XR_USE_PLATFORM_WIN32
 #define XR_USE_GRAPHICS_API_D3D11
@@ -19,9 +19,7 @@ public:
     vr::EVRCompositorError on_frame(VR* vr);
     void on_reset(VR* vr);
 
-    auto& openxr() {
-        return m_openxr;
-    }
+    auto& openxr() { return m_openxr; }
 
 private:
     template <typename T> using ComPtr = Microsoft::WRL::ComPtr<T>;
@@ -42,16 +40,15 @@ private:
         XrGraphicsBindingD3D11KHR binding{XR_TYPE_GRAPHICS_BINDING_D3D11_KHR};
 
         struct SwapchainContext {
-			std::vector<XrSwapchainImageD3D11KHR> textures{};
-			uint32_t num_textures_acquired{0};
-		};
+            std::vector<XrSwapchainImageD3D11KHR> textures{};
+            uint32_t num_textures_acquired{0};
+        };
 
         std::vector<SwapchainContext> contexts{};
-		std::recursive_mutex mtx{};
+        std::recursive_mutex mtx{};
         std::array<uint32_t, 2> last_resolution{};
     } m_openxr;
 
     void setup();
 };
-} 
-
+} // namespace vrmod
