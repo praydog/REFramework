@@ -28,6 +28,7 @@
 #include "utility/FunctionHook.hpp"
 #include "utility/Module.hpp"
 #include "utility/Memory.hpp"
+#include "utility/Registry.hpp"
 
 #include "FirstPerson.hpp"
 #include "ManualFlashlight.hpp"
@@ -625,6 +626,16 @@ and place the openxr_loader.dll in the same folder.)";
         // so we're just going to return OK, but
         // when the VR mod draws its menu, it'll say "VR is not available"
         return Mod::on_initialize();
+    }
+
+    // Check whether the user has Hardware accelerated GPU scheduling enabled
+    const auto hw_schedule_value = utility::get_registry_dword(
+        HKEY_LOCAL_MACHINE,
+        "SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers",
+        "HwSchMode");
+
+    if (hw_schedule_value) {
+        m_has_hw_scheduling = *hw_schedule_value == 2;
     }
 
     auto hijack_error = hijack_resolution();
@@ -3771,7 +3782,7 @@ void VR::openvr_input_to_re_engine() {
 void VR::on_draw_ui() {
     // create VR tree entry in menu (imgui)
     if (get_runtime()->loaded) {
-        ImGui::SetNextTreeNodeOpen(false, ImGuiCond_::ImGuiCond_FirstUseEver);
+        ImGui::SetNextTreeNodeOpen(m_has_hw_scheduling, ImGuiCond_::ImGuiCond_FirstUseEver);
     } else {
         if (m_openvr->error && !m_openvr->dll_missing) {
             ImGui::SetNextTreeNodeOpen(true, ImGuiCond_::ImGuiCond_FirstUseEver);
@@ -3790,29 +3801,41 @@ void VR::on_draw_ui() {
         }
 
         if (runtime->error && runtime->dll_missing) {
-            ImGui::Text("%s not loaded: %s not found", runtime->name().data(), dll_name.data());
-            ImGui::Text("Please drop the %s file into the game's directory if you want to use VR", dll_name.data());
+            ImGui::TextWrapped("%s not loaded: %s not found", runtime->name().data(), dll_name.data());
+            ImGui::TextWrapped("Please drop the %s file into the game's directory if you want to use %s", dll_name.data(), runtime->name().data());
         } else if (runtime->error) {
-            ImGui::Text("%s not loaded: %s", runtime->name().data(), runtime->error->c_str());
+            ImGui::TextWrapped("%s not loaded: %s", runtime->name().data(), runtime->error->c_str());
         } else {
-            ImGui::Text("%s not loaded: Unknown error", runtime->name().data());
+            ImGui::TextWrapped("%s not loaded: Unknown error", runtime->name().data());
         }
+
+        ImGui::Separator();
     };
 
     display_error(m_openxr, "openxr_loader.dll");
     display_error(m_openvr, "openvr_api.dll");
 
     if (!get_runtime()->loaded) {
-        ImGui::Text("No runtime loaded.");
+        ImGui::TextWrapped("No runtime loaded.");
         return;
     }
 
-    // draw VR tree entry in menu (imgui)
-    ImGui::Text("VR Runtime: %s", get_runtime()->name().data());
-    ImGui::Text("Render Resolution: %d x %d", get_runtime()->get_width(), get_runtime()->get_height());
+    ImGui::TextWrapped("Hardware scheduling: %s", m_has_hw_scheduling ? "Enabled" : "Disabled");
+
+    if (m_has_hw_scheduling) {
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
+        ImGui::TextWrapped("WARNING: Hardware-accelerated GPU scheduling is enabled. This will cause the game to run slower.");
+        ImGui::TextWrapped("Go into your Windows Graphics settings and disable \"Hardware-accelerated GPU scheduling\"");
+        ImGui::PopStyleColor();
+    }
+
+    ImGui::Separator();
+
+    ImGui::TextWrapped("VR Runtime: %s", get_runtime()->name().data());
+    ImGui::TextWrapped("Render Resolution: %d x %d", get_runtime()->get_width(), get_runtime()->get_height());
 
     if (get_runtime()->is_openvr()) {
-        ImGui::Text("Resolution can be changed in SteamVR");
+        ImGui::TextWrapped("Resolution can be changed in SteamVR");
     } else if (get_runtime()->is_openxr()) {
         if (ImGui::TreeNode("Bindings")) {
             m_openxr->display_bindings_editor();
