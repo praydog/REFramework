@@ -447,6 +447,12 @@ local function update_padman(padman)
         return
     end
 
+    local active_pad = padman:call("get_activePad")
+
+    if active_pad ~= nil then
+        merged_pad = active_pad
+    end
+
     --padman:call("set_activePad", merged_pad)
 
     local device = merged_pad:get_field("Device")
@@ -504,6 +510,11 @@ local function on_pre_app_pad_update(args)
     end
 
     local merged_pad = padman:call("get_mergedPad")
+    local active_pad = padman:call("get_activePad")
+
+    if active_pad ~= nil then
+        merged_pad = active_pad
+    end
 
     if not merged_pad or merged_pad ~= pad then
         return
