@@ -735,7 +735,13 @@ void VR::on_lua_state_created(sol::state& lua) {
             vr->apply_hmd_transform(rotation, position);
         },
         "trigger_haptic_vibration", &VR::trigger_haptic_vibration,
-        "get_last_render_matrix", &VR::get_last_render_matrix
+        "get_last_render_matrix", &VR::get_last_render_matrix,
+        "should_handle_pause", [](VR* vr) { 
+            return vr->get_runtime()->handle_pause;
+        },
+        "set_handle_pause", [](VR* vr, bool state) { 
+            return vr->get_runtime()->handle_pause = state;
+        }
     );
 
     lua["vrmod"] = this;
@@ -3766,17 +3772,6 @@ void VR::openvr_input_to_re_engine() {
             m_last_controller_update = now;
         }
     }
-
-#ifdef RE7
-    if (get_runtime()->handle_pause) {
-        auto menu_manager = sdk::get_managed_singleton<::REManagedObject>("app.MenuManager");
-
-        if (menu_manager != nullptr) {
-            sdk::call_object_func<void*>(menu_manager, "openPauseMenu", sdk::get_thread_context(), menu_manager, 0);
-            get_runtime()->handle_pause = false;
-        }
-    }
-#endif
 }
 
 void VR::on_draw_ui() {

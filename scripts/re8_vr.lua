@@ -240,9 +240,6 @@ local function update_pad_device(device)
         is_inventory_open = (os.clock() - last_inventory_open_time) < 0.25
     end
 
-    local raw_left_stick_axis = vrmod:get_left_stick_axis()
-    
-    --local vr_left_stick_axis = last_camera_matrix:to_quat() * Vector4f.new(raw_left_stick_axis.x, raw_left_stick_axis.y, 0.0, 0.0)
     local vr_left_stick_axis = vrmod:get_left_stick_axis()
     local vr_right_stick_axis = vrmod:get_right_stick_axis()
 
@@ -328,11 +325,10 @@ local function update_pad_device(device)
     local action_dpad_right = vrmod:get_action_dpad_right()
     local action_heal = vrmod:get_action_heal()
 
-    local is_minimap_active = vrmod:is_action_active(action_minimap, right_joystick) or vrmod:is_action_active(action_minimap, left_joystick)
-
     local right_joystick = vrmod:get_right_joystick()
     local left_joystick = vrmod:get_left_joystick()
 
+    local is_minimap_active = vrmod:is_action_active(action_minimap, right_joystick) or vrmod:is_action_active(action_minimap, left_joystick)
     if vrmod:is_action_active(action_trigger, right_joystick) then
         device:call("set_AnalogR", 1.0)
         cur_button = cur_button | via.hid.GamePadButton.RTrigBottom
@@ -428,6 +424,11 @@ local function update_pad_device(device)
 
     if is_minimap_active then
         cur_button = cur_button | via.hid.GamePadButton.CLeft
+    end
+
+    if is_re7 and vrmod:should_handle_pause() then
+        cur_button = cur_button | via.hid.GamePadButton.CRight
+        vrmod:set_handle_pause(false)
     end
 
     device:call("set_Button", cur_button)
