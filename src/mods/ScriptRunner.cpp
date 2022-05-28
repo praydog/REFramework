@@ -285,7 +285,7 @@ void ScriptState::run_script(const std::string& p) {
         m_lua["package"]["path"] = package_path;
         m_lua.safe_script_file(p);
     } catch (const std::exception& e) {
-        OutputDebugString(e.what());
+        ScriptRunner::get()->spew_error(e.what());
         api::re::msg(e.what());
     }
 
@@ -310,7 +310,7 @@ void ScriptState::on_frame() {
             handle_protected_result(fn());
         }
     } catch (const std::exception& e) {
-        OutputDebugString(e.what());
+        ScriptRunner::get()->spew_error(e.what());
     }
 }
 
@@ -326,7 +326,7 @@ void ScriptState::on_draw_ui() {
             handle_protected_result(fn());
         }
     } catch (const std::exception& e) {
-        OutputDebugString(e.what());
+        ScriptRunner::get()->spew_error(e.what());
     }
 }
 
@@ -342,7 +342,7 @@ void ScriptState::on_pre_application_entry(size_t hash) {
             }
         }
     } catch (const std::exception& e) {
-        OutputDebugString(e.what());
+        ScriptRunner::get()->spew_error(e.what());
     }
 }
 
@@ -358,7 +358,7 @@ void ScriptState::on_application_entry(size_t hash) {
             }
         }
     } catch (const std::exception& e) {
-        OutputDebugString(e.what());
+        ScriptRunner::get()->spew_error(e.what());
     }
 }
 
@@ -374,7 +374,7 @@ void ScriptState::on_pre_update_transform(RETransform* transform) {
             }
         }
     } catch (const std::exception& e) {
-        OutputDebugString(e.what());
+        ScriptRunner::get()->spew_error(e.what());
     }
 }
 
@@ -390,7 +390,7 @@ void ScriptState::on_update_transform(RETransform* transform) {
             }
         }
     } catch (const std::exception& e) {
-        OutputDebugString(e.what());
+        ScriptRunner::get()->spew_error(e.what());
     }
 }
 
@@ -406,7 +406,7 @@ bool ScriptState::on_pre_gui_draw_element(REComponent* gui_element, void* contex
             }
         }
     } catch (const std::exception& e) {
-        OutputDebugString(e.what());
+        ScriptRunner::get()->spew_error(e.what());
     }
 
     return !any_false;
@@ -420,7 +420,7 @@ void ScriptState::on_gui_draw_element(REComponent* gui_element, void* context) {
             handle_protected_result(fn(gui_element, context));
         }
     } catch (const std::exception& e) {
-        OutputDebugString(e.what());
+        ScriptRunner::get()->spew_error(e.what());
     }
 }
 
@@ -436,7 +436,7 @@ void ScriptState::on_script_reset() try {
         handle_protected_result(fn());
     }
 } catch (const std::exception& e) {
-    OutputDebugString(e.what());
+    ScriptRunner::get()->spew_error(e.what());
 }
 
 void ScriptState::on_config_save() try {
@@ -447,7 +447,7 @@ void ScriptState::on_config_save() try {
     }
 }
 catch (const std::exception& e) {
-    OutputDebugString(e.what());
+    ScriptRunner::get()->spew_error(e.what());
 }
 
 void ScriptState::add_hook(
@@ -501,7 +501,7 @@ void ScriptState::install_hooks() {
                         args[i] = (uintptr_t)arg.get<void*>();
                     }
                 } catch (const std::exception& e) {
-                    OutputDebugString(e.what());
+                    ScriptRunner::get()->spew_error(e.what());
                 }
 
                 return result;
@@ -522,7 +522,7 @@ void ScriptState::install_hooks() {
 
                     ret_val = (uintptr_t)script_result.get<void*>();
                 } catch (const std::exception& e) {
-                    OutputDebugString(e.what());
+                    ScriptRunner::get()->spew_error(e.what());
                 }
             },
             ignore_jmp_object.is<bool>() ? ignore_jmp_object.as<bool>() : false);
@@ -540,6 +540,22 @@ std::optional<std::string> ScriptRunner::on_initialize() {
     reset_scripts();
 
     return Mod::on_initialize();
+}
+
+void ScriptRunner::on_config_load(const utility::Config& cfg) {
+    for (IModValue& option : m_options) {
+        option.config_load(cfg);
+    }
+}
+
+void ScriptRunner::on_config_save(utility::Config& cfg) {
+    std::scoped_lock _{m_access_mutex};
+
+    for (IModValue& option : m_options) {
+        option.config_save(cfg);
+    }
+
+    m_state->on_config_save();
 }
 
 void ScriptRunner::on_frame() {
@@ -573,8 +589,40 @@ void ScriptRunner::on_draw_ui() {
             }
         }
 
+        ImGui::SameLine();
+
         if (ImGui::Button("Reset scripts")) {
+            m_last_script_error.clear();
             reset_scripts();
+        }
+
+        if (ImGui::Button("Spawn Debug Console")) {
+            if (!m_console_spawned) {
+                AllocConsole();
+                freopen("CONIN$", "r", stdin);
+                freopen("CONOUT$", "w", stdout);
+                freopen("CONOUT$", "w", stderr);
+
+                m_console_spawned = true;
+            }
+        }
+
+        m_log_to_disk->draw("Log Lua Errors to Disk");
+
+        if (!m_last_script_error.empty()) {
+            std::shared_lock _{m_script_error_mutex};
+
+            const auto now = std::chrono::system_clock::now();
+            const auto diff = now - m_last_script_error_time;
+            const auto sec = std::chrono::duration<float>(diff).count();
+
+            ImGui::TextWrapped("Last Error Time: %.2f seconds ago", sec);
+
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
+            ImGui::TextWrapped("Last Script Error: %s", m_last_script_error.data());
+            ImGui::PopStyleColor();
+        } else {
+            ImGui::TextWrapped("No Script Errors... yet!");
         }
 
         if (!m_loaded_scripts.empty()) {
@@ -592,11 +640,6 @@ void ScriptRunner::on_draw_ui() {
         std::scoped_lock _{ m_access_mutex };
         m_state->on_draw_ui();
     }
-}
-
-void ScriptRunner::on_config_save(utility::Config& cfg) {
-    std::scoped_lock _{m_access_mutex};
-    m_state->on_config_save();
 }
 
 void ScriptRunner::on_pre_application_entry(void* entry, const char* name, size_t hash) {
@@ -632,6 +675,22 @@ void ScriptRunner::on_gui_draw_element(REComponent* gui_element, void* primitive
     std::scoped_lock _{ m_access_mutex };
 
     m_state->on_gui_draw_element(gui_element, primitive_context);
+}
+
+void ScriptRunner::spew_error(const std::string& p) {
+    OutputDebugString(p.c_str());
+
+    if (m_console_spawned) {
+        fprintf(stderr, "%s\n", p.c_str());
+    }
+
+    if (m_log_to_disk->value()) {
+        spdlog::error(p);
+    }
+
+    std::unique_lock _{ m_script_error_mutex };
+    m_last_script_error = p;
+    m_last_script_error_time = std::chrono::system_clock::now();
 }
 
 void ScriptRunner::reset_scripts() {

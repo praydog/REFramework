@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <memory>
 #include <mutex>
+#include <shared_mutex>
 
 #include <Windows.h>
 
@@ -96,11 +97,11 @@ public:
 
     std::string_view get_name() const override { return "ScriptRunner"; }
     std::optional<std::string> on_initialize() override;
+    void on_config_load(const utility::Config& cfg) override;
+    void on_config_save(utility::Config& cfg) override;
 
     void on_frame() override;
     void on_draw_ui() override;
-
-    void on_config_save(utility::Config& cfg) override;
 
     void on_pre_application_entry(void* entry, const char* name, size_t hash) override;
     void on_application_entry(void* entry, const char* name, size_t hash) override;
@@ -108,6 +109,8 @@ public:
     void on_update_transform(RETransform* transform) override;
     bool on_pre_gui_draw_element(REComponent* gui_element, void* primitive_context) override;
     void on_gui_draw_element(REComponent* gui_element, void* primitive_context) override;
+
+    void spew_error(const std::string& p);
 
     const auto& get_state() {
         return m_state;
@@ -136,6 +139,17 @@ private:
     // A list of Lua files that have been explicitly loaded either through the user manually loading the script, or
     // because the script was in the autorun directory.
     std::vector<std::string> m_loaded_scripts{}; 
+
+    std::string m_last_script_error{};
+    std::shared_mutex m_script_error_mutex{};
+    std::chrono::system_clock::time_point m_last_script_error_time{};
+
+    bool m_console_spawned{false};
+    const ModToggle::Ptr m_log_to_disk{ ModToggle::create(generate_name("LogToDisk"), false) };
+
+    ValueList m_options{
+        *m_log_to_disk
+    };
 
     // Resets the ScriptState and runs autorun scripts again.
     void reset_scripts();
