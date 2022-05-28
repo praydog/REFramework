@@ -13,6 +13,8 @@
 #include "utility/Memory.hpp"
 #include "sdk/Renderer.hpp"
 
+#include "HookManager.hpp"
+
 #include "Genny.hpp"
 #include "GennyIda.hpp"
 
@@ -499,24 +501,44 @@ void ObjectExplorer::on_draw_dev_ui() {
 }
 
 void ObjectExplorer::on_frame() {
-    if (m_pinned_objects.empty()) {
-        return;
+    if (!m_pinned_objects.empty()) {
+        bool open = true;
+
+        // on_frame is just going to be a way to display
+        // the pinned objects in a separate window
+
+        ImGui::SetNextWindowSize(ImVec2(200, 400), ImGuiCond_::ImGuiCond_Once);
+        if (ImGui::Begin("Pinned objects", &open)) {
+            display_pins();
+
+            ImGui::End();
+        }
+
+        if (!open) {
+            m_pinned_objects.clear();
+        }
     }
 
-    bool open = true;
+    if (!m_hooked_methods.empty()) {
+        bool open = true;
 
-    // on_frame is just going to be a way to display
-    // the pinned objects in a separate window
+        // on_frame is just going to be a way to display
+        // the pinned objects in a separate window
 
-    ImGui::SetNextWindowSize(ImVec2(200, 400), ImGuiCond_::ImGuiCond_Once);
-    if (ImGui::Begin("Pinned objects", &open)) {
-        display_pins();
+        ImGui::SetNextWindowSize(ImVec2(200, 400), ImGuiCond_::ImGuiCond_Once);
+        if (ImGui::Begin("Hooked methods", &open)) {
+            display_hooks();
 
-        ImGui::End();
-    }
+            ImGui::End();
+        }
 
-    if (!open) {
-        m_pinned_objects.clear();
+        if (!open) {
+            for (auto& h : m_hooked_methods) {
+                g_hookman.remove(h.method, h.hook_id);
+            }
+
+            m_hooked_methods.clear();
+        }
     }
 }
 
@@ -527,6 +549,19 @@ void ObjectExplorer::display_pins() {
 
         if (made_node) {
             handle_address(pinned_obj.address);
+            ImGui::TreePop();
+        }
+    }
+}
+
+void ObjectExplorer::display_hooks() {
+    for (auto& h : m_hooked_methods) {
+        const auto made_node = ImGui::TreeNode(h.name.c_str());
+        method_context_menu(h.method, h.name);
+
+        if (made_node) {
+            ImGui::Checkbox("Skip function call", &h.skip);
+            ImGui::TextWrapped("Call count: %i", h.call_count);
             ImGui::TreePop();
         }
     }
@@ -2639,7 +2674,9 @@ void ObjectExplorer::display_native_methods(REManagedObject* obj, sdk::RETypeDef
             const auto method_prototype = ss.str();
             const auto method_prototype_context = ss_context.str();
 
-            const auto made_node = widget_with_context(method_ptr, method_prototype_context, [&]() { return stretched_tree_node(&m, "%s", method_return_type_name.c_str()); });
+            const auto made_node = stretched_tree_node(&m, "%s", method_return_type_name.c_str());
+            method_context_menu(&m, method_prototype_context);
+            
             const auto tree_hovered = ImGui::IsItemHovered();
 
             // Draw the method name with a color
@@ -3266,7 +3303,7 @@ bool ObjectExplorer::widget_with_context(void* address, const std::string& name,
     return ret;
 }
 
-void ObjectExplorer::context_menu(void* address, std::optional<std::string> name) {
+void ObjectExplorer::context_menu(void* address, std::optional<std::string> name, std::optional<std::function<void()>> additional_context) {
     if (ImGui::BeginPopupContextItem()) {
         if (ImGui::Selectable("Copy Address")) {
             std::stringstream ss;
@@ -3320,8 +3357,57 @@ void ObjectExplorer::context_menu(void* address, std::optional<std::string> name
             }
         }
 
+        if (additional_context) {
+            (*additional_context)();
+        }
+
         ImGui::EndPopup();
     }
+}
+
+void ObjectExplorer::method_context_menu(sdk::REMethodDefinition* method, std::optional<std::string> name) {
+    auto additional_ctx = [&]() {
+        auto it = std::find_if(m_hooked_methods.begin(), m_hooked_methods.end(), [method](auto& hook) { return hook.method == method; });
+
+        if (it == m_hooked_methods.end()) {
+            if (ImGui::Selectable("Hook")) {
+                auto& hooked = m_hooked_methods.emplace_back();
+
+                using namespace asmjit;
+                using namespace asmjit::x86;
+
+                CodeHolder code{};
+                code.init(m_jit_runtime.environment());
+
+                Assembler a{&code};
+
+                a.mov(r9, method);
+                a.movabs(r10, &ObjectExplorer::pre_hooked_method);
+                a.jmp(r10);
+
+                m_jit_runtime.add(&hooked.jitted_function, &code);
+
+                using MT = HookManager::PreHookResult(*)(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys);
+
+                hooked.method = method;
+
+                if (name) {
+                    hooked.name = method->get_declaring_type()->get_full_name() + "." + *name;
+                } else {
+                    hooked.name = method->get_declaring_type()->get_full_name() + "." + method->get_name();
+                }
+                
+                hooked.hook_id = g_hookman.add(method, (MT)hooked.jitted_function, nullptr);
+            }
+        } else {
+            if (ImGui::Selectable("Unhook")) {
+                g_hookman.remove(it->method, it->hook_id);
+                m_hooked_methods.erase(it);
+            }
+        }
+    };
+
+    context_menu(method->get_function(), name, additional_ctx);
 }
 
 void ObjectExplorer::make_same_line_text(std::string_view text, const ImVec4& color) {
@@ -3595,4 +3681,27 @@ bool ObjectExplorer::is_filtered_method(sdk::REMethodDefinition& m) {
         return true;
     }
     return false;
+}
+
+HookManager::PreHookResult ObjectExplorer::pre_hooked_method_internal(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys, void* reserved, sdk::REMethodDefinition* method) {
+    auto it = std::find_if(m_hooked_methods.begin(), m_hooked_methods.end(), [method](auto& a) { return a.method == method; });
+
+    if (it == m_hooked_methods.end()) {
+        return HookManager::PreHookResult::CALL_ORIGINAL;
+    }
+
+    auto& hooked_method = *it;
+    ++hooked_method.call_count;
+
+    auto result = HookManager::PreHookResult::CALL_ORIGINAL;
+
+    if (hooked_method.skip) {
+        result = HookManager::PreHookResult::SKIP_ORIGINAL;
+    }
+
+    return result;
+}
+
+HookManager::PreHookResult ObjectExplorer::pre_hooked_method(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys, void* reserved, sdk::REMethodDefinition* method) {
+    return ObjectExplorer::get()->pre_hooked_method_internal(args, arg_tys, reserved, method);
 }

@@ -5,9 +5,12 @@
 #include <unordered_set>
 #include <imgui.h>
 #include <json.hpp>
+#include <asmjit/asmjit.h>
+#include <asmjit/x86/x86assembler.h>
 
 #include "utility/Address.hpp"
 #include "Tool.hpp"
+#include "HookManager.hpp"
 
 #ifdef DMC5
 #define TDB_DUMP_ALLOWED
@@ -140,6 +143,7 @@ public:
     
 private:
     void display_pins();
+    void display_hooks();
 
 #ifdef TDB_DUMP_ALLOWED
     std::shared_ptr<detail::ParsedType> init_type_min(nlohmann::json& il2cpp_dump, sdk::RETypeDB* tdb, uint32_t i);
@@ -166,7 +170,8 @@ private:
 
     bool widget_with_context(void* address, std::function<bool()> widget);
     bool widget_with_context(void* address, const std::string& name, std::function<bool()> widget);
-    void context_menu(void* address, std::optional<std::string> name = std::nullopt);
+    void context_menu(void* address, std::optional<std::string> name = std::nullopt, std::optional<std::function<void()>> additional_context = std::nullopt);
+    void method_context_menu(sdk::REMethodDefinition* method, std::optional<std::string> name);
     void make_same_line_text(std::string_view text, const ImVec4& color);
 
     void make_tree_offset(REManagedObject* object, uint32_t offset, std::string_view name, std::function<void()> widget = nullptr);
@@ -210,13 +215,28 @@ private:
         return path;
     }
 
+    HookManager::PreHookResult pre_hooked_method_internal(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys, void* reserved, sdk::REMethodDefinition* method);
+    static HookManager::PreHookResult pre_hooked_method(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys, void* reserved, sdk::REMethodDefinition* method);
+
     struct PinnedObject {
         Address address{};
         std::string name{};
         std::string path{};
     };
 
+    struct HookedMethod {
+        std::string name{};
+        sdk::REMethodDefinition* method{nullptr};
+        uintptr_t jitted_function{};
+        bool skip{false};
+        size_t hook_id{};
+        uint32_t call_count{};
+    };
+
+    asmjit::JitRuntime m_jit_runtime;
+
     std::vector<PinnedObject> m_pinned_objects{};
+    std::vector<HookedMethod> m_hooked_methods{};
     std::deque<std::string> m_current_path{};
 
     inline static const ImVec4 VARIABLE_COLOR{ 100.0f / 255.0f, 149.0f / 255.0f, 237.0f / 255.0f, 255 / 255.0f };
