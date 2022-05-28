@@ -592,7 +592,6 @@ void ScriptRunner::on_draw_ui() {
         ImGui::SameLine();
 
         if (ImGui::Button("Reset scripts")) {
-            m_last_script_error.clear();
             reset_scripts();
         }
 
@@ -695,6 +694,11 @@ void ScriptRunner::spew_error(const std::string& p) {
 
 void ScriptRunner::reset_scripts() {
     std::scoped_lock _{ m_access_mutex };
+
+    {
+        std::unique_lock _{ m_script_error_mutex };
+        m_last_script_error.clear();
+    }
 
     if (m_state != nullptr) {
         auto& mods = g_framework->get_mods()->get_mods();
