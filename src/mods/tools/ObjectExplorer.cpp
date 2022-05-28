@@ -2622,17 +2622,24 @@ void ObjectExplorer::display_native_methods(REManagedObject* obj, sdk::RETypeDef
             std::stringstream ss{};
             ss << method_name << "(";
 
+            std::stringstream ss_context{};
+            ss_context << method_name << "(";
+
             for (auto i = 0; i < method_param_types.size(); i++) {
                 if (i > 0) {
                     ss << ", ";
+                    ss_context << ", ";
                 }
                 ss << method_param_types[i]->get_full_name() << " " << method_param_names[i];
+                ss_context << method_param_types[i]->get_full_name();
             }
 
             ss << ")";
+            ss_context << ")";
             const auto method_prototype = ss.str();
+            const auto method_prototype_context = ss_context.str();
 
-            const auto made_node = widget_with_context(method_ptr, method_prototype, [&]() { return stretched_tree_node(&m, "%s", method_return_type_name.c_str()); });
+            const auto made_node = widget_with_context(method_ptr, method_prototype_context, [&]() { return stretched_tree_node(&m, "%s", method_return_type_name.c_str()); });
             const auto tree_hovered = ImGui::IsItemHovered();
 
             // Draw the method name with a color
