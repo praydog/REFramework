@@ -64,12 +64,16 @@ public:
     void on_draw_ui() override;
 
     void on_update_transform(RETransform* transform);
+    void on_pre_application_entry(void* entry, const char* name, size_t hash) override;
     void on_application_entry(void* entry, const char* name, size_t hash) override;
 
 private:
     const ModToggle::Ptr m_enabled{ ModToggle::create(generate_name("Enabled"), false) };
     const ModToggle::Ptr m_disable_vignette{ ModToggle::create(generate_name("DisableVignette"), true) };
     const ModSlider::Ptr m_vignette_brightness{ ModSlider::create(generate_name("VignetteBrightness"), -1.0, 1.0, 0.0f ) };
+
+    const ModToggle::Ptr m_use_custom_global_fov{ ModToggle::create(generate_name("GlobalFOVEnabled"), false) };
+    const ModSlider::Ptr m_global_fov{ ModSlider::create(generate_name("GlobalFOV"), 0.0f, 180.0f, 81.0f) };
 
 #ifdef RE8
     const ModSlider::Ptr m_fov{ ModSlider::create(generate_name("FOV"), 0.0f, 180.0f, 81.0f) };
@@ -80,6 +84,8 @@ private:
         *m_enabled,
         *m_disable_vignette,
         *m_vignette_brightness,
+        *m_use_custom_global_fov,
+        *m_global_fov,
 
 #ifdef RE8
         *m_fov,

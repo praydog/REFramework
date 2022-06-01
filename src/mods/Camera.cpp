@@ -39,9 +39,15 @@ void Camera::on_draw_ui() {
 #endif
 
 #ifdef RE8
-    m_fov->draw("FOV");
-    m_fov_aiming->draw("Aiming FOV");
+    m_fov->draw("RE8 FOV");
+    m_fov_aiming->draw("RE8 Aiming FOV");
 #endif
+
+    ImGui::Separator();
+    ImGui::TextWrapped("These below settings are separate and do not require \"Enabled\" to be ticked.");
+
+    m_use_custom_global_fov->draw("Use Custom Global FOV");
+    m_global_fov->draw("Global FOV");
 }
 
 void Camera::on_update_transform(RETransform* transform) {
@@ -71,6 +77,22 @@ void Camera::on_update_transform(RETransform* transform) {
         }
     }
 #endif
+}
+
+void Camera::on_pre_application_entry(void* entry, const char* name, size_t hash) {
+    if (hash == "BeginRendering"_fnv) {
+        if (m_use_custom_global_fov->value()) {
+            auto camera = sdk::get_primary_camera();
+
+            if (camera != nullptr) {
+                static auto set_fov = sdk::find_method_definition("via.Camera", "set_FOV");
+
+                if (set_fov != nullptr) {
+                    set_fov->call<void*>(sdk::get_thread_context(), camera, m_global_fov->value());
+                }
+            }
+        }
+    }
 }
 
 void Camera::on_application_entry(void* entry, const char* name, size_t hash) {
