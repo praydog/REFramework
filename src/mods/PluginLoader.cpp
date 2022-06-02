@@ -276,7 +276,8 @@ REFrameworkTDBTypeDefinition g_type_definition_data {
     [](REFrameworkTypeDefinitionHandle tdef) { return (REFrameworkTypeDefinitionHandle)RETYPEDEF(tdef)->get_parent_type(); },
     [](REFrameworkTypeDefinitionHandle tdef) { return (REFrameworkTypeDefinitionHandle)RETYPEDEF(tdef)->get_declaring_type(); },
     [](REFrameworkTypeDefinitionHandle tdef) { return (REFrameworkTypeDefinitionHandle)RETYPEDEF(tdef)->get_underlying_type(); },
-    [](REFrameworkTypeDefinitionHandle tdef) { return (REFrameworkTypeInfoHandle)RETYPEDEF(tdef)->get_type(); }
+    [](REFrameworkTypeDefinitionHandle tdef) { return (REFrameworkTypeInfoHandle)RETYPEDEF(tdef)->get_type(); },
+    [](REFrameworkTypeDefinitionHandle tdef) { return (REFrameworkManagedObjectHandle)RETYPEDEF(tdef)->get_runtime_type(); }
 };
 
 #define REMETHOD(var) ((sdk::REMethodDefinition*)var)

@@ -7,7 +7,7 @@
 #endif
 
 #define REFRAMEWORK_PLUGIN_VERSION_MAJOR 1
-#define REFRAMEWORK_PLUGIN_VERSION_MINOR 2
+#define REFRAMEWORK_PLUGIN_VERSION_MINOR 3
 #define REFRAMEWORK_PLUGIN_VERSION_PATCH 0
 
 #define REFRAMEWORK_RENDERER_D3D11 0
@@ -168,6 +168,7 @@ typedef struct {
     REFrameworkTypeDefinitionHandle (*get_underlying_type)(REFrameworkTypeDefinitionHandle);
 
     REFrameworkTypeInfoHandle (*get_type_info)(REFrameworkTypeDefinitionHandle);
+    REFrameworkManagedObjectHandle (*get_runtime_type)(REFrameworkTypeDefinitionHandle);
 } REFrameworkTDBTypeDefinition;
 
 /*
