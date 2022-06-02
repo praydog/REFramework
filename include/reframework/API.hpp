@@ -437,6 +437,10 @@ public:
         API::TypeInfo* get_type_info() const {
             return (API::TypeInfo*)API::s_instance->sdk()->type_definition->get_type_info(*this);
         }
+
+        API::ManagedObject* get_runtime_type() const {
+            return (API::ManagedObject*)API::s_instance->sdk()->type_definition->get_runtime_type(*this);
+        }
     };
 
     struct Method {
