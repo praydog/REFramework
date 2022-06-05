@@ -1,9 +1,11 @@
 #include "tools/GameObjectsDisplay.hpp"
+#include "tools/ChainViewer.hpp"
 #include "tools/ObjectExplorer.hpp"
 
 #include "DeveloperTools.hpp"
 
 DeveloperTools::DeveloperTools() {
+    m_tools.emplace_back(std::make_shared<ChainViewer>());
     m_tools.emplace_back(std::make_shared<GameObjectsDisplay>());
     m_tools.emplace_back(ObjectExplorer::get());
 }
