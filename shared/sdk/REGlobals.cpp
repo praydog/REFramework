@@ -34,6 +34,11 @@ REGlobals::REGlobals() {
     for (auto i = utility::scan(start, end - start, pat); i.has_value(); i = utility::scan(*i + 1, end - (*i + 1), pat)) {
         auto ptr = utility::calculate_absolute(*i + 3);
 
+        // Make sure the global is within the module boundaries
+        if (ptr < start || ptr > (end - 8)) {
+            continue;
+        }
+
         // Make sure the pointer is aligned on an 8-byte boundary.
         if (ptr == 0 || ((uintptr_t)ptr & (sizeof(void*) - 1)) != 0) {
             continue;
