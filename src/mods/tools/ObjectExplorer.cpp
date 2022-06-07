@@ -2790,9 +2790,12 @@ void ObjectExplorer::display_native_methods(REManagedObject* obj, sdk::RETypeDef
                     }
                 }
 
-                if (ImGui::BeginTable("##disassembly", 2,  ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable)) {
+                if (ImGui::BeginTable("##disassembly", 3,  ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable)) {
                     ImGui::TableNextColumn();
                     ImGui::Text("Address");
+
+                    ImGui::TableNextColumn();
+                    ImGui::Text("Bytes");
 
                     ImGui::TableNextColumn();
                     ImGui::Text("Instruction");
@@ -2822,6 +2825,16 @@ void ObjectExplorer::display_native_methods(REManagedObject* obj, sdk::RETypeDef
 
                         ImGui::TableNextColumn();
                         ImGui::Text("0x%p", ip);
+
+                        ImGui::TableNextColumn();
+                        // show the bytes
+                        for (auto j = 0; j < is.length; j++) {
+                            if (j > 0) {
+                                ImGui::SameLine();
+                            }
+
+                            ImGui::Text("%02X", ((uint8_t*)ip)[j]);
+                        }
 
                         ImGui::TableNextColumn();
                         ImGui::Text(buffer);
