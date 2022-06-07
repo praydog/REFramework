@@ -6,6 +6,8 @@
 #include <regex>
 #include <json.hpp>
 
+#include <Zydis/Zydis.h>
+
 #include <windows.h>
 
 #include "utility/String.hpp"
@@ -476,7 +478,7 @@ void ObjectExplorer::on_draw_dev_ui() {
                     }
                 }
             } catch (...) {
-                
+
             }
         }
     }
@@ -2786,6 +2788,53 @@ void ObjectExplorer::display_native_methods(REManagedObject* obj, sdk::RETypeDef
 
                         ImGui::EndTable();
                     }
+                }
+
+                if (ImGui::BeginTable("##disassembly", 2,  ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable)) {
+                    ImGui::TableNextColumn();
+                    ImGui::Text("Address");
+
+                    ImGui::TableNextColumn();
+                    ImGui::Text("Instruction");
+
+                    // Show a short disassembly of the method
+                    ZydisDecoder decoder;
+                    ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_64, ZYDIS_STACK_WIDTH_64);
+                    ZydisDecodedInstruction is{};
+                    ZydisDecodedOperand ops[ZYDIS_MAX_OPERAND_COUNT_VISIBLE]{};
+
+                    ZydisFormatter formatter;
+                    ZydisFormatterInit(&formatter, ZYDIS_FORMATTER_STYLE_INTEL);
+
+                    auto ip = (uintptr_t)method_ptr;
+
+                    for (auto i = 0; i < 10; i++) {
+                        if (ZYAN_FAILED(
+                            ZydisDecoderDecodeFull(
+                                &decoder, (void*)ip, 256, &is,
+                                ops, ZYDIS_MAX_OPERAND_COUNT_VISIBLE, ZYDIS_DFLAG_VISIBLE_OPERANDS_ONLY))) 
+                        {
+                            break;
+                        }
+
+                        char buffer[256]{};
+                        ZydisFormatterFormatInstruction(&formatter, &is, ops, is.operand_count_visible, buffer, sizeof(buffer), ip);
+
+                        ImGui::TableNextColumn();
+                        ImGui::Text("0x%p", ip);
+
+                        ImGui::TableNextColumn();
+                        ImGui::Text(buffer);
+
+                        ip += is.length;
+
+                        // check if ret or int3 and stop
+                        if (is.mnemonic == ZYDIS_MNEMONIC_RET || is.mnemonic == ZYDIS_MNEMONIC_INT3) {
+                            break;
+                        }
+                    }
+
+                    ImGui::EndTable();
                 }
 
                 ImGui::TreePop();
