@@ -3,6 +3,7 @@
 #include <forward_list>
 #include <deque>
 #include <algorithm>
+#include <regex>
 #include <json.hpp>
 
 #include <windows.h>
@@ -447,6 +448,8 @@ void ObjectExplorer::on_draw_dev_ui() {
         }
     }
 
+    ImGui::Checkbox("Search using Regex", &m_search_using_regex);
+
     if (m_do_init || ImGui::InputText("Type Name", m_type_name.data(), 256)) {
         m_displayed_types.clear();
 
@@ -454,14 +457,26 @@ void ObjectExplorer::on_draw_dev_ui() {
             m_displayed_types.push_back(t);
         }
         else {
-            // Search the list for a partial match instead
-            for (auto i = std::find_if(m_sorted_types.begin(), m_sorted_types.end(), [this](const auto& a) { return a.find(m_type_name.data()) != std::string::npos; });
-                i != m_sorted_types.end();
-                i = std::find_if(i + 1, m_sorted_types.end(), [this](const auto& a) { return a.find(m_type_name.data()) != std::string::npos; }))
-            {
-                if (auto t = get_type(*i)) {
-                    m_displayed_types.push_back(t);
+            std::function<bool(const std::string&)> search_algo{};
+
+            if (m_search_using_regex) {
+                search_algo = [this](const auto& a) { return std::regex_search(a, std::regex{ m_type_name.data() }); };
+            } else {
+                search_algo = [this](const auto& a) { return a.find(m_type_name.data()) != std::string::npos; };
+            }
+
+            try {
+                // Search the list for a partial match instead
+                for (auto i = std::find_if(m_sorted_types.begin(), m_sorted_types.end(), search_algo);
+                    i != m_sorted_types.end();
+                    i = std::find_if(i + 1, m_sorted_types.end(), search_algo))
+                {
+                    if (auto t = get_type(*i)) {
+                        m_displayed_types.push_back(t);
+                    }
                 }
+            } catch (...) {
+                
             }
         }
     }
@@ -3656,30 +3671,65 @@ bool ObjectExplorer::is_filtered_type(std::string name) {
     return false;
 }
 
-bool ObjectExplorer::is_filtered_method(sdk::REMethodDefinition& m) {
+bool ObjectExplorer::is_filtered_method(sdk::REMethodDefinition& m) try {
     const auto method_name = m.get_name();
     const auto name = std::string_view{m_type_member.data()};
     if (name.empty()) {
         return true;
     }
-    if (std::string_view{method_name}.find(name) != std::string_view::npos) {
-        return true;
+
+    if (!m_search_using_regex) {
+        if (std::string_view{method_name}.find(name) != std::string_view::npos) {
+            return true;
+        }
+    } else {
+        if (std::regex_search(method_name, std::regex{name.data()})) {
+            return true;
+        }
     }
+
     const auto method_return_type = m.get_return_type();
     const std::string method_return_type_name = method_return_type != nullptr ? method_return_type->get_full_name() : "";
-    if (method_return_type_name.find(name) != std::string::npos) {
-        return true;
+
+    if (!m_search_using_regex) {
+        if (method_return_type_name.find(name) != std::string::npos) {
+            return true;
+        }
+    } else {
+        if (std::regex_search(method_return_type_name, std::regex{name.data()})) {
+            return true;
+        }
     }
+
+    std::function<bool(std::string_view a)> search_algo_params{};
+
+    if (!m_search_using_regex) {
+        search_algo_params = [name](std::string_view a) { return a.find(name) != std::string_view::npos; };
+    } else {
+        search_algo_params = [name](std::string_view a) { return std::regex_search(a.data(), std::regex{name.data()}); };
+    }
+
     const auto method_param_names = m.get_param_names();
-    if (auto i = std::find_if(method_param_names.begin(), method_param_names.end(), [name](std::string_view a) { return a.find(name) != std::string_view::npos; });
+    if (auto i = std::find_if(method_param_names.begin(), method_param_names.end(), search_algo_params);
         i != method_param_names.end()) {
         return true;
     }
+
+    std::function<bool(sdk::RETypeDefinition* a)> search_algo_types{};
+
+    if (!m_search_using_regex) {
+        search_algo_types = [name](sdk::RETypeDefinition* a) { return std::string_view{a->get_name()}.find(name) != std::string_view::npos; };
+    } else {
+        search_algo_types = [name](sdk::RETypeDefinition* a) { return std::regex_search(a->get_name(), std::regex{name.data()}); };
+    }
+
     const auto method_param_types = m.get_param_types();
-    if (auto i = std::find_if(method_param_types.begin(), method_param_types.end(), [name](auto a) { return std::string_view{a->get_name()}.find(name) != std::string_view::npos; });
+    if (auto i = std::find_if(method_param_types.begin(), method_param_types.end(), search_algo_types);
         i != method_param_types.end()) {
         return true;
     }
+    return false;
+} catch (...) {
     return false;
 }
 
