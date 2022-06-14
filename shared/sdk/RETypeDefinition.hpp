@@ -28,15 +28,15 @@ using RETypeDefinition_ = sdk::RETypeDefVersion69;
 #elif defined(RE8)
 #define TYPE_INDEX_BITS 18
 using RETypeDefinition_ = sdk::RETypeDefVersion69;
-#elif defined(RE3) || defined(DMC5)
+#elif defined(DMC5)
 #define TYPE_INDEX_BITS 17
 using RETypeDefinition_ = sdk::RETypeDefVersion67;
-#elif RE2
-#define TYPE_INDEX_BITS 16
-using RETypeDefinition_ = sdk::RETypeDefVersion66;
+#elif defined(RE2) || defined(RE3)
+#define TYPE_INDEX_BITS 18
+using RETypeDefinition_ = sdk::RETypeDefVersion69;
 #elif RE7
-#define TYPE_INDEX_BITS 16
-using RETypeDefinition_ = sdk::RETypeDefVersion49;
+#define TYPE_INDEX_BITS 18
+using RETypeDefinition_ = sdk::RETypeDefVersion69;
 #endif
 
 struct RETypeDefVersion69 {

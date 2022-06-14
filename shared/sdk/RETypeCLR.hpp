@@ -7,12 +7,12 @@
 
 #include "ReClass.hpp"
 
-#ifdef RE7
+#if TDB_VER <= 49
 #include "sdk/regenny/re7/via/reflection/Property.hpp"
 #include "sdk/regenny/re7/via/typeinfo/TypeInfoCLR.hpp"
 #endif
 
-#ifdef RE7
+#if TDB_VER <= 49
 // RE7 does not embed the sizes and alignments
 // within the deserializer structures,
 // so we need to define them here.
@@ -72,7 +72,7 @@ namespace sdk {
 struct RETypeDefinition;
 
 struct DeserializeSequence {
-#ifndef RE7
+#if TDB_VER > 49
     uint32_t code : 8;
     uint32_t size : 8;
     uint32_t align : 8;
@@ -86,7 +86,7 @@ struct DeserializeSequence {
     
     uint32_t offset;
 
-#ifndef RE7
+#if TDB_VER > 49
     sdk::RETypeDefinition* native_type;
 #else
     regenny::via::reflection::Property* prop; // aka REVariableDescriptor in ReClass
@@ -95,7 +95,7 @@ struct DeserializeSequence {
 // Helper functions
 public:
     sdk::RETypeDefinition* get_native_type() const {
-#ifdef RE7
+#if TDB_VER <= 49
         if (prop != nullptr && prop->vm_field != nullptr && prop->vm_field->type != nullptr && prop->vm_field->type->tdb_type != nullptr) {
             return (sdk::RETypeDefinition*)prop->vm_field->type->tdb_type;
         }
@@ -111,7 +111,7 @@ public:
     }
 
     uint16_t get_size() const {
-#ifdef RE7
+#if TDB_VER <= 49
         return (uint16_t)typekind_sizes[code];
 #else
         return size;
@@ -119,7 +119,7 @@ public:
     }
 
     uint16_t get_align() const {
-#ifdef RE7
+#if TDB_VER <= 49
         return (uint16_t)typekind_alignments[code];
 #else
         return align;
@@ -135,7 +135,7 @@ public:
     }
 
     bool is_array() const {
-#ifdef RE7
+#if TDB_VER <= 49
         if (prop == nullptr) {
             return false;
         }
@@ -148,7 +148,7 @@ public:
     }
 
     bool is_static() const {
-#ifdef RE7
+#if TDB_VER <= 49
         return false; // FIGURE IT OUT LATER
 #else
         return is_static_;
@@ -159,7 +159,7 @@ public:
 struct RETypeCLR : public ::REType {
     sdk::NativeArray<sdk::DeserializeSequence> deserializers;
 
-#ifndef RE7
+#if TDB_VER > 49
     class ::REType* native_type;
     char* name2;
 #else

@@ -19,9 +19,10 @@ InvokeMethod* get_invoke_table();
 #include <string_view>
 #include <exception>
 
+#include "TDBVer.hpp"
 #include "RETypeDB.hpp"
 
-#ifdef RE7
+#if TDB_VER <= 49
 #include "regenny/re7/via/clr/VM.hpp"
 #endif
 
@@ -34,7 +35,7 @@ struct REStaticTbl {
 };
 
 // AKA via.clr.VM
-#ifdef RE7
+#if TDB_VER <= 49
 class VM : public regenny::via::clr::VM {
 #else
 class VM {

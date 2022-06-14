@@ -40,7 +40,7 @@ namespace sdk {
     }
 
     uint8_t* VM::get_static_tbl_for_type(uint32_t type_index) {
-#ifndef RE7
+#if TDB_VER > 49
         auto& tbls = get_static_tbl();
 
         /*if (type_index >= tbls.size) {
@@ -148,6 +148,7 @@ namespace sdk {
                 spdlog::info("[VM::update_pointers] s_type_db_offset: {:x}", s_type_db_offset);
                 spdlog::info("[VM::update_pointers] s_static_tbl_offset: {:x}", s_static_tbl_offset);
                 spdlog::info("[VM::update_pointers] TDB Version: {}", version);
+                spdlog::info("[VM::update_pointers] TDB: {:x}", (uintptr_t)ptr);
                 break;
             }
         }
@@ -158,7 +159,7 @@ namespace sdk {
         // Get invoke_tbl
         // this SEEMS to work on RE2 and onwards, but not on RE7
         // look into it later
-#ifndef RE7
+#if TDB_VER > 49
         // Just a potential method inside the table
         // we will scan for something pointing to it,
         // meaning that we will land in the middle of the invoke table somwhere

@@ -48,7 +48,7 @@ Mods::Mods() {
 
     m_mods.emplace_back(std::make_unique<FreeCam>());
 
-#ifndef RE7
+#if TDB_VER > 49
     m_mods.emplace_back(std::make_unique<SceneMods>());
 #endif
 

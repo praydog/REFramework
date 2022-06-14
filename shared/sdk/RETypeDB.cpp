@@ -318,7 +318,7 @@ sdk::RETypeDefinition* REMethodDefinition::get_return_type() const {
     auto tdb = RETypeDB::get();
 
 #if TDB_VER >= 69
-    auto param_ids = tdb->get_data<REParamList>(this->params);
+    auto param_ids = tdb->get_data<sdk::ParamList>(this->params);
     
     const auto return_param_id = param_ids->returnType;
     const auto& p = (*tdb->params)[return_param_id];
@@ -355,7 +355,7 @@ const char* REMethodDefinition::get_name() const {
 }
 
 void* REMethodDefinition::get_function() const {
-#ifndef RE7
+#if TDB_VER > 49
     return this->function;
 #else
     auto vm = sdk::VM::get();
@@ -370,7 +370,7 @@ uint32_t sdk::REMethodDefinition::get_invoke_id() const {
 
 #if TDB_VER >= 69
     const auto param_list = (uint32_t)this->params;
-    const auto param_ids = tdb->get_data<REParamList>(param_list);
+    const auto param_ids = tdb->get_data<sdk::ParamList>(param_list);
     const auto num_params = param_ids->numParams;
     const auto invoke_id = param_ids->invokeID;
 #else
@@ -389,7 +389,7 @@ reframework::InvokeRet sdk::REMethodDefinition::invoke(void* object, const std::
         return reframework::InvokeRet{};
     }
 
-#ifndef RE7
+#if TDB_VER > 49
     const auto invoke_tbl = sdk::get_invoke_table();
     auto invoke_wrapper = invoke_tbl[get_invoke_id()];
 
@@ -814,7 +814,7 @@ uint32_t sdk::REMethodDefinition::get_num_params() const {
 #if TDB_VER >= 69
     auto tdb = RETypeDB::get();
     const auto param_list = (uint32_t)this->params;
-    const auto param_ids = tdb->get_data<REParamList>(param_list);
+    const auto param_ids = tdb->get_data<sdk::ParamList>(param_list);
     return param_ids->numParams;
 #else
 #if TDB_VER >= 66
@@ -835,7 +835,7 @@ std::vector<uint32_t> REMethodDefinition::get_param_typeids() const {
 
     // Parameters
 #if TDB_VER >= 69
-    auto param_ids = tdb->get_data<REParamList>(param_list);
+    auto param_ids = tdb->get_data<sdk::ParamList>(param_list);
     const auto num_params = param_ids->numParams;
 
     // Parse all params
@@ -896,7 +896,7 @@ std::vector<const char*> REMethodDefinition::get_param_names() const {
     const auto param_list = (uint32_t)this->params;
 
 #if TDB_VER >= 69
-    auto param_ids = tdb->get_data<REParamList>(param_list);
+    auto param_ids = tdb->get_data<sdk::ParamList>(param_list);
     const auto num_params = param_ids->numParams;
 
     // Parse all params

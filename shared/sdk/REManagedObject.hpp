@@ -91,7 +91,7 @@ T* get_field_ptr(::REManagedObject* object) {
         return nullptr;
     }
 
-#ifndef RE7
+#if TDB_VER > 49
     // object - 8. Dunno, just what the game does.
     const auto offset = Address(object).deref().sub(sizeof(void*)).to<int32_t>();
     return Address(object).get(offset).as<T*>();

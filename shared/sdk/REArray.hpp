@@ -29,7 +29,7 @@ static via::clr::VMObjType get_vm_type(::REClassInfo* c) {
         return via::clr::VMObjType::NULL_;
     }
 
-#if defined(RE8) || defined(MHRISE)
+#if TDB_VER >= 69
     return (via::clr::VMObjType)(c->objectFlags >> 5);
 #else
     return (via::clr::VMObjType)c->objectType;
@@ -50,7 +50,7 @@ namespace utility::re_array {
             return nullptr;
         }
 
-    #ifndef RE7
+    #if TDB_VER > 49
         return (::sdk::RETypeDefinition*)container->containedType;
     #else
         if (container->containedType->classInfo == nullptr) {
@@ -70,9 +70,9 @@ namespace utility::re_array {
             return sizeof(void*);
         }
 
-#if defined(RE8) || defined(MHRISE)
+#if TDB_VER >= 69
         const auto element_size = utility::re_type::get_value_type_size(container->containedType->type);
-#elif defined(RE7)
+#elif TDB_VER <= 49
         const auto element_size = container->containedType->classInfo->elementSize;
 #else
         const auto element_size = container->info->classInfo->elementSize;
@@ -86,7 +86,7 @@ namespace utility::re_array {
             return false;
         }
 
-    #ifndef RE7
+    #if TDB_VER > 49
         return utility::re_class_info::get_vm_type(container->containedType) == via::clr::VMObjType::ValType;
     #else
         if (container->containedType->classInfo == nullptr) {

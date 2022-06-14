@@ -3,25 +3,21 @@
 #include <cstdint>
 #include "Math.hpp"
 
+#include "TDBVer.hpp"
+
 #pragma pack(push, r1, 1)
 #ifdef DMC5
-#define TDB_VER 67
 #include "ReClass_Internal_DMC5.hpp"
 #elif defined(MHRISE)
-#define TDB_VER 70
 #include "ReClass_Internal_RE8.hpp"
 #elif defined(RE8)
-#define TDB_VER 69
 #include "ReClass_Internal_RE8.hpp"
 #elif RE3
-#define TDB_VER 67
-#include "ReClass_Internal_RE3.hpp"
+#include "ReClass_Internal_RE3_TDB70.hpp"
 #elif RE2
-#define TDB_VER 66
-#include "ReClass_Internal.hpp"
+#include "ReClass_Internal_RE2_TDB70.hpp"
 #elif RE7
-#define TDB_VER 49
-#include "ReClass_Internal_RE7.hpp"
+#include "ReClass_Internal_RE2_TDB70.hpp"
 #endif
 #pragma pack(pop, r1)
 

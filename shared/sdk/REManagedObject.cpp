@@ -37,7 +37,7 @@ void add_ref(REManagedObject* object) {
 
     //spdlog::info("Pushing: {} {} {:x}", (int32_t)object->referenceCount, utility::re_managed_object::get_type_definition(object)->get_full_name(), (uintptr_t)object);
 
-#ifdef RE7
+#if TDB_VER <= 49
     if ((int32_t)object->referenceCount >= 0) {
         _InterlockedIncrement(&object->referenceCount);
     } else {
@@ -104,7 +104,7 @@ bool is_managed_object(Address address) {
         return false;
     }
 
-#ifndef RE7
+#if TDB_VER > 49
     if (class_info->parentInfo != object->info || class_info->type == nullptr) {
         return false;
     }
@@ -165,7 +165,7 @@ REType* get_type(::REManagedObject* object) {
         return nullptr;
     }
 
-#ifndef RE7
+#if TDB_VER > 49
     auto class_info = info->classInfo;
 
     if (class_info == nullptr) {
@@ -241,7 +241,7 @@ via::clr::VMObjType get_vm_type(::REManagedObject* object) {
         return via::clr::VMObjType::NULL_;
     }
 
-#if defined(RE8) || defined(MHRISE)
+#if TDB_VER >= 69
     return (via::clr::VMObjType)(info->classInfo->objectFlags >> 5);
 #else
     return (via::clr::VMObjType)info->classInfo->objectType;
@@ -255,7 +255,7 @@ uint32_t get_size(::REManagedObject* object) {
         return 0;
     }
 
-#ifndef RE7
+#if TDB_VER > 49
     auto class_info = info->classInfo;
     auto size = class_info->size;
 #else

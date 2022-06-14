@@ -12,24 +12,20 @@
 #include "Tool.hpp"
 #include "HookManager.hpp"
 
+#include <sdk/TDBVer.hpp>
+
 #ifdef DMC5
 #define TDB_DUMP_ALLOWED
-#define TDB_VER 67
 #elif defined(MHRISE)
 #define TDB_DUMP_ALLOWED
-#define TDB_VER 70
 #elif defined(RE8)
 #define TDB_DUMP_ALLOWED
-#define TDB_VER 69
 #elif RE3
 #define TDB_DUMP_ALLOWED
-#define TDB_VER 67
 #elif RE2
 #define TDB_DUMP_ALLOWED
-#define TDB_VER 66
 #elif RE7
 #define TDB_DUMP_ALLOWED
-#define TDB_VER 49
 #endif
 
 namespace sdk {

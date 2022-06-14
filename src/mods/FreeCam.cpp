@@ -137,8 +137,16 @@ void FreeCam::on_update_transform(RETransform* transform) {
         }
 #endif
 
-        if (joint != nullptr && transform->joints.matrices != nullptr) {
+        /*if (joint != nullptr && transform->joints.matrices != nullptr) {
             m_last_camera_matrix = transform->joints.matrices->data[0].worldMatrix;
+        }
+        else {
+            m_last_camera_matrix = transform->worldTransform;
+        }*/
+
+        if (joint != nullptr) {
+            m_last_camera_matrix = Matrix4x4f{sdk::get_joint_rotation(joint)};
+            m_last_camera_matrix[3] = sdk::get_joint_position(joint);
         }
         else {
             m_last_camera_matrix = transform->worldTransform;
@@ -166,7 +174,7 @@ void FreeCam::on_update_transform(RETransform* transform) {
 
     // Update wanted camera position
     if (!m_lock_camera->value()) {
-#ifndef RE7
+#if TDB_VER > 49
         auto timescale = sdk::get_timescale();
 
         if (timescale == 0.0f) {
@@ -180,7 +188,7 @@ void FreeCam::on_update_transform(RETransform* transform) {
 #endif
 
         Vector4f dir{};
-#ifndef RE7
+#if TDB_VER > 49
         const auto delta = re_component::get_delta_time(transform);
 #else
         const auto delta = sdk::call_native_func_easy<float>(m_application.object, m_application.t, "get_DeltaTime");

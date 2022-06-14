@@ -10,7 +10,7 @@ sdk::RETypeDefinition* utility::re_type::get_type_definition(REType* type) {
         return nullptr;
     }
 
-#ifndef RE7
+#if TDB_VER > 49
     return (sdk::RETypeDefinition*)type->classInfo;
 #else
     return (sdk::RETypeDefinition*)type->classInfo->classInfo;
@@ -22,8 +22,8 @@ uint32_t utility::re_type::get_vm_type(::REType* t) {
         return (uint32_t)via::clr::VMObjType::NULL_;
     }
 
-#if !defined(RE8) && !defined(MHRISE)
-#ifndef RE7
+#if TDB_VER < 69
+#if TDB_VER > 49
     return (uint32_t)t->classInfo->objectType;
 #else
     return (uint32_t)t->classInfo->classInfo->objectType;
@@ -44,12 +44,12 @@ uint32_t utility::re_type::get_value_type_size(::REType* t) {
     }
 
 
-#if defined(RE8) || defined(MHRISE)
+#if TDB_VER >= 69
     auto class_info = (sdk::RETypeDefVersion69*)t->classInfo;
 
     return (*reframework::get_types()->get_type_db()->typesImpl)[class_info->impl_index].field_size;
 #else
-#ifndef RE7
+#if TDB_VER > 49
     auto class_info = t->classInfo;
 #else
     auto class_info = t->classInfo->classInfo;

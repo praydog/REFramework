@@ -3,7 +3,7 @@
 #include "ReClass.hpp"
 
 namespace sdk {
-#ifndef RE7
+#if TDB_VER > 49
 struct PropertyFlags {
     uint32_t type_kind : 5;
     uint32_t type_qual : 2;
@@ -29,7 +29,7 @@ static bool is_static(VariableDescriptor* v) {
 }
 
 static sdk::PropertyFlags get_flags(VariableDescriptor* v) {
-#ifndef RE7
+#if TDB_VER > 49
     return *(sdk::PropertyFlags*)&v->flags;
 #else
     auto result = *(sdk::PropertyFlags*)&v->typeKind;
@@ -40,7 +40,7 @@ static sdk::PropertyFlags get_flags(VariableDescriptor* v) {
 }
 
 static uint32_t get_size(VariableDescriptor* v) {
-#ifndef RE7
+#if TDB_VER > 49
     return get_flags(v).size;
 #else
     return v->size;

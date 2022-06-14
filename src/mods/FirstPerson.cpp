@@ -726,11 +726,13 @@ bool FirstPerson::update_pointers_from_camera_system(RopewayCameraSystem* camera
 
     // Update player name and log it
     if (m_player_transform != joint->parentTransform && joint->parentTransform != nullptr) {
-        if (joint->parentTransform->ownerGameObject == nullptr) {
+        auto owner = sdk::get_joint_owner(joint);
+
+        if (owner == nullptr || owner->ownerGameObject == nullptr) {
             return false;
         }
 
-        m_player_name = utility::re_string::get_string(joint->parentTransform->ownerGameObject->name);
+        m_player_name = utility::re_string::get_string(owner->ownerGameObject->name);
 
         if (m_player_name.empty()) {
             return false;
@@ -829,7 +831,7 @@ void FirstPerson::update_player_arm_ik(RETransform* transform) {
             return std::make_tuple<glm::quat, Vector4f>(glm::identity<glm::quat>(), Vector4f{});
         }
 
-        auto& wrist = utility::re_transform::get_joint_matrix(*transform, wrist_joint);
+        //auto& wrist = utility::re_transform::get_joint_matrix(*transform, wrist_joint);
 
         /*auto look_matrix = glm::extractMatrixRotation(Matrix4x4f{ m_last_controller_rotation }) 
                                                     * Matrix4x4f{ m_scale_debug2.x, 0.0f, 0.0f, 0.0f,
@@ -1751,7 +1753,7 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
         }
     }
 
-    if (transform->joints.matrices != nullptr && is_first_person_allowed()) {
+    if (is_first_person_allowed()) {
         auto joint = utility::re_transform::get_joint(*transform, 0);
 
         if (joint != nullptr) {
@@ -1791,19 +1793,20 @@ void FirstPerson::update_sweet_light_context(RopewaySweetLightManagerContext* ct
 }
 
 void FirstPerson::update_player_bones(RETransform* transform) {
-    if (g_first_time) {
-        auto& bone_matrix = utility::re_transform::get_joint_matrix(*m_player_transform, m_attach_bone);
+    auto joint = sdk::get_transform_joint_by_name(transform, m_attach_bone);
 
-        m_cached_bone_matrix = &bone_matrix;
-        m_last_bone_matrix = bone_matrix;
-        g_first_time = false;
-    }
-
-    if (m_cached_bone_matrix == nullptr) {
+    if (joint == nullptr) {
         return;
     }
 
-    auto& bone_matrix = *m_cached_bone_matrix;
+    auto& bone_matrix = utility::re_transform::get_joint_matrix(*m_player_transform, m_attach_bone);
+
+    if (g_first_time) {
+        m_last_bone_matrix = Matrix4x4f{sdk::get_joint_rotation(joint)};
+        m_last_bone_matrix[3] = sdk::get_joint_position(joint);
+
+        g_first_time = false;
+    }
 
     // Forcefully rotate the bone to match the camera direction
     if (m_camera_system->cameraController == m_player_camera_controller && m_rotate_mesh->value()) {
@@ -1883,15 +1886,14 @@ void FirstPerson::update_joint_names() {
         return;
     }
 
-    auto& joints = m_player_transform->joints;
+    auto joints = sdk::get_transform_joints(m_player_transform);
 
-#if !defined(RE8) && !defined(MHRISE)
-    for (int32_t i = 0; joints.data != nullptr && i < joints.size; ++i) {
-        auto joint = joints.data->joints[i];
-#else
-    for (int32_t i = 0; joints.data != nullptr && i < joints.data->numElements; ++i) {
-        auto joint = utility::re_array::get_element<REJoint>(joints.data, i);
-#endif
+    if (joints == nullptr) {
+        return;
+    }
+
+    for (auto i = 0; i < joints->size(); ++i) {
+        auto joint = (::REJoint*)joints->get_element(i);
 
         if (joint == nullptr || joint->info == nullptr || joint->info->name == nullptr) {
             continue;

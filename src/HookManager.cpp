@@ -63,6 +63,12 @@ void HookManager::HookedFn::on_post_hook() {
 }
 
 HookManager::HookId HookManager::add(sdk::REMethodDefinition* fn, HookManager::PreHookFn pre_fn, HookManager::PostHookFn post_fn, bool ignore_jmp) {
+    if (fn == nullptr) {
+        //throw std::exception{"[HookManager] Cannot add nullptr function"};
+        spdlog::error("[HookManager] Cannot add nullptr function");
+        return HookId{};
+    }
+    
     auto target_fn = ignore_jmp ? fn->get_function() : detail::get_actual_function(fn->get_function());
 
     spdlog::info("[HookManager] Adding hook for '{}' @ {:p}...", fn->get_name(), target_fn);

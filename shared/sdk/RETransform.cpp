@@ -35,6 +35,12 @@ REJoint* get_transform_joint_by_name(RETransform* transform, std::wstring_view n
     return get_joint_by_name_method->call<REJoint*>(sdk::get_thread_context(), transform, sdk::VM::create_managed_string(name));
 }
 
+sdk::SystemArray* get_transform_joints(RETransform* transform) {
+    static auto get_joints_method = sdk::find_type_definition("via.Transform")->get_method("get_Joints");
+
+    return get_joints_method->call<sdk::SystemArray*>(sdk::get_thread_context(), transform);
+}
+
 void set_transform_position(RETransform* transform, const Vector4f& pos, bool no_dirty) {
     if (!no_dirty) {
         static auto set_position_method = sdk::find_type_definition("via.Transform")->get_method("set_Position");
@@ -79,6 +85,16 @@ REJoint* sdk::get_joint_parent(REJoint* joint) {
 
     return utility::re_transform::get_joint(*joint_transform, joint->info->parentJoint);
 };
+
+::RETransform* sdk::get_joint_owner(::REJoint* joint) {
+    if (joint == nullptr) {
+        return nullptr;
+    }
+
+    static auto get_owner_method = sdk::find_method_definition("via.Joint", "get_Owner");
+
+    return get_owner_method->call<::RETransform*>(sdk::get_thread_context(), joint);
+}
 
 uint32_t get_joint_hash(REJoint* joint) {
     static auto get_hash_method = sdk::find_type_definition("via.Joint")->get_method("get_NameHash");
@@ -149,7 +165,36 @@ void sdk::set_joint_local_position(REJoint* joint, const Vector4f& position) {
 
 
 namespace utility::re_transform {
-glm::mat4 re_transform::calculate_base_transform(const ::RETransform& transform, REJoint* target) {
+REJoint* get_joint(const ::RETransform& transform, uint32_t index) {
+#if TDB_VER < 69
+    auto& joint_array = transform.joints;
+
+    if (joint_array.size <= 0 || joint_array.numAllocated <= 0 || joint_array.data == nullptr || joint_array.matrices == nullptr) {
+        return nullptr;
+    }
+
+    auto joint = joint_array.data->joints[index];
+
+    if (joint == nullptr) {
+        return nullptr;
+    }
+
+    auto joint_info = joint->info;
+
+    if (joint_info == nullptr || joint_info->name == nullptr) {
+        return nullptr;
+    }
+
+    return joint;
+#else
+    static auto get_joints_method = sdk::find_method_definition("via.Transform", "get_Joints");
+    auto joints = get_joints_method->call<REArrayBase*>(sdk::get_thread_context(), &transform);
+
+    return utility::re_array::get_element<REJoint>(joints, index);
+#endif
+}
+
+glm::mat4 calculate_base_transform(const ::RETransform& transform, REJoint* target) {
     static auto get_base_local_rotation_method = sdk::find_type_definition("via.Joint")->get_method("get_BaseLocalRotation");
     static auto get_base_local_position_method = sdk::find_type_definition("via.Joint")->get_method("get_BaseLocalPosition");
 

@@ -280,10 +280,9 @@ class REJointArray
 {
 public:
 	class REArrayBase *data; //0x0000
-	class JointMatrices *matrices; //0x0008
-	char pad_0010[256]; //0x0010
-}; //Size: 0x0110
-static_assert(sizeof(REJointArray) == 0x110);
+	char pad_0008[8]; //0x0008
+}; //Size: 0x0010
+static_assert(sizeof(REJointArray) == 0x10);
 
 class RETransform : public REComponent
 {
@@ -296,18 +295,17 @@ public:
 	class RETransform *next; //0x0070
 	class RETransform *parentTransform; //0x0078
 	Matrix4x4f worldTransform; //0x0080
-	class N00007EEE *N000007D8; //0x00C0
-	int32_t N00000804; //0x00C8
-	uint32_t tickCount; //0x00CC
-	bool sameJointsConstraint; //0x00D0
-	bool N0000081A; //0x00D1
-	char pad_00D2[1]; //0x00D2
-	bool absoluteScaling; //0x00D3
-	char pad_00D4[4]; //0x00D4
-	class REJointArray joints; //0x00D8
-	char pad_01E8[8]; //0x01E8
-}; //Size: 0x01F0
-static_assert(sizeof(RETransform) == 0x1F0);
+	class JointMatrices *jointMatrices; //0x00C0
+	class N000038F0 *jointHashes; //0x00C8
+	class REJointArray joints; //0x00D0
+	char pad_00E0[34]; //0x00E0
+	bool sameJointsConstraint; //0x0102
+	bool absoluteScaling; //0x0103
+	bool jointSegmentScale; //0x0104
+	bool jointFastLockScene; //0x0105
+	char pad_0106[10]; //0x0106
+}; //Size: 0x0110
+static_assert(sizeof(RETransform) == 0x110);
 
 class N0000B6D9
 {
@@ -576,39 +574,37 @@ public:
 	Vector4f pivotRotation; //0x0070
 	Vector4f worldPosition; //0x0080
 	Vector4f worldRotation; //0x0090 quaternion
-	char pad_00A0[24]; //0x00A0
-	class RECamera *activeCamera; //0x00B8
-	class REJoint *joint; //0x00C0
-	class RECameraParam *cameraParam; //0x00C8
-	class ValueTriggerBoolean *N0000772F; //0x00D0
-	char pad_00D8[8]; //0x00D8
-	class REBehavior *cascade; //0x00E0
-	class RECameraParam *cameraParam2; //0x00E8
-	char pad_00F0[8]; //0x00F0
-	class DampingFloat *controlDamping; //0x00F8
-	class DampingFloat *controlDamping2; //0x0100
-	class TwirlerCameraSettings *cameraLimitSettings; //0x0108
-	bool isNotUsingWeapon; //0x0110 IDK, but it gets set to true when not using a weap.
-	char pad_0111[7]; //0x0111
-	float pitch; //0x0118
-	float yaw; //0x011C
-	float pitchVelocity; //0x0120
-	float yawVelocity; //0x0124
-	class DampingFloat *controlDamping3; //0x0128
-	class DampingFloat *controlDamping4; //0x0130
-	char pad_0138[32]; //0x0138
-	class DampingFloat *controlDamping5; //0x0158
-	char pad_0160[16]; //0x0160
-	uint32_t cameraMode; //0x0170 3 == in weapon?
-	char pad_0174[4]; //0x0174
-	class RopewayCameraInterpolationPrame *N0000773F; //0x0178
-	char pad_0180[72]; //0x0180
-	uint32_t N00007748; //0x01C8
-	char pad_01CC[52]; //0x01CC
-	float N00002602; //0x0200
-	char pad_0204[28]; //0x0204
-}; //Size: 0x0220
-static_assert(sizeof(RopewayPlayerCameraController) == 0x220);
+	char pad_00A0[8]; //0x00A0
+	class RECamera *activeCamera; //0x00A8
+	class REJoint *joint; //0x00B0
+	class RECameraParam *cameraParam; //0x00B8
+	class ValueTriggerBoolean *N0000772F; //0x00C0
+	char pad_00C8[8]; //0x00C8
+	class REBehavior *cascade; //0x00D0
+	class RECameraParam *cameraParam2; //0x00D8
+	char pad_00E0[8]; //0x00E0
+	class DampingFloat *controlDamping; //0x00E8
+	class DampingFloat *controlDamping2; //0x00F0
+	class TwirlerCameraSettings *cameraLimitSettings; //0x00F8
+	bool isNotUsingWeapon; //0x0100 IDK, but it gets set to true when not using a weap.
+	char pad_0101[7]; //0x0101
+	float pitch; //0x0108
+	float yaw; //0x010C
+	class DampingFloat *controlDamping3; //0x0110
+	class DampingFloat *controlDamping4; //0x0118
+	char pad_0120[24]; //0x0120
+	class DampingFloat *controlDamping5; //0x0138
+	char pad_0140[16]; //0x0140
+	uint32_t cameraMode; //0x0150 3 == in weapon?
+	char pad_0154[4]; //0x0154
+	class RopewayCameraInterpolationPrame *N0000773F; //0x0158
+	char pad_0160[72]; //0x0160
+	uint32_t N00007748; //0x01A8
+	char pad_01AC[52]; //0x01AC
+	float N00002602; //0x01E0
+	char pad_01E4[28]; //0x01E4
+}; //Size: 0x0200
+static_assert(sizeof(RopewayPlayerCameraController) == 0x200);
 
 class REJoint : public REManagedObject
 {
@@ -4062,3 +4058,17 @@ public:
 	char pad_0000[136]; //0x0000
 }; //Size: 0x0088
 static_assert(sizeof(N0000301D) == 0x88);
+
+class N000038E8
+{
+public:
+	char pad_0000[8]; //0x0000
+}; //Size: 0x0008
+static_assert(sizeof(N000038E8) == 0x8);
+
+class N000038F0
+{
+public:
+	char pad_0000[136]; //0x0000
+}; //Size: 0x0088
+static_assert(sizeof(N000038F0) == 0x88);

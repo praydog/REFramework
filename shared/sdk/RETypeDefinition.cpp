@@ -141,7 +141,7 @@ static std::shared_mutex g_full_name_mtx{};
 std::string RETypeDefinition::get_full_name() const {
     auto tdb = RETypeDB::get();
 
-#ifdef RE7
+#if TDB_VER <= 49
     return tdb->get_string(this->full_name_offset); // uhh thanks?
 #else
     {
@@ -200,7 +200,7 @@ std::string RETypeDefinition::get_full_name() const {
         g_full_names[this->get_index()] = full_name;
     }
 
-#ifndef RE7
+#if TDB_VER > 49
     if (this->generics > 0) {
         auto generics = tdb->get_data<sdk::GenericListData>(this->generics);
 
@@ -298,7 +298,7 @@ sdk::RETypeDefinition* RETypeDefinition::get_underlying_type() const {
         return nullptr;
     }
 
-#ifndef RE7
+#if TDB_VER > 49
     // get the underlying type of the enum
     // and then hash the name of the type instead
     static auto get_underlying_type_method = this->get_method("GetUnderlyingType");
@@ -443,7 +443,7 @@ std::vector<sdk::REMethodDefinition*> RETypeDefinition::get_methods(std::string_
 }
 
 uint32_t RETypeDefinition::get_index() const {
-#ifndef RE7
+#if TDB_VER > 49
     return this->index;
 #else
     const auto tdb = RETypeDB::get();
@@ -453,7 +453,7 @@ uint32_t RETypeDefinition::get_index() const {
 }
 
 int32_t RETypeDefinition::get_fieldptr_offset() const {
-#ifndef RE7
+#if TDB_VER > 49
     if (this->managed_vt == nullptr) {
         return 0;
     }
@@ -468,7 +468,7 @@ int32_t RETypeDefinition::get_fieldptr_offset() const {
 }
 
 bool RETypeDefinition::has_fieldptr_offset() const {
-#ifndef RE7
+#if TDB_VER > 49
     return this->managed_vt != nullptr;
 #else
     return true;
@@ -605,7 +605,7 @@ bool RETypeDefinition::is_primitive() const {
         }
     }
 
-#ifndef RE7
+#if TDB_VER > 49
     std::unique_lock _{g_primitive_mtx};
 
     auto runtime_type = this->get_runtime_type();
@@ -659,7 +659,7 @@ bool RETypeDefinition::is_primitive() const {
 }
 
 uint32_t RETypeDefinition::get_crc_hash() const {
-#ifndef RE7
+#if TDB_VER > 49
     const auto t = get_type();
     return t != nullptr ? t->typeCRC : this->type_crc;
 #else
@@ -678,7 +678,7 @@ uint32_t RETypeDefinition::get_fqn_hash() const {
 }
 
 uint32_t RETypeDefinition::get_size() const {
-#ifndef RE7
+#if TDB_VER > 49
     return this->size;
 #else
     auto t = (regenny::via::typeinfo::TypeInfo*)get_type();
@@ -707,7 +707,7 @@ uint32_t RETypeDefinition::get_valuetype_size() const {
 }
 
 ::REType* RETypeDefinition::get_type() const {
-#ifndef RE7
+#if TDB_VER > 49
     return this->type;
 #else
     auto vm = sdk::VM::get();
@@ -729,7 +729,7 @@ static std::shared_mutex g_runtime_type_mtx{};
         }
     }
 
-#ifndef RE7
+#if TDB_VER > 49
     static auto appdomain_type = sdk::find_type_definition("System.AppDomain");
     static auto assembly_type = sdk::find_type_definition("System.Reflection.Assembly");
     static auto get_current_domain_func = appdomain_type->get_method("get_CurrentDomain");

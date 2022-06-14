@@ -257,7 +257,7 @@ local function update_pad_device(device)
     local is_map_open = os.clock() - last_map_open_time < 0.25
 
     -- set cur_button | according to the right stick axis
-    if is_re8 then
+    --if is_re8 then
         local is_book_open = os.clock() - last_book_open_time < 0.25
 
         if vr_right_stick_axis.x > 0.1 then
@@ -299,7 +299,7 @@ local function update_pad_device(device)
 
             cur_button = cur_button | via.hid.GamePadButton.EmuLdown
         end
-    end
+    --end
 
     if is_map_open then
         if vr_right_stick_axis.y >= 0.9 then

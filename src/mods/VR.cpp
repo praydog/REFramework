@@ -5,12 +5,14 @@
 #include <imgui_internal.h>
 #include <glm/gtx/transform.hpp>
 
-#if defined(RE2) || defined(RE3) || defined(DMC5)
-#include "sdk/regenny/re3/via/Window.hpp"
-#include "sdk/regenny/re3/via/SceneView.hpp"
-#elif defined(RE7)
+#include <sdk/TDBVer.hpp>
+
+#if TDB_VER <= 49
 #include "sdk/regenny/re7/via/Window.hpp"
 #include "sdk/regenny/re7/via/SceneView.hpp"
+#elif TDB_VER < 69
+#include "sdk/regenny/re3/via/Window.hpp"
+#include "sdk/regenny/re3/via/SceneView.hpp"
 #else
 #include "sdk/regenny/re8/via/Window.hpp"
 #include "sdk/regenny/re8/via/SceneView.hpp"
@@ -59,7 +61,7 @@ std::unique_ptr<FunctionHook> g_post_effect_draw_hook{};
 std::unique_ptr<FunctionHook> g_wwise_listener_update_hook{};
 //std::unique_ptr<FunctionHook> g_get_sharpness_hook{};
 
-#ifdef RE7
+#if TDB_VER <= 49
 std::optional<regenny::via::Size> g_previous_size{};
 #endif
 
@@ -81,7 +83,11 @@ float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
     auto window = regenny_view->window;
 
     // Force the display to stretch to the window size
+#if not defined(RE7) || TDB_VER <= 49
     regenny_view->display_type = regenny::via::DisplayType::Fit;
+#else
+    *(regenny::via::DisplayType*)((uintptr_t)&regenny_view->display_type + 4) = regenny::via::DisplayType::Fit;
+#endif
 
     auto wanted_width = 0.0f;
     auto wanted_height = 0.0f;
@@ -89,7 +95,7 @@ float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
     // Set the window size, which will increase the size of the backbuffer
     if (window != nullptr) {
         if (mod->is_hmd_active()) {
-#ifdef RE7
+#if TDB_VER <= 49
             if (!g_previous_size) {
                 g_previous_size = regenny::via::Size{ (float)window->width, (float)window->height };
             }
@@ -129,7 +135,7 @@ float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
         } else {
             mod->m_backbuffer_inconsistency = false;
 
-#ifndef RE7
+#if TDB_VER > 49
             window->width = (uint32_t)window->borderless_size.w;
             window->height = (uint32_t)window->borderless_size.h;
 #else
@@ -210,7 +216,7 @@ Matrix4x4f* VR::gui_camera_get_projection_matrix_hook(REManagedObject* camera, M
 
     // Get the projection matrix for the correct eye
     // For some reason we need to flip the projection matrix here?
-#ifndef RE7
+#if TDB_VER > 49
     *result = vr->get_current_projection_matrix(false);
 #else
     *result = vr->get_current_projection_matrix(true);
@@ -369,7 +375,7 @@ void VR::RenderLayerHook<sdk::renderer::layer::Overlay>::draw(sdk::renderer::lay
     // NOT RE3
     // for some reason RE3 has weird issues with the overlay rendering
     // causing double vision
-#ifndef RE3
+#if TDB_VER < 70 or (not defined(RE3) and not defined(RE2) and not defined(RE7))
     if (mod->m_allow_engine_overlays->value()) {
         original_func(layer, render_ctx);
     }
@@ -547,7 +553,7 @@ void VR::wwise_listener_update_hook(void* listener) {
         mod->update_audio_camera();
     }
 
-#ifndef RE7
+#if TDB_VER > 49
     constexpr auto CAMERA_OFFSET = 0x50;
 #else
     constexpr auto CAMERA_OFFSET = 0x58;

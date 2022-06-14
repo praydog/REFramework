@@ -105,27 +105,34 @@ std::optional<std::string> Hooks::hook_update_transform() {
       else
         sub_141DD4140(v14, 0i64, v10);
     */
-    auto absolute_offset = 1;
-    auto update_transform_call = utility::scan(game, "E8 ? ? ? ? 48 8B 5B ? 48 85 DB 75 ? 48 8B 4D 40 48 ? ?");
 
-    if (!update_transform_call) {
-        // RE7
-        update_transform_call = utility::scan(game, "0F B6 D1 48 8B CB E8 ? ? ? ? 48 8B 9B ? ? ? ?");
+    struct TransformPattern {
+        std::string pat;
+        uint32_t offset;
+    };
 
-        if (!update_transform_call) {
-            update_transform_call = utility::scan(game, "0F B6 D0 48 8B CB E8 ? ? ? ? 48 8B 9B ? ? ? ?");
+    std::vector<TransformPattern> pats {
+        { "E8 ? ? ? ? 48 8B 5B ? 48 85 DB 75 ? 48 8B 4D 40 48 ? ?", 1 }, // RE2 - MHRise v1.0
+        { "33 D2 E8 ? ? ? ? B8 01 00 00 00 F0 0F", 3 }, // RE7/RE2/RE3 update to TDB v70/newer games?
+        { "0F B6 D1 48 8B CB E8 ? ? ? ? 48 8B 9B ? ? ? ?", 7 }, // RE7
+        { "0F B6 D0 48 8B CB E8 ? ? ? ? 48 8B 9B ? ? ? ?", 7 } // RE7 Demo
+    };
 
-            if (!update_transform_call) {
-                return "Unable to find UpdateTransform pattern.";
-            }
+    uintptr_t update_transform = 0;
 
-            absolute_offset = 7;
-        } else {
-            absolute_offset = 7;
+    for (auto& pat : pats) {
+        auto result = utility::scan(game, pat.pat.c_str());
+
+        if (result) {
+            update_transform = utility::calculate_absolute(*result + pat.offset);
+            break;
         }
     }
 
-    auto update_transform = utility::calculate_absolute(*update_transform_call + absolute_offset);
+    if (update_transform == 0) {
+        return "Unable to find UpdateTransform pattern.";
+    }
+
     spdlog::info("UpdateTransform: {:x}", update_transform);
 
     // Can be found by breakpointing RETransform's worldTransform
