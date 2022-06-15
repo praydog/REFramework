@@ -84,7 +84,13 @@ float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
 
     // Force the display to stretch to the window size
 #if not defined(RE7) || TDB_VER <= 49
-    regenny_view->display_type = regenny::via::DisplayType::Fit;
+    static auto is_sunbreak = utility::get_module_path(utility::get_executable())->find("MHRiseSunbreakDemo") != std::string::npos;
+
+    if (is_sunbreak) {
+        *(regenny::via::DisplayType*)((uintptr_t)&regenny_view->display_type + 4) = regenny::via::DisplayType::Fit;
+    } else {
+        regenny_view->display_type = regenny::via::DisplayType::Fit;
+    }
 #else
     *(regenny::via::DisplayType*)((uintptr_t)&regenny_view->display_type + 4) = regenny::via::DisplayType::Fit;
 #endif
