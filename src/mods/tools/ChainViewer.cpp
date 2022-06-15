@@ -3,8 +3,14 @@
 #include "sdk/RETypeDB.hpp"
 #include "sdk/REManagedObject.hpp"
 
+#if TDB_VER < 69
 #include "sdk/regenny/re3/via/motion/Chain.hpp"
 #include "sdk/regenny/re3/via/motion/ChainCollisions.hpp"
+#else
+#include "sdk/regenny/re2_tdb70/via/motion/Chain.hpp"
+#include "sdk/regenny/re2_tdb70/via/motion/ChainCollisionTop.hpp"
+#include "sdk/regenny/re2_tdb70/via/motion/ChainCollisions.hpp"
+#endif
 
 #include "ObjectExplorer.hpp"
 #include "ChainViewer.hpp"
@@ -106,37 +112,52 @@ void ChainViewer::on_frame() {
 
             if (chain != nullptr && chain->CollisionData.num > 0 && chain->CollisionData.collisions != nullptr) {
                 for (auto i = 0; i < chain->CollisionData.num; ++i) {
-                    const auto& collider = chain->CollisionData.collisions[i];
-                    auto pos = *(Vector4f*)&collider.capsule.p0;
+                    #if TDB_VER >= 69
+                    const auto& collider_top = chain->CollisionData.collisions[i];
 
-                    if (collider.joint != nullptr) {
-                        //pos = sdk::get_joint_position((::REJoint*)collider.joint);
-                    }
+                    for (auto j = 0; j < collider_top.num_collisions; ++j) {
+                        const auto& collider = collider_top.collisions[j];
+                    #else
+                        const auto& collider = chain->CollisionData.collisions[i];
+                    #endif
+                        auto pos = *(Vector4f*)&collider.capsule.p0;
 
-                    //world_to_screen_methods[1]->call<void*>(&screen_pos, context, &pos, &view, &proj, &screen_size);
-                    //draw_list->AddText(ImVec2(screen_pos.x, screen_pos.y), ImGui::GetColorU32(ImVec4(1.0f, 1.0f, 1.0f, 1.0f)), "Collision");
-
-                    if (made) {
-                        ImGui::PushID(&collider);
-                        
-                        ImGui::SetNextTreeNodeOpen(true, ImGuiCond_::ImGuiCond_Once);
-                        if (ImGui::TreeNode(&collider, "Collision %d", i)) {
-                            if (ImGui::TreeNode(&collider.joint, "Joint")) {
-                                ObjectExplorer::get()->handle_address(collider.joint);
-                                ImGui::TreePop();
-                            }
-
-                            if (ImGui::TreeNode(&collider.pair_joint, "Pair Joint")) {
-                                ObjectExplorer::get()->handle_address(collider.pair_joint);
-                                ImGui::TreePop();
-                            }
-
-                            ImGui::DragFloat("Radius", (float*)&collider.radius, 0.01f, 0.0f, 0.0f);
-                            ImGui::TreePop();
+                        if (collider.joint != nullptr) {
+                            //pos = sdk::get_joint_position((::REJoint*)collider.joint);
                         }
 
-                        ImGui::PopID();
+                        //world_to_screen_methods[1]->call<void*>(&screen_pos, context, &pos, &view, &proj, &screen_size);
+                        //draw_list->AddText(ImVec2(screen_pos.x, screen_pos.y), ImGui::GetColorU32(ImVec4(1.0f, 1.0f, 1.0f, 1.0f)), "Collision");
+
+                        if (made) {
+                            ImGui::PushID(&collider);
+                            
+                            ImGui::SetNextTreeNodeOpen(true, ImGuiCond_::ImGuiCond_Once);
+
+                        #if TDB_VER >= 69
+                            if (ImGui::TreeNode(&collider, "Collision %d %d", i, j)) {
+                        #else
+                            if (ImGui::TreeNode(&collider, "Collision %d", i)) {
+                        #endif
+                                if (ImGui::TreeNode(&collider.joint, "Joint")) {
+                                    ObjectExplorer::get()->handle_address(collider.joint);
+                                    ImGui::TreePop();
+                                }
+
+                                if (ImGui::TreeNode(&collider.pair_joint, "Pair Joint")) {
+                                    ObjectExplorer::get()->handle_address(collider.pair_joint);
+                                    ImGui::TreePop();
+                                }
+
+                                ImGui::DragFloat("Radius", (float*)&collider.radius, 0.01f, 0.0f, 0.0f);
+                                ImGui::TreePop();
+                            }
+
+                            ImGui::PopID();
+                        }
+                #if TDB_VER >= 69
                     }
+                #endif
                 }
             }
 
