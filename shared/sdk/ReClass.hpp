@@ -13,11 +13,23 @@
 #elif defined(RE8)
 #include "ReClass_Internal_RE8.hpp"
 #elif RE3
+#ifdef RE3_TDB67
+#include "ReClass_Internal_RE3.hpp"
+#else
 #include "ReClass_Internal_RE3_TDB70.hpp"
+#endif
 #elif RE2
+#ifdef RE2_TDB66
+#include "ReClass_Internal.hpp"
+#else
 #include "ReClass_Internal_RE2_TDB70.hpp"
+#endif
 #elif RE7
+#ifdef RE7_TDB49
+#include "ReClass_Internal_RE7.hpp"
+#else
 #include "ReClass_Internal_RE2_TDB70.hpp"
+#endif
 #endif
 #pragma pack(pop, r1)
 

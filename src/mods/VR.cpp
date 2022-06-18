@@ -381,7 +381,7 @@ void VR::RenderLayerHook<sdk::renderer::layer::Overlay>::draw(sdk::renderer::lay
     // NOT RE3
     // for some reason RE3 has weird issues with the overlay rendering
     // causing double vision
-#if TDB_VER < 70 or (not defined(RE3) and not defined(RE2) and not defined(RE7))
+#if (TDB_VER < 70 and not defined(RE3)) or (TDB_VER >= 70 and (not defined(RE3) and not defined(RE2) and not defined(RE7)))
     if (mod->m_allow_engine_overlays->value()) {
         original_func(layer, render_ctx);
     }

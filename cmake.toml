@@ -35,8 +35,11 @@ endif()
 [options]
 DEVELOPER_MODE = { value = true, comment = "Enable developer mode" }
 REF_BUILD_RE2_SDK = false
+REF_BUILD_RE2_TDB66SDK = false
 REF_BUILD_RE3_SDK = false
+REF_BUILD_RE3_TDB67SDK = false
 REF_BUILD_RE7_SDK = false
+REF_BUILD_RE7_TDB49SDK = false
 REF_BUILD_RE8_SDK = false
 REF_BUILD_DMC5_SDK = false
 REF_BUILD_MHRISE_SDK = false
@@ -47,8 +50,11 @@ REF_BUILD_DEPENDENCIES = { value = true, comment = "Enable building dependencies
 developer-mode = "DEVELOPER_MODE"
 build-framework = "REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8"
 build-re2-sdk = "REF_BUILD_RE2_SDK OR REF_BUILD_FRAMEWORK"
+build-re2tdb66-sdk = "REF_BUILD_RE2_TDB66SDK OR REF_BUILD_FRAMEWORK"
 build-re3-sdk = "REF_BUILD_RE3_SDK OR REF_BUILD_FRAMEWORK"
+build-re3tdb67-sdk = "REF_BUILD_RE3_TDB67SDK OR REF_BUILD_FRAMEWORK"
 build-re7-sdk = "REF_BUILD_RE7_SDK OR REF_BUILD_FRAMEWORK"
+build-re7tdb49-sdk = "REF_BUILD_RE7_TDB49SDK OR REF_BUILD_FRAMEWORK"
 build-re8-sdk = "REF_BUILD_RE8_SDK OR REF_BUILD_FRAMEWORK"
 build-dmc5-sdk = "REF_BUILD_DMC5_SDK OR REF_BUILD_FRAMEWORK"
 build-mhrise-sdk = "REF_BUILD_MHRISE_SDK OR REF_BUILD_FRAMEWORK"
@@ -197,7 +203,15 @@ type = "sdk"
 compile-definitions = ["RE2"]
 condition = "build-re2-sdk"
 
+[target.RE2_TDB66SDK]
+type = "sdk"
+compile-definitions = ["RE2", "RE2_TDB66"]
+condition = "build-re2tdb66-sdk"
+
 [target.RE2]
+type = "game"
+
+[target.RE2_TDB66]
 type = "game"
 
 [target.RE3SDK]
@@ -205,13 +219,26 @@ type = "sdk"
 compile-definitions = ["RE3"]
 condition = "build-re3-sdk"
 
+[target.RE3_TDB67SDK]
+type = "sdk"
+compile-definitions = ["RE3", "RE3_TDB67"]
+condition = "build-re3tdb67-sdk"
+
 [target.RE3]
+type = "game"
+
+[target.RE3_TDB67]
 type = "game"
 
 [target.RE7SDK]
 type = "sdk"
 compile-definitions = ["RE7"]
 condition = "build-re7-sdk"
+
+[target.RE7_TDB49SDK]
+type = "sdk"
+compile-definitions = ["RE7", "RE7_TDB49"]
+condition = "build-re7tdb49-sdk"
 
 [target.RE7]
 type = "game"
