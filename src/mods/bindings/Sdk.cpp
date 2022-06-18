@@ -9,6 +9,7 @@
 #include "sdk/RETypeDB.hpp"
 #include "sdk/SceneManager.hpp"
 #include "sdk/ResourceManager.hpp"
+#include "sdk/TDBVer.hpp"
 #include "utility/Memory.hpp"
 
 #include "../ScriptRunner.hpp"
@@ -1008,6 +1009,7 @@ void bindings::open_sdk(ScriptState* s) {
     )");
 
     auto sdk = lua.create_table();
+    sdk["get_tdb_version"] = []() -> int { return TDB_VER; };
     sdk["game_namespace"] = game_namespace;
     sdk["get_thread_context"] = api::sdk::get_thread_context;
     sdk["get_native_singleton"] = api::sdk::get_native_singleton;
