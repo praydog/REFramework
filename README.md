@@ -7,7 +7,7 @@ The last stable build can be downloaded from the [Releases](https://github.com/p
 For newer builds, check out the [Nightly Developer Builds](https://github.com/praydog/REFramework-nightly/releases)
 
 ### Non-VR
-* Extract the whole zip file except `openvr_api.dll` and `openxr_loader.dll` into your corresponding game folder.
+* Extract only the `dinput8.dll` from the zip file into your game folder.
 
 ### VR
 * Install SteamVR (unless you're using OpenXR on a supported headset)
