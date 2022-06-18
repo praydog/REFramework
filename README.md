@@ -20,16 +20,17 @@ Example game folder: G:\SteamLibrary\steamapps\common\RESIDENT EVIL 2 BIOHAZARD 
 Supports both DirectX 11 and DirectX 12.
 
 ## Included Mods
-* Lua Scripting API (All games, check out the [Wiki](https://cursey.github.io/reframework-book/))
+* Lua Scripting API & Plugin System (All games, check out the [Wiki](https://cursey.github.io/reframework-book/))
 * VR
   * Generic 6DOF VR support for all games
   * Motion controls for RE2/RE3/RE7/RE8
 * First Person (RE2, RE3)
+* Manual Flashlight (RE2, RE3, RE8)
 * Free Camera (All games)
 * Scene Timescale (All games)
-* Manual Flashlight (RE2, RE3, RE8)
-* FOV Slider (RE2, RE3, RE8)
+* FOV Slider (All games)
 * Vignette Disabler (All games)
+* Ultrawide/Aspect Ratio fixes (All games)
 
 ## Included Fixes
 * RE8 Startup Crash
