@@ -243,6 +243,9 @@ condition = "build-re7tdb49-sdk"
 [target.RE7]
 type = "game"
 
+[target.RE7_TDB49]
+type = "game"
+
 [target.RE8SDK]
 type = "sdk"
 compile-definitions = ["RE8"]
