@@ -116,6 +116,9 @@ bool D3D11Hook::unhook() {
     return false;
 }
 
+thread_local bool g_inside_d3d11_present = false;
+HRESULT last_d3d11_present_result = S_OK;
+
 HRESULT WINAPI D3D11Hook::present(IDXGISwapChain* swap_chain, UINT sync_interval, UINT flags) {
     std::scoped_lock _{g_framework->get_hook_monitor_mutex()};
 
@@ -153,17 +156,39 @@ HRESULT WINAPI D3D11Hook::present(IDXGISwapChain* swap_chain, UINT sync_interval
         OutputDebugString(fmt::format("Depth stencil @ {:p} used", (void*)d3d11->m_last_depthstencil_used.Get()).c_str());
     }*/
 
+    // Restore the original bytes
+    // if an infinite loop occurs, this will prevent the game from crashing
+    // while keeping our hook intact
+    if (g_inside_d3d11_present) {
+        auto original_bytes = utility::get_original_bytes(Address{present_fn});
+
+        if (original_bytes) {
+            ProtectionOverride protection_override{present_fn, original_bytes->size(), PAGE_EXECUTE_READWRITE};
+
+            memcpy(present_fn, original_bytes->data(), original_bytes->size());
+
+            spdlog::info("Present fixed");
+        }
+
+        return last_d3d11_present_result;
+    }
+
     if (d3d11->m_on_present) {
         d3d11->m_on_present(*d3d11);
     }
 
     HRESULT result = S_OK;
+    g_inside_d3d11_present = true;
 
     if (!d3d11->m_ignore_next_present) {
         result = present_fn(swap_chain, sync_interval, flags);
+        last_d3d11_present_result = result;
     } else {
         d3d11->m_ignore_next_present = false;
+        last_d3d11_present_result = S_OK;
     }
+
+    g_inside_d3d11_present = false;
 
     if (d3d11->m_on_post_present) {
         d3d11->m_on_post_present(*d3d11);
@@ -174,6 +199,9 @@ HRESULT WINAPI D3D11Hook::present(IDXGISwapChain* swap_chain, UINT sync_interval
 
     return result;
 }
+
+thread_local bool g_inside_d3d11_resize_buffers = false;
+HRESULT last_d3d11_resize_buffers_result = S_OK;
 
 HRESULT WINAPI D3D11Hook::resize_buffers(
     IDXGISwapChain* swap_chain, UINT buffer_count, UINT width, UINT height, DXGI_FORMAT new_format, UINT swap_chain_flags) {
@@ -192,7 +220,27 @@ HRESULT WINAPI D3D11Hook::resize_buffers(
 
     auto resize_buffers_fn = d3d11->m_resize_buffers_hook->get_original<decltype(D3D11Hook::resize_buffers)*>();
 
-    return resize_buffers_fn(swap_chain, buffer_count, width, height, new_format, swap_chain_flags);
+    if (g_inside_d3d11_resize_buffers) {
+        auto original_bytes = utility::get_original_bytes(Address{resize_buffers_fn});
+
+        if (original_bytes) {
+            ProtectionOverride protection_override{resize_buffers_fn, original_bytes->size(), PAGE_EXECUTE_READWRITE};
+
+            memcpy(resize_buffers_fn, original_bytes->data(), original_bytes->size());
+
+            spdlog::info("Resize buffers fixed");
+        }
+
+        return last_d3d11_resize_buffers_result;
+    }
+
+    g_inside_d3d11_resize_buffers = true;
+
+    last_d3d11_resize_buffers_result = resize_buffers_fn(swap_chain, buffer_count, width, height, new_format, swap_chain_flags);
+
+    g_inside_d3d11_resize_buffers = false;
+
+    return last_d3d11_resize_buffers_result;
 }
 
 void WINAPI D3D11Hook::set_render_targets(
