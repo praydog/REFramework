@@ -50,7 +50,7 @@ void SceneMods::on_frame() {
 
     if (set_timescale && !m_set_timescale->value()) {
         sdk::Application::set_global_speed(1.0f);
-        sdk::set_timescale(1.0f)
+        sdk::set_timescale(1.0f);
     }
 }
 
