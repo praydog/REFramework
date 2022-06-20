@@ -2,6 +2,7 @@
 #include "sdk/SceneManager.hpp"
 #include "sdk/RETypeDB.hpp"
 #include "sdk/REManagedObject.hpp"
+#include "sdk/Renderer.hpp"
 
 #if TDB_VER < 69
 #include "sdk/regenny/re3/via/motion/Chain.hpp"
@@ -73,6 +74,39 @@ void ChainViewer::on_frame() {
     static auto child_transform_method = transform_def->get_method("get_Child");
     static auto get_gameobject_method = transform_def->get_method("get_GameObject");
 
+    auto camera = sdk::get_primary_camera();
+
+    if (camera == nullptr) {
+        return;
+    }
+
+    auto camera_gameobject = get_gameobject_method->call<::REGameObject*>(sdk::get_thread_context(), camera);
+
+    if (camera_gameobject == nullptr) {
+        return;
+    }
+
+    auto camera_transform = camera_gameobject->transform;
+
+    if (camera_transform == nullptr) {
+        return;
+    }
+
+    auto camera_joints = sdk::call_object_func_easy<sdk::SystemArray*>(camera_transform, "get_Joints");
+
+    if (camera_joints == nullptr) {
+        return;
+    }
+
+    auto camera_joint = (::REJoint*)camera_joints->get_element(0);
+
+    if (camera_joint == nullptr) {
+        return;
+    }
+
+    const auto camera_pos = sdk::get_joint_position(camera_joint);
+    //const auto camera_forward = sdk::get_joint_rotation(camera_joint) * Vector3f{ 0.0f, 0.0f, 1.0f };
+    const auto camera_up = Vector3f{glm::mat4{sdk::get_joint_rotation(camera_joint)}[1]};
 
     ImGui::Begin("Chains");
 
@@ -124,6 +158,37 @@ void ChainViewer::on_frame() {
 
                         if (collider.joint != nullptr) {
                             //pos = sdk::get_joint_position((::REJoint*)collider.joint);
+                        }
+
+                        if (collider.joint != nullptr) {
+                            auto joint_pos = Vector3f{sdk::get_joint_position((::REJoint*)collider.joint)};
+                            auto joint_screen_pos_center = sdk::renderer::world_to_screen(joint_pos);
+
+                            if (joint_screen_pos_center) {
+                                auto joint_pos_top = joint_pos + (glm::normalize(camera_up) * collider.radius);
+                                auto joint_screen_pos_top = sdk::renderer::world_to_screen(joint_pos_top);
+
+                                if (joint_screen_pos_top) {
+                                    const auto radius2d = glm::length(*joint_screen_pos_top - *joint_screen_pos_center);
+                                    
+                                    // Draw a 2D circle.
+                                    for (auto f = 0; f < 360; f++) {
+                                        auto r1 = f * (glm::pi<float>() / 180.0f);
+                                        auto x1 = joint_screen_pos_center->x + radius2d * cos(r1);
+                                        auto y1 = joint_screen_pos_center->y + radius2d * sin(r1);
+
+                                        auto r2 = (f + 1) * (glm::pi<float>() / 180.0f);
+                                        auto x2 = joint_screen_pos_center->x + radius2d * cos(r2);
+                                        auto y2 = joint_screen_pos_center->y + radius2d * sin(r2);
+                                        
+                                        ImGui::GetBackgroundDrawList()->AddLine(
+                                            ImVec2{x1, y1},
+                                            ImVec2{x2, y2},
+                                            ImGui::GetColorU32(ImVec4(1.0f, 1.0f, 1.0f, 1.0f))
+                                        );
+                                    }
+                                }
+                            }
                         }
 
                         //world_to_screen_methods[1]->call<void*>(&screen_pos, context, &pos, &view, &proj, &screen_size);

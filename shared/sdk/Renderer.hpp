@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <tuple>
+#include <optional>
 
 #include "ReClass.hpp"
 #include "RENativeArray.hpp"
@@ -138,5 +139,7 @@ RenderLayer* get_root_layer();
 RenderLayer* find_layer(::REType* layer_type);
 
 sdk::renderer::layer::Output* get_output_layer();
+
+std::optional<Vector2f> world_to_screen(const Vector3f& world_pos);
 }
 }
