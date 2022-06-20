@@ -21,6 +21,7 @@ public:
 private:
     const ModKey::Ptr m_timescale_toggle_key{ModKey::create(generate_name("TimeScaleToggleKey"))};
     const ModKey::Ptr m_timescale_continuous_key{ ModKey::create(generate_name("TimeScaleContinuousKey")) };
+    const ModToggle::Ptr m_use_application_timescale{ModToggle::create(generate_name("UseApplicationTimescale"), true)};
     const ModToggle::Ptr m_set_timescale{ModToggle::create(generate_name("TimeScaleEnabled"))};
     const ModSlider::Ptr m_timescale{ModSlider::create(generate_name("TimeScale"), -5.0f, 5.0f, 1.0f)};
 

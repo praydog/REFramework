@@ -1,5 +1,8 @@
+#include <optional>
+
 #include "sdk/ReClass.hpp"
 #include "sdk/SceneManager.hpp"
+#include "sdk/Application.hpp"
 
 #include "Scene.hpp"
 
@@ -21,7 +24,11 @@ void SceneMods::on_config_save(utility::Config& cfg) {
 
 void SceneMods::on_frame() {
     if (m_set_timescale->value()) {
-        sdk::set_timescale(m_timescale->value());
+        if (m_use_application_timescale->value()) {
+            sdk::Application::set_global_speed(m_timescale->value());
+        } else {
+            sdk::set_timescale(m_timescale->value());
+        }
     }
 
     bool set_timescale = false;
@@ -42,7 +49,8 @@ void SceneMods::on_frame() {
     }
 
     if (set_timescale && !m_set_timescale->value()) {
-        sdk::set_timescale(1.0f);
+        sdk::Application::set_global_speed(1.0f);
+        sdk::set_timescale(1.0f)
     }
 }
 
@@ -55,6 +63,11 @@ void SceneMods::on_draw_ui() {
 
     m_timescale_toggle_key->draw("Timescale (Toggle) Key");
     m_timescale_continuous_key->draw("Timescale (Continuous) Key");
+
+    if (m_use_application_timescale->draw("Use Application Timescale")) {
+        sdk::set_timescale(1.0f);
+        sdk::Application::set_global_speed(1.0f);
+    }
 
     m_timescale->draw("");
     ImGui::SameLine();
