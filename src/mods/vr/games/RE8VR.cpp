@@ -1471,8 +1471,14 @@ void RE8VR::update_heal_gesture() {
                 auto item_weapon = *sdk::get_object_field<::REManagedObject*>(item_internal, "<weapon>k__BackingField");
 
                 sdk::call_object_func_easy<void*>(weapon_change, "removeWeapon");
-                sdk::call_object_func_easy<void*>(equip_manager, "equipWeapon(app.Weapon, app.CharacterDefine.Hand)", item_weapon, 0);
-                sdk::call_object_func_easy<void*>(weapon_change, "equipWeapon", item_internal, item_weapon);
+                
+                try {
+                    sdk::call_object_func_easy<void*>(equip_manager, "equipWeapon(app.Weapon, app.CharacterDefine.Hand)", item_weapon, 0);
+                } catch(...) {}
+
+                try {
+                    sdk::call_object_func_easy<void*>(weapon_change, "equipWeapon", item_internal, item_weapon);
+                } catch(...) {}
 
                 if (m_weapon != nullptr) {
                     sdk::call_object_func_easy<void*>(mesh_controller, "onEquipWeaponChanged", item_weapon, m_weapon);
