@@ -11,7 +11,8 @@ Script to hook any RE Engine game to dump the filepaths needed to extract the PA
 
 ### Usage
 `python ./pathdumper.py re2.exe`
-`python ./pathdumper.exe re2.exe` for the executable version.
+
+`./pathdumper.exe re2.exe` for the executable version.
 
 If the process name is not supplied it will ask you for one.
 
