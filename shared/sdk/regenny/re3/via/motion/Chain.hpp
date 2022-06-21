@@ -1,6 +1,6 @@
 #pragma once
-#include ".\ChainCollisionArray.hpp"
-#include ".\SecondaryAnimation.hpp"
+#include "ChainCollisionArray.hpp"
+#include "SecondaryAnimation.hpp"
 namespace regenny::via::motion {
 #pragma pack(push, 1)
 struct Chain : public SecondaryAnimation {

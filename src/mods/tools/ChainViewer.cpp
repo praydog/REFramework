@@ -233,12 +233,8 @@ void ChainViewer::on_frame() {
                                 ImGui::DragFloat("Radius", (float*)&collider.radius, 0.01f, 0.0f, 0.0f);
                                 ImGui::DragInt("Flags", (int*)&collider.flags, 1, 0, 0);
 
-#if TDB_VER >= 69
                                 ImGui::DragFloat3("Offset", (float*)&collider.offset, 0.01f, 0.0f, 0.0f);
                                 ImGui::DragFloat3("Pair Offset", (float*)&collider.pair_offset, 0.01f, 0.0f, 0.0f);
-#else
-                                ImGui::Text("Offset modification is not supported in this version of TDB yet.");
-#endif
                                 ImGui::TreePop();
                             }
 

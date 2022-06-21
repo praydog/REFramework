@@ -1,12 +1,12 @@
 #pragma once
-#include "..\Sphere.hpp"
 #include "..\Capsule.hpp"
-#include "..\OBB.hpp"
-namespace regenny::via::motion {
-struct ChainCollisionData;
-}
+#include "..\Sphere.hpp"
+#include "..\vec4.hpp"
 namespace regenny::via {
 struct Joint;
+}
+namespace regenny::via::motion {
+struct ChainCollisionData;
 }
 namespace regenny::via::motion {
 struct ChainCollisionArray;
@@ -16,8 +16,10 @@ namespace regenny::via::motion {
 struct ChainCollisions {
     regenny::via::Sphere sphere; // 0x0
     regenny::via::Capsule capsule; // 0x10
-    regenny::via::OBB obb; // 0x40
-    char pad_90[0x10];
+    char pad_40[0x20];
+    regenny::via::vec4 offset; // 0x60
+    regenny::via::vec4 pair_offset; // 0x70
+    char pad_80[0x20];
     regenny::via::Joint* joint; // 0xa0
     regenny::via::Joint* pair_joint; // 0xa8
     regenny::via::motion::ChainCollisionData* data; // 0xb0
