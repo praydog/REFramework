@@ -7,6 +7,10 @@
 #if TDB_VER < 69
 #include "sdk/regenny/re3/via/motion/Chain.hpp"
 #include "sdk/regenny/re3/via/motion/ChainCollisions.hpp"
+#elif TDB_VER == 69 || (TDB_VER == 70 && defined(MHRISE))
+#include "sdk/regenny/re8/via/motion/Chain.hpp"
+#include "sdk/regenny/re8/via/motion/ChainCollisionTop.hpp"
+#include "sdk/regenny/re8/via/motion/ChainCollisions.hpp"
 #else
 #include "sdk/regenny/re2_tdb70/via/motion/Chain.hpp"
 #include "sdk/regenny/re2_tdb70/via/motion/ChainCollisionTop.hpp"
