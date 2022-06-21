@@ -161,18 +161,26 @@ void ChainViewer::on_frame() {
                         }
 
                         if (collider.joint != nullptr) {
-                            auto joint_pos = Vector3f{sdk::get_joint_position((::REJoint*)collider.joint)};
-                            auto joint_screen_pos_center = sdk::renderer::world_to_screen(joint_pos);
+                            //const auto joint_pos = Vector3f{sdk::get_joint_position((::REJoint*)collider.joint)};
+                            const auto joint_pos = *(Vector3f*)&collider.sphere.pos;
+                            const auto joint_screen_pos_center = sdk::renderer::world_to_screen(joint_pos);
 
                             if (joint_screen_pos_center) {
-                                auto joint_pos_top = joint_pos + (glm::normalize(camera_up) * collider.radius);
-                                auto joint_screen_pos_top = sdk::renderer::world_to_screen(joint_pos_top);
+                                const auto joint_pos_top = joint_pos + (glm::normalize(camera_up) * collider.sphere.r);
+                                const auto joint_screen_pos_top = sdk::renderer::world_to_screen(joint_pos_top);
 
                                 if (joint_screen_pos_top) {
                                     const auto radius2d = glm::length(*joint_screen_pos_top - *joint_screen_pos_center);
-                                    
+
+                                    ImGui::GetBackgroundDrawList()->AddCircleFilled(
+                                        *(ImVec2*)&*joint_screen_pos_center,
+                                        radius2d,
+                                        ImGui::GetColorU32(ImVec4(66.0f / 255.0f, 105.0f / 255.0f, 245.0f / 255.0f, 0.25f)),
+                                        32
+                                    );
+
                                     // Draw a 2D circle.
-                                    for (auto f = 0; f < 360; f++) {
+                                    /*for (auto f = 0; f < 360; f++) {
                                         auto r1 = f * (glm::pi<float>() / 180.0f);
                                         auto x1 = joint_screen_pos_center->x + radius2d * cos(r1);
                                         auto y1 = joint_screen_pos_center->y + radius2d * sin(r1);
@@ -186,7 +194,7 @@ void ChainViewer::on_frame() {
                                             ImVec2{x2, y2},
                                             ImGui::GetColorU32(ImVec4(1.0f, 1.0f, 1.0f, 1.0f))
                                         );
-                                    }
+                                    }*/
                                 }
                             }
                         }
