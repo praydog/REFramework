@@ -207,6 +207,21 @@ REFramework::REFramework(HMODULE reframework_module)
             next_log = now + 1s;
         }
     }
+
+#ifdef RE8
+    // auto startup_patch_addr = Address{m_game_module}.get(0x3E69E50);
+    auto startup_patch_addr = utility::scan(m_game_module, "40 53 57 48 83 ec 28 48 83 b9 ? ? ? ? 00");
+
+    while (!startup_patch_addr) {
+        startup_patch_addr = utility::scan(m_game_module, "40 53 57 48 83 ec 28 48 83 b9 ? ? ? ? 00");
+    }
+
+    if (startup_patch_addr) {
+        static auto permanent_patch = Patch::create(*startup_patch_addr, {0xC3});
+    } else {
+        spdlog::info("Couldn't find RE8 crash fix patch location!");
+    }
+#endif
 #endif
 
     // Hooking D3D12 initially because we need to retrieve the command queue before the first frame then switch to D3D11 if it failed later
