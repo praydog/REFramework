@@ -846,6 +846,18 @@ void outline_rect(float x, float y, float w, float h, ImU32 color) {
 void line(float x1, float y1, float x2, float y2, ImU32 color) {
     ImGui::GetBackgroundDrawList()->AddLine(ImVec2{x1, y1}, ImVec2{x2, y2}, color);
 }
+
+void outline_circle(float x, float y, float radius, ImU32 color, sol::object num_segments) {
+    auto segments = num_segments.is<sol::nil_t>() ? 32 : num_segments.as<int>();
+
+    ImGui::GetBackgroundDrawList()->AddCircle(ImVec2{x, y}, radius, color, segments);
+}
+
+void filled_circle(float x, float y, float radius, ImU32 color, sol::object num_segments) {
+    auto segments = num_segments.is<sol::nil_t>() ? 32 : num_segments.as<int>();
+
+    ImGui::GetBackgroundDrawList()->AddCircleFilled(ImVec2{x, y}, radius, color, segments);
+}
 } // namespace api::draw
 
 void bindings::open_imgui(ScriptState* s) {
@@ -908,5 +920,7 @@ void bindings::open_imgui(ScriptState* s) {
     draw["filled_rect"] = api::draw::filled_rect;
     draw["outline_rect"] = api::draw::outline_rect;
     draw["line"] = api::draw::line;
+    draw["outline_circle"] = api::draw::outline_circle;
+    draw["filled_circle"] = api::draw::filled_circle;
     lua["draw"] = draw;
 }
