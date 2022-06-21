@@ -3,6 +3,7 @@
 #include "../ScriptRunner.hpp"
 #include "sdk/SceneManager.hpp"
 #include "REFramework.hpp"
+#include "utility/ImGui.hpp"
 
 #include "ImGui.hpp"
 
@@ -858,6 +859,67 @@ void filled_circle(float x, float y, float radius, ImU32 color, sol::object num_
 
     ImGui::GetBackgroundDrawList()->AddCircleFilled(ImVec2{x, y}, radius, color, segments);
 }
+
+void outline_quad(float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4, ImU32 color) {
+    ImGui::GetBackgroundDrawList()->AddQuad(ImVec2{x1, y1}, ImVec2{x2, y2}, ImVec2{x3, y3}, ImVec2{x4, y4}, color);
+}
+
+void filled_quad(float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4, ImU32 color) {
+    ImGui::GetBackgroundDrawList()->AddQuadFilled(ImVec2{x1, y1}, ImVec2{x2, y2}, ImVec2{x3, y3}, ImVec2{x4, y4}, color);
+}
+
+void sphere(sol::object world_pos_object, float radius, ImU32 color, bool outline) {
+    Vector3f world_pos{};
+
+    if (world_pos_object.is<Vector2f>()) {
+        auto& v2f = world_pos_object.as<Vector2f&>();
+        world_pos = Vector3f{v2f.x, v2f.y, 0.0f};
+    } else if (world_pos_object.is<Vector3f>()) {
+        auto& v3f = world_pos_object.as<Vector3f&>();
+        world_pos = Vector3f{v3f.x, v3f.y, v3f.z};
+    } else if (world_pos_object.is<Vector4f>()) {
+        auto& v4f = world_pos_object.as<Vector4f&>();
+        world_pos = Vector3f{v4f.x, v4f.y, v4f.z};
+    } else {
+        return;
+    }
+
+    ::imgui::draw_sphere(world_pos, radius, color, outline);
+}
+
+void capsule(sol::object start_pos_object, sol::object end_pos_object, float radius, ImU32 color, bool outline) {
+    Vector3f start_pos{};
+
+    if (start_pos_object.is<Vector2f>()) {
+        auto& v2f = start_pos_object.as<Vector2f&>();
+        start_pos = Vector3f{v2f.x, v2f.y, 0.0f};
+    } else if (start_pos_object.is<Vector3f>()) {
+        auto& v3f = start_pos_object.as<Vector3f&>();
+        start_pos = Vector3f{v3f.x, v3f.y, v3f.z};
+    } else if (start_pos_object.is<Vector4f>()) {
+        auto& v4f = start_pos_object.as<Vector4f&>();
+        start_pos = Vector3f{v4f.x, v4f.y, v4f.z};
+    } else {
+        return;
+    }
+
+    Vector3f end_pos{};
+
+    if (end_pos_object.is<Vector2f>()) {
+        auto& v2f = end_pos_object.as<Vector2f&>();
+        end_pos = Vector3f{v2f.x, v2f.y, 0.0f};
+    } else if (end_pos_object.is<Vector3f>()) {
+        auto& v3f = end_pos_object.as<Vector3f&>();
+        end_pos = Vector3f{v3f.x, v3f.y, v3f.z};
+    } else if (end_pos_object.is<Vector4f>()) {
+        auto& v4f = end_pos_object.as<Vector4f&>();
+        end_pos = Vector3f{v4f.x, v4f.y, v4f.z};
+    } else {
+        return;
+    }
+
+    ::imgui::draw_capsule(start_pos, end_pos, radius, color, outline);
+}
 } // namespace api::draw
 
 void bindings::open_imgui(ScriptState* s) {
@@ -922,5 +984,9 @@ void bindings::open_imgui(ScriptState* s) {
     draw["line"] = api::draw::line;
     draw["outline_circle"] = api::draw::outline_circle;
     draw["filled_circle"] = api::draw::filled_circle;
+    draw["outline_quad"] = api::draw::outline_quad;
+    draw["filled_quad"] = api::draw::filled_quad;
+    draw["sphere"] = api::draw::sphere;
+    draw["capsule"] = api::draw::capsule;
     lua["draw"] = draw;
 }

@@ -2,6 +2,7 @@
 #include <tuple>
 
 #include "REFramework.hpp"
+#include "utility/ImGui.hpp"
 #include "sdk/SceneManager.hpp"
 #include "sdk/RETypeDB.hpp"
 #include "sdk/REManagedObject.hpp"
@@ -109,9 +110,7 @@ void ChainViewer::on_frame() {
         return;
     }
 
-    const auto camera_pos = sdk::get_joint_position(camera_joint);
-    //const auto camera_forward = sdk::get_joint_rotation(camera_joint) * Vector3f{ 0.0f, 0.0f, 1.0f };
-    const auto camera_up = Vector3f{glm::mat4{sdk::get_joint_rotation(camera_joint)}[1]};
+    const auto col = ImGui::GetColorU32(ImVec4(66.0f / 255.0f, 105.0f / 255.0f, 245.0f / 255.0f, 0.25f));
 
     ImGui::Begin("Chains");
 
@@ -159,113 +158,11 @@ void ChainViewer::on_frame() {
                     #else
                         const auto& collider = chain->CollisionData.collisions[i];
                     #endif
-                        auto pos = *(Vector4f*)&collider.capsule.p0;
-
-                        if (collider.joint != nullptr) {
-                            //pos = sdk::get_joint_position((::REJoint*)collider.joint);
-                        }
-
-                        //const auto joint_pos = Vector3f{sdk::get_joint_position((::REJoint*)collider.joint)};
-
-                        auto draw_circle = [&](const Vector3f& pos, float radius, bool outline) {
-                            const auto screen_pos_center = sdk::renderer::world_to_screen(pos);
-
-                            if (screen_pos_center) {
-                                const auto pos_top = pos + (glm::normalize(camera_up) * radius);
-                                const auto screen_pos_top = sdk::renderer::world_to_screen(pos_top);
-
-                                if (screen_pos_top) {
-                                    const auto radius2d = glm::length(*screen_pos_top - *screen_pos_center);
-
-                                    // Inner
-                                    ImGui::GetBackgroundDrawList()->AddCircleFilled(
-                                        *(ImVec2*)&*screen_pos_center,
-                                        radius2d,
-                                        ImGui::GetColorU32(ImVec4(66.0f / 255.0f, 105.0f / 255.0f, 245.0f / 255.0f, 0.25f)),
-                                        32
-                                    );
-
-                                    // Outline
-                                    if (outline) {
-                                        ImGui::GetBackgroundDrawList()->AddCircle(
-                                            *(ImVec2*)&*screen_pos_center,
-                                            radius2d,
-                                            ImGui::GetColorU32(ImVec4(0.0f, 0.0f, 0.0f, 1.0f)),
-                                            32
-                                        );
-                                    }
-                                }
-                            }
-                        };
-
-                        auto get_screen_radius = [&](const Vector3f& pos, float radius) -> std::optional<std::tuple<float, Vector2f>> {
-                            const auto screen_pos_center = sdk::renderer::world_to_screen(pos);
-
-                            if (screen_pos_center) {
-                                const auto pos_top = pos + (glm::normalize(camera_up) * radius);
-                                const auto screen_pos_top = sdk::renderer::world_to_screen(pos_top);
-
-                                if (screen_pos_top) {
-                                    const auto radius2d = glm::length(*screen_pos_top - *screen_pos_center);
-
-                                    return std::make_tuple(radius2d, *screen_pos_center);
-                                }
-                            }
-
-                            return std::nullopt;
-                        };
-
                         if (collider.pair_joint == nullptr) {
-                            draw_circle(*(Vector3f*)&collider.sphere.pos, collider.sphere.r, true);
+                            imgui::draw_sphere(*(Vector3f*)&collider.sphere.pos, collider.sphere.r, col, true);
                         } else {
                             // Capsule
-                            draw_circle(*(Vector3f*)&collider.capsule.p0, collider.capsule.r, true);
-                            draw_circle(*(Vector3f*)&collider.capsule.p1, collider.capsule.r, true);
-
-                            // Get the half points of the circles and draw a filled rectangle between them
-                            const auto top_screen_radius = get_screen_radius(*(Vector3f*)&collider.capsule.p0, collider.capsule.r);
-                            const auto bottom_screen_radius = get_screen_radius(*(Vector3f*)&collider.capsule.p1, collider.capsule.r);
-
-                            if (top_screen_radius && bottom_screen_radius) {
-                                const auto top_radius = std::get<0>(*top_screen_radius);
-                                const auto bottom_radius = std::get<0>(*bottom_screen_radius);
-
-                                const auto top_circle_start = std::get<1>(*top_screen_radius);
-                                const auto bottom_circle_start = std::get<1>(*bottom_screen_radius);
-
-                                const auto delta = glm::normalize(bottom_circle_start - top_circle_start);
-                                const auto angle = glm::atan(delta.y, delta.x) + glm::radians(90.0f);
-                                
-                                // Now get the halfway point(s) of the circles
-                                float top_x_right = top_circle_start.x + (top_radius * std::cos(angle));
-                                float top_y_right = top_circle_start.y + (top_radius * std::sin(angle));
-
-                                float bottom_x_right = bottom_circle_start.x + (bottom_radius * std::cos(angle));
-                                float bottom_y_right = bottom_circle_start.y + (bottom_radius * std::sin(angle));
-                                
-                                float top_x_left = top_circle_start.x + (top_radius * std::cos(angle + glm::radians(180.0f)));
-                                float top_y_left = top_circle_start.y + (top_radius * std::sin(angle + glm::radians(180.0f)));
-
-                                float bottom_x_left = bottom_circle_start.x + (bottom_radius * std::cos(angle + glm::radians(180.0f)));
-                                float bottom_y_left = bottom_circle_start.y + (bottom_radius * std::sin(angle + glm::radians(180.0f)));
-
-                                // Draw a quad
-                                ImGui::GetBackgroundDrawList()->AddQuadFilled(
-                                    ImVec2(top_x_left, top_y_left),
-                                    ImVec2(bottom_x_left, bottom_y_left),
-                                    ImVec2(bottom_x_right, bottom_y_right),
-                                    ImVec2(top_x_right, top_y_right),
-                                    ImGui::GetColorU32(ImVec4(66.0f / 255.0f, 105.0f / 255.0f, 245.0f / 255.0f, 0.25f))
-                                );
-
-                                ImGui::GetBackgroundDrawList()->AddQuad(
-                                    ImVec2(top_x_left, top_y_left),
-                                    ImVec2(bottom_x_left, bottom_y_left),
-                                    ImVec2(bottom_x_right, bottom_y_right),
-                                    ImVec2(top_x_right, top_y_right),
-                                    ImGui::GetColorU32(ImVec4(0.0f, 0.0f, 0.0f, 1.0f))
-                                );
-                            }
+                            imgui::draw_capsule(*(Vector3f*)&collider.capsule.p0, *(Vector3f*)&collider.capsule.p1, collider.capsule.r, col, true);
                         }
 
                         //world_to_screen_methods[1]->call<void*>(&screen_pos, context, &pos, &view, &proj, &screen_size);
