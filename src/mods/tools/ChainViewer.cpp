@@ -46,8 +46,6 @@ void ChainViewer::on_draw_dev_ui() {
         return;
     }
 
-    ImGui::TextWrapped("Currently only fully functional in RE2, RE3, and DMC5.");
-
     if (m_enabled->draw("Enabled") && !m_enabled->value()) {
         // todo
     }
