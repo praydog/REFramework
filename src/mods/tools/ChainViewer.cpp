@@ -232,19 +232,22 @@ void ChainViewer::on_frame() {
 
                                 const auto top_circle_start = std::get<1>(*top_screen_radius);
                                 const auto bottom_circle_start = std::get<1>(*bottom_screen_radius);
+
+                                const auto delta = glm::normalize(bottom_circle_start - top_circle_start);
+                                const auto angle = glm::atan(delta.y, delta.x) + glm::radians(90.0f);
                                 
                                 // Now get the halfway point(s) of the circles
-                                float top_x_right = top_circle_start.x + (top_radius * std::cos(glm::radians(0.0f)));
-                                float top_y_right = top_circle_start.y + (top_radius * std::sin(glm::radians(0.0f)));
+                                float top_x_right = top_circle_start.x + (top_radius * std::cos(angle));
+                                float top_y_right = top_circle_start.y + (top_radius * std::sin(angle));
 
-                                float bottom_x_right = bottom_circle_start.x + (bottom_radius * std::cos(glm::radians(0.0f)));
-                                float bottom_y_right = bottom_circle_start.y + (bottom_radius * std::sin(glm::radians(0.0f)));
+                                float bottom_x_right = bottom_circle_start.x + (bottom_radius * std::cos(angle));
+                                float bottom_y_right = bottom_circle_start.y + (bottom_radius * std::sin(angle));
                                 
-                                float top_x_left = top_circle_start.x - (top_radius * std::cos(glm::radians(0.0f)));
-                                float top_y_left = top_circle_start.y - (top_radius * std::sin(glm::radians(0.0f)));
+                                float top_x_left = top_circle_start.x + (top_radius * std::cos(angle + glm::radians(180.0f)));
+                                float top_y_left = top_circle_start.y + (top_radius * std::sin(angle + glm::radians(180.0f)));
 
-                                float bottom_x_left = bottom_circle_start.x - (bottom_radius * std::cos(glm::radians(0.0f)));
-                                float bottom_y_left = bottom_circle_start.y - (bottom_radius * std::sin(glm::radians(0.0f)));
+                                float bottom_x_left = bottom_circle_start.x + (bottom_radius * std::cos(angle + glm::radians(180.0f)));
+                                float bottom_y_left = bottom_circle_start.y + (bottom_radius * std::sin(angle + glm::radians(180.0f)));
 
                                 // Draw a quad
                                 ImGui::GetBackgroundDrawList()->AddQuadFilled(
