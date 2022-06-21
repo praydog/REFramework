@@ -273,4 +273,5 @@ glm::quat get_joint_local_rotation(REJoint* joint);
 Vector4f get_joint_local_position(REJoint* joint);
 void set_joint_local_rotation(REJoint* joint, const glm::quat& rotation);
 void set_joint_local_position(REJoint* joint, const Vector4f& position);
+std::string get_joint_name(REJoint* joint);
 }

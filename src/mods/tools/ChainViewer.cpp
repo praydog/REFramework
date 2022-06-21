@@ -214,12 +214,28 @@ void ChainViewer::on_frame() {
                         #else
                             if (ImGui::TreeNode(&collider, "Collision %d", i)) {
                         #endif
-                                if (ImGui::TreeNode(&collider.joint, "Joint")) {
+                                auto made_joint_node = ImGui::TreeNode(&collider.joint, "Joint");
+
+                                const auto col = ImVec4{100.0f / 255.0f, 149.0f / 255.0f, 237.0f / 255.0f, 255 / 255.0f};
+
+                                if (collider.joint != nullptr) {
+                                    ImGui::SameLine();
+                                    ImGui::TextColored(col, "%s", sdk::get_joint_name((::REJoint*)collider.joint).c_str());
+                                }
+
+                                if (made_joint_node) {
                                     ObjectExplorer::get()->handle_address(collider.joint);
                                     ImGui::TreePop();
                                 }
 
-                                if (ImGui::TreeNode(&collider.pair_joint, "Pair Joint")) {
+                                made_joint_node = ImGui::TreeNode(&collider.pair_joint, "Pair Joint");
+
+                                if (collider.pair_joint != nullptr) {
+                                    ImGui::SameLine();
+                                    ImGui::TextColored(col, "%s", sdk::get_joint_name((::REJoint*)collider.pair_joint).c_str());
+                                }
+
+                                if (made_joint_node) {
                                     ObjectExplorer::get()->handle_address(collider.pair_joint);
                                     ImGui::TreePop();
                                 }
