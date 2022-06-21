@@ -22,9 +22,10 @@ struct ChainCollisions {
     regenny::via::Capsule capsule; // 0x20
     regenny::via::OBB obb; // 0x50
     regenny::via::Plane plane; // 0x9c
-    regenny::via::vec4 offset; // 0xac
+    char pad_ac[0x4];
+    regenny::via::vec4 offset; // 0xB0
     regenny::via::vec4 pair_offset; // 0xbc
-    char pad_cc[0x44];
+    char pad_cc[0x40];
     regenny::via::Joint* joint; // 0x110
     regenny::via::Joint* pair_joint; // 0x118
     regenny::via::motion::ChainCollisionData* data; // 0x120

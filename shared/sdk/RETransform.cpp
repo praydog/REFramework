@@ -2,6 +2,7 @@
 #include <spdlog/spdlog.h>
 
 #include "Enums_Internal.hpp"
+#include "REString.hpp"
 #include "RETransform.hpp"
 
 namespace sdk {
@@ -161,6 +162,20 @@ void sdk::set_joint_local_position(REJoint* joint, const Vector4f& position) {
 
     set_local_position_method->call<void*>(sdk::get_thread_context(), joint, &position);
 };
+
+std::string sdk::get_joint_name(REJoint* joint) {
+    static auto get_name_method = sdk::find_type_definition("via.Joint")->get_method("get_Name");
+
+    auto sname = get_name_method->call<SystemString*>(sdk::get_thread_context(), joint);
+
+    std::string name{};
+
+    if (sname != nullptr) {
+        name = utility::re_string::get_string(*sname);
+    }
+
+    return name;
+}
 }
 
 
