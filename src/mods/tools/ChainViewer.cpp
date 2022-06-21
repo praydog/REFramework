@@ -173,6 +173,7 @@ void ChainViewer::on_frame() {
                             if (joint_screen_pos_top) {
                                 const auto radius2d = glm::length(*joint_screen_pos_top - *joint_screen_pos_center);
 
+                                // Inner
                                 ImGui::GetBackgroundDrawList()->AddCircleFilled(
                                     *(ImVec2*)&*joint_screen_pos_center,
                                     radius2d,
@@ -180,22 +181,13 @@ void ChainViewer::on_frame() {
                                     32
                                 );
 
-                                // Draw a 2D circle.
-                                /*for (auto f = 0; f < 360; f++) {
-                                    auto r1 = f * (glm::pi<float>() / 180.0f);
-                                    auto x1 = joint_screen_pos_center->x + radius2d * cos(r1);
-                                    auto y1 = joint_screen_pos_center->y + radius2d * sin(r1);
-
-                                    auto r2 = (f + 1) * (glm::pi<float>() / 180.0f);
-                                    auto x2 = joint_screen_pos_center->x + radius2d * cos(r2);
-                                    auto y2 = joint_screen_pos_center->y + radius2d * sin(r2);
-                                    
-                                    ImGui::GetBackgroundDrawList()->AddLine(
-                                        ImVec2{x1, y1},
-                                        ImVec2{x2, y2},
-                                        ImGui::GetColorU32(ImVec4(1.0f, 1.0f, 1.0f, 1.0f))
-                                    );
-                                }*/
+                                // Outline
+                                ImGui::GetBackgroundDrawList()->AddCircle(
+                                    *(ImVec2*)&*joint_screen_pos_center,
+                                    radius2d,
+                                    ImGui::GetColorU32(ImVec4(0.0f, 0.0f, 0.0f, 1.0f)),
+                                    32
+                                );
                             }
                         }
 
