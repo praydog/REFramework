@@ -2410,7 +2410,19 @@ void VR::on_present() {
     if (runtime->is_openvr()) {
         if (openvr->got_first_poses) {
             const auto hmd_activity = openvr->hmd->GetTrackedDeviceActivityLevel(vr::k_unTrackedDeviceIndex_Hmd);
-            openvr->is_hmd_active = hmd_activity == vr::k_EDeviceActivityLevel_UserInteraction || hmd_activity == vr::k_EDeviceActivityLevel_UserInteraction_Timeout;
+            auto hmd_active = hmd_activity == vr::k_EDeviceActivityLevel_UserInteraction || hmd_activity == vr::k_EDeviceActivityLevel_UserInteraction_Timeout;
+
+            if (hmd_active) {
+                openvr->last_hmd_active_time = std::chrono::system_clock::now();
+            }
+
+            const auto now = std::chrono::system_clock::now();
+
+            if (now - openvr->last_hmd_active_time <= std::chrono::seconds(5)) {
+                hmd_active = true;
+            }
+
+            openvr->is_hmd_active = hmd_active;
 
             // upon headset re-entry, reinitialize OpenVR
             if (openvr->is_hmd_active && !openvr->was_hmd_active) {

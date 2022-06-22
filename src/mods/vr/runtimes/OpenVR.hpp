@@ -49,5 +49,7 @@ struct OpenVR final : public VRRuntime {
 
     std::array<vr::TrackedDevicePose_t, vr::k_unMaxTrackedDeviceCount> render_poses;
     std::array<vr::TrackedDevicePose_t, vr::k_unMaxTrackedDeviceCount> game_poses;
+
+    std::chrono::system_clock::time_point last_hmd_active_time{};
 };
 }
