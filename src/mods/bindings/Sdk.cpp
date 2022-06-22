@@ -9,6 +9,7 @@
 #include "sdk/RETypeDB.hpp"
 #include "sdk/SceneManager.hpp"
 #include "sdk/ResourceManager.hpp"
+#include "sdk/MotionFsm2Layer.hpp"
 #include "sdk/TDBVer.hpp"
 #include "utility/Memory.hpp"
 
@@ -189,7 +190,7 @@ int sol_lua_push(sol::types<T*>, lua_State* l, T* obj) {
             return 1;
         } else {
             if ((uintptr_t)obj != detail::FAKE_OBJECT_ADDR) {
-                api::re_managed_object::detail::add_ref(l, obj, false);
+                api::re_managed_object::detail::add_ref(l, (::REManagedObject*)obj, false);
             }
 
             auto backpedal = sol::stack::push<sol::detail::as_pointer_tag<std::remove_pointer_t<T>>>(l, obj);
@@ -649,6 +650,8 @@ sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_t
 
             return sol::make_object(l, obj);
         }
+        case "via.motion.MotionFsm2Layer"_fnv:
+            return sol::make_object(l, *(::sdk::MotionFsm2Layer**)data);
         default:
             if (vm_obj_type > via::clr::VMObjType::NULL_ && vm_obj_type < via::clr::VMObjType::ValType) {
                 switch (vm_obj_type) {
@@ -1363,4 +1366,18 @@ void bindings::open_sdk(ScriptState* s) {
         },
         "get_address", [](::sdk::Resource* res) { return (uintptr_t)res; }
     );
+
+    lua.new_usertype<::sdk::behaviortree::TreeNode>("BehaviorTreeNode",
+        "get_name", &::sdk::behaviortree::TreeNode::get_name
+    );
+
+    lua.new_usertype<::sdk::MotionFsm2Layer>("MotionFsm2Layer",
+        "get_node_count", &sdk::MotionFsm2Layer::get_node_count,
+        "get_node", &sdk::MotionFsm2Layer::get_node,
+        "get_node_by_name", [](::sdk::MotionFsm2Layer* layer, const char* name) {
+            return layer->get_node_by_name(name);
+        }
+    );
+
+    create_managed_object_ptr_gc((::sdk::MotionFsm2Layer*)nullptr);
 }

@@ -21,12 +21,20 @@
 
 #include "HookManager.hpp"
 
+namespace regenny {
+namespace via {
+namespace clr {
+struct ManagedObject;
+}
+}    
+}
+
 class REManagedObject;
 class RETransform;
 
 namespace detail {
 template<typename T>
-concept ManagedObjectBased = std::is_base_of_v<::REManagedObject, T>;
+concept ManagedObjectBased = std::is_base_of_v<::REManagedObject, T> || std::is_base_of_v<regenny::via::clr::ManagedObject, T>;
 }
 
 template<detail::ManagedObjectBased T>
