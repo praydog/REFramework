@@ -165,11 +165,30 @@ void ChainViewer::on_frame() {
                     #else
                         const auto& collider = chain->CollisionData.collisions[i];
                     #endif
+                        auto adjusted_pos1 = collider.pair_joint == nullptr ? *(Vector3f*)&collider.sphere.pos : *(Vector3f*)&collider.capsule.p0;
+                        auto adjusted_pos2 = collider.pair_joint == nullptr ? Vector3f{} : *(Vector3f*)&collider.capsule.p1;
+
+                        const auto joint_pos = collider.joint != nullptr ? (Vector3f)sdk::get_joint_position((::REJoint*)collider.joint) : Vector3f{};
+                        const auto pair_joint_pos = collider.pair_joint != nullptr ? (Vector3f)sdk::get_joint_position((::REJoint*)collider.pair_joint) : Vector3f{};
+                        const auto predicted_pos = joint_pos + *(Vector3f*)&collider.offset;
+
+                        if (collider.joint != nullptr && glm::length(predicted_pos - adjusted_pos1) >= (glm::length(*(Vector3f*)&collider.offset) * 2.0f)) {
+                            if (collider.pair_joint != nullptr) {
+                                const auto rot = sdk::get_joint_rotation((::REJoint*)collider.joint);
+                                const auto rot2 = sdk::get_joint_rotation((::REJoint*)collider.pair_joint);
+                                adjusted_pos1 = (Vector3f)sdk::get_transform_position(sdk::get_joint_owner((::REJoint*)collider.joint)) + (*(Vector3f*)&collider.capsule.p0);
+                                adjusted_pos2 = (Vector3f)sdk::get_transform_position(sdk::get_joint_owner((::REJoint*)collider.pair_joint)) + (*(Vector3f*)&collider.capsule.p1);
+                            } else {
+                                //adjusted_pos1 = joint_pos + (sdk::get_joint_rotation((::REJoint*)collider.joint) * *(Vector3f*)&collider.sphere.pos);
+                                adjusted_pos1 = (Vector3f)sdk::get_transform_position(sdk::get_joint_owner((::REJoint*)collider.joint)) + (*(Vector3f*)&collider.sphere.pos);
+                            }
+                        }
+
                         if (collider.pair_joint == nullptr) {
-                            imgui::draw_sphere(*(Vector3f*)&collider.sphere.pos, collider.sphere.r, col, true);
+                            imgui::draw_sphere(adjusted_pos1, collider.sphere.r, col, true);
                         } else {
                             // Capsule
-                            imgui::draw_capsule(*(Vector3f*)&collider.capsule.p0, *(Vector3f*)&collider.capsule.p1, collider.capsule.r, col, true);
+                            imgui::draw_capsule(adjusted_pos1, adjusted_pos2, collider.capsule.r, col, true);
                         }
 
                         //world_to_screen_methods[1]->call<void*>(&screen_pos, context, &pos, &view, &proj, &screen_size);
