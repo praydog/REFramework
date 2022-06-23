@@ -11,14 +11,21 @@
 #if TDB_VER < 69
 #include "sdk/regenny/re3/via/motion/Chain.hpp"
 #include "sdk/regenny/re3/via/motion/ChainCollisions.hpp"
-#elif TDB_VER == 69 || (TDB_VER == 70 && defined(MHRISE))
+#elif TDB_VER == 69
 #include "sdk/regenny/re8/via/motion/Chain.hpp"
 #include "sdk/regenny/re8/via/motion/ChainCollisionTop.hpp"
 #include "sdk/regenny/re8/via/motion/ChainCollisions.hpp"
+#elif TDB_VER == 70
+
+#if defined(MHRISE)
+#include "sdk/regenny/mhrise/via/motion/Chain.hpp"
+#include "sdk/regenny/mhrise/via/motion/ChainCollisions.hpp"
 #else
 #include "sdk/regenny/re2_tdb70/via/motion/Chain.hpp"
 #include "sdk/regenny/re2_tdb70/via/motion/ChainCollisionTop.hpp"
 #include "sdk/regenny/re2_tdb70/via/motion/ChainCollisions.hpp"
+#endif
+
 #endif
 
 #include "ObjectExplorer.hpp"
@@ -150,7 +157,7 @@ void ChainViewer::on_frame() {
 
             if (chain != nullptr && chain->CollisionData.num > 0 && chain->CollisionData.collisions != nullptr) {
                 for (auto i = 0; i < chain->CollisionData.num; ++i) {
-                    #if TDB_VER >= 69
+                    #if TDB_VER >= 69 && !defined(MHRISE)
                     const auto& collider_top = chain->CollisionData.collisions[i];
 
                     for (auto j = 0; j < collider_top.num_collisions; ++j) {
@@ -173,7 +180,7 @@ void ChainViewer::on_frame() {
                             
                             ImGui::SetNextTreeNodeOpen(true, ImGuiCond_::ImGuiCond_Once);
 
-                        #if TDB_VER >= 69
+                        #if TDB_VER >= 69 && !defined(MHRISE)
                             if (ImGui::TreeNode(&collider, "Collision %d %d", i, j)) {
                         #else
                             if (ImGui::TreeNode(&collider, "Collision %d", i)) {
@@ -214,7 +221,7 @@ void ChainViewer::on_frame() {
 
                             ImGui::PopID();
                         }
-                #if TDB_VER >= 69
+                #if TDB_VER >= 69 && !defined(MHRISE)
                     }
                 #endif
                 }
