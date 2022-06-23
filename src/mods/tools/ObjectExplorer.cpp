@@ -2811,7 +2811,7 @@ void ObjectExplorer::display_native_methods(REManagedObject* obj, sdk::RETypeDef
 
                     auto ip = (uintptr_t)method_ptr;
 
-                    for (auto i = 0; i < 10; i++) {
+                    for (auto i = 0; i < 20; i++) {
                         if (ZYAN_FAILED(
                             ZydisDecoderDecodeFull(
                                 &decoder, (void*)ip, 256, &is,
@@ -2841,8 +2841,8 @@ void ObjectExplorer::display_native_methods(REManagedObject* obj, sdk::RETypeDef
 
                         ip += is.length;
 
-                        // check if ret or int3 and stop
-                        if (is.mnemonic == ZYDIS_MNEMONIC_RET || is.mnemonic == ZYDIS_MNEMONIC_INT3) {
+                        // check if int3 and stop
+                        if (is.mnemonic == ZYDIS_MNEMONIC_INT3) {
                             break;
                         }
                     }
