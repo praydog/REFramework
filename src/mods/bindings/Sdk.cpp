@@ -354,6 +354,11 @@ struct BehaviorTreeCoreHandle : public ::REManagedObject {
     int unused;
 };
 
+struct BehaviorTree : public ::REManagedObject {
+    int unused;
+    int unused2;
+};
+
 void* get_thread_context() {
     return (void*)::sdk::get_thread_context();
 }
@@ -613,9 +618,6 @@ sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_t
         const auto vm_obj_type = data_type->get_vm_obj_type();
 
         switch (full_name_hash) {
-        case "via.Transform"_fnv: {
-            return sol::make_object(l, *(::RETransform**)data);
-        }
         case "System.String"_fnv: {
             const auto managed_ret_val = *(::REManagedObject**)data;
             const auto managed_str = (SystemString*)((uintptr_t)utility::re_managed_object::get_field_ptr(managed_ret_val) - sizeof(::REManagedObject));
@@ -703,10 +705,6 @@ sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_t
 
             return sol::make_object(l, obj);
         }
-        case "via.behaviortree.BehaviorTree.CoreHandle"_fnv:
-        case "via.motion.MotionFsm2Layer"_fnv:
-        case "via.timeline.TimelineFsm2Layer"_fnv:
-            return sol::make_object(l, *(api::sdk::BehaviorTreeCoreHandle**)data);
         default:
             if (vm_obj_type > via::clr::VMObjType::NULL_ && vm_obj_type < via::clr::VMObjType::ValType) {
                 switch (vm_obj_type) {
@@ -718,6 +716,25 @@ sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_t
                     // another fallback incase the method returns an object which is an array
                     if (td != nullptr && td->get_vm_obj_type() == via::clr::VMObjType::Array) {
                         return sol::make_object(l, *(::sdk::SystemArray**)data);
+                    }
+
+                    if (td != nullptr) {
+                        const auto real_full_name_hash = td == data_type ? full_name_hash : utility::hash(td->get_full_name());
+
+                        switch (real_full_name_hash) {
+                            case "via.Transform"_fnv:
+                                return sol::make_object(l, *(::RETransform**)data);
+                            case "via.behaviortree.BehaviorTree"_fnv: [[fallthrough]];
+                            case "via.motion.MotionFsm2"_fnv: [[fallthrough]];
+                            case "via.motion.MotionJackFsm2"_fnv:
+                                return sol::make_object(l, *(api::sdk::BehaviorTree**)data);
+                            case "via.behaviortree.BehaviorTree.CoreHandle"_fnv: [[fallthrough]];
+                            case "via.motion.MotionFsm2Layer"_fnv: [[fallthrough]];
+                            case "via.timeline.TimelineFsm2Layer"_fnv:
+                                return sol::make_object(l, *(api::sdk::BehaviorTreeCoreHandle**)data);
+                            default:
+                                break;
+                        }
                     }
 
                     return sol::make_object(l, *(::REManagedObject**)data);
@@ -1483,4 +1500,19 @@ void bindings::open_sdk(ScriptState* s) {
     );
 
     create_managed_object_ptr_gc((api::sdk::BehaviorTreeCoreHandle*)nullptr);
+
+    lua.new_usertype<api::sdk::BehaviorTree>("BehaviorTree",
+        sol::base_classes, sol::bases<::REManagedObject>(),
+        "get_tree", [](api::sdk::BehaviorTree* tree, uint32_t index) {
+            return ((sdk::behaviortree::BehaviorTree*)tree)->get_tree<api::sdk::BehaviorTreeCoreHandle>(index);
+        },
+        "get_tree_count", [](api::sdk::BehaviorTree* tree) {
+            return ((sdk::behaviortree::BehaviorTree*)tree)->get_tree_count();
+        },
+        "get_trees", [](api::sdk::BehaviorTree* tree) {
+            return ((sdk::behaviortree::BehaviorTree*)tree)->get_trees<api::sdk::BehaviorTreeCoreHandle>();
+        }
+    );
+
+    create_managed_object_ptr_gc((api::sdk::BehaviorTree*)nullptr);
 }

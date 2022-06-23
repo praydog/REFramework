@@ -203,6 +203,34 @@ public:
         return (sdk::behaviortree::TreeObject*)this->core.tree_object;
     }
 };
+
+class BehaviorTree : public regenny::via::behaviortree::BehaviorTree {
+public:
+    // Called by vtable index 11 or 12?
+    template<typename T = sdk::behaviortree::CoreHandle>
+    T* get_tree(uint32_t index) const {
+        if (this->trees.count <= index || this->trees.handles == nullptr) {
+            return nullptr;
+        }
+
+        return (T*)this->trees.handles[index];
+    }
+
+    uint32_t get_tree_count() const {
+        return this->trees.count;
+    }
+
+    template<typename T = sdk::behaviortree::CoreHandle>
+    std::vector<T*> get_trees() const {
+        std::vector<T*> out{};
+
+        for (uint32_t i = 0; i < this->trees.count; i++) {
+            out.push_back((T*)this->trees.handles[i]);
+        }
+        
+        return out;
+    }
+};
 };
 
 class MotionFsm2Layer : public regenny::via::motion::MotionFsm2Layer {
