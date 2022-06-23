@@ -230,6 +230,8 @@ public:
         
         return out;
     }
+
+    void set_current_node(sdk::behaviortree::TreeNode* node, uint32_t tree_idx, void* set_node_info = nullptr);
 };
 };
 

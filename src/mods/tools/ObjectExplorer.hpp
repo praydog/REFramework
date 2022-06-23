@@ -34,6 +34,12 @@ struct RETypeDefinition;
 namespace renderer {
 class RenderLayer;
 }
+
+namespace behaviortree {
+class BehaviorTree;
+class CoreHandle;
+class TreeNode;
+}
 }
 
 namespace genny {
@@ -153,6 +159,9 @@ private:
     void handle_component(REComponent* component);
     void handle_transform(RETransform* transform);
     void handle_render_layer(sdk::renderer::RenderLayer* layer);
+    void handle_behavior_tree(sdk::behaviortree::BehaviorTree* bhvt);
+    void handle_behavior_tree_core_handle(sdk::behaviortree::BehaviorTree* bhvt, sdk::behaviortree::CoreHandle* bhvt_core_handle, uint32_t tree_idx);
+    void handle_behavior_tree_node(sdk::behaviortree::BehaviorTree* bhvt, sdk::behaviortree::TreeNode* node, uint32_t tree_idx);
     void handle_type(REManagedObject* obj, REType* t);
 
     void display_enum_value(std::string_view name, int64_t value);

@@ -15,6 +15,9 @@
 #include "utility/Module.hpp"
 #include "utility/Memory.hpp"
 #include "sdk/Renderer.hpp"
+#include "sdk/MotionFsm2Layer.hpp"
+
+#include "../mods/ScriptRunner.hpp"
 
 #include "HookManager.hpp"
 
@@ -1893,6 +1896,7 @@ void ObjectExplorer::handle_address(Address address, int32_t offset, Address par
 
     bool made_node = false;
     const auto is_game_object = utility::re_managed_object::is_a(object, "via.GameObject");
+    const auto is_bhvt = utility::re_managed_object::is_a(object, "via.behaviortree.BehaviorTree");
     const auto obj_typedef = utility::re_managed_object::get_type_definition(object);
 
     if (obj_typedef != nullptr) {
@@ -2014,6 +2018,10 @@ void ObjectExplorer::handle_address(Address address, int32_t offset, Address par
     }
 
     if (made_node || offset == -1) {
+        if (is_bhvt) {
+            handle_behavior_tree(address.as<sdk::behaviortree::BehaviorTree*>());
+        }
+
         if (is_game_object) {
             handle_game_object(address.as<REGameObject*>());
         }
@@ -2213,7 +2221,7 @@ void ObjectExplorer::handle_transform(RETransform* transform) {
 }
 
 void ObjectExplorer::handle_render_layer(sdk::renderer::RenderLayer* layer) {
-    auto made_node = ImGui::TreeNode(&layer->m_layers, "Child Layers");
+    const auto made_node = ImGui::TreeNode(&layer->m_layers, "Child Layers");
     context_menu(&layer->m_layers);
 
     if (made_node) {
@@ -2225,6 +2233,89 @@ void ObjectExplorer::handle_render_layer(sdk::renderer::RenderLayer* layer) {
 
         ImGui::TreePop();
     }
+}
+
+void ObjectExplorer::handle_behavior_tree(sdk::behaviortree::BehaviorTree* bhvt) {
+    const auto made_node = ImGui::TreeNode(&bhvt->trees, "Trees");
+
+    if (made_node) {
+        int32_t count = 0;
+
+        for (auto tree : bhvt->get_trees()) {
+            handle_behavior_tree_core_handle(bhvt, tree, count++);
+        }
+
+        ImGui::TreePop();
+    }
+}
+
+void ObjectExplorer::handle_behavior_tree_core_handle(sdk::behaviortree::BehaviorTree* bhvt, sdk::behaviortree::CoreHandle* bhvt_core_handle, uint32_t tree_idx) {
+    const auto made_node = ImGui::TreeNode(&bhvt_core_handle->core.tree_object, "Nodes");
+
+    if (made_node) {
+        int32_t count = 0;
+        const auto tree_object = bhvt_core_handle->get_tree_object();
+
+        if (tree_object != nullptr) {
+            auto nodes = tree_object->get_nodes();
+
+            std::sort(nodes.begin(), nodes.end(), [](sdk::behaviortree::TreeNode* a, sdk::behaviortree::TreeNode* b) {
+                return a->get_full_name() < b->get_full_name();
+            });
+
+            for (auto node : tree_object->get_nodes()) {
+                handle_behavior_tree_node(bhvt, node, tree_idx);
+            }
+        }
+
+        ImGui::TreePop();
+    }
+}
+
+void ObjectExplorer::handle_behavior_tree_node(sdk::behaviortree::BehaviorTree* bhvt, sdk::behaviortree::TreeNode* node, uint32_t tree_idx) {
+    ImGui::PushID(node);
+
+    // Activate node
+    if (bhvt != nullptr && ImGui::Button("X")) {
+        bhvt->set_current_node(node, tree_idx);
+    }
+
+    ImGui::SameLine();
+
+    const auto node_name = node->get_name();
+    const auto node_full_name = utility::narrow(node->get_full_name());
+
+    const auto made_node = ImGui::TreeNode(node, node_full_name.data());
+
+    if (made_node) {
+        ImGui::Text("ID: %u", node->get_id());
+        ImGui::Text("Status1: %i", (int32_t)node->get_status1());
+        ImGui::Text("Status2: %i", (int32_t)node->get_status2());
+
+        if (ImGui::TreeNode("Children")) {
+            for (auto child : node->get_children()) {
+                handle_behavior_tree_node(bhvt, child, tree_idx);
+            }
+
+            ImGui::TreePop();
+        }
+
+        if (ImGui::TreeNode("Selector")) {
+            handle_address(node->get_selector());
+
+            ImGui::TreePop();
+        }
+
+        if (ImGui::TreeNode("Selector Condition")) {
+            handle_address(node->get_selector_condition());
+
+            ImGui::TreePop();
+        }
+
+        ImGui::TreePop();
+    }
+
+    ImGui::PopID();
 }
 
 void ObjectExplorer::handle_type(REManagedObject* obj, REType* t) {

@@ -1,3 +1,5 @@
+#include "RETypeDB.hpp"
+
 #include "MotionFsm2Layer.hpp"
 
 namespace sdk {
@@ -84,6 +86,16 @@ std::vector<TreeNode*> TreeNode::get_transitions() const {
     }
 
     return out;
+}
+
+void BehaviorTree::set_current_node(sdk::behaviortree::TreeNode* node, uint32_t tree_idx, void* set_node_info) {
+    static auto method = sdk::find_method_definition("via.behaviortree.BehaviorTree", "setCurrentNode(System.UInt64, System.UInt32, via.behaviortree.SetNodeInfo)");
+
+    if (method == nullptr) {
+        return;
+    }
+
+    method->call(sdk::get_thread_context(), this, node->get_id(), tree_idx, set_node_info);
 }
 }
 }
