@@ -19,6 +19,21 @@
 
 #include "Sdk.hpp"
 
+namespace api {
+namespace sdk {
+static std::unordered_map<::sdk::RETypeDefinition*, uint32_t> s_fnv_cache{};
+
+struct BehaviorTreeCoreHandle : public ::REManagedObject {
+    int unused;
+};
+
+struct BehaviorTree : public ::REManagedObject {
+    int unused;
+    int unused2;
+};
+}
+}
+
 namespace detail {
 constexpr uintptr_t FAKE_OBJECT_ADDR = 12345;
 }
@@ -109,7 +124,7 @@ void add_ref(lua_State* l, ::REManagedObject* obj, bool force = false) {
 ::REManagedObject* add_ref_permanent(sol::this_state s, ::REManagedObject* obj) {
     if (!utility::re_managed_object::is_managed_object(obj)) {
         throw sol::error{(std::stringstream{} << "add_ref_permanent: " << (uintptr_t)obj << " is not a managed object").str()};
-    }
+    } 
 
     utility::re_managed_object::add_ref(obj);
 
@@ -193,15 +208,50 @@ int sol_lua_push(sol::types<T*>, lua_State* l, T* obj) {
                 api::re_managed_object::detail::add_ref(l, (::REManagedObject*)obj, false);
             }
 
-            auto backpedal = sol::stack::push<sol::detail::as_pointer_tag<std::remove_pointer_t<T>>>(l, obj);
+            int32_t backpedal = 0;
 
             if ((uintptr_t)obj != detail::FAKE_OBJECT_ADDR) {
+                uint32_t typename_hash = 0;
+                const auto td = utility::re_managed_object::get_type_definition(obj);
+
+                if (td != nullptr) {
+                    if (auto it = api::sdk::s_fnv_cache.find(td); it != api::sdk::s_fnv_cache.end()) {
+                        typename_hash = it->second;
+                    } else {
+                        typename_hash = utility::hash(td->get_full_name());
+                        api::sdk::s_fnv_cache[td] = typename_hash;
+                    }
+
+                    switch (typename_hash) {
+                    case "via.Transform"_fnv:
+                        backpedal = sol::stack::push<sol::detail::as_pointer_tag<std::remove_pointer_t<::RETransform>>>(l, (::RETransform*)obj);
+                        break;
+                    case "via.behaviortree.BehaviorTree"_fnv:[[fallthrough]];
+                    case "via.motion.MotionFsm2"_fnv:[[fallthrough]];
+                    case "via.motion.MotionJackFsm2"_fnv:
+                        backpedal = sol::stack::push<sol::detail::as_pointer_tag<std::remove_pointer_t<api::sdk::BehaviorTree>>>(l, (api::sdk::BehaviorTree*)obj);
+                        break;
+                    case "via.behaviortree.BehaviorTree.CoreHandle"_fnv: [[fallthrough]];
+                    case "via.motion.MotionFsm2Layer"_fnv: [[fallthrough]];
+                    case "via.timeline.TimelineFsm2Layer"_fnv:
+                        backpedal = sol::stack::push<sol::detail::as_pointer_tag<std::remove_pointer_t<api::sdk::BehaviorTreeCoreHandle>>>(l, (api::sdk::BehaviorTreeCoreHandle*)obj);
+                        break;
+                    default:
+                        backpedal = sol::stack::push<sol::detail::as_pointer_tag<std::remove_pointer_t<T>>>(l, obj);
+                        break;
+                    };
+                } else {
+                    backpedal = sol::stack::push<sol::detail::as_pointer_tag<std::remove_pointer_t<T>>>(l, obj);
+                }
+
                 auto ref = sol::stack::get<sol::object>(l, -backpedal);
 
                 // keep a weak reference to the object for caching
                 objects[(uintptr_t)obj] = ref;
 
                 return backpedal;
+            } else {
+                backpedal = sol::stack::push<sol::detail::as_pointer_tag<std::remove_pointer_t<T>>>(l, obj);
             }
 
             return backpedal;
@@ -348,15 +398,6 @@ struct MemoryView {
     uintptr_t address() const {
         return (uintptr_t)data;
     }
-};
-
-struct BehaviorTreeCoreHandle : public ::REManagedObject {
-    int unused;
-};
-
-struct BehaviorTree : public ::REManagedObject {
-    int unused;
-    int unused2;
 };
 
 void* get_thread_context() {
@@ -718,25 +759,6 @@ sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_t
                         return sol::make_object(l, *(::sdk::SystemArray**)data);
                     }
 
-                    if (td != nullptr) {
-                        const auto real_full_name_hash = td == data_type ? full_name_hash : utility::hash(td->get_full_name());
-
-                        switch (real_full_name_hash) {
-                            case "via.Transform"_fnv:
-                                return sol::make_object(l, *(::RETransform**)data);
-                            case "via.behaviortree.BehaviorTree"_fnv: [[fallthrough]];
-                            case "via.motion.MotionFsm2"_fnv: [[fallthrough]];
-                            case "via.motion.MotionJackFsm2"_fnv:
-                                return sol::make_object(l, *(api::sdk::BehaviorTree**)data);
-                            case "via.behaviortree.BehaviorTree.CoreHandle"_fnv: [[fallthrough]];
-                            case "via.motion.MotionFsm2Layer"_fnv: [[fallthrough]];
-                            case "via.timeline.TimelineFsm2Layer"_fnv:
-                                return sol::make_object(l, *(api::sdk::BehaviorTreeCoreHandle**)data);
-                            default:
-                                break;
-                        }
-                    }
-
                     return sol::make_object(l, *(::REManagedObject**)data);
                 }
                 }
@@ -1084,7 +1106,7 @@ void bindings::open_sdk(ScriptState* s) {
     )");
 
     auto sdk = lua.create_table();
-    sdk["get_tdb_version"] = []() -> int { return TDB_VER; };
+    sdk["get_tdb_version"] = []() -> int { return sdk::RETypeDB::get()->version; };
     sdk["game_namespace"] = game_namespace;
     sdk["get_thread_context"] = api::sdk::get_thread_context;
     sdk["get_native_singleton"] = api::sdk::get_native_singleton;
@@ -1329,7 +1351,7 @@ void bindings::open_sdk(ScriptState* s) {
     // templated lambda
     auto create_managed_object_ptr_gc = [&]<detail::ManagedObjectBased T>(T* obj) {
         lua["__REManagedObjectPtrInternalCreate"] = [s]() -> sol::object {
-            return sol::make_object(s->lua(), (T*)12345);
+            return sol::make_object(s->lua(), (T*)detail::FAKE_OBJECT_ADDR);
         };
 
         lua.do_string(R"(

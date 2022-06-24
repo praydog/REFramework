@@ -179,7 +179,6 @@ void ChainViewer::on_frame() {
                                 adjusted_pos1 = (Vector3f)sdk::get_transform_position(sdk::get_joint_owner((::REJoint*)collider.joint)) + (*(Vector3f*)&collider.capsule.p0);
                                 adjusted_pos2 = (Vector3f)sdk::get_transform_position(sdk::get_joint_owner((::REJoint*)collider.pair_joint)) + (*(Vector3f*)&collider.capsule.p1);
                             } else {
-                                //adjusted_pos1 = joint_pos + (sdk::get_joint_rotation((::REJoint*)collider.joint) * *(Vector3f*)&collider.sphere.pos);
                                 adjusted_pos1 = (Vector3f)sdk::get_transform_position(sdk::get_joint_owner((::REJoint*)collider.joint)) + (*(Vector3f*)&collider.sphere.pos);
                             }
                         }
