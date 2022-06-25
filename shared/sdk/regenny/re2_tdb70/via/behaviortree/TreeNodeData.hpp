@@ -40,6 +40,7 @@ struct TreeNodeData {
     uint32_t name_offset; // 0x1c0
     uint32_t name_murmur_hash; // 0x1c4
     uint32_t full_name_murmur_hash; // 0x1c8
-}; // Size: 0x1cc
+    uint32_t pad__; // 0x1cc
+}; // Size: 0x1d0
 #pragma pack(pop)
 }

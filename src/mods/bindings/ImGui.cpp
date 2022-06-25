@@ -192,7 +192,7 @@ sol::variadic_results slider_int(sol::this_state s, const char* label, int v, in
     return results;
 }
 
-sol::variadic_results input_text(sol::this_state s, const char* label, const std::string& v, ImGuiInputTextFlags flags = 0) {
+sol::variadic_results input_text(sol::this_state s, const char* label, const std::string& v, ImGuiInputTextFlags flags) {
     flags |= ImGuiInputTextFlags_CallbackResize;
 
     if (label == nullptr) {
@@ -203,7 +203,7 @@ sol::variadic_results input_text(sol::this_state s, const char* label, const std
     buffer = v;
 
     static auto input_text_callback = [](ImGuiInputTextCallbackData* data) -> int {
-        if (data->EventFlag == ImGuiInputTextFlags_CallbackResize) {
+        if ((data->EventFlag & ImGuiInputTextFlags_CallbackResize) != 0) {
             buffer.resize(data->BufTextLen);
             data->Buf = (char*)buffer.c_str();
         }

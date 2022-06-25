@@ -1496,9 +1496,14 @@ void bindings::open_sdk(ScriptState* s) {
         "get_full_name", &::sdk::behaviortree::TreeNode::get_full_name,
         "get_children", &::sdk::behaviortree::TreeNode::get_children,
         "get_actions", &::sdk::behaviortree::TreeNode::get_actions,
+        "get_unloaded_actions", &::sdk::behaviortree::TreeNode::get_unloaded_actions,
         "get_transitions", &::sdk::behaviortree::TreeNode::get_transitions,
         "get_status1", &::sdk::behaviortree::TreeNode::get_status1,
-        "get_status2", &::sdk::behaviortree::TreeNode::get_status2
+        "get_status2", &::sdk::behaviortree::TreeNode::get_status2,
+        "append_action", &::sdk::behaviortree::TreeNode::append_action,
+        "add_action", &::sdk::behaviortree::TreeNode::append_action,
+        "replace_action", &::sdk::behaviortree::TreeNode::replace_action,
+        "remove_action", &::sdk::behaviortree::TreeNode::remove_action
     );
 
     lua.new_usertype<::sdk::behaviortree::TreeObject>("BehaviorTreeObject",
@@ -1511,7 +1516,13 @@ void bindings::open_sdk(ScriptState* s) {
         },
         "get_node", &::sdk::behaviortree::TreeObject::get_node,
         "get_node_count", &::sdk::behaviortree::TreeObject::get_node_count,
-        "get_nodes", &::sdk::behaviortree::TreeObject::get_nodes
+        "get_nodes", &::sdk::behaviortree::TreeObject::get_nodes,
+        "get_action", &::sdk::behaviortree::TreeObject::get_action,
+        "get_unloaded_action", &::sdk::behaviortree::TreeObject::get_unloaded_action,
+        "get_transition", &::sdk::behaviortree::TreeObject::get_transition,
+        "get_action_count", &::sdk::behaviortree::TreeObject::get_action_count,
+        "get_unloaded_action_count", &::sdk::behaviortree::TreeObject::get_unloaded_action_count,
+        "get_static_action_count", &::sdk::behaviortree::TreeObject::get_static_action_count
     );
 
     lua.new_usertype<api::sdk::BehaviorTreeCoreHandle>("BehaviorTreeCoreHandle",

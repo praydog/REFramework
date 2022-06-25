@@ -10,6 +10,7 @@
 #include "regenny/re2_tdb70/via/motion/MotionFsm2Layer.hpp"
 #include "regenny/re2_tdb70/via/behaviortree/TreeNodeData.hpp"
 #include "regenny/re2_tdb70/via/behaviortree/TreeNode.hpp"
+#include "regenny/re2_tdb70/via/behaviortree/TreeObjectData.hpp"
 #include "regenny/re2_tdb70/via/behaviortree/TreeObject.hpp"
 #include "regenny/re2_tdb70/via/behaviortree/BehaviorTree.hpp"
 #else
@@ -17,6 +18,7 @@
 #include "regenny/re3/via/motion/MotionFsm2Layer.hpp"
 #include "regenny/re3/via/behaviortree/TreeNodeData.hpp"
 #include "regenny/re3/via/behaviortree/TreeNode.hpp"
+#include "regenny/re3/via/behaviortree/TreeObjectData.hpp"
 #include "regenny/re3/via/behaviortree/TreeObject.hpp"
 #include "regenny/re3/via/behaviortree/BehaviorTree.hpp"
 #endif
@@ -36,8 +38,13 @@ public:
 class TreeNode : public regenny::via::behaviortree::TreeNode {
 public:
     std::vector<TreeNode*> get_children() const;
-    std::vector<TreeNode*> get_actions() const;
-    std::vector<TreeNode*> get_transitions() const;
+    std::vector<::REManagedObject*> get_unloaded_actions() const;
+    std::vector<::REManagedObject*> get_actions() const;
+    std::vector<::REManagedObject*> get_transitions() const;
+    
+    void append_action(uint32_t action_index);
+    void replace_action(uint32_t index, uint32_t action_index);
+    void remove_action(uint32_t index);
 
     // Getters just in-case we decide to dynamically generate the structure layout
     // instead of using manual offsets.
@@ -118,6 +125,10 @@ public:
 
 class TreeObject : public regenny::via::behaviortree::TreeObject {
 public:
+    regenny::via::behaviortree::TreeObjectData* get_data() const {
+        return (regenny::via::behaviortree::TreeObjectData*)this->data;
+    }
+
     sdk::behaviortree::TreeNode* begin() const {
         if (this->nodes.count <= 0 || this->nodes.nodes == nullptr) {
             return nullptr;
@@ -191,6 +202,55 @@ public:
             if (node.id == id) {
                 return &node;
             }
+        }
+
+        return nullptr;
+    }
+
+    ::REManagedObject* get_action(uint32_t index) const;
+    ::REManagedObject* get_unloaded_action(uint32_t index) const;
+
+    uint32_t get_action_count() const;
+
+    uint32_t get_unloaded_action_count() const {
+        const auto data = get_data();
+
+        if (data == nullptr) {
+            return 0;
+        }
+
+        return data->actions.count;
+    }
+
+    uint32_t get_static_action_count() const {
+        const auto data = get_data();
+
+        if (data == nullptr) {
+            return 0;
+        }
+
+        return data->static_actions.count;
+    }
+
+    ::REManagedObject* get_transition(uint32_t index) const {
+        if (this->data == nullptr) {
+            return nullptr;
+        }
+
+        if (_bittest((const long*)&index, 30)) {
+            const auto new_idx = index & 0xFFFFFFF;
+            if (new_idx >= this->data->static_transitions.count || this->data->static_transitions.objects == nullptr) {
+                return nullptr;
+            }
+
+            return (::REManagedObject*)this->data->static_transitions.objects[new_idx];
+        } else {
+            // TODO!
+            /*if (index >= this->data->transitions.count || this->data->transitions.objects == nullptr) {
+                return nullptr;
+            }
+
+            return (::REManagedObject*)this->data->transitions.objects[index];*/
         }
 
         return nullptr;

@@ -6,10 +6,10 @@ namespace regenny::via {
 struct Joint;
 }
 namespace regenny::via::motion {
-struct ChainCollisionArray;
+struct ChainCollisionData;
 }
 namespace regenny::via::motion {
-struct ChainCollisionData;
+struct ChainCollisionArray;
 }
 namespace regenny::via::motion {
 #pragma pack(push, 1)

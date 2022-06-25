@@ -4,13 +4,13 @@ namespace regenny::via::behaviortree {
 struct TreeNodeData;
 }
 namespace regenny::via::behaviortree {
-struct Selector;
-}
-namespace regenny::via::behaviortree {
 struct TreeObject;
 }
 namespace regenny::via::behaviortree {
 struct Condition;
+}
+namespace regenny::via::behaviortree {
+struct Selector;
 }
 namespace regenny::via::behaviortree {
 #pragma pack(push, 1)
