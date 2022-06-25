@@ -31,6 +31,7 @@ Supports both DirectX 11 and DirectX 12.
 * FOV Slider (All games)
 * Vignette Disabler (All games)
 * Ultrawide/Aspect Ratio fixes (All games)
+* GUI Hider/Disabler (All games)
 
 ## Included Fixes
 * RE8 Startup Crash

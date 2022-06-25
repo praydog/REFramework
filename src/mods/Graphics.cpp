@@ -31,6 +31,11 @@ void Graphics::on_draw_ui() {
         m_ultrawide_fov->draw("Ultrawide: Override FOV");
         m_ultrawide_fov_multiplier->draw("Ultrawide: FOV Multiplier");
     }
+
+    ImGui::Separator();
+    ImGui::Text("GUI Options");
+
+    m_disable_gui->draw("Hide GUI");
 }
 
 void Graphics::on_pre_application_entry(void* entry, const char* name, size_t hash) {
@@ -53,6 +58,14 @@ void Graphics::on_application_entry(void* entry, const char* name, size_t hash) 
     if (hash == "LockScene"_fnv) {
         do_ultrawide_fix();
     }
+}
+
+bool Graphics::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_context) {
+    if (m_disable_gui->value()) {
+        return false;
+    }
+
+    return true;
 }
 
 void Graphics::do_ultrawide_fix() {
