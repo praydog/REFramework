@@ -169,10 +169,12 @@ void ChainViewer::on_frame() {
                         auto adjusted_pos2 = collider.pair_joint == nullptr ? Vector3f{} : *(Vector3f*)&collider.capsule.p1;
 
                         const auto joint_pos = collider.joint != nullptr ? (Vector3f)sdk::get_joint_position((::REJoint*)collider.joint) : Vector3f{};
+                        const auto joint_rot = collider.joint != nullptr ? sdk::get_joint_rotation((::REJoint*)collider.joint) : glm::identity<glm::quat>();
                         const auto pair_joint_pos = collider.pair_joint != nullptr ? (Vector3f)sdk::get_joint_position((::REJoint*)collider.pair_joint) : Vector3f{};
-                        const auto predicted_pos = joint_pos + *(Vector3f*)&collider.offset;
+                        const auto predicted_pos = joint_pos + (joint_rot * *(Vector3f*)&collider.offset);
+                        const auto offset_length = glm::length(*(Vector3f*)&collider.offset);
 
-                        if (collider.joint != nullptr && glm::length(predicted_pos - adjusted_pos1) >= (glm::length(*(Vector3f*)&collider.offset) * 2.0f)) {
+                        if (offset_length != 0.0f && collider.joint != nullptr && glm::length(predicted_pos - adjusted_pos1) >= (offset_length * 2.0f)) {
                             if (collider.pair_joint != nullptr) {
                                 const auto rot = sdk::get_joint_rotation((::REJoint*)collider.joint);
                                 const auto rot2 = sdk::get_joint_rotation((::REJoint*)collider.pair_joint);
