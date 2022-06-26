@@ -2143,7 +2143,13 @@ end
 
 if is_re7 then
     local vibrationmanager_t = sdk.find_type_definition("app.VibrationManager")
-    sdk.hook(vibrationmanager_t:get_method("requestAdd(app.VibrationParam, System.Single)"), re7_on_pre_request_add_vibration, re7_on_post_request_add_vibration)
+    local method = vibrationmanager_t:get_method("requestAdd(app.VibrationParam, System.Single)")
+
+    if method == nil then
+        method = vibrationmanager_t:get_method("requestAdd(app.VibrationParam, System.Single, System.Boolean)")
+    end
+
+    sdk.hook(method, re7_on_pre_request_add_vibration, re7_on_post_request_add_vibration)
 end
 
 local cached_contact_pos = nil
