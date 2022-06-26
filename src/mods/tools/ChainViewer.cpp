@@ -82,10 +82,16 @@ void ChainViewer::on_frame() {
         return;
     }
 
+    m_delta_time.update();
+
     static auto transform_def = utility::re_managed_object::get_type_definition(first_transform);
+    static auto folder_def = sdk::find_type_definition("via.Folder");
+    static auto gameobject_def = sdk::find_type_definition("via.GameObject");
     static auto next_transform_method = transform_def->get_method("get_Next");
     static auto child_transform_method = transform_def->get_method("get_Child");
     static auto get_gameobject_method = transform_def->get_method("get_GameObject");
+    static auto get_folder_path_method = folder_def->get_method("get_Path");
+    static auto get_folder_method = gameobject_def->get_method("get_Folder");
 
     auto camera = sdk::get_primary_camera();
 
@@ -117,8 +123,6 @@ void ChainViewer::on_frame() {
         return;
     }
 
-    const auto col = ImGui::GetColorU32(ImVec4(66.0f / 255.0f, 105.0f / 255.0f, 245.0f / 255.0f, 0.25f));
-
     ImGui::Begin("Chains");
 
     for (auto transform = first_transform; 
@@ -126,18 +130,6 @@ void ChainViewer::on_frame() {
         transform = next_transform_method->call<RETransform*>(context, transform)) 
     {
         auto attempt_display_chains = [&](RETransform* transform) {
-            auto owner = get_gameobject_method->call<REGameObject*>(context, transform);
-
-            if (owner == nullptr) {
-                return;
-            }
-
-            auto owner_name = utility::re_string::get_string(owner->name);
-
-            if (owner_name.empty()) {
-                return;
-            }
-
             static auto chain_type = sdk::find_type_definition("via.motion.Chain");
             static auto chain_re_type = chain_type->get_type();
 
@@ -148,8 +140,41 @@ void ChainViewer::on_frame() {
                 return;
             }
 
+            auto owner = get_gameobject_method->call<REGameObject*>(context, transform);
+
+            if (owner == nullptr) {
+                return;
+            }
+
+            auto owner_name = utility::re_string::get_string(owner->name);
+
+            if (owner_name.empty()) {
+                owner_name = "";
+            }
+
             ImGui::PushID(chain);
             made = ImGui::TreeNode(chain, owner_name.data());
+
+            const auto is_hovering_node = ImGui::IsItemHovered();
+            auto col = ImVec4(66.0f / 255.0f, 105.0f / 255.0f, 245.0f / 255.0f, 0.25f);
+
+            // If we're hovering over the node, highlight it red and pulsate the alpha value
+            if (is_hovering_node) {
+                m_pulse_time += m_delta_time;
+
+                col.w = glm::abs(glm::cos(m_pulse_time * glm::pi<float>()));
+            }
+
+            const auto owner_folder = get_folder_method->call<::REManagedObject*>(context, owner);
+
+            if (owner_folder != nullptr) {
+                const auto folder_path = get_folder_path_method->call<::SystemString*>(context, owner_folder);
+
+                if (folder_path != nullptr) {       
+                    ImGui::SameLine();
+                    ImGui::TextColored(ImVec4{100.0f / 255.0f, 149.0f / 255.0f, 237.0f / 255.0f, 255 / 255.0f}, " [%s]", utility::re_string::get_string(folder_path).data());
+                }
+            }
 
             if (made) {
                 ObjectExplorer::get()->handle_address(chain);
@@ -186,10 +211,10 @@ void ChainViewer::on_frame() {
                         }
 
                         if (collider.pair_joint == nullptr) {
-                            imgui::draw_sphere(adjusted_pos1, collider.sphere.r, col, true);
+                            imgui::draw_sphere(adjusted_pos1, collider.sphere.r, ImGui::GetColorU32(col), true);
                         } else {
                             // Capsule
-                            imgui::draw_capsule(adjusted_pos1, adjusted_pos2, collider.capsule.r, col, true);
+                            imgui::draw_capsule(adjusted_pos1, adjusted_pos2, collider.capsule.r, ImGui::GetColorU32(col), true);
                         }
 
                         //world_to_screen_methods[1]->call<void*>(&screen_pos, context, &pos, &view, &proj, &screen_size);
