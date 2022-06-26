@@ -2818,6 +2818,10 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                             ui_distance = 5.0f;
                             ui_scale = 2.0f;
                             break;
+                        case "hud_hunterwirewindow"_fnv:
+                            ui_distance = 10.0f;
+                            ui_scale = 1.0f;
+                            break;
                         default:
                             break;
                         }
