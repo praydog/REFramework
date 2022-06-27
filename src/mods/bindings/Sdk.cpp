@@ -1512,6 +1512,7 @@ void bindings::open_sdk(ScriptState* s) {
         "get_children", &::sdk::behaviortree::TreeNodeData::get_children,
         "get_actions", &::sdk::behaviortree::TreeNodeData::get_actions,
         "get_states", &::sdk::behaviortree::TreeNodeData::get_states,
+        "get_states_2", &::sdk::behaviortree::TreeNodeData::get_states_2,
         "get_start_states", &::sdk::behaviortree::TreeNodeData::get_start_states,
         "get_conditions", &::sdk::behaviortree::TreeNodeData::get_conditions,
         "get_transition_conditions", &::sdk::behaviortree::TreeNodeData::get_transition_conditions,

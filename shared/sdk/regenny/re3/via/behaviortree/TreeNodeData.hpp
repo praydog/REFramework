@@ -29,7 +29,7 @@ struct TreeNodeData {
     IntArray conditions; // 0x60
     UIntArray states; // 0x70
     UIntArray states_2; // 0x80
-    IntArray transitions; // 0x90
+    IntArray transition_conditions; // 0x90
     UIntArray transition_ids; // 0xa0
     UIntArray transition_attributes; // 0xb0
     UIntArray actions; // 0xc0

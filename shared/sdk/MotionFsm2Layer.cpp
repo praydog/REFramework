@@ -107,8 +107,8 @@ std::vector<::REManagedObject*> TreeNode::get_transition_conditions() const {
     
     std::vector<::REManagedObject*> out{};
 
-    for (auto i = 0; i < tree_data->transitions.count; ++i) {
-        const auto transition_index = tree_data->transitions.data[i];
+    for (auto i = 0; i < tree_data->transition_conditions.count; ++i) {
+        const auto transition_index = tree_data->transition_conditions.data[i];
         const auto transition = tree_owner->get_condition(transition_index);
 
         out.push_back(transition);

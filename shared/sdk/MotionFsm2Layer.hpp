@@ -48,6 +48,11 @@ public:
         return *(sdk::NativeArrayNoCapacity<uint32_t>*)&this->states;
     }
 
+    sdk::NativeArrayNoCapacity<uint32_t>& get_states_2() {
+        return *(sdk::NativeArrayNoCapacity<uint32_t>*)&this->states_2;
+    }
+
+
     sdk::NativeArrayNoCapacity<uint32_t>& get_start_states() {
         return *(sdk::NativeArrayNoCapacity<uint32_t>*)&this->start_states;
     }
@@ -57,7 +62,7 @@ public:
     }
 
     sdk::NativeArrayNoCapacity<int32_t>& get_transition_conditions() {
-        return *(sdk::NativeArrayNoCapacity<int32_t>*)&this->conditions;
+        return *(sdk::NativeArrayNoCapacity<int32_t>*)&this->transition_conditions;
     }
 
     sdk::NativeArrayNoCapacity<int32_t>& get_transition_events() {
