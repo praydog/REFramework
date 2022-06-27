@@ -13,9 +13,9 @@ struct TreeObject {
     void* vfptr; // 0x0
     regenny::via::behaviortree::TreeObjectData* data; // 0x8
     regenny::via::behaviortree::NodeArray nodes; // 0x10
-    char pad_1c[0x4];
-    regenny::via::behaviortree::ManagedObjectArray selectors; // 0x20
-    char pad_30[0x10];
+    char pad_20[0x4];
+    regenny::via::behaviortree::ManagedObjectArray selectors; // 0x24
+    char pad_34[0xc];
     regenny::via::behaviortree::ManagedObjectArray actions; // 0x40
     regenny::via::behaviortree::ManagedObjectArray conditions; // 0x50
     regenny::via::behaviortree::ManagedObjectArray transitions; // 0x60

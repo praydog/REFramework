@@ -166,10 +166,33 @@ public:
     }
 };
 
+class TreeObjectData : public regenny::via::behaviortree::TreeObjectData {
+public:
+    sdk::NativeArrayNoCapacity<::REManagedObject*>& get_static_actions() { 
+        return *(sdk::NativeArrayNoCapacity<::REManagedObject*>*)&this->static_actions;
+    }
+
+    sdk::NativeArrayNoCapacity<::REManagedObject*>& get_static_conditions() {
+        return *(sdk::NativeArrayNoCapacity<::REManagedObject*>*)&this->static_conditions;
+    }
+
+    sdk::NativeArrayNoCapacity<::REManagedObject*>& get_static_transitions() {
+        return *(sdk::NativeArrayNoCapacity<::REManagedObject*>*)&this->static_transitions;
+    }
+
+    sdk::NativeArrayNoCapacity<uint8_t>& get_action_methods() {
+        return *(sdk::NativeArrayNoCapacity<uint8_t>*)&this->action_methods;
+    }
+
+    sdk::NativeArrayNoCapacity<uint8_t>& get_static_action_methods() {
+        return *(sdk::NativeArrayNoCapacity<uint8_t>*)&this->static_action_methods;
+    }
+};
+
 class TreeObject : public regenny::via::behaviortree::TreeObject {
 public:
-    regenny::via::behaviortree::TreeObjectData* get_data() const {
-        return (regenny::via::behaviortree::TreeObjectData*)this->data;
+    sdk::behaviortree::TreeObjectData* get_data() const {
+        return (sdk::behaviortree::TreeObjectData*)this->data;
     }
 
     sdk::behaviortree::TreeNode* begin() const {
@@ -190,6 +213,22 @@ public:
 
     sdk::NativeArrayNoCapacity<TreeNode>& get_node_array() {
         return *(sdk::NativeArrayNoCapacity<TreeNode>*)&this->nodes;
+    }
+
+    sdk::NativeArray<::REManagedObject*>& get_condition_array() {
+        return *(sdk::NativeArray<::REManagedObject*>*)&this->conditions;
+    }
+
+    sdk::NativeArray<::REManagedObject*>& get_action_array() {
+        return *(sdk::NativeArray<::REManagedObject*>*)&this->actions;
+    }
+
+    sdk::NativeArray<::REManagedObject*>& get_transition_array() {
+        return *(sdk::NativeArray<::REManagedObject*>*)&this->transitions;
+    }
+
+    sdk::NativeArray<::REManagedObject*>& get_selector_array() {
+        return *(sdk::NativeArray<::REManagedObject*>*)&this->selectors;
     }
 
     bool empty() const {

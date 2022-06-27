@@ -1,5 +1,6 @@
 #pragma once
 #include "ManagedObjectArray.hpp"
+#include "UInt8Array.hpp"
 namespace regenny::via::behaviortree {
 struct TreeNodeData;
 }
@@ -15,7 +16,10 @@ struct TreeObjectData {
     regenny::via::behaviortree::ManagedObjectArray static_conditions; // 0x38
     regenny::via::behaviortree::ManagedObjectArray static_transitions; // 0x48
     regenny::via::behaviortree::ManagedObjectArray expression_tree_conditions; // 0x58
-    char pad_68[0x298];
+    char pad_68[0x60];
+    regenny::via::behaviortree::UInt8Array action_methods; // 0xc8
+    regenny::via::behaviortree::UInt8Array static_action_methods; // 0xd8
+    char pad_e8[0x218];
 }; // Size: 0x300
 #pragma pack(pop)
 }

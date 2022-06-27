@@ -1478,25 +1478,69 @@ void bindings::open_sdk(ScriptState* s) {
         "get_address", [](::sdk::Resource* res) { return (uintptr_t)res; }
     );
 
-#define DYNAMIC_ARRAY_NOCAP_TYPE(T, name) \
-    lua.new_usertype<sdk::NativeArrayNoCapacity< T >>( name , \
-        "empty", &sdk::NativeArrayNoCapacity< T >::empty, \
-        "emplace", &sdk::NativeArrayNoCapacity< T >::emplace, \
-        "push_back", &sdk::NativeArrayNoCapacity< T >::push_back,\
-        "pop_back", &sdk::NativeArrayNoCapacity< T >::pop_back,\
-        "size", &sdk::NativeArrayNoCapacity< T >::size,\
-        "get_size", &sdk::NativeArrayNoCapacity< T >::size,\
-        "erase", &sdk::NativeArrayNoCapacity< T >::erase,\
-        "clear", &sdk::NativeArrayNoCapacity< T >::clear,\
-        sol::meta_function::index, [](sdk::NativeArrayNoCapacity< T >& arr, uint32_t index) {\
-            return arr[index];\
+#define DYNAMIC_ARRAY_TYPE(C, T, name) \
+    lua.new_usertype< C < T >>( name , \
+        "empty", & C < T >::empty, \
+        "emplace", & C < T >::emplace, \
+        "push_back", [](C < T >& arr, T value) { arr.push_back(value); },\
+        "pop_back", & C < T >::pop_back,\
+        "size", & C < T >::size,\
+        "get_size", & C < T >::size,\
+        "erase", & C < T >::erase,\
+        "clear", & C < T >::clear,\
+        sol::meta_function::index, [](C < T >& arr, uint32_t i) -> T {\
+            return arr[i];\
         },\
-        sol::meta_function::new_index, [](sdk::NativeArrayNoCapacity< T >& arr, uint32_t index, T value) {\
-            arr[index] = value;\
+        sol::meta_function::new_index, [](C < T >& arr, uint32_t i, T value) {\
+            arr[i] = value;\
         },\
-        sol::meta_function::length, &sdk::NativeArrayNoCapacity< T >::size\
+        sol::meta_function::length, &C< T >::size\
     )
 
+#define DYNAMIC_ARRAY_TYPE_REF(C, T, name) \
+    lua.new_usertype< C < T >>( name , \
+        "empty", & C < T >::empty, \
+        "emplace", & C < T >::emplace, \
+        "push_back", [](C < T >& arr, T* value) { arr.push_back(*value); },\
+        "pop_back", & C < T >::pop_back,\
+        "size", & C < T >::size,\
+        "get_size", & C < T >::size,\
+        "erase", & C < T >::erase,\
+        "clear", & C < T >::clear,\
+        sol::meta_function::index, [](C < T >& arr, uint32_t i) -> T* {\
+            return &arr[i];\
+        },\
+        sol::meta_function::new_index, [](C < T >& arr, uint32_t i, T* value) {\
+            arr[i] = *value;\
+        },\
+        sol::meta_function::length, &C< T >::size\
+    )
+
+
+#define DYNAMIC_ARRAY_TYPE_PTR(C, T, name) \
+    lua.new_usertype< C < T >>( name , \
+        "empty", & C < T >::empty, \
+        "emplace", & C < T >::emplace, \
+        "push_back", [](C < T >& arr, T value) { arr.push_back(value); },\
+        "pop_back", & C < T >::pop_back,\
+        "size", & C < T >::size,\
+        "get_size", & C < T >::size,\
+        "erase", & C < T >::erase,\
+        "clear", & C < T >::clear,\
+        sol::meta_function::index, [](C < T >& arr, uint32_t i) -> T {\
+            return arr[i];\
+        },\
+        sol::meta_function::new_index, [](C < T >& arr, uint32_t i, T value) {\
+            arr[i] = value;\
+        },\
+        sol::meta_function::length, &C< T >::size\
+    )
+
+#define DYNAMIC_ARRAY_NOCAP_TYPE(T, name) DYNAMIC_ARRAY_TYPE(sdk::NativeArrayNoCapacity, T, name)
+#define DYNAMIC_ARRAY_NOCAP_TYPE_REF(T, name) DYNAMIC_ARRAY_TYPE_REF(sdk::NativeArrayNoCapacity, T, name)
+#define DYNAMIC_ARRAY_CAP_TYPE_PTR(T, name) DYNAMIC_ARRAY_TYPE_PTR(sdk::NativeArray, T, name)
+
+    DYNAMIC_ARRAY_NOCAP_TYPE(uint8_t, "DynamicArrayNoCapacityUInt8");
     DYNAMIC_ARRAY_NOCAP_TYPE(int32_t, "DynamicArrayNoCapacityInt32");
     DYNAMIC_ARRAY_NOCAP_TYPE(uint32_t, "DynamicArrayNoCapacityUInt32");
 
@@ -1544,7 +1588,19 @@ void bindings::open_sdk(ScriptState* s) {
         "get_status2", &::sdk::behaviortree::TreeNode::get_status2
     );
 
-    DYNAMIC_ARRAY_NOCAP_TYPE(::sdk::behaviortree::TreeNode, "DynamicArrayNoCapacityTreeNode");
+    DYNAMIC_ARRAY_NOCAP_TYPE_REF(::sdk::behaviortree::TreeNode, "DynamicArrayNoCapacityTreeNode");
+    DYNAMIC_ARRAY_CAP_TYPE_PTR(::REManagedObject*, "DynamicArrayManagedObject");
+
+    lua.new_usertype<::sdk::behaviortree::TreeObjectData>("BehaviorTreeObjectData",
+        "as_memoryview", [](::sdk::behaviortree::TreeObjectData* data) {
+            return api::sdk::MemoryView((uint8_t*)data, sizeof(::sdk::behaviortree::TreeObjectData));
+        },
+        "get_static_actions", &::sdk::behaviortree::TreeObjectData::get_static_actions,
+        "get_static_conditions", &::sdk::behaviortree::TreeObjectData::get_static_conditions,
+        "get_static_transitions", &::sdk::behaviortree::TreeObjectData::get_static_transitions,
+        "get_action_methods", &::sdk::behaviortree::TreeObjectData::get_action_methods,
+        "get_static_action_methods", &::sdk::behaviortree::TreeObjectData::get_static_action_methods
+    );
 
     lua.new_usertype<::sdk::behaviortree::TreeObject>("BehaviorTreeObject",
         "as_memoryview", [](::sdk::behaviortree::TreeObject* obj) {
@@ -1555,10 +1611,13 @@ void bindings::open_sdk(ScriptState* s) {
         "get_node_by_name", [](::sdk::behaviortree::TreeObject* obj, const char* name) {
             return obj->get_node_by_name(name);
         },
-        "get_node_array", &::sdk::behaviortree::TreeObject::get_node_array,
+        "get_actions", &::sdk::behaviortree::TreeObject::get_action_array,
+        "get_nodes", &::sdk::behaviortree::TreeObject::get_node_array,
+        "get_conditions", &::sdk::behaviortree::TreeObject::get_condition_array,
+        "get_transitions", &::sdk::behaviortree::TreeObject::get_transition_array,
+        "get_selectors", &::sdk::behaviortree::TreeObject::get_selector_array,
         "get_node", &::sdk::behaviortree::TreeObject::get_node,
         "get_node_count", &::sdk::behaviortree::TreeObject::get_node_count,
-        "get_nodes", &::sdk::behaviortree::TreeObject::get_nodes,
         "get_action", &::sdk::behaviortree::TreeObject::get_action,
         "get_unloaded_action", &::sdk::behaviortree::TreeObject::get_unloaded_action,
         "get_transition", &::sdk::behaviortree::TreeObject::get_transition,
