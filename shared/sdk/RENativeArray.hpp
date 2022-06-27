@@ -248,6 +248,11 @@ struct NativeArrayNoCapacity {
         }
     }
 
+    T& emplace() {
+        push_back(T{});
+        return elements[num - 1];
+    }
+
     void pop_back() {
         if (elements == nullptr || num == 0) {
             return;

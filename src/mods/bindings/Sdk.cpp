@@ -1481,6 +1481,7 @@ void bindings::open_sdk(ScriptState* s) {
 #define DYNAMIC_ARRAY_NOCAP_TYPE(T, name) \
     lua.new_usertype<sdk::NativeArrayNoCapacity< T >>( name , \
         "empty", &sdk::NativeArrayNoCapacity< T >::empty, \
+        "emplace", &sdk::NativeArrayNoCapacity< T >::emplace, \
         "push_back", &sdk::NativeArrayNoCapacity< T >::push_back,\
         "pop_back", &sdk::NativeArrayNoCapacity< T >::pop_back,\
         "size", &sdk::NativeArrayNoCapacity< T >::size,\
@@ -1492,7 +1493,8 @@ void bindings::open_sdk(ScriptState* s) {
         },\
         sol::meta_function::new_index, [](sdk::NativeArrayNoCapacity< T >& arr, uint32_t index, T value) {\
             arr[index] = value;\
-        }\
+        },\
+        sol::meta_function::length, &sdk::NativeArrayNoCapacity< T >::size\
     )
 
     DYNAMIC_ARRAY_NOCAP_TYPE(int32_t, "DynamicArrayNoCapacityInt32");
@@ -1542,14 +1544,18 @@ void bindings::open_sdk(ScriptState* s) {
         "get_status2", &::sdk::behaviortree::TreeNode::get_status2
     );
 
+    DYNAMIC_ARRAY_NOCAP_TYPE(::sdk::behaviortree::TreeNode, "DynamicArrayNoCapacityTreeNode");
+
     lua.new_usertype<::sdk::behaviortree::TreeObject>("BehaviorTreeObject",
         "as_memoryview", [](::sdk::behaviortree::TreeObject* obj) {
             return api::sdk::MemoryView((uint8_t*)obj, sizeof(::sdk::behaviortree::TreeObject));
         },
+        "get_data", &::sdk::behaviortree::TreeObject::get_data,
         "get_node_by_id", &::sdk::behaviortree::TreeObject::get_node_by_id,
         "get_node_by_name", [](::sdk::behaviortree::TreeObject* obj, const char* name) {
             return obj->get_node_by_name(name);
         },
+        "get_node_array", &::sdk::behaviortree::TreeObject::get_node_array,
         "get_node", &::sdk::behaviortree::TreeObject::get_node,
         "get_node_count", &::sdk::behaviortree::TreeObject::get_node_count,
         "get_nodes", &::sdk::behaviortree::TreeObject::get_nodes,

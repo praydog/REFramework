@@ -188,6 +188,10 @@ public:
         return (sdk::behaviortree::TreeNode*)&this->nodes.nodes[this->nodes.count];
     }
 
+    sdk::NativeArrayNoCapacity<TreeNode>& get_node_array() {
+        return *(sdk::NativeArrayNoCapacity<TreeNode>*)&this->nodes;
+    }
+
     bool empty() const {
         if (this->nodes.count <= 0 || this->nodes.nodes == nullptr) {
             return true;
