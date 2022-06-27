@@ -5,6 +5,9 @@ namespace regenny::via::behaviortree {
 struct TreeObjectData;
 }
 namespace regenny::via::behaviortree {
+struct TreeNode;
+}
+namespace regenny::via::behaviortree {
 #pragma pack(push, 1)
 struct TreeObject {
     void* vfptr; // 0x0
@@ -14,11 +17,13 @@ struct TreeObject {
     regenny::via::behaviortree::ManagedObjectArray selectors; // 0x20
     char pad_30[0x10];
     regenny::via::behaviortree::ManagedObjectArray actions; // 0x40
-    char pad_50[0x20];
-    regenny::via::behaviortree::ManagedObjectArray conditions; // 0x70
+    regenny::via::behaviortree::ManagedObjectArray conditions; // 0x50
+    regenny::via::behaviortree::ManagedObjectArray transitions; // 0x60
+    regenny::via::behaviortree::ManagedObjectArray expression_tree_conditions; // 0x70
     char pad_80[0x10];
     regenny::via::behaviortree::ManagedObjectArray delayed_actions; // 0x90
-    char pad_a0[0x38];
+    regenny::via::behaviortree::TreeNode* root_node; // 0xa0
+    char pad_a8[0x30];
 }; // Size: 0xd8
 #pragma pack(pop)
 }

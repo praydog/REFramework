@@ -1478,10 +1478,45 @@ void bindings::open_sdk(ScriptState* s) {
         "get_address", [](::sdk::Resource* res) { return (uintptr_t)res; }
     );
 
+#define DYNAMIC_ARRAY_NOCAP_TYPE(T, name) \
+    lua.new_usertype<sdk::NativeArrayNoCapacity< T >>( name , \
+        "empty", &sdk::NativeArrayNoCapacity< T >::empty, \
+        "push_back", &sdk::NativeArrayNoCapacity< T >::push_back,\
+        "pop_back", &sdk::NativeArrayNoCapacity< T >::pop_back,\
+        "size", &sdk::NativeArrayNoCapacity< T >::size,\
+        "get_size", &sdk::NativeArrayNoCapacity< T >::size,\
+        "erase", &sdk::NativeArrayNoCapacity< T >::erase,\
+        "clear", &sdk::NativeArrayNoCapacity< T >::clear,\
+        sol::meta_function::index, [](sdk::NativeArrayNoCapacity< T >& arr, uint32_t index) {\
+            return arr[index];\
+        },\
+        sol::meta_function::new_index, [](sdk::NativeArrayNoCapacity< T >& arr, uint32_t index, T value) {\
+            arr[index] = value;\
+        }\
+    )
+
+    DYNAMIC_ARRAY_NOCAP_TYPE(int32_t, "DynamicArrayNoCapacityInt32");
+    DYNAMIC_ARRAY_NOCAP_TYPE(uint32_t, "DynamicArrayNoCapacityUInt32");
+
     lua.new_usertype<::sdk::behaviortree::TreeNodeData>("BehaviorTreeNodeData",
         "as_memoryview", [](::sdk::behaviortree::TreeNodeData* data) {
             return api::sdk::MemoryView((uint8_t*)data, sizeof(::sdk::behaviortree::TreeNodeData));
-        }
+        },
+        "id", &::sdk::behaviortree::TreeNodeData::id,
+        "parent", &::sdk::behaviortree::TreeNodeData::parent,
+        "is_branch", &::sdk::behaviortree::TreeNodeData::is_branch,
+        "is_end", &::sdk::behaviortree::TreeNodeData::is_end,
+        "has_selector", &::sdk::behaviortree::TreeNodeData::has_selector,
+        "selector_id", &::sdk::behaviortree::TreeNodeData::selector_id,
+        "attr", &::sdk::behaviortree::TreeNodeData::attr,
+        "get_children", &::sdk::behaviortree::TreeNodeData::get_children,
+        "get_actions", &::sdk::behaviortree::TreeNodeData::get_actions,
+        "get_states", &::sdk::behaviortree::TreeNodeData::get_states,
+        "get_start_states", &::sdk::behaviortree::TreeNodeData::get_start_states,
+        "get_conditions", &::sdk::behaviortree::TreeNodeData::get_conditions,
+        "get_transition_conditions", &::sdk::behaviortree::TreeNodeData::get_transition_conditions,
+        "get_transition_events", &::sdk::behaviortree::TreeNodeData::get_transition_events,
+        "get_tags", &::sdk::behaviortree::TreeNodeData::get_tags
     );
 
     lua.new_usertype<::sdk::behaviortree::TreeNode>("BehaviorTreeNode",
@@ -1497,13 +1532,13 @@ void bindings::open_sdk(ScriptState* s) {
         "get_children", &::sdk::behaviortree::TreeNode::get_children,
         "get_actions", &::sdk::behaviortree::TreeNode::get_actions,
         "get_unloaded_actions", &::sdk::behaviortree::TreeNode::get_unloaded_actions,
-        "get_transitions", &::sdk::behaviortree::TreeNode::get_transitions,
+        "get_conditions", &::sdk::behaviortree::TreeNode::get_conditions,
+        "get_transition_conditions", &::sdk::behaviortree::TreeNode::get_transition_conditions,
+        "get_transition_events", &::sdk::behaviortree::TreeNode::get_transition_events,
+        "get_states", &::sdk::behaviortree::TreeNode::get_states,
+        "get_start_states", &::sdk::behaviortree::TreeNode::get_start_states,
         "get_status1", &::sdk::behaviortree::TreeNode::get_status1,
-        "get_status2", &::sdk::behaviortree::TreeNode::get_status2,
-        "append_action", &::sdk::behaviortree::TreeNode::append_action,
-        "add_action", &::sdk::behaviortree::TreeNode::append_action,
-        "replace_action", &::sdk::behaviortree::TreeNode::replace_action,
-        "remove_action", &::sdk::behaviortree::TreeNode::remove_action
+        "get_status2", &::sdk::behaviortree::TreeNode::get_status2
     );
 
     lua.new_usertype<::sdk::behaviortree::TreeObject>("BehaviorTreeObject",
@@ -1520,9 +1555,14 @@ void bindings::open_sdk(ScriptState* s) {
         "get_action", &::sdk::behaviortree::TreeObject::get_action,
         "get_unloaded_action", &::sdk::behaviortree::TreeObject::get_unloaded_action,
         "get_transition", &::sdk::behaviortree::TreeObject::get_transition,
+        "get_condition", &::sdk::behaviortree::TreeObject::get_condition,
         "get_action_count", &::sdk::behaviortree::TreeObject::get_action_count,
+        "get_condition_count", &::sdk::behaviortree::TreeObject::get_condition_count,
+        "get_transition_count", &::sdk::behaviortree::TreeObject::get_transition_count,
         "get_unloaded_action_count", &::sdk::behaviortree::TreeObject::get_unloaded_action_count,
-        "get_static_action_count", &::sdk::behaviortree::TreeObject::get_static_action_count
+        "get_static_action_count", &::sdk::behaviortree::TreeObject::get_static_action_count,
+        "get_static_condition_count", &::sdk::behaviortree::TreeObject::get_static_condition_count,
+        "get_static_transition_count", &::sdk::behaviortree::TreeObject::get_static_transition_count
     );
 
     lua.new_usertype<api::sdk::BehaviorTreeCoreHandle>("BehaviorTreeCoreHandle",

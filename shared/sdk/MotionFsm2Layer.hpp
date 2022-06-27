@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "REString.hpp"
+#include "RENativeArray.hpp"
 
 #if TDB_VER >= 69
 #include "regenny/re2_tdb70/via/behaviortree/BehaviorTreeCoreHandleArray.hpp"
@@ -14,11 +15,11 @@
 #include "regenny/re2_tdb70/via/behaviortree/TreeObject.hpp"
 #include "regenny/re2_tdb70/via/behaviortree/BehaviorTree.hpp"
 #else
+#include "regenny/re3/via/behaviortree/TreeObjectData.hpp"
 #include "regenny/re3/via/behaviortree/BehaviorTreeCoreHandleArray.hpp"
 #include "regenny/re3/via/motion/MotionFsm2Layer.hpp"
 #include "regenny/re3/via/behaviortree/TreeNodeData.hpp"
 #include "regenny/re3/via/behaviortree/TreeNode.hpp"
-#include "regenny/re3/via/behaviortree/TreeObjectData.hpp"
 #include "regenny/re3/via/behaviortree/TreeObject.hpp"
 #include "regenny/re3/via/behaviortree/BehaviorTree.hpp"
 #endif
@@ -27,12 +28,45 @@ namespace sdk {
 class MotionFsm2Layer;
 
 namespace behaviortree {
+bool is_delayed();
+
 class TreeNodeData;
 class TreeNode;
 class TreeObject;
 
 class TreeNodeData : public regenny::via::behaviortree::TreeNodeData {
 public:
+    sdk::NativeArrayNoCapacity<uint32_t>& get_children() {
+        return *(sdk::NativeArrayNoCapacity<uint32_t>*)&this->children;
+    }
+
+    sdk::NativeArrayNoCapacity<uint32_t>& get_actions() {
+        return *(sdk::NativeArrayNoCapacity<uint32_t>*)&this->actions;
+    }
+
+    sdk::NativeArrayNoCapacity<uint32_t>& get_states() {
+        return *(sdk::NativeArrayNoCapacity<uint32_t>*)&this->states;
+    }
+
+    sdk::NativeArrayNoCapacity<uint32_t>& get_start_states() {
+        return *(sdk::NativeArrayNoCapacity<uint32_t>*)&this->start_states;
+    }
+
+    sdk::NativeArrayNoCapacity<int32_t>& get_conditions() {
+        return *(sdk::NativeArrayNoCapacity<int32_t>*)&this->conditions;
+    }
+
+    sdk::NativeArrayNoCapacity<int32_t>& get_transition_conditions() {
+        return *(sdk::NativeArrayNoCapacity<int32_t>*)&this->conditions;
+    }
+
+    sdk::NativeArrayNoCapacity<int32_t>& get_transition_events() {
+        return *(sdk::NativeArrayNoCapacity<int32_t>*)&this->start_transitions;
+    }
+
+    sdk::NativeArrayNoCapacity<uint32_t>& get_tags() {
+        return *(sdk::NativeArrayNoCapacity<uint32_t>*)&this->tags;
+    }
 };
 
 class TreeNode : public regenny::via::behaviortree::TreeNode {
@@ -40,7 +74,11 @@ public:
     std::vector<TreeNode*> get_children() const;
     std::vector<::REManagedObject*> get_unloaded_actions() const;
     std::vector<::REManagedObject*> get_actions() const;
-    std::vector<::REManagedObject*> get_transitions() const;
+    std::vector<::REManagedObject*> get_transition_conditions() const;
+    std::vector<::REManagedObject*> get_transition_events() const;
+    std::vector<::REManagedObject*> get_conditions() const;
+    std::vector<TreeNode*> get_states() const;
+    std::vector<TreeNode*> get_start_states() const;
     
     void append_action(uint32_t action_index);
     void replace_action(uint32_t index, uint32_t action_index);
@@ -209,10 +247,15 @@ public:
 
     ::REManagedObject* get_action(uint32_t index) const;
     ::REManagedObject* get_unloaded_action(uint32_t index) const;
+    ::REManagedObject* get_condition(int32_t index) const;
+    ::REManagedObject* get_transition(int32_t index) const;
 
     uint32_t get_action_count() const;
+    uint32_t get_condition_count() const;
+    uint32_t get_transition_count() const;
 
     uint32_t get_unloaded_action_count() const {
+#if TDB_VER >= 69
         const auto data = get_data();
 
         if (data == nullptr) {
@@ -220,6 +263,9 @@ public:
         }
 
         return data->actions.count;
+#else
+        return 0;
+#endif
     }
 
     uint32_t get_static_action_count() const {
@@ -232,28 +278,24 @@ public:
         return data->static_actions.count;
     }
 
-    ::REManagedObject* get_transition(uint32_t index) const {
-        if (this->data == nullptr) {
-            return nullptr;
+    uint32_t get_static_condition_count() const {
+        const auto data = get_data();
+
+        if (data == nullptr) {
+            return 0;
         }
 
-        if (_bittest((const long*)&index, 30)) {
-            const auto new_idx = index & 0xFFFFFFF;
-            if (new_idx >= this->data->static_transitions.count || this->data->static_transitions.objects == nullptr) {
-                return nullptr;
-            }
+        return data->static_conditions.count;
+    }
 
-            return (::REManagedObject*)this->data->static_transitions.objects[new_idx];
-        } else {
-            // TODO!
-            /*if (index >= this->data->transitions.count || this->data->transitions.objects == nullptr) {
-                return nullptr;
-            }
+    uint32_t get_static_transition_count() const {
+        const auto data = get_data();
 
-            return (::REManagedObject*)this->data->transitions.objects[index];*/
+        if (data == nullptr) {
+            return 0;
         }
 
-        return nullptr;
+        return data->static_transitions.count;
     }
 };
 
