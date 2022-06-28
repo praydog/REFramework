@@ -106,8 +106,7 @@ template <typename T> struct NativeArray {
                 ++num_allocated;
             }
 
-            elements[num - 1] = T{};
-            ++num;
+            elements[num++] = T{};
         }
 
         return elements[num - 1];
@@ -264,6 +263,7 @@ struct NativeArrayNoCapacity {
             elements = (T*)sdk::memory::allocate(sizeof(T) * 1);
 
             num = 1;
+            elements[0] = T{};
         } else {
             T* new_elements = (T*)sdk::memory::allocate(sizeof(T) * (num_allocated + 1));
 
@@ -278,7 +278,7 @@ struct NativeArrayNoCapacity {
             sdk::memory::deallocate(elements);
 
             elements = new_elements;
-            ++num;
+            elements[num++] = T{};
         }
 
         return elements[num - 1];
