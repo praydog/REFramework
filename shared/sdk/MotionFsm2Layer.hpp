@@ -52,6 +52,9 @@ public:
         return *(sdk::NativeArrayNoCapacity<uint32_t>*)&this->states_2;
     }
 
+    sdk::NativeArrayNoCapacity<int32_t>& get_start_transitions() {
+        return *(sdk::NativeArrayNoCapacity<int32_t>*)&this->start_transitions;
+    }
 
     sdk::NativeArrayNoCapacity<uint32_t>& get_start_states() {
         return *(sdk::NativeArrayNoCapacity<uint32_t>*)&this->start_states;
@@ -65,8 +68,16 @@ public:
         return *(sdk::NativeArrayNoCapacity<int32_t>*)&this->transition_conditions;
     }
 
-    sdk::NativeArrayNoCapacity<int32_t>& get_transition_events() {
-        return *(sdk::NativeArrayNoCapacity<int32_t>*)&this->start_transitions;
+    sdk::NativeArrayNoCapacity<uint32_t>& get_transition_events() {
+        return *(sdk::NativeArrayNoCapacity<uint32_t>*)&this->transition_events;
+    }
+
+    sdk::NativeArrayNoCapacity<uint32_t>& get_transition_ids() {
+        return *(sdk::NativeArrayNoCapacity<uint32_t>*)&this->transition_ids;
+    }
+
+    sdk::NativeArrayNoCapacity<uint32_t>& get_transition_attributes() {
+        return *(sdk::NativeArrayNoCapacity<uint32_t>*)&this->transition_attributes;
     }
 
     sdk::NativeArrayNoCapacity<uint32_t>& get_tags() {
@@ -111,7 +122,7 @@ public:
         return this->attr;
     }
 
-    regenny::via::behaviortree::Selector* get_selector() const {
+    regenny::via::behaviortree::SelectorFSM* get_selector() const {
         return this->selector;
     }
 

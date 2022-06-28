@@ -30,7 +30,7 @@ struct TreeNodeData {
     regenny::via::behaviortree::IntArray start_transitions; // 0x130
     regenny::via::behaviortree::UIntArray start_states; // 0x140
     regenny::via::behaviortree::UIntArray start_states_2; // 0x150
-    regenny::via::behaviortree::UIntArray unkarray2; // 0x160
+    regenny::via::behaviortree::UIntArray transition_events; // 0x160
     regenny::via::behaviortree::UIntArray unkarray3; // 0x170
     regenny::via::behaviortree::UIntArray tags; // 0x180
     // Metadata: utf16*

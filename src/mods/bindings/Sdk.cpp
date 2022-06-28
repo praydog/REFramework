@@ -1567,14 +1567,19 @@ void bindings::open_sdk(ScriptState* s) {
         "has_selector", &::sdk::behaviortree::TreeNodeData::has_selector,
         "selector_id", &::sdk::behaviortree::TreeNodeData::selector_id,
         "attr", &::sdk::behaviortree::TreeNodeData::attr,
+        "parent", &::sdk::behaviortree::TreeNodeData::parent,
+        "parent_2", &::sdk::behaviortree::TreeNodeData::parent_2,
         "get_children", &::sdk::behaviortree::TreeNodeData::get_children,
         "get_actions", &::sdk::behaviortree::TreeNodeData::get_actions,
         "get_states", &::sdk::behaviortree::TreeNodeData::get_states,
         "get_states_2", &::sdk::behaviortree::TreeNodeData::get_states_2,
         "get_start_states", &::sdk::behaviortree::TreeNodeData::get_start_states,
+        "get_start_transitions", &::sdk::behaviortree::TreeNodeData::get_start_transitions,
         "get_conditions", &::sdk::behaviortree::TreeNodeData::get_conditions,
         "get_transition_conditions", &::sdk::behaviortree::TreeNodeData::get_transition_conditions,
         "get_transition_events", &::sdk::behaviortree::TreeNodeData::get_transition_events,
+        "get_transition_ids", &::sdk::behaviortree::TreeNodeData::get_transition_ids,
+        "get_transition_attributes", &::sdk::behaviortree::TreeNodeData::get_transition_attributes,
         "get_tags", &::sdk::behaviortree::TreeNodeData::get_tags
     );
 
