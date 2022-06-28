@@ -297,6 +297,51 @@ void TreeNode::remove_action(uint32_t index) {
     tree_data->actions.data = new_array;*/
 }
 
+void TreeNode::relocate(uintptr_t old_start, uintptr_t old_end, uintptr_t new_start) {
+    auto fix_ptrs = [&](uintptr_t base, size_t size) {
+        for (auto i = 0; i < size; i += sizeof(void*)) {
+            if (IsBadReadPtr((void*)(base + i), sizeof(uintptr_t))) {
+                break;
+            }
+
+            auto& ptr = *(uintptr_t*)(base + i);
+
+            if (ptr >= old_start && ptr < old_end) {
+                ptr = new_start + (ptr - old_start);
+            } else {
+                if (ptr != 0 && !IsBadReadPtr((void*)ptr, sizeof(uintptr_t))) {
+                    try {
+                        // Dereference pointer and scan through it assuming it's an array, fixing the pointers.
+                        for (auto j = 0; j < 0x1000; j += sizeof(void*)) {
+                            auto& ptr2 = *(uintptr_t*)((uintptr_t)ptr + j);
+
+                            if (ptr2 >= old_start && ptr2 < old_end) {
+                                ptr2 = new_start + (ptr2 - old_start);
+                            }
+                        }
+                    } catch(...) {
+                        
+                    }
+                }
+            }
+        }
+    };
+
+    auto selector = (::REManagedObject*)get_selector();
+
+    if (selector != nullptr && utility::re_managed_object::is_managed_object(selector)) {
+        const auto td = utility::re_managed_object::get_type_definition(selector);
+
+        if (td != nullptr) {
+            return;
+        }
+
+        fix_ptrs((uintptr_t)selector, td->get_size());
+    }
+
+    fix_ptrs((uintptr_t)this, sizeof(*this));
+}
+
 void BehaviorTree::set_current_node(sdk::behaviortree::TreeNode* node, uint32_t tree_idx, void* set_node_info) {
     static auto method = sdk::find_method_definition("via.behaviortree.BehaviorTree", "setCurrentNode(System.UInt64, System.UInt32, via.behaviortree.SetNodeInfo)");
 
@@ -320,6 +365,49 @@ bool is_delayed() {
 #endif
 
     return is_delay_setup_objects;
+}
+
+void TreeObject::relocate(uintptr_t old_start, uintptr_t old_end, sdk::NativeArrayNoCapacity<TreeNode>& new_nodes) {
+    const auto new_start = (uintptr_t)new_nodes.begin();
+    const auto new_end = (uintptr_t)new_nodes.end();
+
+    for (auto& node : new_nodes) {
+        node.relocate(old_start, old_end, new_start);
+    }
+
+    this->root_node = new_nodes.begin();
+}
+
+void CoreHandle::relocate(uintptr_t old_start, uintptr_t old_end, sdk::NativeArrayNoCapacity<TreeNode>& new_nodes) {
+    const auto new_start = (uintptr_t)new_nodes.begin();
+    const auto new_end = (uintptr_t)new_nodes.end();
+
+    this->get_tree_object()->relocate(old_start, old_end, new_nodes);
+
+    for (auto i = 0; i < sizeof(CoreHandle); i += sizeof(void*)) {
+        try {
+            auto& ptr = *(uintptr_t*)((uintptr_t)this + i);
+
+            if (ptr >= old_start && ptr < old_end) {
+                ptr = new_start + (ptr - old_start);
+            } else {
+                if (ptr != 0 && !IsBadReadPtr((void*)ptr, sizeof(uintptr_t))) {
+                    try {
+                        // Dereference pointer and scan through it assuming it's an array, fixing the pointers.
+                        for (auto j = 0; j < 0x1000; j += sizeof(void*)) {
+                            auto& ptr2 = *(uintptr_t*)((uintptr_t)ptr + j);
+
+                            if (ptr2 >= old_start && ptr2 < old_end) {
+                                ///ptr2 = new_start + (ptr2 - old_start);
+                            }
+                        }
+                    } catch(...) {
+                        
+                    }
+                }
+            }
+        } catch (...) {}
+    }
 }
 
 ::REManagedObject* TreeObject::get_action(uint32_t index) const {

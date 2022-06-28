@@ -164,20 +164,26 @@ public:
 
         return out;
     }
+
+    void relocate(uintptr_t old_start, uintptr_t old_end, uintptr_t new_start);
 };
 
 class TreeObjectData : public regenny::via::behaviortree::TreeObjectData {
 public:
-    sdk::NativeArrayNoCapacity<::REManagedObject*>& get_static_actions() { 
-        return *(sdk::NativeArrayNoCapacity<::REManagedObject*>*)&this->static_actions;
+    sdk::NativeArrayNoCapacity<TreeNodeData>& get_nodes() {
+        return *(sdk::NativeArrayNoCapacity<TreeNodeData>*)&this->nodes;
     }
 
-    sdk::NativeArrayNoCapacity<::REManagedObject*>& get_static_conditions() {
-        return *(sdk::NativeArrayNoCapacity<::REManagedObject*>*)&this->static_conditions;
+    sdk::NativeArray<::REManagedObject*>& get_static_actions() { 
+        return *(sdk::NativeArray<::REManagedObject*>*)&this->static_actions;
     }
 
-    sdk::NativeArrayNoCapacity<::REManagedObject*>& get_static_transitions() {
-        return *(sdk::NativeArrayNoCapacity<::REManagedObject*>*)&this->static_transitions;
+    sdk::NativeArray<::REManagedObject*>& get_static_conditions() {
+        return *(sdk::NativeArray<::REManagedObject*>*)&this->static_conditions;
+    }
+
+    sdk::NativeArray<::REManagedObject*>& get_static_transitions() {
+        return *(sdk::NativeArray<::REManagedObject*>*)&this->static_transitions;
     }
 
     sdk::NativeArrayNoCapacity<uint8_t>& get_action_methods() {
@@ -191,6 +197,8 @@ public:
 
 class TreeObject : public regenny::via::behaviortree::TreeObject {
 public:
+    void relocate(uintptr_t old_start, uintptr_t old_end, sdk::NativeArrayNoCapacity<TreeNode>& new_nodes);
+
     sdk::behaviortree::TreeObjectData* get_data() const {
         return (sdk::behaviortree::TreeObjectData*)this->data;
     }
@@ -352,6 +360,8 @@ public:
     sdk::behaviortree::TreeObject* get_tree_object() const {
         return (sdk::behaviortree::TreeObject*)this->core.tree_object;
     }
+
+    void relocate(uintptr_t old_start, uintptr_t old_end, sdk::NativeArrayNoCapacity<TreeNode>& new_nodes);
 };
 
 class BehaviorTree : public regenny::via::behaviortree::BehaviorTree {
