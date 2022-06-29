@@ -9,7 +9,7 @@
 #include "ImGui.hpp"
 
 namespace imgui {
-bool draw_gizmo(const Vector3f& center, float scale, IMGUIZMO_NAMESPACE::OPERATION op) {
+bool draw_gizmo(Matrix4x4f& mat, IMGUIZMO_NAMESPACE::OPERATION op, IMGUIZMO_NAMESPACE::MODE mode) {
     auto camera = sdk::get_primary_camera();
 
     if (camera == nullptr) {
@@ -23,14 +23,53 @@ bool draw_gizmo(const Vector3f& center, float scale, IMGUIZMO_NAMESPACE::OPERATI
     IMGUIZMO_NAMESPACE::SetDrawlist(ImGui::GetBackgroundDrawList());
     IMGUIZMO_NAMESPACE::SetRect(0, 0, ImGui::GetIO().DisplaySize.x, ImGui::GetIO().DisplaySize.y);
 
-    Matrix4x4f mat = glm::scale(Vector3f{scale, scale, scale});
-    mat[3] = Vector4f{center, 1.0f};
+    Matrix4x4f proj{}, view{};
+    get_proj_method->call<void*>(&proj, sdk::get_thread_context(), camera);
+    get_view_method->call<void*>(&view, sdk::get_thread_context(), camera);
+
+    return IMGUIZMO_NAMESPACE::Manipulate((float*)&view, (float*)&proj, op, mode, (float*)&mat);
+}
+
+void draw_cube(const Matrix4x4f& mat) {
+    auto camera = sdk::get_primary_camera();
+
+    if (camera == nullptr) {
+        return;
+    }
+
+    static auto get_proj_method = sdk::find_method_definition("via.Camera", "get_ProjectionMatrix");
+    static auto get_view_method = sdk::find_method_definition("via.Camera", "get_ViewMatrix");
+
+    IMGUIZMO_NAMESPACE::SetImGuiContext(ImGui::GetCurrentContext());
+    IMGUIZMO_NAMESPACE::SetDrawlist(ImGui::GetBackgroundDrawList());
+    IMGUIZMO_NAMESPACE::SetRect(0, 0, ImGui::GetIO().DisplaySize.x, ImGui::GetIO().DisplaySize.y);
 
     Matrix4x4f proj{}, view{};
     get_proj_method->call<void*>(&proj, sdk::get_thread_context(), camera);
     get_view_method->call<void*>(&view, sdk::get_thread_context(), camera);
 
-    IMGUIZMO_NAMESPACE::Manipulate((float*)&view, (float*)&proj, op, IMGUIZMO_NAMESPACE::MODE::WORLD, (float*)&mat);
+    IMGUIZMO_NAMESPACE::DrawCubes((float*)&view, (float*)&proj, (float*)&mat, 1);
+}
+
+void draw_grid(const Matrix4x4f& mat, float size) {
+    auto camera = sdk::get_primary_camera();
+
+    if (camera == nullptr) {
+        return;
+    }
+
+    static auto get_proj_method = sdk::find_method_definition("via.Camera", "get_ProjectionMatrix");
+    static auto get_view_method = sdk::find_method_definition("via.Camera", "get_ViewMatrix");
+
+    IMGUIZMO_NAMESPACE::SetImGuiContext(ImGui::GetCurrentContext());
+    IMGUIZMO_NAMESPACE::SetDrawlist(ImGui::GetBackgroundDrawList());
+    IMGUIZMO_NAMESPACE::SetRect(0, 0, ImGui::GetIO().DisplaySize.x, ImGui::GetIO().DisplaySize.y);
+
+    Matrix4x4f proj{}, view{};
+    get_proj_method->call<void*>(&proj, sdk::get_thread_context(), camera);
+    get_view_method->call<void*>(&view, sdk::get_thread_context(), camera);
+
+    IMGUIZMO_NAMESPACE::DrawGrid((float*)&view, (float*)&proj, (float*)&mat, size);
 }
 
 std::optional<Vector3f> get_camera_up() {

@@ -1,3 +1,5 @@
+#define NOMINMAX
+
 #include <cstdint>
 #include <filesystem>
 
@@ -7,6 +9,7 @@
 #include "sdk/REManagedObject.hpp"
 #include "sdk/RETypeDB.hpp"
 #include "sdk/SceneManager.hpp"
+#include "sdk/REMath.hpp"
 
 #include "utility/String.hpp"
 
@@ -204,6 +207,7 @@ ScriptState::ScriptState() {
         "z", &glm::quat::z,
         "w", &glm::quat::w,
         "to_mat4", [](glm::quat& q) { return Matrix4x4f{q}; },
+        "to_euler", [](glm::quat& q) -> Vector3f { return utility::math::euler_angles(Matrix4x4f{q}); },
         "inverse", [](glm::quat& q) { return glm::inverse(q); },
         "invert", [](glm::quat& q) { q = glm::inverse(q); },
         "normalize", [](glm::quat& q) { q = glm::normalize(q); },
