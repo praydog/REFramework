@@ -245,6 +245,46 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	unset(CMKR_SOURCES)
 endif()
 
+# Target imguizmo
+if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
+	set(CMKR_TARGET imguizmo)
+	set(imguizmo_SOURCES "")
+
+	list(APPEND imguizmo_SOURCES
+		"dependencies/imguizmo/GraphEditor.cpp"
+		"dependencies/imguizmo/ImCurveEdit.cpp"
+		"dependencies/imguizmo/ImGradient.cpp"
+		"dependencies/imguizmo/ImGuizmo.cpp"
+		"dependencies/imguizmo/ImSequencer.cpp"
+	)
+
+	list(APPEND imguizmo_SOURCES
+		cmake.toml
+	)
+
+	set(CMKR_SOURCES ${imguizmo_SOURCES})
+	add_library(imguizmo STATIC)
+
+	if(imguizmo_SOURCES)
+		target_sources(imguizmo PRIVATE ${imguizmo_SOURCES})
+	endif()
+
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${imguizmo_SOURCES})
+
+	target_compile_definitions(imguizmo PUBLIC
+		"IMGUI_USER_CONFIG=\"${CMAKE_SOURCE_DIR}/src/re2-imgui/re2_imconfig.hpp\""
+	)
+
+	target_include_directories(imguizmo PUBLIC
+		"dependencies/imgui"
+		"dependencies/imguizmo"
+		"src/re2-imgui"
+	)
+
+	unset(CMKR_TARGET)
+	unset(CMKR_SOURCES)
+endif()
+
 # Target openvr
 if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	set(CMKR_TARGET openvr)
@@ -1427,6 +1467,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		lua
 		sol2
 		imgui
+		imguizmo
 		minhook
 		d3d11
 		glm_static
@@ -1608,6 +1649,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		lua
 		sol2
 		imgui
+		imguizmo
 		minhook
 		d3d11
 		glm_static
@@ -2634,6 +2676,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		lua
 		sol2
 		imgui
+		imguizmo
 		minhook
 		d3d11
 		glm_static
@@ -2815,6 +2858,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		lua
 		sol2
 		imgui
+		imguizmo
 		minhook
 		d3d11
 		glm_static
@@ -3841,6 +3885,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		lua
 		sol2
 		imgui
+		imguizmo
 		minhook
 		d3d11
 		glm_static
@@ -4022,6 +4067,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		lua
 		sol2
 		imgui
+		imguizmo
 		minhook
 		d3d11
 		glm_static
@@ -4625,6 +4671,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		lua
 		sol2
 		imgui
+		imguizmo
 		minhook
 		d3d11
 		glm_static
@@ -5228,6 +5275,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		lua
 		sol2
 		imgui
+		imguizmo
 		minhook
 		d3d11
 		glm_static
@@ -5831,6 +5879,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		lua
 		sol2
 		imgui
+		imguizmo
 		minhook
 		d3d11
 		glm_static

@@ -11,6 +11,7 @@ extern "C" {
 };
 
 #include <imgui.h>
+#include <ImGuizmo.h>
 #include "re2-imgui/font_robotomedium.hpp"
 #include "re2-imgui/imgui_impl_dx11.h"
 #include "re2-imgui/imgui_impl_dx12.h"
@@ -370,6 +371,8 @@ void REFramework::run_imgui_frame() {
 
     draw_ui();
     m_last_draw_ui = m_draw_ui;
+
+    IMGUIZMO_NAMESPACE::BeginFrame();
 
     ImGui::EndFrame();
     ImGui::Render();

@@ -3,9 +3,36 @@
 #include <sdk/SceneManager.hpp>
 #include <sdk/Renderer.hpp>
 
+#include <imgui.h>
+#include <ImGuizmo.h>
+
 #include "ImGui.hpp"
 
 namespace imgui {
+bool draw_gizmo(const Vector3f& center, float scale, IMGUIZMO_NAMESPACE::OPERATION op) {
+    auto camera = sdk::get_primary_camera();
+
+    if (camera == nullptr) {
+        return false;
+    }
+
+    static auto get_proj_method = sdk::find_method_definition("via.Camera", "get_ProjectionMatrix");
+    static auto get_view_method = sdk::find_method_definition("via.Camera", "get_ViewMatrix");
+
+    IMGUIZMO_NAMESPACE::SetImGuiContext(ImGui::GetCurrentContext());
+    IMGUIZMO_NAMESPACE::SetDrawlist(ImGui::GetBackgroundDrawList());
+    IMGUIZMO_NAMESPACE::SetRect(0, 0, ImGui::GetIO().DisplaySize.x, ImGui::GetIO().DisplaySize.y);
+
+    Matrix4x4f mat = glm::scale(Vector3f{scale, scale, scale});
+    mat[3] = Vector4f{center, 1.0f};
+
+    Matrix4x4f proj{}, view{};
+    get_proj_method->call<void*>(&proj, sdk::get_thread_context(), camera);
+    get_view_method->call<void*>(&view, sdk::get_thread_context(), camera);
+
+    IMGUIZMO_NAMESPACE::Manipulate((float*)&view, (float*)&proj, op, IMGUIZMO_NAMESPACE::MODE::WORLD, (float*)&mat);
+}
+
 std::optional<Vector3f> get_camera_up() {
     auto camera = sdk::get_primary_camera();
 

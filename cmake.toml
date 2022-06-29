@@ -104,6 +104,15 @@ compile-definitions = [
 ]
 condition = "build-framework"
 
+[target.imguizmo]
+type = "static"
+sources = ["dependencies/imguizmo/*.cpp"]
+include-directories = ["dependencies/imgui", "dependencies/imguizmo", "src/re2-imgui"]
+compile-definitions = [
+    "IMGUI_USER_CONFIG=\"${CMAKE_SOURCE_DIR}/src/re2-imgui/re2_imconfig.hpp\"",
+]
+condition = "build-framework"
+
 [target.openvr]
 type = "interface"
 include-directories = ["dependencies/openvr/headers"]
@@ -179,6 +188,7 @@ link-libraries = [
     "lua",
     "sol2",
     "imgui",
+    "imguizmo",
     "minhook",
     "d3d11",
     "glm_static",
