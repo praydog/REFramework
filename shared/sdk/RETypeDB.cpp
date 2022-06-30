@@ -1,4 +1,6 @@
 #include <spdlog/spdlog.h>
+#include <utility/Scan.hpp>
+#include <utility/Module.hpp>
 
 #include "reframework/API.hpp"
 #include "RETypeDB.hpp"
@@ -355,7 +357,65 @@ const char* REMethodDefinition::get_name() const {
 }
 
 void* REMethodDefinition::get_function() const {
-#if TDB_VER > 49
+#if TDB_VER >= 71
+    if (this->encoded_offset == 0) {
+        /*const auto dt = this->get_declaring_type();
+        
+        if (dt != nullptr) {
+            if ((dt->type_flags & (uint32_t)via::clr::TypeFlag::Interface) != 0) {
+                spdlog::error("[REMethodDefinition::get_function] Interface methods are not implemented yet (method: {})", this->get_name());
+                return nullptr;
+            }
+
+            if (dt->managed_vt != nullptr && this->get_virtual_index() != -1) {
+                auto tdb = RETypeDB::get();
+                const auto& impl = (*tdb->typesImpl)[this->impl_id];
+
+                const auto vt = (void**)(dt->managed_vt + impl.num_native_vtable);
+                const auto r = vt[this->get_virtual_index()];
+
+                spdlog::info("[REMethodDefinition] {} Found function {:s} at {:x}", this->get_index(), this->get_name(), (uintptr_t)r);
+
+                return r;
+            }
+        }*/
+
+        spdlog::error("[REMethodDefinition::get_function] Encoded offset is 0 (method: {})", this->get_name());
+        return nullptr;
+    }
+
+    // The function this function uses to offset from has a predictable pattern as well.
+    // So the pattern for that can be searched for if this one breaks.
+    // It remains to be seen if this "encoding" is used in games other than MHRise.
+    static void* (*get_encoded_pointer)(int32_t offset) = []() {
+        spdlog::info("[REMethodDefinition] Finding get_encoded_pointer");
+
+        auto fn = utility::scan(utility::get_executable(), "85 C9 75 03 33 C0 C3 48 63 C1 48 8d 0D ? ? ? ? 48 03 C1 C3");
+
+        if (!fn) {
+            spdlog::error("[REMethodDefinition] Failed to find get_encoded_pointer");
+            return (void* (*)(int32_t))nullptr;
+        }
+
+        spdlog::info("[REMethodDefinition] Found get_encoded_pointer at {:x}", *fn);
+
+        return (void* (*)(int32_t))*fn;
+    }();
+
+    if (get_encoded_pointer == nullptr) {
+        return nullptr;
+    }
+
+    auto result = get_encoded_pointer(this->encoded_offset);
+
+    if (result == nullptr) {
+        spdlog::error("[REMethodDefinition] Failed to get function from encoded offset, method index: {}", this->get_index());
+    } else {
+        spdlog::info("[REMethodDefinition] Found function {:s} at {:x}", this->get_name(), (uintptr_t)result);
+    }
+
+    return result;
+#elif TDB_VER > 49
     return this->function;
 #else
     auto vm = sdk::VM::get();

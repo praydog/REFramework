@@ -18,8 +18,7 @@
 #include "sdk/regenny/re8/via/motion/Chain.hpp"
 #include "sdk/regenny/re8/via/motion/ChainCollisionTop.hpp"
 #include "sdk/regenny/re8/via/motion/ChainCollisions.hpp"
-#elif TDB_VER == 70
-
+#elif TDB_VER >= 70
 #if defined(MHRISE)
 #include "sdk/regenny/mhrise/via/motion/Chain.hpp"
 #include "sdk/regenny/mhrise/via/motion/ChainCollisions.hpp"
