@@ -82,8 +82,9 @@ struct RETypeDefVersion71 {
     uint32_t member_prop : TYPE_INDEX_BITS;
 
     uint32_t member_event;
-    int32_t interfaces;
-    int32_t generics;
+	int64_t unk_data_before_generics : 26;
+	int64_t generics : 26;
+  	int64_t interfaces : 12;
     struct sdk::RETypeCLR* type;
     class ::REObjectInfo* managed_vt;
 };

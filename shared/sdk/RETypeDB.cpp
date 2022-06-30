@@ -410,8 +410,6 @@ void* REMethodDefinition::get_function() const {
 
     if (result == nullptr) {
         spdlog::error("[REMethodDefinition] Failed to get function from encoded offset, method index: {}", this->get_index());
-    } else {
-        spdlog::info("[REMethodDefinition] Found function {:s} at {:x}", this->get_name(), (uintptr_t)result);
     }
 
     return result;

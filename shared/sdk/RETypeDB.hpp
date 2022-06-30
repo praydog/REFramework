@@ -218,7 +218,7 @@ struct REFieldImpl {
 
 struct GenericListData {
     uint32_t definition_typeid : TYPE_INDEX_BITS;
-    uint32_t num : 14;
+    uint32_t num : (32 - TYPE_INDEX_BITS);
     uint32_t types[1];
 };
 }

@@ -2,6 +2,9 @@
 #include <mutex>
 #include <thread>
 #include <windows.h>
+#include <winternl.h>
+
+#include <utility/Module.hpp>
 
 #include "ExceptionHandler.hpp"
 #include "REFramework.hpp"
@@ -19,6 +22,29 @@ bool load_dinput8() {
 
     if (g_dinput) {
         return true;
+    }
+
+    const auto our_dll = utility::get_module_within(&load_dinput8);
+
+    if (our_dll) {
+        PEB* peb = nullptr;
+
+        while (peb == nullptr) {
+            peb = (PEB*)__readgsqword(0x60);
+
+            if (peb == nullptr) {
+                continue;
+            }
+            
+            for (auto entry = peb->Ldr->InMemoryOrderModuleList.Flink; entry != &peb->Ldr->InMemoryOrderModuleList; entry = entry->Flink) {
+                auto ldr_entry = (_LDR_DATA_TABLE_ENTRY*)CONTAINING_RECORD(entry, _LDR_DATA_TABLE_ENTRY, InMemoryOrderLinks);
+
+                if ((uintptr_t)ldr_entry->DllBase == (uintptr_t)*our_dll) {   
+                    entry->Flink->Blink = entry->Blink;
+                    entry->Blink->Flink = entry->Flink;
+                }
+            }
+        }
     }
 
     wchar_t buffer[MAX_PATH]{0};
