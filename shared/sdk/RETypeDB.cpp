@@ -318,9 +318,10 @@ sdk::RETypeDefinition* REMethodDefinition::get_declaring_type() const {
 
 sdk::RETypeDefinition* REMethodDefinition::get_return_type() const {
     auto tdb = RETypeDB::get();
+    const auto params_index = get_param_index();
 
 #if TDB_VER >= 69
-    auto param_ids = tdb->get_data<sdk::ParamList>(this->params);
+    auto param_ids = tdb->get_data<sdk::ParamList>(params_index);
     
     const auto return_param_id = param_ids->returnType;
     const auto& p = (*tdb->params)[return_param_id];
@@ -426,8 +427,10 @@ void* REMethodDefinition::get_function() const {
 uint32_t sdk::REMethodDefinition::get_invoke_id() const {
     auto tdb = RETypeDB::get();
 
+    const auto params_index = get_param_index();
+
 #if TDB_VER >= 69
-    const auto param_list = (uint32_t)this->params;
+    const auto param_list = params_index;
     const auto param_ids = tdb->get_data<sdk::ParamList>(param_list);
     const auto num_params = param_ids->numParams;
     const auto invoke_id = param_ids->invokeID;
@@ -869,9 +872,11 @@ bool REMethodDefinition::is_static() const {
 }
 
 uint32_t sdk::REMethodDefinition::get_num_params() const {
+    const auto params_index = get_param_index();
+
 #if TDB_VER >= 69
     auto tdb = RETypeDB::get();
-    const auto param_list = (uint32_t)this->params;
+    const auto param_list = params_index;
     const auto param_ids = tdb->get_data<sdk::ParamList>(param_list);
     return param_ids->numParams;
 #else
@@ -885,9 +890,9 @@ uint32_t sdk::REMethodDefinition::get_num_params() const {
 }
 
 std::vector<uint32_t> REMethodDefinition::get_param_typeids() const {
-    auto tdb = RETypeDB::get();
+    const auto param_list = get_param_index();
 
-    const auto param_list = (uint32_t)this->params;
+    auto tdb = RETypeDB::get();
 
     std::vector<uint32_t> out{};
 
@@ -947,11 +952,10 @@ std::vector<sdk::RETypeDefinition*> REMethodDefinition::get_param_types() const 
 }
 
 std::vector<const char*> REMethodDefinition::get_param_names() const {
-
     std::vector<const char*> out{};
 
     auto tdb = RETypeDB::get();
-    const auto param_list = (uint32_t)this->params;
+    const auto param_list = get_param_index();
 
 #if TDB_VER >= 69
     auto param_ids = tdb->get_data<sdk::ParamList>(param_list);

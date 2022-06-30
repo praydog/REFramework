@@ -147,11 +147,11 @@ struct REParameterDef {
 };
 
 struct REMethodDefinition {
-    uint32_t declaring_typeid : 19;
-    uint32_t pad : 13;
+    uint32_t declaring_typeid : TYPE_INDEX_BITS;
+    uint32_t params_lo : 13;
     uint32_t impl_id : 19;
-    uint32_t params : 13;
-    uint32_t encoded_offset;
+    uint32_t params_hi : 13;
+    int32_t encoded_offset;
 };
 static_assert(sizeof(REMethodDefinition) == 0xC);
 
@@ -877,6 +877,15 @@ struct REMethodDefinition : public sdk::REMethodDefinition_ {
 
     uint32_t get_invoke_id() const;
     uint32_t get_num_params() const;
+    uint32_t get_param_index() const {
+#if TDB_VER >= 71
+        const auto params_index = (this->params_hi << 13) | this->params_lo;
+#else
+        const auto params_index = this->params;
+#endif
+
+        return params_index;
+    }
 
     std::vector<uint32_t> get_param_typeids() const;
     std::vector<sdk::RETypeDefinition*> get_param_types() const;

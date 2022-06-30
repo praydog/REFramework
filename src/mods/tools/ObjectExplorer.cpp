@@ -853,7 +853,7 @@ void ObjectExplorer::generate_sdk() {
 #if TDB_VER >= 69
         auto type_id = (uint32_t)m.declaring_typeid;
         auto impl_id = (uint32_t)m.impl_id;
-        auto param_list = (uint32_t)m.params;
+        auto param_list = (uint32_t)m.get_param_index();
 #else
         const auto type_id = (uint32_t)m.declaring_typeid;
         const auto param_list = m.params;
