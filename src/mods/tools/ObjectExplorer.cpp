@@ -14,6 +14,7 @@
 #include "utility/Scan.hpp"
 #include "utility/Module.hpp"
 #include "utility/Memory.hpp"
+#include "utility/ImGui.hpp"
 #include "sdk/Renderer.hpp"
 #include "sdk/MotionFsm2Layer.hpp"
 
@@ -342,7 +343,56 @@ void ObjectExplorer::on_draw_dev_ui() {
         return;
     }
     if (ImGui::Button("Dump SDK")) {
-        generate_sdk();
+        std::thread t(&ObjectExplorer::generate_sdk, this);
+        t.detach();
+    }
+
+    if (m_dumping_sdk) {
+        const char* overlay = nullptr;
+        float progress = m_sdk_dump_progress;
+
+        switch (m_sdk_dump_stage) {
+        case SdkDumpStage::NONE:
+            progress = 0.0f;
+            break;
+        case SdkDumpStage::DUMP_INITIALIZATION:
+            overlay = "Initializing Dump...";
+            progress = static_cast<float>(ImGui::GetTime()) * -0.35f;
+            break;
+        case SdkDumpStage::DUMP_TYPES: 
+            overlay = "Dumping Types...";
+            break;
+        case SdkDumpStage::DUMP_RSZ:
+            overlay = "Dumping RSZ...";
+            break;
+        case SdkDumpStage::DUMP_METHODS:
+            overlay = "Dumping Methods...";
+            break;
+        case SdkDumpStage::DUMP_FIELDS:
+            overlay = "Dumping Fields...";
+            break;
+        case SdkDumpStage::DUMP_PROPERTIES:
+            overlay = "Dumping Properties...";
+            break;
+        case SdkDumpStage::DUMP_RSZ_2:
+            overlay = "Adjusting RSZ...";
+            break;
+        case SdkDumpStage::DUMP_DESERIALIZER_CHAIN:
+            overlay = "Dumping Deserializer Chains...";
+            break;
+        case SdkDumpStage::DUMP_NON_TDB_TYPES:
+            overlay = "Dumping Non-TDB Types...";
+            break;
+        case SdkDumpStage::GENERATE_SDK:
+            overlay = "Generating IDA SDK...";
+            progress = static_cast<float>(ImGui::GetTime()) * -0.35f;
+            break;
+        default: 
+            progress = 0.0f;
+            break;
+        }
+
+        imgui::progress_bar(progress, {}, overlay);
     }
 
     auto curtime = std::chrono::system_clock::now();
@@ -710,6 +760,9 @@ void ObjectExplorer::generate_sdk() {
     //auto ref = utility::scan(g_framework->get_module().as<HMODULE>(), "66 C7 40 18 01 01 48 89 05 ? ? ? ?");
     //auto& l = *(std::map<uint64_t, REEnumData>*)(utility::calculate_absolute(*ref + 9));
 
+    m_dumping_sdk = true;
+    m_sdk_dump_stage = SdkDumpStage::DUMP_INITIALIZATION;
+
     genny::Sdk sdk{};
     auto g = sdk.global_ns();
 
@@ -747,8 +800,12 @@ void ObjectExplorer::generate_sdk() {
         g_stypedb[desc->full_name] = desc;
     }
 
+    m_sdk_dump_stage = SdkDumpStage::DUMP_TYPES;
+
     // Finish off initialization of types
     for (uint32_t i = 0; i < tdb->numTypes; ++i) {
+        m_sdk_dump_progress = static_cast<float>(i) / tdb->numTypes;
+
         auto desc = init_type(il2cpp_dump, tdb, i);
         auto& t = *desc->t;
 
@@ -787,10 +844,13 @@ void ObjectExplorer::generate_sdk() {
         }
     }
 
+    m_sdk_dump_stage = SdkDumpStage::DUMP_RSZ;
 
     // Initialize RSZ
     // Dont do it in init_type because it calls init_type
     for (uint32_t i = 0; i < tdb->numTypes; ++i) {
+        m_sdk_dump_progress = static_cast<float>(i) / tdb->numTypes;
+
         auto pt = init_type(il2cpp_dump, tdb, i);
         auto& t = *pt->t;
 
@@ -846,8 +906,12 @@ void ObjectExplorer::generate_sdk() {
         }
     }
 
+    m_sdk_dump_stage = SdkDumpStage::DUMP_METHODS;
+
     // Methods
     for (uint32_t i = 0; i < tdb->numMethods; ++i) {
+        m_sdk_dump_progress = static_cast<float>(i) / tdb->numMethods;
+
         auto& m = *tdb->get_method(i);
 
 #if TDB_VER >= 69
@@ -1171,11 +1235,14 @@ void ObjectExplorer::generate_sdk() {
     }
 
     spdlog::info("FIELDS BEGIN");
+    m_sdk_dump_stage = SdkDumpStage::DUMP_FIELDS;
 
     auto dummy_constant = g->class_("__DummyClass__")->constant("__DummyConstant__")->type("int32_t");
 
     // Fields
     for (uint32_t i = 0; i < tdb->numFields; ++i) {
+        m_sdk_dump_progress = static_cast<float>(i) / tdb->numFields;
+
         auto& f = (*tdb->fields)[i];
 
 #if TDB_VER >= 69
@@ -1467,9 +1534,12 @@ void ObjectExplorer::generate_sdk() {
     }
     
     spdlog::info("PROPERTIES BEGIN");
+    m_sdk_dump_stage = SdkDumpStage::DUMP_PROPERTIES;
 
     // properties
     for (uint32_t i = 0; i < tdb->numProperties; ++i) {
+        m_sdk_dump_progress = static_cast<float>(i) / tdb->numProperties;
+
         auto& p = (*tdb->properties)[i];
 
         const auto getter_id = (uint32_t)p.getter;
@@ -1538,7 +1608,13 @@ void ObjectExplorer::generate_sdk() {
     // In RE7, the deserializer points to the reflection property,
     // so we can just grab the name from there instead of comparing field offsets.
 #if TDB_VER > 49
+    m_sdk_dump_stage = SdkDumpStage::DUMP_RSZ_2;
+    uint32_t k = 0;
+    auto n_types = g_itypedb.size();
+
     for (auto& t : g_itypedb) {
+        m_sdk_dump_progress = static_cast<float>(k++) / n_types;
+
         auto tdef = t.second->t;
 
         if (tdef == nullptr || tdef->get_index() == 0) {
@@ -1599,9 +1675,13 @@ void ObjectExplorer::generate_sdk() {
     }
 #endif
 #endif
-
+    m_sdk_dump_stage = SdkDumpStage::DUMP_DESERIALIZER_CHAIN;
+    k = 0;
+    n_types = m_sorted_types.size();
     // First pass, gather all valid class names
     for (const auto& name : m_sorted_types) {
+        m_sdk_dump_progress = static_cast<float>(k++) / n_types;
+
         auto t = get_type(name);
 
         if (t == nullptr || t->name == nullptr) {
@@ -1635,7 +1715,12 @@ void ObjectExplorer::generate_sdk() {
     }
 
 #if TDB_VER > 49
+    m_sdk_dump_stage = SdkDumpStage::DUMP_NON_TDB_TYPES;
+    k = 0;
+    n_types = m_sorted_types.size();
     for (const auto& name : m_sorted_types) {
+        m_sdk_dump_progress = static_cast<float>(k++) / n_types;
+
         auto t = get_type(name);
 
         if (t == nullptr || t->name == nullptr) {
@@ -1881,9 +1966,16 @@ void ObjectExplorer::generate_sdk() {
     sdk.generate("sdk");*/
 
     spdlog::info("Generating IDA SDK...");
+    m_sdk_dump_stage = SdkDumpStage::GENERATE_SDK;
     
     genny::ida::transform(sdk);
     sdk.generate("sdk_ida");
+
+    m_dumping_sdk = false;
+}
+
+void ObjectExplorer::report_sdk_dump_progress(float progress) {
+    m_sdk_dump_progress = progress;
 }
 
 void ObjectExplorer::handle_address(Address address, int32_t offset, Address parent, Address real_address) {
@@ -3759,6 +3851,8 @@ std::string ObjectExplorer::get_full_enum_value_name(std::string_view enum_name,
 }
 
 std::string ObjectExplorer::get_enum_value_name(std::string_view enum_name, int64_t value) {
+    std::lock_guard l{m_enum_mutex};
+
     if (!m_enums.contains(enum_name.data())) {
         spdlog::info("Unknown enum: {}", enum_name);
         return "";

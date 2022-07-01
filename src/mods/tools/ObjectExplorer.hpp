@@ -154,6 +154,7 @@ private:
     void export_deserializer_chain(nlohmann::json& il2cpp_dump, sdk::RETypeDB* tdb, REType* t, std::optional<std::string> real_name = std::nullopt);
 #endif
     void generate_sdk();
+    void report_sdk_dump_progress(float progress);
 
     void handle_game_object(REGameObject* game_object);
     void handle_component(REComponent* component);
@@ -268,11 +269,31 @@ private:
     std::unordered_map<std::string, REType*> m_types;
     std::vector<std::string> m_sorted_types;
 
+    std::mutex m_enum_mutex;
+
     // Types currently being displayed
     std::vector<REType*> m_displayed_types;
 
     std::vector<uint8_t> m_module_chunk{};
 
     bool m_do_init{ true };
+
+    enum class SdkDumpStage {
+        NONE = -1,
+        DUMP_INITIALIZATION,
+        DUMP_TYPES,
+        DUMP_RSZ,
+        DUMP_METHODS,
+        DUMP_FIELDS,
+        DUMP_PROPERTIES,
+        DUMP_RSZ_2,
+        DUMP_DESERIALIZER_CHAIN,
+        DUMP_NON_TDB_TYPES,
+        GENERATE_SDK
+    };
+
+    std::atomic<bool> m_dumping_sdk{ false };
+    std::atomic<float> m_sdk_dump_progress{ 0.0f };
+    std::atomic<SdkDumpStage> m_sdk_dump_stage{ SdkDumpStage::NONE };
 };
 
