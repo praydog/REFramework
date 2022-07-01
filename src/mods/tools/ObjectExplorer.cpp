@@ -1202,14 +1202,21 @@ void ObjectExplorer::generate_sdk() {
 
         auto br_impl = BitReader{&impl};
 
-        const auto field_attr_id = (uint16_t)br_impl.read_short();
+        /*const auto field_attr_id = (uint16_t)br_impl.read_short();
         const auto field_flags = (uint16_t)br_impl.read_short();
         const auto field_type = (uint32_t)br_impl.read(18);
         const auto init_data_low = (uint16_t)br_impl.read(14);
         const auto name_offset = (uint32_t)br_impl.read(30);
         const auto init_data_high = (uint8_t)br_impl.read(2);
         const auto name = Address{tdb->stringPool}.get(name_offset).as<const char*>();
-        const auto init_data_index = init_data_low | (init_data_high << 14);
+        const auto init_data_index = init_data_low | (init_data_high << 14);*/
+
+        const auto field_attr_id = impl.attributes_id;
+        const auto field_flags = impl.flags;
+        const auto field_type = f.get_type()->get_index();
+        const auto name_offset = impl.name_offset;
+        const auto init_data_index = f.get_init_data_index();
+        const auto name = tdb->get_string(name_offset);
 #else
         const auto name_offset = f.name_offset;
         const auto name = Address{ tdb->stringPool }.get(name_offset).as<const char*>();

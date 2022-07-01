@@ -228,15 +228,30 @@ uint32_t REField::get_flags() const {
 #endif
 }
 
+uint32_t REField::get_init_data_index() const {
+    auto tdb = RETypeDB::get();
+    
+#if TDB_VER >= 71
+    auto& impl = (*tdb->fieldsImpl)[this->impl_id];
+    const auto init_data_index = impl.init_data_lo | (impl.init_data_mid << 6) | (this->init_data_hi << 10); // what the FUCK!!! IS THIS SHIT!!!
+#elif TDB_VER >= 69
+    auto& impl = (*tdb->fieldsImpl)[this->impl_id];
+    const auto init_data_index = impl.init_data_lo | (impl.init_data_hi << 14);
+#elif TDB_VER > 49
+    const auto init_data_index = this->init_data_index;
+#else
+    const auto init_data_index = 0;
+#endif
+
+    return init_data_index;
+}
+
 void* REField::get_init_data() const {
     auto tdb = RETypeDB::get();
 
-#if TDB_VER >= 69
-    auto& impl = (*tdb->fieldsImpl)[this->impl_id];
-    const auto init_data_index = impl.init_data_lo | (impl.init_data_hi << 14);
-    const auto init_data_offset = (*tdb->initData)[init_data_index];
-#elif TDB_VER > 49
-    const auto init_data_index = this->init_data_index;
+    const auto init_data_index = get_init_data_index();
+
+#if TDB_VER > 49
     const auto init_data_offset = (*tdb->initData)[init_data_index];
 #else
     const auto init_data_offset = this->init_data_offset;
