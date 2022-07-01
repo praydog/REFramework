@@ -142,8 +142,8 @@ struct REParameterDef {
     uint16_t init_data_index;
     uint32_t name_offset : 30;
     uint32_t modifier : 2;
-    uint32_t type_id : 18;
-    uint32_t flags : 14;
+    uint32_t type_id : TYPE_INDEX_BITS;
+    uint32_t flags : (32 - TYPE_INDEX_BITS);
 };
 
 struct REMethodDefinition {
@@ -168,9 +168,9 @@ struct RETypeImpl {
     int32_t namespace_offset; // 0x4
     int32_t field_size; // 0x8
     int32_t static_field_size; // 0xc
-    uint64_t unk_pad : 32; // 0x10
+    uint64_t unk_pad : 33; // 0x10
     uint64_t num_member_fields : 24; // 0x10
-    uint64_t unk_pad_2 : 8; // 0x10
+    uint64_t unk_pad_2 : 7; // 0x10
     uint16_t num_member_methods; // 0x18
     int16_t num_native_vtable; // 0x1a
     int16_t interface_id; // 0x1c
