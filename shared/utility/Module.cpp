@@ -1,6 +1,8 @@
 #include <fstream>
 
 #include <shlwapi.h>
+#include <windows.h>
+#include <winternl.h>
 
 #include "String.hpp"
 #include "Module.hpp"
@@ -178,6 +180,35 @@ namespace utility {
 
     HMODULE get_executable() {
         return GetModuleHandle(nullptr);
+    }
+
+    HMODULE unlink(HMODULE module) {
+        const auto base = (uintptr_t)module;
+
+        if (base == 0) {
+            return module;
+        }
+
+        PEB* peb = nullptr;
+
+        while (peb == nullptr) {
+            peb = (PEB*)__readgsqword(0x60);
+
+            if (peb == nullptr) {
+                continue;
+            }
+            
+            for (auto entry = peb->Ldr->InMemoryOrderModuleList.Flink; entry != &peb->Ldr->InMemoryOrderModuleList; entry = entry->Flink) {
+                auto ldr_entry = (_LDR_DATA_TABLE_ENTRY*)CONTAINING_RECORD(entry, _LDR_DATA_TABLE_ENTRY, InMemoryOrderLinks);
+
+                if ((uintptr_t)ldr_entry->DllBase == base) {   
+                    entry->Flink->Blink = entry->Blink;
+                    entry->Blink->Flink = entry->Flink;
+                }
+            }
+        }
+
+        return module;
     }
 
     optional<uintptr_t> ptr_from_rva(uint8_t* dll, uintptr_t rva) {

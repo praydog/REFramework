@@ -27,24 +27,10 @@ bool load_dinput8() {
     const auto our_dll = utility::get_module_within(&load_dinput8);
 
     if (our_dll) {
-        PEB* peb = nullptr;
-
-        while (peb == nullptr) {
-            peb = (PEB*)__readgsqword(0x60);
-
-            if (peb == nullptr) {
-                continue;
-            }
-            
-            for (auto entry = peb->Ldr->InMemoryOrderModuleList.Flink; entry != &peb->Ldr->InMemoryOrderModuleList; entry = entry->Flink) {
-                auto ldr_entry = (_LDR_DATA_TABLE_ENTRY*)CONTAINING_RECORD(entry, _LDR_DATA_TABLE_ENTRY, InMemoryOrderLinks);
-
-                if ((uintptr_t)ldr_entry->DllBase == (uintptr_t)*our_dll) {   
-                    entry->Flink->Blink = entry->Blink;
-                    entry->Blink->Flink = entry->Flink;
-                }
-            }
-        }
+        utility::unlink(*our_dll);
+        utility::unlink(LoadLibrary("openvr_api.dll"));
+        utility::unlink(LoadLibrary("openxr_loader.dll"));
+        utility::unlink(LoadLibrary("dxgi.dll"));
     }
 
     wchar_t buffer[MAX_PATH]{0};
