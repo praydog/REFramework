@@ -1971,6 +1971,13 @@ void ObjectExplorer::generate_sdk() {
     genny::ida::transform(sdk);
     sdk.generate("sdk_ida");
 
+    // Free a couple gigabytes of memory
+    g_stypedb.clear();
+    g_itypedb.clear();
+    g_fqntypedb.clear();
+    g_iparamdb.clear();
+    g_imethoddb.clear();
+
     m_dumping_sdk = false;
 }
 
