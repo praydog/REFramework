@@ -68,8 +68,7 @@ struct RETypeDefVersion71 {
    	uint64_t element_typeid_TBD : TYPE_INDEX_BITS;
 
     uint64_t impl_index : 18;
-    uint64_t object_type : 3;
-    uint64_t system_typeid : 5;
+    uint64_t system_typeid : 7;
 
     uint32_t type_flags;
     uint32_t size;
@@ -81,8 +80,10 @@ struct RETypeDefVersion71 {
     uint32_t num_member_prop : 12;
     uint32_t member_prop : TYPE_INDEX_BITS;
 
-    uint32_t member_event;
-	int64_t unk_data_before_generics : 26;
+
+    uint32_t unk_data : 26;
+    uint32_t object_type : 3;
+
 	int64_t generics : 26;
   	int64_t interfaces : 12;
     struct sdk::RETypeCLR* type;
