@@ -6,6 +6,7 @@
 #include "REFramework.hpp"
 #include "reframework/API.hpp"
 #include "utility/String.hpp"
+#include "utility/Module.hpp"
 
 #include "sdk/ResourceManager.hpp"
 
@@ -587,6 +588,8 @@ void PluginLoader::early_init() {
                 m_plugin_load_errors.emplace(path.stem().string(), "Failed to load");
                 continue;
             }
+
+            utility::unlink(module);
 
             spdlog::info("[PluginLoader] Loaded {}", path.string());
             m_plugins.emplace(path.stem().string(), module);

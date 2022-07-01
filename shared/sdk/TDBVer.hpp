@@ -3,7 +3,11 @@
 #ifdef DMC5
 #define TDB_VER 67
 #elif defined(MHRISE)
+#ifdef MHRISE_TDB70
 #define TDB_VER 70
+#else
+#define TDB_VER 71
+#endif
 #elif defined(RE8)
 #define TDB_VER 69
 #elif RE3

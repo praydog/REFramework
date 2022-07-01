@@ -34,4 +34,5 @@ namespace utility {
     std::optional<uintptr_t> ptr_from_rva(uint8_t* dll, uintptr_t rva);
 
     HMODULE get_executable();
+    HMODULE unlink(HMODULE module);
 }

@@ -1,0 +1,9 @@
+{
+    "name": "vcpkg-example",
+    "version": "1.83",
+    "dependencies": [
+        "imgui",
+        "imguizmo",
+        "stb"
+    ]
+}

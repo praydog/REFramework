@@ -14,6 +14,9 @@ namespace regenny{
 struct TypeDefinition{}
 struct ManagedVtable{}
 
+struct BS 0x1000{
+};
+
 namespace via {
 	struct vec3 {
 		float x;
@@ -595,6 +598,21 @@ namespace via {
 namespace render {
 	struct OutputTargetStateDX12 {}
 
+	struct ToneMappingInternal 0x500 {
+		bool disable_aa @ 0xFD
+		float a1 @ 0x118
+		float a2
+		float a3
+		float a4
+		uint32_t a5
+		float a6
+		float a7
+		float a8
+		uint32_t a9
+		float a10 @ 0x15c
+		uint8_t aa_mode @ 0x194
+	};
+
 	struct LightRenderer 0x7b30 {
 		uint32_t frame1 @ 0x2610
 		uint32_t FlushElapsedFrameCount @ 0x2700
@@ -667,6 +685,7 @@ namespace render {
 
 		via.JobSet before_rendering_task @ 0xF80
 		via.JobSet end_task @ 0x1000
+		via.JobSet present_task @ 0x1048
 	};
 
 	struct RenderLayer{}
@@ -735,5 +754,355 @@ struct Application : via.Object 0x38F10 {
 	Ticket tickets[1024];
 	uint32_t ticket_thing;
 };
+}
+
+struct DummySkeleton {
+	via.JointDesc** Joints @ 0x38
+};
+
+namespace via {
+namespace physics {
+struct FilterInfo : via.clr.ManagedObject 0x100 {
+    int32_t layer @ 0x10
+	uint32_t group
+	uint32_t sub_group
+	uint32_t ignore_sub_group
+    uint32_t mask_bits
+};
+
+struct RayCastQuery : via.clr.ManagedObject 0x100 {
+	FilterInfo* filter_info @ 0x10;
+};
+}
+}
+
+namespace via {
+namespace behaviortree {
+struct ManagedObjectArray {
+	via.clr.ManagedObject** objects;
+	uint32_t count;
+	uint32_t capacity;
+};
+
+struct BehaviorTreeCoreHandleArray {};
+struct TreeNode{};
+struct TreeObject {};
+
+struct NodeArray {
+	TreeNode* nodes;
+	uint64_t count
+};
+
+struct NodeArray2 {
+	TreeNode** nodes;
+	uint32_t unk
+	uint32_t count
+};
+
+struct Selector : via.clr.ManagedObject 0x28 {
+	bool late_select @ 0x10
+	bool b2
+	bool b3
+	uint32_t* buf + 5
+	uint32_t bufsize;
+};
+
+struct SelectorFSM : Selector 0x60 {
+	TreeNode* owner_node @ 0x28
+	TreeNode* active_node
+	NodeArray2 next_nodes;
+	NodeArray2 node_choices;
+	
+
+	bool illegal @ 0x58
+};
+
+struct Condition : via.clr.ManagedObject {
+};
+
+enum NodeStatus : uint32_t {
+	Off = 0,
+	On = 2
+};
+
+struct UIntArray {
+	uint32_t* data;
+	uint64_t count;
+};
+
+struct UInt8Array {
+	uint8_t* data;
+	uint64_t count;
+};
+
+struct IntArray {
+	int32_t* data;
+	uint64_t count;
+};
+
+struct TreeNodeData {
+	uint32_t id
+	uint32_t id_2;
+	uint32_t attr
+	bool is_branch
+	bool is_end;
+	bool has_selector;
+
+	uint32_t selector_id + 1
+
+	uint32_t parent @ 0x34;
+	uint32_t parent_2;
+
+	UIntArray children + 4;
+	UIntArray children2;
+	IntArray conditions;
+	UIntArray states;
+	UIntArray states_2;
+	IntArray transition_conditions;
+	UIntArray transition_ids;
+	UIntArray transition_attributes;
+	UIntArray actions;
+	UIntArray actions_2;
+	
+	IntArray start_transitions @ 0x130
+	// aka the first choices when the node activates?
+	UIntArray start_states @ 0x140
+	UIntArray start_states_2
+	UIntArray transition_events
+	UIntArray unkarray3
+	UIntArray tags
+	
+	wchar_t name[12] @ 0x190 [[utf16*]]
+	uint32_t name_len;
+	uint32_t name_capacity;
+	uint32_t name_offset; // offset inside the in-memory structure...?
+	uint32_t name_murmur_hash;
+	uint32_t full_name_murmur_hash;
+};
+
+struct TreeNode 0xC8 {
+	uint64_t id
+	TreeNodeData* data;
+	TreeObject* owner;
+	uint16_t attr;
+	uint16_t unk_flags;
+	uint16_t pad[2];
+	SelectorFSM* selector;
+	Condition* selector_condition;
+	int32_t selector_condition_index;
+	int32_t priority;
+	TreeNode* node_parent;
+	uint32_t num_children
+	uint32_t unk_thing
+	void* unk_388;
+	uint32_t num_actions
+	uint32_t num_selector_callers
+	//Condition* parent_condition;
+	int32_t parent_condition_index;
+	NodeStatus status1
+	NodeStatus status2
+	
+	wchar_t name[12] + 4 [[utf16*]]
+	uint32_t name_len
+	uint32_t name_capacity
+
+	TreeNode* node_end;
+	TreeNode* node_restart;
+	TreeNode* node_end_notify;
+	TreeNode* node_end_selector;
+	TreeNode* node_active_child;
+};
+
+
+struct TreeObjectData 0x300 {
+	void* vftable;
+	TreeNodeData* nodes;
+	uint32_t node_count;
+	ManagedObjectArray static_selector_callers+4;
+	ManagedObjectArray static_actions;
+	ManagedObjectArray static_conditions;
+	ManagedObjectArray static_transitions;
+	ManagedObjectArray expression_tree_conditions;
+
+	// Seemingly NOT a thing in DMC5?
+	// Old versions have RSZ data here instead...
+	/*ManagedObjectArray actions
+	ManagedObjectArray conditions;
+	ManagedObjectArray transitions;*/
+
+	UInt8Array action_methods @ 0xc8;
+	UInt8Array static_action_methods
+};
+
+struct TreeObject 0xD8 {
+	void* vfptr;
+	TreeObjectData* data;
+	NodeArray nodes @ 0x10
+
+	ManagedObjectArray selectors+4
+	ManagedObjectArray actions @ 0x40
+	ManagedObjectArray conditions
+	ManagedObjectArray transitions
+	ManagedObjectArray expression_tree_conditions
+	//ManagedObjectArray conditions @ 0x70
+	ManagedObjectArray delayed_actions + 0x10
+	TreeNode* root_node
+};
+
+struct Core 0x1E0 {
+	void** vftable
+	TreeObject* tree_object
+};
+
+struct CoreHandle : via.clr.ManagedObject 0x220 {
+	Core core @ 0x18
+};
+
+struct BehaviorTreeData 0x100 {
+	void* vftable;
+	bool unk_bool
+	TreeObjectData data @ 0x10
+};
+
+struct BehaviorTree : via.Component {
+	BehaviorTreeCoreHandleArray trees @ 0x98
+};
+
+struct BehaviorTreeCoreHandleArray {
+	via.behaviortree.CoreHandle** handles;
+	uint32_t count;
+};
+}
+
+namespace motion {
+struct MotionFsm2Layer : via.behaviortree.CoreHandle {
+};
+
+struct MotionFsm2 : via.behaviortree.BehaviorTree 0x100 {
+};
+
+struct TransitionMap 0x1000 {
+};
+
+enum InterpolationMode : uint32_t {
+	Fuck = 1
+};
+
+struct TransitionData {
+	uint32_t id;
+	uint32_t end_type : 4
+	uint32_t interpolation_mode : 4
+	uint32_t prev_move_to_end : 1
+	uint32_t start_type : 4
+	uint32_t elapsed_time_zero : 1
+	uint32_t cont_on_layer : 1
+	uint32_t cont_on_layer_interp_curve : 4
+	float exit_frame
+	float start_frame
+	float interpolation_frame
+	uint32_t pad
+};
+
+struct Data 0x100 {
+};
+
+struct MotionFsm2RawData {
+	uint8_t hdr[0x10]
+	uint8_t* file_data;
+	TransitionMap* transition_map;
+	TransitionData* transition_data;
+	Data* data;
+	uint32_t transition_map_count;
+	uint32_t transition_data_count;
+	uint32_t transition_data_start;
+};
+
+
+struct MotionFsm2Internal 0x180 {
+	void* vftable
+	MotionFsm2RawData* data;
+	via.behaviortree.BehaviorTreeData bhvt + 8;
+};
+
+struct MotionFsm2Resource 0x3A0 {
+	MotionFsm2Internal fsm2data @ 0x220
+};
+}
+}
+
+namespace via {
+struct Sphere 0x10 {
+	via.vec3 pos;
+	float r;
+};
+
+struct Capsule 0x30 {
+	via.vec4 p0;
+	via.vec4 p1;
+	float r;
+};
+
+struct OBB 0x50 {
+	via.mat4 coord;
+	via.vec3 extent;
+};
+
+namespace motion {
+struct ChainCollisionArray{};
+struct ChainCollisionData{};
+
+struct ChainCollisions 0xE0 {
+	via.Sphere sphere;
+	via.Capsule capsule;
+	via.vec4 offset @0x60
+	via.vec4 pair_offset
+	
+	via.Joint* joint @ 0xA0
+	via.Joint* pair_joint
+	ChainCollisionData* data;
+	ChainCollisionArray* owner;
+	float radius;
+	float radius2;
+	int32_t d;
+	int32_t pad1;
+	int32_t pad2;
+	uint32_t flags;
+};
+
+struct ChainCollisionData {
+	void* sub_data;
+	via.vec3 pos;
+	via.vec3 pair_pos;
+	uint32_t joint_hash;
+	uint32_t pair_joint_hash;
+	float radius;
+	float lerp;
+	uint8_t shape_type;
+	uint8_t div;
+	uint8_t num_sub_data;
+	uint8_t unk;
+	uint32_t flags;
+	uint32_t unk;
+};
+
+struct ChainCollisionArray {
+	ChainCollisions* collisions
+	int32_t num;
+	int32_t num_allocated;
+	int32_t preset_id;
+};
+
+struct SecondaryAnimation : via.Component 0x48 {
+};
+
+struct Chain : via.motion.SecondaryAnimation 0x220 {
+	ChainCollisionArray CollisionData @ 0x58;
+	float BlendRate @ 0xEC
+	float FreezeRate @ 0xF0
+	float StepFrame @ 0x130
+	uint32_t CalculateMode @ 0x208
+	uint32_t GravityCoord @ 0x210
+};
+}
 }
 }

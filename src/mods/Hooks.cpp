@@ -24,6 +24,8 @@ std::optional<std::string> Hooks::on_initialize() {
     }
 
     for (auto hook : m_hook_list) {
+        spdlog::info("[Hooks] Entering hook...");
+
         auto result = hook();
 
         // Error occurred when hooking
@@ -31,6 +33,8 @@ std::optional<std::string> Hooks::on_initialize() {
             return result;
         }
     }
+
+    spdlog::info("[Hooks] Finished hooking");
 
     return Mod::on_initialize();
 }
@@ -208,6 +212,8 @@ std::optional<std::string> Hooks::hook_update_camera_controller2() {
 }
 
 std::optional<std::string> Hooks::hook_gui_draw() {
+    spdlog::info("[Hooks] Attempting to hook GUI functions...");
+
     auto game = g_framework->get_module().as<HMODULE>();
     auto application = sdk::Application::get();
 
@@ -225,9 +231,11 @@ std::optional<std::string> Hooks::hook_gui_draw() {
     ++*(_DWORD *)(gui_manager + 232);
     *(_QWORD *)&v35 = draw_task_function; <-- "gui_draw_call" is found within this function.
     */
+    spdlog::info("[Hooks] Scanning for first GUI draw call...");
     auto gui_draw_call = utility::scan(game, "49 8B 0C CE 48 83 79 10 00 74 ? E8 ? ? ? ?");
 
     if (!gui_draw_call) {
+        spdlog::info("[Hooks] Scanning for fallback GUI draw call...");
         // RE7 (+0x20 grabs the owner ptr, 0x10 in others)
         gui_draw_call = utility::scan(game, "49 8B 0C CE 48 83 79 20 00 74 ? E8 ? ? ? ?");
 
@@ -236,8 +244,10 @@ std::optional<std::string> Hooks::hook_gui_draw() {
         }
     }
 
+    spdlog::info("[Hooks] Found gui_draw_call at {:x}", *gui_draw_call);
+
     auto gui_draw = utility::calculate_absolute(*gui_draw_call + 12);
-    spdlog::info("gui_draw_call: {:x}", gui_draw);
+    spdlog::info("[Hooks] gui_draw: {:x}", gui_draw);
 
     m_gui_draw_hook = std::make_unique<FunctionHook>(gui_draw, &gui_draw_hook);
 
@@ -282,6 +292,8 @@ std::optional<std::string> Hooks::hook_application_entry(std::string name, std::
 }
 
 std::optional<std::string> Hooks::hook_all_application_entries() {
+    spdlog::info("[Hooks] Attempting to application entries...");
+
     auto application = sdk::Application::get();
 
     if (application == nullptr) {

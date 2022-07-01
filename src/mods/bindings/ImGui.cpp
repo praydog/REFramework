@@ -733,6 +733,14 @@ void pop_id() {
     ImGui::PopID();
 }
 
+Vector2f get_mouse() {
+    const auto mouse = ImGui::GetMousePos();
+
+    return Vector2f{
+        mouse.x,
+        mouse.y,
+    };
+}
 } // namespace api::imgui
 
 namespace api::draw {
@@ -920,6 +928,42 @@ void capsule(sol::object start_pos_object, sol::object end_pos_object, float rad
 
     ::imgui::draw_capsule(start_pos, end_pos, radius, color, outline);
 }
+
+sol::variadic_results gizmo(sol::this_state s, int64_t unique_id, Matrix4x4f& transform, sol::object operation_obj, sol::object mode_obj) {
+    if (!ImGui::GetIO().MouseDown[0]) {
+        ImGuizmo::Enable(false);
+        ImGuizmo::Enable(true);
+    }
+
+    ImGuizmo::OPERATION operation{};
+    ImGuizmo::MODE mode{};
+
+    if (mode_obj.is<sol::nil_t>()) {
+        mode = ImGuizmo::MODE::WORLD;
+    } else if (mode_obj.is<int>()) {
+        mode = (ImGuizmo::MODE)mode_obj.as<int>();
+    } else {
+        throw sol::error("Invalid mode passed to gizmo");
+    }
+
+    if (operation_obj.is<sol::nil_t>()) {
+        operation = ImGuizmo::OPERATION::UNIVERSAL;
+    } else if (operation_obj.is<int>()) {
+        operation = (ImGuizmo::OPERATION)operation_obj.as<int>();
+    } else {
+        throw sol::error("Invalid operation passed to gizmo");
+    }
+
+    ImGuizmo::SetID(unique_id);
+    bool changed = ::imgui::draw_gizmo(transform, operation, mode);
+
+    sol::variadic_results results{};
+
+    results.push_back(sol::make_object<bool>(s, changed));
+    results.push_back(sol::make_object<Matrix4x4f>(s, transform));
+
+    return results;
+}
 } // namespace api::draw
 
 void bindings::open_imgui(ScriptState* s) {
@@ -972,7 +1016,24 @@ void bindings::open_imgui(ScriptState* s) {
     imgui["set_next_window_size"] = api::imgui::set_next_window_size;
     imgui["push_id"] = api::imgui::push_id;
     imgui["pop_id"] = api::imgui::pop_id;
+    imgui["get_mouse"] = api::imgui::get_mouse;
+    imgui.new_enum("ImGuizmoOperation", 
+                    "TRANSLATE", ImGuizmo::OPERATION::TRANSLATE, 
+                    "ROTATE", ImGuizmo::OPERATION::ROTATE,
+                    "SCALE", ImGuizmo::OPERATION::SCALE,
+                    "SCALEU", ImGuizmo::OPERATION::SCALEU,
+                    "UNIVERSAL", ImGuizmo::OPERATION::UNIVERSAL);
+    imgui.new_enum("ImGuizmoMode", 
+                    "WORLD", ImGuizmo::MODE::WORLD,
+                    "LOCAL", ImGuizmo::MODE::LOCAL);
     lua["imgui"] = imgui;
+
+    auto imguizmo = lua.create_table();
+
+    imguizmo["is_over"] = [] { return ImGuizmo::IsOver(); };
+    imguizmo["is_using"] = [] { return ImGuizmo::IsUsing(); };
+
+    lua["imguizmo"] = imguizmo;
 
     auto draw = lua.create_table();
 
@@ -988,5 +1049,8 @@ void bindings::open_imgui(ScriptState* s) {
     draw["filled_quad"] = api::draw::filled_quad;
     draw["sphere"] = api::draw::sphere;
     draw["capsule"] = api::draw::capsule;
+    draw["gizmo"] = api::draw::gizmo;
+    draw["cube"] = [](const Matrix4x4f& mat) { ::imgui::draw_cube(mat); };
+    draw["grid"] = [](const Matrix4x4f& mat, float size) { ::imgui::draw_grid(mat, size); };
     lua["draw"] = draw;
 }

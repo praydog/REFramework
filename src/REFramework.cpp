@@ -11,6 +11,7 @@ extern "C" {
 };
 
 #include <imgui.h>
+#include <ImGuizmo.h>
 #include "re2-imgui/font_robotomedium.hpp"
 #include "re2-imgui/imgui_impl_dx11.h"
 #include "re2-imgui/imgui_impl_dx12.h"
@@ -370,6 +371,8 @@ void REFramework::run_imgui_frame() {
 
     draw_ui();
     m_last_draw_ui = m_draw_ui;
+
+    IMGUIZMO_NAMESPACE::BeginFrame();
 
     ImGui::EndFrame();
     ImGui::Render();
@@ -927,7 +930,7 @@ void REFramework::draw_about() {
             std::string text;
         };
 
-        static std::array<License, 12> licenses{
+        static std::array<License, 13> licenses{
             License{ "glm", license::glm },
             License{ "imgui", license::imgui },
             License{ "minhook", license::minhook },
@@ -940,6 +943,7 @@ void REFramework::draw_about() {
             License{ "asmjit", license::asmjit },
             License{ "zydis", utility::narrow(license::zydis) },
             License{ "openxr", license::openxr },
+            License{ "imguizmo", license::imguizmo }
         };
 
         for (const auto& license : licenses) {

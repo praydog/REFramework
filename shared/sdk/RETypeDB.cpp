@@ -1,4 +1,6 @@
 #include <spdlog/spdlog.h>
+#include <utility/Scan.hpp>
+#include <utility/Module.hpp>
 
 #include "reframework/API.hpp"
 #include "RETypeDB.hpp"
@@ -186,7 +188,9 @@ sdk::RETypeDefinition* REField::get_declaring_type() const {
 sdk::RETypeDefinition* REField::get_type() const {
     auto tdb = RETypeDB::get();
 
-#if TDB_VER >= 69
+#if TDB_VER >= 71
+    const auto field_typeid = this->field_typeid;
+#elif TDB_VER >= 69
     auto& impl = (*tdb->fieldsImpl)[this->impl_id];
     const auto field_typeid = (uint32_t)impl.field_typeid;
 #else
@@ -224,15 +228,30 @@ uint32_t REField::get_flags() const {
 #endif
 }
 
+uint32_t REField::get_init_data_index() const {
+    auto tdb = RETypeDB::get();
+    
+#if TDB_VER >= 71
+    auto& impl = (*tdb->fieldsImpl)[this->impl_id];
+    const auto init_data_index = impl.init_data_lo | (impl.init_data_mid << 6) | (this->init_data_hi << 10); // what the FUCK!!! IS THIS SHIT!!!
+#elif TDB_VER >= 69
+    auto& impl = (*tdb->fieldsImpl)[this->impl_id];
+    const auto init_data_index = impl.init_data_lo | (impl.init_data_hi << 14);
+#elif TDB_VER > 49
+    const auto init_data_index = this->init_data_index;
+#else
+    const auto init_data_index = 0;
+#endif
+
+    return init_data_index;
+}
+
 void* REField::get_init_data() const {
     auto tdb = RETypeDB::get();
 
-#if TDB_VER >= 69
-    auto& impl = (*tdb->fieldsImpl)[this->impl_id];
-    const auto init_data_index = impl.init_data_lo | (impl.init_data_hi << 14);
-    const auto init_data_offset = (*tdb->initData)[init_data_index];
-#elif TDB_VER > 49
-    const auto init_data_index = this->init_data_index;
+    const auto init_data_index = get_init_data_index();
+
+#if TDB_VER > 49
     const auto init_data_offset = (*tdb->initData)[init_data_index];
 #else
     const auto init_data_offset = this->init_data_offset;
@@ -249,7 +268,12 @@ void* REField::get_init_data() const {
 }
 
 uint32_t REField::get_offset_from_fieldptr() const {
+#if TDB_VER >= 71
+    const auto tdb = sdk::RETypeDB::get();
+    return (*tdb->fieldsImpl)[this->impl_id].offset;
+#else
     return this->offset;
+#endif
 }
 
 uint32_t REField::get_offset_from_base() const {
@@ -316,9 +340,10 @@ sdk::RETypeDefinition* REMethodDefinition::get_declaring_type() const {
 
 sdk::RETypeDefinition* REMethodDefinition::get_return_type() const {
     auto tdb = RETypeDB::get();
+    const auto params_index = get_param_index();
 
 #if TDB_VER >= 69
-    auto param_ids = tdb->get_data<sdk::ParamList>(this->params);
+    auto param_ids = tdb->get_data<sdk::ParamList>(params_index);
     
     const auto return_param_id = param_ids->returnType;
     const auto& p = (*tdb->params)[return_param_id];
@@ -355,7 +380,63 @@ const char* REMethodDefinition::get_name() const {
 }
 
 void* REMethodDefinition::get_function() const {
-#if TDB_VER > 49
+#if TDB_VER >= 71
+    if (this->encoded_offset == 0) {
+        /*const auto dt = this->get_declaring_type();
+        
+        if (dt != nullptr) {
+            if ((dt->type_flags & (uint32_t)via::clr::TypeFlag::Interface) != 0) {
+                spdlog::error("[REMethodDefinition::get_function] Interface methods are not implemented yet (method: {})", this->get_name());
+                return nullptr;
+            }
+
+            if (dt->managed_vt != nullptr && this->get_virtual_index() != -1) {
+                auto tdb = RETypeDB::get();
+                const auto& impl = (*tdb->typesImpl)[this->impl_id];
+
+                const auto vt = (void**)(dt->managed_vt + impl.num_native_vtable);
+                const auto r = vt[this->get_virtual_index()];
+
+                spdlog::info("[REMethodDefinition] {} Found function {:s} at {:x}", this->get_index(), this->get_name(), (uintptr_t)r);
+
+                return r;
+            }
+        }*/
+
+        spdlog::error("[REMethodDefinition::get_function] Encoded offset is 0 (method: {})", this->get_name());
+        return nullptr;
+    }
+
+    // The function this function uses to offset from has a predictable pattern as well.
+    // So the pattern for that can be searched for if this one breaks.
+    // It remains to be seen if this "encoding" is used in games other than MHRise.
+    static void* (*get_encoded_pointer)(int32_t offset) = []() {
+        spdlog::info("[REMethodDefinition] Finding get_encoded_pointer");
+
+        auto fn = utility::scan(utility::get_executable(), "85 C9 75 03 33 C0 C3 48 63 C1 48 8d 0D ? ? ? ? 48 03 C1 C3");
+
+        if (!fn) {
+            spdlog::error("[REMethodDefinition] Failed to find get_encoded_pointer");
+            return (void* (*)(int32_t))nullptr;
+        }
+
+        spdlog::info("[REMethodDefinition] Found get_encoded_pointer at {:x}", *fn);
+
+        return (void* (*)(int32_t))*fn;
+    }();
+
+    if (get_encoded_pointer == nullptr) {
+        return nullptr;
+    }
+
+    auto result = get_encoded_pointer(this->encoded_offset);
+
+    if (result == nullptr) {
+        spdlog::error("[REMethodDefinition] Failed to get function from encoded offset, method index: {}", this->get_index());
+    }
+
+    return result;
+#elif TDB_VER > 49
     return this->function;
 #else
     auto vm = sdk::VM::get();
@@ -368,8 +449,10 @@ void* REMethodDefinition::get_function() const {
 uint32_t sdk::REMethodDefinition::get_invoke_id() const {
     auto tdb = RETypeDB::get();
 
+    const auto params_index = get_param_index();
+
 #if TDB_VER >= 69
-    const auto param_list = (uint32_t)this->params;
+    const auto param_list = params_index;
     const auto param_ids = tdb->get_data<sdk::ParamList>(param_list);
     const auto num_params = param_ids->numParams;
     const auto invoke_id = param_ids->invokeID;
@@ -811,9 +894,11 @@ bool REMethodDefinition::is_static() const {
 }
 
 uint32_t sdk::REMethodDefinition::get_num_params() const {
+    const auto params_index = get_param_index();
+
 #if TDB_VER >= 69
     auto tdb = RETypeDB::get();
-    const auto param_list = (uint32_t)this->params;
+    const auto param_list = params_index;
     const auto param_ids = tdb->get_data<sdk::ParamList>(param_list);
     return param_ids->numParams;
 #else
@@ -827,9 +912,9 @@ uint32_t sdk::REMethodDefinition::get_num_params() const {
 }
 
 std::vector<uint32_t> REMethodDefinition::get_param_typeids() const {
-    auto tdb = RETypeDB::get();
+    const auto param_list = get_param_index();
 
-    const auto param_list = (uint32_t)this->params;
+    auto tdb = RETypeDB::get();
 
     std::vector<uint32_t> out{};
 
@@ -889,11 +974,10 @@ std::vector<sdk::RETypeDefinition*> REMethodDefinition::get_param_types() const 
 }
 
 std::vector<const char*> REMethodDefinition::get_param_names() const {
-
     std::vector<const char*> out{};
 
     auto tdb = RETypeDB::get();
-    const auto param_list = (uint32_t)this->params;
+    const auto param_list = get_param_index();
 
 #if TDB_VER >= 69
     auto param_ids = tdb->get_data<sdk::ParamList>(param_list);

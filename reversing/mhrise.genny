@@ -13,6 +13,7 @@ type bool 1 [[u8]]
 namespace regenny{
 struct TypeDefinition{}
 struct ManagedVtable{}
+struct BullShit 0x100{}
 
 namespace via.typeinfo{
 struct TypeInfo {}
@@ -294,7 +295,7 @@ namespace via.typeinfo {
 }
 
 namespace {
-struct TypeDefinition 0x50 {
+struct TypeDefinition 0x80 {
     uint64_t index : 18;
     uint64_t parent_typeid : 18;
     uint64_t declaring_typeid : 18;
@@ -346,122 +347,40 @@ struct DeserializeSequence {
 }
 
 namespace tdb67 {
-struct ParameterDef {
-    uint16_t attributes_id;
-    uint16_t init_data_index;
-    uint32_t name_offset : 30;
-    uint32_t modifier : 2;
-    uint32_t type_id : 18;
-    uint32_t flags : 14;
-};
+	struct MethodDefinition 0xC {
+	}
 
-struct MethodDefinition {
-    uint64_t declaring_typeid : 18;
-    uint64_t impl_id : 20;
-    uint64_t params : 26;
-    void* function;
+	struct MethodImpl {
+	};
+
+	struct TypeDefinition 0x48 {
+	};
+
+	struct TypeImpl 0x30 {
+	};
+
+	struct Field 8 {
+	};
+
+	struct FieldImpl 0xC {
+	};
+
+	struct Property {
+	};
 	
-};
+	struct PropertyImpl {
+	};
 
-struct MethodImpl {
-    uint16_t attributes_id;
-    int16_t vtable_index;
-    uint16_t flags;
-    uint16_t impl_flags;
-    uint32_t name_offset;
-};
+	struct ParameterDef {
+	};
 
-struct TypeImpl {
-    int32_t name_offset;
-    int32_t namespace_offset;
-    int32_t field_size;
-    int32_t static_field_size;
-    uint8_t module_id;
-    uint8_t array_rank;
-    uint16_t num_member_methods;
-    int32_t num_member_fields;
-    int16_t interface_id;
-    uint16_t num_native_vtable;
-    uint16_t attributes_id;
-    uint16_t num_vtable;
-    uint64_t mark;
-    uint64_t cycle;
-};
+	struct AttributeDef {
+	};
 
-struct Property {
-    uint64_t impl_id : 20;
-    uint64_t getter : 22;
-    uint64_t setter : 22;
-};
-
-struct PropertyImpl {
-    uint16_t flags;
-    uint16_t attributes_id;
-    int32_t name_offset;
-};
-
-struct Field {
-    uint64_t declaring_typeid : 18;
-    uint64_t impl_id : 20;
-    uint64_t offset : 26;
-};
-
-struct FieldImpl {
-    uint16_t attributes_id;
-    uint16_t flags;
-    uint32_t field_typeid : 18;
-    uint32_t init_data_lo : 14;
-    uint32_t name_offset : 30;
-    uint32_t init_data_hi : 2;
-};
-
-struct GenericListData {
-    uint32_t definition_typeid : 18;
-    uint32_t num : 14;
-    uint32_t types[1];
-};
+	struct ParamList {
+	};
 
     struct TDB {
-    uint32_t magic;                             // 0x0000
-    uint32_t version;                           // 0x0004
-    uint32_t initialized;                       // 0x0008
-    uint32_t numTypes;                          // 0x000C
-    uint32_t numMethods;                        // 0x0010
-    uint32_t numFields;                         // 0x0014
-    uint32_t numTypeImpl;                       // 0x0018
-    uint32_t numFieldImpl;                      // 0x001C
-    uint32_t numMethodImpl;                     // 0x0020
-    uint32_t numPropertyImpl;                   // 0x0024
-    uint32_t numProperties;                     // 0x0028
-    uint32_t numEvents;                         // 0x002C
-    uint32_t numParams;                         // 0x0030
-    uint32_t numAttributes;                     // 0x0034
-    int32_t numInitData;                        // 0x0038
-    uint32_t numAttributes2;                    // 0x003C
-    uint32_t numInternStrings;                  // 0x0040
-    uint32_t numModules;                        // 0x0044
-    int32_t devEntry;                           // 0x0048
-    int32_t appEntry;
-    uint32_t numStringPool;                     // 0x0050
-    uint32_t numBytePool;
-	void* modules                       // 0x0054                          // 0x0058
-    TypeDefinition* types;      // 0x0060
-    TypeImpl* typesImpl;          // 0x0068
-    MethodDefinition* methods; // 0x0070
-    MethodImpl* methodsImpl;    // 0x0078
-    Field* fields;                  // 0x0080
-    FieldImpl* fieldsImpl;          // 0x0088
-    Property* properties;         // 0x0090
-    PropertyImpl* propertiesImpl;   // 0x0098
-    void* events;                               // 0x00A0
-    void* params;       // 0x00A8
-    void* attributes; // 0x00B0
-    int32_t* initData;                 // 0x00B8
-	void* unk;
-    int32_t* attributes2;                // 0x00C0
-    char* stringPool;                      // 0x00C8
-    uint8_t* bytePool;                   // 0x00D0
-    int32_t* internStrings;            // 0x00D8
     }
 }
 
@@ -646,5 +565,81 @@ namespace via {
 			via.JobSet draw_task @ 0x120;
 		};
 	}
+}
+
+namespace via {
+struct Sphere 0x10 {
+	via.vec3 pos;
+	float r;
+};
+
+struct Capsule 0x30 {
+	via.vec4 p0;
+	via.vec4 p1;
+	float r;
+};
+
+struct OBB 0x50 {
+	via.mat4 coord;
+	via.vec3 extent;
+};
+
+namespace motion {
+struct ChainCollisionArray{};
+struct ChainCollisionData{};
+
+struct ChainCollisions 0x140 {
+	via.Sphere sphere;
+	via.Capsule capsule;
+	via.vec4 offset @ 0x90
+	via.vec4 pair_offset
+	
+	via.Joint* joint @ 0xF0
+	via.Joint* pair_joint
+	ChainCollisionData* data;
+	ChainCollisionArray* owner;
+	float radius;
+	float radius2;
+	int32_t d;
+	int32_t pad1;
+	int32_t pad2;
+	uint32_t flags;
+};
+
+struct ChainCollisionData {
+	void* sub_data;
+	via.vec3 pos;
+	via.vec3 pair_pos;
+	uint32_t joint_hash;
+	uint32_t pair_joint_hash;
+	float radius;
+	float lerp;
+	uint8_t shape_type;
+	uint8_t div;
+	uint8_t num_sub_data;
+	uint8_t unk;
+	uint32_t flags;
+	uint32_t unk;
+};
+
+struct ChainCollisionArray {
+	ChainCollisions* collisions
+	int32_t num;
+	int32_t num_allocated;
+	int32_t preset_id;
+};
+
+struct SecondaryAnimation 0x48 {
+};
+
+struct Chain {
+	ChainCollisionArray CollisionData @ 0x60;
+	float BlendRate @ 0xEC
+	float FreezeRate @ 0xF0
+	float StepFrame @ 0x130
+	uint32_t CalculateMode @ 0x208
+	uint32_t GravityCoord @ 0x210
+};
+}
 }
 }
