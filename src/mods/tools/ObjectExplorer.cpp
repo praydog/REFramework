@@ -762,6 +762,8 @@ void ObjectExplorer::generate_sdk() {
 
     m_dumping_sdk = true;
     m_sdk_dump_stage = SdkDumpStage::DUMP_INITIALIZATION;
+    uint32_t k = 0;
+    auto n_types = 0ull;
 
     genny::Sdk sdk{};
     auto g = sdk.global_ns();
@@ -1607,11 +1609,11 @@ void ObjectExplorer::generate_sdk() {
     // Try and guess what the field names are for the RSZ entries
     // In RE7, the deserializer points to the reflection property,
     // so we can just grab the name from there instead of comparing field offsets.
+    
 #if TDB_VER > 49
     m_sdk_dump_stage = SdkDumpStage::DUMP_RSZ_2;
-    uint32_t k = 0;
-    auto n_types = g_itypedb.size();
-
+    k = 0;
+    n_types = m_sorted_types.size();
     for (auto& t : g_itypedb) {
         m_sdk_dump_progress = static_cast<float>(k++) / n_types;
 
