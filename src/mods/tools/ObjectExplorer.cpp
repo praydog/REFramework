@@ -1213,7 +1213,7 @@ void ObjectExplorer::generate_sdk() {
 
         const auto field_attr_id = impl.attributes_id;
         const auto field_flags = impl.flags;
-        const auto field_type = f.get_type()->get_index();
+        const auto field_type = f.get_type() != nullptr ? f.get_type()->get_index() : 0;
         const auto name_offset = impl.name_offset;
         const auto init_data_index = f.get_init_data_index();
         const auto name = tdb->get_string(name_offset);
