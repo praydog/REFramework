@@ -43,6 +43,7 @@ void error(const char* str) {
 
 void debug(const char* str) {
     OutputDebugString(str);
+    fprintf(stderr, "%s\n", str);
     spdlog::debug(str);
 }
 }
