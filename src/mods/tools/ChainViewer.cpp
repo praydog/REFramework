@@ -284,7 +284,7 @@ void ChainViewer::on_frame() {
                                 ImGui::PushID(&collider.capsule.p0);
                                 ImGuizmo::SetID((intptr_t)&collider.capsule.p0);
                                 if (ImGuizmo::Manipulate((float*)&view, (float*)&proj, OP::TRANSLATE | OP::SCALEU, ImGuizmo::MODE::WORLD, (float*)&mat)) {
-                                    const auto delta = *(Vector3f*)&mat[3] - *(Vector3f*)&collider.capsule.p0;
+                                    const auto delta = *(Vector3f*)&mat[3] - adjusted_pos1;
                                     *(Vector3f*)&collider.offset += glm::inverse(sdk::get_joint_rotation((::REJoint*)collider.joint)) * delta;
                                     //collider.radius = (glm::length(mat[0]) + glm::length(mat[1]) + glm::length(mat[2])) / 3.0f;
                                     collider.radius += ((glm::length(mat[0]) + glm::length(mat[1]) + glm::length(mat[2])) / 3.0f) - collider.capsule.r;
@@ -302,7 +302,7 @@ void ChainViewer::on_frame() {
                                 ImGui::PushID(&collider.capsule.p1);
                                 ImGuizmo::SetID((intptr_t)&collider.capsule.p1);
                                 if (ImGuizmo::Manipulate((float*)&view, (float*)&proj, OP::TRANSLATE | OP::SCALEU, ImGuizmo::MODE::WORLD, (float*)&mat)) {
-                                    const auto delta = *(Vector3f*)&mat[3] - *(Vector3f*)&collider.capsule.p1;
+                                    const auto delta = *(Vector3f*)&mat[3] - adjusted_pos2;
                                     *(Vector3f*)&collider.pair_offset += glm::inverse(sdk::get_joint_rotation((::REJoint*)collider.pair_joint)) * delta;
                                     //collider.radius = (glm::length(mat[0]) + glm::length(mat[1]) + glm::length(mat[2])) / 3.0f;
                                     collider.radius += ((glm::length(mat[0]) + glm::length(mat[1]) + glm::length(mat[2])) / 3.0f) - collider.capsule.r;
