@@ -264,7 +264,7 @@ via::clr::VMObjType get_vm_type(::REManagedObject* object) {
     }
 
 #if TDB_VER >= 71
-    return get_type_definition()->get_vm_obj_type();
+    return get_type_definition(object)->get_vm_obj_type();
 #elif TDB_VER >= 69
     return (via::clr::VMObjType)(info->classInfo->objectFlags >> 5);
 #else

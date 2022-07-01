@@ -188,7 +188,9 @@ sdk::RETypeDefinition* REField::get_declaring_type() const {
 sdk::RETypeDefinition* REField::get_type() const {
     auto tdb = RETypeDB::get();
 
-#if TDB_VER >= 69
+#if TDB_VER >= 71
+    const auto field_typeid = this->field_typeid;
+#elif TDB_VER >= 69
     auto& impl = (*tdb->fieldsImpl)[this->impl_id];
     const auto field_typeid = (uint32_t)impl.field_typeid;
 #else
@@ -251,7 +253,12 @@ void* REField::get_init_data() const {
 }
 
 uint32_t REField::get_offset_from_fieldptr() const {
+#if TDB_VER >= 71
+    const auto tdb = sdk::RETypeDB::get();
+    return (*tdb->fieldsImpl)[this->impl_id].offset;
+#else
     return this->offset;
+#endif
 }
 
 uint32_t REField::get_offset_from_base() const {

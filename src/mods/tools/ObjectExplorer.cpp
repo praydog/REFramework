@@ -1181,7 +1181,7 @@ void ObjectExplorer::generate_sdk() {
 #if TDB_VER >= 69
         const auto type_id = (uint32_t)f.declaring_typeid;
         const auto impl_id = (uint32_t)f.impl_id;
-        const auto offset = (uint32_t)f.offset;
+        const auto offset = (uint32_t)f.get_offset_from_fieldptr();
 #else
         const auto type_id = (uint32_t)f.declaring_typeid;
         const auto offset = f.offset;

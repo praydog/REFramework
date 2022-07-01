@@ -203,17 +203,26 @@ struct ParamList {
 
 struct REField {
     uint64_t declaring_typeid : TYPE_INDEX_BITS;
-    uint64_t impl_id : 20;
-    uint64_t offset : 26;
+    uint64_t impl_id : TYPE_INDEX_BITS;
+    uint64_t field_typeid : TYPE_INDEX_BITS;
+    uint64_t rest : 7;
 };
 
 struct REFieldImpl {
-    uint16_t attributes_id;
+    uint16_t attributes;
+    uint16_t unk : 1;
+    uint16_t flags : 15;
+    uint32_t offset : 26;
+    uint32_t init_data_lo : 6;
+    uint32_t name_offset : 28;
+    uint32_t init_data_hi : 4;
+
+   /* uint16_t attributes_id;
     uint16_t flags;
     uint32_t field_typeid : 18;
     uint32_t init_data_lo : 14;
     uint32_t name_offset : 30;
-    uint32_t init_data_hi : 2;
+    uint32_t init_data_hi : 2;*/
 };
 
 struct GenericListData {
