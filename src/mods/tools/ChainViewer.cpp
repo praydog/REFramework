@@ -18,11 +18,17 @@
 #include "sdk/regenny/re8/via/motion/Chain.hpp"
 #include "sdk/regenny/re8/via/motion/ChainCollisionTop.hpp"
 #include "sdk/regenny/re8/via/motion/ChainCollisions.hpp"
-#elif TDB_VER == 70
-
+#elif TDB_VER >= 70
 #if defined(MHRISE)
+#if TDB_VER == 70
+#define MHRISE_CHAIN70
 #include "sdk/regenny/mhrise/via/motion/Chain.hpp"
 #include "sdk/regenny/mhrise/via/motion/ChainCollisions.hpp"
+#else
+#include "sdk/regenny/mhrise_tdb71/via/motion/Chain.hpp"
+#include "sdk/regenny/mhrise_tdb71/via/motion/ChainCollisions.hpp"
+#include "sdk/regenny/mhrise_tdb71/via/motion/ChainCollisionTop.hpp"
+#endif
 #else
 #include "sdk/regenny/re2_tdb70/via/motion/Chain.hpp"
 #include "sdk/regenny/re2_tdb70/via/motion/ChainCollisionTop.hpp"
@@ -203,7 +209,7 @@ void ChainViewer::on_frame() {
 
             if (chain != nullptr && chain->CollisionData.num > 0 && chain->CollisionData.collisions != nullptr) {
                 for (auto i = 0; i < chain->CollisionData.num; ++i) {
-                    #if TDB_VER >= 69 && !defined(MHRISE)
+                    #if TDB_VER >= 69 && !defined(MHRISE_CHAIN70)
                     const auto& collider_top = chain->CollisionData.collisions[i];
 
                     for (auto j = 0; j < collider_top.num_collisions; ++j) {
@@ -257,7 +263,7 @@ void ChainViewer::on_frame() {
                                 if (ImGuizmo::Manipulate((float*)&view, (float*)&proj, OP::TRANSLATE | OP::SCALEU, ImGuizmo::MODE::WORLD, (float*)&mat)) {
                                     const auto delta = *(Vector3f*)&mat[3] - *(Vector3f*)&collider.sphere.pos;
                                     *(Vector3f*)&collider.offset += glm::inverse(sdk::get_joint_rotation((::REJoint*)collider.joint)) * delta;
-                                    collider.radius = (glm::length(mat[0]) + glm::length(mat[1]) + glm::length(mat[2])) / 3.0f;
+                                    collider.radius += ((glm::length(mat[0]) + glm::length(mat[1]) + glm::length(mat[2])) / 3.0f) - collider.sphere.r;
                                 }
                             }
                         } else {
@@ -280,7 +286,8 @@ void ChainViewer::on_frame() {
                                 if (ImGuizmo::Manipulate((float*)&view, (float*)&proj, OP::TRANSLATE | OP::SCALEU, ImGuizmo::MODE::WORLD, (float*)&mat)) {
                                     const auto delta = *(Vector3f*)&mat[3] - *(Vector3f*)&collider.capsule.p0;
                                     *(Vector3f*)&collider.offset += glm::inverse(sdk::get_joint_rotation((::REJoint*)collider.joint)) * delta;
-                                    collider.radius = (glm::length(mat[0]) + glm::length(mat[1]) + glm::length(mat[2])) / 3.0f;
+                                    //collider.radius = (glm::length(mat[0]) + glm::length(mat[1]) + glm::length(mat[2])) / 3.0f;
+                                    collider.radius += ((glm::length(mat[0]) + glm::length(mat[1]) + glm::length(mat[2])) / 3.0f) - collider.capsule.r;
                                 }
                                 ImGui::PopID();
                             }
@@ -297,7 +304,8 @@ void ChainViewer::on_frame() {
                                 if (ImGuizmo::Manipulate((float*)&view, (float*)&proj, OP::TRANSLATE | OP::SCALEU, ImGuizmo::MODE::WORLD, (float*)&mat)) {
                                     const auto delta = *(Vector3f*)&mat[3] - *(Vector3f*)&collider.capsule.p1;
                                     *(Vector3f*)&collider.pair_offset += glm::inverse(sdk::get_joint_rotation((::REJoint*)collider.pair_joint)) * delta;
-                                    collider.radius = (glm::length(mat[0]) + glm::length(mat[1]) + glm::length(mat[2])) / 3.0f;
+                                    //collider.radius = (glm::length(mat[0]) + glm::length(mat[1]) + glm::length(mat[2])) / 3.0f;
+                                    collider.radius += ((glm::length(mat[0]) + glm::length(mat[1]) + glm::length(mat[2])) / 3.0f) - collider.capsule.r;
                                 }
                                 ImGui::PopID();
                             }
@@ -311,7 +319,7 @@ void ChainViewer::on_frame() {
                             
                             ImGui::SetNextTreeNodeOpen(true, ImGuiCond_::ImGuiCond_Once);
 
-                        #if TDB_VER >= 69 && !defined(MHRISE)
+                        #if TDB_VER >= 69 && !defined(MHRISE_CHAIN70)
                             if (ImGui::TreeNode(&collider, "Collision %d %d", i, j)) {
                         #else
                             if (ImGui::TreeNode(&collider, "Collision %d", i)) {
@@ -352,7 +360,7 @@ void ChainViewer::on_frame() {
 
                             ImGui::PopID();
                         }
-                #if TDB_VER >= 69 && !defined(MHRISE)
+                #if TDB_VER >= 69 && !defined(MHRISE_CHAIN70)
                     }
                 #endif
                 }

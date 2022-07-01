@@ -165,8 +165,21 @@ namespace sdk {
         // meaning that we will land in the middle of the invoke table somwhere
         // from there, we will scan backwards for a null pointer,
         // which will be the start of the table
-        auto method_inside_invoke_tbl = utility::scan(mod, "40 53 48 83 ec 20 48 8b 41 30 4c 8b d2 48 8b 51 40 48 8b d9 4c 8b 00 48 8b 41 10");
+        std::vector<std::string> invoke_patterns {
+            "40 53 48 83 ec 20 48 8b 41 30 4c 8b d2 48 8b 51 40 48 8b d9 4c 8b 00 48 8b 41 10", // RE2 - MHRise v1
+            "40 53 48 83 ec 20 48 8b 41 10 48 8b da 8b 48 08", // MHRise Sunbreak/newer games?
+        };
 
+        std::optional<uintptr_t> method_inside_invoke_tbl{std::nullopt};
+
+        for (const auto& pat : invoke_patterns) {
+            auto ref = utility::scan(mod, pat);
+
+            if (ref) {
+                method_inside_invoke_tbl = ref;
+                break;
+            }
+        }
         if (!method_inside_invoke_tbl) {
             spdlog::info("[VM::update_pointers] Unable to find method inside invoke table.");
             return;

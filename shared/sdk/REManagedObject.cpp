@@ -104,7 +104,21 @@ bool is_managed_object(Address address) {
         return false;
     }
 
-#if TDB_VER > 49
+#if TDB_VER >= 71
+    const auto td = (sdk::RETypeDefinition*)class_info;
+
+    if ((uintptr_t)td->managed_vt != (uintptr_t)object->info || td->type == nullptr) {
+        return false;
+    }
+
+    if (IsBadReadPtr(td->type, sizeof(REType)) || td->type->name == nullptr) {
+        return false;
+    }
+
+    if (IsBadReadPtr(td->type->name, sizeof(void*))) {
+        return false;
+    }
+#elif TDB_VER > 49
     if (class_info->parentInfo != object->info || class_info->type == nullptr) {
         return false;
     }
@@ -165,7 +179,15 @@ REType* get_type(::REManagedObject* object) {
         return nullptr;
     }
 
-#if TDB_VER > 49
+#if TDB_VER >= 71
+    const auto td = get_type_definition(object);
+
+    if (td == nullptr) {
+        return nullptr;
+    }
+
+    return td->type;
+#elif TDB_VER > 49
     auto class_info = info->classInfo;
 
     if (class_info == nullptr) {
@@ -241,7 +263,9 @@ via::clr::VMObjType get_vm_type(::REManagedObject* object) {
         return via::clr::VMObjType::NULL_;
     }
 
-#if TDB_VER >= 69
+#if TDB_VER >= 71
+    return get_type_definition(object)->get_vm_obj_type();
+#elif TDB_VER >= 69
     return (via::clr::VMObjType)(info->classInfo->objectFlags >> 5);
 #else
     return (via::clr::VMObjType)info->classInfo->objectType;
@@ -256,8 +280,8 @@ uint32_t get_size(::REManagedObject* object) {
     }
 
 #if TDB_VER > 49
-    auto class_info = info->classInfo;
-    auto size = class_info->size;
+    const auto td = get_type_definition(object);
+    auto size = td->get_size();
 #else
     auto size = info->size;
 #endif

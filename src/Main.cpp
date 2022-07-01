@@ -2,6 +2,9 @@
 #include <mutex>
 #include <thread>
 #include <windows.h>
+#include <winternl.h>
+
+#include <utility/Module.hpp>
 
 #include "ExceptionHandler.hpp"
 #include "REFramework.hpp"
@@ -19,6 +22,15 @@ bool load_dinput8() {
 
     if (g_dinput) {
         return true;
+    }
+
+    const auto our_dll = utility::get_module_within(&load_dinput8);
+
+    if (our_dll) {
+        utility::unlink(*our_dll);
+        utility::unlink(LoadLibrary("openvr_api.dll"));
+        utility::unlink(LoadLibrary("openxr_loader.dll"));
+        utility::unlink(LoadLibrary("dxgi.dll"));
     }
 
     wchar_t buffer[MAX_PATH]{0};
