@@ -13,4 +13,5 @@ void draw_grid(const Matrix4x4f& mat, float size);
 std::optional<Vector3f> get_camera_up();
 void draw_sphere(const Vector3f& center, float radius, ImU32 color, bool outline = true);
 void draw_capsule(const Vector3f& start, const Vector3f& end, float radius, ImU32 color, bool outline = true);
+void progress_bar(float progress, const ImVec2& size_arg = {}, const char* overlay = nullptr);
 }
