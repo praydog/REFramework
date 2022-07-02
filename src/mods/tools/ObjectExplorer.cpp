@@ -1704,7 +1704,7 @@ void ObjectExplorer::generate_sdk() {
         }
 #endif
 
-        if (t->fields == nullptr /*|| t->classInfo == nullptr || utility::re_class_info::get_vm_type(t->classInfo) != via::clr::VMObjType::Object*/) {
+        if (t->fields == nullptr) {
             continue;
         }
 
@@ -1783,7 +1783,7 @@ void ObjectExplorer::generate_sdk() {
                 continue;
             }
 
-            if (super->fields == nullptr /*|| super->classInfo == nullptr || utility::re_class_info::get_vm_type(super->classInfo) != via::clr::VMObjType::Object*/) {
+            if (super->fields == nullptr) {
                 continue;
             }
 
@@ -2152,12 +2152,7 @@ void ObjectExplorer::handle_address(Address address, int32_t offset, Address par
 
                         const auto contained_type = utility::re_array::get_contained_type(arr);
 
-#if TDB_VER > 49
-                        fake_obj.info = arr->containedType->parentInfo;
-#else
-                        fake_obj.info = (::REObjectInfo*)&sdk::VM::get()->types[contained_type->get_index()];
-#endif
-
+                        fake_obj.info = contained_type->get_managed_vt();
                         auto real_size = contained_type->get_size();
 
                         std::vector<uint8_t> copied_obj{};
@@ -2468,11 +2463,7 @@ void ObjectExplorer::handle_type(REManagedObject* obj, REType* t) {
         // Display type flags
         if (type_info->classInfo != nullptr) {
             if (stretched_tree_node("TypeFlags")) {
-#if TDB_VER > 49
-                display_enum_value("via.clr.TypeFlag", (int64_t)type_info->classInfo->typeFlags);
-#else
-                display_enum_value("via.clr.TypeFlag", 0);
-#endif
+                display_enum_value("via.clr.TypeFlag", (int64_t)((sdk::RETypeDefinition*)type_info->classInfo)->get_flags());
                 ImGui::TreePop();
             }
         }
@@ -2659,7 +2650,7 @@ void ObjectExplorer::display_reflection_properties(REManagedObject* obj, REType*
 
             // Set the obj to the static table so we can get static variables
             if (utility::reflection_property::is_static(variable)) {
-                const auto type_index = BitReader{&type_info->classInfo->typeIndex}.read<uint32_t>(18);
+                const auto type_index = ((sdk::RETypeDefinition*)type_info->classInfo)->get_index();
 
                 local_obj = (REManagedObject*)sdk::VM::get()->get_static_tbl_for_type(type_index);
 
@@ -3451,6 +3442,10 @@ int32_t ObjectExplorer::get_field_offset(REManagedObject* obj, VariableDescripto
     }
 
     if (parent_hash == "via.wwise.WwiseContainer"_fnv && name_hash == "TriggerIdByFsm"_fnv) {
+        return m_offset_map[desc];
+    }
+
+    if (parent_hash == "via.ResourceManager"_fnv && name_hash == "Loading"_fnv) {
         return m_offset_map[desc];
     }
 

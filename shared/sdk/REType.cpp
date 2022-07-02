@@ -22,16 +22,13 @@ uint32_t utility::re_type::get_vm_type(::REType* t) {
         return (uint32_t)via::clr::VMObjType::NULL_;
     }
 
-#if TDB_VER < 69
-#if TDB_VER > 49
-    return (uint32_t)t->classInfo->objectType;
-#else
-    return (uint32_t)t->classInfo->classInfo->objectType;
-#endif
+    const auto tdef = get_type_definition(t);
 
-#else
-    return (uint32_t)(t->classInfo->objectFlags >> 5);
-#endif
+    if (tdef == nullptr) {
+        return (uint32_t)via::clr::VMObjType::NULL_;
+    }
+
+    return (uint32_t)tdef->get_vm_obj_type();
 }
 
 uint32_t utility::re_type::get_value_type_size(::REType* t) {
@@ -43,19 +40,13 @@ uint32_t utility::re_type::get_value_type_size(::REType* t) {
         return t->size;
     }
 
+    const auto tdef = get_type_definition(t);
 
-#if TDB_VER >= 69
-    auto class_info = (sdk::RETypeDefVersion69*)t->classInfo;
+    if (tdef == nullptr) {
+        return 0;
+    }
 
-    return (*reframework::get_types()->get_type_db()->typesImpl)[class_info->impl_index].field_size;
-#else
-#if TDB_VER > 49
-    auto class_info = t->classInfo;
-#else
-    auto class_info = t->classInfo->classInfo;
-#endif
-    return class_info->elementSize;
-#endif
+    return tdef->get_valuetype_size();
 }
 
 bool utility::re_type::is_clr_type(::REType* t) {

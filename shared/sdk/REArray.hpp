@@ -2,12 +2,15 @@ class REArrayBase;
 
 namespace utility::re_array {
     // Forward declarations
-    static bool has_inline_elements(::REArrayBase* container);
-    static uint32_t get_element_size(::REArrayBase* container);
+    bool has_inline_elements(::REArrayBase* container);
 
-    template <typename T> static T* get_inline_element(::REArrayBase* container, int idx);
-    template <typename T> static T* get_ptr_element(::REArrayBase* container, int idx);
-    template <typename T> static T* get_element(::REArrayBase* container, int idx);
+    ::sdk::RETypeDefinition* get_contained_type(::REArrayBase* container);
+    uint32_t get_element_size(::REArrayBase* container);
+    bool has_inline_elements(::REArrayBase* container);
+
+    template<typename T> static T* get_inline_element(::REArrayBase* container, int idx);
+    template<typename T> static T* get_ptr_element(::REArrayBase* container, int idx);
+    template<typename T> static T* get_element(::REArrayBase* container, int idx);
 
 }
 
@@ -23,80 +26,7 @@ namespace sdk {
 struct RETypeDefinition;
 }
 
-namespace utility::re_class_info {
-static via::clr::VMObjType get_vm_type(::REClassInfo* c) {
-    if (c == nullptr) {
-        return via::clr::VMObjType::NULL_;
-    }
-
-#if TDB_VER >= 69
-    return (via::clr::VMObjType)(c->objectFlags >> 5);
-#else
-    return (via::clr::VMObjType)c->objectType;
-#endif
-}
-} // namespace utility::re_type
-
 namespace utility::re_array {
-    // Forward declarations
-    static bool has_inline_elements(::REArrayBase* container);
-
-    template<typename T> static T* get_inline_element(::REArrayBase* container, int idx);
-    template<typename T> static T* get_ptr_element(::REArrayBase* container, int idx);
-    template<typename T> static T* get_element(::REArrayBase* container, int idx);
-
-    static ::sdk::RETypeDefinition* get_contained_type(::REArrayBase* container) {
-        if (container == nullptr || container->containedType == nullptr) {
-            return nullptr;
-        }
-
-    #if TDB_VER > 49
-        return (::sdk::RETypeDefinition*)container->containedType;
-    #else
-        if (container->containedType->classInfo == nullptr) {
-            return nullptr;
-        }
-
-        return (::sdk::RETypeDefinition*)container->containedType->classInfo;
-    #endif
-    }
-
-    static uint32_t get_element_size(::REArrayBase* container) {
-        if (container == nullptr || container->containedType == nullptr) {
-            return 0;
-        }
-
-        if (!utility::re_array::has_inline_elements(container)) {
-            return sizeof(void*);
-        }
-
-#if TDB_VER >= 69
-        const auto element_size = utility::re_type::get_value_type_size(container->containedType->type);
-#elif TDB_VER <= 49
-        const auto element_size = container->containedType->classInfo->elementSize;
-#else
-        const auto element_size = container->info->classInfo->elementSize;
-#endif
-
-        return element_size;
-    }
-
-    static bool has_inline_elements(::REArrayBase* container) {
-        if (container->containedType == nullptr) {
-            return false;
-        }
-
-    #if TDB_VER > 49
-        return utility::re_class_info::get_vm_type(container->containedType) == via::clr::VMObjType::ValType;
-    #else
-        if (container->containedType->classInfo == nullptr) {
-            return false;
-        }
-
-        return utility::re_class_info::get_vm_type(container->containedType->classInfo) == via::clr::VMObjType::ValType;
-    #endif
-    }
-
     template<typename T>
     static T* get_inline_element(::REArrayBase* container, int idx) {
         if (idx < 0 || idx >= container->numElements) {

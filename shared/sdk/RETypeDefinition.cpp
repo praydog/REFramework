@@ -702,7 +702,7 @@ uint32_t RETypeDefinition::get_valuetype_size() const {
 
     return (*tdb->typesImpl)[impl_id].field_size;
 #else
-    return ((REClassInfo*)this)->elementSize;
+    return this->element_size;
 #endif
 }
 
@@ -872,6 +872,22 @@ void* RETypeDefinition::create_instance() const {
     } else {
         return create_instance_func->call<REManagedObject*>(sdk::get_thread_context(), typeof);
     }
+}
+
+::REObjectInfo* RETypeDefinition::get_managed_vt() const {
+#if TDB_VER > 49
+    return (::REObjectInfo*)this->managed_vt;
+#else
+    return (::REObjectInfo*)&sdk::VM::get()->types[this->get_index()];
+#endif
+}
+
+uint32_t RETypeDefinition::get_flags() const {
+#if TDB_VER > 49
+    return this->type_flags;
+#else
+    return 0;
+#endif
 }
 
 bool RETypeDefinition::should_pass_by_pointer() const {

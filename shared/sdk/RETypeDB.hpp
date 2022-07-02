@@ -81,6 +81,7 @@ T* create_instance(std::string_view type_name, bool simplify = false);
 
 #include "RETypeDefinition.hpp"
 #include "REManagedObject.hpp"
+#include "TDBVer.hpp"
 
 namespace sdk {
 namespace tdb71 {
