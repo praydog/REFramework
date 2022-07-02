@@ -17,23 +17,15 @@ ThreadStates suspend_threads();
 void resume_threads(const ThreadStates& states);
 
 struct ThreadSuspender {
-    ThreadSuspender() 
-        : states(suspend_threads())
-    {
-    }
+    ThreadSuspender();
 
-    virtual ~ThreadSuspender() {
-        resume_threads(states);
-    }
+    virtual ~ThreadSuspender();
 
     void suspend() {
         states = suspend_threads();
     }
 
-    void resume() {
-        resume_threads(states);
-        states.clear();
-    }
+    void resume();
 
     ThreadStates states{};
 };
