@@ -20,6 +20,7 @@ extern "C" {
 #include "utility/Module.hpp"
 #include "utility/Patch.hpp"
 #include "utility/Scan.hpp"
+#include "utility/Thread.hpp"
 
 #include "Mods.hpp"
 #include "mods/PluginLoader.hpp"
@@ -207,6 +208,11 @@ REFramework::REFramework(HMODULE reframework_module)
             spdlog::info("[REFramework] Waiting for D3D12...");
             next_log = now + 1s;
         }
+    }
+
+    {
+        utility::ThreadSuspender _{};
+        utility::unlink_duplicate_modules();
     }
 
 #ifdef RE8
@@ -1178,6 +1184,11 @@ bool REFramework::initialize() {
 
         // Game specific initialization stuff
         std::thread init_thread([this]() {
+            {
+                utility::ThreadSuspender _{};
+                utility::unlink_duplicate_modules();
+            }
+
             reframework::initialize_sdk();
             m_mods = std::make_unique<Mods>();
 

@@ -5,6 +5,7 @@
 #include <winternl.h>
 
 #include <utility/Module.hpp>
+#include <utility/Thread.hpp>
 
 #include "ExceptionHandler.hpp"
 #include "REFramework.hpp"
@@ -27,6 +28,7 @@ bool load_dinput8() {
     const auto our_dll = utility::get_module_within(&load_dinput8);
 
     if (our_dll) {
+        utility::ThreadSuspender _{};
         utility::unlink(*our_dll);
         utility::unlink(LoadLibrary("openvr_api.dll"));
         utility::unlink(LoadLibrary("openxr_loader.dll"));
