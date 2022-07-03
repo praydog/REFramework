@@ -493,16 +493,16 @@ bool RETypeDefinition::is_a(std::string_view other) const {
     return this->is_a(sdk::find_type_definition(other));
 }
 
-via::clr::VMObjType RETypeDefinition::get_vm_obj_type() const {
-    return (via::clr::VMObjType)this->object_type;
+::via::clr::VMObjType RETypeDefinition::get_vm_obj_type() const {
+    return (::via::clr::VMObjType)this->object_type;
 }
 
-void RETypeDefinition::set_vm_obj_type(via::clr::VMObjType type) {
+void RETypeDefinition::set_vm_obj_type(::via::clr::VMObjType type) {
     this->object_type = (uint8_t)type;
 }
 
 bool RETypeDefinition::is_value_type() const {
-    return get_vm_obj_type() == via::clr::VMObjType::ValType;
+    return get_vm_obj_type() == ::via::clr::VMObjType::ValType;
 }
 
 bool RETypeDefinition::is_enum() const {
@@ -520,7 +520,7 @@ bool RETypeDefinition::is_enum() const {
 }
 
 bool RETypeDefinition::is_array() const {
-    return get_vm_obj_type() == via::clr::VMObjType::Array;
+    return get_vm_obj_type() == ::via::clr::VMObjType::Array;
 }
 
 static std::shared_mutex g_by_ref_mtx{};
@@ -862,7 +862,7 @@ void* RETypeDefinition::create_instance() const {
         // forces the game to use a simplified path for creating the object
         // because in some cases this function could fail
         const auto old_obj_type = this->get_vm_obj_type();
-        set_vm_obj_type(via::clr::VMObjType::ValType);
+        set_vm_obj_type(::via::clr::VMObjType::ValType);
 
         auto result = create_instance_alternative_func->call<REManagedObject*>(sdk::get_thread_context(), typeof);
 

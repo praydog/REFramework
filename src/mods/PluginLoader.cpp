@@ -9,6 +9,7 @@
 #include "utility/Module.hpp"
 
 #include "sdk/ResourceManager.hpp"
+#include "sdk/Memory.hpp"
 
 #include "APIProxy.hpp"
 #include "ScriptRunner.hpp"
@@ -176,6 +177,8 @@ REFrameworkSDKFunctions g_sdk_functions {
             ignore_jmp);
     },
     [](REFrameworkMethodHandle fn, unsigned int id) { g_hookman.remove((sdk::REMethodDefinition*)fn, (HookManager::HookId)id); },
+    &sdk::via::memory::allocate,
+    &sdk::via::memory::deallocate
 };
 
 #define RETYPEDEF(var) ((sdk::RETypeDefinition*)var)

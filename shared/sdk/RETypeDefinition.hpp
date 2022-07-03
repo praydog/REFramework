@@ -325,7 +325,7 @@ struct RETypeDefinition : public sdk::RETypeDefinition_ {
     bool is_a(sdk::RETypeDefinition* other) const;
     bool is_a(std::string_view other) const;
 
-    via::clr::VMObjType get_vm_obj_type() const;
+    ::via::clr::VMObjType get_vm_obj_type() const;
     bool is_value_type() const;
     bool is_enum() const;
     bool is_array() const;
@@ -349,6 +349,6 @@ struct RETypeDefinition : public sdk::RETypeDefinition_ {
     uint32_t get_flags() const;
 
 private:    
-    void set_vm_obj_type(via::clr::VMObjType type); // for REFramework shenanigans only!
+    void set_vm_obj_type(::via::clr::VMObjType type); // for REFramework shenanigans only!
 };
 } // namespace sdk
