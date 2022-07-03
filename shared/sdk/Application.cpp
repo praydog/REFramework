@@ -156,4 +156,16 @@ void Application::set_global_speed(float speed) {
     static auto set_global_speed_method = application_type->get_method("set_GlobalSpeed");
     set_global_speed_method->call<void*>(sdk::get_thread_context(), speed);
 }
+
+float Application::get_global_speed() {
+    static const auto application_type = Application::get_type();
+
+    if (application_type == nullptr) {
+        spdlog::error("Cannot find via.Application");
+        return 0.0f;
+    }
+
+    static auto get_global_speed_method = application_type->get_method("get_GlobalSpeed");
+    return get_global_speed_method->call<float>(sdk::get_thread_context());
+}
 }

@@ -33,5 +33,6 @@ struct Application {
     static float get_max_fps();
     static void set_max_fps(float max_fps);
     static void set_global_speed(float speed);
+    static float get_global_speed();
 };
 }

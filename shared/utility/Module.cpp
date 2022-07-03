@@ -1,8 +1,11 @@
 #include <fstream>
+#include <filesystem>
 
 #include <shlwapi.h>
 #include <windows.h>
 #include <winternl.h>
+
+#include <spdlog/spdlog.h>
 
 #include "String.hpp"
 #include "Module.hpp"
@@ -189,6 +192,21 @@ namespace utility {
             return module;
         }
 
+        foreach_module([&](LIST_ENTRY* entry, _LDR_DATA_TABLE_ENTRY* ldr_entry) {
+            if ((uintptr_t)ldr_entry->DllBase == base) {   
+                entry->Flink->Blink = entry->Blink;
+                entry->Blink->Flink = entry->Flink;
+            }
+        });
+
+        return module;
+    }
+
+    void foreach_module(std::function<void(LIST_ENTRY*, _LDR_DATA_TABLE_ENTRY*)> callback) {
+        if (!callback) {
+            return;
+        }
+
         PEB* peb = nullptr;
 
         while (peb == nullptr) {
@@ -201,14 +219,60 @@ namespace utility {
             for (auto entry = peb->Ldr->InMemoryOrderModuleList.Flink; entry != &peb->Ldr->InMemoryOrderModuleList; entry = entry->Flink) {
                 auto ldr_entry = (_LDR_DATA_TABLE_ENTRY*)CONTAINING_RECORD(entry, _LDR_DATA_TABLE_ENTRY, InMemoryOrderLinks);
 
-                if ((uintptr_t)ldr_entry->DllBase == base) {   
-                    entry->Flink->Blink = entry->Blink;
-                    entry->Blink->Flink = entry->Flink;
-                }
+                callback(entry, ldr_entry);
             }
         }
+    }
 
-        return module;
+    size_t get_module_count(std::wstring_view name) {
+        size_t out{};
+
+        wchar_t lower_name[MAX_PATH]{};
+        std::transform(name.begin(), name.end(), lower_name, ::towlower);
+
+        foreach_module([&](LIST_ENTRY* entry, _LDR_DATA_TABLE_ENTRY* ldr_entry) {
+            wchar_t lower_dllname[MAX_PATH]{0};
+            std::transform(ldr_entry->FullDllName.Buffer, ldr_entry->FullDllName.Buffer + ldr_entry->FullDllName.Length, lower_dllname, ::towlower);
+
+            if (std::wstring_view{lower_dllname}.find(lower_name) != std::wstring_view::npos) {
+                ++out;
+            }
+        });
+
+        return out;
+    }
+
+    void unlink_duplicate_modules() {
+        wchar_t system_dir[MAX_PATH]{0};
+        GetSystemDirectoryW(system_dir, MAX_PATH);
+
+        // to lower
+        std::transform(system_dir, system_dir + wcslen(system_dir), system_dir, ::towlower);
+
+        const auto current_exe = get_executable();
+
+        foreach_module([&](LIST_ENTRY* entry, _LDR_DATA_TABLE_ENTRY* ldr_entry) {
+            if (ldr_entry->DllBase == current_exe) {
+                return;
+            }
+
+            wchar_t lower_name[MAX_PATH]{0};
+            std::transform(ldr_entry->FullDllName.Buffer, ldr_entry->FullDllName.Buffer + ldr_entry->FullDllName.Length, lower_name, ::towlower);
+
+            if (std::wstring_view{lower_name}.find(std::wstring_view{system_dir}) == 0) {
+                return;
+            }
+
+            auto path = std::filesystem::path{lower_name};
+            auto stripped_path = path.stem().wstring();
+
+            if (get_module_count(stripped_path) > 1) {
+                entry->Flink->Blink = entry->Blink;
+                entry->Blink->Flink = entry->Flink;
+                
+                spdlog::info("{}", utility::narrow(lower_name));
+            }
+        });
     }
 
     optional<uintptr_t> ptr_from_rva(uint8_t* dll, uintptr_t rva) {

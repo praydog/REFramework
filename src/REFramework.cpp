@@ -20,6 +20,7 @@ extern "C" {
 #include "utility/Module.hpp"
 #include "utility/Patch.hpp"
 #include "utility/Scan.hpp"
+#include "utility/Thread.hpp"
 
 #include "Mods.hpp"
 #include "mods/PluginLoader.hpp"
@@ -207,6 +208,11 @@ REFramework::REFramework(HMODULE reframework_module)
             spdlog::info("[REFramework] Waiting for D3D12...");
             next_log = now + 1s;
         }
+    }
+
+    {
+        utility::ThreadSuspender _{};
+        utility::unlink_duplicate_modules();
     }
 
 #ifdef RE8
@@ -979,6 +985,9 @@ void REFramework::set_imgui_style() noexcept {
     // Navigatation highlight
     colors[ImGuiCol_NavHighlight] = ImVec4{0.3f, 0.305f, 0.31f, 1.0f};
 
+    // Progress Bar
+    colors[ImGuiCol_PlotHistogram] = ImVec4{0.3f, 0.305f, 0.31f, 1.0f};
+
     // Headers
     colors[ImGuiCol_Header] = ImVec4{0.2f, 0.205f, 0.21f, 1.0f};
     colors[ImGuiCol_HeaderHovered] = ImVec4{0.3f, 0.305f, 0.31f, 1.0f};
@@ -1175,22 +1184,33 @@ bool REFramework::initialize() {
 
         // Game specific initialization stuff
         std::thread init_thread([this]() {
-            reframework::initialize_sdk();
-            m_mods = std::make_unique<Mods>();
-
-            auto e = m_mods->on_initialize();
-
-            if (e) {
-                if (e->empty()) {
-                    m_error = "An unknown error has occurred.";
-                } else {
-                    m_error = *e;
-                }
-
-                spdlog::error("Initialization of mods failed. Reason: {}", m_error);
+            {
+                utility::ThreadSuspender _{};
+                utility::unlink_duplicate_modules();
             }
 
-            m_game_data_initialized = true;
+            try {
+                reframework::initialize_sdk();
+                m_mods = std::make_unique<Mods>();
+
+                auto e = m_mods->on_initialize();
+
+                if (e) {
+                    if (e->empty()) {
+                        m_error = "An unknown error has occurred.";
+                    } else {
+                        m_error = *e;
+                    }
+
+                    spdlog::error("Initialization of mods failed. Reason: {}", m_error);
+                }
+
+                m_game_data_initialized = true;
+            } catch(...) {
+                m_error = "An exception has occurred during initialization.";
+                m_game_data_initialized = true;
+                spdlog::error("Initialization of mods failed. Reason: exception thrown.");
+            }
         });
 
         init_thread.detach();

@@ -3,7 +3,10 @@
 #include <sdk/SceneManager.hpp>
 #include <sdk/Renderer.hpp>
 
+#define IMGUI_DEFINE_MATH_OPERATORS
+
 #include <imgui.h>
+#include <imgui_internal.h>
 #include <ImGuizmo.h>
 
 #include "ImGui.hpp"
@@ -223,4 +226,55 @@ void draw_capsule(const Vector3f& start, const Vector3f& end, float radius, ImU3
         }
     }
 }
+
+void progress_bar(float progress, const ImVec2& size_arg, const char* overlay) {
+    const ImGuiWindow* window = ImGui::GetCurrentWindow();
+    if (window->SkipItems)
+        return;
+
+    ImGuiContext& g = *GImGui;
+    const ImGuiStyle& style = g.Style;
+
+    const ImVec2 pos = window->DC.CursorPos;
+    const ImVec2 size = ImGui::CalcItemSize(size_arg, ImGui::CalcItemWidth(), g.FontSize + style.FramePadding.y * 2.0f);
+    ImRect bb(pos, pos + size);
+    ImGui::ItemSize(size, style.FramePadding.y);
+    if (!ImGui::ItemAdd(bb, 0)) {
+        return;
+    }
+
+    const bool indeterminate = progress < 0.0f;
+    float bar_begin = 0.0f, bar_end = ImSaturate(progress);
+
+    if (indeterminate) {
+        constexpr float bar_fraction = 0.2f;
+        bar_begin = ImFmod(-progress, 1.0f) * (1.0f + bar_fraction) - bar_fraction;
+        bar_end = ImMin(bar_begin + bar_fraction, 1.0f);
+    }
+
+    // Render
+    progress = ImSaturate(progress);
+    ImGui::RenderFrame(bb.Min, bb.Max, ImGui::GetColorU32(ImGuiCol_FrameBg), true, style.FrameRounding);
+    bb.Expand({ -style.FrameBorderSize, -style.FrameBorderSize });
+    ImGui::RenderRectFilledRangeH(window->DrawList, bb, ImGui::GetColorU32(ImGuiCol_PlotHistogram), bar_begin, bar_end, style.FrameRounding);
+
+    // Default displaying the fraction as percentage string, but user can override it
+    if (!indeterminate || overlay) {
+        if (!overlay) {
+            char overlay_buf[32];
+            ImFormatString(overlay_buf, IM_ARRAYSIZE(overlay_buf), "%.0f%%", progress * 100 + 0.01f);
+            overlay = overlay_buf;
+        }
+
+        const ImVec2 overlay_size = ImGui::CalcTextSize(overlay, nullptr);
+        if (overlay_size.x > 0.0f) {
+            const ImVec2 fill_br = { (bb.Min.x + bb.Max.x - overlay_size.x) * 0.5f, bb.Max.y };
+            ImGui::RenderTextClipped(
+                ImVec2(ImClamp(fill_br.x + style.ItemSpacing.x, bb.Min.x, bb.Max.x - overlay_size.x - style.ItemInnerSpacing.x), bb.Min.y),
+                bb.Max, overlay, nullptr, &overlay_size, ImVec2(0.0f, 0.5f), &bb);
+        }
+    }
 }
+}
+
+#undef IMGUI_DEFINE_MATH_OPERATORS
