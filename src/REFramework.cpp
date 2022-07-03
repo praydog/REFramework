@@ -1189,22 +1189,28 @@ bool REFramework::initialize() {
                 utility::unlink_duplicate_modules();
             }
 
-            reframework::initialize_sdk();
-            m_mods = std::make_unique<Mods>();
+            try {
+                reframework::initialize_sdk();
+                m_mods = std::make_unique<Mods>();
 
-            auto e = m_mods->on_initialize();
+                auto e = m_mods->on_initialize();
 
-            if (e) {
-                if (e->empty()) {
-                    m_error = "An unknown error has occurred.";
-                } else {
-                    m_error = *e;
+                if (e) {
+                    if (e->empty()) {
+                        m_error = "An unknown error has occurred.";
+                    } else {
+                        m_error = *e;
+                    }
+
+                    spdlog::error("Initialization of mods failed. Reason: {}", m_error);
                 }
 
-                spdlog::error("Initialization of mods failed. Reason: {}", m_error);
+                m_game_data_initialized = true;
+            } catch(...) {
+                m_error = "An exception has occurred during initialization.";
+                m_game_data_initialized = true;
+                spdlog::error("Initialization of mods failed. Reason: exception thrown.");
             }
-
-            m_game_data_initialized = true;
         });
 
         init_thread.detach();
