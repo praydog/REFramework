@@ -1,3 +1,4 @@
+#include <sdk/Application.hpp>
 #include "sdk/REMath.hpp"
 #include "sdk/SceneManager.hpp"
 
@@ -177,12 +178,12 @@ void FreeCam::on_update_transform(RETransform* transform) {
     // Update wanted camera position
     if (!m_lock_camera->value()) {
 #if TDB_VER > 49
-        auto timescale = sdk::get_timescale();
+        auto timescale = sdk::get_timescale() * sdk::Application::get_global_speed();
 
         if (timescale == 0.0f) {
             timescale = std::numeric_limits<float>::epsilon();
         }
-
+        
         const auto timescale_mult = 1.0f / timescale;
 #else
         // RE7 doesn't have timescale
