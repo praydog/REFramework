@@ -592,7 +592,7 @@ void PluginLoader::early_init() {
                 continue;
             }
 
-            utility::unlink(module);
+            utility::safe_unlink(module);
 
             spdlog::info("[PluginLoader] Loaded {}", path.string());
             m_plugins.emplace(path.stem().string(), module);

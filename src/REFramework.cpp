@@ -209,6 +209,8 @@ REFramework::REFramework(HMODULE reframework_module)
             next_log = now + 1s;
         }
     }
+
+    utility::spoof_module_paths_in_exe_dir();
     
 #ifdef RE8
     // auto startup_patch_addr = Address{m_game_module}.get(0x3E69E50);
@@ -1181,7 +1183,7 @@ bool REFramework::initialize() {
         std::thread init_thread([this]() {
             {
                 utility::ThreadSuspender _{};
-                utility::unlink_duplicate_modules();
+                utility::spoof_module_paths_in_exe_dir();
             }
 
             try {
