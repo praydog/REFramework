@@ -592,8 +592,6 @@ void PluginLoader::early_init() {
                 continue;
             }
 
-            utility::safe_unlink(module);
-
             spdlog::info("[PluginLoader] Loaded {}", path.string());
             m_plugins.emplace(path.stem().string(), module);
         }
@@ -631,6 +629,8 @@ std::optional<std::string> PluginLoader::on_initialize() {
         auto required_version_fn = (REFPluginRequiredVersionFn)GetProcAddress(mod, "reframework_plugin_required_version");
 
         if (required_version_fn == nullptr) {
+            spdlog::info("[PluginLoader] {} has no reframework_plugin_required_version function, skipping...", name);
+
             ++it;
             continue;
         }
