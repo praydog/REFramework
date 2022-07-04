@@ -209,12 +209,7 @@ REFramework::REFramework(HMODULE reframework_module)
             next_log = now + 1s;
         }
     }
-
-    {
-        utility::ThreadSuspender _{};
-        utility::unlink_duplicate_modules();
-    }
-
+    
 #ifdef RE8
     // auto startup_patch_addr = Address{m_game_module}.get(0x3E69E50);
     auto startup_patch_addr = utility::scan(m_game_module, "40 53 57 48 83 ec 28 48 83 b9 ? ? ? ? 00");

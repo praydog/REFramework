@@ -30,9 +30,6 @@ bool load_dinput8() {
     if (our_dll) {
         utility::ThreadSuspender _{};
         utility::unlink(*our_dll);
-        utility::unlink(LoadLibrary("openvr_api.dll"));
-        utility::unlink(LoadLibrary("openxr_loader.dll"));
-        utility::unlink(LoadLibrary("dxgi.dll"));
     }
 
     wchar_t buffer[MAX_PATH]{0};

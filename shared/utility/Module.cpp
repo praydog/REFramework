@@ -8,6 +8,7 @@
 #include <spdlog/spdlog.h>
 
 #include "String.hpp"
+#include "Thread.hpp"
 #include "Module.hpp"
 
 using namespace std;
@@ -199,6 +200,13 @@ namespace utility {
             }
         });
 
+        return module;
+    }
+
+    HMODULE safe_unlink(HMODULE module) {
+        utility::ThreadSuspender _{};
+
+        unlink(module);
         return module;
     }
 
