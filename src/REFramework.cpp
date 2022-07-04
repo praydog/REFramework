@@ -210,8 +210,11 @@ REFramework::REFramework(HMODULE reframework_module)
         }
     }
 
-    utility::spoof_module_paths_in_exe_dir();
-    
+    {
+        utility::ThreadSuspender _{};
+        utility::spoof_module_paths_in_exe_dir();
+    }
+
 #ifdef RE8
     // auto startup_patch_addr = Address{m_game_module}.get(0x3E69E50);
     auto startup_patch_addr = utility::scan(m_game_module, "40 53 57 48 83 ec 28 48 83 b9 ? ? ? ? 00");
