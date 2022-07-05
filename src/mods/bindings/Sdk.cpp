@@ -1565,7 +1565,7 @@ void bindings::open_sdk(ScriptState* s) {
         "is_branch", &::sdk::behaviortree::TreeNodeData::is_branch,
         "is_end", &::sdk::behaviortree::TreeNodeData::is_end,
         "has_selector", &::sdk::behaviortree::TreeNodeData::has_selector,
-        "selector_id", &::sdk::behaviortree::TreeNodeData::selector_id,
+        //"selector_id", &::sdk::behaviortree::TreeNodeData::selector_id,
         "attr", &::sdk::behaviortree::TreeNodeData::attr,
         "parent", &::sdk::behaviortree::TreeNodeData::parent,
         "parent_2", &::sdk::behaviortree::TreeNodeData::parent_2,

@@ -177,8 +177,8 @@ REFrameworkSDKFunctions g_sdk_functions {
             ignore_jmp);
     },
     [](REFrameworkMethodHandle fn, unsigned int id) { g_hookman.remove((sdk::REMethodDefinition*)fn, (HookManager::HookId)id); },
-    &sdk::via::memory::allocate,
-    &sdk::via::memory::deallocate
+    &sdk::memory::allocate,
+    &sdk::memory::deallocate
 };
 
 #define RETYPEDEF(var) ((sdk::RETypeDefinition*)var)
