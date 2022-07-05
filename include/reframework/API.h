@@ -7,7 +7,7 @@
 #endif
 
 #define REFRAMEWORK_PLUGIN_VERSION_MAJOR 1
-#define REFRAMEWORK_PLUGIN_VERSION_MINOR 3
+#define REFRAMEWORK_PLUGIN_VERSION_MINOR 4
 #define REFRAMEWORK_PLUGIN_VERSION_PATCH 0
 
 #define REFRAMEWORK_RENDERER_D3D11 0
@@ -357,6 +357,9 @@ typedef struct {
 
     unsigned int (*add_hook)(REFrameworkMethodHandle, REFPreHookFn, REFPostHookFn, bool ignore_jmp);
     void (*remove_hook)(REFrameworkMethodHandle, unsigned int);
+
+    void* (*allocate)(unsigned long long size);
+    void (*deallocate)(void*);
 } REFrameworkSDKFunctions;
 
 /* these are NOT pointers to the actual objects */

@@ -770,7 +770,7 @@ std::optional<std::string> VR::initialize_openvr() {
     m_openvr = std::make_shared<runtimes::OpenVR>();
     m_openvr->loaded = false;
 
-    if (LoadLibraryA("openvr_api.dll") == nullptr) {
+    if (utility::safe_unlink(LoadLibraryA("openvr_api.dll")) == nullptr) {
         spdlog::info("[VR] Could not load openvr_api.dll");
 
         m_openvr->dll_missing = true;
@@ -887,7 +887,7 @@ std::optional<std::string> VR::initialize_openxr() {
 
     spdlog::info("[VR] Initializing OpenXR");
 
-    if (LoadLibraryA("openxr_loader.dll") == nullptr) {
+    if (utility::safe_unlink(LoadLibraryA("openxr_loader.dll")) == nullptr) {
         spdlog::info("[VR] Could not load openxr_loader.dll");
 
         m_openxr->loaded = false;

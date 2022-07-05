@@ -9,6 +9,7 @@
 #include "utility/Module.hpp"
 
 #include "sdk/ResourceManager.hpp"
+#include "sdk/Memory.hpp"
 
 #include "APIProxy.hpp"
 #include "ScriptRunner.hpp"
@@ -176,6 +177,8 @@ REFrameworkSDKFunctions g_sdk_functions {
             ignore_jmp);
     },
     [](REFrameworkMethodHandle fn, unsigned int id) { g_hookman.remove((sdk::REMethodDefinition*)fn, (HookManager::HookId)id); },
+    &sdk::via::memory::allocate,
+    &sdk::via::memory::deallocate
 };
 
 #define RETYPEDEF(var) ((sdk::RETypeDefinition*)var)
@@ -589,8 +592,6 @@ void PluginLoader::early_init() {
                 continue;
             }
 
-            utility::unlink(module);
-
             spdlog::info("[PluginLoader] Loaded {}", path.string());
             m_plugins.emplace(path.stem().string(), module);
         }
@@ -628,6 +629,8 @@ std::optional<std::string> PluginLoader::on_initialize() {
         auto required_version_fn = (REFPluginRequiredVersionFn)GetProcAddress(mod, "reframework_plugin_required_version");
 
         if (required_version_fn == nullptr) {
+            spdlog::info("[PluginLoader] {} has no reframework_plugin_required_version function, skipping...", name);
+
             ++it;
             continue;
         }

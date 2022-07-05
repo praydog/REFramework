@@ -212,7 +212,7 @@ REFramework::REFramework(HMODULE reframework_module)
 
     {
         utility::ThreadSuspender _{};
-        utility::unlink_duplicate_modules();
+        utility::spoof_module_paths_in_exe_dir();
     }
 
 #ifdef RE8
@@ -1186,7 +1186,7 @@ bool REFramework::initialize() {
         std::thread init_thread([this]() {
             {
                 utility::ThreadSuspender _{};
-                utility::unlink_duplicate_modules();
+                utility::spoof_module_paths_in_exe_dir();
             }
 
             try {

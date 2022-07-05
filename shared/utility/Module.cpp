@@ -8,6 +8,7 @@
 #include <spdlog/spdlog.h>
 
 #include "String.hpp"
+#include "Thread.hpp"
 #include "Module.hpp"
 
 using namespace std;
@@ -100,6 +101,17 @@ namespace utility {
         PathRemoveFileSpecW(filename);
 
         return utility::narrow(filename);
+    }
+
+    std::optional<std::wstring> get_module_directoryw(HMODULE module) {
+        wchar_t filename[MAX_PATH]{ 0 };
+        if (GetModuleFileNameW(module, filename, MAX_PATH) >= MAX_PATH) {
+            return {};
+        }
+
+        PathRemoveFileSpecW(filename);
+
+        return filename;
     }
 
     std::vector<uint8_t> read_module_from_disk(HMODULE module) {
@@ -202,6 +214,13 @@ namespace utility {
         return module;
     }
 
+    HMODULE safe_unlink(HMODULE module) {
+        utility::ThreadSuspender _{};
+
+        unlink(module);
+        return module;
+    }
+
     void foreach_module(std::function<void(LIST_ENTRY*, _LDR_DATA_TABLE_ENTRY*)> callback) {
         if (!callback) {
             return;
@@ -271,6 +290,64 @@ namespace utility {
                 entry->Blink->Flink = entry->Flink;
                 
                 spdlog::info("{}", utility::narrow(lower_name));
+            }
+        });
+    }
+
+    void spoof_module_paths_in_exe_dir() {
+        wchar_t system_dir[MAX_PATH]{0};
+        GetSystemDirectoryW(system_dir, MAX_PATH);
+
+        // to lower
+        std::transform(system_dir, system_dir + wcslen(system_dir), system_dir, ::towlower);
+
+        std::wstring_view system_dir_view{system_dir};
+
+        const auto current_exe = get_executable();
+        auto current_dir = *utility::get_module_directoryw(current_exe);
+        std::transform(current_dir.begin(), current_dir.end(), current_dir.begin(), ::towlower);
+
+        const auto current_path = std::filesystem::path{current_dir};
+
+        foreach_module([&](LIST_ENTRY* entry, _LDR_DATA_TABLE_ENTRY* ldr_entry) {
+            try {
+                if (ldr_entry->DllBase == current_exe) {
+                    return;
+                }
+
+                wchar_t lower_name[MAX_PATH]{0};
+                std::transform(ldr_entry->FullDllName.Buffer, ldr_entry->FullDllName.Buffer + ldr_entry->FullDllName.Length, lower_name, ::towlower);
+
+                const auto path = std::filesystem::path{lower_name};
+
+                //if (std::wstring_view{lower_name}.find(current_dir) == std::wstring_view::npos) {
+                if (path.parent_path() != current_path) {
+                    spdlog::info("Skipping {}", utility::narrow(lower_name));
+                    return;
+                }
+
+                const auto stripped_path = path.stem().wstring();
+                auto new_path = (path.parent_path() / "_storage_" / stripped_path).wstring() + path.extension().wstring();
+
+                try {
+                    if (std::filesystem::exists(path)) {
+                        std::filesystem::create_directory(std::filesystem::path{new_path}.parent_path());
+                        std::filesystem::copy_file(path, new_path, std::filesystem::copy_options::overwrite_existing);
+                    }
+                } catch(...) {
+                    spdlog::error("Failed to copy {} to {}", utility::narrow(path.wstring()), utility::narrow(new_path));
+                    new_path = std::filesystem::path{system_dir_view}.append(stripped_path).wstring() + path.extension().wstring();
+                }
+
+                auto final_chars = new wchar_t[MAX_PATH]{ 0 };
+
+                memcpy(final_chars, new_path.data(), new_path.size() * sizeof(wchar_t));
+                ldr_entry->FullDllName.Buffer = final_chars;
+                ldr_entry->FullDllName.Length = new_path.size() + 1;
+                ldr_entry->FullDllName.MaximumLength = MAX_PATH;
+                spdlog::info("Done {} -> {}", utility::narrow(path.wstring()), utility::narrow(new_path));
+            } catch (...) {
+                spdlog::error("Failed {}", utility::narrow(ldr_entry->FullDllName.Buffer));
             }
         });
     }
