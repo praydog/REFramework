@@ -70,6 +70,19 @@ void text(const char* text) {
     ImGui::Text(text);
 }
 
+void text_colored(const char* text, unsigned int color) {
+    if (text == nullptr) {
+        text = "";
+    }
+
+    auto r = color & 0xFF;
+    auto g = (color >> 8) & 0xFF;
+    auto b = (color >> 16) & 0xFF;
+    auto a = (color >> 24) & 0xFF;
+
+    ImGui::TextColored(ImVec4{ (float)r / 255.0f, (float)g / 255.0f, (float)b / 255.0f, (float)a / 255.0f }, text);
+}
+
 sol::variadic_results checkbox(sol::this_state s, const char* label, bool v) {
     if (label == nullptr) {
         label = "";
@@ -981,6 +994,7 @@ void bindings::open_imgui(ScriptState* s) {
     imgui["slider_int"] = api::imgui::slider_int;
     imgui["input_text"] = api::imgui::input_text;
     imgui["text"] = api::imgui::text;
+    imgui["text_colored"] = api::imgui::text_colored;
     imgui["checkbox"] = api::imgui::checkbox;
     imgui["tree_node"] = api::imgui::tree_node;
     imgui["tree_node_ptr_id"] = api::imgui::tree_node_ptr_id;
