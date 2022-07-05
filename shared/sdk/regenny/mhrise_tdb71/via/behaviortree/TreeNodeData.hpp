@@ -1,6 +1,7 @@
 #pragma once
 #include "..\IntArray.hpp"
 #include "..\UIntArray.hpp"
+#include "..\UIntArrayArray.hpp"
 namespace regenny::via::behaviortree {
 #pragma pack(push, 1)
 struct TreeNodeData {
@@ -28,9 +29,9 @@ struct TreeNodeData {
     regenny::via::IntArray start_transitions; // 0x130
     regenny::via::UIntArray start_states; // 0x140
     regenny::via::UIntArray start_states_2; // 0x150
-    regenny::via::UIntArray transition_events; // 0x160
-    regenny::via::UIntArray start_transition_events; // 0x170
-    regenny::via::UIntArray unkarray3; // 0x180
+    regenny::via::UIntArrayArray transition_events; // 0x160
+    regenny::via::UIntArrayArray start_transition_events; // 0x170
+    regenny::via::UIntArrayArray unkarray3; // 0x180
     regenny::via::UIntArray tags; // 0x190
     // Metadata: utf16*
     wchar_t name[12]; // 0x1a0

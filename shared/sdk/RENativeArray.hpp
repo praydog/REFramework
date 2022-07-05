@@ -145,8 +145,8 @@ template <typename T> struct NativeArray {
     }
     
 public:
-    T* elements;
-    uint32_t num;
+    T* elements{nullptr};
+    uint32_t num{0};
     uint32_t num_allocated;
 };
 
@@ -318,10 +318,10 @@ struct NativeArrayNoCapacity {
     }
 
 public:
-    T* elements;
+    T* elements{nullptr};
 
     union {
-        uint64_t num;
+        uint64_t num{0};
         uint64_t num_allocated;
     };
 };

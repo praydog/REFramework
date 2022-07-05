@@ -7,10 +7,10 @@ namespace regenny::via::behaviortree {
 struct TreeObject;
 }
 namespace regenny::via::behaviortree {
-struct SelectorFSM;
+struct Condition;
 }
 namespace regenny::via::behaviortree {
-struct Condition;
+struct SelectorFSM;
 }
 namespace regenny::via::behaviortree {
 #pragma pack(push, 1)

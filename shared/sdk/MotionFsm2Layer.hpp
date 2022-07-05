@@ -76,8 +76,8 @@ public:
         return *(sdk::NativeArrayNoCapacity<int32_t>*)&this->transition_conditions;
     }
 
-    sdk::NativeArrayNoCapacity<uint32_t>& get_transition_events() {
-        return *(sdk::NativeArrayNoCapacity<uint32_t>*)&this->transition_events;
+    sdk::NativeArrayNoCapacity<sdk::NativeArrayNoCapacity<uint32_t>>& get_transition_events() {
+        return *(sdk::NativeArrayNoCapacity<sdk::NativeArrayNoCapacity<uint32_t>>*)&this->transition_events;
     }
 
     sdk::NativeArrayNoCapacity<uint32_t>& get_transition_ids() {

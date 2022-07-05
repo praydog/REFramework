@@ -1553,6 +1553,8 @@ void bindings::open_sdk(ScriptState* s) {
     DYNAMIC_ARRAY_NOCAP_TYPE(int32_t, "DynamicArrayNoCapacityInt32");
     DYNAMIC_ARRAY_NOCAP_TYPE(uint32_t, "DynamicArrayNoCapacityUInt32");
 
+    DYNAMIC_ARRAY_NOCAP_TYPE_REF(sdk::NativeArrayNoCapacity<uint32_t>, "DynamicArrayNoCapacityUInt32Array");
+
     lua.new_usertype<::sdk::behaviortree::TreeNodeData>("BehaviorTreeNodeData",
         "as_memoryview", [](::sdk::behaviortree::TreeNodeData* data) {
             return api::sdk::MemoryView((uint8_t*)data, sizeof(::sdk::behaviortree::TreeNodeData));
