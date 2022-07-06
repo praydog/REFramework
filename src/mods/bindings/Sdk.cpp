@@ -228,7 +228,8 @@ int sol_lua_push(sol::types<T*>, lua_State* l, T* obj) {
                         break;
                     case "via.behaviortree.BehaviorTree"_fnv:[[fallthrough]];
                     case "via.motion.MotionFsm2"_fnv:[[fallthrough]];
-                    case "via.motion.MotionJackFsm2"_fnv:
+                    case "via.motion.MotionJackFsm2"_fnv:[[fallthrough]];
+                    case "snow.PlayerMotionFsm"_fnv:
                         backpedal = sol::stack::push<sol::detail::as_pointer_tag<std::remove_pointer_t<api::sdk::BehaviorTree>>>(l, (api::sdk::BehaviorTree*)obj);
                         break;
                     case "via.behaviortree.BehaviorTree.CoreHandle"_fnv: [[fallthrough]];
