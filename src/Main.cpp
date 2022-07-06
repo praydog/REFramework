@@ -25,13 +25,6 @@ bool load_dinput8() {
         return true;
     }
 
-    const auto our_dll = utility::get_module_within(&load_dinput8);
-
-    if (our_dll) {
-        utility::ThreadSuspender _{};
-        utility::unlink(*our_dll);
-    }
-
     wchar_t buffer[MAX_PATH]{0};
     if (GetSystemDirectoryW(buffer, MAX_PATH) != 0) {
         // Load the original dinput8.dll
@@ -74,6 +67,13 @@ void startup_thread(HMODULE reframework_module) {
 
     if (load_dinput8()) {
         g_framework = std::make_unique<REFramework>(reframework_module);
+
+        const auto our_dll = utility::get_module_within(&load_dinput8);
+
+        if (our_dll) {
+            utility::spoof_module_paths_in_exe_dir();
+            utility::unlink(*our_dll);
+        }
     }
 }
 
