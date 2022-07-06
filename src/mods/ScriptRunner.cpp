@@ -560,11 +560,18 @@ void ScriptRunner::on_config_save(utility::Config& cfg) {
         option.config_save(cfg);
     }
 
-    m_state->on_config_save();
+    if (m_state != nullptr) {
+        m_state->on_config_save();
+    }
 }
 
 void ScriptRunner::on_frame() {
     std::scoped_lock _{m_access_mutex};
+
+    if (m_state == nullptr) {
+        return;
+    }
+
     m_state->on_frame();
 
     // install_hooks gets called here because it ensures hooks get installed the next frame after they've been 
@@ -642,6 +649,11 @@ void ScriptRunner::on_draw_ui() {
 
     { 
         std::scoped_lock _{ m_access_mutex };
+
+        if (m_state == nullptr) {
+            return;
+        }
+
         m_state->on_draw_ui();
     }
 }
@@ -649,11 +661,19 @@ void ScriptRunner::on_draw_ui() {
 void ScriptRunner::on_pre_application_entry(void* entry, const char* name, size_t hash) {
     std::scoped_lock _{ m_access_mutex };
 
+    if (m_state == nullptr) {
+        return;
+    }
+
     m_state->on_pre_application_entry(hash);
 }
 
 void ScriptRunner::on_application_entry(void* entry, const char* name, size_t hash) {
     std::scoped_lock _{ m_access_mutex };
+
+    if (m_state == nullptr) {
+        return;
+    }
 
     m_state->on_application_entry(hash);
 }
@@ -661,22 +681,39 @@ void ScriptRunner::on_application_entry(void* entry, const char* name, size_t ha
 void ScriptRunner::on_pre_update_transform(RETransform* transform) {
     std::scoped_lock _{ m_access_mutex };
 
+    if (m_state == nullptr) {
+        return;
+    }
+
     m_state->on_pre_update_transform(transform);
 }
 
 void ScriptRunner::on_update_transform(RETransform* transform) {
     std::scoped_lock _{ m_access_mutex };
 
+    if (m_state == nullptr) {
+        return;
+    }
+
     m_state->on_update_transform(transform);
 }
+
 bool ScriptRunner::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_context) {
     std::scoped_lock _{ m_access_mutex };
+
+    if (m_state == nullptr) {
+        return true;
+    }
 
     return m_state->on_pre_gui_draw_element(gui_element, primitive_context);
 }
 
 void ScriptRunner::on_gui_draw_element(REComponent* gui_element, void* primitive_context) {
     std::scoped_lock _{ m_access_mutex };
+
+    if (m_state == nullptr) {
+        return;
+    }
 
     m_state->on_gui_draw_element(gui_element, primitive_context);
 }
