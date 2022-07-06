@@ -42,7 +42,18 @@ int sol_lua_push(sol::types<T*>, lua_State* l, T* obj);
 
 class ScriptState {
 public:
-    ScriptState();
+    enum class GarbageCollectionHandler : uint32_t {
+        REFRAMEWORK_MANAGED = 0,
+        LUA_MANAGED = 1,
+    };
+
+    enum class GarbageCollectionType : uint32_t {
+        FULL = 0,
+        STEP = 1,
+        LAST
+    };
+
+    ScriptState(GarbageCollectionHandler handler = GarbageCollectionHandler::REFRAMEWORK_MANAGED, GarbageCollectionType type = GarbageCollectionType::FULL);
     ~ScriptState();
 
     void run_script(const std::string& p);
@@ -70,8 +81,13 @@ public:
     // install_hooks goes through the queue of added hooks and actually creates them. The queue is emptied as a result.
     void install_hooks();
 
+    void gc_handler_changed(GarbageCollectionHandler handler);
+    void gc_type_changed(GarbageCollectionType type);
+
 private:
     sol::state m_lua{};
+    GarbageCollectionHandler m_gc_handler{GarbageCollectionHandler::REFRAMEWORK_MANAGED};
+    GarbageCollectionType m_gc_type{GarbageCollectionType::FULL};
 
     std::recursive_mutex m_execution_mutex{};
 
@@ -155,8 +171,26 @@ private:
     bool m_console_spawned{false};
     const ModToggle::Ptr m_log_to_disk{ ModToggle::create(generate_name("LogToDisk"), false) };
 
+    const ModCombo::Ptr m_gc_handler { 
+        ModCombo::create(generate_name("GarbageCollectionHandler"),
+        {
+            "Managed by REFramework",
+            "Managed by Lua"
+        }, 0) 
+    };
+
+    const ModCombo::Ptr m_gc_type {
+        ModCombo::create(generate_name("GarbageCollectionType"),
+        {
+            "Full",
+            "Step"
+        }, 0)
+    };
+
     ValueList m_options{
-        *m_log_to_disk
+        *m_log_to_disk,
+        *m_gc_handler,
+        *m_gc_type
     };
 
     // Resets the ScriptState and runs autorun scripts again.

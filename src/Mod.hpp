@@ -194,6 +194,49 @@ public:
     }
 };
 
+class ModCombo : public ModValue<int32_t> {
+public:
+    using Ptr = std::unique_ptr<ModCombo>;
+
+    static auto create(std::string_view config_name, std::vector<std::string> options, int32_t default_value = 0) {
+        return std::make_unique<ModCombo>(config_name, options, default_value);
+    }
+
+    ModCombo(std::string_view config_name, const std::vector<std::string>& options, int32_t default_value = 0)
+        : ModValue{ config_name, default_value },
+        m_options_stdstr{ options }
+    {
+        for (auto& o : m_options_stdstr) {
+            m_options.push_back(o.c_str());
+        }
+    }
+
+    bool draw(std::string_view name) override {
+        // clamp m_value to valid range
+        m_value = std::clamp<int32_t>(m_value, 0, static_cast<int32_t>(m_options.size()) - 1);
+
+        ImGui::PushID(this);
+        auto ret = ImGui::Combo(name.data(), &m_value, m_options.data(), static_cast<int32_t>(m_options.size()));
+        ImGui::PopID();
+
+        return ret;
+    }
+
+    void draw_value(std::string_view name) override {
+        m_value = std::clamp<int32_t>(m_value, 0, static_cast<int32_t>(m_options.size()) - 1);
+
+        ImGui::Text("%s: %s", name.data(), m_options[m_value]);
+    }
+
+    const auto& options() const {
+        return m_options;
+    }
+    
+protected:
+    std::vector<const char*> m_options{};
+    std::vector<std::string> m_options_stdstr{};
+};
+
 class ModKey: public ModInt32 {
 public:
     using Ptr = std::unique_ptr<ModKey>;
