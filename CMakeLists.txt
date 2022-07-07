@@ -285,6 +285,40 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	unset(CMKR_SOURCES)
 endif()
 
+# Target imnodes
+if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
+	set(CMKR_TARGET imnodes)
+	set(imnodes_SOURCES "")
+
+	list(APPEND imnodes_SOURCES
+		"dependencies/imnodes/imnodes.cpp"
+	)
+
+	list(APPEND imnodes_SOURCES
+		cmake.toml
+	)
+
+	set(CMKR_SOURCES ${imnodes_SOURCES})
+	add_library(imnodes STATIC)
+
+	if(imnodes_SOURCES)
+		target_sources(imnodes PRIVATE ${imnodes_SOURCES})
+	endif()
+
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${imnodes_SOURCES})
+
+	target_include_directories(imnodes PUBLIC
+		"dependencies/imnodes"
+	)
+
+	target_link_libraries(imnodes PUBLIC
+		imgui
+	)
+
+	unset(CMKR_TARGET)
+	unset(CMKR_SOURCES)
+endif()
+
 # Target openvr
 if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	set(CMKR_TARGET openvr)
@@ -565,6 +599,7 @@ if(REF_BUILD_RE2_SDK OR REF_BUILD_FRAMEWORK) # build-re2-sdk
 		"shared/sdk/regenny/mhrise_tdb71/via/Sphere.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/UInt8Array.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/UIntArray.hpp"
+		"shared/sdk/regenny/mhrise_tdb71/via/UIntArrayArray.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/behaviortree/BehaviorTree.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/behaviortree/BehaviorTreeCoreHandleArray.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/behaviortree/Condition.hpp"
@@ -1048,6 +1083,7 @@ if(REF_BUILD_RE2_TDB66SDK OR REF_BUILD_FRAMEWORK) # build-re2tdb66-sdk
 		"shared/sdk/regenny/mhrise_tdb71/via/Sphere.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/UInt8Array.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/UIntArray.hpp"
+		"shared/sdk/regenny/mhrise_tdb71/via/UIntArrayArray.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/behaviortree/BehaviorTree.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/behaviortree/BehaviorTreeCoreHandleArray.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/behaviortree/Condition.hpp"
@@ -1590,6 +1626,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		sol2
 		imgui
 		imguizmo
+		imnodes
 		minhook
 		d3d11
 		glm_static
@@ -1772,6 +1809,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		sol2
 		imgui
 		imguizmo
+		imnodes
 		minhook
 		d3d11
 		glm_static
@@ -1896,6 +1934,7 @@ if(REF_BUILD_RE3_SDK OR REF_BUILD_FRAMEWORK) # build-re3-sdk
 		"shared/sdk/regenny/mhrise_tdb71/via/Sphere.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/UInt8Array.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/UIntArray.hpp"
+		"shared/sdk/regenny/mhrise_tdb71/via/UIntArrayArray.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/behaviortree/BehaviorTree.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/behaviortree/BehaviorTreeCoreHandleArray.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/behaviortree/Condition.hpp"
@@ -2379,6 +2418,7 @@ if(REF_BUILD_RE3_TDB67SDK OR REF_BUILD_FRAMEWORK) # build-re3tdb67-sdk
 		"shared/sdk/regenny/mhrise_tdb71/via/Sphere.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/UInt8Array.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/UIntArray.hpp"
+		"shared/sdk/regenny/mhrise_tdb71/via/UIntArrayArray.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/behaviortree/BehaviorTree.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/behaviortree/BehaviorTreeCoreHandleArray.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/behaviortree/Condition.hpp"
@@ -2921,6 +2961,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		sol2
 		imgui
 		imguizmo
+		imnodes
 		minhook
 		d3d11
 		glm_static
@@ -3103,6 +3144,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		sol2
 		imgui
 		imguizmo
+		imnodes
 		minhook
 		d3d11
 		glm_static
@@ -3227,6 +3269,7 @@ if(REF_BUILD_RE7_SDK OR REF_BUILD_FRAMEWORK) # build-re7-sdk
 		"shared/sdk/regenny/mhrise_tdb71/via/Sphere.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/UInt8Array.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/UIntArray.hpp"
+		"shared/sdk/regenny/mhrise_tdb71/via/UIntArrayArray.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/behaviortree/BehaviorTree.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/behaviortree/BehaviorTreeCoreHandleArray.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/behaviortree/Condition.hpp"
@@ -3710,6 +3753,7 @@ if(REF_BUILD_RE7_TDB49SDK OR REF_BUILD_FRAMEWORK) # build-re7tdb49-sdk
 		"shared/sdk/regenny/mhrise_tdb71/via/Sphere.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/UInt8Array.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/UIntArray.hpp"
+		"shared/sdk/regenny/mhrise_tdb71/via/UIntArrayArray.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/behaviortree/BehaviorTree.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/behaviortree/BehaviorTreeCoreHandleArray.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/behaviortree/Condition.hpp"
@@ -4252,6 +4296,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		sol2
 		imgui
 		imguizmo
+		imnodes
 		minhook
 		d3d11
 		glm_static
@@ -4434,6 +4479,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		sol2
 		imgui
 		imguizmo
+		imnodes
 		minhook
 		d3d11
 		glm_static
@@ -4558,6 +4604,7 @@ if(REF_BUILD_RE8_SDK OR REF_BUILD_FRAMEWORK) # build-re8-sdk
 		"shared/sdk/regenny/mhrise_tdb71/via/Sphere.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/UInt8Array.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/UIntArray.hpp"
+		"shared/sdk/regenny/mhrise_tdb71/via/UIntArrayArray.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/behaviortree/BehaviorTree.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/behaviortree/BehaviorTreeCoreHandleArray.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/behaviortree/Condition.hpp"
@@ -5099,6 +5146,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		sol2
 		imgui
 		imguizmo
+		imnodes
 		minhook
 		d3d11
 		glm_static
@@ -5223,6 +5271,7 @@ if(REF_BUILD_DMC5_SDK OR REF_BUILD_FRAMEWORK) # build-dmc5-sdk
 		"shared/sdk/regenny/mhrise_tdb71/via/Sphere.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/UInt8Array.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/UIntArray.hpp"
+		"shared/sdk/regenny/mhrise_tdb71/via/UIntArrayArray.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/behaviortree/BehaviorTree.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/behaviortree/BehaviorTreeCoreHandleArray.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/behaviortree/Condition.hpp"
@@ -5764,6 +5813,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		sol2
 		imgui
 		imguizmo
+		imnodes
 		minhook
 		d3d11
 		glm_static
@@ -5888,6 +5938,7 @@ if(REF_BUILD_MHRISE_SDK OR REF_BUILD_FRAMEWORK) # build-mhrise-sdk
 		"shared/sdk/regenny/mhrise_tdb71/via/Sphere.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/UInt8Array.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/UIntArray.hpp"
+		"shared/sdk/regenny/mhrise_tdb71/via/UIntArrayArray.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/behaviortree/BehaviorTree.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/behaviortree/BehaviorTreeCoreHandleArray.hpp"
 		"shared/sdk/regenny/mhrise_tdb71/via/behaviortree/Condition.hpp"
@@ -6429,6 +6480,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		sol2
 		imgui
 		imguizmo
+		imnodes
 		minhook
 		d3d11
 		glm_static

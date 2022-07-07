@@ -321,6 +321,8 @@ void ScriptState::on_frame() {
     } catch (const std::exception& e) {
         ScriptRunner::get()->spew_error(e.what());
     }
+
+    api::imnodes::cleanup();
 }
 
 void ScriptState::on_draw_ui() {
@@ -337,6 +339,8 @@ void ScriptState::on_draw_ui() {
     } catch (const std::exception& e) {
         ScriptRunner::get()->spew_error(e.what());
     }
+
+    api::imnodes::cleanup();
 }
 
 void ScriptState::on_pre_application_entry(size_t hash) {

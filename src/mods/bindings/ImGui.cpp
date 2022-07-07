@@ -1,4 +1,5 @@
 #include <imgui.h>
+#include <imnodes.h>
 
 #include "../ScriptRunner.hpp"
 #include "sdk/SceneManager.hpp"
@@ -746,12 +747,79 @@ void pop_id() {
     ImGui::PopID();
 }
 
+ImGuiID get_id(sol::object id) {
+    if (id.is<int>()) {
+        return id.as<ImGuiID>();
+    } else if (id.is<const char*>()) {
+        return ImGui::GetID(id.as<const char*>());
+    } else if (id.is<void*>()) {
+        return ImGui::GetID(id.as<void*>());
+    } else {
+        throw sol::error("Type must be int, const char* or void*");
+    }
+
+    return 0;
+}
+
 Vector2f get_mouse() {
     const auto mouse = ImGui::GetMousePos();
 
     return Vector2f{
         mouse.x,
         mouse.y,
+    };
+}
+
+bool is_key_down(int key) {
+    return ImGui::IsKeyDown(key);
+}
+
+bool is_key_pressed(int key) {
+    return ImGui::IsKeyPressed(key);
+}
+
+bool is_key_released(int key) {
+    return ImGui::IsKeyReleased(key);
+}
+
+void indent(int indent_width) {
+    ImGui::Indent(indent_width);
+}
+
+void unindent(int indent_width) {
+    ImGui::Unindent(indent_width);
+}
+
+void begin_tooltip() {
+    ImGui::BeginTooltip();
+}
+
+void end_tooltip() {
+    ImGui::EndTooltip();
+}
+
+void begin_popup(const char* str_id, ImGuiWindowFlags flags) {
+    ImGui::BeginPopup(str_id, flags);
+}
+
+void begin_popup_context_item(const char* str_id, ImGuiPopupFlags flags) {
+    ImGui::BeginPopupContextItem(str_id, flags);
+}
+
+void end_popup() {
+    ImGui::EndPopup();
+}
+
+bool is_popup_open(const char* str_id) {
+    return ImGui::IsPopupOpen(str_id);
+}
+
+Vector2f calc_text_size(const char* text) {
+    const auto result = ImGui::CalcTextSize(text);
+
+    return Vector2f{
+        result.x,
+        result.y,
     };
 }
 } // namespace api::imgui
@@ -979,6 +1047,228 @@ sol::variadic_results gizmo(sol::this_state s, int64_t unique_id, Matrix4x4f& tr
 }
 } // namespace api::draw
 
+namespace api::imnodes {
+int32_t g_node_editor_counts{0};
+int32_t g_node_counts{};
+int32_t g_node_titlebar_counts{0};
+int32_t g_color_style_counts{};
+int32_t g_color_style_var_counts{};
+int32_t g_input_attribute_counts{0};
+int32_t g_output_attribute_counts{0};
+
+bool is_editor_hovered() {
+    return ImNodes::IsEditorHovered();
+}
+
+sol::variadic_results is_node_hovered(sol::this_state s) {
+    int id{};
+    const auto result = ImNodes::IsNodeHovered(&id);
+
+    sol::variadic_results results{};
+    results.push_back(sol::make_object<bool>(s, result));
+    results.push_back(sol::make_object<int>(s, id));
+
+    return results;
+}
+
+sol::variadic_results is_link_hovered(sol::this_state s) {
+    int id{};
+    const auto result = ImNodes::IsLinkHovered(&id);
+
+    sol::variadic_results results{};
+    results.push_back(sol::make_object<bool>(s, result));
+    results.push_back(sol::make_object<int>(s, id));
+
+    return results;
+}
+
+sol::variadic_results is_pin_hovered(sol::this_state s) {
+    int id{};
+    const auto result = ImNodes::IsPinHovered(&id);
+
+    sol::variadic_results results{};
+    results.push_back(sol::make_object<bool>(s, result));
+    results.push_back(sol::make_object<int>(s, id));
+
+    return results;
+}
+
+void begin_node_editor() {
+    ImNodes::BeginNodeEditor();
+    ++g_node_editor_counts;
+}
+
+void end_node_editor() {
+    ImNodes::EndNodeEditor();
+    --g_node_editor_counts;
+}
+
+void begin_node(int id) {
+    ImNodes::BeginNode(id);
+    ++g_node_counts;
+}
+
+void end_node() {
+    ImNodes::EndNode();
+    --g_node_counts;
+}
+
+void begin_node_titlebar() {
+    ImNodes::BeginNodeTitleBar();
+    ++g_node_titlebar_counts;
+}
+
+void end_node_titlebar() {
+    ImNodes::EndNodeTitleBar();
+    --g_node_titlebar_counts;
+}
+
+void begin_input_attribute(int attr, ImNodesPinShape shape) {
+    ImNodes::BeginInputAttribute(attr, shape);
+    ++g_input_attribute_counts;
+}
+
+void end_input_attribute() {
+    ImNodes::EndInputAttribute();
+    --g_input_attribute_counts;
+}
+
+void begin_output_attribute(int attr, ImNodesPinShape shape) {
+    ImNodes::BeginOutputAttribute(attr, shape);
+    ++g_output_attribute_counts;
+}
+
+void end_output_attribute() {
+    ImNodes::EndOutputAttribute();
+    --g_output_attribute_counts;
+}
+
+void minimap(float size_fraction, const ImNodesMiniMapLocation location) {
+    ImNodes::MiniMap(size_fraction, location);
+}
+
+void link(int id, int start_attr_id, int end_attr_id) {
+    ImNodes::Link(id, start_attr_id, end_attr_id);
+}
+
+Vector2f get_node_dimensions(int id) {
+    const auto result = ImNodes::GetNodeDimensions(id);
+
+    return Vector2f{
+        result.x,
+        result.y,
+    };
+}
+
+void push_color_style(ImNodesCol item, uint32_t color) {
+    ImNodes::PushColorStyle(item, color);
+    ++g_color_style_counts;
+}
+
+void pop_color_style() {
+    ImNodes::PopColorStyle();
+    --g_color_style_counts;
+}
+
+void push_style_var(ImNodesStyleVar item, float value) {
+    ImNodes::PushStyleVar(item, value);
+    ++g_color_style_var_counts;
+}
+
+void push_style_var_vec2(ImNodesStyleVar item, float x, float y) {
+    ImNodes::PushStyleVar(item, ImVec2{x, y});
+    ++g_color_style_var_counts;
+}
+
+void pop_style_var() {
+    ImNodes::PopStyleVar();
+    --g_color_style_var_counts;
+}
+
+void set_node_screen_space_pos(int id, float x, float y) {
+    ImNodes::SetNodeScreenSpacePos(id, ImVec2{x, y});
+}
+
+void set_node_editor_space_pos(int id, float x, float y) {
+    ImNodes::SetNodeEditorSpacePos(id, ImVec2{x, y});
+}
+
+void set_node_grid_space_pos(int id, float x, float y) {
+    ImNodes::SetNodeGridSpacePos(id, ImVec2{x, y});
+}
+
+Vector2f get_node_screen_space_pos(int id) {
+    const auto result = ImNodes::GetNodeScreenSpacePos(id);
+
+    return Vector2f{
+        result.x,
+        result.y,
+    };
+}
+
+Vector2f get_node_editor_space_pos(int id) {
+    const auto result = ImNodes::GetNodeEditorSpacePos(id);
+
+    return Vector2f{
+        result.x,
+        result.y,
+    };
+}
+
+Vector2f get_node_grid_space_pos(int id) {
+    const auto result = ImNodes::GetNodeGridSpacePos(id);
+
+    return Vector2f{
+        result.x,
+        result.y,
+    };
+}
+
+void cleanup() {
+    for (auto i = 0; i < g_node_editor_counts; ++i) {
+        end_node_editor();
+    }
+
+    g_node_editor_counts = 0;
+
+    for (auto i = 0; i < g_node_counts; ++i) {
+        end_node();
+    }
+
+    g_node_counts = 0;
+
+    for (auto i = 0; i < g_node_titlebar_counts; ++i) {
+        end_node_titlebar();
+    }
+
+    g_node_titlebar_counts = 0;
+
+    for (auto i = 0; i < g_color_style_counts; ++i) {
+        pop_color_style();
+    }
+
+    g_color_style_counts = 0;
+
+    for (auto i = 0; i < g_color_style_var_counts; ++i) {
+        pop_style_var();
+    }
+
+    g_color_style_var_counts = 0;
+
+    for (auto i = 0; i < g_input_attribute_counts; ++i) {
+        end_input_attribute();
+    }
+
+    g_input_attribute_counts = 0;
+
+    for (auto i = 0; i < g_output_attribute_counts; ++i) {
+        end_output_attribute();
+    }
+
+    g_output_attribute_counts = 0;
+}
+}
+
 void bindings::open_imgui(ScriptState* s) {
     auto& lua = s->lua();
     auto imgui = lua.create_table();
@@ -1030,7 +1320,20 @@ void bindings::open_imgui(ScriptState* s) {
     imgui["set_next_window_size"] = api::imgui::set_next_window_size;
     imgui["push_id"] = api::imgui::push_id;
     imgui["pop_id"] = api::imgui::pop_id;
+    imgui["get_id"] = api::imgui::get_id;
     imgui["get_mouse"] = api::imgui::get_mouse;
+    imgui["is_key_down"] = api::imgui::is_key_down;
+    imgui["is_key_pressed"] = api::imgui::is_key_pressed;
+    imgui["is_key_released"] = api::imgui::is_key_released;
+    imgui["indent"] = api::imgui::indent;
+    imgui["unindent"] = api::imgui::unindent;
+    imgui["begin_tooltip"] = api::imgui::begin_tooltip;
+    imgui["end_tooltip"] = api::imgui::end_tooltip;
+    imgui["begin_popup"] = api::imgui::begin_popup;
+    imgui["begin_popup_context_item"] = api::imgui::begin_popup_context_item;
+    imgui["end_popup"] = api::imgui::end_popup;
+    imgui["is_popup_open"] = api::imgui::is_popup_open;
+    imgui["calc_text_size"] = api::imgui::calc_text_size;
     imgui.new_enum("ImGuizmoOperation", 
                     "TRANSLATE", ImGuizmo::OPERATION::TRANSLATE, 
                     "ROTATE", ImGuizmo::OPERATION::ROTATE,
@@ -1067,4 +1370,38 @@ void bindings::open_imgui(ScriptState* s) {
     draw["cube"] = [](const Matrix4x4f& mat) { ::imgui::draw_cube(mat); };
     draw["grid"] = [](const Matrix4x4f& mat, float size) { ::imgui::draw_grid(mat, size); };
     lua["draw"] = draw;
+
+    auto imnodes = lua.create_table();
+
+    imnodes["is_editor_hovered"] = &api::imnodes::is_editor_hovered;
+    imnodes["is_node_hovered"] = &api::imnodes::is_node_hovered;
+    imnodes["is_link_hovered"] = &api::imnodes::is_link_hovered;
+    imnodes["is_pin_hovered"] = &api::imnodes::is_pin_hovered;
+    imnodes["begin_node_editor"] = &api::imnodes::begin_node_editor;
+    imnodes["end_node_editor"] = &api::imnodes::end_node_editor;
+    imnodes["begin_node"] = &api::imnodes::begin_node;
+    imnodes["end_node"] = &api::imnodes::end_node;
+    imnodes["begin_node_titlebar"] = &api::imnodes::begin_node_titlebar;
+    imnodes["end_node_titlebar"] = &api::imnodes::end_node_titlebar;
+    imnodes["begin_input_attribute"] = &api::imnodes::begin_input_attribute;
+    imnodes["end_input_attribute"] = &api::imnodes::end_input_attribute;
+    imnodes["begin_output_attribute"] = &api::imnodes::begin_output_attribute;
+    imnodes["end_output_attribute"] = &api::imnodes::end_output_attribute;
+    imnodes["minimap"] = &api::imnodes::minimap;
+    imnodes["link"] = &api::imnodes::link;
+    imnodes["get_node_dimensions"] = &api::imnodes::get_node_dimensions;
+    imnodes["push_color_style"] = &api::imnodes::push_color_style;
+    imnodes["pop_color_style"] = &api::imnodes::pop_color_style;
+    imnodes["push_style_var"] = &api::imnodes::push_style_var;
+    imnodes["push_style_var_vec2"] = &api::imnodes::push_style_var_vec2;
+    imnodes["pop_style_var"] = &api::imnodes::pop_style_var;
+    imnodes["set_node_screen_space_pos"] = &api::imnodes::set_node_screen_space_pos;
+    imnodes["set_node_editor_space_pos"] = &api::imnodes::set_node_editor_space_pos;
+    imnodes["set_node_grid_space_pos"] = &api::imnodes::set_node_grid_space_pos;
+    imnodes["get_node_screen_space_pos"] = &api::imnodes::get_node_screen_space_pos;
+    imnodes["get_node_editor_space_pos"] = &api::imnodes::get_node_editor_space_pos;
+    imnodes["get_node_grid_space_pos"] = &api::imnodes::get_node_grid_space_pos;
+    imnodes["is_editor_hovered"] = &ImNodes::IsEditorHovered;
+
+    lua["imnodes"] = imnodes;
 }
