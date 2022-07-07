@@ -181,7 +181,19 @@ namespace utility {
         // copy only until the bytes start to match eachother
         for (auto i = 0; ; ++i) {
             if (module_bytes[i] == disk_bytes[i]) {
-                break;
+                bool actually_matches = true;
+
+                // Lookahead 4 bytes to check if any other part is different before breaking out.
+                for (auto j = 1; j <= 4; ++j) {
+                    if (module_bytes[i + j] != disk_bytes[i + j]) {
+                        actually_matches = false;
+                        break;
+                    }
+                }
+
+                if (actually_matches) {
+                    break;
+                }
             }
 
             original_bytes.push_back(disk_bytes[i]);
