@@ -6,7 +6,7 @@
 #include "REString.hpp"
 #include "RENativeArray.hpp"
 
-#if TDB_VER >= 71
+#if TDB_VER >= 69
 #include "regenny/mhrise_tdb71/via/behaviortree/BehaviorTreeCoreHandleArray.hpp"
 #include "regenny/mhrise_tdb71/via/motion/MotionFsm2Layer.hpp"
 #include "regenny/mhrise_tdb71/via/behaviortree/TreeNodeData.hpp"
@@ -14,14 +14,14 @@
 #include "regenny/mhrise_tdb71/via/behaviortree/TreeObjectData.hpp"
 #include "regenny/mhrise_tdb71/via/behaviortree/TreeObject.hpp"
 #include "regenny/mhrise_tdb71/via/behaviortree/BehaviorTree.hpp"
-#elif TDB_VER >= 69
+/*#elif TDB_VER >= 69
 #include "regenny/re2_tdb70/via/behaviortree/BehaviorTreeCoreHandleArray.hpp"
 #include "regenny/re2_tdb70/via/motion/MotionFsm2Layer.hpp"
 #include "regenny/re2_tdb70/via/behaviortree/TreeNodeData.hpp"
 #include "regenny/re2_tdb70/via/behaviortree/TreeNode.hpp"
 #include "regenny/re2_tdb70/via/behaviortree/TreeObjectData.hpp"
 #include "regenny/re2_tdb70/via/behaviortree/TreeObject.hpp"
-#include "regenny/re2_tdb70/via/behaviortree/BehaviorTree.hpp"
+#include "regenny/re2_tdb70/via/behaviortree/BehaviorTree.hpp"*/
 #else
 #include "regenny/re3/via/behaviortree/TreeObjectData.hpp"
 #include "regenny/re3/via/behaviortree/BehaviorTreeCoreHandleArray.hpp"
