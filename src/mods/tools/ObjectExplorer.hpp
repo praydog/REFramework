@@ -194,6 +194,7 @@ private:
 
     bool is_filtered_type(std::string name);
     bool is_filtered_method(sdk::REMethodDefinition& m);
+    bool is_filtered_field(sdk::REField& f);
 
     template <typename T, typename... Args>
     bool stretched_tree_node(T id, Args... args) {
@@ -251,6 +252,7 @@ private:
     bool m_search_using_regex{false};
     std::string m_type_name{"via.typeinfo.TypeInfo"};
     std::string m_type_member{""};
+    std::string m_type_field{""};
     std::string m_object_address{ "0" };
     std::string m_add_component_name{ "via.Component" };
     std::chrono::system_clock::time_point m_next_refresh;

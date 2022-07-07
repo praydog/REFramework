@@ -538,8 +538,24 @@ void ObjectExplorer::on_draw_dev_ui() {
 
     if (m_do_init || ImGui::InputText("Method Signature", m_type_member.data(), 256)) {
         m_displayed_types.clear();
+        m_type_field[0] = '\0';
 
         if (!std::string_view{m_type_member.data()}.empty()) {
+            for (auto i = std::find_if(m_sorted_types.begin(), m_sorted_types.end(), [this](const auto& a) { return is_filtered_type(a); });
+                i != m_sorted_types.end();
+                i = std::find_if(i + 1, m_sorted_types.end(), [this](const auto& a) { return is_filtered_type(a); })) {
+                if (auto t = get_type(*i)) {
+                    m_displayed_types.push_back(t);
+                }
+            }
+        }
+    }
+
+    if (m_do_init || ImGui::InputText("Field Signature", m_type_field.data(), 256)) {
+        m_displayed_types.clear();
+        m_type_member[0] = '\0';
+
+        if (!std::string_view{m_type_field.data()}.empty()) {
             for (auto i = std::find_if(m_sorted_types.begin(), m_sorted_types.end(), [this](const auto& a) { return is_filtered_type(a); });
                 i != m_sorted_types.end();
                 i = std::find_if(i + 1, m_sorted_types.end(), [this](const auto& a) { return is_filtered_type(a); })) {
@@ -2728,6 +2744,10 @@ void ObjectExplorer::display_native_fields(REManagedObject* obj, sdk::RETypeDefi
 
     if (ImGui::TreeNode(*fields.begin(), "TDB Fields: %i", fields.size())) {
         for (auto f : fields) {
+            if (!is_filtered_field(*f)) {
+                continue;
+            }
+
             const auto field_declaring_type = f->get_declaring_type();
             const auto field_flags = f->get_flags();
             const auto field_type = f->get_type();
@@ -3912,11 +3932,23 @@ bool ObjectExplorer::is_filtered_type(std::string name) {
     if (tdef == nullptr) {
         return false;
     }
-    for (auto& m : tdef->get_methods()) {
-        if (is_filtered_method(m)) {
-            return true;
+
+    if (!std::string_view{m_type_member.data()}.empty()) {
+        for (auto& m : tdef->get_methods()) {
+            if (is_filtered_method(m)) {
+                return true;
+            }
         }
     }
+
+    if (!std::string_view{m_type_field.data()}.empty()) {
+        for (auto f : tdef->get_fields()) {
+            if (f != nullptr && is_filtered_field(*f)) {
+                return true;
+            }
+        }
+    }
+
     return false;
 }
 
@@ -3977,6 +4009,42 @@ bool ObjectExplorer::is_filtered_method(sdk::REMethodDefinition& m) try {
         i != method_param_types.end()) {
         return true;
     }
+
+    return false;
+} catch (...) {
+    return false;
+}
+
+bool ObjectExplorer::is_filtered_field(sdk::REField& f) try {
+    const auto field_name = f.get_name();
+    const auto name = std::string_view{m_type_field.data()};
+    if (name.empty()) {
+        return true;
+    }
+
+    if (!m_search_using_regex) {
+        if (std::string_view{field_name}.find(name) != std::string_view::npos) {
+            return true;
+        }
+    } else {
+        if (std::regex_search(field_name, std::regex{name.data()})) {
+            return true;
+        }
+    }
+
+    const auto field_type = f.get_type();
+    const std::string field_type_name = field_type != nullptr ? field_type->get_full_name() : "";
+
+    if (!m_search_using_regex) {
+        if (field_type_name.find(name) != std::string::npos) {
+            return true;
+        }
+    } else {
+        if (std::regex_search(field_type_name, std::regex{name.data()})) {
+            return true;
+        }
+    }
+
     return false;
 } catch (...) {
     return false;
