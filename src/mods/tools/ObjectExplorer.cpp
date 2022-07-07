@@ -538,7 +538,7 @@ void ObjectExplorer::on_draw_dev_ui() {
 
     if (m_do_init || ImGui::InputText("Method Signature", m_type_member.data(), 256)) {
         m_displayed_types.clear();
-        m_type_field = "";
+        m_type_field[0] = '\0';
 
         if (!std::string_view{m_type_member.data()}.empty()) {
             for (auto i = std::find_if(m_sorted_types.begin(), m_sorted_types.end(), [this](const auto& a) { return is_filtered_type(a); });
@@ -553,7 +553,7 @@ void ObjectExplorer::on_draw_dev_ui() {
 
     if (m_do_init || ImGui::InputText("Field Signature", m_type_field.data(), 256)) {
         m_displayed_types.clear();
-        m_type_member = "";
+        m_type_member[0] = '\0';
 
         if (!std::string_view{m_type_field.data()}.empty()) {
             for (auto i = std::find_if(m_sorted_types.begin(), m_sorted_types.end(), [this](const auto& a) { return is_filtered_type(a); });
