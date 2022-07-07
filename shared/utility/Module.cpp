@@ -1,5 +1,6 @@
 #include <fstream>
 #include <filesystem>
+#include <unordered_set>
 
 #include <shlwapi.h>
 #include <windows.h>
@@ -197,17 +198,22 @@ namespace utility {
         return GetModuleHandle(nullptr);
     }
 
+    std::mutex g_unlink_mutex{};
+
     HMODULE unlink(HMODULE module) {
+        std::scoped_lock _{ g_unlink_mutex };
+
         const auto base = (uintptr_t)module;
 
         if (base == 0) {
             return module;
         }
 
+        // this SHOULD be thread safe...?
         foreach_module([&](LIST_ENTRY* entry, _LDR_DATA_TABLE_ENTRY* ldr_entry) {
-            if ((uintptr_t)ldr_entry->DllBase == base) {   
-                entry->Flink->Blink = entry->Blink;
+            if ((uintptr_t)ldr_entry->DllBase == base) {
                 entry->Blink->Flink = entry->Flink;
+                entry->Flink->Blink = entry->Blink;
             }
         });
 
@@ -215,6 +221,10 @@ namespace utility {
     }
 
     HMODULE safe_unlink(HMODULE module) {
+        if (module == nullptr) {
+            return nullptr;
+        }
+
         utility::ThreadSuspender _{};
 
         unlink(module);
@@ -226,20 +236,16 @@ namespace utility {
             return;
         }
 
-        PEB* peb = nullptr;
+        auto peb = (PEB*)__readgsqword(0x60);
 
-        while (peb == nullptr) {
-            peb = (PEB*)__readgsqword(0x60);
+        if (peb == nullptr) {
+            return;
+        }
+        
+        for (auto entry = peb->Ldr->InMemoryOrderModuleList.Flink; entry != &peb->Ldr->InMemoryOrderModuleList && entry != nullptr; entry = entry->Flink) {
+            auto ldr_entry = (_LDR_DATA_TABLE_ENTRY*)CONTAINING_RECORD(entry, _LDR_DATA_TABLE_ENTRY, InMemoryOrderLinks);
 
-            if (peb == nullptr) {
-                continue;
-            }
-            
-            for (auto entry = peb->Ldr->InMemoryOrderModuleList.Flink; entry != &peb->Ldr->InMemoryOrderModuleList; entry = entry->Flink) {
-                auto ldr_entry = (_LDR_DATA_TABLE_ENTRY*)CONTAINING_RECORD(entry, _LDR_DATA_TABLE_ENTRY, InMemoryOrderLinks);
-
-                callback(entry, ldr_entry);
-            }
+            callback(entry, ldr_entry);
         }
     }
 
@@ -294,7 +300,12 @@ namespace utility {
         });
     }
 
+    std::unordered_set<std::wstring> g_skipped_paths{};
+    std::mutex g_spoof_mutex{};
+
     void spoof_module_paths_in_exe_dir() {
+        std::scoped_lock _{g_spoof_mutex};
+
         wchar_t system_dir[MAX_PATH]{0};
         GetSystemDirectoryW(system_dir, MAX_PATH);
 
@@ -322,7 +333,12 @@ namespace utility {
 
                 //if (std::wstring_view{lower_name}.find(current_dir) == std::wstring_view::npos) {
                 if (path.parent_path() != current_path) {
-                    spdlog::info("Skipping {}", utility::narrow(lower_name));
+                    // only log it once so the log doesn't get polluted
+                    if (g_skipped_paths.count(lower_name) == 0) {
+                        spdlog::info("Skipping {}", utility::narrow(lower_name));
+                        g_skipped_paths.insert(lower_name);
+                    }
+
                     return;
                 }
 
@@ -339,12 +355,15 @@ namespace utility {
                     new_path = std::filesystem::path{system_dir_view}.append(stripped_path).wstring() + path.extension().wstring();
                 }
 
+                spdlog::info("Creating new node for {} (0x{:x})", utility::narrow(lower_name), (uintptr_t)ldr_entry->DllBase);
+
                 auto final_chars = new wchar_t[MAX_PATH]{ 0 };
 
                 memcpy(final_chars, new_path.data(), new_path.size() * sizeof(wchar_t));
                 ldr_entry->FullDllName.Buffer = final_chars;
                 ldr_entry->FullDllName.Length = new_path.size() + 1;
                 ldr_entry->FullDllName.MaximumLength = MAX_PATH;
+
                 spdlog::info("Done {} -> {}", utility::narrow(path.wstring()), utility::narrow(new_path));
             } catch (...) {
                 spdlog::error("Failed {}", utility::narrow(ldr_entry->FullDllName.Buffer));

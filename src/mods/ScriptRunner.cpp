@@ -48,11 +48,15 @@ void debug(const char* str) {
 }
 }
 
-ScriptState::ScriptState() {
+ScriptState::ScriptState(ScriptState::GarbageCollectionHandler handler, ScriptState::GarbageCollectionType type) {
     std::scoped_lock _{ m_execution_mutex };
 
     m_lua.registry()["state"] = this;
     m_lua.open_libraries(sol::lib::base, sol::lib::package, sol::lib::string, sol::lib::math, sol::lib::table, sol::lib::bit32, sol::lib::utf8, sol::lib::os);
+
+    // Disable garbage collection. We will manually do it at the end of each frame.
+    gc_handler_changed(handler);
+    gc_type_changed(type);
     
     // Restrict os library
     auto os = m_lua["os"];
@@ -365,6 +369,21 @@ void ScriptState::on_application_entry(size_t hash) {
     } catch (const std::exception& e) {
         ScriptRunner::get()->spew_error(e.what());
     }
+
+    if (hash == "EndRendering"_fnv && m_gc_handler == ScriptState::GarbageCollectionHandler::REFRAMEWORK_MANAGED) {
+        switch (m_gc_type) {
+            case ScriptState::GarbageCollectionType::FULL:
+                lua_gc(m_lua, LUA_GCCOLLECT);
+                break;
+            case ScriptState::GarbageCollectionType::STEP:
+                lua_gc(m_lua, LUA_GCSTEP, 0);
+                lua_gc(m_lua, LUA_GCSTEP, 0);
+                break;
+            default:
+                lua_gc(m_lua, LUA_GCCOLLECT);
+                break;
+        };
+    }
 }
 
 void ScriptState::on_pre_update_transform(RETransform* transform) {
@@ -535,6 +554,31 @@ void ScriptState::install_hooks() {
     }
 }
 
+void ScriptState::gc_handler_changed(GarbageCollectionHandler handler) {
+    switch (handler) {
+    case GarbageCollectionHandler::REFRAMEWORK_MANAGED:
+        lua_gc(m_lua, LUA_GCSTOP);
+        break;
+    case GarbageCollectionHandler::LUA_MANAGED:
+        lua_gc(m_lua, LUA_GCRESTART);
+        break;
+    default:
+        lua_gc(m_lua, LUA_GCRESTART);
+        handler = GarbageCollectionHandler::REFRAMEWORK_MANAGED;
+        break;
+    }
+
+    m_gc_handler = handler;
+}
+
+void ScriptState::gc_type_changed(GarbageCollectionType type) {
+    if (m_gc_type >= GarbageCollectionType::LAST) {
+        m_gc_type = GarbageCollectionType::STEP;
+    }
+
+    m_gc_type = type;
+}
+
 std::shared_ptr<ScriptRunner>& ScriptRunner::get() {
     static auto instance = std::make_shared<ScriptRunner>();
     return instance;
@@ -551,6 +595,11 @@ void ScriptRunner::on_config_load(const utility::Config& cfg) {
     for (IModValue& option : m_options) {
         option.config_load(cfg);
     }
+
+    if (m_state != nullptr) {
+        m_state->gc_handler_changed((ScriptState::GarbageCollectionHandler)m_gc_handler->value());
+        m_state->gc_type_changed((ScriptState::GarbageCollectionType)m_gc_type->value());
+    }
 }
 
 void ScriptRunner::on_config_save(utility::Config& cfg) {
@@ -560,11 +609,18 @@ void ScriptRunner::on_config_save(utility::Config& cfg) {
         option.config_save(cfg);
     }
 
-    m_state->on_config_save();
+    if (m_state != nullptr) {
+        m_state->on_config_save();
+    }
 }
 
 void ScriptRunner::on_frame() {
     std::scoped_lock _{m_access_mutex};
+
+    if (m_state == nullptr) {
+        return;
+    }
+
     m_state->on_frame();
 
     // install_hooks gets called here because it ensures hooks get installed the next frame after they've been 
@@ -600,6 +656,8 @@ void ScriptRunner::on_draw_ui() {
             reset_scripts();
         }
 
+        ImGui::SameLine();
+
         if (ImGui::Button("Spawn Debug Console")) {
             if (!m_console_spawned) {
                 AllocConsole();
@@ -608,6 +666,18 @@ void ScriptRunner::on_draw_ui() {
                 freopen("CONOUT$", "w", stderr);
 
                 m_console_spawned = true;
+            }
+        }
+
+        if (m_gc_handler->draw("Garbage Collection Handler")) {
+            std::scoped_lock _{ m_access_mutex };
+            m_state->gc_handler_changed((ScriptState::GarbageCollectionHandler)m_gc_handler->value());
+        }
+
+        if (m_gc_handler->value() == (int32_t)ScriptState::GarbageCollectionHandler::REFRAMEWORK_MANAGED) {
+            if (m_gc_type->draw("Garbage Collection Type")) {
+                std::scoped_lock _{ m_access_mutex };
+                m_state->gc_type_changed((ScriptState::GarbageCollectionType)m_gc_type->value());
             }
         }
 
@@ -642,6 +712,11 @@ void ScriptRunner::on_draw_ui() {
 
     { 
         std::scoped_lock _{ m_access_mutex };
+
+        if (m_state == nullptr) {
+            return;
+        }
+
         m_state->on_draw_ui();
     }
 }
@@ -649,11 +724,19 @@ void ScriptRunner::on_draw_ui() {
 void ScriptRunner::on_pre_application_entry(void* entry, const char* name, size_t hash) {
     std::scoped_lock _{ m_access_mutex };
 
+    if (m_state == nullptr) {
+        return;
+    }
+
     m_state->on_pre_application_entry(hash);
 }
 
 void ScriptRunner::on_application_entry(void* entry, const char* name, size_t hash) {
     std::scoped_lock _{ m_access_mutex };
+
+    if (m_state == nullptr) {
+        return;
+    }
 
     m_state->on_application_entry(hash);
 }
@@ -661,22 +744,39 @@ void ScriptRunner::on_application_entry(void* entry, const char* name, size_t ha
 void ScriptRunner::on_pre_update_transform(RETransform* transform) {
     std::scoped_lock _{ m_access_mutex };
 
+    if (m_state == nullptr) {
+        return;
+    }
+
     m_state->on_pre_update_transform(transform);
 }
 
 void ScriptRunner::on_update_transform(RETransform* transform) {
     std::scoped_lock _{ m_access_mutex };
 
+    if (m_state == nullptr) {
+        return;
+    }
+
     m_state->on_update_transform(transform);
 }
+
 bool ScriptRunner::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_context) {
     std::scoped_lock _{ m_access_mutex };
+
+    if (m_state == nullptr) {
+        return true;
+    }
 
     return m_state->on_pre_gui_draw_element(gui_element, primitive_context);
 }
 
 void ScriptRunner::on_gui_draw_element(REComponent* gui_element, void* primitive_context) {
     std::scoped_lock _{ m_access_mutex };
+
+    if (m_state == nullptr) {
+        return;
+    }
 
     m_state->on_gui_draw_element(gui_element, primitive_context);
 }
@@ -721,7 +821,7 @@ void ScriptRunner::reset_scripts() {
     // if we didn't destroy the state before creating a new one
     // the FirstPerson mod would attempt to hook an already hooked function
     m_state.reset();
-    m_state = std::make_unique<ScriptState>();
+    m_state = std::make_unique<ScriptState>((ScriptState::GarbageCollectionHandler)m_gc_handler->value(), (ScriptState::GarbageCollectionType)m_gc_type->value());
     m_loaded_scripts.clear();
 
     std::string module_path{};
