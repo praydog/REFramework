@@ -1055,6 +1055,7 @@ int32_t g_color_style_counts{};
 int32_t g_color_style_var_counts{};
 int32_t g_input_attribute_counts{0};
 int32_t g_output_attribute_counts{0};
+int32_t g_static_attribute_counts{0};
 
 bool is_editor_hovered() {
     return ImNodes::IsEditorHovered();
@@ -1143,6 +1144,16 @@ void end_output_attribute() {
     --g_output_attribute_counts;
 }
 
+void begin_static_attribute(int attr) {
+    ImNodes::BeginStaticAttribute(attr);
+    ++g_static_attribute_counts;
+}
+
+void end_static_attribute() {
+    ImNodes::EndStaticAttribute();
+    --g_static_attribute_counts;
+}
+
 void minimap(float size_fraction, const ImNodesMiniMapLocation location) {
     ImNodes::MiniMap(size_fraction, location);
 }
@@ -1224,6 +1235,101 @@ Vector2f get_node_grid_space_pos(int id) {
     };
 }
 
+void clear_node_selection(sol::object id_object) {
+    if (id_object.is<sol::nil_t>()) {
+        ImNodes::ClearNodeSelection();
+    } else if (id_object.is<int>()) {
+        ImNodes::ClearNodeSelection(id_object.as<int>());
+    } else {
+        throw sol::error("id_object must be nil or int");
+    }
+}
+
+void clear_link_selection(sol::object id_object) {
+    if (id_object.is<sol::nil_t>()) {
+        ImNodes::ClearLinkSelection();
+    } else if (id_object.is<int>()) {
+        ImNodes::ClearLinkSelection(id_object.as<int>());
+    } else {
+        throw sol::error("id_object must be nil or int");
+    }
+}
+
+void editor_reset_panning(float x, float y) {
+    ImNodes::EditorContextResetPanning(ImVec2{x, y});
+}
+
+Vector2f editor_get_panning() {
+    const auto result = ImNodes::EditorContextGetPanning();
+
+    return Vector2f{
+        result.x,
+        result.y,
+    };
+}
+
+sol::variadic_results is_link_started(sol::this_state s) {
+    sol::variadic_results results{};
+
+    int id{};
+    bool result = ImNodes::IsLinkStarted(&id);
+
+    results.push_back(sol::make_object<bool>(s, result));
+    results.push_back(sol::make_object<int>(s, id));
+
+    return results;
+}
+
+sol::variadic_results is_link_dropped(sol::this_state s, bool including_detached_links) {
+    sol::variadic_results results{};
+
+    int id{};
+    bool result = ImNodes::IsLinkDropped(&id, including_detached_links);
+
+    results.push_back(sol::make_object<bool>(s, result));
+    results.push_back(sol::make_object<int>(s, id));
+
+    return results;
+}
+
+sol::variadic_results is_link_destroyed(sol::this_state s) {
+    sol::variadic_results results{};
+
+    int id{};
+    bool result = ImNodes::IsLinkDestroyed(&id);
+
+    results.push_back(sol::make_object<bool>(s, result));
+    results.push_back(sol::make_object<int>(s, id));
+
+    return results;
+}
+
+sol::variadic_results is_link_created(sol::this_state s) {
+    sol::variadic_results results{};
+
+    int started_at_node{};
+    int started_at_attr{};
+    int ended_at_node{};
+    int ended_at_attr{};
+    bool created_from_snap{};
+
+    bool result = ImNodes::IsLinkCreated(
+        &started_at_node,
+        &started_at_attr,
+        &ended_at_node,
+        &ended_at_attr,
+        &created_from_snap);
+
+    results.push_back(sol::make_object<bool>(s, result));
+    results.push_back(sol::make_object<int>(s, started_at_node));
+    results.push_back(sol::make_object<int>(s, started_at_attr));
+    results.push_back(sol::make_object<int>(s, ended_at_node));
+    results.push_back(sol::make_object<int>(s, ended_at_attr));
+    results.push_back(sol::make_object<bool>(s, created_from_snap));
+
+    return results;
+}
+
 void cleanup() {
     for (auto i = 0; i < g_node_editor_counts; ++i) {
         end_node_editor();
@@ -1266,6 +1372,12 @@ void cleanup() {
     }
 
     g_output_attribute_counts = 0;
+
+    for (auto i = 0; i < g_static_attribute_counts; ++i) {
+        end_static_attribute();
+    }
+
+    g_static_attribute_counts = 0;
 }
 }
 
@@ -1387,6 +1499,8 @@ void bindings::open_imgui(ScriptState* s) {
     imnodes["end_input_attribute"] = &api::imnodes::end_input_attribute;
     imnodes["begin_output_attribute"] = &api::imnodes::begin_output_attribute;
     imnodes["end_output_attribute"] = &api::imnodes::end_output_attribute;
+    imnodes["begin_static_attribute"] = &api::imnodes::begin_static_attribute;
+    imnodes["end_static_attribute"] = &api::imnodes::end_static_attribute;
     imnodes["minimap"] = &api::imnodes::minimap;
     imnodes["link"] = &api::imnodes::link;
     imnodes["get_node_dimensions"] = &api::imnodes::get_node_dimensions;
@@ -1402,6 +1516,25 @@ void bindings::open_imgui(ScriptState* s) {
     imnodes["get_node_editor_space_pos"] = &api::imnodes::get_node_editor_space_pos;
     imnodes["get_node_grid_space_pos"] = &api::imnodes::get_node_grid_space_pos;
     imnodes["is_editor_hovered"] = &ImNodes::IsEditorHovered;
+    imnodes["is_node_selected"] = &ImNodes::IsNodeSelected;
+    imnodes["is_link_selected"] = &ImNodes::IsLinkSelected;
+    imnodes["num_selected_nodes"] = &ImNodes::NumSelectedNodes;
+    imnodes["num_selected_links"] = &ImNodes::NumSelectedLinks;
+    imnodes["clear_node_selection"] = &api::imnodes::clear_node_selection;
+    imnodes["clear_link_selection"] = &api::imnodes::clear_link_selection;
+    imnodes["select_node"] = &ImNodes::SelectNode;
+    imnodes["select_link"] = &ImNodes::SelectLink;
+    imnodes["is_attribute_active"] = &ImNodes::IsAttributeActive;
+    imnodes["snap_node_to_grid"] = &ImNodes::SnapNodeToGrid;
+
+    imnodes["editor_move_to_node"] = &ImNodes::EditorContextMoveToNode;
+    imnodes["editor_reset_panning"] = &api::imnodes::editor_reset_panning;
+    imnodes["editor_get_panning"] = &api::imnodes::editor_get_panning;
+
+    imnodes["is_link_started"] = &api::imnodes::is_link_started;
+    imnodes["is_link_dropped"] = &api::imnodes::is_link_dropped;
+    imnodes["is_link_created"] = &api::imnodes::is_link_created;
+    imnodes["is_link_destroyed"] = &api::imnodes::is_link_destroyed;
 
     lua["imnodes"] = imnodes;
 }
