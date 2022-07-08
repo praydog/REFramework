@@ -798,12 +798,24 @@ void end_tooltip() {
     ImGui::EndTooltip();
 }
 
-void begin_popup(const char* str_id, ImGuiWindowFlags flags) {
-    ImGui::BeginPopup(str_id, flags);
+bool begin_popup(const char* str_id, sol::object flags_obj) {
+    int flags{0};
+
+    if (flags_obj.is<int>()) {
+        flags = flags_obj.as<int>();
+    }
+
+    return ImGui::BeginPopup(str_id, flags);
 }
 
-void begin_popup_context_item(const char* str_id, ImGuiPopupFlags flags) {
-    ImGui::BeginPopupContextItem(str_id, flags);
+bool begin_popup_context_item(const char* str_id, sol::object flags_obj) {
+    int flags{1};
+
+    if (flags_obj.is<int>()) {
+        flags = flags_obj.as<int>();
+    }
+
+    return ImGui::BeginPopupContextItem(str_id, flags);
 }
 
 void end_popup() {
