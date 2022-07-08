@@ -48,7 +48,7 @@ void debug(const char* str) {
 }
 }
 
-ScriptState::ScriptState(ScriptState::GarbageCollectionHandler handler, ScriptState::GarbageCollectionType type) {
+ScriptState::ScriptState(ScriptState::GarbageCollectionHandler handler, ScriptState::GarbageCollectionType type, std::chrono::microseconds budget) {
     std::scoped_lock _{ m_execution_mutex };
 
     m_lua.registry()["state"] = this;
@@ -57,6 +57,7 @@ ScriptState::ScriptState(ScriptState::GarbageCollectionHandler handler, ScriptSt
     // Disable garbage collection. We will manually do it at the end of each frame.
     gc_handler_changed(handler);
     gc_type_changed(type);
+    gc_set_budget(budget);
     
     // Restrict os library
     auto os = m_lua["os"];
@@ -379,9 +380,15 @@ void ScriptState::on_application_entry(size_t hash) {
             case ScriptState::GarbageCollectionType::FULL:
                 lua_gc(m_lua, LUA_GCCOLLECT);
                 break;
-            case ScriptState::GarbageCollectionType::STEP:
-                lua_gc(m_lua, LUA_GCSTEP, 0);
-                lua_gc(m_lua, LUA_GCSTEP, 0);
+            case ScriptState::GarbageCollectionType::STEP: {
+                    const auto now = std::chrono::high_resolution_clock::now();
+
+                    while (lua_gc(m_lua, LUA_GCSTEP, 1) == 0) {
+                        if (std::chrono::high_resolution_clock::now() - now >= m_gc_budget) {
+                            break;
+                        }
+                    }
+                }
                 break;
             default:
                 lua_gc(m_lua, LUA_GCCOLLECT);
@@ -583,6 +590,10 @@ void ScriptState::gc_type_changed(GarbageCollectionType type) {
     m_gc_type = type;
 }
 
+void ScriptState::gc_set_budget(std::chrono::microseconds budget) {
+    m_gc_budget = budget;
+}
+
 std::shared_ptr<ScriptRunner>& ScriptRunner::get() {
     static auto instance = std::make_shared<ScriptRunner>();
     return instance;
@@ -603,6 +614,7 @@ void ScriptRunner::on_config_load(const utility::Config& cfg) {
     if (m_state != nullptr) {
         m_state->gc_handler_changed((ScriptState::GarbageCollectionHandler)m_gc_handler->value());
         m_state->gc_type_changed((ScriptState::GarbageCollectionType)m_gc_type->value());
+        m_state->gc_set_budget(std::chrono::microseconds((uint32_t)m_gc_budget->value()));
     }
 }
 
@@ -682,6 +694,11 @@ void ScriptRunner::on_draw_ui() {
             if (m_gc_type->draw("Garbage Collection Type")) {
                 std::scoped_lock _{ m_access_mutex };
                 m_state->gc_type_changed((ScriptState::GarbageCollectionType)m_gc_type->value());
+            }
+
+            if (m_gc_budget->draw("Garbage Collection Budget")) {
+                std::scoped_lock _{ m_access_mutex };
+                m_state->gc_set_budget(std::chrono::microseconds((uint32_t)m_gc_budget->value()));
             }
         }
 
@@ -825,7 +842,10 @@ void ScriptRunner::reset_scripts() {
     // if we didn't destroy the state before creating a new one
     // the FirstPerson mod would attempt to hook an already hooked function
     m_state.reset();
-    m_state = std::make_unique<ScriptState>((ScriptState::GarbageCollectionHandler)m_gc_handler->value(), (ScriptState::GarbageCollectionType)m_gc_type->value());
+    m_state = std::make_unique<ScriptState>(
+        (ScriptState::GarbageCollectionHandler)m_gc_handler->value(), 
+        (ScriptState::GarbageCollectionType)m_gc_type->value(),
+        (std::chrono::microseconds((uint32_t)m_gc_budget->value())));
     m_loaded_scripts.clear();
 
     std::string module_path{};

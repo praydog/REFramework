@@ -963,6 +963,50 @@ void REFramework::draw_about() {
         ImGui::TreePop();
     }
 
+    ImGui::Separator();
+
+    if (m_game_data_initialized && m_error.empty()) {
+        try {
+            static auto version_t = sdk::find_type_definition("via.version");
+            static std::string clean_version{};
+            static std::string engine_config{};
+            static auto tdb_version = sdk::RETypeDB::get()->version;
+
+            if (version_t != nullptr && clean_version.empty()) {
+                auto m = version_t->get_method("getPrettyVersionString");
+
+                if (m != nullptr) {
+                    auto pretty_string = m->call<::SystemString*>(sdk::get_thread_context(), nullptr);
+
+                    if (pretty_string != nullptr) {
+                        clean_version = utility::re_string::get_string(pretty_string);
+                    }
+                }
+            }
+
+            if (version_t != nullptr && engine_config.empty()) {
+                auto m = version_t->get_method("getConfigName");
+
+                if (m != nullptr) {
+                    auto config_name = m->call<::SystemString*>(sdk::get_thread_context(), nullptr);
+
+                    if (config_name != nullptr) {
+                        engine_config = utility::re_string::get_string(config_name);
+                    }
+                }
+            }
+
+            ImGui::Text("Engine information");
+            ImGui::Text(" Config: %s", engine_config.c_str());
+            ImGui::Text(" Version: %s", clean_version.c_str());
+            ImGui::Text(" TDB Version: %i", tdb_version);
+        } catch(...) {
+            ImGui::Text("Unable to determine engine version.");
+        }
+    } else {
+        ImGui::Text("Unable to determine engine version.");
+    }
+
     ImGui::TreePop();
 }
 

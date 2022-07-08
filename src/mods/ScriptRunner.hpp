@@ -48,12 +48,15 @@ public:
     };
 
     enum class GarbageCollectionType : uint32_t {
-        FULL = 0,
-        STEP = 1,
+        STEP = 0,
+        FULL = 1,
         LAST
     };
 
-    ScriptState(GarbageCollectionHandler handler = GarbageCollectionHandler::REFRAMEWORK_MANAGED, GarbageCollectionType type = GarbageCollectionType::FULL);
+    ScriptState(
+        GarbageCollectionHandler handler = GarbageCollectionHandler::REFRAMEWORK_MANAGED, 
+        GarbageCollectionType type = GarbageCollectionType::FULL,
+        std::chrono::microseconds budget = std::chrono::microseconds(1000));
     ~ScriptState();
 
     void run_script(const std::string& p);
@@ -83,11 +86,13 @@ public:
 
     void gc_handler_changed(GarbageCollectionHandler handler);
     void gc_type_changed(GarbageCollectionType type);
+    void gc_set_budget(std::chrono::microseconds budget);
 
 private:
     sol::state m_lua{};
     GarbageCollectionHandler m_gc_handler{GarbageCollectionHandler::REFRAMEWORK_MANAGED};
     GarbageCollectionType m_gc_type{GarbageCollectionType::FULL};
+    std::chrono::microseconds m_gc_budget{};
 
     std::recursive_mutex m_execution_mutex{};
 
@@ -180,17 +185,23 @@ private:
     };
 
     const ModCombo::Ptr m_gc_type {
-        ModCombo::create(generate_name("GarbageCollectionType"),
+        ModCombo::create(generate_name("GarbageCollectionTypeV2"),
         {
+            "Step",
             "Full",
-            "Step"
         }, 0)
+    };
+
+    // Garbage collection budget in microseconds.
+    const ModSlider::Ptr m_gc_budget {
+        ModSlider::create(generate_name("GarbageCollectionBudget"), 0.0f, 2000.0f, 1000.0f)
     };
 
     ValueList m_options{
         *m_log_to_disk,
         *m_gc_handler,
-        *m_gc_type
+        *m_gc_type,
+        *m_gc_budget
     };
 
     // Resets the ScriptState and runs autorun scripts again.
