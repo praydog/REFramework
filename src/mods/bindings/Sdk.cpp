@@ -38,6 +38,12 @@ namespace detail {
 constexpr uintptr_t FAKE_OBJECT_ADDR = 12345;
 }
 
+namespace api::cached_usertype {
+namespace detail {
+    
+}
+}
+
 namespace api::re_managed_object {
 namespace detail {
 void add_ref(lua_State* l, ::REManagedObject* obj, bool force = false) {
@@ -253,6 +259,44 @@ int sol_lua_push(sol::types<T*>, lua_State* l, T* obj) {
                 return backpedal;
             } else {
                 backpedal = sol::stack::push<sol::detail::as_pointer_tag<std::remove_pointer_t<T>>>(l, obj);
+            }
+
+            return backpedal;
+        }
+    }
+
+    return sol::stack::push(l, sol::nil);
+}
+
+// specialization for any custom usertype we exposed to sol to automatically add a reference
+// when lua pushes a pointer to the object onto the stack
+template<detail::CachedUserType T>
+int sol_lua_push(sol::types<T*>, lua_State* l, T* obj) {
+    if (obj != nullptr) {
+        // this is a weak table, so we don't need to set the index to nil when the object is no longer referenced
+        auto sv = sol::state_view{l};
+        sol::lua_table objects = sv["_sol_lua_push_objects"];
+
+        if (sol::object lua_obj = objects[(uintptr_t)obj]; !lua_obj.is<sol::nil_t>()) {
+            // renew the reference so it doesn't get collected
+            // had to dig deep in the lua source to figure out this nonsense
+            lua_obj.push();
+            auto g = G(l);
+            auto tv = s2v(l->top - 1);
+            auto& gc = tv->value_.gc;
+            resetbits(gc->marked, bitmask(BLACKBIT) | WHITEBITS); // "touches" the object, marking it gray. lowers the insane GC frequency on our weak table
+
+            return 1;
+        } else {
+            int32_t backpedal = sol::stack::push<sol::detail::as_pointer_tag<std::remove_pointer_t<T>>>(l, obj);
+
+            if ((uintptr_t)obj != detail::FAKE_OBJECT_ADDR) {
+                auto ref = sol::stack::get<sol::object>(l, -backpedal);
+
+                // keep a weak reference to the object for caching
+                objects[(uintptr_t)obj] = ref;
+
+                return backpedal;
             }
 
             return backpedal;

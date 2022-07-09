@@ -29,15 +29,33 @@ struct ManagedObject;
 }    
 }
 
+namespace sdk {
+namespace behaviortree {
+class TreeNode;
+class TreeNodeData;
+class TreeObject;
+class TreeObjectData;
+}
+}
+
 class REManagedObject;
 class RETransform;
 
 namespace detail {
 template<typename T>
 concept ManagedObjectBased = std::is_base_of_v<::REManagedObject, T> || std::is_base_of_v<regenny::via::clr::ManagedObject, T>;
+
+template<typename T>
+concept CachedUserType = std::is_base_of_v<::sdk::behaviortree::TreeNode, T>
+                         || std::is_base_of_v<::sdk::behaviortree::TreeNodeData, T>
+                         || std::is_base_of_v<::sdk::behaviortree::TreeObject, T>
+                         || std::is_base_of_v<::sdk::behaviortree::TreeObjectData, T>;
 }
 
 template<detail::ManagedObjectBased T>
+int sol_lua_push(sol::types<T*>, lua_State* l, T* obj);
+
+template<detail::CachedUserType T>
 int sol_lua_push(sol::types<T*>, lua_State* l, T* obj);
 
 class ScriptState {
