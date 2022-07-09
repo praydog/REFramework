@@ -566,6 +566,8 @@ void ScriptState::install_hooks() {
 }
 
 void ScriptState::gc_handler_changed(GarbageCollectionHandler handler) {
+    lua_gc(m_lua, LUA_GCGEN, 0, 0);
+
     switch (handler) {
     case GarbageCollectionHandler::REFRAMEWORK_MANAGED:
         lua_gc(m_lua, LUA_GCSTOP);
@@ -575,7 +577,7 @@ void ScriptState::gc_handler_changed(GarbageCollectionHandler handler) {
         break;
     default:
         lua_gc(m_lua, LUA_GCRESTART);
-        handler = GarbageCollectionHandler::REFRAMEWORK_MANAGED;
+        handler = GarbageCollectionHandler::LUA_MANAGED;
         break;
     }
 
