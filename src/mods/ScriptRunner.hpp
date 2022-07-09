@@ -45,6 +45,7 @@ public:
     enum class GarbageCollectionHandler : uint32_t {
         REFRAMEWORK_MANAGED = 0,
         LUA_MANAGED = 1,
+        LAST
     };
 
     enum class GarbageCollectionType : uint32_t {
@@ -53,10 +54,23 @@ public:
         LAST
     };
 
-    ScriptState(
-        GarbageCollectionHandler handler = GarbageCollectionHandler::REFRAMEWORK_MANAGED, 
-        GarbageCollectionType type = GarbageCollectionType::FULL,
-        std::chrono::microseconds budget = std::chrono::microseconds(1000));
+    enum class GarbageCollectionMode : uint32_t {
+        GENERATIONAL = 0,
+        INCREMENTAL = 1,
+        LAST
+    };
+
+    struct GarbageCollectionData {
+        GarbageCollectionHandler gc_handler{GarbageCollectionHandler::REFRAMEWORK_MANAGED};
+        GarbageCollectionType gc_type{GarbageCollectionType::FULL};
+        GarbageCollectionMode gc_mode{GarbageCollectionMode::GENERATIONAL};
+        std::chrono::microseconds gc_budget{1000};
+
+        uint32_t gc_minor_multiplier{1};
+        uint32_t gc_major_multiplier{100};
+    };
+
+    ScriptState(const GarbageCollectionData& gc_data);
     ~ScriptState();
 
     void run_script(const std::string& p);
@@ -84,15 +98,12 @@ public:
     // install_hooks goes through the queue of added hooks and actually creates them. The queue is emptied as a result.
     void install_hooks();
 
-    void gc_handler_changed(GarbageCollectionHandler handler);
-    void gc_type_changed(GarbageCollectionType type);
-    void gc_set_budget(std::chrono::microseconds budget);
+    void gc_data_changed(GarbageCollectionData data);
 
 private:
     sol::state m_lua{};
-    GarbageCollectionHandler m_gc_handler{GarbageCollectionHandler::REFRAMEWORK_MANAGED};
-    GarbageCollectionType m_gc_type{GarbageCollectionType::FULL};
-    std::chrono::microseconds m_gc_budget{};
+
+    GarbageCollectionData m_gc_data{};
 
     std::recursive_mutex m_execution_mutex{};
 
@@ -162,6 +173,19 @@ public:
     }
 
 private:
+    ScriptState::GarbageCollectionData make_gc_data() const {
+        ScriptState::GarbageCollectionData data{};
+
+        data.gc_handler = (decltype(ScriptState::GarbageCollectionData::gc_handler))m_gc_handler->value();
+        data.gc_type = (decltype(ScriptState::GarbageCollectionData::gc_type))m_gc_type->value();
+        data.gc_mode = (decltype(ScriptState::GarbageCollectionData::gc_mode))m_gc_mode->value();
+        data.gc_budget = std::chrono::microseconds{(uint32_t)m_gc_budget->value()};
+        data.gc_minor_multiplier = (uint32_t)m_gc_minor_multiplier->value();
+        data.gc_major_multiplier = (uint32_t)m_gc_major_multiplier->value();
+
+        return data;
+    }
+
     std::unique_ptr<ScriptState> m_state{};
     std::recursive_mutex m_access_mutex{};
 
@@ -181,7 +205,7 @@ private:
         {
             "Managed by REFramework",
             "Managed by Lua"
-        }, 0) 
+        }, (int)ScriptState::GarbageCollectionHandler::REFRAMEWORK_MANAGED)
     };
 
     const ModCombo::Ptr m_gc_type {
@@ -189,7 +213,15 @@ private:
         {
             "Step",
             "Full",
-        }, 0)
+        }, (int)ScriptState::GarbageCollectionType::STEP)
+    };
+
+    const ModCombo::Ptr m_gc_mode {
+        ModCombo::create(generate_name("GarbageCollectionMode"),
+        {
+            "Generational",
+            "Incremental (Mark & Sweep)",
+        }, (int)ScriptState::GarbageCollectionMode::GENERATIONAL)
     };
 
     // Garbage collection budget in microseconds.
@@ -197,11 +229,21 @@ private:
         ModSlider::create(generate_name("GarbageCollectionBudget"), 0.0f, 2000.0f, 1000.0f)
     };
 
+    const ModSlider::Ptr m_gc_minor_multiplier {
+        ModSlider::create(generate_name("GarbageCollectionMinorMultiplier"), 1.0f, 200.0f, 1.0f)
+    };
+
+    const ModSlider::Ptr m_gc_major_multiplier {
+        ModSlider::create(generate_name("GarbageCollectionMajorMultiplier"), 1.0f, 1000.0f, 100.0f)
+    };
+
     ValueList m_options{
         *m_log_to_disk,
         *m_gc_handler,
         *m_gc_type,
-        *m_gc_budget
+        *m_gc_budget,
+        *m_gc_minor_multiplier,
+        *m_gc_major_multiplier
     };
 
     // Resets the ScriptState and runs autorun scripts again.

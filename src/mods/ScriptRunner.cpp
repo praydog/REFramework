@@ -22,6 +22,9 @@
 
 #include "ScriptRunner.hpp"
 
+#include <lstate.h> // weird include order because of sol
+#include <lgc.h>
+
 namespace api::re {
 void msg(const char* text) {
     MessageBox(g_framework->get_window(), text, "ScriptRunner Message", MB_ICONINFORMATION | MB_OK);
@@ -48,16 +51,14 @@ void debug(const char* str) {
 }
 }
 
-ScriptState::ScriptState(ScriptState::GarbageCollectionHandler handler, ScriptState::GarbageCollectionType type, std::chrono::microseconds budget) {
+ScriptState::ScriptState(const ScriptState::GarbageCollectionData& gc_data) {
     std::scoped_lock _{ m_execution_mutex };
 
     m_lua.registry()["state"] = this;
     m_lua.open_libraries(sol::lib::base, sol::lib::package, sol::lib::string, sol::lib::math, sol::lib::table, sol::lib::bit32, sol::lib::utf8, sol::lib::os);
 
     // Disable garbage collection. We will manually do it at the end of each frame.
-    gc_handler_changed(handler);
-    gc_type_changed(type);
-    gc_set_budget(budget);
+    gc_data_changed(gc_data);
     
     // Restrict os library
     auto os = m_lua["os"];
@@ -375,17 +376,22 @@ void ScriptState::on_application_entry(size_t hash) {
         ScriptRunner::get()->spew_error(e.what());
     }
 
-    if (hash == "EndRendering"_fnv && m_gc_handler == ScriptState::GarbageCollectionHandler::REFRAMEWORK_MANAGED) {
-        switch (m_gc_type) {
+    if (hash == "EndRendering"_fnv && m_gc_data.gc_handler == ScriptState::GarbageCollectionHandler::REFRAMEWORK_MANAGED) {
+        switch (m_gc_data.gc_type) {
             case ScriptState::GarbageCollectionType::FULL:
                 lua_gc(m_lua, LUA_GCCOLLECT);
                 break;
-            case ScriptState::GarbageCollectionType::STEP: {
+            case ScriptState::GarbageCollectionType::STEP: 
+                {
                     const auto now = std::chrono::high_resolution_clock::now();
 
-                    while (lua_gc(m_lua, LUA_GCSTEP, 1) == 0) {
-                        if (std::chrono::high_resolution_clock::now() - now >= m_gc_budget) {
-                            break;
+                    if (m_gc_data.gc_mode == ScriptState::GarbageCollectionMode::GENERATIONAL) {
+                        lua_gc(m_lua, LUA_GCSTEP, 1);
+                    } else {
+                        while (lua_gc(m_lua, LUA_GCSTEP, 1) == 0) {
+                            if (std::chrono::high_resolution_clock::now() - now >= m_gc_data.gc_budget) {
+                                break;
+                            }
                         }
                     }
                 }
@@ -565,35 +571,45 @@ void ScriptState::install_hooks() {
     }
 }
 
-void ScriptState::gc_handler_changed(GarbageCollectionHandler handler) {
-    lua_gc(m_lua, LUA_GCGEN, 0, 0);
-
-    switch (handler) {
-    case GarbageCollectionHandler::REFRAMEWORK_MANAGED:
+void ScriptState::gc_data_changed(GarbageCollectionData data) {
+    // Handler
+    switch (data.gc_handler) {
+    case ScriptState::GarbageCollectionHandler::REFRAMEWORK_MANAGED:
         lua_gc(m_lua, LUA_GCSTOP);
         break;
-    case GarbageCollectionHandler::LUA_MANAGED:
+    case ScriptState::GarbageCollectionHandler::LUA_MANAGED:
         lua_gc(m_lua, LUA_GCRESTART);
         break;
     default:
         lua_gc(m_lua, LUA_GCRESTART);
-        handler = GarbageCollectionHandler::LUA_MANAGED;
+        data.gc_handler = ScriptState::GarbageCollectionHandler::LUA_MANAGED;
         break;
     }
 
-    m_gc_handler = handler;
-}
-
-void ScriptState::gc_type_changed(GarbageCollectionType type) {
-    if (m_gc_type >= GarbageCollectionType::LAST) {
-        m_gc_type = GarbageCollectionType::STEP;
+    // Type 
+    if (data.gc_type >= ScriptState::GarbageCollectionType::LAST) {
+       data.gc_type = ScriptState::GarbageCollectionType::STEP;
     }
 
-    m_gc_type = type;
-}
+    // Mode
+    if (data.gc_mode >= ScriptState::GarbageCollectionMode::LAST) {
+        data.gc_mode = ScriptState::GarbageCollectionMode::GENERATIONAL;
+    }
 
-void ScriptState::gc_set_budget(std::chrono::microseconds budget) {
-    m_gc_budget = budget;
+    switch (data.gc_mode) {
+    case ScriptState::GarbageCollectionMode::GENERATIONAL:
+        lua_gc(m_lua, LUA_GCGEN, data.gc_minor_multiplier, data.gc_major_multiplier);
+        break;
+    case ScriptState::GarbageCollectionMode::INCREMENTAL:
+        lua_gc(m_lua, LUA_GCINC);
+        break;
+    default:
+        lua_gc(m_lua, LUA_GCGEN, data.gc_minor_multiplier, data.gc_major_multiplier);
+        data.gc_mode = ScriptState::GarbageCollectionMode::GENERATIONAL;
+        break;
+    }
+
+    m_gc_data = data;
 }
 
 std::shared_ptr<ScriptRunner>& ScriptRunner::get() {
@@ -614,9 +630,7 @@ void ScriptRunner::on_config_load(const utility::Config& cfg) {
     }
 
     if (m_state != nullptr) {
-        m_state->gc_handler_changed((ScriptState::GarbageCollectionHandler)m_gc_handler->value());
-        m_state->gc_type_changed((ScriptState::GarbageCollectionType)m_gc_type->value());
-        m_state->gc_set_budget(std::chrono::microseconds((uint32_t)m_gc_budget->value()));
+        m_state->gc_data_changed(make_gc_data());
     }
 }
 
@@ -687,20 +701,50 @@ void ScriptRunner::on_draw_ui() {
             }
         }
 
+        if (ImGui::TreeNode("Garbage Collection Stats")) {
+            std::scoped_lock _{ m_access_mutex };
+
+            auto g = G(m_state->lua().lua_state());
+            const auto bytes_in_use = g->totalbytes + g->GCdebt;
+
+            ImGui::Text("Megabytes in use: %.2f", (float)bytes_in_use / 1024.0f / 1024.0f);
+
+            ImGui::TreePop();
+        }
+
         if (m_gc_handler->draw("Garbage Collection Handler")) {
             std::scoped_lock _{ m_access_mutex };
-            m_state->gc_handler_changed((ScriptState::GarbageCollectionHandler)m_gc_handler->value());
+            m_state->gc_data_changed(make_gc_data());
+        }
+
+        if (m_gc_mode->draw("Garbage Collection Mode")) {
+            std::scoped_lock _{ m_access_mutex };
+            m_state->gc_data_changed(make_gc_data());
+        }
+
+        if ((uint32_t)m_gc_mode->value() == (uint32_t)ScriptState::GarbageCollectionMode::GENERATIONAL) {
+            if (m_gc_minor_multiplier->draw("Minor GC Multiplier")) {
+                std::scoped_lock _{ m_access_mutex };
+                m_state->gc_data_changed(make_gc_data());
+            }
+
+            if (m_gc_major_multiplier->draw("Major GC Multiplier")) {
+                std::scoped_lock _{ m_access_mutex };
+                m_state->gc_data_changed(make_gc_data());
+            }
         }
 
         if (m_gc_handler->value() == (int32_t)ScriptState::GarbageCollectionHandler::REFRAMEWORK_MANAGED) {
             if (m_gc_type->draw("Garbage Collection Type")) {
                 std::scoped_lock _{ m_access_mutex };
-                m_state->gc_type_changed((ScriptState::GarbageCollectionType)m_gc_type->value());
+                m_state->gc_data_changed(make_gc_data());
             }
 
-            if (m_gc_budget->draw("Garbage Collection Budget")) {
-                std::scoped_lock _{ m_access_mutex };
-                m_state->gc_set_budget(std::chrono::microseconds((uint32_t)m_gc_budget->value()));
+            if ((uint32_t)m_gc_mode->value() != (uint32_t)ScriptState::GarbageCollectionMode::GENERATIONAL) {
+                if (m_gc_budget->draw("Garbage Collection Budget")) {
+                    std::scoped_lock _{ m_access_mutex };
+                    m_state->gc_data_changed(make_gc_data());
+                }
             }
         }
 
@@ -844,10 +888,7 @@ void ScriptRunner::reset_scripts() {
     // if we didn't destroy the state before creating a new one
     // the FirstPerson mod would attempt to hook an already hooked function
     m_state.reset();
-    m_state = std::make_unique<ScriptState>(
-        (ScriptState::GarbageCollectionHandler)m_gc_handler->value(), 
-        (ScriptState::GarbageCollectionType)m_gc_type->value(),
-        (std::chrono::microseconds((uint32_t)m_gc_budget->value())));
+    m_state = std::make_unique<ScriptState>(make_gc_data());
     m_loaded_scripts.clear();
 
     std::string module_path{};
