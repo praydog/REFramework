@@ -834,6 +834,24 @@ Vector2f calc_text_size(const char* text) {
         result.y,
     };
 }
+
+Vector2f get_window_size() {
+    const auto result = ImGui::GetWindowSize();
+
+    return Vector2f{
+        result.x,
+        result.y,
+    };
+}
+
+Vector2f get_window_pos() {
+    const auto result = ImGui::GetWindowPos();
+
+    return Vector2f{
+        result.x,
+        result.y,
+    };
+}
 } // namespace api::imgui
 
 namespace api::draw {
@@ -1458,6 +1476,8 @@ void bindings::open_imgui(ScriptState* s) {
     imgui["end_popup"] = api::imgui::end_popup;
     imgui["is_popup_open"] = api::imgui::is_popup_open;
     imgui["calc_text_size"] = api::imgui::calc_text_size;
+    imgui["get_window_size"] = api::imgui::get_window_size;
+    imgui["get_window_pos"] = api::imgui::get_window_pos;
     imgui.new_enum("ImGuizmoOperation", 
                     "TRANSLATE", ImGuizmo::OPERATION::TRANSLATE, 
                     "ROTATE", ImGuizmo::OPERATION::ROTATE,
