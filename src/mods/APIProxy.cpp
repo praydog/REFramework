@@ -82,7 +82,11 @@ void APIProxy::on_lua_state_created(sol::state& state) {
     std::shared_lock _{m_api_cb_mtx};
 
     for (auto& cb : m_on_lua_state_created_cbs) {
-        cb(state.lua_state());
+        try {
+            cb(state.lua_state());
+        } catch(...) {
+            spdlog::error("[APIProxy] Exception occurred in on_lua_state_created callback; one of the plugins has an error.");
+        }
     }
 }
 
@@ -90,7 +94,11 @@ void APIProxy::on_lua_state_destroyed(sol::state& state) {
     std::shared_lock _{m_api_cb_mtx};
 
     for (auto& cb : m_on_lua_state_destroyed_cbs) {
-        cb(state.lua_state());
+        try {
+            cb(state.lua_state());
+        } catch(...) {
+            spdlog::error("[APIProxy] Exception occurred in on_lua_state_destroyed callback; one of the plugins has an error.");
+        }
     }
 }
 
@@ -113,7 +121,11 @@ void APIProxy::on_present() {
     }
 
     for (auto&& cb : m_on_present_cbs) {
-        cb();
+        try {
+            cb();
+        } catch(...) {
+            spdlog::error("[APIProxy] Exception occurred in on_present callback; one of the plugins has an error.");
+        }
     }
 }
 
@@ -122,7 +134,11 @@ void APIProxy::on_pre_application_entry(void* entry, const char* name, size_t ha
 
     if (auto it = m_on_pre_application_entry_cbs.find(hash); it != m_on_pre_application_entry_cbs.end()) {
         for (auto&& cb : it->second) {
-            cb();
+            try {
+                cb();
+            } catch(...) {
+                spdlog::error("[APIProxy] Exception occurred in on_pre_application_entry callback ({}); one of the plugins has an error.", name);
+            }
         }
     }
 }
@@ -132,7 +148,11 @@ void APIProxy::on_application_entry(void* entry, const char* name, size_t hash) 
 
     if (auto it = m_on_post_application_entry_cbs.find(hash); it != m_on_post_application_entry_cbs.end()) {
         for (auto&& cb : it->second) {
-            cb();
+            try {
+                cb();
+            } catch(...) {
+                spdlog::error("[APIProxy] Exception occurred in on_post_application_entry callback ({}); one of the plugins has an error.", name);
+            }
         }
     }
 }
@@ -141,7 +161,11 @@ void APIProxy::on_device_reset() {
     std::shared_lock _{m_api_cb_mtx};
 
     for (auto&& cb : m_on_device_reset_cbs) {
-        cb();
+        try {
+            cb();
+        } catch(...) {
+            spdlog::error("[APIProxy] Exception occurred in on_device_reset callback; one of the plugins has an error.");
+        }
     }
 }
 
@@ -149,8 +173,13 @@ bool APIProxy::on_message(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
     std::shared_lock _{m_api_cb_mtx};
 
     for (auto&& cb : m_on_message_cbs) {
-        if (!cb(hwnd, msg, wparam, lparam)) {
-            return false;
+        try {
+            if (!cb(hwnd, msg, wparam, lparam)) {
+                return false;
+            }
+        } catch(...) {
+            spdlog::error("[APIProxy] Exception occurred in on_message callback; one of the plugins has an error.");
+            continue;
         }
     }
 
