@@ -201,7 +201,7 @@ private:
     const ModToggle::Ptr m_log_to_disk{ ModToggle::create(generate_name("LogToDisk"), false) };
 
     const ModCombo::Ptr m_gc_handler { 
-        ModCombo::create(generate_name("GarbageCollectionHandler"),
+        ModCombo::create(generate_name("GarbageCollectionHandlerV2"),
         {
             "Managed by REFramework",
             "Managed by Lua"
