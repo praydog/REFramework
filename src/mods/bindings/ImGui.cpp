@@ -25,6 +25,14 @@ ImVec2 create_imvec2(sol::object obj) {
         } else {
             throw sol::error{ "Invalid table passed. Table size must be 2." };
         }
+    } else if (obj.is<Vector3f>()) {
+        auto vec = obj.as<Vector3f>();
+        out.x = vec.x;
+        out.y = vec.y;
+    } else if (obj.is<Vector4f>()) {
+        auto vec = obj.as<Vector4f>();
+        out.x = vec.x;
+        out.y = vec.y;
     }
 
     return out;
@@ -313,8 +321,14 @@ void same_line() {
     ImGui::SameLine();
 }
 
-bool is_item_hovered() {
-    return ImGui::IsItemHovered();
+bool is_item_hovered(sol::object flags_obj) {
+    ImGuiHoveredFlags flags{0};
+
+    if (flags_obj.is<int>()) {
+        flags = (ImGuiHoveredFlags)flags_obj.as<int>();
+    }
+
+    return ImGui::IsItemHovered(flags);
 }
 
 bool begin_window(const char* name, sol::object open_obj, ImGuiWindowFlags flags = 0) {
@@ -348,16 +362,8 @@ bool begin_child_window(const char* name, sol::object size_obj, sol::object bord
         name = "";
     }
 
-    ImVec2 size{0, 0};
+    const auto size = create_imvec2(size_obj);
     bool border{false};
-
-    if (size_obj.is<Vector2f>()) {
-        size = ImVec2{size_obj.as<Vector2f>().x, size_obj.as<Vector2f>().y};
-    } else if (size_obj.is<Vector3f>()) {
-        size = ImVec2{size_obj.as<Vector3f>().x, size_obj.as<Vector3f>().y};
-    } else if (size_obj.is<Vector4f>()) {
-        size = ImVec2{size_obj.as<Vector4f>().x, size_obj.as<Vector4f>().y};
-    }
 
     if (border_obj.is<bool>()) {
         border = border_obj.as<bool>();
