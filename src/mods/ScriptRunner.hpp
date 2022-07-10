@@ -38,6 +38,14 @@ class TreeObjectData;
 }
 }
 
+namespace sdk {
+template<typename T>
+struct NativeArray;
+
+template<typename T>
+struct NativeArrayNoCapacity;
+}
+
 class REManagedObject;
 class RETransform;
 
@@ -49,7 +57,27 @@ template<typename T>
 concept CachedUserType = std::is_base_of_v<::sdk::behaviortree::TreeNode, T>
                          || std::is_base_of_v<::sdk::behaviortree::TreeNodeData, T>
                          || std::is_base_of_v<::sdk::behaviortree::TreeObject, T>
-                         || std::is_base_of_v<::sdk::behaviortree::TreeObjectData, T>;
+                         || std::is_base_of_v<::sdk::behaviortree::TreeObjectData, T>
+                         || std::is_base_of_v<::sdk::NativeArrayNoCapacity<uint8_t>, T>
+                         || std::is_base_of_v<::sdk::NativeArrayNoCapacity<uint16_t>, T>
+                         || std::is_base_of_v<::sdk::NativeArrayNoCapacity<uint32_t>, T>
+                         || std::is_base_of_v<::sdk::NativeArrayNoCapacity<uint64_t>, T>
+                         || std::is_base_of_v<::sdk::NativeArrayNoCapacity<int8_t>, T>
+                         || std::is_base_of_v<::sdk::NativeArrayNoCapacity<int16_t>, T>
+                         || std::is_base_of_v<::sdk::NativeArrayNoCapacity<int32_t>, T>
+                         || std::is_base_of_v<::sdk::NativeArrayNoCapacity<int64_t>, T>
+                         || std::is_base_of_v<::sdk::NativeArray<uint8_t>, T>
+                            || std::is_base_of_v<::sdk::NativeArray<uint16_t>, T>
+                            || std::is_base_of_v<::sdk::NativeArray<uint32_t>, T>
+                            || std::is_base_of_v<::sdk::NativeArray<uint64_t>, T>
+                            || std::is_base_of_v<::sdk::NativeArray<int8_t>, T>
+                            || std::is_base_of_v<::sdk::NativeArray<int16_t>, T>
+                            || std::is_base_of_v<::sdk::NativeArray<int32_t>, T>
+                            || std::is_base_of_v<::sdk::NativeArray<int64_t>, T>
+                            || std::is_base_of_v<::sdk::NativeArray<::REManagedObject*>, T>
+                            || std::is_base_of_v<::sdk::NativeArrayNoCapacity<::REManagedObject*>, T>
+                            || std::is_base_of_v<::sdk::NativeArrayNoCapacity<::sdk::behaviortree::TreeNode>, T>
+                            || std::is_base_of_v<::sdk::NativeArrayNoCapacity<::sdk::behaviortree::TreeNodeData>, T>;
 }
 
 template<detail::ManagedObjectBased T>
