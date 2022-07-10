@@ -371,13 +371,13 @@ namespace utility {
                     return;
                 }
 
-                wchar_t lower_name[MAX_PATH]{0};
+                wchar_t lower_name[MAX_PATH+1]{0};
                 std::transform(
                             ldr_entry->FullDllName.Buffer, 
                             ldr_entry->FullDllName.Buffer + std::min<USHORT>(ldr_entry->FullDllName.Length / sizeof(wchar_t), MAX_PATH), 
                             lower_name, ::towlower);
 
-                lower_name[MAX_PATH-1] = 0;
+                lower_name[MAX_PATH] = 0;
 
                 const auto path = std::filesystem::path{lower_name};
 
@@ -407,11 +407,11 @@ namespace utility {
 
                 spdlog::info("Creating new node for {} (0x{:x})", utility::narrow(lower_name), (uintptr_t)ldr_entry->DllBase);
 
-                auto final_chars = new wchar_t[MAX_PATH]{ 0 };
+                auto final_chars = new wchar_t[MAX_PATH+1]{ 0 };
 
                 memcpy(final_chars, new_path.data(), new_path.size() * sizeof(wchar_t));
                 final_chars[new_path.size()] = 0;
-                final_chars[MAX_PATH-1] = 0;
+                final_chars[MAX_PATH] = 0;
 
                 ldr_entry->FullDllName.Buffer = final_chars;
                 ldr_entry->FullDllName.Length = new_path.size() * sizeof(wchar_t);
