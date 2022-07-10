@@ -1505,6 +1505,33 @@ sol::variadic_results is_link_created(sol::this_state s) {
     return results;
 }
 
+std::vector<int> get_selected_nodes() {
+    std::vector<int> out{};
+
+    const auto num_selected_nodes = ImNodes::NumSelectedNodes();
+
+    if (num_selected_nodes > 0) {
+        out.resize(num_selected_nodes);
+        ImNodes::GetSelectedNodes(out.data());
+    }
+
+    return out;
+}
+
+std::vector<int> get_selected_links() {
+    std::vector<int> out{};
+
+    const auto num_selected_links = ImNodes::NumSelectedLinks();
+
+    if (num_selected_links > 0) {
+        out.resize(num_selected_links);
+        ImNodes::GetSelectedLinks(out.data());
+    }
+
+    return out;
+}
+
+
 void cleanup() {
     for (auto i = 0; i < g_node_editor_counts; ++i) {
         end_node_editor();
@@ -1731,6 +1758,9 @@ void bindings::open_imgui(ScriptState* s) {
     imnodes["is_link_dropped"] = &api::imnodes::is_link_dropped;
     imnodes["is_link_created"] = &api::imnodes::is_link_created;
     imnodes["is_link_destroyed"] = &api::imnodes::is_link_destroyed;
+
+    imnodes["get_selected_nodes"] = &api::imnodes::get_selected_nodes;
+    imnodes["get_selected_links"] = &api::imnodes::get_selected_links;
 
     lua["imnodes"] = imnodes;
 }
