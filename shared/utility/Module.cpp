@@ -372,7 +372,10 @@ namespace utility {
                 }
 
                 wchar_t lower_name[MAX_PATH]{0};
-                std::transform(ldr_entry->FullDllName.Buffer, ldr_entry->FullDllName.Buffer + std::min<USHORT>(ldr_entry->FullDllName.Length, MAX_PATH), lower_name, ::towlower);
+                std::transform(
+                            ldr_entry->FullDllName.Buffer, 
+                            ldr_entry->FullDllName.Buffer + std::min<USHORT>(ldr_entry->FullDllName.Length / sizeof(wchar_t), MAX_PATH), 
+                            lower_name, ::towlower);
 
                 lower_name[MAX_PATH-1] = 0;
 
