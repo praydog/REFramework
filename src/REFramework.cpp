@@ -210,11 +210,13 @@ REFramework::REFramework(HMODULE reframework_module)
         }
     }
 
+#ifdef MHRISE
     LoadLibraryA("openvr_api.dll");
     LoadLibraryA("openxr_loader.dll");
     LoadLibraryA("dxgi.dll");
     LoadLibraryA("d3d11.dll");
     utility::spoof_module_paths_in_exe_dir();
+#endif
 
 #ifdef RE8
     // auto startup_patch_addr = Address{m_game_module}.get(0x3E69E50);
@@ -1230,7 +1232,9 @@ bool REFramework::initialize() {
         // Game specific initialization stuff
         std::thread init_thread([this]() {
             try {
+#ifdef MHRISE
                 utility::spoof_module_paths_in_exe_dir();
+#endif
                 reframework::initialize_sdk();
                 m_mods = std::make_unique<Mods>();
 
@@ -1253,7 +1257,9 @@ bool REFramework::initialize() {
                 spdlog::error("Initialization of mods failed. Reason: exception thrown.");
             }
 
+#ifdef MHRISE
             utility::spoof_module_paths_in_exe_dir();
+#endif
         });
 
         init_thread.detach();
