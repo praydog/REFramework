@@ -770,6 +770,10 @@ Vector2f get_mouse() {
     };
 }
 
+int get_key_index(int imgui_key) {
+    return ImGui::GetKeyIndex(imgui_key);
+}
+
 bool is_key_down(int key) {
     return ImGui::IsKeyDown(key);
 }
@@ -780,6 +784,22 @@ bool is_key_pressed(int key) {
 
 bool is_key_released(int key) {
     return ImGui::IsKeyReleased(key);
+}
+
+bool is_mouse_down(int button) {
+    return ImGui::IsMouseDown(button);
+}
+
+bool is_mouse_clicked(int button) {
+    return ImGui::IsMouseClicked(button);
+}
+
+bool is_mouse_released(int button) {
+    return ImGui::IsMouseReleased(button);
+}
+
+bool is_mouse_double_clicked(int button) {
+    return ImGui::IsMouseDoubleClicked(button);
 }
 
 void indent(int indent_width) {
@@ -796,6 +816,28 @@ void begin_tooltip() {
 
 void end_tooltip() {
     ImGui::EndTooltip();
+}
+
+void set_tooltip(const char* text) {
+    if (text == nullptr) {
+        text = "";
+    }
+
+    ImGui::SetTooltip(text);
+}
+
+void open_popup(const char* str_id, sol::object flags_obj) {
+    if (str_id == nullptr) {
+        str_id = "";
+    }
+
+    ImGuiWindowFlags flags{0};
+
+    if (flags_obj.is<int>()) {
+        flags = (ImGuiWindowFlags)flags_obj.as<int>();
+    }
+
+    ImGui::OpenPopup(str_id, flags);
 }
 
 bool begin_popup(const char* str_id, sol::object flags_obj) {
@@ -822,6 +864,10 @@ void end_popup() {
     ImGui::EndPopup();
 }
 
+void close_current_popup() {
+    ImGui::CloseCurrentPopup();
+}
+
 bool is_popup_open(const char* str_id) {
     return ImGui::IsPopupOpen(str_id);
 }
@@ -846,6 +892,99 @@ Vector2f get_window_size() {
 
 Vector2f get_window_pos() {
     const auto result = ImGui::GetWindowPos();
+
+    return Vector2f{
+        result.x,
+        result.y,
+    };
+}
+
+void set_next_item_open(bool is_open, sol::object condition_obj) {
+    ImGuiCond condition{0};
+
+    if (condition_obj.is<int>()) {
+        condition = (ImGuiCond)condition_obj.as<int>();
+    }
+
+    ImGui::SetNextItemOpen(is_open, condition);
+}
+
+bool begin_list_box(const char* label, sol::object size_obj) {
+    if (label == nullptr) {
+        label = "";
+    }
+
+    auto size = create_imvec2(size_obj);
+
+    return ImGui::BeginListBox(label, size);
+}
+
+void end_list_box() {
+    ImGui::EndListBox();
+}
+
+bool begin_menu_bar() {
+    return ImGui::BeginMenuBar();
+}
+
+void end_menu_bar() {
+    ImGui::EndMenuBar();
+}
+
+bool begin_main_menu_bar() {
+    return ImGui::BeginMainMenuBar();
+}
+
+void end_main_menu_bar() {
+    ImGui::EndMainMenuBar();
+}
+
+bool begin_menu(const char* label, sol::object enabled_obj) {
+    if (label == nullptr) {
+        label = "";
+    }
+
+    bool enabled{true};
+
+    if (enabled_obj.is<bool>()) {
+        enabled = enabled_obj.as<bool>();
+    }
+
+    return ImGui::BeginMenu(label, enabled);
+}
+
+void end_menu() {
+    ImGui::EndMenu();
+}
+
+bool menu_item(const char* label, sol::object shortcut_obj, sol::object selected_obj, sol::object enabled_obj) {
+    if (label == nullptr) {
+        label = "";
+    }
+
+    const char* shortcut{nullptr};
+    bool selected{false};
+    bool enabled{true};
+
+    if (shortcut_obj.is<const char*>()) {
+        shortcut = shortcut_obj.as<const char*>();
+    } else {
+        shortcut = "";
+    }
+
+    if (selected_obj.is<bool>()) {
+        selected = selected_obj.as<bool>();
+    }
+
+    if (enabled_obj.is<bool>()) {
+        enabled = enabled_obj.as<bool>();
+    }
+
+    return ImGui::MenuItem(label, shortcut, selected, enabled);
+}
+
+Vector2f get_display_size() {
+    const auto& result = ImGui::GetIO().DisplaySize;
 
     return Vector2f{
         result.x,
@@ -1464,20 +1603,39 @@ void bindings::open_imgui(ScriptState* s) {
     imgui["pop_id"] = api::imgui::pop_id;
     imgui["get_id"] = api::imgui::get_id;
     imgui["get_mouse"] = api::imgui::get_mouse;
+    imgui["get_key_index"] = api::imgui::get_key_index;
     imgui["is_key_down"] = api::imgui::is_key_down;
     imgui["is_key_pressed"] = api::imgui::is_key_pressed;
     imgui["is_key_released"] = api::imgui::is_key_released;
+    imgui["is_mouse_down"] = api::imgui::is_mouse_down;
+    imgui["is_mouse_clicked"] = api::imgui::is_mouse_clicked;
+    imgui["is_mouse_released"] = api::imgui::is_mouse_released;
+    imgui["is_mouse_double_clicked"] = api::imgui::is_mouse_double_clicked;
     imgui["indent"] = api::imgui::indent;
     imgui["unindent"] = api::imgui::unindent;
     imgui["begin_tooltip"] = api::imgui::begin_tooltip;
     imgui["end_tooltip"] = api::imgui::end_tooltip;
+    imgui["set_tooltip"] = api::imgui::set_tooltip;
+    imgui["open_popup"] = api::imgui::open_popup;
     imgui["begin_popup"] = api::imgui::begin_popup;
     imgui["begin_popup_context_item"] = api::imgui::begin_popup_context_item;
     imgui["end_popup"] = api::imgui::end_popup;
+    imgui["close_current_popup"] = api::imgui::close_current_popup;
     imgui["is_popup_open"] = api::imgui::is_popup_open;
     imgui["calc_text_size"] = api::imgui::calc_text_size;
     imgui["get_window_size"] = api::imgui::get_window_size;
     imgui["get_window_pos"] = api::imgui::get_window_pos;
+    imgui["set_next_item_open"] = api::imgui::set_next_item_open;
+    imgui["begin_list_box"] = api::imgui::begin_list_box;
+    imgui["end_list_box"] = api::imgui::end_list_box;
+    imgui["begin_menu_bar"] = api::imgui::begin_menu_bar;
+    imgui["end_menu_bar"] = api::imgui::end_menu_bar;
+    imgui["begin_main_menu_bar"] = api::imgui::begin_main_menu_bar;
+    imgui["end_main_menu_bar"] = api::imgui::end_main_menu_bar;
+    imgui["begin_menu"] = api::imgui::begin_menu;
+    imgui["end_menu"] = api::imgui::end_menu;
+    imgui["menu_item"] = api::imgui::menu_item;
+    imgui["get_display_size"] = api::imgui::get_display_size;
     imgui.new_enum("ImGuizmoOperation", 
                     "TRANSLATE", ImGuizmo::OPERATION::TRANSLATE, 
                     "ROTATE", ImGuizmo::OPERATION::ROTATE,
