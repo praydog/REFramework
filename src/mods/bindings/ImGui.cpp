@@ -71,6 +71,38 @@ bool button(const char* label) {
     return ImGui::Button(label);
 }
 
+bool small_button(const char* label) {
+    if (label == nullptr) {
+        label = "";
+    }
+
+    return ImGui::SmallButton(label);
+}
+
+bool invisible_button(const char* id, sol::object size_object, sol::object flags_object) {
+    if (id == nullptr) {
+        id = "";
+    }
+
+    const auto size = create_imvec2(size_object);
+
+    ImGuiButtonFlags flags = 0;
+
+    if (flags_object.is<int>()) {
+        flags = (ImGuiButtonFlags)(flags_object.as<int>());
+    }
+
+    return ImGui::InvisibleButton(id, size, flags);
+}
+
+bool arrow_button(const char* str_id, int dir) {
+    if (str_id == nullptr) {
+        str_id = "";
+    }
+
+    return ImGui::ArrowButton(str_id, (ImGuiDir)dir);
+}
+
 void text(const char* text) {
     if (text == nullptr) {
         text = "";
@@ -329,6 +361,14 @@ bool is_item_hovered(sol::object flags_obj) {
     }
 
     return ImGui::IsItemHovered(flags);
+}
+
+bool is_item_active() {
+    return ImGui::IsItemActive();
+}
+
+bool is_item_focused() {
+    return ImGui::IsItemFocused();
 }
 
 bool begin_window(const char* name, sol::object open_obj, ImGuiWindowFlags flags = 0) {
@@ -997,6 +1037,93 @@ Vector2f get_display_size() {
         result.y,
     };
 }
+
+void push_item_width(float item_width) {
+    ImGui::PushItemWidth(item_width);
+}
+
+void pop_item_width() {
+    ImGui::PopItemWidth();
+}
+
+void set_next_item_width(float item_width) {
+    ImGui::SetNextItemWidth(item_width);
+}
+
+float calc_item_width() {
+    return ImGui::CalcItemWidth();
+}
+
+void push_style_color(int style_color, sol::object color_obj) {
+    if (color_obj.is<int>()) {
+        ImGui::PushStyleColor((ImGuiCol)style_color, (ImU32)color_obj.as<int>());
+    } else if (color_obj.is<Vector4f>()) {
+        ImGui::PushStyleColor((ImGuiCol)style_color, create_imvec4(color_obj));
+    }
+}
+
+void pop_style_color(sol::object count_obj) {
+    int count{1};
+
+    if (count_obj.is<int>()) {
+        count = count_obj.as<int>();
+    }
+
+    ImGui::PopStyleColor(count);
+}
+
+void push_style_var(int idx, sol::object value_obj) {
+    if (value_obj.is<float>()) {
+        ImGui::PushStyleVar((ImGuiStyleVar)idx, value_obj.as<float>());
+    } else if (value_obj.is<Vector2f>()) {
+        ImGui::PushStyleVar((ImGuiStyleVar)idx, create_imvec2(value_obj));
+    }
+}
+
+void pop_style_var(sol::object count_obj) {
+    int count{1};
+
+    if (count_obj.is<int>()) {
+        count = count_obj.as<int>();
+    }
+
+    ImGui::PopStyleVar(count);
+}
+
+Vector2f get_cursor_pos() {
+    const auto result = ImGui::GetCursorPos();
+
+    return Vector2f{
+        result.x,
+        result.y,
+    };
+}
+
+void set_cursor_pos(sol::object pos) {
+    ImGui::SetCursorPos(create_imvec2(pos));
+}
+
+Vector2f get_cursor_start_pos() {
+    const auto result = ImGui::GetCursorStartPos();
+
+    return Vector2f{
+        result.x,
+        result.y,
+    };
+}
+
+Vector2f get_cursor_screen_pos() {
+    const auto result = ImGui::GetCursorScreenPos();
+
+    return Vector2f{
+        result.x,
+        result.y,
+    };
+}
+
+void set_cursor_screen_pos(sol::object pos) {
+    ImGui::SetCursorScreenPos(create_imvec2(pos));
+}
 } // namespace api::imgui
 
 namespace api::draw {
@@ -1581,13 +1708,16 @@ void cleanup() {
 
     g_static_attribute_counts = 0;
 }
-}
+} // namespace imnodes
 
 void bindings::open_imgui(ScriptState* s) {
     auto& lua = s->lua();
     auto imgui = lua.create_table();
 
     imgui["button"] = api::imgui::button;
+    imgui["small_button"] = api::imgui::small_button;
+    imgui["invisible_button"] = api::imgui::invisible_button;
+    imgui["arrow_button"] = api::imgui::arrow_button;
     imgui["combo"] = api::imgui::combo;
     imgui["drag_float"] = api::imgui::drag_float;
     imgui["drag_float2"] = api::imgui::drag_float2;
@@ -1606,6 +1736,8 @@ void bindings::open_imgui(ScriptState* s) {
     imgui["tree_pop"] = api::imgui::tree_pop;
     imgui["same_line"] = api::imgui::same_line;
     imgui["is_item_hovered"] = api::imgui::is_item_hovered;
+    imgui["is_item_active"] = api::imgui::is_item_active;
+    imgui["is_item_focused"] = api::imgui::is_item_focused;
     imgui["begin_window"] = api::imgui::begin_window;
     imgui["end_window"] = api::imgui::end_window;
     imgui["begin_child_window"] = api::imgui::begin_child_window;
@@ -1669,6 +1801,19 @@ void bindings::open_imgui(ScriptState* s) {
     imgui["end_menu"] = api::imgui::end_menu;
     imgui["menu_item"] = api::imgui::menu_item;
     imgui["get_display_size"] = api::imgui::get_display_size;
+    imgui["push_item_width"] = api::imgui::push_item_width;
+    imgui["pop_item_width"] = api::imgui::pop_item_width;
+    imgui["set_next_item_width"] = api::imgui::set_next_item_width;
+    imgui["calc_item_width"] = api::imgui::calc_item_width;
+    imgui["push_style_color"] = api::imgui::push_style_color;
+    imgui["pop_style_color"] = api::imgui::pop_style_color;
+    imgui["push_style_var"] = api::imgui::push_style_var;
+    imgui["pop_style_var"] = api::imgui::pop_style_var;
+    imgui["get_cursor_pos"] = api::imgui::get_cursor_pos;
+    imgui["set_cursor_pos"] = api::imgui::set_cursor_pos;
+    imgui["get_cursor_start_pos"] = api::imgui::get_cursor_start_pos;
+    imgui["get_cursor_screen_pos"] = api::imgui::get_cursor_screen_pos;
+    imgui["set_cursor_screen_pos"] = api::imgui::set_cursor_screen_pos;
     imgui.new_enum("ImGuizmoOperation", 
                     "TRANSLATE", ImGuizmo::OPERATION::TRANSLATE, 
                     "ROTATE", ImGuizmo::OPERATION::ROTATE,
