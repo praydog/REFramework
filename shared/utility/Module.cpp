@@ -1,3 +1,5 @@
+#define NOMINMAX
+
 #include <fstream>
 #include <filesystem>
 #include <unordered_set>
@@ -255,7 +257,17 @@ namespace utility {
         }
         
         for (auto entry = peb->Ldr->InMemoryOrderModuleList.Flink; entry != &peb->Ldr->InMemoryOrderModuleList && entry != nullptr; entry = entry->Flink) {
+            if (IsBadReadPtr(entry, sizeof(LIST_ENTRY))) {
+                spdlog::error("[PEB] entry {:x} is a bad pointer", (uintptr_t)entry);
+                break;
+            }
+
             auto ldr_entry = (_LDR_DATA_TABLE_ENTRY*)CONTAINING_RECORD(entry, _LDR_DATA_TABLE_ENTRY, InMemoryOrderLinks);
+
+            if (IsBadReadPtr(ldr_entry, sizeof(_LDR_DATA_TABLE_ENTRY))) {
+                spdlog::error("[PEB] ldr entry {:x} is a bad pointer", (uintptr_t)ldr_entry);
+                break;
+            }
 
             callback(entry, ldr_entry);
         }
@@ -333,13 +345,39 @@ namespace utility {
         const auto current_path = std::filesystem::path{current_dir};
 
         foreach_module([&](LIST_ENTRY* entry, _LDR_DATA_TABLE_ENTRY* ldr_entry) {
+            if (ldr_entry == nullptr || IsBadReadPtr(ldr_entry, sizeof(_LDR_DATA_TABLE_ENTRY))) {
+                spdlog::error("[!] Failed to read module entry, continuing...", (uintptr_t)ldr_entry);
+                return;
+            }
+
+            wchar_t* previous_name = nullptr;
+
+            try {
+                if (ldr_entry != nullptr) {
+                    previous_name = ldr_entry->FullDllName.Buffer;
+                }
+            } catch(...) {
+                spdlog::error("Could not determine name of module {:x}, continuing...", (uintptr_t)ldr_entry);
+                return;
+            }
+
+            if (IsBadReadPtr(ldr_entry->FullDllName.Buffer, ldr_entry->FullDllName.Length)) {
+                spdlog::error("[!] Failed to read module name, continuing...", (uintptr_t)ldr_entry);
+                return;
+            }
+
             try {
                 if (ldr_entry->DllBase == current_exe) {
                     return;
                 }
 
-                wchar_t lower_name[MAX_PATH]{0};
-                std::transform(ldr_entry->FullDllName.Buffer, ldr_entry->FullDllName.Buffer + ldr_entry->FullDllName.Length, lower_name, ::towlower);
+                wchar_t lower_name[MAX_PATH+1]{0};
+                std::transform(
+                            ldr_entry->FullDllName.Buffer, 
+                            ldr_entry->FullDllName.Buffer + std::min<USHORT>(ldr_entry->FullDllName.Length / sizeof(wchar_t), MAX_PATH), 
+                            lower_name, ::towlower);
+
+                lower_name[MAX_PATH] = 0;
 
                 const auto path = std::filesystem::path{lower_name};
 
@@ -369,16 +407,23 @@ namespace utility {
 
                 spdlog::info("Creating new node for {} (0x{:x})", utility::narrow(lower_name), (uintptr_t)ldr_entry->DllBase);
 
-                auto final_chars = new wchar_t[MAX_PATH]{ 0 };
+                auto final_chars = new wchar_t[MAX_PATH+1]{ 0 };
 
                 memcpy(final_chars, new_path.data(), new_path.size() * sizeof(wchar_t));
+                final_chars[new_path.size()] = 0;
+                final_chars[MAX_PATH] = 0;
+
                 ldr_entry->FullDllName.Buffer = final_chars;
-                ldr_entry->FullDllName.Length = new_path.size() + 1;
-                ldr_entry->FullDllName.MaximumLength = MAX_PATH;
+                ldr_entry->FullDllName.Length = new_path.size() * sizeof(wchar_t);
+                ldr_entry->FullDllName.MaximumLength = MAX_PATH * sizeof(wchar_t);
 
                 spdlog::info("Done {} -> {}", utility::narrow(path.wstring()), utility::narrow(new_path));
             } catch (...) {
-                spdlog::error("Failed {}", utility::narrow(ldr_entry->FullDllName.Buffer));
+                if (previous_name != nullptr) {
+                    spdlog::error("Failed {}", utility::narrow(previous_name));
+                } else {
+                    spdlog::error("Failed to read module name (2), continuing...");
+                }
             }
         });
     }
