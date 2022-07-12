@@ -336,7 +336,7 @@ HookManager::HookId HookManager::add(sdk::REMethodDefinition* fn, HookManager::P
 
         auto& hook = search->second;
         std::scoped_lock _{hook->mux};
-        auto hook_id = hook->next_hook_id++;
+        auto hook_id = m_next_hook_id++;
 
         spdlog::info("[HookManager] Hook assigned ID {}", hook_id);
 
@@ -350,7 +350,9 @@ HookManager::HookId HookManager::add(sdk::REMethodDefinition* fn, HookManager::P
     spdlog::info("[HookManager] Creating a new hook...");
 
     auto hook = std::make_unique<HookedFn>(*this);
-    auto hook_id = hook->next_hook_id++;
+    hook->next_hook_id = m_next_hook_id++;
+
+    auto hook_id = m_next_hook_id++;
 
     spdlog::info("[HookManager] Hook assigned ID {}", hook_id);
 
@@ -404,16 +406,10 @@ HookManager::HookId HookManager::add_vtable(::REManagedObject* obj, sdk::REMetho
         return HookId{};
     }
 
-    HookManager::HookId hook_id = 0;
     auto search = m_hooked_vtables.find(obj);
 
     if (search != m_hooked_vtables.end()) {
         spdlog::info("[HookManager] Reusing existing VT hook...");
-
-        auto& hook = search->second;
-        std::scoped_lock _{hook->mux};
-
-        hook_id = hook->next_hook_id;
     } else {
         spdlog::info("[HookManager] Creating a new VT hook...");
 
@@ -428,11 +424,10 @@ HookManager::HookId HookManager::add_vtable(::REManagedObject* obj, sdk::REMetho
             return 0;
         }
 
-        hook_id = hook->next_hook_id++;
-        spdlog::info("[HookManager] VT Hook assigned ID {}", hook_id);
-
         m_hooked_vtables[obj] = std::move(hook);
         search = m_hooked_vtables.find(obj);
+
+        spdlog::info("[HookManager] VT hook created for {:x}", (uintptr_t)obj);
     }
 
     auto& hook = search->second;
@@ -444,8 +439,9 @@ HookManager::HookId HookManager::add_vtable(::REManagedObject* obj, sdk::REMetho
         spdlog::info("[HookManager] Reusing existing VT hook...");
 
         auto& hook_fn = it->second;
+
+        auto hook_id = m_next_hook_id++;
         hook_fn->cbs.emplace_back(hook_id, std::move(pre_fn), std::move(post_fn));
-        hook_id = hook_fn->next_hook_id++;
 
         spdlog::info("[HookManager] VT Hook {} added for '{}' @ {:p}", hook_id, fn->get_name(), fn->get_function());
 
@@ -457,7 +453,8 @@ HookManager::HookId HookManager::add_vtable(::REManagedObject* obj, sdk::REMetho
     hook->hooked_fns[fn] = std::make_unique<HookedFn>(*this);
 
     auto& hook_fn = hook->hooked_fns[fn];
-    hook_id = hook_fn->next_hook_id++;
+    hook_fn->next_hook_id = m_next_hook_id++;
+    auto hook_id = m_next_hook_id++;
 
     spdlog::info("[HookManager] VT Hook assigned ID {}", hook_id);
 
@@ -499,5 +496,31 @@ void HookManager::remove(sdk::REMethodDefinition* fn, HookId id) {
         auto& cbs = hook->cbs;
         std::scoped_lock _{hook->mux};
         cbs.erase(std::remove_if(cbs.begin(), cbs.end(), [id](const HookCallback& cb) { return cb.id == id; }));
+    } else {
+        std::vector<::REManagedObject*> queued_vtable_deletions{};
+
+        // Search through the vtable hooks.
+        for (auto& it : m_hooked_vtables) {
+            auto& hook = it.second;
+
+            if (auto search = hook->hooked_fns.find(fn); search != hook->hooked_fns.end()) {
+                spdlog::info("[HookManager] Removing VT method hook ID {} from '{}'", id, fn->get_name());
+
+                auto& hook_fn = search->second;
+                auto& cbs = hook_fn->cbs;
+                std::scoped_lock _{hook->mux};
+                cbs.erase(std::remove_if(cbs.begin(), cbs.end(), [id](const HookCallback& cb) { return cb.id == id; }));
+
+                if (cbs.empty()) {
+                    queued_vtable_deletions.push_back(it.first);
+                }
+            }
+        }
+
+        // Delete the vtable hooks.
+        for (auto& obj : queued_vtable_deletions) {
+            spdlog::info("[HookManager] Removing VT hook for {:x}", (uintptr_t)obj);
+            m_hooked_vtables.erase(obj);
+        }
     }
 }

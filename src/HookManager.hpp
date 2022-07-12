@@ -36,7 +36,6 @@ public:
 
     struct HookedVTable {
         HookManager& hookman;
-        HookId next_hook_id{};
         std::unique_ptr<sdk::REVTableHook> vtable_hook{};
         std::unordered_map<sdk::REMethodDefinition*, std::unique_ptr<HookedFn>> hooked_fns{};
 
@@ -112,6 +111,8 @@ private:
     std::mutex m_jit_mux{};
     std::unordered_map<sdk::REMethodDefinition*, std::unique_ptr<HookedFn>> m_hooked_fns{};
     std::unordered_map<::REManagedObject*, std::unique_ptr<HookedVTable>> m_hooked_vtables{};
+
+    HookId m_next_hook_id{1};
 };
 
 inline HookManager g_hookman{};

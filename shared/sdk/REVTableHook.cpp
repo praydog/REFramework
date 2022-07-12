@@ -20,9 +20,13 @@ void REVTableHook::unhook() {
         return;
     }
 
+    spdlog::info("[REVTableHook] Attempting to unhook vtable for {:x}...", (uintptr_t)m_object);
+
     try {
-        if (*(void**)m_object == m_new_object_info){
+        if (*(void**)m_object == m_new_object_info) {
             *(void**)m_object = m_original_object_info;
+        } else {
+            spdlog::info("[REVTableHook] Object {:x}'s memory was not what we expected, not unhooking...", (uintptr_t)m_object);
         }
     } catch(...) {
         spdlog::error("[REVTableHook] Could not unhook vtable, object may have been deallocated");
