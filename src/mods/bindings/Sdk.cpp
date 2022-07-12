@@ -265,6 +265,7 @@ namespace api::sdk {
 std::vector<void*>& build_args(sol::variadic_args va);
 sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_type, bool from_method);
 sol::object get_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name);
+sol::object get_field_or_method(sol::object obj, const char* name);
 void set_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name, sol::object value);
 
 struct ValueType {
@@ -1301,6 +1302,29 @@ void bindings::open_sdk(ScriptState* s) {
 
     lua.new_usertype<::REManagedObject>("REManagedObject",
         sol::meta_function::equal_to, [s](REManagedObject* lhs, REManagedObject* rhs) { return lhs == rhs; },
+        sol::meta_function::index,  [s](REManagedObject* obj, const char* name) {
+            if (obj == nullptr) {
+                return sol::make_object(s->lua(), sol::nil);
+            }
+
+            auto type_def = utility::re_managed_object::get_type_definition(obj);
+            auto field = type_def->get_field("name");
+            if (field != nullptr) {
+                return api::sdk::get_native_field_from_field(sol::make_object(s->lua(), obj), type_def, field);
+            }
+            auto method = type_def->get_method(name);
+            if (method != nullptr) {
+                return sol::make_object(s->lua(), method);
+            }
+            return sol::make_object(s->lua(), sol::nil);
+        },
+        sol::meta_function::new_index, [s](REManagedObject* obj, const char* name, sol::object value){
+            if (obj == nullptr) {
+                return;
+            }
+
+            return api::sdk::set_native_field(sol::make_object(s->lua(), obj), utility::re_managed_object::get_type_definition(obj), name, value); 
+        },
         "add_ref", &api::re_managed_object::add_ref,
         "add_ref_permanent", &api::re_managed_object::add_ref_permanent,
         "force_release", [](sol::this_state s, ::REManagedObject* obj) {
