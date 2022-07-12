@@ -247,7 +247,7 @@ sol::variadic_results slider_int(sol::this_state s, const char* label, int v, in
 }
 
 sol::variadic_results input_text(sol::this_state s, const char* label, const std::string& v, ImGuiInputTextFlags flags) {
-    flags |= ImGuiInputTextFlags_CallbackResize;
+    flags |= ImGuiInputTextFlags_CallbackResize | ImGuiInputTextFlags_CallbackAlways;
 
     if (label == nullptr) {
         label = "";
@@ -256,11 +256,16 @@ sol::variadic_results input_text(sol::this_state s, const char* label, const std
     static std::string buffer{""};
     buffer = v;
 
+    static int selection_start, selection_end;
+
     static auto input_text_callback = [](ImGuiInputTextCallbackData* data) -> int {
         if ((data->EventFlag & ImGuiInputTextFlags_CallbackResize) != 0) {
             buffer.resize(data->BufTextLen);
             data->Buf = (char*)buffer.c_str();
         }
+
+        selection_start = data->SelectionStart;
+        selection_end = data->SelectionEnd;
 
         return 0;
     };
@@ -271,6 +276,46 @@ sol::variadic_results input_text(sol::this_state s, const char* label, const std
 
     results.push_back(sol::make_object(s, changed));
     results.push_back(sol::make_object(s, std::string{buffer.data()}));
+    results.push_back(sol::make_object(s, selection_start));
+    results.push_back(sol::make_object(s, selection_end));
+
+    return results;
+}
+
+sol::variadic_results input_text_multiline(sol::this_state s, const char* label, const std::string& v, sol::object size_obj, ImGuiInputTextFlags flags) {
+    flags |= ImGuiInputTextFlags_CallbackResize | ImGuiInputTextFlags_CallbackAlways;
+
+    if (label == nullptr) {
+        label = "";
+    }
+
+    static std::string buffer{""};
+    buffer = v;
+
+    static int selection_start, selection_end;
+
+    static auto input_text_callback = [](ImGuiInputTextCallbackData* data) -> int {
+        if ((data->EventFlag & ImGuiInputTextFlags_CallbackResize) != 0) {
+            buffer.resize(data->BufTextLen);
+            data->Buf = (char*)buffer.c_str();
+        }
+
+        selection_start = data->SelectionStart;
+        selection_end = data->SelectionEnd;
+
+        return 0;
+    };
+
+    const auto size = create_imvec2(size_obj);
+
+    auto changed = ImGui::InputTextMultiline(label, buffer.data(), buffer.capacity() + 1, size, flags, input_text_callback);
+
+    sol::variadic_results results{};
+
+    results.push_back(sol::make_object(s, changed));
+    results.push_back(sol::make_object(s, std::string{buffer.data()}));
+    results.push_back(sol::make_object(s, selection_start));
+    results.push_back(sol::make_object(s, selection_end));
 
     return results;
 }
@@ -1124,6 +1169,10 @@ Vector2f get_cursor_screen_pos() {
 void set_cursor_screen_pos(sol::object pos) {
     ImGui::SetCursorScreenPos(create_imvec2(pos));
 }
+
+void set_item_default_focus() {
+    ImGui::SetItemDefaultFocus();
+}
 } // namespace api::imgui
 
 namespace api::draw {
@@ -1727,6 +1776,7 @@ void bindings::open_imgui(ScriptState* s) {
     imgui["slider_float"] = api::imgui::slider_float;
     imgui["slider_int"] = api::imgui::slider_int;
     imgui["input_text"] = api::imgui::input_text;
+    imgui["input_text_multiline"] = api::imgui::input_text_multiline;
     imgui["text"] = api::imgui::text;
     imgui["text_colored"] = api::imgui::text_colored;
     imgui["checkbox"] = api::imgui::checkbox;
@@ -1814,6 +1864,7 @@ void bindings::open_imgui(ScriptState* s) {
     imgui["get_cursor_start_pos"] = api::imgui::get_cursor_start_pos;
     imgui["get_cursor_screen_pos"] = api::imgui::get_cursor_screen_pos;
     imgui["set_cursor_screen_pos"] = api::imgui::set_cursor_screen_pos;
+    imgui["set_item_default_focus"] = api::imgui::set_item_default_focus;
     imgui.new_enum("ImGuizmoOperation", 
                     "TRANSLATE", ImGuizmo::OPERATION::TRANSLATE, 
                     "ROTATE", ImGuizmo::OPERATION::ROTATE,
