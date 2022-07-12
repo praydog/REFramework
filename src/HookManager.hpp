@@ -86,6 +86,19 @@ public:
 
     HookId add(sdk::REMethodDefinition* fn, PreHookFn pre_fn, PostHookFn post_fn, bool ignore_jmp = false);
     HookId add_vtable(::REManagedObject* obj, sdk::REMethodDefinition* fn, PreHookFn pre_fn, PostHookFn post_fn);
+
+    struct EitherOr {
+        ::REManagedObject* obj{nullptr};
+        sdk::REMethodDefinition* fn{nullptr};
+        bool ignore_jmp{false};
+    };
+    HookId add_either_or(const EitherOr& either_or, PreHookFn pre_fn, PostHookFn post_fn) {
+        if (either_or.obj == nullptr) {
+            return add(either_or.fn, pre_fn, post_fn, either_or.ignore_jmp);
+        } else {
+            return add_vtable(either_or.obj, either_or.fn, pre_fn, post_fn);
+        }
+    }
     void remove(sdk::REMethodDefinition* fn, HookId id);
 
 private:

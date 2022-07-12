@@ -140,6 +140,7 @@ public:
 
     // add_hook enqueues the hook definition to be installed the next time install_hooks is called.
     void add_hook(sdk::REMethodDefinition* fn, sol::protected_function pre_cb, sol::protected_function post_cb, sol::object ignore_jmp_obj);
+    void add_vtable(::REManagedObject* obj, sdk::REMethodDefinition* fn, sol::protected_function pre_cb, sol::protected_function post_cb);
 
     // install_hooks goes through the queue of added hooks and actually creates them. The queue is emptied as a result.
     void install_hooks();
@@ -167,6 +168,7 @@ private:
     std::vector<sol::protected_function> m_on_config_save_fns{};
 
     struct HookDef {
+        ::REManagedObject* obj{nullptr};
         sdk::REMethodDefinition* fn;
         sol::protected_function pre_cb;
         sol::protected_function post_cb;

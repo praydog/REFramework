@@ -493,7 +493,11 @@ catch (const std::exception& e) {
 
 void ScriptState::add_hook(
     sdk::REMethodDefinition* fn, sol::protected_function pre_cb, sol::protected_function post_cb, sol::object ignore_jmp_obj) {
-    m_hooks_to_add.emplace_back(fn, pre_cb, post_cb, ignore_jmp_obj);
+    m_hooks_to_add.emplace_back((::REManagedObject*)nullptr, fn, pre_cb, post_cb, ignore_jmp_obj);
+}
+
+void ScriptState::add_vtable(::REManagedObject* obj, sdk::REMethodDefinition* fn, sol::protected_function pre_cb, sol::protected_function post_cb) {
+    m_hooks_to_add.emplace_back(obj, fn, pre_cb, post_cb);
 }
 
 void ScriptState::install_hooks() {
@@ -503,8 +507,9 @@ void ScriptState::install_hooks() {
         auto pre_cb = hookdef.pre_cb;
         auto post_cb = hookdef.post_cb;
         auto ignore_jmp_object = hookdef.ignore_jmp_obj;
-        auto id = g_hookman.add(
-            fn,
+        const auto hookman_data = HookManager::EitherOr{hookdef.obj, hookdef.fn, ignore_jmp_object.is<bool>() ? ignore_jmp_object.as<bool>() : false};
+        auto id = g_hookman.add_either_or(
+            hookman_data,
             [pre_cb, state = this](auto& args, auto& arg_tys) -> HookManager::PreHookResult {
                 using PreHookResult = HookManager::PreHookResult;
 
@@ -565,8 +570,8 @@ void ScriptState::install_hooks() {
                 } catch (const std::exception& e) {
                     ScriptRunner::get()->spew_error(e.what());
                 }
-            },
-            ignore_jmp_object.is<bool>() ? ignore_jmp_object.as<bool>() : false);
+            }
+        );
         m_hooks[fn].emplace_back(id);
     }
 }

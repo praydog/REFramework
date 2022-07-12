@@ -430,6 +430,9 @@ HookManager::HookId HookManager::add_vtable(::REManagedObject* obj, sdk::REMetho
 
         hook_id = hook->next_hook_id++;
         spdlog::info("[HookManager] VT Hook assigned ID {}", hook_id);
+
+        m_hooked_vtables[obj] = std::move(hook);
+        search = m_hooked_vtables.find(obj);
     }
 
     auto& hook = search->second;
@@ -442,6 +445,7 @@ HookManager::HookId HookManager::add_vtable(::REManagedObject* obj, sdk::REMetho
 
         auto& hook_fn = it->second;
         hook_fn->cbs.emplace_back(hook_id, std::move(pre_fn), std::move(post_fn));
+        hook_id = hook_fn->next_hook_id++;
 
         spdlog::info("[HookManager] VT Hook {} added for '{}' @ {:p}", hook_id, fn->get_name(), fn->get_function());
 
@@ -453,6 +457,7 @@ HookManager::HookId HookManager::add_vtable(::REManagedObject* obj, sdk::REMetho
     hook->hooked_fns[fn] = std::make_unique<HookedFn>(*this);
 
     auto& hook_fn = hook->hooked_fns[fn];
+    hook_id = hook_fn->next_hook_id++;
 
     spdlog::info("[HookManager] VT Hook assigned ID {}", hook_id);
 

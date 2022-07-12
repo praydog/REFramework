@@ -54,6 +54,6 @@ private:
     std::vector<void*> m_new_vtable{};
     std::vector<uint8_t> m_new_data{};
     void* m_new_object_info{nullptr};
-    uint8_t m_offset_from_object_info_base{0}; // offset that m_original_object_info starts from behind the object info pointer
+    uint32_t m_offset_from_object_info_base{0}; // offset that m_original_object_info starts from behind the object info pointer
 };
 }

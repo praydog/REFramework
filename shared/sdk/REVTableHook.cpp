@@ -73,7 +73,7 @@ bool REVTableHook::hook() {
     spdlog::info("[REVTableHook] {:x} has vtable {:x}", (uintptr_t)m_object, (uintptr_t)m_original_vtable);
     spdlog::info("[REVTableHook] Calculating backwards size...");
 
-    for (uint8_t i = 0; i < 0x100; i += sizeof(void*)) {
+    for (uint32_t i = 0; i < 0x1000; i += sizeof(void*)) {
         const auto ptr = (void**)((uintptr_t)m_original_object_info - i);
 
         if (IsBadReadPtr(ptr, sizeof(void*))) {
@@ -87,9 +87,9 @@ bool REVTableHook::hook() {
     spdlog::info("[REVTableHook] Calculating forwards size...");
 
     // Do the same thing but forward now to determine the rest of the size.
-    uint8_t forward_size = 0;
+    uint32_t forward_size = 0;
 
-    for (uint8_t i = 0; i < 0xF8; i += sizeof(void*)) {
+    for (uint32_t i = 0; i < 0x1000; i += sizeof(void*)) {
         const auto ptr = (void**)((uintptr_t)m_original_object_info + i);
 
         if (IsBadReadPtr(ptr, sizeof(void*))) {
@@ -111,7 +111,7 @@ bool REVTableHook::hook() {
     m_new_vtable.resize(calculate_vtable_size(m_original_vtable));
 
     // Copy over the original vtable.
-    spdlog::info("[REVTableHook] Copying original vtable of size {:i}...", m_new_vtable.size());
+    spdlog::info("[REVTableHook] Copying original vtable of size {}...", m_new_vtable.size());
     std::copy(m_original_vtable, m_original_vtable + m_new_vtable.size(), m_new_vtable.begin());
 
     // Replace the vtable pointer in the new data with ours.
@@ -144,6 +144,8 @@ bool REVTableHook::hook_method(uint32_t index, void* destination) {
         spdlog::error("[REVTableHook] Cannot hook method to nullptr.");
         return false;
     }
+
+    spdlog::info("[REVTableHook] Hooking method {} (currently {:x}) to {:x}", index, (uintptr_t)m_new_vtable[index], (uintptr_t)destination);
 
     m_new_vtable[index] = destination;
     return true;

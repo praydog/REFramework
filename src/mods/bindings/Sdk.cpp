@@ -1093,6 +1093,17 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::protected_funct
     auto state = sol_state.registry()["state"].get<ScriptState*>();
     state->add_hook(fn, pre_cb, post_cb, ignore_jmp_object);
 }
+
+void hook_vtable(sol::this_state s, ::REManagedObject* obj, ::sdk::REMethodDefinition* fn, sol::protected_function pre_cb, sol::protected_function post_cb) {
+    if (obj == nullptr) {
+        throw sol::error("Object is null");
+        return;
+    }
+    
+    auto sol_state = sol::state_view{s};
+    auto state = sol_state.registry()["state"].get<ScriptState*>();
+    state->add_vtable(obj, fn, pre_cb, post_cb);
+}
 }
 
 namespace api::re_managed_object {
@@ -1178,6 +1189,7 @@ void bindings::open_sdk(ScriptState* s) {
     sdk["set_native_field"] = api::sdk::set_native_field;
     sdk["get_primary_camera"] = api::sdk::get_primary_camera;
     sdk["hook"] = api::sdk::hook;
+    sdk["hook_vtable"] = api::sdk::hook_vtable;
     sdk.new_enum("PreHookResult", "CALL_ORIGINAL", HookManager::PreHookResult::CALL_ORIGINAL, "SKIP_ORIGINAL", HookManager::PreHookResult::SKIP_ORIGINAL);
     sdk["is_managed_object"] = api::sdk::is_managed_object;
     sdk["to_managed_object"] = [](sol::this_state s, sol::object ptr) { 
