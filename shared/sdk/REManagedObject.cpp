@@ -107,7 +107,14 @@ bool is_managed_object(Address address) {
 #if TDB_VER >= 71
     const auto td = (sdk::RETypeDefinition*)class_info;
 
-    if ((uintptr_t)td->managed_vt != (uintptr_t)object->info || td->type == nullptr) {
+    if ((uintptr_t)td->managed_vt != (uintptr_t)object->info) {
+        // This allows for cases when a vtable hook is being used to replace this pointer.
+        if (IsBadReadPtr(td->managed_vt, sizeof(void*)) || *(sdk::RETypeDefinition**)td->managed_vt != td) {
+            return false;
+        }
+    }
+
+    if (td->type == nullptr) {
         return false;
     }
 
@@ -119,7 +126,14 @@ bool is_managed_object(Address address) {
         return false;
     }
 #elif TDB_VER > 49
-    if (class_info->parentInfo != object->info || class_info->type == nullptr) {
+    if (class_info->parentInfo != object->info) {
+        // This allows for cases when a vtable hook is being used to replace this pointer.
+        if (IsBadReadPtr(class_info->parentInfo, sizeof(void*)) || class_info->parentInfo->classInfo != class_info) {
+            return false;
+        }
+    }
+
+    if (class_info->type == nullptr) {
         return false;
     }
 
