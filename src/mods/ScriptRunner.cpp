@@ -55,7 +55,8 @@ ScriptState::ScriptState(const ScriptState::GarbageCollectionData& gc_data) {
     std::scoped_lock _{ m_execution_mutex };
 
     m_lua.registry()["state"] = this;
-    m_lua.open_libraries(sol::lib::base, sol::lib::package, sol::lib::string, sol::lib::math, sol::lib::table, sol::lib::bit32, sol::lib::utf8, sol::lib::os);
+    m_lua.open_libraries(sol::lib::base, sol::lib::package, sol::lib::string, sol::lib::math, sol::lib::table, sol::lib::bit32,
+        sol::lib::utf8, sol::lib::os, sol::lib::coroutine);
 
     // Disable garbage collection. We will manually do it at the end of each frame.
     gc_data_changed(gc_data);

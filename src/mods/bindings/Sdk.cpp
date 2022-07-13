@@ -310,6 +310,7 @@ namespace api::sdk {
 std::vector<void*>& build_args(sol::variadic_args va);
 sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_type, bool from_method);
 sol::object get_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name);
+sol::object get_field_or_method(sol::object obj, const char* name);
 void set_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name, sol::object value);
 
 struct ValueType {
@@ -1107,6 +1108,31 @@ void hook_vtable(sol::this_state s, ::REManagedObject* obj, ::sdk::REMethodDefin
 }
 
 namespace api::re_managed_object {
+sol::object index(sol::this_state s, REManagedObject* obj, const char* name) {
+    if (obj == nullptr) {
+        return sol::make_object(s, sol::nil);
+    }
+
+    auto type_def = utility::re_managed_object::get_type_definition(obj);
+    auto field = type_def->get_field("name");
+    if (field != nullptr) {
+        return api::sdk::get_native_field_from_field(sol::make_object(s, obj), type_def, field);
+    }
+    auto method = type_def->get_method(name);
+    if (method != nullptr) {
+        return sol::make_object(s, method);
+    }
+    return sol::make_object(s, sol::nil);
+}
+
+void new_index(sol::this_state s, REManagedObject* obj, const char* name, sol::object value) {
+    if (obj == nullptr) {
+        return;
+    }
+
+    return api::sdk::set_native_field(sol::make_object(s, obj), utility::re_managed_object::get_type_definition(obj), name, value); 
+}
+
 bool is_valid_offset(::REManagedObject* obj, int32_t offset) {
     if (obj == nullptr || !::utility::re_managed_object::is_managed_object(obj)) {
         return false;
@@ -1358,6 +1384,8 @@ void bindings::open_sdk(ScriptState* s) {
 
     lua.new_usertype<::REManagedObject>("REManagedObject",
         sol::meta_function::equal_to, [s](REManagedObject* lhs, REManagedObject* rhs) { return lhs == rhs; },
+        sol::meta_function::index, &api::re_managed_object::index,
+        sol::meta_function::new_index, &api::re_managed_object::new_index,
         "add_ref", &api::re_managed_object::add_ref,
         "add_ref_permanent", &api::re_managed_object::add_ref_permanent,
         "force_release", [](sol::this_state s, ::REManagedObject* obj) {
@@ -1429,12 +1457,16 @@ void bindings::open_sdk(ScriptState* s) {
     create_managed_object_ptr_gc((::REManagedObject*)nullptr);
 
     lua.new_usertype<REComponent>("REComponent",
-        sol::base_classes, sol::bases<::REManagedObject>()
+        sol::base_classes, sol::bases<::REManagedObject>(),
+        sol::meta_function::index, &api::re_managed_object::index,
+        sol::meta_function::new_index, &api::re_managed_object::new_index
     );
 
     create_managed_object_ptr_gc((::REComponent*)nullptr);
 
     lua.new_usertype<RETransform>("RETransform",
+        sol::meta_function::index, &api::re_managed_object::index,
+        sol::meta_function::new_index, &api::re_managed_object::new_index,
         "calculate_base_transform", &utility::re_transform::calculate_base_transform,
         "calculate_tpose_pos_world", &utility::re_transform::calculate_tpose_pos_world,
         "apply_joints_tpose", [](RETransform* t, sol::object joints, uint32_t additional_parents) {
@@ -1715,6 +1747,8 @@ void bindings::open_sdk(ScriptState* s) {
     );
 
     lua.new_usertype<api::sdk::BehaviorTreeCoreHandle>("BehaviorTreeCoreHandle",
+        sol::meta_function::index, &api::re_managed_object::index,
+        sol::meta_function::new_index, &api::re_managed_object::new_index,
         sol::base_classes, sol::bases<::REManagedObject>(),
         "get_tree_object", [](api::sdk::BehaviorTreeCoreHandle* handle) {
             return ((sdk::behaviortree::CoreHandle*)handle)->get_tree_object();
@@ -1727,6 +1761,8 @@ void bindings::open_sdk(ScriptState* s) {
     create_managed_object_ptr_gc((api::sdk::BehaviorTreeCoreHandle*)nullptr);
 
     lua.new_usertype<api::sdk::BehaviorTree>("BehaviorTree",
+        sol::meta_function::index, &api::re_managed_object::index,
+        sol::meta_function::new_index, &api::re_managed_object::new_index,
         sol::base_classes, sol::bases<::REManagedObject>(),
         "get_tree", [](api::sdk::BehaviorTree* tree, uint32_t index) {
             return ((sdk::behaviortree::BehaviorTree*)tree)->get_tree<api::sdk::BehaviorTreeCoreHandle>(index);
