@@ -1114,7 +1114,7 @@ sol::object index(sol::this_state s, REManagedObject* obj, const char* name) {
     }
 
     auto type_def = utility::re_managed_object::get_type_definition(obj);
-    auto field = type_def->get_field("name");
+    auto field = type_def->get_field(name);
     if (field != nullptr) {
         return api::sdk::get_native_field_from_field(sol::make_object(s, obj), type_def, field);
     }
