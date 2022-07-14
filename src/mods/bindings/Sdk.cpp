@@ -1615,11 +1615,36 @@ void bindings::open_sdk(ScriptState* s) {
         "get_size", & C < T >::size,\
         "erase", & C < T >::erase,\
         "clear", & C < T >::clear,\
-        sol::meta_function::index, [](C < T >& arr, uint32_t i) -> T {\
-            return arr[i];\
+        sol::meta_function::index, [](sol::this_state s, C < T >& arr, uint32_t i) -> sol::object {\
+            if (i >= arr.size()) { \
+                return sol::make_object(s, sol::nil); \
+            } \
+            return sol::make_object(s, arr[i]);\
         },\
         sol::meta_function::new_index, [](C < T >& arr, uint32_t i, T value) {\
+            if (i >= arr.size()) { \
+                return; \
+            } \
             arr[i] = value;\
+        },\
+        sol::meta_function::pairs, [](sol::this_state s, sol::object arr) -> sol::variadic_results {\
+            auto next = [](sol::this_state s, C < T >& arr, sol::object k) -> sol::variadic_results {\
+                uint32_t i = k.is<sol::nil_t>() ? 0 : k.as<uint32_t>()+1;\
+                sol::variadic_results results{};\
+                if (i >= arr.size()) { \
+                    results.push_back(sol::make_object(s, sol::nil));\
+                    results.push_back(sol::make_object(s, sol::nil));\
+                    return results;\
+                } \
+                results.push_back(sol::make_object(s, i));\
+                results.push_back(sol::make_object(s, arr[i]));\
+                return results;\
+            };\
+            sol::variadic_results results{};\
+            results.push_back(sol::make_object(s, next));\
+            results.push_back(arr);\
+            results.push_back(sol::make_object(s, sol::nil));\
+            return results;\
         },\
         sol::meta_function::length, &C< T >::size\
     )
@@ -1637,10 +1662,16 @@ void bindings::open_sdk(ScriptState* s) {
         "get_size", & C < T >::size,\
         "erase", & C < T >::erase,\
         "clear", & C < T >::clear,\
-        sol::meta_function::index, [](C < T >& arr, uint32_t i) -> T* {\
-            return &arr[i];\
+        sol::meta_function::index, [](sol::this_state s, C < T >& arr, uint32_t i) -> sol::object {\
+            if (i >= arr.size()) { \
+                return sol::make_object(s, sol::nil); \
+            } \
+            return sol::make_object(s, &arr[i]);\
         },\
         sol::meta_function::new_index, [](C < T >& arr, uint32_t i, T* value) {\
+            if (i >= arr.size()) { \
+                return; \
+            } \
             arr[i] = *value;\
         },\
         sol::meta_function::length, &C< T >::size\
@@ -1660,10 +1691,16 @@ void bindings::open_sdk(ScriptState* s) {
         "get_size", & C < T >::size,\
         "erase", & C < T >::erase,\
         "clear", & C < T >::clear,\
-        sol::meta_function::index, [](C < T >& arr, uint32_t i) -> T {\
-            return arr[i];\
+        sol::meta_function::index, [](sol::this_state s, C < T >& arr, uint32_t i) -> sol::object {\
+            if (i >= arr.size()) { \
+                return sol::make_object(s, sol::nil); \
+            } \
+            return sol::make_object(s, arr[i]);\
         },\
         sol::meta_function::new_index, [](C < T >& arr, uint32_t i, T value) {\
+            if (i >= arr.size()) { \
+                return; \
+            } \
             arr[i] = value;\
         },\
         sol::meta_function::length, &C< T >::size\
