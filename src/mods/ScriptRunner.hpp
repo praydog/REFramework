@@ -46,6 +46,12 @@ template<typename T>
 struct NativeArrayNoCapacity;
 }
 
+namespace sdk {
+class REMethodDefinition;
+class RETypeDefinition;
+class REField;
+}
+
 class REManagedObject;
 class RETransform;
 
@@ -54,7 +60,10 @@ template<typename T>
 concept ManagedObjectBased = std::is_base_of_v<::REManagedObject, T> || std::is_base_of_v<regenny::via::clr::ManagedObject, T>;
 
 template<typename T>
-concept CachedUserType = std::is_base_of_v<::sdk::behaviortree::TreeNode, T>
+concept CachedUserType = std::is_base_of_v<sdk::RETypeDefinition, T> 
+                         || std::is_base_of_v<sdk::REMethodDefinition, T>
+                         || std::is_base_of_v<sdk::REField, T>
+                         || std::is_base_of_v<::sdk::behaviortree::TreeNode, T>
                          || std::is_base_of_v<::sdk::behaviortree::TreeNodeData, T>
                          || std::is_base_of_v<::sdk::behaviortree::TreeObject, T>
                          || std::is_base_of_v<::sdk::behaviortree::TreeObjectData, T>
