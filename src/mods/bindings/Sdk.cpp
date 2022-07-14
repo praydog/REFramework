@@ -1500,7 +1500,7 @@ void bindings::open_sdk(ScriptState* s) {
     create_managed_object_ptr_gc((::RETransform*)nullptr);
 
     lua.new_usertype<sdk::SystemArray>("SystemArray",
-        "get_size", &sdk::SystemArray::size,
+        "get_size", &sdk::SystemArray::get_size,
         "get_element", &sdk::SystemArray::get_element,
         "get_elements", &sdk::SystemArray::get_elements,
         sol::meta_function::index, [](sdk::SystemArray* arr, int32_t index) {
@@ -1511,6 +1511,41 @@ void bindings::open_sdk(ScriptState* s) {
         },
         sol::base_classes, sol::bases<::REManagedObject>()
     );
+
+    sol::function old_ipairs = lua["ipairs"];
+
+    lua["ipairs"] = [=](sol::this_state s, sol::object obj) -> sol::variadic_results  {
+        if (obj.is<sdk::SystemArray*>()) {
+            auto arr = obj.as<sdk::SystemArray*>();
+            const auto array_size = arr->get_size();
+            
+            auto iter = [=](sol::object obj, int32_t i) -> sol::variadic_results {
+                i = i + 1;
+
+                auto arr = obj.as<sdk::SystemArray*>();
+
+                sol::variadic_results results{};
+                if (i >= array_size) {
+                    results.push_back(sol::make_object(s, sol::nil));
+                    results.push_back(sol::make_object(s, sol::nil));
+                    return results;
+                }
+
+                results.push_back(sol::make_object(s, i));
+                results.push_back(sol::make_object(s, arr->get_element(i)));
+                return results;
+            };
+
+            sol::variadic_results results{};
+            results.push_back(sol::make_object(s, iter));
+            results.push_back(obj);
+            results.push_back(sol::make_object(s, -1));
+
+            return results;
+        }
+
+        return old_ipairs(obj);
+    };
 
     create_managed_object_ptr_gc((sdk::SystemArray*)nullptr);
     
