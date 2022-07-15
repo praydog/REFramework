@@ -327,6 +327,7 @@ ObjectExplorer::ObjectExplorer()
 {
     m_type_name.reserve(256);
     m_type_member.reserve(256);
+    m_type_field.reserve(256);
     m_object_address.reserve(256);
     m_add_component_name.reserve(256);
 }
