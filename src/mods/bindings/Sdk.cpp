@@ -275,7 +275,17 @@ int sol_lua_push(sol::types<T*>, lua_State* l, T* obj) {
     if (obj != nullptr) {
         // this is a weak table, so we don't need to set the index to nil when the object is no longer referenced
         auto sv = sol::state_view{l};
-        sol::lua_table objects = sv["_sol_lua_push_objects"];
+        sol::lua_table objects_top  = sv["_sol_lua_push_usertypes"];
+        constexpr auto function_sig = utility::hash(__FUNCSIG__);
+
+        if (sol::object obj = objects_top[function_sig]; obj.is<sol::nil_t>()) {
+            spdlog::info("About to create a weak table for usertype {}", __FUNCSIG__);
+            sol::object res = sv.load("return setmetatable({}, { __mode = \"v\" })")();
+            objects_top[function_sig] = res;
+            spdlog::info("Created a weak table for usertype {}", __FUNCSIG__);
+        }
+
+        sol::lua_table objects = objects_top[function_sig];
 
         if (sol::object lua_obj = objects[(uintptr_t)obj]; !lua_obj.is<sol::nil_t>()) {
             // renew the reference so it doesn't get collected
@@ -1183,6 +1193,7 @@ void bindings::open_sdk(ScriptState* s) {
     //lua["_sol_lua_push_objects"] = std::unordered_map<::REManagedObject*, sol::object>();
     lua.do_string(R"(
         _sol_lua_push_objects = setmetatable({}, { __mode = "v" })
+        _sol_lua_push_usertypes = {}
         _sol_lua_push_ref_counts = {}
         _sol_lua_push_ephemeral_counts = {}
     )");
