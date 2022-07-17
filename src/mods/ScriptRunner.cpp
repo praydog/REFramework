@@ -197,8 +197,18 @@ ScriptState::ScriptState(const ScriptState::GarbageCollectionData& gc_data) {
                 return lhs * rhs;
             }
         ),
-        sol::meta_function::index, [](Matrix4x4f& lhs, int index) -> Vector4f& {
-            return lhs[index];
+        sol::meta_function::index, [](sol::this_state s, Matrix4x4f& lhs, sol::object index_obj) -> sol::object {
+            if (!index_obj.is<int>()) {
+                return sol::make_object(s, sol::lua_nil);
+            }
+
+            const auto index = index_obj.as<int>();
+
+            if (index >= 4) {
+                return sol::make_object(s, sol::lua_nil);
+            }
+
+            return sol::make_object(s, &lhs[index]);
         },
         sol::meta_function::new_index, [](Matrix4x4f& lhs, int index, Vector4f& rhs) {
             lhs[index] = rhs;
@@ -235,8 +245,18 @@ ScriptState::ScriptState(const ScriptState::GarbageCollectionData& gc_data) {
                 return lhs * rhs;
             }
         ),
-        sol::meta_function::index, [](glm::quat& lhs, int index) -> float& {
-            return lhs[index];
+        sol::meta_function::index, [](sol::this_state s, glm::quat& lhs, sol::object index_obj) -> sol::object {
+            if (!index_obj.is<int>()) {
+                return sol::make_object(s, sol::lua_nil);
+            }
+
+            const auto index = index_obj.as<int>();
+
+            if (index >= 4) {
+                return sol::make_object(s, sol::lua_nil);
+            }
+
+            return sol::make_object(s, lhs[index]);
         },
         sol::meta_function::new_index, [](glm::quat& lhs, int index, float rhs) {
             lhs[index] = rhs;
