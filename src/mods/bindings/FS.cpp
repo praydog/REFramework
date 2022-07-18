@@ -1,5 +1,6 @@
 #include <filesystem>
 #include <regex>
+#include <fstream>
 
 #include "../ScriptRunner.hpp"
 
@@ -44,6 +45,35 @@ sol::table glob(sol::this_state l, const char* filter) {
 
     return results;
 }
+
+void write(sol::this_state l, const std::string& filepath, const std::string& data) {
+    if (filepath.find("..") != std::string::npos) {
+        throw std::runtime_error{"fs.write does not allow access to parent directories"};
+    }
+
+    auto path = detail::get_datadir() / filepath;
+
+    std::ofstream file{path};
+
+    file << data;
+}
+
+std::string read(sol::this_state l, const std::string& filepath) {
+    if (filepath.find("..") != std::string::npos) {
+        throw std::runtime_error{"fs.read does not allow access to parent directories"};
+    }
+
+    auto path = detail::get_datadir() / filepath;
+
+    if (!exists(path)) {
+        return "";
+    }
+
+    std::ifstream file{path};
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    return buffer.str();
+}
 }
 
 void bindings::open_fs(ScriptState* s) {
@@ -51,5 +81,7 @@ void bindings::open_fs(ScriptState* s) {
     auto fs = lua.create_table();
 
     fs["glob"] = api::fs::glob;
+    fs["write"] = api::fs::write;
+    fs["read"] = api::fs::read;
     lua["fs"] = fs;
 }
