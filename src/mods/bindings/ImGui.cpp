@@ -409,6 +409,14 @@ int load_font(sol::object filepath_obj, int size, sol::object ranges) {
         filepath = filepath_obj.as<const char*>();
     }
 
+    if (std::filesystem::path(filepath).is_absolute()) {
+        throw std::runtime_error("Font filepath must not be absolute.");
+    }
+
+    if (std::string{filepath}.find("..") != std::string::npos) {
+        throw std::runtime_error("Font filepath cannot access parent directories.");
+    }
+
     std::string modpath{};
 
     modpath.resize(1024, 0);
