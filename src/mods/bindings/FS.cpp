@@ -53,6 +53,11 @@ void write(sol::this_state l, const std::string& filepath, const std::string& da
         lua_error(l);
     }
 
+    if (std::filesystem::path(filepath).is_absolute()) {
+        lua_pushstring(l, "fs.write does not allow the use of absolute paths");
+        lua_error(l);
+    }
+
     auto path = detail::get_datadir() / filepath;
 
     std::ofstream file{path};
@@ -64,6 +69,11 @@ std::string read(sol::this_state l, const std::string& filepath) {
     if (filepath.find("..") != std::string::npos) {
         //throw sol::error{"fs.read does not allow access to parent directories"};
         lua_pushstring(l, "fs.read does not allow access to parent directories");
+        lua_error(l);
+    }
+
+    if (std::filesystem::path(filepath).is_absolute()) {
+        lua_pushstring(l, "fs.read does not allow the use of absolute paths");
         lua_error(l);
     }
 
@@ -98,6 +108,12 @@ void bindings::open_fs(ScriptState* s) {
     io["open"] = [=](sol::this_state l, const std::string& filepath, sol::object mode) -> sol::object {
         if (filepath.find("..") != std::string::npos) {
             lua_pushstring(l, "io.open does not allow access to parent directories");
+            lua_error(l);
+            return sol::make_object(l, sol::nil);
+        }
+
+        if (std::filesystem::path(filepath).is_absolute()) {
+            lua_pushstring(l, "io.open does not allow the use of absolute paths");
             lua_error(l);
             return sol::make_object(l, sol::nil);
         }
@@ -154,6 +170,12 @@ void bindings::open_fs(ScriptState* s) {
             return sol::make_object(l, sol::nil);
         }
 
+        if (std::filesystem::path(filepath).is_absolute()) {
+            lua_pushstring(l, "io.lines does not allow the use of absolute paths");
+            lua_error(l);
+            return sol::make_object(l, sol::nil);
+        }
+
         auto path = api::fs::detail::get_datadir() / filepath;
 
         return old_lines(path.string().c_str());
@@ -180,6 +202,12 @@ void bindings::open_fs(ScriptState* s) {
             return sol::make_object(l, sol::nil);
         }
 
+        if (std::filesystem::path(filepath).is_absolute()) {
+            lua_pushstring(l, "io.input does not allow the use of absolute paths");
+            lua_error(l);
+            return sol::make_object(l, sol::nil);
+        }
+
         auto path = api::fs::detail::get_datadir() / filepath;
 
         return old_input(path.string().c_str());
@@ -202,6 +230,12 @@ void bindings::open_fs(ScriptState* s) {
 
         if (filepath.find("..") != std::string::npos) {
             lua_pushstring(l, "io.output: does not allow access to parent directories");
+            lua_error(l);
+            return sol::make_object(l, sol::nil);
+        }
+
+        if (std::filesystem::path(filepath).is_absolute()) {
+            lua_pushstring(l, "io.output does not allow the use of absolute paths");
             lua_error(l);
             return sol::make_object(l, sol::nil);
         }
