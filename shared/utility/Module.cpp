@@ -117,6 +117,18 @@ namespace utility {
         return filename;
     }
 
+    HMODULE load_module_from_current_directory(const std::wstring& module) {
+        const auto current_path = get_module_directoryw(get_executable());
+
+        if (!current_path) {
+            return nullptr;
+        }
+
+        auto fspath = std::filesystem::path{ *current_path } / module;
+
+        return LoadLibraryW(fspath.c_str());
+    }
+
     std::vector<uint8_t> read_module_from_disk(HMODULE module) {
         auto path = get_module_path(module);
 
