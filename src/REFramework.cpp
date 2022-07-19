@@ -212,8 +212,8 @@ REFramework::REFramework(HMODULE reframework_module)
     }
 
 #ifdef MHRISE
-    LoadLibraryA("openvr_api.dll");
-    LoadLibraryA("openxr_loader.dll");
+    utility::load_module_from_current_directory(L"openvr_api.dll");
+    utility::load_module_from_current_directory(L"openxr_loader.dll");
     LoadLibraryA("dxgi.dll");
     LoadLibraryA("d3d11.dll");
     utility::spoof_module_paths_in_exe_dir();

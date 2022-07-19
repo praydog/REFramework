@@ -25,7 +25,7 @@ namespace utility {
     std::optional<std::string> get_module_path(HMODULE module);
     std::optional<std::string> get_module_directory(HMODULE module);
     std::optional<std::wstring> get_module_directoryw(HMODULE module);
-
+    HMODULE load_module_from_current_directory(const std::wstring& module);
 
     std::vector<uint8_t> read_module_from_disk(HMODULE module);
 
