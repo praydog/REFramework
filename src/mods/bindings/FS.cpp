@@ -1,24 +1,25 @@
 #include <filesystem>
 #include <regex>
 #include <fstream>
+#include <filesystem>
 
 #include "../ScriptRunner.hpp"
 
 #include "FS.hpp"
 
-namespace api::fs {
-using namespace std::filesystem;
+namespace fs = std::filesystem;
 
+namespace api::fs {
 namespace detail {
-path get_datadir() {
+::fs::path get_datadir() {
     std::string modpath{};
 
     modpath.resize(1024, 0);
     modpath.resize(GetModuleFileName(nullptr, modpath.data(), modpath.size()));
 
-    auto datadir = path{modpath}.parent_path() / "reframework" / "data";
+    auto datadir = ::fs::path{modpath}.parent_path() / "reframework" / "data";
 
-    create_directories(datadir);
+    ::fs::create_directories(datadir);
 
     return datadir;
 }
@@ -31,7 +32,7 @@ sol::table glob(sol::this_state l, const char* filter) {
     auto datadir = detail::get_datadir();
     auto i = 0;
 
-    for (const auto& entry : recursive_directory_iterator{datadir}) {
+    for (const auto& entry : ::fs::recursive_directory_iterator{datadir}) {
         if (!entry.is_regular_file()) {
             continue;
         }
@@ -55,6 +56,8 @@ void write(sol::this_state l, const std::string& filepath, const std::string& da
 
     auto path = detail::get_datadir() / filepath;
 
+    ::fs::create_directories(path.parent_path());
+
     std::ofstream file{path};
 
     file << data;
@@ -72,6 +75,8 @@ std::string read(sol::this_state l, const std::string& filepath) {
     if (!exists(path)) {
         return "";
     }
+
+    ::fs::create_directories(path.parent_path());
 
     std::ifstream file{path};
     std::stringstream buffer;
@@ -103,6 +108,8 @@ void bindings::open_fs(ScriptState* s) {
         }
 
         auto path = api::fs::detail::get_datadir() / filepath;
+
+        fs::create_directories(path.parent_path());
 
         return old_open(path.string().c_str(), mode);
     };
@@ -156,6 +163,8 @@ void bindings::open_fs(ScriptState* s) {
 
         auto path = api::fs::detail::get_datadir() / filepath;
 
+        ::fs::create_directories(path.parent_path());
+
         return old_lines(path.string().c_str());
     };
 
@@ -182,6 +191,8 @@ void bindings::open_fs(ScriptState* s) {
 
         auto path = api::fs::detail::get_datadir() / filepath;
 
+        ::fs::create_directories(path.parent_path());
+
         return old_input(path.string().c_str());
     };
 
@@ -207,6 +218,8 @@ void bindings::open_fs(ScriptState* s) {
         }
 
         auto path = api::fs::detail::get_datadir() / filepath;
+
+        ::fs::create_directories(path.parent_path());
 
         return old_output(path.string().c_str());
     };
