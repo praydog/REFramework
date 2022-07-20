@@ -1811,7 +1811,8 @@ void bindings::open_sdk(ScriptState* s) {
         "get_static_action_count", &::sdk::behaviortree::TreeObject::get_static_action_count,
         "get_static_condition_count", &::sdk::behaviortree::TreeObject::get_static_condition_count,
         "get_static_transition_count", &::sdk::behaviortree::TreeObject::get_static_transition_count,
-        "relocate", &::sdk::behaviortree::TreeObject::relocate
+        "relocate", &::sdk::behaviortree::TreeObject::relocate,
+        "get_uservariable_hub", &::sdk::behaviortree::TreeObject::get_uservariable_hub
     );
 
     lua.new_usertype<api::sdk::BehaviorTreeCoreHandle>("BehaviorTreeCoreHandle",

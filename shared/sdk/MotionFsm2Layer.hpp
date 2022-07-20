@@ -221,6 +221,7 @@ public:
 class TreeObject : public regenny::via::behaviortree::TreeObject {
 public:
     void relocate(uintptr_t old_start, uintptr_t old_end, sdk::NativeArrayNoCapacity<TreeNode>& new_nodes);
+    ::REManagedObject* get_uservariable_hub() const;
 
     sdk::behaviortree::TreeObjectData* get_data() const {
         return (sdk::behaviortree::TreeObjectData*)this->data;
