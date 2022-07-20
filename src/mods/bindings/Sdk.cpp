@@ -1779,6 +1779,7 @@ void bindings::open_sdk(ScriptState* s) {
         "get_static_actions", &::sdk::behaviortree::TreeObjectData::get_static_actions,
         "get_static_conditions", &::sdk::behaviortree::TreeObjectData::get_static_conditions,
         "get_static_transitions", &::sdk::behaviortree::TreeObjectData::get_static_transitions,
+        "get_expression_tree_conditions", &::sdk::behaviortree::TreeObjectData::get_expression_tree_conditions,
         "get_action_methods", &::sdk::behaviortree::TreeObjectData::get_action_methods,
         "get_static_action_methods", &::sdk::behaviortree::TreeObjectData::get_static_action_methods
     );

@@ -205,6 +205,10 @@ public:
         return *(sdk::NativeArray<::REManagedObject*>*)&this->static_transitions;
     }
 
+    sdk::NativeArray<::REManagedObject*>& get_expression_tree_conditions() {
+        return *(sdk::NativeArray<::REManagedObject*>*)&this->expression_tree_conditions;
+    }
+
     sdk::NativeArrayNoCapacity<uint8_t>& get_action_methods() {
         return *(sdk::NativeArrayNoCapacity<uint8_t>*)&this->action_methods;
     }
