@@ -257,7 +257,7 @@ namespace utility {
         return module;
     }
 
-    void foreach_module(std::function<void(LIST_ENTRY*, _LDR_DATA_TABLE_ENTRY*)> callback) {
+    void foreach_module(std::function<void(LIST_ENTRY*, _LDR_DATA_TABLE_ENTRY*)> callback) try {
         if (!callback) {
             return;
         }
@@ -283,6 +283,10 @@ namespace utility {
 
             callback(entry, ldr_entry);
         }
+    } catch(std::exception& e) {
+        spdlog::error("[PEB] exception while iterating modules: {}", e.what());
+    } catch(...) {
+        spdlog::error("[PEB] unexpected exception while iterating modules. Continuing...");
     }
 
     size_t get_module_count(std::wstring_view name) {
@@ -339,10 +343,10 @@ namespace utility {
     std::unordered_set<std::wstring> g_skipped_paths{};
     std::mutex g_spoof_mutex{};
 
-    void spoof_module_paths_in_exe_dir() {
+    void spoof_module_paths_in_exe_dir() try {
         std::scoped_lock _{g_spoof_mutex};
 
-        wchar_t system_dir[MAX_PATH]{0};
+        wchar_t system_dir[MAX_PATH+1]{0};
         GetSystemDirectoryW(system_dir, MAX_PATH);
 
         // to lower
@@ -362,7 +366,12 @@ namespace utility {
                 return;
             }
 
-            wchar_t* previous_name = nullptr;
+            if (IsBadReadPtr(ldr_entry->FullDllName.Buffer, ldr_entry->FullDllName.Length)) {
+                spdlog::error("[!] Failed to read module name, continuing...", (uintptr_t)ldr_entry);
+                return;
+            }
+
+            std::wstring previous_name{};
 
             try {
                 if (ldr_entry != nullptr) {
@@ -373,23 +382,13 @@ namespace utility {
                 return;
             }
 
-            if (IsBadReadPtr(ldr_entry->FullDllName.Buffer, ldr_entry->FullDllName.Length)) {
-                spdlog::error("[!] Failed to read module name, continuing...", (uintptr_t)ldr_entry);
-                return;
-            }
-
             try {
                 if (ldr_entry->DllBase == current_exe) {
                     return;
                 }
 
-                wchar_t lower_name[MAX_PATH+1]{0};
-                std::transform(
-                            ldr_entry->FullDllName.Buffer, 
-                            ldr_entry->FullDllName.Buffer + std::min<USHORT>(ldr_entry->FullDllName.Length / sizeof(wchar_t), MAX_PATH), 
-                            lower_name, ::towlower);
-
-                lower_name[MAX_PATH] = 0;
+                std::wstring lower_name = ldr_entry->FullDllName.Buffer;
+                std::transform(lower_name.begin(), lower_name.end(), lower_name.begin(), ::towlower);
 
                 const auto path = std::filesystem::path{lower_name};
 
@@ -419,25 +418,29 @@ namespace utility {
 
                 spdlog::info("Creating new node for {} (0x{:x})", utility::narrow(lower_name), (uintptr_t)ldr_entry->DllBase);
 
-                auto final_chars = new wchar_t[MAX_PATH+1]{ 0 };
+                const auto size = std::max<int32_t>(MAX_PATH+1, new_path.size()+1);
+                auto final_chars = new wchar_t[size]{ 0 };
 
                 memcpy(final_chars, new_path.data(), new_path.size() * sizeof(wchar_t));
                 final_chars[new_path.size()] = 0;
-                final_chars[MAX_PATH] = 0;
 
                 ldr_entry->FullDllName.Buffer = final_chars;
                 ldr_entry->FullDllName.Length = new_path.size() * sizeof(wchar_t);
-                ldr_entry->FullDllName.MaximumLength = MAX_PATH * sizeof(wchar_t);
+                ldr_entry->FullDllName.MaximumLength = size * sizeof(wchar_t);
 
                 spdlog::info("Done {} -> {}", utility::narrow(path.wstring()), utility::narrow(new_path));
             } catch (...) {
-                if (previous_name != nullptr) {
+                if (!previous_name.empty()) {
                     spdlog::error("Failed {}", utility::narrow(previous_name));
                 } else {
                     spdlog::error("Failed to read module name (2), continuing...");
                 }
             }
         });
+    } catch(std::exception& e) {
+        spdlog::error("Exception in spoof_module_paths_in_exe_dir {}", e.what());
+    } catch(...) {
+        spdlog::error("Unexpected error in spoof_module_paths_in_exe_dir. Continuing...");
     }
 
     optional<uintptr_t> ptr_from_rva(uint8_t* dll, uintptr_t rva) {
