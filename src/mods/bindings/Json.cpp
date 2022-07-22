@@ -19,8 +19,17 @@ json encode_any(sol::object obj) {
         return json{};
     case sol::type::boolean:
         return obj.as<bool>();
-    case sol::type::number:
+    case sol::type::number: {
+        obj.push();
+        if (lua_isinteger(obj.lua_state(), -1)) {
+            obj.pop();
+            return obj.as<int64_t>();
+        }
+        
+        obj.pop();
+        
         return obj.as<double>();
+    }
     case sol::type::string:
         return obj.as<std::string>();
     case sol::type::table: {
