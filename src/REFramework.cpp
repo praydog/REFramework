@@ -1265,6 +1265,7 @@ bool REFramework::initialize() {
 #ifdef MHRISE
             utility::spoof_module_paths_in_exe_dir();
 #endif
+            spdlog::info("Game data initialization thread finished");
         });
 
         init_thread.detach();
