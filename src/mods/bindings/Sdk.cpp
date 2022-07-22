@@ -454,6 +454,10 @@ struct MemoryView {
     uintptr_t address() const {
         return (uintptr_t)data;
     }
+
+    void wipe() {
+        memset(data, 0, size);
+    }
 };
 
 void* get_thread_context() {
@@ -1582,7 +1586,9 @@ void bindings::open_sdk(ScriptState* s) {
         "read_float", &api::sdk::MemoryView::read_memory<float>,
         "read_double", &api::sdk::MemoryView::read_memory<double>,
         "address", &api::sdk::MemoryView::address,
-        "get_address", &api::sdk::MemoryView::address
+        "get_address", &api::sdk::MemoryView::address,
+        "wipe", &api::sdk::MemoryView::wipe,
+        "size", &api::sdk::MemoryView::size
     );
 
     lua.new_usertype<::sdk::Resource>("REResource",
