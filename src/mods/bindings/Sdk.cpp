@@ -1824,6 +1824,9 @@ void bindings::open_sdk(ScriptState* s) {
         },
         "relocate", [](api::sdk::BehaviorTreeCoreHandle* handle, uintptr_t old_start, uintptr_t old_end, sdk::NativeArrayNoCapacity<sdk::behaviortree::TreeNode>& new_nodes) {
             ((sdk::behaviortree::CoreHandle*)handle)->relocate(old_start, old_end, new_nodes);
+        },
+        "relocate_datas", [](api::sdk::BehaviorTreeCoreHandle* handle, uintptr_t old_start, uintptr_t old_end, sdk::NativeArrayNoCapacity<sdk::behaviortree::TreeNodeData>& new_nodes) {
+            ((sdk::behaviortree::CoreHandle*)handle)->relocate_datas(old_start, old_end, new_nodes);
         }
     );
 

@@ -1,5 +1,7 @@
 #include <spdlog/spdlog.h>
 
+#include <utility/Memory.hpp>
+
 #include "RETypeDB.hpp"
 #include "REType.hpp"
 #include "REContext.hpp"
@@ -300,48 +302,17 @@ void TreeNode::remove_action(uint32_t index) {
 }
 
 void TreeNode::relocate(uintptr_t old_start, uintptr_t old_end, uintptr_t new_start) {
-    auto fix_ptrs = [&](uintptr_t base, size_t size) {
-        for (auto i = 0; i < size; i += sizeof(void*)) {
-            if (IsBadReadPtr((void*)(base + i), sizeof(uintptr_t))) {
-                break;
-            }
-
-            auto& ptr = *(uintptr_t*)(base + i);
-
-            if (ptr >= old_start && ptr < old_end) {
-                ptr = new_start + (ptr - old_start);
-            } else {
-                if (ptr != 0 && !IsBadReadPtr((void*)ptr, sizeof(uintptr_t))) {
-                    try {
-                        // Dereference pointer and scan through it assuming it's an array, fixing the pointers.
-                        for (auto j = 0; j < 0x1000; j += sizeof(void*)) {
-                            auto& ptr2 = *(uintptr_t*)((uintptr_t)ptr + j);
-
-                            if (ptr2 >= old_start && ptr2 < old_end) {
-                                ptr2 = new_start + (ptr2 - old_start);
-                            }
-                        }
-                    } catch(...) {
-                        
-                    }
-                }
-            }
-        }
-    };
-
     auto selector = (::REManagedObject*)get_selector();
 
     if (selector != nullptr && utility::re_managed_object::is_managed_object(selector)) {
         const auto td = utility::re_managed_object::get_type_definition(selector);
 
         if (td != nullptr) {
-            return;
+            utility::relocate_pointers((uint8_t*)selector, old_start, old_end, new_start, 1, sizeof(void*), td->get_size());
         }
-
-        fix_ptrs((uintptr_t)selector, td->get_size());
     }
 
-    fix_ptrs((uintptr_t)this, sizeof(*this));
+    utility::relocate_pointers((uint8_t*)this, old_start, old_end, new_start, 0, sizeof(void*), sizeof(*this));
 }
 
 void BehaviorTree::set_current_node(sdk::behaviortree::TreeNode* node, uint32_t tree_idx, void* set_node_info) {
@@ -373,11 +344,29 @@ void TreeObject::relocate(uintptr_t old_start, uintptr_t old_end, sdk::NativeArr
     const auto new_start = (uintptr_t)new_nodes.begin();
     const auto new_end = (uintptr_t)new_nodes.end();
 
+    //utility::relocate_pointers((uint8_t*)old_start, old_start, old_end, new_start, 1, sizeof(void*), old_start - old_end);
+    //utility::relocate_pointers((uint8_t*)new_start, old_start, old_end, new_start, 0, sizeof(void*), new_end - new_start);
+
     for (auto& node : new_nodes) {
         node.relocate(old_start, old_end, new_start);
     }
 
+    utility::relocate_pointers((uint8_t*)this, old_start, old_end, new_start, 1, sizeof(void*), sizeof(*this));
+
     this->root_node = new_nodes.begin();
+}
+
+void TreeObject::relocate_datas(uintptr_t old_start, uintptr_t old_end, sdk::NativeArrayNoCapacity<TreeNodeData>& new_nodes) {
+    const auto new_start = (uintptr_t)new_nodes.begin();
+    const auto new_end = (uintptr_t)new_nodes.end();
+
+    // This ISN'T the data. This is the actual nodes. Inside of the nodes contains a pointer to the data
+    // Which we need to fix.
+    const auto& actual_nodes = this->get_node_array();
+
+    // Fix the pointers that point to the data inside of the nodes.
+    utility::relocate_pointers((uint8_t*)actual_nodes.begin(), old_start, old_end, new_start, 1, sizeof(void*), actual_nodes.size() * sizeof(TreeNode));
+    utility::relocate_pointers((uint8_t*)this, old_start, old_end, new_start, 1, sizeof(void*), sizeof(*this));
 }
 
 ::REManagedObject* TreeObject::get_uservariable_hub() const {
@@ -410,30 +399,16 @@ void CoreHandle::relocate(uintptr_t old_start, uintptr_t old_end, sdk::NativeArr
 
     this->get_tree_object()->relocate(old_start, old_end, new_nodes);
 
-    for (auto i = 0; i < sizeof(CoreHandle); i += sizeof(void*)) {
-        try {
-            auto& ptr = *(uintptr_t*)((uintptr_t)this + i);
+    utility::relocate_pointers((uint8_t*)this, old_start, old_end, new_start, 1, sizeof(void*), sizeof(*this));
+}
 
-            if (ptr >= old_start && ptr < old_end) {
-                ptr = new_start + (ptr - old_start);
-            } else {
-                if (ptr != 0 && !IsBadReadPtr((void*)ptr, sizeof(uintptr_t))) {
-                    try {
-                        // Dereference pointer and scan through it assuming it's an array, fixing the pointers.
-                        for (auto j = 0; j < 0x1000; j += sizeof(void*)) {
-                            auto& ptr2 = *(uintptr_t*)((uintptr_t)ptr + j);
+void CoreHandle::relocate_datas(uintptr_t old_start, uintptr_t old_end, sdk::NativeArrayNoCapacity<TreeNodeData>& new_nodes) {
+    const auto new_start = (uintptr_t)new_nodes.begin();
+    const auto new_end = (uintptr_t)new_nodes.end();
 
-                            if (ptr2 >= old_start && ptr2 < old_end) {
-                                ///ptr2 = new_start + (ptr2 - old_start);
-                            }
-                        }
-                    } catch(...) {
-                        
-                    }
-                }
-            }
-        } catch (...) {}
-    }
+    this->get_tree_object()->relocate_datas(old_start, old_end, new_nodes);
+
+    utility::relocate_pointers((uint8_t*)this, old_start, old_end, new_start, 1, sizeof(void*), sizeof(*this));
 }
 
 ::REManagedObject* TreeObject::get_action(uint32_t index) const {
