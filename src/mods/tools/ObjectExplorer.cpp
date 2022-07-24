@@ -861,6 +861,24 @@ void ObjectExplorer::generate_sdk() {
                 type_entry["native_typename"] = type_info->name;
             }
         }
+
+        const auto generics = t.get_generic_argument_types();
+
+        if (!generics.empty()) {
+            for (auto gt : generics) {
+                if (gt != nullptr) {
+                    type_entry["generic_arg_types"].push_back({
+                        {"type", gt->get_full_name()},
+                        {"typeid", gt->get_index()}
+                    });
+                } else {
+                    type_entry["generic_arg_types"].push_back({
+                        {"type", "unknown"},
+                        {"typeid", 0}
+                    });
+                }
+            }
+        }
     }
 
     m_sdk_dump_stage = SdkDumpStage::DUMP_RSZ;

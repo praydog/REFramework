@@ -442,6 +442,31 @@ std::vector<sdk::REMethodDefinition*> RETypeDefinition::get_methods(std::string_
     return out;
 }
 
+std::vector<sdk::RETypeDefinition*> RETypeDefinition::get_generic_argument_types() const {
+    std::vector<sdk::RETypeDefinition*> out{};
+
+#if TDB_VER > 49
+    if (this->generics > 0) {
+        const auto tdb = sdk::RETypeDB::get();
+        auto generics = tdb->get_data<sdk::GenericListData>(this->generics);
+
+        if (generics->num > 0) {
+            for (uint32_t f = 0; f < generics->num; ++f) {
+                auto gtypeid = generics->types[f];
+
+                if (gtypeid > 0 && gtypeid < tdb->numTypes) {
+                    out.push_back(tdb->get_type(gtypeid)); // This COULD be null. we aren't going to skip it because it's important to know the index of the generic type
+                } else {
+                    out.push_back(nullptr);
+                }
+            }
+        }
+    }
+#endif
+
+    return out;
+}
+
 uint32_t RETypeDefinition::get_index() const {
 #if TDB_VER > 49
     return this->index;
