@@ -854,7 +854,21 @@ void set_data(void* data, ::sdk::RETypeDefinition* data_type, sol::object& value
             return;
         default:
             if (vm_obj_type > via::clr::VMObjType::NULL_ && vm_obj_type < via::clr::VMObjType::ValType) {
-                *(::REManagedObject**)data = value.as<::REManagedObject*>();
+                REManagedObject* new_data;
+                if (value.is<const char*>()) {
+                    new_data = ::sdk::VM::create_managed_string(utility::widen(value.as<const char*>()));
+                } else {
+                    new_data = value.as<::REManagedObject*>();
+                }
+
+                REManagedObject** field = (REManagedObject**) data;
+                if (field != nullptr && *field != nullptr) {
+                    utility::re_managed_object::release(*field);
+                }
+                if (new_data != nullptr) {
+                    utility::re_managed_object::add_ref(new_data);
+                }
+                *(REManagedObject**) data = new_data;
                 return;
             }
         }
