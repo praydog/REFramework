@@ -878,7 +878,7 @@ void set_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const char* 
     const auto field = ty->get_field(name);
 
     if (field == nullptr) {
-        return;
+        throw sol::error("Attempted to set invalid REManagedObject field:" + std::string(name));
     }
 
     const auto field_type = field->get_type();
@@ -1054,7 +1054,7 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::protected_funct
 namespace api::re_managed_object {
 sol::object index(sol::this_state s, REManagedObject* obj, const char* name) {
     if (obj == nullptr) {
-        return sol::make_object(s, sol::nil);
+        throw sol::error("Attempted to index null REManagedObject");
     }
 
     auto type_def = utility::re_managed_object::get_type_definition(obj);
@@ -1066,7 +1066,7 @@ sol::object index(sol::this_state s, REManagedObject* obj, const char* name) {
     if (method != nullptr) {
         return sol::make_object(s, method);
     }
-    return sol::make_object(s, sol::nil);
+    throw sol::error("Attempted to index invalid REManagedObject field: " + std::string(name));
 }
 
 void new_index(sol::this_state s, REManagedObject* obj, const char* name, sol::object value) {
