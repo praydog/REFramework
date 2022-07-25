@@ -1792,6 +1792,7 @@ void bindings::open_sdk(ScriptState* s) {
         "to_valuetype", [](::sdk::behaviortree::TreeNode* node) {
             return *node;
         },
+        "id", &::sdk::behaviortree::TreeNode::id,
         "get_id", &::sdk::behaviortree::TreeNode::get_id,
         "get_data", &::sdk::behaviortree::TreeNode::get_data,
         "get_owner", &::sdk::behaviortree::TreeNode::get_owner,
@@ -1808,7 +1809,10 @@ void bindings::open_sdk(ScriptState* s) {
         "get_start_states", &::sdk::behaviortree::TreeNode::get_start_states,
         "get_status1", &::sdk::behaviortree::TreeNode::get_status1,
         "get_status2", &::sdk::behaviortree::TreeNode::get_status2,
-        "relocate", &::sdk::behaviortree::TreeNode::relocate
+        "relocate", &::sdk::behaviortree::TreeNode::relocate,
+        "get_selector", [](sol::this_state s, ::sdk::behaviortree::TreeNode* node) {
+            return sol::make_object(s, (::REManagedObject*)node->get_selector());
+        }
     );
 
     DYNAMIC_ARRAY_NOCAP_TYPE_REF(::sdk::behaviortree::TreeNode, "DynamicArrayNoCapacityTreeNode");
