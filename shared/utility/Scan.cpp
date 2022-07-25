@@ -31,6 +31,22 @@ namespace utility {
         return p.find(start, length);
     }
 
+    std::optional<uintptr_t> scan_reverse(uintptr_t start, size_t length, const std::string& pattern) {
+        if (start == 0 || length == 0) {
+            return {};
+        }
+
+        Pattern p{ pattern };
+
+        for (uintptr_t i = start; i >= start - length; i--) {
+            if (p.find(i, length).has_value()) {
+                return i;
+            }
+        }
+
+        return {};
+    }
+
     optional<uintptr_t> scan_data(HMODULE module, const uint8_t* data, size_t size) {
         const auto module_size = get_module_size(module).value_or(0);
         const auto end = (uintptr_t)module + module_size;

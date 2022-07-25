@@ -318,6 +318,7 @@ struct RETypeDefinition : public sdk::RETypeDefinition_ {
     sdk::REField* get_field(std::string_view name) const;
     sdk::REMethodDefinition* get_method(std::string_view name) const;
     std::vector<sdk::REMethodDefinition*> get_methods(std::string_view name) const;
+    std::vector<sdk::RETypeDefinition*> get_generic_argument_types() const;
 
     uint32_t get_index() const;
     int32_t get_fieldptr_offset() const;

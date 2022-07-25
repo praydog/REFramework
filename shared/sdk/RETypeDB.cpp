@@ -292,20 +292,20 @@ uint32_t REField::get_offset_from_base() const {
 bool sdk::REField::is_static() const {
     const auto field_flags = this->get_flags();
 
-    return (field_flags & (uint16_t)via::clr::FieldFlag::Static) != 0;
+    return (field_flags & (uint16_t)::via::clr::FieldFlag::Static) != 0;
 }
 
 bool sdk::REField::is_literal() const  {
     const auto field_flags = this->get_flags();
 
-    return (field_flags & (uint16_t)via::clr::FieldFlag::Literal) != 0;
+    return (field_flags & (uint16_t)::via::clr::FieldFlag::Literal) != 0;
 }
 
 void* REField::get_data_raw(void* object, bool is_value_type) const {
     const auto field_flags = get_flags();
 
-    if ((field_flags & (uint16_t)via::clr::FieldFlag::Static) != 0) {
-        if ((field_flags & (uint16_t)via::clr::FieldFlag::Literal) != 0) {
+    if ((field_flags & (uint16_t)::via::clr::FieldFlag::Static) != 0) {
+        if ((field_flags & (uint16_t)::via::clr::FieldFlag::Literal) != 0) {
             return this->get_init_data();
         }
 
@@ -890,7 +890,7 @@ uint16_t REMethodDefinition::get_impl_flags() const {
 bool REMethodDefinition::is_static() const {
     const auto method_flags = this->get_flags();
 
-    return (method_flags & (uint16_t)via::clr::MethodFlag::Static) != 0;
+    return (method_flags & (uint16_t)::via::clr::MethodFlag::Static) != 0;
 }
 
 uint32_t sdk::REMethodDefinition::get_num_params() const {

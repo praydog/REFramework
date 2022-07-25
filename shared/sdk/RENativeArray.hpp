@@ -4,6 +4,15 @@
 
 namespace sdk {
 template <typename T> struct NativeArray {
+    ~NativeArray() {
+        if (elements != nullptr) {
+            sdk::memory::deallocate(elements);
+        }
+
+        elements = nullptr;
+        num = 0;
+    }
+
     T* begin() const {
         if (elements == nullptr || num == 0 || num_allocated == 0) {
             return nullptr;
@@ -152,6 +161,15 @@ public:
 
 template <typename T>
 struct NativeArrayNoCapacity {
+    ~NativeArrayNoCapacity() {
+        if (elements != nullptr) {
+            sdk::memory::deallocate(elements);
+        }
+
+        elements = nullptr;
+        num = 0;
+    }
+
     T* begin() const {
         if (elements == nullptr || num == 0 || num_allocated == 0) {
             return nullptr;

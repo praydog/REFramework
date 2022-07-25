@@ -82,6 +82,112 @@ void release(REManagedObject* object) {
     //spdlog::info("Now: {}", (int32_t)object->referenceCount);
 }
 
+std::vector<::REManagedObject*> deserialize(const uint8_t* data, size_t size, bool add_references) {
+    static void (*deserialize_func)(void* placeholder, const sdk::NativeArray<::REManagedObject*>&, const uint8_t*, size_t) = []() -> decltype(deserialize_func) {
+        spdlog::info("[REManagedObject] Finding deserialize function...");
+        decltype(deserialize_func) result{nullptr};
+        uintptr_t first{};
+
+        constexpr std::array<std::string_view, 2> possible_patterns{
+            "41 81 ? 52 53 5A 00", // Confirmed RE8+
+            "41 81 7D 00 52 53 5A 00" // RE2 (TDB66) -> DMC5
+        };
+
+        for (auto pattern : possible_patterns) {
+            auto address = utility::scan(utility::get_executable(), pattern.data());
+
+            if (address) {
+                first = *address;
+                break;
+            }
+        }
+
+        if (first != 0) {
+            spdlog::info("[REManagedObject] Found first step at {:x}", first);
+
+            auto second = utility::scan_reverse(first, 0x100, "48 8B C4");
+
+            if (!second) {
+                spdlog::error("[REManagedObject] Failed to find second step");
+                return nullptr;
+            }
+
+            result = (decltype(result))*second;
+        } else {
+            spdlog::error("[REManagedObject] Failed to find first step");
+            return nullptr;
+        }
+
+        spdlog::info("[REManagedObject] Found deserialize function at {:x}", (uintptr_t)result);
+
+        return result;
+    }();
+
+    // Array gets resized in the function.
+    sdk::NativeArray<::REManagedObject*> arr;
+    deserialize_func(nullptr, arr, data, size);
+
+    std::vector<::REManagedObject*> result{};
+    
+    for (auto object : arr) {
+        if (object != nullptr) {
+            if (add_references) {
+                utility::re_managed_object::add_ref(object);
+            }
+
+            result.push_back(object);
+        }
+    }
+
+    return result;
+}
+
+void deserialize_native(::REManagedObject* object, const uint8_t* data, size_t size, const std::vector<::REManagedObject*>& objects) {
+    if (!is_managed_object(object)) {
+        return;
+    }
+
+    const auto tdef = get_type_definition(object);
+
+    if (tdef == nullptr) {
+        return;
+    }
+
+    const auto t = tdef->get_type();
+
+    if (t == nullptr || t->fields == nullptr || t->fields->deserializer == nullptr) {
+        return;
+    }
+
+    struct DeserializeStream {
+        uint8_t* head{nullptr};
+        uint8_t* cur{nullptr};
+        uint8_t* tail{nullptr};
+        uintptr_t stackptr{0};
+        uint8_t* stack[32]{0};
+    }; static_assert(sizeof(DeserializeStream) == 0x120, "DeserializeStream is not the correct size");
+
+    const auto deserializer = (void (*)(::REManagedObject*, DeserializeStream*, sdk::NativeArray<REManagedObject*>* objects))t->fields->deserializer;
+
+    std::array<uint8_t, 1024 * 8> stack_buffer{};
+
+    DeserializeStream stream{
+        .head = (uint8_t*)data,
+        .cur = (uint8_t*)data,
+        .tail = (uint8_t*)data + size,
+        .stackptr = (uintptr_t)stack_buffer.data() // No need to set the "stack" variable, it seems to get filled by the stackptr
+    };
+
+    sdk::NativeArray<::REManagedObject*> objects_array;
+
+    if (!objects.empty()) {
+        for (auto object : objects) {
+            objects_array.push_back(object);
+        }
+    }
+
+    deserializer(object, &stream, &objects_array);
+}
 
 bool is_managed_object(Address address) {
     if (address == nullptr) {
