@@ -1,5 +1,6 @@
 #include <string_view>
 #include <memory>
+#include <vector>
 
 #include "utility/Address.hpp"
 
@@ -25,6 +26,8 @@ bool is_a(::REManagedObject* object, REType* cmp);
 
 void add_ref(::REManagedObject* object);
 void release(::REManagedObject* object);
+std::vector<::REManagedObject*> deserialize(const uint8_t* data, size_t size, bool add_references);
+void deserialize_native(::REManagedObject* object, const uint8_t* data, size_t size, const std::vector<::REManagedObject*>& objects);
 
 // Get full type information about the object
 REType* get_type(::REManagedObject* object);

@@ -1174,6 +1174,24 @@ void bindings::open_sdk(ScriptState* s) {
             return sol::make_object(s, sol::nil);
         }
     };
+    sdk["deserialize"] = [](sol::this_state s, sol::object data_obj) -> sol::object {
+        if (!data_obj.is<std::vector<uint8_t>>()) {
+            throw sol::error("Data must be a vector of bytes");
+        }
+
+        auto data = data_obj.as<std::vector<uint8_t>>();
+        auto result = ::utility::re_managed_object::deserialize(data.data(), data.size(), false);
+
+        // Explicitly create a lua table so we know for certain we are
+        // pushing the REManagedObjects to the stack, adding a reference to them.
+        auto final_result = sol::state_view{s}.create_table();
+
+        for (auto obj : result) {
+            final_result[final_result.size() + 1] = sol::make_object(s, obj);
+        }
+
+        return final_result;
+    };
     sdk["to_resource"] = [](sol::this_state s, void* ptr) { return sol::make_object(s, (::sdk::Resource*)ptr); };
     sdk["to_double"] = [](void* ptr) { return *(double*)&ptr; };
     sdk["to_float"] = [](void* ptr) { return *(float*)&ptr; };
@@ -1336,6 +1354,26 @@ void bindings::open_sdk(ScriptState* s) {
         },
         "release", [](sol::this_state s, ::REManagedObject* obj) {
             api::re_managed_object::release(s, obj, false);
+        },
+        "deserialize_native", [](sol::this_state s, ::REManagedObject* obj, sol::object data_obj, sol::object objects_obj) {
+            if (!data_obj.is<std::vector<uint8_t>>()) {
+                throw sol::error("Data must be a vector of bytes");
+            }
+
+            auto data = data_obj.as<std::vector<uint8_t>>();
+
+            std::vector<::REManagedObject*> objects{};
+
+            if (objects_obj.is<sol::table>()) {
+                sol::table objects_table = objects_obj.as<sol::table>();
+
+                for (auto i = 1; i <= objects_table.size(); i++) {
+                    auto obj = objects_table.get<::REManagedObject*>(i);
+                    objects.push_back(obj);
+                }
+            }
+
+            return ::utility::re_managed_object::deserialize_native(obj, data.data(), data.size(), objects);
         },
         "get_reference_count", [] (::REManagedObject* obj) { return obj->referenceCount; },
         "get_address", [](REManagedObject* obj) { return (uintptr_t)obj; },
