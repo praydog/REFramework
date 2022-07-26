@@ -155,6 +155,9 @@ std::string RETypeDefinition::get_full_name() const {
     std::deque<std::string> names{};
     std::string full_name{};
 
+    // because using normal find_type will loop back to this function and cause a deadlock
+    static auto system_runtime_type = sdk::RETypeDB::get()->find_type_by_fqn(0x99ff88e6);
+
     if (this->declaring_typeid > 0 && this->declaring_typeid != this->get_index()) {
         std::unordered_set<const sdk::RETypeDefinition*> seen_classes{};
 
@@ -200,11 +203,36 @@ std::string RETypeDefinition::get_full_name() const {
         g_full_names[this->get_index()] = full_name;
     }
 
-#if TDB_VER > 49
-    if (this->generics > 0) {
-        auto generics = tdb->get_data<sdk::GenericListData>(this->generics);
+    auto generate_full_name_via_reflection = [&]() {
+        struct FakeRuntimeType : public ::REManagedObject {
+            const sdk::RETypeDefinition* t{nullptr};
+            uint32_t unk{0};
+        };
 
-        if (generics->num > 0) {
+        FakeRuntimeType fake_type{};
+        fake_type.t = this;
+
+        static auto get_full_name_method = system_runtime_type->get_method("get_FullName");
+
+        auto full_name_obj = get_full_name_method->call<::SystemString*>(sdk::get_thread_context(), &fake_type);
+
+        if (full_name_obj != nullptr) {
+            full_name = utility::re_string::get_string(full_name_obj);
+
+            // replace all instance of "+" with "."
+            std::replace(std::execution::seq, full_name.begin(), full_name.end(), '+', '.');
+        }
+    };
+
+#if TDB_VER > 49
+    const auto generics = this->get_generic_data();
+
+    if (generics != nullptr && generics->num > 0) {
+        // The base type that isn't inflated.
+        if (this->is_generic_type_definition()) {
+            generate_full_name_via_reflection();
+        } else {
+            // We COULD use generate_full_name_via_reflection, but that's API breaking because it removes the spaces we add manually here.
             full_name += "<";
 
             for (uint32_t f = 0; f < generics->num; ++f) {
@@ -224,6 +252,8 @@ std::string RETypeDefinition::get_full_name() const {
 
             full_name += ">";
         }
+    } else if (generics != nullptr) {
+        generate_full_name_via_reflection();
     }
 #else
     //full_name += "<not implemented>";
@@ -231,26 +261,7 @@ std::string RETypeDefinition::get_full_name() const {
 
     // For arrays
     if (full_name.empty()) {
-        struct FakeRuntimeType : public ::REManagedObject {
-            const sdk::RETypeDefinition* t{nullptr};
-            uint32_t unk{0};
-        };
-
-        FakeRuntimeType fake_type{};
-        fake_type.t = this;
-
-        // because using normal find_type will loop back to this function and cause a deadlock
-        static auto system_runtime_type = sdk::RETypeDB::get()->find_type_by_fqn(0x99ff88e6);
-        static auto get_full_name_method = system_runtime_type->get_method("get_FullName");
-
-        auto full_name_obj = get_full_name_method->call<::SystemString*>(sdk::get_thread_context(), &fake_type);
-
-        if (full_name_obj != nullptr) {
-            full_name = utility::re_string::get_string(full_name_obj);
-
-            // replace all instance of "+" with "."
-            std::replace(std::execution::seq, full_name.begin(), full_name.end(), '+', '.');
-        }
+        generate_full_name_via_reflection();
     }
 
     {
@@ -337,6 +348,23 @@ sdk::RETypeDefinition* RETypeDefinition::get_underlying_type() const {
     g_underlying_types[this] = underlying_type;
     return g_underlying_types[this];
 #endif
+}
+
+sdk::RETypeDefinition* RETypeDefinition::get_generic_type_definition() const {
+#if TDB_VER > 49
+    if (this->generics > 0) {
+        const auto tdb = sdk::RETypeDB::get();
+        auto generics = tdb->get_data<sdk::GenericListData>(this->generics);
+
+        const auto id = generics->definition_typeid;
+
+        if (id > 0) {
+            return tdb->get_type(id);
+        }
+    }
+#endif
+
+    return nullptr;
 }
 
 static std::shared_mutex g_field_mtx{};
@@ -446,25 +474,35 @@ std::vector<sdk::RETypeDefinition*> RETypeDefinition::get_generic_argument_types
     std::vector<sdk::RETypeDefinition*> out{};
 
 #if TDB_VER > 49
-    if (this->generics > 0) {
+    const auto generics = get_generic_data();
+
+    if (generics != nullptr && generics->num > 0) {
         const auto tdb = sdk::RETypeDB::get();
-        auto generics = tdb->get_data<sdk::GenericListData>(this->generics);
 
-        if (generics->num > 0) {
-            for (uint32_t f = 0; f < generics->num; ++f) {
-                auto gtypeid = generics->types[f];
+        for (uint32_t f = 0; f < generics->num; ++f) {
+            auto gtypeid = generics->types[f];
 
-                if (gtypeid > 0 && gtypeid < tdb->numTypes) {
-                    out.push_back(tdb->get_type(gtypeid)); // This COULD be null. we aren't going to skip it because it's important to know the index of the generic type
-                } else {
-                    out.push_back(nullptr);
-                }
+            if (gtypeid > 0 && gtypeid < tdb->numTypes) {
+                out.push_back(tdb->get_type(gtypeid)); // This COULD be null. we aren't going to skip it because it's important to know the index of the generic type
+            } else {
+                out.push_back(nullptr);
             }
         }
     }
 #endif
 
     return out;
+}
+
+sdk::GenericListData* RETypeDefinition::get_generic_data() const {
+#if TDB_VER > 49
+    if (this->generics > 0) {
+        const auto tdb = sdk::RETypeDB::get();
+        return tdb->get_data<sdk::GenericListData>(this->generics);
+    }
+#endif
+
+    return nullptr;
 }
 
 uint32_t RETypeDefinition::get_index() const {
@@ -681,6 +719,20 @@ bool RETypeDefinition::is_primitive() const {
 
     return false;
 #endif
+}
+
+bool RETypeDefinition::is_generic_type_definition() const {
+#if TDB_VER > 49
+    if (const auto gd = get_generic_data(); gd != nullptr && gd->definition_typeid == this->get_index()) {
+        return true;
+    }
+#endif
+
+    return false;
+}
+
+bool RETypeDefinition::is_generic_type() const {
+    return get_generic_data() != nullptr;
 }
 
 uint32_t RETypeDefinition::get_crc_hash() const {

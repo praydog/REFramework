@@ -862,6 +862,13 @@ void ObjectExplorer::generate_sdk() {
             }
         }
 
+        type_entry["is_generic_type"] = t.is_generic_type();
+        type_entry["is_generic_type_definition"] = t.is_generic_type_definition();
+
+        if (auto gtd = t.get_generic_type_definition(); gtd != nullptr) {
+            type_entry["generic_type_definition"] = gtd->get_full_name();
+        }
+
         const auto generics = t.get_generic_argument_types();
 
         if (!generics.empty()) {
@@ -2497,8 +2504,27 @@ void ObjectExplorer::handle_type(REManagedObject* obj, REType* t) {
 
         // Display type flags
         if (type_info->classInfo != nullptr) {
-            if (stretched_tree_node("TypeFlags")) {
-                display_enum_value("via.clr.TypeFlag", (int64_t)((sdk::RETypeDefinition*)type_info->classInfo)->get_flags());
+            if (stretched_tree_node("Type Information")) {
+                if (stretched_tree_node("TypeFlags")) {
+                    display_enum_value("via.clr.TypeFlag", (int64_t)((sdk::RETypeDefinition*)type_info->classInfo)->get_flags());
+                    ImGui::TreePop();
+                }
+
+                const auto td = utility::re_type::get_type_definition(type_info);
+
+                if (td != nullptr) {
+                    const auto generic_td = td->get_generic_type_definition();
+
+                    if (generic_td != nullptr) {
+                        if (stretched_tree_node("Generic Type Definition")) {
+                            ImGui::Text("Name: %s", generic_td->get_full_name().c_str()); // just in-case the get_type() returns nullptr.
+                            display_native_methods(nullptr, generic_td);
+                            display_native_fields(nullptr, generic_td);
+                            ImGui::TreePop();
+                        }
+                    }
+                }
+
                 ImGui::TreePop();
             }
         }
