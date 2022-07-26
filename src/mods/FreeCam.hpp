@@ -61,6 +61,10 @@ private:
     AppPropsManager* m_props_manager{ nullptr };
 #endif
 
+#ifdef MHRISE
+    REManagedObject* m_player_manager{ nullptr };
+#endif
+
     sdk::helpers::NativeObject m_via_hid_gamepad{ "via.hid.GamePad" };
     sdk::helpers::NativeObject m_application{ "via.Application" };
 

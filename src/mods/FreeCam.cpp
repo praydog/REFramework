@@ -88,8 +88,25 @@ std::unordered_map<int32_t, MoveDirection> g_vk_to_movedir{
 };
 
 void FreeCam::on_update_transform(RETransform* transform) {
+#ifdef MHRISE
+    static auto find_master_player_method = sdk::find_method_definition(game_namespace("player.PlayerManager"), "findMasterPlayer");
+    static auto set_disable_all_trans = sdk::find_method_definition(game_namespace("CharacterBase"), "setDisableAllTrans");
+    static auto set_disable_all_rot = sdk::find_method_definition(game_namespace("CharacterBase"), "setDisableAllRot");
+    static auto reset_disable_all_trans = sdk::find_method_definition(game_namespace("CharacterBase"), "resetDisableAllTrans");
+    static auto reset_disable_all_rot = sdk::find_method_definition(game_namespace("CharacterBase"), "resetDisableAllRot");
+#endif
+
     if (!m_enabled->value() && !m_first_time) {
         m_was_disabled = false;
+
+#ifdef MHRISE
+        const auto player = find_master_player_method->call(sdk::get_thread_context(), m_player_manager);
+        if (player != nullptr) {
+            reset_disable_all_trans->call(sdk::get_thread_context(), player);
+            reset_disable_all_rot->call(sdk::get_thread_context(), player);
+        }
+#endif
+
         return;
     }
 
@@ -172,6 +189,19 @@ void FreeCam::on_update_transform(RETransform* transform) {
 #if defined(RE2) || defined(RE3)
     if (orderer != nullptr) {
         orderer->enabled = !m_disable_movement->value();
+    }
+#endif
+
+#ifdef MHRISE
+    const auto player = find_master_player_method->call(sdk::get_thread_context(), m_player_manager);
+    if (player != nullptr) {
+        if (m_disable_movement->value()) {
+            set_disable_all_trans->call(sdk::get_thread_context(), player);
+            set_disable_all_rot->call(sdk::get_thread_context(), player);
+        } else {
+            reset_disable_all_trans->call(sdk::get_thread_context(), player);
+            reset_disable_all_rot->call(sdk::get_thread_context(), player);
+        }
     }
 #endif
 
@@ -283,6 +313,14 @@ bool FreeCam::update_pointers() {
     if (m_props_manager == nullptr) {
         auto& globals = *reframework::get_globals();
         m_props_manager = globals.get<AppPropsManager>(game_namespace("PropsManager"));
+        return false;
+    }
+#endif
+
+#ifdef MHRISE
+    if (m_player_manager == nullptr) {
+        auto& globals = *reframework::get_globals();
+        m_player_manager = globals.get(game_namespace("player.PlayerManager"));
         return false;
     }
 #endif
