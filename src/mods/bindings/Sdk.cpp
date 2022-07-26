@@ -1331,12 +1331,16 @@ void bindings::open_sdk(ScriptState* s) {
         "get_parent_type", &::sdk::RETypeDefinition::get_parent_type,
         "get_size", &::sdk::RETypeDefinition::get_size,
         "get_valuetype_size", &::sdk::RETypeDefinition::get_valuetype_size,
+        "get_generic_argument_types", &::sdk::RETypeDefinition::get_generic_argument_types,
+        "get_generic_type_definition", &::sdk::RETypeDefinition::get_generic_type_definition,
         "is_value_type", &::sdk::RETypeDefinition::is_value_type,
         "is_enum", &::sdk::RETypeDefinition::is_enum,
         "is_array", &::sdk::RETypeDefinition::is_array,
         "is_by_ref", &::sdk::RETypeDefinition::is_by_ref,
         "is_pointer", &::sdk::RETypeDefinition::is_pointer,
         "is_primitive", &::sdk::RETypeDefinition::is_primitive,
+        "is_generic_type", &::sdk::RETypeDefinition::is_generic_type,
+        "is_generic_type_definition", &::sdk::RETypeDefinition::is_generic_type_definition,
         "is_a", [](sdk::RETypeDefinition* def, sol::object comp) -> bool {
             if (comp.is<sdk::RETypeDefinition*>()) {
                 return def->is_a(comp.as<sdk::RETypeDefinition*>());

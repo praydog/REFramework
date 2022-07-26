@@ -22,6 +22,7 @@ struct REField;
 struct REMethodDefinition;
 struct REProperty;
 struct RETypeDefinition;
+struct GenericListData;
 
 struct RETypeDefVersion71 {
     uint64_t index : TYPE_INDEX_BITS;
@@ -315,10 +316,12 @@ struct RETypeDefinition : public sdk::RETypeDefinition_ {
     sdk::RETypeDefinition* get_declaring_type() const;
     sdk::RETypeDefinition* get_parent_type() const;
     sdk::RETypeDefinition* get_underlying_type() const;
+    sdk::RETypeDefinition* get_generic_type_definition() const;
     sdk::REField* get_field(std::string_view name) const;
     sdk::REMethodDefinition* get_method(std::string_view name) const;
     std::vector<sdk::REMethodDefinition*> get_methods(std::string_view name) const;
     std::vector<sdk::RETypeDefinition*> get_generic_argument_types() const;
+    sdk::GenericListData* get_generic_data() const;
 
     uint32_t get_index() const;
     int32_t get_fieldptr_offset() const;
@@ -333,6 +336,8 @@ struct RETypeDefinition : public sdk::RETypeDefinition_ {
     bool is_by_ref() const;
     bool is_pointer() const;
     bool is_primitive() const;
+    bool is_generic_type_definition() const;
+    bool is_generic_type() const;
 
     bool should_pass_by_pointer() const;
 

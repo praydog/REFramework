@@ -686,7 +686,7 @@ struct RETypeImpl : public sdk::tdb71::RETypeImpl {};
 struct REPropertyImpl : public sdk::tdb71::REPropertyImpl {};
 struct REProperty : public sdk::tdb71::REProperty {};
 struct REParameterDef : public sdk::tdb71::REParameterDef {};
-using GenericListData = sdk::tdb71::GenericListData;
+struct GenericListData : public sdk::tdb71::GenericListData {};
 using ParamList = sdk::tdb71::ParamList;
 #elif TDB_VER >= 69
 #ifdef RE8
@@ -702,21 +702,21 @@ struct RETypeImpl : public sdk::tdb69::RETypeImpl {};
 struct REPropertyImpl : public sdk::tdb69::REPropertyImpl {};
 struct REProperty : public sdk::tdb69::REProperty {};
 struct REParameterDef : public sdk::tdb69::REParameterDef {};
-using GenericListData = sdk::tdb69::GenericListData;
+struct GenericListData : public sdk::tdb69::GenericListData {};
 using ParamList = sdk::tdb69::ParamList;
 #elif TDB_VER == 67
 struct RETypeDB_ : public sdk::tdb67::TDB {};
 struct REMethodDefinition_ : public sdk::tdb67::REMethodDefinition {};
 using REField_ = sdk::tdb67::REField;
 struct REProperty : public sdk::tdb67::REProperty {};
-using GenericListData = sdk::tdb67::GenericListData;
+struct GenericListData : public sdk::tdb67::GenericListData {};
 using REMethodParamDef = sdk::tdb67::REMethodParamDef;
 #elif TDB_VER == 66
 struct RETypeDB_ : public sdk::tdb66::TDB {};
 struct REMethodDefinition_ : public sdk::tdb66::REMethodDefinition {};
 using REField_ = sdk::tdb66::REField;
 struct REProperty : public sdk::tdb66::REProperty {};
-using GenericListData = sdk::tdb66::GenericListData;
+struct GenericListData : public sdk::tdb66::GenericListData {};
 using REMethodParamDef = sdk::tdb66::REMethodParamDef;
 #elif TDB_VER == 49
 struct RETypeDB_ : public sdk::tdb49::TDB {};
@@ -726,7 +726,7 @@ struct REProperty : public sdk::tdb49::REProperty {};
 using REMethodParamDef = sdk::tdb49::REMethodParamDef;
 
 // FIX THIS!!!!
-using GenericListData = sdk::tdb66::GenericListData;
+struct GenericListData : public sdk::tdb66::GenericListData {};
 #else
 static_assert(false, "TDB_VER is not defined");
 #endif
