@@ -854,7 +854,21 @@ void set_data(void* data, ::sdk::RETypeDefinition* data_type, sol::object& value
             return;
         default:
             if (vm_obj_type > via::clr::VMObjType::NULL_ && vm_obj_type < via::clr::VMObjType::ValType) {
-                *(::REManagedObject**)data = value.as<::REManagedObject*>();
+                REManagedObject* new_data;
+                if (value.is<const char*>()) {
+                    new_data = ::sdk::VM::create_managed_string(utility::widen(value.as<const char*>()));
+                } else {
+                    new_data = value.as<::REManagedObject*>();
+                }
+
+                REManagedObject** field = (REManagedObject**) data;
+                if (field != nullptr && *field != nullptr) {
+                    utility::re_managed_object::release(*field);
+                }
+                if (new_data != nullptr) {
+                    utility::re_managed_object::add_ref(new_data);
+                }
+                *(REManagedObject**) data = new_data;
                 return;
             }
         }
@@ -878,7 +892,7 @@ void set_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const char* 
     const auto field = ty->get_field(name);
 
     if (field == nullptr) {
-        return;
+        throw sol::error("Attempted to set invalid REManagedObject field:" + std::string(name));
     }
 
     const auto field_type = field->get_type();
@@ -1054,7 +1068,7 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::protected_funct
 namespace api::re_managed_object {
 sol::object index(sol::this_state s, REManagedObject* obj, const char* name) {
     if (obj == nullptr) {
-        return sol::make_object(s, sol::nil);
+        throw sol::error("Attempted to index null REManagedObject");
     }
 
     auto type_def = utility::re_managed_object::get_type_definition(obj);
@@ -1066,7 +1080,7 @@ sol::object index(sol::this_state s, REManagedObject* obj, const char* name) {
     if (method != nullptr) {
         return sol::make_object(s, method);
     }
-    return sol::make_object(s, sol::nil);
+    throw sol::error("Attempted to index invalid REManagedObject field: " + std::string(name));
 }
 
 void new_index(sol::this_state s, REManagedObject* obj, const char* name, sol::object value) {
