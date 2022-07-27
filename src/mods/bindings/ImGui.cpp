@@ -749,6 +749,104 @@ Vector2f get_mouse() {
         mouse.y,
     };
 }
+
+bool begin_table(const char* str_id, int column, sol::object flags_obj, sol::object outer_size_obj, sol::object inner_width_obj) {
+    if (str_id == nullptr) {
+        str_id = "";
+    }
+
+    ImVec2 outer_size{};
+    if (outer_size_obj.is<Vector2f>()) {
+        const auto& vec = outer_size_obj.as<Vector2f>();
+        outer_size = {vec.x, vec.y};
+    }
+
+    float inner_width = inner_width_obj.is<float>() ? inner_width_obj.as<float>() : 0.0f;
+    int flags = flags_obj.is<int>() ? flags_obj.as<int>() : 0;
+
+    return ImGui::BeginTable(str_id, column, flags, outer_size, inner_width);
+}
+
+void end_table() {
+    ImGui::EndTable();
+}
+
+void table_next_row(sol::object row_flags, sol::object min_row_height) {
+    int flags = row_flags.is<int>() ? row_flags.as<int>() : 0;
+    float min_height = min_row_height.is<float>() ? min_row_height.as<float>() : 0.0f;
+    ImGui::TableNextRow(flags, min_height);
+}
+
+bool table_next_column() {
+    return ImGui::TableNextColumn();
+}
+
+bool table_set_column_index(int column_index) {
+    return ImGui::TableSetColumnIndex(column_index);
+}
+
+void table_setup_column(const char* label, sol::object flags_obj, sol::object init_width_or_weight_obj, sol::object user_id_obj) {
+    if (label == nullptr) {
+        label = "";
+    }
+
+    auto flags = flags_obj.is<int>() ? flags_obj.as<int>() : 0;
+    auto init_width = init_width_or_weight_obj.is<float>() ? init_width_or_weight_obj.as<float>() : 0.0f;
+    auto user_id = user_id_obj.is<ImGuiID>() ? user_id_obj.as<ImGuiID>() : 0;
+
+    ImGui::TableSetupColumn(label, flags, init_width, user_id);
+}
+
+void table_setup_scroll_freeze(int cols, int rows) {
+    ImGui::TableSetupScrollFreeze(cols, rows);
+}
+
+void table_headers_row() {
+    ImGui::TableHeadersRow();
+}
+
+void table_header(const char* label) {
+    if (label == nullptr) {
+        label = "";
+    }
+
+    ImGui::TableHeader(label);
+}
+
+int table_get_column_count() {
+    return ImGui::TableGetColumnCount();
+}
+
+int table_get_column_index() {
+    return ImGui::TableGetColumnIndex();
+}
+
+int table_get_row_index() {
+    return ImGui::TableGetRowIndex();
+}
+
+const char* table_get_column_name(int column = -1) {
+    return ImGui::TableGetColumnName(column);
+}
+
+ImGuiTableColumnFlags table_get_column_flags(sol::object column) {
+    return ImGui::TableGetColumnFlags(column.is<int>() ? column.as<int>() : -1);
+}
+
+void table_set_bg_color(ImGuiTableBgTarget target, ImU32 color, sol::object column) {
+    ImGui::TableSetBgColor(target, color, column.is<int>() ? column.as<int>() : -1);
+}
+
+void table_set_bg_color_vec4(ImGuiTableBgTarget target, Vector4f color, sol::object column) {
+    ImVec4 _color = {color.x, color.y, color.z, color.w};
+    ImGui::TableSetBgColor(target, ImGui::ColorConvertFloat4ToU32(_color), column.is<int>() ? column.as<int>() : -1);
+}
+
+ImGuiTableSortSpecs* table_get_sort_specs() {
+    return ImGui::TableGetSortSpecs();
+}
+
+
 } // namespace api::imgui
 
 namespace api::draw {
@@ -1025,6 +1123,22 @@ void bindings::open_imgui(ScriptState* s) {
     imgui["push_id"] = api::imgui::push_id;
     imgui["pop_id"] = api::imgui::pop_id;
     imgui["get_mouse"] = api::imgui::get_mouse;
+    imgui["begin_table"] = api::imgui::begin_table;
+    imgui["end_table"] = api::imgui::end_table;
+    imgui["table_next_row"] = api::imgui::table_next_row;
+    imgui["table_next_column"] = api::imgui::table_next_column;
+    imgui["table_set_column_index"] = api::imgui::table_set_column_index;
+    imgui["table_setup_column"] = api::imgui::table_setup_column;
+    imgui["table_setup_scroll_freeze"] = api::imgui::table_setup_scroll_freeze;
+    imgui["table_headers_row"] = api::imgui::table_headers_row;
+    imgui["table_header"] = api::imgui::table_header;
+    imgui["table_get_sort_specs"] = api::imgui::table_get_sort_specs;
+    imgui["table_get_column_count"] = api::imgui::table_get_column_count;
+    imgui["table_get_column_index"] = api::imgui::table_get_column_index;
+    imgui["table_get_row_index"] = api::imgui::table_get_row_index;
+    imgui["table_get_column_name"] = api::imgui::table_get_column_name;
+    imgui["table_get_column_flags"] = api::imgui::table_get_column_flags;
+    imgui["table_set_bg_color"] = api::imgui::table_set_bg_color;
     imgui.new_enum("ImGuizmoOperation", 
                     "TRANSLATE", ImGuizmo::OPERATION::TRANSLATE, 
                     "ROTATE", ImGuizmo::OPERATION::ROTATE,
@@ -1034,6 +1148,87 @@ void bindings::open_imgui(ScriptState* s) {
     imgui.new_enum("ImGuizmoMode", 
                     "WORLD", ImGuizmo::MODE::WORLD,
                     "LOCAL", ImGuizmo::MODE::LOCAL);
+    imgui.new_usertype<ImGuiTableSortSpecs>("TableSortSpecs",
+        "specs_dirty", &ImGuiTableSortSpecs::SpecsDirty,
+        "get_specs", [](ImGuiTableSortSpecs* specs) {
+            std::vector<ImGuiTableColumnSortSpecs*> out {};
+
+            for (int i = 0; i < specs->SpecsCount; ++i) {
+                out.push_back(const_cast<ImGuiTableColumnSortSpecs*>(specs->Specs + i));
+            }
+
+            return out;
+        }
+    );
+    imgui.new_usertype<ImGuiTableColumnSortSpecs>("TableColumnSortSpecs", 
+        "user_id", &ImGuiTableColumnSortSpecs::ColumnUserID,
+        "column_index", &ImGuiTableColumnSortSpecs::ColumnIndex,
+        "sort_order", &ImGuiTableColumnSortSpecs::SortOrder,
+        "sort_direction", sol::readonly_property([](ImGuiTableColumnSortSpecs* specs){
+            return specs->SortDirection;
+        })
+    );
+    imgui.new_enum("TableFlags",
+        "None", ImGuiTableFlags_None,
+        "Resizable", ImGuiTableFlags_Resizable,
+        "Reorderable", ImGuiTableFlags_Reorderable,
+        "Hideable", ImGuiTableFlags_Hideable,
+        "Sortable", ImGuiTableFlags_Sortable,
+        "NoSavedSettings", ImGuiTableFlags_NoSavedSettings,
+        "ContextMenuInBody", ImGuiTableFlags_ContextMenuInBody,
+        "RowBg", ImGuiTableFlags_RowBg,
+        "BordersInnerH", ImGuiTableFlags_BordersInnerH,
+        "BordersOuterH", ImGuiTableFlags_BordersOuterH,
+        "BordersInnerV", ImGuiTableFlags_BordersInnerV,
+        "BordersOuterV", ImGuiTableFlags_BordersOuterV,
+        "BordersH", ImGuiTableFlags_BordersH,
+        "BordersV", ImGuiTableFlags_BordersV,
+        "BordersInner", ImGuiTableFlags_BordersInner,
+        "BordersOuter", ImGuiTableFlags_BordersOuter,
+        "Borders", ImGuiTableFlags_Borders,
+        "NoBordersInBody", ImGuiTableFlags_NoBordersInBody,
+        "NoBordersInBodyUntilResize", ImGuiTableFlags_NoBordersInBodyUntilResize,
+        "SizingFixedFit", ImGuiTableFlags_SizingFixedFit,
+        "SizingFixedSame", ImGuiTableFlags_SizingFixedSame,
+        "SizingStretchProp", ImGuiTableFlags_SizingStretchProp,
+        "SizingStretchSame", ImGuiTableFlags_SizingStretchSame,
+        "NoHostExtendX", ImGuiTableFlags_NoHostExtendX,
+        "NoHostExtendY", ImGuiTableFlags_NoHostExtendY,
+        "NoKeepColumnsVisible", ImGuiTableFlags_NoKeepColumnsVisible,
+        "PreciseWidths", ImGuiTableFlags_PreciseWidths,
+        "NoClip", ImGuiTableFlags_NoClip,
+        "PadOuterX", ImGuiTableFlags_PadOuterX,
+        "NoPadOuterX", ImGuiTableFlags_NoPadOuterX,
+        "NoPadInnerX", ImGuiTableFlags_NoPadInnerX,
+        "ScrollX", ImGuiTableFlags_ScrollX,
+        "ScrollY", ImGuiTableFlags_ScrollY,
+        "SortMulti", ImGuiTableFlags_SortMulti,
+        "SortTristate", ImGuiTableFlags_SortTristate
+    );
+    imgui.new_enum("ColumnFlags",
+        "None", ImGuiTableColumnFlags_None,                
+        "DefaultHide", ImGuiTableColumnFlags_DefaultHide,         
+        "DefaultSort", ImGuiTableColumnFlags_DefaultSort,         
+        "WidthStretch", ImGuiTableColumnFlags_WidthStretch,        
+        "WidthFixed", ImGuiTableColumnFlags_WidthFixed,          
+        "NoResize", ImGuiTableColumnFlags_NoResize,            
+        "NoReorder", ImGuiTableColumnFlags_NoReorder,           
+        "NoHide", ImGuiTableColumnFlags_NoHide,              
+        "NoClip", ImGuiTableColumnFlags_NoClip,              
+        "NoSort", ImGuiTableColumnFlags_NoSort,              
+        "NoSortAscending", ImGuiTableColumnFlags_NoSortAscending,     
+        "NoSortDescending", ImGuiTableColumnFlags_NoSortDescending,    
+        "NoHeaderWidth", ImGuiTableColumnFlags_NoHeaderWidth,       
+        "PreferSortAscending", ImGuiTableColumnFlags_PreferSortAscending, 
+        "PreferSortDescending", ImGuiTableColumnFlags_PreferSortDescending,
+        "IndentEnable", ImGuiTableColumnFlags_IndentEnable,        
+        "IndentDisable", ImGuiTableColumnFlags_IndentDisable,       
+        "IsEnabled", ImGuiTableColumnFlags_IsEnabled,           
+        "IsVisible", ImGuiTableColumnFlags_IsVisible,           
+        "IsSorted", ImGuiTableColumnFlags_IsSorted,            
+        "IsHovered", ImGuiTableColumnFlags_IsHovered           
+    );
+
     lua["imgui"] = imgui;
 
     auto imguizmo = lua.create_table();
