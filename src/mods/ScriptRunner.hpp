@@ -255,6 +255,7 @@ private:
     std::chrono::system_clock::time_point m_last_script_error_time{};
 
     bool m_console_spawned{false};
+    bool m_needs_first_reset{true};
     const ModToggle::Ptr m_log_to_disk{ ModToggle::create(generate_name("LogToDisk"), false) };
 
     const ModCombo::Ptr m_gc_handler { 

@@ -644,9 +644,6 @@ std::shared_ptr<ScriptRunner>& ScriptRunner::get() {
 }
 
 std::optional<std::string> ScriptRunner::on_initialize() {
-    // Calling reset_scripts even though the scripts have never been set yet still works.
-    reset_scripts();
-
     return Mod::on_initialize();
 }
 
@@ -674,6 +671,16 @@ void ScriptRunner::on_config_save(utility::Config& cfg) {
 
 void ScriptRunner::on_frame() {
     std::scoped_lock _{m_access_mutex};
+    
+    if (m_needs_first_reset) {
+        spdlog::info("[ScriptRunner] Initializing Lua state for the first time...");
+
+        // Calling reset_scripts even though the scripts have never been set yet still works.
+        reset_scripts();
+        m_needs_first_reset = false;
+
+        spdlog::info("[ScriptRunner] Lua state initialized.");
+    }
 
     if (m_state == nullptr) {
         return;
