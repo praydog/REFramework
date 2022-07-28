@@ -862,6 +862,7 @@ void ObjectExplorer::generate_sdk() {
             }
         }
 
+        type_entry["name_hierarchy"] = t.get_name_hierarchy();
         type_entry["is_generic_type"] = t.is_generic_type();
         type_entry["is_generic_type_definition"] = t.is_generic_type_definition();
 
