@@ -273,6 +273,43 @@ std::string RETypeDefinition::get_full_name() const {
 #endif
 }
 
+std::vector<std::string> RETypeDefinition::get_name_hierarchy() const {
+    std::deque<std::string> names{};
+    std::string full_name{};
+
+    if (this->declaring_typeid > 0 && this->declaring_typeid != this->get_index()) {
+        std::unordered_set<const sdk::RETypeDefinition*> seen_classes{};
+
+        for (auto owner = this; owner != nullptr; owner = owner->get_declaring_type()) {
+            if (seen_classes.count(owner) > 0) {
+                break;
+            }
+
+            names.push_front(owner->get_name());
+
+            if (owner->get_declaring_type() == nullptr && !std::string{owner->get_namespace()}.empty()) {
+                names.push_front(owner->get_namespace());
+            }
+
+            // uh.
+            if (owner->get_declaring_type() == this) {
+                break;
+            }
+
+            seen_classes.insert(owner);
+        }
+    } else {
+        // namespace
+        if (!std::string{this->get_namespace()}.empty()) {
+            names.push_front(this->get_namespace());
+        }
+
+        // actual class name
+        names.push_back(this->get_name());
+    }
+    return std::vector<std::string>(names.begin(), names.end());
+}
+
 sdk::RETypeDefinition* RETypeDefinition::get_declaring_type() const {
     auto tdb = RETypeDB::get();
 

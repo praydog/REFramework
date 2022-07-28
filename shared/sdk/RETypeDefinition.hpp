@@ -312,6 +312,7 @@ struct RETypeDefinition : public sdk::RETypeDefinition_ {
     const char* get_name() const;
 
     std::string get_full_name() const;
+    std::vector<std::string> get_name_hierarchy() const;
 
     sdk::RETypeDefinition* get_declaring_type() const;
     sdk::RETypeDefinition* get_parent_type() const;
