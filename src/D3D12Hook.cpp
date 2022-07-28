@@ -128,11 +128,7 @@ bool D3D12Hook::hook() {
     HWND hwnd = 0;
     WNDCLASSEX wc{};
 
-    // we call CreateSwapChainForComposition instead of CreateSwapChainForHwnd
-    // because some overlays will have hooks on CreateSwapChainForHwnd
-    // and all we're doing is creating a dummy swapchain
-    // we don't want to screw up the overlay
-    if (FAILED(factory->CreateSwapChainForComposition(command_queue, &swap_chain_desc1, NULL, &swap_chain1))) {
+    auto init_dummy_window = [&]() {
         // fallback to CreateSwapChainForHwnd
         wc.cbSize = sizeof(WNDCLASSEX);
         wc.style = CS_HREDRAW | CS_VREDRAW;
@@ -163,16 +159,60 @@ bool D3D12Hook::hook() {
         swap_chain_desc1.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
         swap_chain_desc1.Scaling = DXGI_SCALING_STRETCH;
         swap_chain_desc1.Stereo = FALSE;
+    };
 
-        if (FAILED(factory->CreateSwapChainForHwnd(command_queue, hwnd, &swap_chain_desc1, nullptr, nullptr, &swap_chain1))) {
-            if (FAILED(factory->CreateSwapChainForHwnd(command_queue, GetDesktopWindow(), &swap_chain_desc1, nullptr, nullptr, &swap_chain1))) {
-                ::DestroyWindow(hwnd);
-                ::UnregisterClass(wc.lpszClassName, wc.hInstance);
+    std::vector<std::function<bool ()>> swapchain_attempts{
+        // we call CreateSwapChainForComposition instead of CreateSwapChainForHwnd
+        // because some overlays will have hooks on CreateSwapChainForHwnd
+        // and all we're doing is creating a dummy swapchain
+        // we don't want to screw up the overlay
+        [&]() {
+            return !FAILED(factory->CreateSwapChainForComposition(command_queue, &swap_chain_desc1, nullptr, &swap_chain1));
+        },
+        [&]() {
+            init_dummy_window();
 
-                spdlog::error("Failed to create D3D12 Dummy Swap Chain");
-                return false;
+            return !FAILED(factory->CreateSwapChainForHwnd(command_queue, hwnd, &swap_chain_desc1, nullptr, nullptr, &swap_chain1));
+        },
+        [&]() {
+            return !FAILED(factory->CreateSwapChainForHwnd(command_queue, GetDesktopWindow(), &swap_chain_desc1, nullptr, nullptr, &swap_chain1));
+        },
+    };
+
+    bool any_succeed = false;
+
+    for (auto i = 0; i < swapchain_attempts.size(); i++) {
+        auto& attempt = swapchain_attempts[i];
+        
+        try {
+            spdlog::info("Trying swapchain attempt {}", i);
+
+            if (attempt()) {
+                spdlog::info("Created dummy swapchain on attempt {}", i);
+                any_succeed = true;
+                break;
             }
+        } catch (std::exception& e) {
+            spdlog::error("Failed to create dummy swapchain on attempt {}: {}", i, e.what());
+        } catch(...) {
+            spdlog::error("Failed to create dummy swapchain on attempt {}: unknown exception", i);
         }
+
+        spdlog::error("Attempt {} failed", i);
+    }
+
+    if (!any_succeed) {
+        spdlog::error("Failed to create D3D12 Dummy Swap Chain");
+
+        if (hwnd) {
+            ::DestroyWindow(hwnd);
+        }
+
+        if (wc.lpszClassName != nullptr) {
+            ::UnregisterClass(wc.lpszClassName, wc.hInstance);
+        }
+
+        return false;
     }
 
     spdlog::info("Querying dummy swapchain");
