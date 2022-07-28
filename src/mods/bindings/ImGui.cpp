@@ -62,12 +62,57 @@ bool button(const char* label) {
     return ImGui::Button(label);
 }
 
+bool small_button(const char* label) {
+    if (label == nullptr) {
+        label = "";
+    }
+
+    return ImGui::SmallButton(label);
+}
+
+bool invisible_button(const char* id, sol::object size_object, sol::object flags_object) {
+    if (id == nullptr) {
+        id = "";
+    }
+
+    const auto size = create_imvec2(size_object);
+
+    ImGuiButtonFlags flags = 0;
+
+    if (flags_object.is<int>()) {
+        flags = (ImGuiButtonFlags)(flags_object.as<int>());
+    }
+
+    return ImGui::InvisibleButton(id, size, flags);
+}
+
+bool arrow_button(const char* str_id, int dir) {
+    if (str_id == nullptr) {
+        str_id = "";
+    }
+
+    return ImGui::ArrowButton(str_id, (ImGuiDir)dir);
+}
+
 void text(const char* text) {
     if (text == nullptr) {
         text = "";
     }
 
     ImGui::Text(text);
+}
+
+void text_colored(const char* text, unsigned int color) {
+    if (text == nullptr) {
+        text = "";
+    }
+
+    auto r = color & 0xFF;
+    auto g = (color >> 8) & 0xFF;
+    auto b = (color >> 16) & 0xFF;
+    auto a = (color >> 24) & 0xFF;
+
+    ImGui::TextColored(ImVec4{ (float)r / 255.0f, (float)g / 255.0f, (float)b / 255.0f, (float)a / 255.0f }, text);
 }
 
 sol::variadic_results checkbox(sol::this_state s, const char* label, bool v) {
@@ -193,7 +238,7 @@ sol::variadic_results slider_int(sol::this_state s, const char* label, int v, in
 }
 
 sol::variadic_results input_text(sol::this_state s, const char* label, const std::string& v, ImGuiInputTextFlags flags) {
-    flags |= ImGuiInputTextFlags_CallbackResize;
+    flags |= ImGuiInputTextFlags_CallbackResize | ImGuiInputTextFlags_CallbackAlways;
 
     if (label == nullptr) {
         label = "";
@@ -202,11 +247,16 @@ sol::variadic_results input_text(sol::this_state s, const char* label, const std
     static std::string buffer{""};
     buffer = v;
 
+    static int selection_start, selection_end;
+
     static auto input_text_callback = [](ImGuiInputTextCallbackData* data) -> int {
         if ((data->EventFlag & ImGuiInputTextFlags_CallbackResize) != 0) {
             buffer.resize(data->BufTextLen);
             data->Buf = (char*)buffer.c_str();
         }
+
+        selection_start = data->SelectionStart;
+        selection_end = data->SelectionEnd;
 
         return 0;
     };
@@ -217,9 +267,50 @@ sol::variadic_results input_text(sol::this_state s, const char* label, const std
 
     results.push_back(sol::make_object(s, changed));
     results.push_back(sol::make_object(s, std::string{buffer.data()}));
+    results.push_back(sol::make_object(s, selection_start));
+    results.push_back(sol::make_object(s, selection_end));
 
     return results;
 }
+
+sol::variadic_results input_text_multiline(sol::this_state s, const char* label, const std::string& v, sol::object size_obj, ImGuiInputTextFlags flags) {
+    flags |= ImGuiInputTextFlags_CallbackResize | ImGuiInputTextFlags_CallbackAlways;
+
+    if (label == nullptr) {
+        label = "";
+    }
+
+    static std::string buffer{""};
+    buffer = v;
+
+    static int selection_start, selection_end;
+
+    static auto input_text_callback = [](ImGuiInputTextCallbackData* data) -> int {
+        if ((data->EventFlag & ImGuiInputTextFlags_CallbackResize) != 0) {
+            buffer.resize(data->BufTextLen);
+            data->Buf = (char*)buffer.c_str();
+        }
+
+        selection_start = data->SelectionStart;
+        selection_end = data->SelectionEnd;
+
+        return 0;
+    };
+
+    const auto size = create_imvec2(size_obj);
+
+    auto changed = ImGui::InputTextMultiline(label, buffer.data(), buffer.capacity() + 1, size, flags, input_text_callback);
+
+    sol::variadic_results results{};
+
+    results.push_back(sol::make_object(s, changed));
+    results.push_back(sol::make_object(s, std::string{buffer.data()}));
+    results.push_back(sol::make_object(s, selection_start));
+    results.push_back(sol::make_object(s, selection_end));
+
+    return results;
+}
+
 
 sol::variadic_results combo(sol::this_state s, const char* label, int selection, sol::table values) {
     if (label == nullptr) {
@@ -299,8 +390,22 @@ void same_line() {
     ImGui::SameLine();
 }
 
-bool is_item_hovered() {
-    return ImGui::IsItemHovered();
+bool is_item_hovered(sol::object flags_obj) {
+    ImGuiHoveredFlags flags{0};
+
+    if (flags_obj.is<int>()) {
+        flags = (ImGuiHoveredFlags)flags_obj.as<int>();
+    }
+
+    return ImGui::IsItemHovered(flags);
+}
+
+bool is_item_active() {
+    return ImGui::IsItemActive();
+}
+
+bool is_item_focused() {
+    return ImGui::IsItemFocused();
 }
 
 bool begin_window(const char* name, sol::object open_obj, ImGuiWindowFlags flags = 0) {
@@ -741,6 +846,20 @@ void pop_id() {
     ImGui::PopID();
 }
 
+ImGuiID get_id(sol::object id) {
+    if (id.is<int>()) {
+        return id.as<ImGuiID>();
+    } else if (id.is<const char*>()) {
+        return ImGui::GetID(id.as<const char*>());
+    } else if (id.is<void*>()) {
+        return ImGui::GetID(id.as<void*>());
+    } else {
+        throw sol::error("Type must be int, const char* or void*");
+    }
+
+    return 0;
+}
+
 Vector2f get_mouse() {
     const auto mouse = ImGui::GetMousePos();
 
@@ -748,6 +867,319 @@ Vector2f get_mouse() {
         mouse.x,
         mouse.y,
     };
+}
+
+int get_key_index(int imgui_key) {
+    return ImGui::GetKeyIndex(imgui_key);
+}
+
+bool is_key_down(int key) {
+    return ImGui::IsKeyDown(key);
+}
+
+bool is_key_pressed(int key) {
+    return ImGui::IsKeyPressed(key);
+}
+
+bool is_key_released(int key) {
+    return ImGui::IsKeyReleased(key);
+}
+
+bool is_mouse_down(int button) {
+    return ImGui::IsMouseDown(button);
+}
+
+bool is_mouse_clicked(int button) {
+    return ImGui::IsMouseClicked(button);
+}
+
+bool is_mouse_released(int button) {
+    return ImGui::IsMouseReleased(button);
+}
+
+bool is_mouse_double_clicked(int button) {
+    return ImGui::IsMouseDoubleClicked(button);
+}
+
+void indent(int indent_width) {
+    ImGui::Indent(indent_width);
+}
+
+void unindent(int indent_width) {
+    ImGui::Unindent(indent_width);
+}
+
+void begin_tooltip() {
+    ImGui::BeginTooltip();
+}
+
+void end_tooltip() {
+    ImGui::EndTooltip();
+}
+
+void set_tooltip(const char* text) {
+    if (text == nullptr) {
+        text = "";
+    }
+
+    ImGui::SetTooltip(text);
+}
+
+void open_popup(const char* str_id, sol::object flags_obj) {
+    if (str_id == nullptr) {
+        str_id = "";
+    }
+
+    ImGuiWindowFlags flags{0};
+
+    if (flags_obj.is<int>()) {
+        flags = (ImGuiWindowFlags)flags_obj.as<int>();
+    }
+
+    ImGui::OpenPopup(str_id, flags);
+}
+
+bool begin_popup(const char* str_id, sol::object flags_obj) {
+    int flags{0};
+
+    if (flags_obj.is<int>()) {
+        flags = flags_obj.as<int>();
+    }
+
+    return ImGui::BeginPopup(str_id, flags);
+}
+
+bool begin_popup_context_item(const char* str_id, sol::object flags_obj) {
+    int flags{1};
+
+    if (flags_obj.is<int>()) {
+        flags = flags_obj.as<int>();
+    }
+
+    return ImGui::BeginPopupContextItem(str_id, flags);
+}
+
+void end_popup() {
+    ImGui::EndPopup();
+}
+
+void close_current_popup() {
+    ImGui::CloseCurrentPopup();
+}
+
+bool is_popup_open(const char* str_id) {
+    return ImGui::IsPopupOpen(str_id);
+}
+
+Vector2f calc_text_size(const char* text) {
+    const auto result = ImGui::CalcTextSize(text);
+
+    return Vector2f{
+        result.x,
+        result.y,
+    };
+}
+
+Vector2f get_window_size() {
+    const auto result = ImGui::GetWindowSize();
+
+    return Vector2f{
+        result.x,
+        result.y,
+    };
+}
+
+Vector2f get_window_pos() {
+    const auto result = ImGui::GetWindowPos();
+
+    return Vector2f{
+        result.x,
+        result.y,
+    };
+}
+
+void set_next_item_open(bool is_open, sol::object condition_obj) {
+    ImGuiCond condition{0};
+
+    if (condition_obj.is<int>()) {
+        condition = (ImGuiCond)condition_obj.as<int>();
+    }
+
+    ImGui::SetNextItemOpen(is_open, condition);
+}
+
+bool begin_list_box(const char* label, sol::object size_obj) {
+    if (label == nullptr) {
+        label = "";
+    }
+
+    auto size = create_imvec2(size_obj);
+
+    return ImGui::BeginListBox(label, size);
+}
+
+void end_list_box() {
+    ImGui::EndListBox();
+}
+
+bool begin_menu_bar() {
+    return ImGui::BeginMenuBar();
+}
+
+void end_menu_bar() {
+    ImGui::EndMenuBar();
+}
+
+bool begin_main_menu_bar() {
+    return ImGui::BeginMainMenuBar();
+}
+
+void end_main_menu_bar() {
+    ImGui::EndMainMenuBar();
+}
+
+bool begin_menu(const char* label, sol::object enabled_obj) {
+    if (label == nullptr) {
+        label = "";
+    }
+
+    bool enabled{true};
+
+    if (enabled_obj.is<bool>()) {
+        enabled = enabled_obj.as<bool>();
+    }
+
+    return ImGui::BeginMenu(label, enabled);
+}
+
+void end_menu() {
+    ImGui::EndMenu();
+}
+
+bool menu_item(const char* label, sol::object shortcut_obj, sol::object selected_obj, sol::object enabled_obj) {
+    if (label == nullptr) {
+        label = "";
+    }
+
+    const char* shortcut{nullptr};
+    bool selected{false};
+    bool enabled{true};
+
+    if (shortcut_obj.is<const char*>()) {
+        shortcut = shortcut_obj.as<const char*>();
+    } else {
+        shortcut = "";
+    }
+
+    if (selected_obj.is<bool>()) {
+        selected = selected_obj.as<bool>();
+    }
+
+    if (enabled_obj.is<bool>()) {
+        enabled = enabled_obj.as<bool>();
+    }
+
+    return ImGui::MenuItem(label, shortcut, selected, enabled);
+}
+
+Vector2f get_display_size() {
+    const auto& result = ImGui::GetIO().DisplaySize;
+
+    return Vector2f{
+        result.x,
+        result.y,
+    };
+}
+
+void push_item_width(float item_width) {
+    ImGui::PushItemWidth(item_width);
+}
+
+void pop_item_width() {
+    ImGui::PopItemWidth();
+}
+
+void set_next_item_width(float item_width) {
+    ImGui::SetNextItemWidth(item_width);
+}
+
+float calc_item_width() {
+    return ImGui::CalcItemWidth();
+}
+
+void push_style_color(int style_color, sol::object color_obj) {
+    if (color_obj.is<int>()) {
+        ImGui::PushStyleColor((ImGuiCol)style_color, (ImU32)color_obj.as<int>());
+    } else if (color_obj.is<Vector4f>()) {
+        ImGui::PushStyleColor((ImGuiCol)style_color, create_imvec4(color_obj));
+    }
+}
+
+void pop_style_color(sol::object count_obj) {
+    int count{1};
+
+    if (count_obj.is<int>()) {
+        count = count_obj.as<int>();
+    }
+
+    ImGui::PopStyleColor(count);
+}
+
+void push_style_var(int idx, sol::object value_obj) {
+    if (value_obj.is<float>()) {
+        ImGui::PushStyleVar((ImGuiStyleVar)idx, value_obj.as<float>());
+    } else if (value_obj.is<Vector2f>()) {
+        ImGui::PushStyleVar((ImGuiStyleVar)idx, create_imvec2(value_obj));
+    }
+}
+
+void pop_style_var(sol::object count_obj) {
+    int count{1};
+
+    if (count_obj.is<int>()) {
+        count = count_obj.as<int>();
+    }
+
+    ImGui::PopStyleVar(count);
+}
+
+Vector2f get_cursor_pos() {
+    const auto result = ImGui::GetCursorPos();
+
+    return Vector2f{
+        result.x,
+        result.y,
+    };
+}
+
+void set_cursor_pos(sol::object pos) {
+    ImGui::SetCursorPos(create_imvec2(pos));
+}
+
+Vector2f get_cursor_start_pos() {
+    const auto result = ImGui::GetCursorStartPos();
+
+    return Vector2f{
+        result.x,
+        result.y,
+    };
+}
+
+Vector2f get_cursor_screen_pos() {
+    const auto result = ImGui::GetCursorScreenPos();
+
+    return Vector2f{
+        result.x,
+        result.y,
+    };
+}
+
+void set_cursor_screen_pos(sol::object pos) {
+    ImGui::SetCursorScreenPos(create_imvec2(pos));
+}
+
+void set_item_default_focus() {
+    ImGui::SetItemDefaultFocus();
 }
 
 bool begin_table(const char* str_id, int column, sol::object flags_obj, sol::object outer_size_obj, sol::object inner_width_obj) {
@@ -1077,6 +1509,9 @@ void bindings::open_imgui(ScriptState* s) {
     auto imgui = lua.create_table();
 
     imgui["button"] = api::imgui::button;
+    imgui["small_button"] = api::imgui::small_button;
+    imgui["invisible_button"] = api::imgui::invisible_button;
+    imgui["arrow_button"] = api::imgui::arrow_button;
     imgui["combo"] = api::imgui::combo;
     imgui["drag_float"] = api::imgui::drag_float;
     imgui["drag_float2"] = api::imgui::drag_float2;
@@ -1086,7 +1521,9 @@ void bindings::open_imgui(ScriptState* s) {
     imgui["slider_float"] = api::imgui::slider_float;
     imgui["slider_int"] = api::imgui::slider_int;
     imgui["input_text"] = api::imgui::input_text;
+    imgui["input_text_multiline"] = api::imgui::input_text_multiline;
     imgui["text"] = api::imgui::text;
+    imgui["text_colored"] = api::imgui::text_colored;
     imgui["checkbox"] = api::imgui::checkbox;
     imgui["tree_node"] = api::imgui::tree_node;
     imgui["tree_node_ptr_id"] = api::imgui::tree_node_ptr_id;
@@ -1094,6 +1531,8 @@ void bindings::open_imgui(ScriptState* s) {
     imgui["tree_pop"] = api::imgui::tree_pop;
     imgui["same_line"] = api::imgui::same_line;
     imgui["is_item_hovered"] = api::imgui::is_item_hovered;
+    imgui["is_item_active"] = api::imgui::is_item_active;
+    imgui["is_item_focused"] = api::imgui::is_item_focused;
     imgui["begin_window"] = api::imgui::begin_window;
     imgui["end_window"] = api::imgui::end_window;
     imgui["begin_child_window"] = api::imgui::begin_child_window;
@@ -1122,7 +1561,57 @@ void bindings::open_imgui(ScriptState* s) {
     imgui["set_next_window_size"] = api::imgui::set_next_window_size;
     imgui["push_id"] = api::imgui::push_id;
     imgui["pop_id"] = api::imgui::pop_id;
+    imgui["get_id"] = api::imgui::get_id;
     imgui["get_mouse"] = api::imgui::get_mouse;
+    imgui["get_key_index"] = api::imgui::get_key_index;
+    imgui["is_key_down"] = api::imgui::is_key_down;
+    imgui["is_key_pressed"] = api::imgui::is_key_pressed;
+    imgui["is_key_released"] = api::imgui::is_key_released;
+    imgui["is_mouse_down"] = api::imgui::is_mouse_down;
+    imgui["is_mouse_clicked"] = api::imgui::is_mouse_clicked;
+    imgui["is_mouse_released"] = api::imgui::is_mouse_released;
+    imgui["is_mouse_double_clicked"] = api::imgui::is_mouse_double_clicked;
+    imgui["indent"] = api::imgui::indent;
+    imgui["unindent"] = api::imgui::unindent;
+    imgui["begin_tooltip"] = api::imgui::begin_tooltip;
+    imgui["end_tooltip"] = api::imgui::end_tooltip;
+    imgui["set_tooltip"] = api::imgui::set_tooltip;
+    imgui["open_popup"] = api::imgui::open_popup;
+    imgui["begin_popup"] = api::imgui::begin_popup;
+    imgui["begin_popup_context_item"] = api::imgui::begin_popup_context_item;
+    imgui["end_popup"] = api::imgui::end_popup;
+    imgui["close_current_popup"] = api::imgui::close_current_popup;
+    imgui["is_popup_open"] = api::imgui::is_popup_open;
+    imgui["calc_text_size"] = api::imgui::calc_text_size;
+    imgui["get_window_size"] = api::imgui::get_window_size;
+    imgui["get_window_pos"] = api::imgui::get_window_pos;
+    imgui["set_next_item_open"] = api::imgui::set_next_item_open;
+    imgui["begin_list_box"] = api::imgui::begin_list_box;
+    imgui["end_list_box"] = api::imgui::end_list_box;
+    imgui["begin_menu_bar"] = api::imgui::begin_menu_bar;
+    imgui["end_menu_bar"] = api::imgui::end_menu_bar;
+    imgui["begin_main_menu_bar"] = api::imgui::begin_main_menu_bar;
+    imgui["end_main_menu_bar"] = api::imgui::end_main_menu_bar;
+    imgui["begin_menu"] = api::imgui::begin_menu;
+    imgui["end_menu"] = api::imgui::end_menu;
+    imgui["menu_item"] = api::imgui::menu_item;
+    imgui["get_display_size"] = api::imgui::get_display_size;
+    imgui["push_item_width"] = api::imgui::push_item_width;
+    imgui["pop_item_width"] = api::imgui::pop_item_width;
+    imgui["set_next_item_width"] = api::imgui::set_next_item_width;
+    imgui["calc_item_width"] = api::imgui::calc_item_width;
+    imgui["push_style_color"] = api::imgui::push_style_color;
+    imgui["pop_style_color"] = api::imgui::pop_style_color;
+    imgui["push_style_var"] = api::imgui::push_style_var;
+    imgui["pop_style_var"] = api::imgui::pop_style_var;
+    imgui["get_cursor_pos"] = api::imgui::get_cursor_pos;
+    imgui["set_cursor_pos"] = api::imgui::set_cursor_pos;
+    imgui["get_cursor_start_pos"] = api::imgui::get_cursor_start_pos;
+    imgui["get_cursor_screen_pos"] = api::imgui::get_cursor_screen_pos;
+    imgui["set_cursor_screen_pos"] = api::imgui::set_cursor_screen_pos;
+    imgui["set_item_default_focus"] = api::imgui::set_item_default_focus;
+
+    // TABLE APIS
     imgui["begin_table"] = api::imgui::begin_table;
     imgui["end_table"] = api::imgui::end_table;
     imgui["table_next_row"] = api::imgui::table_next_row;
