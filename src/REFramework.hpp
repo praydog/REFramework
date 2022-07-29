@@ -42,7 +42,7 @@ public:
 
     bool is_ready() const { return m_initialized && m_game_data_initialized; }
 
-    void run_imgui_frame();
+    void run_imgui_frame(bool from_present);
 
     void on_frame_d3d11();
     void on_post_present_d3d11();
