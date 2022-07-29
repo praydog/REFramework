@@ -354,7 +354,7 @@ REFramework::~REFramework() {
     }
 }
 
-void REFramework::run_imgui_frame() {
+void REFramework::run_imgui_frame(bool from_present) {
     std::scoped_lock _{ m_imgui_mtx };
 
     m_has_frame = false;
@@ -370,14 +370,18 @@ void REFramework::run_imgui_frame() {
     
     ImGui_ImplWin32_NewFrame();
 
-    if (is_init_ok) {
+    // from_present is so we don't accidentally
+    // run script/game code within the present thread.
+    if (is_init_ok && !from_present) {
         // Run mod frame callbacks.
         m_mods->on_pre_imgui_frame();
     }
 
     ImGui::NewFrame();
 
-    call_on_frame();
+    if (!from_present) {
+        call_on_frame();
+    }
 
     draw_ui();
     m_last_draw_ui = m_draw_ui;
@@ -408,9 +412,17 @@ void REFramework::on_frame_d3d11() {
         m_initialized = true;
         return;
     }
-    
+
     if (m_message_hook_requested) {
         initialize_windows_message_hook();
+    }
+
+    auto device = m_d3d11_hook->get_device();
+    
+    if (device == nullptr) {
+        spdlog::error("D3D11 device was null when it shouldn't be, returning...");
+        m_initialized = false;
+        return;
     }
 
     const bool is_init_ok = m_error.empty() && m_game_data_initialized;
@@ -431,7 +443,7 @@ void REFramework::on_frame_d3d11() {
 
             ImGui_ImplDX11_NewFrame();
             // hooks don't run until after initialization, so we just render the imgui window while initalizing.
-            run_imgui_frame();
+            run_imgui_frame(true);
         } else {   
             return;
         }
@@ -487,7 +499,6 @@ void REFramework::on_frame_d3d12() {
     m_renderer_type = RendererType::D3D12;
 
     auto command_queue = m_d3d12_hook->get_command_queue();
-
     //spdlog::debug("on_frame (D3D12)");
     
     if (!m_initialized) {
@@ -510,6 +521,14 @@ void REFramework::on_frame_d3d12() {
         initialize_windows_message_hook();
     }
 
+    auto device = m_d3d12_hook->get_device();
+
+    if (device == nullptr) {
+        spdlog::error("D3D12 Device was null when it shouldn't be, returning...");
+        m_initialized = false;
+        return;
+    }
+
     const bool is_init_ok = m_error.empty() && m_game_data_initialized;
 
     if (is_init_ok) {
@@ -528,7 +547,7 @@ void REFramework::on_frame_d3d12() {
 
             ImGui_ImplDX12_NewFrame();
             // hooks don't run until after initialization, so we just render the imgui window while initalizing.
-            run_imgui_frame();
+            run_imgui_frame(true);
         } else {   
             return;
         }
@@ -555,7 +574,6 @@ void REFramework::on_frame_d3d12() {
     m_d3d12.cmd_list->ResourceBarrier(1, &barrier);
 
     float clear_color[]{0.0f, 0.0f, 0.0f, 0.0f};
-    auto device = m_d3d12_hook->get_device();
     D3D12_CPU_DESCRIPTOR_HANDLE rts[1]{};
     m_d3d12.cmd_list->ClearRenderTargetView(m_d3d12.get_cpu_rtv(device, D3D12::RTV::IMGUI), clear_color, 0, nullptr);
     rts[0] = m_d3d12.get_cpu_rtv(device, D3D12::RTV::IMGUI);

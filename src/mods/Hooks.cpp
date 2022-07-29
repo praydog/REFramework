@@ -651,7 +651,7 @@ void Hooks::global_application_entry_hook_internal(void* entry, const char* name
         auto& mods = g_framework->get_mods()->get_mods();
 
         if (hash == "BeginRendering"_fnv) {
-            g_framework->run_imgui_frame();
+            g_framework->run_imgui_frame(false);
         }
 
         for (auto& mod : mods) {
@@ -678,7 +678,7 @@ void Hooks::global_application_entry_hook_internal(void* entry, const char* name
         m_application_entry_times[name] = profiler_entry;
     } else {
         if (hash == "BeginRendering"_fnv) {
-            g_framework->run_imgui_frame();
+            g_framework->run_imgui_frame(false);
         }
 
         auto& mods = g_framework->get_mods()->get_mods();
