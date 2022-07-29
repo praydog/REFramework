@@ -420,6 +420,7 @@ void REFramework::on_frame_d3d11() {
     
     if (device == nullptr) {
         spdlog::error("D3D11 device was null when it shouldn't be, returning...");
+        m_initialized = false;
         return;
     }
 
