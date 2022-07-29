@@ -883,17 +883,10 @@ void set_data(void* data, ::sdk::RETypeDefinition* data_type, sol::object& value
     *(void**)data = value.as<void*>();
 }
 
-void set_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name, sol::object value) {
-    auto l = value.lua_state();
+void set_native_field_from_field(sol::object obj, ::sdk::RETypeDefinition* ty, ::sdk::REField* field, sol::object value) {
+
     auto real_obj = get_real_obj(obj);
-
     bool managed_obj_passed = obj.is<REManagedObject*>();
-
-    const auto field = ty->get_field(name);
-
-    if (field == nullptr) {
-        throw sol::error("Attempted to set invalid REManagedObject field:" + std::string(name));
-    }
 
     const auto field_type = field->get_type();
 
@@ -908,6 +901,14 @@ void set_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const char* 
     }
 
     set_data(data, field_type, value);
+}
+
+void set_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name, sol::object value) {
+    const auto field = ty->get_field(name);
+    if (field == nullptr) {
+        throw sol::error("Attempted to set invalid REManagedObject field:" + std::string(name));
+    }
+    return set_native_field_from_field(obj, ty, field, value);
 }
 
 sol::object get_native_field_from_field(sol::object obj, ::sdk::RETypeDefinition* ty, ::sdk::REField* field) {
@@ -1066,29 +1067,57 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::protected_funct
 }
 
 namespace api::re_managed_object {
-sol::object index(sol::this_state s, REManagedObject* obj, const char* name) {
+sol::object index(sol::this_state s, sol::object lua_obj, sol::variadic_args args) {
+    auto obj = lua_obj.as<REManagedObject*>();
     if (obj == nullptr) {
-        throw sol::error("Attempted to index null REManagedObject");
+        throw sol::error("Attempted to index invalid REManagedObject");
     }
+    auto index = args[0];
 
     auto type_def = utility::re_managed_object::get_type_definition(obj);
-    auto field = type_def->get_field(name);
-    if (field != nullptr) {
-        return api::sdk::get_native_field_from_field(sol::make_object(s, obj), type_def, field);
+    std::string name;
+    if (index.is<const char*>()) {
+        name = index.as<const char*>();
+        auto field = type_def->get_field(name.c_str());
+        if (field != nullptr) {
+            return api::sdk::get_native_field_from_field(lua_obj, type_def, field);
+        }
+        auto method = type_def->get_method(name.c_str());
+        if (method != nullptr) {
+            return sol::make_object(s, method);
+        }
     }
-    auto method = type_def->get_method(name);
-    if (method != nullptr) {
-        return sol::make_object(s, method);
+
+    if (type_def->get_method("get_Item") != nullptr) {
+        return ::api::sdk::call_native_func(lua_obj, type_def, "get_Item", args);
     }
-    throw sol::error("Attempted to index invalid REManagedObject field: " + std::string(name));
+
+    throw sol::error("Attempted to index invalid REManagedObject field: " + name);
 }
 
-void new_index(sol::this_state s, REManagedObject* obj, const char* name, sol::object value) {
+void new_index(sol::this_state s, sol::object lua_obj, sol::variadic_args args) {
+    auto obj = lua_obj.as<REManagedObject*>();
     if (obj == nullptr) {
-        return;
+        throw sol::error("Attempted to index invalid REManagedObject");
     }
 
-    return api::sdk::set_native_field(sol::make_object(s, obj), utility::re_managed_object::get_type_definition(obj), name, value); 
+    auto index = args[0];
+    auto assign = args[1];
+
+    auto type_def = utility::re_managed_object::get_type_definition(obj);
+    std::string name;
+    if (index.is<const char*>()) {
+        name = index.as<const char*>();
+        auto field = type_def->get_field(name.c_str());
+
+        if (field != nullptr) {
+            return api::sdk::set_native_field_from_field(lua_obj, type_def, field, assign);
+        }
+    }
+    if (type_def->get_method("set_Item") != nullptr) {
+        ::api::sdk::call_native_func(lua_obj, type_def, "set_Item", args);
+    }
+    throw sol::error("Attempted to index invalid REManagedObject field: " + name);
 }
 
 bool is_valid_offset(::REManagedObject* obj, int32_t offset) {
