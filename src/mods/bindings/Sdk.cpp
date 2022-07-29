@@ -1536,7 +1536,13 @@ void bindings::open_sdk(ScriptState* s) {
         "get_size", &sdk::SystemArray::size,
         "get_element", &sdk::SystemArray::get_element,
         "get_elements", &sdk::SystemArray::get_elements,
-        sol::meta_function::index, api::re_managed_object::index,
+        sol::meta_function::index, [](sol::this_state s, sdk::SystemArray* arr, sol::variadic_args args) {
+            auto index = args[0];
+            if (index.is<int32_t>()) {
+                return sol::make_object(s.L, arr->get_element(index));
+            }
+            return api::re_managed_object::index(s, sol::make_object(s.L, arr), args);
+        },
         sol::meta_function::new_index, [](sol::this_state s, sdk::SystemArray* arr, sol::variadic_args args) {
             auto index = args[0];
             auto value = args[1];
