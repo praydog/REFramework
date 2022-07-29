@@ -883,17 +883,10 @@ void set_data(void* data, ::sdk::RETypeDefinition* data_type, sol::object& value
     *(void**)data = value.as<void*>();
 }
 
-void set_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name, sol::object value) {
-    auto l = value.lua_state();
+void set_native_field_from_field(sol::object obj, ::sdk::RETypeDefinition* ty, ::sdk::REField* field, sol::object value) {
+
     auto real_obj = get_real_obj(obj);
-
     bool managed_obj_passed = obj.is<REManagedObject*>();
-
-    const auto field = ty->get_field(name);
-
-    if (field == nullptr) {
-        throw sol::error("Attempted to set invalid REManagedObject field:" + std::string(name));
-    }
 
     const auto field_type = field->get_type();
 
@@ -908,6 +901,14 @@ void set_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const char* 
     }
 
     set_data(data, field_type, value);
+}
+
+void set_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name, sol::object value) {
+    const auto field = ty->get_field(name);
+    if (field == nullptr) {
+        throw sol::error("Attempted to set invalid REManagedObject field:" + std::string(name));
+    }
+    return set_native_field_from_field(obj, ty, field, value);
 }
 
 sol::object get_native_field_from_field(sol::object obj, ::sdk::RETypeDefinition* ty, ::sdk::REField* field) {
@@ -1001,17 +1002,8 @@ std::vector<void*>& build_args(sol::variadic_args va) {
     return args;
 }
 
-sol::object call_native_func(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name, sol::variadic_args va) {
+sol::object call_native_func_direct(sol::object obj, ::sdk::REMethodDefinition* fn, sol::variadic_args va) {
     auto l = va.lua_state();
-
-    
-    // Convert return values to the correct Lua types.
-    auto fn = ty->get_method(name);
-
-    if (fn == nullptr) {
-        return sol::make_object(l, sol::nil);
-    }
-
     auto ret_ty = fn->get_return_type();
 
     if (ret_ty == nullptr) {
@@ -1026,6 +1018,18 @@ sol::object call_native_func(sol::object obj, ::sdk::RETypeDefinition* ty, const
     }
 
     return parse_data(l, &ret_val, ret_ty, true);
+}
+
+sol::object call_native_func(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name, sol::variadic_args va) {
+    auto l = va.lua_state();
+    
+    // Convert return values to the correct Lua types.
+    auto fn = ty->get_method(name);
+
+    if (fn == nullptr) {
+        return sol::make_object(l, sol::nil);
+    }
+    return call_native_func_direct(obj, fn, va);
 }
 
 auto call_object_func(sol::object obj, const char* name, sol::variadic_args va) {
@@ -1066,29 +1070,59 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::protected_funct
 }
 
 namespace api::re_managed_object {
-sol::object index(sol::this_state s, REManagedObject* obj, const char* name) {
+sol::object index(sol::this_state s, sol::object lua_obj, sol::variadic_args args) {
+    auto obj = lua_obj.as<REManagedObject*>();
     if (obj == nullptr) {
-        throw sol::error("Attempted to index null REManagedObject");
+        throw sol::error("Attempted to index invalid REManagedObject");
     }
+    auto index = args[0];
 
     auto type_def = utility::re_managed_object::get_type_definition(obj);
-    auto field = type_def->get_field(name);
-    if (field != nullptr) {
-        return api::sdk::get_native_field_from_field(sol::make_object(s, obj), type_def, field);
+    std::string name;
+    if (index.is<const char*>()) {
+        name = index.as<const char*>();
+        auto field = type_def->get_field(name.c_str());
+        if (field != nullptr) {
+            return api::sdk::get_native_field_from_field(lua_obj, type_def, field);
+        }
+        auto method = type_def->get_method(name.c_str());
+        if (method != nullptr) {
+            return sol::make_object(s, method);
+        }
     }
-    auto method = type_def->get_method(name);
-    if (method != nullptr) {
-        return sol::make_object(s, method);
+
+    if (auto fn = type_def->get_method("get_Item"); fn != nullptr) {
+        return ::api::sdk::call_native_func_direct(lua_obj, fn, args);
     }
-    throw sol::error("Attempted to index invalid REManagedObject field: " + std::string(name));
+
+    throw sol::error("Attempted to index invalid REManagedObject field: " + name);
 }
 
-void new_index(sol::this_state s, REManagedObject* obj, const char* name, sol::object value) {
+void new_index(sol::this_state s, sol::object lua_obj, sol::variadic_args args) {
+    auto obj = lua_obj.as<REManagedObject*>();
     if (obj == nullptr) {
-        return;
+        throw sol::error("Attempted to new_index invalid REManagedObject");
     }
 
-    return api::sdk::set_native_field(sol::make_object(s, obj), utility::re_managed_object::get_type_definition(obj), name, value); 
+    auto index = args[0];
+    auto assign = args[1];
+
+    auto type_def = utility::re_managed_object::get_type_definition(obj);
+    std::string name;
+    if (index.is<const char*>()) {
+        name = index.as<const char*>();
+        auto field = type_def->get_field(name.c_str());
+
+        if (field != nullptr) {
+            return api::sdk::set_native_field_from_field(lua_obj, type_def, field, assign);
+        }
+    }
+
+    if (auto fn = type_def->get_method("set_Item"); fn != nullptr) {
+        ::api::sdk::call_native_func_direct(lua_obj, fn, args);
+        return;
+    }
+    throw sol::error("Attempted to new_index invalid REManagedObject field: " + name);
 }
 
 bool is_valid_offset(::REManagedObject* obj, int32_t offset) {
@@ -1502,12 +1536,22 @@ void bindings::open_sdk(ScriptState* s) {
         "get_size", &sdk::SystemArray::size,
         "get_element", &sdk::SystemArray::get_element,
         "get_elements", &sdk::SystemArray::get_elements,
-        sol::meta_function::index, [](sdk::SystemArray* arr, int32_t index) {
-            return arr->get_element(index);
+        sol::meta_function::index, [](sol::this_state s, sdk::SystemArray* arr, sol::variadic_args args) {
+            auto index = args[0];
+            if (index.is<int32_t>()) {
+                return sol::make_object(s.L, arr->get_element(index));
+            }
+            return api::re_managed_object::index(s, sol::make_object(s.L, arr), args);
         },
-        sol::meta_function::new_index, [](sdk::SystemArray* arr, int32_t index, ::REManagedObject* value) {
-            arr->set_element(index, value);
+        sol::meta_function::new_index, [](sol::this_state s, sdk::SystemArray* arr, sol::variadic_args args) {
+            auto index = args[0];
+            auto value = args[1];
+            if (index.is<int32_t>() && value.is<REManagedObject*>()) {
+                return arr->set_element(index, value);
+            }
+            return api::re_managed_object::new_index(s, sol::make_object(s.L, arr), args);
         },
+
         sol::base_classes, sol::bases<::REManagedObject>()
     );
 
