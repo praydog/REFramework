@@ -412,6 +412,13 @@ void REFramework::on_frame_d3d11() {
         initialize_windows_message_hook();
     }
 
+    auto device = m_d3d11_hook->get_device();
+    
+    if (device == nullptr) {
+        spdlog::error("D3D11 device was null when it shouldn't be, returning...");
+        return;
+    }
+
     const bool is_init_ok = m_error.empty() && m_game_data_initialized;
 
     if (is_init_ok) {
@@ -509,6 +516,14 @@ void REFramework::on_frame_d3d12() {
         initialize_windows_message_hook();
     }
 
+    auto device = m_d3d12_hook->get_device();
+
+    if (device == nullptr) {
+        spdlog::error("D3D12 Device was null when it shouldn't be, returning...");
+        m_initialized = false;
+        return;
+    }
+
     const bool is_init_ok = m_error.empty() && m_game_data_initialized;
 
     if (is_init_ok) {
@@ -554,7 +569,6 @@ void REFramework::on_frame_d3d12() {
     m_d3d12.cmd_list->ResourceBarrier(1, &barrier);
 
     float clear_color[]{0.0f, 0.0f, 0.0f, 0.0f};
-    auto device = m_d3d12_hook->get_device();
     D3D12_CPU_DESCRIPTOR_HANDLE rts[1]{};
     m_d3d12.cmd_list->ClearRenderTargetView(m_d3d12.get_cpu_rtv(device, D3D12::RTV::IMGUI), clear_color, 0, nullptr);
     rts[0] = m_d3d12.get_cpu_rtv(device, D3D12::RTV::IMGUI);
