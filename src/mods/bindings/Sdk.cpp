@@ -1098,7 +1098,7 @@ sol::object index(sol::this_state s, sol::object lua_obj, sol::variadic_args arg
 void new_index(sol::this_state s, sol::object lua_obj, sol::variadic_args args) {
     auto obj = lua_obj.as<REManagedObject*>();
     if (obj == nullptr) {
-        throw sol::error("Attempted to index invalid REManagedObject");
+        throw sol::error("Attempted to new_index invalid REManagedObject");
     }
 
     auto index = args[0];
@@ -1116,8 +1116,9 @@ void new_index(sol::this_state s, sol::object lua_obj, sol::variadic_args args) 
     }
     if (type_def->get_method("set_Item") != nullptr) {
         ::api::sdk::call_native_func(lua_obj, type_def, "set_Item", args);
+        return;
     }
-    throw sol::error("Attempted to index invalid REManagedObject field: " + name);
+    throw sol::error("Attempted to new_index invalid REManagedObject field: " + name);
 }
 
 bool is_valid_offset(::REManagedObject* obj, int32_t offset) {
@@ -1531,12 +1532,8 @@ void bindings::open_sdk(ScriptState* s) {
         "get_size", &sdk::SystemArray::size,
         "get_element", &sdk::SystemArray::get_element,
         "get_elements", &sdk::SystemArray::get_elements,
-        sol::meta_function::index, [](sdk::SystemArray* arr, int32_t index) {
-            return arr->get_element(index);
-        },
-        sol::meta_function::new_index, [](sdk::SystemArray* arr, int32_t index, ::REManagedObject* value) {
-            arr->set_element(index, value);
-        },
+        sol::meta_function::index, api::re_managed_object::index,
+        sol::meta_function::new_index, api::re_managed_object::new_index,
         sol::base_classes, sol::bases<::REManagedObject>()
     );
 
