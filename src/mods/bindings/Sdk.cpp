@@ -1002,17 +1002,8 @@ std::vector<void*>& build_args(sol::variadic_args va) {
     return args;
 }
 
-sol::object call_native_func(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name, sol::variadic_args va) {
+sol::object call_native_func_direct(sol::object obj, ::sdk::REMethodDefinition* fn, sol::variadic_args va) {
     auto l = va.lua_state();
-
-    
-    // Convert return values to the correct Lua types.
-    auto fn = ty->get_method(name);
-
-    if (fn == nullptr) {
-        return sol::make_object(l, sol::nil);
-    }
-
     auto ret_ty = fn->get_return_type();
 
     if (ret_ty == nullptr) {
@@ -1027,6 +1018,18 @@ sol::object call_native_func(sol::object obj, ::sdk::RETypeDefinition* ty, const
     }
 
     return parse_data(l, &ret_val, ret_ty, true);
+}
+
+sol::object call_native_func(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name, sol::variadic_args va) {
+    auto l = va.lua_state();
+    
+    // Convert return values to the correct Lua types.
+    auto fn = ty->get_method(name);
+
+    if (fn == nullptr) {
+        return sol::make_object(l, sol::nil);
+    }
+    return call_native_func_direct(obj, fn, va);
 }
 
 auto call_object_func(sol::object obj, const char* name, sol::variadic_args va) {
@@ -1088,8 +1091,8 @@ sol::object index(sol::this_state s, sol::object lua_obj, sol::variadic_args arg
         }
     }
 
-    if (type_def->get_method("get_Item") != nullptr) {
-        return ::api::sdk::call_native_func(lua_obj, type_def, "get_Item", args);
+    if (auto fn = type_def->get_method("get_Item"); fn != nullptr) {
+        return ::api::sdk::call_native_func_direct(lua_obj, fn, args);
     }
 
     throw sol::error("Attempted to index invalid REManagedObject field: " + name);
@@ -1114,8 +1117,9 @@ void new_index(sol::this_state s, sol::object lua_obj, sol::variadic_args args) 
             return api::sdk::set_native_field_from_field(lua_obj, type_def, field, assign);
         }
     }
-    if (type_def->get_method("set_Item") != nullptr) {
-        ::api::sdk::call_native_func(lua_obj, type_def, "set_Item", args);
+
+    if (auto fn = type_def->get_method("set_Item"); fn != nullptr) {
+        ::api::sdk::call_native_func_direct(lua_obj, fn, args);
         return;
     }
     throw sol::error("Attempted to new_index invalid REManagedObject field: " + name);
