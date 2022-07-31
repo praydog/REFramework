@@ -242,6 +242,7 @@ private:
         *m_log_to_disk,
         *m_gc_handler,
         *m_gc_type,
+        *m_gc_mode,
         *m_gc_budget,
         *m_gc_minor_multiplier,
         *m_gc_major_multiplier
