@@ -1095,7 +1095,8 @@ sol::object index(sol::this_state s, sol::object lua_obj, sol::variadic_args arg
         return ::api::sdk::call_native_func_direct(lua_obj, fn, args);
     }
 
-    throw sol::error("Attempted to index invalid REManagedObject field: " + name);
+    //throw sol::error("Attempted to index invalid REManagedObject field: " + name);
+    return sol::make_object(s, sol::nil);
 }
 
 void new_index(sol::this_state s, sol::object lua_obj, sol::variadic_args args) {
