@@ -266,7 +266,7 @@ std::vector<void*>& build_args(sol::variadic_args va);
 sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_type, bool from_method);
 sol::object get_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name);
 sol::object get_field_or_method(sol::object obj, const char* name);
-void set_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name, sol::object value);
+void set_native_field(lua_State* l, sol::object obj, ::sdk::RETypeDefinition* ty, const char* name, sol::object value);
 
 struct ValueType {
     std::vector<uint8_t> data{};
@@ -355,7 +355,7 @@ struct ValueType {
             return;
         }
 
-        ::api::sdk::set_native_field(sol::make_object(l, (void*)address()), type, name, value);
+        ::api::sdk::set_native_field(l, sol::make_object(l, (void*)address()), type, name, value);
     }
 };
 
@@ -903,10 +903,15 @@ void set_native_field_from_field(sol::object obj, ::sdk::RETypeDefinition* ty, :
     set_data(data, field_type, value);
 }
 
-void set_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name, sol::object value) {
+void set_native_field(lua_State* l, sol::object obj, ::sdk::RETypeDefinition* ty, const char* name, sol::object value) {
     const auto field = ty->get_field(name);
     if (field == nullptr) {
-        throw sol::error("Attempted to set invalid REManagedObject field:" + std::string(name));
+        //throw sol::error("Attempted to set invalid REManagedObject field:" + std::string(name));
+        luaL_traceback(l, l, ("Attempted to set invalid REManagedObject field:" + std::string(name)).c_str(), 1);
+        std::string traceback_err = lua_tostring(l, -1);
+        lua_pop(l, 1);
+        ScriptRunner::get()->spew_error(traceback_err); // allows us to log the error without failing script execution altogether.
+        return;
     }
     return set_native_field_from_field(obj, ty, field, value);
 }
@@ -1444,7 +1449,7 @@ void bindings::open_sdk(ScriptState* s) {
                 return;
             }
 
-            return api::sdk::set_native_field(sol::make_object(s->lua(), obj), utility::re_managed_object::get_type_definition(obj), name, value); 
+            return api::sdk::set_native_field(s->lua(), sol::make_object(s->lua(), obj), utility::re_managed_object::get_type_definition(obj), name, value); 
         },
         "call", [s](REManagedObject* obj, const char* name, sol::variadic_args args) {
             if (obj == nullptr) {
