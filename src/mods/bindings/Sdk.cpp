@@ -265,6 +265,7 @@ namespace api::sdk {
 std::vector<void*>& build_args(sol::variadic_args va);
 sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_type, bool from_method);
 sol::object get_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name);
+sol::object get_native_field_from_field(sol::object obj, ::sdk::RETypeDefinition* ty, ::sdk::REField* field);
 sol::object get_field_or_method(sol::object obj, const char* name);
 void set_native_field(lua_State* l, sol::object obj, ::sdk::RETypeDefinition* ty, const char* name, sol::object value);
 
@@ -357,6 +358,31 @@ struct ValueType {
 
         ::api::sdk::set_native_field(l, sol::make_object(l, (void*)address()), type, name, value);
     }
+
+    sol::object index(sol::this_state s, const char* name) {
+        if (type == nullptr) {
+            return sol::make_object(s, sol::nil);
+        }
+
+
+        auto field = type->get_field(name);
+        if (field != nullptr) {
+            return api::sdk::get_native_field_from_field(sol::make_object(s, (void*)address()), type, field);
+        }
+        auto method = type->get_method(name);
+        if (method != nullptr) {
+            return sol::make_object(s, method);
+        }
+
+        return sol::make_object(s, sol::nil);
+    }
+
+    void new_index(sol::this_state s, const char* name, sol::object assign) {
+        if (type == nullptr) {
+            return;
+        }
+        return api::sdk::set_native_field(s, sol::make_object(s, (void*)address()), type, name, assign);
+    };
 };
 
 struct MemoryView {
@@ -1565,6 +1591,8 @@ void bindings::open_sdk(ScriptState* s) {
     
     lua.new_usertype<api::sdk::ValueType>("ValueType",
         sol::meta_function::construct, sol::constructors<api::sdk::ValueType(sdk::RETypeDefinition*)>(),
+        sol::meta_function::index, &api::sdk::ValueType::index,
+        sol::meta_function::new_index, &api::sdk::ValueType::new_index,
         "data", &api::sdk::ValueType::data,
         "type", &api::sdk::ValueType::type,
         "write_byte", &api::sdk::ValueType::write_memory<uint8_t>,
