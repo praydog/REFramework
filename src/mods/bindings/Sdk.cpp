@@ -320,8 +320,9 @@ namespace api::sdk {
 std::vector<void*>& build_args(sol::variadic_args va);
 sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_type, bool from_method);
 sol::object get_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name);
+sol::object get_native_field_from_field(sol::object obj, ::sdk::RETypeDefinition* ty, ::sdk::REField* field);
 sol::object get_field_or_method(sol::object obj, const char* name);
-void set_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name, sol::object value);
+void set_native_field(lua_State* l, sol::object obj, ::sdk::RETypeDefinition* ty, const char* name, sol::object value);
 
 struct ValueType {
     std::vector<uint8_t> data{};
@@ -410,8 +411,33 @@ struct ValueType {
             return;
         }
 
-        ::api::sdk::set_native_field(sol::make_object(l, (void*)address()), type, name, value);
+        ::api::sdk::set_native_field(l, sol::make_object(l, (void*)address()), type, name, value);
     }
+
+    sol::object index(sol::this_state s, const char* name) {
+        if (type == nullptr) {
+            return sol::make_object(s, sol::nil);
+        }
+
+
+        auto field = type->get_field(name);
+        if (field != nullptr) {
+            return api::sdk::get_native_field_from_field(sol::make_object(s, (void*)address()), type, field);
+        }
+        auto method = type->get_method(name);
+        if (method != nullptr) {
+            return sol::make_object(s, method);
+        }
+
+        return sol::make_object(s, sol::nil);
+    }
+
+    void new_index(sol::this_state s, const char* name, sol::object assign) {
+        if (type == nullptr) {
+            return;
+        }
+        return api::sdk::set_native_field(s, sol::make_object(s, (void*)address()), type, name, assign);
+    };
 };
 
 struct MemoryView {
@@ -962,10 +988,15 @@ void set_native_field_from_field(sol::object obj, ::sdk::RETypeDefinition* ty, :
     set_data(data, field_type, value);
 }
 
-void set_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name, sol::object value) {
+void set_native_field(lua_State* l, sol::object obj, ::sdk::RETypeDefinition* ty, const char* name, sol::object value) {
     const auto field = ty->get_field(name);
     if (field == nullptr) {
-        throw sol::error("Attempted to set invalid REManagedObject field:" + std::string(name));
+        //throw sol::error("Attempted to set invalid REManagedObject field:" + std::string(name));
+        luaL_traceback(l, l, ("Attempted to set invalid REManagedObject field:" + std::string(name)).c_str(), 1);
+        std::string traceback_err = lua_tostring(l, -1);
+        lua_pop(l, 1);
+        ScriptRunner::get()->spew_error(traceback_err); // allows us to log the error without failing script execution altogether.
+        return;
     }
     return set_native_field_from_field(obj, ty, field, value);
 }
@@ -1165,7 +1196,8 @@ sol::object index(sol::this_state s, sol::object lua_obj, sol::variadic_args arg
         return ::api::sdk::call_native_func_direct(lua_obj, fn, args);
     }
 
-    throw sol::error("Attempted to index invalid REManagedObject field: " + name);
+    //throw sol::error("Attempted to index invalid REManagedObject field: " + name);
+    return sol::make_object(s, sol::nil);
 }
 
 void new_index(sol::this_state s, sol::object lua_obj, sol::variadic_args args) {
@@ -1515,7 +1547,7 @@ void bindings::open_sdk(ScriptState* s) {
                 return;
             }
 
-            return api::sdk::set_native_field(sol::make_object(s->lua(), obj), utility::re_managed_object::get_type_definition(obj), name, value); 
+            return api::sdk::set_native_field(s->lua(), sol::make_object(s->lua(), obj), utility::re_managed_object::get_type_definition(obj), name, value); 
         },
         "call", [s](REManagedObject* obj, const char* name, sol::variadic_args args) {
             if (obj == nullptr) {
@@ -1649,6 +1681,8 @@ void bindings::open_sdk(ScriptState* s) {
     
     lua.new_usertype<api::sdk::ValueType>("ValueType",
         sol::meta_function::construct, sol::constructors<api::sdk::ValueType(sdk::RETypeDefinition*)>(),
+        sol::meta_function::index, &api::sdk::ValueType::index,
+        sol::meta_function::new_index, &api::sdk::ValueType::new_index,
         "data", &api::sdk::ValueType::data,
         "type", &api::sdk::ValueType::type,
         "write_byte", &api::sdk::ValueType::write_memory<uint8_t>,

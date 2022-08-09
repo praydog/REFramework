@@ -39,7 +39,7 @@ namespace utility {
         Pattern p{ pattern };
 
         for (uintptr_t i = start; i >= start - length; i--) {
-            if (p.find(i, length).has_value()) {
+            if (p.find(i, p.pattern_len()).has_value()) {
                 return i;
             }
         }

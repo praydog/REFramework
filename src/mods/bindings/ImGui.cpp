@@ -321,7 +321,7 @@ sol::variadic_results input_text_multiline(sol::this_state s, const char* label,
 }
 
 
-sol::variadic_results combo(sol::this_state s, const char* label, int selection, sol::table values) {
+sol::variadic_results combo(sol::this_state s, const char* label, sol::object selection, sol::table values) {
     if (label == nullptr) {
         label = "";
     }
@@ -329,8 +329,8 @@ sol::variadic_results combo(sol::this_state s, const char* label, int selection,
     const char* preview_value = "";
 
     if (!values.empty()) {
-        if (selection < 1 || selection > values.size()) {
-            selection = 1;
+        if (selection.is<sol::nil_t>() || values.get_or(selection, sol::make_object(s, sol::nil)).is<sol::nil_t>()) {
+            selection = (*values.begin()).first;
         }
 
         auto val_at_selection = values[selection].get<sol::object>();
@@ -343,14 +343,15 @@ sol::variadic_results combo(sol::this_state s, const char* label, int selection,
     auto selection_changed = false;
 
     if (ImGui::BeginCombo(label, preview_value)) {
-        for (auto i = 1u; i <= values.size(); ++i) {
-            auto val_at_i = values[i].get<sol::object>();
+        //for (auto i = 1u; i <= values.size(); ++i) {
+        for (auto& [key, val] : values) {
+            auto val_at_k = values[key].get<sol::object>();
 
-            if (val_at_i.is<const char*>()) {
-                auto entry = val_at_i.as<const char*>();
+            if (val_at_k.is<const char*>()) {
+                auto entry = val_at_k.as<const char*>();
 
-                if (ImGui::Selectable(entry, selection == i)) {
-                    selection = i;
+                if (ImGui::Selectable(entry, selection == key)) {
+                    selection = key;
                     selection_changed = true;
                 }
             }
