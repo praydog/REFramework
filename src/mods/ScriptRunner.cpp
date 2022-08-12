@@ -79,8 +79,6 @@ ScriptState::ScriptState(const ScriptState::GarbageCollectionData& gc_data) {
     re["msg"] = api::re::msg;
     re["on_pre_application_entry"] = [this](const char* name, sol::function fn) { m_pre_application_entry_fns.emplace(utility::hash(name), fn); };
     re["on_application_entry"] = [this](const char* name, sol::function fn) { m_application_entry_fns.emplace(utility::hash(name), fn); };
-    re["on_update_transform"] = [this](RETransform* transform, sol::function fn) { m_update_transform_fns.emplace(transform, fn); };
-    re["on_pre_update_transform"] = [this](RETransform* transform, sol::function fn) { m_pre_update_transform_fns.emplace(transform, fn); };
     re["on_pre_gui_draw_element"] = [this](sol::function fn) { m_pre_gui_draw_element_fns.emplace_back(fn); };
     re["on_gui_draw_element"] = [this](sol::function fn) { m_gui_draw_element_fns.emplace_back(fn); };
     re["on_draw_ui"] = [this](sol::function fn) { m_on_draw_ui_fns.emplace_back(fn); };
@@ -417,38 +415,6 @@ void ScriptState::on_application_entry(size_t hash) {
                 lua_gc(m_lua, LUA_GCCOLLECT);
                 break;
         };
-    }
-}
-
-void ScriptState::on_pre_update_transform(RETransform* transform) {
-    try {
-        auto range = m_pre_update_transform_fns.equal_range(transform);
-
-        if (range.first != range.second) {
-            std::scoped_lock _{ m_execution_mutex };
-
-            for (auto it = range.first; it != range.second; ++it) {
-                handle_protected_result(it->second(transform));
-            }
-        }
-    } catch (const std::exception& e) {
-        ScriptRunner::get()->spew_error(e.what());
-    }
-}
-
-void ScriptState::on_update_transform(RETransform* transform) {
-    try {
-        auto range = m_update_transform_fns.equal_range(transform);
-
-        if (range.first != range.second) {
-            std::scoped_lock _{ m_execution_mutex };
-
-            for (auto it = range.first; it != range.second; ++it) {
-                handle_protected_result(it->second(transform));
-            }
-        }
-    } catch (const std::exception& e) {
-        ScriptRunner::get()->spew_error(e.what());
     }
 }
 
@@ -830,26 +796,6 @@ void ScriptRunner::on_application_entry(void* entry, const char* name, size_t ha
     }
 
     m_state->on_application_entry(hash);
-}
-
-void ScriptRunner::on_pre_update_transform(RETransform* transform) {
-    std::scoped_lock _{ m_access_mutex };
-
-    if (m_state == nullptr) {
-        return;
-    }
-
-    m_state->on_pre_update_transform(transform);
-}
-
-void ScriptRunner::on_update_transform(RETransform* transform) {
-    std::scoped_lock _{ m_access_mutex };
-
-    if (m_state == nullptr) {
-        return;
-    }
-
-    m_state->on_update_transform(transform);
 }
 
 bool ScriptRunner::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_context) {
