@@ -393,8 +393,19 @@ HRESULT WINAPI D3D12Hook::present(IDXGISwapChain3* swap_chain, UINT sync_interva
             spdlog::info("Present fixed");
         }
 
-        // D3D12 generally seems to function OK if we don't actually call the original function
-        // so lets just return S_OK
+        if ((uintptr_t)present_fn != (uintptr_t)D3D12Hook::present && g_present_depth == 1) {
+            spdlog::info("Attempting to call real present function");
+
+            const auto result = present_fn(swap_chain, sync_interval, flags);
+
+            if (result != S_OK) {
+                spdlog::error("Present failed: {:x}", result);
+            }
+
+            return result;
+        }
+
+        spdlog::info("Just returning S_OK");
         return S_OK;
     }
 
