@@ -317,6 +317,9 @@ void ScriptState::run_script(const std::string& p) {
     } catch (const std::exception& e) {
         ScriptRunner::get()->spew_error(e.what());
         api::re::msg(e.what());
+    } catch (...) {
+        ScriptRunner::get()->spew_error((std::stringstream{} << "Unknown error when running script " << p).str());
+        api::re::msg((std::stringstream{} << "Unknown error when running script " << p).str().c_str());
     }
 
     m_lua["package"]["path"] = old_path;
@@ -341,6 +344,8 @@ void ScriptState::on_frame() {
         }
     } catch (const std::exception& e) {
         ScriptRunner::get()->spew_error(e.what());
+    } catch (...) {
+        ScriptRunner::get()->spew_error("Unknown error in on_frame");
     }
 }
 
@@ -357,11 +362,17 @@ void ScriptState::on_draw_ui() {
         }
     } catch (const std::exception& e) {
         ScriptRunner::get()->spew_error(e.what());
+    } catch (...) {
+        ScriptRunner::get()->spew_error("Unknown error in on_draw_ui");
     }
 }
 
 void ScriptState::on_pre_application_entry(size_t hash) {
     try {
+        if (m_pre_application_entry_fns.empty()) {
+            return;
+        }
+
         auto range = m_pre_application_entry_fns.equal_range(hash);
 
         if (range.first != range.second) {
@@ -373,11 +384,17 @@ void ScriptState::on_pre_application_entry(size_t hash) {
         }
     } catch (const std::exception& e) {
         ScriptRunner::get()->spew_error(e.what());
+    } catch (...) {
+        ScriptRunner::get()->spew_error("Unknown exception in on_pre_application_entry");
     }
 }
 
 void ScriptState::on_application_entry(size_t hash) {
     try {
+        if (m_application_entry_fns.empty()) {
+            return;
+        }
+
         auto range = m_application_entry_fns.equal_range(hash);
 
         if (range.first != range.second) {
@@ -389,6 +406,8 @@ void ScriptState::on_application_entry(size_t hash) {
         }
     } catch (const std::exception& e) {
         ScriptRunner::get()->spew_error(e.what());
+    } catch (...) {
+        ScriptRunner::get()->spew_error("Unknown exception in on_application_entry");
     }
 
     if (hash == "EndRendering"_fnv && m_gc_data.gc_handler == ScriptState::GarbageCollectionHandler::REFRAMEWORK_MANAGED) {
@@ -431,6 +450,8 @@ bool ScriptState::on_pre_gui_draw_element(REComponent* gui_element, void* contex
         }
     } catch (const std::exception& e) {
         ScriptRunner::get()->spew_error(e.what());
+    } catch (...) {
+        ScriptRunner::get()->spew_error("Unknown exception in on_pre_gui_draw_element");
     }
 
     return !any_false;
@@ -445,6 +466,8 @@ void ScriptState::on_gui_draw_element(REComponent* gui_element, void* context) {
         }
     } catch (const std::exception& e) {
         ScriptRunner::get()->spew_error(e.what());
+    } catch (...) {
+        ScriptRunner::get()->spew_error("Unknown exception in on_gui_draw_element");
     }
 }
 
@@ -461,6 +484,8 @@ void ScriptState::on_script_reset() try {
     }
 } catch (const std::exception& e) {
     ScriptRunner::get()->spew_error(e.what());
+} catch (...) {
+    ScriptRunner::get()->spew_error("Unknown exception in on_script_reset");
 }
 
 void ScriptState::on_config_save() try {
@@ -472,6 +497,8 @@ void ScriptState::on_config_save() try {
 }
 catch (const std::exception& e) {
     ScriptRunner::get()->spew_error(e.what());
+} catch (...) {
+    ScriptRunner::get()->spew_error("Unknown exception in on_config_save");
 }
 
 void ScriptState::add_hook(
@@ -526,6 +553,8 @@ void ScriptState::install_hooks() {
                     }
                 } catch (const std::exception& e) {
                     ScriptRunner::get()->spew_error(e.what());
+                } catch (...) {
+                    ScriptRunner::get()->spew_error("Unknown exception in pre_hook");
                 }
 
                 return result;
@@ -547,6 +576,8 @@ void ScriptState::install_hooks() {
                     ret_val = (uintptr_t)script_result.get<void*>();
                 } catch (const std::exception& e) {
                     ScriptRunner::get()->spew_error(e.what());
+                } catch (...) {
+                    ScriptRunner::get()->spew_error("Unknown exception in post_hook");
                 }
             },
             ignore_jmp_object.is<bool>() ? ignore_jmp_object.as<bool>() : false);
@@ -605,6 +636,8 @@ std::optional<std::string> ScriptRunner::on_initialize() {
 }
 
 void ScriptRunner::on_config_load(const utility::Config& cfg) {
+    std::scoped_lock _{m_access_mutex};
+
     for (IModValue& option : m_options) {
         option.config_load(cfg);
     }
