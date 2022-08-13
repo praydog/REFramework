@@ -195,7 +195,12 @@ HookManager::HookId HookManager::add(sdk::REMethodDefinition* fn, HookManager::P
             break;
 
         default:
-            // TODO: handle stack args.
+            // stack args
+            if (args_offset >= 32) {
+                a.mov(r10, ptr(rsp, sizeof(void*) + (args_offset)));
+                a.mov(ptr(rax, args_offset), r10);
+            }
+
             break;
         }
     }
@@ -252,6 +257,11 @@ HookManager::HookId HookManager::add(sdk::REMethodDefinition* fn, HookManager::P
             break;
 
         default:
+            if (args_offset >= 32) {
+                a.mov(r10, ptr(rax, args_offset));
+                a.mov(ptr(rsp, sizeof(void*) + (args_offset)), r10);
+            }
+
             // TODO: handle stack args.
             break;
         }
