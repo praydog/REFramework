@@ -403,7 +403,6 @@ void REFramework::on_frame_d3d11() {
 
     if (!m_initialized) {
         if (!initialize()) {
-            spdlog::error("Failed to initialize REFramework on DirectX 11");
             return;
         }
 
@@ -502,7 +501,6 @@ void REFramework::on_frame_d3d12() {
     
     if (!m_initialized) {
         if (!initialize()) {
-            spdlog::error("Failed to initialize REFramework on DirectX 12");
             return;
         }
 
