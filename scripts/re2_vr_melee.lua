@@ -34,10 +34,6 @@ local function is_weapon_melee(weapon)
     return weapon:get_type_definition():is_a(melee_type)
 end
 
-re.on_pre_update_transform(player_transform, function(transform)
-
-end)
-
 local last_weapon_pos = Vector3f.new(0, 0, 0)
 local last_weapon_rotation = Quaternion.new(0, 0, 0, 0)
 local last_weapon_gameobject = nil
