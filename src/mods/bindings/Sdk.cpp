@@ -1877,7 +1877,9 @@ void bindings::open_sdk(ScriptState* s) {
         "get_transition_events", &::sdk::behaviortree::TreeNodeData::get_transition_events,
         "get_transition_ids", &::sdk::behaviortree::TreeNodeData::get_transition_ids,
         "get_transition_attributes", &::sdk::behaviortree::TreeNodeData::get_transition_attributes,
-        "get_tags", &::sdk::behaviortree::TreeNodeData::get_tags
+        "get_tags", &::sdk::behaviortree::TreeNodeData::get_tags,
+        "get_name", &::sdk::behaviortree::TreeNodeData::get_name,
+        "set_name", &::sdk::behaviortree::TreeNodeData::set_name
     );
 
     lua.new_usertype<::sdk::behaviortree::TreeNode>("BehaviorTreeNode",
@@ -1893,6 +1895,7 @@ void bindings::open_sdk(ScriptState* s) {
         "get_owner", &::sdk::behaviortree::TreeNode::get_owner,
         "get_parent", &::sdk::behaviortree::TreeNode::get_parent,
         "get_name", &::sdk::behaviortree::TreeNode::get_name,
+        "set_name", &::sdk::behaviortree::TreeNode::set_name,
         "get_full_name", &::sdk::behaviortree::TreeNode::get_full_name,
         "get_children", &::sdk::behaviortree::TreeNode::get_children,
         "get_actions", &::sdk::behaviortree::TreeNode::get_actions,

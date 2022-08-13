@@ -91,6 +91,16 @@ public:
     sdk::NativeArrayNoCapacity<uint32_t>& get_tags() {
         return *(sdk::NativeArrayNoCapacity<uint32_t>*)&this->tags;
     }
+
+    std::wstring_view get_name() const {
+        const auto& re_string = *(::REString*)&this->name;
+        return utility::re_string::get_view(re_string);
+    }
+
+    void set_name(const std::wstring& name) {
+        auto& re_string = *(::REString*)&this->name;
+        utility::re_string::set_string(re_string, name);
+    }
 };
 
 class TreeNode : public regenny::via::behaviortree::TreeNode {
@@ -170,6 +180,11 @@ public:
         const auto& str = *(::REString*)&this->name;
 
         return utility::re_string::get_view(str);
+    }
+
+    void set_name(const std::wstring& name) {
+        auto& str = *(::REString*)&this->name;
+        utility::re_string::set_string(str, name);
     }
 
     std::wstring get_full_name() const {
