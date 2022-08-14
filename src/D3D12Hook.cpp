@@ -396,7 +396,9 @@ HRESULT WINAPI D3D12Hook::present(IDXGISwapChain3* swap_chain, UINT sync_interva
         if ((uintptr_t)present_fn != (uintptr_t)D3D12Hook::present && g_present_depth == 1) {
             spdlog::info("Attempting to call real present function");
 
+            ++g_present_depth;
             const auto result = present_fn(swap_chain, sync_interval, flags);
+            --g_present_depth;
 
             if (result != S_OK) {
                 spdlog::error("Present failed: {:x}", result);
@@ -467,7 +469,10 @@ HRESULT WINAPI D3D12Hook::resize_buffers(IDXGISwapChain3* swap_chain, UINT buffe
 
         if ((uintptr_t)resize_buffers_fn != (uintptr_t)&D3D12Hook::resize_buffers && g_resize_buffers_depth == 1) {
             spdlog::info("Attempting to call the real resize buffers function");
+
+            ++g_resize_buffers_depth;
             const auto result = resize_buffers_fn(swap_chain, buffer_count, width, height, new_format, swap_chain_flags);
+            --g_resize_buffers_depth;
 
             if (result != S_OK) {
                 spdlog::error("Resize buffers failed: {:x}", result);
@@ -526,7 +531,10 @@ HRESULT WINAPI D3D12Hook::resize_target(IDXGISwapChain3* swap_chain, const DXGI_
 
         if ((uintptr_t)resize_target_fn != (uintptr_t)&D3D12Hook::resize_target && g_resize_target_depth == 1) {
             spdlog::info("Attempting to call the real resize target function");
+
+            ++g_resize_target_depth;
             const auto result = resize_target_fn(swap_chain, new_target_parameters);
+            --g_resize_target_depth;
 
             if (result != S_OK) {
                 spdlog::error("Resize target failed: {:x}", result);
