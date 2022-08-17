@@ -743,6 +743,22 @@ struct RETypeDB : public sdk::RETypeDB_ {
     sdk::REField* get_field(uint32_t index) const;
     sdk::REProperty* get_property(uint32_t index) const;
 
+    uint32_t get_num_types() const {
+        return numTypes;
+    }
+
+    uint32_t get_num_methods() const {
+        return numMethods;
+    }
+
+    uint32_t get_num_fields() const {
+        return numFields;
+    }
+
+    uint32_t get_num_properties() const {
+        return numProperties;
+    }
+
     const char* get_string(uint32_t offset) const;
     uint8_t* get_bytes(uint32_t offset) const;
 
