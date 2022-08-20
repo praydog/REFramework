@@ -185,7 +185,9 @@ private:
 
     // A list of Lua files that have been explicitly loaded either through the user manually loading the script, or
     // because the script was in the autorun directory.
-    std::vector<std::string> m_loaded_scripts{}; 
+    std::vector<std::string> m_loaded_scripts{};
+    std::vector<std::string> m_known_scripts{};
+    std::unordered_map<std::string, bool> m_loaded_scripts_map{};
 
     std::string m_last_script_error{};
     std::shared_mutex m_script_error_mutex{};

@@ -790,11 +790,14 @@ void ScriptRunner::on_draw_ui() {
             ImGui::TextWrapped("No Script Errors... yet!");
         }
 
-        if (!m_loaded_scripts.empty()) {
-            ImGui::Text("Loaded scripts:");
+        if (!m_known_scripts.empty()) {
+            ImGui::Text("Known scripts:");
 
-            for (auto&& name : m_loaded_scripts) {
-                ImGui::Text(name.c_str());
+            for (auto&& name : m_known_scripts) {
+                if (ImGui::Checkbox(name.data(), &m_loaded_scripts_map[name])) {
+                    reset_scripts();
+                    break;
+                }
             }
         } else {
             ImGui::Text("No scripts loaded.");
@@ -894,6 +897,7 @@ void ScriptRunner::reset_scripts() {
     m_state.reset();
     m_state = std::make_unique<ScriptState>(make_gc_data());
     m_loaded_scripts.clear();
+    m_known_scripts.clear();
 
     std::string module_path{};
 
@@ -912,8 +916,19 @@ void ScriptRunner::reset_scripts() {
         auto&& path = entry.path();
 
         if (path.has_extension() && path.extension() == ".lua") {
-            m_state->run_script(path.string());
-            m_loaded_scripts.emplace_back(path.filename().string());
+            if (!m_loaded_scripts_map.contains(path.filename().string())) {
+                m_loaded_scripts_map.emplace(path.filename().string(), true);
+            }
+
+            if (m_loaded_scripts_map[path.filename().string()] == true) {
+                m_state->run_script(path.string());
+                m_loaded_scripts.emplace_back(path.filename().string());
+            }
+
+            m_known_scripts.emplace_back(path.filename().string());
         }
     }
+
+    std::sort(m_known_scripts.begin(), m_known_scripts.end());
+    std::sort(m_loaded_scripts.begin(), m_loaded_scripts.end());
 }
