@@ -337,6 +337,7 @@ void ObjectExplorer::on_draw_dev_ui() {
 
     if (m_do_init) {
         init();
+        m_do_init = false;
     }
 
     if (!m_do_init && !ImGui::CollapsingHeader(get_name().data())) {
