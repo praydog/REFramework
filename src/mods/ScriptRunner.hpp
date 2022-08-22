@@ -135,8 +135,6 @@ public:
     void on_draw_ui();
     void on_pre_application_entry(size_t hash);
     void on_application_entry(size_t hash);
-    void on_pre_update_transform(RETransform* transform);
-    void on_update_transform(RETransform* transform);
     bool on_pre_gui_draw_element(REComponent* gui_element, void* primitive_context);
     void on_gui_draw_element(REComponent* gui_element, void* primitive_context);
     void on_script_reset();
@@ -166,8 +164,6 @@ private:
     // FNV-1A
     std::unordered_multimap<size_t, sol::protected_function> m_pre_application_entry_fns{};
     std::unordered_multimap<size_t, sol::protected_function> m_application_entry_fns{};
-    std::unordered_multimap<RETransform*, sol::protected_function> m_pre_update_transform_fns{};
-    std::unordered_multimap<RETransform*, sol::protected_function> m_update_transform_fns{};
 
     std::vector<sol::protected_function> m_pre_gui_draw_element_fns{};
     std::vector<sol::protected_function> m_gui_draw_element_fns{};
@@ -202,8 +198,6 @@ public:
 
     void on_pre_application_entry(void* entry, const char* name, size_t hash) override;
     void on_application_entry(void* entry, const char* name, size_t hash) override;
-    void on_pre_update_transform(RETransform* transform) override;
-    void on_update_transform(RETransform* transform) override;
     bool on_pre_gui_draw_element(REComponent* gui_element, void* primitive_context) override;
     void on_gui_draw_element(REComponent* gui_element, void* primitive_context) override;
 
@@ -248,7 +242,9 @@ private:
 
     // A list of Lua files that have been explicitly loaded either through the user manually loading the script, or
     // because the script was in the autorun directory.
-    std::vector<std::string> m_loaded_scripts{}; 
+    std::vector<std::string> m_loaded_scripts{};
+    std::vector<std::string> m_known_scripts{};
+    std::unordered_map<std::string, bool> m_loaded_scripts_map{};
 
     std::string m_last_script_error{};
     std::shared_mutex m_script_error_mutex{};

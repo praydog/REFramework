@@ -349,8 +349,7 @@ bool D3D12Hook::unhook() {
     return false;
 }
 
-thread_local bool g_inside_present = false;
-HRESULT last_present_result = S_OK;
+thread_local int32_t g_present_depth = 0;
 
 HRESULT WINAPI D3D12Hook::present(IDXGISwapChain3* swap_chain, UINT sync_interval, UINT flags) {
     std::scoped_lock _{g_framework->get_hook_monitor_mutex()};
@@ -383,7 +382,7 @@ HRESULT WINAPI D3D12Hook::present(IDXGISwapChain3* swap_chain, UINT sync_interva
     // Restore the original bytes
     // if an infinite loop occurs, this will prevent the game from crashing
     // while keeping our hook intact
-    if (g_inside_present) {
+    if (g_present_depth > 0) {
         auto original_bytes = utility::get_original_bytes(Address{present_fn});
 
         if (original_bytes) {
@@ -394,23 +393,43 @@ HRESULT WINAPI D3D12Hook::present(IDXGISwapChain3* swap_chain, UINT sync_interva
             spdlog::info("Present fixed");
         }
 
-        return last_present_result;
+        if ((uintptr_t)present_fn != (uintptr_t)D3D12Hook::present && g_present_depth == 1) {
+            spdlog::info("Attempting to call real present function");
+
+            ++g_present_depth;
+            const auto result = present_fn(swap_chain, sync_interval, flags);
+            --g_present_depth;
+
+            if (result != S_OK) {
+                spdlog::error("Present failed: {:x}", result);
+            }
+
+            return result;
+        }
+
+        spdlog::info("Just returning S_OK");
+        return S_OK;
     }
 
     if (d3d12->m_on_present) {
         d3d12->m_on_present(*d3d12);
     }
 
-    g_inside_present = true;
+    ++g_present_depth;
+
+    auto result = S_OK;
     
     if (!d3d12->m_ignore_next_present) {
-        last_present_result = present_fn(swap_chain, sync_interval, flags);
+        result = present_fn(swap_chain, sync_interval, flags);
+
+        if (result != S_OK) {
+            spdlog::error("Present failed: {:x}", result);
+        }
     } else {
-        last_present_result = S_OK;
         d3d12->m_ignore_next_present = false;
     }
 
-    g_inside_present = false;
+    --g_present_depth;
 
     if (d3d12->m_on_post_present) {
         d3d12->m_on_post_present(*d3d12);
@@ -418,16 +437,16 @@ HRESULT WINAPI D3D12Hook::present(IDXGISwapChain3* swap_chain, UINT sync_interva
 
     d3d12->m_inside_present = false;
     
-    return last_present_result;
+    return result;
 }
 
-thread_local bool g_inside_resize_buffers = false;
-HRESULT last_resize_buffers_result = S_OK;
+thread_local int32_t g_resize_buffers_depth = 0;
 
 HRESULT WINAPI D3D12Hook::resize_buffers(IDXGISwapChain3* swap_chain, UINT buffer_count, UINT width, UINT height, DXGI_FORMAT new_format, UINT swap_chain_flags) {
     std::scoped_lock _{g_framework->get_hook_monitor_mutex()};
 
     spdlog::info("D3D12 resize buffers called");
+    spdlog::info(" Parameters: buffer_count {} width {} height {} new_format {} swap_chain_flags {}", buffer_count, width, height, new_format, swap_chain_flags);
 
     auto d3d12 = g_d3d12_hook;
 
@@ -437,7 +456,7 @@ HRESULT WINAPI D3D12Hook::resize_buffers(IDXGISwapChain3* swap_chain, UINT buffe
     auto& hook = d3d12->m_resize_buffers_hook;
     auto resize_buffers_fn = hook->get_original<decltype(D3D12Hook::resize_buffers)*>();
 
-    if (g_inside_resize_buffers) {
+    if (g_resize_buffers_depth > 0) {
         auto original_bytes = utility::get_original_bytes(Address{resize_buffers_fn});
 
         if (original_bytes) {
@@ -448,64 +467,101 @@ HRESULT WINAPI D3D12Hook::resize_buffers(IDXGISwapChain3* swap_chain, UINT buffe
             spdlog::info("Resize buffers fixed");
         }
 
-        return last_resize_buffers_result;
+        if ((uintptr_t)resize_buffers_fn != (uintptr_t)&D3D12Hook::resize_buffers && g_resize_buffers_depth == 1) {
+            spdlog::info("Attempting to call the real resize buffers function");
+
+            ++g_resize_buffers_depth;
+            const auto result = resize_buffers_fn(swap_chain, buffer_count, width, height, new_format, swap_chain_flags);
+            --g_resize_buffers_depth;
+
+            if (result != S_OK) {
+                spdlog::error("Resize buffers failed: {:x}", result);
+            }
+
+            return result;
+        } else {
+            spdlog::info("Just returning S_OK");
+            return S_OK;
+        }
     }
 
     if (d3d12->m_on_resize_buffers) {
         d3d12->m_on_resize_buffers(*d3d12);
     }
 
-    g_inside_resize_buffers = true;
+    ++g_resize_buffers_depth;
 
-    last_resize_buffers_result = resize_buffers_fn(swap_chain, buffer_count, width, height, new_format, swap_chain_flags);
+    const auto result = resize_buffers_fn(swap_chain, buffer_count, width, height, new_format, swap_chain_flags);
+    
+    if (result != S_OK) {
+        spdlog::error("Resize buffers failed: {:x}", result);
+    }
 
-    g_inside_resize_buffers = false;
+    --g_resize_buffers_depth;
 
-    return last_resize_buffers_result;
+    return result;
 }
 
-thread_local bool g_inside_resize_target = false;
-HRESULT last_resize_target_result = S_OK;
+thread_local int32_t g_resize_target_depth = 0;
 
-HRESULT WINAPI D3D12Hook::resize_target(IDXGISwapChain3* swap_chain, const DXGI_MODE_DESC* new_target_parameters)
-{
+HRESULT WINAPI D3D12Hook::resize_target(IDXGISwapChain3* swap_chain, const DXGI_MODE_DESC* new_target_parameters) {
     std::scoped_lock _{g_framework->get_hook_monitor_mutex()};
 
     spdlog::info("D3D12 resize target called");
+    spdlog::info(" Parameters: new_target_parameters {:x}", (uintptr_t)new_target_parameters);
 
     auto d3d12 = g_d3d12_hook;
 
     d3d12->m_render_width = new_target_parameters->Width;
     d3d12->m_render_height = new_target_parameters->Height;
 
-    auto resize_buffers_fn = d3d12->m_resize_target_hook->get_original<decltype(D3D12Hook::resize_target)*>();
+    auto resize_target_fn = d3d12->m_resize_target_hook->get_original<decltype(D3D12Hook::resize_target)*>();
 
     // Restore the original code to the resize_buffers function.
-    if (g_inside_resize_target) {
-        auto original_bytes = utility::get_original_bytes(Address{resize_buffers_fn});
+    if (g_resize_target_depth > 0) {
+        auto original_bytes = utility::get_original_bytes(Address{resize_target_fn});
 
         if (original_bytes) {
-            ProtectionOverride protection_override{resize_buffers_fn, original_bytes->size(), PAGE_EXECUTE_READWRITE};
+            ProtectionOverride protection_override{resize_target_fn, original_bytes->size(), PAGE_EXECUTE_READWRITE};
 
-            memcpy(resize_buffers_fn, original_bytes->data(), original_bytes->size());
+            memcpy(resize_target_fn, original_bytes->data(), original_bytes->size());
 
             spdlog::info("Resize target fixed");
         }
 
-        return last_resize_target_result;
+        if ((uintptr_t)resize_target_fn != (uintptr_t)&D3D12Hook::resize_target && g_resize_target_depth == 1) {
+            spdlog::info("Attempting to call the real resize target function");
+
+            ++g_resize_target_depth;
+            const auto result = resize_target_fn(swap_chain, new_target_parameters);
+            --g_resize_target_depth;
+
+            if (result != S_OK) {
+                spdlog::error("Resize target failed: {:x}", result);
+            }
+
+            return result;
+        } else {
+            spdlog::info("Just returning S_OK");
+            return S_OK;
+        }
     }
 
     if (d3d12->m_on_resize_target) {
         d3d12->m_on_resize_target(*d3d12);
     }
 
-    g_inside_resize_target = true;
+    ++g_resize_target_depth;
 
-    last_resize_target_result = resize_buffers_fn(swap_chain, new_target_parameters);
+    const auto result = resize_target_fn(swap_chain, new_target_parameters);
+    
+    if (result != S_OK) {
+        spdlog::error("Resize target failed: {:x}", result);
+    }
 
-    g_inside_resize_target = false;
+    --g_resize_target_depth;
 
-    return last_resize_target_result;
+    return result;
 }
 
 /*HRESULT WINAPI D3D12Hook::create_swap_chain(IDXGIFactory4* factory, IUnknown* device, HWND hwnd, const DXGI_SWAP_CHAIN_DESC* desc, const DXGI_SWAP_CHAIN_FULLSCREEN_DESC* p_fullscreen_desc, IDXGIOutput* p_restrict_to_output, IDXGISwapChain** swap_chain)

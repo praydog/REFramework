@@ -157,7 +157,12 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
             break;
 
         default:
-            // TODO: handle stack args.
+            // stack args
+            if (args_offset >= 32) {
+                a.mov(r10, ptr(rsp, sizeof(void*) + (args_offset)));
+                a.mov(ptr(rax, args_offset), r10);
+            }
+
             break;
         }
     }
@@ -214,6 +219,11 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
             break;
 
         default:
+            if (args_offset >= 32) {
+                a.mov(r10, ptr(rax, args_offset));
+                a.mov(ptr(rsp, sizeof(void*) + (args_offset)), r10);
+            }
+
             // TODO: handle stack args.
             break;
         }

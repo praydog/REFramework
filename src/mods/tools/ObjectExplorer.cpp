@@ -336,8 +336,7 @@ void ObjectExplorer::on_draw_dev_ui() {
     ImGui::SetNextTreeNodeOpen(false, ImGuiCond_::ImGuiCond_Once);
 
     if (m_do_init) {
-        populate_classes();
-        populate_enums();
+        init();
     }
 
     if (!m_do_init && !ImGui::CollapsingHeader(get_name().data())) {
@@ -2031,6 +2030,12 @@ void ObjectExplorer::report_sdk_dump_progress(float progress) {
 }
 
 void ObjectExplorer::handle_address(Address address, int32_t offset, Address parent, Address real_address) {
+    // Because this can be called from Lua.
+    if (m_do_init) {
+        init();
+        m_do_init = false;
+    }
+
     if (!is_managed_object(address)) {
         return;
     }
@@ -2969,6 +2974,13 @@ void ObjectExplorer::display_native_methods(REManagedObject* obj, sdk::RETypeDef
                 ImGui::TextColored(ImVec4{ 1.0f, 0.0f, 0.0f, 1.0f }, "STUB");
             }
 
+            bool is_duplicate = m_function_occurrences[method_ptr] > 5;
+
+            if (is_duplicate) {
+                ImGui::SameLine();
+                ImGui::TextColored(ImVec4{ 1.0f, 0.0f, 0.0f, 1.0f }, "DUPLICATE");
+            }
+
             // draw the method data
             if (made_node) {
                 if (ImGui::BeginTable("##method", 4,  ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable)) {
@@ -3895,6 +3907,31 @@ void ObjectExplorer::populate_enums() {
         }
     }
 #endif
+}
+
+void ObjectExplorer::init() {
+    populate_classes();
+    populate_enums();
+
+    if (m_function_occurrences.empty()) {
+        const auto tdb = sdk::RETypeDB::get();
+
+        for (auto i = 0; i < tdb->get_num_methods(); ++i) {
+            const auto method = tdb->get_method(i);
+
+            if (method == nullptr) {
+                continue;
+            }
+
+            const auto func = method->get_function();
+
+            if (func == nullptr) {
+                continue;
+            }
+
+            m_function_occurrences[func]++;
+        }
+    }
 }
 
 std::string ObjectExplorer::get_full_enum_value_name(std::string_view enum_name, int64_t value) {

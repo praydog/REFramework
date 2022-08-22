@@ -185,6 +185,7 @@ private:
 
     void populate_classes();
     void populate_enums();
+    void init();
 
     std::string get_full_enum_value_name(std::string_view enum_name, int64_t value);
     std::string get_enum_value_name(std::string_view enum_name, int64_t value);
@@ -267,6 +268,7 @@ private:
 
     std::unordered_set<void*> m_known_stub_methods{};
     std::unordered_set<void*> m_ok_methods{};
+    std::unordered_map<void*, uint32_t> m_function_occurrences{}; // occurrences of re-uses of the function address in other methods
     std::unordered_multimap<std::string, EnumDescriptor> m_enums;
     std::unordered_map<std::string, REType*> m_types;
     std::vector<std::string> m_sorted_types;
