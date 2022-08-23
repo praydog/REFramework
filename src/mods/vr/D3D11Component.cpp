@@ -270,7 +270,7 @@ std::optional<std::string> D3D11Component::OpenXR::create_swapchains() {
 
     backbuffer_desc.BindFlags |= D3D11_BIND_RENDER_TARGET;
 
-    auto vr = VR::get();
+    auto& vr = VR::get();
     auto& openxr = *vr->m_openxr;
 
     this->contexts.clear();
@@ -386,7 +386,7 @@ void D3D11Component::OpenXR::destroy_swapchains() {
 void D3D11Component::OpenXR::copy(uint32_t swapchain_idx, ID3D11Texture2D* resource) {
     std::scoped_lock _{this->mtx};
 
-    auto vr = VR::get();
+    auto& vr = VR::get();
 
     if (vr->m_openxr->frame_state.shouldRender != XR_TRUE) {
         return;

@@ -13,12 +13,7 @@
 #include "RE8VR.hpp"
 
 std::shared_ptr<RE8VR>& RE8VR::get() {
-    static std::shared_ptr<RE8VR> inst{};
-
-    if (inst == nullptr) {
-        inst = std::make_shared<RE8VR>();
-    }
-
+    static auto inst = std::make_shared<RE8VR>();
     return inst;
 }
 
@@ -228,7 +223,7 @@ void RE8VR::update_hand_ik() {
     static auto motion_type = motion_typedef->get_type();
     static uint32_t head_hash = 0;
 
-    auto vr = VR::get();
+    auto& vr = VR::get();
     
     if (m_player == nullptr || m_left_hand_ik == nullptr || m_right_hand_ik == nullptr) {
         m_was_gripping_weapon = false;
@@ -431,7 +426,7 @@ void RE8VR::update_body_ik(glm::quat* camera_rotation, Vector4f* camera_pos) {
     static auto ik_leg_set_ground_contact_up_distance = via_motion_ik_leg->get_method("set_GroundContactUpDistance");
     static auto ik_leg_set_enabled = via_motion_ik_leg->get_method("set_Enabled");
 
-    auto vr = VR::get();
+    auto& vr = VR::get();
     auto ik_leg = utility::re_component::find<::REManagedObject>(m_player->transform, via_motion_ik_leg_type);
 
     if (ik_leg == nullptr) {
@@ -501,7 +496,7 @@ void RE8VR::update_body_ik(glm::quat* camera_rotation, Vector4f* camera_pos) {
 }
 
 void RE8VR::update_player_gestures() {
-    auto vr = VR::get();
+    auto& vr = VR::get();
 
     if (m_player == nullptr || !vr->is_using_controllers()) {
         m_wants_block = false;
@@ -867,7 +862,7 @@ void RE8VR::fix_player_shadow() {
         return;
     }
 
-    auto vr = VR::get();
+    auto& vr = VR::get();
 
     if (!vr->is_hmd_active()) {
         return;
@@ -1241,7 +1236,7 @@ bool RE8VR::update_ik_pointers() {
 }
 
 void RE8VR::update_block_gesture() {
-    auto vr = VR::get();
+    auto& vr = VR::get();
 
     const auto& controllers = vr->get_controllers();
     const auto left_hand = vr->get_transform(controllers[0]);
@@ -1308,7 +1303,7 @@ void RE8VR::update_heal_gesture() {
         return;
     }
 
-    auto vr = VR::get();
+    auto& vr = VR::get();
 
     const auto hmd_forward = vr->get_transform(0)[2];
     const auto flattened_forward = glm::normalize(Vector3f{hmd_forward.x, 0.0f, hmd_forward.z});

@@ -302,7 +302,7 @@ std::optional<std::string> D3D12Component::OpenXR::create_swapchains() {
     heap_props.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
 
     auto backbuffer_desc = backbuffer->GetDesc();
-    auto vr = VR::get();
+    auto& vr = VR::get();
     auto& openxr = vr->m_openxr;
 
     this->contexts.clear();
@@ -417,7 +417,7 @@ void D3D12Component::OpenXR::destroy_swapchains() {
 void D3D12Component::OpenXR::copy(uint32_t swapchain_idx, ID3D12Resource* resource) {
     std::scoped_lock _{this->mtx};
 
-    auto vr = VR::get();
+    auto& vr = VR::get();
 
     if (vr->m_openxr->frame_state.shouldRender != XR_TRUE) {
         return;
