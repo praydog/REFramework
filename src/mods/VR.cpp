@@ -42,12 +42,7 @@ uint32_t actual_frame_count = 0;
 thread_local bool inside_gui_draw = false;
 
 std::shared_ptr<VR>& VR::get() {
-    static std::shared_ptr<VR> inst{};
-
-    if (inst == nullptr) {
-        inst = std::make_shared<VR>();
-    }
-
+    static auto inst = std::make_shared<VR>();
     return inst;
 }
 
@@ -73,7 +68,7 @@ float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
         return original_func(scene_view, result);
     }
 
-    auto mod = VR::get();
+    auto& mod = VR::get();
 
     if (mod->m_disable_backbuffer_size_override) {
         return original_func(scene_view, result);
@@ -181,7 +176,7 @@ float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
 Matrix4x4f* VR::camera_get_projection_matrix_hook(REManagedObject* camera, Matrix4x4f* result) {
     auto original_func = g_projection_matrix_hook->get_original<decltype(VR::camera_get_projection_matrix_hook)>();
 
-    auto vr = VR::get();
+    auto& vr = VR::get();
 
     if (result == nullptr || !g_framework->is_ready() || !vr->is_hmd_active() || vr->m_disable_projection_matrix_override) {
         return original_func(camera, result);
@@ -209,7 +204,7 @@ Matrix4x4f* VR::camera_get_projection_matrix_hook(REManagedObject* camera, Matri
 Matrix4x4f* VR::gui_camera_get_projection_matrix_hook(REManagedObject* camera, Matrix4x4f* result) {
     auto original_func = g_projection_matrix_hook2->get_original<decltype(VR::gui_camera_get_projection_matrix_hook)>();
 
-    auto vr = VR::get();
+    auto& vr = VR::get();
 
     if (result == nullptr || !g_framework->is_ready() || !vr->is_hmd_active() || vr->m_disable_gui_camera_projection_matrix_override) {
         return original_func(camera, result);
@@ -245,7 +240,7 @@ Matrix4x4f* VR::camera_get_view_matrix_hook(REManagedObject* camera, Matrix4x4f*
         return original_func(camera, result);
     }
 
-    auto vr = VR::get();
+    auto& vr = VR::get();
 
     if (!vr->is_hmd_active() || vr->m_disable_view_matrix_override) {
         return original_func(camera, result);
@@ -278,7 +273,7 @@ void VR::inputsystem_update_hook(void* ctx, REManagedObject* input_system) {
         return;
     }
 
-    auto mod = VR::get();
+    auto& mod = VR::get();
     const auto now = std::chrono::steady_clock::now();
     auto is_using_controller = (now - mod->get_last_controller_update()) <= std::chrono::seconds(10);
 
@@ -370,7 +365,7 @@ void VR::inputsystem_update_hook(void* ctx, REManagedObject* input_system) {
 }
 
 void VR::RenderLayerHook<sdk::renderer::layer::Overlay>::draw(sdk::renderer::layer::Overlay* layer, void* render_ctx) {
-    auto mod = VR::get();
+    auto& mod = VR::get();
     auto original_func = mod->m_layer_hooks.overlay.draw_hook->get_original<decltype(VR::RenderLayerHook<sdk::renderer::layer::Overlay>::draw)>();
 
     if (!g_framework->is_ready()) {
@@ -396,7 +391,7 @@ void VR::RenderLayerHook<sdk::renderer::layer::Overlay>::draw(sdk::renderer::lay
 }
 
 void VR::RenderLayerHook<sdk::renderer::layer::Overlay>::update(sdk::renderer::layer::Overlay* layer, void* render_ctx) {
-    auto mod = VR::get();
+    auto& mod = VR::get();
     auto original_func = mod->m_layer_hooks.overlay.update_hook->get_original<decltype(VR::RenderLayerHook<sdk::renderer::layer::Overlay>::update)>();
 
     if (!g_framework->is_ready() || !mod->is_hmd_active()) {
@@ -408,7 +403,7 @@ void VR::RenderLayerHook<sdk::renderer::layer::Overlay>::update(sdk::renderer::l
 }
 
 void VR::RenderLayerHook<sdk::renderer::layer::PostEffect>::draw(sdk::renderer::layer::PostEffect* layer, void* render_ctx) {
-    auto mod = VR::get();
+    auto& mod = VR::get();
     auto original_func = mod->m_layer_hooks.post_effect.draw_hook->get_original<decltype(VR::RenderLayerHook<sdk::renderer::layer::PostEffect>::draw)>();
 
     if (!g_framework->is_ready() || !mod->is_hmd_active()) {
@@ -460,7 +455,7 @@ void VR::RenderLayerHook<sdk::renderer::layer::PostEffect>::draw(sdk::renderer::
 }
 
 void VR::RenderLayerHook<sdk::renderer::layer::PostEffect>::update(sdk::renderer::layer::PostEffect* layer, void* render_ctx) {
-    auto mod = VR::get();
+    auto& mod = VR::get();
     auto original_func = mod->m_layer_hooks.post_effect.update_hook->get_original<decltype(VR::RenderLayerHook<sdk::renderer::layer::PostEffect>::update)>();
 
     if (!g_framework->is_ready() || !mod->is_hmd_active()) {
@@ -472,7 +467,7 @@ void VR::RenderLayerHook<sdk::renderer::layer::PostEffect>::update(sdk::renderer
 }
 
 void VR::RenderLayerHook<sdk::renderer::layer::Scene>::draw(sdk::renderer::layer::Scene* layer, void* render_ctx) {
-    auto mod = VR::get();
+    auto& mod = VR::get();
     auto original_func = mod->m_layer_hooks.scene.draw_hook->get_original<decltype(VR::RenderLayerHook<sdk::renderer::layer::Scene>::draw)>();
 
     if (!g_framework->is_ready() || !mod->is_hmd_active()) {
@@ -484,7 +479,7 @@ void VR::RenderLayerHook<sdk::renderer::layer::Scene>::draw(sdk::renderer::layer
 }
 
 void VR::RenderLayerHook<sdk::renderer::layer::Scene>::update(sdk::renderer::layer::Scene* layer, void* render_ctx) {
-    auto mod = VR::get();
+    auto& mod = VR::get();
     auto original_func = mod->m_layer_hooks.scene.update_hook->get_original<decltype(VR::RenderLayerHook<sdk::renderer::layer::Scene>::update)>();
 
     if (!g_framework->is_ready() || !mod->is_hmd_active()) {
@@ -542,7 +537,7 @@ void VR::wwise_listener_update_hook(void* listener) {
         return;
     }
 
-    auto mod = VR::get();
+    auto& mod = VR::get();
 
     if (!mod->is_hmd_active() || !mod->get_runtime()->loaded) {
         original_func(listener);
@@ -604,7 +599,7 @@ float VR::get_sharpness_hook(void* tonemapping) {
         return original_func(tonemapping);
     }
 
-    auto mod = VR::get();
+    auto& mod = VR::get();
 
     if (mod->m_disable_sharpening) {
         return 0.0f;

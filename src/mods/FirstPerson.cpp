@@ -17,12 +17,7 @@
 FirstPerson* g_first_person = nullptr;
 
 std::shared_ptr<FirstPerson>& FirstPerson::get() {
-    static std::shared_ptr<FirstPerson> inst{};
-
-    if (inst == nullptr) {
-        inst = std::make_shared<FirstPerson>();
-    }
-
+    static auto inst = std::make_shared<FirstPerson>();
     return inst;
 }
 
@@ -118,7 +113,7 @@ void FirstPerson::on_draw_ui() {
     ImGui::Checkbox("Adjust Hand Offset", &adjust_hand_offset);
 
     if (adjust_hand_offset) {
-        auto vr = VR::get();
+        auto& vr = VR::get();
         const auto left_axis = vr->get_left_stick_axis();
         const auto right_axis = vr->get_right_stick_axis();
         const auto right_joystick = vr->get_right_joystick();
@@ -784,7 +779,7 @@ void FirstPerson::update_player_arm_ik(RETransform* transform) {
         return;
     }
 
-    auto vr_mod = VR::get();
+    auto& vr_mod = VR::get();
     auto& controllers = vr_mod->get_controllers();
 
     if (controllers.empty()) {
@@ -903,7 +898,7 @@ void FirstPerson::update_player_arm_ik(RETransform* transform) {
     const auto lh_grip_delta = (lh_grip_position - lh_pos);
     const auto lh_grip_distance = glm::length(lh_grip_delta);
 
-    const auto vr = VR::get();
+    const auto& vr = VR::get();
     const auto is_holding_left_grip = vr->is_action_active(vr->get_action_grip(), vr->get_left_joystick());
 
     static auto player_condition_def = sdk::find_type_definition(game_namespace("survivor.SurvivorCondition"));
@@ -1116,7 +1111,7 @@ void FirstPerson::update_player_muzzle_behavior(RETransform* transform, bool res
         return;
     }
 
-    auto vr_mod = VR::get();
+    auto& vr_mod = VR::get();
     auto& controllers = vr_mod->get_controllers();
     const auto is_hmd_active = vr_mod->is_hmd_active();
     const auto is_using_controllers = vr_mod->is_using_controllers();
@@ -1229,7 +1224,7 @@ void FirstPerson::update_player_body_ik(RETransform* transform, bool restore, bo
         return;
     }
 
-    auto vr_mod = VR::get();
+    auto& vr_mod = VR::get();
     auto& controllers = vr_mod->get_controllers();
     const auto is_hmd_active = vr_mod->is_hmd_active();
     const auto is_using_controllers = vr_mod->is_using_controllers();
@@ -1404,7 +1399,7 @@ void FirstPerson::update_player_roomscale(RETransform* transform) {
         return;
     }
 
-    auto vr = VR::get();
+    auto& vr = VR::get();
 
     if (!vr->is_hmd_active() || !m_roomscale->value()) {
         m_last_roomscale_failure = now;
@@ -1455,7 +1450,7 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
 
     std::lock_guard _{ m_matrix_mutex };
     
-    auto vr = VR::get();
+    auto& vr = VR::get();
 
     /*if (vr->is_hmd_active() && m_camera_system->cameraController != nullptr) {
         m_last_controller_rotation = *(glm::quat*)&m_camera_system->cameraController->worldRotation;
