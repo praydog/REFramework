@@ -281,6 +281,14 @@ struct ValueType {
         }
     }
 
+    ValueType(::sdk::RETypeDefinition* t, void* addr): type(t) {
+        if (t != nullptr && addr != nullptr) {
+            uint8_t* raw_data = reinterpret_cast<uint8_t*>(addr);
+            data.reserve(t->get_size());
+            data.insert(data.begin(), raw_data, raw_data + t->get_size());
+        }
+    }
+
     ValueType(const void* raw_data, size_t raw_data_size) {
         if (raw_data_size > 0 && raw_data != nullptr) {
             data.resize(raw_data_size);
@@ -1254,6 +1262,31 @@ void bindings::open_sdk(ScriptState* s) {
             return sol::make_object(s, sol::nil);
         }
     };
+
+    sdk["to_valuetype"] = [](sol::this_state s, sol::object ptr, const char* type) {
+        if (ptr.is<api::sdk::ValueType>()) {
+            return ptr;
+        }
+
+        auto ty = api::sdk::find_type_definition(type);
+        if (ty == nullptr || !ty->is_value_type()) {
+            return sol::make_object(s, sol::nil);
+        }
+
+        void* addr = nullptr;
+        if (ptr.is<uintptr_t>()) {
+            addr = (void*) ptr.as<uintptr_t>();
+        } else if (ptr.is<void*>()) {
+            addr = ptr.as<void*>();
+        }
+        
+        if (addr == nullptr) {
+            return sol::make_object(s, sol::nil);
+        }
+
+       return sol::make_object(s, api::sdk::ValueType{ty, addr});
+    },
+
     sdk["deserialize"] = [](sol::this_state s, sol::object data_obj) -> sol::object {
         if (!data_obj.is<std::vector<uint8_t>>()) {
             throw sol::error("Data must be a vector of bytes");
