@@ -1263,12 +1263,17 @@ void bindings::open_sdk(ScriptState* s) {
         }
     };
 
-    sdk["to_valuetype"] = [](sol::this_state s, sol::object ptr, const char* type) {
+    sdk["to_valuetype"] = [](sol::this_state s, sol::object ptr, sol::object type) {
         if (ptr.is<api::sdk::ValueType>()) {
             return ptr;
         }
 
-        auto ty = api::sdk::find_type_definition(type);
+        ::sdk::RETypeDefinition* ty;
+        if (type.is<::sdk::RETypeDefinition*>()) {
+           ty = type.as<::sdk::RETypeDefinition*>();
+        } else if (type.is<const char*>()) {
+            ty = api::sdk::find_type_definition(type.as<const char*>());
+        }
         if (ty == nullptr || !ty->is_value_type()) {
             return sol::make_object(s, sol::nil);
         }
@@ -1283,8 +1288,7 @@ void bindings::open_sdk(ScriptState* s) {
         if (addr == nullptr) {
             return sol::make_object(s, sol::nil);
         }
-
-       return sol::make_object(s, api::sdk::ValueType{ty, addr});
+        return sol::make_object(s, api::sdk::ValueType{ty, addr});
     },
 
     sdk["deserialize"] = [](sol::this_state s, sol::object data_obj) -> sol::object {
