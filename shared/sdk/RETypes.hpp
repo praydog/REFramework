@@ -7,7 +7,7 @@
 
 #include "ReClass.hpp"
 
-std::string game_namespace(std::string_view base_name);
+std::string& game_namespace(std::string_view base_name);
 
 class REType;
 

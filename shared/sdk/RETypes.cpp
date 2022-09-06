@@ -13,17 +13,33 @@ std::unique_ptr<RETypes>& get_types() {
 }
 }
 
-std::string game_namespace(std::string_view base_name)
+std::string& game_namespace(std::string_view base_name)
 {
+    using namespace std::string_view_literals;
+
+    static constexpr std::string_view prefix{
 #ifdef MHRISE
-    return std::string{ "snow." } + base_name.data();
+    "snow."sv
 #elif defined(RE8) || defined(RE7) || defined(DMC5)
-    return std::string{ "app." } + base_name.data();
+    "app."sv
 #elif RE3
-    return std::string{ "offline." } + base_name.data();
+    "offline."sv
 #else
-    return std::string{ "app.ropeway." } + base_name.data();
+    "app.ropeway."sv
 #endif
+    };
+
+    static thread_local std::string buffer = [&]
+    {
+        std::string result{prefix};
+        result.reserve(128);
+        return result;
+    }();
+
+    buffer.resize(prefix.size());
+    buffer.insert(prefix.size(), base_name.data());
+
+    return buffer;
 }
 
 RETypes::RETypes() {
