@@ -196,6 +196,10 @@ public:
     auto get_ui_scale() const { return m_ui_scale_option->value(); }
     const auto& get_raw_projections() const { return get_runtime()->raw_projections; }
 
+    void unhide_crosshair() {
+        m_last_crosshair_hide = std::chrono::steady_clock::now();
+    }
+
     template<typename T=sdk::renderer::RenderLayer>
     struct RenderLayerHook {
         RenderLayerHook() = delete;
@@ -428,6 +432,7 @@ private:
     std::bitset<64> m_button_states_up{};
     std::chrono::steady_clock::time_point m_last_controller_update{};
     std::chrono::steady_clock::time_point m_last_interaction_display{};
+    std::chrono::steady_clock::time_point m_last_crosshair_hide{};
     uint32_t m_backbuffer_inconsistency_start{};
     std::chrono::nanoseconds m_last_input_delay{};
     std::chrono::nanoseconds m_avg_input_delay{};

@@ -769,7 +769,8 @@ void VR::on_lua_state_created(sol::state& lua) {
         },
         "set_handle_pause", [](VR* vr, bool state) { 
             return vr->get_runtime()->handle_pause = state;
-        }
+        },
+        "unhide_crosshair", &VR::unhide_crosshair
     );
 
     lua["vrmod"] = this;
@@ -2576,20 +2577,22 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
 
         // Certain UI elements we want to remove when in VR (FirstPerson enabled)
 #if defined(RE2) || defined(RE3)
-        auto& fp = FirstPerson::get();
+        if (std::chrono::steady_clock::now() - m_last_crosshair_hide > std::chrono::seconds(1)) {
+            auto& fp = FirstPerson::get();
 
-        if (fp->is_enabled() && fp->will_be_used()) {
-            const auto has_motion_controls = this->is_using_controllers();
+            if (fp->is_enabled() && fp->will_be_used()) {
+                const auto has_motion_controls = this->is_using_controllers();
 
-            switch(name_hash) {
-            case "GUI_Reticle"_fnv: // Crosshair
-                if (has_motion_controls) {
-                    return false;
+                switch(name_hash) {
+                case "GUI_Reticle"_fnv: // Crosshair
+                    if (has_motion_controls) {
+                        return false;
+                    }
+                    
+                    break;
+                default:
+                    break;
                 }
-                
-                break;
-            default:
-                break;
             }
         }
 #endif
