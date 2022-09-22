@@ -6,6 +6,8 @@ if not is_re7 and not is_re8 then
     return
 end
 
+local tdb_version = sdk.get_tdb_version();
+
 local statics = require("utility/Statics")
 local re8 = require("utility/RE8")
 local GameObject = require("utility/GameObject")
@@ -2585,12 +2587,12 @@ re.on_pre_gui_draw_element(function(element, context)
 
                 local crosshair_pos = Vector4f.new(re8.crosshair_pos.x, re8.crosshair_pos.y, re8.crosshair_pos.z, 1.0)
 
-                if is_re8 then
+                if tdb_version >= 70 then
                     write_vec4(transform, new_mat[0] * distance, 0x80)
                     write_vec4(transform, new_mat[1] * distance, 0x90)
                     write_vec4(transform, new_mat[2] * distance, 0xA0)
                     write_vec4(transform, crosshair_pos, 0xB0)
-                elseif is_re7 then
+                else
                     write_vec4(transform, new_mat[0] * distance, 0x90)
                     write_vec4(transform, new_mat[1] * distance, 0xA0)
                     write_vec4(transform, new_mat[2] * distance, 0xB0)
