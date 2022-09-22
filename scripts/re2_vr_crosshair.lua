@@ -25,7 +25,9 @@ end
 local cfg_path = "re2_vr/crosshair_config.json"
 
 local cfg = {
-    disable_crosshair = false
+    default_crosshair_behavior = false,
+    disable_crosshair = false,
+    disable_crosshair_firstperson = false,
 }
 
 local function load_cfg()
@@ -164,13 +166,19 @@ local vfx_muzzle2_hash = via_murmur_hash_calc32:call(nil, "vfx_muzzle2")
 
 local function update_muzzle_data()
     if re2.weapon then
-        local muzzle_joint = re2.weapon:get_field("<MuzzleJoint>k__BackingField")
+        local param = re2.weapon:get_field("<FireBulletParam>k__BackingField")
+        if not param then return end
+
+        local fire_type = param:get_field("_FireBulletType")
+        local is_camera_type = fire_type == 0
+
+        local muzzle_joint = (not is_camera_type) and re2.weapon:get_field("<MuzzleJoint>k__BackingField") or nil
 
         if muzzle_joint ~= nil then
             muzzle_joint = muzzle_joint:get_field("_Parent")
         end
 
-        if muzzle_joint == nil then
+        if (not is_camera_type) and muzzle_joint == nil then
             local weapon_gameobject = re2.weapon:call("get_GameObject")
 
             if weapon_gameobject ~= nil then
@@ -188,26 +196,24 @@ local function update_muzzle_data()
 
         if muzzle_joint then
             local muzzle_position = joint_get_position(muzzle_joint)
-            local muzzle_rotation = joint_get_rotation(muzzle_joint)
-    
+
             re2.last_muzzle_pos = muzzle_position
-            last_muzzle_rot = muzzle_rotation
             re2.last_muzzle_forward = muzzle_joint:call("get_AxisZ")
 
-            if vrmod:is_using_controllers() then
+            --if vrmod:is_using_controllers() then
                 re2.last_shoot_dir = re2.last_muzzle_forward
                 re2.last_shoot_pos = re2.last_muzzle_pos
-            end
-        elseif vrmod:is_using_controllers() then
-            re2.last_muzzle_pos = re2.last_right_hand_position
-            last_muzzle_rot = last_camera_matrix:to_quat()
-            re2.last_muzzle_forward = (last_muzzle_rot * Vector3f.new(0, 0, -1)):normalized()
+            --end
+        else
+            local camera_mat = sdk.get_primary_camera():get_WorldMatrix()
+
+            re2.last_muzzle_pos = camera_mat[3]
+            re2.last_muzzle_pos.w = 1.0
+            local muzzle_rot = camera_mat:to_quat()
+            re2.last_muzzle_forward = (muzzle_rot * Vector3f.new(0, 0, -1)):normalized()
 
             re2.last_shoot_dir = re2.last_muzzle_forward
-            re2.last_shoot_pos = re2.last_muzzle_pos
-        else
-            re2.last_muzzle_pos = re2.last_shoot_pos
-            re2.last_muzzle_forward = re2.last_shoot_dir
+            re2.last_shoot_pos = re2.last_muzzle_pos + (re2.last_muzzle_forward * 0.1)
         end
     end
 end
@@ -222,14 +228,18 @@ end
 
 re.on_draw_ui(function()
     local changed = false
-    changed, cfg.disable_crosshair = imgui.checkbox("Disable Crosshair", cfg.disable_crosshair)
+    changed, cfg.default_crosshair_behavior = imgui.checkbox("Default crosshair behavior", cfg.default_crosshair_behavior)
+    changed, cfg.disable_crosshair = imgui.checkbox("Disable crosshair", cfg.disable_crosshair)
+    changed, cfg.disable_crosshair_firstperson = imgui.checkbox("Disable crosshair (First Person only)", cfg.disable_crosshair_firstperson)
 end)
 
 re.on_application_entry("LockScene", function()
     if not vrmod:is_hmd_active() then return end
-    if not vrmod:is_using_controllers() then return end
+    local disable_crosshair = cfg.default_crosshair_behavior or 
+                              cfg.disable_crosshair or 
+                              firstpersonmod:will_be_used() and cfg.disable_crosshair_firstperson
 
-    if not cfg.disable_crosshair and (os.clock() - last_crosshair_time) < 1.0 then
+    if not disable_crosshair and (os.clock() - last_crosshair_time) < 1.0 then
         update_muzzle_data()
 
         if re2.last_shoot_pos then
@@ -241,7 +251,6 @@ end)
 
 re.on_pre_gui_draw_element(function(element, context)
     if not vrmod:is_hmd_active() then return true end
-    if not vrmod:is_using_controllers() then return true end
 
     local game_object = element:call("get_GameObject")
     if game_object == nil then return true end
@@ -251,7 +260,15 @@ re.on_pre_gui_draw_element(function(element, context)
     --log.info("drawing element: " .. name)
 
     if reticle_names[name] then
-        if cfg.disable_crosshair and vrmod:is_using_controllers() then
+        if cfg.default_crosshair_behavior then
+            return not cfg.disable_crosshair
+        end
+
+        if cfg.disable_crosshair then
+            return false
+        end
+
+        if firstpersonmod:will_be_used() and cfg.disable_crosshair_firstperson then
             return false
         end
     end
