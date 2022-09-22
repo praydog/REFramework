@@ -2587,7 +2587,7 @@ re.on_pre_gui_draw_element(function(element, context)
 
                 local crosshair_pos = Vector4f.new(re8.crosshair_pos.x, re8.crosshair_pos.y, re8.crosshair_pos.z, 1.0)
 
-                if tdb_version >= 70 then
+                if tdb_version >= 69 then
                     write_vec4(transform, new_mat[0] * distance, 0x80)
                     write_vec4(transform, new_mat[1] * distance, 0x90)
                     write_vec4(transform, new_mat[2] * distance, 0xA0)
