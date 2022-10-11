@@ -403,7 +403,9 @@ void* REMethodDefinition::get_function() const {
             }
         }*/
 
-        spdlog::error("[REMethodDefinition::get_function] Encoded offset is 0 (method: {})", this->get_name());
+        auto decl_type = this->get_declaring_type();
+        auto name = decl_type != nullptr ? decl_type->get_full_name() : std::string{"null"};
+        spdlog::error("[REMethodDefinition::get_function] Encoded offset is 0 (vindex {}) (method: {}.{})", this->get_virtual_index(), name, this->get_name());
         return nullptr;
     }
 

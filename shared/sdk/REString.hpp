@@ -8,6 +8,10 @@
 
 namespace utility::re_string {
     static std::wstring_view get_view(const ::REString& str) {
+        if (&str == nullptr) {
+            return L"";
+        }
+
         auto length = str.length;
 
         if (length <= 0) {
@@ -36,34 +40,66 @@ namespace utility::re_string {
     }
 
     static std::wstring_view get_view(const ::SystemString& str) {
+        if (&str == nullptr) {
+            return L"";
+        }
+
         return std::wstring_view{ str.data };
     }
 
     static std::wstring_view get_view(SystemString* str) {
+        if (str == nullptr) {
+            return L"";
+        }
+
         return get_view(*str);
     }
 
     static std::string get_string(const ::REString& str) {
+        if (&str == nullptr) {
+            return "";
+        }
+
         return utility::narrow(get_view(str));
     }
 
     static std::string get_string(const ::SystemString& str) {
+        if (&str == nullptr) {
+            return "";
+        }
+
         return utility::narrow(str.size > 0 ? str.data : L"");
     }
 
     static std::string get_string(SystemString* str) {
+        if (str == nullptr) {
+            return "";
+        }
+
         return get_string(*str);
     }
 
     static bool equals(const ::REString& str, std::wstring_view view) {
+        if (&str == nullptr) {
+            return false;
+        }
+
         return get_view(str) == view;
     }
 
     static bool equals(const ::SystemString& str, std::wstring_view view) {
+        if (&str == nullptr) {
+            return false;
+        }
+
         return get_view(str) == view;
     }
 
     static bool equals(const ::SystemString* str, std::wstring_view view) {
+        if (str == nullptr) {
+            return false;
+        }
+
         return equals(*str, view);
     }
     }
