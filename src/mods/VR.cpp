@@ -46,11 +46,8 @@ std::shared_ptr<VR>& VR::get() {
     return inst;
 }
 
-std::unique_ptr<FunctionHook> g_get_size_hook{};
 std::unique_ptr<FunctionHook> g_input_hook{};
-std::unique_ptr<FunctionHook> g_projection_matrix_hook{};
 std::unique_ptr<FunctionHook> g_projection_matrix_hook2{};
-std::unique_ptr<FunctionHook> g_view_matrix_hook{};
 std::unique_ptr<FunctionHook> g_overlay_draw_hook{};
 std::unique_ptr<FunctionHook> g_post_effect_draw_hook{};
 std::unique_ptr<FunctionHook> g_wwise_listener_update_hook{};
@@ -61,17 +58,13 @@ std::optional<regenny::via::Size> g_previous_size{};
 #endif
 
 // Purpose: spoof the render target size to the size of the HMD displays
-float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
-    auto original_func = g_get_size_hook->get_original<decltype(VR::get_size_hook)>();
-
+void VR::on_view_get_size(REManagedObject* scene_view, float* result) {
     if (!g_framework->is_ready()) {
-        return original_func(scene_view, result);
+        return;
     }
 
-    auto& mod = VR::get();
-
-    if (mod->m_disable_backbuffer_size_override) {
-        return original_func(scene_view, result);
+    if (m_disable_backbuffer_size_override) {
+        return;
     }
 
     auto regenny_view = (regenny::via::SceneView*)scene_view;
@@ -102,33 +95,33 @@ float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
 
     // Set the window size, which will increase the size of the backbuffer
     if (window != nullptr) {
-        if (mod->is_hmd_active()) {
+        if (is_hmd_active()) {
 #if TDB_VER <= 49
             if (!g_previous_size) {
                 g_previous_size = regenny::via::Size{ (float)window->width, (float)window->height };
             }
 #endif
-            window->width = mod->get_hmd_width();
-            window->height = mod->get_hmd_height();
+            window->width = get_hmd_width();
+            window->height = get_hmd_height();
 
-            if (mod->m_is_d3d12 && mod->m_d3d12.is_initialized()) {
-                const auto& backbuffer_size = mod->m_d3d12.get_backbuffer_size();
+            if (m_is_d3d12 && m_d3d12.is_initialized()) {
+                const auto& backbuffer_size = m_d3d12.get_backbuffer_size();
 
                 if (backbuffer_size[0] > 0 && backbuffer_size[1] > 0) {
                     if (std::abs((int)backbuffer_size[0] - (int)window->width) > 50 || std::abs((int)backbuffer_size[1] - (int)window->height) > 50) {
-                        const auto now = mod->get_game_frame_count();
+                        const auto now = get_game_frame_count();
 
-                        if (!mod->m_backbuffer_inconsistency) {
-                            mod->m_backbuffer_inconsistency_start = now;
-                            mod->m_backbuffer_inconsistency = true;
+                        if (!m_backbuffer_inconsistency) {
+                            m_backbuffer_inconsistency_start = now;
+                            m_backbuffer_inconsistency = true;
                         }
 
-                        const auto is_true_inconsistency = (now - mod->m_backbuffer_inconsistency_start) >= 5;
+                        const auto is_true_inconsistency = (now - m_backbuffer_inconsistency_start) >= 5;
 
                         if (is_true_inconsistency) {
                             // Force a reset of the backbuffer size
-                            window->width = mod->get_hmd_width() + 1;
-                            window->height = mod->get_hmd_height() + 1;
+                            window->width = get_hmd_width() + 1;
+                            window->height = get_hmd_height() + 1;
 
                             spdlog::info("[VR] Previous backbuffer size: {}x{}", backbuffer_size[0], backbuffer_size[1]);
                             spdlog::info("[VR] Backbuffer size inconsistency detected, resetting backbuffer size to {}x{}", window->width, window->height);
@@ -137,11 +130,11 @@ float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
                         }
                     }
                 } else {
-                    mod->m_backbuffer_inconsistency = false;
+                    m_backbuffer_inconsistency = false;
                 }
             }
         } else {
-            mod->m_backbuffer_inconsistency = false;
+            m_backbuffer_inconsistency = false;
 
 #if TDB_VER > 49
             window->width = (uint32_t)window->borderless_size.w;
@@ -160,45 +153,37 @@ float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
         wanted_height = (float)window->height;
     }
 
-    auto out = original_func(scene_view, result);
+    //auto out = original_func(scene_view, result);
 
-    if (!mod->m_in_render) {
+    if (!m_in_render) {
         //return original_func(scene_view, result);
     }
 
     // spoof the size to the HMD's size
-    out[0] = wanted_width;
-    out[1] = wanted_height;
-
-    return out;
+    result[0] = wanted_width;
+    result[1] = wanted_height;
 }
 
-Matrix4x4f* VR::camera_get_projection_matrix_hook(REManagedObject* camera, Matrix4x4f* result) {
-    auto original_func = g_projection_matrix_hook->get_original<decltype(VR::camera_get_projection_matrix_hook)>();
-
-    auto& vr = VR::get();
-
-    if (result == nullptr || !g_framework->is_ready() || !vr->is_hmd_active() || vr->m_disable_projection_matrix_override) {
-        return original_func(camera, result);
+void VR::on_camera_get_projection_matrix(REManagedObject* camera, Matrix4x4f* result) {
+    if (result == nullptr || !g_framework->is_ready() || !is_hmd_active() || m_disable_projection_matrix_override) {
+        return;
     }
 
     /*if (camera != sdk::get_primary_camera()) {
         return original_func(camera, result);
     }*/
 
-    if (!vr->m_in_render) {
+    if (!m_in_render) {
        // return original_func(camera, result);
     }
 
-    if (vr->m_in_lightshaft) {
+    if (m_in_lightshaft) {
         //return original_func(camera, result);
     }
 
     // Get the projection matrix for the correct eye
     // For some reason we need to flip the projection matrix here?
-    *result = vr->get_current_projection_matrix(false);
-
-    return result;
+    *result = get_current_projection_matrix(false);
 }
 
 Matrix4x4f* VR::gui_camera_get_projection_matrix_hook(REManagedObject* camera, Matrix4x4f* result) {
@@ -233,36 +218,28 @@ Matrix4x4f* VR::gui_camera_get_projection_matrix_hook(REManagedObject* camera, M
     return result;
 }
 
-Matrix4x4f* VR::camera_get_view_matrix_hook(REManagedObject* camera, Matrix4x4f* result) {
-    auto original_func = g_view_matrix_hook->get_original<decltype(VR::camera_get_view_matrix_hook)>();
-
+void VR::on_camera_get_view_matrix(REManagedObject* camera, Matrix4x4f* result) {
     if (result == nullptr || !g_framework->is_ready()) {
-        return original_func(camera, result);
+        return;
     }
 
-    auto& vr = VR::get();
-
-    if (!vr->is_hmd_active() || vr->m_disable_view_matrix_override) {
-        return original_func(camera, result);
+    if (!is_hmd_active() || m_disable_view_matrix_override) {
+        return;
     }
 
     if (camera != sdk::get_primary_camera()) {
-        return original_func(camera, result);
+        return;
     }
-
-    original_func(camera, result);
 
     auto& mtx = *result;
 
     //get the flipped eye to get the correct transform. something something right->left handedness i think
-    const auto current_eye_transform = vr->get_current_eye_transform(true);
+    const auto current_eye_transform = get_current_eye_transform(true);
     //auto current_head_pos = -(glm::inverse(vr->get_rotation(0)) * ((vr->get_position(0)) - vr->m_standing_origin));
     //current_head_pos.w = 0.0f;
 
     // Apply the complete eye transform. This fixes the need for parallel projections on all canted headsets like Pimax
     mtx = current_eye_transform * mtx;
-
-    return result;
 }
 
 void VR::inputsystem_update_hook(void* ctx, REManagedObject* input_system) {
@@ -1146,32 +1123,7 @@ std::optional<std::string> VR::initialize_openxr_swapchains() {
 }
 
 std::optional<std::string> VR::hijack_resolution() {
-    // We're going to hook via.SceneView.get_Size so we can
-    // spoof the render target size to the HMD's resolution.
-    auto get_size_func = sdk::find_native_method("via.SceneView", "get_Size");
-
-    if (get_size_func == nullptr) {
-        return "VR init failed: via.SceneView.get_Size function not found.";
-    }
-
-    spdlog::info("via.SceneView.get_Size: {:x}", (uintptr_t)get_size_func);
-
-    // Pattern scan for the native function call
-    auto ref = utility::scan((uintptr_t)get_size_func, 0x100, "49 8B C8 E8");
-
-    if (!ref) {
-        return "VR init failed: via.SceneView.get_Size native function not found. Pattern scan failed.";
-    }
-
-    auto native_func = utility::calculate_absolute(*ref + 4);
-
-    // Hook the native function
-    g_get_size_hook = std::make_unique<FunctionHook>(native_func, get_size_hook);
-
-    if (!g_get_size_hook->create()) {
-        return "VR init failed: via.SceneView.get_Size native function hook failed.";
-    }
-
+    // moved to global hook class
     return std::nullopt;
 }
 
@@ -1199,49 +1151,21 @@ std::optional<std::string> VR::hijack_input() {
 }
 
 std::optional<std::string> VR::hijack_camera() {
-    // We're going to hook via.Camera.get_ProjectionMatrix so we can
-    // override the camera's Projection matrix with the HMD's Projection matrix (per-eye)
-    auto func = sdk::find_native_method("via.Camera", "get_ProjectionMatrix");
-
-    if (func == nullptr) {
-        return "VR init failed: via.Camera.get_ProjectionMatrix function not found.";
-    }
-
-    spdlog::info("via.Camera.get_ProjectionMatrix: {:x}", (uintptr_t)func);
-    
-    // Pattern scan for the native function call
-    auto ref = utility::scan((uintptr_t)func, 0x100, "49 8B C8 E8");
-
-    if (!ref) {
-        return "VR init failed: via.Camera.get_ProjectionMatrix native function not found. Pattern scan failed.";
-    }
-
-    auto native_func = utility::calculate_absolute(*ref + 4);
-
-    // Hook the native function
-    g_projection_matrix_hook = std::make_unique<FunctionHook>(native_func, camera_get_projection_matrix_hook);
-
-    if (!g_projection_matrix_hook->create()) {
-        return "VR init failed: via.Camera.get_ProjectionMatrix native function hook failed.";
-    }
-
-    spdlog::info("Hooked via.Camera.get_ProjectionMatrix");
-
-    const auto get_projection_matrix = native_func;
+    const auto get_projection_matrix = (uintptr_t)sdk::find_native_method("via.Camera", "get_ProjectionMatrix");
 
     ///////////////////////////////
     // Hook GUI camera projection matrix start
     ///////////////////////////////
-    func = sdk::find_native_method("via.gui.GUICamera", "get_ProjectionMatrix");
+    auto func = sdk::find_native_method("via.gui.GUICamera", "get_ProjectionMatrix");
 
     if (func != nullptr) {
         spdlog::info("via.gui.GUICamera.get_ProjectionMatrix: {:x}", (uintptr_t)func);
         
         // Pattern scan for the native function call
-        ref = utility::scan((uintptr_t)func, 0x100, "49 8B C8 E8");
+        auto ref = utility::scan((uintptr_t)func, 0x100, "49 8B C8 E8");
 
         if (ref) {
-            native_func = utility::calculate_absolute(*ref + 4);
+            auto native_func = utility::calculate_absolute(*ref + 4);
 
             if (native_func != get_projection_matrix) {
                 // Hook the native function
@@ -1254,33 +1178,6 @@ std::optional<std::string> VR::hijack_camera() {
                 spdlog::info("Did not hook via.gui.GUICamera.get_ProjectionMatrix, same as via.Camera.get_ProjectionMatrix");
             }
         }
-    }
-
-    ///////////////////////////////
-    // Hook view matrix start
-    ///////////////////////////////
-    func = sdk::find_native_method("via.Camera", "get_ViewMatrix");
-
-    if (func == nullptr) {
-        return "VR init failed: via.Camera.get_ViewMatrix function not found.";
-    }
-
-    spdlog::info("via.Camera.get_ViewMatrix: {:x}", (uintptr_t)func);
-
-    // Pattern scan for the native function call
-    ref = utility::scan((uintptr_t)func, 0x100, "49 8B C8 E8");
-
-    if (!ref) {
-        return "VR init failed: via.Camera.get_ViewMatrix native function not found. Pattern scan failed.";
-    }
-
-    native_func = utility::calculate_absolute(*ref + 4);
-
-    // Hook the native function
-    g_view_matrix_hook = std::make_unique<FunctionHook>(native_func, camera_get_view_matrix_hook);
-
-    if (!g_view_matrix_hook->create()) {
-        return "VR init failed: via.Camera.get_ViewMatrix native function hook failed.";
     }
 
     return std::nullopt;

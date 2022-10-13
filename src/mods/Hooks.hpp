@@ -49,6 +49,15 @@ protected:
     void global_application_entry_hook_internal(void* entry, const char* name, size_t hash);
     static void global_application_entry_hook(void* entry, const char* name, size_t hash);
 
+    float* view_get_size_hook_internal(REManagedObject* scene_view, float* result);
+    static float* view_get_size_hook(REManagedObject* scene_view, float* result);
+
+    Matrix4x4f* camera_get_projection_matrix_hook_internal(REManagedObject* camera, Matrix4x4f* result);
+    static Matrix4x4f* camera_get_projection_matrix_hook(REManagedObject* camera, Matrix4x4f* result);
+
+    Matrix4x4f* camera_get_view_matrix_hook_internal(REManagedObject* camera, Matrix4x4f* result);
+    static Matrix4x4f* camera_get_view_matrix_hook(REManagedObject* camera, Matrix4x4f* result);
+
 private:
     std::optional<std::string> hook_update_transform();
     std::optional<std::string> hook_update_camera_controller();
@@ -56,6 +65,9 @@ private:
     std::optional<std::string> hook_gui_draw();
     std::optional<std::string> hook_update_before_lock_scene();
     std::optional<std::string> hook_lightshaft_draw();
+    std::optional<std::string> hook_view_get_size();
+    std::optional<std::string> hook_camera_get_projection_matrix();
+    std::optional<std::string> hook_camera_get_view_matrix();
 
     // Utility function for hooking function entries in via.Application
     std::optional<std::string> hook_application_entry(std::string name, std::unique_ptr<FunctionHook>& hook, void (*hook_fn)(void*));
@@ -74,6 +86,9 @@ private:
         HOOK_LAMBDA(hook_lightshaft_draw),
 #endif
 #endif
+        HOOK_LAMBDA(hook_view_get_size),
+        HOOK_LAMBDA(hook_camera_get_projection_matrix),
+        HOOK_LAMBDA(hook_camera_get_view_matrix),
         HOOK_LAMBDA(hook_all_application_entries),
     };
 
@@ -84,6 +99,9 @@ protected:
     std::unique_ptr<FunctionHook> m_gui_draw_hook;
     std::unique_ptr<FunctionHook> m_update_before_lock_scene_hook;
     std::unique_ptr<FunctionHook> m_lightshaft_draw_hook;
+    std::unique_ptr<FunctionHook> m_view_get_size_hook;
+    std::unique_ptr<FunctionHook> m_camera_get_projection_matrix_hook;
+    std::unique_ptr<FunctionHook> m_camera_get_view_matrix_hook;
 
     std::unordered_map<const char*, void (*)(void*)> m_application_entry_hooks;
 

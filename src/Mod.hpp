@@ -378,6 +378,12 @@ public:
     virtual void on_update_before_lock_scene(void* ctx) {};
     virtual void on_pre_lightshaft_draw(void* shaft, void* render_context) {};
     virtual void on_lightshaft_draw(void* shaft, void* render_context) {};
+    virtual void on_pre_view_get_size(REManagedObject* scene_view, float* result) {};
+    virtual void on_view_get_size(REManagedObject* scene_view, float* result) {};   
+    virtual void on_pre_camera_get_projection_matrix(REManagedObject* camera, Matrix4x4f* result) {};
+    virtual void on_camera_get_projection_matrix(REManagedObject* camera, Matrix4x4f* result) {};
+    virtual void on_pre_camera_get_view_matrix(REManagedObject* camera, Matrix4x4f* result) {};
+    virtual void on_camera_get_view_matrix(REManagedObject* camera, Matrix4x4f* result) {};
     // via.application entry hooks
     // For a list of possible entries, see via.ModuleEntry enum
     virtual void on_pre_application_entry(void* entry, const char* name, size_t hash) {};
