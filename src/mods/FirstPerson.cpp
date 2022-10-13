@@ -26,28 +26,27 @@ FirstPerson::FirstPerson() {
     g_first_person = this;
     m_attach_bone_imgui.reserve(256);
 
-#ifdef RE3
+#if defined(RE3)
     // Carlos
-    m_attach_offsets["pl0000"] = Vector4f{ 0.0f, 0.667f, 1.1f, 0.0f };
-    // Jill (it looks better with 0?)
-    m_attach_offsets["pl2000"] = Vector4f{ 0.0f, 0.5f, 0.776f, 0.0f };
-    //m_attach_offsets["pl2000"] = Vector4f{ -0.23f, 0.4f, 1.0f, 0.0f };
-#else
+    m_attach_offsets["pl0000"] = Vector4f{ 0.0f, 0.667f, 1.100f, 0.0f };
+    // Jill
+    m_attach_offsets["pl2000"] = Vector4f{ 0.0f, 0.500f, 0.950f, 0.0f };
+#elif defined(RE2)
     // Specific player model configs
     // Leon
-    m_attach_offsets["pl0000"] = Vector4f{ -0.26f, 0.435f, 1.0f, 0.0f };
+    m_attach_offsets["pl0000"] = Vector4f{ 0.0f, 0.435f, 1.000f, 0.0f };
     // Claire
-    m_attach_offsets["pl1000"] = Vector4f{ -0.23f, 0.4f, 1.0f, 0.0f };
+    m_attach_offsets["pl1000"] = Vector4f{ 0.0f, 0.400f, 0.900f, 0.0f };
     // Sherry
-    m_attach_offsets["pl3000"] = Vector4f{ -0.278f, 0.435f, 0.945f, 0.0f };
+    m_attach_offsets["pl3000"] = Vector4f{ 0.0f, 0.435f, 0.945f, 0.0f };
     // Hunk
-    m_attach_offsets["pl4000"] = Vector4f{ -0.26f, 0.435f, 1.0f, 0.0f };
+    m_attach_offsets["pl4000"] = Vector4f{ 0.0f, 0.435f, 1.000f, 0.0f };
     // Kendo
-    m_attach_offsets["pl5000"] = Vector4f{ -0.24f, 0.4f, 1.0f, 0.0f };
+    m_attach_offsets["pl5000"] = Vector4f{ 0.0f, 0.400f, 1.000f, 0.0f };
     // Forgotten Soldier
-    m_attach_offsets["pl5600"] = Vector4f{ -0.316, 0.556f, 1.02f, 0.0f };
+    m_attach_offsets["pl5600"] = Vector4f{ 0.0f, 0.556f, 1.020f, 0.0f };
     // Elizabeth
-    m_attach_offsets["pl6400"] = Vector4f{ -0.316, 0.466f, 0.79f, 0.0f };
+    m_attach_offsets["pl6400"] = Vector4f{ 0.0f, 0.466f, 0.790f, 0.0f };
 #endif
 }
 
@@ -95,7 +94,9 @@ void FirstPerson::on_draw_ui() {
         m_wants_disable = !m_enabled->value();
     }
 
-    ImGui::SameLine();
+    if (m_show_in_actions->draw("Show In Actions") && m_camera_system != nullptr && m_camera_system->mainCameraController != nullptr) {
+        m_camera_system->mainCameraController->updateCamera = true;
+    }
 
     // Revert the updateCamera value to normal
     if (m_show_in_cutscenes->draw("Show In Cutscenes") && m_camera_system != nullptr && m_camera_system->mainCameraController != nullptr) {
@@ -774,7 +775,7 @@ void FirstPerson::update_player_arm_ik(RETransform* transform) {
     }
 
     // so we don't go spinning everywhere in cutscenes
-    if (m_last_camera_type != app::ropeway::camera::CameraControlType::PLAYER) {
+    if (!is_last_player_camera_type()) {
         m_was_gripping_weapon = false;
         return;
     }
@@ -1107,7 +1108,7 @@ void FirstPerson::update_player_muzzle_behavior(RETransform* transform, bool res
         return;
     }
 
-    if (m_last_camera_type != app::ropeway::camera::CameraControlType::PLAYER) {
+    if (!is_last_player_camera_type()) {
         return;
     }
 
@@ -1219,7 +1220,7 @@ void FirstPerson::update_player_body_ik(RETransform* transform, bool restore, bo
         return;
     }
 
-    if (m_last_camera_type != app::ropeway::camera::CameraControlType::PLAYER) {
+    if (!is_last_player_camera_type()) {
         m_was_gripping_weapon = false;
         return;
     }
@@ -1334,7 +1335,7 @@ void FirstPerson::update_player_body_rotation(RETransform* transform) {
         return;
     }
 
-    if (m_last_camera_type != app::ropeway::camera::CameraControlType::PLAYER) {
+    if (!is_last_player_camera_type()) {
         return;
     }
 
@@ -1394,7 +1395,7 @@ void FirstPerson::update_player_roomscale(RETransform* transform) {
         return;
     }
 
-    if (!m_enabled->value() || !will_be_used() || m_last_camera_type != app::ropeway::camera::CameraControlType::PLAYER) {
+    if (!m_enabled->value() || !will_be_used() || !is_last_player_camera_type()) {
         m_last_roomscale_failure = now;
         return;
     }
@@ -1462,7 +1463,7 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
     m_last_camera_type = utility::re_managed_object::get_field<app::ropeway::camera::CameraControlType>(m_camera_system, "BusyCameraType");
     m_last_pause_state = is_paused;
 
-    const auto is_player_camera = m_last_camera_type == app::ropeway::camera::CameraControlType::PLAYER && !is_paused;
+    const auto is_player_camera = is_last_player_camera_type() && !is_paused;
     const auto is_switching_camera = utility::re_managed_object::get_field<bool>(m_camera_system->mainCameraController, "SwitchingCamera");
     const auto is_player_in_control = (is_player_camera && !is_switching_camera && !m_last_pause_state);
     const auto is_switching_to_player_camera = is_player_camera && is_switching_camera;
@@ -1538,6 +1539,7 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
         }
     }
 
+    /*
     // Lets camera modification work in cutscenes/action camera etc
     if (!is_player_camera && !is_switching_camera && is_first_person_allowed()) {
         m_camera_system->mainCameraController->updateCamera = false;
@@ -1545,6 +1547,7 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
     else {
         m_camera_system->mainCameraController->updateCamera = true;
     }
+    */
 
     if (is_first_person_allowed()) {
         camera_matrix[3] = m_last_bone_matrix[3];
@@ -1580,7 +1583,9 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
         m_has_cutscene_rotation = false;
         m_ignore_next_player_angles = true;
 
+        /*
         m_camera_system->mainCameraController->updateCamera = false;
+        */
 
         //*(Matrix3x4f*)&mtx = cutscene_inverse * m_last_camera_matrix_pre_vr;
 
@@ -1732,7 +1737,7 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
             m_player_camera_controller->worldPosition = m_camera_system->cameraController->worldPosition;
             m_player_camera_controller->worldRotation = m_camera_system->cameraController->worldRotation;
 
-            /*if (m_last_camera_type == app::ropeway::camera::CameraControlType::PLAYER) {
+            /*if (is_last_player_camera_type()) {
                 m_last_controller_angles.z = 0.0f;
 
                 m_last_controller_angles += (prev_angles - m_last_controller_angles) * delta_time;
@@ -1846,7 +1851,7 @@ void FirstPerson::update_fov(RopewayPlayerCameraController* controller) {
     if (auto param = controller->cameraParam; param != nullptr) {
         auto new_value = (param->fov * m_fov_mult->value()) + m_fov_offset->value();
 
-        if (m_last_camera_type == app::ropeway::camera::CameraControlType::PLAYER) {
+        if (is_last_player_camera_type()) {
             if (m_fov_mult->value() != m_last_fov_mult) {
                 auto prev_value = (param->fov * m_last_fov_mult) + m_fov_offset->value();
                 auto delta = prev_value - new_value;
@@ -1909,11 +1914,21 @@ bool FirstPerson::is_first_person_allowed() const {
     }
 
     // Don't mess with the camera if we're in a cutscene
-    if (m_show_in_cutscenes->value()) {
-        return m_allowed_camera_types.count(m_last_camera_type) > 0;
+    if (m_show_in_cutscenes->value() && m_allowed_cutscene_camera_types.count(m_last_camera_type) > 0) {
+        return true;
     }
-    
-    return m_last_camera_type == app::ropeway::camera::CameraControlType::PLAYER;
+
+    // Don't mess with the camera if we're in a action
+    if (m_show_in_actions->value() && m_allowed_action_camera_types.count(m_last_camera_type) > 0) {
+        return true;
+    }
+
+    return is_last_player_camera_type();
+}
+
+bool FirstPerson::is_last_player_camera_type() const {
+    return m_last_camera_type == app::ropeway::camera::CameraControlType::PLAYER ||
+           m_last_camera_type == app::ropeway::camera::CameraControlType::PLAYER_SIGHT;
 }
 
 bool FirstPerson::is_jacked(RETransform* transform) const {

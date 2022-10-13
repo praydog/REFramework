@@ -82,6 +82,7 @@ private:
     void update_joint_names();
     float update_delta_time(REComponent* component);
     bool is_first_person_allowed() const;
+    bool is_last_player_camera_type() const;
     bool is_jacked(RETransform* transform) const;
 
     // Needs to be recursive for some reason. Otherwise freeze.
@@ -115,11 +116,19 @@ private:
     app::ropeway::camera::CameraControlType m_last_camera_type{};
 
     // Don't show first person when the camera is not one of these
-    std::unordered_set<app::ropeway::camera::CameraControlType> m_allowed_camera_types{
-        app::ropeway::camera::CameraControlType::PLAYER, // normal gameplay
+    std::unordered_set<app::ropeway::camera::CameraControlType> m_allowed_cutscene_camera_types{
         app::ropeway::camera::CameraControlType::EVENT, // cutscene
+    };
+
+    // Don't show first person when the camera is not one of these
+    std::unordered_set<app::ropeway::camera::CameraControlType> m_allowed_action_camera_types{
         app::ropeway::camera::CameraControlType::ACTION, // grabbed by zombie or something similar
-        //app::ropeway::camera::CameraControlType::GIMMICK_MOTION, // traversal cutscene
+        // traversal cutscene
+        app::ropeway::camera::CameraControlType::GIMMICK_FIXED,
+        app::ropeway::camera::CameraControlType::GIMMICK_MOTION,
+#if defined(RE3)
+        app::ropeway::camera::CameraControlType::GIMMICK_TWIRLER,
+#endif
     };
 
     float m_last_player_fov{ 0.0f };
@@ -167,18 +176,19 @@ private:
     const ModToggle::Ptr m_smooth_y_movement{ ModToggle::create(generate_name("SmoothYMovementVR"), true) };
     const ModToggle::Ptr m_roomscale{ ModToggle::create(generate_name("RoomScale"), false) };
     const ModToggle::Ptr m_disable_vignette{ ModToggle::create(generate_name("DisableVignette"), true) };
-    const ModToggle::Ptr m_hide_mesh{ ModToggle::create(generate_name("HideJointMesh"), true) };
+    const ModToggle::Ptr m_hide_mesh{ ModToggle::create(generate_name("HideJointMesh"), false) };
     const ModToggle::Ptr m_rotate_mesh{ ModToggle::create(generate_name("ForceRotateMesh"), true) };
-    const ModToggle::Ptr m_disable_light_source{ ModToggle::create(generate_name("DisableLightSource"), true) };
-    const ModToggle::Ptr m_show_in_cutscenes{ ModToggle::create(generate_name("ShowInCutscenes"), false) };
+    const ModToggle::Ptr m_disable_light_source{ ModToggle::create(generate_name("DisableLightSource"), false) };
+    const ModToggle::Ptr m_show_in_actions{ ModToggle::create(generate_name("ShowInActions"), true) };
+    const ModToggle::Ptr m_show_in_cutscenes{ ModToggle::create(generate_name("ShowInCutscenes"), true) };
     const ModToggle::Ptr m_rotate_body{ ModToggle::create(generate_name("RotateBody"), true) };
     const ModSlider::Ptr m_body_rotate_speed{ ModSlider::create(generate_name("BodyRotateSpeed"), 0.01f, 5.0f, 0.3f) };
 
-    const ModSlider::Ptr m_fov_offset{ ModSlider::create(generate_name("FOVOffset"), -100.0f, 100.0f, 10.0f) };
+    const ModSlider::Ptr m_fov_offset{ ModSlider::create(generate_name("FOVOffset"), -100.0f, 100.0f, 0.0f) };
     const ModSlider::Ptr m_fov_mult{ ModSlider::create(generate_name("FOVMultiplier"), 0.0f, 2.0f, 1.0f) };
 
     const ModSlider::Ptr m_camera_scale{ ModSlider::create(generate_name("CameraSpeed"), 0.0f, 100.0f, 40.0f) };
-    const ModSlider::Ptr m_bone_scale{ ModSlider::create(generate_name("CameraShake"), 0.0f, 100.0f, 15.0f) };
+    const ModSlider::Ptr m_bone_scale{ ModSlider::create(generate_name("CameraShake"), 0.0f, 100.0f, 0.0f) };
 
     // just used to draw. not actually stored in config
     const ModFloat::Ptr m_current_fov{ ModFloat::create("") };
@@ -194,6 +204,7 @@ private:
         *m_rotate_body,
         *m_body_rotate_speed,
         *m_disable_light_source,
+        *m_show_in_actions,
         *m_show_in_cutscenes,
         *m_fov_offset,
         *m_fov_mult,

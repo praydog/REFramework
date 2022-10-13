@@ -25530,22 +25530,25 @@ namespace via::wwise {
 }
 namespace app::ropeway::camera {
     enum class CameraControlType : int64_t {
-        INVALID = 0xFFFFFFFF,
-        PLAYER = 0,
-        PLAYER_SIGHT = 1,
-        FIXED = 2,
-        GIMMICK_FIXED = 3,
-        GIMMICK_MOTION = 4,
-        ACTION = 5,
-        EVENT = 6,
-        INVENTORY = 7,
-        INTERPOLATION = 8,
-        TITLE = 9,
-        GAMEOVER = 10,
-        RESULT = 11,
-        FIGURE = 12,
-        DEBUG = 13,
-        DEBUG2P = 14,
+        INVALID = -1,
+        PLAYER,
+        PLAYER_SIGHT,
+        FIXED,
+        GIMMICK_FIXED,
+        GIMMICK_MOTION,
+        ACTION,
+        EVENT,
+        INVENTORY,
+        INTERPOLATION,
+        TITLE,
+        GAMEOVER,
+        RESULT,
+        FIGURE,
+#if defined(RE3)
+        GIMMICK_TWIRLER,
+#endif
+        DEBUG,
+        DEBUG2P,
     };
 }
 namespace app::ropeway::RogueGUIMaster {
