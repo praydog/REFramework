@@ -63,6 +63,10 @@ void VR::on_view_get_size(REManagedObject* scene_view, float* result) {
         return;
     }
 
+    if (!get_runtime()->loaded) {
+        return;
+    }
+
     if (m_disable_backbuffer_size_override) {
         return;
     }
