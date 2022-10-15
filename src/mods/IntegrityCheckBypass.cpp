@@ -334,6 +334,7 @@ void IntegrityCheckBypass::immediate_patch_re8() {
 
             if (!sussy_function_start) {
                 spdlog::error("[IntegrityCheckBypass]: Could not find function start for sussy_constant @ 0x{:x}", *sussy_result);
+                continue;
             }
 
             // Create a patch that returns instantly.
