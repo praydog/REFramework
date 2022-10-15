@@ -2295,6 +2295,18 @@ re.on_draw_ui(function()
             imgui.tree_pop()
         end
 
+        if imgui.tree_node("Status") then
+            object_explorer:handle_address(re8vr.status)
+
+            imgui.tree_pop()
+        end
+
+        if imgui.tree_node("Updater") then
+            object_explorer:handle_address(re8vr.updater)
+
+            imgui.tree_pop()
+        end
+
         if imgui.tree_node("Inventory") then
             object_explorer:handle_address(re8vr.inventory)
 

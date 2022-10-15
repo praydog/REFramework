@@ -682,7 +682,13 @@ void RE8VR::fix_player_camera(::REManagedObject* player_camera) {
     auto camera_rot_pre_hmd = camera_rot;
     auto camera_pos_pre_hmd = camera_pos;
 
-    auto camera_rot_no_shake = *sdk::get_object_field<glm::quat>(player_camera, "<CameraRotation>k__BackingField");
+    auto camera_rot_no_shake_field = sdk::get_object_field<glm::quat>(player_camera, "<CameraRotation>k__BackingField");
+
+    if (camera_rot_no_shake_field == nullptr) {
+        camera_rot_no_shake_field = sdk::get_object_field<glm::quat>(player_camera, "<cameraRotation>k__BackingField");
+    }
+
+    auto camera_rot_no_shake = *camera_rot_no_shake_field;
 
     Vector4f zero_v4{0.0f, 0.0f, 0.0f, 0.0f};
     vr->apply_hmd_transform(camera_rot_no_shake, zero_v4);
@@ -734,16 +740,56 @@ void RE8VR::fix_player_camera(::REManagedObject* player_camera) {
     const auto fixed_dir = glm::normalize((neg_forward_identity * camera_rot_no_shake) * Vector3f{0.0f, 0.0f, -1.0f});
     const auto fixed_rot = utility::math::to_quat(fixed_dir);
 
-    *sdk::get_object_field<glm::quat>(player_camera, "<CameraRotation>k__BackingField") = fixed_rot;
-    *sdk::get_object_field<glm::vec4>(player_camera, "<CameraPosition>k__BackingField") = camera_pos;
+     // RE8 pre oct14 update
+    auto camera_rotation_field = sdk::get_object_field<glm::quat>(player_camera, "<CameraRotation>k__BackingField");
+
+    if (camera_rotation_field == nullptr) {
+        camera_rotation_field = sdk::get_object_field<glm::quat>(player_camera, "<cameraRotation>k__BackingField");
+    }
+
+    *camera_rotation_field = fixed_rot;
+
+     // RE8 pre oct14 update
+    auto camera_position_field = sdk::get_object_field<glm::vec4>(player_camera, "<CameraPosition>k__BackingField");
+
+    if (camera_position_field == nullptr) {
+        camera_position_field = sdk::get_object_field<glm::vec4>(player_camera, "<cameraPosition>k__BackingField");
+    }
+
+    *camera_position_field = camera_pos;
 
 #ifdef RE8
-    *sdk::get_object_field<glm::quat>(player_camera, "FixedAimRotation") = fixed_rot;
+    // RE8 pre oct14 update
+    auto fixed_aim_rotation_field = sdk::get_object_field<glm::quat>(player_camera, "FixedAimRotation");
+
+    if (fixed_aim_rotation_field == nullptr) {
+        fixed_aim_rotation_field = sdk::get_object_field<glm::quat>(player_camera, "<fixedAimRotation>k__BackingField");
+    }
+
+    *fixed_aim_rotation_field = fixed_rot;
 #endif
 
-    *sdk::get_object_field<glm::quat>(player_camera, "CameraRotationWithMovementShake") = fixed_rot;
-    *sdk::get_object_field<glm::quat>(player_camera, "CameraRotationWithCameraShake") = fixed_rot;
-    *sdk::get_object_field<glm::quat>(player_camera, "PrevCameraRotation") = fixed_rot;
+    auto camera_rotation_with_movement_shake_field = sdk::get_object_field<glm::quat>(player_camera, "CameraRotationWithMovementShake");
+
+    if (camera_rotation_with_movement_shake_field == nullptr) {
+        camera_rotation_with_movement_shake_field = sdk::get_object_field<glm::quat>(player_camera, "cameraRotationWithMovementShake");
+    }
+
+    auto camera_rotation_with_camera_shake_field = sdk::get_object_field<glm::quat>(player_camera, "CameraRotationWithCameraShake");
+
+    if (camera_rotation_with_camera_shake_field == nullptr) {
+        camera_rotation_with_camera_shake_field = sdk::get_object_field<glm::quat>(player_camera, "cameraRotationWithCameraShake");
+    }
+
+    auto prev_camera_rotation_field = sdk::get_object_field<glm::quat>(player_camera, "PrevCameraRotation");
+
+    if (prev_camera_rotation_field == nullptr) {
+        prev_camera_rotation_field = sdk::get_object_field<glm::quat>(player_camera, "PrevcameraRotation"); // ???? why
+    }
+
+    *camera_rotation_with_movement_shake_field = fixed_rot;
+    *camera_rotation_with_camera_shake_field = fixed_rot;
+    *prev_camera_rotation_field = fixed_rot;
 
     auto camera_controller_param = sdk::get_object_field<::REManagedObject*>(player_camera, "CameraCtrlParam");
 
