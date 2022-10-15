@@ -1,8 +1,7 @@
 #include <spdlog/spdlog.h>
-#include <Zydis/Zydis.h>
 
-#include "utility/Scan.hpp"
-#include "utility/Module.hpp"
+#include <utility/Scan.hpp>
+#include <utility/Module.hpp>
 
 #include "Application.hpp"
 #include "RETypeDB.hpp"
@@ -89,27 +88,20 @@ RenderLayer* RenderLayer::add_layer(::REType* layer_type, uint32_t priority, uin
                     std::unordered_map<uintptr_t, uint32_t> calls;
                     uintptr_t best_call = 0;
 
-                    ZydisDecoder decoder;
-                    ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_64, ZYDIS_STACK_WIDTH_64);
-                    ZydisDecodedInstruction is{};
-                    ZydisDecodedOperand ops[ZYDIS_MAX_OPERAND_COUNT_VISIBLE]{};
-
                     for (auto i = 0 ; i < 150; ++i) {
-                        if (ZYAN_FAILED(
-                            ZydisDecoderDecodeFull(
-                                &decoder, (void*)ip, 256, &is,
-                                ops, ZYDIS_MAX_OPERAND_COUNT_VISIBLE, ZYDIS_DFLAG_VISIBLE_OPERANDS_ONLY))) 
-                        {
+                        const auto decoded = utility::decode_one((uint8_t*)ip);
+
+                        if (!decoded) {
                             spdlog::error("[Renderer] Failed to decode instruction @ 0x{:x} ({:x})", ip, ip - (uintptr_t)add_scene_view_fn);
                             break;
                         }
 
-                        if (is.mnemonic == ZYDIS_MNEMONIC_RET || is.mnemonic == ZYDIS_MNEMONIC_INT3) {
+                        if (std::string_view{decoded->Mnemonic}.starts_with("RET") || std::string_view{decoded->Mnemonic}.starts_with("INT3")) {
                             spdlog::error("[Renderer] Encountering RET or INT3 @ 0x{:x} ({:x})", ip, ip - (uintptr_t)add_scene_view_fn);
                             break;
                         }
 
-                        if (is.opcode == 0xE8) {
+                        if (*(uint8_t*)ip == 0xE8) {
                             const auto addr = utility::calculate_absolute(ip + 1);
                             calls[addr]++;
 
@@ -127,7 +119,7 @@ RenderLayer* RenderLayer::add_layer(::REType* layer_type, uint32_t priority, uin
                             }
                         }
 
-                        ip += is.length;
+                        ip += decoded->Length;
                     }
 
                     if (best_call != 0) {

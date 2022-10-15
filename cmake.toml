@@ -12,8 +12,6 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
 # string(REGEX REPLACE "/EHsc" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 
 set(ASMJIT_STATIC ON CACHE BOOL "" FORCE)
-set(ZYDIS_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-set(ZYDIS_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
 set(DYNAMIC_LOADER ON CACHE BOOL "" FORCE) # OpenXR
 
 
@@ -64,10 +62,6 @@ build-framework-dependencies = "REF_BUILD_DEPENDENCIES AND CMAKE_SIZEOF_VOID_P E
 git = "https://github.com/asmjit/asmjit.git"
 tag = "2a706fd2ba355808cada31ac1eed8ce28caa6b37"
 
-[fetch-content.zydis]
-git = "https://github.com/zyantific/zydis"
-tag = "3f5a3ad8e16658c62d7033e9373232d19480d3cc"
-
 [fetch-content.openxr]
 git = "https://github.com/KhronosGroup/OpenXR-SDK"
 tag = "458984d7f59d1ae6dc1b597d94b02e4f7132eaba"
@@ -78,6 +72,8 @@ sources = ["dependencies/spdlog/src/*.cpp"]
 include-directories = ["dependencies/spdlog/include"]
 compile-definitions = ["SPDLOG_COMPILED_LIB"]
 condition = "build-framework-dependencies"
+alias = "spdlog::spdlog"
+
 
 [target.glm_static]
 type = "static"
@@ -141,6 +137,14 @@ type = "interface"
 include-directories = ["dependencies/nlohmann"]
 condition = "build-framework"
 
+[fetch-content.bddisasm]
+git = "https://github.com/bitdefender/bddisasm"
+tag = "v1.34.10"
+
+[fetch-content.kananlib]
+git = "https://github.com/cursey/kananlib"
+tag = "main"
+
 [target.utility]
 type = "static"
 sources = ["shared/utility/**.cpp", "shared/utility/**.c"]
@@ -149,7 +153,8 @@ compile-options = ["/EHa"]
 compile-features = ["cxx_std_20"]
 link-libraries = [
     "spdlog",
-    "minhook"
+    "minhook",
+    "kananlib"
 ]
 
 [template.sdk]
@@ -161,8 +166,7 @@ compile-options = ["/EHa"]
 compile-features = ["cxx_std_20"]
 link-libraries = [
     "glm_static",
-    "spdlog",
-    "Zydis"
+    "spdlog"
 ]
 private-link-libraries = [
     "utility"

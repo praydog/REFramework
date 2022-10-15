@@ -6,15 +6,13 @@
 #include <regex>
 #include <json.hpp>
 
-#include <Zydis/Zydis.h>
-
 #include <windows.h>
 
-#include "utility/String.hpp"
-#include "utility/Scan.hpp"
-#include "utility/Module.hpp"
-#include "utility/Memory.hpp"
-#include "utility/ImGui.hpp"
+#include <utility/String.hpp>
+#include <utility/Scan.hpp>
+#include <utility/Module.hpp>
+#include <utility/Memory.hpp>
+#include <utility/ImGui.hpp>
 #include "sdk/Renderer.hpp"
 #include "sdk/MotionFsm2Layer.hpp"
 
@@ -3061,34 +3059,24 @@ void ObjectExplorer::display_native_methods(REManagedObject* obj, sdk::RETypeDef
                     ImGui::Text("Instruction");
 
                     // Show a short disassembly of the method
-                    ZydisDecoder decoder;
-                    ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_64, ZYDIS_STACK_WIDTH_64);
-                    ZydisDecodedInstruction is{};
-                    ZydisDecodedOperand ops[ZYDIS_MAX_OPERAND_COUNT_VISIBLE]{};
-
-                    ZydisFormatter formatter;
-                    ZydisFormatterInit(&formatter, ZYDIS_FORMATTER_STYLE_INTEL);
-
                     auto ip = (uintptr_t)method_ptr;
 
                     for (auto i = 0; i < 20; i++) {
-                        if (ZYAN_FAILED(
-                            ZydisDecoderDecodeFull(
-                                &decoder, (void*)ip, 256, &is,
-                                ops, ZYDIS_MAX_OPERAND_COUNT_VISIBLE, ZYDIS_DFLAG_VISIBLE_OPERANDS_ONLY))) 
-                        {
+                        const auto decoded = utility::decode_one((uint8_t*)ip);
+
+                        if (!decoded) {
                             break;
                         }
 
-                        char buffer[256]{};
-                        ZydisFormatterFormatInstruction(&formatter, &is, ops, is.operand_count_visible, buffer, sizeof(buffer), ip);
+                        char buffer[ND_MIN_BUF_SIZE]{};
+                        NdToText(&*decoded, 0, sizeof(buffer), buffer);
 
                         ImGui::TableNextColumn();
                         ImGui::Text("0x%p", ip);
 
                         ImGui::TableNextColumn();
                         // show the bytes
-                        for (auto j = 0; j < is.length; j++) {
+                        for (auto j = 0; j < decoded->Length; j++) {
                             if (j > 0) {
                                 ImGui::SameLine();
                             }
@@ -3099,10 +3087,10 @@ void ObjectExplorer::display_native_methods(REManagedObject* obj, sdk::RETypeDef
                         ImGui::TableNextColumn();
                         ImGui::Text(buffer);
 
-                        ip += is.length;
+                        ip += decoded->Length;
 
                         // check if int3 and stop
-                        if (is.mnemonic == ZYDIS_MNEMONIC_INT3) {
+                        if (std::string_view{decoded->Mnemonic}.starts_with("INT3")) {
                             break;
                         }
                     }
