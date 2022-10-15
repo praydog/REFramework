@@ -14,6 +14,9 @@ public:
     std::optional<std::string> on_initialize() override;
 
     void on_frame() override;
+    
+    static void ignore_application_entries();
+    static void immediate_patch_re8();
 
 private:
 #ifdef RE3

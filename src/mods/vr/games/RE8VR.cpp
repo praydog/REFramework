@@ -1079,7 +1079,21 @@ void RE8VR::fix_player_shadow() {
         return nullptr;
     }
 
-    static auto get_player_gun_method = sdk::find_method_definition("app.PlayerUpdater", "get_playerGun");
+    auto find_fps_method = [](std::string_view tname, std::string_view method_name) -> sdk::REMethodDefinition* {
+        auto t = sdk::find_type_definition(tname);
+
+        if (t == nullptr) {
+            t = sdk::find_type_definition(std::string{ tname } + "FPS");
+        }
+
+        if (t == nullptr) {
+            return nullptr;
+        }
+
+        return t->get_method(method_name);
+    };
+
+    static auto get_player_gun_method = find_fps_method("app.PlayerUpdater", "get_playerGun");
 
     auto player_gun = get_player_gun_method->call<::REGameObject*>(sdk::get_thread_context(), m_updater);
 
@@ -1112,6 +1126,10 @@ bool RE8VR::update_pointers() {
 
     auto get_ambiguous_re_type = [](std::string_view name) -> ::REType* {
         auto tdef = sdk::find_type_definition(name);
+
+        if (tdef == nullptr) {
+            tdef = sdk::find_type_definition(std::string{ name } + "FPS");
+        }
 
         if (tdef == nullptr) {
             return nullptr;
@@ -1176,10 +1194,14 @@ bool RE8VR::update_pointers() {
     if (m_updater != nullptr) {
         m_status = sdk::call_object_func_easy<::REManagedObject*>(m_updater, "get_playerstatus");
 
-        auto container = *sdk::get_object_field<::REManagedObject*>(m_updater, "playerContainer");
+        auto container = sdk::get_object_field<::REManagedObject*>(m_updater, "playerContainer");
 
-        if (container != nullptr) {
-            m_inventory = sdk::call_object_func_easy<::REManagedObject*>(container, "get_inventory");
+        if (container == nullptr) {
+            container = sdk::get_object_field<::REManagedObject*>(m_updater, "playerReference");
+        }
+
+        if (container != nullptr && *container != nullptr) {
+            m_inventory = sdk::call_object_func_easy<::REManagedObject*>(*container, "get_inventory");
         } else {
             m_inventory = nullptr;
         }

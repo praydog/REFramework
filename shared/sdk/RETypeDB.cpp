@@ -7,7 +7,13 @@
 
 namespace sdk {
 RETypeDB* RETypeDB::get() {
-    return VM::get()->get_type_db();
+    auto vm = VM::get();
+
+    if (vm == nullptr) {
+        return nullptr;
+    }
+
+    return vm->get_type_db();
 }
 
 static std::shared_mutex g_tdb_type_mtx{};

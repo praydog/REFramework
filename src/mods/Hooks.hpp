@@ -5,14 +5,26 @@
 
 class Hooks : public Mod {
 public:
+    static std::shared_ptr<Hooks>& get();
+
+public:
     Hooks();
 
-    std::string_view get_name() const override { return "PositionHooks"; };
+    std::string_view get_name() const override { return "Hooks"; };
     std::optional<std::string> on_initialize() override;
     void on_draw_ui() override;
 
     auto& get_application_entry_times() {
         return m_application_entry_times;
+    }
+
+    void ignore_application_entry(size_t hash) {
+        std::unique_lock _{m_application_entry_data_mutex};
+        m_ignored_application_entries.insert(hash);
+    }
+
+    void ignore_application_entry(std::string_view name) {
+        ignore_application_entry(utility::hash(name));
     }
 
 protected:
@@ -104,6 +116,7 @@ protected:
     std::unique_ptr<FunctionHook> m_camera_get_view_matrix_hook;
 
     std::unordered_map<const char*, void (*)(void*)> m_application_entry_hooks;
+    std::unordered_set<size_t> m_ignored_application_entries{};
 
     struct ApplicationEntryData {
         std::chrono::nanoseconds callback_time;
@@ -114,5 +127,6 @@ protected:
     bool m_profiling_enabled{false};
 
     std::recursive_mutex m_profiler_mutex{};
+    std::shared_mutex m_application_entry_data_mutex{};
     std::unordered_map<const char*, ApplicationEntryData> m_application_entry_times;
 };

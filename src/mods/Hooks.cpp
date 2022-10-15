@@ -10,6 +10,11 @@
 
 Hooks* g_hook = nullptr;
 
+std::shared_ptr<Hooks>& Hooks::get() {
+    static std::shared_ptr<Hooks> instance = std::make_shared<Hooks>();
+    return instance;
+}
+
 Hooks::Hooks() {
     g_hook = this;
 }
@@ -732,6 +737,14 @@ void Hooks::global_application_entry_hook_internal(void* entry, const char* name
 
     if (!g_framework->is_ready()) {
         return original(entry);
+    }
+
+    {
+        std::shared_lock _{m_application_entry_data_mutex};
+
+        if (m_ignored_application_entries.contains(hash)) {
+            return;
+        }
     }
 
     if (m_profiling_enabled) {
