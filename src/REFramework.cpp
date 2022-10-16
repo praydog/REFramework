@@ -213,7 +213,7 @@ REFramework::REFramework(HMODULE reframework_module)
         }
     }
 
-#if defined(MHRISE) || defined(RE8)
+#if defined(MHRISE)
     utility::load_module_from_current_directory(L"openvr_api.dll");
     utility::load_module_from_current_directory(L"openxr_loader.dll");
     LoadLibraryA("dxgi.dll");
@@ -1282,7 +1282,7 @@ bool REFramework::initialize_game_data() {
         std::scoped_lock _{this->m_startup_mutex};
 
         try {
-#if defined(MHRISE) || defined(RE8)
+#if defined(MHRISE)
             utility::spoof_module_paths_in_exe_dir();
 #endif
             reframework::initialize_sdk();
@@ -1319,7 +1319,7 @@ bool REFramework::initialize_game_data() {
             spdlog::error("Initialization of mods failed. Reason: exception thrown.");
         }
 
-#if defined(MHRISE) || defined(RE8)
+#if defined(MHRISE)
         utility::spoof_module_paths_in_exe_dir();
 #endif
         spdlog::info("Game data initialization thread finished");
