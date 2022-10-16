@@ -21,6 +21,13 @@ struct SceneInfo {
     Matrix4x4f old_view_projection_matrix;
 };
 
+class TargetState {
+public:
+    void* get_native_resource_d3d12() const;
+
+private:
+};
+
 class RenderLayer : public REManagedObject {
 public:
     RenderLayer* add_layer(::REType* layer_type, uint32_t priority, uint8_t offset = 0);
@@ -34,6 +41,13 @@ public:
     RenderLayer* clone(bool recursive = false);
     void clone(RenderLayer* other, bool recursive = false);
     void clone_layers(RenderLayer* other, bool recursive = false);
+
+    ::sdk::renderer::TargetState* get_target_state(std::string_view name);
+
+    void* get_target_state_resource_d3d12(std::string_view name) {
+        auto state = get_target_state(name);
+        return state != nullptr ? state->get_native_resource_d3d12() : nullptr;
+    }
 
 #if TDB_VER >= 69
     static constexpr uint32_t DRAW_VTABLE_INDEX = 14;
@@ -104,6 +118,10 @@ public:
     // so we can modify it.
     void*& get_present_state(); // via.render.OutputTargetState
     REManagedObject*& get_scene_view();
+
+    void* get_output_target_d3d12() {
+        return get_target_state_resource_d3d12("OutputTarget");
+    }
 };
 
 class Scene : public sdk::renderer::RenderLayer {
@@ -114,6 +132,18 @@ public:
     sdk::renderer::SceneInfo* get_jitter_disable_scene_info();
     sdk::renderer::SceneInfo* get_z_prepass_scene_info();
     void* get_depth_stencil_d3d12();
+
+    void* get_motion_vectors_d3d12() {
+        return get_target_state_resource_d3d12("VelocityTarget");
+    }
+
+    void* get_post_main_target_d3d12() {
+        return get_target_state_resource_d3d12("PostMainTarget");
+    }
+
+    void* get_hdr_target_d3d12() {
+        return get_target_state_resource_d3d12("HDRTarget");
+    }
 };
 
 class Overlay : public sdk::renderer::RenderLayer {

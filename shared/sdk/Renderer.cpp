@@ -323,6 +323,10 @@ void RenderLayer::clone_layers(RenderLayer* other, bool recursive) {
     }
 }
 
+::sdk::renderer::TargetState* RenderLayer::get_target_state(std::string_view name) {
+    return utility::re_managed_object::get_field<::sdk::renderer::TargetState*>(this, name);
+}
+
 void* get_renderer() {
     return sdk::get_native_singleton("via.render.Renderer");
 }
@@ -572,6 +576,41 @@ std::optional<Vector2f> world_to_screen(const Vector3f& world_pos) {
     world_to_screen_methods[1]->call<void*>(&screen_pos, context, &pos, &view, &proj, &screen_size);
 
     return Vector2f{screen_pos.x, screen_pos.y};
+}
+
+void* TargetState::get_native_resource_d3d12() const {
+    const auto rtv_count = *(uint32_t*)((uintptr_t)this + 0x20);
+    
+    if (rtv_count == 0) {
+        return nullptr;
+    }
+
+    const auto rtvs = *(void***)((uintptr_t)this + 0x10);
+
+    if (rtvs == nullptr) {
+        return nullptr;
+    }
+
+    const auto rtv = rtvs[0];
+
+    if (rtv == nullptr) {
+        return nullptr;
+    }
+
+    // sizeof(via.render.RenderTargetView) + 8;
+    const auto tex = Address{rtv}.get(0x88).to<void*>();
+
+    if (tex == nullptr) {
+        return nullptr;
+    }
+
+    const auto internal_resource = Address{tex}.get(0x98).to<void*>();
+
+    if (internal_resource == nullptr) {
+        return nullptr;
+    }
+
+    return *(void**)((uintptr_t)internal_resource + 0x10);
 }
 
 void*& layer::Output::get_present_state() {
