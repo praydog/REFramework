@@ -922,6 +922,10 @@ void RE8VR::fix_player_shadow() {
     }
 
     auto mesh_controller = sdk::call_object_func_easy<::REManagedObject*>(m_updater, "get_playerMeshController");
+
+    if (mesh_controller == nullptr && m_order != nullptr) {
+        mesh_controller = sdk::call_object_func_easy<::REManagedObject*>(m_order, "get_playerMeshController");
+    }
 #else
     static auto app_player_mesh_controller_type = app_player_mesh_controller->get_type();
     auto mesh_controller = utility::re_component::find<::REManagedObject>(m_player->transform, app_player_mesh_controller_type);
@@ -1242,10 +1246,10 @@ bool RE8VR::update_pointers() {
 
         auto container = sdk::get_object_field<::REManagedObject*>(m_updater, "playerContainer");
 
-        if (container == nullptr) {
-            container = sdk::get_object_field<::REManagedObject*>(m_updater, "playerReference");
+        if (container == nullptr ) {
+            container = sdk::get_object_field<::REManagedObject*>(m_updater, "<playerContainer>k__BackingField");
         }
-
+        
         if (container != nullptr && *container != nullptr) {
             m_inventory = sdk::call_object_func_easy<::REManagedObject*>(*container, "get_inventory");
         } else {
@@ -1391,6 +1395,10 @@ void RE8VR::update_heal_gesture() {
     auto items_list = *sdk::get_object_field<::REManagedObject*>(m_inventory, "<items>k__BackingField");
     auto weapon_change = sdk::call_object_func_easy<::REManagedObject*>(m_updater, "get_playerWeaponChange");
     auto mesh_controller = sdk::call_object_func_easy<::REManagedObject*>(m_updater, "get_playerMeshController");
+
+    if (mesh_controller == nullptr && m_order != nullptr) {
+        mesh_controller =  sdk::call_object_func_easy<::REManagedObject*>(m_order, "get_playerMeshController");
+    }
 #else
     static auto app_player_weapon_change = sdk::find_type_definition("app.PlayerWeaponChange");
     static auto app_player_mesh_controller = sdk::find_type_definition("app.PlayerMeshController");
@@ -1513,6 +1521,10 @@ void RE8VR::update_heal_gesture() {
             if (is_grip_down) {
 #ifdef RE8
                 auto equip_manager = sdk::call_object_func_easy<::REManagedObject*>(m_updater, "get_equipController");
+
+                if (equip_manager == nullptr && m_order != nullptr) {
+                    equip_manager = sdk::call_object_func_easy<::REManagedObject*>(m_order, "get_equipController");
+                }
 
                 sdk::call_object_func_easy<void*>(medicine_item, "setActive", true);
                 sdk::call_object_func_easy<void*>(weapon_change, "removeWeaponWithNoAction");
