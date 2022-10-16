@@ -248,13 +248,15 @@ void IntegrityCheckBypass::on_frame() {
     disable_update_timers("app.InteractManager");
     disable_update_timers("app.EnemyManager");
     disable_update_timers("app.GUIManager");
+    disable_update_timers("app.HIDManager");
+    disable_update_timers("app.FadeManager");
 #endif
 }
 
 #ifdef RE8
 void IntegrityCheckBypass::disable_update_timers(const std::string& name) const {
     // get the singleton correspdonding to the given name
-    auto manager = reframework::get_globals()->get<REManagedObject>(name);
+    auto manager = sdk::get_managed_singleton<::REManagedObject>(name);
 
     // If the interact manager is null, we're probably not in the game
     if (manager == nullptr || manager->info == nullptr || manager->info->classInfo == nullptr) {
@@ -273,26 +275,27 @@ void IntegrityCheckBypass::disable_update_timers(const std::string& name) const 
     auto update_timer_enable_field = t->get_field("UpdateTimerEnable");
     auto update_timer_late_enable_field = t->get_field("LateUpdateTimerEnable");
 
-    if (update_timer_enable_field == nullptr || update_timer_late_enable_field == nullptr) {
-        return;
-    }
-
     // Get the actual field data now within the manager
-    auto& update_timer_enable = update_timer_enable_field->get_data<bool>(manager, true);
-    auto& update_timer_late_enable = update_timer_late_enable_field->get_data<bool>(manager, true);
+    if (update_timer_enable_field != nullptr) {
+        auto& update_timer_enable = update_timer_enable_field->get_data<bool>(manager, true);
 
-    // Log that we are about to set these to false if they were true before
-    if (update_timer_enable) {
-        spdlog::info("[{:s}]: {:s}.UpdateTimerEnable was true, disabling it...", get_name().data(), name.data());
+        // Log that we are about to set these to false if they were true before
+        if (update_timer_enable) {
+            spdlog::info("[{:s}]: {:s}.UpdateTimerEnable was true, disabling it...", get_name().data(), name.data());
+        }
+
+        update_timer_enable = false;
     }
 
-    if (update_timer_late_enable) {
-        spdlog::info("[{:s}]: {:s}.LateUpdateTimerEnable was true, disabling it...", get_name().data(), name.data());
-    }
+    if (update_timer_late_enable_field != nullptr) {
+        auto& update_timer_late_enable = update_timer_late_enable_field->get_data<bool>(manager, true);
 
-    // Set the fields to false
-    update_timer_enable = false;
-    update_timer_late_enable = false;
+        if (update_timer_late_enable) {
+            spdlog::info("[{:s}]: {:s}.LateUpdateTimerEnable was true, disabling it...", get_name().data(), name.data());
+        }
+
+        update_timer_late_enable = false;
+    }
 }
 #endif
 
