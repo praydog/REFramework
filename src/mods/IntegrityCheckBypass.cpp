@@ -254,7 +254,7 @@ void IntegrityCheckBypass::on_frame() {
 }
 
 #ifdef RE8
-void IntegrityCheckBypass::disable_update_timers(const std::string& name) const {
+void IntegrityCheckBypass::disable_update_timers(std::string_view name) const {
     // get the singleton correspdonding to the given name
     auto manager = sdk::get_managed_singleton<::REManagedObject>(name);
 
@@ -363,7 +363,7 @@ void IntegrityCheckBypass::immediate_patch_re8() {
     */
     const auto sussy_result_2 = utility::scan(game, "E8 ? ? ? ? 3D F2 01 00 00 0F 84 ? ? ? ? 48 8D 0D ? ? ? ? E8");
 
-    if (sussy_result) {
+    if (sussy_result_2) {
         const auto sussy_function_start = utility::find_function_start(sussy_result_2.value());
 
         if (sussy_function_start) {
@@ -372,5 +372,31 @@ void IntegrityCheckBypass::immediate_patch_re8() {
         }
     } else {
         spdlog::error("[IntegrityCheckBypass]: Could not find sussy_result_2!");
+    }
+
+    // These are embedded checks that run during startup and sometimes during loading transitions
+    // they get passed different indices that make it perform different behavior
+    // if it returns 1, the original execution flow gets altered
+    // and stuff like DLC loading gets skipped so it needs to always return 0
+    // there are really obvious constants to go off of within these functions
+    // but they look like they might be auto generated so can't rely on them
+    const auto sussy_result_3 = utility::scan(game, "8D ? 02 E8 ? ? ? ? 0F B6 C8 48 ? ? 50 48 ? ? 18 0F");
+
+    if (sussy_result_3) {
+        const auto func = utility::calculate_absolute(*sussy_result_3 + 4);
+        static auto patch = Patch::create(func, { 0xB0, 0x00, 0xC3 }, true);
+        spdlog::info("[IntegrityCheckBypass]: Patched sussy_function 3");
+    } else {
+        spdlog::error("[IntegrityCheckBypass]: Could not find sussy_result_3!");
+    }
+
+    const auto sussy_result_4 = utility::scan(game, "72 ? 41 8B ? E8 ? ? ? ? 0F B6 C8 48 ? ? 50 48 ? ? 18 0F");
+
+    if (sussy_result_4) {
+        const auto func = utility::calculate_absolute(*sussy_result_4 + 6);
+        static auto patch = Patch::create(func, { 0xB0, 0x00, 0xC3 }, true);
+        spdlog::info("[IntegrityCheckBypass]: Patched sussy_function 4");
+    } else {
+        spdlog::error("[IntegrityCheckBypass]: Could not find sussy_result_4!");
     }
 }
