@@ -1,8 +1,9 @@
 #include "Mods.hpp"
 #include "REFramework.hpp"
-#include "utility/Scan.hpp"
-#include "utility/Module.hpp"
-#include "utility/String.hpp"
+#include <utility/Scan.hpp>
+#include <utility/Module.hpp>
+#include <utility/String.hpp>
+#include <utility/Memory.hpp>
 
 #include "sdk/Application.hpp"
 
@@ -94,6 +95,52 @@ void Hooks::on_draw_ui() {
             ImGui::TreePop();
         }
     }
+}
+
+#define LAYER_HOOK_BODY(x, x2, x3) \
+if (!g_framework->is_ready()) {\
+    auto original_func = g_hook->m_layer_hooks.##x##.##x3##_hook->get_original<decltype(RenderLayerHook<sdk::renderer::layer::##x2##>::##x3##)>();\
+    original_func(layer, render_ctx); \
+    return; \
+} \
+bool any_false = false; \
+const auto& mods = g_framework->get_mods()->get_mods(); \
+for (auto& mod : mods) { \
+    const auto result = mod->on_pre_##x##_layer_##x3##(layer, render_ctx); \
+    if (!result) { \
+        any_false = true; \
+    } \
+} \
+if (!any_false) { \
+    auto original_func = g_hook->m_layer_hooks.##x##.##x3##_hook->get_original<decltype(RenderLayerHook<sdk::renderer::layer::##x2##>::##x3##)>();\
+    original_func(layer, render_ctx); \
+} \
+for (auto& mod : mods) { \
+    mod->on_##x##_layer_##x3##(layer, render_ctx); \
+}
+
+void Hooks::RenderLayerHook<sdk::renderer::layer::Scene>::update(sdk::renderer::layer::Scene* layer, void* render_ctx) {
+    LAYER_HOOK_BODY(scene, Scene, update);
+}
+
+void Hooks::RenderLayerHook<sdk::renderer::layer::Scene>::draw(sdk::renderer::layer::Scene* layer, void* render_ctx) {
+    LAYER_HOOK_BODY(scene, Scene, draw);
+}
+
+void Hooks::RenderLayerHook<sdk::renderer::layer::PostEffect>::update(sdk::renderer::layer::PostEffect* layer, void* render_ctx) {
+    LAYER_HOOK_BODY(post_effect, PostEffect, update);
+}
+
+void Hooks::RenderLayerHook<sdk::renderer::layer::PostEffect>::draw(sdk::renderer::layer::PostEffect* layer, void* render_ctx) {
+    LAYER_HOOK_BODY(post_effect, PostEffect, draw);
+}
+
+void Hooks::RenderLayerHook<sdk::renderer::layer::Overlay>::update(sdk::renderer::layer::Overlay* layer, void* render_ctx) {
+    LAYER_HOOK_BODY(overlay, Overlay, update);
+}
+
+void Hooks::RenderLayerHook<sdk::renderer::layer::Overlay>::draw(sdk::renderer::layer::Overlay* layer, void* render_ctx) {
+    LAYER_HOOK_BODY(overlay, Overlay, draw);
 }
 
 std::optional<std::string> Hooks::hook_update_transform() {
@@ -571,6 +618,65 @@ std::optional<std::string> Hooks::hook_camera_get_view_matrix() {
 
     if (!m_camera_get_view_matrix_hook->create()) {
         return "Hook init failed: via.Camera.get_ViewMatrix native function hook failed.";
+    }
+
+    return std::nullopt;
+}
+
+std::optional<std::string> Hooks::hook_render_layer(Hooks::RenderLayerHook<sdk::renderer::RenderLayer>& hook) {
+    auto t = sdk::find_type_definition(hook.name);
+
+    if (t == nullptr) {
+        return std::string{"Hooks init failed: "} + hook.name + " type not found.";
+    }
+
+    void* fake_obj = t->create_instance();
+
+    if (fake_obj == nullptr) { 
+        return std::string{"Hooks init failed: "} + "Failed to create fake " + hook.name + " instance.";
+    }
+
+    auto obj_vtable = *(uintptr_t**)fake_obj;
+
+    if (obj_vtable == nullptr) {
+        return std::string{"Hooks init failed: "} + hook.name + " vtable not found.";
+    }
+
+    spdlog::info("{:s} vtable: {:x}", hook.name, (uintptr_t)obj_vtable - g_framework->get_module());
+
+    auto draw_native = obj_vtable[sdk::renderer::RenderLayer::DRAW_VTABLE_INDEX];
+
+    if (draw_native == 0) {
+        return std::string{"Hooks init failed: "} + hook.name + " draw native not found.";
+    }
+
+    spdlog::info("{:s}.Draw: {:x}", hook.name, (uintptr_t)draw_native);
+
+    // Set the first byte to the ret instruction
+    //m_overlay_draw_patch = Patch::create(draw_native, { 0xC3 });
+
+    if (!utility::is_stub_code((uint8_t*)draw_native)) {
+        if (!hook.hook_draw(draw_native)) {
+            return std::string{"Hooks init failed: "} + hook.name + " draw native function hook failed.";
+        }
+    } else {
+        spdlog::info("Skipping draw hook for {:s}, stub code detected", hook.name);
+    }
+
+    auto update_native = obj_vtable[sdk::renderer::RenderLayer::UPDATE_VTABLE_INDEX];
+
+    if (update_native == 0) {
+        return std::string{"Hooks init failed: "} + hook.name + " update native not found.";
+    }
+
+    spdlog::info("{:s}.Update: {:x}", hook.name, (uintptr_t)update_native);
+
+    if (!utility::is_stub_code((uint8_t*)update_native)) {
+        if (!hook.hook_update(update_native)) {
+            return std::string{"Hooks init failed: "} + hook.name + " update native function hook failed.";
+        }
+    } else {
+        spdlog::info("Skipping update hook for {:s}, stub code detected", hook.name);
     }
 
     return std::nullopt;
