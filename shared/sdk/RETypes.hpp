@@ -48,6 +48,7 @@ public:
     void safe_refresh();
 
 private:
+    void fill_types_from_tdb();
     void refresh_map();
 
     TypeList* m_raw_types{ nullptr };

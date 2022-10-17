@@ -63,6 +63,7 @@ RETypes::RETypes() {
 
         if (!typeinfo_none_ref) {
             spdlog::error("Failed to find TypeInfoNone");
+            fill_types_from_tdb();
             return;
         }
 
@@ -209,7 +210,39 @@ void RETypes::safe_refresh() {
     refresh_map();
 }
 
+void RETypes::fill_types_from_tdb() {
+    auto tdb = sdk::RETypeDB::get();
+
+    if (tdb == nullptr) {
+        return;
+    }
+    
+    spdlog::info("Filling types from TDB");
+
+    for (auto i = 0; i < tdb->get_num_types(); ++i) {
+        auto t = tdb->get_type(i);
+
+        if (t == nullptr) {
+            continue;
+        }
+
+        const auto re_type = t->get_type();
+
+        if (re_type == nullptr) {
+            continue;
+        }
+
+        m_type_map[t->get_full_name()] = t->get_type();
+        m_types.insert(t->get_type());
+        m_type_list.push_back(t->get_type());
+    }
+}
+
 void RETypes::refresh_map() {
+    if (m_raw_types == nullptr) {
+        return;
+    }
+
     auto& typeList = *m_raw_types;
 
     // I don't know why but it can extend past the size.

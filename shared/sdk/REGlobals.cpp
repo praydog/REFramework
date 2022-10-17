@@ -203,6 +203,10 @@ void REGlobals::refresh_natives() {
     m_native_singleton_types.clear();
 
     for (auto t : types) {
+        if (t == nullptr) {
+            continue;
+        }
+        
         if (!utility::re_type::is_singleton(t)) {
             continue;
         }
