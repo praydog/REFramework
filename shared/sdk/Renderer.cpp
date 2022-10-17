@@ -579,38 +579,26 @@ std::optional<Vector2f> world_to_screen(const Vector3f& world_pos) {
 }
 
 void* TargetState::get_native_resource_d3d12() const {
-    const auto rtv_count = *(uint32_t*)((uintptr_t)this + 0x20);
-    
-    if (rtv_count == 0) {
-        return nullptr;
-    }
-
-    const auto rtvs = *(void***)((uintptr_t)this + 0x10);
-
-    if (rtvs == nullptr) {
-        return nullptr;
-    }
-
-    const auto rtv = rtvs[0];
+    const auto rtv = get_rtv(0);
 
     if (rtv == nullptr) {
         return nullptr;
     }
 
     // sizeof(via.render.RenderTargetView) + 8;
-    const auto tex = Address{rtv}.get(0x88).to<void*>();
+    const auto tex = rtv->get_texture_d3d12();
 
     if (tex == nullptr) {
         return nullptr;
     }
 
-    const auto internal_resource = Address{tex}.get(0x98).to<void*>();
+    const auto internal_resource = tex->get_d3d12_resource();
 
     if (internal_resource == nullptr) {
         return nullptr;
     }
 
-    return *(void**)((uintptr_t)internal_resource + 0x10);
+    return internal_resource->get_native_resource();
 }
 
 void*& layer::Output::get_present_state() {
@@ -706,19 +694,19 @@ sdk::renderer::SceneInfo* layer::Scene::get_z_prepass_scene_info() {
 }
 
 void* layer::Scene::get_depth_stencil_d3d12() {
-    const auto tex = utility::re_managed_object::get_field<void*>(this, "DepthStencilTex");
+    const auto tex = utility::re_managed_object::get_field<::sdk::renderer::Texture*>(this, "DepthStencilTex");
 
     if (tex == nullptr) {
         return nullptr;
     }
 
-    const auto internal_resource = Address{tex}.get(0x98).to<void*>();
+    const auto internal_resource = tex->get_d3d12_resource();
 
     if (internal_resource == nullptr) {
         return nullptr;
     }
 
-    return *(void**)((uintptr_t)internal_resource + 0x10);
+    return internal_resource->get_native_resource();
 }
 }
 }

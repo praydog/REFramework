@@ -21,12 +21,93 @@ struct SceneInfo {
     Matrix4x4f old_view_projection_matrix;
 };
 
-class TargetState {
+class RenderResource {
 public:
-    void* get_native_resource_d3d12() const;
+    void* m_vtable;
+    int32_t m_ref_count;
+    uint32_t m_render_frame;
+};
+
+class DirectXResource : public RenderResource {
+public:
+    void* get_native_resource() const {
+        return *(void**)((uintptr_t)this + 0x10);
+    }
 
 private:
 };
+
+class Texture : public RenderResource {
+public:
+    DirectXResource* get_d3d12_resource() {
+        return *(DirectXResource**)((uintptr_t)this + s_d3d12_resource_offset);
+    }
+
+private:
+#if TDB_VER >= 71
+    static constexpr inline auto s_d3d12_resource_offset = 0xA0;
+#elif TDB_VER == 70
+    static constexpr inline auto s_d3d12_resource_offset = 0x98;
+#elif TDB_VER == 69
+    static constexpr inline auto s_d3d12_resource_offset = 0x98;
+#else
+    // TODO? might not be right offset
+    static constexpr inline auto s_d3d12_resource_offset = 0x98;
+#endif
+};
+
+class DepthStencilView : public RenderResource {
+};
+
+class RenderTargetView : public RenderResource {
+public:
+    Texture* get_texture_d3d12() const {
+        return *(Texture**)((uintptr_t)this + s_texture_d3d12_offset);
+    }
+
+private:
+    uint32_t m_format;
+    uint32_t m_dimension;
+
+#if TDB_VER == 71
+    static constexpr inline auto s_texture_d3d12_offset = 0x98;
+#elif TDB_VER == 70
+    static constexpr inline auto s_texture_d3d12_offset = 0x90;
+#elif TDB_VER == 69
+    static constexpr inline auto s_texture_d3d12_offset = 0x88;
+#else
+    // TODO? might not be right offset
+    static constexpr inline auto s_texture_d3d12_offset = 0x88;
+#endif
+};
+
+class TargetState : public RenderResource {
+public:
+    void* get_native_resource_d3d12() const;
+
+    uint32_t get_rtv_count() const {
+        return m_num_rtv;
+    }
+
+    RenderTargetView* get_rtv(int32_t index) const {
+        if (index < 0 || index >= get_rtv_count() || m_rtvs == nullptr) {
+            return nullptr;
+        }
+        
+        return m_rtvs[index];
+    }
+
+public:
+    RenderTargetView** m_rtvs;
+    DepthStencilView* m_dsv;
+    uint32_t m_num_rtv;
+    float m_left;
+    float m_right;
+    float m_top;
+    float m_bottom;
+    uint32_t m_flag;
+};
+static_assert(offsetof(TargetState, m_num_rtv) == 0x20);
 
 class RenderLayer : public REManagedObject {
 public:
