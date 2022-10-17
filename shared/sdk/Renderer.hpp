@@ -31,7 +31,11 @@ public:
 class DirectXResource : public RenderResource {
 public:
     void* get_native_resource() const {
+    #if TDB_VER > 67
         return *(void**)((uintptr_t)this + 0x10);
+    #else
+        return *(void**)((uintptr_t)this + 0x18);
+    #endif
     }
 
 private:
@@ -75,8 +79,8 @@ private:
     static constexpr inline auto s_texture_d3d12_offset = 0x90;
 #elif TDB_VER == 69
     static constexpr inline auto s_texture_d3d12_offset = 0x88;
-#else
-    // TODO? might not be right offset
+#elif TDB_VER <= 67
+    // TODO: 66 and below
     static constexpr inline auto s_texture_d3d12_offset = 0x88;
 #endif
 };
@@ -98,6 +102,9 @@ public:
     }
 
 public:
+#if TDB_VER <= 67
+    void* _unk_pad;
+#endif
     RenderTargetView** m_rtvs;
     DepthStencilView* m_dsv;
     uint32_t m_num_rtv;
@@ -107,7 +114,11 @@ public:
     float m_bottom;
     uint32_t m_flag;
 };
+#if TDB_VER > 67
 static_assert(offsetof(TargetState, m_num_rtv) == 0x20);
+#else
+static_assert(offsetof(TargetState, m_num_rtv) == 0x28);
+#endif
 
 class RenderLayer : public REManagedObject {
 public:
