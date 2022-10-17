@@ -15,6 +15,7 @@
 #include "mods/ScriptRunner.hpp"
 #include "mods/VR.hpp"
 #include "mods/vr/games/RE8VR.hpp"
+#include "mods/TemporalUpscaler.hpp"
 
 #include "Mods.hpp"
 
@@ -28,6 +29,7 @@ Mods::Mods() {
 #ifndef BAREBONES
     m_mods.emplace_back(Hooks::get());
 
+    m_mods.emplace_back(TemporalUpscaler::get());
     m_mods.emplace_back(VR::get());
 
 #if defined(RE8) || defined(RE7)

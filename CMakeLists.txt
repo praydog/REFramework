@@ -108,6 +108,42 @@ FetchContent_Declare(
 		main
 )
 FetchContent_MakeAvailable(kananlib)
+
+# Target pdperfmod
+if(REF_BUILD_DEPENDENCIES AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework-dependencies
+	set(CMKR_TARGET pdperfmod)
+	set(pdperfmod_SOURCES "")
+
+	list(APPEND pdperfmod_SOURCES
+		"dependencies/pd-perfmod/dummy/PDPerfPlugin.cpp"
+	)
+
+	list(APPEND pdperfmod_SOURCES
+		cmake.toml
+	)
+
+	set(CMKR_SOURCES ${pdperfmod_SOURCES})
+	add_library(pdperfmod SHARED)
+
+	if(pdperfmod_SOURCES)
+		target_sources(pdperfmod PRIVATE ${pdperfmod_SOURCES})
+	endif()
+
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${pdperfmod_SOURCES})
+
+	target_include_directories(pdperfmod PUBLIC
+		"dependencies/pd-perfmod/include"
+	)
+
+	set_target_properties(pdperfmod PROPERTIES
+		OUTPUT_NAME
+			PDPerfPlugin
+	)
+
+	unset(CMKR_TARGET)
+	unset(CMKR_SOURCES)
+endif()
+
 # Target spdlog
 if(REF_BUILD_DEPENDENCIES AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework-dependencies
 	set(CMKR_TARGET spdlog)
@@ -1363,6 +1399,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/REFrameworkConfig.cpp"
 		"src/mods/Scene.cpp"
 		"src/mods/ScriptRunner.cpp"
+		"src/mods/TemporalUpscaler.cpp"
 		"src/mods/VR.cpp"
 		"src/mods/bindings/FS.cpp"
 		"src/mods/bindings/ImGui.cpp"
@@ -1408,6 +1445,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/REFrameworkConfig.hpp"
 		"src/mods/Scene.hpp"
 		"src/mods/ScriptRunner.hpp"
+		"src/mods/TemporalUpscaler.hpp"
 		"src/mods/VR.hpp"
 		"src/mods/bindings/FS.hpp"
 		"src/mods/bindings/ImGui.hpp"
@@ -1492,13 +1530,14 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		openvr
 		openxr_loader
 		delayimp
+		pdperfmod
 	)
 
 	set_target_properties(RE2 PROPERTIES
 		OUTPUT_NAME
 			dinput8
 		LINK_FLAGS
-			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll"
+			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll /DELAYLOAD:PDPerfPlugin.dll"
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE
 			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
@@ -1545,6 +1584,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/REFrameworkConfig.cpp"
 		"src/mods/Scene.cpp"
 		"src/mods/ScriptRunner.cpp"
+		"src/mods/TemporalUpscaler.cpp"
 		"src/mods/VR.cpp"
 		"src/mods/bindings/FS.cpp"
 		"src/mods/bindings/ImGui.cpp"
@@ -1590,6 +1630,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/REFrameworkConfig.hpp"
 		"src/mods/Scene.hpp"
 		"src/mods/ScriptRunner.hpp"
+		"src/mods/TemporalUpscaler.hpp"
 		"src/mods/VR.hpp"
 		"src/mods/bindings/FS.hpp"
 		"src/mods/bindings/ImGui.hpp"
@@ -1674,13 +1715,14 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		openvr
 		openxr_loader
 		delayimp
+		pdperfmod
 	)
 
 	set_target_properties(RE2_TDB66 PROPERTIES
 		OUTPUT_NAME
 			dinput8
 		LINK_FLAGS
-			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll"
+			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll /DELAYLOAD:PDPerfPlugin.dll"
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE
 			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
@@ -2602,6 +2644,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/REFrameworkConfig.cpp"
 		"src/mods/Scene.cpp"
 		"src/mods/ScriptRunner.cpp"
+		"src/mods/TemporalUpscaler.cpp"
 		"src/mods/VR.cpp"
 		"src/mods/bindings/FS.cpp"
 		"src/mods/bindings/ImGui.cpp"
@@ -2647,6 +2690,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/REFrameworkConfig.hpp"
 		"src/mods/Scene.hpp"
 		"src/mods/ScriptRunner.hpp"
+		"src/mods/TemporalUpscaler.hpp"
 		"src/mods/VR.hpp"
 		"src/mods/bindings/FS.hpp"
 		"src/mods/bindings/ImGui.hpp"
@@ -2731,13 +2775,14 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		openvr
 		openxr_loader
 		delayimp
+		pdperfmod
 	)
 
 	set_target_properties(RE3 PROPERTIES
 		OUTPUT_NAME
 			dinput8
 		LINK_FLAGS
-			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll"
+			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll /DELAYLOAD:PDPerfPlugin.dll"
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE
 			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
@@ -2784,6 +2829,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/REFrameworkConfig.cpp"
 		"src/mods/Scene.cpp"
 		"src/mods/ScriptRunner.cpp"
+		"src/mods/TemporalUpscaler.cpp"
 		"src/mods/VR.cpp"
 		"src/mods/bindings/FS.cpp"
 		"src/mods/bindings/ImGui.cpp"
@@ -2829,6 +2875,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/REFrameworkConfig.hpp"
 		"src/mods/Scene.hpp"
 		"src/mods/ScriptRunner.hpp"
+		"src/mods/TemporalUpscaler.hpp"
 		"src/mods/VR.hpp"
 		"src/mods/bindings/FS.hpp"
 		"src/mods/bindings/ImGui.hpp"
@@ -2913,13 +2960,14 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		openvr
 		openxr_loader
 		delayimp
+		pdperfmod
 	)
 
 	set_target_properties(RE3_TDB67 PROPERTIES
 		OUTPUT_NAME
 			dinput8
 		LINK_FLAGS
-			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll"
+			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll /DELAYLOAD:PDPerfPlugin.dll"
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE
 			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
@@ -3841,6 +3889,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/REFrameworkConfig.cpp"
 		"src/mods/Scene.cpp"
 		"src/mods/ScriptRunner.cpp"
+		"src/mods/TemporalUpscaler.cpp"
 		"src/mods/VR.cpp"
 		"src/mods/bindings/FS.cpp"
 		"src/mods/bindings/ImGui.cpp"
@@ -3886,6 +3935,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/REFrameworkConfig.hpp"
 		"src/mods/Scene.hpp"
 		"src/mods/ScriptRunner.hpp"
+		"src/mods/TemporalUpscaler.hpp"
 		"src/mods/VR.hpp"
 		"src/mods/bindings/FS.hpp"
 		"src/mods/bindings/ImGui.hpp"
@@ -3970,13 +4020,14 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		openvr
 		openxr_loader
 		delayimp
+		pdperfmod
 	)
 
 	set_target_properties(RE7 PROPERTIES
 		OUTPUT_NAME
 			dinput8
 		LINK_FLAGS
-			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll"
+			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll /DELAYLOAD:PDPerfPlugin.dll"
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE
 			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
@@ -4023,6 +4074,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/REFrameworkConfig.cpp"
 		"src/mods/Scene.cpp"
 		"src/mods/ScriptRunner.cpp"
+		"src/mods/TemporalUpscaler.cpp"
 		"src/mods/VR.cpp"
 		"src/mods/bindings/FS.cpp"
 		"src/mods/bindings/ImGui.cpp"
@@ -4068,6 +4120,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/REFrameworkConfig.hpp"
 		"src/mods/Scene.hpp"
 		"src/mods/ScriptRunner.hpp"
+		"src/mods/TemporalUpscaler.hpp"
 		"src/mods/VR.hpp"
 		"src/mods/bindings/FS.hpp"
 		"src/mods/bindings/ImGui.hpp"
@@ -4152,13 +4205,14 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		openvr
 		openxr_loader
 		delayimp
+		pdperfmod
 	)
 
 	set_target_properties(RE7_TDB49 PROPERTIES
 		OUTPUT_NAME
 			dinput8
 		LINK_FLAGS
-			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll"
+			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll /DELAYLOAD:PDPerfPlugin.dll"
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE
 			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
@@ -4642,6 +4696,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/REFrameworkConfig.cpp"
 		"src/mods/Scene.cpp"
 		"src/mods/ScriptRunner.cpp"
+		"src/mods/TemporalUpscaler.cpp"
 		"src/mods/VR.cpp"
 		"src/mods/bindings/FS.cpp"
 		"src/mods/bindings/ImGui.cpp"
@@ -4687,6 +4742,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/REFrameworkConfig.hpp"
 		"src/mods/Scene.hpp"
 		"src/mods/ScriptRunner.hpp"
+		"src/mods/TemporalUpscaler.hpp"
 		"src/mods/VR.hpp"
 		"src/mods/bindings/FS.hpp"
 		"src/mods/bindings/ImGui.hpp"
@@ -4771,13 +4827,14 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		openvr
 		openxr_loader
 		delayimp
+		pdperfmod
 	)
 
 	set_target_properties(RE8 PROPERTIES
 		OUTPUT_NAME
 			dinput8
 		LINK_FLAGS
-			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll"
+			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll /DELAYLOAD:PDPerfPlugin.dll"
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE
 			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
@@ -5261,6 +5318,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/REFrameworkConfig.cpp"
 		"src/mods/Scene.cpp"
 		"src/mods/ScriptRunner.cpp"
+		"src/mods/TemporalUpscaler.cpp"
 		"src/mods/VR.cpp"
 		"src/mods/bindings/FS.cpp"
 		"src/mods/bindings/ImGui.cpp"
@@ -5306,6 +5364,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/REFrameworkConfig.hpp"
 		"src/mods/Scene.hpp"
 		"src/mods/ScriptRunner.hpp"
+		"src/mods/TemporalUpscaler.hpp"
 		"src/mods/VR.hpp"
 		"src/mods/bindings/FS.hpp"
 		"src/mods/bindings/ImGui.hpp"
@@ -5390,13 +5449,14 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		openvr
 		openxr_loader
 		delayimp
+		pdperfmod
 	)
 
 	set_target_properties(DMC5 PROPERTIES
 		OUTPUT_NAME
 			dinput8
 		LINK_FLAGS
-			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll"
+			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll /DELAYLOAD:PDPerfPlugin.dll"
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE
 			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
@@ -5880,6 +5940,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/REFrameworkConfig.cpp"
 		"src/mods/Scene.cpp"
 		"src/mods/ScriptRunner.cpp"
+		"src/mods/TemporalUpscaler.cpp"
 		"src/mods/VR.cpp"
 		"src/mods/bindings/FS.cpp"
 		"src/mods/bindings/ImGui.cpp"
@@ -5925,6 +5986,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/REFrameworkConfig.hpp"
 		"src/mods/Scene.hpp"
 		"src/mods/ScriptRunner.hpp"
+		"src/mods/TemporalUpscaler.hpp"
 		"src/mods/VR.hpp"
 		"src/mods/bindings/FS.hpp"
 		"src/mods/bindings/ImGui.hpp"
@@ -6009,13 +6071,14 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		openvr
 		openxr_loader
 		delayimp
+		pdperfmod
 	)
 
 	set_target_properties(MHRISE PROPERTIES
 		OUTPUT_NAME
 			dinput8
 		LINK_FLAGS
-			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll"
+			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll /DELAYLOAD:PDPerfPlugin.dll"
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE
 			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
