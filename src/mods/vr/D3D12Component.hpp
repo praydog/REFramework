@@ -11,6 +11,8 @@
 #include <openxr/openxr.h>
 #include <openxr/openxr_platform.h>
 
+#include <openvr.h>
+
 class VR;
 
 namespace vrmod {
@@ -27,9 +29,6 @@ public:
     auto is_initialized() const { return m_openvr.left_eye_tex[0].texture != nullptr; }
 
     auto& openxr() { return m_openxr; }
-
-private:
-    void setup();
 
     template <typename T> using ComPtr = Microsoft::WRL::ComPtr<T>;
 
@@ -54,6 +53,9 @@ private:
         bool waiting_for_fence{false};
         bool has_commands{false};
     };
+
+private:
+    void setup();
 
     ComPtr<ID3D12Resource> m_prev_backbuffer{};
     std::array<ResourceCopier, 3> m_generic_copiers{};
