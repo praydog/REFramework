@@ -584,8 +584,6 @@ void TemporalUpscaler::on_pre_application_entry(void* entry, const char* name, s
             default:
                 break;
         }
-
-        spdlog::info("[TemporalUpscaler] Camera FOV: {}", glm::degrees(m_fov));
     }
 }
 
