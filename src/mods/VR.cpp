@@ -13,7 +13,13 @@
 #elif TDB_VER < 69
 #include "sdk/regenny/re3/via/Window.hpp"
 #include "sdk/regenny/re3/via/SceneView.hpp"
-#else
+#elif TDB_VER == 69
+#include "sdk/regenny/re8/via/Window.hpp"
+#include "sdk/regenny/re8/via/SceneView.hpp"
+#elif TDB_VER == 70
+#include "sdk/regenny/re2_tdb70/via/Window.hpp"
+#include "sdk/regenny/re2_tdb70/via/SceneView.hpp"
+#elif TDB_VER >= 71
 #include "sdk/regenny/re8/via/Window.hpp"
 #include "sdk/regenny/re8/via/SceneView.hpp"
 #endif
