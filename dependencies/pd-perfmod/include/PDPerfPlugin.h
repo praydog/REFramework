@@ -29,3 +29,4 @@ extern "C" int __declspec(dllexport) __stdcall GetJitterPhaseCount(int id);
 
 extern "C" int __declspec(dllexport) __stdcall GetJitterOffset(float* outX, float* outY, int index, int phaseCount);
 
+extern "C" void __declspec(dllexport) __stdcall InitCSharpDelegate(void (*Log)(char* message, int iSize));

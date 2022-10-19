@@ -689,6 +689,10 @@ sdk::renderer::SceneInfo* layer::Scene::get_jitter_disable_scene_info() {
     return utility::re_managed_object::get_field<SceneInfo*>(this, "JitterDisableSceneInfo");
 }
 
+sdk::renderer::SceneInfo* layer::Scene::get_jitter_disable_post_scene_info() {
+    return utility::re_managed_object::get_field<SceneInfo*>(this, "JitterDisablePostSceneInfo");
+}
+
 sdk::renderer::SceneInfo* layer::Scene::get_z_prepass_scene_info() {
     return utility::re_managed_object::get_field<SceneInfo*>(this, "ZPrepassSceneInfo");
 }

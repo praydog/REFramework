@@ -40,6 +40,7 @@
 
 #include "FirstPerson.hpp"
 #include "ManualFlashlight.hpp"
+#include "TemporalUpscaler.hpp"
 #include "VR.hpp"
 
 bool inside_on_end = false;
@@ -170,8 +171,10 @@ void VR::on_view_get_size(REManagedObject* scene_view, float* result) {
     }
 
     // spoof the size to the HMD's size
-    result[0] = wanted_width;
-    result[1] = wanted_height;
+    if (!TemporalUpscaler::get()->ready()) {
+        result[0] = wanted_width;
+        result[1] = wanted_height;
+    }
 }
 
 void VR::on_camera_get_projection_matrix(REManagedObject* camera, Matrix4x4f* result) {
@@ -450,15 +453,13 @@ bool VR::on_pre_scene_layer_update(sdk::renderer::layer::Scene* layer, void* ren
     auto jitter_disable_scene_info = layer->get_jitter_disable_scene_info();
     auto z_prepass_scene_info = layer->get_z_prepass_scene_info();
 
-    m_scene_layer_data = std::array<SceneLayerData, 5> {
-        SceneLayerData{ scene_info },
-        SceneLayerData{ depth_distortion_scene_info },
-        SceneLayerData{ filter_scene_info },
-        SceneLayerData{ jitter_disable_scene_info },
-        SceneLayerData{ z_prepass_scene_info },
-    };
-
+    m_scene_layer_data[0].setup(scene_info);
+    m_scene_layer_data[1].setup(depth_distortion_scene_info);
+    m_scene_layer_data[2].setup(filter_scene_info);
+    m_scene_layer_data[3].setup(jitter_disable_scene_info);
+    m_scene_layer_data[4].setup(z_prepass_scene_info);
     m_set_next_scene_layer_data = true;
+
     return true;
 }
 
@@ -471,10 +472,19 @@ void VR::on_scene_layer_update(sdk::renderer::layer::Scene* layer, void* render_
         return;
     }
 
+    const auto frame = this->get_game_frame_count();
+
     if (m_set_next_scene_layer_data) {
+        const auto is_temporal_upscaler_active = TemporalUpscaler::get()->ready();
+
         for (auto& d : m_scene_layer_data) {
             if (d.scene_info != nullptr) {
-                d.scene_info->old_view_projection_matrix = d.view_projection_matrix;
+                if (is_temporal_upscaler_active) {
+                    d.post_setup(frame);
+                } else {
+                    // TAA fix
+                    d.scene_info->old_view_projection_matrix = d.view_projection_matrix;
+                }
             }
         }
 

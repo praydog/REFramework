@@ -39,6 +39,14 @@ public:
 
     void on_scene_layer_update(sdk::renderer::layer::Scene* scene_layer, void* render_context) override;
 
+    bool ready() const {
+        return m_initialized && m_backend_loaded && m_enabled && !m_wants_reinitialize;
+    }
+
+    uint32_t get_evaluate_id(uint32_t counter) {
+        return (counter % 2) + 1;
+    }
+
     template<typename T>
     T* get_upscaled_texture(int32_t index) {
         if (index < 0 || index > m_upscaled_textures.size()) {
@@ -75,10 +83,6 @@ private:
     bool init_upscale_features();
     void release_upscale_features();
 
-    bool ready() const {
-        return m_initialized && m_backend_loaded && m_enabled && !m_wants_reinitialize;
-    }
-
     bool m_first_frame_finished{false};
     bool m_initialized{false};
     bool m_is_d3d12{false};
@@ -93,7 +97,7 @@ private:
     bool m_allow_taa{false}; // the engine has its own TAA implementation, it can't be used with the upscaler
     bool m_wants_reinitialize{false};
 
-    uint32_t m_jitter_index{0};
+    std::array<uint32_t, 2> m_jitter_indices{0, 0};
 
     PDUpscaleType m_upscale_type{PDUpscaleType::FSR2};
     PDPerfQualityLevel m_upscale_quality{PDPerfQualityLevel::Balanced};
@@ -113,10 +117,13 @@ private:
     float m_fov{90.0f};
     float m_sharpness_amount{0.0f};
 
-    float m_jitter_offset[2]{0.0f, 0.0f};
+    float m_jitter_offsets[2][2]{0.0f, 0.0f};
     float m_jitter_scale[2]{2.0f, -2.0f};
     float m_motion_scale[2]{-1.0f, 1.0f};
+    float m_jitter_evaluate_scale{1.0f};
 
     vrmod::D3D12Component::ResourceCopier m_copier{};
     ComPtr<ID3D12Resource> m_old_backbuffer{};
+
+    std::array<ComPtr<ID3D12Resource>, 2> m_prev_motion_vectors_d3d12{};
 };

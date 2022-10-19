@@ -94,6 +94,9 @@ public:
 
     int32_t get_frame_count() const;
     int32_t get_game_frame_count() const;
+    int32_t get_render_frame_count() const {
+        return m_render_frame_count;
+    }
 
     bool is_using_afr() const {
         return m_use_afr->value();
@@ -229,16 +232,25 @@ private:
 
     struct SceneLayerData {
         SceneLayerData() = default;
-        SceneLayerData(sdk::renderer::SceneInfo* info) 
-            : scene_info(info)
-        {
+        SceneLayerData(sdk::renderer::SceneInfo* info) {
+            setup(info);
+        }
+
+        void setup(sdk::renderer::SceneInfo* info) {
+            scene_info = info;
             if (scene_info != nullptr) {
                 this->view_projection_matrix = scene_info->view_projection_matrix;
             }
         }
 
+        void post_setup(int32_t index) {
+            scene_info->old_view_projection_matrix = previous_view_projection_matrices[index % 2];
+            previous_view_projection_matrices[index % 2] = scene_info->view_projection_matrix;
+        }
+
         sdk::renderer::SceneInfo* scene_info{};
         Matrix4x4f view_projection_matrix{};
+        std::array<Matrix4x4f, 2> previous_view_projection_matrices{};
     };
 
     std::array<SceneLayerData, 5> m_scene_layer_data {};
