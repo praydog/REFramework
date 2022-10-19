@@ -4,7 +4,7 @@ extern "C" bool __declspec(dllexport) __stdcall SetupDirectX(void* item, int gra
 
 extern "C" bool __declspec(dllexport) __stdcall SetupGraphicDevice(void* tex, int graphicsAPI = 0);
 
-extern "C"  __declspec(dllexport) void* __stdcall InitUpscaleFeature(int id, int upscaleMethod, int qualityLevel, int displaySizeX, int displaySizeY, bool isContentHDR, bool depthInverted, bool YAxisInverted, bool motionVetorsJittered, bool enableSharpening, bool enableAutoExposure, int format = 10);
+extern "C" __declspec(dllexport) void* __stdcall InitUpscaleFeature(int id, int upscaleMethod, int qualityLevel, int displaySizeX, int displaySizeY, bool isContentHDR, bool depthInverted, bool YAxisInverted, bool motionVetorsJittered, bool enableSharpening, bool enableAutoExposure, int format = 10);
 
 extern "C" void __declspec(dllexport) __stdcall EvaluateUpscale(int id, void* color, void* motionVector, void* depth, void* destination, float sharpness, float jitterOffsetX, float jitterOffsetY,
 	bool reset, float nearPlane, float farPlane, float verticalFOV);
@@ -30,3 +30,8 @@ extern "C" int __declspec(dllexport) __stdcall GetJitterPhaseCount(int id);
 extern "C" int __declspec(dllexport) __stdcall GetJitterOffset(float* outX, float* outY, int index, int phaseCount);
 
 extern "C" void __declspec(dllexport) __stdcall InitCSharpDelegate(void (*Log)(char* message, int iSize));
+
+extern "C" bool __declspec(dllexport) __stdcall IsUpsacleMethodAvailable(int upscaleMethod);
+
+extern "C" __declspec(dllexport) char* __stdcall GetUpscaleMethodName(int upscaleMethod);
+

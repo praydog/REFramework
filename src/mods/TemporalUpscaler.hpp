@@ -97,8 +97,11 @@ private:
     bool m_allow_taa{false}; // the engine has its own TAA implementation, it can't be used with the upscaler
     bool m_wants_reinitialize{false};
 
+    std::unordered_map<std::string, size_t> m_available_upscale_methods{};
+    std::vector<std::string> m_available_upscale_method_names{};
     std::array<uint32_t, 2> m_jitter_indices{0, 0};
 
+    uint32_t m_available_upscale_type{0};
     PDUpscaleType m_upscale_type{PDUpscaleType::FSR2};
     PDPerfQualityLevel m_upscale_quality{PDPerfQualityLevel::Balanced};
 

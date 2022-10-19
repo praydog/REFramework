@@ -31,3 +31,7 @@ int __stdcall GetJitterPhaseCount(int id) { return 0; };
 int __stdcall GetJitterOffset(float* outX, float* outY, int index, int phaseCount) { return 0; };
 
 void __stdcall InitCSharpDelegate(void (*Log)(char* message, int iSize)) {};
+
+bool  __stdcall IsUpsacleMethodAvailable(int upscaleMethod) { return false; };
+
+char* __stdcall GetUpscaleMethodName(int upscaleMethod) { return ""; };

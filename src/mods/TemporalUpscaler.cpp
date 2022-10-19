@@ -40,6 +40,28 @@ std::optional<std::string> TemporalUpscaler::on_initialize() {
 
     if (!m_backend_loaded) {
         spdlog::info("[TemporalUpscaler] Could not load PDPerfPlugin.dll, TemporalUpscaler will not work");
+    } else {
+        for (auto i = 0; i <= TemporalUpscaler::PDUpscaleType::XESS; ++i) {
+            const auto is_available = IsUpsacleMethodAvailable(i);
+            const auto upscale_name = GetUpscaleMethodName(i);
+
+            if (upscale_name == nullptr) {
+                continue;
+            }
+
+            if (is_available) {
+                m_available_upscale_methods[upscale_name] = i;
+                m_available_upscale_method_names.push_back(upscale_name);
+                spdlog::info("[TemporalUpscaler] Upscale method {} is available", i, upscale_name);
+            } else {
+                spdlog::info("[TemporalUpscaler] Upscale method {} is not available", i, upscale_name);
+            }
+        }
+
+        if (m_available_upscale_methods.empty()) {
+            spdlog::info("[TemporalUpscaler] No upscale methods are available, TemporalUpscaler will not work");
+            m_backend_loaded = false;
+        }
     }
 
     return Mod::on_initialize();
@@ -101,8 +123,21 @@ void TemporalUpscaler::on_draw_ui() {
             SetMotionScaleY(get_evaluate_id(1), (float)m_motion_scale[1]);
         }
     }
+
+    std::vector<const char*> imgui_combo_names{};
+
+    for (auto& m : m_available_upscale_method_names) {
+        imgui_combo_names.push_back(m.c_str());
+    }
     
-    if (ImGui::Combo("Upscale Type", (int*)&m_upscale_type, "DLSS\0FSR2\0XESS\0")) {
+    if (ImGui::Combo("Upscale Type", (int*)&m_available_upscale_type, imgui_combo_names.data(), imgui_combo_names.size())) {
+        if (m_available_upscale_type < 0 || m_available_upscale_type > m_available_upscale_method_names.size()) {
+            m_available_upscale_type = 0;
+            m_upscale_type = (PDUpscaleType)m_available_upscale_methods[m_available_upscale_method_names[0]];
+        } else {
+            m_upscale_type = (PDUpscaleType)m_available_upscale_methods[m_available_upscale_method_names[m_available_upscale_type]];
+        }
+
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         release_upscale_features();
         init_upscale_features();
