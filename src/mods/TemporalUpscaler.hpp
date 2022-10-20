@@ -27,7 +27,7 @@ public:
     void on_config_save(utility::Config& cfg) override;
 
     void on_draw_ui() override;
-    void on_present() override;
+    void on_early_present() override; // early because it needs to run before VR.
     void on_post_present() override;
     void on_device_reset() override;
 
@@ -45,6 +45,10 @@ public:
 
     uint32_t get_evaluate_id(uint32_t counter) {
         return (counter % 2) + 1;
+    }
+
+    auto& get_old_vp(uint32_t counter) {
+        return m_old_projections[counter % 2];
     }
 
     template<typename T>
@@ -129,4 +133,5 @@ private:
     ComPtr<ID3D12Resource> m_old_backbuffer{};
 
     std::array<ComPtr<ID3D12Resource>, 2> m_prev_motion_vectors_d3d12{};
+    std::array<Matrix4x4f, 2> m_old_projections{};
 };

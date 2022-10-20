@@ -363,6 +363,7 @@ public:
     virtual void on_pre_imgui_frame() {};
     // Functionally equivalent, but on_frame will always get called, on_draw_ui can be disabled by REFramework
     virtual void on_frame() {}; // BeginRendering, can be used for imgui
+    virtual void on_early_present() {}; // same as on_present but slightly earlier for explicitly timed mods
     virtual void on_present() {}; // actual present frame, CANNOT be used for imgui
     virtual void on_post_frame() {}; // after imgui rendering is done
     virtual void on_post_present() {}; // actually after present gets called

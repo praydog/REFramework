@@ -152,7 +152,7 @@ void TemporalUpscaler::on_draw_ui() {
     }
 }
 
-void TemporalUpscaler::on_present() {
+void TemporalUpscaler::on_early_present() {
     m_rendering = true;
 
     if (!m_backend_loaded) {
@@ -591,20 +591,24 @@ void TemporalUpscaler::on_scene_layer_update(sdk::renderer::layer::Scene* layer,
             return;
         }
 
+        scene_info->old_view_projection_matrix = this->m_old_projections[evaluate_index];
+
         scene_info->projection_matrix[2][0] += x;
         scene_info->projection_matrix[2][1] += y;
         scene_info->inverse_projection_matrix = glm::inverse(scene_info->projection_matrix);
 
         scene_info->view_projection_matrix = scene_info->projection_matrix * scene_info->view_matrix;
         scene_info->inverse_view_projection_matrix = glm::inverse(scene_info->view_projection_matrix);
+
+        this->m_old_projections[evaluate_index] = scene_info->view_projection_matrix;
     };
 
     add_jitter(scene_info);
-    add_jitter(depth_distortion_scene_info);
+    /*add_jitter(depth_distortion_scene_info);
     add_jitter(filter_scene_info);
     add_jitter(jitter_disable_scene_info);
     add_jitter(jitter_disable_post_scene_info);
-    add_jitter(z_prepass_scene_info);
+    add_jitter(z_prepass_scene_info);*/
 }
 
 void TemporalUpscaler::on_pre_application_entry(void* entry, const char* name, size_t hash) {

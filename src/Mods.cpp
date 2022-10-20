@@ -29,8 +29,8 @@ Mods::Mods() {
 #ifndef BAREBONES
     m_mods.emplace_back(Hooks::get());
 
-    m_mods.emplace_back(TemporalUpscaler::get());
     m_mods.emplace_back(VR::get());
+    m_mods.emplace_back(TemporalUpscaler::get());
 
 #if defined(RE8) || defined(RE7)
     m_mods.emplace_back(RE8VR::get());
@@ -105,6 +105,10 @@ void Mods::on_frame() const {
 }
 
 void Mods::on_present() const {
+    for (auto& mod : m_mods) {
+        mod->on_early_present();
+    }
+
     for (auto& mod : m_mods) {
         mod->on_present();
     }

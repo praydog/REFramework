@@ -470,17 +470,16 @@ void VR::on_scene_layer_update(sdk::renderer::layer::Scene* layer, void* render_
 
     if (m_disable_temporal_fix) {
         return;
-    }
-
-    const auto frame = this->get_game_frame_count();
+}
 
     if (m_set_next_scene_layer_data) {
+        const auto frame = this->get_game_frame_count();
         const auto is_temporal_upscaler_active = TemporalUpscaler::get()->ready();
 
         for (auto& d : m_scene_layer_data) {
             if (d.scene_info != nullptr) {
                 if (is_temporal_upscaler_active) {
-                    d.post_setup(frame);
+                    //d.post_setup(frame);
                 } else {
                     // TAA fix
                     d.scene_info->old_view_projection_matrix = d.view_projection_matrix;
