@@ -61,6 +61,8 @@ std::optional<std::string> TemporalUpscaler::on_initialize() {
         if (m_available_upscale_methods.empty()) {
             spdlog::info("[TemporalUpscaler] No upscale methods are available, TemporalUpscaler will not work");
             m_backend_loaded = false;
+        } else {
+            m_upscale_type = (PDUpscaleType)m_available_upscale_methods[m_available_upscale_method_names[m_available_upscale_type]];
         }
     }
 
