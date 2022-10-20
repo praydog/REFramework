@@ -42,7 +42,7 @@ std::optional<std::string> TemporalUpscaler::on_initialize() {
         spdlog::info("[TemporalUpscaler] Could not load PDPerfPlugin.dll, TemporalUpscaler will not work");
     } else {
         for (auto i = 0; i <= TemporalUpscaler::PDUpscaleType::XESS; ++i) {
-            const auto is_available = IsUpsacleMethodAvailable(i);
+            const auto is_available = IsUpscaleMethodAvailable(i);
             const auto upscale_name = GetUpscaleMethodName(i);
 
             if (upscale_name == nullptr) {
@@ -365,14 +365,14 @@ bool TemporalUpscaler::init_upscale_features() {
     // Left eye.
     m_upscaled_textures[0] = InitUpscaleFeature(
         get_evaluate_id(0), m_upscale_type, m_upscale_quality, out_w, out_h, 
-        false, true, false, true, m_sharpness, false, out_format
+        false, true, false, false, m_sharpness, false, out_format
     );
 
     // Right eye.
     if (VR::get()->is_hmd_active()) {
         m_upscaled_textures[1] = InitUpscaleFeature(
             get_evaluate_id(1), m_upscale_type, m_upscale_quality, out_w, out_h, 
-            false, true, false, true, m_sharpness, false, out_format
+            false, true, false, false, m_sharpness, false, out_format
         );
     }
 
@@ -590,8 +590,13 @@ void TemporalUpscaler::on_scene_layer_update(sdk::renderer::layer::Scene* layer,
         if (scene_info == nullptr) {
             return;
         }
+        this->m_old_projection_matrix[evaluate_index][2][0] += x;
+        this->m_old_projection_matrix[evaluate_index][2][1] += y;
 
-        scene_info->old_view_projection_matrix = this->m_old_projections[evaluate_index];
+        scene_info->old_view_projection_matrix = this->m_old_projection_matrix[evaluate_index] * this->m_old_view_matrix[evaluate_index];
+
+        this->m_old_projection_matrix[evaluate_index] = scene_info->projection_matrix;
+        this->m_old_view_matrix[evaluate_index] = scene_info->view_matrix;
 
         scene_info->projection_matrix[2][0] += x;
         scene_info->projection_matrix[2][1] += y;
@@ -599,8 +604,6 @@ void TemporalUpscaler::on_scene_layer_update(sdk::renderer::layer::Scene* layer,
 
         scene_info->view_projection_matrix = scene_info->projection_matrix * scene_info->view_matrix;
         scene_info->inverse_view_projection_matrix = glm::inverse(scene_info->view_projection_matrix);
-
-        this->m_old_projections[evaluate_index] = scene_info->view_projection_matrix;
     };
 
     add_jitter(scene_info);

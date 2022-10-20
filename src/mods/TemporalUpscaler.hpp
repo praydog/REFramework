@@ -47,8 +47,9 @@ public:
         return (counter % 2) + 1;
     }
 
-    auto& get_old_vp(uint32_t counter) {
-        return m_old_projections[counter % 2];
+    auto& get_old_vp(uint32_t counter) { 
+        auto vp = m_old_projection_matrix[counter % 2] * m_old_view_matrix[counter % 2];
+        return vp;
     }
 
     template<typename T>
@@ -133,5 +134,6 @@ private:
     ComPtr<ID3D12Resource> m_old_backbuffer{};
 
     std::array<ComPtr<ID3D12Resource>, 2> m_prev_motion_vectors_d3d12{};
-    std::array<Matrix4x4f, 2> m_old_projections{};
+    std::array<Matrix4x4f, 2> m_old_projection_matrix{};
+    std::array<Matrix4x4f, 2> m_old_view_matrix{};
 };
