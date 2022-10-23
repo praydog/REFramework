@@ -31,7 +31,7 @@ extern "C" int __declspec(dllexport) __stdcall GetJitterOffset(float* outX, floa
 
 extern "C" void __declspec(dllexport) __stdcall InitCSharpDelegate(void (*Log)(char* message, int iSize));
 
-extern "C" bool __declspec(dllexport) __stdcall IsUpsacleMethodAvailable(int upscaleMethod);
+extern "C" bool __declspec(dllexport) __stdcall IsUpscaleMethodAvailable(int upscaleMethod);
 
 extern "C" __declspec(dllexport) char* __stdcall GetUpscaleMethodName(int upscaleMethod);
 
