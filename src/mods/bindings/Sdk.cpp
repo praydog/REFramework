@@ -1131,7 +1131,11 @@ sol::object index(sol::this_state s, sol::object lua_obj, sol::variadic_args arg
     }
 
     if (auto fn = type_def->get_method("get_Item"); fn != nullptr) {
-        return ::api::sdk::call_native_func_direct(lua_obj, fn, args);
+        try {
+            return ::api::sdk::call_native_func_direct(lua_obj, fn, args);
+        } catch (...) {
+            
+        }
     }
 
     //throw sol::error("Attempted to index invalid REManagedObject field: " + name);
