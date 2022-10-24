@@ -894,12 +894,12 @@ struct LayerArray {
 
 struct RTL_CRITICAL_SECTION
 {
-  struct RTL_CRITICAL_SECTION_DEBUG *DebugInfo;
-  int32_t LockCount;
-  int32_t RecursionCount;
-  void* OwningThread;
-  void* LockSemaphore;
-  uint64_t SpinCount;
+    struct RTL_CRITICAL_SECTION_DEBUG *DebugInfo;
+    int32_t LockCount;
+    int32_t RecursionCount;
+    void* OwningThread;
+    void* LockSemaphore;
+    uint64_t SpinCount;
 };
 
 struct RenderLayer : via.clr.ManagedObject 0x88 {
@@ -914,14 +914,52 @@ struct RenderLayer : via.clr.ManagedObject 0x88 {
     uint32_t version
 };
 
+struct RenderTargetView : via.render.RenderResource 0x80 {
+    uint32_t format
+    uint32_t dimension
+}
+
+struct RenderTargetViewDX12 : RenderTargetView 0x100 {
+    void* output_target
+    TextureDX12* tex
+}
+
+struct DepthStencilView : via.render.RenderResource 0x18 {
+    uint32_t format
+
+}
+
+struct DepthStencilViewDX12 : DepthStencilView 0x100 {
+    uint32_t format2
+    TextureDX12* tex @ 0x30
+}
+
+struct TargetState : via.render.RenderResource 0x1000 {
+    RenderTargetViewDX12** rtvs
+    DepthStencilViewDX12* ds
+    uint32_t num_rtv
+    float left
+    float right
+    float top
+    float bottom
+    uint32_t flag
+}
+
 namespace layer{
 struct Scene : via.render.RenderLayer 0x1560 {
     via.Camera* camera;
     struct via.render.Mirror* mirror;
     struct via.render.TargetState* buffer_pre_z;
+    struct via.render.TargetState* hdr_target;
+    struct via.render.TargetState* hdr_target_with_velocity;
+    struct via.render.TargetState* hdr_target_with_readonly_depth;
 	struct via.render.TargetState* depth_target @ 0x100;
     struct via.render.TargetState* velocity_target @ 0x110;
-	struct via.render.Texture* depth_stencil_tex @ 0x470;
+    struct via.render.TargetState* g_buffer_target
+    struct via.render.TargetState* non_decal_g_buffer_target
+    struct via.render.TargetState* post_main_target @ 0x128
+    struct via.render.TargetState* post_depth_target @ 0x130
+	struct via.render.TextureDX12* depth_stencil_tex @ 0x470;
 };
 }
 
