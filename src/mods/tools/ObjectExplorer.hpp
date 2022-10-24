@@ -177,6 +177,8 @@ private:
     bool widget_with_context(void* address, std::function<bool()> widget);
     bool widget_with_context(void* address, const std::string& name, std::function<bool()> widget);
     void context_menu(void* address, std::optional<std::string> name = std::nullopt, std::optional<std::function<void()>> additional_context = std::nullopt);
+    void hook_method(sdk::REMethodDefinition* method, std::optional<std::string> name);
+    void hook_all_methods(sdk::RETypeDefinition* type);
     void method_context_menu(sdk::REMethodDefinition* method, std::optional<std::string> name);
     void make_same_line_text(std::string_view text, const ImVec4& color);
 
