@@ -120,6 +120,25 @@ static_assert(offsetof(TargetState, m_num_rtv) == 0x20);
 static_assert(offsetof(TargetState, m_num_rtv) == 0x28);
 #endif
 
+class Buffer : public RenderResource {
+public:
+    uint32_t m_size_in_bytes;
+    uint32_t m_usage_type;
+    uint32_t m_option_flags;
+};
+
+class ConstantBuffer : public Buffer {
+public:
+    uint32_t m_update_times;
+};
+
+class ConstantBufferDX12 : public ConstantBuffer {
+public:
+    void* get_desc() {
+        return (void*)((uintptr_t)this + sizeof(ConstantBuffer));
+    }
+};
+
 class RenderLayer : public REManagedObject {
 public:
     RenderLayer* add_layer(::REType* layer_type, uint32_t priority, uint8_t offset = 0);
@@ -237,6 +256,10 @@ public:
     void* get_hdr_target_d3d12() {
         return get_target_state_resource_d3d12("HDRTarget");
     }
+
+    void* get_g_buffer_target_d3d12() {
+        return get_target_state_resource_d3d12("GBufferTarget");
+    }
 };
 
 class Overlay : public sdk::renderer::RenderLayer {
@@ -246,7 +269,28 @@ class PostEffect : public sdk::renderer::RenderLayer {
 };
 }
 
-void* get_renderer();
+class Renderer {
+public:
+    ConstantBuffer* get_constant_buffer(std::string_view name) const;
+
+    ConstantBuffer* get_scene_info() const {
+        return get_constant_buffer("SceneInfo");
+    }
+
+    ConstantBuffer* get_shadow_cast_info() const {
+        return get_constant_buffer("ShadowCastInfo");
+    }
+
+    ConstantBuffer* get_environment_info() const {
+        return get_constant_buffer("EnvironmentInfo");
+    }
+
+    ConstantBuffer* get_fog_parameter() const {
+        return get_constant_buffer("FogParameter");
+    }
+};
+
+Renderer* get_renderer();
 
 void wait_rendering();
 void begin_update_primitive();
@@ -264,5 +308,7 @@ RenderLayer* find_layer(::REType* layer_type);
 sdk::renderer::layer::Output* get_output_layer();
 
 std::optional<Vector2f> world_to_screen(const Vector3f& world_pos);
+
+ConstantBuffer* create_constant_buffer(void* desc);
 }
 }

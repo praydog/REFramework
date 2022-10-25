@@ -299,6 +299,10 @@ void RenderLayer::clone(RenderLayer* other, bool recursive) {
 
 void RenderLayer::clone_layers(RenderLayer* other, bool recursive) {
     for (auto child_layer : other->get_layers()) {
+        if (child_layer == this) {
+            continue;
+        }
+
         const auto def = utility::re_managed_object::get_type_definition(child_layer);
 
         if (def == nullptr) {
@@ -327,8 +331,15 @@ void RenderLayer::clone_layers(RenderLayer* other, bool recursive) {
     return utility::re_managed_object::get_field<::sdk::renderer::TargetState*>(this, name);
 }
 
-void* get_renderer() {
-    return sdk::get_native_singleton("via.render.Renderer");
+ConstantBuffer* Renderer::get_constant_buffer(std::string_view name) const {
+    static auto tdef = sdk::find_type_definition("via.render.Renderer");
+    static auto t = tdef->get_type();
+    const auto field_desc = utility::re_type::get_field_desc(t, name);
+    return utility::re_managed_object::get_field<ConstantBuffer*>((::REManagedObject*)this, field_desc);
+}
+
+Renderer* get_renderer() {
+    return (Renderer*)sdk::get_native_singleton("via.render.Renderer");
 }
 
 void wait_rendering() {
@@ -576,6 +587,65 @@ std::optional<Vector2f> world_to_screen(const Vector3f& world_pos) {
     world_to_screen_methods[1]->call<void*>(&screen_pos, context, &pos, &view, &proj, &screen_size);
 
     return Vector2f{screen_pos.x, screen_pos.y};
+}
+
+/*
+- 0x4B VortexelTurbulenceGPU::VelocitiesX
+- 0x4A systems/shader/rayTracingDenoiserOld/rayTracingSimulation.sdf
+- 0x46 systems/rendering/NullWhite.tex
+- 0x46 systems/effect/Noise3D_MSK4.tex
+- 0x19 UpdateDepthBlocker
+- 0x19 Deinterlace
+- 0x19 cbGeneratePolyline
+- 0x19 cbTransformBasePoints
+- 0x19 CBBakeType
+- 0x19 cbGenerateBasePoints
+*/
+ConstantBuffer* create_constant_buffer(void* desc) {
+    static auto fn = []() -> ConstantBuffer* (*)(void*, void*) {
+        spdlog::info("Searching for create_constant_buffer");
+
+        const auto game = utility::get_executable();
+        const auto string = utility::scan_string(game, "cbTransformBasePoints");
+
+        if (!string) {
+            spdlog::error("Failed to find create_constant_buffer (no string)");
+            return nullptr;
+        }
+
+        const auto string_ref = utility::scan_displacement_reference(game, *string);
+
+        if (!string_ref) {
+            spdlog::error("Failed to find create_constant_buffer (no string ref)");
+            return nullptr;
+        }
+
+        uintptr_t ip = *string_ref;
+
+        for (auto i = 0; i < 20; ++i) {
+            const auto resolved = utility::resolve_instruction(ip);
+
+            if (!resolved) {
+                spdlog::error("Failed to find create_constant_buffer (could not resolve instruction)");
+                return nullptr;
+            }
+
+            ip = resolved->addr;
+
+            if (*(uint8_t*)ip == 0xE8) {
+                const auto result = (ConstantBuffer* (*)(void*, void*))utility::calculate_absolute(ip + 1);
+
+                spdlog::info("Found create_constant_buffer: {:x}", (uintptr_t)result);
+                return result;
+            }
+
+            ip -= 1;
+        }
+
+        return nullptr;
+    }();
+
+    return fn(nullptr, desc);
 }
 
 void* TargetState::get_native_resource_d3d12() const {
