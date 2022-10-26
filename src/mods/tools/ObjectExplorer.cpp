@@ -13,8 +13,9 @@
 #include <utility/Module.hpp>
 #include <utility/Memory.hpp>
 #include <utility/ImGui.hpp>
-#include "sdk/Renderer.hpp"
-#include "sdk/MotionFsm2Layer.hpp"
+#include <sdk/Renderer.hpp>
+#include <sdk/MotionFsm2Layer.hpp>
+#include <sdk/SceneManager.hpp>
 
 #include "../mods/ScriptRunner.hpp"
 
@@ -479,6 +480,14 @@ void ObjectExplorer::on_draw_dev_ui() {
             if (scene_layer != nullptr && ImGui::TreeNode("Scene Layer")) {
                 handle_address((void*)*scene_layer);
                 ImGui::TreePop();
+            }
+        }
+
+        if (ImGui::TreeNode("Camera")) {
+            const auto camera = sdk::get_primary_camera();
+
+            if (camera != nullptr) {
+                handle_address((void*)camera);
             }
         }
     }

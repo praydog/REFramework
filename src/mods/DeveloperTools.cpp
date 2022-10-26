@@ -1,3 +1,5 @@
+#include <imgui.h>
+
 #include "tools/GameObjectsDisplay.hpp"
 #include "tools/ChainViewer.hpp"
 #include "tools/ObjectExplorer.hpp"
@@ -16,7 +18,9 @@ void DeveloperTools::on_draw_ui() {
     }
 
     for (auto& tool : m_tools) {
+        ImGui::PushID(tool->get_name().data());
         tool->on_draw_dev_ui();
+        ImGui::PopID();
     }
 }
 
