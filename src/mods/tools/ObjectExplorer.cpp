@@ -641,6 +641,9 @@ void ObjectExplorer::display_pins() {
 
 void ObjectExplorer::display_hooks() {
     for (auto& h : m_hooked_methods) {
+        ImGui::PushID(h.method);
+
+        ImGui::SetNextItemOpen(true, ImGuiCond_::ImGuiCond_Once);
         const auto made_node = ImGui::TreeNode(h.name.c_str());
         method_context_menu(h.method, h.name);
 
@@ -649,6 +652,8 @@ void ObjectExplorer::display_hooks() {
             ImGui::TextWrapped("Call count: %i", h.call_count);
             ImGui::TreePop();
         }
+
+        ImGui::PopID();
     }
 }
 
@@ -2362,6 +2367,10 @@ void ObjectExplorer::handle_transform(RETransform* transform) {
 }
 
 void ObjectExplorer::handle_render_layer(sdk::renderer::RenderLayer* layer) {
+    if (ImGui::Button("Attempt to Clone")) {
+        layer->add_layer(utility::re_managed_object::get_type_definition(layer)->get_type(), layer->m_priority)->clone_layers(layer);
+    }
+
     const auto made_node = ImGui::TreeNode(&layer->m_layers, "Child Layers");
     context_menu(&layer->m_layers);
 
@@ -3686,11 +3695,90 @@ void ObjectExplorer::context_menu(void* address, std::optional<std::string> name
             }
         }
 
+        if (is_managed_object && ImGui::Selectable("Hook All Methods")) {
+            const auto t = utility::re_managed_object::get_type_definition((REManagedObject*)address);
+
+            if (t != nullptr) {
+                hook_all_methods(t);
+            }
+        }
+
         if (additional_context) {
             (*additional_context)();
         }
 
         ImGui::EndPopup();
+    }
+}
+
+void ObjectExplorer::hook_method(sdk::REMethodDefinition* method, std::optional<std::string> name) {
+    auto it = std::find_if(m_hooked_methods.begin(), m_hooked_methods.end(), [method](auto& hook) { return hook.method == method; });
+
+    if (it != m_hooked_methods.end()) {
+        return;
+    }
+
+    auto& hooked = m_hooked_methods.emplace_back();
+
+    using namespace asmjit;
+    using namespace asmjit::x86;
+
+    CodeHolder code{};
+    code.init(m_jit_runtime.environment());
+
+    Assembler a{&code};
+
+    a.mov(r9, method);
+    a.movabs(r10, &ObjectExplorer::pre_hooked_method);
+    a.jmp(r10);
+
+    m_jit_runtime.add(&hooked.jitted_function, &code);
+
+    using MT = HookManager::PreHookResult(*)(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys);
+
+    hooked.method = method;
+
+    if (name) {
+        hooked.name = method->get_declaring_type()->get_full_name() + "." + *name;
+    } else {
+        hooked.name = method->get_declaring_type()->get_full_name() + "." + method->get_name();
+    }
+    
+    hooked.hook_id = g_hookman.add(method, (MT)hooked.jitted_function, nullptr);
+}
+
+void ObjectExplorer::hook_all_methods(sdk::RETypeDefinition* t) {
+    if (t == nullptr) {
+        return;
+    }
+
+    const auto methods = t->get_methods();
+
+    for (auto& m : methods) {
+        const auto method_ptr = m.get_function();
+        if (method_ptr == nullptr) {
+            continue;
+        }
+
+        bool is_stub = m_known_stub_methods.find(method_ptr) != m_known_stub_methods.end();
+        bool is_ok_method = m_ok_methods.find(method_ptr) != m_ok_methods.end();
+
+        if (method_ptr != nullptr && !is_stub && !is_ok_method) {
+            if (utility::is_stub_code((uint8_t*)method_ptr)) {
+                m_known_stub_methods.insert(method_ptr);
+
+                is_ok_method = false;
+                is_stub = true;
+            } else {
+                m_ok_methods.insert(method_ptr);
+            }
+        }
+
+        bool is_duplicate = m_function_occurrences[method_ptr] > 5;
+
+        if (!is_stub && !is_duplicate) {
+            hook_method(&m, {});
+        }
     }
 }
 
@@ -3700,38 +3788,20 @@ void ObjectExplorer::method_context_menu(sdk::REMethodDefinition* method, std::o
 
         if (it == m_hooked_methods.end()) {
             if (ImGui::Selectable("Hook")) {
-                auto& hooked = m_hooked_methods.emplace_back();
-
-                using namespace asmjit;
-                using namespace asmjit::x86;
-
-                CodeHolder code{};
-                code.init(m_jit_runtime.environment());
-
-                Assembler a{&code};
-
-                a.mov(r9, method);
-                a.movabs(r10, &ObjectExplorer::pre_hooked_method);
-                a.jmp(r10);
-
-                m_jit_runtime.add(&hooked.jitted_function, &code);
-
-                using MT = HookManager::PreHookResult(*)(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys);
-
-                hooked.method = method;
-
-                if (name) {
-                    hooked.name = method->get_declaring_type()->get_full_name() + "." + *name;
-                } else {
-                    hooked.name = method->get_declaring_type()->get_full_name() + "." + method->get_name();
-                }
-                
-                hooked.hook_id = g_hookman.add(method, (MT)hooked.jitted_function, nullptr);
+                hook_method(method, name);
             }
         } else {
             if (ImGui::Selectable("Unhook")) {
                 g_hookman.remove(it->method, it->hook_id);
                 m_hooked_methods.erase(it);
+            }
+        }
+
+        if (ImGui::Selectable("Hook All Methods")) {
+            const auto declaring_type = method->get_declaring_type();
+
+            if (declaring_type != nullptr) {
+                hook_all_methods(declaring_type);
             }
         }
     };
