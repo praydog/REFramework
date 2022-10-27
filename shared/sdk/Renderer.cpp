@@ -648,6 +648,140 @@ ConstantBuffer* create_constant_buffer(void* desc) {
     return fn(nullptr, desc);
 }
 
+/*
++ 0x8B CircularDOF_WorkComponent0Im
++ 0x83 CircularDOF_WorkTexture
+- 0x82 omposite
+- 0x79 systems/effect/Stochastic_Sample8_MSK4.tex
++ 0x75 HDRImage
++ 0x73 HDRImage
+- 0x6A HDRImage
+- 0x67 systems/effect/Stochastic_Sample4_MSK4.tex
+- 0x67 DensityMapTexture
+- 0x5C systems/shader/advancedSystem.sdf
+- 0x5A BaseColorTextrure
+- 0x52 tSrc
+- 0x4E HDRImage
+- 0x4C CircularDOF_NearCOCFilteredHQ
+- 0x3F CircularDOF_SceneMipTexture
+*/
+TargetState* create_target_state(void* desc) {
+    static auto fn = []() -> TargetState* (*)(void*, void*) {
+        spdlog::info("Searching for create_target_state");
+
+        const auto game = utility::get_executable();
+        const auto string = utility::scan_string(game, "CircularDOF_SceneMipTexture");
+
+        if (!string) {
+            spdlog::error("Failed to find create_target_state (no string)");
+            return nullptr;
+        }
+
+        const auto string_ref = utility::scan_displacement_reference(game, *string);
+
+        if (!string_ref) {
+            spdlog::error("Failed to find create_target_state (no string ref)");
+            return nullptr;
+        }
+
+        uintptr_t ip = *string_ref;
+        uint32_t found_count = 0;
+
+        for (auto i = 0; i < 50; ++i) {
+            const auto resolved = utility::resolve_instruction(ip);
+
+            if (!resolved) {
+                spdlog::error("Failed to find create_target_state (could not resolve instruction)");
+                return nullptr;
+            }
+
+            ip = resolved->addr;
+
+            if (*(uint8_t*)ip == 0xE8) {
+                ++found_count;
+            }
+
+            // third call back from this string reference is the one we want
+            if (*(uint8_t*)ip == 0xE8 && found_count == 3) {
+                const auto result = (TargetState* (*)(void*, void*))utility::calculate_absolute(ip + 1);
+
+                spdlog::info("Found create_target_state: {:x}", (uintptr_t)result);
+                return result;
+            }
+
+            ip -= 1;
+        }
+
+        return nullptr;
+    }();
+
+    return fn(nullptr, desc);
+}
+
+/*
++ 0x217 Wrinkle_VertAreaSkin
+- 0x20A EchoParam
++ 0x203 CapturePlane
++ 0x1F9 systems/shader/systemDevelop.sdf
++ 0x1F3 Wrinkle_ProbagateDupVertex
++ 0x1CF Wrinkle_ProbagateDupVertex_MaxMode
+- 0x1CA PrevLDRImage
++ 0x1AB Wrinkle_DrawAreaToTexture2
+- 0x1A5 MeshToUVTextureMap_2ndUVto1stUV
+- 0x18A LDRImage
++ 0x187 Wrinkle_DrawAreaToTexture2_MaxMode
++ 0x163 Wrinkle_CheapBlur
+- 0x145 MeshToUVTextureSkin2nd_Pos
++ 0xD9 systems/shader/speedTree/speedTree.sdf
+- 0x18 width=%u,height=%u,depth=%u,mip=%u,array=%u,format=%u,usage=%u,bind=%u
+*/
+Texture* create_texture(void* desc) {
+    static auto fn = []() -> Texture* (*)(void*, void*) {
+        spdlog::info("Searching for create_texture");
+
+        const auto game = utility::get_executable();
+        const auto string = utility::scan_string(game, L"width=%u,height=%u,depth=%u,mip=%u,array=%u,format=%u,usage=%u,bind=%u");
+
+        if (!string) {
+            spdlog::error("Failed to find create_texture (no string)");
+            return nullptr;
+        }
+
+        const auto string_ref = utility::scan_displacement_reference(game, *string);
+
+        if (!string_ref) {
+            spdlog::error("Failed to find create_texture (no string ref)");
+            return nullptr;
+        }
+
+        uintptr_t ip = *string_ref;
+
+        for (auto i = 0; i < 20; ++i) {
+            const auto resolved = utility::resolve_instruction(ip);
+
+            if (!resolved) {
+                spdlog::error("Failed to find create_texture (could not resolve instruction)");
+                return nullptr;
+            }
+
+            ip = resolved->addr;
+
+            if (*(uint8_t*)ip == 0xE8) {
+                const auto result = (Texture* (*)(void*, void*))utility::calculate_absolute(ip + 1);
+
+                spdlog::info("Found create_texture: {:x}", (uintptr_t)result);
+                return result;
+            }
+
+            ip -= 1;
+        }
+
+        return nullptr;
+    }();
+
+    return fn(nullptr, desc);
+}
+
 void* TargetState::get_native_resource_d3d12() const {
     const auto rtv = get_rtv(0);
 

@@ -43,6 +43,10 @@ private:
 
 class Texture : public RenderResource {
 public:
+    void* get_desc() {
+        return (void*)((uintptr_t)this + sizeof(RenderResource) + sizeof(void*));
+    }
+
     DirectXResource* get_d3d12_resource() {
         return *(DirectXResource**)((uintptr_t)this + s_d3d12_resource_offset);
     }
@@ -87,6 +91,10 @@ private:
 
 class TargetState : public RenderResource {
 public:
+    void* get_desc() const {
+        return (void*)((uintptr_t)this + sizeof(RenderResource));
+    }
+
     void* get_native_resource_d3d12() const;
 
     uint32_t get_rtv_count() const {
@@ -142,6 +150,10 @@ public:
 class RenderLayer : public REManagedObject {
 public:
     RenderLayer* add_layer(::REType* layer_type, uint32_t priority, uint8_t offset = 0);
+    void add_layer(RenderLayer* existing_layer) {
+        m_layers.push_back(existing_layer);
+        existing_layer->m_parent = this;
+    }
     sdk::NativeArray<RenderLayer*>& get_layers();
     RenderLayer** find_layer(::REType* layer_type);
     std::tuple<RenderLayer*, RenderLayer**> find_layer_recursive(const ::REType* layer_type); // parent, type
@@ -310,5 +322,7 @@ sdk::renderer::layer::Output* get_output_layer();
 std::optional<Vector2f> world_to_screen(const Vector3f& world_pos);
 
 ConstantBuffer* create_constant_buffer(void* desc);
+TargetState* create_target_state(void* desc);
+Texture* create_texture(void* desc);
 }
 }
