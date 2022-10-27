@@ -23,6 +23,11 @@ struct SceneInfo {
 
 class RenderResource {
 public:
+    void add_ref() {
+        _InterlockedIncrement((long*)&m_ref_count);
+    }
+
+public:
     void* m_vtable;
     int32_t m_ref_count;
     uint32_t m_render_frame;
@@ -69,13 +74,23 @@ class DepthStencilView : public RenderResource {
 
 class RenderTargetView : public RenderResource {
 public:
+    struct Desc {
+        uint32_t format;
+        uint32_t dimension;
+
+        uint8_t unk_pad[0xC];
+    };
+
+    Desc& get_desc() {
+        return m_desc;
+    }
+
     Texture* get_texture_d3d12() const {
         return *(Texture**)((uintptr_t)this + s_texture_d3d12_offset);
     }
 
 private:
-    uint32_t m_format;
-    uint32_t m_dimension;
+    Desc m_desc;
 
 #if TDB_VER == 71
     static constexpr inline auto s_texture_d3d12_offset = 0x98;
@@ -89,43 +104,51 @@ private:
 #endif
 };
 
+static_assert(sizeof(RenderTargetView::Desc) == 0x14);
+
 class TargetState : public RenderResource {
 public:
-    void* get_desc() const {
-        return (void*)((uintptr_t)this + sizeof(RenderResource));
+    struct Desc;
+
+    Desc& get_desc() {
+        return m_desc;
     }
 
     void* get_native_resource_d3d12() const;
 
     uint32_t get_rtv_count() const {
-        return m_num_rtv;
+        return m_desc.num_rtv;
     }
 
     RenderTargetView* get_rtv(int32_t index) const {
-        if (index < 0 || index >= get_rtv_count() || m_rtvs == nullptr) {
+        if (index < 0 || index >= get_rtv_count() || m_desc.rtvs == nullptr) {
             return nullptr;
         }
         
-        return m_rtvs[index];
+        return m_desc.rtvs[index];
     }
 
 public:
+    struct Desc {
 #if TDB_VER <= 67
-    void* _unk_pad;
+        void* _unk_pad;
 #endif
-    RenderTargetView** m_rtvs;
-    DepthStencilView* m_dsv;
-    uint32_t m_num_rtv;
-    float m_left;
-    float m_right;
-    float m_top;
-    float m_bottom;
-    uint32_t m_flag;
+        RenderTargetView** rtvs;
+        DepthStencilView* dsv;
+        uint32_t num_rtv;
+        float left;
+        float right;
+        float top;
+        float bottom;
+        uint32_t flag;
+    } m_desc;
+
+    // more here but not needed... for now
 };
 #if TDB_VER > 67
-static_assert(offsetof(TargetState, m_num_rtv) == 0x20);
+static_assert(offsetof(TargetState, m_desc) + offsetof(TargetState::Desc, num_rtv) == 0x20);
 #else
-static_assert(offsetof(TargetState, m_num_rtv) == 0x28);
+static_assert(offsetof(TargetState, m_desc) + offsetof(TargetState::Desc, num_rtv) == 0x28);
 #endif
 
 class Buffer : public RenderResource {
@@ -158,7 +181,8 @@ public:
     RenderLayer** find_layer(::REType* layer_type);
     std::tuple<RenderLayer*, RenderLayer**> find_layer_recursive(const ::REType* layer_type); // parent, type
     std::tuple<RenderLayer*, RenderLayer**> find_layer_recursive(std::string_view type_name); // parent, type
-
+    std::vector<RenderLayer*> find_layers(::REType* layer_type);
+    
     RenderLayer* get_parent();
     RenderLayer* find_parent(::REType* layer_type);
     RenderLayer* clone(bool recursive = false);
@@ -322,7 +346,8 @@ sdk::renderer::layer::Output* get_output_layer();
 std::optional<Vector2f> world_to_screen(const Vector3f& world_pos);
 
 ConstantBuffer* create_constant_buffer(void* desc);
-TargetState* create_target_state(void* desc);
+TargetState* create_target_state(TargetState::Desc* desc);
 Texture* create_texture(void* desc);
+RenderTargetView* create_render_target_view(sdk::renderer::RenderResource* resource, void* desc);
 }
 }

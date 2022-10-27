@@ -251,6 +251,26 @@ std::tuple<RenderLayer*, RenderLayer**> RenderLayer::find_layer_recursive(std::s
     return find_layer_recursive(t);
 }
 
+std::vector<RenderLayer*> RenderLayer::find_layers(::REType* layer_type) {
+    std::vector<RenderLayer*> out{};
+
+    const auto& layers = get_layers();
+
+    for (auto& layer : layers) {
+        if (layer->info == nullptr || layer->info->classInfo == nullptr) {
+            continue;
+        }
+
+        const auto t = utility::re_managed_object::get_type(layer);
+
+        if (t == layer_type) {
+            out.push_back(layer);
+        }
+    }
+
+    return out;
+}
+
 RenderLayer* RenderLayer::get_parent() {
     return sdk::call_object_func<RenderLayer*>(this, "get_Parent", sdk::get_thread_context(), this);
 }
@@ -665,8 +685,8 @@ ConstantBuffer* create_constant_buffer(void* desc) {
 - 0x4C CircularDOF_NearCOCFilteredHQ
 - 0x3F CircularDOF_SceneMipTexture
 */
-TargetState* create_target_state(void* desc) {
-    static auto fn = []() -> TargetState* (*)(void*, void*) {
+TargetState* create_target_state(TargetState::Desc* desc) {
+    static auto fn = []() -> TargetState* (*)(void*, TargetState::Desc*) {
         spdlog::info("Searching for create_target_state");
 
         const auto game = utility::get_executable();
@@ -679,8 +699,8 @@ TargetState* create_target_state(void* desc) {
 
         const auto string_ref = utility::scan_displacement_reference(game, *string);
 
-        if (!string_ref) {
             spdlog::error("Failed to find create_target_state (no string ref)");
+        if (!string_ref) {
             return nullptr;
         }
 
@@ -703,7 +723,7 @@ TargetState* create_target_state(void* desc) {
 
             // third call back from this string reference is the one we want
             if (*(uint8_t*)ip == 0xE8 && found_count == 3) {
-                const auto result = (TargetState* (*)(void*, void*))utility::calculate_absolute(ip + 1);
+                const auto result = (TargetState* (*)(void*, TargetState::Desc*))utility::calculate_absolute(ip + 1);
 
                 spdlog::info("Found create_target_state: {:x}", (uintptr_t)result);
                 return result;
@@ -780,6 +800,46 @@ Texture* create_texture(void* desc) {
     }();
 
     return fn(nullptr, desc);
+}
+
+/*
++ 0x20A Wrinkle_DrawAreaToTexture2
++ 0x1E6 Wrinkle_DrawAreaToTexture2_MaxMode
++ 0x1C2 Wrinkle_CheapBlur
+- 0x1B8 EchoParam
++ 0x185 width=%u,height=%u,depth=%u,mip=%u,array=%u,format=%u,usage=%u,bind=%u
+- 0x178 PrevLDRImage
+- 0x168 systems/shader/advancedSystem.sdf
+- 0x138 LDRImage
+- 0xE0 BaseColorTextrure
+- 0xD4 DensityMapTexture
+- 0x9F BaseColorTextrure
+*/
+/*
+48 C7 44 24 24 05 00 00 00                    mov     [rsp+78h+var_54], 5
+C7 44 24 30 01 00 00 00                       mov     [rsp+78h+var_48], 1
+44 89 7C 24 2C                                mov     [rsp+78h+var_4C], r15d
+C7 44 24 20 1C 00 00 00                       mov     [rsp+78h+var_58], 1Ch
+E8 89 EB 78 00                                call    create_render_target_view
+*/
+RenderTargetView* create_render_target_view(sdk::renderer::RenderResource* resource, void* desc) {
+    static auto fn = []() -> RenderTargetView* (*)(void*, sdk::renderer::RenderResource* resource, void*) {
+        spdlog::info("Searching for create_render_target_view");
+
+        const auto game = utility::get_executable();
+        const auto ref = utility::scan(game, "44 89 7C 24 2C C7 44 24 20 1C 00 00 00 E8 ? ? ? ?");
+
+        if (!ref) {
+            spdlog::error("Failed to find create_render_target_view (no ref)");
+            return nullptr;
+        }
+
+        const auto result = (RenderTargetView* (*)(void*, sdk::renderer::RenderResource*, void*))utility::calculate_absolute(*ref + 14);
+
+        return result;
+    }();
+
+    return fn(nullptr, resource, desc);
 }
 
 void* TargetState::get_native_resource_d3d12() const {
