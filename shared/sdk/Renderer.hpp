@@ -298,6 +298,24 @@ public:
     }
 };
 
+class PrepareOutput : public sdk::renderer::RenderLayer {
+public:
+    sdk::renderer::TargetState* get_output_state() {
+        return *(sdk::renderer::TargetState**)((uintptr_t)this + s_output_state_offset);
+    }
+
+    void set_output_state(sdk::renderer::TargetState* state) {
+        *(sdk::renderer::TargetState**)((uintptr_t)this + s_output_state_offset) = state;
+    }
+
+private:
+#if TDB_VER >= 70
+    static constexpr inline auto s_output_state_offset = 0xF8;
+#else
+    static constexpr inline auto s_output_state_offset = 0xF8; // TODO! VERIFY!
+#endif
+};
+
 class Overlay : public sdk::renderer::RenderLayer {
 };
 
