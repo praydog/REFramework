@@ -10,7 +10,7 @@ jobs:
         target: [RE2, RE2_TDB66, RE3, RE3_TDB67, RE7, RE7_TDB49, RE8, DMC5, MHRISE]
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           submodules: recursive
 
@@ -21,7 +21,7 @@ jobs:
         run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}} --target ${{matrix.target}}
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v2.3.1
+        uses: actions/upload-artifact@v3
         with:
           name: ${{matrix.target}}
           path: ${{github.workspace}}/build/bin/${{matrix.target}}/dinput8.dll
