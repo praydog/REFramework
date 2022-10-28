@@ -143,6 +143,14 @@ void Hooks::RenderLayerHook<sdk::renderer::layer::Overlay>::draw(sdk::renderer::
     LAYER_HOOK_BODY(overlay, Overlay, draw);
 }
 
+void Hooks::RenderLayerHook<sdk::renderer::layer::Output>::update(sdk::renderer::layer::Output* layer, void* render_ctx) {
+    LAYER_HOOK_BODY(output, Output, update);
+}
+
+void Hooks::RenderLayerHook<sdk::renderer::layer::Output>::draw(sdk::renderer::layer::Output* layer, void* render_ctx) {
+    LAYER_HOOK_BODY(output, Output, draw);
+}
+
 std::optional<std::string> Hooks::hook_update_transform() {
     auto game = g_framework->get_module().as<HMODULE>();
 

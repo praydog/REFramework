@@ -40,9 +40,14 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
 
     auto runtime = vr->get_runtime();
     const auto frame_count = vr->m_render_frame_count;
+    const auto is_multipass = vr->is_using_multipass();
+
+    if (is_multipass && (vr->m_multipass.eye_textures[0] == nullptr || vr->m_multipass.eye_textures[1] == nullptr)) {
+        return vr::VRCompositorError_None;
+    }
 
     // If m_frame_count is even, we're rendering the left eye.
-    if (frame_count % 2 == vr->m_left_eye_interval) {
+    if (frame_count % 2 == vr->m_left_eye_interval && !is_multipass) {
         // OpenXR texture
         if (runtime->is_openxr() && vr->m_openxr->ready()) {
             m_openxr.copy(0, backbuffer.Get());
@@ -71,13 +76,23 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
     } else {
         // OpenXR texture
         if (runtime->is_openxr() && vr->m_openxr->ready()) {
-            m_openxr.copy(1, backbuffer.Get());
+            if (is_multipass) {
+                m_openxr.copy(0, (ID3D12Resource*)vr->m_multipass.eye_textures[0]);
+                m_openxr.copy(1, (ID3D12Resource*)vr->m_multipass.eye_textures[1]);
+            } else {
+                m_openxr.copy(1, backbuffer.Get());
+            }
         }
 
         // OpenVR texture
         // Copy the back buffer to the right eye texture.
         if (runtime->is_openvr()) {
-            m_openvr.copy_right(backbuffer.Get());
+            if (is_multipass) {
+                m_openvr.copy_left((ID3D12Resource*)vr->m_multipass.eye_textures[0]);
+                m_openvr.copy_right((ID3D12Resource*)vr->m_multipass.eye_textures[1]);
+            } else {
+                m_openvr.copy_right(backbuffer.Get());
+            }
 
             vr::D3D12TextureData_t right {
                 m_openvr.get_right().texture.Get(),
@@ -86,6 +101,25 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
             };
 
             vr::Texture_t right_eye{(void*)&right, vr::TextureType_DirectX12, vr::ColorSpace_Auto};
+
+            if (is_multipass) {
+                vr::D3D12TextureData_t left {
+                    m_openvr.get_left().texture.Get(),
+                    command_queue,
+                    0
+                };
+
+                vr::VRTextureWithPose_t left_eye{
+                    (void*)&left, vr::TextureType_DirectX12, vr::ColorSpace_Auto
+                };
+
+                auto e = vr::VRCompositor()->Submit(vr::Eye_Left, &left_eye, &vr->m_left_bounds, vr::EVRSubmitFlags::Submit_TextureWithPose);
+
+                if (e != vr::VRCompositorError_None) {
+                    spdlog::error("[VR] VRCompositor failed to submit left eye: {}", (int)e);
+                    return e;
+                }
+            }
 
             auto e = vr::VRCompositor()->Submit(vr::Eye_Right, &right_eye, &vr->m_right_bounds);
 
@@ -102,7 +136,7 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
 
     vr::EVRCompositorError e = vr::EVRCompositorError::VRCompositorError_None;
 
-    if (frame_count % 2 == vr->m_right_eye_interval) {
+    if (frame_count % 2 == vr->m_right_eye_interval || is_multipass) {
         ////////////////////////////////////////////////////////////////////////////////
         // OpenXR start ////////////////////////////////////////////////////////////////
         ////////////////////////////////////////////////////////////////////////////////

@@ -443,22 +443,37 @@ bool VR::on_pre_scene_layer_update(sdk::renderer::layer::Scene* layer, void* ren
         return true;
     }
 
-    if (m_disable_temporal_fix) {
-        return true;
+    if (!m_disable_temporal_fix) {
+        auto scene_info = layer->get_scene_info();
+        auto depth_distortion_scene_info = layer->get_depth_distortion_scene_info();
+        auto filter_scene_info = layer->get_filter_scene_info();
+        auto jitter_disable_scene_info = layer->get_jitter_disable_scene_info();
+        auto z_prepass_scene_info = layer->get_z_prepass_scene_info();
+
+        m_scene_layer_data[0].setup(scene_info);
+        m_scene_layer_data[1].setup(depth_distortion_scene_info);
+        m_scene_layer_data[2].setup(filter_scene_info);
+        m_scene_layer_data[3].setup(jitter_disable_scene_info);
+        m_scene_layer_data[4].setup(z_prepass_scene_info);
+        m_set_next_scene_layer_data = true;
     }
 
-    auto scene_info = layer->get_scene_info();
-    auto depth_distortion_scene_info = layer->get_depth_distortion_scene_info();
-    auto filter_scene_info = layer->get_filter_scene_info();
-    auto jitter_disable_scene_info = layer->get_jitter_disable_scene_info();
-    auto z_prepass_scene_info = layer->get_z_prepass_scene_info();
+    if (is_using_multipass()) {
+        auto output_layer = sdk::renderer::get_output_layer();
 
-    m_scene_layer_data[0].setup(scene_info);
-    m_scene_layer_data[1].setup(depth_distortion_scene_info);
-    m_scene_layer_data[2].setup(filter_scene_info);
-    m_scene_layer_data[3].setup(jitter_disable_scene_info);
-    m_scene_layer_data[4].setup(z_prepass_scene_info);
-    m_set_next_scene_layer_data = true;
+        if (output_layer != nullptr) {
+            static auto t = sdk::find_type_definition("via.render.layer.Scene")->get_type();
+            const auto scenes = output_layer->find_layers(t);
+
+            if (!scenes.empty()) {
+                if (layer == scenes[0]) {
+                    m_multipass.pass = 0;
+                } else {
+                    m_multipass.pass = 1;
+                }
+            }
+        }
+    }
 
     return true;
 }
@@ -467,10 +482,6 @@ void VR::on_scene_layer_update(sdk::renderer::layer::Scene* layer, void* render_
     if (!is_hmd_active()) {
         return;
     }
-
-    if (m_disable_temporal_fix) {
-        return;
-}
 
     if (m_set_next_scene_layer_data) {
         const auto frame = this->get_game_frame_count();
@@ -2104,7 +2115,9 @@ Vector4f VR::get_current_offset() {
 
     std::shared_lock _{ get_runtime()->eyes_mtx };
 
-    if (m_frame_count % 2 == m_left_eye_interval) {
+    const auto count = is_using_multipass() ? m_multipass.pass : m_frame_count;
+
+    if (count % 2 == m_left_eye_interval) {
         //return Vector4f{m_eye_distance * -1.0f, 0.0f, 0.0f, 0.0f};
         return get_runtime()->eyes[vr::Eye_Left][3];
     }
@@ -2120,9 +2133,10 @@ Matrix4x4f VR::get_current_eye_transform(bool flip) {
 
     std::shared_lock _{get_runtime()->eyes_mtx};
 
-    auto mod_count = flip ? m_right_eye_interval : m_left_eye_interval;
+    const auto count = is_using_multipass() ? m_multipass.pass : m_frame_count;
+    const auto mod_count = flip ? m_right_eye_interval : m_left_eye_interval;
 
-    if (m_frame_count % 2 == mod_count) {
+    if (count % 2 == mod_count) {
         return get_runtime()->eyes[vr::Eye_Left];
     }
 
@@ -2136,9 +2150,10 @@ Matrix4x4f VR::get_current_projection_matrix(bool flip) {
 
     std::shared_lock _{get_runtime()->eyes_mtx};
 
-    auto mod_count = flip ? m_right_eye_interval : m_left_eye_interval;
+    const auto count = is_using_multipass() ? m_multipass.pass : m_frame_count;
+    const auto mod_count = flip ? m_right_eye_interval : m_left_eye_interval;
 
-    if (m_frame_count % 2 == mod_count) {
+    if (count % 2 == mod_count) {
         return get_runtime()->projections[(uint32_t)VRRuntime::Eye::LEFT];
     }
 
@@ -2154,7 +2169,7 @@ void VR::on_pre_imgui_frame() {
 }
 
 void VR::on_present() {
-    if ((m_render_frame_count + 1) % 2 == m_left_eye_interval) {
+    if (is_using_multipass() || (m_render_frame_count + 1) % 2 == m_left_eye_interval) {
         ResetEvent(m_present_finished_event);
     }
 
@@ -2242,7 +2257,7 @@ void VR::on_present() {
         m_submitted = false;
     }
 
-    if ((m_render_frame_count + 1) % 2 == m_left_eye_interval) {
+    if (is_using_multipass() || (m_render_frame_count + 1) % 2 == m_left_eye_interval) {
         SetEvent(m_present_finished_event);
     }
 }
@@ -2916,12 +2931,12 @@ void VR::on_pre_begin_rendering(void* entry) {
     }
     
     // Call WaitGetPoses
-    if (!inside_on_end && m_frame_count % 2 == m_left_eye_interval) {
+    if (is_using_multipass() || (!inside_on_end && m_frame_count % 2 == m_left_eye_interval)) {
         runtime->consume_events(nullptr);
         update_hmd_state();
     }
 
-    const auto should_update_camera = (m_frame_count % 2 == m_left_eye_interval) || is_using_afr();
+    const auto should_update_camera = (m_frame_count % 2 == m_left_eye_interval) || is_using_afr() || is_using_multipass();
 
     if (!inside_on_end && should_update_camera) {
         update_camera();
@@ -2945,7 +2960,7 @@ void VR::on_pre_end_rendering(void* entry) {
         return;
     }
 
-    if (runtime->ready() && m_frame_count % 2 == m_left_eye_interval) {
+    if (runtime->ready() && (m_frame_count % 2 == m_left_eye_interval || is_using_multipass())) {
         const auto stage = runtime->get_synchronize_stage();
 
         if (stage == VRRuntime::SynchronizeStage::LATE && runtime->synchronize_frame() == VRRuntime::Error::SUCCESS) {
@@ -2982,6 +2997,61 @@ void VR::on_end_rendering(void* entry) {
         if (is_using_afr()) {
             restore_camera();
             m_in_render = false;
+        }
+
+        return;
+    }
+
+    if (is_using_multipass()) {
+        restore_camera();
+        m_in_render = false;
+        inside_on_end = false;
+
+        const auto temporal_upscaler = TemporalUpscaler::get();
+
+        if (temporal_upscaler->ready()) {
+            m_multipass.eye_textures[0] = temporal_upscaler->get_upscaled_texture<void*>(0);
+            m_multipass.eye_textures[1] = temporal_upscaler->get_upscaled_texture<void*>(1);
+        } else {
+            auto output_layer = sdk::renderer::get_output_layer();
+
+            if (output_layer == nullptr) {
+                return;
+            }
+
+            static auto scene_type = sdk::find_type_definition("via.render.layer.Scene")->get_type();
+            auto scene_layers = output_layer->find_layers(scene_type);
+
+            if (scene_layers.size() < 2) {
+                return;
+            }
+
+            static auto potype = sdk::find_type_definition("via.render.layer.PrepareOutput")->get_type();
+
+            std::array<sdk::renderer::layer::PrepareOutput*, 2> prepare_output_layers{
+                (sdk::renderer::layer::PrepareOutput*)scene_layers[0]->find_layer(potype),
+                (sdk::renderer::layer::PrepareOutput*)scene_layers[1]->find_layer(potype)
+            };
+
+            if (prepare_output_layers[0] == nullptr || prepare_output_layers[1] == nullptr) {
+                return;
+            }
+
+            std::array<sdk::renderer::TargetState*, 2> output_states{
+                prepare_output_layers[0]->get_output_state(),
+                prepare_output_layers[1]->get_output_state()
+            };
+
+            if (output_states[0] == nullptr || output_states[1] == nullptr) {
+                return;
+            }
+
+            if (g_framework->is_dx12()) {
+                m_multipass.eye_textures[0] = output_states[0]->get_native_resource_d3d12();
+                m_multipass.eye_textures[1] = output_states[1]->get_native_resource_d3d12();
+            } else {
+                // TODO!
+            }
         }
 
         return;
@@ -3102,6 +3172,10 @@ void VR::on_wait_rendering(void* entry) {
     timed_out = false;
 
     if (!is_hmd_active()) {
+        return;
+    }
+
+    if (is_using_multipass()) {
         return;
     }
 
@@ -3667,7 +3741,7 @@ void VR::on_draw_ui() {
 
     ImGui::Separator();
 
-    m_use_afr->draw("Use AFR");
+    m_rendering_technique->draw("Rendering Technique");
     m_decoupled_pitch->draw("Decoupled Camera Pitch");
 
     if (ImGui::Checkbox("Positional Tracking", &m_positional_tracking)) {
@@ -3732,6 +3806,9 @@ void VR::on_draw_ui() {
 
 void VR::on_device_reset() {
     std::scoped_lock _{m_openxr->sync_mtx};
+
+    m_multipass.eye_textures[0] = nullptr;
+    m_multipass.eye_textures[1] = nullptr;
 
     spdlog::info("VR: on_device_reset");
     m_backbuffer_inconsistency = false;

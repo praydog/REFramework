@@ -401,7 +401,7 @@ HRESULT WINAPI D3D12Hook::present(IDXGISwapChain3* swap_chain, UINT sync_interva
             --g_present_depth;
 
             if (result != S_OK) {
-                spdlog::error("Present failed: {:x}", result);
+                spdlog::error("Present failed: {:x}", (uint64_t)result);
             }
 
             return result;
@@ -423,7 +423,7 @@ HRESULT WINAPI D3D12Hook::present(IDXGISwapChain3* swap_chain, UINT sync_interva
         result = present_fn(swap_chain, sync_interval, flags);
 
         if (result != S_OK) {
-            spdlog::error("Present failed: {:x}", result);
+            spdlog::error("Present failed: {:x}", (uint64_t)result);
         }
     } else {
         d3d12->m_ignore_next_present = false;

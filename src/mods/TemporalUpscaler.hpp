@@ -38,6 +38,9 @@ public:
     void on_camera_get_projection_matrix(REManagedObject* camera, Matrix4x4f* result) override;
 
     void on_scene_layer_update(sdk::renderer::layer::Scene* scene_layer, void* render_context) override;
+    
+    bool on_pre_output_layer_draw(sdk::renderer::layer::Output* layer, void* render_context) override;
+    bool on_pre_output_layer_update(sdk::renderer::layer::Output* layer, void* render_context) override;
 
     bool ready() const {
         return m_initialized && m_backend_loaded && m_enabled && !m_wants_reinitialize;
@@ -45,11 +48,6 @@ public:
 
     uint32_t get_evaluate_id(uint32_t counter) {
         return (counter % 2) + 1;
-    }
-
-    auto& get_old_vp(uint32_t counter) { 
-        auto vp = m_old_projection_matrix[counter % 2] * m_old_view_matrix[counter % 2];
-        return vp;
     }
 
     template<typename T>
@@ -87,6 +85,8 @@ private:
     bool on_first_frame();
     bool init_upscale_features();
     void release_upscale_features();
+    void fix_output_layer();
+    void update_mirror();
 
     bool m_first_frame_finished{false};
     bool m_initialized{false};
@@ -101,6 +101,7 @@ private:
     bool m_sharpness{true};
     bool m_allow_taa{false}; // the engine has its own TAA implementation, it can't be used with the upscaler
     bool m_wants_reinitialize{false};
+    bool m_made_mirror{false};
 
     std::unordered_map<std::string, size_t> m_available_upscale_methods{};
     std::vector<std::string> m_available_upscale_method_names{};
@@ -114,11 +115,29 @@ private:
     std::array<uint32_t, 2> m_backbuffer_size{};
 
     std::array<void*, 2> m_upscaled_textures{nullptr, nullptr};
-    sdk::renderer::layer::Scene* m_scene_layer{nullptr};
+
+    sdk::renderer::layer::Scene* m_cloned_scene_layer{nullptr};
     sdk::renderer::layer::Output* m_output_layer{nullptr};
-    void* m_motion_vectors{nullptr};
-    void* m_depth{nullptr};
-    void* m_color{nullptr};
+    sdk::renderer::layer::Output* m_original_output_layer{nullptr};
+    sdk::renderer::layer::Output* m_cloned_output_layer{nullptr};
+    sdk::renderer::layer::Output* m_last_output_layer{nullptr};
+    sdk::renderer::TargetState* m_last_output_state{nullptr};
+    sdk::renderer::ConstantBuffer* m_original_scene_info_buffer{};
+    sdk::renderer::ConstantBuffer* m_cloned_scene_info_buffer{};
+
+    sdk::renderer::TargetState* m_new_target_state{nullptr};
+
+
+    struct EyeState {
+        sdk::renderer::layer::Scene* scene_layer{nullptr};
+        void* motion_vectors{nullptr};
+        void* depth{nullptr};
+        void* color{nullptr};
+    };
+
+    std::array<EyeState, 2> m_eye_states{};
+
+    int32_t m_displayed_scene{0}; // 0 = original, 1 = cloned
 
     float m_nearz{0.0f};
     float m_farz{0.0f};
@@ -133,7 +152,16 @@ private:
     vrmod::D3D12Component::ResourceCopier m_copier{};
     ComPtr<ID3D12Resource> m_old_backbuffer{};
 
+    struct GBuffer {
+        std::vector<ComPtr<ID3D12Resource>> textures{};
+    };
+    
+    GBuffer m_real_gbuffer{};
+
     std::array<ComPtr<ID3D12Resource>, 2> m_prev_motion_vectors_d3d12{};
-    std::array<Matrix4x4f, 2> m_old_projection_matrix{};
-    std::array<Matrix4x4f, 2> m_old_view_matrix{};
+    std::array<GBuffer, 2> m_prev_g_buffer_d3d12{};
+    std::array<std::array<Matrix4x4f, 2>, 6> m_old_projection_matrix{};
+    std::array<std::array<Matrix4x4f, 2>, 6> m_old_view_matrix{};
+
+    std::array<std::vector<uint8_t>, 2> m_scene_layer_datas{};
 };

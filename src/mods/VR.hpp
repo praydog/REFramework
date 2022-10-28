@@ -28,8 +28,16 @@ class REManagedObject;
 
 class VR : public Mod {
 public:
+    enum RenderingTechnique {
+        ALTERNATING, // AFR
+        SEQUENTIAL_FRAME, // Two frames, synchronized
+        MULTIPASS // Native stereo rendering, single frame
+    };
+
+public:
     static std::shared_ptr<VR>& get();
 
+public:
     std::string_view get_name() const override { return "VR"; }
 
     // Called when the mod is initialized
@@ -99,7 +107,15 @@ public:
     }
 
     bool is_using_afr() const {
-        return m_use_afr->value();
+        return m_rendering_technique->value() == RenderingTechnique::ALTERNATING;
+    }
+
+    bool is_using_multipass() const {
+        return m_rendering_technique->value() == RenderingTechnique::MULTIPASS;
+    }
+
+    RenderingTechnique get_rendering_technique() const {
+        return (RenderingTechnique)m_rendering_technique->value();
     }
 
     // Functions that generally use a mutex or have more complex logic
@@ -448,6 +464,12 @@ private:
     vrmod::D3D12Component m_d3d12{};
     vrmod::OverlayComponent m_overlay_component{};
 
+    struct MultiPass {
+        std::array<void*, 2> eye_textures{};
+        uint32_t pass{0};
+    } m_multipass{};
+    
+
     Vector4f m_original_camera_position{ 0.0f, 0.0f, 0.0f, 0.0f };
     glm::quat m_original_camera_rotation{ glm::identity<glm::quat>() };
 
@@ -506,7 +528,14 @@ private:
     const ModKey::Ptr m_set_standing_key{ ModKey::create(generate_name("SetStandingOriginKey")) };
     const ModKey::Ptr m_recenter_view_key{ ModKey::create(generate_name("RecenterViewKey")) };
     const ModToggle::Ptr m_decoupled_pitch{ ModToggle::create(generate_name("DecoupledPitch"), false) };
-    const ModToggle::Ptr m_use_afr{ ModToggle::create(generate_name("AlternateFrameRendering"), false) };
+    const ModCombo::Ptr m_rendering_technique{ 
+        ModCombo::create(generate_name("RenderingTechnique"),
+        {
+            "Alternating/AFR", 
+            "Two Frame Sequential", 
+            "Single Frame Multipass"
+        }, 1) 
+    };
     const ModToggle::Ptr m_use_custom_view_distance{ ModToggle::create(generate_name("UseCustomViewDistance"), false) };
     const ModToggle::Ptr m_hmd_oriented_audio{ ModToggle::create(generate_name("HMDOrientedAudio"), true) };
     const ModSlider::Ptr m_view_distance{ ModSlider::create(generate_name("CustomViewDistance"), 10.0f, 3000.0f, 500.0f) };
@@ -541,7 +570,7 @@ private:
         *m_set_standing_key,
         *m_recenter_view_key,
         *m_decoupled_pitch,
-        *m_use_afr,
+        *m_rendering_technique,
         *m_use_custom_view_distance,
         *m_hmd_oriented_audio,
         *m_view_distance,
