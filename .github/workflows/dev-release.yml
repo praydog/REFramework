@@ -39,9 +39,9 @@ jobs:
           7z a ${{github.workspace}}/${{matrix.target}}.zip ${{github.workspace}}/scripts
           7z rn ${{github.workspace}}/${{matrix.target}}.zip scripts reframework/autorun
 
-      - name: Set outputs
+      - name: Set output
         id: vars
-        run: echo "::set-output name=sha_short::$(git rev-parse --short HEAD)"
+        run: echo "SHA_SHORT=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
       - name: Release
         if: github.ref == 'refs/heads/master'
@@ -49,6 +49,6 @@ jobs:
         with:
           repository: praydog/REFramework-nightly
           token: ${{secrets.REPO_TOKEN}}
-          name: ${{format('v1.{0}-{1}', github.run_number, steps.vars.outputs.sha_short)}}
+          name: ${{format('v1.{0}-{1}', github.run_number, steps.vars.outputs.SHA_SHORT)}}
           tag_name: latest
           files: ${{github.workspace}}/${{matrix.target}}.zip
