@@ -1143,17 +1143,33 @@ void RE8VR::fix_player_shadow() {
         return t->get_method(method_name);
     };
 
-    static auto get_player_gun_method = find_fps_method("app.PlayerUpdater", "get_playerGun");
+    if (m_player_type == PlayerType::ETHAN) {
+        static auto get_player_gun_method = find_fps_method("app.PlayerUpdater", "get_playerGun");
 
-    auto player_gun = get_player_gun_method->call<::REGameObject*>(sdk::get_thread_context(), m_updater);
+        auto player_gun = get_player_gun_method->call<::REGameObject*>(sdk::get_thread_context(), m_updater);
 
-    if (player_gun == nullptr) {
-        return nullptr;
+        if (player_gun == nullptr) {
+            return nullptr;
+        }
+
+        static auto get_equip_weapon_object_method = sdk::find_method_definition("app.PlayerGun", "get_equipWeaponObject");
+
+        return get_equip_weapon_object_method->call<::REManagedObject*>(sdk::get_thread_context(), player_gun);
+    } else if (m_player_type == PlayerType::CHRIS_MERC) {
+        static auto get_player_gun_method = find_fps_method("app.PlayerUpdaterPl2001", "get_playerGun");
+
+        auto player_gun = get_player_gun_method->call<::REGameObject*>(sdk::get_thread_context(), m_updater);
+
+        if (player_gun == nullptr) {
+            return nullptr;
+        }
+
+        static auto get_equip_weapon_object_method = sdk::find_method_definition("app.PlayerGunPl2001", "get_equipWeaponObject");
+
+        return get_equip_weapon_object_method->call<::REManagedObject*>(sdk::get_thread_context(), player_gun);
     }
 
-    static auto get_equip_weapon_object_method = sdk::find_method_definition("app.PlayerGun", "get_equipWeaponObject");
-
-    return get_equip_weapon_object_method->call<::REManagedObject*>(sdk::get_thread_context(), player_gun);
+    return nullptr;
 #endif
 }
 
@@ -1203,8 +1219,30 @@ bool RE8VR::update_pointers() {
     static auto updater_type = get_ambiguous_re_type("app.PlayerUpdater");
     assign_component(m_updater, updater_type);
 
+#ifdef RE8
+    if (m_updater == nullptr) {
+        static auto updater_type_chris = get_ambiguous_re_type("app.PlayerUpdaterPl2001");
+        assign_component(m_updater, updater_type_chris);
+
+        if (m_updater != nullptr) {
+            m_player_type = PlayerType::CHRIS_MERC;
+        }
+    } else {
+        m_player_type = PlayerType::ETHAN;
+    }
+#else
+    m_player_type = PlayerType::ETHAN;
+#endif
+
     static auto order_type = get_ambiguous_re_type("app.PlayerOrder");
     assign_component(m_order, order_type);
+
+#ifdef RE8
+    if (m_order == nullptr) {
+        static auto order_type_chris = get_ambiguous_re_type("app.PlayerOrderPl2001");
+        assign_component(m_order, order_type_chris);
+    }
+#endif
 
     static auto event_action_controller_type = get_ambiguous_re_type("app.EventActionController");
     assign_component(m_event_action_controller, event_action_controller_type);
