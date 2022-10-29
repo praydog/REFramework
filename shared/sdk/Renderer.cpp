@@ -865,6 +865,42 @@ void* TargetState::get_native_resource_d3d12() const {
     return internal_resource->get_native_resource();
 }
 
+Texture* Texture::clone() {
+    return sdk::renderer::create_texture(get_desc());
+}
+
+RenderTargetView* RenderTargetView::clone() {
+    auto tex = this->get_texture_d3d12();
+
+    if (tex == nullptr) {
+        return nullptr;
+    }
+
+    return sdk::renderer::create_render_target_view(tex->clone(), &get_desc());
+}
+
+TargetState* TargetState::clone() {
+    auto cloned_desc = get_desc();
+
+    if (cloned_desc.num_rtv > 0) {
+        cloned_desc.rtvs = (sdk::renderer::RenderTargetView**)sdk::via::memory::allocate(cloned_desc.num_rtv * sizeof(void*));
+
+        for (auto i = 0; i < cloned_desc.num_rtv; ++i) {
+            auto rtv = get_rtv(i);
+
+            if (rtv == nullptr) {
+                continue;
+            }
+
+            cloned_desc.rtvs[i] = rtv->clone();
+        }
+    } else {
+        cloned_desc.rtvs = nullptr;
+    }
+
+    return sdk::renderer::create_target_state(&cloned_desc);
+}
+
 void*& layer::Output::get_present_state() {
     static uint32_t output_target_offset = 0;
 

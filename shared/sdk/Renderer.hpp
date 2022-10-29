@@ -48,6 +48,8 @@ private:
 
 class Texture : public RenderResource {
 public:
+    Texture* clone();
+
     void* get_desc() {
         return (void*)((uintptr_t)this + sizeof(RenderResource) + sizeof(void*));
     }
@@ -81,6 +83,8 @@ public:
         uint8_t unk_pad[0xC];
     };
 
+    RenderTargetView* clone();
+
     Desc& get_desc() {
         return m_desc;
     }
@@ -110,11 +114,12 @@ class TargetState : public RenderResource {
 public:
     struct Desc;
 
+    void* get_native_resource_d3d12() const;
+    TargetState* clone();
+
     Desc& get_desc() {
         return m_desc;
     }
-
-    void* get_native_resource_d3d12() const;
 
     uint32_t get_rtv_count() const {
         return m_desc.num_rtv;
