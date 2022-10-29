@@ -160,8 +160,8 @@ private:
 
     std::array<ComPtr<ID3D12Resource>, 2> m_prev_motion_vectors_d3d12{};
     std::array<GBuffer, 2> m_prev_g_buffer_d3d12{};
-    std::array<std::array<Matrix4x4f, 2>, 6> m_old_projection_matrix{};
-    std::array<std::array<Matrix4x4f, 2>, 6> m_old_view_matrix{};
+    std::array<std::array<Matrix4x4f, 6>, 2> m_old_projection_matrix{};
+    std::array<std::array<Matrix4x4f, 6>, 2> m_old_view_matrix{};
 
     std::array<std::vector<uint8_t>, 2> m_scene_layer_datas{};
 };

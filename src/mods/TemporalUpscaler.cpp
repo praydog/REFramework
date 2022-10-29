@@ -633,13 +633,13 @@ void TemporalUpscaler::on_scene_layer_update(sdk::renderer::layer::Scene* layer,
             return;
         }
 
-        this->m_old_projection_matrix[i][evaluate_index][2][0] += x;
-        this->m_old_projection_matrix[i][evaluate_index][2][1] += y;
+        this->m_old_projection_matrix[evaluate_index][i][2][0] += x;
+        this->m_old_projection_matrix[evaluate_index][i][2][1] += y;
 
-        scene_info->old_view_projection_matrix = this->m_old_projection_matrix[i][evaluate_index] * this->m_old_view_matrix[i][evaluate_index];
+        scene_info->old_view_projection_matrix = this->m_old_projection_matrix[evaluate_index][i] * this->m_old_view_matrix[evaluate_index][i];
 
-        this->m_old_projection_matrix[i][evaluate_index] = scene_info->projection_matrix;
-        this->m_old_view_matrix[i][evaluate_index] = scene_info->view_matrix;
+        this->m_old_projection_matrix[evaluate_index][i] = scene_info->projection_matrix;
+        this->m_old_view_matrix[evaluate_index][i] = scene_info->view_matrix;
 
         scene_info->projection_matrix[2][0] += x;
         scene_info->projection_matrix[2][1] += y;
@@ -866,15 +866,7 @@ void TemporalUpscaler::update_mirror() {
 
                 if (m_new_target_state == nullptr) {
                     if (current_target_state != nullptr) {
-                        const auto current_texture = current_target_state->get_rtv(0)->get_texture_d3d12();
-                        const auto new_tex = sdk::renderer::create_texture(current_texture->get_desc());
-
-                        auto cloned_desc = current_target_state->get_desc();
-                        cloned_desc.num_rtv = 1;
-                        cloned_desc.rtvs = (sdk::renderer::RenderTargetView**)sdk::via::memory::allocate(cloned_desc.num_rtv * sizeof(void*));
-                        cloned_desc.rtvs[0] = sdk::renderer::create_render_target_view(new_tex, &current_target_state->get_rtv(0)->get_desc());
-                        m_new_target_state = sdk::renderer::create_target_state(&cloned_desc);
-
+                        m_new_target_state = current_target_state->clone();
                         (*prepare_output_layer)->set_output_state(m_new_target_state);
 
                         spdlog::info("[TemporalUpscaler] Created new target state");
