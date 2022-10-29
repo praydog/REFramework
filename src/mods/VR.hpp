@@ -135,6 +135,8 @@ public:
 
     Matrix4x4f get_current_eye_transform(bool flip = false);
     Matrix4x4f get_current_projection_matrix(bool flip = false);
+    Matrix4x4f get_projection_matrix(uint32_t pass);
+    Matrix4x4f get_eye_transform(uint32_t pass);
 
     auto& get_controllers() const {
         return m_controllers;
@@ -244,7 +246,6 @@ private:
     bool on_pre_scene_layer_update(sdk::renderer::layer::Scene* layer, void* render_context) override;
     void on_scene_layer_update(sdk::renderer::layer::Scene* layer, void* render_context) override;
     bool on_pre_scene_layer_draw(sdk::renderer::layer::Scene* layer, void* render_context) override;
-    bool m_set_next_scene_layer_data{false};
 
     struct SceneLayerData {
         SceneLayerData() = default;
@@ -269,7 +270,7 @@ private:
         std::array<Matrix4x4f, 2> previous_view_projection_matrices{};
     };
 
-    std::array<SceneLayerData, 5> m_scene_layer_data {};
+    std::unordered_map<sdk::renderer::layer::Scene*, std::array<SceneLayerData, 5>> m_scene_layer_data {};
 
     static void wwise_listener_update_hook(void* listener);
 

@@ -194,6 +194,10 @@ void VR::on_camera_get_projection_matrix(REManagedObject* camera, Matrix4x4f* re
         //return original_func(camera, result);
     }
 
+    if (is_using_multipass()) {
+        return;
+    }
+
     // Get the projection matrix for the correct eye
     // For some reason we need to flip the projection matrix here?
     *result = get_current_projection_matrix(false);
@@ -244,15 +248,17 @@ void VR::on_camera_get_view_matrix(REManagedObject* camera, Matrix4x4f* result) 
         return;
     }
 
-    auto& mtx = *result;
+    if (!is_using_multipass()) {
+        auto& mtx = *result;
 
-    //get the flipped eye to get the correct transform. something something right->left handedness i think
-    const auto current_eye_transform = get_current_eye_transform(true);
-    //auto current_head_pos = -(glm::inverse(vr->get_rotation(0)) * ((vr->get_position(0)) - vr->m_standing_origin));
-    //current_head_pos.w = 0.0f;
+        //get the flipped eye to get the correct transform. something something right->left handedness i think
+        const auto current_eye_transform = get_current_eye_transform(true);
+        //auto current_head_pos = -(glm::inverse(vr->get_rotation(0)) * ((vr->get_position(0)) - vr->m_standing_origin));
+        //current_head_pos.w = 0.0f;
 
-    // Apply the complete eye transform. This fixes the need for parallel projections on all canted headsets like Pimax
-    mtx = current_eye_transform * mtx;
+        // Apply the complete eye transform. This fixes the need for parallel projections on all canted headsets like Pimax
+        mtx = current_eye_transform * mtx;
+    }
 }
 
 void VR::inputsystem_update_hook(void* ctx, REManagedObject* input_system) {
@@ -442,21 +448,20 @@ bool VR::on_pre_scene_layer_update(sdk::renderer::layer::Scene* layer, void* ren
     if (!is_hmd_active()) {
         return true;
     }
+    
+    auto scene_info = layer->get_scene_info();
+    auto depth_distortion_scene_info = layer->get_depth_distortion_scene_info();
+    auto filter_scene_info = layer->get_filter_scene_info();
+    auto jitter_disable_scene_info = layer->get_jitter_disable_scene_info();
+    auto z_prepass_scene_info = layer->get_z_prepass_scene_info();
 
-    if (!m_disable_temporal_fix) {
-        auto scene_info = layer->get_scene_info();
-        auto depth_distortion_scene_info = layer->get_depth_distortion_scene_info();
-        auto filter_scene_info = layer->get_filter_scene_info();
-        auto jitter_disable_scene_info = layer->get_jitter_disable_scene_info();
-        auto z_prepass_scene_info = layer->get_z_prepass_scene_info();
+    auto& layer_data = m_scene_layer_data[layer];
 
-        m_scene_layer_data[0].setup(scene_info);
-        m_scene_layer_data[1].setup(depth_distortion_scene_info);
-        m_scene_layer_data[2].setup(filter_scene_info);
-        m_scene_layer_data[3].setup(jitter_disable_scene_info);
-        m_scene_layer_data[4].setup(z_prepass_scene_info);
-        m_set_next_scene_layer_data = true;
-    }
+    layer_data[0].setup(scene_info);
+    layer_data[1].setup(depth_distortion_scene_info);
+    layer_data[2].setup(filter_scene_info);
+    layer_data[3].setup(jitter_disable_scene_info);
+    layer_data[4].setup(z_prepass_scene_info);
 
     if (is_using_multipass()) {
         auto output_layer = sdk::renderer::get_output_layer();
@@ -483,22 +488,56 @@ void VR::on_scene_layer_update(sdk::renderer::layer::Scene* layer, void* render_
         return;
     }
 
-    if (m_set_next_scene_layer_data) {
-        const auto frame = this->get_game_frame_count();
-        const auto is_temporal_upscaler_active = TemporalUpscaler::get()->ready();
+    auto& layer_data = m_scene_layer_data[layer];
 
-        for (auto& d : m_scene_layer_data) {
-            if (d.scene_info != nullptr) {
-                if (is_temporal_upscaler_active) {
-                    //d.post_setup(frame);
+    const auto frame = this->get_game_frame_count();
+    const auto is_temporal_upscaler_active = TemporalUpscaler::get()->ready();
+
+    uint32_t pass = 0;
+
+    if (is_using_multipass()) {
+        auto output_layer = sdk::renderer::get_output_layer();
+
+        if (output_layer != nullptr) {
+            static auto t = sdk::find_type_definition("via.render.layer.Scene")->get_type();
+            const auto scenes = output_layer->find_layers(t);
+
+            if (!scenes.empty()) {
+                if (layer == scenes[0]) {
+                    pass = 0;
                 } else {
-                    // TAA fix
-                    d.scene_info->old_view_projection_matrix = d.view_projection_matrix;
+                    pass = 1;
                 }
             }
         }
+    }
 
-        m_set_next_scene_layer_data = false;
+    auto proj_mult = glm::identity<Matrix4x4f>();
+    proj_mult[2].z = -1.0f;
+    proj_mult[3].z = 1.0f;
+
+    const auto projection_matrix = proj_mult * get_projection_matrix(pass);
+    const auto current_eye_transform = get_eye_transform(pass + 1);
+    const auto is_multipass = is_using_multipass();
+
+    for (auto& d : layer_data) {
+        if (d.scene_info != nullptr) {
+            if (is_multipass) {
+                d.scene_info->view_matrix = current_eye_transform * d.scene_info->view_matrix;
+                d.scene_info->projection_matrix = projection_matrix;
+                d.scene_info->view_projection_matrix = d.scene_info->projection_matrix * d.scene_info->view_matrix;
+                d.scene_info->inverse_view_matrix = glm::inverse(d.scene_info->view_matrix);
+                d.scene_info->inverse_projection_matrix = glm::inverse(d.scene_info->projection_matrix);
+                d.scene_info->inverse_view_projection_matrix = glm::inverse(d.scene_info->view_projection_matrix);
+            }
+
+            if (is_temporal_upscaler_active) {
+                //d.post_setup(frame);
+            } else {
+                // TAA fix
+                d.scene_info->old_view_projection_matrix = d.view_projection_matrix;
+            }
+        }
     }
 }
 
@@ -2160,6 +2199,34 @@ Matrix4x4f VR::get_current_projection_matrix(bool flip) {
     return get_runtime()->projections[(uint32_t)VRRuntime::Eye::RIGHT];
 }
 
+Matrix4x4f VR::get_projection_matrix(uint32_t pass) {
+    if (!is_hmd_active()) {
+        return glm::identity<Matrix4x4f>();
+    }
+
+    std::shared_lock _{get_runtime()->eyes_mtx};
+
+    if (pass % 2 == 0) {
+        return get_runtime()->projections[(uint32_t)VRRuntime::Eye::LEFT];
+    }
+
+    return get_runtime()->projections[(uint32_t)VRRuntime::Eye::RIGHT];
+}
+
+Matrix4x4f VR::get_eye_transform(uint32_t pass) {
+    if (!is_hmd_active()) {
+        return glm::identity<Matrix4x4f>();
+    }
+
+    std::shared_lock _{get_runtime()->eyes_mtx};
+
+    if (pass % 2 == 0) {
+        return get_runtime()->eyes[vr::Eye_Left];
+    }
+
+    return get_runtime()->eyes[vr::Eye_Right];
+}
+
 void VR::on_pre_imgui_frame() {
     if (!get_runtime()->ready()) {
         return;
@@ -3175,15 +3242,15 @@ void VR::on_wait_rendering(void* entry) {
         return;
     }
 
-    if (is_using_multipass()) {
+    /*if (is_using_multipass()) {
         return;
-    }
+    }*/
 
     // wait for m_present_finished (std::condition_variable)
     // to be signaled
     // only on the left eye interval because we need the right eye
     // to start render work as soon as possible
-    if (((m_frame_count + 1) % 2) == m_left_eye_interval) {
+    if (((m_frame_count + 1) % 2) == m_left_eye_interval || is_using_multipass()) {
         if (WaitForSingleObject(m_present_finished_event, 333) == WAIT_TIMEOUT) {
             timed_out = true;
         }
