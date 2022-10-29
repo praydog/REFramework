@@ -2376,9 +2376,124 @@ void ObjectExplorer::handle_transform(RETransform* transform) {
 }
 
 void ObjectExplorer::handle_render_layer(sdk::renderer::RenderLayer* layer) {
-    if (ImGui::Button("Attempt to Clone")) {
-        layer->add_layer(utility::re_managed_object::get_type_definition(layer)->get_type(), layer->m_priority)->clone_layers(layer);
+    if (ImGui::Button("Clone")) {
+        auto parent = layer->get_parent();
+
+        if (parent != nullptr) {
+            parent->add_layer(utility::re_managed_object::get_type_definition(layer)->get_type(), layer->m_priority)->clone_layers(layer);
+        }
     }
+
+    ImGui::SameLine();
+
+    if (ImGui::Button("Remove")) {
+        auto parent = layer->get_parent();
+
+        if (parent != nullptr) {
+            auto& layers = parent->get_layers();
+
+            std::optional<int32_t> index{};
+
+            for (auto i = 0; i < layers.size(); ++i) {
+                if (layers[i] == layer) {
+                    index = i;
+                    break;
+                }
+            }
+
+            if (index) {
+                layers.erase(*index);
+            }
+        }
+    }
+
+    ImGui::SameLine();
+
+    if (ImGui::Button("Up")) {
+        auto parent = layer->get_parent();
+
+        if (parent != nullptr) {
+            auto& layers = parent->get_layers();
+
+            std::optional<int32_t> index{};
+
+            for (auto i = 0; i < layers.size(); ++i) {
+                if (layers[i] == layer) {
+                    index = i;
+                    break;
+                }
+            }
+
+            if (index && layers.size() > 1) {
+                if (*index > 0) {
+                    std::swap(layers[*index], layers[*index - 1]);
+                }
+            }
+        }
+    }
+
+    ImGui::SameLine();
+
+    if (ImGui::Button("Down")) {
+        auto parent = layer->get_parent();
+
+        if (parent != nullptr) {
+            auto& layers = parent->get_layers();
+
+            std::optional<int32_t> index{};
+
+            for (auto i = 0; i < layers.size(); ++i) {
+                if (layers[i] == layer) {
+                    index = i;
+                    break;
+                }
+            }
+
+            if (index && layers.size() > 1) {
+                if (*index < layers.size() - 1) {
+                    std::swap(layers[*index], layers[*index + 1]);
+                }
+            }
+        }
+    }
+
+    char new_name[256]{};
+    if (ImGui::InputText("Add Layer", new_name, 256, ImGuiInputTextFlags_EnterReturnsTrue)) {
+        const auto tdef = sdk::find_type_definition(new_name);
+
+        if (tdef != nullptr) {
+            const auto t = tdef->get_type();
+
+            if (t != nullptr) {
+                const auto new_layer = layer->add_layer(t, 0x5000000);
+
+                if (std::string_view{new_name} == "via.render.layer.Output") {
+                    auto root = sdk::renderer::get_root_layer();
+                    auto [output_parent, output_layer] = root->find_layer_recursive("via.render.layer.Output");
+    
+                    // copy the output target.
+                    //*(void**)((uintptr_t)new_layer + 0xB0) = *(void**)((uintptr_t)*output_layer + 0xB0);
+                    const auto parent_size = tdef->get_parent_type()->get_size();
+                    const auto size = tdef->get_size();
+                    //memcpy((void*)((uintptr_t)new_layer + parent_size), (void*)((uintptr_t)*output_layer + parent_size), size - parent_size);
+
+                    // copy the output target.
+                    *(void**)((uintptr_t)new_layer + 0x88) = *(void**)((uintptr_t)*output_layer + 0x88);
+
+                    auto common = new_layer->add_layer(sdk::find_type_definition("via.render.layer.OutputCommon")->get_type(), 0x1000000);
+                    common->add_layer(sdk::find_type_definition("via.render.layer.ShadowCastRoot")->get_type(), 0x1000000);
+                    common->add_layer(sdk::find_type_definition("via.render.layer.ShadowCastJunction")->get_type(), 0x5000000);
+
+                    new_layer->add_layer(sdk::find_type_definition("via.render.layer.OutputOverlay")->get_type(), 0x9000000);
+
+                    //memcpy((void*)((uintptr_t)*output_layer), (void*)((uintptr_t)new_layer), size);
+                    //*output_layer = new_layer;
+                    //root->m_layers.num--;
+                }
+            }
+        }
+    }
+
 
     const auto made_node = ImGui::TreeNode(&layer->m_layers, "Child Layers");
     context_menu(&layer->m_layers);
