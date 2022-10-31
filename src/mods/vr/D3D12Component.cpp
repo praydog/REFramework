@@ -50,7 +50,7 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
     if (frame_count % 2 == vr->m_left_eye_interval && !is_multipass) {
         // OpenXR texture
         if (runtime->is_openxr() && vr->m_openxr->ready()) {
-            m_openxr.copy(0, backbuffer.Get());
+            m_openxr.copy(0, backbuffer.Get(), D3D12_RESOURCE_STATE_PRESENT);
         }
 
         // OpenVR texture
@@ -77,10 +77,10 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
         // OpenXR texture
         if (runtime->is_openxr() && vr->m_openxr->ready()) {
             if (is_multipass) {
-                m_openxr.copy(0, (ID3D12Resource*)vr->m_multipass.eye_textures[0]);
-                m_openxr.copy(1, (ID3D12Resource*)vr->m_multipass.eye_textures[1]);
+                m_openxr.copy(0, (ID3D12Resource*)vr->m_multipass.eye_textures[0], D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                m_openxr.copy(1, (ID3D12Resource*)vr->m_multipass.eye_textures[1], D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
             } else {
-                m_openxr.copy(1, backbuffer.Get());
+                m_openxr.copy(1, backbuffer.Get(), D3D12_RESOURCE_STATE_PRESENT);
             }
         }
 
@@ -448,7 +448,7 @@ void D3D12Component::OpenXR::destroy_swapchains() {
     VR::get()->m_openxr->swapchains.clear();
 }
 
-void D3D12Component::OpenXR::copy(uint32_t swapchain_idx, ID3D12Resource* resource) {
+void D3D12Component::OpenXR::copy(uint32_t swapchain_idx, ID3D12Resource* resource, D3D12_RESOURCE_STATES src_state) {
     std::scoped_lock _{this->mtx};
 
     auto& vr = VR::get();
@@ -507,7 +507,7 @@ void D3D12Component::OpenXR::copy(uint32_t swapchain_idx, ID3D12Resource* resour
             texture_ctx->copier.copy(
                 resource, 
                 ctx.textures[texture_index].texture, 
-                D3D12_RESOURCE_STATE_PRESENT, 
+                src_state, 
                 D3D12_RESOURCE_STATE_RENDER_TARGET);
             texture_ctx->copier.execute();
 
