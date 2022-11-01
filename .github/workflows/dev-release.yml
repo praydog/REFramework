@@ -10,7 +10,7 @@ jobs:
         target: [RE2, RE2_TDB66, RE3, RE3_TDB67, RE7, RE7_TDB49, RE8, DMC5, MHRISE]
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           submodules: recursive
 
@@ -21,7 +21,7 @@ jobs:
         run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}} --target ${{matrix.target}}
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v2.3.1
+        uses: actions/upload-artifact@v3
         with:
           name: ${{matrix.target}}
           path: ${{github.workspace}}/build/bin/${{matrix.target}}/dinput8.dll
@@ -39,16 +39,16 @@ jobs:
           7z a ${{github.workspace}}/${{matrix.target}}.zip ${{github.workspace}}/scripts
           7z rn ${{github.workspace}}/${{matrix.target}}.zip scripts reframework/autorun
 
-      - name: Set outputs
+      - name: Set output
         id: vars
-        run: echo "::set-output name=sha_short::$(git rev-parse --short HEAD)"
+        run: echo "SHA_SHORT=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
       - name: Release
         if: github.ref == 'refs/heads/master'
-        uses: softprops/action-gh-release@v0.1.14
+        uses: softprops/action-gh-release@v1
         with:
           repository: praydog/REFramework-nightly
           token: ${{secrets.REPO_TOKEN}}
-          name: ${{format('v1.{0}-{1}', github.run_number, steps.vars.outputs.sha_short)}}
+          name: ${{format('v1.{0}-{1}', github.run_number, steps.vars.outputs.SHA_SHORT)}}
           tag_name: latest
           files: ${{github.workspace}}/${{matrix.target}}.zip
