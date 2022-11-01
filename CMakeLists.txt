@@ -464,6 +464,7 @@ set(utility_SOURCES "")
 list(APPEND utility_SOURCES
 	"shared/utility/FunctionHook.cpp"
 	"shared/utility/FunctionHook.hpp"
+	"shared/utility/Profiler.hpp"
 )
 
 list(APPEND utility_SOURCES

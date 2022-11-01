@@ -821,7 +821,7 @@ void TemporalUpscaler::on_pre_application_entry(void* entry, const char* name, s
     }
 
     if (hash == "BeginRendering"_fnv) {
-        update_mirror();
+        update_extra_scene_layer();
     }
 
     if (hash == "EndRendering"_fnv) {
@@ -851,7 +851,6 @@ void TemporalUpscaler::on_pre_application_entry(void* entry, const char* name, s
                 m_eye_states[0].scene_layer = (sdk::renderer::layer::Scene*)scene_layers[0];
                 m_eye_states[1].scene_layer = nullptr;
             }
-
 
             if (output_layer != nullptr && *output_layer != nullptr) {
                 m_output_layer = (decltype(m_output_layer))*output_layer;
@@ -993,7 +992,7 @@ void TemporalUpscaler::fix_output_layer() {
     }
 }
 
-void TemporalUpscaler::update_mirror() {
+void TemporalUpscaler::update_extra_scene_layer() {
     if (!VR::get()->is_hmd_active() || !VR::get()->is_using_multipass()) {
         return;
     }
@@ -1017,12 +1016,8 @@ void TemporalUpscaler::update_mirror() {
         return;
     }
 
-    if (m_made_mirror) {
+    if (m_made_extra_scene_layer) {
         if (!scene_layers.empty()) {
-            // Remove the mirror. This will cause the scene to be enabled.
-            // Then the scene layer created by the mirror and the main layer will render at the same time.
-            sdk::call_object_func_easy<void*>(scene_layers[0], "set_Mirror", nullptr);
-
             if (scene_layers.size() > 1) {
                 static auto potype = sdk::find_type_definition("via.render.layer.PrepareOutput")->get_type();
                 auto prepare_output_layer = (sdk::renderer::layer::PrepareOutput**)scene_layers[0]->find_layer(potype);
@@ -1067,7 +1062,7 @@ void TemporalUpscaler::update_mirror() {
         return;
     }
 
-    const auto tdef = sdk::find_type_definition("via.render.Mirror");
+    /*const auto tdef = sdk::find_type_definition("via.render.Mirror");
     if (tdef == nullptr) {
         spdlog::error("[TemporalUpscaler] Failed to find via.render.Mirror type definition");
         return;
@@ -1085,7 +1080,49 @@ void TemporalUpscaler::update_mirror() {
     if (new_comp == nullptr) {
         spdlog::error("[TemporalUpscaler] Failed to create via.render.Mirror component");
         return;
+    }*/
+
+    const auto tdef = sdk::find_type_definition("via.render.RenderOutput");
+    if (tdef == nullptr) {
+        spdlog::error("[TemporalUpscaler] Failed to find via.render.RenderOutput type definition");
+        return;
     }
 
-    m_made_mirror = true;
+    const auto runtime_type = tdef->get_runtime_type();
+
+    if (runtime_type == nullptr) {
+        spdlog::error("[TemporalUpscaler] Failed to get via.render.RenderOutput runtime type");
+        return;
+    }
+
+    auto comp = sdk::call_object_func_easy<sdk::renderer::RenderOutput*>(camera_gameobject, "getComponent(System.Type)", runtime_type);
+
+    if (comp == nullptr) {
+        spdlog::error("[TemporalUpscaler] Failed to get via.render.RenderOutput component");
+        return;
+    }
+
+    if (m_eye_states[0].scene_layer == nullptr) {
+        return; // wait.
+    }
+
+    auto& scene_layers_output = comp->get_scene_layers();
+
+    if (scene_layers_output.empty()) {
+        return; // wait.
+    }
+
+    if (scene_layers.size() == 1 && scene_layers[0] == scene_layers_output[0]) {
+        scene_layers_output.emplace();
+        scene_layers_output.num = 0;
+    } else if (scene_layers.size() == 2 && scene_layers_output.size() == 1) {
+        scene_layers_output[0] = (sdk::renderer::layer::Scene*)scene_layers[0];
+        if (scene_layers_output.num_allocated == 1) {
+            scene_layers_output.emplace();
+        }
+        scene_layers_output[1] = (sdk::renderer::layer::Scene*)scene_layers[1];
+        m_made_extra_scene_layer = true;
+
+        spdlog::info("[TemporalUpscaler] Made extra scene layer");
+    }
 }

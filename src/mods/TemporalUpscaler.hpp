@@ -86,7 +86,7 @@ private:
     bool init_upscale_features();
     void release_upscale_features();
     void fix_output_layer();
-    void update_mirror();
+    void update_extra_scene_layer();
 
     bool m_first_frame_finished{false};
     bool m_initialized{false};
@@ -101,7 +101,7 @@ private:
     bool m_sharpness{true};
     bool m_allow_taa{false}; // the engine has its own TAA implementation, it can't be used with the upscaler
     bool m_wants_reinitialize{false};
-    bool m_made_mirror{false};
+    bool m_made_extra_scene_layer{false};
 
     std::unordered_map<std::string, size_t> m_available_upscale_methods{};
     std::vector<std::string> m_available_upscale_method_names{};
@@ -137,6 +137,19 @@ private:
 
     std::array<EyeState, 2> m_eye_states{};
 
+    // 3 giant textures to encapsulate the motion vectors, depth, and color buffers
+    // because the upscaler needs them all in one texture
+    // well... it doesn't necessarily need them
+    // but it causes some insane lag if using multiple features to evaluate multiple textures
+    // so this is the best solution for now
+    ComPtr<ID3D12Resource> m_big_motion_vectors{};
+    ComPtr<ID3D12Resource> m_big_depth{};
+    ComPtr<ID3D12Resource> m_big_color{};
+
+    ComPtr<ID3D12Resource> m_blank_big_motion_vectors{};
+    ComPtr<ID3D12Resource> m_blank_big_depth{};
+    ComPtr<ID3D12Resource> m_blank_big_color{};
+
     int32_t m_displayed_scene{0}; // 0 = original, 1 = cloned
 
     float m_nearz{0.0f};
@@ -150,6 +163,7 @@ private:
     float m_jitter_evaluate_scale{1.0f};
 
     vrmod::D3D12Component::ResourceCopier m_copier{};
+    vrmod::D3D12Component::ResourceCopier m_big_copier{};
     ComPtr<ID3D12Resource> m_old_backbuffer{};
 
     struct GBuffer {

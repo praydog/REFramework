@@ -328,6 +328,20 @@ class PostEffect : public sdk::renderer::RenderLayer {
 };
 }
 
+class RenderOutput {
+public:
+    sdk::NativeArray<sdk::renderer::layer::Scene*>& get_scene_layers() {
+        return *(sdk::NativeArray<sdk::renderer::layer::Scene*>*)((uintptr_t)this + s_scene_layers_offset);
+    }
+
+private:
+#if TDB_VER >= 70
+    static constexpr inline auto s_scene_layers_offset = 0xB8;
+#else
+    static constexpr inline auto s_scene_layers_offset = 0xB8; // TODO! VERIFY!
+#endif
+};
+
 class Renderer {
 public:
     ConstantBuffer* get_constant_buffer(std::string_view name) const;
