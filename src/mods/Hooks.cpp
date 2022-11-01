@@ -4,6 +4,7 @@
 #include <utility/Module.hpp>
 #include <utility/String.hpp>
 #include <utility/Memory.hpp>
+#include <utility/Profiler.hpp>
 
 #include "sdk/Application.hpp"
 
@@ -56,44 +57,65 @@ void Hooks::on_draw_ui() {
         return;
     }
 
-    ImGui::Text("Application Entry Times");
+    if (ImGui::TreeNode("Functions")) {
+        const auto datas = utility::Profiler::get_all_data();
 
-    std::vector<const char*> sorted_times{};
-    std::scoped_lock _{m_profiler_mutex};
+        for (auto it : datas) {
+            if (ImGui::TreeNode(it.first.data())) {
+                const auto& data = it.second;
 
-    std::chrono::high_resolution_clock::duration total_reframework_time{};
-    std::chrono::high_resolution_clock::duration total_game_time{};
+                ImGui::Text("Total Time: %.2fms", data.total.count() / 1000000.0f);
+                ImGui::Text("Last Time: %.2fms", data.last.count() / 1000000.0f);
+                ImGui::Text("Min Time: %.2fms", data.min.count() / 1000000.0f);
+                ImGui::Text("Max Time: %.2fms", data.max.count() / 1000000.0f);
 
-    for (auto& entry : m_application_entry_times) {
-        sorted_times.emplace_back(entry.first);
-        total_reframework_time += entry.second.reframework_pre_time + entry.second.reframework_post_time;
-        total_game_time += entry.second.callback_time;
+                ImGui::TreePop();
+            }
+        }
+
+        ImGui::TreePop();
     }
 
-    std::sort(sorted_times.begin(), sorted_times.end(), [&](const char* a, const char* b) {
-        const auto& a_entry = m_application_entry_times[a];
-        const auto& b_entry = m_application_entry_times[b];
+    if (ImGui::TreeNode("Application Entry Times")) {
+        std::vector<const char*> sorted_times{};
+        std::scoped_lock _{m_profiler_mutex};
 
-        return a_entry.callback_time + a_entry.reframework_pre_time + a_entry.reframework_post_time 
-                > b_entry.callback_time + b_entry.reframework_pre_time + b_entry.reframework_post_time;
-    });
+        std::chrono::high_resolution_clock::duration total_reframework_time{};
+        std::chrono::high_resolution_clock::duration total_game_time{};
 
-    ImGui::Text("Total REFramework Time: %.3fms", std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(total_reframework_time).count());
-    ImGui::Text("Total Game Time: %.3fms", std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(total_game_time).count());
-
-    for (auto name : sorted_times) {
-        auto& entry = m_application_entry_times[name];
-        
-        ImGui::SetNextItemOpen(true);
-
-        if (ImGui::TreeNode(name)) {
-            ImGui::Text("Game Time: %s: %.2fms", name, entry.callback_time.count() / 1000000.0f);
-            ImGui::Text("REFramework Pre Time: %.2fms", entry.reframework_pre_time.count() / 1000000.0f);
-            ImGui::Text("REFramework Post Time: %.2fms", entry.reframework_post_time.count() / 1000000.0f);
-            ImGui::Text("Total Time: %.2fms", (entry.callback_time + entry.reframework_pre_time + entry.reframework_post_time).count() / 1000000.0f);
-            
-            ImGui::TreePop();
+        for (auto& entry : m_application_entry_times) {
+            sorted_times.emplace_back(entry.first);
+            total_reframework_time += entry.second.reframework_pre_time + entry.second.reframework_post_time;
+            total_game_time += entry.second.callback_time;
         }
+
+        std::sort(sorted_times.begin(), sorted_times.end(), [&](const char* a, const char* b) {
+            const auto& a_entry = m_application_entry_times[a];
+            const auto& b_entry = m_application_entry_times[b];
+
+            return a_entry.callback_time + a_entry.reframework_pre_time + a_entry.reframework_post_time 
+                    > b_entry.callback_time + b_entry.reframework_pre_time + b_entry.reframework_post_time;
+        });
+
+        ImGui::Text("Total REFramework Time: %.3fms", std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(total_reframework_time).count());
+        ImGui::Text("Total Game Time: %.3fms", std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(total_game_time).count());
+
+        for (auto name : sorted_times) {
+            auto& entry = m_application_entry_times[name];
+            
+            ImGui::SetNextItemOpen(true);
+
+            if (ImGui::TreeNode(name)) {
+                ImGui::Text("Game Time: %s: %.2fms", name, entry.callback_time.count() / 1000000.0f);
+                ImGui::Text("REFramework Pre Time: %.2fms", entry.reframework_pre_time.count() / 1000000.0f);
+                ImGui::Text("REFramework Post Time: %.2fms", entry.reframework_post_time.count() / 1000000.0f);
+                ImGui::Text("Total Time: %.2fms", (entry.callback_time + entry.reframework_pre_time + entry.reframework_post_time).count() / 1000000.0f);
+                
+                ImGui::TreePop();
+            }
+        }
+
+        ImGui::TreePop();
     }
 }
 

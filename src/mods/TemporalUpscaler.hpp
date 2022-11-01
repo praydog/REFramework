@@ -130,9 +130,9 @@ private:
 
     struct EyeState {
         sdk::renderer::layer::Scene* scene_layer{nullptr};
-        void* motion_vectors{nullptr};
-        void* depth{nullptr};
-        void* color{nullptr};
+        ComPtr<ID3D12Resource> motion_vectors{};
+        ComPtr<ID3D12Resource> depth;
+        ComPtr<ID3D12Resource> color{};
     };
 
     std::array<EyeState, 2> m_eye_states{};

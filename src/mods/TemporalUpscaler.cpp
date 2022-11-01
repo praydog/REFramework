@@ -205,46 +205,193 @@ void TemporalUpscaler::on_early_present() {
         auto vr = VR::get();
         const auto vr_enabled = vr->is_hmd_active();
         const auto is_vr_multipass = vr_enabled && vr->is_using_multipass();
+        const auto frame = vr->get_render_frame_count();
 
         m_copier.wait(INFINITE);
 
-        for (auto i = 0; i < m_eye_states.size(); ++i) {
-            const auto& state = m_eye_states[i];
-
-            if (state.depth == nullptr) {
-                if (i == 0) {
-                    spdlog::error("[TemporalUpscaler] Failed to get depth stencil (D3D12)");
-                }
-
-                continue;
+        if (vr_enabled && is_vr_multipass) {
+            if (m_eye_states[0].color == nullptr || m_eye_states[0].depth == nullptr || m_eye_states[0].motion_vectors == nullptr) {
+                spdlog::error("[TemporalUpscaler] Missing eye state for left eye (D3D12)");
+                return;
             }
 
-            if (state.motion_vectors == nullptr) {
-                if (i == 0) {
-                    spdlog::error("[TemporalUpscaler] Failed to get motion vectors (D3D12)");
-                }
-
-                continue;
+            if (m_eye_states[1].color == nullptr || m_eye_states[1].depth == nullptr || m_eye_states[1].motion_vectors == nullptr) {
+                spdlog::error("[TemporalUpscaler] Missing eye state for right eye (D3D12)");
+                return;
             }
 
-            if (state.color == nullptr) {
-                if (i == 0) {
-                    spdlog::error("[TemporalUpscaler] Failed to get color buffer (D3D12)");
+            // Create one giant texture to encompass both eyes
+            /*if (m_big_color == nullptr) {
+                auto desc = m_eye_states[0].color->GetDesc();
+                desc.Width *= 2;
+
+                D3D12_HEAP_PROPERTIES heap_props{};
+                heap_props.Type = D3D12_HEAP_TYPE_DEFAULT;
+                heap_props.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+                heap_props.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+
+                if (FAILED(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(&m_big_color)))) {
+                    spdlog::error("[TemporalUpscaler] Failed to create big color texture");
+                    return;
                 }
 
-                continue;
+                if (FAILED(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(&m_blank_big_color)))) {
+                    spdlog::error("[TemporalUpscaler] Failed to create blank big motion vectors texture");
+                    return;
+                }
+
+
+                spdlog::info("[TemporalUpscaler] Created big color texture");
             }
 
-            const auto vr_index = is_vr_multipass ? i : vr->get_render_frame_count();
+            if (m_big_depth == nullptr) {
+                auto desc = m_eye_states[0].depth->GetDesc();
+                spdlog::info("Depth width {}", (uint32_t)desc.Width);
+                spdlog::info("Depth height {}", (uint32_t)desc.Height);
 
-            const auto evaluate_id = get_evaluate_id(vr_enabled ? vr_index : i);
+                desc.Width *= 2;
+
+                spdlog::info("Depth dimension {}", (uint32_t)desc.Dimension);
+
+                D3D12_HEAP_PROPERTIES heap_props{};
+                heap_props.Type = D3D12_HEAP_TYPE_DEFAULT;
+                heap_props.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+                heap_props.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+
+                if (FAILED(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(&m_big_depth)))) {
+                    spdlog::error("[TemporalUpscaler] Failed to create big depth texture");
+                    return;
+                }
+
+                if (FAILED(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(&m_blank_big_depth)))) {
+                    spdlog::error("[TemporalUpscaler] Failed to create blank big motion vectors texture");
+                    return;
+                }
+
+                spdlog::info("[TemporalUpscaler] Created big depth texture");
+            }
+
+            if (m_big_motion_vectors == nullptr) {
+                auto desc = m_eye_states[0].motion_vectors->GetDesc();
+                spdlog::info("Motion vectors width {}", (uint32_t)desc.Width);
+                spdlog::info("Motion vectors height {}", (uint32_t)desc.Height);
+
+                desc.Width *= 2;
+
+                spdlog::info("Motion vectors dimension {}", (uint32_t)desc.Dimension);
+
+                D3D12_HEAP_PROPERTIES heap_props{};
+                heap_props.Type = D3D12_HEAP_TYPE_DEFAULT;
+                heap_props.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+                heap_props.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+
+                if (FAILED(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(&m_big_motion_vectors)))) {
+                    spdlog::error("[TemporalUpscaler] Failed to create big motion vectors texture");
+                    return;
+                }
+
+                if (FAILED(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(&m_blank_big_motion_vectors)))) {
+                    spdlog::error("[TemporalUpscaler] Failed to create blank big motion vectors texture");
+                    return;
+                }
+
+                spdlog::info("[TemporalUpscaler] Created big motion vectors texture");
+            }
+
+            m_big_copier.wait(INFINITE);
+
+            m_big_copier.copy(m_blank_big_color.Get(), m_big_color.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COMMON);
+            m_big_copier.copy(m_blank_big_depth.Get(), m_big_depth.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COMMON);
+            m_big_copier.copy(m_blank_big_motion_vectors.Get(), m_big_motion_vectors.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COMMON);
+
+
+            for (auto i = 0; i < m_eye_states.size(); ++i) {
+                auto& state = m_eye_states[i];
+
+                const auto color_desc = state.color->GetDesc();
+                const auto depth_desc = state.depth->GetDesc();
+                const auto motion_vectors_desc = state.motion_vectors->GetDesc();
+
+                D3D12_BOX box{};
+                box.left = 0;
+                box.top = 0;
+                box.right = color_desc.Width;
+                box.bottom = color_desc.Height;
+                box.front = 0;
+                box.back = 1;
+
+                m_big_copier.copy_region(state.color.Get(), m_big_color.Get(), i * color_desc.Width, 0, 0, &box, D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COMMON);
+
+                box.right = depth_desc.Width;
+                box.bottom = depth_desc.Height;
+
+                m_big_copier.copy_region(state.depth.Get(), m_big_depth.Get(), i * depth_desc.Width, 0, 0, &box, D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COMMON);
+
+                box.right = motion_vectors_desc.Width;
+                box.bottom = motion_vectors_desc.Height;
+
+                m_big_copier.copy_region(state.motion_vectors.Get(), m_big_motion_vectors.Get(), i * motion_vectors_desc.Width, 0, 0, &box, D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COMMON);
+            }
+
+            m_big_copier.execute();
+
+            const auto evaluate_id = get_evaluate_id(0);
             const auto evaluate_index = evaluate_id - 1;
 
-            EvaluateUpscale(evaluate_id, state.color, state.motion_vectors, state.depth, nullptr, m_sharpness_amount, 
-                            m_jitter_offsets[evaluate_index][0], m_jitter_offsets[evaluate_index][1], false, m_nearz, m_farz, m_fov);
+            EvaluateUpscale(evaluate_id, m_big_color.Get(), m_big_motion_vectors.Get(), m_big_depth.Get(), nullptr, m_sharpness_amount, 
+                m_jitter_offsets[evaluate_index][0], m_jitter_offsets[evaluate_index][1], false, m_nearz, m_farz, m_fov);*/
+            
+            for (auto i = 0; i < 2; ++i) {
+                const auto& state = m_eye_states[i];
+                const auto evaluate_id = get_evaluate_id(i);
+                const auto evaluate_index = evaluate_id - 1;
+                EvaluateUpscaleDX12(evaluate_id, i == 1, state.color.Get(), state.motion_vectors.Get(), state.depth.Get(), nullptr, m_sharpness_amount, 
+                                    m_jitter_offsets[evaluate_index][0], m_jitter_offsets[evaluate_index][1], false, m_nearz, m_farz, m_fov);
+            }
+        } else {
+            for (auto i = 0; i < m_eye_states.size(); ++i) {
+                if (!vr_enabled && i > 0) {
+                    break;
+                }
 
-            if (i == 0) {
-                m_copier.copy((ID3D12Resource*)m_upscaled_textures[evaluate_index], backbuffer.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PRESENT);
+                auto& state = m_eye_states[i];
+
+                if (state.depth == nullptr) {
+                    if (i == 0) {
+                        spdlog::error("[TemporalUpscaler] Failed to get depth stencil (D3D12)");
+                    }
+
+                    continue;
+                }
+
+                if (state.motion_vectors == nullptr) {
+                    if (i == 0) {
+                        spdlog::error("[TemporalUpscaler] Failed to get motion vectors (D3D12)");
+                    }
+
+                    continue;
+                }
+
+                if (state.color == nullptr) {
+                    if (i == 0) {
+                        spdlog::error("[TemporalUpscaler] Failed to get color buffer (D3D12)");
+                    }
+
+                    continue;
+                }
+
+                const auto vr_index = is_vr_multipass ? i : frame;
+                const auto index = vr_enabled ? vr_index : i;
+
+                const auto evaluate_id = get_evaluate_id(index);
+                const auto evaluate_index = evaluate_id - 1;
+
+                EvaluateUpscale(evaluate_id, state.color.Get(), state.motion_vectors.Get(), state.depth.Get(), nullptr, m_sharpness_amount, 
+                                m_jitter_offsets[evaluate_index][0], m_jitter_offsets[evaluate_index][1], false, m_nearz, m_farz, m_fov);
+
+                if (i == 0) {
+                    m_copier.copy((ID3D12Resource*)m_upscaled_textures[evaluate_index], backbuffer.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PRESENT);
+                }
             }
         }
 
@@ -424,9 +571,9 @@ void TemporalUpscaler::release_upscale_features() {
     m_copier.reset();
     
     for (auto& state : m_eye_states) {
-        state.color = nullptr;
-        state.depth = nullptr;
-        state.motion_vectors = nullptr;
+        state.color.Reset();
+        state.depth.Reset();
+        state.motion_vectors.Reset();
         state.scene_layer = nullptr;
     }
 
@@ -548,10 +695,17 @@ void TemporalUpscaler::on_view_get_size(REManagedObject* scene_view, float* resu
 
     // spoof the size to the HMD's size
     auto vr = VR::get();
-    const auto evaluate_index = get_evaluate_id(vr->is_hmd_active() ? vr->get_game_frame_count() : 0);
 
-    result[0] = (float)GetRenderWidth(evaluate_index);
-    result[1] = (float)GetRenderHeight(evaluate_index);
+    const auto evaluate_id = get_evaluate_id(0);
+
+    /*if (vr->is_hmd_active() && vr->is_using_multipass()) {
+        result[0] = (float)GetRenderWidth(evaluate_id) / 2.0f;
+        result[1] = (float)GetRenderHeight(evaluate_id);
+    } else {*/
+        result[0] = (float)GetRenderWidth(evaluate_id);
+        result[1] = (float)GetRenderHeight(evaluate_id);
+    //}
+
     m_set_view = true;
 }
 
@@ -623,10 +777,6 @@ void TemporalUpscaler::on_scene_layer_update(sdk::renderer::layer::Scene* layer,
         m_jitter_offsets[evaluate_index][0] = 0.0f;
         m_jitter_offsets[evaluate_index][1] = 0.0f;
     }
-
-    // this is what I send back to DLSS
-    //m_jitter_offset[0] = (-x * w) / m_jitter_scale[0];
-    //m_jitter_offset[1] = (-y * h) / m_jitter_scale[1];
 
     auto add_jitter = [&](int32_t i, sdk::renderer::SceneInfo* scene_info) {
         if (scene_info == nullptr) {
@@ -722,40 +872,41 @@ void TemporalUpscaler::on_pre_application_entry(void* entry, const char* name, s
 
         for (auto& state : m_eye_states) {
             if (state.scene_layer == nullptr) {
-                state.depth = nullptr;
-                state.motion_vectors = nullptr;
-                state.color = nullptr;
+                state.depth.Reset();
+                state.motion_vectors.Reset();
+                state.color.Reset();
                 continue;
             }
 
             if (m_is_d3d12) {
-                auto [prepareoutput_parent, prepareoutput_layer] = state.scene_layer->find_layer_recursive("via.render.layer.PrepareOutput");
+                static auto potype = sdk::find_type_definition("via.render.layer.PrepareOutput")->get_type();
+                auto prepareoutput_layer = state.scene_layer->find_layer(potype);
 
                 if (prepareoutput_layer == nullptr) {
-                    state.color = nullptr;
-                    state.depth = nullptr;
-                    state.motion_vectors = nullptr;
+                    state.depth.Reset();
+                    state.motion_vectors.Reset();
+                    state.color.Reset();
                     continue;
                 }
 
-                state.depth = state.scene_layer->get_depth_stencil_d3d12();
-                state.motion_vectors = state.scene_layer->get_motion_vectors_d3d12();
+                state.depth = (ID3D12Resource*)state.scene_layer->get_depth_stencil_d3d12();
+                state.motion_vectors = (ID3D12Resource*)state.scene_layer->get_motion_vectors_d3d12();
 
                 if (prepareoutput_layer != nullptr && *prepareoutput_layer != nullptr) {
                     const auto current_target_state = ((sdk::renderer::layer::PrepareOutput*)*prepareoutput_layer)->get_output_state();
 
                     if (current_target_state != nullptr) {
-                        state.color = current_target_state->get_native_resource_d3d12();
+                        state.color = (ID3D12Resource*)current_target_state->get_native_resource_d3d12();
                     } else {
-                        state.color = nullptr;
+                        state.color.Reset();
                     }
                 } else {
-                    state.color = nullptr;
+                    state.color.Reset();
                 }
             } else {
-                state.depth = nullptr;
-                state.motion_vectors = nullptr;
-                state.color = nullptr;
+                state.depth.Reset();
+                state.motion_vectors.Reset();
+                state.color.Reset();
             }
         }
 
@@ -843,11 +994,30 @@ void TemporalUpscaler::fix_output_layer() {
 }
 
 void TemporalUpscaler::update_mirror() {
+    if (!VR::get()->is_hmd_active() || !VR::get()->is_using_multipass()) {
+        return;
+    }
+
+    static auto last_time = std::chrono::high_resolution_clock::now();
+    const auto now = std::chrono::high_resolution_clock::now();
+
+    if (now - last_time < std::chrono::milliseconds(1000)) {
+        return;
+    }
+
+    last_time = now;
+
+    auto output_layer = sdk::renderer::get_output_layer();
+    if (output_layer == nullptr) {
+        return;
+    }
+
+    auto scene_layers = output_layer->find_layers(sdk::find_type_definition("via.render.layer.Scene")->get_type());
+    if (scene_layers.empty()) {
+        return;
+    }
+
     if (m_made_mirror) {
-        auto output_layer = sdk::renderer::get_output_layer();
-
-        auto scene_layers = output_layer->find_layers(sdk::find_type_definition("via.render.layer.Scene")->get_type());
-
         if (!scene_layers.empty()) {
             // Remove the mirror. This will cause the scene to be enabled.
             // Then the scene layer created by the mirror and the main layer will render at the same time.
@@ -855,7 +1025,7 @@ void TemporalUpscaler::update_mirror() {
 
             if (scene_layers.size() > 1) {
                 static auto potype = sdk::find_type_definition("via.render.layer.PrepareOutput")->get_type();
-                auto prepare_output_layer = (sdk::renderer::layer::PrepareOutput**)scene_layers[1]->find_layer(potype);
+                auto prepare_output_layer = (sdk::renderer::layer::PrepareOutput**)scene_layers[0]->find_layer(potype);
 
                 if (prepare_output_layer == nullptr) {
                     spdlog::error("[TemporalUpscaler] Failed to find PrepareOutput layer");

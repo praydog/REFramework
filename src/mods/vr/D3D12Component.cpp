@@ -1,4 +1,5 @@
 #include <openvr.h>
+#include <utility/Profiler.hpp>
 
 #include "../VR.hpp"
 
@@ -6,6 +7,8 @@
 
 namespace vrmod {
 vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
+    REF_PROFILE_FUNCTION();
+
     if (m_openvr.left_eye_tex[0].texture == nullptr || m_force_reset) {
         setup();
     }
@@ -50,7 +53,7 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
     if (frame_count % 2 == vr->m_left_eye_interval && !is_multipass) {
         // OpenXR texture
         if (runtime->is_openxr() && vr->m_openxr->ready()) {
-            m_openxr.copy(0, backbuffer.Get(), D3D12_RESOURCE_STATE_PRESENT);
+            m_openxr.copy(0, backbuffer.Get(), nullptr, D3D12_RESOURCE_STATE_PRESENT);
         }
 
         // OpenVR texture
@@ -77,10 +80,20 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
         // OpenXR texture
         if (runtime->is_openxr() && vr->m_openxr->ready()) {
             if (is_multipass) {
-                m_openxr.copy(0, (ID3D12Resource*)vr->m_multipass.eye_textures[0], D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-                m_openxr.copy(1, (ID3D12Resource*)vr->m_multipass.eye_textures[1], D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                /*D3D12_BOX src_box{};
+                src_box.back = 1;
+                src_box.right = vr->get_hmd_width();
+                src_box.bottom = vr->get_hmd_height();
+                m_openxr.copy(0, (ID3D12Resource*)vr->m_multipass.eye_textures[0], &src_box, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+                src_box.left = src_box.right;
+                src_box.right *= 2;
+                m_openxr.copy(1, (ID3D12Resource*)vr->m_multipass.eye_textures[0], &src_box, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);*/
+
+                m_openxr.copy(0, (ID3D12Resource*)vr->m_multipass.eye_textures[0], nullptr, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                m_openxr.copy(1, (ID3D12Resource*)vr->m_multipass.eye_textures[1], nullptr, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
             } else {
-                m_openxr.copy(1, backbuffer.Get(), D3D12_RESOURCE_STATE_PRESENT);
+                m_openxr.copy(1, backbuffer.Get(), nullptr, D3D12_RESOURCE_STATE_PRESENT);
             }
         }
 
@@ -197,6 +210,8 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
 }
 
 void D3D12Component::on_reset(VR* vr) {
+    REF_PROFILE_FUNCTION();
+
     auto runtime = vr->get_runtime();
 
     for (auto& ctx : m_openvr.left_eye_tex) {
@@ -229,6 +244,8 @@ void D3D12Component::on_reset(VR* vr) {
 }
 
 void D3D12Component::setup() {
+    REF_PROFILE_FUNCTION();
+
     spdlog::info("[VR] Setting up d3d12 textures...");
     
     m_prev_backbuffer = nullptr;
@@ -286,6 +303,8 @@ void D3D12Component::setup() {
 }
 
 void D3D12Component::OpenXR::initialize(XrSessionCreateInfo& session_info) {
+    REF_PROFILE_FUNCTION();
+
     std::scoped_lock _{this->mtx};
 
 	auto& hook = g_framework->get_d3d12_hook();
@@ -448,7 +467,9 @@ void D3D12Component::OpenXR::destroy_swapchains() {
     VR::get()->m_openxr->swapchains.clear();
 }
 
-void D3D12Component::OpenXR::copy(uint32_t swapchain_idx, ID3D12Resource* resource, D3D12_RESOURCE_STATES src_state) {
+void D3D12Component::OpenXR::copy(uint32_t swapchain_idx, ID3D12Resource* resource, D3D12_BOX* src_box, D3D12_RESOURCE_STATES src_state) {
+    REF_PROFILE_FUNCTION();
+
     std::scoped_lock _{this->mtx};
 
     auto& vr = VR::get();
@@ -504,11 +525,19 @@ void D3D12Component::OpenXR::copy(uint32_t swapchain_idx, ID3D12Resource* resour
         } else {
             auto& texture_ctx = ctx.texture_contexts[texture_index];
             texture_ctx->copier.wait(INFINITE);
-            texture_ctx->copier.copy(
-                resource, 
-                ctx.textures[texture_index].texture, 
-                src_state, 
-                D3D12_RESOURCE_STATE_RENDER_TARGET);
+            if (src_box != nullptr) {
+                texture_ctx->copier.copy_region(
+                    resource, 
+                    ctx.textures[texture_index].texture, 
+                    0, 0, 0, src_box, src_state, 
+                    D3D12_RESOURCE_STATE_RENDER_TARGET);
+            } else {
+                texture_ctx->copier.copy(
+                    resource, 
+                    ctx.textures[texture_index].texture, 
+                    src_state, 
+                    D3D12_RESOURCE_STATE_RENDER_TARGET);
+            }
             texture_ctx->copier.execute();
 
             XrSwapchainImageReleaseInfo release_info{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
@@ -582,6 +611,8 @@ void D3D12Component::ResourceCopier::reset() {
 }
 
 void D3D12Component::ResourceCopier::wait(uint32_t ms) {
+    REF_PROFILE_FUNCTION();
+
     std::scoped_lock _{this->mtx};
 
 	if (this->fence_event && this->waiting_for_fence) {
@@ -595,6 +626,8 @@ void D3D12Component::ResourceCopier::wait(uint32_t ms) {
 }
 
 void D3D12Component::ResourceCopier::copy(ID3D12Resource* src, ID3D12Resource* dst, D3D12_RESOURCE_STATES src_state, D3D12_RESOURCE_STATES dst_state) {
+    REF_PROFILE_FUNCTION();
+    
     std::scoped_lock _{this->mtx};
 
     // Switch src into copy source.
@@ -638,7 +671,98 @@ void D3D12Component::ResourceCopier::copy(ID3D12Resource* src, ID3D12Resource* d
     this->has_commands = true;
 }
 
+void D3D12Component::ResourceCopier::copy_region(ID3D12Resource* src, ID3D12Resource* dst, 
+    uint32_t dst_x, uint32_t dst_y, uint32_t dst_z, D3D12_BOX* src_box, 
+    D3D12_RESOURCE_STATES src_state, D3D12_RESOURCE_STATES dst_state) 
+{
+    std::scoped_lock _{this->mtx};
+
+    // Switch src into copy source.
+    D3D12_RESOURCE_BARRIER src_barrier{};
+
+    src_barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+    src_barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+    src_barrier.Transition.pResource = src;
+    src_barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+    src_barrier.Transition.StateBefore = src_state;
+    src_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
+
+    // Switch dst into copy destination.
+    D3D12_RESOURCE_BARRIER dst_barrier{};
+    dst_barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+    dst_barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+    dst_barrier.Transition.pResource = dst;
+    dst_barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+    dst_barrier.Transition.StateBefore = dst_state;
+    dst_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
+
+    {
+        D3D12_RESOURCE_BARRIER barriers[2]{src_barrier, dst_barrier};
+        this->cmd_list->ResourceBarrier(2, barriers);
+    }
+
+    // Copy the resource.
+    D3D12_TEXTURE_COPY_LOCATION src_loc{};
+    src_loc.pResource = src;
+    src_loc.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+    src_loc.SubresourceIndex = 0;
+
+    D3D12_TEXTURE_COPY_LOCATION dst_loc{};
+    dst_loc.pResource = dst;
+    dst_loc.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+    dst_loc.SubresourceIndex = 0;
+
+    this->cmd_list->CopyTextureRegion(&dst_loc, dst_x, dst_y, dst_z, &src_loc, src_box);
+
+    // Switch back to present.
+    src_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
+    src_barrier.Transition.StateAfter = src_state;
+    dst_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
+    dst_barrier.Transition.StateAfter = dst_state;
+
+    {
+        D3D12_RESOURCE_BARRIER barriers[2]{src_barrier, dst_barrier};
+        this->cmd_list->ResourceBarrier(2, barriers);
+    }
+
+    this->has_commands = true;
+}
+
+void D3D12Component::ResourceCopier::clear_rtv(ID3D12Resource* dst, D3D12_CPU_DESCRIPTOR_HANDLE rtv, const float* color, D3D12_RESOURCE_STATES dst_state) {
+    std::scoped_lock _{this->mtx};
+
+    // Switch dst into copy destination.
+    D3D12_RESOURCE_BARRIER dst_barrier{};
+    dst_barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+    dst_barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+    dst_barrier.Transition.pResource = dst;
+    dst_barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+    dst_barrier.Transition.StateBefore = dst_state;
+    dst_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+
+    {
+        D3D12_RESOURCE_BARRIER barriers[1]{dst_barrier};
+        this->cmd_list->ResourceBarrier(1, barriers);
+    }
+
+    // Clear the resource.
+    this->cmd_list->ClearRenderTargetView(rtv, color, 0, nullptr);
+
+    // Switch back to present.
+    dst_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+    dst_barrier.Transition.StateAfter = dst_state;
+
+    {
+        D3D12_RESOURCE_BARRIER barriers[1]{dst_barrier};
+        this->cmd_list->ResourceBarrier(1, barriers);
+    }
+
+    this->has_commands = true;
+}
+
 void D3D12Component::ResourceCopier::execute() {
+    REF_PROFILE_FUNCTION();
+
     std::scoped_lock _{this->mtx};
     
     if (this->has_commands) {

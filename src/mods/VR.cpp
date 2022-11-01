@@ -5,6 +5,8 @@
 #include <imgui_internal.h>
 #include <glm/gtx/transform.hpp>
 
+#include <utility/Profiler.hpp>
+
 #include <sdk/TDBVer.hpp>
 
 #if TDB_VER <= 49
@@ -445,6 +447,8 @@ bool VR::on_pre_scene_layer_draw(sdk::renderer::layer::Scene* layer, void* rende
 }
 
 bool VR::on_pre_scene_layer_update(sdk::renderer::layer::Scene* layer, void* render_ctx) {
+    REF_PROFILE_FUNCTION();
+    
     if (!is_hmd_active()) {
         return true;
     }
@@ -484,13 +488,14 @@ bool VR::on_pre_scene_layer_update(sdk::renderer::layer::Scene* layer, void* ren
 }
 
 void VR::on_scene_layer_update(sdk::renderer::layer::Scene* layer, void* render_ctx) {
+    REF_PROFILE_FUNCTION();
+
     if (!is_hmd_active()) {
         return;
     }
 
     auto& layer_data = m_scene_layer_data[layer];
 
-    const auto frame = this->get_game_frame_count();
     const auto is_temporal_upscaler_active = TemporalUpscaler::get()->ready();
 
     uint32_t pass = 0;
@@ -532,6 +537,7 @@ void VR::on_scene_layer_update(sdk::renderer::layer::Scene* layer, void* render_
             }
 
             if (is_temporal_upscaler_active) {
+                //const auto frame = this->get_game_frame_count();
                 //d.post_setup(frame);
             } else {
                 // TAA fix
@@ -1351,6 +1357,8 @@ bool VR::is_any_action_down() {
 }
 
 void VR::update_hmd_state() {
+    REF_PROFILE_FUNCTION();
+
     auto runtime = get_runtime();
     
     if (runtime->get_synchronize_stage() == VRRuntime::SynchronizeStage::EARLY) {
@@ -1377,9 +1385,9 @@ void VR::update_hmd_state() {
     // If we used the data directly from the WaitGetPoses call, we would have to lock a different mutex and wait a long time
     // This is because the WaitGetPoses call is blocking, and we don't want to block any game logic
     {
-        std::unique_lock _{ runtime->pose_mtx };
-
         if (runtime->wants_reset_origin && runtime->ready()) {
+            std::unique_lock _{ runtime->pose_mtx };
+
             set_rotation_offset(glm::identity<glm::quat>());
             m_standing_origin = get_position_unsafe(vr::k_unTrackedDeviceIndex_Hmd);
 
@@ -1410,6 +1418,8 @@ void VR::update_hmd_state() {
 }
 
 void VR::update_action_states() {
+    REF_PROFILE_FUNCTION();
+
     auto runtime = get_runtime();
 
     if (runtime->wants_reinitialize) {
@@ -1451,6 +1461,8 @@ void VR::update_action_states() {
 }
 
 void VR::update_camera() {
+    REF_PROFILE_FUNCTION();
+
     if (!is_hmd_active()) {
         m_needs_camera_restore = false;
         return;
@@ -1514,7 +1526,7 @@ void VR::update_camera() {
 
     update_camera_origin();
 
-    auto projection_matrix = get_current_projection_matrix(true);
+    auto projection_matrix = is_using_multipass() ? get_projection_matrix(0) : get_current_projection_matrix(true);
 
     // Steps towards getting lens flares and volumetric lighting working
     // Get the FOV from the projection matrix
@@ -1533,6 +1545,8 @@ void VR::update_camera() {
 }
 
 void VR::update_camera_origin() {
+    REF_PROFILE_FUNCTION();
+
     if (!is_hmd_active()) {
         return;
     }
@@ -1575,6 +1589,8 @@ void VR::update_camera_origin() {
 }
 
 void VR::apply_hmd_transform(glm::quat& rotation, Vector4f& position) {
+    REF_PROFILE_FUNCTION();
+
     const auto rotation_offset = get_rotation_offset();
     const auto current_hmd_rotation = glm::normalize(rotation_offset * glm::quat{get_rotation(0)});
     
@@ -1601,6 +1617,8 @@ void VR::apply_hmd_transform(glm::quat& rotation, Vector4f& position) {
 }
 
 void VR::apply_hmd_transform(::REJoint* camera_joint) {
+    REF_PROFILE_FUNCTION();
+
     auto rotation = m_original_camera_rotation;
     auto position = m_original_camera_position;
 
@@ -1639,6 +1657,8 @@ bool VR::is_hand_behind_head(VRRuntime::Hand hand, float sensitivity) const {
 }
 
 void VR::update_audio_camera() {
+    REF_PROFILE_FUNCTION();
+
     if (!is_hmd_active()) {
         return;
     }
@@ -1678,6 +1698,8 @@ void VR::update_audio_camera() {
 }
 
 void VR::update_render_matrix() {
+    REF_PROFILE_FUNCTION();
+
     auto camera = sdk::get_primary_camera();
 
     if (camera == nullptr) {
@@ -1742,6 +1764,8 @@ void VR::restore_audio_camera() {
 }
 
 void VR::restore_camera() {
+    REF_PROFILE_FUNCTION();
+
     if (!m_needs_camera_restore) {
         return;
     }
@@ -1782,6 +1806,8 @@ void VR::restore_camera() {
 }
 
 void VR::set_lens_distortion(bool value) {
+    REF_PROFILE_FUNCTION();
+
     if (!m_force_lensdistortion_settings->value()) {
         return;
     }
@@ -1811,6 +1837,8 @@ void VR::set_lens_distortion(bool value) {
 }
 
 void VR::disable_bad_effects() {
+    REF_PROFILE_FUNCTION();
+
     auto context = sdk::get_thread_context();
 
     auto application = sdk::Application::get();
@@ -2228,6 +2256,8 @@ Matrix4x4f VR::get_eye_transform(uint32_t pass) {
 }
 
 void VR::on_pre_imgui_frame() {
+    REF_PROFILE_FUNCTION();
+
     if (!get_runtime()->ready()) {
         return;
     }
@@ -2236,6 +2266,8 @@ void VR::on_pre_imgui_frame() {
 }
 
 void VR::on_present() {
+    REF_PROFILE_FUNCTION();
+
     if (is_using_multipass() || (m_render_frame_count + 1) % 2 == m_left_eye_interval) {
         ResetEvent(m_present_finished_event);
     }
@@ -2330,6 +2362,29 @@ void VR::on_present() {
 }
 
 void VR::on_post_present() {
+    REF_PROFILE_FUNCTION();
+
+    auto runtime = get_runtime();
+
+    if (!runtime->loaded) {
+        return;
+    }
+    
+    if (is_using_multipass() || (m_render_frame_count + 1) % 2 == m_left_eye_interval) {
+        runtime->consume_events(nullptr);
+    }
+
+    if (!inside_on_end && runtime->wants_reinitialize) {
+        std::scoped_lock _{m_openvr_mtx};
+
+        if (runtime->is_openvr()) {
+            m_openvr->wants_reinitialize = false;
+            reinitialize_openvr();
+        } else if (runtime->is_openxr()) {
+            m_openxr->wants_reinitialize = false;
+            reinitialize_openxr();
+        }
+    }
 }
 
 void VR::on_update_transform(RETransform* transform) {
@@ -2366,6 +2421,8 @@ struct GUIRestoreData {
 thread_local std::vector<std::unique_ptr<GUIRestoreData>> g_elements_to_reset{};
 
 bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_context) {
+    REF_PROFILE_FUNCTION();
+
     inside_gui_draw = true;
 
     if (!get_runtime()->ready()) {
@@ -2842,6 +2899,8 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
 }
 
 void VR::on_gui_draw_element(REComponent* gui_element, void* primitive_context) {
+    REF_PROFILE_FUNCTION();
+
     //spdlog::info("VR: on_gui_draw_element");
 
     auto context = sdk::get_thread_context();
@@ -2922,6 +2981,8 @@ void VR::on_lightshaft_draw(void* shaft, void* render_context) {
 thread_local bool timed_out = false;
 
 void VR::on_pre_begin_rendering(void* entry) {
+    REF_PROFILE_FUNCTION();
+
     auto runtime = get_runtime();
 
     if (!runtime->loaded) {
@@ -2958,18 +3019,6 @@ void VR::on_pre_begin_rendering(void* entry) {
         // will probably require some game-specific code
     }
 
-    if (!inside_on_end && runtime->wants_reinitialize) {
-        std::scoped_lock _{m_openvr_mtx};
-
-        if (runtime->is_openvr()) {
-            m_openvr->wants_reinitialize = false;
-            reinitialize_openvr();
-        } else if (runtime->is_openxr()) {
-            m_openxr->wants_reinitialize = false;
-            reinitialize_openxr();
-        }
-    }
-
     detect_controllers();
 
     //actual_frame_count = get_game_frame_count();
@@ -2999,7 +3048,6 @@ void VR::on_pre_begin_rendering(void* entry) {
     
     // Call WaitGetPoses
     if (is_using_multipass() || (!inside_on_end && m_frame_count % 2 == m_left_eye_interval)) {
-        runtime->consume_events(nullptr);
         update_hmd_state();
     }
 
@@ -3021,6 +3069,8 @@ void VR::on_begin_rendering(void* entry) {
 }
 
 void VR::on_pre_end_rendering(void* entry) {
+    REF_PROFILE_FUNCTION();
+
     auto runtime = get_runtime();
 
     if (!runtime->loaded) {
@@ -3039,6 +3089,8 @@ void VR::on_pre_end_rendering(void* entry) {
 }
 
 void VR::on_end_rendering(void* entry) {
+    REF_PROFILE_FUNCTION();
+
     // we set this because we've enabled asynchronous rendering
     // by the time the next frame (right eye) starts,
     // the frame count might get modified, screwing up our logic
@@ -3058,6 +3110,20 @@ void VR::on_end_rendering(void* entry) {
         inside_on_end = false;
         m_in_render = false;
         return;
+    }
+
+    if (!inside_on_end) {
+        auto app = sdk::Application::get();
+
+        static auto app_type = sdk::find_type_definition("via.Application");
+        static auto set_max_delta_time_fn = app_type->get_method("set_MaxDeltaTime");
+
+        // RE8 and onwards...
+        // defaults to 2, and will slow the game down if frame rate is too low
+        if (set_max_delta_time_fn != nullptr) {
+            // static func, no need for app
+            set_max_delta_time_fn->call<void*>(sdk::get_thread_context(), 10.0f);
+        }
     }
 
     if (is_using_afr() || inside_on_end) {
@@ -3095,9 +3161,9 @@ void VR::on_end_rendering(void* entry) {
 
             static auto potype = sdk::find_type_definition("via.render.layer.PrepareOutput")->get_type();
 
-            std::array<sdk::renderer::layer::PrepareOutput*, 2> prepare_output_layers{
-                (sdk::renderer::layer::PrepareOutput*)scene_layers[0]->find_layer(potype),
-                (sdk::renderer::layer::PrepareOutput*)scene_layers[1]->find_layer(potype)
+            std::array<sdk::renderer::layer::PrepareOutput**, 2> prepare_output_layers{
+                (sdk::renderer::layer::PrepareOutput**)scene_layers[0]->find_layer(potype),
+                (sdk::renderer::layer::PrepareOutput**)scene_layers[1]->find_layer(potype)
             };
 
             if (prepare_output_layers[0] == nullptr || prepare_output_layers[1] == nullptr) {
@@ -3105,8 +3171,8 @@ void VR::on_end_rendering(void* entry) {
             }
 
             std::array<sdk::renderer::TargetState*, 2> output_states{
-                prepare_output_layers[0]->get_output_state(),
-                prepare_output_layers[1]->get_output_state()
+                (*prepare_output_layers[0])->get_output_state(),
+                (*prepare_output_layers[1])->get_output_state()
             };
 
             if (output_states[0] == nullptr || output_states[1] == nullptr) {
@@ -3132,16 +3198,6 @@ void VR::on_end_rendering(void* entry) {
         
         // Try to render again for the right eye
         auto app = sdk::Application::get();
-
-        static auto app_type = sdk::find_type_definition("via.Application");
-        static auto set_max_delta_time_fn = app_type->get_method("set_MaxDeltaTime");
-
-        // RE8 and onwards...
-        // defaults to 2, and will slow the game down if frame rate is too low
-        if (set_max_delta_time_fn != nullptr) {
-            // static func, no need for app
-            set_max_delta_time_fn->call<void*>(sdk::get_thread_context(), 10.0f);
-        }
 
         static auto chain = app->generate_chain("WaitRendering", "EndRendering");
         static bool do_once = true;
@@ -3232,6 +3288,8 @@ void VR::on_pre_wait_rendering(void* entry) {
 }
 
 void VR::on_wait_rendering(void* entry) {
+    REF_PROFILE_FUNCTION();
+
     if (!get_runtime()->loaded) {
         return;
     }
@@ -3242,9 +3300,9 @@ void VR::on_wait_rendering(void* entry) {
         return;
     }
 
-    /*if (is_using_multipass()) {
+    if (is_using_multipass()) {
         return;
-    }*/
+    }
 
     // wait for m_present_finished (std::condition_variable)
     // to be signaled

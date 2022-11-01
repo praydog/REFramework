@@ -9,6 +9,9 @@ extern "C" __declspec(dllexport) void* __stdcall InitUpscaleFeature(int id, int 
 extern "C" void __declspec(dllexport) __stdcall EvaluateUpscale(int id, void* color, void* motionVector, void* depth, void* destination, float sharpness, float jitterOffsetX, float jitterOffsetY,
 	bool reset, float nearPlane, float farPlane, float verticalFOV);
 
+extern "C" void __declspec(dllexport) __stdcall EvaluateUpscaleDX12(int id, bool execute, void* color, void* motionVector, void* depth, void* destination, float sharpness, float jitterOffsetX, float jitterOffsetY,
+	bool reset, float nearPlane, float farPlane, float verticalFOV);
+
 extern "C" void __declspec(dllexport) __stdcall SetMotionScaleX(int id = 1, float motionScaleX = 1);
 
 extern "C" void __declspec(dllexport) __stdcall SetMotionScaleY(int id = 1, float motionScaleX = 1);
