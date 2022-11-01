@@ -337,8 +337,10 @@ public:
 private:
 #if TDB_VER >= 70
     static constexpr inline auto s_scene_layers_offset = 0xB8;
+#elif TDB_VER == 69
+    static constexpr inline auto s_scene_layers_offset = 0x98;
 #else
-    static constexpr inline auto s_scene_layers_offset = 0xB8; // TODO! VERIFY!
+    static constexpr inline auto s_scene_layers_offset = 0x98; // TODO! VERIFY!
 #endif
 };
 
