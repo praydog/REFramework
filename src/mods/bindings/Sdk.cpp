@@ -630,6 +630,27 @@ sol::object create_resource(sol::this_state s, std::string type_name, std::strin
     return sol::make_object(s, resource_manager->create_resource(t, utility::widen(name)));
 }
 
+sol::object create_userdata(sol::this_state s, std::string type_name, std::string name) {
+    auto& types = reframework::get_types();
+
+    // NOT a type definition!!
+    // this is a via::typeinfo::TypeInfo
+    const auto t = types->get(type_name);
+
+    if (t == nullptr) {
+        return sol::make_object(s, sol::nil);
+    }
+
+    auto resource_manager = ::sdk::ResourceManager::get();
+    auto obj = resource_manager->create_userdata(t, utility::widen(name));
+
+    if (!obj.has_value()) {
+        return sol::make_object(s, sol::nil);
+    }
+
+    return sol::make_object(s, (::REManagedObject*)obj.get());
+}
+
 sol::object create_instance(sol::this_state s, const char* name, sol::object simplify_obj) {
     bool simplify = false;
 
@@ -1242,6 +1263,7 @@ void bindings::open_sdk(ScriptState* s) {
     sdk["create_single"] = api::sdk::create_single;
     sdk["create_double"] = api::sdk::create_double;
     sdk["create_resource"] = api::sdk::create_resource;
+    sdk["create_userdata"] = api::sdk::create_userdata;
     sdk["create_instance"] = api::sdk::create_instance;
     sdk["find_type_definition"] = api::sdk::find_type_definition;
     sdk["typeof"] = api::sdk::typeof;

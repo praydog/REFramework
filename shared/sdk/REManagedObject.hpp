@@ -2,6 +2,7 @@
 #include <memory>
 #include <vector>
 
+#include "Enums_Internal.hpp"
 #include "utility/Address.hpp"
 
 class REManagedObject;
