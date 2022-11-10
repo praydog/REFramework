@@ -99,12 +99,29 @@ void ResourceManager::update_pointers() {
             };
 
             bool found = false;
+            bool exception_directory_maybe_removed = false;
 
             for (const auto& pat : valid_patterns) {
-                for (auto ref = utility::scan(mod, pat);ref.has_value(); ref = utility::scan(*ref + 1, (mod_end - (*ref + 1)) - 100, pat)) {
-                    const auto func = utility::find_function_start(*ref);
+                for (auto ref = utility::scan(mod, pat); ref.has_value(); ref = utility::scan(*ref + 1, (mod_end - (*ref + 1)) - 100, pat)) {
+                    auto func = utility::find_function_start(*ref);
 
                     if (func && *func != (uintptr_t)s_create_resource_fn) {
+                        if (std::abs((ptrdiff_t)(*func - (uintptr_t)s_create_resource_fn)) < 0x50) {
+                            spdlog::info("Exception directory may have been removed, falling back to int3 scan");
+                            exception_directory_maybe_removed = true;
+                            continue;
+                        }
+
+                        if (exception_directory_maybe_removed) {
+                            func = utility::scan_reverse(*func, 0x100, "CC CC CC");
+
+                            if (func) {
+                                *func += 3;
+                            } else {
+                                func = utility::scan_reverse(*ref, 0x100, "4C 89 4C");
+                            }
+                        }
+
                         found = true;
                         s_create_userdata_fn = (decltype(s_create_userdata_fn))*func;
                         break;
@@ -144,56 +161,38 @@ void Resource::update_pointers() {
 
     spdlog::info("[Resource::update_pointers] Finding function...");
 
-    static auto find_opcode = [](uintptr_t ip, size_t num_instructions, uint8_t opcode) -> std::optional<uintptr_t> {
-        for (size_t i = 0; i < num_instructions; ++i) {
-            hde64s hde{};
-            auto len = hde64_disasm((void*)ip, &hde);
-
-            if (hde.opcode == opcode) { // call
-                return ip;
-            }
-
-            ip += len;
-        }
-
-        return std::nullopt;
-    };
-
-    static auto disasm = [](uintptr_t ip) -> hde64s {
-        hde64s hde{};
-        hde64_disasm((void*)ip, &hde);
-        return hde;
-    };
-
     static auto locate_add_ref_or_release = [](uintptr_t start) -> std::optional<uintptr_t> {
         // Find the first call, can either be add_ref or release
         // depending on compiler randomness
-        auto first_call = find_opcode(start, 30, 0xE8);
+        const auto first_call = utility::scan_opcode(start, 30, 0xE8);
 
         if (!first_call) {
             spdlog::error("[Resource::update_pointers] Failed to find first call!");
             return std::nullopt;
         }
 
-        auto first_function = utility::calculate_absolute(*first_call + 1);
+        const auto first_function = utility::calculate_absolute(*first_call + 1);
         
         // Find the jmp instruction inside the function
-        auto jmp_instruction = find_opcode(first_function, 5, 0xE9);
+        const auto jmp_instruction = utility::scan_opcode(first_function, 5, 0xE9);
+        const auto jmp_ptr = jmp_instruction.has_value() ? utility::calculate_absolute(*jmp_instruction + 1) : first_function;
+        const auto jmp_disasm = utility::decode_one((uint8_t*)jmp_ptr);
 
-        if (!jmp_instruction) {
-            spdlog::error("[Resource::update_pointers] Failed to find jmp instruction!");
-            return std::nullopt;
+        //spdlog::info("Flags: {:x}", jmp_disasm.flags);
+        //spdlog::info("modrm: {:x}", jmp_disasm.modrm);
+
+        std::string buffer{};
+        buffer.resize(256);
+        if (jmp_disasm) {
+            NdToText(&*jmp_disasm, jmp_ptr, buffer.size(), buffer.data());
+            std::transform(buffer.begin(), buffer.end(), buffer.begin(), [](char c) { return std::tolower(c); });
+
+            // trim all repeating spaces into a single space
+            buffer.erase(std::unique(buffer.begin(), buffer.end(), [](char a, char b) { return a == b && a == ' '; }), buffer.end());
         }
 
-        auto jmp_ptr = utility::calculate_absolute(*jmp_instruction + 1);
-
-        auto jmp_disasm = disasm(jmp_ptr);
-
-        spdlog::info("Flags: {:x}", jmp_disasm.flags);
-        spdlog::info("modrm: {:x}", jmp_disasm.modrm);
-
         // if the first instruction is lock xadd/lock inc or lea rcx, [rdx+whatever], it's the add_ref function
-        if (jmp_disasm.p_lock == 0xF0 || memcmp((void*)jmp_ptr, "\x48\x8D", 2) == 0) {
+        if ((jmp_disasm && std::string_view{buffer.data()}.starts_with("lock") || std::string_view{buffer.data()}.starts_with("lea rcx, ["))) {
             s_add_ref_fn = (decltype(s_add_ref_fn))first_function;
             spdlog::info("[Resource::update_pointers] Found add_ref function at {:x}", (uintptr_t)s_add_ref_fn);
         } else {
