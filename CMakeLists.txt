@@ -504,6 +504,7 @@ if(REF_BUILD_RE2_SDK OR REF_BUILD_FRAMEWORK) # build-re2-sdk
 
 	list(APPEND RE2SDK_SOURCES
 		"shared/sdk/Application.cpp"
+		"shared/sdk/ManagedObject.cpp"
 		"shared/sdk/Memory.cpp"
 		"shared/sdk/MotionFsm2Layer.cpp"
 		"shared/sdk/MurmurHash.cpp"
@@ -524,6 +525,7 @@ if(REF_BUILD_RE2_SDK OR REF_BUILD_FRAMEWORK) # build-re2-sdk
 		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
+		"shared/sdk/ManagedObject.hpp"
 		"shared/sdk/Math.hpp"
 		"shared/sdk/Memory.hpp"
 		"shared/sdk/MotionFsm2Layer.hpp"
@@ -559,6 +561,7 @@ if(REF_BUILD_RE2_SDK OR REF_BUILD_FRAMEWORK) # build-re2-sdk
 		"shared/sdk/SystemArray.hpp"
 		"shared/sdk/TDBVer.hpp"
 		"shared/sdk/helpers/NativeObject.hpp"
+		"shared/sdk/intrusive_ptr.hpp"
 		"shared/sdk/regenny/mhrise/via/Capsule.hpp"
 		"shared/sdk/regenny/mhrise/via/OBB.hpp"
 		"shared/sdk/regenny/mhrise/via/Sphere.hpp"
@@ -941,6 +944,7 @@ if(REF_BUILD_RE2_TDB66SDK OR REF_BUILD_FRAMEWORK) # build-re2tdb66-sdk
 
 	list(APPEND RE2_TDB66SDK_SOURCES
 		"shared/sdk/Application.cpp"
+		"shared/sdk/ManagedObject.cpp"
 		"shared/sdk/Memory.cpp"
 		"shared/sdk/MotionFsm2Layer.cpp"
 		"shared/sdk/MurmurHash.cpp"
@@ -961,6 +965,7 @@ if(REF_BUILD_RE2_TDB66SDK OR REF_BUILD_FRAMEWORK) # build-re2tdb66-sdk
 		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
+		"shared/sdk/ManagedObject.hpp"
 		"shared/sdk/Math.hpp"
 		"shared/sdk/Memory.hpp"
 		"shared/sdk/MotionFsm2Layer.hpp"
@@ -996,6 +1001,7 @@ if(REF_BUILD_RE2_TDB66SDK OR REF_BUILD_FRAMEWORK) # build-re2tdb66-sdk
 		"shared/sdk/SystemArray.hpp"
 		"shared/sdk/TDBVer.hpp"
 		"shared/sdk/helpers/NativeObject.hpp"
+		"shared/sdk/intrusive_ptr.hpp"
 		"shared/sdk/regenny/mhrise/via/Capsule.hpp"
 		"shared/sdk/regenny/mhrise/via/OBB.hpp"
 		"shared/sdk/regenny/mhrise/via/Sphere.hpp"
@@ -1749,6 +1755,7 @@ if(REF_BUILD_RE3_SDK OR REF_BUILD_FRAMEWORK) # build-re3-sdk
 
 	list(APPEND RE3SDK_SOURCES
 		"shared/sdk/Application.cpp"
+		"shared/sdk/ManagedObject.cpp"
 		"shared/sdk/Memory.cpp"
 		"shared/sdk/MotionFsm2Layer.cpp"
 		"shared/sdk/MurmurHash.cpp"
@@ -1769,6 +1776,7 @@ if(REF_BUILD_RE3_SDK OR REF_BUILD_FRAMEWORK) # build-re3-sdk
 		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
+		"shared/sdk/ManagedObject.hpp"
 		"shared/sdk/Math.hpp"
 		"shared/sdk/Memory.hpp"
 		"shared/sdk/MotionFsm2Layer.hpp"
@@ -1804,6 +1812,7 @@ if(REF_BUILD_RE3_SDK OR REF_BUILD_FRAMEWORK) # build-re3-sdk
 		"shared/sdk/SystemArray.hpp"
 		"shared/sdk/TDBVer.hpp"
 		"shared/sdk/helpers/NativeObject.hpp"
+		"shared/sdk/intrusive_ptr.hpp"
 		"shared/sdk/regenny/mhrise/via/Capsule.hpp"
 		"shared/sdk/regenny/mhrise/via/OBB.hpp"
 		"shared/sdk/regenny/mhrise/via/Sphere.hpp"
@@ -2186,6 +2195,7 @@ if(REF_BUILD_RE3_TDB67SDK OR REF_BUILD_FRAMEWORK) # build-re3tdb67-sdk
 
 	list(APPEND RE3_TDB67SDK_SOURCES
 		"shared/sdk/Application.cpp"
+		"shared/sdk/ManagedObject.cpp"
 		"shared/sdk/Memory.cpp"
 		"shared/sdk/MotionFsm2Layer.cpp"
 		"shared/sdk/MurmurHash.cpp"
@@ -2206,6 +2216,7 @@ if(REF_BUILD_RE3_TDB67SDK OR REF_BUILD_FRAMEWORK) # build-re3tdb67-sdk
 		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
+		"shared/sdk/ManagedObject.hpp"
 		"shared/sdk/Math.hpp"
 		"shared/sdk/Memory.hpp"
 		"shared/sdk/MotionFsm2Layer.hpp"
@@ -2241,6 +2252,7 @@ if(REF_BUILD_RE3_TDB67SDK OR REF_BUILD_FRAMEWORK) # build-re3tdb67-sdk
 		"shared/sdk/SystemArray.hpp"
 		"shared/sdk/TDBVer.hpp"
 		"shared/sdk/helpers/NativeObject.hpp"
+		"shared/sdk/intrusive_ptr.hpp"
 		"shared/sdk/regenny/mhrise/via/Capsule.hpp"
 		"shared/sdk/regenny/mhrise/via/OBB.hpp"
 		"shared/sdk/regenny/mhrise/via/Sphere.hpp"
@@ -2994,6 +3006,7 @@ if(REF_BUILD_RE7_SDK OR REF_BUILD_FRAMEWORK) # build-re7-sdk
 
 	list(APPEND RE7SDK_SOURCES
 		"shared/sdk/Application.cpp"
+		"shared/sdk/ManagedObject.cpp"
 		"shared/sdk/Memory.cpp"
 		"shared/sdk/MotionFsm2Layer.cpp"
 		"shared/sdk/MurmurHash.cpp"
@@ -3014,6 +3027,7 @@ if(REF_BUILD_RE7_SDK OR REF_BUILD_FRAMEWORK) # build-re7-sdk
 		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
+		"shared/sdk/ManagedObject.hpp"
 		"shared/sdk/Math.hpp"
 		"shared/sdk/Memory.hpp"
 		"shared/sdk/MotionFsm2Layer.hpp"
@@ -3049,6 +3063,7 @@ if(REF_BUILD_RE7_SDK OR REF_BUILD_FRAMEWORK) # build-re7-sdk
 		"shared/sdk/SystemArray.hpp"
 		"shared/sdk/TDBVer.hpp"
 		"shared/sdk/helpers/NativeObject.hpp"
+		"shared/sdk/intrusive_ptr.hpp"
 		"shared/sdk/regenny/mhrise/via/Capsule.hpp"
 		"shared/sdk/regenny/mhrise/via/OBB.hpp"
 		"shared/sdk/regenny/mhrise/via/Sphere.hpp"
@@ -3431,6 +3446,7 @@ if(REF_BUILD_RE7_TDB49SDK OR REF_BUILD_FRAMEWORK) # build-re7tdb49-sdk
 
 	list(APPEND RE7_TDB49SDK_SOURCES
 		"shared/sdk/Application.cpp"
+		"shared/sdk/ManagedObject.cpp"
 		"shared/sdk/Memory.cpp"
 		"shared/sdk/MotionFsm2Layer.cpp"
 		"shared/sdk/MurmurHash.cpp"
@@ -3451,6 +3467,7 @@ if(REF_BUILD_RE7_TDB49SDK OR REF_BUILD_FRAMEWORK) # build-re7tdb49-sdk
 		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
+		"shared/sdk/ManagedObject.hpp"
 		"shared/sdk/Math.hpp"
 		"shared/sdk/Memory.hpp"
 		"shared/sdk/MotionFsm2Layer.hpp"
@@ -3486,6 +3503,7 @@ if(REF_BUILD_RE7_TDB49SDK OR REF_BUILD_FRAMEWORK) # build-re7tdb49-sdk
 		"shared/sdk/SystemArray.hpp"
 		"shared/sdk/TDBVer.hpp"
 		"shared/sdk/helpers/NativeObject.hpp"
+		"shared/sdk/intrusive_ptr.hpp"
 		"shared/sdk/regenny/mhrise/via/Capsule.hpp"
 		"shared/sdk/regenny/mhrise/via/OBB.hpp"
 		"shared/sdk/regenny/mhrise/via/Sphere.hpp"
@@ -4239,6 +4257,7 @@ if(REF_BUILD_RE8_SDK OR REF_BUILD_FRAMEWORK) # build-re8-sdk
 
 	list(APPEND RE8SDK_SOURCES
 		"shared/sdk/Application.cpp"
+		"shared/sdk/ManagedObject.cpp"
 		"shared/sdk/Memory.cpp"
 		"shared/sdk/MotionFsm2Layer.cpp"
 		"shared/sdk/MurmurHash.cpp"
@@ -4259,6 +4278,7 @@ if(REF_BUILD_RE8_SDK OR REF_BUILD_FRAMEWORK) # build-re8-sdk
 		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
+		"shared/sdk/ManagedObject.hpp"
 		"shared/sdk/Math.hpp"
 		"shared/sdk/Memory.hpp"
 		"shared/sdk/MotionFsm2Layer.hpp"
@@ -4294,6 +4314,7 @@ if(REF_BUILD_RE8_SDK OR REF_BUILD_FRAMEWORK) # build-re8-sdk
 		"shared/sdk/SystemArray.hpp"
 		"shared/sdk/TDBVer.hpp"
 		"shared/sdk/helpers/NativeObject.hpp"
+		"shared/sdk/intrusive_ptr.hpp"
 		"shared/sdk/regenny/mhrise/via/Capsule.hpp"
 		"shared/sdk/regenny/mhrise/via/OBB.hpp"
 		"shared/sdk/regenny/mhrise/via/Sphere.hpp"
@@ -4861,6 +4882,7 @@ if(REF_BUILD_DMC5_SDK OR REF_BUILD_FRAMEWORK) # build-dmc5-sdk
 
 	list(APPEND DMC5SDK_SOURCES
 		"shared/sdk/Application.cpp"
+		"shared/sdk/ManagedObject.cpp"
 		"shared/sdk/Memory.cpp"
 		"shared/sdk/MotionFsm2Layer.cpp"
 		"shared/sdk/MurmurHash.cpp"
@@ -4881,6 +4903,7 @@ if(REF_BUILD_DMC5_SDK OR REF_BUILD_FRAMEWORK) # build-dmc5-sdk
 		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
+		"shared/sdk/ManagedObject.hpp"
 		"shared/sdk/Math.hpp"
 		"shared/sdk/Memory.hpp"
 		"shared/sdk/MotionFsm2Layer.hpp"
@@ -4916,6 +4939,7 @@ if(REF_BUILD_DMC5_SDK OR REF_BUILD_FRAMEWORK) # build-dmc5-sdk
 		"shared/sdk/SystemArray.hpp"
 		"shared/sdk/TDBVer.hpp"
 		"shared/sdk/helpers/NativeObject.hpp"
+		"shared/sdk/intrusive_ptr.hpp"
 		"shared/sdk/regenny/mhrise/via/Capsule.hpp"
 		"shared/sdk/regenny/mhrise/via/OBB.hpp"
 		"shared/sdk/regenny/mhrise/via/Sphere.hpp"
@@ -5483,6 +5507,7 @@ if(REF_BUILD_MHRISE_SDK OR REF_BUILD_FRAMEWORK) # build-mhrise-sdk
 
 	list(APPEND MHRISESDK_SOURCES
 		"shared/sdk/Application.cpp"
+		"shared/sdk/ManagedObject.cpp"
 		"shared/sdk/Memory.cpp"
 		"shared/sdk/MotionFsm2Layer.cpp"
 		"shared/sdk/MurmurHash.cpp"
@@ -5503,6 +5528,7 @@ if(REF_BUILD_MHRISE_SDK OR REF_BUILD_FRAMEWORK) # build-mhrise-sdk
 		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
+		"shared/sdk/ManagedObject.hpp"
 		"shared/sdk/Math.hpp"
 		"shared/sdk/Memory.hpp"
 		"shared/sdk/MotionFsm2Layer.hpp"
@@ -5538,6 +5564,7 @@ if(REF_BUILD_MHRISE_SDK OR REF_BUILD_FRAMEWORK) # build-mhrise-sdk
 		"shared/sdk/SystemArray.hpp"
 		"shared/sdk/TDBVer.hpp"
 		"shared/sdk/helpers/NativeObject.hpp"
+		"shared/sdk/intrusive_ptr.hpp"
 		"shared/sdk/regenny/mhrise/via/Capsule.hpp"
 		"shared/sdk/regenny/mhrise/via/OBB.hpp"
 		"shared/sdk/regenny/mhrise/via/Sphere.hpp"

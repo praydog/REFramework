@@ -6,6 +6,8 @@ class Resource;
 #pragma once
 
 #include <string_view>
+#include "ManagedObject.hpp"
+#include "intrusive_ptr.hpp"
 
 class REManagedObject;
 
@@ -29,11 +31,18 @@ public:
 
 public:
     sdk::Resource* create_resource(void* type_info, std::wstring_view name);
+    intrusive_ptr<sdk::ManagedObject> create_userdata(void* type_info, std::wstring_view name);
 
     static auto get_create_resource_function() {
         update_pointers();
 
         return s_create_resource_fn;
+    }
+
+    static auto get_create_userdata_function() {
+        update_pointers();
+
+        return s_create_userdata_fn;
     }
 
 private:
@@ -42,5 +51,7 @@ private:
     static void update_pointers();
     static sdk::Resource* (*s_create_resource_fn)(ResourceManager*, void*, const wchar_t*);
     static uintptr_t s_create_resource_reference;
+
+    static intrusive_ptr<sdk::ManagedObject>* (*s_create_userdata_fn)(ResourceManager*, intrusive_ptr<sdk::ManagedObject>*, void*, const wchar_t*);
 };
 }

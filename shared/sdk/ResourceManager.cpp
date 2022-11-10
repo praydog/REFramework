@@ -11,6 +11,7 @@ namespace sdk {
 // static definitions
 decltype(ResourceManager::s_create_resource_fn) ResourceManager::s_create_resource_fn = nullptr;
 decltype(ResourceManager::s_create_resource_reference) ResourceManager::s_create_resource_reference = 0;
+decltype(ResourceManager::s_create_userdata_fn) ResourceManager::s_create_userdata_fn = nullptr;
 decltype(Resource::s_add_ref_fn) Resource::s_add_ref_fn = nullptr;
 decltype(Resource::s_release_fn) Resource::s_release_fn = nullptr;
 
@@ -36,11 +37,22 @@ sdk::Resource* ResourceManager::create_resource(void* type_info, std::wstring_vi
     return s_create_resource_fn(this, type_info, name.data());
 }
 
+intrusive_ptr<sdk::ManagedObject> ResourceManager::create_userdata(void* type_info, std::wstring_view name) {
+    update_pointers();
+
+    intrusive_ptr<sdk::ManagedObject> out{};
+    s_create_userdata_fn(this, &out, type_info, name.data());
+
+    return out;
+}
+
 void ResourceManager::update_pointers() {
     if (s_create_resource_fn == nullptr) {
         spdlog::info("[ResourceManager::create_resource] Finding function...");
 
         const auto mod = utility::get_executable();
+        const auto mod_size = *utility::get_module_size(mod);
+        const auto mod_end = (uintptr_t)mod + mod_size;
         const auto string_ptr = utility::scan_string(mod, L"systems/rendering/AmbientBRDF.tex"); // common string that is used in all the games
 
         if (!string_ptr) {
@@ -78,6 +90,37 @@ void ResourceManager::update_pointers() {
             s_create_resource_reference = ip;
             Resource::update_pointers();
             spdlog::info("[ResourceManager::create_resource] Found function at {:x}", (uintptr_t)s_create_resource_fn);
+            
+            // now find create_userdata, using the previous function as a reference to ignore
+            // since they both have the same pattern at the start of the function
+            const auto valid_patterns = {
+                "66 83 F8 40 75 ? C6",
+                "66 83 F8 40 75 ? 48"
+            };
+
+            bool found = false;
+
+            for (const auto& pat : valid_patterns) {
+                for (auto ref = utility::scan(mod, pat);ref.has_value(); ref = utility::scan(*ref + 1, (mod_end - (*ref + 1)) - 100, pat)) {
+                    const auto func = utility::find_function_start(*ref);
+
+                    if (func && *func != (uintptr_t)s_create_resource_fn) {
+                        found = true;
+                        s_create_userdata_fn = (decltype(s_create_userdata_fn))*func;
+                        break;
+                    }
+                }
+
+                if (found) {
+                    break;
+                }
+            }
+
+            if (found) {
+                spdlog::info("[ResourceManager::create_userdata] Found function at {:x}", (uintptr_t)s_create_userdata_fn);
+            } else {
+                spdlog::error("[ResourceManager::create_userdata] Failed to find function!");
+            }
         } else {
             spdlog::error("[ResourceManager::create_resource] Failed to find function!");
             return;
