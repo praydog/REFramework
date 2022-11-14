@@ -945,22 +945,6 @@ void TemporalUpscaler::on_pre_application_entry(void* entry, const char* name, s
                 } else {
                     m_eye_states[0].scene_layer = (sdk::renderer::layer::Scene*)scene_layers[0];
                     m_eye_states[1].scene_layer = (sdk::renderer::layer::Scene*)scene_layers[1];
-
-                    /*const auto motion_vectors_left = m_eye_states[0].scene_layer->get_motion_vectors_d3d12();
-                    const auto motion_vectors_right = m_eye_states[1].scene_layer->get_motion_vectors_d3d12();
-
-                    if (motion_vectors_left != nullptr && motion_vectors_left == motion_vectors_right) {
-                        spdlog::info("[TemporalUpscaler] Creating new motion vectors texture");
-                        const auto target_state_left = m_eye_states[0].scene_layer->get_target_state("VelocityTarget");
-                        const auto ptr = utility::scan_data((uintptr_t)m_eye_states[0].scene_layer, 0x1000, (uint8_t*)&target_state_left, sizeof(void*));
-
-                        if (ptr) {
-                            auto new_state = target_state_left->clone();
-                            new_state->add_ref();
-                            *(sdk::renderer::TargetState**)*ptr = new_state;
-                            spdlog::info("[TemporalUpscaler] Cloned target state: {:x}", *(uintptr_t*)*ptr);
-                        }
-                    }*/
                 }
             } else {
                 m_eye_states[0].scene_layer = (sdk::renderer::layer::Scene*)scene_layers[0];

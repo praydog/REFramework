@@ -8,6 +8,7 @@
 #include "RENativeArray.hpp"
 
 class REType;
+struct ID3D12Resource;
 
 namespace sdk {
 namespace renderer {
@@ -35,13 +36,14 @@ public:
     uint32_t m_render_frame;
 };
 
+template<typename T>
 class DirectXResource : public RenderResource {
 public:
-    void* get_native_resource() const {
+    T* get_native_resource() const {
     #if TDB_VER > 67
-        return *(void**)((uintptr_t)this + 0x10);
+        return *(ID3D12Resource**)((uintptr_t)this + 0x10);
     #else
-        return *(void**)((uintptr_t)this + 0x18);
+        return *(ID3D12Resource**)((uintptr_t)this + 0x18);
     #endif
     }
 
@@ -56,8 +58,8 @@ public:
         return (void*)((uintptr_t)this + sizeof(RenderResource) + sizeof(void*));
     }
 
-    DirectXResource* get_d3d12_resource_container() {
-        return *(DirectXResource**)((uintptr_t)this + s_d3d12_resource_offset);
+    DirectXResource<ID3D12Resource>* get_d3d12_resource_container() {
+        return *(DirectXResource<ID3D12Resource>**)((uintptr_t)this + s_d3d12_resource_offset);
     }
 
 private:
@@ -122,7 +124,7 @@ class TargetState : public RenderResource {
 public:
     struct Desc;
 
-    void* get_native_resource_d3d12() const;
+    ID3D12Resource* get_native_resource_d3d12() const;
     TargetState* clone();
 
     Desc& get_desc() {
@@ -204,7 +206,7 @@ public:
 
     ::sdk::renderer::TargetState* get_target_state(std::string_view name);
 
-    void* get_target_state_resource_d3d12(std::string_view name) {
+    ID3D12Resource* get_target_state_resource_d3d12(std::string_view name) {
         auto state = get_target_state(name);
         return state != nullptr ? state->get_native_resource_d3d12() : nullptr;
     }
@@ -295,21 +297,21 @@ public:
 
     Texture* get_depth_stencil();
     TargetState* get_motion_vectors_state();
-    void* get_depth_stencil_d3d12();
+    ID3D12Resource* get_depth_stencil_d3d12();
 
-    void* get_motion_vectors_d3d12() {
+    ID3D12Resource* get_motion_vectors_d3d12() {
         return get_target_state_resource_d3d12("VelocityTarget");
     }
 
-    void* get_post_main_target_d3d12() {
+    ID3D12Resource* get_post_main_target_d3d12() {
         return get_target_state_resource_d3d12("PostMainTarget");
     }
 
-    void* get_hdr_target_d3d12() {
+    ID3D12Resource* get_hdr_target_d3d12() {
         return get_target_state_resource_d3d12("HDRTarget");
     }
 
-    void* get_g_buffer_target_d3d12() {
+    ID3D12Resource* get_g_buffer_target_d3d12() {
         return get_target_state_resource_d3d12("GBufferTarget");
     }
 };

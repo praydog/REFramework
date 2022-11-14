@@ -909,7 +909,7 @@ RenderTargetView* create_render_target_view(sdk::renderer::RenderResource* resou
     return fn(nullptr, resource, desc);
 }
 
-void* TargetState::get_native_resource_d3d12() const {
+ID3D12Resource* TargetState::get_native_resource_d3d12() const {
     const auto rtv = get_rtv(0);
 
     if (rtv == nullptr) {
@@ -1078,7 +1078,7 @@ TargetState* layer::Scene::get_motion_vectors_state() {
     return utility::re_managed_object::get_field<::sdk::renderer::TargetState*>(this, "VelocityTarget");
 }
 
-void* layer::Scene::get_depth_stencil_d3d12() {
+ID3D12Resource* layer::Scene::get_depth_stencil_d3d12() {
     const auto tex = utility::re_managed_object::get_field<::sdk::renderer::Texture*>(this, "DepthStencilTex");
 
     if (tex == nullptr) {
