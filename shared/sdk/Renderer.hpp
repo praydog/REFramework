@@ -56,7 +56,7 @@ public:
         return (void*)((uintptr_t)this + sizeof(RenderResource) + sizeof(void*));
     }
 
-    DirectXResource* get_d3d12_resource() {
+    DirectXResource* get_d3d12_resource_container() {
         return *(DirectXResource**)((uintptr_t)this + s_d3d12_resource_offset);
     }
 

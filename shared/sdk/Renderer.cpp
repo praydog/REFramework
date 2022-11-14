@@ -929,7 +929,7 @@ void* TargetState::get_native_resource_d3d12() const {
         return nullptr;
     }
 
-    const auto internal_resource = tex->get_d3d12_resource();
+    const auto internal_resource = tex->get_d3d12_resource_container();
 
     if (internal_resource == nullptr) {
         return nullptr;
@@ -1085,7 +1085,7 @@ void* layer::Scene::get_depth_stencil_d3d12() {
         return nullptr;
     }
 
-    const auto internal_resource = tex->get_d3d12_resource();
+    const auto internal_resource = tex->get_d3d12_resource_container();
 
     if (internal_resource == nullptr) {
         return nullptr;
