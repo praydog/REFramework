@@ -120,58 +120,39 @@ void Hooks::on_draw_ui() {
 }
 
 #define LAYER_HOOK_BODY(x, x2, x3) \
-if (!g_framework->is_ready()) {\
-    auto original_func = g_hook->m_layer_hooks.##x##.##x3##_hook->get_original<decltype(RenderLayerHook<sdk::renderer::layer::##x2##>::##x3##)>();\
-    original_func(layer, render_ctx); \
-    return; \
-} \
-bool any_false = false; \
-const auto& mods = g_framework->get_mods()->get_mods(); \
-for (auto& mod : mods) { \
-    const auto result = mod->on_pre_##x##_layer_##x3##(layer, render_ctx); \
-    if (!result) { \
-        any_false = true; \
+void Hooks::RenderLayerHook<sdk::renderer::layer::##x2##>::##x3##(sdk::renderer::layer::##x2##* layer, void* render_ctx) {\
+    if (!g_framework->is_ready()) {\
+        auto original_func = g_hook->m_layer_hooks.##x##.##x3##_hook->get_original<decltype(RenderLayerHook<sdk::renderer::layer::##x2##>::##x3##)>();\
+        original_func(layer, render_ctx); \
+        return; \
     } \
-} \
-if (!any_false) { \
-    auto original_func = g_hook->m_layer_hooks.##x##.##x3##_hook->get_original<decltype(RenderLayerHook<sdk::renderer::layer::##x2##>::##x3##)>();\
-    original_func(layer, render_ctx); \
-} \
-for (auto& mod : mods) { \
-    mod->on_##x##_layer_##x3##(layer, render_ctx); \
+    bool any_false = false; \
+    const auto& mods = g_framework->get_mods()->get_mods(); \
+    for (auto& mod : mods) { \
+        const auto result = mod->on_pre_##x##_layer_##x3##(layer, render_ctx); \
+        if (!result) { \
+            any_false = true; \
+        } \
+    } \
+    if (!any_false) { \
+        auto original_func = g_hook->m_layer_hooks.##x##.##x3##_hook->get_original<decltype(RenderLayerHook<sdk::renderer::layer::##x2##>::##x3##)>();\
+        original_func(layer, render_ctx); \
+    } \
+    for (auto& mod : mods) { \
+        mod->on_##x##_layer_##x3##(layer, render_ctx); \
+    }\
 }
 
-void Hooks::RenderLayerHook<sdk::renderer::layer::Scene>::update(sdk::renderer::layer::Scene* layer, void* render_ctx) {
-    LAYER_HOOK_BODY(scene, Scene, update);
-}
-
-void Hooks::RenderLayerHook<sdk::renderer::layer::Scene>::draw(sdk::renderer::layer::Scene* layer, void* render_ctx) {
-    LAYER_HOOK_BODY(scene, Scene, draw);
-}
-
-void Hooks::RenderLayerHook<sdk::renderer::layer::PostEffect>::update(sdk::renderer::layer::PostEffect* layer, void* render_ctx) {
-    LAYER_HOOK_BODY(post_effect, PostEffect, update);
-}
-
-void Hooks::RenderLayerHook<sdk::renderer::layer::PostEffect>::draw(sdk::renderer::layer::PostEffect* layer, void* render_ctx) {
-    LAYER_HOOK_BODY(post_effect, PostEffect, draw);
-}
-
-void Hooks::RenderLayerHook<sdk::renderer::layer::Overlay>::update(sdk::renderer::layer::Overlay* layer, void* render_ctx) {
-    LAYER_HOOK_BODY(overlay, Overlay, update);
-}
-
-void Hooks::RenderLayerHook<sdk::renderer::layer::Overlay>::draw(sdk::renderer::layer::Overlay* layer, void* render_ctx) {
-    LAYER_HOOK_BODY(overlay, Overlay, draw);
-}
-
-void Hooks::RenderLayerHook<sdk::renderer::layer::Output>::update(sdk::renderer::layer::Output* layer, void* render_ctx) {
-    LAYER_HOOK_BODY(output, Output, update);
-}
-
-void Hooks::RenderLayerHook<sdk::renderer::layer::Output>::draw(sdk::renderer::layer::Output* layer, void* render_ctx) {
-    LAYER_HOOK_BODY(output, Output, draw);
-}
+LAYER_HOOK_BODY(scene, Scene, update);
+LAYER_HOOK_BODY(scene, Scene, draw);
+LAYER_HOOK_BODY(post_effect, PostEffect, update);
+LAYER_HOOK_BODY(post_effect, PostEffect, draw);
+LAYER_HOOK_BODY(overlay, Overlay, update);
+LAYER_HOOK_BODY(overlay, Overlay, draw);
+LAYER_HOOK_BODY(prepare_output, PrepareOutput, update);
+LAYER_HOOK_BODY(prepare_output, PrepareOutput, draw);
+LAYER_HOOK_BODY(output, Output, update);
+LAYER_HOOK_BODY(output, Output, draw);
 
 std::optional<std::string> Hooks::hook_update_transform() {
     auto game = g_framework->get_module().as<HMODULE>();

@@ -402,5 +402,6 @@ public:
     MAKE_LAYER_CALLBACK(Scene, scene);
     MAKE_LAYER_CALLBACK(PostEffect, post_effect);
     MAKE_LAYER_CALLBACK(Overlay, overlay);
+    MAKE_LAYER_CALLBACK(PrepareOutput, prepare_output);
     MAKE_LAYER_CALLBACK(Output, output);
 };

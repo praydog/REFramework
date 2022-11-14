@@ -38,10 +38,14 @@ public:
     void on_camera_get_projection_matrix(REManagedObject* camera, Matrix4x4f* result) override;
 
     void on_scene_layer_update(sdk::renderer::layer::Scene* scene_layer, void* render_context) override;
-    bool on_pre_overlay_layer_draw(sdk::renderer::layer::Overlay* overlay_layer, void* render_context) override;
     
+    void on_overlay_layer_draw(sdk::renderer::layer::Overlay* overlay_layer, void* render_context) override;
+    
+    void on_prepare_output_layer_draw(sdk::renderer::layer::PrepareOutput* layer, void* render_context) override;
+
     bool on_pre_output_layer_draw(sdk::renderer::layer::Output* layer, void* render_context) override;
     bool on_pre_output_layer_update(sdk::renderer::layer::Output* layer, void* render_context) override;
+    void on_output_layer_draw(sdk::renderer::layer::Output* layer, void* render_context) override;
 
     bool ready() const {
         return m_initialized && m_backend_loaded && m_enabled && !m_wants_reinitialize;
@@ -135,6 +139,7 @@ private:
         ComPtr<ID3D12Resource> depth{};
         ComPtr<ID3D12Resource> color{};
 
+        sdk::renderer::Texture* color_copy{nullptr};
         sdk::renderer::Texture* motion_vectors_copy{nullptr};
         sdk::renderer::Texture* depth_copy{nullptr};
     };
@@ -170,16 +175,6 @@ private:
     vrmod::D3D12Component::ResourceCopier m_big_copier{};
     ComPtr<ID3D12Resource> m_old_backbuffer{};
 
-    struct GBuffer {
-        std::vector<ComPtr<ID3D12Resource>> textures{};
-    };
-    
-    GBuffer m_real_gbuffer{};
-
-    std::array<ComPtr<ID3D12Resource>, 2> m_prev_motion_vectors_d3d12{};
-    std::array<GBuffer, 2> m_prev_g_buffer_d3d12{};
     std::array<std::array<Matrix4x4f, 6>, 2> m_old_projection_matrix{};
     std::array<std::array<Matrix4x4f, 6>, 2> m_old_view_matrix{};
-
-    std::array<std::vector<uint8_t>, 2> m_scene_layer_datas{};
 };
