@@ -497,6 +497,7 @@ void VR::on_scene_layer_update(sdk::renderer::layer::Scene* layer, void* render_
     auto& layer_data = m_scene_layer_data[layer];
 
     const auto is_temporal_upscaler_active = TemporalUpscaler::get()->ready();
+    const auto is_multipass = is_using_multipass();
 
     uint32_t pass = 0;
 
@@ -523,7 +524,6 @@ void VR::on_scene_layer_update(sdk::renderer::layer::Scene* layer, void* render_
 
     const auto projection_matrix = proj_mult * get_projection_matrix(pass);
     const auto current_eye_transform = get_eye_transform(pass + 1);
-    const auto is_multipass = is_using_multipass();
 
     for (auto& d : layer_data) {
         if (d.scene_info != nullptr) {
@@ -536,7 +536,7 @@ void VR::on_scene_layer_update(sdk::renderer::layer::Scene* layer, void* render_
                 d.scene_info->inverse_view_projection_matrix = glm::inverse(d.scene_info->view_projection_matrix);
             }
 
-            if (is_temporal_upscaler_active) {
+            if (is_temporal_upscaler_active || is_multipass) {
                 //const auto frame = this->get_game_frame_count();
                 //d.post_setup(frame);
             } else {

@@ -38,6 +38,7 @@ public:
     void on_camera_get_projection_matrix(REManagedObject* camera, Matrix4x4f* result) override;
 
     void on_scene_layer_update(sdk::renderer::layer::Scene* scene_layer, void* render_context) override;
+    bool on_pre_overlay_layer_draw(sdk::renderer::layer::Overlay* overlay_layer, void* render_context) override;
     
     bool on_pre_output_layer_draw(sdk::renderer::layer::Output* layer, void* render_context) override;
     bool on_pre_output_layer_update(sdk::renderer::layer::Output* layer, void* render_context) override;
@@ -131,8 +132,11 @@ private:
     struct EyeState {
         sdk::renderer::layer::Scene* scene_layer{nullptr};
         ComPtr<ID3D12Resource> motion_vectors{};
-        ComPtr<ID3D12Resource> depth;
+        ComPtr<ID3D12Resource> depth{};
         ComPtr<ID3D12Resource> color{};
+
+        sdk::renderer::Texture* motion_vectors_copy{nullptr};
+        sdk::renderer::Texture* depth_copy{nullptr};
     };
 
     std::array<EyeState, 2> m_eye_states{};

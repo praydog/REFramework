@@ -92,6 +92,9 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
 
                 m_openxr.copy(0, (ID3D12Resource*)vr->m_multipass.eye_textures[0], nullptr, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
                 m_openxr.copy(1, (ID3D12Resource*)vr->m_multipass.eye_textures[1], nullptr, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+                vr->m_multipass.eye_textures[0] = nullptr;
+                vr->m_multipass.eye_textures[1] = nullptr;
             } else {
                 m_openxr.copy(1, backbuffer.Get(), nullptr, D3D12_RESOURCE_STATE_PRESENT);
             }

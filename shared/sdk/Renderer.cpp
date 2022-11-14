@@ -351,6 +351,73 @@ void RenderLayer::clone_layers(RenderLayer* other, bool recursive) {
     return utility::re_managed_object::get_field<::sdk::renderer::TargetState*>(this, name);
 }
 
+/*
+- 0x9B CopyImage
++ 0x93 ReadonlyDepth
+- 0x8A TemporalDenoiserGBufferCombine
++ 0x85 PrevAODepth
+- 0x75 InputVelocity
+- 0x6D ModifiedGBufferSRV
++ 0x66 g_BilateralUpscaleDownscaledDepth
+- 0x62 RE_POSTPROCESS_Color
+- 0x5B CopyImage
++ 0x48 PostEffect Copy
+- 0x2D InputVelocity
+- 0x24 InterleaveNormalDepth
+- 0x1D InterleaveNormalDepthHalf
+- 0x1D RE_POSTPROCESS_Color
+- 0x14 InterleaveNormalDepthWithoutGBuffer
+- 0x11 CopyImage
+- 0xD InterleaveNormalDepthHalfWithoutGBuffer
+*/
+void RenderContext::copy_texture(Texture* dest, Texture* src, Fence& fence) {
+    static auto func = []() -> void (*)(RenderContext*, Texture*, Texture*, Fence&) {
+        spdlog::info("Searching for RenderContext::copy_texture");
+
+        const auto game = utility::get_executable();
+        const auto string = utility::scan_string(game, "InterleaveNormalDepthHalfWithoutGBuffer");
+
+        if (!string) {
+            spdlog::error("Failed to find copy_texture (no string)");
+            return nullptr;
+        }
+
+        const auto string_ref = utility::scan_displacement_reference(game, *string);
+
+        if (!string_ref) {
+            spdlog::error("Failed to find copy_texture (no string ref)");
+            return nullptr;
+        }
+
+        uintptr_t ip = *string_ref;
+
+        for (auto i = 0; i < 20; ++i) {
+            const auto resolved = utility::resolve_instruction(ip);
+
+            if (!resolved) {
+                spdlog::error("Failed to find copy_texture (could not resolve instruction)");
+                return nullptr;
+            }
+
+            ip = resolved->addr;
+
+            if (*(uint8_t*)ip == 0xE8) {
+                const auto result = (void (*)(RenderContext*, Texture*, Texture*, Fence&))utility::calculate_absolute(ip + 1);
+
+                spdlog::info("Found copy_texture: {:x}", (uintptr_t)result);
+                return result;
+            }
+
+            ip -= 1;
+        }
+
+        spdlog::error("Could not find copy_texture");
+        return nullptr;
+    }();
+
+    func(this, dest, src, fence);
+}
+
 ConstantBuffer* Renderer::get_constant_buffer(std::string_view name) const {
     static auto tdef = sdk::find_type_definition("via.render.Renderer");
     static auto t = tdef->get_type();
@@ -853,6 +920,12 @@ void* TargetState::get_native_resource_d3d12() const {
     const auto tex = rtv->get_texture_d3d12();
 
     if (tex == nullptr) {
+        /*auto target_state = rtv->get_target_state_d3d12();
+
+        if (target_state != nullptr && target_state != this) {
+            return target_state->get_native_resource_d3d12();
+        }*/
+
         return nullptr;
     }
 
@@ -995,6 +1068,14 @@ sdk::renderer::SceneInfo* layer::Scene::get_jitter_disable_post_scene_info() {
 
 sdk::renderer::SceneInfo* layer::Scene::get_z_prepass_scene_info() {
     return utility::re_managed_object::get_field<SceneInfo*>(this, "ZPrepassSceneInfo");
+}
+
+Texture* layer::Scene::get_depth_stencil() {
+    return utility::re_managed_object::get_field<::sdk::renderer::Texture*>(this, "DepthStencilTex");;
+}
+
+TargetState* layer::Scene::get_motion_vectors_state() {
+    return utility::re_managed_object::get_field<::sdk::renderer::TargetState*>(this, "VelocityTarget");
 }
 
 void* layer::Scene::get_depth_stencil_d3d12() {

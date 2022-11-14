@@ -21,6 +21,8 @@ struct SceneInfo {
     Matrix4x4f old_view_projection_matrix;
 };
 
+class TargetState;
+
 class RenderResource {
 public:
     void add_ref() {
@@ -93,6 +95,10 @@ public:
         return *(Texture**)((uintptr_t)this + s_texture_d3d12_offset);
     }
 
+    TargetState* get_target_state_d3d12() const {
+        return *(TargetState**)((uintptr_t)this + s_target_state_d3d12_offset);
+    }
+
 private:
     Desc m_desc;
 
@@ -106,6 +112,8 @@ private:
     // TODO: 66 and below
     static constexpr inline auto s_texture_d3d12_offset = 0x88;
 #endif
+
+    static constexpr inline auto s_target_state_d3d12_offset = s_texture_d3d12_offset - sizeof(void*);
 };
 
 static_assert(sizeof(RenderTargetView::Desc) == 0x14);
@@ -284,6 +292,9 @@ public:
     sdk::renderer::SceneInfo* get_jitter_disable_scene_info();
     sdk::renderer::SceneInfo* get_jitter_disable_post_scene_info();
     sdk::renderer::SceneInfo* get_z_prepass_scene_info();
+
+    Texture* get_depth_stencil();
+    TargetState* get_motion_vectors_state();
     void* get_depth_stencil_d3d12();
 
     void* get_motion_vectors_d3d12() {
@@ -310,11 +321,12 @@ public:
     }
 
     void set_output_state(sdk::renderer::TargetState* state) {
+        state->add_ref();
         *(sdk::renderer::TargetState**)((uintptr_t)this + s_output_state_offset) = state;
     }
 
 private:
-#if TDB_VER >= 70
+#if TDB_VER >= 69
     static constexpr inline auto s_output_state_offset = 0xF8;
 #else
     static constexpr inline auto s_output_state_offset = 0xF8; // TODO! VERIFY!
@@ -342,6 +354,22 @@ private:
 #else
     static constexpr inline auto s_scene_layers_offset = 0x98; // TODO! VERIFY!
 #endif
+};
+
+struct Fence {
+    int32_t state{-2};
+    uint32_t unk2{0};
+    uint32_t unk3{0};
+    uint32_t unk4{0x70};
+};
+
+class RenderContext {
+public:
+    void copy_texture(Texture* dest, Texture* src, Fence& fence);
+    void copy_texture(Texture* dest, Texture* src) {
+        Fence fence{};
+        copy_texture(dest, src, fence);
+    }
 };
 
 class Renderer {
