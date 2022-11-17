@@ -6,6 +6,7 @@
 #include <glm/gtx/transform.hpp>
 
 #include <utility/Profiler.hpp>
+#include <utility/ScopeGuard.hpp>
 
 #include <sdk/TDBVer.hpp>
 
@@ -197,7 +198,7 @@ void VR::on_camera_get_projection_matrix(REManagedObject* camera, Matrix4x4f* re
     }
 
     if (is_using_multipass()) {
-        return;
+        //return;
     }
 
     // Get the projection matrix for the correct eye
@@ -250,7 +251,7 @@ void VR::on_camera_get_view_matrix(REManagedObject* camera, Matrix4x4f* result) 
         return;
     }
 
-    if (!is_using_multipass()) {
+    //if (!is_using_multipass()) {
         auto& mtx = *result;
 
         //get the flipped eye to get the correct transform. something something right->left handedness i think
@@ -260,7 +261,7 @@ void VR::on_camera_get_view_matrix(REManagedObject* camera, Matrix4x4f* result) 
 
         // Apply the complete eye transform. This fixes the need for parallel projections on all canted headsets like Pimax
         mtx = current_eye_transform * mtx;
-    }
+    //}
 }
 
 void VR::inputsystem_update_hook(void* ctx, REManagedObject* input_system) {
@@ -448,6 +449,8 @@ bool VR::on_pre_scene_layer_draw(sdk::renderer::layer::Scene* layer, void* rende
 
 bool VR::on_pre_scene_layer_update(sdk::renderer::layer::Scene* layer, void* render_ctx) {
     REF_PROFILE_FUNCTION();
+
+    m_scene_update_mtx.lock();
     
     if (!is_hmd_active()) {
         return true;
@@ -490,6 +493,10 @@ bool VR::on_pre_scene_layer_update(sdk::renderer::layer::Scene* layer, void* ren
 void VR::on_scene_layer_update(sdk::renderer::layer::Scene* layer, void* render_ctx) {
     REF_PROFILE_FUNCTION();
 
+    ScopeGuard ___([&]() {
+        m_scene_update_mtx.unlock();
+    });
+
     if (!is_hmd_active()) {
         return;
     }
@@ -499,9 +506,9 @@ void VR::on_scene_layer_update(sdk::renderer::layer::Scene* layer, void* render_
     const auto is_temporal_upscaler_active = TemporalUpscaler::get()->ready();
     const auto is_multipass = is_using_multipass();
 
-    uint32_t pass = 0;
+    /*uint32_t pass = 0;
 
-    if (is_using_multipass()) {
+    if (is_multipass) {
         auto output_layer = sdk::renderer::get_output_layer();
 
         if (output_layer != nullptr) {
@@ -523,18 +530,18 @@ void VR::on_scene_layer_update(sdk::renderer::layer::Scene* layer, void* render_
     proj_mult[3].z = 1.0f;
 
     const auto projection_matrix = proj_mult * get_projection_matrix(pass);
-    const auto current_eye_transform = get_eye_transform(pass + 1);
+    const auto current_eye_transform = get_eye_transform(pass + 1);*/
 
     for (auto& d : layer_data) {
         if (d.scene_info != nullptr) {
-            if (is_multipass) {
+            /*if (is_multipass) {
                 d.scene_info->view_matrix = current_eye_transform * d.scene_info->view_matrix;
                 d.scene_info->projection_matrix = projection_matrix;
                 d.scene_info->view_projection_matrix = d.scene_info->projection_matrix * d.scene_info->view_matrix;
                 d.scene_info->inverse_view_matrix = glm::inverse(d.scene_info->view_matrix);
                 d.scene_info->inverse_projection_matrix = glm::inverse(d.scene_info->projection_matrix);
                 d.scene_info->inverse_view_projection_matrix = glm::inverse(d.scene_info->view_projection_matrix);
-            }
+            }*/
 
             if (is_temporal_upscaler_active || is_multipass) {
                 //const auto frame = this->get_game_frame_count();

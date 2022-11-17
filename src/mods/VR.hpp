@@ -360,6 +360,7 @@ private:
     
     mutable std::recursive_mutex m_openvr_mtx{};
     mutable std::recursive_mutex m_wwise_mtx{};
+    mutable std::recursive_mutex m_scene_update_mtx{};
     mutable std::shared_mutex m_gui_mtx{};
     mutable std::shared_mutex m_rotation_mtx{};
 
