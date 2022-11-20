@@ -966,6 +966,9 @@ void TemporalUpscaler::on_pre_application_entry(void* entry, const char* name, s
         static auto get_antialiasing_method = render_config_t->get_method("get_AntiAliasing");
         static auto set_antialiasing_method = render_config_t->get_method("set_AntiAliasing");
 
+        static auto get_image_quality_rate_method = render_config_t->get_method("get_ImageQualityRate");
+        static auto set_image_quality_rate_method = render_config_t->get_method("set_ImageQualityRate");
+
         auto renderer = renderer_t->get_instance();
         auto render_config = get_render_config_method->call<::REManagedObject*>(context, renderer);
         const auto antialiasing = get_antialiasing_method->call<via::render::RenderConfig::AntiAliasingType>(context, render_config);
@@ -988,6 +991,17 @@ void TemporalUpscaler::on_pre_application_entry(void* entry, const char* name, s
                 break;
             default:
                 break;
+        }
+
+        // It's necessary to force the image quality to 1.0 otherwise
+        // the motion & depth buffers become misaligned with the color buffer
+        if (get_image_quality_rate_method != nullptr) {
+            const auto image_quality_rate = get_image_quality_rate_method->call<float>(context, render_config);
+
+            if (image_quality_rate != 1.0f) {
+                set_image_quality_rate_method->call<void*>(context, render_config, 1.0f);
+                spdlog::info("[TemporalUpscaler] Image quality rate set to 1.0");
+            }
         }
     }
 }
