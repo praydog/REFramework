@@ -387,7 +387,15 @@ void IntegrityCheckBypass::immediate_patch_re8() {
         static auto patch = Patch::create(func, { 0xB0, 0x00, 0xC3 }, true);
         spdlog::info("[IntegrityCheckBypass]: Patched sussy_function 3");
     } else {
-        spdlog::error("[IntegrityCheckBypass]: Could not find sussy_result_3!");
+        const auto sussy_result_alternative = utility::scan(game, "8D ? 05 E8 ? ? ? ? 0F B6 C8 48 ? ? 50 48 ? ? 18 0F");
+
+        if (sussy_result_alternative) {
+            const auto func = utility::calculate_absolute(*sussy_result_alternative + 4);
+            static auto patch = Patch::create(func, { 0xB0, 0x00, 0xC3 }, true);
+            spdlog::info("[IntegrityCheckBypass]: Patched sussy_function 3");
+        } else {
+            spdlog::error("[IntegrityCheckBypass]: Could not find sussy_result_3!");
+        }
     }
 
     const auto sussy_result_4 = utility::scan(game, "72 ? 41 8B ? E8 ? ? ? ? 0F B6 C8 48 ? ? 50 48 ? ? 18 0F");
