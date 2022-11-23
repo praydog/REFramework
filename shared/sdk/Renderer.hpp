@@ -6,6 +6,7 @@
 
 #include "ReClass.hpp"
 #include "RENativeArray.hpp"
+#include "renderer/RenderResource.hpp"
 
 class REType;
 struct ID3D12Resource;
@@ -23,18 +24,6 @@ struct SceneInfo {
 };
 
 class TargetState;
-
-class RenderResource {
-public:
-    void add_ref() {
-        _InterlockedIncrement((long*)&m_ref_count);
-    }
-
-public:
-    void* m_vtable;
-    int32_t m_ref_count;
-    uint32_t m_render_frame;
-};
 
 template<typename T>
 class DirectXResource : public RenderResource {
