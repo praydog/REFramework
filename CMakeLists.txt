@@ -108,6 +108,7 @@ FetchContent_Declare(
 		main
 )
 FetchContent_MakeAvailable(kananlib)
+
 # Target spdlog
 if(REF_BUILD_DEPENDENCIES AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework-dependencies
 	set(CMKR_TARGET spdlog)

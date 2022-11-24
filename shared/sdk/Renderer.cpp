@@ -546,7 +546,7 @@ std::optional<Vector2f> world_to_screen(const Vector3f& world_pos) {
 
     static auto get_gameobject_method = transform_def->get_method("get_GameObject");
     static auto get_axisz_method = transform_def->get_method("get_AxisZ");
-    static auto world_to_screen_methods = math_t->get_methods("worldPos2ScreenPos"); // there are 2 of them.
+    static auto world_to_screen = math_t->get_method("worldPos2ScreenPos(via.vec3, via.mat4, via.mat4, via.Size)");
 
     auto camera_gameobject = get_gameobject_method->call<REGameObject*>(context, camera);
     auto camera_transform = camera_gameobject->transform;
@@ -561,7 +561,7 @@ std::optional<Vector2f> world_to_screen(const Vector3f& world_pos) {
 
     sdk::call_object_func<void*>(camera, "get_ProjectionMatrix", &proj, context, camera);
     sdk::call_object_func<void*>(camera, "get_ViewMatrix", &view, context, camera);
-    sdk::call_object_func<void*>(main_view, "get_Size", &screen_size, context, main_view);
+    sdk::call_object_func<void*>(main_view, "get_WindowSize", &screen_size, context, main_view);
 
     const Vector4f pos = Vector4f{world_pos, 1.0f};
     Vector4f screen_pos{};
@@ -573,7 +573,7 @@ std::optional<Vector2f> world_to_screen(const Vector3f& world_pos) {
         return std::nullopt;
     }
 
-    world_to_screen_methods[1]->call<void*>(&screen_pos, context, &pos, &view, &proj, &screen_size);
+    world_to_screen->call<void*>(&screen_pos, context, &pos, &view, &proj, &screen_size);
 
     return Vector2f{screen_pos.x, screen_pos.y};
 }
