@@ -1,6 +1,6 @@
 #include <spdlog/spdlog.h>
 
-#include <utility/Memory.hpp>
+#include <utility/Relocate.hpp>
 
 #include "RETypeDB.hpp"
 #include "REType.hpp"
