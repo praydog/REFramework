@@ -45,10 +45,10 @@ jobs:
 
       - name: Release
         if: github.ref == 'refs/heads/master'
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v0.1.13
         with:
           repository: praydog/REFramework-nightly
           token: ${{secrets.REPO_TOKEN}}
           name: ${{format('v1.{0}-{1}', github.run_number, steps.vars.outputs.SHA_SHORT)}}
           tag_name: latest
-          files: ${{github.workspace}//\\//}/${{matrix.target}}.zip
+          files: ${{github.workspace}}/${{matrix.target}}.zip
