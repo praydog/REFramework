@@ -15,11 +15,12 @@ DInputHook::DInputHook(HWND wnd)
     m_do_once{ true }
 {
     if (g_dinput_hook == nullptr) {
+        g_dinput_hook = this;
         if (hook()) {
             spdlog::info("DInputHook hooked successfully.");
-            g_dinput_hook = this;
         }
         else {
+            g_dinput_hook = nullptr;
             spdlog::info("DInputHook failed to hook.");
         }
     }

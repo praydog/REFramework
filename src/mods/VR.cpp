@@ -13,9 +13,15 @@
 #elif TDB_VER < 69
 #include "sdk/regenny/re3/via/Window.hpp"
 #include "sdk/regenny/re3/via/SceneView.hpp"
-#else
+#elif TDB_VER == 69
 #include "sdk/regenny/re8/via/Window.hpp"
 #include "sdk/regenny/re8/via/SceneView.hpp"
+#elif TDB_VER == 70
+#include "sdk/regenny/re2_tdb70/via/Window.hpp"
+#include "sdk/regenny/re2_tdb70/via/SceneView.hpp"
+#elif TDB_VER >= 71
+#include "sdk/regenny/mhrise_tdb71/via/Window.hpp"
+#include "sdk/regenny/mhrise_tdb71/via/SceneView.hpp"
 #endif
 
 #include "sdk/Math.hpp"
@@ -42,20 +48,12 @@ uint32_t actual_frame_count = 0;
 thread_local bool inside_gui_draw = false;
 
 std::shared_ptr<VR>& VR::get() {
-    static std::shared_ptr<VR> inst{};
-
-    if (inst == nullptr) {
-        inst = std::make_shared<VR>();
-    }
-
+    static auto inst = std::make_shared<VR>();
     return inst;
 }
 
-std::unique_ptr<FunctionHook> g_get_size_hook{};
 std::unique_ptr<FunctionHook> g_input_hook{};
-std::unique_ptr<FunctionHook> g_projection_matrix_hook{};
 std::unique_ptr<FunctionHook> g_projection_matrix_hook2{};
-std::unique_ptr<FunctionHook> g_view_matrix_hook{};
 std::unique_ptr<FunctionHook> g_overlay_draw_hook{};
 std::unique_ptr<FunctionHook> g_post_effect_draw_hook{};
 std::unique_ptr<FunctionHook> g_wwise_listener_update_hook{};
@@ -66,17 +64,17 @@ std::optional<regenny::via::Size> g_previous_size{};
 #endif
 
 // Purpose: spoof the render target size to the size of the HMD displays
-float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
-    auto original_func = g_get_size_hook->get_original<decltype(VR::get_size_hook)>();
-
+void VR::on_view_get_size(REManagedObject* scene_view, float* result) {
     if (!g_framework->is_ready()) {
-        return original_func(scene_view, result);
+        return;
     }
 
-    auto mod = VR::get();
+    if (!get_runtime()->loaded) {
+        return;
+    }
 
-    if (mod->m_disable_backbuffer_size_override) {
-        return original_func(scene_view, result);
+    if (m_disable_backbuffer_size_override) {
+        return;
     }
 
     auto regenny_view = (regenny::via::SceneView*)scene_view;
@@ -107,33 +105,33 @@ float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
 
     // Set the window size, which will increase the size of the backbuffer
     if (window != nullptr) {
-        if (mod->is_hmd_active()) {
+        if (is_hmd_active()) {
 #if TDB_VER <= 49
             if (!g_previous_size) {
                 g_previous_size = regenny::via::Size{ (float)window->width, (float)window->height };
             }
 #endif
-            window->width = mod->get_hmd_width();
-            window->height = mod->get_hmd_height();
+            window->width = get_hmd_width();
+            window->height = get_hmd_height();
 
-            if (mod->m_is_d3d12 && mod->m_d3d12.is_initialized()) {
-                const auto& backbuffer_size = mod->m_d3d12.get_backbuffer_size();
+            if (m_is_d3d12 && m_d3d12.is_initialized()) {
+                const auto& backbuffer_size = m_d3d12.get_backbuffer_size();
 
                 if (backbuffer_size[0] > 0 && backbuffer_size[1] > 0) {
                     if (std::abs((int)backbuffer_size[0] - (int)window->width) > 50 || std::abs((int)backbuffer_size[1] - (int)window->height) > 50) {
-                        const auto now = mod->get_game_frame_count();
+                        const auto now = get_game_frame_count();
 
-                        if (!mod->m_backbuffer_inconsistency) {
-                            mod->m_backbuffer_inconsistency_start = now;
-                            mod->m_backbuffer_inconsistency = true;
+                        if (!m_backbuffer_inconsistency) {
+                            m_backbuffer_inconsistency_start = now;
+                            m_backbuffer_inconsistency = true;
                         }
 
-                        const auto is_true_inconsistency = (now - mod->m_backbuffer_inconsistency_start) >= 5;
+                        const auto is_true_inconsistency = (now - m_backbuffer_inconsistency_start) >= 5;
 
                         if (is_true_inconsistency) {
                             // Force a reset of the backbuffer size
-                            window->width = mod->get_hmd_width() + 1;
-                            window->height = mod->get_hmd_height() + 1;
+                            window->width = get_hmd_width() + 1;
+                            window->height = get_hmd_height() + 1;
 
                             spdlog::info("[VR] Previous backbuffer size: {}x{}", backbuffer_size[0], backbuffer_size[1]);
                             spdlog::info("[VR] Backbuffer size inconsistency detected, resetting backbuffer size to {}x{}", window->width, window->height);
@@ -142,11 +140,11 @@ float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
                         }
                     }
                 } else {
-                    mod->m_backbuffer_inconsistency = false;
+                    m_backbuffer_inconsistency = false;
                 }
             }
         } else {
-            mod->m_backbuffer_inconsistency = false;
+            m_backbuffer_inconsistency = false;
 
 #if TDB_VER > 49
             window->width = (uint32_t)window->borderless_size.w;
@@ -165,51 +163,43 @@ float* VR::get_size_hook(REManagedObject* scene_view, float* result) {
         wanted_height = (float)window->height;
     }
 
-    auto out = original_func(scene_view, result);
+    //auto out = original_func(scene_view, result);
 
-    if (!mod->m_in_render) {
+    if (!m_in_render) {
         //return original_func(scene_view, result);
     }
 
     // spoof the size to the HMD's size
-    out[0] = wanted_width;
-    out[1] = wanted_height;
-
-    return out;
+    result[0] = wanted_width;
+    result[1] = wanted_height;
 }
 
-Matrix4x4f* VR::camera_get_projection_matrix_hook(REManagedObject* camera, Matrix4x4f* result) {
-    auto original_func = g_projection_matrix_hook->get_original<decltype(VR::camera_get_projection_matrix_hook)>();
-
-    auto vr = VR::get();
-
-    if (result == nullptr || !g_framework->is_ready() || !vr->is_hmd_active() || vr->m_disable_projection_matrix_override) {
-        return original_func(camera, result);
+void VR::on_camera_get_projection_matrix(REManagedObject* camera, Matrix4x4f* result) {
+    if (result == nullptr || !g_framework->is_ready() || !is_hmd_active() || m_disable_projection_matrix_override) {
+        return;
     }
 
     /*if (camera != sdk::get_primary_camera()) {
         return original_func(camera, result);
     }*/
 
-    if (!vr->m_in_render) {
+    if (!m_in_render) {
        // return original_func(camera, result);
     }
 
-    if (vr->m_in_lightshaft) {
+    if (m_in_lightshaft) {
         //return original_func(camera, result);
     }
 
     // Get the projection matrix for the correct eye
     // For some reason we need to flip the projection matrix here?
-    *result = vr->get_current_projection_matrix(false);
-
-    return result;
+    *result = get_current_projection_matrix(false);
 }
 
 Matrix4x4f* VR::gui_camera_get_projection_matrix_hook(REManagedObject* camera, Matrix4x4f* result) {
     auto original_func = g_projection_matrix_hook2->get_original<decltype(VR::gui_camera_get_projection_matrix_hook)>();
 
-    auto vr = VR::get();
+    auto& vr = VR::get();
 
     if (result == nullptr || !g_framework->is_ready() || !vr->is_hmd_active() || vr->m_disable_gui_camera_projection_matrix_override) {
         return original_func(camera, result);
@@ -238,36 +228,28 @@ Matrix4x4f* VR::gui_camera_get_projection_matrix_hook(REManagedObject* camera, M
     return result;
 }
 
-Matrix4x4f* VR::camera_get_view_matrix_hook(REManagedObject* camera, Matrix4x4f* result) {
-    auto original_func = g_view_matrix_hook->get_original<decltype(VR::camera_get_view_matrix_hook)>();
-
+void VR::on_camera_get_view_matrix(REManagedObject* camera, Matrix4x4f* result) {
     if (result == nullptr || !g_framework->is_ready()) {
-        return original_func(camera, result);
+        return;
     }
 
-    auto vr = VR::get();
-
-    if (!vr->is_hmd_active() || vr->m_disable_view_matrix_override) {
-        return original_func(camera, result);
+    if (!is_hmd_active() || m_disable_view_matrix_override) {
+        return;
     }
 
     if (camera != sdk::get_primary_camera()) {
-        return original_func(camera, result);
+        return;
     }
-
-    original_func(camera, result);
 
     auto& mtx = *result;
 
     //get the flipped eye to get the correct transform. something something right->left handedness i think
-    const auto current_eye_transform = vr->get_current_eye_transform(true);
+    const auto current_eye_transform = get_current_eye_transform(true);
     //auto current_head_pos = -(glm::inverse(vr->get_rotation(0)) * ((vr->get_position(0)) - vr->m_standing_origin));
     //current_head_pos.w = 0.0f;
 
     // Apply the complete eye transform. This fixes the need for parallel projections on all canted headsets like Pimax
     mtx = current_eye_transform * mtx;
-
-    return result;
 }
 
 void VR::inputsystem_update_hook(void* ctx, REManagedObject* input_system) {
@@ -278,7 +260,7 @@ void VR::inputsystem_update_hook(void* ctx, REManagedObject* input_system) {
         return;
     }
 
-    auto mod = VR::get();
+    auto& mod = VR::get();
     const auto now = std::chrono::steady_clock::now();
     auto is_using_controller = (now - mod->get_last_controller_update()) <= std::chrono::seconds(10);
 
@@ -369,132 +351,97 @@ void VR::inputsystem_update_hook(void* ctx, REManagedObject* input_system) {
     mod->openvr_input_to_re2_re3(input_system);
 }
 
-void VR::RenderLayerHook<sdk::renderer::layer::Overlay>::draw(sdk::renderer::layer::Overlay* layer, void* render_ctx) {
-    auto mod = VR::get();
-    auto original_func = mod->m_layer_hooks.overlay.draw_hook->get_original<decltype(VR::RenderLayerHook<sdk::renderer::layer::Overlay>::draw)>();
-
-    if (!g_framework->is_ready()) {
-        original_func(layer, render_ctx);
-        return;
-    }
-
+bool VR::on_pre_overlay_layer_draw(sdk::renderer::layer::Overlay* layer, void* render_ctx) {
     // just don't render anything at all.
     // overlays just seem to break stuff in VR.
-    if (!mod->is_hmd_active()) {
-        original_func(layer, render_ctx);
-        return;
+    if (!is_hmd_active()) {
+        return true;
     }
 
     // NOT RE3
     // for some reason RE3 has weird issues with the overlay rendering
     // causing double vision
 #if (TDB_VER < 70 and not defined(RE3)) or (TDB_VER >= 70 and (not defined(RE3) and not defined(RE2) and not defined(RE7)))
-    if (mod->m_allow_engine_overlays->value()) {
-        original_func(layer, render_ctx);
+    if (m_allow_engine_overlays->value()) {
+        return true;
     }
 #endif
+
+    return false;
 }
 
-void VR::RenderLayerHook<sdk::renderer::layer::Overlay>::update(sdk::renderer::layer::Overlay* layer, void* render_ctx) {
-    auto mod = VR::get();
-    auto original_func = mod->m_layer_hooks.overlay.update_hook->get_original<decltype(VR::RenderLayerHook<sdk::renderer::layer::Overlay>::update)>();
-
-    if (!g_framework->is_ready() || !mod->is_hmd_active()) {
-        original_func(layer, render_ctx);
-        return;
-    }
-
-    original_func(layer, render_ctx);
+bool VR::on_pre_overlay_layer_update(sdk::renderer::layer::Overlay* layer, void* render_ctx) {
+    return true;
 }
 
-void VR::RenderLayerHook<sdk::renderer::layer::PostEffect>::draw(sdk::renderer::layer::PostEffect* layer, void* render_ctx) {
-    auto mod = VR::get();
-    auto original_func = mod->m_layer_hooks.post_effect.draw_hook->get_original<decltype(VR::RenderLayerHook<sdk::renderer::layer::PostEffect>::draw)>();
-
-    if (!g_framework->is_ready() || !mod->is_hmd_active()) {
-        original_func(layer, render_ctx);
-        return;
+bool VR::on_pre_post_effect_layer_draw(sdk::renderer::layer::PostEffect* layer, void* render_ctx) {
+    if (!is_hmd_active()) {
+        return true;
     }
 
     auto scene_layer = layer->get_parent();
-    uint32_t previous_distortion_type = 0;
-
     const auto camera = sdk::get_primary_camera();
 
     if (camera == nullptr) {
-        original_func(layer, render_ctx);
-        return;
+        return true;
     }
     
     static auto render_output_type = sdk::find_type_definition("via.render.RenderOutput")->get_type();
     auto render_output_component = utility::re_component::find(camera, render_output_type);
 
     if (render_output_component == nullptr) {
-        original_func(layer, render_ctx);
-        return;
+        return true;
     }
 
-    if (!mod->m_disable_post_effect_fix) {
+    if (!m_disable_post_effect_fix) {
         // Set the distortion type back to flatscreen mode
         // this will fix various graphical bugs
         //sdk::call_object_func_easy<void*>(render_output_component, "set_DistortionType", 0); // None
 
         if (scene_layer != nullptr) {
-            previous_distortion_type = sdk::call_object_func_easy<uint32_t>(scene_layer, "get_DistortionType");
+            m_previous_distortion_type = sdk::call_object_func_easy<uint32_t>(scene_layer, "get_DistortionType");
+            m_set_next_post_effect_distortion_type = true;
             sdk::call_object_func_easy<void*>(scene_layer, "set_DistortionType", 0); // None
         }
     }
 
-    // call the original func
-    original_func(layer, render_ctx);
-    
-    if (!mod->m_disable_post_effect_fix) {
+    return true;
+}
+
+void VR::on_post_effect_layer_draw(sdk::renderer::layer::PostEffect* layer, void* render_ctx) {
+    if (!is_hmd_active()) {
+        return;
+    }
+
+    if (!m_disable_post_effect_fix && m_set_next_post_effect_distortion_type) {
+        auto scene_layer = layer->get_parent();
+
         // Restore the distortion type back to VR mode
         // to fix TAA
         if (scene_layer != nullptr) {
-            sdk::call_object_func_easy<void*>(scene_layer, "set_DistortionType", previous_distortion_type); // Left
+            sdk::call_object_func_easy<void*>(scene_layer, "set_DistortionType", m_previous_distortion_type); // Left
         }
 
         //mod->fix_temporal_effects();
+        m_set_next_post_effect_distortion_type = false;
     }
 }
 
-void VR::RenderLayerHook<sdk::renderer::layer::PostEffect>::update(sdk::renderer::layer::PostEffect* layer, void* render_ctx) {
-    auto mod = VR::get();
-    auto original_func = mod->m_layer_hooks.post_effect.update_hook->get_original<decltype(VR::RenderLayerHook<sdk::renderer::layer::PostEffect>::update)>();
-
-    if (!g_framework->is_ready() || !mod->is_hmd_active()) {
-        original_func(layer, render_ctx);
-        return;
-    }
-
-    original_func(layer, render_ctx);
+bool VR::on_pre_post_effect_layer_update(sdk::renderer::layer::PostEffect* layer, void* render_ctx) {
+    return true;
 }
 
-void VR::RenderLayerHook<sdk::renderer::layer::Scene>::draw(sdk::renderer::layer::Scene* layer, void* render_ctx) {
-    auto mod = VR::get();
-    auto original_func = mod->m_layer_hooks.scene.draw_hook->get_original<decltype(VR::RenderLayerHook<sdk::renderer::layer::Scene>::draw)>();
-
-    if (!g_framework->is_ready() || !mod->is_hmd_active()) {
-        original_func(layer, render_ctx);
-        return;
-    }
-
-    original_func(layer, render_ctx);
+bool VR::on_pre_scene_layer_draw(sdk::renderer::layer::Scene* layer, void* render_ctx) {
+    return true;
 }
 
-void VR::RenderLayerHook<sdk::renderer::layer::Scene>::update(sdk::renderer::layer::Scene* layer, void* render_ctx) {
-    auto mod = VR::get();
-    auto original_func = mod->m_layer_hooks.scene.update_hook->get_original<decltype(VR::RenderLayerHook<sdk::renderer::layer::Scene>::update)>();
-
-    if (!g_framework->is_ready() || !mod->is_hmd_active()) {
-        original_func(layer, render_ctx);
-        return;
+bool VR::on_pre_scene_layer_update(sdk::renderer::layer::Scene* layer, void* render_ctx) {
+    if (!is_hmd_active()) {
+        return true;
     }
 
-    if (mod->m_disable_temporal_fix) {
-        original_func(layer, render_ctx);
-        return;
+    if (m_disable_temporal_fix) {
+        return true;
     }
 
     auto scene_info = layer->get_scene_info();
@@ -503,34 +450,35 @@ void VR::RenderLayerHook<sdk::renderer::layer::Scene>::update(sdk::renderer::lay
     auto jitter_disable_scene_info = layer->get_jitter_disable_scene_info();
     auto z_prepass_scene_info = layer->get_z_prepass_scene_info();
 
-    struct Data {
-        Data(sdk::renderer::SceneInfo* info) 
-            : scene_info(info)
-        {
-            if (scene_info != nullptr) {
-                this->view_projection_matrix = scene_info->view_projection_matrix;
+    m_scene_layer_data = std::array<SceneLayerData, 5> {
+        SceneLayerData{ scene_info },
+        SceneLayerData{ depth_distortion_scene_info },
+        SceneLayerData{ filter_scene_info },
+        SceneLayerData{ jitter_disable_scene_info },
+        SceneLayerData{ z_prepass_scene_info },
+    };
+
+    m_set_next_scene_layer_data = true;
+    return true;
+}
+
+void VR::on_scene_layer_update(sdk::renderer::layer::Scene* layer, void* render_ctx) {
+    if (!is_hmd_active()) {
+        return;
+    }
+
+    if (m_disable_temporal_fix) {
+        return;
+    }
+
+    if (m_set_next_scene_layer_data) {
+        for (auto& d : m_scene_layer_data) {
+            if (d.scene_info != nullptr) {
+                d.scene_info->old_view_projection_matrix = d.view_projection_matrix;
             }
         }
 
-        sdk::renderer::SceneInfo* scene_info;
-        Matrix4x4f view_projection_matrix;
-    };
-
-    std::array<Data, 5> data {
-        Data{ scene_info },
-        Data{ depth_distortion_scene_info },
-        Data{ filter_scene_info },
-        Data{ jitter_disable_scene_info },
-        Data{ z_prepass_scene_info },
-    };
-
-    // Temporal fix
-    original_func(layer, render_ctx);
-    
-    for (auto& d : data) {
-        if (d.scene_info != nullptr) {
-            d.scene_info->old_view_projection_matrix = d.view_projection_matrix;
-        }
+        m_set_next_scene_layer_data = false;
     }
 }
 
@@ -542,7 +490,7 @@ void VR::wwise_listener_update_hook(void* listener) {
         return;
     }
 
-    auto mod = VR::get();
+    auto& mod = VR::get();
 
     if (!mod->is_hmd_active() || !mod->get_runtime()->loaded) {
         original_func(listener);
@@ -604,7 +552,7 @@ float VR::get_sharpness_hook(void* tonemapping) {
         return original_func(tonemapping);
     }
 
-    auto mod = VR::get();
+    auto& mod = VR::get();
 
     if (mod->m_disable_sharpening) {
         return 0.0f;
@@ -670,24 +618,6 @@ and place the openxr_loader.dll in the same folder.)";
     }
 
     hijack_error = hijack_camera();
-
-    if (hijack_error) {
-        return hijack_error;
-    }
-
-    hijack_error = hijack_render_layer(m_layer_hooks.overlay);
-
-    if (hijack_error) {
-        return hijack_error;
-    }
-
-    hijack_error = hijack_render_layer(m_layer_hooks.post_effect);
-
-    if (hijack_error) {
-        return hijack_error;
-    }
-
-    hijack_error = hijack_render_layer(m_layer_hooks.scene);
 
     if (hijack_error) {
         return hijack_error;
@@ -774,7 +704,8 @@ void VR::on_lua_state_created(sol::state& lua) {
         },
         "set_handle_pause", [](VR* vr, bool state) { 
             return vr->get_runtime()->handle_pause = state;
-        }
+        },
+        "unhide_crosshair", &VR::unhide_crosshair
     );
 
     lua["vrmod"] = this;
@@ -1150,32 +1081,7 @@ std::optional<std::string> VR::initialize_openxr_swapchains() {
 }
 
 std::optional<std::string> VR::hijack_resolution() {
-    // We're going to hook via.SceneView.get_Size so we can
-    // spoof the render target size to the HMD's resolution.
-    auto get_size_func = sdk::find_native_method("via.SceneView", "get_Size");
-
-    if (get_size_func == nullptr) {
-        return "VR init failed: via.SceneView.get_Size function not found.";
-    }
-
-    spdlog::info("via.SceneView.get_Size: {:x}", (uintptr_t)get_size_func);
-
-    // Pattern scan for the native function call
-    auto ref = utility::scan((uintptr_t)get_size_func, 0x100, "49 8B C8 E8");
-
-    if (!ref) {
-        return "VR init failed: via.SceneView.get_Size native function not found. Pattern scan failed.";
-    }
-
-    auto native_func = utility::calculate_absolute(*ref + 4);
-
-    // Hook the native function
-    g_get_size_hook = std::make_unique<FunctionHook>(native_func, get_size_hook);
-
-    if (!g_get_size_hook->create()) {
-        return "VR init failed: via.SceneView.get_Size native function hook failed.";
-    }
-
+    // moved to global hook class
     return std::nullopt;
 }
 
@@ -1203,49 +1109,21 @@ std::optional<std::string> VR::hijack_input() {
 }
 
 std::optional<std::string> VR::hijack_camera() {
-    // We're going to hook via.Camera.get_ProjectionMatrix so we can
-    // override the camera's Projection matrix with the HMD's Projection matrix (per-eye)
-    auto func = sdk::find_native_method("via.Camera", "get_ProjectionMatrix");
-
-    if (func == nullptr) {
-        return "VR init failed: via.Camera.get_ProjectionMatrix function not found.";
-    }
-
-    spdlog::info("via.Camera.get_ProjectionMatrix: {:x}", (uintptr_t)func);
-    
-    // Pattern scan for the native function call
-    auto ref = utility::scan((uintptr_t)func, 0x100, "49 8B C8 E8");
-
-    if (!ref) {
-        return "VR init failed: via.Camera.get_ProjectionMatrix native function not found. Pattern scan failed.";
-    }
-
-    auto native_func = utility::calculate_absolute(*ref + 4);
-
-    // Hook the native function
-    g_projection_matrix_hook = std::make_unique<FunctionHook>(native_func, camera_get_projection_matrix_hook);
-
-    if (!g_projection_matrix_hook->create()) {
-        return "VR init failed: via.Camera.get_ProjectionMatrix native function hook failed.";
-    }
-
-    spdlog::info("Hooked via.Camera.get_ProjectionMatrix");
-
-    const auto get_projection_matrix = native_func;
+    const auto get_projection_matrix = (uintptr_t)sdk::find_native_method("via.Camera", "get_ProjectionMatrix");
 
     ///////////////////////////////
     // Hook GUI camera projection matrix start
     ///////////////////////////////
-    func = sdk::find_native_method("via.gui.GUICamera", "get_ProjectionMatrix");
+    auto func = sdk::find_native_method("via.gui.GUICamera", "get_ProjectionMatrix");
 
     if (func != nullptr) {
         spdlog::info("via.gui.GUICamera.get_ProjectionMatrix: {:x}", (uintptr_t)func);
         
         // Pattern scan for the native function call
-        ref = utility::scan((uintptr_t)func, 0x100, "49 8B C8 E8");
+        auto ref = utility::scan((uintptr_t)func, 0x100, "49 8B C8 E8");
 
         if (ref) {
-            native_func = utility::calculate_absolute(*ref + 4);
+            auto native_func = utility::calculate_absolute(*ref + 4);
 
             if (native_func != get_projection_matrix) {
                 // Hook the native function
@@ -1259,148 +1137,6 @@ std::optional<std::string> VR::hijack_camera() {
             }
         }
     }
-
-    ///////////////////////////////
-    // Hook view matrix start
-    ///////////////////////////////
-    func = sdk::find_native_method("via.Camera", "get_ViewMatrix");
-
-    if (func == nullptr) {
-        return "VR init failed: via.Camera.get_ViewMatrix function not found.";
-    }
-
-    spdlog::info("via.Camera.get_ViewMatrix: {:x}", (uintptr_t)func);
-
-    // Pattern scan for the native function call
-    ref = utility::scan((uintptr_t)func, 0x100, "49 8B C8 E8");
-
-    if (!ref) {
-        return "VR init failed: via.Camera.get_ViewMatrix native function not found. Pattern scan failed.";
-    }
-
-    native_func = utility::calculate_absolute(*ref + 4);
-
-    // Hook the native function
-    g_view_matrix_hook = std::make_unique<FunctionHook>(native_func, camera_get_view_matrix_hook);
-
-    if (!g_view_matrix_hook->create()) {
-        return "VR init failed: via.Camera.get_ViewMatrix native function hook failed.";
-    }
-
-    return std::nullopt;
-}
-
-std::optional<std::string> VR::hijack_render_layer(VR::RenderLayerHook<sdk::renderer::RenderLayer>& hook) {
-    // We're going to make via.render.layer.Overlay.Draw() return early
-    // For some reason this fixes 3D GUI rendering in RE3 in VR
-    auto t = sdk::find_type_definition(hook.name);
-
-    if (t == nullptr) {
-        return std::string{"VR init failed: "} + hook.name + " type not found.";
-    }
-
-    void* fake_obj = t->create_instance();
-
-    if (fake_obj == nullptr) { 
-        return std::string{"VR init failed: "} + "Failed to create fake " + hook.name + " instance.";
-    }
-
-    auto obj_vtable = *(uintptr_t**)fake_obj;
-
-    if (obj_vtable == nullptr) {
-        return std::string{"VR init failed: "} + hook.name + " vtable not found.";
-    }
-
-    spdlog::info("{:s} vtable: {:x}", hook.name, (uintptr_t)obj_vtable - g_framework->get_module());
-
-    auto draw_native = obj_vtable[sdk::renderer::RenderLayer::DRAW_VTABLE_INDEX];
-
-    if (draw_native == 0) {
-        return std::string{"VR init failed: "} + hook.name + " draw native not found.";
-    }
-
-    spdlog::info("{:s}.Draw: {:x}", hook.name, (uintptr_t)draw_native);
-
-    // Set the first byte to the ret instruction
-    //m_overlay_draw_patch = Patch::create(draw_native, { 0xC3 });
-
-    if (!utility::is_stub_code((uint8_t*)draw_native)) {
-        if (!hook.hook_draw(draw_native)) {
-            return std::string{"VR init failed: "} + hook.name + " draw native function hook failed.";
-        }
-    } else {
-        spdlog::info("Skipping draw hook for {:s}, stub code detected", hook.name);
-    }
-
-    auto update_native = obj_vtable[sdk::renderer::RenderLayer::UPDATE_VTABLE_INDEX];
-
-    if (update_native == 0) {
-        return std::string{"VR init failed: "} + hook.name + " update native not found.";
-    }
-
-    spdlog::info("{:s}.Update: {:x}", hook.name, (uintptr_t)update_native);
-
-    if (!utility::is_stub_code((uint8_t*)update_native)) {
-        if (!hook.hook_update(update_native)) {
-            return std::string{"VR init failed: "} + hook.name + " update native function hook failed.";
-        }
-    } else {
-        spdlog::info("Skipping update hook for {:s}, stub code detected", hook.name);
-    }
-
-    // Hook get_Sharpness
-    /*auto get_sharpness = sdk::find_native_method("via.render.ToneMapping", "get_Sharpness");
-
-    if (get_sharpness == nullptr) {
-        return "Could not find get_Sharpness";
-    }
-
-    spdlog::info("via.render.ToneMapping.get_Sharpness: {:x}", (uintptr_t)get_sharpness);
-
-    // Scan for the native function call (jmp)
-    auto ref = utility::scan((uintptr_t)get_sharpness, 0x20, "E9");
-
-    if (!ref) {
-        return "VR init failed: via.render.ToneMapping.get_Sharpness native function not found. Pattern scan failed.";
-    }
-
-    auto native_func = utility::calculate_absolute(*ref + 1);
-
-    g_get_sharpness_hook = std::make_unique<FunctionHook>(native_func, get_sharpness_hook);
-
-    if (!g_get_sharpness_hook->create()) {
-        return "VR init failed: via.render.ToneMapping.get_Sharpness native function hook failed.";
-    }*/
-
-    // ASDAFASFF
-    /*t = sdk::find_type_definition("via.render.layer.PostShadowCast");
-
-    if (t == nullptr) {
-        return "VR init failed: via.render.layer.PostShadowCast type not found.";
-    }
-
-    fake_obj = t->create_instance();
-
-    if (fake_obj == nullptr) {
-        return "VR init failed: Failed to create fake via.render.layer.PostShadowCast instance.";
-    }
-
-    obj_vtable = *(uintptr_t**)fake_obj;
-
-    if (obj_vtable == nullptr) {
-        return "VR init failed: via.render.layer.PostShadowCast vtable not found.";
-    }
-
-    draw_native = obj_vtable[LAYER_DRAW_INDEX];
-
-    if (draw_native == 0) {
-        return "VR init failed: via.render.layer.PostShadowCast draw native not found.";
-    }
-
-    spdlog::info("via.render.layer.PostShadowCast.Draw: {:x}", (uintptr_t)draw_native);
-
-    // Set the first byte to the ret instruction
-    static auto shadow_patch = Patch::create(draw_native, { 0xC3 });*/
 
     return std::nullopt;
 }
@@ -2581,20 +2317,22 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
 
         // Certain UI elements we want to remove when in VR (FirstPerson enabled)
 #if defined(RE2) || defined(RE3)
-        auto& fp = FirstPerson::get();
+        if (std::chrono::steady_clock::now() - m_last_crosshair_hide > std::chrono::seconds(1)) {
+            auto& fp = FirstPerson::get();
 
-        if (fp->is_enabled() && fp->will_be_used()) {
-            const auto has_motion_controls = this->is_using_controllers();
+            if (fp->is_enabled() && fp->will_be_used()) {
+                const auto has_motion_controls = this->is_using_controllers();
 
-            switch(name_hash) {
-            case "GUI_Reticle"_fnv: // Crosshair
-                if (has_motion_controls) {
-                    return false;
+                switch(name_hash) {
+                case "GUI_Reticle"_fnv: // Crosshair
+                    if (has_motion_controls) {
+                        return false;
+                    }
+                    
+                    break;
+                default:
+                    break;
                 }
-                
-                break;
-            default:
-                break;
             }
         }
 #endif

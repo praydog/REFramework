@@ -1,14 +1,20 @@
 #include "Mods.hpp"
 #include "REFramework.hpp"
-#include "utility/Scan.hpp"
-#include "utility/Module.hpp"
-#include "utility/String.hpp"
+#include <utility/Scan.hpp>
+#include <utility/Module.hpp>
+#include <utility/String.hpp>
+#include <utility/Memory.hpp>
 
 #include "sdk/Application.hpp"
 
 #include "Hooks.hpp"
 
 Hooks* g_hook = nullptr;
+
+std::shared_ptr<Hooks>& Hooks::get() {
+    static std::shared_ptr<Hooks> instance = std::make_shared<Hooks>();
+    return instance;
+}
 
 Hooks::Hooks() {
     g_hook = this;
@@ -89,6 +95,52 @@ void Hooks::on_draw_ui() {
             ImGui::TreePop();
         }
     }
+}
+
+#define LAYER_HOOK_BODY(x, x2, x3) \
+if (!g_framework->is_ready()) {\
+    auto original_func = g_hook->m_layer_hooks.##x##.##x3##_hook->get_original<decltype(RenderLayerHook<sdk::renderer::layer::##x2##>::##x3##)>();\
+    original_func(layer, render_ctx); \
+    return; \
+} \
+bool any_false = false; \
+const auto& mods = g_framework->get_mods()->get_mods(); \
+for (auto& mod : mods) { \
+    const auto result = mod->on_pre_##x##_layer_##x3##(layer, render_ctx); \
+    if (!result) { \
+        any_false = true; \
+    } \
+} \
+if (!any_false) { \
+    auto original_func = g_hook->m_layer_hooks.##x##.##x3##_hook->get_original<decltype(RenderLayerHook<sdk::renderer::layer::##x2##>::##x3##)>();\
+    original_func(layer, render_ctx); \
+} \
+for (auto& mod : mods) { \
+    mod->on_##x##_layer_##x3##(layer, render_ctx); \
+}
+
+void Hooks::RenderLayerHook<sdk::renderer::layer::Scene>::update(sdk::renderer::layer::Scene* layer, void* render_ctx) {
+    LAYER_HOOK_BODY(scene, Scene, update);
+}
+
+void Hooks::RenderLayerHook<sdk::renderer::layer::Scene>::draw(sdk::renderer::layer::Scene* layer, void* render_ctx) {
+    LAYER_HOOK_BODY(scene, Scene, draw);
+}
+
+void Hooks::RenderLayerHook<sdk::renderer::layer::PostEffect>::update(sdk::renderer::layer::PostEffect* layer, void* render_ctx) {
+    LAYER_HOOK_BODY(post_effect, PostEffect, update);
+}
+
+void Hooks::RenderLayerHook<sdk::renderer::layer::PostEffect>::draw(sdk::renderer::layer::PostEffect* layer, void* render_ctx) {
+    LAYER_HOOK_BODY(post_effect, PostEffect, draw);
+}
+
+void Hooks::RenderLayerHook<sdk::renderer::layer::Overlay>::update(sdk::renderer::layer::Overlay* layer, void* render_ctx) {
+    LAYER_HOOK_BODY(overlay, Overlay, update);
+}
+
+void Hooks::RenderLayerHook<sdk::renderer::layer::Overlay>::draw(sdk::renderer::layer::Overlay* layer, void* render_ctx) {
+    LAYER_HOOK_BODY(overlay, Overlay, draw);
 }
 
 std::optional<std::string> Hooks::hook_update_transform() {
@@ -481,6 +533,155 @@ std::optional<std::string> Hooks::hook_lightshaft_draw() {
     return std::nullopt;
 }
 
+std::optional<std::string> Hooks::hook_view_get_size() {
+    // We're going to hook via.SceneView.get_Size so we can
+    // spoof the render target size to the HMD's resolution.
+    auto get_size_func = sdk::find_native_method("via.SceneView", "get_Size");
+
+    if (get_size_func == nullptr) {
+        return "Hook init failed: via.SceneView.get_Size function not found.";
+    }
+
+    spdlog::info("via.SceneView.get_Size: {:x}", (uintptr_t)get_size_func);
+
+    // Pattern scan for the native function call
+    auto ref = utility::scan((uintptr_t)get_size_func, 0x100, "49 8B C8 E8");
+
+    if (!ref) {
+        return "Hook init failed: via.SceneView.get_Size native function not found. Pattern scan failed.";
+    }
+
+    auto native_func = utility::calculate_absolute(*ref + 4);
+
+    // Hook the native function
+    m_view_get_size_hook = std::make_unique<FunctionHook>(native_func, view_get_size_hook);
+
+    if (!m_view_get_size_hook->create()) {
+        return "Hook init failed: via.SceneView.get_Size native function hook failed.";
+    }
+
+    return std::nullopt;
+}
+
+std::optional<std::string> Hooks::hook_camera_get_projection_matrix() {
+    // We're going to hook via.Camera.get_ProjectionMatrix so we can
+    // override the camera's Projection matrix with the HMD's Projection matrix (per-eye)
+    auto func = sdk::find_native_method("via.Camera", "get_ProjectionMatrix");
+
+    if (func == nullptr) {
+        return "Hook init failed: via.Camera.get_ProjectionMatrix function not found.";
+    }
+
+    spdlog::info("via.Camera.get_ProjectionMatrix: {:x}", (uintptr_t)func);
+    
+    // Pattern scan for the native function call
+    auto ref = utility::scan((uintptr_t)func, 0x100, "49 8B C8 E8");
+
+    if (!ref) {
+        return "Hook init failed: via.Camera.get_ProjectionMatrix native function not found. Pattern scan failed.";
+    }
+
+    auto native_func = utility::calculate_absolute(*ref + 4);
+
+    // Hook the native function
+    m_camera_get_projection_matrix_hook = std::make_unique<FunctionHook>(native_func, camera_get_projection_matrix_hook);
+
+    if (!m_camera_get_projection_matrix_hook->create()) {
+        return "Hook init failed: via.Camera.get_ProjectionMatrix native function hook failed.";
+    }
+
+    spdlog::info("Hooked via.Camera.get_ProjectionMatrix");
+
+    return std::nullopt;
+}
+
+std::optional<std::string> Hooks::hook_camera_get_view_matrix() {
+    auto func = sdk::find_native_method("via.Camera", "get_ViewMatrix");
+
+    if (func == nullptr) {
+        return "Hook init failed: via.Camera.get_ViewMatrix function not found.";
+    }
+
+    spdlog::info("via.Camera.get_ViewMatrix: {:x}", (uintptr_t)func);
+
+    // Pattern scan for the native function call
+    auto ref = utility::scan((uintptr_t)func, 0x100, "49 8B C8 E8");
+
+    if (!ref) {
+        return "Hook init failed: via.Camera.get_ViewMatrix native function not found. Pattern scan failed.";
+    }
+
+    auto native_func = utility::calculate_absolute(*ref + 4);
+
+    // Hook the native function
+    m_camera_get_view_matrix_hook = std::make_unique<FunctionHook>(native_func, camera_get_view_matrix_hook);
+
+    if (!m_camera_get_view_matrix_hook->create()) {
+        return "Hook init failed: via.Camera.get_ViewMatrix native function hook failed.";
+    }
+
+    return std::nullopt;
+}
+
+std::optional<std::string> Hooks::hook_render_layer(Hooks::RenderLayerHook<sdk::renderer::RenderLayer>& hook) {
+    auto t = sdk::find_type_definition(hook.name);
+
+    if (t == nullptr) {
+        return std::string{"Hooks init failed: "} + hook.name + " type not found.";
+    }
+
+    void* fake_obj = t->create_instance();
+
+    if (fake_obj == nullptr) { 
+        return std::string{"Hooks init failed: "} + "Failed to create fake " + hook.name + " instance.";
+    }
+
+    auto obj_vtable = *(uintptr_t**)fake_obj;
+
+    if (obj_vtable == nullptr) {
+        return std::string{"Hooks init failed: "} + hook.name + " vtable not found.";
+    }
+
+    spdlog::info("{:s} vtable: {:x}", hook.name, (uintptr_t)obj_vtable - g_framework->get_module());
+
+    auto draw_native = obj_vtable[sdk::renderer::RenderLayer::DRAW_VTABLE_INDEX];
+
+    if (draw_native == 0) {
+        return std::string{"Hooks init failed: "} + hook.name + " draw native not found.";
+    }
+
+    spdlog::info("{:s}.Draw: {:x}", hook.name, (uintptr_t)draw_native);
+
+    // Set the first byte to the ret instruction
+    //m_overlay_draw_patch = Patch::create(draw_native, { 0xC3 });
+
+    if (!utility::is_stub_code((uint8_t*)draw_native)) {
+        if (!hook.hook_draw(draw_native)) {
+            return std::string{"Hooks init failed: "} + hook.name + " draw native function hook failed.";
+        }
+    } else {
+        spdlog::info("Skipping draw hook for {:s}, stub code detected", hook.name);
+    }
+
+    auto update_native = obj_vtable[sdk::renderer::RenderLayer::UPDATE_VTABLE_INDEX];
+
+    if (update_native == 0) {
+        return std::string{"Hooks init failed: "} + hook.name + " update native not found.";
+    }
+
+    spdlog::info("{:s}.Update: {:x}", hook.name, (uintptr_t)update_native);
+
+    if (!utility::is_stub_code((uint8_t*)update_native)) {
+        if (!hook.hook_update(update_native)) {
+            return std::string{"Hooks init failed: "} + hook.name + " update native function hook failed.";
+        }
+    } else {
+        spdlog::info("Skipping update hook for {:s}, stub code detected", hook.name);
+    }
+
+    return std::nullopt;
+}
+
 void* Hooks::update_transform_hook_internal(RETransform* t, uint8_t a2, uint32_t a3) {
     if (!g_framework->is_ready()) {
         return m_update_transform_hook->get_original<decltype(update_transform_hook)>()(t, a2, a3);
@@ -644,6 +845,14 @@ void Hooks::global_application_entry_hook_internal(void* entry, const char* name
         return original(entry);
     }
 
+    {
+        std::shared_lock _{m_application_entry_data_mutex};
+
+        if (m_ignored_application_entries.contains(hash)) {
+            return;
+        }
+    }
+
     if (m_profiling_enabled) {
         Hooks::ApplicationEntryData profiler_entry{};
         
@@ -697,4 +906,70 @@ void Hooks::global_application_entry_hook_internal(void* entry, const char* name
 
 void Hooks::global_application_entry_hook(void* entry, const char* name, size_t hash) {
     g_hook->global_application_entry_hook_internal(entry, name, hash);
+}
+
+float* Hooks::view_get_size_hook_internal(REManagedObject* scene_view, float* result) {
+    const auto& mods = g_framework->get_mods()->get_mods();
+
+    for (auto& mod : mods) {
+        mod->on_pre_view_get_size(scene_view, result);
+    }
+
+    auto original = m_view_get_size_hook->get_original<decltype(view_get_size_hook)>();
+
+    auto ret = original(scene_view, result);
+
+    for (auto& mod : mods) {
+        mod->on_view_get_size(scene_view, result);
+    }
+
+    return ret;
+}
+
+float* Hooks::view_get_size_hook(REManagedObject* scene_view, float* result) {
+    return g_hook->view_get_size_hook_internal(scene_view, result);
+}
+
+Matrix4x4f* Hooks::camera_get_projection_matrix_hook_internal(REManagedObject* camera, Matrix4x4f* result) {
+    const auto& mods = g_framework->get_mods()->get_mods();
+
+    for (auto& mod : mods) {
+        mod->on_pre_camera_get_projection_matrix(camera, result);
+    }
+
+    auto original = m_camera_get_projection_matrix_hook->get_original<decltype(camera_get_projection_matrix_hook)>();
+
+    auto ret = original(camera, result);
+
+    for (auto& mod : mods) {
+        mod->on_camera_get_projection_matrix(camera, result);
+    }
+
+    return ret;
+}
+
+Matrix4x4f* Hooks::camera_get_projection_matrix_hook(REManagedObject* camera, Matrix4x4f* result) {
+    return g_hook->camera_get_projection_matrix_hook_internal(camera, result);
+}
+
+Matrix4x4f* Hooks::camera_get_view_matrix_hook_internal(REManagedObject* camera, Matrix4x4f* result) {
+    const auto& mods = g_framework->get_mods()->get_mods();
+
+    for (auto& mod : mods) {
+        mod->on_pre_camera_get_view_matrix(camera, result);
+    }
+
+    auto original = m_camera_get_view_matrix_hook->get_original<decltype(camera_get_view_matrix_hook)>();
+
+    auto ret = original(camera, result);
+
+    for (auto& mod : mods) {
+        mod->on_camera_get_view_matrix(camera, result);
+    }
+
+    return ret;
+}
+
+Matrix4x4f* Hooks::camera_get_view_matrix_hook(REManagedObject* camera, Matrix4x4f* result) {
+    return g_hook->camera_get_view_matrix_hook_internal(camera, result);
 }

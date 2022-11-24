@@ -70,6 +70,13 @@ private:
         *m_hide_lower_body_cutscenes
     };
 
+    enum PlayerType {
+        ETHAN = 0,
+        CHRIS_MERC = 1,
+    };
+
+    PlayerType m_player_type{PlayerType::ETHAN};
+
     union {
         ::REGameObject* m_player{nullptr};
         ::REManagedObject* m_player_downcast;

@@ -86,7 +86,7 @@ void ManualFlashlight::on_update_transform(RETransform* transform) {
         }
     }
 
-    const auto player = m_props_manager->player;
+    const auto player = sdk::call_object_func_easy<REGameObject*>(m_props_manager, "get_Player");
     if (player == nullptr) {
         reset_player_data();
         return;
@@ -112,15 +112,21 @@ void ManualFlashlight::on_update_transform(RETransform* transform) {
     // TODO: Check for scene change and cache this stuff, maybe theres a power on zone count in the current scene somewhere?
     // Also, sometimes the game will force this on before it can be set here, making your flashlight toggle on.
     // I don't really care to find a way around this since it's user-friendly anyway... Some areas are pitch-black.
+    auto light_power_on_zones = sdk::get_object_field<int32_t>(m_player_hand_light, "EnterHandLightPowerOnZoneCount");
 
-    auto &light_power_on_zones = m_player_hand_light->EnterHandLightPowerOnZoneCount;
-    m_light_power_on_zones = light_power_on_zones;
-    
-    if (m_light_ignore_power_on_zones->value()) {
-        light_power_on_zones = 0;
+    if (light_power_on_zones != nullptr) {
+        m_light_power_on_zones = *light_power_on_zones;
+        
+        if (m_light_ignore_power_on_zones->value()) {
+            *light_power_on_zones = 0;
+        }
     }
 
-    m_player_hand_light->IsContinuousOn = m_wants_flashlight;
+    auto is_continous_on = sdk::get_object_field<bool>(m_player_hand_light, "IsContinuousOn");
+
+    if (is_continous_on != nullptr) {
+        *is_continous_on = m_wants_flashlight;
+    }
 #endif
 }
 
@@ -133,7 +139,7 @@ void ManualFlashlight::on_disabled() noexcept {
     }
 #else
     if (m_player_hand_light != nullptr) {
-        m_player_hand_light->IsContinuousOn = false;
+        *sdk::get_object_field<bool>(m_player_hand_light, "IsContinuousOn") = false;
     }
 #endif
 }

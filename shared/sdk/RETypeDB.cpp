@@ -7,7 +7,13 @@
 
 namespace sdk {
 RETypeDB* RETypeDB::get() {
-    return VM::get()->get_type_db();
+    auto vm = VM::get();
+
+    if (vm == nullptr) {
+        return nullptr;
+    }
+
+    return vm->get_type_db();
 }
 
 static std::shared_mutex g_tdb_type_mtx{};
@@ -403,7 +409,9 @@ void* REMethodDefinition::get_function() const {
             }
         }*/
 
-        spdlog::error("[REMethodDefinition::get_function] Encoded offset is 0 (method: {})", this->get_name());
+        auto decl_type = this->get_declaring_type();
+        auto name = decl_type != nullptr ? decl_type->get_full_name() : std::string{"null"};
+        spdlog::error("[REMethodDefinition::get_function] Encoded offset is 0 (vindex {}) (method: {}.{})", this->get_virtual_index(), name, this->get_name());
         return nullptr;
     }
 

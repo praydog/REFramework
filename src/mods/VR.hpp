@@ -196,36 +196,9 @@ public:
     auto get_ui_scale() const { return m_ui_scale_option->value(); }
     const auto& get_raw_projections() const { return get_runtime()->raw_projections; }
 
-    template<typename T=sdk::renderer::RenderLayer>
-    struct RenderLayerHook {
-        RenderLayerHook() = delete;
-        RenderLayerHook(std::string_view name)
-            : name{name}
-        {
-
-        }
-
-        static void draw(T* layer, void* render_context);
-        static void update(T* layer, void* render_context);
-
-        std::unique_ptr<FunctionHook> draw_hook{};
-        std::unique_ptr<FunctionHook> update_hook{};
-        std::string name{};
-
-        virtual bool hook_draw(Address target) {
-            draw_hook = std::make_unique<FunctionHook>(target, &RenderLayerHook<T>::draw);
-            return draw_hook->create();
-        }
-
-        virtual bool hook_update(Address target) {
-            update_hook = std::make_unique<FunctionHook>(target, &RenderLayerHook<T>::update);
-            return update_hook->create();
-        }
-
-        operator RenderLayerHook<sdk::renderer::RenderLayer>&() {
-            return *(RenderLayerHook<sdk::renderer::RenderLayer>*)this;
-        }
-    };
+    void unhide_crosshair() {
+        m_last_crosshair_hide = std::chrono::steady_clock::now();
+    }
 
 private:
     Vector4f get_position_unsafe(uint32_t index) const;
@@ -234,13 +207,42 @@ private:
 
 private:
     // Hooks
-    static float* get_size_hook(REManagedObject* scene_view, float* result);
+    void on_view_get_size(REManagedObject* scene_view, float* result) override;
     static void inputsystem_update_hook(void* ctx, REManagedObject* input_system);
-    static Matrix4x4f* camera_get_projection_matrix_hook(REManagedObject* camera, Matrix4x4f* result);
+    void on_camera_get_projection_matrix(REManagedObject* camera, Matrix4x4f* result) override;
     static Matrix4x4f* gui_camera_get_projection_matrix_hook(REManagedObject* camera, Matrix4x4f* result);
-    static Matrix4x4f* camera_get_view_matrix_hook(REManagedObject* camera, Matrix4x4f* result);
-    static void overlay_draw_hook(sdk::renderer::RenderLayer* layer, void* render_context);
-    static void post_effect_draw_hook(sdk::renderer::RenderLayer* layer, void* render_context);
+    void on_camera_get_view_matrix(REManagedObject* camera, Matrix4x4f* result) override;
+
+    bool on_pre_overlay_layer_update(sdk::renderer::layer::Overlay* layer, void* render_context) override;
+    bool on_pre_overlay_layer_draw(sdk::renderer::layer::Overlay* layer, void* render_context) override;
+
+    bool on_pre_post_effect_layer_update(sdk::renderer::layer::PostEffect* layer, void* render_context) override;
+    bool on_pre_post_effect_layer_draw(sdk::renderer::layer::PostEffect* layer, void* render_context) override;
+    void on_post_effect_layer_draw(sdk::renderer::layer::PostEffect* layer, void* render_context) override;
+    uint32_t m_previous_distortion_type{};
+    bool m_set_next_post_effect_distortion_type{false};
+
+    bool on_pre_scene_layer_update(sdk::renderer::layer::Scene* layer, void* render_context) override;
+    void on_scene_layer_update(sdk::renderer::layer::Scene* layer, void* render_context) override;
+    bool on_pre_scene_layer_draw(sdk::renderer::layer::Scene* layer, void* render_context) override;
+    bool m_set_next_scene_layer_data{false};
+
+    struct SceneLayerData {
+        SceneLayerData() = default;
+        SceneLayerData(sdk::renderer::SceneInfo* info) 
+            : scene_info(info)
+        {
+            if (scene_info != nullptr) {
+                this->view_projection_matrix = scene_info->view_projection_matrix;
+            }
+        }
+
+        sdk::renderer::SceneInfo* scene_info{};
+        Matrix4x4f view_projection_matrix{};
+    };
+
+    std::array<SceneLayerData, 5> m_scene_layer_data {};
+
     static void wwise_listener_update_hook(void* listener);
 
     //static float get_sharpness_hook(void* tonemapping);
@@ -254,7 +256,6 @@ private:
     std::optional<std::string> hijack_resolution();
     std::optional<std::string> hijack_input();
     std::optional<std::string> hijack_camera();
-    std::optional<std::string> hijack_render_layer(VR::RenderLayerHook<sdk::renderer::RenderLayer>& hook);
     std::optional<std::string> hijack_wwise_listeners(); // audio hook
 
     std::optional<std::string> reinitialize_openvr() {
@@ -327,12 +328,6 @@ private:
     // Sets overlay layer to return instantly
     // causes world-space gui elements to render properly
     Patch::Ptr m_overlay_draw_patch{};
-
-    struct {
-        RenderLayerHook<sdk::renderer::layer::Overlay> overlay{"via.render.layer.Overlay"};
-        RenderLayerHook<sdk::renderer::layer::PostEffect> post_effect{"via.render.layer.PostEffect"};
-        RenderLayerHook<sdk::renderer::layer::Scene> scene{"via.render.layer.Scene"};
-    } m_layer_hooks;
     
     mutable std::recursive_mutex m_openvr_mtx{};
     mutable std::recursive_mutex m_wwise_mtx{};
@@ -428,6 +423,7 @@ private:
     std::bitset<64> m_button_states_up{};
     std::chrono::steady_clock::time_point m_last_controller_update{};
     std::chrono::steady_clock::time_point m_last_interaction_display{};
+    std::chrono::steady_clock::time_point m_last_crosshair_hide{};
     uint32_t m_backbuffer_inconsistency_start{};
     std::chrono::nanoseconds m_last_input_delay{};
     std::chrono::nanoseconds m_avg_input_delay{};

@@ -31,6 +31,7 @@ extern "C" {
 #include "ExceptionHandler.hpp"
 #include "LicenseStrings.hpp"
 #include "mods/REFrameworkConfig.hpp"
+#include "mods/IntegrityCheckBypass.hpp"
 #include "REFramework.hpp"
 
 namespace fs = std::filesystem;
@@ -134,6 +135,9 @@ REFramework::REFramework(HMODULE reframework_module)
     : m_reframework_module{reframework_module}
     , m_game_module{GetModuleHandle(0)}
     , m_logger{spdlog::basic_logger_mt("REFramework", "re2_framework_log.txt", true)} {
+
+    std::scoped_lock __{m_startup_mutex};
+
     spdlog::set_default_logger(m_logger);
     spdlog::flush_on(spdlog::level::info);
     spdlog::info("REFramework entry");
@@ -197,7 +201,6 @@ REFramework::REFramework(HMODULE reframework_module)
         spdlog::info("ntdll.dll not found");
     }
 
-    // Fixes a crash on some machines when starting the game
 #if defined(RE8) || defined(MHRISE)
     auto now = std::chrono::steady_clock::now();
     std::chrono::steady_clock::time_point next_log = now;
@@ -211,7 +214,7 @@ REFramework::REFramework(HMODULE reframework_module)
         }
     }
 
-#ifdef MHRISE
+#if defined(MHRISE)
     utility::load_module_from_current_directory(L"openvr_api.dll");
     utility::load_module_from_current_directory(L"openxr_loader.dll");
     LoadLibraryA("dxgi.dll");
@@ -219,19 +222,36 @@ REFramework::REFramework(HMODULE reframework_module)
     utility::spoof_module_paths_in_exe_dir();
 #endif
 
-#ifdef RE8
-    // auto startup_patch_addr = Address{m_game_module}.get(0x3E69E50);
-    auto startup_patch_addr = utility::scan(m_game_module, "40 53 57 48 83 ec 28 48 83 b9 ? ? ? ? 00");
+#if defined(RE8)
+    auto startup_lookup_thread = std::make_unique<std::thread>([this]() {
+        // Fixes a crash on some machines when starting the game
+        // This one has nothing to do with integrity checks
+        // it has something to do with the Agility SDK and pipeline state.
+        uint32_t times_searched = 0;
 
-    while (!startup_patch_addr) {
-        startup_patch_addr = utility::scan(m_game_module, "40 53 57 48 83 ec 28 48 83 b9 ? ? ? ? 00");
-    }
+        auto startup_patch_addr = utility::scan(m_game_module, "40 53 57 48 83 ec 28 48 83 b9 ? ? ? ? 00");
 
-    if (startup_patch_addr) {
-        static auto permanent_patch = Patch::create(*startup_patch_addr, {0xC3});
-    } else {
-        spdlog::info("Couldn't find RE8 crash fix patch location!");
-    }
+        while (!startup_patch_addr) {
+            startup_patch_addr = utility::scan(m_game_module, "40 53 57 48 83 ec 28 48 83 b9 ? ? ? ? 00");
+
+            if (times_searched++ > 10) {
+                spdlog::error("Failed to find startup patch address");
+                return;
+            }
+        }
+
+        if (startup_patch_addr) {
+            spdlog::info("Found startup patch at {:x}", *startup_patch_addr);
+            static auto permanent_patch = Patch::create(*startup_patch_addr, {0xC3});
+        } else {
+            spdlog::info("Couldn't find RE8 crash fix patch location!");
+        }
+    });
+    startup_lookup_thread->detach();
+
+    utility::ThreadSuspender ___{};
+    IntegrityCheckBypass::ignore_application_entries();
+    IntegrityCheckBypass::immediate_patch_re8();
 #endif
 #endif
 
@@ -967,7 +987,7 @@ void REFramework::draw_about() {
             License{ "sol", license::sol },
             License{ "json", license::json },
             License{ "asmjit", license::asmjit },
-            License{ "zydis", utility::narrow(license::zydis) },
+            License{ "bddisasm", utility::narrow(license::bddisasm) },
             License{ "openxr", license::openxr },
             License{ "imguizmo", license::imguizmo }
         };
@@ -1247,45 +1267,70 @@ bool REFramework::initialize() {
 
     if (m_first_frame) {
         m_first_frame = false;
+        initialize_game_data();
+    }
 
-        spdlog::info("Starting game data initialization thread");
+    return true;
+}
 
-        // Game specific initialization stuff
-        std::thread init_thread([this]() {
-            try {
-#ifdef MHRISE
-                utility::spoof_module_paths_in_exe_dir();
-#endif
-                reframework::initialize_sdk();
-                m_mods = std::make_unique<Mods>();
+bool REFramework::initialize_game_data() {
+    if (m_game_data_initialized || m_started_game_data_thread) {
+        return true;
+    }
 
-                auto e = m_mods->on_initialize();
+    m_started_game_data_thread = true;
 
-                if (e) {
-                    if (e->empty()) {
-                        m_error = "An unknown error has occurred.";
-                    } else {
-                        m_error = *e;
-                    }
+    spdlog::info("Starting game data initialization thread");
 
-                    spdlog::error("Initialization of mods failed. Reason: {}", m_error);
-                }
+    // Game specific initialization stuff
+    std::thread init_thread([this]() {
+        std::scoped_lock _{this->m_startup_mutex};
 
-                m_game_data_initialized = true;
-            } catch(...) {
-                m_error = "An exception has occurred during initialization.";
-                m_game_data_initialized = true;
-                spdlog::error("Initialization of mods failed. Reason: exception thrown.");
-            }
-
-#ifdef MHRISE
+        try {
+#if defined(MHRISE)
             utility::spoof_module_paths_in_exe_dir();
 #endif
-            spdlog::info("Game data initialization thread finished");
-        });
+            reframework::initialize_sdk();
 
-        init_thread.detach();
-    }
+#ifdef RE8
+            while (sdk::VM::get() == nullptr) {
+
+            }
+#endif
+
+            m_mods = std::make_unique<Mods>();
+
+            auto e = m_mods->on_initialize();
+
+            if (e) {
+                if (e->empty()) {
+                    m_error = "An unknown error has occurred.";
+                } else {
+                    m_error = *e;
+                }
+
+                spdlog::error("Initialization of mods failed. Reason: {}", m_error);
+            }
+
+            m_game_data_initialized = true;
+        } catch(const std::exception& e) {
+            m_error = e.what();
+            m_game_data_initialized = true;
+            spdlog::error("Initialization of mods failed. Reason: {}", m_error);
+        }
+        catch(...) {
+            m_error = "An exception has occurred during initialization.";
+            m_game_data_initialized = true;
+            spdlog::error("Initialization of mods failed. Reason: exception thrown.");
+        }
+
+#if defined(MHRISE)
+        utility::spoof_module_paths_in_exe_dir();
+#endif
+        spdlog::info("Game data initialization thread finished");
+    });
+
+    init_thread.detach();
 
     return true;
 }

@@ -6,6 +6,8 @@
 
 #include "sdk/RETypeDB.hpp"
 
+#include "Hooks.hpp"
+
 #include "IntegrityCheckBypass.hpp"
 
 struct IntegrityCheckPattern {
@@ -78,6 +80,8 @@ std::optional<std::string> IntegrityCheckBypass::on_initialize() {
     const auto module_end = g_framework->get_module() + module_size;
 
     for (auto& possible_pattern : possible_patterns) {
+        spdlog::info("Scanning for {}", possible_pattern.pat);
+
         auto integrity_check_ref = utility::scan(g_framework->get_module().as<HMODULE>(), possible_pattern.pat);
 
         if (!integrity_check_ref) {
@@ -87,6 +91,8 @@ std::optional<std::string> IntegrityCheckBypass::on_initialize() {
 #if defined(RE3)
         m_bypass_integrity_checks = (bool*)utility::calculate_absolute(*integrity_check_ref + possible_pattern.offset);
 #elif defined(RE8)
+        ignore_application_entries();
+
         while (integrity_check_ref) {
             const auto ja_instruction = *integrity_check_ref + possible_pattern.offset;
 
@@ -224,6 +230,8 @@ std::optional<std::string> IntegrityCheckBypass::on_initialize() {
     }
 #endif
 
+    spdlog::info("Done.");
+
     return Mod::on_initialize();
 }
 
@@ -240,13 +248,15 @@ void IntegrityCheckBypass::on_frame() {
     disable_update_timers("app.InteractManager");
     disable_update_timers("app.EnemyManager");
     disable_update_timers("app.GUIManager");
+    disable_update_timers("app.HIDManager");
+    disable_update_timers("app.FadeManager");
 #endif
 }
 
 #ifdef RE8
-void IntegrityCheckBypass::disable_update_timers(const std::string& name) const {
+void IntegrityCheckBypass::disable_update_timers(std::string_view name) const {
     // get the singleton correspdonding to the given name
-    auto manager = reframework::get_globals()->get<REManagedObject>(name);
+    auto manager = sdk::get_managed_singleton<::REManagedObject>(name);
 
     // If the interact manager is null, we're probably not in the game
     if (manager == nullptr || manager->info == nullptr || manager->info->classInfo == nullptr) {
@@ -265,25 +275,136 @@ void IntegrityCheckBypass::disable_update_timers(const std::string& name) const 
     auto update_timer_enable_field = t->get_field("UpdateTimerEnable");
     auto update_timer_late_enable_field = t->get_field("LateUpdateTimerEnable");
 
-    if (update_timer_enable_field == nullptr || update_timer_late_enable_field == nullptr) {
-        return;
-    }
-
     // Get the actual field data now within the manager
-    auto& update_timer_enable = update_timer_enable_field->get_data<bool>(manager, true);
-    auto& update_timer_late_enable = update_timer_late_enable_field->get_data<bool>(manager, true);
+    if (update_timer_enable_field != nullptr) {
+        auto& update_timer_enable = update_timer_enable_field->get_data<bool>(manager, true);
 
-    // Log that we are about to set these to false if they were true before
-    if (update_timer_enable) {
-        spdlog::info("[{:s}]: {:s}.UpdateTimerEnable was true, disabling it...", get_name().data(), name.data());
+        // Log that we are about to set these to false if they were true before
+        if (update_timer_enable) {
+            spdlog::info("[{:s}]: {:s}.UpdateTimerEnable was true, disabling it...", get_name().data(), name.data());
+        }
+
+        update_timer_enable = false;
     }
 
-    if (update_timer_late_enable) {
-        spdlog::info("[{:s}]: {:s}.LateUpdateTimerEnable was true, disabling it...", get_name().data(), name.data());
-    }
+    if (update_timer_late_enable_field != nullptr) {
+        auto& update_timer_late_enable = update_timer_late_enable_field->get_data<bool>(manager, true);
 
-    // Set the fields to false
-    update_timer_enable = false;
-    update_timer_late_enable = false;
+        if (update_timer_late_enable) {
+            spdlog::info("[{:s}]: {:s}.LateUpdateTimerEnable was true, disabling it...", get_name().data(), name.data());
+        }
+
+        update_timer_late_enable = false;
+    }
 }
 #endif
+
+void IntegrityCheckBypass::ignore_application_entries() {
+    Hooks::get()->ignore_application_entry(0x76b8100bec7c12c3);
+    Hooks::get()->ignore_application_entry(0x9f63c0fc4eea6626);
+}
+
+void IntegrityCheckBypass::immediate_patch_re8() {
+    // We have to immediately patch this at startup in RE8 unlike MHRise
+    // because the game immediately starts checking the integrity of the executable
+    // on the first execution of this callback, unlike MHRise which was delayed.
+    // So we can't use the IL2CPP metadata yet, we have to resort to
+    // plain old pattern scanning.
+    // We're essentially patching the application entries we ignored above, but immediately.
+    spdlog::info("[IntegrityCheckBypass]: Scanning RE8...");
+
+    const auto game = utility::get_executable();
+    const auto game_size = utility::get_module_size(game).value_or(0);
+    const auto game_end = (uintptr_t)game + game_size;
+
+    // Present in MHRise and RE8.
+    // sub rax, 128E329h
+    const uint32_t sussy_constant = 0x128E329;
+    std::optional<uintptr_t> sussy_result{};
+
+    bool patched_sussy1 = false;
+
+    for (sussy_result = utility::scan_data(game, (const uint8_t*)&sussy_constant, sizeof(sussy_constant)); 
+         sussy_result.has_value(); 
+         sussy_result = utility::scan_data(*sussy_result + 1, (game_end - (*sussy_result + 1)) - 0x100, (const uint8_t*)&sussy_constant, sizeof(sussy_constant)))
+    {
+        // Find the start of the instruction, given the sussy_constant is in the middle of it.
+        const auto resolved_instruction = utility::resolve_instruction(*sussy_result);
+
+        // If this instruction didn't get resolved, go onto the next one. We probably ran into garbage data.
+        if (resolved_instruction) {
+            const auto sussy_function_start = utility::find_function_start(resolved_instruction->addr);
+
+            if (!sussy_function_start) {
+                spdlog::error("[IntegrityCheckBypass]: Could not find function start for sussy_constant @ 0x{:x}", *sussy_result);
+                continue;
+            }
+
+            // Create a patch that returns instantly.
+            static auto patch = Patch::create(sussy_function_start.value(), { 0xC3 }, true);
+            patched_sussy1 = true;
+            spdlog::info("[IntegrityCheckBypass]: Patched sussy_function 1");
+            break;
+        }
+    }
+
+    if (!patched_sussy1) {
+        spdlog::error("[IntegrityCheckBypass]: Could not find sussy_constant usage!");
+    }
+
+    // Now we need to patch the second callback.
+    // I hope this constant isn't randomly generated by the protection!!!!!!
+    /*
+        call    ProtectionTripResult
+        cmp     eax, 1F2h
+        jz      ...
+        lea     rcx, ProtectionGlobalContext
+        call    ProtectionTripResult
+    */
+    const auto sussy_result_2 = utility::scan(game, "E8 ? ? ? ? 3D F2 01 00 00 0F 84 ? ? ? ? 48 8D 0D ? ? ? ? E8");
+
+    if (sussy_result_2) {
+        const auto sussy_function_start = utility::find_function_start(sussy_result_2.value());
+
+        if (sussy_function_start) {
+            static auto patch = Patch::create(sussy_function_start.value(), { 0xC3 }, true);
+            spdlog::info("[IntegrityCheckBypass]: Patched sussy_function 2");
+        }
+    } else {
+        spdlog::error("[IntegrityCheckBypass]: Could not find sussy_result_2!");
+    }
+
+    // These are embedded checks that run during startup and sometimes during loading transitions
+    // they get passed different indices that make it perform different behavior
+    // if it returns 1, the original execution flow gets altered
+    // and stuff like DLC loading gets skipped so it needs to always return 0
+    // there are really obvious constants to go off of within these functions
+    // but they look like they might be auto generated so can't rely on them
+    const auto sussy_result_3 = utility::scan(game, "8D ? 02 E8 ? ? ? ? 0F B6 C8 48 ? ? 50 48 ? ? 18 0F");
+
+    if (sussy_result_3) {
+        const auto func = utility::calculate_absolute(*sussy_result_3 + 4);
+        static auto patch = Patch::create(func, { 0xB0, 0x00, 0xC3 }, true);
+        spdlog::info("[IntegrityCheckBypass]: Patched sussy_function 3");
+    } else {
+        const auto sussy_result_alternative = utility::scan(game, "8D ? 05 E8 ? ? ? ? 0F B6 C8 48 ? ? 50 48 ? ? 18 0F");
+
+        if (sussy_result_alternative) {
+            const auto func = utility::calculate_absolute(*sussy_result_alternative + 4);
+            static auto patch = Patch::create(func, { 0xB0, 0x00, 0xC3 }, true);
+            spdlog::info("[IntegrityCheckBypass]: Patched sussy_function 3");
+        } else {
+            spdlog::error("[IntegrityCheckBypass]: Could not find sussy_result_3!");
+        }
+    }
+
+    const auto sussy_result_4 = utility::scan(game, "72 ? 41 8B ? E8 ? ? ? ? 0F B6 C8 48 ? ? 50 48 ? ? 18 0F");
+
+    if (sussy_result_4) {
+        const auto func = utility::calculate_absolute(*sussy_result_4 + 6);
+        static auto patch = Patch::create(func, { 0xB0, 0x00, 0xC3 }, true);
+        spdlog::info("[IntegrityCheckBypass]: Patched sussy_function 4");
+    } else {
+        spdlog::error("[IntegrityCheckBypass]: Could not find sussy_result_4!");
+    }
+}

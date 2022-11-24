@@ -13,17 +13,33 @@ std::unique_ptr<RETypes>& get_types() {
 }
 }
 
-std::string game_namespace(std::string_view base_name)
+std::string& game_namespace(std::string_view base_name)
 {
+    using namespace std::string_view_literals;
+
+    static constexpr std::string_view prefix{
 #ifdef MHRISE
-    return std::string{ "snow." } + base_name.data();
+    "snow."sv
 #elif defined(RE8) || defined(RE7) || defined(DMC5)
-    return std::string{ "app." } + base_name.data();
+    "app."sv
 #elif RE3
-    return std::string{ "offline." } + base_name.data();
+    "offline."sv
 #else
-    return std::string{ "app.ropeway." } + base_name.data();
+    "app.ropeway."sv
 #endif
+    };
+
+    static thread_local std::string buffer = [&]
+    {
+        std::string result{prefix};
+        result.reserve(128);
+        return result;
+    }();
+
+    buffer.resize(prefix.size());
+    buffer.insert(prefix.size(), base_name.data());
+
+    return buffer;
 }
 
 RETypes::RETypes() {
@@ -47,6 +63,19 @@ RETypes::RETypes() {
 
         if (!typeinfo_none_ref) {
             spdlog::error("Failed to find TypeInfoNone");
+
+            const auto alternative_pat = "48 8B 0D ? ? ? ? 8B F0 48 85 C9 74 ? E8 ? ? ? ?";
+            const auto alternative_ref = utility::scan(mod, alternative_pat);
+
+            if (alternative_ref) {
+                spdlog::info("Found alternative reference for type list");
+                m_raw_types = (TypeList*)utility::calculate_absolute(*alternative_ref + 3);
+                refresh_map();
+            } else {
+                spdlog::info("Could not find alternative reference for types, filling types from TDB instead");
+                fill_types_from_tdb();
+            }
+            
             return;
         }
 
@@ -54,6 +83,7 @@ RETypes::RETypes() {
 
         if (!add_type_ref) {
             spdlog::error("Failed to find add_type_ref");
+            fill_types_from_tdb();
             return;
         }
 
@@ -61,6 +91,7 @@ RETypes::RETypes() {
 
         if (!add_type_fn) {
             spdlog::error("Failed to calculate add_type_fn");
+            fill_types_from_tdb();
             return;
         }
 
@@ -68,6 +99,7 @@ RETypes::RETypes() {
 
         if (!ref) {
             spdlog::error("Bad RETypes ref");
+            fill_types_from_tdb();
             return;
         }
 
@@ -121,32 +153,7 @@ RETypes::RETypes() {
         spdlog::info("Settled on TypeList: {:x}", (uintptr_t)m_raw_types);
     }
 
-    auto& typeList = *m_raw_types;
-
-    // I don't know why but it can extend past the size.
-    for (auto i = 0; i < typeList.numAllocated; ++i) {
-        auto t = (*typeList.data)[i];
-
-        if (t == nullptr || IsBadReadPtr(t, sizeof(REType)) || ((uintptr_t)t & (sizeof(void*) - 1)) != 0) {
-            continue;
-        }
-        
-        if (t->name == nullptr) {
-            continue;
-        }
-
-        auto name = std::string{ t->name };
-
-        if (name.empty()) {
-            continue;
-        }
-
-        spdlog::info("{:s}", name);
-
-        m_type_map[name] = t;
-        m_types.insert(t);
-        m_type_list.push_back(t);
-    }
+    refresh_map();
 
     spdlog::info("Finished RETypes initialization");
 }
@@ -193,7 +200,39 @@ void RETypes::safe_refresh() {
     refresh_map();
 }
 
+void RETypes::fill_types_from_tdb() {
+    auto tdb = sdk::RETypeDB::get();
+
+    if (tdb == nullptr) {
+        return;
+    }
+    
+    spdlog::info("Filling types from TDB");
+
+    for (auto i = 0; i < tdb->get_num_types(); ++i) {
+        auto t = tdb->get_type(i);
+
+        if (t == nullptr) {
+            continue;
+        }
+
+        const auto re_type = t->get_type();
+
+        if (re_type == nullptr) {
+            continue;
+        }
+
+        m_type_map[t->get_full_name()] = t->get_type();
+        m_types.insert(t->get_type());
+        m_type_list.push_back(t->get_type());
+    }
+}
+
 void RETypes::refresh_map() {
+    if (m_raw_types == nullptr) {
+        return;
+    }
+
     auto& typeList = *m_raw_types;
 
     // I don't know why but it can extend past the size.
@@ -214,11 +253,10 @@ void RETypes::refresh_map() {
             continue;
         }
 
-        spdlog::info("{:s}", name);
-
         m_type_map[name] = t;
 
         if (m_types.count(t) == 0) {
+            spdlog::info("{:s}", name);
             m_types.insert(t);
             m_type_list.push_back(t);
         }

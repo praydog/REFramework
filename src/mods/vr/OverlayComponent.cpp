@@ -65,7 +65,7 @@ void OverlayComponent::update_input() {
         return;
     }
 
-    auto vr = VR::get();
+    auto& vr = VR::get();
     auto& io = ImGui::GetIO();
     const auto is_initial_frame = vr->get_frame_count() % 2 == vr->m_left_eye_interval || vr->m_use_afr;
 
@@ -138,7 +138,7 @@ void OverlayComponent::update_overlay() {
         return;
     }
 
-    auto vr = VR::get();
+    auto& vr = VR::get();
 
     const auto is_d3d11 = g_framework->get_renderer_type() == REFramework::RendererType::D3D11;
 

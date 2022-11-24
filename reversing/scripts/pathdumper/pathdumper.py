@@ -29,7 +29,7 @@ script = session.create_script("""
 console.log("Searching for pattern...");
 
 const m = Process.enumerateModules()[0];
-const patterns = ['40 55 41 54 41 55 41 57 48 8D AC 24 ?? ?? ?? ?? B8 38 10 00 00', // RE2/RE3/DMC5 no RT
+const patterns = ['40 55 41 54 41 55 41 57 48 8D AC 24 ?? ?? ?? ?? B8', // RE2/RE3/DMC5/GnG no RT
                   '40 55 53 41 55 48 8d AC 24 ?? ?? ?? ?? B8 50 18 00 00', // RE7 no RT
                   '40 55 53 41 56 48 8d ac 24 ?? ?? ?? ?? b8 40 10 00 00', // RE7/RE2/RE3 RT
 ];

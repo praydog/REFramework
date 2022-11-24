@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <string_view>
 
 #include "Mod.hpp"
 #include "utility/Patch.hpp"
@@ -14,13 +15,16 @@ public:
     std::optional<std::string> on_initialize() override;
 
     void on_frame() override;
+    
+    static void ignore_application_entries();
+    static void immediate_patch_re8();
 
 private:
 #ifdef RE3
     // This is what the game uses to bypass its integrity checks altogether or something
     bool* m_bypass_integrity_checks{ nullptr };
 #else
-    void disable_update_timers(const std::string& name) const;
+    void disable_update_timers(std::string_view name) const;
 
     std::vector<std::unique_ptr<Patch>> m_patches{};
 #endif

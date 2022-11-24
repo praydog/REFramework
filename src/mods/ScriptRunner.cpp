@@ -273,7 +273,26 @@ ScriptState::ScriptState(const ScriptState::GarbageCollectionData& gc_data) {
         },
         "get_version_major", []() -> int { return REFRAMEWORK_PLUGIN_VERSION_MAJOR; },
         "get_version_minor", []() -> int { return REFRAMEWORK_PLUGIN_VERSION_MINOR; },
-        "get_version_patch", []() -> int { return REFRAMEWORK_PLUGIN_VERSION_PATCH; }
+        "get_version_patch", []() -> int { return REFRAMEWORK_PLUGIN_VERSION_PATCH; },
+        "get_keyboard_state", &REFramework::get_keyboard_state,
+        "is_key_down", [](REFramework& framework, int key) {
+            if (key < 0 || key >= 256) {
+                return false;
+            }
+
+            return framework.get_keyboard_state()[key] != 0; 
+        },
+        "get_first_key_down", [](sol::this_state s, REFramework& framework) -> sol::object {
+            const auto& states = framework.get_keyboard_state();
+
+            for (int i = 0; i < 256; i++) {
+                if (states[i] != 0) {
+                    return sol::make_object(s, i);
+                }
+            }
+
+            return sol::make_object(s, sol::lua_nil);
+        }
     );
 
     m_lua["reframework"] = g_framework.get();

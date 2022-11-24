@@ -1,4 +1,4 @@
-#include "../utility/String.hpp"
+#include <utility/String.hpp>
 
 #include "RETypeDB.hpp"
 #include "RETypeDefinition.hpp"

@@ -11,7 +11,8 @@
 #include <imgui.h>
 #include <sol/sol.hpp>
 
-#include "sdk/ReClass.hpp"
+#include <sdk/ReClass.hpp>
+#include <sdk/Renderer.hpp>
 #include "utility/Config.hpp"
 
 #include "REFramework.hpp"
@@ -332,6 +333,13 @@ protected:
     bool m_waiting_for_new_key{ false };
 };
 
+// Render layer hooks
+#define MAKE_LAYER_CALLBACK(T, x) \
+    virtual bool on_pre_##x ##_layer_draw(sdk::renderer::layer::##T * layer, void* render_context) { return true; }; \
+    virtual void on_##x ##_layer_draw(sdk::renderer::layer::##T * layer, void* render_context) {}; \
+    virtual bool on_pre_ ##x ##_layer_update(sdk::renderer::layer::##T * layer, void* render_context) { return true; }; \
+    virtual void on_##x ##_layer_update(sdk::renderer::layer::##T * layer, void* render_context) {};
+
 class Mod {
 protected:
     using ValueList = std::vector<std::reference_wrapper<IModValue>>;
@@ -378,8 +386,19 @@ public:
     virtual void on_update_before_lock_scene(void* ctx) {};
     virtual void on_pre_lightshaft_draw(void* shaft, void* render_context) {};
     virtual void on_lightshaft_draw(void* shaft, void* render_context) {};
+    virtual void on_pre_view_get_size(REManagedObject* scene_view, float* result) {};
+    virtual void on_view_get_size(REManagedObject* scene_view, float* result) {};   
+    virtual void on_pre_camera_get_projection_matrix(REManagedObject* camera, Matrix4x4f* result) {};
+    virtual void on_camera_get_projection_matrix(REManagedObject* camera, Matrix4x4f* result) {};
+    virtual void on_pre_camera_get_view_matrix(REManagedObject* camera, Matrix4x4f* result) {};
+    virtual void on_camera_get_view_matrix(REManagedObject* camera, Matrix4x4f* result) {};
+
     // via.application entry hooks
     // For a list of possible entries, see via.ModuleEntry enum
     virtual void on_pre_application_entry(void* entry, const char* name, size_t hash) {};
     virtual void on_application_entry(void* entry, const char* name, size_t hash) {};
+
+    MAKE_LAYER_CALLBACK(Scene, scene);
+    MAKE_LAYER_CALLBACK(PostEffect, post_effect);
+    MAKE_LAYER_CALLBACK(Overlay, overlay);
 };

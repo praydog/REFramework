@@ -1,8 +1,7 @@
 #include <spdlog/spdlog.h>
-#include <Zydis/Zydis.h>
 
-#include "utility/Scan.hpp"
-#include "utility/Module.hpp"
+#include <utility/Scan.hpp>
+#include <utility/Module.hpp>
 
 #include "Application.hpp"
 #include "RETypeDB.hpp"
@@ -89,27 +88,20 @@ RenderLayer* RenderLayer::add_layer(::REType* layer_type, uint32_t priority, uin
                     std::unordered_map<uintptr_t, uint32_t> calls;
                     uintptr_t best_call = 0;
 
-                    ZydisDecoder decoder;
-                    ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_64, ZYDIS_STACK_WIDTH_64);
-                    ZydisDecodedInstruction is{};
-                    ZydisDecodedOperand ops[ZYDIS_MAX_OPERAND_COUNT_VISIBLE]{};
-
                     for (auto i = 0 ; i < 150; ++i) {
-                        if (ZYAN_FAILED(
-                            ZydisDecoderDecodeFull(
-                                &decoder, (void*)ip, 256, &is,
-                                ops, ZYDIS_MAX_OPERAND_COUNT_VISIBLE, ZYDIS_DFLAG_VISIBLE_OPERANDS_ONLY))) 
-                        {
+                        const auto decoded = utility::decode_one((uint8_t*)ip);
+
+                        if (!decoded) {
                             spdlog::error("[Renderer] Failed to decode instruction @ 0x{:x} ({:x})", ip, ip - (uintptr_t)add_scene_view_fn);
                             break;
                         }
 
-                        if (is.mnemonic == ZYDIS_MNEMONIC_RET || is.mnemonic == ZYDIS_MNEMONIC_INT3) {
+                        if (std::string_view{decoded->Mnemonic}.starts_with("RET") || std::string_view{decoded->Mnemonic}.starts_with("INT3")) {
                             spdlog::error("[Renderer] Encountering RET or INT3 @ 0x{:x} ({:x})", ip, ip - (uintptr_t)add_scene_view_fn);
                             break;
                         }
 
-                        if (is.opcode == 0xE8) {
+                        if (*(uint8_t*)ip == 0xE8) {
                             const auto addr = utility::calculate_absolute(ip + 1);
                             calls[addr]++;
 
@@ -127,7 +119,7 @@ RenderLayer* RenderLayer::add_layer(::REType* layer_type, uint32_t priority, uin
                             }
                         }
 
-                        ip += is.length;
+                        ip += decoded->Length;
                     }
 
                     if (best_call != 0) {
@@ -329,6 +321,10 @@ void RenderLayer::clone_layers(RenderLayer* other, bool recursive) {
             new_child_layer->clone_layers(child_layer, recursive);
         }
     }
+}
+
+::sdk::renderer::TargetState* RenderLayer::get_target_state(std::string_view name) {
+    return utility::re_managed_object::get_field<::sdk::renderer::TargetState*>(this, name);
 }
 
 void* get_renderer() {
@@ -550,7 +546,7 @@ std::optional<Vector2f> world_to_screen(const Vector3f& world_pos) {
 
     static auto get_gameobject_method = transform_def->get_method("get_GameObject");
     static auto get_axisz_method = transform_def->get_method("get_AxisZ");
-    static auto world_to_screen_methods = math_t->get_methods("worldPos2ScreenPos"); // there are 2 of them.
+    static auto world_to_screen = math_t->get_method("worldPos2ScreenPos(via.vec3, via.mat4, via.mat4, via.Size)");
 
     auto camera_gameobject = get_gameobject_method->call<REGameObject*>(context, camera);
     auto camera_transform = camera_gameobject->transform;
@@ -565,7 +561,7 @@ std::optional<Vector2f> world_to_screen(const Vector3f& world_pos) {
 
     sdk::call_object_func<void*>(camera, "get_ProjectionMatrix", &proj, context, camera);
     sdk::call_object_func<void*>(camera, "get_ViewMatrix", &view, context, camera);
-    sdk::call_object_func<void*>(main_view, "get_Size", &screen_size, context, main_view);
+    sdk::call_object_func<void*>(main_view, "get_WindowSize", &screen_size, context, main_view);
 
     const Vector4f pos = Vector4f{world_pos, 1.0f};
     Vector4f screen_pos{};
@@ -577,9 +573,32 @@ std::optional<Vector2f> world_to_screen(const Vector3f& world_pos) {
         return std::nullopt;
     }
 
-    world_to_screen_methods[1]->call<void*>(&screen_pos, context, &pos, &view, &proj, &screen_size);
+    world_to_screen->call<void*>(&screen_pos, context, &pos, &view, &proj, &screen_size);
 
     return Vector2f{screen_pos.x, screen_pos.y};
+}
+
+void* TargetState::get_native_resource_d3d12() const {
+    const auto rtv = get_rtv(0);
+
+    if (rtv == nullptr) {
+        return nullptr;
+    }
+
+    // sizeof(via.render.RenderTargetView) + 8;
+    const auto tex = rtv->get_texture_d3d12();
+
+    if (tex == nullptr) {
+        return nullptr;
+    }
+
+    const auto internal_resource = tex->get_d3d12_resource();
+
+    if (internal_resource == nullptr) {
+        return nullptr;
+    }
+
+    return internal_resource->get_native_resource();
 }
 
 void*& layer::Output::get_present_state() {
@@ -675,19 +694,19 @@ sdk::renderer::SceneInfo* layer::Scene::get_z_prepass_scene_info() {
 }
 
 void* layer::Scene::get_depth_stencil_d3d12() {
-    const auto tex = utility::re_managed_object::get_field<void*>(this, "DepthStencilTex");
+    const auto tex = utility::re_managed_object::get_field<::sdk::renderer::Texture*>(this, "DepthStencilTex");
 
     if (tex == nullptr) {
         return nullptr;
     }
 
-    const auto internal_resource = Address{tex}.get(0x98).to<void*>();
+    const auto internal_resource = tex->get_d3d12_resource();
 
     if (internal_resource == nullptr) {
         return nullptr;
     }
 
-    return *(void**)((uintptr_t)internal_resource + 0x10);
+    return internal_resource->get_native_resource();
 }
 }
 }

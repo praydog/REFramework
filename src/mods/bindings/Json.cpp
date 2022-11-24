@@ -38,7 +38,7 @@ json encode_any(sol::object obj) {
         auto i = 1;
 
         for (auto& kvp : table) {
-            if (kvp.first.get_type() != sol::type::number && kvp.first.as<int>() != i++) {
+            if (kvp.first.get_type() != sol::type::number || kvp.first.as<int>() != i++) {
                 is_array = false;
                 break;
             }

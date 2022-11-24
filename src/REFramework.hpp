@@ -126,6 +126,7 @@ private:
     bool hook_d3d12();
 
     bool initialize();
+    bool initialize_game_data();
     bool initialize_windows_message_hook();
 
     void call_on_frame();
@@ -138,6 +139,7 @@ private:
     bool m_valid{false};
     bool m_initialized{false};
     bool m_created_default_cfg{false};
+    bool m_started_game_data_thread{false};
     std::atomic<bool> m_game_data_initialized{false};
     
     // UI
@@ -187,6 +189,7 @@ private:
     std::unique_ptr<Mods> m_mods;
 
     std::recursive_mutex m_hook_monitor_mutex{};
+    std::recursive_mutex m_startup_mutex{};
     std::unique_ptr<std::thread> m_d3d_monitor_thread{};
     std::chrono::steady_clock::time_point m_last_present_time{};
     std::chrono::steady_clock::time_point m_last_message_time{};

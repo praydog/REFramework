@@ -26,7 +26,7 @@ Mods::Mods() {
 #endif
 
 #ifndef BAREBONES
-    m_mods.emplace_back(std::make_unique<Hooks>());
+    m_mods.emplace_back(Hooks::get());
 
     m_mods.emplace_back(VR::get());
 
