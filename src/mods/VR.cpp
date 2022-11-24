@@ -20,8 +20,8 @@
 #include "sdk/regenny/re2_tdb70/via/Window.hpp"
 #include "sdk/regenny/re2_tdb70/via/SceneView.hpp"
 #elif TDB_VER >= 71
-#include "sdk/regenny/re8/via/Window.hpp"
-#include "sdk/regenny/re8/via/SceneView.hpp"
+#include "sdk/regenny/mhrise_tdb71/via/Window.hpp"
+#include "sdk/regenny/mhrise_tdb71/via/SceneView.hpp"
 #endif
 
 #include "sdk/Math.hpp"
