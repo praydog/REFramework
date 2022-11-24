@@ -51,4 +51,4 @@ jobs:
           token: ${{secrets.REPO_TOKEN}}
           name: ${{format('v1.{0}-{1}', github.run_number, steps.vars.outputs.SHA_SHORT)}}
           tag_name: latest
-          files: ${{github.workspace//\\//}}/${{matrix.target}}.zip
+          files: ${{github.workspace}//\\//}/${{matrix.target}}.zip
