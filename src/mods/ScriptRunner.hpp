@@ -29,15 +29,70 @@ struct ManagedObject;
 }    
 }
 
+namespace sdk {
+namespace behaviortree {
+class TreeNode;
+class TreeNodeData;
+class TreeObject;
+class TreeObjectData;
+}
+}
+
+namespace sdk {
+template<typename T>
+struct NativeArray;
+
+template<typename T>
+struct NativeArrayNoCapacity;
+}
+
+namespace sdk {
+class REMethodDefinition;
+class RETypeDefinition;
+class REField;
+}
+
 class REManagedObject;
 class RETransform;
 
 namespace detail {
 template<typename T>
 concept ManagedObjectBased = std::is_base_of_v<::REManagedObject, T> || std::is_base_of_v<regenny::via::clr::ManagedObject, T>;
+
+template<typename T>
+concept CachedUserType = std::is_base_of_v<sdk::RETypeDefinition, T> 
+                         || std::is_base_of_v<sdk::REMethodDefinition, T>
+                         || std::is_base_of_v<sdk::REField, T>
+                         || std::is_base_of_v<::sdk::behaviortree::TreeNode, T>
+                         || std::is_base_of_v<::sdk::behaviortree::TreeNodeData, T>
+                         || std::is_base_of_v<::sdk::behaviortree::TreeObject, T>
+                         || std::is_base_of_v<::sdk::behaviortree::TreeObjectData, T>
+                         || std::is_base_of_v<::sdk::NativeArrayNoCapacity<uint8_t>, T>
+                         || std::is_base_of_v<::sdk::NativeArrayNoCapacity<uint16_t>, T>
+                         || std::is_base_of_v<::sdk::NativeArrayNoCapacity<uint32_t>, T>
+                         || std::is_base_of_v<::sdk::NativeArrayNoCapacity<uint64_t>, T>
+                         || std::is_base_of_v<::sdk::NativeArrayNoCapacity<int8_t>, T>
+                         || std::is_base_of_v<::sdk::NativeArrayNoCapacity<int16_t>, T>
+                         || std::is_base_of_v<::sdk::NativeArrayNoCapacity<int32_t>, T>
+                         || std::is_base_of_v<::sdk::NativeArrayNoCapacity<int64_t>, T>
+                         || std::is_base_of_v<::sdk::NativeArray<uint8_t>, T>
+                            || std::is_base_of_v<::sdk::NativeArray<uint16_t>, T>
+                            || std::is_base_of_v<::sdk::NativeArray<uint32_t>, T>
+                            || std::is_base_of_v<::sdk::NativeArray<uint64_t>, T>
+                            || std::is_base_of_v<::sdk::NativeArray<int8_t>, T>
+                            || std::is_base_of_v<::sdk::NativeArray<int16_t>, T>
+                            || std::is_base_of_v<::sdk::NativeArray<int32_t>, T>
+                            || std::is_base_of_v<::sdk::NativeArray<int64_t>, T>
+                            || std::is_base_of_v<::sdk::NativeArray<::REManagedObject*>, T>
+                            || std::is_base_of_v<::sdk::NativeArrayNoCapacity<::REManagedObject*>, T>
+                            || std::is_base_of_v<::sdk::NativeArrayNoCapacity<::sdk::behaviortree::TreeNode>, T>
+                            || std::is_base_of_v<::sdk::NativeArrayNoCapacity<::sdk::behaviortree::TreeNodeData>, T>;
 }
 
 template<detail::ManagedObjectBased T>
+int sol_lua_push(sol::types<T*>, lua_State* l, T* obj);
+
+template<detail::CachedUserType T>
 int sol_lua_push(sol::types<T*>, lua_State* l, T* obj);
 
 class ScriptState {
@@ -92,6 +147,7 @@ public:
 
     // add_hook enqueues the hook definition to be installed the next time install_hooks is called.
     void add_hook(sdk::REMethodDefinition* fn, sol::protected_function pre_cb, sol::protected_function post_cb, sol::object ignore_jmp_obj);
+    void add_vtable(::REManagedObject* obj, sdk::REMethodDefinition* fn, sol::protected_function pre_cb, sol::protected_function post_cb);
 
     // install_hooks goes through the queue of added hooks and actually creates them. The queue is emptied as a result.
     void install_hooks();
@@ -117,6 +173,7 @@ private:
     std::vector<sol::protected_function> m_on_config_save_fns{};
 
     struct HookDef {
+        ::REManagedObject* obj{nullptr};
         sdk::REMethodDefinition* fn;
         sol::protected_function pre_cb;
         sol::protected_function post_cb;

@@ -62,45 +62,7 @@ void HookManager::HookedFn::on_post_hook() {
     }
 }
 
-HookManager::HookId HookManager::add(sdk::REMethodDefinition* fn, HookManager::PreHookFn pre_fn, HookManager::PostHookFn post_fn, bool ignore_jmp) {
-    if (fn == nullptr) {
-        //throw std::exception{"[HookManager] Cannot add nullptr function"};
-        spdlog::error("[HookManager] Cannot add nullptr function");
-        return HookId{};
-    }
-    
-    auto target_fn = ignore_jmp ? fn->get_function() : detail::get_actual_function(fn->get_function());
-
-    spdlog::info("[HookManager] Adding hook for '{}' @ {:p}...", fn->get_name(), target_fn);
-
-    if (auto search = m_hooked_fns.find(fn); search != m_hooked_fns.end()) {
-        spdlog::info("[HookManager] Reusing existing hook...");
-
-        auto& hook = search->second;
-        std::scoped_lock _{hook->mux};
-        auto hook_id = hook->next_hook_id++;
-
-        spdlog::info("[HookManager] Hook assigned ID {}", hook_id);
-
-        hook->cbs.emplace_back(hook_id, std::move(pre_fn), std::move(post_fn));
-
-        spdlog::info("[HookManager] Hook {} added for '{}' @ {:p}", hook_id, fn->get_name(), target_fn);
-
-        return hook_id;
-    }
-
-    spdlog::info("[HookManager] Creating a new hook...");
-
-    auto hook = std::make_unique<HookedFn>(*this);
-    auto hook_id = hook->next_hook_id++;
-
-    spdlog::info("[HookManager] Hook assigned ID {}", hook_id);
-
-    hook->target_fn = target_fn;
-    hook->cbs.emplace_back(hook_id, std::move(pre_fn), std::move(post_fn));
-    hook->arg_tys = fn->get_param_types();
-    hook->ret_ty = fn->get_return_type();
-
+void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedFn>& hook, sdk::REMethodDefinition* fn, std::function<uintptr_t ()> hook_initialization, std::function<void ()> hook_create) {
     auto& args = hook->args;
     auto& arg_tys = hook->arg_tys;
     auto& fn_hook = hook->fn_hook;
@@ -360,16 +322,178 @@ HookManager::HookId HookManager::add(sdk::REMethodDefinition* fn, HookManager::P
 
     m_jit.add(&hook->facilitator_fn, &code);
 
-    // Hook the function to our facilitator.
-    fn_hook = std::make_unique<FunctionHook>(hook->target_fn, (void*)hook->facilitator_fn);
+    *(uintptr_t*)(hook->facilitator_fn + code.labelOffsetFromBase(orig_label)) = hook_initialization();
 
-    // Set the facilitators original function pointer.
-    *(uintptr_t*)(hook->facilitator_fn + code.labelOffsetFromBase(orig_label)) = fn_hook->get_original();
+    // because FunctionHook isn't RAII
+    if (hook_create) {
+        hook_create();
+    }
+}
 
-    fn_hook->create();
+HookManager::HookId HookManager::add(sdk::REMethodDefinition* fn, HookManager::PreHookFn pre_fn, HookManager::PostHookFn post_fn, bool ignore_jmp) {
+    if (fn == nullptr) {
+        //throw std::exception{"[HookManager] Cannot add nullptr function"};
+        spdlog::error("[HookManager] Cannot add nullptr function");
+        return HookId{};
+    }
+    
+    auto target_fn = ignore_jmp ? fn->get_function() : detail::get_actual_function(fn->get_function());
+
+    spdlog::info("[HookManager] Adding hook for '{}' @ {:p}...", fn->get_name(), target_fn);
+
+    if (auto search = m_hooked_fns.find(fn); search != m_hooked_fns.end()) {
+        spdlog::info("[HookManager] Reusing existing hook...");
+
+        auto& hook = search->second;
+        std::scoped_lock _{hook->mux};
+        auto hook_id = m_next_hook_id++;
+
+        spdlog::info("[HookManager] Hook assigned ID {}", hook_id);
+
+        hook->cbs.emplace_back(hook_id, std::move(pre_fn), std::move(post_fn));
+
+        spdlog::info("[HookManager] Hook {} added for '{}' @ {:p}", hook_id, fn->get_name(), target_fn);
+
+        return hook_id;
+    }
+
+    spdlog::info("[HookManager] Creating a new hook...");
+
+    auto hook = std::make_unique<HookedFn>(*this);
+    hook->next_hook_id = m_next_hook_id++;
+
+    auto hook_id = m_next_hook_id++;
+
+    spdlog::info("[HookManager] Hook assigned ID {}", hook_id);
+
+    hook->target_fn = target_fn;
+    hook->cbs.emplace_back(hook_id, std::move(pre_fn), std::move(post_fn));
+    hook->arg_tys = fn->get_param_types();
+    hook->ret_ty = fn->get_return_type();
+    
+
+    auto& args = hook->args;
+    auto& arg_tys = hook->arg_tys;
+    auto& fn_hook = hook->fn_hook;
+
+    // Create the facilitator! this really important!
+    create_jitted_facilitator(hook, fn,
+        [&](){
+            fn_hook = std::make_unique<FunctionHook>(hook->target_fn, (void*)hook->facilitator_fn);
+            return fn_hook->get_original();
+        },
+        [&]() {
+            fn_hook->create();
+        }
+    );
+
     m_hooked_fns.emplace(fn, std::move(hook));
 
     spdlog::info("[HookManager] Hook {} added for '{}' @ {:p}", hook_id, fn->get_name(), target_fn);
+
+    return hook_id;
+}
+
+HookManager::HookId HookManager::add_vtable(::REManagedObject* obj, sdk::REMethodDefinition* fn, PreHookFn pre_fn, PostHookFn post_fn) {
+#if TDB_VER == 49
+    throw std::runtime_error("VTable hooks are not supported in TDB 49");
+#endif
+    
+    if (obj == nullptr) {
+        return HookId{};
+    }
+
+    if (fn == nullptr) {
+        //throw std::exception{"[HookManager] Cannot add nullptr function"};
+        spdlog::error("[HookManager] Cannot add nullptr function");
+        return HookId{};
+    }
+    
+    spdlog::info("[HookManager] Adding hook for '{}' @ {:p} (vtable index {})...", fn->get_name(), fn->get_function(), fn->get_virtual_index());
+
+    if (fn->get_virtual_index() == -1) {
+        spdlog::error("[HookManager] Cannot add non-virtual function with add_vtable, use add instead.");
+        return HookId{};
+    }
+
+    auto search = m_hooked_vtables.find(obj);
+
+    if (search != m_hooked_vtables.end()) {
+        spdlog::info("[HookManager] Reusing existing VT hook...");
+    } else {
+        spdlog::info("[HookManager] Creating a new VT hook...");
+
+        auto hook = std::make_unique<HookManager::HookedVTable>(*this);
+        std::scoped_lock _{hook->mux};
+
+        hook->vtable_hook = std::make_unique<sdk::REVTableHook>(obj);
+
+        if (!hook->vtable_hook->is_hooked()) {
+            spdlog::error("[HookManager] Failed to hook vtable for {:x}", (uintptr_t)obj);
+            hook = nullptr;
+            return 0;
+        }
+
+        m_hooked_vtables[obj] = std::move(hook);
+        search = m_hooked_vtables.find(obj);
+
+        spdlog::info("[HookManager] VT hook created for {:x}", (uintptr_t)obj);
+    }
+
+    auto& hook = search->second;
+
+    std::scoped_lock _{hook->mux};
+
+    // Now we need to find or create an existing function hook for the individual vtable method inside the vtable
+    if (auto it = hook->hooked_fns.find(fn); it != hook->hooked_fns.end()) {
+        spdlog::info("[HookManager] Reusing existing VT hook...");
+
+        auto& hook_fn = it->second;
+
+        auto hook_id = m_next_hook_id++;
+        hook_fn->cbs.emplace_back(hook_id, std::move(pre_fn), std::move(post_fn));
+
+        spdlog::info("[HookManager] VT Hook {} added for '{}' @ {:p}", hook_id, fn->get_name(), fn->get_function());
+
+        return hook_id;
+    }
+
+    spdlog::info("[HookManager] Creating a new VT hook...");
+
+    hook->hooked_fns[fn] = std::make_unique<HookedFn>(*this);
+
+    auto& hook_fn = hook->hooked_fns[fn];
+    hook_fn->next_hook_id = m_next_hook_id++;
+    auto hook_id = m_next_hook_id++;
+
+    spdlog::info("[HookManager] VT Hook assigned ID {}", hook_id);
+
+    hook_fn->target_fn = fn->get_function();
+    hook_fn->cbs.emplace_back(hook_id, std::move(pre_fn), std::move(post_fn));
+    hook_fn->arg_tys = fn->get_param_types();
+    hook_fn->ret_ty = fn->get_return_type();
+    
+
+    auto& args = hook_fn->args;
+    auto& arg_tys = hook_fn->arg_tys;
+
+    // Create the facilitator! this really important!
+    create_jitted_facilitator(hook_fn, fn,
+        [&]() -> uintptr_t {
+            if (!hook->vtable_hook->hook_method(fn->get_virtual_index(), (void*)hook_fn->facilitator_fn)) {
+                spdlog::error("[HookManager] Failed to hook vtable method for {:x}", (uintptr_t)obj);
+                hook_fn = nullptr;
+                return 0;
+            }
+
+            return hook->vtable_hook->get_original<uintptr_t>(fn->get_virtual_index());
+        },
+        [&]() -> void {
+            // dont need to do anything.
+        }
+    );
+
+    spdlog::info("[HookManager] VT Hook {} added for '{}' @ {:p}", hook_id, fn->get_name(), fn->get_function());
 
     return hook_id;
 }
@@ -382,5 +506,31 @@ void HookManager::remove(sdk::REMethodDefinition* fn, HookId id) {
         auto& cbs = hook->cbs;
         std::scoped_lock _{hook->mux};
         cbs.erase(std::remove_if(cbs.begin(), cbs.end(), [id](const HookCallback& cb) { return cb.id == id; }));
+    } else {
+        std::vector<::REManagedObject*> queued_vtable_deletions{};
+
+        // Search through the vtable hooks.
+        for (auto& it : m_hooked_vtables) {
+            auto& hook = it.second;
+
+            if (auto search = hook->hooked_fns.find(fn); search != hook->hooked_fns.end()) {
+                spdlog::info("[HookManager] Removing VT method hook ID {} from '{}'", id, fn->get_name());
+
+                auto& hook_fn = search->second;
+                auto& cbs = hook_fn->cbs;
+                std::scoped_lock _{hook->mux};
+                cbs.erase(std::remove_if(cbs.begin(), cbs.end(), [id](const HookCallback& cb) { return cb.id == id; }), cbs.end());
+
+                if (cbs.empty()) {
+                    queued_vtable_deletions.push_back(it.first);
+                }
+            }
+        }
+
+        // Delete the vtable hooks.
+        for (auto& obj : queued_vtable_deletions) {
+            spdlog::info("[HookManager] Removing VT hook for {:x}", (uintptr_t)obj);
+            m_hooked_vtables.erase(obj);
+        }
     }
 }

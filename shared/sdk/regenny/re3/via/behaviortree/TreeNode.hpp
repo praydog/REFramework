@@ -7,7 +7,7 @@ namespace regenny::via::behaviortree {
 struct TreeObject;
 }
 namespace regenny::via::behaviortree {
-struct Selector;
+struct SelectorFSM;
 }
 namespace regenny::via::behaviortree {
 struct Condition;
@@ -21,7 +21,7 @@ struct TreeNode {
     uint16_t attr; // 0x18
     uint16_t unk_flags; // 0x1a
     uint16_t pad[2]; // 0x1c
-    regenny::via::behaviortree::Selector* selector; // 0x20
+    regenny::via::behaviortree::SelectorFSM* selector; // 0x20
     regenny::via::behaviortree::Condition* selector_condition; // 0x28
     int32_t selector_condition_index; // 0x30
     int32_t priority; // 0x34

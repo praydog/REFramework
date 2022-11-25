@@ -1,4 +1,5 @@
 #include <imgui.h>
+#include <imnodes.h>
 
 #include "../ScriptRunner.hpp"
 #include "sdk/SceneManager.hpp"
@@ -24,6 +25,14 @@ ImVec2 create_imvec2(sol::object obj) {
         } else {
             throw sol::error{ "Invalid table passed. Table size must be 2." };
         }
+    } else if (obj.is<Vector3f>()) {
+        auto vec = obj.as<Vector3f>();
+        out.x = vec.x;
+        out.y = vec.y;
+    } else if (obj.is<Vector4f>()) {
+        auto vec = obj.as<Vector4f>();
+        out.x = vec.x;
+        out.y = vec.y;
     }
 
     return out;
@@ -440,16 +449,8 @@ bool begin_child_window(const char* name, sol::object size_obj, sol::object bord
         name = "";
     }
 
-    ImVec2 size{0, 0};
+    const auto size = create_imvec2(size_obj);
     bool border{false};
-
-    if (size_obj.is<Vector2f>()) {
-        size = ImVec2{size_obj.as<Vector2f>().x, size_obj.as<Vector2f>().y};
-    } else if (size_obj.is<Vector3f>()) {
-        size = ImVec2{size_obj.as<Vector3f>().x, size_obj.as<Vector3f>().y};
-    } else if (size_obj.is<Vector4f>()) {
-        size = ImVec2{size_obj.as<Vector4f>().x, size_obj.as<Vector4f>().y};
-    }
 
     if (border_obj.is<bool>()) {
         border = border_obj.as<bool>();
@@ -1278,8 +1279,6 @@ void table_set_bg_color_vec4(ImGuiTableBgTarget target, Vector4f color, sol::obj
 ImGuiTableSortSpecs* table_get_sort_specs() {
     return ImGui::TableGetSortSpecs();
 }
-
-
 } // namespace api::imgui
 
 namespace api::draw {
@@ -1504,6 +1503,367 @@ sol::variadic_results gizmo(sol::this_state s, int64_t unique_id, Matrix4x4f& tr
     return results;
 }
 } // namespace api::draw
+
+namespace api::imnodes {
+int32_t g_node_editor_counts{0};
+int32_t g_node_counts{};
+int32_t g_node_titlebar_counts{0};
+int32_t g_color_style_counts{};
+int32_t g_color_style_var_counts{};
+int32_t g_input_attribute_counts{0};
+int32_t g_output_attribute_counts{0};
+int32_t g_static_attribute_counts{0};
+
+bool is_editor_hovered() {
+    return ImNodes::IsEditorHovered();
+}
+
+sol::variadic_results is_node_hovered(sol::this_state s) {
+    int id{};
+    const auto result = ImNodes::IsNodeHovered(&id);
+
+    sol::variadic_results results{};
+    results.push_back(sol::make_object<bool>(s, result));
+    results.push_back(sol::make_object<int>(s, id));
+
+    return results;
+}
+
+sol::variadic_results is_link_hovered(sol::this_state s) {
+    int id{};
+    const auto result = ImNodes::IsLinkHovered(&id);
+
+    sol::variadic_results results{};
+    results.push_back(sol::make_object<bool>(s, result));
+    results.push_back(sol::make_object<int>(s, id));
+
+    return results;
+}
+
+sol::variadic_results is_pin_hovered(sol::this_state s) {
+    int id{};
+    const auto result = ImNodes::IsPinHovered(&id);
+
+    sol::variadic_results results{};
+    results.push_back(sol::make_object<bool>(s, result));
+    results.push_back(sol::make_object<int>(s, id));
+
+    return results;
+}
+
+void begin_node_editor() {
+    ImNodes::BeginNodeEditor();
+    ++g_node_editor_counts;
+}
+
+void end_node_editor() {
+    ImNodes::EndNodeEditor();
+    --g_node_editor_counts;
+}
+
+void begin_node(int id) {
+    ImNodes::BeginNode(id);
+    ++g_node_counts;
+}
+
+void end_node() {
+    ImNodes::EndNode();
+    --g_node_counts;
+}
+
+void begin_node_titlebar() {
+    ImNodes::BeginNodeTitleBar();
+    ++g_node_titlebar_counts;
+}
+
+void end_node_titlebar() {
+    ImNodes::EndNodeTitleBar();
+    --g_node_titlebar_counts;
+}
+
+void begin_input_attribute(int attr, ImNodesPinShape shape) {
+    ImNodes::BeginInputAttribute(attr, shape);
+    ++g_input_attribute_counts;
+}
+
+void end_input_attribute() {
+    ImNodes::EndInputAttribute();
+    --g_input_attribute_counts;
+}
+
+void begin_output_attribute(int attr, ImNodesPinShape shape) {
+    ImNodes::BeginOutputAttribute(attr, shape);
+    ++g_output_attribute_counts;
+}
+
+void end_output_attribute() {
+    ImNodes::EndOutputAttribute();
+    --g_output_attribute_counts;
+}
+
+void begin_static_attribute(int attr) {
+    ImNodes::BeginStaticAttribute(attr);
+    ++g_static_attribute_counts;
+}
+
+void end_static_attribute() {
+    ImNodes::EndStaticAttribute();
+    --g_static_attribute_counts;
+}
+
+void minimap(float size_fraction, const ImNodesMiniMapLocation location) {
+    ImNodes::MiniMap(size_fraction, location);
+}
+
+void link(int id, int start_attr_id, int end_attr_id) {
+    ImNodes::Link(id, start_attr_id, end_attr_id);
+}
+
+Vector2f get_node_dimensions(int id) {
+    const auto result = ImNodes::GetNodeDimensions(id);
+
+    return Vector2f{
+        result.x,
+        result.y,
+    };
+}
+
+void push_color_style(ImNodesCol item, uint32_t color) {
+    ImNodes::PushColorStyle(item, color);
+    ++g_color_style_counts;
+}
+
+void pop_color_style() {
+    ImNodes::PopColorStyle();
+    --g_color_style_counts;
+}
+
+void push_style_var(ImNodesStyleVar item, float value) {
+    ImNodes::PushStyleVar(item, value);
+    ++g_color_style_var_counts;
+}
+
+void push_style_var_vec2(ImNodesStyleVar item, float x, float y) {
+    ImNodes::PushStyleVar(item, ImVec2{x, y});
+    ++g_color_style_var_counts;
+}
+
+void pop_style_var() {
+    ImNodes::PopStyleVar();
+    --g_color_style_var_counts;
+}
+
+void set_node_screen_space_pos(int id, float x, float y) {
+    ImNodes::SetNodeScreenSpacePos(id, ImVec2{x, y});
+}
+
+void set_node_editor_space_pos(int id, float x, float y) {
+    ImNodes::SetNodeEditorSpacePos(id, ImVec2{x, y});
+}
+
+void set_node_grid_space_pos(int id, float x, float y) {
+    ImNodes::SetNodeGridSpacePos(id, ImVec2{x, y});
+}
+
+Vector2f get_node_screen_space_pos(int id) {
+    const auto result = ImNodes::GetNodeScreenSpacePos(id);
+
+    return Vector2f{
+        result.x,
+        result.y,
+    };
+}
+
+Vector2f get_node_editor_space_pos(int id) {
+    const auto result = ImNodes::GetNodeEditorSpacePos(id);
+
+    return Vector2f{
+        result.x,
+        result.y,
+    };
+}
+
+Vector2f get_node_grid_space_pos(int id) {
+    const auto result = ImNodes::GetNodeGridSpacePos(id);
+
+    return Vector2f{
+        result.x,
+        result.y,
+    };
+}
+
+void clear_node_selection(sol::object id_object) {
+    if (id_object.is<sol::nil_t>()) {
+        ImNodes::ClearNodeSelection();
+    } else if (id_object.is<int>()) {
+        ImNodes::ClearNodeSelection(id_object.as<int>());
+    } else {
+        throw sol::error("id_object must be nil or int");
+    }
+}
+
+void clear_link_selection(sol::object id_object) {
+    if (id_object.is<sol::nil_t>()) {
+        ImNodes::ClearLinkSelection();
+    } else if (id_object.is<int>()) {
+        ImNodes::ClearLinkSelection(id_object.as<int>());
+    } else {
+        throw sol::error("id_object must be nil or int");
+    }
+}
+
+void editor_reset_panning(float x, float y) {
+    ImNodes::EditorContextResetPanning(ImVec2{x, y});
+}
+
+Vector2f editor_get_panning() {
+    const auto result = ImNodes::EditorContextGetPanning();
+
+    return Vector2f{
+        result.x,
+        result.y,
+    };
+}
+
+sol::variadic_results is_link_started(sol::this_state s) {
+    sol::variadic_results results{};
+
+    int id{};
+    bool result = ImNodes::IsLinkStarted(&id);
+
+    results.push_back(sol::make_object<bool>(s, result));
+    results.push_back(sol::make_object<int>(s, id));
+
+    return results;
+}
+
+sol::variadic_results is_link_dropped(sol::this_state s, bool including_detached_links) {
+    sol::variadic_results results{};
+
+    int id{};
+    bool result = ImNodes::IsLinkDropped(&id, including_detached_links);
+
+    results.push_back(sol::make_object<bool>(s, result));
+    results.push_back(sol::make_object<int>(s, id));
+
+    return results;
+}
+
+sol::variadic_results is_link_destroyed(sol::this_state s) {
+    sol::variadic_results results{};
+
+    int id{};
+    bool result = ImNodes::IsLinkDestroyed(&id);
+
+    results.push_back(sol::make_object<bool>(s, result));
+    results.push_back(sol::make_object<int>(s, id));
+
+    return results;
+}
+
+sol::variadic_results is_link_created(sol::this_state s) {
+    sol::variadic_results results{};
+
+    int started_at_node{};
+    int started_at_attr{};
+    int ended_at_node{};
+    int ended_at_attr{};
+    bool created_from_snap{};
+
+    bool result = ImNodes::IsLinkCreated(
+        &started_at_node,
+        &started_at_attr,
+        &ended_at_node,
+        &ended_at_attr,
+        &created_from_snap);
+
+    results.push_back(sol::make_object<bool>(s, result));
+    results.push_back(sol::make_object<int>(s, started_at_node));
+    results.push_back(sol::make_object<int>(s, started_at_attr));
+    results.push_back(sol::make_object<int>(s, ended_at_node));
+    results.push_back(sol::make_object<int>(s, ended_at_attr));
+    results.push_back(sol::make_object<bool>(s, created_from_snap));
+
+    return results;
+}
+
+std::vector<int> get_selected_nodes() {
+    std::vector<int> out{};
+
+    const auto num_selected_nodes = ImNodes::NumSelectedNodes();
+
+    if (num_selected_nodes > 0) {
+        out.resize(num_selected_nodes);
+        ImNodes::GetSelectedNodes(out.data());
+    }
+
+    return out;
+}
+
+std::vector<int> get_selected_links() {
+    std::vector<int> out{};
+
+    const auto num_selected_links = ImNodes::NumSelectedLinks();
+
+    if (num_selected_links > 0) {
+        out.resize(num_selected_links);
+        ImNodes::GetSelectedLinks(out.data());
+    }
+
+    return out;
+}
+
+
+void cleanup() {
+    for (auto i = 0; i < g_node_editor_counts; ++i) {
+        end_node_editor();
+    }
+
+    g_node_editor_counts = 0;
+
+    for (auto i = 0; i < g_node_counts; ++i) {
+        end_node();
+    }
+
+    g_node_counts = 0;
+
+    for (auto i = 0; i < g_node_titlebar_counts; ++i) {
+        end_node_titlebar();
+    }
+
+    g_node_titlebar_counts = 0;
+
+    for (auto i = 0; i < g_color_style_counts; ++i) {
+        pop_color_style();
+    }
+
+    g_color_style_counts = 0;
+
+    for (auto i = 0; i < g_color_style_var_counts; ++i) {
+        pop_style_var();
+    }
+
+    g_color_style_var_counts = 0;
+
+    for (auto i = 0; i < g_input_attribute_counts; ++i) {
+        end_input_attribute();
+    }
+
+    g_input_attribute_counts = 0;
+
+    for (auto i = 0; i < g_output_attribute_counts; ++i) {
+        end_output_attribute();
+    }
+
+    g_output_attribute_counts = 0;
+
+    for (auto i = 0; i < g_static_attribute_counts; ++i) {
+        end_static_attribute();
+    }
+
+    g_static_attribute_counts = 0;
+}
+} // namespace imnodes
 
 void bindings::open_imgui(ScriptState* s) {
     auto& lua = s->lua();
@@ -1746,4 +2106,62 @@ void bindings::open_imgui(ScriptState* s) {
     draw["cube"] = [](const Matrix4x4f& mat) { ::imgui::draw_cube(mat); };
     draw["grid"] = [](const Matrix4x4f& mat, float size) { ::imgui::draw_grid(mat, size); };
     lua["draw"] = draw;
+
+    auto imnodes = lua.create_table();
+
+    imnodes["is_editor_hovered"] = &api::imnodes::is_editor_hovered;
+    imnodes["is_node_hovered"] = &api::imnodes::is_node_hovered;
+    imnodes["is_link_hovered"] = &api::imnodes::is_link_hovered;
+    imnodes["is_pin_hovered"] = &api::imnodes::is_pin_hovered;
+    imnodes["begin_node_editor"] = &api::imnodes::begin_node_editor;
+    imnodes["end_node_editor"] = &api::imnodes::end_node_editor;
+    imnodes["begin_node"] = &api::imnodes::begin_node;
+    imnodes["end_node"] = &api::imnodes::end_node;
+    imnodes["begin_node_titlebar"] = &api::imnodes::begin_node_titlebar;
+    imnodes["end_node_titlebar"] = &api::imnodes::end_node_titlebar;
+    imnodes["begin_input_attribute"] = &api::imnodes::begin_input_attribute;
+    imnodes["end_input_attribute"] = &api::imnodes::end_input_attribute;
+    imnodes["begin_output_attribute"] = &api::imnodes::begin_output_attribute;
+    imnodes["end_output_attribute"] = &api::imnodes::end_output_attribute;
+    imnodes["begin_static_attribute"] = &api::imnodes::begin_static_attribute;
+    imnodes["end_static_attribute"] = &api::imnodes::end_static_attribute;
+    imnodes["minimap"] = &api::imnodes::minimap;
+    imnodes["link"] = &api::imnodes::link;
+    imnodes["get_node_dimensions"] = &api::imnodes::get_node_dimensions;
+    imnodes["push_color_style"] = &api::imnodes::push_color_style;
+    imnodes["pop_color_style"] = &api::imnodes::pop_color_style;
+    imnodes["push_style_var"] = &api::imnodes::push_style_var;
+    imnodes["push_style_var_vec2"] = &api::imnodes::push_style_var_vec2;
+    imnodes["pop_style_var"] = &api::imnodes::pop_style_var;
+    imnodes["set_node_screen_space_pos"] = &api::imnodes::set_node_screen_space_pos;
+    imnodes["set_node_editor_space_pos"] = &api::imnodes::set_node_editor_space_pos;
+    imnodes["set_node_grid_space_pos"] = &api::imnodes::set_node_grid_space_pos;
+    imnodes["get_node_screen_space_pos"] = &api::imnodes::get_node_screen_space_pos;
+    imnodes["get_node_editor_space_pos"] = &api::imnodes::get_node_editor_space_pos;
+    imnodes["get_node_grid_space_pos"] = &api::imnodes::get_node_grid_space_pos;
+    imnodes["is_editor_hovered"] = &ImNodes::IsEditorHovered;
+    imnodes["is_node_selected"] = &ImNodes::IsNodeSelected;
+    imnodes["is_link_selected"] = &ImNodes::IsLinkSelected;
+    imnodes["num_selected_nodes"] = &ImNodes::NumSelectedNodes;
+    imnodes["num_selected_links"] = &ImNodes::NumSelectedLinks;
+    imnodes["clear_node_selection"] = &api::imnodes::clear_node_selection;
+    imnodes["clear_link_selection"] = &api::imnodes::clear_link_selection;
+    imnodes["select_node"] = &ImNodes::SelectNode;
+    imnodes["select_link"] = &ImNodes::SelectLink;
+    imnodes["is_attribute_active"] = &ImNodes::IsAttributeActive;
+    imnodes["snap_node_to_grid"] = &ImNodes::SnapNodeToGrid;
+
+    imnodes["editor_move_to_node"] = &ImNodes::EditorContextMoveToNode;
+    imnodes["editor_reset_panning"] = &api::imnodes::editor_reset_panning;
+    imnodes["editor_get_panning"] = &api::imnodes::editor_get_panning;
+
+    imnodes["is_link_started"] = &api::imnodes::is_link_started;
+    imnodes["is_link_dropped"] = &api::imnodes::is_link_dropped;
+    imnodes["is_link_created"] = &api::imnodes::is_link_created;
+    imnodes["is_link_destroyed"] = &api::imnodes::is_link_destroyed;
+
+    imnodes["get_selected_nodes"] = &api::imnodes::get_selected_nodes;
+    imnodes["get_selected_links"] = &api::imnodes::get_selected_links;
+
+    lua["imnodes"] = imnodes;
 }

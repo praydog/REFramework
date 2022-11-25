@@ -5,6 +5,8 @@
 #include "Enums_Internal.hpp"
 #include "utility/Address.hpp"
 
+#include "Enums_Internal.hpp"
+
 class REManagedObject;
 class REType;
 class FunctionDescriptor;

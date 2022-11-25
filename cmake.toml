@@ -109,6 +109,13 @@ compile-definitions = [
 ]
 condition = "build-framework"
 
+[target.imnodes]
+type = "static"
+sources = ["dependencies/imnodes/*.cpp"]
+include-directories = ["dependencies/imnodes"]
+condition = "build-framework"
+link-libraries = ["imgui"]
+
 [target.openvr]
 type = "interface"
 include-directories = ["dependencies/openvr/headers"]
@@ -193,6 +200,7 @@ link-libraries = [
     "sol2",
     "imgui",
     "imguizmo",
+    "imnodes",
     "minhook",
     "d3d11",
     "glm_static",

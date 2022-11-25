@@ -38,6 +38,12 @@ namespace detail {
 constexpr uintptr_t FAKE_OBJECT_ADDR = 12345;
 }
 
+namespace api::cached_usertype {
+namespace detail {
+    
+}
+}
+
 namespace api::re_managed_object {
 namespace detail {
 void add_ref(lua_State* l, ::REManagedObject* obj, bool force = false) {
@@ -228,7 +234,8 @@ int sol_lua_push(sol::types<T*>, lua_State* l, T* obj) {
                         break;
                     case "via.behaviortree.BehaviorTree"_fnv:[[fallthrough]];
                     case "via.motion.MotionFsm2"_fnv:[[fallthrough]];
-                    case "via.motion.MotionJackFsm2"_fnv:
+                    case "via.motion.MotionJackFsm2"_fnv:[[fallthrough]];
+                    case "snow.PlayerMotionFsm"_fnv:
                         backpedal = sol::stack::push<sol::detail::as_pointer_tag<std::remove_pointer_t<api::sdk::BehaviorTree>>>(l, (api::sdk::BehaviorTree*)obj);
                         break;
                     case "via.behaviortree.BehaviorTree.CoreHandle"_fnv: [[fallthrough]];
@@ -252,6 +259,54 @@ int sol_lua_push(sol::types<T*>, lua_State* l, T* obj) {
                 return backpedal;
             } else {
                 backpedal = sol::stack::push<sol::detail::as_pointer_tag<std::remove_pointer_t<T>>>(l, obj);
+            }
+
+            return backpedal;
+        }
+    }
+
+    return sol::stack::push(l, sol::nil);
+}
+
+// specialization for any custom usertype we exposed to sol to automatically add a reference
+// when lua pushes a pointer to the object onto the stack
+template<detail::CachedUserType T>
+int sol_lua_push(sol::types<T*>, lua_State* l, T* obj) {
+    if (obj != nullptr) {
+        // this is a weak table, so we don't need to set the index to nil when the object is no longer referenced
+        auto sv = sol::state_view{l};
+        sol::lua_table objects_top  = sv["_sol_lua_push_usertypes"];
+        constexpr auto function_sig = utility::hash(__FUNCSIG__);
+
+        if (sol::object obj = objects_top[function_sig]; obj.is<sol::nil_t>()) {
+            spdlog::info("About to create a weak table for usertype {}", __FUNCSIG__);
+            sol::object res = sv.load("return setmetatable({}, { __mode = \"v\" })")();
+            objects_top[function_sig] = res;
+            spdlog::info("Created a weak table for usertype {}", __FUNCSIG__);
+        }
+
+        sol::lua_table objects = objects_top[function_sig];
+
+        if (sol::object lua_obj = objects[(uintptr_t)obj]; !lua_obj.is<sol::nil_t>()) {
+            // renew the reference so it doesn't get collected
+            // had to dig deep in the lua source to figure out this nonsense
+            lua_obj.push();
+            auto g = G(l);
+            auto tv = s2v(l->top - 1);
+            auto& gc = tv->value_.gc;
+            resetbits(gc->marked, bitmask(BLACKBIT) | WHITEBITS); // "touches" the object, marking it gray. lowers the insane GC frequency on our weak table
+
+            return 1;
+        } else {
+            int32_t backpedal = sol::stack::push<sol::detail::as_pointer_tag<std::remove_pointer_t<T>>>(l, obj);
+
+            if ((uintptr_t)obj != detail::FAKE_OBJECT_ADDR) {
+                auto ref = sol::stack::get<sol::object>(l, -backpedal);
+
+                // keep a weak reference to the object for caching
+                objects[(uintptr_t)obj] = ref;
+
+                return backpedal;
             }
 
             return backpedal;
@@ -432,6 +487,10 @@ struct MemoryView {
 
     uintptr_t address() const {
         return (uintptr_t)data;
+    }
+
+    void wipe() {
+        memset(data, 0, size);
     }
 };
 
@@ -1127,6 +1186,17 @@ void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::protected_funct
     auto state = sol_state.registry()["state"].get<ScriptState*>();
     state->add_hook(fn, pre_cb, post_cb, ignore_jmp_object);
 }
+
+void hook_vtable(sol::this_state s, ::REManagedObject* obj, ::sdk::REMethodDefinition* fn, sol::protected_function pre_cb, sol::protected_function post_cb) {
+    if (obj == nullptr) {
+        throw sol::error("Object is null");
+        return;
+    }
+    
+    auto sol_state = sol::state_view{s};
+    auto state = sol_state.registry()["state"].get<ScriptState*>();
+    state->add_vtable(obj, fn, pre_cb, post_cb);
+}
 }
 
 namespace api::re_managed_object {
@@ -1240,6 +1310,7 @@ void bindings::open_sdk(ScriptState* s) {
     //lua["_sol_lua_push_objects"] = std::unordered_map<::REManagedObject*, sol::object>();
     lua.do_string(R"(
         _sol_lua_push_objects = setmetatable({}, { __mode = "v" })
+        _sol_lua_push_usertypes = {}
         _sol_lua_push_ref_counts = {}
         _sol_lua_push_ephemeral_counts = {}
     )");
@@ -1273,6 +1344,7 @@ void bindings::open_sdk(ScriptState* s) {
     sdk["set_native_field"] = api::sdk::set_native_field;
     sdk["get_primary_camera"] = api::sdk::get_primary_camera;
     sdk["hook"] = api::sdk::hook;
+    sdk["hook_vtable"] = api::sdk::hook_vtable;
     sdk.new_enum("PreHookResult", "CALL_ORIGINAL", HookManager::PreHookResult::CALL_ORIGINAL, "SKIP_ORIGINAL", HookManager::PreHookResult::SKIP_ORIGINAL);
     sdk["is_managed_object"] = api::sdk::is_managed_object;
     sdk["to_managed_object"] = [](sol::this_state s, sol::object ptr) { 
@@ -1628,7 +1700,7 @@ void bindings::open_sdk(ScriptState* s) {
     create_managed_object_ptr_gc((::RETransform*)nullptr);
 
     lua.new_usertype<sdk::SystemArray>("SystemArray",
-        "get_size", &sdk::SystemArray::size,
+        "get_size", &sdk::SystemArray::get_size,
         "get_element", &sdk::SystemArray::get_element,
         "get_elements", &sdk::SystemArray::get_elements,
         sol::meta_function::index, [](sol::this_state s, sdk::SystemArray* arr, sol::variadic_args args) {
@@ -1646,7 +1718,25 @@ void bindings::open_sdk(ScriptState* s) {
             }
             return api::re_managed_object::new_index(s, sol::make_object(s.L, arr), args);
         },
-
+        sol::meta_function::pairs, [](sol::this_state s, sol::object arr) -> sol::variadic_results {
+            auto next = [](sol::this_state s, sdk::SystemArray* arr, sol::object k) -> sol::variadic_results {
+                uint32_t i = k.is<sol::nil_t>() ? 0 : k.as<uint32_t>()+1;
+                sol::variadic_results results{};
+                if (i >= arr->size()) {
+                    results.push_back(sol::make_object(s, sol::nil));\
+                    results.push_back(sol::make_object(s, sol::nil));
+                    return results;
+                }
+                results.push_back(sol::make_object(s, i));
+                results.push_back(sol::make_object(s, arr->get_element(i)));
+                return results;
+            };
+            sol::variadic_results results{};
+            results.push_back(sol::make_object(s, next));
+            results.push_back(arr);
+            results.push_back(sol::make_object(s, sol::nil));
+            return results;
+        },
         sol::base_classes, sol::bases<::REManagedObject>()
     );
 
@@ -1692,7 +1782,9 @@ void bindings::open_sdk(ScriptState* s) {
         "read_float", &api::sdk::MemoryView::read_memory<float>,
         "read_double", &api::sdk::MemoryView::read_memory<double>,
         "address", &api::sdk::MemoryView::address,
-        "get_address", &api::sdk::MemoryView::address
+        "get_address", &api::sdk::MemoryView::address,
+        "wipe", &api::sdk::MemoryView::wipe,
+        "size", &api::sdk::MemoryView::size
     );
 
     lua.new_usertype<::sdk::Resource>("REResource",
@@ -1707,51 +1799,229 @@ void bindings::open_sdk(ScriptState* s) {
         "get_address", [](::sdk::Resource* res) { return (uintptr_t)res; }
     );
 
+#define DYNAMIC_ARRAY_TYPE(C, T, name) \
+    lua.new_usertype< C < T >>( name , \
+        "as_memoryview", [](C < T >& data) {\
+            return api::sdk::MemoryView((uint8_t*)&data, sizeof(C < T >));\
+        },\
+        "empty", & C < T >::empty, \
+        "emplace", & C < T >::emplace, \
+        "push_back", [](C < T >& arr, T value) { arr.push_back(value); },\
+        "pop_back", & C < T >::pop_back,\
+        "size", & C < T >::size,\
+        "get_size", & C < T >::size,\
+        "erase", & C < T >::erase,\
+        "clear", & C < T >::clear,\
+        sol::meta_function::index, [](sol::this_state s, C < T >& arr, uint32_t i) -> sol::object {\
+            if (i >= arr.size()) { \
+                return sol::make_object(s, sol::nil); \
+            } \
+            return sol::make_object(s, arr[i]);\
+        },\
+        sol::meta_function::new_index, [](C < T >& arr, uint32_t i, T value) {\
+            if (i >= arr.size()) { \
+                return; \
+            } \
+            arr[i] = value;\
+        },\
+        sol::meta_function::pairs, [](sol::this_state s, sol::object arr) -> sol::variadic_results {\
+            auto next = [](sol::this_state s, C < T >& arr, sol::object k) -> sol::variadic_results {\
+                uint32_t i = k.is<sol::nil_t>() ? 0 : k.as<uint32_t>()+1;\
+                sol::variadic_results results{};\
+                if (i >= arr.size()) { \
+                    results.push_back(sol::make_object(s, sol::nil));\
+                    results.push_back(sol::make_object(s, sol::nil));\
+                    return results;\
+                } \
+                results.push_back(sol::make_object(s, i));\
+                results.push_back(sol::make_object(s, arr[i]));\
+                return results;\
+            };\
+            sol::variadic_results results{};\
+            results.push_back(sol::make_object(s, next));\
+            results.push_back(arr);\
+            results.push_back(sol::make_object(s, sol::nil));\
+            return results;\
+        },\
+        sol::meta_function::length, &C< T >::size\
+    )
+
+#define DYNAMIC_ARRAY_TYPE_REF(C, T, name) \
+    lua.new_usertype< C < T >>( name , \
+        "as_memoryview", [](C < T >& data) {\
+            return api::sdk::MemoryView((uint8_t*)&data, sizeof(C < T >));\
+        },\
+        "empty", & C < T >::empty, \
+        "emplace", & C < T >::emplace, \
+        "push_back", [](C < T >& arr, T* value) { arr.push_back(*value); },\
+        "pop_back", & C < T >::pop_back,\
+        "size", & C < T >::size,\
+        "get_size", & C < T >::size,\
+        "erase", & C < T >::erase,\
+        "clear", & C < T >::clear,\
+        sol::meta_function::index, [](sol::this_state s, C < T >& arr, uint32_t i) -> sol::object {\
+            if (i >= arr.size()) { \
+                return sol::make_object(s, sol::nil); \
+            } \
+            return sol::make_object(s, &arr[i]);\
+        },\
+        sol::meta_function::new_index, [](C < T >& arr, uint32_t i, T* value) {\
+            if (i >= arr.size()) { \
+                return; \
+            } \
+            arr[i] = *value;\
+        },\
+        sol::meta_function::length, &C< T >::size\
+    )
+
+
+#define DYNAMIC_ARRAY_TYPE_PTR(C, T, name) \
+    lua.new_usertype< C < T >>( name , \
+        "as_memoryview", [](C < T >& data) {\
+            return api::sdk::MemoryView((uint8_t*)&data, sizeof(C < T >));\
+        },\
+        "empty", & C < T >::empty, \
+        "emplace", & C < T >::emplace, \
+        "push_back", [](C < T >& arr, T value) { arr.push_back(value); },\
+        "pop_back", & C < T >::pop_back,\
+        "size", & C < T >::size,\
+        "get_size", & C < T >::size,\
+        "erase", & C < T >::erase,\
+        "clear", & C < T >::clear,\
+        sol::meta_function::index, [](sol::this_state s, C < T >& arr, uint32_t i) -> sol::object {\
+            if (i >= arr.size()) { \
+                return sol::make_object(s, sol::nil); \
+            } \
+            return sol::make_object(s, arr[i]);\
+        },\
+        sol::meta_function::new_index, [](C < T >& arr, uint32_t i, T value) {\
+            if (i >= arr.size()) { \
+                return; \
+            } \
+            arr[i] = value;\
+        },\
+        sol::meta_function::length, &C< T >::size\
+    )
+
+#define DYNAMIC_ARRAY_NOCAP_TYPE(T, name) DYNAMIC_ARRAY_TYPE(sdk::NativeArrayNoCapacity, T, name)
+#define DYNAMIC_ARRAY_NOCAP_TYPE_REF(T, name) DYNAMIC_ARRAY_TYPE_REF(sdk::NativeArrayNoCapacity, T, name)
+#define DYNAMIC_ARRAY_CAP_TYPE_PTR(T, name) DYNAMIC_ARRAY_TYPE_PTR(sdk::NativeArray, T, name)
+
+    DYNAMIC_ARRAY_NOCAP_TYPE(uint8_t, "DynamicArrayNoCapacityUInt8");
+    DYNAMIC_ARRAY_NOCAP_TYPE(int32_t, "DynamicArrayNoCapacityInt32");
+    DYNAMIC_ARRAY_NOCAP_TYPE(uint32_t, "DynamicArrayNoCapacityUInt32");
+
+    DYNAMIC_ARRAY_NOCAP_TYPE_REF(sdk::NativeArrayNoCapacity<uint32_t>, "DynamicArrayNoCapacityUInt32Array");
+
     lua.new_usertype<::sdk::behaviortree::TreeNodeData>("BehaviorTreeNodeData",
         "as_memoryview", [](::sdk::behaviortree::TreeNodeData* data) {
             return api::sdk::MemoryView((uint8_t*)data, sizeof(::sdk::behaviortree::TreeNodeData));
-        }
+        },
+        "to_valuetype", [](::sdk::behaviortree::TreeNodeData* data) {
+            return *data;
+        },
+        "id", &::sdk::behaviortree::TreeNodeData::id,
+        "parent", &::sdk::behaviortree::TreeNodeData::parent,
+        "is_branch", &::sdk::behaviortree::TreeNodeData::is_branch,
+        "is_end", &::sdk::behaviortree::TreeNodeData::is_end,
+        "has_selector", &::sdk::behaviortree::TreeNodeData::has_selector,
+        //"selector_id", &::sdk::behaviortree::TreeNodeData::selector_id,
+        "attr", &::sdk::behaviortree::TreeNodeData::attr,
+        "parent", &::sdk::behaviortree::TreeNodeData::parent,
+        "parent_2", &::sdk::behaviortree::TreeNodeData::parent_2,
+        "get_children", &::sdk::behaviortree::TreeNodeData::get_children,
+        "get_actions", &::sdk::behaviortree::TreeNodeData::get_actions,
+        "get_states", &::sdk::behaviortree::TreeNodeData::get_states,
+        "get_states_2", &::sdk::behaviortree::TreeNodeData::get_states_2,
+        "get_start_states", &::sdk::behaviortree::TreeNodeData::get_start_states,
+        "get_start_transitions", &::sdk::behaviortree::TreeNodeData::get_start_transitions,
+        "get_conditions", &::sdk::behaviortree::TreeNodeData::get_conditions,
+        "get_transition_conditions", &::sdk::behaviortree::TreeNodeData::get_transition_conditions,
+        "get_transition_events", &::sdk::behaviortree::TreeNodeData::get_transition_events,
+        "get_transition_ids", &::sdk::behaviortree::TreeNodeData::get_transition_ids,
+        "get_transition_attributes", &::sdk::behaviortree::TreeNodeData::get_transition_attributes,
+        "get_tags", &::sdk::behaviortree::TreeNodeData::get_tags,
+        "get_name", &::sdk::behaviortree::TreeNodeData::get_name,
+        "set_name", &::sdk::behaviortree::TreeNodeData::set_name
     );
 
     lua.new_usertype<::sdk::behaviortree::TreeNode>("BehaviorTreeNode",
         "as_memoryview", [](::sdk::behaviortree::TreeNode* node) {
             return api::sdk::MemoryView((uint8_t*)node, sizeof(::sdk::behaviortree::TreeNode));
         },
+        "to_valuetype", [](::sdk::behaviortree::TreeNode* node) {
+            return *node;
+        },
+        "id", &::sdk::behaviortree::TreeNode::id,
         "get_id", &::sdk::behaviortree::TreeNode::get_id,
         "get_data", &::sdk::behaviortree::TreeNode::get_data,
         "get_owner", &::sdk::behaviortree::TreeNode::get_owner,
         "get_parent", &::sdk::behaviortree::TreeNode::get_parent,
         "get_name", &::sdk::behaviortree::TreeNode::get_name,
+        "set_name", &::sdk::behaviortree::TreeNode::set_name,
         "get_full_name", &::sdk::behaviortree::TreeNode::get_full_name,
         "get_children", &::sdk::behaviortree::TreeNode::get_children,
         "get_actions", &::sdk::behaviortree::TreeNode::get_actions,
         "get_unloaded_actions", &::sdk::behaviortree::TreeNode::get_unloaded_actions,
-        "get_transitions", &::sdk::behaviortree::TreeNode::get_transitions,
+        "get_conditions", &::sdk::behaviortree::TreeNode::get_conditions,
+        "get_transition_conditions", &::sdk::behaviortree::TreeNode::get_transition_conditions,
+        "get_transition_events", &::sdk::behaviortree::TreeNode::get_transition_events,
+        "get_states", &::sdk::behaviortree::TreeNode::get_states,
+        "get_start_states", &::sdk::behaviortree::TreeNode::get_start_states,
         "get_status1", &::sdk::behaviortree::TreeNode::get_status1,
         "get_status2", &::sdk::behaviortree::TreeNode::get_status2,
-        "append_action", &::sdk::behaviortree::TreeNode::append_action,
-        "add_action", &::sdk::behaviortree::TreeNode::append_action,
-        "replace_action", &::sdk::behaviortree::TreeNode::replace_action,
-        "remove_action", &::sdk::behaviortree::TreeNode::remove_action
+        "relocate", &::sdk::behaviortree::TreeNode::relocate,
+        "get_selector", [](sol::this_state s, ::sdk::behaviortree::TreeNode* node) {
+            return sol::make_object(s, (::REManagedObject*)node->get_selector());
+        }
+    );
+
+    DYNAMIC_ARRAY_NOCAP_TYPE_REF(::sdk::behaviortree::TreeNode, "DynamicArrayNoCapacityTreeNode");
+    DYNAMIC_ARRAY_NOCAP_TYPE_REF(::sdk::behaviortree::TreeNodeData, "DynamicArrayNoCapacityTreeNodeData");
+    DYNAMIC_ARRAY_CAP_TYPE_PTR(::REManagedObject*, "DynamicArrayManagedObject");
+
+    lua.new_usertype<::sdk::behaviortree::TreeObjectData>("BehaviorTreeObjectData",
+        "as_memoryview", [](::sdk::behaviortree::TreeObjectData* data) {
+            return api::sdk::MemoryView((uint8_t*)data, sizeof(::sdk::behaviortree::TreeObjectData));
+        },
+        "get_nodes", &::sdk::behaviortree::TreeObjectData::get_nodes,
+        "get_static_actions", &::sdk::behaviortree::TreeObjectData::get_static_actions,
+        "get_static_conditions", &::sdk::behaviortree::TreeObjectData::get_static_conditions,
+        "get_static_transitions", &::sdk::behaviortree::TreeObjectData::get_static_transitions,
+        "get_expression_tree_conditions", &::sdk::behaviortree::TreeObjectData::get_expression_tree_conditions,
+        "get_action_methods", &::sdk::behaviortree::TreeObjectData::get_action_methods,
+        "get_static_action_methods", &::sdk::behaviortree::TreeObjectData::get_static_action_methods
     );
 
     lua.new_usertype<::sdk::behaviortree::TreeObject>("BehaviorTreeObject",
         "as_memoryview", [](::sdk::behaviortree::TreeObject* obj) {
             return api::sdk::MemoryView((uint8_t*)obj, sizeof(::sdk::behaviortree::TreeObject));
         },
+        "get_data", &::sdk::behaviortree::TreeObject::get_data,
         "get_node_by_id", &::sdk::behaviortree::TreeObject::get_node_by_id,
         "get_node_by_name", [](::sdk::behaviortree::TreeObject* obj, const char* name) {
             return obj->get_node_by_name(name);
         },
+        "get_actions", &::sdk::behaviortree::TreeObject::get_action_array,
+        "get_nodes", &::sdk::behaviortree::TreeObject::get_node_array,
+        "get_conditions", &::sdk::behaviortree::TreeObject::get_condition_array,
+        "get_transitions", &::sdk::behaviortree::TreeObject::get_transition_array,
+        "get_selectors", &::sdk::behaviortree::TreeObject::get_selector_array,
         "get_node", &::sdk::behaviortree::TreeObject::get_node,
         "get_node_count", &::sdk::behaviortree::TreeObject::get_node_count,
-        "get_nodes", &::sdk::behaviortree::TreeObject::get_nodes,
         "get_action", &::sdk::behaviortree::TreeObject::get_action,
         "get_unloaded_action", &::sdk::behaviortree::TreeObject::get_unloaded_action,
         "get_transition", &::sdk::behaviortree::TreeObject::get_transition,
+        "get_condition", &::sdk::behaviortree::TreeObject::get_condition,
         "get_action_count", &::sdk::behaviortree::TreeObject::get_action_count,
+        "get_condition_count", &::sdk::behaviortree::TreeObject::get_condition_count,
+        "get_transition_count", &::sdk::behaviortree::TreeObject::get_transition_count,
         "get_unloaded_action_count", &::sdk::behaviortree::TreeObject::get_unloaded_action_count,
-        "get_static_action_count", &::sdk::behaviortree::TreeObject::get_static_action_count
+        "get_static_action_count", &::sdk::behaviortree::TreeObject::get_static_action_count,
+        "get_static_condition_count", &::sdk::behaviortree::TreeObject::get_static_condition_count,
+        "get_static_transition_count", &::sdk::behaviortree::TreeObject::get_static_transition_count,
+        "relocate", &::sdk::behaviortree::TreeObject::relocate,
+        "get_uservariable_hub", &::sdk::behaviortree::TreeObject::get_uservariable_hub
     );
 
     lua.new_usertype<api::sdk::BehaviorTreeCoreHandle>("BehaviorTreeCoreHandle",
@@ -1760,6 +2030,12 @@ void bindings::open_sdk(ScriptState* s) {
         sol::base_classes, sol::bases<::REManagedObject>(),
         "get_tree_object", [](api::sdk::BehaviorTreeCoreHandle* handle) {
             return ((sdk::behaviortree::CoreHandle*)handle)->get_tree_object();
+        },
+        "relocate", [](api::sdk::BehaviorTreeCoreHandle* handle, uintptr_t old_start, uintptr_t old_end, sdk::NativeArrayNoCapacity<sdk::behaviortree::TreeNode>& new_nodes) {
+            ((sdk::behaviortree::CoreHandle*)handle)->relocate(old_start, old_end, new_nodes);
+        },
+        "relocate_datas", [](api::sdk::BehaviorTreeCoreHandle* handle, uintptr_t old_start, uintptr_t old_end, sdk::NativeArrayNoCapacity<sdk::behaviortree::TreeNodeData>& new_nodes) {
+            ((sdk::behaviortree::CoreHandle*)handle)->relocate_datas(old_start, old_end, new_nodes);
         }
     );
 

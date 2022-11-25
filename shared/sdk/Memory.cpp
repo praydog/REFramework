@@ -5,10 +5,9 @@
 #include "Memory.hpp"
 
 namespace sdk {
-namespace via {
 namespace memory {
 void* allocate(size_t size) {
-    static decltype(via::memory::allocate)* allocate_fn = []() -> decltype(via::memory::allocate)* {
+    static decltype(sdk::memory::allocate)* allocate_fn = []() -> decltype(sdk::memory::allocate)* {
         spdlog::info("[via::memory::allocate] Finding allocate function...");
 
         // this pattern literally works back to the very first version of the RE Engine!
@@ -24,7 +23,7 @@ void* allocate(size_t size) {
 
         spdlog::info("[via::memory::allocate] Ref {:x}", (uintptr_t)*ref);
 
-        auto fn = (decltype(via::memory::allocate)*)utility::calculate_absolute(*ref + 6);
+        auto fn = (decltype(sdk::memory::allocate)*)utility::calculate_absolute(*ref + 6);
 
         if (!fn) {
             spdlog::error("[via::memory::allocate] Failed to calculate allocate function!");
@@ -41,7 +40,7 @@ void* allocate(size_t size) {
 
 void deallocate(void* ptr) {
     // In every RE Engine game, the deallocate function is the next function in the disassembly for some reason.
-    static decltype(via::memory::deallocate)* deallocate_fn = []() -> decltype(via::memory::deallocate)* {
+    static decltype(sdk::memory::deallocate)* deallocate_fn = []() -> decltype(sdk::memory::deallocate)* {
         spdlog::info("[via::memory::deallocate] Finding deallocate function...");
 
         // this pattern literally works back to the very first version of the RE Engine!
@@ -72,7 +71,7 @@ void deallocate(void* ptr) {
             return nullptr;
         }
 
-        auto fn = (decltype(via::memory::deallocate)*)*ref;
+        auto fn = (decltype(sdk::memory::deallocate)*)*ref;
 
         spdlog::info("[via::memory::deallocate] Found deallocate function at {:x}", (uintptr_t)fn);
 
@@ -80,7 +79,6 @@ void deallocate(void* ptr) {
     }();
 
     deallocate_fn(ptr);
-}
 }
 }
 }
