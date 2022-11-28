@@ -227,9 +227,8 @@ void TemporalUpscaler::on_early_present() {
 
                 if (new_depth != nullptr && (state.depth_copy == nullptr || new_depth != state.depth.Get())) {
                     state.depth_copy = state.scene_layer->get_depth_stencil()->clone();
-                    state.depth_copy->add_ref();
 
-                    spdlog::info("[TemporalUpscaler] Made clone of depth stencil @ {:x}", (uintptr_t)state.depth_copy);
+                    spdlog::info("[TemporalUpscaler] Made clone of depth stencil @ {:x}", (uintptr_t)state.depth_copy.get());
                 }
 
                 if (new_motion_vectors != nullptr && (state.motion_vectors_copy == nullptr || new_motion_vectors != state.motion_vectors.Get())) {
@@ -243,9 +242,8 @@ void TemporalUpscaler::on_early_present() {
 
                             if (tex != nullptr) {
                                 state.motion_vectors_copy = tex->clone();
-                                state.motion_vectors_copy->add_ref();
 
-                                spdlog::info("[TemporalUpscaler] Made clone of motion vectors @ {:x}", (uintptr_t)state.motion_vectors_copy);
+                                spdlog::info("[TemporalUpscaler] Made clone of motion vectors @ {:x}", (uintptr_t)state.motion_vectors_copy.get());
                             }
                         }
                     }
@@ -515,6 +513,10 @@ void TemporalUpscaler::release_upscale_features() {
         state.depth.Reset();
         state.motion_vectors.Reset();
         state.scene_layer = nullptr;
+
+        state.color_copy.reset();
+        state.depth_copy.reset();
+        state.motion_vectors_copy.reset();
     }
 
     m_big_motion_vectors.Reset();

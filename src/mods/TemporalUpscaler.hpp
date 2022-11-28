@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <sdk/intrusive_ptr.hpp>
 
 #include "vr/D3D12Component.hpp"
 #include "Mod.hpp"
@@ -139,9 +140,9 @@ private:
         ComPtr<ID3D12Resource> depth{};
         ComPtr<ID3D12Resource> color{};
 
-        sdk::renderer::Texture* color_copy{nullptr};
-        sdk::renderer::Texture* motion_vectors_copy{nullptr};
-        sdk::renderer::Texture* depth_copy{nullptr};
+        sdk::intrusive_ptr<sdk::renderer::Texture> color_copy{};
+        sdk::intrusive_ptr<sdk::renderer::Texture> motion_vectors_copy{};
+        sdk::intrusive_ptr<sdk::renderer::Texture> depth_copy{};
     };
 
     std::array<EyeState, 2> m_eye_states{};
