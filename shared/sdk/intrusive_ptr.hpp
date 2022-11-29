@@ -61,6 +61,13 @@ public:
         return m_ptr != nullptr;
     }
 
+    void reset() {
+        if (m_ptr != nullptr) {
+            m_ptr->release();
+            m_ptr = nullptr;
+        }
+    }
+
 private:
     T* m_ptr{nullptr};
 };
