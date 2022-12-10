@@ -781,7 +781,7 @@ std::filesystem::path REFramework::get_persistent_dir() {
         static const auto exe_name = [&]() {
             const auto result = std::filesystem::path(*utility::get_module_path(utility::get_executable())).stem().string();
             const auto dir = std::filesystem::path(app_data_path) / "REFramework" / result;
-            std::filesystem::create_directories(result);
+            std::filesystem::create_directories(dir);
 
             return result;
         }();
@@ -1245,7 +1245,8 @@ bool REFramework::initialize() {
 
         set_imgui_style();
 
-        ImGui::GetIO().IniFilename = "ref_ui.ini";
+        static const auto imgui_ini = (get_persistent_dir() / "ref_ui.ini").string();
+        ImGui::GetIO().IniFilename = imgui_ini.c_str();
 
         spdlog::info("Initializing ImGui Win32");
 
@@ -1307,7 +1308,8 @@ bool REFramework::initialize() {
 
         set_imgui_style();
 
-        ImGui::GetIO().IniFilename = "ref_ui.ini";
+        static const auto imgui_ini = (get_persistent_dir() / "ref_ui.ini").string();
+        ImGui::GetIO().IniFilename = imgui_ini.c_str();
         
         if (!ImGui_ImplWin32_Init(m_wnd)) {
             spdlog::error("Failed to initialize ImGui ImplWin32.");
