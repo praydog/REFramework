@@ -1,5 +1,7 @@
 #include <windows.h>
 #include <DbgHelp.h>
+#include <ShlObj.h>
+#include <filesystem>
 #include <spdlog/spdlog.h>
 
 #include "utility/Module.hpp"
@@ -94,8 +96,24 @@ LONG WINAPI reframework::global_exception_handler(struct _EXCEPTION_POINTERS* ei
         );
 
         if (!f || f == INVALID_HANDLE_VALUE) {
-            spdlog::error("Exception occurred, but could not create dump file");
-            return EXCEPTION_CONTINUE_SEARCH;
+            char app_data_path[MAX_PATH]{};
+            SHGetSpecialFolderPathA(0, app_data_path, CSIDL_APPDATA, false);
+            
+            const auto new_path = std::filesystem::path(app_data_path) / "REFramework" / "reframework_crash.dmp";
+
+            f = CreateFile(new_path.string().c_str(), 
+                GENERIC_WRITE, 
+                FILE_SHARE_WRITE, 
+                nullptr, 
+                CREATE_ALWAYS, 
+                FILE_ATTRIBUTE_NORMAL, 
+                nullptr
+            );
+
+            if (!f || f == INVALID_HANDLE_VALUE) {  
+                spdlog::error("Exception occurred, but could not create dump file");
+                return EXCEPTION_CONTINUE_SEARCH;
+            }
         }
 
         MINIDUMP_EXCEPTION_INFORMATION ei_info{
