@@ -2,6 +2,7 @@
 #include <filesystem>
 
 #include <windows.h>
+#include <ShlObj.h>
 
 #include <spdlog/sinks/basic_file_sink.h>
 
@@ -134,13 +135,30 @@ void REFramework::hook_monitor() {
 REFramework::REFramework(HMODULE reframework_module)
     : m_reframework_module{reframework_module}
     , m_game_module{GetModuleHandle(0)}
-    , m_logger{spdlog::basic_logger_mt("REFramework", "re2_framework_log.txt", true)} {
+    {
 
     std::scoped_lock __{m_startup_mutex};
 
-    spdlog::set_default_logger(m_logger);
-    spdlog::flush_on(spdlog::level::info);
-    spdlog::info("REFramework entry");
+    try {
+        m_logger = spdlog::basic_logger_mt("REFramework", "re2_framework_log.txt", true);
+
+        spdlog::set_default_logger(m_logger);
+        spdlog::flush_on(spdlog::level::info);
+        spdlog::info("REFramework entry");
+    } catch(...) {
+        // Set the logger directory to %APPDATA%/REFramework and try again
+        char app_data_path[MAX_PATH]{};
+        SHGetSpecialFolderPathA(0, app_data_path, CSIDL_APPDATA, false);
+        
+        const auto log_path = std::filesystem::path(app_data_path) / "REFramework" / "log.txt";
+
+        m_logger = spdlog::basic_logger_mt("REFramework", log_path.string(), true);
+        spdlog::set_default_logger(m_logger);
+        spdlog::flush_on(spdlog::level::info);
+
+        spdlog::info("Had to fallback to %APPDATA% for log file");
+        spdlog::info("REFramework entry");
+    }
 
     const auto module_size = *utility::get_module_size(m_game_module);
 
