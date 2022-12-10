@@ -563,7 +563,7 @@ std::shared_ptr<PluginLoader> PluginLoader::get() {
     return instance;
 }
 
-void PluginLoader::early_init() {
+void PluginLoader::early_init() try {
     namespace fs = std::filesystem;
 
     std::scoped_lock _{m_mux};
@@ -576,7 +576,13 @@ void PluginLoader::early_init() {
     auto plugin_path = fs::path{module_path}.parent_path() / "reframework" / "plugins";
 
     spdlog::info("[PluginLoader] Creating directories {}", plugin_path.string());
-    fs::create_directories(plugin_path);
+
+    if (!fs::create_directories(plugin_path) && !fs::exists(plugin_path)) {
+        spdlog::error("[PluginLoader] Failed to create directory for plugins: {}", plugin_path.string());
+    } else {
+        spdlog::info("[PluginLoader] Created directory for plugins: {}", plugin_path.string());
+    }
+
     spdlog::info("[PluginLoader] Loading plugins...");
 
     // Load all dlls in the plugins directory.
@@ -596,6 +602,10 @@ void PluginLoader::early_init() {
             m_plugins.emplace(path.stem().string(), module);
         }
     }
+} catch(const std::exception& e) {
+    spdlog::error("[PluginLoader] Exception during early init {}", e.what());
+} catch(...) {
+    spdlog::error("[PluginLoader] Unknown exception during early init");
 }
 
 std::optional<std::string> PluginLoader::on_initialize() {
