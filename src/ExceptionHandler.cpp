@@ -8,6 +8,7 @@
 #include "utility/Scan.hpp"
 #include "utility/Patch.hpp"
 
+#include "REFramework.hpp"
 #include "ExceptionHandler.hpp"
 
 LONG WINAPI reframework::global_exception_handler(struct _EXCEPTION_POINTERS* ei) {
@@ -80,9 +81,7 @@ LONG WINAPI reframework::global_exception_handler(struct _EXCEPTION_POINTERS* ei
     auto dbghelp = LoadLibrary("dbghelp.dll");
 
     if (dbghelp) {
-        const auto mod_dir = utility::get_module_directory(GetModuleHandle(0));
-        const auto real_mod_dir = mod_dir ? (*mod_dir + "\\") : "";
-        const auto final_path = real_mod_dir + "reframework_crash.dmp";
+        const auto final_path = REFramework::get_persistent_dir("reframework_crash.dmp").string();
 
         spdlog::error("Attempting to write dump to {}", final_path);
 
@@ -96,24 +95,8 @@ LONG WINAPI reframework::global_exception_handler(struct _EXCEPTION_POINTERS* ei
         );
 
         if (!f || f == INVALID_HANDLE_VALUE) {
-            char app_data_path[MAX_PATH]{};
-            SHGetSpecialFolderPathA(0, app_data_path, CSIDL_APPDATA, false);
-            
-            const auto new_path = std::filesystem::path(app_data_path) / "REFramework" / "reframework_crash.dmp";
-
-            f = CreateFile(new_path.string().c_str(), 
-                GENERIC_WRITE, 
-                FILE_SHARE_WRITE, 
-                nullptr, 
-                CREATE_ALWAYS, 
-                FILE_ATTRIBUTE_NORMAL, 
-                nullptr
-            );
-
-            if (!f || f == INVALID_HANDLE_VALUE) {  
-                spdlog::error("Exception occurred, but could not create dump file");
-                return EXCEPTION_CONTINUE_SEARCH;
-            }
+            spdlog::error("Exception occurred, but could not create dump file");
+            return EXCEPTION_CONTINUE_SEARCH;
         }
 
         MINIDUMP_EXCEPTION_INFORMATION ei_info{

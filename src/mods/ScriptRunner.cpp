@@ -934,7 +934,7 @@ void ScriptRunner::reset_scripts() {
     spdlog::info("[ScriptRunner] Module path {}", module_path);
 
     // Load from the reframework/autorun directory.
-    auto autorun_path = std::filesystem::path{module_path}.parent_path() / "reframework" / "autorun";
+    const auto autorun_path = REFramework::get_persistent_dir() / "reframework" / "autorun";
 
     spdlog::info("[ScriptRunner] Creating directories {}", autorun_path.string());
     std::filesystem::create_directories(autorun_path);

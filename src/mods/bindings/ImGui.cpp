@@ -524,13 +524,8 @@ int load_font(sol::object filepath_obj, int size, sol::object ranges) {
         throw std::runtime_error("Font filepath cannot access parent directories.");
     }
 
-    std::string modpath{};
-
-    modpath.resize(1024, 0);
-    modpath.resize(GetModuleFileName(nullptr, modpath.data(), modpath.size()));
-
-    auto fonts_path = fs::path{modpath}.parent_path() / "reframework" / "fonts";
-    auto font_path = fonts_path / filepath;
+    const auto fonts_path = REFramework::get_persistent_dir() / "reframework" / "fonts";
+    const auto font_path = fonts_path / filepath;
 
     fs::create_directories(fonts_path);
     std::vector<ImWchar> ranges_vec{};

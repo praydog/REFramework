@@ -2001,7 +2001,7 @@ void ObjectExplorer::generate_sdk() {
     }*/
 
     try {
-        std::ofstream{ "il2cpp_dump.json" } << il2cpp_dump.dump(4, ' ', false, json::error_handler_t::ignore) << std::endl;
+        std::ofstream{ REFramework::get_persistent_dir("il2cpp_dump.json") } << il2cpp_dump.dump(4, ' ', false, json::error_handler_t::ignore) << std::endl;
     } catch(std::exception& e) {
         spdlog::info("Failed to dump il2cpp_dump.json: {}", e.what());
     }
@@ -3915,7 +3915,7 @@ void ObjectExplorer::populate_classes() {
 void ObjectExplorer::populate_enums() {
 #if TDB_VER > 49
 
-    std::ofstream out_file("Enums_Internal.hpp");
+    std::ofstream out_file(REFramework::get_persistent_dir("Enums_Internal.hpp"));
 
 
     auto ref = utility::scan(g_framework->get_module().as<HMODULE>(), "66 C7 40 18 01 01 48 89 05 ? ? ? ?");

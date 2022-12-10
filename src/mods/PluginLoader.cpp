@@ -567,13 +567,11 @@ void PluginLoader::early_init() try {
     namespace fs = std::filesystem;
 
     std::scoped_lock _{m_mux};
-    std::string module_path{};
 
-    module_path.resize(1024, 0);
-    module_path.resize(GetModuleFileName(nullptr, module_path.data(), module_path.size()));
-    spdlog::info("[PluginLoader] Module path {}", module_path);
+    spdlog::info("[PluginLoader] Module path {}", *utility::get_module_path(utility::get_executable()));
+    spdlog::info("[PluginLoader] Actual dir: {}", REFramework::get_persistent_dir().string());
 
-    auto plugin_path = fs::path{module_path}.parent_path() / "reframework" / "plugins";
+    const auto plugin_path = REFramework::get_persistent_dir() / "reframework" / "plugins";
 
     spdlog::info("[PluginLoader] Creating directories {}", plugin_path.string());
 

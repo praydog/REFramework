@@ -1,5 +1,6 @@
 #include <chrono>
 #include <filesystem>
+#include <fstream>
 
 #include <windows.h>
 #include <ShlObj.h>
@@ -135,30 +136,19 @@ void REFramework::hook_monitor() {
 REFramework::REFramework(HMODULE reframework_module)
     : m_reframework_module{reframework_module}
     , m_game_module{GetModuleHandle(0)}
+    , m_logger{spdlog::basic_logger_mt("REFramework", (get_persistent_dir("re2_framework_log.txt")).string(), true)}
     {
 
     std::scoped_lock __{m_startup_mutex};
 
-    try {
-        m_logger = spdlog::basic_logger_mt("REFramework", "re2_framework_log.txt", true);
+    spdlog::set_default_logger(m_logger);
+    spdlog::flush_on(spdlog::level::info);
 
-        spdlog::set_default_logger(m_logger);
-        spdlog::flush_on(spdlog::level::info);
-        spdlog::info("REFramework entry");
-    } catch(...) {
-        // Set the logger directory to %APPDATA%/REFramework and try again
-        char app_data_path[MAX_PATH]{};
-        SHGetSpecialFolderPathA(0, app_data_path, CSIDL_APPDATA, false);
-        
-        const auto log_path = std::filesystem::path(app_data_path) / "REFramework" / "log.txt";
-
-        m_logger = spdlog::basic_logger_mt("REFramework", log_path.string(), true);
-        spdlog::set_default_logger(m_logger);
-        spdlog::flush_on(spdlog::level::info);
-
-        spdlog::info("Had to fallback to %APPDATA% for log file");
-        spdlog::info("REFramework entry");
+    if (s_fallback_appdata) {
+        spdlog::warn("Failed to write to current directory, falling back to appdata folder");
     }
+
+    spdlog::info("REFramework entry");
 
     const auto module_size = *utility::get_module_size(m_game_module);
 
@@ -467,7 +457,7 @@ void REFramework::on_frame_d3d11() {
     if (is_init_ok) {
         // Write default config once if it doesn't exist.
         if (!std::exchange(m_created_default_cfg, true)) {
-            if (!fs::exists({utility::widen("re2_fw_config.txt")})) {
+            if (!fs::exists({utility::widen(get_persistent_dir("re2_fw_config.txt").string())})) {
                 save_config();
             }
         }
@@ -570,7 +560,7 @@ void REFramework::on_frame_d3d12() {
     if (is_init_ok) {
         // Write default config once if it doesn't exist.
         if (!std::exchange(m_created_default_cfg, true)) {
-            if (!fs::exists({utility::widen("re2_fw_config.txt")})) {
+            if (!fs::exists({utility::widen(get_persistent_dir("re2_fw_config.txt").string())})) {
                 save_config();
             }
         }
@@ -783,6 +773,55 @@ void REFramework::on_direct_input_keys(const std::array<uint8_t, 256>& keys) {
     m_last_keys = keys;
 }
 
+std::filesystem::path REFramework::get_persistent_dir() {
+    auto return_appdata_dir = []() -> std::filesystem::path {
+        char app_data_path[MAX_PATH]{};
+        SHGetSpecialFolderPathA(0, app_data_path, CSIDL_APPDATA, false);
+
+        static const auto exe_name = [&]() {
+            const auto result = std::filesystem::path(*utility::get_module_path(utility::get_executable())).stem().string();
+            const auto dir = std::filesystem::path(app_data_path) / "REFramework" / result;
+            std::filesystem::create_directories(result);
+
+            return result;
+        }();
+
+        return std::filesystem::path(app_data_path) / "REFramework" / exe_name;
+    };
+
+    if (s_fallback_appdata) {
+        return return_appdata_dir();
+    }
+
+    if (s_checked_file_permissions) {
+        static const auto result = std::filesystem::path(*utility::get_module_path(utility::get_executable())).parent_path();
+        return result;
+    }
+
+    // Do some tests on the file creation/writing permissions of the current directory
+    // If we can't write to the current directory, we fallback to the appdata folder
+    try {
+        const auto dir = std::filesystem::path(*utility::get_module_path(utility::get_executable())).parent_path();
+        const auto test_file = dir / "test.txt";
+        std::ofstream test_stream{test_file};
+        test_stream << "test";
+        test_stream.close();
+
+        std::filesystem::create_directories(dir / "test_dir");
+        std::filesystem::remove(test_file);
+        std::filesystem::remove(dir / "test_dir");
+
+        s_checked_file_permissions = true;
+        s_fallback_appdata = false;
+    } catch(...) {
+        s_fallback_appdata = true;
+        s_checked_file_permissions = true;
+        return return_appdata_dir();
+    }
+    
+    return std::filesystem::path(*utility::get_module_path(utility::get_executable())).parent_path();
+}
+
 void REFramework::save_config() {
     std::scoped_lock _{m_config_mtx};
 
@@ -794,8 +833,16 @@ void REFramework::save_config() {
         mod->on_config_save(cfg);
     }
 
-    if (!cfg.save("re2_fw_config.txt")) {
-        spdlog::info("Failed to save config");
+    try {
+        if (!cfg.save((get_persistent_dir() / "re2_fw_config.txt").string())) {
+            spdlog::error("Failed to save config");
+            return;
+        }
+    } catch(const std::exception& e) {
+        spdlog::error("Failed to save config: {}", e.what());
+        return;
+    } catch(...) {
+        spdlog::error("Unexpected error while saving config");
         return;
     }
 
