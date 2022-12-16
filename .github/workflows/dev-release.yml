@@ -1,7 +1,7 @@
 name: Dev Release
 on: [push, workflow_dispatch]
 env:
-  BUILD_TYPE: Release
+  BUILD_TYPE: RelWithDebInfo
 jobs:
   dev-release:
     runs-on: windows-latest
@@ -24,7 +24,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: ${{matrix.target}}
-          path: ${{github.workspace}}/build/bin/${{matrix.target}}/dinput8.dll
+          path: ${{github.workspace}}/build/bin/${{matrix.target}}/
           if-no-files-found: error
 
       - name: Compress release
@@ -33,7 +33,7 @@ jobs:
           echo none > ${{github.workspace}}/DELETE_OPENVR_API_DLL_IF_YOU_WANT_TO_USE_OPENXR
           7z a ${{github.workspace}}/${{matrix.target}}.zip ${{github.workspace}}/reframework_revision.txt
           7z a ${{github.workspace}}/${{matrix.target}}.zip ${{github.workspace}}/DELETE_OPENVR_API_DLL_IF_YOU_WANT_TO_USE_OPENXR
-          7z a ${{github.workspace}}/${{matrix.target}}.zip ${{github.workspace}}/build/bin/${{matrix.target}}/dinput8.dll
+          7z a ${{github.workspace}}/${{matrix.target}}.zip ${{github.workspace}}/build/bin/${{matrix.target}}/
           7z a ${{github.workspace}}/${{matrix.target}}.zip ${{github.workspace}}/dependencies/openvr/bin/win64/openvr_api.dll
           7z a ${{github.workspace}}/${{matrix.target}}.zip ${{github.workspace}}/build/_deps/openxr-build/src/loader/${{env.BUILD_TYPE}}/openxr_loader.dll
           7z a ${{github.workspace}}/${{matrix.target}}.zip ${{github.workspace}}/scripts
