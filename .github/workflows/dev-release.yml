@@ -20,13 +20,6 @@ jobs:
       - name: Build
         run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}} --target ${{matrix.target}}
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v3
-        with:
-          name: ${{matrix.target}}
-          path: ${{github.workspace}}/build/bin/${{matrix.target}}/dinput8.*
-          if-no-files-found: error
-
       - name: Compress release
         run: |
           echo ${{github.sha}} > ${{github.workspace}}/reframework_revision.txt
@@ -39,6 +32,13 @@ jobs:
           7z a ${{github.workspace}}/${{matrix.target}}.zip ${{github.workspace}}/build/_deps/openxr-build/src/loader/${{env.BUILD_TYPE}}/openxr_loader.dll
           7z a ${{github.workspace}}/${{matrix.target}}.zip ${{github.workspace}}/scripts
           7z rn ${{github.workspace}}/${{matrix.target}}.zip scripts reframework/autorun
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{matrix.target}}
+          path: ${{github.workspace}}/${{matrix.target}}.zip
+          if-no-files-found: error
 
       - name: Set output
         id: vars
