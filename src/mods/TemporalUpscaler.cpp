@@ -292,6 +292,8 @@ void TemporalUpscaler::on_early_present() {
                 params.destination = nullptr;
                 params.motionScaleX = m_motion_scale[0];
                 params.motionScaleY = m_motion_scale[1];
+                params.renderSizeX = GetRenderWidth(evaluate_id);
+                params.renderSizeY = GetRenderHeight(evaluate_id);
                 params.jitterOffsetX = m_jitter_offsets[evaluate_index][0];
                 params.jitterOffsetY = m_jitter_offsets[evaluate_index][1];
                 params.sharpness = m_sharpness_amount;
