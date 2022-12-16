@@ -101,6 +101,11 @@ void TemporalUpscaler::on_draw_ui() {
 
     ImGui::Checkbox("Upscale", &m_upscale);
     ImGui::Checkbox("Jitter", &m_jitter);
+    
+    if (ImGui::Checkbox("Use Native Res (DLAA)", &m_use_native_resolution)) {
+        update_motion_scale();
+    }
+
     if (ImGui::Checkbox("Sharpness", &m_sharpness)) {
         release_upscale_features();
         init_upscale_features();
@@ -117,8 +122,8 @@ void TemporalUpscaler::on_draw_ui() {
 
     ImGui::DragFloat("Sharpness Amount", &m_sharpness_amount, 0.01f, 0.0f, 5.0f);
 
-    const auto w = (float)GetRenderWidth(this->get_evaluate_id(0));
-    const auto h = (float)GetRenderHeight(this->get_evaluate_id(0));
+    const auto w = (float)get_render_width();
+    const auto h = (float)get_render_height();
 
     if (ImGui::DragFloat("MotionScale X", &m_motion_scale[0], 0.01f, -w, w) ||
         ImGui::DragFloat("MotionScale Y", &m_motion_scale[1], 0.01f, -h, h)) 
@@ -292,8 +297,8 @@ void TemporalUpscaler::on_early_present() {
                 params.destination = nullptr;
                 params.motionScaleX = m_motion_scale[0];
                 params.motionScaleY = m_motion_scale[1];
-                params.renderSizeX = GetRenderWidth(evaluate_id);
-                params.renderSizeY = GetRenderHeight(evaluate_id);
+                params.renderSizeX = get_render_width();
+                params.renderSizeY = get_render_height();
                 params.jitterOffsetX = m_jitter_offsets[evaluate_index][0];
                 params.jitterOffsetY = m_jitter_offsets[evaluate_index][1];
                 params.sharpness = m_sharpness_amount;
@@ -352,8 +357,8 @@ void TemporalUpscaler::on_early_present() {
                 params.destination = nullptr;
                 params.motionScaleX = m_motion_scale[0];
                 params.motionScaleY = m_motion_scale[1];
-                params.renderSizeX = GetRenderWidth(evaluate_id);
-                params.renderSizeY = GetRenderHeight(evaluate_id);
+                params.renderSizeX = get_render_width();
+                params.renderSizeY = get_render_height();
                 params.jitterOffsetX = m_jitter_offsets[evaluate_index][0];
                 params.jitterOffsetY = m_jitter_offsets[evaluate_index][1];
                 params.sharpness = m_sharpness_amount;
@@ -507,16 +512,7 @@ bool TemporalUpscaler::init_upscale_features() {
         m_upscaled_textures[1] = InitUpscaler(&params);
     }
 
-    m_motion_scale[0] = (float)GetRenderWidth(get_evaluate_id(0)) / 2.0f;
-    m_motion_scale[1] = -1.0f * ((float)GetRenderHeight(get_evaluate_id(0)) / 2.0f);
-
-    SetMotionScaleX(get_evaluate_id(0), (float)m_motion_scale[0]);
-    SetMotionScaleY(get_evaluate_id(0), (float)m_motion_scale[1]);
-
-    if (VR::get()->is_hmd_active()) {
-        SetMotionScaleX(get_evaluate_id(1), (float)m_motion_scale[0]);
-        SetMotionScaleY(get_evaluate_id(1), (float)m_motion_scale[1]);
-    }
+    update_motion_scale();
 
     if (m_is_d3d12) {
         const auto desc = ((ID3D12Resource*)m_upscaled_textures[0])->GetDesc();
@@ -685,8 +681,8 @@ void TemporalUpscaler::on_view_get_size(REManagedObject* scene_view, float* resu
         result[0] = (float)GetRenderWidth(evaluate_id) / 2.0f;
         result[1] = (float)GetRenderHeight(evaluate_id);
     } else {*/
-        result[0] = (float)GetRenderWidth(evaluate_id);
-        result[1] = (float)GetRenderHeight(evaluate_id);
+        result[0] = (float)get_render_width();
+        result[1] = (float)get_render_height();
     //}
 
     m_set_view = true;
@@ -1217,5 +1213,37 @@ void TemporalUpscaler::update_extra_scene_layer() {
         m_made_extra_scene_layer = true;
 
         spdlog::info("[TemporalUpscaler] Made extra scene layer");
+    }
+}
+
+uint32_t TemporalUpscaler::get_render_width() const {
+    if (m_use_native_resolution) {
+        // we subtract 1 from the native res because
+        // the game will create a separate color buffer we can use
+        // otherwise it will be null.
+        return m_backbuffer_size[0] - 1;
+    }
+
+    return GetRenderWidth(get_evaluate_id(0));
+}
+
+uint32_t TemporalUpscaler::get_render_height() const {
+    if (m_use_native_resolution) {
+        return m_backbuffer_size[1] - 1;
+    }
+
+    return GetRenderHeight(get_evaluate_id(0));
+}
+
+void TemporalUpscaler::update_motion_scale() {
+    m_motion_scale[0] = (float)get_render_width() / 2.0f;
+    m_motion_scale[1] = -1.0f * ((float)get_render_height() / 2.0f);
+
+    SetMotionScaleX(get_evaluate_id(0), (float)m_motion_scale[0]);
+    SetMotionScaleY(get_evaluate_id(0), (float)m_motion_scale[1]);
+
+    if (VR::get()->is_hmd_active()) {
+        SetMotionScaleX(get_evaluate_id(1), (float)m_motion_scale[0]);
+        SetMotionScaleY(get_evaluate_id(1), (float)m_motion_scale[1]);
     }
 }

@@ -52,7 +52,7 @@ public:
         return m_initialized && m_backend_loaded && m_enabled && !m_wants_reinitialize;
     }
 
-    uint32_t get_evaluate_id(uint32_t counter) {
+    uint32_t get_evaluate_id(uint32_t counter) const {
         return (counter % 2) + 1;
     }
 
@@ -93,6 +93,9 @@ private:
     void release_upscale_features();
     void fix_output_layer();
     void update_extra_scene_layer();
+    uint32_t get_render_width() const;
+    uint32_t get_render_height() const;
+    void update_motion_scale();
 
     bool m_first_frame_finished{false};
     bool m_initialized{false};
@@ -101,6 +104,7 @@ private:
     bool m_backbuffer_inconsistency{false};
     bool m_enabled{true};
     bool m_upscale{true};
+    bool m_use_native_resolution{false};
     bool m_rendering{false};
     bool m_set_view{false};
     bool m_jitter{true};
