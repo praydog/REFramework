@@ -29,7 +29,7 @@ namespace detail {
         // todo, other subdirs?
     }
 
-    auto datadir = ::fs::path{modpath}.parent_path() / "reframework" / "data";
+    auto datadir = REFramework::get_persistent_dir() / "reframework" / "data";
 
     ::fs::create_directories(datadir);
 

@@ -177,8 +177,8 @@ REFrameworkSDKFunctions g_sdk_functions {
             ignore_jmp);
     },
     [](REFrameworkMethodHandle fn, unsigned int id) { g_hookman.remove((sdk::REMethodDefinition*)fn, (HookManager::HookId)id); },
-    &sdk::via::memory::allocate,
-    &sdk::via::memory::deallocate
+    &sdk::memory::allocate,
+    &sdk::memory::deallocate
 };
 
 #define RETYPEDEF(var) ((sdk::RETypeDefinition*)var)
@@ -563,20 +563,24 @@ std::shared_ptr<PluginLoader> PluginLoader::get() {
     return instance;
 }
 
-void PluginLoader::early_init() {
+void PluginLoader::early_init() try {
     namespace fs = std::filesystem;
 
     std::scoped_lock _{m_mux};
-    std::string module_path{};
 
-    module_path.resize(1024, 0);
-    module_path.resize(GetModuleFileName(nullptr, module_path.data(), module_path.size()));
-    spdlog::info("[PluginLoader] Module path {}", module_path);
+    spdlog::info("[PluginLoader] Module path {}", *utility::get_module_path(utility::get_executable()));
+    spdlog::info("[PluginLoader] Actual dir: {}", REFramework::get_persistent_dir().string());
 
-    auto plugin_path = fs::path{module_path}.parent_path() / "reframework" / "plugins";
+    const auto plugin_path = REFramework::get_persistent_dir() / "reframework" / "plugins";
 
     spdlog::info("[PluginLoader] Creating directories {}", plugin_path.string());
-    fs::create_directories(plugin_path);
+
+    if (!fs::create_directories(plugin_path) && !fs::exists(plugin_path)) {
+        spdlog::error("[PluginLoader] Failed to create directory for plugins: {}", plugin_path.string());
+    } else {
+        spdlog::info("[PluginLoader] Created directory for plugins: {}", plugin_path.string());
+    }
+
     spdlog::info("[PluginLoader] Loading plugins...");
 
     // Load all dlls in the plugins directory.
@@ -596,6 +600,10 @@ void PluginLoader::early_init() {
             m_plugins.emplace(path.stem().string(), module);
         }
     }
+} catch(const std::exception& e) {
+    spdlog::error("[PluginLoader] Exception during early init {}", e.what());
+} catch(...) {
+    spdlog::error("[PluginLoader] Unknown exception during early init");
 }
 
 std::optional<std::string> PluginLoader::on_initialize() {

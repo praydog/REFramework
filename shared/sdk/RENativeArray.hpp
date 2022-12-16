@@ -6,7 +6,7 @@ namespace sdk {
 template <typename T> struct NativeArray {
     ~NativeArray() {
         if (elements != nullptr) {
-            sdk::via::memory::deallocate(elements);
+            sdk::memory::deallocate(elements);
         }
 
         elements = nullptr;
@@ -62,7 +62,7 @@ template <typename T> struct NativeArray {
         }
 
         if (new_size > num_allocated) {
-            T* new_elements = (T*)sdk::via::memory::allocate(sizeof(T) * new_size);
+            T* new_elements = (T*)sdk::memory::allocate(sizeof(T) * new_size);
             if (new_elements == nullptr) {
                 return false;
             }
@@ -76,7 +76,7 @@ template <typename T> struct NativeArray {
                     new_elements[i] = elements[i];
                 }
 
-                sdk::via::memory::deallocate(elements);
+                sdk::memory::deallocate(elements);
             }
 
             elements = new_elements;
@@ -96,7 +96,7 @@ template <typename T> struct NativeArray {
 
     T& emplace() {
         if (elements == nullptr) {
-            elements = (T*)sdk::via::memory::allocate(sizeof(T) * 1);
+            elements = (T*)sdk::memory::allocate(sizeof(T) * 1);
 
             num_allocated = 1;
             num = 1;
@@ -104,13 +104,13 @@ template <typename T> struct NativeArray {
             elements[0] = T{};
         } else {
             if (num >= num_allocated) {
-                T* new_elements = (T*)sdk::via::memory::allocate(sizeof(T) * (num_allocated + 1));
+                T* new_elements = (T*)sdk::memory::allocate(sizeof(T) * (num_allocated + 1));
 
                 for (uint32_t i = 0; i < num; i++) {
                     new_elements[i] = elements[i];
                 }
 
-                sdk::via::memory::deallocate(elements);
+                sdk::memory::deallocate(elements);
                 elements = new_elements;
                 ++num_allocated;
             }
@@ -163,7 +163,7 @@ template <typename T>
 struct NativeArrayNoCapacity {
     ~NativeArrayNoCapacity() {
         if (elements != nullptr) {
-            sdk::via::memory::deallocate(elements);
+            sdk::memory::deallocate(elements);
         }
 
         elements = nullptr;
@@ -201,7 +201,7 @@ struct NativeArrayNoCapacity {
     void clear(bool force = false) {
         if (force) {
             if (elements != nullptr) {
-                sdk::via::memory::deallocate(elements);
+                sdk::memory::deallocate(elements);
                 elements = nullptr;
             }
         }
@@ -229,18 +229,18 @@ struct NativeArrayNoCapacity {
         }
     }
 
-    bool resize(uint32_t new_size) {
+    bool resize(uint32_t new_size, bool fix_pointers = false) {
         if (new_size == num) {
             return true;
         }
 
         if (new_size == 0) {
             clear();
-            return true;
+            return;
         }
 
         if (new_size > num_allocated || elements == nullptr) {
-            T* new_elements = (T*)sdk::via::memory::allocate(sizeof(T) * new_size);
+            T* new_elements = (T*)sdk::memory::allocate(sizeof(T) * new_size);
             if (new_elements == nullptr) {
                 return false;
             }
@@ -254,7 +254,11 @@ struct NativeArrayNoCapacity {
                     new_elements[i] = elements[i];
                 }
 
-                sdk::via::memory::deallocate(elements);
+                if (fix_pointers) {
+                    relocate_pointers(new_elements, num);
+                }
+
+                sdk::memory::deallocate(elements);
             }
 
             elements = new_elements;
@@ -270,23 +274,26 @@ struct NativeArrayNoCapacity {
         }
 
         num = new_size;
-        return true;
     }
 
-    T& emplace() {
+    T& emplace(bool fix_pointers = false) {
         if (elements == nullptr) {
-            elements = (T*)sdk::via::memory::allocate(sizeof(T) * 1);
+            elements = (T*)sdk::memory::allocate(sizeof(T) * 1);
 
             num = 1;
             elements[0] = T{};
         } else {
-            T* new_elements = (T*)sdk::via::memory::allocate(sizeof(T) * (num_allocated + 1));
+            T* new_elements = (T*)sdk::memory::allocate(sizeof(T) * (num_allocated + 1));
 
             for (uint32_t i = 0; i < num; i++) {
                 new_elements[i] = elements[i];
             }
 
-            sdk::via::memory::deallocate(elements);
+            if (fix_pointers) {
+                relocate_pointers(new_elements, num);
+            }
+
+            sdk::memory::deallocate(elements);
 
             elements = new_elements;
             elements[num++] = T{};
@@ -295,8 +302,8 @@ struct NativeArrayNoCapacity {
         return elements[num - 1];
     }
 
-    void push_back(T& value) {
-        emplace() = value;
+    void push_back(T& value, bool fix_pointers = false) {
+        emplace(fix_pointers) = value;
     }
 
 
@@ -326,10 +333,6 @@ struct NativeArrayNoCapacity {
 
     T& operator[] (uint32_t index) {
         return elements[index];
-    }
-
-    T* data() {
-        return elements;
     }
 
 public:

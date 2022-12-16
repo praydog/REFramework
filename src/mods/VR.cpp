@@ -23,8 +23,8 @@
 #include "sdk/regenny/re2_tdb70/via/Window.hpp"
 #include "sdk/regenny/re2_tdb70/via/SceneView.hpp"
 #elif TDB_VER >= 71
-#include "sdk/regenny/re8/via/Window.hpp"
-#include "sdk/regenny/re8/via/SceneView.hpp"
+#include "sdk/regenny/mhrise_tdb71/via/Window.hpp"
+#include "sdk/regenny/mhrise_tdb71/via/SceneView.hpp"
 #endif
 
 #include "sdk/Math.hpp"
@@ -850,18 +850,18 @@ std::optional<std::string> VR::initialize_openvr() {
 }
 
 std::optional<std::string> VR::initialize_openvr_input() {
-    const auto module_directory = *utility::get_module_directory(g_framework->get_module().as<HMODULE>());
+    const auto module_directory = REFramework::get_persistent_dir();
 
     // write default actions and bindings with the static strings we have
     for (auto& it : m_binding_files) {
         spdlog::info("Writing default binding file {}", it.first);
 
-        std::ofstream file{ module_directory + "/" + it.first };
+        std::ofstream file{ module_directory / it.first };
         file << it.second;
     }
 
-    const auto actions_path = module_directory + "/actions.json";
-    auto input_error = vr::VRInput()->SetActionManifestPath(actions_path.c_str());
+    const auto actions_path = module_directory / "actions.json";
+    auto input_error = vr::VRInput()->SetActionManifestPath(actions_path.string().c_str());
 
     if (input_error != vr::VRInputError_None) {
         return "VRInput failed to set action manifest path: " + std::to_string((uint32_t)input_error);

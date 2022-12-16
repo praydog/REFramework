@@ -863,7 +863,7 @@ static std::shared_mutex g_runtime_type_mtx{};
         return nullptr;
     }
 
-    const auto assembly_count = assemblies->size();
+    const auto assembly_count = assemblies->get_size();
     const auto managed_string = sdk::VM::create_managed_string(utility::widen(this->get_full_name()));
 
     for (auto i = 0; i < assembly_count; ++i) {
@@ -888,7 +888,7 @@ static std::shared_mutex g_runtime_type_mtx{};
                 auto types = get_types_method->call<sdk::SystemArray*>(context, assembly);
 
                 if (types != nullptr) {
-                    const auto type_count = types->size();
+                    const auto type_count = types->get_size();
 
                     for (auto j = 0; j < type_count; ++j) {
                         auto type = (REManagedObject*)types->get_element(j);

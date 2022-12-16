@@ -104,9 +104,9 @@ void GameObjectsDisplay::on_frame() {
     float screen_size[2]{};
     sdk::call_object_func<void*>(camera, "get_ProjectionMatrix", &proj, context, camera);
     sdk::call_object_func<void*>(camera, "get_ViewMatrix", &view, context, camera);
-    sdk::call_object_func<void*>(main_view, "get_Size", &screen_size, context, main_view);
+    sdk::call_object_func<void*>(main_view, "get_WindowSize", &screen_size, context, main_view);
 
-    static auto world_to_screen_methods = math_t->get_methods("worldPos2ScreenPos"); // there are 2 of them.
+    static auto world_to_screen = math_t->get_method("worldPos2ScreenPos(via.vec3, via.mat4, via.mat4, via.Size)");
 
     Vector4f pos{};
     Vector4f screen_pos{};
@@ -130,6 +130,7 @@ void GameObjectsDisplay::on_frame() {
         }
 
         get_position_method->call<void*>(&pos, context, transform);
+        pos.w = 1.0f;
 
         const auto delta = pos - camera_origin;
 
@@ -138,7 +139,7 @@ void GameObjectsDisplay::on_frame() {
             continue;
         }
 
-        world_to_screen_methods[1]->call<void*>(&screen_pos, context, &pos, &view, &proj, &screen_size);
+        world_to_screen->call<void*>(&screen_pos, context, &pos, &view, &proj, &screen_size);
         draw_list->AddText(ImVec2(screen_pos.x, screen_pos.y), ImGui::GetColorU32(ImVec4(1.0f, 1.0f, 1.0f, 1.0f)), owner_name.c_str());
     }
 }

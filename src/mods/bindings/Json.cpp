@@ -99,12 +99,7 @@ sol::object decode_any(sol::this_state l, const json& j) {
 }
 
 fs::path get_datadir() {
-    std::string modpath{};
-
-    modpath.resize(1024, 0);
-    modpath.resize(GetModuleFileName(nullptr, modpath.data(), modpath.size()));
-
-    return fs::path{modpath}.parent_path() / "reframework" / "data";
+    return REFramework::get_persistent_dir() / "reframework" / "data";
 }
 } // namespace detail
 

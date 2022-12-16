@@ -82,7 +82,7 @@ std::optional<std::string> Mods::on_initialize() const {
         }
     }
 
-    utility::Config cfg{ "re2_fw_config.txt" };
+    utility::Config cfg{ (REFramework::get_persistent_dir() / "re2_fw_config.txt").string() };
 
     for (auto& mod : m_mods) {
         spdlog::info("{:s}::on_config_load()", mod->get_name().data());

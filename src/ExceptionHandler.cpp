@@ -1,11 +1,14 @@
 #include <windows.h>
 #include <DbgHelp.h>
+#include <ShlObj.h>
+#include <filesystem>
 #include <spdlog/spdlog.h>
 
 #include "utility/Module.hpp"
 #include "utility/Scan.hpp"
 #include "utility/Patch.hpp"
 
+#include "REFramework.hpp"
 #include "ExceptionHandler.hpp"
 
 LONG WINAPI reframework::global_exception_handler(struct _EXCEPTION_POINTERS* ei) {
@@ -78,9 +81,7 @@ LONG WINAPI reframework::global_exception_handler(struct _EXCEPTION_POINTERS* ei
     auto dbghelp = LoadLibrary("dbghelp.dll");
 
     if (dbghelp) {
-        const auto mod_dir = utility::get_module_directory(GetModuleHandle(0));
-        const auto real_mod_dir = mod_dir ? (*mod_dir + "\\") : "";
-        const auto final_path = real_mod_dir + "reframework_crash.dmp";
+        const auto final_path = REFramework::get_persistent_dir("reframework_crash.dmp").string();
 
         spdlog::error("Attempting to write dump to {}", final_path);
 
