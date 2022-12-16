@@ -956,7 +956,7 @@ TargetState* TargetState::clone() {
     auto cloned_desc = get_desc();
 
     if (cloned_desc.num_rtv > 0) {
-        cloned_desc.rtvs = (sdk::renderer::RenderTargetView**)sdk::via::memory::allocate(cloned_desc.num_rtv * sizeof(void*));
+        cloned_desc.rtvs = (sdk::renderer::RenderTargetView**)sdk::memory::allocate(cloned_desc.num_rtv * sizeof(void*));
 
         for (auto i = 0; i < cloned_desc.num_rtv; ++i) {
             auto rtv = get_rtv(i);
