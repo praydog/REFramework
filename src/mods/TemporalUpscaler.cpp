@@ -117,8 +117,8 @@ void TemporalUpscaler::on_draw_ui() {
 
     ImGui::DragFloat("Sharpness Amount", &m_sharpness_amount, 0.01f, 0.0f, 5.0f);
 
-    const auto w = (float)GetRenderWidth();
-    const auto h = (float)GetRenderHeight();
+    const auto w = (float)GetRenderWidth(this->get_evaluate_id(0));
+    const auto h = (float)GetRenderHeight(this->get_evaluate_id(0));
 
     if (ImGui::DragFloat("MotionScale X", &m_motion_scale[0], 0.01f, -w, w) ||
         ImGui::DragFloat("MotionScale Y", &m_motion_scale[1], 0.01f, -h, h)) 
@@ -281,8 +281,25 @@ void TemporalUpscaler::on_early_present() {
                 const auto evaluate_id = get_evaluate_id(i);
                 const auto evaluate_index = evaluate_id - 1;
 
-                EvaluateUpscaleDX12(evaluate_id, i == 1, color, motion_vectors, depth, nullptr, m_sharpness_amount, 
-                                    m_jitter_offsets[evaluate_index][0], m_jitter_offsets[evaluate_index][1], false, m_nearz, m_farz, m_fov);
+                UpscaleParams params{};
+                params.id = (int)evaluate_id;
+                params.execute = i == 1;
+                params.reset = false;
+                params.color = color;
+                params.motionVector = motion_vectors;
+                params.depth = depth;
+                params.mask = nullptr;
+                params.destination = nullptr;
+                params.motionScaleX = m_motion_scale[0];
+                params.motionScaleY = m_motion_scale[1];
+                params.jitterOffsetX = m_jitter_offsets[evaluate_index][0];
+                params.jitterOffsetY = m_jitter_offsets[evaluate_index][1];
+                params.sharpness = m_sharpness_amount;
+                params.nearPlane = m_nearz;
+                params.farPlane = m_farz;
+                params.verticalFOV = m_fov;
+
+                EvaluateUpscaler(&params);
             }
         } else {
             for (auto i = 0; i < m_eye_states.size(); ++i) {
@@ -322,8 +339,30 @@ void TemporalUpscaler::on_early_present() {
                 const auto evaluate_id = get_evaluate_id(index);
                 const auto evaluate_index = evaluate_id - 1;
 
-                EvaluateUpscale(evaluate_id, state.color.Get(), state.motion_vectors.Get(), state.depth.Get(), nullptr, m_sharpness_amount, 
-                                m_jitter_offsets[evaluate_index][0], m_jitter_offsets[evaluate_index][1], false, m_nearz, m_farz, m_fov);
+                UpscaleParams params{};
+                params.id = (int)evaluate_id;
+                params.execute = true;
+                params.reset = false;
+                params.color = state.color.Get();
+                params.motionVector = state.motion_vectors.Get();
+                params.depth = state.depth.Get();
+                params.mask = nullptr;
+                params.destination = nullptr;
+                params.motionScaleX = m_motion_scale[0];
+                params.motionScaleY = m_motion_scale[1];
+                params.renderSizeX = GetRenderWidth(evaluate_id);
+                params.renderSizeY = GetRenderHeight(evaluate_id);
+                params.jitterOffsetX = m_jitter_offsets[evaluate_index][0];
+                params.jitterOffsetY = m_jitter_offsets[evaluate_index][1];
+                params.sharpness = m_sharpness_amount;
+                params.nearPlane = m_nearz;
+                params.farPlane = m_farz;
+                params.verticalFOV = m_fov;
+
+                EvaluateUpscaler(&params);
+                //SimpleEvaluate(
+                    //evaluate_id, params.color, params.motionVector, params.depth, params.mask, params.destination,
+                    //params.renderSizeX, params.renderSizeY, params.sharpness, params.jitterOffsetX, params.jitterOffsetY, params.motionScaleX, params.motionScaleY, params.reset, params.nearPlane, params.farPlane, params.verticalFOV, params.execute);
 
                 if (i == 0) {
                     m_copier.copy((ID3D12Resource*)m_upscaled_textures[evaluate_index], backbuffer.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PRESENT);
@@ -365,7 +404,7 @@ bool TemporalUpscaler::on_first_frame() {
     m_first_frame_finished = true;
     m_is_d3d12 = g_framework->is_dx12();
 
-    InitCSharpDelegate([](char* msg, int size) {
+    InitLogDelegate([](char* msg, int size) {
         spdlog::info("[TemporalUpscaler] {}", msg);
     });
 
@@ -445,17 +484,25 @@ bool TemporalUpscaler::init_upscale_features() {
     }
 
     // Left eye.
-    m_upscaled_textures[0] = InitUpscaleFeature(
-        get_evaluate_id(0), m_upscale_type, m_upscale_quality, out_w, out_h, 
-        false, true, false, false, m_sharpness, false, out_format
-    );
+    InitParams params{};
+    params.id = get_evaluate_id(0);
+    params.upscaleMethod = m_upscale_type;
+    params.qualityLevel = m_upscale_quality;
+    params.displaySizeX = out_w;
+    params.displaySizeY = out_h;
+    params.format = out_format;
+    params.isContentHDR = false;
+    params.depthInverted = true;
+    params.YAxisInverted = false;
+    params.motionVetorsJittered = false;
+    params.enableSharpening = m_sharpness;
+    params.enableAutoExposure = false;
+    m_upscaled_textures[0] = InitUpscaler(&params);
 
     // Right eye.
     if (VR::get()->is_hmd_active()) {
-        m_upscaled_textures[1] = InitUpscaleFeature(
-            get_evaluate_id(1), m_upscale_type, m_upscale_quality, out_w, out_h, 
-            false, true, false, false, m_sharpness, false, out_format
-        );
+        params.id = get_evaluate_id(1);
+        m_upscaled_textures[1] = InitUpscaler(&params);
     }
 
     m_motion_scale[0] = (float)GetRenderWidth(get_evaluate_id(0)) / 2.0f;
@@ -917,7 +964,7 @@ void TemporalUpscaler::on_pre_application_entry(void* entry, const char* name, s
                     if (current_target_state != nullptr) {
                         const auto new_color = current_target_state->get_native_resource_d3d12();
 
-                        if (new_color != nullptr && (state.color == nullptr || new_color != state.color.Get() || state.color_copy == nullptr)) {
+                        if (is_vr_multipass && new_color != nullptr && (state.color == nullptr || new_color != state.color.Get() || state.color_copy == nullptr)) {
                             const auto color_tex = current_target_state->get_rtv(0)->get_texture_d3d12();
                             state.color_copy = color_tex->clone();
                             state.color_copy->add_ref();
