@@ -4,6 +4,7 @@
 
 #include <utility/Module.hpp>
 #include <utility/Scan.hpp>
+#include <utility/ScopeGuard.hpp>
 #include <PDPerfPlugin.h>
 
 #include <sdk/Renderer.hpp>
@@ -876,6 +877,10 @@ bool TemporalUpscaler::on_pre_output_layer_update(sdk::renderer::layer::Output* 
 }
 
 void TemporalUpscaler::on_pre_application_entry(void* entry, const char* name, size_t hash) {
+    if (hash == "BeginRendering"_fnv) {
+        finish_release_resources();
+    }
+
     if (!ready()) {
         return;
     }
@@ -965,7 +970,6 @@ void TemporalUpscaler::on_pre_application_entry(void* entry, const char* name, s
                         if (is_vr_multipass && new_color != nullptr && (state.color == nullptr || new_color != state.color.Get() || state.color_copy == nullptr)) {
                             const auto color_tex = current_target_state->get_rtv(0)->get_texture_d3d12();
                             state.color_copy = color_tex->clone();
-                            state.color_copy->add_ref();
 
                             spdlog::info("[TemporalUpscaler] Created color copy");
                         }
@@ -1105,7 +1109,7 @@ void TemporalUpscaler::update_extra_scene_layer() {
         return;
     }
 
-    if (m_made_extra_scene_layer) {
+    if (m_made_extra_scene_layer && scene_layers.size() > 1) {
         /*if (!scene_layers.empty()) {
             if (scene_layers.size() > 1) {
                 static auto potype = sdk::find_type_definition("via.render.layer.PrepareOutput")->get_type();
@@ -1213,6 +1217,15 @@ void TemporalUpscaler::update_extra_scene_layer() {
         m_made_extra_scene_layer = true;
 
         spdlog::info("[TemporalUpscaler] Made extra scene layer");
+
+        if (!m_hooked_resource_release) {
+            spdlog::info("[TemporalUpscaler] Hooking resource release");
+            m_render_resource_release_hook = std::make_unique<FunctionHook>(sdk::renderer::RenderResource::get_release_fn(), &render_resource_release_hook);
+            m_render_resource_release_hook->create();
+            m_hooked_resource_release = true;
+
+            spdlog::info("[TemporalUpscaler] Hooked resource release");
+        }
     }
 }
 
@@ -1231,8 +1244,41 @@ uint32_t TemporalUpscaler::get_render_height() const {
     if (m_use_native_resolution) {
         return m_backbuffer_size[1] - 1;
     }
-
+    
     return GetRenderHeight(get_evaluate_id(0));
+}
+
+void TemporalUpscaler::on_render_resource_release(sdk::renderer::RenderResource* resource) {
+    std::scoped_lock _{m_queued_release_resources_mutex};
+
+    if (resource == nullptr) {
+        return;
+    }
+
+    //if (resource->m_ref_count == 1) {
+        m_queued_release_resources.push_back(resource);
+    /*} else {
+        const auto original = m_render_resource_release_hook->get_original<decltype(render_resource_release_hook)>();
+        original(resource);
+    }*/
+}
+
+void TemporalUpscaler::finish_release_resources() {
+    if (!m_hooked_resource_release) {
+        return;
+    }
+
+    std::scoped_lock _{m_queued_release_resources_mutex};
+
+    if (!m_queued_release_resources.empty()) {
+        const auto original = m_render_resource_release_hook->get_original<decltype(render_resource_release_hook)>();
+
+        for (auto resource : m_queued_release_resources) {
+            original(resource);
+        }
+
+        m_queued_release_resources.clear();
+    }
 }
 
 void TemporalUpscaler::update_motion_scale() {
@@ -1246,4 +1292,8 @@ void TemporalUpscaler::update_motion_scale() {
         SetMotionScaleX(get_evaluate_id(1), (float)m_motion_scale[0]);
         SetMotionScaleY(get_evaluate_id(1), (float)m_motion_scale[1]);
     }
+}
+
+void TemporalUpscaler::render_resource_release_hook(sdk::renderer::RenderResource* resource) {
+    TemporalUpscaler::get()->on_render_resource_release(resource);
 }

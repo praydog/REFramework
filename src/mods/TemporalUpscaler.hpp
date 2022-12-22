@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <utility/FunctionHook.hpp>
 #include <sdk/intrusive_ptr.hpp>
 
 #include "vr/D3D12Component.hpp"
@@ -97,6 +98,13 @@ private:
     uint32_t get_render_height() const;
     void update_motion_scale();
 
+    void on_render_resource_release(sdk::renderer::RenderResource* resource);
+    void finish_release_resources();
+    static void render_resource_release_hook(sdk::renderer::RenderResource* resource);
+    std::unique_ptr<FunctionHook> m_render_resource_release_hook{};
+    std::vector<sdk::renderer::RenderResource*> m_queued_release_resources{};
+    std::recursive_mutex m_queued_release_resources_mutex{};
+
     bool m_first_frame_finished{false};
     bool m_initialized{false};
     bool m_is_d3d12{false};
@@ -112,6 +120,7 @@ private:
     bool m_allow_taa{false}; // the engine has its own TAA implementation, it can't be used with the upscaler
     bool m_wants_reinitialize{false};
     bool m_made_extra_scene_layer{false};
+    bool m_hooked_resource_release{false};
 
     std::unordered_map<std::string, size_t> m_available_upscale_methods{};
     std::vector<std::string> m_available_upscale_method_names{};
