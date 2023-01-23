@@ -75,7 +75,7 @@ Application::Function* Application::get_function(std::string_view name) {
 
     for (auto i = 0; i < 1024; ++i) {
         //if (functions[i].priority == *function_index) {
-        if (functions[i].description == name) {
+        if (functions[i].description != nullptr && functions[i].description == name) {
             return &functions[i];
         }
     }
