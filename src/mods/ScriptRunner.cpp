@@ -415,17 +415,15 @@ void ScriptState::on_pre_application_entry(size_t hash) {
 
 void ScriptState::on_application_entry(size_t hash) {
     try {
-        if (m_application_entry_fns.empty()) {
-            return;
-        }
+        if (!m_application_entry_fns.empty()) {
+            auto range = m_application_entry_fns.equal_range(hash);
 
-        auto range = m_application_entry_fns.equal_range(hash);
+            if (range.first != range.second) {
+                std::scoped_lock _{ m_execution_mutex };
 
-        if (range.first != range.second) {
-            std::scoped_lock _{ m_execution_mutex };
-
-            for (auto it = range.first; it != range.second; ++it) {
-                handle_protected_result(it->second());
+                for (auto it = range.first; it != range.second; ++it) {
+                    handle_protected_result(it->second());
+                }
             }
         }
     } catch (const std::exception& e) {

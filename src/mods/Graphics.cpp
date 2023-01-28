@@ -32,10 +32,64 @@ void Graphics::on_draw_ui() {
         m_ultrawide_fov_multiplier->draw("Ultrawide: FOV Multiplier");
     }
 
+    m_force_render_res_to_window->draw("Force Render Resolution to Window Size");
+
     ImGui::Separator();
     ImGui::Text("GUI Options");
 
     m_disable_gui->draw("Hide GUI");
+}
+
+void Graphics::on_present() {
+    if (g_framework->is_dx11()) {
+        const auto& hook = g_framework->get_d3d11_hook();
+        const auto swapchain = hook->get_swap_chain();
+
+        if (swapchain == nullptr) {
+            return;
+        }
+
+        Microsoft::WRL::ComPtr<ID3D11Texture2D> backbuffer{};
+        if (FAILED(swapchain->GetBuffer(0, IID_PPV_ARGS(&backbuffer))) || backbuffer == nullptr) {
+            return;
+        }
+
+        D3D11_TEXTURE2D_DESC desc{};
+        backbuffer->GetDesc(&desc);
+
+        const auto width = desc.Width;
+        const auto height = desc.Height;
+
+        if (m_backbuffer_size.has_value()) {
+            (*m_backbuffer_size)[0] = width;
+            (*m_backbuffer_size)[1] = height;
+        } else {
+            m_backbuffer_size = std::array<uint32_t, 2>{width, height};
+        }
+    } else {
+        const auto& hook = g_framework->get_d3d12_hook();
+        const auto swapchain = hook->get_swap_chain();
+
+        if (swapchain == nullptr) {
+            return;
+        }
+
+        Microsoft::WRL::ComPtr<ID3D12Resource> backbuffer{};
+        if (FAILED(swapchain->GetBuffer(0, IID_PPV_ARGS(&backbuffer))) || backbuffer == nullptr) {
+            return;
+        }
+
+        const auto desc = backbuffer->GetDesc();
+        const auto width = (uint32_t)desc.Width;
+        const auto height = (uint32_t)desc.Height;
+
+        if (m_backbuffer_size.has_value()) {
+            (*m_backbuffer_size)[0] = width;
+            (*m_backbuffer_size)[1] = height;
+        } else {
+            m_backbuffer_size = std::array<uint32_t, 2>{width, height};
+        }
+    }
 }
 
 void Graphics::on_pre_application_entry(void* entry, const char* name, size_t hash) {
@@ -66,6 +120,15 @@ bool Graphics::on_pre_gui_draw_element(REComponent* gui_element, void* primitive
     }
 
     return true;
+}
+
+void Graphics::on_view_get_size(REManagedObject* scene_view, float* result) {
+    if (!m_force_render_res_to_window->value() || !m_backbuffer_size.has_value()) {
+        return;
+    }
+
+    result[0] = (float)(*m_backbuffer_size)[0];
+    result[1] = (float)(*m_backbuffer_size)[1];
 }
 
 void Graphics::do_ultrawide_fix() {
