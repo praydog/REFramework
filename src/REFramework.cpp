@@ -274,11 +274,11 @@ REFramework::REFramework(HMODULE reframework_module)
 
     m_last_present_time = std::chrono::steady_clock::now();
     m_last_message_time = std::chrono::steady_clock::now();
-    m_d3d_monitor_thread = std::make_unique<std::thread>([this]() {
+    m_d3d_monitor_thread = std::make_unique<std::jthread>([this](std::stop_token stop_token) {
         // Load the plugins early right after executable unpacking
         PluginLoader::get()->early_init();
 
-        while (true) {
+        while (!stop_token.stop_requested() && !m_terminating) {
             this->hook_monitor();
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
         }
@@ -365,7 +365,13 @@ bool REFramework::hook_d3d12() {
 REFramework::~REFramework() {
     spdlog::info("REFramework shutting down...");
 
-    std::scoped_lock _{ m_hook_monitor_mutex };
+    m_terminating = true;
+    m_d3d_monitor_thread->request_stop();
+    if (m_d3d_monitor_thread->joinable()) {
+        m_d3d_monitor_thread->join();
+    }
+
+    m_d3d_monitor_thread.reset();
 
     if (m_is_d3d11) {
         ImGui_ImplDX11_Shutdown();

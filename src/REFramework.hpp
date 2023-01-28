@@ -147,6 +147,7 @@ private:
     bool m_initialized{false};
     bool m_created_default_cfg{false};
     bool m_started_game_data_thread{false};
+    std::atomic<bool> m_terminating{false}; // Destructor is called
     std::atomic<bool> m_game_data_initialized{false};
     
     // UI
@@ -197,7 +198,7 @@ private:
 
     std::recursive_mutex m_hook_monitor_mutex{};
     std::recursive_mutex m_startup_mutex{};
-    std::unique_ptr<std::thread> m_d3d_monitor_thread{};
+    std::unique_ptr<std::jthread> m_d3d_monitor_thread{};
     std::chrono::steady_clock::time_point m_last_present_time{};
     std::chrono::steady_clock::time_point m_last_message_time{};
     std::chrono::steady_clock::time_point m_last_sendmessage_time{};
