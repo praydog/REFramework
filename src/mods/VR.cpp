@@ -105,20 +105,25 @@ void VR::on_view_get_size(REManagedObject* scene_view, float* result) {
 
     // Set the window size, which will increase the size of the backbuffer
     if (window != nullptr) {
+        static const auto is_gng = utility::get_module_path(utility::get_executable())->find("makaimura_GG_RE.exe") != std::string::npos;
+
+        auto& window_width = is_gng ? *(uint32_t*)((uintptr_t)window + 0x48) : window->width;
+        auto& window_height = is_gng ? *(uint32_t*)((uintptr_t)window + 0x4C) : window->height;
+
         if (is_hmd_active()) {
 #if TDB_VER <= 49
             if (!g_previous_size) {
                 g_previous_size = regenny::via::Size{ (float)window->width, (float)window->height };
             }
 #endif
-            window->width = get_hmd_width();
-            window->height = get_hmd_height();
+            window_width = get_hmd_width();
+            window_height = get_hmd_height();
 
             if (m_is_d3d12 && m_d3d12.is_initialized()) {
                 const auto& backbuffer_size = m_d3d12.get_backbuffer_size();
 
                 if (backbuffer_size[0] > 0 && backbuffer_size[1] > 0) {
-                    if (std::abs((int)backbuffer_size[0] - (int)window->width) > 50 || std::abs((int)backbuffer_size[1] - (int)window->height) > 50) {
+                    if (std::abs((int)backbuffer_size[0] - (int)window_width) > 50 || std::abs((int)backbuffer_size[1] - (int)window_height) > 50) {
                         const auto now = get_game_frame_count();
 
                         if (!m_backbuffer_inconsistency) {
@@ -130,11 +135,11 @@ void VR::on_view_get_size(REManagedObject* scene_view, float* result) {
 
                         if (is_true_inconsistency) {
                             // Force a reset of the backbuffer size
-                            window->width = get_hmd_width() + 1;
-                            window->height = get_hmd_height() + 1;
+                            window_width = get_hmd_width() + 1;
+                            window_height = get_hmd_height() + 1;
 
                             spdlog::info("[VR] Previous backbuffer size: {}x{}", backbuffer_size[0], backbuffer_size[1]);
-                            spdlog::info("[VR] Backbuffer size inconsistency detected, resetting backbuffer size to {}x{}", window->width, window->height);
+                            spdlog::info("[VR] Backbuffer size inconsistency detected, resetting backbuffer size to {}x{}", window_width, window_height);
 
                             // m_backbuffer_inconsistency gets set to false on device reset.
                         }
@@ -147,8 +152,8 @@ void VR::on_view_get_size(REManagedObject* scene_view, float* result) {
             m_backbuffer_inconsistency = false;
 
 #if TDB_VER > 49
-            window->width = (uint32_t)window->borderless_size.w;
-            window->height = (uint32_t)window->borderless_size.h;
+            window_width = is_gng ? (uint32_t)*(float*)((uintptr_t)window + 0x88) : (uint32_t)window->borderless_size.w;
+            window_height = is_gng ? (uint32_t)*(float*)((uintptr_t)window + 0x8C) : (uint32_t)window->borderless_size.h;
 #else
             if (g_previous_size) {
                 window->width = (uint32_t)g_previous_size->w;
@@ -159,8 +164,8 @@ void VR::on_view_get_size(REManagedObject* scene_view, float* result) {
 #endif
         }
 
-        wanted_width = (float)window->width;
-        wanted_height = (float)window->height;
+        wanted_width = (float)window_width;
+        wanted_height = (float)window_height;
     }
 
     //auto out = original_func(scene_view, result);
