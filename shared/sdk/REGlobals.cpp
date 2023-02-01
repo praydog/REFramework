@@ -68,7 +68,10 @@ REGlobals::REGlobals() {
         for (auto t : type_list) {
             auto name = std::string{t->name};
 
-            if (name.find(game_namespace("SingletonBehavior`1")) != std::string::npos) {
+            if (name.find(game_namespace("SingletonBehavior`1")) != std::string::npos ||
+                name.find(game_namespace("SingletonBehaviorRoot`1")) != std::string::npos ||
+                name.find(game_namespace("SnowSingletonBehaviorRoot`1")) != std::string::npos)
+            {
                 const auto type_definition = utility::re_type::get_type_definition(t);
 
                 if (type_definition == nullptr) {
