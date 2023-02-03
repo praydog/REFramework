@@ -77,7 +77,10 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
     Assembler a{&code};
 
     // Make sure we have room to store the arguments.
-    args.resize(2 + fn->get_num_params());
+    // + 2 for the thread context + this pointer.
+    // Another + 2 for hidden arguments that we may not know about.
+    constexpr auto HIDDEN_ARGUMENT_COUNT = 2;
+    args.resize(2 + HIDDEN_ARGUMENT_COUNT + fn->get_num_params());
 
     // Generate the facilitator function that will store the arguments, call on_hook, 
     // restore the arguments, and call the original function.
@@ -122,15 +125,7 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
         a.mov(ptr(rax, 8), rdx); // this ptr... probably.
     }
 
-    for (auto i = 0u; i < fn->get_num_params(); ++i) {
-        auto arg_ty = arg_tys[i];
-        auto args_offset = args_start_offset + (i * 8);
-        auto is_float = false;
-
-        if (arg_ty->get_full_name() == "System.Single") {
-            is_float = true;
-        }
-
+    auto save_arg = [&a](uint32_t args_offset, bool is_float) {
         switch (args_offset) {
         case 8: // rdx/xmm1
             if (is_float) {
@@ -165,6 +160,25 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
 
             break;
         }
+    };
+    
+    const auto num_params = fn->get_num_params();
+
+    // +2 for buffer params to fix possible corruption.
+    for (auto i = 0u; i < num_params + HIDDEN_ARGUMENT_COUNT; ++i) {
+        auto is_float = false;
+
+        if (i < num_params) {
+            auto arg_ty = arg_tys[i];
+
+            if (arg_ty->get_full_name() == "System.Single") {
+                is_float = true;
+            }
+        }
+
+        const auto args_offset = args_start_offset + (i * 8);
+
+        save_arg(args_offset, is_float);
     }
 
     // Call on_pre_hook.
@@ -184,15 +198,7 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
         a.mov(rdx, ptr(rax, 8)); // this ptr... probably.
     }
 
-    for (auto i = 0u; i < fn->get_num_params(); ++i) {
-        auto arg_ty = arg_tys[i];
-        auto args_offset = args_start_offset + (i * 8);
-        auto is_float = false;
-
-        if (arg_ty->get_full_name() == "System.Single") {
-            is_float = true;
-        }
-
+    auto restore_arg = [&a](uint32_t args_offset, bool is_float) {
         switch (args_offset) {
         case 8: // rdx/xmm1
             if (is_float) {
@@ -227,6 +233,23 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
             // TODO: handle stack args.
             break;
         }
+    };
+
+    // +2 for buffer params to fix possible corruption.
+    for (auto i = 0u; i < num_params + HIDDEN_ARGUMENT_COUNT; ++i) {
+        auto is_float = false;
+
+        if (i < num_params) {
+            auto arg_ty = arg_tys[i];
+
+            if (arg_ty->get_full_name() == "System.Single") {
+                is_float = true;
+            }
+        }
+
+        auto args_offset = args_start_offset + (i * 8);
+        
+        restore_arg(args_offset, is_float);
     }
 
     // Call original function.
