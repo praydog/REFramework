@@ -10,6 +10,10 @@ size_t sdk::SystemArray::get_size() {
 }
 
 ::REManagedObject* sdk::SystemArray::get_element(int32_t index) {
+    if (index < 0 || index >= get_size()) {
+        return nullptr;
+    }
+
     static auto system_array_type = sdk::find_type_definition("System.Array");
     static auto get_element_method = system_array_type->get_method("GetValue(System.Int32)");
 
@@ -17,6 +21,10 @@ size_t sdk::SystemArray::get_size() {
 }
 
 void sdk::SystemArray::set_element(int32_t index, ::REManagedObject* value) {
+    if (index < 0 || index >= get_size()) {
+        throw std::out_of_range("index out of range");
+    }
+
     static auto system_array_type = sdk::find_type_definition("System.Array");
     static auto set_element_method = system_array_type->get_method("SetValue(System.Object, System.Int32)");
 
@@ -25,8 +33,9 @@ void sdk::SystemArray::set_element(int32_t index, ::REManagedObject* value) {
 
 std::vector<::REManagedObject*> sdk::SystemArray::get_elements() {
     std::vector<::REManagedObject*> elements{};
+    const auto size = get_size();
 
-    for (size_t i = 0; i < get_size(); i++) {
+    for (size_t i = 0; i < size; i++) {
         elements.push_back(get_element(i));
     }
 
