@@ -17,6 +17,7 @@ InvokeMethod* get_invoke_table();
 
 #include <cstdint>
 #include <string_view>
+#include <functional>
 #include <exception>
 
 #include "TDBVer.hpp"
@@ -84,6 +85,7 @@ public:
     void* end_global_frame();
 
     void cleanup_after_exception(int32_t old_reference_count);
+    static void safe_wrap(std::string_view function_name, std::function<void()> func);
 
     class Exception : public std::exception {
     public:

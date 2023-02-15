@@ -294,6 +294,27 @@ namespace sdk {
         }
     }
 
+    void sdk::VMContext::safe_wrap(std::string_view function_name, std::function<void()> func) {
+        auto context = sdk::get_thread_context();
+        sdk::VMContext::ScopedTranslator scoped_translator{context};
+
+        try {
+            func();
+
+            if (context->unkPtr->unkPtr != nullptr) {
+                spdlog::error("Internal game exception thrown in function call for {}", function_name.data());
+
+                context->unkPtr->unkPtr = nullptr;
+                throw std::runtime_error("Internal game exception thrown in function call for " + std::string(function_name.data()));
+            }
+        } catch(sdk::VMContext::Exception&) {
+            spdlog::error("Exception thrown in call to {}", function_name.data());
+            context->cleanup_after_exception(scoped_translator.get_prev_reference_count());
+
+            throw std::runtime_error("Exception thrown in call to " + std::string(function_name.data()));
+        }
+    }
+
     void sdk::VMContext::ScopedTranslator::translator(unsigned int code, struct ::_EXCEPTION_POINTERS* exc) {
         spdlog::info("VMContext: Caught exception code {:x}", code);
 
