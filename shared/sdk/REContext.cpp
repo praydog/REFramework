@@ -298,11 +298,28 @@ namespace sdk {
         auto context = sdk::get_thread_context();
         sdk::VMContext::ScopedTranslator scoped_translator{context};
 
+        bool corrupted_before_call = context->unkPtr != nullptr && context->unkPtr->unkPtr != nullptr;
+
         try {
             func();
 
             if (context->unkPtr->unkPtr != nullptr) {
                 spdlog::error("Internal game exception thrown in function call for {}", function_name.data());
+
+                const auto exception_managed_object = (::REManagedObject*)context->unkPtr->unkPtr;
+
+                if (utility::re_managed_object::is_managed_object(exception_managed_object)) {
+                    const auto exception_tdb_type = utility::re_managed_object::get_type_definition(exception_managed_object);
+
+                    if (exception_tdb_type != nullptr) {
+                        const auto exception_name = exception_tdb_type->get_full_name();
+                        spdlog::error(" Exception name: {}", exception_name.data());
+                    }
+                }
+
+                if (corrupted_before_call) {
+                    spdlog::error("VMContext was already corrupted before this call, a previous exception may not have been handled properly");
+                }
 
                 context->unkPtr->unkPtr = nullptr;
                 throw std::runtime_error("Internal game exception thrown in function call for " + std::string(function_name.data()));
