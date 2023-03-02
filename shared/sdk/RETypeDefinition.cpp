@@ -350,7 +350,16 @@ sdk::RETypeDefinition* RETypeDefinition::get_underlying_type() const {
     // get the underlying type of the enum
     // and then hash the name of the type instead
     static auto get_underlying_type_method = this->get_method("GetUnderlyingType");
-    const auto underlying_type = get_underlying_type_method->call<::REManagedObject*>(sdk::get_thread_context(), this->get_runtime_type());
+    const auto runtime_type = this->get_runtime_type();
+
+    // dont forget to do this, passing nullptr into GetUnderlyingType causes System.ArgumentNullException
+    if (runtime_type == nullptr) {
+        std::unique_lock _{ g_underlying_mtx };
+        g_underlying_types[this] = nullptr;
+        return nullptr;
+    }
+
+    const auto underlying_type = get_underlying_type_method->call<::REManagedObject*>(sdk::get_thread_context(), runtime_type);
 
     if (underlying_type != nullptr) {
         static auto system_runtime_type_type = sdk::find_type_definition("System.RuntimeType");
