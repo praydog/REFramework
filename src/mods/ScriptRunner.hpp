@@ -125,7 +125,7 @@ public:
         uint32_t gc_major_multiplier{100};
     };
 
-    ScriptState(const GarbageCollectionData& gc_data);
+    ScriptState(const GarbageCollectionData& gc_data,bool is_main_state);
     ~ScriptState();
 
     void run_script(const std::string& p);
@@ -139,7 +139,7 @@ public:
     void on_gui_draw_element(REComponent* gui_element, void* primitive_context);
     void on_script_reset();
     void on_config_save();
-
+    bool is_main_state() { return m_is_main_state; }
     auto& lua() { return m_lua; }
     void lock() { m_execution_mutex.lock(); }
     void unlock() { m_execution_mutex.unlock(); }
@@ -158,7 +158,7 @@ private:
     sol::state m_lua{};
 
     GarbageCollectionData m_gc_data{};
-
+    bool m_is_main_state;
     std::recursive_mutex m_execution_mutex{};
 
     // FNV-1A
@@ -204,22 +204,24 @@ public:
     void spew_error(const std::string& p);
 
     const auto& get_state() {
-        return m_state;
+        return m_states[0];
+    }
+    //not sure how to approach this, should there be error checking here?
+    const auto& get_state(int index) { 
+        return m_states[index];
     }
 
     void lock() {
         m_access_mutex.lock();
-
-        if (m_state) {
-            m_state->lock();
+        for (auto& state : m_states) {
+            state->lock();
         }
     }
 
     void unlock() {
-        if (m_state) {
-            m_state->unlock();
+        for (auto& state : m_states) {
+            state->unlock();
         }
-
         m_access_mutex.unlock();
     }
 
@@ -236,8 +238,8 @@ private:
 
         return data;
     }
-
-    std::unique_ptr<ScriptState> m_state{};
+    std::shared_ptr<ScriptState> m_main_state{};
+    std::vector<std::shared_ptr<ScriptState>> m_states{};
     std::recursive_mutex m_access_mutex{};
 
     // A list of Lua files that have been explicitly loaded either through the user manually loading the script, or
