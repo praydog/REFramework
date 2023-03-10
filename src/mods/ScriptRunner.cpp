@@ -367,10 +367,6 @@ void ScriptState::on_frame() {
 }
 
 void ScriptState::on_draw_ui() {
-    if (!ImGui::CollapsingHeader("Script Generated UI")) {
-        return;
-    }
-
     try {
         std::scoped_lock _{ m_execution_mutex };
 
@@ -834,11 +830,16 @@ void ScriptRunner::on_draw_ui() {
     { 
         std::scoped_lock _{ m_access_mutex };
 
-        if (m_states.empty()) {
-            return;
+
+        if (!ImGui::CollapsingHeader("Script Generated UI")) {
+            if (m_states.empty()) {
+                return;
+            }
+        for (auto& state : m_states) {
+                state->on_draw_ui();
+            }
         }
-        for (auto& state : m_states)
-            state->on_draw_ui();
+            
     }
 }
 
@@ -932,6 +933,7 @@ void ScriptRunner::reset_scripts() {
     // if we didn't destroy the state before creating a new one
     // the FirstPerson mod would attempt to hook an already hooked function
     m_main_state.reset();
+    m_states.clear();
     //creating the main lua state
     m_main_state = std::make_shared<ScriptState>(make_gc_data(),true);
     //inserting it into the states vector

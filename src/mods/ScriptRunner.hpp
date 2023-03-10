@@ -225,7 +225,8 @@ public:
     }
 
     lua_State* create_state() {
-        m_states.emplace_back(std::make_shared<ScriptState>(make_gc_data(), true));
+        m_states.emplace_back(std::make_shared<ScriptState>(make_gc_data(), false));
+        m_states.back()->lock();
         return m_states.back()->lua().lua_state();
     }
 
