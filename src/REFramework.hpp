@@ -79,6 +79,8 @@ public:
         return "re2";
     #elif defined(RE3)
         return "re3";
+    #elif defined(RE4)
+        return "re4";
     #elif defined(RE7)
         return "re7";
     #elif defined(RE8)
