@@ -209,18 +209,28 @@ REFramework::REFramework(HMODULE reframework_module)
         spdlog::info("ntdll.dll not found");
     }
 
-#if defined(RE8) || defined(MHRISE)
+    // wait for the game to load (WTF MHRISE??)
+    // once this is done, we can assume the process is unpacked.
+#if defined (REENGINE_PACKED)
     auto now = std::chrono::steady_clock::now();
     std::chrono::steady_clock::time_point next_log = now;
 
-    // wait for the game to load (WTF MHRISE??)
-    // once this is done, we can assume the process is unpacked.
+    while (GetModuleHandleA("d3d12.dll") == nullptr) {
+        if (now >= next_log) {
+            spdlog::info("[REFramework] Waiting for D3D12...");
+            next_log = now + 1s;
+        }
+    }
+
     while (LoadLibraryA("d3d12.dll") == nullptr) {
         if (now >= next_log) {
             spdlog::info("[REFramework] Waiting for D3D12...");
             next_log = now + 1s;
         }
     }
+
+    spdlog::info("D3D12 loaded");
+#endif
 
 #if defined(MHRISE)
     utility::load_module_from_current_directory(L"openvr_api.dll");
@@ -260,7 +270,6 @@ REFramework::REFramework(HMODULE reframework_module)
     utility::ThreadSuspender ___{};
     IntegrityCheckBypass::ignore_application_entries();
     IntegrityCheckBypass::immediate_patch_re8();
-#endif
 #endif
 
     // Hooking D3D12 initially because we need to retrieve the command queue before the first frame then switch to D3D11 if it failed later
