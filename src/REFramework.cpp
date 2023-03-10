@@ -794,12 +794,25 @@ bool REFramework::on_message(HWND wnd, UINT message, WPARAM w_param, LPARAM l_pa
             if (message == WM_INPUT && GET_RAWINPUT_CODE_WPARAM(w_param) == RIM_INPUTSINK)
                 return false;
 
-            if (m_is_ui_focused) {
-                if (io.WantCaptureMouse || io.WantCaptureKeyboard || io.WantTextInput)
-                    return false;
-            } else {
-                if (!is_mouse_moving && (io.WantCaptureMouse || io.WantCaptureKeyboard || io.WantTextInput))
-                    return false;
+            static std::unordered_set<UINT> forcefully_allowed_messages {
+                WM_DEVICECHANGE,
+                WM_SHOWWINDOW,
+                WM_ACTIVATE,
+                WM_ACTIVATEAPP,
+                WM_CLOSE,
+                WM_DPICHANGED,
+                WM_SIZING,
+                WM_MOUSEACTIVATE
+            };
+
+            if (!forcefully_allowed_messages.contains(message)) {
+                if (m_is_ui_focused) {
+                    if (io.WantCaptureMouse || io.WantCaptureKeyboard || io.WantTextInput)
+                        return false;
+                } else {
+                    if (!is_mouse_moving && (io.WantCaptureMouse || io.WantCaptureKeyboard || io.WantTextInput))
+                        return false;
+                }
             }
         }
     }
