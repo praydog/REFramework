@@ -22,6 +22,8 @@ std::string& game_namespace(std::string_view base_name)
     "snow."sv
 #elif defined(RE8) || defined(RE7) || defined(DMC5)
     "app."sv
+#elif RE4
+    "chainsaw."sv
 #elif RE3
     "offline."sv
 #else
