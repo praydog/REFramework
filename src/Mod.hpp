@@ -297,6 +297,10 @@ public:
             return false;
         }
 
+        if (m_value == VK_LBUTTON || m_value == VK_RBUTTON) {
+            return false;
+        }
+
         return g_framework->get_keyboard_state()[(uint8_t)m_value] != 0;
     }
 
@@ -317,8 +321,8 @@ public:
 
     bool is_erase_key(uint8_t k) const {
         switch (k) {
-        case DIK_ESCAPE:
-        case DIK_BACKSPACE:
+        case VK_ESCAPE:
+        case VK_BACK:
             return true;
 
         default:
