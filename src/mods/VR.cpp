@@ -2326,6 +2326,11 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
             return false;
 #endif
 
+#if defined(RE4)
+        case "Gui_ui2510"_fnv: // Black bars in cutscenes
+            return false;
+#endif
+
         default:
             break;
         };
