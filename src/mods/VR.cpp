@@ -1416,6 +1416,7 @@ void VR::update_camera() {
     auto camera = sdk::get_primary_camera();
 
     if (camera == nullptr) {
+        spdlog::error("VR: Failed to get primary camera!");
         return;
     }
 
@@ -1506,6 +1507,7 @@ void VR::update_camera_origin() {
     auto camera_object = utility::re_component::get_game_object(camera);
 
     if (camera_object == nullptr || camera_object->transform == nullptr) {
+        spdlog::error("VR: Failed to get camera game object or transform!");
         m_needs_camera_restore = false;
         return;
     }
@@ -1513,6 +1515,7 @@ void VR::update_camera_origin() {
     auto camera_joint = utility::re_transform::get_joint(*camera_object->transform, 0);
 
     if (camera_joint == nullptr) {
+        spdlog::error("VR: Failed to get camera joint!");
         m_needs_camera_restore = false;
         return;
     }

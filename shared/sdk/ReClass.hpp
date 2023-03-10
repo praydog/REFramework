@@ -13,7 +13,7 @@
 #elif defined(RE8)
 #include "ReClass_Internal_RE8.hpp"
 #elif defined(RE4)
-#include "ReClass_Internal_RE8.hpp"
+#include "ReClass_Internal_RE4.hpp"
 #elif defined(RE3)
 #ifdef RE3_TDB67
 #include "ReClass_Internal_RE3.hpp"
