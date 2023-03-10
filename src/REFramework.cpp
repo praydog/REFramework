@@ -745,6 +745,9 @@ bool REFramework::on_message(HWND wnd, UINT message, WPARAM w_param, LPARAM l_pa
     case WM_SYSKEYUP:
         m_last_keys[w_param] = false;
         break;
+    case WM_KILLFOCUS:
+        std::fill(std::begin(m_last_keys), std::end(m_last_keys), false);
+        break;
     case WM_INPUT: {
         // RIM_INPUT means the window has focus
         if (GET_RAWINPUT_CODE_WPARAM(w_param) == RIM_INPUT) {
