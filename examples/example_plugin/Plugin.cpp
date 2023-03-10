@@ -64,18 +64,20 @@ bool initialize_imgui() {
     return true;
 }
 
+
 void on_lua_state_created(lua_State* l) {
     API::LuaLock _{};
 
-    g_lua = l;
+    g_lua =API::get()->param()->functions->create_script_state();
+    //g_lua = l;
     g_loaded_snippets.clear();
 
     sol::state_view lua{g_lua};
 
     // adds a new function to call from lua!
-    lua["foobar"] = []() {
-        MessageBox(NULL, "foobar", "foobar", MB_OK);
-    };
+    //lua["foobar"] = []() {
+    //    MessageBox(NULL, "foobar", "foobar", MB_OK);
+    //};
 
     lua["my_cool_storage"] = sol::new_table{};
 }

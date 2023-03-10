@@ -865,11 +865,20 @@ void ScriptRunner::on_application_entry(void* entry, const char* name, size_t ha
 bool ScriptRunner::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_context) {
     std::scoped_lock _{ m_access_mutex };
 
-    if (m_states.empty()) {
+     
+    if (m_main_state == nullptr) {
         return true;
     }
-    for (auto& state : m_states)
-        return state->on_pre_gui_draw_element(gui_element, primitive_context);
+
+    bool any_false = false;
+
+    for (auto& state : m_states) {
+        if (!state->on_pre_gui_draw_element(gui_element, primitive_context)) {
+            any_false = true;
+        }
+    }
+
+    return !any_false;
 }
 
 void ScriptRunner::on_gui_draw_element(REComponent* gui_element, void* primitive_context) {
@@ -897,6 +906,7 @@ void ScriptRunner::spew_error(const std::string& p) {
     m_last_script_error = p;
     m_last_script_error_time = std::chrono::system_clock::now();
 }
+
 
 void ScriptRunner::reset_scripts() {
     std::scoped_lock _{ m_access_mutex };

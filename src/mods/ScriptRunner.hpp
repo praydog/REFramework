@@ -195,7 +195,6 @@ public:
 
     void on_frame() override;
     void on_draw_ui() override;
-
     void on_pre_application_entry(void* entry, const char* name, size_t hash) override;
     void on_application_entry(void* entry, const char* name, size_t hash) override;
     bool on_pre_gui_draw_element(REComponent* gui_element, void* primitive_context) override;
@@ -204,7 +203,7 @@ public:
     void spew_error(const std::string& p);
 
     const auto& get_state() {
-        return m_states[0];
+        return m_main_state;
     }
     //not sure how to approach this, should there be error checking here?
     const auto& get_state(int index) { 
@@ -223,6 +222,15 @@ public:
             state->unlock();
         }
         m_access_mutex.unlock();
+    }
+
+    lua_State* create_state() {
+        m_states.emplace_back(std::make_shared<ScriptState>(make_gc_data(), true));
+        return m_states.back()->lua().lua_state();
+    }
+
+    void delete_state(lua_State* lua_state) {
+        std::erase_if(m_states, [lua_state](std::shared_ptr<ScriptState> state) {return state->lua().lua_state() == lua_state; });
     }
 
 private:

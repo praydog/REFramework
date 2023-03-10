@@ -7,7 +7,7 @@
 #endif
 
 #define REFRAMEWORK_PLUGIN_VERSION_MAJOR 1
-#define REFRAMEWORK_PLUGIN_VERSION_MINOR 4
+#define REFRAMEWORK_PLUGIN_VERSION_MINOR 5
 #define REFRAMEWORK_PLUGIN_VERSION_PATCH 0
 
 #define REFRAMEWORK_RENDERER_D3D11 0
@@ -35,6 +35,9 @@ typedef void (*REFOnPostApplicationEntryCb)();
 typedef void (*REFOnDeviceResetCb)();
 typedef bool (*REFOnMessageCb)(void*, unsigned int, unsigned long long, long long);
 
+typedef struct lua_State* (*REFCreateScriptState)();
+typedef void (*REFDeleteScriptState)(struct lua_State*);
+
 typedef bool (*REFOnInitializeFn)(REFInitializedCb);
 typedef bool (*REFOnLuaStateCreatedFn)(REFLuaStateCreatedCb);
 typedef bool (*REFOnLuaStateDestroyedFn)(REFLuaStateDestroyedCb);
@@ -44,6 +47,8 @@ typedef bool (*REFOnPostApplicationEntryFn)(const char*, REFOnPostApplicationEnt
 typedef void (*REFLuaLockUnlockFn)();
 typedef bool (*REFOnDeviceResetFn)(REFOnDeviceResetCb);
 typedef bool (*REFOnMessageFn)(REFOnMessageCb);
+
+
 
 typedef struct {
     int major;
@@ -68,6 +73,8 @@ typedef struct {
     void (*log_warn)(const char* format, ...);
     void (*log_info)(const char* format, ...);
     bool (*is_drawing_ui)();
+    REFCreateScriptState create_script_state;
+    REFDeleteScriptState delete_script_state;
 } REFrameworkPluginFunctions;
 
 typedef struct {
