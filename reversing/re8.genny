@@ -88,7 +88,6 @@ namespace via {
         ZenPadS8 = 22,
     }
 
-
     enum class BasisPlane : uint32_t{
         XZ = 0,
         XY = 1,

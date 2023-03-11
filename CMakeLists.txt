@@ -3733,6 +3733,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/REFrameworkConfig.cpp"
 		"src/mods/Scene.cpp"
 		"src/mods/ScriptRunner.cpp"
+		"src/mods/TemporalUpscaler.cpp"
 		"src/mods/VR.cpp"
 		"src/mods/bindings/FS.cpp"
 		"src/mods/bindings/ImGui.cpp"
@@ -3778,6 +3779,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/REFrameworkConfig.hpp"
 		"src/mods/Scene.hpp"
 		"src/mods/ScriptRunner.hpp"
+		"src/mods/TemporalUpscaler.hpp"
 		"src/mods/VR.hpp"
 		"src/mods/bindings/FS.hpp"
 		"src/mods/bindings/ImGui.hpp"
@@ -3863,13 +3865,14 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		openvr
 		openxr_loader
 		delayimp
+		pdperfmod
 	)
 
 	set_target_properties(RE4 PROPERTIES
 		OUTPUT_NAME
 			dinput8
 		LINK_FLAGS
-			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll"
+			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll /DELAYLOAD:PDPerfPlugin.dll"
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE
 			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
@@ -4450,6 +4453,7 @@ if(REF_BUILD_RE4_SDK OR REF_BUILD_FRAMEWORK) # build-re4-sdk
 		"shared/sdk/regenny/re8/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/re8/via/vec3.hpp"
 		"shared/sdk/regenny/re8/via/vec4.hpp"
+		"shared/sdk/renderer/RenderResource.hpp"
 	)
 
 	list(APPEND RE4SDK_SOURCES
@@ -4522,6 +4526,7 @@ if(REF_BUILD_RE7_SDK OR REF_BUILD_FRAMEWORK) # build-re7-sdk
 		"shared/sdk/SceneManager.cpp"
 		"shared/sdk/SystemArray.cpp"
 		"shared/sdk/helpers/NativeObject.cpp"
+		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
 		"shared/sdk/ManagedObject.hpp"
