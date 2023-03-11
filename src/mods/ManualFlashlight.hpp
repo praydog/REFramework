@@ -39,7 +39,7 @@ public:
 
 private:
     // keys need to be directinput unfortunately. window messages for windows virtual keys get blocked
-    const ModKey::Ptr m_key{ ModKey::create(generate_name("Key"), DIK_F) };
+    const ModKey::Ptr m_key{ ModKey::create(generate_name("Key_V2"), VkKeyScan('f')) };
     const ModToggle::Ptr m_enabled{ ModToggle::create(generate_name("Enabled"), false) };
 
 #ifdef RE8

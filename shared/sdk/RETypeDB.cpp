@@ -522,6 +522,8 @@ reframework::InvokeRet sdk::REMethodDefinition::invoke(void* object, const std::
         auto context = sdk::get_thread_context();
         sdk::VMContext::ScopedTranslator scoped_translator{context};
 
+        bool corrupted_before_call = context->unkPtr != nullptr && context->unkPtr->unkPtr != nullptr;
+
         try {
             invoke_wrapper((void*)&stack_frame, context);
             out.exception_thrown = false;
@@ -529,6 +531,22 @@ reframework::InvokeRet sdk::REMethodDefinition::invoke(void* object, const std::
             // exception pointer
             if (context->unkPtr->unkPtr != nullptr) {
                 spdlog::error("Internal game exception thrown in REMethodDefinition::invoke for {}", get_name());
+
+                const auto exception_managed_object = (::REManagedObject*)context->unkPtr->unkPtr;
+
+                if (utility::re_managed_object::is_managed_object(exception_managed_object)) {
+                    const auto exception_tdb_type = utility::re_managed_object::get_type_definition(exception_managed_object);
+
+                    if (exception_tdb_type != nullptr) {
+                        const auto exception_name = exception_tdb_type->get_full_name();
+                        spdlog::error(" Exception name: {}", exception_name.data());
+                    }
+                }
+
+                if (corrupted_before_call) {
+                    spdlog::error("VMContext was already corrupted before this call, a previous exception may not have been handled properly");
+                }
+
                 out.exception_thrown = true;
 
                 context->unkPtr->unkPtr = nullptr;

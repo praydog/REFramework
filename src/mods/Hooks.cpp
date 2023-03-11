@@ -197,7 +197,8 @@ std::optional<std::string> Hooks::hook_update_transform() {
     }
 
     if (update_transform == 0) {
-        return "Unable to find UpdateTransform pattern.";
+        spdlog::error("Unable to find UpdateTransform pattern.");
+        return std::nullopt; // Allow it to continue anyways, it's not strictly necessary except for freecam
     }
 
     spdlog::info("UpdateTransform: {:x}", update_transform);

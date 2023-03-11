@@ -14,19 +14,7 @@
 
 #include <sdk/TDBVer.hpp>
 
-#ifdef DMC5
 #define TDB_DUMP_ALLOWED
-#elif defined(MHRISE)
-#define TDB_DUMP_ALLOWED
-#elif defined(RE8)
-#define TDB_DUMP_ALLOWED
-#elif RE3
-#define TDB_DUMP_ALLOWED
-#elif RE2
-#define TDB_DUMP_ALLOWED
-#elif RE7
-#define TDB_DUMP_ALLOWED
-#endif
 
 namespace sdk {
 struct RETypeDefinition;

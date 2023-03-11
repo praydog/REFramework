@@ -77,14 +77,14 @@ std::unordered_map<MoveDirection, Vector4f> g_movedir_map{
 };
 
 std::unordered_map<int32_t, MoveDirection> g_vk_to_movedir{
-    { DIK_W, MoveDirection::FORWARD },
-    { DIK_A, MoveDirection::LEFT },
-    { DIK_S, MoveDirection::BACKWARD },
-    { DIK_D, MoveDirection::RIGHT },
-    { DIK_UP, MoveDirection::FORWARD },
-    { DIK_LEFT, MoveDirection::LEFT },
-    { DIK_DOWN, MoveDirection::BACKWARD },
-    { DIK_RIGHT, MoveDirection::RIGHT },
+    { VkKeyScan('w'), MoveDirection::FORWARD },
+    { VkKeyScan('a'), MoveDirection::LEFT },
+    { VkKeyScan('s'), MoveDirection::BACKWARD },
+    { VkKeyScan('d'), MoveDirection::RIGHT },
+    { VK_UP, MoveDirection::FORWARD },
+    { VK_LEFT, MoveDirection::LEFT },
+    { VK_DOWN, MoveDirection::BACKWARD },
+    { VK_RIGHT, MoveDirection::RIGHT },
 };
 
 void FreeCam::on_update_transform(RETransform* transform) {

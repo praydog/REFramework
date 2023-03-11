@@ -23,24 +23,65 @@ Application* Application::get() {
 }
 
 Application::Function* Application::get_functions() {
-    static int32_t functions_offset = -1;
+    static auto functions_offset = []() -> std::optional<int32_t> {
+        int32_t result = -1;
 
-    if (functions_offset == -1) {
         const auto mod = utility::get_executable();
+        const auto mod_size = utility::get_module_size(mod);
+        const auto mod_end = (uintptr_t)mod + *mod_size - 0x100;
 
-        auto ref = utility::scan(mod, "44 8B ? ? ? 00 00 4C 8D ? ? ? ? 00 41");
+        // For MHRise (game pass only? or TU4)
+        for (auto ref = utility::scan(mod, "89 81 ? ? ? ? 48 8B ? 48 81 C1 ? ? ? ?");
+            ref;
+            ref = utility::scan(*ref + 1, mod_end - (*ref + 1), "89 81 ? ? ? ? 48 8B ? 48 81 C1 ? ? ? ?")) 
+        {
+            if (!ref) {
+                spdlog::info("MHRise pattern not found, skipping...");
+                break;
+            }
 
-        if (!ref) {
-            spdlog::error("Cannot find Application::functions offset.");
-            return nullptr;
+            const auto candidate = *(int32_t*)(*ref + 12) - 8;
+
+            // If the offset is aligned to 8 bytes, it's a valid offset.
+            if (((uintptr_t)candidate & (sizeof(void*) - 1)) == 0 && candidate >= 0x400) {
+                spdlog::info("Application::functions offset: {:x}", candidate);
+                return candidate;
+            }
+
+            spdlog::info("Skipping invalid Application::functions offset: {:x}", candidate);
         }
 
-        functions_offset = *(int32_t*)(*ref + 10);
+        // For all the other RE Engine games in existence.
+        for (auto ref = utility::scan(mod, "44 8B ? ? ? 00 00 4C 8D ? ? ? ? 00 41");
+            ref;
+            ref = utility::scan(*ref + 1, mod_end - (*ref + 1), "44 8B ? ? ? 00 00 4C 8D ? ? ? ? 00 41")) 
+        {
+            if (!ref) {
+                spdlog::error("Cannot find Application::functions offset.");
+                return std::nullopt;
+            }
 
-        spdlog::info("Application::functions offset: {:x}", functions_offset);
+            const auto candidate = *(int32_t*)(*ref + 10);
+
+            // If the offset is aligned to 8 bytes, it's a valid offset.
+            if (((uintptr_t)candidate & (sizeof(void*) - 1)) == 0 && candidate >= 0x400) {
+                spdlog::info("Application::functions offset: {:x}", candidate);
+                return candidate;
+            }
+
+            spdlog::info("Skipping invalid Application::functions offset: {:x}", candidate);
+        }
+
+        spdlog::error("Cannot find Application::functions offset.");
+
+        return std::nullopt;
+    }();
+
+    if (!functions_offset) {
+        return nullptr;
     }
 
-    return (Application::Function*)((uintptr_t)this + functions_offset);
+    return (Application::Function*)((uintptr_t)this + *functions_offset);
 }
 
 Application::Function* Application::get_function(uint16_t index) {

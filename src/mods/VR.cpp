@@ -23,8 +23,13 @@
 #include "sdk/regenny/re2_tdb70/via/Window.hpp"
 #include "sdk/regenny/re2_tdb70/via/SceneView.hpp"
 #elif TDB_VER >= 71
+#ifdef RE4
+#include "sdk/regenny/re4/via/Window.hpp"
+#include "sdk/regenny/re4/via/SceneView.hpp"
+#else
 #include "sdk/regenny/mhrise_tdb71/via/Window.hpp"
 #include "sdk/regenny/mhrise_tdb71/via/SceneView.hpp"
+#endif
 #endif
 
 #include "sdk/Math.hpp"
@@ -109,20 +114,25 @@ void VR::on_view_get_size(REManagedObject* scene_view, float* result) {
 
     // Set the window size, which will increase the size of the backbuffer
     if (window != nullptr) {
+        static const auto is_gng = utility::get_module_path(utility::get_executable())->find("makaimura_GG_RE.exe") != std::string::npos;
+
+        auto& window_width = is_gng ? *(uint32_t*)((uintptr_t)window + 0x48) : window->width;
+        auto& window_height = is_gng ? *(uint32_t*)((uintptr_t)window + 0x4C) : window->height;
+
         if (is_hmd_active()) {
 #if TDB_VER <= 49
             if (!g_previous_size) {
                 g_previous_size = regenny::via::Size{ (float)window->width, (float)window->height };
             }
 #endif
-            window->width = get_hmd_width();
-            window->height = get_hmd_height();
+            window_width = get_hmd_width();
+            window_height = get_hmd_height();
 
             if (m_is_d3d12 && m_d3d12.is_initialized()) {
                 const auto& backbuffer_size = m_d3d12.get_backbuffer_size();
 
                 if (backbuffer_size[0] > 0 && backbuffer_size[1] > 0) {
-                    if (std::abs((int)backbuffer_size[0] - (int)window->width) > 50 || std::abs((int)backbuffer_size[1] - (int)window->height) > 50) {
+                    if (std::abs((int)backbuffer_size[0] - (int)window_width) > 50 || std::abs((int)backbuffer_size[1] - (int)window_height) > 50) {
                         const auto now = get_game_frame_count();
 
                         if (!m_backbuffer_inconsistency) {
@@ -134,11 +144,11 @@ void VR::on_view_get_size(REManagedObject* scene_view, float* result) {
 
                         if (is_true_inconsistency) {
                             // Force a reset of the backbuffer size
-                            window->width = get_hmd_width() + 1;
-                            window->height = get_hmd_height() + 1;
+                            window_width = get_hmd_width() + 1;
+                            window_height = get_hmd_height() + 1;
 
                             spdlog::info("[VR] Previous backbuffer size: {}x{}", backbuffer_size[0], backbuffer_size[1]);
-                            spdlog::info("[VR] Backbuffer size inconsistency detected, resetting backbuffer size to {}x{}", window->width, window->height);
+                            spdlog::info("[VR] Backbuffer size inconsistency detected, resetting backbuffer size to {}x{}", window_width, window_height);
 
                             // m_backbuffer_inconsistency gets set to false on device reset.
                         }
@@ -151,8 +161,8 @@ void VR::on_view_get_size(REManagedObject* scene_view, float* result) {
             m_backbuffer_inconsistency = false;
 
 #if TDB_VER > 49
-            window->width = (uint32_t)window->borderless_size.w;
-            window->height = (uint32_t)window->borderless_size.h;
+            window_width = is_gng ? (uint32_t)*(float*)((uintptr_t)window + 0x88) : (uint32_t)window->borderless_size.w;
+            window_height = is_gng ? (uint32_t)*(float*)((uintptr_t)window + 0x8C) : (uint32_t)window->borderless_size.h;
 #else
             if (g_previous_size) {
                 window->width = (uint32_t)g_previous_size->w;
@@ -163,8 +173,8 @@ void VR::on_view_get_size(REManagedObject* scene_view, float* result) {
 #endif
         }
 
-        wanted_width = (float)window->width;
-        wanted_height = (float)window->height;
+        wanted_width = (float)window_width;
+        wanted_height = (float)window_height;
     }
 
     //auto out = original_func(scene_view, result);
@@ -373,7 +383,7 @@ bool VR::on_pre_overlay_layer_draw(sdk::renderer::layer::Overlay* layer, void* r
     // NOT RE3
     // for some reason RE3 has weird issues with the overlay rendering
     // causing double vision
-#if (TDB_VER < 70 and not defined(RE3)) or (TDB_VER >= 70 and (not defined(RE3) and not defined(RE2) and not defined(RE7)))
+#if (TDB_VER < 70 and not defined(RE3)) or (TDB_VER >= 70 and (not defined(RE3) and not defined(RE2) and not defined(RE7) and not defined(RE4)))
     if (m_allow_engine_overlays->value()) {
         return true;
     }
@@ -1214,6 +1224,7 @@ std::optional<std::string> VR::hijack_camera() {
 }
 
 std::optional<std::string> VR::hijack_wwise_listeners() {
+#ifndef RE4
     const auto t = sdk::find_type_definition("via.wwise.WwiseListener");
 
     if (t == nullptr) {
@@ -1272,6 +1283,7 @@ std::optional<std::string> VR::hijack_wwise_listeners() {
     if (!g_wwise_listener_update_hook->create()) {
         return "VR init failed: via.wwise.WwiseListener update native function hook failed.";
     }
+#endif
 
     return std::nullopt;
 }
@@ -1482,6 +1494,7 @@ void VR::update_camera() {
     auto camera = sdk::get_primary_camera();
 
     if (camera == nullptr) {
+        spdlog::error("VR: Failed to get primary camera!");
         return;
     }
 
@@ -1574,6 +1587,7 @@ void VR::update_camera_origin() {
     auto camera_object = utility::re_component::get_game_object(camera);
 
     if (camera_object == nullptr || camera_object->transform == nullptr) {
+        spdlog::error("VR: Failed to get camera game object or transform!");
         m_needs_camera_restore = false;
         return;
     }
@@ -1581,6 +1595,7 @@ void VR::update_camera_origin() {
     auto camera_joint = utility::re_transform::get_joint(*camera_object->transform, 0);
 
     if (camera_joint == nullptr) {
+        spdlog::error("VR: Failed to get camera joint!");
         m_needs_camera_restore = false;
         return;
     }
@@ -2463,6 +2478,11 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
 #if defined(RE2) || defined(RE3)
         // the weird buggy overlay in the inventory
         case "GuiBack"_fnv:
+            return false;
+#endif
+
+#if defined(RE4)
+        case "Gui_ui2510"_fnv: // Black bars in cutscenes
             return false;
 #endif
 

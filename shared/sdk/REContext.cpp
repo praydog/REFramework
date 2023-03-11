@@ -294,6 +294,44 @@ namespace sdk {
         }
     }
 
+    void sdk::VMContext::safe_wrap(std::string_view function_name, std::function<void()> func) {
+        auto context = sdk::get_thread_context();
+        sdk::VMContext::ScopedTranslator scoped_translator{context};
+
+        bool corrupted_before_call = context->unkPtr != nullptr && context->unkPtr->unkPtr != nullptr;
+
+        try {
+            func();
+
+            if (context->unkPtr->unkPtr != nullptr) {
+                spdlog::error("Internal game exception thrown in function call for {}", function_name.data());
+
+                const auto exception_managed_object = (::REManagedObject*)context->unkPtr->unkPtr;
+
+                if (utility::re_managed_object::is_managed_object(exception_managed_object)) {
+                    const auto exception_tdb_type = utility::re_managed_object::get_type_definition(exception_managed_object);
+
+                    if (exception_tdb_type != nullptr) {
+                        const auto exception_name = exception_tdb_type->get_full_name();
+                        spdlog::error(" Exception name: {}", exception_name.data());
+                    }
+                }
+
+                if (corrupted_before_call) {
+                    spdlog::error("VMContext was already corrupted before this call, a previous exception may not have been handled properly");
+                }
+
+                context->unkPtr->unkPtr = nullptr;
+                throw std::runtime_error("Internal game exception thrown in function call for " + std::string(function_name.data()));
+            }
+        } catch(sdk::VMContext::Exception&) {
+            spdlog::error("Exception thrown in call to {}", function_name.data());
+            context->cleanup_after_exception(scoped_translator.get_prev_reference_count());
+
+            throw std::runtime_error("Exception thrown in call to " + std::string(function_name.data()));
+        }
+    }
+
     void sdk::VMContext::ScopedTranslator::translator(unsigned int code, struct ::_EXCEPTION_POINTERS* exc) {
         spdlog::info("VMContext: Caught exception code {:x}", code);
 

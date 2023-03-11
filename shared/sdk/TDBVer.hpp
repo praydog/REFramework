@@ -2,6 +2,8 @@
 
 #ifdef DMC5
 #define TDB_VER 67
+#elif defined (RE4)
+#define TDB_VER 71
 #elif defined(MHRISE)
 #ifdef MHRISE_TDB70
 #define TDB_VER 70
@@ -42,7 +44,10 @@ struct REMethodDefinition;
 struct REProperty;
 struct RETypeDefinition;
 
-#ifdef MHRISE
+#if defined(RE4)
+#define TYPE_INDEX_BITS 19
+using RETypeDefinition_ = sdk::RETypeDefVersion71;
+#elif defined(MHRISE)
 #ifdef MHRISE_TDB70
 // it's version 70 but looks the same for now i guess
 #define TYPE_INDEX_BITS 18

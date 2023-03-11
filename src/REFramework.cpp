@@ -209,18 +209,28 @@ REFramework::REFramework(HMODULE reframework_module)
         spdlog::info("ntdll.dll not found");
     }
 
-#if defined(RE8) || defined(MHRISE)
+    // wait for the game to load (WTF MHRISE??)
+    // once this is done, we can assume the process is unpacked.
+#if defined (REENGINE_PACKED)
     auto now = std::chrono::steady_clock::now();
     std::chrono::steady_clock::time_point next_log = now;
 
-    // wait for the game to load (WTF MHRISE??)
-    // once this is done, we can assume the process is unpacked.
+    while (GetModuleHandleA("d3d12.dll") == nullptr) {
+        if (now >= next_log) {
+            spdlog::info("[REFramework] Waiting for D3D12...");
+            next_log = now + 1s;
+        }
+    }
+
     while (LoadLibraryA("d3d12.dll") == nullptr) {
         if (now >= next_log) {
             spdlog::info("[REFramework] Waiting for D3D12...");
             next_log = now + 1s;
         }
     }
+
+    spdlog::info("D3D12 loaded");
+#endif
 
 #if defined(MHRISE)
     utility::load_module_from_current_directory(L"openvr_api.dll");
@@ -261,7 +271,6 @@ REFramework::REFramework(HMODULE reframework_module)
     IntegrityCheckBypass::ignore_application_entries();
     IntegrityCheckBypass::immediate_patch_re8();
 #endif
-#endif
 
     // Hooking D3D12 initially because we need to retrieve the command queue before the first frame then switch to D3D11 if it failed later
     // on
@@ -274,11 +283,11 @@ REFramework::REFramework(HMODULE reframework_module)
 
     m_last_present_time = std::chrono::steady_clock::now();
     m_last_message_time = std::chrono::steady_clock::now();
-    m_d3d_monitor_thread = std::make_unique<std::thread>([this]() {
+    m_d3d_monitor_thread = std::make_unique<std::jthread>([this](std::stop_token stop_token) {
         // Load the plugins early right after executable unpacking
         PluginLoader::get()->early_init();
 
-        while (true) {
+        while (!stop_token.stop_requested() && !m_terminating) {
             this->hook_monitor();
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
         }
@@ -365,7 +374,13 @@ bool REFramework::hook_d3d12() {
 REFramework::~REFramework() {
     spdlog::info("REFramework shutting down...");
 
-    std::scoped_lock _{ m_hook_monitor_mutex };
+    m_terminating = true;
+    m_d3d_monitor_thread->request_stop();
+    if (m_d3d_monitor_thread->joinable()) {
+        m_d3d_monitor_thread->join();
+    }
+
+    m_d3d_monitor_thread.reset();
 
     if (m_is_d3d11) {
         ImGui_ImplDX11_Shutdown();
@@ -679,6 +694,30 @@ void REFramework::on_reset() {
     m_initialized = false;
 }
 
+void REFramework::patch_set_cursor_pos() {
+    std::scoped_lock _{ m_patch_mtx };
+
+    if (m_set_cursor_pos_patch.get() == nullptr) {
+        // Make SetCursorPos ret early
+        const auto set_cursor_pos_addr = (uintptr_t)GetProcAddress(GetModuleHandleA("user32.dll"), "SetCursorPos");
+
+        if (set_cursor_pos_addr != 0) {
+            spdlog::info("Patching SetCursorPos");
+            m_set_cursor_pos_patch = Patch::create(set_cursor_pos_addr, {0xC3});
+        }
+    }
+}
+
+void REFramework::remove_set_cursor_pos_patch() {
+    std::scoped_lock _{ m_patch_mtx };
+
+    if (m_set_cursor_pos_patch.get() != nullptr) {
+        spdlog::info("Removing SetCursorPos patch");
+    }
+
+    m_set_cursor_pos_patch.reset();
+}
+
 bool REFramework::on_message(HWND wnd, UINT message, WPARAM w_param, LPARAM l_param) {
     m_last_message_time = std::chrono::steady_clock::now();
 
@@ -688,6 +727,27 @@ bool REFramework::on_message(HWND wnd, UINT message, WPARAM w_param, LPARAM l_pa
 
     bool is_mouse_moving{false};
     switch (message) {
+    case WM_KEYDOWN:
+    case WM_SYSKEYDOWN: {
+        const auto menu_key = REFrameworkConfig::get()->get_menu_key()->value();
+
+        if (w_param == menu_key && !m_last_keys[w_param]) {
+            std::lock_guard _{m_input_mutex};
+
+            set_draw_ui(!m_draw_ui);
+        }
+
+        m_last_keys[w_param] = true;
+        
+        break;
+    }
+    case WM_KEYUP:
+    case WM_SYSKEYUP:
+        m_last_keys[w_param] = false;
+        break;
+    case WM_KILLFOCUS:
+        std::fill(std::begin(m_last_keys), std::end(m_last_keys), false);
+        break;
     case WM_INPUT: {
         // RIM_INPUT means the window has focus
         if (GET_RAWINPUT_CODE_WPARAM(w_param) == RIM_INPUT) {
@@ -737,12 +797,25 @@ bool REFramework::on_message(HWND wnd, UINT message, WPARAM w_param, LPARAM l_pa
             if (message == WM_INPUT && GET_RAWINPUT_CODE_WPARAM(w_param) == RIM_INPUTSINK)
                 return false;
 
-            if (m_is_ui_focused) {
-                if (io.WantCaptureMouse || io.WantCaptureKeyboard || io.WantTextInput)
-                    return false;
-            } else {
-                if (!is_mouse_moving && (io.WantCaptureMouse || io.WantCaptureKeyboard || io.WantTextInput))
-                    return false;
+            static std::unordered_set<UINT> forcefully_allowed_messages {
+                WM_DEVICECHANGE,
+                WM_SHOWWINDOW,
+                WM_ACTIVATE,
+                WM_ACTIVATEAPP,
+                WM_CLOSE,
+                WM_DPICHANGED,
+                WM_SIZING,
+                WM_MOUSEACTIVATE
+            };
+
+            if (!forcefully_allowed_messages.contains(message)) {
+                if (m_is_ui_focused) {
+                    if (io.WantCaptureMouse || io.WantCaptureKeyboard || io.WantTextInput)
+                        return false;
+                } else {
+                    if (!is_mouse_moving && (io.WantCaptureMouse || io.WantCaptureKeyboard || io.WantTextInput))
+                        return false;
+                }
             }
         }
     }
@@ -762,7 +835,7 @@ bool REFramework::on_message(HWND wnd, UINT message, WPARAM w_param, LPARAM l_pa
 
 // this is unfortunate.
 void REFramework::on_direct_input_keys(const std::array<uint8_t, 256>& keys) {
-    const auto menu_key = REFrameworkConfig::get()->get_menu_key()->value();
+    /*const auto menu_key = REFrameworkConfig::get()->get_menu_key()->value();
 
     if (keys[menu_key] && m_last_keys[menu_key] == 0) {
         std::lock_guard _{m_input_mutex};
@@ -770,7 +843,7 @@ void REFramework::on_direct_input_keys(const std::array<uint8_t, 256>& keys) {
         set_draw_ui(!m_draw_ui);
     }
 
-    m_last_keys = keys;
+    m_last_keys = keys;*/
 }
 
 std::filesystem::path REFramework::get_persistent_dir() {
@@ -936,6 +1009,8 @@ void REFramework::draw_ui() {
     std::lock_guard _{m_input_mutex};
 
     if (!m_draw_ui) {
+        remove_set_cursor_pos_patch();
+
         m_is_ui_focused = false;
         if (m_last_draw_ui) {
             m_windows_message_hook->window_toggle_cursor(m_cursor_state);
@@ -943,6 +1018,8 @@ void REFramework::draw_ui() {
         m_dinput_hook->acknowledge_input();
         // ImGui::GetIO().MouseDrawCursor = false;
         return;
+    } else {
+        patch_set_cursor_pos();
     }
     
     // UI Specific code:

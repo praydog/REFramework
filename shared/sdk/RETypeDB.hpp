@@ -81,6 +81,7 @@ T* create_instance(std::string_view type_name, bool simplify = false);
 
 #include "RETypeDefinition.hpp"
 #include "REManagedObject.hpp"
+#include "REContext.hpp"
 #include "TDBVer.hpp"
 
 namespace sdk {
@@ -805,6 +806,26 @@ struct REMethodDefinition : public sdk::REMethodDefinition_ {
     template<typename T = void*, typename ...Args>
     T call(Args... args) const {
         return get_function_t<T (*)(Args...)>()(args...);
+    }
+
+    // Does what invoke does without all the stupid setup beforehand
+    template<typename T = void*, typename ...Args>
+    T call_safe(Args... args) const {
+        if constexpr (std::is_same_v<T, void>) {
+            sdk::VMContext::safe_wrap(get_name(), [&]() {
+                get_function_t<void (*)(Args...)>()(args...);
+            });
+            return;
+        }
+        
+        if constexpr (!std::is_same_v<T, void>) {
+            T result{};
+            sdk::VMContext::safe_wrap(get_name(), [&]() {
+                result = get_function_t<T (*)(Args...)>()(args...);
+            });
+
+            return result;
+        }
     }
 
     template <typename Ret = void*, typename ...Types>

@@ -36,6 +36,7 @@ REF_BUILD_RE2_SDK = false
 REF_BUILD_RE2_TDB66SDK = false
 REF_BUILD_RE3_SDK = false
 REF_BUILD_RE3_TDB67SDK = false
+REF_BUILD_RE4_SDK = false
 REF_BUILD_RE7_SDK = false
 REF_BUILD_RE7_TDB49SDK = false
 REF_BUILD_RE8_SDK = false
@@ -51,6 +52,7 @@ build-re2-sdk = "REF_BUILD_RE2_SDK OR REF_BUILD_FRAMEWORK"
 build-re2tdb66-sdk = "REF_BUILD_RE2_TDB66SDK OR REF_BUILD_FRAMEWORK"
 build-re3-sdk = "REF_BUILD_RE3_SDK OR REF_BUILD_FRAMEWORK"
 build-re3tdb67-sdk = "REF_BUILD_RE3_TDB67SDK OR REF_BUILD_FRAMEWORK"
+build-re4-sdk = "REF_BUILD_RE4_SDK OR REF_BUILD_FRAMEWORK"
 build-re7-sdk = "REF_BUILD_RE7_SDK OR REF_BUILD_FRAMEWORK"
 build-re7tdb49-sdk = "REF_BUILD_RE7_TDB49SDK OR REF_BUILD_FRAMEWORK"
 build-re8-sdk = "REF_BUILD_RE8_SDK OR REF_BUILD_FRAMEWORK"
@@ -262,6 +264,14 @@ type = "game"
 [target.RE3_TDB67]
 type = "game"
 
+[target.RE4]
+type = "game"
+
+[target.RE4SDK]
+type = "sdk"
+compile-definitions = ["RE4", "REENGINE_PACKED", "REENGINE_AT"]
+condition = "build-re4-sdk"
+
 [target.RE7SDK]
 type = "sdk"
 compile-definitions = ["RE7"]
@@ -280,7 +290,7 @@ type = "game"
 
 [target.RE8SDK]
 type = "sdk"
-compile-definitions = ["RE8"]
+compile-definitions = ["RE8", "REENGINE_PACKED", "REENGINE_AT"]
 condition = "build-re8-sdk"
 
 [target.RE8]
@@ -296,7 +306,7 @@ type = "game"
 
 [target.MHRISESDK]
 type = "sdk"
-compile-definitions = ["MHRISE"]
+compile-definitions = ["MHRISE", "REENGINE_PACKED", "REENGINE_AT"]
 condition = "build-mhrise-sdk"
 
 [target.MHRISE]

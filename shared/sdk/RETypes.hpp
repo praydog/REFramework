@@ -52,7 +52,7 @@ private:
     void refresh_map();
 
     TypeList* m_raw_types{ nullptr };
-#if defined(RE8) || defined(MHRISE)
+#if TDB_VER >= 69
     RETypeImpl** m_raw_type_impls{ nullptr };
 #endif
 

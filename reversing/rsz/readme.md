@@ -1,3 +1,6 @@
+# Warning
+For unknown reasons, these scripts require <= Python 3.9, otherwise the output is incomplete.
+
 # `emulation-dumper.py`
 Uses [Unicorn](https://github.com/unicorn-engine/unicorn) to emulate all of the deserializer chains to guess the RSZ structure layout for native (`via.*`) types.
 

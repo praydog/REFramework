@@ -45,6 +45,7 @@ Supports both DirectX 11 and DirectX 12.
 ## Supported Games
 * Resident Evil 2
 * Resident Evil 3
+* Resident Evil 4
 * Resident Evil 7
 * Resident Evil Village
 * Devil May Cry 5
