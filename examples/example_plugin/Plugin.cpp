@@ -21,10 +21,14 @@ using namespace reframework;
 
 typedef void* (*REFGenericFunction)(...);
 
+
 lua_State* g_lua{nullptr};
-
+lua_State* sandbox_stateview_1{nullptr};
+lua_State* sandbox_stateview_2{nullptr};
+bool sandbox_mod_enabled_1{nullptr};
+bool sandbox_mod_enabled_2{nullptr};
 std::unordered_map<std::string, sol::load_result> g_loaded_snippets{};
-
+float royalguardguage = 5000.0;
 HWND g_wnd{};
 bool g_initialized{false};
 
@@ -65,11 +69,47 @@ bool initialize_imgui() {
 }
 
 
+void sandbox_lua_create() {
+    if (sandbox_stateview_1 == nullptr) {
+        sandbox_stateview_1 = API::get()->param()->functions->create_script_state();
+        // do load here
+        sol::state_view sandbox_lua{sandbox_stateview_1};
+        sandbox_lua.safe_script_file("sandboxscript1.lua");
+    }
+}
+
+void sandbox_lua_destroy() {
+    if (sandbox_stateview_1 != nullptr) {
+        API::get()->param()->functions->delete_script_state(sandbox_stateview_1);
+        sandbox_stateview_1 = nullptr;
+    }
+}
+
+
+void sandbox_lua_create_2() {
+    if (sandbox_stateview_2 == nullptr) {
+        sandbox_stateview_2 = API::get()->param()->functions->create_script_state();
+        // do load here
+        sol::state_view sandbox_lua{sandbox_stateview_2};
+        sandbox_lua.safe_script_file("sandboxscript2.lua");
+    } else {
+        sol::state_view sandbox_lua{sandbox_stateview_2};
+        sandbox_lua["royalguardgauge"] = royalguardguage;
+    }
+}
+
+void sandbox_lua_destroy_2() {
+    if (sandbox_stateview_2 != nullptr) {
+        API::get()->param()->functions->delete_script_state(sandbox_stateview_2);
+        sandbox_stateview_2 = nullptr;
+    }
+}
+
 void on_lua_state_created(lua_State* l) {
     API::LuaLock _{};
 
-    g_lua =API::get()->param()->functions->create_script_state();
-    //g_lua = l;
+
+    g_lua = l;
     g_loaded_snippets.clear();
 
     sol::state_view lua{g_lua};
@@ -84,10 +124,17 @@ void on_lua_state_created(lua_State* l) {
 
 void on_lua_state_destroyed(lua_State* l) {
     API::LuaLock _{};
-
+   
     g_lua = nullptr;
     g_loaded_snippets.clear();
+
+    //sandbox mod disable
+    sandbox_lua_destroy();
+    sandbox_lua_destroy_2();
 }
+
+
+
 
 void internal_frame() {
     API::LuaLock _{};
@@ -95,9 +142,18 @@ void internal_frame() {
     if (g_lua == nullptr) {
         return;
     }
-
     sol::state_view lua{g_lua};
-
+    //check if the sandbox doesn't exist and create it
+    if (sandbox_mod_enabled_1) {
+        sandbox_lua_create();
+    } else {
+        sandbox_lua_destroy();
+    }
+    if (sandbox_mod_enabled_2) {
+        sandbox_lua_create_2();
+    } else {
+        sandbox_lua_destroy_2();
+    }
     // Get the window size in Lua, and then in C++
     if (!g_loaded_snippets.contains("window_metadata")) {
         g_loaded_snippets["window_metadata"] = lua.load(R"(
@@ -419,6 +475,10 @@ void internal_frame() {
             ImGui::TreePop();
         }
 
+        ImGui::Checkbox("Sandbox mod 1", &sandbox_mod_enabled_1);
+        ImGui::Checkbox("Sandbox mod 2", &sandbox_mod_enabled_2);
+        ImGui::InputFloat("Royalguardguage", &royalguardguage, 0.00f, 30000.0f, "%.1f");
+        
         ImGui::End();
     }
 }
