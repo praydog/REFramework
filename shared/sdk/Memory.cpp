@@ -63,8 +63,15 @@ void deallocate(void* ptr) {
 
         spdlog::info("[via::memory::deallocate] Found allocate function at {:x}", (uintptr_t)allocate_fn);
 
+        const auto first_insn = utility::decode_one((uint8_t*)allocate_fn);
+
+        if (!first_insn) {
+            spdlog::error("[via::memory::deallocate] Failed to decode first instruction of allocate function!");
+            return nullptr;
+        }
+
         // Scan until we hit a jmp.
-        ref = utility::scan_opcode((uintptr_t)allocate_fn + 1, 50, 0xE9);
+        ref = utility::scan_opcode((uintptr_t)allocate_fn + first_insn->Length, 50, 0xE9);
 
         if (!ref) {
             spdlog::error("[via::memory::deallocate] Failed to find deallocate function!");
