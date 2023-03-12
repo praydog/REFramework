@@ -374,41 +374,50 @@ void RenderContext::copy_texture(Texture* dest, Texture* src, Fence& fence) {
     static auto func = []() -> void (*)(RenderContext*, Texture*, Texture*, Fence&) {
         spdlog::info("Searching for RenderContext::copy_texture");
 
-        const auto game = utility::get_executable();
-        const auto string = utility::scan_string(game, "InterleaveNormalDepthHalfWithoutGBuffer");
+        std::vector<std::string> string_choices {
+            "InterleaveNormalDepthHalfWithoutGBuffer",
+            "CopyImage",
+        };
 
-        if (!string) {
-            spdlog::error("Failed to find copy_texture (no string)");
-            return nullptr;
-        }
+        for (const auto& str_choice : string_choices) {
+            spdlog::info("Scanning for string: {}", str_choice);
 
-        const auto string_ref = utility::scan_displacement_reference(game, *string);
+            const auto game = utility::get_executable();
+            const auto string = utility::scan_string(game, str_choice, true);
 
-        if (!string_ref) {
-            spdlog::error("Failed to find copy_texture (no string ref)");
-            return nullptr;
-        }
-
-        uintptr_t ip = *string_ref;
-
-        for (auto i = 0; i < 20; ++i) {
-            const auto resolved = utility::resolve_instruction(ip);
-
-            if (!resolved) {
-                spdlog::error("Failed to find copy_texture (could not resolve instruction)");
-                return nullptr;
+            if (!string) {
+                spdlog::error("Failed to find copy_texture (no string)");
+                continue;
             }
 
-            ip = resolved->addr;
+            const auto string_ref = utility::scan_displacement_reference(game, *string);
 
-            if (*(uint8_t*)ip == 0xE8) {
-                const auto result = (void (*)(RenderContext*, Texture*, Texture*, Fence&))utility::calculate_absolute(ip + 1);
-
-                spdlog::info("Found copy_texture: {:x}", (uintptr_t)result);
-                return result;
+            if (!string_ref) {
+                spdlog::error("Failed to find copy_texture (no string ref)");
+                continue;
             }
 
-            ip -= 1;
+            uintptr_t ip = *string_ref;
+
+            for (auto i = 0; i < 20; ++i) {
+                const auto resolved = utility::resolve_instruction(ip);
+
+                if (!resolved) {
+                    spdlog::error("Failed to find copy_texture (could not resolve instruction)");
+                    continue;
+                }
+
+                ip = resolved->addr;
+
+                if (*(uint8_t*)ip == 0xE8) {
+                    const auto result = (void (*)(RenderContext*, Texture*, Texture*, Fence&))utility::calculate_absolute(ip + 1);
+
+                    spdlog::info("Found copy_texture: {:x}", (uintptr_t)result);
+                    return result;
+                }
+
+                ip -= 1;
+            }
         }
 
         spdlog::error("Could not find copy_texture");
