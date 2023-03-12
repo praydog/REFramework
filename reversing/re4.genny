@@ -1217,6 +1217,15 @@ enum class TextureStreamingType : uint32_t {
 struct Poop 0x1000 {
 };
 
+struct SceneArray2 {
+    via.Scene** elements
+    uint32_t count
+}
+
+struct RenderOutput : via.Component 0x1000 {
+    SceneArray2 scenes @ 0x98
+}
+
 struct RenderResource {
     //void* vtable;
 	Poop* unkpoop;

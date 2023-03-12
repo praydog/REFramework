@@ -341,7 +341,10 @@ public:
     }
 
 private:
-#if TDB_VER >= 70
+#if TDB_VER >= 71
+    // verify for other games, this is for RE4
+    static constexpr inline auto s_scene_layers_offset = 0x98;
+#elif TDB_VER >= 70
     static constexpr inline auto s_scene_layers_offset = 0xB8;
 #elif TDB_VER == 69
     static constexpr inline auto s_scene_layers_offset = 0x98;
