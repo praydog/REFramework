@@ -216,10 +216,12 @@ REFramework::REFramework(HMODULE reframework_module)
     std::chrono::steady_clock::time_point next_log = now;
 
     while (GetModuleHandleA("d3d12.dll") == nullptr) {
+        now = std::chrono::steady_clock::now();
         if (now >= next_log) {
             spdlog::info("[REFramework] Waiting for D3D12...");
             next_log = now + 1s;
         }
+        Sleep(50);
     }
 
     while (LoadLibraryA("d3d12.dll") == nullptr) {
