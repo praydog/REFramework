@@ -225,12 +225,14 @@ public:
     }
 
     lua_State* create_state() {
+        std::scoped_lock _{m_access_mutex};
         m_states.emplace_back(std::make_shared<ScriptState>(make_gc_data(), false));
         m_states.back()->lock();
         return m_states.back()->lua().lua_state();
     }
 
     void delete_state(lua_State* lua_state) {
+        std::scoped_lock _{m_access_mutex};
         std::erase_if(m_states, [lua_state](std::shared_ptr<ScriptState> state) {return state->lua().lua_state() == lua_state; });
     }
 
