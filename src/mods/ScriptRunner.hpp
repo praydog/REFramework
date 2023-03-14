@@ -227,13 +227,12 @@ public:
     lua_State* create_state() {
         std::scoped_lock _{m_access_mutex};
         m_states.emplace_back(std::make_shared<ScriptState>(make_gc_data(), false));
-        m_states.back()->lock();
         return m_states.back()->lua().lua_state();
     }
 
     void delete_state(lua_State* lua_state) {
         std::scoped_lock _{m_access_mutex};
-        std::erase_if(m_states, [lua_state](std::shared_ptr<ScriptState> state) {return state->lua().lua_state() == lua_state; });
+        m_states_to_delete.push_back(lua_state);
     }
 
 private:
@@ -258,7 +257,7 @@ private:
     std::vector<std::string> m_loaded_scripts{};
     std::vector<std::string> m_known_scripts{};
     std::unordered_map<std::string, bool> m_loaded_scripts_map{};
-
+    std::vector<lua_State*> m_states_to_delete{};
     std::string m_last_script_error{};
     std::shared_mutex m_script_error_mutex{};
     std::chrono::system_clock::time_point m_last_script_error_time{};

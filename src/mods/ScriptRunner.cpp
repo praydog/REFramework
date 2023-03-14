@@ -683,7 +683,7 @@ void ScriptRunner::on_config_save(utility::Config& cfg) {
 
 void ScriptRunner::on_frame() {
     std::scoped_lock _{m_access_mutex};
-    
+
     if (m_needs_first_reset) {
         spdlog::info("[ScriptRunner] Initializing Lua state for the first time...");
 
@@ -693,6 +693,12 @@ void ScriptRunner::on_frame() {
 
         spdlog::info("[ScriptRunner] Lua state initialized.");
     }
+
+    for (auto state_to_delete : m_states_to_delete) {
+        std::erase_if(m_states, [&](std::shared_ptr<ScriptState> state) { return state->lua().lua_state() == state_to_delete; });
+    }
+
+    m_states_to_delete.clear();
 
     if (m_main_state == nullptr) {
         return;
