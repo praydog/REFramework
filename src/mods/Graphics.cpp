@@ -119,6 +119,43 @@ bool Graphics::on_pre_gui_draw_element(REComponent* gui_element, void* primitive
         return false;
     }
 
+    if (!m_ultrawide_fix->value()) {
+        return true;
+    }
+
+    // Only stuff for RE4 right now.
+#ifndef RE4
+    if (true) {
+        return true;
+    }
+#endif
+
+    auto game_object = utility::re_component::get_game_object(gui_element);
+
+    if (game_object != nullptr && game_object->transform != nullptr) {
+        const auto name = utility::re_string::get_string(game_object->name);
+        const auto name_hash = utility::hash(name);
+
+        switch(name_hash) {
+#if defined(RE4)
+        case "Gui_ui2510"_fnv: // Black bars in cutscenes
+            game_object->shouldDraw = false;
+            return false;
+
+        case "Gui_ui3030"_fnv: // in inventory
+        case "Gui_ui3040"_fnv: // just picked up an item
+            if (game_object->shouldDraw && game_object->shouldUpdate) {
+                std::unique_lock _{m_re4.time_mtx};
+                m_re4.last_inventory_open = std::chrono::steady_clock::now();
+            }
+            break;
+#endif
+
+        default:
+            break;
+        }
+    }
+
     return true;
 }
 
