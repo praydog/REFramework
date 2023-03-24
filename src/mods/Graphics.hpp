@@ -1,5 +1,7 @@
 #pragma once
 
+#include <chrono>
+
 #include "Mod.hpp"
 
 class Graphics : public Mod {
@@ -24,6 +26,11 @@ private:
     void set_vertical_fov(bool enable);
 
     float m_old_fov{90.0f};
+
+    struct {
+        std::shared_mutex time_mtx{};
+        std::chrono::steady_clock::time_point last_inventory_open{};
+    } m_re4;
 
     const ModToggle::Ptr m_ultrawide_fix{ ModToggle::create(generate_name("UltrawideFix"), false) };
     const ModToggle::Ptr m_ultrawide_vertical_fov{ ModToggle::create(generate_name("UltrawideFixVerticalFOV"), true) };

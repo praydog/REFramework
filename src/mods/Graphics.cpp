@@ -178,6 +178,18 @@ void Graphics::do_ultrawide_fix() {
         return;
     }
 
+#if defined(RE4)
+    {
+        std::shared_lock _{m_re4.time_mtx};
+
+        const auto now = std::chrono::steady_clock::now();
+        if (now - m_re4.last_inventory_open < std::chrono::milliseconds(100)) {
+            set_vertical_fov(false);
+            return;
+        }
+    }
+#endif
+
     set_vertical_fov(m_ultrawide_vertical_fov->value());
 
     static auto via_scene_view = sdk::find_type_definition("via.SceneView");
@@ -203,6 +215,13 @@ void Graphics::do_ultrawide_fov_restore(bool force) {
     if (VR::get()->is_hmd_active()) {
         return;
     }
+
+#if defined(RE4)
+    const auto now = std::chrono::steady_clock::now();
+    if (now - m_re4.last_inventory_open < std::chrono::milliseconds(100)) {
+        return;
+    }
+#endif
 
     static auto via_camera = sdk::find_type_definition("via.Camera");
     static auto set_fov_method = via_camera->get_method("set_FOV");
@@ -235,6 +254,14 @@ void Graphics::set_vertical_fov(bool enable) {
     if (set_vertical_enable_method != nullptr) {
         set_vertical_enable_method->call(sdk::get_thread_context(), camera, enable);
     }
+
+    
+#if defined(RE4)
+    const auto now = std::chrono::steady_clock::now();
+    if (now - m_re4.last_inventory_open < std::chrono::milliseconds(100)) {
+        return;
+    }
+#endif
 
     if (m_ultrawide_fov->value() && get_fov_method != nullptr && set_fov_method != nullptr) {
         const auto hfov = get_fov_method->call<float>(sdk::get_thread_context(), camera);
