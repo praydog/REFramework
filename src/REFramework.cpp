@@ -280,7 +280,7 @@ REFramework::REFramework(HMODULE reframework_module)
 
     if (lock_loader != nullptr && unlock_loader != nullptr)
         lock_loader(0, NULL, &loader_magic);
-    utility::ThreadSuspender ___{};
+    utility::ThreadSuspender suspender{};
     if (lock_loader != nullptr && unlock_loader != nullptr)
         unlock_loader(0, loader_magic);
 
@@ -295,6 +295,7 @@ REFramework::REFramework(HMODULE reframework_module)
     // Fixes new code added in RE4 only.
     IntegrityCheckBypass::immediate_patch_re4();
 #endif
+    suspender.resume();
 #endif
 
     // Hooking D3D12 initially because we need to retrieve the command queue before the first frame then switch to D3D11 if it failed later
