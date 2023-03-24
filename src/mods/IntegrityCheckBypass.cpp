@@ -408,3 +408,29 @@ void IntegrityCheckBypass::immediate_patch_re8() {
         spdlog::error("[IntegrityCheckBypass]: Could not find sussy_result_4!");
     }
 }
+
+void IntegrityCheckBypass::immediate_patch_re4() {
+    // This patch fixes the constant scans that are done every frame on the game's memory.
+    // The scans will still be performed, but the crash will be avoided.
+    // Ideally, the scans should be patched as well, because they are literally running every frame
+    // which may cause performance issues.
+    // As far as I can tell, this conditional jmp jumps into a via::clr::VM cleanup routine, corrupting memory.
+    // This will cause the game to crash in a random location that accesses VM memory.
+    // This is probably to make finding the code that causes the crash in the first place harder.
+    spdlog::info("[IntegrityCheckBypass]: Scanning RE4...");
+
+    const auto game = utility::get_executable();
+    const auto conditional_jmp_block = utility::scan(game, "48 8B 8D D0 03 00 00 48 29 C1 75 ?");
+
+    if (!conditional_jmp_block) {
+        spdlog::error("[IntegrityCheckBypass]: Could not find conditional_jmp!");
+        return;
+    }
+
+    const auto conditional_jmp = *conditional_jmp_block + 10;
+
+    // Create a patch that always jumps.
+    static auto patch = Patch::create(conditional_jmp, { 0xEB }, true);
+
+    spdlog::info("[IntegrityCheckBypass]: Patched conditional_jmp!");
+}

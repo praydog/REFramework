@@ -268,10 +268,21 @@ REFramework::REFramework(HMODULE reframework_module)
         }
     });
     startup_lookup_thread->detach();
+#endif
 
+#if defined(RE8) || defined(RE4)
     utility::ThreadSuspender ___{};
     IntegrityCheckBypass::ignore_application_entries();
+
+#if defined(RE8) || defined(RE4)
+    // Also done on RE4 because some of the scans are the same.
     IntegrityCheckBypass::immediate_patch_re8();
+#endif
+
+#if defined(RE4)
+    // Fixes new code added in RE4 only.
+    IntegrityCheckBypass::immediate_patch_re4();
+#endif
 #endif
 
     // Hooking D3D12 initially because we need to retrieve the command queue before the first frame then switch to D3D11 if it failed later
