@@ -275,14 +275,16 @@ REFramework::REFramework(HMODULE reframework_module)
 
 #if defined(RE8) || defined(RE4)
     ULONG_PTR loader_magic = 0;
-    auto lock_loader = (PFN_LdrLockLoaderLock)::GetProcAddress(ntdll, "LdrLockLoaderLock");
-    auto unlock_loader = (PFN_LdrUnlockLoaderLock)::GetProcAddress(ntdll, "LdrUnlockLoaderLock");
+    auto lock_loader = (PFN_LdrLockLoaderLock)GetProcAddress(ntdll, "LdrLockLoaderLock");
+    auto unlock_loader = (PFN_LdrUnlockLoaderLock)GetProcAddress(ntdll, "LdrUnlockLoaderLock");
 
-    if (lock_loader != nullptr && unlock_loader != nullptr)
+    if (lock_loader != nullptr && unlock_loader != nullptr) {
         lock_loader(0, NULL, &loader_magic);
+    }
     utility::ThreadSuspender suspender{};
-    if (lock_loader != nullptr && unlock_loader != nullptr)
+    if (lock_loader != nullptr && unlock_loader != nullptr) {
         unlock_loader(0, loader_magic);
+    }
 
     IntegrityCheckBypass::ignore_application_entries();
 
