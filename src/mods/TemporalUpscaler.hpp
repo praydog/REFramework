@@ -50,7 +50,7 @@ public:
     void on_output_layer_draw(sdk::renderer::layer::Output* layer, void* render_context) override;
 
     bool ready() const {
-        return m_initialized && m_backend_loaded && m_enabled && !m_wants_reinitialize;
+        return m_initialized && m_backend_loaded && m_enabled->value() && !m_wants_reinitialize;
     }
 
     uint32_t get_evaluate_id(uint32_t counter) const {
@@ -110,13 +110,10 @@ private:
     bool m_is_d3d12{false};
     bool m_backend_loaded{false};
     bool m_backbuffer_inconsistency{false};
-    bool m_enabled{true};
     bool m_upscale{true};
-    bool m_use_native_resolution{false};
     bool m_rendering{false};
     bool m_set_view{false};
     bool m_jitter{true};
-    bool m_sharpness{true};
     bool m_allow_taa{false}; // the engine has its own TAA implementation, it can't be used with the upscaler
     bool m_wants_reinitialize{false};
     bool m_made_extra_scene_layer{false};
@@ -128,7 +125,6 @@ private:
 
     uint32_t m_available_upscale_type{0};
     PDUpscaleType m_upscale_type{PDUpscaleType::FSR2};
-    PDPerfQualityLevel m_upscale_quality{PDPerfQualityLevel::Balanced};
 
     uint32_t m_backbuffer_inconsistency_start{};
     std::array<uint32_t, 2> m_backbuffer_size{};
@@ -178,7 +174,6 @@ private:
     float m_nearz{0.0f};
     float m_farz{0.0f};
     float m_fov{90.0f};
-    float m_sharpness_amount{0.0f};
 
     float m_jitter_offsets[2][2]{0.0f, 0.0f};
     float m_jitter_scale[2]{2.0f, -2.0f};
@@ -191,4 +186,38 @@ private:
 
     std::array<std::array<Matrix4x4f, 6>, 2> m_old_projection_matrix{};
     std::array<std::array<Matrix4x4f, 6>, 2> m_old_view_matrix{};
+
+    const ModToggle::Ptr m_enabled{
+        ModToggle::create(generate_name("Enabled"), true)
+    };
+
+    const ModToggle::Ptr m_sharpness{
+        ModToggle::create(generate_name("SharpnessEnable"), true)
+    };
+
+    const ModSlider::Ptr m_sharpness_amount{
+        ModSlider::create(generate_name("SharpnessAmount"), 0.0f, 5.0f, 0.0f)
+    };
+
+    const ModToggle::Ptr m_use_native_resolution{
+        ModToggle::create(generate_name("UseNativeResolution"), false)
+    };
+
+    const ModCombo::Ptr m_upscale_quality{ 
+        ModCombo::create(generate_name("UpscaleQuality"),
+        {
+            "Performance",
+            "Balanced",
+            "Quality",
+            "Ultra Performance"
+        }, (int32_t)PDPerfQualityLevel::Balanced) 
+    };
+
+     ValueList m_options{
+        *m_enabled,
+        *m_sharpness,
+        *m_sharpness_amount,
+        *m_use_native_resolution,
+        *m_upscale_quality
+     };
 };

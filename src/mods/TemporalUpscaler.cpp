@@ -78,12 +78,20 @@ std::optional<std::string> TemporalUpscaler::on_initialize() {
 }
 
 void TemporalUpscaler::on_config_load(const utility::Config& cfg) {
+    for (IModValue& option : m_options) {
+        option.config_load(cfg);
+    }
+    
     if (!ready()) {
         return;
     }
 }
 
 void TemporalUpscaler::on_config_save(utility::Config& cfg) {
+    for (IModValue& option : m_options) {
+        option.config_save(cfg);
+    }
+
     if (!ready()) {
         return;
     }
@@ -101,22 +109,26 @@ void TemporalUpscaler::on_draw_ui() {
         return;
     }
 
-    ImGui::Checkbox("Enabled", &m_enabled);
+    //ImGui::Checkbox("Enabled", &m_enabled);
+    m_enabled->draw("Enabled");
 
     if (!ready()) {
         return;
     }
     
-    if (ImGui::Checkbox("Use Native Res (DLAA)", &m_use_native_resolution)) {
+    //if (ImGui::Checkbox("Use Native Res (DLAA)", &m_use_native_resolution)) {
+    if (m_use_native_resolution->draw("Use Native Res (DLAA)")) {
         update_motion_scale();
     }
 
-    if (ImGui::Checkbox("Sharpness", &m_sharpness)) {
+    //if (ImGui::Checkbox("Sharpness", &m_sharpness)) {
+    if (m_sharpness->draw("Sharpness")) {
         release_upscale_features();
         init_upscale_features();
     }
 
-    ImGui::DragFloat("Sharpness Amount", &m_sharpness_amount, 0.01f, 0.0f, 5.0f);
+    //ImGui::DragFloat("Sharpness Amount", &m_sharpness_amount, 0.01f, 0.0f, 5.0f);
+    m_sharpness_amount->draw("Sharpness Amount");
 
     const auto w = (float)get_render_width();
     const auto h = (float)get_render_height();
@@ -140,7 +152,13 @@ void TemporalUpscaler::on_draw_ui() {
         init_upscale_features();
     }
 
-    if (ImGui::Combo("Quality Level", (int*)&m_upscale_quality, "Performance\0Balanced\0Quality\0UltraPerformance\0")) {
+    /*if (ImGui::Combo("Quality Level", (int*)&m_upscale_quality, "Performance\0Balanced\0Quality\0UltraPerformance\0")) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        release_upscale_features();
+        init_upscale_features();
+    }*/
+
+    if (m_upscale_quality->draw("Quality Level")) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         release_upscale_features();
         init_upscale_features();
@@ -311,7 +329,7 @@ void TemporalUpscaler::on_early_present() {
                 params.renderSizeY = get_render_height();
                 params.jitterOffsetX = m_jitter_offsets[evaluate_index][0];
                 params.jitterOffsetY = m_jitter_offsets[evaluate_index][1];
-                params.sharpness = m_sharpness_amount;
+                params.sharpness = m_sharpness_amount->value();
                 params.nearPlane = m_nearz;
                 params.farPlane = m_farz;
                 params.verticalFOV = m_fov;
@@ -371,7 +389,7 @@ void TemporalUpscaler::on_early_present() {
                 params.renderSizeY = get_render_height();
                 params.jitterOffsetX = m_jitter_offsets[evaluate_index][0];
                 params.jitterOffsetY = m_jitter_offsets[evaluate_index][1];
-                params.sharpness = m_sharpness_amount;
+                params.sharpness = m_sharpness_amount->value();
                 params.nearPlane = m_nearz;
                 params.farPlane = m_farz;
                 params.verticalFOV = m_fov;
@@ -504,7 +522,7 @@ bool TemporalUpscaler::init_upscale_features() {
     InitParams params{};
     params.id = get_evaluate_id(0);
     params.upscaleMethod = m_upscale_type;
-    params.qualityLevel = m_upscale_quality;
+    params.qualityLevel = m_upscale_quality->value();
     params.displaySizeX = out_w;
     params.displaySizeY = out_h;
     params.format = out_format;
@@ -512,7 +530,7 @@ bool TemporalUpscaler::init_upscale_features() {
     params.depthInverted = true;
     params.YAxisInverted = false;
     params.motionVetorsJittered = false;
-    params.enableSharpening = m_sharpness;
+    params.enableSharpening = m_sharpness->value();
     params.enableAutoExposure = false;
     m_upscaled_textures[0] = InitUpscaler(&params);
 
@@ -1239,7 +1257,7 @@ void TemporalUpscaler::update_extra_scene_layer() {
 }
 
 uint32_t TemporalUpscaler::get_render_width() const {
-    if (m_use_native_resolution) {
+    if (m_use_native_resolution->value()) {
         // we subtract 1 from the native res because
         // the game will create a separate color buffer we can use
         // otherwise it will be null.
@@ -1250,7 +1268,7 @@ uint32_t TemporalUpscaler::get_render_width() const {
 }
 
 uint32_t TemporalUpscaler::get_render_height() const {
-    if (m_use_native_resolution) {
+    if (m_use_native_resolution->value()) {
         return m_backbuffer_size[1] - 1;
     }
     
