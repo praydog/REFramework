@@ -142,6 +142,8 @@ bool Graphics::on_pre_gui_draw_element(REComponent* gui_element, void* primitive
             game_object->shouldDraw = false;
             return false;
 
+        case "AcBackGround"_fnv: // Various screens that show the game background
+        case "Gui_ArmouryTab"_fnv: // Typewriter storage
         case "Gui_ui3030"_fnv: // in inventory
         case "Gui_ui3040"_fnv: // just picked up an item
             if (game_object->shouldDraw && game_object->shouldUpdate) {
