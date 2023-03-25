@@ -133,6 +133,9 @@ void REFramework::hook_monitor() {
     }
 }
 
+typedef NTSTATUS (WINAPI* PFN_LdrLockLoaderLock)(ULONG Flags, ULONG *State, ULONG_PTR *Cookie);
+typedef NTSTATUS (WINAPI* PFN_LdrUnlockLoaderLock)(ULONG Flags, ULONG_PTR Cookie);
+
 REFramework::REFramework(HMODULE reframework_module)
     : m_reframework_module{reframework_module}
     , m_game_module{GetModuleHandle(0)}
@@ -271,7 +274,16 @@ REFramework::REFramework(HMODULE reframework_module)
 #endif
 
 #if defined(RE8) || defined(RE4)
-    utility::ThreadSuspender ___{};
+    ULONG_PTR loader_magic = 0;
+    auto lock_loader = (PFN_LdrLockLoaderLock)::GetProcAddress(ntdll, "LdrLockLoaderLock");
+    auto unlock_loader = (PFN_LdrUnlockLoaderLock)::GetProcAddress(ntdll, "LdrUnlockLoaderLock");
+
+    if (lock_loader != nullptr && unlock_loader != nullptr)
+        lock_loader(0, NULL, &loader_magic);
+    utility::ThreadSuspender suspender{};
+    if (lock_loader != nullptr && unlock_loader != nullptr)
+        unlock_loader(0, loader_magic);
+
     IntegrityCheckBypass::ignore_application_entries();
 
 #if defined(RE8) || defined(RE4)
@@ -283,6 +295,7 @@ REFramework::REFramework(HMODULE reframework_module)
     // Fixes new code added in RE4 only.
     IntegrityCheckBypass::immediate_patch_re4();
 #endif
+    suspender.resume();
 #endif
 
     // Hooking D3D12 initially because we need to retrieve the command queue before the first frame then switch to D3D11 if it failed later
