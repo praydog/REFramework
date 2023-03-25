@@ -95,7 +95,9 @@ void TemporalUpscaler::on_draw_ui() {
     }
 
     if (!m_backend_loaded) {
-        ImGui::Text("Backend is not loaded, TemporalUpscaler will not work.");
+        ImGui::TextWrapped("Backend is not loaded, TemporalUpscaler will not work.");
+        ImGui::TextWrapped("Make sure you've downloaded UpscalerBasePlugin (PDPerfPlugin.dll)");
+        ImGui::TextWrapped("And the corresponding DLLs for your preferred upscaler(s) (DLSS/FSR2/XeSS)");
         return;
     }
 
@@ -104,9 +106,6 @@ void TemporalUpscaler::on_draw_ui() {
     if (!ready()) {
         return;
     }
-
-    ImGui::Checkbox("Upscale", &m_upscale);
-    ImGui::Checkbox("Jitter", &m_jitter);
     
     if (ImGui::Checkbox("Use Native Res (DLAA)", &m_use_native_resolution)) {
         update_motion_scale();
@@ -116,32 +115,11 @@ void TemporalUpscaler::on_draw_ui() {
         release_upscale_features();
         init_upscale_features();
     }
-    
-    ImGui::Checkbox("Allow Engine TAA", &m_allow_taa);
-
-    if (ImGui::SliderInt("Displayed Scene", &m_displayed_scene, 0, 1)) {
-
-    }
-
-    ImGui::DragFloat("Jitter Scale X", &m_jitter_scale[0], 0.01f, -5.0f, 5.0f);
-    ImGui::DragFloat("Jitter Scale Y", &m_jitter_scale[1], 0.01f, -5.0f, 5.0f);
 
     ImGui::DragFloat("Sharpness Amount", &m_sharpness_amount, 0.01f, 0.0f, 5.0f);
 
     const auto w = (float)get_render_width();
     const auto h = (float)get_render_height();
-
-    if (ImGui::DragFloat("MotionScale X", &m_motion_scale[0], 0.01f, -w, w) ||
-        ImGui::DragFloat("MotionScale Y", &m_motion_scale[1], 0.01f, -h, h)) 
-    {
-        SetMotionScaleX(get_evaluate_id(0), (float)m_motion_scale[0]);
-        SetMotionScaleY(get_evaluate_id(0), (float)m_motion_scale[1]);
-
-        if (VR::get()->is_hmd_active()) {
-            SetMotionScaleX(get_evaluate_id(1), (float)m_motion_scale[0]);
-            SetMotionScaleY(get_evaluate_id(1), (float)m_motion_scale[1]);
-        }
-    }
 
     std::vector<const char*> imgui_combo_names{};
 
@@ -166,6 +144,32 @@ void TemporalUpscaler::on_draw_ui() {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         release_upscale_features();
         init_upscale_features();
+    }
+
+    ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+
+    if (ImGui::TreeNode("Debug Options")) {
+        ImGui::Checkbox("Upscale", &m_upscale);
+        ImGui::Checkbox("Jitter", &m_jitter);
+        ImGui::Checkbox("Allow Engine TAA", &m_allow_taa);
+
+        ImGui::SliderInt("Displayed Scene", &m_displayed_scene, 0, 1);
+        ImGui::DragFloat("Jitter Scale X", &m_jitter_scale[0], 0.01f, -5.0f, 5.0f);
+        ImGui::DragFloat("Jitter Scale Y", &m_jitter_scale[1], 0.01f, -5.0f, 5.0f);
+
+        if (ImGui::DragFloat("MotionScale X", &m_motion_scale[0], 0.01f, -w, w) ||
+            ImGui::DragFloat("MotionScale Y", &m_motion_scale[1], 0.01f, -h, h)) 
+        {
+            SetMotionScaleX(get_evaluate_id(0), (float)m_motion_scale[0]);
+            SetMotionScaleY(get_evaluate_id(0), (float)m_motion_scale[1]);
+
+            if (VR::get()->is_hmd_active()) {
+                SetMotionScaleX(get_evaluate_id(1), (float)m_motion_scale[0]);
+                SetMotionScaleY(get_evaluate_id(1), (float)m_motion_scale[1]);
+            }
+        }
+
+        ImGui::TreePop();
     }
 }
 
