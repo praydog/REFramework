@@ -3913,98 +3913,133 @@ void ObjectExplorer::populate_classes() {
 }
 
 void ObjectExplorer::populate_enums() {
+    bool has_enums = false;
+
 #if TDB_VER > 49
-
-    std::ofstream out_file(REFramework::get_persistent_dir("Enums_Internal.hpp"));
-
-
     auto ref = utility::scan(g_framework->get_module().as<HMODULE>(), "66 C7 40 18 01 01 48 89 05 ? ? ? ?");
-    auto& l = *(std::map<uint64_t, REEnumData>*)(utility::calculate_absolute(*ref + 9));
-    spdlog::info("EnumList: {:x}", (uintptr_t)&l);
 
-    spdlog::info("Size: {}", l.size());
+    if (ref) {
+        std::ofstream out_file(REFramework::get_persistent_dir("Enums_Internal.hpp"));
 
-    for (auto& elem : l) {
-        spdlog::info(" {:x}[ {} {} ]", (uintptr_t)&elem, elem.first, elem.second.name);
+        auto& l = *(std::map<uint64_t, REEnumData>*)(utility::calculate_absolute(*ref + 9));
+        spdlog::info("EnumList: {:x}", (uintptr_t)&l);
+        spdlog::info("Size: {}", l.size());
 
-        std::string name = elem.second.name;
-        std::string nspace = name.substr(0, name.find_last_of("."));
-        name = name.substr(name.find_last_of(".") + 1);
+        has_enums = l.size() > 0;
 
-        for (auto pos = nspace.find("."); pos != std::string::npos; pos = nspace.find(".")) {
-            nspace.replace(pos, 1, "::");
+        for (auto& elem : l) {
+            spdlog::info(" {:x}[ {} {} ]", (uintptr_t)&elem, elem.first, elem.second.name);
+
+            std::string name = elem.second.name;
+            std::string nspace = name.substr(0, name.find_last_of("."));
+            name = name.substr(name.find_last_of(".") + 1);
+
+            for (auto pos = nspace.find("."); pos != std::string::npos; pos = nspace.find(".")) {
+                nspace.replace(pos, 1, "::");
+            }
+
+
+            out_file << "namespace " << nspace << " {" << std::endl;
+            out_file << "    enum " << name << " {" << std::endl;
+
+            for (auto node = elem.second.values; node != nullptr; node = node->next) {
+                if (node->name == nullptr) {
+                    continue;
+                }
+
+                spdlog::info("     {} = {}", node->name, node->value);
+                out_file << "        " << node->name << " = " << node->value << "," << std::endl;
+
+                m_enums.emplace(elem.second.name, EnumDescriptor{ node->name, node->value });
+            }
+
+            out_file << "    };" << std::endl;
+            out_file << "}" << std::endl;
         }
+    } else {
+        spdlog::error("Failed to find EnumList");
+    }
+#endif
 
+    if (!has_enums) {
+        std::ofstream out_file(REFramework::get_persistent_dir("Enums_Internal.hpp"));
 
-        out_file << "namespace " << nspace << " {" << std::endl;
-        out_file << "    enum " << name << " {" << std::endl;
+        std::vector<sdk::RETypeDefinition*> enum_types{};
+        auto tdb = sdk::RETypeDB::get();
 
-        for (auto node = elem.second.values; node != nullptr; node = node->next) {
-            if (node->name == nullptr) {
+        for (uint32_t i = 0; i < tdb->numTypes; ++i) {
+            auto t = tdb->get_type(i);
+            auto parent_t = t->get_parent_type();
+
+            if (parent_t == nullptr) {
                 continue;
             }
 
-            spdlog::info("     {} = {}", node->name, node->value);
-            out_file << "        " << node->name << " = " << node->value << "," << std::endl;
-
-            m_enums.emplace(elem.second.name, EnumDescriptor{ node->name, node->value });
-        }
-
-        out_file << "    };" << std::endl;
-        out_file << "}" << std::endl;
-    }
-#else
-    std::vector<sdk::RETypeDefinition*> enum_types{};
-    auto tdb = sdk::RETypeDB::get();
-
-    for (uint32_t i = 0; i < tdb->numTypes; ++i) {
-        auto t = tdb->get_type(i);
-        auto parent_t = t->get_parent_type();
-
-        if (parent_t == nullptr) {
-            continue;
-        }
-
-        if (parent_t->get_full_name() == "System.Enum") {
-            spdlog::info("ENUM {}", t->get_full_name().c_str());
-            enum_types.push_back(t);
-
-            auto fields = t->get_fields();
-
-            for (auto f : fields) {
-                const auto field_flags = f->get_flags();
-
-                if ((field_flags & (uint16_t)via::clr::FieldFlag::Static) != 0 && (field_flags & (uint16_t)via::clr::FieldFlag::Literal) != 0) {
-                    auto raw_data = f->get_data_raw(nullptr, true);
-                    int64_t enum_data = 0;
-
-                    switch(t->get_valuetype_size()) {
-                        case 1:
-                            enum_data = (int64_t)*(int8_t*)raw_data;
-                            break;
-                        case 2:
-                            enum_data = (int64_t)*(int16_t*)raw_data;
-                            break;
-                        case 4:
-                            enum_data = (int64_t)*(int32_t*)raw_data;
-                            break;
-                        case 8:
-                            enum_data = *(int64_t*)raw_data;
-                            break;
-                        default:
-                            spdlog::error("Unknown enum size: {}", t->get_valuetype_size());
-                            break;
-                    }
-
-                    m_enums.emplace(t->get_full_name(), EnumDescriptor{ f->get_name(), enum_data });
-
-                    // Log
-                    spdlog::info(" {} = {}", f->get_name(), enum_data);
+            if (parent_t->get_full_name() == "System.Enum") {
+                auto full_name = t->get_full_name();
+                if (full_name.empty()) {
+                    continue;
                 }
+
+                // Remove template arguments and other garbage.
+                if (auto pos = full_name.find_first_of("`"); pos != std::string::npos) {
+                    full_name = full_name.substr(0, pos);
+                }
+                
+                auto nspace = full_name.substr(0, full_name.find_last_of("."));
+                const auto name = t->get_name();
+
+                for (auto pos = nspace.find("."); pos != std::string::npos; pos = nspace.find(".")) {
+                    nspace.replace(pos, 1, "::");
+                }
+
+                out_file << "namespace " << nspace << " {" << std::endl;
+                out_file << "    enum " << name << " {" << std::endl;
+
+                spdlog::info("ENUM {}", t->get_full_name().c_str());
+                enum_types.push_back(t);
+                auto fields = t->get_fields();
+
+                for (auto f : fields) {
+                    const auto field_flags = f->get_flags();
+
+                    if ((field_flags & (uint16_t)via::clr::FieldFlag::Static) != 0 && (field_flags & (uint16_t)via::clr::FieldFlag::Literal) != 0) {
+                        auto raw_data = f->get_data_raw(nullptr, true);
+                        int64_t enum_data = 0;
+
+                        switch(t->get_valuetype_size()) {
+                            case 1:
+                                enum_data = (int64_t)*(int8_t*)raw_data;
+                                break;
+                            case 2:
+                                enum_data = (int64_t)*(int16_t*)raw_data;
+                                break;
+                            case 4:
+                                enum_data = (int64_t)*(int32_t*)raw_data;
+                                break;
+                            case 8:
+                                enum_data = *(int64_t*)raw_data;
+                                break;
+                            default:
+                                spdlog::error("Unknown enum size: {}", t->get_valuetype_size());
+                                break;
+                        }
+
+                        m_enums.emplace(t->get_full_name(), EnumDescriptor{ f->get_name(), enum_data });
+
+                        // Log
+                        spdlog::info(" {} = {}", f->get_name(), enum_data);
+
+                        // Write to file
+                        out_file << "        " << f->get_name() << " = " << enum_data << "," << std::endl;
+                    }
+                }
+
+                out_file << "    };" << std::endl;
+                out_file << "}" << std::endl;
             }
         }
     }
-#endif
 }
 
 void ObjectExplorer::init() {
