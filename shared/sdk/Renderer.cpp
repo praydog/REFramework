@@ -1055,6 +1055,16 @@ REManagedObject*& layer::Output::get_scene_view() {
     return *(REManagedObject**)((uintptr_t)get_present_state() + scene_view_offset);
 }
 
+uint32_t layer::Scene::get_view_id() const {
+    static auto get_view_id_method = sdk::find_method_definition("via.render.layer.Scene", "get_ViewID");
+
+    if (get_view_id_method == nullptr) {
+        return 0;
+    }
+
+    return get_view_id_method->call<uint32_t>(sdk::get_thread_context(), this);
+}
+
 sdk::renderer::SceneInfo* layer::Scene::get_scene_info() {
     return utility::re_managed_object::get_field<SceneInfo*>(this, "SceneInfo");
 }

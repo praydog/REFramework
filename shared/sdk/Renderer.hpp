@@ -277,6 +277,8 @@ public:
 
 class Scene : public sdk::renderer::RenderLayer {
 public:
+    uint32_t get_view_id() const;
+
     sdk::renderer::SceneInfo* get_scene_info();
     sdk::renderer::SceneInfo* get_depth_distortion_scene_info();
     sdk::renderer::SceneInfo* get_filter_scene_info();

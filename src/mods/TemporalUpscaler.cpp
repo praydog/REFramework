@@ -81,7 +81,7 @@ void TemporalUpscaler::on_config_load(const utility::Config& cfg) {
     for (IModValue& option : m_options) {
         option.config_load(cfg);
     }
-    
+
     if (!ready()) {
         return;
     }
@@ -727,6 +727,12 @@ void TemporalUpscaler::on_scene_layer_update(sdk::renderer::layer::Scene* layer,
         return;
     }
 
+    // Other layers appear when using scopes or mirrors are displayed
+    // TODO: Fix this for new VR rendering method which creates another scene layer
+    if (layer->get_view_id() != 0) {
+        return;
+    }
+
     auto scene_info = layer->get_scene_info();
     auto depth_distortion_scene_info = layer->get_depth_distortion_scene_info();
     auto filter_scene_info = layer->get_filter_scene_info();
@@ -926,21 +932,41 @@ void TemporalUpscaler::on_pre_application_entry(void* entry, const char* name, s
             auto [output_parent, output_layer] = root_layer->find_layer_recursive("via.render.layer.Output");
             auto scene_layers = (*output_layer)->find_layers(sdk::find_type_definition("via.render.layer.Scene")->get_type());
 
-            if (scene_layers.size() > 1) {
+            if (scene_layers.empty()) {
+                return;
+            }
+
+            std::vector<sdk::renderer::layer::Scene*> valid_scene_layers{};
+
+            // Only grab the "main" scene layers.
+            for (const auto layer : scene_layers) {
+                const auto scene_layer = (sdk::renderer::layer::Scene*)layer;
+                if (scene_layer->get_view_id() == 0) { // TODO: Fix for new rendering method in VR
+                    valid_scene_layers.push_back(scene_layer);
+                }
+            }
+
+            // At least give it one scene layer to work with
+            if (valid_scene_layers.empty()) {
+                valid_scene_layers.push_back((sdk::renderer::layer::Scene*)scene_layers[0]);
+            }
+
+            if (valid_scene_layers.size() > 1) {
                 if (!is_vr_multipass) {
                     if (m_displayed_scene == 0) {
-                        m_eye_states[0].scene_layer = (sdk::renderer::layer::Scene*)scene_layers[0];
+                        m_eye_states[0].scene_layer = (sdk::renderer::layer::Scene*)valid_scene_layers[0];
                     } else {
-                        m_eye_states[0].scene_layer = (sdk::renderer::layer::Scene*)scene_layers[1];
+                        m_eye_states[0].scene_layer = (sdk::renderer::layer::Scene*)valid_scene_layers[1];
                     }
 
                     m_eye_states[1].scene_layer = nullptr;
                 } else {
-                    m_eye_states[0].scene_layer = (sdk::renderer::layer::Scene*)scene_layers[0];
-                    m_eye_states[1].scene_layer = (sdk::renderer::layer::Scene*)scene_layers[1];
+                    // Go through the scene layers and only locate the ones that are not marked independent
+                    m_eye_states[0].scene_layer = (sdk::renderer::layer::Scene*)valid_scene_layers[0];
+                    m_eye_states[1].scene_layer = (sdk::renderer::layer::Scene*)valid_scene_layers[1];
                 }
             } else {
-                m_eye_states[0].scene_layer = (sdk::renderer::layer::Scene*)scene_layers[0];
+                m_eye_states[0].scene_layer = (sdk::renderer::layer::Scene*)valid_scene_layers[0];
                 m_eye_states[1].scene_layer = nullptr;
             }
 
