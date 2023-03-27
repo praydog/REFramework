@@ -729,7 +729,8 @@ void TemporalUpscaler::on_scene_layer_update(sdk::renderer::layer::Scene* layer,
 
     // Other layers appear when using scopes or mirrors are displayed
     // TODO: Fix this for new VR rendering method which creates another scene layer
-    if (layer->get_view_id() != 0) {
+    //if (layer->get_view_id() != 0) {
+    if (layer != m_eye_states[0].scene_layer) {
         return;
     }
 
@@ -933,6 +934,8 @@ void TemporalUpscaler::on_pre_application_entry(void* entry, const char* name, s
             auto scene_layers = (*output_layer)->find_layers(sdk::find_type_definition("via.render.layer.Scene")->get_type());
 
             if (scene_layers.empty()) {
+                m_eye_states[0].scene_layer = nullptr;
+                m_eye_states[1].scene_layer = nullptr;
                 return;
             }
 
