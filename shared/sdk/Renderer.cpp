@@ -898,6 +898,33 @@ C7 44 24 30 01 00 00 00                       mov     [rsp+78h+var_48], 1
 C7 44 24 20 1C 00 00 00                       mov     [rsp+78h+var_58], 1Ch
 E8 89 EB 78 00                                call    create_render_target_view
 */
+
+// In RE4+:
+/*
+- 0x269 CircularDOF_NearCOCFilteredHQ
+- 0x266 CircularDOF_NearCOCMaskForTile
++ 0x261 CircularDOF_WorkComponent0Re
+- 0x235 tSrc
++ 0x212 Wrinkle_CheapBlur
++ 0x212 Echo
+- 0x1F1 CircularDOF_NearCOCMaskForTileHQ
++ 0x1F0 CircularDOF_WorkComponent0Im
+- 0x1D0 CircularDOF_NearCOCFiltered
+- 0x19A EchoParam
++ 0x15B width=%u,height=%u,depth=%u,mip=%u,array=%u,format=%u,usage=%u,bind=%u
+- 0x15A PrevLDRImage
+- 0x149 CircularDOF_NearCOCFilteredHQ
+- 0x11A LDRImage
++ 0xC3 width=%u,height=%u,depth=%u,mip=%u,array=%u,format=%u,usage=%u,bind=%u
+*/
+/*
+4C 8D 45 B8                                   lea     r8, [rbp+40h+var_88]
+49 8B CE                                      mov     rcx, r14
+E8 ? ? ? ?                                    call    create_render_target_view
+48 8B 8F F0 04 00 00                          mov     rcx, [rdi+4F0h]
+48 8B D8                                      mov     rbx, rax
+4C 89 BF F0 04 00 00                          mov     [rdi+4F0h], r15
+*/
 RenderTargetView* create_render_target_view(sdk::renderer::RenderResource* resource, void* desc) {
     static auto fn = []() -> RenderTargetView* (*)(void*, sdk::renderer::RenderResource* resource, void*) {
         spdlog::info("Searching for create_render_target_view");
@@ -906,11 +933,22 @@ RenderTargetView* create_render_target_view(sdk::renderer::RenderResource* resou
         const auto ref = utility::scan(game, "44 89 7C 24 2C C7 44 24 20 1C 00 00 00 E8 ? ? ? ?");
 
         if (!ref) {
+            spdlog::info("Could not find first ref, performing fallback scan");
+            const auto ref2 = utility::scan(game, "4C 8D 45 B8 49 8B CE E8 ? ? ? ?");
+
+            if (ref2) {
+                const auto result = (RenderTargetView* (*)(void*, sdk::renderer::RenderResource*, void*))utility::calculate_absolute(*ref2 + 8);
+                spdlog::info("Found create_render_target_view: {:x}", (uintptr_t)result);
+
+                return result;
+            }
+
             spdlog::error("Failed to find create_render_target_view (no ref)");
             return nullptr;
         }
 
         const auto result = (RenderTargetView* (*)(void*, sdk::renderer::RenderResource*, void*))utility::calculate_absolute(*ref + 14);
+        spdlog::info("Found create_render_target_view: {:x}", (uintptr_t)result);
 
         return result;
     }();
