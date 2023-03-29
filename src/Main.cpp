@@ -81,7 +81,7 @@ void startup_thread(HMODULE reframework_module) {
 
 BOOL APIENTRY DllMain(HANDLE handle, DWORD reason, LPVOID reserved) {
     if (reason == DLL_PROCESS_ATTACH) {
-        CreateRemoteThread(INVALID_HANDLE_VALUE, nullptr, 0, (LPTHREAD_START_ROUTINE)startup_thread, handle, 0, nullptr);
+        CreateThread(nullptr, 0, (LPTHREAD_START_ROUTINE)startup_thread, handle, 0, nullptr);
     }
 
     return TRUE;
