@@ -108,7 +108,7 @@ void RE8VR::on_lua_state_destroyed(sol::state& lua) {
 }
 
 void RE8VR::on_draw_ui() {
-    ImGui::SetNextTreeNodeOpen(false, ImGuiCond_::ImGuiCond_FirstUseEver);
+    ImGui::SetNextItemOpen(false, ImGuiCond_::ImGuiCond_FirstUseEver);
 
     if (!ImGui::CollapsingHeader(get_name().data())) {
         return;

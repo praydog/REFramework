@@ -331,7 +331,7 @@ ObjectExplorer::ObjectExplorer()
 }
 
 void ObjectExplorer::on_draw_dev_ui() {
-    ImGui::SetNextTreeNodeOpen(false, ImGuiCond_::ImGuiCond_Once);
+    ImGui::SetNextItemOpen(false, ImGuiCond_::ImGuiCond_Once);
 
     if (m_do_init) {
         init();
@@ -430,7 +430,7 @@ void ObjectExplorer::on_draw_dev_ui() {
                 continue;
             }
 
-            ImGui::SetNextTreeNodeOpen(false, ImGuiCond_::ImGuiCond_Once);
+            ImGui::SetNextItemOpen(false, ImGuiCond_::ImGuiCond_Once);
 
             auto made_node = ImGui::TreeNode(t->name);
             context_menu(obj);
@@ -2065,7 +2065,7 @@ void ObjectExplorer::handle_address(Address address, int32_t offset, Address par
 
 
     if (offset != -1) {
-        ImGui::SetNextTreeNodeOpen(false, ImGuiCond_::ImGuiCond_Once);
+        ImGui::SetNextItemOpen(false, ImGuiCond_::ImGuiCond_Once);
 
         made_node = stretched_tree_node(parent.get(offset), "0x%X:", offset);
         auto is_hovered = ImGui::IsItemHovered();
