@@ -725,7 +725,7 @@ std::optional<std::string> PluginLoader::on_initialize() {
 }
 
 void PluginLoader::on_draw_ui() {
-    ImGui::SetNextTreeNodeOpen(false, ImGuiCond_Once);
+    ImGui::SetNextItemOpen(false, ImGuiCond_Once);
 
     if (ImGui::CollapsingHeader(get_name().data())) {
         std::scoped_lock _{m_mux};
