@@ -81,6 +81,9 @@ alias = "spdlog::spdlog"
 type = "static"
 sources = ["dependencies/glm/glm/**.cpp"]
 include-directories = ["dependencies/glm"]
+compile-definitions = [
+    "GLM_FORCE_QUAT_DATA_XYZW",
+]
 condition = "build-framework-dependencies"
 
 [target.minhook]
