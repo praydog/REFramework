@@ -187,6 +187,8 @@ void TemporalUpscaler::on_draw_ui() {
             }
         }
 
+        ImGui::Text("OptimalBias: %f", GetOptimalMipmapBias(get_evaluate_id(0)));
+
         ImGui::TreePop();
     }
 }
