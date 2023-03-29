@@ -9,4 +9,4 @@
 	url = https://github.com/gabime/spdlog.git
 [submodule "dependencies/glm"]
 	path = dependencies/glm
-	url = https://github.com/g-truc/glm
+	url = https://github.com/g-truc/glm.git
