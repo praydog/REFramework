@@ -34,7 +34,7 @@ void FreeCam::on_frame() {
 }
 
 void FreeCam::on_draw_ui() {
-    ImGui::SetNextTreeNodeOpen(false, ImGuiCond_::ImGuiCond_FirstUseEver);
+    ImGui::SetNextItemOpen(false, ImGuiCond_::ImGuiCond_FirstUseEver);
 
     if (!ImGui::CollapsingHeader(get_name().data())) {
         return;

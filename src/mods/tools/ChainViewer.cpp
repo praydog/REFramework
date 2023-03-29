@@ -60,7 +60,7 @@ void ChainViewer::on_config_save(utility::Config& cfg) {
 
 
 void ChainViewer::on_draw_dev_ui() {
-    ImGui::SetNextTreeNodeOpen(false, ImGuiCond_::ImGuiCond_Once);
+    ImGui::SetNextItemOpen(false, ImGuiCond_::ImGuiCond_Once);
 
     if (!ImGui::CollapsingHeader(get_name().data())) {
         return;
@@ -317,7 +317,7 @@ void ChainViewer::on_frame() {
                         if (made) {
                             ImGui::PushID(&collider);
                             
-                            ImGui::SetNextTreeNodeOpen(true, ImGuiCond_::ImGuiCond_Once);
+                            ImGui::SetNextItemOpen(true, ImGuiCond_::ImGuiCond_Once);
 
                         #if TDB_VER >= 69 && !defined(MHRISE_CHAIN70)
                             if (ImGui::TreeNode(&collider, "Collision %d %d", i, j)) {

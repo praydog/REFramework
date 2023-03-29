@@ -3584,12 +3584,12 @@ void VR::openvr_input_to_re_engine() {
 void VR::on_draw_ui() {
     // create VR tree entry in menu (imgui)
     if (get_runtime()->loaded) {
-        ImGui::SetNextTreeNodeOpen(m_has_hw_scheduling, ImGuiCond_::ImGuiCond_FirstUseEver);
+        ImGui::SetNextItemOpen(m_has_hw_scheduling, ImGuiCond_::ImGuiCond_FirstUseEver);
     } else {
         if (m_openvr->error && !m_openvr->dll_missing) {
-            ImGui::SetNextTreeNodeOpen(true, ImGuiCond_::ImGuiCond_FirstUseEver);
+            ImGui::SetNextItemOpen(true, ImGuiCond_::ImGuiCond_FirstUseEver);
         } else {
-            ImGui::SetNextTreeNodeOpen(false, ImGuiCond_::ImGuiCond_FirstUseEver);
+            ImGui::SetNextItemOpen(false, ImGuiCond_::ImGuiCond_FirstUseEver);
         }
     }
 

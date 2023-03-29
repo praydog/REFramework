@@ -711,7 +711,7 @@ void ScriptRunner::on_frame() {
 }
 
 void ScriptRunner::on_draw_ui() {
-    ImGui::SetNextTreeNodeOpen(false, ImGuiCond_::ImGuiCond_Once);
+    ImGui::SetNextItemOpen(false, ImGuiCond_::ImGuiCond_Once);
 
     if (ImGui::CollapsingHeader(get_name().data())) {
         if (ImGui::Button("Run script")) {
