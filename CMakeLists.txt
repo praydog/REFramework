@@ -173,10 +173,6 @@ if(REF_BUILD_DEPENDENCIES AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework-dep
 
 	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${glm_static_SOURCES})
 
-	target_compile_definitions(glm_static PUBLIC
-		GLM_FORCE_QUAT_DATA_XYZW
-	)
-
 	target_include_directories(glm_static PUBLIC
 		"dependencies/glm"
 	)
