@@ -16,7 +16,7 @@ void Graphics::on_config_save(utility::Config& cfg) {
 }
 
 void Graphics::on_draw_ui() {
-    ImGui::SetNextTreeNodeOpen(false, ImGuiCond_::ImGuiCond_FirstUseEver);
+    ImGui::SetNextItemOpen(false, ImGuiCond_::ImGuiCond_FirstUseEver);
     if (!ImGui::CollapsingHeader(get_name().data())) {
         return;
     }

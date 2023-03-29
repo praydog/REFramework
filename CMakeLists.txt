@@ -117,10 +117,10 @@ if(REF_BUILD_DEPENDENCIES AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework-dep
 
 	list(APPEND spdlog_SOURCES
 		"dependencies/spdlog/src/async.cpp"
+		"dependencies/spdlog/src/bundled_fmtlib_format.cpp"
 		"dependencies/spdlog/src/cfg.cpp"
 		"dependencies/spdlog/src/color_sinks.cpp"
 		"dependencies/spdlog/src/file_sinks.cpp"
-		"dependencies/spdlog/src/fmt.cpp"
 		"dependencies/spdlog/src/spdlog.cpp"
 		"dependencies/spdlog/src/stdout_sinks.cpp"
 	)

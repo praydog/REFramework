@@ -73,7 +73,7 @@ bool DInputHook::hook() {
     // Get the addresses of the methods we want to hook.
     auto get_device_state = (*(uintptr_t**)device)[9];
 
-    spdlog::info("Got IDirectInputDevice::GetDeviceState {:p}", get_device_state);
+   // spdlog::info("Got IDirectInputDevice::GetDeviceState {:p}", get_device_state);
 
     device->Release();
     dinput->Release();

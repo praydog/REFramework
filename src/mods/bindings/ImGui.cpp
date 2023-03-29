@@ -867,19 +867,19 @@ Vector2f get_mouse() {
 }
 
 int get_key_index(int imgui_key) {
-    return ImGui::GetKeyIndex(imgui_key);
+    return ImGui::GetKeyIndex((ImGuiKey)imgui_key);
 }
 
 bool is_key_down(int key) {
-    return ImGui::IsKeyDown(key);
+    return ImGui::IsKeyDown((ImGuiKey)key);
 }
 
 bool is_key_pressed(int key) {
-    return ImGui::IsKeyPressed(key);
+    return ImGui::IsKeyPressed((ImGuiKey)key);
 }
 
 bool is_key_released(int key) {
-    return ImGui::IsKeyReleased(key);
+    return ImGui::IsKeyReleased((ImGuiKey)key);
 }
 
 bool is_mouse_down(int button) {
