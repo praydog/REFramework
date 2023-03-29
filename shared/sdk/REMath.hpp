@@ -21,9 +21,9 @@ static vec3 euler_angles(const glm::mat4& rot) {
     float pitch = 0.0f;
     float yaw = 0.0f;
     float roll = 0.0f;
-    glm::extractEulerAngleYZX(rot, yaw, roll, pitch);
+    glm::extractEulerAngleYXZ(rot, yaw, pitch, roll);
 
-    return { pitch, yaw, roll };
+    return { pitch, -yaw, -roll };
 }
 
 static float fix_angle(float ang) {
