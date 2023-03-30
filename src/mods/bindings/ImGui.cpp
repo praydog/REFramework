@@ -1345,7 +1345,7 @@ std::optional<Vector2f> world_to_screen(sol::object world_pos_object) {
     float screen_size[2]{};
     sdk::call_object_func<void*>(camera, "get_ProjectionMatrix", &proj, context, camera);
     sdk::call_object_func<void*>(camera, "get_ViewMatrix", &view, context, camera);
-    sdk::call_object_func<void*>(main_view, "get_Size", &screen_size, context, main_view);
+    sdk::call_object_func<void*>(main_view, "get_WindowSize", &screen_size, context, main_view);
 
     Vector4f screen_pos{};
 
