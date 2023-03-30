@@ -1085,7 +1085,8 @@ void REFramework::draw_ui() {
 
     ImGui::SetNextWindowPos(ImVec2(50, 50), ImGuiCond_::ImGuiCond_Once);
     ImGui::SetNextWindowSize(ImVec2(300, 500), ImGuiCond_::ImGuiCond_Once);
-    ImGui::Begin("REFramework", &m_draw_ui);
+    bool is_open = true;
+    ImGui::Begin("REFramework", &is_open);
     ImGui::Text("Default Menu Key: Insert");
     ImGui::Checkbox("Transparency", &m_ui_option_transparent);
     ImGui::SameLine();
@@ -1116,7 +1117,9 @@ void REFramework::draw_ui() {
     ImGui::End();
 
     // save the menu state in config
-    if (m_draw_ui != m_last_draw_ui) {
+    if (!is_open) {
+        set_draw_ui(is_open, true);
+    } else if (m_draw_ui != m_last_draw_ui) {
         set_draw_ui(m_draw_ui, true);
     }
 
