@@ -3649,6 +3649,11 @@ int32_t ObjectExplorer::get_field_offset(REManagedObject* obj, VariableDescripto
         return m_offset_map[desc];
     }
 
+    if (parent_hash == "via.render.ToneMapping"_fnv && (name_hash == "AutoExposureMinEV"_fnv || 
+                                                        name_hash == "HistogramMinEV"_fnv)) {
+        return m_offset_map[desc];
+    }
+
     auto thread_context = sdk::get_thread_context();
 
     // Set up our "translator" to throw on any exception,
