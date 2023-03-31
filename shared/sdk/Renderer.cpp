@@ -1103,6 +1103,36 @@ uint32_t layer::Scene::get_view_id() const {
     return get_view_id_method->call<uint32_t>(sdk::get_thread_context(), this);
 }
 
+RECamera* layer::Scene::get_camera() const {
+    static auto get_camera_method = sdk::find_method_definition("via.render.layer.Scene", "get_Camera");
+
+    if (get_camera_method == nullptr) {
+        return nullptr;
+    }
+
+    return get_camera_method->call<RECamera*>(sdk::get_thread_context(), this);
+}
+
+RECamera* layer::Scene::get_main_camera_if_possible() const {
+    const auto camera = get_camera();
+
+    if (camera == nullptr) {
+        return false;
+    }
+
+    const auto camera_gameobject = utility::re_component::get_game_object(camera);
+
+    if (camera_gameobject == nullptr) {
+        return false;
+    }
+
+    if (utility::re_string::get_view(camera_gameobject->name) == L"MainCamera") {
+        return camera;
+    }
+
+    return nullptr;
+}
+
 sdk::renderer::SceneInfo* layer::Scene::get_scene_info() {
     return utility::re_managed_object::get_field<SceneInfo*>(this, "SceneInfo");
 }

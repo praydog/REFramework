@@ -38,6 +38,10 @@ namespace via {
     struct Object {
         void* vtable;
     };
+
+    struct Camera 0x1000 {
+        int32_t priority @ 0x48
+    }
 };
 
 namespace via.clr {
@@ -1337,7 +1341,7 @@ struct TargetState : via.render.RenderResource 0x1000 {
 }
 
 namespace layer{
-struct Scene : via.render.RenderLayer 0x1560 {
+struct Scene : via.render.RenderLayer 0x1AC0 {
     via.Camera* camera;
     struct via.render.Mirror* mirror;
     struct via.render.TargetState* buffer_pre_z;
@@ -1351,6 +1355,8 @@ struct Scene : via.render.RenderLayer 0x1560 {
     struct via.render.TargetState* non_decal_g_buffer_target
     struct via.render.TargetState* post_main_target @ 0x138
     struct via.render.TargetState* post_depth_target @ 0x140
+
+    float lod_bias[2] @ 0x1818
 };
 
 struct PrepareOutput : via.render.RenderLayer 0x1000 {

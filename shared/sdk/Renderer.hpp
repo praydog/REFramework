@@ -278,6 +278,11 @@ public:
 class Scene : public sdk::renderer::RenderLayer {
 public:
     uint32_t get_view_id() const;
+    RECamera* get_camera() const;
+    RECamera* get_main_camera_if_possible() const;
+    bool has_main_camera() const {
+        return get_main_camera_if_possible() != nullptr;
+    }
 
     sdk::renderer::SceneInfo* get_scene_info();
     sdk::renderer::SceneInfo* get_depth_distortion_scene_info();
@@ -305,6 +310,21 @@ public:
     ID3D12Resource* get_g_buffer_target_d3d12() {
         return get_target_state_resource_d3d12("GBufferTarget");
     }
+
+    void set_lod_bias(float x, float y) {
+#ifdef RE4
+        *(float*)((uintptr_t)this + s_lod_bias_offset) = x;
+        *(float*)((uintptr_t)this + s_lod_bias_offset + 4) = y;
+#else
+#endif
+    }
+
+private:
+#ifdef RE4
+    constexpr static auto s_lod_bias_offset = 0x1818;
+#else // TODO
+    constexpr static auto s_lod_bias_offset = 0;
+#endif
 };
 
 class PrepareOutput : public sdk::renderer::RenderLayer {
