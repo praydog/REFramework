@@ -1117,13 +1117,13 @@ RECamera* layer::Scene::get_main_camera_if_possible() const {
     const auto camera = get_camera();
 
     if (camera == nullptr) {
-        return false;
+        return nullptr;
     }
 
     const auto camera_gameobject = utility::re_component::get_game_object(camera);
 
     if (camera_gameobject == nullptr) {
-        return false;
+        return nullptr;
     }
 
     if (utility::re_string::get_view(camera_gameobject->name) == L"MainCamera") {
