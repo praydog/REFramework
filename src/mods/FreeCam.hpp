@@ -17,6 +17,7 @@ public:
     void on_frame() override;
     void on_draw_ui() override;
     void on_update_transform(RETransform* transform) override;
+    void on_pre_application_entry(void* entry, const char* name, size_t hash) override;
 
 private:
     bool update_pointers();
@@ -70,4 +71,22 @@ private:
     bool m_was_disabled{ false };
 
     Vector3f m_custom_angles{};
+
+    RECamera* m_camera{nullptr};
+
+#ifdef RE4
+    struct {
+        bool attempted_hook{false};
+        std::optional<size_t> get_past_move_frame_move_dir_vec_id{};
+        std::optional<size_t> update_id{};
+        std::optional<size_t> late_update_id{};
+    } m_player_body_updater_hook{};
+
+    struct {
+        bool attempted_hook{false};
+        std::optional<size_t> change_motion_internal_id{};
+    } m_player_motion_controller_hook{};
+
+    REManagedObject* m_re4_body{nullptr};
+#endif
 };
