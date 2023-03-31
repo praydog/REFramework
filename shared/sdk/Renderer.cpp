@@ -271,6 +271,40 @@ std::vector<RenderLayer*> RenderLayer::find_layers(::REType* layer_type) {
     return out;
 }
 
+std::vector<layer::Scene*> RenderLayer::find_all_scene_layers() {
+    static auto scene_type = sdk::find_type_definition("via.render.layer.Scene")->get_type();
+
+    if (scene_type == nullptr) {
+        return {};
+    }
+
+    auto layers = find_layers(scene_type);
+
+    if (layers.empty()) {
+        return {};
+    }
+
+    return *(std::vector<layer::Scene*>*)&layers;
+}
+
+std::vector<layer::Scene*> RenderLayer::find_fully_rendered_scene_layers() {
+    auto layers = find_all_scene_layers();
+
+    if (layers.empty()) {
+        return {};
+    }
+
+    std::erase_if(layers, [](auto& layer) {
+        return !layer->is_fully_rendered() || !layer->has_main_camera();
+    });
+
+    std::sort(layers.begin(), layers.end(), [](auto& a, auto& b) {
+        return a->get_view_id() < b->get_view_id();
+    });
+
+    return layers;
+}
+
 RenderLayer* RenderLayer::get_parent() {
     return sdk::call_object_func<RenderLayer*>(this, "get_Parent", sdk::get_thread_context(), this);
 }
@@ -1126,11 +1160,32 @@ RECamera* layer::Scene::get_main_camera_if_possible() const {
         return nullptr;
     }
 
-    if (utility::re_string::get_view(camera_gameobject->name) == L"MainCamera") {
+    if (utility::re_string::get_view(camera_gameobject->name) == L"MainCamera" ||
+        utility::re_string::get_view(camera_gameobject->name) == L"Main Camera") {
         return camera;
     }
 
     return nullptr;
+}
+
+REManagedObject* layer::Scene::get_mirror() const {
+    static auto get_mirror_method = sdk::find_method_definition("via.render.layer.Scene", "get_Mirror");
+
+    if (get_mirror_method == nullptr) {
+        return nullptr;
+    }
+
+    return get_mirror_method->call<REManagedObject*>(sdk::get_thread_context(), this);
+}
+
+bool layer::Scene::is_enabled() const {
+    static auto is_enabled_method = sdk::find_method_definition("via.render.layer.Scene", "get_Enable");
+
+    if (is_enabled_method == nullptr) {
+        return false;
+    }
+
+    return is_enabled_method->call<bool>(sdk::get_thread_context(), this);
 }
 
 sdk::renderer::SceneInfo* layer::Scene::get_scene_info() {

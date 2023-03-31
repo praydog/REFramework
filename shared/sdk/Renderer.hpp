@@ -13,6 +13,10 @@ struct ID3D12Resource;
 
 namespace sdk {
 namespace renderer {
+namespace layer {
+class Scene;
+}
+
 struct SceneInfo {
     Matrix4x4f view_projection_matrix;
     Matrix4x4f view_matrix;
@@ -186,6 +190,8 @@ public:
     std::tuple<RenderLayer*, RenderLayer**> find_layer_recursive(const ::REType* layer_type); // parent, type
     std::tuple<RenderLayer*, RenderLayer**> find_layer_recursive(std::string_view type_name); // parent, type
     std::vector<RenderLayer*> find_layers(::REType* layer_type);
+    std::vector<layer::Scene*> find_all_scene_layers();
+    std::vector<layer::Scene*> find_fully_rendered_scene_layers();
     
     RenderLayer* get_parent();
     RenderLayer* find_parent(::REType* layer_type);
@@ -280,8 +286,15 @@ public:
     uint32_t get_view_id() const;
     RECamera* get_camera() const;
     RECamera* get_main_camera_if_possible() const;
+    REManagedObject* get_mirror() const;
+    bool is_enabled() const;
+
     bool has_main_camera() const {
         return get_main_camera_if_possible() != nullptr;
+    }
+
+    bool is_fully_rendered() const {
+        return is_enabled() && get_mirror() == nullptr;
     }
 
     sdk::renderer::SceneInfo* get_scene_info();
