@@ -295,7 +295,7 @@ std::vector<layer::Scene*> RenderLayer::find_fully_rendered_scene_layers() {
     }
 
     std::erase_if(layers, [](auto& layer) {
-        return !layer->is_fully_rendered() || !layer->has_main_camera();
+        return !layer->is_fully_rendered();
     });
 
     std::sort(layers.begin(), layers.end(), [](auto& a, auto& b) {

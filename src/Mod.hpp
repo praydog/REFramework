@@ -365,6 +365,8 @@ protected:
     using ValueList = std::vector<std::reference_wrapper<IModValue>>;
 
 public:
+    using Component = Mod;
+
     virtual ~Mod() {};
     virtual std::string_view get_name() const { return "UnknownMod"; };
 

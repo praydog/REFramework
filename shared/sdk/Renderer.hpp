@@ -294,7 +294,7 @@ public:
     }
 
     bool is_fully_rendered() const {
-        return is_enabled() && get_mirror() == nullptr;
+        return is_enabled() && get_mirror() == nullptr && has_main_camera();
     }
 
     sdk::renderer::SceneInfo* get_scene_info();
