@@ -729,11 +729,19 @@ void TemporalUpscaler::on_scene_layer_update(sdk::renderer::layer::Scene* layer,
         return;
     }
 
+    auto& vr = VR::get();
+
     // Other layers appear when using scopes or mirrors are displayed
     // TODO: Fix this for new VR rendering method which creates another scene layer
-    //if (layer->get_view_id() != 0) {
-    if (layer != m_eye_states[0].scene_layer) {
+    if (!layer->is_fully_rendered() || !layer->has_main_camera()) {
         return;
+    }
+
+    // Multiple layers are not supported when not using VR
+    if (!vr->is_hmd_active() || !vr->is_using_multipass()) {
+        if (layer != m_eye_states[0].scene_layer) {
+            return;
+        }
     }
 
     auto scene_info = layer->get_scene_info();
@@ -742,8 +750,6 @@ void TemporalUpscaler::on_scene_layer_update(sdk::renderer::layer::Scene* layer,
     auto jitter_disable_scene_info = layer->get_jitter_disable_scene_info();
     auto jitter_disable_post_scene_info = layer->get_jitter_disable_post_scene_info();
     auto z_prepass_scene_info = layer->get_z_prepass_scene_info();
-
-    auto vr = VR::get();
 
     uint32_t vr_index = 0;
 
@@ -754,8 +760,7 @@ void TemporalUpscaler::on_scene_layer_update(sdk::renderer::layer::Scene* layer,
         auto output_layer = sdk::renderer::get_output_layer();
 
         if (output_layer != nullptr) {
-            static auto t = sdk::find_type_definition("via.render.layer.Scene")->get_type();
-            const auto scenes = output_layer->find_layers(t);
+            const auto scenes = output_layer->find_fully_rendered_scene_layers();
 
             if (!scenes.empty()) {
                 if (layer == scenes[0]) {
@@ -824,7 +829,7 @@ void TemporalUpscaler::on_scene_layer_update(sdk::renderer::layer::Scene* layer,
 }
 
 void TemporalUpscaler::on_overlay_layer_draw(sdk::renderer::layer::Overlay* layer, void* render_context) {
-    if (!ready() || !VR::get()->is_using_multipass()) {
+    if (!ready()) {
         return;
     }
 
@@ -861,7 +866,7 @@ void TemporalUpscaler::on_overlay_layer_draw(sdk::renderer::layer::Overlay* laye
 }
 
 void TemporalUpscaler::on_prepare_output_layer_draw(sdk::renderer::layer::PrepareOutput* layer, void* render_context) {
-    if (!ready() || !VR::get()->is_using_multipass()) {
+    if (!ready()) {
         return;
     }
 
@@ -922,7 +927,7 @@ void TemporalUpscaler::on_pre_application_entry(void* entry, const char* name, s
     }
 
     if (hash == "BeginRendering"_fnv) {
-        update_extra_scene_layer();
+        //update_extra_scene_layer();
     }
 
     if (hash == "EndRendering"_fnv) {
@@ -933,27 +938,12 @@ void TemporalUpscaler::on_pre_application_entry(void* entry, const char* name, s
 
         if (root_layer != nullptr) {
             auto [output_parent, output_layer] = root_layer->find_layer_recursive("via.render.layer.Output");
-            auto scene_layers = (*output_layer)->find_layers(sdk::find_type_definition("via.render.layer.Scene")->get_type());
+            auto valid_scene_layers = (*output_layer)->find_fully_rendered_scene_layers();
 
-            if (scene_layers.empty()) {
+            if (valid_scene_layers.empty()) {
                 m_eye_states[0].scene_layer = nullptr;
                 m_eye_states[1].scene_layer = nullptr;
                 return;
-            }
-
-            std::vector<sdk::renderer::layer::Scene*> valid_scene_layers{};
-
-            // Only grab the "main" scene layers.
-            for (const auto layer : scene_layers) {
-                const auto scene_layer = (sdk::renderer::layer::Scene*)layer;
-                if (scene_layer->get_view_id() == 0) { // TODO: Fix for new rendering method in VR
-                    valid_scene_layers.push_back(scene_layer);
-                }
-            }
-
-            // At least give it one scene layer to work with
-            if (valid_scene_layers.empty()) {
-                valid_scene_layers.push_back((sdk::renderer::layer::Scene*)scene_layers[0]);
             }
 
             if (valid_scene_layers.size() > 1) {
@@ -1162,7 +1152,7 @@ void TemporalUpscaler::update_extra_scene_layer() {
         return;
     }
 
-    auto scene_layers = output_layer->find_layers(sdk::find_type_definition("via.render.layer.Scene")->get_type());
+    auto scene_layers = output_layer->find_fully_rendered_scene_layers();
     if (scene_layers.empty()) {
         return;
     }
