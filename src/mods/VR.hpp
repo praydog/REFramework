@@ -21,6 +21,7 @@
 #include "vr/OverlayComponent.hpp"
 #include "vr/runtimes/OpenXR.hpp"
 #include "vr/runtimes/OpenVR.hpp"
+#include "vr/CameraDuplicator.hpp"
 
 #include "Mod.hpp"
 
@@ -221,6 +222,16 @@ public:
         m_last_crosshair_hide = std::chrono::steady_clock::now();
     }
 
+    void set_multipass_camera(RECamera* camera, uint32_t index) {
+        if (index >= 2) {
+            return;
+        }
+
+        m_multipass_cameras[index] = camera;
+    }
+
+    std::array<RECamera*, 2> get_cameras() const;
+
 private:
     Vector4f get_position_unsafe(uint32_t index) const;
     Vector4f get_velocity_unsafe(uint32_t index) const;
@@ -373,6 +384,8 @@ private:
     float m_nearz{ 0.1f };
     float m_farz{ 3000.0f };
 
+    std::array<RECamera*, 2> m_multipass_cameras{};
+
     std::shared_ptr<VRRuntime> m_runtime{std::make_shared<VRRuntime>()}; // will point to the real runtime if it exists
     std::shared_ptr<runtimes::OpenVR> m_openvr{std::make_shared<runtimes::OpenVR>()};
     std::shared_ptr<runtimes::OpenXR> m_openxr{std::make_shared<runtimes::OpenXR>()};
@@ -465,6 +478,7 @@ private:
     vrmod::D3D11Component m_d3d11{};
     vrmod::D3D12Component m_d3d12{};
     vrmod::OverlayComponent m_overlay_component{};
+    vrmod::CameraDuplicator m_camera_duplicator{};
 
     struct MultiPass {
         std::array<void*, 2> eye_textures{};

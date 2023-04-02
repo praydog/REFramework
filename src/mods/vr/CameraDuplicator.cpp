@@ -165,6 +165,10 @@ void CameraDuplicator::find_new_camera() {
         spdlog::info("Hooking getPrimaryCamera: {:x}", (uintptr_t)get_primary_camera_fn);
 
         g_hookman.add(get_primary_camera_fn, [this](std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys) {
+            if (m_new_camera == nullptr) {
+                return HookManager::PreHookResult::CALL_ORIGINAL;
+            }
+
             constexpr auto PRIORITY_OFFSET = 0x48;
             *(int32_t*)((uint8_t*)m_new_camera + PRIORITY_OFFSET) = -1; // causes the game to NOT use the new camera as the main camera
             

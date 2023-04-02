@@ -257,10 +257,15 @@ void VR::on_camera_get_view_matrix(REManagedObject* camera, Matrix4x4f* result) 
         return;
     }
 
-    if (camera != sdk::get_primary_camera()) {
+    auto cameras = get_cameras();
+
+    if (camera != cameras[0] && camera != cameras[1]) {
         return;
     }
 
+    // A little note on this. We can't actually use the camera (when using multipass) to detect how to adjust the view matrix
+    // For some reason, the game *always* uses the main camera when calling this function, even though it's rendering the other camera
+    // So we detect which pass is getting called and adjust the view matrix accordingly
     //if (!is_using_multipass()) {
         auto& mtx = *result;
 
@@ -465,6 +470,44 @@ bool VR::on_pre_scene_layer_update(sdk::renderer::layer::Scene* layer, void* ren
     if (!is_hmd_active()) {
         return true;
     }
+
+    if (!layer->is_fully_rendered()) {
+        return true;
+    }
+
+    if (is_using_multipass()) {
+        auto output_layer = sdk::renderer::get_output_layer();
+
+        if (output_layer != nullptr) {
+            const auto scenes = output_layer->find_fully_rendered_scene_layers();
+
+            if (!scenes.empty()) {
+                if (layer == scenes[0]) {
+                    if (auto main_camera = layer->get_main_camera_if_possible(); main_camera != nullptr) {
+                        m_multipass_cameras[0] = main_camera;
+                        m_multipass.pass = 0;
+                    }
+                } else {
+                    if (auto main_camera = layer->get_main_camera_if_possible(); main_camera != nullptr) {
+                        m_multipass_cameras[1] = main_camera;
+                        m_multipass.pass = 1;
+                    }
+                }
+            }
+        }
+    }
+
+    if (is_using_multipass()) {
+        auto camera = layer->get_camera();
+
+        if (camera != nullptr) {
+            if (m_multipass_cameras[0] != nullptr && m_multipass_cameras[1] != nullptr) {
+                if (camera != m_multipass_cameras[0] && camera != m_multipass_cameras[1]) {
+                    return false;
+                }
+            }
+        }
+    }
     
     auto scene_info = layer->get_scene_info();
     auto depth_distortion_scene_info = layer->get_depth_distortion_scene_info();
@@ -480,23 +523,6 @@ bool VR::on_pre_scene_layer_update(sdk::renderer::layer::Scene* layer, void* ren
     layer_data[3].setup(jitter_disable_scene_info);
     layer_data[4].setup(z_prepass_scene_info);
 
-    if (is_using_multipass()) {
-        auto output_layer = sdk::renderer::get_output_layer();
-
-        if (output_layer != nullptr) {
-            static auto t = sdk::find_type_definition("via.render.layer.Scene")->get_type();
-            const auto scenes = output_layer->find_layers(t);
-
-            if (!scenes.empty()) {
-                if (layer == scenes[0]) {
-                    m_multipass.pass = 0;
-                } else {
-                    m_multipass.pass = 1;
-                }
-            }
-        }
-    }
-
     return true;
 }
 
@@ -508,6 +534,10 @@ void VR::on_scene_layer_update(sdk::renderer::layer::Scene* layer, void* render_
     });
 
     if (!is_hmd_active()) {
+        return;
+    }
+
+    if (!layer->is_fully_rendered()) {
         return;
     }
 
@@ -1428,10 +1458,33 @@ void VR::update_hmd_state() {
     // This will massively improve HMD rotation smoothness for the user
     // if this is not done, the left eye will jitter a lot
 #if defined(RE2) || defined(RE3)
-    auto camera = sdk::get_primary_camera();
+    const auto cameras = get_cameras();
 
-    if (camera != nullptr && camera->ownerGameObject != nullptr && camera->ownerGameObject->transform != nullptr) {
-        FirstPerson::get()->on_update_transform(camera->ownerGameObject->transform);
+    for (auto camera : cameras) {
+        if (camera == nullptr) {
+            continue;
+        }
+
+        if (camera->ownerGameObject != nullptr && camera->ownerGameObject->transform != nullptr) {
+            if (camera == cameras[0]) {
+                FirstPerson::get()->on_update_transform(camera->ownerGameObject->transform);
+            } else if (cameras[0] != nullptr && cameras[0]->ownerGameObject != nullptr && cameras[0]->ownerGameObject->transform != nullptr) {
+                const auto first_camera_joint = utility::re_transform::get_joint(*cameras[0]->ownerGameObject->transform, 0);
+
+                if (first_camera_joint == nullptr) {
+                    continue;
+                }
+
+                const auto camera_joint = utility::re_transform::get_joint(*camera->ownerGameObject->transform, 0);
+
+                if (camera_joint == nullptr) {
+                    continue;
+                }
+
+                sdk::set_joint_position(camera_joint, sdk::get_joint_position(first_camera_joint));
+                sdk::set_joint_rotation(camera_joint, sdk::get_joint_rotation(first_camera_joint));
+            }
+        }
     }
 #endif
 }
@@ -1491,76 +1544,81 @@ void VR::update_camera() {
         return;
     }
 
-    auto camera = sdk::get_primary_camera();
+    auto cameras = get_cameras();
 
-    if (camera == nullptr) {
+    if (cameras[0] == nullptr) {
         spdlog::error("VR: Failed to get primary camera!");
         return;
     }
 
-    static auto via_camera = sdk::find_type_definition("via.Camera");
-    static auto get_near_clip_plane_method = via_camera->get_method("get_NearClipPlane");
-    static auto get_far_clip_plane_method = via_camera->get_method("get_FarClipPlane");
-    static auto set_far_clip_plane_method = via_camera->get_method("set_FarClipPlane");
-    static auto set_fov_method = via_camera->get_method("set_FOV");
-    static auto set_vertical_enable_method = via_camera->get_method("set_VerticalEnable");
-    static auto set_aspect_ratio_method = via_camera->get_method("set_AspectRatio");
-
-    if (m_use_custom_view_distance->value()) {
-        set_far_clip_plane_method->call<void*>(sdk::get_thread_context(), camera, m_view_distance->value());
-    }
-
-    m_nearz = get_near_clip_plane_method->call<float>(sdk::get_thread_context(), camera);
-    m_farz = get_far_clip_plane_method->call<float>(sdk::get_thread_context(), camera);
-
-    // Disable certain effects like the 3D overlay during the sewer gators
-    // section in RE7
-    disable_bad_effects();
-    // Disable lens distortion
-    set_lens_distortion(false);
-
-#if defined(RE2) || defined(RE3)
-    if (FirstPerson::get()->will_be_used()) {
-        m_needs_camera_restore = false;
-
-        auto camera_object = utility::re_component::get_game_object(camera);
-
-        if (camera_object == nullptr || camera_object->transform == nullptr) {
-            return;
+    for (auto camera : cameras) {
+        if (camera == nullptr) {
+            break;
         }
 
-        auto camera_joint = utility::re_transform::get_joint(*camera_object->transform, 0);
+        static auto via_camera = sdk::find_type_definition("via.Camera");
+        static auto get_near_clip_plane_method = via_camera->get_method("get_NearClipPlane");
+        static auto get_far_clip_plane_method = via_camera->get_method("get_FarClipPlane");
+        static auto set_far_clip_plane_method = via_camera->get_method("set_FarClipPlane");
+        static auto set_fov_method = via_camera->get_method("set_FOV");
+        static auto set_vertical_enable_method = via_camera->get_method("set_VerticalEnable");
+        static auto set_aspect_ratio_method = via_camera->get_method("set_AspectRatio");
 
-        if (camera_joint == nullptr) {
-            return;
+        if (m_use_custom_view_distance->value()) {
+            set_far_clip_plane_method->call<void*>(sdk::get_thread_context(), camera, m_view_distance->value());
         }
 
-        m_original_camera_position = sdk::get_joint_position(camera_joint);
-        m_original_camera_rotation = sdk::get_joint_rotation(camera_joint);
-        m_original_camera_matrix = Matrix4x4f{m_original_camera_rotation};
-        m_original_camera_matrix[3] = m_original_camera_position;
+        m_nearz = get_near_clip_plane_method->call<float>(sdk::get_thread_context(), camera);
+        m_farz = get_far_clip_plane_method->call<float>(sdk::get_thread_context(), camera);
 
-        return;
+        // Disable certain effects like the 3D overlay during the sewer gators
+        // section in RE7
+        disable_bad_effects();
+        // Disable lens distortion
+        set_lens_distortion(false);
+
+    #if defined(RE2) || defined(RE3)
+        if (FirstPerson::get()->will_be_used()) {
+            m_needs_camera_restore = false;
+
+            auto camera_object = utility::re_component::get_game_object(camera);
+
+            if (camera_object == nullptr || camera_object->transform == nullptr) {
+                return;
+            }
+
+            auto camera_joint = utility::re_transform::get_joint(*camera_object->transform, 0);
+
+            if (camera_joint == nullptr) {
+                return;
+            }
+
+            m_original_camera_position = sdk::get_joint_position(camera_joint);
+            m_original_camera_rotation = sdk::get_joint_rotation(camera_joint);
+            m_original_camera_matrix = Matrix4x4f{m_original_camera_rotation};
+            m_original_camera_matrix[3] = m_original_camera_position;
+
+            return;
+        }
+    #endif
+
+        auto projection_matrix = is_using_multipass() ? get_projection_matrix(0) : get_current_projection_matrix(true);
+
+        // Steps towards getting lens flares and volumetric lighting working
+        // Get the FOV from the projection matrix
+        const auto vfov = glm::degrees(2.0f * std::atan(1.0f / projection_matrix[1][1]));
+        const auto aspect = projection_matrix[1][1] / projection_matrix[0][0];
+        const auto hfov = vfov * aspect;
+        
+        //spdlog::info("vFOV: {}", vfov);
+        //spdlog::info("Aspect: {}", aspect);
+
+        set_fov_method->call<void*>(sdk::get_thread_context(), camera, vfov);
+        set_vertical_enable_method->call<void*>(sdk::get_thread_context(), camera, true);
+        set_aspect_ratio_method->call<void*>(sdk::get_thread_context(), camera, aspect);
     }
-#endif
 
     update_camera_origin();
-
-    auto projection_matrix = is_using_multipass() ? get_projection_matrix(0) : get_current_projection_matrix(true);
-
-    // Steps towards getting lens flares and volumetric lighting working
-    // Get the FOV from the projection matrix
-    const auto vfov = glm::degrees(2.0f * std::atan(1.0f / projection_matrix[1][1]));
-    const auto aspect = projection_matrix[1][1] / projection_matrix[0][0];
-    const auto hfov = vfov * aspect;
-    
-    //spdlog::info("vFOV: {}", vfov);
-    //spdlog::info("Aspect: {}", aspect);
-
-    set_fov_method->call<void*>(sdk::get_thread_context(), camera, vfov);
-    set_vertical_enable_method->call<void*>(sdk::get_thread_context(), camera, true);
-    set_aspect_ratio_method->call<void*>(sdk::get_thread_context(), camera, aspect);
-
     m_needs_camera_restore = true;
 }
 
@@ -1577,37 +1635,43 @@ void VR::update_camera_origin() {
         return;
     }
 
-    auto camera = sdk::get_primary_camera();
+    auto cameras = get_cameras();
 
-    if (camera == nullptr) {
+    if (cameras[0] == nullptr) {
         m_needs_camera_restore = false;
         return;
     }
 
-    auto camera_object = utility::re_component::get_game_object(camera);
+    for (auto camera : cameras) {
+        if (camera == nullptr) {
+            return;
+        }
 
-    if (camera_object == nullptr || camera_object->transform == nullptr) {
-        spdlog::error("VR: Failed to get camera game object or transform!");
-        m_needs_camera_restore = false;
-        return;
+        auto camera_object = utility::re_component::get_game_object(camera);
+
+        if (camera_object == nullptr || camera_object->transform == nullptr) {
+            spdlog::error("VR: Failed to get camera game object or transform!");
+            m_needs_camera_restore = false;
+            return;
+        }
+
+        auto camera_joint = utility::re_transform::get_joint(*camera_object->transform, 0);
+
+        if (camera_joint == nullptr) {
+            spdlog::error("VR: Failed to get camera joint!");
+            m_needs_camera_restore = false;
+            return;
+        }
+
+        if (!inside_on_end && camera == cameras[0]) {
+            m_original_camera_position = sdk::get_joint_position(camera_joint);
+            m_original_camera_rotation = sdk::get_joint_rotation(camera_joint);
+            m_original_camera_matrix = Matrix4x4f{m_original_camera_rotation};
+            m_original_camera_matrix[3] = m_original_camera_position;
+        }
+
+        apply_hmd_transform(camera_joint);
     }
-
-    auto camera_joint = utility::re_transform::get_joint(*camera_object->transform, 0);
-
-    if (camera_joint == nullptr) {
-        spdlog::error("VR: Failed to get camera joint!");
-        m_needs_camera_restore = false;
-        return;
-    }
-
-    if (!inside_on_end) {
-        m_original_camera_position = sdk::get_joint_position(camera_joint);
-        m_original_camera_rotation = sdk::get_joint_rotation(camera_joint);
-        m_original_camera_matrix = Matrix4x4f{m_original_camera_rotation};
-        m_original_camera_matrix[3] = m_original_camera_position;
-    }
-
-    apply_hmd_transform(camera_joint);
 }
 
 void VR::apply_hmd_transform(glm::quat& rotation, Vector4f& position) {
@@ -1722,26 +1786,32 @@ void VR::update_audio_camera() {
 void VR::update_render_matrix() {
     REF_PROFILE_FUNCTION();
 
-    auto camera = sdk::get_primary_camera();
+    auto cameras = get_cameras();
 
-    if (camera == nullptr) {
+    if (cameras[0] == nullptr) {
         return;
     }
 
-    auto camera_object = utility::re_component::get_game_object(camera);
+    for (auto camera : cameras) {
+        if (camera == nullptr || camera != cameras[0]) {
+            return;
+        }
 
-    if (camera_object == nullptr || camera_object->transform == nullptr) {
-        return;
+        auto camera_object = utility::re_component::get_game_object(camera);
+
+        if (camera_object == nullptr || camera_object->transform == nullptr) {
+            return;
+        }
+
+        auto camera_joint = utility::re_transform::get_joint(*camera_object->transform, 0);
+
+        if (camera_joint == nullptr) {
+            return;
+        }
+
+        m_render_camera_matrix = Matrix4x4f{sdk::get_joint_rotation(camera_joint)};
+        m_render_camera_matrix[3] = sdk::get_joint_position(camera_joint);
     }
-
-    auto camera_joint = utility::re_transform::get_joint(*camera_object->transform, 0);
-
-    if (camera_joint == nullptr) {
-        return;
-    }
-
-    m_render_camera_matrix = Matrix4x4f{sdk::get_joint_rotation(camera_joint)};
-    m_render_camera_matrix[3] = sdk::get_joint_position(camera_joint);
 }
 
 void VR::restore_audio_camera() {
@@ -1799,31 +1869,39 @@ void VR::restore_camera() {
     }
 #endif
 
-    auto camera = sdk::get_primary_camera();
+    auto cameras = get_cameras();
 
-    if (camera == nullptr) {
+    if (cameras[0] == nullptr) {
         m_needs_camera_restore = false;
         return;
     }
 
-    auto camera_object = utility::re_component::get_game_object(camera);
+    for (auto camera : cameras) {
+        if (camera == nullptr) {
+            return;
+        }
 
-    if (camera_object == nullptr || camera_object->transform == nullptr) {
-        m_needs_camera_restore = false;
-        return;
+        auto camera_object = utility::re_component::get_game_object(camera);
+
+        if (camera_object == nullptr || camera_object->transform == nullptr) {
+            m_needs_camera_restore = false;
+            return;
+        }
+
+        //camera_object->transform->worldTransform = m_original_camera_matrix;
+
+        auto joint = utility::re_transform::get_joint(*camera_object->transform, 0);
+
+        if (joint == nullptr) {
+            m_needs_camera_restore = false;
+            return;
+        }
+
+        sdk::set_joint_rotation(joint, m_original_camera_rotation);
+        sdk::set_joint_position(joint, m_original_camera_position);
     }
 
-    //camera_object->transform->worldTransform = m_original_camera_matrix;
 
-    auto joint = utility::re_transform::get_joint(*camera_object->transform, 0);
-
-    if (joint == nullptr) {
-        m_needs_camera_restore = false;
-        return;
-    }
-
-    sdk::set_joint_rotation(joint, m_original_camera_rotation);
-    sdk::set_joint_position(joint, m_original_camera_position);
     m_needs_camera_restore = false;
 }
 
@@ -3179,8 +3257,7 @@ void VR::on_end_rendering(void* entry) {
                 return;
             }
 
-            static auto scene_type = sdk::find_type_definition("via.render.layer.Scene")->get_type();
-            auto scene_layers = output_layer->find_layers(scene_type);
+            const auto scene_layers = output_layer->find_fully_rendered_scene_layers();
 
             if (scene_layers.size() < 2) {
                 return;
@@ -3349,6 +3426,8 @@ void VR::on_pre_application_entry(void* entry, const char* name, size_t hash) {
         return;
     }
 
+    m_camera_duplicator.on_pre_application_entry(entry, name, hash);
+
     switch (hash) {
         case "UpdateHID"_fnv:
             on_pre_update_hid(entry);
@@ -3371,6 +3450,8 @@ void VR::on_application_entry(void* entry, const char* name, size_t hash) {
     if (!get_runtime()->loaded) {
         return;
     }
+
+    m_camera_duplicator.on_application_entry(entry, name, hash);
 
     switch (hash) {
         case "UpdateHID"_fnv:
@@ -3935,6 +4016,9 @@ void VR::on_draw_ui() {
 
     ImGui::Separator();
     ImGui::Text("Debug info");
+    m_camera_duplicator.on_draw_ui();
+    
+
     ImGui::Checkbox("Disable Projection Matrix Override", &m_disable_projection_matrix_override);
     ImGui::Checkbox("Disable GUI Projection Matrix Override", &m_disable_gui_camera_projection_matrix_override);
     ImGui::Checkbox("Disable View Matrix Override", &m_disable_view_matrix_override);
@@ -3942,7 +4026,7 @@ void VR::on_draw_ui() {
     ImGui::Checkbox("Disable Temporal Fix", &m_disable_temporal_fix);
     ImGui::Checkbox("Disable Post Effect Fix", &m_disable_post_effect_fix);
     ImGui::Checkbox("Enable Asynchronous Rendering", &m_enable_asynchronous_rendering);
-    
+
     const double min_ = 0.0;
     const double max_ = 25.0;
     ImGui::SliderScalar("Prediction Scale", ImGuiDataType_Double, &m_openxr->prediction_scale, &min_, &max_);
@@ -4012,6 +4096,14 @@ void VR::on_config_save(utility::Config& cfg) {
     for (IModValue& option : m_options) {
         option.config_save(cfg);
     }
+}
+
+std::array<RECamera*, 2> VR::get_cameras() const {
+    if (is_using_multipass()) {
+        return m_multipass_cameras;
+    }
+
+    return std::array<RECamera*, 2>{ sdk::get_primary_camera(), nullptr };
 }
 
 Vector4f VR::get_position(uint32_t index) const {
