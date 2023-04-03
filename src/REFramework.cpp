@@ -165,6 +165,9 @@ REFramework::REFramework(HMODULE reframework_module)
     const auto pre_allocated_buffer = (uintptr_t)AllocateBuffer((LPVOID)halfway_module); // minhook function
     spdlog::info("Preallocated buffer: {:x}", pre_allocated_buffer);
 
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+
 #ifdef DEBUG
     spdlog::set_level(spdlog::level::debug);
 #endif
