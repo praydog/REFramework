@@ -198,6 +198,8 @@ void CameraDuplicator::copy_camera_properties() {
         return;
     }
 
+    // Do not allow the camera components to update. We will do the update ourselves via the copying of properties
+    new_camera_gameobject->shouldUpdate = false;
     for (const auto& descriptor : m_wanted_components) {
         const auto old_component = utility::re_component::find<REComponent>(old_camera_gameobject->transform, descriptor.name);
         const auto new_component = utility::re_component::find<REComponent>(new_camera_gameobject->transform, descriptor.name);
@@ -249,7 +251,11 @@ void CameraDuplicator::copy_camera_properties() {
                             if (should_pass_result_ptr) {
                                 setter->invoke(new_component, {(void*)result.bytes.data()});
                             } else {
-                                setter->invoke(new_component, {result.ptr});
+                                const auto current_value = getter->invoke(new_component, {});
+
+                                if (current_value.ptr != result.ptr) {
+                                    setter->invoke(new_component, {result.ptr});
+                                }
                             }
                         }
                     }
