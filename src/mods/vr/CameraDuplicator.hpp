@@ -34,6 +34,7 @@ private:
     struct WantedComponent {
         std::string name{};
         std::unordered_set<size_t> ignored_properties{};
+        bool allowed{true}; // used for debug imgui checkbox
     };
 
     // Components that we want to copy from the old camera to the new camera
@@ -54,6 +55,12 @@ private:
         WantedComponent{ "via.render.TessellationFactor", {} },
         WantedComponent{ "via.render.ShadowQualityControl", {} },
         WantedComponent{ "via.render.Fog", { "set_FSSunPosGameObject"_fnv } },
+        WantedComponent{ "via.render.VolumetricFog", { } },
+        WantedComponent{ "via.render.VolumetricFogControl", { } },
+        WantedComponent{ "via.render.GodRay", { } },
+        WantedComponent{ "via.render.GeometryAOControl", { } },
+        WantedComponent{ "via.render.MotionBlur", { } },
+        WantedComponent{ "via.render.FakeLensflare", { } },
     };
 
     std::vector<std::function<void()>> m_property_jobs{};
