@@ -200,6 +200,44 @@ void CameraDuplicator::copy_camera_properties() {
 
     // Do not allow the camera components to update. We will do the update ourselves via the copying of properties
     new_camera_gameobject->shouldUpdate = false;
+
+    static auto via_camera = sdk::find_type_definition("via.Camera");
+
+    static auto get_near_clip_plane_method = via_camera->get_method("get_NearClipPlane");
+    static auto set_near_clip_plane_method = via_camera->get_method("set_NearClipPlane");
+    static auto get_far_clip_plane_method = via_camera->get_method("get_FarClipPlane");
+    static auto set_far_clip_plane_method = via_camera->get_method("set_FarClipPlane");
+    static auto get_fov_method = via_camera->get_method("get_FOV");
+    static auto set_fov_method = via_camera->get_method("set_FOV");
+    static auto get_vertical_enable_method = via_camera->get_method("get_VerticalEnable");
+    static auto set_vertical_enable_method = via_camera->get_method("set_VerticalEnable");
+    static auto set_aspect_ratio_method = via_camera->get_method("set_AspectRatio");
+    static auto get_aspect_ratio_method = via_camera->get_method("get_AspectRatio");
+
+    if (get_near_clip_plane_method != nullptr && set_near_clip_plane_method != nullptr) {
+        const auto old_near_clip_plane = get_near_clip_plane_method->call<float>(sdk::get_thread_context(), m_old_camera);
+        set_near_clip_plane_method->call<void>(sdk::get_thread_context(), m_new_camera, old_near_clip_plane);
+    }
+
+    if (get_far_clip_plane_method != nullptr && set_far_clip_plane_method != nullptr) {
+        const auto old_far_clip_plane = get_far_clip_plane_method->call<float>(sdk::get_thread_context(), m_old_camera);
+        set_far_clip_plane_method->call<void>(sdk::get_thread_context(), m_new_camera, old_far_clip_plane);
+    }
+
+    if (get_fov_method != nullptr && set_fov_method != nullptr) {
+        const auto old_fov = get_fov_method->call<float>(sdk::get_thread_context(), m_old_camera);
+        set_fov_method->call<void>(sdk::get_thread_context(), m_new_camera, old_fov);
+    }
+
+    if (get_vertical_enable_method != nullptr && set_vertical_enable_method != nullptr) {
+        const auto old_vertical_enable = get_vertical_enable_method->call<bool>(sdk::get_thread_context(), m_old_camera);
+        set_vertical_enable_method->call<void>(sdk::get_thread_context(), m_new_camera, old_vertical_enable);
+    }
+
+    if (get_aspect_ratio_method != nullptr && set_aspect_ratio_method != nullptr) {
+        const auto old_aspect_ratio = get_aspect_ratio_method->call<float>(sdk::get_thread_context(), m_old_camera);
+        set_aspect_ratio_method->call<void>(sdk::get_thread_context(), m_new_camera, old_aspect_ratio);
+    }
     for (const auto& descriptor : m_wanted_components) {
         const auto old_component = utility::re_component::find<REComponent>(old_camera_gameobject->transform, descriptor.name);
         const auto new_component = utility::re_component::find<REComponent>(new_camera_gameobject->transform, descriptor.name);
