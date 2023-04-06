@@ -280,20 +280,18 @@ void CameraDuplicator::copy_camera_properties() {
                 m_property_jobs.push_back([old_component, new_component, getter = methods.getter, setter = methods.setter, result_type = methods.getter->get_return_type()]() {
                     const auto result = getter->invoke(old_component, {});
 
-                    if (result.ptr != nullptr) {
-                        if (result_type == nullptr) {
-                            setter->invoke(new_component, {result.ptr});
+                    if (result_type == nullptr) {
+                        setter->invoke(new_component, {result.ptr});
+                    } else {
+                        const auto should_pass_result_ptr = result_type->is_value_type() && result_type->get_valuetype_size() > sizeof(void*);
+
+                        if (should_pass_result_ptr) {
+                            setter->invoke(new_component, {(void*)result.bytes.data()});
                         } else {
-                            const auto should_pass_result_ptr = result_type->is_value_type() && result_type->get_valuetype_size() > sizeof(void*);
+                            const auto current_value = getter->invoke(new_component, {});
 
-                            if (should_pass_result_ptr) {
-                                setter->invoke(new_component, {(void*)result.bytes.data()});
-                            } else {
-                                const auto current_value = getter->invoke(new_component, {});
-
-                                if (current_value.ptr != result.ptr) {
-                                    setter->invoke(new_component, {result.ptr});
-                                }
+                            if (current_value.ptr != result.ptr) {
+                                setter->invoke(new_component, {result.ptr});
                             }
                         }
                     }
