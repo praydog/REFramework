@@ -211,6 +211,17 @@ void VR::on_camera_get_projection_matrix(REManagedObject* camera, Matrix4x4f* re
         //return;
     }
 
+#ifdef RE4
+    if (const auto game_object = ((REComponent*)camera)->ownerGameObject; game_object != nullptr) {
+        if (game_object->name != nullptr) {
+            // Allows the sniper scope to work
+            if (utility::re_string::get_view(game_object->name).starts_with(L"ScopeCamera")) {
+                return;
+            }
+        }
+    }
+#endif
+
     // Get the projection matrix for the correct eye
     // For some reason we need to flip the projection matrix here?
     *result = get_current_projection_matrix(false);
