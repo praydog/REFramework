@@ -39,7 +39,13 @@ void CameraDuplicator::on_application_entry(void* entry, const char* name, size_
 }
 
 void CameraDuplicator::on_draw_ui() {
-    ImGui::Checkbox("Copy camera properties", &m_copy_camera);
+    if (ImGui::TreeNode("Camera Duplicator")) {
+        ImGui::Checkbox("Copy camera properties", &m_copy_camera);
+        for (auto& descriptor : m_wanted_components) {
+            ImGui::Checkbox(descriptor.name.c_str(), &descriptor.allowed);
+        }
+        ImGui::TreePop();
+    }
 }
 
 void CameraDuplicator::clone_camera() {
@@ -238,7 +244,12 @@ void CameraDuplicator::copy_camera_properties() {
         const auto old_aspect_ratio = get_aspect_ratio_method->call<float>(sdk::get_thread_context(), m_old_camera);
         set_aspect_ratio_method->call<void>(sdk::get_thread_context(), m_new_camera, old_aspect_ratio);
     }
+
     for (const auto& descriptor : m_wanted_components) {
+        if (!descriptor.allowed) {
+            continue;
+        }
+
         const auto old_component = utility::re_component::find<REComponent>(old_camera_gameobject->transform, descriptor.name);
         const auto new_component = utility::re_component::find<REComponent>(new_camera_gameobject->transform, descriptor.name);
 
@@ -276,15 +287,20 @@ void CameraDuplicator::copy_camera_properties() {
                 if (methods.getter == nullptr || methods.setter == nullptr) {
                     continue;
                 }
+
+                const auto result_type = methods.getter->get_return_type();
+                const auto should_pass_result_ptr = result_type != nullptr && result_type->is_value_type() && (result_type->get_valuetype_size() > sizeof(void*) || (!result_type->is_primitive() && !result_type->is_enum()));
                 
-                m_property_jobs.push_back([old_component, new_component, getter = methods.getter, setter = methods.setter, result_type = methods.getter->get_return_type()]() {
+                m_property_jobs.push_back([allowed = &descriptor.allowed, old_component, new_component, getter = methods.getter, setter = methods.setter, result_type, should_pass_result_ptr]() {
+                    if (!*allowed) {
+                        return;
+                    }
+                    
                     const auto result = getter->invoke(old_component, {});
 
                     if (result_type == nullptr) {
                         setter->invoke(new_component, {result.ptr});
                     } else {
-                        const auto should_pass_result_ptr = result_type->is_value_type() && result_type->get_valuetype_size() > sizeof(void*);
-
                         if (should_pass_result_ptr) {
                             setter->invoke(new_component, {(void*)result.bytes.data()});
                         } else {
