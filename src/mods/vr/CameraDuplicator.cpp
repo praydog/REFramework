@@ -412,6 +412,54 @@ void CameraDuplicator::copy_camera_properties() {
                     set_vignetting->call(ctx, new_component, vignetting_old);
                 }
             }
+
+            static auto get_auto_exposure = t->get_method("getAutoExposure");
+            static auto set_auto_exposure = t->get_method("setAutoExposure");
+
+            if (get_auto_exposure != nullptr && set_auto_exposure != nullptr) {
+                const auto auto_exposure_old = get_auto_exposure->call<uint32_t>(ctx, old_component);
+                const auto auto_exposure_new = get_auto_exposure->call<uint32_t>(ctx, new_component);
+
+                if (auto_exposure_old != auto_exposure_new) {
+                    set_auto_exposure->call(ctx, new_component, auto_exposure_old);
+                }
+            }
+
+            static auto get_neighborhood_clamp = t->get_method("getNeighborhoodClamp");
+            static auto set_neighborhood_clamp = t->get_method("setNeighborhoodClamp");
+
+            if (get_neighborhood_clamp != nullptr && set_neighborhood_clamp != nullptr) {
+                const auto neighborhood_clamp_old = get_neighborhood_clamp->call<uint32_t>(ctx, old_component);
+                const auto neighborhood_clamp_new = get_neighborhood_clamp->call<uint32_t>(ctx, new_component);
+
+                if (neighborhood_clamp_old != neighborhood_clamp_new) {
+                    set_neighborhood_clamp->call(ctx, new_component, neighborhood_clamp_old);
+                }
+            }
+
+            static auto get_temporal_aa = t->get_method("getTemporalAA");
+            static auto set_temporal_aa = t->get_method("setTemporalAA");
+
+            if (get_temporal_aa != nullptr && set_temporal_aa != nullptr) {
+                const auto temporal_aa_old = get_temporal_aa->call<uint32_t>(ctx, old_component);
+                const auto temporal_aa_new = get_temporal_aa->call<uint32_t>(ctx, new_component);
+
+                if (temporal_aa_old != temporal_aa_new) {
+                    set_temporal_aa->call(ctx, new_component, temporal_aa_old);
+                }
+            }
+
+            static auto get_temporal_aa_algorithm =  t->get_method("getTemporalAAAlgorithm");
+            static auto set_temporal_aa_algorithm =  t->get_method("setTemporalAAAlgorithm");
+
+            if (get_temporal_aa_algorithm != nullptr && set_temporal_aa_algorithm != nullptr) {
+                const auto temporal_aa_algorithm_old = get_temporal_aa_algorithm->call<uint32_t>(ctx, old_component);
+                const auto temporal_aa_algorithm_new = get_temporal_aa_algorithm->call<uint32_t>(ctx, new_component);
+
+                if (temporal_aa_algorithm_old != temporal_aa_algorithm_new) {
+                    set_temporal_aa_algorithm->call(ctx, new_component, temporal_aa_algorithm_old);
+                }
+            }
         }
     }
 
