@@ -56,6 +56,11 @@ public:
 
 class Camera : public Mod {
 public:
+    static std::shared_ptr<Camera>& get() {
+        static std::shared_ptr<Camera> instance = std::make_shared<Camera>();
+        return instance;
+    }
+
     std::string_view get_name() const override { return "Camera"; };
 
     void on_config_load(const utility::Config& cfg) override;
@@ -66,6 +71,10 @@ public:
     void on_update_transform(RETransform* transform);
     void on_pre_application_entry(void* entry, const char* name, size_t hash) override;
     void on_application_entry(void* entry, const char* name, size_t hash) override;
+
+    bool is_disable_vignette() const {
+        return m_enabled->value() && m_disable_vignette->value();
+    }
 
 private:
     const ModToggle::Ptr m_enabled{ ModToggle::create(generate_name("Enabled"), false) };

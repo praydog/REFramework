@@ -2,6 +2,7 @@
 #include "sdk/SceneManager.hpp"
 
 #include "../VR.hpp"
+#include "../Camera.hpp"
 
 #include "HookManager.hpp"
 #include "CameraDuplicator.hpp"
@@ -423,9 +424,14 @@ void CameraDuplicator::copy_camera_properties() {
             if (get_vignetting != nullptr && set_vignetting != nullptr) {
                 const auto vignetting_old = get_vignetting->call<uint32_t>(ctx, old_component);
                 const auto vignetting_new = get_vignetting->call<uint32_t>(ctx, new_component);
+                const auto is_disable_vignette = Camera::get()->is_disable_vignette();
 
-                if (vignetting_old != vignetting_new) {
-                    set_vignetting->call(ctx, new_component, vignetting_old);
+                if (!is_disable_vignette) {
+                    if (vignetting_old != vignetting_new) {
+                        set_vignetting->call(ctx, new_component, vignetting_old);
+                    }
+                } else {
+                    set_vignetting->call(ctx, new_component, via::render::ToneMapping::Vignetting::Disable);
                 }
             }
 

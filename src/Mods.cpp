@@ -43,7 +43,7 @@ Mods::Mods() {
 #endif
 
     // All games!!!!
-    m_mods.emplace_back(std::make_unique<Camera>());
+    m_mods.emplace_back(Camera::get());
     m_mods.emplace_back(std::make_unique<Graphics>());
 
 #if defined(RE2) || defined(RE3) || defined(RE8)
