@@ -35,7 +35,7 @@ public:
     struct ResourceCopier {
         virtual ~ResourceCopier() { this->reset(); }
 
-        void setup();
+        void setup(const wchar_t* name = L"ResourceCopier object");
         void reset();
         void wait(uint32_t ms);
         void copy(ID3D12Resource* src, ID3D12Resource* dst, D3D12_RESOURCE_STATES src_state = D3D12_RESOURCE_STATE_PRESENT,
@@ -58,6 +58,8 @@ public:
 
         bool waiting_for_fence{false};
         bool has_commands{false};
+
+        std::wstring internal_name{L"ResourceCopier object"};
     };
 
 private:

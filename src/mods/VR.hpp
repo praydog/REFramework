@@ -16,6 +16,7 @@
 #include "sdk/Math.hpp"
 #include "sdk/helpers/NativeObject.hpp"
 #include "sdk/Renderer.hpp"
+#include "sdk/intrusive_ptr.hpp"
 #include "vr/D3D11Component.hpp"
 #include "vr/D3D12Component.hpp"
 #include "vr/OverlayComponent.hpp"
@@ -258,6 +259,8 @@ private:
     void on_scene_layer_update(sdk::renderer::layer::Scene* layer, void* render_context) override;
     bool on_pre_scene_layer_draw(sdk::renderer::layer::Scene* layer, void* render_context) override;
 
+    void on_prepare_output_layer_draw(sdk::renderer::layer::PrepareOutput* layer, void* render_context) override;
+
     struct SceneLayerData {
         SceneLayerData() = default;
         SceneLayerData(sdk::renderer::SceneInfo* info) {
@@ -272,7 +275,7 @@ private:
         }
 
         void post_setup(int32_t index) {
-            scene_info->old_view_projection_matrix = previous_view_projection_matrices[index % 2];
+            scene_info->old_view_projection_matrix = previous_view_projection_matrices[(index - 1) % 2];
             previous_view_projection_matrices[index % 2] = scene_info->view_projection_matrix;
         }
 
@@ -480,8 +483,12 @@ private:
     vrmod::OverlayComponent m_overlay_component{};
     vrmod::CameraDuplicator m_camera_duplicator{};
 
+    template <typename T> using ComPtr = Microsoft::WRL::ComPtr<T>;
+
     struct MultiPass {
-        std::array<void*, 2> eye_textures{};
+        std::array<ComPtr<ID3D12Resource>, 2> eye_textures{};
+        std::array<sdk::intrusive_ptr<sdk::renderer::Texture>, 2> native_res_copies{}; // used with TemporalUpscaler disabled
+        std::array<uint32_t, 2> allocated_size{};
         uint32_t pass{0};
     } m_multipass{};
     

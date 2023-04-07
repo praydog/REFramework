@@ -2,6 +2,7 @@
 #include <utility/Profiler.hpp>
 
 #include "../VR.hpp"
+#include "../TemporalUpscaler.hpp"
 
 #include "D3D12Component.hpp"
 
@@ -90,11 +91,16 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
                 src_box.right *= 2;
                 m_openxr.copy(1, (ID3D12Resource*)vr->m_multipass.eye_textures[0], &src_box, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);*/
 
-                m_openxr.copy(0, (ID3D12Resource*)vr->m_multipass.eye_textures[0], nullptr, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-                m_openxr.copy(1, (ID3D12Resource*)vr->m_multipass.eye_textures[1], nullptr, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                if (!TemporalUpscaler::get()->ready()) {
+                    m_openxr.copy(0, vr->m_multipass.eye_textures[0].Get(), nullptr, D3D12_RESOURCE_STATE_COMMON);
+                    m_openxr.copy(1, vr->m_multipass.eye_textures[1].Get(), nullptr, D3D12_RESOURCE_STATE_COMMON);
+                } else {
+                    m_openxr.copy(0, vr->m_multipass.eye_textures[0].Get(), nullptr, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                    m_openxr.copy(1, vr->m_multipass.eye_textures[1].Get(), nullptr, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                }
 
-                vr->m_multipass.eye_textures[0] = nullptr;
-                vr->m_multipass.eye_textures[1] = nullptr;
+                vr->m_multipass.eye_textures[0].Reset();
+                vr->m_multipass.eye_textures[1].Reset();
             } else {
                 m_openxr.copy(1, backbuffer.Get(), nullptr, D3D12_RESOURCE_STATE_PRESENT);
             }
@@ -104,8 +110,8 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
         // Copy the back buffer to the right eye texture.
         if (runtime->is_openvr()) {
             if (is_multipass) {
-                m_openvr.copy_left((ID3D12Resource*)vr->m_multipass.eye_textures[0]);
-                m_openvr.copy_right((ID3D12Resource*)vr->m_multipass.eye_textures[1]);
+                m_openvr.copy_left(vr->m_multipass.eye_textures[0].Get());
+                m_openvr.copy_right(vr->m_multipass.eye_textures[1].Get());
             } else {
                 m_openvr.copy_right(backbuffer.Get());
             }
@@ -281,7 +287,7 @@ void D3D12Component::setup() {
             return;
         }
 
-        ctx.copier.setup();
+        ctx.copier.setup(L"OpenVR Left Eye");
     }
 
     for (auto& ctx : m_openvr.right_eye_tex) {
@@ -291,11 +297,11 @@ void D3D12Component::setup() {
             return;
         }
 
-        ctx.copier.setup();
+        ctx.copier.setup(L"OpenVR Right Eye");
     }
 
     for (auto& copier : m_generic_copiers) {
-        copier.setup();
+        copier.setup(L"Generic Copier");
     }
 
     m_backbuffer_size[0] = backbuffer_desc.Width;
@@ -414,7 +420,7 @@ std::optional<std::string> D3D12Component::OpenXR::create_swapchains() {
 
             ctx.textures[j] = {XR_TYPE_SWAPCHAIN_IMAGE_D3D12_KHR};
             ctx.texture_contexts[j] = std::make_unique<D3D12Component::OpenXR::SwapchainContext::TextureContext>();
-            ctx.texture_contexts[j]->copier.setup();
+            ctx.texture_contexts[j]->copier.setup(L"OpenXR Swapchain");
 
             backbuffer_desc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
             backbuffer_desc.Flags &= ~D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE;
@@ -574,8 +580,10 @@ void D3D12Component::OpenXR::copy(uint32_t swapchain_idx, ID3D12Resource* resour
     }
 }
 
-void D3D12Component::ResourceCopier::setup() {
+void D3D12Component::ResourceCopier::setup(const wchar_t* name) {
     std::scoped_lock _{this->mtx};
+
+    this->internal_name = name;
 
     auto& hook = g_framework->get_d3d12_hook();
     auto device = hook->get_device();
@@ -770,7 +778,7 @@ void D3D12Component::ResourceCopier::execute() {
     
     if (this->has_commands) {
         if (FAILED(this->cmd_list->Close())) {
-            spdlog::error("[VR] Failed to close command list.");
+            spdlog::error("[VR] Failed to close command list. ({})", utility::narrow(this->internal_name));
             return;
         }
         

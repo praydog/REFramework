@@ -185,8 +185,13 @@ void VR::on_view_get_size(REManagedObject* scene_view, float* result) {
 
     // spoof the size to the HMD's size
     if (!TemporalUpscaler::get()->ready()) {
-        result[0] = wanted_width;
-        result[1] = wanted_height;
+        if (!is_using_multipass()) {
+            result[0] = wanted_width;
+            result[1] = wanted_height;
+        } else {
+            result[0] = wanted_width - 1.0f;
+            result[1] = wanted_height - 1.0f;
+        }
     }
 }
 
@@ -473,6 +478,68 @@ bool VR::on_pre_scene_layer_draw(sdk::renderer::layer::Scene* layer, void* rende
     return true;
 }
 
+void VR::on_prepare_output_layer_draw(sdk::renderer::layer::PrepareOutput* layer, void* render_context) {
+    if (!is_hmd_active()) {
+        return;
+    }
+
+    if (!is_using_multipass()) {
+        return;
+    }
+
+    // We dont need to do anything here if upscaling is being used
+    if (TemporalUpscaler::get()->ready()) {
+        return;
+    }
+    
+    auto context = (sdk::renderer::RenderContext*)render_context;
+    auto scene_layer = (sdk::renderer::layer::Scene*)layer->get_parent();
+
+    if (scene_layer == nullptr) {
+        return;
+    }
+
+    const auto output_state = layer->get_output_state();
+
+    if (output_state == nullptr) {
+        return;
+    }
+
+    const auto rtv = output_state->get_rtv(0);
+
+    if (rtv == nullptr) {
+        return;
+    }
+
+    const auto tex = rtv->get_texture_d3d12();
+
+    if (tex == nullptr) {
+        return;
+    }
+
+    auto scene_layers = sdk::renderer::get_output_layer()->find_fully_rendered_scene_layers();
+
+    if (scene_layers.empty() || scene_layers.size() < 2) {
+        return;
+    }
+
+    const auto parent_layer = layer->get_parent();
+
+    if (parent_layer == nullptr) {
+        return;
+    }
+
+    if (parent_layer == scene_layers[0]) {
+        if (m_multipass.native_res_copies[0] != nullptr) {
+            context->copy_texture(m_multipass.native_res_copies[0], tex);
+        }
+    } else {
+        if (m_multipass.native_res_copies[1] != nullptr) {
+            context->copy_texture(m_multipass.native_res_copies[1], tex);
+        }
+    }
+}
+
 bool VR::on_pre_scene_layer_update(sdk::renderer::layer::Scene* layer, void* render_ctx) {
     REF_PROFILE_FUNCTION();
 
@@ -594,10 +661,10 @@ void VR::on_scene_layer_update(sdk::renderer::layer::Scene* layer, void* render_
                 d.scene_info->inverse_view_projection_matrix = glm::inverse(d.scene_info->view_projection_matrix);
             }*/
 
-            if (is_temporal_upscaler_active || is_multipass) {
-                //const auto frame = this->get_game_frame_count();
-                //d.post_setup(frame);
-            } else {
+            if (is_multipass && !is_temporal_upscaler_active) {
+                const auto frame = this->get_game_frame_count();
+                d.post_setup(frame);
+            } else if (!is_temporal_upscaler_active) {
                 // TAA fix
                 d.scene_info->old_view_projection_matrix = d.view_projection_matrix;
             }
@@ -3259,8 +3326,8 @@ void VR::on_end_rendering(void* entry) {
         const auto temporal_upscaler = TemporalUpscaler::get();
 
         if (temporal_upscaler->ready()) {
-            m_multipass.eye_textures[0] = temporal_upscaler->get_upscaled_texture<void*>(0);
-            m_multipass.eye_textures[1] = temporal_upscaler->get_upscaled_texture<void*>(1);
+            m_multipass.eye_textures[0] = (ID3D12Resource*)temporal_upscaler->get_upscaled_texture<void*>(0);
+            m_multipass.eye_textures[1] = (ID3D12Resource*)temporal_upscaler->get_upscaled_texture<void*>(1);
         } else {
             auto output_layer = sdk::renderer::get_output_layer();
 
@@ -3295,8 +3362,41 @@ void VR::on_end_rendering(void* entry) {
             }
 
             if (g_framework->is_dx12()) {
-                m_multipass.eye_textures[0] = output_states[0]->get_native_resource_d3d12();
-                m_multipass.eye_textures[1] = output_states[1]->get_native_resource_d3d12();
+                if (m_multipass.allocated_size[0] != get_hmd_width() || m_multipass.allocated_size[1] != get_hmd_height()) {
+                    const auto rtv0 = output_states[0]->get_rtv(0);
+                    const auto rtv1 = output_states[1]->get_rtv(0);
+
+                    if (rtv0 != nullptr && rtv1 != nullptr) {
+                        const auto tex0 = rtv0->get_texture_d3d12();
+                        const auto tex1 = rtv1->get_texture_d3d12();
+
+                        if (tex0 != nullptr && tex1 != nullptr) {
+                            m_multipass.native_res_copies[0] = tex0->clone();
+                            m_multipass.native_res_copies[1] = tex1->clone();
+
+                            m_multipass.allocated_size[0] = get_hmd_width();
+                            m_multipass.allocated_size[1] = get_hmd_height();
+
+                            spdlog::info("Allocated native res copies");
+                        }
+                    }
+                }
+
+                if (m_multipass.native_res_copies[0] != nullptr) {
+                    const auto container = m_multipass.native_res_copies[0]->get_d3d12_resource_container();
+
+                    if (container != nullptr) {
+                        m_multipass.eye_textures[0] = container->get_native_resource();
+                    }
+                }
+                
+                if (m_multipass.native_res_copies[1] != nullptr) {
+                    const auto container = m_multipass.native_res_copies[1]->get_d3d12_resource_container();
+
+                    if (container != nullptr) {
+                        m_multipass.eye_textures[1] = container->get_native_resource();
+                    }
+                }
             } else {
                 // TODO!
             }
