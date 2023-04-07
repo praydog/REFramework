@@ -39,7 +39,7 @@ private:
 
     // Components that we want to copy from the old camera to the new camera
     std::vector<WantedComponent> m_wanted_components {
-        WantedComponent{ "via.render.ToneMapping", { } },
+        WantedComponent{ "via.render.ToneMapping", { "set_InjectingGameObject"_fnv } },
         WantedComponent{ "via.render.LDRPostProcess", {} },
         WantedComponent{ "via.render.SoftBloom", {} },
         WantedComponent{ "via.render.SSRControl", {} },
@@ -54,14 +54,14 @@ private:
         WantedComponent{ "via.render.OverlayFXAA", {} },
         WantedComponent{ "via.render.TessellationFactor", {} },
         WantedComponent{ "via.render.ShadowQualityControl", {} },
-        WantedComponent{ "via.render.Fog", {} },
+        WantedComponent{ "via.render.Fog", { "set_FSSunPosGameObject"_fnv } },
         WantedComponent{ "via.render.VolumetricFog", { } },
         WantedComponent{ "via.render.VolumetricFogControl", { } },
         WantedComponent{ "via.render.GodRay", { } },
         WantedComponent{ "via.render.GeometryAOControl", { } },
         WantedComponent{ "via.render.MotionBlur", { } },
         WantedComponent{ "via.render.FakeLensflare", { } },
-        WantedComponent{ "via.render.CustomFilter", { } },
+        //WantedComponent{ "via.render.CustomFilter", { } },
     };
 
     std::vector<std::function<void()>> m_property_jobs{};
