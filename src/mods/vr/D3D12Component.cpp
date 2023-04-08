@@ -50,6 +50,19 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
         return vr::VRCompositorError_None;
     }
 
+    if (is_multipass) {
+        const auto eye_desc = vr->m_multipass.eye_textures[0]->GetDesc();
+
+        if (runtime->is_openxr()) {
+            if (eye_desc.Format != m_openxr.last_format) {
+                spdlog::info("[VR] OpenXR format changed from {} to {}", m_openxr.last_format, eye_desc.Format);
+                m_openxr.create_swapchains();
+            }
+        } else {
+
+        }
+    }
+
     // If m_frame_count is even, we're rendering the left eye.
     if (frame_count % 2 == vr->m_left_eye_interval && !is_multipass) {
         // OpenXR texture
@@ -266,6 +279,15 @@ void D3D12Component::setup() {
 
     ComPtr<ID3D12Resource> backbuffer{};
 
+    const auto& vr = VR::get();
+    const auto is_multipass = vr->is_using_multipass();
+    
+    if (is_multipass && vr->m_multipass.eye_textures[0].Get() != nullptr) {
+        backbuffer = vr->m_multipass.eye_textures[0];
+    } else if (is_multipass) {
+        return; // return until valid textures are available
+    }
+
     if (FAILED(swapchain->GetBuffer(0, IID_PPV_ARGS(&backbuffer)))) {
         spdlog::error("[VR] Failed to get back buffer.");
         return;
@@ -351,9 +373,18 @@ std::optional<std::string> D3D12Component::OpenXR::create_swapchains() {
 
     ComPtr<ID3D12Resource> backbuffer{};
 
+    const auto& vr = VR::get();
+    const auto is_multipass = vr->is_using_multipass();
+
     // Get the existing backbuffer
     // so we can get the format and stuff.
-    if (FAILED(swapchain->GetBuffer(0, IID_PPV_ARGS(&backbuffer)))) {
+    bool has_multipass_buffer = false;
+    if (is_multipass && vr->m_multipass.eye_textures[0].Get() != nullptr) {
+        backbuffer = vr->m_multipass.eye_textures[0];
+        has_multipass_buffer = true;
+    }
+
+    if (backbuffer.Get() == nullptr && FAILED(swapchain->GetBuffer(0, IID_PPV_ARGS(&backbuffer)))) {
         spdlog::error("[VR] Failed to get back buffer.");
         return "Failed to get back buffer.";
     }
@@ -364,11 +395,35 @@ std::optional<std::string> D3D12Component::OpenXR::create_swapchains() {
     heap_props.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
 
     auto backbuffer_desc = backbuffer->GetDesc();
-    auto& vr = VR::get();
     auto& openxr = vr->m_openxr;
 
     this->contexts.clear();
     this->contexts.resize(openxr->views.size());
+
+    this->last_format = backbuffer_desc.Format;
+
+    DXGI_FORMAT swapchain_format{DXGI_FORMAT_R8G8B8A8_UNORM_SRGB};
+
+    switch (backbuffer_desc.Format) {
+        case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:
+        case DXGI_FORMAT_R8G8B8A8_UNORM:
+        case DXGI_FORMAT_R8G8B8A8_TYPELESS:
+        case DXGI_FORMAT_R8G8B8A8_UINT:
+        case DXGI_FORMAT_R8G8B8A8_SNORM:
+        case DXGI_FORMAT_R8G8B8A8_SINT:
+            swapchain_format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+            break;
+
+        case DXGI_FORMAT_B8G8R8A8_UNORM_SRGB:
+        case DXGI_FORMAT_B8G8R8A8_UNORM:
+        case DXGI_FORMAT_B8G8R8A8_TYPELESS:
+            swapchain_format = DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
+            break;
+        
+        default:
+            spdlog::error("[VR] Possibly unsupported backbuffer format: {}", backbuffer_desc.Format);
+            break;
+    };
     
     for (auto i = 0; i < openxr->views.size(); ++i) {
         spdlog::info("[VR] Creating swapchain for eye {}", i);
@@ -381,13 +436,13 @@ std::optional<std::string> D3D12Component::OpenXR::create_swapchains() {
         // Create the swapchain.
         XrSwapchainCreateInfo swapchain_create_info{XR_TYPE_SWAPCHAIN_CREATE_INFO};
         swapchain_create_info.arraySize = 1;
-        swapchain_create_info.format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+        swapchain_create_info.format = swapchain_format;
         swapchain_create_info.width = backbuffer_desc.Width;
         swapchain_create_info.height = backbuffer_desc.Height;
         swapchain_create_info.mipCount = 1;
         swapchain_create_info.faceCount = 1;
         swapchain_create_info.sampleCount = backbuffer_desc.SampleDesc.Count;
-        swapchain_create_info.usageFlags = XR_SWAPCHAIN_USAGE_SAMPLED_BIT | XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT | XR_SWAPCHAIN_USAGE_TRANSFER_DST_BIT;
+        swapchain_create_info.usageFlags = XR_SWAPCHAIN_USAGE_MUTABLE_FORMAT_BIT | XR_SWAPCHAIN_USAGE_SAMPLED_BIT | XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT | XR_SWAPCHAIN_USAGE_TRANSFER_DST_BIT;
 
         runtimes::OpenXR::Swapchain swapchain{};
         swapchain.width = swapchain_create_info.width;

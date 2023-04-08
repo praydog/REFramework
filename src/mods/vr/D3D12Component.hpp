@@ -148,6 +148,7 @@ private:
         std::vector<SwapchainContext> contexts{};
         std::recursive_mutex mtx{};
         std::array<uint32_t, 2> last_resolution{};
+        DXGI_FORMAT last_format{};
     } m_openxr;
 
     uint32_t m_backbuffer_size[2]{};
