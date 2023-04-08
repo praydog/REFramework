@@ -525,6 +525,7 @@ if(REF_BUILD_RE2_SDK OR REF_BUILD_FRAMEWORK) # build-re2-sdk
 		"shared/sdk/SceneManager.cpp"
 		"shared/sdk/SystemArray.cpp"
 		"shared/sdk/helpers/NativeObject.cpp"
+		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
 		"shared/sdk/ManagedObject.hpp"
@@ -1059,6 +1060,7 @@ if(REF_BUILD_RE2_SDK OR REF_BUILD_FRAMEWORK) # build-re2-sdk
 		"shared/sdk/regenny/re8/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/re8/via/vec3.hpp"
 		"shared/sdk/regenny/re8/via/vec4.hpp"
+		"shared/sdk/renderer/RenderResource.hpp"
 	)
 
 	list(APPEND RE2SDK_SOURCES
@@ -1129,6 +1131,7 @@ if(REF_BUILD_RE2_TDB66SDK OR REF_BUILD_FRAMEWORK) # build-re2tdb66-sdk
 		"shared/sdk/SceneManager.cpp"
 		"shared/sdk/SystemArray.cpp"
 		"shared/sdk/helpers/NativeObject.cpp"
+		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
 		"shared/sdk/ManagedObject.hpp"
@@ -1663,6 +1666,7 @@ if(REF_BUILD_RE2_TDB66SDK OR REF_BUILD_FRAMEWORK) # build-re2tdb66-sdk
 		"shared/sdk/regenny/re8/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/re8/via/vec3.hpp"
 		"shared/sdk/regenny/re8/via/vec4.hpp"
+		"shared/sdk/renderer/RenderResource.hpp"
 	)
 
 	list(APPEND RE2_TDB66SDK_SOURCES
@@ -2100,6 +2104,7 @@ if(REF_BUILD_RE3_SDK OR REF_BUILD_FRAMEWORK) # build-re3-sdk
 		"shared/sdk/SceneManager.cpp"
 		"shared/sdk/SystemArray.cpp"
 		"shared/sdk/helpers/NativeObject.cpp"
+		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
 		"shared/sdk/ManagedObject.hpp"
@@ -2634,6 +2639,7 @@ if(REF_BUILD_RE3_SDK OR REF_BUILD_FRAMEWORK) # build-re3-sdk
 		"shared/sdk/regenny/re8/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/re8/via/vec3.hpp"
 		"shared/sdk/regenny/re8/via/vec4.hpp"
+		"shared/sdk/renderer/RenderResource.hpp"
 	)
 
 	list(APPEND RE3SDK_SOURCES
@@ -2704,6 +2710,7 @@ if(REF_BUILD_RE3_TDB67SDK OR REF_BUILD_FRAMEWORK) # build-re3tdb67-sdk
 		"shared/sdk/SceneManager.cpp"
 		"shared/sdk/SystemArray.cpp"
 		"shared/sdk/helpers/NativeObject.cpp"
+		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
 		"shared/sdk/ManagedObject.hpp"
@@ -3238,6 +3245,7 @@ if(REF_BUILD_RE3_TDB67SDK OR REF_BUILD_FRAMEWORK) # build-re3tdb67-sdk
 		"shared/sdk/regenny/re8/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/re8/via/vec3.hpp"
 		"shared/sdk/regenny/re8/via/vec4.hpp"
+		"shared/sdk/renderer/RenderResource.hpp"
 	)
 
 	list(APPEND RE3_TDB67SDK_SOURCES
@@ -3858,6 +3866,7 @@ if(REF_BUILD_RE4_SDK OR REF_BUILD_FRAMEWORK) # build-re4-sdk
 		"shared/sdk/SceneManager.cpp"
 		"shared/sdk/SystemArray.cpp"
 		"shared/sdk/helpers/NativeObject.cpp"
+		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
 		"shared/sdk/ManagedObject.hpp"
@@ -4392,6 +4401,7 @@ if(REF_BUILD_RE4_SDK OR REF_BUILD_FRAMEWORK) # build-re4-sdk
 		"shared/sdk/regenny/re8/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/re8/via/vec3.hpp"
 		"shared/sdk/regenny/re8/via/vec4.hpp"
+		"shared/sdk/renderer/RenderResource.hpp"
 	)
 
 	list(APPEND RE4SDK_SOURCES
@@ -4464,6 +4474,7 @@ if(REF_BUILD_RE7_SDK OR REF_BUILD_FRAMEWORK) # build-re7-sdk
 		"shared/sdk/SceneManager.cpp"
 		"shared/sdk/SystemArray.cpp"
 		"shared/sdk/helpers/NativeObject.cpp"
+		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
 		"shared/sdk/ManagedObject.hpp"
@@ -4998,6 +5009,7 @@ if(REF_BUILD_RE7_SDK OR REF_BUILD_FRAMEWORK) # build-re7-sdk
 		"shared/sdk/regenny/re8/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/re8/via/vec3.hpp"
 		"shared/sdk/regenny/re8/via/vec4.hpp"
+		"shared/sdk/renderer/RenderResource.hpp"
 	)
 
 	list(APPEND RE7SDK_SOURCES
@@ -5068,6 +5080,7 @@ if(REF_BUILD_RE7_TDB49SDK OR REF_BUILD_FRAMEWORK) # build-re7tdb49-sdk
 		"shared/sdk/SceneManager.cpp"
 		"shared/sdk/SystemArray.cpp"
 		"shared/sdk/helpers/NativeObject.cpp"
+		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
 		"shared/sdk/ManagedObject.hpp"
@@ -5602,6 +5615,7 @@ if(REF_BUILD_RE7_TDB49SDK OR REF_BUILD_FRAMEWORK) # build-re7tdb49-sdk
 		"shared/sdk/regenny/re8/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/re8/via/vec3.hpp"
 		"shared/sdk/regenny/re8/via/vec4.hpp"
+		"shared/sdk/renderer/RenderResource.hpp"
 	)
 
 	list(APPEND RE7_TDB49SDK_SOURCES
@@ -6039,6 +6053,7 @@ if(REF_BUILD_RE8_SDK OR REF_BUILD_FRAMEWORK) # build-re8-sdk
 		"shared/sdk/SceneManager.cpp"
 		"shared/sdk/SystemArray.cpp"
 		"shared/sdk/helpers/NativeObject.cpp"
+		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
 		"shared/sdk/ManagedObject.hpp"
@@ -6573,6 +6588,7 @@ if(REF_BUILD_RE8_SDK OR REF_BUILD_FRAMEWORK) # build-re8-sdk
 		"shared/sdk/regenny/re8/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/re8/via/vec3.hpp"
 		"shared/sdk/regenny/re8/via/vec4.hpp"
+		"shared/sdk/renderer/RenderResource.hpp"
 	)
 
 	list(APPEND RE8SDK_SOURCES
@@ -6828,6 +6844,7 @@ if(REF_BUILD_DMC5_SDK OR REF_BUILD_FRAMEWORK) # build-dmc5-sdk
 		"shared/sdk/SceneManager.cpp"
 		"shared/sdk/SystemArray.cpp"
 		"shared/sdk/helpers/NativeObject.cpp"
+		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
 		"shared/sdk/ManagedObject.hpp"
@@ -7362,6 +7379,7 @@ if(REF_BUILD_DMC5_SDK OR REF_BUILD_FRAMEWORK) # build-dmc5-sdk
 		"shared/sdk/regenny/re8/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/re8/via/vec3.hpp"
 		"shared/sdk/regenny/re8/via/vec4.hpp"
+		"shared/sdk/renderer/RenderResource.hpp"
 	)
 
 	list(APPEND DMC5SDK_SOURCES
@@ -7615,6 +7633,7 @@ if(REF_BUILD_MHRISE_SDK OR REF_BUILD_FRAMEWORK) # build-mhrise-sdk
 		"shared/sdk/SceneManager.cpp"
 		"shared/sdk/SystemArray.cpp"
 		"shared/sdk/helpers/NativeObject.cpp"
+		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
 		"shared/sdk/ManagedObject.hpp"
@@ -8149,6 +8168,7 @@ if(REF_BUILD_MHRISE_SDK OR REF_BUILD_FRAMEWORK) # build-mhrise-sdk
 		"shared/sdk/regenny/re8/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/re8/via/vec3.hpp"
 		"shared/sdk/regenny/re8/via/vec4.hpp"
+		"shared/sdk/renderer/RenderResource.hpp"
 	)
 
 	list(APPEND MHRISESDK_SOURCES
