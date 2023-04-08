@@ -20,7 +20,10 @@ public:
     bool on_pre_gui_draw_element(REComponent* gui_element, void* primitive_context) override;
     void on_view_get_size(REManagedObject* scene_view, float* result) override;
 
+    void on_scene_layer_update(sdk::renderer::layer::Scene* layer, void* render_context) override;
+
 private:
+    void do_scope_tweaks(sdk::renderer::layer::Scene* layer);
     void do_ultrawide_fix();
     void do_ultrawide_fov_restore(bool force = false);
     void set_vertical_fov(bool enable);
@@ -39,6 +42,12 @@ private:
     const ModToggle::Ptr m_disable_gui{ ModToggle::create(generate_name("DisableGUI"), false) };
     const ModToggle::Ptr m_force_render_res_to_window{ ModToggle::create(generate_name("ForceRenderResToWindow"), false) };
 
+#ifdef RE4
+    const ModToggle::Ptr m_scope_tweaks{ ModToggle::create(generate_name("ScopeTweaks"), false) };
+    const ModToggle::Ptr m_scope_interlaced_rendering{ ModToggle::create(generate_name("ScopeInterlacedRendering"), false) };
+    const ModSlider::Ptr m_scope_image_quality{ ModSlider::create(generate_name("ScopeImageQuality"), 0.01f, 2.0f, 1.0f) };
+#endif
+
     std::optional<std::array<uint32_t, 2>> m_backbuffer_size{};
 
     ValueList m_options{
@@ -48,5 +57,11 @@ private:
         *m_ultrawide_fov_multiplier,
         *m_disable_gui,
         *m_force_render_res_to_window,
+
+#ifdef RE4
+        *m_scope_tweaks,
+        *m_scope_interlaced_rendering,
+        *m_scope_image_quality,
+#endif
     };
 };
