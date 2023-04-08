@@ -287,6 +287,7 @@ void D3D12Component::setup() {
     auto swapchain = hook->get_swap_chain();
 
     ComPtr<ID3D12Resource> backbuffer{};
+    ComPtr<ID3D12Resource> real_backbuffer{};
 
     const auto& vr = VR::get();
     const auto is_multipass = vr->is_using_multipass();
@@ -297,20 +298,33 @@ void D3D12Component::setup() {
         return; // return until valid textures are available
     }
 
-    if (backbuffer == nullptr && FAILED(swapchain->GetBuffer(0, IID_PPV_ARGS(&backbuffer)))) {
+    if (FAILED(swapchain->GetBuffer(0, IID_PPV_ARGS(&real_backbuffer)))) {
+        spdlog::error("[VR] Failed to get back buffer.");
+        return;
+    }
+
+    if (backbuffer == nullptr) {
+        backbuffer = real_backbuffer;
+    }
+
+    if (backbuffer == nullptr) {
         spdlog::error("[VR] Failed to get back buffer.");
         return;
     }
 
     auto backbuffer_desc = backbuffer->GetDesc();
+    const auto real_backbuffer_desc = real_backbuffer->GetDesc();
 
     spdlog::info("[VR] D3D12 Backbuffer width: {}, height: {}", backbuffer_desc.Width, backbuffer_desc.Height);
+    spdlog::info("[VR] D3D12 Real Backbuffer width: {}, height: {}", real_backbuffer_desc.Width, real_backbuffer_desc.Height);
 
     D3D12_HEAP_PROPERTIES heap_props{};
     heap_props.Type = D3D12_HEAP_TYPE_DEFAULT;
     heap_props.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
     heap_props.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
 
+    backbuffer_desc.Width = real_backbuffer_desc.Width;
+    backbuffer_desc.Height = real_backbuffer_desc.Height;
     m_openvr.last_format = backbuffer_desc.Format;
 
     for (auto& ctx : m_openvr.left_eye_tex) {
@@ -337,8 +351,8 @@ void D3D12Component::setup() {
         copier.setup(L"Generic Copier");
     }
 
-    m_backbuffer_size[0] = backbuffer_desc.Width;
-    m_backbuffer_size[1] = backbuffer_desc.Height;
+    m_backbuffer_size[0] = real_backbuffer_desc.Width;
+    m_backbuffer_size[1] = real_backbuffer_desc.Height;
 
     spdlog::info("[VR] d3d12 textures have been setup");
     m_force_reset = false;
