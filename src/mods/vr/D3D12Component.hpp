@@ -101,21 +101,22 @@ private:
             return ctx;
         }
 
-        void copy_left(ID3D12Resource* src) {
+        void copy_left(ID3D12Resource* src, D3D12_RESOURCE_STATES src_state = D3D12_RESOURCE_STATE_PRESENT) {
             auto& ctx = this->acquire_left();
-            ctx.copier.copy(src, ctx.texture.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+            ctx.copier.copy(src, ctx.texture.Get(), src_state, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
             ctx.copier.execute();
         }
 
-        void copy_right(ID3D12Resource* src) {
+        void copy_right(ID3D12Resource* src, D3D12_RESOURCE_STATES src_state = D3D12_RESOURCE_STATE_PRESENT) {
             auto& ctx = this->acquire_right();
-            ctx.copier.copy(src, ctx.texture.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+            ctx.copier.copy(src, ctx.texture.Get(), src_state, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
             ctx.copier.execute();
         }
 
         std::array<TextureContext, 3> left_eye_tex{};
         std::array<TextureContext, 3> right_eye_tex{};
         uint32_t texture_counter{0};
+        DXGI_FORMAT last_format{};
     } m_openvr;
 
     struct OpenXR {

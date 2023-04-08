@@ -59,7 +59,11 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
                 m_openxr.create_swapchains();
             }
         } else {
-
+            if (eye_desc.Format != m_openvr.last_format) {
+                spdlog::info("[VR] OpenVR format changed from {} to {}", m_openvr.last_format, eye_desc.Format);
+                on_reset(vr);
+                return vr::VRCompositorError_None;
+            }
         }
     }
 
@@ -123,8 +127,13 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
         // Copy the back buffer to the right eye texture.
         if (runtime->is_openvr()) {
             if (is_multipass) {
-                m_openvr.copy_left(vr->m_multipass.eye_textures[0].Get());
-                m_openvr.copy_right(vr->m_multipass.eye_textures[1].Get());
+                if (!TemporalUpscaler::get()->ready()) {
+                    m_openvr.copy_left(vr->m_multipass.eye_textures[0].Get());
+                    m_openvr.copy_right(vr->m_multipass.eye_textures[1].Get());
+                } else {
+                    m_openvr.copy_left(vr->m_multipass.eye_textures[0].Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                    m_openvr.copy_right(vr->m_multipass.eye_textures[1].Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                }
             } else {
                 m_openvr.copy_right(backbuffer.Get());
             }
@@ -282,13 +291,13 @@ void D3D12Component::setup() {
     const auto& vr = VR::get();
     const auto is_multipass = vr->is_using_multipass();
     
-    if (is_multipass && vr->m_multipass.eye_textures[0].Get() != nullptr) {
+    if (is_multipass && vr->m_multipass.eye_textures[0].Get() != nullptr && vr->m_multipass.eye_textures[1].Get() != nullptr) {
         backbuffer = vr->m_multipass.eye_textures[0];
     } else if (is_multipass) {
         return; // return until valid textures are available
     }
 
-    if (FAILED(swapchain->GetBuffer(0, IID_PPV_ARGS(&backbuffer)))) {
+    if (backbuffer == nullptr && FAILED(swapchain->GetBuffer(0, IID_PPV_ARGS(&backbuffer)))) {
         spdlog::error("[VR] Failed to get back buffer.");
         return;
     }
@@ -301,6 +310,8 @@ void D3D12Component::setup() {
     heap_props.Type = D3D12_HEAP_TYPE_DEFAULT;
     heap_props.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
     heap_props.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+
+    m_openvr.last_format = backbuffer_desc.Format;
 
     for (auto& ctx : m_openvr.left_eye_tex) {
         if (FAILED(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &backbuffer_desc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr,
