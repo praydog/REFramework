@@ -1039,6 +1039,9 @@ void REFramework::invalidate_device_objects() {
 void REFramework::draw_ui() {
     std::lock_guard _{m_input_mutex};
 
+    ImGui::GetIO().MouseDrawCursor = m_draw_ui && REFrameworkConfig::get()->is_always_show_cursor();
+    ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange; // causes bugs with the cursor
+
     if (!m_draw_ui) {
         remove_set_cursor_pos_patch();
 
