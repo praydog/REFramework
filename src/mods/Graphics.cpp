@@ -21,6 +21,7 @@ void Graphics::on_draw_ui() {
         return;
     }
 
+#ifdef RE4
     ImGui::SetNextItemOpen(true, ImGuiCond_::ImGuiCond_Once);
     if (ImGui::TreeNode("RE4 Scope Tweaks")) {
         m_scope_tweaks->draw("Enable Scope Tweaks");
@@ -32,6 +33,7 @@ void Graphics::on_draw_ui() {
 
         ImGui::TreePop();
     }
+#endif
 
     ImGui::SetNextItemOpen(true, ImGuiCond_::ImGuiCond_Once);
     if (ImGui::TreeNode("Ultrawide/FOV Options")) {
