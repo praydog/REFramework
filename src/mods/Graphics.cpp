@@ -21,23 +21,41 @@ void Graphics::on_draw_ui() {
         return;
     }
 
-    if (m_ultrawide_fix->draw("Ultrawide/Aspect Ratio Fix") && m_ultrawide_fix->value() == false) {
-        set_vertical_fov(false);
-        do_ultrawide_fov_restore(true);
+    ImGui::SetNextItemOpen(true, ImGuiCond_::ImGuiCond_Once);
+    if (ImGui::TreeNode("RE4 Scope Tweaks")) {
+        m_scope_tweaks->draw("Enable Scope Tweaks");
+
+        if (m_scope_tweaks->value()) {
+            m_scope_interlaced_rendering->draw("Enable Interlaced Rendering");
+            m_scope_image_quality->draw("Scope Image Quality");
+        }
+
+        ImGui::TreePop();
     }
 
-    if (m_ultrawide_fix->value()) {
-        m_ultrawide_vertical_fov->draw("Ultrawide: Enable Vertical FOV");
-        m_ultrawide_fov->draw("Ultrawide: Override FOV");
-        m_ultrawide_fov_multiplier->draw("Ultrawide: FOV Multiplier");
+    ImGui::SetNextItemOpen(true, ImGuiCond_::ImGuiCond_Once);
+    if (ImGui::TreeNode("Ultrawide/FOV Options")) {
+        if (m_ultrawide_fix->draw("Ultrawide/FOV/Aspect Ratio Fix") && m_ultrawide_fix->value() == false) {
+            set_vertical_fov(false);
+            do_ultrawide_fov_restore(true);
+        }
+
+        if (m_ultrawide_fix->value()) {
+            m_ultrawide_vertical_fov->draw("Ultrawide: Enable Vertical FOV");
+            m_ultrawide_fov->draw("Ultrawide: Override FOV");
+            m_ultrawide_fov_multiplier->draw("Ultrawide: FOV Multiplier");
+        }
+
+        m_force_render_res_to_window->draw("Force Render Resolution to Window Size");
+
+        ImGui::TreePop();
     }
 
-    m_force_render_res_to_window->draw("Force Render Resolution to Window Size");
-
-    ImGui::Separator();
-    ImGui::Text("GUI Options");
-
-    m_disable_gui->draw("Hide GUI");
+    ImGui::SetNextItemOpen(true, ImGuiCond_::ImGuiCond_Once);
+    if (ImGui::TreeNode("GUI Options")) {
+        m_disable_gui->draw("Hide GUI");
+        ImGui::TreePop();
+    }
 }
 
 void Graphics::on_present() {
@@ -168,6 +186,57 @@ void Graphics::on_view_get_size(REManagedObject* scene_view, float* result) {
 
     result[0] = (float)(*m_backbuffer_size)[0];
     result[1] = (float)(*m_backbuffer_size)[1];
+}
+
+void Graphics::do_scope_tweaks(sdk::renderer::layer::Scene* layer) {
+#ifdef RE4
+    if (!m_scope_tweaks->value()) {
+        return;
+    }
+    const auto camera = layer->get_camera();
+
+    if (camera == nullptr || !layer->is_enabled()) {
+        return;
+    }
+
+    const auto camera_gameobject = utility::re_component::get_game_object(camera);
+
+    if (camera_gameobject == nullptr || camera_gameobject->name == nullptr) {
+        return;
+    }
+
+    const auto name = utility::re_string::get_view(camera_gameobject->name);
+
+    if (name != L"ScopeCamera") {
+        return;
+    }
+
+    static auto render_output_t = sdk::find_type_definition("via.render.RenderOutput");
+    static auto render_output_tt = render_output_t->get_type();
+
+    auto render_output = utility::re_component::find(camera, render_output_tt);
+
+    if (render_output == nullptr) {
+        return;
+    }
+
+    static auto set_image_quality_method = render_output_t->get_method("set_ImageQuality");
+    static auto set_interleave_method = render_output_t->get_method("set_Interleave");
+
+    if (set_image_quality_method != nullptr) {
+        set_image_quality_method->call(sdk::get_thread_context(), render_output, m_scope_image_quality->value());
+    }
+
+    if (set_interleave_method != nullptr) {
+        set_interleave_method->call(sdk::get_thread_context(), render_output, m_scope_interlaced_rendering->value());
+    }
+#endif
+}
+
+void Graphics::on_scene_layer_update(sdk::renderer::layer::Scene* layer, void* render_context) {
+#ifdef RE4
+    do_scope_tweaks(layer);
+#endif
 }
 
 void Graphics::do_ultrawide_fix() {
