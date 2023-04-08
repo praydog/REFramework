@@ -557,7 +557,13 @@ private:
             "Alternating/AFR", 
             "Two Frame Sequential", 
             "Single Frame Multipass"
-        }, 1) 
+        }, 
+#if TDB_VER < 69
+        1 // Previous rendering technique
+#else
+        2 // New rendering technique
+#endif
+        ) 
     };
     const ModToggle::Ptr m_use_custom_view_distance{ ModToggle::create(generate_name("UseCustomViewDistance"), false) };
     const ModToggle::Ptr m_hmd_oriented_audio{ ModToggle::create(generate_name("HMDOrientedAudio"), true) };
