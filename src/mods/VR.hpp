@@ -552,7 +552,7 @@ private:
     const ModKey::Ptr m_recenter_view_key{ ModKey::create(generate_name("RecenterViewKey")) };
     const ModToggle::Ptr m_decoupled_pitch{ ModToggle::create(generate_name("DecoupledPitch"), false) };
     const ModCombo::Ptr m_rendering_technique{ 
-        ModCombo::create(generate_name("RenderingTechnique"),
+        ModCombo::create(generate_name("RenderingTechnique_V2"),
         {
             "Alternating/AFR", 
             "Two Frame Sequential", 
@@ -576,7 +576,14 @@ private:
     const ModSlider::Ptr m_resolution_scale{ ModSlider::create(generate_name("OpenXRResolutionScale"), 0.1f, 5.0f, 1.0f) };
 
     const ModToggle::Ptr m_force_fps_settings{ ModToggle::create(generate_name("ForceFPS"), true) };
+
+#if TDB_VER < 69
     const ModToggle::Ptr m_force_aa_settings{ ModToggle::create(generate_name("ForceAntiAliasing"), true) };
+#else
+    // On new versions, since we're using the new rendering technique, we don't need to turn AA off
+    const ModToggle::Ptr m_force_aa_settings{ ModToggle::create(generate_name("ForceAntiAliasing_V2"), false) };
+#endif
+
     const ModToggle::Ptr m_force_motionblur_settings{ ModToggle::create(generate_name("ForceMotionBlur"), true) };
     const ModToggle::Ptr m_force_vsync_settings{ ModToggle::create(generate_name("ForceVSync"), true) };
     const ModToggle::Ptr m_force_lensdistortion_settings{ ModToggle::create(generate_name("ForceLensDistortion"), true) };
