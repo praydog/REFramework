@@ -423,6 +423,39 @@ void D3D11Component::OpenXR::copy(uint32_t swapchain_idx, ID3D11Texture2D* resou
     LOG_VERBOSE("Acquiring swapchain image for {}", swapchain_idx);
     auto result = xrAcquireSwapchainImage(swapchain.handle, &acquire_info, &texture_index);
 
+    if (result == XR_ERROR_CALL_ORDER_INVALID && ctx.num_textures_acquired > 0) {
+        spdlog::info("Attempting to correct call order invalid error.");
+
+        XrSwapchainImageReleaseInfo release_info{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
+
+        if (auto release_result = xrReleaseSwapchainImage(swapchain.handle, &release_info)) {
+            if (release_result == XR_ERROR_CALL_ORDER_INVALID) {
+                XrSwapchainImageWaitInfo wait_info{XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO};
+                //wait_info.timeout = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::seconds(1)).count();
+                wait_info.timeout = XR_INFINITE_DURATION;
+
+                LOG_VERBOSE("Waiting on swapchain image for {}", swapchain_idx);
+                const auto wait_result = xrWaitSwapchainImage(swapchain.handle, &wait_info);
+
+                if (wait_result == XR_SUCCESS) {
+                    release_result = xrReleaseSwapchainImage(swapchain.handle, &release_info);
+                } else {
+                    spdlog::error("[VR] xrWaitSwapchainImage failed: {}", vr->m_openxr->get_result_string(wait_result));
+                    return;
+                }
+            }
+
+            if (release_result != XR_SUCCESS) {
+                spdlog::error("[VR] xrReleaseSwapchainImage failed: {}", vr->m_openxr->get_result_string(result));
+                return;
+            }
+        }
+
+        ctx.num_textures_acquired--;
+        texture_index = 0;
+        result = xrAcquireSwapchainImage(swapchain.handle, &acquire_info, &texture_index);
+    }
+
     if (result != XR_SUCCESS) {
         spdlog::error("[VR] xrAcquireSwapchainImage failed: {}", vr->m_openxr->get_result_string(result));
     } else {
