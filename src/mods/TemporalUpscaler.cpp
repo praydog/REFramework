@@ -262,6 +262,7 @@ void TemporalUpscaler::on_early_present() {
 
                 if (new_depth != nullptr && (state.depth_copy == nullptr || new_depth != state.depth.Get())) {
                     state.depth_copy = state.scene_layer->get_depth_stencil()->clone();
+                    state.depth = new_depth;
 
                     spdlog::info("[TemporalUpscaler] Made clone of depth stencil @ {:x}", (uintptr_t)state.depth_copy.get());
                 }
@@ -277,15 +278,13 @@ void TemporalUpscaler::on_early_present() {
 
                             if (tex != nullptr) {
                                 state.motion_vectors_copy = tex->clone();
+                                state.motion_vectors = new_motion_vectors;
 
                                 spdlog::info("[TemporalUpscaler] Made clone of motion vectors @ {:x}", (uintptr_t)state.motion_vectors_copy.get());
                             }
                         }
                     }
                 }
-
-                state.depth = new_depth;
-                state.motion_vectors = new_motion_vectors;
             }
 
             for (auto i = 0; i < 2; ++i) {
@@ -732,7 +731,6 @@ void TemporalUpscaler::on_scene_layer_update(sdk::renderer::layer::Scene* layer,
     auto& vr = VR::get();
 
     // Other layers appear when using scopes or mirrors are displayed
-    // TODO: Fix this for new VR rendering method which creates another scene layer
     if (!layer->is_fully_rendered() || !layer->has_main_camera()) {
         return;
     }
@@ -1018,11 +1016,12 @@ void TemporalUpscaler::on_pre_application_entry(void* entry, const char* name, s
                         if (is_vr_multipass && new_color != nullptr && (state.color == nullptr || new_color != state.color.Get() || state.color_copy == nullptr)) {
                             const auto color_tex = current_target_state->get_rtv(0)->get_texture_d3d12();
                             state.color_copy = color_tex->clone();
+                            state.color = new_color;
 
                             spdlog::info("[TemporalUpscaler] Created color copy");
+                        } else if (!is_vr_multipass) {
+                            state.color = new_color;
                         }
-
-                        state.color = new_color;
                     } else {
                         state.color.Reset();
                     }

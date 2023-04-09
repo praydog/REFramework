@@ -53,6 +53,10 @@ public:
         return m_initialized && m_backend_loaded && m_enabled->value() && !m_wants_reinitialize;
     }
 
+    bool activated() const {
+        return m_initialized && m_backend_loaded && m_enabled->value();
+    }
+
     uint32_t get_evaluate_id(uint32_t counter) const {
         return (counter % 2) + 1;
     }

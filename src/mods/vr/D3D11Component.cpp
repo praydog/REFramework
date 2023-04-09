@@ -43,6 +43,12 @@ vr::EVRCompositorError D3D11Component::on_frame(VR* vr) {
 
     auto runtime = vr->get_runtime();
 
+    // Sometimes this can happen if pipeline execution does not go exactly as planned
+    // so we need to resynchronized or begin the frame again.
+    if (runtime->ready()) {
+        runtime->fix_frame();
+    }
+
     // If m_frame_count is even, we're rendering the left eye.
     if (vr->m_render_frame_count % 2 == vr->m_left_eye_interval) {
         if (runtime->is_openxr() && runtime->ready()) {
@@ -66,6 +72,7 @@ vr::EVRCompositorError D3D11Component::on_frame(VR* vr) {
             vr::Texture_t left_eye{(void*)m_left_eye_tex.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto};
 
             auto e = vr::VRCompositor()->Submit(vr::Eye_Left, &left_eye, &vr->m_left_bounds);
+            runtime->frame_synced = false;
 
             bool submitted = true;
 

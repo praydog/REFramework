@@ -125,8 +125,19 @@ void VR::on_view_get_size(REManagedObject* scene_view, float* result) {
                 g_previous_size = regenny::via::Size{ (float)window->width, (float)window->height };
             }
 #endif
-            window_width = get_hmd_width();
-            window_height = get_hmd_height();
+
+            if (!TemporalUpscaler::get()->activated()) {
+                if (!is_using_multipass()) {
+                    window_width = get_hmd_width();
+                    window_height = get_hmd_height();
+                } else {
+                    window_width = get_hmd_width() + 1;
+                    window_height = get_hmd_height() + 1;
+                }
+            } else {
+                window_width = get_hmd_width();
+                window_height = get_hmd_height();
+            }
 
             if (m_is_d3d12 && m_d3d12.is_initialized()) {
                 const auto& backbuffer_size = m_d3d12.get_backbuffer_size();
@@ -144,8 +155,8 @@ void VR::on_view_get_size(REManagedObject* scene_view, float* result) {
 
                         if (is_true_inconsistency) {
                             // Force a reset of the backbuffer size
-                            window_width = get_hmd_width() + 1;
-                            window_height = get_hmd_height() + 1;
+                            window_width = window_width + 1;
+                            window_height = window_height + 1;
 
                             spdlog::info("[VR] Previous backbuffer size: {}x{}", backbuffer_size[0], backbuffer_size[1]);
                             spdlog::info("[VR] Backbuffer size inconsistency detected, resetting backbuffer size to {}x{}", window_width, window_height);
@@ -184,7 +195,7 @@ void VR::on_view_get_size(REManagedObject* scene_view, float* result) {
     }
 
     // spoof the size to the HMD's size
-    if (!TemporalUpscaler::get()->ready()) {
+    if (!TemporalUpscaler::get()->activated()) {
         if (!is_using_multipass()) {
             result[0] = wanted_width;
             result[1] = wanted_height;
@@ -3325,7 +3336,7 @@ void VR::on_end_rendering(void* entry) {
 
         const auto temporal_upscaler = TemporalUpscaler::get();
 
-        if (temporal_upscaler->ready()) {
+        if (temporal_upscaler->activated()) {
             m_multipass.eye_textures[0] = (ID3D12Resource*)temporal_upscaler->get_upscaled_texture<void*>(0);
             m_multipass.eye_textures[1] = (ID3D12Resource*)temporal_upscaler->get_upscaled_texture<void*>(1);
         } else {

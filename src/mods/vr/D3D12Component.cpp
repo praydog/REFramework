@@ -43,14 +43,17 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
     }
 
     auto runtime = vr->get_runtime();
+
+    // Sometimes this can happen if pipeline execution does not go exactly as planned
+    // so we need to resynchronized or begin the frame again.
+    if (runtime->ready()) {
+        runtime->fix_frame();
+    }
+
     const auto frame_count = vr->m_render_frame_count;
     const auto is_multipass = vr->is_using_multipass();
 
-    if (is_multipass && (vr->m_multipass.eye_textures[0] == nullptr || vr->m_multipass.eye_textures[1] == nullptr)) {
-        return vr::VRCompositorError_None;
-    }
-
-    if (is_multipass) {
+    if (is_multipass && (vr->m_multipass.eye_textures[0] != nullptr && vr->m_multipass.eye_textures[1] != nullptr)) {
         const auto eye_desc = vr->m_multipass.eye_textures[0]->GetDesc();
 
         if (runtime->is_openxr()) {
@@ -62,7 +65,7 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
             if (eye_desc.Format != m_openvr.last_format) {
                 spdlog::info("[VR] OpenVR format changed from {} to {}", m_openvr.last_format, eye_desc.Format);
                 on_reset(vr);
-                return vr::VRCompositorError_None;
+                setup();
             }
         }
     }
@@ -108,12 +111,18 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
                 src_box.right *= 2;
                 m_openxr.copy(1, (ID3D12Resource*)vr->m_multipass.eye_textures[0], &src_box, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);*/
 
-                if (!TemporalUpscaler::get()->ready()) {
-                    m_openxr.copy(0, vr->m_multipass.eye_textures[0].Get(), nullptr, D3D12_RESOURCE_STATE_COMMON);
-                    m_openxr.copy(1, vr->m_multipass.eye_textures[1].Get(), nullptr, D3D12_RESOURCE_STATE_COMMON);
+                if (vr->m_multipass.eye_textures[0].Get() != nullptr && vr->m_multipass.eye_textures[1].Get() != nullptr) {
+                    if (!TemporalUpscaler::get()->ready()) {
+                        m_openxr.copy(0, vr->m_multipass.eye_textures[0].Get(), nullptr, D3D12_RESOURCE_STATE_COPY_DEST);
+                        m_openxr.copy(1, vr->m_multipass.eye_textures[1].Get(), nullptr, D3D12_RESOURCE_STATE_COPY_DEST);
+                    } else {
+                        m_openxr.copy(0, vr->m_multipass.eye_textures[0].Get(), nullptr, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                        m_openxr.copy(1, vr->m_multipass.eye_textures[1].Get(), nullptr, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                    }
                 } else {
-                    m_openxr.copy(0, vr->m_multipass.eye_textures[0].Get(), nullptr, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-                    m_openxr.copy(1, vr->m_multipass.eye_textures[1].Get(), nullptr, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                    // just copy the backbuffer to both eyes as a fallback
+                    m_openxr.copy(0, backbuffer.Get(), nullptr, D3D12_RESOURCE_STATE_PRESENT);
+                    m_openxr.copy(1, backbuffer.Get(), nullptr, D3D12_RESOURCE_STATE_PRESENT);
                 }
 
                 vr->m_multipass.eye_textures[0].Reset();
@@ -127,12 +136,18 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
         // Copy the back buffer to the right eye texture.
         if (runtime->is_openvr()) {
             if (is_multipass) {
-                if (!TemporalUpscaler::get()->ready()) {
-                    m_openvr.copy_left(vr->m_multipass.eye_textures[0].Get());
-                    m_openvr.copy_right(vr->m_multipass.eye_textures[1].Get());
+                if (vr->m_multipass.eye_textures[0].Get() != nullptr && vr->m_multipass.eye_textures[1].Get() != nullptr) {
+                    if (!TemporalUpscaler::get()->ready()) {
+                        m_openvr.copy_left(vr->m_multipass.eye_textures[0].Get(), D3D12_RESOURCE_STATE_COPY_DEST);
+                        m_openvr.copy_right(vr->m_multipass.eye_textures[1].Get(), D3D12_RESOURCE_STATE_COPY_DEST);
+                    } else {
+                        m_openvr.copy_left(vr->m_multipass.eye_textures[0].Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                        m_openvr.copy_right(vr->m_multipass.eye_textures[1].Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                    }
                 } else {
-                    m_openvr.copy_left(vr->m_multipass.eye_textures[0].Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-                    m_openvr.copy_right(vr->m_multipass.eye_textures[1].Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                    // just copy the backbuffer to both eyes as a fallback
+                    m_openvr.copy_left(backbuffer.Get());
+                    m_openvr.copy_right(backbuffer.Get());
                 }
             } else {
                 m_openvr.copy_right(backbuffer.Get());
@@ -158,6 +173,7 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
                 };
 
                 auto e = vr::VRCompositor()->Submit(vr::Eye_Left, &left_eye, &vr->m_left_bounds, vr::EVRSubmitFlags::Submit_TextureWithPose);
+                runtime->frame_synced = false;
 
                 if (e != vr::VRCompositorError_None) {
                     spdlog::error("[VR] VRCompositor failed to submit left eye: {}", (int)e);
@@ -277,7 +293,9 @@ void D3D12Component::on_reset(VR* vr) {
 void D3D12Component::setup() {
     REF_PROFILE_FUNCTION();
 
-    spdlog::info("[VR] Setting up d3d12 textures...");
+    if (VR::get()->is_hmd_active()) {
+        spdlog::info("[VR] Setting up d3d12 textures...");
+    }
     
     m_prev_backbuffer = nullptr;
 
@@ -294,8 +312,6 @@ void D3D12Component::setup() {
     
     if (is_multipass && vr->m_multipass.eye_textures[0].Get() != nullptr && vr->m_multipass.eye_textures[1].Get() != nullptr) {
         backbuffer = vr->m_multipass.eye_textures[0];
-    } else if (is_multipass) {
-        return; // return until valid textures are available
     }
 
     if (FAILED(swapchain->GetBuffer(0, IID_PPV_ARGS(&real_backbuffer)))) {
@@ -323,11 +339,23 @@ void D3D12Component::setup() {
     heap_props.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
     heap_props.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
 
-    backbuffer_desc.Width = real_backbuffer_desc.Width;
-    backbuffer_desc.Height = real_backbuffer_desc.Height;
+    if (is_multipass) {
+        backbuffer_desc.Width = vr->get_hmd_width();
+        backbuffer_desc.Height = vr->get_hmd_height();
+
+        if (backbuffer.Get() == real_backbuffer.Get()) {
+            backbuffer_desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+        }
+    } else {
+        backbuffer_desc.Width = real_backbuffer_desc.Width;
+        backbuffer_desc.Height = real_backbuffer_desc.Height;
+    }
+
     m_openvr.last_format = backbuffer_desc.Format;
 
     for (auto& ctx : m_openvr.left_eye_tex) {
+        ctx.texture.Reset();
+
         if (FAILED(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &backbuffer_desc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr,
                 IID_PPV_ARGS(&ctx.texture)))) {
             spdlog::error("[VR] Failed to create left eye texture.");
@@ -338,6 +366,8 @@ void D3D12Component::setup() {
     }
 
     for (auto& ctx : m_openvr.right_eye_tex) {
+        ctx.texture.Reset();
+
         if (FAILED(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &backbuffer_desc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr,
                 IID_PPV_ARGS(&ctx.texture)))) {
             spdlog::error("[VR] Failed to create right eye texture.");
@@ -532,6 +562,8 @@ void D3D12Component::OpenXR::destroy_swapchains() {
     }
 
     spdlog::info("[VR] Destroying swapchains.");
+
+    this->wait_for_all_copies();
 
     for (auto i = 0; i < this->contexts.size(); ++i) {
         auto& ctx = this->contexts[i];
