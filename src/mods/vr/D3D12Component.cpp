@@ -168,11 +168,11 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
                     0
                 };
 
-                vr::VRTextureWithPose_t left_eye{
+                vr::Texture_t left_eye{
                     (void*)&left, vr::TextureType_DirectX12, vr::ColorSpace_Auto
                 };
 
-                auto e = vr::VRCompositor()->Submit(vr::Eye_Left, &left_eye, &vr->m_left_bounds, vr::EVRSubmitFlags::Submit_TextureWithPose);
+                auto e = vr::VRCompositor()->Submit(vr::Eye_Left, &left_eye, &vr->m_left_bounds);
                 runtime->frame_synced = false;
 
                 if (e != vr::VRCompositorError_None) {
