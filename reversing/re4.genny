@@ -740,16 +740,18 @@ struct ChainCollisionArray {
     int32_t preset_id;
 };
 
-struct SecondaryAnimation 0x48 {
+struct SecondaryAnimation : via.Component 0x50 {
+    void* motion
 };
 
-struct Chain : via.motion.SecondaryAnimation 0x220 {
-    ChainCollisionArray CollisionData @ 0x60;
-    float BlendRate @ 0xEC
-    float FreezeRate @ 0xF0
-    float StepFrame @ 0x130
-    uint32_t CalculateMode @ 0x208
-    uint32_t GravityCoord @ 0x210
+struct Chain : via.motion.SecondaryAnimation 0x390 {
+
+    ChainCollisionArray CollisionData @ 0x140;
+    float BlendRate @ 0x22C
+    float FreezeRate @ 0x230
+    float StepFrame @ 0x280
+    uint32_t CalculateMode @ 0x378
+    uint32_t GravityCoord @ 0x380
 };
 }
 }

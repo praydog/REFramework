@@ -4,18 +4,18 @@
 namespace regenny::via::motion {
 #pragma pack(push, 1)
 struct Chain : public SecondaryAnimation {
-    char pad_48[0x18];
-    regenny::via::motion::ChainCollisionArray CollisionData; // 0x60
-    char pad_74[0x78];
-    float BlendRate; // 0xec
-    float FreezeRate; // 0xf0
-    char pad_f4[0x3c];
-    float StepFrame; // 0x130
-    char pad_134[0xd4];
-    uint32_t CalculateMode; // 0x208
-    char pad_20c[0x4];
-    uint32_t GravityCoord; // 0x210
-    char pad_214[0xc];
-}; // Size: 0x220
+    char pad_50[0xf0];
+    regenny::via::motion::ChainCollisionArray CollisionData; // 0x140
+    char pad_154[0xd8];
+    float BlendRate; // 0x22c
+    float FreezeRate; // 0x230
+    char pad_234[0x4c];
+    float StepFrame; // 0x280
+    char pad_284[0xf4];
+    uint32_t CalculateMode; // 0x378
+    char pad_37c[0x4];
+    uint32_t GravityCoord; // 0x380
+    char pad_384[0xc];
+}; // Size: 0x390
 #pragma pack(pop)
 }
