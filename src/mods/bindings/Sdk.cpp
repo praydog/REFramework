@@ -244,7 +244,15 @@ int sol_lua_push(sol::types<T*>, lua_State* l, T* obj) {
                         backpedal = sol::stack::push<sol::detail::as_pointer_tag<std::remove_pointer_t<api::sdk::BehaviorTreeCoreHandle>>>(l, (api::sdk::BehaviorTreeCoreHandle*)obj);
                         break;
                     default:
-                        backpedal = sol::stack::push<sol::detail::as_pointer_tag<std::remove_pointer_t<T>>>(l, obj);
+                        {
+                            const auto vm_obj_type = td->get_vm_obj_type();
+                            if (vm_obj_type == via::clr::VMObjType::Array) {
+                                backpedal = sol::stack::push<sol::detail::as_pointer_tag<std::remove_pointer_t<sdk::SystemArray>>>(l, (sdk::SystemArray*)obj);
+                            } else {
+                                backpedal = sol::stack::push<sol::detail::as_pointer_tag<std::remove_pointer_t<T>>>(l, obj);
+                            }
+                        }
+                        
                         break;
                     };
                 } else {
