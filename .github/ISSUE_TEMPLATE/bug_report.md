@@ -11,7 +11,7 @@ assignees: ''
 A clear and concise description of what the bug is. If the bug only started to happen after a certain REFramework update, let us know which version the bug appeared in.
 
 **Upload logs and any crash dumps**
-Locate the `re2_framework_crash.txt` in your game directory and upload it along with the issue.
+Locate the `re2_framework_log.txt` in your game directory and upload it along with the issue.
 If you crashed, upload the `reframework_crash.dmp` file as well.
 
 **Identify the REFramework version**
