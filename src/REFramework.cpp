@@ -758,6 +758,24 @@ bool REFramework::on_message(HWND wnd, UINT message, WPARAM w_param, LPARAM l_pa
 
     bool is_mouse_moving{false};
     switch (message) {
+    case WM_LBUTTONDOWN:
+        m_last_keys[VK_LBUTTON] = true;
+        break;
+    case WM_LBUTTONUP:
+        m_last_keys[VK_LBUTTON] = false;
+        break;
+    case WM_RBUTTONDOWN:
+        m_last_keys[VK_RBUTTON] = true;
+        break;
+    case WM_RBUTTONUP:
+        m_last_keys[VK_RBUTTON] = false;
+        break;
+    case WM_MBUTTONDOWN:
+        m_last_keys[VK_MBUTTON] = true;
+        break;
+    case WM_MBUTTONUP:
+        m_last_keys[VK_MBUTTON] = false;
+        break;
     case WM_KEYDOWN:
     case WM_SYSKEYDOWN: {
         const auto menu_key = REFrameworkConfig::get()->get_menu_key()->value();
