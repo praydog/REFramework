@@ -1231,6 +1231,24 @@ sol::object index(sol::this_state s, sol::object lua_obj, sol::variadic_args arg
 
     if (auto fn = type_def->get_method("get_Item"); fn != nullptr) {
         try {
+            const auto params = fn->get_param_types();
+
+            if (!params.empty()) {
+                static auto system_object = sdk::find_type_definition("System.Object");
+                static auto system_string = sdk::find_type_definition("System.String");
+
+                const auto first_param = params[0];
+
+                // If it's a System.Object it's always okay, our arg will get auto converted.
+                if (first_param != nullptr && first_param != system_object) {
+                    if (index.is<const char*>()) {
+                        if (first_param != system_string) {
+                            return sol::make_object(s, sol::nil);
+                        }
+                    }
+                }
+            }
+
             return ::api::sdk::call_native_func_direct(lua_obj, fn, args);
         } catch (...) {
             
@@ -1262,6 +1280,24 @@ void new_index(sol::this_state s, sol::object lua_obj, sol::variadic_args args) 
     }
 
     if (auto fn = type_def->get_method("set_Item"); fn != nullptr) {
+        const auto params = fn->get_param_types();
+
+        if (!params.empty()) {
+            static auto system_object = sdk::find_type_definition("System.Object");
+            static auto system_string = sdk::find_type_definition("System.String");
+            
+            const auto first_param = params[0];
+
+            // If it's a System.Object it's always okay, our arg will get auto converted.
+            if (first_param != nullptr && first_param != system_object) {
+                if (index.is<const char*>()) {
+                    if (first_param != system_string) {
+                        throw sol::error("Attempted to new_index invalid REManagedObject field: " + name);
+                    }
+                }
+            }
+        }
+
         ::api::sdk::call_native_func_direct(lua_obj, fn, args);
         return;
     }
