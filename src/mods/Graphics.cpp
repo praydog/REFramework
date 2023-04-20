@@ -15,6 +15,12 @@ void Graphics::on_config_save(utility::Config& cfg) {
     }
 }
 
+void Graphics::on_frame() {
+    if (m_disable_gui_key->is_key_down_once()) {
+        m_disable_gui->toggle();
+    }
+}
+
 void Graphics::on_draw_ui() {
     ImGui::SetNextItemOpen(false, ImGuiCond_::ImGuiCond_FirstUseEver);
     if (!ImGui::CollapsingHeader(get_name().data())) {
@@ -56,6 +62,7 @@ void Graphics::on_draw_ui() {
     ImGui::SetNextItemOpen(true, ImGuiCond_::ImGuiCond_Once);
     if (ImGui::TreeNode("GUI Options")) {
         m_disable_gui->draw("Hide GUI");
+        m_disable_gui_key->draw("Hide GUI key");
         ImGui::TreePop();
     }
 }
