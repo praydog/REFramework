@@ -83,6 +83,10 @@ REFrameworkSDKFunctions g_sdk_functions {
         return (REFrameworkManagedObjectHandle)tdef->get_runtime_type();
     },
     [](const char* name) -> REFrameworkManagedObjectHandle {
+        if (const auto singleton = (REFrameworkManagedObjectHandle)sdk::get_managed_singleton<void*>(name); singleton != nullptr) {
+            return singleton;
+        }
+        
         return (REFrameworkManagedObjectHandle)reframework::get_globals()->get(name);
     },
     [](const char* name) {
