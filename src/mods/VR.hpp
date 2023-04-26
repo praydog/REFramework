@@ -549,7 +549,8 @@ private:
         *m_allow_engine_overlays,
         *m_resolution_scale,
         *m_desktop_fix,
-        *m_desktop_fix_skip_present
+        *m_desktop_fix_skip_present,
+        *m_enable_asynchronous_rendering
     };
 
     bool m_use_rotation{true};
