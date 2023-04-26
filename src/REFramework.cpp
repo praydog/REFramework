@@ -277,7 +277,7 @@ REFramework::REFramework(HMODULE reframework_module)
     startup_lookup_thread->detach();
 #endif
 
-#if defined(RE8) || defined(RE4)
+#if defined(RE8) || defined(RE4) || defined(MHRISE)
     ULONG_PTR loader_magic = 0;
     auto lock_loader = (PFN_LdrLockLoaderLock)GetProcAddress(ntdll, "LdrLockLoaderLock");
     auto unlock_loader = (PFN_LdrUnlockLoaderLock)GetProcAddress(ntdll, "LdrUnlockLoaderLock");
