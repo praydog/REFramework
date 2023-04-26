@@ -2084,7 +2084,9 @@ void VR::disable_bad_effects() {
         return;
     }
 
-    if (m_force_fps_settings->value() && get_framerate_setting_method != nullptr && set_framerate_setting_method != nullptr) {
+    static const auto is_sf6 = utility::get_module_path(utility::get_executable())->find("StreetFighter") != std::string::npos;
+
+    if (!is_sf6 && m_force_fps_settings->value() && get_framerate_setting_method != nullptr && set_framerate_setting_method != nullptr) {
         const auto framerate_setting = get_framerate_setting_method->call<via::render::RenderConfig::FramerateType>(context, render_config);
 
         // Allow FPS to go above 60
@@ -2095,9 +2097,9 @@ void VR::disable_bad_effects() {
     }
     
     // get_MaxFps on application
-    if (m_force_fps_settings->value() && application->get_max_fps() < 600.0f) {
+    if (!is_sf6 && m_force_fps_settings->value() && application->get_max_fps() <  600.0f) {
         application->set_max_fps(600.0f);
-        spdlog::info("[VR] Max FPS set to 600");
+        spdlog::info("[VR] Max FPS set to {}", 600.0f);
     }
 
     if (m_force_aa_settings->value() && get_antialiasing_method != nullptr && set_antialiasing_method != nullptr) {
