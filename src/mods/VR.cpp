@@ -1951,8 +1951,8 @@ void VR::disable_bad_effects() {
         if (get_delay_render_enable_method != nullptr && set_delay_render_enable_method != nullptr) {
             const auto is_delay_render_enabled = get_delay_render_enable_method->call<bool>(context);
 
-            if (is_delay_render_enabled == m_enable_asynchronous_rendering) {
-                set_delay_render_enable_method->call<void*>(context, !m_enable_asynchronous_rendering);
+            if (is_delay_render_enabled == m_enable_asynchronous_rendering->value()) {
+                set_delay_render_enable_method->call<void*>(context, !m_enable_asynchronous_rendering->value());
                 spdlog::info("[VR] Delay render modified");
             }
         }
@@ -3709,6 +3709,7 @@ void VR::on_draw_ui() {
     m_force_lensflares_settings->draw("Force Disable Lens Flares");
     m_force_dynamic_shadows_settings->draw("Force Enable Dynamic Shadows");
     m_allow_engine_overlays->draw("Allow Engine Overlays");
+    m_enable_asynchronous_rendering->draw("Enable Asynchronous Rendering");
 
     if (ImGui::TreeNode("Desktop Recording Fix")) {
         ImGui::PushID("Desktop");
@@ -3726,7 +3727,6 @@ void VR::on_draw_ui() {
     ImGui::Checkbox("Disable Backbuffer Size Override", &m_disable_backbuffer_size_override);
     ImGui::Checkbox("Disable Temporal Fix", &m_disable_temporal_fix);
     ImGui::Checkbox("Disable Post Effect Fix", &m_disable_post_effect_fix);
-    ImGui::Checkbox("Enable Asynchronous Rendering", &m_enable_asynchronous_rendering);
     
     const double min_ = 0.0;
     const double max_ = 25.0;
