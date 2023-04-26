@@ -24,7 +24,7 @@ Application* Application::get() {
 
 Application::Function* Application::get_functions() {
     static auto functions_offset = []() -> std::optional<int32_t> {
-        int32_t result = -1;
+        spdlog::info("Searching for Application::functions offset...");
 
         const auto mod = utility::get_executable();
         const auto mod_size = utility::get_module_size(mod);

@@ -11,6 +11,7 @@ public:
     void on_config_load(const utility::Config& cfg) override;
     void on_config_save(utility::Config& cfg) override;
 
+    void on_frame() override;
     void on_draw_ui() override;
     void on_present() override;
 
@@ -41,6 +42,7 @@ private:
     const ModSlider::Ptr m_ultrawide_fov_multiplier{ ModSlider::create(generate_name("UltrawideFOVMultiplier"), 0.01f, 3.0f, 0.5f) };
     const ModToggle::Ptr m_disable_gui{ ModToggle::create(generate_name("DisableGUI"), false) };
     const ModToggle::Ptr m_force_render_res_to_window{ ModToggle::create(generate_name("ForceRenderResToWindow"), false) };
+    const ModKey::Ptr m_disable_gui_key{ ModKey::create(generate_name("DisableGUIKey")) };
 
 #ifdef RE4
     const ModToggle::Ptr m_scope_tweaks{ ModToggle::create(generate_name("ScopeTweaks"), false) };
@@ -57,6 +59,7 @@ private:
         *m_ultrawide_fov_multiplier,
         *m_disable_gui,
         *m_force_render_res_to_window,
+        *m_disable_gui_key,
 
 #ifdef RE4
         *m_scope_tweaks,

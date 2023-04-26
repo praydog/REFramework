@@ -28,6 +28,7 @@ extern "C" {
 #include "Mods.hpp"
 #include "mods/PluginLoader.hpp"
 #include "sdk/REGlobals.hpp"
+#include "sdk/Application.hpp"
 #include "sdk/SDK.hpp"
 
 #include "ExceptionHandler.hpp"
@@ -276,7 +277,7 @@ REFramework::REFramework(HMODULE reframework_module)
     startup_lookup_thread->detach();
 #endif
 
-#if defined(RE8) || defined(RE4)
+#if defined(RE8) || defined(RE4) || defined(MHRISE)
     ULONG_PTR loader_magic = 0;
     auto lock_loader = (PFN_LdrLockLoaderLock)GetProcAddress(ntdll, "LdrLockLoaderLock");
     auto unlock_loader = (PFN_LdrUnlockLoaderLock)GetProcAddress(ntdll, "LdrUnlockLoaderLock");
@@ -1491,9 +1492,39 @@ bool REFramework::initialize_game_data() {
 #endif
             reframework::initialize_sdk();
 
-#ifdef RE8
-            while (sdk::VM::get() == nullptr) {
+#if TDB_VER >= 71
+            const auto start_time = std::chrono::high_resolution_clock::now();
 
+            while (true) {
+                try {
+                    if (sdk::VM::get() != nullptr) {
+                        break;
+                    }
+                } catch(...) {
+                }
+
+                if (std::chrono::high_resolution_clock::now() - start_time > std::chrono::seconds(30)) {
+                    spdlog::error("Timed out waiting for VM to initialize.");
+                    throw std::runtime_error("Timed out waiting for VM to initialize.");
+                }
+
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            }
+
+            while (true) {
+                try {
+                    if (sdk::Application::get() != nullptr) {
+                        break;
+                    }
+                } catch(...) {
+                }
+
+                if (std::chrono::high_resolution_clock::now() - start_time > std::chrono::seconds(30)) {
+                    spdlog::error("Timed out waiting for Application to initialize.");
+                    throw std::runtime_error("Timed out waiting for Application to initialize.");
+                }
+
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
             }
 #endif
 

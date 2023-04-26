@@ -364,6 +364,8 @@ std::optional<std::string> Hooks::hook_all_application_entries() {
         return "Failed to get via.Application";
     }
 
+    spdlog::info("[Hooks] Found via.Application at {:x}", (uintptr_t)application);
+
     auto generate_mov_rdx = [](uintptr_t target) {
         std::vector<uint8_t> mov_rdx{ 0x48, 0xBA, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
         *(uintptr_t*)&mov_rdx[2] = target;

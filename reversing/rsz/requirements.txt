@@ -1,5 +1,5 @@
 fire
 numpy
-unicorn
+unicorn==1.0.3
 capstone
 pefile
