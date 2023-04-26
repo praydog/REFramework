@@ -266,6 +266,10 @@ public:
         if (m_waiting_for_new_key) {
             const auto &keys = g_framework->get_keyboard_state();
             for (int32_t k{ 0 }; k < keys.size(); ++k) {
+                if (k == VK_LBUTTON || k == VK_RBUTTON) {
+                    continue;
+                }
+
                 if (keys[k]) {
                     m_value = is_erase_key(k) ? UNBOUND_KEY : k;
                     m_waiting_for_new_key = false;
