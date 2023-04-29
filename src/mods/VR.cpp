@@ -2993,8 +2993,8 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                         };
                         
                         // Fix position of interaction icons
-                        if (name_hash == "GUI_FloatIcon"_fnv || name_hash == "RogueFloatIcon"_fnv) { // RE2, RE3
-                            if (name_hash == "GUI_FloatIcon"_fnv) {
+                        if (name_hash == "GUI_FloatIcon"_fnv || name_hash == "RogueFloatIcon"_fnv || name_hash == "Gui_FloatIcon"_fnv) { // RE2, RE3, RE4
+                            if (name_hash == "GUI_FloatIcon"_fnv || name_hash == "Gui_FloatIcon"_fnv) {
                                 m_last_interaction_display = std::chrono::steady_clock::now();
                             }
                         
