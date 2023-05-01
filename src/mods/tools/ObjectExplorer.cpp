@@ -1918,7 +1918,7 @@ void ObjectExplorer::generate_sdk() {
 #endif
 
         // Generate Properties
-        if (fields->variables != nullptr && fields->variables != nullptr && fields->variables->data != nullptr) {
+        if (fields->variables != nullptr && fields->variables->data != nullptr) {
             auto descriptors = fields->variables->data->descriptors;
 
             for (auto i = descriptors; i != descriptors + fields->variables->num; ++i) {
@@ -2487,11 +2487,11 @@ void ObjectExplorer::handle_type(REManagedObject* obj, REType* t) {
 
         auto obj_for_widget = (type_info == t && is_singleton && !is_real_obj) ? utility::re_type::get_singleton_instance(type_info) : t;
 
-        auto made_node = widget_with_context(obj_for_widget, [&name]() { return ImGui::TreeNode(name); });
+        auto made_node = widget_with_context(obj_for_widget, name, [&name]() { return ImGui::TreeNode(name); });
 
         // top
         if (is_singleton && type_info == t) {
-            make_same_line_text("SINGLETON", ImVec4{1.0f, 0.0f, 0.0f, 1.0f});
+            make_same_line_text("SINGLETON", ImVec4{1.0f, 0.0f, 0.0f, 1.0f}); 
         }
 
         if (!made_node) {
@@ -2636,7 +2636,7 @@ void ObjectExplorer::display_reflection_methods(REManagedObject* obj, REType* ty
             }
 
             auto ret = descriptor->returnTypeName != nullptr ? std::string{ descriptor->returnTypeName } : std::string{ "undefined" };
-            auto made_node = widget_with_context(descriptor, [&]() { return stretched_tree_node(descriptor, "%s", ret.c_str()); });
+            auto made_node = widget_with_context(descriptor, descriptor->name, [&]() { return stretched_tree_node(descriptor, "%s", ret.c_str()); });
             auto tree_hovered = ImGui::IsItemHovered();
 
             // Draw the variable name with a color
@@ -2693,7 +2693,7 @@ void ObjectExplorer::display_reflection_properties(REManagedObject* obj, REType*
 
             auto local_obj = obj;
 
-            auto made_node = widget_with_context(variable->function, [&]() { return stretched_tree_node(variable, "%s", variable->typeName); });
+            auto made_node = widget_with_context(variable->function, variable->name, [&]() { return stretched_tree_node(variable, "%s", variable->typeName); });
             auto tree_hovered = ImGui::IsItemHovered();
 
             // Draw the variable name with a color
@@ -2870,7 +2870,7 @@ void ObjectExplorer::display_native_fields(REManagedObject* obj, sdk::RETypeDefi
 
             is_managed_str = final_type_name == "System.String";
 
-            const auto made_node = widget_with_context(data, [&]() { return stretched_tree_node(f, "%s", field_type_name.c_str()); });
+            const auto made_node = widget_with_context(data, field_name, [&]() { return stretched_tree_node(f, "%s", field_type_name.c_str()); });
             const auto tree_hovered = ImGui::IsItemHovered();
 
             // Draw the variable name with a color
@@ -3090,7 +3090,7 @@ void ObjectExplorer::display_native_methods(REManagedObject* obj, sdk::RETypeDef
                                 ImGui::SameLine();
                             }
 
-                            ImGui::Text("%02X", ((uint8_t*)ip)[j]);
+                            if (ip) ImGui::Text("%02X", ((uint8_t*)ip)[j]);
                         }
 
                         ImGui::TableNextColumn();
@@ -3182,16 +3182,6 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
     constexpr auto max_float = std::numeric_limits<float>::max();
 
     constexpr auto min_zero = 0;
-
-    auto make_tree_addr = [this](void* addr) {
-        if (widget_with_context(addr, [&]() { return ImGui::TreeNode(addr, "Variable: 0x%p", addr); })) {
-            if (is_managed_object(addr)) {
-                handle_address(addr);
-            }
-
-            ImGui::TreePop();
-        }
-    };
 
     // yay for compile time string hashing
     switch (utility::hash(type_name)) {
@@ -3415,77 +3405,95 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
             ImGui::Text("%s", utility::re_string::get_string(*(REString*)data).c_str());
         }
     } break;
-    default: {
-        if (is_enum) {
-            if (override_def != nullptr) {
-                switch (override_def->get_underlying_type()->get_valuetype_size()) {
-                    case 1:
-                        display_enum_value(type_name, *(int8_t*)data);
-                        if (real_data != nullptr) {
-                            auto& int_val = *(int8_t*)real_data;
+        default: {
+            if (is_enum) {
+                if (override_def != nullptr) {
+                    switch (override_def->get_underlying_type()->get_valuetype_size()) {
+                        case 1:
+                            display_enum_value(type_name, *(int8_t*)data);
+                            if (real_data != nullptr) {
+                                auto& int_val = *(int8_t*)real_data;
 
-                            ImGui::DragScalar("Set Value", ImGuiDataType_S8, &int_val, 1.0f, &min_i8, &max_i8);
-                        }
-                        break;
-                    case 2:
-                        display_enum_value(type_name, *(int16_t*)data);
-                        if (real_data != nullptr) {
-                            auto& int_val = *(int16_t*)real_data;
+                                ImGui::DragScalar("Set Value", ImGuiDataType_S8, &int_val, 1.0f, &min_i8, &max_i8);
+                            }
+                            break;
+                        case 2:
+                            display_enum_value(type_name, *(int16_t*)data);
+                            if (real_data != nullptr) {
+                                auto& int_val = *(int16_t*)real_data;
 
-                            ImGui::DragScalar("Set Value", ImGuiDataType_S16, &int_val, 1.0f, &min_i16, &max_i16);
-                        }
-                        break;
-                    case 4:
-                        display_enum_value(type_name, *(int32_t*)data);
-                        if (real_data != nullptr) {
-                            auto& int_val = *(int32_t*)real_data;
+                                ImGui::DragScalar("Set Value", ImGuiDataType_S16, &int_val, 1.0f, &min_i16, &max_i16);
+                            }
+                            break;
+                        case 4:
+                            display_enum_value(type_name, *(int32_t*)data);
+                            if (real_data != nullptr) {
+                                auto& int_val = *(int32_t*)real_data;
 
-                            ImGui::DragInt("Set Value", (int*)&int_val, 1.0f, min_int, max_int);
-                        }
-                        break;
-                    case 8:
-                        display_enum_value(type_name, *(int64_t*)data);
-                        if (real_data != nullptr) {
-                            auto& int_val = *(int64_t*)real_data;
+                                ImGui::DragInt("Set Value", (int*)&int_val, 1.0f, min_int, max_int);
+                            }
+                            break;
+                        case 8:
+                            display_enum_value(type_name, *(int64_t*)data);
+                            if (real_data != nullptr) {
+                                auto& int_val = *(int64_t*)real_data;
 
-                            ImGui::DragScalar("Set Value", ImGuiDataType_S64, &int_val, 1.0f, &min_int64, &max_int64);
-                        }
-                        break;
-                    default:
-                        ImGui::Text("Invalid enum size, falling back to int32");
+                                ImGui::DragScalar("Set Value", ImGuiDataType_S64, &int_val, 1.0f, &min_int64, &max_int64);
+                            }
+                            break;
+                        default:
+                            ImGui::Text("Invalid enum size, falling back to int32");
 
-                        display_enum_value(type_name, *(int32_t*)data);
-                        if (real_data != nullptr) {
-                            auto& int_val = *(int32_t*)real_data;
+                            display_enum_value(type_name, *(int32_t*)data);
+                            if (real_data != nullptr) {
+                                auto& int_val = *(int32_t*)real_data;
 
-                            ImGui::DragInt("Set Value", (int*)&int_val, 1.0f, min_int, max_int);
-                        }
-                        break;
+                                ImGui::DragInt("Set Value", (int*)&int_val, 1.0f, min_int, max_int);
+                            }
+                            break;
+                    }
+                } else {
+                    auto value = *(int32_t*)data;
+                    display_enum_value(type_name, (int32_t)value);
+
+                    if (real_data != nullptr) {
+                        auto& int_val = *(int32_t*)real_data;
+
+                        ImGui::DragInt("Set Value", (int*)&int_val, 1.0f, min_int, max_int);
+                    }
                 }
-            } else {
-                auto value = *(int32_t*)data;
-                display_enum_value(type_name, (int32_t)value);
+            } 
+            else {
+            
+                //auto make_tree_addr = [this](void* addr) {
+                //    if (widget_with_context(addr, [&]() { return ImGui::TreeNode(addr, "Variable: 0x%p", addr); })) {
+                //        if (is_managed_object(addr)) {
+                //            handle_address(addr);
+                //        }
 
-                if (real_data != nullptr) {
-                    auto& int_val = *(int32_t*)real_data;
+                //        ImGui::TreePop();
+                //    }
+                //};
+                //make_tree_addr(data);
+                if (widget_with_context(data, type_name, [&]() { return ImGui::TreeNode(data, "Variable: 0x%p", data); })) {
+                    if (is_managed_object(data)) {
+                        handle_address(data);
+                    }
 
-                    ImGui::DragInt("Set Value", (int*)&int_val, 1.0f, min_int, max_int);
+                    ImGui::TreePop();
+                }
+
+                if (override_def != nullptr) {
+                    const auto override_t = override_def->get_type();
+
+                    if (override_t != nullptr) {
+                        handle_type((REManagedObject*)data, override_t);
+                    }
                 }
             }
-        } else {
-            make_tree_addr(data);
 
-            if (override_def != nullptr) {
-                const auto override_t = override_def->get_type();
-
-                if (override_t != nullptr) {
-                    handle_type((REManagedObject*)data, override_t);
-                }
-            }
+            break;
         }
-
-        break;
-    }
     }
 }
 
