@@ -15,6 +15,8 @@ extern "C" {
 #include <imgui.h>
 #include <ImGuizmo.h>
 #include <imnodes.h>
+#include "re2-imgui/af_baidu.hpp"
+#include "re2-imgui/af_faprolight.hpp"
 #include "re2-imgui/font_robotomedium.hpp"
 #include "re2-imgui/imgui_impl_dx11.h"
 #include "re2-imgui/imgui_impl_dx12.h"
@@ -1018,10 +1020,20 @@ void REFramework::update_fonts() {
 
     m_fonts_need_updating = false;
 
-    auto& fonts = ImGui::GetIO().Fonts;
+    auto& io = ImGui::GetIO();
+    auto& fonts = io.Fonts;
+    io.Fonts->Clear();
 
-    fonts->Clear();
-    fonts->AddFontFromMemoryCompressedTTF(RobotoMedium_compressed_data, RobotoMedium_compressed_size, (float)m_font_size);
+	ImFontConfig ImCustomIcons;
+    ImCustomIcons.FontDataOwnedByAtlas = false; auto* fsload = 
+	io.Fonts->AddFontFromMemoryTTF((void*)af_baidu_ptr, af_baidu_size, (float)m_font_size, &ImCustomIcons, io.Fonts->GetGlyphRangesChineseFull());
+
+	ImCustomIcons.PixelSnapH = true;
+	ImCustomIcons.MergeMode = true;
+	ImCustomIcons.FontDataOwnedByAtlas = false;
+    static const ImWchar icon_ranges[] = {0xF000, 0xF976, 0};
+	io.Fonts->AddFontFromMemoryTTF((void*)af_faprolight_ptr, af_faprolight_size, (float)m_font_size, &ImCustomIcons, icon_ranges);
+    // fonts->AddFontFromMemoryCompressedTTF(RobotoMedium_compressed_data, RobotoMedium_compressed_size, (float)m_font_size);
 
     for (auto& font : m_additional_fonts) {
         const ImWchar* ranges = nullptr;
@@ -1033,7 +1045,7 @@ void REFramework::update_fonts() {
         if (fs::exists(font.filepath)) {
             font.font = fonts->AddFontFromFileTTF(font.filepath.string().c_str(), (float)font.size, nullptr, ranges);
         } else {
-            font.font = fonts->AddFontFromMemoryCompressedTTF(RobotoMedium_compressed_data, RobotoMedium_compressed_size, (float)font.size, nullptr, ranges);
+            font.font = fsload; // fonts->AddFontFromMemoryCompressedTTF(RobotoMedium_compressed_data, RobotoMedium_compressed_size, (float)font.size, nullptr, ranges);
         }
     }
 
