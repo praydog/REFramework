@@ -3203,7 +3203,7 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
     case "System.UInt64"_fnv:
     case "size_t"_fnv:
     case "u64"_fnv:
-        ImGui::Text("%llu", *(uint64_t*)data);
+        ImGui::Text("0x%llX", *(uint64_t*)data);
 
         if (real_data != nullptr) {
             auto& int_val = *(uint64_t*)real_data;
@@ -3214,7 +3214,7 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
         break;
     case "System.Int64"_fnv:
     case "s64"_fnv:
-        ImGui::Text("%lli", *(int64_t*)data);
+        ImGui::Text("0x%llX", *(int64_t*)data);
 
         if (real_data != nullptr) {
             auto& int_val = *(int64_t*)real_data;
@@ -3225,7 +3225,7 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
         break;
     case "System.UInt32"_fnv:
     case "u32"_fnv:
-        ImGui::Text("%u", *(uint32_t*)data);
+        ImGui::Text("0x%X", *(uint32_t*)data);
 
         if (real_data != nullptr) {
             auto& int_val = *(uint32_t*)real_data;
@@ -3236,7 +3236,7 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
         break;
     case "System.Int32"_fnv:
     case "s32"_fnv:
-        ImGui::Text("%i", *(int32_t*)data);
+        ImGui::Text("0x%X", *(int32_t*)data);
 
         if (real_data != nullptr) {
             auto& int_val = *(int32_t*)real_data;
@@ -3248,7 +3248,7 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
 
     case "System.UInt16"_fnv:
     case "u16"_fnv:
-        ImGui::Text("%i", *(uint16_t*)data);
+        ImGui::Text("0x%04X", *(uint16_t*)data);
 
         if (real_data != nullptr) {
             auto& int_val = *(uint16_t*)real_data;
@@ -3259,7 +3259,7 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
 
     case "System.Int16"_fnv:
     case "s16"_fnv:
-        ImGui::Text("%i", *(int16_t*)data);
+        ImGui::Text("0x%04X", *(int16_t*)data);
 
         if (real_data != nullptr) {
             auto& int_val = *(int16_t*)real_data;
@@ -3269,7 +3269,7 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
         break;
     case "System.Byte"_fnv:
     case "u8"_fnv:
-        ImGui::Text("%u", *(uint8_t*)data);
+        ImGui::Text("0x%02X", *(uint8_t*)data);
 
         if (real_data != nullptr) {
             auto& int_val = *(uint8_t*)real_data;
@@ -3280,7 +3280,7 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
         break;
     case "System.SByte"_fnv:
     case "s8"_fnv:
-        ImGui::Text("%i", *(int8_t*)data);
+        ImGui::Text("0x%02X", *(int8_t*)data);
 
         if (real_data != nullptr) {
             auto& int_val = *(int8_t*)real_data;
@@ -3307,9 +3307,9 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
     case "System.Boolean"_fnv:
     case "bool"_fnv:
         if (*(bool*)data) {
-            ImGui::Text("true");
+            ImGui::TextUnformatted("true");
         } else {
-            ImGui::Text("false");
+            ImGui::TextUnformatted("false");
         }
 
         if (real_data != nullptr) {
