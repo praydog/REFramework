@@ -1948,7 +1948,6 @@ void VR::disable_bad_effects() {
         }
     }
 
-    static const auto is_sf6 = utility::get_module_path(utility::get_executable())->find("StreetFighter") != std::string::npos;
 
     // Causes crashes on D3D11.
     if (!is_sf6 && g_framework->get_renderer_type() == REFramework::RendererType::D3D12 && m_enable_asynchronous_rendering->value()) {
