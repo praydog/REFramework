@@ -2209,10 +2209,10 @@ void VR::disable_bad_effects() {
         }
     }
 
-    static const auto is_sf6 = utility::get_module_path(utility::get_executable())->find("StreetFighter") != std::string::npos;
+    // Causes crashes on D3D11. May be a performance detriment in VR with new rendering method.
+    const auto is_new_rendering_method = get_rendering_technique() == VR::RenderingTechnique::MULTIPASS;
 
-    // Causes crashes on D3D11.
-    if (!is_sf6 && g_framework->get_renderer_type() == REFramework::RendererType::D3D12 && m_enable_asynchronous_rendering->value()) {
+    if (!is_new_rendering_method && !is_sf6 && g_framework->get_renderer_type() == REFramework::RendererType::D3D12 && m_enable_asynchronous_rendering->value()) {
         if (get_delay_render_enable_method != nullptr && set_delay_render_enable_method != nullptr) {
             const auto is_delay_render_enabled = get_delay_render_enable_method->call<bool>(context);
 
