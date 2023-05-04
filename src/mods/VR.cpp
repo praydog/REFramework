@@ -1948,12 +1948,13 @@ void VR::disable_bad_effects() {
         }
     }
 
+
     // Causes crashes on D3D11.
-    if (g_framework->get_renderer_type() == REFramework::RendererType::D3D12) {
+    if (!is_sf6 && g_framework->get_renderer_type() == REFramework::RendererType::D3D12 && m_enable_asynchronous_rendering->value()) {
         if (get_delay_render_enable_method != nullptr && set_delay_render_enable_method != nullptr) {
             const auto is_delay_render_enabled = get_delay_render_enable_method->call<bool>(context);
 
-            if (is_delay_render_enabled == m_enable_asynchronous_rendering->value()) {
+            if (is_delay_render_enabled == true) {
                 set_delay_render_enable_method->call<void*>(context, !m_enable_asynchronous_rendering->value());
                 spdlog::info("[VR] Delay render modified");
             }
