@@ -1,4 +1,4 @@
-#pragma once // C++20 must config '/execution-charset:utf-8 ' in C/C++ option
+#pragma once
 
 #ifndef _ICON_FA_
 #	define _ICON_FA_
@@ -8,10 +8,10 @@
 #define ICON_MAX_FA 0xF976
 #endif
 
-#if _STL_LANG > 201703L // >= C++20
-#define _ICON_FA_U8(name) u8 ## name
-#else 
+#if _STL_LANG > 201703L // >= C++20 ++20 must config '/execution-charset:utf-8' in C/C++ option
 #define _ICON_FA_U8(name) name
+#else
+#define _ICON_FA_U8(name) u8 ## name
 #endif
 #ifndef ICON_FA_ABACUS
 #define ICON_FA_ABACUS _ICON_FA_U8("\uf640")
