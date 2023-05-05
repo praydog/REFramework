@@ -20,7 +20,7 @@ public:
 
     std::vector<REManagedObject*> get_objects();
 
-    void* get_native(std::string_view name);
+    REType* get_native(std::string_view name);
     std::vector<::REType*>& get_native_singleton_types();
 
     // Equivalent

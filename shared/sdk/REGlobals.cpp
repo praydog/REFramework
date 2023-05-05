@@ -125,7 +125,7 @@ std::vector<REManagedObject*> REGlobals::get_objects() {
     return out;
 }
 
-void* REGlobals::get_native(std::string_view name) {
+REType* REGlobals::get_native(std::string_view name) {
     std::lock_guard _{ m_map_mutex };
 
     if (m_native_singleton_types.empty()) {
