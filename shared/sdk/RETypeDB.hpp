@@ -83,6 +83,7 @@ T* create_instance(std::string_view type_name, bool simplify = false);
 #include "REManagedObject.hpp"
 #include "REContext.hpp"
 #include "TDBVer.hpp"
+#include "REGlobals.hpp"
 
 namespace sdk {
 namespace tdb71 {
@@ -1013,15 +1014,21 @@ T* get_static_field(std::string_view type_name, std::string_view name, bool is_v
 }
 
 template <typename T>
-T* get_native_singleton(std::string_view type_name) {
-    auto t = sdk::find_type_definition(type_name);
-
-    if (t == nullptr) {
-        //spdlog::error("Cannot find type {:s}", type_name.data());
+T* get_native_singleton(std::string_view type_name) 
+{
+    auto t = reframework::get_globals()->get_native(type_name);
+    if (t == nullptr) 
+    {
         return nullptr;
     }
 
-    return (T*)t->get_instance();
+    auto instance = utility::re_type::get_singleton_instance(t);
+    if (instance == nullptr) 
+    {
+        return nullptr;
+    }
+
+    return (T*)instance;
 }
 
 template <typename T>
