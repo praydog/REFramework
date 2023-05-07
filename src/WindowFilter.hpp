@@ -1,5 +1,6 @@
 #pragma once
 
+#include <mutex>
 #include <Windows.h>
 
 #include <string_view>
@@ -17,6 +18,8 @@ public:
         if (hwnd == nullptr) {
             return true;
         }
+
+        std::scoped_lock _{m_mutex};
 
         if (m_filtered_windows.find(hwnd) != m_filtered_windows.end()) {
             return true;
@@ -36,11 +39,11 @@ public:
         return false;
     }
 
+private:
     void filter_window(HWND hwnd) {
         m_filtered_windows.insert(hwnd);
     }
 
-private:
     bool is_filtered_nocache(HWND hwnd) {
         // get window name
         char window_name[256]{};
@@ -56,6 +59,7 @@ private:
         return false;
     }
 
+    std::mutex m_mutex{};
     std::unordered_set<HWND> m_seen_windows{};
     std::unordered_set<HWND> m_filtered_windows{};
 };
