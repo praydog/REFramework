@@ -8,6 +8,8 @@
 
 #include "REFramework.hpp"
 
+#include "WindowFilter.hpp"
+
 #include "D3D12Hook.hpp"
 
 static D3D12Hook* g_d3d12_hook = nullptr;
@@ -356,6 +358,16 @@ HRESULT WINAPI D3D12Hook::present(IDXGISwapChain3* swap_chain, UINT sync_interva
 
     auto d3d12 = g_d3d12_hook;
 
+    // This line must be called before calling our detour function because we might have to unhook the function inside our detour.
+    auto present_fn = d3d12->m_present_hook->get_original<decltype(D3D12Hook::present)*>();
+
+    HWND swapchain_wnd{nullptr};
+    swap_chain->GetHwnd(&swapchain_wnd);
+
+    if (WindowFilter::get().is_filtered(swapchain_wnd)) {
+        return present_fn(swap_chain, sync_interval, flags);
+    }
+
     d3d12->m_inside_present = true;
     d3d12->m_swap_chain = swap_chain;
 
@@ -375,10 +387,7 @@ HRESULT WINAPI D3D12Hook::present(IDXGISwapChain3* swap_chain, UINT sync_interva
     } else if (d3d12->m_swapchain_1 == nullptr && swap_chain != d3d12->m_swapchain_0) {
         d3d12->m_swapchain_1 = swap_chain;
     }
-
-	// This line must be called before calling our detour function because we might have to unhook the function inside our detour.
-    auto present_fn = d3d12->m_present_hook->get_original<decltype(D3D12Hook::present)*>();
-
+    
     // Restore the original bytes
     // if an infinite loop occurs, this will prevent the game from crashing
     // while keeping our hook intact
