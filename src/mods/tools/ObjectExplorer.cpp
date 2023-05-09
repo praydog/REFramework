@@ -1920,7 +1920,7 @@ void ObjectExplorer::generate_sdk() {
         // Generate Properties
         if (fields->variables != nullptr && fields->variables != nullptr && fields->variables->data != nullptr) {
             auto descriptors = fields->variables->data->descriptors;
-
+            auto reflection_property_index = 0;
             for (auto i = descriptors; i != descriptors + fields->variables->num; ++i) {
                 auto variable = *i;
 
@@ -1967,6 +1967,7 @@ void ObjectExplorer::generate_sdk() {
                 prop_entry = {
                     {"getter", (std::stringstream{} << "0x" << std::hex << get_original_va(variable->function)).str()},
                     {"type", field_t_name},
+                    {"order", reflection_property_index++},
                 };
 #endif
             
