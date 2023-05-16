@@ -1516,6 +1516,8 @@ void bindings::open_sdk(ScriptState* s) {
         "get_field", &::sdk::RETypeDefinition::get_field,
         "get_runtime_type", &::sdk::RETypeDefinition::get_runtime_type,
         "get_parent_type", &::sdk::RETypeDefinition::get_parent_type,
+        "get_fqn_hash", &::sdk::RETypeDefinition::get_fqn_hash,
+        "get_crc_hash", &::sdk::RETypeDefinition::get_crc_hash,
         "get_size", &::sdk::RETypeDefinition::get_size,
         "get_valuetype_size", &::sdk::RETypeDefinition::get_valuetype_size,
         "get_generic_argument_types", &::sdk::RETypeDefinition::get_generic_argument_types,
