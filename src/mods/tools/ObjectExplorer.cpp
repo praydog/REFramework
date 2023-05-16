@@ -2448,6 +2448,7 @@ void ObjectExplorer::handle_render_layer(sdk::renderer::RenderLayer* layer) {
 
             if (index && layers.size() > 1) {
                 if (*index > 0) {
+                    std::swap(layers[*index]->m_priority, layers[*index - 1]->m_priority);
                     std::swap(layers[*index], layers[*index - 1]);
                 }
             }
@@ -2474,6 +2475,7 @@ void ObjectExplorer::handle_render_layer(sdk::renderer::RenderLayer* layer) {
             if (index && layers.size() > 1) {
                 if (*index < layers.size() - 1) {
                     std::swap(layers[*index], layers[*index + 1]);
+                    std::swap(layers[*index]->m_priority, layers[*index + 1]->m_priority);
                 }
             }
         }
