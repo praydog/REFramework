@@ -324,6 +324,7 @@ std::shared_ptr<ObjectExplorer>& ObjectExplorer::get() {
 ObjectExplorer::ObjectExplorer()
 {
     m_type_name.reserve(256);
+    m_method_address.reserve(256);
     m_type_member.reserve(256);
     m_type_field.reserve(256);
     m_object_address.reserve(256);
@@ -565,10 +566,30 @@ void ObjectExplorer::on_draw_dev_ui() {
         }
     }
 
+    if (ImGui::InputText("Method Address", m_method_address.data(), 17, ImGuiInputTextFlags_::ImGuiInputTextFlags_CharsHexadecimal)) {
+        m_displayed_method = nullptr;
+
+        try {
+            if (m_object_address[0] != 0) {
+                const auto method_address = std::stoull(m_method_address, nullptr, 16);
+
+                if (auto it = m_method_map.find(method_address); it != m_method_map.end()) {
+                    m_displayed_method = it->second;
+                }
+            }
+        } catch (...) {
+            ImGui::Text("Invalid address");
+        }
+    }
+
     ImGui::InputText("REObject Address", m_object_address.data(), 17, ImGuiInputTextFlags_::ImGuiInputTextFlags_CharsHexadecimal);
 
     if (m_object_address[0] != 0) {
         handle_address(std::stoull(m_object_address, nullptr, 16));
+    }
+
+    if (m_displayed_method != nullptr) {
+        attempt_display_method(nullptr, *m_displayed_method, true);
     }
 
     std::vector<uint8_t> fake_type{ 0 };
@@ -2902,6 +2923,200 @@ void ObjectExplorer::display_native_fields(REManagedObject* obj, sdk::RETypeDefi
 //#endif
 }
 
+void ObjectExplorer::attempt_display_method(REManagedObject* obj, sdk::REMethodDefinition& m, bool use_full_name) {
+    const auto declaring_type = m.get_declaring_type();
+    const auto method_name = (use_full_name && declaring_type != nullptr) ? declaring_type->get_full_name() + "." + m.get_name() : m.get_name();
+    const auto method_return_type = m.get_return_type();
+    const auto method_return_type_name = method_return_type != nullptr ? method_return_type->get_full_name() : std::string{};
+    const auto method_param_types = m.get_param_types();
+    const auto method_param_names = m.get_param_names();
+    const auto method_virtual_index = m.get_virtual_index();
+    const auto method_flags = m.get_flags();
+    const auto method_impl_flags = m.get_impl_flags();
+
+    const auto method_ptr = m.get_function();
+
+    // Create a c-style function prototype string from the param types and names
+    std::stringstream ss{};
+    ss << method_name << "(";
+
+    std::stringstream ss_context{};
+    ss_context << method_name << "(";
+
+    for (auto i = 0; i < method_param_types.size(); i++) {
+        if (i > 0) {
+            ss << ", ";
+            ss_context << ", ";
+        }
+        ss << method_param_types[i]->get_full_name() << " " << method_param_names[i];
+        ss_context << method_param_types[i]->get_full_name();
+    }
+
+    ss << ")";
+    ss_context << ")";
+    const auto method_prototype = ss.str();
+    const auto method_prototype_context = ss_context.str();
+
+    const auto made_node = stretched_tree_node(&m, "%s", method_return_type_name.c_str());
+    method_context_menu(&m, method_prototype_context, obj);
+    
+    const auto tree_hovered = ImGui::IsItemHovered();
+
+    // Draw the method name with a color
+    if (tree_hovered) {
+        make_same_line_text(method_prototype, VARIABLE_COLOR_HIGHLIGHT);
+    } else {
+        make_same_line_text(method_prototype, VARIABLE_COLOR);
+    }
+
+    bool is_stub = m_known_stub_methods.find(method_ptr) != m_known_stub_methods.end();
+    bool is_ok_method = m_ok_methods.find(method_ptr) != m_ok_methods.end();
+
+    if (method_ptr != nullptr && !is_stub && !is_ok_method) {
+        if (utility::is_stub_code((uint8_t*)method_ptr)) {
+            m_known_stub_methods.insert(method_ptr);
+
+            is_ok_method = false;
+            is_stub = true;
+        } else {
+            m_ok_methods.insert(method_ptr);
+        }
+    }
+    
+    if (method_ptr == nullptr || is_stub) {
+        ImGui::SameLine();
+        ImGui::TextColored(ImVec4{ 1.0f, 0.0f, 0.0f, 1.0f }, "STUB");
+    }
+
+    bool is_duplicate = m_function_occurrences[method_ptr] > 5;
+
+    if (is_duplicate) {
+        ImGui::SameLine();
+        ImGui::TextColored(ImVec4{ 1.0f, 0.0f, 0.0f, 1.0f }, "DUPLICATE");
+    }
+
+    // draw the method data
+    if (made_node) {
+        if (ImGui::BeginTable("##method", 4,  ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable)) {
+            ImGui::TableNextColumn();
+            ImGui::Text("Address");
+
+            ImGui::TableNextColumn();
+            ImGui::Text("Virtual Index");
+
+            ImGui::TableNextColumn();
+            ImGui::Text("Flags");
+
+            ImGui::TableNextColumn();
+            ImGui::Text("Impl flags");
+            
+            // address
+            ImGui::TableNextColumn();
+            ImGui::Text("0x%p", method_ptr);
+
+            // virtual index
+            ImGui::TableNextColumn();
+            ImGui::Text("%i", method_virtual_index);
+
+            // flags
+            ImGui::TableNextColumn();
+            ImGui::Text("%s", get_full_enum_value_name("via.clr.MethodFlag", method_flags).c_str());
+            
+            // impl flags
+            ImGui::TableNextColumn();
+            ImGui::Text("%s", get_full_enum_value_name("via.clr.MethodImplFlag", method_impl_flags).c_str());
+
+            ImGui::EndTable();
+        }
+
+        if (method_param_types.size() > 0) {
+            if (ImGui::BeginTable("##params", 3,  ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable)) {
+                ImGui::TableNextColumn();
+                ImGui::Text("Index");
+                ImGui::TableNextColumn();
+                ImGui::Text("Type");
+                ImGui::TableNextColumn();
+                ImGui::Text("Name");
+
+                for (auto i = 0; i < method_param_types.size(); i++) {
+                    ImGui::TableNextColumn();
+                    ImGui::Text(std::to_string(i).c_str());
+                    ImGui::TableNextColumn();
+
+                    const auto param_typedef = method_param_types[i];
+                    const auto param_type_full_name = param_typedef->get_full_name();
+                    const auto param_type = param_typedef->get_type();
+
+                    if (param_type != nullptr) {
+                        std::vector<uint8_t> fake_object(param_typedef->get_size(), 0);
+
+                        this->handle_type((REManagedObject*)fake_object.data(), param_typedef->get_type());
+                    } else {
+                        ImGui::Text(param_type_full_name.c_str());
+                    }
+
+                    ImGui::TableNextColumn();
+                    ImGui::TextColored(VARIABLE_COLOR, method_param_names[i]);
+                }
+
+                ImGui::EndTable();
+            }
+        }
+
+        if (ImGui::BeginTable("##disassembly", 3,  ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable)) {
+            ImGui::TableNextColumn();
+            ImGui::Text("Address");
+
+            ImGui::TableNextColumn();
+            ImGui::Text("Bytes");
+
+            ImGui::TableNextColumn();
+            ImGui::Text("Instruction");
+
+            // Show a short disassembly of the method
+            auto ip = (uintptr_t)method_ptr;
+
+            for (auto i = 0; i < 20; i++) {
+                const auto decoded = utility::decode_one((uint8_t*)ip);
+
+                if (!decoded) {
+                    break;
+                }
+
+                char buffer[ND_MIN_BUF_SIZE]{};
+                NdToText(&*decoded, 0, sizeof(buffer), buffer);
+
+                ImGui::TableNextColumn();
+                ImGui::Text("0x%p", ip);
+
+                ImGui::TableNextColumn();
+                // show the bytes
+                for (auto j = 0; j < decoded->Length; j++) {
+                    if (j > 0) {
+                        ImGui::SameLine();
+                    }
+
+                    ImGui::Text("%02X", ((uint8_t*)ip)[j]);
+                }
+
+                ImGui::TableNextColumn();
+                ImGui::Text(buffer);
+
+                ip += decoded->Length;
+
+                // check if int3 and stop
+                if (std::string_view{decoded->Mnemonic}.starts_with("INT3")) {
+                    break;
+                }
+            }
+
+            ImGui::EndTable();
+        }
+
+        ImGui::TreePop();
+    }
+}
+
 void ObjectExplorer::display_native_methods(REManagedObject* obj, sdk::RETypeDefinition* tdef) {
     if (tdef == nullptr) {
         return;
@@ -2914,202 +3129,14 @@ void ObjectExplorer::display_native_methods(REManagedObject* obj, sdk::RETypeDef
     if (methods.size() == 0) {
         return;
     }
-
+    
     if (ImGui::TreeNode(methods.begin(), "TDB Methods: %i", methods.size())) {
         for (auto& m : methods) {
             if (!is_filtered_method(m)) {
                 continue;
             }
-            const auto method_name = m.get_name();
-            const auto method_return_type = m.get_return_type();
-            const auto method_return_type_name = method_return_type != nullptr ? method_return_type->get_full_name() : std::string{};
-            const auto method_param_types = m.get_param_types();
-            const auto method_param_names = m.get_param_names();
-            const auto method_virtual_index = m.get_virtual_index();
-            const auto method_flags = m.get_flags();
-            const auto method_impl_flags = m.get_impl_flags();
 
-            const auto method_ptr = m.get_function();
-
-            // Create a c-style function prototype string from the param types and names
-            std::stringstream ss{};
-            ss << method_name << "(";
-
-            std::stringstream ss_context{};
-            ss_context << method_name << "(";
-
-            for (auto i = 0; i < method_param_types.size(); i++) {
-                if (i > 0) {
-                    ss << ", ";
-                    ss_context << ", ";
-                }
-                ss << method_param_types[i]->get_full_name() << " " << method_param_names[i];
-                ss_context << method_param_types[i]->get_full_name();
-            }
-
-            ss << ")";
-            ss_context << ")";
-            const auto method_prototype = ss.str();
-            const auto method_prototype_context = ss_context.str();
-
-            const auto made_node = stretched_tree_node(&m, "%s", method_return_type_name.c_str());
-            method_context_menu(&m, method_prototype_context);
-            
-            const auto tree_hovered = ImGui::IsItemHovered();
-
-            // Draw the method name with a color
-            if (tree_hovered) {
-                make_same_line_text(method_prototype, VARIABLE_COLOR_HIGHLIGHT);
-            } else {
-                make_same_line_text(method_prototype, VARIABLE_COLOR);
-            }
-
-            bool is_stub = m_known_stub_methods.find(method_ptr) != m_known_stub_methods.end();
-            bool is_ok_method = m_ok_methods.find(method_ptr) != m_ok_methods.end();
-
-            if (method_ptr != nullptr && !is_stub && !is_ok_method) {
-                if (utility::is_stub_code((uint8_t*)method_ptr)) {
-                    m_known_stub_methods.insert(method_ptr);
-
-                    is_ok_method = false;
-                    is_stub = true;
-                } else {
-                    m_ok_methods.insert(method_ptr);
-                }
-            }
-            
-            if (method_ptr == nullptr || is_stub) {
-                ImGui::SameLine();
-                ImGui::TextColored(ImVec4{ 1.0f, 0.0f, 0.0f, 1.0f }, "STUB");
-            }
-
-            bool is_duplicate = m_function_occurrences[method_ptr] > 5;
-
-            if (is_duplicate) {
-                ImGui::SameLine();
-                ImGui::TextColored(ImVec4{ 1.0f, 0.0f, 0.0f, 1.0f }, "DUPLICATE");
-            }
-
-            // draw the method data
-            if (made_node) {
-                if (ImGui::BeginTable("##method", 4,  ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable)) {
-                    ImGui::TableNextColumn();
-                    ImGui::Text("Address");
-
-                    ImGui::TableNextColumn();
-                    ImGui::Text("Virtual Index");
-
-                    ImGui::TableNextColumn();
-                    ImGui::Text("Flags");
-
-                    ImGui::TableNextColumn();
-                    ImGui::Text("Impl flags");
-                    
-                    // address
-                    ImGui::TableNextColumn();
-                    ImGui::Text("0x%p", method_ptr);
-
-                    // virtual index
-                    ImGui::TableNextColumn();
-                    ImGui::Text("%i", method_virtual_index);
-
-                    // flags
-                    ImGui::TableNextColumn();
-                    ImGui::Text("%s", get_full_enum_value_name("via.clr.MethodFlag", method_flags).c_str());
-                    
-                    // impl flags
-                    ImGui::TableNextColumn();
-                    ImGui::Text("%s", get_full_enum_value_name("via.clr.MethodImplFlag", method_impl_flags).c_str());
-
-                    ImGui::EndTable();
-                }
-
-                if (method_param_types.size() > 0) {
-                    if (ImGui::BeginTable("##params", 3,  ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable)) {
-                        ImGui::TableNextColumn();
-                        ImGui::Text("Index");
-                        ImGui::TableNextColumn();
-                        ImGui::Text("Type");
-                        ImGui::TableNextColumn();
-                        ImGui::Text("Name");
-
-                        for (auto i = 0; i < method_param_types.size(); i++) {
-                            ImGui::TableNextColumn();
-                            ImGui::Text(std::to_string(i).c_str());
-                            ImGui::TableNextColumn();
-
-                            const auto param_typedef = method_param_types[i];
-                            const auto param_type_full_name = param_typedef->get_full_name();
-                            const auto param_type = param_typedef->get_type();
-
-                            if (param_type != nullptr) {
-                                std::vector<uint8_t> fake_object(param_typedef->get_size(), 0);
-
-                                this->handle_type((REManagedObject*)fake_object.data(), param_typedef->get_type());
-                            } else {
-                                ImGui::Text(param_type_full_name.c_str());
-                            }
-
-                            ImGui::TableNextColumn();
-                            ImGui::TextColored(VARIABLE_COLOR, method_param_names[i]);
-                        }
-
-                        ImGui::EndTable();
-                    }
-                }
-
-                if (ImGui::BeginTable("##disassembly", 3,  ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable)) {
-                    ImGui::TableNextColumn();
-                    ImGui::Text("Address");
-
-                    ImGui::TableNextColumn();
-                    ImGui::Text("Bytes");
-
-                    ImGui::TableNextColumn();
-                    ImGui::Text("Instruction");
-
-                    // Show a short disassembly of the method
-                    auto ip = (uintptr_t)method_ptr;
-
-                    for (auto i = 0; i < 20; i++) {
-                        const auto decoded = utility::decode_one((uint8_t*)ip);
-
-                        if (!decoded) {
-                            break;
-                        }
-
-                        char buffer[ND_MIN_BUF_SIZE]{};
-                        NdToText(&*decoded, 0, sizeof(buffer), buffer);
-
-                        ImGui::TableNextColumn();
-                        ImGui::Text("0x%p", ip);
-
-                        ImGui::TableNextColumn();
-                        // show the bytes
-                        for (auto j = 0; j < decoded->Length; j++) {
-                            if (j > 0) {
-                                ImGui::SameLine();
-                            }
-
-                            ImGui::Text("%02X", ((uint8_t*)ip)[j]);
-                        }
-
-                        ImGui::TableNextColumn();
-                        ImGui::Text(buffer);
-
-                        ip += decoded->Length;
-
-                        // check if int3 and stop
-                        if (std::string_view{decoded->Mnemonic}.starts_with("INT3")) {
-                            break;
-                        }
-                    }
-
-                    ImGui::EndTable();
-                }
-
-                ImGui::TreePop();
-            }
+            attempt_display_method(obj, m);   
         }
 
         ImGui::TreePop();
@@ -3783,7 +3810,7 @@ void ObjectExplorer::hook_all_methods(sdk::RETypeDefinition* t) {
     }
 }
 
-void ObjectExplorer::method_context_menu(sdk::REMethodDefinition* method, std::optional<std::string> name) {
+void ObjectExplorer::method_context_menu(sdk::REMethodDefinition* method, std::optional<std::string> name, ::REManagedObject* obj) {
     auto additional_ctx = [&]() {
         auto it = std::find_if(m_hooked_methods.begin(), m_hooked_methods.end(), [method](auto& hook) { return hook.method == method; });
 
@@ -3803,6 +3830,15 @@ void ObjectExplorer::method_context_menu(sdk::REMethodDefinition* method, std::o
 
             if (declaring_type != nullptr) {
                 hook_all_methods(declaring_type);
+            }
+        }
+
+        // Allow us to call really simple methods with no params
+        if (method->get_param_types().size() == 0) {
+            if (obj != nullptr || method->is_static()) {
+                if (ImGui::Selectable("Call")) {
+                    method->invoke(obj, {});
+                }
             }
         }
     };
@@ -4061,6 +4097,10 @@ void ObjectExplorer::init() {
 
             if (func == nullptr) {
                 continue;
+            }
+
+            if (!m_function_occurrences.contains(func)) {
+                m_method_map[(uintptr_t)func] = method;
             }
 
             m_function_occurrences[func]++;
