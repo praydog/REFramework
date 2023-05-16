@@ -3349,6 +3349,16 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
 
     // yay for compile time string hashing
     switch (utility::hash(type_name)) {
+    case "via.render.TargetState"_fnv: {
+        const auto target_state = (sdk::renderer::TargetState*)data;
+        const auto& desc = target_state->get_desc();
+
+        ImGui::Text("%i RTVs", target_state->get_rtv_count());
+        ImGui::Text("Left: %f", desc.left);
+        ImGui::Text("Right: %f", desc.right);
+        ImGui::Text("Top: %f", desc.top);
+        ImGui::Text("Bottom: %f", desc.bottom);
+    } break;
     case "via.GameObjectRef"_fnv: {
         static auto object_ref_type = sdk::find_type_definition("via.GameObjectRef");
         auto obj = sdk::call_native_func_easy<REGameObject*>(data, object_ref_type, "get_Target");
