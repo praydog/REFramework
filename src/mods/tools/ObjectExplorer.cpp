@@ -570,7 +570,7 @@ void ObjectExplorer::on_draw_dev_ui() {
         m_displayed_method = nullptr;
 
         try {
-            if (m_object_address[0] != 0) {
+            if (m_method_address[0] != 0) {
                 const auto method_address = std::stoull(m_method_address, nullptr, 16);
 
                 if (auto it = m_method_map.find(method_address); it != m_method_map.end()) {
