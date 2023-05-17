@@ -251,6 +251,60 @@ std::tuple<RenderLayer*, RenderLayer**> RenderLayer::find_layer_recursive(std::s
     return find_layer_recursive(t);
 }
 
+std::vector<RenderLayer*> RenderLayer::find_layers(::REType* layer_type) {
+    std::vector<RenderLayer*> out{};
+
+    const auto& layers = get_layers();
+
+    for (auto& layer : layers) {
+        if (layer->info == nullptr || layer->info->classInfo == nullptr) {
+            continue;
+        }
+
+        const auto t = utility::re_managed_object::get_type(layer);
+
+        if (t == layer_type) {
+            out.push_back(layer);
+        }
+    }
+
+    return out;
+}
+
+std::vector<layer::Scene*> RenderLayer::find_all_scene_layers() {
+    static auto scene_type = sdk::find_type_definition("via.render.layer.Scene")->get_type();
+
+    if (scene_type == nullptr) {
+        return {};
+    }
+
+    auto layers = find_layers(scene_type);
+
+    if (layers.empty()) {
+        return {};
+    }
+
+    return *(std::vector<layer::Scene*>*)&layers;
+}
+
+std::vector<layer::Scene*> RenderLayer::find_fully_rendered_scene_layers() {
+    auto layers = find_all_scene_layers();
+
+    if (layers.empty()) {
+        return {};
+    }
+
+    std::erase_if(layers, [](auto& layer) {
+        return !layer->is_fully_rendered();
+    });
+
+    std::sort(layers.begin(), layers.end(), [](auto& a, auto& b) {
+        return a->get_view_id() < b->get_view_id();
+    });
+
+    return layers;
+}
+
 RenderLayer* RenderLayer::get_parent() {
     return sdk::call_object_func<RenderLayer*>(this, "get_Parent", sdk::get_thread_context(), this);
 }
@@ -299,6 +353,10 @@ void RenderLayer::clone(RenderLayer* other, bool recursive) {
 
 void RenderLayer::clone_layers(RenderLayer* other, bool recursive) {
     for (auto child_layer : other->get_layers()) {
+        if (child_layer == this) {
+            continue;
+        }
+
         const auto def = utility::re_managed_object::get_type_definition(child_layer);
 
         if (def == nullptr) {
@@ -327,8 +385,91 @@ void RenderLayer::clone_layers(RenderLayer* other, bool recursive) {
     return utility::re_managed_object::get_field<::sdk::renderer::TargetState*>(this, name);
 }
 
-void* get_renderer() {
-    return sdk::get_native_singleton("via.render.Renderer");
+/*
+- 0x9B CopyImage
++ 0x93 ReadonlyDepth
+- 0x8A TemporalDenoiserGBufferCombine
++ 0x85 PrevAODepth
+- 0x75 InputVelocity
+- 0x6D ModifiedGBufferSRV
++ 0x66 g_BilateralUpscaleDownscaledDepth
+- 0x62 RE_POSTPROCESS_Color
+- 0x5B CopyImage
++ 0x48 PostEffect Copy
+- 0x2D InputVelocity
+- 0x24 InterleaveNormalDepth
+- 0x1D InterleaveNormalDepthHalf
+- 0x1D RE_POSTPROCESS_Color
+- 0x14 InterleaveNormalDepthWithoutGBuffer
+- 0x11 CopyImage
+- 0xD InterleaveNormalDepthHalfWithoutGBuffer
+*/
+void RenderContext::copy_texture(Texture* dest, Texture* src, Fence& fence) {
+    static auto func = []() -> void (*)(RenderContext*, Texture*, Texture*, Fence&) {
+        spdlog::info("Searching for RenderContext::copy_texture");
+
+        std::vector<std::string> string_choices {
+            "InterleaveNormalDepthHalfWithoutGBuffer",
+            "CopyImage",
+        };
+
+        for (const auto& str_choice : string_choices) {
+            spdlog::info("Scanning for string: {}", str_choice);
+
+            const auto game = utility::get_executable();
+            const auto string = utility::scan_string(game, str_choice, true);
+
+            if (!string) {
+                spdlog::error("Failed to find copy_texture (no string)");
+                continue;
+            }
+
+            const auto string_ref = utility::scan_displacement_reference(game, *string);
+
+            if (!string_ref) {
+                spdlog::error("Failed to find copy_texture (no string ref)");
+                continue;
+            }
+
+            uintptr_t ip = *string_ref;
+
+            for (auto i = 0; i < 20; ++i) {
+                const auto resolved = utility::resolve_instruction(ip);
+
+                if (!resolved) {
+                    spdlog::error("Failed to find copy_texture (could not resolve instruction)");
+                    continue;
+                }
+
+                ip = resolved->addr;
+
+                if (*(uint8_t*)ip == 0xE8) {
+                    const auto result = (void (*)(RenderContext*, Texture*, Texture*, Fence&))utility::calculate_absolute(ip + 1);
+
+                    spdlog::info("Found copy_texture: {:x}", (uintptr_t)result);
+                    return result;
+                }
+
+                ip -= 1;
+            }
+        }
+
+        spdlog::error("Could not find copy_texture");
+        return nullptr;
+    }();
+
+    func(this, dest, src, fence);
+}
+
+ConstantBuffer* Renderer::get_constant_buffer(std::string_view name) const {
+    static auto tdef = sdk::find_type_definition("via.render.Renderer");
+    static auto t = tdef->get_type();
+    const auto field_desc = utility::re_type::get_field_desc(t, name);
+    return utility::re_managed_object::get_field<ConstantBuffer*>((::REManagedObject*)this, field_desc);
+}
+
+Renderer* get_renderer() {
+    return (Renderer*)sdk::get_native_singleton("via.render.Renderer");
 }
 
 void wait_rendering() {
@@ -578,7 +719,278 @@ std::optional<Vector2f> world_to_screen(const Vector3f& world_pos) {
     return Vector2f{screen_pos.x, screen_pos.y};
 }
 
-void* TargetState::get_native_resource_d3d12() const {
+/*
+- 0x4B VortexelTurbulenceGPU::VelocitiesX
+- 0x4A systems/shader/rayTracingDenoiserOld/rayTracingSimulation.sdf
+- 0x46 systems/rendering/NullWhite.tex
+- 0x46 systems/effect/Noise3D_MSK4.tex
+- 0x19 UpdateDepthBlocker
+- 0x19 Deinterlace
+- 0x19 cbGeneratePolyline
+- 0x19 cbTransformBasePoints
+- 0x19 CBBakeType
+- 0x19 cbGenerateBasePoints
+*/
+ConstantBuffer* create_constant_buffer(void* desc) {
+    static auto fn = []() -> ConstantBuffer* (*)(void*, void*) {
+        spdlog::info("Searching for create_constant_buffer");
+
+        const auto game = utility::get_executable();
+        const auto string = utility::scan_string(game, "cbTransformBasePoints");
+
+        if (!string) {
+            spdlog::error("Failed to find create_constant_buffer (no string)");
+            return nullptr;
+        }
+
+        const auto string_ref = utility::scan_displacement_reference(game, *string);
+
+        if (!string_ref) {
+            spdlog::error("Failed to find create_constant_buffer (no string ref)");
+            return nullptr;
+        }
+
+        uintptr_t ip = *string_ref;
+
+        for (auto i = 0; i < 20; ++i) {
+            const auto resolved = utility::resolve_instruction(ip);
+
+            if (!resolved) {
+                spdlog::error("Failed to find create_constant_buffer (could not resolve instruction)");
+                return nullptr;
+            }
+
+            ip = resolved->addr;
+
+            if (*(uint8_t*)ip == 0xE8) {
+                const auto result = (ConstantBuffer* (*)(void*, void*))utility::calculate_absolute(ip + 1);
+
+                spdlog::info("Found create_constant_buffer: {:x}", (uintptr_t)result);
+                return result;
+            }
+
+            ip -= 1;
+        }
+
+        return nullptr;
+    }();
+
+    return fn(nullptr, desc);
+}
+
+/*
++ 0x8B CircularDOF_WorkComponent0Im
++ 0x83 CircularDOF_WorkTexture
+- 0x82 omposite
+- 0x79 systems/effect/Stochastic_Sample8_MSK4.tex
++ 0x75 HDRImage
++ 0x73 HDRImage
+- 0x6A HDRImage
+- 0x67 systems/effect/Stochastic_Sample4_MSK4.tex
+- 0x67 DensityMapTexture
+- 0x5C systems/shader/advancedSystem.sdf
+- 0x5A BaseColorTextrure
+- 0x52 tSrc
+- 0x4E HDRImage
+- 0x4C CircularDOF_NearCOCFilteredHQ
+- 0x3F CircularDOF_SceneMipTexture
+*/
+TargetState* create_target_state(TargetState::Desc* desc) {
+    static auto fn = []() -> TargetState* (*)(void*, TargetState::Desc*) {
+        spdlog::info("Searching for create_target_state");
+
+        const auto game = utility::get_executable();
+        const auto string = utility::scan_string(game, "CircularDOF_SceneMipTexture");
+
+        if (!string) {
+            spdlog::error("Failed to find create_target_state (no string)");
+            return nullptr;
+        }
+
+        const auto string_ref = utility::scan_displacement_reference(game, *string);
+
+            spdlog::error("Failed to find create_target_state (no string ref)");
+        if (!string_ref) {
+            return nullptr;
+        }
+
+        uintptr_t ip = *string_ref;
+        uint32_t found_count = 0;
+
+        for (auto i = 0; i < 50; ++i) {
+            const auto resolved = utility::resolve_instruction(ip);
+
+            if (!resolved) {
+                spdlog::error("Failed to find create_target_state (could not resolve instruction)");
+                return nullptr;
+            }
+
+            ip = resolved->addr;
+
+            if (*(uint8_t*)ip == 0xE8) {
+                ++found_count;
+            }
+
+            // third call back from this string reference is the one we want
+            if (*(uint8_t*)ip == 0xE8 && found_count == 3) {
+                const auto result = (TargetState* (*)(void*, TargetState::Desc*))utility::calculate_absolute(ip + 1);
+
+                spdlog::info("Found create_target_state: {:x}", (uintptr_t)result);
+                return result;
+            }
+
+            ip -= 1;
+        }
+
+        return nullptr;
+    }();
+
+    return fn(nullptr, desc);
+}
+
+/*
++ 0x217 Wrinkle_VertAreaSkin
+- 0x20A EchoParam
++ 0x203 CapturePlane
++ 0x1F9 systems/shader/systemDevelop.sdf
++ 0x1F3 Wrinkle_ProbagateDupVertex
++ 0x1CF Wrinkle_ProbagateDupVertex_MaxMode
+- 0x1CA PrevLDRImage
++ 0x1AB Wrinkle_DrawAreaToTexture2
+- 0x1A5 MeshToUVTextureMap_2ndUVto1stUV
+- 0x18A LDRImage
++ 0x187 Wrinkle_DrawAreaToTexture2_MaxMode
++ 0x163 Wrinkle_CheapBlur
+- 0x145 MeshToUVTextureSkin2nd_Pos
++ 0xD9 systems/shader/speedTree/speedTree.sdf
+- 0x18 width=%u,height=%u,depth=%u,mip=%u,array=%u,format=%u,usage=%u,bind=%u
+*/
+Texture* create_texture(void* desc) {
+    static auto fn = []() -> Texture* (*)(void*, void*) {
+        spdlog::info("Searching for create_texture");
+
+        const auto game = utility::get_executable();
+        const auto string = utility::scan_string(game, L"width=%u,height=%u,depth=%u,mip=%u,array=%u,format=%u,usage=%u,bind=%u");
+
+        if (!string) {
+            spdlog::error("Failed to find create_texture (no string)");
+            return nullptr;
+        }
+
+        const auto string_ref = utility::scan_displacement_reference(game, *string);
+
+        if (!string_ref) {
+            spdlog::error("Failed to find create_texture (no string ref)");
+            return nullptr;
+        }
+
+        uintptr_t ip = *string_ref;
+
+        for (auto i = 0; i < 20; ++i) {
+            const auto resolved = utility::resolve_instruction(ip);
+
+            if (!resolved) {
+                spdlog::error("Failed to find create_texture (could not resolve instruction)");
+                return nullptr;
+            }
+
+            ip = resolved->addr;
+
+            if (*(uint8_t*)ip == 0xE8) {
+                const auto result = (Texture* (*)(void*, void*))utility::calculate_absolute(ip + 1);
+
+                spdlog::info("Found create_texture: {:x}", (uintptr_t)result);
+                return result;
+            }
+
+            ip -= 1;
+        }
+
+        return nullptr;
+    }();
+
+    return fn(nullptr, desc);
+}
+
+/*
++ 0x20A Wrinkle_DrawAreaToTexture2
++ 0x1E6 Wrinkle_DrawAreaToTexture2_MaxMode
++ 0x1C2 Wrinkle_CheapBlur
+- 0x1B8 EchoParam
++ 0x185 width=%u,height=%u,depth=%u,mip=%u,array=%u,format=%u,usage=%u,bind=%u
+- 0x178 PrevLDRImage
+- 0x168 systems/shader/advancedSystem.sdf
+- 0x138 LDRImage
+- 0xE0 BaseColorTextrure
+- 0xD4 DensityMapTexture
+- 0x9F BaseColorTextrure
+*/
+/*
+48 C7 44 24 24 05 00 00 00                    mov     [rsp+78h+var_54], 5
+C7 44 24 30 01 00 00 00                       mov     [rsp+78h+var_48], 1
+44 89 7C 24 2C                                mov     [rsp+78h+var_4C], r15d
+C7 44 24 20 1C 00 00 00                       mov     [rsp+78h+var_58], 1Ch
+E8 89 EB 78 00                                call    create_render_target_view
+*/
+
+// In RE4+:
+/*
+- 0x269 CircularDOF_NearCOCFilteredHQ
+- 0x266 CircularDOF_NearCOCMaskForTile
++ 0x261 CircularDOF_WorkComponent0Re
+- 0x235 tSrc
++ 0x212 Wrinkle_CheapBlur
++ 0x212 Echo
+- 0x1F1 CircularDOF_NearCOCMaskForTileHQ
++ 0x1F0 CircularDOF_WorkComponent0Im
+- 0x1D0 CircularDOF_NearCOCFiltered
+- 0x19A EchoParam
++ 0x15B width=%u,height=%u,depth=%u,mip=%u,array=%u,format=%u,usage=%u,bind=%u
+- 0x15A PrevLDRImage
+- 0x149 CircularDOF_NearCOCFilteredHQ
+- 0x11A LDRImage
++ 0xC3 width=%u,height=%u,depth=%u,mip=%u,array=%u,format=%u,usage=%u,bind=%u
+*/
+/*
+4C 8D 45 B8                                   lea     r8, [rbp+40h+var_88]
+49 8B CE                                      mov     rcx, r14
+E8 ? ? ? ?                                    call    create_render_target_view
+48 8B 8F F0 04 00 00                          mov     rcx, [rdi+4F0h]
+48 8B D8                                      mov     rbx, rax
+4C 89 BF F0 04 00 00                          mov     [rdi+4F0h], r15
+*/
+RenderTargetView* create_render_target_view(sdk::renderer::RenderResource* resource, void* desc) {
+    static auto fn = []() -> RenderTargetView* (*)(void*, sdk::renderer::RenderResource* resource, void*) {
+        spdlog::info("Searching for create_render_target_view");
+
+        const auto game = utility::get_executable();
+        const auto ref = utility::scan(game, "44 89 7C 24 2C C7 44 24 20 1C 00 00 00 E8 ? ? ? ?");
+
+        if (!ref) {
+            spdlog::info("Could not find first ref, performing fallback scan");
+            const auto ref2 = utility::scan(game, "4C 8D 45 B8 49 8B CE E8 ? ? ? ?");
+
+            if (ref2) {
+                const auto result = (RenderTargetView* (*)(void*, sdk::renderer::RenderResource*, void*))utility::calculate_absolute(*ref2 + 8);
+                spdlog::info("Found create_render_target_view: {:x}", (uintptr_t)result);
+
+                return result;
+            }
+
+            spdlog::error("Failed to find create_render_target_view (no ref)");
+            return nullptr;
+        }
+
+        const auto result = (RenderTargetView* (*)(void*, sdk::renderer::RenderResource*, void*))utility::calculate_absolute(*ref + 14);
+        spdlog::info("Found create_render_target_view: {:x}", (uintptr_t)result);
+
+        return result;
+    }();
+
+    return fn(nullptr, resource, desc);
+}
+
+ID3D12Resource* TargetState::get_native_resource_d3d12() const {
     const auto rtv = get_rtv(0);
 
     if (rtv == nullptr) {
@@ -589,16 +1001,58 @@ void* TargetState::get_native_resource_d3d12() const {
     const auto tex = rtv->get_texture_d3d12();
 
     if (tex == nullptr) {
+        /*auto target_state = rtv->get_target_state_d3d12();
+
+        if (target_state != nullptr && target_state != this) {
+            return target_state->get_native_resource_d3d12();
+        }*/
+
         return nullptr;
     }
 
-    const auto internal_resource = tex->get_d3d12_resource();
+    const auto internal_resource = tex->get_d3d12_resource_container();
 
     if (internal_resource == nullptr) {
         return nullptr;
     }
 
     return internal_resource->get_native_resource();
+}
+
+Texture* Texture::clone() {
+    return sdk::renderer::create_texture(get_desc());
+}
+
+RenderTargetView* RenderTargetView::clone() {
+    auto tex = this->get_texture_d3d12();
+
+    if (tex == nullptr) {
+        return nullptr;
+    }
+
+    return sdk::renderer::create_render_target_view(tex->clone(), &get_desc());
+}
+
+TargetState* TargetState::clone() {
+    auto cloned_desc = get_desc();
+
+    if (cloned_desc.num_rtv > 0) {
+        cloned_desc.rtvs = (sdk::renderer::RenderTargetView**)sdk::memory::allocate(cloned_desc.num_rtv * sizeof(void*));
+
+        for (auto i = 0; i < cloned_desc.num_rtv; ++i) {
+            auto rtv = get_rtv(i);
+
+            if (rtv == nullptr) {
+                continue;
+            }
+
+            cloned_desc.rtvs[i] = rtv->clone();
+        }
+    } else {
+        cloned_desc.rtvs = nullptr;
+    }
+
+    return sdk::renderer::create_target_state(&cloned_desc);
 }
 
 void*& layer::Output::get_present_state() {
@@ -673,6 +1127,67 @@ REManagedObject*& layer::Output::get_scene_view() {
     return *(REManagedObject**)((uintptr_t)get_present_state() + scene_view_offset);
 }
 
+uint32_t layer::Scene::get_view_id() const {
+    static auto get_view_id_method = sdk::find_method_definition("via.render.layer.Scene", "get_ViewID");
+
+    if (get_view_id_method == nullptr) {
+        return 0;
+    }
+
+    return get_view_id_method->call<uint32_t>(sdk::get_thread_context(), this);
+}
+
+RECamera* layer::Scene::get_camera() const {
+    static auto get_camera_method = sdk::find_method_definition("via.render.layer.Scene", "get_Camera");
+
+    if (get_camera_method == nullptr) {
+        return nullptr;
+    }
+
+    return get_camera_method->call<RECamera*>(sdk::get_thread_context(), this);
+}
+
+RECamera* layer::Scene::get_main_camera_if_possible() const {
+    const auto camera = get_camera();
+
+    if (camera == nullptr) {
+        return nullptr;
+    }
+
+    const auto camera_gameobject = utility::re_component::get_game_object(camera);
+
+    if (camera_gameobject == nullptr) {
+        return nullptr;
+    }
+
+    if (utility::re_string::get_view(camera_gameobject->name) == L"MainCamera" ||
+        utility::re_string::get_view(camera_gameobject->name) == L"Main Camera") {
+        return camera;
+    }
+
+    return nullptr;
+}
+
+REManagedObject* layer::Scene::get_mirror() const {
+    static auto get_mirror_method = sdk::find_method_definition("via.render.layer.Scene", "get_Mirror");
+
+    if (get_mirror_method == nullptr) {
+        return nullptr;
+    }
+
+    return get_mirror_method->call<REManagedObject*>(sdk::get_thread_context(), this);
+}
+
+bool layer::Scene::is_enabled() const {
+    static auto is_enabled_method = sdk::find_method_definition("via.render.layer.Scene", "get_Enable");
+
+    if (is_enabled_method == nullptr) {
+        return false;
+    }
+
+    return is_enabled_method->call<bool>(sdk::get_thread_context(), this);
+}
+
 sdk::renderer::SceneInfo* layer::Scene::get_scene_info() {
     return utility::re_managed_object::get_field<SceneInfo*>(this, "SceneInfo");
 }
@@ -689,18 +1204,30 @@ sdk::renderer::SceneInfo* layer::Scene::get_jitter_disable_scene_info() {
     return utility::re_managed_object::get_field<SceneInfo*>(this, "JitterDisableSceneInfo");
 }
 
+sdk::renderer::SceneInfo* layer::Scene::get_jitter_disable_post_scene_info() {
+    return utility::re_managed_object::get_field<SceneInfo*>(this, "JitterDisablePostSceneInfo");
+}
+
 sdk::renderer::SceneInfo* layer::Scene::get_z_prepass_scene_info() {
     return utility::re_managed_object::get_field<SceneInfo*>(this, "ZPrepassSceneInfo");
 }
 
-void* layer::Scene::get_depth_stencil_d3d12() {
+Texture* layer::Scene::get_depth_stencil() {
+    return utility::re_managed_object::get_field<::sdk::renderer::Texture*>(this, "DepthStencilTex");;
+}
+
+TargetState* layer::Scene::get_motion_vectors_state() {
+    return utility::re_managed_object::get_field<::sdk::renderer::TargetState*>(this, "VelocityTarget");
+}
+
+ID3D12Resource* layer::Scene::get_depth_stencil_d3d12() {
     const auto tex = utility::re_managed_object::get_field<::sdk::renderer::Texture*>(this, "DepthStencilTex");
 
     if (tex == nullptr) {
         return nullptr;
     }
 
-    const auto internal_resource = tex->get_d3d12_resource();
+    const auto internal_resource = tex->get_d3d12_resource_container();
 
     if (internal_resource == nullptr) {
         return nullptr;

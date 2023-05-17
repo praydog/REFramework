@@ -6,6 +6,7 @@
 
 #include <spdlog/spdlog.h>
 #include <imgui.h>
+#include <utility/Patch.hpp>
 
 class Mods;
 class REGlobals;
@@ -49,6 +50,10 @@ public:
     void on_frame_d3d12();
     void on_post_present_d3d12();
     void on_reset();
+
+    void patch_set_cursor_pos();
+    void remove_set_cursor_pos_patch();
+
     bool on_message(HWND wnd, UINT message, WPARAM w_param, LPARAM l_param);
     void on_direct_input_keys(const std::array<uint8_t, 256>& keys);
 
@@ -79,6 +84,8 @@ public:
         return "re2";
     #elif defined(RE3)
         return "re3";
+    #elif defined(RE4)
+        return "re4";
     #elif defined(RE7)
         return "re7";
     #elif defined(RE8)
@@ -178,6 +185,7 @@ private:
     std::mutex m_input_mutex{};
     std::recursive_mutex m_config_mtx{};
     std::recursive_mutex m_imgui_mtx{};
+    std::recursive_mutex m_patch_mtx{};
 
     HWND m_wnd{0};
     HMODULE m_game_module{0};
@@ -190,6 +198,7 @@ private:
     std::unique_ptr<WindowsMessageHook> m_windows_message_hook;
     std::unique_ptr<DInputHook> m_dinput_hook;
     std::shared_ptr<spdlog::logger> m_logger;
+    Patch::Ptr m_set_cursor_pos_patch{};
 
     std::string m_error{""};
 

@@ -17,6 +17,7 @@ public:
     void on_frame() override;
     void on_draw_ui() override;
     void on_update_transform(RETransform* transform) override;
+    void on_pre_application_entry(void* entry, const char* name, size_t hash) override;
 
 private:
     bool update_pointers();
@@ -24,13 +25,13 @@ private:
     const ModToggle::Ptr m_enabled{              ModToggle::create(generate_name("Enabled"), false) };
     const ModToggle::Ptr m_lock_camera{          ModToggle::create(generate_name("LockPosition"), false) };
     const ModToggle::Ptr m_disable_movement{     ModToggle::create(generate_name("DisableMovement"), false) };
-    const ModKey::Ptr m_toggle_key{              ModKey::create(generate_name("ToggleKey")) };
-    const ModKey::Ptr m_lock_camera_key{         ModKey::create(generate_name("LockKey")) };
-    const ModKey::Ptr m_move_up_key{             ModKey::create(generate_name("MoveUpKey"), DIK_SPACE) };
-    const ModKey::Ptr m_move_down_key{           ModKey::create(generate_name("MoveDownKey"), DIK_LCONTROL) };
-    const ModKey::Ptr m_disable_movement_key{    ModKey::create(generate_name("DisableMoveKey")) };
-    const ModKey::Ptr m_speed_modifier_fast_key{ ModKey::create(generate_name("SpeedModifierFast"), DIK_LSHIFT)};
-    const ModKey::Ptr m_speed_modifier_slow_key{ ModKey::create(generate_name("SpeedModifierSlow"), DIK_LMENU)};
+    const ModKey::Ptr m_toggle_key{              ModKey::create(generate_name("ToggleKey_V2")) };
+    const ModKey::Ptr m_lock_camera_key{         ModKey::create(generate_name("LockKey_V2")) };
+    const ModKey::Ptr m_move_up_key{             ModKey::create(generate_name("MoveUpKey_V2"), VK_SPACE) };
+    const ModKey::Ptr m_move_down_key{           ModKey::create(generate_name("MoveDownKey_V2"), VK_LCONTROL) };
+    const ModKey::Ptr m_disable_movement_key{    ModKey::create(generate_name("DisableMoveKey_V2")) };
+    const ModKey::Ptr m_speed_modifier_fast_key{ ModKey::create(generate_name("SpeedModifierFast_V2"), VK_LSHIFT)};
+    const ModKey::Ptr m_speed_modifier_slow_key{ ModKey::create(generate_name("SpeedModifierSlow_V2"), VK_LMENU)};
 
     const ModSlider::Ptr m_speed{ ModSlider::create(generate_name("Speed"), 0.0f, 1.0f, 0.1f) };
     const ModSlider::Ptr m_speed_modifier{ ModSlider::create(generate_name("SpeedModifier"), 1.f, 50.f, 4.f) };
@@ -70,4 +71,22 @@ private:
     bool m_was_disabled{ false };
 
     Vector3f m_custom_angles{};
+
+    RECamera* m_camera{nullptr};
+
+#ifdef RE4
+    struct {
+        bool attempted_hook{false};
+        std::optional<size_t> get_past_move_frame_move_dir_vec_id{};
+        std::optional<size_t> update_id{};
+        std::optional<size_t> late_update_id{};
+    } m_player_body_updater_hook{};
+
+    struct {
+        bool attempted_hook{false};
+        std::optional<size_t> change_motion_internal_id{};
+    } m_player_motion_controller_hook{};
+
+    REManagedObject* m_re4_body{nullptr};
+#endif
 };

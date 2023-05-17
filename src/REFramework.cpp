@@ -15,6 +15,8 @@ extern "C" {
 #include <imgui.h>
 #include <ImGuizmo.h>
 #include <imnodes.h>
+#include "re2-imgui/af_baidu.hpp"
+#include "re2-imgui/af_faprolight.hpp"
 #include "re2-imgui/font_robotomedium.hpp"
 #include "re2-imgui/imgui_impl_dx11.h"
 #include "re2-imgui/imgui_impl_dx12.h"
@@ -28,6 +30,7 @@ extern "C" {
 #include "Mods.hpp"
 #include "mods/PluginLoader.hpp"
 #include "sdk/REGlobals.hpp"
+#include "sdk/Application.hpp"
 #include "sdk/SDK.hpp"
 
 #include "ExceptionHandler.hpp"
@@ -133,6 +136,9 @@ void REFramework::hook_monitor() {
     }
 }
 
+typedef NTSTATUS (WINAPI* PFN_LdrLockLoaderLock)(ULONG Flags, ULONG *State, ULONG_PTR *Cookie);
+typedef NTSTATUS (WINAPI* PFN_LdrUnlockLoaderLock)(ULONG Flags, ULONG_PTR Cookie);
+
 REFramework::REFramework(HMODULE reframework_module)
     : m_reframework_module{reframework_module}
     , m_game_module{GetModuleHandle(0)}
@@ -161,6 +167,9 @@ REFramework::REFramework(HMODULE reframework_module)
     const auto halfway_module = (uintptr_t)m_game_module + (module_size / 2);
     const auto pre_allocated_buffer = (uintptr_t)AllocateBuffer((LPVOID)halfway_module); // minhook function
     spdlog::info("Preallocated buffer: {:x}", pre_allocated_buffer);
+
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
 
 #ifdef DEBUG
     spdlog::set_level(spdlog::level::debug);
@@ -209,18 +218,30 @@ REFramework::REFramework(HMODULE reframework_module)
         spdlog::info("ntdll.dll not found");
     }
 
-#if defined(RE8) || defined(MHRISE)
+    // wait for the game to load (WTF MHRISE??)
+    // once this is done, we can assume the process is unpacked.
+#if defined (REENGINE_PACKED)
     auto now = std::chrono::steady_clock::now();
     std::chrono::steady_clock::time_point next_log = now;
 
-    // wait for the game to load (WTF MHRISE??)
-    // once this is done, we can assume the process is unpacked.
+    while (GetModuleHandleA("d3d12.dll") == nullptr) {
+        now = std::chrono::steady_clock::now();
+        if (now >= next_log) {
+            spdlog::info("[REFramework] Waiting for D3D12...");
+            next_log = now + 1s;
+        }
+        Sleep(50);
+    }
+
     while (LoadLibraryA("d3d12.dll") == nullptr) {
         if (now >= next_log) {
             spdlog::info("[REFramework] Waiting for D3D12...");
             next_log = now + 1s;
         }
     }
+
+    spdlog::info("D3D12 loaded");
+#endif
 
 #if defined(MHRISE)
     utility::load_module_from_current_directory(L"openvr_api.dll");
@@ -256,11 +277,33 @@ REFramework::REFramework(HMODULE reframework_module)
         }
     });
     startup_lookup_thread->detach();
+#endif
 
-    utility::ThreadSuspender ___{};
+#if defined(RE8) || defined(RE4) || defined(MHRISE)
+    ULONG_PTR loader_magic = 0;
+    auto lock_loader = (PFN_LdrLockLoaderLock)GetProcAddress(ntdll, "LdrLockLoaderLock");
+    auto unlock_loader = (PFN_LdrUnlockLoaderLock)GetProcAddress(ntdll, "LdrUnlockLoaderLock");
+
+    if (lock_loader != nullptr && unlock_loader != nullptr) {
+        lock_loader(0, NULL, &loader_magic);
+    }
+    utility::ThreadSuspender suspender{};
+    if (lock_loader != nullptr && unlock_loader != nullptr) {
+        unlock_loader(0, loader_magic);
+    }
+
     IntegrityCheckBypass::ignore_application_entries();
+
+#if defined(RE8) || defined(RE4)
+    // Also done on RE4 because some of the scans are the same.
     IntegrityCheckBypass::immediate_patch_re8();
 #endif
+
+#if defined(RE4)
+    // Fixes new code added in RE4 only.
+    IntegrityCheckBypass::immediate_patch_re4();
+#endif
+    suspender.resume();
 #endif
 
     // Hooking D3D12 initially because we need to retrieve the command queue before the first frame then switch to D3D11 if it failed later
@@ -685,6 +728,30 @@ void REFramework::on_reset() {
     m_initialized = false;
 }
 
+void REFramework::patch_set_cursor_pos() {
+    std::scoped_lock _{ m_patch_mtx };
+
+    if (m_set_cursor_pos_patch.get() == nullptr) {
+        // Make SetCursorPos ret early
+        const auto set_cursor_pos_addr = (uintptr_t)GetProcAddress(GetModuleHandleA("user32.dll"), "SetCursorPos");
+
+        if (set_cursor_pos_addr != 0) {
+            spdlog::info("Patching SetCursorPos");
+            m_set_cursor_pos_patch = Patch::create(set_cursor_pos_addr, {0xC3});
+        }
+    }
+}
+
+void REFramework::remove_set_cursor_pos_patch() {
+    std::scoped_lock _{ m_patch_mtx };
+
+    if (m_set_cursor_pos_patch.get() != nullptr) {
+        spdlog::info("Removing SetCursorPos patch");
+    }
+
+    m_set_cursor_pos_patch.reset();
+}
+
 bool REFramework::on_message(HWND wnd, UINT message, WPARAM w_param, LPARAM l_param) {
     m_last_message_time = std::chrono::steady_clock::now();
 
@@ -694,6 +761,45 @@ bool REFramework::on_message(HWND wnd, UINT message, WPARAM w_param, LPARAM l_pa
 
     bool is_mouse_moving{false};
     switch (message) {
+    case WM_LBUTTONDOWN:
+        m_last_keys[VK_LBUTTON] = true;
+        break;
+    case WM_LBUTTONUP:
+        m_last_keys[VK_LBUTTON] = false;
+        break;
+    case WM_RBUTTONDOWN:
+        m_last_keys[VK_RBUTTON] = true;
+        break;
+    case WM_RBUTTONUP:
+        m_last_keys[VK_RBUTTON] = false;
+        break;
+    case WM_MBUTTONDOWN:
+        m_last_keys[VK_MBUTTON] = true;
+        break;
+    case WM_MBUTTONUP:
+        m_last_keys[VK_MBUTTON] = false;
+        break;
+    case WM_KEYDOWN:
+    case WM_SYSKEYDOWN: {
+        const auto menu_key = REFrameworkConfig::get()->get_menu_key()->value();
+
+        if (w_param == menu_key && !m_last_keys[w_param]) {
+            std::lock_guard _{m_input_mutex};
+
+            set_draw_ui(!m_draw_ui);
+        }
+
+        m_last_keys[w_param] = true;
+        
+        break;
+    }
+    case WM_KEYUP:
+    case WM_SYSKEYUP:
+        m_last_keys[w_param] = false;
+        break;
+    case WM_KILLFOCUS:
+        std::fill(std::begin(m_last_keys), std::end(m_last_keys), false);
+        break;
     case WM_INPUT: {
         // RIM_INPUT means the window has focus
         if (GET_RAWINPUT_CODE_WPARAM(w_param) == RIM_INPUT) {
@@ -743,12 +849,25 @@ bool REFramework::on_message(HWND wnd, UINT message, WPARAM w_param, LPARAM l_pa
             if (message == WM_INPUT && GET_RAWINPUT_CODE_WPARAM(w_param) == RIM_INPUTSINK)
                 return false;
 
-            if (m_is_ui_focused) {
-                if (io.WantCaptureMouse || io.WantCaptureKeyboard || io.WantTextInput)
-                    return false;
-            } else {
-                if (!is_mouse_moving && (io.WantCaptureMouse || io.WantCaptureKeyboard || io.WantTextInput))
-                    return false;
+            static std::unordered_set<UINT> forcefully_allowed_messages {
+                WM_DEVICECHANGE,
+                WM_SHOWWINDOW,
+                WM_ACTIVATE,
+                WM_ACTIVATEAPP,
+                WM_CLOSE,
+                WM_DPICHANGED,
+                WM_SIZING,
+                WM_MOUSEACTIVATE
+            };
+
+            if (!forcefully_allowed_messages.contains(message)) {
+                if (m_is_ui_focused) {
+                    if (io.WantCaptureMouse || io.WantCaptureKeyboard || io.WantTextInput)
+                        return false;
+                } else {
+                    if (!is_mouse_moving && (io.WantCaptureMouse || io.WantCaptureKeyboard || io.WantTextInput))
+                        return false;
+                }
             }
         }
     }
@@ -768,7 +887,7 @@ bool REFramework::on_message(HWND wnd, UINT message, WPARAM w_param, LPARAM l_pa
 
 // this is unfortunate.
 void REFramework::on_direct_input_keys(const std::array<uint8_t, 256>& keys) {
-    const auto menu_key = REFrameworkConfig::get()->get_menu_key()->value();
+    /*const auto menu_key = REFrameworkConfig::get()->get_menu_key()->value();
 
     if (keys[menu_key] && m_last_keys[menu_key] == 0) {
         std::lock_guard _{m_input_mutex};
@@ -776,7 +895,7 @@ void REFramework::on_direct_input_keys(const std::array<uint8_t, 256>& keys) {
         set_draw_ui(!m_draw_ui);
     }
 
-    m_last_keys = keys;
+    m_last_keys = keys;*/
 }
 
 std::filesystem::path REFramework::get_persistent_dir() {
@@ -902,9 +1021,22 @@ void REFramework::update_fonts() {
     m_fonts_need_updating = false;
 
     auto& fonts = ImGui::GetIO().Fonts;
-
     fonts->Clear();
-    fonts->AddFontFromMemoryCompressedTTF(RobotoMedium_compressed_data, RobotoMedium_compressed_size, (float)m_font_size);
+
+    // using 'reframework_pictographic.mode' file to 
+    // replace '?' to most flag in WorldObjectsViewer
+    ImFontConfig custom_icons{}; 
+    custom_icons.FontDataOwnedByAtlas = false;
+    ImFont* fsload = (INVALID_FILE_ATTRIBUTES != ::GetFileAttributesA("reframework_pictographic.mode"))
+        ? fonts->AddFontFromMemoryTTF((void*)af_baidu_ptr, af_baidu_size, (float)m_font_size, &custom_icons, fonts->GetGlyphRangesChineseFull())
+        : fonts->AddFontFromMemoryCompressedTTF(RobotoMedium_compressed_data, RobotoMedium_compressed_size, (float)m_font_size);
+
+    // https://fontawesome.com/
+    custom_icons.PixelSnapH = true;
+    custom_icons.MergeMode = true;
+    custom_icons.FontDataOwnedByAtlas = false;
+    static const ImWchar icon_ranges[] = {0xF000, 0xF976, 0}; // ICON_MIN_FA ICON_MAX_FA
+    fonts->AddFontFromMemoryTTF((void*)af_faprolight_ptr, af_faprolight_size, (float)m_font_size, &custom_icons, icon_ranges);
 
     for (auto& font : m_additional_fonts) {
         const ImWchar* ranges = nullptr;
@@ -916,7 +1048,7 @@ void REFramework::update_fonts() {
         if (fs::exists(font.filepath)) {
             font.font = fonts->AddFontFromFileTTF(font.filepath.string().c_str(), (float)font.size, nullptr, ranges);
         } else {
-            font.font = fonts->AddFontFromMemoryCompressedTTF(RobotoMedium_compressed_data, RobotoMedium_compressed_size, (float)font.size, nullptr, ranges);
+            font.font = fsload; // fonts->AddFontFromMemoryCompressedTTF(RobotoMedium_compressed_data, RobotoMedium_compressed_size, (float)font.size, nullptr, ranges);
         }
     }
 
@@ -941,7 +1073,12 @@ void REFramework::invalidate_device_objects() {
 void REFramework::draw_ui() {
     std::lock_guard _{m_input_mutex};
 
+    ImGui::GetIO().MouseDrawCursor = m_draw_ui && REFrameworkConfig::get()->is_always_show_cursor();
+    ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange; // causes bugs with the cursor
+
     if (!m_draw_ui) {
+        remove_set_cursor_pos_patch();
+
         m_is_ui_focused = false;
         if (m_last_draw_ui) {
             m_windows_message_hook->window_toggle_cursor(m_cursor_state);
@@ -949,6 +1086,8 @@ void REFramework::draw_ui() {
         m_dinput_hook->acknowledge_input();
         // ImGui::GetIO().MouseDrawCursor = false;
         return;
+    } else {
+        patch_set_cursor_pos();
     }
     
     // UI Specific code:
@@ -986,7 +1125,8 @@ void REFramework::draw_ui() {
 
     ImGui::SetNextWindowPos(ImVec2(50, 50), ImGuiCond_::ImGuiCond_Once);
     ImGui::SetNextWindowSize(ImVec2(300, 500), ImGuiCond_::ImGuiCond_Once);
-    ImGui::Begin("REFramework", &m_draw_ui);
+    bool is_open = true;
+    ImGui::Begin("REFramework", &is_open);
     ImGui::Text("Default Menu Key: Insert");
     ImGui::Checkbox("Transparency", &m_ui_option_transparent);
     ImGui::SameLine();
@@ -1017,7 +1157,9 @@ void REFramework::draw_ui() {
     ImGui::End();
 
     // save the menu state in config
-    if (m_draw_ui != m_last_draw_ui) {
+    if (!is_open) {
+        set_draw_ui(is_open, true);
+    } else if (m_draw_ui != m_last_draw_ui) {
         set_draw_ui(m_draw_ui, true);
     }
 
@@ -1365,9 +1507,39 @@ bool REFramework::initialize_game_data() {
 #endif
             reframework::initialize_sdk();
 
-#ifdef RE8
-            while (sdk::VM::get() == nullptr) {
+#if TDB_VER >= 71
+            const auto start_time = std::chrono::high_resolution_clock::now();
 
+            while (true) {
+                try {
+                    if (sdk::VM::get() != nullptr) {
+                        break;
+                    }
+                } catch(...) {
+                }
+
+                if (std::chrono::high_resolution_clock::now() - start_time > std::chrono::seconds(30)) {
+                    spdlog::error("Timed out waiting for VM to initialize.");
+                    throw std::runtime_error("Timed out waiting for VM to initialize.");
+                }
+
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            }
+
+            while (true) {
+                try {
+                    if (sdk::Application::get() != nullptr) {
+                        break;
+                    }
+                } catch(...) {
+                }
+
+                if (std::chrono::high_resolution_clock::now() - start_time > std::chrono::seconds(30)) {
+                    spdlog::error("Timed out waiting for Application to initialize.");
+                    throw std::runtime_error("Timed out waiting for Application to initialize.");
+                }
+
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
             }
 #endif
 

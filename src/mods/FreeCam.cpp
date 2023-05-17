@@ -2,6 +2,8 @@
 #include "sdk/REMath.hpp"
 #include "sdk/SceneManager.hpp"
 
+#include "HookManager.hpp"
+
 #include "FreeCam.hpp"
 
 using namespace utility;
@@ -34,7 +36,7 @@ void FreeCam::on_frame() {
 }
 
 void FreeCam::on_draw_ui() {
-    ImGui::SetNextTreeNodeOpen(false, ImGuiCond_::ImGuiCond_FirstUseEver);
+    ImGui::SetNextItemOpen(false, ImGuiCond_::ImGuiCond_FirstUseEver);
 
     if (!ImGui::CollapsingHeader(get_name().data())) {
         return;
@@ -77,14 +79,14 @@ std::unordered_map<MoveDirection, Vector4f> g_movedir_map{
 };
 
 std::unordered_map<int32_t, MoveDirection> g_vk_to_movedir{
-    { DIK_W, MoveDirection::FORWARD },
-    { DIK_A, MoveDirection::LEFT },
-    { DIK_S, MoveDirection::BACKWARD },
-    { DIK_D, MoveDirection::RIGHT },
-    { DIK_UP, MoveDirection::FORWARD },
-    { DIK_LEFT, MoveDirection::LEFT },
-    { DIK_DOWN, MoveDirection::BACKWARD },
-    { DIK_RIGHT, MoveDirection::RIGHT },
+    { VkKeyScan('w'), MoveDirection::FORWARD },
+    { VkKeyScan('a'), MoveDirection::LEFT },
+    { VkKeyScan('s'), MoveDirection::BACKWARD },
+    { VkKeyScan('d'), MoveDirection::RIGHT },
+    { VK_UP, MoveDirection::FORWARD },
+    { VK_LEFT, MoveDirection::LEFT },
+    { VK_DOWN, MoveDirection::BACKWARD },
+    { VK_RIGHT, MoveDirection::RIGHT },
 };
 
 void FreeCam::on_update_transform(RETransform* transform) {
@@ -110,7 +112,7 @@ void FreeCam::on_update_transform(RETransform* transform) {
     }
 #endif
 
-    const auto camera = sdk::get_primary_camera();
+    const auto camera = m_camera;
 
     if (camera == nullptr || transform != camera->ownerGameObject->transform) {
         return;
@@ -267,6 +269,129 @@ void FreeCam::on_update_transform(RETransform* transform) {
     if (joint != nullptr) {
         joint->posOffset = Vector4f{};
         *(Vector4f*)&joint->anglesOffset = Vector4f{0.0f, 0.00f, 0.0f, 1.0f};
+    }
+}
+
+void FreeCam::on_pre_application_entry(void* entry, const char* name, size_t hash) {
+    if (hash == "LockScene"_fnv) {
+        if (!m_enabled->value()) {
+            m_camera = nullptr;
+#ifdef RE4
+            m_re4_body = nullptr;
+#endif
+            return;
+        }
+
+        m_camera = sdk::get_primary_camera();
+
+#ifdef RE4
+        if (m_disable_movement->value()) {
+            const auto character_manager = sdk::get_managed_singleton<::REManagedObject>(game_namespace("CharacterManager"));
+
+            if (character_manager == nullptr) {
+                m_re4_body = nullptr;
+                return;
+            }
+
+            const auto player_context = sdk::call_object_func_easy<::REManagedObject*>(character_manager, "getPlayerContextRef");
+
+            if (player_context == nullptr) {
+                m_re4_body = nullptr;
+                return;
+            }
+
+            m_re4_body = sdk::call_object_func_easy<::REManagedObject*>(player_context, "get_BodyGameObject");
+
+            if (m_re4_body == nullptr) {
+                return;
+            }
+
+            auto standard_skip_pre_fn = [this](std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys) -> HookManager::PreHookResult {
+                if (!m_enabled->value() || !m_disable_movement->value()) {
+                    return HookManager::PreHookResult::CALL_ORIGINAL;
+                }
+
+                const auto comp = (REComponent*)args[1];
+                const auto owner = utility::re_component::get_game_object(comp);
+
+                if (owner == m_re4_body) {
+                    return HookManager::PreHookResult::SKIP_ORIGINAL;
+                }
+
+                return HookManager::PreHookResult::CALL_ORIGINAL;
+            };
+
+            if (!m_player_body_updater_hook.attempted_hook) {
+                m_player_body_updater_hook.attempted_hook = true;
+
+                const auto player_body_updater_t = sdk::find_type_definition(game_namespace("PlayerBodyUpdater"));
+                if (player_body_updater_t == nullptr) {
+                    return;
+                }
+
+                const auto update_fn = player_body_updater_t->get_method("update");
+                const auto late_update_fn = player_body_updater_t->get_method("lateUpdate");
+                const auto get_past_frame_move_dir_fn = player_body_updater_t->get_method("getPastFrameMoveDirVec");
+
+                if (update_fn != nullptr) {
+                    m_player_body_updater_hook.update_id = g_hookman.add(update_fn,
+                        standard_skip_pre_fn,
+                        [this](uintptr_t& ret_val, sdk::RETypeDefinition* ret_ty) {
+                        }
+                    );
+                }
+
+                if (late_update_fn != nullptr) {
+                    m_player_body_updater_hook.late_update_id = g_hookman.add(late_update_fn,
+                        standard_skip_pre_fn,
+                        [this](uintptr_t& ret_val, sdk::RETypeDefinition* ret_ty) {
+                        }
+                    );
+                }
+
+                if (get_past_frame_move_dir_fn != nullptr) {
+                    m_player_body_updater_hook.get_past_move_frame_move_dir_vec_id = g_hookman.add(get_past_frame_move_dir_fn,
+                        [this](std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys) -> HookManager::PreHookResult {
+                            if (!m_enabled->value() || !m_disable_movement->value()) {
+                                return HookManager::PreHookResult::CALL_ORIGINAL;
+                            }
+
+                            // The component is in arg2 because ValueTypes push everything to the right
+                            const auto comp = (REComponent*)args[2];
+                            const auto owner = utility::re_component::get_game_object(comp);
+
+                            if (owner == m_re4_body) {
+                                return HookManager::PreHookResult::SKIP_ORIGINAL;
+                            }
+
+                            return HookManager::PreHookResult::CALL_ORIGINAL;
+                        },
+                        [this](uintptr_t& ret_val, sdk::RETypeDefinition* ret_ty) {
+                        }
+                    );
+                }
+            }
+
+            if (!m_player_motion_controller_hook.attempted_hook) {
+                m_player_motion_controller_hook.attempted_hook = true;
+
+                const auto player_motion_controller_t = sdk::find_type_definition(game_namespace("MotionController"));
+                if (player_motion_controller_t == nullptr) {
+                    return;
+                }
+
+                const auto change_motion_internal_fn = player_motion_controller_t->get_method("changeMotionInternal");
+
+                if (change_motion_internal_fn != nullptr) {
+                    m_player_motion_controller_hook.change_motion_internal_id = g_hookman.add(change_motion_internal_fn,
+                        standard_skip_pre_fn,
+                        [this](uintptr_t& ret_val, sdk::RETypeDefinition* ret_ty) {
+                        }
+                    );
+                }
+            }
+        }
+#endif
     }
 }
 

@@ -7,6 +7,8 @@
 
 #include "REFramework.hpp"
 
+#include "WindowFilter.hpp"
+
 #include "D3D11Hook.hpp"
 
 using namespace std;
@@ -124,6 +126,16 @@ HRESULT WINAPI D3D11Hook::present(IDXGISwapChain* swap_chain, UINT sync_interval
 
     auto d3d11 = g_d3d11_hook;
 
+    // This line must be called before calling our detour function because we might have to unhook the function inside our detour.
+    auto present_fn = d3d11->m_present_hook->get_original<decltype(D3D11Hook::present)*>();
+
+    DXGI_SWAP_CHAIN_DESC swap_desc{};
+    swap_chain->GetDesc(&swap_desc);
+
+    if (WindowFilter::get().is_filtered(swap_desc.OutputWindow)) {
+        return present_fn(swap_chain, sync_interval, flags);
+    }
+
     d3d11->m_inside_present = true;
 
     if (d3d11->m_swapchain_0 == nullptr) {
@@ -132,9 +144,6 @@ HRESULT WINAPI D3D11Hook::present(IDXGISwapChain* swap_chain, UINT sync_interval
     } else if (d3d11->m_swapchain_1 == nullptr && swap_chain != d3d11->m_swapchain_0) {
         d3d11->m_swapchain_1 = swap_chain;
     }
-
-    // This line must be called before calling our detour function because we might have to unhook the function inside our detour.
-    auto present_fn = d3d11->m_present_hook->get_original<decltype(D3D11Hook::present)*>();
 
     /*if (d3d11->m_swap_chain != d3d11->m_swapchain_0) {
         d3d11->m_inside_present = false;
@@ -208,6 +217,14 @@ HRESULT WINAPI D3D11Hook::resize_buffers(
     std::scoped_lock _{g_framework->get_hook_monitor_mutex()};
 
     auto d3d11 = g_d3d11_hook;
+    auto resize_buffers_fn = d3d11->m_resize_buffers_hook->get_original<decltype(D3D11Hook::resize_buffers)*>();
+
+    DXGI_SWAP_CHAIN_DESC swap_desc{};
+    swap_chain->GetDesc(&swap_desc);
+
+    if (WindowFilter::get().is_filtered(swap_desc.OutputWindow)) {
+        return resize_buffers_fn(swap_chain, buffer_count, width, height, new_format, swap_chain_flags);
+    }
 
     d3d11->m_swap_chain = swap_chain;
     d3d11->m_swapchain_0 = nullptr;
@@ -217,8 +234,6 @@ HRESULT WINAPI D3D11Hook::resize_buffers(
     if (d3d11->m_on_resize_buffers) {
         d3d11->m_on_resize_buffers(*d3d11);
     }
-
-    auto resize_buffers_fn = d3d11->m_resize_buffers_hook->get_original<decltype(D3D11Hook::resize_buffers)*>();
 
     if (g_inside_d3d11_resize_buffers) {
         auto original_bytes = utility::get_original_bytes(Address{resize_buffers_fn});

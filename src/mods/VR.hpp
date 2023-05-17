@@ -516,6 +516,7 @@ private:
     const ModToggle::Ptr m_allow_engine_overlays{ ModToggle::create(generate_name("AllowEngineOverlays"), true) };
     const ModToggle::Ptr m_desktop_fix{ ModToggle::create(generate_name("DesktopRecordingFix"), true) };
     const ModToggle::Ptr m_desktop_fix_skip_present{ ModToggle::create(generate_name("DesktopRecordingFixSkipPresent"), true) };
+    const ModToggle::Ptr m_enable_asynchronous_rendering{ ModToggle::create(generate_name("AsyncRendering_V2"), true) };
 
     bool m_disable_projection_matrix_override{ false };
     bool m_disable_gui_camera_projection_matrix_override{ false };
@@ -523,7 +524,6 @@ private:
     bool m_disable_backbuffer_size_override{false};
     bool m_disable_temporal_fix{false};
     bool m_disable_post_effect_fix{false};
-    bool m_enable_asynchronous_rendering{true};
 
     ValueList m_options{
         *m_set_standing_key,
@@ -549,7 +549,8 @@ private:
         *m_allow_engine_overlays,
         *m_resolution_scale,
         *m_desktop_fix,
-        *m_desktop_fix_skip_present
+        *m_desktop_fix_skip_present,
+        *m_enable_asynchronous_rendering
     };
 
     bool m_use_rotation{true};

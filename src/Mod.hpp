@@ -266,6 +266,10 @@ public:
         if (m_waiting_for_new_key) {
             const auto &keys = g_framework->get_keyboard_state();
             for (int32_t k{ 0 }; k < keys.size(); ++k) {
+                if (k == VK_LBUTTON || k == VK_RBUTTON) {
+                    continue;
+                }
+
                 if (keys[k]) {
                     m_value = is_erase_key(k) ? UNBOUND_KEY : k;
                     m_waiting_for_new_key = false;
@@ -297,6 +301,10 @@ public:
             return false;
         }
 
+        if (m_value == VK_LBUTTON || m_value == VK_RBUTTON) {
+            return false;
+        }
+
         return g_framework->get_keyboard_state()[(uint8_t)m_value] != 0;
     }
 
@@ -317,8 +325,8 @@ public:
 
     bool is_erase_key(uint8_t k) const {
         switch (k) {
-        case DIK_ESCAPE:
-        case DIK_BACKSPACE:
+        case VK_ESCAPE:
+        case VK_BACK:
             return true;
 
         default:
