@@ -1025,17 +1025,18 @@ void REFramework::update_fonts() {
 
     // using 'reframework_pictographic.mode' file to 
     // replace '?' to most flag in WorldObjectsViewer
-    ImFontConfig ImCustomIcons; ImCustomIcons.FontDataOwnedByAtlas = false;
+    ImFontConfig custom_icons{}; 
+    custom_icons.FontDataOwnedByAtlas = false;
     ImFont* fsload = (INVALID_FILE_ATTRIBUTES != ::GetFileAttributesA("reframework_pictographic.mode"))
-        ? fonts->AddFontFromMemoryTTF((void*)af_baidu_ptr, af_baidu_size, (float)m_font_size, &ImCustomIcons, fonts->GetGlyphRangesChineseFull())
+        ? fonts->AddFontFromMemoryTTF((void*)af_baidu_ptr, af_baidu_size, (float)m_font_size, &custom_icons, fonts->GetGlyphRangesChineseFull())
         : fonts->AddFontFromMemoryCompressedTTF(RobotoMedium_compressed_data, RobotoMedium_compressed_size, (float)m_font_size);
 
     // https://fontawesome.com/
-    ImCustomIcons.PixelSnapH = true;
-    ImCustomIcons.MergeMode = true;
-    ImCustomIcons.FontDataOwnedByAtlas = false;
+    custom_icons.PixelSnapH = true;
+    custom_icons.MergeMode = true;
+    custom_icons.FontDataOwnedByAtlas = false;
     static const ImWchar icon_ranges[] = {0xF000, 0xF976, 0}; // ICON_MIN_FA ICON_MAX_FA
-    fonts->AddFontFromMemoryTTF((void*)af_faprolight_ptr, af_faprolight_size, (float)m_font_size, &ImCustomIcons, icon_ranges);
+    fonts->AddFontFromMemoryTTF((void*)af_faprolight_ptr, af_faprolight_size, (float)m_font_size, &custom_icons, icon_ranges);
 
     for (auto& font : m_additional_fonts) {
         const ImWchar* ranges = nullptr;
