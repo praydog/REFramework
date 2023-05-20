@@ -1948,7 +1948,7 @@ void ObjectExplorer::generate_sdk() {
 #endif
 
         // Generate Properties
-        if (fields->variables != nullptr && fields->variables != nullptr && fields->variables->data != nullptr) {
+        if (fields->variables != nullptr && fields->variables->data != nullptr) {
             auto descriptors = fields->variables->data->descriptors;
             auto reflection_property_index = 0;
             for (auto i = descriptors; i != descriptors + fields->variables->num; ++i) {
@@ -2635,11 +2635,11 @@ void ObjectExplorer::handle_type(REManagedObject* obj, REType* t) {
 
         auto obj_for_widget = (type_info == t && is_singleton && !is_real_obj) ? utility::re_type::get_singleton_instance(type_info) : t;
 
-        auto made_node = widget_with_context(obj_for_widget, [&name]() { return ImGui::TreeNode(name); });
+        auto made_node = widget_with_context(obj_for_widget, name, [&name]() { return ImGui::TreeNode(name); });
 
         // top
         if (is_singleton && type_info == t) {
-            make_same_line_text("SINGLETON", ImVec4{1.0f, 0.0f, 0.0f, 1.0f});
+            make_same_line_text("SINGLETON", ImVec4{1.0f, 0.0f, 0.0f, 1.0f}); 
         }
 
         if (!made_node) {
@@ -2784,7 +2784,7 @@ void ObjectExplorer::display_reflection_methods(REManagedObject* obj, REType* ty
             }
 
             auto ret = descriptor->returnTypeName != nullptr ? std::string{ descriptor->returnTypeName } : std::string{ "undefined" };
-            auto made_node = widget_with_context(descriptor, [&]() { return stretched_tree_node(descriptor, "%s", ret.c_str()); });
+            auto made_node = widget_with_context(descriptor, descriptor->name, [&]() { return stretched_tree_node(descriptor, "%s", ret.c_str()); });
             auto tree_hovered = ImGui::IsItemHovered();
 
             // Draw the variable name with a color
@@ -2841,7 +2841,7 @@ void ObjectExplorer::display_reflection_properties(REManagedObject* obj, REType*
 
             auto local_obj = obj;
 
-            auto made_node = widget_with_context(variable->function, [&]() { return stretched_tree_node(variable, "%s", variable->typeName); });
+            auto made_node = widget_with_context(variable->function, variable->name, [&]() { return stretched_tree_node(variable, "%s", variable->typeName); });
             auto tree_hovered = ImGui::IsItemHovered();
 
             // Draw the variable name with a color
@@ -3018,7 +3018,7 @@ void ObjectExplorer::display_native_fields(REManagedObject* obj, sdk::RETypeDefi
 
             is_managed_str = final_type_name == "System.String";
 
-            const auto made_node = widget_with_context(data, [&]() { return stretched_tree_node(f, "%s", field_type_name.c_str()); });
+            const auto made_node = widget_with_context(data, field_name, [&]() { return stretched_tree_node(f, "%s", field_type_name.c_str()); });
             const auto tree_hovered = ImGui::IsItemHovered();
 
             // Draw the variable name with a color
@@ -3222,7 +3222,7 @@ void ObjectExplorer::attempt_display_method(REManagedObject* obj, sdk::REMethodD
                         ImGui::SameLine();
                     }
 
-                    ImGui::Text("%02X", ((uint8_t*)ip)[j]);
+                    if (ip) ImGui::Text("%02X", ((uint8_t*)ip)[j]);
                 }
 
                 ImGui::TableNextColumn();
@@ -3337,16 +3337,6 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
 
     constexpr auto min_zero = 0;
 
-    auto make_tree_addr = [this](void* addr) {
-        if (widget_with_context(addr, [&]() { return ImGui::TreeNode(addr, "Variable: 0x%p", addr); })) {
-            if (is_managed_object(addr)) {
-                handle_address(addr);
-            }
-
-            ImGui::TreePop();
-        }
-    };
-
     // yay for compile time string hashing
     switch (utility::hash(type_name)) {
     case "via.render.TargetState"_fnv: {
@@ -3377,7 +3367,7 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
     case "System.UInt64"_fnv:
     case "size_t"_fnv:
     case "u64"_fnv:
-        ImGui::Text("%llu", *(uint64_t*)data);
+        ImGui::Text("0x%llX", *(uint64_t*)data);
 
         if (real_data != nullptr) {
             auto& int_val = *(uint64_t*)real_data;
@@ -3388,7 +3378,7 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
         break;
     case "System.Int64"_fnv:
     case "s64"_fnv:
-        ImGui::Text("%lli", *(int64_t*)data);
+        ImGui::Text("0x%llX", *(int64_t*)data);
 
         if (real_data != nullptr) {
             auto& int_val = *(int64_t*)real_data;
@@ -3399,7 +3389,7 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
         break;
     case "System.UInt32"_fnv:
     case "u32"_fnv:
-        ImGui::Text("%u", *(uint32_t*)data);
+        ImGui::Text("0x%X", *(uint32_t*)data);
 
         if (real_data != nullptr) {
             auto& int_val = *(uint32_t*)real_data;
@@ -3410,7 +3400,7 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
         break;
     case "System.Int32"_fnv:
     case "s32"_fnv:
-        ImGui::Text("%i", *(int32_t*)data);
+        ImGui::Text("0x%X", *(int32_t*)data);
 
         if (real_data != nullptr) {
             auto& int_val = *(int32_t*)real_data;
@@ -3422,7 +3412,7 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
 
     case "System.UInt16"_fnv:
     case "u16"_fnv:
-        ImGui::Text("%i", *(uint16_t*)data);
+        ImGui::Text("0x%04X", *(uint16_t*)data);
 
         if (real_data != nullptr) {
             auto& int_val = *(uint16_t*)real_data;
@@ -3433,7 +3423,7 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
 
     case "System.Int16"_fnv:
     case "s16"_fnv:
-        ImGui::Text("%i", *(int16_t*)data);
+        ImGui::Text("0x%04X", *(int16_t*)data);
 
         if (real_data != nullptr) {
             auto& int_val = *(int16_t*)real_data;
@@ -3443,7 +3433,7 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
         break;
     case "System.Byte"_fnv:
     case "u8"_fnv:
-        ImGui::Text("%u", *(uint8_t*)data);
+        ImGui::Text("0x%02X", *(uint8_t*)data);
 
         if (real_data != nullptr) {
             auto& int_val = *(uint8_t*)real_data;
@@ -3454,7 +3444,7 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
         break;
     case "System.SByte"_fnv:
     case "s8"_fnv:
-        ImGui::Text("%i", *(int8_t*)data);
+        ImGui::Text("0x%02X", *(int8_t*)data);
 
         if (real_data != nullptr) {
             auto& int_val = *(int8_t*)real_data;
@@ -3481,9 +3471,9 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
     case "System.Boolean"_fnv:
     case "bool"_fnv:
         if (*(bool*)data) {
-            ImGui::Text("true");
+            ImGui::TextUnformatted("true");
         } else {
-            ImGui::Text("false");
+            ImGui::TextUnformatted("false");
         }
 
         if (real_data != nullptr) {
@@ -3579,77 +3569,95 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
             ImGui::Text("%s", utility::re_string::get_string(*(REString*)data).c_str());
         }
     } break;
-    default: {
-        if (is_enum) {
-            if (override_def != nullptr) {
-                switch (override_def->get_underlying_type()->get_valuetype_size()) {
-                    case 1:
-                        display_enum_value(type_name, *(int8_t*)data);
-                        if (real_data != nullptr) {
-                            auto& int_val = *(int8_t*)real_data;
+        default: {
+            if (is_enum) {
+                if (override_def != nullptr) {
+                    switch (override_def->get_underlying_type()->get_valuetype_size()) {
+                        case 1:
+                            display_enum_value(type_name, *(int8_t*)data);
+                            if (real_data != nullptr) {
+                                auto& int_val = *(int8_t*)real_data;
 
-                            ImGui::DragScalar("Set Value", ImGuiDataType_S8, &int_val, 1.0f, &min_i8, &max_i8);
-                        }
-                        break;
-                    case 2:
-                        display_enum_value(type_name, *(int16_t*)data);
-                        if (real_data != nullptr) {
-                            auto& int_val = *(int16_t*)real_data;
+                                ImGui::DragScalar("Set Value", ImGuiDataType_S8, &int_val, 1.0f, &min_i8, &max_i8);
+                            }
+                            break;
+                        case 2:
+                            display_enum_value(type_name, *(int16_t*)data);
+                            if (real_data != nullptr) {
+                                auto& int_val = *(int16_t*)real_data;
 
-                            ImGui::DragScalar("Set Value", ImGuiDataType_S16, &int_val, 1.0f, &min_i16, &max_i16);
-                        }
-                        break;
-                    case 4:
-                        display_enum_value(type_name, *(int32_t*)data);
-                        if (real_data != nullptr) {
-                            auto& int_val = *(int32_t*)real_data;
+                                ImGui::DragScalar("Set Value", ImGuiDataType_S16, &int_val, 1.0f, &min_i16, &max_i16);
+                            }
+                            break;
+                        case 4:
+                            display_enum_value(type_name, *(int32_t*)data);
+                            if (real_data != nullptr) {
+                                auto& int_val = *(int32_t*)real_data;
 
-                            ImGui::DragInt("Set Value", (int*)&int_val, 1.0f, min_int, max_int);
-                        }
-                        break;
-                    case 8:
-                        display_enum_value(type_name, *(int64_t*)data);
-                        if (real_data != nullptr) {
-                            auto& int_val = *(int64_t*)real_data;
+                                ImGui::DragInt("Set Value", (int*)&int_val, 1.0f, min_int, max_int);
+                            }
+                            break;
+                        case 8:
+                            display_enum_value(type_name, *(int64_t*)data);
+                            if (real_data != nullptr) {
+                                auto& int_val = *(int64_t*)real_data;
 
-                            ImGui::DragScalar("Set Value", ImGuiDataType_S64, &int_val, 1.0f, &min_int64, &max_int64);
-                        }
-                        break;
-                    default:
-                        ImGui::Text("Invalid enum size, falling back to int32");
+                                ImGui::DragScalar("Set Value", ImGuiDataType_S64, &int_val, 1.0f, &min_int64, &max_int64);
+                            }
+                            break;
+                        default:
+                            ImGui::Text("Invalid enum size, falling back to int32");
 
-                        display_enum_value(type_name, *(int32_t*)data);
-                        if (real_data != nullptr) {
-                            auto& int_val = *(int32_t*)real_data;
+                            display_enum_value(type_name, *(int32_t*)data);
+                            if (real_data != nullptr) {
+                                auto& int_val = *(int32_t*)real_data;
 
-                            ImGui::DragInt("Set Value", (int*)&int_val, 1.0f, min_int, max_int);
-                        }
-                        break;
+                                ImGui::DragInt("Set Value", (int*)&int_val, 1.0f, min_int, max_int);
+                            }
+                            break;
+                    }
+                } else {
+                    auto value = *(int32_t*)data;
+                    display_enum_value(type_name, (int32_t)value);
+
+                    if (real_data != nullptr) {
+                        auto& int_val = *(int32_t*)real_data;
+
+                        ImGui::DragInt("Set Value", (int*)&int_val, 1.0f, min_int, max_int);
+                    }
                 }
-            } else {
-                auto value = *(int32_t*)data;
-                display_enum_value(type_name, (int32_t)value);
+            } 
+            else {
+            
+                //auto make_tree_addr = [this](void* addr) {
+                //    if (widget_with_context(addr, [&]() { return ImGui::TreeNode(addr, "Variable: 0x%p", addr); })) {
+                //        if (is_managed_object(addr)) {
+                //            handle_address(addr);
+                //        }
 
-                if (real_data != nullptr) {
-                    auto& int_val = *(int32_t*)real_data;
+                //        ImGui::TreePop();
+                //    }
+                //};
+                //make_tree_addr(data);
+                if (widget_with_context(data, type_name, [&]() { return ImGui::TreeNode(data, "Variable: 0x%p", data); })) {
+                    if (is_managed_object(data)) {
+                        handle_address(data);
+                    }
 
-                    ImGui::DragInt("Set Value", (int*)&int_val, 1.0f, min_int, max_int);
+                    ImGui::TreePop();
+                }
+
+                if (override_def != nullptr) {
+                    const auto override_t = override_def->get_type();
+
+                    if (override_t != nullptr) {
+                        handle_type((REManagedObject*)data, override_t);
+                    }
                 }
             }
-        } else {
-            make_tree_addr(data);
 
-            if (override_def != nullptr) {
-                const auto override_t = override_def->get_type();
-
-                if (override_t != nullptr) {
-                    handle_type((REManagedObject*)data, override_t);
-                }
-            }
+            break;
         }
-
-        break;
-    }
     }
 }
 
@@ -4022,13 +4030,13 @@ bool ObjectExplorer::is_managed_object(Address address) const {
 }
 
 void ObjectExplorer::populate_classes() {
-    auto& type_list = *reframework::get_types()->get_raw_types();
-    spdlog::info("TypeList: {:x}", (uintptr_t)&type_list);
+    auto type_list = reframework::get_types()->get_raw_types();
+    spdlog::info("TypeList: {:x}", (uintptr_t)type_list);
 
-    if (&type_list != nullptr) {
+    if (type_list != nullptr) try {
         // I don't know why but it can extend past the size.
-        for (auto i = 0; i < type_list.numAllocated; ++i) {
-            auto t = (*type_list.data)[i];
+        for (auto i = 0; i < type_list->numAllocated; ++i) {
+            auto t = (*type_list->data)[i];
 
             if (t == nullptr || IsBadReadPtr(t, sizeof(REType))) {
                 continue;
@@ -4048,44 +4056,48 @@ void ObjectExplorer::populate_classes() {
             m_sorted_types.push_back(name);
             m_types[name] = t;
         }
-    } else {
-        auto tdb = sdk::RETypeDB::get();
 
-        std::unordered_set<REType*> seen{};
-
-        if (tdb != nullptr) {
-            for (auto i = 0; i < tdb->get_num_types(); ++i) {
-                const auto t = tdb->get_type(i);
-
-                if (t == nullptr) {
-                    continue;
-                }
-
-                const auto re_type = t->get_type();
-
-                if (re_type == nullptr) {
-                    continue;
-                }
-
-                if (seen.contains(re_type)) {
-                    continue;
-                }
-
-                const auto name = re_type->name;
-
-                if (name == nullptr) {
-                    continue;
-                }
-
-                spdlog::info("{:s}", name);
-                m_sorted_types.push_back(name);
-                m_types[name] = re_type;
-
-                seen.insert(re_type);
-            }
-        }
+        std::sort(m_sorted_types.begin(), m_sorted_types.end());
+        return;
+    } catch(...) {
+        spdlog::error("Unknown exception caught while populating classes, falling back to other method.");
     }
 
+    auto tdb = sdk::RETypeDB::get();
+
+    std::unordered_set<REType*> seen{};
+
+    if (tdb != nullptr) {
+        for (auto i = 0; i < tdb->get_num_types(); ++i) {
+            const auto t = tdb->get_type(i);
+
+            if (t == nullptr) {
+                continue;
+            }
+
+            const auto re_type = t->get_type();
+
+            if (re_type == nullptr) {
+                continue;
+            }
+
+            if (seen.contains(re_type)) {
+                continue;
+            }
+
+            const auto name = re_type->name;
+
+            if (name == nullptr) {
+                continue;
+            }
+
+            spdlog::info("{:s}", name);
+            m_sorted_types.push_back(name);
+            m_types[name] = re_type;
+
+            seen.insert(re_type);
+        }
+    }
     
     std::sort(m_sorted_types.begin(), m_sorted_types.end());
 }

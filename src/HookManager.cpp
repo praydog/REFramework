@@ -84,7 +84,7 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
     // + 2 for the thread context + this pointer.
     // Another + 2 for hidden arguments that we may not know about.
     constexpr auto HIDDEN_ARGUMENT_COUNT = 2;
-    args.resize(2 + HIDDEN_ARGUMENT_COUNT + fn->get_num_params());
+    args.resize(size_t(2) + HIDDEN_ARGUMENT_COUNT + fn->get_num_params());
 
     // Generate the facilitator function that will store the arguments, call on_hook, 
     // restore the arguments, and call the original function.
