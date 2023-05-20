@@ -21,6 +21,52 @@ void CameraDuplicator::on_pre_application_entry(void* entry, const char* name, s
         clone_camera();
         find_new_camera();
     }
+
+}
+
+void CameraDuplicator::fix_in_control() {
+
+    if (!m_camerasystem_fixed)
+        return;
+
+    auto new_camera_go = utility::re_component::get_game_object((REComponent*)m_new_camera);
+    auto camera_go = utility::re_component::get_game_object((REComponent*)m_old_camera);
+
+    auto& globals = *reframework::get_globals();
+    RopewayCameraSystem* m_camera_system = globals.get<RopewayCameraSystem>(game_namespace("camera.CameraSystem"));
+    auto m_gui_master = globals.get<REBehavior>(game_namespace("gui.GUIMaster"));
+    const auto gui_state = *sdk::get_object_field<int32_t>(m_gui_master, "<State_>k__BackingField");
+    const auto is_paused = gui_state == (int32_t)app::ropeway::gui::GUIMaster::GuiState::PAUSE ||
+                           gui_state == (int32_t)app::ropeway::gui::GUIMaster::GuiState::INVENTORY;
+
+    auto camera_type = utility::re_managed_object::get_field<app::ropeway::camera::CameraControlType>(m_camera_system, "BusyCameraType");
+
+    const auto is_player_camera = camera_type == app::ropeway::camera::CameraControlType::PLAYER;
+    const auto is_switching_camera = utility::re_managed_object::get_field<bool>(m_camera_system->mainCameraController, "SwitchingCamera");
+    const auto is_player_in_control = (is_player_camera && !is_switching_camera && !is_paused);
+
+    if (is_player_in_control && m_camera_was_not_in_control)
+    {
+        m_camera_was_not_in_control = false;
+        return;
+    }
+
+    new_camera_go->shouldUpdate = !is_player_in_control;
+    m_camera_was_not_in_control = !is_player_in_control;
+
+    
+    const auto new_transform = new_camera_go->transform;
+    const auto old_transform = camera_go->transform;
+
+    
+    if (new_transform != nullptr && old_transform != nullptr) {
+
+        sdk::set_transform_position(new_transform, sdk::get_transform_position(old_transform));
+        sdk::set_transform_rotation(new_transform, sdk::get_transform_rotation(old_transform));
+        new_transform->worldTransform = old_transform->worldTransform;
+
+    }
+
 }
 
 void CameraDuplicator::on_application_entry(void* entry, const char* name, size_t hash) {
@@ -35,7 +81,36 @@ void CameraDuplicator::on_application_entry(void* entry, const char* name, size_
             return;
         }
 
-        copy_camera_properties();
+        fix_camera_system();
+        fix_in_control();
+        copy_camera_properties(true);
+    }
+}
+
+void CameraDuplicator::fix_camera_system() {
+
+    if (m_new_camera == nullptr)
+        return;
+
+    auto& globals = *reframework::get_globals();
+    RopewayCameraSystem* m_camera_system = globals.get<RopewayCameraSystem>(game_namespace("camera.CameraSystem"));
+
+    if (m_camera_system != nullptr) {
+
+        auto camera_go = utility::re_component::get_game_object((REComponent*)m_old_camera);
+        auto new_camera_go = utility::re_component::get_game_object((REComponent*)m_new_camera);
+
+
+        m_camerasystem_fixed = true;
+
+        m_camera_system->mainCamera = m_old_camera;
+        m_camera_system->cameraGameObject = camera_go;
+
+        m_camera_system->mainCameraController->updateCamera = true;
+        m_camera_system->mainCameraController->mainCamera = m_old_camera;
+        m_camera_system->mainCameraController->mainCameraObject = camera_go;
+
+   
     }
 }
 
@@ -117,7 +192,7 @@ void CameraDuplicator::clone_camera() {
     constexpr auto ACTIVE_OFFSET = sizeof(::REManagedObject) + 5;
     *(bool*)((uint8_t*)old_camera_folder + ACTIVE_OFFSET) = false;
 
-    sdk::call_object_func_easy<void>(old_camera_folder, "activate");
+    sdk::call_object_func_easy<void*>(old_camera_folder, "activate");
     m_called_activate = true;
 #endif
 }
@@ -149,16 +224,24 @@ void CameraDuplicator::find_new_camera() {
 
         if (name == L"Main Camera" || name == L"MainCamera") {
             if ((RECamera*)camera != m_old_camera) {
-                m_new_camera = (RECamera*)camera;
-                spdlog::info("Found new camera: {:x}", (uintptr_t)m_new_camera);
 
-                // Parent this camera's transform to the old one
-                const auto new_transform = gameobject->transform;
-                const auto old_transform = utility::re_component::get_game_object((REComponent*)m_old_camera)->transform;
+
+                // FIX: the new camera becomes the main one
+                m_new_camera = m_old_camera;
+                m_old_camera = (RECamera*)camera;
+                copy_camera_properties(false);
+
+
+                spdlog::info("Found new camera: {:x}", (uintptr_t)camera);
+
+                const auto new_transform = m_new_camera->ownerGameObject->transform;
+                const auto old_transform = m_old_camera->ownerGameObject->transform;
 
                 if (new_transform != nullptr && old_transform != nullptr) {
-                    sdk::call_object_func_easy<void>(new_transform, "setParent(via.Transform, System.Boolean)", old_transform, false);
-                    spdlog::info("Parented new camera to old camera");
+
+                    sdk::set_transform_position(old_transform, sdk::get_transform_position(new_transform));
+                    sdk::set_transform_rotation(old_transform, sdk::get_transform_rotation(new_transform));
+                    old_transform->worldTransform = new_transform->worldTransform;
                 }
 
                 break;
@@ -183,12 +266,13 @@ void CameraDuplicator::find_new_camera() {
         }, 
         [](uintptr_t& ret_val, sdk::RETypeDefinition* ret_ty) {
 
+
         });
     }
 #endif
 }
 
-void CameraDuplicator::copy_camera_properties() {
+void CameraDuplicator::copy_camera_properties(bool invert) {
 #if TDB_VER >= 69
     if (!m_copy_camera) {
         return;
@@ -198,18 +282,19 @@ void CameraDuplicator::copy_camera_properties() {
         return;
     }
 
-    const auto old_camera_gameobject = utility::re_component::get_game_object((REComponent*)m_old_camera);
-    const auto new_camera_gameobject = utility::re_component::get_game_object((REComponent*)m_new_camera);
+    auto original_camera = invert ? m_old_camera : m_new_camera;
+    auto new_camera = invert ? m_new_camera : m_old_camera;
+
+    const auto old_camera_gameobject = utility::re_component::get_game_object((REComponent*)original_camera);
+    const auto new_camera_gameobject = utility::re_component::get_game_object((REComponent*)new_camera);
 
     if (old_camera_gameobject == nullptr || new_camera_gameobject == nullptr) {
         return;
     }
+    
 
-    // Do not allow the camera components to update. We will do the update ourselves via the copying of properties
-    new_camera_gameobject->shouldUpdate = false;
 
     static auto via_camera = sdk::find_type_definition("via.Camera");
-
     static auto get_near_clip_plane_method = via_camera->get_method("get_NearClipPlane");
     static auto set_near_clip_plane_method = via_camera->get_method("set_NearClipPlane");
     static auto get_far_clip_plane_method = via_camera->get_method("get_FarClipPlane");
@@ -222,28 +307,28 @@ void CameraDuplicator::copy_camera_properties() {
     static auto get_aspect_ratio_method = via_camera->get_method("get_AspectRatio");
 
     if (get_near_clip_plane_method != nullptr && set_near_clip_plane_method != nullptr) {
-        const auto old_near_clip_plane = get_near_clip_plane_method->call<float>(sdk::get_thread_context(), m_old_camera);
-        set_near_clip_plane_method->call<void>(sdk::get_thread_context(), m_new_camera, old_near_clip_plane);
+        const auto old_near_clip_plane = get_near_clip_plane_method->call<float>(sdk::get_thread_context(), original_camera);
+        set_near_clip_plane_method->call<void>(sdk::get_thread_context(), new_camera, old_near_clip_plane);
     }
 
     if (get_far_clip_plane_method != nullptr && set_far_clip_plane_method != nullptr) {
-        const auto old_far_clip_plane = get_far_clip_plane_method->call<float>(sdk::get_thread_context(), m_old_camera);
-        set_far_clip_plane_method->call<void>(sdk::get_thread_context(), m_new_camera, old_far_clip_plane);
+        const auto old_far_clip_plane = get_far_clip_plane_method->call<float>(sdk::get_thread_context(), original_camera);
+        set_far_clip_plane_method->call<void>(sdk::get_thread_context(), new_camera, old_far_clip_plane);
     }
 
     if (get_fov_method != nullptr && set_fov_method != nullptr) {
-        const auto old_fov = get_fov_method->call<float>(sdk::get_thread_context(), m_old_camera);
-        set_fov_method->call<void>(sdk::get_thread_context(), m_new_camera, old_fov);
+        const auto old_fov = get_fov_method->call<float>(sdk::get_thread_context(), original_camera);
+        set_fov_method->call<void>(sdk::get_thread_context(), new_camera, old_fov);
     }
 
     if (get_vertical_enable_method != nullptr && set_vertical_enable_method != nullptr) {
-        const auto old_vertical_enable = get_vertical_enable_method->call<bool>(sdk::get_thread_context(), m_old_camera);
-        set_vertical_enable_method->call<void>(sdk::get_thread_context(), m_new_camera, old_vertical_enable);
+        const auto old_vertical_enable = get_vertical_enable_method->call<bool>(sdk::get_thread_context(), original_camera);
+        set_vertical_enable_method->call<void>(sdk::get_thread_context(), new_camera, old_vertical_enable);
     }
 
     if (get_aspect_ratio_method != nullptr && set_aspect_ratio_method != nullptr) {
-        const auto old_aspect_ratio = get_aspect_ratio_method->call<float>(sdk::get_thread_context(), m_old_camera);
-        set_aspect_ratio_method->call<void>(sdk::get_thread_context(), m_new_camera, old_aspect_ratio);
+        const auto old_aspect_ratio = get_aspect_ratio_method->call<float>(sdk::get_thread_context(), original_camera);
+        set_aspect_ratio_method->call<void>(sdk::get_thread_context(), new_camera, old_aspect_ratio);
     }
 
     for (const auto& descriptor : m_wanted_components) {
@@ -284,6 +369,7 @@ void CameraDuplicator::copy_camera_properties() {
 
             // Add property jobs, the copying will be spread out over multiple frames as it is a lot of work
             // Call the various getters and setters
+            /*
             for (const auto& [name, methods] : m_getter_setters[t1]) {
                 if (methods.getter == nullptr || methods.setter == nullptr) {
                     continue;
@@ -313,11 +399,11 @@ void CameraDuplicator::copy_camera_properties() {
                         }
                     }
                 });
-            }
+            }*/
         }
 
         // Call the various getters and setters
-        /*for (const auto& [name, methods] : m_getter_setters[t1]) {
+        for (const auto& [name, methods] : m_getter_setters[t1]) {
             if (methods.getter != nullptr && methods.setter != nullptr) {
                 const auto result = methods.getter->invoke(old_component, {});
 
@@ -327,7 +413,8 @@ void CameraDuplicator::copy_camera_properties() {
                     if (result_type == nullptr) {
                         methods.setter->invoke(new_component, {result.ptr});
                     } else {
-                        const auto should_pass_result_ptr = result_type->is_value_type() && result_type->get_valuetype_size() > sizeof(void*);
+                        const auto should_pass_result_ptr =
+                            result_type->is_value_type() && result_type->get_valuetype_size() > sizeof(void*);
 
                         if (should_pass_result_ptr) {
                             methods.setter->invoke(new_component, {(void*)result.bytes.data()});
@@ -337,7 +424,7 @@ void CameraDuplicator::copy_camera_properties() {
                     }
                 }
             }
-        }*/
+        }
 
         auto ctx = sdk::get_thread_context();
 

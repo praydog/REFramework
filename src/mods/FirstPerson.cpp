@@ -180,6 +180,7 @@ void FirstPerson::on_draw_ui() {
 
     m_disable_light_source->draw("Disable Camera Light");
     m_hide_mesh->draw("Hide Joint Mesh");
+    m_hide_upper_body->draw("Hide Head And Neck");
 
     ImGui::SameLine();
     m_rotate_mesh->draw("Force Rotate Joint");
@@ -1821,6 +1822,41 @@ void FirstPerson::update_player_bones(RETransform* transform) {
         bone_matrix[1] = Vector4f{ 0.0f, 0.0f, 0.0f, 0.0f };
         bone_matrix[2] = Vector4f{ 0.0f, 0.0f, 0.0f, 0.0f };
     }
+
+    if (m_hide_upper_body->value())
+    {
+        std::vector<const wchar_t*> list({L"head", L"neck", L"trap", L"scapula", L"holster"});
+        auto joints = sdk::get_transform_joints(m_player_transform);
+
+        if (joints == nullptr) {
+            return;
+        }
+
+        for (auto i = 0; i < joints->size(); ++i) {
+            auto joint = (::REJoint*)joints->get_element(i);
+
+            if (joint == nullptr || joint->info == nullptr || joint->info->name == nullptr) {
+                continue;
+            }
+            auto name = std::wstring{joint->info->name};
+
+           for (const wchar_t* bone_name : list) {
+
+               if (name.find(bone_name) == std::wstring::npos)
+                    continue;
+
+                auto& bone_matrix = utility::re_transform::get_joint_matrix(*m_player_transform, name);
+                if (bone_matrix != utility::re_transform::invalid_matrix) {
+
+                    bone_matrix[0] = Vector4f{0.0f, 0.0f, 0.0f, 0.0f};
+                    bone_matrix[1] = Vector4f{0.0f, 0.0f, 0.0f, 0.0f};
+                    bone_matrix[2] = Vector4f{0.0f, 0.0f, 0.0f, 0.0f};
+                }
+            }
+
+        }
+    }
+
 }
 
 void FirstPerson::update_fov(RopewayPlayerCameraController* controller) {

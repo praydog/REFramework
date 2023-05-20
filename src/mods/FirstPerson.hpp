@@ -166,8 +166,9 @@ private:
     const ModToggle::Ptr m_smooth_xz_movement{ ModToggle::create(generate_name("SmoothXZMovementVR"), true) };
     const ModToggle::Ptr m_smooth_y_movement{ ModToggle::create(generate_name("SmoothYMovementVR"), true) };
     const ModToggle::Ptr m_roomscale{ ModToggle::create(generate_name("RoomScale"), false) };
-    const ModToggle::Ptr m_disable_vignette{ ModToggle::create(generate_name("DisableVignette"), true) };
-    const ModToggle::Ptr m_hide_mesh{ ModToggle::create(generate_name("HideJointMesh"), true) };
+    const ModToggle::Ptr m_disable_vignette{ModToggle::create(generate_name("DisableVignette"), true)};
+    const ModToggle::Ptr m_hide_mesh{ModToggle::create(generate_name("HideJointMesh"), true)};
+    const ModToggle::Ptr m_hide_upper_body{ModToggle::create(generate_name("HideUpperBodyMesh"), false)};
     const ModToggle::Ptr m_rotate_mesh{ ModToggle::create(generate_name("ForceRotateMesh"), true) };
     const ModToggle::Ptr m_disable_light_source{ ModToggle::create(generate_name("DisableLightSource"), true) };
     const ModToggle::Ptr m_show_in_cutscenes{ ModToggle::create(generate_name("ShowInCutscenes"), false) };
@@ -190,6 +191,7 @@ private:
         *m_smooth_y_movement,
         *m_disable_vignette,
         *m_hide_mesh,
+        *m_hide_upper_body,
         *m_rotate_mesh,
         *m_rotate_body,
         *m_body_rotate_speed,

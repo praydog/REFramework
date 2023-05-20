@@ -299,7 +299,7 @@ std::vector<layer::Scene*> RenderLayer::find_fully_rendered_scene_layers() {
     });
 
     std::sort(layers.begin(), layers.end(), [](auto& a, auto& b) {
-        return a->get_view_id() < b->get_view_id();
+        return a->get_view_id() > b->get_view_id();
     });
 
     return layers;

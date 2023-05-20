@@ -15,12 +15,16 @@ public:
 private:
     void clone_camera();
     void find_new_camera();
-    void copy_camera_properties();
+    void fix_camera_system();
+    void copy_camera_properties(bool invert);
+    void fix_in_control();
 
     sdk::SystemArray* get_all_cameras();
 
+    bool m_camerasystem_fixed{false};
     bool m_copy_camera{true};
     bool m_called_activate{false};
+    bool m_camera_was_not_in_control{false};
     RECamera* m_old_camera{nullptr};
     RECamera* m_new_camera{nullptr};
     

@@ -237,6 +237,14 @@ private:
     Vector4f get_position_unsafe(uint32_t index) const;
     Vector4f get_velocity_unsafe(uint32_t index) const;
     Vector4f get_angular_velocity_unsafe(uint32_t index) const;
+    Matrix4x4f get_rotation_unsafe(uint32_t index) const;
+
+    void update_vr_interp_poses();
+    std::chrono::steady_clock::time_point last_interp_time;
+
+    std::vector<Matrix4x4f> m_interp_rot_poses{};
+    std::vector<Vector4f> m_interp_pos_poses{};
+
 
 private:
     // Hooks
@@ -570,6 +578,10 @@ private:
     const ModSlider::Ptr m_view_distance{ ModSlider::create(generate_name("CustomViewDistance"), 10.0f, 3000.0f, 500.0f) };
     const ModSlider::Ptr m_motion_controls_inactivity_timer{ ModSlider::create(generate_name("MotionControlsInactivityTimer"), 30.0f, 100.0f, 30.0f) };
     const ModSlider::Ptr m_joystick_deadzone{ ModSlider::create(generate_name("JoystickDeadzone"), 0.01f, 0.9f, 0.15f) };
+
+    
+    const ModToggle::Ptr m_joystick_smooth{ModToggle::create(generate_name("JoystickSmoothing"), true)};
+
     const ModSlider::Ptr m_ui_scale_option{ ModSlider::create(generate_name("2DUIScale"), 1.0f, 100.0f, 12.0f) };
     const ModSlider::Ptr m_ui_distance_option{ ModSlider::create(generate_name("2DUIDistance"), 0.01f, 100.0f, 1.0f) };
     const ModSlider::Ptr m_world_ui_scale_option{ ModSlider::create(generate_name("WorldSpaceUIScale"), 1.0f, 100.0f, 15.0f) };
@@ -608,6 +620,7 @@ private:
         *m_decoupled_pitch,
         *m_rendering_technique,
         *m_use_custom_view_distance,
+        *m_joystick_smooth,
         *m_hmd_oriented_audio,
         *m_view_distance,
         *m_motion_controls_inactivity_timer,
