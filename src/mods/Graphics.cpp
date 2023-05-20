@@ -150,13 +150,6 @@ bool Graphics::on_pre_gui_draw_element(REComponent* gui_element, void* primitive
         return true;
     }
 
-    // Only stuff for RE4 right now.
-#ifndef RE4
-    if (true) {
-        return true;
-    }
-#endif
-
     auto game_object = utility::re_component::get_game_object(gui_element);
 
     if (game_object != nullptr && game_object->transform != nullptr) {
@@ -164,6 +157,12 @@ bool Graphics::on_pre_gui_draw_element(REComponent* gui_element, void* primitive
         const auto name_hash = utility::hash(name);
 
         switch(name_hash) {
+        // RE2/3?
+        case "GUI_PillarBox"_fnv:
+        case "GUIEventPillar"_fnv:
+            game_object->shouldDraw = false;
+            return false;
+
 #if defined(RE4)
         case "Gui_ui2510"_fnv: // Black bars in cutscenes
             game_object->shouldDraw = false;
