@@ -21,7 +21,7 @@ public:
     RETypes();
     virtual ~RETypes() {};
 
-    const auto& get_raw_types() const {
+    auto get_raw_types() const {
         return m_raw_types;
     }
 

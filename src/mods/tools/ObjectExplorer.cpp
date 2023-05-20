@@ -3889,13 +3889,13 @@ bool ObjectExplorer::is_managed_object(Address address) const {
 }
 
 void ObjectExplorer::populate_classes() {
-    auto& type_list = *reframework::get_types()->get_raw_types();
-    spdlog::info("TypeList: {:x}", (uintptr_t)&type_list);
+    auto type_list = reframework::get_types()->get_raw_types();
+    spdlog::info("TypeList: {:x}", (uintptr_t)type_list);
 
-    if (&type_list != nullptr) {
+    if (type_list != nullptr) try {
         // I don't know why but it can extend past the size.
-        for (auto i = 0; i < type_list.numAllocated; ++i) {
-            auto t = (*type_list.data)[i];
+        for (auto i = 0; i < type_list->numAllocated; ++i) {
+            auto t = (*type_list->data)[i];
 
             if (t == nullptr || IsBadReadPtr(t, sizeof(REType))) {
                 continue;
@@ -3915,44 +3915,48 @@ void ObjectExplorer::populate_classes() {
             m_sorted_types.push_back(name);
             m_types[name] = t;
         }
-    } else {
-        auto tdb = sdk::RETypeDB::get();
 
-        std::unordered_set<REType*> seen{};
-
-        if (tdb != nullptr) {
-            for (auto i = 0; i < tdb->get_num_types(); ++i) {
-                const auto t = tdb->get_type(i);
-
-                if (t == nullptr) {
-                    continue;
-                }
-
-                const auto re_type = t->get_type();
-
-                if (re_type == nullptr) {
-                    continue;
-                }
-
-                if (seen.contains(re_type)) {
-                    continue;
-                }
-
-                const auto name = re_type->name;
-
-                if (name == nullptr) {
-                    continue;
-                }
-
-                spdlog::info("{:s}", name);
-                m_sorted_types.push_back(name);
-                m_types[name] = re_type;
-
-                seen.insert(re_type);
-            }
-        }
+        std::sort(m_sorted_types.begin(), m_sorted_types.end());
+        return;
+    } catch(...) {
+        spdlog::error("Unknown exception caught while populating classes, falling back to other method.");
     }
 
+    auto tdb = sdk::RETypeDB::get();
+
+    std::unordered_set<REType*> seen{};
+
+    if (tdb != nullptr) {
+        for (auto i = 0; i < tdb->get_num_types(); ++i) {
+            const auto t = tdb->get_type(i);
+
+            if (t == nullptr) {
+                continue;
+            }
+
+            const auto re_type = t->get_type();
+
+            if (re_type == nullptr) {
+                continue;
+            }
+
+            if (seen.contains(re_type)) {
+                continue;
+            }
+
+            const auto name = re_type->name;
+
+            if (name == nullptr) {
+                continue;
+            }
+
+            spdlog::info("{:s}", name);
+            m_sorted_types.push_back(name);
+            m_types[name] = re_type;
+
+            seen.insert(re_type);
+        }
+    }
     
     std::sort(m_sorted_types.begin(), m_sorted_types.end());
 }
