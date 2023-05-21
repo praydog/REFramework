@@ -1644,16 +1644,21 @@ bool REFramework::init_d3d11() {
 
     // Create our blank render target.
     spdlog::info("[D3D11] Creating render targets...");
+    {
+        // Create our blank render target.
+        auto d3d11_rt_desc = backbuffer_desc;
+        d3d11_rt_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; // For VR
 
-    if (FAILED(device->CreateTexture2D(&backbuffer_desc, nullptr, &m_d3d11.blank_rt))) {
-        spdlog::error("[D3D11] Failed to create render target texture!");
-        return false;
-    }
+        if (FAILED(device->CreateTexture2D(&d3d11_rt_desc, nullptr, &m_d3d11.blank_rt))) {
+            spdlog::error("[D3D11] Failed to create render target texture!");
+            return false;
+        }
 
-    // Create our render target.
-    if (FAILED(device->CreateTexture2D(&backbuffer_desc, nullptr, &m_d3d11.rt))) {
-        spdlog::error("[D3D11] Failed to create render target texture!");
-        return false;
+        // Create our render target
+        if (FAILED(device->CreateTexture2D(&d3d11_rt_desc, nullptr, &m_d3d11.rt))) {
+            spdlog::error("[D3D11] Failed to create render target texture!");
+            return false;
+        }
     }
 
     // Create our blank render target view.
