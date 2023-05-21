@@ -13,7 +13,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
 
 set(ASMJIT_STATIC ON CACHE BOOL "" FORCE)
 set(DYNAMIC_LOADER ON CACHE BOOL "" FORCE) # OpenXR
-
+set(BUILD_TOOLS OFF CACHE BOOL "" FORCE) # DirectXTK
 
 if ("${CMAKE_BUILD_TYPE}" MATCHES "Release")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MT")
@@ -68,7 +68,21 @@ tag = "2a706fd2ba355808cada31ac1eed8ce28caa6b37"
 git = "https://github.com/KhronosGroup/OpenXR-SDK"
 tag = "458984d7f59d1ae6dc1b597d94b02e4f7132eaba"
 
+[fetch-content.directxtk]
+git = "https://github.com/microsoft/DirectXTK"
+tag = "f5026eb34e7053b1aff325d38db107703f394974"
+
+[fetch-content.directxtk12]
+git = "https://github.com/microsoft/DirectXTK12"
+tag = "528801aa6dd8d628c2f756c41a76d300f47de478"
+
 [target.spdlog]
+cmake-after="""
+if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 19.35)
+    target_compile_options(DirectXTK PRIVATE /Zc:templateScope-)
+    target_compile_options(DirectXTK12 PRIVATE /Zc:templateScope-)
+endif()
+"""
 type = "static"
 sources = ["dependencies/spdlog/src/*.cpp"]
 include-directories = ["dependencies/spdlog/include"]
@@ -210,6 +224,7 @@ link-libraries = [
     "openvr",
     "openxr_loader",
     "delayimp",
+    "DirectXTK"
 ]
 
 [template.game.properties]

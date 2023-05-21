@@ -52,7 +52,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
 
 set(ASMJIT_STATIC ON CACHE BOOL "" FORCE)
 set(DYNAMIC_LOADER ON CACHE BOOL "" FORCE) # OpenXR
-
+set(BUILD_TOOLS OFF CACHE BOOL "" FORCE) # DirectXTK
 
 if ("${CMAKE_BUILD_TYPE}" MATCHES "Release")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MT")
@@ -89,6 +89,26 @@ FetchContent_Declare(
 		458984d7f59d1ae6dc1b597d94b02e4f7132eaba
 )
 FetchContent_MakeAvailable(openxr)
+
+message(STATUS "Fetching directxtk (f5026eb34e7053b1aff325d38db107703f394974)...")
+FetchContent_Declare(
+	directxtk
+	GIT_REPOSITORY
+		https://github.com/microsoft/DirectXTK
+	GIT_TAG
+		f5026eb34e7053b1aff325d38db107703f394974
+)
+FetchContent_MakeAvailable(directxtk)
+
+message(STATUS "Fetching directxtk12 (528801aa6dd8d628c2f756c41a76d300f47de478)...")
+FetchContent_Declare(
+	directxtk12
+	GIT_REPOSITORY
+		https://github.com/microsoft/DirectXTK12
+	GIT_TAG
+		528801aa6dd8d628c2f756c41a76d300f47de478
+)
+FetchContent_MakeAvailable(directxtk12)
 
 message(STATUS "Fetching bddisasm (v1.34.10)...")
 FetchContent_Declare(
@@ -146,6 +166,11 @@ if(REF_BUILD_DEPENDENCIES AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework-dep
 	target_include_directories(spdlog PUBLIC
 		"dependencies/spdlog/include"
 	)
+
+	if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 19.35)
+	    target_compile_options(DirectXTK PRIVATE /Zc:templateScope-)
+	    target_compile_options(DirectXTK12 PRIVATE /Zc:templateScope-)
+	endif()
 
 	unset(CMKR_TARGET)
 	unset(CMKR_SOURCES)
@@ -900,6 +925,9 @@ if(REF_BUILD_RE2_SDK OR REF_BUILD_FRAMEWORK) # build-re2-sdk
 		"shared/sdk/regenny/re4/via/motion/SecondaryAnimation.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionData.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionMap.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderOutput.hpp"
+		"shared/sdk/regenny/re4/via/render/SceneArray2.hpp"
+		"shared/sdk/regenny/re4/via/render/layer/PrepareOutput.hpp"
 		"shared/sdk/regenny/re4/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/re4/via/vec3.hpp"
 		"shared/sdk/regenny/re4/via/vec4.hpp"
@@ -1506,6 +1534,9 @@ if(REF_BUILD_RE2_TDB66SDK OR REF_BUILD_FRAMEWORK) # build-re2tdb66-sdk
 		"shared/sdk/regenny/re4/via/motion/SecondaryAnimation.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionData.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionMap.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderOutput.hpp"
+		"shared/sdk/regenny/re4/via/render/SceneArray2.hpp"
+		"shared/sdk/regenny/re4/via/render/layer/PrepareOutput.hpp"
 		"shared/sdk/regenny/re4/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/re4/via/vec3.hpp"
 		"shared/sdk/regenny/re4/via/vec4.hpp"
@@ -1873,6 +1904,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		openvr
 		openxr_loader
 		delayimp
+		DirectXTK
 	)
 
 	set_target_properties(RE2 PROPERTIES
@@ -2060,6 +2092,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		openvr
 		openxr_loader
 		delayimp
+		DirectXTK
 	)
 
 	set_target_properties(RE2_TDB66 PROPERTIES
@@ -2487,6 +2520,9 @@ if(REF_BUILD_RE3_SDK OR REF_BUILD_FRAMEWORK) # build-re3-sdk
 		"shared/sdk/regenny/re4/via/motion/SecondaryAnimation.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionData.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionMap.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderOutput.hpp"
+		"shared/sdk/regenny/re4/via/render/SceneArray2.hpp"
+		"shared/sdk/regenny/re4/via/render/layer/PrepareOutput.hpp"
 		"shared/sdk/regenny/re4/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/re4/via/vec3.hpp"
 		"shared/sdk/regenny/re4/via/vec4.hpp"
@@ -3093,6 +3129,9 @@ if(REF_BUILD_RE3_TDB67SDK OR REF_BUILD_FRAMEWORK) # build-re3tdb67-sdk
 		"shared/sdk/regenny/re4/via/motion/SecondaryAnimation.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionData.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionMap.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderOutput.hpp"
+		"shared/sdk/regenny/re4/via/render/SceneArray2.hpp"
+		"shared/sdk/regenny/re4/via/render/layer/PrepareOutput.hpp"
 		"shared/sdk/regenny/re4/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/re4/via/vec3.hpp"
 		"shared/sdk/regenny/re4/via/vec4.hpp"
@@ -3460,6 +3499,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		openvr
 		openxr_loader
 		delayimp
+		DirectXTK
 	)
 
 	set_target_properties(RE3 PROPERTIES
@@ -3647,6 +3687,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		openvr
 		openxr_loader
 		delayimp
+		DirectXTK
 	)
 
 	set_target_properties(RE3_TDB67 PROPERTIES
@@ -3834,6 +3875,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		openvr
 		openxr_loader
 		delayimp
+		DirectXTK
 	)
 
 	set_target_properties(RE4 PROPERTIES
@@ -4261,6 +4303,9 @@ if(REF_BUILD_RE4_SDK OR REF_BUILD_FRAMEWORK) # build-re4-sdk
 		"shared/sdk/regenny/re4/via/motion/SecondaryAnimation.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionData.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionMap.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderOutput.hpp"
+		"shared/sdk/regenny/re4/via/render/SceneArray2.hpp"
+		"shared/sdk/regenny/re4/via/render/layer/PrepareOutput.hpp"
 		"shared/sdk/regenny/re4/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/re4/via/vec3.hpp"
 		"shared/sdk/regenny/re4/via/vec4.hpp"
@@ -4869,6 +4914,9 @@ if(REF_BUILD_RE7_SDK OR REF_BUILD_FRAMEWORK) # build-re7-sdk
 		"shared/sdk/regenny/re4/via/motion/SecondaryAnimation.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionData.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionMap.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderOutput.hpp"
+		"shared/sdk/regenny/re4/via/render/SceneArray2.hpp"
+		"shared/sdk/regenny/re4/via/render/layer/PrepareOutput.hpp"
 		"shared/sdk/regenny/re4/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/re4/via/vec3.hpp"
 		"shared/sdk/regenny/re4/via/vec4.hpp"
@@ -5475,6 +5523,9 @@ if(REF_BUILD_RE7_TDB49SDK OR REF_BUILD_FRAMEWORK) # build-re7tdb49-sdk
 		"shared/sdk/regenny/re4/via/motion/SecondaryAnimation.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionData.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionMap.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderOutput.hpp"
+		"shared/sdk/regenny/re4/via/render/SceneArray2.hpp"
+		"shared/sdk/regenny/re4/via/render/layer/PrepareOutput.hpp"
 		"shared/sdk/regenny/re4/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/re4/via/vec3.hpp"
 		"shared/sdk/regenny/re4/via/vec4.hpp"
@@ -5842,6 +5893,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		openvr
 		openxr_loader
 		delayimp
+		DirectXTK
 	)
 
 	set_target_properties(RE7 PROPERTIES
@@ -6029,6 +6081,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		openvr
 		openxr_loader
 		delayimp
+		DirectXTK
 	)
 
 	set_target_properties(RE7_TDB49 PROPERTIES
@@ -6456,6 +6509,9 @@ if(REF_BUILD_RE8_SDK OR REF_BUILD_FRAMEWORK) # build-re8-sdk
 		"shared/sdk/regenny/re4/via/motion/SecondaryAnimation.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionData.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionMap.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderOutput.hpp"
+		"shared/sdk/regenny/re4/via/render/SceneArray2.hpp"
+		"shared/sdk/regenny/re4/via/render/layer/PrepareOutput.hpp"
 		"shared/sdk/regenny/re4/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/re4/via/vec3.hpp"
 		"shared/sdk/regenny/re4/via/vec4.hpp"
@@ -6824,6 +6880,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		openvr
 		openxr_loader
 		delayimp
+		DirectXTK
 	)
 
 	set_target_properties(RE8 PROPERTIES
@@ -7251,6 +7308,9 @@ if(REF_BUILD_DMC5_SDK OR REF_BUILD_FRAMEWORK) # build-dmc5-sdk
 		"shared/sdk/regenny/re4/via/motion/SecondaryAnimation.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionData.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionMap.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderOutput.hpp"
+		"shared/sdk/regenny/re4/via/render/SceneArray2.hpp"
+		"shared/sdk/regenny/re4/via/render/layer/PrepareOutput.hpp"
 		"shared/sdk/regenny/re4/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/re4/via/vec3.hpp"
 		"shared/sdk/regenny/re4/via/vec4.hpp"
@@ -7617,6 +7677,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		openvr
 		openxr_loader
 		delayimp
+		DirectXTK
 	)
 
 	set_target_properties(DMC5 PROPERTIES
@@ -8044,6 +8105,9 @@ if(REF_BUILD_MHRISE_SDK OR REF_BUILD_FRAMEWORK) # build-mhrise-sdk
 		"shared/sdk/regenny/re4/via/motion/SecondaryAnimation.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionData.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionMap.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderOutput.hpp"
+		"shared/sdk/regenny/re4/via/render/SceneArray2.hpp"
+		"shared/sdk/regenny/re4/via/render/layer/PrepareOutput.hpp"
 		"shared/sdk/regenny/re4/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/re4/via/vec3.hpp"
 		"shared/sdk/regenny/re4/via/vec4.hpp"
@@ -8412,6 +8476,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		openvr
 		openxr_loader
 		delayimp
+		DirectXTK
 	)
 
 	set_target_properties(MHRISE PROPERTIES
