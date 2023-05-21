@@ -10,6 +10,7 @@
 std::string& game_namespace(std::string_view base_name);
 
 class REType;
+class TypeList;
 
 namespace sdk {
 struct RETypeDB;
