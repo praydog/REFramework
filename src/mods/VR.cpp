@@ -2257,6 +2257,17 @@ void VR::on_present() {
 }
 
 void VR::on_post_present() {
+    auto runtime = get_runtime();
+
+    if (!get_runtime()->loaded) {
+        return;
+    }
+
+    const auto renderer = g_framework->get_renderer_type();
+
+    if (renderer == REFramework::RendererType::D3D12) {
+        m_d3d12.on_post_present(this);
+    }
 }
 
 void VR::on_update_transform(RETransform* transform) {

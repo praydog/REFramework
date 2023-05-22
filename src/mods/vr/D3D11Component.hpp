@@ -5,13 +5,13 @@
 #include <openvr.h>
 #include <wrl.h>
 
+#include <SpriteBatch.h>
+
 #define XR_USE_PLATFORM_WIN32
 #define XR_USE_GRAPHICS_API_D3D11
 #define XR_USE_GRAPHICS_API_D3D12
 #include <openxr/openxr.h>
 #include <openxr/openxr_platform.h>
-
-#include <SpriteBatch.h>
 
 class VR;
 
@@ -96,7 +96,7 @@ private:
 
     TextureContext m_left_eye_rt{};
     TextureContext m_right_eye_rt{};
-    std::unique_ptr<DirectX::SpriteBatch> m_sprite_batch{};
+    std::unique_ptr<DirectX::DX11::SpriteBatch> m_sprite_batch{};
 
     bool m_backbuffer_is_8bit{false};
 

@@ -524,7 +524,7 @@ bool D3D11Component::setup() {
         context->CopyResource(m_right_eye_depthstencil.Get(), depthstencil.Get());
     }
 
-    m_sprite_batch = std::make_unique<DirectX::SpriteBatch>(context.Get());
+    m_sprite_batch = std::make_unique<DirectX::DX11::SpriteBatch>(context.Get());
 
     spdlog::info("[VR] d3d11 textures have been setup");
 

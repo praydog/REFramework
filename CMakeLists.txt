@@ -1782,6 +1782,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/D3D11Component.cpp"
 		"src/mods/vr/D3D12Component.cpp"
 		"src/mods/vr/OverlayComponent.cpp"
+		"src/mods/vr/d3d12/ResourceCopier.cpp"
+		"src/mods/vr/d3d12/TextureContext.cpp"
 		"src/mods/vr/games/RE8VR.cpp"
 		"src/mods/vr/runtimes/OpenVR.cpp"
 		"src/mods/vr/runtimes/OpenXR.cpp"
@@ -1827,6 +1829,9 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/D3D11Component.hpp"
 		"src/mods/vr/D3D12Component.hpp"
 		"src/mods/vr/OverlayComponent.hpp"
+		"src/mods/vr/d3d12/ComPtr.hpp"
+		"src/mods/vr/d3d12/ResourceCopier.hpp"
+		"src/mods/vr/d3d12/TextureContext.hpp"
 		"src/mods/vr/games/RE8VR.hpp"
 		"src/mods/vr/runtimes/OpenVR.hpp"
 		"src/mods/vr/runtimes/OpenXR.hpp"
@@ -1905,6 +1910,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		openxr_loader
 		delayimp
 		DirectXTK
+		DirectXTK12
 	)
 
 	set_target_properties(RE2 PROPERTIES
@@ -1970,6 +1976,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/D3D11Component.cpp"
 		"src/mods/vr/D3D12Component.cpp"
 		"src/mods/vr/OverlayComponent.cpp"
+		"src/mods/vr/d3d12/ResourceCopier.cpp"
+		"src/mods/vr/d3d12/TextureContext.cpp"
 		"src/mods/vr/games/RE8VR.cpp"
 		"src/mods/vr/runtimes/OpenVR.cpp"
 		"src/mods/vr/runtimes/OpenXR.cpp"
@@ -2015,6 +2023,9 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/D3D11Component.hpp"
 		"src/mods/vr/D3D12Component.hpp"
 		"src/mods/vr/OverlayComponent.hpp"
+		"src/mods/vr/d3d12/ComPtr.hpp"
+		"src/mods/vr/d3d12/ResourceCopier.hpp"
+		"src/mods/vr/d3d12/TextureContext.hpp"
 		"src/mods/vr/games/RE8VR.hpp"
 		"src/mods/vr/runtimes/OpenVR.hpp"
 		"src/mods/vr/runtimes/OpenXR.hpp"
@@ -2093,6 +2104,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		openxr_loader
 		delayimp
 		DirectXTK
+		DirectXTK12
 	)
 
 	set_target_properties(RE2_TDB66 PROPERTIES
@@ -3377,6 +3389,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/D3D11Component.cpp"
 		"src/mods/vr/D3D12Component.cpp"
 		"src/mods/vr/OverlayComponent.cpp"
+		"src/mods/vr/d3d12/ResourceCopier.cpp"
+		"src/mods/vr/d3d12/TextureContext.cpp"
 		"src/mods/vr/games/RE8VR.cpp"
 		"src/mods/vr/runtimes/OpenVR.cpp"
 		"src/mods/vr/runtimes/OpenXR.cpp"
@@ -3422,6 +3436,9 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/D3D11Component.hpp"
 		"src/mods/vr/D3D12Component.hpp"
 		"src/mods/vr/OverlayComponent.hpp"
+		"src/mods/vr/d3d12/ComPtr.hpp"
+		"src/mods/vr/d3d12/ResourceCopier.hpp"
+		"src/mods/vr/d3d12/TextureContext.hpp"
 		"src/mods/vr/games/RE8VR.hpp"
 		"src/mods/vr/runtimes/OpenVR.hpp"
 		"src/mods/vr/runtimes/OpenXR.hpp"
@@ -3500,6 +3517,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		openxr_loader
 		delayimp
 		DirectXTK
+		DirectXTK12
 	)
 
 	set_target_properties(RE3 PROPERTIES
@@ -3565,6 +3583,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/D3D11Component.cpp"
 		"src/mods/vr/D3D12Component.cpp"
 		"src/mods/vr/OverlayComponent.cpp"
+		"src/mods/vr/d3d12/ResourceCopier.cpp"
+		"src/mods/vr/d3d12/TextureContext.cpp"
 		"src/mods/vr/games/RE8VR.cpp"
 		"src/mods/vr/runtimes/OpenVR.cpp"
 		"src/mods/vr/runtimes/OpenXR.cpp"
@@ -3610,6 +3630,9 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/D3D11Component.hpp"
 		"src/mods/vr/D3D12Component.hpp"
 		"src/mods/vr/OverlayComponent.hpp"
+		"src/mods/vr/d3d12/ComPtr.hpp"
+		"src/mods/vr/d3d12/ResourceCopier.hpp"
+		"src/mods/vr/d3d12/TextureContext.hpp"
 		"src/mods/vr/games/RE8VR.hpp"
 		"src/mods/vr/runtimes/OpenVR.hpp"
 		"src/mods/vr/runtimes/OpenXR.hpp"
@@ -3688,6 +3711,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		openxr_loader
 		delayimp
 		DirectXTK
+		DirectXTK12
 	)
 
 	set_target_properties(RE3_TDB67 PROPERTIES
@@ -3753,6 +3777,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/D3D11Component.cpp"
 		"src/mods/vr/D3D12Component.cpp"
 		"src/mods/vr/OverlayComponent.cpp"
+		"src/mods/vr/d3d12/ResourceCopier.cpp"
+		"src/mods/vr/d3d12/TextureContext.cpp"
 		"src/mods/vr/games/RE8VR.cpp"
 		"src/mods/vr/runtimes/OpenVR.cpp"
 		"src/mods/vr/runtimes/OpenXR.cpp"
@@ -3798,6 +3824,9 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/D3D11Component.hpp"
 		"src/mods/vr/D3D12Component.hpp"
 		"src/mods/vr/OverlayComponent.hpp"
+		"src/mods/vr/d3d12/ComPtr.hpp"
+		"src/mods/vr/d3d12/ResourceCopier.hpp"
+		"src/mods/vr/d3d12/TextureContext.hpp"
 		"src/mods/vr/games/RE8VR.hpp"
 		"src/mods/vr/runtimes/OpenVR.hpp"
 		"src/mods/vr/runtimes/OpenXR.hpp"
@@ -3876,6 +3905,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		openxr_loader
 		delayimp
 		DirectXTK
+		DirectXTK12
 	)
 
 	set_target_properties(RE4 PROPERTIES
@@ -5771,6 +5801,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/D3D11Component.cpp"
 		"src/mods/vr/D3D12Component.cpp"
 		"src/mods/vr/OverlayComponent.cpp"
+		"src/mods/vr/d3d12/ResourceCopier.cpp"
+		"src/mods/vr/d3d12/TextureContext.cpp"
 		"src/mods/vr/games/RE8VR.cpp"
 		"src/mods/vr/runtimes/OpenVR.cpp"
 		"src/mods/vr/runtimes/OpenXR.cpp"
@@ -5816,6 +5848,9 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/D3D11Component.hpp"
 		"src/mods/vr/D3D12Component.hpp"
 		"src/mods/vr/OverlayComponent.hpp"
+		"src/mods/vr/d3d12/ComPtr.hpp"
+		"src/mods/vr/d3d12/ResourceCopier.hpp"
+		"src/mods/vr/d3d12/TextureContext.hpp"
 		"src/mods/vr/games/RE8VR.hpp"
 		"src/mods/vr/runtimes/OpenVR.hpp"
 		"src/mods/vr/runtimes/OpenXR.hpp"
@@ -5894,6 +5929,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		openxr_loader
 		delayimp
 		DirectXTK
+		DirectXTK12
 	)
 
 	set_target_properties(RE7 PROPERTIES
@@ -5959,6 +5995,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/D3D11Component.cpp"
 		"src/mods/vr/D3D12Component.cpp"
 		"src/mods/vr/OverlayComponent.cpp"
+		"src/mods/vr/d3d12/ResourceCopier.cpp"
+		"src/mods/vr/d3d12/TextureContext.cpp"
 		"src/mods/vr/games/RE8VR.cpp"
 		"src/mods/vr/runtimes/OpenVR.cpp"
 		"src/mods/vr/runtimes/OpenXR.cpp"
@@ -6004,6 +6042,9 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/D3D11Component.hpp"
 		"src/mods/vr/D3D12Component.hpp"
 		"src/mods/vr/OverlayComponent.hpp"
+		"src/mods/vr/d3d12/ComPtr.hpp"
+		"src/mods/vr/d3d12/ResourceCopier.hpp"
+		"src/mods/vr/d3d12/TextureContext.hpp"
 		"src/mods/vr/games/RE8VR.hpp"
 		"src/mods/vr/runtimes/OpenVR.hpp"
 		"src/mods/vr/runtimes/OpenXR.hpp"
@@ -6082,6 +6123,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		openxr_loader
 		delayimp
 		DirectXTK
+		DirectXTK12
 	)
 
 	set_target_properties(RE7_TDB49 PROPERTIES
@@ -6758,6 +6800,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/D3D11Component.cpp"
 		"src/mods/vr/D3D12Component.cpp"
 		"src/mods/vr/OverlayComponent.cpp"
+		"src/mods/vr/d3d12/ResourceCopier.cpp"
+		"src/mods/vr/d3d12/TextureContext.cpp"
 		"src/mods/vr/games/RE8VR.cpp"
 		"src/mods/vr/runtimes/OpenVR.cpp"
 		"src/mods/vr/runtimes/OpenXR.cpp"
@@ -6803,6 +6847,9 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/D3D11Component.hpp"
 		"src/mods/vr/D3D12Component.hpp"
 		"src/mods/vr/OverlayComponent.hpp"
+		"src/mods/vr/d3d12/ComPtr.hpp"
+		"src/mods/vr/d3d12/ResourceCopier.hpp"
+		"src/mods/vr/d3d12/TextureContext.hpp"
 		"src/mods/vr/games/RE8VR.hpp"
 		"src/mods/vr/runtimes/OpenVR.hpp"
 		"src/mods/vr/runtimes/OpenXR.hpp"
@@ -6881,6 +6928,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		openxr_loader
 		delayimp
 		DirectXTK
+		DirectXTK12
 	)
 
 	set_target_properties(RE8 PROPERTIES
@@ -7555,6 +7603,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/D3D11Component.cpp"
 		"src/mods/vr/D3D12Component.cpp"
 		"src/mods/vr/OverlayComponent.cpp"
+		"src/mods/vr/d3d12/ResourceCopier.cpp"
+		"src/mods/vr/d3d12/TextureContext.cpp"
 		"src/mods/vr/games/RE8VR.cpp"
 		"src/mods/vr/runtimes/OpenVR.cpp"
 		"src/mods/vr/runtimes/OpenXR.cpp"
@@ -7600,6 +7650,9 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/D3D11Component.hpp"
 		"src/mods/vr/D3D12Component.hpp"
 		"src/mods/vr/OverlayComponent.hpp"
+		"src/mods/vr/d3d12/ComPtr.hpp"
+		"src/mods/vr/d3d12/ResourceCopier.hpp"
+		"src/mods/vr/d3d12/TextureContext.hpp"
 		"src/mods/vr/games/RE8VR.hpp"
 		"src/mods/vr/runtimes/OpenVR.hpp"
 		"src/mods/vr/runtimes/OpenXR.hpp"
@@ -7678,6 +7731,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		openxr_loader
 		delayimp
 		DirectXTK
+		DirectXTK12
 	)
 
 	set_target_properties(DMC5 PROPERTIES
@@ -8354,6 +8408,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/D3D11Component.cpp"
 		"src/mods/vr/D3D12Component.cpp"
 		"src/mods/vr/OverlayComponent.cpp"
+		"src/mods/vr/d3d12/ResourceCopier.cpp"
+		"src/mods/vr/d3d12/TextureContext.cpp"
 		"src/mods/vr/games/RE8VR.cpp"
 		"src/mods/vr/runtimes/OpenVR.cpp"
 		"src/mods/vr/runtimes/OpenXR.cpp"
@@ -8399,6 +8455,9 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/D3D11Component.hpp"
 		"src/mods/vr/D3D12Component.hpp"
 		"src/mods/vr/OverlayComponent.hpp"
+		"src/mods/vr/d3d12/ComPtr.hpp"
+		"src/mods/vr/d3d12/ResourceCopier.hpp"
+		"src/mods/vr/d3d12/TextureContext.hpp"
 		"src/mods/vr/games/RE8VR.hpp"
 		"src/mods/vr/runtimes/OpenVR.hpp"
 		"src/mods/vr/runtimes/OpenXR.hpp"
@@ -8477,6 +8536,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		openxr_loader
 		delayimp
 		DirectXTK
+		DirectXTK12
 	)
 
 	set_target_properties(MHRISE PROPERTIES
