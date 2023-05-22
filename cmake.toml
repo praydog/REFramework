@@ -224,7 +224,8 @@ link-libraries = [
     "openvr",
     "openxr_loader",
     "delayimp",
-    "DirectXTK"
+    "DirectXTK",
+    "DirectXTK12"
 ]
 
 [template.game.properties]
