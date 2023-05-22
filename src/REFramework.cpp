@@ -1790,16 +1790,21 @@ bool REFramework::init_d3d12() {
         props.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
         props.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
 
-        D3D12_CLEAR_VALUE clear_value{};
-        clear_value.Format = desc.Format;
+        auto d3d12_rt_desc = desc;
+        d3d12_rt_desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM; // For VR
 
-        if (FAILED(device->CreateCommittedResource(&props, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, &clear_value,
+        D3D12_CLEAR_VALUE clear_value{};
+        clear_value.Format = d3d12_rt_desc.Format;
+
+        if (FAILED(device->CreateCommittedResource(&props, D3D12_HEAP_FLAG_NONE, &d3d12_rt_desc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, &clear_value,
                 IID_PPV_ARGS(&m_d3d12.get_rt(D3D12::RTV::IMGUI))))) {
             spdlog::error("[D3D12] Failed to create the imgui render target.");
             return false;
         }
 
-        if (FAILED(device->CreateCommittedResource(&props, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, &clear_value,
+        m_d3d12.get_rt(D3D12::RTV::IMGUI)->SetName(L"Framework::m_d3d12.rts[IMGUI]");
+
+        if (FAILED(device->CreateCommittedResource(&props, D3D12_HEAP_FLAG_NONE, &d3d12_rt_desc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, &clear_value,
                 IID_PPV_ARGS(&m_d3d12.get_rt(D3D12::RTV::BLANK))))) {
             spdlog::error("[D3D12] Failed to create the blank render target.");
             return false;
