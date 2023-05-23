@@ -767,6 +767,17 @@ float VR::get_sharpness_hook(void* tonemapping) {
 std::optional<std::string> VR::on_initialize() try {
     auto openvr_error = initialize_openvr();
 
+    /* (sibest): initialize some data for the joystick smoothing */
+    last_interp_time = std::chrono::steady_clock::now();
+
+    m_interp_rot_poses.push_back(Matrix4x4f());
+    m_interp_rot_poses.push_back(Matrix4x4f());
+    m_interp_rot_poses.push_back(Matrix4x4f());
+
+    m_interp_pos_poses.push_back(Vector4f());
+    m_interp_pos_poses.push_back(Vector4f());
+    m_interp_pos_poses.push_back(Vector4f());
+
     if (openvr_error || !m_openvr->loaded) {
         if (m_openvr->error) {
             spdlog::info("OpenVR failed to load: {}", *m_openvr->error);
@@ -1517,6 +1528,7 @@ void VR::update_hmd_state() {
         }
     }
     
+    update_vr_interp_poses();
     runtime->update_poses();
 
     // Update the poses used for the game
@@ -1621,6 +1633,37 @@ void VR::update_action_states() {
     }
 }
 
+// (sibest): Smoothing the joysticks position and rotation improves the VR experience and 
+// prevents the joystick to terribly shaking when aiming with the gun
+void VR::update_vr_interp_poses() {
+
+    const auto now = std::chrono::steady_clock::now();
+
+    // too early
+    if (now - last_interp_time < std::chrono::milliseconds(10))
+        return;
+
+    auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_interp_time).count();
+    auto is_using_controller = (now - get_last_controller_update()) <= std::chrono::seconds(10);
+
+    const auto is_grip_down = is_using_controller && is_action_active(m_action_grip, m_right_joystick);
+
+    float past = std::min(millis, (long long)40);
+    last_interp_time = std::chrono::steady_clock::now();
+
+    float interp = past / (is_grip_down ? 120.f : 40.f);
+
+    for (int i = 0; i < 3; i++) {
+        m_interp_rot_poses[i] = Matrix4x4f{glm::slerp(glm::quat{m_interp_rot_poses[i]}, glm::quat{get_rotation_unsafe(i)}, interp)};
+
+        auto pos = get_position_unsafe(i);
+        m_interp_pos_poses[i].x = m_interp_pos_poses[i].x * (1 - interp) + pos.x * interp;
+        m_interp_pos_poses[i].y = m_interp_pos_poses[i].y * (1 - interp) + pos.y * interp;
+        m_interp_pos_poses[i].z = m_interp_pos_poses[i].z * (1 - interp) + pos.z * interp;
+        m_interp_pos_poses[i].w = m_interp_pos_poses[i].w * (1 - interp) + pos.w * interp;
+    }
+}
+
 void VR::update_camera() {
     REF_PROFILE_FUNCTION();
 
@@ -1640,6 +1683,13 @@ void VR::update_camera() {
         return;
     }
 
+    bool only_rotation = false;
+
+#if defined(RE2) || defined(RE3)
+    if (FirstPerson::get()->will_be_used()) {
+        only_rotation = true;
+    }
+#endif
     for (auto camera : cameras) {
         if (camera == nullptr) {
             break;
@@ -1666,6 +1716,7 @@ void VR::update_camera() {
         // Disable lens distortion
         set_lens_distortion(false);
 
+/* FIX (sibest): makes the camera working in RE2/RE3 
     #if defined(RE2) || defined(RE3)
         if (FirstPerson::get()->will_be_used()) {
             m_needs_camera_restore = false;
@@ -1689,7 +1740,7 @@ void VR::update_camera() {
 
             return;
         }
-    #endif
+    #endif*/
 
         auto projection_matrix = is_using_multipass() ? get_projection_matrix(0) : get_current_projection_matrix(true);
 
@@ -1707,11 +1758,11 @@ void VR::update_camera() {
         set_aspect_ratio_method->call<void*>(sdk::get_thread_context(), camera, aspect);
     }
 
-    update_camera_origin();
+    update_camera_origin(only_rotation);
     m_needs_camera_restore = true;
 }
 
-void VR::update_camera_origin() {
+void VR::update_camera_origin(bool only_rotation) {
     REF_PROFILE_FUNCTION();
 
     if (!is_hmd_active()) {
@@ -1759,7 +1810,7 @@ void VR::update_camera_origin() {
             m_original_camera_matrix[3] = m_original_camera_position;
         }
 
-        apply_hmd_transform(camera_joint);
+        apply_hmd_transform(camera_joint, only_rotation);
     }
 }
 
@@ -1791,7 +1842,7 @@ void VR::apply_hmd_transform(glm::quat& rotation, Vector4f& position) {
     position = position + current_head_pos;
 }
 
-void VR::apply_hmd_transform(::REJoint* camera_joint) {
+void VR::apply_hmd_transform(::REJoint* camera_joint, bool only_rotation) {
     REF_PROFILE_FUNCTION();
 
     auto rotation = m_original_camera_rotation;
@@ -1801,7 +1852,7 @@ void VR::apply_hmd_transform(::REJoint* camera_joint) {
 
     sdk::set_joint_rotation(camera_joint, rotation);
 
-    if (m_positional_tracking) {
+    if (m_positional_tracking && !only_rotation) {
         sdk::set_joint_position(camera_joint, position);   
     }
 }
@@ -3926,6 +3977,20 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
         // Override the left stick's axis values to the VR controller's values
         Vector3f axis{ left_axis.x, left_axis.y, 0.0f };
 
+#if defined(RE2) || defined(RE3)
+
+        bool running = is_action_active(m_action_joystick_click, m_left_joystick);
+        if (FirstPerson::get()->smooth_move(axis, running)) {
+
+            if (running)
+                set_button_state(app::ropeway::InputDefine::Kind::JOG1, false);
+
+            // Scale the axis movement force to allow sounds and animation
+            axis.x *= 0.33f;
+            axis.y *= 0.33f;
+        }
+#endif
+
         static auto update_method = sdk::get_object_method(lstick, "update");
         update_method->call<void*>(ctx, lstick, &axis, &axis);
     }
@@ -4111,6 +4176,7 @@ void VR::on_draw_ui() {
     m_view_distance->draw("View Distance/FarZ");
     m_motion_controls_inactivity_timer->draw("Inactivity Timer");
     m_joystick_deadzone->draw("Joystick Deadzone");
+    m_joystick_smooth->draw("Smooth Joystick Movement");
 
     m_ui_scale_option->draw("2D UI Scale");
     m_ui_distance_option->draw("2D UI Distance");
@@ -4236,11 +4302,16 @@ Vector4f VR::get_position(uint32_t index) const {
     if (index >= vr::k_unMaxTrackedDeviceCount) {
         return Vector4f{};
     }
+    if (index == 0 || index > 2 || !m_joystick_smooth->value()) {
 
-    std::shared_lock _{ get_runtime()->pose_mtx };
-    std::shared_lock __{ get_runtime()->eyes_mtx };
+        std::shared_lock _{get_runtime()->pose_mtx};
+        std::shared_lock __{get_runtime()->eyes_mtx};
 
-    return get_position_unsafe(index);
+        return get_position_unsafe(index);
+    }
+    else {
+        return m_interp_pos_poses[index];
+    }
 }
 
 Vector4f VR::get_velocity(uint32_t index) const {
@@ -4346,6 +4417,25 @@ Vector4f VR::get_angular_velocity_unsafe(uint32_t index) const {
 }
 
 Matrix4x4f VR::get_rotation(uint32_t index) const {
+
+    if (index >= vr::k_unMaxTrackedDeviceCount) {
+        return Matrix4x4f{};
+    }
+
+    if (index == 0 || index > 2 || !m_joystick_smooth->value()) {
+
+        std::shared_lock _{get_runtime()->pose_mtx};
+        std::shared_lock __{get_runtime()->eyes_mtx};
+
+        return get_rotation_unsafe(index);
+
+    } else {
+
+        return m_interp_rot_poses[index];
+    }
+}
+
+Matrix4x4f VR::get_rotation_unsafe(uint32_t index) const {
     if (get_runtime()->is_openvr()) {
         if (index >= vr::k_unMaxTrackedDeviceCount) {
             return glm::identity<Matrix4x4f>();
@@ -4399,12 +4489,12 @@ Matrix4x4f VR::get_transform(uint32_t index) const {
             return mat;
         } else if (index > 0) {
             if (index == VRRuntime::Hand::LEFT+1) {
-                auto mat = Matrix4x4f{*(glm::quat*)&m_openxr->hands[VRRuntime::Hand::LEFT].location.pose.orientation};
-                mat[3] = Vector4f{*(Vector3f*)&m_openxr->hands[VRRuntime::Hand::LEFT].location.pose.position, 1.0f};
+                auto mat = get_rotation(1);
+                mat[3] = get_position(1);
                 return mat;
             } else if (index == VRRuntime::Hand::RIGHT+1) {
-                auto mat = Matrix4x4f{*(glm::quat*)&m_openxr->hands[VRRuntime::Hand::RIGHT].location.pose.orientation};
-                mat[3] = Vector4f{*(Vector3f*)&m_openxr->hands[VRRuntime::Hand::RIGHT].location.pose.position, 1.0f};
+                auto mat = get_rotation(2);
+                mat[3] = get_position(2);
                 return mat;
             }
         }

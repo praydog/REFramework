@@ -117,7 +117,7 @@ void CameraDuplicator::clone_camera() {
     constexpr auto ACTIVE_OFFSET = sizeof(::REManagedObject) + 5;
     *(bool*)((uint8_t*)old_camera_folder + ACTIVE_OFFSET) = false;
 
-    sdk::call_object_func_easy<void>(old_camera_folder, "activate");
+    sdk::call_object_func_easy<void*>(old_camera_folder, "activate");
     m_called_activate = true;
 #endif
 }
@@ -157,7 +157,7 @@ void CameraDuplicator::find_new_camera() {
                 const auto old_transform = utility::re_component::get_game_object((REComponent*)m_old_camera)->transform;
 
                 if (new_transform != nullptr && old_transform != nullptr) {
-                    sdk::call_object_func_easy<void>(new_transform, "setParent(via.Transform, System.Boolean)", old_transform, false);
+                    sdk::call_object_func_easy<void*>(new_transform, "setParent(via.Transform, System.Boolean)", old_transform, false);
                     spdlog::info("Parented new camera to old camera");
                 }
 
@@ -206,7 +206,9 @@ void CameraDuplicator::copy_camera_properties() {
     }
 
     // Do not allow the camera components to update. We will do the update ourselves via the copying of properties
-    new_camera_gameobject->shouldUpdate = false;
+    // FIX (sibest): The new camera object must update, otherewise there will be glitches like movement stuck in RE2/RE3 and RE8
+    // For some reason the RE engine randomly uses the new camera as main camera sometimes.
+    // new_camera_gameobject->shouldUpdate = false;
 
     static auto via_camera = sdk::find_type_definition("via.Camera");
 
@@ -284,7 +286,7 @@ void CameraDuplicator::copy_camera_properties() {
 
             // Add property jobs, the copying will be spread out over multiple frames as it is a lot of work
             // Call the various getters and setters
-            for (const auto& [name, methods] : m_getter_setters[t1]) {
+            /* for (const auto& [name, methods] : m_getter_setters[t1]) {
                 if (methods.getter == nullptr || methods.setter == nullptr) {
                     continue;
                 }
@@ -313,11 +315,12 @@ void CameraDuplicator::copy_camera_properties() {
                         }
                     }
                 });
-            }
+            }*/
         }
 
         // Call the various getters and setters
-        /*for (const auto& [name, methods] : m_getter_setters[t1]) {
+        // FIX (sibest): Camera properties must be set every frame otherwise the new camera flickers
+        for (const auto& [name, methods] : m_getter_setters[t1]) {
             if (methods.getter != nullptr && methods.setter != nullptr) {
                 const auto result = methods.getter->invoke(old_component, {});
 
@@ -332,12 +335,18 @@ void CameraDuplicator::copy_camera_properties() {
                         if (should_pass_result_ptr) {
                             methods.setter->invoke(new_component, {(void*)result.bytes.data()});
                         } else {
-                            methods.setter->invoke(new_component, {result.ptr});
+
+                            const auto current_value = methods.getter->invoke(new_component, {});
+
+                            if (current_value.ptr != result.ptr) {
+                                methods.setter->invoke(new_component, {result.ptr});
+                            }
+
                         }
                     }
                 }
             }
-        }*/
+        }
 
         auto ctx = sdk::get_thread_context();
 

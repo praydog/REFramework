@@ -25,6 +25,9 @@ public:
 
     void toggle();
 
+    // (sibest) Smooth Locomotion
+    bool smooth_move(Vector3f direction, bool running);
+
     std::string_view get_name() const override { return "FirstPerson"; };
     std::optional<std::string> on_initialize() override;
 
@@ -75,6 +78,7 @@ private:
     void update_player_body_ik(RETransform* transform, bool restore = false, bool first = false);
     void update_player_body_rotation(RETransform* transform);
     void update_player_roomscale(RETransform* transform);
+    void update_player_smooth_locomotion(RETransform* transform);
     void update_camera_transform(RETransform* transform);
     void update_sweet_light_context(RopewaySweetLightManagerContext* ctx);
     void update_player_bones(RETransform* transform);
@@ -128,6 +132,7 @@ private:
     float m_interp_bone_scale{ 1.0f };
     float m_vr_scale{ 1.0f };
     std::chrono::steady_clock::time_point m_last_roomscale_failure{ std::chrono::steady_clock::now() };
+    std::chrono::steady_clock::time_point m_last_locomotion_time{std::chrono::steady_clock::now()};
 
     Vector4f m_scale_debug{ 1.0f, 1.0f, 1.0f, 1.0f };
     Vector4f m_scale_debug2{ 1.0f, 1.0f, 1.0f, 1.0f };
@@ -138,6 +143,16 @@ private:
     Vector3f m_right_hand_rotation_offset{ 0.2f, -2.5f, -1.7f };
 
     Vector3f m_last_controller_euler[2]{};
+
+    Vector3f m_steering{0.f, 0.f, 0.f};
+    Vector3f m_velocity{0.f, 0.f, 0.f};
+    float m_max_speed{0.f};
+    bool m_stopped{false};
+
+    void vector_scaleby(Vector3f& vec, float scale);
+    void vector_zero(Vector3f& vec);
+    void vector_truncate(Vector3f& vec, float max);
+    void vector_normalize(Vector3f& vec); 
 
     RETransform* m_player_transform{ nullptr };
     RECamera* m_camera{ nullptr };
@@ -162,12 +177,13 @@ private:
     bool m_was_hmd_active{false};
     bool m_was_gripping_weapon{false};
 
-
+    const ModToggle::Ptr m_smooth_locomotion{ModToggle::create(generate_name("SmoothLocomotion"), true)};
     const ModToggle::Ptr m_smooth_xz_movement{ ModToggle::create(generate_name("SmoothXZMovementVR"), true) };
     const ModToggle::Ptr m_smooth_y_movement{ ModToggle::create(generate_name("SmoothYMovementVR"), true) };
     const ModToggle::Ptr m_roomscale{ ModToggle::create(generate_name("RoomScale"), false) };
     const ModToggle::Ptr m_disable_vignette{ ModToggle::create(generate_name("DisableVignette"), true) };
     const ModToggle::Ptr m_hide_mesh{ ModToggle::create(generate_name("HideJointMesh"), true) };
+    const ModToggle::Ptr m_hide_upper_body{ModToggle::create(generate_name("HideUpperBodyMesh"), false)};
     const ModToggle::Ptr m_rotate_mesh{ ModToggle::create(generate_name("ForceRotateMesh"), true) };
     const ModToggle::Ptr m_disable_light_source{ ModToggle::create(generate_name("DisableLightSource"), true) };
     const ModToggle::Ptr m_show_in_cutscenes{ ModToggle::create(generate_name("ShowInCutscenes"), false) };
@@ -186,10 +202,12 @@ private:
     ValueList m_options{
         *m_enabled,
         *m_toggle_key,
+        *m_smooth_locomotion,
         *m_smooth_xz_movement,
         *m_smooth_y_movement,
         *m_disable_vignette,
         *m_hide_mesh,
+        *m_hide_upper_body,
         *m_rotate_mesh,
         *m_rotate_body,
         *m_body_rotate_speed,
