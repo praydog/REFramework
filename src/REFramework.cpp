@@ -302,10 +302,13 @@ REFramework::REFramework(HMODULE reframework_module)
 #if defined(RE4)
     // Fixes new code added in RE4 only.
     IntegrityCheckBypass::immediate_patch_re4();
+
+    // Only re4 is in need sometimes
+    IntegrityCheckBypass::immediate_patch_stack();
 #endif
     suspender.resume();
 #endif
-
+    
     // Hooking D3D12 initially because we need to retrieve the command queue before the first frame then switch to D3D11 if it failed later
     // on
     // addendum: now we don't need to do that, we just grab the command queue offset from the swapchain we create

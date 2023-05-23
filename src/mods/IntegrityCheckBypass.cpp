@@ -434,3 +434,47 @@ void IntegrityCheckBypass::immediate_patch_re4() {
 
     spdlog::info("[IntegrityCheckBypass]: Patched conditional_jmp!");
 }
+
+#pragma warning(push)
+#pragma warning(disable:4838)
+BOOL WINAPI HK_IsBadPtr(PSTR ptr, size_t size);
+void IntegrityCheckBypass::immediate_patch_stack() {
+    // This patch fixes the stack crash sometimes, with boosted speed
+
+    UINT tmp[]={0xE9909090, (UINT_PTR)HK_IsBadPtr - (UINT_PTR)IsBadReadPtr - 8};
+    ::WriteProcessMemory(INVALID_HANDLE_VALUE, (LPVOID)IsBadReadPtr, tmp, 8, 0);
+
+    spdlog::info("[IntegrityCheckBypass]: Patched stack invalid !");
+}
+
+BOOL WINAPI HK_IsBadPtr(PSTR ptr, size_t size) {
+    static PSTR mk = (PSTR)::GetModuleHandleW(NULL);
+    static PSTR mkx = mk + utility::get_module_size((HMODULE)mk).value();
+    constexpr DWORD mask = PAGE_READONLY | PAGE_READWRITE | PAGE_WRITECOPY | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY;
+   
+    // utility::get_module_within(Address(ptr));
+    if (size == 0 || (ptr >= mk && ptr <= mkx)) {
+        return FALSE; // NotBad
+    }
+
+    if (ptr == NULL || (((INT_PTR(ptr) >> 32) >> 24) != 0)) {
+        return TRUE; // Bad
+    }
+
+    MEMORY_BASIC_INFORMATION mbi;
+redo:
+    if (FALSE == ::VirtualQuery(ptr, &mbi, sizeof(mbi)))
+        return TRUE; // Bad
+    if (mbi.Protect & (PAGE_GUARD | PAGE_NOACCESS))
+        return TRUE; // Bad
+    if ((mbi.Protect & mask) == NULL)
+        return TRUE; // Bad
+
+    if (INT_PTR(ptr) + size > INT_PTR(mbi.BaseAddress) + mbi.RegionSize) {
+        ptr += size;
+        size = NULL;
+        goto redo;
+    }
+    return FALSE; // NotBad
+}
+#pragma warning(pop)
