@@ -35,19 +35,24 @@ private:
         std::string name{};
         std::unordered_set<size_t> ignored_properties{};
         bool allowed{true}; // used for debug imgui checkbox
+        bool immediate{false}; // used to set which property must be set every frame
     };
 
     // Components that we want to copy from the old camera to the new camera
     std::vector<WantedComponent> m_wanted_components {
-        WantedComponent{ "via.render.ToneMapping", { "set_InjectingGameObject"_fnv } },
-        WantedComponent{ "via.render.LDRPostProcess", {} },
-        WantedComponent{ "via.render.SoftBloom", {} },
+        
+        /* the first three components have manual properties setting every frame, so the setters/getters must be immediate */
+        WantedComponent{ "via.render.ToneMapping", { "set_InjectingGameObject"_fnv }, true, true }, 
+        WantedComponent{ "via.render.LDRPostProcess", {}, true, true },
+        WantedComponent{ "via.render.SoftBloom", {}, true, true },
+
+        WantedComponent{ "via.render.Outline", {}},
+        WantedComponent{ "via.render.Retrofilm", {}},
         WantedComponent{ "via.render.SSRControl", {} },
         WantedComponent{ "via.render.SSAOControl", {} },
         WantedComponent{ "via.render.SSSSSControl", {} },
         WantedComponent{ "via.render.DepthOfField", {} },
         WantedComponent{ "via.render.LightShaftFilterControl", {} },
-        WantedComponent{ "via.render.FakeLensFlare", {} },
         WantedComponent{ "via.render.MotionBlur", {} },
         WantedComponent{ "via.render.FFTBloom", {} },
         WantedComponent{ "via.render.Echo", {} },
@@ -59,6 +64,13 @@ private:
         WantedComponent{ "via.render.VolumetricFogControl", { } },
         WantedComponent{ "via.render.GodRay", { } },
         WantedComponent{ "via.render.GeometryAOControl", { } },
+
+        // arent these needed?
+        //WantedComponent{ "via.render.SubsurfaceSettings", { } },
+        //WantedComponent{ "via.render.CapturePlane", {}},
+        //WantedComponent{ "via.render.CaptureToTexture", {}},
+        //WantedComponent{ "via.render.ExperimentalRayTrace", {}},
+
         WantedComponent{ "via.render.MotionBlur", { } },
         WantedComponent{ "via.render.FakeLensflare", { } },
         //WantedComponent{ "via.render.CustomFilter", { } },

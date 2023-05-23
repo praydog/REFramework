@@ -286,7 +286,9 @@ void CameraDuplicator::copy_camera_properties() {
 
             // Add property jobs, the copying will be spread out over multiple frames as it is a lot of work
             // Call the various getters and setters
-            /* for (const auto& [name, methods] : m_getter_setters[t1]) {
+            if (!descriptor.immediate)
+            for (const auto& [name, methods] : m_getter_setters[t1]) {
+
                 if (methods.getter == nullptr || methods.setter == nullptr) {
                     continue;
                 }
@@ -315,11 +317,12 @@ void CameraDuplicator::copy_camera_properties() {
                         }
                     }
                 });
-            }*/
+            }
         }
 
         // Call the various getters and setters
         // FIX (sibest): Camera properties must be set every frame otherwise the new camera flickers
+        if (descriptor.immediate)
         for (const auto& [name, methods] : m_getter_setters[t1]) {
             if (methods.getter != nullptr && methods.setter != nullptr) {
                 const auto result = methods.getter->invoke(old_component, {});
