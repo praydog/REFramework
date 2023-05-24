@@ -447,6 +447,25 @@ REFrameworkResourceManager g_resource_manager_data {
         }
 
         return (REFrameworkResourceHandle)RERESOURCEMGR(mgr)->create_resource(t, utility::widen(name).c_str());
+    },
+    [](REFrameworkResourceManagerHandle mgr, const char* type_name, const char* name) -> REFrameworkManagedObjectHandle {
+        // NOT a type definition.
+        auto t = reframework::get_types()->get(type_name);
+
+        if (t == nullptr) {
+            return nullptr;
+        }
+
+        auto obj = RERESOURCEMGR(mgr)->create_userdata(t, utility::widen(name).c_str());
+
+        if (!obj.has_value()) {
+            return nullptr;
+        }
+
+        // The intrusive_ptr holds the reference for us initially, but when we return it back to the plugin
+        // we need to add another reference so that the plugin can hold onto it before we release it.
+        utility::re_managed_object::add_ref(obj.get());
+        return (REFrameworkManagedObjectHandle)obj.get();
     }
 };
 
