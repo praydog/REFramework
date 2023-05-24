@@ -344,7 +344,11 @@ def generate_field_entries(il2cpp_dump, natives, key, il2cpp_entry, use_typedefs
                     native_type_name = generate_native_name(field, False, None)
                     native_org_type_name = ""
                 else:
-                    native_type_name = rp_values[rp_idx]["TypeCode"]
+                    native_type_name = generate_native_name(field, False, None)
+
+                    if native_type_name != "String" or rp_values[rp_idx]["TypeCode"] != "Data":
+                        native_type_name = rp_values[rp_idx]["TypeCode"]
+
                     native_field_name += "_" + rp_names[rp_idx]
                     # native_field_name = rp_names[rp_idx] # without start with v_
                     native_org_type_name = rp_values[rp_idx]['type']
