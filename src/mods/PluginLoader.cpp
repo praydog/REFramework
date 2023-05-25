@@ -473,7 +473,20 @@ REFrameworkResourceManager g_resource_manager_data {
 
 REFrameworkResource g_resource_data {
     [](REFrameworkResourceHandle res) { RERESOURCE(res)->add_ref(); },
-    [](REFrameworkResourceHandle res) { RERESOURCE(res)->release(); }
+    [](REFrameworkResourceHandle res) { RERESOURCE(res)->release(); },
+    [](REFrameworkResourceHandle res, const char* type_name) -> REFrameworkManagedObjectHandle {
+        if (type_name == nullptr) {
+            return nullptr;
+        }
+
+        const auto t = sdk::find_type_definition(type_name);
+
+        if (t == nullptr) {
+            return nullptr;
+        }
+
+        return (REFrameworkManagedObjectHandle)RERESOURCE(res)->create_holder(t);
+    }
 };
 
 #define RETYPEINFO(var) ((::REType*)var)

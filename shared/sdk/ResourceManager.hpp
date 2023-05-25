@@ -16,6 +16,7 @@ class Resource {
 public:
     void add_ref();
     void release();
+    REManagedObject* create_holder(sdk::RETypeDefinition* t);
 
 private:
     friend class sdk::ResourceManager;

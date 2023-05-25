@@ -7,7 +7,7 @@
 #endif
 
 #define REFRAMEWORK_PLUGIN_VERSION_MAJOR 1
-#define REFRAMEWORK_PLUGIN_VERSION_MINOR 5
+#define REFRAMEWORK_PLUGIN_VERSION_MINOR 6
 #define REFRAMEWORK_PLUGIN_VERSION_PATCH 0
 
 #define REFRAMEWORK_RENDERER_D3D11 0
@@ -299,6 +299,7 @@ typedef struct {
 typedef struct {
     void (*add_ref)(REFrameworkResourceHandle);
     void (*release)(REFrameworkResourceHandle);
+    REFrameworkManagedObjectHandle (*create_holder)(REFrameworkResourceHandle, const char* type_name);
 } REFrameworkResource;
 
 /* NOT a type definition */
