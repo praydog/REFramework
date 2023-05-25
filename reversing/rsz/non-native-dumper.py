@@ -206,26 +206,17 @@ def generate_native_name(element, use_potential_name, reflection_property, il2cp
 
     if element["string"] == True:
         if use_potential_name:
+            # try to find if it is Resource type, return either "String" or "Resource"
             property_type = reflection_property["type"]
-            type_code = TypeCodeSearch.get(property_type.lower(), "Data")
-
-            if type_code == "Data" and property_type.startswith("via."):
+            if (property_type.endswith("ResourceHandle") or property_type.endswith("ResorceHandle")) and property_type.startswith("via."):
+                property_type = property_type.replace("ResourceHandle", "ResourceHolder")
+                property_type = property_type.replace("ResorceHandle", "ResorceHolder") # arrrrrrrrrr
                 native_element = il2cpp_dump.get(property_type, None)
-
-                if native_element is None:
-                    if (property_type.endswith("ResourceHandle") or property_type.endswith("ResorceHandle")) and property_type.startswith("via."):
-                        property_type = property_type.replace("ResourceHandle", "ResourceHolder")
-                        property_type = property_type.replace("ResorceHandle", "ResorceHolder") # arrrrrrrrrr
-                        native_element = il2cpp_dump.get(property_type, None)
-                        chain = native_element.get('deserializer_chain', None)
-
-                        if "via.ResourceHolder" in [a['name'] for a in chain]: # ResourcePath
-                            return "Resource"
-            else:
-                if type_code in ["C16","C8","String"]:
-                    return "String"
-                
-            return type_code
+                chain = native_element.get('deserializer_chain', None)
+                if "via.ResourceHolder" in [a['name'] for a in chain]: # ResourcePath
+                    return "Resource"
+            elif property_type == "via.resource_handle":
+                return "Resource"
         return "String"
     elif element["list"] == True:
         return generate_native_name(element["element"], use_potential_name, reflection_property, il2cpp_dump)
@@ -339,12 +330,13 @@ def generate_field_entries(il2cpp_dump, natives, key, il2cpp_entry, use_typedefs
                 rp_values = list(reflection_properties.values())
 
             for rp_idx, field in enumerate(layout):
+                native_type_name = generate_native_name(field, False, None)
                 native_field_name = "v" + str(i)
-                if not append_potential_name:
-                    native_type_name = generate_native_name(field, False, None)
-                    native_org_type_name = ""
-                else:
-                    native_type_name = rp_values[rp_idx]["TypeCode"]
+                native_org_type_name = ""
+                if append_potential_name:
+                    if rp_values[rp_idx]["TypeCode"] != "Data":
+                        native_type_name = rp_values[rp_idx]["TypeCode"]
+
                     native_field_name += "_" + rp_names[rp_idx]
                     # native_field_name = rp_names[rp_idx] # without start with v_
                     native_org_type_name = rp_values[rp_idx]['type']

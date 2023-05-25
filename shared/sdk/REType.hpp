@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string_view>
+
 class REClassInfo;
 class REType;
 class REVariableList;

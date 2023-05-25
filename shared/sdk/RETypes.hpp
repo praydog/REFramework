@@ -10,6 +10,7 @@
 std::string& game_namespace(std::string_view base_name);
 
 class REType;
+class TypeList;
 
 namespace sdk {
 struct RETypeDB;
@@ -21,7 +22,7 @@ public:
     RETypes();
     virtual ~RETypes() {};
 
-    const auto& get_raw_types() const {
+    auto get_raw_types() const {
         return m_raw_types;
     }
 

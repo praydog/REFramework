@@ -1189,7 +1189,7 @@ void REFramework::draw_about() {
             std::string text;
         };
 
-        static std::array<License, 13> licenses{
+        static std::array<License, 15> licenses{
             License{ "glm", license::glm },
             License{ "imgui", license::imgui },
             License{ "minhook", license::minhook },
@@ -1202,7 +1202,9 @@ void REFramework::draw_about() {
             License{ "asmjit", license::asmjit },
             License{ "bddisasm", utility::narrow(license::bddisasm) },
             License{ "openxr", license::openxr },
-            License{ "imguizmo", license::imguizmo }
+            License{ "imguizmo", license::imguizmo },
+            License{ "DirectXTK", license::directxtk },
+            License{ "DirectXTK12", license::directxtk },
         };
 
         for (const auto& license : licenses) {
@@ -1644,16 +1646,21 @@ bool REFramework::init_d3d11() {
 
     // Create our blank render target.
     spdlog::info("[D3D11] Creating render targets...");
+    {
+        // Create our blank render target.
+        auto d3d11_rt_desc = backbuffer_desc;
+        d3d11_rt_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; // For VR
 
-    if (FAILED(device->CreateTexture2D(&backbuffer_desc, nullptr, &m_d3d11.blank_rt))) {
-        spdlog::error("[D3D11] Failed to create render target texture!");
-        return false;
-    }
+        if (FAILED(device->CreateTexture2D(&d3d11_rt_desc, nullptr, &m_d3d11.blank_rt))) {
+            spdlog::error("[D3D11] Failed to create render target texture!");
+            return false;
+        }
 
-    // Create our render target.
-    if (FAILED(device->CreateTexture2D(&backbuffer_desc, nullptr, &m_d3d11.rt))) {
-        spdlog::error("[D3D11] Failed to create render target texture!");
-        return false;
+        // Create our render target
+        if (FAILED(device->CreateTexture2D(&d3d11_rt_desc, nullptr, &m_d3d11.rt))) {
+            spdlog::error("[D3D11] Failed to create render target texture!");
+            return false;
+        }
     }
 
     // Create our blank render target view.
@@ -1783,16 +1790,21 @@ bool REFramework::init_d3d12() {
         props.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
         props.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
 
-        D3D12_CLEAR_VALUE clear_value{};
-        clear_value.Format = desc.Format;
+        auto d3d12_rt_desc = desc;
+        d3d12_rt_desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM; // For VR
 
-        if (FAILED(device->CreateCommittedResource(&props, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, &clear_value,
+        D3D12_CLEAR_VALUE clear_value{};
+        clear_value.Format = d3d12_rt_desc.Format;
+
+        if (FAILED(device->CreateCommittedResource(&props, D3D12_HEAP_FLAG_NONE, &d3d12_rt_desc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, &clear_value,
                 IID_PPV_ARGS(&m_d3d12.get_rt(D3D12::RTV::IMGUI))))) {
             spdlog::error("[D3D12] Failed to create the imgui render target.");
             return false;
         }
 
-        if (FAILED(device->CreateCommittedResource(&props, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, &clear_value,
+        m_d3d12.get_rt(D3D12::RTV::IMGUI)->SetName(L"Framework::m_d3d12.rts[IMGUI]");
+
+        if (FAILED(device->CreateCommittedResource(&props, D3D12_HEAP_FLAG_NONE, &d3d12_rt_desc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, &clear_value,
                 IID_PPV_ARGS(&m_d3d12.get_rt(D3D12::RTV::BLANK))))) {
             spdlog::error("[D3D12] Failed to create the blank render target.");
             return false;

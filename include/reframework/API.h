@@ -7,9 +7,8 @@
 #endif
 
 #define REFRAMEWORK_PLUGIN_VERSION_MAJOR 1
-#define REFRAMEWORK_PLUGIN_VERSION_MINOR 5
+#define REFRAMEWORK_PLUGIN_VERSION_MINOR 6
 #define REFRAMEWORK_PLUGIN_VERSION_PATCH 0
-
 
 #define REFRAMEWORK_RENDERER_D3D11 0
 #define REFRAMEWORK_RENDERER_D3D12 1
@@ -301,11 +300,13 @@ typedef struct {
 typedef struct {
     /* resource type, and then the path to the resource in the PAK */
     REFrameworkResourceHandle (*create_resource)(REFrameworkResourceManagerHandle, const char* type_name, const char* name);
+    REFrameworkManagedObjectHandle (*create_userdata)(REFrameworkResourceManagerHandle, const char* type_name, const char* name);
 } REFrameworkResourceManager;
 
 typedef struct {
     void (*add_ref)(REFrameworkResourceHandle);
     void (*release)(REFrameworkResourceHandle);
+    REFrameworkManagedObjectHandle (*create_holder)(REFrameworkResourceHandle, const char* type_name);
 } REFrameworkResource;
 
 /* NOT a type definition */
