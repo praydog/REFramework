@@ -128,9 +128,11 @@ void Hooks::RenderLayerHook<sdk::renderer::layer::##x2##>::##x3##(sdk::renderer:
     } \
     bool any_false = false; \
     const auto& mods = g_framework->get_mods()->get_mods(); \
+    std::vector<Mod*> skip; \
     for (auto& mod : mods) { \
         const auto result = mod->on_pre_##x##_layer_##x3##(layer, render_ctx); \
         if (!result) { \
+            skip.push_back(mod.get()); \
             any_false = true; \
         } \
     } \
@@ -139,6 +141,7 @@ void Hooks::RenderLayerHook<sdk::renderer::layer::##x2##>::##x3##(sdk::renderer:
         original_func(layer, render_ctx); \
     } \
     for (auto& mod : mods) { \
+        if (std::find(skip.begin(), skip.end(), mod.get()) == skip.end()) \
         mod->on_##x##_layer_##x3##(layer, render_ctx); \
     }\
 }

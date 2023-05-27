@@ -553,9 +553,7 @@ void VR::on_prepare_output_layer_draw(sdk::renderer::layer::PrepareOutput* layer
 
 bool VR::on_pre_scene_layer_update(sdk::renderer::layer::Scene* layer, void* render_ctx) {
     REF_PROFILE_FUNCTION();
-
-    m_scene_update_mtx.lock();
-    
+        
     if (!is_hmd_active()) {
         return true;
     }
@@ -563,6 +561,10 @@ bool VR::on_pre_scene_layer_update(sdk::renderer::layer::Scene* layer, void* ren
     if (!layer->is_fully_rendered()) {
         return true;
     }
+
+    
+    m_scene_update_mtx.lock();
+    m_scene_layer_locked = 1;
 
     if (is_using_multipass()) {
         auto output_layer = sdk::renderer::get_output_layer();
@@ -592,6 +594,9 @@ bool VR::on_pre_scene_layer_update(sdk::renderer::layer::Scene* layer, void* ren
         if (camera != nullptr) {
             if (m_multipass_cameras[0] != nullptr && m_multipass_cameras[1] != nullptr) {
                 if (camera != m_multipass_cameras[0] && camera != m_multipass_cameras[1]) {
+
+                    m_scene_layer_locked = 0;
+                    m_scene_update_mtx.unlock();
                     return false;
                 }
             }
@@ -618,9 +623,10 @@ bool VR::on_pre_scene_layer_update(sdk::renderer::layer::Scene* layer, void* ren
 void VR::on_scene_layer_update(sdk::renderer::layer::Scene* layer, void* render_ctx) {
     REF_PROFILE_FUNCTION();
 
-    ScopeGuard ___([&]() {
-        m_scene_update_mtx.unlock();
-    });
+    if (m_scene_layer_locked) {
+        m_scene_layer_locked = 0;
+        ScopeGuard ___([&]() { m_scene_update_mtx.unlock(); });
+    }
 
     if (!is_hmd_active()) {
         return;
@@ -1558,9 +1564,9 @@ void VR::update_hmd_state() {
     // because the game logic thread does not run in sync with the rendering thread
     // This will massively improve HMD rotation smoothness for the user
     // if this is not done, the left eye will jitter a lot
+
 #if defined(RE2) || defined(RE3)
     const auto cameras = get_cameras();
-
     for (auto camera : cameras) {
         if (camera == nullptr) {
             continue;
@@ -1569,7 +1575,8 @@ void VR::update_hmd_state() {
         if (camera->ownerGameObject != nullptr && camera->ownerGameObject->transform != nullptr) {
             if (camera == cameras[0]) {
                 FirstPerson::get()->on_update_transform(camera->ownerGameObject->transform);
-            } else if (cameras[0] != nullptr && cameras[0]->ownerGameObject != nullptr && cameras[0]->ownerGameObject->transform != nullptr) {
+            } else if (cameras[0] != nullptr && cameras[0]->ownerGameObject != nullptr &&
+                       cameras[0]->ownerGameObject->transform != nullptr) {
                 const auto first_camera_joint = utility::re_transform::get_joint(*cameras[0]->ownerGameObject->transform, 0);
 
                 if (first_camera_joint == nullptr) {
@@ -1683,13 +1690,6 @@ void VR::update_camera() {
         return;
     }
 
-    bool only_rotation = false;
-
-#if defined(RE2) || defined(RE3)
-    if (FirstPerson::get()->will_be_used()) {
-        only_rotation = true;
-    }
-#endif
     for (auto camera : cameras) {
         if (camera == nullptr) {
             break;
@@ -1716,7 +1716,6 @@ void VR::update_camera() {
         // Disable lens distortion
         set_lens_distortion(false);
 
-/* FIX (sibest): makes the camera working in RE2/RE3 
     #if defined(RE2) || defined(RE3)
         if (FirstPerson::get()->will_be_used()) {
             m_needs_camera_restore = false;
@@ -1740,7 +1739,7 @@ void VR::update_camera() {
 
             return;
         }
-    #endif*/
+    #endif
 
         auto projection_matrix = is_using_multipass() ? get_projection_matrix(0) : get_current_projection_matrix(true);
 
@@ -1758,11 +1757,11 @@ void VR::update_camera() {
         set_aspect_ratio_method->call<void*>(sdk::get_thread_context(), camera, aspect);
     }
 
-    update_camera_origin(only_rotation);
+    update_camera_origin();
     m_needs_camera_restore = true;
 }
 
-void VR::update_camera_origin(bool only_rotation) {
+void VR::update_camera_origin() {
     REF_PROFILE_FUNCTION();
 
     if (!is_hmd_active()) {
@@ -1810,7 +1809,7 @@ void VR::update_camera_origin(bool only_rotation) {
             m_original_camera_matrix[3] = m_original_camera_position;
         }
 
-        apply_hmd_transform(camera_joint, only_rotation);
+        apply_hmd_transform(camera_joint);
     }
 }
 
@@ -1842,7 +1841,7 @@ void VR::apply_hmd_transform(glm::quat& rotation, Vector4f& position) {
     position = position + current_head_pos;
 }
 
-void VR::apply_hmd_transform(::REJoint* camera_joint, bool only_rotation) {
+void VR::apply_hmd_transform(::REJoint* camera_joint) {
     REF_PROFILE_FUNCTION();
 
     auto rotation = m_original_camera_rotation;
@@ -1852,7 +1851,7 @@ void VR::apply_hmd_transform(::REJoint* camera_joint, bool only_rotation) {
 
     sdk::set_joint_rotation(camera_joint, rotation);
 
-    if (m_positional_tracking && !only_rotation) {
+    if (m_positional_tracking) {
         sdk::set_joint_position(camera_joint, position);   
     }
 }
@@ -3986,8 +3985,8 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
                 set_button_state(app::ropeway::InputDefine::Kind::JOG1, false);
 
             // Scale the axis movement force to allow sounds and animation
-            axis.x *= 0.33f;
-            axis.y *= 0.33f;
+            axis.x *= 0.5f;
+            axis.y *= 0.5f;
         }
 #endif
 
@@ -4000,6 +3999,16 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
 
         // Override the right stick's axis values to the VR controller's values
         Vector3f axis{ right_axis.x, right_axis.y, 0.0f };
+
+
+#if defined(RE2) || defined(RE3)
+
+        if (FirstPerson::get()->hook_rotation(axis)) {
+
+            // Scale the axis movement force to allow sounds and animation
+
+        }
+#endif
 
         static auto update_method = sdk::get_object_method(rstick, "update");
         update_method->call<void*>(ctx, rstick, &axis, &axis);

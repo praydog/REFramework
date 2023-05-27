@@ -184,7 +184,7 @@ public:
     }
 
     void apply_hmd_transform(glm::quat& rotation, Vector4f& position);
-    void apply_hmd_transform(::REJoint* camera_joint, bool only_rotation = false);
+    void apply_hmd_transform(::REJoint* camera_joint);
     
     bool is_hand_behind_head(VRRuntime::Hand hand, float sensitivity = 0.2f) const;
     bool is_action_active(vr::VRActionHandle_t action, vr::VRInputValueHandle_t source = vr::k_ulInvalidInputValueHandle) const;
@@ -360,7 +360,7 @@ private:
     void update_hmd_state();
     void update_action_states();
     void update_camera(); // if not in firstperson mode
-    void update_camera_origin(bool only_rotation = false); // every frame
+    void update_camera_origin(); // every frame
     void update_audio_camera();
     void update_render_matrix();
     void restore_audio_camera(); // after wwise listener update
@@ -437,6 +437,7 @@ private:
 
     bool m_was_firstperson_toggle_down{false};
     bool m_was_flashlight_toggle_down{false};
+    volatile int m_scene_layer_locked{0};
     
     
     std::unordered_map<std::string, std::reference_wrapper<vr::VRActionHandle_t>> m_action_handles {

@@ -153,14 +153,15 @@ void CameraDuplicator::find_new_camera() {
                 spdlog::info("Found new camera: {:x}", (uintptr_t)m_new_camera);
 
                 // Parent this camera's transform to the old one
+                // (sibest): in RE2/RE3 this causes the right eye to shake. In other games this is useless.
+                /*
                 const auto new_transform = gameobject->transform;
                 const auto old_transform = utility::re_component::get_game_object((REComponent*)m_old_camera)->transform;
 
                 if (new_transform != nullptr && old_transform != nullptr) {
                     sdk::call_object_func_easy<void*>(new_transform, "setParent(via.Transform, System.Boolean)", old_transform, false);
                     spdlog::info("Parented new camera to old camera");
-                }
-
+                }*/
                 break;
             }
         }
@@ -208,6 +209,7 @@ void CameraDuplicator::copy_camera_properties() {
     // Do not allow the camera components to update. We will do the update ourselves via the copying of properties
     // FIX (sibest): The new camera object must update, otherewise there will be glitches like movement stuck in RE2/RE3 and RE8
     // For some reason the RE engine randomly uses the new camera as main camera sometimes.
+    // Moreover, in RE2/RE3 if new_camera->shouldUpdate is false enemies move at reduced fps.
     // new_camera_gameobject->shouldUpdate = false;
 
     static auto via_camera = sdk::find_type_definition("via.Camera");
