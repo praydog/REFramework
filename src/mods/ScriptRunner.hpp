@@ -125,7 +125,7 @@ public:
         uint32_t gc_major_multiplier{100};
     };
 
-    ScriptState(const GarbageCollectionData& gc_data);
+    ScriptState(const GarbageCollectionData& gc_data,bool is_main_state);
     ~ScriptState();
 
     void run_script(const std::string& p);
@@ -139,7 +139,7 @@ public:
     void on_gui_draw_element(REComponent* gui_element, void* primitive_context);
     void on_script_reset();
     void on_config_save();
-
+    bool is_main_state() { return m_is_main_state; }
     auto& lua() { return m_lua; }
     void lock() { m_execution_mutex.lock(); }
     void unlock() { m_execution_mutex.unlock(); }
@@ -158,7 +158,7 @@ private:
     sol::state m_lua{};
 
     GarbageCollectionData m_gc_data{};
-
+    bool m_is_main_state;
     std::recursive_mutex m_execution_mutex{};
 
     // FNV-1A
@@ -195,7 +195,6 @@ public:
 
     void on_frame() override;
     void on_draw_ui() override;
-
     void on_pre_application_entry(void* entry, const char* name, size_t hash) override;
     void on_application_entry(void* entry, const char* name, size_t hash) override;
     bool on_pre_gui_draw_element(REComponent* gui_element, void* primitive_context) override;
@@ -204,23 +203,44 @@ public:
     void spew_error(const std::string& p);
 
     const auto& get_state() {
-        return m_state;
+        return m_main_state;
+    }
+    //not sure how to approach this, should there be error checking here?
+    const auto& get_state(int index) { 
+        return m_states[index];
     }
 
     void lock() {
         m_access_mutex.lock();
-
-        if (m_state) {
-            m_state->lock();
+        for (auto& state : m_states) {
+            state->lock();
         }
+
+        m_states_locked = true;
     }
 
     void unlock() {
-        if (m_state) {
-            m_state->unlock();
+        for (auto& state : m_states) {
+            state->unlock();
+        }
+        m_access_mutex.unlock();
+        m_states_locked = false;
+    }
+
+    lua_State* create_state() {
+        std::scoped_lock _{m_access_mutex};
+        m_states.emplace_back(std::make_shared<ScriptState>(make_gc_data(), false));
+
+        if (m_states_locked) {
+            m_states.back()->lock();
         }
 
-        m_access_mutex.unlock();
+        return m_states.back()->lua().lua_state();
+    }
+
+    void delete_state(lua_State* lua_state) {
+        std::scoped_lock _{m_access_mutex};
+        m_states_to_delete.push_back(lua_state);
     }
 
 private:
@@ -236,16 +256,17 @@ private:
 
         return data;
     }
-
-    std::unique_ptr<ScriptState> m_state{};
+    std::shared_ptr<ScriptState> m_main_state{};
+    std::vector<std::shared_ptr<ScriptState>> m_states{};
     std::recursive_mutex m_access_mutex{};
+    std::atomic<bool> m_states_locked{false};
 
     // A list of Lua files that have been explicitly loaded either through the user manually loading the script, or
     // because the script was in the autorun directory.
     std::vector<std::string> m_loaded_scripts{};
     std::vector<std::string> m_known_scripts{};
     std::unordered_map<std::string, bool> m_loaded_scripts_map{};
-
+    std::vector<lua_State*> m_states_to_delete{};
     std::string m_last_script_error{};
     std::shared_mutex m_script_error_mutex{};
     std::chrono::system_clock::time_point m_last_script_error_time{};
