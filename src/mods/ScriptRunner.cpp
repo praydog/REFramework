@@ -704,13 +704,15 @@ void ScriptRunner::on_frame() {
         return;
     }
     //call on_frame functions for all states
-    for (auto &state:m_states)
+    for (auto &state : m_states) {
         state->on_frame();
+    }
 
     // install_hooks gets called here because it ensures hooks get installed the next frame after they've been 
     // enqueued. This prevents a race that can occur if hooks were installed immediately during script loading.
-    for (auto& state : m_states)
+    for (auto& state : m_states) {
         state->install_hooks();
+    }
 }
 
 void ScriptRunner::on_draw_ui() {
