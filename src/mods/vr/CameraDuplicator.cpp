@@ -117,7 +117,7 @@ void CameraDuplicator::clone_camera() {
     constexpr auto ACTIVE_OFFSET = sizeof(::REManagedObject) + 5;
     *(bool*)((uint8_t*)old_camera_folder + ACTIVE_OFFSET) = false;
 
-    sdk::call_object_func_easy<void>(old_camera_folder, "activate");
+    sdk::call_object_func_easy<void*>(old_camera_folder, "activate");
     m_called_activate = true;
 #endif
 }
@@ -157,7 +157,7 @@ void CameraDuplicator::find_new_camera() {
                 const auto old_transform = utility::re_component::get_game_object((REComponent*)m_old_camera)->transform;
 
                 if (new_transform != nullptr && old_transform != nullptr) {
-                    sdk::call_object_func_easy<void>(new_transform, "setParent(via.Transform, System.Boolean)", old_transform, false);
+                    sdk::call_object_func_easy<void*>(new_transform, "setParent(via.Transform, System.Boolean)", old_transform, false);
                     spdlog::info("Parented new camera to old camera");
                 }
 

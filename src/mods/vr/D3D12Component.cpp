@@ -364,6 +364,20 @@ void D3D12Component::setup() {
     auto backbuffer_desc = backbuffer->GetDesc();
     const auto real_backbuffer_desc = real_backbuffer->GetDesc();
 
+    if (is_multipass) {
+        backbuffer_desc.Width = vr->get_hmd_width();
+        backbuffer_desc.Height = vr->get_hmd_height();
+
+        if (backbuffer.Get() == real_backbuffer.Get()) {
+            backbuffer_desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+        }
+    } else {
+        backbuffer_desc.Width = real_backbuffer_desc.Width;
+        backbuffer_desc.Height = real_backbuffer_desc.Height;
+    }
+
+    m_openvr.last_format = backbuffer_desc.Format;
+
     spdlog::info("[VR] D3D12 Backbuffer width: {}, height: {}", backbuffer_desc.Width, backbuffer_desc.Height);
     spdlog::info("[VR] D3D12 Real Backbuffer width: {}, height: {}", real_backbuffer_desc.Width, real_backbuffer_desc.Height);
 
@@ -817,7 +831,7 @@ void D3D12Component::OpenXR::copy(uint32_t swapchain_idx, ID3D12Resource* resour
                 texture_ctx->copier.copy_region(
                     resource, 
                     ctx.textures[texture_index].texture, 
-                    0, 0, 0, src_box, src_state, 
+                    src_box, src_state, 
                     D3D12_RESOURCE_STATE_RENDER_TARGET);
             } else {
                 texture_ctx->copier.copy(

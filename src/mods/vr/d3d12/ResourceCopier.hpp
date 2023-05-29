@@ -9,10 +9,16 @@ namespace d3d12 {
 struct ResourceCopier {
     virtual ~ResourceCopier() { this->reset(); }
 
-    void setup(const wchar_t* name = L"ResourceCopier object");
+    bool setup(const wchar_t* name = L"ResourceCopier object");
     void reset();
     void wait(uint32_t ms);
-    void copy(ID3D12Resource* src, ID3D12Resource* dst, D3D12_RESOURCE_STATES src_state = D3D12_RESOURCE_STATE_PRESENT,
+    void copy(ID3D12Resource* src, ID3D12Resource* dst, 
+        D3D12_RESOURCE_STATES src_state = D3D12_RESOURCE_STATE_PRESENT,
+        D3D12_RESOURCE_STATES dst_state = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    void copy_region(ID3D12Resource* src, ID3D12Resource* dst, D3D12_BOX* src_box, 
+        D3D12_RESOURCE_STATES src_state = D3D12_RESOURCE_STATE_PRESENT,
+        D3D12_RESOURCE_STATES dst_state = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    void clear_rtv(ID3D12Resource* dst, D3D12_CPU_DESCRIPTOR_HANDLE rtv, const float* color, 
         D3D12_RESOURCE_STATES dst_state = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
     void execute();
 
@@ -26,5 +32,7 @@ struct ResourceCopier {
 
     bool waiting_for_fence{false};
     bool has_commands{false};
+
+    std::wstring internal_name{L"ResourceCopier object"};
 };
 }
