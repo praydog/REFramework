@@ -24,6 +24,8 @@
 #include "vr/runtimes/OpenVR.hpp"
 #include "vr/CameraDuplicator.hpp"
 
+#include "HookManager.hpp"
+
 #include "Mod.hpp"
 
 class REManagedObject;
@@ -245,6 +247,9 @@ private:
     void on_camera_get_projection_matrix(REManagedObject* camera, Matrix4x4f* result) override;
     static Matrix4x4f* gui_camera_get_projection_matrix_hook(REManagedObject* camera, Matrix4x4f* result);
     void on_camera_get_view_matrix(REManagedObject* camera, Matrix4x4f* result) override;
+    
+    static HookManager::PreHookResult pre_set_hdr_mode(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys);
+    static void post_set_hdr_mode(uintptr_t& ret_val, sdk::RETypeDefinition* ret_ty) {}
 
     bool on_pre_overlay_layer_update(sdk::renderer::layer::Overlay* layer, void* render_context) override;
     bool on_pre_overlay_layer_draw(sdk::renderer::layer::Overlay* layer, void* render_context) override;

@@ -306,6 +306,18 @@ void VR::on_camera_get_view_matrix(REManagedObject* camera, Matrix4x4f* result) 
     //}
 }
 
+HookManager::PreHookResult VR::pre_set_hdr_mode(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys) {
+    if (!VR::get()->is_hmd_active()) {
+        return HookManager::PreHookResult::CALL_ORIGINAL;
+    }
+
+    if (args.size() >= 2) {
+        args[1] = 0;
+    }
+
+    return HookManager::PreHookResult::CALL_ORIGINAL;
+}
+
 void VR::inputsystem_update_hook(void* ctx, REManagedObject* input_system) {
     auto original_func = g_input_hook->get_original<decltype(VR::inputsystem_update_hook)>();
 
@@ -828,6 +840,17 @@ and place the openxr_loader.dll in the same folder.)";
 
     if (hijack_error) {
         return hijack_error;
+    }
+
+    const auto renderer_t = sdk::find_type_definition("via.render.Renderer");
+
+    if (renderer_t != nullptr) {
+        const auto set_hdr_method = renderer_t->get_method("set_HDRMode");
+
+        if (set_hdr_method != nullptr) {
+            spdlog::info("Hooking setHDRMode");
+            g_hookman.add(set_hdr_method, &pre_set_hdr_mode, &post_set_hdr_mode);
+        }
     }
 
     m_init_finished = true;
