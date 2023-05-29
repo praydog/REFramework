@@ -44,6 +44,7 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
         return vr::VRCompositorError_None;
     }
 
+    // TODO: Correct this for the upscaler...?
     if (!m_backbuffer_is_8bit) {
         auto command_list = m_backbuffer_copy.copier.cmd_list.Get();
         m_backbuffer_copy.copier.wait(INFINITE);
@@ -378,10 +379,10 @@ void D3D12Component::setup() {
 
     m_openvr.last_format = backbuffer_desc.Format;
 
-    spdlog::info("[VR] D3D12 Backbuffer width: {}, height: {}", backbuffer_desc.Width, backbuffer_desc.Height);
-    spdlog::info("[VR] D3D12 Real Backbuffer width: {}, height: {}", real_backbuffer_desc.Width, real_backbuffer_desc.Height);
+    spdlog::info("[VR] D3D12 Backbuffer width: {}, height: {}, format: {}", backbuffer_desc.Width, backbuffer_desc.Height, backbuffer_desc.Format);
+    spdlog::info("[VR] D3D12 Real Backbuffer width: {}, height: {}, format: {}", real_backbuffer_desc.Width, real_backbuffer_desc.Height, real_backbuffer_desc.Format);
 
-    m_backbuffer_is_8bit = backbuffer_desc.Format == DXGI_FORMAT_R8G8B8A8_UNORM;
+    m_backbuffer_is_8bit = backbuffer_desc.Format == DXGI_FORMAT_R8G8B8A8_UNORM || backbuffer_desc.Format == DXGI_FORMAT_B8G8R8A8_UNORM;
 
     auto backbuffer_srv_desc = backbuffer_desc;
     backbuffer_srv_desc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
@@ -666,7 +667,12 @@ std::optional<std::string> D3D12Component::OpenXR::create_swapchains() {
 
         backbuffer_desc.Width = vr->get_hmd_width();
         backbuffer_desc.Height = vr->get_hmd_height();
-        backbuffer_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+
+        if (swapchain_format == DXGI_FORMAT_B8G8R8A8_UNORM_SRGB) {
+            backbuffer_desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+        } else {
+            backbuffer_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        }
 
         // Create the swapchain.
         XrSwapchainCreateInfo swapchain_create_info{XR_TYPE_SWAPCHAIN_CREATE_INFO};
