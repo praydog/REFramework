@@ -216,7 +216,7 @@ public:
             state->lock();
         }
 
-        ++m_states_locked;
+        ++m_lock_depth;
     }
 
     void unlock() {
@@ -225,8 +225,8 @@ public:
         }
         m_access_mutex.unlock();
 
-        if (m_states_locked > 0) {
-            --m_states_locked;
+        if (m_lock_depth > 0) {
+            --m_lock_depth;
         }
     }
 
@@ -234,7 +234,7 @@ public:
         std::scoped_lock _{m_access_mutex};
         m_states.emplace_back(std::make_shared<ScriptState>(make_gc_data(), false));
 
-        if (m_states_locked > 0) {
+        for (uint32_t i = 0; i < m_lock_depth; ++i) {
             m_states.back()->lock();
         }
 
@@ -262,7 +262,7 @@ private:
     std::shared_ptr<ScriptState> m_main_state{};
     std::vector<std::shared_ptr<ScriptState>> m_states{};
     std::recursive_mutex m_access_mutex{};
-    std::atomic<uint32_t> m_states_locked{0};
+    std::atomic<uint32_t> m_lock_depth{0};
 
     // A list of Lua files that have been explicitly loaded either through the user manually loading the script, or
     // because the script was in the autorun directory.

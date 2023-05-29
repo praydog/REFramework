@@ -137,6 +137,8 @@ void on_lua_state_destroyed(lua_State* l) {
 
 
 void internal_frame() {
+    // Testing recursive locking.
+    API::LuaLock __{};
     API::LuaLock _{};
 
     if (g_lua == nullptr) {
