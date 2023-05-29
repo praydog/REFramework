@@ -417,11 +417,11 @@ REFramework::~REFramework() {
     m_d3d_monitor_thread.reset();
 
     if (m_is_d3d11) {
-        ImGui_ImplDX11_Shutdown();
+        deinit_d3d11();
     }
 
     if (m_is_d3d12) {
-        ImGui_ImplDX12_Shutdown();
+        deinit_d3d12();
     }
 
     ImGui_ImplWin32_Shutdown();
@@ -615,27 +615,40 @@ void REFramework::on_frame_d3d12() {
         }
     }
 
+    auto do_per_frame_thing = [&]() {
+        ImGui::GetIO().BackendRendererUserData = m_d3d12.imgui_backend_datas[0];
+        const auto prev_cleanup = m_wants_device_object_cleanup;
+        invalidate_device_objects();
+        ImGui_ImplDX12_NewFrame();
+
+        ImGui::GetIO().BackendRendererUserData = m_d3d12.imgui_backend_datas[1];
+        m_wants_device_object_cleanup = prev_cleanup;
+        invalidate_device_objects();
+        ImGui_ImplDX12_NewFrame();
+    };
+
     if (!m_has_frame) {
         if (!is_init_ok) {
             update_fonts();
-            invalidate_device_objects();
-
-            ImGui_ImplDX12_NewFrame();
+            do_per_frame_thing();
             // hooks don't run until after initialization, so we just render the imgui window while initalizing.
             run_imgui_frame(true);
         } else {   
             return;
         }
     } else {
-        invalidate_device_objects();
-        ImGui_ImplDX12_NewFrame();
+        do_per_frame_thing();
     }
 
     if (is_init_ok) {
         m_mods->on_present();
     }
 
-    m_d3d12.cmd_allocator->Reset();
+    if (FAILED(m_d3d12.cmd_allocator->Reset())) {
+        spdlog::error("[D3D12] Failed to reset command allocator");
+        return;
+    }
+
     m_d3d12.cmd_list->Reset(m_d3d12.cmd_allocator.Get(), nullptr);
 
     // Draw to our render target.
@@ -654,7 +667,10 @@ void REFramework::on_frame_d3d12() {
     rts[0] = m_d3d12.get_cpu_rtv(device, D3D12::RTV::IMGUI);
     m_d3d12.cmd_list->OMSetRenderTargets(1, rts, FALSE, NULL);
     m_d3d12.cmd_list->SetDescriptorHeaps(1, m_d3d12.srv_desc_heap.GetAddressOf());
+
+    ImGui::GetIO().BackendRendererUserData = m_d3d12.imgui_backend_datas[1];
     ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), m_d3d12.cmd_list.Get());
+    
     barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
     barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
     m_d3d12.cmd_list->ResourceBarrier(1, &barrier);
@@ -669,7 +685,10 @@ void REFramework::on_frame_d3d12() {
     rts[0] = m_d3d12.get_cpu_rtv(device, (D3D12::RTV)bb_index);
     m_d3d12.cmd_list->OMSetRenderTargets(1, rts, FALSE, NULL);
     m_d3d12.cmd_list->SetDescriptorHeaps(1, m_d3d12.srv_desc_heap.GetAddressOf());
+
+    ImGui::GetIO().BackendRendererUserData = m_d3d12.imgui_backend_datas[0];
     ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), m_d3d12.cmd_list.Get());
+
     barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
     barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
     m_d3d12.cmd_list->ResourceBarrier(1, &barrier);
@@ -1722,6 +1741,8 @@ bool REFramework::init_d3d12() {
         return false;
     }
 
+    m_d3d12.cmd_allocator->SetName(L"Framework::m_d3d12.cmd_allocator");
+
     spdlog::info("[D3D12] Creating command list...");
 
     if (FAILED(device->CreateCommandList(
@@ -1729,6 +1750,8 @@ bool REFramework::init_d3d12() {
         spdlog::error("[D3D12] Failed to create command list.");
         return false;
     }
+
+    m_d3d12.cmd_list->SetName(L"Framework::m_d3d12.cmd_list");
 
     if (FAILED(m_d3d12.cmd_list->Close())) {
         spdlog::error("[D3D12] Failed to close command list after creation.");
@@ -1738,7 +1761,6 @@ bool REFramework::init_d3d12() {
     spdlog::info("[D3D12] Creating RTV descriptor heap...");
 
     {
-
         D3D12_DESCRIPTOR_HEAP_DESC desc{};
 
         desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
@@ -1750,6 +1772,8 @@ bool REFramework::init_d3d12() {
             spdlog::error("[D3D12] Failed to create RTV descriptor heap.");
             return false;
         }
+
+        m_d3d12.rtv_desc_heap->SetName(L"Framework::m_d3d12.rtv_desc_heap");
     }
 
     spdlog::info("[D3D12] Creating SRV descriptor heap...");
@@ -1765,6 +1789,8 @@ bool REFramework::init_d3d12() {
             spdlog::error("[D3D12] Failed to create SRV descriptor heap.");
             return false;
         }
+
+        m_d3d12.srv_desc_heap->SetName(L"Framework::m_d3d12.srv_desc_heap");
     }
 
     spdlog::info("[D3D12] Creating render targets...");
@@ -1776,6 +1802,8 @@ bool REFramework::init_d3d12() {
         for (auto i = 0; i <= (int)D3D12::RTV::BACKBUFFER_3; ++i) {
             if (SUCCEEDED(swapchain->GetBuffer(i, IID_PPV_ARGS(&m_d3d12.rts[i])))) {
                 device->CreateRenderTargetView(m_d3d12.rts[i].Get(), nullptr, m_d3d12.get_cpu_rtv(device, (D3D12::RTV)i));
+            } else {
+                spdlog::error("[D3D12] Failed to get back buffer for rtv.");
             }
         }
 
@@ -1791,7 +1819,7 @@ bool REFramework::init_d3d12() {
         props.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
 
         auto d3d12_rt_desc = desc;
-        d3d12_rt_desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM; // For VR
+        d3d12_rt_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; // For VR
 
         D3D12_CLEAR_VALUE clear_value{};
         clear_value.Format = d3d12_rt_desc.Format;
@@ -1810,11 +1838,13 @@ bool REFramework::init_d3d12() {
             return false;
         }
 
+        m_d3d12.get_rt(D3D12::RTV::BLANK)->SetName(L"Framework::m_d3d12.rts[BLANK]");
+
         // Create imgui and blank rtvs and srvs.
         device->CreateRenderTargetView(m_d3d12.get_rt(D3D12::RTV::IMGUI).Get(), nullptr, m_d3d12.get_cpu_rtv(device, D3D12::RTV::IMGUI));
         device->CreateRenderTargetView(m_d3d12.get_rt(D3D12::RTV::BLANK).Get(), nullptr, m_d3d12.get_cpu_rtv(device, D3D12::RTV::BLANK));
         device->CreateShaderResourceView(
-            m_d3d12.get_rt(D3D12::RTV::IMGUI).Get(), nullptr, m_d3d12.get_cpu_srv(device, D3D12::SRV::IMGUI));
+            m_d3d12.get_rt(D3D12::RTV::IMGUI).Get(), nullptr, m_d3d12.get_cpu_srv(device, D3D12::SRV::IMGUI_VR));
         device->CreateShaderResourceView(m_d3d12.get_rt(D3D12::RTV::BLANK).Get(), nullptr, m_d3d12.get_cpu_srv(device, D3D12::SRV::BLANK));
 
         m_d3d12.rt_width = (uint32_t)desc.Width;
@@ -1827,15 +1857,38 @@ bool REFramework::init_d3d12() {
     auto bb_desc = bb->GetDesc();
 
     if (!ImGui_ImplDX12_Init(device, 1, bb_desc.Format, m_d3d12.srv_desc_heap.Get(),
-            m_d3d12.get_cpu_srv(device, D3D12::SRV::IMGUI_FONT), m_d3d12.get_gpu_srv(device, D3D12::SRV::IMGUI_FONT))) {
+            m_d3d12.get_cpu_srv(device, D3D12::SRV::IMGUI_FONT_BACKBUFFER), m_d3d12.get_gpu_srv(device, D3D12::SRV::IMGUI_FONT_BACKBUFFER))) {
         spdlog::error("[D3D12] Failed to initialize ImGui.");
         return false;
     }
+
+    m_d3d12.imgui_backend_datas[0] = ImGui::GetIO().BackendRendererUserData;
+
+    ImGui::GetIO().BackendRendererUserData = nullptr;
+
+    // Now initialize another one for the VR texture.
+    auto& bb_vr = m_d3d12.get_rt(D3D12::RTV::IMGUI);
+    auto bb_vr_desc = bb_vr->GetDesc();
+
+    if (!ImGui_ImplDX12_Init(device, 1, bb_vr_desc.Format, m_d3d12.srv_desc_heap.Get(),
+            m_d3d12.get_cpu_srv(device, D3D12::SRV::IMGUI_FONT_VR), m_d3d12.get_gpu_srv(device, D3D12::SRV::IMGUI_FONT_VR))) {
+        spdlog::error("[D3D12] Failed to initialize ImGui.");
+        return false;
+    }
+
+    m_d3d12.imgui_backend_datas[1] = ImGui::GetIO().BackendRendererUserData;
 
     return true;
 }
 
 void REFramework::deinit_d3d12() {
-    ImGui_ImplDX12_Shutdown();
+    for (auto userdata : m_d3d12.imgui_backend_datas) {
+        if (userdata != nullptr) {
+            ImGui::GetIO().BackendRendererUserData = userdata;
+            ImGui_ImplDX12_Shutdown();
+        }
+    }
+
+    ImGui::GetIO().BackendRendererUserData = nullptr;
     m_d3d12 = {};
 }
