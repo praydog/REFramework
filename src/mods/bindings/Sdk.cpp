@@ -1842,6 +1842,25 @@ void bindings::open_sdk(ScriptState* s) {
         "release", [](::sdk::Resource* res) {
             res->release();
         },
+        "create_holder", [](sol::this_state s, ::sdk::Resource* res, const char* tn) {
+            if (tn == nullptr) {
+                return sol::make_object(s, sol::nil);
+            }
+
+            const auto t = sdk::find_type_definition(tn);
+
+            if (t == nullptr) {
+                return sol::make_object(s, sol::nil);
+            }
+
+            auto holder = res->create_holder(t);
+
+            if (holder == nullptr) {
+                return sol::make_object(s, sol::nil);
+            }
+
+            return sol::make_object(s, (::REManagedObject*)holder);
+        },
         "get_address", [](::sdk::Resource* res) { return (uintptr_t)res; }
     );
 

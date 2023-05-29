@@ -1,9 +1,19 @@
 #pragma once
 
+#include <array>
+#include <optional>
+
+#include <d3d11.h>
 #include <d3d12.h>
 #include <dxgi.h>
 #include <mutex>
 #include <wrl.h>
+
+#include <../../directxtk12-src/Inc/GraphicsMemory.h>
+#include <../../directxtk12-src/Inc/SpriteBatch.h>
+
+#include "d3d12/ResourceCopier.hpp"
+#include "d3d12/TextureContext.hpp"
 
 #define XR_USE_PLATFORM_WIN32
 #define XR_USE_GRAPHICS_API_D3D11
@@ -19,6 +29,7 @@ namespace vrmod {
 class D3D12Component {
 public:
     vr::EVRCompositorError on_frame(VR* vr);
+    void on_post_present(VR* vr);
 
     void on_reset(VR* vr);
 
@@ -30,71 +41,43 @@ public:
 
     auto& openxr() { return m_openxr; }
 
-    template <typename T> using ComPtr = Microsoft::WRL::ComPtr<T>;
-
-    struct ResourceCopier {
-        virtual ~ResourceCopier() { this->reset(); }
-
-        void setup(const wchar_t* name = L"ResourceCopier object");
-        void reset();
-        void wait(uint32_t ms);
-        void copy(ID3D12Resource* src, ID3D12Resource* dst, D3D12_RESOURCE_STATES src_state = D3D12_RESOURCE_STATE_PRESENT,
-            D3D12_RESOURCE_STATES dst_state = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-        void copy_region(ID3D12Resource* src, ID3D12Resource* dst, 
-            uint32_t dst_x, uint32_t dst_y, uint32_t dst_z, D3D12_BOX* src_box,
-            D3D12_RESOURCE_STATES src_state = D3D12_RESOURCE_STATE_PRESENT,
-            D3D12_RESOURCE_STATES dst_state = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-        void clear_rtv(ID3D12Resource* dst, D3D12_CPU_DESCRIPTOR_HANDLE rtv, const float* color, 
-            D3D12_RESOURCE_STATES dst_state = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-        void execute();
-
-        ComPtr<ID3D12CommandAllocator> cmd_allocator{};
-        ComPtr<ID3D12GraphicsCommandList> cmd_list{};
-        ComPtr<ID3D12Fence> fence{};
-        UINT64 fence_value{};
-        HANDLE fence_event{};
-
-        std::recursive_mutex mtx{};
-
-        bool waiting_for_fence{false};
-        bool has_commands{false};
-
-        std::wstring internal_name{L"ResourceCopier object"};
-    };
-
 private:
     void setup();
+    void setup_sprite_batch_pso(DXGI_FORMAT output_format);
+    void render_srv_to_rtv(ID3D12GraphicsCommandList* command_list, const d3d12::TextureContext& src, const d3d12::TextureContext& dst, D3D12_RESOURCE_STATES src_state, D3D12_RESOURCE_STATES dst_state);
+
+    template <typename T> using ComPtr = Microsoft::WRL::ComPtr<T>;
 
     ComPtr<ID3D12Resource> m_prev_backbuffer{};
-    std::array<ResourceCopier, 3> m_generic_copiers{};
+    d3d12::TextureContext m_backbuffer_copy{};
+    d3d12::TextureContext m_converted_eye_tex{};
+    std::array<d3d12::ResourceCopier, 3> m_generic_copiers{};
+
+    std::unique_ptr<DirectX::DX12::GraphicsMemory> m_graphics_memory{};
+    std::unique_ptr<DirectX::DX12::SpriteBatch> m_sprite_batch{};
 
     // Mimicking what OpenXR does.
     struct OpenVR {
-        struct TextureContext {
-            ResourceCopier copier{};
-            ComPtr<ID3D12Resource> texture{};
-        };
-
-        TextureContext& get_left() {
+        d3d12::TextureContext& get_left() {
             auto& ctx = this->left_eye_tex[this->texture_counter % left_eye_tex.size()];
 
             return ctx;
         }
 
-        TextureContext& get_right() {
+        d3d12::TextureContext& get_right() {
             auto& ctx = this->right_eye_tex[this->texture_counter % right_eye_tex.size()];
 
             return ctx;
         }
 
-        TextureContext& acquire_left() {
+        d3d12::TextureContext& acquire_left() {
             auto& ctx = get_left();
             ctx.copier.wait(INFINITE);
 
             return ctx;
         }
 
-        TextureContext& acquire_right() {
+        d3d12::TextureContext& acquire_right() {
             auto& ctx = get_right();
             ctx.copier.wait(INFINITE);
 
@@ -113,8 +96,8 @@ private:
             ctx.copier.execute();
         }
 
-        std::array<TextureContext, 3> left_eye_tex{};
-        std::array<TextureContext, 3> right_eye_tex{};
+        std::array<d3d12::TextureContext, 3> left_eye_tex{};
+        std::array<d3d12::TextureContext, 3> right_eye_tex{};
         uint32_t texture_counter{0};
         DXGI_FORMAT last_format{};
     } m_openvr;
@@ -137,12 +120,8 @@ private:
         XrGraphicsBindingD3D12KHR binding{XR_TYPE_GRAPHICS_BINDING_D3D12_KHR};
 
         struct SwapchainContext {
-            struct TextureContext {
-                ResourceCopier copier{};
-            };
-
             std::vector<XrSwapchainImageD3D12KHR> textures{};
-            std::vector<std::unique_ptr<TextureContext>> texture_contexts{};
+            std::vector<std::unique_ptr<d3d12::TextureContext>> texture_contexts{};
             uint32_t num_textures_acquired{0};
         };
 
@@ -153,6 +132,7 @@ private:
     } m_openxr;
 
     uint32_t m_backbuffer_size[2]{};
+    bool m_backbuffer_is_8bit{false};
     bool m_force_reset{false};
 };
 } // namespace vrmod

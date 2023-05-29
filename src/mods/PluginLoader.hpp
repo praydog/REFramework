@@ -18,6 +18,8 @@ void reframework_unlock_lua();
 bool reframework_on_device_reset(REFOnDeviceResetCb cb);
 bool reframework_on_message(REFOnMessageCb cb);
 
+lua_State* reframework_create_script_state();
+void reframework_destroy_script_state(lua_State*);
 namespace reframework {
 extern REFrameworkRendererData g_renderer_data;
 }

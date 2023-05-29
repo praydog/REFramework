@@ -2562,6 +2562,12 @@ void VR::on_post_present() {
     if (!runtime->loaded) {
         return;
     }
+
+    const auto renderer = g_framework->get_renderer_type();
+
+    if (renderer == REFramework::RendererType::D3D12) {
+        m_d3d12.on_post_present(this);
+    }
     
     if (is_using_multipass() || (m_render_frame_count + 1) % 2 == m_left_eye_interval) {
         runtime->consume_events(nullptr);

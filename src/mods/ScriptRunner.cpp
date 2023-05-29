@@ -51,9 +51,9 @@ void debug(const char* str) {
 }
 }
 
-ScriptState::ScriptState(const ScriptState::GarbageCollectionData& gc_data) {
+ScriptState::ScriptState(const ScriptState::GarbageCollectionData& gc_data,bool is_main_state) {
     std::scoped_lock _{ m_execution_mutex };
-
+    m_is_main_state = is_main_state;
     m_lua.registry()["state"] = this;
     m_lua.open_libraries(sol::lib::base, sol::lib::package, sol::lib::string, sol::lib::math, sol::lib::table, sol::lib::bit32,
         sol::lib::utf8, sol::lib::os, sol::lib::coroutine);
@@ -298,12 +298,7 @@ ScriptState::ScriptState(const ScriptState::GarbageCollectionData& gc_data) {
     m_lua["reframework"] = g_framework.get();
 
     // clang-format on
-
-    auto& mods = g_framework->get_mods()->get_mods();
-
-    for (auto& mod : mods) {
-        mod->on_lua_state_created(m_lua);
-    }
+    //callback function removed from constructor and moved out into script runner
 }
 
 ScriptState::~ScriptState() {
@@ -372,10 +367,6 @@ void ScriptState::on_frame() {
 }
 
 void ScriptState::on_draw_ui() {
-    if (!ImGui::CollapsingHeader("Script Generated UI")) {
-        return;
-    }
-
     try {
         std::scoped_lock _{ m_execution_mutex };
 
@@ -669,8 +660,8 @@ void ScriptRunner::on_config_load(const utility::Config& cfg) {
         option.config_load(cfg);
     }
 
-    if (m_state != nullptr) {
-        m_state->gc_data_changed(make_gc_data());
+    if (m_main_state != nullptr) {
+        m_main_state->gc_data_changed(make_gc_data());
     }
 }
 
@@ -681,14 +672,18 @@ void ScriptRunner::on_config_save(utility::Config& cfg) {
         option.config_save(cfg);
     }
 
-    if (m_state != nullptr) {
-        m_state->on_config_save();
+    //not sure if we want to trigger this for all states yet
+    //for (auto& state : m_states)
+    //    state->on_config_save();
+
+    if (m_main_state != nullptr) {
+        m_main_state->on_config_save();
     }
 }
 
 void ScriptRunner::on_frame() {
     std::scoped_lock _{m_access_mutex};
-    
+
     if (m_needs_first_reset) {
         spdlog::info("[ScriptRunner] Initializing Lua state for the first time...");
 
@@ -699,15 +694,25 @@ void ScriptRunner::on_frame() {
         spdlog::info("[ScriptRunner] Lua state initialized.");
     }
 
-    if (m_state == nullptr) {
-        return;
+    for (auto state_to_delete : m_states_to_delete) {
+        std::erase_if(m_states, [&](std::shared_ptr<ScriptState> state) { return state->lua().lua_state() == state_to_delete; });
     }
 
-    m_state->on_frame();
+    m_states_to_delete.clear();
+
+    if (m_main_state == nullptr) {
+        return;
+    }
+    //call on_frame functions for all states
+    for (auto &state : m_states) {
+        state->on_frame();
+    }
 
     // install_hooks gets called here because it ensures hooks get installed the next frame after they've been 
     // enqueued. This prevents a race that can occur if hooks were installed immediately during script loading.
-    m_state->install_hooks();
+    for (auto& state : m_states) {
+        state->install_hooks();
+    }
 }
 
 void ScriptRunner::on_draw_ui() {
@@ -727,7 +732,7 @@ void ScriptRunner::on_draw_ui() {
 
             if (GetOpenFileName(&ofn) != FALSE) {
                 std::scoped_lock _{ m_access_mutex };
-                m_state->run_script(file);
+                m_main_state->run_script(file);
                 m_loaded_scripts.emplace_back(std::filesystem::path{file}.filename().string());
             }
         }
@@ -750,11 +755,11 @@ void ScriptRunner::on_draw_ui() {
                 m_console_spawned = true;
             }
         }
-
+        //Garbage collection currently only showing from main lua state, might rework to show total later?
         if (ImGui::TreeNode("Garbage Collection Stats")) {
             std::scoped_lock _{ m_access_mutex };
 
-            auto g = G(m_state->lua().lua_state());
+            auto g = G(m_main_state->lua().lua_state());
             const auto bytes_in_use = g->totalbytes + g->GCdebt;
 
             ImGui::Text("Megabytes in use: %.2f", (float)bytes_in_use / 1024.0f / 1024.0f);
@@ -764,36 +769,36 @@ void ScriptRunner::on_draw_ui() {
 
         if (m_gc_handler->draw("Garbage Collection Handler")) {
             std::scoped_lock _{ m_access_mutex };
-            m_state->gc_data_changed(make_gc_data());
+            m_main_state->gc_data_changed(make_gc_data());
         }
 
         if (m_gc_mode->draw("Garbage Collection Mode")) {
             std::scoped_lock _{ m_access_mutex };
-            m_state->gc_data_changed(make_gc_data());
+            m_main_state->gc_data_changed(make_gc_data());
         }
 
         if ((uint32_t)m_gc_mode->value() == (uint32_t)ScriptState::GarbageCollectionMode::GENERATIONAL) {
             if (m_gc_minor_multiplier->draw("Minor GC Multiplier")) {
                 std::scoped_lock _{ m_access_mutex };
-                m_state->gc_data_changed(make_gc_data());
+                m_main_state->gc_data_changed(make_gc_data());
             }
 
             if (m_gc_major_multiplier->draw("Major GC Multiplier")) {
                 std::scoped_lock _{ m_access_mutex };
-                m_state->gc_data_changed(make_gc_data());
+                m_main_state->gc_data_changed(make_gc_data());
             }
         }
 
         if (m_gc_handler->value() == (int32_t)ScriptState::GarbageCollectionHandler::REFRAMEWORK_MANAGED) {
             if (m_gc_type->draw("Garbage Collection Type")) {
                 std::scoped_lock _{ m_access_mutex };
-                m_state->gc_data_changed(make_gc_data());
+                m_main_state->gc_data_changed(make_gc_data());
             }
 
             if ((uint32_t)m_gc_mode->value() != (uint32_t)ScriptState::GarbageCollectionMode::GENERATIONAL) {
                 if (m_gc_budget->draw("Garbage Collection Budget")) {
                     std::scoped_lock _{ m_access_mutex };
-                    m_state->gc_data_changed(make_gc_data());
+                    m_main_state->gc_data_changed(make_gc_data());
                 }
             }
         }
@@ -833,52 +838,66 @@ void ScriptRunner::on_draw_ui() {
     { 
         std::scoped_lock _{ m_access_mutex };
 
-        if (m_state == nullptr) {
-            return;
-        }
 
-        m_state->on_draw_ui();
+        if (ImGui::CollapsingHeader("Script Generated UI")) {
+            if (m_states.empty()) {
+                return;
+            }
+            for (auto& state : m_states) {
+                state->on_draw_ui();
+            }
+        }
+            
     }
 }
 
 void ScriptRunner::on_pre_application_entry(void* entry, const char* name, size_t hash) {
     std::scoped_lock _{ m_access_mutex };
 
-    if (m_state == nullptr) {
+    if (m_states.empty()) {
         return;
     }
-
-    m_state->on_pre_application_entry(hash);
+    for (auto& state : m_states)
+        state->on_pre_application_entry(hash);
 }
 
 void ScriptRunner::on_application_entry(void* entry, const char* name, size_t hash) {
     std::scoped_lock _{ m_access_mutex };
 
-    if (m_state == nullptr) {
+    if (m_states.empty()) {
         return;
     }
-
-    m_state->on_application_entry(hash);
+    for (auto& state : m_states)
+        state->on_application_entry(hash);
 }
 
 bool ScriptRunner::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_context) {
     std::scoped_lock _{ m_access_mutex };
 
-    if (m_state == nullptr) {
+     
+    if (m_main_state == nullptr) {
         return true;
     }
 
-    return m_state->on_pre_gui_draw_element(gui_element, primitive_context);
+    bool any_false = false;
+
+    for (auto& state : m_states) {
+        if (!state->on_pre_gui_draw_element(gui_element, primitive_context)) {
+            any_false = true;
+        }
+    }
+
+    return !any_false;
 }
 
 void ScriptRunner::on_gui_draw_element(REComponent* gui_element, void* primitive_context) {
     std::scoped_lock _{ m_access_mutex };
 
-    if (m_state == nullptr) {
+    if (m_states.empty()) {
         return;
     }
-
-    m_state->on_gui_draw_element(gui_element, primitive_context);
+    for (auto &state : m_states)
+        state->on_gui_draw_element(gui_element, primitive_context);
 }
 
 void ScriptRunner::spew_error(const std::string& p) {
@@ -897,6 +916,7 @@ void ScriptRunner::spew_error(const std::string& p) {
     m_last_script_error_time = std::chrono::system_clock::now();
 }
 
+
 void ScriptRunner::reset_scripts() {
     std::scoped_lock _{ m_access_mutex };
 
@@ -905,14 +925,14 @@ void ScriptRunner::reset_scripts() {
         m_last_script_error.clear();
     }
 
-    if (m_state != nullptr) {
+    if (!m_states.empty()) {
         auto& mods = g_framework->get_mods()->get_mods();
 
         for (auto& mod : mods) {
-            mod->on_lua_state_destroyed(m_state->lua());
+            mod->on_lua_state_destroyed(m_main_state->lua());
         }
 
-        m_state->on_script_reset();
+        m_main_state->on_script_reset();
     }
 
     // We need to explicitly destroy the state before we can create a new one.
@@ -920,8 +940,18 @@ void ScriptRunner::reset_scripts() {
     // this is useful in FirstPerson, where we use sdk.hook.
     // if we didn't destroy the state before creating a new one
     // the FirstPerson mod would attempt to hook an already hooked function
-    m_state.reset();
-    m_state = std::make_unique<ScriptState>(make_gc_data());
+    m_main_state.reset();
+    m_states.clear();
+    //creating the main lua state
+    m_main_state = std::make_shared<ScriptState>(make_gc_data(),true);
+    //inserting it into the states vector
+    m_states.insert(m_states.begin(),m_main_state);
+    //callback functions for main lua state creation
+    auto& mods = g_framework->get_mods()->get_mods();
+    for (auto& mod : mods) {
+        mod->on_lua_state_created(m_main_state->lua());
+    }
+
     m_loaded_scripts.clear();
     m_known_scripts.clear();
 
@@ -947,7 +977,7 @@ void ScriptRunner::reset_scripts() {
             }
 
             if (m_loaded_scripts_map[path.filename().string()] == true) {
-                m_state->run_script(path.string());
+                m_main_state->run_script(path.string());
                 m_loaded_scripts.emplace_back(path.filename().string());
             }
 

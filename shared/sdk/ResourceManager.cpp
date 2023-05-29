@@ -27,6 +27,29 @@ void Resource::release() {
     s_release_fn(this);
 }
 
+REManagedObject* Resource::create_holder(sdk::RETypeDefinition* t) {
+    if (t == nullptr) {
+        return nullptr;
+    }
+
+    static const auto resource_holder_t = sdk::find_type_definition("via.ResourceHolder");
+
+    if (resource_holder_t == nullptr || !t->is_a(resource_holder_t)) {
+        return nullptr;
+    }
+
+    auto instance = t->create_instance_full();
+
+    if (instance == nullptr) {
+        return nullptr;
+    }
+
+    this->add_ref();
+    *(sdk::Resource**)((uintptr_t)instance + sizeof(::REManagedObject)) = this;
+
+    return instance;
+}
+
 ResourceManager* ResourceManager::get() {
     return (ResourceManager*)sdk::get_native_singleton("via.ResourceManager");
 }
