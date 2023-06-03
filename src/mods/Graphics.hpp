@@ -1,8 +1,12 @@
 #pragma once
 
 #include <chrono>
+#include <unordered_map>
 
 #include "Mod.hpp"
+
+class REManagedObject;
+class REComponent;
 
 class Graphics : public Mod {
 public:
@@ -30,7 +34,8 @@ private:
     void do_ultrawide_fov_restore(bool force = false);
     void set_vertical_fov(bool enable);
 
-    float m_old_fov{90.0f};
+    std::recursive_mutex m_fov_mutex{};
+    std::unordered_map<::REManagedObject*, float> m_fov_map{};
 
     struct {
         std::shared_mutex time_mtx{};
