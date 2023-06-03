@@ -20,7 +20,7 @@ std::string& game_namespace(std::string_view base_name)
     static constexpr std::string_view prefix{
 #ifdef MHRISE
     "snow."sv
-#elif defined(RE8) || defined(RE7) || defined(DMC5)
+#elif defined(RE8) || defined(RE7) || defined(DMC5) || defined(SF6)
     "app."sv
 #elif RE4
     "chainsaw."sv

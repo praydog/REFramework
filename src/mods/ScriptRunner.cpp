@@ -10,6 +10,7 @@
 #include "sdk/RETypeDB.hpp"
 #include "sdk/SceneManager.hpp"
 #include "sdk/REMath.hpp"
+#include "sdk/SF6Utility.hpp"
 
 #include "utility/String.hpp"
 
@@ -539,6 +540,10 @@ void ScriptState::install_hooks() {
                 auto _ = state->scoped_lock();
                 auto result = PreHookResult::CALL_ORIGINAL;
 
+                if (ScriptRunner::get()->is_online_match()) {
+                    return result;
+                }
+
                 try {
                     if (pre_cb.is<sol::nil_t>()) {
                         return result;
@@ -579,6 +584,10 @@ void ScriptState::install_hooks() {
             },
             [post_cb, state = this](auto& ret_val, auto* ret_ty) {
                 auto _ = state->scoped_lock();
+                
+                if (ScriptRunner::get()->is_online_match()) {
+                    return;
+                }
 
                 try {
                     if (post_cb.is<sol::nil_t>()) {
@@ -656,6 +665,10 @@ std::optional<std::string> ScriptRunner::on_initialize() {
 void ScriptRunner::on_config_load(const utility::Config& cfg) {
     std::scoped_lock _{m_access_mutex};
 
+    if (m_last_online_match_state) {
+        return;
+    }
+
     for (IModValue& option : m_options) {
         option.config_load(cfg);
     }
@@ -667,6 +680,10 @@ void ScriptRunner::on_config_load(const utility::Config& cfg) {
 
 void ScriptRunner::on_config_save(utility::Config& cfg) {
     std::scoped_lock _{m_access_mutex};
+
+    if (m_last_online_match_state) {
+        return;
+    }
 
     for (IModValue& option : m_options) {
         option.config_save(cfg);
@@ -681,8 +698,72 @@ void ScriptRunner::on_config_save(utility::Config& cfg) {
     }
 }
 
+void ScriptRunner::hook_battle_rule() {
+    if (m_attempted_hook_battle_rule) {
+        return;
+    }
+
+    m_attempted_hook_battle_rule = true;
+
+    const auto br_t = sdk::find_type_definition("app.network.FGBattleSession.FGBattleRuleParam");
+    
+    if (br_t == nullptr) {
+        return;
+    }
+
+    const auto from_packet_data_method = br_t->get_method("FromPacketData(app.network.FGBattleSession.MsgBattleRule)");
+
+    if (from_packet_data_method != nullptr) {
+        g_hookman.add(from_packet_data_method, 
+        [this](std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys) -> HookManager::PreHookResult {
+            auto packet = (::REManagedObject*)args[2];
+            if (packet == nullptr) {
+                return HookManager::PreHookResult::CALL_ORIGINAL;
+            }
+
+            const auto game_mode = sdk::get_object_field<uint8_t>(packet, "GameMode");
+
+            if (game_mode == nullptr) {
+                return HookManager::PreHookResult::CALL_ORIGINAL;
+            }
+
+            switch((sdk::sf6::EGameMode)*game_mode) {
+            case sdk::sf6::EGameMode::RANKED_MATCH:
+            case sdk::sf6::EGameMode::PLAYER_MATCH:
+            case sdk::sf6::EGameMode::CABINET_MATCH:
+            case sdk::sf6::EGameMode::CUSTOM_ROOM_MATCH:
+            case sdk::sf6::EGameMode::ONLINE_TRAINING:
+                this->set_last_battle_type(*game_mode);
+                this->set_last_online_match_state();
+                break;
+
+            default:
+                break;
+            }
+
+            return HookManager::PreHookResult::CALL_ORIGINAL;
+        },
+        [this](uintptr_t& ret_val, sdk::RETypeDefinition* ret_ty) -> void {
+            auto bt = this->get_last_battle_type();
+
+            if (bt.has_value()) {
+                sdk::sf6::set_game_mode((sdk::sf6::EGameMode)bt.value());
+            }
+        });
+    }
+}
+
 void ScriptRunner::on_frame() {
     std::scoped_lock _{m_access_mutex};
+
+    hook_battle_rule();
+
+    if (m_last_battle_type.has_value()) {
+        sdk::sf6::set_network_game_mode((sdk::sf6::EGameMode)*m_last_battle_type);
+        m_last_battle_type = std::nullopt;
+    }
+
+    m_last_online_match_state = sdk::sf6::is_online_match();
 
     if (m_needs_first_reset) {
         spdlog::info("[ScriptRunner] Initializing Lua state for the first time...");
@@ -703,15 +784,17 @@ void ScriptRunner::on_frame() {
     if (m_main_state == nullptr) {
         return;
     }
-    //call on_frame functions for all states
-    for (auto &state : m_states) {
-        state->on_frame();
-    }
 
-    // install_hooks gets called here because it ensures hooks get installed the next frame after they've been 
-    // enqueued. This prevents a race that can occur if hooks were installed immediately during script loading.
-    for (auto& state : m_states) {
-        state->install_hooks();
+    if (!m_last_online_match_state) {
+        for (auto &state : m_states) {
+            state->on_frame();
+        }
+
+        // install_hooks gets called here because it ensures hooks get installed the next frame after they've been 
+        // enqueued. This prevents a race that can occur if hooks were installed immediately during script loading.
+        for (auto& state : m_states) {
+            state->install_hooks();
+        }
     }
 }
 
@@ -719,6 +802,11 @@ void ScriptRunner::on_draw_ui() {
     ImGui::SetNextItemOpen(false, ImGuiCond_::ImGuiCond_Once);
 
     if (ImGui::CollapsingHeader(get_name().data())) {
+        if (m_last_online_match_state) {
+            ImGui::TextWrapped("Online match detected. Scripts will not be loaded. Existing scripts have been unloaded.");
+            return;
+        }
+
         if (ImGui::Button("Run script")) {
             OPENFILENAME ofn{};
             char file[260]{};
@@ -835,7 +923,7 @@ void ScriptRunner::on_draw_ui() {
         }
     }
 
-    { 
+    if (!m_last_online_match_state) { 
         std::scoped_lock _{ m_access_mutex };
 
 
@@ -857,8 +945,14 @@ void ScriptRunner::on_pre_application_entry(void* entry, const char* name, size_
     if (m_states.empty()) {
         return;
     }
-    for (auto& state : m_states)
+
+    if (m_last_online_match_state) {
+        return;
+    }
+
+    for (auto& state : m_states) {
         state->on_pre_application_entry(hash);
+    }
 }
 
 void ScriptRunner::on_application_entry(void* entry, const char* name, size_t hash) {
@@ -867,13 +961,22 @@ void ScriptRunner::on_application_entry(void* entry, const char* name, size_t ha
     if (m_states.empty()) {
         return;
     }
-    for (auto& state : m_states)
+
+    if (m_last_online_match_state) {
+        return;
+    }
+
+    for (auto& state : m_states) {
         state->on_application_entry(hash);
+    }
 }
 
 bool ScriptRunner::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_context) {
     std::scoped_lock _{ m_access_mutex };
 
+    if (m_last_online_match_state) {
+        return true;
+    }
      
     if (m_main_state == nullptr) {
         return true;
@@ -893,11 +996,17 @@ bool ScriptRunner::on_pre_gui_draw_element(REComponent* gui_element, void* primi
 void ScriptRunner::on_gui_draw_element(REComponent* gui_element, void* primitive_context) {
     std::scoped_lock _{ m_access_mutex };
 
+    if (m_last_online_match_state) {
+        return;
+    }
+
     if (m_states.empty()) {
         return;
     }
-    for (auto &state : m_states)
+
+    for (auto &state : m_states) {
         state->on_gui_draw_element(gui_element, primitive_context);
+    }
 }
 
 void ScriptRunner::spew_error(const std::string& p) {
@@ -946,6 +1055,7 @@ void ScriptRunner::reset_scripts() {
     m_main_state = std::make_shared<ScriptState>(make_gc_data(),true);
     //inserting it into the states vector
     m_states.insert(m_states.begin(),m_main_state);
+
     //callback functions for main lua state creation
     auto& mods = g_framework->get_mods()->get_mods();
     for (auto& mod : mods) {

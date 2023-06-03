@@ -193,6 +193,19 @@ public:
     void on_config_load(const utility::Config& cfg) override;
     void on_config_save(utility::Config& cfg) override;
 
+    void hook_battle_rule();
+    void set_last_battle_type(uint8_t t) {
+        m_last_battle_type = t;
+    }
+    auto get_last_battle_type() {
+        return m_last_battle_type;
+    }
+    void set_last_online_match_state() {
+        m_last_online_match_state = true;
+    }
+    bool is_online_match() {
+        return m_last_online_match_state;
+    }
     void on_frame() override;
     void on_draw_ui() override;
     void on_pre_application_entry(void* entry, const char* name, size_t hash) override;
@@ -276,6 +289,9 @@ private:
 
     bool m_console_spawned{false};
     bool m_needs_first_reset{true};
+    bool m_last_online_match_state{false};
+    bool m_attempted_hook_battle_rule{false};
+    std::optional<uint8_t> m_last_battle_type{};
     const ModToggle::Ptr m_log_to_disk{ ModToggle::create(generate_name("LogToDisk"), false) };
 
     const ModCombo::Ptr m_gc_handler { 

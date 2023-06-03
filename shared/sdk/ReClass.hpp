@@ -8,6 +8,8 @@
 #pragma pack(push, r1, 1)
 #ifdef DMC5
 #include "ReClass_Internal_DMC5.hpp"
+#elif defined(SF6)
+#include "ReClass_Internal_SF6.hpp"
 #elif defined(MHRISE)
 #include "ReClass_Internal_RE8.hpp"
 #elif defined(RE8)
