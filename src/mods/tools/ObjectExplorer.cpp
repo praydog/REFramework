@@ -1874,7 +1874,7 @@ void ObjectExplorer::generate_sdk() {
 #if TDB_VER > 49
         // Generate Methods
         if (fields->methods != nullptr) {
-            for (auto i = 0; i < num_methods; ++i) {
+            for (auto i = 0; i < num_methods; ++i) try {
                 auto top = (*methods)[i];
 
                 if (top == nullptr) {
@@ -1934,6 +1934,8 @@ void ObjectExplorer::generate_sdk() {
                     {"typeindex", descriptor->typeIndex}
                 };
 #endif
+            } catch(...) {
+                continue; // unexplained crash
             }
         }
 #endif
@@ -3561,6 +3563,14 @@ int32_t ObjectExplorer::get_field_offset(REManagedObject* obj, VariableDescripto
         return m_offset_map[desc];
     }
 
+    if (parent_hash == "via.gui.TransformObject"_fnv && name_hash == "WorldMatrix"_fnv) {
+        return m_offset_map[desc];
+    }
+
+    if (parent_hash == "via.gui.TransformObject"_fnv && name_hash == "GlobalPosition"_fnv) {
+        return m_offset_map[desc];
+    }
+
     auto thread_context = sdk::get_thread_context();
 
     // Set up our "translator" to throw on any exception,
@@ -3965,48 +3975,54 @@ void ObjectExplorer::populate_enums() {
     bool has_enums = false;
 
 #if TDB_VER > 49
-    auto ref = utility::scan(g_framework->get_module().as<HMODULE>(), "66 C7 40 18 01 01 48 89 05 ? ? ? ?");
+    try {
+        auto ref = utility::scan(g_framework->get_module().as<HMODULE>(), "66 C7 40 18 01 01 48 89 05 ? ? ? ?");
 
-    if (ref) {
-        std::ofstream out_file(REFramework::get_persistent_dir("Enums_Internal.hpp"));
+        if (ref) {
+            std::ofstream out_file(REFramework::get_persistent_dir("Enums_Internal.hpp"));
 
-        auto& l = *(std::map<uint64_t, REEnumData>*)(utility::calculate_absolute(*ref + 9));
-        spdlog::info("EnumList: {:x}", (uintptr_t)&l);
-        spdlog::info("Size: {}", l.size());
+            auto& l = *(std::map<uint64_t, REEnumData>*)(utility::calculate_absolute(*ref + 9));
+            spdlog::info("EnumList: {:x}", (uintptr_t)&l);
+            spdlog::info("Size: {}", l.size());
 
-        has_enums = l.size() > 0;
+            has_enums = l.size() > 0;
 
-        for (auto& elem : l) {
-            spdlog::info(" {:x}[ {} {} ]", (uintptr_t)&elem, elem.first, elem.second.name);
+            for (auto& elem : l) {
+                spdlog::info(" {:x}[ {} {} ]", (uintptr_t)&elem, elem.first, elem.second.name);
 
-            std::string name = elem.second.name;
-            std::string nspace = name.substr(0, name.find_last_of("."));
-            name = name.substr(name.find_last_of(".") + 1);
+                std::string name = elem.second.name;
+                std::string nspace = name.substr(0, name.find_last_of("."));
+                name = name.substr(name.find_last_of(".") + 1);
 
-            for (auto pos = nspace.find("."); pos != std::string::npos; pos = nspace.find(".")) {
-                nspace.replace(pos, 1, "::");
-            }
-
-
-            out_file << "namespace " << nspace << " {" << std::endl;
-            out_file << "    enum " << name << " {" << std::endl;
-
-            for (auto node = elem.second.values; node != nullptr; node = node->next) {
-                if (node->name == nullptr) {
-                    continue;
+                for (auto pos = nspace.find("."); pos != std::string::npos; pos = nspace.find(".")) {
+                    nspace.replace(pos, 1, "::");
                 }
 
-                spdlog::info("     {} = {}", node->name, node->value);
-                out_file << "        " << node->name << " = " << node->value << "," << std::endl;
 
-                m_enums.emplace(elem.second.name, EnumDescriptor{ node->name, node->value });
+                out_file << "namespace " << nspace << " {" << std::endl;
+                out_file << "    enum " << name << " {" << std::endl;
+
+                for (auto node = elem.second.values; node != nullptr; node = node->next) {
+                    if (node->name == nullptr) {
+                        continue;
+                    }
+
+                    spdlog::info("     {} = {}", node->name, node->value);
+                    out_file << "        " << node->name << " = " << node->value << "," << std::endl;
+
+                    m_enums.emplace(elem.second.name, EnumDescriptor{ node->name, node->value });
+                }
+
+                out_file << "    };" << std::endl;
+                out_file << "}" << std::endl;
             }
-
-            out_file << "    };" << std::endl;
-            out_file << "}" << std::endl;
+        } else {
+            spdlog::error("Failed to find EnumList");
         }
-    } else {
-        spdlog::error("Failed to find EnumList");
+    } catch(...) {
+        has_enums = false;
+        m_enums.clear();
+        spdlog::error("Unknown exception caught while populating enums, falling back to other method.");
     }
 #endif
 
