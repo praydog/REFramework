@@ -2338,6 +2338,10 @@ void ObjectExplorer::handle_component(REComponent* component) {
         }
     };
 
+    if (ImGui::Button("Destroy Component")) {
+        sdk::call_object_func<void>(component, "destroy", sdk::get_thread_context(), component);
+    }
+
     make_tree_offset(component, offsetof(REComponent, ownerGameObject), "Owner", [&](){  display_component_preview(component); });
     //make_tree_offset(component, offsetof(REComponent, childComponent), "ChildComponent");
 
