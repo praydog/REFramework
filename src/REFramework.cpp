@@ -294,12 +294,12 @@ REFramework::REFramework(HMODULE reframework_module)
 
     IntegrityCheckBypass::ignore_application_entries();
 
-#if defined(RE8) || defined(RE4)
+#if defined(RE8) || defined(RE4) || defined(SF6)
     // Also done on RE4 because some of the scans are the same.
     IntegrityCheckBypass::immediate_patch_re8();
 #endif
 
-#if defined(RE4)
+#if defined(RE4) || defined(SF6)
     // Fixes new code added in RE4 only.
     IntegrityCheckBypass::immediate_patch_re4();
 #endif

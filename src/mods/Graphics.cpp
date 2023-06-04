@@ -408,16 +408,16 @@ void Graphics::do_ultrawide_fov_restore(bool force) {
     static auto via_camera = sdk::find_type_definition("via.Camera");
     static auto set_fov_method = via_camera->get_method("set_FOV");
 
-    auto camera = sdk::get_primary_camera();
+    if (set_fov_method != nullptr && m_ultrawide_fov->value()) {
+        std::scoped_lock _{m_fov_mutex};
 
-    if (camera == nullptr) {
-        return;
-    }
-
-    if (set_fov_method != nullptr) {
-        if (m_ultrawide_fov->value()) {
-            set_fov_method->call(sdk::get_thread_context(), camera, m_old_fov);
+        for (auto it : m_fov_map) {
+            auto camera = it.first;
+            set_fov_method->call(sdk::get_thread_context(), camera, m_fov_map[camera]);
+            utility::re_managed_object::release(camera);
         }
+
+        m_fov_map.clear();
     }
 }
 
@@ -455,7 +455,17 @@ void Graphics::set_vertical_fov(bool enable) {
 
     if (m_ultrawide_fov->value() && get_fov_method != nullptr && set_fov_method != nullptr && get_aspect_method != nullptr) {
         const auto fov = get_fov_method->call<float>(sdk::get_thread_context(), camera);
-        m_old_fov = fov;
+
+        {
+            std::scoped_lock _{m_fov_mutex};
+            
+            if (!m_fov_map.contains(camera)) {
+                m_fov_map[camera] = fov;
+                utility::re_managed_object::add_ref(camera);
+            } else {
+                m_fov_map[camera] = fov;
+            }
+        }
 
         if (!was_vertical_fov_enabled) {
             constexpr auto old_aspect_ratio = 16.0f / 9.0f;

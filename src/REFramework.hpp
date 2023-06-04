@@ -94,6 +94,8 @@ public:
         return "dmc5";
     #elif defined(MHRISE)
         return "mhrise";
+    #elif defined(SF6)
+        return "sf6";
     #else
         return "unknown";
     #endif
