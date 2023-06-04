@@ -10,6 +10,7 @@
 #include <dxgi1_4.h>
 
 #include "utility/PointerHook.hpp"
+#include "utility/VtableHook.hpp"
 
 class D3D12Hook
 {
@@ -108,12 +109,12 @@ protected:
 
     bool m_using_proton_swapchain{ false };
     bool m_hooked{ false };
+    bool m_is_phase_1{ true };
     bool m_inside_present{false};
     bool m_ignore_next_present{false};
 
     std::unique_ptr<PointerHook> m_present_hook{};
-    std::unique_ptr<PointerHook> m_resize_buffers_hook{};
-    std::unique_ptr<PointerHook> m_resize_target_hook{};
+    std::unique_ptr<VtableHook> m_swapchain_hook{};
     //std::unique_ptr<FunctionHook> m_create_swap_chain_hook{};
 
     OnPresentFn m_on_present{ nullptr };

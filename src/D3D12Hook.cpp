@@ -298,19 +298,12 @@ bool D3D12Hook::hook() {
         spdlog::info("Initializing hooks");
 
         m_present_hook.reset();
-        m_resize_buffers_hook.reset();
-        m_resize_target_hook.reset();
+        m_swapchain_hook.reset();
+
+        m_is_phase_1 = true;
 
         auto& present_fn = (*(void***)swap_chain)[8]; // Present
-        auto& resize_buffers_fn = (*(void***)swap_chain)[13]; // ResizeBuffers
-        auto& resize_target_fn = (*(void***)swap_chain)[14]; // ResizeTarget
-        auto& create_swap_chain_fn = (*(void***)factory)[15]; // CreateSwapChainForHwnd
-
         m_present_hook = std::make_unique<PointerHook>(&present_fn, (void*)&D3D12Hook::present);
-        m_resize_buffers_hook = std::make_unique<PointerHook>(&resize_buffers_fn, (void*)&D3D12Hook::resize_buffers);
-        m_resize_target_hook = std::make_unique<PointerHook>(&resize_target_fn, (void*)&D3D12Hook::resize_target);
-        //m_create_swap_chain_hook = std::make_unique<FunctionHook>(create_swap_chain_fn, (uintptr_t)&D3D12Hook::create_swap_chain);
-
         m_hooked = true;
     } catch (const std::exception& e) {
         spdlog::error("Failed to initialize hooks: {}", e.what());
@@ -343,12 +336,13 @@ bool D3D12Hook::unhook() {
 
     spdlog::info("Unhooking D3D12");
 
-    if (m_present_hook->remove() && m_resize_buffers_hook->remove() && m_resize_target_hook->remove() /*&& m_create_swap_chain_hook->remove()*/) {
-        m_hooked = false;
-        return true;
-    }
+    m_present_hook.reset();
+    m_swapchain_hook.reset();
 
-    return false;
+    m_hooked = false;
+    m_is_phase_1 = true;
+
+    return true;
 }
 
 thread_local int32_t g_present_depth = 0;
@@ -358,14 +352,33 @@ HRESULT WINAPI D3D12Hook::present(IDXGISwapChain3* swap_chain, UINT sync_interva
 
     auto d3d12 = g_d3d12_hook;
 
-    // This line must be called before calling our detour function because we might have to unhook the function inside our detour.
-    auto present_fn = d3d12->m_present_hook->get_original<decltype(D3D12Hook::present)*>();
-
     HWND swapchain_wnd{nullptr};
     swap_chain->GetHwnd(&swapchain_wnd);
 
-    if (WindowFilter::get().is_filtered(swapchain_wnd)) {
+    decltype(D3D12Hook::present)* present_fn{nullptr};
+
+    if (d3d12->m_is_phase_1) {
+        present_fn = d3d12->m_present_hook->get_original<decltype(D3D12Hook::present)*>();
+    } else {
+        present_fn = d3d12->m_swapchain_hook->get_method<decltype(D3D12Hook::present)*>(8);
+    }
+
+    if (d3d12->m_is_phase_1 && WindowFilter::get().is_filtered(swapchain_wnd)) {
+        present_fn = d3d12->m_present_hook->get_original<decltype(D3D12Hook::present)*>();
         return present_fn(swap_chain, sync_interval, flags);
+    }
+
+    if (d3d12->m_is_phase_1) {
+        d3d12->m_present_hook.reset();
+
+        // vtable hook the swapchain instead of global hooking
+        // this seems safer for whatever reason
+        // if we globally hook the vtable pointers, it causes all sorts of weird conflicts with other hooks
+        d3d12->m_swapchain_hook = std::make_unique<VtableHook>(swap_chain);
+        d3d12->m_swapchain_hook->hook_method(8, (uintptr_t)&D3D12Hook::present);
+        d3d12->m_swapchain_hook->hook_method(13, (uintptr_t)&D3D12Hook::resize_buffers);
+        d3d12->m_swapchain_hook->hook_method(14, (uintptr_t)&D3D12Hook::resize_target);
+        d3d12->m_is_phase_1 = false;
     }
 
     d3d12->m_inside_present = true;
@@ -458,15 +471,17 @@ HRESULT WINAPI D3D12Hook::resize_buffers(IDXGISwapChain3* swap_chain, UINT buffe
     spdlog::info(" Parameters: buffer_count {} width {} height {} new_format {} swap_chain_flags {}", buffer_count, width, height, new_format, swap_chain_flags);
 
     auto d3d12 = g_d3d12_hook;
-    auto& hook = d3d12->m_resize_buffers_hook;
-    auto resize_buffers_fn = hook->get_original<decltype(D3D12Hook::resize_buffers)*>();
+    //auto& hook = d3d12->m_resize_buffers_hook;
+    //auto resize_buffers_fn = hook->get_original<decltype(D3D12Hook::resize_buffers)*>();
 
     HWND swapchain_wnd{nullptr};
     swap_chain->GetHwnd(&swapchain_wnd);
 
-    if (WindowFilter::get().is_filtered(swapchain_wnd)) {
+    /*if (WindowFilter::get().is_filtered(swapchain_wnd)) {
         return resize_buffers_fn(swap_chain, buffer_count, width, height, new_format, swap_chain_flags);
-    }
+    }*/
+
+    auto resize_buffers_fn = d3d12->m_swapchain_hook->get_method<decltype(D3D12Hook::resize_buffers)*>(13);
 
     d3d12->m_display_width = width;
     d3d12->m_display_height = height;
@@ -526,14 +541,16 @@ HRESULT WINAPI D3D12Hook::resize_target(IDXGISwapChain3* swap_chain, const DXGI_
     spdlog::info(" Parameters: new_target_parameters {:x}", (uintptr_t)new_target_parameters);
 
     auto d3d12 = g_d3d12_hook;
-    auto resize_target_fn = d3d12->m_resize_target_hook->get_original<decltype(D3D12Hook::resize_target)*>();
+    //auto resize_target_fn = d3d12->m_resize_target_hook->get_original<decltype(D3D12Hook::resize_target)*>();
 
     HWND swapchain_wnd{nullptr};
     swap_chain->GetHwnd(&swapchain_wnd);
 
-    if (WindowFilter::get().is_filtered(swapchain_wnd)) {
+    /*if (WindowFilter::get().is_filtered(swapchain_wnd)) {
         return resize_target_fn(swap_chain, new_target_parameters);
-    }
+    }*/
+
+    auto resize_target_fn = d3d12->m_swapchain_hook->get_method<decltype(D3D12Hook::resize_target)*>(14);
 
     d3d12->m_render_width = new_target_parameters->Width;
     d3d12->m_render_height = new_target_parameters->Height;
