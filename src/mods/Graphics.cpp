@@ -456,11 +456,15 @@ void Graphics::set_vertical_fov(bool enable) {
     if (m_ultrawide_fov->value() && get_fov_method != nullptr && set_fov_method != nullptr && get_aspect_method != nullptr) {
         const auto fov = get_fov_method->call<float>(sdk::get_thread_context(), camera);
 
-        if (!m_fov_map.contains(camera)) {
-            m_fov_map[camera] = fov;
-            utility::re_managed_object::add_ref(camera);
-        } else {
-            m_fov_map[camera] = fov;
+        {
+            std::scoped_lock _{m_fov_mutex};
+            
+            if (!m_fov_map.contains(camera)) {
+                m_fov_map[camera] = fov;
+                utility::re_managed_object::add_ref(camera);
+            } else {
+                m_fov_map[camera] = fov;
+            }
         }
 
         if (!was_vertical_fov_enabled) {
