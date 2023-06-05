@@ -35,6 +35,10 @@
 #include "sdk/regenny/re4/via/motion/Chain.hpp"
 #include "sdk/regenny/re4/via/motion/ChainCollisions.hpp"
 #include "sdk/regenny/re4/via/motion/ChainCollisionTop.hpp"
+#elif defined (SF6)
+#include "sdk/regenny/sf6/via/motion/Chain.hpp"
+#include "sdk/regenny/sf6/via/motion/ChainCollisions.hpp"
+#include "sdk/regenny/sf6/via/motion/ChainCollisionTop.hpp"
 #else
 #include "sdk/regenny/re2_tdb70/via/motion/Chain.hpp"
 #include "sdk/regenny/re2_tdb70/via/motion/ChainCollisionTop.hpp"
