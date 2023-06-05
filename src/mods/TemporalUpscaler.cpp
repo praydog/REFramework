@@ -27,6 +27,9 @@
 #ifdef RE4
 #include "sdk/regenny/re4/via/Window.hpp"
 #include "sdk/regenny/re4/via/SceneView.hpp"
+#elif defined(SF6)
+#include "sdk/regenny/sf6/via/Window.hpp"
+#include "sdk/regenny/sf6/via/SceneView.hpp"
 #else
 #include "sdk/regenny/re8/via/Window.hpp"
 #include "sdk/regenny/re8/via/SceneView.hpp"

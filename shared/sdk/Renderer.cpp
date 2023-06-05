@@ -1160,9 +1160,21 @@ RECamera* layer::Scene::get_main_camera_if_possible() const {
         return nullptr;
     }
 
-    if (utility::re_string::get_view(camera_gameobject->name) == L"MainCamera" ||
-        utility::re_string::get_view(camera_gameobject->name) == L"Main Camera") {
-        return camera;
+    const auto name = utility::re_string::get_view(camera_gameobject->name);
+
+    static const std::vector<std::wstring> camera_names = {
+        L"MainCamera",
+        L"Main Camera",
+        L"ess_DefaultCamera",
+        L"ess_DefaultCamera_01",
+        L"WTMainCamera",
+        L"DefaultCamera"
+    };
+
+    for (const auto& camera_name : camera_names) {
+        if (name == camera_name) {
+            return camera;
+        }
     }
 
     return nullptr;

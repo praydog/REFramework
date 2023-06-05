@@ -38,6 +38,10 @@ namespace via {
     struct Object {
         void* vtable;
     };
+
+    struct Camera 0x1000 {
+        int32_t priority @ 0x48
+    }
 };
 
 namespace via.clr {
@@ -47,6 +51,11 @@ namespace via.clr {
         uint32_t unk
     }
 }
+
+namespace via {
+struct Camera : via.clr.ManagedObject {
+};
+};
 
 
 namespace via {
@@ -1049,4 +1058,335 @@ struct MotionFsm2Resource 0x220 {
 
 }
 
+namespace via {
+namespace render{
+enum class UsageType : uint32_t {
+	Default = 0,
+	Immutable = 1,
+	Dynamic = 2,
+	Staging = 3,
+};
+
+enum class TextureFormat : uint32_t {
+        Unknown = 0,
+        R32G32B32A32Typeless = 1,
+        R32G32B32A32Float = 2,
+        R32G32B32A32Uint = 3,
+        R32G32B32A32Sint = 4,
+        R32G32B32Typeless = 5,
+        R32G32B32Float = 6,
+        R32G32B32Uint = 7,
+        R32G32B32Sint = 8,
+        R16G16B16A16Typeless = 9,
+        R16G16B16A16Float = 10,
+        R16G16B16A16Unorm = 11,
+        R16G16B16A16Uint = 12,
+        R16G16B16A16Snorm = 13,
+        R16G16B16A16Sint = 14,
+        R32G32Typeless = 15,
+        R32G32Float = 16,
+        R32G32Uint = 17,
+        R32G32Sint = 18,
+        R32G8X24Typeless = 19,
+        D32FloatS8X24Uint = 20,
+        R32FloatX8X24Typeless = 21,
+        X32TypelessG8X24Uint = 22,
+        R10G10B10A2Typeless = 23,
+        R10G10B10A2Unorm = 24,
+        R10G10B10A2Uint = 25,
+        R11G11B10Float = 26,
+        R8G8B8A8Typeless = 27,
+        R8G8B8A8Unorm = 28,
+        R8G8B8A8UnormSrgb = 29,
+        R8G8B8A8Uint = 30,
+        R8G8B8A8Snorm = 31,
+        R8G8B8A8Sint = 32,
+        R16G16Typeless = 33,
+        R16G16Float = 34,
+        R16G16Unorm = 35,
+        R16G16Uint = 36,
+        R16G16Snorm = 37,
+        R16G16Sint = 38,
+        R32Typeless = 39,
+        D32Float = 40,
+        R32Float = 41,
+        R32Uint = 42,
+        R32Sint = 43,
+        R24G8Typeless = 44,
+        D24UnormS8Uint = 45,
+        R24UnormX8Typeless = 46,
+        X24TypelessG8Uint = 47,
+        R8G8Typeless = 48,
+        R8G8Unorm = 49,
+        R8G8Uint = 50,
+        R8G8Snorm = 51,
+        R8G8Sint = 52,
+        R16Typeless = 53,
+        R16Float = 54,
+        D16Unorm = 55,
+        R16Unorm = 56,
+        R16Uint = 57,
+        R16Snorm = 58,
+        R16Sint = 59,
+        R8Typeless = 60,
+        R8Unorm = 61,
+        R8Uint = 62,
+        R8Snorm = 63,
+        R8Sint = 64,
+        A8Unorm = 65,
+        R1Unorm = 66,
+        R9G9B9E5Sharedexp = 67,
+        R8G8B8G8Unorm = 68,
+        G8R8G8B8Unorm = 69,
+        Bc1Typeless = 70,
+        Bc1Unorm = 71,
+        Bc1UnormSrgb = 72,
+        Bc2Typeless = 73,
+        Bc2Unorm = 74,
+        Bc2UnormSrgb = 75,
+        Bc3Typeless = 76,
+        Bc3Unorm = 77,
+        Bc3UnormSrgb = 78,
+        Bc4Typeless = 79,
+        Bc4Unorm = 80,
+        Bc4Snorm = 81,
+        Bc5Typeless = 82,
+        Bc5Unorm = 83,
+        Bc5Snorm = 84,
+        B5G6R5Unorm = 85,
+        B5G5R5A1Unorm = 86,
+        B8G8R8A8Unorm = 87,
+        B8G8R8X8Unorm = 88,
+        R10G10B10xrBiasA2Unorm = 89,
+        B8G8R8A8Typeless = 90,
+        B8G8R8A8UnormSrgb = 91,
+        B8G8R8X8Typeless = 92,
+        B8G8R8X8UnormSrgb = 93,
+        Bc6hTypeless = 94,
+        Bc6hUF16 = 95,
+        Bc6hSF16 = 96,
+        Bc7Typeless = 97,
+        Bc7Unorm = 98,
+        Bc7UnormSrgb = 99,
+        ViaExtension = 1024,
+        Astc4x4Typeless = 1025,
+        Astc4x4Unorm = 1026,
+        Astc4x4UnormSrgb = 1027,
+        Astc5x4Typeless = 1028,
+        Astc5x4Unorm = 1029,
+        Astc5x4UnormSrgb = 1030,
+        Astc5x5Typeless = 1031,
+        Astc5x5Unorm = 1032,
+        Astc5x5UnormSrgb = 1033,
+        Astc6x5Typeless = 1034,
+        Astc6x5Unorm = 1035,
+        Astc6x5UnormSrgb = 1036,
+        Astc6x6Typeless = 1037,
+        Astc6x6Unorm = 1038,
+        Astc6x6UnormSrgb = 1039,
+        Astc8x5Typeless = 1040,
+        Astc8x5Unorm = 1041,
+        Astc8x5UnormSrgb = 1042,
+        Astc8x6Typeless = 1043,
+        Astc8x6Unorm = 1044,
+        Astc8x6UnormSrgb = 1045,
+        Astc8x8Typeless = 1046,
+        Astc8x8Unorm = 1047,
+        Astc8x8UnormSrgb = 1048,
+        Astc10x5Typeless = 1049,
+        Astc10x5Unorm = 1050,
+        Astc10x5UnormSrgb = 1051,
+        Astc10x6Typeless = 1052,
+        Astc10x6Unorm = 1053,
+        Astc10x6UnormSrgb = 1054,
+        Astc10x8Typeless = 1055,
+        Astc10x8Unorm = 1056,
+        Astc10x8UnormSrgb = 1057,
+        Astc10x10Typeless = 1058,
+        Astc10x10Unorm = 1059,
+        Astc10x10UnormSrgb = 1060,
+        Astc12x10Typeless = 1061,
+        Astc12x10Unorm = 1062,
+        Astc12x10UnormSrgb = 1063,
+        Astc12x12Typeless = 1064,
+        Astc12x12Unorm = 1065,
+        Astc12x12UnormSrgb = 1066,
+        ForceUint = 2147483647,
+};
+
+enum class TextureStreamingType : uint32_t {
+	None = 0,
+	Streaming = 1,
+	HighMap = 2,
+};
+
+struct Poop 0x1000 {
+};
+
+struct SceneArray2 {
+    via.Scene** elements
+    uint32_t count
+}
+
+struct RenderOutput : via.Component 0x1000 {
+    SceneArray2 scenes @ 0x98
+}
+
+struct RenderResource {
+    //void* vtable;
+	Poop* unkpoop;
+    int32_t ref_count @ 8;
+    uint32_t render_frame
+};
+
+struct TextureDesc {
+	uint32_t width;
+	uint32_t height;
+	uint32_t depth;
+	uint32_t mip;
+	uint32_t arr;
+	via.render.TextureFormat format;
+	uint32_t sample_desc_count;
+	uint32_t sample_desc_quality;
+	via.render.UsageType usage_type;
+	uint32_t bind_flags;
+	uint32_t option_flags;
+	via.render.TextureStreamingType streaming_type;
+	uint32_t unk;
+	uint64_t alloc_thing + 4;
+	uint32_t tile;
+	void* unkptr + 4;
+};
+
+struct DXResource : via.render.RenderResource {
+	struct ID3D12Resource* dx_resource;
+	void* destructor;
+};
+
+struct Texture : RenderResource {
+    via.render.UsageType usage_type;
+    TextureDesc desc + 4;
+	uint32_t vram;
+	uint32_t pad_;
+};
+
+struct TextureDX12 : Texture 0x1000 {
+    uint16_t index + 2; // might not be right.
+	DXResource* unk_resource + 0xC;
+	uint32_t last_frame;
+	uint32_t locked_thing;
+	uint32_t scale;
+	bool b1;
+	bool b2;
+
+	DXResource* resource @ 0xA0
+	// IDK
+};
+
+struct LayerArray {
+    struct via.render.RenderLayer** elements
+    uint32_t num;
+    uint32_t num_allocated;
+};
+
+struct RTL_CRITICAL_SECTION
+{
+    struct RTL_CRITICAL_SECTION_DEBUG *DebugInfo;
+    int32_t LockCount;
+    int32_t RecursionCount;
+    void* OwningThread;
+    void* LockSemaphore;
+    uint64_t SpinCount;
+};
+
+struct RenderLayer : via.clr.ManagedObject 0x88 {
+    uint32_t m_id;
+    uint32_t m_render_output_id;
+    uint32_t m_render_output_id_2;
+    uint32_t m_priority;
+	uint32_t m_priority_offsets[7];
+    via.render.RenderLayer* m_parent + 4;
+    LayerArray layers @ 0x48;  
+    RTL_CRITICAL_SECTION m_mutex;
+    uint32_t version
+};
+
+struct RenderTargetView : via.render.RenderResource 0x90 {
+    uint32_t format
+    uint32_t dimension
+}
+
+struct RenderTargetViewDX12 : RenderTargetView 0x100 {
+    struct via.render.TargetState* output_target
+    TextureDX12* tex
+}
+
+struct DepthStencilView : via.render.RenderResource 0x18 {
+    uint32_t format
+
+}
+
+struct DepthStencilViewDX12 : DepthStencilView 0x100 {
+    uint32_t format2
+    TextureDX12* tex @ 0x30
+}
+
+struct TargetState : via.render.RenderResource 0x1000 {
+    RenderTargetViewDX12** rtvs
+    DepthStencilViewDX12* ds
+    uint32_t num_rtv
+    float left
+    float right
+    float top
+    float bottom
+    uint32_t flag
+}
+
+namespace layer{
+struct Scene : via.render.RenderLayer 0x1AC0 {
+    via.Camera* camera;
+    struct via.render.Mirror* mirror;
+    struct via.render.TargetState* buffer_pre_z;
+    struct via.render.TargetState* hdr_target;
+    struct via.render.TargetState* hdr_target_with_velocity;
+    struct via.render.TargetState* hdr_target_with_user_attribute_custom_params;
+    struct via.render.TargetState* hdr_target_with_readonly_depth;
+	struct via.render.TargetState* depth_target @ 0x108;
+    struct via.render.TargetState* velocity_target @ 0x118;
+    struct via.render.TargetState* g_buffer_target
+    struct via.render.TargetState* non_decal_g_buffer_target
+    struct via.render.TargetState* post_main_target @ 0x138
+    struct via.render.TargetState* post_depth_target @ 0x140
+
+    float lod_bias[2] @ 0x1818
+};
+
+struct PrepareOutput : via.render.RenderLayer 0x1000 {
+    via.render.TargetState* output_state @ 0x108
+};
+}
+
+struct SceneInfo {
+  via.mat4 view_proj_matrix;
+  via.mat4 view_matrix;
+  via.mat4 inverse_view_matrix;
+  via.mat4 projection_matrix;
+  via.mat4 inverse_projection_matrix;
+  via.mat4 inverse_view_projection_matrix;
+  via.mat4 old_view_projection_matrix;
+  via.vec3 camera_pos;
+  float z_near;
+  via.vec3 camera_dir;
+  float z_far;
+  via.vec4 view_frustum[6];
+  via.vec3 z_linear;
+  float pixel_cull;
+  float screen_size[2];
+  float screen_size_inverse[2];
+  via.vec4 clip_plane;
+  float subdivision;
+  float variable_rate_shading_threshold;
+};
+}
+}
 }
