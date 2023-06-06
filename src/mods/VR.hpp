@@ -234,6 +234,9 @@ public:
     }
 
     std::array<RECamera*, 2> get_cameras() const;
+    auto& get_camera_duplicator() {
+        return m_camera_duplicator;
+    }
 
 private:
     Vector4f get_position_unsafe(uint32_t index) const;

@@ -235,7 +235,9 @@ void VR::on_camera_get_projection_matrix(REManagedObject* camera, Matrix4x4f* re
     }
 
     if (is_using_multipass()) {
-        //return;
+        if (camera != m_multipass_cameras[0] && camera != m_multipass_cameras[1]) {
+            return;
+        }
     }
 
 #ifdef RE4
@@ -551,9 +553,9 @@ void VR::on_prepare_output_layer_draw(sdk::renderer::layer::PrepareOutput* layer
         return;
     }
 
-    auto scene_layers = sdk::renderer::get_output_layer()->find_fully_rendered_scene_layers();
+    auto scene_layers = m_camera_duplicator.get_relevant_scene_layers();
 
-    if (scene_layers.empty() || scene_layers.size() < 2) {
+    if (scene_layers.size() < 2) {
         return;
     }
 
@@ -637,6 +639,14 @@ void VR::on_scene_layer_update(sdk::renderer::layer::Scene* layer, void* render_
 
     if (!layer->is_fully_rendered()) {
         return;
+    }
+
+    if (is_using_multipass()) {
+        const auto layer_camera = layer->get_camera();
+
+        if (layer_camera != m_multipass_cameras[0] && layer_camera != m_multipass_cameras[1]) {
+            return;
+        }
     }
 
     auto& layer_data = m_scene_layer_data[layer];
@@ -3383,13 +3393,7 @@ void VR::on_end_rendering(void* entry) {
             m_multipass.eye_textures[0] = (ID3D12Resource*)temporal_upscaler->get_upscaled_texture<void*>(0);
             m_multipass.eye_textures[1] = (ID3D12Resource*)temporal_upscaler->get_upscaled_texture<void*>(1);
         } else {
-            auto output_layer = sdk::renderer::get_output_layer();
-
-            if (output_layer == nullptr) {
-                return;
-            }
-
-            const auto scene_layers = output_layer->find_fully_rendered_scene_layers();
+            const auto scene_layers = m_camera_duplicator.get_relevant_scene_layers();
 
             if (scene_layers.size() < 2) {
                 return;

@@ -745,6 +745,12 @@ void TemporalUpscaler::on_scene_layer_update(sdk::renderer::layer::Scene* layer,
         }
     }
 
+    if (vr->is_hmd_active() && vr->is_using_multipass()) {
+        if (layer != m_eye_states[0].scene_layer && layer != m_eye_states[1].scene_layer) {
+            return;
+        }
+    }
+
     auto scene_info = layer->get_scene_info();
     auto depth_distortion_scene_info = layer->get_depth_distortion_scene_info();
     auto filter_scene_info = layer->get_filter_scene_info();
@@ -761,10 +767,10 @@ void TemporalUpscaler::on_scene_layer_update(sdk::renderer::layer::Scene* layer,
         auto output_layer = sdk::renderer::get_output_layer();
 
         if (output_layer != nullptr) {
-            const auto scenes = output_layer->find_fully_rendered_scene_layers();
+            const auto scenes = vr->get_camera_duplicator().get_relevant_scene_layers();
 
             if (!scenes.empty()) {
-                if (layer == scenes[0]) {
+                if (layer == m_eye_states[0].scene_layer) {
                     vr_index = 0;
                 } else {
                     vr_index = 1;
@@ -934,12 +940,13 @@ void TemporalUpscaler::on_pre_application_entry(void* entry, const char* name, s
     if (hash == "EndRendering"_fnv) {
         fix_output_layer();
 
-        const auto is_vr_multipass = VR::get()->is_hmd_active() && VR::get()->is_using_multipass();
+        auto& vr = VR::get();
+        const auto is_vr_multipass = vr->is_hmd_active() && vr->is_using_multipass();
         auto root_layer = sdk::renderer::get_root_layer();
 
         if (root_layer != nullptr) {
             auto [output_parent, output_layer] = root_layer->find_layer_recursive("via.render.layer.Output");
-            auto valid_scene_layers = (*output_layer)->find_fully_rendered_scene_layers();
+            auto valid_scene_layers =  is_vr_multipass ? vr->get_camera_duplicator().get_relevant_scene_layers() : (*output_layer)->find_fully_rendered_scene_layers();
 
             if (valid_scene_layers.empty()) {
                 m_eye_states[0].scene_layer = nullptr;
@@ -950,19 +957,18 @@ void TemporalUpscaler::on_pre_application_entry(void* entry, const char* name, s
             if (valid_scene_layers.size() > 1) {
                 if (!is_vr_multipass) {
                     if (m_displayed_scene == 0) {
-                        m_eye_states[0].scene_layer = (sdk::renderer::layer::Scene*)valid_scene_layers[0];
+                        m_eye_states[0].scene_layer = valid_scene_layers[0];
                     } else {
-                        m_eye_states[0].scene_layer = (sdk::renderer::layer::Scene*)valid_scene_layers[1];
+                        m_eye_states[0].scene_layer = valid_scene_layers[1];
                     }
 
                     m_eye_states[1].scene_layer = nullptr;
                 } else {
-                    // Go through the scene layers and only locate the ones that are not marked independent
-                    m_eye_states[0].scene_layer = (sdk::renderer::layer::Scene*)valid_scene_layers[0];
-                    m_eye_states[1].scene_layer = (sdk::renderer::layer::Scene*)valid_scene_layers[1];
+                    m_eye_states[0].scene_layer = valid_scene_layers[0];
+                    m_eye_states[1].scene_layer = valid_scene_layers[1];
                 }
             } else {
-                m_eye_states[0].scene_layer = (sdk::renderer::layer::Scene*)valid_scene_layers[0];
+                m_eye_states[0].scene_layer = valid_scene_layers[0];
                 m_eye_states[1].scene_layer = nullptr;
             }
 

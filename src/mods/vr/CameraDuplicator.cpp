@@ -82,6 +82,54 @@ void CameraDuplicator::on_draw_ui() {
     }
 }
 
+std::vector<sdk::renderer::layer::Scene*> CameraDuplicator::get_relevant_scene_layers() {
+    const auto output_layer = sdk::renderer::get_output_layer();
+
+    if (output_layer == nullptr) {
+        return {};
+    }
+
+    auto scene_layers = output_layer->find_fully_rendered_scene_layers();
+
+    if (scene_layers.size() < 2) {
+        return scene_layers;
+    }
+
+    const auto primary_camera = sdk::get_primary_camera();
+
+    if (primary_camera == nullptr) {
+        return scene_layers;
+    }
+
+    const auto secondary_camera = get_new_camera_counterpart(primary_camera);
+
+    if (secondary_camera == nullptr) {
+        return scene_layers;
+    }
+
+    for (auto i = 0; i < scene_layers.size(); i++) {
+        const auto current_camera = scene_layers[i]->get_camera();
+
+        if (current_camera == primary_camera) {
+            if (i != 0) {
+                std::swap(scene_layers[0], scene_layers[i]);
+            }
+
+            continue;
+        }
+
+        if (current_camera == secondary_camera) {
+            if (i != 1) {
+                std::swap(scene_layers[1], scene_layers[i]);
+            }
+
+            continue;
+        }
+    }
+
+    return scene_layers;
+}
+
 void CameraDuplicator::clone_camera() {
     // Untested on older than TDB 69 (RE8)
 #if TDB_VER >= 69
@@ -98,9 +146,16 @@ void CameraDuplicator::clone_camera() {
     }
 
     std::scoped_lock _{ m_camera_mutex };
+    
+    const auto seen_contains = m_seen_cameras.contains(main_camera);
+    const auto old_to_new_contains = m_old_to_new_camera.contains(main_camera);
 
-    if (m_seen_cameras.contains(main_camera)) {
+    if (seen_contains && old_to_new_contains) {
         return;
+    }
+
+    if (seen_contains && !old_to_new_contains) {
+        spdlog::info("Existing camera had a clone destroyed, re-cloning it");
     }
 
     const auto camera_gameobject = utility::re_component::get_game_object((REComponent*)main_camera);
@@ -173,7 +228,7 @@ void CameraDuplicator::clone_camera() {
     const auto new_camera_gameobject = (::REGameObject*)create_gameobject_fn->call<sdk::ManagedObject*>(sdk::get_thread_context(), sdk::VM::create_managed_string(adjusted_name));
     new_camera_gameobject->shouldDraw = false;
     new_camera_gameobject->shouldUpdate = false;
-    utility::re_managed_object::add_ref(new_camera_gameobject);
+    //utility::re_managed_object::add_ref(new_camera_gameobject);
 
     spdlog::info("Created new gameobject @ 0x{:x}", (uintptr_t)new_camera_gameobject);
 

@@ -5,6 +5,14 @@
 
 #include "Mod.hpp"
 
+namespace sdk {
+namespace renderer {
+namespace layer {
+class Scene;
+}
+}
+}
+
 namespace vrmod {
 class CameraDuplicator : public Mod::Component {
 public:
@@ -31,6 +39,8 @@ public:
 
         return nullptr;
     }
+
+    std::vector<sdk::renderer::layer::Scene*> get_relevant_scene_layers();
 
 private:
     void clone_camera();
