@@ -8,18 +8,51 @@
 #include "CameraDuplicator.hpp"
 
 namespace vrmod {
+constexpr auto PRIORITY_OFFSET = 0x48;
+
 void CameraDuplicator::on_pre_application_entry(void* entry, const char* name, size_t hash) {
+    {
+        std::scoped_lock _{ m_camera_mutex };
+        std::vector<REComponent*> cameras_to_remove{};
+        
+        for (auto camera : m_new_cameras) {
+            //*(int32_t*)((uint8_t*)camera + PRIORITY_OFFSET) = *(int32_t*)((uint8_t*)get_old_camera_counterpart(camera) + PRIORITY_OFFSET) + 1; // causes the game to NOT use the new camera as the main camera
+            *(int32_t*)((uint8_t*)camera + PRIORITY_OFFSET) = -1;
+
+            if (camera->referenceCount == 1) {
+                cameras_to_remove.push_back(camera);
+                spdlog::info("Removing camera {:x}", (uintptr_t)camera);
+            }
+        }
+
+        for (auto camera : cameras_to_remove) {
+            m_new_cameras.erase((RECamera*)camera);
+            m_old_cameras.erase((RECamera*)camera);
+            m_seen_cameras.erase((RECamera*)camera);
+            m_old_to_new_camera.erase((RECamera*)camera);
+            m_new_to_old_camera.erase((RECamera*)camera);
+
+            utility::re_managed_object::release(camera);
+        }
+    }
+
     if (hash == "LockScene"_fnv) {
-        if (!VR::get()->is_hmd_active()) {
+        if (!VR::get()->is_hmd_active() || VR::get()->get_rendering_technique() != VR::RenderingTechnique::MULTIPASS) {
+            std::scoped_lock _{ m_camera_mutex };
+            for (auto camera : m_new_cameras) {
+                auto game_object = utility::re_component::get_game_object((REComponent*)camera);
+
+                if (game_object != nullptr) {
+                    game_object->shouldDraw = false;
+                    game_object->shouldUpdate = false;
+                }
+            }
+
             return;
         }
 
-        if (VR::get()->get_rendering_technique() != VR::RenderingTechnique::MULTIPASS) {
-            return;
-        }
-
+        hook_get_primary_camera();
         clone_camera();
-        find_new_camera();
     }
 }
 
@@ -52,9 +85,31 @@ void CameraDuplicator::on_draw_ui() {
 void CameraDuplicator::clone_camera() {
     // Untested on older than TDB 69 (RE8)
 #if TDB_VER >= 69
-    if (m_new_camera != nullptr || m_called_activate) {
+    if (m_waiting_for_identify) {
         return;
     }
+
+    size_t num_main_cameras = 0;
+
+    const auto main_camera = sdk::get_primary_camera();
+
+    if (main_camera == nullptr) {
+        return;
+    }
+
+    std::scoped_lock _{ m_camera_mutex };
+
+    if (m_seen_cameras.contains(main_camera)) {
+        return;
+    }
+
+    const auto camera_gameobject = utility::re_component::get_game_object((REComponent*)main_camera);
+
+    if (camera_gameobject == nullptr) {
+        return;
+    }
+
+    const auto current_main_camera_name = utility::re_string::get_view(camera_gameobject->name);
 
     const auto existing_cameras = get_all_cameras();
 
@@ -62,7 +117,8 @@ void CameraDuplicator::clone_camera() {
         return;
     }
 
-    size_t num_main_cameras = 0;
+    spdlog::info("Found {} existing cameras", existing_cameras->size());
+    spdlog::info("Cloning {} @ 0x{:x}", utility::narrow(current_main_camera_name), (uintptr_t)main_camera);
 
     for (::REManagedObject* camera : *existing_cameras) {
         if (camera == nullptr) {
@@ -75,33 +131,22 @@ void CameraDuplicator::clone_camera() {
             continue;
         }
 
+        if (!m_seen_cameras.contains((RECamera*)camera)) {
+            utility::re_managed_object::add_ref(camera);
+            m_seen_cameras.insert((RECamera*)camera);
+            m_old_cameras.insert((RECamera*)camera);
+        }
+
         const auto name = utility::re_string::get_view(gameobject->name);
 
-        if (name == L"Main Camera" || name == L"MainCamera") {
-            if (num_main_cameras == 0) {
-                m_old_camera = (RECamera*)camera;
-            } else {
-                m_new_camera = (RECamera*)camera;
-            }
-
+        if (name == current_main_camera_name) {
             ++num_main_cameras;
         }
     }
 
     spdlog::info("Found {} main cameras", num_main_cameras);
 
-    if (num_main_cameras > 1) {
-        spdlog::info("Not creating new camera because there are already {} main cameras", num_main_cameras);
-        m_called_activate = true;
-        return;
-    }
-
-    if (m_old_camera == nullptr) {
-        spdlog::info("Not creating new camera yet because there is no main camera");
-        return;
-    }
-
-    const auto old_camera_gameobject = utility::re_component::get_game_object((REComponent*)m_old_camera);
+    const auto old_camera_gameobject = utility::re_component::get_game_object((REComponent*)main_camera);
 
     if (old_camera_gameobject == nullptr) {
         return;
@@ -115,78 +160,132 @@ void CameraDuplicator::clone_camera() {
 
     // Setting active to false lets us "activate" the folder again, cloning the camera perfectly
     constexpr auto ACTIVE_OFFSET = sizeof(::REManagedObject) + 5;
-    *(bool*)((uint8_t*)old_camera_folder + ACTIVE_OFFSET) = false;
+    //*(bool*)((uint8_t*)old_camera_folder + ACTIVE_OFFSET) = false;
+    //sdk::call_object_func_easy<void*>(old_camera_folder, "activate");
 
-    sdk::call_object_func_easy<void*>(old_camera_folder, "activate");
+    // Manually create the game object and duplicate the components
+    static const auto gameobject_t = sdk::find_type_definition("via.GameObject");
+    static const auto create_gameobject_fn = gameobject_t->get_method("create(System.String)");
+    static const auto create_component_fn = gameobject_t->get_method("createComponent(System.Type)");
+
+    // Create new gameobject
+    const auto adjusted_name = std::wstring{current_main_camera_name} + L" (Clone)";
+    const auto new_camera_gameobject = (::REGameObject*)create_gameobject_fn->call<sdk::ManagedObject*>(sdk::get_thread_context(), sdk::VM::create_managed_string(adjusted_name));
+    new_camera_gameobject->shouldDraw = false;
+    new_camera_gameobject->shouldUpdate = false;
+    utility::re_managed_object::add_ref(new_camera_gameobject);
+
+    spdlog::info("Created new gameobject @ 0x{:x}", (uintptr_t)new_camera_gameobject);
+
+    // Parent new gameobject to old gameobject
+    const auto new_transform = new_camera_gameobject->transform;
+    const auto old_transform = old_camera_gameobject->transform;
+
+    if (new_transform != nullptr && old_transform != nullptr) {
+        sdk::call_object_func_easy<void*>(new_transform, "setParent(via.Transform, System.Boolean)", old_transform, false);
+        spdlog::info("Parented new camera to old camera");
+    }
+
+    REComponent* component = old_camera_gameobject->transform->childComponent;
+
+    const std::unordered_set<std::string> illegal_components {
+        "app.worldtour.bWTCameraController", // this causes the camera to become the "main" camera which is NOT what we want, it breaks the real main camera
+        "app.ropeway.camera.MainCameraController", // also breaks the real main camera
+        "app.ropeway.camera.CameraSystem", // also breaks the real main camera
+        "app.bPostProcessController",
+        "app.MainCameraDestroyChecker",
+        "via.render.ExperimentalRayTrace",
+        "via.motion.MotionCamera", // Unnecessarily takes control of the camera transform which we don't want
+        "via.motion.ActorMotionCamera", // Unnecessarily takes control of the camera transform which we don't want
+        "via.wwise.WwiseListener",
+        // todo
+    };
+
+    while (component != nullptr) {
+        const auto tdef = utility::re_managed_object::get_type_definition(component);
+        const auto runtime_type = tdef->get_runtime_type();
+
+        if (illegal_components.contains(tdef->get_full_name())) {
+            spdlog::info("Skipping illegal component {}", tdef->get_full_name());
+            component = component->childComponent;
+            continue;
+        }
+
+        // 
+        if (tdef->get_full_name().starts_with("app.")) {
+            spdlog::info("Skipping app component {}", tdef->get_full_name());
+            component = component->childComponent;
+            continue;
+        }
+
+        const auto new_comp = create_component_fn->call<sdk::ManagedObject*>(sdk::get_thread_context(), new_camera_gameobject, runtime_type);
+
+        if (tdef->get_full_name() == "via.render.RenderOutput") {
+            sdk::call_object_func_easy<void*>(new_comp, "set_RenderOutputID(via.render.RenderOutputID)", 3);
+        }
+
+        if (tdef->get_full_name() == "via.Camera") {
+            m_seen_cameras.insert((RECamera*)new_comp);
+            m_new_cameras.insert((RECamera*)new_comp);
+            m_old_to_new_camera[(RECamera*)component] = (RECamera*)new_comp;
+            m_new_to_old_camera[(RECamera*)new_comp] = (RECamera*)component;
+            //*(int32_t*)((uint8_t*)new_comp + PRIORITY_OFFSET) = *(int32_t*)((uint8_t*)get_old_camera_counterpart((RECamera*)new_comp) + PRIORITY_OFFSET) + 1; // causes the game to NOT use the new camera as the main camera
+            *(int32_t*)((uint8_t*)new_comp + PRIORITY_OFFSET) = -1;
+
+            utility::re_managed_object::add_ref(new_comp);
+        }
+
+        spdlog::info("Created new component {} @ 0x{:x}", tdef->get_full_name(), (uintptr_t)new_comp);
+
+        component = component->childComponent;
+    }
+
+    new_camera_gameobject->shouldDraw = true; // YES draw by default, this is the counterpart to the main camera
+
     m_called_activate = true;
+    m_identified_new_cameras = true;
+    /*m_identified_new_cameras = false;
+    m_waiting_for_identify = true;
+
+    find_new_cameras();*/
 #endif
 }
 
-void CameraDuplicator::find_new_camera() {
-#if TDB_VER >= 69
-    if (!m_called_activate || m_new_camera != nullptr) {
+void CameraDuplicator::hook_get_primary_camera() {
+    if (m_hooked_get_primary_camera) {
         return;
     }
 
-    const auto existing_cameras = get_all_cameras();
+    m_hooked_get_primary_camera = true;
 
-    if (existing_cameras == nullptr) {
-        return;
-    }
+    const auto sceneview_t = sdk::find_type_definition("via.SceneView");
+    const auto get_primary_camera_fn = sceneview_t->get_method("get_PrimaryCamera");
+    spdlog::info("Hooking getPrimaryCamera: {:x}", (uintptr_t)get_primary_camera_fn);
 
-    for (::REManagedObject* camera : *existing_cameras) {
-        if (camera == nullptr) {
-            continue;
-        }
-
-        const auto gameobject = utility::re_component::get_game_object((REComponent*)camera);
-
-        if (gameobject == nullptr) {
-            continue;
-        }
-
-        const auto name = utility::re_string::get_view(gameobject->name);
-
-        if (name == L"Main Camera" || name == L"MainCamera") {
-            if ((RECamera*)camera != m_old_camera) {
-                m_new_camera = (RECamera*)camera;
-                spdlog::info("Found new camera: {:x}", (uintptr_t)m_new_camera);
-
-                // Parent this camera's transform to the old one
-                const auto new_transform = gameobject->transform;
-                const auto old_transform = utility::re_component::get_game_object((REComponent*)m_old_camera)->transform;
-
-                if (new_transform != nullptr && old_transform != nullptr) {
-                    sdk::call_object_func_easy<void*>(new_transform, "setParent(via.Transform, System.Boolean)", old_transform, false);
-                    spdlog::info("Parented new camera to old camera");
-                }
-
-                break;
-            }
-        }
-    }
-
-    if (m_new_camera != nullptr) {
-        const auto sceneview_t = sdk::find_type_definition("via.SceneView");
-        const auto get_primary_camera_fn = sceneview_t->get_method("get_PrimaryCamera");
-        spdlog::info("Hooking getPrimaryCamera: {:x}", (uintptr_t)get_primary_camera_fn);
-
-        g_hookman.add(get_primary_camera_fn, [this](std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys) {
-            if (m_new_camera == nullptr) {
-                return HookManager::PreHookResult::CALL_ORIGINAL;
-            }
-
-            constexpr auto PRIORITY_OFFSET = 0x48;
-            *(int32_t*)((uint8_t*)m_new_camera + PRIORITY_OFFSET) = -1; // causes the game to NOT use the new camera as the main camera
-            
+    g_hookman.add(get_primary_camera_fn, [this](std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys) {
+        if (m_new_cameras.empty()) {
             return HookManager::PreHookResult::CALL_ORIGINAL;
-        }, 
-        [](uintptr_t& ret_val, sdk::RETypeDefinition* ret_ty) {
+        }
 
-        });
-    }
-#endif
+        std::scoped_lock _{ m_camera_mutex };
+
+        for (auto new_camera : m_new_cameras) {
+            //*(int32_t*)((uint8_t*)new_camera + PRIORITY_OFFSET) = *(int32_t*)((uint8_t*)get_old_camera_counterpart(new_camera) + PRIORITY_OFFSET) + 1; // causes the game to NOT use the new camera as the main camera
+            *(int32_t*)((uint8_t*)new_camera + PRIORITY_OFFSET) = -1;
+            *(int32_t*)((uint8_t*)new_camera + PRIORITY_OFFSET + 8) = (int32_t)via::CameraType::Debug;
+        }
+        
+        return HookManager::PreHookResult::CALL_ORIGINAL;
+    }, 
+    [this](uintptr_t& ret_val, sdk::RETypeDefinition* ret_ty) {
+        std::scoped_lock _{ m_camera_mutex };
+
+        for (auto new_camera : m_new_cameras) {
+            *(int32_t*)((uint8_t*)new_camera + PRIORITY_OFFSET + 8) = (int32_t)via::CameraType::Game;
+        }
+    });
 }
+
 
 void CameraDuplicator::copy_camera_properties() {
 #if TDB_VER >= 69
@@ -194,19 +293,53 @@ void CameraDuplicator::copy_camera_properties() {
         return;
     }
 
-    if (m_old_camera == nullptr || m_new_camera == nullptr) {
+    const auto old_camera = sdk::get_primary_camera();
+
+    if (old_camera == nullptr) {
         return;
     }
 
-    const auto old_camera_gameobject = utility::re_component::get_game_object((REComponent*)m_old_camera);
-    const auto new_camera_gameobject = utility::re_component::get_game_object((REComponent*)m_new_camera);
+    std::scoped_lock _{ m_camera_mutex };
+
+    if (!m_old_to_new_camera.contains((RECamera*)old_camera)) {
+        return;
+    }
+
+    auto new_camera = m_old_to_new_camera[(RECamera*)old_camera];
+
+    if (new_camera == nullptr) {
+        return;
+    }
+
+    const auto old_camera_gameobject = utility::re_component::get_game_object((REComponent*)old_camera);
+    const auto new_camera_gameobject = utility::re_component::get_game_object((REComponent*)new_camera);
 
     if (old_camera_gameobject == nullptr || new_camera_gameobject == nullptr) {
         return;
     }
 
+    for (auto camera : m_new_cameras) {
+        const auto camera_gameobject = utility::re_component::get_game_object((REComponent*)camera);
+
+        if (camera_gameobject == nullptr) {
+            continue;
+        }
+
+        camera_gameobject->shouldDraw = camera_gameobject == new_camera_gameobject;
+        camera_gameobject->shouldUpdate = false;
+    }
+
     // Do not allow the camera components to update. We will do the update ourselves via the copying of properties
     new_camera_gameobject->shouldUpdate = false;
+
+    // If a new camera is created, we need to reset the property jobs as components may be different
+    if ((RECamera*)old_camera != m_last_primary_camera) {
+        m_getter_setters.clear();
+        m_property_jobs.clear();
+        m_property_jobs_index = 0;
+    }
+
+    m_last_primary_camera = (RECamera*)old_camera;
 
     static auto via_camera = sdk::find_type_definition("via.Camera");
 
@@ -222,28 +355,28 @@ void CameraDuplicator::copy_camera_properties() {
     static auto get_aspect_ratio_method = via_camera->get_method("get_AspectRatio");
 
     if (get_near_clip_plane_method != nullptr && set_near_clip_plane_method != nullptr) {
-        const auto old_near_clip_plane = get_near_clip_plane_method->call<float>(sdk::get_thread_context(), m_old_camera);
-        set_near_clip_plane_method->call<void>(sdk::get_thread_context(), m_new_camera, old_near_clip_plane);
+        const auto old_near_clip_plane = get_near_clip_plane_method->call<float>(sdk::get_thread_context(), old_camera);
+        set_near_clip_plane_method->call<void>(sdk::get_thread_context(), new_camera, old_near_clip_plane);
     }
 
     if (get_far_clip_plane_method != nullptr && set_far_clip_plane_method != nullptr) {
-        const auto old_far_clip_plane = get_far_clip_plane_method->call<float>(sdk::get_thread_context(), m_old_camera);
-        set_far_clip_plane_method->call<void>(sdk::get_thread_context(), m_new_camera, old_far_clip_plane);
+        const auto old_far_clip_plane = get_far_clip_plane_method->call<float>(sdk::get_thread_context(), old_camera);
+        set_far_clip_plane_method->call<void>(sdk::get_thread_context(), new_camera, old_far_clip_plane);
     }
 
     if (get_fov_method != nullptr && set_fov_method != nullptr) {
-        const auto old_fov = get_fov_method->call<float>(sdk::get_thread_context(), m_old_camera);
-        set_fov_method->call<void>(sdk::get_thread_context(), m_new_camera, old_fov);
+        const auto old_fov = get_fov_method->call<float>(sdk::get_thread_context(), old_camera);
+        set_fov_method->call<void>(sdk::get_thread_context(), new_camera, old_fov);
     }
 
     if (get_vertical_enable_method != nullptr && set_vertical_enable_method != nullptr) {
-        const auto old_vertical_enable = get_vertical_enable_method->call<bool>(sdk::get_thread_context(), m_old_camera);
-        set_vertical_enable_method->call<void>(sdk::get_thread_context(), m_new_camera, old_vertical_enable);
+        const auto old_vertical_enable = get_vertical_enable_method->call<bool>(sdk::get_thread_context(), old_camera);
+        set_vertical_enable_method->call<void>(sdk::get_thread_context(), new_camera, old_vertical_enable);
     }
 
     if (get_aspect_ratio_method != nullptr && set_aspect_ratio_method != nullptr) {
-        const auto old_aspect_ratio = get_aspect_ratio_method->call<float>(sdk::get_thread_context(), m_old_camera);
-        set_aspect_ratio_method->call<void>(sdk::get_thread_context(), m_new_camera, old_aspect_ratio);
+        const auto old_aspect_ratio = get_aspect_ratio_method->call<float>(sdk::get_thread_context(), old_camera);
+        set_aspect_ratio_method->call<void>(sdk::get_thread_context(), new_camera, old_aspect_ratio);
     }
 
     for (const auto& descriptor : m_wanted_components) {

@@ -1172,7 +1172,7 @@ RECamera* layer::Scene::get_main_camera_if_possible() const {
     };
 
     for (const auto& camera_name : camera_names) {
-        if (name == camera_name) {
+        if (name.starts_with(camera_name)) {
             return camera;
         }
     }

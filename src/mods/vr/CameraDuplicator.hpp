@@ -12,17 +12,46 @@ public:
     void on_application_entry(void* entry, const char* name, size_t hash) override;
     void on_draw_ui() override;
 
+    RECamera* get_new_camera_counterpart(RECamera* camera) {
+        std::scoped_lock _{ m_camera_mutex };
+
+        if (auto it = m_old_to_new_camera.find(camera); it != m_old_to_new_camera.end()) {
+            return it->second;
+        }
+
+        return nullptr;
+    }
+
+    RECamera* get_old_camera_counterpart(RECamera* camera) {
+        std::scoped_lock _{ m_camera_mutex };
+
+        if (auto it = m_new_to_old_camera.find(camera); it != m_new_to_old_camera.end()) {
+            return it->second;
+        }
+
+        return nullptr;
+    }
+
 private:
     void clone_camera();
-    void find_new_camera();
+    void hook_get_primary_camera();
     void copy_camera_properties();
 
     sdk::SystemArray* get_all_cameras();
 
     bool m_copy_camera{true};
     bool m_called_activate{false};
-    RECamera* m_old_camera{nullptr};
-    RECamera* m_new_camera{nullptr};
+    bool m_hooked_get_primary_camera{false};
+    bool m_identified_new_cameras{false};
+    bool m_waiting_for_identify{false};
+    std::recursive_mutex m_camera_mutex{};
+    std::unordered_set<RECamera*> m_seen_cameras{};
+    std::unordered_set<RECamera*> m_old_cameras{};
+    std::unordered_set<RECamera*> m_new_cameras{};
+    std::unordered_map<RECamera*, RECamera*> m_old_to_new_camera{};
+    std::unordered_map<RECamera*, RECamera*> m_new_to_old_camera{};
+
+    RECamera* m_last_primary_camera{nullptr};
     
     struct GetterSetter {
         sdk::REMethodDefinition* getter{nullptr};
@@ -61,6 +90,8 @@ private:
         WantedComponent{ "via.render.GeometryAOControl", { } },
         WantedComponent{ "via.render.MotionBlur", { } },
         WantedComponent{ "via.render.FakeLensflare", { } },
+        WantedComponent{ "via.render.RetroFilm", { } },
+        //WantedComponent{ "via.render.ExperimentalRayTrace", {}}
         //WantedComponent{ "via.render.CustomFilter", { } },
     };
 

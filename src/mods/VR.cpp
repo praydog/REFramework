@@ -588,36 +588,22 @@ bool VR::on_pre_scene_layer_update(sdk::renderer::layer::Scene* layer, void* ren
     }
 
     if (is_using_multipass()) {
-        auto output_layer = sdk::renderer::get_output_layer();
+        const auto real_main_camera = sdk::get_primary_camera();
+        const auto layer_camera = layer->get_main_camera_if_possible();
 
-        if (output_layer != nullptr) {
-            const auto scenes = output_layer->find_fully_rendered_scene_layers();
-
-            if (!scenes.empty()) {
-                if (layer == scenes[0]) {
-                    if (auto main_camera = layer->get_main_camera_if_possible(); main_camera != nullptr) {
-                        m_multipass_cameras[0] = main_camera;
-                        m_multipass.pass = 0;
-                    }
-                } else {
-                    if (auto main_camera = layer->get_main_camera_if_possible(); main_camera != nullptr) {
-                        m_multipass_cameras[1] = main_camera;
-                        m_multipass.pass = 1;
-                    }
-                }
+        if (layer_camera != nullptr) {
+            if (layer_camera == real_main_camera) {
+                m_multipass.pass = 0;
+                m_multipass_cameras[0] = real_main_camera;
+                m_multipass_cameras[1] = m_camera_duplicator.get_new_camera_counterpart(real_main_camera);
+            } else if (layer_camera == m_camera_duplicator.get_new_camera_counterpart(real_main_camera)) {
+                m_multipass.pass = 1;
+                m_multipass_cameras[1] = m_camera_duplicator.get_new_camera_counterpart(real_main_camera);
+            } else {
+                return true; // dont care
             }
-        }
-    }
-
-    if (is_using_multipass()) {
-        auto camera = layer->get_camera();
-
-        if (camera != nullptr) {
-            if (m_multipass_cameras[0] != nullptr && m_multipass_cameras[1] != nullptr) {
-                if (camera != m_multipass_cameras[0] && camera != m_multipass_cameras[1]) {
-                    return false;
-                }
-            }
+        } else {
+            return true; // dont care
         }
     }
     
@@ -1594,20 +1580,26 @@ void VR::update_hmd_state() {
             if (camera == cameras[0]) {
                 FirstPerson::get()->on_update_transform(camera->ownerGameObject->transform);
             } else if (cameras[0] != nullptr && cameras[0]->ownerGameObject != nullptr && cameras[0]->ownerGameObject->transform != nullptr) {
-                const auto first_camera_joint = utility::re_transform::get_joint(*cameras[0]->ownerGameObject->transform, 0);
+                auto transform0 = cameras[0]->ownerGameObject->transform;
+                auto transform1 = camera->ownerGameObject->transform;
 
-                if (first_camera_joint == nullptr) {
-                    continue;
-                }
-
-                const auto camera_joint = utility::re_transform::get_joint(*camera->ownerGameObject->transform, 0);
+                const auto camera_joint = utility::re_transform::get_joint(*transform1, 0);
 
                 if (camera_joint == nullptr) {
                     continue;
                 }
 
-                sdk::set_joint_position(camera_joint, sdk::get_joint_position(first_camera_joint));
-                sdk::set_joint_rotation(camera_joint, sdk::get_joint_rotation(first_camera_joint));
+                auto& fp = FirstPerson::get();
+
+                const auto mat = fp->get_last_camera_matrix();
+                const auto pos = mat[3];
+
+                //transform1->angles = transform0->angles;
+                //transform1->position = transform0->position;
+                transform1->worldTransform = transform0->worldTransform;
+
+                sdk::set_joint_position(camera_joint, pos);
+                sdk::set_joint_rotation(camera_joint, mat);
             }
         }
     }
