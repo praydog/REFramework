@@ -7,6 +7,7 @@
 #include "ReClass.hpp"
 #include "RENativeArray.hpp"
 #include "renderer/RenderResource.hpp"
+#include "ManagedObject.hpp"
 
 class REType;
 struct ID3D12Resource;
@@ -178,7 +179,7 @@ public:
     }
 };
 
-class RenderLayer : public REManagedObject {
+class RenderLayer : public sdk::ManagedObject {
 public:
     RenderLayer* add_layer(::REType* layer_type, uint32_t priority, uint8_t offset = 0);
     void add_layer(RenderLayer* existing_layer) {

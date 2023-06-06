@@ -148,7 +148,7 @@ private:
 
 
     struct EyeState {
-        sdk::renderer::layer::Scene* scene_layer{nullptr};
+        sdk::intrusive_ptr<sdk::renderer::layer::Scene> scene_layer{};
         ComPtr<ID3D12Resource> motion_vectors{};
         ComPtr<ID3D12Resource> depth{};
         ComPtr<ID3D12Resource> color{};
