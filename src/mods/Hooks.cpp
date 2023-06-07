@@ -506,6 +506,7 @@ std::optional<std::string> Hooks::hook_update_before_lock_scene() {
 }
 
 std::optional<std::string> Hooks::hook_lightshaft_draw() {
+#if 0
     // Create a fake via.render.LightShaft instance
     // so we can get the draw method and hook it.
     auto lightshaft_t = sdk::find_type_definition("via.render.LightShaft");
@@ -543,6 +544,7 @@ std::optional<std::string> Hooks::hook_lightshaft_draw() {
     if (!m_lightshaft_draw_hook->create()) {
         return "Failed to hook via::render::LightShaft::draw";
     }
+#endif
 
     return std::nullopt;
 }
