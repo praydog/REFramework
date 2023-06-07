@@ -94,6 +94,8 @@ public:
         return "dmc5";
     #elif defined(MHRISE)
         return "mhrise";
+    #elif defined(SF6)
+        return "sf6";
     #else
         return "unknown";
     #endif
@@ -268,8 +270,9 @@ private: // D3D12 members
         };
 
         enum class SRV : int {
-            IMGUI_FONT,
-            IMGUI,
+            IMGUI_FONT_BACKBUFFER,
+            IMGUI_FONT_VR,
+            IMGUI_VR,
             BLANK,
             COUNT
         };
@@ -297,6 +300,8 @@ private: // D3D12 members
 
         uint32_t rt_width{};
         uint32_t rt_height{};
+
+        std::array<void*, 2> imgui_backend_datas{};
     } m_d3d12{};
 
 public:

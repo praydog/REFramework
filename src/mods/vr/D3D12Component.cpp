@@ -1,6 +1,10 @@
 #include <openvr.h>
+#include <utility/ScopeGuard.hpp>
 
 #include "../VR.hpp"
+
+#include <../../directxtk12-src/Inc/ResourceUploadBatch.h>
+#include <../../directxtk12-src/Inc/RenderTargetState.h>
 
 #include "D3D12Component.hpp"
 
@@ -24,11 +28,9 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
     // get back buffer
     ComPtr<ID3D12Resource> backbuffer{};
 
-    if (m_prev_backbuffer == nullptr) {
-        m_prev_backbuffer = backbuffer;
-    }
+    const auto backbuffer_index = swapchain->GetCurrentBackBufferIndex();
 
-    if (FAILED(swapchain->GetBuffer(swapchain->GetCurrentBackBufferIndex(), IID_PPV_ARGS(&backbuffer)))) {
+    if (FAILED(swapchain->GetBuffer(backbuffer_index, IID_PPV_ARGS(&backbuffer)))) {
         spdlog::error("[VR] Failed to get back buffer");
         return vr::VRCompositorError_None;
     }
@@ -38,6 +40,21 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
         return vr::VRCompositorError_None;
     }
 
+    if (!m_backbuffer_is_8bit) {
+        auto command_list = m_backbuffer_copy.copier.cmd_list.Get();
+        m_backbuffer_copy.copier.wait(INFINITE);
+
+        // Copy current backbuffer into our copy so we can use it as an SRV.
+        m_backbuffer_copy.copier.copy(backbuffer.Get(), m_backbuffer_copy.texture.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_PRESENT);
+
+        // Convert the backbuffer to 8-bit.
+        render_srv_to_rtv(command_list, m_backbuffer_copy, m_converted_eye_tex, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
+        m_backbuffer_copy.copier.execute();
+    }
+
+    auto eye_texture = m_backbuffer_is_8bit ? backbuffer : m_converted_eye_tex.texture;
+
     auto runtime = vr->get_runtime();
     const auto frame_count = vr->m_render_frame_count;
 
@@ -45,13 +62,13 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
     if (frame_count % 2 == vr->m_left_eye_interval) {
         // OpenXR texture
         if (runtime->is_openxr() && vr->m_openxr->ready()) {
-            m_openxr.copy(0, backbuffer.Get());
+            m_openxr.copy(0, eye_texture.Get());
         }
 
         // OpenVR texture
         // Copy the back buffer to the left eye texture (m_left_eye_tex0 holds the intermediate frame).
         if (runtime->is_openvr()) {
-            m_openvr.copy_left(backbuffer.Get());
+            m_openvr.copy_left(eye_texture.Get());
 
             vr::D3D12TextureData_t left {
                 m_openvr.get_left().texture.Get(),
@@ -71,13 +88,13 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
     } else {
         // OpenXR texture
         if (runtime->is_openxr() && vr->m_openxr->ready()) {
-            m_openxr.copy(1, backbuffer.Get());
+            m_openxr.copy(1, eye_texture.Get());
         }
 
         // OpenVR texture
         // Copy the back buffer to the right eye texture.
         if (runtime->is_openvr()) {
-            m_openvr.copy_right(backbuffer.Get());
+            m_openvr.copy_right(eye_texture.Get());
 
             vr::D3D12TextureData_t right {
                 m_openvr.get_right().texture.Get(),
@@ -150,9 +167,10 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
         // Allows the desktop window to be recorded.
         if (vr->m_desktop_fix->value()) {
             if (runtime->ready() && m_prev_backbuffer != backbuffer && m_prev_backbuffer != nullptr) {
-                m_generic_copiers[frame_count % 3].wait(INFINITE);
-                m_generic_copiers[frame_count % 3].copy(m_prev_backbuffer.Get(), backbuffer.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_PRESENT);
-                m_generic_copiers[frame_count % 3].execute();
+                auto& copier = m_generic_copiers[frame_count % m_generic_copiers.size()];
+                copier.wait(INFINITE);
+                copier.copy(m_prev_backbuffer.Get(), backbuffer.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_PRESENT);
+                copier.execute();
             }
         }
     }
@@ -162,22 +180,34 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
     return e;
 }
 
+void D3D12Component::on_post_present(VR* vr) {
+    if (m_graphics_memory != nullptr) {
+        auto& hook = g_framework->get_d3d12_hook();
+        auto command_queue = hook->get_command_queue();
+
+        m_graphics_memory->Commit(command_queue);
+    }
+}
+
 void D3D12Component::on_reset(VR* vr) {
     auto runtime = vr->get_runtime();
 
     for (auto& ctx : m_openvr.left_eye_tex) {
-        ctx.copier.reset();
-        ctx.texture.Reset();
+        ctx.reset();
     }
 
     for (auto& ctx : m_openvr.right_eye_tex) {
-        ctx.copier.reset();
-        ctx.texture.Reset();
+        ctx.reset();
     }
 
     for (auto& copier : m_generic_copiers) {
         copier.reset();
     }
+    
+    m_prev_backbuffer.Reset();
+    m_backbuffer_copy.reset();
+    m_converted_eye_tex.reset();
+    m_graphics_memory.reset();
 
     if (runtime->is_openxr() && runtime->loaded) {
         if (m_openxr.last_resolution[0] != vr->get_hmd_width() || m_openxr.last_resolution[1] != vr->get_hmd_height()) {
@@ -190,14 +220,13 @@ void D3D12Component::on_reset(VR* vr) {
         //vr->m_openxr.end_frame();
     }
 
-    m_prev_backbuffer = nullptr;
     m_openvr.texture_counter = 0;
 }
 
 void D3D12Component::setup() {
     spdlog::info("[VR] Setting up d3d12 textures...");
     
-    m_prev_backbuffer = nullptr;
+    m_prev_backbuffer.Reset();
 
     auto& hook = g_framework->get_d3d12_hook();
 
@@ -211,44 +240,184 @@ void D3D12Component::setup() {
         return;
     }
 
-    auto backbuffer_desc = backbuffer->GetDesc();
+    if (m_graphics_memory == nullptr) {
+        m_graphics_memory = std::make_unique<DirectX::DX12::GraphicsMemory>(device);
+    }
 
-    spdlog::info("[VR] D3D12 Backbuffer width: {}, height: {}", backbuffer_desc.Width, backbuffer_desc.Height);
+    const auto backbuffer_desc = backbuffer->GetDesc();
+
+    m_backbuffer_is_8bit = backbuffer_desc.Format == DXGI_FORMAT_R8G8B8A8_UNORM;
+
+    auto backbuffer_srv_desc = backbuffer_desc;
+    backbuffer_srv_desc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+    backbuffer_srv_desc.Flags &= ~D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE;
 
     D3D12_HEAP_PROPERTIES heap_props{};
     heap_props.Type = D3D12_HEAP_TYPE_DEFAULT;
     heap_props.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
     heap_props.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
 
+    // Create copy of backbuffer to use as SRV to convert from HDR to 8bit
+    if (!m_backbuffer_is_8bit) {
+        ComPtr<ID3D12Resource> backbuffer_copy{};
+        if (FAILED(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &backbuffer_srv_desc, D3D12_RESOURCE_STATE_PRESENT, nullptr,
+                IID_PPV_ARGS(backbuffer_copy.GetAddressOf())))) {
+            spdlog::error("[VR] Failed to create backbuffer copy.");
+            return;
+        }
+
+        if (!m_backbuffer_copy.setup(device, backbuffer_copy.Get(), std::nullopt, std::nullopt)) {
+            spdlog::error("[VR] Error setting up backbuffer copy texture RTV/SRV.");
+        }
+    }
+
+    auto rt_desc = backbuffer_desc;
+
+    rt_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    rt_desc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+    rt_desc.Flags &= ~D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE;
+
+    spdlog::info("[VR] D3D12 Backbuffer width: {}, height: {}", backbuffer_desc.Width, backbuffer_desc.Height);
+
+    // Create converted eye texture
+    if (!m_backbuffer_is_8bit) {
+        ComPtr<ID3D12Resource> eye_tex{};
+        if (FAILED(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &rt_desc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr,
+                IID_PPV_ARGS(eye_tex.GetAddressOf())))) {
+            spdlog::error("[VR] Failed to create converted eye texture.");
+            return;
+        }
+
+        if (!m_converted_eye_tex.setup(device, eye_tex.Get(), std::nullopt, std::nullopt)) {
+            spdlog::error("[VR] Error setting up converted eye texture RTV/SRV.");
+        }
+    }
+
     for (auto& ctx : m_openvr.left_eye_tex) {
-        if (FAILED(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &backbuffer_desc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr,
-                IID_PPV_ARGS(&ctx.texture)))) {
+        ComPtr<ID3D12Resource> left_eye_tex{};
+        if (FAILED(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &rt_desc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr,
+                IID_PPV_ARGS(left_eye_tex.GetAddressOf())))) {
             spdlog::error("[VR] Failed to create left eye texture.");
             return;
         }
 
-        ctx.copier.setup();
+        left_eye_tex->SetName(L"OpenVR Left Eye Texture");
+        if (!ctx.setup(device, left_eye_tex.Get(), std::nullopt, std::nullopt)) {
+            spdlog::error("[VR] Error setting up left eye texture RTV/SRV.");
+        }
     }
-
+ 
     for (auto& ctx : m_openvr.right_eye_tex) {
-        if (FAILED(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &backbuffer_desc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr,
-                IID_PPV_ARGS(&ctx.texture)))) {
+        ComPtr<ID3D12Resource> right_eye_tex{};
+        if (FAILED(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &rt_desc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr,
+                IID_PPV_ARGS(right_eye_tex.GetAddressOf())))) {
             spdlog::error("[VR] Failed to create right eye texture.");
             return;
         }
 
-        ctx.copier.setup();
+        right_eye_tex->SetName(L"OpenVR Right Eye Texture");
+        if (!ctx.setup(device, right_eye_tex.Get(), std::nullopt, std::nullopt)) {
+            spdlog::error("[VR] Error setting up right eye texture RTV/SRV.");
+        }
     }
 
     for (auto& copier : m_generic_copiers) {
         copier.setup();
     }
 
-    m_backbuffer_size[0] = backbuffer_desc.Width;
-    m_backbuffer_size[1] = backbuffer_desc.Height;
+    setup_sprite_batch_pso(rt_desc.Format);
+
+    m_backbuffer_size[0] = rt_desc.Width;
+    m_backbuffer_size[1] = rt_desc.Height;
 
     spdlog::info("[VR] d3d12 textures have been setup");
     m_force_reset = false;
+}
+
+void D3D12Component::setup_sprite_batch_pso(DXGI_FORMAT output_format) {
+    spdlog::info("[D3D12] Setting up sprite batch PSO");
+
+    auto& hook = g_framework->get_d3d12_hook();
+
+    auto device = hook->get_device();
+    auto command_queue = hook->get_command_queue();
+    auto swapchain = hook->get_swap_chain();
+
+    DirectX::ResourceUploadBatch upload{ device };
+    upload.Begin();
+
+    DirectX::RenderTargetState output_state{output_format, DXGI_FORMAT_UNKNOWN};
+    DirectX::SpriteBatchPipelineStateDescription pd{output_state};
+
+    m_sprite_batch = std::make_unique<DirectX::DX12::SpriteBatch>(device, upload, pd);
+
+    auto result = upload.End(command_queue);
+    result.wait();
+
+    spdlog::info("[D3D12] Sprite batch PSO setup complete");
+}
+
+void D3D12Component::render_srv_to_rtv(ID3D12GraphicsCommandList* command_list, const d3d12::TextureContext& src, const d3d12::TextureContext& dst, D3D12_RESOURCE_STATES src_state, D3D12_RESOURCE_STATES dst_state) {
+    const auto dst_desc = dst.texture->GetDesc();
+    const auto src_desc = src.texture->GetDesc();
+    
+    auto& batch = m_sprite_batch;
+
+    D3D12_VIEWPORT viewport{};
+    viewport.Width = (float)dst_desc.Width;
+    viewport.Height = (float)dst_desc.Height;
+    viewport.MinDepth = D3D12_MIN_DEPTH;
+    viewport.MaxDepth = D3D12_MAX_DEPTH;
+    
+    batch->SetViewport(viewport);
+
+    D3D12_RECT scissor_rect{};
+    scissor_rect.left = 0;
+    scissor_rect.top = 0;
+    scissor_rect.right = (LONG)dst_desc.Width;
+    scissor_rect.bottom = (LONG)dst_desc.Height;
+
+    // Transition dst to D3D12_RESOURCE_STATE_RENDER_TARGET
+    D3D12_RESOURCE_BARRIER barrier{};
+    barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+    barrier.Transition.pResource = dst.texture.Get();
+
+    if (dst_state != D3D12_RESOURCE_STATE_RENDER_TARGET) {
+        barrier.Transition.StateBefore = src_state;
+        barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+        barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+        command_list->ResourceBarrier(1, &barrier);
+    }
+
+    // Set RTV to backbuffer
+    D3D12_CPU_DESCRIPTOR_HANDLE rtv_heaps[] = { dst.get_rtv() };
+    command_list->OMSetRenderTargets(1, rtv_heaps, FALSE, nullptr);
+
+    // Setup viewport and scissor rects
+    command_list->RSSetViewports(1, &viewport);
+    command_list->RSSetScissorRects(1, &scissor_rect);
+
+    batch->Begin(command_list, DirectX::DX12::SpriteSortMode::SpriteSortMode_Immediate);
+
+    RECT dest_rect{ 0, 0, (LONG)dst_desc.Width, (LONG)dst_desc.Height };
+
+    // Set descriptor heaps
+    ID3D12DescriptorHeap* game_heaps[] = { src.srv_heap->Heap() };
+    command_list->SetDescriptorHeaps(1, game_heaps);
+
+    batch->Draw(src.get_srv_gpu(), 
+        DirectX::XMUINT2{ (uint32_t)src_desc.Width, (uint32_t)src_desc.Height },
+        dest_rect,
+        DirectX::Colors::White);
+
+    batch->End();
+
+    // Transition dst to dst_state
+    if (dst_state != D3D12_RESOURCE_STATE_RENDER_TARGET) {
+        barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+        barrier.Transition.StateAfter = dst_state;
+        command_list->ResourceBarrier(1, &barrier);
+    }
 }
 
 void D3D12Component::OpenXR::initialize(XrSessionCreateInfo& session_info) {
@@ -315,6 +484,7 @@ std::optional<std::string> D3D12Component::OpenXR::create_swapchains() {
 
         backbuffer_desc.Width = vr->get_hmd_width();
         backbuffer_desc.Height = vr->get_hmd_height();
+        backbuffer_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 
         // Create the swapchain.
         XrSwapchainCreateInfo swapchain_create_info{XR_TYPE_SWAPCHAIN_CREATE_INFO};
@@ -357,8 +527,8 @@ std::optional<std::string> D3D12Component::OpenXR::create_swapchains() {
             spdlog::info("[VR] Creating swapchain image {} for swapchain {}", j, i);
 
             ctx.textures[j] = {XR_TYPE_SWAPCHAIN_IMAGE_D3D12_KHR};
-            ctx.texture_contexts[j] = std::make_unique<D3D12Component::OpenXR::SwapchainContext::TextureContext>();
-            ctx.texture_contexts[j]->copier.setup();
+            ctx.texture_contexts[j] = std::make_unique<d3d12::TextureContext>();
+            ctx.texture_contexts[j]->copier.setup((std::wstring{L"OpenXR Copier "} + std::to_wstring(i) + L" " + std::to_wstring(j)).c_str());
 
             backbuffer_desc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
             backbuffer_desc.Flags &= ~D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE;
@@ -505,120 +675,6 @@ void D3D12Component::OpenXR::copy(uint32_t swapchain_idx, ID3D12Resource* resour
 
             ctx.num_textures_acquired--;
         }
-    }
-}
-
-void D3D12Component::ResourceCopier::setup() {
-    std::scoped_lock _{this->mtx};
-
-    auto& hook = g_framework->get_d3d12_hook();
-    auto device = hook->get_device();
-
-    if (FAILED(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&this->cmd_allocator)))) {
-        spdlog::error("[VR] Failed to create command allocator.");
-        return;
-    }
-
-    if (FAILED(device->CreateCommandList(
-            0, D3D12_COMMAND_LIST_TYPE_DIRECT, this->cmd_allocator.Get(), nullptr, IID_PPV_ARGS(&this->cmd_list)))) {
-        spdlog::error("[VR] Failed to create command list.");
-        return;
-    }
-
-    if (FAILED(device->CreateFence(this->fence_value, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&this->fence)))) {
-        spdlog::error("[VR] Failed to create fence.");
-        return;
-    }
-
-    this->fence_event = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-}
-
-void D3D12Component::ResourceCopier::reset() {
-    std::scoped_lock _{this->mtx};
-    this->wait(2000);
-    //this->on_post_present(VR::get().get());
-
-    this->cmd_allocator.Reset();
-    this->cmd_list.Reset();
-    this->fence.Reset();
-    this->fence_value = 0;
-    CloseHandle(this->fence_event);
-    this->fence_event = 0;
-    this->waiting_for_fence = false;
-}
-
-void D3D12Component::ResourceCopier::wait(uint32_t ms) {
-    std::scoped_lock _{this->mtx};
-
-	if (this->fence_event && this->waiting_for_fence) {
-        WaitForSingleObject(this->fence_event, ms);
-        ResetEvent(this->fence_event);
-        this->waiting_for_fence = false;
-        this->cmd_allocator->Reset();
-        this->cmd_list->Reset(this->cmd_allocator.Get(), nullptr);
-        this->has_commands = false;
-    }
-}
-
-void D3D12Component::ResourceCopier::copy(ID3D12Resource* src, ID3D12Resource* dst, D3D12_RESOURCE_STATES src_state, D3D12_RESOURCE_STATES dst_state) {
-    std::scoped_lock _{this->mtx};
-
-    // Switch src into copy source.
-    D3D12_RESOURCE_BARRIER src_barrier{};
-
-    src_barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-    src_barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-    src_barrier.Transition.pResource = src;
-    src_barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-    src_barrier.Transition.StateBefore = src_state;
-    src_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
-
-    // Switch dst into copy destination.
-    D3D12_RESOURCE_BARRIER dst_barrier{};
-    dst_barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-    dst_barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-    dst_barrier.Transition.pResource = dst;
-    dst_barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-    dst_barrier.Transition.StateBefore = dst_state;
-    dst_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
-
-    {
-        D3D12_RESOURCE_BARRIER barriers[2]{src_barrier, dst_barrier};
-        this->cmd_list->ResourceBarrier(2, barriers);
-    }
-
-    // Copy the resource.
-    this->cmd_list->CopyResource(dst, src);
-
-    // Switch back to present.
-    src_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
-    src_barrier.Transition.StateAfter = src_state;
-    dst_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
-    dst_barrier.Transition.StateAfter = dst_state;
-
-    {
-        D3D12_RESOURCE_BARRIER barriers[2]{src_barrier, dst_barrier};
-        this->cmd_list->ResourceBarrier(2, barriers);
-    }
-
-    this->has_commands = true;
-}
-
-void D3D12Component::ResourceCopier::execute() {
-    std::scoped_lock _{this->mtx};
-    
-    if (this->has_commands) {
-        if (FAILED(this->cmd_list->Close())) {
-            spdlog::error("[VR] Failed to close command list.");
-            return;
-        }
-        
-        auto command_queue = g_framework->get_d3d12_hook()->get_command_queue();
-        command_queue->ExecuteCommandLists(1, (ID3D12CommandList* const*)this->cmd_list.GetAddressOf());
-        command_queue->Signal(this->fence.Get(), ++this->fence_value);
-        this->fence->SetEventOnCompletion(this->fence_value, this->fence_event);
-        this->waiting_for_fence = true;
-        this->has_commands = false;
     }
 }
 } // namespace vrmod

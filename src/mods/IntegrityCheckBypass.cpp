@@ -434,3 +434,20 @@ void IntegrityCheckBypass::immediate_patch_re4() {
 
     spdlog::info("[IntegrityCheckBypass]: Patched conditional_jmp!");
 }
+
+void IntegrityCheckBypass::remove_stack_destroyer() {
+    spdlog::info("[IntegrityCheckBypass]: Searching for stack destroyer...");
+
+    const auto game = utility::get_executable();
+    const auto fn = utility::scan(game, "48 89 11 48 c7 04 24 00 00 00 00 48 81 c4 28 01 00 00");
+
+    if (!fn) {
+        spdlog::error("[IntegrityCheckBypass]: Could not find stack destroyer!");
+        return;
+    }
+
+    // Create a patch that returns instantly.
+    static auto patch = Patch::create(*fn, { 0xC3 }, true);
+
+    spdlog::info("[IntegrityCheckBypass]: Patched stack destroyer!");
+}

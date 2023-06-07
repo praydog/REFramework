@@ -48,13 +48,18 @@ void FreeCam::on_draw_ui() {
 
     ImGui::SameLine();
     m_lock_camera->draw("Lock Position");
+
+#ifndef SF6
     m_disable_movement->draw("Disable Character Movement");
+#endif
 
     m_toggle_key->draw("Toggle Key");
     m_move_up_key->draw("Move camera up Key");
     m_move_down_key->draw("Move camera down Key");
     m_lock_camera_key->draw("Lock Position Toggle Key");
+#ifndef SF6
     m_disable_movement_key->draw("Disable Movement Toggle Key");
+#endif
     m_speed_modifier_fast_key->draw("Speed modifier Fast key");
     m_speed_modifier_slow_key->draw("Speed modifier Slow key");
 

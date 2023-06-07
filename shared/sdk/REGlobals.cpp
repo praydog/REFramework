@@ -108,7 +108,7 @@ std::vector<REManagedObject*> REGlobals::get_objects() {
 
     if (!m_object_list.empty()) {
         for (auto obj_ptr : m_object_list) {
-            if (*obj_ptr != nullptr) {
+            if (*obj_ptr != nullptr && !IsBadReadPtr(*obj_ptr, sizeof(void*))) {
                 out.push_back(*obj_ptr);
             }
         }

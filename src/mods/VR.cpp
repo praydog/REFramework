@@ -20,7 +20,10 @@
 #include "sdk/regenny/re2_tdb70/via/Window.hpp"
 #include "sdk/regenny/re2_tdb70/via/SceneView.hpp"
 #elif TDB_VER >= 71
-#ifdef RE4
+#ifdef SF6
+#include "sdk/regenny/sf6/via/Window.hpp"
+#include "sdk/regenny/sf6/via/SceneView.hpp"
+#elif defined(RE4)
 #include "sdk/regenny/re4/via/Window.hpp"
 #include "sdk/regenny/re4/via/SceneView.hpp"
 #else
@@ -171,6 +174,14 @@ void VR::on_view_get_size(REManagedObject* scene_view, float* result) {
 
         wanted_width = (float)window_width;
         wanted_height = (float)window_height;
+
+        // Might be usable in other games too
+#if defined(SF6)
+        if (!is_gng) {
+            window->borderless_size.w = (float)window_width;
+            window->borderless_size.h = (float)window_height;
+        }
+#endif
     }
 
     //auto out = original_func(scene_view, result);
@@ -371,7 +382,7 @@ bool VR::on_pre_overlay_layer_draw(sdk::renderer::layer::Overlay* layer, void* r
     // NOT RE3
     // for some reason RE3 has weird issues with the overlay rendering
     // causing double vision
-#if (TDB_VER < 70 and not defined(RE3)) or (TDB_VER >= 70 and (not defined(RE3) and not defined(RE2) and not defined(RE7) and not defined(RE4)))
+#if (TDB_VER < 70 and not defined(RE3)) or (TDB_VER >= 70 and (not defined(RE3) and not defined(RE2) and not defined(RE7) and not defined(RE4) and not defined(SF6)))
     if (m_allow_engine_overlays->value()) {
         return true;
     }
@@ -1153,6 +1164,7 @@ std::optional<std::string> VR::hijack_camera() {
 
 std::optional<std::string> VR::hijack_wwise_listeners() {
 #ifndef RE4
+#ifndef SF6
     const auto t = sdk::find_type_definition("via.wwise.WwiseListener");
 
     if (t == nullptr) {
@@ -1211,6 +1223,7 @@ std::optional<std::string> VR::hijack_wwise_listeners() {
     if (!g_wwise_listener_update_hook->create()) {
         return "VR init failed: via.wwise.WwiseListener update native function hook failed.";
     }
+#endif
 #endif
 
     return std::nullopt;
@@ -1959,6 +1972,11 @@ void VR::disable_bad_effects() {
                 spdlog::info("[VR] Delay render modified");
             }
         }
+    } else if (is_sf6) {
+        // Must be on in SF6 or left eye gets stuck
+        if (set_delay_render_enable_method != nullptr) {
+            set_delay_render_enable_method->call<void*>(context, true);
+        }
     }
 
 #ifdef RE7
@@ -2257,6 +2275,17 @@ void VR::on_present() {
 }
 
 void VR::on_post_present() {
+    auto runtime = get_runtime();
+
+    if (!get_runtime()->loaded) {
+        return;
+    }
+
+    const auto renderer = g_framework->get_renderer_type();
+
+    if (renderer == REFramework::RendererType::D3D12) {
+        m_d3d12.on_post_present(this);
+    }
 }
 
 void VR::on_update_transform(RETransform* transform) {

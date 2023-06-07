@@ -324,6 +324,7 @@ std::shared_ptr<ObjectExplorer>& ObjectExplorer::get() {
 ObjectExplorer::ObjectExplorer()
 {
     m_type_name.reserve(256);
+    m_method_address.reserve(256);
     m_type_member.reserve(256);
     m_type_field.reserve(256);
     m_object_address.reserve(256);
@@ -565,10 +566,30 @@ void ObjectExplorer::on_draw_dev_ui() {
         }
     }
 
+    if (ImGui::InputText("Method Address", m_method_address.data(), 17, ImGuiInputTextFlags_::ImGuiInputTextFlags_CharsHexadecimal)) {
+        m_displayed_method = nullptr;
+
+        try {
+            if (m_method_address[0] != 0) {
+                const auto method_address = std::stoull(m_method_address, nullptr, 16);
+
+                if (auto it = m_method_map.find(method_address); it != m_method_map.end()) {
+                    m_displayed_method = it->second;
+                }
+            }
+        } catch (...) {
+            ImGui::Text("Invalid address");
+        }
+    }
+
     ImGui::InputText("REObject Address", m_object_address.data(), 17, ImGuiInputTextFlags_::ImGuiInputTextFlags_CharsHexadecimal);
 
     if (m_object_address[0] != 0) {
         handle_address(std::stoull(m_object_address, nullptr, 16));
+    }
+
+    if (m_displayed_method != nullptr) {
+        attempt_display_method(nullptr, *m_displayed_method, true);
     }
 
     std::vector<uint8_t> fake_type{ 0 };
@@ -1853,7 +1874,7 @@ void ObjectExplorer::generate_sdk() {
 #if TDB_VER > 49
         // Generate Methods
         if (fields->methods != nullptr) {
-            for (auto i = 0; i < num_methods; ++i) {
+            for (auto i = 0; i < num_methods; ++i) try {
                 auto top = (*methods)[i];
 
                 if (top == nullptr) {
@@ -1913,14 +1934,16 @@ void ObjectExplorer::generate_sdk() {
                     {"typeindex", descriptor->typeIndex}
                 };
 #endif
+            } catch(...) {
+                continue; // unexplained crash
             }
         }
 #endif
 
         // Generate Properties
-        if (fields->variables != nullptr && fields->variables != nullptr && fields->variables->data != nullptr) {
+        if (fields->variables != nullptr && fields->variables->data != nullptr) {
             auto descriptors = fields->variables->data->descriptors;
-
+            auto reflection_property_index = 0;
             for (auto i = descriptors; i != descriptors + fields->variables->num; ++i) {
                 auto variable = *i;
 
@@ -1967,6 +1990,7 @@ void ObjectExplorer::generate_sdk() {
                 prop_entry = {
                     {"getter", (std::stringstream{} << "0x" << std::hex << get_original_va(variable->function)).str()},
                     {"type", field_t_name},
+                    {"order", reflection_property_index++},
                 };
 #endif
             
@@ -2314,6 +2338,10 @@ void ObjectExplorer::handle_component(REComponent* component) {
         }
     };
 
+    if (ImGui::Button("Destroy Component")) {
+        sdk::call_object_func<void>(component, "destroy", sdk::get_thread_context(), component);
+    }
+
     make_tree_offset(component, offsetof(REComponent, ownerGameObject), "Owner", [&](){  display_component_preview(component); });
     //make_tree_offset(component, offsetof(REComponent, childComponent), "ChildComponent");
 
@@ -2487,11 +2515,11 @@ void ObjectExplorer::handle_type(REManagedObject* obj, REType* t) {
 
         auto obj_for_widget = (type_info == t && is_singleton && !is_real_obj) ? utility::re_type::get_singleton_instance(type_info) : t;
 
-        auto made_node = widget_with_context(obj_for_widget, [&name]() { return ImGui::TreeNode(name); });
+        auto made_node = widget_with_context(obj_for_widget, name, [&name]() { return ImGui::TreeNode(name); });
 
         // top
         if (is_singleton && type_info == t) {
-            make_same_line_text("SINGLETON", ImVec4{1.0f, 0.0f, 0.0f, 1.0f});
+            make_same_line_text("SINGLETON", ImVec4{1.0f, 0.0f, 0.0f, 1.0f}); 
         }
 
         if (!made_node) {
@@ -2636,7 +2664,7 @@ void ObjectExplorer::display_reflection_methods(REManagedObject* obj, REType* ty
             }
 
             auto ret = descriptor->returnTypeName != nullptr ? std::string{ descriptor->returnTypeName } : std::string{ "undefined" };
-            auto made_node = widget_with_context(descriptor, [&]() { return stretched_tree_node(descriptor, "%s", ret.c_str()); });
+            auto made_node = widget_with_context(descriptor, descriptor->name, [&]() { return stretched_tree_node(descriptor, "%s", ret.c_str()); });
             auto tree_hovered = ImGui::IsItemHovered();
 
             // Draw the variable name with a color
@@ -2693,7 +2721,7 @@ void ObjectExplorer::display_reflection_properties(REManagedObject* obj, REType*
 
             auto local_obj = obj;
 
-            auto made_node = widget_with_context(variable->function, [&]() { return stretched_tree_node(variable, "%s", variable->typeName); });
+            auto made_node = widget_with_context(variable->function, variable->name, [&]() { return stretched_tree_node(variable, "%s", variable->typeName); });
             auto tree_hovered = ImGui::IsItemHovered();
 
             // Draw the variable name with a color
@@ -2870,7 +2898,7 @@ void ObjectExplorer::display_native_fields(REManagedObject* obj, sdk::RETypeDefi
 
             is_managed_str = final_type_name == "System.String";
 
-            const auto made_node = widget_with_context(data, [&]() { return stretched_tree_node(f, "%s", field_type_name.c_str()); });
+            const auto made_node = widget_with_context(data, field_name, [&]() { return stretched_tree_node(f, "%s", field_type_name.c_str()); });
             const auto tree_hovered = ImGui::IsItemHovered();
 
             // Draw the variable name with a color
@@ -2901,6 +2929,200 @@ void ObjectExplorer::display_native_fields(REManagedObject* obj, sdk::RETypeDefi
 //#endif
 }
 
+void ObjectExplorer::attempt_display_method(REManagedObject* obj, sdk::REMethodDefinition& m, bool use_full_name) {
+    const auto declaring_type = m.get_declaring_type();
+    const auto method_name = (use_full_name && declaring_type != nullptr) ? declaring_type->get_full_name() + "." + m.get_name() : m.get_name();
+    const auto method_return_type = m.get_return_type();
+    const auto method_return_type_name = method_return_type != nullptr ? method_return_type->get_full_name() : std::string{};
+    const auto method_param_types = m.get_param_types();
+    const auto method_param_names = m.get_param_names();
+    const auto method_virtual_index = m.get_virtual_index();
+    const auto method_flags = m.get_flags();
+    const auto method_impl_flags = m.get_impl_flags();
+
+    const auto method_ptr = m.get_function();
+
+    // Create a c-style function prototype string from the param types and names
+    std::stringstream ss{};
+    ss << method_name << "(";
+
+    std::stringstream ss_context{};
+    ss_context << method_name << "(";
+
+    for (auto i = 0; i < method_param_types.size(); i++) {
+        if (i > 0) {
+            ss << ", ";
+            ss_context << ", ";
+        }
+        ss << method_param_types[i]->get_full_name() << " " << method_param_names[i];
+        ss_context << method_param_types[i]->get_full_name();
+    }
+
+    ss << ")";
+    ss_context << ")";
+    const auto method_prototype = ss.str();
+    const auto method_prototype_context = ss_context.str();
+
+    const auto made_node = stretched_tree_node(&m, "%s", method_return_type_name.c_str());
+    method_context_menu(&m, method_prototype_context, obj);
+    
+    const auto tree_hovered = ImGui::IsItemHovered();
+
+    // Draw the method name with a color
+    if (tree_hovered) {
+        make_same_line_text(method_prototype, VARIABLE_COLOR_HIGHLIGHT);
+    } else {
+        make_same_line_text(method_prototype, VARIABLE_COLOR);
+    }
+
+    bool is_stub = m_known_stub_methods.find(method_ptr) != m_known_stub_methods.end();
+    bool is_ok_method = m_ok_methods.find(method_ptr) != m_ok_methods.end();
+
+    if (method_ptr != nullptr && !is_stub && !is_ok_method) {
+        if (utility::is_stub_code((uint8_t*)method_ptr)) {
+            m_known_stub_methods.insert(method_ptr);
+
+            is_ok_method = false;
+            is_stub = true;
+        } else {
+            m_ok_methods.insert(method_ptr);
+        }
+    }
+    
+    if (method_ptr == nullptr || is_stub) {
+        ImGui::SameLine();
+        ImGui::TextColored(ImVec4{ 1.0f, 0.0f, 0.0f, 1.0f }, "STUB");
+    }
+
+    bool is_duplicate = m_function_occurrences[method_ptr] > 5;
+
+    if (is_duplicate) {
+        ImGui::SameLine();
+        ImGui::TextColored(ImVec4{ 1.0f, 0.0f, 0.0f, 1.0f }, "DUPLICATE");
+    }
+
+    // draw the method data
+    if (made_node) {
+        if (ImGui::BeginTable("##method", 4,  ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable)) {
+            ImGui::TableNextColumn();
+            ImGui::Text("Address");
+
+            ImGui::TableNextColumn();
+            ImGui::Text("Virtual Index");
+
+            ImGui::TableNextColumn();
+            ImGui::Text("Flags");
+
+            ImGui::TableNextColumn();
+            ImGui::Text("Impl flags");
+            
+            // address
+            ImGui::TableNextColumn();
+            ImGui::Text("0x%p", method_ptr);
+
+            // virtual index
+            ImGui::TableNextColumn();
+            ImGui::Text("%i", method_virtual_index);
+
+            // flags
+            ImGui::TableNextColumn();
+            ImGui::Text("%s", get_full_enum_value_name("via.clr.MethodFlag", method_flags).c_str());
+            
+            // impl flags
+            ImGui::TableNextColumn();
+            ImGui::Text("%s", get_full_enum_value_name("via.clr.MethodImplFlag", method_impl_flags).c_str());
+
+            ImGui::EndTable();
+        }
+
+        if (method_param_types.size() > 0) {
+            if (ImGui::BeginTable("##params", 3,  ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable)) {
+                ImGui::TableNextColumn();
+                ImGui::Text("Index");
+                ImGui::TableNextColumn();
+                ImGui::Text("Type");
+                ImGui::TableNextColumn();
+                ImGui::Text("Name");
+
+                for (auto i = 0; i < method_param_types.size(); i++) {
+                    ImGui::TableNextColumn();
+                    ImGui::Text(std::to_string(i).c_str());
+                    ImGui::TableNextColumn();
+
+                    const auto param_typedef = method_param_types[i];
+                    const auto param_type_full_name = param_typedef->get_full_name();
+                    const auto param_type = param_typedef->get_type();
+
+                    if (param_type != nullptr) {
+                        std::vector<uint8_t> fake_object(param_typedef->get_size(), 0);
+
+                        this->handle_type((REManagedObject*)fake_object.data(), param_typedef->get_type());
+                    } else {
+                        ImGui::Text(param_type_full_name.c_str());
+                    }
+
+                    ImGui::TableNextColumn();
+                    ImGui::TextColored(VARIABLE_COLOR, method_param_names[i]);
+                }
+
+                ImGui::EndTable();
+            }
+        }
+
+        if (ImGui::BeginTable("##disassembly", 3,  ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable)) {
+            ImGui::TableNextColumn();
+            ImGui::Text("Address");
+
+            ImGui::TableNextColumn();
+            ImGui::Text("Bytes");
+
+            ImGui::TableNextColumn();
+            ImGui::Text("Instruction");
+
+            // Show a short disassembly of the method
+            auto ip = (uintptr_t)method_ptr;
+
+            for (auto i = 0; i < 20; i++) {
+                const auto decoded = utility::decode_one((uint8_t*)ip);
+
+                if (!decoded) {
+                    break;
+                }
+
+                char buffer[ND_MIN_BUF_SIZE]{};
+                NdToText(&*decoded, 0, sizeof(buffer), buffer);
+
+                ImGui::TableNextColumn();
+                ImGui::Text("0x%p", ip);
+
+                ImGui::TableNextColumn();
+                // show the bytes
+                for (auto j = 0; j < decoded->Length; j++) {
+                    if (j > 0) {
+                        ImGui::SameLine();
+                    }
+
+                    if (ip) ImGui::Text("%02X", ((uint8_t*)ip)[j]);
+                }
+
+                ImGui::TableNextColumn();
+                ImGui::Text(buffer);
+
+                ip += decoded->Length;
+
+                // check if int3 and stop
+                if (std::string_view{decoded->Mnemonic}.starts_with("INT3")) {
+                    break;
+                }
+            }
+
+            ImGui::EndTable();
+        }
+
+        ImGui::TreePop();
+    }
+}
+
 void ObjectExplorer::display_native_methods(REManagedObject* obj, sdk::RETypeDefinition* tdef) {
     if (tdef == nullptr) {
         return;
@@ -2913,202 +3135,14 @@ void ObjectExplorer::display_native_methods(REManagedObject* obj, sdk::RETypeDef
     if (methods.size() == 0) {
         return;
     }
-
+    
     if (ImGui::TreeNode(methods.begin(), "TDB Methods: %i", methods.size())) {
         for (auto& m : methods) {
             if (!is_filtered_method(m)) {
                 continue;
             }
-            const auto method_name = m.get_name();
-            const auto method_return_type = m.get_return_type();
-            const auto method_return_type_name = method_return_type != nullptr ? method_return_type->get_full_name() : std::string{};
-            const auto method_param_types = m.get_param_types();
-            const auto method_param_names = m.get_param_names();
-            const auto method_virtual_index = m.get_virtual_index();
-            const auto method_flags = m.get_flags();
-            const auto method_impl_flags = m.get_impl_flags();
 
-            const auto method_ptr = m.get_function();
-
-            // Create a c-style function prototype string from the param types and names
-            std::stringstream ss{};
-            ss << method_name << "(";
-
-            std::stringstream ss_context{};
-            ss_context << method_name << "(";
-
-            for (auto i = 0; i < method_param_types.size(); i++) {
-                if (i > 0) {
-                    ss << ", ";
-                    ss_context << ", ";
-                }
-                ss << method_param_types[i]->get_full_name() << " " << method_param_names[i];
-                ss_context << method_param_types[i]->get_full_name();
-            }
-
-            ss << ")";
-            ss_context << ")";
-            const auto method_prototype = ss.str();
-            const auto method_prototype_context = ss_context.str();
-
-            const auto made_node = stretched_tree_node(&m, "%s", method_return_type_name.c_str());
-            method_context_menu(&m, method_prototype_context);
-            
-            const auto tree_hovered = ImGui::IsItemHovered();
-
-            // Draw the method name with a color
-            if (tree_hovered) {
-                make_same_line_text(method_prototype, VARIABLE_COLOR_HIGHLIGHT);
-            } else {
-                make_same_line_text(method_prototype, VARIABLE_COLOR);
-            }
-
-            bool is_stub = m_known_stub_methods.find(method_ptr) != m_known_stub_methods.end();
-            bool is_ok_method = m_ok_methods.find(method_ptr) != m_ok_methods.end();
-
-            if (method_ptr != nullptr && !is_stub && !is_ok_method) {
-                if (utility::is_stub_code((uint8_t*)method_ptr)) {
-                    m_known_stub_methods.insert(method_ptr);
-
-                    is_ok_method = false;
-                    is_stub = true;
-                } else {
-                    m_ok_methods.insert(method_ptr);
-                }
-            }
-            
-            if (method_ptr == nullptr || is_stub) {
-                ImGui::SameLine();
-                ImGui::TextColored(ImVec4{ 1.0f, 0.0f, 0.0f, 1.0f }, "STUB");
-            }
-
-            bool is_duplicate = m_function_occurrences[method_ptr] > 5;
-
-            if (is_duplicate) {
-                ImGui::SameLine();
-                ImGui::TextColored(ImVec4{ 1.0f, 0.0f, 0.0f, 1.0f }, "DUPLICATE");
-            }
-
-            // draw the method data
-            if (made_node) {
-                if (ImGui::BeginTable("##method", 4,  ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable)) {
-                    ImGui::TableNextColumn();
-                    ImGui::Text("Address");
-
-                    ImGui::TableNextColumn();
-                    ImGui::Text("Virtual Index");
-
-                    ImGui::TableNextColumn();
-                    ImGui::Text("Flags");
-
-                    ImGui::TableNextColumn();
-                    ImGui::Text("Impl flags");
-                    
-                    // address
-                    ImGui::TableNextColumn();
-                    ImGui::Text("0x%p", method_ptr);
-
-                    // virtual index
-                    ImGui::TableNextColumn();
-                    ImGui::Text("%i", method_virtual_index);
-
-                    // flags
-                    ImGui::TableNextColumn();
-                    ImGui::Text("%s", get_full_enum_value_name("via.clr.MethodFlag", method_flags).c_str());
-                    
-                    // impl flags
-                    ImGui::TableNextColumn();
-                    ImGui::Text("%s", get_full_enum_value_name("via.clr.MethodImplFlag", method_impl_flags).c_str());
-
-                    ImGui::EndTable();
-                }
-
-                if (method_param_types.size() > 0) {
-                    if (ImGui::BeginTable("##params", 3,  ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable)) {
-                        ImGui::TableNextColumn();
-                        ImGui::Text("Index");
-                        ImGui::TableNextColumn();
-                        ImGui::Text("Type");
-                        ImGui::TableNextColumn();
-                        ImGui::Text("Name");
-
-                        for (auto i = 0; i < method_param_types.size(); i++) {
-                            ImGui::TableNextColumn();
-                            ImGui::Text(std::to_string(i).c_str());
-                            ImGui::TableNextColumn();
-
-                            const auto param_typedef = method_param_types[i];
-                            const auto param_type_full_name = param_typedef->get_full_name();
-                            const auto param_type = param_typedef->get_type();
-
-                            if (param_type != nullptr) {
-                                std::vector<uint8_t> fake_object(param_typedef->get_size(), 0);
-
-                                this->handle_type((REManagedObject*)fake_object.data(), param_typedef->get_type());
-                            } else {
-                                ImGui::Text(param_type_full_name.c_str());
-                            }
-
-                            ImGui::TableNextColumn();
-                            ImGui::TextColored(VARIABLE_COLOR, method_param_names[i]);
-                        }
-
-                        ImGui::EndTable();
-                    }
-                }
-
-                if (ImGui::BeginTable("##disassembly", 3,  ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable)) {
-                    ImGui::TableNextColumn();
-                    ImGui::Text("Address");
-
-                    ImGui::TableNextColumn();
-                    ImGui::Text("Bytes");
-
-                    ImGui::TableNextColumn();
-                    ImGui::Text("Instruction");
-
-                    // Show a short disassembly of the method
-                    auto ip = (uintptr_t)method_ptr;
-
-                    for (auto i = 0; i < 20; i++) {
-                        const auto decoded = utility::decode_one((uint8_t*)ip);
-
-                        if (!decoded) {
-                            break;
-                        }
-
-                        char buffer[ND_MIN_BUF_SIZE]{};
-                        NdToText(&*decoded, 0, sizeof(buffer), buffer);
-
-                        ImGui::TableNextColumn();
-                        ImGui::Text("0x%p", ip);
-
-                        ImGui::TableNextColumn();
-                        // show the bytes
-                        for (auto j = 0; j < decoded->Length; j++) {
-                            if (j > 0) {
-                                ImGui::SameLine();
-                            }
-
-                            ImGui::Text("%02X", ((uint8_t*)ip)[j]);
-                        }
-
-                        ImGui::TableNextColumn();
-                        ImGui::Text(buffer);
-
-                        ip += decoded->Length;
-
-                        // check if int3 and stop
-                        if (std::string_view{decoded->Mnemonic}.starts_with("INT3")) {
-                            break;
-                        }
-                    }
-
-                    ImGui::EndTable();
-                }
-
-                ImGui::TreePop();
-            }
+            attempt_display_method(obj, m);   
         }
 
         ImGui::TreePop();
@@ -3183,16 +3217,6 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
 
     constexpr auto min_zero = 0;
 
-    auto make_tree_addr = [this](void* addr) {
-        if (widget_with_context(addr, [&]() { return ImGui::TreeNode(addr, "Variable: 0x%p", addr); })) {
-            if (is_managed_object(addr)) {
-                handle_address(addr);
-            }
-
-            ImGui::TreePop();
-        }
-    };
-
     // yay for compile time string hashing
     switch (utility::hash(type_name)) {
     case "via.GameObjectRef"_fnv: {
@@ -3213,7 +3237,7 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
     case "System.UInt64"_fnv:
     case "size_t"_fnv:
     case "u64"_fnv:
-        ImGui::Text("%llu", *(uint64_t*)data);
+        ImGui::Text("0x%llX", *(uint64_t*)data);
 
         if (real_data != nullptr) {
             auto& int_val = *(uint64_t*)real_data;
@@ -3224,7 +3248,7 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
         break;
     case "System.Int64"_fnv:
     case "s64"_fnv:
-        ImGui::Text("%lli", *(int64_t*)data);
+        ImGui::Text("0x%llX", *(int64_t*)data);
 
         if (real_data != nullptr) {
             auto& int_val = *(int64_t*)real_data;
@@ -3235,7 +3259,7 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
         break;
     case "System.UInt32"_fnv:
     case "u32"_fnv:
-        ImGui::Text("%u", *(uint32_t*)data);
+        ImGui::Text("0x%X", *(uint32_t*)data);
 
         if (real_data != nullptr) {
             auto& int_val = *(uint32_t*)real_data;
@@ -3246,7 +3270,7 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
         break;
     case "System.Int32"_fnv:
     case "s32"_fnv:
-        ImGui::Text("%i", *(int32_t*)data);
+        ImGui::Text("0x%X", *(int32_t*)data);
 
         if (real_data != nullptr) {
             auto& int_val = *(int32_t*)real_data;
@@ -3258,7 +3282,7 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
 
     case "System.UInt16"_fnv:
     case "u16"_fnv:
-        ImGui::Text("%i", *(uint16_t*)data);
+        ImGui::Text("0x%04X", *(uint16_t*)data);
 
         if (real_data != nullptr) {
             auto& int_val = *(uint16_t*)real_data;
@@ -3269,7 +3293,7 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
 
     case "System.Int16"_fnv:
     case "s16"_fnv:
-        ImGui::Text("%i", *(int16_t*)data);
+        ImGui::Text("0x%04X", *(int16_t*)data);
 
         if (real_data != nullptr) {
             auto& int_val = *(int16_t*)real_data;
@@ -3279,7 +3303,7 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
         break;
     case "System.Byte"_fnv:
     case "u8"_fnv:
-        ImGui::Text("%u", *(uint8_t*)data);
+        ImGui::Text("0x%02X", *(uint8_t*)data);
 
         if (real_data != nullptr) {
             auto& int_val = *(uint8_t*)real_data;
@@ -3290,7 +3314,7 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
         break;
     case "System.SByte"_fnv:
     case "s8"_fnv:
-        ImGui::Text("%i", *(int8_t*)data);
+        ImGui::Text("0x%02X", *(int8_t*)data);
 
         if (real_data != nullptr) {
             auto& int_val = *(int8_t*)real_data;
@@ -3317,9 +3341,9 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
     case "System.Boolean"_fnv:
     case "bool"_fnv:
         if (*(bool*)data) {
-            ImGui::Text("true");
+            ImGui::TextUnformatted("true");
         } else {
-            ImGui::Text("false");
+            ImGui::TextUnformatted("false");
         }
 
         if (real_data != nullptr) {
@@ -3415,77 +3439,95 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
             ImGui::Text("%s", utility::re_string::get_string(*(REString*)data).c_str());
         }
     } break;
-    default: {
-        if (is_enum) {
-            if (override_def != nullptr) {
-                switch (override_def->get_underlying_type()->get_valuetype_size()) {
-                    case 1:
-                        display_enum_value(type_name, *(int8_t*)data);
-                        if (real_data != nullptr) {
-                            auto& int_val = *(int8_t*)real_data;
+        default: {
+            if (is_enum) {
+                if (override_def != nullptr) {
+                    switch (override_def->get_underlying_type()->get_valuetype_size()) {
+                        case 1:
+                            display_enum_value(type_name, *(int8_t*)data);
+                            if (real_data != nullptr) {
+                                auto& int_val = *(int8_t*)real_data;
 
-                            ImGui::DragScalar("Set Value", ImGuiDataType_S8, &int_val, 1.0f, &min_i8, &max_i8);
-                        }
-                        break;
-                    case 2:
-                        display_enum_value(type_name, *(int16_t*)data);
-                        if (real_data != nullptr) {
-                            auto& int_val = *(int16_t*)real_data;
+                                ImGui::DragScalar("Set Value", ImGuiDataType_S8, &int_val, 1.0f, &min_i8, &max_i8);
+                            }
+                            break;
+                        case 2:
+                            display_enum_value(type_name, *(int16_t*)data);
+                            if (real_data != nullptr) {
+                                auto& int_val = *(int16_t*)real_data;
 
-                            ImGui::DragScalar("Set Value", ImGuiDataType_S16, &int_val, 1.0f, &min_i16, &max_i16);
-                        }
-                        break;
-                    case 4:
-                        display_enum_value(type_name, *(int32_t*)data);
-                        if (real_data != nullptr) {
-                            auto& int_val = *(int32_t*)real_data;
+                                ImGui::DragScalar("Set Value", ImGuiDataType_S16, &int_val, 1.0f, &min_i16, &max_i16);
+                            }
+                            break;
+                        case 4:
+                            display_enum_value(type_name, *(int32_t*)data);
+                            if (real_data != nullptr) {
+                                auto& int_val = *(int32_t*)real_data;
 
-                            ImGui::DragInt("Set Value", (int*)&int_val, 1.0f, min_int, max_int);
-                        }
-                        break;
-                    case 8:
-                        display_enum_value(type_name, *(int64_t*)data);
-                        if (real_data != nullptr) {
-                            auto& int_val = *(int64_t*)real_data;
+                                ImGui::DragInt("Set Value", (int*)&int_val, 1.0f, min_int, max_int);
+                            }
+                            break;
+                        case 8:
+                            display_enum_value(type_name, *(int64_t*)data);
+                            if (real_data != nullptr) {
+                                auto& int_val = *(int64_t*)real_data;
 
-                            ImGui::DragScalar("Set Value", ImGuiDataType_S64, &int_val, 1.0f, &min_int64, &max_int64);
-                        }
-                        break;
-                    default:
-                        ImGui::Text("Invalid enum size, falling back to int32");
+                                ImGui::DragScalar("Set Value", ImGuiDataType_S64, &int_val, 1.0f, &min_int64, &max_int64);
+                            }
+                            break;
+                        default:
+                            ImGui::Text("Invalid enum size, falling back to int32");
 
-                        display_enum_value(type_name, *(int32_t*)data);
-                        if (real_data != nullptr) {
-                            auto& int_val = *(int32_t*)real_data;
+                            display_enum_value(type_name, *(int32_t*)data);
+                            if (real_data != nullptr) {
+                                auto& int_val = *(int32_t*)real_data;
 
-                            ImGui::DragInt("Set Value", (int*)&int_val, 1.0f, min_int, max_int);
-                        }
-                        break;
+                                ImGui::DragInt("Set Value", (int*)&int_val, 1.0f, min_int, max_int);
+                            }
+                            break;
+                    }
+                } else {
+                    auto value = *(int32_t*)data;
+                    display_enum_value(type_name, (int32_t)value);
+
+                    if (real_data != nullptr) {
+                        auto& int_val = *(int32_t*)real_data;
+
+                        ImGui::DragInt("Set Value", (int*)&int_val, 1.0f, min_int, max_int);
+                    }
                 }
-            } else {
-                auto value = *(int32_t*)data;
-                display_enum_value(type_name, (int32_t)value);
+            } 
+            else {
+            
+                //auto make_tree_addr = [this](void* addr) {
+                //    if (widget_with_context(addr, [&]() { return ImGui::TreeNode(addr, "Variable: 0x%p", addr); })) {
+                //        if (is_managed_object(addr)) {
+                //            handle_address(addr);
+                //        }
 
-                if (real_data != nullptr) {
-                    auto& int_val = *(int32_t*)real_data;
+                //        ImGui::TreePop();
+                //    }
+                //};
+                //make_tree_addr(data);
+                if (widget_with_context(data, type_name, [&]() { return ImGui::TreeNode(data, "Variable: 0x%p", data); })) {
+                    if (is_managed_object(data)) {
+                        handle_address(data);
+                    }
 
-                    ImGui::DragInt("Set Value", (int*)&int_val, 1.0f, min_int, max_int);
+                    ImGui::TreePop();
+                }
+
+                if (override_def != nullptr) {
+                    const auto override_t = override_def->get_type();
+
+                    if (override_t != nullptr) {
+                        handle_type((REManagedObject*)data, override_t);
+                    }
                 }
             }
-        } else {
-            make_tree_addr(data);
 
-            if (override_def != nullptr) {
-                const auto override_t = override_def->get_type();
-
-                if (override_t != nullptr) {
-                    handle_type((REManagedObject*)data, override_t);
-                }
-            }
+            break;
         }
-
-        break;
-    }
     }
 }
 
@@ -3522,6 +3564,14 @@ int32_t ObjectExplorer::get_field_offset(REManagedObject* obj, VariableDescripto
     }
 
     if (parent_hash == "via.ResourceManager"_fnv && name_hash == "Loading"_fnv) {
+        return m_offset_map[desc];
+    }
+
+    if (parent_hash == "via.gui.TransformObject"_fnv && name_hash == "WorldMatrix"_fnv) {
+        return m_offset_map[desc];
+    }
+
+    if (parent_hash == "via.gui.TransformObject"_fnv && name_hash == "GlobalPosition"_fnv) {
         return m_offset_map[desc];
     }
 
@@ -3782,7 +3832,7 @@ void ObjectExplorer::hook_all_methods(sdk::RETypeDefinition* t) {
     }
 }
 
-void ObjectExplorer::method_context_menu(sdk::REMethodDefinition* method, std::optional<std::string> name) {
+void ObjectExplorer::method_context_menu(sdk::REMethodDefinition* method, std::optional<std::string> name, ::REManagedObject* obj) {
     auto additional_ctx = [&]() {
         auto it = std::find_if(m_hooked_methods.begin(), m_hooked_methods.end(), [method](auto& hook) { return hook.method == method; });
 
@@ -3802,6 +3852,15 @@ void ObjectExplorer::method_context_menu(sdk::REMethodDefinition* method, std::o
 
             if (declaring_type != nullptr) {
                 hook_all_methods(declaring_type);
+            }
+        }
+
+        // Allow us to call really simple methods with no params
+        if (method->get_param_types().size() == 0) {
+            if (obj != nullptr || method->is_static()) {
+                if (ImGui::Selectable("Call")) {
+                    method->invoke(obj, {});
+                }
             }
         }
     };
@@ -3844,13 +3903,13 @@ bool ObjectExplorer::is_managed_object(Address address) const {
 }
 
 void ObjectExplorer::populate_classes() {
-    auto& type_list = *reframework::get_types()->get_raw_types();
-    spdlog::info("TypeList: {:x}", (uintptr_t)&type_list);
+    auto type_list = reframework::get_types()->get_raw_types();
+    spdlog::info("TypeList: {:x}", (uintptr_t)type_list);
 
-    if (&type_list != nullptr) {
+    if (type_list != nullptr) try {
         // I don't know why but it can extend past the size.
-        for (auto i = 0; i < type_list.numAllocated; ++i) {
-            auto t = (*type_list.data)[i];
+        for (auto i = 0; i < type_list->numAllocated; ++i) {
+            auto t = (*type_list->data)[i];
 
             if (t == nullptr || IsBadReadPtr(t, sizeof(REType))) {
                 continue;
@@ -3870,44 +3929,48 @@ void ObjectExplorer::populate_classes() {
             m_sorted_types.push_back(name);
             m_types[name] = t;
         }
-    } else {
-        auto tdb = sdk::RETypeDB::get();
 
-        std::unordered_set<REType*> seen{};
-
-        if (tdb != nullptr) {
-            for (auto i = 0; i < tdb->get_num_types(); ++i) {
-                const auto t = tdb->get_type(i);
-
-                if (t == nullptr) {
-                    continue;
-                }
-
-                const auto re_type = t->get_type();
-
-                if (re_type == nullptr) {
-                    continue;
-                }
-
-                if (seen.contains(re_type)) {
-                    continue;
-                }
-
-                const auto name = re_type->name;
-
-                if (name == nullptr) {
-                    continue;
-                }
-
-                spdlog::info("{:s}", name);
-                m_sorted_types.push_back(name);
-                m_types[name] = re_type;
-
-                seen.insert(re_type);
-            }
-        }
+        std::sort(m_sorted_types.begin(), m_sorted_types.end());
+        return;
+    } catch(...) {
+        spdlog::error("Unknown exception caught while populating classes, falling back to other method.");
     }
 
+    auto tdb = sdk::RETypeDB::get();
+
+    std::unordered_set<REType*> seen{};
+
+    if (tdb != nullptr) {
+        for (auto i = 0; i < tdb->get_num_types(); ++i) {
+            const auto t = tdb->get_type(i);
+
+            if (t == nullptr) {
+                continue;
+            }
+
+            const auto re_type = t->get_type();
+
+            if (re_type == nullptr) {
+                continue;
+            }
+
+            if (seen.contains(re_type)) {
+                continue;
+            }
+
+            const auto name = re_type->name;
+
+            if (name == nullptr) {
+                continue;
+            }
+
+            spdlog::info("{:s}", name);
+            m_sorted_types.push_back(name);
+            m_types[name] = re_type;
+
+            seen.insert(re_type);
+        }
+    }
     
     std::sort(m_sorted_types.begin(), m_sorted_types.end());
 }
@@ -3916,48 +3979,54 @@ void ObjectExplorer::populate_enums() {
     bool has_enums = false;
 
 #if TDB_VER > 49
-    auto ref = utility::scan(g_framework->get_module().as<HMODULE>(), "66 C7 40 18 01 01 48 89 05 ? ? ? ?");
+    try {
+        auto ref = utility::scan(g_framework->get_module().as<HMODULE>(), "66 C7 40 18 01 01 48 89 05 ? ? ? ?");
 
-    if (ref) {
-        std::ofstream out_file(REFramework::get_persistent_dir("Enums_Internal.hpp"));
+        if (ref) {
+            std::ofstream out_file(REFramework::get_persistent_dir("Enums_Internal.hpp"));
 
-        auto& l = *(std::map<uint64_t, REEnumData>*)(utility::calculate_absolute(*ref + 9));
-        spdlog::info("EnumList: {:x}", (uintptr_t)&l);
-        spdlog::info("Size: {}", l.size());
+            auto& l = *(std::map<uint64_t, REEnumData>*)(utility::calculate_absolute(*ref + 9));
+            spdlog::info("EnumList: {:x}", (uintptr_t)&l);
+            spdlog::info("Size: {}", l.size());
 
-        has_enums = l.size() > 0;
+            has_enums = l.size() > 0;
 
-        for (auto& elem : l) {
-            spdlog::info(" {:x}[ {} {} ]", (uintptr_t)&elem, elem.first, elem.second.name);
+            for (auto& elem : l) {
+                spdlog::info(" {:x}[ {} {} ]", (uintptr_t)&elem, elem.first, elem.second.name);
 
-            std::string name = elem.second.name;
-            std::string nspace = name.substr(0, name.find_last_of("."));
-            name = name.substr(name.find_last_of(".") + 1);
+                std::string name = elem.second.name;
+                std::string nspace = name.substr(0, name.find_last_of("."));
+                name = name.substr(name.find_last_of(".") + 1);
 
-            for (auto pos = nspace.find("."); pos != std::string::npos; pos = nspace.find(".")) {
-                nspace.replace(pos, 1, "::");
-            }
-
-
-            out_file << "namespace " << nspace << " {" << std::endl;
-            out_file << "    enum " << name << " {" << std::endl;
-
-            for (auto node = elem.second.values; node != nullptr; node = node->next) {
-                if (node->name == nullptr) {
-                    continue;
+                for (auto pos = nspace.find("."); pos != std::string::npos; pos = nspace.find(".")) {
+                    nspace.replace(pos, 1, "::");
                 }
 
-                spdlog::info("     {} = {}", node->name, node->value);
-                out_file << "        " << node->name << " = " << node->value << "," << std::endl;
 
-                m_enums.emplace(elem.second.name, EnumDescriptor{ node->name, node->value });
+                out_file << "namespace " << nspace << " {" << std::endl;
+                out_file << "    enum " << name << " {" << std::endl;
+
+                for (auto node = elem.second.values; node != nullptr; node = node->next) {
+                    if (node->name == nullptr) {
+                        continue;
+                    }
+
+                    spdlog::info("     {} = {}", node->name, node->value);
+                    out_file << "        " << node->name << " = " << node->value << "," << std::endl;
+
+                    m_enums.emplace(elem.second.name, EnumDescriptor{ node->name, node->value });
+                }
+
+                out_file << "    };" << std::endl;
+                out_file << "}" << std::endl;
             }
-
-            out_file << "    };" << std::endl;
-            out_file << "}" << std::endl;
+        } else {
+            spdlog::error("Failed to find EnumList");
         }
-    } else {
-        spdlog::error("Failed to find EnumList");
+    } catch(...) {
+        has_enums = false;
+        m_enums.clear();
+        spdlog::error("Unknown exception caught while populating enums, falling back to other method.");
     }
 #endif
 
@@ -4060,6 +4129,10 @@ void ObjectExplorer::init() {
 
             if (func == nullptr) {
                 continue;
+            }
+
+            if (!m_function_occurrences.contains(func)) {
+                m_method_map[(uintptr_t)func] = method;
             }
 
             m_function_occurrences[func]++;

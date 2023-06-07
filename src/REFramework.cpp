@@ -15,6 +15,8 @@ extern "C" {
 #include <imgui.h>
 #include <ImGuizmo.h>
 #include <imnodes.h>
+#include "re2-imgui/af_baidu.hpp"
+#include "re2-imgui/af_faprolight.hpp"
 #include "re2-imgui/font_robotomedium.hpp"
 #include "re2-imgui/imgui_impl_dx11.h"
 #include "re2-imgui/imgui_impl_dx12.h"
@@ -277,7 +279,7 @@ REFramework::REFramework(HMODULE reframework_module)
     startup_lookup_thread->detach();
 #endif
 
-#if defined(RE8) || defined(RE4) || defined(MHRISE)
+#if defined(REENGINE_AT)
     ULONG_PTR loader_magic = 0;
     auto lock_loader = (PFN_LdrLockLoaderLock)GetProcAddress(ntdll, "LdrLockLoaderLock");
     auto unlock_loader = (PFN_LdrUnlockLoaderLock)GetProcAddress(ntdll, "LdrUnlockLoaderLock");
@@ -292,15 +294,17 @@ REFramework::REFramework(HMODULE reframework_module)
 
     IntegrityCheckBypass::ignore_application_entries();
 
-#if defined(RE8) || defined(RE4)
+#if defined(RE8) || defined(RE4) || defined(SF6)
     // Also done on RE4 because some of the scans are the same.
     IntegrityCheckBypass::immediate_patch_re8();
 #endif
 
-#if defined(RE4)
+#if defined(RE4) || defined(SF6)
     // Fixes new code added in RE4 only.
     IntegrityCheckBypass::immediate_patch_re4();
 #endif
+    // Seen in SF6
+    IntegrityCheckBypass::remove_stack_destroyer();
     suspender.resume();
 #endif
 
@@ -415,11 +419,11 @@ REFramework::~REFramework() {
     m_d3d_monitor_thread.reset();
 
     if (m_is_d3d11) {
-        ImGui_ImplDX11_Shutdown();
+        deinit_d3d11();
     }
 
     if (m_is_d3d12) {
-        ImGui_ImplDX12_Shutdown();
+        deinit_d3d12();
     }
 
     ImGui_ImplWin32_Shutdown();
@@ -613,27 +617,40 @@ void REFramework::on_frame_d3d12() {
         }
     }
 
+    auto do_per_frame_thing = [&]() {
+        ImGui::GetIO().BackendRendererUserData = m_d3d12.imgui_backend_datas[0];
+        const auto prev_cleanup = m_wants_device_object_cleanup;
+        invalidate_device_objects();
+        ImGui_ImplDX12_NewFrame();
+
+        ImGui::GetIO().BackendRendererUserData = m_d3d12.imgui_backend_datas[1];
+        m_wants_device_object_cleanup = prev_cleanup;
+        invalidate_device_objects();
+        ImGui_ImplDX12_NewFrame();
+    };
+
     if (!m_has_frame) {
         if (!is_init_ok) {
             update_fonts();
-            invalidate_device_objects();
-
-            ImGui_ImplDX12_NewFrame();
+            do_per_frame_thing();
             // hooks don't run until after initialization, so we just render the imgui window while initalizing.
             run_imgui_frame(true);
         } else {   
             return;
         }
     } else {
-        invalidate_device_objects();
-        ImGui_ImplDX12_NewFrame();
+        do_per_frame_thing();
     }
 
     if (is_init_ok) {
         m_mods->on_present();
     }
 
-    m_d3d12.cmd_allocator->Reset();
+    if (FAILED(m_d3d12.cmd_allocator->Reset())) {
+        spdlog::error("[D3D12] Failed to reset command allocator");
+        return;
+    }
+
     m_d3d12.cmd_list->Reset(m_d3d12.cmd_allocator.Get(), nullptr);
 
     // Draw to our render target.
@@ -652,7 +669,10 @@ void REFramework::on_frame_d3d12() {
     rts[0] = m_d3d12.get_cpu_rtv(device, D3D12::RTV::IMGUI);
     m_d3d12.cmd_list->OMSetRenderTargets(1, rts, FALSE, NULL);
     m_d3d12.cmd_list->SetDescriptorHeaps(1, m_d3d12.srv_desc_heap.GetAddressOf());
+
+    ImGui::GetIO().BackendRendererUserData = m_d3d12.imgui_backend_datas[1];
     ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), m_d3d12.cmd_list.Get());
+    
     barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
     barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
     m_d3d12.cmd_list->ResourceBarrier(1, &barrier);
@@ -667,7 +687,10 @@ void REFramework::on_frame_d3d12() {
     rts[0] = m_d3d12.get_cpu_rtv(device, (D3D12::RTV)bb_index);
     m_d3d12.cmd_list->OMSetRenderTargets(1, rts, FALSE, NULL);
     m_d3d12.cmd_list->SetDescriptorHeaps(1, m_d3d12.srv_desc_heap.GetAddressOf());
+
+    ImGui::GetIO().BackendRendererUserData = m_d3d12.imgui_backend_datas[0];
     ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), m_d3d12.cmd_list.Get());
+
     barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
     barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
     m_d3d12.cmd_list->ResourceBarrier(1, &barrier);
@@ -1019,9 +1042,22 @@ void REFramework::update_fonts() {
     m_fonts_need_updating = false;
 
     auto& fonts = ImGui::GetIO().Fonts;
-
     fonts->Clear();
-    fonts->AddFontFromMemoryCompressedTTF(RobotoMedium_compressed_data, RobotoMedium_compressed_size, (float)m_font_size);
+
+    // using 'reframework_pictographic.mode' file to 
+    // replace '?' to most flag in WorldObjectsViewer
+    ImFontConfig custom_icons{}; 
+    custom_icons.FontDataOwnedByAtlas = false;
+    ImFont* fsload = (INVALID_FILE_ATTRIBUTES != ::GetFileAttributesA("reframework_pictographic.mode"))
+        ? fonts->AddFontFromMemoryTTF((void*)af_baidu_ptr, af_baidu_size, (float)m_font_size, &custom_icons, fonts->GetGlyphRangesChineseFull())
+        : fonts->AddFontFromMemoryCompressedTTF(RobotoMedium_compressed_data, RobotoMedium_compressed_size, (float)m_font_size);
+
+    // https://fontawesome.com/
+    custom_icons.PixelSnapH = true;
+    custom_icons.MergeMode = true;
+    custom_icons.FontDataOwnedByAtlas = false;
+    static const ImWchar icon_ranges[] = {0xF000, 0xF976, 0}; // ICON_MIN_FA ICON_MAX_FA
+    fonts->AddFontFromMemoryTTF((void*)af_faprolight_ptr, af_faprolight_size, (float)m_font_size, &custom_icons, icon_ranges);
 
     for (auto& font : m_additional_fonts) {
         const ImWchar* ranges = nullptr;
@@ -1033,7 +1069,7 @@ void REFramework::update_fonts() {
         if (fs::exists(font.filepath)) {
             font.font = fonts->AddFontFromFileTTF(font.filepath.string().c_str(), (float)font.size, nullptr, ranges);
         } else {
-            font.font = fonts->AddFontFromMemoryCompressedTTF(RobotoMedium_compressed_data, RobotoMedium_compressed_size, (float)font.size, nullptr, ranges);
+            font.font = fsload; // fonts->AddFontFromMemoryCompressedTTF(RobotoMedium_compressed_data, RobotoMedium_compressed_size, (float)font.size, nullptr, ranges);
         }
     }
 
@@ -1174,7 +1210,7 @@ void REFramework::draw_about() {
             std::string text;
         };
 
-        static std::array<License, 13> licenses{
+        static std::array<License, 15> licenses{
             License{ "glm", license::glm },
             License{ "imgui", license::imgui },
             License{ "minhook", license::minhook },
@@ -1187,7 +1223,9 @@ void REFramework::draw_about() {
             License{ "asmjit", license::asmjit },
             License{ "bddisasm", utility::narrow(license::bddisasm) },
             License{ "openxr", license::openxr },
-            License{ "imguizmo", license::imguizmo }
+            License{ "imguizmo", license::imguizmo },
+            License{ "DirectXTK", license::directxtk },
+            License{ "DirectXTK12", license::directxtk },
         };
 
         for (const auto& license : licenses) {
@@ -1629,16 +1667,21 @@ bool REFramework::init_d3d11() {
 
     // Create our blank render target.
     spdlog::info("[D3D11] Creating render targets...");
+    {
+        // Create our blank render target.
+        auto d3d11_rt_desc = backbuffer_desc;
+        d3d11_rt_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; // For VR
 
-    if (FAILED(device->CreateTexture2D(&backbuffer_desc, nullptr, &m_d3d11.blank_rt))) {
-        spdlog::error("[D3D11] Failed to create render target texture!");
-        return false;
-    }
+        if (FAILED(device->CreateTexture2D(&d3d11_rt_desc, nullptr, &m_d3d11.blank_rt))) {
+            spdlog::error("[D3D11] Failed to create render target texture!");
+            return false;
+        }
 
-    // Create our render target.
-    if (FAILED(device->CreateTexture2D(&backbuffer_desc, nullptr, &m_d3d11.rt))) {
-        spdlog::error("[D3D11] Failed to create render target texture!");
-        return false;
+        // Create our render target
+        if (FAILED(device->CreateTexture2D(&d3d11_rt_desc, nullptr, &m_d3d11.rt))) {
+            spdlog::error("[D3D11] Failed to create render target texture!");
+            return false;
+        }
     }
 
     // Create our blank render target view.
@@ -1700,6 +1743,8 @@ bool REFramework::init_d3d12() {
         return false;
     }
 
+    m_d3d12.cmd_allocator->SetName(L"Framework::m_d3d12.cmd_allocator");
+
     spdlog::info("[D3D12] Creating command list...");
 
     if (FAILED(device->CreateCommandList(
@@ -1707,6 +1752,8 @@ bool REFramework::init_d3d12() {
         spdlog::error("[D3D12] Failed to create command list.");
         return false;
     }
+
+    m_d3d12.cmd_list->SetName(L"Framework::m_d3d12.cmd_list");
 
     if (FAILED(m_d3d12.cmd_list->Close())) {
         spdlog::error("[D3D12] Failed to close command list after creation.");
@@ -1716,7 +1763,6 @@ bool REFramework::init_d3d12() {
     spdlog::info("[D3D12] Creating RTV descriptor heap...");
 
     {
-
         D3D12_DESCRIPTOR_HEAP_DESC desc{};
 
         desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
@@ -1728,6 +1774,8 @@ bool REFramework::init_d3d12() {
             spdlog::error("[D3D12] Failed to create RTV descriptor heap.");
             return false;
         }
+
+        m_d3d12.rtv_desc_heap->SetName(L"Framework::m_d3d12.rtv_desc_heap");
     }
 
     spdlog::info("[D3D12] Creating SRV descriptor heap...");
@@ -1743,6 +1791,8 @@ bool REFramework::init_d3d12() {
             spdlog::error("[D3D12] Failed to create SRV descriptor heap.");
             return false;
         }
+
+        m_d3d12.srv_desc_heap->SetName(L"Framework::m_d3d12.srv_desc_heap");
     }
 
     spdlog::info("[D3D12] Creating render targets...");
@@ -1754,6 +1804,8 @@ bool REFramework::init_d3d12() {
         for (auto i = 0; i <= (int)D3D12::RTV::BACKBUFFER_3; ++i) {
             if (SUCCEEDED(swapchain->GetBuffer(i, IID_PPV_ARGS(&m_d3d12.rts[i])))) {
                 device->CreateRenderTargetView(m_d3d12.rts[i].Get(), nullptr, m_d3d12.get_cpu_rtv(device, (D3D12::RTV)i));
+            } else {
+                spdlog::error("[D3D12] Failed to get back buffer for rtv.");
             }
         }
 
@@ -1768,26 +1820,33 @@ bool REFramework::init_d3d12() {
         props.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
         props.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
 
-        D3D12_CLEAR_VALUE clear_value{};
-        clear_value.Format = desc.Format;
+        auto d3d12_rt_desc = desc;
+        d3d12_rt_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; // For VR
 
-        if (FAILED(device->CreateCommittedResource(&props, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, &clear_value,
+        D3D12_CLEAR_VALUE clear_value{};
+        clear_value.Format = d3d12_rt_desc.Format;
+
+        if (FAILED(device->CreateCommittedResource(&props, D3D12_HEAP_FLAG_NONE, &d3d12_rt_desc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, &clear_value,
                 IID_PPV_ARGS(&m_d3d12.get_rt(D3D12::RTV::IMGUI))))) {
             spdlog::error("[D3D12] Failed to create the imgui render target.");
             return false;
         }
 
-        if (FAILED(device->CreateCommittedResource(&props, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, &clear_value,
+        m_d3d12.get_rt(D3D12::RTV::IMGUI)->SetName(L"Framework::m_d3d12.rts[IMGUI]");
+
+        if (FAILED(device->CreateCommittedResource(&props, D3D12_HEAP_FLAG_NONE, &d3d12_rt_desc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, &clear_value,
                 IID_PPV_ARGS(&m_d3d12.get_rt(D3D12::RTV::BLANK))))) {
             spdlog::error("[D3D12] Failed to create the blank render target.");
             return false;
         }
 
+        m_d3d12.get_rt(D3D12::RTV::BLANK)->SetName(L"Framework::m_d3d12.rts[BLANK]");
+
         // Create imgui and blank rtvs and srvs.
         device->CreateRenderTargetView(m_d3d12.get_rt(D3D12::RTV::IMGUI).Get(), nullptr, m_d3d12.get_cpu_rtv(device, D3D12::RTV::IMGUI));
         device->CreateRenderTargetView(m_d3d12.get_rt(D3D12::RTV::BLANK).Get(), nullptr, m_d3d12.get_cpu_rtv(device, D3D12::RTV::BLANK));
         device->CreateShaderResourceView(
-            m_d3d12.get_rt(D3D12::RTV::IMGUI).Get(), nullptr, m_d3d12.get_cpu_srv(device, D3D12::SRV::IMGUI));
+            m_d3d12.get_rt(D3D12::RTV::IMGUI).Get(), nullptr, m_d3d12.get_cpu_srv(device, D3D12::SRV::IMGUI_VR));
         device->CreateShaderResourceView(m_d3d12.get_rt(D3D12::RTV::BLANK).Get(), nullptr, m_d3d12.get_cpu_srv(device, D3D12::SRV::BLANK));
 
         m_d3d12.rt_width = (uint32_t)desc.Width;
@@ -1800,15 +1859,38 @@ bool REFramework::init_d3d12() {
     auto bb_desc = bb->GetDesc();
 
     if (!ImGui_ImplDX12_Init(device, 1, bb_desc.Format, m_d3d12.srv_desc_heap.Get(),
-            m_d3d12.get_cpu_srv(device, D3D12::SRV::IMGUI_FONT), m_d3d12.get_gpu_srv(device, D3D12::SRV::IMGUI_FONT))) {
+            m_d3d12.get_cpu_srv(device, D3D12::SRV::IMGUI_FONT_BACKBUFFER), m_d3d12.get_gpu_srv(device, D3D12::SRV::IMGUI_FONT_BACKBUFFER))) {
         spdlog::error("[D3D12] Failed to initialize ImGui.");
         return false;
     }
+
+    m_d3d12.imgui_backend_datas[0] = ImGui::GetIO().BackendRendererUserData;
+
+    ImGui::GetIO().BackendRendererUserData = nullptr;
+
+    // Now initialize another one for the VR texture.
+    auto& bb_vr = m_d3d12.get_rt(D3D12::RTV::IMGUI);
+    auto bb_vr_desc = bb_vr->GetDesc();
+
+    if (!ImGui_ImplDX12_Init(device, 1, bb_vr_desc.Format, m_d3d12.srv_desc_heap.Get(),
+            m_d3d12.get_cpu_srv(device, D3D12::SRV::IMGUI_FONT_VR), m_d3d12.get_gpu_srv(device, D3D12::SRV::IMGUI_FONT_VR))) {
+        spdlog::error("[D3D12] Failed to initialize ImGui.");
+        return false;
+    }
+
+    m_d3d12.imgui_backend_datas[1] = ImGui::GetIO().BackendRendererUserData;
 
     return true;
 }
 
 void REFramework::deinit_d3d12() {
-    ImGui_ImplDX12_Shutdown();
+    for (auto userdata : m_d3d12.imgui_backend_datas) {
+        if (userdata != nullptr) {
+            ImGui::GetIO().BackendRendererUserData = userdata;
+            ImGui_ImplDX12_Shutdown();
+        }
+    }
+
+    ImGui::GetIO().BackendRendererUserData = nullptr;
     m_d3d12 = {};
 }

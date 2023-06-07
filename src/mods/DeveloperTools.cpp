@@ -7,7 +7,10 @@
 DeveloperTools::DeveloperTools() {
     m_tools.emplace_back(std::make_shared<ChainViewer>());
     m_tools.emplace_back(std::make_shared<GameObjectsDisplay>());
+    #ifndef _DEBUG
+    // std::structs are not same as Release, this made crash
     m_tools.emplace_back(ObjectExplorer::get());
+    #endif
 }
 
 void DeveloperTools::on_draw_ui() {

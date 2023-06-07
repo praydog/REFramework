@@ -1014,17 +1014,24 @@ T* get_static_field(std::string_view type_name, std::string_view name, bool is_v
 }
 
 template <typename T>
-T* get_native_singleton(std::string_view type_name) 
-{
-    auto t = reframework::get_globals()->get_native(type_name);
-    if (t == nullptr) 
-    {
+T* get_native_singleton(std::string_view type_name)  {
+    const auto t = sdk::find_type_definition(type_name);
+
+    if (t != nullptr) {
+        const auto result = t->get_instance();
+
+        if (result != nullptr) {
+            return (T*)result;
+        }
+    }
+
+    const auto retype = reframework::get_globals()->get_native(type_name);
+    if (retype == nullptr)  {
         return nullptr;
     }
 
-    auto instance = utility::re_type::get_singleton_instance(t);
-    if (instance == nullptr) 
-    {
+    const auto instance = utility::re_type::get_singleton_instance(retype);
+    if (instance == nullptr)  {
         return nullptr;
     }
 

@@ -3,6 +3,31 @@
 #include "VR.hpp"
 #include "Graphics.hpp"
 
+#if TDB_VER <= 49
+#include "sdk/regenny/re7/via/Window.hpp"
+#include "sdk/regenny/re7/via/SceneView.hpp"
+#elif TDB_VER < 69
+#include "sdk/regenny/re3/via/Window.hpp"
+#include "sdk/regenny/re3/via/SceneView.hpp"
+#elif TDB_VER == 69
+#include "sdk/regenny/re8/via/Window.hpp"
+#include "sdk/regenny/re8/via/SceneView.hpp"
+#elif TDB_VER == 70
+#include "sdk/regenny/re2_tdb70/via/Window.hpp"
+#include "sdk/regenny/re2_tdb70/via/SceneView.hpp"
+#elif TDB_VER >= 71
+#ifdef SF6
+#include "sdk/regenny/sf6/via/Window.hpp"
+#include "sdk/regenny/sf6/via/SceneView.hpp"
+#elif defined(RE4)
+#include "sdk/regenny/re4/via/Window.hpp"
+#include "sdk/regenny/re4/via/SceneView.hpp"
+#else
+#include "sdk/regenny/mhrise_tdb71/via/Window.hpp"
+#include "sdk/regenny/mhrise_tdb71/via/SceneView.hpp"
+#endif
+#endif
+
 void Graphics::on_config_load(const utility::Config& cfg) {
     for (IModValue& option : m_options) {
         option.config_load(cfg);
@@ -122,7 +147,11 @@ void Graphics::on_present() {
 void Graphics::on_pre_application_entry(void* entry, const char* name, size_t hash) {
     // To fix the world-space GUI icons.
     if (hash == "UpdateBehavior"_fnv) {
+        // SF6 has some weird behavior where it doesn't restore the FOV correctly
+        // corrupting the value
+#ifndef SF6
         do_ultrawide_fix();
+#endif
     }
 
     if (hash == "UnlockScene"_fnv) {
@@ -132,12 +161,69 @@ void Graphics::on_pre_application_entry(void* entry, const char* name, size_t ha
 
 void Graphics::on_application_entry(void* entry, const char* name, size_t hash) {
     if (hash == "UpdateBehavior"_fnv) {
+#ifndef SF6
         do_ultrawide_fov_restore();
+#endif
     }
 
     // To actually fix the rendering.
     if (hash == "LockScene"_fnv) {
         do_ultrawide_fix();
+    }
+}
+
+void Graphics::fix_ui_element(REComponent* gui_element) {
+    if (gui_element == nullptr) {
+        return;
+    }
+
+    auto game_object = utility::re_component::get_game_object(gui_element);
+
+    if (game_object == nullptr || game_object->transform == nullptr) {
+        return;
+    }
+
+    const auto gui_component = utility::re_component::find<REComponent*>(game_object->transform, "via.gui.GUI");
+
+    if (gui_component == nullptr) {
+        return;
+    }
+
+    static const auto gui_t = sdk::find_type_definition("via.gui.GUI");
+    static const auto view_t = sdk::find_type_definition("via.gui.View");
+
+    if (gui_t == nullptr || view_t == nullptr) {
+        return;
+    }
+
+    static const auto set_res_adjust_scale = view_t->get_method("set_ResAdjustScale(via.gui.ResolutionAdjustScale)");
+    static const auto set_res_adjust_anchor = view_t->get_method("set_ResAdjustAnchor(via.gui.ResolutionAdjustAnchor)");
+    static const auto set_resolution_adjust = view_t->get_method("set_ResolutionAdjust(System.Boolean)");
+    static const auto get_view_type = view_t->get_method("get_ViewType");
+
+    if (set_res_adjust_scale == nullptr || set_res_adjust_anchor == nullptr || set_resolution_adjust == nullptr || get_view_type == nullptr) {
+        return;
+    }
+
+    static const auto get_view_method = gui_t->get_method("get_View");
+
+    if (get_view_method == nullptr) {
+        return;
+    }
+
+    const auto view = get_view_method->call<::REManagedObject*>(sdk::get_thread_context(), gui_component);
+
+    if (view == nullptr) {
+        return;
+    }
+
+    const auto is_screen_view = get_view_type != nullptr && 
+                                get_view_type->call<int32_t>(sdk::get_thread_context(), view) == (int32_t)via::gui::ViewType::Screen;
+
+    if (is_screen_view) {
+        set_res_adjust_scale->call<void>(sdk::get_thread_context(), view, (int32_t)via::gui::ResolutionAdjustScale::FitSmallRatioAxis);
+        set_res_adjust_anchor->call<void>(sdk::get_thread_context(), view, (int32_t)via::gui::ResolutionAdjustAnchor::CenterCenter);
+        set_resolution_adjust->call<void>(sdk::get_thread_context(), view, true); // Causes the options to be applied/used
     }
 }
 
@@ -150,11 +236,9 @@ bool Graphics::on_pre_gui_draw_element(REComponent* gui_element, void* primitive
         return true;
     }
 
-    // Only stuff for RE4 right now.
-#ifndef RE4
-    if (true) {
-        return true;
-    }
+    // TODO: Check how this interacts with the other games, could be useful for them too.
+#if defined(SF6)
+    fix_ui_element(gui_element);
 #endif
 
     auto game_object = utility::re_component::get_game_object(gui_element);
@@ -164,6 +248,12 @@ bool Graphics::on_pre_gui_draw_element(REComponent* gui_element, void* primitive
         const auto name_hash = utility::hash(name);
 
         switch(name_hash) {
+        // RE2/3?
+        case "GUI_PillarBox"_fnv:
+        case "GUIEventPillar"_fnv:
+            game_object->shouldDraw = false;
+            return false;
+
 #if defined(RE4)
         case "Gui_ui2510"_fnv: // Black bars in cutscenes
             game_object->shouldDraw = false;
@@ -189,6 +279,18 @@ bool Graphics::on_pre_gui_draw_element(REComponent* gui_element, void* primitive
 }
 
 void Graphics::on_view_get_size(REManagedObject* scene_view, float* result) {
+#ifdef SF6
+    if (m_ultrawide_fix->value()) {
+        auto regenny_view = (regenny::via::SceneView*)scene_view;
+        auto window = regenny_view->window;
+
+        if (window != nullptr) {
+            window->borderless_size.w = (float)window->width;
+            window->borderless_size.h = (float)window->height;
+        }   
+    }
+#endif
+
     if (!m_force_render_res_to_window->value() || !m_backbuffer_size.has_value()) {
         return;
     }
@@ -306,16 +408,16 @@ void Graphics::do_ultrawide_fov_restore(bool force) {
     static auto via_camera = sdk::find_type_definition("via.Camera");
     static auto set_fov_method = via_camera->get_method("set_FOV");
 
-    auto camera = sdk::get_primary_camera();
+    if (set_fov_method != nullptr && m_ultrawide_fov->value()) {
+        std::scoped_lock _{m_fov_mutex};
 
-    if (camera == nullptr) {
-        return;
-    }
-
-    if (set_fov_method != nullptr) {
-        if (m_ultrawide_fov->value()) {
-            set_fov_method->call(sdk::get_thread_context(), camera, m_old_fov);
+        for (auto it : m_fov_map) {
+            auto camera = it.first;
+            set_fov_method->call(sdk::get_thread_context(), camera, m_fov_map[camera]);
+            utility::re_managed_object::release(camera);
         }
+
+        m_fov_map.clear();
     }
 }
 
@@ -327,9 +429,17 @@ void Graphics::set_vertical_fov(bool enable) {
     }
 
     static auto via_camera = sdk::find_type_definition("via.Camera");
+    static auto get_vertical_enable_method = via_camera->get_method("get_VerticalEnable");
     static auto set_vertical_enable_method = via_camera->get_method("set_VerticalEnable");
     static auto get_fov_method = via_camera->get_method("get_FOV");
     static auto set_fov_method = via_camera->get_method("set_FOV");
+    static auto get_aspect_method = via_camera->get_method("get_AspectRatio");
+
+    bool was_vertical_fov_enabled = false;
+
+    if (get_vertical_enable_method != nullptr) {
+        was_vertical_fov_enabled = get_vertical_enable_method->call<bool>(sdk::get_thread_context(), camera);
+    }
 
     if (set_vertical_enable_method != nullptr) {
         set_vertical_enable_method->call(sdk::get_thread_context(), camera, enable);
@@ -343,11 +453,34 @@ void Graphics::set_vertical_fov(bool enable) {
     }
 #endif
 
-    if (m_ultrawide_fov->value() && get_fov_method != nullptr && set_fov_method != nullptr) {
-        const auto hfov = get_fov_method->call<float>(sdk::get_thread_context(), camera);
-        const auto vfov = std::clamp(hfov * m_ultrawide_fov_multiplier->value(), 0.01f, 179.9f);
+    if (m_ultrawide_fov->value() && get_fov_method != nullptr && set_fov_method != nullptr && get_aspect_method != nullptr) {
+        const auto fov = get_fov_method->call<float>(sdk::get_thread_context(), camera);
 
-        m_old_fov = hfov;
-        set_fov_method->call(sdk::get_thread_context(), camera, vfov);
+        {
+            std::scoped_lock _{m_fov_mutex};
+            
+            if (!m_fov_map.contains(camera)) {
+                m_fov_map[camera] = fov;
+                utility::re_managed_object::add_ref(camera);
+            } else {
+                m_fov_map[camera] = fov;
+            }
+        }
+
+        if (!was_vertical_fov_enabled) {
+            constexpr auto old_aspect_ratio = 16.0f / 9.0f;
+            // convert hfov to vfov in radians
+            const auto vfov_og = 2.0f * glm::atan(glm::tan(glm::radians(fov / 2.0f)) / old_aspect_ratio);
+
+            const auto new_aspect_ratio = get_aspect_method->call<float>(sdk::get_thread_context(), camera);
+            // convert vfov to hfov for new aspect ratio and convert to degrees
+            const auto new_hfov = glm::degrees(2.0f * glm::atan(glm::tan(vfov_og / 2.0f) * new_aspect_ratio)) * m_ultrawide_fov_multiplier->value();
+
+            set_fov_method->call(sdk::get_thread_context(), camera, new_hfov);   
+        } else { // No need to calculate new hfov if vertical fov is enabled by the engine itself.
+            const auto new_vfov = fov * m_ultrawide_fov_multiplier->value();
+
+            set_fov_method->call(sdk::get_thread_context(), camera, new_vfov);
+        }
     }
 }

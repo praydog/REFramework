@@ -62,7 +62,7 @@ sol::table glob(sol::this_state l, const char* filter) {
     auto i = 0;
 
     for (const auto& entry : ::fs::recursive_directory_iterator{datadir}) {
-        if (!entry.is_regular_file()) {
+        if (!entry.is_regular_file() && !entry.is_symlink()) {
             continue;
         }
 

@@ -1516,6 +1516,8 @@ void bindings::open_sdk(ScriptState* s) {
         "get_field", &::sdk::RETypeDefinition::get_field,
         "get_runtime_type", &::sdk::RETypeDefinition::get_runtime_type,
         "get_parent_type", &::sdk::RETypeDefinition::get_parent_type,
+        "get_fqn_hash", &::sdk::RETypeDefinition::get_fqn_hash,
+        "get_crc_hash", &::sdk::RETypeDefinition::get_crc_hash,
         "get_size", &::sdk::RETypeDefinition::get_size,
         "get_valuetype_size", &::sdk::RETypeDefinition::get_valuetype_size,
         "get_generic_argument_types", &::sdk::RETypeDefinition::get_generic_argument_types,
@@ -1839,6 +1841,25 @@ void bindings::open_sdk(ScriptState* s) {
         },
         "release", [](::sdk::Resource* res) {
             res->release();
+        },
+        "create_holder", [](sol::this_state s, ::sdk::Resource* res, const char* tn) {
+            if (tn == nullptr) {
+                return sol::make_object(s, sol::nil);
+            }
+
+            const auto t = sdk::find_type_definition(tn);
+
+            if (t == nullptr) {
+                return sol::make_object(s, sol::nil);
+            }
+
+            auto holder = res->create_holder(t);
+
+            if (holder == nullptr) {
+                return sol::make_object(s, sol::nil);
+            }
+
+            return sol::make_object(s, (::REManagedObject*)holder);
         },
         "get_address", [](::sdk::Resource* res) { return (uintptr_t)res; }
     );

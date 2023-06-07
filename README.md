@@ -49,6 +49,7 @@ Supports both DirectX 11 and DirectX 12.
 * Resident Evil 7
 * Resident Evil Village
 * Devil May Cry 5
+* Street Fighter 6
 * Monster Hunter Rise
 
 ## Thanks

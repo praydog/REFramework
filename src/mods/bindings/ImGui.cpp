@@ -108,7 +108,7 @@ void text(const char* text) {
         text = "";
     }
 
-    ImGui::Text(text);
+    ImGui::TextUnformatted(text);
 }
 
 void text_colored(const char* text, unsigned int color) {
@@ -1179,6 +1179,14 @@ void set_item_default_focus() {
     ImGui::SetItemDefaultFocus();
 }
 
+void set_clipboard(sol::object data) {
+    ImGui::SetClipboardText(data.as<const char*>());
+}
+
+const char* get_clipboard() {
+    return ImGui::GetClipboardText();
+}
+
 bool begin_table(const char* str_id, int column, sol::object flags_obj, sol::object outer_size_obj, sol::object inner_width_obj) {
     if (str_id == nullptr) {
         str_id = "";
@@ -1337,22 +1345,26 @@ std::optional<Vector2f> world_to_screen(sol::object world_pos_object) {
     Vector4f camera_origin{};
     get_position_method->call<void*>(&camera_origin, context, camera_transform);
 
+    camera_origin.w = 1.0f;
+
     Vector4f camera_forward{};
     get_axisz_method->call<void*>(&camera_forward, context, camera_transform);
+
+    camera_forward.w = 1.0f;
 
     // Translate 2d position to 3d position (screen to world)
     Matrix4x4f proj{}, view{};
     float screen_size[2]{};
     sdk::call_object_func<void*>(camera, "get_ProjectionMatrix", &proj, context, camera);
     sdk::call_object_func<void*>(camera, "get_ViewMatrix", &view, context, camera);
-    sdk::call_object_func<void*>(main_view, "get_Size", &screen_size, context, main_view);
+    sdk::call_object_func<void*>(main_view, "get_WindowSize", &screen_size, context, main_view);
 
     Vector4f screen_pos{};
 
     const auto delta = world_pos - camera_origin;
 
     // behind camera
-    if (glm::dot(delta, -camera_forward) <= 0.0f) {
+    if (glm::dot(Vector3f{delta}, Vector3f{-camera_forward}) <= 0.0f) {
         return std::nullopt;
     }
 
@@ -1966,6 +1978,8 @@ void bindings::open_imgui(ScriptState* s) {
     imgui["get_cursor_screen_pos"] = api::imgui::get_cursor_screen_pos;
     imgui["set_cursor_screen_pos"] = api::imgui::set_cursor_screen_pos;
     imgui["set_item_default_focus"] = api::imgui::set_item_default_focus;
+    imgui["set_clipboard"] = api::imgui::set_clipboard;
+    imgui["get_clipboard"] = api::imgui::get_clipboard;
 
     // TABLE APIS
     imgui["begin_table"] = api::imgui::begin_table;
