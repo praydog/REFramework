@@ -695,10 +695,13 @@ std::optional<Vector2f> world_to_screen(const Vector3f& world_pos) {
     Matrix4x4f proj{}, view{};
     float screen_size[2]{};
 
-    const auto camera_origin = sdk::get_transform_position(camera_transform);
+    auto camera_origin = sdk::get_transform_position(camera_transform);
+    camera_origin.w = 1.0f;
 
     Vector4f camera_forward{};
     get_axisz_method->call<void*>(&camera_forward, context, camera_transform);
+
+    camera_forward.w = 1.0f;
 
     sdk::call_object_func<void*>(camera, "get_ProjectionMatrix", &proj, context, camera);
     sdk::call_object_func<void*>(camera, "get_ViewMatrix", &view, context, camera);
@@ -710,7 +713,7 @@ std::optional<Vector2f> world_to_screen(const Vector3f& world_pos) {
     const auto delta = pos - camera_origin;
 
     // behind camera
-    if (glm::dot(delta, -camera_forward) <= 0.0f) {
+    if (glm::dot(Vector3f{delta}, Vector3f{-camera_forward}) <= 0.0f) {
         return std::nullopt;
     }
 

@@ -1345,8 +1345,12 @@ std::optional<Vector2f> world_to_screen(sol::object world_pos_object) {
     Vector4f camera_origin{};
     get_position_method->call<void*>(&camera_origin, context, camera_transform);
 
+    camera_origin.w = 1.0f;
+
     Vector4f camera_forward{};
     get_axisz_method->call<void*>(&camera_forward, context, camera_transform);
+
+    camera_forward.w = 1.0f;
 
     // Translate 2d position to 3d position (screen to world)
     Matrix4x4f proj{}, view{};
@@ -1360,7 +1364,7 @@ std::optional<Vector2f> world_to_screen(sol::object world_pos_object) {
     const auto delta = world_pos - camera_origin;
 
     // behind camera
-    if (glm::dot(delta, -camera_forward) <= 0.0f) {
+    if (glm::dot(Vector3f{delta}, Vector3f{-camera_forward}) <= 0.0f) {
         return std::nullopt;
     }
 
