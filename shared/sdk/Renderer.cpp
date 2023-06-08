@@ -385,6 +385,63 @@ void RenderLayer::clone_layers(RenderLayer* other, bool recursive) {
     return utility::re_managed_object::get_field<::sdk::renderer::TargetState*>(this, name);
 }
 
+sdk::renderer::command::Base* RenderContext::alloc(uint32_t t, uint32_t size) {
+    // I am just being very lazy right now and just using a pattern instead of 
+    // using copy_texture and scanning through the function for the first call
+    static auto func = []() -> sdk::renderer::command::Base* (*)(RenderContext*, uint32_t, uint32_t) {
+        spdlog::info("Searching for RenderContext::alloc");
+
+        const auto game = utility::get_executable();
+        const auto scan_result = utility::scan(game, "48 8b d9 44 8d 42 38 e8 ? ? ? ?");
+
+        if (!scan_result) {
+            spdlog::error("Failed to find RenderContext::alloc");
+            return nullptr;
+        }
+
+        const auto result = utility::calculate_absolute(*scan_result + 8);
+
+        return (sdk::renderer::command::Base* (*)(RenderContext*, uint32_t, uint32_t))result;
+    }();
+
+    return func(this, t, size);
+}
+
+static_assert(offsetof(command::Clear, clear_color) == 0x28, "Clear::clear_color offset is wrong");
+static_assert(offsetof(command::Clear, view) == 0x20, "Clear::view offset is wrong");
+static_assert(offsetof(command::Clear, target) == 0x18, "Clear::target offset is wrong");
+
+void RenderContext::clear_rtv(sdk::renderer::RenderTargetView* rtv, float color[4], bool delay) {
+    if (rtv == nullptr) {
+        return;
+    }
+
+    static const auto clear_typeid = sdk::get_enum_value<uint32_t>("via.render.command.TypeId", "Clear");
+    auto new_command = (command::Clear*)alloc(clear_typeid, sizeof(command::Clear));
+
+    if (new_command != nullptr) {
+        const auto protect_frame = get_protect_frame();
+
+        if (rtv->m_render_frame != protect_frame) {
+            rtv->m_render_frame = protect_frame;
+        }
+
+        new_command->target = get_render_target();
+
+        if (delay && is_delay_enabled()) {
+            new_command->clear_type = 128;
+        } else {
+            new_command->clear_type = 0;
+        }
+
+        new_command->view.rtv = rtv;
+        new_command->clear_color[0] = color[0];
+        new_command->clear_color[1] = color[1];
+        new_command->clear_color[2] = color[2];
+        new_command->clear_color[3] = color[3];
+    }
+}
+
 /*
 - 0x9B CopyImage
 + 0x93 ReadonlyDepth

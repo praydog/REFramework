@@ -137,6 +137,14 @@ public:
         return m_desc.rtvs[index];
     }
 
+    void set_rtv(int32_t index, RenderTargetView* rtv) {
+        if (index < 0 || index >= get_rtv_count() || m_desc.rtvs == nullptr) {
+            return;
+        }
+
+        m_desc.rtvs[index] = rtv;
+    }
+
 public:
     struct Desc {
 #if TDB_VER <= 67
@@ -396,13 +404,61 @@ struct Fence {
     uint32_t unk4{0x70};
 };
 
+namespace command {
+struct Base {
+    uint32_t t : 8;
+    uint32_t size : 24;
+    uint64_t priority{};
+};
+
+struct Clear : public Base {
+    uint32_t clear_type{};
+    sdk::renderer::TargetState* target; // target state/uav
+    union {
+        sdk::renderer::RenderTargetView* rtv;
+        sdk::renderer::DepthStencilView* dsv;
+    } view;
+
+    float clear_color[4]{};
+};
+
+static_assert(sizeof(Clear) == 0x38);
+}
+
 class RenderContext {
 public:
+    // via::render::command::TypeId, can change between engine versions
+    command::Base* alloc(uint32_t t, uint32_t size);
+    void clear_rtv(sdk::renderer::RenderTargetView* rtv, float color[4], bool delay = false);
     void copy_texture(Texture* dest, Texture* src, Fence& fence);
     void copy_texture(Texture* dest, Texture* src) {
         Fence fence{};
         copy_texture(dest, src, fence);
     }
+
+public:
+    uint32_t get_protect_frame() const {
+        return *(uint32_t*)((uintptr_t)this + s_protect_frame_offset);
+    }
+
+    sdk::renderer::TargetState* get_render_target() const {
+        return *(sdk::renderer::TargetState**)((uintptr_t)this + s_current_render_state_offset);
+    }
+
+    bool is_delay_enabled() const {
+        return *(bool*)((uintptr_t)this + s_is_delay_enabled_offset);
+    }
+
+#if TDB_VER >= 69
+    static constexpr inline auto s_protect_frame_offset = 0x68;
+    static constexpr inline auto s_is_delay_enabled_offset = 0x7B;
+    static constexpr inline auto s_current_render_state_offset = 0x98;
+#else
+    // verify
+    static constexpr inline auto s_protect_frame_offset = 0x68;
+    static constexpr inline auto s_is_delay_enabled_offset = 0x7B;
+    static constexpr inline auto s_current_render_state_offset = 0x98;
+#endif
 };
 
 class Renderer {
