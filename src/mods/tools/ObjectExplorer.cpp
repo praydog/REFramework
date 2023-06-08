@@ -3346,9 +3346,31 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
     // yay for compile time string hashing
     switch (utility::hash(type_name)) {
     case "via.render.TargetState"_fnv: {
+        if (ImGui::Button("Replace with dummy state")) {
+            auto& real_target_state = *(sdk::renderer::TargetState**)real_data;
+
+            if (real_target_state != nullptr) {
+                auto prev_target_state = real_target_state;
+                real_target_state = real_target_state->clone();
+                real_target_state->add_ref();
+                prev_target_state->release();
+            }
+        }
+
         const auto target_state = (sdk::renderer::TargetState*)data;
         const auto& desc = target_state->get_desc();
 
+        if (ImGui::Button("Replace RTVs with dummy RTVs")) {
+            for (auto i = 0; i < target_state->get_rtv_count(); ++i) {
+                auto old_rtv = target_state->get_rtv(i);
+                auto clone = old_rtv->clone();
+                clone->add_ref();
+                target_state->set_rtv(i, clone);
+                old_rtv->release();
+            }
+        }
+
+        ImGui::Text("0x%p", (void*)target_state);
         ImGui::Text("%i RTVs", target_state->get_rtv_count());
         ImGui::Text("Left: %f", desc.left);
         ImGui::Text("Right: %f", desc.right);
