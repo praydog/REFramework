@@ -1013,6 +1013,18 @@ T* get_static_field(std::string_view type_name, std::string_view name, bool is_v
     return get_native_field<T>((void*)nullptr, t, name, is_value_type);
 }
 
+template<typename T>
+T get_enum_value(std::string_view type_name, std::string_view name) {
+    const auto field = get_static_field<T>(type_name, name, false);
+
+    if (field == nullptr) {
+        // spdlog::error("Cannot find enum value {:s}", name.data());
+        return T{};
+    }
+
+    return *field;
+}
+
 template <typename T>
 T* get_native_singleton(std::string_view type_name)  {
     const auto t = sdk::find_type_definition(type_name);
