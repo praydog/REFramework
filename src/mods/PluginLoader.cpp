@@ -183,7 +183,7 @@ REFrameworkSDKFunctions g_sdk_functions {
             ignore_jmp);
     },
     [](REFrameworkMethodHandle fn, unsigned int id) { g_hookman.remove((sdk::REMethodDefinition*)fn, (HookManager::HookId)id); },
-    &sdk::memory::allocate,
+    [](unsigned long long size) -> void* { return sdk::memory::allocate(size); },
     &sdk::memory::deallocate
 };
 
