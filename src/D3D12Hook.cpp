@@ -357,25 +357,30 @@ HRESULT WINAPI D3D12Hook::present(IDXGISwapChain3* swap_chain, UINT sync_interva
 
     decltype(D3D12Hook::present)* present_fn{nullptr};
 
-    if (d3d12->m_is_phase_1) {
+    //if (d3d12->m_is_phase_1) {
         present_fn = d3d12->m_present_hook->get_original<decltype(D3D12Hook::present)*>();
-    } else {
+    /*} else {
         present_fn = d3d12->m_swapchain_hook->get_method<decltype(D3D12Hook::present)*>(8);
-    }
+    }*/
 
     if (d3d12->m_is_phase_1 && WindowFilter::get().is_filtered(swapchain_wnd)) {
-        present_fn = d3d12->m_present_hook->get_original<decltype(D3D12Hook::present)*>();
+        //present_fn = d3d12->m_present_hook->get_original<decltype(D3D12Hook::present)*>();
+        return present_fn(swap_chain, sync_interval, flags);
+    }
+
+    if (!d3d12->m_is_phase_1 && swap_chain != d3d12->m_swapchain_hook->get_instance()) {
         return present_fn(swap_chain, sync_interval, flags);
     }
 
     if (d3d12->m_is_phase_1) {
-        d3d12->m_present_hook.reset();
+        //d3d12->m_present_hook.reset();
 
         // vtable hook the swapchain instead of global hooking
         // this seems safer for whatever reason
         // if we globally hook the vtable pointers, it causes all sorts of weird conflicts with other hooks
+        // dont hook present though via this hook so other hooks dont get confused
         d3d12->m_swapchain_hook = std::make_unique<VtableHook>(swap_chain);
-        d3d12->m_swapchain_hook->hook_method(8, (uintptr_t)&D3D12Hook::present);
+        //d3d12->m_swapchain_hook->hook_method(8, (uintptr_t)&D3D12Hook::present);
         d3d12->m_swapchain_hook->hook_method(13, (uintptr_t)&D3D12Hook::resize_buffers);
         d3d12->m_swapchain_hook->hook_method(14, (uintptr_t)&D3D12Hook::resize_target);
         d3d12->m_is_phase_1 = false;
