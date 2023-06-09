@@ -7,6 +7,7 @@
 
 namespace d3d12 {
 struct ResourceCopier {
+    ResourceCopier() = default;
     virtual ~ResourceCopier() { this->reset(); }
 
     bool setup(const wchar_t* name = L"ResourceCopier object");

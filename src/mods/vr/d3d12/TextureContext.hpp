@@ -1,5 +1,7 @@
 #pragma once
 
+#include <optional>
+
 #include <../../directxtk12-src/Inc/DescriptorHeap.h>
 
 #include "ResourceCopier.hpp"
@@ -32,6 +34,10 @@ struct TextureContext {
         rtv_heap.reset();
         srv_heap.reset();
         texture.Reset();
+    }
+
+    virtual ~TextureContext() {
+        reset();
     }
 };
 }

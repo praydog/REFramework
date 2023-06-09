@@ -3372,10 +3372,27 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
 
         ImGui::Text("0x%p", (void*)target_state);
         ImGui::Text("%i RTVs", target_state->get_rtv_count());
-        ImGui::Text("Left: %f", desc.left);
-        ImGui::Text("Right: %f", desc.right);
-        ImGui::Text("Top: %f", desc.top);
-        ImGui::Text("Bottom: %f", desc.bottom);
+        ImGui::Text("Left: %f", desc.rect.left);
+        ImGui::Text("Right: %f", desc.rect.right);
+        ImGui::Text("Top: %f", desc.rect.top);
+        ImGui::Text("Bottom: %f", desc.rect.bottom);
+
+        if (target_state->get_rtv_count() > 0) {
+            if (ImGui::TreeNode("RTVs")) {
+                for (auto i = 0; i < target_state->get_rtv_count(); ++i) {
+                    auto rtv = target_state->get_rtv(i);
+
+                    if (rtv != nullptr) {
+                        if (widget_with_context(rtv, [&]() { return ImGui::TreeNode(rtv, "RTV %i", i); })) {
+                            ImGui::Text("Format: %i", rtv->get_desc().format);
+                            ImGui::TreePop();
+                        }
+                    }
+                }
+
+                ImGui::TreePop();
+            }
+        }
     } break;
     case "via.GameObjectRef"_fnv: {
         static auto object_ref_type = sdk::find_type_definition("via.GameObjectRef");
