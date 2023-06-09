@@ -8,6 +8,8 @@
 #include <imgui.h>
 #include <utility/Patch.hpp>
 
+#include <../../directxtk12-src/Inc/GraphicsMemory.h>
+
 class Mods;
 class REGlobals;
 class RETypes;
@@ -302,6 +304,7 @@ private: // D3D12 members
         uint32_t rt_height{};
 
         std::array<void*, 2> imgui_backend_datas{};
+        std::unique_ptr<DirectX::DX12::GraphicsMemory> graphics_memory{}; // for use in several places around REF
     } m_d3d12{};
 
 public:
