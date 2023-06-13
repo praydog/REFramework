@@ -3198,8 +3198,8 @@ void ObjectExplorer::attempt_display_field(REManagedObject* obj, VariableDescrip
         data = *(char**)data;
     }
 
-    static unsigned char dummy_data[0x100]{ 0 };
-    static unsigned char untampered_data[0x100]{ 0 };
+    static ::reframework::InvokeRet dummy_data{};
+    static ::reframework::InvokeRet untampered_data{};
     sdk::REMethodDefinition* getter{nullptr};
     sdk::REMethodDefinition* setter{nullptr};
 
@@ -3214,9 +3214,8 @@ void ObjectExplorer::attempt_display_field(REManagedObject* obj, VariableDescrip
             setter = tdef->get_method(std::string{"set_"} + desc->name);
 
             if (getter != nullptr && setter != nullptr) {
-                const auto ret = getter->invoke(obj, {});
-                memcpy(dummy_data, ret.bytes.data(), ret.bytes.size());
-                memcpy(untampered_data, ret.bytes.data(), ret.bytes.size());
+                dummy_data = getter->invoke(obj, {});
+                memcpy(&untampered_data, &dummy_data, sizeof(dummy_data));
                 real_data = &dummy_data;
             }
         }
@@ -3227,17 +3226,17 @@ void ObjectExplorer::attempt_display_field(REManagedObject* obj, VariableDescrip
     // TDB alternative setter
     if (getter != nullptr && setter != nullptr) {
         // compare the data
-        if (memcmp(dummy_data, untampered_data, sizeof(dummy_data)) != 0) {
+        if (memcmp(&dummy_data, &untampered_data, sizeof(dummy_data)) != 0) {
             const auto result_type = getter->get_return_type();
             const auto should_pass_result_ptr = result_type != nullptr && result_type->is_value_type() && (result_type->get_valuetype_size() > sizeof(void*) || (!result_type->is_primitive() && !result_type->is_enum()));
 
             if (result_type == nullptr) {
-                setter->invoke(obj, {*(void**)dummy_data});
+                setter->invoke(obj, {dummy_data.ptr});
             } else {
                 if (should_pass_result_ptr) {
-                    setter->invoke(obj, {&dummy_data});
+                    setter->invoke(obj, {dummy_data.bytes.data()});
                 } else {
-                    setter->invoke(obj, {*(void**)dummy_data});
+                    setter->invoke(obj, {dummy_data.ptr});
                 }
             }
         }
