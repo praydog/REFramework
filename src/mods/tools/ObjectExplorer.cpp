@@ -593,6 +593,20 @@ void ObjectExplorer::on_draw_dev_ui() {
 
     ImGui::InputText("REObject Address", m_object_address.data(), 17, ImGuiInputTextFlags_::ImGuiInputTextFlags_CharsHexadecimal);
 
+    if (ImGui::Button("Create new game object"))  {
+        auto& pinned = m_pinned_objects.emplace_back();
+        const auto gameobject_t = sdk::find_type_definition("via.GameObject");
+        const auto create_method = gameobject_t->get_method("create(System.String)");
+
+        auto new_obj = create_method->call<::REGameObject*>(sdk::get_thread_context(), sdk::VM::create_managed_string(L"ObjectExplorerObject"));
+
+        static uint32_t id = 0;
+
+        pinned.address = new_obj;
+        pinned.name = gameobject_t->get_name();
+        pinned.path = std::to_string(id++);
+    }
+
     if (m_object_address[0] != 0) {
         handle_address(std::stoull(m_object_address, nullptr, 16));
     }
@@ -2348,7 +2362,7 @@ void ObjectExplorer::handle_component(REComponent* component) {
     };
 
     if (ImGui::Button("Destroy Component")) {
-        sdk::call_object_func<void>(component, "destroy", sdk::get_thread_context(), component);
+        sdk::call_object_func<void*>(component, "destroy", sdk::get_thread_context(), component);
     }
 
     make_tree_offset(component, offsetof(REComponent, ownerGameObject), "Owner", [&](){  display_component_preview(component); });
@@ -3310,7 +3324,49 @@ void ObjectExplorer::attempt_display_field(REManagedObject* obj, VariableDescrip
         data = *(char**)data;
     }
 
+    static ::reframework::InvokeRet dummy_data{};
+    static ::reframework::InvokeRet untampered_data{};
+    sdk::REMethodDefinition* getter{nullptr};
+    sdk::REMethodDefinition* setter{nullptr};
+
+    // For reflection properties where we cant detect the offset
+    // but there is a TDB getter and setter for it
+    if (real_data == nullptr && obj != nullptr) {
+        // Attempt to find a getter/setter for this field
+        const auto tdef = utility::re_managed_object::get_type_definition(obj);
+
+        if (tdef != nullptr) {
+            getter = tdef->get_method(std::string{"get_"} + desc->name);
+            setter = tdef->get_method(std::string{"set_"} + desc->name);
+
+            if (getter != nullptr && setter != nullptr) {
+                dummy_data = getter->invoke(obj, {});
+                memcpy(&untampered_data, &dummy_data, sizeof(dummy_data));
+                real_data = &dummy_data;
+            }
+        }
+    }
+
     display_data(data, real_data, type_name, prop_flags.type_kind == (uint32_t)via::reflection::TypeKind::Enum, prop_flags.managed_str != 0);
+
+    // TDB alternative setter
+    if (getter != nullptr && setter != nullptr) {
+        // compare the data
+        if (memcmp(&dummy_data, &untampered_data, sizeof(dummy_data)) != 0) {
+            const auto result_type = getter->get_return_type();
+            const auto should_pass_result_ptr = result_type != nullptr && result_type->is_value_type() && (result_type->get_valuetype_size() > sizeof(void*) || (!result_type->is_primitive() && !result_type->is_enum()));
+
+            if (result_type == nullptr) {
+                setter->invoke(obj, {dummy_data.ptr});
+            } else {
+                if (should_pass_result_ptr) {
+                    setter->invoke(obj, {dummy_data.bytes.data()});
+                } else {
+                    setter->invoke(obj, {dummy_data.ptr});
+                }
+            }
+        }
+    }
 }
 
 void ObjectExplorer::display_data(void* data, void* real_data, std::string type_name, bool is_enum, bool managed_str, const sdk::RETypeDefinition* override_def) {
