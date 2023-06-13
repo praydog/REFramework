@@ -584,6 +584,20 @@ void ObjectExplorer::on_draw_dev_ui() {
 
     ImGui::InputText("REObject Address", m_object_address.data(), 17, ImGuiInputTextFlags_::ImGuiInputTextFlags_CharsHexadecimal);
 
+    if (ImGui::Button("Create new game object"))  {
+        auto& pinned = m_pinned_objects.emplace_back();
+        const auto gameobject_t = sdk::find_type_definition("via.GameObject");
+        const auto create_method = gameobject_t->get_method("create(System.String)");
+
+        auto new_obj = create_method->call<::REGameObject*>(sdk::get_thread_context(), sdk::VM::create_managed_string(L"ObjectExplorerObject"));
+
+        static uint32_t id = 0;
+
+        pinned.address = new_obj;
+        pinned.name = gameobject_t->get_name();
+        pinned.path = std::to_string(id++);
+    }
+
     if (m_object_address[0] != 0) {
         handle_address(std::stoull(m_object_address, nullptr, 16));
     }
@@ -2339,7 +2353,7 @@ void ObjectExplorer::handle_component(REComponent* component) {
     };
 
     if (ImGui::Button("Destroy Component")) {
-        sdk::call_object_func<void>(component, "destroy", sdk::get_thread_context(), component);
+        sdk::call_object_func<void*>(component, "destroy", sdk::get_thread_context(), component);
     }
 
     make_tree_offset(component, offsetof(REComponent, ownerGameObject), "Owner", [&](){  display_component_preview(component); });
