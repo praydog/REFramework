@@ -3198,7 +3198,50 @@ void ObjectExplorer::attempt_display_field(REManagedObject* obj, VariableDescrip
         data = *(char**)data;
     }
 
+    static unsigned char dummy_data[0x100]{ 0 };
+    static unsigned char untampered_data[0x100]{ 0 };
+    sdk::REMethodDefinition* getter{nullptr};
+    sdk::REMethodDefinition* setter{nullptr};
+
+    // For reflection properties where we cant detect the offset
+    // but there is a TDB getter and setter for it
+    if (real_data == nullptr && obj != nullptr) {
+        // Attempt to find a getter/setter for this field
+        const auto tdef = utility::re_managed_object::get_type_definition(obj);
+
+        if (tdef != nullptr) {
+            getter = tdef->get_method(std::string{"get_"} + desc->name);
+            setter = tdef->get_method(std::string{"set_"} + desc->name);
+
+            if (getter && setter != nullptr) {
+                const auto ret = getter->invoke(obj, {});
+                memcpy(dummy_data, ret.bytes.data(), ret.bytes.size());
+                memcpy(untampered_data, ret.bytes.data(), ret.bytes.size());
+                real_data = &dummy_data;
+            }
+        }
+    }
+
     display_data(data, real_data, type_name, prop_flags.type_kind == (uint32_t)via::reflection::TypeKind::Enum, prop_flags.managed_str != 0);
+
+    // TDB alternative setter
+    if (getter != nullptr && setter != nullptr) {
+        // compare the data
+        if (memcmp(dummy_data, untampered_data, sizeof(dummy_data)) != 0) {
+            const auto result_type = getter->get_return_type();
+            const auto should_pass_result_ptr = result_type != nullptr && result_type->is_value_type() && (result_type->get_valuetype_size() > sizeof(void*) || (!result_type->is_primitive() && !result_type->is_enum()));
+
+            if (result_type == nullptr) {
+                setter->invoke(obj, {*(void**)dummy_data});
+            } else {
+                if (should_pass_result_ptr) {
+                    setter->invoke(obj, {&dummy_data});
+                } else {
+                    setter->invoke(obj, {*(void**)dummy_data});
+                }
+            }
+        }
+    }
 }
 
 void ObjectExplorer::display_data(void* data, void* real_data, std::string type_name, bool is_enum, bool managed_str, const sdk::RETypeDefinition* override_def) {
