@@ -3213,7 +3213,7 @@ void ObjectExplorer::attempt_display_field(REManagedObject* obj, VariableDescrip
             getter = tdef->get_method(std::string{"get_"} + desc->name);
             setter = tdef->get_method(std::string{"set_"} + desc->name);
 
-            if (getter && setter != nullptr) {
+            if (getter != nullptr && setter != nullptr) {
                 const auto ret = getter->invoke(obj, {});
                 memcpy(dummy_data, ret.bytes.data(), ret.bytes.size());
                 memcpy(untampered_data, ret.bytes.data(), ret.bytes.size());
