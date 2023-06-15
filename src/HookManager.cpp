@@ -18,6 +18,18 @@ void* get_actual_function(void* possible_fn) {
         auto len = hde64_disasm((void*)ip, &hde);
         ip += len;
 
+        if (hde.opcode == 0xCC) { // int3, stop disassembling.
+            break;
+        }
+
+        if (hde.opcode == 0xC3) { // ret, stop disassembling.
+            break;
+        }
+        
+        if (hde.opcode == 0xC2) { // ret, stop disassembling.
+            break;
+        }
+
         if (hde.opcode == 0xE9) { // jmp.
             actual_fn = (void*)(ip + hde.imm.imm32);
             break;
