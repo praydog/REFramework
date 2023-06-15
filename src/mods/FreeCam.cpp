@@ -311,7 +311,7 @@ void FreeCam::on_pre_application_entry(void* entry, const char* name, size_t has
                 return;
             }
 
-            auto standard_skip_pre_fn = [this](std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys) -> HookManager::PreHookResult {
+            auto standard_skip_pre_fn = [this](std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys, uintptr_t ret_addr) -> HookManager::PreHookResult {
                 if (!m_enabled->value() || !m_disable_movement->value()) {
                     return HookManager::PreHookResult::CALL_ORIGINAL;
                 }
@@ -341,7 +341,7 @@ void FreeCam::on_pre_application_entry(void* entry, const char* name, size_t has
                 if (update_fn != nullptr) {
                     m_player_body_updater_hook.update_id = g_hookman.add(update_fn,
                         standard_skip_pre_fn,
-                        [this](uintptr_t& ret_val, sdk::RETypeDefinition* ret_ty) {
+                        [this](uintptr_t& ret_val, sdk::RETypeDefinition* ret_ty, uintptr_t ret_addr) {
                         }
                     );
                 }
@@ -349,14 +349,14 @@ void FreeCam::on_pre_application_entry(void* entry, const char* name, size_t has
                 if (late_update_fn != nullptr) {
                     m_player_body_updater_hook.late_update_id = g_hookman.add(late_update_fn,
                         standard_skip_pre_fn,
-                        [this](uintptr_t& ret_val, sdk::RETypeDefinition* ret_ty) {
+                        [this](uintptr_t& ret_val, sdk::RETypeDefinition* ret_ty, uintptr_t ret_addr) {
                         }
                     );
                 }
 
                 if (get_past_frame_move_dir_fn != nullptr) {
                     m_player_body_updater_hook.get_past_move_frame_move_dir_vec_id = g_hookman.add(get_past_frame_move_dir_fn,
-                        [this](std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys) -> HookManager::PreHookResult {
+                        [this](std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys, uintptr_t ret_addr) -> HookManager::PreHookResult {
                             if (!m_enabled->value() || !m_disable_movement->value()) {
                                 return HookManager::PreHookResult::CALL_ORIGINAL;
                             }
@@ -371,7 +371,7 @@ void FreeCam::on_pre_application_entry(void* entry, const char* name, size_t has
 
                             return HookManager::PreHookResult::CALL_ORIGINAL;
                         },
-                        [this](uintptr_t& ret_val, sdk::RETypeDefinition* ret_ty) {
+                        [this](uintptr_t& ret_val, sdk::RETypeDefinition* ret_ty, uintptr_t ret_addr) {
                         }
                     );
                 }
@@ -390,7 +390,7 @@ void FreeCam::on_pre_application_entry(void* entry, const char* name, size_t has
                 if (change_motion_internal_fn != nullptr) {
                     m_player_motion_controller_hook.change_motion_internal_id = g_hookman.add(change_motion_internal_fn,
                         standard_skip_pre_fn,
-                        [this](uintptr_t& ret_val, sdk::RETypeDefinition* ret_ty) {
+                        [this](uintptr_t& ret_val, sdk::RETypeDefinition* ret_ty, uintptr_t ret_addr) {
                         }
                     );
                 }

@@ -61,7 +61,7 @@ HookManager::PreHookResult HookManager::HookedFn::on_pre_hook() {
 
     for (const auto& cb : cbs) {
         if (cb.pre_fn) {
-            if (cb.pre_fn(args, arg_tys) == PreHookResult::SKIP_ORIGINAL) {
+            if (cb.pre_fn(args, arg_tys, ret_addr_pre) == PreHookResult::SKIP_ORIGINAL) {
                 any_skipped = true;
             }
         }
@@ -73,7 +73,7 @@ HookManager::PreHookResult HookManager::HookedFn::on_pre_hook() {
 void HookManager::HookedFn::on_post_hook() {
     for (const auto& cb : cbs) {
         if (cb.post_fn) {
-            cb.post_fn(ret_val, ret_ty);
+            cb.post_fn(ret_val, ret_ty, ret_addr);
         }
     }
 }
@@ -105,6 +105,7 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
     auto this_label = a.newLabel();
     auto on_pre_hook_label = a.newLabel();
     auto on_post_hook_label = a.newLabel();
+    auto ret_addr_pre_label = a.newLabel();
     auto ret_addr_label = a.newLabel();
     auto ret_val_label = a.newLabel();
     auto orig_label = a.newLabel();
@@ -128,6 +129,12 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
     a.pop(r8);
     a.pop(rdx);
     a.pop(rcx);
+
+    // Save return address (pre-hook).
+    // Cannot modify the post version as it will corrupt the stack if the hook is recursive.
+    a.mov(r10, ptr(rsp));
+    a.mov(rax, ptr(ret_addr_pre_label));
+    a.mov(ptr(rax), r10);
 
     // Store args.
     // TODO: Handle all the arguments the function takes.
@@ -350,6 +357,8 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
     a.dq((uint64_t)&HookedFn::lock_static);
     a.bind(unlock_label);
     a.dq((uint64_t)&HookedFn::unlock_static);
+    a.bind(ret_addr_pre_label);
+    a.dq((uint64_t)&hook->ret_addr_pre);
     a.bind(ret_addr_label);
     a.dq((uint64_t)&hook->ret_addr);
     a.bind(ret_val_label);
