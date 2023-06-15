@@ -645,7 +645,7 @@ void ObjectExplorer::on_frame() {
         // on_frame is just going to be a way to display
         // the pinned objects in a separate window
 
-        ImGui::SetNextWindowSize(ImVec2(200, 400), ImGuiCond_::ImGuiCond_Once);
+        ImGui::SetNextWindowSize(ImVec2(400, 400), ImGuiCond_::ImGuiCond_Once);
         if (ImGui::Begin("Hooked methods", &open)) {
             display_hooks();
 
@@ -659,6 +659,16 @@ void ObjectExplorer::on_frame() {
 
             m_hooked_methods.clear();
         }
+    }
+
+    if (!m_frame_jobs.empty()) {
+        std::scoped_lock _{m_job_mutex};
+
+        for (auto& job : m_frame_jobs) {
+            job();
+        }
+
+        m_frame_jobs.clear();
     }
 }
 
@@ -675,6 +685,8 @@ void ObjectExplorer::display_pins() {
 }
 
 void ObjectExplorer::display_hooks() {
+    std::scoped_lock _{m_hooked_methods_mtx};
+
     for (auto& h : m_hooked_methods) {
         ImGui::PushID(h.method);
 
@@ -685,6 +697,33 @@ void ObjectExplorer::display_hooks() {
         if (made_node) {
             ImGui::Checkbox("Skip function call", &h.skip);
             ImGui::TextWrapped("Call count: %i", h.call_count);
+            if (ImGui::TreeNode("Callers")) {
+                for (auto& caller : h.callers) {
+                    const auto& context = h.callers_context[caller];
+                    const auto declaring_type = caller->get_declaring_type();
+                    //auto method_name = declaring_type != nullptr ? declaring_type->get_full_name() + "." + caller->get_name() : caller->get_name();
+                    //method_name += " [" + std::to_string(context.call_count) + "]";
+                    const auto call_count = std::string("[") + std::to_string(context.call_count) + "]";
+
+                    ImGui::TextUnformatted(call_count.c_str());
+                    ImGui::SameLine();
+                    this->attempt_display_method(nullptr, *caller, true);
+                }
+
+                ImGui::TreePop();
+            }
+
+            if (ImGui::TreeNode("Return Addresses")) {
+                for (auto addr : h.return_addresses) {
+                    ImGui::Text("0x%p", addr);
+
+                    if (ImGui::IsItemClicked()) {
+                        ImGui::SetClipboardText((std::stringstream{} << std::hex << addr).str().c_str());
+                    }
+                }
+                ImGui::TreePop();
+            }
+
             ImGui::TreePop();
         }
 
@@ -3840,7 +3879,7 @@ void ObjectExplorer::hook_method(sdk::REMethodDefinition* method, std::optional<
 
     m_jit_runtime.add(&hooked.jitted_function, &code);
 
-    using MT = HookManager::PreHookResult(*)(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys);
+    using MT = HookManager::PreHookResult(*)(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys, uintptr_t ret_addr);
 
     hooked.method = method;
 
@@ -3894,12 +3933,20 @@ void ObjectExplorer::method_context_menu(sdk::REMethodDefinition* method, std::o
 
         if (it == m_hooked_methods.end()) {
             if (ImGui::Selectable("Hook")) {
-                hook_method(method, name);
+                std::scoped_lock _{m_job_mutex};
+
+                m_frame_jobs.push_back([this, method, name]() {
+                    hook_method(method, name);
+                });
             }
         } else {
             if (ImGui::Selectable("Unhook")) {
-                g_hookman.remove(it->method, it->hook_id);
-                m_hooked_methods.erase(it);
+                std::scoped_lock _{m_job_mutex};
+
+                m_frame_jobs.push_back([this, it]() {
+                    g_hookman.remove(it->method, it->hook_id);
+                    m_hooked_methods.erase(it);
+                });
             }
         }
 
@@ -3907,7 +3954,11 @@ void ObjectExplorer::method_context_menu(sdk::REMethodDefinition* method, std::o
             const auto declaring_type = method->get_declaring_type();
 
             if (declaring_type != nullptr) {
-                hook_all_methods(declaring_type);
+                std::scoped_lock _{m_job_mutex};
+
+                m_frame_jobs.push_back([this, declaring_type]() {
+                    hook_all_methods(declaring_type);
+                });
             }
         }
 
@@ -4395,7 +4446,7 @@ bool ObjectExplorer::is_filtered_field(sdk::REField& f) try {
     return false;
 }
 
-HookManager::PreHookResult ObjectExplorer::pre_hooked_method_internal(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys, void* reserved, sdk::REMethodDefinition* method) {
+HookManager::PreHookResult ObjectExplorer::pre_hooked_method_internal(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys, uintptr_t ret_addr, sdk::REMethodDefinition* method) {
     auto it = std::find_if(m_hooked_methods.begin(), m_hooked_methods.end(), [method](auto& a) { return a.method == method; });
 
     if (it == m_hooked_methods.end()) {
@@ -4403,7 +4454,71 @@ HookManager::PreHookResult ObjectExplorer::pre_hooked_method_internal(std::vecto
     }
 
     auto& hooked_method = *it;
+
+    std::scoped_lock _{m_hooked_methods_mtx};
     ++hooked_method.call_count;
+
+    if (!hooked_method.return_addresses.contains(ret_addr)) {
+        spdlog::info("Creating new entry for {}", hooked_method.name);
+
+        hooked_method.return_addresses.insert(ret_addr);
+        // Try to locate the containing function from the return address
+        sdk::REMethodDefinition* nearest_method{nullptr};
+        size_t nearest_distance = UINT64_MAX;
+
+        for (auto& it : m_method_map) {
+            const auto distance = std::abs(static_cast<int64_t>(it.first - ret_addr));
+            if (distance < nearest_distance) {
+                nearest_distance = distance;
+                nearest_method = it.second;
+            }
+        }
+
+        if (nearest_method != nullptr) {
+            auto method_entry = utility::find_function_entry((uintptr_t)nearest_method->get_function());
+
+            if (method_entry != nullptr) {
+                const auto module_addr = (uintptr_t)utility::get_module_within(ret_addr).value_or(nullptr);
+                const auto ret_addr_rva = (uint32_t)(ret_addr - module_addr);
+                const auto ret_addr_entry = utility::find_function_entry(ret_addr);
+                if (ret_addr_entry == method_entry ||
+                    (ret_addr_rva >= method_entry->BeginAddress && ret_addr_rva <= method_entry->EndAddress) ||
+                    (ret_addr_entry != nullptr && ret_addr_entry->BeginAddress >= method_entry->BeginAddress && ret_addr_entry->BeginAddress <= method_entry->EndAddress + 1))
+                {
+                    hooked_method.return_addresses_to_methods[ret_addr] = nearest_method;
+                    hooked_method.callers.insert(nearest_method);
+
+                    const auto decl_type = nearest_method->get_declaring_type();
+
+                    if (decl_type != nullptr) {
+                        spdlog::info("{} {}.{}", hooked_method.name, nearest_method->get_declaring_type()->get_full_name(), nearest_method->get_name());
+                    } else {
+                        spdlog::info("{} {}", hooked_method.name, nearest_method->get_name());
+                    }
+                } else {
+                    spdlog::info("{} <unknown caller> @ 0x{:x}", hooked_method.name, ret_addr);
+                }
+            } else {
+                hooked_method.return_addresses_to_methods[ret_addr] = nearest_method;
+                hooked_method.callers.insert(nearest_method);
+                const auto decl_type = nearest_method->get_declaring_type();
+
+                if (decl_type != nullptr) {
+                    spdlog::info("{} {}.{}", hooked_method.name, nearest_method->get_declaring_type()->get_full_name(), nearest_method->get_name());
+                } else {
+                    spdlog::info("{} {}", hooked_method.name, nearest_method->get_name());
+                }
+            }
+        } else {
+            spdlog::info("{} <unknown caller> @ 0x{:x}", hooked_method.name, ret_addr);
+        }
+    }
+
+    if (auto it2 = hooked_method.return_addresses_to_methods.find(ret_addr); it2 != hooked_method.return_addresses_to_methods.end()) {
+        auto caller = it2->second;
+        auto& context = hooked_method.callers_context[caller];
+        ++context.call_count;
+    }
 
     auto result = HookManager::PreHookResult::CALL_ORIGINAL;
 
@@ -4414,6 +4529,6 @@ HookManager::PreHookResult ObjectExplorer::pre_hooked_method_internal(std::vecto
     return result;
 }
 
-HookManager::PreHookResult ObjectExplorer::pre_hooked_method(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys, void* reserved, sdk::REMethodDefinition* method) {
-    return ObjectExplorer::get()->pre_hooked_method_internal(args, arg_tys, reserved, method);
+HookManager::PreHookResult ObjectExplorer::pre_hooked_method(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys, uintptr_t ret_addr, sdk::REMethodDefinition* method) {
+    return ObjectExplorer::get()->pre_hooked_method_internal(args, arg_tys, ret_addr, method);
 }

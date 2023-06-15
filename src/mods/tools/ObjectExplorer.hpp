@@ -3,6 +3,9 @@
 #include <vector>
 #include <deque>
 #include <unordered_set>
+#include <unordered_map>
+#include <memory>
+#include <string>
 #include <imgui.h>
 #include <json.hpp>
 #include <asmjit/asmjit.h>
@@ -214,14 +217,18 @@ private:
         return path;
     }
 
-    HookManager::PreHookResult pre_hooked_method_internal(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys, void* reserved, sdk::REMethodDefinition* method);
-    static HookManager::PreHookResult pre_hooked_method(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys, void* reserved, sdk::REMethodDefinition* method);
+    HookManager::PreHookResult pre_hooked_method_internal(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys, uintptr_t ret_addr, sdk::REMethodDefinition* method);
+    static HookManager::PreHookResult pre_hooked_method(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys, uintptr_t ret_addr, sdk::REMethodDefinition* method);
 
     struct PinnedObject {
         Address address{};
         std::string name{};
         std::string path{};
     };
+
+    std::recursive_mutex m_hooked_methods_mtx{};
+    std::recursive_mutex m_job_mutex{};
+    std::vector<std::function<void()>> m_frame_jobs{};
 
     struct HookedMethod {
         std::string name{};
@@ -230,6 +237,15 @@ private:
         bool skip{false};
         size_t hook_id{};
         uint32_t call_count{};
+
+        std::unordered_set<uintptr_t> return_addresses{};
+        std::unordered_map<uintptr_t, sdk::REMethodDefinition*> return_addresses_to_methods{};
+        std::unordered_set<sdk::REMethodDefinition*> callers{};
+        struct CallerContext {
+            size_t call_count{};
+        };
+
+        std::unordered_map<sdk::REMethodDefinition*, CallerContext> callers_context{};
     };
 
     asmjit::JitRuntime m_jit_runtime;
