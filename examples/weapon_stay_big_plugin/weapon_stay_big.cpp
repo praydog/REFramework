@@ -1,14 +1,14 @@
 #include <Windows.h>
 #include <reframework/API.hpp>
 
-int pre_start(int argc, void** argv, REFrameworkTypeDefinitionHandle* arg_tys) {
+int pre_start(int argc, void** argv, REFrameworkTypeDefinitionHandle* arg_tys, unsigned long long ret_addr) {
     auto obj = (reframework::API::ManagedObject*)argv[1];
     *obj->get_field<float>("_bodyConstScale") = 1.0f;
 
     return REFRAMEWORK_HOOK_CALL_ORIGINAL;
 }
 
-void post_start(void** ret_val, REFrameworkTypeDefinitionHandle ret_ty) {
+void post_start(void** ret_val, REFrameworkTypeDefinitionHandle ret_ty, unsigned long long ret_addr) {
 }
 
 extern "C" __declspec(dllexport) void reframework_plugin_required_version(REFrameworkPluginVersion* version) {
