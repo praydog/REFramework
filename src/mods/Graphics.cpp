@@ -278,7 +278,7 @@ bool Graphics::on_pre_gui_draw_element(REComponent* gui_element, void* primitive
 }
 
 void Graphics::on_view_get_size(REManagedObject* scene_view, float* result) {
-#ifdef SF6
+#if defined(SF6) || defined(DMC5)
     if (m_ultrawide_fix->value()) {
         auto regenny_view = (regenny::via::SceneView*)scene_view;
         auto window = regenny_view->window;
@@ -286,7 +286,7 @@ void Graphics::on_view_get_size(REManagedObject* scene_view, float* result) {
         if (window != nullptr) {
             window->borderless_size.w = (float)window->width;
             window->borderless_size.h = (float)window->height;
-        }   
+        }
     }
 #endif
 
