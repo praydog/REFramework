@@ -98,7 +98,7 @@ public:
         return m_param;
     }
 
-    inline const auto sdk() const {
+    inline const REFrameworkSDKData* sdk() const {
         return m_sdk;
     }
 
