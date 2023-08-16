@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <spdlog/spdlog.h>
 #include <hde64.h>
 

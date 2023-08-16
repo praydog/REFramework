@@ -22,8 +22,8 @@ public:
     };
 
     struct HookedFn;
-    using PreHookFn = std::function<PreHookResult(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys)>;
-    using PostHookFn = std::function<void(uintptr_t& ret_val, sdk::RETypeDefinition* ret_ty)>;
+    using PreHookFn = std::function<PreHookResult(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys, uintptr_t ret_addr)>;
+    using PostHookFn = std::function<void(uintptr_t& ret_val, sdk::RETypeDefinition* ret_ty, uintptr_t ret_addr)>;
     using HookId = size_t;
 
     struct HookCallback {
@@ -51,6 +51,7 @@ public:
         uintptr_t facilitator_fn{};
         std::vector<uintptr_t> args{};
         std::vector<sdk::RETypeDefinition*> arg_tys{};
+        uintptr_t ret_addr_pre{};
         uintptr_t ret_addr{};
         uintptr_t ret_val{};
         sdk::RETypeDefinition* ret_ty{};
@@ -65,7 +66,7 @@ public:
         PreHookResult on_pre_hook();
         void on_post_hook();
 
-        __declspec(noinline) static void lock_static(HookedFn* fn) { 
+        __declspec(noinline) static void lock_static(HookedFn* fn) {
             fn->mux.lock();
 
             if (fn->is_virtual) {

@@ -1378,7 +1378,7 @@ void RE8VR::update_block_gesture() {
     m_wants_block = left_hand_up && right_hand_up;
 }
 
-HookManager::PreHookResult RE8VR::pre_shadow_late_update(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys) {
+HookManager::PreHookResult RE8VR::pre_shadow_late_update(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys, uintptr_t ret_addr) {
     auto& vr = VR::get();
     auto& re8vr = RE8VR::get();
 
@@ -1397,7 +1397,7 @@ HookManager::PreHookResult RE8VR::pre_shadow_late_update(std::vector<uintptr_t>&
     return HookManager::PreHookResult::CALL_ORIGINAL;
 }
 
-void RE8VR::post_shadow_late_update(uintptr_t& ret_val, sdk::RETypeDefinition* ret_ty) {
+void RE8VR::post_shadow_late_update(uintptr_t& ret_val, sdk::RETypeDefinition* ret_ty, uintptr_t ret_addr) {
 }
 
 void RE8VR::update_heal_gesture() {

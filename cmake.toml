@@ -123,7 +123,7 @@ type = "static"
 sources = ["dependencies/imgui/*.cpp"]
 include-directories = ["dependencies/imgui", "src/re2-imgui"]
 compile-definitions = [
-    "IMGUI_USER_CONFIG=\"${CMAKE_SOURCE_DIR}/src/re2-imgui/re2_imconfig.hpp\"",
+    "IMGUI_USER_CONFIG=\"${CMAKE_CURRENT_SOURCE_DIR}/src/re2-imgui/re2_imconfig.hpp\"",
 ]
 condition = "build-framework"
 
@@ -132,7 +132,7 @@ type = "static"
 sources = ["dependencies/imguizmo/*.cpp"]
 include-directories = ["dependencies/imgui", "dependencies/imguizmo", "src/re2-imgui"]
 compile-definitions = [
-    "IMGUI_USER_CONFIG=\"${CMAKE_SOURCE_DIR}/src/re2-imgui/re2_imconfig.hpp\"",
+    "IMGUI_USER_CONFIG=\"${CMAKE_CURRENT_SOURCE_DIR}/src/re2-imgui/re2_imconfig.hpp\"",
 ]
 condition = "build-framework"
 
@@ -147,7 +147,7 @@ link-libraries = ["imgui"]
 type = "interface"
 include-directories = ["dependencies/openvr/headers"]
 link-libraries = [
-    "${CMAKE_SOURCE_DIR}/dependencies/openvr/lib/win64/openvr_api.lib",
+    "${CMAKE_CURRENT_SOURCE_DIR}/dependencies/openvr/lib/win64/openvr_api.lib",
 ]
 cmake-after = """
 file(COPY dependencies/openvr/lib/win64/openvr_api.lib DESTINATION ${CMAKE_BINARY_DIR}/lib)

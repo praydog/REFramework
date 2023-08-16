@@ -534,7 +534,7 @@ void ScriptState::install_hooks() {
         const auto hookman_data = HookManager::EitherOr{hookdef.obj, hookdef.fn, ignore_jmp_object.is<bool>() ? ignore_jmp_object.as<bool>() : false};
         auto id = g_hookman.add_either_or(
             hookman_data,
-            [pre_cb, state = this](auto& args, auto& arg_tys) -> HookManager::PreHookResult {
+            [pre_cb, state = this](auto& args, auto& arg_tys, uintptr_t ret_addr) -> HookManager::PreHookResult {
                 using PreHookResult = HookManager::PreHookResult;
 
                 auto _ = state->scoped_lock();
@@ -582,7 +582,7 @@ void ScriptState::install_hooks() {
 
                 return result;
             },
-            [post_cb, state = this](auto& ret_val, auto* ret_ty) {
+            [post_cb, state = this](auto& ret_val, auto* ret_ty, uintptr_t ret_addr) {
                 auto _ = state->scoped_lock();
                 
                 if (ScriptRunner::get()->is_online_match()) {
@@ -715,7 +715,7 @@ void ScriptRunner::hook_battle_rule() {
 
     if (from_packet_data_method != nullptr) {
         g_hookman.add(from_packet_data_method, 
-        [this](std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys) -> HookManager::PreHookResult {
+        [this](std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys, uintptr_t ret_addr) -> HookManager::PreHookResult {
             auto packet = (::REManagedObject*)args[2];
             if (packet == nullptr) {
                 return HookManager::PreHookResult::CALL_ORIGINAL;
@@ -743,7 +743,7 @@ void ScriptRunner::hook_battle_rule() {
 
             return HookManager::PreHookResult::CALL_ORIGINAL;
         },
-        [this](uintptr_t& ret_val, sdk::RETypeDefinition* ret_ty) -> void {
+        [this](uintptr_t& ret_val, sdk::RETypeDefinition* ret_ty, uintptr_t ret_addr) -> void {
             auto bt = this->get_last_battle_type();
 
             if (bt.has_value()) {
