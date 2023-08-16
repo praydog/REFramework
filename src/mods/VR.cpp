@@ -319,7 +319,7 @@ void VR::on_camera_get_view_matrix(REManagedObject* camera, Matrix4x4f* result) 
     //}
 }
 
-HookManager::PreHookResult VR::pre_set_hdr_mode(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys) {
+HookManager::PreHookResult VR::pre_set_hdr_mode(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys, uintptr_t ret_addr) {
     if (!VR::get()->is_hmd_active()) {
         return HookManager::PreHookResult::CALL_ORIGINAL;
     }

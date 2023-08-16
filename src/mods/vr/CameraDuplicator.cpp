@@ -317,7 +317,7 @@ void CameraDuplicator::hook_get_primary_camera() {
     const auto get_primary_camera_fn = sceneview_t->get_method("get_PrimaryCamera");
     spdlog::info("Hooking getPrimaryCamera: {:x}", (uintptr_t)get_primary_camera_fn);
 
-    g_hookman.add(get_primary_camera_fn, [this](std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys) {
+    g_hookman.add(get_primary_camera_fn, [this](std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys, uintptr_t ret_addr) {
         if (m_new_cameras.empty()) {
             return HookManager::PreHookResult::CALL_ORIGINAL;
         }
@@ -332,7 +332,7 @@ void CameraDuplicator::hook_get_primary_camera() {
         
         return HookManager::PreHookResult::CALL_ORIGINAL;
     }, 
-    [this](uintptr_t& ret_val, sdk::RETypeDefinition* ret_ty) {
+    [this](uintptr_t& ret_val, sdk::RETypeDefinition* ret_ty, uintptr_t ret_addr) {
         std::scoped_lock _{ m_camera_mutex };
 
         for (auto new_camera : m_new_cameras) {
