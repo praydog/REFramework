@@ -243,18 +243,26 @@ void CameraDuplicator::clone_camera() {
 
     REComponent* component = old_camera_gameobject->transform->childComponent;
 
-    const std::unordered_set<std::string> illegal_components {
-        "app.worldtour.bWTCameraController", // this causes the camera to become the "main" camera which is NOT what we want, it breaks the real main camera
-        "app.ropeway.camera.MainCameraController", // also breaks the real main camera
-        "app.ropeway.camera.CameraSystem", // also breaks the real main camera
-        "app.bPostProcessController",
-        "app.MainCameraDestroyChecker",
+    std::unordered_set<std::string> illegal_components {
         "via.render.ExperimentalRayTrace",
         "via.motion.MotionCamera", // Unnecessarily takes control of the camera transform which we don't want
         "via.motion.ActorMotionCamera", // Unnecessarily takes control of the camera transform which we don't want
         "via.wwise.WwiseListener",
         // todo
     };
+
+    std::unordered_set<std::string> game_framework_components {
+        "worldtour.bWTCameraController", // this causes the camera to become the "main" camera which is NOT what we want, it breaks the real main camera
+        "camera.MainCameraController", // also breaks the real main camera
+        "camera.CameraSystem", // also breaks the real main camera
+        "bPostProcessController",
+        "MainCameraDestroyChecker",
+    };
+
+    // Add new components to illegal_components with the game project name prepended to the game_framework_components
+    for (auto& fwcomp : game_framework_components) {
+        illegal_components.insert(game_namespace((fwcomp)));
+    }
 
     while (component != nullptr) {
         const auto tdef = utility::re_managed_object::get_type_definition(component);
