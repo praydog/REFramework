@@ -207,14 +207,10 @@ void CameraDuplicator::clone_camera() {
         return;
     }
 
-    auto old_camera_folder = old_camera_gameobject->folder;
-
-    if (old_camera_folder == nullptr) {
-        return;
-    }
-
     // Setting active to false lets us "activate" the folder again, cloning the camera perfectly
-    constexpr auto ACTIVE_OFFSET = sizeof(::REManagedObject) + 5;
+    // ADDENDUM: We don't do this anymore, and instead opt for manually recreating the components
+    // as it causes a bunch of issues like the game thinks the new camera is the main one and other things.
+    //constexpr auto ACTIVE_OFFSET = sizeof(::REManagedObject) + 5;
     //*(bool*)((uint8_t*)old_camera_folder + ACTIVE_OFFSET) = false;
     //sdk::call_object_func_easy<void*>(old_camera_folder, "activate");
 
@@ -274,7 +270,7 @@ void CameraDuplicator::clone_camera() {
             continue;
         }
 
-        // 
+        // TODO: other game framework prefixes or maybe app is just okay?
         if (tdef->get_full_name().starts_with("app.")) {
             spdlog::info("Skipping app component {}", tdef->get_full_name());
             component = component->childComponent;
