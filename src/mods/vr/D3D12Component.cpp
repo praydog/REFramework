@@ -418,6 +418,27 @@ void D3D12Component::setup() {
     rt_desc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
     rt_desc.Flags &= ~D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE;
 
+    switch (backbuffer_desc.Format) {
+        case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:
+        case DXGI_FORMAT_R8G8B8A8_UNORM:
+        case DXGI_FORMAT_R8G8B8A8_TYPELESS:
+        case DXGI_FORMAT_R8G8B8A8_UINT:
+        case DXGI_FORMAT_R8G8B8A8_SNORM:
+        case DXGI_FORMAT_R8G8B8A8_SINT:
+            rt_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+            break;
+
+        case DXGI_FORMAT_B8G8R8A8_UNORM_SRGB:
+        case DXGI_FORMAT_B8G8R8A8_UNORM:
+        case DXGI_FORMAT_B8G8R8A8_TYPELESS:
+            rt_desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+            break;
+        
+        default:
+            spdlog::error("[OpenVR] Possibly unsupported backbuffer format: {}", backbuffer_desc.Format);
+            break;
+    };
+
     // Create converted eye texture
     if (!m_backbuffer_is_8bit) {
         ComPtr<ID3D12Resource> eye_tex{};
