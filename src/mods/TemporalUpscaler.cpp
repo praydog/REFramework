@@ -105,6 +105,11 @@ void TemporalUpscaler::on_draw_ui() {
         return;
     }
 
+#if TDB_VER < 69
+    ImGui::TextWrapped("TemporalUpscaler is not yet supported on this version of the engine.");
+    ImGui::TextWrapped("Supported: RE2/RE3/RE7 (RT latest, not beta builds), RE4, RE8, SF6");
+    return;
+#else
     if (!m_backend_loaded) {
         ImGui::TextWrapped("Backend is not loaded, TemporalUpscaler will not work.");
         ImGui::TextWrapped("Make sure you've downloaded UpscalerBasePlugin (PDPerfPlugin.dll)");
@@ -194,6 +199,7 @@ void TemporalUpscaler::on_draw_ui() {
 
         ImGui::TreePop();
     }
+#endif
 }
 
 void TemporalUpscaler::on_early_present() {
