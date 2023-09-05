@@ -4,6 +4,7 @@
 #include <utility/FunctionHook.hpp>
 #include <sdk/intrusive_ptr.hpp>
 
+#include "vr/d3d12/CommandContext.hpp"
 #include "vr/d3d12/TextureContext.hpp"
 #include "Mod.hpp"
 
@@ -184,8 +185,8 @@ private:
     float m_motion_scale[2]{-1.0f, 1.0f};
     float m_jitter_evaluate_scale{1.0f};
 
-    d3d12::ResourceCopier m_copier{};
-    d3d12::ResourceCopier m_big_copier{};
+    d3d12::CommandContext m_copier{};
+    d3d12::CommandContext m_big_copier{};
     ComPtr<ID3D12Resource> m_old_backbuffer{};
 
     std::array<std::array<Matrix4x4f, 6>, 2> m_old_projection_matrix{};
