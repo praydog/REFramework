@@ -185,8 +185,7 @@ private:
     float m_motion_scale[2]{-1.0f, 1.0f};
     float m_jitter_evaluate_scale{1.0f};
 
-    d3d12::CommandContext m_copier{};
-    d3d12::CommandContext m_big_copier{};
+    std::array<d3d12::CommandContext, 3> m_copiers{};
     ComPtr<ID3D12Resource> m_old_backbuffer{};
 
     std::array<std::array<Matrix4x4f, 6>, 2> m_old_projection_matrix{};

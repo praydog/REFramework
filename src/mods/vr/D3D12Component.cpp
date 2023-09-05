@@ -48,16 +48,17 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
 
     // TODO: Correct this for the upscaler...?
     if (!m_backbuffer_is_8bit) {
-        auto command_list = m_backbuffer_copy.commands.cmd_list.Get();
-        m_backbuffer_copy.commands.wait(INFINITE);
+        auto& commands = m_backbuffer_copy_commands[backbuffer_index % m_backbuffer_copy_commands.size()];
+        auto command_list = commands.cmd_list.Get();
+        commands.wait(INFINITE);
 
         // Copy current backbuffer into our copy so we can use it as an SRV.
-        m_backbuffer_copy.commands.copy(backbuffer.Get(), m_backbuffer_copy.texture.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_PRESENT);
+        commands.copy(backbuffer.Get(), m_backbuffer_copy.texture.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_PRESENT);
 
         // Convert the backbuffer to 8-bit.
         render_srv_to_rtv(command_list, m_backbuffer_copy, m_converted_eye_tex, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
-        m_backbuffer_copy.commands.execute();
+        commands.execute();
     }
 
     auto eye_texture = m_backbuffer_is_8bit ? backbuffer : m_converted_eye_tex.texture;
@@ -296,6 +297,10 @@ void D3D12Component::on_reset(VR* vr) {
     for (auto& copier : m_generic_copiers) {
         copier.reset();
     }
+
+    for (auto& commands : m_backbuffer_copy_commands) {
+        commands.reset();
+    }
     
     m_prev_backbuffer.Reset();
     m_backbuffer_copy.reset();
@@ -483,6 +488,10 @@ void D3D12Component::setup() {
 
     for (auto& copier : m_generic_copiers) {
         copier.setup(L"Generic Copier");
+    }
+    
+    for (auto& commands : m_backbuffer_copy_commands) {
+        commands.setup(L"Backbuffer Copy Commands");
     }
 
     setup_sprite_batch_pso(rt_desc.Format);

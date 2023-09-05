@@ -252,7 +252,8 @@ void TemporalUpscaler::on_early_present() {
         const auto is_vr_multipass = vr_enabled && vr->is_using_multipass();
         const auto frame = vr->get_render_frame_count();
 
-        m_copier.wait(INFINITE);
+        auto& copier = m_copiers[swapchain->GetCurrentBackBufferIndex() % m_copiers.size()];
+        copier.wait(INFINITE);
 
         if (vr_enabled && is_vr_multipass) {
             for (auto& state : m_eye_states) {
@@ -410,12 +411,12 @@ void TemporalUpscaler::on_early_present() {
                     //params.renderSizeX, params.renderSizeY, params.sharpness, params.jitterOffsetX, params.jitterOffsetY, params.motionScaleX, params.motionScaleY, params.reset, params.nearPlane, params.farPlane, params.verticalFOV, params.execute);
 
                 if (i == 0) {
-                    m_copier.copy((ID3D12Resource*)m_upscaled_textures[evaluate_index], backbuffer.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PRESENT);
+                    copier.copy((ID3D12Resource*)m_upscaled_textures[evaluate_index], backbuffer.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PRESENT);
                 }
             }
         }
 
-        m_copier.execute();
+        copier.execute();
 
         static bool once = true;
 
@@ -498,8 +499,9 @@ bool TemporalUpscaler::init_upscale_features() {
         out_h = bb_desc.Height;
         out_format = bb_desc.Format;
 
-        m_copier.setup();
-        m_big_copier.setup();
+        for (auto& copier : m_copiers) {
+            copier.setup();
+        }
     } else {
         auto& hook = g_framework->get_d3d11_hook();
 
@@ -575,7 +577,9 @@ void TemporalUpscaler::release_upscale_features() {
         return;
     }
 
-    m_copier.wait(2000);
+    for (auto& copier : m_copiers) {
+        copier.wait(2000);
+    }
 
     if (m_upscaled_textures[0] != nullptr) {
         ReleaseUpscaleFeature(get_evaluate_id(0));
@@ -588,8 +592,9 @@ void TemporalUpscaler::release_upscale_features() {
     }
 
     m_wants_reinitialize = true;
-    m_copier.reset();
-    m_big_copier.reset();
+    for (auto& copier : m_copiers) {
+        copier.reset();
+    }
     
     for (auto& state : m_eye_states) {
         state.color.Reset();

@@ -12,7 +12,7 @@
 #include <../../directxtk12-src/Inc/GraphicsMemory.h>
 #include <../../directxtk12-src/Inc/SpriteBatch.h>
 
-#include "d3d12/ResourceCopier.hpp"
+#include "d3d12/CommandContext.hpp"
 #include "d3d12/TextureContext.hpp"
 
 #define XR_USE_PLATFORM_WIN32
@@ -55,7 +55,8 @@ private:
     ComPtr<ID3D12Resource> m_prev_backbuffer{};
     d3d12::TextureContext m_backbuffer_copy{};
     d3d12::TextureContext m_converted_eye_tex{};
-    std::array<d3d12::ResourceCopier, 3> m_generic_copiers{};
+    std::array<d3d12::CommandContext, 3> m_generic_copiers{};
+    std::array<d3d12::CommandContext, 3> m_backbuffer_copy_commands{};
     
     std::unique_ptr<DirectX::DX12::SpriteBatch> m_sprite_batch{};
 
