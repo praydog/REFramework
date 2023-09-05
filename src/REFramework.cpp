@@ -646,57 +646,65 @@ void REFramework::on_frame_d3d12() {
         m_mods->on_present();
     }
 
-    if (FAILED(m_d3d12.cmd_allocator->Reset())) {
-        spdlog::error("[D3D12] Failed to reset command allocator");
+    if (m_d3d12.cmd_ctxs.empty()) {
         return;
     }
 
-    m_d3d12.cmd_list->Reset(m_d3d12.cmd_allocator.Get(), nullptr);
+    auto& cmd_ctx = m_d3d12.cmd_ctxs[m_d3d12.cmd_ctx_index++ % m_d3d12.cmd_ctxs.size()];
 
-    // Draw to our render target.
-    D3D12_RESOURCE_BARRIER barrier{};
-    barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-    barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-    barrier.Transition.pResource = m_d3d12.get_rt(D3D12::RTV::IMGUI).Get();
-    barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-    barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
-    barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
-    m_d3d12.cmd_list->ResourceBarrier(1, &barrier);
+    if (cmd_ctx == nullptr) {
+        return;
+    }
 
-    float clear_color[]{0.0f, 0.0f, 0.0f, 0.0f};
-    D3D12_CPU_DESCRIPTOR_HANDLE rts[1]{};
-    m_d3d12.cmd_list->ClearRenderTargetView(m_d3d12.get_cpu_rtv(device, D3D12::RTV::IMGUI), clear_color, 0, nullptr);
-    rts[0] = m_d3d12.get_cpu_rtv(device, D3D12::RTV::IMGUI);
-    m_d3d12.cmd_list->OMSetRenderTargets(1, rts, FALSE, NULL);
-    m_d3d12.cmd_list->SetDescriptorHeaps(1, m_d3d12.srv_desc_heap.GetAddressOf());
+    cmd_ctx->wait(INFINITE);
+    {
+        std::scoped_lock _{ cmd_ctx->mtx };
+        cmd_ctx->has_commands = true;
 
-    ImGui::GetIO().BackendRendererUserData = m_d3d12.imgui_backend_datas[1];
-    ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), m_d3d12.cmd_list.Get());
-    
-    barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
-    barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
-    m_d3d12.cmd_list->ResourceBarrier(1, &barrier);
+        // Draw to our render target.
+        D3D12_RESOURCE_BARRIER barrier{};
+        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+        barrier.Transition.pResource = m_d3d12.get_rt(D3D12::RTV::IMGUI).Get();
+        barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+        barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+        barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+        cmd_ctx->cmd_list->ResourceBarrier(1, &barrier);
 
-    // Draw to the back buffer.
-    auto swapchain = m_d3d12_hook->get_swap_chain();
-    auto bb_index = swapchain->GetCurrentBackBufferIndex();
-    barrier.Transition.pResource = m_d3d12.rts[bb_index].Get();
-    barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
-    barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
-    m_d3d12.cmd_list->ResourceBarrier(1, &barrier);
-    rts[0] = m_d3d12.get_cpu_rtv(device, (D3D12::RTV)bb_index);
-    m_d3d12.cmd_list->OMSetRenderTargets(1, rts, FALSE, NULL);
-    m_d3d12.cmd_list->SetDescriptorHeaps(1, m_d3d12.srv_desc_heap.GetAddressOf());
+        float clear_color[]{0.0f, 0.0f, 0.0f, 0.0f};
+        D3D12_CPU_DESCRIPTOR_HANDLE rts[1]{};
+        cmd_ctx->cmd_list->ClearRenderTargetView(m_d3d12.get_cpu_rtv(device, D3D12::RTV::IMGUI), clear_color, 0, nullptr);
+        rts[0] = m_d3d12.get_cpu_rtv(device, D3D12::RTV::IMGUI);
+        cmd_ctx->cmd_list->OMSetRenderTargets(1, rts, FALSE, NULL);
+        cmd_ctx->cmd_list->SetDescriptorHeaps(1, m_d3d12.srv_desc_heap.GetAddressOf());
 
-    ImGui::GetIO().BackendRendererUserData = m_d3d12.imgui_backend_datas[0];
-    ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), m_d3d12.cmd_list.Get());
+        ImGui::GetIO().BackendRendererUserData = m_d3d12.imgui_backend_datas[1];
+        ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), cmd_ctx->cmd_list.Get());
+        
+        barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+        barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+        cmd_ctx->cmd_list->ResourceBarrier(1, &barrier);
 
-    barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
-    barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
-    m_d3d12.cmd_list->ResourceBarrier(1, &barrier);
-    m_d3d12.cmd_list->Close();
+        // Draw to the back buffer.
+        auto swapchain = m_d3d12_hook->get_swap_chain();
+        auto bb_index = swapchain->GetCurrentBackBufferIndex();
+        barrier.Transition.pResource = m_d3d12.rts[bb_index].Get();
+        barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+        barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+        cmd_ctx->cmd_list->ResourceBarrier(1, &barrier);
+        rts[0] = m_d3d12.get_cpu_rtv(device, (D3D12::RTV)bb_index);
+        cmd_ctx->cmd_list->OMSetRenderTargets(1, rts, FALSE, NULL);
+        cmd_ctx->cmd_list->SetDescriptorHeaps(1, m_d3d12.srv_desc_heap.GetAddressOf());
 
-    command_queue->ExecuteCommandLists(1, (ID3D12CommandList* const*)m_d3d12.cmd_list.GetAddressOf());
+        ImGui::GetIO().BackendRendererUserData = m_d3d12.imgui_backend_datas[0];
+        ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), cmd_ctx->cmd_list.Get());
+
+        barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+        barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+        cmd_ctx->cmd_list->ResourceBarrier(1, &barrier);
+
+        cmd_ctx->execute();
+    }
 
     if (is_init_ok) {
         m_mods->on_post_frame();
@@ -1738,26 +1746,15 @@ bool REFramework::init_d3d12() {
 
     spdlog::info("[D3D12] Creating command allocator...");
 
-    if (FAILED(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_d3d12.cmd_allocator)))) {
-        spdlog::error("[D3D12] Failed to create command allocator.");
-        return false;
-    }
+    m_d3d12.cmd_ctxs.clear();
 
-    m_d3d12.cmd_allocator->SetName(L"Framework::m_d3d12.cmd_allocator");
+    for (auto i = 0; i < 3; ++i) {
+        auto& ctx = m_d3d12.cmd_ctxs.emplace_back(std::make_unique<d3d12::CommandContext>());
 
-    spdlog::info("[D3D12] Creating command list...");
-
-    if (FAILED(device->CreateCommandList(
-            0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_d3d12.cmd_allocator.Get(), nullptr, IID_PPV_ARGS(&m_d3d12.cmd_list)))) {
-        spdlog::error("[D3D12] Failed to create command list.");
-        return false;
-    }
-
-    m_d3d12.cmd_list->SetName(L"Framework::m_d3d12.cmd_list");
-
-    if (FAILED(m_d3d12.cmd_list->Close())) {
-        spdlog::error("[D3D12] Failed to close command list after creation.");
-        return false;
+        if (!ctx->setup(L"Framework::m_d3d12.cmd_ctx")) {
+            spdlog::error("[D3D12] Failed to create command context.");
+            return false;
+        }
     }
 
     spdlog::info("[D3D12] Creating RTV descriptor heap...");

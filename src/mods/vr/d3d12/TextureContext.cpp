@@ -2,7 +2,7 @@
 
 #include <spdlog/spdlog.h>
 
-#include "ResourceCopier.hpp"
+#include "CommandContext.hpp"
 #include "TextureContext.hpp"
 
 namespace d3d12 {
@@ -11,7 +11,7 @@ bool TextureContext::setup(ID3D12Device* device, ID3D12Resource* rsrc, std::opti
     
     reset();
 
-    copier.setup(name);
+    commands.setup(name);
 
     texture.Reset();
     texture = rsrc;

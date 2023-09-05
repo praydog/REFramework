@@ -72,28 +72,28 @@ private:
 
         d3d12::TextureContext& acquire_left() {
             auto& ctx = get_left();
-            ctx.copier.wait(INFINITE);
+            ctx.commands.wait(INFINITE);
 
             return ctx;
         }
 
         d3d12::TextureContext& acquire_right() {
             auto& ctx = get_right();
-            ctx.copier.wait(INFINITE);
+            ctx.commands.wait(INFINITE);
 
             return ctx;
         }
 
         void copy_left(ID3D12Resource* src) {
             auto& ctx = this->acquire_left();
-            ctx.copier.copy(src, ctx.texture.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-            ctx.copier.execute();
+            ctx.commands.copy(src, ctx.texture.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+            ctx.commands.execute();
         }
 
         void copy_right(ID3D12Resource* src) {
             auto& ctx = this->acquire_right();
-            ctx.copier.copy(src, ctx.texture.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-            ctx.copier.execute();
+            ctx.commands.copy(src, ctx.texture.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+            ctx.commands.execute();
         }
 
         std::array<d3d12::TextureContext, 3> left_eye_tex{};
@@ -111,7 +111,7 @@ private:
 
             for (auto& ctx : this->contexts) {
                 for (auto& texture_ctx : ctx.texture_contexts) {
-                    texture_ctx->copier.wait(INFINITE);
+                    texture_ctx->commands.wait(INFINITE);
                 }
             }
         }

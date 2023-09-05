@@ -1,12 +1,14 @@
 #pragma once
 
+#include <optional>
+
 #include <../../directxtk12-src/Inc/DescriptorHeap.h>
 
-#include "ResourceCopier.hpp"
+#include "CommandContext.hpp"
 
 namespace d3d12 {
 struct TextureContext {
-    ResourceCopier copier{};
+    CommandContext commands{};
     ComPtr<ID3D12Resource> texture{};
     std::unique_ptr<DirectX::DescriptorHeap> rtv_heap{};
     std::unique_ptr<DirectX::DescriptorHeap> srv_heap{};
@@ -28,10 +30,14 @@ struct TextureContext {
     }
 
     void reset() {
-        copier.reset();
+        commands.reset();
         rtv_heap.reset();
         srv_heap.reset();
         texture.Reset();
+    }
+
+    virtual ~TextureContext() {
+        reset();
     }
 };
 }
