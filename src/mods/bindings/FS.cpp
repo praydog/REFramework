@@ -62,11 +62,11 @@ namespace detail {
 }
 }
 
-sol::table glob(sol::this_state l, const char* filter) {
+sol::table glob(sol::this_state l, const char* filter, const char* modifier) {
     sol::state_view state{l};
     std::regex filter_regex{filter};
     auto results = state.create_table();
-    auto datadir = detail::get_datadir(filter);
+    auto datadir = detail::get_datadir(modifier != nullptr ? modifier : "");
     auto i = 0;
 
     for (const auto& entry : ::fs::recursive_directory_iterator{datadir}) {
