@@ -423,7 +423,30 @@ void IntegrityCheckBypass::immediate_patch_re4() {
     const auto conditional_jmp_block = utility::scan(game, "48 8B 8D D0 03 00 00 48 29 C1 75 ?");
 
     if (!conditional_jmp_block) {
-        spdlog::error("[IntegrityCheckBypass]: Could not find conditional_jmp!");
+        spdlog::error("[IntegrityCheckBypass]: Could not find conditional_jmp, trying fallback.");
+
+        // mov     [rbp+192h], al
+        // this is used shortly after the conditional jmp, only place that uses it.
+        const auto unique_instruction = utility::scan(game, "88 85 92 01 00 00");
+
+        if (!unique_instruction) {
+            spdlog::error("[IntegrityCheckBypass]: Could not find unique_instruction!");
+            return;
+        }
+
+        // Conditional jmp is very close to the instruction, before it.
+        // However, this specific block of instructions is used all over the place
+        // so we have to use the unique instruction is a reference point to scan from.
+        const auto short_jmp_before = utility::scan_reverse(*unique_instruction, 0x100, "75 ? 50 F7 D0");
+
+        if (!short_jmp_before) {
+            spdlog::error("[IntegrityCheckBypass]: Could not find short_jmp_before!");
+            return;
+        }
+
+        static auto patch = Patch::create(*short_jmp_before, { 0xEB }, true);
+        spdlog::info("[IntegrityCheckBypass]: Patched conditional_jmp!");
+
         return;
     }
 
