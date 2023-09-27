@@ -653,25 +653,15 @@ std::optional<std::string> D3D11Component::OpenXR::create_swapchains() {
             return "Failed to enumerate swapchain images.";
         }
 
+        spdlog::info("[VR] Runtime wants {} images for swapchain {}", image_count, i);
+
         auto& ctx = this->contexts[i];
 
         ctx.textures.clear();
         ctx.textures.resize(image_count);
 
         for (uint32_t j = 0; j < image_count; ++j) {
-            spdlog::info("[VR] Creating swapchain image {} for swapchain {}", j, i);
-
             ctx.textures[j] = {XR_TYPE_SWAPCHAIN_IMAGE_D3D11_KHR};
-
-            if (FAILED(device->CreateTexture2D(&backbuffer_desc, nullptr, &ctx.textures[j].texture))) {
-                spdlog::error("[VR] Failed to create swapchain texture {} {}", i, j);
-                return "Failed to create swapchain texture.";
-            }
-
-            // get immediate context
-            //ComPtr<ID3D11DeviceContext> context{};
-            //device->GetImmediateContext(&context);
-            //context->CopyResource(ctx.textures[j].texture, backbuffer.Get());
         }
 
         result = xrEnumerateSwapchainImages(swapchain.handle, image_count, &image_count, (XrSwapchainImageBaseHeader*)&ctx.textures[0]);
@@ -707,10 +697,6 @@ void D3D11Component::OpenXR::destroy_swapchains() {
             spdlog::error("[VR] Failed to destroy swapchain {}.", i);
         } else {
             spdlog::info("[VR] Destroyed swapchain {}.", i);
-        }
-
-        for (auto& tex : ctx.textures) {
-            tex.texture->Release();
         }
         
         ctx.textures.clear();

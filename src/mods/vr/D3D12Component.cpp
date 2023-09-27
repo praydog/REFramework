@@ -516,6 +516,8 @@ std::optional<std::string> D3D12Component::OpenXR::create_swapchains() {
             return "Failed to enumerate swapchain images.";
         }
 
+        spdlog::info("[VR] Runtime wants {} images for swapchain {}", image_count, i);
+
         auto& ctx = this->contexts[i];
 
         ctx.textures.clear();
@@ -524,19 +526,9 @@ std::optional<std::string> D3D12Component::OpenXR::create_swapchains() {
         ctx.texture_contexts.resize(image_count);
 
         for (uint32_t j = 0; j < image_count; ++j) {
-            spdlog::info("[VR] Creating swapchain image {} for swapchain {}", j, i);
-
             ctx.textures[j] = {XR_TYPE_SWAPCHAIN_IMAGE_D3D12_KHR};
             ctx.texture_contexts[j] = std::make_unique<d3d12::TextureContext>();
-            ctx.texture_contexts[j]->commands.setup((std::wstring{L"OpenXR Copier "} + std::to_wstring(i) + L" " + std::to_wstring(j)).c_str());
-
-            backbuffer_desc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
-            backbuffer_desc.Flags &= ~D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE;
-
-            if (FAILED(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &backbuffer_desc, D3D12_RESOURCE_STATE_RENDER_TARGET, nullptr, IID_PPV_ARGS(&ctx.textures[j].texture)))) {
-                spdlog::error("[VR] Failed to create swapchain texture {} {}", i, j);
-                return "Failed to create swapchain texture.";
-            }
+            ctx.texture_contexts[j]->commands.setup((std::wstring{L"OpenXR Commands "} + std::to_wstring(i) + L" " + std::to_wstring(j)).c_str());
         }
 
         result = xrEnumerateSwapchainImages(swapchain.handle, image_count, &image_count, (XrSwapchainImageBaseHeader*)&ctx.textures[0]);
@@ -573,10 +565,6 @@ void D3D12Component::OpenXR::destroy_swapchains() {
             spdlog::info("[VR] Destroyed swapchain {}.", i);
         }
 
-        for (auto& tex : ctx.textures) {
-            tex.texture->Release();
-        }
-        
         ctx.textures.clear();
     }
 
