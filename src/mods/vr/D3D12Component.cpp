@@ -41,16 +41,16 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
     }
 
     if (!m_backbuffer_is_8bit) {
-        auto command_list = m_backbuffer_copy.copier.cmd_list.Get();
-        m_backbuffer_copy.copier.wait(INFINITE);
+        auto command_list = m_backbuffer_copy.commands.cmd_list.Get();
+        m_backbuffer_copy.commands.wait(INFINITE);
 
         // Copy current backbuffer into our copy so we can use it as an SRV.
-        m_backbuffer_copy.copier.copy(backbuffer.Get(), m_backbuffer_copy.texture.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_PRESENT);
+        m_backbuffer_copy.commands.copy(backbuffer.Get(), m_backbuffer_copy.texture.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_PRESENT);
 
         // Convert the backbuffer to 8-bit.
         render_srv_to_rtv(command_list, m_backbuffer_copy, m_converted_eye_tex, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
-        m_backbuffer_copy.copier.execute();
+        m_backbuffer_copy.commands.execute();
     }
 
     auto eye_texture = m_backbuffer_is_8bit ? backbuffer : m_converted_eye_tex.texture;
@@ -516,6 +516,8 @@ std::optional<std::string> D3D12Component::OpenXR::create_swapchains() {
             return "Failed to enumerate swapchain images.";
         }
 
+        spdlog::info("[VR] Runtime wants {} images for swapchain {}", image_count, i);
+
         auto& ctx = this->contexts[i];
 
         ctx.textures.clear();
@@ -524,19 +526,9 @@ std::optional<std::string> D3D12Component::OpenXR::create_swapchains() {
         ctx.texture_contexts.resize(image_count);
 
         for (uint32_t j = 0; j < image_count; ++j) {
-            spdlog::info("[VR] Creating swapchain image {} for swapchain {}", j, i);
-
             ctx.textures[j] = {XR_TYPE_SWAPCHAIN_IMAGE_D3D12_KHR};
             ctx.texture_contexts[j] = std::make_unique<d3d12::TextureContext>();
-            ctx.texture_contexts[j]->copier.setup((std::wstring{L"OpenXR Copier "} + std::to_wstring(i) + L" " + std::to_wstring(j)).c_str());
-
-            backbuffer_desc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
-            backbuffer_desc.Flags &= ~D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE;
-
-            if (FAILED(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &backbuffer_desc, D3D12_RESOURCE_STATE_RENDER_TARGET, nullptr, IID_PPV_ARGS(&ctx.textures[j].texture)))) {
-                spdlog::error("[VR] Failed to create swapchain texture {} {}", i, j);
-                return "Failed to create swapchain texture.";
-            }
+            ctx.texture_contexts[j]->commands.setup((std::wstring{L"OpenXR Commands "} + std::to_wstring(i) + L" " + std::to_wstring(j)).c_str());
         }
 
         result = xrEnumerateSwapchainImages(swapchain.handle, image_count, &image_count, (XrSwapchainImageBaseHeader*)&ctx.textures[0]);
@@ -573,10 +565,6 @@ void D3D12Component::OpenXR::destroy_swapchains() {
             spdlog::info("[VR] Destroyed swapchain {}.", i);
         }
 
-        for (auto& tex : ctx.textures) {
-            tex.texture->Release();
-        }
-        
         ctx.textures.clear();
     }
 
@@ -617,7 +605,7 @@ void D3D12Component::OpenXR::copy(uint32_t swapchain_idx, ID3D12Resource* resour
         spdlog::info("[VR] Attempting to correct...");
 
         for (auto& texture_ctx : ctx.texture_contexts) {
-            texture_ctx->copier.reset();
+            texture_ctx->commands.reset();
         }
 
         texture_index = 0;
@@ -639,13 +627,13 @@ void D3D12Component::OpenXR::copy(uint32_t swapchain_idx, ID3D12Resource* resour
             spdlog::error("[VR] xrWaitSwapchainImage failed: {}", vr->m_openxr->get_result_string(result));
         } else {
             auto& texture_ctx = ctx.texture_contexts[texture_index];
-            texture_ctx->copier.wait(INFINITE);
-            texture_ctx->copier.copy(
+            texture_ctx->commands.wait(INFINITE);
+            texture_ctx->commands.copy(
                 resource, 
                 ctx.textures[texture_index].texture, 
                 D3D12_RESOURCE_STATE_PRESENT, 
                 D3D12_RESOURCE_STATE_RENDER_TARGET);
-            texture_ctx->copier.execute();
+            texture_ctx->commands.execute();
 
             XrSwapchainImageReleaseInfo release_info{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
             auto result = xrReleaseSwapchainImage(swapchain.handle, &release_info);
@@ -662,7 +650,7 @@ void D3D12Component::OpenXR::copy(uint32_t swapchain_idx, ID3D12Resource* resour
                 }
 
                 for (auto& texture_ctx : ctx.texture_contexts) {
-                    texture_ctx->copier.wait(INFINITE);
+                    texture_ctx->commands.wait(INFINITE);
                 }
 
                 result = xrReleaseSwapchainImage(swapchain.handle, &release_info);

@@ -52,8 +52,8 @@ private:
     void update_block_gesture();
     void update_heal_gesture();
 
-    static HookManager::PreHookResult pre_shadow_late_update(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys);
-    static void post_shadow_late_update(uintptr_t& ret_val, sdk::RETypeDefinition* ret_ty);
+    static HookManager::PreHookResult pre_shadow_late_update(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys, uintptr_t ret_addr);
+    static void post_shadow_late_update(uintptr_t& ret_val, sdk::RETypeDefinition* ret_ty, uintptr_t ret_addr);
 
 private:
     const ModToggle::Ptr m_hide_upper_body{ ModToggle::create(generate_name("HideUpperBody"), false) };

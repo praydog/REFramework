@@ -8,6 +8,8 @@
 #include <imgui.h>
 #include <utility/Patch.hpp>
 
+#include "mods/vr/d3d12/CommandContext.hpp"
+
 class Mods;
 class REGlobals;
 class RETypes;
@@ -256,8 +258,8 @@ public:
 
 private: // D3D12 members
     struct D3D12 {
-        ComPtr<ID3D12CommandAllocator> cmd_allocator{};
-        ComPtr<ID3D12GraphicsCommandList> cmd_list{};
+        std::vector<std::unique_ptr<d3d12::CommandContext>> cmd_ctxs{};
+        uint32_t cmd_ctx_index{0};
 
         enum class RTV : int{
             BACKBUFFER_0,

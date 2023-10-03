@@ -15,6 +15,9 @@ For newer builds, check out the [Nightly Developer Builds](https://github.com/pr
 
 [VR Troubleshooting/FAQ](https://github.com/praydog/REFramework/wiki/VR-Troubleshooting)
 
+### Proton/Linux
+Add the launch option `WINEDLLOVERRIDES="dinput8.dll=n,b" %command%` to your game through Steam's properties after extraction.
+
 Example game folder: G:\SteamLibrary\steamapps\common\RESIDENT EVIL 2 BIOHAZARD RE2
 
 Supports both DirectX 11 and DirectX 12.

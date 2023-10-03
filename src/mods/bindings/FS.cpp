@@ -17,9 +17,17 @@ namespace detail {
     modpath.resize(1024, 0);
     modpath.resize(GetModuleFileName(nullptr, modpath.data(), modpath.size()));
 
-    if (!wanted_subdir.empty() && wanted_subdir.starts_with("$")) {
-        if (wanted_subdir.starts_with("$natives")) {
+    if (!wanted_subdir.empty() && wanted_subdir.find("$") != std::string::npos) {
+        if (wanted_subdir.find("$natives") != std::string::npos) {
             auto datadir = ::fs::path{modpath}.parent_path() / "natives";
+
+            ::fs::create_directories(datadir);
+
+            return datadir;
+        }
+
+        if (wanted_subdir.find("$autorun") != std::string::npos) {
+            auto datadir = REFramework::get_persistent_dir() / "reframework" / "autorun";
 
             ::fs::create_directories(datadir);
 
@@ -54,11 +62,11 @@ namespace detail {
 }
 }
 
-sol::table glob(sol::this_state l, const char* filter) {
+sol::table glob(sol::this_state l, const char* filter, const char* modifier) {
     sol::state_view state{l};
     std::regex filter_regex{filter};
     auto results = state.create_table();
-    auto datadir = detail::get_datadir();
+    auto datadir = detail::get_datadir(modifier != nullptr ? modifier : "");
     auto i = 0;
 
     for (const auto& entry : ::fs::recursive_directory_iterator{datadir}) {
