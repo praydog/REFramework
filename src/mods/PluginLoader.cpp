@@ -712,7 +712,7 @@ std::optional<std::string> PluginLoader::on_initialize() {
             continue;
         }
 
-        if (required_version.patch > g_plugin_version.patch) {
+        if (required_version.patch > g_plugin_version.patch && required_version.minor == g_plugin_version.minor) {
             spdlog::warn("[PluginLoader] Plugin {} desires a newer patch version", name);
             m_plugin_load_warnings.emplace(name, "Desires a newer patch version");
         }
