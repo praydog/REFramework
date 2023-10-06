@@ -127,7 +127,7 @@ void ResourceManager::update_pointers() {
 
             for (const auto& pat : valid_patterns) {
                 for (auto ref = utility::scan(mod, pat); ref.has_value(); ref = utility::scan(*ref + 1, (mod_end - (*ref + 1)) - 100, pat)) {
-                    auto func = utility::find_function_start(*ref);
+                    auto func = utility::find_function_start_with_call(*ref);
 
                     if (func && *func != (uintptr_t)s_create_resource_fn) {
                         if (std::abs((ptrdiff_t)(*func - (uintptr_t)s_create_resource_fn)) < 0x50) {
