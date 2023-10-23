@@ -1,10 +1,14 @@
 #include "WindowFilter.hpp"
 
 // To prevent usage of statics (TLS breaks the present thread...?)
-WindowFilter g_window_filter{};
+std::unique_ptr<WindowFilter> g_window_filter{};
 
 WindowFilter& WindowFilter::get() {
-    return g_window_filter;
+    if (g_window_filter == nullptr) {
+        g_window_filter = std::make_unique<WindowFilter>();
+    }
+
+    return *g_window_filter;
 }
 
 WindowFilter::WindowFilter() {
@@ -14,22 +18,21 @@ WindowFilter::WindowFilter() {
         while (!s.stop_requested()) {
             std::this_thread::sleep_for(std::chrono::milliseconds{100});
 
+            m_last_job_tick = std::chrono::steady_clock::now();
+
             if (m_window_jobs.empty()) {
                 return;
             }
 
-            std::vector<HWND> window_jobs{};
+            std::scoped_lock _{m_mutex};
 
-            {
-                std::scoped_lock _{m_mutex};
-                window_jobs = std::move(m_window_jobs);
-            }
-
-            for (const auto hwnd : window_jobs) {
+            for (const auto hwnd : m_window_jobs) {
                 if (is_filtered_nocache(hwnd)) {
                     filter_window(hwnd);
                 }
             }
+
+            m_window_jobs.clear();
         }
     });
 }
@@ -50,11 +53,17 @@ bool WindowFilter::is_filtered(HWND hwnd) {
         return true;
     }
 
+    // If there is a job for this window, filter it until the job is done
+    if (m_window_jobs.find(hwnd) != m_window_jobs.end()) {
+        // If the thread is dead for some reason, do not filter it.
+        return std::chrono::steady_clock::now() - m_last_job_tick <= std::chrono::seconds{2};
+    }
+
     // if we havent even seen this window yet, add it to the job queue
     // and return true;
     if (m_seen_windows.find(hwnd) == m_seen_windows.end()) {
         m_seen_windows.insert(hwnd);
-        m_window_jobs.push_back(hwnd);
+        m_window_jobs.insert(hwnd);
         return true;
     }
 
