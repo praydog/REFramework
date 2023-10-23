@@ -7,6 +7,7 @@
 #include <thread>
 #include <vector>
 #include <mutex>
+#include <chrono>
 
 class WindowFilter {
 public:
@@ -27,9 +28,10 @@ private:
     bool is_filtered_nocache(HWND hwnd);
 
     std::recursive_mutex m_mutex{};
-    std::vector<HWND> m_window_jobs{};
+    std::unordered_set<HWND> m_window_jobs{};
     std::unique_ptr<std::jthread> m_job_thread{};
 
     std::unordered_set<HWND> m_seen_windows{};
     std::unordered_set<HWND> m_filtered_windows{};
+    std::chrono::time_point<std::chrono::steady_clock> m_last_job_tick{};
 };
