@@ -1855,7 +1855,7 @@ bool REFramework::init_d3d12() {
     auto& bb = m_d3d12.get_rt(D3D12::RTV::BACKBUFFER_0);
     auto bb_desc = bb->GetDesc();
 
-    if (!ImGui_ImplDX12_Init(device, 1, bb_desc.Format, m_d3d12.srv_desc_heap.Get(),
+    if (!ImGui_ImplDX12_Init(device, 3, bb_desc.Format, m_d3d12.srv_desc_heap.Get(),
             m_d3d12.get_cpu_srv(device, D3D12::SRV::IMGUI_FONT_BACKBUFFER), m_d3d12.get_gpu_srv(device, D3D12::SRV::IMGUI_FONT_BACKBUFFER))) {
         spdlog::error("[D3D12] Failed to initialize ImGui.");
         return false;
@@ -1869,7 +1869,7 @@ bool REFramework::init_d3d12() {
     auto& bb_vr = m_d3d12.get_rt(D3D12::RTV::IMGUI);
     auto bb_vr_desc = bb_vr->GetDesc();
 
-    if (!ImGui_ImplDX12_Init(device, 1, bb_vr_desc.Format, m_d3d12.srv_desc_heap.Get(),
+    if (!ImGui_ImplDX12_Init(device, 3, bb_vr_desc.Format, m_d3d12.srv_desc_heap.Get(),
             m_d3d12.get_cpu_srv(device, D3D12::SRV::IMGUI_FONT_VR), m_d3d12.get_gpu_srv(device, D3D12::SRV::IMGUI_FONT_VR))) {
         spdlog::error("[D3D12] Failed to initialize ImGui.");
         return false;
