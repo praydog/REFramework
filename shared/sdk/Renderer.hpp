@@ -42,11 +42,7 @@ template<typename T>
 class DirectXResource : public RenderResource {
 public:
     T* get_native_resource() const {
-    #if TDB_VER > 67
-        return *(ID3D12Resource**)((uintptr_t)this + 0x10);
-    #else
-        return *(ID3D12Resource**)((uintptr_t)this + 0x18);
-    #endif
+        return *(ID3D12Resource**)((uintptr_t)this + sizeof(RenderResource));
     }
 
 private:
@@ -94,7 +90,13 @@ public:
 
 private:
 #if TDB_VER >= 71
+#ifdef SF6
+    // So because this discrepancy in SF6 is > 8 bytes (which is how much was added to RenderResource), trying to automate this
+    // is a bit trickier so we can look into this later, and just hardcode it for now.
+    static constexpr inline auto s_d3d12_resource_offset = 0xB8;
+#else
     static constexpr inline auto s_d3d12_resource_offset = 0xA0;
+#endif
 #elif TDB_VER == 70
     static constexpr inline auto s_d3d12_resource_offset = 0x98;
 #elif TDB_VER == 69
@@ -124,29 +126,11 @@ public:
         return m_desc;
     }
 
-    sdk::intrusive_ptr<Texture>& get_texture_d3d12() const {
-        return *(sdk::intrusive_ptr<Texture>*)((uintptr_t)this + s_texture_d3d12_offset);
-    }
-
-    sdk::intrusive_ptr<TargetState>& get_target_state_d3d12() const {
-        return *(sdk::intrusive_ptr<TargetState>*)((uintptr_t)this + s_target_state_d3d12_offset);
-    }
+    sdk::intrusive_ptr<Texture>& get_texture_d3d12() const;
+    sdk::intrusive_ptr<TargetState>& get_target_state_d3d12() const;
 
 private:
     Desc m_desc;
-
-#if TDB_VER == 71
-    static constexpr inline auto s_texture_d3d12_offset = 0x98;
-#elif TDB_VER == 70
-    static constexpr inline auto s_texture_d3d12_offset = 0x90;
-#elif TDB_VER == 69
-    static constexpr inline auto s_texture_d3d12_offset = 0x88;
-#elif TDB_VER <= 67
-    // TODO: 66 and below
-    static constexpr inline auto s_texture_d3d12_offset = 0x88;
-#endif
-
-    static constexpr inline auto s_target_state_d3d12_offset = s_texture_d3d12_offset - sizeof(void*);
 };
 
 static_assert(sizeof(RenderTargetView::Desc) == 0x14);
@@ -202,7 +186,11 @@ public:
     // more here but not needed... for now
 };
 #if TDB_VER > 67
+#ifdef SF6
+static_assert(offsetof(TargetState, m_desc) + offsetof(TargetState::Desc, num_rtv) == 0x28);
+#else
 static_assert(offsetof(TargetState, m_desc) + offsetof(TargetState::Desc, num_rtv) == 0x20);
+#endif
 #else
 static_assert(offsetof(TargetState, m_desc) + offsetof(TargetState::Desc, num_rtv) == 0x28);
 #endif

@@ -7,6 +7,7 @@
 
 #include "Application.hpp"
 #include "RETypeDB.hpp"
+#include "RETypes.hpp"
 #include "SceneManager.hpp"
 
 #include "Renderer.hpp"
@@ -1103,6 +1104,51 @@ sdk::intrusive_ptr<RenderTargetView> RenderTargetView::clone(uint32_t new_width,
     }
 
     return sdk::renderer::create_render_target_view(tex->clone(new_width, new_height), &get_desc());
+}
+
+namespace detail {
+#if TDB_VER == 71
+#ifdef SF6
+    constexpr auto rtv_size = 0x98;
+#else
+    constexpr auto rtv_size = 0x98 - sizeof(void*);
+#endif
+#elif TDB_VER == 70
+    constexpr auto rtv_size = 0x90 - sizeof(void*);
+#elif TDB_VER == 69
+    constexpr auto rtv_size = 0x88 - sizeof(void*);
+#elif TDB_VER <= 67
+// TODO: 66 and below
+    constexpr auto rtv_size = 0x88 - sizeof(void*);
+#endif
+}
+
+sdk::intrusive_ptr<Texture>& RenderTargetView::get_texture_d3d12() const {
+    // The via.render.RenderTargetView is not part of the normal TDB... I think.
+    static const auto rtv_type = reframework::get_types()->get("via.render.RenderTargetView");
+
+    // The texture and target state members are always at the very start of the RenderTargetViewDX12 structure
+    // so we can very easily automate it like this, otherwise we fall back to the hardcoded offset
+    if (rtv_type != nullptr && rtv_type->size > 0 && rtv_type->size < 0x1000) {
+        const auto rtv_size = rtv_type->size;
+
+        return *(sdk::intrusive_ptr<Texture>*)((uintptr_t)this + rtv_size + sizeof(void*));
+    }
+    
+    return *(sdk::intrusive_ptr<Texture>*)((uintptr_t)this + detail::rtv_size + sizeof(void*));
+}
+
+sdk::intrusive_ptr<TargetState>& RenderTargetView::get_target_state_d3d12() const {
+    // The via.render.RenderTargetView is not part of the normal TDB... I think.
+    static const auto rtv_type = reframework::get_types()->get("via.render.RenderTargetView");
+
+    if (rtv_type != nullptr && rtv_type->size > 0 && rtv_type->size < 0x1000) {
+        const auto rtv_size = rtv_type->size;
+
+        return *(sdk::intrusive_ptr<TargetState>*)((uintptr_t)this + rtv_size);
+    }
+    
+    return *(sdk::intrusive_ptr<TargetState>*)((uintptr_t)this + detail::rtv_size);
 }
 
 sdk::intrusive_ptr<TargetState> TargetState::clone() const {

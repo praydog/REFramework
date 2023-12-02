@@ -1232,7 +1232,7 @@ struct RenderOutput : via.Component 0x1000 {
     SceneArray2 scenes @ 0x98
 }
 
-struct RenderResource {
+struct RenderResource 0x18 {
     //void* vtable;
 	Poop* unkpoop;
     int32_t ref_count @ 8;
@@ -1263,7 +1263,7 @@ struct DXResource : via.render.RenderResource {
 	void* destructor;
 };
 
-struct Texture : RenderResource {
+struct Texture : RenderResource 0x90 {
     via.render.UsageType usage_type;
     TextureDesc desc + 4;
 	uint32_t vram;
@@ -1271,15 +1271,7 @@ struct Texture : RenderResource {
 };
 
 struct TextureDX12 : Texture 0x1000 {
-    uint16_t index + 2; // might not be right.
-	DXResource* unk_resource + 0xC;
-	uint32_t last_frame;
-	uint32_t locked_thing;
-	uint32_t scale;
-	bool b1;
-	bool b2;
-
-	DXResource* resource @ 0xA0
+	DXResource* resource + 0x28
 	// IDK
 };
 
@@ -1311,12 +1303,12 @@ struct RenderLayer : via.clr.ManagedObject 0x88 {
     uint32_t version
 };
 
-struct RenderTargetView : via.render.RenderResource 0x90 {
+struct RenderTargetView : via.render.RenderResource 0x98 {
     uint32_t format
     uint32_t dimension
 }
 
-struct RenderTargetViewDX12 : RenderTargetView 0x100 {
+struct RenderTargetViewDX12 : RenderTargetView 0x108 {
     struct via.render.TargetState* output_target
     TextureDX12* tex
 }
@@ -1328,7 +1320,7 @@ struct DepthStencilView : via.render.RenderResource 0x18 {
 
 struct DepthStencilViewDX12 : DepthStencilView 0x100 {
     uint32_t format2
-    TextureDX12* tex @ 0x30
+    TextureDX12* tex + 0x20
 }
 
 struct TargetState : via.render.RenderResource 0x1000 {
