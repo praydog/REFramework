@@ -111,6 +111,7 @@ struct VRRuntime {
     // will return VRCompositorError_DoNotHaveFocus
     bool needs_pose_update{true};
     bool got_first_poses{false};
+    bool got_first_valid_poses{false};
     bool got_first_sync{false};
     bool handle_pause{false};
     bool wants_reset_origin{true};

@@ -63,7 +63,7 @@ VRRuntime::Error OpenXR::update_poses() {
 
     const auto display_time = this->frame_state.predictedDisplayTime + (XrDuration)(this->frame_state.predictedDisplayPeriod * this->prediction_scale);
 
-    if (display_time == 0) {
+    if (display_time <= 1000) {
         return VRRuntime::Error::SUCCESS;
     }
 
@@ -106,6 +106,10 @@ VRRuntime::Error OpenXR::update_poses() {
             spdlog::error("[VR] xrLocateSpace for hand space failed: {}", this->get_result_string(result));
             return (VRRuntime::Error)result;
         }
+    }
+
+    if (!this->got_first_valid_poses) {
+        this->got_first_valid_poses = (this->view_space_location.locationFlags & (XR_SPACE_LOCATION_POSITION_VALID_BIT | XR_SPACE_LOCATION_ORIENTATION_VALID_BIT)) != 0;
     }
 
     this->needs_pose_update = false;
