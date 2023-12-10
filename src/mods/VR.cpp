@@ -1554,23 +1554,15 @@ void VR::update_hmd_state() {
     // Update the poses used for the game
     // If we used the data directly from the WaitGetPoses call, we would have to lock a different mutex and wait a long time
     // This is because the WaitGetPoses call is blocking, and we don't want to block any game logic
-    {
-        if (runtime->wants_reset_origin && runtime->ready()) {
-            std::unique_lock _{ runtime->pose_mtx };
+    if (runtime->wants_reset_origin && runtime->ready() && runtime->got_first_valid_poses) {
+        std::unique_lock _{ runtime->pose_mtx };
+        set_rotation_offset(glm::identity<glm::quat>());
+        m_standing_origin = get_position_unsafe(vr::k_unTrackedDeviceIndex_Hmd);
 
-            set_rotation_offset(glm::identity<glm::quat>());
-            m_standing_origin = get_position_unsafe(vr::k_unTrackedDeviceIndex_Hmd);
-
-            runtime->wants_reset_origin = false;
-        }
+        runtime->wants_reset_origin = false;
     }
 
     runtime->update_matrices(m_nearz, m_farz);
-
-    // On first run, set the standing origin to the headset position
-    if (!runtime->got_first_poses) {
-        m_standing_origin = get_position(vr::k_unTrackedDeviceIndex_Hmd);
-    }
 
     runtime->got_first_poses = true;
 
