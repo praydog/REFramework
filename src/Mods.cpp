@@ -90,6 +90,35 @@ std::optional<std::string> Mods::on_initialize() const {
     return std::nullopt;
 }
 
+
+std::optional<std::string> Mods::on_initialize_d3d_thread() const {
+    std::scoped_lock _{g_framework->get_hook_monitor_mutex()};
+
+    utility::Config cfg{ (REFramework::get_persistent_dir() / "re2_fw_config.txt").string() };
+
+    // once here to at least setup the values
+    for (auto& mod : m_mods) {
+        spdlog::info("{:s}::on_config_load()", mod->get_name().data());
+        mod->on_config_load(cfg);
+    }
+
+    for (auto& mod : m_mods) {
+        spdlog::info("{:s}::on_initialize_d3d_thread()", mod->get_name().data());
+
+        if (auto e = mod->on_initialize_d3d_thread(); e != std::nullopt) {
+            spdlog::info("{:s}::on_initialize_d3d_thread() has failed: {:s}", mod->get_name().data(), *e);
+            return e;
+        }
+    }
+
+    for (auto& mod : m_mods) {
+        spdlog::info("{:s}::on_config_load()", mod->get_name().data());
+        mod->on_config_load(cfg);
+    }
+
+    return std::nullopt;
+}
+
 void Mods::on_pre_imgui_frame() const {
     for (auto& mod : m_mods) {
         mod->on_pre_imgui_frame();

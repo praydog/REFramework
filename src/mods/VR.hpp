@@ -33,7 +33,7 @@ public:
     std::string_view get_name() const override { return "VR"; }
 
     // Called when the mod is initialized
-    std::optional<std::string> on_initialize() override;
+    std::optional<std::string> on_initialize_d3d_thread() override;
 
     void on_lua_state_created(sol::state& lua) override;
 

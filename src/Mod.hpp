@@ -362,6 +362,7 @@ public:
     // Called when REFramework::initialize finishes in the first render frame
     // Returns an error string if it fails
     virtual std::optional<std::string> on_initialize() { return std::nullopt; };
+    virtual std::optional<std::string> on_initialize_d3d_thread() { return std::nullopt; };
     virtual void on_lua_state_created(sol::state& lua) {};
     virtual void on_lua_state_destroyed(sol::state& lua) {};
 
