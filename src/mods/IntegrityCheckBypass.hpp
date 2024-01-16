@@ -5,6 +5,7 @@
 
 #include "Mod.hpp"
 #include "utility/Patch.hpp"
+#include "utility/FunctionHook.hpp"
 
 // Always on for RE3
 // Because we use hooks that modify the integrity of the executable
@@ -20,8 +21,15 @@ public:
     static void immediate_patch_re8();
     static void immediate_patch_re4();
     static void remove_stack_destroyer();
+    static void fix_virtual_protect();
 
 private:
+    static BOOL WINAPI virtual_protect_hook(LPVOID lpAddress, SIZE_T dwSize, DWORD flNewProtect, PDWORD lpflOldProtect);
+    
+    using NtProtectVirtualMemory_t =  NTSTATUS(NTAPI*)(HANDLE ProcessHandle, PVOID* BaseAddress, SIZE_T* NumberOfBytesToProtect, ULONG NewAccessProtection, PULONG OldAccessProtection);
+    static inline NtProtectVirtualMemory_t s_pristine_protect_virtual_memory{ nullptr };
+    static inline std::unique_ptr<FunctionHook> s_virtual_protect_hook{};
+
 #ifdef RE3
     // This is what the game uses to bypass its integrity checks altogether or something
     bool* m_bypass_integrity_checks{ nullptr };

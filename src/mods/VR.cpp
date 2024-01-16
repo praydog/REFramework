@@ -783,7 +783,7 @@ float VR::get_sharpness_hook(void* tonemapping) {
 */
 
 // Called when the mod is initialized
-std::optional<std::string> VR::on_initialize() try {
+std::optional<std::string> VR::on_initialize_d3d_thread() try {
     auto openvr_error = initialize_openvr();
 
     if (openvr_error || !m_openvr->loaded) {
@@ -1318,6 +1318,8 @@ std::optional<std::string> VR::hijack_resolution() {
 
 std::optional<std::string> VR::hijack_input() {
 #if defined(RE2) || defined(RE3)
+    spdlog::info("[VR] Hijacking InputSystem");
+
     // We're going to hook InputSystem.update so we can
     // override the analog stick values with the VR controller's
     auto func = sdk::find_native_method(game_namespace("InputSystem"), "update");
@@ -1340,6 +1342,8 @@ std::optional<std::string> VR::hijack_input() {
 }
 
 std::optional<std::string> VR::hijack_camera() {
+    spdlog::info("[VR] Hijacking Camera");
+
     const auto get_projection_matrix = (uintptr_t)sdk::find_native_method("via.Camera", "get_ProjectionMatrix");
 
     ///////////////////////////////
@@ -1375,6 +1379,8 @@ std::optional<std::string> VR::hijack_camera() {
 std::optional<std::string> VR::hijack_wwise_listeners() {
 #ifndef RE4
 #ifndef SF6
+    spdlog::info("[VR] Hijacking WwiseListener");
+
     const auto t = sdk::find_type_definition("via.wwise.WwiseListener");
 
     if (t == nullptr) {
@@ -1405,13 +1411,15 @@ std::optional<std::string> VR::hijack_wwise_listeners() {
 
     const auto vtable_index = *(uint8_t*)(*jmp + 3) / sizeof(void*);
     spdlog::info("via.wwise.WwiseListener.update vtable index: {}", vtable_index);
+    spdlog::info("Attempting to create fake via.wwise.WwiseListener instance");
 
     const void* fake_obj = t->create_instance_full();
 
     if (fake_obj == nullptr) {
         return "VR init failed: Failed to create fake via.wwise.WwiseListener instance.";
     }
-
+    
+    spdlog::info("Attempting to read vtable from fake via.wwise.WwiseListener instance");
     auto obj_vtable = *(void***)fake_obj;
 
     if (obj_vtable == nullptr) {

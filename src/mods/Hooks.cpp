@@ -207,7 +207,9 @@ std::optional<std::string> Hooks::hook_update_transform() {
     m_update_transform_hook = std::make_unique<FunctionHook>(update_transform, &update_transform_hook);
 
     if (!m_update_transform_hook->create()) {
-        return "Failed to hook UpdateTransform";
+        //return "Failed to hook UpdateTransform";
+        spdlog::error("Failed to hook UpdateTransform");
+        return std::nullopt; // who cares
     }
 
     return std::nullopt;

@@ -168,6 +168,8 @@ REFramework::REFramework(HMODULE reframework_module)
     const auto pre_allocated_buffer = (uintptr_t)AllocateBuffer((LPVOID)halfway_module); // minhook function
     spdlog::info("Preallocated buffer: {:x}", pre_allocated_buffer);
 
+    IntegrityCheckBypass::fix_virtual_protect();
+
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
 
@@ -503,7 +505,7 @@ void REFramework::on_frame_d3d11() {
         return;
     }
 
-    const bool is_init_ok = m_error.empty() && m_game_data_initialized;
+    bool is_init_ok = m_error.empty() && m_game_data_initialized;
 
     if (is_init_ok) {
         // Write default config once if it doesn't exist.
@@ -513,6 +515,8 @@ void REFramework::on_frame_d3d11() {
             }
         }
     }
+
+    is_init_ok = first_frame_initialize();
 
     if (!m_has_frame) {
         if (!is_init_ok) {
@@ -606,7 +610,7 @@ void REFramework::on_frame_d3d12() {
         return;
     }
 
-    const bool is_init_ok = m_error.empty() && m_game_data_initialized;
+    bool is_init_ok = m_error.empty() && m_game_data_initialized;
 
     if (is_init_ok) {
         // Write default config once if it doesn't exist.
@@ -628,6 +632,8 @@ void REFramework::on_frame_d3d12() {
         invalidate_device_objects();
         ImGui_ImplDX12_NewFrame();
     };
+
+    is_init_ok = first_frame_initialize();
 
     if (!m_has_frame) {
         if (!is_init_ok) {
@@ -1637,6 +1643,43 @@ bool REFramework::initialize_windows_message_hook() {
 
     m_message_hook_requested = false;
     return false;
+}
+
+// Ran on the first valid frame after pre-initialization of mods has taken place and hasn't failed
+// This one allows mods to run any initialization code in the context of the D3D thread (like VR code)
+// It also is the one that actually loads any config files
+bool REFramework::first_frame_initialize() {
+    const bool is_init_ok = m_error.empty() && m_game_data_initialized;
+
+    if (!is_init_ok || !m_first_frame_d3d_initialize) {
+        return is_init_ok;
+    }
+
+    std::scoped_lock _{get_hook_monitor_mutex()};
+
+    spdlog::info("Running first frame D3D initialization of mods...");
+
+    m_first_frame_d3d_initialize = false;
+    auto e = m_mods->on_initialize_d3d_thread();
+
+    if (e) {
+        if (e->empty()) {
+            m_error = "An unknown error has occurred.";
+        } else {
+            m_error = *e;
+        }
+
+        spdlog::error("Initialization of mods failed. Reason: {}", m_error);
+        m_game_data_initialized = false;
+        m_mods_fully_initialized = false;
+        return false;
+    } else {
+        // Do an initial config save to set the default values for the frontend
+        save_config();
+        m_mods_fully_initialized = true;
+    }
+
+    return true;
 }
 
 void REFramework::call_on_frame() {

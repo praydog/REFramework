@@ -8,6 +8,7 @@ public:
     virtual ~Mods() {}
 
     std::optional<std::string> on_initialize() const;
+    std::optional<std::string> on_initialize_d3d_thread() const;
 
     void on_pre_imgui_frame() const;
     void on_frame() const;

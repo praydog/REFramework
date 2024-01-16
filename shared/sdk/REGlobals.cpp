@@ -70,7 +70,8 @@ REGlobals::REGlobals() {
 
             if (name.find(game_namespace("SingletonBehavior`1")) != std::string::npos ||
                 name.find(game_namespace("SingletonBehaviorRoot`1")) != std::string::npos ||
-                name.find(game_namespace("SnowSingletonBehaviorRoot`1")) != std::string::npos)
+                name.find(game_namespace("SnowSingletonBehaviorRoot`1")) != std::string::npos ||
+                name.find(game_namespace("RopewaySingletonBehaviorRoot`1")) != std::string::npos)
             {
                 const auto type_definition = utility::re_type::get_type_definition(t);
 

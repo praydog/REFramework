@@ -168,7 +168,25 @@ namespace sdk {
         std::vector<std::string> invoke_patterns {
             "40 53 48 83 ec 20 48 8b 41 30 4c 8b d2 48 8b 51 40 48 8b d9 4c 8b 00 48 8b 41 10", // RE2 - MHRise v1
             "40 53 48 83 ec 20 48 8b 41 10 48 8b da 8b 48 08", // MHRise Sunbreak/newer games?
+            "40 53 48 83 EC ? 48 8B 41 30 4C 8B D2 4C 8B 49 10 48 8B D9 48 8B 51 40 49 8B CA 4C 8B 00 41 FF" // seen in game pass RE2
         };
+
+        // ok so if these patterns above are failing, we can find the invoke table by looking for these set of instructions:
+        // 8D 56 FF                                      lea     edx, [rsi-1]
+        // 48 8B CF                                      mov     rcx, rdi
+        // E8 67 FD 6C 01                                call    sub_[removed]
+
+        // Then, scroll up from here, and you'll see something that looks like this:
+        /*
+        E8 D4 D6 6C 01                                call    sub_[removed]
+        41 B8 53 15 00 00                             mov     r8d, 1553h ; dead giveaway is a number like this that is the size of the invoke table
+        48 8D 15 37 C7 6B 06                          lea     rdx, g_invokeTbl ; this is what we want
+        48 8B 08                                      mov     rcx, [rax]
+        48 8B 05 2D 47 86 06                          mov     rax, cs:off_[removed]
+        48 89 08                                      mov     [rax], rcx
+        48 8B CF                                      mov     rcx, rdi
+        */
+
 
         std::optional<uintptr_t> method_inside_invoke_tbl{std::nullopt};
 
