@@ -516,9 +516,13 @@ void IntegrityCheckBypass::remove_stack_destroyer() {
     spdlog::info("[IntegrityCheckBypass]: Patched stack destroyer!");
 }
 
-// hahahah i hate this
-void IntegrityCheckBypass::fix_virtual_protect() try {
-    spdlog::info("[IntegrityCheckBypass]: Fixing VirtualProtect...");
+void IntegrityCheckBypass::setup_pristine_syscall() {
+    if (s_pristine_protect_virtual_memory != nullptr) {
+        spdlog::info("[IntegrityCheckBypass]: NtProtectVirtualMemory already setup!");
+        return;
+    }
+
+    spdlog::info("[IntegrityCheckBypass]: Copying pristine NtProtectVirtualMemory...");
 
     auto nt_protect_virtual_memory = (NtProtectVirtualMemory_t)GetProcAddress(GetModuleHandleA("ntdll.dll"), "NtProtectVirtualMemory");
     if (nt_protect_virtual_memory == nullptr) {
@@ -536,6 +540,13 @@ void IntegrityCheckBypass::fix_virtual_protect() try {
     s_pristine_protect_virtual_memory = (decltype(s_pristine_protect_virtual_memory))VirtualAlloc(nullptr, 256, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
     memcpy(s_pristine_protect_virtual_memory, nt_protect_virtual_memory, 256);
     spdlog::info("[IntegrityCheckBypass]: Copied NtProtectVirtualMemory to 0x{:X}", (uintptr_t)s_pristine_protect_virtual_memory);
+}
+
+// hahahah i hate this
+void IntegrityCheckBypass::fix_virtual_protect() try {
+    spdlog::info("[IntegrityCheckBypass]: Fixing VirtualProtect...");
+
+    setup_pristine_syscall(); // Called earlier in DllMain
 
     // Now disassemble our pristine function and just remove anything that looks like its a displacement or memory reference with nops
     // im doing this because im too lazy to fix up the relocations
