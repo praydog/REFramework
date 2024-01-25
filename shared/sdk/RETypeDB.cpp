@@ -213,9 +213,18 @@ sdk::RETypeDefinition* REField::get_type() const {
 const char* REField::get_name() const {
     auto tdb = RETypeDB::get();
 
+    static uint32_t bitmask = [tdb]() -> uint32_t {
+        uint32_t out{1};
+        while (out < tdb->numStringPool) {
+            out <<= 1;
+        }
+
+        return out - 1;
+    }();
+
 #if TDB_VER >= 69
     auto& impl = (*tdb->fieldsImpl)[this->impl_id];
-    const auto name_offset = impl.name_offset;
+    const auto name_offset = impl.name_offset & bitmask;
 #else
     const auto name_offset = this->name_offset;
 #endif
@@ -375,9 +384,18 @@ sdk::RETypeDefinition* REMethodDefinition::get_return_type() const {
 const char* REMethodDefinition::get_name() const {
     auto tdb = RETypeDB::get();
 
+    static uint32_t bitmask = [tdb]() -> uint32_t {
+        uint32_t out{1};
+        while (out < tdb->numStringPool) {
+            out <<= 1;
+        }
+
+        return out - 1;
+    }();
+
 #if TDB_VER >= 69
     auto& impl = (*tdb->methodsImpl)[this->impl_id];
-    const auto name_offset = impl.name_offset;
+    const auto name_offset = impl.name_offset & bitmask;
 #else
     const auto name_offset = this->name_offset;
 #endif
