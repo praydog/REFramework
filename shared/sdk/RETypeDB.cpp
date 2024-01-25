@@ -992,8 +992,16 @@ std::vector<sdk::RETypeDefinition*> REMethodDefinition::get_param_types() const 
     auto tdb = RETypeDB::get();
     std::vector<sdk::RETypeDefinition*> out{};
 
+    static const auto system_object = tdb->find_type("System.Object");
+
     for (auto id : typeids) {
-        out.push_back(tdb->get_type(id));
+        const auto t = tdb->get_type(id);
+
+        if (t == nullptr) {
+            out.push_back(system_object); // TODO: this is a hack. not sure why this happens
+            continue;
+        }
+        out.push_back(t);
     }
 
     return out;
