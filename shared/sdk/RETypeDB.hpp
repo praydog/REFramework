@@ -761,10 +761,27 @@ struct RETypeDB : public sdk::RETypeDB_ {
         return numProperties;
     }
 
+    uint32_t get_string_pool_size() const {
+        return numStringPool;
+    }
+
     const char* get_string(uint32_t offset) const;
     uint8_t* get_bytes(uint32_t offset) const;
 
     template <typename T> T* get_data(uint32_t offset) const { return (T*)get_bytes(offset); }
+
+    uint32_t get_string_pool_bitmask() const {
+        static auto result = [this]() -> uint32_t {
+            uint32_t out{1};
+            while (out < get_string_pool_size()) {
+                out <<= 1;
+            }
+
+            return out - 1;
+        }();
+
+        return result;
+    }
 };
 } // namespace sdk
 
