@@ -156,6 +156,20 @@ namespace sdk {
         spdlog::info("[VM::update_pointers] s_global_context: {:x}", (uintptr_t)s_global_context);
         spdlog::info("[VM::update_pointers] s_get_thread_context: {:x}", (uintptr_t)s_get_thread_context);
 
+        // Needed on TDB73/AJ. The 0x30 offset we have is not correct, so we need to find the correct one
+        // And the "correct" one is the first one that doesn't look like a BS pointer (crude, i know)
+        // so... TODO: find a better way to do this
+#if TDB_VER >= 71
+        if (s_global_context != nullptr && *s_global_context != nullptr) {
+            auto static_tbl = (REStaticTbl**)((uintptr_t)*s_global_context + s_static_tbl_offset);
+            while (IsBadReadPtr(*static_tbl, sizeof(void*)) || ((uintptr_t)*static_tbl & (sizeof(void*) - 1)) != 0) {
+                s_static_tbl_offset -= sizeof(void*);
+                static_tbl = (REStaticTbl**)((uintptr_t)*s_global_context + s_static_tbl_offset);
+                spdlog::info("[VM::update_pointers] Static table offset is bad, correcting to {:x}...", s_static_tbl_offset);
+            }
+        }
+#endif
+
         // Get invoke_tbl
         // this SEEMS to work on RE2 and onwards, but not on RE7
         // look into it later
