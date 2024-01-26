@@ -132,6 +132,8 @@ void* find_native_method(std::string_view type_name, std::string_view method_nam
 }
 
 sdk::RETypeDefinition* RETypeDB::get_type(uint32_t index) const {
+    index &= get_type_bitmask();
+
     if (index >= this->numTypes) {
         return nullptr;
     }
@@ -164,6 +166,8 @@ sdk::REProperty* RETypeDB::get_property(uint32_t index) const {
 }
 
 const char* RETypeDB::get_string(uint32_t offset) const {
+    offset &= get_string_pool_bitmask();
+
     if (offset >= this->numStringPool) {
         return nullptr;
     }
@@ -172,6 +176,8 @@ const char* RETypeDB::get_string(uint32_t offset) const {
 }
 
 uint8_t* RETypeDB::get_bytes(uint32_t offset) const {
+    offset &= get_byte_pool_bitmask();
+
     if (offset >= this->numBytePool) {
         return nullptr;
     }
@@ -951,7 +957,7 @@ std::vector<uint32_t> REMethodDefinition::get_param_typeids() const {
 
     // Parse all params
     for (auto f = 0; f < num_params; ++f) {
-        const auto param_index = param_ids->params[f];
+        const auto param_index = param_ids->params[f] & tdb->get_param_bitmask();
 
         if (param_index >= tdb->numParams) {
             break;
