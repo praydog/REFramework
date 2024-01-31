@@ -61,11 +61,27 @@ VRRuntime::Error OpenXR::update_poses() {
 
     uint32_t view_count{};
 
-    const auto display_time = this->frame_state.predictedDisplayTime + (XrDuration)(this->frame_state.predictedDisplayPeriod * this->prediction_scale);
+    // Only signal that we got the first valid pose if the display time becomes a sane value
+    if (!this->got_first_valid_poses) {
+        // Seen on VDXR
+        if (this->frame_state.predictedDisplayTime <= this->frame_state.predictedDisplayPeriod) {
+            spdlog::info("[VR] Frame state predicted display time is less than predicted display period!");
+            return VRRuntime::Error::SUCCESS;
+        }
 
-    if (display_time <= 1000) {
+        // Seen on VDXR. If for some reason the above if statement doesn't work, this will catch it.
+        if (this->frame_state.predictedDisplayTime == 11111111) {
+            spdlog::info("[VR] Frame state predicted display time is 11111111!");
+            return VRRuntime::Error::SUCCESS;
+        }
+    }
+
+    if (this->frame_state.predictedDisplayTime <= 1000) {
+        spdlog::info("[VR] Frame state predicted display time is less than 1000!");
         return VRRuntime::Error::SUCCESS;
     }
+
+    const auto display_time = this->frame_state.predictedDisplayTime + (XrDuration)(this->frame_state.predictedDisplayPeriod * this->prediction_scale);
 
     XrViewLocateInfo view_locate_info{XR_TYPE_VIEW_LOCATE_INFO};
     view_locate_info.viewConfigurationType = this->view_config;

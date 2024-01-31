@@ -7,6 +7,7 @@
 #include <utility/Module.hpp>
 #include <utility/Thread.hpp>
 
+#include "mods/IntegrityCheckBypass.hpp"
 #include "ExceptionHandler.hpp"
 #include "REFramework.hpp"
 
@@ -81,6 +82,8 @@ void startup_thread(HMODULE reframework_module) {
 
 BOOL APIENTRY DllMain(HANDLE handle, DWORD reason, LPVOID reserved) {
     if (reason == DLL_PROCESS_ATTACH) {
+        IntegrityCheckBypass::setup_pristine_syscall();
+
         CreateThread(nullptr, 0, (LPTHREAD_START_ROUTINE)startup_thread, handle, 0, nullptr);
     }
 

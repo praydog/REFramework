@@ -757,14 +757,82 @@ struct RETypeDB : public sdk::RETypeDB_ {
         return numFields;
     }
 
+#if TDB_VER >= 69
+    uint32_t get_num_params() const {
+        return numParams;
+    }
+#endif
+
     uint32_t get_num_properties() const {
         return numProperties;
+    }
+
+    uint32_t get_string_pool_size() const {
+        return numStringPool;
+    }
+
+    uint32_t get_byte_pool_size() const {
+        return numBytePool;
     }
 
     const char* get_string(uint32_t offset) const;
     uint8_t* get_bytes(uint32_t offset) const;
 
     template <typename T> T* get_data(uint32_t offset) const { return (T*)get_bytes(offset); }
+
+    uint32_t get_string_pool_bitmask() const {
+        static auto result = [this]() -> uint32_t {
+            uint32_t out{1};
+            while (out < get_string_pool_size()) {
+                out <<= 1;
+            }
+
+            return out - 1;
+        }();
+
+        return result;
+    }
+
+    uint32_t get_byte_pool_bitmask() const {
+        static auto result = [this]() -> uint32_t {
+            uint32_t out{1};
+            while (out < get_byte_pool_size()) {
+                out <<= 1;
+            }
+
+            return out - 1;
+        }();
+
+        return result;
+    }
+
+    uint32_t get_type_bitmask() const {
+        static auto result = [this]() -> uint32_t {
+            uint32_t out{1};
+            while (out < get_num_types()) {
+                out <<= 1;
+            }
+
+            return out - 1;
+        }();
+
+        return result;
+    }
+
+#if TDB_VER >= 69
+    uint32_t get_param_bitmask() const {
+        static auto result = [this]() -> uint32_t {
+            uint32_t out{1};
+            while (out < get_num_params()) {
+                out <<= 1;
+            }
+
+            return out - 1;
+        }();
+
+        return result;
+    }
+#endif
 };
 } // namespace sdk
 

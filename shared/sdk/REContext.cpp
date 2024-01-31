@@ -156,6 +156,48 @@ namespace sdk {
         spdlog::info("[VM::update_pointers] s_global_context: {:x}", (uintptr_t)s_global_context);
         spdlog::info("[VM::update_pointers] s_get_thread_context: {:x}", (uintptr_t)s_get_thread_context);
 
+        // Needed on TDB73/AJ. The 0x30 offset we have is not correct, so we need to find the correct one
+        // And the "correct" one is the first one that doesn't look like a BS pointer (crude, i know)
+        // so... TODO: find a better way to do this
+#if TDB_VER >= 71
+        if (s_global_context != nullptr && *s_global_context != nullptr) {
+            auto static_tbl = (REStaticTbl**)((uintptr_t)*s_global_context + s_static_tbl_offset);
+            if (IsBadReadPtr(*static_tbl, sizeof(void*)) || ((uintptr_t)*static_tbl & (sizeof(void*) - 1)) != 0) {
+                spdlog::info("[VM::update_pointers] Static table offset is bad, correcting...");
+
+                // We are looking for the two arrays, the static field table, and the static field "initialized table"
+                // The initialized table tells whether a specific entry in the static field table has been initialized or not
+                // so they both should have the same size, easy to find
+                for (auto i = sizeof(void*); i < 0x100; i+= sizeof(void*)) {
+                    const auto& ptr = *(REStaticTbl**)((uintptr_t)*s_global_context + (s_type_db_offset - i));
+
+                    if (IsBadReadPtr(ptr, sizeof(void*)) || ((uintptr_t)ptr & (sizeof(void*) - 1)) != 0) {
+                        continue;
+                    }
+
+                    spdlog::info("[VM::update_pointers] Examining {:x}", (uintptr_t)ptr);
+
+                    const auto& potential_count = *(uint32_t*)((uintptr_t)&ptr + sizeof(void*));
+
+                    if (potential_count < 2000) {
+                        continue;
+                    }
+
+                    constexpr auto array_size = (sizeof(void*) * 2);
+                    const auto previous_offset = s_type_db_offset - i - array_size;
+                    const auto& previous_ptr = *(REStaticTbl**)((uintptr_t)*s_global_context + previous_offset);
+                    const auto& previous_count = *(uint32_t*)((uintptr_t)&previous_ptr + sizeof(void*));
+
+                    if (previous_count == potential_count) {
+                        spdlog::info("[VM::update_pointers] Found static table at {:x} (offset {:x})", (uintptr_t)ptr, previous_offset);
+                        s_static_tbl_offset = previous_offset;
+                        break;
+                    }
+                }
+            }
+        }
+#endif
+
         // Get invoke_tbl
         // this SEEMS to work on RE2 and onwards, but not on RE7
         // look into it later
