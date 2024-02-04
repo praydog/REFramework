@@ -524,7 +524,14 @@ void IntegrityCheckBypass::setup_pristine_syscall() {
 
     spdlog::info("[IntegrityCheckBypass]: Copying pristine NtProtectVirtualMemory...");
 
-    auto nt_protect_virtual_memory = (NtProtectVirtualMemory_t)GetProcAddress(GetModuleHandleA("ntdll.dll"), "NtProtectVirtualMemory");
+    const auto ntdll_base = GetModuleHandleA("ntdll.dll");
+
+    if (ntdll_base == nullptr) {
+        spdlog::error("[IntegrityCheckBypass]: Could not find ntdll!");
+        return;
+    }
+
+    auto nt_protect_virtual_memory = (NtProtectVirtualMemory_t)GetProcAddress(ntdll_base, "NtProtectVirtualMemory");
     if (nt_protect_virtual_memory == nullptr) {
         spdlog::error("[IntegrityCheckBypass]: Could not find NtProtectVirtualMemory!");
         return;
@@ -537,8 +544,21 @@ void IntegrityCheckBypass::setup_pristine_syscall() {
         nt_protect_virtual_memory = (decltype(nt_protect_virtual_memory))utility::calculate_absolute((uintptr_t)nt_protect_virtual_memory + 1);
     }
 
+    s_og_protect_virtual_memory = nt_protect_virtual_memory;
+
+    // Mark the original VirtualProtect READ_WRITE_EXECUTE so if anything tries to restore the old protection, it will revert to this
+    // incase trying to modify the protection after it is hooked causes a crash
+    DWORD old_nt_protect_virtual_memory_protect{};
+    VirtualProtect(nt_protect_virtual_memory, 256, PAGE_EXECUTE_READWRITE, &old_nt_protect_virtual_memory_protect);
+
     s_pristine_protect_virtual_memory = (decltype(s_pristine_protect_virtual_memory))VirtualAlloc(nullptr, 256, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-    memcpy(s_pristine_protect_virtual_memory, nt_protect_virtual_memory, 256);
+
+    try {
+        memcpy(s_pristine_protect_virtual_memory, nt_protect_virtual_memory, 256);
+    } catch(...) {
+        spdlog::error("[IntegrityCheckBypass]: Could not copy new instructions to pristine NtProtectVirtualMemory!");
+    }
+
     spdlog::info("[IntegrityCheckBypass]: Copied NtProtectVirtualMemory to 0x{:X}", (uintptr_t)s_pristine_protect_virtual_memory);
 }
 
@@ -547,57 +567,6 @@ void IntegrityCheckBypass::fix_virtual_protect() try {
     spdlog::info("[IntegrityCheckBypass]: Fixing VirtualProtect...");
 
     setup_pristine_syscall(); // Called earlier in DllMain
-
-    // Now disassemble our pristine function and just remove anything that looks like its a displacement or memory reference with nops
-    // im doing this because im too lazy to fix up the relocations
-    struct PatchJob {
-        uintptr_t addr{};
-        uint32_t size{};
-    };
-
-    std::vector<PatchJob> patch_jobs{};
-
-    utility::exhaustive_decode((uint8_t*)s_pristine_protect_virtual_memory, 100, [&](utility::ExhaustionContext& ctx) -> utility::ExhaustionResult {
-        if (*(uint8_t*)ctx.addr == 0x0f && *(uint8_t*)(ctx.addr + 1) == 0x05) {
-            spdlog::info("[IntegrityCheckBypass]: Found syscall at 0x{:X}", ctx.addr);
-            return utility::ExhaustionResult::CONTINUE;
-        }
-
-        if (std::string_view{ctx.instrux.Mnemonic}.starts_with("RET") || std::string_view{ctx.instrux.Mnemonic}.starts_with("INT")) {
-            return utility::ExhaustionResult::CONTINUE;
-        }
-
-        if (ctx.instrux.BranchInfo.IsBranch) {
-            spdlog::info("[IntegrityCheckBypass]: Found branch at 0x{:X} ({:x})", ctx.addr, ctx.addr - (uintptr_t)s_pristine_protect_virtual_memory);
-            spdlog::info("[IntegrityCheckBypass]: {}", ctx.instrux.Mnemonic);
-            patch_jobs.push_back(PatchJob{ctx.addr, ctx.instrux.Length});
-            return utility::ExhaustionResult::CONTINUE;
-        }
-
-        if (utility::resolve_displacement(ctx.addr).has_value()) {
-            spdlog::info("[IntegrityCheckBypass]: Found displacement at 0x{:X} ({:x})", ctx.addr, ctx.addr - (uintptr_t)s_pristine_protect_virtual_memory);
-            patch_jobs.push_back(PatchJob{ctx.addr, ctx.instrux.Length});
-            return utility::ExhaustionResult::CONTINUE;
-        }
-
-        // Go through any operands and check if any mem
-        for (auto i = 0; i < ctx.instrux.OperandsCount; ++i) {
-            const auto& op = ctx.instrux.Operands[i];
-
-            if (op.Type == ND_OP_MEM) {
-                spdlog::info("[IntegrityCheckBypass]: Found mem operand at 0x{:X} ({:x})", ctx.addr, ctx.addr - (uintptr_t)s_pristine_protect_virtual_memory);
-                patch_jobs.push_back(PatchJob{ctx.addr, ctx.instrux.Length});
-                return utility::ExhaustionResult::CONTINUE;
-            }
-        }
-
-        return utility::ExhaustionResult::CONTINUE;
-    });
-
-    for (auto& patch_job : patch_jobs) {
-        spdlog::info("[IntegrityCheckBypass]: Patching 0x{:X} with {} nops", patch_job.addr, patch_job.size);
-        memset((void*)patch_job.addr, 0x90, patch_job.size);
-    }
 
     // Hook VirtualProtect
     s_virtual_protect_hook = std::make_unique<FunctionHook>(VirtualProtect, (uintptr_t)virtual_protect_hook);
@@ -611,18 +580,11 @@ void IntegrityCheckBypass::fix_virtual_protect() try {
     spdlog::error("[IntegrityCheckBypass]: Could not fix VirtualProtect!");
 }
 
-// This allows our calls to VirtualProtect to go through without being hindered by... something.
-BOOL WINAPI IntegrityCheckBypass::virtual_protect_hook(LPVOID lpAddress, SIZE_T dwSize, DWORD flNewProtect, PDWORD lpflOldProtect) try {
-    static bool once = true;
-    if (once) {
-        spdlog::info("[IntegrityCheckBypass]: VirtualProtect called");
-        once = false;
-    }
-
+BOOL WINAPI IntegrityCheckBypass::virtual_protect_impl(LPVOID lpAddress, SIZE_T dwSize, DWORD flNewProtect, PDWORD lpflOldProtect) {
     static const auto this_process = GetCurrentProcess();
 
     LPVOID address_to_protect = lpAddress;
-    NTSTATUS result = s_pristine_protect_virtual_memory(this_process, (PVOID*)&address_to_protect, &dwSize, flNewProtect, lpflOldProtect);
+    NTSTATUS result = s_og_protect_virtual_memory(this_process, (PVOID*)&address_to_protect, &dwSize, flNewProtect, lpflOldProtect);
 
     constexpr NTSTATUS STATUS_INVALID_PAGE_PROTECTION = 0xC0000045;
 
@@ -633,7 +595,7 @@ BOOL WINAPI IntegrityCheckBypass::virtual_protect_hook(LPVOID lpAddress, SIZE_T 
 
         if (rtl_flush_secure_memory_cache != nullptr) {
             if (NT_SUCCESS(rtl_flush_secure_memory_cache(address_to_protect, dwSize))) {
-                result = s_pristine_protect_virtual_memory(this_process, (PVOID*)&address_to_protect, &dwSize, flNewProtect, lpflOldProtect);
+                result = s_og_protect_virtual_memory(this_process, (PVOID*)&address_to_protect, &dwSize, flNewProtect, lpflOldProtect);
 
                 if ((result & 0x80000000) == 0) {
                     return TRUE;
@@ -647,6 +609,60 @@ BOOL WINAPI IntegrityCheckBypass::virtual_protect_hook(LPVOID lpAddress, SIZE_T 
     }
     
     return NT_SUCCESS(result);
+}
+
+// This allows our calls to VirtualProtect to go through without being hindered by... something.
+BOOL WINAPI IntegrityCheckBypass::virtual_protect_hook(LPVOID lpAddress, SIZE_T dwSize, DWORD flNewProtect, PDWORD lpflOldProtect) try {
+    static bool once = true;
+    if (once) {
+        spdlog::info("[IntegrityCheckBypass]: VirtualProtect called");
+        once = false;
+    }
+
+    try {
+        if (memcmp(s_og_protect_virtual_memory, s_pristine_protect_virtual_memory, 32) != 0) {
+            spdlog::warn("[IntegrityCheckBypass]: Original NtProtectVirtualMemory has been modified! Attempting to restore...");
+
+            bool needs_protection_fix = false;
+
+            try {
+                memcpy(s_og_protect_virtual_memory, s_pristine_protect_virtual_memory, 32);
+
+                if (memcmp(s_og_protect_virtual_memory, s_pristine_protect_virtual_memory, 32) == 0) {
+                    spdlog::info("[IntegrityCheckBypass]: Successfully restored NtProtectVirtualMemory");
+                } else {
+                    needs_protection_fix = true;
+                    spdlog::error("[IntegrityCheckBypass]: Could not restore NtProtectVirtualMemory without changing protection!");
+                }
+            } catch(...) {
+                needs_protection_fix = true;
+                spdlog::error("[IntegrityCheckBypass]: Could not restore NtProtectVirtualMemory without changing protection! Attempting to restore protection anyway...");
+            }
+
+            if (needs_protection_fix) try {
+                spdlog::info("[IntegrityCheckBypass]: Attempting to restore NtProtectVirtualMemory protection");
+
+                DWORD old{};
+
+                // Now this is a huge assumption that the hook that was placed on NtProtectVirtualMemory
+                // does not prevent calling it on itself, which is a very dangerous assumption to make.
+                // Usually it fails if it's attempted to be called on the executable's memory, but not other modules.
+                // However I have tested it and it *does* work, so we will roll with that for now, until it doesn't.
+                if (virtual_protect_impl((void*)((uintptr_t)s_og_protect_virtual_memory - 1), 33, PAGE_EXECUTE_READWRITE, &old)) {
+                    memcpy(s_og_protect_virtual_memory, s_pristine_protect_virtual_memory, 32);
+                    virtual_protect_impl((void*)((uintptr_t)s_og_protect_virtual_memory - 1), 33, old, &old);
+
+                    spdlog::info("[IntegrityCheckBypass]: Restored NtProtectVirtualMemory");
+                }
+            } catch(...) {
+                spdlog::error("[IntegrityCheckBypass]: Could not restore NtProtectVirtualMemory protection!");
+            }
+        }
+    } catch(...) {
+        spdlog::error("[IntegrityCheckBypass]: Failed to verify NtProtectVirtualMemory integrity!");
+    }
+
+    return virtual_protect_impl(lpAddress, dwSize, flNewProtect, lpflOldProtect);
 } catch(...) {
     spdlog::error("[IntegrityCheckBypass]: VirtualProtect hook failed! falling back to original");
     return s_virtual_protect_hook->get_original<decltype(virtual_protect_hook)>()(lpAddress, dwSize, flNewProtect, lpflOldProtect);

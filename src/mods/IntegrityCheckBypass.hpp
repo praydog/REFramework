@@ -26,10 +26,14 @@ public:
     static void fix_virtual_protect();
 
 private:
+    static BOOL WINAPI virtual_protect_impl(LPVOID lpAddress, SIZE_T dwSize, DWORD flNewProtect, PDWORD lpflOldProtect);
     static BOOL WINAPI virtual_protect_hook(LPVOID lpAddress, SIZE_T dwSize, DWORD flNewProtect, PDWORD lpflOldProtect);
     
     using NtProtectVirtualMemory_t =  NTSTATUS(NTAPI*)(HANDLE ProcessHandle, PVOID* BaseAddress, SIZE_T* NumberOfBytesToProtect, ULONG NewAccessProtection, PULONG OldAccessProtection);
     static inline NtProtectVirtualMemory_t s_pristine_protect_virtual_memory{ nullptr };
+    static inline NtProtectVirtualMemory_t s_og_protect_virtual_memory{ nullptr };
+
+    static inline std::unique_ptr<FunctionHook> s_get_proc_address_hook{};
     static inline std::unique_ptr<FunctionHook> s_virtual_protect_hook{};
 
 #ifdef RE3
