@@ -1318,7 +1318,8 @@ RECamera* layer::Scene::get_main_camera_if_possible() const {
         L"ess_DefaultCamera_01",
         L"WTMainCamera",
         L"DefaultCamera",
-        L"Camera_mainmenu"
+        L"Camera_mainmenu",
+        L"Camera_cp7mainmenu",
     };
 
     for (const auto& camera_name : camera_names) {
