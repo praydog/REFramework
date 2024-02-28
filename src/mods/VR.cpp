@@ -2389,12 +2389,15 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
         }
 #endif
 
+#ifdef RE7
+        if (name_hash == "HUD"_fnv) { // not a hero
+            // Stops HUD element from being stuck to the screen
+            sdk::call_object_func<REComponent*>(gui_element, "set_RenderTarget", context, gui_element, nullptr);
+        }
+#endif
 
         //spdlog::info("VR: on_pre_gui_draw_element: {}", name);
         //spdlog::info("VR: on_pre_gui_draw_element: {} {:x}", name, (uintptr_t)game_object);
-
-        // Fixes various UI elements that are stuck to the camera, like Not a Hero's UI
-        sdk::call_object_func<REComponent*>(gui_element, "set_RenderTarget", context, gui_element, nullptr);
 
         auto view = sdk::call_object_func<REComponent*>(gui_element, "get_View", context, gui_element);
 
