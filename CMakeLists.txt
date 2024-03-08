@@ -509,7 +509,7 @@ endif()
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${utility_SOURCES})
 
 target_compile_features(utility PUBLIC
-	cxx_std_20
+	cxx_std_23
 )
 
 target_compile_options(utility PUBLIC
@@ -1214,7 +1214,7 @@ if(REF_BUILD_RE2_SDK OR REF_BUILD_FRAMEWORK) # build-re2-sdk
 	endif()
 
 	target_compile_features(RE2SDK PUBLIC
-		cxx_std_20
+		cxx_std_23
 	)
 
 	target_compile_options(RE2SDK PUBLIC
@@ -1932,7 +1932,7 @@ if(REF_BUILD_RE2_TDB66SDK OR REF_BUILD_FRAMEWORK) # build-re2tdb66-sdk
 	endif()
 
 	target_compile_features(RE2_TDB66SDK PUBLIC
-		cxx_std_20
+		cxx_std_23
 	)
 
 	target_compile_options(RE2_TDB66SDK PUBLIC
@@ -2094,7 +2094,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	endif()
 
 	target_compile_features(RE2 PUBLIC
-		cxx_std_20
+		cxx_std_23
 	)
 
 	target_compile_options(RE2 PUBLIC
@@ -2291,7 +2291,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	endif()
 
 	target_compile_features(RE2_TDB66 PUBLIC
-		cxx_std_20
+		cxx_std_23
 	)
 
 	target_compile_options(RE2_TDB66 PUBLIC
@@ -3045,7 +3045,7 @@ if(REF_BUILD_RE3_SDK OR REF_BUILD_FRAMEWORK) # build-re3-sdk
 	endif()
 
 	target_compile_features(RE3SDK PUBLIC
-		cxx_std_20
+		cxx_std_23
 	)
 
 	target_compile_options(RE3SDK PUBLIC
@@ -3763,7 +3763,7 @@ if(REF_BUILD_RE3_TDB67SDK OR REF_BUILD_FRAMEWORK) # build-re3tdb67-sdk
 	endif()
 
 	target_compile_features(RE3_TDB67SDK PUBLIC
-		cxx_std_20
+		cxx_std_23
 	)
 
 	target_compile_options(RE3_TDB67SDK PUBLIC
@@ -3925,7 +3925,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	endif()
 
 	target_compile_features(RE3 PUBLIC
-		cxx_std_20
+		cxx_std_23
 	)
 
 	target_compile_options(RE3 PUBLIC
@@ -4122,7 +4122,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	endif()
 
 	target_compile_features(RE3_TDB67 PUBLIC
-		cxx_std_20
+		cxx_std_23
 	)
 
 	target_compile_options(RE3_TDB67 PUBLIC
@@ -4319,7 +4319,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	endif()
 
 	target_compile_features(RE4 PUBLIC
-		cxx_std_20
+		cxx_std_23
 	)
 
 	target_compile_options(RE4 PUBLIC
@@ -5073,7 +5073,7 @@ if(REF_BUILD_RE4_SDK OR REF_BUILD_FRAMEWORK) # build-re4-sdk
 	endif()
 
 	target_compile_features(RE4SDK PUBLIC
-		cxx_std_20
+		cxx_std_23
 	)
 
 	target_compile_options(RE4SDK PUBLIC
@@ -5793,7 +5793,7 @@ if(REF_BUILD_RE7_SDK OR REF_BUILD_FRAMEWORK) # build-re7-sdk
 	endif()
 
 	target_compile_features(RE7SDK PUBLIC
-		cxx_std_20
+		cxx_std_23
 	)
 
 	target_compile_options(RE7SDK PUBLIC
@@ -6511,7 +6511,7 @@ if(REF_BUILD_RE7_TDB49SDK OR REF_BUILD_FRAMEWORK) # build-re7tdb49-sdk
 	endif()
 
 	target_compile_features(RE7_TDB49SDK PUBLIC
-		cxx_std_20
+		cxx_std_23
 	)
 
 	target_compile_options(RE7_TDB49SDK PUBLIC
@@ -6673,7 +6673,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	endif()
 
 	target_compile_features(RE7 PUBLIC
-		cxx_std_20
+		cxx_std_23
 	)
 
 	target_compile_options(RE7 PUBLIC
@@ -6870,7 +6870,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	endif()
 
 	target_compile_features(RE7_TDB49 PUBLIC
-		cxx_std_20
+		cxx_std_23
 	)
 
 	target_compile_options(RE7_TDB49 PUBLIC
@@ -7624,7 +7624,7 @@ if(REF_BUILD_RE8_SDK OR REF_BUILD_FRAMEWORK) # build-re8-sdk
 	endif()
 
 	target_compile_features(RE8SDK PUBLIC
-		cxx_std_20
+		cxx_std_23
 	)
 
 	target_compile_options(RE8SDK PUBLIC
@@ -7787,7 +7787,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	endif()
 
 	target_compile_features(RE8 PUBLIC
-		cxx_std_20
+		cxx_std_23
 	)
 
 	target_compile_options(RE8 PUBLIC
@@ -8541,7 +8541,7 @@ if(REF_BUILD_DMC5_SDK OR REF_BUILD_FRAMEWORK) # build-dmc5-sdk
 	endif()
 
 	target_compile_features(DMC5SDK PUBLIC
-		cxx_std_20
+		cxx_std_23
 	)
 
 	target_compile_options(DMC5SDK PUBLIC
@@ -8702,7 +8702,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	endif()
 
 	target_compile_features(DMC5 PUBLIC
-		cxx_std_20
+		cxx_std_23
 	)
 
 	target_compile_options(DMC5 PUBLIC
@@ -9456,7 +9456,7 @@ if(REF_BUILD_MHRISE_SDK OR REF_BUILD_FRAMEWORK) # build-mhrise-sdk
 	endif()
 
 	target_compile_features(MHRISESDK PUBLIC
-		cxx_std_20
+		cxx_std_23
 	)
 
 	target_compile_options(MHRISESDK PUBLIC
@@ -9619,7 +9619,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	endif()
 
 	target_compile_features(MHRISE PUBLIC
-		cxx_std_20
+		cxx_std_23
 	)
 
 	target_compile_options(MHRISE PUBLIC
@@ -10373,7 +10373,7 @@ if(REF_BUILD_SF6_SDK OR REF_BUILD_FRAMEWORK) # build-sf6-sdk
 	endif()
 
 	target_compile_features(SF6SDK PUBLIC
-		cxx_std_20
+		cxx_std_23
 	)
 
 	target_compile_options(SF6SDK PUBLIC
@@ -10536,7 +10536,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	endif()
 
 	target_compile_features(SF6 PUBLIC
-		cxx_std_20
+		cxx_std_23
 	)
 
 	target_compile_options(SF6 PUBLIC

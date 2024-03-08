@@ -176,7 +176,7 @@ type = "static"
 sources = ["shared/utility/**.cpp", "shared/utility/**.c"]
 headers = ["shared/utility/**.hpp", "shared/utility/**.h"]
 compile-options = ["/EHa"]
-compile-features = ["cxx_std_20"]
+compile-features = ["cxx_std_23"]
 link-libraries = [
     "spdlog",
     "minhook",
@@ -189,7 +189,7 @@ sources = ["shared/sdk/**.cpp", "shared/sdk/**.c"]
 headers = ["shared/sdk/**.hpp", "shared/sdk/**.h"]
 include-directories = ["shared/", "include/"]
 compile-options = ["/EHa"]
-compile-features = ["cxx_std_20"]
+compile-features = ["cxx_std_23"]
 link-libraries = [
     "glm_static",
     "spdlog"
@@ -206,7 +206,7 @@ headers = ["src/**.hpp", "src/**.h"]
 include-directories = ["shared/", "src/", "include/", "${OPENXR_SOURCE_DIR}/src"]
 link-directories = ["dependencies/openvr/lib/win64/"]
 compile-options = ["/GS-", "/bigobj", "/EHa"]
-compile-features = ["cxx_std_20"]
+compile-features = ["cxx_std_23"]
 compile-definitions = ["${CMKR_TARGET}", "REFRAMEWORK_EXPORTS", "REFRAMEWORK_GAME_NAME=\"${CMKR_TARGET}\""]
 developer-mode.compile-definitions = ["DEVELOPER"]
 link-libraries = [
