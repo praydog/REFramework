@@ -269,7 +269,6 @@ private: // D3D12 members
             BACKBUFFER_0,
             BACKBUFFER_1,
             BACKBUFFER_2,
-            BACKBUFFER_3,
             IMGUI,
             BLANK,
             COUNT,
