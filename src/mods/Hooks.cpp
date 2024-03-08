@@ -852,7 +852,11 @@ void Hooks::global_application_entry_hook_internal(void* entry, const char* name
         return original(entry);
     }
 
-    {
+    const auto should_allow_ignore = sdk::VM::s_tdb_version >= 73 ?
+                                     (hash != 0x76b8100bec7c12c3 && hash != 0x9f63c0fc4eea6626) :
+                                     true;
+
+    if (should_allow_ignore) {
         std::shared_lock _{m_application_entry_data_mutex};
 
         if (m_ignored_application_entries.contains(hash)) {
