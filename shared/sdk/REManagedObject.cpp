@@ -8,32 +8,90 @@
 #include "REManagedObject.hpp"
 
 namespace utility::re_managed_object {
+
+// Used all over the place. It may be one of the most referenced functions in a disassembler.
+// According to my IDA script, it's the 4th most referenced function though sometimes it's 5th or 6th.
+// Release usually has more references than add_ref.
+// A dead giveaway is the comparison to byte ptr RCX + 0xE near the start of the function.
+// Cheat sheet for functions to find these function(s) in:
+// via.Transform::get_Children
+static void (*add_ref_func)(::REManagedObject*) = nullptr;
+static void (*release_func)(::REManagedObject*) = nullptr;
+
+namespace detail {
+void resolve_add_ref() {
+    if (add_ref_func != nullptr) {
+        return;
+    }
+
+    constexpr std::array<std::string_view, 3> possible_patterns{
+        "40 ? 48 83 EC ? 8B 41 ? 48 8B ? 85 C0 0F ? ? ? ? ? 0F ? ? 0E", // RE2+
+        "40 ? 48 83 EC ? 8B 41 ? 48 8B ? 85 C0 0F ? ? ? ? ? 80 ? 0E 00", // TDB73+/DD2+
+        "48 89 ? ? ? 57 48 83 EC ? 0F ? ? 0E" // RE7 TDB49
+    };
+
+    spdlog::info("[REManagedObject] Finding add_ref function...");
+
+    for (auto pattern : possible_patterns) {
+        auto address = utility::scan(utility::get_executable(), pattern.data());
+
+        if (address) {
+            add_ref_func = (decltype(add_ref_func))*address;
+            break;
+        }
+    }
+
+    spdlog::info("[REManagedObject] Found add_ref function at {:x}", (uintptr_t)add_ref_func);
+}
+
+void resolve_release() {
+    if (release_func != nullptr) {
+        return;
+    }
+
+    // We also need to resolve add_ref
+    // because we need to make sure we don't resolve release to the same function.
+    resolve_add_ref();
+
+    constexpr std::array<std::string_view, 2> possible_patterns{
+        "40 53 48 83 EC ? 8B 41 08 48 8B D9 85 C0 0F", // RE2+
+        "40 53 48 83 EC ? 8B 41 08 48 8B D9 48 83 C1 08 85 C0 78" // RE7
+    };
+
+    spdlog::info("[REManagedObject] Finding release function...");
+
+    for (auto pattern : possible_patterns) {
+        auto address = utility::scan(utility::get_executable(), pattern.data());
+
+        if (address && *address != (uintptr_t)add_ref_func) {
+            release_func = (decltype(release_func))*address;
+            break;
+        } else if (address) {
+            spdlog::info("[REManagedObject] Found add_ref function while looking for release function, trying again...");
+
+            const auto start = *address + 1;
+            const auto module_size = *utility::get_module_size(utility::get_executable());
+            const auto end = (uintptr_t)utility::get_executable() + module_size;
+            const auto size = end - start;
+            address = utility::scan(start, size - 0x1000, pattern.data());
+
+            if (address && *address != (uintptr_t)add_ref_func) {
+                release_func = (decltype(release_func))*address;
+                break;
+            }
+        }
+    }
+
+    spdlog::info("[REManagedObject] Found release function at {:x}", (uintptr_t)release_func);
+}
+}
+
 void add_ref(REManagedObject* object) {
     if (object == nullptr) {
         return;
     }
-    
-    static void (*add_ref_func)(::REManagedObject*) = nullptr;
 
-    if (add_ref_func == nullptr) {
-        constexpr std::array<std::string_view, 2> possible_patterns{
-            "40 57 48 83 EC ? 8B 41 ? 48 8B F9 85 C0 0F ? ? ? ? ? 0F ? ? 0E", // RE2+
-            "48 89 ? ? ? 57 48 83 EC ? 0F ? ? 0E" // RE7
-        };
-
-        spdlog::info("[REManagedObject] Finding add_ref function...");
-
-        for (auto pattern : possible_patterns) {
-            auto address = utility::scan(utility::get_executable(), pattern.data());
-
-            if (address) {
-                add_ref_func = (decltype(add_ref_func))*address;
-                break;
-            }
-        }
-
-        spdlog::info("[REManagedObject] Found add_ref function at {:x}", (uintptr_t)add_ref_func);
-    }
+    detail::resolve_add_ref();
 
     //spdlog::info("Pushing: {} {} {:x}", (int32_t)object->referenceCount, utility::re_managed_object::get_type_definition(object)->get_full_name(), (uintptr_t)object);
 
@@ -53,27 +111,7 @@ void release(REManagedObject* object) {
         return;
     }
 
-    static void (*release_func)(::REManagedObject*) = nullptr;
-
-    if (release_func == nullptr) {
-        constexpr std::array<std::string_view, 2> possible_patterns{
-            "40 53 48 83 EC ? 8B 41 08 48 8B D9 85 C0 0F", // RE2+
-            "40 53 48 83 EC ? 8B 41 08 48 8B D9 48 83 C1 08 85 C0 78" // RE7
-        };
-
-        spdlog::info("[REManagedObject] Finding release function...");
-
-        for (auto pattern : possible_patterns) {
-            auto address = utility::scan(utility::get_executable(), pattern.data());
-
-            if (address) {
-                release_func = (decltype(release_func))*address;
-                break;
-            }
-        }
-
-        spdlog::info("[REManagedObject] Found release function at {:x}", (uintptr_t)release_func);
-    }
+    detail::resolve_release();
 
     //spdlog::info("Popping: {} {} {:x}", (int32_t)object->referenceCount, utility::re_managed_object::get_type_definition(object)->get_full_name(), (uintptr_t)object);
 
