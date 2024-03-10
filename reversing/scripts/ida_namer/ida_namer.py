@@ -5,7 +5,7 @@ import json
 import fire
 import os
 
-def main(il2cpp_path="", out_path=""):
+def main(il2cpp_path=None, out_path=None, imagebase = None, new_imagebase = None):
     if il2cpp_path is None:
         print("--il2cpp_path not specified")
         return
@@ -22,7 +22,7 @@ def main(il2cpp_path="", out_path=""):
         il2cpp_dump = json.load(f)
 
     out_str = ""
-    bad_chars = ['<', '>', '`', ".", ","]
+    bad_chars = ['<', '>', '`', ".", ",", "[", "]", "|", ' ', '=']
 
     num_methods_found = 0
     num_reflection_methods_found = 0
@@ -43,32 +43,49 @@ def main(il2cpp_path="", out_path=""):
                     for bad_char in bad_chars:
                         method_name = method_name.replace(bad_char, "_")
 
-                    address = method_entry["function"] # is a string not an int
+                    #print(hex(int("0x" + method_entry["function"], 16)))
+                    address = str(hex(int("0x" + method_entry["function"], 16))) # is a string not an int
 
                     if address == "0" or address in seen_functions:
                         continue
 
                     seen_functions.add(address)
 
-                    out_str = out_str + "idc.MakeName(0x%s, '%s__%s')\n" % (address, class_name, method_name)
+                    if imagebase is not None and new_imagebase is not None:
+                        address_int = int("0x" + method_entry["function"], 16)
+                        address_int = address_int - imagebase
+                        address_int = address_int + new_imagebase
+                        address = str(hex(address_int))
+
+                    out_str = out_str + "idc.MakeName(%s, '%s__%s')\n" % (address, class_name, method_name)
                     num_methods_found = num_methods_found + 1
 
             if "reflection_methods" in entry:
-                for method_name, method_entry in entry["reflection_methods"].items():
-                    if method_entry is None:
-                        continue
+                try:
+                    for method_name, method_entry in entry["reflection_methods"].items():
+                        if method_entry is None:
+                            continue
 
-                    for bad_char in bad_chars:
-                        method_name = method_name.replace(bad_char, "_")
+                        for bad_char in bad_chars:
+                            method_name = method_name.replace(bad_char, "_")
 
-                    if address == "0" or address in seen_functions:
-                        continue
-                    
-                    seen_functions.add(address)
+                        address = str(hex(int("0x" + method_entry["function"], 16))) # is a string not an int
 
-                    address = method_entry["function"] # is a string not an int
-                    out_str = out_str + "idc.MakeName(0x%s, 'reflection_methods_%s')\n" % (address, method_name)
-                    num_reflection_methods_found = num_reflection_methods_found + 1
+                        if address == "0" or address in seen_functions:
+                            continue
+                        
+                        seen_functions.add(address)
+
+                        if imagebase is not None and new_imagebase is not None:
+                            address_int = int("0x" + method_entry["function"], 16)
+                            address_int = address_int - imagebase
+                            address_int = address_int + new_imagebase
+                            address = str(hex(address_int))
+
+                        out_str = out_str + "idc.MakeName(%s, 'reflection_methods_%s')\n" % (address, method_name)
+                        num_reflection_methods_found = num_reflection_methods_found + 1
+                except:
+                    continue
         except (KeyError, TypeError):
             print("Error processing class %s" % class_name)
             continue
