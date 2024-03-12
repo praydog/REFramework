@@ -213,14 +213,14 @@ public:
 	bool shouldUpdateSelf; //0x0012
 	bool shouldDrawSelf; //0x0013
 	bool shouldSelect; //0x0014
-	char pad_0015[11]; //0x0015
-	class RETransform *transform; //0x0020
-	class REFolder *folder; //0x0028
-	class SystemString *name; //0x0030 This can either be a pointer to the name or embedded directly
-	uint32_t N00000DDA; //0x0038
-	float timescale; //0x003C
-}; //Size: 0x0040
-static_assert(sizeof(REGameObject) == 0x40);
+	char pad_0015[3]; //0x0015
+	class RETransform *transform; //0x0018
+	class REFolder *folder; //0x0020
+	class SystemString *name; //0x0028 This can either be a pointer to the name or embedded directly
+	uint32_t N00000DDA; //0x0030
+	float timescale; //0x0034
+}; //Size: 0x0038
+static_assert(sizeof(REGameObject) == 0x38);
 
 class REFieldList
 {

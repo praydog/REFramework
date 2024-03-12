@@ -26,6 +26,9 @@
 #elif defined(RE4)
 #include "sdk/regenny/re4/via/Window.hpp"
 #include "sdk/regenny/re4/via/SceneView.hpp"
+#elif defined(DD2)
+#include "sdk/regenny/dd2/via/Window.hpp"
+#include "sdk/regenny/dd2/via/SceneView.hpp"
 #else
 #include "sdk/regenny/mhrise_tdb71/via/Window.hpp"
 #include "sdk/regenny/mhrise_tdb71/via/SceneView.hpp"
