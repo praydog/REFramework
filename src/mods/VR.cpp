@@ -1172,6 +1172,7 @@ std::optional<std::string> VR::hijack_camera() {
 std::optional<std::string> VR::hijack_wwise_listeners() {
 #ifndef RE4
 #ifndef SF6
+#if TDB_VER < 73
     spdlog::info("[VR] Hijacking WwiseListener");
 
     const auto t = sdk::find_type_definition("via.wwise.WwiseListener");
@@ -1234,6 +1235,7 @@ std::optional<std::string> VR::hijack_wwise_listeners() {
     if (!g_wwise_listener_update_hook->create()) {
         return "VR init failed: via.wwise.WwiseListener update native function hook failed.";
     }
+#endif
 #endif
 #endif
 
