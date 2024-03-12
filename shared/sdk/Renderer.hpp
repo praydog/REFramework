@@ -97,7 +97,7 @@ public:
 private:
     Desc m_desc;
 
-#if TDB_VER == 71
+#if TDB_VER >= 71 // untested on 73
     static constexpr inline auto s_texture_d3d12_offset = 0x98;
 #elif TDB_VER == 70
     static constexpr inline auto s_texture_d3d12_offset = 0x90;

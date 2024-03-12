@@ -98,6 +98,8 @@ public:
         return "mhrise";
     #elif defined(SF6)
         return "sf6";
+    #elif defined(DD2)
+        return "dd2";
     #else
         return "unknown";
     #endif
