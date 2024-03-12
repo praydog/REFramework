@@ -47,6 +47,9 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
         // Copy current backbuffer into our copy so we can use it as an SRV.
         m_backbuffer_copy.commands.copy(backbuffer.Get(), m_backbuffer_copy.texture.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_PRESENT);
 
+        float clear_color[4]{0.0f, 0.0f, 0.0f, 0.0f};
+        m_backbuffer_copy.commands.clear_rtv(m_converted_eye_tex, clear_color, D3D12_RESOURCE_STATE_PRESENT);
+
         // Convert the backbuffer to 8-bit.
         render_srv_to_rtv(command_list, m_backbuffer_copy, m_converted_eye_tex, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
