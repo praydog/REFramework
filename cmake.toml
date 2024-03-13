@@ -44,6 +44,7 @@ REF_BUILD_RE8_SDK = false
 REF_BUILD_DMC5_SDK = false
 REF_BUILD_MHRISE_SDK = false
 REF_BUILD_SF6_SDK = false
+REF_BUILD_DD2_SDK = false
 REF_BUILD_FRAMEWORK = { value = true, comment = "Enable building the full REFramework" }
 REF_BUILD_DEPENDENCIES = { value = true, comment = "Enable building dependencies" }
 
@@ -61,6 +62,7 @@ build-re8-sdk = "REF_BUILD_RE8_SDK OR REF_BUILD_FRAMEWORK"
 build-dmc5-sdk = "REF_BUILD_DMC5_SDK OR REF_BUILD_FRAMEWORK"
 build-mhrise-sdk = "REF_BUILD_MHRISE_SDK OR REF_BUILD_FRAMEWORK"
 build-sf6-sdk = "REF_BUILD_SF6_SDK OR REF_BUILD_FRAMEWORK"
+build-dd2-sdk = "REF_BUILD_DD2_SDK OR REF_BUILD_FRAMEWORK"
 build-framework-dependencies = "REF_BUILD_DEPENDENCIES AND CMAKE_SIZEOF_VOID_P EQUAL 8"
 
 [fetch-content.asmjit]
@@ -185,7 +187,7 @@ type = "static"
 sources = ["shared/utility/**.cpp", "shared/utility/**.c"]
 headers = ["shared/utility/**.hpp", "shared/utility/**.h"]
 compile-options = ["/EHa"]
-compile-features = ["cxx_std_20"]
+compile-features = ["cxx_std_23"]
 link-libraries = [
     "spdlog",
     "minhook",
@@ -198,7 +200,7 @@ sources = ["shared/sdk/**.cpp", "shared/sdk/**.c"]
 headers = ["shared/sdk/**.hpp", "shared/sdk/**.h"]
 include-directories = ["shared/", "include/"]
 compile-options = ["/EHa"]
-compile-features = ["cxx_std_20"]
+compile-features = ["cxx_std_23"]
 link-libraries = [
     "glm_static",
     "spdlog"
@@ -215,7 +217,7 @@ headers = ["src/**.hpp", "src/**.h"]
 include-directories = ["shared/", "src/", "include/", "${OPENXR_SOURCE_DIR}/src"]
 link-directories = ["dependencies/openvr/lib/win64/"]
 compile-options = ["/GS-", "/bigobj", "/EHa"]
-compile-features = ["cxx_std_20"]
+compile-features = ["cxx_std_23"]
 compile-definitions = ["${CMKR_TARGET}", "REFRAMEWORK_EXPORTS", "REFRAMEWORK_GAME_NAME=\"${CMKR_TARGET}\""]
 developer-mode.compile-definitions = ["DEVELOPER"]
 link-libraries = [
@@ -337,6 +339,14 @@ compile-definitions = ["SF6", "REENGINE_PACKED", "REENGINE_AT"]
 condition = "build-sf6-sdk"
 
 [target.SF6]
+type = "game"
+
+[target.DD2SDK]
+type = "sdk"
+compile-definitions = ["DD2", "REENGINE_PACKED", "REENGINE_AT"]
+condition = "build-dd2-sdk"
+
+[target.DD2]
 type = "game"
 
 [template.plugin]

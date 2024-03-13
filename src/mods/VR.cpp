@@ -29,6 +29,9 @@
 #elif defined(RE4)
 #include "sdk/regenny/re4/via/Window.hpp"
 #include "sdk/regenny/re4/via/SceneView.hpp"
+#elif defined(DD2)
+#include "sdk/regenny/dd2/via/Window.hpp"
+#include "sdk/regenny/dd2/via/SceneView.hpp"
 #else
 #include "sdk/regenny/mhrise_tdb71/via/Window.hpp"
 #include "sdk/regenny/mhrise_tdb71/via/SceneView.hpp"
@@ -191,7 +194,7 @@ void VR::on_view_get_size(REManagedObject* scene_view, float* result) {
         wanted_height = (float)window_height;
 
         // Might be usable in other games too
-#if defined(SF6)
+#if defined(SF6) || TDB_VER >= 73
         if (!is_gng) {
             window->borderless_size.w = (float)window_width;
             window->borderless_size.h = (float)window_height;
@@ -1379,6 +1382,7 @@ std::optional<std::string> VR::hijack_camera() {
 std::optional<std::string> VR::hijack_wwise_listeners() {
 #ifndef RE4
 #ifndef SF6
+#if TDB_VER < 73
     spdlog::info("[VR] Hijacking WwiseListener");
 
     const auto t = sdk::find_type_definition("via.wwise.WwiseListener");
@@ -1441,6 +1445,7 @@ std::optional<std::string> VR::hijack_wwise_listeners() {
     if (!g_wwise_listener_update_hook->create()) {
         return "VR init failed: via.wwise.WwiseListener update native function hook failed.";
     }
+#endif
 #endif
 #endif
 

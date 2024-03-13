@@ -307,12 +307,13 @@ void IntegrityCheckBypass::ignore_application_entries() {
 void IntegrityCheckBypass::immediate_patch_re8() {
     // Apparently patching this in SF6 causes some bugs like chat not showing up and being unable to view replays.
     // Disabling it for now as the game still seems to work fine without it.
-#ifdef SF6
+#ifdef SF6 
     if (true) {
         return;
     }
 #endif
 
+#if TDB_VER < 73
     // We have to immediately patch this at startup in RE8 unlike MHRise
     // because the game immediately starts checking the integrity of the executable
     // on the first execution of this callback, unlike MHRise which was delayed.
@@ -415,6 +416,7 @@ void IntegrityCheckBypass::immediate_patch_re8() {
     } else {
         spdlog::error("[IntegrityCheckBypass]: Could not find sussy_result_4!");
     }
+#endif
 }
 
 void IntegrityCheckBypass::immediate_patch_re4() {

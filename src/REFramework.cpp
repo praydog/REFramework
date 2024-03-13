@@ -1851,7 +1851,7 @@ bool REFramework::init_d3d12() {
         // Create back buffer rtvs.
         auto swapchain = m_d3d12_hook->get_swap_chain();
 
-        for (auto i = 0; i <= (int)D3D12::RTV::BACKBUFFER_3; ++i) {
+        for (auto i = 0; i <= (int)D3D12::RTV::BACKBUFFER_2; ++i) {
             if (SUCCEEDED(swapchain->GetBuffer(i, IID_PPV_ARGS(&m_d3d12.rts[i])))) {
                 device->CreateRenderTargetView(m_d3d12.rts[i].Get(), nullptr, m_d3d12.get_cpu_rtv(device, (D3D12::RTV)i));
             } else {
@@ -1934,6 +1934,14 @@ bool REFramework::init_d3d12() {
 }
 
 void REFramework::deinit_d3d12() {
+    for (auto& ctx : m_d3d12.cmd_ctxs) {
+        if (ctx != nullptr) {
+            ctx->reset();
+        }
+    }
+
+    m_d3d12.cmd_ctxs.clear();
+
     for (auto userdata : m_d3d12.imgui_backend_datas) {
         if (userdata != nullptr) {
             ImGui::GetIO().BackendRendererUserData = userdata;

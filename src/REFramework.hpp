@@ -99,6 +99,8 @@ public:
         return "mhrise";
     #elif defined(SF6)
         return "sf6";
+    #elif defined(DD2)
+        return "dd2";
     #else
         return "unknown";
     #endif
@@ -270,7 +272,6 @@ private: // D3D12 members
             BACKBUFFER_0,
             BACKBUFFER_1,
             BACKBUFFER_2,
-            BACKBUFFER_3,
             IMGUI,
             BLANK,
             COUNT,

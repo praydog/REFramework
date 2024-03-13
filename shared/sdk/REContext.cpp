@@ -143,6 +143,7 @@ namespace sdk {
             if (*(uint32_t*)ptr == *(uint32_t*)"TDB") {
                 const auto version = *(uint32_t*)((uintptr_t)ptr + 4);
 
+                s_tdb_version = version;
                 s_type_db_offset = i;
                 s_static_tbl_offset = s_type_db_offset - 0x30; // hope this holds true for the older gameS!!!!!!!!!!!!!!!!!!!
                 spdlog::info("[VM::update_pointers] s_type_db_offset: {:x}", s_type_db_offset);

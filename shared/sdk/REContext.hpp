@@ -42,6 +42,7 @@ class VM : public regenny::via::clr::VM {
 class VM {
 #endif
 public:
+    static inline uint32_t s_tdb_version{0};
     static VM* get();
 
 public:

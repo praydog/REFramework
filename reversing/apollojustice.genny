@@ -1,0 +1,1052 @@
+type uint64_t 8 [[u64]]
+type int64_t 8 [[i64]]
+type int32_t 4 [[i32]]
+type uint32_t 4 [[u32]]
+type int16_t 2 [[i16]]
+type uint16_t 2 [[u16]]
+type uint8_t 1 [[u8]]
+type float 4 [[f32]]
+type char 1
+type void 0
+type wchar_t 2 [[u16]]
+type bool 1 [[u8]]
+
+namespace regenny{
+struct TypeDefinition{}
+struct ManagedVtable{}
+struct BullShit 0x5000{}
+
+namespace via.typeinfo{
+struct TypeInfo {}
+}
+
+namespace via {
+    struct vec3 {
+        float x;
+        float y;
+        float z;
+    };
+
+    struct vec4 : vec3 {
+        float w;
+    };
+
+    struct mat4 {
+        float m[4][4];
+    };
+
+    struct Object {
+        void* vtable;
+    };
+};
+
+namespace via.clr {
+    struct ManagedObject {
+        ManagedVtable* info
+        uint32_t reference_count
+        uint32_t unk
+    }
+}
+
+
+namespace via {
+    enum class CameraType : uint32_t {
+        Game = 0,
+        Debug = 1,
+        Scene = 2,
+        SceneXY = 3,
+        SceneYZ = 4,
+        SceneXZ = 5,
+        Preview = 6,
+    }
+
+    enum class DisplayType : uint32_t {
+        Fit = 0,
+        Uniform4x3 = 1,
+        Uniform16x9 = 2,
+        Uniform16x10 = 3,
+        Uniform21x9 = 4,
+        Uniform32x9 = 5,
+        Uniform48x9 = 6,
+        Fix480p = 7,
+        Fix720p = 8,
+        Fix1080p = 9,
+        Fix4K = 10,
+        Fix8K = 11,
+        FixResolution = 12,
+        FixResolution16x9 = 13,
+        NintendoSwitch = 14,
+        Fix684x384 = 15,
+        Fix1368x768 = 16,
+        Nexus6P = 17,
+        GalaxyS9 = 18,
+        XperiaZ5Premium = 19,
+        iPhoneX = 20,
+        iPhone7 = 21,
+        ZenPadS8 = 22,
+    }
+
+
+    enum class BasisPlane : uint32_t{
+        XZ = 0,
+        XY = 1,
+        YZ = 2,
+    }
+
+    enum class MobileBarState : uint32_t{None = 0}
+    enum class DeviceOrientation : uint32_t{None = 0}
+    enum class RenderType : uint32_t{None = 0}
+
+    struct Window{}
+    struct Scene{}
+
+    struct Color {
+        uint32_t rgba
+    }
+    struct Size {
+        float w
+        float h
+    }
+
+    struct Point {
+        float x;
+        float y;
+    };
+
+    struct Window  0x100 {
+        void* vtable
+        uint32_t width @ 0x60
+        uint32_t height
+        via.Point cursor_pos;
+        bool show_cursor;
+        via.Size borderless_size @ 0xB8
+    };
+
+    struct SceneView : via.clr.ManagedObject 0xb0 {
+        Window* window @ 0x10
+        Scene* scene
+        via.Color background_color @ 0x20
+        wchar_t* name @ 0x28 [[utf16*]]
+        via.Size size @ 0x30
+        via.Size custom_display_size
+        via.Size present_rect
+        bool draw_develop @ 0x60
+        bool tool_light
+        bool show_icons
+        bool outline_fadeout_enable
+        DisplayType display_type
+        via.BasisPlane basis_plane
+        CameraType camera_type
+        RenderType render_type
+        int32_t icon_size
+        float indicator_scale
+        void* message_function_handle @ 0x90
+        via.DeviceOrientation orientation @ 0x9C
+        via.MobileBarState mobile_status_bar_state
+        via.MobileBarState mobile_nav_bar_state
+        bool fix_mobile_nav_bar_bottom
+    }
+
+    struct Scene : via.clr.ManagedObject{
+        char asdf
+        float timescale @ 0x20
+    }
+
+    struct SceneArray {
+        int32_t count
+        via.Scene** elements @ 0x8
+    }
+}
+
+namespace via {
+    struct SceneManager 0x1D8 {
+        via.SceneView* main_view @ 0x48
+        via.Scene* main_scene @ 0x50
+        via.SceneArray scenes @ 0x78
+    }
+}
+
+namespace via {
+    struct Transform{};
+    struct Folder{};
+
+    struct GameObject : via.clr.ManagedObject 0x50 {
+        bool Update @ 0x12;
+        bool Draw;
+        bool UpdateSelf;
+        bool DrawSelf;
+        via.Transform* Transform +2
+        via.Folder* folder
+        
+        float timescale @ 0x4C
+    };
+
+    struct Component : via.clr.ManagedObject {
+        via.GameObject* GameObject;
+        via.Component* ChildComponent;
+        via.Component* PrevComponent;
+        via.Component* NextComponent;
+    };
+
+    struct Folder : via.clr.ManagedObject {
+    };
+
+    struct JointDesc {
+        wchar_t* name [[utf16*]];
+        uint32_t name_hash;
+        int16_t parent_index;
+        int16_t symmetry_index;
+        via.vec4 position;
+        via.vec4 rotation;
+        via.vec4 scale;
+    };
+    
+    struct Joint : via.clr.ManagedObject 0x60 {
+        via.Transform* Owner;
+        via.JointDesc* Desc;
+        via.vec4 LocalPosition;
+        via.vec4 LocalRotation;
+        via.vec4 LocalScale
+        int32_t ConstraintJointIndex;
+        int32_t JointIndex;
+    };
+        
+    // VMArray/REArray/whatever
+    struct JointArray : via.clr.ManagedObject {
+        via.typeinfo.TypeInfo* array_type
+        int32_t count;
+        int32_t num_allocated;
+        Joint* joints[256];
+    };
+
+    struct Transform : via.Component 0x110 {
+        via.vec4 Position @ 0x30
+        via.vec4 Rotation @ 0x40
+        via.vec4 Scale @ 0x50
+
+        via.Scene* Scene 
+        via.Transform* Child @ 0x68
+        via.Transform* Next
+        via.Transform* Parent
+        via.mat4 WorldTransform
+        void* JointHashTbl;
+        int32_t ParentJointIndex
+        int32_t UpdateFrame @ 0xCC
+        bool SameJointsConstraint;
+        bool DirtySelf;
+        bool DirtyUpwards;
+        bool AbsoluteScaling;
+        JointArray* JointTbl + 4
+        via.mat4* JointMatrixTbl;
+    };
+
+    struct JointData
+    {
+      via.vec4 rotation;
+      via.vec4 translation;
+      via.vec4 scale;
+      via.vec4 blend;
+    };
+
+
+    struct JointMap {
+        JointData* joints;
+        int32_t num_joints + 4
+    };
+
+    struct Motion 0x1000 {
+        JointMap jointmap @ 0x200
+    };
+}
+
+namespace via {
+    namespace motion {
+        enum AxisDirection {
+            X = 1,
+            Y = 2,
+            NZ = 7
+        };
+    }
+
+struct Range {
+    float s;
+    float r;
+};
+}
+
+namespace via.typeinfo {
+    struct TypeInfo{
+        void* vfptr
+        uint32_t fqn_hash
+        uint16_t attributes
+        uint16_t type
+        uint64_t fast_class_index
+        uint64_t bsr_fast_class_index
+        char* name [[utf8*]]
+        uint32_t parent_typeid
+        uint32_t size
+        uint32_t crc
+        uint32_t mics_flags
+        via.typeinfo.TypeInfo* parent
+        via.typeinfo.TypeInfo* child
+        via.typeinfo.TypeInfo* next
+        void* reflection
+        TypeDefinition* type_definition
+    }
+}
+
+namespace tdb71 {
+    struct TypeDefinition{}
+}
+
+namespace {
+
+
+struct ManagedVtable {
+    tdb71.TypeDefinition* t
+    void* funcs[32]
+}
+}
+
+namespace {
+struct DeserializeSequence {
+    uint32_t code : 8;
+    uint32_t size : 8;
+    uint32_t align : 8;
+    uint32_t depth : 6;
+    uint32_t is_array : 1;
+    uint32_t is_static : 1;
+    
+    uint32_t offset;
+    tdb71.TypeDefinition* native_type;
+};
+}
+
+namespace tdb71 {
+    struct MethodDefinition 0xC {
+        uint32_t declaring_typeid : 19;
+        uint32_t pad : 13
+        uint32_t impl_id : 19;
+        uint32_t params : 13;
+        int32_t offset;
+    }
+
+    struct MethodImpl {
+        uint16_t attributes_id;
+        int16_t vtable_index;
+        uint16_t flags;
+        uint16_t impl_flags;
+        uint32_t name_offset;
+    };
+
+    struct TypeDefinition 0x48 {
+        uint64_t index : 19;
+        uint64_t parent_typeid : 19;
+        uint64_t declaring_typeid : 19;
+        uint64_t underlying_typeid : 7;
+     uint64_t array_typeid : 19;
+     uint64_t element_typeid : 19;
+
+      uint64_t impl_index : 18;
+     //uint64_t object_type : 3;
+        uint64_t system_typeid : 7;
+
+        uint32_t type_flags;
+       uint32_t size;
+     uint32_t fqn_hash;
+       uint32_t type_crc;
+       uint64_t default_ctor : 22;
+      uint64_t member_method : 22;
+     uint64_t member_field : 19;
+     uint32_t num_member_prop : 12;
+     uint32_t member_prop : 19;
+
+        uint32_t unk_data : 26;
+        uint32_t object_type : 3
+
+        int64_t unk_data_before_generics : 26;
+        int64_t generics : 26;
+      int64_t interfaces : 12;
+      via.typeinfo.TypeInfo* type @ 0x38;
+        void** managed_vt;
+       //struct REObjectInfo* managed_vt;
+    };
+
+    struct TypeImpl 0x30 {
+        int32_t name_offset; //  0
+        int32_t namespace_offset; // 4
+        int32_t field_size; // 8
+        int32_t static_field_size; // c
+        //uint32_t module_id; // 10
+        //uint32_t array_rank; // 14
+        uint64_t unk_pad : 33;
+        uint64_t num_member_fields : 24; // 0x10 bitfield
+        uint64_t unk_pad_2 : 7
+        uint16_t num_member_methods; // 0x18
+        int16_t num_native_vtable; // 0x1A
+        int16_t interface_id;
+        //uint16_t num_native_vtable;
+        //uint16_t attributes_id;
+        //uint16_t num_vtable;
+        //uint64_t mark;
+        //uint64_t cycle;
+    };
+
+    struct Field {
+        uint64_t declaring_typeid : 19;
+        uint64_t impl_id : 19;
+        uint64_t field_typeid : 19;
+        uint64_t init_data_hi : 6
+    };
+
+    struct FieldImpl 0xC {
+        uint16_t attributes;
+        uint16_t unk : 1
+        uint16_t flags : 15
+        uint32_t offset : 26;
+        uint32_t init_data_lo : 6
+        uint32_t name_offset : 22
+        uint32_t init_data_mid : 4
+
+        /*uint16_t attributes_id;
+        uint16_t flags;
+        uint32_t unk_pad : 6;
+        uint32_t field_typeid : 19;
+        uint32_t init_data_lo : 14;
+        uint32_t name_offset : 30;*/
+        //uint32_t init_data_hi : 2;
+    };
+
+    struct Property {
+    };
+    
+    struct PropertyImpl {
+    };
+
+    struct ParameterDef {
+        uint16_t attributes_id;
+        uint16_t init_data_index;
+        uint32_t name_offset : 30;
+        uint32_t modifier : 2;
+        uint32_t type_id : 18;
+        uint32_t flags : 14;
+    };
+
+    struct AttributeDef {
+    };
+
+    struct ParamList {
+        uint16_t numParams; //0x0000
+        int16_t invokeID; //0x0002
+        uint32_t returnType; //0x0004
+        uint32_t params[256]; //0x0008
+    };
+
+    struct TDB {
+        struct test{}
+        uint32_t magic;                             // 0x0000
+        uint32_t version;                           // 0x0004
+        uint32_t initialized;                       // 0x0008
+        uint32_t numTypes;                          // 0x000C
+        uint32_t numMethods;                        // 0x0010
+        uint32_t numFields;                         // 0x0014
+        uint32_t numTypeImpl;                       // 0x0018
+        uint32_t numFieldImpl;                      // 0x001C
+        uint32_t numMethodImpl;                     // 0x0020
+        uint32_t numPropertyImpl;                   // 0x0024
+        uint32_t numProperties;                     // 0x0028
+        uint32_t numEvents;                         // 0x002C
+        uint32_t numParams;                         // 0x0030
+        uint32_t numAttributes;                     // 0x0034
+        int32_t numInitData;                        // 0x0038
+        uint32_t numAttributes2;                    // 0x003C
+        uint32_t numInternStrings;                  // 0x0040
+        uint32_t numModules;                        // 0x0044
+        int32_t devEntry;                           // 0x0048
+        int32_t appEntry;                           // 0x004C
+        uint32_t numStringPool;                     // 0x0050
+        uint32_t numBytePool;                       // 0x0054
+        void* modules;                              // 0x0058
+        TypeDefinition* types;
+        TypeImpl* typesImpl;
+        MethodDefinition* methods;
+        MethodImpl* methodsImpl;
+        Field* fields;
+        FieldImpl* fieldsImpl;
+        Property* properties;
+        PropertyImpl* propertiesImpl;
+        void* events;
+        ParameterDef* params;
+        AttributeDef* attributes;
+        int32_t* initData;
+        void* unk
+        int32_t* attributes2;
+        char* stringPool;
+        uint8_t* bytePool;
+        int32_t* internStrings;
+    }
+}
+
+namespace System {
+    struct String : via.clr.ManagedObject 0x100 {
+        int32_t len
+        char data[256] [[utf16*]]
+    };
+};
+
+namespace game {
+    struct InputSystem : via.clr.ManagedObject 0x170 {
+    };
+
+    struct IkArmFit 0x100 {
+        struct ArmSolver : via.clr.ManagedObject 0x30 {
+            via.Joint* ApplyJoint;
+            via.motion.AxisDirection Dir;
+            via.motion.AxisDirection Up;
+            via.motion.AxisDirection Rot;
+            float L0;
+            float L1;
+        };
+
+        struct ArmData : via.clr.ManagedObject 0x80 {
+            float BlendRate;
+            via.Range ReachRate;
+            System.String* ApplyHandName + 4;
+            bool LeftHand;
+            float DefaultHandAngle + 3
+            via.Range AxisYRange;
+            via.Range AxisZRange
+            via.mat4 TargetMatrix;
+        };
+    }
+}
+
+namespace via {
+    namespace gui {
+        struct GUIManager{}
+    }
+
+    struct array : via.clr.ManagedObject 0x100 {
+        TypeDefinition* contained_type
+        int32_t count
+        int32_t allocated
+    };
+
+    struct JobSet {
+        struct Job{};
+    };
+
+    struct fixed_array_jobs {
+        via.JobSet.Job jobs[8];
+    };
+
+    struct JobSet {
+        struct JobThing 0x100 {
+            void* func;
+        };
+
+        struct Unk 0x100{
+            void** vtable;
+            via.Object* owner;
+            void* func
+            via.Object* owner2 + 8;
+        };
+
+        Unk* data;
+    };
+    
+    namespace gui {
+        struct TransformObject {};
+        struct View {};
+
+        struct PrimitiveContext 0x300 {
+            int32_t gui_camera @ 0xEC
+        };
+
+        struct GUIMeshRenderer 0x100 {
+            
+        };
+
+        struct GUI : via.Component  0x2D0 {
+            via.SceneView* SceneView;
+            void* GUIResource;
+            void* RtTextureHandle;
+            void* GUISound;
+            bool Enabled @ 0x50
+            bool FailedSetup;
+            uint8_t MaskLayerBits;
+            uint8_t MaskLayerBits2;
+            uint8_t MaskLayerBits3;
+            uint32_t RenderOutputID @ 0x58
+            float PlaySpeed @ 0x5C
+            uint32_t Segment;
+            uint32_t SoftParticleDistType @ 0x64
+            float SoftParticleDist;
+            View* View + 4;
+        };
+
+        struct Control : TransformObject 0x1B0 {
+            uint32_t StatePattern @ 0x124
+            float PlayFrame @ 0x128
+            via.vec4 ColorScale
+            via.vec3 ColorOffset
+            float Saturation
+            bool UseGUISound @ 0x188
+        };
+
+        struct Window : Control 0x1C0 {
+            bool Open
+        };
+
+        struct View : Window 0x1E0 {
+            bool Overlay @ 0x1C0
+            bool DepthTest;
+            bool DetoneMap;
+            bool CoordCorrection;
+            uint32_t ViewType @ 0x1C4;
+            uint32_t ReprojectionType+4;
+            via.Size ScreenSize ;
+            float BaseFps @ 0x1D8
+            bool UseGUICamera
+        };
+    
+        struct PlayObject : via.clr.ManagedObject 0x50 {
+            wchar_t* Name [[utf16*]]
+            GUI* Component;
+            Control* Parent @ 0x28
+            PlayObject* Next;
+            PlayObject* Prev;
+            
+            uint16_t Priority @ 0x42
+
+            uint8_t pad @ 0x47
+
+            // Render flags
+            uint64_t Visible : 1; // 1
+            uint64_t Visible2 : 1; // 2
+            uint64_t HitVisible : 1; // 3
+            uint64_t ShouldPlay : 1; // 4
+            uint64_t IsPlaying : 1; // 5
+            uint64_t IsInteractive : 1; // 6
+            uint64_t HasName : 1; // 7
+            uint64_t HasTag : 1; // 8
+            uint64_t SequenceAsset : 1; // 9
+            uint64_t IsPNG : 1; // 10
+            uint64_t IsJPG : 1; // 11
+            uint64_t LinearAlphaBlend : 1; // 12
+            uint64_t CompOwnership : 1; // 13
+            uint64_t DuplicateRoot : 1; // 14
+            uint64_t DataBind : 1; // 15
+            uint64_t DataBinding : 1;  // 16
+            uint64_t AllocExData : 1;  // 17
+            uint64_t NextStateEnable : 1; // 18
+            uint64_t _Unk : 1;  // 19
+            uint64_t _Unk2 : 1;  // 20
+            uint64_t ResolutionAdjust : 1; // 21
+            uint64_t UniqueVisible : 1; // 22
+            uint64_t EffectAlphaType : 1; // 23
+            uint64_t HasOverrideProp : 1; // 24
+            uint64_t IsCapturable : 1; // 25
+            uint64_t ForceInvisible : 1; // 26
+            uint64_t ClipPlaying : 1; // 27
+            uint64_t BlendType : 2; // 28-29
+            uint64_t MaskType : 3; // 30 - 32
+            uint64_t MaskMode : 3; // 33 - 35
+            uint64_t ColorType : 2; // 36 - 37
+            uint64_t ControlPoint : 4; // 38 - 41
+            uint64_t ResolutionCond : 2; // 42 - 43
+            uint64_t ResolutionScale : 2; // 44 - 45
+            uint64_t UVType : 2; // 46 - 47
+            uint64_t UnkFlags : 17;
+        };
+
+        struct TransformObject : PlayObject 0x120 {
+        };
+
+        struct GUIManager 0x1A0 {
+            via.JobSet update_task @ 0xe0
+            via.JobSet draw_task @ 0x120;
+        };
+    }
+}
+
+namespace via {
+struct Sphere 0x10 {
+    via.vec3 pos;
+    float r;
+};
+
+struct Capsule 0x30 {
+    via.vec4 p0;
+    via.vec4 p1;
+    float r;
+};
+
+namespace motion {
+struct ChainCollisionArray{};
+struct ChainCollisionData{};
+struct ChainCollisionTop{};
+
+struct ChainCollisions 0x180 {
+    uint32_t order;
+    via.Sphere sphere+0xc;
+    via.Capsule capsule;
+    via.vec4 offset @ 0xD0;
+    via.vec4 pair_offset;
+    via.Joint* joint @ 0x130
+    via.Joint* pair_joint
+    ChainCollisionData* data;
+    ChainCollisionTop* owner;
+    float radius;
+    float radius2;
+    int32_t d;
+    float lerp;
+    int32_t pad2;
+    uint32_t flags;
+    float scale;
+    bool valid;
+};
+
+struct ChainCollisionData {
+    void* sub_data;
+    via.vec3 pos;
+    via.vec3 pair_pos;
+    uint32_t joint_hash;
+    uint32_t pair_joint_hash;
+    float radius;
+    float lerp;
+    uint8_t shape_type;
+    uint8_t div;
+    uint8_t num_sub_data;
+    uint8_t unk;
+    uint32_t flags;
+    uint32_t unk;
+};
+
+struct ChainCollisionTop 0x100 {
+    ChainCollisions* collisions;
+    uint32_t num_collisions;
+    uint32_t allocated_collisions
+    void** owner_transform;
+    void* parent_transform;
+    float scale;
+    float parent_scale;
+};
+
+struct ChainCollisionArray {
+    ChainCollisionTop* collisions
+    int32_t num;
+    int32_t num_allocated;
+    int32_t preset_id;
+};
+
+struct SecondaryAnimation : via.Component 0x50 {
+    void* motion
+};
+
+struct Chain : via.motion.SecondaryAnimation 0x390 {
+
+    ChainCollisionArray CollisionData @ 0x140;
+    float BlendRate @ 0x22C
+    float FreezeRate @ 0x230
+    float StepFrame @ 0x280
+    uint32_t CalculateMode @ 0x378
+    uint32_t GravityCoord @ 0x380
+};
+}
+}
+
+struct RenderEntity : via.Component 0x498 {
+};
+
+struct RTInternal 0x1000 {
+    char* name @ 0x168 [[utf8*]]
+    uint32_t unkint @ 0x180
+    uint32_t unkint2
+    uint32_t RayTracingMode @ 0x188
+    uint32_t Spp
+    uint8_t unk2 @ 0x190
+    
+    via.vec3 params @ 0x19c
+    bool use_transparent @ 0x1AC
+    bool specular_secondary_bounce @ 0x1Ae
+    bool use_no_movement_depth_comp
+    float normal_compare_thresh
+    bool use_diffuse_bounce_intensity
+    float diffuse_bounce_intensity_mult + 3
+    bool use_specular_bounce_intensity
+    float specular_bounce_intensity + 3
+    bool ray_trace_ambient_occlusion
+    float ray_trace_ratio + 3
+    float unkflooat
+    uint32_t sampling_pattern
+    float surfel_size @ 0x1DC
+    float asdfasdgadsg
+};
+
+struct RayTrace : RenderEntity 0x1000 {
+    RTInternal* impl;
+};
+
+namespace via {
+struct ManagedObjectArray {
+    via.clr.ManagedObject** objects;
+    uint32_t count;
+    uint32_t capacity;
+};
+
+struct UIntArray {
+    uint32_t* data;
+    uint64_t count;
+};
+
+struct UIntArrayArray {
+    UIntArray* data;
+    uint64_t count;
+};
+
+struct UInt8Array {
+    uint8_t* data;
+    uint64_t count;
+};
+
+struct IntArray {
+    int32_t* data;
+    uint64_t count;
+};
+
+namespace behaviortree {
+struct BehaviorTreeCoreHandleArray {};
+struct TreeNode{};
+struct TreeObject {};
+
+struct NodeArray {
+    TreeNode* nodes;
+    uint32_t count
+};
+
+struct NodeArray2 {
+    TreeNode** nodes;
+    uint32_t unk
+    uint32_t count
+};
+
+struct Selector : via.clr.ManagedObject 0x28 {
+    bool late_select @ 0x10
+    bool b2
+    bool b3
+    uint32_t* buf + 5
+    uint32_t bufsize;
+};
+
+struct SelectorFSM : Selector 0x60 {
+    TreeNode* owner_node @ 0x28
+    TreeNode* active_node
+    NodeArray2 next_nodes;
+    NodeArray2 node_choices;
+    
+
+    bool illegal @ 0x58
+};
+
+struct Condition : via.clr.ManagedObject {
+};
+
+enum NodeStatus : uint32_t {
+    Off = 0,
+    On = 2
+};
+
+struct TreeNodeData {
+    uint32_t id
+    uint32_t id_2;
+    uint32_t attr
+    bool is_branch
+    bool is_end;
+    bool has_selector;
+
+    uint32_t parent @ 0x34;
+    uint32_t parent_2;
+
+    UIntArray children + 4;
+    UIntArray children2;
+    IntArray conditions;
+    UIntArray states;
+    UIntArray states_2;
+    IntArray transition_conditions;
+    UIntArray transition_ids;
+    UIntArray transition_attributes;
+    UIntArray actions;
+    UIntArray actions_2;
+
+    IntArray start_transitions @ 0x130
+    // aka the first choices when the node activates?
+    UIntArray start_states @ 0x140
+    UIntArray start_states_2
+    UIntArrayArray transition_events
+    UIntArrayArray start_transition_events
+    UIntArrayArray unkarray3
+    UIntArray tags
+    
+    wchar_t name[12] @ 0x1a0 [[utf16*]]
+    uint32_t name_len;
+    uint32_t name_capacity;
+    uint32_t name_offset; // offset inside the in-memory structure...?
+    uint32_t name_murmur_hash;
+    uint32_t full_name_murmur_hash;
+    uint32_t pad__;
+};
+
+struct TreeNode 0xD0 {
+    uint64_t id
+    TreeNodeData* data;
+    TreeObject* owner;
+    uint16_t attr;
+    uint16_t unk_flags;
+    uint16_t pad[2];
+    SelectorFSM* selector;
+    Condition* selector_condition;
+    int32_t selector_condition_index;
+    int32_t priority;
+    TreeNode* node_parent;
+    uint32_t num_children
+    uint32_t num_actions + 0xC
+    uint32_t num_selector_callers
+    Condition* parent_condition;
+    int32_t parent_condition_index;
+    NodeStatus status1
+    NodeStatus status2
+    
+    wchar_t name[12] + 4 [[utf16*]]
+    uint32_t name_len
+    uint32_t name_capacity
+
+    TreeNode* node_end;
+    TreeNode* node_restart;
+    TreeNode* node_end_notify;
+    TreeNode* node_end_selector;
+    TreeNode* node_active_child;
+};
+
+struct TreeObjectData 0x300 {
+    void* vftable;
+    TreeNodeData* nodes;
+    uint32_t node_count;
+    ManagedObjectArray static_selector_callers+4;
+    ManagedObjectArray static_actions;
+    ManagedObjectArray static_conditions;
+    ManagedObjectArray static_transitions;
+    ManagedObjectArray expression_tree_conditions;
+    ManagedObjectArray actions;
+    ManagedObjectArray conditions;
+    ManagedObjectArray transitions;
+
+    UInt8Array action_methods @ 0xF8;
+    UInt8Array static_action_methods
+};
+
+struct TreeObject 0xD8 {
+    void* vfptr;
+    TreeObjectData* data;
+    NodeArray nodes @ 0x10
+
+    ManagedObjectArray selectors+4
+    ManagedObjectArray actions @ 0x40
+    ManagedObjectArray conditions
+    ManagedObjectArray transitions
+    ManagedObjectArray expression_tree_conditions
+    UIntArray selector_nodes;
+    ManagedObjectArray delayed_actions;
+    ManagedObjectArray delayed_conditions;
+    ManagedObjectArray delayed_transitions;
+    TreeNode* root_node;
+};
+
+struct Core 0x1E0 {
+    void** vftable
+    TreeObject* tree_object
+};
+
+struct CoreHandle : via.clr.ManagedObject 0x220 {
+    Core core @ 0x18
+};
+
+struct BehaviorTreeData 0x100 {
+    void* vftable;
+    bool unk_bool
+    TreeObjectData data @ 0x10
+};
+
+struct BehaviorTree : via.Component {
+    BehaviorTreeCoreHandleArray trees @ 0x98
+};
+
+struct BehaviorTreeCoreHandleArray {
+    via.behaviortree.CoreHandle** handles;
+    uint32_t count;
+};
+}
+
+namespace motion {
+struct MotionFsm2Layer : via.behaviortree.CoreHandle {
+};
+
+struct MotionFsm2 : via.behaviortree.BehaviorTree 0x100 {
+};
+
+struct TransitionMap {
+    uint32_t id;    
+    uint32_t index;
+};
+
+enum InterpolationMode : uint32_t {
+    Fuck = 1
+};
+
+struct TransitionData {
+    uint32_t id;
+    uint32_t end_type : 4
+    uint32_t interpolation_mode : 4
+    uint32_t prev_move_to_end : 1
+    uint32_t start_type : 4
+    uint32_t elapsed_time_zero : 1
+    uint32_t cont_on_layer : 1
+    uint32_t cont_on_layer_interp_curve : 4
+    float exit_frame
+    float start_frame
+    float interpolation_frame
+    uint32_t pad
+    uint32_t pad2
+    uint32_t pad3
+    uint32_t pad4
+};
+
+struct Data 0x100 {
+};
+
+struct MotionFsm2RawData {
+    uint8_t hdr[0x10]
+    uint8_t* file_data;
+    TransitionMap* transition_map;
+    TransitionData* transition_data;
+    Data* data;
+    uint32_t transition_map_count;
+    uint32_t transition_data_count;
+    uint32_t transition_data_start;
+};
+
+
+struct MotionFsm2Internal 0x180 {
+    void* vftable
+    MotionFsm2RawData* data;
+    via.behaviortree.BehaviorTreeData bhvt + 8;
+};
+
+struct MotionFsm2Resource 0x220 {
+    MotionFsm2Internal fsm2data @ 0x50
+};
+}
+
+}
+
+}

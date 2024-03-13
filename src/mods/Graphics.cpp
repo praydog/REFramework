@@ -22,6 +22,9 @@
 #elif defined(RE4)
 #include "sdk/regenny/re4/via/Window.hpp"
 #include "sdk/regenny/re4/via/SceneView.hpp"
+#elif defined(DD2)
+#include "sdk/regenny/dd2/via/Window.hpp"
+#include "sdk/regenny/dd2/via/SceneView.hpp"
 #else
 #include "sdk/regenny/mhrise_tdb71/via/Window.hpp"
 #include "sdk/regenny/mhrise_tdb71/via/SceneView.hpp"
@@ -278,7 +281,7 @@ bool Graphics::on_pre_gui_draw_element(REComponent* gui_element, void* primitive
 }
 
 void Graphics::on_view_get_size(REManagedObject* scene_view, float* result) {
-#if defined(SF6) || defined(DMC5)
+#if defined(SF6) || defined(DMC5) || TDB_VER >= 73
     if (m_ultrawide_fix->value()) {
         auto regenny_view = (regenny::via::SceneView*)scene_view;
         auto window = regenny_view->window;
