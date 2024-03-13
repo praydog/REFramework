@@ -230,6 +230,7 @@ public:
     std::vector<layer::Scene*> find_fully_rendered_scene_layers();
     
     RenderLayer* get_parent();
+    void set_parent(RenderLayer* layer);
     RenderLayer* find_parent(::REType* layer_type);
     RenderLayer* clone(bool recursive = false);
     void clone(RenderLayer* other, bool recursive = false);

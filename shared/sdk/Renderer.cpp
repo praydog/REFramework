@@ -312,6 +312,28 @@ RenderLayer* RenderLayer::get_parent() {
     return sdk::call_object_func<RenderLayer*>(this, "get_Parent", sdk::get_thread_context(), this);
 }
 
+void RenderLayer::set_parent(RenderLayer* layer) {
+    static std::optional<uint32_t> offset = std::nullopt;
+
+    if (!offset) {
+        const auto parent = get_parent();
+
+        if (parent != nullptr) {
+            for (auto i = 0; i < 0x100; i += sizeof(void*)) {
+                if (*(RenderLayer**)((uintptr_t)this + i) == parent) {
+                    offset = i;
+                    spdlog::info("[Renderer] Parent offset: {:x}", i);
+                    break;
+                }
+            }
+        }
+    }
+
+    if (offset.has_value()) {
+        *(RenderLayer**)((uintptr_t)this + *offset) = layer;
+    }
+}
+
 RenderLayer* RenderLayer::find_parent(::REType* layer_type) {
     for (auto parent = get_parent(); parent != nullptr; parent = parent->get_parent()) {
         if (parent->info == nullptr || parent->info->classInfo == nullptr) {
