@@ -1282,6 +1282,14 @@ void table_set_bg_color_vec4(ImGuiTableBgTarget target, Vector4f color, sol::obj
 ImGuiTableSortSpecs* table_get_sort_specs() {
     return ImGui::TableGetSortSpecs();
 }
+
+void progress_bar(float progress, sol::object size, const char* overlay ){
+    if (overlay == nullptr) {
+        overlay = "";
+    }
+
+    ImGui::ProgressBar(progress, create_imvec2(size), overlay);
+}
 } // namespace api::imgui
 
 namespace api::draw {
@@ -1980,6 +1988,7 @@ void bindings::open_imgui(ScriptState* s) {
     imgui["set_item_default_focus"] = api::imgui::set_item_default_focus;
     imgui["set_clipboard"] = api::imgui::set_clipboard;
     imgui["get_clipboard"] = api::imgui::get_clipboard;
+    imgui["progress_bar"] = api::imgui::progress_bar;
 
     // TABLE APIS
     imgui["begin_table"] = api::imgui::begin_table;
