@@ -1683,6 +1683,21 @@ bool REFramework::first_frame_initialize() {
         m_mods_fully_initialized = true;
     }
 
+    // Troubleshooting by logging loaded modules
+    // helps us figure out if someone has conflicting software running
+    try {
+        spdlog::info("Logging loaded modules...");
+
+        const auto loaded_modules = utility::get_loaded_module_names();
+
+        for (const auto& name : loaded_modules) {
+            spdlog::info("Loaded module: {}", utility::narrow(name));
+        }
+    } catch(...) {
+        spdlog::error("Failed to get loaded modules.");
+    }
+
+
     return true;
 }
 

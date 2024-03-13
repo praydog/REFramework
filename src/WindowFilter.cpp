@@ -1,3 +1,5 @@
+#include <spdlog/spdlog.h>
+
 #include "WindowFilter.hpp"
 
 // To prevent usage of statics (TLS breaks the present thread...?)
@@ -27,6 +29,11 @@ WindowFilter::WindowFilter() {
             std::scoped_lock _{m_mutex};
 
             for (const auto hwnd : m_window_jobs) {
+                char window_name[256]{};
+                if (GetWindowTextA(hwnd, window_name, sizeof(window_name)) != 0) {
+                    spdlog::info("[WindowFilter] Encountered new window: {}", window_name);
+                }
+
                 if (is_filtered_nocache(hwnd)) {
                     filter_window(hwnd);
                 }
