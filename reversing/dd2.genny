@@ -119,7 +119,7 @@ namespace via {
         uint32_t height
         via.Point cursor_pos;
         bool show_cursor;
-        via.Size borderless_size @ 0xB8
+        via.Size borderless_size + 0x2F
     };
 
     struct SceneView : via.clr.ManagedObject 0xb0 {

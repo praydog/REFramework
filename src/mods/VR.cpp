@@ -179,7 +179,7 @@ void VR::on_view_get_size(REManagedObject* scene_view, float* result) {
         wanted_height = (float)window_height;
 
         // Might be usable in other games too
-#if defined(SF6)
+#if defined(SF6) || TDB_VER >= 73
         if (!is_gng) {
             window->borderless_size.w = (float)window_width;
             window->borderless_size.h = (float)window_height;
