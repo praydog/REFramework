@@ -1,6 +1,7 @@
 #include <thread>
 #include <future>
 #include <unordered_set>
+#include <stacktrace>
 
 #include <spdlog/spdlog.h>
 #include <utility/Thread.hpp>
@@ -475,6 +476,21 @@ HRESULT WINAPI D3D12Hook::resize_buffers(IDXGISwapChain3* swap_chain, UINT buffe
     spdlog::info("D3D12 resize buffers called");
     spdlog::info(" Parameters: buffer_count {} width {} height {} new_format {} swap_chain_flags {}", buffer_count, width, height, new_format, swap_chain_flags);
 
+    // Walk the callstack and print out module names
+    try {
+        std::string callstack_str{};
+        for (const auto& entry : std::stacktrace::current()) {
+            //spdlog::info(" {}", entry.description());
+            callstack_str += entry.description() + "\n";
+        }
+
+        spdlog::info("callstack: \n{}", callstack_str); // because this can be running on a different thread and get garbled in the middle of the log
+    } catch (const std::exception& e) {
+        spdlog::error("Failed to print callstack: {}", e.what());
+    } catch(...) {
+        spdlog::error("Failed to print callstack: unknown exception");
+    }
+
     auto d3d12 = g_d3d12_hook;
     //auto& hook = d3d12->m_resize_buffers_hook;
     //auto resize_buffers_fn = hook->get_original<decltype(D3D12Hook::resize_buffers)*>();
@@ -544,6 +560,21 @@ HRESULT WINAPI D3D12Hook::resize_target(IDXGISwapChain3* swap_chain, const DXGI_
 
     spdlog::info("D3D12 resize target called");
     spdlog::info(" Parameters: new_target_parameters {:x}", (uintptr_t)new_target_parameters);
+
+    // Walk the callstack and print out module names
+    try {
+        std::string callstack_str{};
+        for (const auto& entry : std::stacktrace::current()) {
+            //spdlog::info(" {}", entry.description());
+            callstack_str += entry.description() + "\n";
+        }
+
+        spdlog::info("callstack: \n{}", callstack_str); // because this can be running on a different thread and get garbled in the middle of the log
+    } catch (const std::exception& e) {
+        spdlog::error("Failed to print callstack: {}", e.what());
+    } catch(...) {
+        spdlog::error("Failed to print callstack: unknown exception");
+    }
 
     auto d3d12 = g_d3d12_hook;
     //auto resize_target_fn = d3d12->m_resize_target_hook->get_original<decltype(D3D12Hook::resize_target)*>();
