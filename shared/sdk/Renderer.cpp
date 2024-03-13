@@ -417,7 +417,7 @@ sdk::renderer::command::Base* RenderContext::alloc(uint32_t t, uint32_t size) {
         spdlog::info("Searching for RenderContext::alloc");
 
         const auto game = utility::get_executable();
-        const auto scan_result = utility::scan(game, "48 8b d9 44 8d 42 38 e8 ? ? ? ?");
+        const auto scan_result = utility::scan(game, "48 8b ? 44 8d 42 38 e8 ? ? ? ?");
 
         if (!scan_result) {
             spdlog::error("Failed to find RenderContext::alloc");
@@ -1129,8 +1129,8 @@ sdk::intrusive_ptr<RenderTargetView> RenderTargetView::clone(uint32_t new_width,
 }
 
 namespace detail {
-#if TDB_VER == 71
-#ifdef SF6
+#if TDB_VER >= 71
+#if defined(SF6) || defined(DD2)
     constexpr auto rtv_size = 0x98;
 #else
     constexpr auto rtv_size = 0x98 - sizeof(void*);
