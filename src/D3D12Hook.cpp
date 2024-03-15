@@ -6,6 +6,8 @@
 #include <spdlog/spdlog.h>
 #include <utility/Thread.hpp>
 #include <utility/Module.hpp>
+#include <utility/String.hpp>
+#include <utility/RTTI.hpp>
 
 #include "REFramework.hpp"
 
@@ -225,6 +227,25 @@ bool D3D12Hook::hook() {
         return false;
     }
 
+    const auto ti = utility::rtti::get_type_info(swap_chain1);
+
+    try {
+        const auto swapchain_classname = ti != nullptr ? std::string_view{ti->name()} : "unknown";
+        
+        if (swapchain_classname.contains("interposer::DXGISwapChain")) { // DLSS3
+            spdlog::info("Found Streamline (DLSSFG) swapchain during dummy initialization: {:x}", (uintptr_t)swap_chain1);
+            m_using_frame_generation_swapchain = true;
+        } else if (swapchain_classname.contains("FrameInterpolationSwapChain")) { // FSR3
+            spdlog::info("Found FSR3 swapchain during dummy initialization: {:x}", (uintptr_t)swap_chain1);
+            m_using_frame_generation_swapchain = true;
+        }
+    } catch (const std::exception& e) {
+        spdlog::error("Failed to get type info: {}", e.what());
+    } catch (...) {
+        spdlog::error("Failed to get type info: unknown exception");
+    }
+
+
     spdlog::info("Finding command queue offset");
 
     // Find the command queue offset in the swapchain
@@ -245,9 +266,13 @@ bool D3D12Hook::hook() {
         }
     }
 
+    auto target_swapchain = swap_chain;
+
     // Scan throughout the swapchain for a valid pointer to scan through
     // this is usually only necessary for Proton
     if (m_command_queue_offset == 0) {
+        bool should_break = false;
+
         for (auto base = 0; base < 512 * sizeof(void*); base += sizeof(void*)) {
             const auto pre_scan_base = (uintptr_t)swap_chain1 + base;
 
@@ -272,9 +297,21 @@ bool D3D12Hook::hook() {
                 auto data = *(ID3D12CommandQueue**)pre_data;
 
                 if (data == command_queue) {
-                    m_using_proton_swapchain = true;
+                    // If we hook Streamline's Swapchain, the menu fails to render correctly/flickers
+                    // So we switch out the swapchain with the internal one owned by Streamline
+                    // Side note: Even though we are scanning for Proton here,
+                    // this doubles as an offset scanner for the real swapchain inside Streamline (or FSR3)
+                    if (m_using_frame_generation_swapchain) {
+                        target_swapchain = (IDXGISwapChain3*)scan_base;
+                    }
+
+                    if (!m_using_frame_generation_swapchain) {
+                        m_using_proton_swapchain = true;
+                    }
+
                     m_command_queue_offset = i;
                     m_proton_swapchain_offset = base;
+                    should_break = true;
 
                     spdlog::info("Proton potentially detected");
                     spdlog::info("Found command queue offset: {:x}", i);
@@ -282,7 +319,7 @@ bool D3D12Hook::hook() {
                 }
             }
 
-            if (m_using_proton_swapchain) {
+            if (m_using_proton_swapchain || should_break) {
                 break;
             }
         }
@@ -303,7 +340,7 @@ bool D3D12Hook::hook() {
 
         m_is_phase_1 = true;
 
-        auto& present_fn = (*(void***)swap_chain)[8]; // Present
+        auto& present_fn = (*(void***)target_swapchain)[8]; // Present
         m_present_hook = std::make_unique<PointerHook>(&present_fn, (void*)&D3D12Hook::present);
         m_hooked = true;
     } catch (const std::exception& e) {
