@@ -1,6 +1,7 @@
 #pragma once
 
 #ifdef __cplusplus_cli
+#pragma managed
 #include <msclr/gcroot.h>
 #include <msclr/marshal_cppstd.h>
 //#include <cliext/vector>
@@ -127,16 +128,16 @@ public:
 public:
     // ALWAYS call initialize first in reframework_plugin_initialize
 #ifndef __cplusplus_cli
-    static API& initialize(const REFrameworkPluginInitializeParam* param);
+    static inline std::unique_ptr<reframework::API>& initialize(const REFrameworkPluginInitializeParam* param);
 #else
-    static API^ initialize(uintptr_t param);
+    static inline API^ initialize(uintptr_t param);
 #endif
 
     // only call this AFTER calling initialize
 #ifndef __cplusplus_cli
-    static auto& get() {
+    static inline auto& get() {
 #else
-    static auto get() {
+    static inline auto get() {
 #endif
         if (s_instance == nullptr) {
             throw std::runtime_error("API not initialized");
@@ -342,6 +343,12 @@ public:
             return (void*)this;
         }
     };
+
+    #define POINTER_CONTAINER_CONSTRUCTOR(WrapperType, Tx) WrapperType(Tx ptr) : PointerContainer(ptr) {}
+    #define PUBLIC_POINTER_CONTAINER(X, Tx) struct X : public PointerContainer<Tx> { \
+    public:\
+        X(Tx ptr) : PointerContainer(ptr) {}
+
 #endif
 
     //#define PUBLIC_POINTER_CONTAINER(Tx) : public PointerContainer<Tx>
@@ -1154,9 +1161,9 @@ private:
 
 // ALWAYS call initialize first in reframework_plugin_initialize
 #ifndef __cplusplus_cli
-reframework::API& reframework::API::initialize(const REFrameworkPluginInitializeParam* param) {
+inline std::unique_ptr<reframework::API>& reframework::API::initialize(const REFrameworkPluginInitializeParam* param) {
 #else
-reframework::API^ reframework::API::initialize(uintptr_t param) {
+inline reframework::API^ reframework::API::initialize(uintptr_t param) {
 #endif
 #ifndef __cplusplus_cli
     if (param == nullptr) {
