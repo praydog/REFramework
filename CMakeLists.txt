@@ -13105,3 +13105,66 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	unset(CMKR_SOURCES)
 endif()
 
+# Target csharp-api
+if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
+	set(CMKR_TARGET csharp-api)
+	set(csharp-api_SOURCES "")
+
+	list(APPEND csharp-api_SOURCES
+		"csharp-api/Plugin.cpp"
+		"csharp-api/REFrameworkAPI.cpp"
+	)
+
+	list(APPEND csharp-api_SOURCES
+		cmake.toml
+	)
+
+	set(CMKR_SOURCES ${csharp-api_SOURCES})
+	add_library(csharp-api SHARED)
+
+	if(csharp-api_SOURCES)
+		target_sources(csharp-api PRIVATE ${csharp-api_SOURCES})
+	endif()
+
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${csharp-api_SOURCES})
+
+	target_compile_features(csharp-api PUBLIC
+		cxx_std_20
+	)
+
+	target_compile_options(csharp-api PUBLIC
+		"/EHa"
+		"/MD"
+		"/clr:netcore"
+	)
+
+	target_include_directories(csharp-api PUBLIC
+		"include/"
+	)
+
+
+	set_target_properties(csharp-api PROPERTIES
+		RUNTIME_OUTPUT_DIRECTORY_RELEASE
+			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
+		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
+			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
+		LIBRARY_OUTPUT_DIRECTORY_RELEASE
+			"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+		DOTNET_TARGET_FRAMEWORK
+			net8.0
+		DOTNET_TARGET_FRAMEWORK_VERSION
+			v8.0
+	)
+
+	# Custom command to compile the Test.cs file
+	add_custom_command(
+	    TARGET csharp-api POST_BUILD
+	    COMMAND dotnet build ${CMAKE_CURRENT_SOURCE_DIR}/csharp-api/test/Test --configuration Release -o ${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}/ --framework net8.0
+	    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/csharp-api/test/
+	    COMMENT "Building C# test project"
+	)
+
+	unset(CMKR_TARGET)
+	unset(CMKR_SOURCES)
+endif()
+

@@ -617,6 +617,7 @@ void PluginLoader::early_init() try {
 
     spdlog::info("[PluginLoader] Loading plugins...");
 
+    LoadLibraryA("ijwhost.dll");
     // Load all dlls in the plugins directory.
     for (auto&& entry : fs::directory_iterator{plugin_path}) {
         auto&& path = entry.path();

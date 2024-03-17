@@ -378,3 +378,29 @@ link-libraries = [
 [target.weapon_stay_big_plugin]
 type = "plugin"
 sources = ["examples/weapon_stay_big_plugin/weapon_stay_big.cpp"]
+
+[target.csharp-api]
+type = "shared"
+include-directories = ["include/"]
+sources = ["csharp-api/**.cpp", "csharp-api/**.c"]
+compile-features = ["cxx_std_20"]
+compile-options = ["/EHa", "/MD", "/clr:netcore"]
+condition = "build-framework"
+link-libraries = [
+]
+cmake-after = """
+# Custom command to compile the Test.cs file
+add_custom_command(
+    TARGET csharp-api POST_BUILD
+    COMMAND dotnet build ${CMAKE_CURRENT_SOURCE_DIR}/csharp-api/test/Test --configuration Release -o ${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}/ --framework net8.0
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/csharp-api/test/
+    COMMENT "Building C# test project"
+)
+"""
+
+[target.csharp-api.properties]
+RUNTIME_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
+RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO = "${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
+LIBRARY_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+DOTNET_TARGET_FRAMEWORK = "net8.0"
+DOTNET_TARGET_FRAMEWORK_VERSION = "v8.0"

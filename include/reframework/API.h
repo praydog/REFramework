@@ -98,8 +98,12 @@ typedef struct {
 } REFrameworkRendererData;
 
 /* strong typedefs */
+#ifdef __cplusplus_cli
+#define DECLARE_REFRAMEWORK_HANDLE(name) using name = void*
+#else
 #define DECLARE_REFRAMEWORK_HANDLE(name) struct name##__ { int unused; }; \
                              typedef struct name##__ *name
+#endif
 
 DECLARE_REFRAMEWORK_HANDLE(REFrameworkTypeDefinitionHandle);
 DECLARE_REFRAMEWORK_HANDLE(REFrameworkMethodHandle);
