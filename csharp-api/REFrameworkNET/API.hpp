@@ -1,4 +1,5 @@
 #pragma once
+#pragma managed
 
 namespace reframework {
 ref class API;
@@ -6,14 +7,12 @@ ref class API;
 
 using namespace System;
 
-namespace REFramework {
+namespace REFrameworkNET {
 public ref class API
 {
 public:
     API(uintptr_t param);
     ~API();
-
-    void Test();
 
     reframework::API^ Get();
 
