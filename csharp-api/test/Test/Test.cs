@@ -90,7 +90,7 @@ public static class ApiWrapperGenerator
 }
 
 class REFrameworkPlugin {
-    public static void Main(REFramework.API api_) {
+    public static void Main(REFrameworkNET.API api_) {
         Console.WriteLine("Testing REFrameworkAPI...");
 
         // Convert api.Get() type to pass to GenerateWrapper
@@ -121,7 +121,7 @@ class REFrameworkPlugin {
 
         typesSorted.Sort();*/
 
-        /*var singletons = api.GetManagedSingletons();
+        var singletons = api.GetManagedSingletons();
 
         foreach (var singletonDesc in singletons) {
             var singleton = new ManagedObjectWrapper(singletonDesc.instance);
@@ -141,7 +141,7 @@ class REFrameworkPlugin {
             foreach (var field in fields) {
                 Console.WriteLine(" " + field.get_name());
             }
-        }*/
+        }
 
         var sceneManager = api.GetNativeSingleton("via.SceneManager");
         Console.WriteLine("sceneManager: " + sceneManager);

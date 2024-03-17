@@ -12894,7 +12894,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 
 	list(APPEND csharp-api_SOURCES
 		"csharp-api/Plugin.cpp"
-		"csharp-api/REFrameworkAPI.cpp"
+		"csharp-api/REFrameworkNET/API.cpp"
+		"csharp-api/REFrameworkNET/PluginManager.cpp"
 	)
 
 	list(APPEND csharp-api_SOURCES
