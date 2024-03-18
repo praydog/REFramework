@@ -11,6 +11,8 @@
 #include "TDB.hpp"
 #include "ManagedSingleton.hpp"
 
+#include "Callbacks.hpp"
+
 namespace reframework {
 class API;
 }
@@ -58,7 +60,13 @@ public:
         return result;
     }
 
+    reframework::API* GetNativeImplementation() {
+        return s_api;
+    }
+
 protected:
+    void Init_Internal(const REFrameworkPluginInitializeParam* param);
+
     static reframework::API* s_api;
 };
 }
