@@ -90,8 +90,30 @@ public static class ApiWrapperGenerator
 }
 
 class REFrameworkPlugin {
+    // Measure time between pre and post
+    // get time
+    static System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
+
     public static void Main(REFrameworkNET.API api) {
         Console.WriteLine("Testing REFrameworkAPI...");
+
+        REFrameworkNET.Callbacks.BeginRendering.Pre += () => {
+            Console.WriteLine("BeginRendering pre");
+            sw.Start();
+        };
+        REFrameworkNET.Callbacks.BeginRendering.Post += () => {
+            Console.WriteLine("BeginRendering post");
+            sw.Stop();
+            Console.WriteLine("BeginRendering took " + sw.ElapsedMilliseconds + "ms");
+            sw.Reset();
+        };
+        REFrameworkNET.Callbacks.EndRendering.Post += () => {
+            Console.WriteLine("EndRendering");
+        };
+
+        REFrameworkNET.Callbacks.FinalizeRenderer.Pre += () => {
+            Console.WriteLine("Finalizing!!!!");
+        };
 
         // Convert api.Get() type to pass to GenerateWrapper
         /*var currentDir = Directory.GetCurrentDirectory();
