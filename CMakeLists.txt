@@ -12923,7 +12923,6 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	target_compile_options(csharp-api PUBLIC
 		"/EHa"
 		"/MD"
-		"/clr:netcore"
 	)
 
 	target_include_directories(csharp-api PUBLIC
@@ -12938,6 +12937,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 		LIBRARY_OUTPUT_DIRECTORY_RELEASE
 			"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+		COMMON_LANGUAGE_RUNTIME
+			netcore
 		DOTNET_TARGET_FRAMEWORK
 			net8.0
 		DOTNET_TARGET_FRAMEWORK_VERSION

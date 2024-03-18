@@ -27,11 +27,11 @@ public:
     API(uintptr_t param);
     ~API();
 
-    inline REFrameworkNET::TDB^ GetTDB() {
+    REFrameworkNET::TDB^ GetTDB() {
         return gcnew REFrameworkNET::TDB(s_api->tdb());
     }
 
-    inline REFrameworkNET::ManagedObject^ GetManagedSingleton(System::String^ name) {
+    REFrameworkNET::ManagedObject^ GetManagedSingleton(System::String^ name) {
         auto result = s_api->get_managed_singleton(msclr::interop::marshal_as<std::string>(name));
 
         if (result == nullptr) {
@@ -41,8 +41,9 @@ public:
         return gcnew REFrameworkNET::ManagedObject(result);
     }
 
-    inline System::Collections::Generic::List<REFrameworkNET::ManagedSingleton^>^ GetManagedSingletons() {
+    System::Collections::Generic::List<REFrameworkNET::ManagedSingleton^>^ GetManagedSingletons() {
         auto singletons = s_api->get_managed_singletons();
+        
         auto result = gcnew System::Collections::Generic::List<REFrameworkNET::ManagedSingleton^>();
 
         for (auto& singleton : singletons) {

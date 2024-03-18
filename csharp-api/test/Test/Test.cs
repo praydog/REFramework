@@ -115,6 +115,10 @@ class REFrameworkPlugin {
             Console.WriteLine("Finalizing!!!!");
         };
 
+        REFrameworkNET.Callbacks.PrepareRendering.Post += () => {
+            Console.WriteLine("PrepareRendering");
+        };
+
         // Convert api.Get() type to pass to GenerateWrapper
         /*var currentDir = Directory.GetCurrentDirectory();
         var targetType = typeof(reframework.API.Method);
@@ -159,6 +163,9 @@ class REFrameworkPlugin {
             var singleton = singletonDesc.Instance;
 
             Console.WriteLine(singleton.GetTypeDefinition().GetFullName());
+            var isManagedObject = REFrameworkNET.ManagedObject.IsManagedObject(singleton.GetAddress());
+
+            Console.WriteLine(" Is managed object: " + isManagedObject.ToString());
 
             // Log all methods
             var td = singleton.GetTypeDefinition();
