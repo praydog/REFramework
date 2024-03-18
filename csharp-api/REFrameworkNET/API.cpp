@@ -20,6 +20,7 @@ void REFrameworkNET::API::Init_Internal(const REFrameworkPluginInitializeParam* 
     Console::WriteLine("REFrameworkNET.API Init_Internal called.");
     s_api = reframework::API::initialize(param).get();
     Callbacks::Impl::Setup(this);
+    Console::WriteLine("REFrameworkNET.API Init_Internal finished.");
 }
 
 REFrameworkNET::API::~API()
