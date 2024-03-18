@@ -127,6 +127,20 @@ public:
     Field^ FindField(System::String^ name);
     Property^ FindProperty(System::String^ name);
 
+    // Get versions
+    // The find versions just line up with the Lua API, the Get versions look more like C#
+    REFrameworkNET::Method^ GetMethod(System::String^ name) {
+        return FindMethod(name);
+    }
+
+    Field^ GetField(System::String^ name) {
+        return FindField(name);
+    }
+
+    Property^ GetProperty(System::String^ name) {
+        return FindProperty(name);
+    }
+
     System::Collections::Generic::List<Method^>^ GetMethods();
     System::Collections::Generic::List<Field^>^ GetFields();
     System::Collections::Generic::List<Property^>^ GetProperties();

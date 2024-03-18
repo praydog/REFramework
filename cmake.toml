@@ -384,7 +384,7 @@ type = "shared"
 include-directories = ["include/"]
 sources = ["csharp-api/**.cpp", "csharp-api/**.c"]
 compile-features = ["cxx_std_20"]
-compile-options = ["/EHa", "/MD", "/clr:netcore"]
+compile-options = ["/EHa", "/MD"]
 condition = "build-framework"
 link-libraries = [
 ]
@@ -402,5 +402,6 @@ add_custom_command(
 RUNTIME_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO = "${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 LIBRARY_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+COMMON_LANGUAGE_RUNTIME = "netcore"
 DOTNET_TARGET_FRAMEWORK = "net8.0"
 DOTNET_TARGET_FRAMEWORK_VERSION = "v8.0"

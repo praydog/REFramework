@@ -6,6 +6,8 @@
 
 namespace REFrameworkNET {
 ref class TypeDefinition;
+ref class TypeInfo;
+ref class InvokeRet;
 
 public ref class ManagedObject {
 public:
@@ -38,7 +40,28 @@ public:
         return (uintptr_t)m_object;
     }
 
+    static bool IsManagedObject(uintptr_t ptr) {
+        static auto fn = reframework::API::get()->param()->sdk->managed_object->is_managed_object;
+        return fn((void*)ptr);
+    }
+
     TypeDefinition^ GetTypeDefinition();
+    TypeInfo^ GetTypeInfo();
+
+    REFrameworkNET::InvokeRet^ Invoke(System::String^ methodName, array<System::Object^>^ args);
+
+    // TODO methods:
+    /*public Void* GetReflectionProperties() {
+        return _original.get_reflection_properties();
+    }*/
+
+    /*public ReflectionProperty GetReflectionPropertyDescriptor(basic_string_view<char\, std::char_traits<char>> name) {
+        return _original.get_reflection_property_descriptor(name);
+    }
+
+    public ReflectionMethod GetReflectionMethodDescriptor(basic_string_view<char\, std::char_traits<char>> name) {
+        return _original.get_reflection_method_descriptor(name);
+    }*/
 
 private:
     reframework::API::ManagedObject* m_object;
