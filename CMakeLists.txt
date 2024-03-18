@@ -13122,30 +13122,29 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	unset(CMKR_SOURCES)
 endif()
 
-# Target csharp-api-intermediary
+# Target REFCSharpCompiler
 if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
-	set(CMKR_TARGET csharp-api-intermediary)
-	set(csharp-api-intermediary_SOURCES "")
+	set(CMKR_TARGET REFCSharpCompiler)
+	set(REFCSharpCompiler_SOURCES "")
 
-	list(APPEND csharp-api-intermediary_SOURCES
-		"csharp-api/Intermediary.cs"
-		"csharp-api/Compiler.cs"
+	list(APPEND REFCSharpCompiler_SOURCES
+		"csharp-api/Compiler/Compiler.cs"
 	)
 
-	list(APPEND csharp-api-intermediary_SOURCES
+	list(APPEND REFCSharpCompiler_SOURCES
 		cmake.toml
 	)
 
-	set(CMKR_SOURCES ${csharp-api-intermediary_SOURCES})
-	add_library(csharp-api-intermediary SHARED)
+	set(CMKR_SOURCES ${REFCSharpCompiler_SOURCES})
+	add_library(REFCSharpCompiler SHARED)
 
-	if(csharp-api-intermediary_SOURCES)
-		target_sources(csharp-api-intermediary PRIVATE ${csharp-api-intermediary_SOURCES})
+	if(REFCSharpCompiler_SOURCES)
+		target_sources(REFCSharpCompiler PRIVATE ${REFCSharpCompiler_SOURCES})
 	endif()
 
-	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${csharp-api-intermediary_SOURCES})
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${REFCSharpCompiler_SOURCES})
 
-	set_target_properties(csharp-api-intermediary PROPERTIES
+	set_target_properties(REFCSharpCompiler PROPERTIES
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE
 			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
@@ -13212,10 +13211,12 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	)
 
 	target_link_libraries(csharp-api PUBLIC
-		csharp-api-intermediary
+		REFCSharpCompiler
 	)
 
 	set_target_properties(csharp-api PROPERTIES
+		OUTPUT_NAME
+			REFramework.NET
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE
 			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO

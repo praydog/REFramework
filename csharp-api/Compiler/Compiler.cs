@@ -7,7 +7,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Text;
 
-namespace DynamicRun.Builder
+namespace REFrameworkNET
 {
     public class Compiler
     {

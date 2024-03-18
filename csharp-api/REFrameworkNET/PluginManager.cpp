@@ -188,13 +188,6 @@ namespace REFrameworkNET {
             return false;
         }
 
-        auto intermediary = System::Reflection::Assembly::LoadFrom(gcnew String((plugins_path / "csharp-api-intermediary.dll").wstring().c_str()));
-
-        if (intermediary == nullptr) {
-            REFrameworkNET::API::LogError("Failed to load intermediary assembly, cannot compile C# files");
-            return false;
-        }
-
         auto self = System::Reflection::Assembly::LoadFrom(System::Reflection::Assembly::GetExecutingAssembly()->Location);
 
         for each (String^ file in files) {
@@ -202,9 +195,9 @@ namespace REFrameworkNET {
 
             // Compile the C# file, and then call a function in it (REFrameworkPlugin.Main)
             // This is useful for loading C# plugins that don't want to be compiled into a DLL
-            //auto bytecode = DynamicRun::Builder::Compiler::Compile(file, self->Location);
+            auto bytecode = REFrameworkNET::Compiler::Compile(file, self->Location);
             // Dynamically look for DynamicRun.Builder.Compiler.Compile
-            auto type = intermediary->GetType("DynamicRun.Builder.Compiler");
+            /*auto type = intermediary->GetType("DynamicRun.Builder.Compiler");
             if (type == nullptr) {
                 REFrameworkNET::API::LogError("Failed to get type DynamicRun.Builder.Compiler");
                 continue;
@@ -216,7 +209,7 @@ namespace REFrameworkNET {
                 continue;
             }
 
-            auto bytecode = (array<System::Byte>^)method->Invoke(nullptr, gcnew array<Object^>{file, self->Location});
+            auto bytecode = (array<System::Byte>^)method->Invoke(nullptr, gcnew array<Object^>{file, self->Location});*/
 
             if (bytecode == nullptr) {
                 REFrameworkNET::API::LogError("Failed to compile " + file);

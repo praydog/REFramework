@@ -392,13 +392,12 @@ link-libraries = [
 type = "plugin"
 sources = ["examples/weapon_stay_big_plugin/weapon_stay_big.cpp"]
 
-# Commenting this out instead of removing it to keep it as an example
-[target.csharp-api-intermediary]
+[target.REFCSharpCompiler]
 type = "shared"
 condition = "build-framework"
-sources = ["csharp-api/Intermediary.cs", "csharp-api/Compiler.cs"]
+sources = ["csharp-api/Compiler/Compiler.cs"]
 
-[target.csharp-api-intermediary.properties]
+[target.REFCSharpCompiler.properties]
 RUNTIME_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO = "${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 LIBRARY_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
@@ -416,7 +415,7 @@ compile-features = ["cxx_std_20"]
 compile-options = ["/EHa", "/MD"]
 condition = "build-framework"
 link-libraries = [
-    "csharp-api-intermediary"
+    "REFCSharpCompiler"
 ]
 cmake-after = """
 # Custom command to compile the Test.cs file
@@ -441,6 +440,7 @@ add_custom_command(
 """
 
 [target.csharp-api.properties]
+OUTPUT_NAME = "REFramework.NET"
 RUNTIME_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO = "${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 LIBRARY_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"

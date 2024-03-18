@@ -26,7 +26,7 @@
 
   <ItemGroup>
     <Reference Include="csharp-api">
-      <HintPath>..\..\..\build\bin\csharp-api\csharp-api.dll</HintPath>
+      <HintPath>..\..\..\build\bin\csharp-api\REFramework.NET.dll</HintPath>
       <Private>False</Private>
       <EmbedInteropTypes>False</EmbedInteropTypes>
     </Reference>
