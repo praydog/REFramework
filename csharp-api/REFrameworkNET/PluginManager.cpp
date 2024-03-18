@@ -100,7 +100,25 @@ namespace REFrameworkNET {
             PluginManager::s_api_instance = gcnew REFrameworkNET::API(param_raw);
         }
 
-        LoadPlugins_FromSourceCode(param_raw);
+        // Try-catch because the user might not have the compiler
+        // dependencies in the plugins directory
+        try {
+            LoadPlugins_FromSourceCode(param_raw);
+        } catch (System::Exception^ e) {
+            REFrameworkNET::API::LogError("Could not load plugins from source code: " + e->Message);
+
+            auto ex = e;
+            while (ex != nullptr) {
+                REFrameworkNET::API::LogError(ex->StackTrace);
+                ex = ex->InnerException;
+            }
+        } catch (const std::exception& e) {
+            REFrameworkNET::API::LogError("Could not load plugins from source code: " + gcnew System::String(e.what()));
+        } catch (...) {
+            REFrameworkNET::API::LogError("Could not load plugins from source code: Unknown exception caught");
+        }
+
+        System::Console::WriteLine("Continue with managed plugins...");
         
         const auto managed_path = std::filesystem::current_path() / "reframework" / "plugins" / "managed";
         std::filesystem::create_directories(managed_path);
@@ -111,7 +129,7 @@ namespace REFrameworkNET {
         auto files = System::IO::Directory::GetFiles(managed_dir, "*.dll");
 
         if (files->Length == 0) {
-            //API::get()->log_error("No DLLs found in %s", managedDir);
+            REFrameworkNET::API::LogInfo("No DLLs found in " + managed_dir);
             return false;
         }
 
@@ -120,7 +138,7 @@ namespace REFrameworkNET {
             System::Reflection::Assembly^ assem = System::Reflection::Assembly::LoadFrom(file);
 
             if (assem == nullptr) {
-                Console::WriteLine("Failed to load assembly from " + file);
+                REFrameworkNET::API::LogError("Failed to load assembly from " + file);
                 continue;
             }
 
@@ -133,7 +151,7 @@ namespace REFrameworkNET {
                                                                 gcnew array<Type^>{REFrameworkNET::API::typeid});
 
                 if (mainMethod != nullptr) {
-                    Console::WriteLine("Found Main method in " + file);
+                    REFrameworkNET::API::LogInfo("Found Main method in " + file);
 
                     array<Object^>^ args = gcnew array<Object^>{PluginManager::s_api_instance};
                     mainMethod->Invoke(nullptr, args);
@@ -143,7 +161,7 @@ namespace REFrameworkNET {
         }
 
         if (!ever_found) {
-            Console::WriteLine("No Main method found in any DLLs in " + managed_dir);
+            REFrameworkNET::API::LogInfo("No Main method found in any DLLs in " + managed_dir);
         }
 
         return true;
