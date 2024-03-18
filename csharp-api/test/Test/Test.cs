@@ -98,25 +98,26 @@ class REFrameworkPlugin {
         Console.WriteLine("Testing REFrameworkAPI...");
 
         REFrameworkNET.Callbacks.BeginRendering.Pre += () => {
-            Console.WriteLine("BeginRendering pre");
             sw.Start();
         };
         REFrameworkNET.Callbacks.BeginRendering.Post += () => {
-            Console.WriteLine("BeginRendering post");
             sw.Stop();
-            Console.WriteLine("BeginRendering took " + sw.ElapsedMilliseconds + "ms");
+
+            if (sw.ElapsedMilliseconds >= 6) {
+                Console.WriteLine("BeginRendering took " + sw.ElapsedMilliseconds + "ms");
+            }
+
             sw.Reset();
         };
+
         REFrameworkNET.Callbacks.EndRendering.Post += () => {
-            Console.WriteLine("EndRendering");
         };
 
         REFrameworkNET.Callbacks.FinalizeRenderer.Pre += () => {
-            Console.WriteLine("Finalizing!!!!");
+            Console.WriteLine("Finalizing Renderer");
         };
 
         REFrameworkNET.Callbacks.PrepareRendering.Post += () => {
-            Console.WriteLine("PrepareRendering");
         };
 
         // Convert api.Get() type to pass to GenerateWrapper
@@ -129,7 +130,7 @@ class REFrameworkPlugin {
         // Open in explorer
         System.Diagnostics.Process.Start("explorer.exe", currentDir);*/
 
-        var tdb = api.GetTDB();
+        var tdb = REFrameworkNET.API.GetTDB();
 
         Console.WriteLine(tdb.GetNumTypes().ToString() + " types");
 
@@ -157,7 +158,7 @@ class REFrameworkPlugin {
 
         Console.WriteLine("Done with types");
 
-        var singletons = api.GetManagedSingletons();
+        var singletons = REFrameworkNET.API.GetManagedSingletons();
 
         foreach (var singletonDesc in singletons) {
             var singleton = singletonDesc.Instance;
@@ -187,13 +188,13 @@ class REFrameworkPlugin {
             }
         }
 
-        /*var sceneManager = api.GetNativeSingleton("via.SceneManager");
+        var sceneManager = REFrameworkNET.API.GetNativeSingleton("via.SceneManager");
         Console.WriteLine("sceneManager: " + sceneManager);
         var sceneManager_t = tdb.FindType("via.SceneManager");
         Console.WriteLine("sceneManager_t: " + sceneManager_t);
         var get_CurrentScene = sceneManager_t.FindMethod("get_CurrentScene");
         Console.WriteLine("get_CurrentScene: " + get_CurrentScene);
-        var scene = get_CurrentScene.Invoke(sceneManager, new object[]{}).Ptr;
+        var scene = get_CurrentScene.Invoke(sceneManager, []).Ptr;
 
         Console.WriteLine("scene: " + scene);
 
@@ -203,7 +204,7 @@ class REFrameworkPlugin {
 
             Console.WriteLine("set_TimeScale: " + set_TimeScale);
 
-            set_TimeScale.Invoke(scene, new object[]{ 0.1f });
-        }*/
+            set_TimeScale.Invoke(scene, new object[]{0.1f});
+        }
     }
 };
