@@ -4,6 +4,7 @@
 # > cmake --build build --config Release
 [project]
 name = "reframework"
+languages = ["CXX", "C", "CSharp"]
 cmake-after = """
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MP")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
@@ -30,6 +31,18 @@ if ("${CMAKE_BUILD_TYPE}" MATCHES "Release")
 endif()
 
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
+set(NUGET_PACKAGES_DIR "$ENV{NUGET_PACKAGES}")
+
+# If NUGET_PACKAGES_DIR is not set, fall back to the default location
+if(NOT NUGET_PACKAGES_DIR)
+    if(WIN32)
+        set(DEFAULT_NUGET_PATH "$ENV{USERPROFILE}/.nuget/packages")
+    else()
+        set(DEFAULT_NUGET_PATH "$ENV{HOME}/.nuget/packages")
+    endif()
+    set(NUGET_PACKAGES_DIR ${DEFAULT_NUGET_PATH})
+endif()
 """
 
 [options]
@@ -379,6 +392,22 @@ link-libraries = [
 type = "plugin"
 sources = ["examples/weapon_stay_big_plugin/weapon_stay_big.cpp"]
 
+# Commenting this out instead of removing it to keep it as an example
+[target.csharp-api-intermediary]
+type = "shared"
+condition = "build-framework"
+sources = ["csharp-api/Intermediary.cs", "csharp-api/Compiler.cs"]
+
+[target.csharp-api-intermediary.properties]
+RUNTIME_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
+RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO = "${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
+LIBRARY_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+DOTNET_SDK = "Microsoft.NET.Sdk"
+DOTNET_TARGET_FRAMEWORK = "net8.0"
+VS_CONFIGURATION_TYPE = "ClassLibrary"
+VS_PACKAGE_REFERENCES = "Microsoft.CodeAnalysis_4.9.2"
+CMAKE_CSharp_FLAGS = "/langversion:latest /platform:x64"
+
 [target.csharp-api]
 type = "shared"
 include-directories = ["include/"]
@@ -387,6 +416,7 @@ compile-features = ["cxx_std_20"]
 compile-options = ["/EHa", "/MD"]
 condition = "build-framework"
 link-libraries = [
+    "csharp-api-intermediary"
 ]
 cmake-after = """
 # Custom command to compile the Test.cs file
@@ -396,6 +426,18 @@ add_custom_command(
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/csharp-api/test/
     COMMENT "Building C# test project"
 )
+
+# Copy nuget packages to the output directory
+add_custom_command(
+   TARGET csharp-api POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${NUGET_PACKAGES_DIR}/microsoft.codeanalysis.csharp/4.9.2/lib/net7.0 ${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}/
+    COMMENT "Copying nuget packages"
+)
+add_custom_command(
+   TARGET csharp-api POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${NUGET_PACKAGES_DIR}/microsoft.codeanalysis.common/4.9.2/lib/net7.0 ${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}/
+    COMMENT "Copying nuget packages"
+)
 """
 
 [target.csharp-api.properties]
@@ -404,4 +446,6 @@ RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO = "${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET
 LIBRARY_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
 COMMON_LANGUAGE_RUNTIME = "netcore"
 DOTNET_TARGET_FRAMEWORK = "net8.0"
-DOTNET_TARGET_FRAMEWORK_VERSION = "v8.0"
+# DOTNET_TARGET_FRAMEWORK_VERSION = "net8.0"
+VS_GLOBAL_EnableManagedPackageReferenceSupport = "true"
+# VS_PACKAGE_REFERENCES = "Microsoft.CodeAnalysis_4.9.2"

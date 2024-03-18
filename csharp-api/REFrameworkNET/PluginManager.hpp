@@ -30,5 +30,6 @@ private:
     // meant to be executed in the correct context
     // after loading "ourselves" via System::Reflection::Assembly::LoadFrom
     static bool LoadPlugins(uintptr_t param_raw);
+    static bool LoadPlugins_FromSourceCode(uintptr_t param_raw);
 };
 }

@@ -1,7 +1,15 @@
 #include <exception>
 #include <filesystem>
-
 #include "PluginManager.hpp"
+
+using namespace System;
+using namespace System::IO;
+using namespace System::Reflection;
+using namespace System::Collections::Generic;
+using namespace Microsoft::CodeAnalysis;
+using namespace Microsoft::CodeAnalysis::CSharp;
+using namespace Microsoft::CodeAnalysis::Text;
+using namespace msclr::interop;
 
 namespace REFrameworkNET {
     // Executed initially when we get loaded via LoadLibrary
@@ -12,10 +20,7 @@ namespace REFrameworkNET {
         }
 
         PluginManager::s_initialized = true;
-
-        // Write to console using C++/CLI
-        System::String^ str = "Hello from C++/CLI!";
-        System::Console::WriteLine(str);
+        System::Console::WriteLine("Attempting to load plugins from initial context");
 
         // Make sure plugins that are loaded can find a reference to the current assembly
         // Even though "this" is loaded currently, its not in the right context to be found
@@ -44,6 +49,7 @@ namespace REFrameworkNET {
         }
 
         // Invoke LoadPlugins method
+        System::Console::WriteLine("Invoking LoadPlugins...");
         method->Invoke(nullptr, gcnew array<Object^>{reinterpret_cast<uintptr_t>(param)});
 
         return true;
@@ -57,6 +63,14 @@ namespace REFrameworkNET {
         return false;
     } catch (System::Exception^ e) {
         System::Console::WriteLine(e->Message);
+
+        // log stack
+        auto ex = e;
+        while (ex != nullptr) {
+            System::Console::WriteLine(ex->StackTrace);
+            ex = ex->InnerException;
+        }
+
         return false;
     } catch (const std::exception& e) {
         System::Console::WriteLine(gcnew System::String(e.what()));
@@ -68,7 +82,9 @@ namespace REFrameworkNET {
 
     // meant to be executed in the correct context
     // after loading "ourselves" via System::Reflection::Assembly::LoadFrom
-    bool PluginManager::LoadPlugins(uintptr_t param_raw) {
+    bool PluginManager::LoadPlugins(uintptr_t param_raw) try {
+        System::Console::WriteLine("LoadPlugins called");
+
         if (PluginManager::s_initialized) {
             return true;
         }
@@ -80,7 +96,11 @@ namespace REFrameworkNET {
         // Look for any DLLs in the "managed" directory, load them, then call a function in them (REFrameworkPlugin.Main)
         // This is useful for loading C# plugins
         // Create the REFramework::API class first though (managed)
-        PluginManager::s_api_instance = gcnew REFrameworkNET::API(param_raw);
+        if (PluginManager::s_api_instance == nullptr) {
+            PluginManager::s_api_instance = gcnew REFrameworkNET::API(param_raw);
+        }
+
+        LoadPlugins_FromSourceCode(param_raw);
         
         const auto managed_path = std::filesystem::current_path() / "reframework" / "plugins" / "managed";
         std::filesystem::create_directories(managed_path);
@@ -127,5 +147,129 @@ namespace REFrameworkNET {
         }
 
         return true;
+    } catch(System::Exception^ e) {
+        System::Console::WriteLine(e->Message);
+        // log stack
+        auto ex = e;
+        while (ex != nullptr) {
+            System::Console::WriteLine(ex->StackTrace);
+            ex = ex->InnerException;
+        }
+
+        return false;
+    } catch(const std::exception& e) {
+        System::Console::WriteLine(gcnew System::String(e.what()));
+        return false;
+    } catch(...) {
+        System::Console::WriteLine("Unknown exception caught");
+        return false;
+    }
+
+    bool PluginManager::LoadPlugins_FromSourceCode(uintptr_t param_raw) try {
+        if (PluginManager::s_api_instance == nullptr) {
+            PluginManager::s_api_instance = gcnew REFrameworkNET::API(param_raw);
+        }
+
+        System::Console::WriteLine("Test");
+        REFrameworkNET::API::LogInfo("Attempting to load plugins from source code...");
+
+        const auto plugins_path = std::filesystem::current_path() / "reframework" / "plugins";
+        const auto cs_files_path = plugins_path / "source";
+        std::filesystem::create_directories(cs_files_path);
+
+        String^ cs_files_dir = gcnew String(cs_files_path.wstring().c_str());
+
+        bool ever_found = false;
+
+        auto files = System::IO::Directory::GetFiles(cs_files_dir, "*.cs");
+
+        if (files->Length == 0) {
+            //API::get()->log_error("No C# files found in %s", csFilesDir);
+            return false;
+        }
+
+        auto intermediary = System::Reflection::Assembly::LoadFrom(gcnew String((plugins_path / "csharp-api-intermediary.dll").wstring().c_str()));
+
+        if (intermediary == nullptr) {
+            REFrameworkNET::API::LogError("Failed to load intermediary assembly, cannot compile C# files");
+            return false;
+        }
+
+        auto self = System::Reflection::Assembly::LoadFrom(System::Reflection::Assembly::GetExecutingAssembly()->Location);
+
+        for each (String^ file in files) {
+            Console::WriteLine(file);
+
+            // Compile the C# file, and then call a function in it (REFrameworkPlugin.Main)
+            // This is useful for loading C# plugins that don't want to be compiled into a DLL
+            //auto bytecode = DynamicRun::Builder::Compiler::Compile(file, self->Location);
+            // Dynamically look for DynamicRun.Builder.Compiler.Compile
+            auto type = intermediary->GetType("DynamicRun.Builder.Compiler");
+            if (type == nullptr) {
+                REFrameworkNET::API::LogError("Failed to get type DynamicRun.Builder.Compiler");
+                continue;
+            }
+            auto method = type->GetMethod("Compile", System::Reflection::BindingFlags::Static | System::Reflection::BindingFlags::Public);
+
+            if (method == nullptr) {
+                REFrameworkNET::API::LogError("Failed to get method DynamicRun.Builder.Compiler.Compile");
+                continue;
+            }
+
+            auto bytecode = (array<System::Byte>^)method->Invoke(nullptr, gcnew array<Object^>{file, self->Location});
+
+            if (bytecode == nullptr) {
+                REFrameworkNET::API::LogError("Failed to compile " + file);
+                continue;
+            }
+
+            auto assem = System::Reflection::Assembly::Load(bytecode);
+
+            if (assem == nullptr) {
+                REFrameworkNET::API::LogError("Failed to load assembly from " + file);
+                continue;
+            }
+
+            REFrameworkNET::API::LogInfo("Compiled " + file);
+
+            // Look for the Main method in the compiled assembly
+            for each (Type^ type in assem->GetTypes()) {
+                System::Reflection::MethodInfo^ mainMethod = type->GetMethod(
+                                                                "Main", 
+                                                                System::Reflection::BindingFlags::Static | System::Reflection::BindingFlags::Public,
+                                                                gcnew array<Type^>{REFrameworkNET::API::typeid});
+
+                if (mainMethod != nullptr) {
+                    Console::WriteLine("Found Main method in " + file);
+
+                    array<Object^>^ args = gcnew array<Object^>{PluginManager::s_api_instance};
+                    mainMethod->Invoke(nullptr, args);
+                    ever_found = true;
+                }
+            }
+        }
+
+        if (!ever_found) {
+            Console::WriteLine("No C# files compiled in " + cs_files_dir);
+        }
+
+        return true;
+    } catch(System::Exception^ e) {
+        REFrameworkNET::API::LogError(e->Message);
+
+        // log stack
+        auto ex = e;
+        while (ex != nullptr) {
+            REFrameworkNET::API::LogError(ex->StackTrace);
+            ex = ex->InnerException;
+        }
+
+        return false;
+    } catch(const std::exception& e) {
+        REFrameworkNET::API::LogError(gcnew System::String(e.what()));
+        return false;
+    } catch(...) {
+        REFrameworkNET::API::LogError("Unknown exception caught while compiling C# files");
+        return false;
     }
 }

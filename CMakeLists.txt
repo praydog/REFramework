@@ -44,7 +44,12 @@ option(REF_BUILD_DD2_SDK OFF)
 option(REF_BUILD_FRAMEWORK "Enable building the full REFramework" ON)
 option(REF_BUILD_DEPENDENCIES "Enable building dependencies" ON)
 
-project(reframework)
+project(reframework
+	LANGUAGES
+		CXX
+		C
+		CSharp
+)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MP")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
@@ -71,6 +76,18 @@ if ("${CMAKE_BUILD_TYPE}" MATCHES "Release")
 endif()
 
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
+set(NUGET_PACKAGES_DIR "$ENV{NUGET_PACKAGES}")
+
+# If NUGET_PACKAGES_DIR is not set, fall back to the default location
+if(NOT NUGET_PACKAGES_DIR)
+    if(WIN32)
+        set(DEFAULT_NUGET_PATH "$ENV{USERPROFILE}/.nuget/packages")
+    else()
+        set(DEFAULT_NUGET_PATH "$ENV{HOME}/.nuget/packages")
+    endif()
+    set(NUGET_PACKAGES_DIR ${DEFAULT_NUGET_PATH})
+endif()
 
 include(FetchContent)
 
@@ -13105,6 +13122,52 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	unset(CMKR_SOURCES)
 endif()
 
+# Target csharp-api-intermediary
+if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
+	set(CMKR_TARGET csharp-api-intermediary)
+	set(csharp-api-intermediary_SOURCES "")
+
+	list(APPEND csharp-api-intermediary_SOURCES
+		"csharp-api/Intermediary.cs"
+		"csharp-api/Compiler.cs"
+	)
+
+	list(APPEND csharp-api-intermediary_SOURCES
+		cmake.toml
+	)
+
+	set(CMKR_SOURCES ${csharp-api-intermediary_SOURCES})
+	add_library(csharp-api-intermediary SHARED)
+
+	if(csharp-api-intermediary_SOURCES)
+		target_sources(csharp-api-intermediary PRIVATE ${csharp-api-intermediary_SOURCES})
+	endif()
+
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${csharp-api-intermediary_SOURCES})
+
+	set_target_properties(csharp-api-intermediary PROPERTIES
+		RUNTIME_OUTPUT_DIRECTORY_RELEASE
+			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
+		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
+			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
+		LIBRARY_OUTPUT_DIRECTORY_RELEASE
+			"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+		DOTNET_SDK
+			Microsoft.NET.Sdk
+		DOTNET_TARGET_FRAMEWORK
+			net8.0
+		VS_CONFIGURATION_TYPE
+			ClassLibrary
+		VS_PACKAGE_REFERENCES
+			Microsoft.CodeAnalysis_4.9.2
+		CMAKE_CSharp_FLAGS
+			"/langversion:latest /platform:x64"
+	)
+
+	unset(CMKR_TARGET)
+	unset(CMKR_SOURCES)
+endif()
+
 # Target csharp-api
 if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	set(CMKR_TARGET csharp-api)
@@ -13148,6 +13211,9 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"include/"
 	)
 
+	target_link_libraries(csharp-api PUBLIC
+		csharp-api-intermediary
+	)
 
 	set_target_properties(csharp-api PROPERTIES
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE
@@ -13160,8 +13226,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 			netcore
 		DOTNET_TARGET_FRAMEWORK
 			net8.0
-		DOTNET_TARGET_FRAMEWORK_VERSION
-			v8.0
+		VS_GLOBAL_EnableManagedPackageReferenceSupport
+			true
 	)
 
 	# Custom command to compile the Test.cs file
@@ -13170,6 +13236,18 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	    COMMAND dotnet build ${CMAKE_CURRENT_SOURCE_DIR}/csharp-api/test/Test --configuration Release -o ${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}/ --framework net8.0
 	    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/csharp-api/test/
 	    COMMENT "Building C# test project"
+	)
+	
+# Copy nuget packages to the output directory
+	add_custom_command(
+	   TARGET csharp-api POST_BUILD
+	    COMMAND ${CMAKE_COMMAND} -E copy_directory ${NUGET_PACKAGES_DIR}/microsoft.codeanalysis.csharp/4.9.2/lib/net7.0 ${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}/
+	    COMMENT "Copying nuget packages"
+	)
+	add_custom_command(
+	   TARGET csharp-api POST_BUILD
+	    COMMAND ${CMAKE_COMMAND} -E copy_directory ${NUGET_PACKAGES_DIR}/microsoft.codeanalysis.common/4.9.2/lib/net7.0 ${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}/
+	    COMMENT "Copying nuget packages"
 	)
 
 	unset(CMKR_TARGET)
