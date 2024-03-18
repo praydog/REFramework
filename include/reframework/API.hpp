@@ -42,6 +42,19 @@ struct InvokeRet {
 };
 #pragma pack(pop)
 
+#ifdef __cplusplus_cli
+public ref struct DotNetInvokeRet {
+    property array<uint8_t>^ Bytes;
+    property uint8_t Byte;
+    property uint16_t Word;
+    property uint32_t DWord;
+    property float F;
+    property uint64_t QWord;
+    property double D;
+    property System::Object^ Ptr;
+    property bool ExceptionThrown;
+};
+#endif
 
 
 #ifdef __cplusplus_cli
@@ -238,24 +251,10 @@ public:
 #endif
 
 #ifdef __cplusplus_cli
-    ref struct DotNetInvokeRet {
-        array<uint8_t>^ Bytes;
-        uint8_t Byte;
-        uint16_t Word;
-        uint32_t DWord;
-        float F;
-        uint64_t QWord;
-        double D;
-        System::Object^ Ptr;
-        bool ExceptionThrown;
-    };
-#endif
-
-#ifdef __cplusplus_cli
     ref struct DotNetManagedSingleton {
-        API::ManagedObject^ instance;
-        API::TypeDefinition^ type;
-        API::TypeInfo^ type_info;
+        property API::ManagedObject^ Instance;
+        property API::TypeDefinition^ Type;
+        property API::TypeInfo^ TypeInfo;
     };
 
     System::Collections::Generic::List<DotNetManagedSingleton^>^ get_managed_singletons() CPP_MEMBER_CONST {
@@ -286,9 +285,9 @@ public:
 
         for (auto& s : out) {
             DotNetManagedSingleton^ managed = gcnew DotNetManagedSingleton();
-            managed->instance = REF_MAKE_POINTER(API::ManagedObject, s.instance);
-            managed->type = REF_MAKE_POINTER(API::TypeDefinition, s.t);
-            managed->type_info = REF_MAKE_POINTER(API::TypeInfo, s.type_info);
+            managed->Instance = REF_MAKE_POINTER(API::ManagedObject, s.instance);
+            managed->Type = REF_MAKE_POINTER(API::TypeDefinition, s.t);
+            managed->TypeInfo = REF_MAKE_POINTER(API::TypeInfo, s.type_info);
 
             out2->Add(managed);
         }
@@ -837,7 +836,23 @@ public:
             return API::s_instance->sdk()->method->get_num_params(*this);
         }
 
-        /*CPP_VECTOR(REFrameworkMethodParameter CPP_CONTAINER_RET) get_params() CPP_MEMBER_CONST {
+#ifdef __cplusplus_cli
+        ref struct DotNetMethodParameter {
+            DotNetMethodParameter(const REFrameworkMethodParameter& p) { 
+                Name = gcnew System::String(p.name);
+                Type = gcnew API::TypeDefinition(p.t);  
+            }
+
+            property System::String^ Name;
+            property API::TypeDefinition^ Type;
+        };
+#endif
+
+#ifdef __cplusplus_cli
+        System::Collections::Generic::List<DotNetMethodParameter^>^ get_params() {
+#else
+        std::vector<REFrameworkMethodParameter> get_params() CPP_MEMBER_CONST {
+#endif
             std::vector<REFrameworkMethodParameter> params;
             params.resize(get_num_params());
 
@@ -854,18 +869,17 @@ public:
 #endif
 
 #ifdef __cplusplus_cli
-            //cliext::vector<REFrameworkMethodParameter> out = gcnew cliext::vector<REFrameworkMethodParameter>();
-            System::Collections::Generic::List<REFrameworkMethodParameter^>^ out = gcnew System::Collections::Generic::List<REFrameworkMethodParameter^>();
+            System::Collections::Generic::List<DotNetMethodParameter^>^ out = gcnew System::Collections::Generic::List<DotNetMethodParameter^>();
 
-            for (auto p : params) {
-                //out->Add(gcnew REFrameworkMethodParameter(p));
+            for (auto& p : params) {
+                out->Add(gcnew DotNetMethodParameter(p));
             }
 
             return out;
-else
+#else
             return params;
 #endif
-        }*/
+        }
 
         uint32_t get_index() CPP_MEMBER_CONST {
             return API::s_instance->sdk()->method->get_index(*this);

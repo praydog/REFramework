@@ -115,9 +115,9 @@ public class TypeDefinitionWrapper
         return _original.get_vm_obj_type();
     }
 
-    public API.Method FindMethod(String name)
+    public MethodWrapper FindMethod(String name)
     {
-        return _original.find_method(name);
+        return new MethodWrapper(_original.find_method(name));
     }
 
     public API.Field FindField(String name)
@@ -130,9 +130,15 @@ public class TypeDefinitionWrapper
         return _original.find_property(name);
     }
 
-    public List<API.Method> GetMethods()
+    public List<MethodWrapper> GetMethods()
     {
-        return _original.get_methods();
+        var methods = _original.get_methods();
+        var result = new List<MethodWrapper>();
+        foreach (var method in methods) {
+            result.Add(new MethodWrapper(method));
+        }
+
+        return result;
     }
 
     public List<API.Field> GetFields()

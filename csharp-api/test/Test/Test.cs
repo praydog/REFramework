@@ -124,7 +124,7 @@ class REFrameworkPlugin {
         var singletons = api.GetManagedSingletons();
 
         foreach (var singletonDesc in singletons) {
-            var singleton = new ManagedObjectWrapper(singletonDesc.instance);
+            var singleton = new ManagedObjectWrapper(singletonDesc.Instance);
 
             Console.WriteLine(singleton.GetTypeDefinition().GetFullName());
 
@@ -133,7 +133,12 @@ class REFrameworkPlugin {
             var methods = td.GetMethods();
 
             foreach (var method in methods) {
-                Console.WriteLine(" " + method.get_name());
+                string postfix = "";
+                foreach (var param in method.GetParameters()) {
+                    postfix += new TypeDefinitionWrapper(param.Type).GetFullName() + " " + param.Name + ", ";
+                }
+
+                Console.WriteLine(" " + method.GetName() + " " + postfix);
             }
 
             var fields = td.GetFields();
@@ -149,7 +154,7 @@ class REFrameworkPlugin {
         Console.WriteLine("sceneManager_t: " + sceneManager_t);
         var get_CurrentScene = sceneManager_t.FindMethod("get_CurrentScene");
         Console.WriteLine("get_CurrentScene: " + get_CurrentScene);
-        var scene = get_CurrentScene.invoke(sceneManager, new object[]{}).Ptr;
+        var scene = get_CurrentScene.Invoke(sceneManager, new object[]{}).Ptr;
 
         Console.WriteLine("scene: " + scene);
 
@@ -159,7 +164,7 @@ class REFrameworkPlugin {
 
             Console.WriteLine("set_TimeScale: " + set_TimeScale);
 
-            set_TimeScale.invoke(scene, new object[]{ 0.1f });
+            set_TimeScale.Invoke(scene, new object[]{ 0.1f });
         }
     }
 };

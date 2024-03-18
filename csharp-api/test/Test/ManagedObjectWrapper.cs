@@ -52,7 +52,7 @@ public class ManagedObjectWrapper {
         return _original.get_reflection_method_descriptor(name);
     }*/
 
-    public DotNetInvokeRet Invoke(String methodName, object[] args) {
+    public reframework.DotNetInvokeRet Invoke(String methodName, object[] args) {
         return _original.invoke(methodName, args);
     }
 }
