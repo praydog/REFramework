@@ -10,6 +10,7 @@
 #include "ManagedObject.hpp"
 #include "TDB.hpp"
 #include "ManagedSingleton.hpp"
+#include "NativeObject.hpp"
 
 #include "Callbacks.hpp"
 
@@ -27,11 +28,19 @@ public:
     API(uintptr_t param);
     ~API();
 
-    REFrameworkNET::TDB^ GetTDB() {
+    static REFrameworkNET::TDB^ GetTDB() {
+        if (s_api == nullptr) {
+            throw gcnew System::InvalidOperationException("API is not initialized.");
+        }
+
         return gcnew REFrameworkNET::TDB(s_api->tdb());
     }
 
-    REFrameworkNET::ManagedObject^ GetManagedSingleton(System::String^ name) {
+    static REFrameworkNET::ManagedObject^ GetManagedSingleton(System::String^ name) {
+        if (s_api == nullptr) {
+            throw gcnew System::InvalidOperationException("API is not initialized.");
+        }
+
         auto result = s_api->get_managed_singleton(msclr::interop::marshal_as<std::string>(name));
 
         if (result == nullptr) {
@@ -41,7 +50,11 @@ public:
         return gcnew REFrameworkNET::ManagedObject(result);
     }
 
-    System::Collections::Generic::List<REFrameworkNET::ManagedSingleton^>^ GetManagedSingletons() {
+    static System::Collections::Generic::List<REFrameworkNET::ManagedSingleton^>^ GetManagedSingletons() {
+        if (s_api == nullptr) {
+            throw gcnew System::InvalidOperationException("API is not initialized.");
+        }
+
         auto singletons = s_api->get_managed_singletons();
         
         auto result = gcnew System::Collections::Generic::List<REFrameworkNET::ManagedSingleton^>();
@@ -61,7 +74,31 @@ public:
         return result;
     }
 
-    reframework::API* GetNativeImplementation() {
+    static NativeObject^ GetNativeSingleton(System::String^ name) {
+        if (s_api == nullptr) {
+            throw gcnew System::InvalidOperationException("API is not initialized.");
+        }
+
+        auto result = s_api->get_native_singleton(msclr::interop::marshal_as<std::string>(name));
+
+        if (result == nullptr) {
+            return nullptr;
+        }
+
+        auto t = GetTDB()->GetType(name);
+
+        if (t == nullptr) {
+            return nullptr;
+        }
+
+        return gcnew NativeObject(result, t);
+    }
+
+    static reframework::API* GetNativeImplementation() {
+        if (s_api == nullptr) {
+            throw gcnew System::InvalidOperationException("API is not initialized.");
+        }
+
         return s_api;
     }
 

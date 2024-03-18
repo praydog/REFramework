@@ -13116,6 +13116,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"csharp-api/REFrameworkNET/Callbacks.cpp"
 		"csharp-api/REFrameworkNET/ManagedObject.cpp"
 		"csharp-api/REFrameworkNET/Method.cpp"
+		"csharp-api/REFrameworkNET/NativeObject.cpp"
 		"csharp-api/REFrameworkNET/PluginManager.cpp"
 		"csharp-api/REFrameworkNET/TDB.cpp"
 		"csharp-api/REFrameworkNET/TypeDefinition.cpp"
