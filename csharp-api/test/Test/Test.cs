@@ -93,9 +93,10 @@ class REFrameworkPlugin {
     // Measure time between pre and post
     // get time
     static System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
+     static System.Diagnostics.Stopwatch sw2 = new System.Diagnostics.Stopwatch();
 
     public static void Main(REFrameworkNET.API api) {
-        Console.WriteLine("Testing REFrameworkAPI...");
+        REFrameworkNET.API.LogInfo("Testing REFrameworkAPI...");
 
         REFrameworkNET.Callbacks.BeginRendering.Pre += () => {
             sw.Start();
@@ -111,6 +112,14 @@ class REFrameworkPlugin {
         };
 
         REFrameworkNET.Callbacks.EndRendering.Post += () => {
+            if (!sw2.IsRunning) {
+                sw2.Start();
+            }
+
+            if (sw2.ElapsedMilliseconds >= 5000) {
+                sw2.Restart();
+                Console.WriteLine("EndRendering");
+            }
         };
 
         REFrameworkNET.Callbacks.FinalizeRenderer.Pre += () => {
@@ -132,11 +141,11 @@ class REFrameworkPlugin {
 
         var tdb = REFrameworkNET.API.GetTDB();
 
-        Console.WriteLine(tdb.GetNumTypes().ToString() + " types");
+        REFrameworkNET.API.LogInfo(tdb.GetNumTypes().ToString() + " types");
 
         for (uint i = 0; i < 50; i++) {
             var type = tdb.GetType(i);
-            Console.WriteLine(type.GetFullName());
+            REFrameworkNET.API.LogInfo(type.GetFullName());
 
             var methods = type.GetMethods();
 
@@ -144,7 +153,7 @@ class REFrameworkPlugin {
                 var returnT = method.GetReturnType();
                 var returnTName = returnT != null ? returnT.GetFullName() : "null";
 
-                Console.WriteLine(" " + returnTName + " " + method.GetName());
+                REFrameworkNET.API.LogInfo(" " + returnTName + " " + method.GetName());
             }
 
             var fields = type.GetFields();
@@ -152,11 +161,11 @@ class REFrameworkPlugin {
             foreach (var field in fields) {
                 var t = field.GetType();
                 string tName = t != null ? t.GetFullName() : "null";
-                Console.WriteLine(" " + tName + " " + field.GetName() + " @ " + "0x" + field.GetOffsetFromBase().ToString("X"));
+                REFrameworkNET.API.LogInfo(" " + tName + " " + field.GetName() + " @ " + "0x" + field.GetOffsetFromBase().ToString("X"));
             }
         }
 
-        Console.WriteLine("Done with types");
+        REFrameworkNET.API.LogInfo("Done with types");
 
         var singletons = REFrameworkNET.API.GetManagedSingletons();
 
@@ -189,22 +198,14 @@ class REFrameworkPlugin {
         }
 
         var sceneManager = REFrameworkNET.API.GetNativeSingleton("via.SceneManager");
-        Console.WriteLine("sceneManager: " + sceneManager);
         var sceneManager_t = tdb.FindType("via.SceneManager");
-        Console.WriteLine("sceneManager_t: " + sceneManager_t);
         var get_CurrentScene = sceneManager_t.FindMethod("get_CurrentScene");
-        Console.WriteLine("get_CurrentScene: " + get_CurrentScene);
         var scene = get_CurrentScene.Invoke(sceneManager, []).Ptr;
-
-        Console.WriteLine("scene: " + scene);
 
         if (scene != null) {
             var scene_t = tdb.FindType("via.Scene");
             var set_TimeScale = scene_t.FindMethod("set_TimeScale");
-
-            Console.WriteLine("set_TimeScale: " + set_TimeScale);
-
-            set_TimeScale.Invoke(scene, new object[]{0.1f});
+            set_TimeScale.Invoke(scene, [0.1f]);
         }
     }
 };
