@@ -11,6 +11,7 @@ ref class ManagedObject;
 ref class Method;
 ref class Field;
 ref class Property;
+ref class TypeInfo;
 
 public ref class TypeDefinition
 {
@@ -165,11 +166,7 @@ public:
         return gcnew TypeDefinition(result);
     }
 
-    /*API.TypeInfo GetTypeInfo()
-    {
-        return m_type->get_type_info();
-    }*/
-
+    REFrameworkNET::TypeInfo^ GetTypeInfo();
     ManagedObject^ GetRuntimeType();
 
     /*Void* GetInstance()

@@ -1,3 +1,4 @@
+#include "TypeInfo.hpp"
 #include "Method.hpp"
 #include "Field.hpp"
 #include "Property.hpp"
@@ -96,6 +97,17 @@ namespace REFrameworkNET {
         }
 
         return gcnew ManagedObject(result);
+    }
+
+    REFrameworkNET::TypeInfo^ TypeDefinition::GetTypeInfo()
+    {
+        auto result = m_type->get_type_info();
+
+        if (result == nullptr) {
+            return nullptr;
+        }
+
+        return gcnew REFrameworkNET::TypeInfo(result);
     }
 
     ManagedObject^ TypeDefinition::GetRuntimeType()

@@ -56,19 +56,41 @@ public:
     }
 
     System::String^ GetString(uint32_t index) {
+        if (index >= m_tdb->get_strings_size()) {
+            return nullptr;
+        }
+
         return gcnew System::String(m_tdb->get_string_database() + index);
     }
 
     TypeDefinition^ GetType(uint32_t index) {
-        return gcnew TypeDefinition(m_tdb->get_type(index));
+        auto result = m_tdb->get_type(index);
+
+        if (result == nullptr) {
+            return nullptr;
+        }
+
+        return gcnew TypeDefinition(result);
     }
 
     TypeDefinition^ FindType(System::String^ name) {
-        return gcnew TypeDefinition(m_tdb->find_type(msclr::interop::marshal_as<std::string>(name)));
+        auto result = m_tdb->find_type(msclr::interop::marshal_as<std::string>(name));
+
+        if (result == nullptr) {
+            return nullptr;
+        }
+        
+        return gcnew TypeDefinition(result);
     }
 
     TypeDefinition^ FindTypeByFqn(uint32_t fqn) {
-        return gcnew TypeDefinition(m_tdb->find_type_by_fqn(fqn));
+        auto result = m_tdb->find_type_by_fqn(fqn);
+
+        if (result == nullptr) {
+            return nullptr;
+        }
+
+        return gcnew TypeDefinition(result);
     }
 
     Method^ GetMethod(uint32_t index) {
@@ -76,19 +98,43 @@ public:
     }
 
     Method^ FindMethod(System::String^ type_name, System::String^ name) {
-        return gcnew Method(m_tdb->find_method(msclr::interop::marshal_as<std::string>(type_name), msclr::interop::marshal_as<std::string>(name)));
+        auto result = m_tdb->find_method(msclr::interop::marshal_as<std::string>(type_name), msclr::interop::marshal_as<std::string>(name));
+
+        if (result == nullptr) {
+            return nullptr;
+        }
+
+        return gcnew Method(result);
     }
 
     Field^ GetField(uint32_t index) {
-        return gcnew Field(m_tdb->get_field(index));
+        auto result = m_tdb->get_field(index);
+
+        if (result == nullptr) {
+            return nullptr;
+        }
+
+        return gcnew Field(result);
     }
 
     Field^ FindField(System::String^ type_name, System::String^ name) {
-        return gcnew Field(m_tdb->find_field(msclr::interop::marshal_as<std::string>(type_name), msclr::interop::marshal_as<std::string>(name)));
+        auto result = m_tdb->find_field(msclr::interop::marshal_as<std::string>(type_name), msclr::interop::marshal_as<std::string>(name));
+
+        if (result == nullptr) {
+            return nullptr;
+        }
+
+        return gcnew Field(result);
     }
 
     Property^ GetProperty(uint32_t index) {
-        return gcnew Property(m_tdb->get_property(index));
+        auto result = m_tdb->get_property(index);
+
+        if (result == nullptr) {
+            return nullptr;
+        }
+
+        return gcnew Property(result);
     }
 
 private:
