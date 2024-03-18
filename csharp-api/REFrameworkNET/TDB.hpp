@@ -83,6 +83,10 @@ public:
         return gcnew TypeDefinition(result);
     }
 
+    TypeDefinition^ GetType(System::String^ name) {
+        return FindType(name);
+    }
+
     TypeDefinition^ FindTypeByFqn(uint32_t fqn) {
         auto result = m_tdb->find_type_by_fqn(fqn);
 
@@ -107,6 +111,10 @@ public:
         return gcnew Method(result);
     }
 
+    Method^ GetMethod(System::String^ type_name, System::String^ name) {
+        return FindMethod(type_name, name);
+    }
+
     Field^ GetField(uint32_t index) {
         auto result = m_tdb->get_field(index);
 
@@ -125,6 +133,10 @@ public:
         }
 
         return gcnew Field(result);
+    }
+
+    Field^ GetField(System::String^ type_name, System::String^ name) {
+        return FindField(type_name, name);
     }
 
     Property^ GetProperty(uint32_t index) {
