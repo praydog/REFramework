@@ -5,17 +5,19 @@
 #include "./API.hpp"
 
 
-REFrameworkNET::API::API(uintptr_t param)
-    : m_api{ reframework::API::initialize(param) }
+REFrameworkNET::API::API(const REFrameworkPluginInitializeParam* param)
 {
     Console::WriteLine("REFrameworkNET.API Constructor called.");
+    s_api = reframework::API::initialize(param).get();
+}
+
+REFrameworkNET::API::API(uintptr_t param)
+{
+    Console::WriteLine("REFrameworkNET.API Constructor called.");
+    s_api = reframework::API::initialize((const REFrameworkPluginInitializeParam*)param).get();
 }
 
 REFrameworkNET::API::~API()
 {
     Console::WriteLine("REFrameworkNET.API Destructor called.");
-}
-
-reframework::API^ REFrameworkNET::API::Get() {
-    return m_api;
 }

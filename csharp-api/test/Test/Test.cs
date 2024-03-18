@@ -90,41 +90,51 @@ public static class ApiWrapperGenerator
 }
 
 class REFrameworkPlugin {
-    public static void Main(REFrameworkNET.API api_) {
+    public static void Main(REFrameworkNET.API api) {
         Console.WriteLine("Testing REFrameworkAPI...");
 
         // Convert api.Get() type to pass to GenerateWrapper
-        var currentDir = Directory.GetCurrentDirectory();
+        /*var currentDir = Directory.GetCurrentDirectory();
         var targetType = typeof(reframework.API.Method);
         var outputPath = Path.Combine(currentDir, "MethodWrapper.cs");
 
         ApiWrapperGenerator.GenerateWrapper(targetType, outputPath);
 
         // Open in explorer
-        System.Diagnostics.Process.Start("explorer.exe", currentDir);
+        System.Diagnostics.Process.Start("explorer.exe", currentDir);*/
 
-        var api = new APIWrapper(api_.Get());
         var tdb = api.GetTDB();
 
         Console.WriteLine(tdb.GetNumTypes().ToString() + " types");
 
-        /*var typesSorted = new System.Collections.Generic.List<String>();
+        for (uint i = 0; i < 50; i++) {
+            var type = tdb.GetType(i);
+            Console.WriteLine(type.GetFullName());
 
-        for (uint i = 0; i < tdb.GetNumTypes(); i++) {
-            var t = tdb.GetType(i);
-            if (t == null) {
-                continue;
+            var methods = type.GetMethods();
+
+            foreach (var method in methods) {
+                var returnT = method.GetReturnType();
+                var returnTName = returnT != null ? returnT.GetFullName() : "null";
+
+                Console.WriteLine(" " + returnTName + " " + method.GetName());
             }
 
-            typesSorted.Add(t.GetFullName());
+            var fields = type.GetFields();
+
+            foreach (var field in fields) {
+                var t = field.GetType();
+                string tName = t != null ? t.GetFullName() : "null";
+                Console.WriteLine(" " + tName + " " + field.GetName() + " @ " + "0x" + field.GetOffsetFromBase().ToString("X"));
+            }
         }
 
-        typesSorted.Sort();*/
+        Console.WriteLine("Done with types");
 
         var singletons = api.GetManagedSingletons();
 
         foreach (var singletonDesc in singletons) {
-            var singleton = new ManagedObjectWrapper(singletonDesc.Instance);
+            var singleton = singletonDesc.Instance;
 
             Console.WriteLine(singleton.GetTypeDefinition().GetFullName());
 
@@ -135,7 +145,7 @@ class REFrameworkPlugin {
             foreach (var method in methods) {
                 string postfix = "";
                 foreach (var param in method.GetParameters()) {
-                    postfix += new TypeDefinitionWrapper(param.Type).GetFullName() + " " + param.Name + ", ";
+                    postfix += param.Type.GetFullName() + " " + param.Name + ", ";
                 }
 
                 Console.WriteLine(" " + method.GetName() + " " + postfix);
@@ -144,11 +154,11 @@ class REFrameworkPlugin {
             var fields = td.GetFields();
 
             foreach (var field in fields) {
-                Console.WriteLine(" " + field.get_name());
+                Console.WriteLine(" " + field.GetName());
             }
         }
 
-        var sceneManager = api.GetNativeSingleton("via.SceneManager");
+        /*var sceneManager = api.GetNativeSingleton("via.SceneManager");
         Console.WriteLine("sceneManager: " + sceneManager);
         var sceneManager_t = tdb.FindType("via.SceneManager");
         Console.WriteLine("sceneManager_t: " + sceneManager_t);
@@ -165,6 +175,6 @@ class REFrameworkPlugin {
             Console.WriteLine("set_TimeScale: " + set_TimeScale);
 
             set_TimeScale.Invoke(scene, new object[]{ 0.1f });
-        }
+        }*/
     }
 };
