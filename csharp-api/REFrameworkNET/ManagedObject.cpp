@@ -5,6 +5,8 @@
 
 #include "ManagedObject.hpp"
 
+#include "API.hpp"
+
 namespace REFrameworkNET {
     TypeDefinition^ ManagedObject::GetTypeDefinition() {
         auto result = m_object->get_type_definition();
@@ -40,5 +42,28 @@ namespace REFrameworkNET {
         }
 
         return m->Invoke(this, args);
+    }
+
+    bool ManagedObject::TryInvokeMember(System::Dynamic::InvokeMemberBinder^ binder, array<System::Object^>^ args, System::Object^% result)
+    {
+        auto methodName = binder->Name;
+        auto t = this->GetTypeDefinition();
+
+        if (t == nullptr) {
+            return false;
+        }
+
+        auto method = t->FindMethod(methodName);
+
+        if (method != nullptr)
+        {
+            // Re-used with ManagedObject::TryInvokeMember
+            return method->HandleInvokeMember_Internal(this, binder, args, result);
+        }
+
+        REFrameworkNET::API::LogInfo("Method not found: " + methodName);
+
+        result = nullptr;
+        return false;
     }
 }

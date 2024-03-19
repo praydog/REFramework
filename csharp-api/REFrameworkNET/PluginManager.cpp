@@ -6,9 +6,6 @@ using namespace System;
 using namespace System::IO;
 using namespace System::Reflection;
 using namespace System::Collections::Generic;
-using namespace Microsoft::CodeAnalysis;
-using namespace Microsoft::CodeAnalysis::CSharp;
-using namespace Microsoft::CodeAnalysis::Text;
 using namespace msclr::interop;
 
 namespace REFrameworkNET {

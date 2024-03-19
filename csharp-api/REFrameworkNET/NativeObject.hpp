@@ -11,7 +11,8 @@ ref class InvokeRet;
 // However, they still have reflection information associated with them
 // So this intends to be the "ManagedObject" class for native objects
 // So we can easily interact with them in C#
-public ref class NativeObject {
+public ref class NativeObject : public System::Dynamic::DynamicObject
+{
 public:
     NativeObject(uintptr_t obj, TypeDefinition^ t){
         m_object = (void*)obj;
@@ -37,6 +38,7 @@ public:
 
     InvokeRet^ Invoke(System::String^ methodName, array<System::Object^>^ args);
 
+    virtual bool TryInvokeMember(System::Dynamic::InvokeMemberBinder^ binder, array<System::Object^>^ args, System::Object^% result) override;
 
 private:
     void* m_object{};
