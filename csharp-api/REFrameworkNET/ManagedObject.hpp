@@ -9,7 +9,7 @@ ref class TypeDefinition;
 ref class TypeInfo;
 ref class InvokeRet;
 
-public ref class ManagedObject {
+public ref class ManagedObject : public System::Dynamic::DynamicObject {
 public:
     ManagedObject(reframework::API::ManagedObject* obj) : m_object(obj) {
         AddRef();
@@ -49,6 +49,7 @@ public:
     TypeInfo^ GetTypeInfo();
 
     REFrameworkNET::InvokeRet^ Invoke(System::String^ methodName, array<System::Object^>^ args);
+    virtual bool TryInvokeMember(System::Dynamic::InvokeMemberBinder^ binder, array<System::Object^>^ args, System::Object^% result) override;
 
     // TODO methods:
     /*public Void* GetReflectionProperties() {

@@ -13,6 +13,7 @@ public:
     Method(reframework::API::Method* method) : m_method(method) {}
 
     REFrameworkNET::InvokeRet^ Invoke(System::Object^ obj, array<System::Object^>^ args);
+    bool HandleInvokeMember_Internal(System::Object^ obj, System::Dynamic::InvokeMemberBinder^ binder, array<System::Object^>^ args, System::Object^% result);
 
     /*Void* GetFunctionRaw() {
         return m_method->get_function_raw();

@@ -7,6 +7,11 @@ class REFrameworkPlugin {
     static System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
     static System.Diagnostics.Stopwatch sw2 = new System.Diagnostics.Stopwatch();
 
+    class Scene {
+        public void set_TimeScale(float timeScale) {
+
+        }
+    };
     public static void Main(REFrameworkNET.API api) {
         REFrameworkNET.API.LogInfo("Testing REFrameworkAPI...");
 
@@ -99,15 +104,17 @@ class REFrameworkPlugin {
             }
         }
 
-        var sceneManager = REFrameworkNET.API.GetNativeSingleton("via.SceneManager");
-        var sceneManager_t = tdb.FindType("via.SceneManager");
-        var get_CurrentScene = sceneManager_t.FindMethod("get_CurrentScene");
-        var scene = get_CurrentScene.Invoke(sceneManager, []).Ptr;
+        dynamic sceneManager = REFrameworkNET.API.GetNativeSingleton("via.SceneManager");
+        dynamic scene = sceneManager.get_CurrentScene();
 
         if (scene != null) {
-            var scene_t = tdb.FindType("via.Scene");
-            var set_TimeScale = scene_t.FindMethod("set_TimeScale");
-            set_TimeScale.Invoke(scene, [0.1f]);
+            var name = (scene as REFrameworkNET.ManagedObject).GetTypeDefinition().GetFullName();
+            REFrameworkNET.API.LogInfo("Scene type: " + name);
+            REFrameworkNET.API.LogInfo("Scene: " + scene.ToString());
+            
+            scene.set_TimeScale(0.1f);
+        } else {
+            REFrameworkNET.API.LogInfo("Scene is null");
         }
     }
 };
