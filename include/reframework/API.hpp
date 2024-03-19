@@ -606,7 +606,7 @@ public:
             return API::s_instance->sdk()->field->get_data_raw(*this, obj, is_value_type);
         }
 
-        template <typename T> T& get_data(void* object = nullptr, bool is_value_type = false) const { return *(T*)get_data_raw(object); }
+        template <typename T> T& get_data(void* object = nullptr, bool is_value_type = false) const { return *(T*)get_data_raw(object, is_value_type); }
     };
 
     struct Property {
