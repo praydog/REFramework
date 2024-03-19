@@ -5,6 +5,8 @@
 
 #include "Method.hpp"
 
+#include "Utility.hpp"
+
 namespace REFrameworkNET {
 REFrameworkNET::InvokeRet^ Method::Invoke(System::Object^ obj, array<System::Object^>^ args) {
     // We need to convert the managed objects to 8 byte representations
@@ -96,24 +98,57 @@ bool Method::HandleInvokeMember_Internal(System::Object^ obj, System::Dynamic::I
     auto tempResult = this->Invoke(obj, args);
 
     if (tempResult != nullptr && tempResult->QWord != 0) {
-        // Check if the result is a managed object
-        if (REFrameworkNET::ManagedObject::IsManagedObject((uintptr_t)tempResult->QWord)) {
-            result = gcnew REFrameworkNET::ManagedObject((::REFrameworkManagedObjectHandle)tempResult->QWord);
-        } else {
-            // Check the return type of the method and return it as a NativeObject if possible
-            auto returnType = this->GetReturnType();
+        auto returnType = this->GetReturnType();
 
-            if (returnType == nullptr) {
-                result = tempResult;
-                return true;
-            }
-
-            if (!returnType->IsValueType()) {
-                result = gcnew REFrameworkNET::NativeObject((uintptr_t)tempResult->QWord, returnType);
-                return true;
-            }
-
+        if (returnType == nullptr) {
             result = tempResult;
+            return true;
+        }
+
+        // Check the return type of the method and return it as a NativeObject if possible
+        if (!returnType->IsValueType()) {
+            if (returnType->GetVMObjType() == VMObjType::Object) {
+                if (tempResult->QWord == 0) {
+                    result = nullptr;
+                    return true;
+                }
+
+                result = gcnew REFrameworkNET::ManagedObject((::REFrameworkManagedObjectHandle)tempResult->QWord);
+                return true;
+            }
+
+            // TODO: other managed types
+            result = gcnew REFrameworkNET::NativeObject((uintptr_t)tempResult->QWord, returnType);
+            return true;
+        }
+
+        const auto raw_rt = (reframework::API::TypeDefinition*)returnType;
+
+        #define CONCAT_X_C(X, DOT, C) X ## DOT ## C
+
+        #define MAKE_TYPE_HANDLER_2(X, C, Y, Z) \
+            case CONCAT_X_C(#X, ".", #C)_fnv: \
+                result = gcnew X::C((Y)tempResult->Z); \
+                break;
+
+        switch (REFrameworkNET::hash(raw_rt->get_full_name().c_str())) {
+        MAKE_TYPE_HANDLER_2(System, Boolean, bool, Byte)
+        MAKE_TYPE_HANDLER_2(System, Byte, uint8_t, Byte)
+        MAKE_TYPE_HANDLER_2(System, UInt16, uint16_t, Word)
+        MAKE_TYPE_HANDLER_2(System, UInt32, uint32_t, DWord)
+        MAKE_TYPE_HANDLER_2(System, UInt64, uint64_t, QWord)
+        MAKE_TYPE_HANDLER_2(System, SByte, int8_t, Byte)
+        MAKE_TYPE_HANDLER_2(System, Int16, int16_t, Word)
+        MAKE_TYPE_HANDLER_2(System, Int32, int32_t, DWord)
+        MAKE_TYPE_HANDLER_2(System, Int64, int64_t, QWord)
+        // Because invoke wrappers returning a single actually return a double
+        // for consistency purposes
+        MAKE_TYPE_HANDLER_2(System, Single, double, Double)
+        MAKE_TYPE_HANDLER_2(System, Double, double, Double)
+
+        default:
+            result = tempResult;
+            break;
         }
     }
 

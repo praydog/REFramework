@@ -120,7 +120,7 @@ namespace REFrameworkNET {
         const auto managed_path = std::filesystem::current_path() / "reframework" / "plugins" / "managed";
         std::filesystem::create_directories(managed_path);
 
-        String^ managed_dir = gcnew String(managed_path.wstring().c_str());
+        System::String^ managed_dir = gcnew System::String(managed_path.wstring().c_str());
 
         bool ever_found = false;
         auto files = System::IO::Directory::GetFiles(managed_dir, "*.dll");
@@ -130,7 +130,7 @@ namespace REFrameworkNET {
             return false;
         }
 
-        for each (String^ file in files) {
+        for each (System::String^ file in files) {
             Console::WriteLine(file);
             System::Reflection::Assembly^ assem = System::Reflection::Assembly::LoadFrom(file);
 
@@ -192,7 +192,7 @@ namespace REFrameworkNET {
         const auto cs_files_path = plugins_path / "source";
         std::filesystem::create_directories(cs_files_path);
 
-        String^ cs_files_dir = gcnew String(cs_files_path.wstring().c_str());
+        System::String^ cs_files_dir = gcnew System::String(cs_files_path.wstring().c_str());
 
         bool ever_found = false;
 
@@ -205,8 +205,8 @@ namespace REFrameworkNET {
 
         auto self = System::Reflection::Assembly::LoadFrom(System::Reflection::Assembly::GetExecutingAssembly()->Location);
 
-        for each (String^ file in files) {
-            Console::WriteLine(file);
+        for each (System::String^ file in files) {
+            System::Console::WriteLine(file);
 
             // Compile the C# file, and then call a function in it (REFrameworkPlugin.Main)
             // This is useful for loading C# plugins that don't want to be compiled into a DLL

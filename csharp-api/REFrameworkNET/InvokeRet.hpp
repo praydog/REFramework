@@ -14,9 +14,9 @@ public ref struct InvokeRet {
         Byte = ret.byte;
         Word = ret.word;
         DWord = ret.dword;
-        F = ret.f;
+        Float = ret.f;
         QWord = ret.qword;
-        D = ret.d;
+        Double = ret.d;
         Ptr = gcnew System::UIntPtr(ret.ptr);
         ExceptionThrown = ret.exception_thrown;
     }
@@ -26,9 +26,9 @@ public ref struct InvokeRet {
     property uint8_t Byte;
     property uint16_t Word;
     property uint32_t DWord;
-    property float F;
+    property float Float;
     property uint64_t QWord;
-    property double D;
+    property double Double;
     property System::Object^ Ptr;
     property bool ExceptionThrown;
 };

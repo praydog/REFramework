@@ -13,6 +13,15 @@ ref class Field;
 ref class Property;
 ref class TypeInfo;
 
+public enum VMObjType {
+    NULL_ = 0,
+    Object = 1,
+    Array = 2,
+    String = 3,
+    Delegate = 4,
+    ValType = 5,
+};
+
 public ref class TypeDefinition
 {
 public:
@@ -33,7 +42,7 @@ public:
         return m_type->get_size();
     }
 
-    uint32_t GetValuetypeSize()
+    uint32_t GetValueTypeSize()
     {
         return m_type->get_valuetype_size();
     }
@@ -118,9 +127,9 @@ public:
         return m_type->is_primitive();
     }
 
-    uint32_t GetVmObjType()
+    VMObjType GetVMObjType()
     {
-        return m_type->get_vm_obj_type();
+        return (VMObjType)m_type->get_vm_obj_type();
     }
 
     REFrameworkNET::Method^ FindMethod(System::String^ name);

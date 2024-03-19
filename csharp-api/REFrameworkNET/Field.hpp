@@ -65,7 +65,7 @@ public:
 
     // I have no idea if this will work correctly
     template<typename T>
-    T GetData(uintptr_t obj, bool isValueType) {
+    T& GetData(uintptr_t obj, bool isValueType) {
         return m_field->get_data<T>((void*)obj, isValueType);
     }
 

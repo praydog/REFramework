@@ -105,16 +105,39 @@ class REFrameworkPlugin {
         }
 
         dynamic sceneManager = REFrameworkNET.API.GetNativeSingleton("via.SceneManager");
-        dynamic scene = sceneManager.get_CurrentScene();
+        dynamic scene = sceneManager?.get_CurrentScene();
 
-        if (scene != null) {
-            var name = (scene as REFrameworkNET.ManagedObject).GetTypeDefinition().GetFullName();
-            REFrameworkNET.API.LogInfo("Scene type: " + name);
-            REFrameworkNET.API.LogInfo("Scene: " + scene.ToString());
-            
-            scene.set_TimeScale(0.1f);
-        } else {
-            REFrameworkNET.API.LogInfo("Scene is null");
-        }
+        // Testing autocomplete for the concrete ManagedObject
+        REFrameworkNET.API.LogInfo("Scene: " + scene.ToString() + ": " + scene?.GetTypeDefinition()?.GetFullName()?.ToString());
+
+        // Testing dynamic invocation
+        float? currentTimescale = scene?.get_TimeScale();
+        scene?.set_TimeScale(0.1f);
+
+        REFrameworkNET.API.LogInfo("Previous timescale: " + currentTimescale.ToString());
+        REFrameworkNET.API.LogInfo("Current timescale: " + scene?.get_TimeScale().ToString());
+
+        dynamic optionManager = REFrameworkNET.API.GetManagedSingleton("app.OptionManager");
+
+        ulong optionManagerAddress = optionManager != null ? (optionManager as REFrameworkNET.ManagedObject).GetAddress() : 0;
+        bool? hasAnySave = optionManager?._HasAnySave;
+
+        REFrameworkNET.API.LogInfo("OptionManager: " + optionManager.ToString() + " @ " + optionManagerAddress.ToString("X"));
+        REFrameworkNET.API.LogInfo("HasAnySave: " + hasAnySave.ToString());
+
+        dynamic guiManager = REFrameworkNET.API.GetManagedSingleton("app.GuiManager");
+
+        ulong guiManagerAddress = guiManager != null ? (guiManager as REFrameworkNET.ManagedObject).GetAddress() : 0;
+        dynamic fadeOwnerCmn = guiManager?.FadeOwnerCmn;
+        dynamic optionData = guiManager?.OptionData;
+        dynamic optionDataFromGet = guiManager?.getOptionData();
+        bool? isDispSubtitle = optionData?._IsDispSubtitle;
+
+        REFrameworkNET.API.LogInfo("GuiManager: " + guiManager.ToString() + " @ " + guiManagerAddress.ToString("X"));
+        REFrameworkNET.API.LogInfo(" FadeOwnerCmn: " + fadeOwnerCmn.ToString());
+        REFrameworkNET.API.LogInfo(" OptionData: " + optionData.ToString() + ": " + optionData?.GetTypeDefinition()?.GetFullName()?.ToString());
+        REFrameworkNET.API.LogInfo(" OptionDataFromGet: " + optionDataFromGet.ToString() + ": " + optionDataFromGet?.GetTypeDefinition()?.GetFullName()?.ToString());
+        REFrameworkNET.API.LogInfo(" OptionDataFromGet same: " + (optionData?.Equals(optionDataFromGet)).ToString() + (" {0} vs {1}", optionData?.GetAddress().ToString("X"), optionDataFromGet?.GetAddress().ToString("X")));
+        REFrameworkNET.API.LogInfo("  IsDispSubtitle: " + isDispSubtitle.ToString());
     }
 };
