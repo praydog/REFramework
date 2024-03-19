@@ -4,6 +4,7 @@
 #include "NativeObject.hpp"
 
 #include "Method.hpp"
+#include "Field.hpp"
 
 #include "Utility.hpp"
 
@@ -117,6 +118,22 @@ bool Method::HandleInvokeMember_Internal(System::Object^ obj, System::Dynamic::I
                 return true;
             }
 
+            if (returnType->GetVMObjType() == VMObjType::String) {
+                if (tempResult->QWord == 0) {
+                    result = nullptr;
+                    return true;
+                }
+                
+                // Maybe don't create the GC version and just use the native one?
+                auto strObject = gcnew REFrameworkNET::ManagedObject((::REFrameworkManagedObjectHandle)tempResult->QWord);
+                auto strType = strObject->GetTypeDefinition();
+                const auto offset = strType->GetField("_firstChar")->GetOffsetFromBase();
+
+                wchar_t* chars = (wchar_t*)((uintptr_t)strObject->Ptr() + offset);
+                result = gcnew System::String(chars);
+                return true;
+            }
+
             // TODO: other managed types
             result = gcnew REFrameworkNET::NativeObject((uintptr_t)tempResult->QWord, returnType);
             return true;
@@ -145,7 +162,6 @@ bool Method::HandleInvokeMember_Internal(System::Object^ obj, System::Dynamic::I
         // for consistency purposes
         MAKE_TYPE_HANDLER_2(System, Single, double, Double)
         MAKE_TYPE_HANDLER_2(System, Double, double, Double)
-
         default:
             result = tempResult;
             break;
