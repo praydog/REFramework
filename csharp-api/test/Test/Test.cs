@@ -1,99 +1,11 @@
 // Import REFramework::API
-
 using System;
-using System.Reflection;
-
-using System.Text;
-using System.IO;
-
-public static class ApiWrapperGenerator
-{
-    public static void GenerateWrapper(Type type, string outputPath)
-    {
-        var sb = new StringBuilder();
-        sb.AppendLine("using System;");
-        sb.AppendFormat("public class {0}Wrapper\n", type.Name);
-        sb.AppendLine("{");
-        sb.AppendFormat("    private readonly {0} _original;\n\n", type.Name);
-        sb.AppendFormat("    public {0}Wrapper({0} original)\n", type.Name);
-        sb.AppendLine("    {");
-        sb.AppendLine("        _original = original;");
-        sb.AppendLine("    }\n");
-
-        foreach (var method in type.GetMethods(BindingFlags.Public | BindingFlags.Instance))
-        {
-            var pascalCaseName = ConvertToPascalCase(method.Name);
-            var parameters = method.GetParameters();
-
-            sb.AppendFormat("    public {0} {1}({2})\n",
-                method.ReturnType.Name, pascalCaseName, GetParameterDeclaration(parameters));
-            sb.AppendLine("    {");
-            sb.AppendFormat("        {0}_original.{1}({2});\n",
-                method.ReturnType.Name == "void" ? "" : "return ",
-                method.Name,
-                GetParameterInvocation(parameters));
-            sb.AppendLine("    }\n");
-        }
-
-        sb.AppendLine("}");
-
-        File.WriteAllText(outputPath, sb.ToString());
-    }
-
-    private static string ConvertToPascalCase(string snakeCaseName)
-    {
-        // Split the snake_case string into words
-        string[] words = snakeCaseName.Split('_');
-
-        // Capitalize the first letter of each word
-        for (int i = 0; i < words.Length; i++)
-        {
-            if (words[i].Length > 0)
-            {
-                words[i] = char.ToUpper(words[i][0]) + words[i].Substring(1);
-            }
-        }
-
-        // Join the words to form the PascalCase string
-        string pascalCaseName = string.Join("", words);
-
-        return pascalCaseName;
-    }
-
-    private static string GetParameterDeclaration(ParameterInfo[] parameters)
-    {
-        var sb = new StringBuilder();
-        for (int i = 0; i < parameters.Length; i++)
-        {
-            sb.AppendFormat("{0} {1}", parameters[i].ParameterType.Name, parameters[i].Name);
-            if (i < parameters.Length - 1)
-            {
-                sb.Append(", ");
-            }
-        }
-        return sb.ToString();
-    }
-
-    private static string GetParameterInvocation(ParameterInfo[] parameters)
-    {
-        var sb = new StringBuilder();
-        for (int i = 0; i < parameters.Length; i++)
-        {
-            sb.Append(parameters[i].Name);
-            if (i < parameters.Length - 1)
-            {
-                sb.Append(", ");
-            }
-        }
-        return sb.ToString();
-    }
-}
 
 class REFrameworkPlugin {
     // Measure time between pre and post
     // get time
     static System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
-     static System.Diagnostics.Stopwatch sw2 = new System.Diagnostics.Stopwatch();
+    static System.Diagnostics.Stopwatch sw2 = new System.Diagnostics.Stopwatch();
 
     public static void Main(REFrameworkNET.API api) {
         REFrameworkNET.API.LogInfo("Testing REFrameworkAPI...");
@@ -128,16 +40,6 @@ class REFrameworkPlugin {
 
         REFrameworkNET.Callbacks.PrepareRendering.Post += () => {
         };
-
-        // Convert api.Get() type to pass to GenerateWrapper
-        /*var currentDir = Directory.GetCurrentDirectory();
-        var targetType = typeof(reframework.API.Method);
-        var outputPath = Path.Combine(currentDir, "MethodWrapper.cs");
-
-        ApiWrapperGenerator.GenerateWrapper(targetType, outputPath);
-
-        // Open in explorer
-        System.Diagnostics.Process.Start("explorer.exe", currentDir);*/
 
         var tdb = REFrameworkNET.API.GetTDB();
 
