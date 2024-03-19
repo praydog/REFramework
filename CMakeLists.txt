@@ -13157,11 +13157,11 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 			net8.0
 		VS_CONFIGURATION_TYPE
 			ClassLibrary
-		VS_PACKAGE_REFERENCES
-			Microsoft.CodeAnalysis_4.9.2
 		CMAKE_CSharp_FLAGS
 			"/langversion:latest /platform:x64"
 	)
+
+	set_target_properties(REFCSharpCompiler PROPERTIES VS_PACKAGE_REFERENCES "Microsoft.CodeAnalysis_4.9.2")
 
 	unset(CMKR_TARGET)
 	unset(CMKR_SOURCES)
@@ -13231,15 +13231,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 			true
 	)
 
-	# Custom command to compile the Test.cs file
-	add_custom_command(
-	    TARGET csharp-api POST_BUILD
-	    COMMAND dotnet build ${CMAKE_CURRENT_SOURCE_DIR}/csharp-api/test/Test --configuration Release -o ${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}/ --framework net8.0
-	    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/csharp-api/test/
-	    COMMENT "Building C# test project"
-	)
-	
-# Copy nuget packages to the output directory
+	# Copy nuget packages to the output directory
 	add_custom_command(
 	   TARGET csharp-api POST_BUILD
 	    COMMAND ${CMAKE_COMMAND} -E copy_directory ${NUGET_PACKAGES_DIR}/microsoft.codeanalysis.csharp/4.9.2/lib/net7.0 ${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}/
@@ -13250,6 +13242,57 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	    COMMAND ${CMAKE_COMMAND} -E copy_directory ${NUGET_PACKAGES_DIR}/microsoft.codeanalysis.common/4.9.2/lib/net7.0 ${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}/
 	    COMMENT "Copying nuget packages"
 	)
+	set(REFRAMEWORK_DOT_NET_ASSEMBLY_PATH "${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}/REFramework.NET.dll")
+
+	unset(CMKR_TARGET)
+	unset(CMKR_SOURCES)
+endif()
+
+# Target CSharpAPITest
+if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
+	set(CMKR_TARGET CSharpAPITest)
+	set(CSharpAPITest_SOURCES "")
+
+	list(APPEND CSharpAPITest_SOURCES
+		"csharp-api/test/Test/Test.cs"
+	)
+
+	list(APPEND CSharpAPITest_SOURCES
+		cmake.toml
+	)
+
+	set(CMKR_SOURCES ${CSharpAPITest_SOURCES})
+	add_library(CSharpAPITest SHARED)
+
+	if(CSharpAPITest_SOURCES)
+		target_sources(CSharpAPITest PRIVATE ${CSharpAPITest_SOURCES})
+	endif()
+
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${CSharpAPITest_SOURCES})
+
+
+	set_target_properties(CSharpAPITest PROPERTIES
+		RUNTIME_OUTPUT_DIRECTORY_RELEASE
+			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
+		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
+			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
+		LIBRARY_OUTPUT_DIRECTORY_RELEASE
+			"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+		DOTNET_SDK
+			Microsoft.NET.Sdk
+		DOTNET_TARGET_FRAMEWORK
+			net8.0
+		VS_CONFIGURATION_TYPE
+			ClassLibrary
+		CMAKE_CSharp_FLAGS
+			"/langversion:latest /platform:x64"
+	)
+
+	set_target_properties(CSharpAPITest PROPERTIES
+	VS_DOTNET_REFERENCE_REFramework.NET
+	"${REFRAMEWORK_DOT_NET_ASSEMBLY_PATH}"
+	)
+	set_target_properties(CSharpAPITest PROPERTIES VS_PACKAGE_REFERENCES "REFramework.NET")
 
 	unset(CMKR_TARGET)
 	unset(CMKR_SOURCES)
