@@ -7,11 +7,6 @@ class REFrameworkPlugin {
     static System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
     static System.Diagnostics.Stopwatch sw2 = new System.Diagnostics.Stopwatch();
 
-    class Scene {
-        public void set_TimeScale(float timeScale) {
-
-        }
-    };
     public static void Main(REFrameworkNET.API api) {
         REFrameworkNET.API.LogInfo("Testing REFrameworkAPI...");
 
@@ -144,6 +139,16 @@ class REFrameworkPlugin {
         if (optionData != null) {
             optionData._IsDispSubtitle = !isDispSubtitle;
             REFrameworkNET.API.LogInfo("  IsDispSubtitle: " + optionData?._IsDispSubtitle.ToString());
+        }
+
+        dynamic test = (guiManager as REFrameworkNET.ManagedObject)?.GetTypeDefinition()?.GetRuntimeType();
+
+        if (test != null) {
+            REFrameworkNET.API.LogInfo("GuiManager runtime type: " + test.ToString());
+
+            // This is basically a System.Type, so lets get the assembly location
+            REFrameworkNET.API.LogInfo("GuiManager runtime type assembly: " + test.get_Assembly());
+            REFrameworkNET.API.LogInfo("GuiManager runtime type assembly name: " + test.get_Assembly().get_Location());
         }
     }
 };
