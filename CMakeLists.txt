@@ -13270,6 +13270,9 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 
 	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${CSharpAPITest_SOURCES})
 
+	target_link_libraries(CSharpAPITest PUBLIC
+		csharp-api
+	)
 
 	set_target_properties(CSharpAPITest PROPERTIES
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE

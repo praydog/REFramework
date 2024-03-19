@@ -455,6 +455,7 @@ type = "CSharpSharedTarget"
 condition = "build-framework"
 sources = ["csharp-api/test/Test/**.cs"]
 link-libraries = [
+    "csharp-api"
 ]
 
 cmake-after = """
