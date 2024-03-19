@@ -206,7 +206,7 @@ namespace REFrameworkNET {
 
     bool ManagedObject::TrySetMember(System::Dynamic::SetMemberBinder^ binder, System::Object^ value)
     {
-        /*auto memberName = binder->Name;
+        auto memberName = binder->Name;
         auto t = this->GetTypeDefinition();
 
         if (t == nullptr) {
@@ -217,19 +217,43 @@ namespace REFrameworkNET {
 
         if (field != nullptr)
         {
-            field->SetValue(this, value);
+            const auto field_type = field->GetType();
+
+            if (field_type == nullptr) {
+                return false;
+            }
+
+            const auto raw_ft = (reframework::API::TypeDefinition*)field_type;
+            const uintptr_t addr = field->IsStatic() ? 0 : this->GetAddress();
+            const auto vm_obj_type = field_type->GetVMObjType();
+
+            #define MAKE_TYPE_HANDLER_SET(X, Y) \
+                case ##X##_fnv: \
+                    field->GetData<##Y##>(addr, field_type->IsValueType()) = (Y)value; \
+                    break;
+            
+            switch (REFrameworkNET::hash(raw_ft->get_full_name())) {
+                MAKE_TYPE_HANDLER_SET("System.Boolean", bool)
+                MAKE_TYPE_HANDLER_SET("System.Byte", uint8_t)
+                MAKE_TYPE_HANDLER_SET("System.SByte", int8_t)
+                MAKE_TYPE_HANDLER_SET("System.Int16", int16_t)
+                MAKE_TYPE_HANDLER_SET("System.UInt16", uint16_t)
+                MAKE_TYPE_HANDLER_SET("System.Int32", int32_t)
+                MAKE_TYPE_HANDLER_SET("System.UInt32", uint32_t)
+                MAKE_TYPE_HANDLER_SET("System.Int64", int64_t)
+                MAKE_TYPE_HANDLER_SET("System.UInt64", uint64_t)
+                MAKE_TYPE_HANDLER_SET("System.Single", float)
+                MAKE_TYPE_HANDLER_SET("System.Double", double)
+                MAKE_TYPE_HANDLER_SET("System.Char", wchar_t)
+                MAKE_TYPE_HANDLER_SET("System.IntPtr", intptr_t)
+                MAKE_TYPE_HANDLER_SET("System.UIntPtr", uintptr_t)
+
+            default:
+                break;
+            }
+
             return true;
         }
-
-        auto property = t->FindProperty(memberName);
-
-        if (property != nullptr)
-        {
-            property->SetValue(this, value);
-            return true;
-        }
-
-        REFrameworkNET::API::LogInfo("Member not found: " + memberName);*/
 
         return false;
     }
