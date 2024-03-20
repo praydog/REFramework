@@ -95,6 +95,8 @@ public:
     TypeDefinition^ GetTypeDefinition();
     TypeInfo^ GetTypeInfo();
 
+    bool HandleInvokeMember_Internal(System::String^ methodName, array<System::Object^>^ args, System::Object^% result);
+
     REFrameworkNET::InvokeRet^ Invoke(System::String^ methodName, array<System::Object^>^ args);
     virtual bool TryInvokeMember(System::Dynamic::InvokeMemberBinder^ binder, array<System::Object^>^ args, System::Object^% result) override;
     virtual bool TryGetMember(System::Dynamic::GetMemberBinder^ binder, System::Object^% result) override;

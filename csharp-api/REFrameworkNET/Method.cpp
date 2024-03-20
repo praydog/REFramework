@@ -94,8 +94,8 @@ REFrameworkNET::InvokeRet^ Method::Invoke(System::Object^ obj, array<System::Obj
     return gcnew REFrameworkNET::InvokeRet(native_result);
 }
 
-bool Method::HandleInvokeMember_Internal(System::Object^ obj, System::Dynamic::InvokeMemberBinder^ binder, array<System::Object^>^ args, System::Object^% result) {
-    auto methodName = binder->Name;
+bool Method::HandleInvokeMember_Internal(System::Object^ obj, System::String^ methodName, array<System::Object^>^ args, System::Object^% result) {
+    //auto methodName = binder->Name;
     auto tempResult = this->Invoke(obj, args);
 
     if (tempResult != nullptr && tempResult->QWord != 0) {
