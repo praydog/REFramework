@@ -38,6 +38,7 @@ public:
 
     InvokeRet^ Invoke(System::String^ methodName, array<System::Object^>^ args);
 
+    bool HandleInvokeMember_Internal(System::String^ methodName, array<System::Object^>^ args, System::Object^% result);
     virtual bool TryInvokeMember(System::Dynamic::InvokeMemberBinder^ binder, array<System::Object^>^ args, System::Object^% result) override;
 
 private:

@@ -21,20 +21,25 @@ InvokeRet^ NativeObject::Invoke(System::String^ methodName, array<System::Object
     return m->Invoke(this, args);
 }
 
-bool NativeObject::TryInvokeMember(System::Dynamic::InvokeMemberBinder^ binder, array<System::Object^>^ args, System::Object^% result)
-{
-    auto methodName = binder->Name;
-    auto method = m_type->FindMethod(methodName);
-
-    if (method != nullptr)
-    {
-        // Re-used with ManagedObject::TryInvokeMember
-        return method->HandleInvokeMember_Internal(this, binder, args, result);
+bool NativeObject::HandleInvokeMember_Internal(System::String^ methodName, array<System::Object^>^ args, System::Object^% result) {
+    auto t = this->GetTypeDefinition();
+    
+    if (t == nullptr) {
+        return false;
     }
 
-    REFrameworkNET::API::LogInfo("Method not found: " + methodName);
+    auto m = t->GetMethod(methodName);
 
-    result = nullptr;
-    return false;
+    if (m == nullptr) {   
+        REFrameworkNET::API::LogInfo("Method not found: " + methodName);
+        return false;
+    }
+
+    return m->HandleInvokeMember_Internal(this, methodName, args, result);
+}
+
+bool NativeObject::TryInvokeMember(System::Dynamic::InvokeMemberBinder^ binder, array<System::Object^>^ args, System::Object^% result)
+{
+    return HandleInvokeMember_Internal(binder->Name, args, result);
 }
 }

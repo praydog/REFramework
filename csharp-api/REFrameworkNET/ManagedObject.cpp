@@ -48,9 +48,7 @@ namespace REFrameworkNET {
         return m->Invoke(this, args);
     }
 
-    bool ManagedObject::TryInvokeMember(System::Dynamic::InvokeMemberBinder^ binder, array<System::Object^>^ args, System::Object^% result)
-    {
-        auto methodName = binder->Name;
+    bool ManagedObject::HandleInvokeMember_Internal(System::String^ methodName, array<System::Object^>^ args, System::Object^% result) {
         auto t = this->GetTypeDefinition();
 
         if (t == nullptr) {
@@ -62,13 +60,19 @@ namespace REFrameworkNET {
         if (method != nullptr)
         {
             // Re-used with ManagedObject::TryInvokeMember
-            return method->HandleInvokeMember_Internal(this, binder, args, result);
+            return method->HandleInvokeMember_Internal(this, methodName, args, result);
         }
 
         REFrameworkNET::API::LogInfo("Method not found: " + methodName);
 
         result = nullptr;
         return false;
+    }
+
+    bool ManagedObject::TryInvokeMember(System::Dynamic::InvokeMemberBinder^ binder, array<System::Object^>^ args, System::Object^% result)
+    {
+        auto methodName = binder->Name;
+        return HandleInvokeMember_Internal(methodName, args, result);
     }
 
     bool ManagedObject::TryGetMember(System::Dynamic::GetMemberBinder^ binder, System::Object^% result)
