@@ -1081,6 +1081,10 @@ void ObjectExplorer::generate_sdk() {
         type_entry["is_generic_type"] = t.is_generic_type();
         type_entry["is_generic_type_definition"] = t.is_generic_type_definition();
 
+        if (auto declaring_type = t.get_declaring_type(); declaring_type != nullptr) {
+            type_entry["declaring_type"] = declaring_type->get_full_name();
+        }
+
         if (auto gtd = t.get_generic_type_definition(); gtd != nullptr) {
             type_entry["generic_type_definition"] = gtd->get_full_name();
         }
