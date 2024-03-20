@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Reflection.Metadata;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -11,13 +13,13 @@ namespace REFrameworkNET
 {
     public class Compiler
     {
-        static public byte[] Compile(string filepath, string fromLocation)
+        static public byte[] Compile(string filepath, Assembly executingAssembly, List<Assembly> deps)
         {
             var sourceCode = File.ReadAllText(filepath);
 
             using (var peStream = new MemoryStream())
             {
-                var result = GenerateCode(sourceCode, filepath, fromLocation).Emit(peStream);
+                var result = GenerateCode(sourceCode, filepath, executingAssembly, deps).Emit(peStream);
 
                 if (!result.Success)
                 {
@@ -41,7 +43,7 @@ namespace REFrameworkNET
             }
         }
 
-        private static CSharpCompilation GenerateCode(string sourceCode, string filePath, string fromLocation)
+        private static CSharpCompilation GenerateCode(string sourceCode, string filePath, Assembly executingAssembly, List<Assembly> deps)
         {
             var codeString = SourceText.From(sourceCode);
             var options = CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.CSharp12);
@@ -58,8 +60,14 @@ namespace REFrameworkNET
                 typeof(System.Linq.Enumerable).Assembly.Location,
                 typeof(System.Runtime.AssemblyTargetedPatchBandAttribute).Assembly.Location,
                 typeof(Microsoft.CSharp.RuntimeBinder.CSharpArgumentInfo).Assembly.Location,
-                fromLocation,
+                executingAssembly.Location
             };
+
+            // Add all the dependencies to the references
+            foreach (var dep in deps)
+            {
+                referencesStr.Add(dep.Location);
+            }
 
             // Add all the DLLs to the references
             foreach (var dll in dlls)

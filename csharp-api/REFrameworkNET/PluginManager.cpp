@@ -77,6 +77,50 @@ namespace REFrameworkNET {
         return false;
     }
 
+    System::Collections::Generic::List<System::Reflection::Assembly^>^ PluginManager::LoadDependencies() {
+        REFrameworkNET::API::LogInfo("Loading managed dependencies...");
+
+        const auto dependencies_path = std::filesystem::current_path() / "reframework" / "plugins" / "managed" / "dependencies";
+
+        std::filesystem::create_directories(dependencies_path);
+
+        auto files = System::IO::Directory::GetFiles(gcnew System::String(dependencies_path.wstring().c_str()), "*.dll");
+
+        auto dependencies_dir = gcnew System::String(dependencies_path.wstring().c_str());
+        auto assemblies = gcnew System::Collections::Generic::List<System::Reflection::Assembly^>();
+
+        if (files->Length == 0) {
+            REFrameworkNET::API::LogInfo("No dependencies found in " + dependencies_dir);
+            return assemblies;
+        }
+
+        REFrameworkNET::API::LogInfo("Loading dependencies from " + dependencies_dir + "...");
+        
+        for each (System::String^ file in files) {
+            try {
+                REFrameworkNET::API::LogInfo("Loading dependency " + file + "...");
+                if (auto assem = System::Reflection::Assembly::LoadFrom(file); assem != nullptr) {
+                    assemblies->Add(assem);
+                    REFrameworkNET::API::LogInfo("Loaded " + file);
+                }
+            } catch(System::Exception^ e) {
+                REFrameworkNET::API::LogInfo(e->Message);
+                // log stack
+                auto ex = e;
+                while (ex != nullptr) {
+                    REFrameworkNET::API::LogInfo(ex->StackTrace);
+                    ex = ex->InnerException;
+                }
+            } catch(const std::exception& e) {
+                REFrameworkNET::API::LogInfo(gcnew System::String(e.what()));
+            } catch(...) {
+                REFrameworkNET::API::LogInfo("Unknown exception caught while loading dependency " + file);
+            }
+        }
+
+        return assemblies;
+    }
+
     // meant to be executed in the correct context
     // after loading "ourselves" via System::Reflection::Assembly::LoadFrom
     bool PluginManager::LoadPlugins(uintptr_t param_raw) try {
@@ -97,10 +141,12 @@ namespace REFrameworkNET {
             PluginManager::s_api_instance = gcnew REFrameworkNET::API(param_raw);
         }
 
+        auto deps = LoadDependencies(); // Pre-loads DLLs in the dependencies folder before loading the plugins
+
         // Try-catch because the user might not have the compiler
         // dependencies in the plugins directory
         try {
-            LoadPlugins_FromSourceCode(param_raw);
+            LoadPlugins_FromSourceCode(param_raw, deps);
         } catch (System::Exception^ e) {
             REFrameworkNET::API::LogError("Could not load plugins from source code: " + e->Message);
 
@@ -180,7 +226,7 @@ namespace REFrameworkNET {
         return false;
     }
 
-    bool PluginManager::LoadPlugins_FromSourceCode(uintptr_t param_raw) try {
+    bool PluginManager::LoadPlugins_FromSourceCode(uintptr_t param_raw, System::Collections::Generic::List<System::Reflection::Assembly^>^ deps) try {
         if (PluginManager::s_api_instance == nullptr) {
             PluginManager::s_api_instance = gcnew REFrameworkNET::API(param_raw);
         }
@@ -210,7 +256,7 @@ namespace REFrameworkNET {
 
             // Compile the C# file, and then call a function in it (REFrameworkPlugin.Main)
             // This is useful for loading C# plugins that don't want to be compiled into a DLL
-            auto bytecode = REFrameworkNET::Compiler::Compile(file, self->Location);
+            auto bytecode = REFrameworkNET::Compiler::Compile(file, self, deps);
             // Dynamically look for DynamicRun.Builder.Compiler.Compile
             /*auto type = intermediary->GetType("DynamicRun.Builder.Compiler");
             if (type == nullptr) {
