@@ -1,0 +1,139 @@
+# Reference: https://build-cpp.github.io/cmkr/cmake-toml
+# to build:
+# > cmake -B build
+# > cmake --build build --config Release
+[project]
+name = "CSharpAPIProject"
+languages = ["CXX", "C", "CSharp"]
+cmake-after = """
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MP")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
+
+# Disable exceptions
+# string(REGEX REPLACE "/EHsc" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+
+set(ASMJIT_STATIC ON CACHE BOOL "" FORCE)
+set(DYNAMIC_LOADER ON CACHE BOOL "" FORCE) # OpenXR
+set(BUILD_TOOLS OFF CACHE BOOL "" FORCE) # DirectXTK
+
+if ("${CMAKE_BUILD_TYPE}" MATCHES "Release")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MT")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MT")
+
+    # Statically compile runtime
+    string(REGEX REPLACE "/MD" "/MT" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+    string(REGEX REPLACE "/MD" "/MT" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
+    string(REGEX REPLACE "/MD" "/MT" CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
+    string(REGEX REPLACE "/MD" "/MT" CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE}")
+    
+    message(NOTICE "Building in Release mode")
+endif()
+
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
+set(NUGET_PACKAGES_DIR "$ENV{NUGET_PACKAGES}")
+
+# If NUGET_PACKAGES_DIR is not set, fall back to the default location
+if(NOT NUGET_PACKAGES_DIR)
+    if(WIN32)
+        set(DEFAULT_NUGET_PATH "$ENV{USERPROFILE}/.nuget/packages")
+    else()
+        set(DEFAULT_NUGET_PATH "$ENV{HOME}/.nuget/packages")
+    endif()
+    set(NUGET_PACKAGES_DIR ${DEFAULT_NUGET_PATH})
+endif()
+"""
+
+[template.CSharpSharedTarget]
+type = "shared"
+
+[template.CSharpSharedTarget.properties]
+RUNTIME_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/bin/"
+RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO = "${CMAKE_BINARY_DIR}/bin"
+LIBRARY_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/lib"
+DOTNET_SDK = "Microsoft.NET.Sdk"
+DOTNET_TARGET_FRAMEWORK = "net8.0-windows"
+VS_CONFIGURATION_TYPE = "ClassLibrary"
+CMAKE_CSharp_FLAGS = "/langversion:latest /platform:x64"
+
+[target.REFCSharpCompiler]
+type = "CSharpSharedTarget"
+sources = ["Compiler/**.cs"]
+
+# Not using .properties here because it overrides the template properties for whatever reason
+cmake-after = """
+set_target_properties(REFCSharpCompiler PROPERTIES VS_PACKAGE_REFERENCES "Microsoft.CodeAnalysis_4.9.2")
+"""
+
+[target.csharp-api]
+type = "shared"
+include-directories = ["../include/"]
+sources = ["REFrameworkNET/**.cpp", "REFrameworkNET/**.c"]
+headers = ["REFrameworkNET/**.hpp", "REFrameworkNET/**.h"]
+compile-features = ["cxx_std_20"]
+compile-options = ["/EHa", "/MD"]
+link-libraries = [
+    "REFCSharpCompiler"
+]
+cmake-after = """
+# Copy nuget packages to the output directory
+add_custom_command(
+   TARGET csharp-api POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${NUGET_PACKAGES_DIR}/microsoft.codeanalysis.csharp/4.9.2/lib/net7.0 ${CMAKE_BINARY_DIR}/bin//
+    COMMENT "Copying nuget packages"
+)
+add_custom_command(
+   TARGET csharp-api POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${NUGET_PACKAGES_DIR}/microsoft.codeanalysis.common/4.9.2/lib/net7.0 ${CMAKE_BINARY_DIR}/bin//
+    COMMENT "Copying nuget packages"
+)
+set(REFRAMEWORK_DOT_NET_ASSEMBLY_DIR "${CMAKE_BINARY_DIR}/bin")
+set(REFRAMEWORK_DOT_NET_ASSEMBLY_PATH "${CMAKE_BINARY_DIR}/bin/REFramework.NET.dll")
+"""
+
+[target.csharp-api.properties]
+OUTPUT_NAME = "REFramework.NET"
+RUNTIME_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/bin/"
+RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO = "${CMAKE_BINARY_DIR}/bin/"
+LIBRARY_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/lib/"
+COMMON_LANGUAGE_RUNTIME = "netcore"
+DOTNET_TARGET_FRAMEWORK = "net8.0-windows"
+# DOTNET_TARGET_FRAMEWORK_VERSION = "net8.0"
+VS_GLOBAL_EnableManagedPackageReferenceSupport = "true"
+# VS_PACKAGE_REFERENCES = "Microsoft.CodeAnalysis_4.9.2"
+
+[target.AssemblyGenerator]
+type = "CSharpSharedTarget"
+sources = ["AssemblyGenerator/**.cs"]
+link-libraries = [
+    "csharp-api",
+    "REFCSharpCompiler"
+]
+cmake-after = """
+set_target_properties(AssemblyGenerator PROPERTIES
+VS_DOTNET_REFERENCE_REFramework.NET
+"${REFRAMEWORK_DOT_NET_ASSEMBLY_PATH}"
+)
+"""
+
+[target.CSharpAPITest]
+type = "CSharpSharedTarget"
+sources = ["test/Test/**.cs"]
+link-libraries = [
+    "csharp-api"
+]
+
+cmake-after = """
+set_target_properties(CSharpAPITest PROPERTIES
+VS_DOTNET_REFERENCE_REFramework.NET
+"${REFRAMEWORK_DOT_NET_ASSEMBLY_PATH}"
+)
+
+set_target_properties(CSharpAPITest PROPERTIES
+VS_DOTNET_REFERENCE_via
+"${REFRAMEWORK_DOT_NET_ASSEMBLY_DIR}/DynamicAssembly.dll"
+)
+
+set_target_properties(CSharpAPITest PROPERTIES VS_PACKAGE_REFERENCES "via")
+
+"""

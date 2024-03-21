@@ -267,6 +267,7 @@ LIBRARY_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
 LIBRARY_OUTPUT_DIRECTORY_RELWITHDEBINFO = "${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
 ARCHIVE_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
 ARCHIVE_OUTPUT_DIRECTORY_RELWITHDEBINFO = "${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+# VS_GLOBAL_ResolveNuGetPackages = "false"
 
 [target.RE2SDK]
 type = "sdk"
@@ -391,77 +392,3 @@ link-libraries = [
 [target.weapon_stay_big_plugin]
 type = "plugin"
 sources = ["examples/weapon_stay_big_plugin/weapon_stay_big.cpp"]
-
-[template.CSharpSharedTarget]
-type = "shared"
-
-[template.CSharpSharedTarget.properties]
-RUNTIME_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
-RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO = "${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
-LIBRARY_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
-DOTNET_SDK = "Microsoft.NET.Sdk"
-DOTNET_TARGET_FRAMEWORK = "net8.0"
-VS_CONFIGURATION_TYPE = "ClassLibrary"
-CMAKE_CSharp_FLAGS = "/langversion:latest /platform:x64"
-
-[target.REFCSharpCompiler]
-type = "CSharpSharedTarget"
-condition = "build-framework"
-sources = ["csharp-api/Compiler/Compiler.cs"]
-
-# Not using .properties here because it overrides the template properties for whatever reason
-cmake-after = """
-set_target_properties(REFCSharpCompiler PROPERTIES VS_PACKAGE_REFERENCES "Microsoft.CodeAnalysis_4.9.2")
-"""
-
-[target.csharp-api]
-type = "shared"
-include-directories = ["include/"]
-sources = ["csharp-api/**.cpp", "csharp-api/**.c"]
-compile-features = ["cxx_std_20"]
-compile-options = ["/EHa", "/MD"]
-condition = "build-framework"
-link-libraries = [
-    "REFCSharpCompiler"
-]
-cmake-after = """
-# Copy nuget packages to the output directory
-add_custom_command(
-   TARGET csharp-api POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${NUGET_PACKAGES_DIR}/microsoft.codeanalysis.csharp/4.9.2/lib/net7.0 ${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}/
-    COMMENT "Copying nuget packages"
-)
-add_custom_command(
-   TARGET csharp-api POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${NUGET_PACKAGES_DIR}/microsoft.codeanalysis.common/4.9.2/lib/net7.0 ${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}/
-    COMMENT "Copying nuget packages"
-)
-set(REFRAMEWORK_DOT_NET_ASSEMBLY_PATH "${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}/REFramework.NET.dll")
-"""
-
-[target.csharp-api.properties]
-OUTPUT_NAME = "REFramework.NET"
-RUNTIME_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
-RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO = "${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
-LIBRARY_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
-COMMON_LANGUAGE_RUNTIME = "netcore"
-DOTNET_TARGET_FRAMEWORK = "net8.0"
-# DOTNET_TARGET_FRAMEWORK_VERSION = "net8.0"
-VS_GLOBAL_EnableManagedPackageReferenceSupport = "true"
-# VS_PACKAGE_REFERENCES = "Microsoft.CodeAnalysis_4.9.2"
-
-[target.CSharpAPITest]
-type = "CSharpSharedTarget"
-condition = "build-framework"
-sources = ["csharp-api/test/Test/**.cs"]
-link-libraries = [
-    "csharp-api"
-]
-
-cmake-after = """
-set_target_properties(CSharpAPITest PROPERTIES
-VS_DOTNET_REFERENCE_REFramework.NET
-"${REFRAMEWORK_DOT_NET_ASSEMBLY_PATH}"
-)
-set_target_properties(CSharpAPITest PROPERTIES VS_PACKAGE_REFERENCES "REFramework.NET")
-"""

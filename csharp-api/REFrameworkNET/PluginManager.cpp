@@ -16,7 +16,6 @@ namespace REFrameworkNET {
             return true;
         }
 
-        PluginManager::s_initialized = true;
         System::Console::WriteLine("Attempting to load plugins from initial context");
 
         // Make sure plugins that are loaded can find a reference to the current assembly
@@ -48,6 +47,7 @@ namespace REFrameworkNET {
         // Invoke LoadPlugins method
         System::Console::WriteLine("Invoking LoadPlugins...");
         method->Invoke(nullptr, gcnew array<Object^>{reinterpret_cast<uintptr_t>(param)});
+        s_initialized = true;
 
         return true;
     }  catch (System::Reflection::ReflectionTypeLoadException^ ex) {
@@ -127,6 +127,7 @@ namespace REFrameworkNET {
         System::Console::WriteLine("LoadPlugins called");
 
         if (PluginManager::s_initialized) {
+            System::Console::WriteLine("Already initialized");
             return true;
         }
 
@@ -139,6 +140,7 @@ namespace REFrameworkNET {
         // Create the REFramework::API class first though (managed)
         if (PluginManager::s_api_instance == nullptr) {
             PluginManager::s_api_instance = gcnew REFrameworkNET::API(param_raw);
+            System::Console::WriteLine("Created API instance");
         }
 
         auto deps = LoadDependencies(); // Pre-loads DLLs in the dependencies folder before loading the plugins
