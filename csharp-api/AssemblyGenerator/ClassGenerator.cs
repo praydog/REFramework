@@ -14,9 +14,9 @@ using System.Linq;
 
 public class ClassGenerator {
     private string className;
-    private Il2CppDump.Type t;
-    private Il2CppDump.Method[] methods = [];
-    public List<Il2CppDump.Type> usingTypes = [];
+    private REFrameworkNET.TypeDefinition t;
+    private REFrameworkNET.Method[] methods = [];
+    public List<REFrameworkNET.TypeDefinition> usingTypes = [];
     private TypeDeclarationSyntax? typeDeclaration;
     
     public TypeDeclarationSyntax? TypeDeclaration {
@@ -29,7 +29,7 @@ public class ClassGenerator {
         typeDeclaration = typeDeclaration_;
     }
 
-    public ClassGenerator(string className_, Il2CppDump.Type t_, Il2CppDump.Method[] methods_) {
+    public ClassGenerator(string className_, REFrameworkNET.TypeDefinition t_, REFrameworkNET.Method[] methods_) {
         className = className_;
         t = t_;
         methods = methods_;
@@ -72,15 +72,16 @@ public class ClassGenerator {
         bool wantsAbstractInstead = false;
 
         for (var parent = t.ParentType; parent != null; parent = parent.ParentType) {
-            if (parent.Name == null) {
+            var parentName = parent.FullName ?? "";
+            if (parentName == null) {
                 break;
             }
 
-            if (parent.Name == "") {
+            if (parentName == "") {
                 break;
             }
 
-            if (parent.Name == "System.Attribute") {
+            if (parentName == "System.Attribute") {
                 wantsAbstractInstead = true;
                 break;
             }
@@ -101,12 +102,15 @@ public class ClassGenerator {
         }
 
         typeDeclaration = typeDeclaration
-            .AddMembers(methods.Where(method => method.Name != null && !invalidMethodNames.Contains(method.FriendlyName??method.Name) && !method.Name.Contains('<')).Select(method => {
+            .AddMembers(methods.Where(method => !invalidMethodNames.Contains(method.Name) && !method.Name.Contains('<')).Select(method => {
                 TypeSyntax? returnType = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.VoidKeyword));
 
-                if (method.Returns != null && method.Returns.Type != "System.Void" && method.Returns.Type != "") {
+                var methodReturnT = method.ReturnType;
+                string methodReturnName = methodReturnT != null ? methodReturnT.GetFullName() : "";
+
+                if (methodReturnT != null && methodReturnName != "System.Void" && methodReturnName != "") {
                     // Check for easily convertible types like System.Single, System.Int32, etc.
-                    switch (method.Returns.Type) {
+                    switch (methodReturnName) {
                         case "System.Single":
                             returnType = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.FloatKeyword));
                             break;
@@ -138,36 +142,23 @@ public class ClassGenerator {
                             returnType = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.ObjectKeyword));
                             break;
                         default:
-                            if (method.Returns != null && method.Returns.Type != null && method.Returns.Type != "") {
-                                if (!Program.validTypes.Contains(method.Returns.Type)) {
+                            if (methodReturnT != null && methodReturnName != "") {
+                                if (!AssemblyGenerator.validTypes.Contains(methodReturnName)) {
                                     returnType = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.ObjectKeyword));
                                     break;
                                 }
 
-                                if (method.Returns.Type.Contains('<') || method.Returns.Type.Contains('[')) {
+                                if (methodReturnName.Contains('<') || methodReturnName.Contains('[')) {
                                     returnType = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.ObjectKeyword));
                                     break;
                                 }
 
-                                if (method.Returns.Type.StartsWith("System.") || !method.Returns.Type.StartsWith("via.")) {
+                                if (methodReturnName.StartsWith("System.") || !methodReturnName.StartsWith("via.")) {
                                     returnType = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.ObjectKeyword));
                                     break;
                                 }
 
-                                if (Program.Dump == null) {
-                                    returnType = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.ObjectKeyword));
-                                    break;
-                                }
-
-                                var returnName = method.Returns.Type;
-                                /*var returnTypeNamespace = Program.ExtractNamespaceFromTypeName(Program.Dump, returnName);
-                                var typeNamespace = Program.ExtractNamespaceFromTypeName(Program.Dump, ogClassName);
-
-                                if (returnTypeNamespace == typeNamespace) {
-                                    returnName = returnName.Split('.').Last();
-                                }*/
-                                
-                                returnType = SyntaxFactory.ParseTypeName(returnName);
+                                returnType = SyntaxFactory.ParseTypeName(methodReturnName);
                                 break;
                             }
 
@@ -176,10 +167,10 @@ public class ClassGenerator {
                     }
                 }
 
-                var flags = method.Flags?.Split(" | ");
-                var methodName = new string(method.FriendlyName);
+                var methodName = new string(method.Name);
+                var methodExtension = Il2CppDump.GetMethodExtension(method);
 
-                if (method.Override != null && method.Override == true) {
+                if (methodExtension != null && methodExtension.Override != null && methodExtension.Override == true) {
                     methodName += "_" + className.Replace('.', '_');
                 }
 
@@ -191,22 +182,12 @@ public class ClassGenerator {
                     methodDeclaration = methodDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.AbstractKeyword));
                 }
 
-                if (method.Params != null) {
-                    methodDeclaration = methodDeclaration.AddParameterListParameters(method.Params.Where(param => param != null && param.Type != null && param.Name != null).Select(param => {
+                if (method.Parameters.Count > 0) {
+                    methodDeclaration = methodDeclaration.AddParameterListParameters(method.Parameters.Where(param => param != null && param.Type != null && param.Name != null).Select(param => {
                         return SyntaxFactory.Parameter(SyntaxFactory.Identifier(param.Name ?? "UnknownParam"))
                             .WithType(SyntaxFactory.ParseTypeName(/*param.Type ??*/ "object"));
                     }).ToArray());
                 }
-
-                // find "Virtual" flag
-                //if (flags != null && flags.Contains("Virtual")) {
-                    //methodDeclaration = methodDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.VirtualKeyword));
-
-                    if (method.Override != null && method.Override == true) {
-                        //methodDeclaration = methodDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.OverrideKeyword));
-                        
-                    }
-                //}
 
                 return methodDeclaration;
             }).ToArray());
@@ -223,23 +204,24 @@ public class ClassGenerator {
             };
 
             for (var parent = t.ParentType; parent != null; parent = parent.ParentType) {
-                if (parent.Name == null) {
+                var parentName = parent.FullName ?? "";
+                if (parentName == null) {
                     break;
                 }
 
-                if (parent.Name == "") {
+                if (parentName == "") {
                     break;
                 }
 
-                if (parent.Name.Contains('[') || parent.Name.Contains('<')) {
+                if (parentName.Contains('[') || parentName.Contains('<')) {
                     break;
                 }
 
-                if (badBaseTypes.Contains(parent.Name)) {
+                if (badBaseTypes.Contains(parentName)) {
                     break;
                 }
 
-                baseTypes.Add(SyntaxFactory.SimpleBaseType(SyntaxFactory.ParseTypeName(parent.Name)));
+                baseTypes.Add(SyntaxFactory.SimpleBaseType(SyntaxFactory.ParseTypeName(parentName)));
                 usingTypes.Add(parent);
                 break;
             }
@@ -261,8 +243,12 @@ public class ClassGenerator {
             return null;
         }
 
-        foreach (var nestedT in t.NestedTypes ?? []) {
-            var nestedTypeName = nestedT.Name ?? "";
+        HashSet<REFrameworkNET.TypeDefinition>? nestedTypes = Il2CppDump.GetTypeExtension(t)?.NestedTypes;
+
+        foreach (var nestedT in nestedTypes ?? []) {
+            var nestedTypeName = nestedT.FullName ?? "";
+
+            //System.Console.WriteLine("Nested type: " + nestedTypeName);
 
             if (nestedTypeName == "") {
                 continue;
@@ -280,19 +266,17 @@ public class ClassGenerator {
                 nestedTypeName = nestedTypeName.Replace("file", "@file");
             }
 
-            var fixedNestedMethods = nestedT.Methods?
-                .Select(methodPair => {
-                    var method = methodPair.Value;
-                    var methodName = Il2CppDump.StripMethodName(method);
-                    return (methodName, method);
-                })
-                .GroupBy(pair => pair.methodName)
-                .Select(group => group.First()) // Selects the first method of each group
-                .ToDictionary(pair => pair.methodName, pair => pair.method);
+            HashSet<REFrameworkNET.Method> nestedMethods = [];
+
+            foreach (var method in t.Methods) {
+                if (!nestedMethods.Select(nestedMethod => nestedMethod.Name).Contains(method.Name)) {
+                    nestedMethods.Add(method);   
+                }
+            }
 
             var nestedGenerator = new ClassGenerator(nestedTypeName.Split('.').Last(),
                 nestedT,
-                fixedNestedMethods != null ? [.. fixedNestedMethods.Values] : []
+                [.. nestedMethods]
             );
 
             if (nestedGenerator.TypeDeclaration == null) {
@@ -308,10 +292,12 @@ public class ClassGenerator {
                     break;
                 }
 
+                var parentNestedTypes = Il2CppDump.GetTypeExtension(parent)?.NestedTypes;
+
                 // Look for same named nested types
-                if (parent.NestedTypes != null) {
-                    foreach (var parentNested in parent.NestedTypes) {
-                        var isolatedParentNestedName = parentNested.Name?.Split('.').Last();
+                if (parentNestedTypes != null) {
+                    foreach (var parentNested in parentNestedTypes) {
+                        var isolatedParentNestedName = parentNested.FullName?.Split('.').Last();
                         if (isolatedParentNestedName == isolatedNestedName) {
                             nestedGenerator.Update(nestedGenerator.TypeDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.NewKeyword)));
                             addedNew = true;
