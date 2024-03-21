@@ -121,6 +121,46 @@ namespace REFrameworkNET {
         return assemblies;
     }
 
+    void PluginManager::GenerateReferenceAssemblies(System::Collections::Generic::List<System::Reflection::Assembly^>^ deps) {
+        REFrameworkNET::API::LogInfo("Generating reference assemblies...");
+
+        // Look for AssemblyGenerator class in the loaded deps
+        for each (System::Reflection::Assembly^ a in deps) {
+            if (auto generator = a->GetType("REFrameworkNET.AssemblyGenerator"); generator != nullptr) {
+                // Look for Main method in the AssemblyGenerator class
+                auto mainMethod = generator->GetMethod(
+                                            "Main", 
+                                            System::Reflection::BindingFlags::Static | System::Reflection::BindingFlags::Public,
+                                            gcnew array<Type^>{REFrameworkNET::API::typeid});
+
+               if (mainMethod != nullptr) {
+                    REFrameworkNET::API::LogInfo("Found AssemblyGenerator.Main in " + a->Location);
+
+                    array<Object^>^ args = gcnew array<Object^>{PluginManager::s_api_instance};
+                    auto result = (List<Compiler::DynamicAssemblyBytecode^>^)mainMethod->Invoke(nullptr, args);
+
+                    // Append the generated assemblies to the list of deps
+                    for each (Compiler::DynamicAssemblyBytecode^ bytes in result) {
+                        REFrameworkNET::API::LogInfo("Adding generated assembly to deps...");
+
+                        auto path = std::filesystem::current_path() / "reframework" / "plugins" / "managed" / "dependencies" / (msclr::interop::marshal_as<std::string>(bytes->Hash) + "_DYNAMIC.dll");
+                        System::IO::File::WriteAllBytes(gcnew System::String(path.wstring().c_str()), bytes->Bytecode);
+                        REFrameworkNET::API::LogInfo("Wrote generated assembly to " + gcnew System::String(path.wstring().c_str()));
+
+                        auto assem = System::Reflection::Assembly::LoadFrom(gcnew System::String(path.wstring().c_str()));
+
+                        if (assem != nullptr) {
+                            REFrameworkNET::API::LogInfo("Loaded generated assembly with " + assem->GetTypes()->Length + " types");
+                            deps->Add(assem);
+                        }
+                    }
+                    
+                    break;
+                }
+            }
+        }
+    }
+
     // meant to be executed in the correct context
     // after loading "ourselves" via System::Reflection::Assembly::LoadFrom
     bool PluginManager::LoadPlugins(uintptr_t param_raw) try {
@@ -144,6 +184,22 @@ namespace REFrameworkNET {
         }
 
         auto deps = LoadDependencies(); // Pre-loads DLLs in the dependencies folder before loading the plugins
+
+        try {
+            GenerateReferenceAssemblies(deps);
+        } catch(System::Exception^ e) {
+            REFrameworkNET::API::LogError("Could not generate reference assemblies: " + e->Message);
+
+            auto ex = e;
+            while (ex != nullptr) {
+                REFrameworkNET::API::LogError(ex->StackTrace);
+                ex = ex->InnerException;
+            }
+        } catch (const std::exception& e) {
+            REFrameworkNET::API::LogError("Could not generate reference assemblies: " + gcnew System::String(e.what()));
+        } catch (...) {
+            REFrameworkNET::API::LogError("Could not generate reference assemblies: Unknown exception caught");
+        }
 
         // Try-catch because the user might not have the compiler
         // dependencies in the plugins directory

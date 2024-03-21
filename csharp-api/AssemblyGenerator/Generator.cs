@@ -132,6 +132,7 @@ public class Il2CppDump {
     }
 }
 
+namespace REFrameworkNET {
 public class AssemblyGenerator {
     static Dictionary<string, NamespaceDeclarationSyntax> namespaces = [];
 
@@ -309,9 +310,9 @@ public class AssemblyGenerator {
         return compilationUnit;
     }
 
-    public static void Main(REFrameworkNET.API api) {
+    public static List<REFrameworkNET.Compiler.DynamicAssemblyBytecode> Main(REFrameworkNET.API api) {
         try {
-            MainImpl();
+            return MainImpl();
         } catch (Exception e) {
             Console.WriteLine("Exception: " + e);
 
@@ -321,9 +322,11 @@ public class AssemblyGenerator {
                 Console.WriteLine("Inner Exception: " + ex);
             }
         }
+
+        return [];
     }
 
-    public static void MainImpl() {
+    public static List<REFrameworkNET.Compiler.DynamicAssemblyBytecode> MainImpl() {
         Il2CppDump.FillTypeExtensions(REFrameworkNET.API.GetTDB());
 
         List<CompilationUnitSyntax> compilationUnits = new List<CompilationUnitSyntax>();
@@ -373,6 +376,11 @@ public class AssemblyGenerator {
         }*/
 
         var normalized = compilationUnit.NormalizeWhitespace();
+        string compilationUnitHash = "";
+
+        using (var sha1 = System.Security.Cryptography.SHA1.Create()) {
+            compilationUnitHash = BitConverter.ToString(sha1.ComputeHash(compilationUnit.ToFullString().Select(c => (byte)c).ToArray())).Replace("-", "");
+        }
 
         // Dump to DynamicAssembly.cs
         File.WriteAllText("DynamicAssembly.cs", normalized.ToFullString());
@@ -439,14 +447,23 @@ public class AssemblyGenerator {
             {
                 // Load and use the compiled assembly
                 ms.Seek(0, SeekOrigin.Begin);
-                var assembly = Assembly.Load(ms.ToArray());
+                //var assembly = Assembly.Load(ms.ToArray());
 
                 // dump to file
-                File.WriteAllBytes("DynamicAssembly.dll", ms.ToArray());
+                //File.WriteAllBytes("DynamicAssembly.dll", ms.ToArray());
 
                 REFrameworkNET.API.LogInfo("Successfully compiled DynamicAssembly.dll");
+
+                return [
+                    new REFrameworkNET.Compiler.DynamicAssemblyBytecode {
+                        Bytecode = ms.ToArray(),
+                        Hash = compilationUnitHash
+                    }
+                ];
             }
         }
 
+        return [];
     }
 };
+}
