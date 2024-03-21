@@ -260,6 +260,14 @@ class REFrameworkPlugin {
 
         //REFrameworkNET.API.LogInfo("ProxyOptionData: " + proxyOptionData?.ToString() + ": " + proxyOptionData?.GetTypeDefinition()?.GetFullName()?.ToString());
         
+        dynamic appdomainT = tdb.GetType("System.AppDomain");
+        dynamic appdomain = appdomainT.get_CurrentDomain();
+        dynamic assemblies = appdomain?.GetAssemblies();
+
+        foreach (dynamic assembly in assemblies) {
+            REFrameworkNET.API.LogInfo("Assembly: " + assembly.get_Location()?.ToString());
+        }
+
         } catch (Exception e) {
             REFrameworkNET.API.LogError(e.ToString());
 

@@ -3,10 +3,15 @@
 #include "Field.hpp"
 #include "Property.hpp"
 #include "ManagedObject.hpp"
+#include "NativeObject.hpp"
 
 #include "TypeDefinition.hpp"
 
 namespace REFrameworkNET {
+    NativeObject^ TypeDefinition::Statics::get() {
+        return gcnew NativeObject(this);
+    }
+
     REFrameworkNET::Method^ TypeDefinition::FindMethod(System::String^ name)
     {
         auto result = m_type->find_method(msclr::interop::marshal_as<std::string>(name));
@@ -119,5 +124,11 @@ namespace REFrameworkNET {
         }
 
         return gcnew ManagedObject(result);
+    }
+
+    bool TypeDefinition::TryInvokeMember(System::Dynamic::InvokeMemberBinder^ binder, array<System::Object^>^ args, System::Object^% result) {
+        // Forward this onto NativeObject.TryInvokeMember (for static methods)
+        auto native = gcnew NativeObject(this);
+        return native->TryInvokeMember(binder, args, result);
     }
 }
