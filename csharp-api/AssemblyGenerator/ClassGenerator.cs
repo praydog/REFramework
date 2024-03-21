@@ -143,7 +143,7 @@ public class ClassGenerator {
                             break;
                         default:
                             if (methodReturnT != null && methodReturnName != "") {
-                                if (!AssemblyGenerator.validTypes.Contains(methodReturnName)) {
+                                if (!REFrameworkNET.AssemblyGenerator.validTypes.Contains(methodReturnName)) {
                                     returnType = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.ObjectKeyword));
                                     break;
                                 }

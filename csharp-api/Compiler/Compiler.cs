@@ -13,6 +13,17 @@ namespace REFrameworkNET
 {
     public class Compiler
     {
+        public class DynamicAssemblyBytecode {
+            public byte[] Bytecode {
+                get;
+                set;
+            }
+            public string Hash {
+                get;
+                set;
+            }
+        }
+
         static public byte[] Compile(string filepath, Assembly executingAssembly, List<Assembly> deps)
         {
             var sourceCode = File.ReadAllText(filepath);

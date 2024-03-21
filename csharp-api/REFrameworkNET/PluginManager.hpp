@@ -30,6 +30,7 @@ private:
     // meant to be executed in the correct context
     // after loading "ourselves" via System::Reflection::Assembly::LoadFrom
     static System::Collections::Generic::List<System::Reflection::Assembly^>^ LoadDependencies();
+    static void GenerateReferenceAssemblies(System::Collections::Generic::List<System::Reflection::Assembly^>^ deps);
     static bool LoadPlugins(uintptr_t param_raw);
     static bool LoadPlugins_FromSourceCode(uintptr_t param_raw, System::Collections::Generic::List<System::Reflection::Assembly^>^ deps);
 };
