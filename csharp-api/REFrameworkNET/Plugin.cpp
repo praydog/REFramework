@@ -11,8 +11,8 @@ extern "C" {
 #include <Windows.h>
 #include <msclr/marshal_cppstd.h>
 
-#include "REFrameworkNET/API.hpp"
-#include "REFrameworkNET/PluginManager.hpp"
+#include "API.hpp"
+#include "PluginManager.hpp"
 
 #include "Plugin.hpp"
 
