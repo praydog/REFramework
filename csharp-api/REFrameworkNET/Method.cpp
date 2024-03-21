@@ -13,7 +13,7 @@
 namespace REFrameworkNET {
 REFrameworkNET::InvokeRet^ Method::Invoke(System::Object^ obj, array<System::Object^>^ args) {
     if (obj == nullptr && !this->IsStatic()) {
-        System::String^ declaringName = this->GetDeclaringType() != nullptr ? this->GetDeclaringType()->GetFullName() : "Unknown";
+        System::String^ declaringName = this->GetDeclaringType() != nullptr ? this->GetDeclaringType()->GetFullName() : gcnew System::String("UnknownType");
         System::String^ errorStr = "Cannot invoke a non-static method without an object (" + declaringName + "." + this->GetName() + ")";
         REFrameworkNET::API::LogError(errorStr);
         throw gcnew System::InvalidOperationException(errorStr);
@@ -169,6 +169,10 @@ bool Method::HandleInvokeMember_Internal(System::Object^ obj, System::String^ me
         // for consistency purposes
         MAKE_TYPE_HANDLER_2(System, Single, double, Double)
         MAKE_TYPE_HANDLER_2(System, Double, double, Double)
+        case "System.RuntimeTypeHandle"_fnv: {
+            result = gcnew REFrameworkNET::TypeDefinition((::REFrameworkTypeDefinitionHandle)tempResult->QWord);
+            break;
+        }
         default:
             result = tempResult;
             break;
