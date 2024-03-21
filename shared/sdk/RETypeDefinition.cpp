@@ -938,6 +938,9 @@ static std::shared_mutex g_runtime_type_mtx{};
             }
         }
     }
+
+    std::unique_lock _{g_runtime_type_mtx};
+    return g_runtime_type_map[this];    
 #else
     auto vm = sdk::VM::get();
 
@@ -951,8 +954,6 @@ static std::shared_mutex g_runtime_type_mtx{};
     g_runtime_type_map[this] = (::REManagedObject*)vm_type.runtime_type;
     return g_runtime_type_map[this];
 #endif
-    std::unique_lock _{g_runtime_type_mtx};
-    return g_runtime_type_map[this];
 }
 
 void* RETypeDefinition::get_instance() const {
