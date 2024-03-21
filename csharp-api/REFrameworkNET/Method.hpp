@@ -8,7 +8,8 @@
 #include "MethodParameter.hpp"
 
 namespace REFrameworkNET {
-public ref class Method {
+public ref class Method : public System::IEquatable<Method^>
+{
 public:
     Method(reframework::API::Method* method) : m_method(method) {}
 
@@ -23,6 +24,12 @@ public:
         return gcnew System::String(m_method->get_name());
     }
 
+    property System::String^ Name {
+        System::String^ get() {
+            return GetName();
+        }
+    }
+
     TypeDefinition^ GetDeclaringType() {
         auto result = m_method->get_declaring_type();
 
@@ -31,6 +38,12 @@ public:
         }
 
         return gcnew TypeDefinition(result);
+    }
+
+    property TypeDefinition^ DeclaringType {
+        TypeDefinition^ get() {
+            return GetDeclaringType();
+        }
     }
 
     TypeDefinition^ GetReturnType() {
@@ -43,8 +56,20 @@ public:
         return gcnew TypeDefinition(result);
     }
 
+    property TypeDefinition^ ReturnType {
+        TypeDefinition^ get() {
+            return GetReturnType();
+        }
+    }
+
     uint32_t GetNumParams() {
         return m_method->get_num_params();
+    }
+
+    property uint32_t NumParams {
+        uint32_t get() {
+            return GetNumParams();
+        }
     }
 
     System::Collections::Generic::List<REFrameworkNET::MethodParameter^>^ GetParameters() {
@@ -59,12 +84,30 @@ public:
         return ret;
     }
 
+    property System::Collections::Generic::List<REFrameworkNET::MethodParameter^>^ Parameters {
+        System::Collections::Generic::List<REFrameworkNET::MethodParameter^>^ get() {
+            return GetParameters();
+        }
+    }
+
     uint32_t GetIndex() {
         return m_method->get_index();
     }
 
+    property uint32_t Index {
+        uint32_t get() {
+            return GetIndex();
+        }
+    }
+
     int32_t GetVirtualIndex() {
         return m_method->get_virtual_index();
+    }
+
+    property int32_t VirtualIndex {
+        int32_t get() {
+            return GetVirtualIndex();
+        }
     }
 
     bool IsStatic() {
@@ -75,12 +118,30 @@ public:
         return m_method->get_flags();
     }
 
+    property uint16_t Flags {
+        uint16_t get() {
+            return GetFlags();
+        }
+    }
+
     uint16_t GetImplFlags() {
         return m_method->get_impl_flags();
     }
 
+    property uint16_t ImplFlags {
+        uint16_t get() {
+            return GetImplFlags();
+        }
+    }
+
     uint32_t GetInvokeID() {
         return m_method->get_invoke_id();
+    }
+
+    property uint32_t InvokeID {
+        uint32_t get() {
+            return GetInvokeID();
+        }
     }
 
     // hmm...
@@ -90,6 +151,55 @@ public:
 
     void RemoveHook(uint32_t hook_id) {
         m_method->remove_hook(hook_id);
+    }
+
+public:
+    virtual bool Equals(System::Object^ other) override {
+        if (System::Object::ReferenceEquals(this, other)) {
+            return true;
+        }
+
+        if (System::Object::ReferenceEquals(other, nullptr)) {
+            return false;
+        }
+
+        if (other->GetType() != Method::typeid) {
+            return false;
+        }
+
+        return m_method == safe_cast<Method^>(other)->m_method;
+    }
+
+    virtual bool Equals(Method^ other) {
+        if (System::Object::ReferenceEquals(this, other)) {
+            return true;
+        }
+
+        if (System::Object::ReferenceEquals(other, nullptr)) {
+            return false;
+        }
+
+        return m_method == other->m_method;
+    }
+
+    static bool operator ==(Method^ left, Method^ right) {
+        if (System::Object::ReferenceEquals(left, right)) {
+            return true;
+        }
+
+        if (System::Object::ReferenceEquals(left, nullptr) || System::Object::ReferenceEquals(right, nullptr)) {
+            return false;
+        }
+
+        return left->m_method == right->m_method;
+    }
+
+    static bool operator !=(Method^ left, Method^ right) {
+        return !(left == right);
+    }
+
+    virtual int GetHashCode() override {
+        return (gcnew System::UIntPtr((uintptr_t)m_method))->GetHashCode();
     }
 
 private:

@@ -22,7 +22,7 @@ public enum VMObjType {
     ValType = 5,
 };
 
-public ref class TypeDefinition
+public ref class TypeDefinition : public System::IEquatable<TypeDefinition^>
 {
 public:
     TypeDefinition(reframework::API::TypeDefinition* td) : m_type(td) {}
@@ -37,9 +37,21 @@ public:
         return m_type->get_index();
     }
 
+    property uint32_t Index {
+        uint32_t get() {
+            return GetIndex();
+        }
+    }
+
     uint32_t GetSize()
     {
         return m_type->get_size();
+    }
+
+    property uint32_t Size {
+        uint32_t get() {
+            return GetSize();
+        }
     }
 
     uint32_t GetValueTypeSize()
@@ -47,24 +59,62 @@ public:
         return m_type->get_valuetype_size();
     }
 
-    uint32_t GetFqn()
+    property uint32_t ValueTypeSize {
+        uint32_t get() {
+            return GetValueTypeSize();
+        }
+    }
+
+    uint32_t GetFQN()
     {
         return m_type->get_fqn();
     }
 
+    property uint32_t FQN {
+        uint32_t get() {
+            return GetFQN();
+        }
+    }
+
     System::String^ GetName()
     {
+        if (m_type->get_name() == nullptr) {
+            return nullptr;
+        }
+
         return gcnew System::String(m_type->get_name());
+    }
+
+    property System::String^ Name {
+        System::String^ get() {
+            return GetName();
+        }
     }
 
     System::String^ GetNamespace()
     {
+        if (m_type->get_namespace() == nullptr) {
+            return nullptr;
+        }
+
         return gcnew System::String(m_type->get_namespace());
+    }
+
+    property System::String^ Namespace {
+        System::String^ get() {
+            return GetNamespace();
+        }
     }
 
     System::String^ GetFullName()
     {
         return gcnew System::String(m_type->get_full_name().c_str());
+    }
+
+    property System::String^ FullName {
+        System::String^ get() {
+            return GetFullName();
+        }
     }
 
     bool HasFieldPtrOffset()
@@ -154,6 +204,24 @@ public:
     System::Collections::Generic::List<Field^>^ GetFields();
     System::Collections::Generic::List<Property^>^ GetProperties();
 
+    property System::Collections::Generic::List<Method^>^ Methods {
+        System::Collections::Generic::List<Method^>^ get() {
+            return GetMethods();
+        }
+    }
+
+    property System::Collections::Generic::List<Field^>^ Fields {
+        System::Collections::Generic::List<Field^>^ get() {
+            return GetFields();
+        }
+    }
+
+    property System::Collections::Generic::List<Property^>^ Properties {
+        System::Collections::Generic::List<Property^>^ get() {
+            return GetProperties();
+        }
+    }
+
     ManagedObject^ CreateInstance(int32_t flags);
     
     TypeDefinition^ GetParentType()
@@ -167,6 +235,12 @@ public:
         return gcnew TypeDefinition(result);
     }
 
+    property TypeDefinition^ ParentType {
+        TypeDefinition^ get() {
+            return GetParentType();
+        }
+    }
+
     TypeDefinition^ GetDeclaringType()
     {
         auto result = m_type->get_declaring_type();
@@ -176,6 +250,12 @@ public:
         }
 
         return gcnew TypeDefinition(result);
+    }
+
+    property TypeDefinition^ DeclaringType {
+        TypeDefinition^ get() {
+            return GetDeclaringType();
+        }
     }
 
     TypeDefinition^ GetUnderlyingType()
@@ -189,8 +269,25 @@ public:
         return gcnew TypeDefinition(result);
     }
 
+    property TypeDefinition^ UnderlyingType {
+        TypeDefinition^ get() {
+            return GetUnderlyingType();
+        }
+    }
+
     REFrameworkNET::TypeInfo^ GetTypeInfo();
+    property REFrameworkNET::TypeInfo^ TypeInfo {
+        REFrameworkNET::TypeInfo^ get() {
+            return GetTypeInfo();
+        }
+    }
+
     ManagedObject^ GetRuntimeType();
+    property ManagedObject^ RuntimeType {
+        ManagedObject^ get() {
+            return GetRuntimeType();
+        }
+    }
 
     /*Void* GetInstance()
     {
@@ -201,6 +298,55 @@ public:
     {
         return m_type->create_instance_deprecated();
     }*/
+
+public:
+    virtual bool Equals(System::Object^ other) override {
+        if (System::Object::ReferenceEquals(this, other)) {
+            return true;
+        }
+
+        if (System::Object::ReferenceEquals(other, nullptr)) {
+            return false;
+        }
+
+        if (other->GetType() != TypeDefinition::typeid) {
+            return false;
+        }
+
+        return m_type == safe_cast<TypeDefinition^>(other)->m_type;
+    }
+
+    virtual bool Equals(TypeDefinition^ other) {
+        if (System::Object::ReferenceEquals(this, other)) {
+            return true;
+        }
+
+        if (System::Object::ReferenceEquals(other, nullptr)) {
+            return false;
+        }
+
+        return m_type == other->m_type;
+    }
+
+    static bool operator ==(TypeDefinition^ left, TypeDefinition^ right) {
+        if (System::Object::ReferenceEquals(left, right)) {
+            return true;
+        }
+
+        if (System::Object::ReferenceEquals(left, nullptr) || System::Object::ReferenceEquals(right, nullptr)) {
+            return false;
+        }
+
+        return left->m_type == right->m_type;
+    }
+
+    static bool operator !=(TypeDefinition^ left, TypeDefinition^ right) {
+        return !(left == right);
+    }
+
+    virtual int GetHashCode() override {
+        return (gcnew System::UIntPtr((uintptr_t)m_type))->GetHashCode();
+    }
 
 private:
     reframework::API::TypeDefinition* m_type;

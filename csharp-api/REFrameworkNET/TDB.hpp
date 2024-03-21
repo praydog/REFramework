@@ -10,8 +10,14 @@
 #include "Field.hpp"
 #include "Property.hpp"
 
+using namespace System;
+using namespace System::Collections;
+
 namespace REFrameworkNET {
 public ref class TDB {
+private:
+    reframework::API::TDB* m_tdb;
+
 public:
     TDB(reframework::API::TDB* tdb) : m_tdb(tdb) {}
 
@@ -149,7 +155,55 @@ public:
         return gcnew Property(result);
     }
 
-private:
-    reframework::API::TDB* m_tdb;
+public:
+    ref class TypeDefinitionIterator : public IEnumerator {
+    private:
+        TDB^ m_parent;
+        int m_currentIndex;
+        TypeDefinition^ m_currentType;
+
+    public:
+        TypeDefinitionIterator(TDB^ parent) : m_parent(parent), m_currentIndex(-1), m_currentType(nullptr) {}
+
+        // Required by IEnumerator
+        virtual bool MoveNext() {
+            if (m_currentIndex < static_cast<int>(m_parent->GetNumTypes()) - 1) {
+                m_currentIndex++;
+                m_currentType = m_parent->GetType(m_currentIndex);
+                return true;
+            } else {
+                return false;
+            }
+        }
+
+        virtual void Reset() {
+            m_currentIndex = -1;
+            m_currentType = nullptr;
+        }
+
+        property Object^ Current {
+            virtual Object^ get() = IEnumerator::Current::get {
+                return m_currentType;
+            }
+        }
+    };
+
+    ref class TypeDefinitionCollection : public IEnumerable {
+    private:
+        TDB^ m_parent;
+
+    public:
+        TypeDefinitionCollection(TDB^ parent) : m_parent(parent) {}
+
+        virtual IEnumerator^ GetEnumerator() {
+            return gcnew TypeDefinitionIterator(m_parent);
+        }
+    };
+
+    property TypeDefinitionCollection^ Types {
+        TypeDefinitionCollection^ get() {
+            return gcnew TypeDefinitionCollection(this);
+        }
+    }
 };
 }
