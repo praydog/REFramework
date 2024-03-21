@@ -35,10 +35,12 @@ public:
     void early_init();
 
     std::string_view get_name() const override { return "PluginLoader"; }
-    std::optional<std::string> on_initialize() override;
+    void on_frame() override;
     void on_draw_ui() override;
 
 private:
+    bool m_plugins_loaded{false};
+
     std::mutex m_mux{};
     std::map<std::string, HMODULE> m_plugins{};
     std::map<std::string, std::string> m_plugin_load_errors{};

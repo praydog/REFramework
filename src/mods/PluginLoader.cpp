@@ -616,8 +616,7 @@ void PluginLoader::early_init() try {
     }
 
     spdlog::info("[PluginLoader] Loading plugins...");
-
-    LoadLibraryA("ijwhost.dll");
+    
     // Load all dlls in the plugins directory.
     for (auto&& entry : fs::directory_iterator{plugin_path}) {
         auto&& path = entry.path();
@@ -641,7 +640,13 @@ void PluginLoader::early_init() try {
     spdlog::error("[PluginLoader] Unknown exception during early init");
 }
 
-std::optional<std::string> PluginLoader::on_initialize() {
+void PluginLoader::on_frame() {
+    if (m_plugins_loaded) {
+        return;
+    }
+
+    m_plugins_loaded = true;
+
     std::scoped_lock _{m_mux};
 
     // Call reframework_plugin_required_version on any dlls that export it.
@@ -659,9 +664,6 @@ std::optional<std::string> PluginLoader::on_initialize() {
         reframework::g_renderer_data.device = d3d12->get_device();
         reframework::g_renderer_data.swapchain = d3d12->get_swap_chain();
         reframework::g_renderer_data.command_queue = d3d12->get_command_queue();
-    } else {
-        spdlog::error("[PluginLoader] Unsupported renderer type {}", reframework::g_renderer_data.renderer_type);
-        return "PluginLoader: Unsupported renderer type detected";
     }
 
     verify_sdk_pointers();
@@ -755,8 +757,6 @@ std::optional<std::string> PluginLoader::on_initialize() {
 
         ++it;
     }
-
-    return std::nullopt;
 }
 
 void PluginLoader::on_draw_ui() {
