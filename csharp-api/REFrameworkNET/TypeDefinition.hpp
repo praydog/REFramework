@@ -8,6 +8,7 @@
 
 namespace REFrameworkNET {
 ref class ManagedObject;
+ref class NativeObject;
 ref class Method;
 ref class Field;
 ref class Property;
@@ -22,7 +23,7 @@ public enum VMObjType {
     ValType = 5,
 };
 
-public ref class TypeDefinition : public System::IEquatable<TypeDefinition^>
+public ref class TypeDefinition : public System::Dynamic::DynamicObject, public System::IEquatable<TypeDefinition^>
 {
 public:
     TypeDefinition(reframework::API::TypeDefinition* td) : m_type(td) {}
@@ -30,6 +31,10 @@ public:
 
     operator reframework::API::TypeDefinition*() {
         return (reframework::API::TypeDefinition*)m_type;
+    }
+
+    property NativeObject^ Statics {
+        NativeObject^ get();
     }
 
     uint32_t GetIndex()
@@ -299,6 +304,11 @@ public:
         return m_type->create_instance_deprecated();
     }*/
 
+// DynamicObject methods
+public:
+    virtual bool TryInvokeMember(System::Dynamic::InvokeMemberBinder^ binder, array<System::Object^>^ args, System::Object^% result) override;
+
+// IEquatable methods
 public:
     virtual bool Equals(System::Object^ other) override {
         if (System::Object::ReferenceEquals(this, other)) {

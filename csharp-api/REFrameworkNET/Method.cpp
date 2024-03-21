@@ -6,11 +6,18 @@
 #include "Method.hpp"
 #include "Field.hpp"
 
+#include "API.hpp"
+
 #include "Utility.hpp"
 
 namespace REFrameworkNET {
 REFrameworkNET::InvokeRet^ Method::Invoke(System::Object^ obj, array<System::Object^>^ args) {
-    // We need to convert the managed objects to 8 byte representations
+    if (obj == nullptr && !this->IsStatic()) {
+        System::String^ declaringName = this->GetDeclaringType() != nullptr ? this->GetDeclaringType()->GetFullName() : "Unknown";
+        System::String^ errorStr = "Cannot invoke a non-static method without an object (" + declaringName + "." + this->GetName() + ")";
+        REFrameworkNET::API::LogError(errorStr);
+        throw gcnew System::InvalidOperationException(errorStr);
+    }
 
     std::vector<void*> args2{};
 
