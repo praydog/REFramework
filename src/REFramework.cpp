@@ -301,7 +301,7 @@ REFramework::REFramework(HMODULE reframework_module)
     IntegrityCheckBypass::immediate_patch_re8();
 #endif
 
-#if defined(RE4) || defined(SF6)
+#if defined(RE4) || defined(SF6) || TDB_VER >= 73
     // Fixes new code added in RE4 only.
     IntegrityCheckBypass::immediate_patch_re4();
 #endif
