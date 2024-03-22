@@ -53,6 +53,7 @@ sdk::RETypeDefinition* RETypeDB::find_type(std::string_view name) const {
         }
     }
 
+    std::unique_lock _{ g_tdb_type_mtx };
     return g_tdb_type_map[name.data()];
 }
 

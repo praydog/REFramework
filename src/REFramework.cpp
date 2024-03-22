@@ -301,7 +301,7 @@ REFramework::REFramework(HMODULE reframework_module)
     IntegrityCheckBypass::immediate_patch_re8();
 #endif
 
-#if defined(RE4) || defined(SF6)
+#if defined(RE4) || defined(SF6) || TDB_VER >= 73
     // Fixes new code added in RE4 only.
     IntegrityCheckBypass::immediate_patch_re4();
 #endif
@@ -662,6 +662,19 @@ void REFramework::on_frame_d3d12() {
         return;
     }
 
+    auto swapchain = m_d3d12_hook->get_swap_chain();
+    const auto bb_index = swapchain->GetCurrentBackBufferIndex();
+
+    // Test if our RT for this index is valid.
+    if (m_d3d12.get_rt((D3D12::RTV)bb_index) == nullptr) {
+        spdlog::error("RTV for index {} is null, reinitializing...", bb_index);
+        deinit_d3d12();
+        m_has_frame = false;
+        m_first_initialize = false;
+        m_initialized = false;
+        return;
+    }
+
     cmd_ctx->wait(INFINITE);
     {
         std::scoped_lock _{ cmd_ctx->mtx };
@@ -692,8 +705,6 @@ void REFramework::on_frame_d3d12() {
         cmd_ctx->cmd_list->ResourceBarrier(1, &barrier);
 
         // Draw to the back buffer.
-        auto swapchain = m_d3d12_hook->get_swap_chain();
-        auto bb_index = swapchain->GetCurrentBackBufferIndex();
         barrier.Transition.pResource = m_d3d12.rts[bb_index].Get();
         barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
         barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
@@ -1679,6 +1690,21 @@ bool REFramework::first_frame_initialize() {
         m_mods_fully_initialized = true;
     }
 
+    // Troubleshooting by logging loaded modules
+    // helps us figure out if someone has conflicting software running
+    try {
+        spdlog::info("Logging loaded modules...");
+
+        const auto loaded_modules = utility::get_loaded_module_names();
+
+        for (const auto& name : loaded_modules) {
+            spdlog::info("Loaded module: {}", utility::narrow(name));
+        }
+    } catch(...) {
+        spdlog::error("Failed to get loaded modules.");
+    }
+
+
     return true;
 }
 
@@ -1855,12 +1881,20 @@ bool REFramework::init_d3d12() {
             if (SUCCEEDED(swapchain->GetBuffer(i, IID_PPV_ARGS(&m_d3d12.rts[i])))) {
                 device->CreateRenderTargetView(m_d3d12.rts[i].Get(), nullptr, m_d3d12.get_cpu_rtv(device, (D3D12::RTV)i));
             } else {
-                spdlog::error("[D3D12] Failed to get back buffer for rtv.");
+                spdlog::error("[D3D12] Failed to get back buffer for rtv {}", i);
+                m_d3d12.rts[i].Reset(); // just in case
             }
         }
 
         // Create our imgui and blank rts.
         auto& backbuffer = m_d3d12.get_rt(D3D12::RTV::BACKBUFFER_0);
+
+        if (backbuffer == nullptr) {
+            spdlog::error("[D3D12] Failed to get first back buffer RTV.");
+            deinit_d3d12();
+            return false;
+        }
+
         auto desc = backbuffer->GetDesc();
 
         spdlog::info("[D3D12] Back buffer format is {}", desc.Format);

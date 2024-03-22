@@ -89,6 +89,10 @@ public:
         return m_using_proton_swapchain;
     }
 
+    bool is_framegen_swapchain() const {
+        return m_using_frame_generation_swapchain;
+    }
+
     void ignore_next_present() {
         m_ignore_next_present = true;
     }
@@ -108,6 +112,7 @@ protected:
     uint32_t m_proton_swapchain_offset{};
 
     bool m_using_proton_swapchain{ false };
+    bool m_using_frame_generation_swapchain{ false };
     bool m_hooked{ false };
     bool m_is_phase_1{ true };
     bool m_inside_present{false};

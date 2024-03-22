@@ -380,6 +380,7 @@ sdk::RETypeDefinition* RETypeDefinition::get_underlying_type() const {
         }
     }
     
+    std::unique_lock _{ g_underlying_mtx };
     return g_underlying_types[this];
 #else
     const auto value_field = this->get_field("value__");
@@ -391,6 +392,7 @@ sdk::RETypeDefinition* RETypeDefinition::get_underlying_type() const {
 
     const auto underlying_type = value_field->get_type();
     
+    std::unique_lock _{ g_underlying_mtx };
     g_underlying_types[this] = underlying_type;
     return g_underlying_types[this];
 #endif
@@ -438,6 +440,7 @@ sdk::REField* RETypeDefinition::get_field(std::string_view name) const {
         }
     }
 
+    std::unique_lock _{ g_field_mtx };
     return g_field_map[full_name];
 }
 
@@ -499,6 +502,7 @@ sdk::REMethodDefinition* RETypeDefinition::get_method(std::string_view name) con
         }
     }
 
+    std::unique_lock _{g_method_mtx};
     return g_method_map[full_name];
 }
 
@@ -934,6 +938,9 @@ static std::shared_mutex g_runtime_type_mtx{};
             }
         }
     }
+
+    std::unique_lock _{g_runtime_type_mtx};
+    return g_runtime_type_map[this];    
 #else
     auto vm = sdk::VM::get();
 
@@ -943,11 +950,10 @@ static std::shared_mutex g_runtime_type_mtx{};
 
     const auto& vm_type = vm->types[this->get_index()];
 
+    std::unique_lock _{g_runtime_type_mtx};
     g_runtime_type_map[this] = (::REManagedObject*)vm_type.runtime_type;
     return g_runtime_type_map[this];
 #endif
-
-    return g_runtime_type_map[this];
 }
 
 void* RETypeDefinition::get_instance() const {
