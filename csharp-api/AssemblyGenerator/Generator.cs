@@ -12,6 +12,8 @@ using System.Text.RegularExpressions;
 using System.Text.Json.Serialization;
 using System;
 using System.Linq;
+using System.Threading.Tasks;
+using System.Collections.Concurrent;
 
 public class Il2CppDump {
     class Field {
@@ -19,10 +21,10 @@ public class Il2CppDump {
     };
 
     public class Method {
-        private REFrameworkNET.Method impl;
+        public REFrameworkNET.Method Impl;
 
         public Method(REFrameworkNET.Method impl) {
-            this.impl = impl;
+            this.Impl = impl;
         }
         
         public bool? Override { get; set;} // Not from JSON
@@ -66,7 +68,7 @@ public class Il2CppDump {
 
 
         // Custom stuff below
-        public HashSet<REFrameworkNET.TypeDefinition>? NestedTypes { get; set;}
+        public HashSet<REFrameworkNET.TypeDefinition> NestedTypes = [];
     };
 
     static private Dictionary<REFrameworkNET.TypeDefinition, Type> typeExtensions = [];
@@ -77,6 +79,17 @@ public class Il2CppDump {
         }
 
         return null;
+    }
+
+    static public Type GetOrAddTypeExtension(REFrameworkNET.TypeDefinition type) {
+        if (typeExtensions.TryGetValue(type, out Type? value)) {
+            return value;
+        }
+
+        value = new Type(type);
+        typeExtensions[type] = value;
+
+        return value;
     }
 
     static public Method? GetMethodExtension(REFrameworkNET.Method method) {
@@ -92,43 +105,52 @@ public class Il2CppDump {
             return;
         }
 
-        // Look for types that have a declaring type and add them to the declaring type's nested types
+        context.GetType(0).GetFullName(); // initialize the types
+
+        //Parallel.For(0, context.GetNumTypes(), i =>
         foreach (REFrameworkNET.TypeDefinition t in context.Types) {
-            if (t.DeclaringType != null) {
-                if (!typeExtensions.TryGetValue(t.DeclaringType, out Type? value)) {
-                    value = new Type(t.DeclaringType);
-                    typeExtensions[t.DeclaringType] = value;
-                }
+            //var t = context.GetType((uint)i);
+            if (t == null) {
+                //Console.WriteLine("Failed to get type " + i);
+                continue;
+            }
 
-                //value.NestedTypes ??= [];
-                if (value.NestedTypes == null) {
-                    value.NestedTypes = new HashSet<REFrameworkNET.TypeDefinition>();
-                }
-                value.NestedTypes.Add(t);
+            var tDeclaringType = t.DeclaringType;
+            if (tDeclaringType != null) {
+                var ext = GetOrAddTypeExtension(tDeclaringType);
+                ext.NestedTypes.Add(t);
+            }
 
-                //System.Console.WriteLine("Adding nested type " + t.GetFullName() + " to " + t.DeclaringType.GetFullName());
+            if (t.GetNumMethods() == 0 || t.ParentType == null) {
+                continue;
             }
 
             // Look for methods with the same name and mark them as overrides
-            for (var parent = t.ParentType; parent != null; parent = parent.ParentType) {
-                if (parent.Methods.Count == 0 || t.Methods.Count == 0) {
+            // We dont go through all parents, because GetMethod does that for us
+            // Going through all parents would exponentially increase the number of checks and they would be redundant
+            var parent = t.ParentType;
+            var tMethods = t.GetMethods();
+
+            //foreach (var method in t.Methods) {
+            //Parallel.ForEach(tMethods, method => {
+            foreach (var method in tMethods) { // parallel isn't necessary here because there arent many methods
+                if (method == null) {
                     continue;
                 }
 
-                foreach (var method in t.Methods) {
-                    var parentMethod = parent.GetMethod(method.Name);
+                if (GetMethodExtension(method) != null) {
+                    continue;
+                }
 
-                    if (parentMethod != null) {
-                        if (!methodExtensions.TryGetValue(method, out Method? value)) {
-                            value = new Method(method);
-                            methodExtensions[method] = value;
-                        }
+                var parentMethod = parent.GetMethod(method.Name);
 
-                        value.Override = true;
-                    }
+                if (parentMethod != null) {
+                    methodExtensions.Add(method, new Method(method) {
+                        Override = true
+                    });
                 }
             }
-        }
+        }   
     }
 }
 
@@ -139,50 +161,21 @@ public class AssemblyGenerator {
     // Start with an empty CompilationUnitSyntax (represents an empty file)
     static CompilationUnitSyntax compilationUnit = SyntaxFactory.CompilationUnit();
 
-    static public NamespaceDeclarationSyntax? ExtractNamespaceFromTypeName(REFrameworkNET.TDB context, string typeName) {
-        if (context == null || context.Types == null) {
-            return null;
-        }
+    static public NamespaceDeclarationSyntax? ExtractNamespaceFromType(REFrameworkNET.TypeDefinition t) {
+        var ns = t.GetNamespace();
 
-        var parts = typeName.Split('.');
-        var currentTypeName = "";
-
-        NamespaceDeclarationSyntax? currentNamespaceDecl = null;
-        string currentNamespaceName = "";
-
-        for (var i = 0; i < parts.Length; i++) {
-            var part = parts[i];
-            currentTypeName += part;
-            
-            if (context.GetType(currentTypeName) != null) {
-                // Return a blank namespace
-                if (currentNamespaceDecl == null) {
-                    System.Console.WriteLine("Creating blank namespace for " + currentTypeName);
-                    currentNamespaceDecl = SyntaxTreeBuilder.CreateNamespace("");
-                }
-
-                return currentNamespaceDecl;
+        if (ns != null) {
+            if (!namespaces.TryGetValue(ns, out NamespaceDeclarationSyntax? value)) {
+                //ns = Regex.Replace(ns, @"[^a-zA-Z0-9.]", "_");
+                Console.WriteLine("Creating namespace " + ns);
+                value = SyntaxTreeBuilder.CreateNamespace(ns);
+                namespaces[ns] = value;
             }
 
-            currentNamespaceName += part;
-
-            // Create via namespace in list of namespaces if not exist
-            if (!namespaces.TryGetValue(currentTypeName, out NamespaceDeclarationSyntax? value)) {
-                // Clean up the namespace name, remove any non-compliant characters other than "." and alphanumerics
-                currentNamespaceName = Regex.Replace(currentTypeName, @"[^a-zA-Z0-9.]", "_");
-
-                Console.WriteLine("Creating namespace " + currentNamespaceName);
-                value = SyntaxTreeBuilder.CreateNamespace(currentNamespaceName);
-                namespaces[currentNamespaceName] = value;
-                currentNamespaceDecl = value;
-            } else {
-                currentNamespaceDecl = value;
-            }
-
-            currentTypeName += ".";
+            return value;
         }
 
-        return currentNamespaceDecl;
+        return null;
     }
 
     public static SortedSet<string> validTypes = [];
@@ -193,28 +186,35 @@ public class AssemblyGenerator {
             return;
         }
 
-        // TDB only has GetType(index) and GetNumTypes()
-        foreach (REFrameworkNET.TypeDefinition t in context.Types) {
+        ConcurrentBag<string> threadSafeValidTypes = [];
+
+        Parallel.For(0, context.GetNumTypes(), i => {
+            var t = context.GetType((uint)i);
             var typeName = t.GetFullName();
 
             if (typeName.Length == 0) {
                 Console.WriteLine("Bad type name");
-                continue;
+                return;
             }
 
             if (typeName.Contains("WrappedArrayContainer")) {
-                continue;
+                return;
             }
 
             if (typeName.Contains("[") || typeName.Contains("]") || typeName.Contains('<')) {
-                continue;
+                return;
             }
 
             // Skip system types
+            // TODO: Fix this
             if (typeName.StartsWith("System.")) {
-                continue;
+                return;
             }
 
+            threadSafeValidTypes.Add(typeName);
+        });
+
+        foreach (var typeName in threadSafeValidTypes) {
             validTypes.Add(typeName);
         }
     }
@@ -279,7 +279,7 @@ public class AssemblyGenerator {
             return compilationUnit;
         }
 
-        var generatedNamespace = ExtractNamespaceFromTypeName(context, typeName);
+        var generatedNamespace = ExtractNamespaceFromType(t);
 
         if (generatedNamespace != null) {
             // Split the using types by their namespace

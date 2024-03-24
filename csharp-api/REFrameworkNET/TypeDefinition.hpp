@@ -23,7 +23,9 @@ public enum VMObjType {
     ValType = 5,
 };
 
-public ref class TypeDefinition : public System::Dynamic::DynamicObject, public System::IEquatable<TypeDefinition^>
+public
+    ref class TypeDefinition : public System::Dynamic::DynamicObject,
+                               public System::IEquatable<TypeDefinition ^>
 {
 public:
     TypeDefinition(reframework::API::TypeDefinition* td) : m_type(td) {}
@@ -36,6 +38,11 @@ public:
     property NativeObject^ Statics {
         NativeObject^ get();
     }
+
+    TypeDefinition^ Clone() {
+		return gcnew TypeDefinition(m_type);
+	}
+
 
     uint32_t GetIndex()
     {
