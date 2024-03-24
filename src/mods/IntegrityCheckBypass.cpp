@@ -501,6 +501,47 @@ void IntegrityCheckBypass::immediate_patch_re4() {
     spdlog::info("[IntegrityCheckBypass]: Patched conditional_jmp!");
 }
 
+void IntegrityCheckBypass::immediate_patch_dd2() {
+    // Just like RE4, this deals with the scans that are done every frame on the game's memory.
+    // The scans are still performed, but the crash will be avoided.
+    // This time, the obfuscation is much worse, and the way the crash is caused is much more indirect.
+    // They corrupt something that has something to do with the renderer,
+    // possibly with how it updates constant buffers and/or pipeline state
+    // this makes the crash look like it comes from DXGI present, due to a GPU error.
+    // The place this is happening is very simple, but it was not an easy find due to
+    // how indirect it was + all the obfuscation.
+    spdlog::info("[IntegrityCheckBypass]: Scanning DD2...");
+
+    const auto game = utility::get_executable();
+    const auto conditional_jmp_block = utility::scan(game, "41 8B ? ? 78 83 ? 07 ? ? 75 ?");
+
+    if (conditional_jmp_block) {
+        // Jnz->Jmp
+        const auto conditional_jmp = *conditional_jmp_block + 10;
+
+        // Create a patch that always jumps.
+        static auto dd2patch = Patch::create(conditional_jmp, { 0xEB }, true);
+
+        spdlog::info("[IntegrityCheckBypass]: Patched conditional_jmp! (DD2)");
+    } else {
+        spdlog::error("[IntegrityCheckBypass]: Could not find conditional_jmp for DD2.");
+    }
+
+    const auto second_conditional_jmp_block = utility::scan(game, "49 3B D0 75 ? ? 8B ? ? ? ? ? ? 8B ? ? ? ? ? ? 8B ? ? 8B ? ? ? ? ?");
+
+    if (second_conditional_jmp_block) {
+        // Jnz->Jmp
+        const auto second_conditional_jmp = *second_conditional_jmp_block + 3;
+
+        // Create a patch that always jumps.
+        static auto dd2patch2 = Patch::create(second_conditional_jmp, { 0xEB }, true);
+
+        spdlog::info("[IntegrityCheckBypass]: Patched second_conditional_jmp! (DD2)");
+    } else {
+        spdlog::error("[IntegrityCheckBypass]: Could not find second_conditional_jmp for DD2.");
+    }
+}
+
 void IntegrityCheckBypass::remove_stack_destroyer() {
     spdlog::info("[IntegrityCheckBypass]: Searching for stack destroyer...");
 
