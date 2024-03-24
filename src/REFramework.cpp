@@ -245,7 +245,7 @@ REFramework::REFramework(HMODULE reframework_module)
     spdlog::info("D3D12 loaded");
 #endif
 
-#if defined(MHRISE)
+#if defined(MHRISE) || defined(DD2)
     utility::load_module_from_current_directory(L"openvr_api.dll");
     utility::load_module_from_current_directory(L"openxr_loader.dll");
     LoadLibraryA("dxgi.dll");
