@@ -27,11 +27,16 @@ REGlobals::REGlobals() {
     auto start = (uintptr_t)mod;
     auto end = (uintptr_t)start + *utility::get_module_size(mod);
 
+    end -= 0x1000;
+
+    spdlog::info("start: {:x}", start);
+    spdlog::info("end: {:x}", end);
+
     // generic pattern used for all these globals
     auto pat = std::string{ "48 8D ? ? ? ? ? 48 B8 00 00 00 00 00 00 00 80" };
 
     // find all the globals
-    for (auto i = utility::scan(start, end - start, pat); i.has_value(); i = utility::scan(*i + 1, end - (*i + 1), pat)) {
+    for (auto i = utility::scan(start, end - start, pat); i.has_value(); i = utility::scan(*i + 1, end - (*i + 1), pat)) try {
         auto ptr = utility::calculate_absolute(*i + 3);
 
         // Make sure the global is within the module boundaries
@@ -56,6 +61,8 @@ REGlobals::REGlobals() {
         
         m_objects.insert(obj_ptr);
         m_object_list.push_back(obj_ptr);
+    } catch(...) {
+        
     }
 
     // Create a list of getter functions instead
