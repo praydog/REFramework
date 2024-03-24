@@ -35,6 +35,7 @@ include(CSharpUtilities)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MP")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
+set(CMAKE_CSharp_FLAGS "${CMAKE_CSHARP_FLAGS} /langversion:latest /platform:x64")
 
 # Disable exceptions
 # string(REGEX REPLACE "/EHsc" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
@@ -94,8 +95,6 @@ set_target_properties(REFCSharpCompiler PROPERTIES
 		net8.0-windows
 	VS_CONFIGURATION_TYPE
 		ClassLibrary
-	CMAKE_CSharp_FLAGS
-		"/langversion:latest /platform:x64"
 )
 
 set(CMKR_TARGET REFCSharpCompiler)
@@ -186,6 +185,13 @@ add_custom_command(
 set(REFRAMEWORK_DOT_NET_ASSEMBLY_DIR "${CMAKE_BINARY_DIR}/bin")
 set(REFRAMEWORK_DOT_NET_ASSEMBLY_PATH "${CMAKE_BINARY_DIR}/bin/REFramework.NET.dll")
 
+set_target_properties(csharp-api PROPERTIES
+VS_DOTNET_REFERENCE_REFCSharpCompiler
+"${REFRAMEWORK_DOT_NET_ASSEMBLY_DIR}/REFCSharpCompiler.dll"
+)
+
+set_target_properties(csharp-api PROPERTIES VS_PACKAGE_REFERENCES "REFCSharpCompiler")
+
 # Target: AssemblyGenerator
 set(AssemblyGenerator_SOURCES
 	"AssemblyGenerator/ClassGenerator.cs"
@@ -217,8 +223,6 @@ set_target_properties(AssemblyGenerator PROPERTIES
 		net8.0-windows
 	VS_CONFIGURATION_TYPE
 		ClassLibrary
-	CMAKE_CSharp_FLAGS
-		"/langversion:latest /platform:x64"
 )
 
 set(CMKR_TARGET AssemblyGenerator)
@@ -255,8 +259,6 @@ set_target_properties(CSharpAPITest PROPERTIES
 		net8.0-windows
 	VS_CONFIGURATION_TYPE
 		ClassLibrary
-	CMAKE_CSharp_FLAGS
-		"/langversion:latest /platform:x64"
 )
 
 set(CMKR_TARGET CSharpAPITest)

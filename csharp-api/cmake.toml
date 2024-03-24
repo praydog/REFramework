@@ -8,6 +8,7 @@ languages = ["CXX", "C", "CSharp"]
 cmake-after = """
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MP")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
+set(CMAKE_CSharp_FLAGS "${CMAKE_CSHARP_FLAGS} /langversion:latest /platform:x64")
 
 # Disable exceptions
 # string(REGEX REPLACE "/EHsc" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
@@ -54,7 +55,6 @@ LIBRARY_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/lib"
 DOTNET_SDK = "Microsoft.NET.Sdk"
 DOTNET_TARGET_FRAMEWORK = "net8.0-windows"
 VS_CONFIGURATION_TYPE = "ClassLibrary"
-CMAKE_CSharp_FLAGS = "/langversion:latest /platform:x64"
 
 [target.REFCSharpCompiler]
 type = "CSharpSharedTarget"
@@ -89,6 +89,13 @@ add_custom_command(
 )
 set(REFRAMEWORK_DOT_NET_ASSEMBLY_DIR "${CMAKE_BINARY_DIR}/bin")
 set(REFRAMEWORK_DOT_NET_ASSEMBLY_PATH "${CMAKE_BINARY_DIR}/bin/REFramework.NET.dll")
+
+set_target_properties(csharp-api PROPERTIES
+VS_DOTNET_REFERENCE_REFCSharpCompiler
+"${REFRAMEWORK_DOT_NET_ASSEMBLY_DIR}/REFCSharpCompiler.dll"
+)
+
+set_target_properties(csharp-api PROPERTIES VS_PACKAGE_REFERENCES "REFCSharpCompiler")
 """
 
 [target.csharp-api.properties]
