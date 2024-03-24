@@ -14,10 +14,14 @@ public ref class ManagedObject : public System::Dynamic::DynamicObject, public S
 {
 public:
     ManagedObject(reframework::API::ManagedObject* obj) : m_object(obj) {
-        AddRef();
+        if (obj != nullptr) {
+            AddRef();
+        }
     }
     ManagedObject(::REFrameworkManagedObjectHandle handle) : m_object(reinterpret_cast<reframework::API::ManagedObject*>(handle)) {
-        AddRef();
+        if (handle != nullptr) {
+            AddRef();
+        }
     }
 
     ~ManagedObject() {
