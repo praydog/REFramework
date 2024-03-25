@@ -110,7 +110,7 @@ bool Method::HandleInvokeMember_Internal(System::Object^ obj, System::String^ me
     //auto methodName = binder->Name;
     auto tempResult = this->Invoke(obj, args);
 
-    if (tempResult != nullptr && tempResult->QWord != 0) {
+    if (tempResult != nullptr) {
         auto returnType = this->GetReturnType();
 
         if (returnType == nullptr) {
@@ -120,22 +120,17 @@ bool Method::HandleInvokeMember_Internal(System::Object^ obj, System::String^ me
 
         // Check the return type of the method and return it as a NativeObject if possible
         if (!returnType->IsValueType()) {
-            if (returnType->GetVMObjType() == VMObjType::Object) {
-                if (tempResult->QWord == 0) {
-                    result = nullptr;
-                    return true;
-                }
+            if (tempResult->QWord == 0) {
+                result = nullptr;
+                return true;
+            }
 
+            if (returnType->GetVMObjType() == VMObjType::Object) {
                 result = gcnew REFrameworkNET::ManagedObject((::REFrameworkManagedObjectHandle)tempResult->QWord);
                 return true;
             }
 
             if (returnType->GetVMObjType() == VMObjType::String) {
-                if (tempResult->QWord == 0) {
-                    result = nullptr;
-                    return true;
-                }
-                
                 // Maybe don't create the GC version and just use the native one?
                 auto strObject = gcnew REFrameworkNET::ManagedObject((::REFrameworkManagedObjectHandle)tempResult->QWord);
                 auto strType = strObject->GetTypeDefinition();
