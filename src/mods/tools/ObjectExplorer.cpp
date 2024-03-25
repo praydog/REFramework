@@ -4467,7 +4467,11 @@ HookManager::PreHookResult ObjectExplorer::pre_hooked_method_internal(std::vecto
         size_t nearest_distance = UINT64_MAX;
 
         for (auto& it : m_method_map) {
-            const auto distance = std::abs(static_cast<int64_t>(it.first - ret_addr));
+            if (it.first > ret_addr) {
+                continue;
+            }
+
+            const auto distance = ret_addr - it.first;
             if (distance < nearest_distance) {
                 nearest_distance = distance;
                 nearest_method = it.second;
@@ -4477,26 +4481,51 @@ HookManager::PreHookResult ObjectExplorer::pre_hooked_method_internal(std::vecto
         if (nearest_method != nullptr) {
             auto method_entry = utility::find_function_entry((uintptr_t)nearest_method->get_function());
 
+            bool added = false;
+            auto add_method = [&]() {
+                hooked_method.return_addresses_to_methods[ret_addr] = nearest_method;
+                hooked_method.callers.insert(nearest_method);
+
+                const auto decl_type = nearest_method->get_declaring_type();
+
+                if (decl_type != nullptr) {
+                    spdlog::info("{} {}.{}", hooked_method.name, nearest_method->get_declaring_type()->get_full_name(), nearest_method->get_name());
+                } else {
+                    spdlog::info("{} {}", hooked_method.name, nearest_method->get_name());
+                }
+
+                added = true;
+            };
+
             if (method_entry != nullptr) {
                 const auto module_addr = (uintptr_t)utility::get_module_within(ret_addr).value_or(nullptr);
                 const auto ret_addr_rva = (uint32_t)(ret_addr - module_addr);
                 const auto ret_addr_entry = utility::find_function_entry(ret_addr);
+
+                // First condition isn't as heavy as fully disassembling the function which is the second condition
                 if (ret_addr_entry == method_entry ||
                     (ret_addr_rva >= method_entry->BeginAddress && ret_addr_rva <= method_entry->EndAddress) ||
                     (ret_addr_entry != nullptr && ret_addr_entry->BeginAddress >= method_entry->BeginAddress && ret_addr_entry->BeginAddress <= method_entry->EndAddress + 1))
                 {
-                    hooked_method.return_addresses_to_methods[ret_addr] = nearest_method;
-                    hooked_method.callers.insert(nearest_method);
-
-                    const auto decl_type = nearest_method->get_declaring_type();
-
-                    if (decl_type != nullptr) {
-                        spdlog::info("{} {}.{}", hooked_method.name, nearest_method->get_declaring_type()->get_full_name(), nearest_method->get_name());
-                    } else {
-                        spdlog::info("{} {}", hooked_method.name, nearest_method->get_name());
-                    }
+                    add_method();
                 } else {
-                    spdlog::info("{} <unknown caller> @ 0x{:x}", hooked_method.name, ret_addr);
+                    // Disassemble all possible code paths to see if we run into the return address
+                    utility::exhaustive_decode((uint8_t*)nearest_method->get_function(), 5000, [&](utility::ExhaustionContext& ctx) -> utility::ExhaustionResult {
+                        if (ctx.addr == ret_addr) {
+                            add_method();
+                            return utility::ExhaustionResult::BREAK;
+                        }
+
+                        if (std::string_view{ctx.instrux.Mnemonic}.starts_with("CALL")) {
+                            return utility::ExhaustionResult::STEP_OVER;
+                        }
+
+                        return utility::ExhaustionResult::CONTINUE;
+                    });
+
+                    if (!added) {
+                        spdlog::info("{} <unknown caller> @ 0x{:x}", hooked_method.name, ret_addr);
+                    }
                 }
             } else {
                 hooked_method.return_addresses_to_methods[ret_addr] = nearest_method;
