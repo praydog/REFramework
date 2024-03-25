@@ -3,6 +3,7 @@
 #include "ManagedObject.hpp"
 #include "NativeObject.hpp"
 
+#include "MethodHookWrapper.hpp"
 #include "Method.hpp"
 #include "Field.hpp"
 
@@ -11,6 +12,10 @@
 #include "Utility.hpp"
 
 namespace REFrameworkNET {
+MethodHookWrapper^ Method::AddHook(bool ignore_jmp) {
+    return MethodHookWrapper::Create(this, ignore_jmp);
+}
+
 REFrameworkNET::InvokeRet^ Method::Invoke(System::Object^ obj, array<System::Object^>^ args) {
     if (obj == nullptr && !this->IsStatic()) {
         System::String^ declaringName = this->GetDeclaringType() != nullptr ? this->GetDeclaringType()->GetFullName() : gcnew System::String("UnknownType");

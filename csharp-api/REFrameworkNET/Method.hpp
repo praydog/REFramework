@@ -8,17 +8,28 @@
 #include "MethodParameter.hpp"
 
 namespace REFrameworkNET {
+ref class MethodHookWrapper;
+
+public enum class PreHookResult : int32_t {
+    Continue = 0,
+    Skip = 1,
+};
+
 public ref class Method : public System::IEquatable<Method^>
 {
 public:
     Method(reframework::API::Method* method) : m_method(method) {}
 
+    void* GetRaw() {
+        return m_method;
+    }
+
     REFrameworkNET::InvokeRet^ Invoke(System::Object^ obj, array<System::Object^>^ args);
     bool HandleInvokeMember_Internal(System::Object^ obj, System::String^ methodName, array<System::Object^>^ args, System::Object^% result);
 
-    /*Void* GetFunctionRaw() {
+    void* GetFunctionPtr() {
         return m_method->get_function_raw();
-    }*/
+    }
 
     System::String^ GetName() {
         return gcnew System::String(m_method->get_name());
@@ -144,14 +155,11 @@ public:
         }
     }
 
-    // hmm...
-    /*UInt32 AddHook(pre_fn, post_fn, Boolean ignore_jmp) {
-        return m_method->add_hook(pre_fn, post_fn, ignore_jmp);
-    }*/
+    // More palatable C# versions
+    delegate PreHookResult REFPreHookDelegate(System::Collections::Generic::List<System::Object^>^ args);
+    delegate void REFPostHookDelegate();
 
-    void RemoveHook(uint32_t hook_id) {
-        m_method->remove_hook(hook_id);
-    }
+    MethodHookWrapper^ AddHook(bool ignore_jmp);
 
 public:
     virtual bool Equals(System::Object^ other) override {
