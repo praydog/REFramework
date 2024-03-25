@@ -16,7 +16,10 @@ public:
     static MethodHookWrapper^ Create(Method^ method, bool ignore_jmp) 
     {
         if (s_hooked_methods->ContainsKey(method)) {
-            return s_hooked_methods[method];
+            MethodHookWrapper^ out = nullptr;
+            s_hooked_methods->TryGetValue(method, out);
+
+            return out;
         }
 
         auto wrapper = gcnew MethodHookWrapper(method, ignore_jmp);
