@@ -8,7 +8,7 @@
 #include "MethodParameter.hpp"
 
 namespace REFrameworkNET {
-ref class MethodHookWrapper;
+ref class MethodHook;
 
 public enum class PreHookResult : int32_t {
     Continue = 0,
@@ -159,7 +159,7 @@ public:
     delegate PreHookResult REFPreHookDelegate(System::Collections::Generic::List<System::Object^>^ args);
     delegate void REFPostHookDelegate();
 
-    MethodHookWrapper^ AddHook(bool ignore_jmp);
+    MethodHook^ AddHook(bool ignore_jmp);
 
 public:
     virtual bool Equals(System::Object^ other) override {

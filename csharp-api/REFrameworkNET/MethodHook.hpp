@@ -9,31 +9,31 @@ namespace REFrameworkNET {
 // Wrapper class we create when we create an initial hook
 // Additional hook calls on the same method will return the instance we already made
 // and additional callbacks will be appended to the existing events
-public ref class MethodHookWrapper
+public ref class MethodHook
 {
 public:
     // Public factory method to create a new hook
-    static MethodHookWrapper^ Create(Method^ method, bool ignore_jmp) 
+    static MethodHook^ Create(Method^ method, bool ignore_jmp) 
     {
         if (s_hooked_methods->ContainsKey(method)) {
-            MethodHookWrapper^ out = nullptr;
+            MethodHook^ out = nullptr;
             s_hooked_methods->TryGetValue(method, out);
 
             return out;
         }
 
-        auto wrapper = gcnew MethodHookWrapper(method, ignore_jmp);
+        auto wrapper = gcnew MethodHook(method, ignore_jmp);
         s_hooked_methods->Add(method, wrapper);
         return wrapper;
     }
 
-    MethodHookWrapper^ AddPre(Method::REFPreHookDelegate^ callback) 
+    MethodHook^ AddPre(Method::REFPreHookDelegate^ callback) 
     {
         OnPreStart += callback;
         return this;
     }
 
-    MethodHookWrapper^ AddPost(Method::REFPostHookDelegate^ callback) 
+    MethodHook^ AddPost(Method::REFPostHookDelegate^ callback) 
     {
         OnPostStart += callback;
         return this;
@@ -45,22 +45,22 @@ private:
 
 
     // This is never meant to publicly be called
-    MethodHookWrapper(Method^ method, bool ignore_jmp) 
+    MethodHook(Method^ method, bool ignore_jmp) 
     {
         m_method = method;
-        m_preHookLambda = gcnew REFPreHookDelegateRaw(this, &MethodHookWrapper::OnPreStart_Raw);
-        m_postHookLambda = gcnew REFPostHookDelegateRaw(this, &MethodHookWrapper::OnPostStart_Raw);
+        m_preHookLambda = gcnew REFPreHookDelegateRaw(this, &MethodHook::OnPreStart_Raw);
+        m_postHookLambda = gcnew REFPostHookDelegateRaw(this, &MethodHook::OnPostStart_Raw);
         InstallHooks(ignore_jmp);
     }
 
-    ~MethodHookWrapper() 
+    ~MethodHook() 
     {
         if (m_hooks_installed) {
             UninstallHooks();
         }
     }
 
-    static System::Collections::Generic::Dictionary<Method^, MethodHookWrapper^>^ s_hooked_methods = gcnew System::Collections::Generic::Dictionary<Method^, MethodHookWrapper^>();
+    static System::Collections::Generic::Dictionary<Method^, MethodHook^>^ s_hooked_methods = gcnew System::Collections::Generic::Dictionary<Method^, MethodHook^>();
 
     delegate int32_t REFPreHookDelegateRaw(int argc, void** argv, REFrameworkTypeDefinitionHandle* arg_tys, unsigned long long ret_addr);
     delegate void REFPostHookDelegateRaw(void** ret_val, REFrameworkTypeDefinitionHandle ret_ty, unsigned long long ret_addr);
