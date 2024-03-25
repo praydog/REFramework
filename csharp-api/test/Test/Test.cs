@@ -87,7 +87,24 @@ public class NativeProxy<T> : Proxy<T, REFrameworkNET.NativeObject> {
 }
 
 public class DangerousFunctions {
+    public static REFrameworkNET.PreHookResult isInsidePreHook(System.Collections.Generic.List<object> args) {
+        Console.WriteLine("Inside pre hook (From C#)");
+        REFrameworkNET.API.LogInfo("isInsidePreHook");
+        return REFrameworkNET.PreHookResult.Continue;
+    }
+
+    public static void isInsidePostHook() {
+        Console.WriteLine("Inside post hook (From C#)");
+    }
+
     public static void Entry() {
+        var tdb = REFrameworkNET.API.GetTDB();
+        tdb.GetType("app.CameraManager")?.
+            GetMethod("isInside")?.
+            AddHook(false).
+            AddPre(isInsidePreHook).
+            AddPost(isInsidePostHook);
+
         // These via.SceneManager and via.Scene are
         // loaded from an external reference assembly
         // the classes are all interfaces that correspond to real in-game classes
