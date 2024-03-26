@@ -4,12 +4,16 @@
 
 #include "./API.hpp"
 #include "ManagedObject.hpp"
+#include "TypeDefinition.hpp"
 
 using namespace System;
 
 // Classes for proxying interfaces from auto generated assemblies to our dynamic types
 namespace REFrameworkNET {
-public interface class IProxy {
+// Inherit IObject's interface as well
+// so we can easily pretend that this is an IObject, even though it just forwards the calls to the actual object
+public interface class IProxy : IObject {
+    IObject^ GetInstance();
     void SetInstance(IObject^ instance);
 };
 
@@ -18,10 +22,40 @@ where T2 : ref class
 public ref class Proxy : public Reflection::DispatchProxy, public IProxy, public System::IEquatable<Proxy<T, T2>^>
 {
 public:
+    virtual REFrameworkNET::TypeDefinition^ GetTypeDefinition() {
+        return Instance->GetTypeDefinition();
+    }
+
+    virtual void* Ptr() {
+        return Instance->Ptr();
+    }
+
+    virtual uintptr_t GetAddress() {
+        return Instance->GetAddress();
+    }
+
+    virtual REFrameworkNET::InvokeRet^ Invoke(System::String^ methodName, array<System::Object^>^ args) {
+        return Instance->Invoke(methodName, args);
+    }
+
+    virtual bool HandleInvokeMember_Internal(System::String^ methodName, array<System::Object^>^ args, System::Object^% result) {
+        return Instance->HandleInvokeMember_Internal(methodName, args, result);
+    }
+
+    // For interface types
+    generic <typename T>
+    virtual T As() {
+        return Instance->As<T>();
+    }
+
     static T Create(IObject^ target) {
         auto proxy = Reflection::DispatchProxy::Create<T, Proxy<T, T2>^>();
         ((IProxy^)proxy)->SetInstance(target);
         return proxy;
+    }
+
+    virtual IObject^ GetInstance() {
+        return Instance;
     }
 
     virtual void SetInstance(IObject^ instance) {

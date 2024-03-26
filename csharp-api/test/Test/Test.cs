@@ -37,7 +37,7 @@ public class DangerousFunctions {
         REFrameworkNET.API.LogInfo("Scene name: " + name);
 
         // Testing autocomplete for the concrete ManagedObject
-        REFrameworkNET.API.LogInfo("Scene: " + scene.ToString() + ": " + (scene as REFrameworkNET.ManagedObject)?.GetTypeDefinition()?.GetFullName()?.ToString());
+        REFrameworkNET.API.LogInfo("Scene: " + scene.ToString() + ": " + (scene as REFrameworkNET.IObject).GetTypeDefinition()?.GetFullName()?.ToString());
 
         // Testing dynamic invocation
         float currentTimescale = scene.get_TimeScale();
