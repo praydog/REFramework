@@ -685,9 +685,68 @@ void ObjectExplorer::display_pins() {
 }
 
 void ObjectExplorer::display_hooks() {
-    std::scoped_lock _{m_hooked_methods_mtx};
+    std::scoped_lock _{m_hooks_context.mtx};
 
+    ImGui::SetNextItemOpen(true, ImGuiCond_::ImGuiCond_Once);
+    if (ImGui::TreeNode("Options")) {
+        ImGui::Checkbox("Hide uncalled methods", &m_hooks_context.hide_uncalled_methods);
+
+        // Combobox of the sort method instead
+        if (ImGui::BeginCombo("Sort by", HooksContext::s_sort_method_names[(uint8_t)m_hooks_context.sort_method])) {
+            for (int i = 0; i < HooksContext::s_sort_method_names.size(); i++) {
+                const bool is_selected = (m_hooks_context.sort_method == (HooksContext::SortMethod)i);
+
+                if (ImGui::Selectable(HooksContext::s_sort_method_names[i], is_selected)) {
+                    m_hooks_context.sort_method = (HooksContext::SortMethod)i;
+                }
+
+                if (is_selected) {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+
+            ImGui::EndCombo();
+        }
+
+        ImGui::TreePop();
+    }
+
+    std::vector<HookedMethod*> hooks_to_iterate{};
     for (auto& h : m_hooked_methods) {
+        if (m_hooks_context.hide_uncalled_methods && h.call_count == 0) {
+            continue;
+        }
+
+        hooks_to_iterate.push_back(&h);
+    }
+
+    switch (m_hooks_context.sort_method) {
+    case HooksContext::SortMethod::CALL_COUNT:
+        std::sort(hooks_to_iterate.begin(), hooks_to_iterate.end(), [](const auto& a, const auto& b) {
+            return a->call_count > b->call_count;
+        });
+        break;
+    case HooksContext::SortMethod::CALL_TIME:
+        std::sort(hooks_to_iterate.begin(), hooks_to_iterate.end(), [](const auto& a, const auto& b) {
+            return a->last_call_time > b->last_call_time;
+        });
+        break;
+    case HooksContext::SortMethod::METHOD_NAME:
+        std::sort(hooks_to_iterate.begin(), hooks_to_iterate.end(), [](const auto& a, const auto& b) {
+            return a->name < b->name;
+        });
+        break;
+    case HooksContext::SortMethod::NUMBER_OF_CALLERS:
+        std::sort(hooks_to_iterate.begin(), hooks_to_iterate.end(), [](const auto& a, const auto& b) {
+            return a->callers.size() > b->callers.size();
+        });
+        break;
+    default:
+        break;
+    };
+
+    for (auto& hp : hooks_to_iterate) {
+        auto& h = *hp;
         ImGui::PushID(h.method);
 
         ImGui::SetNextItemOpen(true, ImGuiCond_::ImGuiCond_Once);
@@ -4455,8 +4514,9 @@ HookManager::PreHookResult ObjectExplorer::pre_hooked_method_internal(std::vecto
 
     auto& hooked_method = *it;
 
-    std::scoped_lock _{m_hooked_methods_mtx};
+    std::scoped_lock _{m_hooks_context.mtx};
     ++hooked_method.call_count;
+    hooked_method.last_call_time = std::chrono::high_resolution_clock::now();
 
     if (!hooked_method.return_addresses.contains(ret_addr)) {
         spdlog::info("Creating new entry for {}", hooked_method.name);

@@ -226,7 +226,28 @@ private:
         std::string path{};
     };
 
-    std::recursive_mutex m_hooked_methods_mtx{};
+    struct HooksContext {
+        enum class SortMethod : uint8_t {
+            NONE,
+            CALL_COUNT,
+            CALL_TIME,
+            METHOD_NAME,
+            NUMBER_OF_CALLERS
+        };
+
+        static inline constexpr std::array<const char*, 5> s_sort_method_names {
+            "None",
+            "Call Count",
+            "Call Time",
+            "Method Name",
+            "Number of Callers"
+        };
+
+        std::recursive_mutex mtx{};
+        bool hide_uncalled_methods{false};
+        SortMethod sort_method{SortMethod::NONE};
+    } m_hooks_context{};
+
     std::recursive_mutex m_job_mutex{};
     std::vector<std::function<void()>> m_frame_jobs{};
 
@@ -246,6 +267,7 @@ private:
         };
 
         std::unordered_map<sdk::REMethodDefinition*, CallerContext> callers_context{};
+        std::chrono::high_resolution_clock::time_point last_call_time{};
     };
 
     asmjit::JitRuntime m_jit_runtime;
