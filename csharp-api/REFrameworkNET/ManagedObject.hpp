@@ -1,6 +1,7 @@
 #pragma once
 
 #include <reframework/API.hpp>
+#include "IObject.hpp"
 
 #pragma managed
 
@@ -10,7 +11,7 @@ ref class TypeInfo;
 ref class InvokeRet;
 ref class ManagedObject;
 
-public ref class ManagedObject : public System::Dynamic::DynamicObject, public System::IEquatable<ManagedObject^>
+public ref class ManagedObject : public System::Dynamic::DynamicObject, public System::IEquatable<ManagedObject^>, public REFrameworkNET::IObject
 {
 public:
     ManagedObject(reframework::API::ManagedObject* obj) : m_object(obj) {
@@ -38,11 +39,11 @@ public:
         m_object->release();
     }
 
-    void* Ptr() {
+    virtual void* Ptr() {
         return (void*)m_object;
     }
 
-    uintptr_t GetAddress() {
+    virtual uintptr_t GetAddress() {
         return (uintptr_t)m_object;
     }
 
@@ -92,16 +93,36 @@ public:
     }
 
     static bool IsManagedObject(uintptr_t ptr) {
+        if (ptr == 0) {
+            return false;
+        }
+
         static auto fn = reframework::API::get()->param()->sdk->managed_object->is_managed_object;
         return fn((void*)ptr);
     }
 
-    TypeDefinition^ GetTypeDefinition();
+    static ManagedObject^ ToManagedObject(uintptr_t ptr) {
+        if (ptr == 0) {
+			return nullptr;
+		}
+
+        if (IsManagedObject(ptr)) {
+            return gcnew ManagedObject((reframework::API::ManagedObject*)ptr);
+        }
+
+        return nullptr;
+    }
+
+    static ManagedObject^ FromAddress(uintptr_t ptr) {
+        return ToManagedObject(ptr);
+    }
+
+    virtual TypeDefinition^ GetTypeDefinition();
     TypeInfo^ GetTypeInfo();
 
-    bool HandleInvokeMember_Internal(System::String^ methodName, array<System::Object^>^ args, System::Object^% result);
+    virtual bool HandleInvokeMember_Internal(System::String^ methodName, array<System::Object^>^ args, System::Object^% result);
 
-    REFrameworkNET::InvokeRet^ Invoke(System::String^ methodName, array<System::Object^>^ args);
+    virtual REFrameworkNET::InvokeRet^ Invoke(System::String^ methodName, array<System::Object^>^ args);
     virtual bool TryInvokeMember(System::Dynamic::InvokeMemberBinder^ binder, array<System::Object^>^ args, System::Object^% result) override;
     virtual bool TryGetMember(System::Dynamic::GetMemberBinder^ binder, System::Object^% result) override;
     virtual bool TrySetMember(System::Dynamic::SetMemberBinder^ binder, System::Object^ value) override;

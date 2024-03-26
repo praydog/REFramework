@@ -4,6 +4,7 @@
 
 #include "TypeDefinition.hpp"
 #include "InvokeRet.hpp"
+#include "IObject.hpp"
 
 namespace REFrameworkNET {
 ref class InvokeRet;
@@ -12,7 +13,7 @@ ref class InvokeRet;
 // However, they still have reflection information associated with them
 // So this intends to be the "ManagedObject" class for native objects
 // So we can easily interact with them in C#
-public ref class NativeObject : public System::Dynamic::DynamicObject, public System::Collections::IEnumerable
+public ref class NativeObject : public System::Dynamic::DynamicObject, public System::Collections::IEnumerable, public REFrameworkNET::IObject
 {
 public:
     NativeObject(uintptr_t obj, TypeDefinition^ t){
@@ -45,21 +46,21 @@ public:
         m_object = nullptr;
     }
 
-    TypeDefinition^ GetTypeDefinition() {
+    virtual TypeDefinition^ GetTypeDefinition() {
         return m_type;
     }
 
-    void* Ptr() {
+    virtual void* Ptr() {
         return m_object;
     }
 
-    uintptr_t GetAddress() {
+    virtual uintptr_t GetAddress() {
         return (uintptr_t)m_object;
     }
 
-    InvokeRet^ Invoke(System::String^ methodName, array<System::Object^>^ args);
+    virtual InvokeRet^ Invoke(System::String^ methodName, array<System::Object^>^ args);
 
-    bool HandleInvokeMember_Internal(System::String^ methodName, array<System::Object^>^ args, System::Object^% result);
+    virtual bool HandleInvokeMember_Internal(System::String^ methodName, array<System::Object^>^ args, System::Object^% result);
     virtual bool TryInvokeMember(System::Dynamic::InvokeMemberBinder^ binder, array<System::Object^>^ args, System::Object^% result) override;
 
 public:
