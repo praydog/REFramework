@@ -3,89 +3,6 @@ using System;
 using System.Dynamic;
 using System.Reflection;
 
-public interface IProxy {
-    void SetInstance(dynamic instance);
-}
-
-// TODO: Put this in its own assembly, or make it part of C++/CLI?
-public class Proxy<T, T2> : DispatchProxy, IProxy where T2 : class {
-    public dynamic Instance { get; private set; }
-
-    public void SetInstance(dynamic instance) {
-        Instance = instance;
-    }
-
-    public static T Create(dynamic target) {
-        var proxy = Create<T, Proxy<T, T2>>();
-        (proxy as IProxy).SetInstance(target);
-        return proxy;
-    }
-
-    protected override object Invoke(MethodInfo targetMethod, object[] args) {
-        object result = null;
-        dynamic obj = Instance as T2;
-        obj.HandleInvokeMember_Internal(targetMethod.Name, args, ref result);
-
-        if (targetMethod.ReturnType == typeof(REFrameworkNET.ManagedObject)) {
-            return result;
-        }
-
-        if (targetMethod.ReturnType == typeof(REFrameworkNET.NativeObject)) {
-            return result;
-        }
-
-        if (targetMethod.ReturnType == typeof(string)) {
-            return result;
-        }
-
-        if (!targetMethod.ReturnType.IsPrimitive && targetMethod.DeclaringType.IsInterface) {
-            if (result != null && result.GetType() == typeof(REFrameworkNET.ManagedObject)) {
-                // See if we can do a dynamic lookup and resolve it to a local type
-                var t = (result as REFrameworkNET.ManagedObject).GetTypeDefinition();
-                var fullName = t.GetFullName();
-
-                // See if we can find a local type with the same name
-                var localType = typeof(via.Scene).Assembly.GetType(fullName);
-
-                if (localType != null) {
-                    var prox = Create(localType, typeof(Proxy<,>).MakeGenericType(localType, typeof(REFrameworkNET.ManagedObject)));
-                    (prox as IProxy).SetInstance(result);
-                    result = prox;
-                    return result;
-                }
-            } else if (result != null && result.GetType() == typeof(REFrameworkNET.NativeObject)) {
-                // See if we can do a dynamic lookup and resolve it to a local type
-                var t = (result as REFrameworkNET.NativeObject).GetTypeDefinition();
-                var fullName = t.GetFullName();
-
-                // See if we can find a local type with the same name
-                var localType = typeof(via.Scene).Assembly.GetType(fullName);
-
-                if (localType != null) {
-                    var prox = Create(localType, typeof(Proxy<,>).MakeGenericType(localType, typeof(REFrameworkNET.NativeObject)));
-                    (prox as IProxy).SetInstance(result);
-                    result = prox;
-                    return result;
-                }
-            }
-        }
-
-        return result;
-    }
-}
-
-public class ManagedProxy<T> : Proxy<T, REFrameworkNET.ManagedObject> {
-    new public static T Create(dynamic target) {
-        return Proxy<T, REFrameworkNET.ManagedObject>.Create(target);
-    }
-}
-
-public class NativeProxy<T> : Proxy<T, REFrameworkNET.NativeObject> {
-    new public static T Create(dynamic target) {
-        return Proxy<T, REFrameworkNET.NativeObject>.Create(target);
-    }
-}
-
 public class DangerousFunctions {
     public static REFrameworkNET.PreHookResult isInsidePreHook(System.Collections.Generic.List<object> args) {
         Console.WriteLine("Inside pre hook (From C#)");
@@ -108,7 +25,7 @@ public class DangerousFunctions {
         // These via.SceneManager and via.Scene are
         // loaded from an external reference assembly
         // the classes are all interfaces that correspond to real in-game classes
-        var sceneManager = NativeProxy<via.SceneManager>.Create(REFrameworkNET.API.GetNativeSingleton("via.SceneManager"));
+        var sceneManager = REFrameworkNET.NativeProxy<via.SceneManager>.CreateFromSingleton("via.SceneManager");
         var scene = sceneManager.get_CurrentScene();
 
         scene.set_Pause(true);
@@ -230,8 +147,11 @@ class REFrameworkPlugin {
             }
         }
 
-
-        DangerousFunctions.Entry();
+        try {
+            DangerousFunctions.Entry();
+        } catch (Exception e) {
+            REFrameworkNET.API.LogError(e.ToString());
+        }
 
         dynamic optionManager = REFrameworkNET.API.GetManagedSingleton("app.OptionManager");
 
