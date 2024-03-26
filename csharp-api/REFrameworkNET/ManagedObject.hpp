@@ -127,6 +127,9 @@ public:
     virtual bool TryGetMember(System::Dynamic::GetMemberBinder^ binder, System::Object^% result) override;
     virtual bool TrySetMember(System::Dynamic::SetMemberBinder^ binder, System::Object^ value) override;
 
+    generic <typename T>
+    virtual T As();
+
     // TODO methods:
     /*public Void* GetReflectionProperties() {
         return _original.get_reflection_properties();
