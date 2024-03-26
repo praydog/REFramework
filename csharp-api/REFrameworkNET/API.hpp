@@ -105,6 +105,18 @@ public:
         return gcnew NativeObject(result, t);
     }
 
+    generic <typename T>
+    static T GetNativeSingletonT() {
+        auto fullName = T::typeid->FullName;
+        return GetNativeSingleton(fullName)->As<T>();
+    }
+
+    generic <typename T>
+    static T GetManagedSingletonT() {
+        auto fullName = T::typeid->FullName;
+        return GetManagedSingleton(fullName)->As<T>();
+    }
+
     static reframework::API* GetNativeImplementation() {
         if (s_api == nullptr) {
             throw gcnew APINotInitializedException();
