@@ -6,6 +6,7 @@
 #include "Method.hpp"
 
 #include "ManagedObject.hpp"
+#include "Proxy.hpp"
 
 #include "API.hpp"
 
@@ -260,5 +261,10 @@ namespace REFrameworkNET {
         }
 
         return false;
+    }
+
+    generic <typename T>
+    T ManagedObject::As() {
+        return ManagedProxy<T>::Create(this);
     }
 }

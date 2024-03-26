@@ -1,6 +1,7 @@
 #include "InvokeRet.hpp"
 #include "Method.hpp"
 #include "NativeObject.hpp"
+#include "Proxy.hpp"
 
 #include "API.hpp"
 
@@ -41,5 +42,10 @@ bool NativeObject::HandleInvokeMember_Internal(System::String^ methodName, array
 bool NativeObject::TryInvokeMember(System::Dynamic::InvokeMemberBinder^ binder, array<System::Object^>^ args, System::Object^% result)
 {
     return HandleInvokeMember_Internal(binder->Name, args, result);
+}
+
+generic <typename T>
+T NativeObject::As() {
+    return NativeProxy<T>::Create(this);
 }
 }

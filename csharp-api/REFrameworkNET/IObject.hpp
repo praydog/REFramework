@@ -14,5 +14,9 @@ public interface class IObject {
 
     virtual InvokeRet^ Invoke(System::String^ methodName, array<System::Object^>^ args);
     bool HandleInvokeMember_Internal(System::String^ methodName, array<System::Object^>^ args, System::Object^% result);
+
+    // For interface types
+    generic <typename T>
+    T As();
 };
 }
