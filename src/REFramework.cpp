@@ -1556,7 +1556,7 @@ bool REFramework::initialize_game_data() {
         std::scoped_lock _{this->m_startup_mutex};
 
         try {
-#if defined(MHRISE)
+#if defined(MHRISE) || defined(DD2)
             utility::spoof_module_paths_in_exe_dir();
 #endif
             reframework::initialize_sdk();
@@ -1623,7 +1623,7 @@ bool REFramework::initialize_game_data() {
             spdlog::error("Initialization of mods failed. Reason: exception thrown.");
         }
 
-#if defined(MHRISE)
+#if defined(MHRISE) || defined(DD2)
         utility::spoof_module_paths_in_exe_dir();
 #endif
         spdlog::info("Game data initialization thread finished");

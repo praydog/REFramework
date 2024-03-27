@@ -76,6 +76,8 @@ void startup_thread(HMODULE reframework_module) {
             utility::spoof_module_paths_in_exe_dir();
             utility::unlink(*our_dll);
         }
+#elif defined (DD2)
+        utility::spoof_module_paths_in_exe_dir();
 #endif
     }
 }
