@@ -645,7 +645,7 @@ void ObjectExplorer::on_frame() {
         // on_frame is just going to be a way to display
         // the pinned objects in a separate window
 
-        ImGui::SetNextWindowSize(ImVec2(400, 400), ImGuiCond_::ImGuiCond_Once);
+        ImGui::SetNextWindowSize(ImVec2(400, 800), ImGuiCond_::ImGuiCond_Once);
         if (ImGui::Begin("Hooked methods", &open)) {
             display_hooks();
 
@@ -766,33 +766,79 @@ void ObjectExplorer::display_hooks() {
         if (made_node) {
             ImGui::Checkbox("Skip function call", &h.skip);
             ImGui::TextWrapped("Call count: %i", h.call_count);
+
+            ImGui::SameLine();
             const float delta_ms = std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(h.last_call_delta).count();
             const float total_ms = std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(h.total_call_time).count();
-            ImGui::TextWrapped("Call Time (ms): Delta %f, Total %f", delta_ms, total_ms);
-            if (ImGui::TreeNode("Callers")) {
-                for (auto& caller : h.callers) {
-                    const auto& context = h.callers_context[caller];
-                    const auto declaring_type = caller->get_declaring_type();
-                    //auto method_name = declaring_type != nullptr ? declaring_type->get_full_name() + "." + caller->get_name() : caller->get_name();
-                    //method_name += " [" + std::to_string(context.call_count) + "]";
-                    const auto call_count = std::string("[") + std::to_string(context.call_count) + "]";
+            ImGui::TextWrapped("Time (ms): Delta %f, Total %f", delta_ms, total_ms);
 
-                    ImGui::TextUnformatted(call_count.c_str());
-                    ImGui::SameLine();
-                    this->attempt_display_method(nullptr, *caller, true);
-                }
+            if (ImGui::TreeNode("Info")) {
+                ImGui::SetNextItemOpen(true, ImGuiCond_::ImGuiCond_Once);
+                if (ImGui::TreeNode("Callers")) {
+                    // sort callers combo
+                    if (ImGui::BeginCombo("Sort Callers by", HookedMethod::s_sort_callers_names[(uint8_t)h.sort_callers_method])) {
+                        for (int i = 0; i < HookedMethod::s_sort_callers_names.size(); i++) {
+                            const bool is_selected = (h.sort_callers_method == (HookedMethod::SortCallersMethod)i);
 
-                ImGui::TreePop();
-            }
+                            if (ImGui::Selectable(HookedMethod::s_sort_callers_names[i], is_selected)) {
+                                h.sort_callers_method = (HookedMethod::SortCallersMethod)i;
+                            }
 
-            if (ImGui::TreeNode("Return Addresses")) {
-                for (auto addr : h.return_addresses) {
-                    ImGui::Text("0x%p", addr);
+                            if (is_selected) {
+                                ImGui::SetItemDefaultFocus();
+                            }
+                        }
 
-                    if (ImGui::IsItemClicked()) {
-                        ImGui::SetClipboardText((std::stringstream{} << std::hex << addr).str().c_str());
+                        ImGui::EndCombo();
                     }
+
+                    std::vector<sdk::REMethodDefinition*> callers_to_iterate{};
+
+                    for (auto& caller : h.callers) {
+                        callers_to_iterate.push_back(caller);
+                    }
+
+                    switch (h.sort_callers_method) {
+                    case HookedMethod::SortCallersMethod::CALL_COUNT:
+                        std::sort(callers_to_iterate.begin(), callers_to_iterate.end(), [&h](const auto& a, const auto& b) {
+                            return h.callers_context[a].call_count > h.callers_context[b].call_count;
+                        });
+                        break;
+                    case HookedMethod::SortCallersMethod::METHOD_NAME:
+                        std::sort(callers_to_iterate.begin(), callers_to_iterate.end(), [&h](const auto& a, const auto& b) {
+                            return a->get_name() < b->get_name();
+                        });
+                        break;
+                    default:
+                        break;
+                    };
+
+                    for (auto& caller : callers_to_iterate) {
+                        const auto& context = h.callers_context[caller];
+                        const auto declaring_type = caller->get_declaring_type();
+                        //auto method_name = declaring_type != nullptr ? declaring_type->get_full_name() + "." + caller->get_name() : caller->get_name();
+                        //method_name += " [" + std::to_string(context.call_count) + "]";
+                        const auto call_count = std::string("[") + std::to_string(context.call_count) + "]";
+
+                        ImGui::TextUnformatted(call_count.c_str());
+                        ImGui::SameLine();
+                        this->attempt_display_method(nullptr, *caller, true);
+                    }
+
+                    ImGui::TreePop();
                 }
+
+                if (ImGui::TreeNode("Return Addresses")) {
+                    for (auto addr : h.return_addresses) {
+                        ImGui::Text("0x%p", addr);
+
+                        if (ImGui::IsItemClicked()) {
+                            ImGui::SetClipboardText((std::stringstream{} << std::hex << addr).str().c_str());
+                        }
+                    }
+                    ImGui::TreePop();
+                }
+
                 ImGui::TreePop();
             }
 

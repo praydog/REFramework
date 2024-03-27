@@ -260,6 +260,18 @@ private:
     std::vector<std::function<void()>> m_frame_jobs{};
 
     struct HookedMethod {
+        enum class SortCallersMethod : uint8_t {
+            NONE,
+            CALL_COUNT,
+            METHOD_NAME
+        };
+    
+        static inline constexpr std::array<const char*, 3> s_sort_callers_names {
+            "None",
+            "Call Count",
+            "Method Name"
+        };
+
         std::string name{};
         sdk::REMethodDefinition* method{nullptr};
         uintptr_t jitted_function{};
@@ -267,6 +279,7 @@ private:
         bool skip{false};
         size_t hook_id{};
         uint32_t call_count{};
+        SortCallersMethod sort_callers_method{SortCallersMethod::NONE};
 
         std::unordered_set<uintptr_t> return_addresses{};
         std::unordered_map<uintptr_t, sdk::REMethodDefinition*> return_addresses_to_methods{};
