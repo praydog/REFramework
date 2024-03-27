@@ -726,9 +726,19 @@ void ObjectExplorer::display_hooks() {
             return a->call_count > b->call_count;
         });
         break;
-    case HooksContext::SortMethod::CALL_TIME:
+    case HooksContext::SortMethod::CALL_TIME_LAST:
         std::sort(hooks_to_iterate.begin(), hooks_to_iterate.end(), [](const auto& a, const auto& b) {
             return a->last_call_time > b->last_call_time;
+        });
+        break;
+    case HooksContext::SortMethod::CALL_TIME_DELTA:
+        std::sort(hooks_to_iterate.begin(), hooks_to_iterate.end(), [](const auto& a, const auto& b) {
+            return a->last_call_delta > b->last_call_delta;
+        });
+        break;
+    case HooksContext::SortMethod::CALL_TIME_TOTAL:
+        std::sort(hooks_to_iterate.begin(), hooks_to_iterate.end(), [](const auto& a, const auto& b) {
+            return a->total_call_time > b->total_call_time;
         });
         break;
     case HooksContext::SortMethod::METHOD_NAME:
@@ -756,6 +766,9 @@ void ObjectExplorer::display_hooks() {
         if (made_node) {
             ImGui::Checkbox("Skip function call", &h.skip);
             ImGui::TextWrapped("Call count: %i", h.call_count);
+            const float delta_ms = std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(h.last_call_delta).count();
+            const float total_ms = std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(h.total_call_time).count();
+            ImGui::TextWrapped("Call Time (ms): Delta %f, Total %f", delta_ms, total_ms);
             if (ImGui::TreeNode("Callers")) {
                 for (auto& caller : h.callers) {
                     const auto& context = h.callers_context[caller];
@@ -4001,23 +4014,6 @@ void ObjectExplorer::hook_method(sdk::REMethodDefinition* method, std::optional<
     }
 
     auto& hooked = m_hooked_methods.emplace_back();
-
-    using namespace asmjit;
-    using namespace asmjit::x86;
-
-    CodeHolder code{};
-    code.init(m_jit_runtime.environment());
-
-    Assembler a{&code};
-
-    a.mov(r9, method);
-    a.movabs(r10, &ObjectExplorer::pre_hooked_method);
-    a.jmp(r10);
-
-    m_jit_runtime.add(&hooked.jitted_function, &code);
-
-    using MT = HookManager::PreHookResult(*)(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys, uintptr_t ret_addr);
-
     hooked.method = method;
 
     if (name) {
@@ -4025,8 +4021,40 @@ void ObjectExplorer::hook_method(sdk::REMethodDefinition* method, std::optional<
     } else {
         hooked.name = method->get_declaring_type()->get_full_name() + "." + method->get_name();
     }
+
+    using namespace asmjit;
+    using namespace asmjit::x86;
+
+    // Pre
+    {
+        CodeHolder code{};
+        code.init(m_jit_runtime.environment());
+        Assembler a{&code};
+
+        a.mov(r9, method);
+        a.movabs(r10, &ObjectExplorer::pre_hooked_method);
+        a.jmp(r10);
+
+        m_jit_runtime.add(&hooked.jitted_function, &code);
+    }
+
+    // Post
+    {
+        CodeHolder code{};
+        code.init(m_jit_runtime.environment());
+        Assembler a{&code};
+
+        a.mov(r9, method);
+        a.movabs(r10, &ObjectExplorer::post_hooked_method);
+        a.jmp(r10);
+
+        m_jit_runtime.add(&hooked.jitted_function_post, &code);
+    }
     
-    hooked.hook_id = g_hookman.add(method, (MT)hooked.jitted_function, nullptr);
+    using MT = HookManager::PreHookResult(*)(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys, uintptr_t ret_addr);
+    using MTPost = void (*)(uintptr_t& ret_val, sdk::RETypeDefinition* ret_ty, uintptr_t ret_addr);
+
+    hooked.hook_id = g_hookman.add(method, (MT)hooked.jitted_function, (MTPost)hooked.jitted_function_post);
 }
 
 void ObjectExplorer::hook_all_methods(sdk::RETypeDefinition* t) {
@@ -4698,4 +4726,31 @@ HookManager::PreHookResult ObjectExplorer::pre_hooked_method_internal(std::vecto
 
 HookManager::PreHookResult ObjectExplorer::pre_hooked_method(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys, uintptr_t ret_addr, sdk::REMethodDefinition* method) {
     return ObjectExplorer::get()->pre_hooked_method_internal(args, arg_tys, ret_addr, method);
+}
+
+void ObjectExplorer::post_hooked_method_internal(uintptr_t& ret_val, sdk::RETypeDefinition*& ret_ty, uintptr_t ret_addr, sdk::REMethodDefinition* method) {
+    auto it = std::find_if(m_hooked_methods.begin(), m_hooked_methods.end(), [method](auto& a) { return a.method == method; });
+
+    if (it == m_hooked_methods.end()) {
+        return;
+    }
+
+    auto& hooked_method = *it;
+
+    std::scoped_lock _{m_hooks_context.mtx};
+
+    // Reset the last call time if this is the first time we're calling it
+    // because in between this, there will be a large hitch
+    // that the game is not causing.
+    if (hooked_method.call_count <= 1) {
+        hooked_method.last_call_time = std::chrono::high_resolution_clock::now();
+    }
+
+    hooked_method.last_call_end_time = std::chrono::high_resolution_clock::now();
+    hooked_method.last_call_delta = hooked_method.last_call_end_time - hooked_method.last_call_time;
+    hooked_method.total_call_time += hooked_method.last_call_delta;
+}
+
+void ObjectExplorer::post_hooked_method(uintptr_t& ret_val, sdk::RETypeDefinition*& ret_ty, uintptr_t ret_addr, sdk::REMethodDefinition* method) {
+    ObjectExplorer::get()->post_hooked_method_internal(ret_val, ret_ty, ret_addr, method);
 }

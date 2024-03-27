@@ -221,6 +221,9 @@ private:
     HookManager::PreHookResult pre_hooked_method_internal(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys, uintptr_t ret_addr, sdk::REMethodDefinition* method);
     static HookManager::PreHookResult pre_hooked_method(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys, uintptr_t ret_addr, sdk::REMethodDefinition* method);
 
+    void post_hooked_method_internal(uintptr_t& ret_val, sdk::RETypeDefinition*& ret_ty, uintptr_t ret_addr, sdk::REMethodDefinition* method);
+    static void post_hooked_method(uintptr_t& ret_val, sdk::RETypeDefinition*& ret_ty, uintptr_t ret_addr, sdk::REMethodDefinition* method);
+
     struct PinnedObject {
         Address address{};
         std::string name{};
@@ -231,15 +234,19 @@ private:
         enum class SortMethod : uint8_t {
             NONE,
             CALL_COUNT,
-            CALL_TIME,
+            CALL_TIME_LAST,
+            CALL_TIME_DELTA,
+            CALL_TIME_TOTAL,
             METHOD_NAME,
             NUMBER_OF_CALLERS
         };
 
-        static inline constexpr std::array<const char*, 5> s_sort_method_names {
+        static inline constexpr std::array<const char*, 7> s_sort_method_names {
             "None",
             "Call Count",
-            "Call Time",
+            "Call Time (Last)",
+            "Call Time (Delta)",
+            "Call Time (Total)",
             "Method Name",
             "Number of Callers"
         };
@@ -256,6 +263,7 @@ private:
         std::string name{};
         sdk::REMethodDefinition* method{nullptr};
         uintptr_t jitted_function{};
+        uintptr_t jitted_function_post{};
         bool skip{false};
         size_t hook_id{};
         uint32_t call_count{};
@@ -268,7 +276,10 @@ private:
         };
 
         std::unordered_map<sdk::REMethodDefinition*, CallerContext> callers_context{};
-        std::chrono::high_resolution_clock::time_point last_call_time{};
+        std::chrono::high_resolution_clock::time_point last_call_time{std::chrono::high_resolution_clock::now()};
+        std::chrono::high_resolution_clock::time_point last_call_end_time{std::chrono::high_resolution_clock::now()}; // assuming not recursive...
+        std::chrono::high_resolution_clock::duration last_call_delta{};
+        std::chrono::high_resolution_clock::duration total_call_time{};
     };
 
     // Contains extra information about the method
