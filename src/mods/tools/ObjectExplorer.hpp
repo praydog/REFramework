@@ -161,6 +161,7 @@ private:
     void display_reflection_properties(REManagedObject* obj, REType* type_info);
     void display_native_methods(REManagedObject* obj, sdk::RETypeDefinition* tdef);
     void display_native_fields(REManagedObject* obj, sdk::RETypeDefinition* tdef);
+    void populate_method_meta_info(sdk::REMethodDefinition& m);
     void attempt_display_method(REManagedObject* obj, sdk::REMethodDefinition& m, bool use_full_name = false);
     void attempt_display_field(REManagedObject* obj, VariableDescriptor* desc, REType* type_info);
     void display_data(void* data, void* real_data, std::string type_name, bool is_enum = false, bool managed_str = false, const sdk::RETypeDefinition* override_def = nullptr);
@@ -269,6 +270,14 @@ private:
         std::unordered_map<sdk::REMethodDefinition*, CallerContext> callers_context{};
         std::chrono::high_resolution_clock::time_point last_call_time{};
     };
+
+    // Contains extra information about the method
+    struct MethodMetaInfo {
+        std::vector<sdk::REMethodDefinition*> called_functions{};
+    };
+
+    // Function address -> meta info (not REMethodDefinition, since method defs can share function addresses)
+    std::unordered_map<uintptr_t, std::unique_ptr<MethodMetaInfo>> m_method_meta_infos{};
 
     asmjit::JitRuntime m_jit_runtime;
 

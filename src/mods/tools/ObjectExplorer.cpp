@@ -3041,7 +3041,70 @@ void ObjectExplorer::display_native_fields(REManagedObject* obj, sdk::RETypeDefi
 //#endif
 }
 
+void ObjectExplorer::populate_method_meta_info(sdk::REMethodDefinition& m) {
+    const auto method_ptr = m.get_function();
+
+    if (method_ptr == nullptr) {
+        return;
+    }
+
+    if (m_method_meta_infos.contains((uintptr_t)method_ptr)) {
+        return;
+    }
+
+    m_method_meta_infos[(uintptr_t)method_ptr] = std::make_unique<MethodMetaInfo>();
+
+    if (IsBadReadPtr(method_ptr, sizeof(void*))) {
+        return;
+    }
+
+    std::unordered_set<sdk::REMethodDefinition*> called_functions{};
+
+    // Disassemble the function's instructions looking for calls to other functions, and add them to the list of methods this function calls
+    utility::exhaustive_decode((uint8_t*)method_ptr, 5000, [&](utility::ExhaustionContext& ctx) -> utility::ExhaustionResult {
+        if (ctx.addr != (uintptr_t)method_ptr) {
+            if (auto it = m_method_map.find(ctx.addr); it != m_method_map.end()) {
+                called_functions.insert(it->second);
+            }
+        }
+
+        if (std::string_view{ctx.instrux.Mnemonic}.starts_with("CALL")) {
+            const auto resolved_addr = utility::resolve_displacement(ctx.addr);
+
+            if (resolved_addr) {
+                if (auto it = m_method_map.find(*resolved_addr); it != m_method_map.end()) {
+                    called_functions.insert(it->second);
+                }
+            }
+
+            // Step over all calls, we don't want to go down a rabbit hole that freezes the program
+            return utility::ExhaustionResult::STEP_OVER;
+        }
+
+        return utility::ExhaustionResult::CONTINUE;
+    });
+
+    for (auto& called_function : called_functions) {
+        m_method_meta_infos[(uintptr_t)method_ptr]->called_functions.push_back(called_function);
+    }
+
+    std::sort(
+        m_method_meta_infos[(uintptr_t)method_ptr]->called_functions.begin(), 
+        m_method_meta_infos[(uintptr_t)method_ptr]->called_functions.end(), 
+        [](sdk::REMethodDefinition* a, sdk::REMethodDefinition* b) 
+    {
+        const auto decltype_a = a->get_declaring_type();
+        const auto decltype_b = b->get_declaring_type();
+        const auto fullname_a = decltype_a != nullptr ? decltype_a->get_full_name() + "." + a->get_name() : a->get_name();
+        const auto fullname_b = decltype_b != nullptr ? decltype_b->get_full_name() + "." + b->get_name() : b->get_name();
+        
+        return fullname_a < fullname_b;
+    });
+}
+
 void ObjectExplorer::attempt_display_method(REManagedObject* obj, sdk::REMethodDefinition& m, bool use_full_name) {
+    populate_method_meta_info(m);
+
     const auto declaring_type = m.get_declaring_type();
     const auto method_name = (use_full_name && declaring_type != nullptr) ? declaring_type->get_full_name() + "." + m.get_name() : m.get_name();
     const auto method_return_type = m.get_return_type();
@@ -3179,6 +3242,21 @@ void ObjectExplorer::attempt_display_method(REManagedObject* obj, sdk::REMethodD
 
                 ImGui::EndTable();
             }
+        }
+
+        if (ImGui::BeginTable("##calls", 1,  ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable)) {
+            ImGui::TableNextColumn();
+            ImGui::Text("Called Method");
+
+            // Show a list of methods this method calls
+            if (m_method_meta_infos.contains((uintptr_t)method_ptr)) {
+                for (const auto& called_m : m_method_meta_infos[(uintptr_t)method_ptr]->called_functions) {
+                    ImGui::TableNextColumn();
+                    attempt_display_method(nullptr, *called_m, true);
+                }
+            }
+
+            ImGui::EndTable();
         }
 
         if (ImGui::BeginTable("##disassembly", 3,  ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable)) {
