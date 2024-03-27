@@ -490,8 +490,10 @@ set(CMKR_TARGET utility)
 set(utility_SOURCES "")
 
 list(APPEND utility_SOURCES
+	"shared/utility/Exceptions.cpp"
 	"shared/utility/FunctionHook.cpp"
 	"shared/utility/Relocate.cpp"
+	"shared/utility/Exceptions.hpp"
 	"shared/utility/FunctionHook.hpp"
 	"shared/utility/Relocate.hpp"
 )

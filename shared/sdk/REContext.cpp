@@ -1,8 +1,12 @@
+#include <windows.h>
+#include <dbghelp.h>
+
 #include <shared_mutex>
 #include <spdlog/spdlog.h>
 
 #include "utility/Scan.hpp"
 #include "utility/Module.hpp"
+#include "utility/Exceptions.hpp"
 
 #include "reframework/API.hpp"
 #include "ReClass.hpp"
@@ -397,9 +401,37 @@ namespace sdk {
         spdlog::info("VMContext: Caught exception code {:x}", code);
 
         switch (code) {
-        case EXCEPTION_ACCESS_VIOLATION:
-            spdlog::info("VMContext: Attempting to handle access violation.");
+        case EXCEPTION_ACCESS_VIOLATION: {
+            spdlog::info("VMContext: Attempting to handle access violation. Attempting to dump callstack...");
 
+            spdlog::error("RIP: {:x}", exc->ContextRecord->Rip);
+            spdlog::error("RSP: {:x}", exc->ContextRecord->Rsp);
+            spdlog::error("RCX: {:x}", exc->ContextRecord->Rcx);
+            spdlog::error("RDX: {:x}", exc->ContextRecord->Rdx);
+            spdlog::error("R8: {:x}", exc->ContextRecord->R8);
+            spdlog::error("R9: {:x}", exc->ContextRecord->R9);
+            spdlog::error("R10: {:x}", exc->ContextRecord->R10);
+            spdlog::error("R11: {:x}", exc->ContextRecord->R11);
+            spdlog::error("R12: {:x}", exc->ContextRecord->R12);
+            spdlog::error("R13: {:x}", exc->ContextRecord->R13);
+            spdlog::error("R14: {:x}", exc->ContextRecord->R14);
+            spdlog::error("R15: {:x}", exc->ContextRecord->R15);
+            spdlog::error("RAX: {:x}", exc->ContextRecord->Rax);
+            spdlog::error("RBX: {:x}", exc->ContextRecord->Rbx);
+            spdlog::error("RBP: {:x}", exc->ContextRecord->Rbp);
+            spdlog::error("RSI: {:x}", exc->ContextRecord->Rsi);
+            spdlog::error("RDI: {:x}", exc->ContextRecord->Rdi);
+            spdlog::error("EFLAGS: {:x}", exc->ContextRecord->EFlags);
+            spdlog::error("CS: {:x}", exc->ContextRecord->SegCs);
+            spdlog::error("DS: {:x}", exc->ContextRecord->SegDs);
+            spdlog::error("ES: {:x}", exc->ContextRecord->SegEs);
+            spdlog::error("FS: {:x}", exc->ContextRecord->SegFs);
+            spdlog::error("GS: {:x}", exc->ContextRecord->SegGs);
+            spdlog::error("SS: {:x}", exc->ContextRecord->SegSs);
+
+            utility::exceptions::dump_callstack(exc);
+
+        } break;
         default:
             break;
         }
