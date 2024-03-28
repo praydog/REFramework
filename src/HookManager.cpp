@@ -334,6 +334,10 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
     a.lea(rax, ptr(ret_label));
     a.mov(ptr(rsp), rax);
 
+    // Store off our HookStorage in RBX.
+    // RBX is safe if the called function respects the ABI.
+    a.mov(rbx, r10);
+
     // Determine if we need to skip the original function or not.
     a.cmp(r11, (int)PreHookResult::CALL_ORIGINAL);
     a.jnz(skip_label);
@@ -346,23 +350,8 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
 
     a.bind(ret_label);
 
-    // Save return value.
-    //a.mov(rcx, ptr(ret_val_label));
-
-    a.push(rax); // store return value
-
-    a.mov(rcx, ptr(hook_label));
-
-    a.mov(rbx, rsp);
-    a.sub(rsp, STACK_STORAGE_AMOUNT);
-    a.and_(rsp, -16);
-    a.call(ptr(get_storage_label)); // rax is now storage
-
-    a.mov(rsp, rbx);
-
-    a.mov(r10, rax); // get storage -> r10
-    a.pop(rax); // restore return value
-
+    // Set hook storage back to R10.
+    a.mov(r10, rbx);
 
     constexpr auto ret_val_offset = offsetof(HookedFn::HookStorage, ret_val);
     //a.lea(rcx, ptr(r10, ret_val_offset));
