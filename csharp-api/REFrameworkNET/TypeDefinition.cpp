@@ -4,6 +4,7 @@
 #include "Property.hpp"
 #include "ManagedObject.hpp"
 #include "NativeObject.hpp"
+#include "Proxy.hpp"
 
 #include "TypeDefinition.hpp"
 
@@ -126,9 +127,26 @@ namespace REFrameworkNET {
         return gcnew ManagedObject(result);
     }
 
+    REFrameworkNET::InvokeRet^ TypeDefinition::Invoke(System::String^ methodName, array<System::Object^>^ args) {
+        // Forward this onto NativeObject.Invoke (for static methods)
+        auto native = gcnew NativeObject(this);
+        return native->Invoke(methodName, args);
+    }
+
+    bool TypeDefinition::HandleInvokeMember_Internal(System::String^ methodName, array<System::Object^>^ args, System::Object^% result) {
+        // Forward this onto NativeObject.HandleInvokeMember_Internal (for static methods)
+        auto native = gcnew NativeObject(this);
+        return native->HandleInvokeMember_Internal(methodName, args, result);
+    }
+
     bool TypeDefinition::TryInvokeMember(System::Dynamic::InvokeMemberBinder^ binder, array<System::Object^>^ args, System::Object^% result) {
         // Forward this onto NativeObject.TryInvokeMember (for static methods)
         auto native = gcnew NativeObject(this);
         return native->TryInvokeMember(binder, args, result);
+    }
+
+    generic <typename T>
+    T TypeDefinition::As() {
+        return NativeProxy<T>::Create(this);
     }
 }

@@ -5,6 +5,7 @@
 #pragma managed
 
 #include <msclr/marshal_cppstd.h>
+#include "IObject.hpp"
 
 namespace REFrameworkNET {
 ref class ManagedObject;
@@ -13,6 +14,7 @@ ref class Method;
 ref class Field;
 ref class Property;
 ref class TypeInfo;
+ref struct InvokeRet;
 
 public enum VMObjType {
     NULL_ = 0,
@@ -25,7 +27,8 @@ public enum VMObjType {
 
 public
     ref class TypeDefinition : public System::Dynamic::DynamicObject,
-                               public System::IEquatable<TypeDefinition ^>
+                               public System::IEquatable<TypeDefinition ^>,
+                               public REFrameworkNET::IObject
 {
 public:
     TypeDefinition(reframework::API::TypeDefinition* td) : m_type(td) {}
@@ -310,6 +313,26 @@ public:
     {
         return m_type->create_instance_deprecated();
     }*/
+
+// IObject methods
+public:
+    virtual void* Ptr() {
+        return (void*)m_type;
+    }
+
+    virtual uintptr_t GetAddress() {
+        return (uintptr_t)m_type;
+    }
+
+    virtual TypeDefinition^ GetTypeDefinition() {
+        return this;
+    }
+
+    virtual REFrameworkNET::InvokeRet^ Invoke(System::String^ methodName, array<System::Object^>^ args);
+    virtual bool HandleInvokeMember_Internal(System::String^ methodName, array<System::Object^>^ args, System::Object^% result);
+
+    generic <typename T>
+    virtual T As();
 
 // DynamicObject methods
 public:
