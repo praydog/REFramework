@@ -49,22 +49,57 @@ public:
         HookId next_hook_id{};
         std::unique_ptr<FunctionHook> fn_hook{};
         uintptr_t facilitator_fn{};
-        std::vector<uintptr_t> args{};
+        //std::vector<uintptr_t> args{};
         std::vector<sdk::RETypeDefinition*> arg_tys{};
-        uintptr_t ret_addr_pre{};
-        uintptr_t ret_addr{};
-        uintptr_t ret_val{};
+        //uintptr_t ret_addr_pre{};
+        //uintptr_t ret_addr{};
+        //uintptr_t ret_val{};
+        sdk::REMethodDefinition* fn_def{};
         sdk::RETypeDefinition* ret_ty{};
         std::recursive_mutex mux{};
+        std::shared_mutex access_mux{};
 
         bool is_virtual{false};
         HookedVTable* vtable{nullptr};
+
+        struct HookStorage {
+            size_t* args{};
+            uintptr_t This{};
+            uintptr_t ret_addr_pre{};
+            uintptr_t ret_addr{};
+            uintptr_t ret_val{};
+            uintptr_t rbx{};
+            std::vector<size_t> args_impl{};
+        };
+
+        // Thread->storage
+        std::unordered_map<size_t, std::unique_ptr<HookStorage>> thread_storage{};
+        std::shared_mutex storage_mux{};
 
         HookedFn(HookManager& hm);
         ~HookedFn();
 
         PreHookResult on_pre_hook();
         void on_post_hook();
+
+        __declspec(noinline) static HookStorage* get_storage(HookedFn* fn) {
+            auto tid = std::hash<std::thread::id>{}(std::this_thread::get_id());
+            {
+                std::shared_lock _{fn->storage_mux};
+
+                if (auto it = fn->thread_storage.find(tid); it != fn->thread_storage.end()) {
+                    return it->second.get();
+                }
+            }
+
+            std::unique_lock _{fn->storage_mux};
+            auto& ts = fn->thread_storage[tid];
+            ts = std::make_unique<HookStorage>();
+            ts->args_impl.resize(size_t(2) + 2 + fn->fn_def->get_num_params());
+            ts->args = ts->args_impl.data();
+
+            return ts.get();
+        }
 
         __declspec(noinline) static void lock_static(HookedFn* fn) {
             fn->mux.lock();

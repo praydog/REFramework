@@ -57,11 +57,16 @@ HookManager::HookedFn::~HookedFn() {
 }
 
 HookManager::PreHookResult HookManager::HookedFn::on_pre_hook() {
+    std::shared_lock _{this->access_mux};
+
     auto any_skipped = false;
+
+    auto storage = get_storage(this);
+    const auto ret_addr_pre = storage->ret_addr_pre;
 
     for (const auto& cb : cbs) {
         if (cb.pre_fn) {
-            if (cb.pre_fn(args, arg_tys, ret_addr_pre) == PreHookResult::SKIP_ORIGINAL) {
+            if (cb.pre_fn(storage->args_impl, arg_tys, ret_addr_pre) == PreHookResult::SKIP_ORIGINAL) {
                 any_skipped = true;
             }
         }
@@ -71,6 +76,12 @@ HookManager::PreHookResult HookManager::HookedFn::on_pre_hook() {
 }
 
 void HookManager::HookedFn::on_post_hook() {
+    std::shared_lock _{this->access_mux};
+
+    auto storage = get_storage(this);
+    auto& ret_val = storage->ret_val;
+    auto& ret_addr = storage->ret_addr;
+
     for (const auto& cb : cbs) {
         if (cb.post_fn) {
             cb.post_fn(ret_val, ret_ty, ret_addr);
@@ -79,7 +90,7 @@ void HookManager::HookedFn::on_post_hook() {
 }
 
 void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedFn>& hook, sdk::REMethodDefinition* fn, std::function<uintptr_t ()> hook_initialization, std::function<void ()> hook_create) {
-    auto& args = hook->args;
+    auto& args = hook->get_storage(hook.get())->args_impl;
     auto& arg_tys = hook->arg_tys;
     auto& fn_hook = hook->fn_hook;
 
@@ -96,33 +107,42 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
     // + 2 for the thread context + this pointer.
     // Another + 2 for hidden arguments that we may not know about.
     constexpr auto HIDDEN_ARGUMENT_COUNT = 2;
-    args.resize(size_t(2) + HIDDEN_ARGUMENT_COUNT + fn->get_num_params());
+    //args.resize(size_t(2) + HIDDEN_ARGUMENT_COUNT + fn->get_num_params());
 
     // Generate the facilitator function that will store the arguments, call on_hook, 
     // restore the arguments, and call the original function.
     auto hook_label = a.newLabel();
-    auto args_label = a.newLabel();
-    auto this_label = a.newLabel();
     auto on_pre_hook_label = a.newLabel();
     auto on_post_hook_label = a.newLabel();
-    auto ret_addr_pre_label = a.newLabel();
-    auto ret_addr_label = a.newLabel();
-    auto ret_val_label = a.newLabel();
     auto orig_label = a.newLabel();
+    auto get_storage_label = a.newLabel();
     auto lock_label = a.newLabel();
     auto unlock_label = a.newLabel();
 
+
+    constexpr size_t STACK_STORAGE_AMOUNT = 80;
+
     // Save state.
+    a.push(rbx);
+
     a.push(rcx);
     a.push(rdx);
     a.push(r8);
     a.push(r9);
-
     // Lock context.
+
+
+    // Fix stack.
+    a.mov(rbx, rsp);
+    a.sub(rsp, STACK_STORAGE_AMOUNT);
+    a.and_(rsp, -16);
+
+    //a.call(ptr(lock_label));
     a.mov(rcx, ptr(hook_label));
-    a.sub(rsp, 40);
-    a.call(ptr(lock_label));
-    a.add(rsp, 40);
+    a.call(ptr(get_storage_label));
+
+    // restore stack
+    a.mov(rsp, rbx);
 
     // Restore state.
     a.pop(r9);
@@ -130,15 +150,28 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
     a.pop(rdx);
     a.pop(rcx);
 
+    // restore rbx
+    a.pop(rbx);
+
+    // store original rbx in storage so we can continue to use it as rsp storage.
+    constexpr auto rbx_offset = offsetof(HookedFn::HookStorage, rbx);
+    a.mov(ptr(rax, rbx_offset), rbx);
+
+
     // Save return address (pre-hook).
     // Cannot modify the post version as it will corrupt the stack if the hook is recursive.
     a.mov(r10, ptr(rsp));
-    a.mov(rax, ptr(ret_addr_pre_label));
-    a.mov(ptr(rax), r10);
+    //a.mov(rax, ptr(ret_addr_pre_label));
+    a.mov(ptr(rax, offsetof(HookedFn::HookStorage, ret_addr_pre)), r10);
+    a.mov(r10, rax); // save storage ptr for later.
+    a.mov(rax, ptr(rax)); // args ptr now.
+
+    constexpr auto hook_args_offset = offsetof(HookedFn::HookStorage, args);
+    static_assert(hook_args_offset == 0, "HookedFn::HookStorage::args offset is not 0");
 
     // Store args.
     // TODO: Handle all the arguments the function takes.
-    a.mov(rax, ptr(args_label));
+    //a.mov(rax, ptr(args_label));
     a.mov(ptr(rax), rcx); // current thread context.
 
     auto args_start_offset = 8;
@@ -177,8 +210,8 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
         default:
             // stack args
             if (args_offset >= 32) {
-                a.mov(r10, ptr(rsp, sizeof(void*) + (args_offset)));
-                a.mov(ptr(rax, args_offset), r10);
+                a.mov(r11, ptr(rsp, sizeof(void*) + (args_offset)));
+                a.mov(ptr(rax, args_offset), r11);
             }
 
             break;
@@ -206,15 +239,24 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
 
     // Call on_pre_hook.
     a.mov(rcx, ptr(hook_label));
-    a.sub(rsp, 40);
+
+    // fix stack
+    a.push(r10); // push storage
+    a.mov(rbx, rsp);
+    a.sub(rsp, STACK_STORAGE_AMOUNT);
+    a.and_(rsp, -16);
+
     a.call(ptr(on_pre_hook_label));
-    a.add(rsp, 40);
 
     // Save the return value so we can see if we need to call the original later.
     a.mov(r11, rax);
+    
+    // restore rsp
+    a.mov(rsp, rbx);
+    a.pop(r10); // restore storage
 
     // Restore args.
-    a.mov(rax, ptr(args_label));
+    a.mov(rax, ptr(r10)); // set up args ptr from storage.
     a.mov(rcx, ptr(rax)); // current thread context.
 
     if (!fn->is_static()) {
@@ -249,8 +291,10 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
 
         default:
             if (args_offset >= 32) {
-                a.mov(r10, ptr(rax, args_offset));
-                a.mov(ptr(rsp, sizeof(void*) + (args_offset)), r10);
+                a.mov(rax, ptr(r10));
+                a.mov(rax, ptr(rax, args_offset));
+                a.mov(ptr(rsp, sizeof(void*) + (args_offset)), rax);
+                //a.mov(rax, ptr(r10)); // deref storage.
             }
 
             // TODO: handle stack args.
@@ -280,9 +324,11 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
     auto skip_label = a.newLabel();
 
     // Save return address.
-    a.mov(r10, ptr(rsp));
-    a.mov(rax, ptr(ret_addr_label));
-    a.mov(ptr(rax), r10);
+    a.mov(rax, ptr(rsp));
+    //a.mov(rax, ptr(ret_addr_label));
+    constexpr auto ret_addr_offset = offsetof(HookedFn::HookStorage, ret_addr);
+    a.mov(ptr(r10, ret_addr_offset), rax);
+    //a.mov(r10, rax); // save storage ptr for later.
 
     // Overwrite return address.
     a.lea(rax, ptr(ret_label));
@@ -301,68 +347,75 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
     a.bind(ret_label);
 
     // Save return value.
-    a.mov(rcx, ptr(ret_val_label));
+    //a.mov(rcx, ptr(ret_val_label));
+
+    a.push(rax); // store return value
+
+    a.mov(rcx, ptr(hook_label));
+
+    a.mov(rbx, rsp);
+    a.sub(rsp, STACK_STORAGE_AMOUNT);
+    a.and_(rsp, -16);
+    a.call(ptr(get_storage_label)); // rax is now storage
+
+    a.mov(rsp, rbx);
+
+    a.mov(r10, rax); // get storage -> r10
+    a.pop(rax); // restore return value
+
+
+    constexpr auto ret_val_offset = offsetof(HookedFn::HookStorage, ret_val);
+    //a.lea(rcx, ptr(r10, ret_val_offset));
 
     auto is_ret_ty_float = hook->ret_ty->get_full_name() == "System.Single";
 
     if (is_ret_ty_float) {
-        a.movq(ptr(rcx), xmm0);
+        a.movq(ptr(r10, ret_val_offset), xmm0);
     } else {
-        a.mov(ptr(rcx), rax);
+        a.mov(ptr(r10, ret_val_offset), rax);
     }
 
-    // Call on_post_hook.
-    a.mov(rcx, ptr(hook_label));
-    a.call(ptr(on_post_hook_label));
-
-    // Restore return value.
-    a.mov(rcx, ptr(ret_val_label));
-
-    if (is_ret_ty_float) {
-        a.movq(xmm0, ptr(rcx));
-    } else {
-        a.mov(rax, ptr(rcx));
-    }
-
-    // Store state.
-    a.push(rax);
-    a.mov(r10, ptr(ret_addr_label));
-    a.mov(r10, ptr(r10));
     a.push(r10);
 
-    // Unlock context.
-    a.mov(rcx, ptr(hook_label));
-    a.sub(rsp, 32);
-    a.call(ptr(unlock_label));
-    a.add(rsp, 32);
+    // Call on_post_hook.
+    a.mov(rbx, rsp);
+    a.sub(rsp, STACK_STORAGE_AMOUNT);
+    a.and_(rsp, -16);
 
-    // Restore state.
+    a.mov(rcx, ptr(hook_label));
+    a.call(ptr(on_post_hook_label));
+    
+    a.mov(rsp, rbx);
+    
     a.pop(r10);
-    a.pop(rax);
+
+    // Restore return value and RBX.
+    //a.mov(rcx, ptr(ret_val_label));
+    a.mov(rbx, ptr(r10, rbx_offset));
+
+    if (is_ret_ty_float) {
+        a.movq(xmm0, ptr(r10, ret_val_offset));
+    } else {
+        a.mov(rax, ptr(r10, ret_val_offset));
+    }
+
+    a.mov(r10, ptr(r10, ret_addr_offset)); // ret addr
 
     // Return.
     a.jmp(r10);
 
     a.bind(hook_label);
     a.dq((uint64_t)hook.get());
-    a.bind(args_label);
-    a.dq((uint64_t)args.data());
-    a.bind(this_label);
-    a.dq((uint64_t)this);
     a.bind(on_pre_hook_label);
     a.dq((uint64_t)&HookedFn::on_pre_hook_static);
     a.bind(on_post_hook_label);
     a.dq((uint64_t)&HookedFn::on_post_hook_static);
+    a.bind(get_storage_label);
+    a.dq((uint64_t)&HookedFn::get_storage);
     a.bind(lock_label);
     a.dq((uint64_t)&HookedFn::lock_static);
     a.bind(unlock_label);
     a.dq((uint64_t)&HookedFn::unlock_static);
-    a.bind(ret_addr_pre_label);
-    a.dq((uint64_t)&hook->ret_addr_pre);
-    a.bind(ret_addr_label);
-    a.dq((uint64_t)&hook->ret_addr);
-    a.bind(ret_val_label);
-    a.dq((uint64_t)&hook->ret_val);
     a.bind(orig_label);
     // Can't do the following because the hook hasn't been created yet.
     //a.dq(fn_hook->get_original());
@@ -399,6 +452,7 @@ HookManager::HookId HookManager::add(sdk::REMethodDefinition* fn, HookManager::P
 
         auto& hook = search->second;
         std::scoped_lock _{hook->mux};
+        std::unique_lock __{hook->access_mux};
         auto hook_id = m_next_hook_id++;
 
         spdlog::info("[HookManager] Hook assigned ID {}", hook_id);
@@ -413,6 +467,7 @@ HookManager::HookId HookManager::add(sdk::REMethodDefinition* fn, HookManager::P
     spdlog::info("[HookManager] Creating a new hook...");
 
     auto hook = std::make_unique<HookedFn>(*this);
+    hook->fn_def = fn;
     hook->next_hook_id = m_next_hook_id++;
 
     auto hook_id = m_next_hook_id++;
@@ -425,8 +480,8 @@ HookManager::HookId HookManager::add(sdk::REMethodDefinition* fn, HookManager::P
     hook->ret_ty = fn->get_return_type();
     
 
-    auto& args = hook->args;
-    auto& arg_tys = hook->arg_tys;
+    //auto& args = hook->args_impl;
+    //auto& arg_tys = hook->arg_tys;
     auto& fn_hook = hook->fn_hook;
 
     // Create the facilitator! this really important!
@@ -503,6 +558,8 @@ HookManager::HookId HookManager::add_vtable(::REManagedObject* obj, sdk::REMetho
 
         auto& hook_fn = it->second;
 
+        std::unique_lock _{hook_fn->access_mux};
+
         auto hook_id = m_next_hook_id++;
         hook_fn->cbs.emplace_back(hook_id, std::move(pre_fn), std::move(post_fn));
 
@@ -516,6 +573,7 @@ HookManager::HookId HookManager::add_vtable(::REManagedObject* obj, sdk::REMetho
     hook->hooked_fns[fn] = std::make_unique<HookedFn>(*this);
 
     auto& hook_fn = hook->hooked_fns[fn];
+    hook_fn->fn_def = fn;
     hook_fn->next_hook_id = m_next_hook_id++;
     auto hook_id = m_next_hook_id++;
 
@@ -527,8 +585,8 @@ HookManager::HookId HookManager::add_vtable(::REManagedObject* obj, sdk::REMetho
     hook_fn->ret_ty = fn->get_return_type();
     
 
-    auto& args = hook_fn->args;
-    auto& arg_tys = hook_fn->arg_tys;
+    //auto& args = hook_fn->args;
+    //auto& arg_tys = hook_fn->arg_tys;
 
     // Create the facilitator! this really important!
     create_jitted_facilitator(hook_fn, fn,
@@ -558,6 +616,7 @@ void HookManager::remove(sdk::REMethodDefinition* fn, HookId id) {
         auto& hook = search->second;
         auto& cbs = hook->cbs;
         std::scoped_lock _{hook->mux};
+        std::unique_lock __{hook->access_mux};
         cbs.erase(std::remove_if(cbs.begin(), cbs.end(), [id](const HookCallback& cb) { return cb.id == id; }));
     } else {
         std::vector<::REManagedObject*> queued_vtable_deletions{};
