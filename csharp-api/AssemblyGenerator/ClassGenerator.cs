@@ -182,10 +182,6 @@ public class ClassGenerator {
 
                 if (methodExtension != null && methodExtension.Override != null && methodExtension.Override == true) {
                     methodName += "_" + className.Replace('.', '_');
-                } else {
-                    if (this.t.FullName == "System.Collections.Stack.SyncStack") {
-                        System.Console.WriteLine("No override for " + this.t.FullName + "." + method.Name);
-                    }
                 }
 
                 var methodDeclaration = SyntaxFactory.MethodDeclaration(returnType, methodName ?? "UnknownMethod")

@@ -151,10 +151,6 @@ public class Il2CppDump {
                 var parentMethod = parent.GetMethod(method.Name);
 
                 if (parentMethod != null) {
-                    if (method.DeclaringType.FullName == "System.Collections.Stack.SyncStack") {
-                        Console.WriteLine("Found override " + method.Name + " in " + method.DeclaringType.FullName);
-                    }
-
                     methodExtensions.Add(method, new Method(method) {
                         Override = true
                     });
