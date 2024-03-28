@@ -27,6 +27,8 @@ public class Il2CppDump {
             this.Impl = impl;
         }
         
+        public REFrameworkNET.TypeDefinition DeclaringType => Impl.GetDeclaringType();
+
         public bool? Override { get; set;} // Not from JSON
     }
 
@@ -133,7 +135,7 @@ public class Il2CppDump {
 
             //foreach (var method in t.Methods) {
             //Parallel.ForEach(tMethods, method => {
-            foreach (var method in tMethods) { // parallel isn't necessary here because there arent many methods
+            foreach (REFrameworkNET.Method method in tMethods) { // parallel isn't necessary here because there arent many methods
                 if (method == null) {
                     continue;
                 }
@@ -142,9 +144,17 @@ public class Il2CppDump {
                     continue;
                 }
 
+                if (method.DeclaringType != t) {
+                    continue;
+                }
+
                 var parentMethod = parent.GetMethod(method.Name);
 
                 if (parentMethod != null) {
+                    if (method.DeclaringType.FullName == "System.Collections.Stack.SyncStack") {
+                        Console.WriteLine("Found override " + method.Name + " in " + method.DeclaringType.FullName);
+                    }
+
                     methodExtensions.Add(method, new Method(method) {
                         Override = true
                     });
@@ -159,12 +169,24 @@ public class AssemblyGenerator {
     static Dictionary<string, NamespaceDeclarationSyntax> namespaces = [];
 
     // Start with an empty CompilationUnitSyntax (represents an empty file)
-    static CompilationUnitSyntax compilationUnit = SyntaxFactory.CompilationUnit();
+    //static CompilationUnitSyntax compilationUnit = SyntaxFactory.CompilationUnit();
+
+    public static string CorrectTypeName(string fullName) {
+        if (fullName.StartsWith("System.") || fullName.StartsWith("Internal.")) {
+            return "_" + fullName;
+        }
+
+        return fullName;
+    }
 
     static public NamespaceDeclarationSyntax? ExtractNamespaceFromType(REFrameworkNET.TypeDefinition t) {
         var ns = t.GetNamespace();
 
-        if (ns != null) {
+        if (ns != null && ns.Length > 0) {
+            if (ns.StartsWith("System.") || ns == "System" || ns.StartsWith("Internal.") || ns == "Internal") {
+                ns = "_" + ns;
+            }
+
             if (!namespaces.TryGetValue(ns, out NamespaceDeclarationSyntax? value)) {
                 //ns = Regex.Replace(ns, @"[^a-zA-Z0-9.]", "_");
                 Console.WriteLine("Creating namespace " + ns);
@@ -173,6 +195,8 @@ public class AssemblyGenerator {
             }
 
             return value;
+        } else {
+            Console.WriteLine("Failed to extract namespace from " + t.GetFullName());
         }
 
         return null;
@@ -186,14 +210,20 @@ public class AssemblyGenerator {
             return;
         }
 
+        foreach (REFrameworkNET.TypeDefinition t in context.Types) {
+            var asdf = t.GetFullName();
+        }
+
         ConcurrentBag<string> threadSafeValidTypes = [];
+
+        context.GetType(0).GetFullName(); // initialize the types
 
         Parallel.For(0, context.GetNumTypes(), i => {
             var t = context.GetType((uint)i);
             var typeName = t.GetFullName();
 
             if (typeName.Length == 0) {
-                Console.WriteLine("Bad type name");
+                Console.WriteLine("Bad type name @ " + i);
                 return;
             }
 
@@ -201,17 +231,24 @@ public class AssemblyGenerator {
                 return;
             }
 
-            if (typeName.Contains("[") || typeName.Contains("]") || typeName.Contains('<')) {
+            // Generics and arrays not yet supported
+            if (typeName.Contains("[") || typeName.Contains("]") || typeName.Contains('<') || typeName.Contains('!')) {
+                return;
+            }
+
+            // Dont worry about global namespace types for now...
+            if (t.Namespace == null || t.Namespace.Length == 0) {
                 return;
             }
 
             // Skip system types
             // TODO: Fix this
-            if (typeName.StartsWith("System.")) {
-                return;
-            }
-
-            threadSafeValidTypes.Add(typeName);
+            /*if (typeName.StartsWith("System.")) {
+                //return;
+                threadSafeValidTypes.Add("_" + typeName);
+            } else {*/
+                threadSafeValidTypes.Add(typeName);
+            //}
         });
 
         foreach (var typeName in threadSafeValidTypes) {
@@ -220,6 +257,7 @@ public class AssemblyGenerator {
     }
 
     static CompilationUnitSyntax MakeFromTypeEntry(REFrameworkNET.TDB context, string typeName, REFrameworkNET.TypeDefinition? t) {
+        var compilationUnit = SyntaxFactory.CompilationUnit();
         FillValidEntries(context);
 
         if (!validTypes.Contains(typeName)) {
@@ -245,7 +283,7 @@ public class AssemblyGenerator {
 
         // Generate starting from topmost parent first
         if (t.ParentType != null) {
-            MakeFromTypeEntry(context, t.ParentType.FullName ?? "", t.ParentType);
+            compilationUnit = MakeFromTypeEntry(context, t.ParentType.FullName ?? "", t.ParentType);
         }
 
         /*var methods = t.Methods;
@@ -265,7 +303,9 @@ public class AssemblyGenerator {
         foreach (var method in t.Methods) {
             //methods.Add(method);
             if (!methods.Select(m => m.Name).Contains(method.Name)) {
-                methods.Add(method);
+                if (method.DeclaringType == t) { // really important
+                    methods.Add(method);
+                }
             }
         }
 
@@ -326,66 +366,44 @@ public class AssemblyGenerator {
         return [];
     }
 
-    public static List<REFrameworkNET.Compiler.DynamicAssemblyBytecode> MainImpl() {
-        Il2CppDump.FillTypeExtensions(REFrameworkNET.API.GetTDB());
+    public static REFrameworkNET.Compiler.DynamicAssemblyBytecode? GenerateForAssembly(dynamic assembly, List<REFrameworkNET.Compiler.DynamicAssemblyBytecode> previousCompilations) {
+        var strippedAssemblyName = assembly.get_FullName().Split(',')[0];
 
-        List<CompilationUnitSyntax> compilationUnits = new List<CompilationUnitSyntax>();
+        // Dont want to conflict with the real .NET System
+        if (strippedAssemblyName == "System") {
+            strippedAssemblyName = "_System";
+        }
 
-        // Open a JSON file
-        /*using (var jsonFile = File.OpenRead(il2cpp_dump_json))
-        {
-            dump = new Il2CppDump
-            {
-                Types = Il2CppDump.PostProcessTypes(JsonSerializer.Deserialize<Dictionary<string, Il2CppDump.Type>>(jsonFile, options))
-            };
-
-            if (dump != null && dump.Types != null) {
-                // Look for any types that start with via.*
-                foreach (var typePair in dump.Types ?? []) {
-                    var typeName = typePair.Key;
-                    var type = typePair.Value;
-
-                    if (typeName.StartsWith("via.")) {
-                        var compilationUnit = MakeFromTypeEntry(dump, typeName, type);
-                        compilationUnits.Add(compilationUnit);
-                    }
-                }
-            } else {
-                Console.WriteLine("Failed to parse JSON");
-            }
-        }*/
-
+        List<CompilationUnitSyntax> compilationUnits = [];
         var tdb = REFrameworkNET.API.GetTDB();
 
-        foreach (REFrameworkNET.TypeDefinition t in tdb.Types) {
-            var typeName = t.GetFullName();
+        foreach (dynamic reEngineT in assembly.GetTypes()) {
+            var th = reEngineT.get_TypeHandle();
 
-            if (typeName.StartsWith("via.")) {
-                var compilationUnit = MakeFromTypeEntry(REFrameworkNET.API.GetTDB(), typeName, t);
-                compilationUnits.Add(compilationUnit);
+            if (th == null) {
+                Console.WriteLine("Failed to get type handle for " + reEngineT.get_FullName());
+                continue;
             }
+
+            var t = th as REFrameworkNET.TypeDefinition;
+
+            if (t == null) {
+                Console.WriteLine("Failed to convert type handle for " + reEngineT.get_FullName());
+                continue;
+            }
+
+            var typeName = t.GetFullName();
+            var compilationUnit = MakeFromTypeEntry(tdb, typeName, t);
+            compilationUnits.Add(compilationUnit);
         }
 
-        System.Console.WriteLine(compilationUnits[0].NormalizeWhitespace().ToFullString());
+        List<SyntaxTree> syntaxTrees = new List<SyntaxTree>();
 
-
-        /*List<SyntaxTree> syntaxTrees = new List<SyntaxTree>();
+        var syntaxTreeParseOption = CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.CSharp12);
         
         foreach (var cu in compilationUnits) {
-            syntaxTrees.Add(SyntaxFactory.SyntaxTree(cu));
-        }*/
-
-        var normalized = compilationUnit.NormalizeWhitespace();
-        string compilationUnitHash = "";
-
-        using (var sha1 = System.Security.Cryptography.SHA1.Create()) {
-            compilationUnitHash = BitConverter.ToString(sha1.ComputeHash(compilationUnit.ToFullString().Select(c => (byte)c).ToArray())).Replace("-", "");
+            syntaxTrees.Add(SyntaxFactory.SyntaxTree(cu, syntaxTreeParseOption));
         }
-
-        // Dump to DynamicAssembly.cs
-        File.WriteAllText("DynamicAssembly.cs", normalized.ToFullString());
-
-        var syntaxTrees = SyntaxFactory.SyntaxTree(normalized, CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.CSharp12));
 
         string? assemblyPath = Path.GetDirectoryName(typeof(object).Assembly.Location);
 
@@ -408,14 +426,20 @@ public class AssemblyGenerator {
             references.Add(MetadataReference.CreateFromFile(systemRuntimePath));
         }
 
-        compilationUnit = compilationUnit.AddUsings(SyntaxFactory.UsingDirective(SyntaxFactory.ParseName("System")));
+        // Add the previous compilations as references
+        foreach (var compilationbc in previousCompilations) {
+            var ms = new MemoryStream(compilationbc.Bytecode);
+            references.Add(MetadataReference.CreateFromStream(ms));
+        }
+
+        //compilationUnit = compilationUnit.AddUsings(SyntaxFactory.UsingDirective(SyntaxFactory.ParseName("System")));
 
         var csoptions = new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, 
             optimizationLevel: OptimizationLevel.Release,
             assemblyIdentityComparer: DesktopAssemblyIdentityComparer.Default,
             platform: Platform.X64);
         // Create a compilation
-        var compilation = CSharpCompilation.Create("DynamicAssembly")
+        CSharpCompilation compilation = CSharpCompilation.Create(strippedAssemblyName)
             .WithOptions(csoptions)
             .AddReferences(references)
             .AddSyntaxTrees(syntaxTrees);
@@ -427,21 +451,24 @@ public class AssemblyGenerator {
 
             if (!result.Success)
             {
-                var textLines = syntaxTrees.GetText().Lines;
+                //var textLines = syntaxTrees.GetText().Lines;
                 List<Diagnostic> sortedDiagnostics = result.Diagnostics.OrderBy(d => d.Location.SourceSpan.Start).ToList();
                 sortedDiagnostics.Reverse();
 
                 foreach (Diagnostic diagnostic in sortedDiagnostics)
                 {
+                    var textLines = diagnostic.Location.SourceTree?.GetText().Lines;
                     Console.WriteLine($"{diagnostic.Id}: {diagnostic.GetMessage()}");
 
                     var lineSpan = diagnostic.Location.GetLineSpan();
                     var errorLineNumber = lineSpan.StartLinePosition.Line;
-                    var errorLineText = textLines[errorLineNumber].ToString();
+                    var errorLineText = textLines?[errorLineNumber].ToString();
                     Console.WriteLine($"Error in line {errorLineNumber + 1}: {errorLineText}");
+                    //Console.WriteLine(
+                        //$"Error in line {errorLineNumber + 1}: {lineSpan.StartLinePosition.Character + 1} - {lineSpan.EndLinePosition.Character + 1}");
                 }
 
-                REFrameworkNET.API.LogError("Failed to compile DynamicAssembly.dll");
+                REFrameworkNET.API.LogError("Failed to compile " + strippedAssemblyName);
             }
             else
             {
@@ -452,18 +479,43 @@ public class AssemblyGenerator {
                 // dump to file
                 //File.WriteAllBytes("DynamicAssembly.dll", ms.ToArray());
 
-                REFrameworkNET.API.LogInfo("Successfully compiled DynamicAssembly.dll");
+                REFrameworkNET.API.LogInfo("Successfully compiled " + strippedAssemblyName);
 
-                return [
+                return 
                     new REFrameworkNET.Compiler.DynamicAssemblyBytecode {
                         Bytecode = ms.ToArray(),
-                        Hash = compilationUnitHash
-                    }
-                ];
+                        AssemblyName = strippedAssemblyName
+                    };
             }
         }
 
-        return [];
+        return null;
+    }
+
+    public static List<REFrameworkNET.Compiler.DynamicAssemblyBytecode> MainImpl() {
+        Il2CppDump.FillTypeExtensions(REFrameworkNET.API.GetTDB());
+
+        var tdb = REFrameworkNET.API.GetTDB();
+
+        dynamic appdomainT = tdb.GetType("System.AppDomain");
+        dynamic appdomain = appdomainT.get_CurrentDomain();
+        dynamic assemblies = appdomain.GetAssemblies();
+
+        List<REFrameworkNET.Compiler.DynamicAssemblyBytecode> bytecodes = [];
+
+        foreach (dynamic assembly in assemblies) {
+            var strippedAssemblyName = assembly.get_FullName().Split(',')[0];
+            REFrameworkNET.API.LogInfo("Assembly: " + (assembly.get_Location()?.ToString() ?? "NONE"));
+            REFrameworkNET.API.LogInfo("Assembly (stripped): " + strippedAssemblyName);
+
+            var bytecode = GenerateForAssembly(assembly, bytecodes);
+
+            if (bytecode != null) {
+                bytecodes.Add(bytecode);
+            }
+        }
+
+        return bytecodes;
     }
 };
 }

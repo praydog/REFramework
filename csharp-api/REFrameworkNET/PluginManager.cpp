@@ -143,7 +143,9 @@ namespace REFrameworkNET {
                     for each (Compiler::DynamicAssemblyBytecode^ bytes in result) {
                         REFrameworkNET::API::LogInfo("Adding generated assembly to deps...");
 
-                        auto path = std::filesystem::current_path() / "reframework" / "plugins" / "managed" / "dependencies" / (msclr::interop::marshal_as<std::string>(bytes->Hash) + "_DYNAMIC.dll");
+                        std::string assembly_name = msclr::interop::marshal_as<std::string>(bytes->AssemblyName);
+
+                        auto path = std::filesystem::current_path() / "reframework" / "plugins" / "managed" / "dependencies" / (assembly_name + "_DYNAMIC.dll");
                         System::IO::File::WriteAllBytes(gcnew System::String(path.wstring().c_str()), bytes->Bytecode);
                         REFrameworkNET::API::LogInfo("Wrote generated assembly to " + gcnew System::String(path.wstring().c_str()));
 

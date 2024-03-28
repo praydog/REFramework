@@ -10,6 +10,7 @@ using System.IO;
 using System.Dynamic;
 using System.Security.Cryptography;
 using System.Linq;
+using Microsoft.CodeAnalysis.Operations;
 
 
 public class ClassGenerator {
@@ -71,7 +72,7 @@ public class ClassGenerator {
 
         bool wantsAbstractInstead = false;
 
-        for (var parent = t.ParentType; parent != null; parent = parent.ParentType) {
+        /*for (var parent = t.ParentType; parent != null; parent = parent.ParentType) {
             var parentName = parent.FullName ?? "";
             if (parentName == null) {
                 break;
@@ -85,15 +86,15 @@ public class ClassGenerator {
                 wantsAbstractInstead = true;
                 break;
             }
-        }
+        }*/
 
         if (wantsAbstractInstead) {
             typeDeclaration = SyntaxFactory
-                        .ClassDeclaration(className)
+                        .ClassDeclaration(REFrameworkNET.AssemblyGenerator.CorrectTypeName(className))
                         .AddModifiers(new SyntaxToken[]{SyntaxFactory.Token(SyntaxKind.PublicKeyword), SyntaxFactory.Token(SyntaxKind.AbstractKeyword)});
         } else {
             typeDeclaration = SyntaxFactory
-                .InterfaceDeclaration(className)
+                .InterfaceDeclaration(REFrameworkNET.AssemblyGenerator.CorrectTypeName(className))
                 .AddModifiers(new SyntaxToken[]{SyntaxFactory.Token(SyntaxKind.PublicKeyword)});
         }
 
@@ -110,7 +111,7 @@ public class ClassGenerator {
 
                 if (methodReturnT != null && methodReturnName != "System.Void" && methodReturnName != "") {
                     // Check for easily convertible types like System.Single, System.Int32, etc.
-                    switch (methodReturnName) {
+                    switch (methodReturnName) { 
                         case "System.Single":
                             returnType = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.FloatKeyword));
                             break;
@@ -153,10 +154,19 @@ public class ClassGenerator {
                                     break;
                                 }
 
-                                if (methodReturnName.StartsWith("System.") || !methodReturnName.StartsWith("via.")) {
+                                /*if (methodReturnName.StartsWith("System.") || !methodReturnName.StartsWith("via.")) {
+                                    returnType = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.ObjectKeyword));
+                                    break;
+                                }*/
+
+                                // Stuff in System should NOT be referencing via
+                                // how is this even compiling for them?
+                                if (ogClassName.StartsWith("System") && methodReturnName.StartsWith("via")) {
                                     returnType = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.ObjectKeyword));
                                     break;
                                 }
+
+                                methodReturnName = "global::" + REFrameworkNET.AssemblyGenerator.CorrectTypeName(methodReturnName);
 
                                 returnType = SyntaxFactory.ParseTypeName(methodReturnName);
                                 break;
@@ -172,6 +182,10 @@ public class ClassGenerator {
 
                 if (methodExtension != null && methodExtension.Override != null && methodExtension.Override == true) {
                     methodName += "_" + className.Replace('.', '_');
+                } else {
+                    if (this.t.FullName == "System.Collections.Stack.SyncStack") {
+                        System.Console.WriteLine("No override for " + this.t.FullName + "." + method.Name);
+                    }
                 }
 
                 var methodDeclaration = SyntaxFactory.MethodDeclaration(returnType, methodName ?? "UnknownMethod")
@@ -196,15 +210,20 @@ public class ClassGenerator {
             List<SimpleBaseTypeSyntax> baseTypes = new List<SimpleBaseTypeSyntax>();
 
             SortedSet<string> badBaseTypes = new SortedSet<string> {
-                "System.Object",
+                /*"System.Object",
                 "System.ValueType",
                 "System.Enum",
                 "System.Delegate",
-                "System.MulticastDelegate"
+                "System.MulticastDelegate"*/
             };
 
             for (var parent = t.ParentType; parent != null; parent = parent.ParentType) {
-                var parentName = parent.FullName ?? "";
+                // TODO: Fix this
+                if (!REFrameworkNET.AssemblyGenerator.validTypes.Contains(parent.FullName)) {
+                    continue;
+                }
+
+                var parentName = REFrameworkNET.AssemblyGenerator.CorrectTypeName(parent.FullName ?? "");
                 if (parentName == null) {
                     break;
                 }
@@ -220,6 +239,9 @@ public class ClassGenerator {
                 if (badBaseTypes.Contains(parentName)) {
                     break;
                 }
+
+                // Forces compiler to start at the global namespace
+                parentName = "global::" + parentName;
 
                 baseTypes.Add(SyntaxFactory.SimpleBaseType(SyntaxFactory.ParseTypeName(parentName)));
                 usingTypes.Add(parent);
@@ -268,9 +290,11 @@ public class ClassGenerator {
 
             HashSet<REFrameworkNET.Method> nestedMethods = [];
 
-            foreach (var method in t.Methods) {
+            foreach (var method in nestedT.Methods) {
                 if (!nestedMethods.Select(nestedMethod => nestedMethod.Name).Contains(method.Name)) {
-                    nestedMethods.Add(method);   
+                    if (method.DeclaringType == nestedT) {
+                        nestedMethods.Add(method);   
+                    }
                 }
             }
 
@@ -290,6 +314,11 @@ public class ClassGenerator {
             for (var parent = t.ParentType; parent != null; parent = parent.ParentType) {
                 if (addedNew) {
                     break;
+                }
+
+                // TODO: Fix this
+                if (!REFrameworkNET.AssemblyGenerator.validTypes.Contains(parent.FullName)) {
+                    continue;
                 }
 
                 var parentNestedTypes = Il2CppDump.GetTypeExtension(parent)?.NestedTypes;
