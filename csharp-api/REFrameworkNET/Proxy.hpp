@@ -116,17 +116,18 @@ protected:
             return result;
         }
 
-        if (targetMethod->DeclaringType == nullptr) {
+        if (targetMethod->DeclaringType == nullptr || targetMethod->ReturnType == nullptr) {
             return result;
         }
 
         if (!targetMethod->ReturnType->IsPrimitive && targetMethod->DeclaringType->IsInterface && result != nullptr) {
             auto iobjectResult = dynamic_cast<REFrameworkNET::IObject^>(result);
 
-            if (iobjectResult != nullptr) {
-                auto t = iobjectResult->GetTypeDefinition();
+            if (iobjectResult != nullptr && targetMethod->ReturnType->IsInterface) {
+                /*auto t = iobjectResult->GetTypeDefinition();
                 auto fullName = t->FullName;
-                auto localType = T::typeid->Assembly->GetType(fullName);
+                auto localType = T::typeid->Assembly->GetType(fullName);*/
+                auto localType = targetMethod->ReturnType;
 
                 if (localType != nullptr) {
                     auto proxy = DispatchProxy::Create(localType, Proxy<T, T2>::typeid->GetGenericTypeDefinition()->MakeGenericType(T::typeid, result->GetType()));
@@ -134,7 +135,7 @@ protected:
                     result = proxy;
                     return result;
                 } else {
-                    System::Console::WriteLine("Type not found: " + fullName);
+                    System::Console::WriteLine("Type not found: " + targetMethod->ReturnType->FullName);
                 }
             }
         }
