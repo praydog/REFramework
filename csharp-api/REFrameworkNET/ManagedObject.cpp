@@ -134,7 +134,15 @@ namespace REFrameworkNET {
                             break;
                         }
 
-                        const auto offset = field_type->IsValueType() ? field_type->GetField("_firstChar")->GetOffsetFromFieldPtr() : field_type->GetField("_firstChar")->GetOffsetFromBase();
+                        const auto firstCharField = field_type->GetField("_firstChar");
+                        uint32_t offset = 0;
+
+                        if (firstCharField != nullptr) {
+                            offset = field_type->IsValueType() ? firstCharField->GetOffsetFromFieldPtr() : firstCharField->GetOffsetFromBase();
+                        } else {
+                            const auto fieldOffset = *(uint32_t*)(*(uintptr_t*)strObject - sizeof(void*));
+                            offset = fieldOffset + 4;
+                        }
 
                         wchar_t* chars = (wchar_t*)((uintptr_t)strObject + offset);
                         result = gcnew System::String(chars);

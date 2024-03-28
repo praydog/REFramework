@@ -134,7 +134,15 @@ bool Method::HandleInvokeMember_Internal(System::Object^ obj, System::String^ me
                 // Maybe don't create the GC version and just use the native one?
                 auto strObject = gcnew REFrameworkNET::ManagedObject((::REFrameworkManagedObjectHandle)tempResult->QWord);
                 auto strType = strObject->GetTypeDefinition();
-                const auto offset = strType->GetField("_firstChar")->GetOffsetFromBase();
+                const auto firstCharField = strType->GetField("_firstChar");
+                uint32_t offset = 0;
+
+                if (firstCharField != nullptr) {
+                    offset = strType->GetField("_firstChar")->GetOffsetFromBase();
+                } else {
+                    const auto fieldOffset = *(uint32_t*)(*(uintptr_t*)tempResult->QWord - sizeof(void*));
+                    offset = fieldOffset + 4;
+                }
 
                 wchar_t* chars = (wchar_t*)((uintptr_t)strObject->Ptr() + offset);
                 result = gcnew System::String(chars);
