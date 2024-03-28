@@ -18,7 +18,8 @@ namespace REFrameworkNET
                 get;
                 set;
             }
-            public string Hash {
+
+            public string AssemblyName {
                 get;
                 set;
             }
