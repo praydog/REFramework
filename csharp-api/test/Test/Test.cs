@@ -45,6 +45,14 @@ public class DangerousFunctions {
 
         REFrameworkNET.API.LogInfo("Previous timescale: " + currentTimescale.ToString());
         REFrameworkNET.API.LogInfo("Current timescale: " + scene?.get_TimeScale().ToString());
+        var appdomainStatics = tdb.GetType("System.AppDomain").As<_System.AppDomain>();
+        var appdomain = appdomainStatics.get_CurrentDomain();
+        dynamic assemblies = appdomain.GetAssemblies();
+
+        foreach (REFrameworkNET.ManagedObject assemblyRaw in assemblies) {
+            var assembly = assemblyRaw.As<_System.Reflection.Assembly>();
+            REFrameworkNET.API.LogInfo("Assembly: " + assembly.get_Location()?.ToString());
+        }
     }
 }
 

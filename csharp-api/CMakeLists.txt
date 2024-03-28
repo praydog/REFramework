@@ -117,6 +117,8 @@ set(csharp-api_SOURCES
 	"REFrameworkNET/API.hpp"
 	"REFrameworkNET/Callbacks.hpp"
 	"REFrameworkNET/Field.hpp"
+	"REFrameworkNET/IObject.hpp"
+	"REFrameworkNET/IProxyable.hpp"
 	"REFrameworkNET/InvokeRet.hpp"
 	"REFrameworkNET/ManagedObject.hpp"
 	"REFrameworkNET/ManagedSingleton.hpp"
@@ -272,8 +274,22 @@ VS_DOTNET_REFERENCE_REFramework.NET
 )
 
 set_target_properties(CSharpAPITest PROPERTIES
-VS_DOTNET_REFERENCE_via
-"${REFRAMEWORK_DOT_NET_ASSEMBLY_DIR}/DynamicAssembly.dll"
+VS_DOTNET_REFERENCE_REFramework.NET._System
+"${REFRAMEWORK_DOT_NET_ASSEMBLY_DIR}/REFramework.NET._System.dll"
 )
 
-set_target_properties(CSharpAPITest PROPERTIES VS_PACKAGE_REFERENCES "via")
+set_target_properties(CSharpAPITest PROPERTIES VS_PACKAGE_REFERENCES "REFramework.NET._System")
+
+set_target_properties(CSharpAPITest PROPERTIES
+VS_DOTNET_REFERENCE_REFramework.NET.viacore
+"${REFRAMEWORK_DOT_NET_ASSEMBLY_DIR}/REFramework.NET.viacore.dll"
+)
+
+set_target_properties(CSharpAPITest PROPERTIES VS_PACKAGE_REFERENCES "REFramework.NET.viacore")
+
+set_target_properties(CSharpAPITest PROPERTIES
+VS_DOTNET_REFERENCE_REFramework.NET.application
+"${REFRAMEWORK_DOT_NET_ASSEMBLY_DIR}/REFramework.NET.application.dll"
+)
+
+set_target_properties(CSharpAPITest PROPERTIES VS_PACKAGE_REFERENCES "REFramework.NET.application")
