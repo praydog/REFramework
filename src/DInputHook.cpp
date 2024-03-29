@@ -81,7 +81,7 @@ bool DInputHook::hook() {
     // Hook them.
     m_get_device_state_hook = make_unique<FunctionHook>(get_device_state, (uintptr_t)&DInputHook::get_device_state);
 
-    return m_get_device_state_hook->create();
+    return m_get_device_state_hook->is_valid();
 }
 
 HRESULT DInputHook::get_device_state_internal(IDirectInputDevice* device, DWORD size, LPVOID data) {

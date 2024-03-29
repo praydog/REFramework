@@ -15,8 +15,6 @@ public:
     FunctionHook(Address target, Address destination);
     virtual ~FunctionHook();
 
-    bool create();
-
     auto get_original() const {
         return m_inline_hook.trampoline().address();
     }

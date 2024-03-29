@@ -47,12 +47,12 @@ public:
 
         virtual bool hook_draw(Address target) {
             draw_hook = std::make_unique<FunctionHook>(target, &RenderLayerHook<T>::draw);
-            return draw_hook->create();
+            return draw_hook->is_valid();
         }
 
         virtual bool hook_update(Address target) {
             update_hook = std::make_unique<FunctionHook>(target, &RenderLayerHook<T>::update);
-            return update_hook->create();
+            return update_hook->is_valid();
         }
 
         operator RenderLayerHook<sdk::renderer::RenderLayer>&() {
