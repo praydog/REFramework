@@ -5,6 +5,8 @@
 
 #include <utility/Address.hpp>
 
+#include <safetyhook.hpp>
+
 class FunctionHook {
 public:
     FunctionHook() = delete;
@@ -15,28 +17,25 @@ public:
 
     bool create();
 
-    // Called automatically by the destructor, but you can call it explicitly
-    // if you need to remove the hook.
-    bool remove();
-
     auto get_original() const {
-        return m_original;
+        return m_inline_hook.trampoline().address();
     }
 
     template <typename T>
     T* get_original() const {
-        return (T*)m_original;
+        return m_inline_hook.original<T*>();
     }
 
     auto is_valid() const {
-        return m_original != 0;
+        return m_inline_hook.operator bool();
     }
 
     FunctionHook& operator=(const FunctionHook& other) = delete;
     FunctionHook& operator=(FunctionHook&& other) = delete;
 
 private:
+    SafetyHookInline m_inline_hook;
+
     uintptr_t m_target{ 0 };
     uintptr_t m_destination{ 0 };
-    uintptr_t m_original{ 0 };
 };

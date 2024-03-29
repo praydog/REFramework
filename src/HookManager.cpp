@@ -413,11 +413,6 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
     m_jit.add(&hook->facilitator_fn, &code);
 
     *(uintptr_t*)(hook->facilitator_fn + code.labelOffsetFromBase(orig_label)) = hook_initialization();
-
-    // because FunctionHook isn't RAII
-    if (hook_create) {
-        hook_create();
-    }
 }
 
 HookManager::HookId HookManager::add(sdk::REMethodDefinition* fn, HookManager::PreHookFn pre_fn, HookManager::PostHookFn post_fn, bool ignore_jmp) {
@@ -477,10 +472,10 @@ HookManager::HookId HookManager::add(sdk::REMethodDefinition* fn, HookManager::P
     create_jitted_facilitator(hook, fn,
         [&](){
             fn_hook = std::make_unique<FunctionHook>(hook->target_fn, (void*)hook->facilitator_fn);
+            fn_hook->create();
             return fn_hook->get_original();
         },
         [&]() {
-            fn_hook->create();
         }
     );
 

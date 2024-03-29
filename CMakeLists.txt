@@ -55,6 +55,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
 set(ASMJIT_STATIC ON CACHE BOOL "" FORCE)
 set(DYNAMIC_LOADER ON CACHE BOOL "" FORCE) # OpenXR
 set(BUILD_TOOLS OFF CACHE BOOL "" FORCE) # DirectXTK
+set(SAFETYHOOK_FETCH_ZYDIS ON)
 
 if ("${CMAKE_BUILD_TYPE}" MATCHES "Release")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MT")
@@ -112,6 +113,16 @@ FetchContent_Declare(
 		528801aa6dd8d628c2f756c41a76d300f47de478
 )
 FetchContent_MakeAvailable(directxtk12)
+
+message(STATUS "Fetching safetyhook (44200343bf803f78862426e301e9382e5b28ea2c)...")
+FetchContent_Declare(
+	safetyhook
+	GIT_REPOSITORY
+		https://github.com/cursey/safetyhook
+	GIT_TAG
+		44200343bf803f78862426e301e9382e5b28ea2c
+)
+FetchContent_MakeAvailable(safetyhook)
 
 message(STATUS "Fetching bddisasm (v1.34.10)...")
 FetchContent_Declare(
@@ -492,9 +503,11 @@ set(utility_SOURCES "")
 list(APPEND utility_SOURCES
 	"shared/utility/Exceptions.cpp"
 	"shared/utility/FunctionHook.cpp"
+	"shared/utility/FunctionHookMinHook.cpp"
 	"shared/utility/Relocate.cpp"
 	"shared/utility/Exceptions.hpp"
 	"shared/utility/FunctionHook.hpp"
+	"shared/utility/FunctionHookMinHook.hpp"
 	"shared/utility/Relocate.hpp"
 )
 
@@ -522,6 +535,7 @@ target_compile_options(utility PUBLIC
 target_link_libraries(utility PUBLIC
 	spdlog
 	minhook
+	safetyhook
 	kananlib
 )
 
@@ -12806,7 +12820,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${example_plugin_SOURCES})
 
 	target_compile_features(example_plugin PUBLIC
-		cxx_std_20
+		cxx_std_23
 	)
 
 	target_include_directories(example_plugin PUBLIC
@@ -12861,7 +12875,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${weapon_stay_big_plugin_SOURCES})
 
 	target_compile_features(weapon_stay_big_plugin PUBLIC
-		cxx_std_20
+		cxx_std_23
 	)
 
 	target_include_directories(weapon_stay_big_plugin PUBLIC
