@@ -497,7 +497,9 @@ reframework::InvokeRet sdk::REMethodDefinition::invoke(void* object, const std::
 
     if (num_params != args.size()) {
         //throw std::runtime_error("Invalid number of arguments");
-        spdlog::warn("Invalid number of arguments passed to REMethodDefinition::invoke for {}", get_name());
+        const auto declaring_type = get_declaring_type();
+        const auto decltype_name = declaring_type != nullptr ? declaring_type->get_full_name() : "unknownclass";
+        spdlog::warn("Invalid number of arguments passed to REMethodDefinition::invoke for {}.{}", decltype_name, get_name());
         return reframework::InvokeRet{};
     }
 
@@ -551,7 +553,9 @@ reframework::InvokeRet sdk::REMethodDefinition::invoke(void* object, const std::
 
             // exception pointer
             if (context->unkPtr->unkPtr != nullptr) {
-                spdlog::error("Internal game exception thrown in REMethodDefinition::invoke for {}", get_name());
+                const auto declaring_type = get_declaring_type();
+                const auto decltype_name = declaring_type != nullptr ? declaring_type->get_full_name() : "unknownclass";
+                spdlog::error("Internal game exception thrown in REMethodDefinition::invoke for {}.{}", decltype_name, get_name());
 
                 const auto exception_managed_object = (::REManagedObject*)context->unkPtr->unkPtr;
 
@@ -573,7 +577,10 @@ reframework::InvokeRet sdk::REMethodDefinition::invoke(void* object, const std::
                 context->unkPtr->unkPtr = nullptr;
             }
         } catch (sdk::VMContext::Exception&) {
-            spdlog::error("Exception thrown in REMethodDefinition::invoke for {}", get_name());
+            const auto declaring_type = get_declaring_type();
+            const auto decltype_name = declaring_type != nullptr ? declaring_type->get_full_name() : "unknownclass";
+
+            spdlog::error("Exception thrown in REMethodDefinition::invoke for {}.{}", decltype_name, get_name());
             context->cleanup_after_exception(scoped_translator.get_prev_reference_count());
             
             memset(&out, 0, sizeof(out));
