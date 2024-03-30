@@ -77,6 +77,14 @@ sol::object get_hook_storage(sol::this_state s, size_t hash) {
 }
 
 namespace api::reframework {
+std::string get_branch() {
+    return REF_BRANCH;
+}
+
+uint32_t get_commit_count() {
+    return REF_TOTAL_COMMITS;
+}
+
 std::string get_commit_hash() {
     return REF_COMMIT_HASH;
 }
@@ -349,6 +357,8 @@ ScriptState::ScriptState(const ScriptState::GarbageCollectionData& gc_data,bool 
 
             return sol::make_object(s, sol::lua_nil);
         },
+        "get_branch", api::reframework::get_branch,
+        "get_commit_count", api::reframework::get_commit_count,
         "get_commit_hash", api::reframework::get_commit_hash,
         "get_tag", api::reframework::get_tag,
         "get_tag_long", api::reframework::get_tag_long,

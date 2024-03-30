@@ -1235,6 +1235,8 @@ void REFramework::draw_about() {
     ImGui::Text("Inspired by the Kanan project.");
     ImGui::Text("https://github.com/praydog/REFramework");
     ImGui::Text("http://praydog.com");
+    ImGui::Text("Branch: %s", REF_BRANCH);
+    ImGui::Text("Commits: %i", REF_TOTAL_COMMITS);
     ImGui::Text("Commit hash: %s", std::format("{:.8}", REF_COMMIT_HASH).c_str());
     ImGui::Text("Tag: %s", REF_TAG);
     ImGui::Text("Commits past tag: %i", REF_COMMITS_PAST_TAG);
