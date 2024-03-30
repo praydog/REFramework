@@ -11,6 +11,7 @@ using System.Dynamic;
 using System.Security.Cryptography;
 using System.Linq;
 using Microsoft.CodeAnalysis.Operations;
+using REFrameworkNET;
 
 
 public class ClassGenerator {
@@ -162,9 +163,17 @@ public class ClassGenerator {
                                 // Stuff in System should NOT be referencing via
                                 // how is this even compiling for them?
                                 if (ogClassName.StartsWith("System") && methodReturnName.StartsWith("via")) {
+                                    REFrameworkNET.API.LogWarning("Method " + ogClassName + "." + method.Name + " is referencing via class " + methodReturnName);
                                     returnType = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.ObjectKeyword));
                                     break;
                                 }
+
+                                if (ogClassName.StartsWith("System") && methodReturnName.StartsWith("app.")) {
+                                    REFrameworkNET.API.LogWarning("Method " + ogClassName + "." + method.Name + " is referencing app class " + methodReturnName);
+                                    returnType = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.ObjectKeyword));
+                                    break;
+                                }
+
 
                                 methodReturnName = "global::" + REFrameworkNET.AssemblyGenerator.CorrectTypeName(methodReturnName);
 

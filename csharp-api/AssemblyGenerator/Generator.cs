@@ -370,6 +370,8 @@ public class AssemblyGenerator {
             strippedAssemblyName = "_System";
         }
 
+        REFrameworkNET.API.LogInfo("Generating assembly " + strippedAssemblyName);
+
         List<CompilationUnitSyntax> compilationUnits = [];
         var tdb = REFrameworkNET.API.GetTDB();
 
