@@ -280,22 +280,30 @@ private:
         uintptr_t jitted_function_post{};
         bool skip{false};
         size_t hook_id{};
-        uint32_t call_count{};
         SortCallersMethod sort_callers_method{SortCallersMethod::NONE};
 
+        // Not considered stats because resetting these causes large fluctuations in the stats
         std::unordered_set<uintptr_t> return_addresses{};
-        std::unordered_map<uintptr_t, sdk::REMethodDefinition*> return_addresses_to_methods{};
         std::unordered_set<sdk::REMethodDefinition*> callers{};
-        std::unordered_set<uint32_t> thread_ids{};
-        struct CallerContext {
-            size_t call_count{};
-        };
+        std::unordered_map<uintptr_t, sdk::REMethodDefinition*> return_addresses_to_methods{};
 
-        std::unordered_map<sdk::REMethodDefinition*, CallerContext> callers_context{};
-        std::chrono::high_resolution_clock::time_point last_call_time{std::chrono::high_resolution_clock::now()};
-        std::chrono::high_resolution_clock::time_point last_call_end_time{std::chrono::high_resolution_clock::now()}; // assuming not recursive...
-        std::chrono::high_resolution_clock::duration last_call_delta{};
-        std::chrono::high_resolution_clock::duration total_call_time{};
+        struct Stats {
+            uint32_t call_count{};
+            std::unordered_set<uint32_t> thread_ids{};
+            struct CallerContext {
+                size_t call_count{};
+            };
+
+            std::unordered_map<sdk::REMethodDefinition*, CallerContext> callers_context{};
+            std::chrono::high_resolution_clock::time_point last_call_time{std::chrono::high_resolution_clock::now()};
+            std::chrono::high_resolution_clock::time_point last_call_end_time{std::chrono::high_resolution_clock::now()}; // assuming not recursive...
+            std::chrono::high_resolution_clock::duration last_call_delta{};
+            std::chrono::high_resolution_clock::duration total_call_time{};
+        } stats;
+
+        void reset_stats() {
+            stats = Stats{};
+        }
     };
 
     // Contains extra information about the method

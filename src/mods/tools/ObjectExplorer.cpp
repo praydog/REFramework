@@ -691,6 +691,14 @@ void ObjectExplorer::display_hooks() {
     if (ImGui::TreeNode("Options")) {
         ImGui::Checkbox("Hide uncalled methods", &m_hooks_context.hide_uncalled_methods);
 
+        ImGui::SameLine();
+
+        if (ImGui::Button("Reset Stats")) {
+            for (auto& h : m_hooked_methods) {
+                h.reset_stats();
+            }
+        }
+
         // Combobox of the sort method instead
         if (ImGui::BeginCombo("Sort by", HooksContext::s_sort_method_names[(uint8_t)m_hooks_context.sort_method])) {
             for (int i = 0; i < HooksContext::s_sort_method_names.size(); i++) {
@@ -713,7 +721,7 @@ void ObjectExplorer::display_hooks() {
 
     std::vector<HookedMethod*> hooks_to_iterate{};
     for (auto& h : m_hooked_methods) {
-        if (m_hooks_context.hide_uncalled_methods && h.call_count == 0) {
+        if (m_hooks_context.hide_uncalled_methods && h.stats.call_count == 0) {
             continue;
         }
 
@@ -723,22 +731,22 @@ void ObjectExplorer::display_hooks() {
     switch (m_hooks_context.sort_method) {
     case HooksContext::SortMethod::CALL_COUNT:
         std::sort(hooks_to_iterate.begin(), hooks_to_iterate.end(), [](const auto& a, const auto& b) {
-            return a->call_count > b->call_count;
+            return a->stats.call_count > b->stats.call_count;
         });
         break;
     case HooksContext::SortMethod::CALL_TIME_LAST:
         std::sort(hooks_to_iterate.begin(), hooks_to_iterate.end(), [](const auto& a, const auto& b) {
-            return a->last_call_time > b->last_call_time;
+            return a->stats.last_call_time > b->stats.last_call_time;
         });
         break;
     case HooksContext::SortMethod::CALL_TIME_DELTA:
         std::sort(hooks_to_iterate.begin(), hooks_to_iterate.end(), [](const auto& a, const auto& b) {
-            return a->last_call_delta > b->last_call_delta;
+            return a->stats.last_call_delta > b->stats.last_call_delta;
         });
         break;
     case HooksContext::SortMethod::CALL_TIME_TOTAL:
         std::sort(hooks_to_iterate.begin(), hooks_to_iterate.end(), [](const auto& a, const auto& b) {
-            return a->total_call_time > b->total_call_time;
+            return a->stats.total_call_time > b->stats.total_call_time;
         });
         break;
     case HooksContext::SortMethod::METHOD_NAME:
@@ -753,7 +761,7 @@ void ObjectExplorer::display_hooks() {
         break;
     case HooksContext::SortMethod::NUMBER_OF_THREADS_CALLED_FROM:
         std::sort(hooks_to_iterate.begin(), hooks_to_iterate.end(), [](const auto& a, const auto& b) {
-            return a->thread_ids.size() > b->thread_ids.size();
+            return a->stats.thread_ids.size() > b->stats.thread_ids.size();
         });
         break;
     default:
@@ -770,11 +778,11 @@ void ObjectExplorer::display_hooks() {
 
         if (made_node) {
             ImGui::Checkbox("Skip function call", &h.skip);
-            ImGui::TextWrapped("Call count: %i", h.call_count);
+            ImGui::TextWrapped("Call count: %i", h.stats.call_count);
 
             ImGui::SameLine();
-            const float delta_ms = std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(h.last_call_delta).count();
-            const float total_ms = std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(h.total_call_time).count();
+            const float delta_ms = std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(h.stats.last_call_delta).count();
+            const float total_ms = std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(h.stats.total_call_time).count();
             ImGui::TextWrapped("Time (ms): Delta %f, Total %f", delta_ms, total_ms);
 
             if (ImGui::TreeNode("Info")) {
@@ -806,7 +814,7 @@ void ObjectExplorer::display_hooks() {
                     switch (h.sort_callers_method) {
                     case HookedMethod::SortCallersMethod::CALL_COUNT:
                         std::sort(callers_to_iterate.begin(), callers_to_iterate.end(), [&h](const auto& a, const auto& b) {
-                            return h.callers_context[a].call_count > h.callers_context[b].call_count;
+                            return h.stats.callers_context[a].call_count > h.stats.callers_context[b].call_count;
                         });
                         break;
                     case HookedMethod::SortCallersMethod::METHOD_NAME:
@@ -819,7 +827,7 @@ void ObjectExplorer::display_hooks() {
                     };
 
                     for (auto& caller : callers_to_iterate) {
-                        const auto& context = h.callers_context[caller];
+                        const auto& context = h.stats.callers_context[caller];
                         const auto declaring_type = caller->get_declaring_type();
                         //auto method_name = declaring_type != nullptr ? declaring_type->get_full_name() + "." + caller->get_name() : caller->get_name();
                         //method_name += " [" + std::to_string(context.call_count) + "]";
@@ -845,7 +853,7 @@ void ObjectExplorer::display_hooks() {
                 }
 
                 if (ImGui::TreeNode("Thread IDs")) {
-                    for (auto tid : h.thread_ids) {
+                    for (auto tid : h.stats.thread_ids) {
                         ImGui::Text("%i", tid);
                     }
                     ImGui::TreePop();
@@ -4679,9 +4687,7 @@ HookManager::PreHookResult ObjectExplorer::pre_hooked_method_internal(std::vecto
     auto& hooked_method = *it;
 
     std::scoped_lock _{m_hooks_context.mtx};
-    ++hooked_method.call_count;
-    hooked_method.last_call_time = std::chrono::high_resolution_clock::now();
-    hooked_method.thread_ids.insert(std::this_thread::get_id()._Get_underlying_id());
+    ++hooked_method.stats.call_count;
 
     if (!hooked_method.return_addresses.contains(ret_addr)) {
         spdlog::info("Creating new entry for {}", hooked_method.name);
@@ -4770,9 +4776,12 @@ HookManager::PreHookResult ObjectExplorer::pre_hooked_method_internal(std::vecto
 
     if (auto it2 = hooked_method.return_addresses_to_methods.find(ret_addr); it2 != hooked_method.return_addresses_to_methods.end()) {
         auto caller = it2->second;
-        auto& context = hooked_method.callers_context[caller];
+        auto& context = hooked_method.stats.callers_context[caller];
         ++context.call_count;
     }
+
+    hooked_method.stats.last_call_time = std::chrono::high_resolution_clock::now();
+    hooked_method.stats.thread_ids.insert(std::this_thread::get_id()._Get_underlying_id());
 
     auto result = HookManager::PreHookResult::CALL_ORIGINAL;
 
@@ -4794,6 +4803,8 @@ void ObjectExplorer::post_hooked_method_internal(uintptr_t& ret_val, sdk::REType
         return;
     }
 
+    const auto now = std::chrono::high_resolution_clock::now();
+
     auto& hooked_method = *it;
 
     std::scoped_lock _{m_hooks_context.mtx};
@@ -4801,13 +4812,13 @@ void ObjectExplorer::post_hooked_method_internal(uintptr_t& ret_val, sdk::REType
     // Reset the last call time if this is the first time we're calling it
     // because in between this, there will be a large hitch
     // that the game is not causing.
-    if (hooked_method.call_count <= 1) {
-        hooked_method.last_call_time = std::chrono::high_resolution_clock::now();
+    if (hooked_method.stats.call_count <= 1) {
+        hooked_method.stats.last_call_time = now;
     }
 
-    hooked_method.last_call_end_time = std::chrono::high_resolution_clock::now();
-    hooked_method.last_call_delta = hooked_method.last_call_end_time - hooked_method.last_call_time;
-    hooked_method.total_call_time += hooked_method.last_call_delta;
+    hooked_method.stats.last_call_end_time = now;
+    hooked_method.stats.last_call_delta = hooked_method.stats.last_call_end_time - hooked_method.stats.last_call_time;
+    hooked_method.stats.total_call_time += hooked_method.stats.last_call_delta;
 }
 
 void ObjectExplorer::post_hooked_method(uintptr_t& ret_val, sdk::RETypeDefinition*& ret_ty, uintptr_t ret_addr, sdk::REMethodDefinition* method) {
