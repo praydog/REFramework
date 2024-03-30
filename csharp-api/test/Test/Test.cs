@@ -1,38 +1,39 @@
 // Import REFramework::API
 using System;
+using System.Collections;
 using System.Dynamic;
 using System.Reflection;
 
 public class DangerousFunctions {
-    public static REFrameworkNET.PreHookResult isInsidePreHook(System.Collections.Generic.List<object> args) {
-        Console.WriteLine("Inside pre hook (From C#)");
+    public static REFrameworkNET.PreHookResult isInsidePreHook(System.Object args) {
+        Console.WriteLine("Inside pre hook (From C#) " + args.ToString());
         REFrameworkNET.API.LogInfo("isInsidePreHook");
         return REFrameworkNET.PreHookResult.Continue;
     }
 
-    public static void isInsidePostHook() {
+    public static void isInsidePostHook(ref System.Object retval) {
         Console.WriteLine("Inside post hook (From C#)");
     }
 
     public static void Entry() {
         var tdb = REFrameworkNET.API.GetTDB();
-        tdb.GetType("app.CameraManager")?.
+        /*tdb.GetType("app.CameraManager")?.
             GetMethod("isInside")?.
             AddHook(false).
             AddPre(isInsidePreHook).
-            AddPost(isInsidePostHook);
-
+            AddPost(isInsidePostHook);*/
+        
         // These via.SceneManager and via.Scene are
         // loaded from an external reference assembly
         // the classes are all interfaces that correspond to real in-game classes
-        var sceneManager = REFrameworkNET.NativeProxy<via.SceneManager>.CreateFromSingleton("via.SceneManager");
+        var sceneManager = REFrameworkNET.API.GetNativeSingletonT<via.SceneManager>();
         var scene = sceneManager.get_CurrentScene();
 
-        scene.set_Pause(true);
+        //scene.set_Pause(true);
         var view = sceneManager.get_MainView();
         var name = view.get_Name();
         var go = view.get_PrimaryCamera()?.get_GameObject()?.get_Transform()?.get_GameObject();
-        
+
         REFrameworkNET.API.LogInfo("game object name: " + go?.get_Name().ToString());
         REFrameworkNET.API.LogInfo("Scene name: " + name);
 
@@ -40,11 +41,12 @@ public class DangerousFunctions {
         REFrameworkNET.API.LogInfo("Scene: " + scene.ToString() + ": " + (scene as REFrameworkNET.IObject).GetTypeDefinition()?.GetFullName()?.ToString());
 
         // Testing dynamic invocation
-        float currentTimescale = scene.get_TimeScale();
+        /*float currentTimescale = scene.get_TimeScale();
         scene.set_TimeScale(0.1f);
 
         REFrameworkNET.API.LogInfo("Previous timescale: " + currentTimescale.ToString());
-        REFrameworkNET.API.LogInfo("Current timescale: " + scene?.get_TimeScale().ToString());
+        REFrameworkNET.API.LogInfo("Current timescale: " + scene?.get_TimeScale().ToString());*/
+
         var appdomainStatics = tdb.GetType("System.AppDomain").As<_System.AppDomain>();
         var appdomain = appdomainStatics.get_CurrentDomain();
         dynamic assemblies = appdomain.GetAssemblies();
@@ -52,6 +54,33 @@ public class DangerousFunctions {
         foreach (REFrameworkNET.ManagedObject assemblyRaw in assemblies) {
             var assembly = assemblyRaw.As<_System.Reflection.Assembly>();
             REFrameworkNET.API.LogInfo("Assembly: " + assembly.get_Location()?.ToString());
+        }
+
+        via.os os = tdb.GetType("via.os").As<via.os>();
+        var platform = os.getPlatform();
+        var platformSubset = os.getPlatformSubset();
+        var title = os.getTitle();
+
+        REFrameworkNET.API.LogInfo("Platform: " + platform);
+        REFrameworkNET.API.LogInfo("Platform Subset: " + platformSubset);
+        REFrameworkNET.API.LogInfo("Title: " + title);
+
+        via.os.dialog dialog = tdb.GetType("via.os.dialog").As<via.os.dialog>();
+        dialog.open("Hello from C#!");
+    }
+
+    public static void TryEnableFrameGeneration() {
+        var upscalingInterface = REFrameworkNET.API.GetNativeSingletonT<via.render.UpscalingInterface>();
+        var dlssInterface = upscalingInterface.get_DLSSInterface();
+
+        if (dlssInterface != null && dlssInterface.get_DLSSGEnable() == false) {
+            dlssInterface.set_DLSSGEnable(true);
+        }
+
+        var fsr3Interface = upscalingInterface.get_FSR3Interface();
+
+        if (fsr3Interface != null && fsr3Interface.get_EnableFrameGeneration() == false) {
+            fsr3Interface.set_EnableFrameGeneration(true);
         }
     }
 }
@@ -62,10 +91,12 @@ class REFrameworkPlugin {
     static System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
     static System.Diagnostics.Stopwatch sw2 = new System.Diagnostics.Stopwatch();
 
-    public static void Main(REFrameworkNET.API api) {
-        try {
-        REFrameworkNET.API.LogInfo("Testing REFrameworkAPI...");
+    // To be called when the AssemblyLoadContext is unloading the assembly
+    public static void OnUnload(REFrameworkNET.API api) {
+        REFrameworkNET.API.LogInfo("Unloading Test");
+    }
 
+    public static void TestCallbacks() {
         REFrameworkNET.Callbacks.BeginRendering.Pre += () => {
             sw.Start();
         };
@@ -75,6 +106,12 @@ class REFrameworkPlugin {
             if (sw.ElapsedMilliseconds >= 6) {
                 Console.WriteLine("BeginRendering took " + sw.ElapsedMilliseconds + "ms");
             }
+
+            /*try {
+                DangerousFunctions.TryEnableFrameGeneration();
+            } catch (Exception e) {
+                REFrameworkNET.API.LogError(e.ToString());
+            }*/
 
             sw.Reset();
         };
@@ -96,6 +133,14 @@ class REFrameworkPlugin {
 
         REFrameworkNET.Callbacks.PrepareRendering.Post += () => {
         };
+    }
+
+    [REFrameworkNET.Attributes.PluginEntryPoint]
+    public static void Main() {
+        try {
+        REFrameworkNET.API.LogInfo("Testing REFrameworkAPI...");
+
+        TestCallbacks();
 
         var tdb = REFrameworkNET.API.GetTDB();
 

@@ -1,5 +1,7 @@
 #include <exception>
 #include <filesystem>
+
+#include "Attributes/Plugin.hpp"
 #include "PluginManager.hpp"
 
 using namespace System;
@@ -130,14 +132,12 @@ namespace REFrameworkNET {
                 // Look for Main method in the AssemblyGenerator class
                 auto mainMethod = generator->GetMethod(
                                             "Main", 
-                                            System::Reflection::BindingFlags::Static | System::Reflection::BindingFlags::Public,
-                                            gcnew array<Type^>{REFrameworkNET::API::typeid});
+                                            System::Reflection::BindingFlags::Static | System::Reflection::BindingFlags::Public);
 
                if (mainMethod != nullptr) {
                     REFrameworkNET::API::LogInfo("Found AssemblyGenerator.Main in " + a->Location);
 
-                    array<Object^>^ args = gcnew array<Object^>{PluginManager::s_api_instance};
-                    auto result = (List<Compiler::DynamicAssemblyBytecode^>^)mainMethod->Invoke(nullptr, args);
+                    auto result = (List<Compiler::DynamicAssemblyBytecode^>^)mainMethod->Invoke(nullptr, nullptr);
 
                     // Append the generated assemblies to the list of deps
                     for each (Compiler::DynamicAssemblyBytecode^ bytes in result) {
@@ -228,45 +228,45 @@ namespace REFrameworkNET {
         std::filesystem::create_directories(managed_path);
 
         System::String^ managed_dir = gcnew System::String(managed_path.wstring().c_str());
-
-        bool ever_found = false;
         auto files = System::IO::Directory::GetFiles(managed_dir, "*.dll");
 
-        if (files->Length == 0) {
-            REFrameworkNET::API::LogInfo("No DLLs found in " + managed_dir);
-            return false;
-        }
+        if (files->Length != 0) {
+            bool ever_found = false;
 
-        for each (System::String^ file in files) {
-            Console::WriteLine(file);
-            System::Reflection::Assembly^ assem = System::Reflection::Assembly::LoadFrom(file);
+            for each (System::String^ file in files) {
+                Console::WriteLine(file);
+                System::Reflection::Assembly^ assem = System::Reflection::Assembly::LoadFrom(file);
 
-            if (assem == nullptr) {
-                REFrameworkNET::API::LogError("Failed to load assembly from " + file);
-                continue;
-            }
+                if (assem == nullptr) {
+                    REFrameworkNET::API::LogError("Failed to load assembly from " + file);
+                    continue;
+                }
 
-            // Iterate through all types in the assembly
-            for each (Type^ type in assem->GetTypes()) {
-                // Attempt to find the Main method with the expected signature in each type
-                System::Reflection::MethodInfo^ mainMethod = type->GetMethod(
-                                                                "Main", 
-                                                                System::Reflection::BindingFlags::Static | System::Reflection::BindingFlags::Public,
-                                                                gcnew array<Type^>{REFrameworkNET::API::typeid});
+                // Iterate through all types in the assembly
+                for each (Type^ type in assem->GetTypes()) {
+                    array<System::Reflection::MethodInfo^>^ methods = type->GetMethods(System::Reflection::BindingFlags::Static | System::Reflection::BindingFlags::Public);
 
-                if (mainMethod != nullptr) {
-                    REFrameworkNET::API::LogInfo("Found Main method in " + file);
+                    for each (System::Reflection::MethodInfo^ method in methods) {
+                        array<Object^>^ attributes = method->GetCustomAttributes(REFrameworkNET::Attributes::PluginEntryPoint::typeid, true);
 
-                    array<Object^>^ args = gcnew array<Object^>{PluginManager::s_api_instance};
-                    mainMethod->Invoke(nullptr, args);
-                    ever_found = true;
+                        if (attributes->Length > 0) {
+                            REFrameworkNET::API::LogInfo("Found PluginEntryPoint in " + method->Name + " in " + type->FullName);
+                            method->Invoke(nullptr, nullptr);
+                            ever_found = true;
+                        }
+                    }
                 }
             }
+
+            if (!ever_found) {
+                REFrameworkNET::API::LogInfo("No Main method found in any DLLs in " + managed_dir);
+            }
+        } else {
+            REFrameworkNET::API::LogInfo("No DLLs found in " + managed_dir);
         }
 
-        if (!ever_found) {
-            REFrameworkNET::API::LogInfo("No Main method found in any DLLs in " + managed_dir);
-        }
+        // Unload dynamic assemblies (testing)
+        UnloadDynamicAssemblies();
 
         return true;
     } catch(System::Exception^ e) {
@@ -338,28 +338,32 @@ namespace REFrameworkNET {
                 continue;
             }
 
-            auto assem = System::Reflection::Assembly::Load(bytecode);
+            s_default_context = gcnew System::Runtime::Loader::AssemblyLoadContext("REFrameworkNET", true);
+
+            auto assem = s_default_context->LoadFromStream(gcnew System::IO::MemoryStream(bytecode));
+            //auto assem = System::Reflection::Assembly::Load(bytecode);
 
             if (assem == nullptr) {
                 REFrameworkNET::API::LogError("Failed to load assembly from " + file);
                 continue;
             }
 
+            s_dynamic_assemblies->Add(assem);
+
             REFrameworkNET::API::LogInfo("Compiled " + file);
 
             // Look for the Main method in the compiled assembly
             for each (Type^ type in assem->GetTypes()) {
-                System::Reflection::MethodInfo^ mainMethod = type->GetMethod(
-                                                                "Main", 
-                                                                System::Reflection::BindingFlags::Static | System::Reflection::BindingFlags::Public,
-                                                                gcnew array<Type^>{REFrameworkNET::API::typeid});
+                array<System::Reflection::MethodInfo^>^ methods = type->GetMethods(System::Reflection::BindingFlags::Static | System::Reflection::BindingFlags::Public);
 
-                if (mainMethod != nullptr) {
-                    Console::WriteLine("Found Main method in " + file);
+                for each (System::Reflection::MethodInfo^ method in methods) {
+                    array<Object^>^ attributes = method->GetCustomAttributes(REFrameworkNET::Attributes::PluginEntryPoint::typeid, true);
 
-                    array<Object^>^ args = gcnew array<Object^>{PluginManager::s_api_instance};
-                    mainMethod->Invoke(nullptr, args);
-                    ever_found = true;
+                    if (attributes->Length > 0) {
+                        REFrameworkNET::API::LogInfo("Found PluginEntryPoint in " + method->Name + " in " + type->FullName);
+                        method->Invoke(nullptr, nullptr);
+                        ever_found = true;
+                    }
                 }
             }
         }
@@ -386,5 +390,45 @@ namespace REFrameworkNET {
     } catch(...) {
         REFrameworkNET::API::LogError("Unknown exception caught while compiling C# files");
         return false;
+    }
+
+    void PluginManager::UnloadDynamicAssemblies() {
+        if (PluginManager::s_dynamic_assemblies == nullptr) {
+            REFrameworkNET::API::LogInfo("No dynamic assemblies to unload");
+			return;
+		}
+
+        REFrameworkNET::API::LogInfo("Unloading dynamic assemblies...");
+
+        for each (System::Reflection::Assembly ^ assem in PluginManager::s_dynamic_assemblies) {
+            if (assem == nullptr) {
+				continue;
+			}
+
+            try {
+				// Look for the Unload method in the target assembly which takes an REFrameworkNET.API instance
+                for each (Type ^ t in assem->GetTypes()) {
+					auto method = t->GetMethod("OnUnload", System::Reflection::BindingFlags::Static | System::Reflection::BindingFlags::Public, nullptr, gcnew array<Type^>{REFrameworkNET::API::typeid}, nullptr);
+
+                    if (method != nullptr) {
+                        REFrameworkNET::API::LogInfo("Unloading dynamic assembly by calling " + method->Name + " in " + t->FullName);
+						method->Invoke(nullptr, gcnew array<Object^>{PluginManager::s_api_instance});
+					}
+				}
+            }
+            catch (System::Exception^ e) {
+				REFrameworkNET::API::LogError("Failed to unload dynamic assembly: " + e->Message);
+            }
+            catch (const std::exception& e) {
+				REFrameworkNET::API::LogError("Failed to unload dynamic assembly: " + gcnew System::String(e.what()));
+            }
+            catch (...) {
+				REFrameworkNET::API::LogError("Unknown exception caught while unloading dynamic assembly");
+			}
+		}
+
+        s_dynamic_assemblies->Clear();
+        PluginManager::s_default_context->Unload();
+        PluginManager::s_default_context = nullptr;
     }
 }

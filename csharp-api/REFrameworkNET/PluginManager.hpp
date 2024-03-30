@@ -33,5 +33,11 @@ private:
     static void GenerateReferenceAssemblies(System::Collections::Generic::List<System::Reflection::Assembly^>^ deps);
     static bool LoadPlugins(uintptr_t param_raw);
     static bool LoadPlugins_FromSourceCode(uintptr_t param_raw, System::Collections::Generic::List<System::Reflection::Assembly^>^ deps);
+    static void UnloadDynamicAssemblies();
+
+    static System::Collections::Generic::List<System::Reflection::Assembly^>^ s_loaded_assemblies{gcnew System::Collections::Generic::List<System::Reflection::Assembly^>()};
+    static System::Collections::Generic::List<System::Reflection::Assembly^>^ s_dynamic_assemblies{gcnew System::Collections::Generic::List<System::Reflection::Assembly^>()};
+
+    static System::Runtime::Loader::AssemblyLoadContext^ s_default_context{nullptr};
 };
 }

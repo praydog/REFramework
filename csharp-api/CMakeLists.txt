@@ -104,6 +104,7 @@ set_target_properties(REFCSharpCompiler PROPERTIES VS_PACKAGE_REFERENCES "Micros
 set(csharp-api_SOURCES
 	"REFrameworkNET/API.cpp"
 	"REFrameworkNET/AssemblyInfo.cpp"
+	"REFrameworkNET/Attributes/Plugin.cpp"
 	"REFrameworkNET/Callbacks.cpp"
 	"REFrameworkNET/ManagedObject.cpp"
 	"REFrameworkNET/Method.cpp"
@@ -115,6 +116,7 @@ set(csharp-api_SOURCES
 	"REFrameworkNET/TDB.cpp"
 	"REFrameworkNET/TypeDefinition.cpp"
 	"REFrameworkNET/API.hpp"
+	"REFrameworkNET/Attributes/Plugin.hpp"
 	"REFrameworkNET/Callbacks.hpp"
 	"REFrameworkNET/Field.hpp"
 	"REFrameworkNET/IObject.hpp"

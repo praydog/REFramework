@@ -346,7 +346,8 @@ public class AssemblyGenerator {
         return compilationUnit;
     }
 
-    public static List<REFrameworkNET.Compiler.DynamicAssemblyBytecode> Main(REFrameworkNET.API api) {
+    [REFrameworkNET.Attributes.PluginEntryPoint]
+    public static List<REFrameworkNET.Compiler.DynamicAssemblyBytecode> Main() {
         try {
             return MainImpl();
         } catch (Exception e) {
