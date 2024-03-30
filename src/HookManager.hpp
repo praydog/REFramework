@@ -70,8 +70,7 @@ public:
             uintptr_t ret_addr_pre{}; // VOLATILE.
             //uintptr_t ret_addr_post{}; // VOLATILE.
             uintptr_t ret_val{};
-
-            uintptr_t rbx; // temp storage for rbx.
+            
             std::stack<uintptr_t> ptr_stack{}; // full storage for pointer-sized values. Supports recursion.
             std::vector<size_t> args_impl{};
 

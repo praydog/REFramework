@@ -178,15 +178,43 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
 
     constexpr size_t STACK_STORAGE_AMOUNT = 80;
 
-    // Save state.
+    // Save state and any volatile registers corresponding to arguments.
+    a.mov(rax, ptr(rsp)); // return address.
+
+    a.push(r12); // Temporary cross-call storage for storage ptr.
+    a.push(r13); // Temporary storage for rbx, cross-call storage.
+    a.push(r14); // Temporary storage for return address.
+
+    a.mov(r13, rbx); // store rbx in r13.
+    a.mov(r14, rax); // store return address in r14.
+
     a.push(rbx);
 
     a.push(rcx);
     a.push(rdx);
     a.push(r8);
     a.push(r9);
-    // Lock context.
 
+    // Store XMM arguments.
+    auto store_xmm_args = [&]() {
+        a.sub(rsp, 16 * 4);
+
+        a.movdqu(ptr(rsp), xmm0);
+        a.movdqu(ptr(rsp, 16), xmm1);
+        a.movdqu(ptr(rsp, 32), xmm2);
+        a.movdqu(ptr(rsp, 48), xmm3);
+    };
+
+    auto pop_xmm_args = [&]() {
+        a.movdqu(xmm0, ptr(rsp));
+        a.movdqu(xmm1, ptr(rsp, 16));
+        a.movdqu(xmm2, ptr(rsp, 32));
+        a.movdqu(xmm3, ptr(rsp, 48));
+
+        a.add(rsp, 16 * 4);
+    };
+
+    store_xmm_args();
 
     // Fix stack.
     a.mov(rbx, rsp);
@@ -197,9 +225,26 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
     a.mov(rcx, ptr(hook_label));
     a.call(ptr(get_storage_label));
 
+    a.mov(r12, rax); // storage ptr.
+
+    // Save return address (pre-hook).
+    a.mov(ptr(r12, offsetof(HookedFn::HookStorage, ret_addr_pre)), r14);
+
+    // Push return address onto stack.
+    a.mov(rcx, r12); // storage ptr.
+    a.mov (rdx, r14); // return address.
+    a.call(ptr(push_ptr_label));
+
+    // Use this moment to push RBX to our pseudo-stack.
+    // because the pre-hook may call this function recursively, clobbering RBX.
+    a.mov(rcx, r12); // storage ptr.
+    a.mov(rdx, r13); // original rbx.
+    a.call(ptr(push_ptr_label));
 
     // restore stack
     a.mov(rsp, rbx);
+
+    pop_xmm_args();
 
     // Restore state.
     a.pop(r9);
@@ -210,16 +255,13 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
     // restore rbx
     a.pop(rbx);
 
-    // store original rbx in storage so we can continue to use it as rsp storage.
-    constexpr auto rbx_offset = offsetof(HookedFn::HookStorage, rbx);
-    a.mov(ptr(rax, rbx_offset), rbx);
+    // Fix temporary storage registers.
+    a.pop(r14);
+    a.pop(r13);
 
+    a.mov(rax, r12); // storage ptr.
+    a.pop(r12);
 
-    // Save return address (pre-hook).
-    // Cannot modify the post version as it will corrupt the stack if the hook is recursive.
-    a.mov(r10, ptr(rsp));
-    //a.mov(rax, ptr(ret_addr_pre_label));
-    a.mov(ptr(rax, offsetof(HookedFn::HookStorage, ret_addr_pre)), r10);
     a.mov(r10, rax); // save storage ptr for later.
     a.mov(rax, ptr(rax)); // args ptr now.
 
@@ -304,17 +346,6 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
     a.mov(rbx, rsp);
     a.sub(rsp, STACK_STORAGE_AMOUNT);
     a.and_(rsp, -16);
-    
-    // Push return address onto stack.
-    a.mov(rcx, r12); // storage ptr.
-    a.mov (rdx, rax); // return address.
-    a.call(ptr(push_ptr_label));
-
-    // Use this moment to push RBX to our pseudo-stack.
-    // because the pre-hook may call this function recursively, clobbering RBX.
-    a.mov(rcx, r12); // storage ptr.
-    a.mov(rdx, ptr(r12, rbx_offset)); // original rbx.
-    a.call(ptr(push_ptr_label));
 
     // Call on_pre_hook.
     a.mov(rcx, ptr(hook_label));
