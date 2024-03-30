@@ -154,6 +154,44 @@ public:
 
     void gc_data_changed(GarbageCollectionData data);
 
+    /*sol::table get_thread_storage(size_t hash) {
+        auto it = m_thread_storage.find(hash);
+        if (it == m_thread_storage.end()) {
+            it = m_thread_storage.emplace(hash, m_lua.create_table()).first;
+        }
+
+        return it->second;
+    }*/
+
+    void push_hook_storage(size_t thread_hash) {
+        auto it = m_hook_storage.find(thread_hash);
+        if (it == m_hook_storage.end()) {
+            it = m_hook_storage.emplace(thread_hash, std::stack<sol::table>{}).first;
+        }
+
+        it->second.push(m_lua.create_table());
+    }
+
+    void pop_hook_storage(size_t thread_hash) {
+        auto it = m_hook_storage.find(thread_hash);
+        if (it != m_hook_storage.end()) {
+            if (!it->second.empty()) {
+                it->second.pop();
+            }
+        }
+    }
+
+    std::optional<sol::table> get_hook_storage(size_t thread_hash) {
+        auto it = m_hook_storage.find(thread_hash);
+        if (it != m_hook_storage.end()) {
+            if (!it->second.empty()) {
+                return it->second.top();
+            }
+        }
+
+        return std::nullopt;
+    }
+
 private:
     sol::state m_lua{};
 
@@ -182,6 +220,8 @@ private:
 
     std::deque<HookDef> m_hooks_to_add{};
     std::unordered_map<sdk::REMethodDefinition*, std::vector<HookManager::HookId>> m_hooks{};
+
+    std::unordered_map<size_t, std::stack<sol::table>> m_hook_storage{};
 };
 
 class ScriptRunner : public Mod {

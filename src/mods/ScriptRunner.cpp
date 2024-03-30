@@ -52,6 +52,29 @@ void debug(const char* str) {
 }
 }
 
+namespace api::thread {
+size_t get_hash() {
+    const auto id = std::this_thread::get_id();
+    return std::hash<std::thread::id>{}(id);
+}
+
+uint32_t get_id() {
+    return std::this_thread::get_id()._Get_underlying_id();
+}
+
+sol::object get_hook_storage(sol::this_state s, size_t hash) {
+    auto sol_state = sol::state_view{s};
+    auto state = sol_state.registry()["state"].get<ScriptState*>();
+    auto result = state->get_hook_storage(get_hash());
+
+    if (!result.has_value()) {
+        return sol::make_object(s, sol::lua_nil);
+    }
+
+    return sol::make_object(s, result.value());
+}
+}
+
 ScriptState::ScriptState(const ScriptState::GarbageCollectionData& gc_data,bool is_main_state) {
     std::scoped_lock _{ m_execution_mutex };
     m_is_main_state = is_main_state;
@@ -88,6 +111,11 @@ ScriptState::ScriptState(const ScriptState::GarbageCollectionData& gc_data,bool 
     re["on_config_save"] = [this](sol::function fn) { m_on_config_save_fns.emplace_back(fn); };
     m_lua["re"] = re;
 
+    auto thread = m_lua.create_table();
+    thread["get_hash"] = api::thread::get_hash;
+    thread["get_id"] = api::thread::get_id;
+    thread["get_hook_storage"] = api::thread::get_hook_storage;
+    m_lua["thread"] = thread;
 
     auto log = m_lua.create_table();
     log["info"] = api::log::info;
@@ -545,6 +573,8 @@ void ScriptState::install_hooks() {
                 }
 
                 try {
+                    state->push_hook_storage(std::hash<std::thread::id>{}(std::this_thread::get_id()));
+
                     if (pre_cb.is<sol::nil_t>()) {
                         return result;
                     }
@@ -591,6 +621,7 @@ void ScriptState::install_hooks() {
 
                 try {
                     if (post_cb.is<sol::nil_t>()) {
+                        state->pop_hook_storage(std::hash<std::thread::id>{}(std::this_thread::get_id()));
                         return;
                     }
 
@@ -601,6 +632,7 @@ void ScriptState::install_hooks() {
                     }
 
                     ret_val = (uintptr_t)script_result.get<void*>();
+                    state->pop_hook_storage(std::hash<std::thread::id>{}(std::this_thread::get_id()));
                 } catch (const std::exception& e) {
                     ScriptRunner::get()->spew_error(e.what());
                 } catch (...) {
