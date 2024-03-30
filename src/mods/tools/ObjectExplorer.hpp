@@ -286,6 +286,7 @@ private:
         std::unordered_set<uintptr_t> return_addresses{};
         std::unordered_set<sdk::REMethodDefinition*> callers{};
         std::unordered_map<uintptr_t, sdk::REMethodDefinition*> return_addresses_to_methods{};
+        std::unique_ptr<std::recursive_mutex> mtx{std::make_unique<std::recursive_mutex>()};
 
         struct Stats {
             uint32_t call_count{};
@@ -294,8 +295,11 @@ private:
                 size_t call_count{};
             };
 
+
+            using tp = std::chrono::high_resolution_clock::time_point;
             std::unordered_map<sdk::REMethodDefinition*, CallerContext> callers_context{};
             std::chrono::high_resolution_clock::time_point last_call_time{std::chrono::high_resolution_clock::now()};
+            std::unordered_map<std::thread::id, tp> last_call_times{};
             std::chrono::high_resolution_clock::time_point last_call_end_time{std::chrono::high_resolution_clock::now()}; // assuming not recursive...
             std::chrono::high_resolution_clock::duration last_call_delta{};
             std::chrono::high_resolution_clock::duration total_call_time{};

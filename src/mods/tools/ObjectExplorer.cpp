@@ -4780,8 +4780,11 @@ HookManager::PreHookResult ObjectExplorer::pre_hooked_method_internal(std::vecto
         ++context.call_count;
     }
 
-    hooked_method.stats.last_call_time = std::chrono::high_resolution_clock::now();
-    hooked_method.stats.thread_ids.insert(std::this_thread::get_id()._Get_underlying_id());
+    const auto tid = std::this_thread::get_id();
+    const auto now = std::chrono::high_resolution_clock::now();
+    hooked_method.stats.last_call_time = now;
+    hooked_method.stats.last_call_times[tid] = now;
+    hooked_method.stats.thread_ids.insert(tid._Get_underlying_id());
 
     auto result = HookManager::PreHookResult::CALL_ORIGINAL;
 
@@ -4816,9 +4819,12 @@ void ObjectExplorer::post_hooked_method_internal(uintptr_t& ret_val, sdk::REType
         hooked_method.stats.last_call_time = now;
     }
 
+    const auto tid = std::this_thread::get_id();
+
     hooked_method.stats.last_call_end_time = now;
-    hooked_method.stats.last_call_delta = hooked_method.stats.last_call_end_time - hooked_method.stats.last_call_time;
-    hooked_method.stats.total_call_time += hooked_method.stats.last_call_delta;
+    const auto delta = now - hooked_method.stats.last_call_times[tid];
+    hooked_method.stats.last_call_delta = delta;
+    hooked_method.stats.total_call_time += delta;
 }
 
 void ObjectExplorer::post_hooked_method(uintptr_t& ret_val, sdk::RETypeDefinition*& ret_ty, uintptr_t ret_addr, sdk::REMethodDefinition* method) {
