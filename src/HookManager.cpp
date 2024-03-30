@@ -57,11 +57,33 @@ HookManager::HookedFn::~HookedFn() {
 }
 
 HookManager::PreHookResult HookManager::HookedFn::on_pre_hook() {
-    std::shared_lock _{this->access_mux};
+    //std::shared_lock _{this->access_mux};
 
     auto any_skipped = false;
 
     auto storage = get_storage(this);
+
+    if (storage->pre_depth == 0) {
+        // afaik, shared locks are not reentrant, so only lock it
+        // if we're not already in a pre-hook.
+        this->access_mux.lock_shared();
+    } else if (!storage->pre_warned_recursion) {
+        const auto tid = std::hash<std::thread::id>{}(std::this_thread::get_id());
+        const auto declaring_type = fn_def->get_declaring_type();
+        const auto decltype_name = declaring_type != nullptr ? declaring_type->get_full_name() : "unknownclass";
+        spdlog::warn("[HookManager] (Pre) Recursive hook detected for '{}.{}' (thread ID: {:x})", decltype_name, fn_def->get_name(), tid);
+        storage->pre_warned_recursion = true;
+    }
+
+    if (storage->overall_depth > 0 && !storage->overall_warned_recursion) {
+        const auto tid = std::hash<std::thread::id>{}(std::this_thread::get_id());
+        const auto declaring_type = fn_def->get_declaring_type();
+        const auto decltype_name = declaring_type != nullptr ? declaring_type->get_full_name() : "unknownclass";
+        spdlog::warn("[HookManager] (Overall) '{}.{}' appears to be calling itself in some way (thread ID: {:x})", decltype_name, fn_def->get_name(), tid);
+        storage->overall_warned_recursion = true;
+    }
+
+    ++storage->pre_depth;
     const auto ret_addr_pre = storage->ret_addr_pre;
 
     for (const auto& cb : cbs) {
@@ -70,15 +92,38 @@ HookManager::PreHookResult HookManager::HookedFn::on_pre_hook() {
                 any_skipped = true;
             }
         }
-    } 
+    }
+
+    ++storage->overall_depth;
+    --storage->pre_depth;
+
+    if (storage->pre_depth == 0) {
+        this->access_mux.unlock_shared();
+    }
 
     return any_skipped ? PreHookResult::SKIP_ORIGINAL : PreHookResult::CALL_ORIGINAL;
 }
 
 void HookManager::HookedFn::on_post_hook() {
-    std::shared_lock _{this->access_mux};
+    //std::shared_lock _{this->access_mux};
 
     auto storage = get_storage(this);
+
+    if (storage->post_depth == 0) {
+        // afaik, shared locks are not reentrant, so only lock it
+        // if we're not already in a post-hook.
+        this->access_mux.lock_shared();
+    } else if (!storage->post_warned_recursion) {
+        const auto tid = std::hash<std::thread::id>{}(std::this_thread::get_id());
+        const auto declaring_type = fn_def->get_declaring_type();
+        const auto decltype_name = declaring_type != nullptr ? declaring_type->get_full_name() : "unknownclass";
+        spdlog::warn("[HookManager] (Post) Recursive hook detected for '{}.{}' (thread ID: {:x})", decltype_name, fn_def->get_name(), tid);
+        storage->post_warned_recursion = true;
+    }
+
+    ++storage->post_depth;
+    --storage->overall_depth;
+
     auto& ret_val = storage->ret_val;
     auto& ret_addr = storage->ret_addr;
 
@@ -86,6 +131,12 @@ void HookManager::HookedFn::on_post_hook() {
         if (cb.post_fn) {
             cb.post_fn(ret_val, ret_ty, ret_addr);
         }
+    }
+
+    --storage->post_depth;
+
+    if (storage->post_depth == 0) {
+        this->access_mux.unlock_shared();
     }
 }
 
@@ -116,6 +167,8 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
     auto on_post_hook_label = a.newLabel();
     auto orig_label = a.newLabel();
     auto get_storage_label = a.newLabel();
+    auto push_rbx_label = a.newLabel();
+    auto pop_rbx_label = a.newLabel();
     auto lock_label = a.newLabel();
     auto unlock_label = a.newLabel();
 
@@ -140,6 +193,7 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
     //a.call(ptr(lock_label));
     a.mov(rcx, ptr(hook_label));
     a.call(ptr(get_storage_label));
+
 
     // restore stack
     a.mov(rsp, rbx);
@@ -237,8 +291,6 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
         save_arg(args_offset, is_float);
     }
 
-    // Call on_pre_hook.
-    a.mov(rcx, ptr(hook_label));
 
     // fix stack
     a.push(r10); // push storage
@@ -246,6 +298,14 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
     a.sub(rsp, STACK_STORAGE_AMOUNT);
     a.and_(rsp, -16);
 
+    // Use this moment to push RBX to our pseudo-stack.
+    // because the pre-hook may call this function recursively, clobbering RBX.
+    a.mov(rcx, r10); // storage ptr.
+    a.mov(rdx, ptr(r10, rbx_offset)); // original rbx.
+    a.call(ptr(push_rbx_label));
+
+    // Call on_pre_hook.
+    a.mov(rcx, ptr(hook_label));
     a.call(ptr(on_pre_hook_label));
 
     // Save the return value so we can see if we need to call the original later.
@@ -364,23 +424,26 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
         a.mov(ptr(r10, ret_val_offset), rax);
     }
 
-    a.push(r10);
-
     // Call on_post_hook.
+    a.push(r12); // R12 being used as a cross-call register for storage of the storage ptr.
+    a.mov(r12, r10);
+
     a.mov(rbx, rsp);
     a.sub(rsp, STACK_STORAGE_AMOUNT);
     a.and_(rsp, -16);
 
     a.mov(rcx, ptr(hook_label));
     a.call(ptr(on_post_hook_label));
-    
-    a.mov(rsp, rbx);
-    
-    a.pop(r10);
 
-    // Restore return value and RBX.
-    //a.mov(rcx, ptr(ret_val_label));
-    a.mov(rbx, ptr(r10, rbx_offset));
+    // Now use this moment to pop RBX from our pseudo-stack.
+    a.mov(rcx, r12); // storage ptr.
+    a.call(ptr(pop_rbx_label));
+    
+    a.mov(rsp, rbx); // Restore stack ptr.
+    a.mov(rbx, rax); // restore original RBX, the return value from pop_rbx.
+
+    a.mov(r10, r12); // storage ptr.
+    a.pop(r12);
 
     if (is_ret_ty_float) {
         a.movq(xmm0, ptr(r10, ret_val_offset));
@@ -401,6 +464,10 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
     a.dq((uint64_t)&HookedFn::on_post_hook_static);
     a.bind(get_storage_label);
     a.dq((uint64_t)&HookedFn::get_storage);
+    a.bind(push_rbx_label);
+    a.dq((uint64_t)&HookedFn::push_rbx);
+    a.bind(pop_rbx_label);
+    a.dq((uint64_t)&HookedFn::pop_rbx);
     a.bind(lock_label);
     a.dq((uint64_t)&HookedFn::lock_static);
     a.bind(unlock_label);

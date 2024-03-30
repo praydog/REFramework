@@ -5,6 +5,7 @@
 #include <vector>
 #include <memory>
 #include <mutex>
+#include <stack>
 
 #include <asmjit/asmjit.h>
 
@@ -62,14 +63,24 @@ public:
         bool is_virtual{false};
         HookedVTable* vtable{nullptr};
 
+        // Per-thread storage for hooked function.
         struct HookStorage {
             size_t* args{};
             uintptr_t This{};
             uintptr_t ret_addr_pre{};
             uintptr_t ret_addr{};
             uintptr_t ret_val{};
-            uintptr_t rbx{};
+
+            uintptr_t rbx; // temp storage for rbx.
+            std::stack<uintptr_t> rbx_stack{}; // full storage for rbx.
             std::vector<size_t> args_impl{};
+
+            uint32_t pre_depth{0};
+            uint32_t overall_depth{0};
+            uint32_t post_depth{0};
+            bool pre_warned_recursion{false}; // for logging recursion.
+            bool overall_warned_recursion{false}; // for logging recursion.
+            bool post_warned_recursion{false}; // for logging recursion.
         };
 
         // Thread->storage
@@ -81,6 +92,16 @@ public:
 
         PreHookResult on_pre_hook();
         void on_post_hook();
+
+        __declspec(noinline) static void push_rbx(HookStorage* storage, uintptr_t rbx) {
+            storage->rbx_stack.push(rbx);
+        }
+
+        __declspec(noinline) static uintptr_t pop_rbx(HookStorage* storage) {
+            auto rbx = storage->rbx_stack.top();
+            storage->rbx_stack.pop();
+            return rbx;
+        }
 
         __declspec(noinline) static HookStorage* get_storage(HookedFn* fn) {
             auto tid = std::hash<std::thread::id>{}(std::this_thread::get_id());
