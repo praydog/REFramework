@@ -67,12 +67,12 @@ public:
         struct HookStorage {
             size_t* args{};
             uintptr_t This{};
-            uintptr_t ret_addr_pre{};
-            uintptr_t ret_addr{};
+            uintptr_t ret_addr_pre{}; // VOLATILE.
+            //uintptr_t ret_addr_post{}; // VOLATILE.
             uintptr_t ret_val{};
 
             uintptr_t rbx; // temp storage for rbx.
-            std::stack<uintptr_t> rbx_stack{}; // full storage for rbx.
+            std::stack<uintptr_t> ptr_stack{}; // full storage for pointer-sized values. Supports recursion.
             std::vector<size_t> args_impl{};
 
             uint32_t pre_depth{0};
@@ -93,13 +93,13 @@ public:
         PreHookResult on_pre_hook();
         void on_post_hook();
 
-        __declspec(noinline) static void push_rbx(HookStorage* storage, uintptr_t rbx) {
-            storage->rbx_stack.push(rbx);
+        __declspec(noinline) static void push_ptr(HookStorage* storage, uintptr_t reg) {
+            storage->ptr_stack.push(reg);
         }
 
-        __declspec(noinline) static uintptr_t pop_rbx(HookStorage* storage) {
-            auto rbx = storage->rbx_stack.top();
-            storage->rbx_stack.pop();
+        __declspec(noinline) static uintptr_t pop_ptr(HookStorage* storage) {
+            auto rbx = storage->ptr_stack.top();
+            storage->ptr_stack.pop();
             return rbx;
         }
 

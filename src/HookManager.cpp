@@ -125,11 +125,14 @@ void HookManager::HookedFn::on_post_hook() {
     --storage->overall_depth;
 
     auto& ret_val = storage->ret_val;
-    auto& ret_addr = storage->ret_addr;
+    //auto& ret_addr = storage->ret_addr_post;
 
     for (const auto& cb : cbs) {
         if (cb.post_fn) {
-            cb.post_fn(ret_val, ret_ty, ret_addr);
+            // Valid return address in recursion scenario is no longer supported with this API.
+            // We just pass ret_addr_pre for now, even though it's not accurate.
+            // Hooks will not have much use for the return address anyway.
+            cb.post_fn(ret_val, ret_ty, storage->ret_addr_pre); 
         }
     }
 
@@ -167,8 +170,8 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
     auto on_post_hook_label = a.newLabel();
     auto orig_label = a.newLabel();
     auto get_storage_label = a.newLabel();
-    auto push_rbx_label = a.newLabel();
-    auto pop_rbx_label = a.newLabel();
+    auto push_ptr_label = a.newLabel();
+    auto pop_ptr_label = a.newLabel();
     auto lock_label = a.newLabel();
     auto unlock_label = a.newLabel();
 
@@ -292,17 +295,26 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
     }
 
 
-    // fix stack
-    a.push(r10); // push storage
+    a.mov(rax, rsp);
+    a.mov(rax, ptr(rax)); // return address.
+
+    a.push(r12); // push storage
+    a.mov(r12, r10); // storage ptr.
+
     a.mov(rbx, rsp);
     a.sub(rsp, STACK_STORAGE_AMOUNT);
     a.and_(rsp, -16);
+    
+    // Push return address onto stack.
+    a.mov(rcx, r12); // storage ptr.
+    a.mov (rdx, rax); // return address.
+    a.call(ptr(push_ptr_label));
 
     // Use this moment to push RBX to our pseudo-stack.
     // because the pre-hook may call this function recursively, clobbering RBX.
-    a.mov(rcx, r10); // storage ptr.
-    a.mov(rdx, ptr(r10, rbx_offset)); // original rbx.
-    a.call(ptr(push_rbx_label));
+    a.mov(rcx, r12); // storage ptr.
+    a.mov(rdx, ptr(r12, rbx_offset)); // original rbx.
+    a.call(ptr(push_ptr_label));
 
     // Call on_pre_hook.
     a.mov(rcx, ptr(hook_label));
@@ -313,7 +325,9 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
     
     // restore rsp
     a.mov(rsp, rbx);
-    a.pop(r10); // restore storage
+    a.mov(r10, r12); // storage ptr.
+
+    a.pop(r12); // restore storage
 
     // Restore args.
     a.mov(rax, ptr(r10)); // set up args ptr from storage.
@@ -384,10 +398,10 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
     auto skip_label = a.newLabel();
 
     // Save return address.
-    a.mov(rax, ptr(rsp));
+    //a.mov(rax, ptr(rsp));
     //a.mov(rax, ptr(ret_addr_label));
-    constexpr auto ret_addr_offset = offsetof(HookedFn::HookStorage, ret_addr);
-    a.mov(ptr(r10, ret_addr_offset), rax);
+    //constexpr auto ret_addr_offset = offsetof(HookedFn::HookStorage, ret_addr);
+    //a.mov(ptr(r10, ret_addr_offset), rax);
     //a.mov(r10, rax); // save storage ptr for later.
 
     // Overwrite return address.
@@ -426,6 +440,7 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
 
     // Call on_post_hook.
     a.push(r12); // R12 being used as a cross-call register for storage of the storage ptr.
+    a.push(r13);
     a.mov(r12, r10);
 
     a.mov(rbx, rsp);
@@ -437,12 +452,20 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
 
     // Now use this moment to pop RBX from our pseudo-stack.
     a.mov(rcx, r12); // storage ptr.
-    a.call(ptr(pop_rbx_label));
+    a.call(ptr(pop_ptr_label));
+
+    a.mov(r13, rax); // temp storage for original rbx.
+
+    // Now pop return address off the stack
+    a.mov(rcx, r12);
+    a.call(ptr(pop_ptr_label));
+    a.mov(r11, rax); // store return address in volatile register.
     
     a.mov(rsp, rbx); // Restore stack ptr.
-    a.mov(rbx, rax); // restore original RBX, the return value from pop_rbx.
+    a.mov(rbx, r13); // restore original RBX, the return value from pop_rbx which we stored in r13.
 
     a.mov(r10, r12); // storage ptr.
+    a.pop(r13);
     a.pop(r12);
 
     if (is_ret_ty_float) {
@@ -451,10 +474,10 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
         a.mov(rax, ptr(r10, ret_val_offset));
     }
 
-    a.mov(r10, ptr(r10, ret_addr_offset)); // ret addr
+    //a.mov(r10, ptr(r10, ret_addr_offset)); // ret addr
 
     // Return.
-    a.jmp(r10);
+    a.jmp(r11);
 
     a.bind(hook_label);
     a.dq((uint64_t)hook.get());
@@ -464,10 +487,10 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
     a.dq((uint64_t)&HookedFn::on_post_hook_static);
     a.bind(get_storage_label);
     a.dq((uint64_t)&HookedFn::get_storage);
-    a.bind(push_rbx_label);
-    a.dq((uint64_t)&HookedFn::push_rbx);
-    a.bind(pop_rbx_label);
-    a.dq((uint64_t)&HookedFn::pop_rbx);
+    a.bind(push_ptr_label);
+    a.dq((uint64_t)&HookedFn::push_ptr);
+    a.bind(pop_ptr_label);
+    a.dq((uint64_t)&HookedFn::pop_ptr);
     a.bind(lock_label);
     a.dq((uint64_t)&HookedFn::lock_static);
     a.bind(unlock_label);
