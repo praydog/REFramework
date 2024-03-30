@@ -237,6 +237,13 @@ link-libraries = [
     "DirectXTK",
     "DirectXTK12"
 ]
+cmake-after="""
+add_custom_command(
+    TARGET ${CMKR_TARGET} PRE_BUILD
+    COMMAND ${CMAKE_COMMAND} -E echo "Generating commit hash..."
+    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/MakeCommitHash.bat
+)
+"""
 
 [template.game.properties]
 OUTPUT_NAME = "dinput8"

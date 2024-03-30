@@ -2380,6 +2380,12 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 			"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
 	)
 
+	add_custom_command(
+	    TARGET ${CMKR_TARGET} PRE_BUILD
+	    COMMAND ${CMAKE_COMMAND} -E echo "Generating commit hash..."
+	    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/MakeCommitHash.bat
+	)
+
 	unset(CMKR_TARGET)
 	unset(CMKR_SOURCES)
 endif()
@@ -2575,6 +2581,12 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 			"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
 		ARCHIVE_OUTPUT_DIRECTORY_RELWITHDEBINFO
 			"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+	)
+
+	add_custom_command(
+	    TARGET ${CMKR_TARGET} PRE_BUILD
+	    COMMAND ${CMAKE_COMMAND} -E echo "Generating commit hash..."
+	    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/MakeCommitHash.bat
 	)
 
 	unset(CMKR_TARGET)
@@ -4419,6 +4431,12 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 			"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
 	)
 
+	add_custom_command(
+	    TARGET ${CMKR_TARGET} PRE_BUILD
+	    COMMAND ${CMAKE_COMMAND} -E echo "Generating commit hash..."
+	    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/MakeCommitHash.bat
+	)
+
 	unset(CMKR_TARGET)
 	unset(CMKR_SOURCES)
 endif()
@@ -4616,6 +4634,12 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 			"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
 	)
 
+	add_custom_command(
+	    TARGET ${CMKR_TARGET} PRE_BUILD
+	    COMMAND ${CMAKE_COMMAND} -E echo "Generating commit hash..."
+	    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/MakeCommitHash.bat
+	)
+
 	unset(CMKR_TARGET)
 	unset(CMKR_SOURCES)
 endif()
@@ -4811,6 +4835,12 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 			"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
 		ARCHIVE_OUTPUT_DIRECTORY_RELWITHDEBINFO
 			"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+	)
+
+	add_custom_command(
+	    TARGET ${CMKR_TARGET} PRE_BUILD
+	    COMMAND ${CMAKE_COMMAND} -E echo "Generating commit hash..."
+	    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/MakeCommitHash.bat
 	)
 
 	unset(CMKR_TARGET)
@@ -7479,6 +7509,12 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 			"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
 	)
 
+	add_custom_command(
+	    TARGET ${CMKR_TARGET} PRE_BUILD
+	    COMMAND ${CMAKE_COMMAND} -E echo "Generating commit hash..."
+	    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/MakeCommitHash.bat
+	)
+
 	unset(CMKR_TARGET)
 	unset(CMKR_SOURCES)
 endif()
@@ -7674,6 +7710,12 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 			"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
 		ARCHIVE_OUTPUT_DIRECTORY_RELWITHDEBINFO
 			"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+	)
+
+	add_custom_command(
+	    TARGET ${CMKR_TARGET} PRE_BUILD
+	    COMMAND ${CMAKE_COMMAND} -E echo "Generating commit hash..."
+	    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/MakeCommitHash.bat
 	)
 
 	unset(CMKR_TARGET)
@@ -8697,6 +8739,12 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 			"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
 	)
 
+	add_custom_command(
+	    TARGET ${CMKR_TARGET} PRE_BUILD
+	    COMMAND ${CMAKE_COMMAND} -E echo "Generating commit hash..."
+	    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/MakeCommitHash.bat
+	)
+
 	unset(CMKR_TARGET)
 	unset(CMKR_SOURCES)
 endif()
@@ -9714,6 +9762,12 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 			"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
 		ARCHIVE_OUTPUT_DIRECTORY_RELWITHDEBINFO
 			"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+	)
+
+	add_custom_command(
+	    TARGET ${CMKR_TARGET} PRE_BUILD
+	    COMMAND ${CMAKE_COMMAND} -E echo "Generating commit hash..."
+	    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/MakeCommitHash.bat
 	)
 
 	unset(CMKR_TARGET)
@@ -10737,6 +10791,12 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 			"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
 	)
 
+	add_custom_command(
+	    TARGET ${CMKR_TARGET} PRE_BUILD
+	    COMMAND ${CMAKE_COMMAND} -E echo "Generating commit hash..."
+	    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/MakeCommitHash.bat
+	)
+
 	unset(CMKR_TARGET)
 	unset(CMKR_SOURCES)
 endif()
@@ -11758,6 +11818,12 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 			"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
 	)
 
+	add_custom_command(
+	    TARGET ${CMKR_TARGET} PRE_BUILD
+	    COMMAND ${CMAKE_COMMAND} -E echo "Generating commit hash..."
+	    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/MakeCommitHash.bat
+	)
+
 	unset(CMKR_TARGET)
 	unset(CMKR_SOURCES)
 endif()
@@ -12777,6 +12843,12 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 			"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
 		ARCHIVE_OUTPUT_DIRECTORY_RELWITHDEBINFO
 			"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
+	)
+
+	add_custom_command(
+	    TARGET ${CMKR_TARGET} PRE_BUILD
+	    COMMAND ${CMAKE_COMMAND} -E echo "Generating commit hash..."
+	    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/MakeCommitHash.bat
 	)
 
 	unset(CMKR_TARGET)
