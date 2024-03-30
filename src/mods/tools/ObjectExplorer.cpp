@@ -751,6 +751,11 @@ void ObjectExplorer::display_hooks() {
             return a->callers.size() > b->callers.size();
         });
         break;
+    case HooksContext::SortMethod::NUMBER_OF_THREADS_CALLED_FROM:
+        std::sort(hooks_to_iterate.begin(), hooks_to_iterate.end(), [](const auto& a, const auto& b) {
+            return a->thread_ids.size() > b->thread_ids.size();
+        });
+        break;
     default:
         break;
     };
@@ -835,6 +840,13 @@ void ObjectExplorer::display_hooks() {
                         if (ImGui::IsItemClicked()) {
                             ImGui::SetClipboardText((std::stringstream{} << std::hex << addr).str().c_str());
                         }
+                    }
+                    ImGui::TreePop();
+                }
+
+                if (ImGui::TreeNode("Thread IDs")) {
+                    for (auto tid : h.thread_ids) {
+                        ImGui::Text("%i", tid);
                     }
                     ImGui::TreePop();
                 }
@@ -4669,6 +4681,7 @@ HookManager::PreHookResult ObjectExplorer::pre_hooked_method_internal(std::vecto
     std::scoped_lock _{m_hooks_context.mtx};
     ++hooked_method.call_count;
     hooked_method.last_call_time = std::chrono::high_resolution_clock::now();
+    hooked_method.thread_ids.insert(std::this_thread::get_id()._Get_underlying_id());
 
     if (!hooked_method.return_addresses.contains(ret_addr)) {
         spdlog::info("Creating new entry for {}", hooked_method.name);

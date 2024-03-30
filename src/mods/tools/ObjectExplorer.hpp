@@ -238,17 +238,19 @@ private:
             CALL_TIME_DELTA,
             CALL_TIME_TOTAL,
             METHOD_NAME,
-            NUMBER_OF_CALLERS
+            NUMBER_OF_CALLERS,
+            NUMBER_OF_THREADS_CALLED_FROM
         };
 
-        static inline constexpr std::array<const char*, 7> s_sort_method_names {
+        static inline constexpr std::array<const char*, 8> s_sort_method_names {
             "None",
             "Call Count",
             "Call Time (Last)",
             "Call Time (Delta)",
             "Call Time (Total)",
             "Method Name",
-            "Number of Callers"
+            "Number of Callers",
+            "Number of Threads Called From"
         };
 
         std::recursive_mutex mtx{};
@@ -284,6 +286,7 @@ private:
         std::unordered_set<uintptr_t> return_addresses{};
         std::unordered_map<uintptr_t, sdk::REMethodDefinition*> return_addresses_to_methods{};
         std::unordered_set<sdk::REMethodDefinition*> callers{};
+        std::unordered_set<uint32_t> thread_ids{};
         struct CallerContext {
             size_t call_count{};
         };
