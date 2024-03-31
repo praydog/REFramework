@@ -105,16 +105,27 @@ public:
         return gcnew NativeObject(result, t);
     }
 
-    generic <typename T>
+    generic <typename T> where T : ref class
     static T GetNativeSingletonT() {
         auto fullName = T::typeid->FullName;
-        return GetNativeSingleton(fullName)->As<T>();
+
+        auto no = GetNativeSingleton(fullName);
+        if (no == nullptr) {
+            return T(); // nullptr basically
+        }
+
+        return no->As<T>();
     }
 
-    generic <typename T>
+    generic <typename T> where T : ref class
     static T GetManagedSingletonT() {
         auto fullName = T::typeid->FullName;
-        return GetManagedSingleton(fullName)->As<T>();
+        auto mo = GetManagedSingleton(fullName);
+        if (mo == nullptr) {
+            return T(); // nullptr basically
+        }
+        
+        return mo->As<T>();
     }
 
     static reframework::API* GetNativeImplementation() {

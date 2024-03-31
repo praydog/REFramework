@@ -93,6 +93,16 @@ public:
         return FindType(name);
     }
 
+    generic <class T> where T : ref class
+    T GetTypeT()
+    {
+        auto t = GetType(T::typeid->FullName->Replace("+", "."));
+        if (t == nullptr) {
+            return T(); // nullptr basically
+        }
+        return t->As<T>();
+    }
+    
     TypeDefinition^ FindTypeByFqn(uint32_t fqn) {
         auto result = m_tdb->find_type_by_fqn(fqn);
 
