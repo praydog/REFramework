@@ -8,41 +8,26 @@ using namespace System::Collections::Generic;
 namespace REFrameworkNET {
 ref class API;
 
+public ref class BaseCallback {
+public:
+    delegate void Delegate();
+};
+
 #define GENERATE_POCKET_CLASS(EVENT_NAME) \
-static void EVENT_NAME##PreHandler_Internal(); \
-static void EVENT_NAME##PostHandler_Internal(); \
 public ref class EVENT_NAME { \
 public: \
-    delegate void Delegate(); \
-    static event Delegate^ Pre; \
-    static event Delegate^ Post; \
+    static event BaseCallback::Delegate^ Pre; \
+    static event BaseCallback::Delegate^ Post; \
+internal: \
     static void TriggerPre() { \
         Pre(); \
     } \
     static void TriggerPost() { \
         Post(); \
     } \
-    static System::Reflection::MethodInfo^ TriggerPreMethod = nullptr;\
-    static System::Reflection::MethodInfo^ TriggerPostMethod = nullptr;\
-    static uintptr_t FUNCTION_PRE_CALLBACK_ADDRESS = (uintptr_t)&EVENT_NAME##PreHandler_Internal; \
-    static uintptr_t FUNCTION_POST_CALLBACK_ADDRESS = (uintptr_t)&EVENT_NAME##PostHandler_Internal; \
+    static BaseCallback::Delegate^ TriggerPreDelegate = gcnew BaseCallback::Delegate(&EVENT_NAME::TriggerPre); \
+    static BaseCallback::Delegate^ TriggerPostDelegate = gcnew BaseCallback::Delegate(&EVENT_NAME::TriggerPost); \
 }; \
-void EVENT_NAME##PreHandler_Internal() { \
-    if (Callbacks::##EVENT_NAME::TriggerPreMethod == nullptr) { \
-        auto self = System::Reflection::Assembly::LoadFrom(System::Reflection::Assembly::GetExecutingAssembly()->Location); \
-        auto type = self->GetType("REFrameworkNET.Callbacks." #EVENT_NAME); \
-        Callbacks::##EVENT_NAME::TriggerPreMethod = type->GetMethod("TriggerPre", System::Reflection::BindingFlags::Static | System::Reflection::BindingFlags::Public); \
-    } \
-    Callbacks::##EVENT_NAME::TriggerPreMethod->Invoke(nullptr, nullptr); \
-} \
-void EVENT_NAME##PostHandler_Internal() { \
-    if (Callbacks::##EVENT_NAME::TriggerPostMethod == nullptr) { \
-        auto self = System::Reflection::Assembly::LoadFrom(System::Reflection::Assembly::GetExecutingAssembly()->Location); \
-        auto type = self->GetType("REFrameworkNET.Callbacks." #EVENT_NAME); \
-        Callbacks::##EVENT_NAME::TriggerPostMethod = type->GetMethod("TriggerPost", System::Reflection::BindingFlags::Static | System::Reflection::BindingFlags::Public); \
-    } \
-    Callbacks::##EVENT_NAME::TriggerPostMethod->Invoke(nullptr, nullptr); \
-}
 
 namespace Callbacks {
     GENERATE_POCKET_CLASS(Initialize)
@@ -425,6 +410,9 @@ namespace Callbacks {
     public ref class Impl {
     public:
         static void Setup(REFrameworkNET::API^ api);
+
+    private:
+        static bool s_setup = false;
     };
 };
 }
