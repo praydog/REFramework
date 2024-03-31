@@ -27,7 +27,7 @@ public:
     }
 
     auto is_valid() const {
-        return m_inline_hook->operator bool();
+        return m_inline_hook && m_inline_hook->operator bool();
     }
 
     FunctionHook& operator=(const FunctionHook& other) = delete;
