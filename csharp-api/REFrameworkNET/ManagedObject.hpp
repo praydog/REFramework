@@ -151,7 +151,7 @@ public:
         return _original.get_reflection_method_descriptor(name);
     }*/
 
-private:
+protected:
     reframework::API::ManagedObject* m_object;
 };
 }

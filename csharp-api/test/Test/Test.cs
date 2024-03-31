@@ -3,10 +3,11 @@ using System;
 using System.Collections;
 using System.Dynamic;
 using System.Reflection;
+using app;
 
 public class DangerousFunctions {
     public static REFrameworkNET.PreHookResult isInsidePreHook(System.Object args) {
-        Console.WriteLine("Inside pre hook (From C#) " + args.ToString());
+        //Console.WriteLine("Inside pre hook (From C#) " + args.ToString());
         REFrameworkNET.API.LogInfo("isInsidePreHook");
         return REFrameworkNET.PreHookResult.Continue;
     }
@@ -17,11 +18,11 @@ public class DangerousFunctions {
 
     public static void Entry() {
         var tdb = REFrameworkNET.API.GetTDB();
-        /*tdb.GetType("app.CameraManager")?.
+        tdb.GetType("app.CameraManager")?.
             GetMethod("isInside")?.
             AddHook(false).
             AddPre(isInsidePreHook).
-            AddPost(isInsidePostHook);*/
+            AddPost(isInsidePostHook);
         
         // These via.SceneManager and via.Scene are
         // loaded from an external reference assembly
@@ -65,8 +66,23 @@ public class DangerousFunctions {
         REFrameworkNET.API.LogInfo("Platform Subset: " + platformSubset);
         REFrameworkNET.API.LogInfo("Title: " + title);
 
-        via.os.dialog dialog = tdb.GetType("via.os.dialog").As<via.os.dialog>();
+        var dialog = tdb.GetTypeT<via.os.dialog>();
         dialog.open("Hello from C#!");
+
+        var devUtil = tdb.GetTypeT<via.sound.dev.DevUtil>();
+        var currentDirectory = System.IO.Directory.GetCurrentDirectory();
+        devUtil.writeLogFile("what the heck", currentDirectory + "\\what_the_frick.txt");
+        
+        var stringTest = REFrameworkNET.VM.CreateString("Hello from C#!"); // inside RE Engine VM
+        var stringInDotNetVM = stringTest.ToString(); // Back in .NET
+
+        REFrameworkNET.API.LogInfo("Managed string back in .NET: " + stringInDotNetVM);
+
+        var devUtilT = (devUtil as REFrameworkNET.IObject).GetTypeDefinition();
+        var dialogT = (dialog as REFrameworkNET.IObject).GetTypeDefinition();
+
+        REFrameworkNET.API.LogInfo("DevUtil: " + devUtilT.GetFullName());
+        REFrameworkNET.API.LogInfo("Dialog: " + dialogT.GetFullName());
     }
 
     public static void TryEnableFrameGeneration() {

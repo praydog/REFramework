@@ -19,7 +19,25 @@ private:
     reframework::API::TDB* m_tdb;
 
 public:
+    generic <class T> where T : ref class
+    ref class TypeCacher {
+    public:
+        static REFrameworkNET::TypeDefinition^ GetCachedType() {
+            if (s_cachedType == nullptr) {
+                return nullptr;
+            }
+
+            return gcnew REFrameworkNET::TypeDefinition(s_cachedType);
+        }
+        
+    private:
+        static reframework::API::TypeDefinition* s_cachedType = TDB::GetTypeDefinitionPtr<T>();
+    };
+
+public:
     TDB(reframework::API::TDB* tdb) : m_tdb(tdb) {}
+
+    static TDB^ Get();
 
     uintptr_t GetAddress() {
         return (uintptr_t)m_tdb;
@@ -89,17 +107,30 @@ public:
         return gcnew TypeDefinition(result);
     }
 
+    /// <summary>
+    /// Get a type by its name.
+    /// </summary>
+    /// <param name="name">The name of the type.</param>
+    /// <returns>The type definition if found, otherwise null.</returns>
+    /// <remarks>Not cached.</remarks>
     TypeDefinition^ GetType(System::String^ name) {
         return FindType(name);
     }
 
+    /// <summary>
+    /// Get a type by its interface type, generally from a reference assembly. Must match the name exactly.
+    /// </summary>
+    /// <param name="name">The name of the type.</param>
+    /// <returns>The type definition (casted to an interface) if found, otherwise null.</returns>)
+    /// <remarks>Cached.</remarks>
     generic <class T> where T : ref class
-    T GetTypeT()
-    {
-        auto t = GetType(T::typeid->FullName->Replace("+", "."));
+    T GetTypeT() {
+        auto t = TypeCacher<T>::GetCachedType();
+
         if (t == nullptr) {
-            return T(); // nullptr basically
+            return T();
         }
+
         return t->As<T>();
     }
     
@@ -164,6 +195,10 @@ public:
 
         return gcnew Property(result);
     }
+
+protected:
+    generic <class T> where T : ref class
+    static reframework::API::TypeDefinition* GetTypeDefinitionPtr();
 
 public:
     ref class TypeDefinitionIterator : public IEnumerator {
