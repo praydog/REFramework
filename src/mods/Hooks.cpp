@@ -195,7 +195,7 @@ std::optional<std::string> Hooks::hook_update_transform() {
     // Can be found by breakpointing RETransform's worldTransform
     m_update_transform_hook = std::make_unique<FunctionHook>(update_transform, &update_transform_hook);
 
-    if (!m_update_transform_hook->is_valid()) {
+    if (!m_update_transform_hook->create()) {
         //return "Failed to hook UpdateTransform";
         spdlog::error("Failed to hook UpdateTransform");
         return std::nullopt; // who cares
@@ -231,7 +231,7 @@ std::optional<std::string> Hooks::hook_update_camera_controller() {
     // Can be found by breakpointing camera controller's worldPosition
     m_update_camera_controller_hook = std::make_unique<FunctionHook>(update_camera_controller, &update_camera_controller_hook);
 
-    if (!m_update_camera_controller_hook->is_valid()) {
+    if (!m_update_camera_controller_hook->create()) {
         return "Failed to hook UpdateCameraController";
     }
 #endif
@@ -258,7 +258,7 @@ std::optional<std::string> Hooks::hook_update_camera_controller2() {
     // Can be found by breakpointing camera controller's worldRotation
     m_update_camera_controller2_hook = std::make_unique<FunctionHook>(update_camera_controller2, &update_camera_controller2_hook);
 
-    if (!m_update_camera_controller2_hook->is_valid()) {
+    if (!m_update_camera_controller2_hook->create()) {
         return "Failed to hook Updatecamera_controller2";
     }
 #endif
@@ -306,7 +306,7 @@ std::optional<std::string> Hooks::hook_gui_draw() {
 
     m_gui_draw_hook = std::make_unique<FunctionHook>(gui_draw, &gui_draw_hook);
 
-    if (!m_gui_draw_hook->is_valid()) {
+    if (!m_gui_draw_hook->create()) {
         return "Failed to hook GUI::draw";
     }
 
@@ -337,7 +337,7 @@ std::optional<std::string> Hooks::hook_application_entry(std::string name, std::
 
     hook = std::make_unique<FunctionHook>(func, hook_fn);
 
-    if (!hook->is_valid()) {
+    if (!hook->create()) {
         return "Failed to hook via::Application::" + name;
     }
     
@@ -469,7 +469,7 @@ std::optional<std::string> Hooks::hook_all_application_entries() {
     }
 
     /*for (auto& entry : m_application_entry_hooks) {
-        if (!entry.second->is_valid()) {
+        if (!entry.second->create()) {
             return "Failed to hook via::Application::" + std::string{entry.first};
         }
     }*/
@@ -489,7 +489,7 @@ std::optional<std::string> Hooks::hook_update_before_lock_scene() {
 
     m_update_before_lock_scene_hook = std::make_unique<FunctionHook>(update_before_lock_scene, &update_before_lock_scene_hook);
 
-    if (!m_update_before_lock_scene_hook->is_valid()) {
+    if (!m_update_before_lock_scene_hook->create()) {
         return "Failed to hook via::render::EntityRenderer::updateBeforeLockScene";
     }
 
@@ -532,7 +532,7 @@ std::optional<std::string> Hooks::hook_lightshaft_draw() {
 
     m_lightshaft_draw_hook = std::make_unique<FunctionHook>((uintptr_t)draw, (uintptr_t)&lightshaft_draw_hook);
 
-    if (!m_lightshaft_draw_hook->is_valid()) {
+    if (!m_lightshaft_draw_hook->create()) {
         return "Failed to hook via::render::LightShaft::draw";
     }
 #endif
@@ -563,7 +563,7 @@ std::optional<std::string> Hooks::hook_view_get_size() {
     // Hook the native function
     m_view_get_size_hook = std::make_unique<FunctionHook>(native_func, view_get_size_hook);
 
-    if (!m_view_get_size_hook->is_valid()) {
+    if (!m_view_get_size_hook->create()) {
         return "Hook init failed: via.SceneView.get_Size native function hook failed.";
     }
 
@@ -593,7 +593,7 @@ std::optional<std::string> Hooks::hook_camera_get_projection_matrix() {
     // Hook the native function
     m_camera_get_projection_matrix_hook = std::make_unique<FunctionHook>(native_func, camera_get_projection_matrix_hook);
 
-    if (!m_camera_get_projection_matrix_hook->is_valid()) {
+    if (!m_camera_get_projection_matrix_hook->create()) {
         return "Hook init failed: via.Camera.get_ProjectionMatrix native function hook failed.";
     }
 
@@ -623,7 +623,7 @@ std::optional<std::string> Hooks::hook_camera_get_view_matrix() {
     // Hook the native function
     m_camera_get_view_matrix_hook = std::make_unique<FunctionHook>(native_func, camera_get_view_matrix_hook);
 
-    if (!m_camera_get_view_matrix_hook->is_valid()) {
+    if (!m_camera_get_view_matrix_hook->create()) {
         return "Hook init failed: via.Camera.get_ViewMatrix native function hook failed.";
     }
 

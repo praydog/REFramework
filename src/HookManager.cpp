@@ -593,6 +593,7 @@ HookManager::HookId HookManager::add(sdk::REMethodDefinition* fn, HookManager::P
     create_jitted_facilitator(hook, fn,
         [&](){
             fn_hook = std::make_unique<FunctionHook>(hook->target_fn, (void*)hook->facilitator_fn);
+            fn_hook->create();
             return fn_hook->get_original();
         },
         [&]() {
