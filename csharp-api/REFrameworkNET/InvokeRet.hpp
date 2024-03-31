@@ -1,35 +1,90 @@
 #pragma once
 
 #include <reframework/API.hpp>
+#include <vcclr.h>
 
 #pragma managed
 
 namespace REFrameworkNET {
 public ref struct InvokeRet {
     InvokeRet(const reframework::InvokeRet& ret) {
-        Bytes = gcnew array<uint8_t>(ret.bytes.size());
-        for (size_t i = 0; i < ret.bytes.size(); i++) {
-            Bytes[i] = ret.bytes[i];
-        }
-        Byte = ret.byte;
-        Word = ret.word;
-        DWord = ret.dword;
-        Float = ret.f;
-        QWord = ret.qword;
-        Double = ret.d;
-        Ptr = gcnew System::UIntPtr(ret.ptr);
-        ExceptionThrown = ret.exception_thrown;
+        using namespace System::Runtime::InteropServices;
+        Marshal::Copy(System::IntPtr((void*)&ret), m_invokeRetBytes, 0, sizeof(::reframework::InvokeRet));
     }
 
-    // TODO: improve this? Does .NET have unions?
-    property array<uint8_t>^ Bytes;
-    property uint8_t Byte;
-    property uint16_t Word;
-    property uint32_t DWord;
-    property float Float;
-    property uint64_t QWord;
-    property double Double;
-    property System::Object^ Ptr;
-    property bool ExceptionThrown;
+    reframework::InvokeRet* Marshal() {
+        pin_ptr<uint8_t> pinned_bytes = &m_invokeRetBytes[0];
+        uint8_t* bytes = pinned_bytes;
+
+        reframework::InvokeRet* ret = reinterpret_cast<reframework::InvokeRet*>(bytes);
+
+        return ret;
+    }
+
+    property System::Span<uint8_t> Bytes {
+    public:
+        System::Span<uint8_t> get() {
+            pin_ptr<uint8_t> pinned_bytes = &m_invokeRetBytes[0];
+            uint8_t* bytes = pinned_bytes;
+            return System::Span<uint8_t>(bytes, 128);
+        }
+    };
+
+    property uint8_t Byte {
+    public:
+        uint8_t get() {
+            return m_invokeRetBytes[0];
+        }
+    }
+
+    property uint16_t Word {
+    public:
+        uint16_t get() {
+            return Marshal()->word;
+        }
+    }
+
+    property uint32_t DWord {
+    public:
+        uint32_t get() {
+            return Marshal()->dword;
+        }
+    }
+    property float Float {
+    public:
+        float get() {
+            return Marshal()->f;
+        }
+    }
+    property uint64_t QWord {
+    public:
+        uint64_t get() {
+            return Marshal()->qword;
+        }
+    }
+
+    property double Double {
+    public:
+        double get() {
+            return Marshal()->d;
+        }
+    }
+    property System::Object^ Ptr {
+    public:
+        System::Object^ get() {
+            return System::UIntPtr(Marshal()->ptr);
+        }
+    }
+
+    property bool ExceptionThrown {
+    public:
+        bool get() {
+            return Marshal()->exception_thrown;
+        }
+    }
+
+private:
+    //::reframework::InvokeRet m_impl;
+    array<uint8_t>^ m_invokeRetBytes = gcnew array<uint8_t>(sizeof(::reframework::InvokeRet));
 };
 }
