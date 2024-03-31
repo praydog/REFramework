@@ -58,6 +58,14 @@ public:
         return (uintptr_t)m_object;
     }
 
+    virtual bool IsProxy() {
+        return false;
+    }
+
+    virtual bool IsProperObject() {
+        return true;
+    }
+
     virtual InvokeRet^ Invoke(System::String^ methodName, array<System::Object^>^ args);
 
     virtual bool HandleInvokeMember_Internal(System::String^ methodName, array<System::Object^>^ args, System::Object^% result);

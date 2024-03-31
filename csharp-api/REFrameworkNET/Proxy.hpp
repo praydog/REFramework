@@ -33,6 +33,14 @@ public:
     virtual uintptr_t GetAddress() {
         return Instance->GetAddress();
     }
+    
+    virtual bool IsProperObject() {
+        return Instance->IsProperObject();
+    }
+
+    virtual bool IsProxy() {
+        return true;
+    }
 
     virtual REFrameworkNET::InvokeRet^ Invoke(System::String^ methodName, array<System::Object^>^ args) {
         return Instance->Invoke(methodName, args);

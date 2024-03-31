@@ -47,6 +47,14 @@ public:
         return (uintptr_t)m_object;
     }
 
+    virtual bool IsProxy() {
+        return false;
+    }
+
+    virtual bool IsProperObject() {
+        return true;
+    }
+
     virtual bool Equals(System::Object^ other) override {
         if (System::Object::ReferenceEquals(this, other)) {
             return true;

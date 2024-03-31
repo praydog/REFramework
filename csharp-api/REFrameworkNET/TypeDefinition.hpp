@@ -327,6 +327,14 @@ public:
     virtual TypeDefinition^ GetTypeDefinition() {
         return this;
     }
+    
+    virtual bool IsProperObject() {
+        return false;
+    }
+
+    virtual bool IsProxy() {
+        return false;
+    }
 
     virtual REFrameworkNET::InvokeRet^ Invoke(System::String^ methodName, array<System::Object^>^ args);
     virtual bool HandleInvokeMember_Internal(System::String^ methodName, array<System::Object^>^ args, System::Object^% result);

@@ -13,6 +13,7 @@ public interface class IObject : public IProxyable {
     InvokeRet^ Invoke(System::String^ methodName, array<System::Object^>^ args);
 
     TypeDefinition^ GetTypeDefinition();
+    bool IsProperObject();
 
     // For interface types
     generic <typename T>
