@@ -157,6 +157,7 @@ target_compile_features(csharp-api PUBLIC
 target_compile_options(csharp-api PUBLIC
 	"/EHa"
 	"/MD"
+	"/doc"
 )
 
 target_include_directories(csharp-api PUBLIC

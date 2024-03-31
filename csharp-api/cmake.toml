@@ -71,7 +71,7 @@ include-directories = ["../include/"]
 sources = ["REFrameworkNET/**.cpp", "REFrameworkNET/**.c"]
 headers = ["REFrameworkNET/**.hpp", "REFrameworkNET/**.h"]
 compile-features = ["cxx_std_20"]
-compile-options = ["/EHa", "/MD"]
+compile-options = ["/EHa", "/MD", "/doc"]
 link-libraries = [
     "REFCSharpCompiler"
 ]
