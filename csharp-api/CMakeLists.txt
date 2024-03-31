@@ -113,8 +113,11 @@ set(csharp-api_SOURCES
 	"REFrameworkNET/Plugin.cpp"
 	"REFrameworkNET/PluginManager.cpp"
 	"REFrameworkNET/Proxy.cpp"
+	"REFrameworkNET/SystemArray.cpp"
+	"REFrameworkNET/SystemString.cpp"
 	"REFrameworkNET/TDB.cpp"
 	"REFrameworkNET/TypeDefinition.cpp"
+	"REFrameworkNET/VM.cpp"
 	"REFrameworkNET/API.hpp"
 	"REFrameworkNET/Attributes/Plugin.hpp"
 	"REFrameworkNET/Callbacks.hpp"
@@ -132,10 +135,13 @@ set(csharp-api_SOURCES
 	"REFrameworkNET/PluginManager.hpp"
 	"REFrameworkNET/Property.hpp"
 	"REFrameworkNET/Proxy.hpp"
+	"REFrameworkNET/SystemArray.hpp"
+	"REFrameworkNET/SystemString.hpp"
 	"REFrameworkNET/TDB.hpp"
 	"REFrameworkNET/TypeDefinition.hpp"
 	"REFrameworkNET/TypeInfo.hpp"
 	"REFrameworkNET/Utility.hpp"
+	"REFrameworkNET/VM.hpp"
 	cmake.toml
 )
 
