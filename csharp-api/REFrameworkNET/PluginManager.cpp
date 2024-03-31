@@ -338,7 +338,7 @@ namespace REFrameworkNET {
                 continue;
             }
 
-            s_default_context = gcnew System::Runtime::Loader::AssemblyLoadContext("REFrameworkNET", true);
+            s_default_context = gcnew PluginLoadContext();
 
             auto assem = s_default_context->LoadFromStream(gcnew System::IO::MemoryStream(bytecode));
             //auto assem = System::Reflection::Assembly::Load(bytecode);
@@ -428,7 +428,28 @@ namespace REFrameworkNET {
 		}
 
         s_dynamic_assemblies->Clear();
+
+        // make weak ref to default context
+        System::WeakReference^ weakRef = gcnew System::WeakReference(s_default_context);
         PluginManager::s_default_context->Unload();
         PluginManager::s_default_context = nullptr;
+
+        bool unloaded = false;
+
+        for (int i = 0; i < 10; i++) {
+            if (weakRef->IsAlive) {
+                System::GC::Collect();
+                System::GC::WaitForPendingFinalizers();
+                System::Threading::Thread::Sleep(10);
+            } else {
+                unloaded = true;
+                System::Console::WriteLine("Successfully unloaded default context");
+                break;
+            }
+        }
+
+        if (!unloaded) {
+            System::Console::WriteLine("Failed to unload default context");
+        }
     }
 }

@@ -9,6 +9,8 @@ extern "C" {
 
 #include "./API.hpp"
 
+#include "PluginLoadContext.hpp"
+
 namespace REFrameworkNET {
 private ref class PluginManager
 {
@@ -38,6 +40,6 @@ private:
     static System::Collections::Generic::List<System::Reflection::Assembly^>^ s_loaded_assemblies{gcnew System::Collections::Generic::List<System::Reflection::Assembly^>()};
     static System::Collections::Generic::List<System::Reflection::Assembly^>^ s_dynamic_assemblies{gcnew System::Collections::Generic::List<System::Reflection::Assembly^>()};
 
-    static System::Runtime::Loader::AssemblyLoadContext^ s_default_context{nullptr};
+    static PluginLoadContext^ s_default_context{nullptr};
 };
 }
