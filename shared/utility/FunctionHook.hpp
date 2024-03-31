@@ -18,23 +18,23 @@ public:
     bool create();
 
     auto get_original() const {
-        return m_inline_hook.trampoline().address();
+        return m_inline_hook->trampoline().address();
     }
 
     template <typename T>
     T* get_original() const {
-        return m_inline_hook.original<T*>();
+        return m_inline_hook->original<T*>();
     }
 
     auto is_valid() const {
-        return m_inline_hook.operator bool();
+        return m_inline_hook->operator bool();
     }
 
     FunctionHook& operator=(const FunctionHook& other) = delete;
     FunctionHook& operator=(FunctionHook&& other) = delete;
 
 private:
-    SafetyHookInline m_inline_hook;
+    std::expected<SafetyHookInline, SafetyHookInline::Error> m_inline_hook;
 
     uintptr_t m_target{ 0 };
     uintptr_t m_destination{ 0 };

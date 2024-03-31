@@ -593,7 +593,10 @@ HookManager::HookId HookManager::add(sdk::REMethodDefinition* fn, HookManager::P
     create_jitted_facilitator(hook, fn,
         [&](){
             fn_hook = std::make_unique<FunctionHook>(hook->target_fn, (void*)hook->facilitator_fn);
-            fn_hook->create();
+            if (!fn_hook->create()) {
+                spdlog::error("[HookManager] Failed to hook function for '{}'", fn->get_name());
+                return uintptr_t{0};
+            }
             return fn_hook->get_original();
         },
         [&]() {

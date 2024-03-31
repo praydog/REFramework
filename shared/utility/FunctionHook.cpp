@@ -1,5 +1,4 @@
 #include <spdlog/spdlog.h>
-#include <MinHook.h>
 
 #include <safetyhook/inline_hook.hpp>
 
@@ -13,17 +12,6 @@ FunctionHook::FunctionHook(Address target, Address destination)
     m_destination{ destination }
 {
     spdlog::info("Attempting to hook {:p}->{:p}", target.ptr(), destination.ptr());
-
-    // Create the hook. Call create afterwards to prevent race conditions accessing FunctionHook before it leaves its constructor.
-    /*if (auto status = MH_CreateHook(target.as<LPVOID>(), destination.as<LPVOID>(), (LPVOID*)&m_original); status == MH_OK) {
-        m_target = target;
-        m_destination = destination;
-
-        spdlog::info("Hook init successful {:p}->{:p}", target.ptr(), destination.ptr());
-    }
-    else {
-        spdlog::error("Failed to hook {:p}: {}", target.ptr(), MH_StatusToString(status));
-    }*/
 }
 
 FunctionHook::~FunctionHook() {
@@ -35,21 +23,12 @@ bool FunctionHook::create() {
         return false;
     }
 
-    /*if (auto status = MH_EnableHook((LPVOID)m_target); status != MH_OK) {
-        m_original = 0;
-        m_destination = 0;
-        m_target = 0;
-
-        spdlog::error("Failed to hook {:x}: {}", m_target, MH_StatusToString(status));
-        return false;
-    }*/
-
     try {
-        auto expect = safetyhook::InlineHook::create(safetyhook::Allocator::global(), m_target, m_destination);
+        m_inline_hook = safetyhook::InlineHook::create(m_target, m_destination);
 
-        if (!expect) {
+        if (!m_inline_hook) {
             std::string error = "";
-            switch (expect.error().type) {
+            switch (m_inline_hook.error().type) {
                 case safetyhook::InlineHook::Error::BAD_ALLOCATION:
                     error = "bad allocation";
                     break;
@@ -72,15 +51,13 @@ bool FunctionHook::create() {
                     error = "not enough space";
                     break;
                 default:
-                    error = std::format("unknown error {}", (int32_t)expect.error().type);
+                    error = std::format("unknown error {}", (int32_t)m_inline_hook.error().type);
                     break;
             };
 
             spdlog::error("Failed to hook {:x}: {}", m_target, error);
             return false;
         }
-
-        m_inline_hook = std::move(*expect);
     } catch (const std::exception& e) {
         spdlog::error("Failed to hook {:x}: {}", m_target, e.what());
         return false;
