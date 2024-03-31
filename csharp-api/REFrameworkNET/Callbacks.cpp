@@ -48,11 +48,95 @@ void Impl::Setup(REFrameworkNET::API^ api) {
             continue;
         }
 
+        if (auto pre = type->GetField("PreImplementation", wantedFlags); pre != nullptr) {
+            s_knownStaticEvents->Add(pre);
+        }
+
+        if (auto post = type->GetField("PostImplementation", wantedFlags); post != nullptr) {
+            s_knownStaticEvents->Add(post);
+        }
+
         IntPtr preHookPtr = Marshal::GetFunctionPointerForDelegate(triggerPre);
         IntPtr postHookPtr = Marshal::GetFunctionPointerForDelegate(triggerPost);
         nativeApi->param()->functions->on_pre_application_entry(eventNameStr.c_str(), (REFOnPreApplicationEntryCb)preHookPtr.ToPointer());
         nativeApi->param()->functions->on_post_application_entry(eventNameStr.c_str(), (REFOnPostApplicationEntryCb)postHookPtr.ToPointer());
     }
+}
+
+void Impl::UnsubscribeAssembly(System::Reflection::Assembly^ assembly) {
+    s_unloading = true;
+
+    if (s_knownStaticEvents->Count == 0) {
+        REFrameworkNET::API::LogError("REFrameworkNET.Callbacks UnsubscribeAssembly: No known static events to unsubscribe from.");
+        s_unloading = false;
+        return;
+    }
+
+    for each (System::Reflection::FieldInfo ^ ei in s_knownStaticEvents) {
+        while (true) {
+            auto pre = ei->GetValue(nullptr);
+
+            if (pre == nullptr) {
+                break;
+            }
+
+            auto del = (System::Delegate^)pre;
+            auto invocationList = del->GetInvocationList();
+
+            bool set = false;
+
+            for each (System::Delegate ^ d in invocationList) {
+                // Get the assembly that the delegate is from
+                auto target = d->Method;
+                auto targetAssembly = target->DeclaringType->Assembly;
+
+                if (targetAssembly == assembly) {
+                    System::Console::WriteLine("REFrameworkNET.Callbacks UnsubscribeAssembly: Removing " + target->Name + " from " + ei->Name);
+                    auto newDel = (BaseCallback::Delegate^)del - (BaseCallback::Delegate^)d;
+                    ei->SetValue(nullptr, newDel);
+                    set = true;
+                    break;
+                }
+            }
+
+            if (!set) {
+                break;
+            }
+        }
+
+        while (true) {
+            auto post = ei->GetValue(nullptr);
+
+            if (post == nullptr) {
+                break;
+            }
+
+            auto del = (System::Delegate^)post;
+            auto invocationList = del->GetInvocationList();
+
+            bool set = false;
+
+            for each (System::Delegate ^ d in invocationList) {
+                // Get the assembly that the delegate is from
+                auto target = d->Method;
+                auto targetAssembly = target->DeclaringType->Assembly;
+
+                if (targetAssembly == assembly) {
+                    System::Console::WriteLine("REFrameworkNET.Callbacks UnsubscribeAssembly: Removing " + target->Name + " from " + ei->Name);
+                    auto newDel = (BaseCallback::Delegate^)del - (BaseCallback::Delegate^)d;
+                    ei->SetValue(nullptr, newDel);
+                    set = true;
+                    break;
+                }
+            }
+
+            if (!set) {
+                break;
+            }
+        }
+    }
+
+    s_unloading = false;
 }
 }
 }

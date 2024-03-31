@@ -8,6 +8,27 @@ using namespace System::Collections::Generic;
 namespace REFrameworkNET {
 ref class API;
 
+namespace Callbacks {
+    public ref class Impl {
+    public:
+        property bool IsUnloading {
+            static bool get() {
+                return s_unloading;
+            }
+        }
+
+    internal:
+        static void Setup(REFrameworkNET::API^ api);
+        static void UnsubscribeAssembly(System::Reflection::Assembly^ assembly);
+
+    private:
+        static bool s_setup{false};
+        static bool s_unloading{false};
+
+        static System::Collections::Generic::List<System::Reflection::FieldInfo^>^ s_knownStaticEvents = gcnew System::Collections::Generic::List<System::Reflection::FieldInfo^>();
+    };
+}
+
 public ref class BaseCallback {
 public:
     delegate void Delegate();
@@ -16,8 +37,31 @@ public:
 #define GENERATE_POCKET_CLASS(EVENT_NAME) \
 public ref class EVENT_NAME { \
 public: \
-    static event BaseCallback::Delegate^ Pre; \
-    static event BaseCallback::Delegate^ Post; \
+    static event BaseCallback::Delegate^ Pre { \
+        void add(BaseCallback::Delegate^ value) { \
+            PreImplementation += value; \
+        } \
+        void remove(BaseCallback::Delegate^ value) { \
+            PreImplementation -= value; \
+        } \
+        void raise() { \
+            PreImplementation(); \
+        } \
+    } \
+    static event BaseCallback::Delegate^ Post { \
+        void add(BaseCallback::Delegate^ value) { \
+            PostImplementation += value; \
+        } \
+        void remove(BaseCallback::Delegate^ value) { \
+            PostImplementation -= value; \
+        } \
+        void raise() { \
+            if (Callbacks::Impl::IsUnloading) { \
+                return; \
+            } \
+            PostImplementation(); \
+        } \
+    } \
 internal: \
     static void TriggerPre() { \
         Pre(); \
@@ -27,6 +71,8 @@ internal: \
     } \
     static BaseCallback::Delegate^ TriggerPreDelegate = gcnew BaseCallback::Delegate(&EVENT_NAME::TriggerPre); \
     static BaseCallback::Delegate^ TriggerPostDelegate = gcnew BaseCallback::Delegate(&EVENT_NAME::TriggerPost); \
+    static BaseCallback::Delegate^ PreImplementation; \
+    static BaseCallback::Delegate^ PostImplementation; \
 }; \
 
 namespace Callbacks {
@@ -406,13 +452,5 @@ namespace Callbacks {
     GENERATE_POCKET_CLASS(FinalizeDialog)
     GENERATE_POCKET_CLASS(FinalizeMixer)
     GENERATE_POCKET_CLASS(FinalizeGameCore);
-
-    public ref class Impl {
-    public:
-        static void Setup(REFrameworkNET::API^ api);
-
-    private:
-        static bool s_setup = false;
-    };
 };
 }

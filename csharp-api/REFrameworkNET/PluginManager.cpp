@@ -408,12 +408,14 @@ namespace REFrameworkNET {
             try {
 				// Look for the Unload method in the target assembly which takes an REFrameworkNET.API instance
                 for each (Type ^ t in assem->GetTypes()) {
-					auto method = t->GetMethod("OnUnload", System::Reflection::BindingFlags::Static | System::Reflection::BindingFlags::Public, nullptr, gcnew array<Type^>{REFrameworkNET::API::typeid}, nullptr);
+					auto method = t->GetMethod("OnUnload", System::Reflection::BindingFlags::Static | System::Reflection::BindingFlags::Public);
 
                     if (method != nullptr) {
                         REFrameworkNET::API::LogInfo("Unloading dynamic assembly by calling " + method->Name + " in " + t->FullName);
-						method->Invoke(nullptr, gcnew array<Object^>{PluginManager::s_api_instance});
+						method->Invoke(nullptr, nullptr);
 					}
+
+                    Callbacks::Impl::UnsubscribeAssembly(assem);
 				}
             }
             catch (System::Exception^ e) {

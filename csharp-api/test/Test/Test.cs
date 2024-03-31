@@ -108,7 +108,7 @@ class REFrameworkPlugin {
     static System.Diagnostics.Stopwatch sw2 = new System.Diagnostics.Stopwatch();
 
     // To be called when the AssemblyLoadContext is unloading the assembly
-    public static void OnUnload(REFrameworkNET.API api) {
+    public static void OnUnload() {
         REFrameworkNET.API.LogInfo("Unloading Test");
     }
 
@@ -152,8 +152,22 @@ class REFrameworkPlugin {
     }
 
     [REFrameworkNET.Attributes.PluginEntryPoint]
-    public static void Main() {
+    public static void Main() { 
         try {
+            MainImpl();
+        } catch (Exception e) {
+            REFrameworkNET.API.LogError(e.ToString());
+
+            var ex = e;
+
+            while (ex.InnerException != null) {
+                ex = ex.InnerException;
+                REFrameworkNET.API.LogError(ex.ToString());
+            }
+        }
+    }
+
+    public static void MainImpl() {
         REFrameworkNET.API.LogInfo("Testing REFrameworkAPI...");
 
         TestCallbacks();
@@ -272,17 +286,6 @@ class REFrameworkPlugin {
 
         foreach (dynamic assembly in assemblies) {
             REFrameworkNET.API.LogInfo("Assembly: " + assembly.get_Location()?.ToString());
-        }
-
-        } catch (Exception e) {
-            REFrameworkNET.API.LogError(e.ToString());
-
-            var ex = e;
-
-            while (ex.InnerException != null) {
-                ex = ex.InnerException;
-                REFrameworkNET.API.LogError(ex.ToString());
-            }
         }
     }
 };
