@@ -19,8 +19,21 @@ public:
         // Relevant github issue: https://github.com/dotnet/runtime/issues/71629
         if (assemblyName->Name == "Microsoft.CSharp")
         {
-            System::Console::WriteLine("Searching in " + System::Runtime::InteropServices::RuntimeEnvironment::GetRuntimeDirectory()  + " for Microsoft.CSharp.dll");
-            auto dir = System::Runtime::InteropServices::RuntimeEnvironment::GetRuntimeDirectory();
+            auto path = Microsoft::CSharp::RuntimeBinder::Binder::typeid->Assembly->Location;
+            auto dir = System::IO::Path::GetDirectoryName(path);
+
+            REFrameworkNET::API::LogInfo("Searching in " + dir + " for Microsoft.CSharp.dll");
+
+            if (auto assem = LoadFromAssemblyPath(System::IO::Path::Combine(dir, "Microsoft.CSharp.dll")); assem != nullptr) {
+                REFrameworkNET::API::LogInfo("Successfully loaded Microsoft.CSharp.dll from " + dir);
+                return assem;
+            }
+
+            REFrameworkNET::API::LogWarning("Falling back to loading Microsoft.CSharp.dll from runtime directory");
+            
+            dir = System::Runtime::InteropServices::RuntimeEnvironment::GetRuntimeDirectory();
+            REFrameworkNET::API::LogInfo("Searching in " + dir + " for Microsoft.CSharp.dll");
+
             if (auto assem = LoadFromAssemblyPath(System::IO::Path::Combine(dir, "Microsoft.CSharp.dll")); assem != nullptr) {
                 return assem;
             }
