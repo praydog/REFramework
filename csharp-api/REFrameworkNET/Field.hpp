@@ -2,6 +2,8 @@
 
 #include <reframework/API.hpp>
 
+#include "TypeDefinition.hpp"
+
 #pragma managed
 
 namespace REFrameworkNET {
@@ -10,6 +12,7 @@ ref class TypeDefinition;
 public ref class Field {
 public:
     Field(const reframework::API::Field* field) : m_field(field) {}
+    Field(::REFrameworkFieldHandle handle) : m_field(reinterpret_cast<const reframework::API::Field*>(handle)) {}
 
     System::String^ GetName() {
         return gcnew System::String(m_field->get_name());

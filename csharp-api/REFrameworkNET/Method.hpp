@@ -19,6 +19,7 @@ public ref class Method : public System::IEquatable<Method^>
 {
 public:
     Method(reframework::API::Method* method) : m_method(method) {}
+    Method(::REFrameworkMethodHandle handle) : m_method(reinterpret_cast<reframework::API::Method*>(handle)) {}
 
     void* GetRaw() {
         return m_method;

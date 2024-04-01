@@ -8,8 +8,12 @@
 #include "Field.hpp"
 
 #include "API.hpp"
+#include "VM.hpp"
+#include "SystemString.hpp"
 
 #include "Utility.hpp"
+
+using namespace System;
 
 namespace REFrameworkNET {
 MethodHook^ Method::AddHook(bool ignore_jmp) {
@@ -38,8 +42,34 @@ REFrameworkNET::InvokeRet^ Method::Invoke(System::Object^ obj, array<System::Obj
             //args2[i] = args[i]->ptr();
             const auto t = args[i]->GetType();
 
-            if (t == REFrameworkNET::ManagedObject::typeid) {
-                args2[i] = safe_cast<REFrameworkNET::ManagedObject^>(args[i])->Ptr();
+            if (t->IsSubclassOf(REFrameworkNET::IObject::typeid)) {
+                auto iobj = safe_cast<REFrameworkNET::IObject^>(args[i]);
+
+                if (iobj->IsProperObject()) {
+                    args2[i] = iobj->Ptr();
+                } else if (t == REFrameworkNET::TypeDefinition::typeid) {
+                    // TypeDefinitions are wrappers for System.RuntimeTypeHandle
+                    // However there's basically no functions that actually take a System.RuntimeTypeHandle
+                    // so we will just convert it to a System.Type.
+                    if (auto td = iobj->GetTypeDefinition(); td != nullptr) {
+                        if (auto rt = td->GetRuntimeType(); rt != nullptr) {
+                            args2[i] = rt->Ptr();
+                        } else {
+                            System::Console::WriteLine("TypeDefinition has no runtime type @ arg " + i);
+                        }
+                    }
+                } else {
+                    args2[i] = nullptr;
+                    System::Console::WriteLine("Unknown IObject type passed to method invocation @ arg " + i);
+                }
+            } else if (t == System::String::typeid) {
+                auto createdStr = VM::CreateString(safe_cast<System::String^>(args[i]));
+
+                if (createdStr != nullptr) {
+                    args2[i] = createdStr->Ptr();
+                } else {
+                    System::Console::WriteLine("Error creating string @ arg " + i);
+                }
             } else if (t == System::Boolean::typeid) {
                 bool v = System::Convert::ToBoolean(args[i]);
                 args2[i] = (void*)(intptr_t)v;
@@ -179,6 +209,14 @@ bool Method::HandleInvokeMember_Internal(System::Object^ obj, System::String^ me
         MAKE_TYPE_HANDLER_2(System, Double, double, Double)
         case "System.RuntimeTypeHandle"_fnv: {
             result = gcnew REFrameworkNET::TypeDefinition((::REFrameworkTypeDefinitionHandle)tempResult->QWord);
+            break;
+        }
+        case "System.RuntimeMethodHandle"_fnv: {
+            result = gcnew REFrameworkNET::Method((::REFrameworkMethodHandle)tempResult->QWord);
+            break;
+        }
+        case "System.RuntimeFieldHandle"_fnv: {
+            result = gcnew REFrameworkNET::Field((::REFrameworkFieldHandle)tempResult->QWord);
             break;
         }
         default:

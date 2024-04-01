@@ -25,6 +25,15 @@ public:
         }
     }
 
+    // Double check if we really want to allow this
+    // We might be better off having a global managed object cache
+    // instead of AddRef'ing every time we create a new ManagedObject
+    ManagedObject(ManagedObject^ obj) : m_object(obj->m_object) {
+        if (m_object != nullptr) {
+            AddRef();
+        }
+    }
+
     ~ManagedObject() {
         if (m_object != nullptr) {
             Release();
