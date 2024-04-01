@@ -4,6 +4,9 @@
 #include <execution>
 #include <sstream>
 
+
+#include <reframework/API.hpp>
+
 #include "RETypeDB.hpp"
 #include "RETypeDefinition.hpp"
 
@@ -783,6 +786,39 @@ bool RETypeDefinition::is_generic_type_definition() const {
 
 bool RETypeDefinition::is_generic_type() const {
     return get_generic_data() != nullptr;
+}
+
+bool RETypeDefinition::has_attribute(::REManagedObject* attribute_runtime_type, bool inherit) const {
+    if (attribute_runtime_type == nullptr) {
+        return false;
+    }
+
+    const auto runtime_type = this->get_runtime_type();
+
+    if (runtime_type == nullptr) {
+        return false;
+    }
+
+    const auto runtime_type_t = utility::re_managed_object::get_type_definition(runtime_type);
+
+    if (runtime_type_t == nullptr) {
+        return false;
+    }
+
+    const auto get_custom_attributes = runtime_type_t->get_method("GetCustomAttributes(System.Type, System.Boolean)");
+
+    if (get_custom_attributes == nullptr) {
+        return false;
+    }
+
+    const auto res = get_custom_attributes->invoke(runtime_type, std::vector<void*>{attribute_runtime_type, (void*)(uint64_t)inherit});
+    const auto attributes_array = (sdk::SystemArray*)res.ptr;
+
+    if (attributes_array == nullptr) {
+        return false;
+    }
+
+    return attributes_array->get_size() > 0;
 }
 
 uint32_t RETypeDefinition::get_crc_hash() const {

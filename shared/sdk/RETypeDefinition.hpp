@@ -339,6 +339,7 @@ struct RETypeDefinition : public sdk::RETypeDefinition_ {
     bool is_primitive() const;
     bool is_generic_type_definition() const;
     bool is_generic_type() const;
+    bool has_attribute(::REManagedObject* attribute_runtime_type, bool inherit = false) const;
 
     bool should_pass_by_pointer() const;
 
