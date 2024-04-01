@@ -161,6 +161,7 @@ private:
     void display_reflection_properties(REManagedObject* obj, REType* type_info);
     void display_native_methods(REManagedObject* obj, sdk::RETypeDefinition* tdef);
     void display_native_fields(REManagedObject* obj, sdk::RETypeDefinition* tdef);
+    void populate_method_meta_info(sdk::REMethodDefinition& m);
     void attempt_display_method(REManagedObject* obj, sdk::REMethodDefinition& m, bool use_full_name = false);
     void attempt_display_field(REManagedObject* obj, VariableDescriptor* desc, REType* type_info);
     void display_data(void* data, void* real_data, std::string type_name, bool is_enum = false, bool managed_str = false, const sdk::RETypeDefinition* override_def = nullptr);
@@ -220,33 +221,102 @@ private:
     HookManager::PreHookResult pre_hooked_method_internal(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys, uintptr_t ret_addr, sdk::REMethodDefinition* method);
     static HookManager::PreHookResult pre_hooked_method(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys, uintptr_t ret_addr, sdk::REMethodDefinition* method);
 
+    void post_hooked_method_internal(uintptr_t& ret_val, sdk::RETypeDefinition*& ret_ty, uintptr_t ret_addr, sdk::REMethodDefinition* method);
+    static void post_hooked_method(uintptr_t& ret_val, sdk::RETypeDefinition*& ret_ty, uintptr_t ret_addr, sdk::REMethodDefinition* method);
+
     struct PinnedObject {
         Address address{};
         std::string name{};
         std::string path{};
     };
 
-    std::recursive_mutex m_hooked_methods_mtx{};
+    struct HooksContext {
+        enum class SortMethod : uint8_t {
+            NONE,
+            CALL_COUNT,
+            CALL_TIME_LAST,
+            CALL_TIME_DELTA,
+            CALL_TIME_TOTAL,
+            METHOD_NAME,
+            NUMBER_OF_CALLERS,
+            NUMBER_OF_THREADS_CALLED_FROM
+        };
+
+        static inline constexpr std::array<const char*, 8> s_sort_method_names {
+            "None",
+            "Call Count",
+            "Call Time (Last)",
+            "Call Time (Delta)",
+            "Call Time (Total)",
+            "Method Name",
+            "Number of Callers",
+            "Number of Threads Called From"
+        };
+
+        std::recursive_mutex mtx{};
+        bool hide_uncalled_methods{false};
+        SortMethod sort_method{SortMethod::NONE};
+    } m_hooks_context{};
+
     std::recursive_mutex m_job_mutex{};
     std::vector<std::function<void()>> m_frame_jobs{};
 
     struct HookedMethod {
+        enum class SortCallersMethod : uint8_t {
+            NONE,
+            CALL_COUNT,
+            METHOD_NAME
+        };
+    
+        static inline constexpr std::array<const char*, 3> s_sort_callers_names {
+            "None",
+            "Call Count",
+            "Method Name"
+        };
+
         std::string name{};
         sdk::REMethodDefinition* method{nullptr};
         uintptr_t jitted_function{};
+        uintptr_t jitted_function_post{};
         bool skip{false};
         size_t hook_id{};
-        uint32_t call_count{};
+        SortCallersMethod sort_callers_method{SortCallersMethod::NONE};
 
+        // Not considered stats because resetting these causes large fluctuations in the stats
         std::unordered_set<uintptr_t> return_addresses{};
-        std::unordered_map<uintptr_t, sdk::REMethodDefinition*> return_addresses_to_methods{};
         std::unordered_set<sdk::REMethodDefinition*> callers{};
-        struct CallerContext {
-            size_t call_count{};
-        };
+        std::unordered_map<uintptr_t, sdk::REMethodDefinition*> return_addresses_to_methods{};
+        std::unique_ptr<std::recursive_mutex> mtx{std::make_unique<std::recursive_mutex>()};
 
-        std::unordered_map<sdk::REMethodDefinition*, CallerContext> callers_context{};
+        struct Stats {
+            uint32_t call_count{};
+            std::unordered_set<uint32_t> thread_ids{};
+            struct CallerContext {
+                size_t call_count{};
+            };
+
+
+            using tp = std::chrono::high_resolution_clock::time_point;
+            std::unordered_map<sdk::REMethodDefinition*, CallerContext> callers_context{};
+            std::chrono::high_resolution_clock::time_point last_call_time{std::chrono::high_resolution_clock::now()};
+            std::unordered_map<std::thread::id, tp> last_call_times{};
+            std::chrono::high_resolution_clock::time_point last_call_end_time{std::chrono::high_resolution_clock::now()}; // assuming not recursive...
+            std::chrono::high_resolution_clock::duration last_call_delta{};
+            std::chrono::high_resolution_clock::duration total_call_time{};
+        } stats;
+
+        void reset_stats() {
+            stats = Stats{};
+        }
     };
+
+    // Contains extra information about the method
+    struct MethodMetaInfo {
+        std::vector<sdk::REMethodDefinition*> called_functions{};
+    };
+
+    // Function address -> meta info (not REMethodDefinition, since method defs can share function addresses)
+    std::unordered_map<uintptr_t, std::unique_ptr<MethodMetaInfo>> m_method_meta_infos{};
 
     asmjit::JitRuntime m_jit_runtime;
 

@@ -196,8 +196,14 @@ void Camera::set_vignette_brightness(float value) noexcept {
         return;
     }
 
-    // Not a TDB method.
-    utility::re_managed_object::call_method((::REManagedObject*)m_tone_map, "setVignettingBrightness", (double)value);
+    static auto set_vignetting_brightness_method = sdk::find_method_definition("via.render.ToneMapping", "set_VignettingBrightness");
+
+    if (set_vignetting_brightness_method != nullptr) {
+        set_vignetting_brightness_method->call<void*>(sdk::get_thread_context(), m_tone_map, value);
+    } else {
+        // Not a TDB method.
+        utility::re_managed_object::call_method((::REManagedObject*)m_tone_map, "setVignettingBrightness", (double)value);
+    }
 }
 
 void Camera::set_fov(float fov, float aiming_fov) noexcept {

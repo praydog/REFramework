@@ -10,9 +10,10 @@ jobs:
         target: [RE2, RE2_TDB66, RE3, RE3_TDB67, RE4, RE7, RE7_TDB49, RE8, DMC5, MHRISE, SF6, DD2]
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
         with:
           submodules: recursive
+          fetch-depth: 0
 
       - name: Configure CMake
         run: cmake -S ${{github.workspace}} -B ${{github.workspace}}/build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DDEVELOPER_MODE=ON
@@ -34,7 +35,7 @@ jobs:
           7z rn ${{github.workspace}}/${{matrix.target}}.zip scripts reframework/autorun
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3
         with:
           name: ${{matrix.target}}
           path: ${{github.workspace}}/${{matrix.target}}.zip

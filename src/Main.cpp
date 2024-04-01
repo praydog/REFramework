@@ -7,6 +7,8 @@
 #include <utility/Module.hpp>
 #include <utility/Thread.hpp>
 
+#include <safetyhook/allocator.hpp>
+
 #include "mods/IntegrityCheckBypass.hpp"
 #include "ExceptionHandler.hpp"
 #include "REFramework.hpp"
@@ -76,12 +78,29 @@ void startup_thread(HMODULE reframework_module) {
             utility::spoof_module_paths_in_exe_dir();
             utility::unlink(*our_dll);
         }
+#elif defined (DD2)
+        utility::spoof_module_paths_in_exe_dir();
 #endif
     }
 }
 
 BOOL APIENTRY DllMain(HANDLE handle, DWORD reason, LPVOID reserved) {
     if (reason == DLL_PROCESS_ATTACH) {
+        const auto game = utility::get_executable();
+        const auto module_size = utility::get_module_size(game).value_or(0);
+        const auto halfway_module = (uintptr_t)game + (module_size / 2);
+
+        // Need to pin the safetyhook allocator because it destroys itself
+        static auto sh_allocator = safetyhook::Allocator::global();
+        // 1MB
+        intptr_t requested_size = 1 * 1024 * 1024;
+        // Keep attempting to allocate and reduce requested size by 1 page until successful
+        // 1MB is just the higher end of the range, it will allocate less if it can
+        // even 10kb would be enough for a decent amount of hooks, but we want as much as we can near the middle
+        while (requested_size > 0 && !sh_allocator->allocate_near({(uint8_t*)halfway_module}, requested_size)) {
+            requested_size -= 0x1000; // Size of page
+        }
+
         IntegrityCheckBypass::setup_pristine_syscall();
 
         CreateThread(nullptr, 0, (LPTHREAD_START_ROUTINE)startup_thread, handle, 0, nullptr);

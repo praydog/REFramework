@@ -54,6 +54,7 @@ Supports both DirectX 11 and DirectX 12.
 * Devil May Cry 5
 * Street Fighter 6
 * Monster Hunter Rise
+* Dragon's Dogma 2
 
 ## Thanks
 [SkacikPL](https://github.com/SkacikPL) for originally creating the Manual Flashlight mod.

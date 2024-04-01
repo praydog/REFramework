@@ -57,29 +57,94 @@ HookManager::HookedFn::~HookedFn() {
 }
 
 HookManager::PreHookResult HookManager::HookedFn::on_pre_hook() {
+    //std::shared_lock _{this->access_mux};
+
     auto any_skipped = false;
+
+    auto storage = get_storage(this);
+
+    if (storage->pre_depth == 0) {
+        // afaik, shared locks are not reentrant, so only lock it
+        // if we're not already in a pre-hook.
+        this->access_mux.lock_shared();
+    } else if (!storage->pre_warned_recursion) {
+        const auto tid = std::hash<std::thread::id>{}(std::this_thread::get_id());
+        const auto declaring_type = fn_def->get_declaring_type();
+        const auto decltype_name = declaring_type != nullptr ? declaring_type->get_full_name() : "unknownclass";
+        spdlog::warn("[HookManager] (Pre) Recursive hook detected for '{}.{}' (thread ID: {:x})", decltype_name, fn_def->get_name(), tid);
+        storage->pre_warned_recursion = true;
+    }
+
+    if (storage->overall_depth > 0 && !storage->overall_warned_recursion) {
+        const auto tid = std::hash<std::thread::id>{}(std::this_thread::get_id());
+        const auto declaring_type = fn_def->get_declaring_type();
+        const auto decltype_name = declaring_type != nullptr ? declaring_type->get_full_name() : "unknownclass";
+        spdlog::warn("[HookManager] (Overall) '{}.{}' appears to be calling itself in some way (thread ID: {:x})", decltype_name, fn_def->get_name(), tid);
+        storage->overall_warned_recursion = true;
+    }
+
+    ++storage->pre_depth;
+    const auto ret_addr_pre = storage->ret_addr_pre;
 
     for (const auto& cb : cbs) {
         if (cb.pre_fn) {
-            if (cb.pre_fn(args, arg_tys, ret_addr_pre) == PreHookResult::SKIP_ORIGINAL) {
+            if (cb.pre_fn(storage->args_impl, arg_tys, ret_addr_pre) == PreHookResult::SKIP_ORIGINAL) {
                 any_skipped = true;
             }
         }
-    } 
+    }
+
+    ++storage->overall_depth;
+    --storage->pre_depth;
+
+    if (storage->pre_depth == 0) {
+        this->access_mux.unlock_shared();
+    }
 
     return any_skipped ? PreHookResult::SKIP_ORIGINAL : PreHookResult::CALL_ORIGINAL;
 }
 
 void HookManager::HookedFn::on_post_hook() {
+    //std::shared_lock _{this->access_mux};
+
+    auto storage = get_storage(this);
+
+    if (storage->post_depth == 0) {
+        // afaik, shared locks are not reentrant, so only lock it
+        // if we're not already in a post-hook.
+        this->access_mux.lock_shared();
+    } else if (!storage->post_warned_recursion) {
+        const auto tid = std::hash<std::thread::id>{}(std::this_thread::get_id());
+        const auto declaring_type = fn_def->get_declaring_type();
+        const auto decltype_name = declaring_type != nullptr ? declaring_type->get_full_name() : "unknownclass";
+        spdlog::warn("[HookManager] (Post) Recursive hook detected for '{}.{}' (thread ID: {:x})", decltype_name, fn_def->get_name(), tid);
+        storage->post_warned_recursion = true;
+    }
+
+    ++storage->post_depth;
+    --storage->overall_depth;
+
+    auto& ret_val = storage->ret_val;
+    //auto& ret_addr = storage->ret_addr_post;
+
     for (const auto& cb : cbs) {
         if (cb.post_fn) {
-            cb.post_fn(ret_val, ret_ty, ret_addr);
+            // Valid return address in recursion scenario is no longer supported with this API.
+            // We just pass ret_addr_pre for now, even though it's not accurate.
+            // Hooks will not have much use for the return address anyway.
+            cb.post_fn(ret_val, ret_ty, storage->ret_addr_pre); 
         }
+    }
+
+    --storage->post_depth;
+
+    if (storage->post_depth == 0) {
+        this->access_mux.unlock_shared();
     }
 }
 
 void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedFn>& hook, sdk::REMethodDefinition* fn, std::function<uintptr_t ()> hook_initialization, std::function<void ()> hook_create) {
-    auto& args = hook->args;
+    auto& args = hook->get_storage(hook.get())->args_impl;
     auto& arg_tys = hook->arg_tys;
     auto& fn_hook = hook->fn_hook;
 
@@ -96,33 +161,90 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
     // + 2 for the thread context + this pointer.
     // Another + 2 for hidden arguments that we may not know about.
     constexpr auto HIDDEN_ARGUMENT_COUNT = 2;
-    args.resize(size_t(2) + HIDDEN_ARGUMENT_COUNT + fn->get_num_params());
+    //args.resize(size_t(2) + HIDDEN_ARGUMENT_COUNT + fn->get_num_params());
 
     // Generate the facilitator function that will store the arguments, call on_hook, 
     // restore the arguments, and call the original function.
     auto hook_label = a.newLabel();
-    auto args_label = a.newLabel();
-    auto this_label = a.newLabel();
     auto on_pre_hook_label = a.newLabel();
     auto on_post_hook_label = a.newLabel();
-    auto ret_addr_pre_label = a.newLabel();
-    auto ret_addr_label = a.newLabel();
-    auto ret_val_label = a.newLabel();
     auto orig_label = a.newLabel();
+    auto get_storage_label = a.newLabel();
+    auto push_ptr_label = a.newLabel();
+    auto pop_ptr_label = a.newLabel();
     auto lock_label = a.newLabel();
     auto unlock_label = a.newLabel();
 
-    // Save state.
+
+    constexpr size_t STACK_STORAGE_AMOUNT = 80;
+
+    // Save state and any volatile registers corresponding to arguments.
+    a.mov(rax, ptr(rsp)); // return address.
+
+    a.push(r12); // Temporary cross-call storage for storage ptr.
+    a.push(r13); // Temporary storage for rbx, cross-call storage.
+    a.push(r14); // Temporary storage for return address.
+
+    a.mov(r13, rbx); // store rbx in r13.
+    a.mov(r14, rax); // store return address in r14.
+
+    a.push(rbx);
+
     a.push(rcx);
     a.push(rdx);
     a.push(r8);
     a.push(r9);
 
-    // Lock context.
+    // Store XMM arguments.
+    auto store_xmm_args = [&]() {
+        a.sub(rsp, 16 * 4);
+
+        a.movdqu(ptr(rsp), xmm0);
+        a.movdqu(ptr(rsp, 16), xmm1);
+        a.movdqu(ptr(rsp, 32), xmm2);
+        a.movdqu(ptr(rsp, 48), xmm3);
+    };
+
+    auto pop_xmm_args = [&]() {
+        a.movdqu(xmm0, ptr(rsp));
+        a.movdqu(xmm1, ptr(rsp, 16));
+        a.movdqu(xmm2, ptr(rsp, 32));
+        a.movdqu(xmm3, ptr(rsp, 48));
+
+        a.add(rsp, 16 * 4);
+    };
+
+    store_xmm_args();
+
+    // Fix stack.
+    a.mov(rbx, rsp);
+    a.sub(rsp, STACK_STORAGE_AMOUNT);
+    a.and_(rsp, -16);
+
+    //a.call(ptr(lock_label));
     a.mov(rcx, ptr(hook_label));
-    a.sub(rsp, 40);
-    a.call(ptr(lock_label));
-    a.add(rsp, 40);
+    a.call(ptr(get_storage_label));
+
+    a.mov(r12, rax); // storage ptr.
+
+    // Save return address (pre-hook).
+    a.mov(ptr(r12, offsetof(HookedFn::HookStorage, ret_addr_pre)), r14);
+
+    // Push return address onto stack.
+    a.mov(rcx, r12); // storage ptr.
+    a.mov (rdx, r14); // return address.
+    a.call(ptr(push_ptr_label));
+
+    // Use this moment to push RBX to our pseudo-stack.
+    // because the pre-hook may call this function recursively, clobbering RBX.
+    a.mov(rcx, r12); // storage ptr.
+    a.mov(rdx, r13); // original rbx.
+    a.call(ptr(push_ptr_label));
+
+    // restore stack
+    a.mov(rsp, rbx);
+
+    pop_xmm_args();
 
     // Restore state.
     a.pop(r9);
@@ -130,15 +252,25 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
     a.pop(rdx);
     a.pop(rcx);
 
-    // Save return address (pre-hook).
-    // Cannot modify the post version as it will corrupt the stack if the hook is recursive.
-    a.mov(r10, ptr(rsp));
-    a.mov(rax, ptr(ret_addr_pre_label));
-    a.mov(ptr(rax), r10);
+    // restore rbx
+    a.pop(rbx);
+
+    // Fix temporary storage registers.
+    a.pop(r14);
+    a.pop(r13);
+
+    a.mov(rax, r12); // storage ptr.
+    a.pop(r12);
+
+    a.mov(r10, rax); // save storage ptr for later.
+    a.mov(rax, ptr(rax)); // args ptr now.
+
+    constexpr auto hook_args_offset = offsetof(HookedFn::HookStorage, args);
+    static_assert(hook_args_offset == 0, "HookedFn::HookStorage::args offset is not 0");
 
     // Store args.
     // TODO: Handle all the arguments the function takes.
-    a.mov(rax, ptr(args_label));
+    //a.mov(rax, ptr(args_label));
     a.mov(ptr(rax), rcx); // current thread context.
 
     auto args_start_offset = 8;
@@ -177,8 +309,8 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
         default:
             // stack args
             if (args_offset >= 32) {
-                a.mov(r10, ptr(rsp, sizeof(void*) + (args_offset)));
-                a.mov(ptr(rax, args_offset), r10);
+                a.mov(r11, ptr(rsp, sizeof(void*) + (args_offset)));
+                a.mov(ptr(rax, args_offset), r11);
             }
 
             break;
@@ -204,17 +336,32 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
         save_arg(args_offset, is_float);
     }
 
+
+    a.mov(rax, rsp);
+    a.mov(rax, ptr(rax)); // return address.
+
+    a.push(r12); // push storage
+    a.mov(r12, r10); // storage ptr.
+
+    a.mov(rbx, rsp);
+    a.sub(rsp, STACK_STORAGE_AMOUNT);
+    a.and_(rsp, -16);
+
     // Call on_pre_hook.
     a.mov(rcx, ptr(hook_label));
-    a.sub(rsp, 40);
     a.call(ptr(on_pre_hook_label));
-    a.add(rsp, 40);
 
     // Save the return value so we can see if we need to call the original later.
     a.mov(r11, rax);
+    
+    // restore rsp
+    a.mov(rsp, rbx);
+    a.mov(r10, r12); // storage ptr.
+
+    a.pop(r12); // restore storage
 
     // Restore args.
-    a.mov(rax, ptr(args_label));
+    a.mov(rax, ptr(r10)); // set up args ptr from storage.
     a.mov(rcx, ptr(rax)); // current thread context.
 
     if (!fn->is_static()) {
@@ -249,8 +396,10 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
 
         default:
             if (args_offset >= 32) {
-                a.mov(r10, ptr(rax, args_offset));
-                a.mov(ptr(rsp, sizeof(void*) + (args_offset)), r10);
+                a.mov(rax, ptr(r10));
+                a.mov(rax, ptr(rax, args_offset));
+                a.mov(ptr(rsp, sizeof(void*) + (args_offset)), rax);
+                //a.mov(rax, ptr(r10)); // deref storage.
             }
 
             // TODO: handle stack args.
@@ -280,13 +429,19 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
     auto skip_label = a.newLabel();
 
     // Save return address.
-    a.mov(r10, ptr(rsp));
-    a.mov(rax, ptr(ret_addr_label));
-    a.mov(ptr(rax), r10);
+    //a.mov(rax, ptr(rsp));
+    //a.mov(rax, ptr(ret_addr_label));
+    //constexpr auto ret_addr_offset = offsetof(HookedFn::HookStorage, ret_addr);
+    //a.mov(ptr(r10, ret_addr_offset), rax);
+    //a.mov(r10, rax); // save storage ptr for later.
 
     // Overwrite return address.
     a.lea(rax, ptr(ret_label));
     a.mov(ptr(rsp), rax);
+
+    // Store off our HookStorage in RBX.
+    // RBX is safe if the called function respects the ABI.
+    a.mov(rbx, r10);
 
     // Determine if we need to skip the original function or not.
     a.cmp(r11, (int)PreHookResult::CALL_ORIGINAL);
@@ -300,69 +455,77 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
 
     a.bind(ret_label);
 
-    // Save return value.
-    a.mov(rcx, ptr(ret_val_label));
+    // Set hook storage back to R10.
+    a.mov(r10, rbx);
+
+    constexpr auto ret_val_offset = offsetof(HookedFn::HookStorage, ret_val);
+    //a.lea(rcx, ptr(r10, ret_val_offset));
 
     auto is_ret_ty_float = hook->ret_ty->get_full_name() == "System.Single";
 
     if (is_ret_ty_float) {
-        a.movq(ptr(rcx), xmm0);
+        a.movq(ptr(r10, ret_val_offset), xmm0);
     } else {
-        a.mov(ptr(rcx), rax);
+        a.mov(ptr(r10, ret_val_offset), rax);
     }
 
     // Call on_post_hook.
+    a.push(r12); // R12 being used as a cross-call register for storage of the storage ptr.
+    a.push(r13);
+    a.mov(r12, r10);
+
+    a.mov(rbx, rsp);
+    a.sub(rsp, STACK_STORAGE_AMOUNT);
+    a.and_(rsp, -16);
+
     a.mov(rcx, ptr(hook_label));
     a.call(ptr(on_post_hook_label));
 
-    // Restore return value.
-    a.mov(rcx, ptr(ret_val_label));
+    // Now use this moment to pop RBX from our pseudo-stack.
+    a.mov(rcx, r12); // storage ptr.
+    a.call(ptr(pop_ptr_label));
+
+    a.mov(r13, rax); // temp storage for original rbx.
+
+    // Now pop return address off the stack
+    a.mov(rcx, r12);
+    a.call(ptr(pop_ptr_label));
+    a.mov(r11, rax); // store return address in volatile register.
+    
+    a.mov(rsp, rbx); // Restore stack ptr.
+    a.mov(rbx, r13); // restore original RBX, the return value from pop_rbx which we stored in r13.
+
+    a.mov(r10, r12); // storage ptr.
+    a.pop(r13);
+    a.pop(r12);
 
     if (is_ret_ty_float) {
-        a.movq(xmm0, ptr(rcx));
+        a.movq(xmm0, ptr(r10, ret_val_offset));
     } else {
-        a.mov(rax, ptr(rcx));
+        a.mov(rax, ptr(r10, ret_val_offset));
     }
 
-    // Store state.
-    a.push(rax);
-    a.mov(r10, ptr(ret_addr_label));
-    a.mov(r10, ptr(r10));
-    a.push(r10);
-
-    // Unlock context.
-    a.mov(rcx, ptr(hook_label));
-    a.sub(rsp, 32);
-    a.call(ptr(unlock_label));
-    a.add(rsp, 32);
-
-    // Restore state.
-    a.pop(r10);
-    a.pop(rax);
+    //a.mov(r10, ptr(r10, ret_addr_offset)); // ret addr
 
     // Return.
-    a.jmp(r10);
+    a.jmp(r11);
 
     a.bind(hook_label);
     a.dq((uint64_t)hook.get());
-    a.bind(args_label);
-    a.dq((uint64_t)args.data());
-    a.bind(this_label);
-    a.dq((uint64_t)this);
     a.bind(on_pre_hook_label);
     a.dq((uint64_t)&HookedFn::on_pre_hook_static);
     a.bind(on_post_hook_label);
     a.dq((uint64_t)&HookedFn::on_post_hook_static);
+    a.bind(get_storage_label);
+    a.dq((uint64_t)&HookedFn::get_storage);
+    a.bind(push_ptr_label);
+    a.dq((uint64_t)&HookedFn::push_ptr);
+    a.bind(pop_ptr_label);
+    a.dq((uint64_t)&HookedFn::pop_ptr);
     a.bind(lock_label);
     a.dq((uint64_t)&HookedFn::lock_static);
     a.bind(unlock_label);
     a.dq((uint64_t)&HookedFn::unlock_static);
-    a.bind(ret_addr_pre_label);
-    a.dq((uint64_t)&hook->ret_addr_pre);
-    a.bind(ret_addr_label);
-    a.dq((uint64_t)&hook->ret_addr);
-    a.bind(ret_val_label);
-    a.dq((uint64_t)&hook->ret_val);
     a.bind(orig_label);
     // Can't do the following because the hook hasn't been created yet.
     //a.dq(fn_hook->get_original());
@@ -371,11 +534,6 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
     m_jit.add(&hook->facilitator_fn, &code);
 
     *(uintptr_t*)(hook->facilitator_fn + code.labelOffsetFromBase(orig_label)) = hook_initialization();
-
-    // because FunctionHook isn't RAII
-    if (hook_create) {
-        hook_create();
-    }
 }
 
 HookManager::HookId HookManager::add(sdk::REMethodDefinition* fn, HookManager::PreHookFn pre_fn, HookManager::PostHookFn post_fn, bool ignore_jmp) {
@@ -399,6 +557,7 @@ HookManager::HookId HookManager::add(sdk::REMethodDefinition* fn, HookManager::P
 
         auto& hook = search->second;
         std::scoped_lock _{hook->mux};
+        std::unique_lock __{hook->access_mux};
         auto hook_id = m_next_hook_id++;
 
         spdlog::info("[HookManager] Hook assigned ID {}", hook_id);
@@ -413,6 +572,7 @@ HookManager::HookId HookManager::add(sdk::REMethodDefinition* fn, HookManager::P
     spdlog::info("[HookManager] Creating a new hook...");
 
     auto hook = std::make_unique<HookedFn>(*this);
+    hook->fn_def = fn;
     hook->next_hook_id = m_next_hook_id++;
 
     auto hook_id = m_next_hook_id++;
@@ -425,18 +585,21 @@ HookManager::HookId HookManager::add(sdk::REMethodDefinition* fn, HookManager::P
     hook->ret_ty = fn->get_return_type();
     
 
-    auto& args = hook->args;
-    auto& arg_tys = hook->arg_tys;
+    //auto& args = hook->args_impl;
+    //auto& arg_tys = hook->arg_tys;
     auto& fn_hook = hook->fn_hook;
 
     // Create the facilitator! this really important!
     create_jitted_facilitator(hook, fn,
         [&](){
             fn_hook = std::make_unique<FunctionHook>(hook->target_fn, (void*)hook->facilitator_fn);
+            if (!fn_hook->create()) {
+                spdlog::error("[HookManager] Failed to hook function for '{}'", fn->get_name());
+                return uintptr_t{0};
+            }
             return fn_hook->get_original();
         },
         [&]() {
-            fn_hook->create();
         }
     );
 
@@ -503,6 +666,8 @@ HookManager::HookId HookManager::add_vtable(::REManagedObject* obj, sdk::REMetho
 
         auto& hook_fn = it->second;
 
+        std::unique_lock _{hook_fn->access_mux};
+
         auto hook_id = m_next_hook_id++;
         hook_fn->cbs.emplace_back(hook_id, std::move(pre_fn), std::move(post_fn));
 
@@ -516,6 +681,7 @@ HookManager::HookId HookManager::add_vtable(::REManagedObject* obj, sdk::REMetho
     hook->hooked_fns[fn] = std::make_unique<HookedFn>(*this);
 
     auto& hook_fn = hook->hooked_fns[fn];
+    hook_fn->fn_def = fn;
     hook_fn->next_hook_id = m_next_hook_id++;
     auto hook_id = m_next_hook_id++;
 
@@ -527,8 +693,8 @@ HookManager::HookId HookManager::add_vtable(::REManagedObject* obj, sdk::REMetho
     hook_fn->ret_ty = fn->get_return_type();
     
 
-    auto& args = hook_fn->args;
-    auto& arg_tys = hook_fn->arg_tys;
+    //auto& args = hook_fn->args;
+    //auto& arg_tys = hook_fn->arg_tys;
 
     // Create the facilitator! this really important!
     create_jitted_facilitator(hook_fn, fn,
@@ -558,6 +724,7 @@ void HookManager::remove(sdk::REMethodDefinition* fn, HookId id) {
         auto& hook = search->second;
         auto& cbs = hook->cbs;
         std::scoped_lock _{hook->mux};
+        std::unique_lock __{hook->access_mux};
         cbs.erase(std::remove_if(cbs.begin(), cbs.end(), [id](const HookCallback& cb) { return cb.id == id; }));
     } else {
         std::vector<::REManagedObject*> queued_vtable_deletions{};

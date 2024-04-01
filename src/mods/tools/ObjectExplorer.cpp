@@ -654,7 +654,7 @@ void ObjectExplorer::on_frame() {
         // on_frame is just going to be a way to display
         // the pinned objects in a separate window
 
-        ImGui::SetNextWindowSize(ImVec2(400, 400), ImGuiCond_::ImGuiCond_Once);
+        ImGui::SetNextWindowSize(ImVec2(400, 800), ImGuiCond_::ImGuiCond_Once);
         if (ImGui::Begin("Hooked methods", &open)) {
             display_hooks();
 
@@ -694,9 +694,91 @@ void ObjectExplorer::display_pins() {
 }
 
 void ObjectExplorer::display_hooks() {
-    std::scoped_lock _{m_hooked_methods_mtx};
+    std::scoped_lock _{m_hooks_context.mtx};
 
+    ImGui::SetNextItemOpen(true, ImGuiCond_::ImGuiCond_Once);
+    if (ImGui::TreeNode("Options")) {
+        ImGui::Checkbox("Hide uncalled methods", &m_hooks_context.hide_uncalled_methods);
+
+        ImGui::SameLine();
+
+        if (ImGui::Button("Reset Stats")) {
+            for (auto& h : m_hooked_methods) {
+                h.reset_stats();
+            }
+        }
+
+        // Combobox of the sort method instead
+        if (ImGui::BeginCombo("Sort by", HooksContext::s_sort_method_names[(uint8_t)m_hooks_context.sort_method])) {
+            for (int i = 0; i < HooksContext::s_sort_method_names.size(); i++) {
+                const bool is_selected = (m_hooks_context.sort_method == (HooksContext::SortMethod)i);
+
+                if (ImGui::Selectable(HooksContext::s_sort_method_names[i], is_selected)) {
+                    m_hooks_context.sort_method = (HooksContext::SortMethod)i;
+                }
+
+                if (is_selected) {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+
+            ImGui::EndCombo();
+        }
+
+        ImGui::TreePop();
+    }
+
+    std::vector<HookedMethod*> hooks_to_iterate{};
     for (auto& h : m_hooked_methods) {
+        if (m_hooks_context.hide_uncalled_methods && h.stats.call_count == 0) {
+            continue;
+        }
+
+        hooks_to_iterate.push_back(&h);
+    }
+
+    switch (m_hooks_context.sort_method) {
+    case HooksContext::SortMethod::CALL_COUNT:
+        std::sort(hooks_to_iterate.begin(), hooks_to_iterate.end(), [](const auto& a, const auto& b) {
+            return a->stats.call_count > b->stats.call_count;
+        });
+        break;
+    case HooksContext::SortMethod::CALL_TIME_LAST:
+        std::sort(hooks_to_iterate.begin(), hooks_to_iterate.end(), [](const auto& a, const auto& b) {
+            return a->stats.last_call_time > b->stats.last_call_time;
+        });
+        break;
+    case HooksContext::SortMethod::CALL_TIME_DELTA:
+        std::sort(hooks_to_iterate.begin(), hooks_to_iterate.end(), [](const auto& a, const auto& b) {
+            return a->stats.last_call_delta > b->stats.last_call_delta;
+        });
+        break;
+    case HooksContext::SortMethod::CALL_TIME_TOTAL:
+        std::sort(hooks_to_iterate.begin(), hooks_to_iterate.end(), [](const auto& a, const auto& b) {
+            return a->stats.total_call_time > b->stats.total_call_time;
+        });
+        break;
+    case HooksContext::SortMethod::METHOD_NAME:
+        std::sort(hooks_to_iterate.begin(), hooks_to_iterate.end(), [](const auto& a, const auto& b) {
+            return a->name < b->name;
+        });
+        break;
+    case HooksContext::SortMethod::NUMBER_OF_CALLERS:
+        std::sort(hooks_to_iterate.begin(), hooks_to_iterate.end(), [](const auto& a, const auto& b) {
+            return a->callers.size() > b->callers.size();
+        });
+        break;
+    case HooksContext::SortMethod::NUMBER_OF_THREADS_CALLED_FROM:
+        std::sort(hooks_to_iterate.begin(), hooks_to_iterate.end(), [](const auto& a, const auto& b) {
+            return a->stats.thread_ids.size() > b->stats.thread_ids.size();
+        });
+        break;
+    default:
+        break;
+    };
+
+    for (auto& hp : hooks_to_iterate) {
+        auto& h = *hp;
         ImGui::PushID(h.method);
 
         ImGui::SetNextItemOpen(true, ImGuiCond_::ImGuiCond_Once);
@@ -705,31 +787,87 @@ void ObjectExplorer::display_hooks() {
 
         if (made_node) {
             ImGui::Checkbox("Skip function call", &h.skip);
-            ImGui::TextWrapped("Call count: %i", h.call_count);
-            if (ImGui::TreeNode("Callers")) {
-                for (auto& caller : h.callers) {
-                    const auto& context = h.callers_context[caller];
-                    const auto declaring_type = caller->get_declaring_type();
-                    //auto method_name = declaring_type != nullptr ? declaring_type->get_full_name() + "." + caller->get_name() : caller->get_name();
-                    //method_name += " [" + std::to_string(context.call_count) + "]";
-                    const auto call_count = std::string("[") + std::to_string(context.call_count) + "]";
+            ImGui::TextWrapped("Call count: %i", h.stats.call_count);
 
-                    ImGui::TextUnformatted(call_count.c_str());
-                    ImGui::SameLine();
-                    this->attempt_display_method(nullptr, *caller, true);
-                }
+            ImGui::SameLine();
+            const float delta_ms = std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(h.stats.last_call_delta).count();
+            const float total_ms = std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(h.stats.total_call_time).count();
+            ImGui::TextWrapped("Time (ms): Delta %f, Total %f", delta_ms, total_ms);
 
-                ImGui::TreePop();
-            }
+            if (ImGui::TreeNode("Info")) {
+                ImGui::SetNextItemOpen(true, ImGuiCond_::ImGuiCond_Once);
+                if (ImGui::TreeNode("Callers")) {
+                    // sort callers combo
+                    if (ImGui::BeginCombo("Sort Callers by", HookedMethod::s_sort_callers_names[(uint8_t)h.sort_callers_method])) {
+                        for (int i = 0; i < HookedMethod::s_sort_callers_names.size(); i++) {
+                            const bool is_selected = (h.sort_callers_method == (HookedMethod::SortCallersMethod)i);
 
-            if (ImGui::TreeNode("Return Addresses")) {
-                for (auto addr : h.return_addresses) {
-                    ImGui::Text("0x%p", addr);
+                            if (ImGui::Selectable(HookedMethod::s_sort_callers_names[i], is_selected)) {
+                                h.sort_callers_method = (HookedMethod::SortCallersMethod)i;
+                            }
 
-                    if (ImGui::IsItemClicked()) {
-                        ImGui::SetClipboardText((std::stringstream{} << std::hex << addr).str().c_str());
+                            if (is_selected) {
+                                ImGui::SetItemDefaultFocus();
+                            }
+                        }
+
+                        ImGui::EndCombo();
                     }
+
+                    std::vector<sdk::REMethodDefinition*> callers_to_iterate{};
+
+                    for (auto& caller : h.callers) {
+                        callers_to_iterate.push_back(caller);
+                    }
+
+                    switch (h.sort_callers_method) {
+                    case HookedMethod::SortCallersMethod::CALL_COUNT:
+                        std::sort(callers_to_iterate.begin(), callers_to_iterate.end(), [&h](const auto& a, const auto& b) {
+                            return h.stats.callers_context[a].call_count > h.stats.callers_context[b].call_count;
+                        });
+                        break;
+                    case HookedMethod::SortCallersMethod::METHOD_NAME:
+                        std::sort(callers_to_iterate.begin(), callers_to_iterate.end(), [&h](const auto& a, const auto& b) {
+                            return a->get_name() < b->get_name();
+                        });
+                        break;
+                    default:
+                        break;
+                    };
+
+                    for (auto& caller : callers_to_iterate) {
+                        const auto& context = h.stats.callers_context[caller];
+                        const auto declaring_type = caller->get_declaring_type();
+                        //auto method_name = declaring_type != nullptr ? declaring_type->get_full_name() + "." + caller->get_name() : caller->get_name();
+                        //method_name += " [" + std::to_string(context.call_count) + "]";
+                        const auto call_count = std::string("[") + std::to_string(context.call_count) + "]";
+
+                        ImGui::TextUnformatted(call_count.c_str());
+                        ImGui::SameLine();
+                        this->attempt_display_method(nullptr, *caller, true);
+                    }
+
+                    ImGui::TreePop();
                 }
+
+                if (ImGui::TreeNode("Return Addresses")) {
+                    for (auto addr : h.return_addresses) {
+                        ImGui::Text("0x%p", addr);
+
+                        if (ImGui::IsItemClicked()) {
+                            ImGui::SetClipboardText((std::stringstream{} << std::hex << addr).str().c_str());
+                        }
+                    }
+                    ImGui::TreePop();
+                }
+
+                if (ImGui::TreeNode("Thread IDs")) {
+                    for (auto tid : h.stats.thread_ids) {
+                        ImGui::Text("%i", tid);
+                    }
+                    ImGui::TreePop();
+                }
+
                 ImGui::TreePop();
             }
 
@@ -3108,7 +3246,70 @@ void ObjectExplorer::display_native_fields(REManagedObject* obj, sdk::RETypeDefi
 //#endif
 }
 
+void ObjectExplorer::populate_method_meta_info(sdk::REMethodDefinition& m) {
+    const auto method_ptr = m.get_function();
+
+    if (method_ptr == nullptr) {
+        return;
+    }
+
+    if (m_method_meta_infos.contains((uintptr_t)method_ptr)) {
+        return;
+    }
+
+    m_method_meta_infos[(uintptr_t)method_ptr] = std::make_unique<MethodMetaInfo>();
+
+    if (IsBadReadPtr(method_ptr, sizeof(void*))) {
+        return;
+    }
+
+    std::unordered_set<sdk::REMethodDefinition*> called_functions{};
+
+    // Disassemble the function's instructions looking for calls to other functions, and add them to the list of methods this function calls
+    utility::exhaustive_decode((uint8_t*)method_ptr, 5000, [&](utility::ExhaustionContext& ctx) -> utility::ExhaustionResult {
+        if (ctx.addr != (uintptr_t)method_ptr) {
+            if (auto it = m_method_map.find(ctx.addr); it != m_method_map.end()) {
+                called_functions.insert(it->second);
+            }
+        }
+
+        if (std::string_view{ctx.instrux.Mnemonic}.starts_with("CALL")) {
+            const auto resolved_addr = utility::resolve_displacement(ctx.addr);
+
+            if (resolved_addr) {
+                if (auto it = m_method_map.find(*resolved_addr); it != m_method_map.end()) {
+                    called_functions.insert(it->second);
+                }
+            }
+
+            // Step over all calls, we don't want to go down a rabbit hole that freezes the program
+            return utility::ExhaustionResult::STEP_OVER;
+        }
+
+        return utility::ExhaustionResult::CONTINUE;
+    });
+
+    for (auto& called_function : called_functions) {
+        m_method_meta_infos[(uintptr_t)method_ptr]->called_functions.push_back(called_function);
+    }
+
+    std::sort(
+        m_method_meta_infos[(uintptr_t)method_ptr]->called_functions.begin(), 
+        m_method_meta_infos[(uintptr_t)method_ptr]->called_functions.end(), 
+        [](sdk::REMethodDefinition* a, sdk::REMethodDefinition* b) 
+    {
+        const auto decltype_a = a->get_declaring_type();
+        const auto decltype_b = b->get_declaring_type();
+        const auto fullname_a = decltype_a != nullptr ? decltype_a->get_full_name() + "." + a->get_name() : a->get_name();
+        const auto fullname_b = decltype_b != nullptr ? decltype_b->get_full_name() + "." + b->get_name() : b->get_name();
+        
+        return fullname_a < fullname_b;
+    });
+}
+
 void ObjectExplorer::attempt_display_method(REManagedObject* obj, sdk::REMethodDefinition& m, bool use_full_name) {
+    populate_method_meta_info(m);
+
     const auto declaring_type = m.get_declaring_type();
     const auto method_name = (use_full_name && declaring_type != nullptr) ? declaring_type->get_full_name() + "." + m.get_name() : m.get_name();
     const auto method_return_type = m.get_return_type();
@@ -3246,6 +3447,21 @@ void ObjectExplorer::attempt_display_method(REManagedObject* obj, sdk::REMethodD
 
                 ImGui::EndTable();
             }
+        }
+
+        if (ImGui::BeginTable("##calls", 1,  ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable)) {
+            ImGui::TableNextColumn();
+            ImGui::Text("Called Method");
+
+            // Show a list of methods this method calls
+            if (m_method_meta_infos.contains((uintptr_t)method_ptr)) {
+                for (const auto& called_m : m_method_meta_infos[(uintptr_t)method_ptr]->called_functions) {
+                    ImGui::TableNextColumn();
+                    attempt_display_method(nullptr, *called_m, true);
+                }
+            }
+
+            ImGui::EndTable();
         }
 
         if (ImGui::BeginTable("##disassembly", 3,  ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable)) {
@@ -4044,23 +4260,6 @@ void ObjectExplorer::hook_method(sdk::REMethodDefinition* method, std::optional<
     }
 
     auto& hooked = m_hooked_methods.emplace_back();
-
-    using namespace asmjit;
-    using namespace asmjit::x86;
-
-    CodeHolder code{};
-    code.init(m_jit_runtime.environment());
-
-    Assembler a{&code};
-
-    a.mov(r9, method);
-    a.movabs(r10, &ObjectExplorer::pre_hooked_method);
-    a.jmp(r10);
-
-    m_jit_runtime.add(&hooked.jitted_function, &code);
-
-    using MT = HookManager::PreHookResult(*)(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys, uintptr_t ret_addr);
-
     hooked.method = method;
 
     if (name) {
@@ -4068,8 +4267,40 @@ void ObjectExplorer::hook_method(sdk::REMethodDefinition* method, std::optional<
     } else {
         hooked.name = method->get_declaring_type()->get_full_name() + "." + method->get_name();
     }
+
+    using namespace asmjit;
+    using namespace asmjit::x86;
+
+    // Pre
+    {
+        CodeHolder code{};
+        code.init(m_jit_runtime.environment());
+        Assembler a{&code};
+
+        a.mov(r9, method);
+        a.movabs(r10, &ObjectExplorer::pre_hooked_method);
+        a.jmp(r10);
+
+        m_jit_runtime.add(&hooked.jitted_function, &code);
+    }
+
+    // Post
+    {
+        CodeHolder code{};
+        code.init(m_jit_runtime.environment());
+        Assembler a{&code};
+
+        a.mov(r9, method);
+        a.movabs(r10, &ObjectExplorer::post_hooked_method);
+        a.jmp(r10);
+
+        m_jit_runtime.add(&hooked.jitted_function_post, &code);
+    }
     
-    hooked.hook_id = g_hookman.add(method, (MT)hooked.jitted_function, nullptr);
+    using MT = HookManager::PreHookResult(*)(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys, uintptr_t ret_addr);
+    using MTPost = void (*)(uintptr_t& ret_val, sdk::RETypeDefinition* ret_ty, uintptr_t ret_addr);
+
+    hooked.hook_id = g_hookman.add(method, (MT)hooked.jitted_function, (MTPost)hooked.jitted_function_post);
 }
 
 void ObjectExplorer::hook_all_methods(sdk::RETypeDefinition* t) {
@@ -4635,8 +4866,8 @@ HookManager::PreHookResult ObjectExplorer::pre_hooked_method_internal(std::vecto
 
     auto& hooked_method = *it;
 
-    std::scoped_lock _{m_hooked_methods_mtx};
-    ++hooked_method.call_count;
+    std::scoped_lock _{m_hooks_context.mtx};
+    ++hooked_method.stats.call_count;
 
     if (!hooked_method.return_addresses.contains(ret_addr)) {
         spdlog::info("Creating new entry for {}", hooked_method.name);
@@ -4647,7 +4878,11 @@ HookManager::PreHookResult ObjectExplorer::pre_hooked_method_internal(std::vecto
         size_t nearest_distance = UINT64_MAX;
 
         for (auto& it : m_method_map) {
-            const auto distance = std::abs(static_cast<int64_t>(it.first - ret_addr));
+            if (it.first > ret_addr) {
+                continue;
+            }
+
+            const auto distance = ret_addr - it.first;
             if (distance < nearest_distance) {
                 nearest_distance = distance;
                 nearest_method = it.second;
@@ -4657,26 +4892,51 @@ HookManager::PreHookResult ObjectExplorer::pre_hooked_method_internal(std::vecto
         if (nearest_method != nullptr) {
             auto method_entry = utility::find_function_entry((uintptr_t)nearest_method->get_function());
 
+            bool added = false;
+            auto add_method = [&]() {
+                hooked_method.return_addresses_to_methods[ret_addr] = nearest_method;
+                hooked_method.callers.insert(nearest_method);
+
+                const auto decl_type = nearest_method->get_declaring_type();
+
+                if (decl_type != nullptr) {
+                    spdlog::info("{} {}.{}", hooked_method.name, nearest_method->get_declaring_type()->get_full_name(), nearest_method->get_name());
+                } else {
+                    spdlog::info("{} {}", hooked_method.name, nearest_method->get_name());
+                }
+
+                added = true;
+            };
+
             if (method_entry != nullptr) {
                 const auto module_addr = (uintptr_t)utility::get_module_within(ret_addr).value_or(nullptr);
                 const auto ret_addr_rva = (uint32_t)(ret_addr - module_addr);
                 const auto ret_addr_entry = utility::find_function_entry(ret_addr);
+
+                // First condition isn't as heavy as fully disassembling the function which is the second condition
                 if (ret_addr_entry == method_entry ||
                     (ret_addr_rva >= method_entry->BeginAddress && ret_addr_rva <= method_entry->EndAddress) ||
                     (ret_addr_entry != nullptr && ret_addr_entry->BeginAddress >= method_entry->BeginAddress && ret_addr_entry->BeginAddress <= method_entry->EndAddress + 1))
                 {
-                    hooked_method.return_addresses_to_methods[ret_addr] = nearest_method;
-                    hooked_method.callers.insert(nearest_method);
-
-                    const auto decl_type = nearest_method->get_declaring_type();
-
-                    if (decl_type != nullptr) {
-                        spdlog::info("{} {}.{}", hooked_method.name, nearest_method->get_declaring_type()->get_full_name(), nearest_method->get_name());
-                    } else {
-                        spdlog::info("{} {}", hooked_method.name, nearest_method->get_name());
-                    }
+                    add_method();
                 } else {
-                    spdlog::info("{} <unknown caller> @ 0x{:x}", hooked_method.name, ret_addr);
+                    // Disassemble all possible code paths to see if we run into the return address
+                    utility::exhaustive_decode((uint8_t*)nearest_method->get_function(), 5000, [&](utility::ExhaustionContext& ctx) -> utility::ExhaustionResult {
+                        if (ctx.addr == ret_addr) {
+                            add_method();
+                            return utility::ExhaustionResult::BREAK;
+                        }
+
+                        if (std::string_view{ctx.instrux.Mnemonic}.starts_with("CALL")) {
+                            return utility::ExhaustionResult::STEP_OVER;
+                        }
+
+                        return utility::ExhaustionResult::CONTINUE;
+                    });
+
+                    if (!added) {
+                        spdlog::info("{} <unknown caller> @ 0x{:x}", hooked_method.name, ret_addr);
+                    }
                 }
             } else {
                 hooked_method.return_addresses_to_methods[ret_addr] = nearest_method;
@@ -4696,9 +4956,15 @@ HookManager::PreHookResult ObjectExplorer::pre_hooked_method_internal(std::vecto
 
     if (auto it2 = hooked_method.return_addresses_to_methods.find(ret_addr); it2 != hooked_method.return_addresses_to_methods.end()) {
         auto caller = it2->second;
-        auto& context = hooked_method.callers_context[caller];
+        auto& context = hooked_method.stats.callers_context[caller];
         ++context.call_count;
     }
+
+    const auto tid = std::this_thread::get_id();
+    const auto now = std::chrono::high_resolution_clock::now();
+    hooked_method.stats.last_call_time = now;
+    hooked_method.stats.last_call_times[tid] = now;
+    hooked_method.stats.thread_ids.insert(tid._Get_underlying_id());
 
     auto result = HookManager::PreHookResult::CALL_ORIGINAL;
 
@@ -4711,4 +4977,36 @@ HookManager::PreHookResult ObjectExplorer::pre_hooked_method_internal(std::vecto
 
 HookManager::PreHookResult ObjectExplorer::pre_hooked_method(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys, uintptr_t ret_addr, sdk::REMethodDefinition* method) {
     return ObjectExplorer::get()->pre_hooked_method_internal(args, arg_tys, ret_addr, method);
+}
+
+void ObjectExplorer::post_hooked_method_internal(uintptr_t& ret_val, sdk::RETypeDefinition*& ret_ty, uintptr_t ret_addr, sdk::REMethodDefinition* method) {
+    auto it = std::find_if(m_hooked_methods.begin(), m_hooked_methods.end(), [method](auto& a) { return a.method == method; });
+
+    if (it == m_hooked_methods.end()) {
+        return;
+    }
+
+    const auto now = std::chrono::high_resolution_clock::now();
+
+    auto& hooked_method = *it;
+
+    std::scoped_lock _{m_hooks_context.mtx};
+
+    // Reset the last call time if this is the first time we're calling it
+    // because in between this, there will be a large hitch
+    // that the game is not causing.
+    if (hooked_method.stats.call_count <= 1) {
+        hooked_method.stats.last_call_time = now;
+    }
+
+    const auto tid = std::this_thread::get_id();
+
+    hooked_method.stats.last_call_end_time = now;
+    const auto delta = now - hooked_method.stats.last_call_times[tid];
+    hooked_method.stats.last_call_delta = delta;
+    hooked_method.stats.total_call_time += delta;
+}
+
+void ObjectExplorer::post_hooked_method(uintptr_t& ret_val, sdk::RETypeDefinition*& ret_ty, uintptr_t ret_addr, sdk::REMethodDefinition* method) {
+    ObjectExplorer::get()->post_hooked_method_internal(ret_val, ret_ty, ret_addr, method);
 }

@@ -612,7 +612,7 @@ void IntegrityCheckBypass::fix_virtual_protect() try {
     setup_pristine_syscall(); // Called earlier in DllMain
 
     // Hook VirtualProtect
-    s_virtual_protect_hook = std::make_unique<FunctionHook>(VirtualProtect, (uintptr_t)virtual_protect_hook);
+    s_virtual_protect_hook = std::make_unique<FunctionHookMinHook>(VirtualProtect, (uintptr_t)virtual_protect_hook);
     if (!s_virtual_protect_hook->create()) {
         spdlog::error("[IntegrityCheckBypass]: Could not hook VirtualProtect!");
         return;

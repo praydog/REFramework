@@ -799,6 +799,10 @@ sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_t
                 return sol::make_object(l, ret_val_f);
             }
         }
+        case "System.Double"_fnv: {
+            auto ret_val_d = *(double*)data;
+            return sol::make_object(l, ret_val_d);
+        }
         case "System.Boolean"_fnv: {
             auto ret_val_b = *(bool*)data;
             return sol::make_object(l, ret_val_b);
@@ -928,6 +932,9 @@ void set_data(void* data, ::sdk::RETypeDefinition* data_type, sol::object& value
         switch (full_name_hash) {
         case "System.Single"_fnv:
             *(float*)data = value.as<float>();
+            return;
+        case "System.Double"_fnv:
+            *(double*)data = value.as<double>();
             return;
         case "System.Boolean"_fnv:
             *(bool*)data = value.as<bool>();
