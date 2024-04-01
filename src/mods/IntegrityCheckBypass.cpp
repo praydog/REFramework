@@ -540,6 +540,29 @@ void IntegrityCheckBypass::immediate_patch_dd2() {
     } else {
         spdlog::error("[IntegrityCheckBypass]: Could not find second_conditional_jmp for DD2.");
     }
+
+    const auto natives_str_addr = utility::scan(game, "00 00 2F 00 6E 00 61 00 74 00 69 00 76 00 65 00 73 00 2F 00 00 00");
+
+    // the purpose of this is to re-enable loose file loading
+    // the game explicitly looks for this string in the path and
+    // causes load failures if it finds it
+    if (natives_str_addr) {
+        spdlog::info("[IntegrityCheckBypass]: Found /natives/ string for DD2. Patching...");
+
+        wchar_t* natives_str = (wchar_t*)(*natives_str_addr + 1);
+        DWORD old_protect{};
+        VirtualProtect(natives_str, 10 * sizeof(wchar_t), PAGE_EXECUTE_READWRITE, &old_protect);
+
+        // replace string with a completely invalid string that cannot be a valid path
+        natives_str[0] = L'?'; // /
+
+        DWORD old2{};
+        VirtualProtect(natives_str, 10 * sizeof(wchar_t), old_protect, &old2);
+
+        spdlog::info("[IntegrityCheckBypass]: Patched /natives/ string for DD2.");
+    } else {
+        spdlog::error("[IntegrityCheckBypass]: Could not find /natives/ string for DD2.");
+    }
 }
 
 void IntegrityCheckBypass::remove_stack_destroyer() {
