@@ -45,6 +45,9 @@ public: \
             PreImplementation -= value; \
         } \
         void raise() { \
+            if (Callbacks::Impl::IsUnloading || PreImplementation == nullptr) { \
+                return; \
+            } \
             PreImplementation(); \
         } \
     } \
@@ -56,7 +59,7 @@ public: \
             PostImplementation -= value; \
         } \
         void raise() { \
-            if (Callbacks::Impl::IsUnloading) { \
+            if (Callbacks::Impl::IsUnloading || PostImplementation == nullptr) { \
                 return; \
             } \
             PostImplementation(); \
