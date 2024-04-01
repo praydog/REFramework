@@ -47,6 +47,8 @@ void GameObjectsDisplay::on_draw_dev_ui() {
     if (m_enabled->draw("Enabled") && !m_enabled->value()) {
         // todo
     }
+
+    m_max_distance->draw("Max Distance for GameObjects");
 }
 
 void GameObjectsDisplay::on_frame() {
@@ -116,6 +118,7 @@ void GameObjectsDisplay::on_frame() {
     Vector4f screen_pos{};
 
     auto draw_list = ImGui::GetBackgroundDrawList();
+    const auto has_max_distance = m_max_distance->value() > 0.0f;
 
     for (auto transform = first_transform; 
         transform != nullptr; 
@@ -141,6 +144,14 @@ void GameObjectsDisplay::on_frame() {
         // behind camera
         if (glm::dot(Vector3f{delta}, Vector3f{-camera_forward}) <= 0.0f) {
             continue;
+        }
+
+        if (has_max_distance) {
+            const auto distance = glm::length(Vector3f{delta});
+
+            if (distance > m_max_distance->value()) {
+                continue;
+            }
         }
 
         world_to_screen->call<void*>(&screen_pos, context, &pos, &view, &proj, &screen_size);
