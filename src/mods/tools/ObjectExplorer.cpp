@@ -4374,6 +4374,9 @@ void ObjectExplorer::populate_enums() {
         std::vector<sdk::RETypeDefinition*> enum_types{};
         auto tdb = sdk::RETypeDB::get();
 
+        const auto flags_attribute = tdb->find_type("System.FlagsAttribute");
+        const auto flags_attribute_runtime_type = flags_attribute != nullptr ? flags_attribute->get_runtime_type() : nullptr;
+
         for (uint32_t i = 0; i < tdb->numTypes; ++i) {
             auto t = tdb->get_type(i);
             auto parent_t = t->get_parent_type();
@@ -4401,6 +4404,11 @@ void ObjectExplorer::populate_enums() {
                 }
 
                 out_file << "namespace " << nspace << " {" << std::endl;
+                
+                if (flags_attribute_runtime_type != nullptr && t->has_attribute(flags_attribute_runtime_type, true)) {
+                    out_file << "    // [Flags]" << std::endl;
+                }
+
                 out_file << "    enum " << name << " {" << std::endl;
 
                 spdlog::info("ENUM {}", t->get_full_name().c_str());
