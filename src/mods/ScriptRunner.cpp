@@ -98,7 +98,11 @@ std::string get_tag_long() {
 }
 
 std::string get_commits_past_tag() {
+#ifdef REF_COMMITS_PAST_TAG
     return std::to_string(REF_COMMITS_PAST_TAG);
+#else
+    return "0";
+#endif
 }
 
 std::string get_build_date() {

@@ -1239,7 +1239,9 @@ void REFramework::draw_about() {
     ImGui::Text("Commits: %i", REF_TOTAL_COMMITS);
     ImGui::Text("Commit hash: %s", std::format("{:.8}", REF_COMMIT_HASH).c_str());
     ImGui::Text("Tag: %s", REF_TAG);
+#ifdef REF_COMMITS_PAST_TAG
     ImGui::Text("Commits past tag: %i", REF_COMMITS_PAST_TAG);
+#endif
     ImGui::Text("Build date: %s", REF_BUILD_DATE);
     ImGui::Text("Build time: %s", REF_BUILD_TIME);
 
