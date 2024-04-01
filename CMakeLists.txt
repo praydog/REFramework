@@ -542,9 +542,10 @@ list(APPEND utility_SOURCES
 	"shared/utility/Relocate.cpp"
 	"shared/utility/Exceptions.hpp"
 	"shared/utility/FunctionHook.hpp"
+	"shared/utility/FunctionHookMinHook.hpp"
+	"shared/utility/Profiler.hpp"
 	"shared/utility/Relocate.hpp"
 	"shared/utility/ScopeGuard.hpp"
- "shared/utility/Profiler.hpp"
 )
 
 list(APPEND utility_SOURCES
