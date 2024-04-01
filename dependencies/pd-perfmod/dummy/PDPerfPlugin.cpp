@@ -41,4 +41,4 @@ bool __stdcall IsUpscaleMethodAvailable(int upscaleMethod) {
     return false;
 };
 
-char* __stdcall GetUpscaleMethodName(int upscaleMethod) { return ""; };
+char* __stdcall GetUpscaleMethodName(int upscaleMethod) { return (char*)""; };
