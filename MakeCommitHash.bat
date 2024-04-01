@@ -8,6 +8,7 @@ exit /b 0
 FOR /F "tokens=*" %%g IN ('git rev-parse HEAD') DO (SET REF_COMMIT_HASH=%%g)
 
 FOR /F "tokens=*" %%t IN ('git describe --tags --abbrev^=0') DO (SET REF_TAG=%%t)
+IF "%REF_TAG%"=="" (SET REF_TAG=no_tag)
 
 FOR /F "tokens=*" %%c IN ('git describe --tags --long') DO (
 FOR /F "tokens=1,2 delims=-" %%a IN ("%%c") DO (
@@ -16,9 +17,12 @@ SET REF_COMMITS_PAST_TAG=%%b
 )
 )
 
+IF "%REF_COMMITS_PAST_TAG%"=="" (SET REF_COMMITS_PAST_TAG=0)
+
 FOR /F "tokens=*" %%b IN ('git rev-parse --abbrev-ref HEAD') DO (SET REF_BRANCH=%%b)
 
 FOR /F "tokens=*" %%n IN ('git rev-list --count HEAD') DO (SET REF_TOTAL_COMMITS=%%n)
+IF "%REF_TOTAL_COMMITS%"=="" (SET REF_TOTAL_COMMITS=0)
 
 FOR /F "tokens=2 delims==" %%a IN ('wmic OS get localdatetime /value') DO (
 SET datetime=%%a
