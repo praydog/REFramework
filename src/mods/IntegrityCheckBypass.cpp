@@ -549,9 +549,11 @@ void IntegrityCheckBypass::immediate_patch_dd2() {
     if (natives_str_addr) {
         spdlog::info("[IntegrityCheckBypass]: Found /natives/ string for DD2. Patching...");
 
-        wchar_t* natives_str = (wchar_t*)(*natives_str_addr + 1);
+        wchar_t* natives_str = (wchar_t*)(*natives_str_addr + 2);
         DWORD old_protect{};
         VirtualProtect(natives_str, 10 * sizeof(wchar_t), PAGE_EXECUTE_READWRITE, &old_protect);
+
+        spdlog::info("[IntegrityCheckBypass]: /natives/ string: {}", utility::narrow(natives_str));
 
         // replace string with a completely invalid string that cannot be a valid path
         natives_str[0] = L'?'; // /
