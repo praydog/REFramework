@@ -3,8 +3,9 @@
 import fire
 import os
 import ctypes
+import shutil
 
-def symlink_main(gamedir=None, bindir="build/bin"):
+def symlink_main(gamedir=None, bindir="build/bin", just_copy=False):
     if gamedir is None:
         print("Usage: make_symlinks.py --gamedir=<path to game directory>")
         return
@@ -15,7 +16,7 @@ def symlink_main(gamedir=None, bindir="build/bin"):
     except AttributeError:
         is_admin = ctypes.windll.shell32.IsUserAnAdmin() != 0
 
-    if not is_admin:
+    if not is_admin and not just_copy:
         print("Error: This script must be run as an administrator")
         return
     
@@ -44,7 +45,10 @@ def symlink_main(gamedir=None, bindir="build/bin"):
         except FileNotFoundError:
             pass
 
-        os.symlink(src, dst)
+        if just_copy == True:
+            shutil.copy(src, dst)
+        else:
+            os.symlink(src, dst)
 
     for file in plugins_dir_files:
         src = os.path.join(bindir, file)
@@ -55,7 +59,11 @@ def symlink_main(gamedir=None, bindir="build/bin"):
             os.remove(dst)
         except FileNotFoundError:
             pass
-        os.symlink(src, dst)
+
+        if just_copy == True:
+            shutil.copy(src, dst)
+        else:
+            os.symlink(src, dst)
 
     dependencies_dir_files = [
         "AssemblyGenerator.dll",
@@ -75,7 +83,11 @@ def symlink_main(gamedir=None, bindir="build/bin"):
             os.remove(dst)
         except FileNotFoundError:
             pass
-        os.symlink(src, dst)
+
+        if just_copy == True:
+            shutil.copy(src, dst)
+        else:
+            os.symlink(src, dst)
 
     print("Symlinks created successfully")
 
