@@ -311,6 +311,7 @@ namespace REFrameworkNET {
         }
 
         auto self = System::Reflection::Assembly::LoadFrom(System::Reflection::Assembly::GetExecutingAssembly()->Location);
+        s_default_context = gcnew PluginLoadContext();
 
         for each (System::String^ file in files) {
             System::Console::WriteLine(file);
@@ -337,8 +338,6 @@ namespace REFrameworkNET {
                 REFrameworkNET::API::LogError("Failed to compile " + file);
                 continue;
             }
-
-            s_default_context = gcnew PluginLoadContext();
 
             auto assem = s_default_context->LoadFromStream(gcnew System::IO::MemoryStream(bytecode));
             //auto assem = System::Reflection::Assembly::Load(bytecode);
@@ -393,7 +392,7 @@ namespace REFrameworkNET {
     }
 
     void PluginManager::UnloadDynamicAssemblies() {
-        if (PluginManager::s_dynamic_assemblies == nullptr) {
+        if (PluginManager::s_dynamic_assemblies == nullptr || PluginManager::s_dynamic_assemblies->Count == 0) {
             REFrameworkNET::API::LogInfo("No dynamic assemblies to unload");
 			return;
 		}
@@ -432,26 +431,28 @@ namespace REFrameworkNET {
         s_dynamic_assemblies->Clear();
 
         // make weak ref to default context
-        System::WeakReference^ weakRef = gcnew System::WeakReference(s_default_context);
-        PluginManager::s_default_context->Unload();
-        PluginManager::s_default_context = nullptr;
+        if (s_dynamic_assemblies != nullptr) {
+            System::WeakReference^ weakRef = gcnew System::WeakReference(s_default_context);
+            PluginManager::s_default_context->Unload();
+            PluginManager::s_default_context = nullptr;
 
-        bool unloaded = false;
+            bool unloaded = false;
 
-        for (int i = 0; i < 10; i++) {
-            if (weakRef->IsAlive) {
-                System::GC::Collect();
-                System::GC::WaitForPendingFinalizers();
-                System::Threading::Thread::Sleep(10);
-            } else {
-                unloaded = true;
-                System::Console::WriteLine("Successfully unloaded default context");
-                break;
+            for (int i = 0; i < 10; i++) {
+                if (weakRef->IsAlive) {
+                    System::GC::Collect();
+                    System::GC::WaitForPendingFinalizers();
+                    System::Threading::Thread::Sleep(10);
+                } else {
+                    unloaded = true;
+                    System::Console::WriteLine("Successfully unloaded default context");
+                    break;
+                }
             }
-        }
 
-        if (!unloaded) {
-            System::Console::WriteLine("Failed to unload default context");
+            if (!unloaded) {
+                System::Console::WriteLine("Failed to unload default context");
+            }
         }
     }
 }
