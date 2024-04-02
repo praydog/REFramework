@@ -25,7 +25,7 @@ jobs:
       
       - name: Compress release
         run: |
-          python ${{github.workspace}}/csharp-api/make-symlinks.py --gamedir="${{github.workspace}}/csharp-api" --just_copy=True
+          python ${{github.workspace}}/csharp-api/make_symlinks.py --gamedir="${{github.workspace}}/csharp-api" --just_copy=True
           7z a ${{github.workspace}}/${{matrix.target}}.zip ${{github.workspace}}/csharp-api/reframework
 
       - name: Upload artifacts
