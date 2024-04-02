@@ -142,7 +142,7 @@ void LooseFileLoader::hook() {
     m_hook_success = true;
 }
 
-uint32_t LooseFileLoader::path_to_hash_hook(const wchar_t* path) {
+uint64_t LooseFileLoader::path_to_hash_hook(const wchar_t* path) {
     ++g_loose_file_loader->m_files_encountered;
     const auto enabled = g_loose_file_loader->m_enabled->value();
 

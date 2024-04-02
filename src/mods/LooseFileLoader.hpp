@@ -20,7 +20,7 @@ public:
 
 private:
     void hook();
-    static uint32_t path_to_hash_hook(const wchar_t* path);
+    static uint64_t path_to_hash_hook(const wchar_t* path);
 
     bool m_hook_success{false};
     bool m_attempted_hook{false};
