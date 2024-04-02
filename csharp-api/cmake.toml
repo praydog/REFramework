@@ -43,7 +43,34 @@ if(NOT NUGET_PACKAGES_DIR)
     endif()
     set(NUGET_PACKAGES_DIR ${DEFAULT_NUGET_PATH})
 endif()
+
+# Set a bool if the generated reference assemblies exist in the build/bin folder
+set(dll1 "${CMAKE_BINARY_DIR}/bin/REFramework.NET._System.dll")
+set(dll2 "${CMAKE_BINARY_DIR}/bin/REFramework.NET.application.dll")
+set(dll3 "${CMAKE_BINARY_DIR}/bin/REFramework.NET.viacore.dll")
+
+# Initialize a variable to keep track of the existence of all files
+set(REFRAMEWORK_REF_ASSEMBLIES_EXIST TRUE)
+
+# Check if each DLL exists
+foreach(dll IN ITEMS ${dll1} ${dll2} ${dll3})
+  if(NOT EXISTS ${dll})
+    set(REFRAMEWORK_REF_ASSEMBLIES_EXIST FALSE)
+    break() # Exit the loop as soon as one file is not found
+  endif()
+endforeach()
+
+
+# Use the result
+if(REFRAMEWORK_REF_ASSEMBLIES_EXIST)
+  message(STATUS "All specified DLLs exist.")
+else()
+  message(STATUS "One or more specified DLLs do not exist.")
+endif()
 """
+
+[conditions]
+build-csharp-test = "REFRAMEWORK_REF_ASSEMBLIES_EXIST"
 
 [template.CSharpSharedTarget]
 type = "shared"
@@ -124,6 +151,7 @@ VS_DOTNET_REFERENCE_REFramework.NET
 """
 
 [target.CSharpAPITest]
+condition = "build-csharp-test"
 type = "CSharpSharedTarget"
 sources = ["test/Test/**.cs"]
 link-libraries = [

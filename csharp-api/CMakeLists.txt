@@ -71,6 +71,30 @@ if(NOT NUGET_PACKAGES_DIR)
     set(NUGET_PACKAGES_DIR ${DEFAULT_NUGET_PATH})
 endif()
 
+# Set a bool if the generated reference assemblies exist in the build/bin folder
+set(dll1 "${CMAKE_BINARY_DIR}/bin/REFramework.NET._System.dll")
+set(dll2 "${CMAKE_BINARY_DIR}/bin/REFramework.NET.application.dll")
+set(dll3 "${CMAKE_BINARY_DIR}/bin/REFramework.NET.viacore.dll")
+
+# Initialize a variable to keep track of the existence of all files
+set(REFRAMEWORK_REF_ASSEMBLIES_EXIST TRUE)
+
+# Check if each DLL exists
+foreach(dll IN ITEMS ${dll1} ${dll2} ${dll3})
+  if(NOT EXISTS ${dll})
+    set(REFRAMEWORK_REF_ASSEMBLIES_EXIST FALSE)
+    break() # Exit the loop as soon as one file is not found
+  endif()
+endforeach()
+
+
+# Use the result
+if(REFRAMEWORK_REF_ASSEMBLIES_EXIST)
+  message(STATUS "All specified DLLs exist.")
+else()
+  message(STATUS "One or more specified DLLs do not exist.")
+endif()
+
 # Target: REFCSharpCompiler
 set(REFCSharpCompiler_SOURCES
 	"Compiler/Compiler.cs"
@@ -249,58 +273,61 @@ VS_DOTNET_REFERENCE_REFramework.NET
 )
 
 # Target: CSharpAPITest
-set(CSharpAPITest_SOURCES
-	"test/Test/Test.cs"
-	cmake.toml
-)
+if(REFRAMEWORK_REF_ASSEMBLIES_EXIST) # build-csharp-test
+	set(CSharpAPITest_SOURCES
+		"test/Test/Test.cs"
+		cmake.toml
+	)
 
-add_library(CSharpAPITest SHARED)
+	add_library(CSharpAPITest SHARED)
 
-target_sources(CSharpAPITest PRIVATE ${CSharpAPITest_SOURCES})
-source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${CSharpAPITest_SOURCES})
+	target_sources(CSharpAPITest PRIVATE ${CSharpAPITest_SOURCES})
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${CSharpAPITest_SOURCES})
 
-target_link_libraries(CSharpAPITest PUBLIC
-	csharp-api
-)
+	target_link_libraries(CSharpAPITest PUBLIC
+		csharp-api
+	)
 
+	set_target_properties(CSharpAPITest PROPERTIES
+		RUNTIME_OUTPUT_DIRECTORY_RELEASE
+			"${CMAKE_BINARY_DIR}/bin/"
+		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
+			"${CMAKE_BINARY_DIR}/bin"
+		LIBRARY_OUTPUT_DIRECTORY_RELEASE
+			"${CMAKE_BINARY_DIR}/lib"
+		DOTNET_SDK
+			Microsoft.NET.Sdk
+		DOTNET_TARGET_FRAMEWORK
+			net8.0-windows
+		VS_CONFIGURATION_TYPE
+			ClassLibrary
+	)
+
+	set(CMKR_TARGET CSharpAPITest)
+	set_target_properties(CSharpAPITest PROPERTIES
+	VS_DOTNET_REFERENCE_REFramework.NET
+	"${REFRAMEWORK_DOT_NET_ASSEMBLY_PATH}"
+	)
+	
 set_target_properties(CSharpAPITest PROPERTIES
-	RUNTIME_OUTPUT_DIRECTORY_RELEASE
-		"${CMAKE_BINARY_DIR}/bin/"
-	RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
-		"${CMAKE_BINARY_DIR}/bin"
-	LIBRARY_OUTPUT_DIRECTORY_RELEASE
-		"${CMAKE_BINARY_DIR}/lib"
-	DOTNET_SDK
-		Microsoft.NET.Sdk
-	DOTNET_TARGET_FRAMEWORK
-		net8.0-windows
-	VS_CONFIGURATION_TYPE
-		ClassLibrary
-)
-
-set(CMKR_TARGET CSharpAPITest)
-set_target_properties(CSharpAPITest PROPERTIES
-VS_DOTNET_REFERENCE_REFramework.NET
-"${REFRAMEWORK_DOT_NET_ASSEMBLY_PATH}"
-)
-
-set_target_properties(CSharpAPITest PROPERTIES
-VS_DOTNET_REFERENCE_REFramework.NET._System
-"${REFRAMEWORK_DOT_NET_ASSEMBLY_DIR}/REFramework.NET._System.dll"
-)
-
+	VS_DOTNET_REFERENCE_REFramework.NET._System
+	"${REFRAMEWORK_DOT_NET_ASSEMBLY_DIR}/REFramework.NET._System.dll"
+	)
+	
 set_target_properties(CSharpAPITest PROPERTIES VS_PACKAGE_REFERENCES "REFramework.NET._System")
-
+	
 set_target_properties(CSharpAPITest PROPERTIES
-VS_DOTNET_REFERENCE_REFramework.NET.viacore
-"${REFRAMEWORK_DOT_NET_ASSEMBLY_DIR}/REFramework.NET.viacore.dll"
-)
-
+	VS_DOTNET_REFERENCE_REFramework.NET.viacore
+	"${REFRAMEWORK_DOT_NET_ASSEMBLY_DIR}/REFramework.NET.viacore.dll"
+	)
+	
 set_target_properties(CSharpAPITest PROPERTIES VS_PACKAGE_REFERENCES "REFramework.NET.viacore")
-
+	
 set_target_properties(CSharpAPITest PROPERTIES
-VS_DOTNET_REFERENCE_REFramework.NET.application
-"${REFRAMEWORK_DOT_NET_ASSEMBLY_DIR}/REFramework.NET.application.dll"
-)
-
+	VS_DOTNET_REFERENCE_REFramework.NET.application
+	"${REFRAMEWORK_DOT_NET_ASSEMBLY_DIR}/REFramework.NET.application.dll"
+	)
+	
 set_target_properties(CSharpAPITest PROPERTIES VS_PACKAGE_REFERENCES "REFramework.NET.application")
+
+endif()
