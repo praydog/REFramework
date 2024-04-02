@@ -25,6 +25,7 @@ jobs:
       
       - name: Compress release
         run: |
+          pip install -r ${{github.workspace}}/csharp-api/requirements.txt
           python ${{github.workspace}}/csharp-api/make_symlinks.py --gamedir="${{github.workspace}}/csharp-api" --just_copy=True
           7z a ${{github.workspace}}/${{matrix.target}}.zip ${{github.workspace}}/csharp-api/reframework
 
