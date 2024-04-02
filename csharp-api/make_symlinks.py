@@ -28,6 +28,7 @@ def symlink_main(gamedir=None, bindir="build/bin", just_copy=False):
     plugins_dir_files = [
         "REFramework.NET.dll",
         "REFramework.NET.runtimeconfig.json",
+        "REFramework.NET.xml",
         "Ijwhost.dll",
     ]
 
