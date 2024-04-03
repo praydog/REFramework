@@ -64,12 +64,14 @@ ImVec4 create_imvec4(sol::object obj) {
     return out;
 };
 
-bool button(const char* label) {
+bool button(const char* label, sol::object size_object) {
     if (label == nullptr) {
         label = "";
     }
 
-    return ImGui::Button(label);
+    const auto size = create_imvec2(size_object);
+
+    return ImGui::Button(label, size);
 }
 
 bool small_button(const char* label) {
