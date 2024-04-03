@@ -2408,8 +2408,14 @@ void ObjectExplorer::handle_address(Address address, int32_t offset, Address par
         handle_type(object, utility::re_managed_object::get_type(object));
 
         if (utility::re_managed_object::get_vm_type(object) == via::clr::VMObjType::Array) {
-            if (ImGui::TreeNode(real_address.get(sizeof(REArrayBase)), "Array Entries")) {
-                auto arr = (REArrayBase*)object;
+            auto arr = (REArrayBase*)object;
+
+            const auto made_array_entries = ImGui::TreeNode(real_address.get(sizeof(REArrayBase)), "Array Entries");
+
+            ImGui::SameLine();
+            ImGui::Text("[%d]", arr->numElements);
+
+            if (made_array_entries) {
                 const bool entry_is_val = utility::re_array::get_contained_type(arr)->get_vm_obj_type() == via::clr::VMObjType::ValType;
 
                 if (entry_is_val) {
