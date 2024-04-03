@@ -135,7 +135,7 @@ void* find_native_method(std::string_view type_name, std::string_view method_nam
 sdk::RETypeDefinition* RETypeDB::get_type(uint32_t index) const {
     index &= get_type_bitmask();
 
-    if (index >= this->numTypes) {
+    if (index >= this->get_num_types()) {
         return nullptr;
     }
 

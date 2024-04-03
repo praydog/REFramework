@@ -86,6 +86,149 @@ T* create_instance(std::string_view type_name, bool simplify = false);
 #include "REGlobals.hpp"
 
 namespace sdk {
+namespace tdb73 {
+struct REMethodDefinition;
+struct REMethodImpl;
+struct REField;
+struct REFieldImpl;
+struct REProperty;
+struct RETypeImpl;
+struct REPropertyImpl;
+struct REParameterDef;
+
+struct TDB {
+    uint32_t magic;                             // 0x0000
+    uint32_t version;                           // 0x0004
+    uint32_t numTypes;                          // 0x0008
+    uint32_t typesStartOfGenericsProbably;      // 0x000C // I think this is the index of the start of the generics list in the types array (or start of something else)
+    uint32_t numMethods;                        // 0x0010
+    uint32_t numFields;                         // 0x0014
+    uint32_t numTypeImpl;                       // 0x0018
+    uint32_t numFieldImpl;                      // 0x001C
+    uint32_t numMethodImpl;                     // 0x0020
+    uint32_t numPropertyImpl;                   // 0x0024
+    uint32_t numProperties;                     // 0x0028
+    uint32_t numEvents;                         // 0x002C
+    uint32_t numParams;                         // 0x0030
+    uint32_t numAttributes;                     // 0x0034
+    int32_t numInitData;                        // 0x0038
+    uint32_t numAttributes2;                    // 0x003C
+    uint32_t numInternStrings;                  // 0x0040
+    uint32_t numModules;                        // 0x0044
+    int32_t devEntry;                           // 0x0048
+    int32_t appEntry;                           // 0x004C
+    uint32_t numStringPool;                     // 0x0050
+    uint32_t numBytePool;                       // 0x0054
+    void* modules;                              // 0x0058
+    sdk::RETypeDefinition (*types)[93788];      // 0x0060
+    sdk::RETypeImpl (*typesImpl)[256];          // 0x0068
+    sdk::REMethodDefinition (*methods)[703558]; // 0x0070
+    sdk::REMethodImpl (*methodsImpl)[56756];    // 0x0078
+    sdk::REField (*fields)[1];                  // 0x0080
+    sdk::REFieldImpl (*fieldsImpl)[1];          // 0x0088
+    sdk::REProperty (*properties)[256];         // 0x0090
+    sdk::REPropertyImpl (*propertiesImpl)[1];   // 0x0098
+    void* events;                               // 0x00A0
+    sdk::REParameterDef (*params)[10000];       // 0x00A8
+    class ::REAttributeDef (*attributes)[2000]; // 0x00B0
+    int32_t (*initData)[19890];                 // 0x00B8
+    void* unk;
+    int32_t (*attributes2)[256];                // 0x00C0 + 8
+    char (*stringPool)[1];                      // 0x00C8 + 8
+    uint8_t (*bytePool)[256];                   // 0x00D0 + 8
+    int32_t (*internStrings)[14154];            // 0x00D8 + 8
+};
+
+#pragma pack(push, 4)
+struct REParameterDef {
+    uint16_t attributes_id;
+    uint16_t init_data_index;
+    uint32_t name_offset : 30;
+    uint32_t modifier : 2;
+    uint32_t type_id : TYPE_INDEX_BITS;
+    uint32_t flags : (32 - TYPE_INDEX_BITS);
+};
+
+struct REMethodDefinition {
+    uint32_t declaring_typeid : TYPE_INDEX_BITS;
+    uint32_t params_lo : 13;
+    uint32_t impl_id : 19;
+    uint32_t params_hi : 13;
+    int32_t encoded_offset;
+};
+static_assert(sizeof(REMethodDefinition) == 0xC);
+
+struct REMethodImpl {
+    uint16_t attributes_id;
+    int16_t vtable_index;
+    uint16_t flags;
+    uint16_t impl_flags;
+    uint32_t name_offset;
+};
+
+struct RETypeImpl {
+    int32_t name_offset; // 0x0
+    int32_t namespace_offset; // 0x4
+    int32_t field_size; // 0x8
+    int32_t static_field_size; // 0xc
+    uint64_t unk_pad : 33; // 0x10
+    uint64_t num_member_fields : 24; // 0x10
+    uint64_t unk_pad_2 : 7; // 0x10
+    uint16_t num_member_methods; // 0x18
+    int16_t num_native_vtable; // 0x1a
+    int16_t interface_id; // 0x1c
+    char pad_1e[0x12];
+};
+#if TDB_VER >= 71
+static_assert(sizeof(RETypeImpl) == 0x30);
+static_assert(offsetof(RETypeImpl, num_member_methods) == 0x18);
+#endif
+
+struct REProperty {
+    uint64_t impl_id : 20;
+    uint64_t getter : 22;
+    uint64_t setter : 22;
+};
+
+struct REPropertyImpl {
+    uint16_t flags;
+    uint16_t attributes_id;
+    int32_t name_offset;
+};
+#pragma pack(pop)
+
+struct ParamList {
+    uint16_t numParams; //0x0000
+	uint16_t invokeID; //0x0002
+	uint32_t returnType; //0x0004
+	uint32_t params[1]; //0x0008
+};
+
+struct REField {
+    uint64_t declaring_typeid : TYPE_INDEX_BITS;
+    uint64_t impl_id : TYPE_INDEX_BITS;
+    uint64_t field_typeid : TYPE_INDEX_BITS;
+    uint64_t init_data_hi : 6;
+    uint64_t rest2 : 1;
+};
+
+struct REFieldImpl {
+    uint16_t attributes_id;
+    uint16_t unk : 1;
+    uint16_t flags : 15;
+    uint32_t offset : 26;
+    uint32_t init_data_lo : 6;
+    uint32_t name_offset : 28;
+    uint32_t init_data_mid : 4;
+};
+
+struct GenericListData {
+    uint32_t definition_typeid : TYPE_INDEX_BITS;
+    uint32_t num : (32 - TYPE_INDEX_BITS);
+    uint32_t types[1];
+};
+}
+
 namespace tdb71 {
 struct REMethodDefinition;
 struct REMethodImpl;
@@ -676,7 +819,20 @@ struct TDB {
 #pragma pack(pop)
 }
 
-#if TDB_VER >= 71
+#if TDB_VER >= 73
+struct RETypeDB_ : public sdk::tdb73::TDB {};
+
+struct REMethodDefinition_ : public sdk::tdb73::REMethodDefinition {};
+struct REMethodImpl : public sdk::tdb73::REMethodImpl {};
+using REField_ = sdk::tdb73::REField;
+struct REFieldImpl : public sdk::tdb73::REFieldImpl {};
+struct RETypeImpl : public sdk::tdb73::RETypeImpl {};
+struct REPropertyImpl : public sdk::tdb73::REPropertyImpl {};
+struct REProperty : public sdk::tdb73::REProperty {};
+struct REParameterDef : public sdk::tdb73::REParameterDef {};
+struct GenericListData : public sdk::tdb73::GenericListData {};
+using ParamList = sdk::tdb73::ParamList;
+#elif TDB_VER >= 71
 struct RETypeDB_ : public sdk::tdb71::TDB {};
 
 // FIX IT!!!!
@@ -746,7 +902,7 @@ struct RETypeDB : public sdk::RETypeDB_ {
     sdk::REProperty* get_property(uint32_t index) const;
 
     uint32_t get_num_types() const {
-        return numTypes;
+        return this->numTypes;
     }
 
     uint32_t get_num_methods() const {
