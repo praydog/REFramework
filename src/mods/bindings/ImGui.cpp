@@ -1365,6 +1365,49 @@ void draw_list_path_stroke(ImU32 color, bool closed, float thickness) {
 }
 } // namespace api::imgui
 
+// Scroll APIs
+namespace api::imgui {
+float get_scroll_x() {
+    return ImGui::GetScrollX();
+}
+
+float get_scroll_y() {
+    return ImGui::GetScrollY();
+}
+
+void set_scroll_x(float scroll_x) {
+    ImGui::SetScrollX(scroll_x);
+}
+
+void set_scroll_y(float scroll_y) {
+    ImGui::SetScrollY(scroll_y);
+}
+
+float get_scroll_max_x() {
+    return ImGui::GetScrollMaxX();
+}
+
+float get_scroll_max_y() {
+    return ImGui::GetScrollMaxY();
+}
+
+void set_scroll_here_x(float center_x_ratio = 0.5f) {
+    ImGui::SetScrollHereX(center_x_ratio);
+}
+
+void set_scroll_here_y(float center_y_ratio = 0.5f) {
+    ImGui::SetScrollHereY(center_y_ratio);
+}
+
+void set_scroll_from_pos_x(float local_x, float center_x_ratio = 0.5f) {
+    ImGui::SetScrollFromPosX(local_x, center_x_ratio);
+}
+
+void set_scroll_from_pos_y(float local_y, float center_y_ratio = 0.5f) {
+    ImGui::SetScrollFromPosY(local_y, center_y_ratio);
+}
+} // namespace api::imgui
+
 namespace api::draw {
 std::optional<Vector2f> world_to_screen(sol::object world_pos_object) {
     auto scene = sdk::get_current_scene();
@@ -2074,6 +2117,18 @@ void bindings::open_imgui(ScriptState* s) {
     imgui["draw_list_path_clear"] = api::imgui::draw_list_path_clear;
     imgui["draw_list_path_line_to"] = api::imgui::draw_list_path_line_to;
     imgui["draw_list_path_stroke"] = api::imgui::draw_list_path_stroke;
+    
+    // SCROLL APIs
+    imgui["get_scroll_x"] = api::imgui::get_scroll_x;
+    imgui["get_scroll_y"] = api::imgui::get_scroll_y;
+    imgui["set_scroll_x"] = api::imgui::set_scroll_x;
+    imgui["set_scroll_y"] = api::imgui::set_scroll_y;
+    imgui["get_scroll_max_x"] = api::imgui::get_scroll_max_x;
+    imgui["get_scroll_max_y"] = api::imgui::get_scroll_max_y;
+    imgui["set_scroll_here_x"] = api::imgui::set_scroll_here_x;
+    imgui["set_scroll_here_y"] = api::imgui::set_scroll_here_y;
+    imgui["set_scroll_from_pos_x"] = api::imgui::set_scroll_from_pos_x;
+    imgui["set_scroll_from_pos_y"] = api::imgui::set_scroll_from_pos_y;
 
 
     // TABLE APIS
