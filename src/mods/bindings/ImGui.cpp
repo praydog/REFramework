@@ -10,6 +10,16 @@
 #include "ImGui.hpp"
 
 namespace api::imgui {
+int32_t g_disabled_counts{0};
+
+void cleanup() {
+    for (auto i = 0; i < g_disabled_counts; ++i) {
+        ImGui::EndDisabled();
+    }
+
+    g_disabled_counts = 0;
+}
+
 ImVec2 create_imvec2(sol::object obj) {
     ImVec2 out{ 0.0f, 0.0f };
 
@@ -493,6 +503,24 @@ void end_rect(sol::object additional_size_obj, sol::object rounding_obj) {
     maxs.y += additional_size;
 
     ImGui::GetWindowDrawList()->AddRect(mins, maxs, ImGui::GetColorU32(ImGuiCol_Border), ImGui::GetStyle().FrameRounding, ImDrawCornerFlags_All, 1.0f);
+}
+
+void begin_disabled(sol::object disabled_obj) {
+    bool disabled{true};
+
+    if (disabled_obj.is<bool>()) {
+        disabled = disabled_obj.as<bool>();
+    }
+
+    ++g_disabled_counts;
+    ImGui::BeginDisabled(disabled);
+}
+
+void end_disabled() {
+    if (g_disabled_counts > 0) {
+        --g_disabled_counts;
+        ImGui::EndDisabled();
+    }
 }
 
 void separator() {
@@ -1962,6 +1990,8 @@ void bindings::open_imgui(ScriptState* s) {
     imgui["end_group"] = api::imgui::end_group;
     imgui["begin_rect"] = api::imgui::begin_rect;
     imgui["end_rect"] = api::imgui::end_rect;
+    imgui["begin_disabled"] = api::imgui::begin_disabled;
+    imgui["end_disabled"] = api::imgui::end_disabled;
     imgui["separator"] = api::imgui::separator;
     imgui["spacing"] = api::imgui::spacing;
     imgui["new_line"] = api::imgui::new_line;
