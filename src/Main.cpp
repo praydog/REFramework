@@ -15,6 +15,7 @@
 
 HMODULE g_dinput = 0;
 std::mutex g_load_mutex{};
+extern bool g_success_made_ldr_notification;
 
 void failed() {
     MessageBox(0, "REFramework: Unable to load the original dinput8.dll. Please report this to the developer.", "REFramework", 0);
@@ -75,11 +76,15 @@ void startup_thread(HMODULE reframework_module) {
 
 #if defined(MHRISE)
         if (our_dll) {
-            utility::spoof_module_paths_in_exe_dir();
+            if (!g_success_made_ldr_notification) {
+                utility::spoof_module_paths_in_exe_dir();
+            }
             utility::unlink(*our_dll);
         }
 #elif defined (DD2)
-        utility::spoof_module_paths_in_exe_dir();
+        if (!g_success_made_ldr_notification) {
+            utility::spoof_module_paths_in_exe_dir();
+        }
 #endif
     }
 }
