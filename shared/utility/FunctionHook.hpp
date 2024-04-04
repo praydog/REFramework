@@ -31,15 +31,19 @@ public:
 
     auto is_valid() const {
         std::shared_lock _{ m_initialization_mutex };
-        return m_inline_hook && m_inline_hook->operator bool();
+        return is_valid_unsafe();
     }
 
     FunctionHook& operator=(const FunctionHook& other) = delete;
     FunctionHook& operator=(FunctionHook&& other) = delete;
 
 private:
+    bool is_valid_unsafe() const {
+        return m_inline_hook && m_inline_hook->operator bool();
+    }
+
     std::expected<SafetyHookInline, SafetyHookInline::Error> m_inline_hook;
-    std::shared_mutex m_initialization_mutex{};
+    mutable std::shared_mutex m_initialization_mutex{};
 
     uintptr_t m_target{ 0 };
     uintptr_t m_destination{ 0 };

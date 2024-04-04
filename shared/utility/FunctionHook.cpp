@@ -25,7 +25,7 @@ bool FunctionHook::create() {
         return false;
     }
 
-    if (is_valid()) {
+    if (is_valid_unsafe()) {
         return true;
     }
 
