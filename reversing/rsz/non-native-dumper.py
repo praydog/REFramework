@@ -429,7 +429,7 @@ def generate_field_entries(il2cpp_dump, natives, key, il2cpp_entry, use_typedefs
     return fields_out, struct_str, i, struct_i
 
 
-def main(out_postfix="", il2cpp_path="", natives_path=None, use_typedefs=False, use_hashkeys=False):
+def main(out_postfix="", il2cpp_path="", natives_path=None, use_typedefs=False, use_hashkeys=False, include_parents=False):
     if il2cpp_path is None:
         return
 
@@ -461,6 +461,9 @@ def main(out_postfix="", il2cpp_path="", natives_path=None, use_typedefs=False, 
             json_entry["fqn"] = entry["fqn"]
         
         json_entry["crc"] = entry["crc"]
+
+        if include_parents and "parent" in entry:
+            json_entry["parent"] = entry["parent"]
 
         struct_str = "// " + entry["fqn"] + "\n"
         struct_str = struct_str + "struct " + key + " {\n"
