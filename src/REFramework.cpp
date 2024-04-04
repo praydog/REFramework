@@ -306,13 +306,20 @@ REFramework::REFramework(HMODULE reframework_module)
             const auto dest_path = *g_current_game_path / "_storage_";
             fs::create_directories(dest_path);
 
-            if (std::filesystem::exists(dest_path)) {
+            if (std::filesystem::exists(dest_path)) try {
                 // Locate all DLL files in the current game directory
                 for (const auto& entry : fs::directory_iterator(*g_current_game_path)) try {
-                    if (entry.is_regular_file() && entry.path().extension() == ".dll") {
-                        spdlog::info("Copying DLL file: {}", entry.path().filename().string());
-                        fs::copy_file(entry.path(), dest_path / entry.path().filename(), fs::copy_options::overwrite_existing);
+                    const auto entry_path = entry.path();
+                    
+                    if (entry.is_regular_file() && entry_path.extension() == ".dll") {
+                        spdlog::info("Copying DLL file: {}", entry_path.filename().string());
+                        spdlog::info(" Full path: {}", entry_path.string());
+                        const auto final_dest = dest_path / entry_path.filename().string();
+                        spdlog::info(" Destination: {}", final_dest.string());
+                        fs::copy_file(entry_path, final_dest, fs::copy_options::overwrite_existing);
                     }
+                } catch (const std::filesystem::filesystem_error& e) {
+                    spdlog::error("Failed to copy DLL file: {}", e.what());
                 } catch (const std::exception& e) {
                     spdlog::error("Failed to copy DLL file: {}", e.what());
                 } catch(...) {
@@ -323,17 +330,26 @@ REFramework::REFramework(HMODULE reframework_module)
                 const auto d3d12_path = *g_current_game_path / "D3D12" / "D3D12Core.dll";
 
                 if (std::filesystem::exists(d3d12_path)) try {
+                    spdlog::info("Copying D3D12Core.dll file");
                     fs::create_directories(dest_path / "D3D12");
 
                     if (std::filesystem::exists(d3d12_path)) {
                         spdlog::info("Copying D3D12Core.dll file");
                         fs::copy_file(d3d12_path, dest_path / "D3D12" / "D3D12Core.dll", fs::copy_options::overwrite_existing);
                     }
+                } catch (const std::filesystem::filesystem_error& e) {
+                    spdlog::error("Failed to copy D3D12Core.dll file: {}", e.what());
                 } catch (const std::exception& e) {
                     spdlog::error("Failed to copy D3D12Core.dll file: {}", e.what());
                 } catch(...) {
                     spdlog::error("Failed to copy D3D12Core.dll file: unknown exception occurred");
                 }
+            } catch (const std::filesystem::filesystem_error& e) {
+                spdlog::error("An error occurred while copying DLL files: {}", e.what());
+            } catch (const std::exception& e) {
+                spdlog::error("An error occurred while copying DLL files: {}", e.what());
+            } catch(...) {
+                spdlog::error("An error occurred while copying DLL files: unknown exception occurred");
             } else {
                 spdlog::error("Failed to create storage directory");
             }
