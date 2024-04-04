@@ -740,7 +740,7 @@ void IntegrityCheckBypass::hook_add_vectored_exception_handler() {
 #if TDB_VER >= 73
     spdlog::info("[IntegrityCheckBypass]: Hooking AddVectoredExceptionHandler...");
 
-    s_add_vectored_exception_handler_hook = std::make_unique<FunctionHook>(AddVectoredExceptionHandler, (uintptr_t)add_vectored_exception_handler_hook);
+    s_add_vectored_exception_handler_hook = std::make_unique<FunctionHookMinHook>(AddVectoredExceptionHandler, (uintptr_t)add_vectored_exception_handler_hook);
     if (!s_add_vectored_exception_handler_hook->create()) {
         spdlog::error("[IntegrityCheckBypass]: Could not hook AddVectoredExceptionHandler!");
         return;
@@ -766,6 +766,10 @@ PVOID WINAPI IntegrityCheckBypass::add_vectored_exception_handler_hook(ULONG Fir
                     is_allowed = true;
                 }
 
+                if (module_path->find(L"coreclr") != std::wstring::npos) {
+                    is_allowed = true;
+                }
+
                 if (module_path->find(L"dinput8") != std::wstring::npos) {
                     is_allowed = true;
                 }
@@ -787,6 +791,8 @@ PVOID WINAPI IntegrityCheckBypass::add_vectored_exception_handler_hook(ULONG Fir
         allow_veh(); // VEH past this point should be okay.
         return (void*)VectoredHandler; // some bs address so it doesnt detect it as a nullptr
     }
+
+    spdlog::info("[IntegrityCheckBypass]: VEH allowed");
 
     return s_add_vectored_exception_handler_hook->get_original<decltype(add_vectored_exception_handler_hook)>()(FirstHandler, VectoredHandler);
 }

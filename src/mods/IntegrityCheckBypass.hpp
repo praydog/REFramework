@@ -50,7 +50,7 @@ private:
 
     // Using minhook because safetyhook crashes on trying to hook VirtualProtect
     static inline std::unique_ptr<FunctionHookMinHook> s_virtual_protect_hook{};
-    static inline std::unique_ptr<FunctionHook> s_add_vectored_exception_handler_hook{};
+    static inline std::unique_ptr<FunctionHookMinHook> s_add_vectored_exception_handler_hook{};
 
 #ifdef RE3
     // This is what the game uses to bypass its integrity checks altogether or something
