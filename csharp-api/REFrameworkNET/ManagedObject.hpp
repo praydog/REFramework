@@ -3,6 +3,9 @@
 #include <reframework/API.hpp>
 #include "IObject.hpp"
 
+#include "ObjectEnumerator.hpp"
+#include "UnifiedObject.hpp"
+
 #pragma managed
 
 namespace REFrameworkNET {
@@ -11,7 +14,7 @@ ref class TypeInfo;
 ref class InvokeRet;
 ref class ManagedObject;
 
-public ref class ManagedObject : public System::Dynamic::DynamicObject, public System::IEquatable<ManagedObject^>, public REFrameworkNET::IObject
+public ref class ManagedObject : public REFrameworkNET::UnifiedObject
 {
 public:
     ManagedObject(reframework::API::ManagedObject* obj) : m_object(obj) {
@@ -48,67 +51,6 @@ public:
         m_object->release();
     }
 
-    virtual void* Ptr() {
-        return (void*)m_object;
-    }
-
-    virtual uintptr_t GetAddress() {
-        return (uintptr_t)m_object;
-    }
-
-    virtual bool IsProxy() {
-        return false;
-    }
-
-    virtual bool IsProperObject() {
-        return true;
-    }
-
-    virtual bool Equals(System::Object^ other) override {
-        if (System::Object::ReferenceEquals(this, other)) {
-            return true;
-        }
-
-        if (System::Object::ReferenceEquals(other, nullptr)) {
-            return false;
-        }
-
-        if (other->GetType() != ManagedObject::typeid) {
-            return false;
-        }
-
-        return Ptr() == safe_cast<ManagedObject^>(other)->Ptr();
-    }
-
-    // Override equality operator
-    virtual bool Equals(ManagedObject^ other) {
-        if (System::Object::ReferenceEquals(this, other)) {
-            return true;
-        }
-
-        if (System::Object::ReferenceEquals(other, nullptr)) {
-            return false;
-        }
-
-        return Ptr() == other->Ptr();
-    }
-
-    static bool operator ==(ManagedObject^ left, ManagedObject^ right) {
-        if (System::Object::ReferenceEquals(left, right)) {
-            return true;
-        }
-
-        if (System::Object::ReferenceEquals(left, nullptr) || System::Object::ReferenceEquals(right, nullptr)) {
-            return false;
-        }
-
-        return left->Ptr() == right->Ptr();
-    }
-
-    static bool operator !=(ManagedObject^ left, ManagedObject^ right) {
-        return !(left == right);
-    }
-
     static bool IsManagedObject(uintptr_t ptr) {
         if (ptr == 0) {
             return false;
@@ -134,18 +76,21 @@ public:
         return ToManagedObject(ptr);
     }
 
-    virtual TypeDefinition^ GetTypeDefinition();
     TypeInfo^ GetTypeInfo();
 
-    virtual bool HandleInvokeMember_Internal(System::String^ methodName, array<System::Object^>^ args, System::Object^% result);
+public: // IObject
+    virtual void* Ptr() override {
+        return (void*)m_object;
+    }
 
-    virtual REFrameworkNET::InvokeRet^ Invoke(System::String^ methodName, array<System::Object^>^ args);
-    virtual bool TryInvokeMember(System::Dynamic::InvokeMemberBinder^ binder, array<System::Object^>^ args, System::Object^% result) override;
-    virtual bool TryGetMember(System::Dynamic::GetMemberBinder^ binder, System::Object^% result) override;
-    virtual bool TrySetMember(System::Dynamic::SetMemberBinder^ binder, System::Object^ value) override;
+    virtual uintptr_t GetAddress() override  {
+        return (uintptr_t)m_object;
+    }
+
+    virtual TypeDefinition^ GetTypeDefinition() override;
 
     generic <typename T>
-    virtual T As();
+    virtual T As() override;
 
     // TODO methods:
     /*public Void* GetReflectionProperties() {

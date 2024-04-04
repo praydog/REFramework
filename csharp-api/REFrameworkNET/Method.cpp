@@ -44,23 +44,17 @@ REFrameworkNET::InvokeRet^ Method::Invoke(System::Object^ obj, array<System::Obj
 
             if (t->IsSubclassOf(REFrameworkNET::IObject::typeid)) {
                 auto iobj = safe_cast<REFrameworkNET::IObject^>(args[i]);
+                args2[i] = iobj->Ptr();
+            } else if (t == REFrameworkNET::TypeDefinition::typeid) {
+                // TypeDefinitions are wrappers for System.RuntimeTypeHandle
+                // However there's basically no functions that actually take a System.RuntimeTypeHandle
+                // so we will just convert it to a System.Type.
+                auto td = safe_cast<REFrameworkNET::TypeDefinition^>(args[i]);
 
-                if (iobj->IsProperObject()) {
-                    args2[i] = iobj->Ptr();
-                } else if (t == REFrameworkNET::TypeDefinition::typeid) {
-                    // TypeDefinitions are wrappers for System.RuntimeTypeHandle
-                    // However there's basically no functions that actually take a System.RuntimeTypeHandle
-                    // so we will just convert it to a System.Type.
-                    if (auto td = iobj->GetTypeDefinition(); td != nullptr) {
-                        if (auto rt = td->GetRuntimeType(); rt != nullptr) {
-                            args2[i] = rt->Ptr();
-                        } else {
-                            System::Console::WriteLine("TypeDefinition has no runtime type @ arg " + i);
-                        }
-                    }
+                if (auto rt = td->GetRuntimeType(); rt != nullptr) {
+                    args2[i] = rt->Ptr();
                 } else {
-                    args2[i] = nullptr;
-                    System::Console::WriteLine("Unknown IObject type passed to method invocation @ arg " + i);
+                    System::Console::WriteLine("TypeDefinition has no runtime type @ arg " + i);
                 }
             } else if (t == System::String::typeid) {
                 auto createdStr = VM::CreateString(safe_cast<System::String^>(args[i]));

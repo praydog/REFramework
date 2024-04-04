@@ -4,7 +4,9 @@
 
 #include "TypeDefinition.hpp"
 #include "InvokeRet.hpp"
-#include "IObject.hpp"
+#include "UnifiedObject.hpp"
+
+#include "ObjectEnumerator.hpp"
 
 namespace REFrameworkNET {
 ref class InvokeRet;
@@ -13,7 +15,7 @@ ref class InvokeRet;
 // However, they still have reflection information associated with them
 // So this intends to be the "ManagedObject" class for native objects
 // So we can easily interact with them in C#
-public ref class NativeObject : public System::Dynamic::DynamicObject, public System::Collections::IEnumerable, public REFrameworkNET::IObject
+public ref class NativeObject : public REFrameworkNET::UnifiedObject
 {
 public:
     NativeObject(uintptr_t obj, TypeDefinition^ t){
@@ -46,96 +48,20 @@ public:
         m_object = nullptr;
     }
 
-    virtual TypeDefinition^ GetTypeDefinition() {
+    virtual TypeDefinition^ GetTypeDefinition() override {
         return m_type;
     }
 
-    virtual void* Ptr() {
+    virtual void* Ptr() override {
         return m_object;
     }
 
-    virtual uintptr_t GetAddress() {
+    virtual uintptr_t GetAddress() override  {
         return (uintptr_t)m_object;
     }
 
-    virtual bool IsProxy() {
-        return false;
-    }
-
-    virtual bool IsProperObject() {
-        return true;
-    }
-
-    virtual InvokeRet^ Invoke(System::String^ methodName, array<System::Object^>^ args);
-
-    virtual bool HandleInvokeMember_Internal(System::String^ methodName, array<System::Object^>^ args, System::Object^% result);
-    virtual bool TryInvokeMember(System::Dynamic::InvokeMemberBinder^ binder, array<System::Object^>^ args, System::Object^% result) override;
-
     generic <typename T>
-    virtual T As();
-
-public:
-    // IEnumerable implementation
-    virtual System::Collections::IEnumerator^ GetEnumerator() {
-        return gcnew NativeObjectEnumerator(this);
-    }
-
-private:
-    ref class NativeObjectEnumerator : public System::Collections::IEnumerator
-    {
-        int position = -1;
-        NativeObject^ nativeObject;
-
-    public:
-        NativeObjectEnumerator(NativeObject^ nativeObject) {
-            this->nativeObject = nativeObject;
-        }
-
-        // IEnumerator implementation
-        virtual bool MoveNext() {
-            int itemCount = GetItemCount();
-            if (position < itemCount - 1) {
-                position++;
-                return true;
-            }
-            return false;
-        }
-
-        virtual void Reset() {
-            position = -1;
-        }
-
-        virtual property System::Object^ Current {
-            System::Object^ get() {
-                if (position == -1 || position >= GetItemCount()) {
-                    throw gcnew System::InvalidOperationException();
-                }
-
-                System::Object^ result = nullptr;
-                if (nativeObject->HandleInvokeMember_Internal("get_Item", gcnew array<System::Object^>{ position }, result)) {
-                    return result;
-                }
-
-                return nullptr;
-            }
-        }
-
-    private:
-        int GetItemCount() {
-            //return nativeObject->Invoke("get_Count", gcnew array<System::Object^>{})->DWord;
-            System::Object^ result = nullptr;
-
-            if (nativeObject->HandleInvokeMember_Internal("get_Count", gcnew array<System::Object^>{}, result)) {
-                return (int)result;
-            }
-
-            if (nativeObject->HandleInvokeMember_Internal("get_Length", gcnew array<System::Object^>{}, result)) {
-                return (int)result;
-            }
-
-            return 0;
-        }
-    };
+    virtual T As() override;
 
 private:
     void* m_object{};

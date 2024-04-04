@@ -33,10 +33,6 @@ public:
     virtual uintptr_t GetAddress() {
         return Instance->GetAddress();
     }
-    
-    virtual bool IsProperObject() {
-        return Instance->IsProperObject();
-    }
 
     virtual bool IsProxy() {
         return true;
@@ -49,6 +45,19 @@ public:
     virtual bool HandleInvokeMember_Internal(System::String^ methodName, array<System::Object^>^ args, System::Object^% result) {
         return Instance->HandleInvokeMember_Internal(methodName, args, result);
     }
+
+    virtual bool HandleTryGetMember_Internal(System::String^ fieldName, System::Object^% result) {
+        return Instance->HandleTryGetMember_Internal(fieldName, result);
+    }
+
+    virtual System::Object^ GetField(System::String^ fieldName) {
+        return Instance->GetField(fieldName);
+    }
+    
+    virtual System::Object^ Call(System::String^ methodName, ... array<System::Object^>^ args) {
+        return Instance->Call(methodName, args);
+    }
+
 
     // For interface types
     generic <typename T>
@@ -86,6 +95,18 @@ public:
         }
 
         return Equals(other);
+    }
+
+    virtual bool Equals(IObject^ other) {
+        if (System::Object::ReferenceEquals(this, other)) {
+            return true;
+        }
+
+        if (System::Object::ReferenceEquals(other, nullptr)) {
+            return false;
+        }
+
+        return Ptr() == other->Ptr();
     }
 
     int GetHashCode() override {

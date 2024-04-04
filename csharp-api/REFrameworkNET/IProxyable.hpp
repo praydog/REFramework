@@ -11,5 +11,6 @@ public interface class IProxyable {
     virtual bool IsProxy();
 
     bool HandleInvokeMember_Internal(System::String^ methodName, array<System::Object^>^ args, System::Object^% result);
+    bool HandleTryGetMember_Internal(System::String^ fieldName, System::Object^% result);
 };
 }

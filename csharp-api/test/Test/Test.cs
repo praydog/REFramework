@@ -18,17 +18,24 @@ public class DangerousFunctions {
 
     public static void Entry() {
         var tdb = REFrameworkNET.API.GetTDB();
-        tdb.GetType("app.CameraManager")?.
+        /*tdb.GetType("app.CameraManager")?.
             GetMethod("isInside")?.
             AddHook(false).
             AddPre(isInsidePreHook).
-            AddPost(isInsidePostHook);
+            AddPost(isInsidePostHook);*/
         
         // These via.SceneManager and via.Scene are
         // loaded from an external reference assembly
         // the classes are all interfaces that correspond to real in-game classes
         var sceneManager = REFrameworkNET.API.GetNativeSingletonT<via.SceneManager>();
         var scene = sceneManager.get_CurrentScene();
+        var scene2 = sceneManager.get_CurrentScene();
+
+        if (scene == scene2) {
+            REFrameworkNET.API.LogInfo("Test success: Scene is the same");
+        } else {
+            REFrameworkNET.API.LogError("Test failure: Scene is not the same");
+        }
 
         //scene.set_Pause(true);
         var view = sceneManager.get_MainView();

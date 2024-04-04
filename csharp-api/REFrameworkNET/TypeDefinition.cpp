@@ -147,6 +147,6 @@ namespace REFrameworkNET {
 
     generic <typename T>
     T TypeDefinition::As() {
-        return NativeProxy<T>::Create(this);
+        return NativeProxy<T>::Create(gcnew NativeObject(this));
     }
 }

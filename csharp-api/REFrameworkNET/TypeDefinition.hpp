@@ -27,8 +27,7 @@ public enum VMObjType {
 
 public
     ref class TypeDefinition : public System::Dynamic::DynamicObject,
-                               public System::IEquatable<TypeDefinition ^>,
-                               public REFrameworkNET::IObject
+                               public System::IEquatable<TypeDefinition ^>
 {
 public:
     TypeDefinition(reframework::API::TypeDefinition* td) : m_type(td) {}
@@ -322,18 +321,6 @@ public:
 
     virtual uintptr_t GetAddress() {
         return (uintptr_t)m_type;
-    }
-
-    virtual TypeDefinition^ GetTypeDefinition() {
-        return this;
-    }
-    
-    virtual bool IsProperObject() {
-        return false;
-    }
-
-    virtual bool IsProxy() {
-        return false;
     }
 
     virtual REFrameworkNET::InvokeRet^ Invoke(System::String^ methodName, array<System::Object^>^ args);

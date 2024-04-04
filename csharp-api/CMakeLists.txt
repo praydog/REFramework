@@ -142,6 +142,7 @@ set(csharp-api_SOURCES
 	"REFrameworkNET/SystemString.cpp"
 	"REFrameworkNET/TDB.cpp"
 	"REFrameworkNET/TypeDefinition.cpp"
+	"REFrameworkNET/UnifiedObject.cpp"
 	"REFrameworkNET/VM.cpp"
 	"REFrameworkNET/API.hpp"
 	"REFrameworkNET/Attributes/Plugin.hpp"
@@ -156,6 +157,7 @@ set(csharp-api_SOURCES
 	"REFrameworkNET/MethodHook.hpp"
 	"REFrameworkNET/MethodParameter.hpp"
 	"REFrameworkNET/NativeObject.hpp"
+	"REFrameworkNET/ObjectEnumerator.hpp"
 	"REFrameworkNET/Plugin.hpp"
 	"REFrameworkNET/PluginLoadContext.hpp"
 	"REFrameworkNET/PluginManager.hpp"
@@ -166,6 +168,7 @@ set(csharp-api_SOURCES
 	"REFrameworkNET/TDB.hpp"
 	"REFrameworkNET/TypeDefinition.hpp"
 	"REFrameworkNET/TypeInfo.hpp"
+	"REFrameworkNET/UnifiedObject.hpp"
 	"REFrameworkNET/Utility.hpp"
 	"REFrameworkNET/VM.hpp"
 	cmake.toml
