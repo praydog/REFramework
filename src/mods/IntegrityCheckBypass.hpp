@@ -27,16 +27,30 @@ public:
     static void setup_pristine_syscall();
     static void fix_virtual_protect();
 
+    static void hook_add_vectored_exception_handler();
+
+    static void allow_veh() {
+        s_veh_allowed = true;
+    }
+    
+    static bool is_veh_called() {
+        return s_veh_called;
+    }
+
 private:
     static BOOL WINAPI virtual_protect_impl(LPVOID lpAddress, SIZE_T dwSize, DWORD flNewProtect, PDWORD lpflOldProtect);
     static BOOL WINAPI virtual_protect_hook(LPVOID lpAddress, SIZE_T dwSize, DWORD flNewProtect, PDWORD lpflOldProtect);
     
+    static PVOID WINAPI add_vectored_exception_handler_hook(ULONG FirstHandler, PVECTORED_EXCEPTION_HANDLER VectoredHandler);
+    static inline bool s_veh_allowed{false};
+    static inline bool s_veh_called{false};
     using NtProtectVirtualMemory_t =  NTSTATUS(NTAPI*)(HANDLE ProcessHandle, PVOID* BaseAddress, SIZE_T* NumberOfBytesToProtect, ULONG NewAccessProtection, PULONG OldAccessProtection);
     static inline NtProtectVirtualMemory_t s_pristine_protect_virtual_memory{ nullptr };
     static inline NtProtectVirtualMemory_t s_og_protect_virtual_memory{ nullptr };;
 
     // Using minhook because safetyhook crashes on trying to hook VirtualProtect
     static inline std::unique_ptr<FunctionHookMinHook> s_virtual_protect_hook{};
+    static inline std::unique_ptr<FunctionHook> s_add_vectored_exception_handler_hook{};
 
 #ifdef RE3
     // This is what the game uses to bypass its integrity checks altogether or something

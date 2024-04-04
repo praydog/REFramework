@@ -735,3 +735,41 @@ BOOL WINAPI IntegrityCheckBypass::virtual_protect_hook(LPVOID lpAddress, SIZE_T 
     spdlog::error("[IntegrityCheckBypass]: VirtualProtect hook failed! falling back to original");
     return s_virtual_protect_hook->get_original<decltype(virtual_protect_hook)>()(lpAddress, dwSize, flNewProtect, lpflOldProtect);
 }
+
+void IntegrityCheckBypass::hook_add_vectored_exception_handler() {
+#if TDB_VER >= 73
+    spdlog::info("[IntegrityCheckBypass]: Hooking AddVectoredExceptionHandler...");
+
+    s_add_vectored_exception_handler_hook = std::make_unique<FunctionHook>(AddVectoredExceptionHandler, (uintptr_t)add_vectored_exception_handler_hook);
+    if (!s_add_vectored_exception_handler_hook->create()) {
+        spdlog::error("[IntegrityCheckBypass]: Could not hook AddVectoredExceptionHandler!");
+        return;
+    }
+
+    spdlog::info("[IntegrityCheckBypass]: Hooked AddVectoredExceptionHandler!");
+#endif
+}
+
+PVOID WINAPI IntegrityCheckBypass::add_vectored_exception_handler_hook(ULONG FirstHandler, PVECTORED_EXCEPTION_HANDLER VectoredHandler) {
+    s_veh_called = true;
+
+    if (!s_veh_allowed) {
+        const auto retaddr = (uintptr_t)_ReturnAddress();
+        const auto module_within = utility::get_module_within(retaddr);
+
+        if (module_within) {
+            const auto module_path = utility::get_module_pathw(*module_within);
+
+            if ((module_path && module_path->find(L"vehdebug") != std::wstring::npos) || (g_framework != nullptr && *module_within == g_framework->get_reframework_module())) {
+                spdlog::info("[IntegrityCheckBypass]: VEH allowed for vehdebug");
+                return s_add_vectored_exception_handler_hook->get_original<decltype(add_vectored_exception_handler_hook)>()(FirstHandler, VectoredHandler);
+            }
+        }
+
+        spdlog::warn("[IntegrityCheckBypass]: VEH not allowed, returning nullptr");
+        //allow_veh(); // VEH past this point should be okay actually no ill leave it commented forever.
+        return (void*)VectoredHandler; // some bs address so it doesnt detect it as a nullptr
+    }
+
+    return s_add_vectored_exception_handler_hook->get_original<decltype(add_vectored_exception_handler_hook)>()(FirstHandler, VectoredHandler);
+}

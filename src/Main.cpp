@@ -107,6 +107,7 @@ BOOL APIENTRY DllMain(HANDLE handle, DWORD reason, LPVOID reserved) {
         }
 
         IntegrityCheckBypass::setup_pristine_syscall();
+        IntegrityCheckBypass::hook_add_vectored_exception_handler();
 
         CreateThread(nullptr, 0, (LPTHREAD_START_ROUTINE)startup_thread, handle, 0, nullptr);
     }
