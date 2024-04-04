@@ -216,10 +216,11 @@ typedef NTSTATUS (WINAPI* PFN_LdrLockLoaderLock)(ULONG Flags, ULONG *State, ULON
 typedef NTSTATUS (WINAPI* PFN_LdrUnlockLoaderLock)(ULONG Flags, ULONG_PTR Cookie);
 
 REFramework::REFramework(HMODULE reframework_module)
-    : m_reframework_module{reframework_module}
-    , m_game_module{GetModuleHandle(0)}
+    : m_game_module{GetModuleHandle(0)}
     , m_logger{spdlog::basic_logger_mt("REFramework", (get_persistent_dir("re2_framework_log.txt")).string(), true)}
     {
+
+    s_reframework_module = reframework_module;
 
     std::scoped_lock __{m_startup_mutex};
 
@@ -307,8 +308,9 @@ REFramework::REFramework(HMODULE reframework_module)
             fs::create_directories(dest_path);
 
             if (std::filesystem::exists(dest_path)) try {
+                std::error_code directory_ec{};
                 // Locate all DLL files in the current game directory
-                for (const auto& entry : fs::directory_iterator(*g_current_game_path)) try {
+                for (const auto& entry : fs::directory_iterator(*g_current_game_path, directory_ec)) try {
                     const auto entry_path = entry.path();
                     
                     if (entry.is_regular_file() && entry_path.extension() == ".dll") {
@@ -332,6 +334,10 @@ REFramework::REFramework(HMODULE reframework_module)
                     spdlog::error("Failed to copy DLL file: {}", e.what());
                 } catch(...) {
                     spdlog::error("Failed to copy DLL file: unknown exception occurred");
+                }
+
+                if (directory_ec) {
+                    spdlog::error("An error occurred while traversing the game directory: {}", directory_ec.message());
                 }
 
                 // Copy the D3D12/D3D12Core.dll file from the current game directory into our _storage_ directory with the same subdirectory structure.

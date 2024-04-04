@@ -759,15 +759,32 @@ PVOID WINAPI IntegrityCheckBypass::add_vectored_exception_handler_hook(ULONG Fir
 
         if (module_within) {
             const auto module_path = utility::get_module_pathw(*module_within);
+            bool is_allowed = false;
 
-            if ((module_path && module_path->find(L"vehdebug") != std::wstring::npos) || (g_framework != nullptr && *module_within == g_framework->get_reframework_module())) {
-                spdlog::info("[IntegrityCheckBypass]: VEH allowed for vehdebug");
+            if (module_path) {
+                if (module_path->find(L"vehdebug") != std::wstring::npos) {
+                    is_allowed = true;
+                }
+
+                if (module_path->find(L"dinput8") != std::wstring::npos) {
+                    is_allowed = true;
+                }
+            }
+
+            if (is_allowed || *module_within == REFramework::get_reframework_module()) 
+            {
+                if (module_path) {
+                    spdlog::info("[IntegrityCheckBypass]: VEH allowed for {}", utility::narrow(*module_path));
+                } else {
+                    spdlog::info("[IntegrityCheckBypass]: VEH allowed");
+                }
+
                 return s_add_vectored_exception_handler_hook->get_original<decltype(add_vectored_exception_handler_hook)>()(FirstHandler, VectoredHandler);
             }
         }
-
+        
         spdlog::warn("[IntegrityCheckBypass]: VEH not allowed, returning nullptr");
-        //allow_veh(); // VEH past this point should be okay actually no ill leave it commented forever.
+        allow_veh(); // VEH past this point should be okay.
         return (void*)VectoredHandler; // some bs address so it doesnt detect it as a nullptr
     }
 
