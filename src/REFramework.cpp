@@ -316,7 +316,15 @@ REFramework::REFramework(HMODULE reframework_module)
                         spdlog::info(" Full path: {}", entry_path.string());
                         const auto final_dest = dest_path / entry_path.filename().string();
                         spdlog::info(" Destination: {}", final_dest.string());
-                        fs::copy_file(entry_path, final_dest, fs::copy_options::overwrite_existing);
+                        std::error_code ec{};
+                        fs::copy_file(entry_path, final_dest, fs::copy_options::overwrite_existing, ec);
+
+                        // check if error occurred
+                        if (ec) {
+                            spdlog::error("Failed to copy DLL file: {}", ec.message());
+                        }
+
+                        ec.clear();
                     }
                 } catch (const std::filesystem::filesystem_error& e) {
                     spdlog::error("Failed to copy DLL file: {}", e.what());
@@ -335,7 +343,14 @@ REFramework::REFramework(HMODULE reframework_module)
 
                     if (std::filesystem::exists(d3d12_path)) {
                         spdlog::info("Copying D3D12Core.dll file");
-                        fs::copy_file(d3d12_path, dest_path / "D3D12" / "D3D12Core.dll", fs::copy_options::overwrite_existing);
+                        std::error_code ec{};
+                        fs::copy_file(d3d12_path, dest_path / "D3D12" / "D3D12Core.dll", fs::copy_options::overwrite_existing, ec);
+
+                        if (ec) {
+                            spdlog::error("Failed to copy D3D12Core.dll file: {}", ec.message());
+                        }
+
+                        ec.clear();
                     }
                 } catch (const std::filesystem::filesystem_error& e) {
                     spdlog::error("Failed to copy D3D12Core.dll file: {}", e.what());
