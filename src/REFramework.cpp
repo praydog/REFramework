@@ -301,6 +301,44 @@ REFramework::REFramework(HMODULE reframework_module)
 
         // Do this at least once before setting up our callback.
 #if defined(DD2) || defined(MHRISE)
+        // Pre-emptively copy all DLL files in the current game directory into our _storage_ directory.
+        if (g_current_game_path.has_value()) {
+            const auto dest_path = *g_current_game_path / "_storage_";
+            fs::create_directories(dest_path);
+
+            if (std::filesystem::exists(dest_path)) {
+                // Locate all DLL files in the current game directory
+                for (const auto& entry : fs::directory_iterator(*g_current_game_path)) try {
+                    if (entry.is_regular_file() && entry.path().extension() == ".dll") {
+                        spdlog::info("Copying DLL file: {}", entry.path().filename().string());
+                        fs::copy_file(entry.path(), dest_path / entry.path().filename(), fs::copy_options::overwrite_existing);
+                    }
+                } catch (const std::exception& e) {
+                    spdlog::error("Failed to copy DLL file: {}", e.what());
+                } catch(...) {
+                    spdlog::error("Failed to copy DLL file: unknown exception occurred");
+                }
+
+                // Copy the D3D12/D3D12Core.dll file from the current game directory into our _storage_ directory with the same subdirectory structure.
+                const auto d3d12_path = *g_current_game_path / "D3D12" / "D3D12Core.dll";
+
+                if (std::filesystem::exists(d3d12_path)) try {
+                    fs::create_directories(dest_path / "D3D12");
+
+                    if (std::filesystem::exists(d3d12_path)) {
+                        spdlog::info("Copying D3D12Core.dll file");
+                        fs::copy_file(d3d12_path, dest_path / "D3D12" / "D3D12Core.dll", fs::copy_options::overwrite_existing);
+                    }
+                } catch (const std::exception& e) {
+                    spdlog::error("Failed to copy D3D12Core.dll file: {}", e.what());
+                } catch(...) {
+                    spdlog::error("Failed to copy D3D12Core.dll file: unknown exception occurred");
+                }
+            } else {
+                spdlog::error("Failed to create storage directory");
+            }
+        }
+
         utility::spoof_module_paths_in_exe_dir();
 #endif
 
