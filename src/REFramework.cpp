@@ -212,9 +212,6 @@ try {
     spdlog::error("ldr_notification_callback: Unknown exception occurred");
 }
 
-typedef NTSTATUS (WINAPI* PFN_LdrLockLoaderLock)(ULONG Flags, ULONG *State, ULONG_PTR *Cookie);
-typedef NTSTATUS (WINAPI* PFN_LdrUnlockLoaderLock)(ULONG Flags, ULONG_PTR Cookie);
-
 REFramework::REFramework(HMODULE reframework_module)
     : m_game_module{GetModuleHandle(0)}
     , m_logger{spdlog::basic_logger_mt("REFramework", (get_persistent_dir("re2_framework_log.txt")).string(), true)}
@@ -464,18 +461,7 @@ REFramework::REFramework(HMODULE reframework_module)
 #endif
 
 #if defined(REENGINE_AT)
-    ULONG_PTR loader_magic = 0;
-    auto lock_loader = (PFN_LdrLockLoaderLock)GetProcAddress(ntdll, "LdrLockLoaderLock");
-    auto unlock_loader = (PFN_LdrUnlockLoaderLock)GetProcAddress(ntdll, "LdrUnlockLoaderLock");
-
-    if (lock_loader != nullptr && unlock_loader != nullptr) {
-        lock_loader(0, NULL, &loader_magic);
-    }
     utility::ThreadSuspender suspender{};
-    if (lock_loader != nullptr && unlock_loader != nullptr) {
-        unlock_loader(0, loader_magic);
-    }
-
     IntegrityCheckBypass::ignore_application_entries();
 
 #if defined(RE8) || defined(RE4) || defined(SF6)
