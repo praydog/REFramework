@@ -1,5 +1,8 @@
 #pragma once
 
+#include <deque>
+#include <unordered_set>
+
 #include <utility/FunctionHook.hpp>
 
 #include "../Mod.hpp"
@@ -20,6 +23,7 @@ public:
 
 private:
     void hook();
+    bool handle_path(const wchar_t* path);
     static uint64_t path_to_hash_hook(const wchar_t* path);
 
     bool m_hook_success{false};
@@ -27,9 +31,16 @@ private:
     uint32_t m_files_encountered{};
     uint32_t m_loose_files_loaded{};
 
+    std::shared_mutex m_mutex{};
+    std::deque<std::wstring> m_recent_accessed_files{}; // max 100
+    std::deque<std::wstring> m_recent_loose_files{}; // max 100
+    std::unordered_set<std::wstring> m_all_accessed_files{};
+    std::unordered_set<std::wstring> m_all_loose_files{};
+
     std::unique_ptr<FunctionHook> m_path_to_hash_hook{nullptr};
 
     ModToggle::Ptr m_enabled{ ModToggle::create(generate_name("Enabled")) };
+    bool m_show_recent_files{false}; // Not persistent because its for dev purposes
 
     ValueList m_options{
         *m_enabled
