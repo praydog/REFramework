@@ -123,7 +123,7 @@ condition = "build-framework-dependencies"
 
 [fetch-content.safetyhook]
 git = "https://github.com/cursey/safetyhook"
-tag = "44200343bf803f78862426e301e9382e5b28ea2c"
+tag = "4faf792c2d66cbf06f2c942561d053aafd79006b"
 
 [target.imgui]
 type = "static"
@@ -184,7 +184,7 @@ tag = "v1.34.10"
 
 [fetch-content.kananlib]
 git = "https://github.com/cursey/kananlib"
-tag = "b0323a0b005fc9e3944e0ea36dcc98eda4b84eea"
+tag = "05fe2456b58fa423531d036d9343ae46866d7ffd"
 
 [target.utility]
 type = "static"

@@ -295,7 +295,7 @@ namespace via.typeinfo {
     }
 }
 
-namespace tdb71 {
+namespace tdb73 {
     struct TypeDefinition{}
 }
 
@@ -303,7 +303,7 @@ namespace {
 
 
 struct ManagedVtable {
-    tdb71.TypeDefinition* t
+    tdb73.TypeDefinition* t
     void* funcs[32]
 }
 }
@@ -318,11 +318,11 @@ struct DeserializeSequence {
     uint32_t is_static : 1;
     
     uint32_t offset;
-    tdb71.TypeDefinition* native_type;
+    tdb73.TypeDefinition* native_type;
 };
 }
 
-namespace tdb71 {
+namespace tdb73 {
     struct MethodDefinition 0xC {
         uint32_t declaring_typeid : 19;
         uint32_t pad : 13
@@ -446,8 +446,8 @@ namespace tdb71 {
         struct test{}
         uint32_t magic;                             // 0x0000
         uint32_t version;                           // 0x0004
-        uint32_t initialized;                       // 0x0008
-        uint32_t numTypes;                          // 0x000C
+        uint32_t numTypes;                          // 0x0008
+        uint32_t typesStartOfGenericsProbably;      // 0x000C
         uint32_t numMethods;                        // 0x0010
         uint32_t numFields;                         // 0x0014
         uint32_t numTypeImpl;                       // 0x0018

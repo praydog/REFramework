@@ -114,13 +114,13 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(directxtk12)
 
-message(STATUS "Fetching safetyhook (44200343bf803f78862426e301e9382e5b28ea2c)...")
+message(STATUS "Fetching safetyhook (4faf792c2d66cbf06f2c942561d053aafd79006b)...")
 FetchContent_Declare(
 	safetyhook
 	GIT_REPOSITORY
 		https://github.com/cursey/safetyhook
 	GIT_TAG
-		44200343bf803f78862426e301e9382e5b28ea2c
+		4faf792c2d66cbf06f2c942561d053aafd79006b
 )
 FetchContent_MakeAvailable(safetyhook)
 
@@ -134,13 +134,13 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(bddisasm)
 
-message(STATUS "Fetching kananlib (b0323a0b005fc9e3944e0ea36dcc98eda4b84eea)...")
+message(STATUS "Fetching kananlib (05fe2456b58fa423531d036d9343ae46866d7ffd)...")
 FetchContent_Declare(
 	kananlib
 	GIT_REPOSITORY
 		https://github.com/cursey/kananlib
 	GIT_TAG
-		b0323a0b005fc9e3944e0ea36dcc98eda4b84eea
+		05fe2456b58fa423531d036d9343ae46866d7ffd
 )
 FetchContent_MakeAvailable(kananlib)
 
@@ -2294,6 +2294,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/Graphics.cpp"
 		"src/mods/Hooks.cpp"
 		"src/mods/IntegrityCheckBypass.cpp"
+		"src/mods/LooseFileLoader.cpp"
 		"src/mods/ManualFlashlight.cpp"
 		"src/mods/PluginLoader.cpp"
 		"src/mods/REFrameworkConfig.cpp"
@@ -2346,6 +2347,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/Graphics.hpp"
 		"src/mods/Hooks.hpp"
 		"src/mods/IntegrityCheckBypass.hpp"
+		"src/mods/LooseFileLoader.hpp"
 		"src/mods/ManualFlashlight.hpp"
 		"src/mods/PluginLoader.hpp"
 		"src/mods/REFrameworkConfig.hpp"
@@ -2504,6 +2506,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/Graphics.cpp"
 		"src/mods/Hooks.cpp"
 		"src/mods/IntegrityCheckBypass.cpp"
+		"src/mods/LooseFileLoader.cpp"
 		"src/mods/ManualFlashlight.cpp"
 		"src/mods/PluginLoader.cpp"
 		"src/mods/REFrameworkConfig.cpp"
@@ -2556,6 +2559,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/Graphics.hpp"
 		"src/mods/Hooks.hpp"
 		"src/mods/IntegrityCheckBypass.hpp"
+		"src/mods/LooseFileLoader.hpp"
 		"src/mods/ManualFlashlight.hpp"
 		"src/mods/PluginLoader.hpp"
 		"src/mods/REFrameworkConfig.hpp"
@@ -4405,6 +4409,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/Graphics.cpp"
 		"src/mods/Hooks.cpp"
 		"src/mods/IntegrityCheckBypass.cpp"
+		"src/mods/LooseFileLoader.cpp"
 		"src/mods/ManualFlashlight.cpp"
 		"src/mods/PluginLoader.cpp"
 		"src/mods/REFrameworkConfig.cpp"
@@ -4457,6 +4462,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/Graphics.hpp"
 		"src/mods/Hooks.hpp"
 		"src/mods/IntegrityCheckBypass.hpp"
+		"src/mods/LooseFileLoader.hpp"
 		"src/mods/ManualFlashlight.hpp"
 		"src/mods/PluginLoader.hpp"
 		"src/mods/REFrameworkConfig.hpp"
@@ -4615,6 +4621,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/Graphics.cpp"
 		"src/mods/Hooks.cpp"
 		"src/mods/IntegrityCheckBypass.cpp"
+		"src/mods/LooseFileLoader.cpp"
 		"src/mods/ManualFlashlight.cpp"
 		"src/mods/PluginLoader.cpp"
 		"src/mods/REFrameworkConfig.cpp"
@@ -4667,6 +4674,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/Graphics.hpp"
 		"src/mods/Hooks.hpp"
 		"src/mods/IntegrityCheckBypass.hpp"
+		"src/mods/LooseFileLoader.hpp"
 		"src/mods/ManualFlashlight.hpp"
 		"src/mods/PluginLoader.hpp"
 		"src/mods/REFrameworkConfig.hpp"
@@ -4825,6 +4833,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/Graphics.cpp"
 		"src/mods/Hooks.cpp"
 		"src/mods/IntegrityCheckBypass.cpp"
+		"src/mods/LooseFileLoader.cpp"
 		"src/mods/ManualFlashlight.cpp"
 		"src/mods/PluginLoader.cpp"
 		"src/mods/REFrameworkConfig.cpp"
@@ -4877,6 +4886,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/Graphics.hpp"
 		"src/mods/Hooks.hpp"
 		"src/mods/IntegrityCheckBypass.hpp"
+		"src/mods/LooseFileLoader.hpp"
 		"src/mods/ManualFlashlight.hpp"
 		"src/mods/PluginLoader.hpp"
 		"src/mods/REFrameworkConfig.hpp"
@@ -7573,6 +7583,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/Graphics.cpp"
 		"src/mods/Hooks.cpp"
 		"src/mods/IntegrityCheckBypass.cpp"
+		"src/mods/LooseFileLoader.cpp"
 		"src/mods/ManualFlashlight.cpp"
 		"src/mods/PluginLoader.cpp"
 		"src/mods/REFrameworkConfig.cpp"
@@ -7625,6 +7636,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/Graphics.hpp"
 		"src/mods/Hooks.hpp"
 		"src/mods/IntegrityCheckBypass.hpp"
+		"src/mods/LooseFileLoader.hpp"
 		"src/mods/ManualFlashlight.hpp"
 		"src/mods/PluginLoader.hpp"
 		"src/mods/REFrameworkConfig.hpp"
@@ -7783,6 +7795,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/Graphics.cpp"
 		"src/mods/Hooks.cpp"
 		"src/mods/IntegrityCheckBypass.cpp"
+		"src/mods/LooseFileLoader.cpp"
 		"src/mods/ManualFlashlight.cpp"
 		"src/mods/PluginLoader.cpp"
 		"src/mods/REFrameworkConfig.cpp"
@@ -7835,6 +7848,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/Graphics.hpp"
 		"src/mods/Hooks.hpp"
 		"src/mods/IntegrityCheckBypass.hpp"
+		"src/mods/LooseFileLoader.hpp"
 		"src/mods/ManualFlashlight.hpp"
 		"src/mods/PluginLoader.hpp"
 		"src/mods/REFrameworkConfig.hpp"
@@ -8840,6 +8854,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/Graphics.cpp"
 		"src/mods/Hooks.cpp"
 		"src/mods/IntegrityCheckBypass.cpp"
+		"src/mods/LooseFileLoader.cpp"
 		"src/mods/ManualFlashlight.cpp"
 		"src/mods/PluginLoader.cpp"
 		"src/mods/REFrameworkConfig.cpp"
@@ -8892,6 +8907,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/Graphics.hpp"
 		"src/mods/Hooks.hpp"
 		"src/mods/IntegrityCheckBypass.hpp"
+		"src/mods/LooseFileLoader.hpp"
 		"src/mods/ManualFlashlight.hpp"
 		"src/mods/PluginLoader.hpp"
 		"src/mods/REFrameworkConfig.hpp"
@@ -9895,6 +9911,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/Graphics.cpp"
 		"src/mods/Hooks.cpp"
 		"src/mods/IntegrityCheckBypass.cpp"
+		"src/mods/LooseFileLoader.cpp"
 		"src/mods/ManualFlashlight.cpp"
 		"src/mods/PluginLoader.cpp"
 		"src/mods/REFrameworkConfig.cpp"
@@ -9947,6 +9964,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/Graphics.hpp"
 		"src/mods/Hooks.hpp"
 		"src/mods/IntegrityCheckBypass.hpp"
+		"src/mods/LooseFileLoader.hpp"
 		"src/mods/ManualFlashlight.hpp"
 		"src/mods/PluginLoader.hpp"
 		"src/mods/REFrameworkConfig.hpp"
@@ -10952,6 +10970,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/Graphics.cpp"
 		"src/mods/Hooks.cpp"
 		"src/mods/IntegrityCheckBypass.cpp"
+		"src/mods/LooseFileLoader.cpp"
 		"src/mods/ManualFlashlight.cpp"
 		"src/mods/PluginLoader.cpp"
 		"src/mods/REFrameworkConfig.cpp"
@@ -11004,6 +11023,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/Graphics.hpp"
 		"src/mods/Hooks.hpp"
 		"src/mods/IntegrityCheckBypass.hpp"
+		"src/mods/LooseFileLoader.hpp"
 		"src/mods/ManualFlashlight.hpp"
 		"src/mods/PluginLoader.hpp"
 		"src/mods/REFrameworkConfig.hpp"
@@ -12009,6 +12029,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/Graphics.cpp"
 		"src/mods/Hooks.cpp"
 		"src/mods/IntegrityCheckBypass.cpp"
+		"src/mods/LooseFileLoader.cpp"
 		"src/mods/ManualFlashlight.cpp"
 		"src/mods/PluginLoader.cpp"
 		"src/mods/REFrameworkConfig.cpp"
@@ -12061,6 +12082,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/Graphics.hpp"
 		"src/mods/Hooks.hpp"
 		"src/mods/IntegrityCheckBypass.hpp"
+		"src/mods/LooseFileLoader.hpp"
 		"src/mods/ManualFlashlight.hpp"
 		"src/mods/PluginLoader.hpp"
 		"src/mods/REFrameworkConfig.hpp"
@@ -13066,6 +13088,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/Graphics.cpp"
 		"src/mods/Hooks.cpp"
 		"src/mods/IntegrityCheckBypass.cpp"
+		"src/mods/LooseFileLoader.cpp"
 		"src/mods/ManualFlashlight.cpp"
 		"src/mods/PluginLoader.cpp"
 		"src/mods/REFrameworkConfig.cpp"
@@ -13118,6 +13141,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/Graphics.hpp"
 		"src/mods/Hooks.hpp"
 		"src/mods/IntegrityCheckBypass.hpp"
+		"src/mods/LooseFileLoader.hpp"
 		"src/mods/ManualFlashlight.hpp"
 		"src/mods/PluginLoader.hpp"
 		"src/mods/REFrameworkConfig.hpp"

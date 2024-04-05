@@ -17,8 +17,10 @@ public:
 
 private:
     const ModToggle::Ptr m_enabled{ ModToggle::create(generate_name("Enabled")) };
+    const ModSlider::Ptr m_max_distance{ ModSlider::create(generate_name("MaxDistance"), 0.0f, 1000.0f, 0.0f) };
 
     ValueList m_options{
         *m_enabled,
+        *m_max_distance
     };
 };

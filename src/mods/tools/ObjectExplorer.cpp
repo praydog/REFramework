@@ -2417,8 +2417,14 @@ void ObjectExplorer::handle_address(Address address, int32_t offset, Address par
         handle_type(object, utility::re_managed_object::get_type(object));
 
         if (utility::re_managed_object::get_vm_type(object) == via::clr::VMObjType::Array) {
-            if (ImGui::TreeNode(real_address.get(sizeof(REArrayBase)), "Array Entries")) {
-                auto arr = (REArrayBase*)object;
+            auto arr = (REArrayBase*)object;
+
+            const auto made_array_entries = ImGui::TreeNode(real_address.get(sizeof(REArrayBase)), "Array Entries");
+
+            ImGui::SameLine();
+            ImGui::Text("[%d]", arr->numElements);
+
+            if (made_array_entries) {
                 const bool entry_is_val = utility::re_array::get_contained_type(arr)->get_vm_obj_type() == via::clr::VMObjType::ValType;
 
                 if (entry_is_val) {
@@ -4554,6 +4560,9 @@ void ObjectExplorer::populate_enums() {
         std::vector<sdk::RETypeDefinition*> enum_types{};
         auto tdb = sdk::RETypeDB::get();
 
+        const auto flags_attribute = tdb->find_type("System.FlagsAttribute");
+        const auto flags_attribute_runtime_type = flags_attribute != nullptr ? flags_attribute->get_runtime_type() : nullptr;
+
         for (uint32_t i = 0; i < tdb->numTypes; ++i) {
             auto t = tdb->get_type(i);
             auto parent_t = t->get_parent_type();
@@ -4581,6 +4590,11 @@ void ObjectExplorer::populate_enums() {
                 }
 
                 out_file << "namespace " << nspace << " {" << std::endl;
+                
+                if (flags_attribute_runtime_type != nullptr && t->has_attribute(flags_attribute_runtime_type, true)) {
+                    out_file << "    // [Flags]" << std::endl;
+                }
+
                 out_file << "    enum " << name << " {" << std::endl;
 
                 spdlog::info("ENUM {}", t->get_full_name().c_str());

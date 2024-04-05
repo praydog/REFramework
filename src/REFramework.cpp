@@ -137,14 +137,90 @@ void REFramework::hook_monitor() {
     }
 }
 
+typedef struct _LDR_DLL_UNLOADED_NOTIFICATION_DATA {
+    ULONG Flags;                    //Reserved.
+    PCUNICODE_STRING FullDllName;   //The full path name of the DLL module.
+    PCUNICODE_STRING BaseDllName;   //The base file name of the DLL module.
+    PVOID DllBase;                  //A pointer to the base address for the DLL in memory.
+    ULONG SizeOfImage;              //The size of the DLL image, in bytes.
+} LDR_DLL_UNLOADED_NOTIFICATION_DATA, *PLDR_DLL_UNLOADED_NOTIFICATION_DATA;
+
+typedef struct _LDR_DLL_LOADED_NOTIFICATION_DATA {
+    ULONG Flags;                    //Reserved.
+    PCUNICODE_STRING FullDllName;   //The full path name of the DLL module.
+    PCUNICODE_STRING BaseDllName;   //The base file name of the DLL module.
+    PVOID DllBase;                  //A pointer to the base address for the DLL in memory.
+    ULONG SizeOfImage;              //The size of the DLL image, in bytes.
+} LDR_DLL_LOADED_NOTIFICATION_DATA, *PLDR_DLL_LOADED_NOTIFICATION_DATA;
+
+typedef union _LDR_DLL_NOTIFICATION_DATA {
+    LDR_DLL_LOADED_NOTIFICATION_DATA Loaded;
+    LDR_DLL_UNLOADED_NOTIFICATION_DATA Unloaded;
+} LDR_DLL_NOTIFICATION_DATA, *PLDR_DLL_NOTIFICATION_DATA;
+
+using PLDR_DLL_NOTIFICATION_FUNCTION = void (*)(
+  ULONG                       NotificationReason,
+  PLDR_DLL_NOTIFICATION_DATA NotificationData,
+  PVOID                       Context
+);
+
+using LdrRegisterDllNotification_t = NTSTATUS (*) (
+    ULONG                          Flags,
+    PLDR_DLL_NOTIFICATION_FUNCTION NotificationFunction,
+    PVOID                          Context,
+    PVOID                          *Cookie
+);
+
+#define LDR_DLL_NOTIFICATION_REASON_LOADED 1
+#define LDR_DLL_NOTIFICATION_REASON_UNLOADED 2
+
+std::optional<std::filesystem::path> g_current_game_path{};
+bool g_success_made_ldr_notification{false};
+
+void CALLBACK ldr_notification_callback(
+    ULONG                       NotificationReason,
+    PLDR_DLL_NOTIFICATION_DATA NotificationData,
+    PVOID                       Context
+) 
+try {
+    // From what I can tell, the PEB entries get filled in by the time this is called
+    // so we're good.
+    if (NotificationReason == LDR_DLL_NOTIFICATION_REASON_LOADED) {
+        if (NotificationData->Loaded.BaseDllName != nullptr && NotificationData->Loaded.BaseDllName->Buffer != nullptr) {
+            std::wstring base_dll_name = NotificationData->Loaded.BaseDllName->Buffer;
+            spdlog::info("LdrRegisterDllNotification: Loaded: {}", utility::narrow(base_dll_name));
+        }
+
+        if (g_current_game_path && NotificationData->Loaded.FullDllName != nullptr && NotificationData->Loaded.FullDllName->Buffer != nullptr) {
+            std::wstring full_dll_name = NotificationData->Loaded.FullDllName->Buffer;
+            std::filesystem::path full_dll_path = full_dll_name;
+
+            if (full_dll_path.parent_path() == *g_current_game_path) {
+                spdlog::info("LdrRegisterDllNotification: DLL loaded from game directory: {}", utility::narrow(full_dll_name));
+
+#if defined(DD2) || defined(MHRISE)
+                utility::spoof_module_paths_in_exe_dir();
+#endif
+            }
+        } else {
+            spdlog::info("LdrRegisterDllNotification: DLL loaded from unknown location");
+        }
+    }
+} catch (const std::exception& e) {
+    spdlog::error("ldr_notification_callback: Exception occurred: {}", e.what());
+} catch(...) {
+    spdlog::error("ldr_notification_callback: Unknown exception occurred");
+}
+
 typedef NTSTATUS (WINAPI* PFN_LdrLockLoaderLock)(ULONG Flags, ULONG *State, ULONG_PTR *Cookie);
 typedef NTSTATUS (WINAPI* PFN_LdrUnlockLoaderLock)(ULONG Flags, ULONG_PTR Cookie);
 
 REFramework::REFramework(HMODULE reframework_module)
-    : m_reframework_module{reframework_module}
-    , m_game_module{GetModuleHandle(0)}
+    : m_game_module{GetModuleHandle(0)}
     , m_logger{spdlog::basic_logger_mt("REFramework", (get_persistent_dir("re2_framework_log.txt")).string(), true)}
     {
+
+    s_reframework_module = reframework_module;
 
     std::scoped_lock __{m_startup_mutex};
 
@@ -161,6 +237,12 @@ REFramework::REFramework(HMODULE reframework_module)
 
     spdlog::info("Game Module Addr: {:x}", (uintptr_t)m_game_module);
     spdlog::info("Game Module Size: {:x}", module_size);
+
+    if (auto current_game_path = utility::get_module_pathw(m_game_module); current_game_path.has_value()) {
+        g_current_game_path = *current_game_path;
+        g_current_game_path = g_current_game_path->parent_path();
+        spdlog::info("Current game path: {}", utility::narrow(g_current_game_path->c_str()));
+    }
 
     // preallocate some memory for minhook to mitigate failures (temporarily at least... this should in theory fail when too many hooks are made)
     // but, 64 slots should be enough for now. 
@@ -217,6 +299,102 @@ REFramework::REFramework(HMODULE reframework_module)
         } else {
             spdlog::info("RtlGetVersion() not found");
         }
+
+        // Do this at least once before setting up our callback.
+#if defined(DD2) || defined(MHRISE)
+        // Pre-emptively copy all DLL files in the current game directory into our _storage_ directory.
+        if (g_current_game_path.has_value()) {
+            const auto dest_path = *g_current_game_path / "_storage_";
+            fs::create_directories(dest_path);
+
+            if (std::filesystem::exists(dest_path)) try {
+                std::error_code directory_ec{};
+                // Locate all DLL files in the current game directory
+                for (const auto& entry : fs::directory_iterator(*g_current_game_path, directory_ec)) try {
+                    const auto entry_path = entry.path();
+                    
+                    if (entry.is_regular_file() && entry_path.extension() == ".dll") {
+                        spdlog::info("Copying DLL file: {}", entry_path.filename().string());
+                        spdlog::info(" Full path: {}", entry_path.string());
+                        const auto final_dest = dest_path / entry_path.filename().string();
+                        spdlog::info(" Destination: {}", final_dest.string());
+                        std::error_code ec{};
+                        fs::copy_file(entry_path, final_dest, fs::copy_options::overwrite_existing, ec);
+
+                        // check if error occurred
+                        if (ec) {
+                            spdlog::error("Failed to copy DLL file: {}", ec.message());
+                        }
+
+                        ec.clear();
+                    }
+                } catch (const std::filesystem::filesystem_error& e) {
+                    spdlog::error("Failed to copy DLL file: {}", e.what());
+                } catch (const std::exception& e) {
+                    spdlog::error("Failed to copy DLL file: {}", e.what());
+                } catch(...) {
+                    spdlog::error("Failed to copy DLL file: unknown exception occurred");
+                }
+
+                if (directory_ec) {
+                    spdlog::error("An error occurred while traversing the game directory: {}", directory_ec.message());
+                }
+
+                // Copy the D3D12/D3D12Core.dll file from the current game directory into our _storage_ directory with the same subdirectory structure.
+                const auto d3d12_path = *g_current_game_path / "D3D12" / "D3D12Core.dll";
+
+                if (std::filesystem::exists(d3d12_path)) try {
+                    spdlog::info("Copying D3D12Core.dll file");
+                    fs::create_directories(dest_path / "D3D12");
+
+                    if (std::filesystem::exists(d3d12_path)) {
+                        spdlog::info("Copying D3D12Core.dll file");
+                        std::error_code ec{};
+                        fs::copy_file(d3d12_path, dest_path / "D3D12" / "D3D12Core.dll", fs::copy_options::overwrite_existing, ec);
+
+                        if (ec) {
+                            spdlog::error("Failed to copy D3D12Core.dll file: {}", ec.message());
+                        }
+
+                        ec.clear();
+                    }
+                } catch (const std::filesystem::filesystem_error& e) {
+                    spdlog::error("Failed to copy D3D12Core.dll file: {}", e.what());
+                } catch (const std::exception& e) {
+                    spdlog::error("Failed to copy D3D12Core.dll file: {}", e.what());
+                } catch(...) {
+                    spdlog::error("Failed to copy D3D12Core.dll file: unknown exception occurred");
+                }
+            } catch (const std::filesystem::filesystem_error& e) {
+                spdlog::error("An error occurred while copying DLL files: {}", e.what());
+            } catch (const std::exception& e) {
+                spdlog::error("An error occurred while copying DLL files: {}", e.what());
+            } catch(...) {
+                spdlog::error("An error occurred while copying DLL files: unknown exception occurred");
+            } else {
+                spdlog::error("Failed to create storage directory");
+            }
+        }
+
+        utility::spoof_module_paths_in_exe_dir();
+#endif
+
+        // Register our LdrRegisterDllNotification callback
+        spdlog::info("Registering LdrRegisterDllNotification callback...");
+        const auto ldr_register_dll_notification = (LdrRegisterDllNotification_t)GetProcAddress(ntdll, "LdrRegisterDllNotification");
+
+        if (ldr_register_dll_notification != nullptr) {
+            PVOID cookie = nullptr;
+            g_success_made_ldr_notification = NT_SUCCESS(ldr_register_dll_notification(0, ldr_notification_callback, nullptr, &cookie));
+
+            if (g_success_made_ldr_notification) {
+                spdlog::info("LdrRegisterDllNotification callback registered successfully");
+            } else {
+                spdlog::info("LdrRegisterDllNotification callback failed to register");
+            }
+        } else {
+            spdlog::info("LdrRegisterDllNotification not found");
+        }
     } else {
         spdlog::info("ntdll.dll not found");
     }
@@ -251,7 +429,10 @@ REFramework::REFramework(HMODULE reframework_module)
     utility::load_module_from_current_directory(L"openxr_loader.dll");
     LoadLibraryA("dxgi.dll");
     LoadLibraryA("d3d11.dll");
-    utility::spoof_module_paths_in_exe_dir();
+
+    if (!g_success_made_ldr_notification) {
+        utility::spoof_module_paths_in_exe_dir();
+    }
 #endif
 
 #if defined(RE8)
@@ -1574,7 +1755,9 @@ bool REFramework::initialize_game_data() {
 
         try {
 #if defined(MHRISE) || defined(DD2)
-            utility::spoof_module_paths_in_exe_dir();
+            if (!g_success_made_ldr_notification) {
+                utility::spoof_module_paths_in_exe_dir();
+            }
 #endif
             reframework::initialize_sdk();
 
@@ -1641,7 +1824,9 @@ bool REFramework::initialize_game_data() {
         }
 
 #if defined(MHRISE) || defined(DD2)
-        utility::spoof_module_paths_in_exe_dir();
+        if (!g_success_made_ldr_notification) {
+            utility::spoof_module_paths_in_exe_dir();
+        }
 #endif
         spdlog::info("Game data initialization thread finished");
     });

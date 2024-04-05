@@ -256,6 +256,12 @@ bool Graphics::on_pre_gui_draw_element(REComponent* gui_element, void* primitive
             game_object->shouldDraw = false;
             return false;
 
+#if defined(DD2)
+        case "ui012203"_fnv:
+            game_object->shouldDraw = false;
+            return false;
+#endif
+
 #if defined(RE4)
         case "Gui_ui2510"_fnv: // Black bars in cutscenes
             game_object->shouldDraw = false;

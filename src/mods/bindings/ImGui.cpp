@@ -10,6 +10,16 @@
 #include "ImGui.hpp"
 
 namespace api::imgui {
+int32_t g_disabled_counts{0};
+
+void cleanup() {
+    for (auto i = 0; i < g_disabled_counts; ++i) {
+        ImGui::EndDisabled();
+    }
+
+    g_disabled_counts = 0;
+}
+
 ImVec2 create_imvec2(sol::object obj) {
     ImVec2 out{ 0.0f, 0.0f };
 
@@ -64,12 +74,14 @@ ImVec4 create_imvec4(sol::object obj) {
     return out;
 };
 
-bool button(const char* label) {
+bool button(const char* label, sol::object size_object) {
     if (label == nullptr) {
         label = "";
     }
 
-    return ImGui::Button(label);
+    const auto size = create_imvec2(size_object);
+
+    return ImGui::Button(label, size);
 }
 
 bool small_button(const char* label) {
@@ -491,6 +503,24 @@ void end_rect(sol::object additional_size_obj, sol::object rounding_obj) {
     maxs.y += additional_size;
 
     ImGui::GetWindowDrawList()->AddRect(mins, maxs, ImGui::GetColorU32(ImGuiCol_Border), ImGui::GetStyle().FrameRounding, ImDrawCornerFlags_All, 1.0f);
+}
+
+void begin_disabled(sol::object disabled_obj) {
+    bool disabled{true};
+
+    if (disabled_obj.is<bool>()) {
+        disabled = disabled_obj.as<bool>();
+    }
+
+    ++g_disabled_counts;
+    ImGui::BeginDisabled(disabled);
+}
+
+void end_disabled() {
+    if (g_disabled_counts > 0) {
+        --g_disabled_counts;
+        ImGui::EndDisabled();
+    }
 }
 
 void separator() {
@@ -1335,6 +1365,49 @@ void draw_list_path_stroke(ImU32 color, bool closed, float thickness) {
 }
 } // namespace api::imgui
 
+// Scroll APIs
+namespace api::imgui {
+float get_scroll_x() {
+    return ImGui::GetScrollX();
+}
+
+float get_scroll_y() {
+    return ImGui::GetScrollY();
+}
+
+void set_scroll_x(float scroll_x) {
+    ImGui::SetScrollX(scroll_x);
+}
+
+void set_scroll_y(float scroll_y) {
+    ImGui::SetScrollY(scroll_y);
+}
+
+float get_scroll_max_x() {
+    return ImGui::GetScrollMaxX();
+}
+
+float get_scroll_max_y() {
+    return ImGui::GetScrollMaxY();
+}
+
+void set_scroll_here_x(float center_x_ratio = 0.5f) {
+    ImGui::SetScrollHereX(center_x_ratio);
+}
+
+void set_scroll_here_y(float center_y_ratio = 0.5f) {
+    ImGui::SetScrollHereY(center_y_ratio);
+}
+
+void set_scroll_from_pos_x(float local_x, float center_x_ratio = 0.5f) {
+    ImGui::SetScrollFromPosX(local_x, center_x_ratio);
+}
+
+void set_scroll_from_pos_y(float local_y, float center_y_ratio = 0.5f) {
+    ImGui::SetScrollFromPosY(local_y, center_y_ratio);
+}
+} // namespace api::imgui
+
 namespace api::draw {
 std::optional<Vector2f> world_to_screen(sol::object world_pos_object) {
     auto scene = sdk::get_current_scene();
@@ -1960,6 +2033,8 @@ void bindings::open_imgui(ScriptState* s) {
     imgui["end_group"] = api::imgui::end_group;
     imgui["begin_rect"] = api::imgui::begin_rect;
     imgui["end_rect"] = api::imgui::end_rect;
+    imgui["begin_disabled"] = api::imgui::begin_disabled;
+    imgui["end_disabled"] = api::imgui::end_disabled;
     imgui["separator"] = api::imgui::separator;
     imgui["spacing"] = api::imgui::spacing;
     imgui["new_line"] = api::imgui::new_line;
@@ -2042,6 +2117,18 @@ void bindings::open_imgui(ScriptState* s) {
     imgui["draw_list_path_clear"] = api::imgui::draw_list_path_clear;
     imgui["draw_list_path_line_to"] = api::imgui::draw_list_path_line_to;
     imgui["draw_list_path_stroke"] = api::imgui::draw_list_path_stroke;
+    
+    // SCROLL APIs
+    imgui["get_scroll_x"] = api::imgui::get_scroll_x;
+    imgui["get_scroll_y"] = api::imgui::get_scroll_y;
+    imgui["set_scroll_x"] = api::imgui::set_scroll_x;
+    imgui["set_scroll_y"] = api::imgui::set_scroll_y;
+    imgui["get_scroll_max_x"] = api::imgui::get_scroll_max_x;
+    imgui["get_scroll_max_y"] = api::imgui::get_scroll_max_y;
+    imgui["set_scroll_here_x"] = api::imgui::set_scroll_here_x;
+    imgui["set_scroll_here_y"] = api::imgui::set_scroll_here_y;
+    imgui["set_scroll_from_pos_x"] = api::imgui::set_scroll_from_pos_x;
+    imgui["set_scroll_from_pos_y"] = api::imgui::set_scroll_from_pos_y;
 
 
     // TABLE APIS

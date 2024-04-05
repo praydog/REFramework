@@ -439,6 +439,7 @@ void ScriptState::on_frame() {
         ScriptRunner::get()->spew_error("Unknown error in on_frame");
     }
 
+    api::imgui::cleanup();
     api::imnodes::cleanup();
 }
 

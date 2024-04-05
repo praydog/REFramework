@@ -18,9 +18,15 @@ FunctionHook::~FunctionHook() {
 }
 
 bool FunctionHook::create() {
+    std::unique_lock _{ m_initialization_mutex };
+
     if (m_target == 0 || m_destination == 0 ) {
         spdlog::error("FunctionHook not initialized");
         return false;
+    }
+
+    if (is_valid_unsafe()) {
+        return true;
     }
 
     try {

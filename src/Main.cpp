@@ -9,12 +9,18 @@
 
 #include <safetyhook/allocator.hpp>
 
+// minhook, used for AllocateBuffer
+extern "C" {
+#include <../buffer.h>
+};
+
 #include "mods/IntegrityCheckBypass.hpp"
 #include "ExceptionHandler.hpp"
 #include "REFramework.hpp"
 
 HMODULE g_dinput = 0;
 std::mutex g_load_mutex{};
+extern bool g_success_made_ldr_notification;
 
 void failed() {
     MessageBox(0, "REFramework: Unable to load the original dinput8.dll. Please report this to the developer.", "REFramework", 0);
@@ -75,17 +81,23 @@ void startup_thread(HMODULE reframework_module) {
 
 #if defined(MHRISE)
         if (our_dll) {
-            utility::spoof_module_paths_in_exe_dir();
+            if (!g_success_made_ldr_notification) {
+                utility::spoof_module_paths_in_exe_dir();
+            }
             utility::unlink(*our_dll);
         }
 #elif defined (DD2)
-        utility::spoof_module_paths_in_exe_dir();
+        if (!g_success_made_ldr_notification) {
+            utility::spoof_module_paths_in_exe_dir();
+        }
 #endif
     }
 }
 
 BOOL APIENTRY DllMain(HANDLE handle, DWORD reason, LPVOID reserved) {
     if (reason == DLL_PROCESS_ATTACH) {
+        REFramework::set_reframework_module((HMODULE)handle);
+
         const auto game = utility::get_executable();
         const auto module_size = utility::get_module_size(game).value_or(0);
         const auto halfway_module = (uintptr_t)game + (module_size / 2);
@@ -101,7 +113,10 @@ BOOL APIENTRY DllMain(HANDLE handle, DWORD reason, LPVOID reserved) {
             requested_size -= 0x1000; // Size of page
         }
 
+        AllocateBuffer((LPVOID)halfway_module); // minhook
+
         IntegrityCheckBypass::setup_pristine_syscall();
+        IntegrityCheckBypass::hook_add_vectored_exception_handler();
 
         CreateThread(nullptr, 0, (LPTHREAD_START_ROUTINE)startup_thread, handle, 0, nullptr);
     }

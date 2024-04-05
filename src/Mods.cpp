@@ -14,6 +14,7 @@
 #include "mods/Scene.hpp"
 #include "mods/ScriptRunner.hpp"
 #include "mods/VR.hpp"
+#include "mods/LooseFileLoader.hpp"
 #include "mods/vr/games/RE8VR.hpp"
 #include "mods/TemporalUpscaler.hpp"
 
@@ -28,6 +29,7 @@ Mods::Mods() {
 
 #ifndef BAREBONES
     m_mods.emplace_back(Hooks::get());
+    m_mods.emplace_back(LooseFileLoader::get());
 
     m_mods.emplace_back(VR::get());
     m_mods.emplace_back(TemporalUpscaler::get());

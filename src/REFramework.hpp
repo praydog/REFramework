@@ -29,7 +29,8 @@ public:
     REFramework(HMODULE reframework_module);
     virtual ~REFramework();
 
-    auto get_reframework_module() const { return m_reframework_module; }
+    static auto get_reframework_module() { return s_reframework_module; }
+    static void set_reframework_module(HMODULE module) { s_reframework_module = module; }
 
     bool is_valid() const { return m_valid; }
 
@@ -154,7 +155,7 @@ private:
 
     void call_on_frame();
 
-    HMODULE m_reframework_module{};
+    static inline HMODULE s_reframework_module{};
 
     bool m_first_frame{true};
     bool m_first_frame_d3d_initialize{true};
