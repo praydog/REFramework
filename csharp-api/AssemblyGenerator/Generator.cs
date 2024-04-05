@@ -277,70 +277,57 @@ public class AssemblyGenerator {
 
         generatedTypes.Add(typeName);
 
-        // Generate starting from topmost parent first
-        if (t.ParentType != null) {
-            compilationUnit = MakeFromTypeEntry(context, t.ParentType.FullName ?? "", t.ParentType);
-        }
+        if (t.IsEnum()) {
+            var generator = new EnumGenerator(typeName, t);
 
-        /*var methods = t.Methods;
-        var fixedMethods = methods?
-            .Select(methodPair => {
-                var method = methodPair.Value;
-                var methodName = Il2CppDump.StripMethodName(method);
-                return (methodName, method);
-            })
-            .GroupBy(pair => pair.methodName)
-            .Select(group => group.First()) // Selects the first method of each group
-            .ToDictionary(pair => pair.methodName, pair => pair.method);*/
+            if (generator.EnumDeclaration == null) {
+                return compilationUnit;
+            }
 
-        // Make methods a SortedSet of method names
-        HashSet<REFrameworkNET.Method> methods = [];
+            var generatedNamespace = ExtractNamespaceFromType(t);
 
-        foreach (var method in t.Methods) {
-            //methods.Add(method);
-            if (!methods.Select(m => m.Name).Contains(method.Name)) {
-                if (method.DeclaringType == t) { // really important
-                    methods.Add(method);
+            if (generatedNamespace != null) {
+                var myNamespace = SyntaxTreeBuilder.AddMembersToNamespace(generatedNamespace, generator.EnumDeclaration);
+                compilationUnit = SyntaxTreeBuilder.AddMembersToCompilationUnit(compilationUnit, myNamespace);
+            } else {
+                Console.WriteLine("Failed to create namespace for " + typeName);
+            }
+        } else {
+            // Generate starting from topmost parent first
+            if (t.ParentType != null) {
+                compilationUnit = MakeFromTypeEntry(context, t.ParentType.FullName ?? "", t.ParentType);
+            }
+
+            // Make methods a SortedSet of method names
+            HashSet<REFrameworkNET.Method> methods = [];
+
+            foreach (var method in t.Methods) {
+                //methods.Add(method);
+                if (!methods.Select(m => m.Name).Contains(method.Name)) {
+                    if (method.DeclaringType == t) { // really important
+                        methods.Add(method);
+                    }
                 }
             }
-        }
 
-        var generator = new ClassGenerator(
-            typeName.Split('.').Last() == "file" ? typeName.Replace("file", "@file") : typeName,
-            t,
-            [.. methods]
-        );
+            var generator = new ClassGenerator(
+                typeName.Split('.').Last() == "file" ? typeName.Replace("file", "@file") : typeName,
+                t,
+                [.. methods]
+            );
 
-        if (generator.TypeDeclaration == null) {
-            return compilationUnit;
-        }
+            if (generator.TypeDeclaration == null) {
+                return compilationUnit;
+            }
 
-        var generatedNamespace = ExtractNamespaceFromType(t);
+            var generatedNamespace = ExtractNamespaceFromType(t);
 
-        if (generatedNamespace != null) {
-            // Split the using types by their namespace
-            /*foreach(var ut in usingTypes) {
-                var ns = ExtractNamespaceFromTypeName(context, ut.Name ?? "");
-
-                if (ns != null) {
-                    generatedNamespace = generatedNamespace.AddUsings(SyntaxFactory.UsingDirective(SyntaxFactory.ParseName(ut.Name ?? "")));
-                }
-            }*/
-
-            var myNamespace = SyntaxTreeBuilder.AddMembersToNamespace(generatedNamespace, generator.TypeDeclaration);
-
-            /*compilationUnit = compilationUnit.AddUsings(usingTypes.Select(
-                type =>  {
-                    var ret = SyntaxFactory.UsingDirective (SyntaxFactory.ParseName(type.Name ?? ""));
-                    System.Console.WriteLine(ret.GetText());
-
-                    return ret;
-                }
-            ).ToArray());*/
-
-            compilationUnit = SyntaxTreeBuilder.AddMembersToCompilationUnit(compilationUnit, myNamespace);
-        } else {
-            Console.WriteLine("Failed to create namespace for " + typeName);
+            if (generatedNamespace != null) {
+                var myNamespace = SyntaxTreeBuilder.AddMembersToNamespace(generatedNamespace, generator.TypeDeclaration);
+                compilationUnit = SyntaxTreeBuilder.AddMembersToCompilationUnit(compilationUnit, myNamespace);
+            } else {
+                Console.WriteLine("Failed to create namespace for " + typeName);
+            }
         }
 
         return compilationUnit;

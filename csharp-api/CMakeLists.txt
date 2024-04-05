@@ -239,6 +239,7 @@ set_target_properties(csharp-api PROPERTIES VS_PACKAGE_REFERENCES "REFCSharpComp
 # Target: AssemblyGenerator
 set(AssemblyGenerator_SOURCES
 	"AssemblyGenerator/ClassGenerator.cs"
+	"AssemblyGenerator/EnumGenerator.cs"
 	"AssemblyGenerator/Generator.cs"
 	"AssemblyGenerator/SyntaxTreeBuilder.cs"
 	cmake.toml
