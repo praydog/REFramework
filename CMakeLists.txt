@@ -114,13 +114,13 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(directxtk12)
 
-message(STATUS "Fetching safetyhook (44200343bf803f78862426e301e9382e5b28ea2c)...")
+message(STATUS "Fetching safetyhook (4faf792c2d66cbf06f2c942561d053aafd79006b)...")
 FetchContent_Declare(
 	safetyhook
 	GIT_REPOSITORY
 		https://github.com/cursey/safetyhook
 	GIT_TAG
-		44200343bf803f78862426e301e9382e5b28ea2c
+		4faf792c2d66cbf06f2c942561d053aafd79006b
 )
 FetchContent_MakeAvailable(safetyhook)
 

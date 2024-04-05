@@ -114,7 +114,7 @@ condition = "build-framework-dependencies"
 
 [fetch-content.safetyhook]
 git = "https://github.com/cursey/safetyhook"
-tag = "44200343bf803f78862426e301e9382e5b28ea2c"
+tag = "4faf792c2d66cbf06f2c942561d053aafd79006b"
 
 [target.imgui]
 type = "static"
