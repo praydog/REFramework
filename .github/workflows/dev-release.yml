@@ -40,11 +40,6 @@ jobs:
           7z a ${{github.workspace}}/${{matrix.target}}.zip ${{github.workspace}}/scripts
           7z rn ${{github.workspace}}/${{matrix.target}}.zip scripts reframework/autorun
 
-      - name: Hash zip
-        run: |
-          $ReleaseHash = Get-FileHash -Algorithm SHA256 ${{github.workspace}}/${{matrix.target}}.zip
-          $ReleaseHash.Hash | Out-File -FilePath ${{github.workspace}}/${{matrix.target}}.zip.sha256
-
       - name: Create Release
         if: github.ref == 'refs/heads/master'
         uses: ncipollo/release-action@6c75be85e571768fa31b40abf38de58ba0397db5
@@ -54,7 +49,8 @@ jobs:
           token: ${{ secrets.REPO_TOKEN }}
           name: ${{format('REF Nightly {0} ({1})', github.run_number, github.sha)}}
           tag: ${{format('nightly-{0}-{1}', github.run_number, github.sha)}}
-          artifacts: "${{github.workspace}}/${{matrix.target}}.zip,${{github.workspace}}/${{matrix.target}}.zip.sha256"
+          artifacts: "${{github.workspace}}/${{matrix.target}}.zip"
           makeLatest: true
           bodyFile: ${{github.workspace}}/nightly-body.md
+          allowUpdates: true
 
