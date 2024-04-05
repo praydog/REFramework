@@ -303,6 +303,8 @@ public:
         }
     }
 
+    bool HasAttribute(REFrameworkNET::ManagedObject^ runtimeAttribute, bool inherit);
+
     /*Void* GetInstance()
     {
         return m_type->get_instance();

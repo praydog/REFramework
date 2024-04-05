@@ -149,4 +149,24 @@ namespace REFrameworkNET {
     T TypeDefinition::As() {
         return NativeProxy<T>::Create(gcnew NativeObject(this));
     }
+
+    bool TypeDefinition::HasAttribute(REFrameworkNET::ManagedObject^ runtimeAttribute, bool inherit) {
+        if (runtimeAttribute == nullptr) {
+            return false;
+        }
+
+        auto runtimeType = this->GetRuntimeType();
+
+        if (runtimeType == nullptr) {
+            return false;
+        }
+
+        auto attributes = (ManagedObject^)runtimeType->Call("GetCustomAttributes(System.Type, System.Boolean)", runtimeAttribute, inherit);
+
+        if (attributes == nullptr) {
+            return false;
+        }
+
+        return (int)attributes->Call("GetLength", gcnew System::Int32(0)) > 0;
+    }
 }
