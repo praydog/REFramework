@@ -5,6 +5,7 @@
 #include <utility/String.hpp>
 #include <utility/Memory.hpp>
 
+#include "sdk/GUIPrimitiveSystem.hpp"
 #include "sdk/Application.hpp"
 
 #include "Hooks.hpp"
@@ -862,6 +863,21 @@ void Hooks::global_application_entry_hook_internal(void* entry, const char* name
         if (m_ignored_application_entries.contains(hash)) {
             return;
         }
+    }
+
+    if (hash == "BeginRendering"_fnv) {
+#if TDB_VER >= 73
+    if (auto primitive_system = sdk::gui::renderer::PrimitiveSystem::get(); primitive_system != nullptr) {
+        auto primitive_buffer = primitive_system->get_primitive_buffer();
+        
+        if (primitive_buffer != nullptr) {
+            if (primitive_buffer->scratch.used >= primitive_buffer->scratch.size) {
+                spdlog::info("[GUI] Resizing scratch buffer from {} to {}", primitive_buffer->scratch.size, primitive_buffer->scratch.size * 2);
+                primitive_buffer->scratch.resize(primitive_buffer->scratch.size * 2);
+            }
+        }
+    }
+#endif
     }
 
     if (m_profiling_enabled) {

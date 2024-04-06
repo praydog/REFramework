@@ -63,8 +63,11 @@ void deallocate(void* ptr) {
 
         spdlog::info("[via::memory::deallocate] Found allocate function at {:x}", (uintptr_t)allocate_fn);
 
+        const auto decoded_insn = utility::decode_one((uint8_t*)allocate_fn);
+        const auto first_insn_size = decoded_insn.has_value() ? decoded_insn->Length : 1;
+
         // Scan until we hit a jmp.
-        ref = utility::scan_opcode((uintptr_t)allocate_fn + 1, 50, 0xE9);
+        ref = utility::scan_opcode((uintptr_t)allocate_fn + first_insn_size, 50, 0xE9);
 
         if (!ref) {
             spdlog::error("[via::memory::deallocate] Failed to find deallocate function!");
@@ -79,6 +82,28 @@ void deallocate(void* ptr) {
     }();
 
     deallocate_fn(ptr);
+}
+
+// so this is a bit strange that we need the old size
+// but its because we dont know the size of the memory block as we havent mapped out the memory allocator
+void* reallocate(void* ptr, size_t old_size, size_t size) {
+    if (ptr == nullptr) {
+        return allocate(size);
+    }
+
+    if (old_size == size) {
+        return ptr;
+    }
+
+    // There is no function for this so we have to do it manually
+    auto new_mem = allocate(size);
+
+    const auto final_size = std::min<size_t>(old_size, size);
+    memcpy(new_mem, ptr, final_size);
+
+    deallocate(ptr);
+
+    return new_mem;
 }
 }
 }
