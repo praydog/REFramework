@@ -162,6 +162,9 @@ public:
 
     MethodHook^ AddHook(bool ignore_jmp);
 
+    ManagedObject^ GetRuntimeMethod();
+    bool IsOverride();
+
 public:
     virtual bool Equals(System::Object^ other) override {
         if (System::Object::ReferenceEquals(this, other)) {
