@@ -124,30 +124,30 @@ public class ClassGenerator {
         return outSyntax;
     }
     
+    static readonly SortedSet<string> invalidMethodNames = [
+        "Finalize",
+        "MemberwiseClone",
+        "ToString",
+        "Equals",
+        "GetHashCode",
+        "GetType",
+        ".ctor",
+        ".cctor",
+        "op_Implicit",
+        "op_Explicit",
+        /*"op_Addition",
+        "op_Subtraction",
+        "op_Multiply",
+        "op_Division",
+        "op_Modulus",
+        "op_BitwiseAnd",
+        "op_BitwiseOr",
+        "op_ExclusiveOr",*/
+        
+    ];
+
     private TypeDeclarationSyntax? Generate() {
         usingTypes = [];
-
-        SortedSet<string> invalidMethodNames = new SortedSet<string> {
-            "Finalize",
-            "MemberwiseClone",
-            "ToString",
-            "Equals",
-            "GetHashCode",
-            "GetType",
-            ".ctor",
-            ".cctor",
-            "op_Implicit",
-            "op_Explicit",
-            /*"op_Addition",
-            "op_Subtraction",
-            "op_Multiply",
-            "op_Division",
-            "op_Modulus",
-            "op_BitwiseAnd",
-            "op_BitwiseOr",
-            "op_ExclusiveOr",*/
-            
-        };
 
         var ogClassName = new string(className);
 
@@ -212,7 +212,7 @@ public class ClassGenerator {
                 if (method.Parameters.Count > 0) {
                     methodDeclaration = methodDeclaration.AddParameterListParameters(method.Parameters.Where(param => param != null && param.Type != null && param.Name != null).Select(param => {
                         return SyntaxFactory.Parameter(SyntaxFactory.Identifier(param.Name ?? "UnknownParam"))
-                            .WithType(SyntaxFactory.ParseTypeName(/*param.Type ??*/ "object"));
+                            .WithType(SyntaxFactory.ParseTypeName(param.Type != null ? MakeProperType(param.Type, t).ToString() : "object"));
                     }).ToArray());
                 }
 
