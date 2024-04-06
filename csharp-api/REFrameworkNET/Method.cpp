@@ -173,6 +173,12 @@ bool Method::HandleInvokeMember_Internal(System::Object^ obj, System::String^ me
                 return true;
             }
 
+            if (returnType->GetVMObjType() == VMObjType::Array) {
+                // TODO? Implement array
+                result = gcnew REFrameworkNET::ManagedObject((::REFrameworkManagedObjectHandle)tempResult->QWord);
+                return true;
+            }
+
             // TODO: other managed types
             result = gcnew REFrameworkNET::NativeObject((uintptr_t)tempResult->QWord, returnType);
             return true;
