@@ -20,6 +20,80 @@ MethodHook^ Method::AddHook(bool ignore_jmp) {
     return MethodHook::Create(this, ignore_jmp);
 }
 
+ManagedObject^ Method::GetRuntimeMethod() {
+    auto declaringType = this->GetDeclaringType();
+
+    if (declaringType == nullptr) {
+        return nullptr;
+    }
+
+    // System.Type
+    auto runtimeType = declaringType->GetRuntimeType()/*->As<System::Type^>()*/;
+
+    if (runtimeType == nullptr) {
+        return nullptr;
+    }
+
+    // Iterate over all methods in the runtime type
+    auto methods = (REFrameworkNET::ManagedObject^)runtimeType->Call("GetMethods(System.Reflection.BindingFlags)", System::Reflection::BindingFlags::Public | System::Reflection::BindingFlags::NonPublic | System::Reflection::BindingFlags::Instance | System::Reflection::BindingFlags::Static);
+
+    if (methods != nullptr) {
+        auto methodDefName = this->Name;
+        for each (REFrameworkNET::ManagedObject^ method in methods) {
+            // Get the type handle and compare it to this (raw pointer stored in the Method object)
+            // System.RuntimeMethodHandle automatically gets converted to a Method object
+            auto methodHandle = (Method^)method->Call("get_MethodHandle");
+
+            if (methodHandle == nullptr) {
+                continue;
+            }
+
+            if (methodHandle->GetRaw() == this->GetRaw()) {
+                return method;
+            }
+        }
+    }
+
+    return nullptr;
+}
+
+bool Method::IsOverride() {
+    auto declaringType = this->GetDeclaringType();
+
+    if (declaringType == nullptr) {
+        return false;
+    }
+
+    if (declaringType->ParentType == nullptr) {
+        return false;
+    }
+
+    auto returnType = this->GetReturnType();
+    auto parameters = this->GetParameters();
+
+    for (auto parentType = declaringType->ParentType; parentType != nullptr; parentType = parentType->ParentType) {
+        auto parentMethods = parentType->GetMethods();
+
+        for each (auto parentMethod in parentMethods) {
+            if (parentMethod->Name != this->Name) {
+                continue;
+            }
+
+            if (parentMethod->GetReturnType() != returnType) {
+                continue;
+            }
+
+            if (parentMethod->GetNumParams() != parameters->Count) {
+                continue;
+            }
+
+            return true; // TODO: more checks
+        }
+    }
+
+    return false;
+}
+
 REFrameworkNET::InvokeRet^ Method::Invoke(System::Object^ obj, array<System::Object^>^ args) {
     if (obj == nullptr && !this->IsStatic()) {
         System::String^ declaringName = this->GetDeclaringType() != nullptr ? this->GetDeclaringType()->GetFullName() : gcnew System::String("UnknownType");
