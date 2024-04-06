@@ -189,13 +189,15 @@ public class ClassGenerator {
                 var methodName = new string(method.Name);
                 var methodExtension = Il2CppDump.GetMethodExtension(method);
 
-                if (methodExtension != null && methodExtension.Override != null && methodExtension.Override == true) {
-                    methodName += "_" + className.Replace('.', '_');
-                }
-
                 var methodDeclaration = SyntaxFactory.MethodDeclaration(returnType, methodName ?? "UnknownMethod")
                     .AddModifiers(new SyntaxToken[]{SyntaxFactory.Token(SyntaxKind.PublicKeyword)})
                     /*.AddBodyStatements(SyntaxFactory.ParseStatement("throw new System.NotImplementedException();"))*/;
+
+                if (methodExtension != null && methodExtension.Override != null && methodExtension.Override == true) {
+                    //methodName += "_" + className.Replace('.', '_');
+
+                    methodDeclaration = methodDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.NewKeyword));
+                }
 
                 if (wantsAbstractInstead) {
                     methodDeclaration = methodDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.AbstractKeyword));
@@ -293,9 +295,10 @@ public class ClassGenerator {
                 nestedTypeName = nestedTypeName.Replace("file", "@file");
             }
 
+            // Enum
             if (nestedT.IsEnum()) {
                 var nestedEnumGenerator = new EnumGenerator(nestedTypeName.Split('.').Last(), nestedT);
-                
+
                 if (nestedEnumGenerator.EnumDeclaration != null) {
                     this.Update(this.typeDeclaration.AddMembers(nestedEnumGenerator.EnumDeclaration));
                 }
@@ -303,6 +306,7 @@ public class ClassGenerator {
                 continue;
             }
 
+            // Class
             HashSet<REFrameworkNET.Method> nestedMethods = [];
 
             foreach (var method in nestedT.Methods) {
