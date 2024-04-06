@@ -64,7 +64,7 @@ jobs:
           token: ${{ secrets.REPO_TOKEN }}
           name: ${{format('REF Nightly {0} ({1})', github.run_number, github.sha)}}
           tag: ${{format('nightly-{0}-{1}', github.run_number, github.sha)}}
-          artifacts: ${{github.workspace}}/artifacts/**.zip
+          artifacts: ${{github.workspace}}/artifacts/**/*.zip
           makeLatest: true
           bodyFile: ${{github.workspace}}/nightly-body.md
           allowUpdates: true
