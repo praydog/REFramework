@@ -293,6 +293,16 @@ public class ClassGenerator {
                 nestedTypeName = nestedTypeName.Replace("file", "@file");
             }
 
+            if (nestedT.IsEnum()) {
+                var nestedEnumGenerator = new EnumGenerator(nestedTypeName.Split('.').Last(), nestedT);
+                
+                if (nestedEnumGenerator.EnumDeclaration != null) {
+                    this.Update(this.typeDeclaration.AddMembers(nestedEnumGenerator.EnumDeclaration));
+                }
+
+                continue;
+            }
+
             HashSet<REFrameworkNET.Method> nestedMethods = [];
 
             foreach (var method in nestedT.Methods) {
