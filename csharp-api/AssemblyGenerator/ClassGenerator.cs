@@ -38,6 +38,91 @@ public class ClassGenerator {
 
         typeDeclaration = Generate();
     }
+
+    private static TypeSyntax MakeProperType(REFrameworkNET.TypeDefinition? targetType, REFrameworkNET.TypeDefinition? containingType) {
+        TypeSyntax outSyntax = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.VoidKeyword));
+
+        string targetTypeName = targetType != null ? targetType.GetFullName() : "";
+
+        if (targetType == null || targetTypeName == "System.Void" || targetTypeName == "") {
+            return outSyntax;
+        }
+
+        // Check for easily convertible types like System.Single, System.Int32, etc.
+        switch (targetTypeName) { 
+            case "System.Single":
+                outSyntax = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.FloatKeyword));
+                break;
+            case "System.Double":
+                outSyntax = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.DoubleKeyword));
+                break;
+            case "System.Int32":
+                outSyntax = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.IntKeyword));
+                break;
+            case "System.UInt32":
+                outSyntax = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.UIntKeyword));
+                break;
+            case "System.Int64":
+            case "System.IntPtr":
+                outSyntax = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.LongKeyword));
+                break;
+            case "System.UInt64":
+            case "System.UIntPtr":
+                outSyntax = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.ULongKeyword));
+                break;
+            case "System.Boolean":
+                outSyntax = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.BoolKeyword));
+                break;
+            case "System.String":
+                outSyntax = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.StringKeyword));
+                break;
+            case "via.clr.ManagedObject":
+            case "System.Object":
+                outSyntax = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.ObjectKeyword));
+                break;
+            default:
+                if (targetType != null && targetTypeName != "") {
+                    if (!REFrameworkNET.AssemblyGenerator.validTypes.Contains(targetTypeName)) {
+                        outSyntax = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.ObjectKeyword));
+                        break;
+                    }
+
+                    if (targetTypeName.Contains('<') || targetTypeName.Contains('[')) {
+                        outSyntax = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.ObjectKeyword));
+                        break;
+                    }
+
+                    // Stuff in System should NOT be referencing via
+                    // how is this even compiling for them?
+                    if (containingType != null) {
+                        var ogClassName = containingType.GetFullName();
+                        
+                        if (ogClassName.StartsWith("System") && targetTypeName.StartsWith("via")) {
+                            //REFrameworkNET.API.LogWarning("Method " + ogClassName + "." + method.Name + " is referencing via class " + methodReturnName);
+                            outSyntax = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.ObjectKeyword));
+                            break;
+                        }
+
+                        if (ogClassName.StartsWith("System") && targetTypeName.StartsWith("app.")) {
+                            //EFrameworkNET.API.LogWarning("Method " + ogClassName + "." + method.Name + " is referencing app class " + methodReturnName);
+                            outSyntax = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.ObjectKeyword));
+                            break;
+                        }
+                    }
+
+
+                    targetTypeName = "global::" + REFrameworkNET.AssemblyGenerator.CorrectTypeName(targetTypeName);
+
+                    outSyntax = SyntaxFactory.ParseTypeName(targetTypeName);
+                    break;
+                }
+
+                outSyntax = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.ObjectKeyword));
+                break;
+        }
+        
+        return outSyntax;
+    }
     
     private TypeDeclarationSyntax? Generate() {
         usingTypes = [];
@@ -105,86 +190,7 @@ public class ClassGenerator {
 
         typeDeclaration = typeDeclaration
             .AddMembers(methods.Where(method => !invalidMethodNames.Contains(method.Name) && !method.Name.Contains('<')).Select(method => {
-                TypeSyntax? returnType = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.VoidKeyword));
-
-                var methodReturnT = method.ReturnType;
-                string methodReturnName = methodReturnT != null ? methodReturnT.GetFullName() : "";
-
-                if (methodReturnT != null && methodReturnName != "System.Void" && methodReturnName != "") {
-                    // Check for easily convertible types like System.Single, System.Int32, etc.
-                    switch (methodReturnName) { 
-                        case "System.Single":
-                            returnType = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.FloatKeyword));
-                            break;
-                        case "System.Double":
-                            returnType = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.DoubleKeyword));
-                            break;
-                        case "System.Int32":
-                            returnType = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.IntKeyword));
-                            break;
-                        case "System.UInt32":
-                            returnType = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.UIntKeyword));
-                            break;
-                        case "System.Int64":
-                        case "System.IntPtr":
-                            returnType = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.LongKeyword));
-                            break;
-                        case "System.UInt64":
-                        case "System.UIntPtr":
-                            returnType = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.ULongKeyword));
-                            break;
-                        case "System.Boolean":
-                            returnType = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.BoolKeyword));
-                            break;
-                        case "System.String":
-                            returnType = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.StringKeyword));
-                            break;
-                        case "via.clr.ManagedObject":
-                        case "System.Object":
-                            returnType = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.ObjectKeyword));
-                            break;
-                        default:
-                            if (methodReturnT != null && methodReturnName != "") {
-                                if (!REFrameworkNET.AssemblyGenerator.validTypes.Contains(methodReturnName)) {
-                                    returnType = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.ObjectKeyword));
-                                    break;
-                                }
-
-                                if (methodReturnName.Contains('<') || methodReturnName.Contains('[')) {
-                                    returnType = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.ObjectKeyword));
-                                    break;
-                                }
-
-                                /*if (methodReturnName.StartsWith("System.") || !methodReturnName.StartsWith("via.")) {
-                                    returnType = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.ObjectKeyword));
-                                    break;
-                                }*/
-
-                                // Stuff in System should NOT be referencing via
-                                // how is this even compiling for them?
-                                if (ogClassName.StartsWith("System") && methodReturnName.StartsWith("via")) {
-                                    REFrameworkNET.API.LogWarning("Method " + ogClassName + "." + method.Name + " is referencing via class " + methodReturnName);
-                                    returnType = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.ObjectKeyword));
-                                    break;
-                                }
-
-                                if (ogClassName.StartsWith("System") && methodReturnName.StartsWith("app.")) {
-                                    REFrameworkNET.API.LogWarning("Method " + ogClassName + "." + method.Name + " is referencing app class " + methodReturnName);
-                                    returnType = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.ObjectKeyword));
-                                    break;
-                                }
-
-
-                                methodReturnName = "global::" + REFrameworkNET.AssemblyGenerator.CorrectTypeName(methodReturnName);
-
-                                returnType = SyntaxFactory.ParseTypeName(methodReturnName);
-                                break;
-                            }
-
-                            returnType = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.ObjectKeyword));
-                            break;
-                    }
-                }
+                TypeSyntax? returnType = MakeProperType(method.ReturnType, t);
 
                 var methodName = new string(method.Name);
                 var methodExtension = Il2CppDump.GetMethodExtension(method);
