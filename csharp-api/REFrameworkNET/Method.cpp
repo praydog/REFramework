@@ -114,9 +114,16 @@ REFrameworkNET::InvokeRet^ Method::Invoke(System::Object^ obj, array<System::Obj
             }
 
             //args2[i] = args[i]->ptr();
-            const auto t = args[i]->GetType();
+            auto t = args[i]->GetType();
+            System::Object^ arg = args[i];
 
-            if (t->IsSubclassOf(REFrameworkNET::IObject::typeid)) {
+            if (t->IsEnum) {
+                auto underlyingType = System::Enum::GetUnderlyingType(t);
+                arg = System::Convert::ChangeType(args[i], underlyingType);
+                t = underlyingType;
+            }
+
+            if (REFrameworkNET::IObject::typeid->IsAssignableFrom(t)) {
                 auto iobj = safe_cast<REFrameworkNET::IObject^>(args[i]);
                 args2[i] = iobj->Ptr();
             } else if (t == REFrameworkNET::TypeDefinition::typeid) {
@@ -139,40 +146,40 @@ REFrameworkNET::InvokeRet^ Method::Invoke(System::Object^ obj, array<System::Obj
                     System::Console::WriteLine("Error creating string @ arg " + i);
                 }
             } else if (t == System::Boolean::typeid) {
-                bool v = System::Convert::ToBoolean(args[i]);
+                bool v = System::Convert::ToBoolean(arg);
                 args2[i] = (void*)(intptr_t)v;
             } else if (t == System::Int32::typeid) {
-                int32_t v = System::Convert::ToInt32(args[i]);
+                int32_t v = System::Convert::ToInt32(arg);
                 args2[i] = (void*)(intptr_t)v;
             } else if (t == System::Byte::typeid) {
-                uint8_t v = System::Convert::ToByte(args[i]);
+                uint8_t v = System::Convert::ToByte(arg);
                 args2[i] = (void*)(uint64_t)v;
             } else if (t == System::UInt16::typeid) {
-                uint16_t v = System::Convert::ToUInt16(args[i]);
+                uint16_t v = System::Convert::ToUInt16(arg);
                 args2[i] = (void*)(uint64_t)v;
             } else if (t == System::UInt32::typeid) {
-                uint32_t v = System::Convert::ToUInt32(args[i]);
+                uint32_t v = System::Convert::ToUInt32(arg);
                 args2[i] = (void*)(uint64_t)v;
             } else if (t == System::Single::typeid) {
                 // this might seem counterintuitive, converting a float to a double
                 // but the invoke wrappers ALWAYS expect a double, so we need to do this
                 // even when they take a System.Single, the wrappers take in a double and convert it to a float
-                float v = System::Convert::ToSingle(args[i]);
+                float v = System::Convert::ToSingle(arg);
                 auto d = (double)v;
                 auto n = *(int64_t*)&d;
                 args2[i] = (void*)(uint64_t)n;
             } else if (t == System::UInt64::typeid) {
-                uint64_t v = System::Convert::ToUInt64(args[i]);
+                uint64_t v = System::Convert::ToUInt64(arg);
                 args2[i] = (void*)(uint64_t)v;
             } else if (t == System::Double::typeid) {
-                double v = System::Convert::ToDouble(args[i]);
+                double v = System::Convert::ToDouble(arg);
                 auto n = *(int64_t*)&v;
                 args2[i] = (void*)(uint64_t)n;
             } else if (t == System::IntPtr::typeid) {
-                args2[i] = (void*)(uint64_t)System::Convert::ToInt64(args[i]);
+                args2[i] = (void*)(uint64_t)System::Convert::ToInt64(arg);
             } else {
                 args2[i] = nullptr;
-                System::Console::WriteLine("Unknown type passed to method invocation @ arg " + i);
+                System::Console::WriteLine("Unknown type passed to method invocation @ arg " + i + " (" + t->FullName + ")");
             }
         } catch (System::Exception^ e) {
             System::Console::WriteLine("Error converting argument " + i + ": " + e->Message);
