@@ -69,7 +69,7 @@ bool Method::IsOverride() {
     }
 
     auto returnType = this->GetReturnType();
-    auto parameters = this->GetParameters();
+    auto parameters = this->GetParameters()->ToArray();
 
     for (auto parentType = declaringType->ParentType; parentType != nullptr; parentType = parentType->ParentType) {
         auto parentMethods = parentType->GetMethods();
@@ -83,11 +83,32 @@ bool Method::IsOverride() {
                 continue;
             }
 
-            if (parentMethod->GetNumParams() != parameters->Count) {
+            if (parentMethod->GetNumParams() != parameters->Length) {
                 continue;
             }
 
-            return true; // TODO: more checks
+            if (parameters->Length == 0) {
+                return true;
+            }
+
+            auto parentParams = parentMethod->GetParameters()->ToArray();
+            bool fullParamsMatch = true;
+
+            for (int i = 0; i < parameters->Length; ++i) {
+                auto param = parameters[i];
+                auto parentParam = parentParams[i];
+
+                if (param->Type != parentParam->Type) {
+                    fullParamsMatch = false;
+                    break;
+                }
+            }
+
+            if (!fullParamsMatch) {
+                continue;
+            }
+
+            return true;
         }
     }
 
