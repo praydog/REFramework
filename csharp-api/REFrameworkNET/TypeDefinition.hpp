@@ -304,6 +304,13 @@ public:
     }
 
     bool HasAttribute(REFrameworkNET::ManagedObject^ runtimeAttribute, bool inherit);
+    array<TypeDefinition^>^ GetGenericArguments();
+
+    property array<TypeDefinition^>^ GenericArguments {
+        array<TypeDefinition^>^ get() {
+            return GetGenericArguments();
+        }
+    }
 
     /*Void* GetInstance()
     {

@@ -169,4 +169,27 @@ namespace REFrameworkNET {
 
         return (int)attributes->Call("GetLength", gcnew System::Int32(0)) > 0;
     }
+
+    array<TypeDefinition^>^ TypeDefinition::GetGenericArguments() {
+        auto runtimeType = this->GetRuntimeType();
+
+        if (runtimeType == nullptr) {
+            return nullptr;
+        }
+
+        auto arguments = (ManagedObject^)runtimeType->Call("GetGenericArguments");
+
+        if (arguments == nullptr) {
+            return nullptr;
+        }
+
+        auto result = gcnew array<TypeDefinition^>((int)arguments->Call("get_Length", gcnew System::Int32(0)));
+
+        for (int i = 0; i < result->Length; i++) {
+            auto runtimeType = (ManagedObject^)arguments->Call("get_Item", gcnew System::Int32(i));
+            result[i] = (TypeDefinition^)runtimeType->Call("get_TypeHandle");
+        }
+
+        return result;
+    }
 }
