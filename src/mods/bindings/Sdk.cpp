@@ -836,7 +836,10 @@ sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_t
             return sol::make_object(l, ret_val_u);
         }
         case "System.UInt64"_fnv: {
-            auto ret_val_u = *(uint64_t*)data;
+            //auto ret_val_u = *(uint64_t*)data;
+            // so, sol is converting the unsigned version incorrectly into some 1.blah e+19 number
+            // so just return it as signed since Lua only has signed integers
+            auto ret_val_u = *(int64_t*)data;
             return sol::make_object(l, ret_val_u);
         }
         case "via.Float2"_fnv: [[fallthrough]];
@@ -958,10 +961,10 @@ void set_data(void* data, ::sdk::RETypeDefinition* data_type, sol::object& value
             *(int32_t*)data = value.as<int32_t>();
             return;
         case "System.Int64"_fnv:
-            *(int64_t*)data = value.as<int32_t>();
+            *(int64_t*)data = value.as<int64_t>();
             return;
         case "System.UInt64"_fnv:
-            *(uint64_t*)data = value.as<int32_t>();
+            *(int64_t*)data = value.as<int64_t>();
             return;
         case "via.Float2"_fnv: [[fallthrough]];
         case "via.vec2"_fnv:
