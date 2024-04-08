@@ -7,7 +7,7 @@
 #endif
 
 #define REFRAMEWORK_PLUGIN_VERSION_MAJOR 1
-#define REFRAMEWORK_PLUGIN_VERSION_MINOR 8
+#define REFRAMEWORK_PLUGIN_VERSION_MINOR 9
 #define REFRAMEWORK_PLUGIN_VERSION_PATCH 0
 
 #define REFRAMEWORK_RENDERER_D3D11 0
@@ -42,6 +42,7 @@ typedef struct {
     void* user_data;
 } REFImGuiFrameCbData;
 typedef void (*REFOnImGuiFrameCb)(REFImGuiFrameCbData*);
+typedef void (*REFOnImGuiDrawUICb)(REFImGuiFrameCbData*);
 
 typedef struct lua_State* (*REFCreateScriptState)();
 typedef void (*REFDeleteScriptState)(struct lua_State*);
@@ -57,8 +58,7 @@ typedef bool (*REFOnDeviceResetFn)(REFOnDeviceResetCb);
 typedef bool (*REFOnMessageFn)(REFOnMessageCb);
 
 typedef bool (*REFOnImGuiFrameFn)(REFOnImGuiFrameCb);
-
-
+typedef bool (*REFOnImGuiDrawUIFn)(REFOnImGuiDrawUICb);
 
 typedef struct {
     int major;
@@ -87,6 +87,7 @@ typedef struct {
     REFDeleteScriptState delete_script_state;
 
     REFOnImGuiFrameFn on_imgui_frame;
+    REFOnImGuiDrawUIFn on_imgui_draw_ui;
 } REFrameworkPluginFunctions;
 
 typedef struct {

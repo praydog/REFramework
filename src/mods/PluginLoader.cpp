@@ -71,6 +71,7 @@ REFrameworkPluginFunctions g_plugin_functions {
     reframework_destroy_script_state,
 
     reframework_on_imgui_frame,
+    reframework_on_imgui_draw_ui,
 };
 
 REFrameworkSDKFunctions g_sdk_functions {
@@ -897,4 +898,13 @@ bool reframework_on_imgui_frame(REFOnImGuiFrameCb cb) {
     }
 
     return APIProxy::get()->add_on_imgui_frame(cb);
+}
+
+
+bool reframework_on_imgui_draw_ui(REFOnImGuiFrameCb cb) {
+    if (cb == nullptr) {
+        return false;
+    }
+
+    return APIProxy::get()->add_on_imgui_draw_ui(cb);
 }
