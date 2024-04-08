@@ -7,7 +7,7 @@
 #endif
 
 #define REFRAMEWORK_PLUGIN_VERSION_MAJOR 1
-#define REFRAMEWORK_PLUGIN_VERSION_MINOR 7
+#define REFRAMEWORK_PLUGIN_VERSION_MINOR 8
 #define REFRAMEWORK_PLUGIN_VERSION_PATCH 0
 
 #define REFRAMEWORK_RENDERER_D3D11 0
@@ -35,6 +35,14 @@ typedef void (*REFOnPostApplicationEntryCb)();
 typedef void (*REFOnDeviceResetCb)();
 typedef bool (*REFOnMessageCb)(void*, unsigned int, unsigned long long, long long);
 
+typedef struct {
+    void* context;
+    void* malloc_fn;
+    void* free_fn;
+    void* user_data;
+} REFImGuiFrameCbData;
+typedef void (*REFOnImGuiFrameCb)(REFImGuiFrameCbData*);
+
 typedef struct lua_State* (*REFCreateScriptState)();
 typedef void (*REFDeleteScriptState)(struct lua_State*);
 
@@ -47,6 +55,8 @@ typedef bool (*REFOnPostApplicationEntryFn)(const char*, REFOnPostApplicationEnt
 typedef void (*REFLuaLockUnlockFn)();
 typedef bool (*REFOnDeviceResetFn)(REFOnDeviceResetCb);
 typedef bool (*REFOnMessageFn)(REFOnMessageCb);
+
+typedef bool (*REFOnImGuiFrameFn)(REFOnImGuiFrameCb);
 
 
 
@@ -75,6 +85,8 @@ typedef struct {
     bool (*is_drawing_ui)();
     REFCreateScriptState create_script_state;
     REFDeleteScriptState delete_script_state;
+
+    REFOnImGuiFrameFn on_imgui_frame;
 } REFrameworkPluginFunctions;
 
 typedef struct {
