@@ -9,7 +9,8 @@ namespace REFrameworkNET {
 
     generic <class T>
     reframework::API::TypeDefinition* TDB::GetTypeDefinitionPtr() {
-        auto t = REFrameworkNET::API::GetTDB()->GetType(T::typeid->FullName->Replace("+", "."));
+        auto fullName = T::typeid->FullName->Replace("+", ".")->Replace("_System.", "System.");
+        auto t = REFrameworkNET::API::GetTDB()->GetType(fullName);
 
         if (t == nullptr) {
             return nullptr;

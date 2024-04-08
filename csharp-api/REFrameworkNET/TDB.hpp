@@ -23,15 +23,16 @@ public:
     ref class TypeCacher {
     public:
         static REFrameworkNET::TypeDefinition^ GetCachedType() {
-            if (s_cachedType == nullptr) {
-                return nullptr;
+            if (s_cachedManagedType != nullptr) {
+                return s_cachedManagedType;
             }
 
-            return gcnew REFrameworkNET::TypeDefinition(s_cachedType);
+            return s_cachedManagedType;
         }
         
     private:
         static reframework::API::TypeDefinition* s_cachedType = TDB::GetTypeDefinitionPtr<T>();
+        static REFrameworkNET::TypeDefinition^ s_cachedManagedType = s_cachedType != nullptr ? gcnew REFrameworkNET::TypeDefinition(s_cachedType) : nullptr;
     };
 
 public:
