@@ -1418,9 +1418,10 @@ void REFramework::draw_about() {
             std::string text;
         };
 
-        static std::array<License, 15> licenses{
+        static std::array<License, 16> licenses{
             License{ "glm", license::glm },
             License{ "imgui", license::imgui },
+            License{ "cimgui", license::cimgui },
             License{ "minhook", license::minhook },
             License{ "spdlog", license::spdlog },
             License{ "robotomedium", license::roboto },
