@@ -157,6 +157,7 @@ set(csharp-api_SOURCES
 	"REFrameworkNET/MethodHook.hpp"
 	"REFrameworkNET/MethodParameter.hpp"
 	"REFrameworkNET/NativeObject.hpp"
+	"REFrameworkNET/NativeSingleton.hpp"
 	"REFrameworkNET/ObjectEnumerator.hpp"
 	"REFrameworkNET/Plugin.hpp"
 	"REFrameworkNET/PluginLoadContext.hpp"
