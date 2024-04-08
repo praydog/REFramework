@@ -502,7 +502,7 @@ void end_rect(sol::object additional_size_obj, sol::object rounding_obj) {
     maxs.x += additional_size;
     maxs.y += additional_size;
 
-    ImGui::GetWindowDrawList()->AddRect(mins, maxs, ImGui::GetColorU32(ImGuiCol_Border), ImGui::GetStyle().FrameRounding, ImDrawCornerFlags_All, 1.0f);
+    ImGui::GetWindowDrawList()->AddRect(mins, maxs, ImGui::GetColorU32(ImGuiCol_Border), ImGui::GetStyle().FrameRounding, ImDrawFlags_RoundCornersAll, 1.0f);
 }
 
 void begin_disabled(sol::object disabled_obj) {
