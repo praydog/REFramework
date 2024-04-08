@@ -40,6 +40,24 @@ private:
     static System::Collections::Generic::List<System::Reflection::Assembly^>^ s_loaded_assemblies{gcnew System::Collections::Generic::List<System::Reflection::Assembly^>()};
     static System::Collections::Generic::List<System::Reflection::Assembly^>^ s_dynamic_assemblies{gcnew System::Collections::Generic::List<System::Reflection::Assembly^>()};
 
+    static System::Collections::Generic::List<System::Reflection::Assembly^>^ s_dependencies{gcnew System::Collections::Generic::List<System::Reflection::Assembly^>()};
+
     static PluginLoadContext^ s_default_context{nullptr};
+
+    // The main watcher
+    static System::IO::FileSystemWatcher^ s_source_scripts_watcher{nullptr};
+
+    // We also need a watcher list for symlinks that are in the directory
+    static System::Collections::Generic::List<System::IO::FileSystemWatcher^>^ s_symlink_watchers{gcnew System::Collections::Generic::List<System::IO::FileSystemWatcher^>()};
+    static bool s_wants_reload{false};
+
+    static void SetupFileWatcher();
+    static void SetupIndividualFileWatcher(System::String^ p); // individual symlinks
+    static void SetupSymlinkWatchers(System::String^ p); // all symlinks in a directory
+
+    static void OnSourceScriptsChanged(System::Object^ sender, System::IO::FileSystemEventArgs^ e);
+    static void BeginRendering();
+    delegate void BeginRenderingDelegate();
+    static BeginRenderingDelegate^ s_begin_rendering_delegate{gcnew BeginRenderingDelegate(&BeginRendering)};
 };
 }

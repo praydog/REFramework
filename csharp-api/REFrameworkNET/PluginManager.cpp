@@ -185,11 +185,11 @@ namespace REFrameworkNET {
             PluginManager::s_api_instance = gcnew REFrameworkNET::API(param_raw);
             System::Console::WriteLine("Created API instance");
         }
-
-        auto deps = LoadDependencies(); // Pre-loads DLLs in the dependencies folder before loading the plugins
+        
+        s_dependencies = LoadDependencies(); // Pre-loads DLLs in the dependencies folder before loading the plugins
 
         try {
-            GenerateReferenceAssemblies(deps);
+            GenerateReferenceAssemblies(s_dependencies);
         } catch(System::Exception^ e) {
             REFrameworkNET::API::LogError("Could not generate reference assemblies: " + e->Message);
 
@@ -207,7 +207,7 @@ namespace REFrameworkNET {
         // Try-catch because the user might not have the compiler
         // dependencies in the plugins directory
         try {
-            LoadPlugins_FromSourceCode(param_raw, deps);
+            LoadPlugins_FromSourceCode(param_raw, s_dependencies);
         } catch (System::Exception^ e) {
             REFrameworkNET::API::LogError("Could not load plugins from source code: " + e->Message);
 
@@ -266,7 +266,7 @@ namespace REFrameworkNET {
         }
 
         // Unload dynamic assemblies (testing)
-        UnloadDynamicAssemblies();
+        //UnloadDynamicAssemblies();
 
         return true;
     } catch(System::Exception^ e) {
@@ -287,10 +287,107 @@ namespace REFrameworkNET {
         return false;
     }
 
+    void PluginManager::OnSourceScriptsChanged(System::Object^ sender, System::IO::FileSystemEventArgs^ e) {
+        System::Console::WriteLine("Source scripts changed");
+        System::Console::WriteLine("File " + e->FullPath + " " + e->ChangeType.ToString());
+
+        if (e->ChangeType == System::IO::WatcherChangeTypes::Created) {
+            // Add a new symlink watcher if it's a symlink
+            if ((System::IO::File::GetAttributes(e->FullPath) & System::IO::FileAttributes::ReparsePoint) == System::IO::FileAttributes::ReparsePoint) {
+                auto link = (gcnew System::IO::FileInfo(e->FullPath))->LinkTarget;
+
+                if (link != nullptr) {
+                    System::Console::WriteLine("Found symlink " + link);
+                    SetupIndividualFileWatcher(link);
+                }
+            }
+        }
+
+        s_wants_reload = true;
+    }
+
+    void PluginManager::SetupIndividualFileWatcher(System::String^ real_path) {
+        auto directory = System::IO::Path::GetDirectoryName(real_path);
+        auto filename = System::IO::Path::GetFileName(real_path);
+
+        // Make sure we don't already have a watcher for this symlink
+        for each (System::IO::FileSystemWatcher^ watcher in PluginManager::s_symlink_watchers) {
+            if (watcher->Path == directory && watcher->Filter == filename) {
+                System::Console::WriteLine("Already watching file " + real_path);
+                return;
+            }
+        }
+
+        auto watcher = gcnew System::IO::FileSystemWatcher(directory);
+        watcher->Filter = filename;
+        watcher->Changed += gcnew System::IO::FileSystemEventHandler(OnSourceScriptsChanged);
+        watcher->Created += gcnew System::IO::FileSystemEventHandler(OnSourceScriptsChanged);
+        watcher->Deleted += gcnew System::IO::FileSystemEventHandler(OnSourceScriptsChanged);
+        watcher->EnableRaisingEvents = true;
+
+        PluginManager::s_symlink_watchers->Add(watcher);
+    }
+
+    void PluginManager::SetupSymlinkWatchers(System::String^ p) {
+        auto files = System::IO::Directory::GetFiles(p, "*.cs");
+
+        for each (System::String^ file in files) {
+            // Check if symlink
+            if ((System::IO::File::GetAttributes(file) & System::IO::FileAttributes::ReparsePoint) == System::IO::FileAttributes::None) {
+                continue;
+            }
+
+            // Resolve symlink to real path
+            auto real_path = (gcnew System::IO::FileInfo(file))->LinkTarget;
+
+            if (real_path == nullptr) {
+                continue; // only want to watch symlinks.
+            }
+
+            System::Console::WriteLine("Found symlink " + real_path);
+            SetupIndividualFileWatcher(real_path);
+        }
+    }
+
+    void PluginManager::SetupFileWatcher() {
+        if (PluginManager::s_source_scripts_watcher != nullptr) {
+            return;
+        }
+        
+        System::Console::WriteLine("Setting up source scripts watcher...");
+        const auto plugins_path = std::filesystem::current_path() / "reframework" / "plugins";
+        const auto cs_files_path = plugins_path / "source";
+
+        auto p = gcnew System::String(cs_files_path.wstring().c_str());
+        PluginManager::s_source_scripts_watcher = gcnew System::IO::FileSystemWatcher(p);
+        PluginManager::s_source_scripts_watcher->Filter = "*.cs";
+        PluginManager::s_source_scripts_watcher->IncludeSubdirectories = true;
+        PluginManager::s_source_scripts_watcher->Changed += gcnew System::IO::FileSystemEventHandler(OnSourceScriptsChanged);
+        PluginManager::s_source_scripts_watcher->Created += gcnew System::IO::FileSystemEventHandler(OnSourceScriptsChanged);
+        PluginManager::s_source_scripts_watcher->Deleted += gcnew System::IO::FileSystemEventHandler(OnSourceScriptsChanged);
+        PluginManager::s_source_scripts_watcher->EnableRaisingEvents = true;
+
+        // Create individual watchers for each file in the directory as well.
+        // This is because the main watcher doesn't pick up on changes to symlinks
+        SetupSymlinkWatchers(p);
+    }
+
+    void PluginManager::BeginRendering() {
+        if (s_wants_reload) {
+            s_wants_reload = false;
+
+            PluginManager::UnloadDynamicAssemblies();
+            PluginManager::LoadPlugins_FromSourceCode(0, s_dependencies);
+        }
+
+        SetupFileWatcher();
+    }
+
     bool PluginManager::LoadPlugins_FromSourceCode(uintptr_t param_raw, System::Collections::Generic::List<System::Reflection::Assembly^>^ deps) try {
         if (PluginManager::s_api_instance == nullptr) {
             PluginManager::s_api_instance = gcnew REFrameworkNET::API(param_raw);
         }
+
 
         System::Console::WriteLine("Test");
         REFrameworkNET::API::LogInfo("Attempting to load plugins from source code...");
@@ -298,6 +395,12 @@ namespace REFrameworkNET {
         const auto plugins_path = std::filesystem::current_path() / "reframework" / "plugins";
         const auto cs_files_path = plugins_path / "source";
         std::filesystem::create_directories(cs_files_path);
+
+        // Set up a filesystem watcher for the source folder
+        if (PluginManager::s_source_scripts_watcher == nullptr) {
+            auto ptr = System::Runtime::InteropServices::Marshal::GetFunctionPointerForDelegate(s_begin_rendering_delegate).ToPointer();
+            REFrameworkNET::API::GetNativeImplementation()->param()->functions->on_pre_application_entry("BeginRendering", (::REFOnPreApplicationEntryCb)ptr);
+        }
 
         System::String^ cs_files_dir = gcnew System::String(cs_files_path.wstring().c_str());
 
@@ -353,7 +456,7 @@ namespace REFrameworkNET {
 
             // Look for the Main method in the compiled assembly
             for each (Type^ type in assem->GetTypes()) {
-                array<System::Reflection::MethodInfo^>^ methods = type->GetMethods(System::Reflection::BindingFlags::Static | System::Reflection::BindingFlags::Public);
+                array<System::Reflection::MethodInfo^>^ methods = type->GetMethods(System::Reflection::BindingFlags::Static | System::Reflection::BindingFlags::Public | System::Reflection::BindingFlags::NonPublic);
 
                 for each (System::Reflection::MethodInfo^ method in methods) {
                     array<Object^>^ attributes = method->GetCustomAttributes(REFrameworkNET::Attributes::PluginEntryPoint::typeid, true);
