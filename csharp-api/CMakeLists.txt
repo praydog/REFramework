@@ -307,6 +307,7 @@ VS_DOTNET_REFERENCE_REFramework.NET
 if(REFRAMEWORK_REF_ASSEMBLIES_EXIST) # build-csharp-test
 	set(CSharpAPITest_SOURCES
 		"test/Test/Test.cs"
+		"test/Test/Test2.cs"
 		cmake.toml
 	)
 

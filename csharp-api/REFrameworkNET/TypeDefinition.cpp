@@ -170,6 +170,26 @@ namespace REFrameworkNET {
         return (int)attributes->Call("GetLength", gcnew System::Int32(0)) > 0;
     }
 
+    bool TypeDefinition::IsGenericTypeDefinition() {
+        auto runtimeType = this->GetRuntimeType();
+
+        if (runtimeType == nullptr) {
+            return false;
+        }
+
+        return (bool)runtimeType->Call("get_IsGenericTypeDefinition");
+    }
+
+    bool TypeDefinition::IsGenericType() {
+        auto runtimeType = this->GetRuntimeType();
+
+        if (runtimeType == nullptr) {
+            return false;
+        }
+
+        return (bool)runtimeType->Call("get_IsGenericType");
+    }
+
     array<TypeDefinition^>^ TypeDefinition::GetGenericArguments() {
         auto runtimeType = this->GetRuntimeType();
 

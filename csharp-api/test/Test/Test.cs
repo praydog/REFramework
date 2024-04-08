@@ -1,9 +1,10 @@
-// Import REFramework::API
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Dynamic;
 using System.Reflection;
-using app;
+using ImGuiNET;
+using REFrameworkNET.Callbacks;
 
 public class DangerousFunctions {
     public static REFrameworkNET.PreHookResult isInsidePreHook(System.Object args) {
@@ -119,6 +120,72 @@ class REFrameworkPlugin {
         REFrameworkNET.API.LogInfo("Unloading Test");
     }
 
+    static List<_System.Type> nativeSingletonTypes = [];
+
+    public static void RenderNativeSingletons() {
+        var singletons = REFrameworkNET.API.GetNativeSingletons();
+
+        // Sort by type name
+        singletons.Sort((a, b) => a.Instance.GetTypeDefinition().GetFullName().CompareTo(b.Instance.GetTypeDefinition().GetFullName()));
+
+        foreach (var singletonDesc in singletons) {
+            var singleton = singletonDesc.Instance;
+            if (singleton == null) {
+                continue;
+            }
+            var singletonName = singleton.GetTypeDefinition().GetFullName();
+
+            if (ImGui.TreeNode(singletonName)) {
+                var methods = singleton.GetTypeDefinition().GetMethods();
+
+                foreach (var method in methods) {
+                    var returnT = method.GetReturnType();
+                    var returnTName = returnT != null ? returnT.GetFullName() : "null";
+
+                    ImGui.Text(" " + returnTName);
+                    ImGui.SameLine();
+                    
+                    // Set color to blue or something
+                    ImGui.TextColored(new System.Numerics.Vector4(0.0f, 1.0f, 1.0f, 1.0f), method.GetName());
+                }
+
+                var fields = singleton.GetTypeDefinition().GetFields();
+
+                foreach (var field in fields) {
+                    var t = field.GetType();
+                    string tName = t != null ? t.GetFullName() : "null";
+                    ImGui.Text(" " + tName + " " + field.GetName() + " @ " + "0x" + field.GetOffsetFromBase().ToString("X"));
+                }
+
+                ImGui.TreePop();
+            }
+        }
+    }
+
+    public static void RenderManagedSingletons() {
+        var singletons = REFrameworkNET.API.GetManagedSingletons();
+
+        foreach (var singletonDesc in singletons) {
+            var singleton = singletonDesc.Instance;
+            if (singleton == null) {
+                continue;
+            }
+            var singletonName = singleton.GetTypeDefinition().GetFullName();
+
+            if (ImGui.TreeNode(singletonName)) {
+                var fields = singleton.GetTypeDefinition().GetFields();
+
+                foreach (var field in fields) {
+                    var t = field.GetType();
+                    string tName = t != null ? t.GetFullName() : "null";
+                    ImGui.Text(" " + tName + " " + field.GetName() + " @ " + "0x" + field.GetOffsetFromBase().ToString("X"));
+                }
+
+                ImGui.TreePop();
+            }
+        }
+    }
+
     public static void TestCallbacks() {
         REFrameworkNET.Callbacks.BeginRendering.Pre += () => {
             sw.Start();
@@ -156,6 +223,28 @@ class REFrameworkPlugin {
 
         REFrameworkNET.Callbacks.PrepareRendering.Post += () => {
         };
+
+        REFrameworkNET.Callbacks.ImGuiRender.Pre += () => {
+            // Draw a random window
+            if (ImGui.Begin("Test Window")) {
+                ImGui.Text("Hello from ImGui!");
+
+                try {
+                    if (ImGui.TreeNode("Managed Singletons")) {
+                        RenderManagedSingletons();
+                        ImGui.TreePop();
+                    }
+
+                    if (ImGui.TreeNode("Native Singletons")) {
+                        RenderNativeSingletons();
+                    }
+                } catch (Exception e) {
+                    System.Console.WriteLine(e.ToString());
+                }
+
+                ImGui.End();
+            }
+        };
     }
 
     [REFrameworkNET.Attributes.PluginEntryPoint]
@@ -183,7 +272,7 @@ class REFrameworkPlugin {
 
         REFrameworkNET.API.LogInfo(tdb.GetNumTypes().ToString() + " types");
 
-        for (uint i = 0; i < 50; i++) {
+        /*for (uint i = 0; i < 50; i++) {
             var type = tdb.GetType(i);
             REFrameworkNET.API.LogInfo(type.GetFullName());
 
@@ -203,11 +292,11 @@ class REFrameworkPlugin {
                 string tName = t != null ? t.GetFullName() : "null";
                 REFrameworkNET.API.LogInfo(" " + tName + " " + field.GetName() + " @ " + "0x" + field.GetOffsetFromBase().ToString("X"));
             }
-        }
+        }*/
 
         REFrameworkNET.API.LogInfo("Done with types");
 
-        var singletons = REFrameworkNET.API.GetManagedSingletons();
+        /*var singletons = REFrameworkNET.API.GetManagedSingletons();
 
         foreach (var singletonDesc in singletons) {
             var singleton = singletonDesc.Instance;
@@ -235,7 +324,7 @@ class REFrameworkPlugin {
             foreach (var field in fields) {
                 Console.WriteLine(" " + field.GetName());
             }
-        }
+        }*/
 
         try {
             DangerousFunctions.Entry();

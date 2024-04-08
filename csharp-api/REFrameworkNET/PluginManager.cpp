@@ -185,7 +185,11 @@ namespace REFrameworkNET {
             PluginManager::s_api_instance = gcnew REFrameworkNET::API(param_raw);
             System::Console::WriteLine("Created API instance");
         }
-        
+
+        // Must be set up before we load anything as it sets up the LoadLibraryExW hook for cimgui
+        auto imgui_callback_c = System::Runtime::InteropServices::Marshal::GetFunctionPointerForDelegate(s_imgui_callback_delegate).ToPointer();
+        REFrameworkNET::API::GetNativeImplementation()->param()->functions->on_imgui_frame((::REFOnImGuiFrameCb)imgui_callback_c);
+
         s_dependencies = LoadDependencies(); // Pre-loads DLLs in the dependencies folder before loading the plugins
 
         try {
@@ -556,6 +560,51 @@ namespace REFrameworkNET {
             if (!unloaded) {
                 System::Console::WriteLine("Failed to unload default context");
             }
+        }
+    }
+
+    void PluginManager::ImGuiCallback(::REFImGuiFrameCbData* data) {
+        //System::Console::WriteLine("ImGuiCallback called");
+
+        // marshal to intptr
+        /*auto context = System::IntPtr(data->context);
+        auto mallocFn = System::IntPtr(data->malloc_fn);
+        auto freeFn = System::IntPtr(data->free_fn);
+        auto user_data = System::IntPtr(data->user_data);
+
+        ImGuiNET::ImGui::SetCurrentContext(context);
+        ImGuiNET::ImGui::SetAllocatorFunctions(mallocFn, freeFn, user_data);*/
+
+        // Draw our REFramework.NET menu which has buttons like reload scripts
+        if (ImGuiNET::ImGui::Begin("REFramework.NET")) {
+            if (ImGuiNET::ImGui::Button("Unload Scripts")) {
+                PluginManager::UnloadDynamicAssemblies();
+            }
+
+            if (ImGuiNET::ImGui::Button("Reload Scripts")) {
+                PluginManager::UnloadDynamicAssemblies();
+                PluginManager::LoadPlugins_FromSourceCode(0, s_dependencies);
+            }
+        }
+
+        try {
+            Callbacks::ImGuiRender::TriggerPre();
+        } catch (System::Exception^ e) {
+            REFrameworkNET::API::LogError("Failed to trigger ImGuiRender::Pre: " + e->Message);
+        } catch (const std::exception& e) {
+            REFrameworkNET::API::LogError("Failed to trigger ImGuiRender::Pre: " + gcnew System::String(e.what()));
+        } catch (...) {
+            REFrameworkNET::API::LogError("Unknown exception caught while triggering ImGuiRender::Pre");
+        }
+
+        try {
+            Callbacks::ImGuiRender::TriggerPost();
+        } catch (System::Exception^ e) {
+            REFrameworkNET::API::LogError("Failed to trigger ImGuiRender::Post: " + e->Message);
+        } catch (const std::exception& e) {
+            REFrameworkNET::API::LogError("Failed to trigger ImGuiRender::Post: " + gcnew System::String(e.what()));
+        } catch (...) {
+            REFrameworkNET::API::LogError("Unknown exception caught while triggering ImGuiRender::Post");
         }
     }
 }

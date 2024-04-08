@@ -455,5 +455,9 @@ namespace Callbacks {
     GENERATE_POCKET_CLASS(FinalizeDialog)
     GENERATE_POCKET_CLASS(FinalizeMixer)
     GENERATE_POCKET_CLASS(FinalizeGameCore);
+
+    // Manually generated callback class for ImGui rendering
+    // We will manually filter out the ImGuiRender callback
+    GENERATE_POCKET_CLASS(ImGuiRender);
 };
 }

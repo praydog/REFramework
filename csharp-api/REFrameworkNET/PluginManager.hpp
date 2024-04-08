@@ -37,6 +37,11 @@ private:
     static bool LoadPlugins_FromSourceCode(uintptr_t param_raw, System::Collections::Generic::List<System::Reflection::Assembly^>^ deps);
     static void UnloadDynamicAssemblies();
 
+    static void ImGuiCallback(::REFImGuiFrameCbData* data);
+    delegate void ImGuiCallbackDelegate(::REFImGuiFrameCbData* data);
+
+    static ImGuiCallbackDelegate^ s_imgui_callback_delegate{gcnew ImGuiCallbackDelegate(&ImGuiCallback)};
+
     static System::Collections::Generic::List<System::Reflection::Assembly^>^ s_loaded_assemblies{gcnew System::Collections::Generic::List<System::Reflection::Assembly^>()};
     static System::Collections::Generic::List<System::Reflection::Assembly^>^ s_dynamic_assemblies{gcnew System::Collections::Generic::List<System::Reflection::Assembly^>()};
 

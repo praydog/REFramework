@@ -56,6 +56,11 @@ void Impl::Setup(REFrameworkNET::API^ api) {
             s_knownStaticEvents->Add(post);
         }
 
+        if (type->Name == "ImGuiRender") {
+            Console::WriteLine("Skipping ImGuiRender");
+            continue;
+        }
+
         IntPtr preHookPtr = Marshal::GetFunctionPointerForDelegate(triggerPre);
         IntPtr postHookPtr = Marshal::GetFunctionPointerForDelegate(triggerPost);
         nativeApi->param()->functions->on_pre_application_entry(eventNameStr.c_str(), (REFOnPreApplicationEntryCb)preHookPtr.ToPointer());
