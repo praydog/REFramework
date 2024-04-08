@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Dynamic;
 using System.Reflection;
 using ImGuiNET;
+using REFrameworkNET;
 using REFrameworkNET.Callbacks;
 
 public class DangerousFunctions {
@@ -109,18 +110,166 @@ public class DangerousFunctions {
     }
 }
 
-class REFrameworkPlugin {
-    // Measure time between pre and post
-    // get time
-    static System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
-    static System.Diagnostics.Stopwatch sw2 = new System.Diagnostics.Stopwatch();
+class ObjectExplorer {
+    static System.Numerics.Vector4 TYPE_COLOR = new System.Numerics.Vector4(78.0f / 255.0f, 201 / 255.0f, 176 / 255.0f, 1.0f);
+    static System.Numerics.Vector4 FIELD_COLOR = new(156 / 255.0f, 220 / 255.0f, 254 / 255.0f, 1.0f);
+    static System.Numerics.Vector4 METHOD_COLOR = new(220 / 255.0f, 220 / 255.0f, 170 / 255.0f, 1.0f);
 
-    // To be called when the AssemblyLoadContext is unloading the assembly
-    public static void OnUnload() {
-        REFrameworkNET.API.LogInfo("Unloading Test");
+    public static void DisplayColorPicker() {
+        ImGui.ColorEdit4("Type Color", ref TYPE_COLOR);
+        ImGui.ColorEdit4("Field Color", ref FIELD_COLOR);
+        ImGui.ColorEdit4("Method Color", ref METHOD_COLOR);
     }
 
-    static List<_System.Type> nativeSingletonTypes = [];
+    public static void DisplayField(REFrameworkNET.IObject obj, REFrameworkNET.Field field) {
+        var t = field.GetType();
+        string tName = t != null ? t.GetFullName() : "null";
+
+        var unified = obj as REFrameworkNET.UnifiedObject;
+        ulong address = unified != null ? unified.GetAddress() : 0;
+
+        if (field.IsStatic()) {
+            address = field.GetDataRaw(obj.GetAddress(), false);
+        } else {
+            address += field.GetOffsetFromBase();
+        }
+
+        // Make a tree node that spans the entire width of the window
+        ImGui.PushID(address.ToString("X"));
+        ImGui.SetNextItemOpen(false, ImGuiCond.Once);
+        var made = ImGui.TreeNodeEx("", ImGuiTreeNodeFlags.SpanFullWidth);
+        
+        ImGui.SameLine();
+        //ImGui.Text(" " + tName);
+        ImGui.TextColored(TYPE_COLOR, " " + tName);
+
+        ImGui.SameLine();
+
+        ImGui.TextColored(FIELD_COLOR, field.GetName());
+
+        ImGui.SameLine();
+
+        if (field.IsStatic()) {
+            // Red text
+            ImGui.TextColored(new System.Numerics.Vector4(0.75f, 0.2f, 0.0f, 1.0f), "Static");
+        } else {
+            ImGui.Text("0x" + field.GetOffsetFromBase().ToString("X"));
+        }
+
+        if (made) {
+            if (!t.IsValueType()) {
+                var objValue = obj.GetField(field.GetName()) as REFrameworkNET.IObject;
+
+                if (objValue != null) {
+                    DisplayObject(objValue);
+                } else {
+                    ImGui.Text("Value: null");
+                }
+            } else {
+                switch (tName) {
+                    case "System.Int32":
+                        ImGui.Text("Value: " + field.GetDataT<int>(obj.GetAddress(), false).ToString());
+                        break;
+                    case "System.UInt32":
+                        ImGui.Text("Value: " + field.GetDataT<uint>(obj.GetAddress(), false).ToString());
+                        break;
+                    case "System.Int64":
+                        ImGui.Text("Value: " + field.GetDataT<long>(obj.GetAddress(), false).ToString());
+                        break;
+                    case "System.UInt64":
+                        ImGui.Text("Value: " + field.GetDataT<ulong>(obj.GetAddress(), false).ToString());
+                        break;
+                    case "System.Single":
+                        ImGui.Text("Value: " + field.GetDataT<float>(obj.GetAddress(), false).ToString());
+                        break;
+                    case "System.Boolean":
+                        ImGui.Text("Value: " + field.GetDataT<bool>(obj.GetAddress(), false).ToString());
+                        break;
+                    /*case "System.String":
+                        ImGui.Text("Value: " + field.GetDataT<string>(obj.GetAddress(), false));
+                        break;*/
+                    default:
+                        ImGui.Text("Value: " + field.GetDataRaw(obj.GetAddress(), false).ToString("X"));
+                        break;
+                }
+            }
+
+            ImGui.TreePop();
+        }
+
+        ImGui.PopID();
+    }
+
+    public static void DisplayMethod(REFrameworkNET.IObject obj, REFrameworkNET.Method method) {
+        var returnT = method.GetReturnType();
+        var returnTName = returnT != null ? returnT.GetFullName() : "null";
+
+        //ImGui.Text(" " + returnTName);
+        ImGui.TextColored(TYPE_COLOR, " " + returnTName);
+        ImGui.SameLine(0.0f, 0.0f);
+
+        ImGui.TextColored(METHOD_COLOR, " " + method.GetName());
+
+
+        ImGui.SameLine(0.0f, 0.0f);
+        ImGui.Text("(");
+        
+        var ps = method.GetParameters();
+
+        if (ps.Count > 0) {
+            for (int i = 0; i < ps.Count; i++) {
+                var p = ps[i];
+
+                ImGui.SameLine(0.0f, 0.0f);
+                ImGui.TextColored(TYPE_COLOR, p.Type.GetFullName());
+
+                if (p.Name != null && p.Name.Length > 0) {
+                    ImGui.SameLine(0.0f, 0.0f);
+                    ImGui.Text(" " + p.Name);
+                }
+
+                if (i < ps.Count - 1) {
+                    ImGui.SameLine(0.0f, 0.0f);
+                    ImGui.Text(", ");
+                }
+                //postfix += p.Type.GetFullName() + " " + p.Name + ", ";
+            }
+
+            ImGui.SameLine(0.0f, 0.0f);
+            ImGui.Text(")");
+
+            //postfix = postfix.Substring(0, postfix.Length - 3);
+        } else {
+            ImGui.SameLine(0.0f, 0.0f);
+            ImGui.Text(")");
+        }
+    }
+
+    public static void DisplayObject(REFrameworkNET.IObject obj) {
+        if (ImGui.TreeNode("Methods")) {
+            var methods = obj.GetTypeDefinition().GetMethods();
+
+            // Sort methods by name
+            methods.Sort((a, b) => a.GetName().CompareTo(b.GetName()));
+
+            foreach (var method in methods) {
+                DisplayMethod(obj, method);
+            }
+        }
+
+        if (ImGui.TreeNode("Fields")) {
+            var fields = obj.GetTypeDefinition().GetFields();
+
+            // Sort fields by name
+            fields.Sort((a, b) => a.GetName().CompareTo(b.GetName()));
+
+            foreach (var field in fields) {
+                DisplayField(obj, field);
+            }
+
+            ImGui.TreePop();
+        }
+    }
 
     public static void RenderNativeSingletons() {
         var singletons = REFrameworkNET.API.GetNativeSingletons();
@@ -136,27 +285,7 @@ class REFrameworkPlugin {
             var singletonName = singleton.GetTypeDefinition().GetFullName();
 
             if (ImGui.TreeNode(singletonName)) {
-                var methods = singleton.GetTypeDefinition().GetMethods();
-
-                foreach (var method in methods) {
-                    var returnT = method.GetReturnType();
-                    var returnTName = returnT != null ? returnT.GetFullName() : "null";
-
-                    ImGui.Text(" " + returnTName);
-                    ImGui.SameLine();
-                    
-                    // Set color to blue or something
-                    ImGui.TextColored(new System.Numerics.Vector4(0.0f, 1.0f, 1.0f, 1.0f), method.GetName());
-                }
-
-                var fields = singleton.GetTypeDefinition().GetFields();
-
-                foreach (var field in fields) {
-                    var t = field.GetType();
-                    string tName = t != null ? t.GetFullName() : "null";
-                    ImGui.Text(" " + tName + " " + field.GetName() + " @ " + "0x" + field.GetOffsetFromBase().ToString("X"));
-                }
-
+                DisplayObject(singleton);
                 ImGui.TreePop();
             }
         }
@@ -173,16 +302,57 @@ class REFrameworkPlugin {
             var singletonName = singleton.GetTypeDefinition().GetFullName();
 
             if (ImGui.TreeNode(singletonName)) {
-                var fields = singleton.GetTypeDefinition().GetFields();
+                DisplayObject(singleton);
+                ImGui.TreePop();
+            }
+        }
+    }
 
-                foreach (var field in fields) {
-                    var t = field.GetType();
-                    string tName = t != null ? t.GetFullName() : "null";
-                    ImGui.Text(" " + tName + " " + field.GetName() + " @ " + "0x" + field.GetOffsetFromBase().ToString("X"));
-                }
+    public static void Render() {
+        ImGui.SetNextItemOpen(true, ImGuiCond.Once);
+        if (ImGui.TreeNode("Color Picker")) {
+            DisplayColorPicker();
+            ImGui.TreePop();
+        }
+
+
+        try {
+            if (ImGui.TreeNode("Managed Singletons")) {
+                RenderManagedSingletons();
+                ImGui.TreePop();
+            }
+
+            if (ImGui.TreeNode("Native Singletons")) {
+                RenderNativeSingletons();
+            }
+        } catch (Exception e) {
+            System.Console.WriteLine(e.ToString());
+        }
+    }
+} // class ObjectExplorer
+
+class REFrameworkPlugin {
+    // Measure time between pre and post
+    // get time
+    static System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
+    static System.Diagnostics.Stopwatch sw2 = new System.Diagnostics.Stopwatch();
+
+    // To be called when the AssemblyLoadContext is unloading the assembly
+    public static void OnUnload() {
+        REFrameworkNET.API.LogInfo("Unloading Test");
+    }
+
+    // Assigned in a callback below.
+    public static void RenderImGui() {
+        if (ImGui.Begin("Test Window")) {
+            ImGui.SetNextItemOpen(true, ImGuiCond.Once);
+            if (ImGui.TreeNode("Object Explorer")) {
+                ObjectExplorer.Render();
 
                 ImGui.TreePop();
             }
+
+            ImGui.End();
         }
     }
 
@@ -224,27 +394,7 @@ class REFrameworkPlugin {
         REFrameworkNET.Callbacks.PrepareRendering.Post += () => {
         };
 
-        REFrameworkNET.Callbacks.ImGuiRender.Pre += () => {
-            // Draw a random window
-            if (ImGui.Begin("Test Window")) {
-                ImGui.Text("Hello from ImGui!");
-
-                try {
-                    if (ImGui.TreeNode("Managed Singletons")) {
-                        RenderManagedSingletons();
-                        ImGui.TreePop();
-                    }
-
-                    if (ImGui.TreeNode("Native Singletons")) {
-                        RenderNativeSingletons();
-                    }
-                } catch (Exception e) {
-                    System.Console.WriteLine(e.ToString());
-                }
-
-                ImGui.End();
-            }
-        };
+        REFrameworkNET.Callbacks.ImGuiRender.Pre += RenderImGui;
     }
 
     [REFrameworkNET.Attributes.PluginEntryPoint]
