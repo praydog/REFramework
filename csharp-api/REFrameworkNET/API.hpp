@@ -10,6 +10,7 @@
 #include "ManagedObject.hpp"
 #include "TDB.hpp"
 #include "ManagedSingleton.hpp"
+#include "NativeSingleton.hpp"
 #include "NativeObject.hpp"
 
 #include "Callbacks.hpp"
@@ -39,71 +40,13 @@ public:
         APINotInitializedException() : System::InvalidOperationException("API is not initialized.") {}
     };
 
-    static REFrameworkNET::TDB^ GetTDB() {
-        if (s_api == nullptr) {
-            throw gcnew APINotInitializedException();
-        }
+    static reframework::API* GetNativeImplementation();
+    static REFrameworkNET::TDB^ GetTDB();
 
-        return gcnew REFrameworkNET::TDB(s_api->tdb());
-    }
-
-    static REFrameworkNET::ManagedObject^ GetManagedSingleton(System::String^ name) {
-        if (s_api == nullptr) {
-            throw gcnew APINotInitializedException();
-        }
-
-        auto result = s_api->get_managed_singleton(msclr::interop::marshal_as<std::string>(name));
-
-        if (result == nullptr) {
-            return nullptr;
-        }
-
-        return gcnew REFrameworkNET::ManagedObject(result);
-    }
-
-    static System::Collections::Generic::List<REFrameworkNET::ManagedSingleton^>^ GetManagedSingletons() {
-        if (s_api == nullptr) {
-            throw gcnew APINotInitializedException();
-        }
-
-        auto singletons = s_api->get_managed_singletons();
-        
-        auto result = gcnew System::Collections::Generic::List<REFrameworkNET::ManagedSingleton^>();
-
-        for (auto& singleton : singletons) {
-            if (singleton.instance == nullptr) {
-                continue;
-            }
-
-            result->Add(gcnew REFrameworkNET::ManagedSingleton(
-                gcnew REFrameworkNET::ManagedObject(singleton.instance),
-                gcnew REFrameworkNET::TypeDefinition(singleton.t),
-                gcnew REFrameworkNET::TypeInfo(singleton.type_info)
-            ));
-        }
-
-        return result;
-    }
-
-    static NativeObject^ GetNativeSingleton(System::String^ name) {
-        if (s_api == nullptr) {
-            throw gcnew APINotInitializedException();
-        }
-
-        auto result = s_api->get_native_singleton(msclr::interop::marshal_as<std::string>(name));
-
-        if (result == nullptr) {
-            return nullptr;
-        }
-
-        auto t = REFrameworkNET::API::GetTDB()->GetType(name);
-
-        if (t == nullptr) {
-            return nullptr;
-        }
-
-        return gcnew NativeObject(result, t);
-    }
+    static System::Collections::Generic::List<REFrameworkNET::ManagedSingleton^>^ GetManagedSingletons();
+    static System::Collections::Generic::List<REFrameworkNET::NativeSingleton^>^ GetNativeSingletons();
+    static REFrameworkNET::ManagedObject^ GetManagedSingleton(System::String^ name);
+    static NativeObject^ GetNativeSingleton(System::String^ name);
 
     generic <typename T> where T : ref class
     static T GetNativeSingletonT() {
@@ -128,58 +71,13 @@ public:
         return mo->As<T>();
     }
 
-    static reframework::API* GetNativeImplementation() {
-        if (s_api == nullptr) {
-            throw gcnew APINotInitializedException();
-        }
-
-        return s_api;
-    }
-
     static LogLevel LogLevel{LogLevel::Info};
     static bool LogToConsole{true};
 
-    static void LogError(System::String^ message) {
-        if (s_api == nullptr) {
-            throw gcnew APINotInitializedException();
-        }
+    static void LogError(System::String^ message);
+    static void LogWarning(System::String^ message);
 
-        if (LogLevel <= LogLevel::Error) {
-            s_api->log_error(msclr::interop::marshal_as<std::string>(message).c_str());
-
-            if (LogToConsole) {
-                System::Console::WriteLine(message);
-            }
-        }
-    }
-
-    static void LogWarning(System::String^ message) {
-        if (s_api == nullptr) {
-            throw gcnew APINotInitializedException();
-        }
-
-        if (LogLevel <= LogLevel::Warning) {
-            s_api->log_warn(msclr::interop::marshal_as<std::string>(message).c_str());
-
-            if (LogToConsole) {
-                System::Console::WriteLine(message);
-            }
-        }
-    }
-
-    static void LogInfo(System::String^ message) {
-        if (s_api == nullptr) {
-            throw gcnew APINotInitializedException();
-        }
-
-        if (LogLevel <= LogLevel::Info) {
-            s_api->log_info(msclr::interop::marshal_as<std::string>(message).c_str());
-
-            if (LogToConsole) {
-                System::Console::WriteLine(message);
-            }
-        }
-    }
+    static void LogInfo(System::String^ message);
 
 protected:
     void Init_Internal(const REFrameworkPluginInitializeParam* param);
