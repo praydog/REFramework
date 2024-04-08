@@ -68,11 +68,13 @@ def symlink_main(gamedir=None, bindir="build/bin", just_copy=False):
 
     dependencies_dir_files = [
         "AssemblyGenerator.dll",
-        "REFCSharpCompiler.dll",
+        "REFCoreDeps.dll",
         "Microsoft.CodeAnalysis.CSharp.dll",
         "Microsoft.CodeAnalysis.dll",
         "Microsoft.CodeAnalysis.CSharp.xml",
         "Microsoft.CodeAnalysis.xml",
+        "ImGui.NET.dll",
+        "ImGui.NET.xml",
     ]
 
     for file in dependencies_dir_files:

@@ -67,6 +67,26 @@ if(REFRAMEWORK_REF_ASSEMBLIES_EXIST)
 else()
   message(STATUS "One or more specified DLLs do not exist.")
 endif()
+
+# Define a list of NuGet packages and their versions
+# the last part, the package framework will only be used for copying the files
+set(REFRAMEWORK_NUGET_PACKAGES
+    "Microsoft.CodeAnalysis.Common:4.9.2:net7.0"
+    "Microsoft.CodeAnalysis.CSharp:4.9.2:net7.0"
+    "ImGui.NET:1.90.1.1:net6.0"
+)
+
+# Generate the VS_PACKAGE_REFERENCES property value
+set(REFRAMEWORK_PACKAGE_REFERENCES "")
+foreach(PACKAGE ${REFRAMEWORK_NUGET_PACKAGES})
+    # Extract package name and version from the package string
+    string(REPLACE ":" ";" PACKAGE_PARTS ${PACKAGE})
+    list(GET PACKAGE_PARTS 0 PACKAGE_NAME)
+    list(GET PACKAGE_PARTS 1 PACKAGE_VERSION)
+
+    # Append the package reference to the REFRAMEWORK_PACKAGE_REFERENCES variable
+    set(REFRAMEWORK_PACKAGE_REFERENCES "${REFRAMEWORK_PACKAGE_REFERENCES}${PACKAGE_NAME}_${PACKAGE_VERSION};")
+endforeach()
 """
 
 [conditions]
@@ -83,13 +103,18 @@ DOTNET_SDK = "Microsoft.NET.Sdk"
 DOTNET_TARGET_FRAMEWORK = "net8.0-windows"
 VS_CONFIGURATION_TYPE = "ClassLibrary"
 
-[target.REFCSharpCompiler]
+# REFCoreDeps is a shared target that is used by the CSharpAPI and AssemblyGenerator targets
+# Mainly because adding nuget packages to C++/CLI causes random problems
+# Like compiling randomly failing, so we should keep all external nuget packages
+# in an actual C# project
+# It also contains other stuff like the C# compiler wrapper.
+[target.REFCoreDeps]
 type = "CSharpSharedTarget"
 sources = ["Compiler/**.cs"]
 
 # Not using .properties here because it overrides the template properties for whatever reason
 cmake-after = """
-set_target_properties(REFCSharpCompiler PROPERTIES VS_PACKAGE_REFERENCES "Microsoft.CodeAnalysis_4.9.2")
+set_target_properties(REFCoreDeps PROPERTIES VS_PACKAGE_REFERENCES "${REFRAMEWORK_PACKAGE_REFERENCES}")
 """
 
 [target.csharp-api]
@@ -100,29 +125,35 @@ headers = ["REFrameworkNET/**.hpp", "REFrameworkNET/**.h"]
 compile-features = ["cxx_std_20"]
 compile-options = ["/EHa", "/MD", "/doc"]
 link-libraries = [
-    "REFCSharpCompiler"
+    "REFCoreDeps"
 ]
 cmake-after = """
-# Copy nuget packages to the output directory
-add_custom_command(
-   TARGET csharp-api POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${NUGET_PACKAGES_DIR}/microsoft.codeanalysis.csharp/4.9.2/lib/net7.0 ${CMAKE_BINARY_DIR}/bin//
-    COMMENT "Copying nuget packages"
-)
-add_custom_command(
-   TARGET csharp-api POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${NUGET_PACKAGES_DIR}/microsoft.codeanalysis.common/4.9.2/lib/net7.0 ${CMAKE_BINARY_DIR}/bin//
-    COMMENT "Copying nuget packages"
-)
+foreach(PACKAGE ${REFRAMEWORK_NUGET_PACKAGES})
+    # Extract package name and version from the package string
+    string(REPLACE ":" ";" PACKAGE_PARTS ${PACKAGE})
+    list(GET PACKAGE_PARTS 0 PACKAGE_NAME)
+    list(GET PACKAGE_PARTS 1 PACKAGE_VERSION)
+    list(GET PACKAGE_PARTS 2 PACKAGE_FRAMEWORK)
+
+    # Copy the package files to the output directory
+    add_custom_command(
+        TARGET csharp-api POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                ${NUGET_PACKAGES_DIR}/${PACKAGE_NAME}/${PACKAGE_VERSION}/lib/${PACKAGE_FRAMEWORK}
+                ${CMAKE_BINARY_DIR}/bin/
+        COMMENT "Copying ${PACKAGE_NAME} NuGet package"
+    )
+endforeach()
+
 set(REFRAMEWORK_DOT_NET_ASSEMBLY_DIR "${CMAKE_BINARY_DIR}/bin")
 set(REFRAMEWORK_DOT_NET_ASSEMBLY_PATH "${CMAKE_BINARY_DIR}/bin/REFramework.NET.dll")
 
 set_target_properties(csharp-api PROPERTIES
-VS_DOTNET_REFERENCE_REFCSharpCompiler
-"${REFRAMEWORK_DOT_NET_ASSEMBLY_DIR}/REFCSharpCompiler.dll"
+VS_DOTNET_REFERENCE_REFCoreDeps
+"${REFRAMEWORK_DOT_NET_ASSEMBLY_DIR}/REFCoreDeps.dll"
 )
 
-set_target_properties(csharp-api PROPERTIES VS_PACKAGE_REFERENCES "REFCSharpCompiler")
+set_target_properties(csharp-api PROPERTIES VS_PACKAGE_REFERENCES "REFCoreDeps")
 """
 
 [target.csharp-api.properties]
@@ -141,13 +172,15 @@ type = "CSharpSharedTarget"
 sources = ["AssemblyGenerator/**.cs"]
 link-libraries = [
     "csharp-api",
-    "REFCSharpCompiler"
+    "REFCoreDeps"
 ]
 cmake-after = """
 set_target_properties(AssemblyGenerator PROPERTIES
 VS_DOTNET_REFERENCE_REFramework.NET
 "${REFRAMEWORK_DOT_NET_ASSEMBLY_PATH}"
 )
+
+
 """
 
 [target.CSharpAPITest]

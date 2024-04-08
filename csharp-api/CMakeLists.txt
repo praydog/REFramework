@@ -95,18 +95,38 @@ else()
   message(STATUS "One or more specified DLLs do not exist.")
 endif()
 
-# Target: REFCSharpCompiler
-set(REFCSharpCompiler_SOURCES
+# Define a list of NuGet packages and their versions
+# the last part, the package framework will only be used for copying the files
+set(REFRAMEWORK_NUGET_PACKAGES
+    "Microsoft.CodeAnalysis.Common:4.9.2:net7.0"
+    "Microsoft.CodeAnalysis.CSharp:4.9.2:net7.0"
+    "ImGui.NET:1.90.1.1:net6.0"
+)
+
+# Generate the VS_PACKAGE_REFERENCES property value
+set(REFRAMEWORK_PACKAGE_REFERENCES "")
+foreach(PACKAGE ${REFRAMEWORK_NUGET_PACKAGES})
+    # Extract package name and version from the package string
+    string(REPLACE ":" ";" PACKAGE_PARTS ${PACKAGE})
+    list(GET PACKAGE_PARTS 0 PACKAGE_NAME)
+    list(GET PACKAGE_PARTS 1 PACKAGE_VERSION)
+
+    # Append the package reference to the REFRAMEWORK_PACKAGE_REFERENCES variable
+    set(REFRAMEWORK_PACKAGE_REFERENCES "${REFRAMEWORK_PACKAGE_REFERENCES}${PACKAGE_NAME}_${PACKAGE_VERSION};")
+endforeach()
+
+# Target: REFCoreDeps
+set(REFCoreDeps_SOURCES
 	"Compiler/Compiler.cs"
 	cmake.toml
 )
 
-add_library(REFCSharpCompiler SHARED)
+add_library(REFCoreDeps SHARED)
 
-target_sources(REFCSharpCompiler PRIVATE ${REFCSharpCompiler_SOURCES})
-source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${REFCSharpCompiler_SOURCES})
+target_sources(REFCoreDeps PRIVATE ${REFCoreDeps_SOURCES})
+source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${REFCoreDeps_SOURCES})
 
-set_target_properties(REFCSharpCompiler PROPERTIES
+set_target_properties(REFCoreDeps PROPERTIES
 	RUNTIME_OUTPUT_DIRECTORY_RELEASE
 		"${CMAKE_BINARY_DIR}/bin/"
 	RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
@@ -121,8 +141,8 @@ set_target_properties(REFCSharpCompiler PROPERTIES
 		ClassLibrary
 )
 
-set(CMKR_TARGET REFCSharpCompiler)
-set_target_properties(REFCSharpCompiler PROPERTIES VS_PACKAGE_REFERENCES "Microsoft.CodeAnalysis_4.9.2")
+set(CMKR_TARGET REFCoreDeps)
+set_target_properties(REFCoreDeps PROPERTIES VS_PACKAGE_REFERENCES "${REFRAMEWORK_PACKAGE_REFERENCES}")
 
 # Target: csharp-api
 set(csharp-api_SOURCES
@@ -195,7 +215,7 @@ target_include_directories(csharp-api PUBLIC
 )
 
 target_link_libraries(csharp-api PUBLIC
-	REFCSharpCompiler
+	REFCoreDeps
 )
 
 set_target_properties(csharp-api PROPERTIES
@@ -216,26 +236,32 @@ set_target_properties(csharp-api PROPERTIES
 )
 
 set(CMKR_TARGET csharp-api)
-# Copy nuget packages to the output directory
-add_custom_command(
-   TARGET csharp-api POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${NUGET_PACKAGES_DIR}/microsoft.codeanalysis.csharp/4.9.2/lib/net7.0 ${CMAKE_BINARY_DIR}/bin//
-    COMMENT "Copying nuget packages"
-)
-add_custom_command(
-   TARGET csharp-api POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${NUGET_PACKAGES_DIR}/microsoft.codeanalysis.common/4.9.2/lib/net7.0 ${CMAKE_BINARY_DIR}/bin//
-    COMMENT "Copying nuget packages"
-)
+foreach(PACKAGE ${REFRAMEWORK_NUGET_PACKAGES})
+    # Extract package name and version from the package string
+    string(REPLACE ":" ";" PACKAGE_PARTS ${PACKAGE})
+    list(GET PACKAGE_PARTS 0 PACKAGE_NAME)
+    list(GET PACKAGE_PARTS 1 PACKAGE_VERSION)
+    list(GET PACKAGE_PARTS 2 PACKAGE_FRAMEWORK)
+
+    # Copy the package files to the output directory
+    add_custom_command(
+        TARGET csharp-api POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                ${NUGET_PACKAGES_DIR}/${PACKAGE_NAME}/${PACKAGE_VERSION}/lib/${PACKAGE_FRAMEWORK}
+                ${CMAKE_BINARY_DIR}/bin/
+        COMMENT "Copying ${PACKAGE_NAME} NuGet package"
+    )
+endforeach()
+
 set(REFRAMEWORK_DOT_NET_ASSEMBLY_DIR "${CMAKE_BINARY_DIR}/bin")
 set(REFRAMEWORK_DOT_NET_ASSEMBLY_PATH "${CMAKE_BINARY_DIR}/bin/REFramework.NET.dll")
 
 set_target_properties(csharp-api PROPERTIES
-VS_DOTNET_REFERENCE_REFCSharpCompiler
-"${REFRAMEWORK_DOT_NET_ASSEMBLY_DIR}/REFCSharpCompiler.dll"
+VS_DOTNET_REFERENCE_REFCoreDeps
+"${REFRAMEWORK_DOT_NET_ASSEMBLY_DIR}/REFCoreDeps.dll"
 )
 
-set_target_properties(csharp-api PROPERTIES VS_PACKAGE_REFERENCES "REFCSharpCompiler")
+set_target_properties(csharp-api PROPERTIES VS_PACKAGE_REFERENCES "REFCoreDeps")
 
 # Target: AssemblyGenerator
 set(AssemblyGenerator_SOURCES
@@ -253,7 +279,7 @@ source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${AssemblyGenerator_SOURCES}
 
 target_link_libraries(AssemblyGenerator PUBLIC
 	csharp-api
-	REFCSharpCompiler
+	REFCoreDeps
 )
 
 set_target_properties(AssemblyGenerator PROPERTIES
