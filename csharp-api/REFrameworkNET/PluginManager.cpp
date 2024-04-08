@@ -188,7 +188,10 @@ namespace REFrameworkNET {
 
         // Must be set up before we load anything as it sets up the LoadLibraryExW hook for cimgui
         auto imgui_callback_c = System::Runtime::InteropServices::Marshal::GetFunctionPointerForDelegate(s_imgui_callback_delegate).ToPointer();
-        REFrameworkNET::API::GetNativeImplementation()->param()->functions->on_imgui_frame((::REFOnImGuiFrameCb)imgui_callback_c);
+        auto imgui_draw_ui_callback_c = System::Runtime::InteropServices::Marshal::GetFunctionPointerForDelegate(s_imgui_draw_ui_callback_delegate).ToPointer();
+        auto api_fns = REFrameworkNET::API::GetNativeImplementation()->param()->functions;
+        api_fns->on_imgui_frame((::REFOnImGuiFrameCb)imgui_callback_c);
+        api_fns->on_imgui_draw_ui((::REFOnImGuiFrameCb)imgui_draw_ui_callback_c);
 
         s_dependencies = LoadDependencies(); // Pre-loads DLLs in the dependencies folder before loading the plugins
 
@@ -575,18 +578,6 @@ namespace REFrameworkNET {
         ImGuiNET::ImGui::SetCurrentContext(context);
         ImGuiNET::ImGui::SetAllocatorFunctions(mallocFn, freeFn, user_data);*/
 
-        // Draw our REFramework.NET menu which has buttons like reload scripts
-        if (ImGuiNET::ImGui::Begin("REFramework.NET")) {
-            if (ImGuiNET::ImGui::Button("Unload Scripts")) {
-                PluginManager::UnloadDynamicAssemblies();
-            }
-
-            if (ImGuiNET::ImGui::Button("Reload Scripts")) {
-                PluginManager::UnloadDynamicAssemblies();
-                PluginManager::LoadPlugins_FromSourceCode(0, s_dependencies);
-            }
-        }
-
         try {
             Callbacks::ImGuiRender::TriggerPre();
         } catch (System::Exception^ e) {
@@ -606,5 +597,24 @@ namespace REFrameworkNET {
         } catch (...) {
             REFrameworkNET::API::LogError("Unknown exception caught while triggering ImGuiRender::Post");
         }
+    }
+
+    void PluginManager::ImGuiDrawUICallback(::REFImGuiFrameCbData* data) {
+        // Draw our REFramework.NET menu which has buttons like reload scripts
+        ImGuiNET::ImGui::PushID("REFramework.NET");
+        if (ImGuiNET::ImGui::CollapsingHeader("REFramework.NET")) {
+            if (ImGuiNET::ImGui::Button("Reload Scripts")) {
+                PluginManager::UnloadDynamicAssemblies();
+                PluginManager::LoadPlugins_FromSourceCode(0, s_dependencies);
+            }
+
+            ImGuiNET::ImGui::SameLine();
+
+            if (ImGuiNET::ImGui::Button("Unload Scripts")) {
+                PluginManager::UnloadDynamicAssemblies();
+            }
+        }
+
+        ImGuiNET::ImGui::PopID();
     }
 }

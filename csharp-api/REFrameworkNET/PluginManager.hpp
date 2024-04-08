@@ -37,10 +37,16 @@ private:
     static bool LoadPlugins_FromSourceCode(uintptr_t param_raw, System::Collections::Generic::List<System::Reflection::Assembly^>^ deps);
     static void UnloadDynamicAssemblies();
 
+    // This one is outside of a window context
     static void ImGuiCallback(::REFImGuiFrameCbData* data);
     delegate void ImGuiCallbackDelegate(::REFImGuiFrameCbData* data);
 
+    // This one is in the middle of drawing REFramework's UI
+    static void ImGuiDrawUICallback(::REFImGuiFrameCbData* data);
+    delegate void ImGuiDrawUICallbackDelegate(::REFImGuiFrameCbData* data);
+
     static ImGuiCallbackDelegate^ s_imgui_callback_delegate{gcnew ImGuiCallbackDelegate(&ImGuiCallback)};
+    static ImGuiDrawUICallbackDelegate^ s_imgui_draw_ui_callback_delegate{gcnew ImGuiDrawUICallbackDelegate(&ImGuiDrawUICallback)};
 
     static System::Collections::Generic::List<System::Reflection::Assembly^>^ s_loaded_assemblies{gcnew System::Collections::Generic::List<System::Reflection::Assembly^>()};
     static System::Collections::Generic::List<System::Reflection::Assembly^>^ s_dynamic_assemblies{gcnew System::Collections::Generic::List<System::Reflection::Assembly^>()};
@@ -63,6 +69,7 @@ private:
     static void OnSourceScriptsChanged(System::Object^ sender, System::IO::FileSystemEventArgs^ e);
     static void BeginRendering();
     delegate void BeginRenderingDelegate();
+    
     static BeginRenderingDelegate^ s_begin_rendering_delegate{gcnew BeginRenderingDelegate(&BeginRendering)};
 };
 }
