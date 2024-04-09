@@ -62,6 +62,21 @@ public class ClassGenerator {
             case "System.UInt32":
                 outSyntax = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.UIntKeyword));
                 break;
+            case "System.Int16":
+                outSyntax = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.ShortKeyword));
+                break;
+            case "System.UInt16":
+                outSyntax = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.UShortKeyword));
+                break;
+            case "System.Byte":
+                outSyntax = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.ByteKeyword));
+                break;
+            case "System.SByte":
+                outSyntax = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.SByteKeyword));
+                break;
+            case "System.Char":
+                outSyntax = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.CharKeyword));
+                break;
             case "System.Int64":
             case "System.IntPtr":
                 outSyntax = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.LongKeyword));
