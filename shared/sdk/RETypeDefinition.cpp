@@ -465,11 +465,40 @@ sdk::REMethodDefinition* RETypeDefinition::get_method(std::string_view name) con
             }
         }
     }
-    
-    // first pass, do not use function prototypes
+
+    // This is probably a hacky way of doing it but whatever.
+    // I haven't checked if IsGenericMethodDefinition is implemented.
+    auto is_generic_method_definition = [](sdk::REMethodDefinition& m) {
+        const auto return_type = m.get_return_type();
+
+        if (return_type != nullptr && return_type->get_name() != nullptr) {
+            if (std::string_view{return_type->get_name()}.contains("!")) {
+                return true;
+            }
+        }
+
+        const auto method_param_types = m.get_param_types();
+
+        // Go through any of the params and look for ! in the name
+        for (auto& param : method_param_types) {
+            if (param != nullptr && param->get_name() != nullptr) {
+                if (std::string_view{param->get_name()}.contains("!")) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    };
+
     for (auto super = this; super != nullptr; super = super->get_parent_type()) {
         for (auto& m : super->get_methods()) {
             if (name == m.get_name()) {
+                if (is_generic_method_definition(m)) {
+                    // This is a generic method (definition), we need to skip it because it's not a direct match
+                    continue;
+                }
+
                 std::unique_lock _{g_method_mtx};
 
                 g_method_map[this][name_hash] = &m;
@@ -477,7 +506,7 @@ sdk::REMethodDefinition* RETypeDefinition::get_method(std::string_view name) con
             }
         }
     }
-    
+
     // second pass, build a function prototype
     for (auto super = this; super != nullptr; super = super->get_parent_type()) {
         for (auto& m : super->get_methods()) {
@@ -498,6 +527,11 @@ sdk::REMethodDefinition* RETypeDefinition::get_method(std::string_view name) con
             const auto method_prototype = ss.str();
 
             if (name == method_prototype) {
+                if (is_generic_method_definition(m)) {
+                    // This is a generic method (definition), we need to skip it because it's not a direct match
+                    continue;
+                }
+
                 std::unique_lock _{g_method_mtx};
 
                 g_method_map[this][name_hash] = &m;
