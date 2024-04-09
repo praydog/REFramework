@@ -23,12 +23,14 @@ public:
 
 private:
     void hook();
-    bool handle_path(const wchar_t* path);
+    bool handle_path(const wchar_t* path, size_t hash);
     static uint64_t path_to_hash_hook(const wchar_t* path);
 
     bool m_hook_success{false};
     bool m_attempted_hook{false};
     uint32_t m_files_encountered{};
+    uint32_t m_uncached_hits{};
+    uint32_t m_cache_hits{};
     uint32_t m_loose_files_loaded{};
 
     std::shared_mutex m_mutex{};
@@ -37,10 +39,15 @@ private:
     std::unordered_set<std::wstring> m_all_accessed_files{};
     std::unordered_set<std::wstring> m_all_loose_files{};
 
+    std::unordered_set<size_t> m_files_on_disk{};
+    std::unordered_set<size_t> m_seen_files{};
+    std::shared_mutex m_files_on_disk_mutex{};
+
     std::unique_ptr<FunctionHook> m_path_to_hash_hook{nullptr};
 
     ModToggle::Ptr m_enabled{ ModToggle::create(generate_name("Enabled")) };
     bool m_show_recent_files{false}; // Not persistent because its for dev purposes
+    bool m_enable_file_cache{true};
 
     ValueList m_options{
         *m_enabled
