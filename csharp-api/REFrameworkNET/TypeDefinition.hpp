@@ -314,6 +314,14 @@ public:
         }
     }
 
+    TypeDefinition^ GetElementType();
+
+    property TypeDefinition^ ElementType {
+        TypeDefinition^ get() {
+            return GetElementType();
+        }
+    }
+
     /*Void* GetInstance()
     {
         return m_type->get_instance();

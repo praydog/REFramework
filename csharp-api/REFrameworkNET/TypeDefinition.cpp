@@ -212,4 +212,20 @@ namespace REFrameworkNET {
 
         return result;
     }
+
+    TypeDefinition^ TypeDefinition::GetElementType() {
+        auto runtimeType = this->GetRuntimeType();
+
+        if (runtimeType == nullptr) {
+            return nullptr;
+        }
+
+        auto elementType = (ManagedObject^)runtimeType->Call("GetElementType");
+
+        if (elementType == nullptr) {
+            return nullptr;
+        }
+
+        return (TypeDefinition^)elementType->Call("get_TypeHandle");
+    }
 }
