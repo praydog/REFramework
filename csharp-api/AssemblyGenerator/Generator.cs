@@ -270,52 +270,200 @@ public class AssemblyGenerator {
     // Array of System.Array derived types
     public static List<REFrameworkNET.TypeDefinition> arrayTypes = [];
     public static HashSet<REFrameworkNET.TypeDefinition> typesWithArrayTypes = [];
-    public static Dictionary<REFrameworkNET.TypeDefinition, REFrameworkNET.TypeDefinition> elementTypesToTypes = [];
+    private static Dictionary<REFrameworkNET.TypeDefinition, List<REFrameworkNET.TypeDefinition>> elementTypesToArrayTypes = [];
 
     public static Dictionary<REFrameworkNET.TypeDefinition, string> typeRenames = [];
     public static Dictionary<REFrameworkNET.TypeDefinition, string> typeFullRenames = [];
     public static readonly REFrameworkNET.TypeDefinition SystemArrayT = REFrameworkNET.API.GetTDB().GetType("System.Array");
 
+    public static void ForEachArrayType(
+        TypeDefinition elementType, Action<TypeDefinition> action, 
+        HashSet<REFrameworkNET.TypeDefinition>? visited = null,
+        HashSet<REFrameworkNET.TypeDefinition>? visitedArrayTypes = null
+    ) 
+    {
+        if (visited == null) {
+            visited = new HashSet<REFrameworkNET.TypeDefinition>();
+        }
+
+        if (visitedArrayTypes == null) {
+            visitedArrayTypes = new HashSet<REFrameworkNET.TypeDefinition>();
+        }
+
+        if (visited.Contains(elementType)) {
+            return;
+        }
+
+        visited.Add(elementType);
+
+        if (!elementTypesToArrayTypes.TryGetValue(elementType, out List<REFrameworkNET.TypeDefinition>? arrayTypes)) {
+            return;
+        }
+
+        foreach (var arrayType in arrayTypes) {
+            if (visitedArrayTypes.Contains(arrayType)) {
+                continue;
+            }
+
+            action(arrayType);
+            visitedArrayTypes.Add(arrayType);
+
+            // Array types can have array types themselves.
+            ForEachArrayType(arrayType, action, visited);
+        }
+    }
+
+    public static REFrameworkNET.TypeDefinition? GetEquivalentNestedTypeInParent(REFrameworkNET.TypeDefinition nestedT) {
+        var isolatedNestedName = nestedT.FullName?.Split('.').Last();
+
+        if (nestedT.DeclaringType == null && nestedT.IsDerivedFrom(SystemArrayT)) {
+            // Types derived from System.Array do not have a proper declaring type
+            // so we need to get the element type and find the declaring type of that
+            TypeDefinition? elementType = nestedT.GetElementType();
+
+            while (elementType != null && elementType.IsDerivedFrom(SystemArrayT)) {
+                elementType = elementType.GetElementType();
+            }
+
+            if (elementType != null) {
+                var equivalentElementType = GetEquivalentNestedTypeInParent(elementType);
+
+                if (equivalentElementType != null) {
+                    // Now go through all possible array types for that equivalent type
+                    TypeDefinition? equivalentArray = null;
+                    ForEachArrayType(equivalentElementType, (arrayType) => {
+                        if (equivalentArray != null) {
+                            return;
+                        }
+
+                        var isolatedArrayTypeName = arrayType.FullName?.Split('.').Last();
+
+                        if (isolatedArrayTypeName == isolatedNestedName) {
+                            System.Console.WriteLine("Found equivalent array type for " + nestedT.FullName);
+                            equivalentArray = arrayType;
+                            return;
+                        }
+                    });
+                }
+            }
+        }
+
+        var t = nestedT.DeclaringType;
+
+        if (t == null) {
+            return null;
+        }
+
+        // Add the "new" keyword if this nested type is anywhere in the hierarchy
+        for (var parent = t.ParentType; parent != null; parent = parent.ParentType) {
+            // TODO: Fix this
+            if (!validTypes.Contains(parent.FullName)) {
+                continue;
+            }
+
+            var parentNestedTypes = Il2CppDump.GetTypeExtension(parent)?.NestedTypes;
+
+            // Look for same named nested types
+            if (parentNestedTypes != null) {
+                foreach (var parentNested in parentNestedTypes) {
+                    var isolatedParentNestedName = parentNested.FullName?.Split('.').Last();
+                    if (isolatedParentNestedName == isolatedNestedName) {
+                        return parentNested;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    public static bool NestedTypeExistsInParent(REFrameworkNET.TypeDefinition nestedT) {
+        return GetEquivalentNestedTypeInParent(nestedT) != null;
+    }
+
+    private static string? GetOptionalPrefix(REFrameworkNET.TypeDefinition t) {
+        if (t.Namespace == null || t.Namespace.Length == 0) {
+            if (t.DeclaringType == null) {
+                return "_.";
+            } else {
+                var lastDeclaringType = t.DeclaringType;
+
+                while (lastDeclaringType.DeclaringType != null) {
+                    lastDeclaringType = lastDeclaringType.DeclaringType;
+                }
+
+                if (lastDeclaringType.Namespace == null || lastDeclaringType.Namespace.Length == 0) {
+                    return "_.";
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static string MakePrefixedTypeName(REFrameworkNET.TypeDefinition t) {
+        var prefix = GetOptionalPrefix(t);
+
+        if (prefix != null) {
+            return prefix + t.GetFullName();
+        }
+
+        return t.GetFullName();
+    }
+    
     private static bool HandleArrayType(REFrameworkNET.TypeDefinition t) {
-        var rtType = t.GetRuntimeType();
+        var elementTypeDef = t.GetElementType();
 
-        if (rtType == null) {
+        if (elementTypeDef == null || !t.IsDerivedFrom(SystemArrayT)) {
             return false;
         }
 
-        var elementType = (rtType as dynamic).GetElementType();
+        string arrayDims = "1D";
 
-        if (elementType == null) {
-            return false;
-        }
+        // Look for the last "[]" in the type name
+        // however we can have stuff like "[,]" or "[,,]" etc
+        var tFullName = t.GetFullName();
+        var lastDims = tFullName.LastIndexOf('[');
+        var lastDimsEnd = tFullName.LastIndexOf(']');
 
-        var elementTypeDef = elementType.get_TypeHandle();
+        if (lastDims != -1 && lastDimsEnd != -1) {
+            // Count how many , there are
+            var dimCount = 0;
 
-        if (elementTypeDef == null) {
-            Console.WriteLine("Failed to get type handle for array element type");
-            return false;
+            for (int i = lastDims+1; i < lastDimsEnd; i++) {
+                if (tFullName[i] == ',') {
+                    dimCount++;
+                }
+            }
+
+            arrayDims = (dimCount + 1).ToString() + "D";
         }
 
         typesWithArrayTypes.Add(elementTypeDef);
-        elementTypesToTypes[elementTypeDef] = t;
+
+        if (!elementTypesToArrayTypes.ContainsKey(elementTypeDef)) {
+            elementTypesToArrayTypes[elementTypeDef] = [];
+        }
+
+        elementTypesToArrayTypes[elementTypeDef].Add(t);
         
         // Check if the element type is a System.Array derived type
         if (elementTypeDef.IsDerivedFrom(SystemArrayT)) {
             if (HandleArrayType(elementTypeDef)) {
-                typeRenames[t] = typeRenames[elementTypeDef] + "_Array";
+                typeRenames[t] = typeRenames[elementTypeDef] + "_Array" + arrayDims;
             } else {
-                typeRenames[t] = elementTypeDef.Name + "_Array";
+                typeRenames[t] = elementTypeDef.Name + "_Array" + arrayDims;
             }
 
             if (typeFullRenames.ContainsKey(elementTypeDef)) {
-                typeFullRenames[t] = typeFullRenames[elementTypeDef] + "_Array";
+                typeFullRenames[t] = typeFullRenames[elementTypeDef] + "_Array" + arrayDims;
             }
         } else {
-            typeRenames[t] = elementTypeDef.Name + "_Array";
-            typeFullRenames[t] = elementTypeDef.GetFullName() + "_Array";
+            typeRenames[t] = elementTypeDef.Name + "_Array" + arrayDims;
+            typeFullRenames[t] = MakePrefixedTypeName(elementTypeDef) + "_Array" + arrayDims;
 
             if (typeFullRenames.ContainsKey(elementTypeDef)) {
-                typeFullRenames[t] = typeFullRenames[elementTypeDef] + "_Array";
+                typeFullRenames[t] = typeFullRenames[elementTypeDef] + "_Array" + arrayDims;
             }
         }
 
@@ -352,26 +500,14 @@ public class AssemblyGenerator {
                     continue;
                 }
 
-                if (t.DeclaringType == null) {
-                    typeFullRenames[t] = "_." + t.GetFullName();
-                } else {
-                    var lastDeclaringType = t.DeclaringType;
+                var optionalPrefix = GetOptionalPrefix(t);
 
-                    while (lastDeclaringType.DeclaringType != null) {
-                        lastDeclaringType = lastDeclaringType.DeclaringType;
-                    }
-
-                    if (lastDeclaringType.Namespace == null || lastDeclaringType.Namespace.Length == 0) {
-                        typeFullRenames[t] = "_." + t.GetFullName();
-                    }
+                if (optionalPrefix != null) {
+                    typeFullRenames[t] = optionalPrefix + t.GetFullName();
                 }
             }
 
             if (t.IsDerivedFrom(SystemArrayT)) {
-                if (true) {
-                    continue; // TODO
-                }
-
                 arrayTypes.Add(t);
                 
                 HandleArrayType(t);
@@ -416,7 +552,7 @@ public class AssemblyGenerator {
             return compilationUnit;
         }
 
-        if (typeRenames.TryGetValue(t, out string? renamedTypeName)) {
+        if (typeFullRenames.TryGetValue(t, out string? renamedTypeName)) {
             typeName = renamedTypeName;
         }
 
@@ -436,9 +572,7 @@ public class AssemblyGenerator {
                 Console.WriteLine("Failed to create namespace for " + typeName);
             }
 
-            // Generate array type(s)
-            if (typesWithArrayTypes.Contains(t) && elementTypesToTypes.ContainsKey(t)) {
-                var arrayType = elementTypesToTypes[t];
+            ForEachArrayType(t, (arrayType) => {
                 var arrayTypeName = typeFullRenames[arrayType];
 
                 var arrayClassGenerator = new ClassGenerator(
@@ -447,7 +581,7 @@ public class AssemblyGenerator {
                 );
 
                 if (arrayClassGenerator.TypeDeclaration == null) {
-                    return compilationUnit;
+                    return;
                 }
 
                 // We can re-use the namespace from the original type
@@ -455,7 +589,7 @@ public class AssemblyGenerator {
                     var myNamespace = SyntaxTreeBuilder.AddMembersToNamespace(generatedNamespace, arrayClassGenerator.TypeDeclaration);
                     compilationUnit = SyntaxTreeBuilder.AddMembersToCompilationUnit(compilationUnit, myNamespace);
                 }
-            }
+            });
         } else {
             // Generate starting from topmost parent first
             if (t.ParentType != null) {
@@ -480,10 +614,10 @@ public class AssemblyGenerator {
                 Console.WriteLine("Failed to create namespace for " + typeName);
             }
 
-            // Generate array type(s)
-            if (typesWithArrayTypes.Contains(t) && elementTypesToTypes.ContainsKey(t)) {
-                var arrayType = elementTypesToTypes[t];
+            ForEachArrayType(t, (arrayType) => {
                 var arrayTypeName = typeFullRenames[arrayType];
+
+                System.Console.WriteLine("Generating array type " + arrayTypeName + " from " + t.FullName);
 
                 var arrayClassGenerator = new ClassGenerator(
                     arrayTypeName,
@@ -491,7 +625,7 @@ public class AssemblyGenerator {
                 );
 
                 if (arrayClassGenerator.TypeDeclaration == null) {
-                    return compilationUnit;
+                   return;
                 }
 
                 // We can re-use the namespace from the original type
@@ -499,7 +633,7 @@ public class AssemblyGenerator {
                     var myNamespace = SyntaxTreeBuilder.AddMembersToNamespace(generatedNamespace, arrayClassGenerator.TypeDeclaration);
                     compilationUnit = SyntaxTreeBuilder.AddMembersToCompilationUnit(compilationUnit, myNamespace);
                 }
-            }
+            });
         }
 
         return compilationUnit;

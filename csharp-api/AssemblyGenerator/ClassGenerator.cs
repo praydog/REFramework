@@ -46,10 +46,17 @@ public class ClassGenerator {
     private List<REFrameworkNET.Method> methods = [];
     public List<REFrameworkNET.TypeDefinition> usingTypes = [];
     private TypeDeclarationSyntax? typeDeclaration;
+    private bool addedNewKeyword = false;
     
     public TypeDeclarationSyntax? TypeDeclaration {
         get {
             return typeDeclaration;
+        }
+    }
+
+    public bool AddedNewKeyword {
+        get {
+            return addedNewKeyword;
         }
     }
 
@@ -114,8 +121,8 @@ public class ClassGenerator {
             return outSyntax;
         }
 
-        if (AssemblyGenerator.typeFullRenames.ContainsKey(targetType) && !targetType.IsDerivedFrom(AssemblyGenerator.SystemArrayT)) {
-            targetTypeName = AssemblyGenerator.typeFullRenames[targetType];
+        if (AssemblyGenerator.typeFullRenames.TryGetValue(targetType, out string? value)) {
+            targetTypeName = value;
         }
 
         // Check for easily convertible types like System.Single, System.Int32, etc.
@@ -223,6 +230,12 @@ public class ClassGenerator {
 
         if (typeDeclaration == null) {
             return null;
+        }
+
+        // Check if we need to add the new keyword to this.
+        if (AssemblyGenerator.NestedTypeExistsInParent(t)) {
+            typeDeclaration = typeDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.NewKeyword));
+            addedNewKeyword = true;
         }
 
         // Set up base types
@@ -441,7 +454,7 @@ public class ClassGenerator {
 
         if (typeDeclaration != null) {
             typeDeclaration = typeDeclaration.AddMembers(refTypeFieldDecl);
-            //typeDeclaration = typeDeclaration.AddMembers(fieldDeclaration2);
+            //typeDeclaration = typeDeclaration.AddMembers(refProxyFieldDecl);
         }
 
         return GenerateNestedTypes();
@@ -475,9 +488,7 @@ public class ClassGenerator {
             if (nestedT.IsEnum()) {
                 var nestedEnumGenerator = new EnumGenerator(nestedTypeName.Split('.').Last(), nestedT);
 
-                // Generate array type(s)
-                if (AssemblyGenerator.typesWithArrayTypes.Contains(nestedT) && AssemblyGenerator.elementTypesToTypes.ContainsKey(nestedT)) {
-                    var arrayType = AssemblyGenerator.elementTypesToTypes[nestedT];
+                AssemblyGenerator.ForEachArrayType(nestedT, (arrayType) => {
                     var arrayTypeName = AssemblyGenerator.typeRenames[arrayType];
 
                     var arrayClassGenerator = new ClassGenerator(
@@ -488,7 +499,7 @@ public class ClassGenerator {
                     if (arrayClassGenerator.TypeDeclaration != null) {
                         this.Update(this.typeDeclaration.AddMembers(arrayClassGenerator.TypeDeclaration));
                     }
-                }
+                });
 
                 if (nestedEnumGenerator.EnumDeclaration != null) {
                     this.Update(this.typeDeclaration.AddMembers(nestedEnumGenerator.EnumDeclaration));
@@ -506,38 +517,7 @@ public class ClassGenerator {
                 continue;
             }
 
-            var isolatedNestedName = nestedTypeName.Split('.').Last();
-
-            bool addedNew = false;
-            // Add the "new" keyword if this nested type is anywhere in the hierarchy
-            for (var parent = t.ParentType; parent != null; parent = parent.ParentType) {
-                if (addedNew) {
-                    break;
-                }
-
-                // TODO: Fix this
-                if (!REFrameworkNET.AssemblyGenerator.validTypes.Contains(parent.FullName)) {
-                    continue;
-                }
-
-                var parentNestedTypes = Il2CppDump.GetTypeExtension(parent)?.NestedTypes;
-
-                // Look for same named nested types
-                if (parentNestedTypes != null) {
-                    foreach (var parentNested in parentNestedTypes) {
-                        var isolatedParentNestedName = parentNested.FullName?.Split('.').Last();
-                        if (isolatedParentNestedName == isolatedNestedName) {
-                            nestedGenerator.Update(nestedGenerator.TypeDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.NewKeyword)));
-                            addedNew = true;
-                            break;
-                        }
-                    }
-                }
-            }
-
-            // Generate array type(s)
-            if (AssemblyGenerator.typesWithArrayTypes.Contains(nestedT) && AssemblyGenerator.elementTypesToTypes.ContainsKey(nestedT)) {
-                var arrayType = AssemblyGenerator.elementTypesToTypes[nestedT];
+            AssemblyGenerator.ForEachArrayType(nestedT, (arrayType) => {
                 var arrayTypeName = AssemblyGenerator.typeRenames[arrayType];
 
                 var arrayClassGenerator = new ClassGenerator(
@@ -546,9 +526,10 @@ public class ClassGenerator {
                 );
 
                 if (arrayClassGenerator.TypeDeclaration != null) {
+                    //this.Update(this.typeDeclaration.AddMembers(arrayClassGenerator.TypeDeclaration));
                     this.Update(this.typeDeclaration.AddMembers(arrayClassGenerator.TypeDeclaration));
                 }
-            }
+            });
 
             if (nestedGenerator.TypeDeclaration != null) {
                 this.Update(this.typeDeclaration.AddMembers(nestedGenerator.TypeDeclaration));

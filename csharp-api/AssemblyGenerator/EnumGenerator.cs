@@ -47,6 +47,11 @@ public class EnumGenerator {
         enumDeclaration = SyntaxFactory.EnumDeclaration(enumName)
             .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword));
 
+        // Check if we need to add the new keyword to this.
+        if (AssemblyGenerator.NestedTypeExistsInParent(t)) {
+            enumDeclaration = enumDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.NewKeyword));
+        }
+
         if (t.HasAttribute(s_FlagsAttribute, true)) {
             enumDeclaration = enumDeclaration.AddAttributeLists(SyntaxFactory.AttributeList().AddAttributes(SyntaxFactory.Attribute(SyntaxFactory.ParseName("System.FlagsAttribute"))));
         }
