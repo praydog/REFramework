@@ -133,19 +133,35 @@ protected:
             throw gcnew System::InvalidOperationException("Proxy: T2 must be IObject derived");
         }
 
-        if (targetMethod->ReturnType == REFrameworkNET::ManagedObject::typeid) {
-            return result;
-        }
-        
-        if (targetMethod->ReturnType == REFrameworkNET::NativeObject::typeid) {
-            return result;
+        auto targetReturnType = targetMethod->ReturnType;
+
+        if (targetReturnType != nullptr) {
+            if (targetReturnType == String::typeid) {
+                return result;
+            }
+
+            if (targetReturnType == REFrameworkNET::ManagedObject::typeid) {
+                return result;
+            }
+            
+            if (targetReturnType == REFrameworkNET::NativeObject::typeid) {
+                return result;
+            }
+
+            if (targetReturnType == REFrameworkNET::TypeDefinition::typeid) {
+                return result;
+            }
+
+            if (targetReturnType == REFrameworkNET::Method::typeid) {
+                return result;
+            }
+
+            if (targetReturnType == REFrameworkNET::Field::typeid) {
+                return result;
+            }
         }
 
-        if (targetMethod->ReturnType == String::typeid) {
-            return result;
-        }
-
-        if (targetMethod->DeclaringType == nullptr || targetMethod->ReturnType == nullptr) {
+        if (targetMethod->DeclaringType == nullptr || targetReturnType == nullptr) {
             return result;
         }
 

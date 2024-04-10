@@ -34,7 +34,7 @@ namespace REFrameworkNET {
         if (method != nullptr)
         {
             // Re-used with UnifiedObject::TryInvokeMember
-            return method->HandleInvokeMember_Internal(this, methodName, args, result);
+            return method->HandleInvokeMember_Internal(this, args, result);
         }
 
         REFrameworkNET::API::LogInfo("Method not found: " + methodName);

@@ -26,7 +26,7 @@ public:
     }
 
     REFrameworkNET::InvokeRet^ Invoke(System::Object^ obj, array<System::Object^>^ args);
-    bool HandleInvokeMember_Internal(System::Object^ obj, System::String^ methodName, array<System::Object^>^ args, System::Object^% result);
+    bool HandleInvokeMember_Internal(System::Object^ obj, array<System::Object^>^ args, System::Object^% result);
 
     void* GetFunctionPtr() {
         return m_method->get_function_raw();

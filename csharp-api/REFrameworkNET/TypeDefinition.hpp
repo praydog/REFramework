@@ -16,7 +16,7 @@ ref class Property;
 ref class TypeInfo;
 ref struct InvokeRet;
 
-public enum VMObjType {
+public enum class VMObjType : uint32_t {
     NULL_ = 0,
     Object = 1,
     Array = 2,

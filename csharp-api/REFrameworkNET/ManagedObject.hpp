@@ -44,10 +44,18 @@ public:
     }
 
     void AddRef() {
+        if (m_object == nullptr) {
+            return;
+        }
+
         m_object->add_ref();
     }
 
     void Release() {
+        if (m_object == nullptr) {
+            return;
+        }
+
         m_object->release();
     }
 
