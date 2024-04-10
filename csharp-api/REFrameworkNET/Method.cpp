@@ -57,15 +57,16 @@ ManagedObject^ Method::GetRuntimeMethod() {
     return nullptr;
 }
 
-bool Method::IsOverride() {
+System::Collections::Generic::List<Method^>^ Method::GetMatchingParentMethods() {
+    auto out = gcnew System::Collections::Generic::List<Method^>();
     auto declaringType = this->GetDeclaringType();
 
     if (declaringType == nullptr) {
-        return false;
+        return out;
     }
 
     if (declaringType->ParentType == nullptr) {
-        return false;
+        return out;
     }
 
     auto returnType = this->GetReturnType();
@@ -79,7 +80,16 @@ bool Method::IsOverride() {
                 continue;
             }
 
-            if (parentMethod->GetReturnType() != returnType) {
+            if (parentMethod->DeclaringType != parentType) {
+                continue;
+            }
+
+            /*if (parentMethod->GetReturnType() != returnType) {
+                continue;
+            }*/
+
+            // Generic return type check
+            if (parentMethod->ReturnType->Name->Contains("!")) {
                 continue;
             }
 
@@ -88,7 +98,8 @@ bool Method::IsOverride() {
             }
 
             if (parameters->Length == 0) {
-                return true;
+                out->Add(parentMethod);
+                continue;
             }
 
             auto parentParams = parentMethod->GetParameters()->ToArray();
@@ -104,15 +115,17 @@ bool Method::IsOverride() {
                 }
             }
 
-            if (!fullParamsMatch) {
-                continue;
+            if (fullParamsMatch) {
+                out->Add(parentMethod);
             }
-
-            return true;
         }
     }
 
-    return false;
+    return out;
+}
+
+bool Method::IsOverride() {
+    return GetMatchingParentMethods()->Count > 0;
 }
 
 REFrameworkNET::InvokeRet^ Method::Invoke(System::Object^ obj, array<System::Object^>^ args) {
@@ -232,7 +245,7 @@ REFrameworkNET::InvokeRet^ Method::Invoke(System::Object^ obj, array<System::Obj
     return gcnew REFrameworkNET::InvokeRet(native_result);
 }
 
-bool Method::HandleInvokeMember_Internal(System::Object^ obj, System::String^ methodName, array<System::Object^>^ args, System::Object^% result) {
+bool Method::HandleInvokeMember_Internal(System::Object^ obj, array<System::Object^>^ args, System::Object^% result) {
     //auto methodName = binder->Name;
     auto tempResult = this->Invoke(obj, args);
 

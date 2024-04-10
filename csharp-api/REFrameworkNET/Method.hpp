@@ -163,6 +163,7 @@ public:
     MethodHook^ AddHook(bool ignore_jmp);
 
     ManagedObject^ GetRuntimeMethod();
+    System::Collections::Generic::List<Method^>^ GetMatchingParentMethods(); // mainly for the assembly generator (temporary?)
     bool IsOverride();
 
 public:
