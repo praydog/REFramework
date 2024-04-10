@@ -25,7 +25,7 @@ public class EnumGenerator {
     }
 
     public EnumGenerator(string enumName, REFrameworkNET.TypeDefinition t) {
-        this.enumName = enumName;
+        this.enumName = REFrameworkNET.AssemblyGenerator.FixBadChars(enumName);
         this.t = t;
 
         enumDeclaration = Generate();

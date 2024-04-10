@@ -14,6 +14,7 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Collections.Concurrent;
+using System.Reflection.Metadata;
 
 public class Il2CppDump {
     class Field {
@@ -30,6 +31,7 @@ public class Il2CppDump {
         public REFrameworkNET.TypeDefinition DeclaringType => Impl.GetDeclaringType();
 
         public bool? Override { get; set;} // Not from JSON
+        public List<REFrameworkNET.Method> MatchingParentMethods = [];
     }
 
     public class Type {
@@ -148,11 +150,20 @@ public class Il2CppDump {
                     continue;
                 }
 
-                var parentMethod = parent.GetMethod(method.Name);
+                /*var parentMethod = parent.GetMethod(method.Name);
 
                 if (parentMethod != null) {
                     methodExtensions.Add(method, new Method(method) {
                         Override = true
+                    });
+                }*/
+
+                var matchingParentMethods = method.GetMatchingParentMethods();
+
+                if (matchingParentMethods.Count > 0) {
+                    methodExtensions.Add(method, new Method(method) {
+                        Override = true,
+                        MatchingParentMethods = matchingParentMethods
                     });
                 }
             }
@@ -167,12 +178,63 @@ public class AssemblyGenerator {
     // Start with an empty CompilationUnitSyntax (represents an empty file)
     //static CompilationUnitSyntax compilationUnit = SyntaxFactory.CompilationUnit();
 
+    static readonly char[] invalidChars = [
+        '<',
+        '>',
+        ',',
+        '!',
+        ' ',
+    ];
+
+    static readonly char[] invalidGenericChars = [
+        '<',
+        '>',
+        ',',
+        '!',
+        ' ',
+        '`',
+    ];
+
+    public static string FixBadChars(string name) {
+        // Find the first <, and the last >, replace any dots in between with underscores
+        /*int first = name.IndexOf('<');
+        int last = name.LastIndexOf('>');
+
+        if (first != -1 && last != -1) {
+            name = name.Substring(0, first) + name.Substring(first, last - first).Replace('.', '_') + name.Substring(last);
+        }
+
+        // Replace any invalid characters with underscores
+        foreach (var c in invalidGenericChars) {
+            name = name.Replace(c, '_');
+        }*/
+
+        return name;
+    }
+
+    /*public static string FixBadCharsForGeneric(string name) {
+        // Find the first <, and the last >, replace any dots in between with underscores
+        int first = name.IndexOf('<');
+        int last = name.LastIndexOf('>');
+
+        if (first != -1 && last != -1) {
+            name = name.Substring(0, first) + name.Substring(first, last - first).Replace('.', '_') + name.Substring(last);
+        }
+
+        // Replace any invalid characters with underscores
+        foreach (var c in invalidGenericChars) {
+            name = name.Replace(c, '_');
+        }
+
+        return name;
+    }*/
+
     public static string CorrectTypeName(string fullName) {
         if (fullName.StartsWith("System.") || fullName.StartsWith("Internal.")) {
             return "_" + fullName;
         }
 
-        return fullName;
+        return FixBadChars(fullName);
     }
 
     static public NamespaceDeclarationSyntax? ExtractNamespaceFromType(REFrameworkNET.TypeDefinition t) {
@@ -191,63 +253,134 @@ public class AssemblyGenerator {
             }
 
             return value;
-        } else {
-            Console.WriteLine("Failed to extract namespace from " + t.GetFullName());
+        } 
+
+        //Console.WriteLine("Failed to extract namespace from " + t.GetFullName());
+        if (!namespaces.TryGetValue("_", out NamespaceDeclarationSyntax? value2)) {
+            value2 = SyntaxTreeBuilder.CreateNamespace("_");
+            namespaces["_"] = value2;
         }
 
-        return null;
+        return value2;
     }
 
     public static SortedSet<string> validTypes = [];
     public static SortedSet<string> generatedTypes = [];
+
+    // Array of System.Array derived types
+    public static List<REFrameworkNET.TypeDefinition> arrayTypes = [];
+    public static HashSet<REFrameworkNET.TypeDefinition> typesWithArrayTypes = [];
+    public static Dictionary<REFrameworkNET.TypeDefinition, REFrameworkNET.TypeDefinition> elementTypesToTypes = [];
+
+    public static Dictionary<REFrameworkNET.TypeDefinition, string> typeRenames = [];
+    public static Dictionary<REFrameworkNET.TypeDefinition, string> typeFullRenames = [];
+    public static readonly REFrameworkNET.TypeDefinition SystemArrayT = REFrameworkNET.API.GetTDB().GetType("System.Array");
+
+    private static bool HandleArrayType(REFrameworkNET.TypeDefinition t) {
+        var rtType = t.GetRuntimeType();
+
+        if (rtType == null) {
+            return false;
+        }
+
+        var elementType = (rtType as dynamic).GetElementType();
+
+        if (elementType == null) {
+            return false;
+        }
+
+        var elementTypeDef = elementType.get_TypeHandle();
+
+        if (elementTypeDef == null) {
+            Console.WriteLine("Failed to get type handle for array element type");
+            return false;
+        }
+
+        typesWithArrayTypes.Add(elementTypeDef);
+        elementTypesToTypes[elementTypeDef] = t;
+        
+        // Check if the element type is a System.Array derived type
+        if (elementTypeDef.IsDerivedFrom(SystemArrayT)) {
+            if (HandleArrayType(elementTypeDef)) {
+                typeRenames[t] = typeRenames[elementTypeDef] + "_Array";
+            } else {
+                typeRenames[t] = elementTypeDef.Name + "_Array";
+            }
+
+            if (typeFullRenames.ContainsKey(elementTypeDef)) {
+                typeFullRenames[t] = typeFullRenames[elementTypeDef] + "_Array";
+            }
+        } else {
+            typeRenames[t] = elementTypeDef.Name + "_Array";
+            typeFullRenames[t] = elementTypeDef.GetFullName() + "_Array";
+
+            if (typeFullRenames.ContainsKey(elementTypeDef)) {
+                typeFullRenames[t] = typeFullRenames[elementTypeDef] + "_Array";
+            }
+        }
+
+        return true;
+    }
 
     static void FillValidEntries(REFrameworkNET.TDB context) {
         if (validTypes.Count > 0) {
             return;
         }
 
-        foreach (REFrameworkNET.TypeDefinition t in context.Types) {
-            var asdf = t.GetFullName();
-        }
-
-        ConcurrentBag<string> threadSafeValidTypes = [];
-
         context.GetType(0).GetFullName(); // initialize the types
 
-        Parallel.For(0, context.GetNumTypes(), i => {
-            var t = context.GetType((uint)i);
+        foreach (REFrameworkNET.TypeDefinition t in context.Types) {
+            //var t = context.GetType((uint)i);
             var typeName = t.GetFullName();
 
             if (typeName.Length == 0) {
-                Console.WriteLine("Bad type name @ " + i);
-                return;
-            }
-
-            if (typeName.Contains("WrappedArrayContainer")) {
-                return;
+                Console.WriteLine("Bad type name");
+                continue;
             }
 
             // Generics and arrays not yet supported
-            if (typeName.Contains("[") || typeName.Contains("]") || typeName.Contains('<') || typeName.Contains('!')) {
-                return;
+            if (typeName.Contains("[[") /*|| typeName.Contains("]")*/ || typeName.Contains('!')) {
+                continue;
             }
 
-            // Dont worry about global namespace types for now...
+            if (typeName.Contains('<') && !t.IsGenericTypeDefinition()) {
+                continue;
+            }
+
             if (t.Namespace == null || t.Namespace.Length == 0) {
-                return;
+                if (typeName.Length == 0) {
+                    continue;
+                }
+
+                if (t.DeclaringType == null) {
+                    typeFullRenames[t] = "_." + t.GetFullName();
+                } else {
+                    var lastDeclaringType = t.DeclaringType;
+
+                    while (lastDeclaringType.DeclaringType != null) {
+                        lastDeclaringType = lastDeclaringType.DeclaringType;
+                    }
+
+                    if (lastDeclaringType.Namespace == null || lastDeclaringType.Namespace.Length == 0) {
+                        typeFullRenames[t] = "_." + t.GetFullName();
+                    }
+                }
             }
 
-            // Skip system types
-            // TODO: Fix this
-            /*if (typeName.StartsWith("System.")) {
-                //return;
-                threadSafeValidTypes.Add("_" + typeName);
-            } else {*/
-                threadSafeValidTypes.Add(typeName);
-            //}
-        });
+            if (t.IsDerivedFrom(SystemArrayT)) {
+                if (true) {
+                    continue; // TODO
+                }
 
-        foreach (var typeName in threadSafeValidTypes) {
+                arrayTypes.Add(t);
+                
+                HandleArrayType(t);
+            }
+
+            /*if (t.IsGenericType() && !t.IsGenericTypeDefinition()) {
+                continue;
+            }*/
+
             validTypes.Add(typeName);
         }
     }
@@ -277,6 +410,16 @@ public class AssemblyGenerator {
 
         generatedTypes.Add(typeName);
 
+        // do not generate array types directly, we do it manually per element type
+        if (typeName.Contains("[]")) {
+            Console.WriteLine("Skipping array type " + typeName);
+            return compilationUnit;
+        }
+
+        if (typeRenames.TryGetValue(t, out string? renamedTypeName)) {
+            typeName = renamedTypeName;
+        }
+
         if (t.IsEnum()) {
             var generator = new EnumGenerator(typeName, t);
 
@@ -292,28 +435,36 @@ public class AssemblyGenerator {
             } else {
                 Console.WriteLine("Failed to create namespace for " + typeName);
             }
+
+            // Generate array type(s)
+            if (typesWithArrayTypes.Contains(t) && elementTypesToTypes.ContainsKey(t)) {
+                var arrayType = elementTypesToTypes[t];
+                var arrayTypeName = typeFullRenames[arrayType];
+
+                var arrayClassGenerator = new ClassGenerator(
+                    arrayTypeName,
+                    arrayType
+                );
+
+                if (arrayClassGenerator.TypeDeclaration == null) {
+                    return compilationUnit;
+                }
+
+                // We can re-use the namespace from the original type
+                if (generatedNamespace != null) {
+                    var myNamespace = SyntaxTreeBuilder.AddMembersToNamespace(generatedNamespace, arrayClassGenerator.TypeDeclaration);
+                    compilationUnit = SyntaxTreeBuilder.AddMembersToCompilationUnit(compilationUnit, myNamespace);
+                }
+            }
         } else {
             // Generate starting from topmost parent first
             if (t.ParentType != null) {
                 compilationUnit = MakeFromTypeEntry(context, t.ParentType.FullName ?? "", t.ParentType);
             }
 
-            // Make methods a SortedSet of method names
-            HashSet<REFrameworkNET.Method> methods = [];
-
-            foreach (var method in t.Methods) {
-                //methods.Add(method);
-                if (!methods.Select(m => m.Name).Contains(method.Name)) {
-                    if (method.DeclaringType == t) { // really important
-                        methods.Add(method);
-                    }
-                }
-            }
-
             var generator = new ClassGenerator(
                 typeName.Split('.').Last() == "file" ? typeName.Replace("file", "@file") : typeName,
-                t,
-                [.. methods]
+                t
             );
 
             if (generator.TypeDeclaration == null) {
@@ -327,6 +478,27 @@ public class AssemblyGenerator {
                 compilationUnit = SyntaxTreeBuilder.AddMembersToCompilationUnit(compilationUnit, myNamespace);
             } else {
                 Console.WriteLine("Failed to create namespace for " + typeName);
+            }
+
+            // Generate array type(s)
+            if (typesWithArrayTypes.Contains(t) && elementTypesToTypes.ContainsKey(t)) {
+                var arrayType = elementTypesToTypes[t];
+                var arrayTypeName = typeFullRenames[arrayType];
+
+                var arrayClassGenerator = new ClassGenerator(
+                    arrayTypeName,
+                    arrayType
+                );
+
+                if (arrayClassGenerator.TypeDeclaration == null) {
+                    return compilationUnit;
+                }
+
+                // We can re-use the namespace from the original type
+                if (generatedNamespace != null) {
+                    var myNamespace = SyntaxTreeBuilder.AddMembersToNamespace(generatedNamespace, arrayClassGenerator.TypeDeclaration);
+                    compilationUnit = SyntaxTreeBuilder.AddMembersToCompilationUnit(compilationUnit, myNamespace);
+                }
             }
         }
 
@@ -388,7 +560,7 @@ public class AssemblyGenerator {
         var syntaxTreeParseOption = CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.CSharp12);
         
         foreach (var cu in compilationUnits) {
-            syntaxTrees.Add(SyntaxFactory.SyntaxTree(cu, syntaxTreeParseOption));
+            syntaxTrees.Add(SyntaxFactory.SyntaxTree(cu.NormalizeWhitespace(), syntaxTreeParseOption));
         }
 
         string? assemblyPath = Path.GetDirectoryName(typeof(object).Assembly.Location);
@@ -405,6 +577,9 @@ public class AssemblyGenerator {
             MetadataReference.CreateFromFile(typeof(System.Linq.Enumerable).Assembly.Location),
             MetadataReference.CreateFromFile(typeof(System.Runtime.AssemblyTargetedPatchBandAttribute).Assembly.Location),
             MetadataReference.CreateFromFile(typeof(Microsoft.CSharp.RuntimeBinder.CSharpArgumentInfo).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(System.ComponentModel.DescriptionAttribute).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(REFrameworkNET.API).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(System.Dynamic.DynamicObject).Assembly.Location),
         };
 
         if (systemRuntimePath != null) {
@@ -423,7 +598,8 @@ public class AssemblyGenerator {
         var csoptions = new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, 
             optimizationLevel: OptimizationLevel.Release,
             assemblyIdentityComparer: DesktopAssemblyIdentityComparer.Default,
-            platform: Platform.X64);
+            platform: Platform.X64,
+            allowUnsafe: true);
         // Create a compilation
         CSharpCompilation compilation = CSharpCompilation.Create(strippedAssemblyName)
             .WithOptions(csoptions)
@@ -450,6 +626,7 @@ public class AssemblyGenerator {
                     var errorLineNumber = lineSpan.StartLinePosition.Line;
                     var errorLineText = textLines?[errorLineNumber].ToString();
                     Console.WriteLine($"Error in line {errorLineNumber + 1}: {errorLineText}");
+                    //Console.WriteLine(diagnostic.Location.SourceTree?.GetText());
                     //Console.WriteLine(
                         //$"Error in line {errorLineNumber + 1}: {lineSpan.StartLinePosition.Character + 1} - {lineSpan.EndLinePosition.Character + 1}");
                 }

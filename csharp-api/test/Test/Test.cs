@@ -92,6 +92,10 @@ public class DangerousFunctions {
 
         REFrameworkNET.API.LogInfo("DevUtil: " + devUtilT.GetFullName());
         REFrameworkNET.API.LogInfo("Dialog: " + dialogT.GetFullName());
+
+        var mouse = REFrameworkNET.API.GetNativeSingletonT<via.hid.Mouse>();
+
+        mouse.set_ShowCursor(false);
     }
 
     public static void TryEnableFrameGeneration() {
@@ -125,12 +129,12 @@ class ObjectExplorer {
         var t = field.GetType();
         string tName = t != null ? t.GetFullName() : "null";
 
-        var unified = obj as REFrameworkNET.UnifiedObject;
+        var unified = obj != null ? obj as REFrameworkNET.UnifiedObject : null;
         ulong address = unified != null ? unified.GetAddress() : 0;
 
         if (field.IsStatic()) {
             address = field.GetDataRaw(obj.GetAddress(), false);
-        } else {
+        } else if (obj != null) {
             address += field.GetOffsetFromBase();
         }
 
@@ -154,6 +158,16 @@ class ObjectExplorer {
             ImGui.TextColored(new System.Numerics.Vector4(0.75f, 0.2f, 0.0f, 1.0f), "Static");
         } else {
             ImGui.Text("0x" + field.GetOffsetFromBase().ToString("X"));
+        }
+
+        if (obj == null) {
+            if (made) {
+                ImGui.Text("Value: null");
+                ImGui.TreePop();
+            }
+
+            ImGui.PopID();
+            return;
         }
 
         if (made) {
@@ -245,7 +259,65 @@ class ObjectExplorer {
         }
     }
 
+    public static void DisplayType(REFrameworkNET.TypeDefinition t) {
+        ImGui.Text("Name: " + t.GetFullName());
+        ImGui.Text("Namespace: " + t.GetNamespace());
+
+        if (t.DeclaringType != null) {
+            var made = ImGui.TreeNodeEx("Declaring Type: ", ImGuiNET.ImGuiTreeNodeFlags.SpanFullWidth);
+            ImGui.SameLine(0.0f, 0.0f);
+            ImGui.TextColored(TYPE_COLOR, t.DeclaringType.GetFullName());
+            if (made) {
+                DisplayType(t.DeclaringType);
+                ImGui.TreePop();
+            }
+        }
+
+        if (t.ParentType != null) {
+            var made = ImGui.TreeNodeEx("Parent Type: ", ImGuiNET.ImGuiTreeNodeFlags.SpanFullWidth);
+            ImGui.SameLine(0.0f, 0.0f);
+            ImGui.TextColored(TYPE_COLOR, t.ParentType.GetFullName());
+            if (made) {
+                DisplayType(t.ParentType);
+                ImGui.TreePop();
+            }
+        }
+        
+        var runtimeTypeRaw = t.GetRuntimeType();
+
+        if (runtimeTypeRaw != null) {
+            var runtimeType = runtimeTypeRaw.As<_System.Type>();
+            var assembly = runtimeType.get_Assembly();
+
+            if (assembly != null) {
+                if (ImGui.TreeNode("Assembly: " + assembly.get_FullName().Split(',')[0])) {
+                    DisplayObject(assembly as IObject);
+                    ImGui.TreePop();
+                }
+            }
+
+            var baseType = runtimeType.get_BaseType();
+
+            /*if (baseType != null) {
+                if (ImGui.TreeNode("Base Type (" + (baseType.get_TypeHandle() as REFrameworkNET.TypeDefinition).FullName + ")")) {
+                    DisplayObject(baseType as IObject);
+                    ImGui.TreePop();
+                }
+            }*/
+
+            if (ImGui.TreeNode("Runtime Type")) {
+                DisplayObject(runtimeType as IObject);
+                ImGui.TreePop();
+            }
+        }
+    }
+
     public static void DisplayObject(REFrameworkNET.IObject obj) {
+        if (ImGui.TreeNode("Type Info")) {
+            DisplayType(obj.GetTypeDefinition());
+            ImGui.TreePop();
+        }
+
         if (ImGui.TreeNode("Methods")) {
             var methods = obj.GetTypeDefinition().GetMethods();
 
@@ -325,6 +397,8 @@ class ObjectExplorer {
             if (ImGui.TreeNode("Native Singletons")) {
                 RenderNativeSingletons();
             }
+
+            DisplayType(REFrameworkNET.API.GetTDB().GetType("JsonParser.Value"));
         } catch (Exception e) {
             System.Console.WriteLine(e.ToString());
         }

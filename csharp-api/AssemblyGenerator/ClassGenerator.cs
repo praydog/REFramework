@@ -12,12 +12,38 @@ using System.Security.Cryptography;
 using System.Linq;
 using Microsoft.CodeAnalysis.Operations;
 using REFrameworkNET;
+using System;
 
+/*public interface CrappyTest {
+    public string Concat(object arg0);
+
+    public string Concat(object arg0, object arg1);
+
+    public string Concat(object arg0, object arg1, object arg2);
+
+    public string Concat(global::System.Object[] args);
+
+    public string Concat(string str0, string str1);
+
+    public string Concat(string str0, string str1, string str2);
+
+    public string Concat(string str0, string str1, string str2, string str3);
+
+    public string Concat(object str0, object str1);
+
+    public string Concat(object str0, object str1, object str2);
+
+    public string Concat(object str0, object str1, object str2, object str3);
+
+    public string Concat(global::System.String[] values);
+
+    public string Format(string format, object arg0);
+}*/
 
 public class ClassGenerator {
     private string className;
     private REFrameworkNET.TypeDefinition t;
-    private REFrameworkNET.Method[] methods = [];
+    private List<REFrameworkNET.Method> methods = [];
     public List<REFrameworkNET.TypeDefinition> usingTypes = [];
     private TypeDeclarationSyntax? typeDeclaration;
     
@@ -31,21 +57,65 @@ public class ClassGenerator {
         typeDeclaration = typeDeclaration_;
     }
 
-    public ClassGenerator(string className_, REFrameworkNET.TypeDefinition t_, REFrameworkNET.Method[] methods_) {
-        className = className_;
+    public ClassGenerator(string className_, REFrameworkNET.TypeDefinition t_) {
+        className = REFrameworkNET.AssemblyGenerator.FixBadChars(className_);
         t = t_;
-        methods = methods_;
+
+        foreach (var method in t_.Methods) {
+            // Means we've entered the parent type
+            if (method.DeclaringType != t_) {
+                break;
+            }
+            
+            methods.Add(method);
+        }
 
         typeDeclaration = Generate();
     }
 
     private static TypeSyntax MakeProperType(REFrameworkNET.TypeDefinition? targetType, REFrameworkNET.TypeDefinition? containingType) {
+        if (containingType != null && targetType != null) {
+            if (containingType.FullName.StartsWith("System.")) {
+                /*var containingRtType = containingType.GetRuntimeType();
+                var targetRtType = targetType.GetRuntimeType();
+
+                if (containingRtType != null && targetRtType != null) {
+                    var containingRtAssembly = (ManagedObject)containingRtType.Call("get_Assembly");
+                    var targetRtAssembly = (ManagedObject)targetRtType.Call("get_Assembly");
+
+                    if ((string)containingRtAssembly.Call("get_FullName") != (string)targetRtAssembly.Call("get_FullName")) {
+                        System.Console.WriteLine("Method " + containingType.FullName + " is referencing type " + targetType.FullName + " in a different assembly");
+                        return SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.ObjectKeyword));
+                    }
+                }*/
+
+                // Check if any of the generic arguments are not in the same assembly
+                /*if (containingRtType != null && targetType.IsGenericType()) {
+                    foreach (REFrameworkNET.TypeDefinition td in targetType.GenericArguments) {
+                        if (td != null) {
+                            var rtType = td.GetRuntimeType();
+                            if (rtType != null) {
+                                if ((ManagedObject)containingRtType.Call("get_Assembly") != (ManagedObject)rtType.Call("get_Assembly")) {
+                                    return SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.ObjectKeyword));
+                                }
+                            }
+                        }
+                    }
+                }*/
+            }
+        }
+
         TypeSyntax outSyntax = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.VoidKeyword));
 
-        string targetTypeName = targetType != null ? targetType.GetFullName() : "";
+        string ogTargetTypename = targetType != null ? targetType.GetFullName() : "";
+        string targetTypeName = REFrameworkNET.AssemblyGenerator.FixBadChars(ogTargetTypename);
 
         if (targetType == null || targetTypeName == "System.Void" || targetTypeName == "") {
             return outSyntax;
+        }
+
+        if (AssemblyGenerator.typeFullRenames.ContainsKey(targetType) && !targetType.IsDerivedFrom(AssemblyGenerator.SystemArrayT)) {
+            targetTypeName = AssemblyGenerator.typeFullRenames[targetType];
         }
 
         // Check for easily convertible types like System.Single, System.Int32, etc.
@@ -96,43 +166,19 @@ public class ClassGenerator {
                 outSyntax = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.ObjectKeyword));
                 break;
             default:
-                if (targetType != null && targetTypeName != "") {
-                    if (!REFrameworkNET.AssemblyGenerator.validTypes.Contains(targetTypeName)) {
-                        outSyntax = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.ObjectKeyword));
-                        break;
-                    }
-
-                    if (targetTypeName.Contains('<') || targetTypeName.Contains('[')) {
-                        outSyntax = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.ObjectKeyword));
-                        break;
-                    }
-
-                    // Stuff in System should NOT be referencing via
-                    // how is this even compiling for them?
-                    if (containingType != null) {
-                        var ogClassName = containingType.GetFullName();
-                        
-                        if (ogClassName.StartsWith("System") && targetTypeName.StartsWith("via")) {
-                            //REFrameworkNET.API.LogWarning("Method " + ogClassName + "." + method.Name + " is referencing via class " + methodReturnName);
-                            outSyntax = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.ObjectKeyword));
-                            break;
-                        }
-
-                        if (ogClassName.StartsWith("System") && targetTypeName.StartsWith("app.")) {
-                            //EFrameworkNET.API.LogWarning("Method " + ogClassName + "." + method.Name + " is referencing app class " + methodReturnName);
-                            outSyntax = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.ObjectKeyword));
-                            break;
-                        }
-                    }
-
-
-                    targetTypeName = "global::" + REFrameworkNET.AssemblyGenerator.CorrectTypeName(targetTypeName);
-
-                    outSyntax = SyntaxFactory.ParseTypeName(targetTypeName);
+                if (!REFrameworkNET.AssemblyGenerator.validTypes.Contains(ogTargetTypename)) {
+                    outSyntax = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.ObjectKeyword));
                     break;
                 }
 
-                outSyntax = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.ObjectKeyword));
+                /*if (targetTypeName.Contains('<')) {
+                    outSyntax = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.ObjectKeyword));
+                    break;
+                }*/
+
+                targetTypeName = "global::" + REFrameworkNET.AssemblyGenerator.CorrectTypeName(targetTypeName);
+
+                outSyntax = SyntaxFactory.ParseTypeName(targetTypeName);
                 break;
         }
         
@@ -170,11 +216,27 @@ public class ClassGenerator {
         if (t.DeclaringType == null) {
             className = className.Split('.').Last();
         }
+        
+        typeDeclaration = SyntaxFactory
+            .InterfaceDeclaration(REFrameworkNET.AssemblyGenerator.CorrectTypeName(className))
+            .AddModifiers(new SyntaxToken[]{SyntaxFactory.Token(SyntaxKind.PublicKeyword)});
 
-        bool wantsAbstractInstead = false;
+        if (typeDeclaration == null) {
+            return null;
+        }
 
-        /*for (var parent = t.ParentType; parent != null; parent = parent.ParentType) {
-            var parentName = parent.FullName ?? "";
+        // Set up base types
+        List<SimpleBaseTypeSyntax> baseTypes = [];
+
+        for (var parent = t.ParentType; parent != null; parent = parent.ParentType) {
+            // TODO: Fix this
+            if (!AssemblyGenerator.validTypes.Contains(parent.FullName)) {
+                continue;
+            }
+
+            AssemblyGenerator.typeFullRenames.TryGetValue(parent, out string? parentName);
+            parentName = AssemblyGenerator.CorrectTypeName(parentName ?? parent.FullName ?? "");
+
             if (parentName == null) {
                 break;
             }
@@ -183,29 +245,39 @@ public class ClassGenerator {
                 break;
             }
 
-            if (parentName == "System.Attribute") {
-                wantsAbstractInstead = true;
+            if (parentName.Contains('[')) {
                 break;
             }
-        }*/
 
-        if (wantsAbstractInstead) {
-            typeDeclaration = SyntaxFactory
-                        .ClassDeclaration(REFrameworkNET.AssemblyGenerator.CorrectTypeName(className))
-                        .AddModifiers(new SyntaxToken[]{SyntaxFactory.Token(SyntaxKind.PublicKeyword), SyntaxFactory.Token(SyntaxKind.AbstractKeyword)});
-        } else {
-            typeDeclaration = SyntaxFactory
-                .InterfaceDeclaration(REFrameworkNET.AssemblyGenerator.CorrectTypeName(className))
-                .AddModifiers(new SyntaxToken[]{SyntaxFactory.Token(SyntaxKind.PublicKeyword)});
+            // Forces compiler to start at the global namespace
+            parentName = "global::" + parentName;
+
+            baseTypes.Add(SyntaxFactory.SimpleBaseType(SyntaxFactory.ParseTypeName(parentName)));
+            usingTypes.Add(parent);
+            break;
         }
 
-        if (typeDeclaration == null) {
-            return null;
-        }
+        // Add a static field to the class that holds the REFrameworkNET.TypeDefinition
+        var refTypeVarDecl = SyntaxFactory.VariableDeclaration(SyntaxFactory.ParseTypeName("global::REFrameworkNET.TypeDefinition"))
+            .AddVariables(SyntaxFactory.VariableDeclarator("REFType").WithInitializer(SyntaxFactory.EqualsValueClause(SyntaxFactory.ParseExpression("global::REFrameworkNET.TDB.Get().FindType(\"" + t.FullName + "\")"))));
+        
+        var refTypeFieldDecl = SyntaxFactory.FieldDeclaration(refTypeVarDecl).AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword), SyntaxFactory.Token(SyntaxKind.StaticKeyword), SyntaxFactory.Token(SyntaxKind.ReadOnlyKeyword));
+
+        // Add a static field that holds a NativeProxy to the class (for static methods)
+        var refProxyVarDecl = SyntaxFactory.VariableDeclaration(SyntaxFactory.ParseTypeName(REFrameworkNET.AssemblyGenerator.CorrectTypeName(className)))
+            .AddVariables(SyntaxFactory.VariableDeclarator("REFProxy").WithInitializer(SyntaxFactory.EqualsValueClause(SyntaxFactory.ParseExpression("REFType.As<" + REFrameworkNET.AssemblyGenerator.CorrectTypeName(t.FullName) + ">()"))));
+
+        var refProxyFieldDecl = SyntaxFactory.FieldDeclaration(refProxyVarDecl).AddModifiers(SyntaxFactory.Token(SyntaxKind.PrivateKeyword), SyntaxFactory.Token(SyntaxKind.StaticKeyword), SyntaxFactory.Token(SyntaxKind.ReadOnlyKeyword));
+
+        List<FieldDeclarationSyntax> internalFieldDeclarations = [];
+        HashSet<string> seenMethodSignatures = [];
 
         typeDeclaration = typeDeclaration
-            .AddMembers(methods.Where(method => !invalidMethodNames.Contains(method.Name) && !method.Name.Contains('<')).Select(method => {
+            .AddMembers(methods.Where(method => !invalidMethodNames.Contains(method.Name) && !method.Name.Contains('<') && !method.ReturnType.FullName.Contains('!')).Select(method => {
                 TypeSyntax? returnType = MakeProperType(method.ReturnType, t);
+
+                //string simpleMethodSignature = returnType.GetText().ToString();
+                string simpleMethodSignature = ""; // Return types are not part of the signature. Return types are not overloaded.
 
                 var methodName = new string(method.Name);
                 var methodExtension = Il2CppDump.GetMethodExtension(method);
@@ -214,75 +286,162 @@ public class ClassGenerator {
                     .AddModifiers(new SyntaxToken[]{SyntaxFactory.Token(SyntaxKind.PublicKeyword)})
                     /*.AddBodyStatements(SyntaxFactory.ParseStatement("throw new System.NotImplementedException();"))*/;
 
-                if (methodExtension != null && methodExtension.Override != null && methodExtension.Override == true) {
-                    //methodName += "_" + className.Replace('.', '_');
-
-                    methodDeclaration = methodDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.NewKeyword));
-                }
-
-                if (wantsAbstractInstead) {
-                    methodDeclaration = methodDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.AbstractKeyword));
-                }
+                simpleMethodSignature += methodName;
 
                 if (method.Parameters.Count > 0) {
-                    methodDeclaration = methodDeclaration.AddParameterListParameters(method.Parameters.Where(param => param != null && param.Type != null && param.Name != null).Select(param => {
-                        return SyntaxFactory.Parameter(SyntaxFactory.Identifier(param.Name ?? "UnknownParam"))
-                            .WithType(SyntaxFactory.ParseTypeName(param.Type != null ? MakeProperType(param.Type, t).ToString() : "object"));
-                    }).ToArray());
+                    // If any of the params have ! in them, skip this method
+                    if (method.Parameters.Any(param => param.Type.FullName.Contains('!'))) {
+                        return null;
+                    }
+
+                    var runtimeMethod = method.GetRuntimeMethod();
+                    var runtimeParams = runtimeMethod.Call("GetParameters") as REFrameworkNET.ManagedObject;
+
+                    System.Collections.Generic.List<ParameterSyntax> parameters = [];
+
+                    bool anyUnsafeParams = false;
+
+                    if (runtimeParams != null) {
+                        foreach (dynamic param in runtimeParams) {
+                            if (param.get_IsRetval() == true) {
+                                continue;
+                            }
+
+                            var paramName = param.get_Name();
+
+                            if (paramName == null) {
+                                paramName = "UnknownParam";
+                            }
+
+                            var paramType = param.get_ParameterType();
+
+                            if (paramType == null) {
+                                parameters.Add(SyntaxFactory.Parameter(SyntaxFactory.Identifier(paramName)).WithType(SyntaxFactory.ParseTypeName("object")));
+                                continue;
+                            }
+
+                            /*if (param.get_IsGenericParameter() == true) {
+                                return null; // no generic parameters.
+                            }*/
+
+                            var isByRef = paramType.IsByRefImpl();
+                            var isPointer = paramType.IsPointerImpl();
+                            var isOut = param.get_IsOut();
+                            var paramTypeDef = (REFrameworkNET.TypeDefinition)paramType.get_TypeHandle();
+
+                            var paramTypeSyntax = MakeProperType(paramTypeDef, t);
+                            
+                            System.Collections.Generic.List<SyntaxToken> modifiers = [];
+
+                            if (isOut == true) {
+                                simpleMethodSignature += "out";
+                                modifiers.Add(SyntaxFactory.Token(SyntaxKind.OutKeyword));
+                            }
+
+                            if (isByRef == true) {
+                                // can only be either ref or out.
+                                if (!isOut) {
+                                    simpleMethodSignature += "ref " + paramTypeSyntax.GetText().ToString();
+                                    modifiers.Add(SyntaxFactory.Token(SyntaxKind.RefKeyword));
+                                }
+
+                                parameters.Add(SyntaxFactory.Parameter(SyntaxFactory.Identifier(paramName)).WithType(SyntaxFactory.ParseTypeName(paramTypeSyntax.ToString())).AddModifiers(modifiers.ToArray()));
+                            } else if (isPointer == true) {
+                                simpleMethodSignature += "ptr " + paramTypeSyntax.GetText().ToString();
+                                parameters.Add(SyntaxFactory.Parameter(SyntaxFactory.Identifier(paramName)).WithType(SyntaxFactory.ParseTypeName(paramTypeSyntax.ToString() + "*")).AddModifiers(modifiers.ToArray()));
+                                anyUnsafeParams = true;
+                            } else {
+                                simpleMethodSignature += paramTypeSyntax.GetText().ToString();
+                                parameters.Add(SyntaxFactory.Parameter(SyntaxFactory.Identifier(paramName)).WithType(paramTypeSyntax).AddModifiers(modifiers.ToArray()));
+                            }
+                        }
+
+                        methodDeclaration = methodDeclaration.AddParameterListParameters([.. parameters]);
+
+                        if (anyUnsafeParams) {
+                            methodDeclaration = methodDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.UnsafeKeyword));
+                        }
+                    }
+                } else {
+                    simpleMethodSignature += "()";
+                }
+
+                if (method.IsStatic()) {
+                    // Add System.ComponentModel.Description("static") attribute
+                    //methodDeclaration = methodDeclaration.AddAttributeLists(SyntaxFactory.AttributeList().AddAttributes(SyntaxFactory.Attribute(SyntaxFactory.ParseName("global::System.ComponentModel.DescriptionAttribute"), SyntaxFactory.ParseAttributeArgumentList("(\"static\")"))));
+
+                    // lets see what happens if we just make it static
+                    /*methodDeclaration = methodDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.StaticKeyword));
+
+                    // Now we must add a body to it that actually calls the method
+                    // We have our REFType field, so we can lookup the method and call it
+                    // Make a private static field to hold the REFrameworkNET.Method
+                    var internalFieldName = "INTERNAL_" + method.GetIndex().ToString();
+                    var methodVariableDeclaration = SyntaxFactory.VariableDeclaration(SyntaxFactory.ParseTypeName("global::REFrameworkNET.Method"))
+                        .AddVariables(SyntaxFactory.VariableDeclarator(internalFieldName).WithInitializer(SyntaxFactory.EqualsValueClause(SyntaxFactory.ParseExpression("REFType.GetMethod(\"" + method.Name + "\")"))));
+                    
+                    var methodFieldDeclaration = SyntaxFactory.FieldDeclaration(methodVariableDeclaration).AddModifiers(SyntaxFactory.Token(SyntaxKind.PrivateKeyword), SyntaxFactory.Token(SyntaxKind.StaticKeyword), SyntaxFactory.Token(SyntaxKind.ReadOnlyKeyword));
+                    internalFieldDeclarations.Add(methodFieldDeclaration);
+
+                    // Now we can add the body
+                    // bool HandleInvokeMember_Internal(System::Object^ obj, array<System::Object^>^ args, System::Object^% result);
+                    if (method.ReturnType.FullName == "System.Void") {
+                        var body = internalFieldName + ".Invoke(null, null)";
+                        methodDeclaration = methodDeclaration.AddBodyStatements(SyntaxFactory.ParseStatement(body));
+                    } else {
+                        var body1 = "object INTERNAL_result = null;";
+                        var body2 = internalFieldName + ".HandleInvokeMember_Internal(null, " + (method.Parameters.Count > 0 ? "new object[] {" + string.Join(", ", method.Parameters.Select(param => param.Name)) + "}" : "null") + ", ref INTERNAL_result);";
+                        string body3 = "return (" + returnType.GetText() + ")INTERNAL_result;";
+
+                        methodDeclaration = methodDeclaration.AddBodyStatements(
+                            [SyntaxFactory.ParseStatement(body1), SyntaxFactory.ParseStatement(body2), SyntaxFactory.ParseStatement(body3)]
+                        );
+                    }*/
+                }
+
+                if (seenMethodSignatures.Contains(simpleMethodSignature)) {
+                    Console.WriteLine("Skipping duplicate method: " + methodDeclaration.GetText().ToString());
+                    return null;
+                }
+
+                seenMethodSignatures.Add(simpleMethodSignature);
+
+                // Add the rest of the modifiers here that would mangle the signature check
+                if (baseTypes.Count > 0 && methodExtension != null && methodExtension.Override != null && methodExtension.Override == true) {
+                    var matchingParentMethods = methodExtension.MatchingParentMethods;
+
+                    // Go through the parents, check if the parents are allowed to be generated
+                    // and add the new keyword if the matching method is found in one allowed to be generated
+                    // TODO: We can get rid of this once we start properly generating generic classes.
+                    // Since we just ignore any class that has '<' in it.
+                    foreach (var matchingMethod in matchingParentMethods) {
+                        var parent = matchingMethod.DeclaringType;
+                        if (!REFrameworkNET.AssemblyGenerator.validTypes.Contains(parent.FullName)) {
+                            continue;
+                        }
+
+                        methodDeclaration = methodDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.NewKeyword));
+                        break;
+                    }
                 }
 
                 return methodDeclaration;
-            }).ToArray());
+            }).Where(method => method != null).Select(method => method!).ToArray());
 
-        if (!className.Contains('[') && !className.Contains('<')) {
-            List<SimpleBaseTypeSyntax> baseTypes = new List<SimpleBaseTypeSyntax>();
+        if (internalFieldDeclarations.Count > 0) {
+            typeDeclaration = typeDeclaration.AddMembers(internalFieldDeclarations.ToArray());
+        }
 
-            SortedSet<string> badBaseTypes = new SortedSet<string> {
-                /*"System.Object",
-                "System.ValueType",
-                "System.Enum",
-                "System.Delegate",
-                "System.MulticastDelegate"*/
-            };
+        if (baseTypes.Count > 0 && typeDeclaration != null) {
+            refTypeFieldDecl = refTypeFieldDecl.AddModifiers(SyntaxFactory.Token(SyntaxKind.NewKeyword));
+            //fieldDeclaration2 = fieldDeclaration2.AddModifiers(SyntaxFactory.Token(SyntaxKind.NewKeyword));
 
-            for (var parent = t.ParentType; parent != null; parent = parent.ParentType) {
-                // TODO: Fix this
-                if (!REFrameworkNET.AssemblyGenerator.validTypes.Contains(parent.FullName)) {
-                    continue;
-                }
+            typeDeclaration = (typeDeclaration as InterfaceDeclarationSyntax)?.AddBaseListTypes(baseTypes.ToArray());
+        }
 
-                var parentName = REFrameworkNET.AssemblyGenerator.CorrectTypeName(parent.FullName ?? "");
-                if (parentName == null) {
-                    break;
-                }
-
-                if (parentName == "") {
-                    break;
-                }
-
-                if (parentName.Contains('[') || parentName.Contains('<')) {
-                    break;
-                }
-
-                if (badBaseTypes.Contains(parentName)) {
-                    break;
-                }
-
-                // Forces compiler to start at the global namespace
-                parentName = "global::" + parentName;
-
-                baseTypes.Add(SyntaxFactory.SimpleBaseType(SyntaxFactory.ParseTypeName(parentName)));
-                usingTypes.Add(parent);
-                break;
-            }
-
-            if (baseTypes.Count > 0 && typeDeclaration != null) {
-                if (wantsAbstractInstead && typeDeclaration is ClassDeclarationSyntax) {
-                    typeDeclaration = (typeDeclaration as ClassDeclarationSyntax)?.AddBaseListTypes(baseTypes.ToArray());
-                } else if (typeDeclaration is InterfaceDeclarationSyntax) {
-                    typeDeclaration = (typeDeclaration as InterfaceDeclarationSyntax)?.AddBaseListTypes(baseTypes.ToArray());
-                }
-            }
+        if (typeDeclaration != null) {
+            typeDeclaration = typeDeclaration.AddMembers(refTypeFieldDecl);
+            //typeDeclaration = typeDeclaration.AddMembers(fieldDeclaration2);
         }
 
         return GenerateNestedTypes();
@@ -308,10 +467,6 @@ public class ClassGenerator {
                 continue;
             }
 
-            if (nestedTypeName.Contains("WrappedArrayContainer")) {
-                continue;
-            }
-
             if (nestedTypeName.Split('.').Last() == "file") {
                 nestedTypeName = nestedTypeName.Replace("file", "@file");
             }
@@ -320,6 +475,21 @@ public class ClassGenerator {
             if (nestedT.IsEnum()) {
                 var nestedEnumGenerator = new EnumGenerator(nestedTypeName.Split('.').Last(), nestedT);
 
+                // Generate array type(s)
+                if (AssemblyGenerator.typesWithArrayTypes.Contains(nestedT) && AssemblyGenerator.elementTypesToTypes.ContainsKey(nestedT)) {
+                    var arrayType = AssemblyGenerator.elementTypesToTypes[nestedT];
+                    var arrayTypeName = AssemblyGenerator.typeRenames[arrayType];
+
+                    var arrayClassGenerator = new ClassGenerator(
+                        arrayTypeName,
+                        arrayType
+                    );
+
+                    if (arrayClassGenerator.TypeDeclaration != null) {
+                        this.Update(this.typeDeclaration.AddMembers(arrayClassGenerator.TypeDeclaration));
+                    }
+                }
+
                 if (nestedEnumGenerator.EnumDeclaration != null) {
                     this.Update(this.typeDeclaration.AddMembers(nestedEnumGenerator.EnumDeclaration));
                 }
@@ -327,20 +497,9 @@ public class ClassGenerator {
                 continue;
             }
 
-            // Class
-            HashSet<REFrameworkNET.Method> nestedMethods = [];
-
-            foreach (var method in nestedT.Methods) {
-                if (!nestedMethods.Select(nestedMethod => nestedMethod.Name).Contains(method.Name)) {
-                    if (method.DeclaringType == nestedT) {
-                        nestedMethods.Add(method);   
-                    }
-                }
-            }
-
-            var nestedGenerator = new ClassGenerator(nestedTypeName.Split('.').Last(),
-                nestedT,
-                [.. nestedMethods]
+            var nestedGenerator = new ClassGenerator(
+                nestedTypeName.Split('.').Last(),
+                nestedT
             );
 
             if (nestedGenerator.TypeDeclaration == null) {
@@ -373,6 +532,21 @@ public class ClassGenerator {
                             break;
                         }
                     }
+                }
+            }
+
+            // Generate array type(s)
+            if (AssemblyGenerator.typesWithArrayTypes.Contains(nestedT) && AssemblyGenerator.elementTypesToTypes.ContainsKey(nestedT)) {
+                var arrayType = AssemblyGenerator.elementTypesToTypes[nestedT];
+                var arrayTypeName = AssemblyGenerator.typeRenames[arrayType];
+
+                var arrayClassGenerator = new ClassGenerator(
+                    arrayTypeName,
+                    arrayType
+                );
+
+                if (arrayClassGenerator.TypeDeclaration != null) {
+                    this.Update(this.typeDeclaration.AddMembers(arrayClassGenerator.TypeDeclaration));
                 }
             }
 
