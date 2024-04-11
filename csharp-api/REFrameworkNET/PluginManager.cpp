@@ -558,17 +558,6 @@ namespace REFrameworkNET {
     }
 
     void PluginManager::ImGuiCallback(::REFImGuiFrameCbData* data) {
-        //System::Console::WriteLine("ImGuiCallback called");
-
-        // marshal to intptr
-        /*auto context = System::IntPtr(data->context);
-        auto mallocFn = System::IntPtr(data->malloc_fn);
-        auto freeFn = System::IntPtr(data->free_fn);
-        auto user_data = System::IntPtr(data->user_data);
-
-        ImGuiNET::ImGui::SetCurrentContext(context);
-        ImGuiNET::ImGui::SetAllocatorFunctions(mallocFn, freeFn, user_data);*/
-
         try {
             Callbacks::ImGuiRender::TriggerPre();
         } catch (System::Exception^ e) {

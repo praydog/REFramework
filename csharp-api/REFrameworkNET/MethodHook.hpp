@@ -13,7 +13,7 @@ public ref class MethodHook
 {
 public:
     delegate PreHookResult PreHookDelegate(System::Span<uint64_t> args);
-    delegate void PostHookDelegate(System::Object^% retval);
+    delegate void PostHookDelegate(uint64_t% retval);
 
     //delegate PreHookResult PreHookEasyDelegate(REFrameworkNET::NativeObject^ thisPtr, System::Object^% arg1, System::Object^% arg2, System::Object^% arg3, System::Object^% arg4);
 
@@ -54,8 +54,59 @@ public:
     }
 
 private:
-    event PreHookDelegate^ OnPreStart;
-    event PostHookDelegate^ OnPostStart;
+    event PreHookDelegate^ OnPreStart {
+        void add(PreHookDelegate^ callback) {
+            OnPreStartImpl = (PreHookDelegate^)System::Delegate::Combine(OnPreStartImpl, callback);
+        }
+        void remove(PreHookDelegate^ callback) {
+            OnPreStartImpl = (PreHookDelegate^)System::Delegate::Remove(OnPreStartImpl, callback);
+        }
+        REFrameworkNET::PreHookResult raise(System::Span<uint64_t> args) {
+            if (OnPreStartImpl != nullptr) {
+                REFrameworkNET::PreHookResult result = REFrameworkNET::PreHookResult::Continue;
+
+                for each (PreHookDelegate^ callback in OnPreStartImpl->GetInvocationList()) {
+                    try {
+                        auto currentResult = callback(args);
+                        if (currentResult != REFrameworkNET::PreHookResult::Continue) {
+                            result = currentResult;
+                        }
+                    } catch (System::Exception^ e) {
+                        REFrameworkNET::API::LogError("Exception in pre-hook callback for method: " + m_method->GetName() + " - " + e->Message);
+                    } catch (...) {
+                        REFrameworkNET::API::LogError("Unknown exception in pre-hook callback for method: " + m_method->GetName());
+                    }
+                }
+
+                return result;
+            }
+
+            return REFrameworkNET::PreHookResult::Continue;
+        }
+    };
+
+    event PostHookDelegate^ OnPostStart {
+        void add(PostHookDelegate^ callback) {
+            OnPostStartImpl = (PostHookDelegate^)System::Delegate::Combine(OnPostStartImpl, callback);
+        }
+        void remove(PostHookDelegate^ callback) {
+            OnPostStartImpl = (PostHookDelegate^)System::Delegate::Remove(OnPostStartImpl, callback);
+        }
+        void raise(uint64_t% retval) {
+            if (OnPostStartImpl != nullptr) {
+                try {
+                    OnPostStartImpl(retval);
+                } catch (System::Exception^ e) {
+                    REFrameworkNET::API::LogError("Exception in post-hook callback for method: " + m_method->GetName() + " - " + e->Message);
+                } catch (...) {
+                    REFrameworkNET::API::LogError("Unknown exception in post-hook callback for method: " + m_method->GetName());
+                }
+            }
+        }
+    };
+    
+    PreHookDelegate^ OnPreStartImpl;
+    PostHookDelegate^ OnPostStartImpl;
 
 
     // This is never meant to publicly be called

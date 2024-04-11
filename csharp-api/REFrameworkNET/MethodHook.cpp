@@ -37,18 +37,14 @@ namespace REFrameworkNET {
         raw->remove_hook(m_hook_id);
     }
 
-    int32_t MethodHook::OnPreStart_Raw(int argc, void** argv, REFrameworkTypeDefinitionHandle* arg_tys, unsigned long long ret_addr) 
-    {
+    int32_t MethodHook::OnPreStart_Raw(int argc, void** argv, REFrameworkTypeDefinitionHandle* arg_tys, unsigned long long ret_addr) {
         // Create a System::Span<UInt64> for the arguments
         auto argspan = System::Span<uint64_t>((uint64_t*)argv, argc);
 
-        OnPreStart(argspan);
-        System::Console::WriteLine("Hello from" + m_method->GetName() + " pre-hook!");
-        return 0; // Or another appropriate value
+        return (int32_t)OnPreStart(argspan);
     }
 
     void MethodHook::OnPostStart_Raw(void** ret_val, REFrameworkTypeDefinitionHandle ret_ty, unsigned long long ret_addr) {
-        //OnPostStart(/* arguments */);
-        System::Console::WriteLine("Hello from" + m_method->GetName() + " post-hook!");
+        OnPostStart(*(uint64_t*)ret_val);
     }
 }

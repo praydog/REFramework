@@ -14,13 +14,13 @@ public class DangerousFunctions {
         return REFrameworkNET.PreHookResult.Continue;
     }
 
-    public static void isInsidePostHook(ref System.Object retval) {
-        Console.WriteLine("Inside post hook (From C#)");
+    public static void isInsidePostHook(ref ulong retval) {
+        Console.WriteLine("Inside post hook (From C#), retval: " + (retval & 1).ToString());
     }
 
     public static void Entry() {
         var tdb = REFrameworkNET.API.GetTDB();
-        tdb.GetType("app.CameraManager")?.
+        tdb.GetType(app.CameraManager.REFType.FullName).
             GetMethod("isInside")?.
             AddHook(false).
             AddPre(isInsidePreHook).
