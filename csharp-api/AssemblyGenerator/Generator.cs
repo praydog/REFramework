@@ -698,28 +698,7 @@ public class AssemblyGenerator {
         }
 
         string? assemblyPath = Path.GetDirectoryName(typeof(object).Assembly.Location);
-
-        // get all DLLs in that directory
-        var dlls = assemblyPath != null? Directory.GetFiles(assemblyPath, "*.dll") : [];
-
-        var systemRuntimePath = dlls.FirstOrDefault(dll => dll.ToLower().EndsWith("system.runtime.dll"));
-
-        var references = new List<MetadataReference> {
-            MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(void).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(System.NotImplementedException).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(System.Linq.Enumerable).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(System.Runtime.AssemblyTargetedPatchBandAttribute).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(Microsoft.CSharp.RuntimeBinder.CSharpArgumentInfo).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(System.ComponentModel.DescriptionAttribute).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(REFrameworkNET.API).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(System.Dynamic.DynamicObject).Assembly.Location),
-        };
-
-        if (systemRuntimePath != null) {
-            System.Console.WriteLine("Adding System.Runtime from " + systemRuntimePath);
-            references.Add(MetadataReference.CreateFromFile(systemRuntimePath));
-        }
+        var references = REFrameworkNET.Compiler.GenerateExhaustiveMetadataReferences(typeof(REFrameworkNET.API).Assembly, new List<Assembly>());
 
         // Add the previous compilations as references
         foreach (var compilationbc in previousCompilations) {

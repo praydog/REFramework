@@ -50,30 +50,59 @@ namespace REFrameworkNET
                 Console.WriteLine("Compilation done without any error.");
 
                 peStream.Seek(0, SeekOrigin.Begin);
-
                 return peStream.ToArray();
+
             }
         }
 
-        private static CSharpCompilation GenerateCode(string sourceCode, string filePath, Assembly executingAssembly, List<Assembly> deps)
-        {
-            var codeString = SourceText.From(sourceCode);
-            var options = CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.CSharp12);
-            string assemblyPath = Path.GetDirectoryName(typeof(object).Assembly.Location);
-            // get all DLLs in that directory
-            var dlls = Directory.GetFiles(assemblyPath, "*.dll");
+        public static List<PortableExecutableReference> GenerateExhaustiveMetadataReferences(Assembly executingAssembly, List<Assembly> deps) {
+            string assemblyPath = System.Runtime.InteropServices.RuntimeEnvironment.GetRuntimeDirectory();
+            string[] dlls = [];
 
-            var parsedSyntaxTree = SyntaxFactory.ParseSyntaxTree(codeString, options);
+            System.Console.WriteLine("assemblyPath: " + assemblyPath);
+
+            string targetFramework = System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription.Split(' ')[1].TrimStart('v');
+            System.Console.WriteLine("targetFramework: " + targetFramework);
+
+            // Extract only the major + minor out
+            string moniker = string.Concat("net", targetFramework.AsSpan(0, targetFramework.LastIndexOf('.')));
+            System.Console.WriteLine("moniker: " + moniker);
+
+            // Go backwards from assemblyPath to construct the baseRefDir path
+            string dotnetDirectory = Path.GetDirectoryName(Path.GetDirectoryName(Path.GetDirectoryName(Path.GetDirectoryName(assemblyPath)))); // least hacky code am i right
+            string baseRefDir = Path.Combine(dotnetDirectory, "packs", "Microsoft.NETCore.App.Ref");
+
+            if (Directory.Exists(baseRefDir)) {
+                var refFolder = Path.Combine(baseRefDir, targetFramework, "ref", moniker);
+
+                System.Console.WriteLine("Looking for reference assemblies in " + refFolder);
+
+                if (Directory.Exists(refFolder)) {
+                    System.Console.WriteLine("Found reference assemblies in " + refFolder);
+                    dlls = Directory.GetFiles(refFolder, "*.dll");
+                }
+            } else {
+                Console.WriteLine("No reference assemblies found in " + baseRefDir);
+            }
+            
+            if (dlls.Length == 0) {
+                Console.WriteLine("No reference assemblies found in " + baseRefDir + ". Falling back to implementation assemblies in " + assemblyPath);
+
+                dlls = Directory.GetFiles(assemblyPath, "*.dll");
+            }
 
             var referencesStr = new System.Collections.Generic.SortedSet<string>
             {
-                typeof(object).Assembly.Location,
+                /*typeof(object).Assembly.Location,
                 typeof(Console).Assembly.Location,
                 typeof(System.Linq.Enumerable).Assembly.Location,
                 typeof(System.Runtime.AssemblyTargetedPatchBandAttribute).Assembly.Location,
-                typeof(Microsoft.CSharp.RuntimeBinder.CSharpArgumentInfo).Assembly.Location,
-                executingAssembly.Location
+                typeof(Microsoft.CSharp.RuntimeBinder.CSharpArgumentInfo).Assembly.Location*/
             };
+
+            if (executingAssembly != null) {
+                referencesStr.Add(executingAssembly.Location);
+            }
 
             // Add all the dependencies to the references
             foreach (var dep in deps)
@@ -112,7 +141,16 @@ namespace REFrameworkNET
                 return false;
             });
 
-            var references = referencesStr.Select(r => MetadataReference.CreateFromFile(r)).ToArray();
+            return referencesStr.Select(r => MetadataReference.CreateFromFile(r)).ToList();
+        }
+
+        private static CSharpCompilation GenerateCode(string sourceCode, string filePath, Assembly executingAssembly, List<Assembly> deps)
+        {
+            var codeString = SourceText.From(sourceCode);
+            var options = CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.CSharp12);
+            var parsedSyntaxTree = SyntaxFactory.ParseSyntaxTree(codeString, options);
+
+            var references = GenerateExhaustiveMetadataReferences(executingAssembly, deps);
 
             foreach (var reference in references)
             {
