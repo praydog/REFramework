@@ -136,7 +136,7 @@ protected:
         auto targetReturnType = targetMethod->ReturnType;
 
         if (targetReturnType == nullptr) {
-            return nullptr;
+            return result;
         }
 
         if (!targetReturnType->IsPrimitive && !targetReturnType->IsEnum) {
@@ -165,12 +165,12 @@ protected:
             }
         }
 
-        if (targetMethod->ReturnType->IsEnum) {
-            auto underlyingType = targetMethod->ReturnType->GetEnumUnderlyingType();
+        if (targetReturnType->IsEnum) {
+            auto underlyingType = targetReturnType->GetEnumUnderlyingType();
 
             if (underlyingType != nullptr) {
                 auto underlyingResult = Convert::ChangeType(result, underlyingType);
-                return Enum::ToObject(targetMethod->ReturnType, underlyingResult);
+                return Enum::ToObject(targetReturnType, underlyingResult);
             }
         }
 
@@ -178,23 +178,14 @@ protected:
             return result;
         }
 
-        if (!targetMethod->ReturnType->IsPrimitive && targetMethod->DeclaringType->IsInterface && result != nullptr) {
+        if (!targetReturnType->IsPrimitive && targetMethod->DeclaringType->IsInterface && result != nullptr) {
             auto iobjectResult = dynamic_cast<REFrameworkNET::IObject^>(result);
 
-            if (iobjectResult != nullptr && targetMethod->ReturnType->IsInterface) {
-                /*auto t = iobjectResult->GetTypeDefinition();
-                auto fullName = t->FullName;
-                auto localType = T::typeid->Assembly->GetType(fullName);*/
-                auto localType = targetMethod->ReturnType;
-
-                if (localType != nullptr) {
-                    auto proxy = DispatchProxy::Create(localType, Proxy<T, T2>::typeid->GetGenericTypeDefinition()->MakeGenericType(T::typeid, result->GetType()));
-                    ((IProxy^)proxy)->SetInstance(iobjectResult);
-                    result = proxy;
-                    return result;
-                } else {
-                    System::Console::WriteLine("Type not found: " + targetMethod->ReturnType->FullName);
-                }
+            if (iobjectResult != nullptr && targetReturnType->IsInterface) {
+                auto proxy = DispatchProxy::Create(targetReturnType, Proxy<T, T2>::typeid->GetGenericTypeDefinition()->MakeGenericType(T::typeid, result->GetType()));
+                ((IProxy^)proxy)->SetInstance(iobjectResult);
+                result = proxy;
+                return result;
             }
         }
 
