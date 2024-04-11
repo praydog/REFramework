@@ -12,6 +12,11 @@ namespace REFrameworkNET {
 public ref class MethodHook
 {
 public:
+    delegate PreHookResult PreHookDelegate(System::Span<uint64_t> args);
+    delegate void PostHookDelegate(System::Object^% retval);
+
+    //delegate PreHookResult PreHookEasyDelegate(REFrameworkNET::NativeObject^ thisPtr, System::Object^% arg1, System::Object^% arg2, System::Object^% arg3, System::Object^% arg4);
+
     // Public factory method to create a new hook
     static MethodHook^ Create(Method^ method, bool ignore_jmp) 
     {
@@ -27,21 +32,30 @@ public:
         return wrapper;
     }
 
-    MethodHook^ AddPre(Method::REFPreHookDelegate^ callback) 
+    MethodHook^ AddPre(PreHookDelegate^ callback) 
     {
         OnPreStart += callback;
         return this;
     }
 
-    MethodHook^ AddPost(Method::REFPostHookDelegate^ callback) 
+    MethodHook^ AddPost(PostHookDelegate^ callback) 
     {
         OnPostStart += callback;
         return this;
     }
 
+    System::Collections::Generic::List<MethodHook^>^ GetAllHooks() {
+        auto out = gcnew System::Collections::Generic::List<MethodHook^>();
+        for each (auto kvp in s_hooked_methods) {
+            out->Add(kvp.Value);
+        }
+
+        return out;
+    }
+
 private:
-    event Method::REFPreHookDelegate^ OnPreStart;
-    event Method::REFPostHookDelegate^ OnPostStart;
+    event PreHookDelegate^ OnPreStart;
+    event PostHookDelegate^ OnPostStart;
 
 
     // This is never meant to publicly be called
@@ -74,6 +88,10 @@ private:
     Method^ m_method{};
     uint32_t m_hook_id{};
     bool m_hooks_installed{false};
+    
+    // Cached info at install time
+    bool m_is_static{false};
+    System::Collections::Generic::List<REFrameworkNET::MethodParameter^>^ m_parameters{};
 
     REFPreHookDelegateRaw^ m_preHookLambda{};
     REFPostHookDelegateRaw^ m_postHookLambda{};

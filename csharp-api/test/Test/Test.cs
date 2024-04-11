@@ -8,7 +8,7 @@ using REFrameworkNET;
 using REFrameworkNET.Callbacks;
 
 public class DangerousFunctions {
-    public static REFrameworkNET.PreHookResult isInsidePreHook(System.Object args) {
+    public static REFrameworkNET.PreHookResult isInsidePreHook(Span<ulong> args) {
         //Console.WriteLine("Inside pre hook (From C#) " + args.ToString());
         REFrameworkNET.API.LogInfo("isInsidePreHook");
         return REFrameworkNET.PreHookResult.Continue;
@@ -20,11 +20,11 @@ public class DangerousFunctions {
 
     public static void Entry() {
         var tdb = REFrameworkNET.API.GetTDB();
-        /*tdb.GetType("app.CameraManager")?.
+        tdb.GetType("app.CameraManager")?.
             GetMethod("isInside")?.
             AddHook(false).
             AddPre(isInsidePreHook).
-            AddPost(isInsidePostHook);*/
+            AddPost(isInsidePostHook);
         
         // These via.SceneManager and via.Scene are
         // loaded from an external reference assembly

@@ -14,6 +14,8 @@ namespace REFrameworkNET {
         REFrameworkNET::API::LogInfo("Creating .NET hook for method: " + m_method->GetName());
 
         m_hooks_installed = true;
+        m_is_static = m_method->IsStatic();
+        m_parameters = m_method->GetParameters();
 
         reframework::API::Method* raw = (reframework::API::Method*)m_method->GetRaw();
 
@@ -27,6 +29,8 @@ namespace REFrameworkNET {
             return;
         }
 
+        REFrameworkNET::API::LogInfo("Removing .NET hook for method: " + m_method->GetName());
+
         reframework::API::Method* raw = (reframework::API::Method*)m_method->GetRaw();
 
         m_hooks_installed = false;
@@ -35,7 +39,10 @@ namespace REFrameworkNET {
 
     int32_t MethodHook::OnPreStart_Raw(int argc, void** argv, REFrameworkTypeDefinitionHandle* arg_tys, unsigned long long ret_addr) 
     {
-        OnPreStart(gcnew List<System::Object^>()); // todo: pass the arguments
+        // Create a System::Span<UInt64> for the arguments
+        auto argspan = System::Span<uint64_t>((uint64_t*)argv, argc);
+
+        OnPreStart(argspan);
         System::Console::WriteLine("Hello from" + m_method->GetName() + " pre-hook!");
         return 0; // Or another appropriate value
     }

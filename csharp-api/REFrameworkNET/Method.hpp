@@ -156,10 +156,6 @@ public:
         }
     }
 
-    // More palatable C# versions
-    delegate PreHookResult REFPreHookDelegate(System::Collections::Generic::List<System::Object^>^ args);
-    delegate void REFPostHookDelegate();
-
     MethodHook^ AddHook(bool ignore_jmp);
 
     ManagedObject^ GetRuntimeMethod();
