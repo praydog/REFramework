@@ -238,50 +238,8 @@ namespace REFrameworkNET {
         }
 
         System::Console::WriteLine("Continue with managed plugins...");
-        
-        const auto managed_path = std::filesystem::current_path() / "reframework" / "plugins" / "managed";
-        std::filesystem::create_directories(managed_path);
 
-        System::String^ managed_dir = gcnew System::String(managed_path.wstring().c_str());
-        auto files = System::IO::Directory::GetFiles(managed_dir, "*.dll");
-
-        if (files->Length != 0) {
-            bool ever_found = false;
-
-            for each (System::String^ file in files) {
-                Console::WriteLine(file);
-                System::Reflection::Assembly^ assem = System::Reflection::Assembly::LoadFrom(file);
-
-                if (assem == nullptr) {
-                    REFrameworkNET::API::LogError("Failed to load assembly from " + file);
-                    continue;
-                }
-
-                // Iterate through all types in the assembly
-                for each (Type^ type in assem->GetTypes()) {
-                    array<System::Reflection::MethodInfo^>^ methods = type->GetMethods(System::Reflection::BindingFlags::Static | System::Reflection::BindingFlags::Public);
-
-                    for each (System::Reflection::MethodInfo^ method in methods) {
-                        array<Object^>^ attributes = method->GetCustomAttributes(REFrameworkNET::Attributes::PluginEntryPoint::typeid, true);
-
-                        if (attributes->Length > 0) {
-                            REFrameworkNET::API::LogInfo("Found PluginEntryPoint in " + method->Name + " in " + type->FullName);
-                            method->Invoke(nullptr, nullptr);
-                            ever_found = true;
-                        }
-                    }
-                }
-            }
-
-            if (!ever_found) {
-                REFrameworkNET::API::LogInfo("No Main method found in any DLLs in " + managed_dir);
-            }
-        } else {
-            REFrameworkNET::API::LogInfo("No DLLs found in " + managed_dir);
-        }
-
-        // Unload dynamic assemblies (testing)
-        //UnloadDynamicAssemblies();
+        LoadPlugins_FromDLLs(param_raw, s_dependencies);
 
         return true;
     } catch(System::Exception^ e) {
@@ -300,6 +258,34 @@ namespace REFrameworkNET {
     } catch(...) {
         System::Console::WriteLine("Unknown exception caught");
         return false;
+    }
+
+    bool PluginManager::TriggerPluginLoad(PluginManager::PluginState^ state) {
+        auto assem = state->assembly;
+
+        if (assem == nullptr) {
+            REFrameworkNET::API::LogError("Failed to load assembly from " + state->script_path);
+            return false;
+        }
+
+        bool ever_found = false;
+
+        // Iterate through all types in the assembly
+        for each (Type^ type in assem->GetTypes()) {
+            array<System::Reflection::MethodInfo^>^ methods = type->GetMethods(System::Reflection::BindingFlags::Static | System::Reflection::BindingFlags::Public | System::Reflection::BindingFlags::NonPublic);
+
+            for each (System::Reflection::MethodInfo^ method in methods) {
+                array<Object^>^ attributes = method->GetCustomAttributes(REFrameworkNET::Attributes::PluginEntryPoint::typeid, true);
+
+                if (attributes->Length > 0) {
+                    REFrameworkNET::API::LogInfo("Found PluginEntryPoint in " + method->Name + " in " + type->FullName);
+                    method->Invoke(nullptr, nullptr);
+                    ever_found = true;
+                }
+            }
+        }
+
+        return ever_found;
     }
 
     void PluginManager::OnSourceScriptsChanged(System::Object^ sender, System::IO::FileSystemEventArgs^ e) {
@@ -391,12 +377,92 @@ namespace REFrameworkNET {
         if (s_wants_reload) {
             s_wants_reload = false;
 
-            PluginManager::UnloadDynamicAssemblies();
-            PluginManager::LoadPlugins_FromSourceCode(0, s_dependencies);
+            PluginManager::UnloadPlugins();
+
+            try {
+                PluginManager::LoadPlugins_FromSourceCode(0, s_dependencies);
+            } catch (System::Exception^ e) {
+                REFrameworkNET::API::LogError("Failed to reload plugins: " + e->Message);
+
+                auto ex = e;
+                while (ex != nullptr) {
+                    REFrameworkNET::API::LogError(ex->StackTrace);
+                    ex = ex->InnerException;
+                }
+            } catch (const std::exception& e) {
+                REFrameworkNET::API::LogError("Failed to reload plugins: " + gcnew System::String(e.what()));
+            } catch (...) {
+                REFrameworkNET::API::LogError("Failed to reload plugins: Unknown exception caught");
+            }
+
+            PluginManager::LoadPlugins_FromDLLs(0, s_dependencies);
         }
 
         SetupFileWatcher();
     }
+
+    bool PluginManager::LoadPlugins_FromDLLs(uintptr_t param_raw, System::Collections::Generic::List<System::Reflection::Assembly^>^ deps) try {
+        if (PluginManager::s_api_instance == nullptr) {
+            PluginManager::s_api_instance = gcnew REFrameworkNET::API(param_raw);
+        }
+
+        const auto managed_path = std::filesystem::current_path() / "reframework" / "plugins" / "managed";
+        std::filesystem::create_directories(managed_path);
+
+        System::String^ managed_dir = gcnew System::String(managed_path.wstring().c_str());
+        auto files = System::IO::Directory::GetFiles(managed_dir, "*.dll");
+
+        bool ever_found = false;
+
+        if (files->Length != 0) {
+            bool ever_found = false;
+
+            for each (System::String^ file in files) {
+                Console::WriteLine(file);
+                auto state = gcnew PluginState(file, false);
+
+                state->assembly = state->load_context->LoadFromAssemblyPath(file);
+
+                if (state->assembly == nullptr) {
+                    REFrameworkNET::API::LogError("Failed to load assembly from " + file);
+                    state->Unload();
+                    continue;
+                }
+
+                PluginManager::s_plugin_states->Add(state);
+
+                if (TriggerPluginLoad(state)) {
+                    ever_found = true;
+                }
+            }
+
+            if (!ever_found) {
+                REFrameworkNET::API::LogInfo("No Main method found in any DLLs in " + managed_dir);
+            }
+        } else {
+            REFrameworkNET::API::LogInfo("No DLLs found in " + managed_dir);
+        }
+
+        return ever_found;
+    } catch(System::Exception^ e) {
+        REFrameworkNET::API::LogError(e->Message);
+
+        // log stack
+        auto ex = e;
+        while (ex != nullptr) {
+            REFrameworkNET::API::LogError(ex->StackTrace);
+            ex = ex->InnerException;
+        }
+
+        return false;
+    } catch(const std::exception& e) {
+        REFrameworkNET::API::LogError(gcnew System::String(e.what()));
+        return false;
+    } catch(...) {
+        REFrameworkNET::API::LogError("Unknown exception caught while loading DLLs");
+        return false;
+    }
+
 
     bool PluginManager::LoadPlugins_FromSourceCode(uintptr_t param_raw, System::Collections::Generic::List<System::Reflection::Assembly^>^ deps) try {
         if (PluginManager::s_api_instance == nullptr) {
@@ -427,7 +493,6 @@ namespace REFrameworkNET {
         }
 
         auto self = System::Reflection::Assembly::LoadFrom(System::Reflection::Assembly::GetExecutingAssembly()->Location);
-        s_default_context = gcnew PluginLoadContext();
 
         for each (System::String^ file in files) {
             System::Console::WriteLine(file);
@@ -441,36 +506,27 @@ namespace REFrameworkNET {
                 continue;
             }
 
-            auto assem = s_default_context->LoadFromStream(gcnew System::IO::MemoryStream(bytecode));
-            //auto assem = System::Reflection::Assembly::Load(bytecode);
+            PluginState^ state = gcnew PluginState(file, true);
+            state->assembly = state->load_context->LoadFromStream(gcnew System::IO::MemoryStream(bytecode));
 
-            if (assem == nullptr) {
+            if (state->assembly == nullptr) {
                 REFrameworkNET::API::LogError("Failed to load assembly from " + file);
+                state->Unload();
                 continue;
             }
 
-            s_dynamic_assemblies->Add(assem);
+            //s_dynamic_assemblies->Add(assem);
+            s_plugin_states->Add(state);
 
             REFrameworkNET::API::LogInfo("Compiled " + file);
 
-            // Look for the Main method in the compiled assembly
-            for each (Type^ type in assem->GetTypes()) {
-                array<System::Reflection::MethodInfo^>^ methods = type->GetMethods(System::Reflection::BindingFlags::Static | System::Reflection::BindingFlags::Public | System::Reflection::BindingFlags::NonPublic);
-
-                for each (System::Reflection::MethodInfo^ method in methods) {
-                    array<Object^>^ attributes = method->GetCustomAttributes(REFrameworkNET::Attributes::PluginEntryPoint::typeid, true);
-
-                    if (attributes->Length > 0) {
-                        REFrameworkNET::API::LogInfo("Found PluginEntryPoint in " + method->Name + " in " + type->FullName);
-                        method->Invoke(nullptr, nullptr);
-                        ever_found = true;
-                    }
-                }
+            if (TriggerPluginLoad(state)) {
+                ever_found = true;
             }
         }
 
         if (!ever_found) {
-            Console::WriteLine("No C# files compiled in " + cs_files_dir);
+            Console::WriteLine("No C# plugins with an entry point found in " + cs_files_dir);
         }
 
         return true;
@@ -493,26 +549,31 @@ namespace REFrameworkNET {
         return false;
     }
 
-    void PluginManager::UnloadDynamicAssemblies() {
-        if (PluginManager::s_dynamic_assemblies == nullptr || PluginManager::s_dynamic_assemblies->Count == 0) {
-            REFrameworkNET::API::LogInfo("No dynamic assemblies to unload");
+    void PluginManager::UnloadPlugins() {
+        if (PluginManager::s_plugin_states == nullptr || PluginManager::s_plugin_states->Count == 0) {
+            REFrameworkNET::API::LogInfo("No plugins to unload");
 			return;
 		}
 
         REFrameworkNET::API::LogInfo("Unloading dynamic assemblies...");
 
-        for each (System::Reflection::Assembly ^ assem in PluginManager::s_dynamic_assemblies) {
-            if (assem == nullptr) {
-				continue;
-			}
-
+        //for each (System::Reflection::Assembly ^ assem in PluginManager::s_dynamic_assemblies) {
+        for each (PluginState^ state in PluginManager::s_plugin_states) {
             try {
+                auto assem = state->assembly;
+                if (assem == nullptr) {
+                    continue;
+                }
+
+                auto path = state->script_path;
+                REFrameworkNET::API::LogInfo("Attempting to initiate first phase unload of " + state->script_path);
+
 				// Look for the Unload method in the target assembly which takes an REFrameworkNET.API instance
                 for each (Type ^ t in assem->GetTypes()) {
 					auto method = t->GetMethod("OnUnload", System::Reflection::BindingFlags::Static | System::Reflection::BindingFlags::Public);
 
                     if (method != nullptr) {
-                        REFrameworkNET::API::LogInfo("Unloading dynamic assembly by calling " + method->Name + " in " + t->FullName);
+                        REFrameworkNET::API::LogInfo("Unloading plugin by calling " + method->Name + " in " + t->FullName);
 						method->Invoke(nullptr, nullptr);
 					}
 				}
@@ -521,42 +582,71 @@ namespace REFrameworkNET {
                 MethodHook::UnsubscribeAssembly(assem);
             }
             catch (System::Exception^ e) {
-				REFrameworkNET::API::LogError("Failed to unload dynamic assembly: " + e->Message);
+				REFrameworkNET::API::LogError("Failed to unload plugin: " + e->Message);
             }
             catch (const std::exception& e) {
-				REFrameworkNET::API::LogError("Failed to unload dynamic assembly: " + gcnew System::String(e.what()));
+				REFrameworkNET::API::LogError("Failed to unload plugin: " + gcnew System::String(e.what()));
             }
             catch (...) {
-				REFrameworkNET::API::LogError("Unknown exception caught while unloading dynamic assembly");
+				REFrameworkNET::API::LogError("Unknown exception caught while unloading plugin");
 			}
 		}
 
-        s_dynamic_assemblies->Clear();
+        // Now do a second pass to actually unload the assemblies
+        for each (PluginState^ state in PluginManager::s_plugin_states) {
+            try {
+                if (state->load_context == nullptr) {
+                    continue;
+                }
 
-        // make weak ref to default context
-        if (s_dynamic_assemblies != nullptr) {
-            System::WeakReference^ weakRef = gcnew System::WeakReference(s_default_context);
-            PluginManager::s_default_context->Unload();
-            PluginManager::s_default_context = nullptr;
+                REFrameworkNET::API::LogInfo("Attempting to initiate second phase unload of " + state->script_path);
 
-            bool unloaded = false;
+                state->load_context_weak = gcnew System::WeakReference(state->load_context);
+                state->load_context->Unload();
+                state->load_context = nullptr;
+            }
+            catch (System::Exception^ e) {
+                REFrameworkNET::API::LogError("Failed to unload plugin: " + e->Message);
+            }
+        }
 
-            for (int i = 0; i < 10; i++) {
-                if (weakRef->IsAlive) {
+        System::GC::Collect();
+        System::GC::WaitForPendingFinalizers();
+        System::Threading::Thread::Sleep(10);
+
+        bool all_collected_final = false;
+
+        // And now, on the third pass, we wait for the load contexts to be collected (to a reasonable extent)
+        for (int i = 0; i < 10; i++) {
+            bool all_collected = true;
+
+            // If any of the load contexts are still alive, we wait a bit and try again
+            for each (PluginState^ state in PluginManager::s_plugin_states) {
+                if (state->load_context_weak->IsAlive) {
                     System::GC::Collect();
                     System::GC::WaitForPendingFinalizers();
                     System::Threading::Thread::Sleep(10);
-                } else {
-                    unloaded = true;
-                    System::Console::WriteLine("Successfully unloaded default context");
+                    all_collected = false;
                     break;
+                } else {
+                    REFrameworkNET::API::LogInfo("Successfully unloaded " + state->script_path);
                 }
             }
 
-            if (!unloaded) {
-                System::Console::WriteLine("Failed to unload default context");
+            // If we've gone through all the load contexts and none are alive, we're done
+            if (all_collected) {
+                all_collected_final = true;
+                break;
             }
         }
+
+        if (!all_collected_final) {
+            REFrameworkNET::API::LogError("Failed to unload all plugins");
+        } else {
+            REFrameworkNET::API::LogInfo("Successfully unloaded all plugins");
+        }
+
+        s_plugin_states->Clear();
     }
 
     void PluginManager::ImGuiCallback(::REFImGuiFrameCbData* data) {
@@ -586,14 +676,13 @@ namespace REFrameworkNET {
         ImGuiNET::ImGui::PushID("REFramework.NET");
         if (ImGuiNET::ImGui::CollapsingHeader("REFramework.NET")) {
             if (ImGuiNET::ImGui::Button("Reload Scripts")) {
-                PluginManager::UnloadDynamicAssemblies();
-                PluginManager::LoadPlugins_FromSourceCode(0, s_dependencies);
+                s_wants_reload = true;
             }
 
             ImGuiNET::ImGui::SameLine();
 
             if (ImGuiNET::ImGui::Button("Unload Scripts")) {
-                PluginManager::UnloadDynamicAssemblies();
+                PluginManager::UnloadPlugins();
             }
         }
 

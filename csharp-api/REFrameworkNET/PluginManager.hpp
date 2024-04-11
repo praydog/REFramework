@@ -24,7 +24,9 @@ public:
         return LoadPlugins_FromDefaultContext(param);
     }
 
-private:
+internal:
+    ref class PluginState;
+
     // Executed initially when we get loaded via LoadLibrary
     // which is not in the correct context to actually load the managed plugins
     static bool LoadPlugins_FromDefaultContext(const REFrameworkPluginInitializeParam* param);
@@ -36,7 +38,9 @@ private:
     static void GenerateReferenceAssemblies(System::Collections::Generic::List<System::Reflection::Assembly^>^ deps);
     static bool LoadPlugins(uintptr_t param_raw);
     static bool LoadPlugins_FromSourceCode(uintptr_t param_raw, System::Collections::Generic::List<System::Reflection::Assembly^>^ deps);
-    static void UnloadDynamicAssemblies();
+    static bool LoadPlugins_FromDLLs(uintptr_t param_raw, System::Collections::Generic::List<System::Reflection::Assembly^>^ deps);
+    static bool TriggerPluginLoad(PluginState^ state);
+    static void UnloadPlugins();
 
     // This one is outside of a window context
     static void ImGuiCallback(::REFImGuiFrameCbData* data);
@@ -49,12 +53,7 @@ private:
     static ImGuiCallbackDelegate^ s_imgui_callback_delegate{gcnew ImGuiCallbackDelegate(&ImGuiCallback)};
     static ImGuiDrawUICallbackDelegate^ s_imgui_draw_ui_callback_delegate{gcnew ImGuiDrawUICallbackDelegate(&ImGuiDrawUICallback)};
 
-    static System::Collections::Generic::List<System::Reflection::Assembly^>^ s_loaded_assemblies{gcnew System::Collections::Generic::List<System::Reflection::Assembly^>()};
-    static System::Collections::Generic::List<System::Reflection::Assembly^>^ s_dynamic_assemblies{gcnew System::Collections::Generic::List<System::Reflection::Assembly^>()};
-
     static System::Collections::Generic::List<System::Reflection::Assembly^>^ s_dependencies{gcnew System::Collections::Generic::List<System::Reflection::Assembly^>()};
-
-    static PluginLoadContext^ s_default_context{nullptr};
 
     // The main watcher
     static System::IO::FileSystemWatcher^ s_source_scripts_watcher{nullptr};
@@ -72,5 +71,32 @@ private:
     delegate void BeginRenderingDelegate();
     
     static BeginRenderingDelegate^ s_begin_rendering_delegate{gcnew BeginRenderingDelegate(&BeginRendering)};
+
+    ref class PluginState {
+    internal:
+        PluginState(System::String^ path, bool is_dynamic) : script_path(path), is_dynamic(is_dynamic) { }
+        ~PluginState() {
+            Unload();
+        }
+
+        void Unload() {
+            if (load_context != nullptr) {
+                load_context->Unload();
+                load_context = nullptr;
+
+                System::GC::Collect();
+                System::GC::WaitForPendingFinalizers();
+            }
+        }
+
+        PluginLoadContext^ load_context{gcnew PluginLoadContext()};
+        System::Reflection::Assembly^ assembly{nullptr};
+        System::String^ script_path{nullptr}; // Either to a .cs file or a .dll file, don't think the assembly will contain the path so we need to keep it
+        System::WeakReference^ load_context_weak{nullptr};
+
+        bool is_dynamic{false};
+    };
+
+    static System::Collections::Generic::List<PluginState^>^ s_plugin_states{gcnew System::Collections::Generic::List<PluginState^>()};
 };
 }
