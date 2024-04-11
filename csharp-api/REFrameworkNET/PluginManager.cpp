@@ -577,9 +577,8 @@ namespace REFrameworkNET {
 						method->Invoke(nullptr, nullptr);
 					}
 				}
-                
-                Callbacks::Impl::UnsubscribeAssembly(assem);
-                MethodHook::UnsubscribeAssembly(assem);
+
+                state->Unload();
             }
             catch (System::Exception^ e) {
 				REFrameworkNET::API::LogError("Failed to unload plugin: " + e->Message);
@@ -591,22 +590,6 @@ namespace REFrameworkNET {
 				REFrameworkNET::API::LogError("Unknown exception caught while unloading plugin");
 			}
 		}
-
-        // Now do a second pass to actually unload the assemblies
-        for each (PluginState^ state in PluginManager::s_plugin_states) {
-            try {
-                if (state->load_context == nullptr) {
-                    continue;
-                }
-
-                REFrameworkNET::API::LogInfo("Attempting to initiate second phase unload of " + state->script_path);
-
-                state->Unload();
-            }
-            catch (System::Exception^ e) {
-                REFrameworkNET::API::LogError("Failed to unload plugin: " + e->Message);
-            }
-        }
 
         System::GC::Collect();
         System::GC::WaitForPendingFinalizers();
@@ -682,8 +665,58 @@ namespace REFrameworkNET {
             if (ImGuiNET::ImGui::Button("Unload Scripts")) {
                 PluginManager::UnloadPlugins();
             }
+            
+            for each (PluginState^ state in PluginManager::s_plugin_states) {
+                state->DisplayOptions();
+            }
         }
 
         ImGuiNET::ImGui::PopID();
+    }
+
+    void PluginManager::PluginState::Unload() {
+        if (load_context != nullptr) {
+            REFrameworkNET::Callbacks::Impl::UnsubscribeAssembly(assembly);
+            REFrameworkNET::MethodHook::UnsubscribeAssembly(assembly);
+
+            load_context->Unload();
+            load_context = nullptr;
+            assembly = nullptr;
+
+            System::GC::Collect();
+        }
+    }
+
+    bool PluginManager::PluginState::SynchronousUnload() {
+        Unload();
+
+        for (int i = 0; i < 10; ++i) {
+            if (!IsAlive()) {
+                return true;
+            }
+
+            System::GC::Collect();
+            System::GC::WaitForPendingFinalizers();
+            System::Threading::Thread::Sleep(10);
+        }
+
+        return !IsAlive();
+    }
+
+    void PluginManager::PluginState::DisplayOptions() {
+        if (ImGuiNET::ImGui::TreeNode(System::IO::Path::GetFileName(script_path))) {
+            if (ImGuiNET::ImGui::Button("Unload")) {
+                if (SynchronousUnload()) {
+                    REFrameworkNET::API::LogInfo("Successfully unloaded " + script_path);
+                    // Remove this state from the list
+                    PluginManager::s_plugin_states->Remove(this);
+                    return;
+                } else {
+                    REFrameworkNET::API::LogError("Failed to unload " + script_path);
+                }
+            }
+
+            ImGuiNET::ImGui::TreePop();
+        }
     }
 }

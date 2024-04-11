@@ -77,30 +77,26 @@ internal:
         PluginState(System::String^ path, bool is_dynamic) : script_path(path), is_dynamic(is_dynamic) 
         { 
         }
-        
+
         ~PluginState() {
             Unload();
         }
 
-        void Unload() {
-            if (load_context != nullptr) {
-                load_context->Unload();
-                load_context = nullptr;
-                assembly = nullptr;
-
-                System::GC::Collect();
-                System::GC::WaitForPendingFinalizers();
-            }
-        }
+        void Unload();
+        bool SynchronousUnload();
 
         bool IsAlive() {
             return load_context_weak != nullptr && load_context_weak->IsAlive;
         }
 
+        void DisplayOptions();
+
         PluginLoadContext^ load_context{gcnew PluginLoadContext()};
+        System::WeakReference^ load_context_weak{gcnew System::WeakReference(load_context)};
         System::Reflection::Assembly^ assembly{nullptr};
         System::String^ script_path{nullptr}; // Either to a .cs file or a .dll file, don't think the assembly will contain the path so we need to keep it
-        System::WeakReference^ load_context_weak{gcnew System::WeakReference(load_context)};
+
+        // TODO: Add a friendly name that the plugins can expose?
 
         bool is_dynamic{false};
     };
