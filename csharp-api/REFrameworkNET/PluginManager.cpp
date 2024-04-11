@@ -601,9 +601,7 @@ namespace REFrameworkNET {
 
                 REFrameworkNET::API::LogInfo("Attempting to initiate second phase unload of " + state->script_path);
 
-                state->load_context_weak = gcnew System::WeakReference(state->load_context);
-                state->load_context->Unload();
-                state->load_context = nullptr;
+                state->Unload();
             }
             catch (System::Exception^ e) {
                 REFrameworkNET::API::LogError("Failed to unload plugin: " + e->Message);
@@ -622,7 +620,7 @@ namespace REFrameworkNET {
 
             // If any of the load contexts are still alive, we wait a bit and try again
             for each (PluginState^ state in PluginManager::s_plugin_states) {
-                if (state->load_context_weak->IsAlive) {
+                if (state->IsAlive()) {
                     System::GC::Collect();
                     System::GC::WaitForPendingFinalizers();
                     System::Threading::Thread::Sleep(10);

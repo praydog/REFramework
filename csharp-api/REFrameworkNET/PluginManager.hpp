@@ -74,7 +74,10 @@ internal:
 
     ref class PluginState {
     internal:
-        PluginState(System::String^ path, bool is_dynamic) : script_path(path), is_dynamic(is_dynamic) { }
+        PluginState(System::String^ path, bool is_dynamic) : script_path(path), is_dynamic(is_dynamic) 
+        { 
+        }
+        
         ~PluginState() {
             Unload();
         }
@@ -83,16 +86,21 @@ internal:
             if (load_context != nullptr) {
                 load_context->Unload();
                 load_context = nullptr;
+                assembly = nullptr;
 
                 System::GC::Collect();
                 System::GC::WaitForPendingFinalizers();
             }
         }
 
+        bool IsAlive() {
+            return load_context_weak != nullptr && load_context_weak->IsAlive;
+        }
+
         PluginLoadContext^ load_context{gcnew PluginLoadContext()};
         System::Reflection::Assembly^ assembly{nullptr};
         System::String^ script_path{nullptr}; // Either to a .cs file or a .dll file, don't think the assembly will contain the path so we need to keep it
-        System::WeakReference^ load_context_weak{nullptr};
+        System::WeakReference^ load_context_weak{gcnew System::WeakReference(load_context)};
 
         bool is_dynamic{false};
     };
