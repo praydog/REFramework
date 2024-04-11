@@ -135,7 +135,11 @@ protected:
 
         auto targetReturnType = targetMethod->ReturnType;
 
-        if (targetReturnType != nullptr) {
+        if (targetReturnType == nullptr) {
+            return nullptr;
+        }
+
+        if (!targetReturnType->IsPrimitive && !targetReturnType->IsEnum) {
             if (targetReturnType == String::typeid) {
                 return result;
             }
@@ -161,7 +165,16 @@ protected:
             }
         }
 
-        if (targetMethod->DeclaringType == nullptr || targetReturnType == nullptr) {
+        if (targetMethod->ReturnType->IsEnum) {
+            auto underlyingType = targetMethod->ReturnType->GetEnumUnderlyingType();
+
+            if (underlyingType != nullptr) {
+                auto underlyingResult = Convert::ChangeType(result, underlyingType);
+                return Enum::ToObject(targetMethod->ReturnType, underlyingResult);
+            }
+        }
+
+        if (targetMethod->DeclaringType == nullptr) {
             return result;
         }
 

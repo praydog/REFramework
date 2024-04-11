@@ -10,21 +10,46 @@ using REFrameworkNET.Callbacks;
 public class DangerousFunctions {
     public static REFrameworkNET.PreHookResult isInsidePreHook(Span<ulong> args) {
         //Console.WriteLine("Inside pre hook (From C#) " + args.ToString());
-        REFrameworkNET.API.LogInfo("isInsidePreHook");
+        //REFrameworkNET.API.LogInfo("isInsidePreHook");
         return REFrameworkNET.PreHookResult.Continue;
     }
 
     public static void isInsidePostHook(ref ulong retval) {
-        Console.WriteLine("Inside post hook (From C#), retval: " + (retval & 1).ToString());
+        if ((retval & 1) != 0) {
+            REFrameworkNET.API.LogInfo("Camera is inside");
+        }
+        //Console.WriteLine("Inside post hook (From C#), retval: " + (retval & 1).ToString());
     }
 
     public static void Entry() {
+        var mouse = REFrameworkNET.API.GetNativeSingletonT<via.hid.Mouse>();
+
+        mouse.set_ShowCursor(false);
+
         var tdb = REFrameworkNET.API.GetTDB();
         tdb.GetType(app.CameraManager.REFType.FullName).
             GetMethod("isInside")?.
             AddHook(false).
             AddPre(isInsidePreHook).
             AddPost(isInsidePostHook);
+
+        tdb.GetType(app.PlayerInputProcessorDetail.REFType.FullName).
+            GetMethod("processNormalAttack").
+            AddHook(false).
+            AddPre((args) => {
+                var inputProcessor = ManagedObject.ToManagedObject(args[1]).As<app.PlayerInputProcessorDetail>();
+                var asIObject = inputProcessor as REFrameworkNET.IObject;
+                ulong flags = args[2];
+                bool isCombo = (args[4] & 1) != 0;
+                API.LogInfo("processNormalAttack: " + 
+                 inputProcessor.ToString() + " " + 
+                 asIObject.GetTypeDefinition()?.GetFullName()?.ToString() + " " +
+                 flags.ToString() + " " +
+                 isCombo.ToString());
+                return PreHookResult.Continue;
+            }).
+            AddPost((ref ulong retval) => {
+            });
         
         // These via.SceneManager and via.Scene are
         // loaded from an external reference assembly
@@ -59,10 +84,13 @@ public class DangerousFunctions {
 
         var appdomainStatics = tdb.GetType("System.AppDomain").As<_System.AppDomain>();
         var appdomain = appdomainStatics.get_CurrentDomain();
-        dynamic assemblies = appdomain.GetAssemblies();
+        var assemblies = appdomain.GetAssemblies();
 
-        foreach (REFrameworkNET.ManagedObject assemblyRaw in assemblies) {
-            var assembly = assemblyRaw.As<_System.Reflection.Assembly>();
+        // TODO: Make this work! get_length, get_item is ugly!
+        //foreach (REFrameworkNET.ManagedObject assemblyRaw in assemblies) {
+        for (int i = 0; i < assemblies.get_Length(); i++) {
+            //var assembly = assemblyRaw.As<_System.Reflection.Assembly>();
+            var assembly = assemblies.get_Item(i);
             REFrameworkNET.API.LogInfo("Assembly: " + assembly.get_Location()?.ToString());
         }
 
@@ -76,7 +104,9 @@ public class DangerousFunctions {
         REFrameworkNET.API.LogInfo("Title: " + title);
 
         var dialog = tdb.GetTypeT<via.os.dialog>();
-        dialog.open("Hello from C#!");
+        var dialogError = dialog.open("Hello from C#!");
+
+        REFrameworkNET.API.LogInfo("Dialog error: " + dialogError.ToString());
 
         var devUtil = tdb.GetTypeT<via.sound.dev.DevUtil>();
         var currentDirectory = System.IO.Directory.GetCurrentDirectory();
@@ -92,10 +122,6 @@ public class DangerousFunctions {
 
         REFrameworkNET.API.LogInfo("DevUtil: " + devUtilT.GetFullName());
         REFrameworkNET.API.LogInfo("Dialog: " + dialogT.GetFullName());
-
-        var mouse = REFrameworkNET.API.GetNativeSingletonT<via.hid.Mouse>();
-
-        mouse.set_ShowCursor(false);
     }
 
     public static void TryEnableFrameGeneration() {

@@ -299,6 +299,12 @@ bool Method::HandleInvokeMember_Internal(System::Object^ obj, array<System::Obje
             return true;
         }
 
+        if (returnType->IsEnum()) {
+            if (auto underlying = returnType->GetUnderlyingType(); underlying != nullptr) {
+                returnType = underlying; // easy mode
+            }
+        }
+
         const auto raw_rt = (reframework::API::TypeDefinition*)returnType;
 
         #define CONCAT_X_C(X, DOT, C) X ## DOT ## C
