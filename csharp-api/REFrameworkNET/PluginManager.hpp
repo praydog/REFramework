@@ -61,6 +61,7 @@ internal:
     // We also need a watcher list for symlinks that are in the directory
     static System::Collections::Generic::List<System::IO::FileSystemWatcher^>^ s_symlink_watchers{gcnew System::Collections::Generic::List<System::IO::FileSystemWatcher^>()};
     static bool s_wants_reload{false};
+    static bool s_wants_reload_automatic{false};
 
     static void SetupFileWatcher();
     static void SetupIndividualFileWatcher(System::String^ p); // individual symlinks
@@ -103,5 +104,6 @@ internal:
 
     static System::Collections::Generic::List<PluginState^>^ s_plugin_states{gcnew System::Collections::Generic::List<PluginState^>()};
     static System::Collections::Generic::List<PluginState^>^ s_plugin_states_to_remove{gcnew System::Collections::Generic::List<PluginState^>()};
+    static bool s_auto_reload_plugins{true};
 };
 }

@@ -304,7 +304,7 @@ namespace REFrameworkNET {
             }
         }
 
-        s_wants_reload = true;
+        s_wants_reload_automatic = true;
     }
 
     void PluginManager::SetupIndividualFileWatcher(System::String^ real_path) {
@@ -374,8 +374,10 @@ namespace REFrameworkNET {
     }
 
     void PluginManager::BeginRendering() {
-        if (s_wants_reload) {
+        bool should_reload = s_wants_reload || (s_wants_reload_automatic && s_auto_reload_plugins);
+        if (should_reload) {
             s_wants_reload = false;
+            s_wants_reload_automatic = false;
 
             PluginManager::UnloadPlugins();
 
@@ -665,6 +667,8 @@ namespace REFrameworkNET {
             if (ImGuiNET::ImGui::Button("Unload Scripts")) {
                 PluginManager::UnloadPlugins();
             }
+
+            ImGuiNET::ImGui::Checkbox("Auto Reload", s_auto_reload_plugins);
             
             for each (PluginState^ state in PluginManager::s_plugin_states) {
                 state->DisplayOptions();
