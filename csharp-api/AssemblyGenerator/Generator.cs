@@ -523,7 +523,6 @@ public class AssemblyGenerator {
 
     static CompilationUnitSyntax MakeFromTypeEntry(REFrameworkNET.TDB context, string typeName, REFrameworkNET.TypeDefinition? t) {
         var compilationUnit = SyntaxFactory.CompilationUnit();
-        FillValidEntries(context);
 
         if (!validTypes.Contains(typeName)) {
             return compilationUnit;
@@ -669,6 +668,7 @@ public class AssemblyGenerator {
         List<CompilationUnitSyntax> compilationUnits = [];
         var tdb = REFrameworkNET.API.GetTDB();
 
+        // Is this parallelizable?
         foreach (dynamic reEngineT in assembly.GetTypes()) {
             var th = reEngineT.get_TypeHandle();
 
@@ -694,7 +694,7 @@ public class AssemblyGenerator {
         var syntaxTreeParseOption = CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.CSharp12);
         
         foreach (var cu in compilationUnits) {
-            syntaxTrees.Add(SyntaxFactory.SyntaxTree(cu.NormalizeWhitespace(), syntaxTreeParseOption));
+            syntaxTrees.Add(SyntaxFactory.SyntaxTree(cu/*.NormalizeWhitespace()*/, syntaxTreeParseOption));
         }
 
         string? assemblyPath = Path.GetDirectoryName(typeof(object).Assembly.Location);
@@ -769,9 +769,9 @@ public class AssemblyGenerator {
     }
 
     public static List<REFrameworkNET.Compiler.DynamicAssemblyBytecode> MainImpl() {
-        Il2CppDump.FillTypeExtensions(REFrameworkNET.API.GetTDB());
-
         var tdb = REFrameworkNET.API.GetTDB();
+        Il2CppDump.FillTypeExtensions(tdb);
+        FillValidEntries(tdb);
 
         dynamic appdomainT = tdb.GetType("System.AppDomain");
         dynamic appdomain = appdomainT.get_CurrentDomain();

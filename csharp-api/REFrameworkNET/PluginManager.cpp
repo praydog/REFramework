@@ -79,17 +79,16 @@ namespace REFrameworkNET {
         return false;
     }
 
-    System::Collections::Generic::List<System::Reflection::Assembly^>^ PluginManager::LoadDependencies() {
-        REFrameworkNET::API::LogInfo("Loading managed dependencies...");
+    List<System::Reflection::Assembly^>^ PluginManager::LoadAssemblies(System::String^ dependencies_dir) {
+        REFrameworkNET::API::LogInfo("Loading Assemblies from " + dependencies_dir + "...");
 
-        const auto dependencies_path = std::filesystem::current_path() / "reframework" / "plugins" / "managed" / "dependencies";
+        //const auto dependencies_path = std::filesystem::current_path() / "reframework" / "plugins" / "managed" / "dependencies";
 
-        std::filesystem::create_directories(dependencies_path);
+        std::filesystem::create_directories(msclr::interop::marshal_as<std::string>(dependencies_dir));
 
-        auto files = System::IO::Directory::GetFiles(gcnew System::String(dependencies_path.wstring().c_str()), "*.dll");
+        auto files = System::IO::Directory::GetFiles(dependencies_dir, "*.dll");
 
-        auto dependencies_dir = gcnew System::String(dependencies_path.wstring().c_str());
-        auto assemblies = gcnew System::Collections::Generic::List<System::Reflection::Assembly^>();
+        auto assemblies = gcnew List<System::Reflection::Assembly^>();
 
         if (files->Length == 0) {
             REFrameworkNET::API::LogInfo("No dependencies found in " + dependencies_dir);
@@ -123,8 +122,16 @@ namespace REFrameworkNET {
         return assemblies;
     }
 
-    void PluginManager::GenerateReferenceAssemblies(System::Collections::Generic::List<System::Reflection::Assembly^>^ deps) {
+    List<System::Reflection::Assembly^>^ PluginManager::LoadDependencies() {
+        const auto dependencies_path = std::filesystem::current_path() / "reframework" / "plugins" / "managed" / "dependencies";
+        return LoadAssemblies(gcnew System::String(dependencies_path.wstring().c_str()));
+    }
+
+    void PluginManager::GenerateReferenceAssemblies(List<System::Reflection::Assembly^>^ deps) {
         REFrameworkNET::API::LogInfo("Generating reference assemblies...");
+
+        auto generatedFolder = std::filesystem::current_path() / "reframework" / "plugins" / "managed" / "generated";
+        std::filesystem::create_directories(generatedFolder);
 
         // Look for AssemblyGenerator class in the loaded deps
         for each (System::Reflection::Assembly^ a in deps) {
@@ -143,10 +150,10 @@ namespace REFrameworkNET {
                     for each (Compiler::DynamicAssemblyBytecode^ bytes in result) {
                         REFrameworkNET::API::LogInfo("Adding generated assembly to deps...");
 
-                        std::string assembly_name = msclr::interop::marshal_as<std::string>(bytes->AssemblyName);
-                        assembly_name = "REFramework.NET." + assembly_name + ".dll";
+                        std::string assemblyName = msclr::interop::marshal_as<std::string>(bytes->AssemblyName);
+                        assemblyName = "REFramework.NET." + assemblyName + ".dll";
 
-                        auto path = std::filesystem::current_path() / "reframework" / "plugins" / "managed" / "dependencies" / assembly_name;
+                        auto path = generatedFolder / assemblyName;
                         System::IO::File::WriteAllBytes(gcnew System::String(path.wstring().c_str()), bytes->Bytecode);
                         REFrameworkNET::API::LogInfo("Wrote generated assembly to " + gcnew System::String(path.wstring().c_str()));
 
@@ -395,8 +402,6 @@ namespace REFrameworkNET {
             PluginManager::s_api_instance = gcnew REFrameworkNET::API(param_raw);
         }
 
-
-        System::Console::WriteLine("Test");
         REFrameworkNET::API::LogInfo("Attempting to load plugins from source code...");
 
         const auto plugins_path = std::filesystem::current_path() / "reframework" / "plugins";
@@ -429,20 +434,6 @@ namespace REFrameworkNET {
             // Compile the C# file, and then call a function in it (REFrameworkPlugin.Main)
             // This is useful for loading C# plugins that don't want to be compiled into a DLL
             auto bytecode = REFrameworkNET::Compiler::Compile(file, self, deps);
-            // Dynamically look for DynamicRun.Builder.Compiler.Compile
-            /*auto type = intermediary->GetType("DynamicRun.Builder.Compiler");
-            if (type == nullptr) {
-                REFrameworkNET::API::LogError("Failed to get type DynamicRun.Builder.Compiler");
-                continue;
-            }
-            auto method = type->GetMethod("Compile", System::Reflection::BindingFlags::Static | System::Reflection::BindingFlags::Public);
-
-            if (method == nullptr) {
-                REFrameworkNET::API::LogError("Failed to get method DynamicRun.Builder.Compiler.Compile");
-                continue;
-            }
-
-            auto bytecode = (array<System::Byte>^)method->Invoke(nullptr, gcnew array<Object^>{file, self->Location});*/
 
             if (bytecode == nullptr) {
                 REFrameworkNET::API::LogError("Failed to compile " + file);
