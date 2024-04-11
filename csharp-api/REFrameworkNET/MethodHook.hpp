@@ -44,7 +44,7 @@ public:
         return this;
     }
 
-    System::Collections::Generic::List<MethodHook^>^ GetAllHooks() {
+    static System::Collections::Generic::List<MethodHook^>^ GetAllHooks() {
         auto out = gcnew System::Collections::Generic::List<MethodHook^>();
         for each (auto kvp in s_hooked_methods) {
             out->Add(kvp.Value);
@@ -53,7 +53,9 @@ public:
         return out;
     }
 
-private:
+internal:
+    static void UnsubscribeAssembly(System::Reflection::Assembly^ assembly);
+
     event PreHookDelegate^ OnPreStart {
         void add(PreHookDelegate^ callback) {
             OnPreStartImpl = (PreHookDelegate^)System::Delegate::Combine(OnPreStartImpl, callback);
@@ -104,7 +106,7 @@ private:
             }
         }
     };
-    
+
     PreHookDelegate^ OnPreStartImpl;
     PostHookDelegate^ OnPostStartImpl;
 

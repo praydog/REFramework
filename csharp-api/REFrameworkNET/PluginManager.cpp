@@ -2,6 +2,7 @@
 #include <filesystem>
 
 #include "Attributes/Plugin.hpp"
+#include "MethodHook.hpp"
 #include "PluginManager.hpp"
 
 using namespace System;
@@ -514,9 +515,10 @@ namespace REFrameworkNET {
                         REFrameworkNET::API::LogInfo("Unloading dynamic assembly by calling " + method->Name + " in " + t->FullName);
 						method->Invoke(nullptr, nullptr);
 					}
-
-                    Callbacks::Impl::UnsubscribeAssembly(assem);
 				}
+                
+                Callbacks::Impl::UnsubscribeAssembly(assem);
+                MethodHook::UnsubscribeAssembly(assem);
             }
             catch (System::Exception^ e) {
 				REFrameworkNET::API::LogError("Failed to unload dynamic assembly: " + e->Message);
