@@ -669,6 +669,12 @@ namespace REFrameworkNET {
             for each (PluginState^ state in PluginManager::s_plugin_states) {
                 state->DisplayOptions();
             }
+
+            for each (PluginState^ state in PluginManager::s_plugin_states_to_remove) {
+                PluginManager::s_plugin_states->Remove(state);
+            }
+
+            PluginManager::s_plugin_states_to_remove->Clear();
         }
 
         ImGuiNET::ImGui::PopID();
@@ -709,8 +715,8 @@ namespace REFrameworkNET {
                 if (SynchronousUnload()) {
                     REFrameworkNET::API::LogInfo("Successfully unloaded " + script_path);
                     // Remove this state from the list
-                    PluginManager::s_plugin_states->Remove(this);
-                    return;
+                    //PluginManager::s_plugin_states->Remove(this);
+                    s_plugin_states_to_remove->Add(this);
                 } else {
                     REFrameworkNET::API::LogError("Failed to unload " + script_path);
                 }

@@ -102,5 +102,6 @@ internal:
     };
 
     static System::Collections::Generic::List<PluginState^>^ s_plugin_states{gcnew System::Collections::Generic::List<PluginState^>()};
+    static System::Collections::Generic::List<PluginState^>^ s_plugin_states_to_remove{gcnew System::Collections::Generic::List<PluginState^>()};
 };
 }
