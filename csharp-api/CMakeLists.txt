@@ -148,6 +148,7 @@ set_target_properties(REFCoreDeps PROPERTIES VS_PACKAGE_REFERENCES "${REFRAMEWOR
 set(csharp-api_SOURCES
 	"REFrameworkNET/API.cpp"
 	"REFrameworkNET/AssemblyInfo.cpp"
+	"REFrameworkNET/Attributes/Method.cpp"
 	"REFrameworkNET/Attributes/Plugin.cpp"
 	"REFrameworkNET/Callbacks.cpp"
 	"REFrameworkNET/ManagedObject.cpp"
@@ -165,6 +166,7 @@ set(csharp-api_SOURCES
 	"REFrameworkNET/UnifiedObject.cpp"
 	"REFrameworkNET/VM.cpp"
 	"REFrameworkNET/API.hpp"
+	"REFrameworkNET/Attributes/Method.hpp"
 	"REFrameworkNET/Attributes/Plugin.hpp"
 	"REFrameworkNET/Callbacks.hpp"
 	"REFrameworkNET/Field.hpp"

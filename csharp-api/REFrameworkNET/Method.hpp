@@ -162,6 +162,30 @@ public:
     System::Collections::Generic::List<Method^>^ GetMatchingParentMethods(); // mainly for the assembly generator (temporary?)
     bool IsOverride();
 
+    System::String^ GetMethodSignature() {
+        auto name = GetName();
+
+        if (GetNumParams() == 0) {
+            return name + "()";
+        }
+
+        auto params = GetParameters();
+
+        System::String^ ret = name + "(";
+
+        for (int i = 0; i < params->Count; i++) {
+            ret += params[i]->Type->FullName;
+
+            if (i < params->Count - 1) {
+                ret += ", ";
+            }
+        }
+
+        ret += ")";
+
+        return ret;
+    }
+
 public:
     virtual bool Equals(System::Object^ other) override {
         if (System::Object::ReferenceEquals(this, other)) {

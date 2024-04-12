@@ -301,6 +301,13 @@ public class ClassGenerator {
 
                 simpleMethodSignature += methodName;
 
+                // Add full method name as a MethodName attribute to the method
+                methodDeclaration = methodDeclaration.AddAttributeLists(
+                    SyntaxFactory.AttributeList().AddAttributes(SyntaxFactory.Attribute(
+                        SyntaxFactory.ParseName("global::REFrameworkNET.Attributes.Method"),
+                        SyntaxFactory.ParseAttributeArgumentList("(" + method.GetIndex().ToString() + ")")))
+                    );
+
                 if (method.Parameters.Count > 0) {
                     // If any of the params have ! in them, skip this method
                     if (method.Parameters.Any(param => param.Type.FullName.Contains('!'))) {
