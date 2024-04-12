@@ -133,15 +133,14 @@ public:
 protected:
     virtual Object^ Invoke(Reflection::MethodInfo^ targetMethod, array<Object^>^ args) override {
         // Get the REFrameworkNET::Attributes::Method attribute from the method
-        auto methodAttributes = targetMethod->GetCustomAttributes(REFrameworkNET::Attributes::Method::typeid, false);
+        //auto methodAttributes = targetMethod->GetCustomAttributes(REFrameworkNET::Attributes::Method::typeid, false);
+        auto methodAttribute = (REFrameworkNET::Attributes::Method^)System::Attribute::GetCustomAttribute(targetMethod, REFrameworkNET::Attributes::Method::typeid);
 
         Object^ result = nullptr;
         auto iobject = dynamic_cast<REFrameworkNET::IObject^>(Instance);
 
-        if (methodAttributes->Length != 0) {
-            // Get the first attribute's method
-            auto attr = (REFrameworkNET::Attributes::Method^)methodAttributes[0];
-            auto method = attr->GetMethod();
+        if (methodAttribute != nullptr) {
+            auto method = methodAttribute->GetMethod();
 
             if (iobject != nullptr) {
                 iobject->HandleInvokeMember_Internal(method, args, result);
