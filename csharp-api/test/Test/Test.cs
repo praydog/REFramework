@@ -54,7 +54,7 @@ public class DangerousFunctions {
         // These via.SceneManager and via.Scene are
         // loaded from an external reference assembly
         // the classes are all interfaces that correspond to real in-game classes
-        var sceneManager = REFrameworkNET.API.GetNativeSingletonT<via.SceneManager>();
+        var sceneManager = API.GetNativeSingletonT<via.SceneManager>();
         var scene = sceneManager.get_CurrentScene();
         var scene2 = sceneManager.get_CurrentScene();
 
@@ -241,6 +241,10 @@ class ObjectExplorer {
     }
 
     public static void DisplayMethod(REFrameworkNET.IObject obj, REFrameworkNET.Method method) {
+        ImGui.PushID(method.GetDeclaringType().FullName + method.GetMethodSignature());
+        var made = ImGui.TreeNodeEx("", ImGuiTreeNodeFlags.SpanFullWidth);
+        ImGui.SameLine(0.0f, 0.0f);
+
         var returnT = method.GetReturnType();
         var returnTName = returnT != null ? returnT.GetFullName() : "null";
 
@@ -283,6 +287,27 @@ class ObjectExplorer {
             ImGui.SameLine(0.0f, 0.0f);
             ImGui.Text(")");
         }
+
+        if (made) {
+            if ((method.Name.StartsWith("get_") || method.Name.StartsWith("Get") || method.Name == "ToString") && ps.Count == 0) {
+                object result = null;
+                obj.HandleInvokeMember_Internal(method, null, ref result);
+
+                if (result != null) {
+                    if (result is IObject objResult) {
+                        DisplayObject(objResult);
+                    } else {
+                        ImGui.Text("Result: " + result.ToString());
+                    }
+                } else {
+                    ImGui.Text("Result: null");
+                }
+            }
+
+            ImGui.TreePop();
+        }
+
+        ImGui.PopID();
     }
 
     public static void DisplayType(REFrameworkNET.TypeDefinition t) {
@@ -338,6 +363,8 @@ class ObjectExplorer {
         }
     }
 
+    private static TypeDefinition SystemArrayT = REFrameworkNET.TDB.Get().GetType("System.Array");
+
     public static void DisplayObject(REFrameworkNET.IObject obj) {
         if (ImGui.TreeNode("Type Info")) {
             DisplayType(obj.GetTypeDefinition());
@@ -366,6 +393,42 @@ class ObjectExplorer {
             }
 
             ImGui.TreePop();
+        }
+
+        if (obj.GetTypeDefinition().IsDerivedFrom(SystemArrayT)) {
+            ImGui.Text("Array Length: " + (int)obj.Call("get_Length"));
+            
+            var easyArray = obj.As<_System.Array>();
+            var elementType = obj.GetTypeDefinition().GetElementType();
+
+            for (int i = 0; i < easyArray.get_Length(); i++) {
+                var element = easyArray.GetValue(i);
+                if (element == null) {
+                    ImGui.Text("Element " + i + ": null");
+                    continue;
+                }
+                
+                var made = ImGui.TreeNodeEx("Element " + i, ImGuiTreeNodeFlags.SpanFullWidth);
+
+                ImGui.SameLine(0.0f, 0.0f);
+                
+                if (element is IObject) {
+                    var asString = (element as IObject).Call("ToString") as string;
+                    ImGui.TextColored(TYPE_COLOR, " ("+ asString + ")");
+                } else {
+                    ImGui.TextColored(TYPE_COLOR, " ("+ elementType.GetFullName() + ")");
+                }
+
+                if (made) {
+                    if (element is IObject objElement) {
+                        DisplayObject(objElement);
+                    } else {
+                        ImGui.Text("Element: " + element.ToString());
+                    }
+
+                    ImGui.TreePop();
+                }
+            }
         }
     }
 
@@ -422,6 +485,30 @@ class ObjectExplorer {
 
             if (ImGui.TreeNode("Native Singletons")) {
                 RenderNativeSingletons();
+            }
+
+            var appdomainT = REFrameworkNET.API.GetTDB().GetTypeT<_System.AppDomain>();
+            var appdomain = appdomainT.get_CurrentDomain();
+            var assemblies = appdomain.GetAssemblies();
+
+            if (ImGui.TreeNode("AppDomain")) {
+                if (assemblies != null && ImGui.TreeNode("Assemblies")) {
+                    for (int i = 0; i < assemblies.get_Length(); i++) {
+                        var assembly = assemblies.get_Item(i);
+                        var assemblyT = (assembly as IObject).GetTypeDefinition();
+                        var location = assembly.get_Location() ?? "null";
+                        
+                        if (ImGui.TreeNode(location)) {
+                            DisplayObject(assembly as IObject);
+                            ImGui.TreePop();
+                        }
+                    }
+
+                    ImGui.TreePop();
+                }
+
+                DisplayObject(appdomain as IObject);
+                ImGui.TreePop();
             }
 
             DisplayType(REFrameworkNET.API.GetTDB().GetType("JsonParser.Value"));
