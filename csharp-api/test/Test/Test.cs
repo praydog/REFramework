@@ -145,6 +145,8 @@ class ObjectExplorer {
     static System.Numerics.Vector4 FIELD_COLOR = new(156 / 255.0f, 220 / 255.0f, 254 / 255.0f, 1.0f);
     static System.Numerics.Vector4 METHOD_COLOR = new(220 / 255.0f, 220 / 255.0f, 170 / 255.0f, 1.0f);
 
+    static _System.Enum SystemEnumT = REFrameworkNET.TDB.Get().GetTypeT<_System.Enum>();
+
     public static void DisplayColorPicker() {
         ImGui.ColorEdit4("Type Color", ref TYPE_COLOR);
         ImGui.ColorEdit4("Field Color", ref FIELD_COLOR);
@@ -229,7 +231,7 @@ class ObjectExplorer {
                         ImGui.Text("Value: " + field.GetDataT<string>(obj.GetAddress(), false));
                         break;*/
                     default:
-                        ImGui.Text("Value: " + field.GetDataRaw(obj.GetAddress(), false).ToString("X"));
+                        ImGui.Text("Value (unknown): " + field.GetDataRaw(obj.GetAddress(), false).ToString("X"));
                         break;
                 }
             }
@@ -297,7 +299,15 @@ class ObjectExplorer {
                     if (result is IObject objResult) {
                         DisplayObject(objResult);
                     } else {
-                        ImGui.Text("Result: " + result.ToString());
+                        var returnType = method.GetReturnType();
+
+                        if (returnType.IsEnum()) {
+                            long longValue = Convert.ToInt64(result);
+                            var boxedEnum = SystemEnumT.boxEnum(returnType.GetRuntimeType().As<_System.Type>(), longValue);
+                            ImGui.Text("Result: " + (boxedEnum as IObject).Call("ToString()") + " (" + result.ToString() + ")");
+                        } else {
+                            ImGui.Text("Result: " + result.ToString() + " (" + result.GetType().FullName + ")");
+                        }
                     }
                 } else {
                     ImGui.Text("Result: null");
@@ -366,16 +376,34 @@ class ObjectExplorer {
     private static TypeDefinition SystemArrayT = REFrameworkNET.TDB.Get().GetType("System.Array");
 
     public static void DisplayObject(REFrameworkNET.IObject obj) {
-        if (ImGui.TreeNode("Type Info")) {
-            DisplayType(obj.GetTypeDefinition());
+        if (ImGui.TreeNode("Internals")) {
+            if (ImGui.TreeNode("Type Info")) {
+                DisplayType(obj.GetTypeDefinition());
+                ImGui.TreePop();
+            }
+
+            if (obj is REFrameworkNET.ManagedObject) {
+                var managed = obj as REFrameworkNET.ManagedObject;
+                ImGui.Text("Reference count: " + managed.GetReferenceCount().ToString());
+            }
+
             ImGui.TreePop();
         }
 
         if (ImGui.TreeNode("Methods")) {
-            var methods = obj.GetTypeDefinition().GetMethods();
+            var tdef = obj.GetTypeDefinition();
+            List<Method> methods = new List<Method>();
+
+            for (var parent = tdef; parent != null; parent = parent.ParentType) {
+                var parentMethods = parent.GetMethods();
+                methods.AddRange(parentMethods);
+            }
 
             // Sort methods by name
             methods.Sort((a, b) => a.GetName().CompareTo(b.GetName()));
+
+            // Remove methods that have "!" in their parameters
+            methods.RemoveAll((m) => m.GetParameters().Exists((p) => p.Type.Name.Contains("!")));
 
             foreach (var method in methods) {
                 DisplayMethod(obj, method);
@@ -383,7 +411,13 @@ class ObjectExplorer {
         }
 
         if (ImGui.TreeNode("Fields")) {
-            var fields = obj.GetTypeDefinition().GetFields();
+            var tdef = obj.GetTypeDefinition();
+            List<Field> fields = new List<Field>();
+
+            for (var parent = tdef; parent != null; parent = parent.ParentType) {
+                var parentFields = parent.GetFields();
+                fields.AddRange(parentFields);
+            }
 
             // Sort fields by name
             fields.Sort((a, b) => a.GetName().CompareTo(b.GetName()));
@@ -400,6 +434,7 @@ class ObjectExplorer {
             
             var easyArray = obj.As<_System.Array>();
             var elementType = obj.GetTypeDefinition().GetElementType();
+            var elementSize = elementType.GetSize();
 
             for (int i = 0; i < easyArray.get_Length(); i++) {
                 var element = easyArray.GetValue(i);
@@ -413,15 +448,17 @@ class ObjectExplorer {
                 ImGui.SameLine(0.0f, 0.0f);
                 
                 if (element is IObject) {
-                    var asString = (element as IObject).Call("ToString") as string;
+                    var asString = (element as IObject).Call("ToString()") as string;
                     ImGui.TextColored(TYPE_COLOR, " ("+ asString + ")");
                 } else {
-                    ImGui.TextColored(TYPE_COLOR, " ("+ elementType.GetFullName() + ")");
+                    ImGui.TextColored(TYPE_COLOR, " ("+ element.ToString() + ")");
                 }
 
                 if (made) {
                     if (element is IObject objElement) {
+                        ImGui.PushID((obj.GetAddress() + 0x10 + (ulong)(i * elementSize)).ToString("X"));
                         DisplayObject(objElement);
+                        ImGui.PopID();
                     } else {
                         ImGui.Text("Element: " + element.ToString());
                     }
