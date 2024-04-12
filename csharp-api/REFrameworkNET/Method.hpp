@@ -15,6 +15,12 @@ public enum class PreHookResult : int32_t {
     Skip = 1,
 };
 
+/// <summary>
+/// Represents a method in the RE Engine's IL2CPP metadata.
+/// Equivalent to System.RuntimeMethodHandle in .NET.
+/// </summary>
+/// <remarks>
+/// </remarks>
 public ref class Method : public System::IEquatable<Method^>
 {
 public:
@@ -25,13 +31,32 @@ public:
         return m_method;
     }
 
+    /// <summary>
+    /// Invokes this method with the given arguments.
+    /// </summary>
+    /// <param name="obj">The object to invoke the method on. Null for static methods.</param>
+    /// <param name="args">The arguments to pass to the method.</param>
+    /// <returns>The return value of the method. 128 bytes in size internally.</returns>
+    /// <remarks>
+    /// Generally should not be used unless you know what you're doing.
+    /// Use the other invoke method to automatically convert the return value correctly into a usable object.
+    /// </remarks>
     REFrameworkNET::InvokeRet^ Invoke(System::Object^ obj, array<System::Object^>^ args);
+
+    /// <summary>
+    /// Invokes this method with the given arguments.
+    /// </summary>
+    /// <param name="obj">The object to invoke the method on. Null for static methods.</param>
+    /// <param name="args">The arguments to pass to the method.</param>
+    /// <param name="result">The return value of the method. REFramework will attempt to convert this into a usable object.</param>
+    /// <returns>True if the method was successfully found and invoked, false otherwise.</returns>
     bool HandleInvokeMember_Internal(System::Object^ obj, array<System::Object^>^ args, System::Object^% result);
 
     void* GetFunctionPtr() {
         return m_method->get_function_raw();
     }
 
+    /// <returns>The name of the method.</returns>
     System::String^ GetName() {
         return gcnew System::String(m_method->get_name());
     }
@@ -42,6 +67,7 @@ public:
         }
     }
 
+    /// <returns>The declaring <see cref="TypeDefinition"/> of the method.</returns>
     TypeDefinition^ GetDeclaringType() {
         auto result = m_method->get_declaring_type();
 
@@ -58,6 +84,7 @@ public:
         }
     }
 
+    /// <returns>The return <see cref="TypeDefinition"/> of the method.</returns>
     TypeDefinition^ GetReturnType() {
         auto result = m_method->get_return_type();
 
@@ -74,6 +101,7 @@ public:
         }
     }
 
+    /// <returns>The number of parameters of the method.</returns>
     uint32_t GetNumParams() {
         return m_method->get_num_params();
     }
@@ -84,6 +112,8 @@ public:
         }
     }
 
+    /// <returns>The parameters of the method.</returns>
+    /// <remarks><see cref="MethodParameter"/></remarks>
     System::Collections::Generic::List<REFrameworkNET::MethodParameter^>^ GetParameters() {
         const auto params = m_method->get_params();
 
@@ -122,6 +152,10 @@ public:
         }
     }
 
+    bool IsVirtual() {
+        return VirtualIndex >= 0;
+    }
+
     bool IsStatic() {
         return m_method->is_static();
     }
@@ -146,6 +180,10 @@ public:
         }
     }
 
+    /// <summary>
+    /// Gets the invoke ID of this method. This is the index into the global invoke wrapper table.
+    /// </summary>
+    /// <returns>The invoke ID.</returns>
     uint32_t GetInvokeID() {
         return m_method->get_invoke_id();
     }
@@ -155,13 +193,22 @@ public:
             return GetInvokeID();
         }
     }
-
+    
+    /// <summary>
+    /// Adds a hook to this method. Additional operations can be performed on the returned hook object.
+    /// </summary>
+    /// <param name="ignore_jmp">If true, the hook will not look for a nearby jmp to locate the "real" function.</param>
+    /// <returns>The hook object.</returns>
     MethodHook^ AddHook(bool ignore_jmp);
 
+    /// <returns>The System.MethodInfo object for this method. Not cached.</returns>
     ManagedObject^ GetRuntimeMethod();
+
+
     System::Collections::Generic::List<Method^>^ GetMatchingParentMethods(); // mainly for the assembly generator (temporary?)
     bool IsOverride();
 
+    /// <returns>The method signature as a string in the form of "MethodName(Type1, Type2, ...)"</returns>
     System::String^ GetMethodSignature() {
         auto name = GetName();
 

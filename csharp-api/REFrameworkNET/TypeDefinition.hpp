@@ -16,6 +16,9 @@ ref class Property;
 ref class TypeInfo;
 ref struct InvokeRet;
 
+/// <summary>
+/// A shorthand enum for determining how a <see cref="TypeDefinition"/> is used in the VM.
+/// </summary>
 public enum class VMObjType : uint32_t {
     NULL_ = 0,
     Object = 1,
@@ -25,8 +28,14 @@ public enum class VMObjType : uint32_t {
     ValType = 5,
 };
 
-public
-    ref class TypeDefinition : public System::Dynamic::DynamicObject,
+
+/// <summary>
+/// Represents a type in the RE Engine's IL2CPP metadata.
+/// Equivalent to System.RuntimeTypeHandle in .NET.
+/// </summary>
+/// <remarks>
+/// </remarks>
+public ref class TypeDefinition : public System::Dynamic::DynamicObject,
                                public System::IEquatable<TypeDefinition ^>
 {
 public:
@@ -272,6 +281,8 @@ public:
         }
     }
 
+    /// <returns>The underlying type of this <see cref="TypeDefinition"/>.</returns>
+    /// <remarks>Usually used for enums.</remarks>
     TypeDefinition^ GetUnderlyingType()
     {
         auto result = m_type->get_underlying_type();
@@ -296,6 +307,7 @@ public:
         }
     }
 
+    /// <returns>The System.Type for this <see cref="TypeDefinition"/>.</returns>
     ManagedObject^ GetRuntimeType();
     property ManagedObject^ RuntimeType {
         ManagedObject^ get() {
@@ -342,7 +354,25 @@ public:
         return (uintptr_t)m_type;
     }
 
+    /// <summary>
+    /// Invokes a <see cref="Method"/> with the given arguments.
+    /// </summary>
+    /// <param name="obj">The object to invoke the method on. Null for static methods.</param>
+    /// <param name="args">The arguments to pass to the method.</param>
+    /// <returns>The return value of the method. 128 bytes in size internally.</returns>
+    /// <remarks>
+    /// Generally should not be used unless you know what you're doing.
+    /// Use the other invoke method to automatically convert the return value correctly into a usable object.
+    /// </remarks>
     virtual REFrameworkNET::InvokeRet^ Invoke(System::String^ methodName, array<System::Object^>^ args);
+
+    /// <summary>
+    /// Invokes a <see cref="Method"/> with the given arguments.
+    /// </summary>
+    /// <param name="obj">The object to invoke the method on. Null for static methods.</param>
+    /// <param name="args">The arguments to pass to the method.</param>
+    /// <param name="result">The return value of the method. REFramework will attempt to convert this into a usable object.</param>
+    /// <returns>True if the method was successfully found and invoked, false otherwise.</returns>
     virtual bool HandleInvokeMember_Internal(System::String^ methodName, array<System::Object^>^ args, System::Object^% result);
 
     generic <typename T>
