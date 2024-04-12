@@ -17,24 +17,39 @@ ref class ManagedObject;
 public ref class ManagedObject : public REFrameworkNET::UnifiedObject
 {
 public:
-    ManagedObject(reframework::API::ManagedObject* obj) : m_object(obj) {
+    ManagedObject(reframework::API::ManagedObject* obj) 
+        : m_object(obj),
+          m_weak(true)
+    {
         AddRefIfGlobalized();
     }
 
-    ManagedObject(::REFrameworkManagedObjectHandle handle) : m_object(reinterpret_cast<reframework::API::ManagedObject*>(handle)) {
+    ManagedObject(::REFrameworkManagedObjectHandle handle) 
+        : m_object(reinterpret_cast<reframework::API::ManagedObject*>(handle)),
+          m_weak(true)
+    {
         AddRefIfGlobalized();
     }
 
     // Double check if we really want to allow this
     // We might be better off having a global managed object cache
     // instead of AddRef'ing every time we create a new ManagedObject
-    ManagedObject(ManagedObject^ obj) : m_object(obj->m_object) {
+    ManagedObject(ManagedObject^ obj) 
+        : m_object(obj->m_object),
+          m_weak(true)
+    {
         if (m_object != nullptr) {
             AddRefIfGlobalized();
         }
     }
 
+    // Dispose
     ~ManagedObject() {
+        this->!ManagedObject();
+    }
+
+    // Finalizer
+    !ManagedObject() {
         if (m_object != nullptr) {
             ReleaseIfGlobalized();
         }
@@ -91,7 +106,9 @@ public:
     /// Releases a reference to the managed object
     /// </summary>
     /// <remarks>Try to avoid calling this manually except in extraordinary circumstances</remarks>
-    void Release() {
+    void Release();
+
+    void ForceRelease() {
         if (m_object == nullptr) {
             return;
         }
@@ -129,7 +146,7 @@ public:
     }
 
     bool IsGlobalized() {
-        return GetReferenceCount() >= 0;
+        return GetReferenceCount() >= 0 || !m_weak;
     }
 
     bool IsGoingToBeDestroyed() {
@@ -192,5 +209,6 @@ public: // IObject
 
 protected:
     reframework::API::ManagedObject* m_object;
+    bool m_weak{true};
 };
 }

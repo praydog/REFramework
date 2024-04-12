@@ -34,6 +34,20 @@ namespace REFrameworkNET {
 #endif
 
         m_object->add_ref();
+        m_weak = false; // Once we add a concrete reference, we can't be weak anymore
+    }
+
+    void ManagedObject::Release() {
+        if (m_object == nullptr || m_weak) {
+            return;
+        }
+
+#ifdef REFRAMEWORK_VERBOSE
+        System::Console::WriteLine("Releasing a reference to" + GetTypeDefinition()->FullName);
+#endif
+
+        m_object->release();
+        m_weak = true;
     }
 
     TypeDefinition^ ManagedObject::GetTypeDefinition() {
