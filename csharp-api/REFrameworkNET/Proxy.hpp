@@ -133,16 +133,14 @@ public:
 protected:
     virtual Object^ Invoke(Reflection::MethodInfo^ targetMethod, array<Object^>^ args) override {
         // Get the REFrameworkNET::Attributes::Method attribute from the method
-        //auto methodAttributes = targetMethod->GetCustomAttributes(REFrameworkNET::Attributes::Method::typeid, false);
-        auto methodAttribute = (REFrameworkNET::Attributes::Method^)System::Attribute::GetCustomAttribute(targetMethod, REFrameworkNET::Attributes::Method::typeid);
+        auto methodAttribute = REFrameworkNET::Attributes::Method::GetCachedAttribute(targetMethod);
 
         Object^ result = nullptr;
         auto iobject = dynamic_cast<REFrameworkNET::IObject^>(Instance);
 
         if (methodAttribute != nullptr) {
-            auto method = methodAttribute->GetMethod();
-
             if (iobject != nullptr) {
+                auto method = methodAttribute->GetMethod(iobject->GetTypeDefinition());
                 iobject->HandleInvokeMember_Internal(method, args, result);
             } else {
                 throw gcnew System::InvalidOperationException("Proxy: T2 must be IObject derived");
