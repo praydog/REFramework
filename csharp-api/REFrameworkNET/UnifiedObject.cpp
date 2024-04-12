@@ -153,9 +153,9 @@ namespace REFrameworkNET {
                     if (vm_obj_type > VMObjType::NULL_ && vm_obj_type < VMObjType::ValType) {
                         switch (vm_obj_type) {
                         case VMObjType::Array:
-                            //return sol::make_object(l, *(::sdk::SystemArray**)data);
-                            result = nullptr;
-                            break; // TODO: Implement array
+                            /*
+                            Just return it as an managed object for now
+                            */
                         default: {
                             //const auto td = utility::re_managed_object::get_type_definition(*(::REManagedObject**)data);
                             auto& obj = field->GetData<reframework::API::ManagedObject*>(addr, field_type->IsValueType());
@@ -169,9 +169,9 @@ namespace REFrameworkNET {
 
                             // another fallback incase the method returns an object which is an array
                             if (td != nullptr && td->GetVMObjType() == VMObjType::Array) {
-                                //return sol::make_object(l, *(::sdk::SystemArray**)data);
-                                result = nullptr;
-                                break;
+                                /*
+                                Just return it as an managed object for now
+                                */
                             }
 
                             result = gcnew ManagedObject(obj);
