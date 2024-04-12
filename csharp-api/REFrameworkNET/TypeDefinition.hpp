@@ -245,6 +245,17 @@ public:
         }
     }
 
+    /// <summary>
+    /// <para>
+    /// THIS IS IMPORTANT! Please refer to <see cref="ManagedObject::Globalize"/>
+    /// Objects returned from CreateInstance are NOT globalized
+    /// meaning you cannot assign them to a global variable, static field, or some other long term storage
+    /// because they will be quickly destroyed by the Garbage Collector.
+    /// You need to manually call ManagedObject::Globalize if you intend to keep the object around
+    /// </para>
+    /// </summary>
+    /// <param name="flags">The flags to use when creating the instance.</param>
+    /// <returns>A new <see cref="ManagedObject"/> instance of type <see cref="TypeDefinition"/>.</returns>
     ManagedObject^ CreateInstance(int32_t flags);
     
     TypeDefinition^ GetParentType()

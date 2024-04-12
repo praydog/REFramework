@@ -18,14 +18,11 @@ public ref class ManagedObject : public REFrameworkNET::UnifiedObject
 {
 public:
     ManagedObject(reframework::API::ManagedObject* obj) : m_object(obj) {
-        if (obj != nullptr) {
-            AddRef();
-        }
+        AddRefIfGlobalized();
     }
+
     ManagedObject(::REFrameworkManagedObjectHandle handle) : m_object(reinterpret_cast<reframework::API::ManagedObject*>(handle)) {
-        if (handle != nullptr) {
-            AddRef();
-        }
+        AddRefIfGlobalized();
     }
 
     // Double check if we really want to allow this
@@ -33,30 +30,110 @@ public:
     // instead of AddRef'ing every time we create a new ManagedObject
     ManagedObject(ManagedObject^ obj) : m_object(obj->m_object) {
         if (m_object != nullptr) {
-            AddRef();
+            AddRefIfGlobalized();
         }
     }
 
     ~ManagedObject() {
         if (m_object != nullptr) {
-            Release();
+            ReleaseIfGlobalized();
         }
     }
 
-    void AddRef() {
-        if (m_object == nullptr) {
-            return;
-        }
+    /// <summary>
+    /// <para>
+    /// Globalizes the managed object if it is not already globalized <br/>
+    /// This is usually useful in instances where objects are newly created, and you want <br/>
+    /// to keep long term references to them, otherwise the object will be quickly destroyed <br/>
+    /// A local object is an object that can only be referenced by the spawned thread <br/>
+    /// A global object is an object that can be referenced by any thread <br/>
+    /// <br/>
+    /// To quote the talk, "Achieve Rapid Iteration: RE ENGINE Design": <br/>
+    /// <br/>
+    /// Local object <br/>
+    ///  Objects that can only be referenced by the spawned thread <br/>
+    ///  Registered in the local table for each thread <br/>
+    ///  Reference counter (RC) is negative and points to the index of the local table <br/>
+    ///  All objects created from C# will be local objects <br/>
+    /// <br/>
+    /// Local => Global conversion <br/>
+    ///  Convert when it becomes available to all threads <br/>
+    ///    When storing in a static field <br/>
+    ///    When storing in a field of a global object <br/>
+    ///  Cleared from local table and RC becomes 1 <br/>
+    ///    Convert all references globally <br/>
+    /// <br/>
+    /// Global object <br/>
+    ///  Objects that can be referenced by all threads <br/>
+    ///  Reference counter (RC) is positive and represents the number of object references <br/>
+    ///  All objects generated from C++ become global objects <br/>
+    /// <br/>
+    /// </para>
+    /// </summary>
+    /// <returns>The current managed object</returns>
+    /// <remarks>
+    /// <para>
+    /// This should only need to be called in the following instances: <br/>
+    /// You are manually creating an instance of a managed object <br/>
+    /// A method you are calling is freshly creating a new managed object (usually arrays or some other kind of constructor) <br/>
+    /// More information: <a href="https://github.com/kasicass/blog/blob/master/3d-reengine/2021_03_10_achieve_rapid_iteration_re_engine_design.md#framegc-algorithm-17">https://github.com/kasicass/blog/blob/master/3d-reengine/2021_03_10_achieve_rapid_iteration_re_engine_design.md#framegc-algorithm-17</a> <br/>
+    /// </para>
+    /// </remarks>
+    ManagedObject^ Globalize();
 
-        m_object->add_ref();
-    }
+    /// <summary>
+    /// Adds a reference to the managed object
+    /// </summary>
+    /// <remarks>Try to avoid calling this manually except in extraordinary circumstances</remarks>
+    void AddRef();
 
+    /// <summary>
+    /// Releases a reference to the managed object
+    /// </summary>
+    /// <remarks>Try to avoid calling this manually except in extraordinary circumstances</remarks>
     void Release() {
         if (m_object == nullptr) {
             return;
         }
 
         m_object->release();
+    }
+
+    void AddRefIfGlobalized() {
+        if (m_object == nullptr || !IsGlobalized()) {
+            return;
+        }
+
+        AddRef();
+    }
+
+    void ReleaseIfGlobalized() {
+        if (m_object == nullptr || !IsGlobalized()) {
+            return;
+        }
+
+        Release();
+    }
+
+    int32_t GetReferenceCount() {
+        if (m_object == nullptr) {
+            return 0;
+        }
+
+        // TODO: Make this less hacky/pull from the C++ API?
+        return *(int32_t*)((uintptr_t)m_object + 0x8);
+    }
+
+    bool IsLocalVariable() {
+        return GetReferenceCount() < 0;
+    }
+
+    bool IsGlobalized() {
+        return GetReferenceCount() >= 0;
+    }
+
+    bool IsGoingToBeDestroyed() {
+        return GetReferenceCount() == 0;
     }
 
     static bool IsManagedObject(uintptr_t ptr) {
