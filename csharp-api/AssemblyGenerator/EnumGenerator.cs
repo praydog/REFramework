@@ -68,8 +68,52 @@ public class EnumGenerator {
             var underlyingType = field.Type.GetUnderlyingType();
 
             SyntaxToken literalToken;
+            bool foundRightType = true;
 
-            switch (underlyingType.GetValueTypeSize()) {
+            switch (underlyingType.FullName) {
+                case "System.Byte":
+                    enumDeclaration = enumDeclaration.AddBaseListTypes(SyntaxFactory.SimpleBaseType(SyntaxFactory.ParseTypeName("byte")));
+                    literalToken = SyntaxFactory.Literal(field.GetDataT<byte>(0, false));
+                    break;
+                case "System.SByte":
+                    enumDeclaration = enumDeclaration.AddBaseListTypes(SyntaxFactory.SimpleBaseType(SyntaxFactory.ParseTypeName("sbyte")));
+                    literalToken = SyntaxFactory.Literal(field.GetDataT<sbyte>(0, false));
+                    break;
+                case "System.Int16":
+                    enumDeclaration = enumDeclaration.AddBaseListTypes(SyntaxFactory.SimpleBaseType(SyntaxFactory.ParseTypeName("short")));
+                    literalToken = SyntaxFactory.Literal(field.GetDataT<short>(0, false));
+                    break;
+                case "System.UInt16":
+                    enumDeclaration = enumDeclaration.AddBaseListTypes(SyntaxFactory.SimpleBaseType(SyntaxFactory.ParseTypeName("ushort")));
+                    literalToken = SyntaxFactory.Literal(field.GetDataT<ushort>(0, false));
+                    break;
+                case "System.Int32":
+                    enumDeclaration = enumDeclaration.AddBaseListTypes(SyntaxFactory.SimpleBaseType(SyntaxFactory.ParseTypeName("int")));
+                    literalToken = SyntaxFactory.Literal(field.GetDataT<int>(0, false));
+                    break;
+                case "System.UInt32":
+                    enumDeclaration = enumDeclaration.AddBaseListTypes(SyntaxFactory.SimpleBaseType(SyntaxFactory.ParseTypeName("uint")));
+                    literalToken = SyntaxFactory.Literal(field.GetDataT<uint>(0, false));
+                    break;
+                case "System.Int64":
+                    enumDeclaration = enumDeclaration.AddBaseListTypes(SyntaxFactory.SimpleBaseType(SyntaxFactory.ParseTypeName("long")));
+                    literalToken = SyntaxFactory.Literal(field.GetDataT<long>(0, false));
+                    break;
+                case "System.UInt64":
+                    enumDeclaration = enumDeclaration.AddBaseListTypes(SyntaxFactory.SimpleBaseType(SyntaxFactory.ParseTypeName("ulong")));
+                    literalToken = SyntaxFactory.Literal(field.GetDataT<ulong>(0, false));
+                    break;
+                default:
+                    literalToken = SyntaxFactory.Literal(0);
+                    foundRightType = false;
+                    break;
+            }
+
+            // The uber fallback
+            if (!foundRightType) {
+                REFrameworkNET.API.LogWarning($"Enum {enumName} has an unknown underlying type {underlyingType.FullName}");
+
+                switch (underlyingType.GetValueTypeSize()) {
                 case 1:
                     enumDeclaration = enumDeclaration.AddBaseListTypes(SyntaxFactory.SimpleBaseType(SyntaxFactory.ParseTypeName("byte")));
                     literalToken = SyntaxFactory.Literal(field.GetDataT<byte>(0, false));
@@ -87,7 +131,9 @@ public class EnumGenerator {
                     literalToken = SyntaxFactory.Literal(field.GetDataT<long>(0, false));
                     break;
                 default:
+                    literalToken = SyntaxFactory.Literal(0);
                     throw new System.Exception("Unknown enum underlying type size");
+                }
             }
 
             var fieldDeclaration = SyntaxFactory.EnumMemberDeclaration(field.Name);
