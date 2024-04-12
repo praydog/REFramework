@@ -188,6 +188,15 @@ REFrameworkNET::InvokeRet^ Method::Invoke(System::Object^ obj, array<System::Obj
             } else if (t == System::Byte::typeid) {
                 uint8_t v = System::Convert::ToByte(arg);
                 args2[i] = (void*)(uint64_t)v;
+            } else if (t == System::SByte::typeid) {
+                int8_t v = System::Convert::ToSByte(arg);
+                args2[i] = (void*)(uint64_t)v;
+            } else if (t == System::Char::typeid) {
+                wchar_t v = System::Convert::ToChar(arg);
+                args2[i] = (void*)(uint64_t)v;
+            } else if (t == System::Int16::typeid) {
+                int16_t v = System::Convert::ToInt16(arg);
+                args2[i] = (void*)(uint64_t)v;
             } else if (t == System::UInt16::typeid) {
                 uint16_t v = System::Convert::ToUInt16(arg);
                 args2[i] = (void*)(uint64_t)v;
@@ -202,15 +211,14 @@ REFrameworkNET::InvokeRet^ Method::Invoke(System::Object^ obj, array<System::Obj
                 auto d = (double)v;
                 auto n = *(int64_t*)&d;
                 args2[i] = (void*)(uint64_t)n;
-            } else if (t == System::UInt64::typeid) {
-                uint64_t v = System::Convert::ToUInt64(arg);
-                args2[i] = (void*)(uint64_t)v;
+            } else if (t == System::UInt64::typeid || t == System::UIntPtr::typeid) {
+                args2[i] = (void*)System::Convert::ToUInt64(arg);
+            } else if (t == System::Int64::typeid || t == System::IntPtr::typeid) {
+                args2[i] = (void*)System::Convert::ToInt64(arg);
             } else if (t == System::Double::typeid) {
                 double v = System::Convert::ToDouble(arg);
                 auto n = *(int64_t*)&v;
                 args2[i] = (void*)(uint64_t)n;
-            } else if (t == System::IntPtr::typeid) {
-                args2[i] = (void*)(uint64_t)System::Convert::ToInt64(arg);
             } else {
                 args2[i] = nullptr;
                 System::Console::WriteLine("Unknown type passed to method invocation @ arg " + i + " (" + t->FullName + ")");
