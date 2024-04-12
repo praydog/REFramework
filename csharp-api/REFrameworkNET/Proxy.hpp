@@ -5,6 +5,7 @@
 #include "./API.hpp"
 #include "ManagedObject.hpp"
 #include "TypeDefinition.hpp"
+#include "Attributes/Method.hpp"
 
 using namespace System;
 
@@ -42,8 +43,16 @@ public:
         return Instance->Invoke(methodName, args);
     }
 
+    virtual bool HandleInvokeMember_Internal(uint32_t methodIndex, array<System::Object^>^ args, System::Object^% result) {
+        return Instance->HandleInvokeMember_Internal(methodIndex, args, result);
+    }
+
     virtual bool HandleInvokeMember_Internal(System::String^ methodName, array<System::Object^>^ args, System::Object^% result) {
         return Instance->HandleInvokeMember_Internal(methodName, args, result);
+    }
+
+    virtual bool HandleInvokeMember_Internal(System::Object^ methodObj, array<System::Object^>^ args, System::Object^% result) {
+        return Instance->HandleInvokeMember_Internal(methodObj, args, result);
     }
 
     virtual bool HandleTryGetMember_Internal(System::String^ fieldName, System::Object^% result) {
@@ -123,14 +132,29 @@ public:
 
 protected:
     virtual Object^ Invoke(Reflection::MethodInfo^ targetMethod, array<Object^>^ args) override {
+        // Get the REFrameworkNET::Attributes::Method attribute from the method
+        auto methodAttributes = targetMethod->GetCustomAttributes(REFrameworkNET::Attributes::Method::typeid, false);
+
         Object^ result = nullptr;
         auto iobject = dynamic_cast<REFrameworkNET::IObject^>(Instance);
 
-        // how am i gonna handle static methods?
-        if (iobject != nullptr) {
-            iobject->HandleInvokeMember_Internal(targetMethod->Name, args, result);
+        if (methodAttributes->Length != 0) {
+            // Get the first attribute's method
+            auto attr = (REFrameworkNET::Attributes::Method^)methodAttributes[0];
+            auto method = attr->GetMethod();
+
+            if (iobject != nullptr) {
+                iobject->HandleInvokeMember_Internal(method, args, result);
+            } else {
+                throw gcnew System::InvalidOperationException("Proxy: T2 must be IObject derived");
+            }
         } else {
-            throw gcnew System::InvalidOperationException("Proxy: T2 must be IObject derived");
+            // This is a fallback
+            if (iobject != nullptr) {
+                iobject->HandleInvokeMember_Internal(targetMethod->Name, args, result);
+            } else {
+                throw gcnew System::InvalidOperationException("Proxy: T2 must be IObject derived");
+            }
         }
 
         auto targetReturnType = targetMethod->ReturnType;

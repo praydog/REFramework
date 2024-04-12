@@ -43,6 +43,31 @@ namespace REFrameworkNET {
         return false;
     }
 
+    bool UnifiedObject::HandleInvokeMember_Internal(uint32_t methodIndex, array<System::Object^>^ args, System::Object^% result) {
+        auto method = REFrameworkNET::TDB::Get()->GetMethod(methodIndex);
+
+        if (method != nullptr)
+        {
+            // Re-used with UnifiedObject::TryInvokeMember
+            return method->HandleInvokeMember_Internal(this, args, result);
+        }
+
+        result = nullptr;
+        return false;
+    }
+
+    bool UnifiedObject::HandleInvokeMember_Internal(System::Object^ methodObj, array<System::Object^>^ args, System::Object^% result) {
+        auto method = dynamic_cast<REFrameworkNET::Method^>(methodObj);
+        if (method != nullptr)
+        {
+            // Re-used with UnifiedObject::TryInvokeMember
+            return method->HandleInvokeMember_Internal(this, args, result);
+        }
+
+        result = nullptr;
+        return false;
+    }
+
     bool UnifiedObject::TryInvokeMember(System::Dynamic::InvokeMemberBinder^ binder, array<System::Object^>^ args, System::Object^% result)
     {
         auto methodName = binder->Name;
