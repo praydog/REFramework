@@ -17,7 +17,7 @@ SystemString^ VM::CreateString(::System::String^ str) {
         return nullptr;
     }
 
-    return gcnew SystemString(objHandle);
+    return ManagedObject::Get<SystemString>(objHandle);
 }
 
 SystemString^ VM::CreateString(std::wstring_view str) {
@@ -29,7 +29,7 @@ SystemString^ VM::CreateString(std::wstring_view str) {
         return nullptr;
     }
 
-    return gcnew SystemString(objHandle);
+    return ManagedObject::Get<SystemString>(objHandle);
 }
 
 SystemString^ VM::CreateString(std::string_view str) {
@@ -41,6 +41,6 @@ SystemString^ VM::CreateString(std::string_view str) {
         return nullptr;
     }
 
-    return gcnew SystemString(objHandle);
+    return ManagedObject::Get<SystemString>(objHandle);
 }
 }

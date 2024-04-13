@@ -102,7 +102,7 @@ namespace REFrameworkNET {
             return nullptr;
         }
 
-        return gcnew ManagedObject(result);
+        return ManagedObject::Get(result);
     }
 
     REFrameworkNET::TypeInfo^ TypeDefinition::GetTypeInfo()
@@ -124,7 +124,7 @@ namespace REFrameworkNET {
             return nullptr;
         }
 
-        return gcnew ManagedObject(result);
+        return ManagedObject::Get(result);
     }
 
     REFrameworkNET::InvokeRet^ TypeDefinition::Invoke(System::String^ methodName, array<System::Object^>^ args) {

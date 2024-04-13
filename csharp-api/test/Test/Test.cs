@@ -170,6 +170,15 @@ class ObjectExplorer {
         ImGui.PushID(address.ToString("X"));
         ImGui.SetNextItemOpen(false, ImGuiCond.Once);
         var made = ImGui.TreeNodeEx("", ImGuiTreeNodeFlags.SpanFullWidth);
+
+        // Context menu to copy address to clipboard
+        if (ImGui.BeginPopupContextItem()) {
+            if (ImGui.MenuItem("Copy Address to Clipboard")) {
+                ImGui.SetClipboardText(address.ToString("X"));
+            }
+
+            ImGui.EndPopup();
+        }
         
         ImGui.SameLine();
         //ImGui.Text(" " + tName);
@@ -208,31 +217,56 @@ class ObjectExplorer {
                     ImGui.Text("Value: null");
                 }
             } else {
-                switch (tName) {
+                object fieldData = null;
+                var finalName = t.IsEnum() ? t.GetUnderlyingType().GetFullName() : tName;
+
+                switch (finalName) {
+                    case "System.Byte":
+                        fieldData = field.GetDataT<byte>(obj.GetAddress(), false);
+                        break;
+                    case "System.SByte":
+                        fieldData = field.GetDataT<sbyte>(obj.GetAddress(), false);
+                        break;
+                    case "System.Int16":
+                        fieldData = field.GetDataT<short>(obj.GetAddress(), false);
+                        break;
+                    case "System.UInt16":
+                        fieldData = field.GetDataT<ushort>(obj.GetAddress(), false);
+                        break;
                     case "System.Int32":
-                        ImGui.Text("Value: " + field.GetDataT<int>(obj.GetAddress(), false).ToString());
+                        fieldData = field.GetDataT<int>(obj.GetAddress(), false);
                         break;
                     case "System.UInt32":
-                        ImGui.Text("Value: " + field.GetDataT<uint>(obj.GetAddress(), false).ToString());
+                        fieldData = field.GetDataT<uint>(obj.GetAddress(), false);
                         break;
                     case "System.Int64":
-                        ImGui.Text("Value: " + field.GetDataT<long>(obj.GetAddress(), false).ToString());
+                        fieldData = field.GetDataT<long>(obj.GetAddress(), false);
                         break;
                     case "System.UInt64":
-                        ImGui.Text("Value: " + field.GetDataT<ulong>(obj.GetAddress(), false).ToString());
+                        fieldData = field.GetDataT<ulong>(obj.GetAddress(), false);
                         break;
                     case "System.Single":
-                        ImGui.Text("Value: " + field.GetDataT<float>(obj.GetAddress(), false).ToString());
+                        fieldData = field.GetDataT<float>(obj.GetAddress(), false);
                         break;
                     case "System.Boolean":
-                        ImGui.Text("Value: " + field.GetDataT<bool>(obj.GetAddress(), false).ToString());
+                        fieldData = field.GetDataT<bool>(obj.GetAddress(), false);
                         break;
                     /*case "System.String":
                         ImGui.Text("Value: " + field.GetDataT<string>(obj.GetAddress(), false));
                         break;*/
                     default:
-                        ImGui.Text("Value (unknown): " + field.GetDataRaw(obj.GetAddress(), false).ToString("X"));
                         break;
+                }
+
+                if (t.IsEnum() && fieldData != null) {
+                    long longValue = Convert.ToInt64(fieldData);
+                    var boxedEnum = SystemEnumT.boxEnum(t.GetRuntimeType().As<_System.Type>(), longValue);
+                    ImGui.Text("Result: " + (boxedEnum as IObject).Call("ToString()") + " (" + fieldData.ToString() + ")");
+                } else if (fieldData != null) {
+                    ImGui.Text("Value: " + fieldData.ToString());
+                    //ImGui.Text("Value (" + t.FullName + ")" + field.GetDataRaw(obj.GetAddress(), false).ToString("X"));
+                } else {
+                    ImGui.Text("Value: null");
                 }
             }
 

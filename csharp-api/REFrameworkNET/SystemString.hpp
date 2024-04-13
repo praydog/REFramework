@@ -8,6 +8,8 @@
 namespace REFrameworkNET {
 public ref class SystemString : public ManagedObject {
 public:
+
+internal:
     SystemString(::REFrameworkManagedObjectHandle handle)
         : ManagedObject(handle)
     {
@@ -28,6 +30,7 @@ public:
     SystemString(std::wstring_view str);
     SystemString(std::string_view str);
 
+public:
     ::System::String^ ToString() override;
 
 private:

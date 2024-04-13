@@ -16,7 +16,75 @@ ref class ManagedObject;
 
 public ref class ManagedObject : public REFrameworkNET::UnifiedObject
 {
+internal:
+    template <class T>
+    ref class Cache {
+    internal:
+        using WeakT = System::WeakReference<T^>;
+
+        static T^ Get(uintptr_t addr) {
+            if (addr == 0) {
+                return nullptr;
+            }
+
+            WeakT^ result = nullptr;
+
+            if (s_cache->TryGetValue(addr, result)) {
+                T^ strong = nullptr;
+
+                if (result->TryGetTarget(strong)) {
+                    return strong;
+                }
+
+                Cleanup(addr);
+            }
+
+            auto obj = gcnew T((::REFrameworkManagedObjectHandle)addr);
+            result = gcnew WeakT(obj);
+            if (!s_cache->TryAdd(addr, result)) {
+                REFrameworkNET::API::LogWarning("Duplicate managed object cache entry for " + addr.ToString("X") + "!, finding the existing entry...");
+
+                delete obj;
+                delete result;
+                if (s_cache->TryGetValue(addr, result)) {
+                    if (result->TryGetTarget(obj)) {
+                        REFrameworkNET::API::LogInfo("Found the existing entry for " + addr.ToString("X") + "!");
+                        return obj;
+                    }
+
+                    Cleanup(addr);
+                }
+
+                REFrameworkNET::API::LogError("Failed to find the existing entry for " + addr.ToString("X") + "!");
+            }
+
+            return obj;
+        }
+
+        static void Cleanup(uintptr_t entry) {
+            WeakT^ result = nullptr;
+
+            if (s_cache->TryRemove(entry, result)) {
+                delete result;
+            }
+        }
+
+    private:
+        static System::Collections::Concurrent::ConcurrentDictionary<uintptr_t, WeakT^>^ s_cache = gcnew System::Collections::Concurrent::ConcurrentDictionary<uintptr_t, WeakT^>();
+    };
+
 public:
+    template <class T = ManagedObject>
+    static T^ Get(reframework::API::ManagedObject* obj) {
+        return Cache<T>::Get((uintptr_t)obj);
+    }
+
+    template <class T = ManagedObject>
+    static T^ Get(::REFrameworkManagedObjectHandle handle) {
+        return Cache<T>::Get((uintptr_t)handle);
+    }
+
+protected:
     ManagedObject(reframework::API::ManagedObject* obj) 
         : m_object(obj),
           m_weak(true)
@@ -43,6 +111,7 @@ public:
         }
     }
 
+internal:
     // Dispose
     ~ManagedObject() {
         this->!ManagedObject();
@@ -54,6 +123,8 @@ public:
             ReleaseIfGlobalized();
         }
     }
+
+public:
 
     /// <summary>
     /// <para>

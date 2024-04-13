@@ -159,7 +159,6 @@ set(csharp-api_SOURCES
 	"REFrameworkNET/PluginLoadContext.cpp"
 	"REFrameworkNET/PluginManager.cpp"
 	"REFrameworkNET/Proxy.cpp"
-	"REFrameworkNET/SystemArray.cpp"
 	"REFrameworkNET/SystemString.cpp"
 	"REFrameworkNET/TDB.cpp"
 	"REFrameworkNET/TypeDefinition.cpp"

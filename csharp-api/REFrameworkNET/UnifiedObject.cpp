@@ -174,7 +174,7 @@ namespace REFrameworkNET {
                                 */
                             }
 
-                            result = gcnew ManagedObject(obj);
+                            result = ManagedObject::Get(obj);
                             break;
                         }
                         }

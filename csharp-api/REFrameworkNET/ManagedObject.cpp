@@ -7,6 +7,7 @@
 
 #include "ManagedObject.hpp"
 #include "Proxy.hpp"
+#include "SystemString.hpp"
 
 #include "API.hpp"
 

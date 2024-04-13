@@ -273,13 +273,13 @@ bool Method::HandleInvokeMember_Internal(System::Object^ obj, array<System::Obje
             }
 
             if (returnType->GetVMObjType() == VMObjType::Object) {
-                result = gcnew REFrameworkNET::ManagedObject((::REFrameworkManagedObjectHandle)tempResult->QWord);
+                result = REFrameworkNET::ManagedObject::Get((::REFrameworkManagedObjectHandle)tempResult->QWord);
                 return true;
             }
 
             if (returnType->GetVMObjType() == VMObjType::String) {
                 // Maybe don't create the GC version and just use the native one?
-                auto strObject = gcnew REFrameworkNET::ManagedObject((::REFrameworkManagedObjectHandle)tempResult->QWord);
+                auto strObject = REFrameworkNET::ManagedObject::Get((::REFrameworkManagedObjectHandle)tempResult->QWord);
                 auto strType = strObject->GetTypeDefinition();
                 const auto firstCharField = strType->GetField("_firstChar");
                 uint32_t offset = 0;
@@ -298,7 +298,7 @@ bool Method::HandleInvokeMember_Internal(System::Object^ obj, array<System::Obje
 
             if (returnType->GetVMObjType() == VMObjType::Array) {
                 // TODO? Implement array
-                result = gcnew REFrameworkNET::ManagedObject((::REFrameworkManagedObjectHandle)tempResult->QWord);
+                result = REFrameworkNET::ManagedObject::Get((::REFrameworkManagedObjectHandle)tempResult->QWord);
                 return true;
             }
 

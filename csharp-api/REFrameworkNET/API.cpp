@@ -64,7 +64,7 @@ System::Collections::Generic::List<REFrameworkNET::ManagedSingleton^>^ REFramewo
         }
 
         result->Add(gcnew REFrameworkNET::ManagedSingleton(
-            gcnew REFrameworkNET::ManagedObject(singleton.instance),
+            REFrameworkNET::ManagedObject::Get<REFrameworkNET::ManagedObject>(singleton.instance),
             gcnew REFrameworkNET::TypeDefinition(singleton.t),
             gcnew REFrameworkNET::TypeInfo(singleton.type_info)
         ));
@@ -113,7 +113,7 @@ REFrameworkNET::ManagedObject^ REFrameworkNET::API::GetManagedSingleton(System::
         return nullptr;
     }
 
-    return gcnew REFrameworkNET::ManagedObject(result);
+    return REFrameworkNET::ManagedObject::Get(result);
 }
 
 
