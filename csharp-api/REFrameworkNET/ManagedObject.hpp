@@ -44,8 +44,9 @@ internal:
             if (!s_cache->TryAdd(addr, result)) {
                 REFrameworkNET::API::LogWarning("Duplicate managed object cache entry for " + addr.ToString("X") + "!, finding the existing entry...");
 
-                delete obj;
-                delete result;
+
+                obj = nullptr;
+                result = nullptr;
                 if (s_cache->TryGetValue(addr, result)) {
                     if (result->TryGetTarget(obj)) {
                         REFrameworkNET::API::LogInfo("Found the existing entry for " + addr.ToString("X") + "!");
@@ -65,7 +66,6 @@ internal:
             WeakT^ result = nullptr;
 
             if (s_cache->TryRemove(entry, result)) {
-                delete result;
             }
         }
 
@@ -121,6 +121,7 @@ internal:
     !ManagedObject() {
         if (m_object != nullptr) {
             ReleaseIfGlobalized();
+            ManagedObject::Cache<ManagedObject>::Cleanup((uintptr_t)m_object);
         }
     }
 

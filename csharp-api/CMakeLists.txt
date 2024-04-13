@@ -185,7 +185,6 @@ set(csharp-api_SOURCES
 	"REFrameworkNET/PluginManager.hpp"
 	"REFrameworkNET/Property.hpp"
 	"REFrameworkNET/Proxy.hpp"
-	"REFrameworkNET/SystemArray.hpp"
 	"REFrameworkNET/SystemString.hpp"
 	"REFrameworkNET/TDB.hpp"
 	"REFrameworkNET/TypeDefinition.hpp"

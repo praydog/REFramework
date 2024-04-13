@@ -30,6 +30,14 @@ internal:
     SystemString(std::wstring_view str);
     SystemString(std::string_view str);
 
+    ~SystemString() {
+        this->!SystemString();
+    }
+
+    !SystemString() {
+        ManagedObject::Cache<SystemString>::Cleanup((uintptr_t)m_object);
+    }
+
 public:
     ::System::String^ ToString() override;
 
