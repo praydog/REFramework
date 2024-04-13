@@ -18,6 +18,13 @@ struct RETypeDefinition;
 }
 
 namespace utility::re_managed_object {
+// Exposed because these take forever to scan for
+// Maybe we can just do some clever scanning through some reflected methods in the future.
+namespace detail {
+void resolve_add_ref();
+void resolve_release();
+}
+
 // Forward declarations
 struct ParamWrapper;
 bool is_managed_object(Address address);

@@ -47,6 +47,16 @@ using namespace std::literals;
 std::unique_ptr<REFramework> g_framework{};
 
 void REFramework::hook_monitor() {
+    if (!m_hook_monitor_mutex.try_lock()) {
+        // If this happens then we can assume execution is going as planned
+        // so we can just reset the times so we dont break something
+        m_last_present_time = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+        m_last_chance_time = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+        m_has_last_chance = true;
+    } else {
+        m_hook_monitor_mutex.unlock();
+    }
+
     std::scoped_lock _{ m_hook_monitor_mutex };
 
     if (g_framework == nullptr) {

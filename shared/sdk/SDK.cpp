@@ -17,5 +17,8 @@ void initialize_sdk() {
 
     reframework::get_types();
     reframework::get_globals();
+
+    utility::re_managed_object::detail::resolve_add_ref();
+    utility::re_managed_object::detail::resolve_release();
 }
 }
