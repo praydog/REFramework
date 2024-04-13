@@ -15,7 +15,16 @@
 
 namespace REFrameworkNET {
     ManagedObject^ ManagedObject::Globalize() {
-        if (m_object == nullptr || IsGlobalized()) {
+        if (m_object == nullptr) {
+            return this;
+        }
+
+        if (IsGlobalized()) {
+            // If someone wants to globalize a weak reference, upgrade it to a concrete reference
+            if (m_weak) {
+                AddRef();
+            }
+
             return this;
         }
 

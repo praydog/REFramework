@@ -22,44 +22,45 @@ internal:
     internal:
         using WeakT = System::WeakReference<T^>;
 
+        static WeakT^ AddValueFactory(uintptr_t key, T^ arg) {
+            return gcnew WeakT(arg);
+        }
+
+        static System::Func<uintptr_t, T^, WeakT^>^ addValueFactory = gcnew System::Func<uintptr_t, T^, WeakT^>(AddValueFactory);
+
+        static WeakT^ UpdateFactory(uintptr_t key, WeakT^ value, T^ arg) {
+            return gcnew WeakT(arg);
+        }
+
+        static System::Func<uintptr_t, WeakT^, T^, WeakT^>^ updateFactory = gcnew System::Func<uintptr_t, WeakT^, T^, WeakT^>(UpdateFactory);
+
         static T^ Get(uintptr_t addr) {
             if (addr == 0) {
                 return nullptr;
             }
 
+            // Do not cache local objects, it's just a burden on the cache
+            if (*(int32_t*)(addr + 0x8) < 0) {
+                return gcnew T((::REFrameworkManagedObjectHandle)addr, false); // Local object, false for not cached
+            }
+
             WeakT^ result = nullptr;
+            T^ strong = nullptr;
 
             if (s_cache->TryGetValue(addr, result)) {
-                T^ strong = nullptr;
-
                 if (result->TryGetTarget(strong)) {
                     return strong;
                 }
 
-                Cleanup(addr);
+#ifdef REFRAMEWORK_VERBOSE
+                REFrameworkNET::API::LogWarning("Existing entry for " + addr.ToString("X") + " is dead! Updating...");
+#endif
             }
 
-            auto obj = gcnew T((::REFrameworkManagedObjectHandle)addr);
-            result = gcnew WeakT(obj);
-            if (!s_cache->TryAdd(addr, result)) {
-                REFrameworkNET::API::LogWarning("Duplicate managed object cache entry for " + addr.ToString("X") + "!, finding the existing entry...");
+            strong = gcnew T((::REFrameworkManagedObjectHandle)addr);
+            s_cache->AddOrUpdate(addr, addValueFactory, updateFactory, strong);
 
-
-                obj = nullptr;
-                result = nullptr;
-                if (s_cache->TryGetValue(addr, result)) {
-                    if (result->TryGetTarget(obj)) {
-                        REFrameworkNET::API::LogInfo("Found the existing entry for " + addr.ToString("X") + "!");
-                        return obj;
-                    }
-
-                    Cleanup(addr);
-                }
-
-                REFrameworkNET::API::LogError("Failed to find the existing entry for " + addr.ToString("X") + "!");
-            }
-
-            return obj;
+            return strong;
         }
 
         static void Cleanup(uintptr_t entry) {
@@ -70,7 +71,7 @@ internal:
         }
 
     private:
-        static System::Collections::Concurrent::ConcurrentDictionary<uintptr_t, WeakT^>^ s_cache = gcnew System::Collections::Concurrent::ConcurrentDictionary<uintptr_t, WeakT^>();
+        static System::Collections::Concurrent::ConcurrentDictionary<uintptr_t, WeakT^>^ s_cache = gcnew System::Collections::Concurrent::ConcurrentDictionary<uintptr_t, WeakT^>(8, 8192);
     };
 
 public:
@@ -85,7 +86,7 @@ public:
     }
 
 protected:
-    ManagedObject(reframework::API::ManagedObject* obj) 
+    ManagedObject(reframework::API::ManagedObject* obj)
         : m_object(obj),
           m_weak(true)
     {
@@ -95,6 +96,14 @@ protected:
     ManagedObject(::REFrameworkManagedObjectHandle handle) 
         : m_object(reinterpret_cast<reframework::API::ManagedObject*>(handle)),
           m_weak(true)
+    {
+        AddRefIfGlobalized();
+    }
+
+    ManagedObject(::REFrameworkManagedObjectHandle handle, bool cached)
+        : m_object(reinterpret_cast<reframework::API::ManagedObject*>(handle)),
+        m_weak(true),
+        m_cached(cached)
     {
         AddRefIfGlobalized();
     }
@@ -119,9 +128,17 @@ internal:
 
     // Finalizer
     !ManagedObject() {
-        if (m_object != nullptr) {
+        if (m_object == nullptr) {
+            return;
+        }
+
+        // Only if we are not marked as weak are we allowed to release the object, even if the object is globalized
+        if (!m_weak) {
+            if (m_cached) {
+                ManagedObject::Cache<ManagedObject>::Cleanup((uintptr_t)m_object);
+            }
+
             ReleaseIfGlobalized();
-            ManagedObject::Cache<ManagedObject>::Cleanup((uintptr_t)m_object);
         }
     }
 
@@ -281,6 +298,7 @@ public: // IObject
 
 protected:
     reframework::API::ManagedObject* m_object;
-    bool m_weak{true};
+    bool m_weak{true}; // Can be upgraded to a global object after it's created, but not to a cached object.
+    bool m_cached{false}; // Cannot be upgraded to a cached object if it was created on a non-globalized object
 };
 }

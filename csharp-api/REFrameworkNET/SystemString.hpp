@@ -10,6 +10,15 @@ public ref class SystemString : public ManagedObject {
 public:
 
 internal:
+    SystemString(::REFrameworkManagedObjectHandle handle, bool cached) 
+        : ManagedObject(handle, cached)
+    {
+        const auto td = this->GetTypeDefinition();
+        if (td == nullptr || td->GetVMObjType() != VMObjType::String) {
+            throw gcnew System::ArgumentException("object is not a System.String");
+        }
+    }
+
     SystemString(::REFrameworkManagedObjectHandle handle)
         : ManagedObject(handle)
     {

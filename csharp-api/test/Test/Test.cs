@@ -416,6 +416,8 @@ class ObjectExplorer {
                 ImGui.TreePop();
             }
 
+            ImGui.Text("Address: 0x" + obj.GetAddress().ToString("X"));
+
             if (obj is REFrameworkNET.ManagedObject) {
                 var managed = obj as REFrameworkNET.ManagedObject;
                 ImGui.Text("Reference count: " + managed.GetReferenceCount().ToString());
