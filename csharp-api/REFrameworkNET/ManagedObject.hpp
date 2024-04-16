@@ -17,22 +17,41 @@ ref class ManagedObject;
 public ref class ManagedObject : public REFrameworkNET::UnifiedObject
 {
 internal:
-    template <class T>
+    delegate void FinalizerDelegate(ManagedObject^ obj);
+
+    template <typename T>
     ref class Cache {
     internal:
-        using WeakT = System::WeakReference<T^>;
+        using WeakT = System::WeakReference<ManagedObject^>;
 
-        static WeakT^ AddValueFactory(uintptr_t key, T^ arg) {
-            return gcnew WeakT(arg);
+        static WeakT^ AddValueFactory(uintptr_t key, ManagedObject^ arg) {
+            return gcnew WeakT(arg, true);
         }
 
-        static System::Func<uintptr_t, T^, WeakT^>^ addValueFactory = gcnew System::Func<uintptr_t, T^, WeakT^>(AddValueFactory);
+        static System::Func<uintptr_t, ManagedObject^, WeakT^>^ addValueFactory = gcnew System::Func<uintptr_t, ManagedObject^, WeakT^>(AddValueFactory);
 
-        static WeakT^ UpdateFactory(uintptr_t key, WeakT^ value, T^ arg) {
-            return gcnew WeakT(arg);
+        static WeakT^ UpdateFactory(uintptr_t key, WeakT^ value, ManagedObject^ arg) {
+            return gcnew WeakT(arg, true);
         }
 
-        static System::Func<uintptr_t, WeakT^, T^, WeakT^>^ updateFactory = gcnew System::Func<uintptr_t, WeakT^, T^, WeakT^>(UpdateFactory);
+        static System::Func<uintptr_t, WeakT^, ManagedObject^, WeakT^>^ updateFactory = gcnew System::Func<uintptr_t, WeakT^, ManagedObject^, WeakT^>(UpdateFactory);
+
+        static T^ GetIfExists(uintptr_t addr) {
+            if (addr == 0) {
+                return nullptr;
+            }
+
+            WeakT^ result = nullptr;
+            T^ strong = nullptr;
+
+            if (s_impl->cache->TryGetValue(addr, result)) {
+                if (result->TryGetTarget(strong)) {
+                    return strong;
+                }
+            }
+
+            return nullptr;
+        }
 
         static T^ Get(uintptr_t addr) {
             if (addr == 0) {
@@ -47,32 +66,82 @@ internal:
             WeakT^ result = nullptr;
             T^ strong = nullptr;
 
-            if (s_cache->TryGetValue(addr, result)) {
+            if (s_impl->cache->TryGetValue(addr, result)) {
                 if (result->TryGetTarget(strong)) {
                     return strong;
                 }
 
 #ifdef REFRAMEWORK_VERBOSE
-                REFrameworkNET::API::LogWarning("Existing entry for " + addr.ToString("X") + " is dead! Updating...");
+                System::Console::WriteLine("Existing entry for " + addr.ToString("X") + " is dead! Updating...");
 #endif
             }
 
-            strong = gcnew T((::REFrameworkManagedObjectHandle)addr);
-            s_cache->AddOrUpdate(addr, addValueFactory, updateFactory, strong);
+            strong = GetFromPool((::REFrameworkManagedObjectHandle)addr);
+            s_impl->cache->AddOrUpdate(addr, addValueFactory, updateFactory, (ManagedObject^)strong);
 
             return strong;
         }
 
-        static void Cleanup(uintptr_t entry) {
-            WeakT^ result = nullptr;
+        static void ReturnToPool(ManagedObject^ obj) {
+            // Remove the weak reference from the cache
+            WeakT^ weak = nullptr;
+            s_impl->cache->TryRemove((uintptr_t)obj->GetAddress(), weak);
 
-            if (s_cache->TryRemove(entry, result)) {
+            System::GC::ReRegisterForFinalize(obj);
+            obj->Deinitialize();
+            s_impl->pool->Enqueue((ManagedObject^)obj);
+        }
+
+        static void OnObjectFinalize(ManagedObject^ obj) {
+            ReturnToPool(obj);
+        }
+
+        static T^ GetFromPool(::REFrameworkManagedObjectHandle handle) {
+            ManagedObject^ obj = nullptr;
+            if (s_impl->pool->TryDequeue(obj)) {
+                obj->Initialize(handle);
+                return (T^)obj;
+            }
+
+            // Create a new entry
+            obj = (ManagedObject^)(gcnew T(handle, true));
+            obj->SetFinalizerDelegate(s_finalizerDelegate);
+
+            // Object will be returned to pool once the consumer is done with it
+            return (T^)obj;
+        }
+
+        static void DisplayStats() {
+            if (ImGuiNET::ImGui::TreeNode(T::typeid->Name + " Cache")) {
+                ImGuiNET::ImGui::Text("Cache size: " + s_impl->cache->Count.ToString());
+                ImGuiNET::ImGui::Text("Pool size: " + s_impl->pool->Count.ToString());
+                ImGuiNET::ImGui::TreePop();
             }
         }
 
+        static void CleanupAll() {
+            s_impl = gcnew Impl();
+        }
+
     private:
-        static System::Collections::Concurrent::ConcurrentDictionary<uintptr_t, WeakT^>^ s_cache = gcnew System::Collections::Concurrent::ConcurrentDictionary<uintptr_t, WeakT^>(8, 8192);
+        ref struct Impl {
+            ~Impl() {
+                this->!Impl();
+            }
+
+            !Impl() {
+            }
+
+            System::Collections::Concurrent::ConcurrentDictionary<uintptr_t, WeakT^>^ cache = gcnew System::Collections::Concurrent::ConcurrentDictionary<uintptr_t, WeakT^>(8, 8192);
+            System::Collections::Concurrent::ConcurrentQueue<ManagedObject^>^ pool = gcnew System::Collections::Concurrent::ConcurrentQueue<ManagedObject^>();
+        };
+
+        static Impl^ s_impl = gcnew Impl();
+        static FinalizerDelegate^ s_finalizerDelegate = gcnew FinalizerDelegate(OnObjectFinalize);
     };
+
+internal:
+    static void CleanupKnownCaches();
 
 public:
     template <class T = ManagedObject>
@@ -86,20 +155,6 @@ public:
     }
 
 protected:
-    ManagedObject(reframework::API::ManagedObject* obj)
-        : m_object(obj),
-          m_weak(true)
-    {
-        AddRefIfGlobalized();
-    }
-
-    ManagedObject(::REFrameworkManagedObjectHandle handle) 
-        : m_object(reinterpret_cast<reframework::API::ManagedObject*>(handle)),
-          m_weak(true)
-    {
-        AddRefIfGlobalized();
-    }
-
     ManagedObject(::REFrameworkManagedObjectHandle handle, bool cached)
         : m_object(reinterpret_cast<reframework::API::ManagedObject*>(handle)),
         m_weak(true),
@@ -111,7 +166,7 @@ protected:
     // Double check if we really want to allow this
     // We might be better off having a global managed object cache
     // instead of AddRef'ing every time we create a new ManagedObject
-    ManagedObject(ManagedObject^ obj) 
+    ManagedObject(ManagedObject^% obj) 
         : m_object(obj->m_object),
           m_weak(true)
     {
@@ -127,20 +182,7 @@ internal:
     }
 
     // Finalizer
-    !ManagedObject() {
-        if (m_object == nullptr) {
-            return;
-        }
-
-        // Only if we are not marked as weak are we allowed to release the object, even if the object is globalized
-        if (!m_weak) {
-            if (m_cached) {
-                ManagedObject::Cache<ManagedObject>::Cleanup((uintptr_t)m_object);
-            }
-
-            ReleaseIfGlobalized();
-        }
-    }
+    !ManagedObject();
 
 public:
 
@@ -256,8 +298,15 @@ public:
 			return nullptr;
 		}
 
+        auto existingEntry = ManagedObject::Cache<ManagedObject>::GetIfExists(ptr);
+
+        if (existingEntry != nullptr) {
+            return existingEntry;
+        }
+
+        // IsManagedObject can be expensive, so only call it if there's no existing entry
         if (IsManagedObject(ptr)) {
-            return gcnew ManagedObject((reframework::API::ManagedObject*)ptr);
+            return ManagedObject::Get<ManagedObject>((::REFrameworkManagedObjectHandle)ptr);
         }
 
         return nullptr;
@@ -296,9 +345,38 @@ public: // IObject
         return _original.get_reflection_method_descriptor(name);
     }*/
 
+internal:
+    static bool ShuttingDown = false;
+
+    void Deinitialize() {
+        m_initialized = false;
+    }
+
+    void Initialize(::REFrameworkManagedObjectHandle handle) {
+        m_object = reinterpret_cast<reframework::API::ManagedObject*>(handle);
+        m_initialized = true;
+        m_weak = true;
+        m_cached = true;
+
+        AddRefIfGlobalized();
+    }
+
+    void SetFinalizerDelegate(FinalizerDelegate^ delegate) {
+        m_finalizerDelegate = delegate;
+    }
+
+    bool IsInitialized() {
+        return m_initialized;
+    }
+
 protected:
     reframework::API::ManagedObject* m_object;
+
     bool m_weak{true}; // Can be upgraded to a global object after it's created, but not to a cached object.
     bool m_cached{false}; // Cannot be upgraded to a cached object if it was created on a non-globalized object
+    bool m_initialized{false}; // Used for the object pool
+
+internal:
+    FinalizerDelegate^ m_finalizerDelegate{nullptr};
 };
 }

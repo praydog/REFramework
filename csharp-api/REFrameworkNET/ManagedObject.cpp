@@ -13,7 +13,33 @@
 
 #include "Utility.hpp"
 
+using namespace ImGuiNET;
+
 namespace REFrameworkNET {
+    void ManagedObject::CleanupKnownCaches() {
+        Cache<ManagedObject>::CleanupAll();
+        Cache<SystemString>::CleanupAll();
+    }
+
+    ManagedObject::!ManagedObject() {
+        if (m_object == nullptr) {
+            return;
+        }
+
+        // Only if we are not marked as weak are we allowed to release the object, even if the object is globalized
+        if (!m_weak) {
+            if (m_cached) {
+                if (!ShuttingDown) {
+                    m_finalizerDelegate(this);
+                } else {
+                    // Nothing?
+                }
+            }
+
+            ReleaseIfGlobalized();
+        }
+    }
+
     ManagedObject^ ManagedObject::Globalize() {
         if (m_object == nullptr) {
             return this;

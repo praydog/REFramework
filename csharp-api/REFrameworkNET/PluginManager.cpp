@@ -3,6 +3,7 @@
 
 #include "Attributes/Plugin.hpp"
 #include "MethodHook.hpp"
+#include "SystemString.hpp"
 #include "PluginManager.hpp"
 
 using namespace System;
@@ -669,6 +670,9 @@ namespace REFrameworkNET {
             }
 
             ImGuiNET::ImGui::Checkbox("Auto Reload", s_auto_reload_plugins);
+
+            ManagedObject::Cache<ManagedObject>::DisplayStats();
+            ManagedObject::Cache<SystemString>::DisplayStats();
             
             for each (PluginState^ state in PluginManager::s_plugin_states) {
                 state->DisplayOptions();
@@ -686,6 +690,9 @@ namespace REFrameworkNET {
 
     void PluginManager::PluginState::Unload() {
         if (load_context != nullptr) {
+            ManagedObject::ShuttingDown = true;
+            ManagedObject::CleanupKnownCaches();
+
             REFrameworkNET::Callbacks::Impl::UnsubscribeAssembly(assembly);
             REFrameworkNET::MethodHook::UnsubscribeAssembly(assembly);
 
@@ -694,6 +701,9 @@ namespace REFrameworkNET {
             assembly = nullptr;
 
             System::GC::Collect();
+            System::GC::WaitForPendingFinalizers();
+
+            ManagedObject::ShuttingDown = false;
         }
     }
 
