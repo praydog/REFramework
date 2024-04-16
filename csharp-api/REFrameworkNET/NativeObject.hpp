@@ -9,7 +9,7 @@
 #include "ObjectEnumerator.hpp"
 
 namespace REFrameworkNET {
-ref class InvokeRet;
+value struct InvokeRet;
 
 // Native objects are objects that are NOT managed objects
 // However, they still have reflection information associated with them

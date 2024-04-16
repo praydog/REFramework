@@ -41,7 +41,12 @@ public:
     /// Generally should not be used unless you know what you're doing.
     /// Use the other invoke method to automatically convert the return value correctly into a usable object.
     /// </remarks>
-    REFrameworkNET::InvokeRet^ Invoke(System::Object^ obj, array<System::Object^>^ args);
+    REFrameworkNET::InvokeRet Invoke(System::Object^ obj, array<System::Object^>^ args);
+
+private:
+    ::reframework::InvokeRet Invoke_Internal(System::Object^ obj, array<System::Object^>^ args);
+
+public:
 
     /// <summary>
     /// Invokes this method with the given arguments.

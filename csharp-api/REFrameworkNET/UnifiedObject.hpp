@@ -5,7 +5,7 @@
 
 namespace REFrameworkNET {
 ref class TypeDefinition;
-ref struct InvokeRet;
+value struct InvokeRet;
 
 // UnifiedObject is the base class that ManagedObject and NativeObject will derive from
 // It will have several shared methods but some unimplemented methods that will be implemented in the derived classes

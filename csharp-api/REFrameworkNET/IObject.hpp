@@ -6,7 +6,7 @@
 
 namespace REFrameworkNET {
 ref class TypeDefinition;
-ref struct InvokeRet;
+value struct InvokeRet;
 
 // Base interface of ManagedObject and NativeObject
 public interface class IObject : public IProxyable, public System::IEquatable<IObject^> {

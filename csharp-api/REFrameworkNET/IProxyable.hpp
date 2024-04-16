@@ -3,7 +3,7 @@
 #include <cstdint>
 
 namespace REFrameworkNET {
-ref struct InvokeRet;
+value struct InvokeRet;
 
 public interface class IProxyable {
     void* Ptr();

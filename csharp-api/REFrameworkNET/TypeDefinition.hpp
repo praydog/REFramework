@@ -14,7 +14,7 @@ ref class Method;
 ref class Field;
 ref class Property;
 ref class TypeInfo;
-ref struct InvokeRet;
+value struct InvokeRet;
 
 /// <summary>
 /// A shorthand enum for determining how a <see cref="TypeDefinition"/> is used in the VM.

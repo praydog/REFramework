@@ -11,7 +11,7 @@
 namespace REFrameworkNET {
 ref class TypeDefinition;
 ref class TypeInfo;
-ref class InvokeRet;
+value struct InvokeRet;
 ref class ManagedObject;
 
 public ref class ManagedObject : public REFrameworkNET::UnifiedObject

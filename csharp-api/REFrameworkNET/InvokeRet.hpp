@@ -6,85 +6,46 @@
 #pragma managed
 
 namespace REFrameworkNET {
-public ref struct InvokeRet {
-    InvokeRet(const reframework::InvokeRet& ret) {
-        using namespace System::Runtime::InteropServices;
-        Marshal::Copy(System::IntPtr((void*)&ret), m_invokeRetBytes, 0, sizeof(::reframework::InvokeRet));
-    }
+[System::Runtime::InteropServices::StructLayout(System::Runtime::InteropServices::LayoutKind::Explicit, Pack = 1, Size = 129)]
+public value struct InvokeRet {
+    [System::Runtime::InteropServices::FieldOffset(0), System::Runtime::InteropServices::MarshalAs(
+        System::Runtime::InteropServices::UnmanagedType::ByValArray, 
+        ArraySubType = System::Runtime::InteropServices::UnmanagedType::U1, 
+        SizeConst = 128)
+    ]
+    unsigned char Bytes;
 
-    reframework::InvokeRet* Marshal() {
-        pin_ptr<uint8_t> pinned_bytes = &m_invokeRetBytes[0];
-        uint8_t* bytes = pinned_bytes;
+    [System::Runtime::InteropServices::FieldOffset(0)]
+    uint8_t Byte;
 
-        reframework::InvokeRet* ret = reinterpret_cast<reframework::InvokeRet*>(bytes);
+    [System::Runtime::InteropServices::FieldOffset(0)]
+    uint16_t Word;
 
-        return ret;
-    }
+    [System::Runtime::InteropServices::FieldOffset(0)]
+    uint32_t DWord;
 
-    property System::Span<uint8_t> Bytes {
-    public:
-        System::Span<uint8_t> get() {
-            pin_ptr<uint8_t> pinned_bytes = &m_invokeRetBytes[0];
-            uint8_t* bytes = pinned_bytes;
-            return System::Span<uint8_t>(bytes, 128);
-        }
-    };
+    [System::Runtime::InteropServices::FieldOffset(0)]
+    uint64_t QWord;
 
-    property uint8_t Byte {
-    public:
-        uint8_t get() {
-            return m_invokeRetBytes[0];
-        }
-    }
+    [System::Runtime::InteropServices::FieldOffset(0)]
+    float Float;
 
-    property uint16_t Word {
-    public:
-        uint16_t get() {
-            return Marshal()->word;
-        }
-    }
+    [System::Runtime::InteropServices::FieldOffset(0)]
+    double Double;
 
-    property uint32_t DWord {
-    public:
-        uint32_t get() {
-            return Marshal()->dword;
-        }
-    }
-    property float Float {
-    public:
-        float get() {
-            return Marshal()->f;
-        }
-    }
-    property uint64_t QWord {
-    public:
-        uint64_t get() {
-            return Marshal()->qword;
-        }
-    }
+    [System::Runtime::InteropServices::FieldOffset(0)]
+    uintptr_t Ptr;
 
-    property double Double {
-    public:
-        double get() {
-            return Marshal()->d;
-        }
-    }
-    property System::Object^ Ptr {
-    public:
-        System::Object^ get() {
-            return System::UIntPtr(Marshal()->ptr);
-        }
-    }
+    [System::Runtime::InteropServices::FieldOffset(128)]
+    bool ExceptionThrown;
 
-    property bool ExceptionThrown {
-    public:
-        bool get() {
-            return Marshal()->exception_thrown;
-        }
+    // Method to convert unmanaged InvokeRet to managed InvokeRet
+    static InvokeRet FromNative(const reframework::InvokeRet& native) {
+        InvokeRet managed;
+        pin_ptr<System::Byte> pinned = &managed.Bytes;
+        memcpy(pinned, &native.bytes, 129);
+        managed.ExceptionThrown = native.exception_thrown;
+        return managed;
     }
-
-private:
-    //::reframework::InvokeRet m_impl;
-    array<uint8_t>^ m_invokeRetBytes = gcnew array<uint8_t>(sizeof(::reframework::InvokeRet));
 };
 }

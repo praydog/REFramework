@@ -128,7 +128,11 @@ bool Method::IsOverride() {
     return GetMatchingParentMethods()->Count > 0;
 }
 
-REFrameworkNET::InvokeRet^ Method::Invoke(System::Object^ obj, array<System::Object^>^ args) {
+REFrameworkNET::InvokeRet Method::Invoke(System::Object^ obj, array<System::Object^>^ args) {
+    return REFrameworkNET::InvokeRet::FromNative(Invoke_Internal(obj, args));
+}
+
+::reframework::InvokeRet Method::Invoke_Internal(System::Object^ obj, array<System::Object^>^ args) {
     if (obj == nullptr && !this->IsStatic()) {
         System::String^ declaringName = this->GetDeclaringType() != nullptr ? this->GetDeclaringType()->GetFullName() : gcnew System::String("UnknownType");
         System::String^ errorStr = "Cannot invoke a non-static method without an object (" + declaringName + "." + this->GetName() + ")";
@@ -248,110 +252,105 @@ REFrameworkNET::InvokeRet^ Method::Invoke(System::Object^ obj, array<System::Obj
         System::Console::WriteLine("Error converting object: " + e->Message);
     }
 
-    const auto native_result = m_method->invoke((reframework::API::ManagedObject*)obj_ptr, args2);
-
-    return gcnew REFrameworkNET::InvokeRet(native_result);
+    return m_method->invoke((reframework::API::ManagedObject*)obj_ptr, args2);
 }
 
 bool Method::HandleInvokeMember_Internal(System::Object^ obj, array<System::Object^>^ args, System::Object^% result) {
-    //auto methodName = binder->Name;
-    auto tempResult = this->Invoke(obj, args);
+    auto tempResult = this->Invoke_Internal(obj, args);
+    auto returnType = this->GetReturnType();
 
-    if (tempResult != nullptr) {
-        auto returnType = this->GetReturnType();
+    if (returnType == nullptr) {
+        // box the result
+        result = safe_cast<System::Object^>(REFrameworkNET::InvokeRet::FromNative(tempResult));
+        return true;
+    }
 
-        if (returnType == nullptr) {
-            result = tempResult;
+    // Check the return type of the method and return it as a NativeObject if possible
+    if (!returnType->IsValueType()) {
+        if (tempResult.qword == 0) {
+            result = nullptr;
             return true;
         }
 
-        // Check the return type of the method and return it as a NativeObject if possible
-        if (!returnType->IsValueType()) {
-            if (tempResult->QWord == 0) {
-                result = nullptr;
-                return true;
-            }
-
-            if (returnType->GetVMObjType() == VMObjType::Object) {
-                result = REFrameworkNET::ManagedObject::Get((::REFrameworkManagedObjectHandle)tempResult->QWord);
-                return true;
-            }
-
-            if (returnType->GetVMObjType() == VMObjType::String) {
-                // Maybe don't create the GC version and just use the native one?
-                auto strObject = REFrameworkNET::ManagedObject::Get((::REFrameworkManagedObjectHandle)tempResult->QWord);
-                auto strType = strObject->GetTypeDefinition();
-                const auto firstCharField = strType->GetField("_firstChar");
-                uint32_t offset = 0;
-
-                if (firstCharField != nullptr) {
-                    offset = strType->GetField("_firstChar")->GetOffsetFromBase();
-                } else {
-                    const auto fieldOffset = *(uint32_t*)(*(uintptr_t*)tempResult->QWord - sizeof(void*));
-                    offset = fieldOffset + 4;
-                }
-
-                wchar_t* chars = (wchar_t*)((uintptr_t)strObject->Ptr() + offset);
-                result = gcnew System::String(chars);
-                return true;
-            }
-
-            if (returnType->GetVMObjType() == VMObjType::Array) {
-                // TODO? Implement array
-                result = REFrameworkNET::ManagedObject::Get((::REFrameworkManagedObjectHandle)tempResult->QWord);
-                return true;
-            }
-
-            // TODO: other managed types
-            result = gcnew REFrameworkNET::NativeObject((uintptr_t)tempResult->QWord, returnType);
+        if (returnType->GetVMObjType() == VMObjType::Object) {
+            result = REFrameworkNET::ManagedObject::Get((::REFrameworkManagedObjectHandle)tempResult.qword);
             return true;
         }
 
-        if (returnType->IsEnum()) {
-            if (auto underlying = returnType->GetUnderlyingType(); underlying != nullptr) {
-                returnType = underlying; // easy mode
+        if (returnType->GetVMObjType() == VMObjType::String) {
+            // Maybe don't create the GC version and just use the native one?
+            auto strObject = REFrameworkNET::ManagedObject::Get((::REFrameworkManagedObjectHandle)tempResult.qword);
+            auto strType = strObject->GetTypeDefinition();
+            const auto firstCharField = strType->GetField("_firstChar");
+            uint32_t offset = 0;
+
+            if (firstCharField != nullptr) {
+                offset = strType->GetField("_firstChar")->GetOffsetFromBase();
+            } else {
+                const auto fieldOffset = *(uint32_t*)(*(uintptr_t*)tempResult.qword - sizeof(void*));
+                offset = fieldOffset + 4;
             }
+
+            wchar_t* chars = (wchar_t*)((uintptr_t)strObject->Ptr() + offset);
+            result = gcnew System::String(chars);
+            return true;
         }
 
-        const auto raw_rt = (reframework::API::TypeDefinition*)returnType;
+        if (returnType->GetVMObjType() == VMObjType::Array) {
+            // TODO? Implement array
+            result = REFrameworkNET::ManagedObject::Get((::REFrameworkManagedObjectHandle)tempResult.qword);
+            return true;
+        }
 
-        #define CONCAT_X_C(X, DOT, C) X ## DOT ## C
+        // TODO: other managed types
+        result = gcnew REFrameworkNET::NativeObject((uintptr_t)tempResult.qword, returnType);
+        return true;
+    }
 
-        #define MAKE_TYPE_HANDLER_2(X, C, Y, Z) \
-            case CONCAT_X_C(#X, ".", #C)_fnv: \
-                result = gcnew X::C((Y)tempResult->Z); \
-                break;
+    if (returnType->IsEnum()) {
+        if (auto underlying = returnType->GetUnderlyingType(); underlying != nullptr) {
+            returnType = underlying; // easy mode
+        }
+    }
 
-        switch (REFrameworkNET::hash(raw_rt->get_full_name().c_str())) {
-        MAKE_TYPE_HANDLER_2(System, Boolean, bool, Byte)
-        MAKE_TYPE_HANDLER_2(System, Byte, uint8_t, Byte)
-        MAKE_TYPE_HANDLER_2(System, UInt16, uint16_t, Word)
-        MAKE_TYPE_HANDLER_2(System, UInt32, uint32_t, DWord)
-        MAKE_TYPE_HANDLER_2(System, UInt64, uint64_t, QWord)
-        MAKE_TYPE_HANDLER_2(System, SByte, int8_t, Byte)
-        MAKE_TYPE_HANDLER_2(System, Int16, int16_t, Word)
-        MAKE_TYPE_HANDLER_2(System, Int32, int32_t, DWord)
-        MAKE_TYPE_HANDLER_2(System, Int64, int64_t, QWord)
-        // Because invoke wrappers returning a single actually return a double
-        // for consistency purposes
-        MAKE_TYPE_HANDLER_2(System, Single, double, Double)
-        MAKE_TYPE_HANDLER_2(System, Double, double, Double)
-        case "System.RuntimeTypeHandle"_fnv: {
-            result = gcnew REFrameworkNET::TypeDefinition((::REFrameworkTypeDefinitionHandle)tempResult->QWord);
+    const auto raw_rt = (reframework::API::TypeDefinition*)returnType;
+
+    #define CONCAT_X_C(X, DOT, C) X ## DOT ## C
+
+    #define MAKE_TYPE_HANDLER_2(X, C, Y, Z) \
+        case CONCAT_X_C(#X, ".", #C)_fnv: \
+            result = gcnew X::C((Y)tempResult.Z); \
             break;
-        }
-        case "System.RuntimeMethodHandle"_fnv: {
-            result = gcnew REFrameworkNET::Method((::REFrameworkMethodHandle)tempResult->QWord);
-            break;
-        }
-        case "System.RuntimeFieldHandle"_fnv: {
-            result = gcnew REFrameworkNET::Field((::REFrameworkFieldHandle)tempResult->QWord);
-            break;
-        }
-        default:
-            result = tempResult;
-            break;
-        }
+
+    switch (REFrameworkNET::hash(raw_rt->get_full_name().c_str())) {
+    MAKE_TYPE_HANDLER_2(System, Boolean, bool, byte)
+    MAKE_TYPE_HANDLER_2(System, Byte, uint8_t, byte)
+    MAKE_TYPE_HANDLER_2(System, UInt16, uint16_t, word)
+    MAKE_TYPE_HANDLER_2(System, UInt32, uint32_t, dword)
+    MAKE_TYPE_HANDLER_2(System, UInt64, uint64_t, qword)
+    MAKE_TYPE_HANDLER_2(System, SByte, int8_t, byte)
+    MAKE_TYPE_HANDLER_2(System, Int16, int16_t, word)
+    MAKE_TYPE_HANDLER_2(System, Int32, int32_t, dword)
+    MAKE_TYPE_HANDLER_2(System, Int64, int64_t, qword)
+    // Because invoke wrappers returning a single actually return a double
+    // for consistency purposes
+    MAKE_TYPE_HANDLER_2(System, Single, double, d)
+    MAKE_TYPE_HANDLER_2(System, Double, double, d)
+    case "System.RuntimeTypeHandle"_fnv: {
+        result = gcnew REFrameworkNET::TypeDefinition((::REFrameworkTypeDefinitionHandle)tempResult.qword);
+        break;
+    }
+    case "System.RuntimeMethodHandle"_fnv: {
+        result = gcnew REFrameworkNET::Method((::REFrameworkMethodHandle)tempResult.qword);
+        break;
+    }
+    case "System.RuntimeFieldHandle"_fnv: {
+        result = gcnew REFrameworkNET::Field((::REFrameworkFieldHandle)tempResult.qword);
+        break;
+    }
+    default:
+        result = safe_cast<System::Object^>(REFrameworkNET::InvokeRet::FromNative(tempResult));
+        break;
     }
 
     return true;
