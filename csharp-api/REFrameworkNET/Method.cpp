@@ -241,10 +241,8 @@ REFrameworkNET::InvokeRet Method::Invoke(System::Object^ obj, array<System::Obje
             obj_ptr = (void*)(intptr_t)safe_cast<System::IntPtr>(obj).ToPointer();
         } else if (obj_t == System::UIntPtr::typeid) {
             obj_ptr = (void*)(uintptr_t)safe_cast<System::UIntPtr>(obj).ToUInt64();
-        } else if (obj_t == REFrameworkNET::ManagedObject::typeid) {
-            obj_ptr = safe_cast<REFrameworkNET::ManagedObject^>(obj)->Ptr();
-        } else if (obj_t == REFrameworkNET::NativeObject::typeid) {
-            obj_ptr = safe_cast<REFrameworkNET::NativeObject^>(obj)->Ptr();
+        } else if (REFrameworkNET::IObject::typeid->IsAssignableFrom(obj_t)) {
+            obj_ptr = safe_cast<REFrameworkNET::IObject^>(obj)->Ptr();
         } else {
             System::Console::WriteLine("Unknown type passed to method invocation @ obj");
         }
@@ -278,20 +276,19 @@ bool Method::HandleInvokeMember_Internal(System::Object^ obj, array<System::Obje
         }
 
         if (returnType->GetVMObjType() == VMObjType::String) {
-            // Maybe don't create the GC version and just use the native one?
-            auto strObject = REFrameworkNET::ManagedObject::Get((::REFrameworkManagedObjectHandle)tempResult.qword);
-            auto strType = strObject->GetTypeDefinition();
-            const auto firstCharField = strType->GetField("_firstChar");
+            auto strObject = (reframework::API::ManagedObject*)tempResult.qword;
+            auto strType = strObject->get_type_definition();
+            const auto firstCharField = strType->find_field("_firstChar");
             uint32_t offset = 0;
 
             if (firstCharField != nullptr) {
-                offset = strType->GetField("_firstChar")->GetOffsetFromBase();
+                offset = firstCharField->get_offset_from_base();
             } else {
                 const auto fieldOffset = *(uint32_t*)(*(uintptr_t*)tempResult.qword - sizeof(void*));
                 offset = fieldOffset + 4;
             }
 
-            wchar_t* chars = (wchar_t*)((uintptr_t)strObject->Ptr() + offset);
+            wchar_t* chars = (wchar_t*)((uintptr_t)strObject + offset);
             result = gcnew System::String(chars);
             return true;
         }
