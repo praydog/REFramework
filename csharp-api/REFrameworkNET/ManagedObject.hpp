@@ -25,13 +25,13 @@ internal:
         using WeakT = System::WeakReference<ManagedObject^>;
 
         static WeakT^ AddValueFactory(uintptr_t key, ManagedObject^ arg) {
-            return gcnew WeakT(arg, true);
+            return gcnew WeakT(arg);
         }
 
         static System::Func<uintptr_t, ManagedObject^, WeakT^>^ addValueFactory = gcnew System::Func<uintptr_t, ManagedObject^, WeakT^>(AddValueFactory);
 
         static WeakT^ UpdateFactory(uintptr_t key, WeakT^ value, ManagedObject^ arg) {
-            return gcnew WeakT(arg, true);
+            return gcnew WeakT(arg);
         }
 
         static System::Func<uintptr_t, WeakT^, ManagedObject^, WeakT^>^ updateFactory = gcnew System::Func<uintptr_t, WeakT^, ManagedObject^, WeakT^>(UpdateFactory);
@@ -85,7 +85,7 @@ internal:
         static void ReturnToPool(ManagedObject^ obj) {
             // Remove the weak reference from the cache
             WeakT^ weak = nullptr;
-            s_impl->cache->TryRemove((uintptr_t)obj->GetAddress(), weak);
+            s_impl->cache->TryRemove(obj->GetAddress(), weak);
 
             System::GC::ReRegisterForFinalize(obj);
             obj->Deinitialize();
@@ -182,7 +182,10 @@ internal:
     }
 
     // Finalizer
-    !ManagedObject();
+    !ManagedObject() {
+        Internal_Finalize();
+    }
+    void Internal_Finalize();
 
 public:
 

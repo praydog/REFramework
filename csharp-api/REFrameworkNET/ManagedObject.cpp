@@ -21,22 +21,20 @@ namespace REFrameworkNET {
         Cache<SystemString>::CleanupAll();
     }
 
-    ManagedObject::!ManagedObject() {
+    void ManagedObject::Internal_Finalize() {
         if (m_object == nullptr) {
             return;
         }
 
-        // Only if we are not marked as weak are we allowed to release the object, even if the object is globalized
-        if (!m_weak) {
-            if (m_cached) {
-                if (!ShuttingDown) {
-                    m_finalizerDelegate(this);
-                } else {
-                    // Nothing?
-                }
-            }
+        ReleaseIfGlobalized();
 
-            ReleaseIfGlobalized();
+        // Only if we are not marked as weak are we allowed to release the object, even if the object is globalized
+        if (m_cached) {
+            if (!ShuttingDown) {
+                m_finalizerDelegate(this);
+            } else {
+                // Nothing?
+            }
         }
     }
 
@@ -74,7 +72,7 @@ namespace REFrameworkNET {
     }
 
     void ManagedObject::Release() {
-        if (m_object == nullptr || m_weak) {
+        if (m_object == nullptr || m_weak || !m_initialized) {
             return;
         }
 

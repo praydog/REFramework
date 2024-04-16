@@ -233,6 +233,8 @@ set_target_properties(csharp-api PROPERTIES
 		net8.0-windows
 	VS_GLOBAL_EnableManagedPackageReferenceSupport
 		true
+	VS_GLOBAL_ConcurrentGarbageCollection
+		true
 )
 
 set(CMKR_TARGET csharp-api)

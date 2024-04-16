@@ -166,6 +166,7 @@ DOTNET_TARGET_FRAMEWORK = "net8.0-windows"
 # DOTNET_TARGET_FRAMEWORK_VERSION = "net8.0"
 VS_GLOBAL_EnableManagedPackageReferenceSupport = "true"
 # VS_PACKAGE_REFERENCES = "Microsoft.CodeAnalysis_4.9.2"
+VS_GLOBAL_ConcurrentGarbageCollection = "true"
 
 [target.AssemblyGenerator]
 type = "CSharpSharedTarget"

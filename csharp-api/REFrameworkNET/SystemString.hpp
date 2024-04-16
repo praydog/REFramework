@@ -30,13 +30,13 @@ internal:
     SystemString(std::wstring_view str);
     SystemString(std::string_view str);
 
-    /*~SystemString() {
+    ~SystemString() {
         this->!SystemString();
     }
 
     !SystemString() {
-        ManagedObject::!ManagedObject();
-    }*/
+        ManagedObject::Internal_Finalize();
+    }
 
 public:
     ::System::String^ ToString() override;
