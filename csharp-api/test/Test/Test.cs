@@ -597,11 +597,6 @@ class REFrameworkPlugin {
     static System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
     static System.Diagnostics.Stopwatch sw2 = new System.Diagnostics.Stopwatch();
 
-    // To be called when the AssemblyLoadContext is unloading the assembly
-    public static void OnUnload() {
-        REFrameworkNET.API.LogInfo("Unloading Test");
-    }
-
     // Assigned in a callback below.
     public static void RenderImGui() {
         if (ImGui.Begin("Test Window")) {
@@ -655,6 +650,12 @@ class REFrameworkPlugin {
         };
 
         REFrameworkNET.Callbacks.ImGuiRender.Pre += RenderImGui;
+    }
+
+    // To be called when the AssemblyLoadContext is unloading the assembly
+    [REFrameworkNET.Attributes.PluginExitPoint]
+    public static void OnUnload() {
+        REFrameworkNET.API.LogInfo("Unloading Test");
     }
 
     [REFrameworkNET.Attributes.PluginEntryPoint]

@@ -571,14 +571,18 @@ namespace REFrameworkNET {
                 auto path = state->script_path;
                 REFrameworkNET::API::LogInfo("Attempting to initiate first phase unload of " + state->script_path);
 
-				// Look for the Unload method in the target assembly which takes an REFrameworkNET.API instance
+				// Look for the PluginExitPoint attribute in the assembly
                 for each (Type ^ t in assem->GetTypes()) {
-					auto method = t->GetMethod("OnUnload", System::Reflection::BindingFlags::Static | System::Reflection::BindingFlags::Public);
+                    auto methods = t->GetMethods(System::Reflection::BindingFlags::Static | System::Reflection::BindingFlags::Public | System::Reflection::BindingFlags::NonPublic);
 
-                    if (method != nullptr) {
-                        REFrameworkNET::API::LogInfo("Unloading plugin by calling " + method->Name + " in " + t->FullName);
-						method->Invoke(nullptr, nullptr);
-					}
+                    for each (System::Reflection::MethodInfo^ method in methods) {
+                        array<Object^>^ attributes = method->GetCustomAttributes(REFrameworkNET::Attributes::PluginExitPoint::typeid, true);
+
+                        if (attributes->Length > 0) {
+                            REFrameworkNET::API::LogInfo("Unloading plugin by calling " + method->Name + " in " + t->FullName);
+                            method->Invoke(nullptr, nullptr);
+                        }
+                    }
 				}
 
                 state->Unload();

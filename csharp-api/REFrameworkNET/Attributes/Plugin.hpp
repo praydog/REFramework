@@ -7,5 +7,11 @@ namespace REFrameworkNET {
         public:
             PluginEntryPoint() {}
         };
+
+        [System::AttributeUsage(System::AttributeTargets::Method, AllowMultiple = true)]
+        public ref class PluginExitPoint : System::Attribute {
+        public:
+            PluginExitPoint() {}
+        };
     }
 }
