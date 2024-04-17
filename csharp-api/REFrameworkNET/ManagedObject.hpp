@@ -377,7 +377,7 @@ protected:
 
     bool m_weak{true}; // Can be upgraded to a global object after it's created, but not to a cached object.
     bool m_cached{false}; // Cannot be upgraded to a cached object if it was created on a non-globalized object
-    bool m_initialized{false}; // Used for the object pool
+    bool m_initialized{true}; // Used for the object pool
 
 internal:
     FinalizerDelegate^ m_finalizerDelegate{nullptr};
