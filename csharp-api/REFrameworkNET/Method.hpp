@@ -109,13 +109,25 @@ public:
 
     /// <returns>The return <see cref="TypeDefinition"/> of the method.</returns>
     TypeDefinition^ GetReturnType() {
-        auto result = m_method->get_return_type();
+        if (m_returnType == nullptr) {
+            m_lock->EnterWriteLock();
 
-        if (result == nullptr) {
-            return nullptr;
+            try {
+                if (m_returnType == nullptr) {
+                    auto result = m_method->get_return_type();
+
+                    if (result == nullptr) {
+                        return nullptr;
+                    }
+
+                    m_returnType = TypeDefinition::GetInstance(result);
+                }
+            } finally {
+                m_lock->ExitWriteLock();
+            }
         }
 
-        return TypeDefinition::GetInstance(result);
+        return m_returnType;
     }
 
     property TypeDefinition^ ReturnType {
@@ -307,5 +319,8 @@ public:
 
 private:
     reframework::API::Method* m_method;
+
+    System::Threading::ReaderWriterLockSlim^ m_lock{gcnew System::Threading::ReaderWriterLockSlim()};
+    TypeDefinition^ m_returnType{nullptr};
 };
 }

@@ -162,13 +162,13 @@ REFrameworkNET::InvokeRet Method::Invoke(System::Object^ obj, array<System::Obje
             }
 
             if (REFrameworkNET::IObject::typeid->IsAssignableFrom(t)) {
-                auto iobj = safe_cast<REFrameworkNET::IObject^>(args[i]);
+                auto iobj = static_cast<REFrameworkNET::IObject^>(args[i]);
                 args2[i] = iobj->Ptr();
             } else if (t == REFrameworkNET::TypeDefinition::typeid) {
                 // TypeDefinitions are wrappers for System.RuntimeTypeHandle
                 // However there's basically no functions that actually take a System.RuntimeTypeHandle
                 // so we will just convert it to a System.Type.
-                auto td = safe_cast<REFrameworkNET::TypeDefinition^>(args[i]);
+                auto td = static_cast<REFrameworkNET::TypeDefinition^>(args[i]);
 
                 if (auto rt = td->GetRuntimeType(); rt != nullptr) {
                     args2[i] = rt->Ptr();
@@ -238,7 +238,7 @@ REFrameworkNET::InvokeRet Method::Invoke(System::Object^ obj, array<System::Obje
         const auto obj_t = obj->GetType();
 
         if (REFrameworkNET::IObject::typeid->IsAssignableFrom(obj_t)) {
-            obj_ptr = safe_cast<REFrameworkNET::IObject^>(obj)->Ptr();
+            obj_ptr = static_cast<REFrameworkNET::IObject^>(obj)->Ptr();
         } else if (obj_t == System::IntPtr::typeid) {
             obj_ptr = (void*)(intptr_t)safe_cast<System::IntPtr>(obj).ToPointer();
         } else if (obj_t == System::UIntPtr::typeid) {
@@ -259,7 +259,7 @@ bool Method::HandleInvokeMember_Internal(System::Object^ obj, array<System::Obje
 
     if (returnType == nullptr) {
         // box the result
-        result = safe_cast<System::Object^>(REFrameworkNET::InvokeRet::FromNative(tempResult));
+        result = static_cast<System::Object^>(REFrameworkNET::InvokeRet::FromNative(tempResult));
         return true;
     }
 
@@ -332,14 +332,29 @@ bool Method::HandleInvokeMember_Internal(System::Object^ obj, array<System::Obje
     MAKE_TYPE_HANDLER_2(System, Single, double, d)
     MAKE_TYPE_HANDLER_2(System, Double, double, d)
     case "System.RuntimeTypeHandle"_fnv: {
+        if (tempResult.qword == 0) {
+            result = nullptr;
+            return true;
+        }
+
         result = TypeDefinition::GetInstance((::REFrameworkTypeDefinitionHandle)tempResult.qword);
         break;
     }
     case "System.RuntimeMethodHandle"_fnv: {
+        if (tempResult.qword == 0) {
+            result = nullptr;
+            return true;
+        }
+
         result = Method::GetInstance((::REFrameworkMethodHandle)tempResult.qword);
         break;
     }
     case "System.RuntimeFieldHandle"_fnv: {
+        if (tempResult.qword == 0) {
+            result = nullptr;
+            return true;
+        }
+
         result = Field::GetInstance((::REFrameworkFieldHandle)tempResult.qword);
         break;
     }

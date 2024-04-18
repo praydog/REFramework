@@ -208,12 +208,36 @@ public:
 
     bool IsValueType()
     {
-        return m_type->is_valuetype();
+        if (!m_cachedIsValueType.HasValue) {
+            m_lock->EnterWriteLock();
+
+            try {
+                if (!m_cachedIsValueType.HasValue) {
+                    m_cachedIsValueType = m_type->is_valuetype();
+                }
+            } finally {
+                m_lock->ExitWriteLock();
+            }
+        }
+
+        return m_cachedIsValueType.Value;
     }
 
     bool IsEnum()
     {
-        return m_type->is_enum();
+        if (!m_cachedIsEnum.HasValue) {
+            m_lock->EnterWriteLock();
+
+            try {
+                if (!m_cachedIsEnum.HasValue) {
+                    m_cachedIsEnum = m_type->is_enum();
+                }
+            } finally {
+                m_lock->ExitWriteLock();
+            }
+        }
+
+        return m_cachedIsEnum.Value;
     }
 
     bool IsByRef()
@@ -477,8 +501,14 @@ public:
 private:
     reframework::API::TypeDefinition* m_type;
     System::Threading::ReaderWriterLockSlim^ m_lock{gcnew System::Threading::ReaderWriterLockSlim()};
+
+    // Cached values
+    ManagedObject^ m_runtimeType{nullptr};
     System::String^ m_cachedFullName{nullptr};
     size_t m_cachedFNV64Hash{0};
+    
+    System::Nullable<bool> m_cachedIsValueType{};
+    System::Nullable<bool> m_cachedIsEnum{};
 
     System::Collections::Generic::List<REFrameworkNET::Method^>^ m_methods{nullptr};
     System::Collections::Generic::List<REFrameworkNET::Field^>^ m_fields{nullptr};

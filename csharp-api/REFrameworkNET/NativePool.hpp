@@ -12,7 +12,7 @@ namespace REFrameworkNET {
     {
     private:
         static System::Collections::Concurrent::ConcurrentDictionary<uintptr_t, T^>^ s_cache =
-            gcnew System::Collections::Concurrent::ConcurrentDictionary<uintptr_t, T^>();
+            gcnew System::Collections::Concurrent::ConcurrentDictionary<uintptr_t, T^>(8, 8192);
 
     public:
         delegate T^ CreatorDelegate(uintptr_t nativePtr);
@@ -34,6 +34,10 @@ namespace REFrameworkNET {
 
         static void DisplayStats() {
             if (ImGuiNET::ImGui::TreeNode(T::typeid->Name + " Cache")) {
+                if (ImGuiNET::ImGui::Button("Clear Cache")) {
+                    s_cache->Clear();
+                }
+                
                 ImGuiNET::ImGui::Text("Cache size: " + s_cache->Count.ToString());
                 ImGuiNET::ImGui::TreePop();
             }

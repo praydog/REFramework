@@ -136,7 +136,7 @@ protected:
         auto methodAttribute = REFrameworkNET::Attributes::Method::GetCachedAttribute(targetMethod);
 
         Object^ result = nullptr;
-        auto iobject = dynamic_cast<REFrameworkNET::IObject^>(Instance);
+        auto iobject = static_cast<REFrameworkNET::IObject^>(Instance);
 
         if (methodAttribute != nullptr) {
             if (iobject != nullptr) {

@@ -163,13 +163,23 @@ namespace REFrameworkNET {
 
     ManagedObject^ TypeDefinition::GetRuntimeType()
     {
-        auto result = m_type->get_runtime_type();
+        if (m_runtimeType == nullptr) {
+            m_lock->EnterWriteLock();
 
-        if (result == nullptr) {
-            return nullptr;
+            try {
+                if (m_runtimeType == nullptr) {
+                    auto result = m_type->get_runtime_type();
+
+                    if (result != nullptr) {
+                        m_runtimeType = ManagedObject::Get(result);
+                    }
+                }
+            } finally {
+                m_lock->ExitWriteLock();
+            }
         }
 
-        return ManagedObject::Get(result);
+        return m_runtimeType;
     }
 
     REFrameworkNET::InvokeRet^ TypeDefinition::Invoke(System::String^ methodName, array<System::Object^>^ args) {
