@@ -4,6 +4,7 @@
 #include "Attributes/Plugin.hpp"
 #include "MethodHook.hpp"
 #include "SystemString.hpp"
+#include "NativePool.hpp"
 #include "PluginManager.hpp"
 
 using namespace System;
@@ -675,8 +676,15 @@ namespace REFrameworkNET {
 
             ImGuiNET::ImGui::Checkbox("Auto Reload", s_auto_reload_plugins);
 
-            ManagedObject::Cache<ManagedObject>::DisplayStats();
-            ManagedObject::Cache<SystemString>::DisplayStats();
+            if (ImGuiNET::ImGui::TreeNode("Debug Stats")) {
+                ManagedObject::Cache<ManagedObject>::DisplayStats();
+                ManagedObject::Cache<SystemString>::DisplayStats();
+                NativePool<TypeDefinition>::DisplayStats();
+                NativePool<Method>::DisplayStats();
+                NativePool<Field>::DisplayStats();
+
+                ImGuiNET::ImGui::TreePop();
+            }
             
             for each (PluginState^ state in PluginManager::s_plugin_states) {
                 state->DisplayOptions();

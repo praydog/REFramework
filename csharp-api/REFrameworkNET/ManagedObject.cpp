@@ -91,7 +91,7 @@ namespace REFrameworkNET {
             return nullptr;
         }
 
-        return gcnew TypeDefinition(result);
+        return TypeDefinition::GetInstance(result);
     }
 
     TypeInfo^ ManagedObject::GetTypeInfo() {

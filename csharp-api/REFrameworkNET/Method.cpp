@@ -237,12 +237,12 @@ REFrameworkNET::InvokeRet Method::Invoke(System::Object^ obj, array<System::Obje
     if (obj != nullptr) try {
         const auto obj_t = obj->GetType();
 
-        if (obj_t == System::IntPtr::typeid) {
+        if (REFrameworkNET::IObject::typeid->IsAssignableFrom(obj_t)) {
+            obj_ptr = safe_cast<REFrameworkNET::IObject^>(obj)->Ptr();
+        } else if (obj_t == System::IntPtr::typeid) {
             obj_ptr = (void*)(intptr_t)safe_cast<System::IntPtr>(obj).ToPointer();
         } else if (obj_t == System::UIntPtr::typeid) {
             obj_ptr = (void*)(uintptr_t)safe_cast<System::UIntPtr>(obj).ToUInt64();
-        } else if (REFrameworkNET::IObject::typeid->IsAssignableFrom(obj_t)) {
-            obj_ptr = safe_cast<REFrameworkNET::IObject^>(obj)->Ptr();
         } else {
             System::Console::WriteLine("Unknown type passed to method invocation @ obj");
         }
@@ -310,8 +310,6 @@ bool Method::HandleInvokeMember_Internal(System::Object^ obj, array<System::Obje
         }
     }
 
-    const auto raw_rt = (reframework::API::TypeDefinition*)returnType;
-
     #define CONCAT_X_C(X, DOT, C) X ## DOT ## C
 
     #define MAKE_TYPE_HANDLER_2(X, C, Y, Z) \
@@ -319,7 +317,7 @@ bool Method::HandleInvokeMember_Internal(System::Object^ obj, array<System::Obje
             result = gcnew X::C((Y)tempResult.Z); \
             break;
 
-    switch (REFrameworkNET::hash(raw_rt->get_full_name().c_str())) {
+    switch (returnType->GetFNV64Hash()) {
     MAKE_TYPE_HANDLER_2(System, Boolean, bool, byte)
     MAKE_TYPE_HANDLER_2(System, Byte, uint8_t, byte)
     MAKE_TYPE_HANDLER_2(System, UInt16, uint16_t, word)
@@ -334,15 +332,15 @@ bool Method::HandleInvokeMember_Internal(System::Object^ obj, array<System::Obje
     MAKE_TYPE_HANDLER_2(System, Single, double, d)
     MAKE_TYPE_HANDLER_2(System, Double, double, d)
     case "System.RuntimeTypeHandle"_fnv: {
-        result = gcnew REFrameworkNET::TypeDefinition((::REFrameworkTypeDefinitionHandle)tempResult.qword);
+        result = TypeDefinition::GetInstance((::REFrameworkTypeDefinitionHandle)tempResult.qword);
         break;
     }
     case "System.RuntimeMethodHandle"_fnv: {
-        result = gcnew REFrameworkNET::Method((::REFrameworkMethodHandle)tempResult.qword);
+        result = Method::GetInstance((::REFrameworkMethodHandle)tempResult.qword);
         break;
     }
     case "System.RuntimeFieldHandle"_fnv: {
-        result = gcnew REFrameworkNET::Field((::REFrameworkFieldHandle)tempResult.qword);
+        result = Field::GetInstance((::REFrameworkFieldHandle)tempResult.qword);
         break;
     }
     default:

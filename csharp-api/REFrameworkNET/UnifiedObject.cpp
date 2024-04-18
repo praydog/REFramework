@@ -165,7 +165,7 @@ namespace REFrameworkNET {
                                 break;
                             }
 
-                            auto td = gcnew REFrameworkNET::TypeDefinition(obj->get_type_definition());
+                            auto td = TypeDefinition::GetInstance(obj->get_type_definition());
 
                             // another fallback incase the method returns an object which is an array
                             if (td != nullptr && td->GetVMObjType() == VMObjType::Array) {

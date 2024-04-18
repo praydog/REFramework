@@ -6,6 +6,7 @@
 
 #include <msclr/marshal_cppstd.h>
 #include "IObject.hpp"
+#include "NativePool.hpp"
 
 namespace REFrameworkNET {
 ref class ManagedObject;
@@ -39,9 +40,25 @@ public ref class TypeDefinition : public System::Dynamic::DynamicObject,
                                public System::IEquatable<TypeDefinition ^>
 {
 public:
+    static TypeDefinition^ GetInstance(reframework::API::TypeDefinition* td) {
+        return NativePool<TypeDefinition>::GetInstance((uintptr_t)td, s_createFromPointer);
+    }
+
+    static TypeDefinition^ GetInstance(::REFrameworkTypeDefinitionHandle handle) {
+        return NativePool<TypeDefinition>::GetInstance((uintptr_t)handle, s_createFromPointer);
+    }
+
+private:
+    static TypeDefinition^ createFromPointer(uintptr_t ptr) {
+        return gcnew TypeDefinition((reframework::API::TypeDefinition*)ptr);
+    }
+
+    static NativePool<TypeDefinition>::CreatorDelegate^ s_createFromPointer = gcnew NativePool<TypeDefinition>::CreatorDelegate(createFromPointer);
+
     TypeDefinition(reframework::API::TypeDefinition* td) : m_type(td) {}
     TypeDefinition(::REFrameworkTypeDefinitionHandle handle) : m_type(reinterpret_cast<reframework::API::TypeDefinition*>(handle)) {}
 
+public:
     operator reframework::API::TypeDefinition*() {
         return (reframework::API::TypeDefinition*)m_type;
     }
@@ -53,7 +70,6 @@ public:
     TypeDefinition^ Clone() {
 		return gcnew TypeDefinition(m_type);
 	}
-
 
     uint32_t GetIndex()
     {
@@ -129,9 +145,21 @@ public:
         }
     }
 
-    System::String^ GetFullName()
-    {
-        return gcnew System::String(m_type->get_full_name().c_str());
+public:
+    System::String^ GetFullName() {
+        if (m_cachedFullName == nullptr) {
+            m_lock->EnterWriteLock();
+
+            try {
+                if (m_cachedFullName == nullptr) {
+                    m_cachedFullName = gcnew System::String(m_type->get_full_name().c_str());
+                }
+            } finally {
+                m_lock->ExitWriteLock();
+            }
+        }
+
+        return m_cachedFullName;
     }
 
     property System::String^ FullName {
@@ -139,6 +167,9 @@ public:
             return GetFullName();
         }
     }
+
+public:
+    size_t GetFNV64Hash();
 
     bool HasFieldPtrOffset()
     {
@@ -266,7 +297,7 @@ public:
             return nullptr;
         }
 
-        return gcnew TypeDefinition(result);
+        return TypeDefinition::GetInstance(result);
     }
 
     property TypeDefinition^ ParentType {
@@ -283,7 +314,7 @@ public:
             return nullptr;
         }
 
-        return gcnew TypeDefinition(result);
+        return TypeDefinition::GetInstance(result);
     }
 
     property TypeDefinition^ DeclaringType {
@@ -302,7 +333,7 @@ public:
             return nullptr;
         }
 
-        return gcnew TypeDefinition(result);
+        return TypeDefinition::GetInstance(result);
     }
 
     property TypeDefinition^ UnderlyingType {
@@ -445,5 +476,12 @@ public:
 
 private:
     reframework::API::TypeDefinition* m_type;
+    System::Threading::ReaderWriterLockSlim^ m_lock{gcnew System::Threading::ReaderWriterLockSlim()};
+    System::String^ m_cachedFullName{nullptr};
+    size_t m_cachedFNV64Hash{0};
+
+    System::Collections::Generic::List<REFrameworkNET::Method^>^ m_methods{nullptr};
+    System::Collections::Generic::List<REFrameworkNET::Field^>^ m_fields{nullptr};
+    System::Collections::Generic::List<REFrameworkNET::Property^>^ m_properties{nullptr};
 };
 }

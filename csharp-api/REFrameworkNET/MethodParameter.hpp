@@ -6,7 +6,7 @@ namespace REFrameworkNET {
 public ref struct MethodParameter {
     MethodParameter(const REFrameworkMethodParameter& p) { 
         Name = gcnew System::String(p.name);
-        Type = gcnew REFrameworkNET::TypeDefinition(p.t);  
+        Type = REFrameworkNET::TypeDefinition::GetInstance(p.t);  
     }
 
     property System::String^ Name;

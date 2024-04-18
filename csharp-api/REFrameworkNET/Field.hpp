@@ -3,6 +3,7 @@
 #include <reframework/API.hpp>
 
 #include "TypeDefinition.hpp"
+#include "NativePool.hpp"
 
 #pragma managed
 
@@ -11,9 +12,27 @@ ref class TypeDefinition;
 
 public ref class Field {
 public:
+    static Field^ GetInstance(reframework::API::Field* fd) {
+        return NativePool<Field>::GetInstance((uintptr_t)fd, s_createFromPointer);
+    }
+
+    static Field^ GetInstance(::REFrameworkFieldHandle handle) {
+        return NativePool<Field>::GetInstance((uintptr_t)handle, s_createFromPointer);
+    }
+
+private:
+    static Field^ createFromPointer(uintptr_t ptr) {
+        return gcnew Field((reframework::API::Field*)ptr);
+    }
+
+    static NativePool<Field>::CreatorDelegate^ s_createFromPointer = gcnew NativePool<Field>::CreatorDelegate(createFromPointer);
+
+
+private:
     Field(const reframework::API::Field* field) : m_field(field) {}
     Field(::REFrameworkFieldHandle handle) : m_field(reinterpret_cast<const reframework::API::Field*>(handle)) {}
 
+public:
     System::String^ GetName() {
         return gcnew System::String(m_field->get_name());
     }
@@ -31,7 +50,7 @@ public:
             return nullptr;
         }
 
-        return gcnew TypeDefinition(t);
+        return TypeDefinition::GetInstance(t);
     }
 
     property TypeDefinition^ DeclaringType {
@@ -47,7 +66,7 @@ public:
             return nullptr;
         }
 
-        return gcnew TypeDefinition(t);
+        return TypeDefinition::GetInstance(t);
     }
 
     property TypeDefinition^ Type {

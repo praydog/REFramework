@@ -1,3 +1,5 @@
+#include <msclr/marshal_cppstd.h>
+
 #include "TypeInfo.hpp"
 #include "Method.hpp"
 #include "Field.hpp"
@@ -5,12 +7,28 @@
 #include "ManagedObject.hpp"
 #include "NativeObject.hpp"
 #include "Proxy.hpp"
+#include "Utility.hpp"
 
 #include "TypeDefinition.hpp"
 
 namespace REFrameworkNET {
     NativeObject^ TypeDefinition::Statics::get() {
         return gcnew NativeObject(this);
+    }
+
+    size_t TypeDefinition::GetFNV64Hash() {
+        if (m_cachedFNV64Hash == 0) {
+            m_lock->EnterWriteLock();
+            try {
+                if (m_cachedFNV64Hash == 0) {
+                    m_cachedFNV64Hash = REFrameworkNET::hash(m_type->get_full_name().c_str());
+                }
+            } finally {
+                m_lock->ExitWriteLock();
+            }
+        }
+
+        return m_cachedFNV64Hash;
     }
 
     REFrameworkNET::Method^ TypeDefinition::FindMethod(System::String^ name)
@@ -21,7 +39,7 @@ namespace REFrameworkNET {
             return nullptr;
         }
 
-        return gcnew REFrameworkNET::Method(result);
+        return REFrameworkNET::Method::GetInstance(result);
     }
 
     REFrameworkNET::Field^ TypeDefinition::FindField(System::String^ name)
@@ -32,7 +50,7 @@ namespace REFrameworkNET {
             return nullptr;
         }
 
-        return gcnew Field(result);
+        return REFrameworkNET::Field::GetInstance(result);
     }
 
     REFrameworkNET::Property^ TypeDefinition::FindProperty(System::String^ name)
@@ -48,50 +66,77 @@ namespace REFrameworkNET {
 
     System::Collections::Generic::List<REFrameworkNET::Method^>^ TypeDefinition::GetMethods()
     {
-        auto methods = m_type->get_methods();
-        auto result = gcnew System::Collections::Generic::List<Method^>();
+        if (m_methods == nullptr) {
+            m_lock->EnterWriteLock();
+            try {
+                if (m_methods == nullptr) {
+                    auto methods = m_type->get_methods();
+                    m_methods = gcnew System::Collections::Generic::List<Method^>();
 
-        for (auto& method : methods) {
-            if (method == nullptr) {
-                continue;
+                    for (auto& method : methods) {
+                        if (method == nullptr) {
+                            continue;
+                        }
+
+                        m_methods->Add(Method::GetInstance(method));
+                    }
+                }
+            } finally {
+                m_lock->ExitWriteLock();
             }
-
-            result->Add(gcnew Method(method));
         }
 
-        return result;
+        return m_methods;
     }
 
     System::Collections::Generic::List<REFrameworkNET::Field^>^ TypeDefinition::GetFields()
     {
-        auto fields = m_type->get_fields();
-        auto result = gcnew System::Collections::Generic::List<Field^>();
+        if (m_fields == nullptr) {
+            m_lock->EnterWriteLock();
 
-        for (auto& field : fields) {
-            if (field == nullptr) {
-                continue;
+            try {
+                if (m_fields == nullptr ){
+                    auto fields = m_type->get_fields();
+                    m_fields = gcnew System::Collections::Generic::List<Field^>();
+
+                    for (auto& field : fields) {
+                        if (field == nullptr) {
+                            continue;
+                        }
+
+                        m_fields->Add(Field::GetInstance(field));
+                    }
+                }
+            } finally {
+                m_lock->ExitWriteLock();
             }
-
-            result->Add(gcnew Field(field));
         }
-
-        return result;
+        
+        return m_fields;
     }
 
     System::Collections::Generic::List<REFrameworkNET::Property^>^ TypeDefinition::GetProperties()
     {
-        auto properties = m_type->get_properties();
-        auto result = gcnew System::Collections::Generic::List<Property^>();
+        if (m_properties == nullptr) {
+            m_lock->EnterWriteLock();
 
-        for (auto& property : properties) {
-            if (property == nullptr) {
-                continue;
+            try {
+                auto properties = m_type->get_properties();
+                m_properties = gcnew System::Collections::Generic::List<Property^>();
+
+                for (auto& property : properties) {
+                    if (property == nullptr) {
+                        continue;
+                    }
+
+                    m_properties->Add(gcnew Property(property));
+                }
+            } finally {
+                m_lock->ExitWriteLock();
             }
-
-            result->Add(gcnew Property(property));
         }
 
-        return result;
+        return m_properties;
     }
 
     ManagedObject^ TypeDefinition::CreateInstance(int32_t flags)

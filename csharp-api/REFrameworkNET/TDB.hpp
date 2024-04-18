@@ -32,7 +32,7 @@ public:
         
     private:
         static reframework::API::TypeDefinition* s_cachedType = TDB::GetTypeDefinitionPtr<T>();
-        static REFrameworkNET::TypeDefinition^ s_cachedManagedType = s_cachedType != nullptr ? gcnew REFrameworkNET::TypeDefinition(s_cachedType) : nullptr;
+        static REFrameworkNET::TypeDefinition^ s_cachedManagedType = s_cachedType != nullptr ? TypeDefinition::GetInstance(s_cachedType) : nullptr;
     };
 
 public:
@@ -95,7 +95,7 @@ public:
             return nullptr;
         }
 
-        return gcnew TypeDefinition(result);
+        return TypeDefinition::GetInstance(result);
     }
 
     TypeDefinition^ FindType(System::String^ name) {
@@ -105,7 +105,7 @@ public:
             return nullptr;
         }
         
-        return gcnew TypeDefinition(result);
+        return TypeDefinition::GetInstance(result);
     }
 
     /// <summary>
@@ -142,11 +142,11 @@ public:
             return nullptr;
         }
 
-        return gcnew TypeDefinition(result);
+        return TypeDefinition::GetInstance(result);
     }
 
     Method^ GetMethod(uint32_t index) {
-        return gcnew Method(m_tdb->get_method(index));
+        return Method::GetInstance(m_tdb->get_method(index));
     }
 
     Method^ FindMethod(System::String^ type_name, System::String^ name) {
@@ -156,7 +156,7 @@ public:
             return nullptr;
         }
 
-        return gcnew Method(result);
+        return Method::GetInstance(result);
     }
 
     Method^ GetMethod(System::String^ type_name, System::String^ name) {
@@ -170,7 +170,7 @@ public:
             return nullptr;
         }
 
-        return gcnew Field(result);
+        return Field::GetInstance(result);
     }
 
     Field^ FindField(System::String^ type_name, System::String^ name) {
@@ -180,7 +180,7 @@ public:
             return nullptr;
         }
 
-        return gcnew Field(result);
+        return Field::GetInstance(result);
     }
 
     Field^ GetField(System::String^ type_name, System::String^ name) {

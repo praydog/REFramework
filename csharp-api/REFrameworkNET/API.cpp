@@ -65,7 +65,7 @@ System::Collections::Generic::List<REFrameworkNET::ManagedSingleton^>^ REFramewo
 
         result->Add(gcnew REFrameworkNET::ManagedSingleton(
             REFrameworkNET::ManagedObject::Get<REFrameworkNET::ManagedObject>(singleton.instance),
-            gcnew REFrameworkNET::TypeDefinition(singleton.t),
+            TypeDefinition::GetInstance(singleton.t),
             gcnew REFrameworkNET::TypeInfo(singleton.type_info)
         ));
     }
@@ -91,10 +91,10 @@ System::Collections::Generic::List<REFrameworkNET::NativeSingleton^>^ REFramewor
             continue;
         }
 
-        auto nativeObject = gcnew REFrameworkNET::NativeObject(singleton.instance, gcnew REFrameworkNET::TypeDefinition(singleton.t));
+        auto nativeObject = gcnew REFrameworkNET::NativeObject(singleton.instance, TypeDefinition::GetInstance(singleton.t));
 
         result->Add(gcnew REFrameworkNET::NativeSingleton(
-            gcnew REFrameworkNET::NativeObject(singleton.instance, gcnew REFrameworkNET::TypeDefinition(singleton.t)),
+            gcnew REFrameworkNET::NativeObject(singleton.instance, TypeDefinition::GetInstance(singleton.t)),
             singleton.type_info != nullptr ? gcnew REFrameworkNET::TypeInfo(singleton.type_info) : nullptr
         ));
     }

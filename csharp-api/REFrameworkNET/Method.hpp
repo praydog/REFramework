@@ -6,6 +6,7 @@
 
 #include "InvokeRet.hpp"
 #include "MethodParameter.hpp"
+#include "NativePool.hpp"
 
 namespace REFrameworkNET {
 ref class MethodHook;
@@ -24,8 +25,25 @@ public enum class PreHookResult : int32_t {
 public ref class Method : public System::IEquatable<Method^>
 {
 public:
+    static Method^ GetInstance(reframework::API::Method* m) {
+        return NativePool<Method>::GetInstance((uintptr_t)m, s_createFromPointer);
+    }
+
+    static Method^ GetInstance(::REFrameworkMethodHandle handle) {
+        return NativePool<Method>::GetInstance((uintptr_t)handle, s_createFromPointer);
+    }
+
+private:
     Method(reframework::API::Method* method) : m_method(method) {}
     Method(::REFrameworkMethodHandle handle) : m_method(reinterpret_cast<reframework::API::Method*>(handle)) {}
+
+public:
+    static Method^ createFromPointer(uintptr_t ptr) {
+        return gcnew Method((reframework::API::Method*)ptr);
+    }
+
+    static NativePool<Method>::CreatorDelegate^ s_createFromPointer = gcnew NativePool<Method>::CreatorDelegate(createFromPointer);
+
 
     void* GetRaw() {
         return m_method;
@@ -80,7 +98,7 @@ public:
             return nullptr;
         }
 
-        return gcnew TypeDefinition(result);
+        return TypeDefinition::GetInstance(result);
     }
 
     property TypeDefinition^ DeclaringType {
@@ -97,7 +115,7 @@ public:
             return nullptr;
         }
 
-        return gcnew TypeDefinition(result);
+        return TypeDefinition::GetInstance(result);
     }
 
     property TypeDefinition^ ReturnType {
