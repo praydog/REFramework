@@ -172,6 +172,11 @@ namespace REFrameworkNET {
                 }
             }
         }
+
+        // Unclog the GC after all that
+        System::GC::Collect(0, System::GCCollectionMode::Forced, false);
+        System::GC::Collect(1, System::GCCollectionMode::Forced, false);
+        System::GC::Collect(2, System::GCCollectionMode::Forced, false);
     }
 
     // meant to be executed in the correct context
@@ -677,6 +682,11 @@ namespace REFrameworkNET {
             ImGuiNET::ImGui::Checkbox("Auto Reload", s_auto_reload_plugins);
 
             if (ImGuiNET::ImGui::TreeNode("Debug Stats")) {
+                if (ImGuiNET::ImGui::TreeNode("Garbage Collection")) {
+                    REFrameworkNET::GarbageCollectionDisplay::Render();
+                    ImGuiNET::ImGui::TreePop();
+                }
+
                 ManagedObject::Cache<ManagedObject>::DisplayStats();
                 ManagedObject::Cache<SystemString>::DisplayStats();
                 NativePool<TypeDefinition>::DisplayStats();

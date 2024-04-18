@@ -110,7 +110,7 @@ VS_CONFIGURATION_TYPE = "ClassLibrary"
 # It also contains other stuff like the C# compiler wrapper.
 [target.REFCoreDeps]
 type = "CSharpSharedTarget"
-sources = ["Compiler/**.cs"]
+sources = ["REFCoreDeps/**.cs"]
 
 # Not using .properties here because it overrides the template properties for whatever reason
 cmake-after = """

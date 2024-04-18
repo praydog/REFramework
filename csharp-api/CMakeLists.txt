@@ -117,7 +117,8 @@ endforeach()
 
 # Target: REFCoreDeps
 set(REFCoreDeps_SOURCES
-	"Compiler/Compiler.cs"
+	"REFCoreDeps/Compiler.cs"
+	"REFCoreDeps/GarbageCollectionDisplay.cs"
 	cmake.toml
 )
 
@@ -178,6 +179,7 @@ set(csharp-api_SOURCES
 	"REFrameworkNET/MethodHook.hpp"
 	"REFrameworkNET/MethodParameter.hpp"
 	"REFrameworkNET/NativeObject.hpp"
+	"REFrameworkNET/NativePool.hpp"
 	"REFrameworkNET/NativeSingleton.hpp"
 	"REFrameworkNET/ObjectEnumerator.hpp"
 	"REFrameworkNET/Plugin.hpp"
