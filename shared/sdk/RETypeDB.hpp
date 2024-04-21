@@ -1,5 +1,6 @@
 #include <string_view>
 #include <vector>
+#include <span>
 #include <cstdint>
 
 // Forward decls
@@ -1140,7 +1141,20 @@ struct REMethodDefinition : public sdk::REMethodDefinition_ {
     // calling is the actual call to the function
     // invoking is calling a wrapper function that calls the function
     // using an array of arguments
-    ::reframework::InvokeRet invoke(void* object, const std::vector<void*>& args) const;
+    void invoke(void* object, const std::span<void*>& args, ::reframework::InvokeRet& out) const;
+    ::reframework::InvokeRet invoke(void* object, const std::span<void*>& args) const;
+
+    template<size_t N>
+    ::reframework::InvokeRet invoke(void* object, std::array<void*, N>& args) const {
+        return invoke(object, std::span<void*>(args));
+    }
+
+    template<typename... Args>
+    requires (std::is_same_v<Args, void*> && ...)
+    ::reframework::InvokeRet invoke(void* object, Args... args) const {
+        std::array<void*, sizeof...(Args)> arg_array{args...};
+        return invoke(object, arg_array);
+    }
 
     uint32_t get_invoke_id() const;
     uint32_t get_num_params() const;

@@ -846,7 +846,7 @@ bool RETypeDefinition::has_attribute(::REManagedObject* attribute_runtime_type, 
         return false;
     }
 
-    const auto res = get_custom_attributes->invoke(runtime_type, std::vector<void*>{attribute_runtime_type, (void*)(uint64_t)inherit});
+    const auto res = get_custom_attributes->invoke(runtime_type, (void*)attribute_runtime_type, (void*)(uint64_t)inherit);
     const auto attributes_array = (sdk::SystemArray*)res.ptr;
 
     if (attributes_array == nullptr) {

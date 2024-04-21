@@ -3492,12 +3492,12 @@ void ObjectExplorer::attempt_display_field(REManagedObject* obj, VariableDescrip
             const auto should_pass_result_ptr = result_type != nullptr && result_type->is_value_type() && (result_type->get_valuetype_size() > sizeof(void*) || (!result_type->is_primitive() && !result_type->is_enum()));
 
             if (result_type == nullptr) {
-                setter->invoke(obj, {dummy_data.ptr});
+                setter->invoke(obj, dummy_data.ptr);
             } else {
                 if (should_pass_result_ptr) {
-                    setter->invoke(obj, {dummy_data.bytes.data()});
+                    setter->invoke(obj, (void*)dummy_data.bytes.data());
                 } else {
-                    setter->invoke(obj, {dummy_data.ptr});
+                    setter->invoke(obj, dummy_data.ptr);
                 }
             }
         }

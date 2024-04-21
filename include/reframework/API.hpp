@@ -4,6 +4,7 @@ extern "C" {
     #include "API.h"
 }
 
+#include <span>
 #include <mutex>
 #include <array>
 #include <vector>
@@ -515,6 +516,21 @@ public:
             reframework::InvokeRet out{};
 
             auto result = fn(*this, obj, (void**)&args[0], args.size() * sizeof(void*), &out, sizeof(out));
+
+#ifdef REFRAMEWORK_API_EXCEPTIONS
+            if (result != REFRAMEWORK_ERROR_NONE) {
+                throw std::runtime_error("Method invocation failed");
+            }
+#endif
+
+            return out;
+        }
+
+        reframework::InvokeRet invoke(API::ManagedObject* obj, const std::span<void*>& args) {
+            static const auto fn = API::s_instance->sdk()->method->invoke;
+            reframework::InvokeRet out{};
+
+            auto result = fn(*this, obj, args.data(), args.size() * sizeof(void*), &out, sizeof(out));
 
 #ifdef REFRAMEWORK_API_EXCEPTIONS
             if (result != REFRAMEWORK_ERROR_NONE) {

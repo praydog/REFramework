@@ -402,7 +402,8 @@ struct ValueType {
             return sol::make_object(l, sol::nil);
         }
 
-        auto ret_val = def->invoke(real_obj, ::api::sdk::build_args(va));
+        auto vec_args = ::api::sdk::build_args(va);
+        auto ret_val = def->invoke(real_obj, std::span(vec_args));
 
         if (ret_val.exception_thrown) {
             throw sol::error("Invoke threw an exception");
