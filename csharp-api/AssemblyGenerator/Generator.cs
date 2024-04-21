@@ -667,6 +667,10 @@ public class AssemblyGenerator {
             strippedAssemblyName = "_mscorlib";
         }
 
+        if (strippedAssemblyName == "System.Core") {
+            strippedAssemblyName = "_System.Core";
+        }
+
         REFrameworkNET.API.LogInfo("Generating assembly " + strippedAssemblyName);
 
         List<CompilationUnitSyntax> compilationUnits = [];
