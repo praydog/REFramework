@@ -351,13 +351,21 @@ public:
     /// <remarks>Usually used for enums.</remarks>
     TypeDefinition^ GetUnderlyingType()
     {
-        auto result = m_type->get_underlying_type();
+        if (m_underlyingType == nullptr) {
+            m_lock->EnterWriteLock();
 
-        if (result == nullptr) {
-            return nullptr;
+            try {
+                auto result = m_type->get_underlying_type();
+
+                if (result != nullptr) {
+                    m_underlyingType = TypeDefinition::GetInstance(result);
+                }
+            } finally {
+                m_lock->ExitWriteLock();
+            }
         }
 
-        return TypeDefinition::GetInstance(result);
+        return m_underlyingType;
     }
 
     property TypeDefinition^ UnderlyingType {
@@ -500,10 +508,12 @@ public:
 
 private:
     reframework::API::TypeDefinition* m_type;
-    System::Threading::ReaderWriterLockSlim^ m_lock{gcnew System::Threading::ReaderWriterLockSlim()};
+    System::Threading::ReaderWriterLockSlim^ m_lock{gcnew System::Threading::ReaderWriterLockSlim(System::Threading::LockRecursionPolicy::SupportsRecursion)};
 
     // Cached values
     ManagedObject^ m_runtimeType{nullptr};
+    TypeDefinition^ m_underlyingType{nullptr};
+    TypeDefinition^ m_elementType{nullptr};
     System::String^ m_cachedFullName{nullptr};
     size_t m_cachedFNV64Hash{0};
     

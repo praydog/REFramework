@@ -176,7 +176,7 @@ REFrameworkNET::InvokeRet Method::Invoke(System::Object^ obj, array<System::Obje
                     System::Console::WriteLine("TypeDefinition has no runtime type @ arg " + i);
                 }
             } else if (t == System::String::typeid) {
-                auto createdStr = VM::CreateString(safe_cast<System::String^>(args[i]));
+                auto createdStr = VM::CreateString(static_cast<System::String^>(args[i]));
 
                 if (createdStr != nullptr) {
                     args2[i] = createdStr->Ptr();
