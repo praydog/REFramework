@@ -313,6 +313,7 @@ if(REFRAMEWORK_REF_ASSEMBLIES_EXIST) # build-csharp-test
 		"test/Test/ObjectExplorer.cs"
 		"test/Test/Test.cs"
 		"test/Test/Test2.cs"
+		"test/Test/TestRE2.cs"
 		cmake.toml
 	)
 

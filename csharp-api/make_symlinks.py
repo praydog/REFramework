@@ -25,22 +25,17 @@ def symlink_main(gamedir=None, bindir="build/bin", just_copy=False):
         print(f"Error: Directory {bindir} does not exist")
         return
     
-    plugins_dir_files = [
-        "REFramework.NET.dll",
-        "REFramework.NET.runtimeconfig.json",
-        "REFramework.NET.xml",
-        "Ijwhost.dll",
+    source_dir_files = [
+        "Test/Test/Test.cs",
+        "Test/Test/TestRE2.cs",
+        "Test/Test/ObjectExplorer.cs",
     ]
 
-    if os.path.exists("Test/Test/Test.cs"):
-        print("Creating symlink for Test.cs")
-        src = "Test/Test/Test.cs"
-        # modify to full path
-        src = os.path.abspath(src)
-        dst = os.path.join(gamedir, "reframework", "plugins", "source", "Test.cs")
-
+    for file in source_dir_files:
+        src = os.path.abspath(file)
+        filename_only = os.path.basename(file)
+        dst = os.path.join(gamedir, "reframework", "plugins", "source", filename_only)
         os.makedirs(os.path.dirname(dst), exist_ok=True)
-
         try:
             os.remove(dst)
         except FileNotFoundError:
@@ -50,6 +45,13 @@ def symlink_main(gamedir=None, bindir="build/bin", just_copy=False):
             shutil.copy(src, dst)
         else:
             os.symlink(src, dst)
+
+    plugins_dir_files = [
+        "REFramework.NET.dll",
+        "REFramework.NET.runtimeconfig.json",
+        "REFramework.NET.xml",
+        "Ijwhost.dll",
+    ]
 
     for file in plugins_dir_files:
         src = os.path.join(bindir, file)
