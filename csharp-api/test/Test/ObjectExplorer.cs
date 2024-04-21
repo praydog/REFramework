@@ -430,6 +430,11 @@ class ObjectExplorer {
     public static void RenderManagedSingletons() {
         var singletons = REFrameworkNET.API.GetManagedSingletons();
 
+        // Sort singletons by type name
+        // Remove any singletons that are null first
+        singletons.RemoveAll((s) => s.Instance == null);
+        singletons.Sort((a, b) => a.Instance.GetTypeDefinition().GetFullName().CompareTo(b.Instance.GetTypeDefinition().GetFullName()));
+
         foreach (var singletonDesc in singletons) {
             var singleton = singletonDesc.Instance;
             if (singleton == null) {
