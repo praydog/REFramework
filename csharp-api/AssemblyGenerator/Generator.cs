@@ -663,13 +663,27 @@ public class AssemblyGenerator {
             strippedAssemblyName = "_System";
         }
 
+        if (strippedAssemblyName == "mscorlib") {
+            strippedAssemblyName = "_mscorlib";
+        }
+
         REFrameworkNET.API.LogInfo("Generating assembly " + strippedAssemblyName);
 
         List<CompilationUnitSyntax> compilationUnits = [];
         var tdb = REFrameworkNET.API.GetTDB();
 
-        // Is this parallelizable?
+        List<dynamic> typeList = [];
+
         foreach (dynamic reEngineT in assembly.GetTypes()) {
+            typeList.Add(reEngineT);
+        }
+
+        // Clean up all the local objects
+        // Mainly because some of the older games don't play well with a ton of objects on the thread local heap
+        REFrameworkNET.API.LocalFrameGC();
+
+        // Is this parallelizable?
+        foreach (dynamic reEngineT in typeList) {
             var th = reEngineT.get_TypeHandle();
 
             if (th == null) {
@@ -687,6 +701,10 @@ public class AssemblyGenerator {
             var typeName = t.GetFullName();
             var compilationUnit = MakeFromTypeEntry(tdb, typeName, t);
             compilationUnits.Add(compilationUnit);
+
+            // Clean up all the local objects
+            // Mainly because some of the older games don't play well with a ton of objects on the thread local heap
+            REFrameworkNET.API.LocalFrameGC();
         }
 
         List<SyntaxTree> syntaxTrees = new List<SyntaxTree>();
@@ -777,9 +795,25 @@ public class AssemblyGenerator {
         dynamic appdomain = appdomainT.get_CurrentDomain();
         dynamic assemblies = appdomain.GetAssemblies();
 
+        List<dynamic> assembliesList = [];
+
+        // Pre-emptively add all assemblies to the list
+        // because the assemblies list that was returned will be cleaned up by the call to LocalFrameGC
+        foreach (dynamic assembly in assemblies) {
+            if (assembly == null) {
+                continue;
+            }
+
+            if (!(assembly as ManagedObject).IsGlobalized()) {
+                (assembly as ManagedObject).Globalize();
+            }
+
+            assembliesList.Add(assembly);
+        }
+
         List<REFrameworkNET.Compiler.DynamicAssemblyBytecode> bytecodes = [];
 
-        foreach (dynamic assembly in assemblies) {
+        foreach (dynamic assembly in assembliesList) {
             var strippedAssemblyName = assembly.get_FullName().Split(',')[0];
             REFrameworkNET.API.LogInfo("Assembly: " + (assembly.get_Location()?.ToString() ?? "NONE"));
             REFrameworkNET.API.LogInfo("Assembly (stripped): " + strippedAssemblyName);
@@ -789,6 +823,10 @@ public class AssemblyGenerator {
             if (bytecode != null) {
                 bytecodes.Add(bytecode);
             }
+
+            // Clean up all the local objects
+            // Mainly because some of the older games don't play well with a ton of objects on the thread local heap
+            REFrameworkNET.API.LocalFrameGC();
         }
 
         return bytecodes;

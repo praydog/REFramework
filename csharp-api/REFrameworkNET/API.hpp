@@ -48,6 +48,10 @@ public:
     static REFrameworkNET::ManagedObject^ GetManagedSingleton(System::String^ name);
     static NativeObject^ GetNativeSingleton(System::String^ name);
 
+    static void LocalFrameGC() {
+        s_api->get_vm_context()->local_frame_gc();
+    }
+
     generic <typename T> where T : ref class
     static T GetNativeSingletonT() {
         auto fullName = T::typeid->FullName;

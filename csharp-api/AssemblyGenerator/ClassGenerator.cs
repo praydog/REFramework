@@ -13,6 +13,7 @@ using System.Linq;
 using Microsoft.CodeAnalysis.Operations;
 using REFrameworkNET;
 using System;
+using System.ComponentModel.DataAnnotations;
 
 /*public interface CrappyTest {
     public string Concat(object arg0);
@@ -74,6 +75,15 @@ public class ClassGenerator {
                 break;
             }
             
+            if (method.Name == null) {
+                continue;
+            }
+
+            if (method.ReturnType == null || method.ReturnType.FullName == null) {
+                REFrameworkNET.API.LogError("Method " + method.Name + " has a null return type");
+                continue;
+            }
+
             methods.Add(method);
         }
 
@@ -282,171 +292,9 @@ public class ClassGenerator {
 
         var refProxyFieldDecl = SyntaxFactory.FieldDeclaration(refProxyVarDecl).AddModifiers(SyntaxFactory.Token(SyntaxKind.PrivateKeyword), SyntaxFactory.Token(SyntaxKind.StaticKeyword), SyntaxFactory.Token(SyntaxKind.ReadOnlyKeyword));
 
+        typeDeclaration = GenerateMethods(baseTypes);
+
         List<FieldDeclarationSyntax> internalFieldDeclarations = [];
-        HashSet<string> seenMethodSignatures = [];
-
-        typeDeclaration = typeDeclaration
-            .AddMembers(methods.Where(method => !invalidMethodNames.Contains(method.Name) && !method.Name.Contains('<') && !method.ReturnType.FullName.Contains('!')).Select(method => {
-                TypeSyntax? returnType = MakeProperType(method.ReturnType, t);
-
-                //string simpleMethodSignature = returnType.GetText().ToString();
-                string simpleMethodSignature = ""; // Return types are not part of the signature. Return types are not overloaded.
-
-                var methodName = new string(method.Name);
-                var methodExtension = Il2CppDump.GetMethodExtension(method);
-
-                var methodDeclaration = SyntaxFactory.MethodDeclaration(returnType, methodName ?? "UnknownMethod")
-                    .AddModifiers(new SyntaxToken[]{SyntaxFactory.Token(SyntaxKind.PublicKeyword)})
-                    /*.AddBodyStatements(SyntaxFactory.ParseStatement("throw new System.NotImplementedException();"))*/;
-
-                simpleMethodSignature += methodName;
-
-                // Add full method name as a MethodName attribute to the method
-                methodDeclaration = methodDeclaration.AddAttributeLists(
-                    SyntaxFactory.AttributeList().AddAttributes(SyntaxFactory.Attribute(
-                        SyntaxFactory.ParseName("global::REFrameworkNET.Attributes.Method"),
-                        SyntaxFactory.ParseAttributeArgumentList("(" + method.GetIndex().ToString() + ")")))
-                    );
-
-                if (method.Parameters.Count > 0) {
-                    // If any of the params have ! in them, skip this method
-                    if (method.Parameters.Any(param => param.Type.FullName.Contains('!'))) {
-                        return null;
-                    }
-
-                    var runtimeMethod = method.GetRuntimeMethod();
-                    var runtimeParams = runtimeMethod.Call("GetParameters") as REFrameworkNET.ManagedObject;
-
-                    System.Collections.Generic.List<ParameterSyntax> parameters = [];
-
-                    bool anyUnsafeParams = false;
-
-                    if (runtimeParams != null) {
-                        foreach (dynamic param in runtimeParams) {
-                            if (param.get_IsRetval() == true) {
-                                continue;
-                            }
-
-                            var paramName = param.get_Name();
-
-                            if (paramName == null) {
-                                paramName = "UnknownParam";
-                            }
-
-                            var paramType = param.get_ParameterType();
-
-                            if (paramType == null) {
-                                parameters.Add(SyntaxFactory.Parameter(SyntaxFactory.Identifier(paramName)).WithType(SyntaxFactory.ParseTypeName("object")));
-                                continue;
-                            }
-
-                            /*if (param.get_IsGenericParameter() == true) {
-                                return null; // no generic parameters.
-                            }*/
-
-                            var isByRef = paramType.IsByRefImpl();
-                            var isPointer = paramType.IsPointerImpl();
-                            var isOut = param.get_IsOut();
-                            var paramTypeDef = (REFrameworkNET.TypeDefinition)paramType.get_TypeHandle();
-
-                            var paramTypeSyntax = MakeProperType(paramTypeDef, t);
-                            
-                            System.Collections.Generic.List<SyntaxToken> modifiers = [];
-
-                            if (isOut == true) {
-                                simpleMethodSignature += "out";
-                                modifiers.Add(SyntaxFactory.Token(SyntaxKind.OutKeyword));
-                            }
-
-                            if (isByRef == true) {
-                                // can only be either ref or out.
-                                if (!isOut) {
-                                    simpleMethodSignature += "ref " + paramTypeSyntax.GetText().ToString();
-                                    modifiers.Add(SyntaxFactory.Token(SyntaxKind.RefKeyword));
-                                }
-
-                                parameters.Add(SyntaxFactory.Parameter(SyntaxFactory.Identifier(paramName)).WithType(SyntaxFactory.ParseTypeName(paramTypeSyntax.ToString())).AddModifiers(modifiers.ToArray()));
-                            } else if (isPointer == true) {
-                                simpleMethodSignature += "ptr " + paramTypeSyntax.GetText().ToString();
-                                parameters.Add(SyntaxFactory.Parameter(SyntaxFactory.Identifier(paramName)).WithType(SyntaxFactory.ParseTypeName(paramTypeSyntax.ToString() + "*")).AddModifiers(modifiers.ToArray()));
-                                anyUnsafeParams = true;
-                            } else {
-                                simpleMethodSignature += paramTypeSyntax.GetText().ToString();
-                                parameters.Add(SyntaxFactory.Parameter(SyntaxFactory.Identifier(paramName)).WithType(paramTypeSyntax).AddModifiers(modifiers.ToArray()));
-                            }
-                        }
-
-                        methodDeclaration = methodDeclaration.AddParameterListParameters([.. parameters]);
-
-                        if (anyUnsafeParams) {
-                            methodDeclaration = methodDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.UnsafeKeyword));
-                        }
-                    }
-                } else {
-                    simpleMethodSignature += "()";
-                }
-
-                if (method.IsStatic()) {
-                    // Add System.ComponentModel.Description("static") attribute
-                    //methodDeclaration = methodDeclaration.AddAttributeLists(SyntaxFactory.AttributeList().AddAttributes(SyntaxFactory.Attribute(SyntaxFactory.ParseName("global::System.ComponentModel.DescriptionAttribute"), SyntaxFactory.ParseAttributeArgumentList("(\"static\")"))));
-
-                    // lets see what happens if we just make it static
-                    /*methodDeclaration = methodDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.StaticKeyword));
-
-                    // Now we must add a body to it that actually calls the method
-                    // We have our REFType field, so we can lookup the method and call it
-                    // Make a private static field to hold the REFrameworkNET.Method
-                    var internalFieldName = "INTERNAL_" + method.GetIndex().ToString();
-                    var methodVariableDeclaration = SyntaxFactory.VariableDeclaration(SyntaxFactory.ParseTypeName("global::REFrameworkNET.Method"))
-                        .AddVariables(SyntaxFactory.VariableDeclarator(internalFieldName).WithInitializer(SyntaxFactory.EqualsValueClause(SyntaxFactory.ParseExpression("REFType.GetMethod(\"" + method.Name + "\")"))));
-                    
-                    var methodFieldDeclaration = SyntaxFactory.FieldDeclaration(methodVariableDeclaration).AddModifiers(SyntaxFactory.Token(SyntaxKind.PrivateKeyword), SyntaxFactory.Token(SyntaxKind.StaticKeyword), SyntaxFactory.Token(SyntaxKind.ReadOnlyKeyword));
-                    internalFieldDeclarations.Add(methodFieldDeclaration);
-
-                    // Now we can add the body
-                    // bool HandleInvokeMember_Internal(System::Object^ obj, array<System::Object^>^ args, System::Object^% result);
-                    if (method.ReturnType.FullName == "System.Void") {
-                        var body = internalFieldName + ".Invoke(null, null)";
-                        methodDeclaration = methodDeclaration.AddBodyStatements(SyntaxFactory.ParseStatement(body));
-                    } else {
-                        var body1 = "object INTERNAL_result = null;";
-                        var body2 = internalFieldName + ".HandleInvokeMember_Internal(null, " + (method.Parameters.Count > 0 ? "new object[] {" + string.Join(", ", method.Parameters.Select(param => param.Name)) + "}" : "null") + ", ref INTERNAL_result);";
-                        string body3 = "return (" + returnType.GetText() + ")INTERNAL_result;";
-
-                        methodDeclaration = methodDeclaration.AddBodyStatements(
-                            [SyntaxFactory.ParseStatement(body1), SyntaxFactory.ParseStatement(body2), SyntaxFactory.ParseStatement(body3)]
-                        );
-                    }*/
-                }
-
-                if (seenMethodSignatures.Contains(simpleMethodSignature)) {
-                    Console.WriteLine("Skipping duplicate method: " + methodDeclaration.GetText().ToString());
-                    return null;
-                }
-
-                seenMethodSignatures.Add(simpleMethodSignature);
-
-                // Add the rest of the modifiers here that would mangle the signature check
-                if (baseTypes.Count > 0 && methodExtension != null && methodExtension.Override != null && methodExtension.Override == true) {
-                    var matchingParentMethods = methodExtension.MatchingParentMethods;
-
-                    // Go through the parents, check if the parents are allowed to be generated
-                    // and add the new keyword if the matching method is found in one allowed to be generated
-                    // TODO: We can get rid of this once we start properly generating generic classes.
-                    // Since we just ignore any class that has '<' in it.
-                    foreach (var matchingMethod in matchingParentMethods) {
-                        var parent = matchingMethod.DeclaringType;
-                        if (!REFrameworkNET.AssemblyGenerator.validTypes.Contains(parent.FullName)) {
-                            continue;
-                        }
-
-                        methodDeclaration = methodDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.NewKeyword));
-                        break;
-                    }
-                }
-
-                return methodDeclaration;
-            }).Where(method => method != null).Select(method => method!).ToArray());
 
         if (internalFieldDeclarations.Count > 0) {
             typeDeclaration = typeDeclaration.AddMembers(internalFieldDeclarations.ToArray());
@@ -465,6 +313,220 @@ public class ClassGenerator {
         }
 
         return GenerateNestedTypes();
+    }
+
+    private TypeDeclarationSyntax GenerateMethods(List<SimpleBaseTypeSyntax> baseTypes) {
+        if (typeDeclaration == null) {
+            throw new Exception("Type declaration is null"); // This should never happen
+        }
+
+        if (methods.Count == 0) {
+            return typeDeclaration!;
+        }
+
+        HashSet<string> seenMethodSignatures = [];
+
+        var validMethods = new List<REFrameworkNET.Method>();
+
+        try {
+            foreach(REFrameworkNET.Method m in methods) {
+                if (m == null) {
+                    continue;
+                }
+
+                if (invalidMethodNames.Contains(m.Name)) {
+                    continue;
+                }
+
+                if (m.Name.Contains('<')) {
+                    continue;
+                }
+
+                if (m.ReturnType.FullName.Contains('!')) {
+                    continue;
+                }
+
+                validMethods.Add(m);
+            }
+        } catch (Exception e) {
+            Console.WriteLine("ASDF Error: " + e.Message);
+        }
+
+        var matchingMethods = validMethods
+            .Select(method => 
+        {
+            var returnType = MakeProperType(method.ReturnType, t);
+
+            //string simpleMethodSignature = returnType.GetText().ToString();
+            string simpleMethodSignature = ""; // Return types are not part of the signature. Return types are not overloaded.
+
+            var methodName = new string(method.Name);
+            var methodExtension = Il2CppDump.GetMethodExtension(method);
+
+            var methodDeclaration = SyntaxFactory.MethodDeclaration(returnType, methodName ?? "UnknownMethod")
+                .AddModifiers(new SyntaxToken[]{SyntaxFactory.Token(SyntaxKind.PublicKeyword)})
+                /*.AddBodyStatements(SyntaxFactory.ParseStatement("throw new System.NotImplementedException();"))*/;
+
+            simpleMethodSignature += methodName;
+
+            // Add full method name as a MethodName attribute to the method
+            methodDeclaration = methodDeclaration.AddAttributeLists(
+                SyntaxFactory.AttributeList().AddAttributes(SyntaxFactory.Attribute(
+                    SyntaxFactory.ParseName("global::REFrameworkNET.Attributes.Method"),
+                    SyntaxFactory.ParseAttributeArgumentList("(" + method.GetIndex().ToString() + ")")))
+                );
+
+            if (method.Parameters.Count > 0) {
+                // If any of the params have ! in them, skip this method
+                if (method.Parameters.Any(param => param != null && (param.Type == null || (param.Type != null && param.Type.FullName.Contains('!'))))) {
+                    return null;
+                }
+
+                var runtimeMethod = method.GetRuntimeMethod();
+                
+                if (runtimeMethod == null) {
+                    REFrameworkNET.API.LogWarning("Method " + method.DeclaringType.FullName + "." + method.Name + " has a null runtime method");
+                    return null;
+                }
+
+                var runtimeParams = runtimeMethod.Call("GetParameters") as REFrameworkNET.ManagedObject;
+
+                System.Collections.Generic.List<ParameterSyntax> parameters = [];
+
+                bool anyUnsafeParams = false;
+
+                if (runtimeParams != null) {
+                    foreach (dynamic param in runtimeParams) {
+                        if (param.get_IsRetval() == true) {
+                            continue;
+                        }
+
+                        var paramName = param.get_Name();
+
+                        if (paramName == null) {
+                            paramName = "UnknownParam";
+                        }
+
+                        var paramType = param.get_ParameterType();
+
+                        if (paramType == null) {
+                            parameters.Add(SyntaxFactory.Parameter(SyntaxFactory.Identifier(paramName)).WithType(SyntaxFactory.ParseTypeName("object")));
+                            continue;
+                        }
+
+                        /*if (param.get_IsGenericParameter() == true) {
+                            return null; // no generic parameters.
+                        }*/
+
+                        var isByRef = paramType.IsByRefImpl();
+                        var isPointer = paramType.IsPointerImpl();
+                        var isOut = param.get_IsOut();
+                        var paramTypeDef = (REFrameworkNET.TypeDefinition)paramType.get_TypeHandle();
+
+                        var paramTypeSyntax = MakeProperType(paramTypeDef, t);
+                        
+                        System.Collections.Generic.List<SyntaxToken> modifiers = [];
+
+                        if (isOut == true) {
+                            simpleMethodSignature += "out";
+                            modifiers.Add(SyntaxFactory.Token(SyntaxKind.OutKeyword));
+                        }
+
+                        if (isByRef == true) {
+                            // can only be either ref or out.
+                            if (!isOut) {
+                                simpleMethodSignature += "ref " + paramTypeSyntax.GetText().ToString();
+                                modifiers.Add(SyntaxFactory.Token(SyntaxKind.RefKeyword));
+                            }
+
+                            parameters.Add(SyntaxFactory.Parameter(SyntaxFactory.Identifier(paramName)).WithType(SyntaxFactory.ParseTypeName(paramTypeSyntax.ToString())).AddModifiers(modifiers.ToArray()));
+                        } else if (isPointer == true) {
+                            simpleMethodSignature += "ptr " + paramTypeSyntax.GetText().ToString();
+                            parameters.Add(SyntaxFactory.Parameter(SyntaxFactory.Identifier(paramName)).WithType(SyntaxFactory.ParseTypeName(paramTypeSyntax.ToString() + "*")).AddModifiers(modifiers.ToArray()));
+                            anyUnsafeParams = true;
+                        } else {
+                            simpleMethodSignature += paramTypeSyntax.GetText().ToString();
+                            parameters.Add(SyntaxFactory.Parameter(SyntaxFactory.Identifier(paramName)).WithType(paramTypeSyntax).AddModifiers(modifiers.ToArray()));
+                        }
+                    }
+
+                    methodDeclaration = methodDeclaration.AddParameterListParameters([.. parameters]);
+
+                    if (anyUnsafeParams) {
+                        methodDeclaration = methodDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.UnsafeKeyword));
+                    }
+                }
+            } else {
+                simpleMethodSignature += "()";
+            }
+
+            if (method.IsStatic()) {
+                // Add System.ComponentModel.Description("static") attribute
+                //methodDeclaration = methodDeclaration.AddAttributeLists(SyntaxFactory.AttributeList().AddAttributes(SyntaxFactory.Attribute(SyntaxFactory.ParseName("global::System.ComponentModel.DescriptionAttribute"), SyntaxFactory.ParseAttributeArgumentList("(\"static\")"))));
+
+                // lets see what happens if we just make it static
+                /*methodDeclaration = methodDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.StaticKeyword));
+
+                // Now we must add a body to it that actually calls the method
+                // We have our REFType field, so we can lookup the method and call it
+                // Make a private static field to hold the REFrameworkNET.Method
+                var internalFieldName = "INTERNAL_" + method.GetIndex().ToString();
+                var methodVariableDeclaration = SyntaxFactory.VariableDeclaration(SyntaxFactory.ParseTypeName("global::REFrameworkNET.Method"))
+                    .AddVariables(SyntaxFactory.VariableDeclarator(internalFieldName).WithInitializer(SyntaxFactory.EqualsValueClause(SyntaxFactory.ParseExpression("REFType.GetMethod(\"" + method.Name + "\")"))));
+                
+                var methodFieldDeclaration = SyntaxFactory.FieldDeclaration(methodVariableDeclaration).AddModifiers(SyntaxFactory.Token(SyntaxKind.PrivateKeyword), SyntaxFactory.Token(SyntaxKind.StaticKeyword), SyntaxFactory.Token(SyntaxKind.ReadOnlyKeyword));
+                internalFieldDeclarations.Add(methodFieldDeclaration);
+
+                // Now we can add the body
+                // bool HandleInvokeMember_Internal(System::Object^ obj, array<System::Object^>^ args, System::Object^% result);
+                if (method.ReturnType.FullName == "System.Void") {
+                    var body = internalFieldName + ".Invoke(null, null)";
+                    methodDeclaration = methodDeclaration.AddBodyStatements(SyntaxFactory.ParseStatement(body));
+                } else {
+                    var body1 = "object INTERNAL_result = null;";
+                    var body2 = internalFieldName + ".HandleInvokeMember_Internal(null, " + (method.Parameters.Count > 0 ? "new object[] {" + string.Join(", ", method.Parameters.Select(param => param.Name)) + "}" : "null") + ", ref INTERNAL_result);";
+                    string body3 = "return (" + returnType.GetText() + ")INTERNAL_result;";
+
+                    methodDeclaration = methodDeclaration.AddBodyStatements(
+                        [SyntaxFactory.ParseStatement(body1), SyntaxFactory.ParseStatement(body2), SyntaxFactory.ParseStatement(body3)]
+                    );
+                }*/
+            }
+
+            if (seenMethodSignatures.Contains(simpleMethodSignature)) {
+                Console.WriteLine("Skipping duplicate method: " + methodDeclaration.GetText().ToString());
+                return null;
+            }
+
+            seenMethodSignatures.Add(simpleMethodSignature);
+
+            // Add the rest of the modifiers here that would mangle the signature check
+            if (baseTypes.Count > 0 && methodExtension != null && methodExtension.Override != null && methodExtension.Override == true) {
+                var matchingParentMethods = methodExtension.MatchingParentMethods;
+
+                // Go through the parents, check if the parents are allowed to be generated
+                // and add the new keyword if the matching method is found in one allowed to be generated
+                // TODO: We can get rid of this once we start properly generating generic classes.
+                // Since we just ignore any class that has '<' in it.
+                foreach (var matchingMethod in matchingParentMethods) {
+                    var parent = matchingMethod.DeclaringType;
+                    if (!REFrameworkNET.AssemblyGenerator.validTypes.Contains(parent.FullName)) {
+                        continue;
+                    }
+
+                    methodDeclaration = methodDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.NewKeyword));
+                    break;
+                }
+            }
+
+            return methodDeclaration;
+        }).Where(method => method != null).Select(method => method!);
+
+        if (matchingMethods == null) {
+            return typeDeclaration;
+        }
+        
+        return typeDeclaration.AddMembers(matchingMethods.ToArray());
     }
 
     private TypeDeclarationSyntax? GenerateNestedTypes() {
