@@ -140,11 +140,10 @@ REFrameworkNET::InvokeRet Method::Invoke(System::Object^ obj, array<System::Obje
         throw gcnew System::InvalidOperationException(errorStr);
     }
 
-    std::vector<void*> args2{};
+    //std::vector<void*> args2{};
+    std::array<void*, 32> args2{}; // what function has more than 32 arguments?
 
     if (args != nullptr && args->Length > 0) {
-        args2.resize(args->Length);
-
         for (int i = 0; i < args->Length; ++i) try {
             if (args[i] == nullptr) {
                 args2[i] = nullptr;
@@ -250,7 +249,9 @@ REFrameworkNET::InvokeRet Method::Invoke(System::Object^ obj, array<System::Obje
         System::Console::WriteLine("Error converting object: " + e->Message);
     }
 
-    return m_method->invoke((reframework::API::ManagedObject*)obj_ptr, args2);
+    const auto argcount = args != nullptr ? args->Length : 0;
+
+    return m_method->invoke((::reframework::API::ManagedObject*)obj_ptr, std::span<void*>(args2.data(), argcount));
 }
 
 bool Method::HandleInvokeMember_Internal(System::Object^ obj, array<System::Object^>^ args, System::Object^% result) {
