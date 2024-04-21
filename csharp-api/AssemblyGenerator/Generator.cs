@@ -797,19 +797,20 @@ public class AssemblyGenerator {
 
         dynamic appdomainT = tdb.GetType("System.AppDomain");
         dynamic appdomain = appdomainT.get_CurrentDomain();
-        dynamic assemblies = appdomain.GetAssemblies();
+        var assemblies = (appdomain.GetAssemblies() as ManagedObject)!;
 
         List<dynamic> assembliesList = [];
 
         // Pre-emptively add all assemblies to the list
         // because the assemblies list that was returned will be cleaned up by the call to LocalFrameGC
-        foreach (dynamic assembly in assemblies) {
+        foreach (ManagedObject assembly in assemblies) {
             if (assembly == null) {
                 continue;
             }
 
-            if (!(assembly as ManagedObject).IsGlobalized()) {
-                (assembly as ManagedObject).Globalize();
+            // The object will get destroyed by the LocalFrameGC call if we don't do this
+            if (!assembly.IsGlobalized()) {
+                assembly.Globalize();
             }
 
             assembliesList.Add(assembly);

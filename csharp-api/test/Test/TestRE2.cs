@@ -7,13 +7,12 @@ using ImGuiNET;
 using REFrameworkNET;
 using REFrameworkNET.Callbacks;
 
-public class TestRE2 {
+public class TestRE2Plugin {
+    static bool IsRunningRE2 => Environment.ProcessPath.Contains("re2", StringComparison.CurrentCultureIgnoreCase);
+
     [REFrameworkNET.Attributes.PluginEntryPoint]
     public static void Main() {
-        // Get executable name
-        string executableName = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
-
-        if (executableName.ToLower().Contains("re2")) {
+        if (IsRunningRE2) {
             Console.WriteLine("Running in RE2");
         } else {
             Console.WriteLine("Not running in RE2");
@@ -25,6 +24,24 @@ public class TestRE2 {
                 ImGui.Text("Hello, world!");
                 ImGui.End();
             }
+            
+            if (ImGui.Begin("Test Window")) {
+                ImGui.Text("RE2");
+                ImGui.Separator();
+
+                if (ImGui.TreeNode("Player")) {
+                    var playerManager = API.GetManagedSingletonT<app.ropeway.PlayerManager>();
+                    var player = playerManager.get_CurrentPlayer();
+                    if (player != null) {
+                        ImGui.Text("Player is not null");
+                    } else {
+                        ImGui.Text("Player is null");
+                    }
+                    ImGui.TreePop();
+                }
+
+                ImGui.End();
+            }
         };
     }
 
@@ -32,3 +49,4 @@ public class TestRE2 {
     public static void Unload() {
     }
 }
+
