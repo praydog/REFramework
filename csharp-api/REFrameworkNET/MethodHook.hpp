@@ -20,16 +20,28 @@ public:
     // Public factory method to create a new hook
     static MethodHook^ Create(Method^ method, bool ignore_jmp) 
     {
-        if (s_hooked_methods->ContainsKey(method)) {
-            MethodHook^ out = nullptr;
-            s_hooked_methods->TryGetValue(method, out);
+        MethodHook^ wrapper;
+        {
+            s_hooked_methods_lock->EnterReadLock();
 
-            return out;
+            try {
+                if (s_hooked_methods->TryGetValue(method, wrapper)) {
+                    return wrapper;
+                }
+            } finally {
+                s_hooked_methods_lock->ExitReadLock();
+            }
         }
 
-        auto wrapper = gcnew MethodHook(method, ignore_jmp);
-        s_hooked_methods->Add(method, wrapper);
-        return wrapper;
+        s_hooked_methods_lock->EnterWriteLock();
+
+        try {
+            wrapper = gcnew MethodHook(method, ignore_jmp);
+            s_hooked_methods->Add(method, wrapper);
+            return wrapper;
+        } finally {
+            s_hooked_methods_lock->ExitWriteLock();
+        }
     }
 
     MethodHook^ AddPre(PreHookDelegate^ callback) 
@@ -45,12 +57,17 @@ public:
     }
 
     static System::Collections::Generic::List<MethodHook^>^ GetAllHooks() {
-        auto out = gcnew System::Collections::Generic::List<MethodHook^>();
-        for each (auto kvp in s_hooked_methods) {
-            out->Add(kvp.Value);
-        }
+        s_hooked_methods_lock->EnterReadLock();
+        try {
+            auto out = gcnew System::Collections::Generic::List<MethodHook^>();
+            for each (auto kvp in s_hooked_methods) {
+                out->Add(kvp.Value);
+            }
 
-        return out;
+            return out;   
+        } finally {
+            s_hooked_methods_lock->ExitReadLock();
+        }
     }
 
 internal:
@@ -128,6 +145,7 @@ internal:
     }
 
     static System::Collections::Generic::Dictionary<Method^, MethodHook^>^ s_hooked_methods = gcnew System::Collections::Generic::Dictionary<Method^, MethodHook^>();
+    static System::Threading::ReaderWriterLockSlim^ s_hooked_methods_lock = gcnew System::Threading::ReaderWriterLockSlim();
 
     delegate int32_t REFPreHookDelegateRaw(int argc, void** argv, REFrameworkTypeDefinitionHandle* arg_tys, unsigned long long ret_addr);
     delegate void REFPostHookDelegateRaw(void** ret_val, REFrameworkTypeDefinitionHandle ret_ty, unsigned long long ret_addr);
