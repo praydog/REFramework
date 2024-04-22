@@ -336,23 +336,28 @@ public: // IObject
     generic <typename T>
     virtual T As() override;
 
-    // TODO methods:
-    /*public Void* GetReflectionProperties() {
-        return _original.get_reflection_properties();
-    }*/
+    virtual IProxy^ GetProxy(System::Type^ type) override {
+        if (!IsGlobalized()) {
+            return nullptr;
+        }
 
-    /*public ReflectionProperty GetReflectionPropertyDescriptor(basic_string_view<char\, std::char_traits<char>> name) {
-        return _original.get_reflection_property_descriptor(name);
+        return UnifiedObject::GetProxy(type);
     }
 
-    public ReflectionMethod GetReflectionMethodDescriptor(basic_string_view<char\, std::char_traits<char>> name) {
-        return _original.get_reflection_method_descriptor(name);
-    }*/
+internal:
+    virtual void AddProxy(System::Type^ type, IProxy^ proxy) override {
+        if (!IsGlobalized()) {
+            return;
+        }
+
+        UnifiedObject::AddProxy(type, proxy);
+    }
 
 internal:
     static bool ShuttingDown = false;
 
     void Deinitialize() {
+        m_object = nullptr;
         m_initialized = false;
     }
 

@@ -19,13 +19,15 @@ namespace REFrameworkNET {
     void ManagedObject::CleanupKnownCaches() {
         Cache<ManagedObject>::CleanupAll();
         Cache<SystemString>::CleanupAll();
+        UnifiedObject::ProxyPool::Clear();
     }
 
     void ManagedObject::Internal_Finalize() {
-        if (m_object == nullptr) {
+        if (m_object == nullptr || !m_initialized) {
             return;
         }
 
+        UnifiedObject::ProxyPool::Remove(this);
         ReleaseIfGlobalized();
 
         // Only if we are not marked as weak are we allowed to release the object, even if the object is globalized
@@ -106,6 +108,18 @@ namespace REFrameworkNET {
 
     generic <typename T>
     T ManagedObject::As() {
-        return ManagedProxy<T>::Create(this);
+        // Don't bother caching if we are not globalized (ephemeral/local objects)
+        if (!IsGlobalized()) {
+            return ManagedProxy<T>::Create(this);
+        }
+
+        if (auto existingProxy = this->GetProxy(T::typeid)) {
+            return (T)existingProxy;
+        }
+
+        auto result = ManagedProxy<T>::Create(this);
+
+        this->AddProxy(T::typeid, (IProxy^)result);
+        return result;
     }
 }

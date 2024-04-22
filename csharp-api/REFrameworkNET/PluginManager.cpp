@@ -692,6 +692,7 @@ namespace REFrameworkNET {
                 NativePool<TypeDefinition>::DisplayStats();
                 NativePool<Method>::DisplayStats();
                 NativePool<Field>::DisplayStats();
+                UnifiedObject::ProxyPool::DisplayStats();
 
                 ImGuiNET::ImGui::TreePop();
             }

@@ -74,6 +74,10 @@ public:
         return Instance->As<T>();
     }
 
+    virtual IProxy^ GetProxy(System::Type^ type) {
+        return Instance->GetProxy(type);
+    }
+
     static T Create(IObject^ target) {
         auto proxy = Reflection::DispatchProxy::Create<T, Proxy<T, T2>^>();
         ((IProxy^)proxy)->SetInstance(target);
@@ -128,6 +132,15 @@ public:
 
     static bool operator !=(Proxy<T, T2>^ left, Proxy<T, T2>^ right) {
         return !left->Equals(right);
+    }
+
+internal:
+    ~Proxy() {
+        this->!Proxy();
+    }
+
+    !Proxy() {
+
     }
 
 protected:
@@ -203,8 +216,18 @@ protected:
             auto iobjectResult = dynamic_cast<REFrameworkNET::IObject^>(result);
 
             if (iobjectResult != nullptr && targetReturnType->IsInterface) {
+                // Caching mechanism to prevent creating multiple proxies for the same object and type so we dont stress the GC
+                if (auto existingProxy = iobjectResult->GetProxy(targetReturnType); existingProxy != nullptr) {
+                    return existingProxy;
+                }
+
                 auto proxy = DispatchProxy::Create(targetReturnType, Proxy<T, T2>::typeid->GetGenericTypeDefinition()->MakeGenericType(T::typeid, result->GetType()));
                 ((IProxy^)proxy)->SetInstance(iobjectResult);
+
+                if (auto unified = dynamic_cast<REFrameworkNET::UnifiedObject^>(iobjectResult); unified != nullptr) {
+                    unified->AddProxy(targetReturnType, (IProxy^)proxy);
+                }
+
                 result = proxy;
                 return result;
             }
