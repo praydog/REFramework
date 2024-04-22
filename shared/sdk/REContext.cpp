@@ -18,7 +18,7 @@ namespace sdk {
     VM** VM::s_global_context{ nullptr };
     sdk::InvokeMethod* VM::s_invoke_tbl{nullptr};
     VM::ThreadContextFn VM::s_get_thread_context{ nullptr };
-    bool s_fully_updated_pointers{false};
+    bool VM::s_fully_updated_pointers{false};
     int32_t VM::s_static_tbl_offset{ 0 };
     int32_t VM::s_type_db_offset{ 0 };
 
