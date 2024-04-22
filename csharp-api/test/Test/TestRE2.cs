@@ -11,6 +11,7 @@ using REFrameworkNET.Callbacks;
 
 public class TestRE2Plugin {
     static bool IsRunningRE2 => Environment.ProcessPath.Contains("re2", StringComparison.CurrentCultureIgnoreCase);
+    static System.Diagnostics.Stopwatch imguiStopwatch = new();
 
     [REFrameworkNET.Attributes.PluginEntryPoint]
     public static void Main() {
@@ -24,9 +25,37 @@ public class TestRE2Plugin {
         RE2HookBenchmark.InstallHook();
 
         ImGuiRender.Pre += () => {
+            var deltaSeconds = imguiStopwatch.Elapsed.TotalMilliseconds / 1000.0;
+            imguiStopwatch.Restart();
+
             if (ImGui.Begin("Test Window")) {
                 ImGui.Text("RE2");
                 ImGui.Separator();
+
+                
+                if (ImGui.TreeNode("Player")) {
+                    var playerManager = API.GetManagedSingletonT<app.ropeway.PlayerManager>();
+                    var player = playerManager.get_CurrentPlayer();
+                    if (player != null) {
+                        ImGui.Text("Player is not null");
+                    } else {
+                        ImGui.Text("Player is null");
+                    }
+                    ImGui.TreePop();
+                }
+
+                ImGui.End();
+            }
+            
+            // ROund the window
+            ImGui.PushStyleVar(ImGuiStyleVar.WindowRounding, 10.0f);
+
+            ImGui.SetNextWindowSize(new System.Numerics.Vector2(500, 500), ImGuiCond.FirstUseEver);
+            if (ImGui.Begin("RE2 Bench")) {
+
+                ImGui.PushStyleColor(ImGuiCol.Text, new System.Numerics.Vector4(0.5f, 1f, 0.4f, 1.0f));
+                ImGui.PlotLines("Overall Benchmark", ref RE2HookBenchmark.BenchmarkData[0], 1000, RE2HookBenchmark.MeasureCount % 1000, RE2HookBenchmark.RunningAvg.ToString("0.000") + " µs", 0, (float)RE2HookBenchmark.RunningAvg * 2.0f, new System.Numerics.Vector2(0, 40));
+                ImGui.PopStyleColor();
 
                 System.Collections.Generic.List<long> threadRanks = new();
 
@@ -43,34 +72,36 @@ public class TestRE2Plugin {
 
                 var totalThreadRanks = threadRanks.Count;
 
-                foreach(var tdata in RE2HookBenchmark.threadData) {
-                    var rank = threadRanks.IndexOf(tdata.Value.threadID) + 1;
-                    var greenColor = 1.0f - (float)rank / (float)totalThreadRanks;
-                    var redColor = (float)rank / (float)totalThreadRanks;
+                System.Collections.Generic.List<RE2HookBenchmark.ThreadData> threadData = new();
 
-                    //ImGui.Text("Thread ID: " + tdata.Value.threadID + " Avg: " + tdata.Value.runningAvg.ToString("0.000") + " µs");
-                    ImGui.PushStyleColor(ImGuiCol.Text, new System.Numerics.Vector4(redColor, greenColor, 0f, 1.0f));
-                    ImGui.PlotLines("Thread " + tdata.Value.threadID, ref tdata.Value.benchmarkData[0], 1000, tdata.Value.callCount % 1000, tdata.Value.runningAvg.ToString("0.000") + " µs", 0, (float)tdata.Value.runningAvg * 2.0f, new System.Numerics.Vector2(0, 30));
-                    ImGui.PopStyleColor();
+                foreach(var tdata in RE2HookBenchmark.threadData) {
+                    threadData.Add(tdata.Value);
                 }
 
-                ImGui.PushStyleColor(ImGuiCol.Text, new System.Numerics.Vector4(0.5f, 1f, 0.4f, 1.0f));
-                ImGui.PlotLines("Overall Benchmark", ref RE2HookBenchmark.BenchmarkData[0], 1000, RE2HookBenchmark.MeasureCount % 1000, RE2HookBenchmark.RunningAvg.ToString("0.000") + " µs", 0, (float)RE2HookBenchmark.RunningAvg * 2.0f, new System.Numerics.Vector2(0, 40));
-                ImGui.PopStyleColor();
-                
-                if (ImGui.TreeNode("Player")) {
-                    var playerManager = API.GetManagedSingletonT<app.ropeway.PlayerManager>();
-                    var player = playerManager.get_CurrentPlayer();
-                    if (player != null) {
-                        ImGui.Text("Player is not null");
-                    } else {
-                        ImGui.Text("Player is null");
-                    }
-                    ImGui.TreePop();
+                threadData.Sort((a, b) => {
+                    return a.lerp.CompareTo(b.lerp);
+                });
+
+                foreach(var tdata in threadData) {
+                    var rank = threadRanks.IndexOf(tdata.threadID) + 1;
+                    var rankRatio = (double)rank / (double)totalThreadRanks;
+                    var towards = Math.Max(80.0 * rankRatio, 20.0);
+                    tdata.lerp = towards * deltaSeconds + tdata.lerp * (1.0 - deltaSeconds);
+                    var lerpRatio = tdata.lerp / 80.0;
+
+                    var greenColor = 1.0 - lerpRatio;
+                    var redColor = lerpRatio;
+
+                    //ImGui.Text("Thread ID: " + tdata.Value.threadID + " Avg: " + tdata.Value.runningAvg.ToString("0.000") + " µs");
+                    ImGui.PushStyleColor(ImGuiCol.Text, new System.Numerics.Vector4((float)redColor, (float)greenColor, 0f, 1.0f));
+                    ImGui.PlotLines("Thread " + tdata.threadID, ref tdata.benchmarkData[0], 1000, tdata.callCount % 1000, tdata.runningAvg.ToString("0.000") + " µs", (float)tdata.runningAvg, (float)tdata.runningAvg * 2.0f, new System.Numerics.Vector2(0, (int)tdata.lerp));
+                    ImGui.PopStyleColor();
                 }
 
                 ImGui.End();
             }
+
+            ImGui.PopStyleVar();
         };
 
         // Benchmarking the effects of threading on invoking game code
@@ -160,6 +191,7 @@ public class RE2HookBenchmark {
         internal double highestMicros;
         internal double runningAvg;
         internal float[] benchmarkData = new float[1000];
+        internal double lerp = 40.0;
     };
 
     internal static System.Collections.Concurrent.ConcurrentDictionary<long, ThreadData> threadData = new(Environment.ProcessorCount * 2, 8192);
