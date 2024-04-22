@@ -3,6 +3,7 @@
 
 #include "RETypes.hpp"
 #include "REGlobals.hpp"
+#include "ResourceManager.hpp"
 
 #include "SDK.hpp"
 
@@ -20,5 +21,7 @@ void initialize_sdk() {
 
     utility::re_managed_object::detail::resolve_add_ref();
     utility::re_managed_object::detail::resolve_release();
+
+    sdk::ResourceManager::update_pointers();
 }
 }

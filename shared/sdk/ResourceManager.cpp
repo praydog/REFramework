@@ -55,12 +55,20 @@ ResourceManager* ResourceManager::get() {
     return (ResourceManager*)sdk::get_native_singleton("via.ResourceManager");
 }
 
+// createresource is called in:
+// via.Folder.activate
+// via.Prefab.duplicate
+// via.Prefab.Clone
+// via.Prefab.set_Path
+// via.prefab.set_Standby
 sdk::Resource* ResourceManager::create_resource(void* type_info, std::wstring_view name) {
     update_pointers();
 
     return s_create_resource_fn(this, type_info, name.data());
 }
 
+// This one is a bit harder but there are a few functions called at the bottom of
+// createResource that are called in create_userdata
 intrusive_ptr<sdk::ManagedObject> ResourceManager::create_userdata(void* type_info, std::wstring_view name) {
     update_pointers();
 
@@ -119,7 +127,8 @@ void ResourceManager::update_pointers() {
             // since they both have the same pattern at the start of the function
             const auto valid_patterns = {
                 "66 83 F8 40 75 ? C6",
-                "66 83 F8 40 75 ? 48"
+                "66 83 F8 40 75 ? 48",
+                "66 41 83 39 40" // DD2+
             };
 
             bool found = false;
