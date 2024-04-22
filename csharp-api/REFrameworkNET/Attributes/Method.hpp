@@ -7,7 +7,8 @@ namespace REFrameworkNET::Attributes {
     [System::AttributeUsage(System::AttributeTargets::Method)]
     public ref class Method : public System::Attribute {
     private:
-        static System::Collections::Concurrent::ConcurrentDictionary<System::Reflection::MethodInfo^, Method^>^ cache = gcnew System::Collections::Concurrent::ConcurrentDictionary<System::Reflection::MethodInfo^, Method^>(8, 8192);
+        static System::Collections::Concurrent::ConcurrentDictionary<System::Reflection::MethodInfo^, Method^>^ cache 
+          = gcnew System::Collections::Concurrent::ConcurrentDictionary<System::Reflection::MethodInfo^, Method^>(System::Environment::ProcessorCount * 2, 8192);
 
     public:
         static Method^ GetCachedAttribute(System::Reflection::MethodInfo^ target) {

@@ -132,7 +132,8 @@ internal:
             !Impl() {
             }
 
-            System::Collections::Concurrent::ConcurrentDictionary<uintptr_t, WeakT^>^ cache = gcnew System::Collections::Concurrent::ConcurrentDictionary<uintptr_t, WeakT^>(8, 8192);
+            System::Collections::Concurrent::ConcurrentDictionary<uintptr_t, WeakT^>^ cache 
+              = gcnew System::Collections::Concurrent::ConcurrentDictionary<uintptr_t, WeakT^>(System::Environment::ProcessorCount * 2, 8192);
             System::Collections::Concurrent::ConcurrentQueue<ManagedObject^>^ pool = gcnew System::Collections::Concurrent::ConcurrentQueue<ManagedObject^>();
         };
 

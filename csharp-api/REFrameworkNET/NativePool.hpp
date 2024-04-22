@@ -12,7 +12,7 @@ namespace REFrameworkNET {
     {
     private:
         static System::Collections::Concurrent::ConcurrentDictionary<uintptr_t, T^>^ s_cache =
-            gcnew System::Collections::Concurrent::ConcurrentDictionary<uintptr_t, T^>(8, 8192);
+            gcnew System::Collections::Concurrent::ConcurrentDictionary<uintptr_t, T^>(System::Environment::ProcessorCount * 2, 8192);
 
     public:
         delegate T^ CreatorDelegate(uintptr_t nativePtr);
