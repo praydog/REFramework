@@ -7,6 +7,7 @@
 #include "utility/Scan.hpp"
 #include "utility/Module.hpp"
 #include "utility/Exceptions.hpp"
+#include <utility/ScopeGuard.hpp>
 
 #include "reframework/API.hpp"
 #include "ReClass.hpp"
@@ -17,6 +18,7 @@ namespace sdk {
     VM** VM::s_global_context{ nullptr };
     sdk::InvokeMethod* VM::s_invoke_tbl{nullptr};
     VM::ThreadContextFn VM::s_get_thread_context{ nullptr };
+    bool s_fully_updated_pointers{false};
     int32_t VM::s_static_tbl_offset{ 0 };
     int32_t VM::s_type_db_offset{ 0 };
 
@@ -65,6 +67,13 @@ namespace sdk {
 
     void VM::update_pointers() {
         {
+            // Originally this was always locking the lock in read mode
+            // however that was WAY too much which was reducing performance
+            // so just checking this bool is enough.
+            if (s_fully_updated_pointers) {
+                return;
+            }
+
             // Lock a shared lock for the s_mutex
             std::shared_lock lock(s_mutex);
 
@@ -75,6 +84,11 @@ namespace sdk {
 
         // Create a unique lock for the s_mutex as we get to the meat of the function
         std::unique_lock lock{ s_mutex };
+
+        utility::ScopeGuard sg{ [&]() {
+                s_fully_updated_pointers = true;
+            } 
+        };
 
         spdlog::info("[VM::update_pointers] Updating...");
 
