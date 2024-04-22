@@ -298,12 +298,17 @@ namespace sdk {
     }
 
     static std::shared_mutex s_pointers_mtx{};
+    static bool s_fully_updated_vm_context_pointers{false};
     static void* (*s_context_unhandled_exception_fn)(::REThreadContext*) = nullptr;
     static void* (*s_context_local_frame_gc_fn)(::REThreadContext*) = nullptr;
     static void* (*s_context_end_global_frame_fn)(::REThreadContext*) = nullptr;
 
     void sdk::VMContext::update_pointers() {
         {
+            if (s_fully_updated_vm_context_pointers) {
+                return;
+            }
+
             std::shared_lock _{s_pointers_mtx};
 
             if (s_context_unhandled_exception_fn != nullptr && s_context_local_frame_gc_fn != nullptr && s_context_end_global_frame_fn != nullptr) {
@@ -312,6 +317,10 @@ namespace sdk {
         }
         
         std::unique_lock _{s_pointers_mtx};
+
+        utility::ScopeGuard sg{[] {
+            s_fully_updated_vm_context_pointers = true;
+        }};
 
         spdlog::info("Locating funcs");
         
