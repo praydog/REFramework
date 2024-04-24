@@ -2,6 +2,7 @@
 #include <filesystem>
 
 #include "Attributes/Plugin.hpp"
+#include "Attributes/MethodHook.hpp"
 #include "MethodHook.hpp"
 #include "SystemString.hpp"
 #include "NativePool.hpp"
@@ -282,12 +283,43 @@ namespace REFrameworkNET {
             array<System::Reflection::MethodInfo^>^ methods = type->GetMethods(System::Reflection::BindingFlags::Static | System::Reflection::BindingFlags::Public | System::Reflection::BindingFlags::NonPublic);
 
             for each (System::Reflection::MethodInfo^ method in methods) {
+                // EntryPoint attribute
                 array<Object^>^ attributes = method->GetCustomAttributes(REFrameworkNET::Attributes::PluginEntryPoint::typeid, true);
 
-                if (attributes->Length > 0) {
+                if (attributes->Length > 0) try {
                     REFrameworkNET::API::LogInfo("Found PluginEntryPoint in " + method->Name + " in " + type->FullName);
                     method->Invoke(nullptr, nullptr);
                     ever_found = true;
+                    continue;
+                } catch(System::Exception^ e) {
+                    REFrameworkNET::API::LogError("Failed to invoke PluginEntryPoint in " + method->Name + " in " + type->FullName + ": " + e->Message);
+                    continue;
+                } catch(const std::exception& e) {
+                    REFrameworkNET::API::LogError("Failed to invoke PluginEntryPoint in " + method->Name + " in " + type->FullName + ": " + gcnew System::String(e.what()));
+                    continue;
+                } catch(...) {
+                    REFrameworkNET::API::LogError("Failed to invoke PluginEntryPoint in " + method->Name + " in " + type->FullName + ": Unknown exception caught");
+                    continue;
+                }
+
+                // MethodHook attribute(s)
+                attributes = method->GetCustomAttributes(REFrameworkNET::Attributes::MethodHookAttribute::typeid, true);
+
+                if (attributes->Length > 0) try {
+                    REFrameworkNET::API::LogInfo("Found MethodHook in " + method->Name + " in " + type->FullName);
+                    auto hookAttr = (REFrameworkNET::Attributes::MethodHookAttribute^)attributes[0];
+      
+                    if (hookAttr->Install(method)) {
+                        REFrameworkNET::API::LogInfo("Installed MethodHook in " + method->Name + " in " + type->FullName);
+                    } else {
+                        REFrameworkNET::API::LogError("Failed to install MethodHook in " + method->Name + " in " + type->FullName);
+                    }
+                } catch(System::Exception^ e) {
+                    REFrameworkNET::API::LogError("Failed to install MethodHook in " + method->Name + " in " + type->FullName + ": " + e->Message);
+                } catch(const std::exception& e) {
+                    REFrameworkNET::API::LogError("Failed to install MethodHook in " + method->Name + " in " + type->FullName + ": " + gcnew System::String(e.what()));
+                } catch(...) {
+                    REFrameworkNET::API::LogError("Failed to install MethodHook in " + method->Name + " in " + type->FullName + ": Unknown exception caught");
                 }
             }
         }

@@ -253,7 +253,8 @@ public class RE2HookBenchmark {
 
         rwl.ExitWriteLock();
     }
-
+ 
+    [REFrameworkNET.Attributes.MethodHook(typeof(app.Collision.HitController), nameof(app.Collision.HitController.update), MethodHookType.Pre, false)]
     static PreHookResult Pre(System.Span<ulong> args) {
         var hitController = ManagedObject.ToManagedObject(args[1]).As<app.Collision.HitController>();
 
@@ -269,14 +270,16 @@ public class RE2HookBenchmark {
         return PreHookResult.Continue;
     }
 
+    [REFrameworkNET.Attributes.MethodHook(typeof(app.Collision.HitController), nameof(app.Collision.HitController.update), MethodHookType.Post, false)]
     static void Post(ref ulong retval) {
+
     }
 
     public static void InstallHook() {
-        app.Collision.HitController.REFType
+        /*app.Collision.HitController.REFType
             .GetMethod("update")
             .AddHook(false)
             .AddPre(Pre)
-            .AddPost(Post);
+            .AddPost(Post);*/
     }
 }

@@ -36,6 +36,11 @@ public:
         s_hooked_methods_lock->EnterWriteLock();
 
         try {
+            // Try to get it again in case another thread added it
+            if (s_hooked_methods->TryGetValue(method, wrapper)) {
+                return wrapper;
+            }
+
             wrapper = gcnew MethodHook(method, ignore_jmp);
             s_hooked_methods->Add(method, wrapper);
             return wrapper;
