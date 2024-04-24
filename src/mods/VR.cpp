@@ -632,7 +632,7 @@ bool VR::on_pre_scene_layer_update(sdk::renderer::layer::Scene* layer, void* ren
 void VR::on_scene_layer_update(sdk::renderer::layer::Scene* layer, void* render_ctx) {
     REF_PROFILE_FUNCTION();
 
-    ScopeGuard ___([&]() {
+    utility::ScopeGuard ___([&]() {
         m_scene_update_mtx.unlock();
     });
 
