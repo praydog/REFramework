@@ -545,7 +545,6 @@ list(APPEND utility_SOURCES
 	"shared/utility/FunctionHookMinHook.hpp"
 	"shared/utility/Profiler.hpp"
 	"shared/utility/Relocate.hpp"
-	"shared/utility/ScopeGuard.hpp"
 )
 
 list(APPEND utility_SOURCES
