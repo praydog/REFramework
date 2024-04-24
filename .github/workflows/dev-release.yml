@@ -1,7 +1,7 @@
 name: Dev Release
 on: [push, workflow_dispatch]
 env:
-  BUILD_TYPE: RelWithDebInfo
+  BUILD_TYPE: Release
 jobs:
   dev-release:
     runs-on: windows-latest
@@ -14,6 +14,7 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Configure CMake
         run: cmake -S ${{github.workspace}} -B ${{github.workspace}}/build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DDEVELOPER_MODE=ON
@@ -28,7 +29,6 @@ jobs:
           7z a ${{github.workspace}}/${{matrix.target}}.zip ${{github.workspace}}/reframework_revision.txt
           7z a ${{github.workspace}}/${{matrix.target}}.zip ${{github.workspace}}/DELETE_OPENVR_API_DLL_IF_YOU_WANT_TO_USE_OPENXR
           7z a ${{github.workspace}}/${{matrix.target}}.zip ${{github.workspace}}/build/bin/${{matrix.target}}/dinput8.dll
-          7z a ${{github.workspace}}/${{matrix.target}}.zip ${{github.workspace}}/build/bin/${{matrix.target}}/dinput8.pdb
           7z a ${{github.workspace}}/${{matrix.target}}.zip ${{github.workspace}}/dependencies/openvr/bin/win64/openvr_api.dll
           7z a ${{github.workspace}}/${{matrix.target}}.zip ${{github.workspace}}/build/_deps/openxr-build/src/loader/${{env.BUILD_TYPE}}/openxr_loader.dll
           7z a ${{github.workspace}}/${{matrix.target}}.zip ${{github.workspace}}/scripts
@@ -40,13 +40,31 @@ jobs:
           name: ${{matrix.target}}
           path: ${{github.workspace}}/${{matrix.target}}.zip
           if-no-files-found: error
-
-      - name: Release
-        if: github.ref == 'refs/heads/master'
-        uses: softprops/action-gh-release@v0.1.13
+    
+  nightly-push:
+    runs-on: windows-latest
+    needs: dev-release
+    if: github.ref == 'refs/heads/master'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
         with:
-          repository: praydog/REFramework-nightly
-          token: ${{secrets.REPO_TOKEN}}
+          persist-credentials: false
+
+      - name: Download artifacts
+        uses: actions/download-artifact@c850b930e6ba138125429b7e5c93fc707a7f8427
+        with:
+          path: ${{github.workspace}}/artifacts
+
+      - name: Create Release
+        uses: ncipollo/release-action@6c75be85e571768fa31b40abf38de58ba0397db5
+        with:
+          repo: REFramework-nightly
+          owner: praydog
+          token: ${{ secrets.REPO_TOKEN }}
           name: ${{format('REF Nightly {0} ({1})', github.run_number, github.sha)}}
-          tag_name: latest
-          files: ${{github.workspace}}/${{matrix.target}}.zip
+          tag: ${{format('nightly-{0}-{1}', github.run_number, github.sha)}}
+          artifacts: ${{github.workspace}}/artifacts/**/*.zip
+          makeLatest: true
+          bodyFile: ${{github.workspace}}/nightly-body.md
+          allowUpdates: true

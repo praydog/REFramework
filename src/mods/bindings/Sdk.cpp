@@ -402,7 +402,8 @@ struct ValueType {
             return sol::make_object(l, sol::nil);
         }
 
-        auto ret_val = def->invoke(real_obj, ::api::sdk::build_args(va));
+        auto vec_args = ::api::sdk::build_args(va);
+        auto ret_val = def->invoke(real_obj, std::span(vec_args));
 
         if (ret_val.exception_thrown) {
             throw sol::error("Invoke threw an exception");
@@ -836,7 +837,10 @@ sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_t
             return sol::make_object(l, ret_val_u);
         }
         case "System.UInt64"_fnv: {
-            auto ret_val_u = *(uint64_t*)data;
+            //auto ret_val_u = *(uint64_t*)data;
+            // so, sol is converting the unsigned version incorrectly into some 1.blah e+19 number
+            // so just return it as signed since Lua only has signed integers
+            auto ret_val_u = *(int64_t*)data;
             return sol::make_object(l, ret_val_u);
         }
         case "via.Float2"_fnv: [[fallthrough]];
@@ -958,10 +962,10 @@ void set_data(void* data, ::sdk::RETypeDefinition* data_type, sol::object& value
             *(int32_t*)data = value.as<int32_t>();
             return;
         case "System.Int64"_fnv:
-            *(int64_t*)data = value.as<int32_t>();
+            *(int64_t*)data = value.as<int64_t>();
             return;
         case "System.UInt64"_fnv:
-            *(uint64_t*)data = value.as<int32_t>();
+            *(int64_t*)data = value.as<int64_t>();
             return;
         case "via.Float2"_fnv: [[fallthrough]];
         case "via.vec2"_fnv:
@@ -1675,13 +1679,13 @@ void bindings::open_sdk(ScriptState* s) {
         "write_byte", &api::re_managed_object::write_memory<uint8_t>,
         "write_short", &api::re_managed_object::write_memory<uint16_t>,
         "write_dword", &api::re_managed_object::write_memory<uint32_t>,
-        "write_qword", &api::re_managed_object::write_memory<uint64_t>,
+        "write_qword", &api::re_managed_object::write_memory<int64_t>,
         "write_float", &api::re_managed_object::write_memory<float>,
         "write_double", &api::re_managed_object::write_memory<double>,
         "read_byte", &api::re_managed_object::read_memory<uint8_t>,
         "read_short", &api::re_managed_object::read_memory<uint16_t>,
         "read_dword", &api::re_managed_object::read_memory<uint32_t>,
-        "read_qword", &api::re_managed_object::read_memory<uint64_t>,
+        "read_qword", &api::re_managed_object::read_memory<int64_t>,
         "read_float", &api::re_managed_object::read_memory<float>,
         "read_double", &api::re_managed_object::read_memory<double>
     );
@@ -1804,13 +1808,13 @@ void bindings::open_sdk(ScriptState* s) {
         "write_byte", &api::sdk::ValueType::write_memory<uint8_t>,
         "write_short", &api::sdk::ValueType::write_memory<uint16_t>,
         "write_dword", &api::sdk::ValueType::write_memory<uint32_t>,
-        "write_qword", &api::sdk::ValueType::write_memory<uint64_t>,
+        "write_qword", &api::sdk::ValueType::write_memory<int64_t>,
         "write_float", &api::sdk::ValueType::write_memory<float>,
         "write_double", &api::sdk::ValueType::write_memory<double>,
         "read_byte", &api::sdk::ValueType::read_memory<uint8_t>,
         "read_short", &api::sdk::ValueType::read_memory<uint16_t>,
         "read_dword", &api::sdk::ValueType::read_memory<uint32_t>,
-        "read_qword", &api::sdk::ValueType::read_memory<uint64_t>,
+        "read_qword", &api::sdk::ValueType::read_memory<int64_t>,
         "read_float", &api::sdk::ValueType::read_memory<float>,
         "read_double", &api::sdk::ValueType::read_memory<double>,
         "address", &api::sdk::ValueType::address,
@@ -1825,13 +1829,13 @@ void bindings::open_sdk(ScriptState* s) {
         "write_byte", &api::sdk::MemoryView::write_memory<uint8_t>,
         "write_short", &api::sdk::MemoryView::write_memory<uint16_t>,
         "write_dword", &api::sdk::MemoryView::write_memory<uint32_t>,
-        "write_qword", &api::sdk::MemoryView::write_memory<uint64_t>,
+        "write_qword", &api::sdk::MemoryView::write_memory<int64_t>,
         "write_float", &api::sdk::MemoryView::write_memory<float>,
         "write_double", &api::sdk::MemoryView::write_memory<double>,
         "read_byte", &api::sdk::MemoryView::read_memory<uint8_t>,
         "read_short", &api::sdk::MemoryView::read_memory<uint16_t>,
         "read_dword", &api::sdk::MemoryView::read_memory<uint32_t>,
-        "read_qword", &api::sdk::MemoryView::read_memory<uint64_t>,
+        "read_qword", &api::sdk::MemoryView::read_memory<int64_t>,
         "read_float", &api::sdk::MemoryView::read_memory<float>,
         "read_double", &api::sdk::MemoryView::read_memory<double>,
         "address", &api::sdk::MemoryView::address,

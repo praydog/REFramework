@@ -47,6 +47,16 @@ using namespace std::literals;
 std::unique_ptr<REFramework> g_framework{};
 
 void REFramework::hook_monitor() {
+    if (!m_hook_monitor_mutex.try_lock()) {
+        // If this happens then we can assume execution is going as planned
+        // so we can just reset the times so we dont break something
+        m_last_present_time = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+        m_last_chance_time = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+        m_has_last_chance = true;
+    } else {
+        m_hook_monitor_mutex.unlock();
+    }
+
     std::scoped_lock _{ m_hook_monitor_mutex };
 
     if (g_framework == nullptr) {
@@ -212,9 +222,6 @@ try {
     spdlog::error("ldr_notification_callback: Unknown exception occurred");
 }
 
-typedef NTSTATUS (WINAPI* PFN_LdrLockLoaderLock)(ULONG Flags, ULONG *State, ULONG_PTR *Cookie);
-typedef NTSTATUS (WINAPI* PFN_LdrUnlockLoaderLock)(ULONG Flags, ULONG_PTR Cookie);
-
 REFramework::REFramework(HMODULE reframework_module)
     : m_game_module{GetModuleHandle(0)}
     , m_logger{spdlog::basic_logger_mt("REFramework", (get_persistent_dir("re2_framework_log.txt")).string(), true)}
@@ -232,6 +239,14 @@ REFramework::REFramework(HMODULE reframework_module)
     }
 
     spdlog::info("REFramework entry");
+
+    spdlog::info("Commit hash: {}", REF_COMMIT_HASH);
+    spdlog::info("Tag: {}", REF_TAG);
+    spdlog::info("Commits past tag: {}", REF_COMMITS_PAST_TAG);
+    spdlog::info("Branch: {}", REF_BRANCH);
+    spdlog::info("Total commits: {}", REF_TOTAL_COMMITS);
+    spdlog::info("Build date: {}", REF_BUILD_DATE);
+    spdlog::info("Build time: {}", REF_BUILD_TIME);
 
     const auto module_size = *utility::get_module_size(m_game_module);
 
@@ -464,18 +479,7 @@ REFramework::REFramework(HMODULE reframework_module)
 #endif
 
 #if defined(REENGINE_AT)
-    ULONG_PTR loader_magic = 0;
-    auto lock_loader = (PFN_LdrLockLoaderLock)GetProcAddress(ntdll, "LdrLockLoaderLock");
-    auto unlock_loader = (PFN_LdrUnlockLoaderLock)GetProcAddress(ntdll, "LdrUnlockLoaderLock");
-
-    if (lock_loader != nullptr && unlock_loader != nullptr) {
-        lock_loader(0, NULL, &loader_magic);
-    }
     utility::ThreadSuspender suspender{};
-    if (lock_loader != nullptr && unlock_loader != nullptr) {
-        unlock_loader(0, loader_magic);
-    }
-
     IntegrityCheckBypass::ignore_application_entries();
 
 #if defined(RE8) || defined(RE4) || defined(SF6)
@@ -1439,9 +1443,10 @@ void REFramework::draw_about() {
             std::string text;
         };
 
-        static std::array<License, 15> licenses{
+        static std::array<License, 16> licenses{
             License{ "glm", license::glm },
             License{ "imgui", license::imgui },
+            License{ "cimgui", license::cimgui },
             License{ "minhook", license::minhook },
             License{ "spdlog", license::spdlog },
             License{ "robotomedium", license::roboto },

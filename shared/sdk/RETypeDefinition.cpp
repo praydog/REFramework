@@ -419,64 +419,94 @@ sdk::RETypeDefinition* RETypeDefinition::get_generic_type_definition() const {
 }
 
 static std::shared_mutex g_field_mtx{};
-static std::unordered_map<std::string, sdk::REField*> g_field_map{};
+static std::unordered_map<const sdk::RETypeDefinition*, std::unordered_map<size_t, sdk::REField*>> g_field_map{};
 
 sdk::REField* RETypeDefinition::get_field(std::string_view name) const {
-    auto full_name = std::to_string(this->get_index()) + "." + name.data();
-
+    const auto name_hash = std::hash<std::string_view>{}(name);
     {
         std::shared_lock _{ g_field_mtx };
 
-        if (auto it = g_field_map.find(full_name); it != g_field_map.end()) {
-            return it->second;
+        if (auto it = g_field_map.find(this); it != g_field_map.end()) {
+            if (auto it2 = it->second.find(name_hash); it2 != it->second.end()) {
+                return it2->second;
+            }
         }
     }
+
 
     for (auto super = this; super != nullptr; super = super->get_parent_type()) {
         for (auto f : super->get_fields()) {
             if (name == f->get_name()) {
                 std::unique_lock _{ g_field_mtx };
 
-                g_field_map[full_name] = f;
-                return g_field_map[full_name];
+                g_field_map[this][name_hash] = f;
+                return g_field_map[this][name_hash];
             }
         }
     }
 
     std::unique_lock _{ g_field_mtx };
-    return g_field_map[full_name];
+    g_field_map[this][name_hash] = nullptr;
+    return nullptr;
 }
 
 static std::shared_mutex g_method_mtx{};
-static std::unordered_map<std::string, REMethodDefinition*> g_method_map{};
+static std::unordered_map<const sdk::RETypeDefinition*, std::unordered_map<size_t, sdk::REMethodDefinition*>> g_method_map{};
 
 sdk::REMethodDefinition* RETypeDefinition::get_method(std::string_view name) const {
-    // originally this used this->get_full_name() + "." + name.data()
-    // but that doesn't work for generic types if we haven't yet mapped out
-    // how generic (instantiated) types work for the game we're working with
-    // and this is probably faster anyways
-    auto full_name = std::to_string(this->get_index()) + "." + name.data();
+    const auto name_hash = std::hash<std::string_view>{}(name);
 
     {
         std::shared_lock _{g_method_mtx};
 
-        if (auto it = g_method_map.find(full_name); it != g_method_map.end()) {
-            return it->second;
-        }
-    }
-    
-    // first pass, do not use function prototypes
-    for (auto super = this; super != nullptr; super = super->get_parent_type()) {
-        for (auto& m : super->get_methods()) {
-            if (name == m.get_name()) {
-                std::unique_lock _{g_method_mtx};
-
-                g_method_map[full_name] = &m;
-                return g_method_map[full_name];
+        if (auto it = g_method_map.find(this); it != g_method_map.end()) {
+            if (auto it2 = it->second.find(name_hash); it2 != it->second.end()) {
+                return it2->second;
             }
         }
     }
-    
+
+    // This is probably a hacky way of doing it but whatever.
+    // I haven't checked if IsGenericMethodDefinition is implemented.
+    auto is_generic_method_definition = [](sdk::REMethodDefinition& m) {
+        const auto return_type = m.get_return_type();
+
+        if (return_type != nullptr && return_type->get_name() != nullptr) {
+            if (std::string_view{return_type->get_name()}.contains("!")) {
+                return true;
+            }
+        }
+
+        const auto method_param_types = m.get_param_types();
+
+        // Go through any of the params and look for ! in the name
+        for (auto& param : method_param_types) {
+            if (param != nullptr && param->get_name() != nullptr) {
+                if (std::string_view{param->get_name()}.contains("!")) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    };
+
+    for (auto super = this; super != nullptr; super = super->get_parent_type()) {
+        for (auto& m : super->get_methods()) {
+            if (name == m.get_name()) {
+                if (is_generic_method_definition(m)) {
+                    // This is a generic method (definition), we need to skip it because it's not a direct match
+                    continue;
+                }
+
+                std::unique_lock _{g_method_mtx};
+
+                g_method_map[this][name_hash] = &m;
+                return g_method_map[this][name_hash];
+            }
+        }
+    }
+
     // second pass, build a function prototype
     for (auto super = this; super != nullptr; super = super->get_parent_type()) {
         for (auto& m : super->get_methods()) {
@@ -497,16 +527,21 @@ sdk::REMethodDefinition* RETypeDefinition::get_method(std::string_view name) con
             const auto method_prototype = ss.str();
 
             if (name == method_prototype) {
+                if (is_generic_method_definition(m)) {
+                    // This is a generic method (definition), we need to skip it because it's not a direct match
+                    continue;
+                }
+
                 std::unique_lock _{g_method_mtx};
 
-                g_method_map[full_name] = &m;
-                return g_method_map[full_name];
+                g_method_map[this][name_hash] = &m;
+                return g_method_map[this][name_hash];
             }
         }
     }
 
     std::unique_lock _{g_method_mtx};
-    return g_method_map[full_name];
+    return g_method_map[this][name_hash] = nullptr;
 }
 
 std::vector<sdk::REMethodDefinition*> RETypeDefinition::get_methods(std::string_view name) const {
@@ -811,7 +846,7 @@ bool RETypeDefinition::has_attribute(::REManagedObject* attribute_runtime_type, 
         return false;
     }
 
-    const auto res = get_custom_attributes->invoke(runtime_type, std::vector<void*>{attribute_runtime_type, (void*)(uint64_t)inherit});
+    const auto res = get_custom_attributes->invoke(runtime_type, (void*)attribute_runtime_type, (void*)(uint64_t)inherit);
     const auto attributes_array = (sdk::SystemArray*)res.ptr;
 
     if (attributes_array == nullptr) {

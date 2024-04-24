@@ -48,12 +48,66 @@ void LooseFileLoader::on_draw_ui() {
         return;
     }
 
+    auto clear_existence_cache = [&]() {
+        std::unique_lock _{m_files_on_disk_mutex};
+        m_files_on_disk.clear();
+        m_seen_files.clear();
+        m_cache_hits = 0;
+        m_uncached_hits = 0;
+    };
+
     if (m_enabled->draw("Enable Loose File Loader")) {
+        clear_existence_cache();
     }
 
     if (m_hook_success) {
         ImGui::TextWrapped("Files encountered: %d", m_files_encountered);
         ImGui::TextWrapped("Loose files loaded: %d", m_loose_files_loaded);
+
+        if (ImGui::Button("Clear stats")) {
+            m_files_encountered = 0;
+            m_loose_files_loaded = 0;
+
+            std::unique_lock _{m_mutex};
+            m_recent_accessed_files.clear();
+            m_recent_loose_files.clear();
+            m_all_accessed_files.clear();
+            m_all_loose_files.clear();
+        }
+
+        if (ImGui::TreeNode("Debug")) {
+            ImGui::Checkbox("Enable file cache", &m_enable_file_cache);
+            ImGui::TextWrapped("Cache hits: %d", m_cache_hits);
+            ImGui::TextWrapped("Uncached hits: %d", m_uncached_hits);
+
+            if (ImGui::Button("Clear existence cache")) {
+                clear_existence_cache();
+            }
+
+            ImGui::TreePop();
+        }
+
+        ImGui::Checkbox("Show recent files", &m_show_recent_files);
+
+        if (m_show_recent_files) {
+            std::shared_lock _{m_mutex};
+
+            if (ImGui::TreeNode("Recent accessed files")) {
+                for (const auto& file : m_recent_accessed_files) {
+                    ImGui::TextWrapped("%s", utility::narrow(file).c_str());
+                }
+
+                ImGui::TreePop();
+            }
+
+            if (ImGui::TreeNode("Recent loose files")) {
+                for (const auto& file : m_recent_loose_files) {
+                    ImGui::TextWrapped("%s", utility::narrow(file).c_str());
+                }
+
+                ImGui::TreePop();
+            }
+        }
     }
 }
 
@@ -142,22 +196,86 @@ void LooseFileLoader::hook() {
     m_hook_success = true;
 }
 
-uint64_t LooseFileLoader::path_to_hash_hook(const wchar_t* path) {
-    ++g_loose_file_loader->m_files_encountered;
-    const auto enabled = g_loose_file_loader->m_enabled->value();
+bool LooseFileLoader::handle_path(const wchar_t* path, size_t hash) {
+    if (path == nullptr || path[0] == L'\0') {
+        return false;
+    }
 
-    if (enabled && path != nullptr && path[0] != L'\0') {
-        //spdlog::info("[LooseFileLoader] path_to_hash_hook called with path: {}", utility::narrow(path));
+    ++m_files_encountered;
 
-        if (std::filesystem::exists(path)) {
-            ++g_loose_file_loader->m_loose_files_loaded;
-            return 4294967296;
+    if (m_show_recent_files) {
+        std::unique_lock _{m_mutex};
+
+        m_all_accessed_files.insert(path);
+
+        m_recent_accessed_files.push_front(path);
+
+        if (m_recent_accessed_files.size() > 100) {
+            m_recent_accessed_files.pop_back();
         }
     }
 
+    const auto enabled = m_enabled->value();
 
+    //spdlog::info("[LooseFileLoader] path_to_hash_hook called with path: {}", utility::narrow(path));
+
+    if (enabled) {
+        bool exists_in_cache{false};
+        bool exists_on_disk{false};
+
+        if (m_enable_file_cache) {
+            {
+                std::shared_lock _{m_files_on_disk_mutex};
+                exists_on_disk = m_files_on_disk.contains(hash);
+                exists_in_cache = exists_on_disk || m_seen_files.contains(hash);
+            }
+
+            if (!exists_in_cache) {
+                std::unique_lock _{m_files_on_disk_mutex};
+
+                if (std::filesystem::exists(path)) {
+                    m_files_on_disk.insert(hash);
+                    exists_on_disk = true;
+                }
+
+                m_seen_files.insert(hash);
+                ++m_uncached_hits;
+            } else {
+                ++m_cache_hits;
+            }
+        } else {
+            exists_on_disk = std::filesystem::exists(path);
+            ++m_uncached_hits;
+        }
+
+        if (m_show_recent_files && exists_on_disk) {
+            std::unique_lock _{m_mutex};
+
+            m_all_loose_files.insert(path);
+            m_recent_loose_files.push_front(path);
+
+            if (m_recent_loose_files.size() > 100) {
+                m_recent_loose_files.pop_back();
+            }
+        }
+
+        if (exists_on_disk) {
+            ++g_loose_file_loader->m_loose_files_loaded;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+uint64_t LooseFileLoader::path_to_hash_hook(const wchar_t* path) {
     const auto og = g_loose_file_loader->m_path_to_hash_hook->get_original<decltype(path_to_hash_hook)>();
     const auto result = og(path);
+
+    // true to skip.
+    if (g_loose_file_loader->handle_path(path, result)) {
+        return 4294967296;
+    }
 
     return result;
 }

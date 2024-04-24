@@ -19,18 +19,30 @@ RETypeDB* RETypeDB::get() {
 static std::shared_mutex g_tdb_type_mtx{};
 static std::unordered_map<std::string, sdk::RETypeDefinition*> g_tdb_type_map{};
 
-reframework::InvokeRet invoke_object_func(void* obj, sdk::RETypeDefinition* t, std::string_view name, const std::vector<void*>& args) {
+reframework::InvokeRet invoke_object_func(void* obj, sdk::RETypeDefinition* t, std::string_view name, std::vector<void*>& args) {
     const auto method = t->get_method(name);
 
     if (method == nullptr) {
         return reframework::InvokeRet{};
     }
 
-    return method->invoke(obj, args);
+    return method->invoke(obj, std::span<void*>(args));
 }
 
 reframework::InvokeRet invoke_object_func(::REManagedObject* obj, std::string_view name, const std::vector<void*>& args) {
-   return invoke_object_func((void*)obj, utility::re_managed_object::get_type_definition(obj), name, args);
+    const auto t = utility::re_managed_object::get_type_definition(obj);
+
+    if (t == nullptr) {
+        return reframework::InvokeRet{};
+    }
+
+    const auto method = t->get_method(name);
+
+    if (method == nullptr) {
+        return reframework::InvokeRet{};
+    }
+
+    return method->invoke(obj, std::span<void*>(*const_cast<std::vector<void*>*>(&args)));
 }
 
 sdk::RETypeDefinition* RETypeDB::find_type(std::string_view name) const {
@@ -492,7 +504,14 @@ uint32_t sdk::REMethodDefinition::get_invoke_id() const {
     return invoke_id;
 }
 
-reframework::InvokeRet sdk::REMethodDefinition::invoke(void* object, const std::vector<void*>& args) const {
+reframework::InvokeRet sdk::REMethodDefinition::invoke(void* object, const std::span<void*>& args) const {
+    ::reframework::InvokeRet out{};
+    invoke(object, args, out);
+
+    return out;
+}
+
+void sdk::REMethodDefinition::invoke(void* object, const std::span<void*>& args, ::reframework::InvokeRet& out) const {
     const auto num_params = get_num_params();
 
     if (num_params != args.size()) {
@@ -500,7 +519,7 @@ reframework::InvokeRet sdk::REMethodDefinition::invoke(void* object, const std::
         const auto declaring_type = get_declaring_type();
         const auto decltype_name = declaring_type != nullptr ? declaring_type->get_full_name() : "unknownclass";
         spdlog::warn("Invalid number of arguments passed to REMethodDefinition::invoke for {}.{}", decltype_name, get_name());
-        return reframework::InvokeRet{};
+        return;
     }
 
 #if TDB_VER > 49
@@ -515,8 +534,6 @@ reframework::InvokeRet sdk::REMethodDefinition::invoke(void* object, const std::
         void* out_data; //0x0038 can be whatever, can be a dword, can point to data
         void* object_ptr; //0x0040 aka "this" pointer
     };
-
-    reframework::InvokeRet out{};
 
     StackFrame stack_frame{};
     stack_frame.method = this;
@@ -591,28 +608,28 @@ reframework::InvokeRet sdk::REMethodDefinition::invoke(void* object, const std::
 
             out.exception_thrown = true;
 
-            return out;
+            return;
         }
     }
 
     if (stack_frame.out_data != &out) {
         out.ptr = stack_frame.out_data;
-        return out;
+        return;
     }
 
-    return out;
+    return;
 #else
     // RE7 doesn't have the invoke wrappers that the newer games use...
     if (num_params > 3) {
         spdlog::warn("REMethodDefinition::invoke for {} has more than 2 parameters, which is not supported at this time (RE7)", get_name());
-        return reframework::InvokeRet{};
+        return;
     }
 
     const bool is_static = this->is_static();
 
     if (!is_static && object == nullptr) {
         spdlog::warn("REMethodDefinition::invoke for {} is not static, but object is nullptr", get_name());
-        return reframework::InvokeRet{};
+        return;
     }
 
     auto ret_ty = get_return_type();
@@ -630,8 +647,6 @@ reframework::InvokeRet sdk::REMethodDefinition::invoke(void* object, const std::
     } else {
         is_ptr = true;
     }
-
-    reframework::InvokeRet out{};
 
     const auto param_types = get_param_types();
     std::vector<size_t> param_hashes{};
@@ -719,7 +734,7 @@ reframework::InvokeRet sdk::REMethodDefinition::invoke(void* object, const std::
     switch (num_params) {
     case 0:
         unpack_and_call();
-        return out;
+        return;
 
         break;
     case 1:
@@ -732,7 +747,7 @@ reframework::InvokeRet sdk::REMethodDefinition::invoke(void* object, const std::
             unpack_and_call.operator()<void*>();
         }
 
-        return out;
+        return;
 
         break;
     case 2:
@@ -757,7 +772,7 @@ reframework::InvokeRet sdk::REMethodDefinition::invoke(void* object, const std::
             unpack_and_call.operator()<void*, void*>();
         }
 
-        return out;
+        return;
 
         break;
     case 3:
@@ -901,7 +916,7 @@ reframework::InvokeRet sdk::REMethodDefinition::invoke(void* object, const std::
         break;
     }
 
-    return out;
+    return;
 #endif
 }
 

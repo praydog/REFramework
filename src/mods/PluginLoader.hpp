@@ -17,6 +17,8 @@ void reframework_lock_lua();
 void reframework_unlock_lua();
 bool reframework_on_device_reset(REFOnDeviceResetCb cb);
 bool reframework_on_message(REFOnMessageCb cb);
+bool reframework_on_imgui_frame(REFOnImGuiFrameCb cb);
+bool reframework_on_imgui_draw_ui(REFOnImGuiDrawUICb cb);
 
 lua_State* reframework_create_script_state();
 void reframework_destroy_script_state(lua_State*);

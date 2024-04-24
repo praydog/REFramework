@@ -15,6 +15,8 @@ public:
     std::string_view get_name() const override { return "APIProxy"; }
 
     void on_present() override;
+    void on_frame() override;
+    void on_draw_ui() override;
     void on_lua_state_created(sol::state& state) override;
     void on_lua_state_destroyed(sol::state& state) override;
     void on_pre_application_entry(void* entry, const char* name, size_t hash) override;
@@ -30,6 +32,7 @@ public:
     using REFOnPostApplicationEntryCb = std::function<std::remove_pointer<::REFOnPostApplicationEntryCb>::type>;
     using REFOnDeviceResetCb = std::function<std::remove_pointer<::REFOnDeviceResetCb>::type>;
     using REFOnMessageCb = std::function<std::remove_pointer<::REFOnMessageCb>::type>;
+    using REFOnImGuiFrameCb = std::function<std::remove_pointer<::REFOnImGuiFrameCb>::type>;
 
     bool add_on_lua_state_created(REFLuaStateCreatedCb cb);
     bool add_on_lua_state_destroyed(REFLuaStateDestroyedCb cb);
@@ -38,6 +41,8 @@ public:
     bool add_on_post_application_entry(std::string_view name, REFOnPostApplicationEntryCb cb);
     bool add_on_device_reset(REFOnDeviceResetCb cb);
     bool add_on_message(REFOnMessageCb cb);
+    bool add_on_imgui_frame(REFOnImGuiFrameCb cb);
+    bool add_on_imgui_draw_ui(REFOnImGuiDrawUICb cb);
 
 private:
     // API Callbacks
@@ -47,6 +52,8 @@ private:
     std::vector<APIProxy::REFOnPresentCb> m_on_present_cbs{};
     std::vector<APIProxy::REFOnDeviceResetCb> m_on_device_reset_cbs{};
     std::vector<APIProxy::REFOnMessageCb> m_on_message_cbs{};
+    std::vector<APIProxy::REFOnImGuiFrameCb> m_on_imgui_frame_cbs{};
+    std::vector<APIProxy::REFOnImGuiDrawUICb> m_on_imgui_draw_ui_cbs{};
 
     // Application Entry Callbacks
     std::unordered_map<size_t, std::vector<APIProxy::REFOnPreApplicationEntryCb>> m_on_pre_application_entry_cbs{};

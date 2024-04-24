@@ -134,13 +134,13 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(bddisasm)
 
-message(STATUS "Fetching kananlib (05fe2456b58fa423531d036d9343ae46866d7ffd)...")
+message(STATUS "Fetching kananlib (0bf5781a38a857f0acea3935425d50a1a5a34d3a)...")
 FetchContent_Declare(
 	kananlib
 	GIT_REPOSITORY
 		https://github.com/cursey/kananlib
 	GIT_TAG
-		05fe2456b58fa423531d036d9343ae46866d7ffd
+		0bf5781a38a857f0acea3935425d50a1a5a34d3a
 )
 FetchContent_MakeAvailable(kananlib)
 
@@ -586,6 +586,7 @@ if(REF_BUILD_RE2_SDK OR REF_BUILD_FRAMEWORK) # build-re2-sdk
 
 	list(APPEND RE2SDK_SOURCES
 		"shared/sdk/Application.cpp"
+		"shared/sdk/GUIPrimitiveSystem.cpp"
 		"shared/sdk/ManagedObject.cpp"
 		"shared/sdk/Memory.cpp"
 		"shared/sdk/MotionFsm2Layer.cpp"
@@ -610,6 +611,7 @@ if(REF_BUILD_RE2_SDK OR REF_BUILD_FRAMEWORK) # build-re2-sdk
 		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
+		"shared/sdk/GUIPrimitiveSystem.hpp"
 		"shared/sdk/ManagedObject.hpp"
 		"shared/sdk/Math.hpp"
 		"shared/sdk/Memory.hpp"
@@ -1431,6 +1433,7 @@ if(REF_BUILD_RE2_TDB66SDK OR REF_BUILD_FRAMEWORK) # build-re2tdb66-sdk
 
 	list(APPEND RE2_TDB66SDK_SOURCES
 		"shared/sdk/Application.cpp"
+		"shared/sdk/GUIPrimitiveSystem.cpp"
 		"shared/sdk/ManagedObject.cpp"
 		"shared/sdk/Memory.cpp"
 		"shared/sdk/MotionFsm2Layer.cpp"
@@ -1455,6 +1458,7 @@ if(REF_BUILD_RE2_TDB66SDK OR REF_BUILD_FRAMEWORK) # build-re2tdb66-sdk
 		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
+		"shared/sdk/GUIPrimitiveSystem.hpp"
 		"shared/sdk/ManagedObject.hpp"
 		"shared/sdk/Math.hpp"
 		"shared/sdk/Memory.hpp"
@@ -2286,6 +2290,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/REFramework.cpp"
 		"src/WindowFilter.cpp"
 		"src/WindowsMessageHook.cpp"
+		"src/cimgui/cimgui.cpp"
 		"src/mods/APIProxy.cpp"
 		"src/mods/Camera.cpp"
 		"src/mods/DeveloperTools.cpp"
@@ -2380,6 +2385,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/re2-imgui/font_robotomedium.hpp"
 		"src/re2-imgui/re2_imconfig.hpp"
 		"src/utility/ImGui.hpp"
+		"src/cimgui/cimgui.h"
 		"src/re2-imgui/af_fadef.h"
 		"src/re2-imgui/imgui_impl_dx11.h"
 		"src/re2-imgui/imgui_impl_dx12.h"
@@ -2498,6 +2504,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/REFramework.cpp"
 		"src/WindowFilter.cpp"
 		"src/WindowsMessageHook.cpp"
+		"src/cimgui/cimgui.cpp"
 		"src/mods/APIProxy.cpp"
 		"src/mods/Camera.cpp"
 		"src/mods/DeveloperTools.cpp"
@@ -2592,6 +2599,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/re2-imgui/font_robotomedium.hpp"
 		"src/re2-imgui/re2_imconfig.hpp"
 		"src/utility/ImGui.hpp"
+		"src/cimgui/cimgui.h"
 		"src/re2-imgui/af_fadef.h"
 		"src/re2-imgui/imgui_impl_dx11.h"
 		"src/re2-imgui/imgui_impl_dx12.h"
@@ -2701,6 +2709,7 @@ if(REF_BUILD_RE3_SDK OR REF_BUILD_FRAMEWORK) # build-re3-sdk
 
 	list(APPEND RE3SDK_SOURCES
 		"shared/sdk/Application.cpp"
+		"shared/sdk/GUIPrimitiveSystem.cpp"
 		"shared/sdk/ManagedObject.cpp"
 		"shared/sdk/Memory.cpp"
 		"shared/sdk/MotionFsm2Layer.cpp"
@@ -2725,6 +2734,7 @@ if(REF_BUILD_RE3_SDK OR REF_BUILD_FRAMEWORK) # build-re3-sdk
 		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
+		"shared/sdk/GUIPrimitiveSystem.hpp"
 		"shared/sdk/ManagedObject.hpp"
 		"shared/sdk/Math.hpp"
 		"shared/sdk/Memory.hpp"
@@ -3546,6 +3556,7 @@ if(REF_BUILD_RE3_TDB67SDK OR REF_BUILD_FRAMEWORK) # build-re3tdb67-sdk
 
 	list(APPEND RE3_TDB67SDK_SOURCES
 		"shared/sdk/Application.cpp"
+		"shared/sdk/GUIPrimitiveSystem.cpp"
 		"shared/sdk/ManagedObject.cpp"
 		"shared/sdk/Memory.cpp"
 		"shared/sdk/MotionFsm2Layer.cpp"
@@ -3570,6 +3581,7 @@ if(REF_BUILD_RE3_TDB67SDK OR REF_BUILD_FRAMEWORK) # build-re3tdb67-sdk
 		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
+		"shared/sdk/GUIPrimitiveSystem.hpp"
 		"shared/sdk/ManagedObject.hpp"
 		"shared/sdk/Math.hpp"
 		"shared/sdk/Memory.hpp"
@@ -4401,6 +4413,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/REFramework.cpp"
 		"src/WindowFilter.cpp"
 		"src/WindowsMessageHook.cpp"
+		"src/cimgui/cimgui.cpp"
 		"src/mods/APIProxy.cpp"
 		"src/mods/Camera.cpp"
 		"src/mods/DeveloperTools.cpp"
@@ -4495,6 +4508,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/re2-imgui/font_robotomedium.hpp"
 		"src/re2-imgui/re2_imconfig.hpp"
 		"src/utility/ImGui.hpp"
+		"src/cimgui/cimgui.h"
 		"src/re2-imgui/af_fadef.h"
 		"src/re2-imgui/imgui_impl_dx11.h"
 		"src/re2-imgui/imgui_impl_dx12.h"
@@ -4613,6 +4627,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/REFramework.cpp"
 		"src/WindowFilter.cpp"
 		"src/WindowsMessageHook.cpp"
+		"src/cimgui/cimgui.cpp"
 		"src/mods/APIProxy.cpp"
 		"src/mods/Camera.cpp"
 		"src/mods/DeveloperTools.cpp"
@@ -4707,6 +4722,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/re2-imgui/font_robotomedium.hpp"
 		"src/re2-imgui/re2_imconfig.hpp"
 		"src/utility/ImGui.hpp"
+		"src/cimgui/cimgui.h"
 		"src/re2-imgui/af_fadef.h"
 		"src/re2-imgui/imgui_impl_dx11.h"
 		"src/re2-imgui/imgui_impl_dx12.h"
@@ -4825,6 +4841,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/REFramework.cpp"
 		"src/WindowFilter.cpp"
 		"src/WindowsMessageHook.cpp"
+		"src/cimgui/cimgui.cpp"
 		"src/mods/APIProxy.cpp"
 		"src/mods/Camera.cpp"
 		"src/mods/DeveloperTools.cpp"
@@ -4919,6 +4936,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/re2-imgui/font_robotomedium.hpp"
 		"src/re2-imgui/re2_imconfig.hpp"
 		"src/utility/ImGui.hpp"
+		"src/cimgui/cimgui.h"
 		"src/re2-imgui/af_fadef.h"
 		"src/re2-imgui/imgui_impl_dx11.h"
 		"src/re2-imgui/imgui_impl_dx12.h"
@@ -5028,6 +5046,7 @@ if(REF_BUILD_RE4_SDK OR REF_BUILD_FRAMEWORK) # build-re4-sdk
 
 	list(APPEND RE4SDK_SOURCES
 		"shared/sdk/Application.cpp"
+		"shared/sdk/GUIPrimitiveSystem.cpp"
 		"shared/sdk/ManagedObject.cpp"
 		"shared/sdk/Memory.cpp"
 		"shared/sdk/MotionFsm2Layer.cpp"
@@ -5052,6 +5071,7 @@ if(REF_BUILD_RE4_SDK OR REF_BUILD_FRAMEWORK) # build-re4-sdk
 		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
+		"shared/sdk/GUIPrimitiveSystem.hpp"
 		"shared/sdk/ManagedObject.hpp"
 		"shared/sdk/Math.hpp"
 		"shared/sdk/Memory.hpp"
@@ -5875,6 +5895,7 @@ if(REF_BUILD_RE7_SDK OR REF_BUILD_FRAMEWORK) # build-re7-sdk
 
 	list(APPEND RE7SDK_SOURCES
 		"shared/sdk/Application.cpp"
+		"shared/sdk/GUIPrimitiveSystem.cpp"
 		"shared/sdk/ManagedObject.cpp"
 		"shared/sdk/Memory.cpp"
 		"shared/sdk/MotionFsm2Layer.cpp"
@@ -5899,6 +5920,7 @@ if(REF_BUILD_RE7_SDK OR REF_BUILD_FRAMEWORK) # build-re7-sdk
 		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
+		"shared/sdk/GUIPrimitiveSystem.hpp"
 		"shared/sdk/ManagedObject.hpp"
 		"shared/sdk/Math.hpp"
 		"shared/sdk/Memory.hpp"
@@ -6720,6 +6742,7 @@ if(REF_BUILD_RE7_TDB49SDK OR REF_BUILD_FRAMEWORK) # build-re7tdb49-sdk
 
 	list(APPEND RE7_TDB49SDK_SOURCES
 		"shared/sdk/Application.cpp"
+		"shared/sdk/GUIPrimitiveSystem.cpp"
 		"shared/sdk/ManagedObject.cpp"
 		"shared/sdk/Memory.cpp"
 		"shared/sdk/MotionFsm2Layer.cpp"
@@ -6744,6 +6767,7 @@ if(REF_BUILD_RE7_TDB49SDK OR REF_BUILD_FRAMEWORK) # build-re7tdb49-sdk
 		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
+		"shared/sdk/GUIPrimitiveSystem.hpp"
 		"shared/sdk/ManagedObject.hpp"
 		"shared/sdk/Math.hpp"
 		"shared/sdk/Memory.hpp"
@@ -7575,6 +7599,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/REFramework.cpp"
 		"src/WindowFilter.cpp"
 		"src/WindowsMessageHook.cpp"
+		"src/cimgui/cimgui.cpp"
 		"src/mods/APIProxy.cpp"
 		"src/mods/Camera.cpp"
 		"src/mods/DeveloperTools.cpp"
@@ -7669,6 +7694,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/re2-imgui/font_robotomedium.hpp"
 		"src/re2-imgui/re2_imconfig.hpp"
 		"src/utility/ImGui.hpp"
+		"src/cimgui/cimgui.h"
 		"src/re2-imgui/af_fadef.h"
 		"src/re2-imgui/imgui_impl_dx11.h"
 		"src/re2-imgui/imgui_impl_dx12.h"
@@ -7787,6 +7813,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/REFramework.cpp"
 		"src/WindowFilter.cpp"
 		"src/WindowsMessageHook.cpp"
+		"src/cimgui/cimgui.cpp"
 		"src/mods/APIProxy.cpp"
 		"src/mods/Camera.cpp"
 		"src/mods/DeveloperTools.cpp"
@@ -7881,6 +7908,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/re2-imgui/font_robotomedium.hpp"
 		"src/re2-imgui/re2_imconfig.hpp"
 		"src/utility/ImGui.hpp"
+		"src/cimgui/cimgui.h"
 		"src/re2-imgui/af_fadef.h"
 		"src/re2-imgui/imgui_impl_dx11.h"
 		"src/re2-imgui/imgui_impl_dx12.h"
@@ -7990,6 +8018,7 @@ if(REF_BUILD_RE8_SDK OR REF_BUILD_FRAMEWORK) # build-re8-sdk
 
 	list(APPEND RE8SDK_SOURCES
 		"shared/sdk/Application.cpp"
+		"shared/sdk/GUIPrimitiveSystem.cpp"
 		"shared/sdk/ManagedObject.cpp"
 		"shared/sdk/Memory.cpp"
 		"shared/sdk/MotionFsm2Layer.cpp"
@@ -8014,6 +8043,7 @@ if(REF_BUILD_RE8_SDK OR REF_BUILD_FRAMEWORK) # build-re8-sdk
 		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
+		"shared/sdk/GUIPrimitiveSystem.hpp"
 		"shared/sdk/ManagedObject.hpp"
 		"shared/sdk/Math.hpp"
 		"shared/sdk/Memory.hpp"
@@ -8846,6 +8876,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/REFramework.cpp"
 		"src/WindowFilter.cpp"
 		"src/WindowsMessageHook.cpp"
+		"src/cimgui/cimgui.cpp"
 		"src/mods/APIProxy.cpp"
 		"src/mods/Camera.cpp"
 		"src/mods/DeveloperTools.cpp"
@@ -8940,6 +8971,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/re2-imgui/font_robotomedium.hpp"
 		"src/re2-imgui/re2_imconfig.hpp"
 		"src/utility/ImGui.hpp"
+		"src/cimgui/cimgui.h"
 		"src/re2-imgui/af_fadef.h"
 		"src/re2-imgui/imgui_impl_dx11.h"
 		"src/re2-imgui/imgui_impl_dx12.h"
@@ -9049,6 +9081,7 @@ if(REF_BUILD_DMC5_SDK OR REF_BUILD_FRAMEWORK) # build-dmc5-sdk
 
 	list(APPEND DMC5SDK_SOURCES
 		"shared/sdk/Application.cpp"
+		"shared/sdk/GUIPrimitiveSystem.cpp"
 		"shared/sdk/ManagedObject.cpp"
 		"shared/sdk/Memory.cpp"
 		"shared/sdk/MotionFsm2Layer.cpp"
@@ -9073,6 +9106,7 @@ if(REF_BUILD_DMC5_SDK OR REF_BUILD_FRAMEWORK) # build-dmc5-sdk
 		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
+		"shared/sdk/GUIPrimitiveSystem.hpp"
 		"shared/sdk/ManagedObject.hpp"
 		"shared/sdk/Math.hpp"
 		"shared/sdk/Memory.hpp"
@@ -9903,6 +9937,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/REFramework.cpp"
 		"src/WindowFilter.cpp"
 		"src/WindowsMessageHook.cpp"
+		"src/cimgui/cimgui.cpp"
 		"src/mods/APIProxy.cpp"
 		"src/mods/Camera.cpp"
 		"src/mods/DeveloperTools.cpp"
@@ -9997,6 +10032,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/re2-imgui/font_robotomedium.hpp"
 		"src/re2-imgui/re2_imconfig.hpp"
 		"src/utility/ImGui.hpp"
+		"src/cimgui/cimgui.h"
 		"src/re2-imgui/af_fadef.h"
 		"src/re2-imgui/imgui_impl_dx11.h"
 		"src/re2-imgui/imgui_impl_dx12.h"
@@ -10106,6 +10142,7 @@ if(REF_BUILD_MHRISE_SDK OR REF_BUILD_FRAMEWORK) # build-mhrise-sdk
 
 	list(APPEND MHRISESDK_SOURCES
 		"shared/sdk/Application.cpp"
+		"shared/sdk/GUIPrimitiveSystem.cpp"
 		"shared/sdk/ManagedObject.cpp"
 		"shared/sdk/Memory.cpp"
 		"shared/sdk/MotionFsm2Layer.cpp"
@@ -10130,6 +10167,7 @@ if(REF_BUILD_MHRISE_SDK OR REF_BUILD_FRAMEWORK) # build-mhrise-sdk
 		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
+		"shared/sdk/GUIPrimitiveSystem.hpp"
 		"shared/sdk/ManagedObject.hpp"
 		"shared/sdk/Math.hpp"
 		"shared/sdk/Memory.hpp"
@@ -10962,6 +11000,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/REFramework.cpp"
 		"src/WindowFilter.cpp"
 		"src/WindowsMessageHook.cpp"
+		"src/cimgui/cimgui.cpp"
 		"src/mods/APIProxy.cpp"
 		"src/mods/Camera.cpp"
 		"src/mods/DeveloperTools.cpp"
@@ -11056,6 +11095,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/re2-imgui/font_robotomedium.hpp"
 		"src/re2-imgui/re2_imconfig.hpp"
 		"src/utility/ImGui.hpp"
+		"src/cimgui/cimgui.h"
 		"src/re2-imgui/af_fadef.h"
 		"src/re2-imgui/imgui_impl_dx11.h"
 		"src/re2-imgui/imgui_impl_dx12.h"
@@ -11165,6 +11205,7 @@ if(REF_BUILD_SF6_SDK OR REF_BUILD_FRAMEWORK) # build-sf6-sdk
 
 	list(APPEND SF6SDK_SOURCES
 		"shared/sdk/Application.cpp"
+		"shared/sdk/GUIPrimitiveSystem.cpp"
 		"shared/sdk/ManagedObject.cpp"
 		"shared/sdk/Memory.cpp"
 		"shared/sdk/MotionFsm2Layer.cpp"
@@ -11189,6 +11230,7 @@ if(REF_BUILD_SF6_SDK OR REF_BUILD_FRAMEWORK) # build-sf6-sdk
 		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
+		"shared/sdk/GUIPrimitiveSystem.hpp"
 		"shared/sdk/ManagedObject.hpp"
 		"shared/sdk/Math.hpp"
 		"shared/sdk/Memory.hpp"
@@ -12021,6 +12063,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/REFramework.cpp"
 		"src/WindowFilter.cpp"
 		"src/WindowsMessageHook.cpp"
+		"src/cimgui/cimgui.cpp"
 		"src/mods/APIProxy.cpp"
 		"src/mods/Camera.cpp"
 		"src/mods/DeveloperTools.cpp"
@@ -12115,6 +12158,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/re2-imgui/font_robotomedium.hpp"
 		"src/re2-imgui/re2_imconfig.hpp"
 		"src/utility/ImGui.hpp"
+		"src/cimgui/cimgui.h"
 		"src/re2-imgui/af_fadef.h"
 		"src/re2-imgui/imgui_impl_dx11.h"
 		"src/re2-imgui/imgui_impl_dx12.h"
@@ -12224,6 +12268,7 @@ if(REF_BUILD_DD2_SDK OR REF_BUILD_FRAMEWORK) # build-dd2-sdk
 
 	list(APPEND DD2SDK_SOURCES
 		"shared/sdk/Application.cpp"
+		"shared/sdk/GUIPrimitiveSystem.cpp"
 		"shared/sdk/ManagedObject.cpp"
 		"shared/sdk/Memory.cpp"
 		"shared/sdk/MotionFsm2Layer.cpp"
@@ -12248,6 +12293,7 @@ if(REF_BUILD_DD2_SDK OR REF_BUILD_FRAMEWORK) # build-dd2-sdk
 		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
+		"shared/sdk/GUIPrimitiveSystem.hpp"
 		"shared/sdk/ManagedObject.hpp"
 		"shared/sdk/Math.hpp"
 		"shared/sdk/Memory.hpp"
@@ -13080,6 +13126,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/REFramework.cpp"
 		"src/WindowFilter.cpp"
 		"src/WindowsMessageHook.cpp"
+		"src/cimgui/cimgui.cpp"
 		"src/mods/APIProxy.cpp"
 		"src/mods/Camera.cpp"
 		"src/mods/DeveloperTools.cpp"
@@ -13174,6 +13221,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/re2-imgui/font_robotomedium.hpp"
 		"src/re2-imgui/re2_imconfig.hpp"
 		"src/utility/ImGui.hpp"
+		"src/cimgui/cimgui.h"
 		"src/re2-imgui/af_fadef.h"
 		"src/re2-imgui/imgui_impl_dx11.h"
 		"src/re2-imgui/imgui_impl_dx12.h"

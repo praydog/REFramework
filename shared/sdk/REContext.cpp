@@ -7,6 +7,7 @@
 #include "utility/Scan.hpp"
 #include "utility/Module.hpp"
 #include "utility/Exceptions.hpp"
+#include <utility/ScopeGuard.hpp>
 
 #include "reframework/API.hpp"
 #include "ReClass.hpp"
@@ -17,6 +18,7 @@ namespace sdk {
     VM** VM::s_global_context{ nullptr };
     sdk::InvokeMethod* VM::s_invoke_tbl{nullptr};
     VM::ThreadContextFn VM::s_get_thread_context{ nullptr };
+    bool VM::s_fully_updated_pointers{false};
     int32_t VM::s_static_tbl_offset{ 0 };
     int32_t VM::s_type_db_offset{ 0 };
 
@@ -65,6 +67,13 @@ namespace sdk {
 
     void VM::update_pointers() {
         {
+            // Originally this was always locking the lock in read mode
+            // however that was WAY too much which was reducing performance
+            // so just checking this bool is enough.
+            if (s_fully_updated_pointers) {
+                return;
+            }
+
             // Lock a shared lock for the s_mutex
             std::shared_lock lock(s_mutex);
 
@@ -75,6 +84,11 @@ namespace sdk {
 
         // Create a unique lock for the s_mutex as we get to the meat of the function
         std::unique_lock lock{ s_mutex };
+
+        utility::ScopeGuard sg{ [&]() {
+                s_fully_updated_pointers = true;
+            } 
+        };
 
         spdlog::info("[VM::update_pointers] Updating...");
 
@@ -284,12 +298,17 @@ namespace sdk {
     }
 
     static std::shared_mutex s_pointers_mtx{};
+    static bool s_fully_updated_vm_context_pointers{false};
     static void* (*s_context_unhandled_exception_fn)(::REThreadContext*) = nullptr;
     static void* (*s_context_local_frame_gc_fn)(::REThreadContext*) = nullptr;
     static void* (*s_context_end_global_frame_fn)(::REThreadContext*) = nullptr;
 
     void sdk::VMContext::update_pointers() {
         {
+            if (s_fully_updated_vm_context_pointers) {
+                return;
+            }
+
             std::shared_lock _{s_pointers_mtx};
 
             if (s_context_unhandled_exception_fn != nullptr && s_context_local_frame_gc_fn != nullptr && s_context_end_global_frame_fn != nullptr) {
@@ -298,6 +317,10 @@ namespace sdk {
         }
         
         std::unique_lock _{s_pointers_mtx};
+
+        utility::ScopeGuard sg{[] {
+            s_fully_updated_vm_context_pointers = true;
+        }};
 
         spdlog::info("Locating funcs");
         

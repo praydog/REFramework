@@ -1,3 +1,4 @@
+#include "utility/FunctionHookMinHook.hpp"
 #include "utility/String.hpp"
 
 #include "ScriptRunner.hpp"
@@ -78,6 +79,20 @@ bool APIProxy::add_on_message(REFOnMessageCb cb) {
     return true;
 }
 
+bool APIProxy::add_on_imgui_frame(REFOnImGuiFrameCb cb) {
+    std::unique_lock _{m_api_cb_mtx};
+
+    m_on_imgui_frame_cbs.push_back(cb);
+    return true;
+}
+
+bool APIProxy::add_on_imgui_draw_ui(REFOnImGuiDrawUICb cb) {
+    std::unique_lock _{m_api_cb_mtx};
+
+    m_on_imgui_draw_ui_cbs.push_back(cb);
+    return true;
+}
+
 void APIProxy::on_lua_state_created(sol::state& state) {
     std::shared_lock _{m_api_cb_mtx};
 
@@ -125,6 +140,84 @@ void APIProxy::on_present() {
             cb();
         } catch(...) {
             spdlog::error("[APIProxy] Exception occurred in on_present callback; one of the plugins has an error.");
+        }
+    }
+}
+
+// For cimgui redirection when on_imgui_frame is called.
+namespace cimgui {
+std::unique_ptr<FunctionHookMinHook> g_load_library_ex_w_hook{nullptr};
+
+HMODULE load_library_ex_w_hook(LPCWSTR lpLibFileName, HANDLE hFile, DWORD dwFlags) {
+    if (lpLibFileName != nullptr) {
+        if (std::wstring_view{lpLibFileName}.contains(L"cimgui.dll")) {
+            spdlog::info("[LoadLibraryExW] Redirecting cimgui.dll to ourselves");
+            return REFramework::get_reframework_module();
+        }
+    }
+
+    auto og = g_load_library_ex_w_hook->get_original<decltype(LoadLibraryExW)>();
+    return og(lpLibFileName, hFile, dwFlags);
+}
+
+void setup_hook() {
+    if (cimgui::g_load_library_ex_w_hook == nullptr) {
+        auto llxw = GetProcAddress(GetModuleHandleA("kernel32.dll"), "LoadLibraryExW");
+
+        if (llxw != nullptr) {
+            spdlog::info("[REFramework] Hooking LoadLibraryExW for cimgui.dll redirection");
+
+            cimgui::g_load_library_ex_w_hook = std::make_unique<FunctionHookMinHook>(LoadLibraryExW, cimgui::load_library_ex_w_hook);
+            
+            if (!cimgui::g_load_library_ex_w_hook->create()) {
+                spdlog::error("[REFramework] Failed to hook LoadLibraryExW for cimgui.dll redirection");
+                return;
+            }
+        }
+    }
+}
+} // namespace cimgui
+
+// imgui frame.
+void APIProxy::on_frame() {
+    std::shared_lock _{m_api_cb_mtx};
+
+    if (!m_on_imgui_frame_cbs.empty()) {
+        cimgui::setup_hook();
+
+        ::REFImGuiFrameCbData data{};
+        data.context = ImGui::GetCurrentContext();
+
+        ImGui::GetAllocatorFunctions((ImGuiMemAllocFunc*)&data.malloc_fn, (ImGuiMemFreeFunc*)&data.free_fn, &data.user_data);
+
+        for (auto&& cb : m_on_imgui_frame_cbs) {
+            try {
+                cb(&data);
+            } catch(...) {
+                spdlog::error("[APIProxy] Exception occurred in on_imgui_frame callback; one of the plugins has an error.");
+            }
+        }
+    }
+}
+
+// imgui draw ui.
+void APIProxy::on_draw_ui() {
+    std::shared_lock _{m_api_cb_mtx};
+
+    if (!m_on_imgui_draw_ui_cbs.empty()) {
+        cimgui::setup_hook();
+
+        ::REFImGuiFrameCbData data{};
+        data.context = ImGui::GetCurrentContext();
+
+        ImGui::GetAllocatorFunctions((ImGuiMemAllocFunc*)&data.malloc_fn, (ImGuiMemFreeFunc*)&data.free_fn, &data.user_data);
+
+        for (auto&& cb : m_on_imgui_draw_ui_cbs) {
+            try {
+                cb(&data);
+            } catch(...) {
+                spdlog::error("[APIProxy] Exception occurred in on_imgui_draw_ui callback; one of the plugins has an error.");
+            }
         }
     }
 }

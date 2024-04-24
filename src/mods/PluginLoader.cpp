@@ -69,6 +69,9 @@ REFrameworkPluginFunctions g_plugin_functions {
     reframework::is_drawing_ui,
     reframework_create_script_state, 
     reframework_destroy_script_state,
+
+    reframework_on_imgui_frame,
+    reframework_on_imgui_draw_ui,
 };
 
 REFrameworkSDKFunctions g_sdk_functions {
@@ -304,17 +307,10 @@ REFrameworkTDBMethod g_tdb_method_data {
             return REFRAMEWORK_ERROR_IN_ARGS_SIZE_MISMATCH;
         }
 
-        std::vector<void*> cpp_args{};
+        const auto arg_count = in_args_size / sizeof(void*);
+        m->invoke(thisptr, std::span<void*>(in_args, arg_count), *(reframework::InvokeRet*)out);
 
-        for (auto i = 0; i < in_args_size / sizeof(void*); i++) {
-            cpp_args.push_back(in_args[i]);
-        }
-
-        auto ret = m->invoke(thisptr, cpp_args);
-
-        memcpy(out, &ret, sizeof(reframework::InvokeRet));
-
-        if (ret.exception_thrown) {
+        if (((reframework::InvokeRet*)out)->exception_thrown) {
             return REFRAMEWORK_ERROR_EXCEPTION;
         }
 
@@ -887,4 +883,21 @@ bool reframework_on_message(REFOnMessageCb cb) {
     }
 
     return APIProxy::get()->add_on_message(cb);
+}
+
+bool reframework_on_imgui_frame(REFOnImGuiFrameCb cb) {
+    if (cb == nullptr) {
+        return false;
+    }
+
+    return APIProxy::get()->add_on_imgui_frame(cb);
+}
+
+
+bool reframework_on_imgui_draw_ui(REFOnImGuiFrameCb cb) {
+    if (cb == nullptr) {
+        return false;
+    }
+
+    return APIProxy::get()->add_on_imgui_draw_ui(cb);
 }
