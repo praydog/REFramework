@@ -492,15 +492,15 @@ void CameraDuplicator::copy_camera_properties() {
                     const auto result = getter->invoke(old_component, {});
 
                     if (result_type == nullptr) {
-                        setter->invoke(new_component, {result.ptr});
+                        setter->invoke(new_component, result.ptr);
                     } else {
                         if (should_pass_result_ptr) {
-                            setter->invoke(new_component, {(void*)result.bytes.data()});
+                            setter->invoke(new_component, (void*)result.bytes.data());
                         } else {
                             const auto current_value = getter->invoke(new_component, {});
 
                             if (current_value.ptr != result.ptr) {
-                                setter->invoke(new_component, {result.ptr});
+                                setter->invoke(new_component, result.ptr);
                             }
                         }
                     }
