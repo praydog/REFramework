@@ -11,10 +11,12 @@
 namespace REFrameworkNET {
 value struct InvokeRet;
 
-// Native objects are objects that are NOT managed objects
-// However, they still have reflection information associated with them
-// So this intends to be the "ManagedObject" class for native objects
-// So we can easily interact with them in C#
+/// <summary>
+// Native objects are objects that are NOT managed objects <br/>
+// However, they still have reflection information associated with them <br/>
+// So this intends to be the "ManagedObject" class for native objects <br/>
+// So we can easily interact with them in C# <br/>
+/// </summary>
 public ref class NativeObject : public REFrameworkNET::UnifiedObject
 {
 public:
@@ -48,14 +50,17 @@ public:
         m_object = nullptr;
     }
 
+    /// <returns>The type of the object</returns>
     virtual TypeDefinition^ GetTypeDefinition() override {
         return m_type;
     }
 
+    /// <returns>The address of the object as a void* pointer</returns>
     virtual void* Ptr() override {
         return m_object;
     }
 
+    /// <returns>The address of the object</returns>
     virtual uintptr_t GetAddress() override  {
         return (uintptr_t)m_object;
     }
@@ -63,7 +68,22 @@ public:
     generic <typename T>
     virtual T As() override;
 
-private:
+    /// <summary>
+    /// Creates a NativeObject wrapper over the given address
+    /// </summary>
+    /// <remarks>
+    /// This function can be very dangerous if used incorrectly. <br/>
+    /// Always double check that you are feeding the correct address <br/>
+    /// and type to this function. <br/>
+    /// </remarks>
+    /// <param name="obj">The address of the object</param>
+    /// <param name="t">The type of the object</param>
+    /// <returns>A NativeObject wrapper over the given address</returns>
+    static NativeObject^ FromAddress(uintptr_t obj, TypeDefinition^ t) {
+        return gcnew NativeObject(obj, t);
+    }
+
+protected:
     void* m_object{};
     TypeDefinition^ m_type{};
 };
