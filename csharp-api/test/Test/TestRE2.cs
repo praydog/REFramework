@@ -27,6 +27,7 @@ public class TestRE2Plugin {
             if (ImGui.TreeNode("Player")) {
                 var playerManager = API.GetManagedSingletonT<app.ropeway.PlayerManager>();
                 var player = playerManager.get_CurrentPlayer();
+
                 if (player != null) {
                     ImGui.Text("Player is not null");
                 } else {
@@ -254,7 +255,7 @@ public class RE2HookBenchmark {
         rwl.ExitWriteLock();
     }
  
-    [REFrameworkNET.Attributes.MethodHook(typeof(app.Collision.HitController), nameof(app.Collision.HitController.update), MethodHookType.Pre, false)]
+    [MethodHook(typeof(app.Collision.HitController), nameof(app.Collision.HitController.update), MethodHookType.Pre, false)]
     static PreHookResult Pre(Span<ulong> args) {
         var hitController = ManagedObject.ToManagedObject(args[1]).As<app.Collision.HitController>();
 
@@ -269,8 +270,32 @@ public class RE2HookBenchmark {
         return PreHookResult.Continue;
     }
 
-    [REFrameworkNET.Attributes.MethodHook(typeof(app.Collision.HitController), nameof(app.Collision.HitController.update), MethodHookType.Post, false)]
+    [MethodHook(typeof(app.Collision.HitController), nameof(app.Collision.HitController.update), MethodHookType.Post, false)]
     static void Post(ref ulong retval) {
 
+    }
+
+    static double cameraFovLerp = 1;
+    static double cameraFovLerpSpeed = 0.5;
+    static System.Diagnostics.Stopwatch cameraFovStopwatch = new();
+    static System.Diagnostics.Stopwatch cameraFovStopwatch2 = new();
+
+    [Callback(typeof(BeginRendering), CallbackType.Pre)]
+    static void BeginRenderingCallback() {
+        if (!cameraFovStopwatch2.IsRunning) {
+            cameraFovStopwatch2.Start();
+        }
+
+        cameraFovStopwatch.Stop();
+        var deltaSeconds = cameraFovStopwatch.Elapsed.TotalMilliseconds / 1000.0;
+        var elapsedSeconds = cameraFovStopwatch2.Elapsed.TotalMilliseconds / 1000.0;
+        cameraFovStopwatch.Restart();
+
+        var wantedValue = Math.Sin(elapsedSeconds) + 1.0;
+        cameraFovLerp = double.Lerp(cameraFovLerp, wantedValue, cameraFovLerpSpeed * deltaSeconds);
+
+        var camera = via.SceneManager.get_MainView().get_PrimaryCamera();
+        var degrees = cameraFovLerp * 180.0 / Math.PI;
+        camera.set_FOV((float)degrees);
     }
 }

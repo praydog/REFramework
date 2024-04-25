@@ -153,7 +153,7 @@ class ObjectExplorer {
 
                 if (t.IsEnum() && fieldData != null) {
                     long longValue = Convert.ToInt64(fieldData);
-                    var boxedEnum = SystemEnumT.boxEnum(t.GetRuntimeType().As<_System.Type>(), longValue);
+                    var boxedEnum = _System.Enum.boxEnum(t.GetRuntimeType().As<_System.Type>(), longValue);
                     ImGui.Text("Result: " + (boxedEnum as IObject).Call("ToString()") + " (" + fieldData.ToString() + ")");
                 } else if (fieldData != null) {
                     ImGui.Text("Value: " + fieldData.ToString());
@@ -230,7 +230,7 @@ class ObjectExplorer {
 
                         if (returnType.IsEnum()) {
                             long longValue = Convert.ToInt64(result);
-                            var boxedEnum = SystemEnumT.boxEnum(returnType.GetRuntimeType().As<_System.Type>(), longValue);
+                            var boxedEnum = _System.Enum.boxEnum(returnType.GetRuntimeType().As<_System.Type>(), longValue);
                             ImGui.Text("Result: " + (boxedEnum as IObject).Call("ToString()") + " (" + result.ToString() + ")");
                         } else {
                             ImGui.Text("Result: " + result.ToString() + " (" + result.GetType().FullName + ")");
@@ -469,8 +469,7 @@ class ObjectExplorer {
                 RenderNativeSingletons();
             }
 
-            var appdomainT = REFrameworkNET.API.GetTDB().GetTypeT<_System.AppDomain>();
-            var appdomain = appdomainT.get_CurrentDomain();
+            var appdomain = _System.AppDomain.get_CurrentDomain();
             var assemblies = appdomain.GetAssemblies();
 
             if (ImGui.TreeNode("AppDomain")) {

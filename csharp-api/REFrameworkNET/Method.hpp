@@ -61,6 +61,8 @@ public:
     /// </remarks>
     REFrameworkNET::InvokeRet Invoke(System::Object^ obj, array<System::Object^>^ args);
 
+    System::Object^ InvokeBoxed(System::Type^ targetReturnType, System::Object^ obj, array<System::Object^>^ args);
+
 private:
     ::reframework::InvokeRet Invoke_Internal(System::Object^ obj, array<System::Object^>^ args);
 

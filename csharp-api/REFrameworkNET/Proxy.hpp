@@ -154,86 +154,24 @@ protected:
         if (methodAttribute != nullptr) {
             if (iobject != nullptr) {
                 auto method = methodAttribute->GetMethod(iobject->GetTypeDefinition());
-                iobject->HandleInvokeMember_Internal(method, args, result);
+                return method->InvokeBoxed(targetMethod->ReturnType, iobject, args);
             } else {
                 throw gcnew System::InvalidOperationException("Proxy: T2 must be IObject derived");
             }
         } else {
             // This is a fallback
             if (iobject != nullptr) {
-                iobject->HandleInvokeMember_Internal(targetMethod->Name, args, result);
+                auto method = iobject->GetTypeDefinition()->GetMethod(targetMethod->Name);
+
+                if (method != nullptr) {
+                    return method->InvokeBoxed(targetMethod->ReturnType, iobject, args);
+                }
             } else {
                 throw gcnew System::InvalidOperationException("Proxy: T2 must be IObject derived");
             }
         }
 
-        auto targetReturnType = targetMethod->ReturnType;
-
-        if (targetReturnType == nullptr) {
-            return result;
-        }
-
-        if (!targetReturnType->IsPrimitive && !targetReturnType->IsEnum) {
-            if (targetReturnType == String::typeid) {
-                return result;
-            }
-
-            if (targetReturnType == REFrameworkNET::ManagedObject::typeid) {
-                return result;
-            }
-            
-            if (targetReturnType == REFrameworkNET::NativeObject::typeid) {
-                return result;
-            }
-
-            if (targetReturnType == REFrameworkNET::TypeDefinition::typeid) {
-                return result;
-            }
-
-            if (targetReturnType == REFrameworkNET::Method::typeid) {
-                return result;
-            }
-
-            if (targetReturnType == REFrameworkNET::Field::typeid) {
-                return result;
-            }
-        }
-
-        if (targetReturnType->IsEnum) {
-            auto underlyingType = targetReturnType->GetEnumUnderlyingType();
-
-            if (underlyingType != nullptr) {
-                auto underlyingResult = Convert::ChangeType(result, underlyingType);
-                return Enum::ToObject(targetReturnType, underlyingResult);
-            }
-        }
-
-        if (targetMethod->DeclaringType == nullptr) {
-            return result;
-        }
-
-        if (!targetReturnType->IsPrimitive && targetMethod->DeclaringType->IsInterface && result != nullptr) {
-            auto iobjectResult = dynamic_cast<REFrameworkNET::IObject^>(result);
-
-            if (iobjectResult != nullptr && targetReturnType->IsInterface) {
-                // Caching mechanism to prevent creating multiple proxies for the same object and type so we dont stress the GC
-                if (auto existingProxy = iobjectResult->GetProxy(targetReturnType); existingProxy != nullptr) {
-                    return existingProxy;
-                }
-
-                auto proxy = DispatchProxy::Create(targetReturnType, Proxy<T, T2>::typeid->GetGenericTypeDefinition()->MakeGenericType(T::typeid, result->GetType()));
-                ((IProxy^)proxy)->SetInstance(iobjectResult);
-
-                if (auto unified = dynamic_cast<REFrameworkNET::UnifiedObject^>(iobjectResult); unified != nullptr) {
-                    unified->AddProxy(targetReturnType, (IProxy^)proxy);
-                }
-
-                result = proxy;
-                return result;
-            }
-        }
-
-        return result;
+        return nullptr;
     }
 
 private:
