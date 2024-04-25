@@ -52,7 +52,7 @@ std::optional<std::string> TemporalUpscaler::on_initialize() {
     if (!m_backend_loaded) {
         spdlog::info("[TemporalUpscaler] Could not load PDPerfPlugin.dll, TemporalUpscaler will not work");
     } else {
-        for (auto i = 0; i <= TemporalUpscaler::PDUpscaleType::XESS; ++i) {
+        for (auto i = 0; i <= 9; ++i) {
             const auto is_available = IsUpscaleMethodAvailable(i);
             const auto upscale_name = GetUpscaleMethodName(i);
 
