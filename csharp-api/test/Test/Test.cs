@@ -5,20 +5,37 @@ using System.Dynamic;
 using System.Reflection;
 using ImGuiNET;
 using REFrameworkNET;
+using REFrameworkNET.Attributes;
 using REFrameworkNET.Callbacks;
 
 public class DangerousFunctions {
+    [MethodHook(typeof(app.CameraManager), nameof(app.CameraManager.isInside), MethodHookType.Pre)]
     public static REFrameworkNET.PreHookResult isInsidePreHook(Span<ulong> args) {
         //Console.WriteLine("Inside pre hook (From C#) " + args.ToString());
         //REFrameworkNET.API.LogInfo("isInsidePreHook");
         return REFrameworkNET.PreHookResult.Continue;
     }
 
+    [MethodHook(typeof(app.CameraManager), nameof(app.CameraManager.isInside), MethodHookType.Post)]
     public static void isInsidePostHook(ref ulong retval) {
         if ((retval & 1) != 0) {
             REFrameworkNET.API.LogInfo("Camera is inside");
         }
         //Console.WriteLine("Inside post hook (From C#), retval: " + (retval & 1).ToString());
+    }
+
+    [MethodHook(typeof(app.PlayerInputProcessorDetail), nameof(app.PlayerInputProcessorDetail.processNormalAttack), MethodHookType.Pre)]
+    public static REFrameworkNET.PreHookResult processNormalAttackPreHook(Span<ulong> args) {
+        var inputProcessor = ManagedObject.ToManagedObject(args[1]).As<app.PlayerInputProcessorDetail>();
+        var asIObject = inputProcessor as REFrameworkNET.IObject;
+        ulong flags = args[2];
+        bool isCombo = (args[4] & 1) != 0;
+        API.LogInfo("processNormalAttack: " + 
+            inputProcessor.ToString() + " " + 
+            asIObject.GetTypeDefinition()?.GetFullName()?.ToString() + " " +
+            flags.ToString() + " " +
+            isCombo.ToString());
+        return PreHookResult.Continue;
     }
 
     public static void Entry() {
@@ -27,29 +44,6 @@ public class DangerousFunctions {
         mouse.set_ShowCursor(false);
 
         var tdb = REFrameworkNET.API.GetTDB();
-        tdb.GetType(app.CameraManager.REFType.FullName).
-            GetMethod("isInside")?.
-            AddHook(false).
-            AddPre(isInsidePreHook).
-            AddPost(isInsidePostHook);
-
-        tdb.GetType(app.PlayerInputProcessorDetail.REFType.FullName).
-            GetMethod("processNormalAttack").
-            AddHook(false).
-            AddPre((args) => {
-                var inputProcessor = ManagedObject.ToManagedObject(args[1]).As<app.PlayerInputProcessorDetail>();
-                var asIObject = inputProcessor as REFrameworkNET.IObject;
-                ulong flags = args[2];
-                bool isCombo = (args[4] & 1) != 0;
-                API.LogInfo("processNormalAttack: " + 
-                 inputProcessor.ToString() + " " + 
-                 asIObject.GetTypeDefinition()?.GetFullName()?.ToString() + " " +
-                 flags.ToString() + " " +
-                 isCombo.ToString());
-                return PreHookResult.Continue;
-            }).
-            AddPost((ref ulong retval) => {
-            });
         
         // These via.SceneManager and via.Scene are
         // loaded from an external reference assembly
@@ -147,7 +141,7 @@ class REFrameworkPlugin {
 
     static bool doFullGC = false;
 
-    // Assigned in a callback below.
+    [Callback(typeof(ImGuiRender), CallbackType.Pre)]
     public static void RenderImGui() {
         if (ImGui.Begin("Test Window")) {
             // Debug info about GC state
@@ -221,54 +215,56 @@ class REFrameworkPlugin {
         }
     }
 
-    public static void TestCallbacks() {
-        REFrameworkNET.Callbacks.BeginRendering.Pre += () => {
-            sw.Start();
-        };
-        REFrameworkNET.Callbacks.BeginRendering.Post += () => {
-            sw.Stop();
+    [Callback(typeof(BeginRendering), CallbackType.Pre)]
+    static void BeginRenderingPre() {
+        sw.Start();
+    }
 
-            if (sw.ElapsedMilliseconds >= 6) {
-                Console.WriteLine("BeginRendering took " + sw.ElapsedMilliseconds + "ms");
-            }
+    [Callback(typeof(BeginRendering), CallbackType.Post)]
+    static void BeginRenderingPost() {
+        sw.Stop();
 
-            /*try {
-                DangerousFunctions.TryEnableFrameGeneration();
-            } catch (Exception e) {
-                REFrameworkNET.API.LogError(e.ToString());
-            }*/
+        if (sw.ElapsedMilliseconds >= 6) {
+            Console.WriteLine("BeginRendering took " + sw.ElapsedMilliseconds + "ms");
+        }
 
-            sw.Reset();
-        };
+        /*try {
+            DangerousFunctions.TryEnableFrameGeneration();
+        } catch (Exception e) {
+            REFrameworkNET.API.LogError(e.ToString());
+        }*/
 
-        REFrameworkNET.Callbacks.EndRendering.Post += () => {
-            if (!sw2.IsRunning) {
-                sw2.Start();
-            }
+        sw.Reset();
+    }
 
-            if (sw2.ElapsedMilliseconds >= 5000) {
-                sw2.Restart();
-                Console.WriteLine("EndRendering");
-            }
-        };
+    [Callback(typeof(EndRendering), CallbackType.Post)]
+    static void EndRenderingPost() {
+        if (!sw2.IsRunning) {
+            sw2.Start();
+        }
 
-        REFrameworkNET.Callbacks.FinalizeRenderer.Pre += () => {
-            Console.WriteLine("Finalizing Renderer");
-        };
+        if (sw2.ElapsedMilliseconds >= 5000) {
+            sw2.Restart();
+            Console.WriteLine("EndRendering");
+        }
+    }
 
-        REFrameworkNET.Callbacks.PrepareRendering.Post += () => {
-        };
+    [Callback(typeof(FinalizeRenderer), CallbackType.Pre)]
+    static void FinalizeRendererPre() {
+        Console.WriteLine("Finalizing Renderer");
+    }
 
-        REFrameworkNET.Callbacks.ImGuiRender.Pre += RenderImGui;
+    [Callback(typeof(PrepareRendering), CallbackType.Post)]
+    static void PrepareRenderingPost() {
     }
 
     // To be called when the AssemblyLoadContext is unloading the assembly
-    [REFrameworkNET.Attributes.PluginExitPoint]
+    [PluginExitPoint]
     public static void OnUnload() {
         REFrameworkNET.API.LogInfo("Unloading Test");
     }
 
-    [REFrameworkNET.Attributes.PluginEntryPoint]
+    [PluginEntryPoint]
     public static void Main() { 
         try {
             MainImpl();
@@ -286,8 +282,6 @@ class REFrameworkPlugin {
 
     public static void MainImpl() {
         REFrameworkNET.API.LogInfo("Testing REFrameworkAPI...");
-
-        TestCallbacks();
 
         var tdb = REFrameworkNET.API.GetTDB();
 

@@ -53,6 +53,11 @@ internal:
             return nullptr;
         }
 
+        /// <summary>
+        /// Retrieves a managed object from the pool or creates a new one if it doesn't exist.
+        /// </summary>
+        /// <param name="addr">The address of the managed object.</param>
+        /// <returns>The managed object.</returns>
         static T^ Get(uintptr_t addr) {
             if (addr == 0) {
                 return nullptr;
@@ -145,11 +150,19 @@ internal:
     static void CleanupKnownCaches();
 
 public:
+    /// <summary>
+    /// Retrieves a managed object from the pool or creates a new one if it doesn't exist.
+    /// </summary>
+    /// <returns>The managed object.</returns>
     template <class T = ManagedObject>
     static T^ Get(reframework::API::ManagedObject* obj) {
         return Cache<T>::Get((uintptr_t)obj);
     }
 
+    /// <summary>
+    /// Retrieves a managed object from the pool or creates a new one if it doesn't exist.
+    /// </summary>
+    /// <returns>The managed object.</returns>
     template <class T = ManagedObject>
     static T^ Get(::REFrameworkManagedObjectHandle handle) {
         return Cache<T>::Get((uintptr_t)handle);

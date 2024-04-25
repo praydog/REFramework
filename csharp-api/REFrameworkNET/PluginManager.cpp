@@ -3,6 +3,7 @@
 
 #include "Attributes/Plugin.hpp"
 #include "Attributes/MethodHook.hpp"
+#include "Attributes/Callback.hpp"
 #include "MethodHook.hpp"
 #include "SystemString.hpp"
 #include "NativePool.hpp"
@@ -314,12 +315,35 @@ namespace REFrameworkNET {
                     } else {
                         REFrameworkNET::API::LogError("Failed to install MethodHook in " + method->Name + " in " + type->FullName);
                     }
+                    continue;
                 } catch(System::Exception^ e) {
                     REFrameworkNET::API::LogError("Failed to install MethodHook in " + method->Name + " in " + type->FullName + ": " + e->Message);
+                    continue;
                 } catch(const std::exception& e) {
                     REFrameworkNET::API::LogError("Failed to install MethodHook in " + method->Name + " in " + type->FullName + ": " + gcnew System::String(e.what()));
+                    continue;
                 } catch(...) {
                     REFrameworkNET::API::LogError("Failed to install MethodHook in " + method->Name + " in " + type->FullName + ": Unknown exception caught");
+                    continue;
+                }
+
+                // Callback attribute(s)
+                attributes = method->GetCustomAttributes(REFrameworkNET::Attributes::CallbackAttribute::typeid, true);
+
+                if (attributes->Length > 0) try {
+                    REFrameworkNET::API::LogInfo("Found Callback in " + method->Name + " in " + type->FullName);
+                    auto callbackAttr = (REFrameworkNET::Attributes::CallbackAttribute^)attributes[0];
+                    callbackAttr->Install(method);
+                    continue;
+                } catch(System::Exception^ e) {
+                    REFrameworkNET::API::LogError("Failed to install Callback in " + method->Name + " in " + type->FullName + ": " + e->Message);
+                    continue;
+                } catch(const std::exception& e) {
+                    REFrameworkNET::API::LogError("Failed to install Callback in " + method->Name + " in " + type->FullName + ": " + gcnew System::String(e.what()));
+                    continue;
+                } catch(...) {
+                    REFrameworkNET::API::LogError("Failed to install Callback in " + method->Name + " in " + type->FullName + ": Unknown exception caught");
+                    continue;
                 }
             }
         }

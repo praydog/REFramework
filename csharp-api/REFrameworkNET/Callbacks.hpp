@@ -34,8 +34,13 @@ public:
     delegate void Delegate();
 };
 
+/// <summary>Internal interface used to prove that a class is a callback belonging to REFrameworkNET</summary>
+interface class ICallback {
+
+};
+
 #define GENERATE_POCKET_CLASS(EVENT_NAME) \
-public ref class EVENT_NAME { \
+public ref class EVENT_NAME : public ICallback { \
 public: \
     static event BaseCallback::Delegate^ Pre { \
         void add(BaseCallback::Delegate^ value) { \

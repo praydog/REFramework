@@ -174,6 +174,7 @@ set_target_properties(REFCoreDeps PROPERTIES VS_PACKAGE_REFERENCES "${REFRAMEWOR
 set(csharp-api_SOURCES
 	"REFrameworkNET/API.cpp"
 	"REFrameworkNET/AssemblyInfo.cpp"
+	"REFrameworkNET/Attributes/Callback.cpp"
 	"REFrameworkNET/Attributes/Method.cpp"
 	"REFrameworkNET/Attributes/MethodHook.cpp"
 	"REFrameworkNET/Attributes/Plugin.cpp"
@@ -192,6 +193,7 @@ set(csharp-api_SOURCES
 	"REFrameworkNET/UnifiedObject.cpp"
 	"REFrameworkNET/VM.cpp"
 	"REFrameworkNET/API.hpp"
+	"REFrameworkNET/Attributes/Callback.hpp"
 	"REFrameworkNET/Attributes/Method.hpp"
 	"REFrameworkNET/Attributes/MethodHook.hpp"
 	"REFrameworkNET/Attributes/Plugin.hpp"
@@ -488,5 +490,77 @@ set_target_properties(CSharpAPITestRE2 PROPERTIES
 	)
 	
 set_target_properties(CSharpAPITestRE2 PROPERTIES VS_PACKAGE_REFERENCES "REFramework.NET.application")
+
+endif()
+# Target: ObjectExplorer
+if(REFRAMEWORK_REF_ASSEMBLIES_EXIST_RE2) # build-csharp-test-re2
+	set(ObjectExplorer_SOURCES
+		"test/Test/ObjectExplorer.cs"
+		cmake.toml
+	)
+
+	add_library(ObjectExplorer SHARED)
+
+	target_sources(ObjectExplorer PRIVATE ${ObjectExplorer_SOURCES})
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${ObjectExplorer_SOURCES})
+
+	target_link_libraries(ObjectExplorer PUBLIC
+		csharp-api
+	)
+
+	set_target_properties(ObjectExplorer PROPERTIES
+		RUNTIME_OUTPUT_DIRECTORY_RELEASE
+			"${CMAKE_BINARY_DIR}/bin/"
+		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
+			"${CMAKE_BINARY_DIR}/bin"
+		RUNTIME_OUTPUT_DIRECTORY_DEBUG
+			"${CMAKE_BINARY_DIR}/bin"
+		LIBRARY_OUTPUT_DIRECTORY_RELEASE
+			"${CMAKE_BINARY_DIR}/lib"
+		LIBRARY_OUTPUT_DIRECTORY_RELWITHDEBINFO
+			"${CMAKE_BINARY_DIR}/lib"
+		LIBRARY_OUTPUT_DIRECTORY_DEBUG
+			"${CMAKE_BINARY_DIR}/lib"
+		DOTNET_SDK
+			Microsoft.NET.Sdk
+		DOTNET_TARGET_FRAMEWORK
+			net8.0-windows
+		VS_CONFIGURATION_TYPE
+			ClassLibrary
+	)
+
+	set(CMKR_TARGET ObjectExplorer)
+	set_target_properties(ObjectExplorer PROPERTIES
+	VS_DOTNET_REFERENCE_REFramework.NET
+	"${REFRAMEWORK_DOT_NET_ASSEMBLY_PATH}"
+	)
+	
+set_target_properties(ObjectExplorer PROPERTIES
+	VS_DOTNET_REFERENCE_REFramework.NET._mscorlib
+	"${re2_mscorlibdll}"
+	)
+	
+set_target_properties(ObjectExplorer PROPERTIES VS_PACKAGE_REFERENCES "REFramework.NET._mscorlib")
+	
+set_target_properties(ObjectExplorer PROPERTIES
+	VS_DOTNET_REFERENCE_REFramework.NET._System
+	"${re2_systemdll}"
+	)
+	
+set_target_properties(ObjectExplorer PROPERTIES VS_PACKAGE_REFERENCES "REFramework.NET._System")
+	
+set_target_properties(ObjectExplorer PROPERTIES
+	VS_DOTNET_REFERENCE_REFramework.NET.System.Core
+	"${re2_systemcoredll}"
+	)
+	
+set_target_properties(ObjectExplorer PROPERTIES VS_PACKAGE_REFERENCES "REFramework.NET.System.Core")
+	
+set_target_properties(ObjectExplorer PROPERTIES
+	VS_DOTNET_REFERENCE_REFramework.NET.viacore
+	"${re2_viacoredll}"
+	)
+	
+set_target_properties(ObjectExplorer PROPERTIES VS_PACKAGE_REFERENCES "REFramework.NET.viacore")
 
 endif()

@@ -1,24 +1,26 @@
 #pragma once
 
+#include <cstdint>
+
 #include "../TDB.hpp"
 
 namespace REFrameworkNET::Attributes {
     /// <summary>Attribute to mark a reference assembly method for easier lookup.</summary>
     [System::AttributeUsage(System::AttributeTargets::Method)]
-    public ref class Method : public System::Attribute {
+    public ref class MethodAttribute : public System::Attribute {
     private:
-        static System::Collections::Concurrent::ConcurrentDictionary<System::Reflection::MethodInfo^, Method^>^ cache 
-          = gcnew System::Collections::Concurrent::ConcurrentDictionary<System::Reflection::MethodInfo^, Method^>(System::Environment::ProcessorCount * 2, 8192);
+        static System::Collections::Concurrent::ConcurrentDictionary<System::Reflection::MethodInfo^, MethodAttribute^>^ cache 
+          = gcnew System::Collections::Concurrent::ConcurrentDictionary<System::Reflection::MethodInfo^, MethodAttribute^>(System::Environment::ProcessorCount * 2, 8192);
 
     public:
-        static Method^ GetCachedAttribute(System::Reflection::MethodInfo^ target) {
-            Method^ attr = nullptr;
+        static MethodAttribute^ GetCachedAttribute(System::Reflection::MethodInfo^ target) {
+            MethodAttribute^ attr = nullptr;
 
             if (cache->TryGetValue(target, attr)) {
                 return attr;
             }
 
-            if (attr = (REFrameworkNET::Attributes::Method^)System::Attribute::GetCustomAttribute(target, REFrameworkNET::Attributes::Method::typeid); attr != nullptr) {
+            if (attr = (MethodAttribute^)System::Attribute::GetCustomAttribute(target, MethodAttribute::typeid); attr != nullptr) {
                 cache->TryAdd(target, attr);
 
 #ifdef REFRAMEWORK_VERBOSE
@@ -32,7 +34,7 @@ namespace REFrameworkNET::Attributes {
         }
 
     public:
-        Method(uint32_t methodIndex) {
+        MethodAttribute(uint32_t methodIndex) {
             method = REFrameworkNET::TDB::Get()->GetMethod(methodIndex);
 
             if (method != nullptr && method->IsVirtual()) {

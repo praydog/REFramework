@@ -83,8 +83,8 @@ namespace REFrameworkNET::Attributes {
         }
 
     protected:
-        REFrameworkNET::TypeDefinition^ m_declaringType;
-        REFrameworkNET::Method^ m_method;
+        REFrameworkNET::TypeDefinition^ m_declaringType{nullptr};
+        REFrameworkNET::Method^ m_method{nullptr};
         MethodHookType m_hookType;
         bool m_skipJmp{ false };
     };

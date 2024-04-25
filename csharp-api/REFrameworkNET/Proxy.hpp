@@ -146,7 +146,7 @@ internal:
 protected:
     virtual Object^ Invoke(Reflection::MethodInfo^ targetMethod, array<Object^>^ args) override {
         // Get the REFrameworkNET::Attributes::Method attribute from the method
-        auto methodAttribute = REFrameworkNET::Attributes::Method::GetCachedAttribute(targetMethod);
+        auto methodAttribute = REFrameworkNET::Attributes::MethodAttribute::GetCachedAttribute(targetMethod);
 
         Object^ result = nullptr;
         auto iobject = static_cast<REFrameworkNET::IObject^>(Instance);

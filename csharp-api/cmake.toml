@@ -297,3 +297,48 @@ VS_DOTNET_REFERENCE_REFramework.NET.application
 set_target_properties(CSharpAPITestRE2 PROPERTIES VS_PACKAGE_REFERENCES "REFramework.NET.application")
 
 """
+
+# Even though this targets RE2 it is not game specific
+# It just uses the System/via DLLs which are game agnostic
+[target.ObjectExplorer]
+condition = "build-csharp-test-re2"
+type = "CSharpSharedTarget"
+sources = ["test/Test/ObjectExplorer.cs"]
+link-libraries = [
+    "csharp-api"
+]
+
+cmake-after = """
+set_target_properties(ObjectExplorer PROPERTIES
+VS_DOTNET_REFERENCE_REFramework.NET
+"${REFRAMEWORK_DOT_NET_ASSEMBLY_PATH}"
+)
+
+set_target_properties(ObjectExplorer PROPERTIES
+VS_DOTNET_REFERENCE_REFramework.NET._mscorlib
+"${re2_mscorlibdll}"
+)
+
+set_target_properties(ObjectExplorer PROPERTIES VS_PACKAGE_REFERENCES "REFramework.NET._mscorlib")
+
+set_target_properties(ObjectExplorer PROPERTIES
+VS_DOTNET_REFERENCE_REFramework.NET._System
+"${re2_systemdll}"
+)
+
+set_target_properties(ObjectExplorer PROPERTIES VS_PACKAGE_REFERENCES "REFramework.NET._System")
+
+set_target_properties(ObjectExplorer PROPERTIES
+VS_DOTNET_REFERENCE_REFramework.NET.System.Core
+"${re2_systemcoredll}"
+)
+
+set_target_properties(ObjectExplorer PROPERTIES VS_PACKAGE_REFERENCES "REFramework.NET.System.Core")
+
+set_target_properties(ObjectExplorer PROPERTIES
+VS_DOTNET_REFERENCE_REFramework.NET.viacore
+"${re2_viacoredll}"
+)
+
+set_target_properties(ObjectExplorer PROPERTIES VS_PACKAGE_REFERENCES "REFramework.NET.viacore")
+"""

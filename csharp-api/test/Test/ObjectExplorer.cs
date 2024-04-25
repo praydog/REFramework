@@ -6,8 +6,10 @@ using System.Reflection;
 using ImGuiNET;
 using REFrameworkNET;
 using REFrameworkNET.Callbacks;
+using REFrameworkNET.Attributes;
 
 public class ObjectExplorerPlugin {
+    [Callback(typeof(ImGuiRender), CallbackType.Pre)]
     public static void RenderImGui() {
         if (ImGui.Begin("Test Window")) {
             ImGui.SetNextItemOpen(true, ImGuiCond.Once);
@@ -27,7 +29,7 @@ public class ObjectExplorerPlugin {
 
     [REFrameworkNET.Attributes.PluginEntryPoint]
     public static void Main() {
-        REFrameworkNET.Callbacks.ImGuiRender.Pre += RenderImGui;
+        //REFrameworkNET.Callbacks.ImGuiRender.Pre += RenderImGui;
     }
 }
 
