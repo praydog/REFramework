@@ -933,6 +933,25 @@ void set_data(void* data, ::sdk::RETypeDefinition* data_type, sol::object& value
             full_name_hash = utility::hash(data_type->get_full_name());
         }
 
+        // Commemorating the moment I finally added support for this
+        // ....... 2 years after the Lua API was first created
+        // This allows us to pass arbitrary ValueTypes and set fields with them
+        // So we don't need to hardcode every possible ValueType, just the most important ones like Int32, Single, vec3, etc...
+        if (data != nullptr && vm_obj_type == via::clr::VMObjType::ValType && value.is<ValueType*>()) {
+            auto vt = value.as<ValueType*>();
+
+            if (vt->type != data_type) {
+                if (vt->type != nullptr && data_type != nullptr) {
+                    throw sol::error(std::format("Attempted to set ValueType of type {} to field of type {}", vt->type->get_full_name(), data_type->get_full_name()));
+                }
+
+                throw sol::error("Attempted to set ValueType to field of unknown type");
+            }
+
+            memcpy(data, vt->data.data(), vt->data.size());
+            return;
+        }
+
         switch (full_name_hash) {
         case "System.Single"_fnv:
             *(float*)data = value.as<float>();
