@@ -13,6 +13,7 @@
 #include "sdk/SF6Utility.hpp"
 
 #include "utility/String.hpp"
+#include <utility/ScopeGuard.hpp>
 
 #include "Mods.hpp"
 
@@ -63,16 +64,16 @@ uint32_t get_id() {
     return std::this_thread::get_id()._Get_underlying_id();
 }
 
-sol::object get_hook_storage(sol::this_state s, size_t hash) {
+sol::object get_hook_storage(sol::this_state s) {
     auto sol_state = sol::state_view{s};
     auto state = sol_state.registry()["state"].get<ScriptState*>();
-    auto result = state->get_hook_storage(get_hash());
+    auto result = state->get_hook_storage();
 
-    if (!result.has_value()) {
+    if (!result.valid()) {
         return sol::make_object(s, sol::lua_nil);
     }
 
-    return sol::make_object(s, result.value());
+    return sol::make_object(s, result);
 }
 }
 
@@ -667,9 +668,13 @@ void ScriptState::install_hooks() {
                     return;
                 }
 
+                const auto thash = std::hash<std::thread::id>{}(std::this_thread::get_id());
+                utility::ScopeGuard sg{[state, thash] { state->pop_hook_storage(thash); }};
+
                 try {
+                    state->m_current_hook_storage = state->get_hook_storage_internal(thash);
+
                     if (post_cb.is<sol::nil_t>()) {
-                        state->pop_hook_storage(std::hash<std::thread::id>{}(std::this_thread::get_id()));
                         return;
                     }
 
@@ -680,7 +685,6 @@ void ScriptState::install_hooks() {
                     }
 
                     ret_val = (uintptr_t)script_result.get<void*>();
-                    state->pop_hook_storage(std::hash<std::thread::id>{}(std::this_thread::get_id()));
                 } catch (const std::exception& e) {
                     ScriptRunner::get()->spew_error(e.what());
                 } catch (...) {
