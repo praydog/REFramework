@@ -1,3 +1,6 @@
+#include <utility/Module.hpp>
+#include <utility/Scan.hpp>
+
 #include <sdk/SceneManager.hpp>
 
 #include "VR.hpp"
@@ -31,6 +34,11 @@
 #endif
 #endif
 
+std::shared_ptr<Graphics>& Graphics::get() {
+    static auto mod = std::make_shared<Graphics>();
+    return mod;
+}
+
 void Graphics::on_config_load(const utility::Config& cfg) {
     for (IModValue& option : m_options) {
         option.config_load(cfg);
@@ -46,6 +54,11 @@ void Graphics::on_config_save(utility::Config& cfg) {
 void Graphics::on_frame() {
     if (m_disable_gui_key->is_key_down_once()) {
         m_disable_gui->toggle();
+    }
+
+    if (m_ray_tracing_tweaks->value()) {
+        setup_path_trace_hook();
+        apply_ray_tracing_tweaks();
     }
 }
 
@@ -92,6 +105,38 @@ void Graphics::on_draw_ui() {
         m_disable_gui_key->draw("Hide GUI key");
         ImGui::TreePop();
     }
+
+#if TDB_VER >= 69
+    ImGui::SetNextItemOpen(true, ImGuiCond_::ImGuiCond_Once);
+    if (ImGui::TreeNode("Ray Tracing Tweaks")) {
+        m_ray_tracing_tweaks->draw("Enable Ray Tracing Tweaks");
+
+        if (m_ray_tracing_tweaks->value()) {
+            m_ray_trace_type->draw("Ray Trace Type");
+            m_ray_trace_clone_type_pre->draw("Ray Trace Clone Type Pre");
+            const auto clone_tooltip = 
+                    "Can draw another RT pass over the main RT pass. Useful for hybrid rendering.\n"
+                    "Example: Set Ray Trace Type to Pure and Ray Trace Clone Type to ASVGF. This adds RTGI to the path traced image.\n"
+                    "Path Space Filter is also another good alternative for RTGI but it costs more performance.\n";
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip(clone_tooltip);
+            }
+
+            m_ray_trace_clone_type_post->draw("Ray Trace Clone Type Post");
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip(clone_tooltip);
+            }
+
+            // Hybrid/pure
+            if (m_ray_trace_type->value() == (int32_t)RayTraceType::Hybrid || m_ray_trace_type->value() == (int32_t)RayTraceType::Pure) {
+                m_bounce_count->draw("Bounce Count");
+                m_samples_per_pixel->draw("Samples Per Pixel");
+            }
+        }
+
+        ImGui::TreePop();
+    }
+#endif
 }
 
 void Graphics::on_present() {
@@ -569,3 +614,193 @@ void Graphics::set_ultrawide_fov(bool use_vertical_fov) {
         }
     }
 }
+
+#if TDB_VER >= 69
+void Graphics::setup_path_trace_hook() {
+    if (m_rt_draw_hook != nullptr || m_attempted_path_trace_hook) {
+        return;
+    }
+
+    m_attempted_path_trace_hook = true;
+
+    spdlog::info("[Graphics] Setting up path trace hook");
+
+    const auto game = utility::get_executable();
+    const auto ref = utility::find_function_from_string_ref(game, "RayTraceSettings", true);
+
+    if (!ref.has_value()) {
+        spdlog::error("[Graphics] Failed to find function with RayTraceSettings string reference");
+        return;
+    }
+
+    // gets us the actual function start
+    const auto fn = utility::find_function_start_with_call(ref.value());
+
+    if (!fn.has_value()) {
+        spdlog::error("[Graphics] Failed to find RayTraceSettings function");
+        return;
+    }
+
+    spdlog::info("[Graphics] Found RayTraceSettings function @ {:x}", *fn);
+
+    std::unordered_map<size_t, size_t> offset_reference_counts{};
+
+    // Locate RT type offset being referenced within the function
+    // We'll need to find the most referenced offset being used with a "cmp" instruction
+    utility::exhaustive_decode((uint8_t*)*fn, 1000, [&](utility::ExhaustionContext& ctx) -> utility::ExhaustionResult {
+        const auto mnem = std::string_view{ctx.instrux.Mnemonic};
+        // Do not care about calls
+        if (mnem.starts_with("CALL")) {
+            return utility::ExhaustionResult::STEP_OVER;
+        }
+
+        if (!mnem.starts_with("CMP")) {
+            return utility::ExhaustionResult::CONTINUE;
+        }
+
+        // We're looking for cmp dword ptr [reg+offset], imm
+        if (ctx.instrux.Operands[0].Type != ND_OP_MEM || ctx.instrux.Operands[1].Type != ND_OP_IMM) {
+            return utility::ExhaustionResult::CONTINUE;
+        }
+
+        if (!ctx.instrux.Operands[0].Info.Memory.HasBase) {
+            return utility::ExhaustionResult::CONTINUE;
+        }
+
+        const auto offset = ctx.instrux.Operands[0].Info.Memory.Disp;
+
+        if (offset_reference_counts.contains(offset)) {
+            offset_reference_counts[offset]++;
+        } else {
+            offset_reference_counts[offset] = 1;
+        }
+
+        spdlog::info("[Graphics] Encountered a CMP offset @ {:x}", offset);
+
+        return utility::ExhaustionResult::CONTINUE;
+    });
+
+    if (offset_reference_counts.empty()) {
+        spdlog::error("[Graphics] Failed to find any RT type offsets");
+        return;
+    }
+
+    const auto max_offset = std::max_element(offset_reference_counts.begin(), offset_reference_counts.end(), [](const auto& a, const auto& b) {
+        return a.second < b.second;
+    });
+
+    if (max_offset == offset_reference_counts.end()) {
+        spdlog::error("[Graphics] Failed to find most referenced RT type offset");
+        return;
+    }
+
+    m_rt_type_offset = max_offset->first;
+    spdlog::info("[Graphics] Found RT type offset @ {:x}", *m_rt_type_offset);
+
+    m_rt_draw_hook = std::make_unique<FunctionHook>(*fn, (uintptr_t)rt_draw_impl_hook);
+    if (!m_rt_draw_hook->create()) {
+        spdlog::error("[Graphics] Failed to create path trace hook");
+        return;
+    }
+
+    spdlog::info("[Graphics] Path trace hook set up");
+}
+
+void Graphics::setup_rt_component() {
+    static const auto rt_t = sdk::find_type_definition("via.render.ExperimentalRayTrace");
+
+    if (rt_t == nullptr) {
+        return;
+    }
+
+    // Means our reference is still valid
+    if (m_rt_component != nullptr && m_rt_component->referenceCount > 1) {
+        return;
+    }
+
+    m_rt_component.reset();
+    
+    const auto camera = sdk::get_primary_camera();
+
+    if (camera == nullptr) {
+        return;
+    }
+
+    const auto game_object = utility::re_component::get_game_object(camera);
+
+    if (game_object == nullptr || game_object->transform == nullptr) {
+        return;
+    }
+
+    auto rt_component = utility::re_component::find<REComponent>(game_object->transform, rt_t->get_type());
+
+    // Attempt to create the component if it doesn't exist
+    if (rt_component == nullptr) {
+        rt_component = sdk::call_object_func_easy<REComponent*>(game_object, "createComponent(System.Type)", rt_t->get_runtime_type());
+    }
+
+    if (rt_component == nullptr) {
+        return;
+    }
+
+    m_rt_component = (sdk::ManagedObject*)rt_component;
+}
+
+void Graphics::apply_ray_tracing_tweaks() {
+    setup_rt_component();
+
+    if (m_rt_component == nullptr) {
+        return;
+    }
+
+    static const auto rt_t = sdk::find_type_definition("via.render.ExperimentalRayTrace");
+
+    if (rt_t == nullptr) {
+        return;
+    }
+
+    static const auto set_RaytracingMode = rt_t->get_method("set_RaytracingMode");
+    static const auto setBounce = rt_t->get_method("setBounce");
+    static const auto setSpp = rt_t->get_method("setSpp");
+
+    const auto context = sdk::get_thread_context();
+
+    if (set_RaytracingMode != nullptr && m_ray_trace_type->value() > (int32_t)RayTraceType::Disabled) {
+        set_RaytracingMode->call<void>(context, m_rt_component.get(), m_ray_trace_type->value() - 1);
+    }
+
+    if (m_ray_trace_type->value() == (int32_t)RayTraceType::Hybrid || m_ray_trace_type->value() == (int32_t)RayTraceType::Pure) {
+        if (setBounce != nullptr) {
+            setBounce->call<void>(context, m_rt_component.get(), m_bounce_count->value());
+        }
+
+        if (setSpp != nullptr) {
+            setSpp->call<void>(context, m_rt_component.get(), m_samples_per_pixel->value());
+        }
+    }
+}
+
+void* Graphics::rt_draw_impl_hook(void* rt_impl, void* draw_context, void* r8, void* r9, void* unk) {
+    auto& graphics = Graphics::get();
+
+    uint8_t& ray_tracing_mode = *(uint8_t*)((uintptr_t)rt_impl + graphics->m_rt_type_offset.value());
+    const auto old_mode = ray_tracing_mode;
+    const auto og = graphics->m_rt_draw_hook->get_original<decltype(rt_draw_impl_hook)>();
+
+    if (graphics->m_ray_tracing_tweaks->value() && graphics->m_ray_trace_clone_type_pre->value() > (int32_t)RayTraceType::Disabled) {
+        ray_tracing_mode = graphics->m_ray_trace_clone_type_pre->value() - 1;
+        og(rt_impl, draw_context, r8, r9, unk);
+        ray_tracing_mode = old_mode;
+    }
+
+    const auto result = og(rt_impl, draw_context, r8, r9, unk);
+
+    if (graphics->m_ray_tracing_tweaks->value() && graphics->m_ray_trace_clone_type_post->value() > (int32_t)RayTraceType::Disabled) {
+        ray_tracing_mode = graphics->m_ray_trace_clone_type_post->value() - 1;
+        og(rt_impl, draw_context, r8, r9, unk);
+        ray_tracing_mode = old_mode;
+    }
+
+    return result;
+}
+#endif

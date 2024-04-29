@@ -44,7 +44,7 @@ Mods::Mods() {
 
     // All games!!!!
     m_mods.emplace_back(std::make_unique<Camera>());
-    m_mods.emplace_back(std::make_unique<Graphics>());
+    m_mods.emplace_back(Graphics::get());
 
 #if defined(RE2) || defined(RE3) || defined(RE8)
     m_mods.emplace_back(std::make_unique<ManualFlashlight>());
