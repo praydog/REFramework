@@ -56,10 +56,12 @@ void Graphics::on_frame() {
         m_disable_gui->toggle();
     }
 
+#if TDB_VER >= 69
     if (m_ray_tracing_tweaks->value()) {
         setup_path_trace_hook();
         apply_ray_tracing_tweaks();
     }
+#endif
 }
 
 void Graphics::on_draw_ui() {
