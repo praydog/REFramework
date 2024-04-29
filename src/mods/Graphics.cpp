@@ -669,6 +669,11 @@ void Graphics::setup_path_trace_hook() {
 
         const auto offset = ctx.instrux.Operands[0].Info.Memory.Disp;
 
+        // ones that are comparing to 6 (ASVGF) are the right one.
+        if (ctx.instrux.Operands[0].Info.Memory.DispSize != 4 || (ctx.instrux.Operands[1].Info.Immediate.Imm & 0xFFFFFFFF) != 6) {
+            return utility::ExhaustionResult::CONTINUE;
+        }
+
         if (offset_reference_counts.contains(offset)) {
             offset_reference_counts[offset]++;
         } else {
@@ -712,13 +717,6 @@ void Graphics::setup_rt_component() {
     if (rt_t == nullptr) {
         return;
     }
-
-    // Means our reference is still valid
-    if (m_rt_component != nullptr && m_rt_component->referenceCount > 1) {
-        return;
-    }
-
-    m_rt_component.reset();
     
     const auto camera = sdk::get_primary_camera();
 
@@ -740,10 +738,13 @@ void Graphics::setup_rt_component() {
     }
 
     if (rt_component == nullptr) {
+        m_rt_component.reset();
         return;
     }
 
-    m_rt_component = (sdk::ManagedObject*)rt_component;
+    if (m_rt_component.get() != (sdk::ManagedObject*)rt_component) {
+        m_rt_component = (sdk::ManagedObject*)rt_component;
+    }
 }
 
 void Graphics::apply_ray_tracing_tweaks() {
