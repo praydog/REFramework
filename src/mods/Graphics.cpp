@@ -115,11 +115,13 @@ void Graphics::on_draw_ui() {
 
         if (m_ray_tracing_tweaks->value()) {
             m_ray_trace_type->draw("Ray Trace Type");
-            m_ray_trace_clone_type_pre->draw("Ray Trace Clone Type Pre");
+
             const auto clone_tooltip = 
                     "Can draw another RT pass over the main RT pass. Useful for hybrid rendering.\n"
                     "Example: Set Ray Trace Type to Pure and Ray Trace Clone Type to ASVGF. This adds RTGI to the path traced image.\n"
                     "Path Space Filter is also another good alternative for RTGI but it costs more performance.\n";
+
+            m_ray_trace_clone_type_pre->draw("Ray Trace Clone Type Pre");
             if (ImGui::IsItemHovered()) {
                 ImGui::SetTooltip(clone_tooltip);
             }
@@ -128,9 +130,19 @@ void Graphics::on_draw_ui() {
             if (ImGui::IsItemHovered()) {
                 ImGui::SetTooltip(clone_tooltip);
             }
+            
+            m_ray_trace_clone_type_true->draw("Ray Trace Clone Type True");
+            if (ImGui::IsItemHovered()) {
+                const auto true_tooltip =
+                    "Uses a completely separate RT component instead of re-using the main RT component.\n"
+                    "Might crash or have other issues. Use with caution.\n";
+                ImGui::SetTooltip(true_tooltip);
+            }
 
             // Hybrid/pure
-            if (m_ray_trace_type->value() == (int32_t)RayTraceType::Hybrid || m_ray_trace_type->value() == (int32_t)RayTraceType::Pure) {
+            if (m_ray_trace_type->value() == (int32_t)RayTraceType::Hybrid || m_ray_trace_type->value() == (int32_t)RayTraceType::Pure
+                || m_ray_trace_clone_type_true->value() == (int32_t)RayTraceType::Hybrid || m_ray_trace_clone_type_true->value() == (int32_t)RayTraceType::Pure)
+            {
                 m_bounce_count->draw("Bounce Count");
                 m_samples_per_pixel->draw("Samples Per Pixel");
             }
@@ -619,7 +631,7 @@ void Graphics::set_ultrawide_fov(bool use_vertical_fov) {
 
 #if TDB_VER >= 69
 void Graphics::setup_path_trace_hook() {
-    if (m_rt_draw_hook != nullptr || m_attempted_path_trace_hook) {
+    if (m_attempted_path_trace_hook) {
         return;
     }
 
@@ -704,9 +716,30 @@ void Graphics::setup_path_trace_hook() {
     m_rt_type_offset = max_offset->first;
     spdlog::info("[Graphics] Found RT type offset @ {:x}", *m_rt_type_offset);
 
-    m_rt_draw_hook = std::make_unique<FunctionHook>(*fn, (uintptr_t)rt_draw_impl_hook);
+    m_rt_draw_impl_hook = std::make_unique<FunctionHook>(*fn, (uintptr_t)rt_draw_impl_hook);
+    if (!m_rt_draw_impl_hook->create()) {
+        spdlog::error("[Graphics] Failed to create path trace draw impl hook");
+        return;
+    }
+
+    const auto draw_ref = utility::find_function_from_string_ref(game, "Bounce2", true);
+
+    if (!draw_ref.has_value()) {
+        spdlog::error("[Graphics] Failed to find function with Bounce2 string reference");
+        return;
+    }
+
+    const auto draw_fn = utility::find_virtual_function_start(draw_ref.value());
+
+    if (!draw_fn.has_value()) {
+        spdlog::error("[Graphics] Failed to find Bounce2 function");
+        return;
+    }
+
+    m_rt_draw_hook = std::make_unique<FunctionHook>(*draw_fn, (uintptr_t)rt_draw_hook);
+
     if (!m_rt_draw_hook->create()) {
-        spdlog::error("[Graphics] Failed to create path trace hook");
+        spdlog::error("[Graphics] Failed to create path trace draw hook");
         return;
     }
 
@@ -732,11 +765,21 @@ void Graphics::setup_rt_component() {
         return;
     }
 
-    auto rt_component = utility::re_component::find<REComponent>(game_object->transform, rt_t->get_type());
+    const auto go_name = utility::re_string::get_view(game_object->name);
 
+    if ((!go_name.starts_with(L"Main") && !go_name.starts_with(L"main"))) {
+        return;
+    }
+
+    auto rt_component = utility::re_component::find<REComponent>(game_object->transform, rt_t->get_type());
+    
     // Attempt to create the component if it doesn't exist
     if (rt_component == nullptr) {
         rt_component = sdk::call_object_func_easy<REComponent*>(game_object, "createComponent(System.Type)", rt_t->get_runtime_type());
+
+        if (rt_component != nullptr) {
+            spdlog::info("[Graphics] Successfully created new RT component @ {:x}", (uintptr_t)rt_component);
+        }
     }
 
     if (rt_component == nullptr) {
@@ -746,6 +789,14 @@ void Graphics::setup_rt_component() {
 
     if (m_rt_component.get() != (sdk::ManagedObject*)rt_component) {
         m_rt_component = (sdk::ManagedObject*)rt_component;
+    }
+
+    if (m_rt_cloned_component.get() == nullptr && m_ray_trace_clone_type_true->value() > (int32_t)RayTraceType::Disabled) {
+        m_rt_cloned_component = (sdk::ManagedObject*)rt_t->create_instance_full(false);
+
+        if (m_rt_cloned_component.get() != nullptr) {
+            spdlog::info("[Graphics] Successfully cloned RT component @ {:x}", (uintptr_t)m_rt_cloned_component.get());
+        }
     }
 }
 
@@ -766,21 +817,66 @@ void Graphics::apply_ray_tracing_tweaks() {
     static const auto setBounce = rt_t->get_method("setBounce");
     static const auto setSpp = rt_t->get_method("setSpp");
 
-    const auto context = sdk::get_thread_context();
-
-    if (set_RaytracingMode != nullptr && m_ray_trace_type->value() > (int32_t)RayTraceType::Disabled) {
-        set_RaytracingMode->call<void>(context, m_rt_component.get(), m_ray_trace_type->value() - 1);
-    }
-
-    if (m_ray_trace_type->value() == (int32_t)RayTraceType::Hybrid || m_ray_trace_type->value() == (int32_t)RayTraceType::Pure) {
-        if (setBounce != nullptr) {
-            setBounce->call<void>(context, m_rt_component.get(), m_bounce_count->value());
+    auto fix = [this](sdk::ManagedObject* target, int32_t rt_type) {
+        if (target == nullptr) {
+            return;
         }
 
-        if (setSpp != nullptr) {
-            setSpp->call<void>(context, m_rt_component.get(), m_samples_per_pixel->value());
+        const auto context = sdk::get_thread_context();
+
+        if (set_RaytracingMode != nullptr && rt_type > (int32_t)RayTraceType::Disabled) {
+            set_RaytracingMode->call<void>(context, target, rt_type - 1);
+        }
+
+        if (rt_type == (int32_t)RayTraceType::Hybrid || rt_type == (int32_t)RayTraceType::Pure) {
+            if (setBounce != nullptr) {
+                setBounce->call<void>(context, target, m_bounce_count->value());
+            }
+
+            if (setSpp != nullptr) {
+                setSpp->call<void>(context, target, m_samples_per_pixel->value());
+            }
+        }
+    };
+
+    fix(m_rt_component.get(), m_ray_trace_type->value());
+    fix(m_rt_cloned_component.get(), m_ray_trace_clone_type_true->value());
+}
+
+void* Graphics::rt_draw_hook(REComponent* rt, void* draw_context, void* r8, void* r9) {
+    auto& graphics = Graphics::get();
+
+    const auto og = graphics->m_rt_draw_hook->get_original<decltype(rt_draw_hook)>();
+    const auto result = og(rt, draw_context, r8, r9);
+    
+    if (graphics->m_rt_cloned_component.get() == nullptr) {
+        return result;
+    }
+
+    if (graphics->m_ray_tracing_tweaks->value() && graphics->m_ray_trace_clone_type_true->value() > (int32_t)RayTraceType::Disabled) {
+        auto go = utility::re_component::get_game_object(rt);
+
+        if (go == nullptr || go->transform == nullptr) {
+            return result;
+        }
+
+        static auto rt_t = sdk::find_type_definition("via.render.ExperimentalRayTrace");
+
+        if (rt_t == nullptr) {
+            return result;
+        }
+
+        auto replaceable_rt = utility::re_component::find_replaceable<REComponent>(go->transform, rt_t->get_type());
+
+        // The cursed part of the code
+        if (replaceable_rt != nullptr) {
+            *replaceable_rt = (REComponent*)graphics->m_rt_cloned_component.get();
+            og((REComponent*)graphics->m_rt_cloned_component.get(), draw_context, r8, r9);
+            *replaceable_rt = rt;
         }
     }
+
+    return result;
 }
 
 void* Graphics::rt_draw_impl_hook(void* rt_impl, void* draw_context, void* r8, void* r9, void* unk) {
@@ -788,7 +884,7 @@ void* Graphics::rt_draw_impl_hook(void* rt_impl, void* draw_context, void* r8, v
 
     uint8_t& ray_tracing_mode = *(uint8_t*)((uintptr_t)rt_impl + graphics->m_rt_type_offset.value());
     const auto old_mode = ray_tracing_mode;
-    const auto og = graphics->m_rt_draw_hook->get_original<decltype(rt_draw_impl_hook)>();
+    const auto og = graphics->m_rt_draw_impl_hook->get_original<decltype(rt_draw_impl_hook)>();
 
     if (graphics->m_ray_tracing_tweaks->value() && graphics->m_ray_trace_clone_type_pre->value() > (int32_t)RayTraceType::Disabled) {
         ray_tracing_mode = graphics->m_ray_trace_clone_type_pre->value() - 1;

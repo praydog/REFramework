@@ -45,12 +45,16 @@ private:
     void setup_rt_component();
     void apply_ray_tracing_tweaks();
 
-    static void* rt_draw_impl_hook(void* rt, void* draw_context, void* r8, void* r9, void* unk);
+    static void* rt_draw_hook(REComponent* rt, void* draw_context, void* r8, void* r9);
+    static void* rt_draw_impl_hook(void* rt_impl, void* draw_context, void* r8, void* r9, void* unk);
+
     std::unique_ptr<FunctionHook> m_rt_draw_hook{};
+    std::unique_ptr<FunctionHook> m_rt_draw_impl_hook{};
     bool m_attempted_path_trace_hook{ false };
 
     std::optional<size_t> m_rt_type_offset{};
     sdk::intrusive_ptr<sdk::ManagedObject> m_rt_component{};
+    sdk::intrusive_ptr<sdk::ManagedObject> m_rt_cloned_component{};
 #endif
 
     std::recursive_mutex m_fov_mutex{};
@@ -110,6 +114,7 @@ private:
     };
 
     const ModCombo::Ptr m_ray_trace_type{ ModCombo::create(generate_name("RayTraceType"), s_ray_trace_type) };
+    const ModCombo::Ptr m_ray_trace_clone_type_true{ ModCombo::create(generate_name("RayTraceTrueCloneType"), s_ray_trace_type) };
     const ModCombo::Ptr m_ray_trace_clone_type_pre{ ModCombo::create(generate_name("RayTraceCloneTypePre"), s_ray_trace_type) };
     const ModCombo::Ptr m_ray_trace_clone_type_post{ ModCombo::create(generate_name("RayTraceCloneTypePost"), s_ray_trace_type) };
 
@@ -137,6 +142,7 @@ private:
 #if TDB_VER >= 69
         *m_ray_tracing_tweaks,
         *m_ray_trace_type,
+        *m_ray_trace_clone_type_true,
         *m_ray_trace_clone_type_pre,
         *m_ray_trace_clone_type_post,
         *m_bounce_count,
