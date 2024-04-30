@@ -3,12 +3,18 @@
 #include <chrono>
 #include <unordered_map>
 
+#include <sdk/intrusive_ptr.hpp>
+#include <sdk/ManagedObject.hpp>
+
 #include "Mod.hpp"
 
 class REManagedObject;
 class REComponent;
 
 class Graphics : public Mod {
+public:
+    static std::shared_ptr<Graphics>& get();
+
 public:
     std::string_view get_name() const override { return "Graphics"; };
 
@@ -34,6 +40,23 @@ private:
     void do_ultrawide_fov_restore(bool force = false);
     void set_ultrawide_fov(bool enable);
 
+#if TDB_VER >= 69
+    void setup_path_trace_hook();
+    void setup_rt_component();
+    void apply_ray_tracing_tweaks();
+
+    static void* rt_draw_hook(REComponent* rt, void* draw_context, void* r8, void* r9);
+    static void* rt_draw_impl_hook(void* rt_impl, void* draw_context, void* r8, void* r9, void* unk);
+
+    std::unique_ptr<FunctionHook> m_rt_draw_hook{};
+    std::unique_ptr<FunctionHook> m_rt_draw_impl_hook{};
+    bool m_attempted_path_trace_hook{ false };
+
+    std::optional<size_t> m_rt_type_offset{};
+    sdk::intrusive_ptr<sdk::ManagedObject> m_rt_component{};
+    sdk::intrusive_ptr<sdk::ManagedObject> m_rt_cloned_component{};
+#endif
+
     std::recursive_mutex m_fov_mutex{};
     std::unordered_map<::REManagedObject*, float> m_fov_map{};
     std::unordered_map<::REManagedObject*, bool> m_vertical_fov_map{};
@@ -51,6 +74,54 @@ private:
     const ModToggle::Ptr m_force_render_res_to_window{ ModToggle::create(generate_name("ForceRenderResToWindow"), false) };
     const ModKey::Ptr m_disable_gui_key{ ModKey::create(generate_name("DisableGUIKey")) };
 
+#if TDB_VER >= 69
+    const ModToggle::Ptr m_ray_tracing_tweaks { ModToggle::create(generate_name("RayTracingTweaks"), false) };
+
+    enum class RayTraceType : uint8_t {
+        Disabled = 0,
+        AmbientOcclusion = 1,
+        Hybrid = 2,
+        Pure = 3,
+        PathSpaceFilter = 4,
+        ScreenSpacePhotonMapping = 5,
+        Debug = 6,
+        ASVGF = 7,
+    };
+
+    static const inline std::vector<std::string> s_ray_trace_type {
+        "Disabled",
+        "Ambient Occlusion",
+        "Hybrid Path Tracing",
+        "Pure Path Tracing",
+        "Path Space Filter",
+        "Screen Space Photon Mapping",
+        "Debug",
+        "ASVGF",
+    };
+
+    static const inline std::vector<std::string> s_bounce_count {
+        "0",
+        "1",
+        "2",
+        "3",
+        "7"
+    };
+
+    static const inline std::vector<std::string> s_samples_per_pixel {
+        "1",
+        "2",
+        "4"
+    };
+
+    const ModCombo::Ptr m_ray_trace_type{ ModCombo::create(generate_name("RayTraceType"), s_ray_trace_type) };
+    const ModCombo::Ptr m_ray_trace_clone_type_true{ ModCombo::create(generate_name("RayTraceTrueCloneType"), s_ray_trace_type) };
+    const ModCombo::Ptr m_ray_trace_clone_type_pre{ ModCombo::create(generate_name("RayTraceCloneTypePre"), s_ray_trace_type) };
+    const ModCombo::Ptr m_ray_trace_clone_type_post{ ModCombo::create(generate_name("RayTraceCloneTypePost"), s_ray_trace_type) };
+
+    const ModCombo::Ptr m_bounce_count{ ModCombo::create(generate_name("BounceCount"), s_bounce_count, 1) };
+    const ModCombo::Ptr m_samples_per_pixel{ ModCombo::create(generate_name("SamplesPerPixel"), s_samples_per_pixel, 1) };
+#endif
+
 #ifdef RE4
     const ModToggle::Ptr m_scope_tweaks{ ModToggle::create(generate_name("ScopeTweaks"), false) };
     const ModToggle::Ptr m_scope_interlaced_rendering{ ModToggle::create(generate_name("ScopeInterlacedRendering"), false) };
@@ -67,6 +138,16 @@ private:
         *m_disable_gui,
         *m_force_render_res_to_window,
         *m_disable_gui_key,
+
+#if TDB_VER >= 69
+        *m_ray_tracing_tweaks,
+        *m_ray_trace_type,
+        *m_ray_trace_clone_type_true,
+        *m_ray_trace_clone_type_pre,
+        *m_ray_trace_clone_type_post,
+        *m_bounce_count,
+        *m_samples_per_pixel,
+#endif
 
 #ifdef RE4
         *m_scope_tweaks,

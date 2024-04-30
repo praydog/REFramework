@@ -42,6 +42,17 @@ namespace utility::re_component {
         return nullptr;
     }
 
+    template<typename T = ::REComponent>
+    static T** find_replaceable(::REComponent* comp, REType* t) {
+        for (auto* child = &comp->childComponent; *child != nullptr && *child != comp; child = &(*child)->childComponent) {
+            if (utility::re_managed_object::is_a(*child, t)) {
+                return (T**)child;
+            }
+        }
+
+        return nullptr;
+    }
+
     // Find a component using the getComponent method
     /*template <typename T = ::REComponent>
     static T *find_using_method(::REComponent *comp, std::string_view name) {

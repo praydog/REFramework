@@ -301,7 +301,7 @@ def hook_code(emu, address, size, frame):
                 list_size = cur_hist[lex] - 1
 
                 # Loop count matches the integer we filled the whole buffer with
-                if list_size == FILL_BYTE:
+                if list_size == FILL_BYTE and len(frame["layout"]) > FILL_BYTE:
                     try:
                         element_layout = frame["layout"][-1]
                     except IndexError as e:
@@ -320,7 +320,20 @@ def hook_code(emu, address, size, frame):
                     frame["layout"] = frame["layout"][0:len(frame["layout"]) - FILL_BYTE]
                     frame["was_string"] = False
 
-                    list_layout = frame["layout"][-1]
+                    try:
+                        list_layout = frame["layout"][-1]
+                    except IndexError as e:
+                        cs.detail = True
+                        dis_g = cs.disasm(emu.mem_read(lex, 0x100), address, 1)
+                        dis = next(dis_g)
+
+                        print("LEX: 0x%x" % lex)
+                        print("0x%x: %s %s" % (address, dis.mnemonic, dis.op_str))
+
+                        print("Instruction at %X didn't read bytes from stream? (2)" % address)
+                        os.system("pause")
+                        return
+                    
                     list_layout["list"] = True
                     list_layout["element"] = element_layout
                     list_layout["element_size"] = int((element_layout["offset"] - list_layout["offset"]) / FILL_BYTE)
