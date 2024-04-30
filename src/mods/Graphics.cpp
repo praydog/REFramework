@@ -767,7 +767,7 @@ void Graphics::setup_rt_component() {
 
     const auto go_name = utility::re_string::get_view(game_object->name);
 
-    if ((!go_name.starts_with(L"Main") && !go_name.starts_with(L"main"))) {
+    if ((!go_name.starts_with(L"Main") && !go_name.starts_with(L"main")) && !go_name.contains(L"DefaultCamera")) {
         return;
     }
 
