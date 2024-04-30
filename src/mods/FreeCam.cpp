@@ -123,7 +123,6 @@ void FreeCam::on_update_transform(RETransform* transform) {
         return;
     }
 
-
 #if defined(RE2) || defined(RE3)
     static auto get_player_condition_method = sdk::find_method_definition(game_namespace("SurvivorManager"), "get_Player");
     static auto get_action_orderer_method = sdk::find_method_definition(game_namespace("survivor.SurvivorCondition"), "get_ActionOrderer");
@@ -252,11 +251,13 @@ void FreeCam::on_update_transform(RETransform* transform) {
             dir_speed *= dir_speed_mod_slow;
         }
 
-        const auto& mouse_delta = g_framework->get_mouse_delta();
+        if (!g_framework->is_ui_focused()) {
+            const auto& mouse_delta = g_framework->get_mouse_delta();
 
-        m_custom_angles[0] -= mouse_delta[1] * rotation_speed_kbm * delta * timescale_mult;
-        m_custom_angles[1] -= mouse_delta[0] * rotation_speed_kbm * delta * timescale_mult;
-        m_custom_angles[2] = 0.0f;
+            m_custom_angles[0] -= mouse_delta[1] * rotation_speed_kbm * delta * timescale_mult;
+            m_custom_angles[1] -= mouse_delta[0] * rotation_speed_kbm * delta * timescale_mult;
+            m_custom_angles[2] = 0.0f;
+        }
 
         math::fix_angles(m_custom_angles);
 

@@ -45,6 +45,7 @@ public:
     Address get_module() const { return m_game_module; }
 
     bool is_ready() const { return m_initialized && m_game_data_initialized; }
+    bool is_ui_focused() const { return m_is_ui_focused; }
 
     void run_imgui_frame(bool from_present);
 
