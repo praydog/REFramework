@@ -166,7 +166,8 @@ void FreeCam::on_update_transform(RETransform* transform) {
 
         m_first_time = false;
 
-        m_custom_angles = math::euler_angles(glm::extractMatrixRotation(m_last_camera_matrix));
+        m_custom_rotation = glm::extractMatrixRotation(m_last_camera_matrix);
+        m_custom_angles = {}; // per-frame rotation gets reset.
         //m_custom_angles[1] *= -1.0f;
         //m_custom_angles[1] += glm::radians(180.0f);
 
@@ -212,17 +213,63 @@ void FreeCam::on_update_transform(RETransform* transform) {
 
         // Controller support
         if (pad != nullptr) {
+            static const auto gamepad_device_t = sdk::find_type_definition("via.hid.GamePadDevice");
+            static const auto is_down = gamepad_device_t != nullptr ? gamepad_device_t->get_method("isDown(via.hid.GamePadButton)") : nullptr;
+
             // Move direction
             // It's not a Vector2f because via.vec2 is not actually 8 bytes, we don't want stack corruption to occur.
             const auto axis_l = *re_managed_object::get_field<Vector3f*>(pad, "AxisL");
             const auto axis_r = *re_managed_object::get_field<Vector3f*>(pad, "AxisR");
 
-            m_custom_angles[0] += axis_r.y * rotation_speed * delta * timescale_mult;
-            m_custom_angles[1] -= axis_r.x * rotation_speed * delta * timescale_mult;
-            m_custom_angles[2] = 0.0f;
+            bool is_using_up_down_modifier = false;
+            bool is_using_twist_modifier = false;
+
+            if (is_down != nullptr) {
+                const auto dpad_up_is_down = is_down->call_safe<bool>(sdk::get_thread_context(), pad, via::hid::GamePadButton::LUp);
+                const auto dpad_down_is_down = is_down->call_safe<bool>(sdk::get_thread_context(), pad, via::hid::GamePadButton::LDown);
+
+                if (dpad_up_is_down) {
+                    dir.y = 1.0f;
+                } else if (dpad_down_is_down) {
+                    dir.y = -1.0f;
+                }
+
+                const auto dpad_left_is_down = is_down->call_safe<bool>(sdk::get_thread_context(), pad, via::hid::GamePadButton::LLeft);
+                const auto dpad_right_is_down = is_down->call_safe<bool>(sdk::get_thread_context(), pad, via::hid::GamePadButton::LRight);
+
+                if (dpad_left_is_down) {
+                    dir.x -= 1.0f;
+                } else if (dpad_right_is_down) {
+                    dir.x += 1.0f;
+                }
+
+                const auto l_trigger_is_down = is_down->call_safe<bool>(sdk::get_thread_context(), pad, via::hid::GamePadButton::LTrigBottom);
+
+                if (l_trigger_is_down) {
+                    if (glm::length(axis_r) > 0.0f) {
+                        dir += Vector4f{ 0.0, axis_r.y, 0.0, 0.0f };
+                        is_using_up_down_modifier = true;
+                    }
+                }
+
+                const auto r_trigger_is_down = is_down->call_safe<bool>(sdk::get_thread_context(), pad, via::hid::GamePadButton::RTrigBottom);
+
+                if (r_trigger_is_down) {
+                    if (glm::length(axis_r) > 0.0f) {
+                        m_custom_angles[2] -= axis_r.x * rotation_speed * delta * timescale_mult;
+                        is_using_twist_modifier = true;
+                    }
+                }
+            }
+
+            if (!is_using_up_down_modifier && !is_using_twist_modifier) {
+                m_custom_angles[0] += axis_r.y * rotation_speed * delta * timescale_mult;
+                m_custom_angles[1] -= axis_r.x * rotation_speed * delta * timescale_mult;
+                //m_custom_angles[2] = 0.0f;
+            }
 
             if (glm::length(axis_l) > 0.0f) {
-                dir = Vector4f{ axis_l.x, 0.0f, axis_l.y * -1.0f, 0.0f };
+                dir += Vector4f{ axis_l.x, 0.0f, axis_l.y * -1.0f, 0.0f };
             }
         }
 
@@ -254,18 +301,25 @@ void FreeCam::on_update_transform(RETransform* transform) {
         if (!g_framework->is_ui_focused()) {
             const auto& mouse_delta = g_framework->get_mouse_delta();
 
-            m_custom_angles[0] -= mouse_delta[1] * rotation_speed_kbm * delta * timescale_mult;
-            m_custom_angles[1] -= mouse_delta[0] * rotation_speed_kbm * delta * timescale_mult;
-            m_custom_angles[2] = 0.0f;
+            if (keyboard_state[VK_RBUTTON]) {
+                m_custom_angles[2] -= mouse_delta[0] * rotation_speed_kbm * delta * timescale_mult;
+            } else {
+                m_custom_angles[0] -= mouse_delta[1] * rotation_speed_kbm * delta * timescale_mult;
+                m_custom_angles[1] -= mouse_delta[0] * rotation_speed_kbm * delta * timescale_mult;
+            }
         }
 
         math::fix_angles(m_custom_angles);
 
-        const auto new_rotation = Matrix4x4f{ glm::quat{ m_custom_angles } };
-        const auto new_pos = m_last_camera_matrix[3] + new_rotation * dir * (dir_speed * delta * timescale_mult);
+        if (glm::length(m_custom_angles) > 0.0f) {
+            m_custom_rotation *= glm::quat{ m_custom_angles };
+            m_custom_angles = {};
+        }
+
+        const auto new_pos = m_last_camera_matrix[3] + m_custom_rotation * dir * (dir_speed * delta * timescale_mult);
 
         // Keep track of the rotation if we want to lock the camera
-        m_last_camera_matrix = new_rotation;
+        m_last_camera_matrix = glm::mat4{m_custom_rotation};
         m_last_camera_matrix[3] = new_pos;
     }
 

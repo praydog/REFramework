@@ -36,7 +36,7 @@ private:
     const ModSlider::Ptr m_speed{ ModSlider::create(generate_name("Speed"), 0.0f, 1.0f, 0.1f) };
     const ModSlider::Ptr m_speed_modifier{ ModSlider::create(generate_name("SpeedModifier"), 1.f, 50.f, 4.f) };
 
-    const ModSlider::Ptr m_rotation_speed{ ModSlider::create(generate_name("RotationSpeed"), 0.0f, 1.0f, 1.0f) };
+    const ModSlider::Ptr m_rotation_speed{ ModSlider::create(generate_name("RotationSpeed"), 0.0f, 1.0f, 0.1f) };
 
     ValueList m_options{
         *m_enabled,
@@ -71,6 +71,7 @@ private:
     bool m_was_disabled{ false };
 
     Vector3f m_custom_angles{};
+    glm::quat m_custom_rotation{};
 
     RECamera* m_camera{nullptr};
 
