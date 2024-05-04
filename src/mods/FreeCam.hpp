@@ -71,7 +71,7 @@ private:
     bool m_was_disabled{ false };
 
     Vector3f m_custom_angles{};
-    glm::quat m_custom_rotation{};
+    float m_twist{0.0f};
 
     RECamera* m_camera{nullptr};
 

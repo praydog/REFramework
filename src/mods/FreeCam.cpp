@@ -166,8 +166,8 @@ void FreeCam::on_update_transform(RETransform* transform) {
 
         m_first_time = false;
 
-        m_custom_rotation = glm::extractMatrixRotation(m_last_camera_matrix);
-        m_custom_angles = {}; // per-frame rotation gets reset.
+        m_custom_angles = math::euler_angles(glm::extractMatrixRotation(m_last_camera_matrix));
+        m_twist = 0.0f;
         //m_custom_angles[1] *= -1.0f;
         //m_custom_angles[1] += glm::radians(180.0f);
 
@@ -256,7 +256,8 @@ void FreeCam::on_update_transform(RETransform* transform) {
 
                 if (r_trigger_is_down) {
                     if (glm::length(axis_r) > 0.0f) {
-                        m_custom_angles[2] -= axis_r.x * rotation_speed * delta * timescale_mult;
+                        //m_custom_angles[2] -= axis_r.x * rotation_speed * delta * timescale_mult;
+                        m_twist += axis_r.x * rotation_speed * delta * timescale_mult;
                         is_using_twist_modifier = true;
                     }
                 }
@@ -302,7 +303,8 @@ void FreeCam::on_update_transform(RETransform* transform) {
             const auto& mouse_delta = g_framework->get_mouse_delta();
 
             if (keyboard_state[VK_RBUTTON]) {
-                m_custom_angles[2] -= mouse_delta[0] * rotation_speed_kbm * delta * timescale_mult;
+                //m_custom_angles[2] -= mouse_delta[0] * rotation_speed_kbm * delta * timescale_mult;
+                m_twist -= mouse_delta[0] * rotation_speed_kbm * delta * timescale_mult;
             } else {
                 m_custom_angles[0] -= mouse_delta[1] * rotation_speed_kbm * delta * timescale_mult;
                 m_custom_angles[1] -= mouse_delta[0] * rotation_speed_kbm * delta * timescale_mult;
@@ -310,16 +312,13 @@ void FreeCam::on_update_transform(RETransform* transform) {
         }
 
         math::fix_angles(m_custom_angles);
-
-        if (glm::length(m_custom_angles) > 0.0f) {
-            m_custom_rotation *= glm::quat{ m_custom_angles };
-            m_custom_angles = {};
-        }
-
-        const auto new_pos = m_last_camera_matrix[3] + m_custom_rotation * dir * (dir_speed * delta * timescale_mult);
+        
+        auto new_rotation = glm::quat{ m_custom_angles };
+        new_rotation = glm::rotate(new_rotation, m_twist, glm::vec3{0.0f, 0.0f, 1.0f});
+        const auto new_pos = m_last_camera_matrix[3] + new_rotation * dir * (dir_speed * delta * timescale_mult);
 
         // Keep track of the rotation if we want to lock the camera
-        m_last_camera_matrix = glm::mat4{m_custom_rotation};
+        m_last_camera_matrix = glm::mat4{new_rotation};
         m_last_camera_matrix[3] = new_pos;
     }
 
