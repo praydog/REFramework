@@ -1809,6 +1809,13 @@ bool REFramework::initialize_game_data() {
                 spdlog::error("Initialization of mods failed. Reason: {}", m_error);
             }
 
+            // Need to clean up local objects as this is our own thread, not under control by the engine
+            if (auto context = sdk::get_thread_context(); context != nullptr) try {
+                context->local_frame_gc();
+            } catch(...) {
+                spdlog::error("Failed to run local frame GC.");
+            }
+
             m_game_data_initialized = true;
         } catch(const std::exception& e) {
             m_error = e.what();
