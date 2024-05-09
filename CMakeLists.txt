@@ -134,13 +134,13 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(bddisasm)
 
-message(STATUS "Fetching kananlib (203dc31c5d8ba2cffdb780ae38b2eb2080bb099c)...")
+message(STATUS "Fetching kananlib (65c205e9f3f0985fd298281a77098d48b9065e87)...")
 FetchContent_Declare(
 	kananlib
 	GIT_REPOSITORY
 		https://github.com/cursey/kananlib
 	GIT_TAG
-		203dc31c5d8ba2cffdb780ae38b2eb2080bb099c
+		65c205e9f3f0985fd298281a77098d48b9065e87
 )
 FetchContent_MakeAvailable(kananlib)
 
@@ -608,6 +608,7 @@ if(REF_BUILD_RE2_SDK OR REF_BUILD_FRAMEWORK) # build-re2-sdk
 		"shared/sdk/SystemArray.cpp"
 		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/renderer/RenderResource.cpp"
+		"shared/sdk/resources/MasterMaterialResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
 		"shared/sdk/GUIPrimitiveSystem.hpp"
@@ -1381,7 +1382,10 @@ if(REF_BUILD_RE2_SDK OR REF_BUILD_FRAMEWORK) # build-re2-sdk
 		"shared/sdk/regenny/sf6/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/sf6/via/vec3.hpp"
 		"shared/sdk/regenny/sf6/via/vec4.hpp"
+		"shared/sdk/renderer/PipelineState.hpp"
 		"shared/sdk/renderer/RenderResource.hpp"
+		"shared/sdk/resources/MasterMaterialResource.hpp"
+		"shared/sdk/resources/ShaderResource.hpp"
 	)
 
 	list(APPEND RE2SDK_SOURCES
@@ -1455,6 +1459,7 @@ if(REF_BUILD_RE2_TDB66SDK OR REF_BUILD_FRAMEWORK) # build-re2tdb66-sdk
 		"shared/sdk/SystemArray.cpp"
 		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/renderer/RenderResource.cpp"
+		"shared/sdk/resources/MasterMaterialResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
 		"shared/sdk/GUIPrimitiveSystem.hpp"
@@ -2228,7 +2233,10 @@ if(REF_BUILD_RE2_TDB66SDK OR REF_BUILD_FRAMEWORK) # build-re2tdb66-sdk
 		"shared/sdk/regenny/sf6/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/sf6/via/vec3.hpp"
 		"shared/sdk/regenny/sf6/via/vec4.hpp"
+		"shared/sdk/renderer/PipelineState.hpp"
 		"shared/sdk/renderer/RenderResource.hpp"
+		"shared/sdk/resources/MasterMaterialResource.hpp"
+		"shared/sdk/resources/ShaderResource.hpp"
 	)
 
 	list(APPEND RE2_TDB66SDK_SOURCES
@@ -2731,6 +2739,7 @@ if(REF_BUILD_RE3_SDK OR REF_BUILD_FRAMEWORK) # build-re3-sdk
 		"shared/sdk/SystemArray.cpp"
 		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/renderer/RenderResource.cpp"
+		"shared/sdk/resources/MasterMaterialResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
 		"shared/sdk/GUIPrimitiveSystem.hpp"
@@ -3504,7 +3513,10 @@ if(REF_BUILD_RE3_SDK OR REF_BUILD_FRAMEWORK) # build-re3-sdk
 		"shared/sdk/regenny/sf6/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/sf6/via/vec3.hpp"
 		"shared/sdk/regenny/sf6/via/vec4.hpp"
+		"shared/sdk/renderer/PipelineState.hpp"
 		"shared/sdk/renderer/RenderResource.hpp"
+		"shared/sdk/resources/MasterMaterialResource.hpp"
+		"shared/sdk/resources/ShaderResource.hpp"
 	)
 
 	list(APPEND RE3SDK_SOURCES
@@ -3578,6 +3590,7 @@ if(REF_BUILD_RE3_TDB67SDK OR REF_BUILD_FRAMEWORK) # build-re3tdb67-sdk
 		"shared/sdk/SystemArray.cpp"
 		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/renderer/RenderResource.cpp"
+		"shared/sdk/resources/MasterMaterialResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
 		"shared/sdk/GUIPrimitiveSystem.hpp"
@@ -4351,7 +4364,10 @@ if(REF_BUILD_RE3_TDB67SDK OR REF_BUILD_FRAMEWORK) # build-re3tdb67-sdk
 		"shared/sdk/regenny/sf6/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/sf6/via/vec3.hpp"
 		"shared/sdk/regenny/sf6/via/vec4.hpp"
+		"shared/sdk/renderer/PipelineState.hpp"
 		"shared/sdk/renderer/RenderResource.hpp"
+		"shared/sdk/resources/MasterMaterialResource.hpp"
+		"shared/sdk/resources/ShaderResource.hpp"
 	)
 
 	list(APPEND RE3_TDB67SDK_SOURCES
@@ -5068,6 +5084,7 @@ if(REF_BUILD_RE4_SDK OR REF_BUILD_FRAMEWORK) # build-re4-sdk
 		"shared/sdk/SystemArray.cpp"
 		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/renderer/RenderResource.cpp"
+		"shared/sdk/resources/MasterMaterialResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
 		"shared/sdk/GUIPrimitiveSystem.hpp"
@@ -5841,7 +5858,10 @@ if(REF_BUILD_RE4_SDK OR REF_BUILD_FRAMEWORK) # build-re4-sdk
 		"shared/sdk/regenny/sf6/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/sf6/via/vec3.hpp"
 		"shared/sdk/regenny/sf6/via/vec4.hpp"
+		"shared/sdk/renderer/PipelineState.hpp"
 		"shared/sdk/renderer/RenderResource.hpp"
+		"shared/sdk/resources/MasterMaterialResource.hpp"
+		"shared/sdk/resources/ShaderResource.hpp"
 	)
 
 	list(APPEND RE4SDK_SOURCES
@@ -5917,6 +5937,7 @@ if(REF_BUILD_RE7_SDK OR REF_BUILD_FRAMEWORK) # build-re7-sdk
 		"shared/sdk/SystemArray.cpp"
 		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/renderer/RenderResource.cpp"
+		"shared/sdk/resources/MasterMaterialResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
 		"shared/sdk/GUIPrimitiveSystem.hpp"
@@ -6690,7 +6711,10 @@ if(REF_BUILD_RE7_SDK OR REF_BUILD_FRAMEWORK) # build-re7-sdk
 		"shared/sdk/regenny/sf6/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/sf6/via/vec3.hpp"
 		"shared/sdk/regenny/sf6/via/vec4.hpp"
+		"shared/sdk/renderer/PipelineState.hpp"
 		"shared/sdk/renderer/RenderResource.hpp"
+		"shared/sdk/resources/MasterMaterialResource.hpp"
+		"shared/sdk/resources/ShaderResource.hpp"
 	)
 
 	list(APPEND RE7SDK_SOURCES
@@ -6764,6 +6788,7 @@ if(REF_BUILD_RE7_TDB49SDK OR REF_BUILD_FRAMEWORK) # build-re7tdb49-sdk
 		"shared/sdk/SystemArray.cpp"
 		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/renderer/RenderResource.cpp"
+		"shared/sdk/resources/MasterMaterialResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
 		"shared/sdk/GUIPrimitiveSystem.hpp"
@@ -7537,7 +7562,10 @@ if(REF_BUILD_RE7_TDB49SDK OR REF_BUILD_FRAMEWORK) # build-re7tdb49-sdk
 		"shared/sdk/regenny/sf6/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/sf6/via/vec3.hpp"
 		"shared/sdk/regenny/sf6/via/vec4.hpp"
+		"shared/sdk/renderer/PipelineState.hpp"
 		"shared/sdk/renderer/RenderResource.hpp"
+		"shared/sdk/resources/MasterMaterialResource.hpp"
+		"shared/sdk/resources/ShaderResource.hpp"
 	)
 
 	list(APPEND RE7_TDB49SDK_SOURCES
@@ -8040,6 +8068,7 @@ if(REF_BUILD_RE8_SDK OR REF_BUILD_FRAMEWORK) # build-re8-sdk
 		"shared/sdk/SystemArray.cpp"
 		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/renderer/RenderResource.cpp"
+		"shared/sdk/resources/MasterMaterialResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
 		"shared/sdk/GUIPrimitiveSystem.hpp"
@@ -8813,7 +8842,10 @@ if(REF_BUILD_RE8_SDK OR REF_BUILD_FRAMEWORK) # build-re8-sdk
 		"shared/sdk/regenny/sf6/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/sf6/via/vec3.hpp"
 		"shared/sdk/regenny/sf6/via/vec4.hpp"
+		"shared/sdk/renderer/PipelineState.hpp"
 		"shared/sdk/renderer/RenderResource.hpp"
+		"shared/sdk/resources/MasterMaterialResource.hpp"
+		"shared/sdk/resources/ShaderResource.hpp"
 	)
 
 	list(APPEND RE8SDK_SOURCES
@@ -9103,6 +9135,7 @@ if(REF_BUILD_DMC5_SDK OR REF_BUILD_FRAMEWORK) # build-dmc5-sdk
 		"shared/sdk/SystemArray.cpp"
 		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/renderer/RenderResource.cpp"
+		"shared/sdk/resources/MasterMaterialResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
 		"shared/sdk/GUIPrimitiveSystem.hpp"
@@ -9876,7 +9909,10 @@ if(REF_BUILD_DMC5_SDK OR REF_BUILD_FRAMEWORK) # build-dmc5-sdk
 		"shared/sdk/regenny/sf6/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/sf6/via/vec3.hpp"
 		"shared/sdk/regenny/sf6/via/vec4.hpp"
+		"shared/sdk/renderer/PipelineState.hpp"
 		"shared/sdk/renderer/RenderResource.hpp"
+		"shared/sdk/resources/MasterMaterialResource.hpp"
+		"shared/sdk/resources/ShaderResource.hpp"
 	)
 
 	list(APPEND DMC5SDK_SOURCES
@@ -10164,6 +10200,7 @@ if(REF_BUILD_MHRISE_SDK OR REF_BUILD_FRAMEWORK) # build-mhrise-sdk
 		"shared/sdk/SystemArray.cpp"
 		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/renderer/RenderResource.cpp"
+		"shared/sdk/resources/MasterMaterialResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
 		"shared/sdk/GUIPrimitiveSystem.hpp"
@@ -10937,7 +10974,10 @@ if(REF_BUILD_MHRISE_SDK OR REF_BUILD_FRAMEWORK) # build-mhrise-sdk
 		"shared/sdk/regenny/sf6/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/sf6/via/vec3.hpp"
 		"shared/sdk/regenny/sf6/via/vec4.hpp"
+		"shared/sdk/renderer/PipelineState.hpp"
 		"shared/sdk/renderer/RenderResource.hpp"
+		"shared/sdk/resources/MasterMaterialResource.hpp"
+		"shared/sdk/resources/ShaderResource.hpp"
 	)
 
 	list(APPEND MHRISESDK_SOURCES
@@ -11227,6 +11267,7 @@ if(REF_BUILD_SF6_SDK OR REF_BUILD_FRAMEWORK) # build-sf6-sdk
 		"shared/sdk/SystemArray.cpp"
 		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/renderer/RenderResource.cpp"
+		"shared/sdk/resources/MasterMaterialResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
 		"shared/sdk/GUIPrimitiveSystem.hpp"
@@ -12000,7 +12041,10 @@ if(REF_BUILD_SF6_SDK OR REF_BUILD_FRAMEWORK) # build-sf6-sdk
 		"shared/sdk/regenny/sf6/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/sf6/via/vec3.hpp"
 		"shared/sdk/regenny/sf6/via/vec4.hpp"
+		"shared/sdk/renderer/PipelineState.hpp"
 		"shared/sdk/renderer/RenderResource.hpp"
+		"shared/sdk/resources/MasterMaterialResource.hpp"
+		"shared/sdk/resources/ShaderResource.hpp"
 	)
 
 	list(APPEND SF6SDK_SOURCES
@@ -12290,6 +12334,7 @@ if(REF_BUILD_DD2_SDK OR REF_BUILD_FRAMEWORK) # build-dd2-sdk
 		"shared/sdk/SystemArray.cpp"
 		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/renderer/RenderResource.cpp"
+		"shared/sdk/resources/MasterMaterialResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
 		"shared/sdk/GUIPrimitiveSystem.hpp"
@@ -13063,7 +13108,10 @@ if(REF_BUILD_DD2_SDK OR REF_BUILD_FRAMEWORK) # build-dd2-sdk
 		"shared/sdk/regenny/sf6/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/sf6/via/vec3.hpp"
 		"shared/sdk/regenny/sf6/via/vec4.hpp"
+		"shared/sdk/renderer/PipelineState.hpp"
 		"shared/sdk/renderer/RenderResource.hpp"
+		"shared/sdk/resources/MasterMaterialResource.hpp"
+		"shared/sdk/resources/ShaderResource.hpp"
 	)
 
 	list(APPEND DD2SDK_SOURCES

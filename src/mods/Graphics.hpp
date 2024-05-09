@@ -114,6 +114,8 @@ private:
     };
 
     const ModCombo::Ptr m_ray_trace_type{ ModCombo::create(generate_name("RayTraceType"), s_ray_trace_type) };
+    const ModToggle::Ptr m_ray_trace_disable_raster_shadows{ ModToggle::create(generate_name("RayTraceDisableRasterShadowsWithPT"), true) };
+    bool m_was_shadows_disabled{ false };
     const ModCombo::Ptr m_ray_trace_clone_type_true{ ModCombo::create(generate_name("RayTraceTrueCloneType"), s_ray_trace_type) };
     const ModCombo::Ptr m_ray_trace_clone_type_pre{ ModCombo::create(generate_name("RayTraceCloneTypePre"), s_ray_trace_type) };
     const ModCombo::Ptr m_ray_trace_clone_type_post{ ModCombo::create(generate_name("RayTraceCloneTypePost"), s_ray_trace_type) };
@@ -142,6 +144,7 @@ private:
 #if TDB_VER >= 69
         *m_ray_tracing_tweaks,
         *m_ray_trace_type,
+        *m_ray_trace_disable_raster_shadows,
         *m_ray_trace_clone_type_true,
         *m_ray_trace_clone_type_pre,
         *m_ray_trace_clone_type_post,

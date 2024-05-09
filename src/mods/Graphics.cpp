@@ -114,6 +114,7 @@ void Graphics::on_draw_ui() {
         m_ray_tracing_tweaks->draw("Enable Ray Tracing Tweaks");
 
         if (m_ray_tracing_tweaks->value()) {
+            m_ray_trace_disable_raster_shadows->draw("Disable Raster Shadows (with PT)");
             m_ray_trace_type->draw("Ray Trace Type");
 
             const auto clone_tooltip = 
@@ -817,15 +818,35 @@ void Graphics::apply_ray_tracing_tweaks() {
     static const auto setBounce = rt_t->get_method("setBounce");
     static const auto setSpp = rt_t->get_method("setSpp");
 
-    auto fix = [this](sdk::ManagedObject* target, int32_t rt_type) {
+    bool any_pt = false;
+
+    static const auto renderer_t = sdk::find_type_definition("via.render.Renderer");
+
+    static const auto set_DynamicShadowEnable = renderer_t != nullptr ? renderer_t->get_method("set_DynamicShadowEnable") : nullptr;
+    static const auto get_DynamicShadowEnable = renderer_t != nullptr ? renderer_t->get_method("get_DynamicShadowEnable") : nullptr;
+
+    const auto context = sdk::get_thread_context();
+
+    auto fix = [this, &any_pt, &context](sdk::ManagedObject* target, int32_t rt_type) {
         if (target == nullptr) {
             return;
         }
 
-        const auto context = sdk::get_thread_context();
-
         if (set_RaytracingMode != nullptr && rt_type > (int32_t)RayTraceType::Disabled) {
+            any_pt = any_pt || rt_type == (int32_t)RayTraceType::Pure;
             set_RaytracingMode->call<void>(context, target, rt_type - 1);
+
+            if (rt_type == (int32_t)RayTraceType::Pure && m_ray_trace_disable_raster_shadows->value()) {
+                if (get_DynamicShadowEnable != nullptr && set_DynamicShadowEnable != nullptr) {
+                    const bool is_shadow_enabled = get_DynamicShadowEnable->call<bool>(context);
+                    
+                    if (is_shadow_enabled) {
+                        set_DynamicShadowEnable->call<void>(context, false);
+                    }
+
+                    m_was_shadows_disabled = true;
+                }
+            }
         }
 
         if (rt_type == (int32_t)RayTraceType::Hybrid || rt_type == (int32_t)RayTraceType::Pure) {
@@ -841,6 +862,13 @@ void Graphics::apply_ray_tracing_tweaks() {
 
     fix(m_rt_component.get(), m_ray_trace_type->value());
     fix(m_rt_cloned_component.get(), m_ray_trace_clone_type_true->value());
+
+    // Restore shadows if they were disabled
+    if ((!any_pt || !m_ray_trace_disable_raster_shadows->value()) && m_was_shadows_disabled && set_DynamicShadowEnable != nullptr) {
+        spdlog::info("[Graphics] Restoring shadows");
+        set_DynamicShadowEnable->call<void>(context, true);
+        m_was_shadows_disabled = false;
+    }
 }
 
 void* Graphics::rt_draw_hook(REComponent* rt, void* draw_context, void* r8, void* r9) {
