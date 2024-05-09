@@ -7,6 +7,7 @@
 #include "ReClass.hpp"
 #include "RENativeArray.hpp"
 #include "renderer/RenderResource.hpp"
+#include "renderer/PipelineState.hpp"
 
 class REType;
 struct ID3D12Resource;
@@ -397,6 +398,7 @@ struct Fence {
 
 class RenderContext {
 public:
+    void set_pipeline_state(PipelineState* state);
     void copy_texture(Texture* dest, Texture* src, Fence& fence);
     void copy_texture(Texture* dest, Texture* src) {
         Fence fence{};

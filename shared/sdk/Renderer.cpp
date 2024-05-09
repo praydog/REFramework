@@ -387,6 +387,63 @@ void RenderLayer::clone_layers(RenderLayer* other, bool recursive) {
     return utility::re_managed_object::get_field<::sdk::renderer::TargetState*>(this, name);
 }
 
+void RenderContext::set_pipeline_state(sdk::renderer::PipelineState* pipeline_state) {
+    using Fn = void (*)(RenderContext*, sdk::renderer::PipelineState*);
+    static Fn set_pipeline_state_fn = []() -> Fn {
+        spdlog::info("[RenderContext::set_pipeline_state] Searching for RenderContext::set_pipeline_state");
+
+        const auto game = utility::get_executable();
+        const auto string_data = utility::scan_string(game, "UpdateDepthBlockerState");
+
+        if (!string_data) {
+            spdlog::error("[RenderContext::set_pipeline_state] Failed to find UpdateDepthBlockerState string");
+            return nullptr;
+        }
+
+        const auto string_ref = utility::scan_displacement_reference(game, *string_data);
+
+        if (!string_ref) {
+            spdlog::error("[RenderContext::set_pipeline_state] Failed to find UpdateDepthBlockerState reference");
+            return nullptr;
+        }
+
+        std::optional<uintptr_t> current_function_call{};
+        uintptr_t current_ip{*string_ref + 4};
+
+        // First one is murmur hash calc function
+        // second: MasterMaterialResource::find
+        // third: RenderResource::add_ref
+        // fourth: RenderContext::set_pipeline_state
+        for (size_t i = 0; i < 4; ++i) {
+            current_function_call = utility::scan_mnemonic(current_ip, 100, "CALL");
+
+            if (!current_function_call) {
+                spdlog::error("[RenderContext::set_pipeline_state] Failed to find next CALL instruction");
+                return nullptr;
+            }
+
+            current_ip = *current_function_call + 5;
+        }
+
+        const auto result = utility::resolve_displacement(*current_function_call);
+
+        if (!result) {
+            spdlog::error("[RenderContext::set_pipeline_state] Failed to resolve displacement");
+            return nullptr;
+        }
+
+        spdlog::info("[RenderContext::set_pipeline_state] Found RenderContext::set_pipeline_state at {:x}", *result);
+
+        return (Fn)*result;
+    }();
+
+    if (set_pipeline_state_fn == nullptr) {
+        return;
+    }
+
+    set_pipeline_state_fn(this, pipeline_state);
+}
+
 /*
 - 0x9B CopyImage
 + 0x93 ReadonlyDepth
