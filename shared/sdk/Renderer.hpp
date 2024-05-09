@@ -399,6 +399,9 @@ struct Fence {
 class RenderContext {
 public:
     void set_pipeline_state(PipelineState* state);
+
+    // tgx and y are usually width and height
+    void dispatch_ray(uint32_t thread_group_x, uint32_t thread_group_y, uint32_t thread_group_z, Fence& fence);
     void copy_texture(Texture* dest, Texture* src, Fence& fence);
     void copy_texture(Texture* dest, Texture* src) {
         Fence fence{};

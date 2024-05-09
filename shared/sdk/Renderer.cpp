@@ -444,6 +444,65 @@ void RenderContext::set_pipeline_state(sdk::renderer::PipelineState* pipeline_st
     set_pipeline_state_fn(this, pipeline_state);
 }
 
+void RenderContext::dispatch_ray(uint32_t tgx, uint32_t tgy, uint32_t tgz, Fence& fence) {
+    using Fn = void (*)(RenderContext*, uint32_t, uint32_t, uint32_t, Fence*);
+    static auto func = []() -> Fn {
+        spdlog::info("[RenderContext::dispatch_ray] Searching for RenderContext::dispatch_ray");
+
+        const auto game = utility::get_executable();
+        const auto string_data = utility::scan_string(game, "PathSpaceRayTracing");
+
+        if (!string_data) {
+            spdlog::error("[RenderContext::dispatch_ray] Failed to find PathSpaceRayTracing string");
+            return nullptr;
+        }
+
+        const auto string_ref = utility::scan_displacement_reference(game, *string_data);
+
+        if (!string_ref) {
+            spdlog::error("[RenderContext::dispatch_ray] Failed to find PathSpaceRayTracing reference");
+            return nullptr;
+        }
+
+        std::optional<uintptr_t> current_function_call{};
+        uintptr_t current_ip{*string_ref + 4};
+
+        // First one is murmur hash calc function
+        // second: MasterMaterialResource::find
+        // third: RenderResource::add_ref
+        // fourth: RenderContext::set_pipeline_state
+        // fifth: RenderResource::release
+        // sixth: RenderContext::dispatch_ray
+        for (size_t i = 0; i < 6; ++i) {
+            current_function_call = utility::scan_mnemonic(current_ip, 100, "CALL");
+
+            if (!current_function_call) {
+                spdlog::error("[RenderContext::dispatch_ray] Failed to find next CALL instruction");
+                return nullptr;
+            }
+
+            current_ip = *current_function_call + 5;
+        }
+
+        const auto result = utility::resolve_displacement(*current_function_call);
+
+        if (!result) {
+            spdlog::error("[RenderContext::dispatch_ray] Failed to resolve displacement");
+            return nullptr;
+        }
+
+        spdlog::info("[RenderContext::dispatch_ray] Found RenderContext::dispatch_ray at {:x}", *result);
+
+        return (Fn)*result;
+    }();
+
+    if (func == nullptr) {
+        return;
+    }
+
+    func(this, tgx, tgy, tgz, &fence);
+}
+
 /*
 - 0x9B CopyImage
 + 0x93 ReadonlyDepth
