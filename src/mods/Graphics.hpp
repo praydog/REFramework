@@ -5,6 +5,7 @@
 
 #include <sdk/intrusive_ptr.hpp>
 #include <sdk/ManagedObject.hpp>
+#include <sdk/renderer/PipelineState.hpp>
 
 #include "Mod.hpp"
 
@@ -42,19 +43,107 @@ private:
 
 #if TDB_VER >= 69
     void setup_path_trace_hook();
+    void setup_shader_interception_hook();
     void setup_rt_component();
     void apply_ray_tracing_tweaks();
 
     static void* rt_draw_hook(REComponent* rt, void* draw_context, void* r8, void* r9);
     static void* rt_draw_impl_hook(void* rt_impl, void* draw_context, void* r8, void* r9, void* unk);
+    static sdk::renderer::PipelineState* find_pipeline_state_hook(void* shader_resource, uint32_t murmur_hash, void* unk);
+
+    static inline std::string make_replacement_shader() {
+        std::string result{};
+        result.resize(1024);
+        return result;
+    }
+
+    enum ShaderDispatchMode {
+        Dispatch,
+        Dispatch32BitConstant,
+        DispatchRay
+    };
+
+    static const inline std::array<const char*, 3> s_shader_dispatch_modes {
+        "Dispatch",
+        "Dispatch32BitConstant",
+        "DispatchRay"
+    };
+
+    struct ReplacementShader {
+        std::string shader{[]() {
+            std::string result{};
+            result.resize(1024);
+            return result;
+        }()};
+
+        uint32_t hash{ 0 };
+        ShaderDispatchMode dispatch_mode{ Dispatch };
+
+        uint32_t thread_group_x{ 2560 };
+        uint32_t thread_group_y{ 1440 };
+        uint32_t thread_group_z{ 1 };
+        uint32_t constant{0};
+
+        bool valid_hash{false};
+    };
+
+    struct InterceptedShader {
+        std::array<ReplacementShader, 8> replacement_shaders{};
+
+        std::string name = []() {
+            std::string result{};
+            result.resize(1024);
+            return result;
+        }();
+
+        uint32_t hash{ 0 };
+    };
+
+    std::array<InterceptedShader, 8> m_intercepted_shaders{};
+    bool is_intercepted(uint32_t hash) {
+        for (const auto& shader : m_intercepted_shaders) {
+            if (shader.hash == hash) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    InterceptedShader* get_intercepted(uint32_t hash) {
+        for (auto& shader : m_intercepted_shaders) {
+            if (shader.hash == hash) {
+                return &shader;
+            }
+        }
+
+        return nullptr;
+    }
+
+    bool m_disable_path_space{false};
 
     std::unique_ptr<FunctionHook> m_rt_draw_hook{};
     std::unique_ptr<FunctionHook> m_rt_draw_impl_hook{};
+    std::unique_ptr<FunctionHook> m_find_pipeline_state_hook{};
     bool m_attempted_path_trace_hook{ false };
+    bool m_attempted_shader_interception_hook{ false };
 
     std::optional<size_t> m_rt_type_offset{};
     sdk::intrusive_ptr<sdk::ManagedObject> m_rt_component{};
     sdk::intrusive_ptr<sdk::ManagedObject> m_rt_cloned_component{};
+    void* m_pt_pipeline_resource{nullptr};
+    void* m_dxr_shader_resource{nullptr};
+
+    struct {
+        void* impl;
+        void* context;
+        void* r8;
+        void* r9;
+        void* unk;
+    } m_rt_draw_args{};
+
+    bool m_within_rt_draw{ false };
+    bool m_cloning_dispatch{false};
 #endif
 
     std::recursive_mutex m_fov_mutex{};
@@ -75,6 +164,7 @@ private:
     const ModKey::Ptr m_disable_gui_key{ ModKey::create(generate_name("DisableGUIKey")) };
 
 #if TDB_VER >= 69
+    const ModToggle::Ptr m_shader_playground { ModToggle::create(generate_name("ShaderPlayground"), false) };
     const ModToggle::Ptr m_ray_tracing_tweaks { ModToggle::create(generate_name("RayTracingTweaks"), false) };
 
     enum class RayTraceType : uint8_t {
@@ -142,6 +232,7 @@ private:
         *m_disable_gui_key,
 
 #if TDB_VER >= 69
+        *m_shader_playground,
         *m_ray_tracing_tweaks,
         *m_ray_trace_type,
         *m_ray_trace_disable_raster_shadows,

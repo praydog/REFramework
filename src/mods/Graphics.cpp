@@ -2,6 +2,9 @@
 #include <utility/Scan.hpp>
 
 #include <sdk/SceneManager.hpp>
+#include <sdk/MurmurHash.hpp>
+#include <sdk/Renderer.hpp>
+#include <sdk/resources/ShaderResource.hpp>
 
 #include "VR.hpp"
 #include "Graphics.hpp"
@@ -60,6 +63,10 @@ void Graphics::on_frame() {
     if (m_ray_tracing_tweaks->value()) {
         setup_path_trace_hook();
         apply_ray_tracing_tweaks();
+    }
+
+    if (m_shader_playground->value()) {
+        setup_shader_interception_hook();
     }
 #endif
 }
@@ -146,6 +153,59 @@ void Graphics::on_draw_ui() {
             {
                 m_bounce_count->draw("Bounce Count");
                 m_samples_per_pixel->draw("Samples Per Pixel");
+            }
+        }
+
+        ImGui::TreePop();
+    }
+
+    ImGui::SetNextItemOpen(true, ImGuiCond_::ImGuiCond_Once);
+    if (ImGui::TreeNode("Shader Playground")) {
+        m_shader_playground->draw("Enable Shader Playground");
+
+        if (m_shader_playground->value()) {  
+            //for (size_t i = 0; i < m_replacement_shaders.size(); ++i) {
+            uint32_t j = 0;
+            for (auto& intercepted : m_intercepted_shaders) {
+                uint32_t i = 0;
+                ImGui::PushID(std::format("Interception Shader {}", j++).c_str());
+
+                const auto interception_node_open = ImGui::TreeNode("");
+                ImGui::SameLine();
+                if (ImGui::InputText("Interception Shader", intercepted.name.data(), intercepted.name.size())) {
+                    intercepted.hash = sdk::murmur_hash::calc32_as_utf8(intercepted.name.data());
+                }
+
+                if (interception_node_open) {
+                    for (auto& replacement : intercepted.replacement_shaders) {
+                        i++;
+                        ImGui::PushID(std::format("Shader {}", i).c_str());
+                        const auto node_open = ImGui::TreeNodeEx("");
+                        ImGui::SameLine();
+                        if (ImGui::InputText(std::format("Custom Shader {}", i).c_str(), replacement.shader.data(), replacement.shader.size())) {
+                            replacement.hash = sdk::murmur_hash::calc32_as_utf8(replacement.shader.data());
+                        }
+
+                        if (node_open) {
+                            ImGui::Combo("Dispatch Mode", (int*)&replacement.dispatch_mode, s_shader_dispatch_modes.data(), s_shader_dispatch_modes.size());
+
+                            ImGui::InputInt("Thread Group X", (int32_t*)&replacement.thread_group_x);
+                            ImGui::InputInt("Thread Group Y", (int32_t*)&replacement.thread_group_y);
+                            ImGui::InputInt("Thread Group Z", (int32_t*)&replacement.thread_group_z);
+                            ImGui::InputInt("Constant", (int32_t*)&replacement.constant);
+
+                            ImGui::Checkbox("Valid hash", &replacement.valid_hash);
+
+                            ImGui::TreePop();
+                        }
+
+                        ImGui::PopID();
+                    }
+
+                    ImGui::TreePop();
+                }
+
+                ImGui::PopID();
             }
         }
 
@@ -631,6 +691,25 @@ void Graphics::set_ultrawide_fov(bool use_vertical_fov) {
 }
 
 #if TDB_VER >= 69
+void Graphics::setup_shader_interception_hook() {
+    if (m_attempted_shader_interception_hook) {
+        return;
+    }
+
+    m_attempted_shader_interception_hook = true;
+
+    spdlog::info("[Graphics] Setting up shader interception hook");
+
+    // TESTING!!!
+    if (sdk::renderer::ShaderResource::get_find_fn() != nullptr) {
+        m_find_pipeline_state_hook = std::make_unique<FunctionHook>((uintptr_t)sdk::renderer::ShaderResource::get_find_fn(), (uintptr_t)find_pipeline_state_hook);
+        if (!m_find_pipeline_state_hook->create()) {
+            spdlog::error("[Graphics] Failed to create find pipeline state hook");
+            return;
+        }
+    }
+}
+
 void Graphics::setup_path_trace_hook() {
     if (m_attempted_path_trace_hook) {
         return;
@@ -641,6 +720,7 @@ void Graphics::setup_path_trace_hook() {
     spdlog::info("[Graphics] Setting up path trace hook");
 
     const auto game = utility::get_executable();
+    const auto start1 = std::chrono::high_resolution_clock::now();
     const auto ref = utility::find_function_from_string_ref(game, "RayTraceSettings", true);
 
     if (!ref.has_value()) {
@@ -655,6 +735,9 @@ void Graphics::setup_path_trace_hook() {
         spdlog::error("[Graphics] Failed to find RayTraceSettings function");
         return;
     }
+
+    spdlog::info("[Graphics] Took {}ms to search for RayTraceSettings", std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - start1).count());
+
 
     spdlog::info("[Graphics] Found RayTraceSettings function @ {:x}", *fn);
 
@@ -723,6 +806,8 @@ void Graphics::setup_path_trace_hook() {
         return;
     }
 
+    std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
+
     const auto draw_ref = utility::find_function_from_string_ref(game, "Bounce2", true);
 
     if (!draw_ref.has_value()) {
@@ -736,6 +821,8 @@ void Graphics::setup_path_trace_hook() {
         spdlog::error("[Graphics] Failed to find Bounce2 function");
         return;
     }
+
+    spdlog::info("[Graphics] Took {}ms to search for Bounce2", std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - start).count());
 
     m_rt_draw_hook = std::make_unique<FunctionHook>(*draw_fn, (uintptr_t)rt_draw_hook);
 
@@ -875,23 +962,25 @@ void* Graphics::rt_draw_hook(REComponent* rt, void* draw_context, void* r8, void
     auto& graphics = Graphics::get();
 
     const auto og = graphics->m_rt_draw_hook->get_original<decltype(rt_draw_hook)>();
-    const auto result = og(rt, draw_context, r8, r9);
-    
+
     if (graphics->m_rt_cloned_component.get() == nullptr) {
-        return result;
+        return og(rt, draw_context, r8, r9);
     }
 
     if (graphics->m_ray_tracing_tweaks->value() && graphics->m_ray_trace_clone_type_true->value() > (int32_t)RayTraceType::Disabled) {
+        static std::recursive_mutex mtx{};
+        std::scoped_lock _{mtx};
+
         auto go = utility::re_component::get_game_object(rt);
 
         if (go == nullptr || go->transform == nullptr) {
-            return result;
+            return og(rt, draw_context, r8, r9);
         }
 
         static auto rt_t = sdk::find_type_definition("via.render.ExperimentalRayTrace");
 
         if (rt_t == nullptr) {
-            return result;
+            return og(rt, draw_context, r8, r9);
         }
 
         auto replaceable_rt = utility::re_component::find_replaceable<REComponent>(go->transform, rt_t->get_type());
@@ -904,6 +993,8 @@ void* Graphics::rt_draw_hook(REComponent* rt, void* draw_context, void* r8, void
         }
     }
 
+    const auto result = og(rt, draw_context, r8, r9);
+
     return result;
 }
 
@@ -914,18 +1005,169 @@ void* Graphics::rt_draw_impl_hook(void* rt_impl, void* draw_context, void* r8, v
     const auto old_mode = ray_tracing_mode;
     const auto og = graphics->m_rt_draw_impl_hook->get_original<decltype(rt_draw_impl_hook)>();
 
+    if (graphics->m_within_rt_draw) {
+        return og(rt_impl, draw_context, r8, r9, unk);
+    }
+
+    graphics->m_within_rt_draw = true;
+
+    graphics->m_rt_draw_args = {
+        .impl = rt_impl,
+        .context = draw_context,
+        .r8 = r8,
+        .r9 = r9,
+        .unk = unk
+    };
+
     if (graphics->m_ray_tracing_tweaks->value() && graphics->m_ray_trace_clone_type_pre->value() > (int32_t)RayTraceType::Disabled) {
         ray_tracing_mode = graphics->m_ray_trace_clone_type_pre->value() - 1;
         og(rt_impl, draw_context, r8, r9, unk);
         ray_tracing_mode = old_mode;
     }
 
-    const auto result = og(rt_impl, draw_context, r8, r9, unk);
+    void* result = og(rt_impl, draw_context, r8, r9, unk);
+    /*if (!(ray_tracing_mode == 2 && graphics->m_pt_pipeline_resource != nullptr)) {
+        result = og(rt_impl, draw_context, r8, r9, unk);
+    }*/
 
     if (graphics->m_ray_tracing_tweaks->value() && graphics->m_ray_trace_clone_type_post->value() > (int32_t)RayTraceType::Disabled) {
         ray_tracing_mode = graphics->m_ray_trace_clone_type_post->value() - 1;
         og(rt_impl, draw_context, r8, r9, unk);
         ray_tracing_mode = old_mode;
+    }
+
+    graphics->m_within_rt_draw = false;
+
+    return result;
+}
+
+sdk::renderer::PipelineState* Graphics::find_pipeline_state_hook(void* shader_resource, uint32_t murmur_hash, void* unk) {
+    static std::unordered_set<uint32_t> hashes {
+        sdk::murmur_hash::calc32_as_utf8("PureNoLightSelectionBounce0Spp1"),
+        sdk::murmur_hash::calc32_as_utf8("PureNoLightSelectionBounce0Spp2"),
+        sdk::murmur_hash::calc32_as_utf8("PureNoLightSelectionBounce0Spp4"),
+        sdk::murmur_hash::calc32_as_utf8("PureNoLightSelectionBounce1Spp1"),
+        sdk::murmur_hash::calc32_as_utf8("PureNoLightSelectionBounce1Spp2"),
+        sdk::murmur_hash::calc32_as_utf8("PureNoLightSelectionBounce1Spp4"),
+        sdk::murmur_hash::calc32_as_utf8("PureNoLightSelectionBounce2Spp1"),
+        sdk::murmur_hash::calc32_as_utf8("PureNoLightSelectionBounce2Spp2"),
+        sdk::murmur_hash::calc32_as_utf8("PureNoLightSelectionBounce2Spp4"),
+        sdk::murmur_hash::calc32_as_utf8("PureNoLightSelectionBounce3Spp1"),
+        sdk::murmur_hash::calc32_as_utf8("PureNoLightSelectionBounce3Spp2"),
+        sdk::murmur_hash::calc32_as_utf8("PureNoLightSelectionBounce3Spp4"),
+        sdk::murmur_hash::calc32_as_utf8("PureNoLightSelectionBounce7Spp1"),
+        sdk::murmur_hash::calc32_as_utf8("PureNoLightSelectionBounce7Spp2"),
+        sdk::murmur_hash::calc32_as_utf8("PureNoLightSelectionBounce7Spp4"),
+        sdk::murmur_hash::calc32_as_utf8("PureLightSelectionBounce0Spp1"),
+        sdk::murmur_hash::calc32_as_utf8("PureLightSelectionBounce0Spp2"),
+        sdk::murmur_hash::calc32_as_utf8("PureLightSelectionBounce0Spp4"),
+        sdk::murmur_hash::calc32_as_utf8("PureLightSelectionBounce1Spp1"),
+        sdk::murmur_hash::calc32_as_utf8("PureLightSelectionBounce1Spp2"),
+        sdk::murmur_hash::calc32_as_utf8("PureLightSelectionBounce1Spp4"),
+        sdk::murmur_hash::calc32_as_utf8("PureLightSelectionBounce2Spp1"),
+        sdk::murmur_hash::calc32_as_utf8("PureLightSelectionBounce2Spp2"),
+        sdk::murmur_hash::calc32_as_utf8("PureLightSelectionBounce2Spp4"),
+        sdk::murmur_hash::calc32_as_utf8("PureLightSelectionBounce3Spp1"),
+        sdk::murmur_hash::calc32_as_utf8("PureLightSelectionBounce3Spp2"),
+        sdk::murmur_hash::calc32_as_utf8("PureLightSelectionBounce3Spp4"),
+        sdk::murmur_hash::calc32_as_utf8("PureLightSelectionBounce7Spp1"),
+        sdk::murmur_hash::calc32_as_utf8("PureLightSelectionBounce7Spp2"),
+        sdk::murmur_hash::calc32_as_utf8("PureLightSelectionBounce7Spp4"),
+        sdk::murmur_hash::calc32_as_utf8("HybridNoLightSelectionBounce0Spp1"),
+        sdk::murmur_hash::calc32_as_utf8("HybridNoLightSelectionBounce0Spp2"),
+        sdk::murmur_hash::calc32_as_utf8("HybridNoLightSelectionBounce0Spp4"),
+        sdk::murmur_hash::calc32_as_utf8("HybridNoLightSelectionBounce1Spp1"),
+        sdk::murmur_hash::calc32_as_utf8("HybridNoLightSelectionBounce1Spp2"),
+        sdk::murmur_hash::calc32_as_utf8("HybridNoLightSelectionBounce1Spp4"),
+        sdk::murmur_hash::calc32_as_utf8("HybridNoLightSelectionBounce2Spp1"),
+        sdk::murmur_hash::calc32_as_utf8("HybridNoLightSelectionBounce2Spp2"),
+        sdk::murmur_hash::calc32_as_utf8("HybridNoLightSelectionBounce2Spp4"),
+        sdk::murmur_hash::calc32_as_utf8("HybridNoLightSelectionBounce3Spp1"),
+        sdk::murmur_hash::calc32_as_utf8("HybridNoLightSelectionBounce3Spp2"),
+        sdk::murmur_hash::calc32_as_utf8("HybridNoLightSelectionBounce3Spp4"),
+        sdk::murmur_hash::calc32_as_utf8("HybridNoLightSelectionBounce7Spp1"),
+        sdk::murmur_hash::calc32_as_utf8("HybridNoLightSelectionBounce7Spp2"),
+        sdk::murmur_hash::calc32_as_utf8("HybridNoLightSelectionBounce7Spp4"),
+        sdk::murmur_hash::calc32_as_utf8("HybridLightSelectionBounce0Spp1"),
+        sdk::murmur_hash::calc32_as_utf8("HybridLightSelectionBounce0Spp2"),
+        sdk::murmur_hash::calc32_as_utf8("HybridLightSelectionBounce0Spp4"),
+        sdk::murmur_hash::calc32_as_utf8("HybridLightSelectionBounce1Spp1"),
+        sdk::murmur_hash::calc32_as_utf8("HybridLightSelectionBounce1Spp2"),
+        sdk::murmur_hash::calc32_as_utf8("HybridLightSelectionBounce1Spp4"),
+        sdk::murmur_hash::calc32_as_utf8("HybridLightSelectionBounce2Spp1"),
+        sdk::murmur_hash::calc32_as_utf8("HybridLightSelectionBounce2Spp2"),
+        sdk::murmur_hash::calc32_as_utf8("HybridLightSelectionBounce2Spp4"),
+        sdk::murmur_hash::calc32_as_utf8("HybridLightSelectionBounce3Spp1"),
+        sdk::murmur_hash::calc32_as_utf8("HybridLightSelectionBounce3Spp2"),
+        sdk::murmur_hash::calc32_as_utf8("HybridLightSelectionBounce3Spp4"),
+        sdk::murmur_hash::calc32_as_utf8("HybridLightSelectionBounce7Spp1"),
+        sdk::murmur_hash::calc32_as_utf8("HybridLightSelectionBounce7Spp2"),
+        sdk::murmur_hash::calc32_as_utf8("HybridLightSelectionBounce7Spp4"),
+        sdk::murmur_hash::calc32_as_utf8("DXRDebug"),
+        sdk::murmur_hash::calc32_as_utf8("DXRAO"),
+    };
+
+    auto& graphics = Graphics::get();
+
+    const auto og = graphics->m_find_pipeline_state_hook->get_original<decltype(find_pipeline_state_hook)>();
+    const auto result = og(shader_resource, murmur_hash, unk);
+
+    if (!graphics->m_shader_playground->value()) {
+        return result;
+    }
+
+    if (graphics->m_rt_draw_args.impl == nullptr) {
+        return result;
+    }
+
+    if (hashes.contains(murmur_hash)) {
+        if (graphics->m_pt_pipeline_resource == nullptr) {
+            spdlog::info("[Graphics] Found path trace pipeline resource @ {:x}", (uintptr_t)result);
+        }
+
+        graphics->m_pt_pipeline_resource = result;
+        graphics->m_dxr_shader_resource = shader_resource;
+    } 
+    
+    if (graphics->is_intercepted(murmur_hash)) {
+        auto intercepted_shader = graphics->get_intercepted(murmur_hash);
+
+        if (intercepted_shader == nullptr) {
+            return result;
+        }
+        uint32_t i = 1;
+
+        for (auto& replacement_shader : intercepted_shader->replacement_shaders) {
+            auto custom_state = og(shader_resource, replacement_shader.hash, unk);
+
+            if (custom_state == nullptr && graphics->m_dxr_shader_resource != nullptr) {
+                custom_state = og(graphics->m_dxr_shader_resource, replacement_shader.hash, unk);
+            }
+
+            replacement_shader.valid_hash = custom_state != nullptr;
+
+            if (custom_state != nullptr) {
+                (*(sdk::renderer::RenderContext**)graphics->m_rt_draw_args.context)->set_pipeline_state(custom_state);
+
+                const auto thread_group_z = replacement_shader.thread_group_z;
+                sdk::renderer::Fence default_fence{};
+
+                switch (replacement_shader.dispatch_mode) {
+                case ShaderDispatchMode::Dispatch:
+                    (*(sdk::renderer::RenderContext**)graphics->m_rt_draw_args.context)->dispatch(replacement_shader.thread_group_x, replacement_shader.thread_group_y, thread_group_z, true);
+                    break;
+                case ShaderDispatchMode::Dispatch32BitConstant:
+                    (*(sdk::renderer::RenderContext**)graphics->m_rt_draw_args.context)->dispatch_32bit_constant(replacement_shader.thread_group_x, replacement_shader.thread_group_y, thread_group_z, replacement_shader.constant, true);
+                    break;
+                case ShaderDispatchMode::DispatchRay:
+                    (*(sdk::renderer::RenderContext**)graphics->m_rt_draw_args.context)->dispatch_ray(replacement_shader.thread_group_x, replacement_shader.thread_group_y, thread_group_z, default_fence);
+                    break;
+                default:
+                    (*(sdk::renderer::RenderContext**)graphics->m_rt_draw_args.context)->dispatch_ray(replacement_shader.thread_group_x, replacement_shader.thread_group_y, thread_group_z, default_fence);
+                    break;
+                }
+            }
+        }
     }
 
     return result;
