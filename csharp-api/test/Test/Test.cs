@@ -41,16 +41,18 @@ public class DangerousFunctions {
     public static void Entry() {
         var mouse = REFrameworkNET.API.GetNativeSingletonT<via.hid.Mouse>();
 
-        mouse.set_ShowCursor(false);
+        via.hid.Mouse.set_ShowCursor(false);
 
         var tdb = REFrameworkNET.API.GetTDB();
         
         // These via.SceneManager and via.Scene are
         // loaded from an external reference assembly
         // the classes are all interfaces that correspond to real in-game classes
-        var sceneManager = API.GetNativeSingletonT<via.SceneManager>();
-        var scene = sceneManager.get_CurrentScene();
-        var scene2 = sceneManager.get_CurrentScene();
+        //var sceneManager = API.GetNativeSingletonT<via.SceneManager>();
+        //var scene = sceneManager.get_CurrentScene();
+        //var scene2 = sceneManager.get_CurrentScene();
+        var scene = via.SceneManager.get_CurrentScene();
+        var scene2 = via.SceneManager.get_CurrentScene();
 
         if (scene == scene2) {
             REFrameworkNET.API.LogInfo("Test success: Scene is the same");
@@ -59,7 +61,8 @@ public class DangerousFunctions {
         }
 
         //scene.set_Pause(true);
-        var view = sceneManager.get_MainView();
+        //var view = sceneManager.get_MainView();
+        var view = via.SceneManager.get_MainView();
         var name = view.get_Name();
         var go = view.get_PrimaryCamera()?.get_GameObject()?.get_Transform()?.get_GameObject();
 
@@ -76,8 +79,7 @@ public class DangerousFunctions {
         REFrameworkNET.API.LogInfo("Previous timescale: " + currentTimescale.ToString());
         REFrameworkNET.API.LogInfo("Current timescale: " + scene?.get_TimeScale().ToString());*/
 
-        var appdomainStatics = tdb.GetType("System.AppDomain").As<_System.AppDomain>();
-        var appdomain = appdomainStatics.get_CurrentDomain();
+        var appdomain = _System.AppDomain.get_CurrentDomain();
         var assemblies = appdomain.GetAssemblies();
 
         // TODO: Make this work! get_length, get_item is ugly!
@@ -88,45 +90,35 @@ public class DangerousFunctions {
             REFrameworkNET.API.LogInfo("Assembly: " + assembly.get_Location()?.ToString());
         }
 
-        via.os os = tdb.GetType("via.os").As<via.os>();
-        var platform = os.getPlatform();
-        var platformSubset = os.getPlatformSubset();
-        var title = os.getTitle();
+        var platform = via.os.getPlatform();
+        var platformSubset = via.os.getPlatformSubset();
+        var title = via.os.getTitle();
 
         REFrameworkNET.API.LogInfo("Platform: " + platform);
         REFrameworkNET.API.LogInfo("Platform Subset: " + platformSubset);
         REFrameworkNET.API.LogInfo("Title: " + title);
 
-        var dialog = tdb.GetTypeT<via.os.dialog>();
-        var dialogError = dialog.open("Hello from C#!");
+        var dialogError = via.os.dialog.open("Hello from C#!");
 
         REFrameworkNET.API.LogInfo("Dialog error: " + dialogError.ToString());
 
-        var devUtil = tdb.GetTypeT<via.sound.dev.DevUtil>();
         var currentDirectory = System.IO.Directory.GetCurrentDirectory();
-        devUtil.writeLogFile("what the heck", currentDirectory + "\\what_the_frick.txt");
+        via.sound.dev.DevUtil.writeLogFile("what the heck", currentDirectory + "\\what_the_frick.txt");
         
         var stringTest = REFrameworkNET.VM.CreateString("Hello from C#!"); // inside RE Engine VM
         var stringInDotNetVM = stringTest.ToString(); // Back in .NET
 
         REFrameworkNET.API.LogInfo("Managed string back in .NET: " + stringInDotNetVM);
-
-        var devUtilT = (devUtil as REFrameworkNET.IObject).GetTypeDefinition();
-        var dialogT = (dialog as REFrameworkNET.IObject).GetTypeDefinition();
-
-        REFrameworkNET.API.LogInfo("DevUtil: " + devUtilT.GetFullName());
-        REFrameworkNET.API.LogInfo("Dialog: " + dialogT.GetFullName());
     }
 
     public static void TryEnableFrameGeneration() {
-        var upscalingInterface = REFrameworkNET.API.GetNativeSingletonT<via.render.UpscalingInterface>();
-        var dlssInterface = upscalingInterface.get_DLSSInterface();
+        var dlssInterface = via.render.UpscalingInterface.get_DLSSInterface();
 
         if (dlssInterface != null && dlssInterface.get_DLSSGEnable() == false) {
             dlssInterface.set_DLSSGEnable(true);
         }
 
-        var fsr3Interface = upscalingInterface.get_FSR3Interface();
+        var fsr3Interface = via.render.UpscalingInterface.get_FSR3Interface();
 
         if (fsr3Interface != null && fsr3Interface.get_EnableFrameGeneration() == false) {
             fsr3Interface.set_EnableFrameGeneration(true);
