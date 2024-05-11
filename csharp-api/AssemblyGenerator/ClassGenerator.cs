@@ -320,6 +320,7 @@ public class ClassGenerator {
                 );
 
             bool anyOutParams = false;
+            System.Collections.Generic.List<string> paramNames = [];
 
             if (method.Parameters.Count > 0) {
                 // If any of the params have ! in them, skip this method
@@ -356,10 +357,13 @@ public class ClassGenerator {
                         var paramType = param.get_ParameterType();
 
                         if (paramType == null) {
+                            paramNames.Add(paramName);
                             parameters.Add(SyntaxFactory.Parameter(SyntaxFactory.Identifier(paramName)).WithType(SyntaxFactory.ParseTypeName("object")));
                             continue;
                         }
 
+                        var parsedParamName = new string(paramName as string);
+                        
                         /*if (param.get_IsGenericParameter() == true) {
                             return null; // no generic parameters.
                         }*/
@@ -391,10 +395,14 @@ public class ClassGenerator {
                             simpleMethodSignature += "ptr " + paramTypeSyntax.GetText().ToString();
                             parameters.Add(SyntaxFactory.Parameter(SyntaxFactory.Identifier(paramName)).WithType(SyntaxFactory.ParseTypeName(paramTypeSyntax.ToString() + "*")).AddModifiers(modifiers.ToArray()));
                             anyUnsafeParams = true;
+
+                            parsedParamName = "(global::System.IntPtr) " + parsedParamName;
                         } else {
                             simpleMethodSignature += paramTypeSyntax.GetText().ToString();
                             parameters.Add(SyntaxFactory.Parameter(SyntaxFactory.Identifier(paramName)).WithType(paramTypeSyntax).AddModifiers(modifiers.ToArray()));
                         }
+
+                        paramNames.Add(parsedParamName);
                     }
 
                     methodDeclaration = methodDeclaration.AddParameterListParameters([.. parameters]);
@@ -427,7 +435,7 @@ public class ClassGenerator {
                     if (method.Parameters.Count == 0) {
                         bodyStatements.Add(SyntaxFactory.ParseStatement(internalFieldName + ".Invoke(null, null);"));
                     } else if (!anyOutParams) {
-                        bodyStatements.Add(SyntaxFactory.ParseStatement(internalFieldName + ".Invoke(null, new object[] {" + string.Join(", ", method.Parameters.Select(param => param.Name)) + "});"));
+                        bodyStatements.Add(SyntaxFactory.ParseStatement(internalFieldName + ".Invoke(null, new object[] {" + string.Join(", ", paramNames) + "});"));
                     } else {
                         bodyStatements.Add(SyntaxFactory.ParseStatement("throw new System.NotImplementedException();")); // TODO: Implement this
                     }
@@ -435,7 +443,7 @@ public class ClassGenerator {
                     if (method.Parameters.Count == 0) {
                         bodyStatements.Add(SyntaxFactory.ParseStatement("return (" + returnType.GetText().ToString() + ")" + internalFieldName + ".InvokeBoxed(typeof(" + returnType.GetText().ToString() + "), null, null);"));
                     } else if (!anyOutParams) {
-                        bodyStatements.Add(SyntaxFactory.ParseStatement("return (" + returnType.GetText().ToString() + ")" + internalFieldName + ".InvokeBoxed(typeof(" + returnType.GetText().ToString() + "), null, new object[] {" + string.Join(", ", method.Parameters.Select(param => param.Name)) + "});"));
+                        bodyStatements.Add(SyntaxFactory.ParseStatement("return (" + returnType.GetText().ToString() + ")" + internalFieldName + ".InvokeBoxed(typeof(" + returnType.GetText().ToString() + "), null, new object[] {" + string.Join(", ", paramNames) + "});"));
                     } else {
                         bodyStatements.Add(SyntaxFactory.ParseStatement("throw new System.NotImplementedException();")); // TODO: Implement this
                     }
