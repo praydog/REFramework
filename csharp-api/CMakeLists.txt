@@ -192,6 +192,7 @@ set(csharp-api_SOURCES
 	"REFrameworkNET/TypeDefinition.cpp"
 	"REFrameworkNET/UnifiedObject.cpp"
 	"REFrameworkNET/VM.cpp"
+	"REFrameworkNET/ValueType.cpp"
 	"REFrameworkNET/API.hpp"
 	"REFrameworkNET/Attributes/Callback.hpp"
 	"REFrameworkNET/Attributes/Method.hpp"
@@ -223,6 +224,7 @@ set(csharp-api_SOURCES
 	"REFrameworkNET/UnifiedObject.hpp"
 	"REFrameworkNET/Utility.hpp"
 	"REFrameworkNET/VM.hpp"
+	"REFrameworkNET/ValueType.hpp"
 	cmake.toml
 )
 

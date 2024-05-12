@@ -19,7 +19,7 @@ public class DangerousFunctions {
     [MethodHook(typeof(app.CameraManager), nameof(app.CameraManager.isInside), MethodHookType.Post)]
     public static void isInsidePostHook(ref ulong retval) {
         if ((retval & 1) != 0) {
-            REFrameworkNET.API.LogInfo("Camera is inside");
+            //REFrameworkNET.API.LogInfo("Camera is inside");
         }
         //Console.WriteLine("Inside post hook (From C#), retval: " + (retval & 1).ToString());
     }
@@ -39,6 +39,8 @@ public class DangerousFunctions {
     }
 
     public static void Entry() {
+        via.render.RayTracingManager.set_EnableLod(false);
+        via.render.RayTracingManager.set_PreferShadowCast(true);
         var mouse = REFrameworkNET.API.GetNativeSingletonT<via.hid.Mouse>();
 
         via.hid.Mouse.set_ShowCursor(false);
@@ -109,6 +111,18 @@ public class DangerousFunctions {
         var stringInDotNetVM = stringTest.ToString(); // Back in .NET
 
         REFrameworkNET.API.LogInfo("Managed string back in .NET: " + stringInDotNetVM);
+        
+        var meshes = via.SceneManager.get_MainScene().findComponents(via.render.Mesh.REFType.RuntimeType.As<_System.Type>());
+        //var range = via.RangeI.REFType.CreateInstance(0).As<via.RangeI>();
+        var range = REFrameworkNET.ValueType.New<via.RangeI>();
+        range.setMinMax(0, 10);
+        // print min max to test if this works
+        REFrameworkNET.API.LogInfo("Range min: " + range.getMin().ToString());
+        REFrameworkNET.API.LogInfo("Range max: " + range.getMax().ToString());
+        for (int i = 0; i < meshes.get_Length(); i++) {
+            var mesh = (meshes.get_Item(i) as IObject).As<via.render.Mesh>();
+            mesh.set_DrawRaytracing(true);
+        }
     }
 
     public static void TryEnableFrameGeneration() {
