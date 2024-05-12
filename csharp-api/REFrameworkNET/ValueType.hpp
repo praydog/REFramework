@@ -9,6 +9,7 @@ public:
     ValueType(TypeDefinition^ t) 
     {
         m_data = gcnew array<uint8_t>(t->ValueTypeSize);
+        m_type = t;
         pin_ptr<uint8_t> data = &m_data[0];
     }
 
