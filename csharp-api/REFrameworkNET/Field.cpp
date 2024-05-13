@@ -70,6 +70,13 @@ namespace REFrameworkNET {
             auto iobject = dynamic_cast<REFrameworkNET::IObject^>(value);
 
             if (iobject != nullptr) {
+                // Lightweight managed object
+                auto originalObject = *(reframework::API::ManagedObject**)data_ptr;
+
+                if (originalObject != nullptr && originalObject->get_ref_count() > 0) {
+                    originalObject->release();
+                }
+
                 *(uintptr_t*)data_ptr = iobject->GetAddress();
 
                 // Add a reference onto the object now that something else is holding onto it
