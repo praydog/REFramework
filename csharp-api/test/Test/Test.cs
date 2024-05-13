@@ -117,13 +117,14 @@ public class DangerousFunctions {
         //var range = via.RangeI.REFType.CreateInstance(0).As<via.RangeI>();
         var range = REFrameworkNET.ValueType.New<via.RangeI>();
         var testVec = REFrameworkNET.ValueType.New<via.vec3>();
-        System.Console.WriteLine("Test vec x before: " + testVec.x);
+
+        System.Console.WriteLine("Test vec before: " + testVec.x + " " + testVec.y + " " + testVec.z);
+
         testVec.x = 1.0f;
         testVec.y = 2.0f;
         testVec.z = 3.0f;
-        System.Console.WriteLine("Test vec x after: " + testVec.x);
-        System.Console.WriteLine("Test vec y after: " + testVec.y);
-        System.Console.WriteLine("Test vec z after: " + testVec.z);
+
+        System.Console.WriteLine("Test vec after: " + testVec.x + " " + testVec.y + " " + testVec.z);
 
         var axisXStatic = via.vec3.AxisX;
         var axisYStatic = via.vec3.AxisY;
@@ -141,6 +142,15 @@ public class DangerousFunctions {
         for (int i = 0; i < meshes.get_Length(); i++) {
             var mesh = (meshes.get_Item(i) as IObject).As<via.render.Mesh>();
             mesh.set_DrawRaytracing(true);
+        }
+
+        var characterManager = API.GetManagedSingletonT<app.CharacterManager>();
+        if (characterManager.ManualPlayer != null) {
+            var playergo = characterManager.ManualPlayer.get_GameObject();
+            var transform = playergo.get_Transform();
+            var position = transform.get_Position();
+
+            REFrameworkNET.API.LogInfo("Player position: " + position.x + " " + position.y + " " + position.z);
         }
     }
 

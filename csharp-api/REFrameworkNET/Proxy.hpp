@@ -165,7 +165,7 @@ protected:
                     bool isValueType = !IsManaged() && GetTypeDefinition()->IsValueType();
 
                     if (methodAttribute->FieldFacade == REFrameworkNET::FieldFacadeType::Getter) {
-                        return field->GetDataBoxed(iobject->GetAddress(), isValueType);
+                        return field->GetDataBoxed(targetMethod->ReturnType, iobject->GetAddress(), isValueType);
                     }
 
                     field->SetDataBoxed(iobject->GetAddress(), args[0], isValueType);
