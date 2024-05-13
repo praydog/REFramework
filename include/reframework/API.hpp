@@ -696,6 +696,11 @@ public:
             return fn(*this, obj, is_value_type);
         }
 
+        uint32_t get_index() const {
+            static const auto fn = API::s_instance->sdk()->field->get_index;
+            return fn(*this);
+        }
+
         template <typename T> T& get_data(void* object = nullptr, bool is_value_type = false) const { return *(T*)get_data_raw(object, is_value_type); }
     };
 
