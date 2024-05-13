@@ -342,12 +342,22 @@ public class ClassGenerator {
                 // So this is actually going to be made a property with get/set instead of an actual field
                 // 1. Because interfaces can't have fields
                 // 2. Because we don't actually have a concrete reference to the field in our VM, so we'll be a facade for the field
+                var fieldFacadeGetter = SyntaxFactory.AttributeList().AddAttributes(SyntaxFactory.Attribute(
+                    SyntaxFactory.ParseName("global::REFrameworkNET.Attributes.Method"),
+                    SyntaxFactory.ParseAttributeArgumentList("(" + field.Index.ToString() + ", global::REFrameworkNET::FieldFacadeType.Getter)"))
+                );
+
+                var fieldFacadeSetter = SyntaxFactory.AttributeList().AddAttributes(SyntaxFactory.Attribute(
+                    SyntaxFactory.ParseName("global::REFrameworkNET.Attributes.Method"),
+                    SyntaxFactory.ParseAttributeArgumentList("(" + field.Index.ToString() + ", global::REFrameworkNET::FieldFacadeType.Setter)"))
+                );
+
                 var properyDeclaration = SyntaxFactory.PropertyDeclaration(fieldType, fieldName)
                     .AddModifiers(new SyntaxToken[]{SyntaxFactory.Token(SyntaxKind.PublicKeyword)})
                     .AddAccessorListAccessors(
-                        SyntaxFactory.AccessorDeclaration(SyntaxKind.GetAccessorDeclaration)
+                        SyntaxFactory.AccessorDeclaration(SyntaxKind.GetAccessorDeclaration).AddAttributeLists(fieldFacadeGetter)
                             .WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken)),
-                        SyntaxFactory.AccessorDeclaration(SyntaxKind.SetAccessorDeclaration)
+                        SyntaxFactory.AccessorDeclaration(SyntaxKind.SetAccessorDeclaration).AddAttributeLists(fieldFacadeSetter)
                             .WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken))
                     );
 
@@ -423,7 +433,7 @@ public class ClassGenerator {
             methodDeclaration = methodDeclaration.AddAttributeLists(
                 SyntaxFactory.AttributeList().AddAttributes(SyntaxFactory.Attribute(
                     SyntaxFactory.ParseName("global::REFrameworkNET.Attributes.Method"),
-                    SyntaxFactory.ParseAttributeArgumentList("(" + method.GetIndex().ToString() + ")")))
+                    SyntaxFactory.ParseAttributeArgumentList("(" + method.GetIndex().ToString() + ", global::REFrameworkNET::FieldFacadeType.None)")))
                 );
 
             bool anyOutParams = false;
