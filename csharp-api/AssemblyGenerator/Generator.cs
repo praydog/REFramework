@@ -718,7 +718,7 @@ public class AssemblyGenerator {
         var syntaxTreeParseOption = CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.CSharp12);
         
         foreach (var cu in compilationUnits) {
-            syntaxTrees.Add(SyntaxFactory.SyntaxTree(cu/*.NormalizeWhitespace()*/, syntaxTreeParseOption));
+            syntaxTrees.Add(SyntaxFactory.SyntaxTree(cu.NormalizeWhitespace(), syntaxTreeParseOption));
         }
 
         string? assemblyPath = Path.GetDirectoryName(typeof(object).Assembly.Location);

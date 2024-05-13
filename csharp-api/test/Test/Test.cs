@@ -40,11 +40,17 @@ public class DangerousFunctions {
     }
 
     public static void Entry() {
-        via.render.RayTracingManager.set_EnableLod(false);
-        via.render.RayTracingManager.set_PreferShadowCast(true);
-        var mouse = REFrameworkNET.API.GetNativeSingletonT<via.hid.Mouse>();
+        //via.render.RayTracingManager.set_EnableLod(false);
+        //via.render.RayTracingManager.set_PreferShadowCast(true);
+        via.render.RayTracingManager.EnableLod = false;
+        via.render.RayTracingManager.PreferShadowCast = true;
 
-        via.hid.Mouse.set_ShowCursor(false);
+        // Print the current value
+        Console.WriteLine("RayTracingManager.EnableLod: " + via.render.RayTracingManager.EnableLod.ToString());
+        Console.WriteLine("RayTracingManager.PreferShadowCast: " + via.render.RayTracingManager.PreferShadowCast.ToString());
+
+        //via.hid.Mouse.set_ShowCursor(false);
+        via.hid.Mouse.ShowCursor = false;
 
         var tdb = REFrameworkNET.API.GetTDB();
         
@@ -54,8 +60,10 @@ public class DangerousFunctions {
         //var sceneManager = API.GetNativeSingletonT<via.SceneManager>();
         //var scene = sceneManager.get_CurrentScene();
         //var scene2 = sceneManager.get_CurrentScene();
-        var scene = via.SceneManager.get_CurrentScene();
-        var scene2 = via.SceneManager.get_CurrentScene();
+        //var scene = via.SceneManager.get_CurrentScene();
+        //var scene2 = via.SceneManager.get_CurrentScene();
+        var scene = via.SceneManager.CurrentScene;
+        var scene2 = via.SceneManager.CurrentScene;
 
         if (scene == scene2) {
             REFrameworkNET.API.LogInfo("Test success: Scene is the same");
@@ -65,11 +73,11 @@ public class DangerousFunctions {
 
         //scene.set_Pause(true);
         //var view = sceneManager.get_MainView();
-        var view = via.SceneManager.get_MainView();
-        var name = view.get_Name();
-        var go = view.get_PrimaryCamera()?.get_GameObject()?.get_Transform()?.get_GameObject();
+        var view = via.SceneManager.MainView;
+        var name = view.Name;
+        var go = view.PrimaryCamera?.GameObject?.Transform?.GameObject;
 
-        REFrameworkNET.API.LogInfo("game object name: " + go?.get_Name().ToString());
+        REFrameworkNET.API.LogInfo("game object name: " + go?.Name.ToString());
         REFrameworkNET.API.LogInfo("Scene name: " + name);
 
         // Testing autocomplete for the concrete ManagedObject
@@ -82,15 +90,15 @@ public class DangerousFunctions {
         REFrameworkNET.API.LogInfo("Previous timescale: " + currentTimescale.ToString());
         REFrameworkNET.API.LogInfo("Current timescale: " + scene?.get_TimeScale().ToString());*/
 
-        var appdomain = _System.AppDomain.get_CurrentDomain();
+        var appdomain = _System.AppDomain.CurrentDomain;
         var assemblies = appdomain.GetAssemblies();
 
         // TODO: Make this work! get_length, get_item is ugly!
         //foreach (REFrameworkNET.ManagedObject assemblyRaw in assemblies) {
-        for (int i = 0; i < assemblies.get_Length(); i++) {
+        for (int i = 0; i < assemblies.Length; i++) {
             //var assembly = assemblyRaw.As<_System.Reflection.Assembly>();
             var assembly = assemblies.get_Item(i);
-            REFrameworkNET.API.LogInfo("Assembly: " + assembly.get_Location()?.ToString());
+            REFrameworkNET.API.LogInfo("Assembly: " + assembly.Location?.ToString());
         }
 
         var platform = via.os.getPlatform();
@@ -113,7 +121,6 @@ public class DangerousFunctions {
 
         REFrameworkNET.API.LogInfo("Managed string back in .NET: " + stringInDotNetVM);
         
-        var meshes = via.SceneManager.get_MainScene().findComponents(via.render.Mesh.REFType.RuntimeType.As<_System.Type>());
         //var range = via.RangeI.REFType.CreateInstance(0).As<via.RangeI>();
         var range = REFrameworkNET.ValueType.New<via.RangeI>();
         var testVec = REFrameworkNET.ValueType.New<via.vec3>();
@@ -139,35 +146,37 @@ public class DangerousFunctions {
         range.setMinMax(1, 10);
         REFrameworkNET.API.LogInfo("Range min: " + range.getMin().ToString());
         REFrameworkNET.API.LogInfo("Range max: " + range.getMax().ToString());
-        for (int i = 0; i < meshes.get_Length(); i++) {
+
+        var meshes = via.SceneManager.MainScene.findComponents(via.render.Mesh.REFType.RuntimeType.As<_System.Type>());
+        for (int i = 0; i < meshes.Length; i++) {
             var mesh = (meshes.get_Item(i) as IObject).As<via.render.Mesh>();
-            mesh.set_DrawRaytracing(true);
+            mesh.DrawRaytracing = true;
         }
 
         var characterManager = API.GetManagedSingletonT<app.CharacterManager>();
         if (characterManager.ManualPlayer != null) {
-            var playergo = characterManager.ManualPlayer.get_GameObject();
-            var transform = playergo.get_Transform();
-            var position = transform.get_Position();
+            var playergo = characterManager.ManualPlayer.GameObject;
+            var transform = playergo.Transform;
+            var position = transform.Position;
 
             REFrameworkNET.API.LogInfo("Player position: " + position.x + " " + position.y + " " + position.z);
 
             position.y += 5.0f;
-            transform.set_Position(position);
+            transform.Position = position;
         }
     }
 
     public static void TryEnableFrameGeneration() {
-        var dlssInterface = via.render.UpscalingInterface.get_DLSSInterface();
+        var dlssInterface = via.render.UpscalingInterface.DLSSInterface;
 
-        if (dlssInterface != null && dlssInterface.get_DLSSGEnable() == false) {
-            dlssInterface.set_DLSSGEnable(true);
+        if (dlssInterface != null && dlssInterface.DLSSGEnable == false) {
+            dlssInterface.DLSSGEnable = true;
         }
 
-        var fsr3Interface = via.render.UpscalingInterface.get_FSR3Interface();
+        var fsr3Interface = via.render.UpscalingInterface.FSR3Interface;
 
-        if (fsr3Interface != null && fsr3Interface.get_EnableFrameGeneration() == false) {
-            fsr3Interface.set_EnableFrameGeneration(true);
+        if (fsr3Interface != null && fsr3Interface.EnableFrameGeneration == false) {
+            fsr3Interface.EnableFrameGeneration = true;
         }
     }
 }

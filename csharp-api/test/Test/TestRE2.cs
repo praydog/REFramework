@@ -26,7 +26,7 @@ public class TestRE2Plugin {
             
             if (ImGui.TreeNode("Player")) {
                 var playerManager = API.GetManagedSingletonT<app.ropeway.PlayerManager>();
-                var player = playerManager.get_CurrentPlayer();
+                var player = playerManager.CurrentPlayer;
 
                 if (player != null) {
                     ImGui.Text("Player is not null");
@@ -135,7 +135,7 @@ public class TestRE2Plugin {
     static System.Collections.Concurrent.ConcurrentDictionary<long, bool> test = new(Environment.ProcessorCount * 2, 8192);
     public static void BenchFn() {
         var playerManager = API.GetManagedSingletonT<app.ropeway.PlayerManager>();
-        var player = playerManager.get_CurrentPlayer();
+        var player = playerManager.CurrentPlayer;
         if (player != null) {
             via.Component playerControllerRaw = player.getComponent(app.Collision.HitController.REFType.GetRuntimeType().As<_System.Type>());
             if (playerControllerRaw != null) {
@@ -145,7 +145,7 @@ public class TestRE2Plugin {
                     //rwl.ExitReadLock();
                     //playerController.
                     //playerController.get_DeltaTime();
-                    var gameobj = playerController.get_GameObject();
+                    var gameobj = playerController.GameObject;
 
                     if (gameobj != null) {
                         /*var backToPlayerController = gameobj.getComponent(app.Collision.HitController.REFType.GetRuntimeType().As<_System.Type>());
@@ -159,7 +159,7 @@ public class TestRE2Plugin {
                     //get_GameObjectFn.HandleInvokeMember_Internal(playerController, null, ref result);
                 }
 
-                var refCount = ((playerController.get_GameObject() as IProxy).GetInstance() as ManagedObject).GetReferenceCount();
+                var refCount = ((playerController.GameObject as IProxy).GetInstance() as ManagedObject).GetReferenceCount();
                 System.Console.WriteLine("PlayerController ref count: " + refCount);
             }
         }
@@ -214,7 +214,7 @@ public class RE2HookBenchmark {
         action();
 
         sw.Stop();
-        var elapsedTicks = (double)sw.get_ElapsedTicks();
+        var elapsedTicks = (double)sw.ElapsedTicks;
         var elapsedMicros = elapsedTicks / (double)TimeSpan.TicksPerMicrosecond;
 
         data.totalMicros += elapsedMicros;
@@ -261,7 +261,7 @@ public class RE2HookBenchmark {
 
         Bench(() => {
             for (int i = 0; i < 10000; ++i) {
-                var gameobj = hitController.get_GameObject();
+                var gameobj = hitController.GameObject;
                 if (gameobj != null) {
                 }
             }
@@ -294,8 +294,8 @@ public class RE2HookBenchmark {
         var wantedValue = Math.Sin(elapsedSeconds) + 1.0;
         cameraFovLerp = double.Lerp(cameraFovLerp, wantedValue, cameraFovLerpSpeed * deltaSeconds);
 
-        var camera = via.SceneManager.get_MainView().get_PrimaryCamera();
+        var camera = via.SceneManager.MainView.PrimaryCamera;
         var degrees = cameraFovLerp * 180.0 / Math.PI;
-        camera.set_FOV((float)degrees);
+        camera.FOV = (float)degrees;
     }
 }

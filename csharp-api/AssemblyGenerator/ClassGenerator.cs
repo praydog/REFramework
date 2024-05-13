@@ -15,6 +15,14 @@ using REFrameworkNET;
 using System;
 
 public class ClassGenerator {
+    public class PseudoProperty {
+        public REFrameworkNET.Method? getter;
+        public REFrameworkNET.Method? setter;
+        public REFrameworkNET.TypeDefinition? type;
+    };
+
+    private Dictionary<string, PseudoProperty> pseudoProperties = [];
+
     private string className;
     private REFrameworkNET.TypeDefinition t;
     private List<REFrameworkNET.Method> methods = [];
@@ -60,7 +68,27 @@ public class ClassGenerator {
                 continue;
             }
 
-            methods.Add(method);
+            if (method.Name.StartsWith("get_") && method.Parameters.Count == 0 && method.ReturnType.FullName != "System.Void") {
+                // Add the getter to the pseudo property (create if it doesn't exist)
+                var propertyName = method.Name[4..];
+                if (!pseudoProperties.ContainsKey(propertyName)) {
+                    pseudoProperties[propertyName] = new PseudoProperty();
+                }
+
+                pseudoProperties[propertyName].getter = method;
+                pseudoProperties[propertyName].type = method.ReturnType;
+            } else if (method.Name.StartsWith("set_") && method.Parameters.Count == 1) {
+                // Add the setter to the pseudo property (create if it doesn't exist)
+                var propertyName = method.Name[4..];
+                if (!pseudoProperties.ContainsKey(propertyName)) {
+                    pseudoProperties[propertyName] = new PseudoProperty();
+                }
+
+                pseudoProperties[propertyName].setter = method;
+                pseudoProperties[propertyName].type = method.Parameters[0].Type;
+            } else {
+                methods.Add(method);
+            }
         }
 
         foreach (var field in t_.Fields) {
@@ -89,6 +117,7 @@ public class ClassGenerator {
             // remove any methods that start with get/set_{field.Name}
             // because we're going to make them properties instead
             methods.RemoveAll(method => method.Name == "get_" + fieldName || method.Name == "set_" + fieldName);
+            pseudoProperties.Remove(fieldName);
         }
 
         typeDeclaration = Generate();
@@ -267,6 +296,7 @@ public class ClassGenerator {
 
         typeDeclaration = GenerateMethods(baseTypes);
         typeDeclaration = GenerateFields(baseTypes);
+        typeDeclaration = GenerateProperties(baseTypes);
 
         if (baseTypes.Count > 0 && typeDeclaration != null) {
             refTypeFieldDecl = refTypeFieldDecl.AddModifiers(SyntaxFactory.Token(SyntaxKind.NewKeyword));
@@ -288,8 +318,139 @@ public class ClassGenerator {
         return GenerateNestedTypes();
     }
 
-    private TypeDeclarationSyntax GenerateFields(List<SimpleBaseTypeSyntax> baseTypes) {
+    private TypeDeclarationSyntax GenerateProperties(List<SimpleBaseTypeSyntax> baseTypes) {
+        if (typeDeclaration == null) {
+            throw new Exception("Type declaration is null"); // This should never happen
+        }
 
+        if (pseudoProperties.Count == 0) {
+            return typeDeclaration!;
+        }
+
+        var matchingProperties = pseudoProperties
+            .Select(property => {
+                var propertyType = MakeProperType(property.Value.type, t);
+                var propertyName = new string(property.Key);
+
+                var propertyDeclaration = SyntaxFactory.PropertyDeclaration(propertyType, propertyName)
+                    .AddModifiers([SyntaxFactory.Token(SyntaxKind.PublicKeyword)]);
+
+                bool shouldAddNewKeyword = false;
+                bool shouldAddStaticKeyword = false;
+
+                if (property.Value.getter != null) {
+                    var getter = SyntaxFactory.AccessorDeclaration(SyntaxKind.GetAccessorDeclaration)
+                        .AddAttributeLists(SyntaxFactory.AttributeList().AddAttributes(SyntaxFactory.Attribute(
+                            SyntaxFactory.ParseName("global::REFrameworkNET.Attributes.Method"),
+                            SyntaxFactory.ParseAttributeArgumentList("(" + property.Value.getter.Index.ToString() + ", global::REFrameworkNET.FieldFacadeType.None)"))
+                        ));
+
+                    if (property.Value.getter.IsStatic()) {
+                        shouldAddStaticKeyword = true;
+
+                        // Now we must add a body to it that actually calls the method
+                        // We have our REFType field, so we can lookup the method and call it
+                        // Make a private static field to hold the REFrameworkNET.Method
+                        var internalFieldName = "INTERNAL_" + propertyName + property.Value.getter.Index.ToString();
+                        var methodVariableDeclaration = SyntaxFactory.VariableDeclaration(SyntaxFactory.ParseTypeName("global::REFrameworkNET.Method"))
+                            .AddVariables(SyntaxFactory.VariableDeclarator(internalFieldName).WithInitializer(SyntaxFactory.EqualsValueClause(SyntaxFactory.ParseExpression("REFType.GetMethod(\"" + property.Value.getter.GetMethodSignature() + "\")"))));
+
+                        var methodFieldDeclaration = SyntaxFactory.FieldDeclaration(methodVariableDeclaration).AddModifiers(SyntaxFactory.Token(SyntaxKind.PrivateKeyword), SyntaxFactory.Token(SyntaxKind.StaticKeyword), SyntaxFactory.Token(SyntaxKind.ReadOnlyKeyword));
+                        internalFieldDeclarations.Add(methodFieldDeclaration);
+
+                        List<StatementSyntax> bodyStatements = [];
+                        bodyStatements.Add(SyntaxFactory.ParseStatement("return (" + propertyType.GetText().ToString() + ")" + internalFieldName + ".InvokeBoxed(typeof(" + propertyType.GetText().ToString() + "), null, null);"));
+
+                        getter = getter.AddBodyStatements(bodyStatements.ToArray());
+                    } else {
+                        getter = getter.WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken));
+                    }
+
+                    propertyDeclaration = propertyDeclaration.AddAccessorListAccessors(getter);
+                    
+                    var getterExtension = Il2CppDump.GetMethodExtension(property.Value.getter);
+
+                    if (baseTypes.Count > 0 && getterExtension != null && getterExtension.Override != null && getterExtension.Override == true) {
+                        var matchingParentMethods = getterExtension.MatchingParentMethods;
+
+                        // Go through the parents, check if the parents are allowed to be generated
+                        // and add the new keyword if the matching method is found in one allowed to be generated
+                        foreach (var matchingMethod in matchingParentMethods) {
+                            var parent = matchingMethod.DeclaringType;
+                            if (!REFrameworkNET.AssemblyGenerator.validTypes.Contains(parent.FullName)) {
+                                continue;
+                            }
+
+                            shouldAddNewKeyword = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (property.Value.setter != null) {
+                    var setter = SyntaxFactory.AccessorDeclaration(SyntaxKind.SetAccessorDeclaration)
+                        .AddAttributeLists(SyntaxFactory.AttributeList().AddAttributes(SyntaxFactory.Attribute(
+                            SyntaxFactory.ParseName("global::REFrameworkNET.Attributes.Method"),
+                            SyntaxFactory.ParseAttributeArgumentList("(" + property.Value.setter.Index.ToString() + ", global::REFrameworkNET.FieldFacadeType.None)"))
+                        ));
+                    
+                    if (property.Value.setter.IsStatic()) {
+                        shouldAddStaticKeyword = true;
+
+                        // Now we must add a body to it that actually calls the method
+                        // We have our REFType field, so we can lookup the method and call it
+                        // Make a private static field to hold the REFrameworkNET.Method
+                        var internalFieldName = "INTERNAL_" + propertyName + property.Value.setter.Index.ToString();
+                        var methodVariableDeclaration = SyntaxFactory.VariableDeclaration(SyntaxFactory.ParseTypeName("global::REFrameworkNET.Method"))
+                            .AddVariables(SyntaxFactory.VariableDeclarator(internalFieldName).WithInitializer(SyntaxFactory.EqualsValueClause(SyntaxFactory.ParseExpression("REFType.GetMethod(\"" + property.Value.setter.GetMethodSignature() + "\")"))));
+
+                        var methodFieldDeclaration = SyntaxFactory.FieldDeclaration(methodVariableDeclaration).AddModifiers(SyntaxFactory.Token(SyntaxKind.PrivateKeyword), SyntaxFactory.Token(SyntaxKind.StaticKeyword), SyntaxFactory.Token(SyntaxKind.ReadOnlyKeyword));
+                        internalFieldDeclarations.Add(methodFieldDeclaration);
+
+                        List<StatementSyntax> bodyStatements = [];
+                        bodyStatements.Add(SyntaxFactory.ParseStatement(internalFieldName + ".Invoke(null, new object[] {value});"));
+
+                        setter = setter.AddBodyStatements(bodyStatements.ToArray());
+                    } else {
+                        setter = setter.WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken));
+                    }
+                    
+                    propertyDeclaration = propertyDeclaration.AddAccessorListAccessors(setter);
+
+                    var setterExtension = Il2CppDump.GetMethodExtension(property.Value.setter);
+
+                    if (baseTypes.Count > 0 && setterExtension != null && setterExtension.Override != null && setterExtension.Override == true) {
+                        var matchingParentMethods = setterExtension.MatchingParentMethods;
+
+                        // Go through the parents, check if the parents are allowed to be generated
+                        // and add the new keyword if the matching method is found in one allowed to be generated
+                        foreach (var matchingMethod in matchingParentMethods) {
+                            var parent = matchingMethod.DeclaringType;
+                            if (!REFrameworkNET.AssemblyGenerator.validTypes.Contains(parent.FullName)) {
+                                continue;
+                            }
+
+                            shouldAddNewKeyword = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (shouldAddStaticKeyword) {
+                    propertyDeclaration = propertyDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.StaticKeyword));
+                }
+
+                if (shouldAddNewKeyword) {
+                    propertyDeclaration = propertyDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.NewKeyword));
+                }
+
+                return propertyDeclaration;
+            });
+
+        return typeDeclaration.AddMembers(matchingProperties.ToArray());
+    }
+
+    private TypeDeclarationSyntax GenerateFields(List<SimpleBaseTypeSyntax> baseTypes) {
         if (typeDeclaration == null) {
             throw new Exception("Type declaration is null"); // This should never happen
         }

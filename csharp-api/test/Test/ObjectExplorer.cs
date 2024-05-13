@@ -275,16 +275,16 @@ class ObjectExplorer {
 
         if (runtimeTypeRaw != null) {
             var runtimeType = runtimeTypeRaw.As<_System.Type>();
-            var assembly = runtimeType.get_Assembly();
+            var assembly = runtimeType.Assembly;
 
             if (assembly != null) {
-                if (ImGui.TreeNode("Assembly: " + assembly.get_FullName().Split(',')[0])) {
+                if (ImGui.TreeNode("Assembly: " + assembly.FullName.Split(',')[0])) {
                     DisplayObject(assembly as IObject);
                     ImGui.TreePop();
                 }
             }
 
-            var baseType = runtimeType.get_BaseType();
+            var baseType = runtimeType.BaseType;
 
             /*if (baseType != null) {
                 if (ImGui.TreeNode("Base Type (" + (baseType.get_TypeHandle() as REFrameworkNET.TypeDefinition).FullName + ")")) {
@@ -371,7 +371,7 @@ class ObjectExplorer {
             var elementType = obj.GetTypeDefinition().GetElementType();
             var elementSize = elementType.GetSize();
 
-            for (int i = 0; i < easyArray.get_Length(); i++) {
+            for (int i = 0; i < easyArray.Length; i++) {
                 var element = easyArray.GetValue(i);
                 if (element == null) {
                     ImGui.Text("Element " + i + ": null");
@@ -469,15 +469,15 @@ class ObjectExplorer {
                 RenderNativeSingletons();
             }
 
-            var appdomain = _System.AppDomain.get_CurrentDomain();
+            var appdomain = _System.AppDomain.CurrentDomain;
             var assemblies = appdomain.GetAssemblies();
 
             if (ImGui.TreeNode("AppDomain")) {
                 if (assemblies != null && ImGui.TreeNode("Assemblies")) {
-                    for (int i = 0; i < assemblies.get_Length(); i++) {
+                    for (int i = 0; i < assemblies.Length; i++) {
                         var assembly = assemblies.get_Item(i);
                         var assemblyT = (assembly as IObject).GetTypeDefinition();
-                        var location = assembly.get_Location() ?? "null";
+                        var location = assembly.Location ?? "null";
                         
                         if (ImGui.TreeNode(location)) {
                             DisplayObject(assembly as IObject);
