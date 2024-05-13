@@ -1,5 +1,7 @@
 #include "ManagedObject.hpp"
 #include "Utility.hpp"
+#include "ValueType.hpp"
+#include "Proxy.hpp"
 
 #include "Field.hpp"
 
@@ -35,6 +37,10 @@ namespace REFrameworkNET {
         return Utility::BoxData((uintptr_t*)raw_data, this->Type, false);
     }
 
+    System::Object^ Field::GetDataBoxed(System::Type^ targetReturnType, uintptr_t obj, bool isValueType) {
+        return Utility::TranslateBoxedData(targetReturnType, GetDataBoxed(obj, isValueType));
+    }
+
     void Field::SetDataBoxed(uintptr_t obj, System::Object^ value, bool isValueType) {
         auto data_ptr = GetDataRaw(obj, isValueType);
 
@@ -49,10 +55,19 @@ namespace REFrameworkNET {
         }
 
         if (!field_type->IsValueType()) {
-            const auto iobject = dynamic_cast<REFrameworkNET::IObject^>(value);
+            auto iobject = dynamic_cast<REFrameworkNET::IObject^>(value);
 
             if (iobject != nullptr) {
                 *(uintptr_t*)data_ptr = iobject->GetAddress();
+
+                // Add a reference onto the object now that something else is holding onto it
+                auto proxy = dynamic_cast<REFrameworkNET::IProxy^>(iobject);
+                auto managedObject = proxy != nullptr ? dynamic_cast<REFrameworkNET::ManagedObject^>(proxy->GetInstance()) : dynamic_cast<REFrameworkNET::ManagedObject^>(iobject);
+
+                if (managedObject != nullptr) {
+                    managedObject->Globalize(); // Globalize it if it's not already
+                    managedObject->AddRef(); // Add a "dangling" reference
+                }
             }
 
             return; // Don't think there's any other way to set a reference type
@@ -83,7 +98,20 @@ namespace REFrameworkNET {
             MAKE_TYPE_HANDLER_SET("System.UIntPtr", uintptr_t)
 
         default:
+        {
+            const auto iobject = dynamic_cast<REFrameworkNET::IObject^>(value);
+            const auto iobject_td = iobject != nullptr ? iobject->GetTypeDefinition() : nullptr;
+
+            if (iobject != nullptr && iobject_td == field_type) {
+                if (iobject->IsManaged()) {
+                    memcpy((void*)data_ptr, (void*)((uintptr_t)iobject->Ptr() + iobject_td->GetFieldPtrOffset()), field_type->ValueTypeSize);
+                } else {
+                    memcpy((void*)data_ptr, iobject->Ptr(), field_type->ValueTypeSize);
+                }
+            }
+
             break;
+        }
         }
     }
 }

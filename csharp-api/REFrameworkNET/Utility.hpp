@@ -24,5 +24,6 @@ namespace REFrameworkNET {
     ref class Utility {
     public:
         static System::Object^ BoxData(uintptr_t* ptr, TypeDefinition^ t, bool fromInvoke);
+        static System::Object^ TranslateBoxedData(System::Type^ targetReturnType, System::Object^ boxedData);
     };
 }

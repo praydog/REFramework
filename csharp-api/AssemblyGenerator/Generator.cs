@@ -711,6 +711,8 @@ public class AssemblyGenerator {
             REFrameworkNET.API.LocalFrameGC();
         }
 
+        System.Console.WriteLine("Compiling " + strippedAssemblyName + " with " + compilationUnits.Count + " compilation units...");
+
         List<SyntaxTree> syntaxTrees = new List<SyntaxTree>();
 
         var syntaxTreeParseOption = CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.CSharp12);

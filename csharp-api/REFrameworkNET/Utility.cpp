@@ -5,10 +5,15 @@
 #include "TypeDefinition.hpp"
 #include "Field.hpp"
 #include "Method.hpp"
+#include "Proxy.hpp"
 
 #include "Utility.hpp"
 
 namespace REFrameworkNET {
+public interface class DummyInterface {
+
+};
+
 System::Object^ Utility::BoxData(uintptr_t* ptr, TypeDefinition^ t, bool fromInvoke) {
     System::Object^ result = nullptr;
 
@@ -122,8 +127,77 @@ System::Object^ Utility::BoxData(uintptr_t* ptr, TypeDefinition^ t, bool fromInv
             // Here's hoping this works
             auto vt = gcnew REFrameworkNET::ValueType(t);
             memcpy(vt->Ptr(), ptr, t->ValueTypeSize);
+            result = vt;
         }
         break;
+    }
+
+    return result;
+}
+
+System::Object^ Utility::TranslateBoxedData(System::Type^ targetReturnType, System::Object^ result) {
+    if (result == nullptr) {
+        return nullptr; // ez
+    }
+
+    if (targetReturnType == nullptr) {
+        return result;
+    }
+
+    if (!targetReturnType->IsPrimitive && !targetReturnType->IsEnum && !targetReturnType->IsInterface) {
+        if (targetReturnType == System::String::typeid) {
+            return result;
+        }
+
+        if (targetReturnType == REFrameworkNET::ManagedObject::typeid) {
+            return result;
+        }
+        
+        if (targetReturnType == REFrameworkNET::NativeObject::typeid) {
+            return result;
+        }
+
+        if (targetReturnType == REFrameworkNET::TypeDefinition::typeid) {
+            return result;
+        }
+
+        if (targetReturnType == REFrameworkNET::Method::typeid) {
+            return result;
+        }
+
+        if (targetReturnType == REFrameworkNET::Field::typeid) {
+            return result;
+        }
+    }
+
+    if (targetReturnType->IsEnum) {
+        auto underlyingType = targetReturnType->GetEnumUnderlyingType();
+
+        if (underlyingType != nullptr) {
+            auto underlyingResult = System::Convert::ChangeType(result, underlyingType);
+            return System::Enum::ToObject(targetReturnType, underlyingResult);
+        }
+    }
+
+    if (!targetReturnType->IsPrimitive && targetReturnType->IsInterface) {
+        auto iobjectResult = dynamic_cast<REFrameworkNET::IObject^>(result);
+
+        if (iobjectResult != nullptr && targetReturnType->IsInterface) {
+            // Caching mechanism to prevent creating multiple proxies for the same object and type so we dont stress the GC
+            if (auto existingProxy = iobjectResult->GetProxy(targetReturnType); existingProxy != nullptr) {
+                return existingProxy;
+            }
+
+            auto proxy = System::Reflection::DispatchProxy::Create(targetReturnType, Proxy<DummyInterface^, IObject^>::typeid->GetGenericTypeDefinition()->MakeGenericType(targetReturnType, result->GetType()));
+            ((IProxy^)proxy)->SetInstance(iobjectResult);
+
+            if (auto unified = dynamic_cast<REFrameworkNET::UnifiedObject^>(iobjectResult); unified != nullptr) {
+                unified->AddProxy(targetReturnType, (IProxy^)proxy);
+            }
+
+            result = proxy;
+            return result;
+        }
     }
 
     return result;

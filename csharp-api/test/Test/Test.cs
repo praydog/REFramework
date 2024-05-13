@@ -116,13 +116,26 @@ public class DangerousFunctions {
         var meshes = via.SceneManager.get_MainScene().findComponents(via.render.Mesh.REFType.RuntimeType.As<_System.Type>());
         //var range = via.RangeI.REFType.CreateInstance(0).As<via.RangeI>();
         var range = REFrameworkNET.ValueType.New<via.RangeI>();
-        range.setMinMax(0, 10);
         var testVec = REFrameworkNET.ValueType.New<via.vec3>();
-        System.Console.WriteLine("Test vec x: " + testVec.x);
+        System.Console.WriteLine("Test vec x before: " + testVec.x);
         testVec.x = 1.0f;
-        System.Console.WriteLine("Test vec x: " + testVec.x);
+        testVec.y = 2.0f;
+        testVec.z = 3.0f;
+        System.Console.WriteLine("Test vec x after: " + testVec.x);
+        System.Console.WriteLine("Test vec y after: " + testVec.y);
+        System.Console.WriteLine("Test vec z after: " + testVec.z);
+
+        var axisXStatic = via.vec3.AxisX;
+        var axisYStatic = via.vec3.AxisY;
+        var axisZStatic = via.vec3.AxisZ;
+
+        System.Console.WriteLine("Axis X: " + axisXStatic.x + " " + axisXStatic.y + " " + axisXStatic.z);
+        System.Console.WriteLine("Axis Y: " + axisYStatic.x + " " + axisYStatic.y + " " + axisYStatic.z);
+        System.Console.WriteLine("Axis Z: " + axisZStatic.x + " " + axisZStatic.y + " " + axisZStatic.z);
+        
         //testVec[0] = 1.0f;
         // print min max to test if this works
+        range.setMinMax(1, 10);
         REFrameworkNET.API.LogInfo("Range min: " + range.getMin().ToString());
         REFrameworkNET.API.LogInfo("Range max: " + range.getMax().ToString());
         for (int i = 0; i < meshes.get_Length(); i++) {

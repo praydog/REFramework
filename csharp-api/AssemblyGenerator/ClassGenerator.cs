@@ -352,24 +352,45 @@ public class ClassGenerator {
                     SyntaxFactory.ParseAttributeArgumentList("(" + field.Index.ToString() + ", global::REFrameworkNET.FieldFacadeType.Setter)"))
                 );
 
-                var properyDeclaration = SyntaxFactory.PropertyDeclaration(fieldType, fieldName)
-                    .AddModifiers(new SyntaxToken[]{SyntaxFactory.Token(SyntaxKind.PublicKeyword)})
-                    .AddAccessorListAccessors(
-                        SyntaxFactory.AccessorDeclaration(SyntaxKind.GetAccessorDeclaration).AddAttributeLists(fieldFacadeGetter)
-                            .WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken)),
-                        SyntaxFactory.AccessorDeclaration(SyntaxKind.SetAccessorDeclaration).AddAttributeLists(fieldFacadeSetter)
-                            .WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken))
-                    );
+                AccessorDeclarationSyntax getter = SyntaxFactory.AccessorDeclaration(SyntaxKind.GetAccessorDeclaration).AddAttributeLists(fieldFacadeGetter);
+                AccessorDeclarationSyntax setter = SyntaxFactory.AccessorDeclaration(SyntaxKind.SetAccessorDeclaration).AddAttributeLists(fieldFacadeSetter);
+
+                var propertyDeclaration = SyntaxFactory.PropertyDeclaration(fieldType, fieldName)
+                    .AddModifiers([SyntaxFactory.Token(SyntaxKind.PublicKeyword)]);
 
                 if (field.IsStatic()) {
-                    properyDeclaration = properyDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.StaticKeyword));
+                    propertyDeclaration = propertyDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.StaticKeyword));
+
+                    // Now we must add a body to it that actually calls the method
+                    // We have our REFType field, so we can lookup the method and call it
+                    // Make a private static field to hold the REFrameworkNET.Method
+                    var internalFieldName = "INTERNAL_" + fieldName + field.GetIndex().ToString();
+                    var fieldVariableDeclaration = SyntaxFactory.VariableDeclaration(SyntaxFactory.ParseTypeName("global::REFrameworkNET.Field"))
+                        .AddVariables(SyntaxFactory.VariableDeclarator(internalFieldName).WithInitializer(SyntaxFactory.EqualsValueClause(SyntaxFactory.ParseExpression("REFType.GetField(\"" + field.GetName() + "\")"))));
+
+                    var fieldDeclaration = SyntaxFactory.FieldDeclaration(fieldVariableDeclaration).AddModifiers(SyntaxFactory.Token(SyntaxKind.PrivateKeyword), SyntaxFactory.Token(SyntaxKind.StaticKeyword), SyntaxFactory.Token(SyntaxKind.ReadOnlyKeyword));
+                    internalFieldDeclarations.Add(fieldDeclaration);
+
+                    List<StatementSyntax> bodyStatementsSetter = [];
+                    List<StatementSyntax> bodyStatementsGetter = [];
+
+                    bodyStatementsGetter.Add(SyntaxFactory.ParseStatement("return (" + fieldType.GetText().ToString() + ")" + internalFieldName + ".GetDataBoxed(typeof(" + fieldType.GetText().ToString() + "), 0, false);"));
+                    bodyStatementsSetter.Add(SyntaxFactory.ParseStatement(internalFieldName + ".SetDataBoxed(0, new object[] {value}, false);"));
+
+                    getter = getter.AddBodyStatements(bodyStatementsGetter.ToArray());
+                    setter = setter.AddBodyStatements(bodyStatementsSetter.ToArray());
+                } else {
+                    getter = getter.WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken));
+                    setter = setter.WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken));
                 }
+
+                propertyDeclaration = propertyDeclaration.AddAccessorListAccessors(getter, setter);
 
                 if (this.t.ParentType != null && this.t.ParentType.FindField(field.Name) != null) {
-                    properyDeclaration = properyDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.NewKeyword));
+                    propertyDeclaration = propertyDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.NewKeyword));
                 }
 
-                return properyDeclaration;
+                return propertyDeclaration;
             });
 
         return typeDeclaration.AddMembers(matchingFields.ToArray());

@@ -140,6 +140,15 @@ public:
     System::Object^ GetDataBoxed(uintptr_t obj, bool isValueType);
 
     /// <summary>
+    /// Get the field data as a boxed object, but proxies the object to the target type
+    /// </summary>
+    /// <param name="targetReturnType">The target type to proxy the object to.</param>
+    /// <param name="obj">The object to get the field data from</param>
+    /// <param name="isValueType">Whether the object holding the field is a value type</param>
+    /// <returns>The field data as a boxed object</returns>
+    System::Object^ GetDataBoxed(System::Type^ targetReturnType, uintptr_t obj, bool isValueType);
+
+    /// <summary>
     /// Set the field data from a boxed object
     /// </summary>
     /// <param name="obj">The object to set the field data on</param>
