@@ -18,6 +18,7 @@ public class ClassGenerator {
     private string className;
     private REFrameworkNET.TypeDefinition t;
     private List<REFrameworkNET.Method> methods = [];
+    private List<REFrameworkNET.Field> fields = [];
     public List<REFrameworkNET.TypeDefinition> usingTypes = [];
     private TypeDeclarationSyntax? typeDeclaration;
     private bool addedNewKeyword = false;
@@ -60,6 +61,34 @@ public class ClassGenerator {
             }
 
             methods.Add(method);
+        }
+
+        foreach (var field in t_.Fields) {
+            // Means we've entered the parent type
+            if (field.DeclaringType != t_) {
+                break;
+            }
+
+            if (field.Name == null) {
+                continue;
+            }
+
+            if (field.Type == null || field.Type.FullName == null) {
+                REFrameworkNET.API.LogError("Field " + field.Name + " has a null field type");
+                continue;
+            }
+
+            fields.Add(field);
+
+            var fieldName = new string(field.Name);
+
+            if (fieldName.StartsWith("<") && fieldName.EndsWith("k__BackingField")) {
+                fieldName = fieldName[1..fieldName.IndexOf(">k__")];
+            }
+
+            // remove any methods that start with get/set_{field.Name}
+            // because we're going to make them properties instead
+            methods.RemoveAll(method => method.Name == "get_" + fieldName || method.Name == "set_" + fieldName);
         }
 
         typeDeclaration = Generate();
@@ -237,6 +266,7 @@ public class ClassGenerator {
         var refProxyFieldDecl = SyntaxFactory.FieldDeclaration(refProxyVarDecl).AddModifiers(SyntaxFactory.Token(SyntaxKind.PrivateKeyword), SyntaxFactory.Token(SyntaxKind.StaticKeyword), SyntaxFactory.Token(SyntaxKind.ReadOnlyKeyword));
 
         typeDeclaration = GenerateMethods(baseTypes);
+        typeDeclaration = GenerateFields(baseTypes);
 
         if (baseTypes.Count > 0 && typeDeclaration != null) {
             refTypeFieldDecl = refTypeFieldDecl.AddModifiers(SyntaxFactory.Token(SyntaxKind.NewKeyword));
@@ -256,6 +286,83 @@ public class ClassGenerator {
         }
 
         return GenerateNestedTypes();
+    }
+
+    private TypeDeclarationSyntax GenerateFields(List<SimpleBaseTypeSyntax> baseTypes) {
+
+        if (typeDeclaration == null) {
+            throw new Exception("Type declaration is null"); // This should never happen
+        }
+
+        if (fields.Count == 0) {
+            return typeDeclaration!;
+        }
+
+        List<REFrameworkNET.Field> validFields = [];
+
+        foreach (var field in fields) {
+            if (field == null) {
+                continue;
+            }
+
+            if (field.Name == null) {
+                continue;
+            }
+
+            if (field.Type == null) {
+                continue;
+            }
+
+            if (field.Type.FullName == null) {
+                continue;
+            }
+
+            if (field.Type.FullName.Contains('!')) {
+                continue;
+            }
+
+            // We don't want any of the properties to be "void" properties
+            if (!REFrameworkNET.AssemblyGenerator.validTypes.Contains(field.Type.FullName)) {
+                continue;
+            }
+
+            validFields.Add(field);
+        }
+
+        var matchingFields = validFields
+            .Select(field => {
+                var fieldType = MakeProperType(field.Type, t);
+                var fieldName = new string(field.Name);
+
+                // Replace the k backingfield crap
+                if (fieldName.StartsWith("<") && fieldName.EndsWith("k__BackingField")) {
+                    fieldName = fieldName[1..fieldName.IndexOf(">k__")];
+                }
+
+                // So this is actually going to be made a property with get/set instead of an actual field
+                // 1. Because interfaces can't have fields
+                // 2. Because we don't actually have a concrete reference to the field in our VM, so we'll be a facade for the field
+                var properyDeclaration = SyntaxFactory.PropertyDeclaration(fieldType, fieldName)
+                    .AddModifiers(new SyntaxToken[]{SyntaxFactory.Token(SyntaxKind.PublicKeyword)})
+                    .AddAccessorListAccessors(
+                        SyntaxFactory.AccessorDeclaration(SyntaxKind.GetAccessorDeclaration)
+                            .WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken)),
+                        SyntaxFactory.AccessorDeclaration(SyntaxKind.SetAccessorDeclaration)
+                            .WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken))
+                    );
+
+                if (field.IsStatic()) {
+                    properyDeclaration = properyDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.StaticKeyword));
+                }
+
+                if (this.t.ParentType != null && this.t.ParentType.FindField(field.Name) != null) {
+                    properyDeclaration = properyDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.NewKeyword));
+                }
+
+                return properyDeclaration;
+            });
+
+        return typeDeclaration.AddMembers(matchingFields.ToArray());
     }
 
     private TypeDeclarationSyntax GenerateMethods(List<SimpleBaseTypeSyntax> baseTypes) {
