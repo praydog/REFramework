@@ -344,12 +344,12 @@ public class ClassGenerator {
                 // 2. Because we don't actually have a concrete reference to the field in our VM, so we'll be a facade for the field
                 var fieldFacadeGetter = SyntaxFactory.AttributeList().AddAttributes(SyntaxFactory.Attribute(
                     SyntaxFactory.ParseName("global::REFrameworkNET.Attributes.Method"),
-                    SyntaxFactory.ParseAttributeArgumentList("(" + field.Index.ToString() + ", global::REFrameworkNET::FieldFacadeType.Getter)"))
+                    SyntaxFactory.ParseAttributeArgumentList("(" + field.Index.ToString() + ", global::REFrameworkNET.FieldFacadeType.Getter)"))
                 );
 
                 var fieldFacadeSetter = SyntaxFactory.AttributeList().AddAttributes(SyntaxFactory.Attribute(
                     SyntaxFactory.ParseName("global::REFrameworkNET.Attributes.Method"),
-                    SyntaxFactory.ParseAttributeArgumentList("(" + field.Index.ToString() + ", global::REFrameworkNET::FieldFacadeType.Setter)"))
+                    SyntaxFactory.ParseAttributeArgumentList("(" + field.Index.ToString() + ", global::REFrameworkNET.FieldFacadeType.Setter)"))
                 );
 
                 var properyDeclaration = SyntaxFactory.PropertyDeclaration(fieldType, fieldName)
@@ -433,7 +433,7 @@ public class ClassGenerator {
             methodDeclaration = methodDeclaration.AddAttributeLists(
                 SyntaxFactory.AttributeList().AddAttributes(SyntaxFactory.Attribute(
                     SyntaxFactory.ParseName("global::REFrameworkNET.Attributes.Method"),
-                    SyntaxFactory.ParseAttributeArgumentList("(" + method.GetIndex().ToString() + ", global::REFrameworkNET::FieldFacadeType.None)")))
+                    SyntaxFactory.ParseAttributeArgumentList("(" + method.GetIndex().ToString() + ", global::REFrameworkNET.FieldFacadeType.None)")))
                 );
 
             bool anyOutParams = false;
