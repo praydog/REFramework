@@ -1,0 +1,131 @@
+#include "ManagedObject.hpp"
+#include "NativeObject.hpp"
+#include "ValueType.hpp"
+
+#include "TypeDefinition.hpp"
+#include "Field.hpp"
+#include "Method.hpp"
+
+#include "Utility.hpp"
+
+namespace REFrameworkNET {
+System::Object^ Utility::BoxData(uintptr_t* ptr, TypeDefinition^ t, bool fromInvoke) {
+    System::Object^ result = nullptr;
+
+    if (t == nullptr) {
+        return nullptr;
+    }
+
+    // Check the return type of the method and return it as a NativeObject if possible
+    if (!t->IsValueType()) {
+        if (ptr == nullptr || *ptr == 0) {
+            return nullptr;
+        }
+
+        const auto vm_object_type = t->GetVMObjType();
+
+        if (vm_object_type == VMObjType::Object) {
+            return REFrameworkNET::ManagedObject::Get((::REFrameworkManagedObjectHandle)*ptr);
+        }
+
+        // TODO: Clean this up
+        if (vm_object_type == VMObjType::String) {
+            auto strObject = (reframework::API::ManagedObject*)*ptr;
+            auto strType = strObject->get_type_definition();
+            const auto firstCharField = strType->find_field("_firstChar");
+            uint32_t offset = 0;
+
+            if (firstCharField != nullptr) {
+                offset = firstCharField->get_offset_from_base();
+            } else {
+                const auto fieldOffset = *(uint32_t*)(*(uintptr_t*)*ptr - sizeof(void*));
+                offset = fieldOffset + 4;
+            }
+
+            wchar_t* chars = (wchar_t*)((uintptr_t)strObject + offset);
+            return gcnew System::String(chars);
+        }
+
+        if (vm_object_type == VMObjType::Array) {
+            // TODO? Implement array
+            return REFrameworkNET::ManagedObject::Get((::REFrameworkManagedObjectHandle)*ptr);
+        }
+
+        // TODO: other managed types
+        return gcnew REFrameworkNET::NativeObject((uintptr_t)*ptr, t);
+    }
+
+    if (t->IsEnum()) {
+        if (auto underlying = t->GetUnderlyingType(); underlying != nullptr) {
+            t = underlying; // easy mode
+        }
+    }
+
+    #define CONCAT_X_C(X, DOT, C) X ## DOT ## C
+
+    #define MAKE_TYPE_HANDLER_2(X, C, Y, Z) \
+        case CONCAT_X_C(#X, ".", #C)_fnv: \
+            result = gcnew X::C(*(Y*)ptr); \
+            break;
+
+    switch (t->GetFNV64Hash()) {
+    MAKE_TYPE_HANDLER_2(System, Boolean, bool, byte)
+    MAKE_TYPE_HANDLER_2(System, Byte, uint8_t, byte)
+    MAKE_TYPE_HANDLER_2(System, UInt16, uint16_t, word)
+    MAKE_TYPE_HANDLER_2(System, UInt32, uint32_t, dword)
+    MAKE_TYPE_HANDLER_2(System, UInt64, uint64_t, qword)
+    MAKE_TYPE_HANDLER_2(System, SByte, int8_t, byte)
+    MAKE_TYPE_HANDLER_2(System, Int16, int16_t, word)
+    MAKE_TYPE_HANDLER_2(System, Int32, int32_t, dword)
+    MAKE_TYPE_HANDLER_2(System, Int64, int64_t, qword)
+    MAKE_TYPE_HANDLER_2(System, Double, double, d)
+    // Because invoke wrappers returning a single actually return a double
+    // for consistency purposes
+    //MAKE_TYPE_HANDLER_2(System, Single, double, d)
+    case "System.Single"_fnv: {
+        if (fromInvoke) {
+            result = gcnew System::Double(*(double*)ptr);
+            break;
+        }
+        
+        result = gcnew System::Single(*(float*)ptr);
+        break;
+    }
+    case "System.RuntimeTypeHandle"_fnv: {
+        if (ptr == 0) {
+            return nullptr;
+        }
+
+        result = TypeDefinition::GetInstance((::REFrameworkTypeDefinitionHandle)*ptr);
+        break;
+    }
+    case "System.RuntimeMethodHandle"_fnv: {
+        if (ptr == 0) {
+            return nullptr;
+        }
+
+        result = Method::GetInstance((::REFrameworkMethodHandle)*ptr);
+        break;
+    }
+    case "System.RuntimeFieldHandle"_fnv: {
+        if (ptr == 0) {
+            result = nullptr;
+            return true;
+        }
+
+        result = Field::GetInstance((::REFrameworkFieldHandle)*ptr);
+        break;
+    }
+    default:
+        //result = safe_cast<System::Object^>(REFrameworkNET::InvokeRet::FromNative(tempResult));
+        {
+            // Here's hoping this works
+            auto vt = gcnew REFrameworkNET::ValueType(t);
+            memcpy(vt->Ptr(), ptr, t->ValueTypeSize);
+        }
+        break;
+    }
+
+    return result;
+}
+}

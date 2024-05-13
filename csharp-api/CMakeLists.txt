@@ -191,6 +191,7 @@ set(csharp-api_SOURCES
 	"REFrameworkNET/TDB.cpp"
 	"REFrameworkNET/TypeDefinition.cpp"
 	"REFrameworkNET/UnifiedObject.cpp"
+	"REFrameworkNET/Utility.cpp"
 	"REFrameworkNET/VM.cpp"
 	"REFrameworkNET/ValueType.cpp"
 	"REFrameworkNET/API.hpp"
