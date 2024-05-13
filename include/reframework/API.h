@@ -7,7 +7,7 @@
 #endif
 
 #define REFRAMEWORK_PLUGIN_VERSION_MAJOR 1
-#define REFRAMEWORK_PLUGIN_VERSION_MINOR 9
+#define REFRAMEWORK_PLUGIN_VERSION_MINOR 10
 #define REFRAMEWORK_PLUGIN_VERSION_PATCH 0
 
 #define REFRAMEWORK_RENDERER_D3D11 0
@@ -254,6 +254,8 @@ typedef struct {
 
     void* (*get_init_data)(REFrameworkFieldHandle);
     void* (*get_data_raw)(REFrameworkFieldHandle, void* obj, bool is_value_type);
+
+    unsigned int (*get_index)(REFrameworkFieldHandle);
 } REFrameworkTDBField;
 
 typedef struct {

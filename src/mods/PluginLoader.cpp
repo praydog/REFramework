@@ -371,6 +371,8 @@ REFrameworkTDBField g_tdb_field_data {
 
     [](REFrameworkFieldHandle field) { return REFIELD(field)->get_init_data(); },
     [](REFrameworkFieldHandle field, void* obj, bool is_value_type) { return REFIELD(field)->get_data_raw(obj, is_value_type); },
+
+    [](REFrameworkFieldHandle field) { return REFIELD(field)->get_index(); },
 };
 
 REFrameworkTDBProperty g_tdb_property_data {
