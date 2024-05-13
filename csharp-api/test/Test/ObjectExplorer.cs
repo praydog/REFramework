@@ -475,7 +475,7 @@ class ObjectExplorer {
             if (ImGui.TreeNode("AppDomain")) {
                 if (assemblies != null && ImGui.TreeNode("Assemblies")) {
                     for (int i = 0; i < assemblies.Length; i++) {
-                        var assembly = assemblies.get_Item(i);
+                        var assembly = assemblies[i];
                         var assemblyT = (assembly as IObject).GetTypeDefinition();
                         var location = assembly.Location ?? "null";
                         

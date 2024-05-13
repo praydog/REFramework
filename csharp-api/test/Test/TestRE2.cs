@@ -44,6 +44,7 @@ public class TestRE2Plugin {
 
         ImGui.SetNextWindowSize(new System.Numerics.Vector2(500, 500), ImGuiCond.FirstUseEver);
         if (ImGui.Begin("RE2 Bench")) {
+            ImGui.Text(RE2HookBenchmark.MeasureCount.ToString() + " calls");
 
             ImGui.PushStyleColor(ImGuiCol.Text, new System.Numerics.Vector4(0.5f, 1f, 0.4f, 1.0f));
             ImGui.PlotLines("Overall Benchmark", ref RE2HookBenchmark.BenchmarkData[0], 1000, RE2HookBenchmark.MeasureCount % 1000, RE2HookBenchmark.RunningAvg.ToString("0.000") + " µs", 0, (float)RE2HookBenchmark.RunningAvg * 2.0f, new System.Numerics.Vector2(0, 40));
@@ -260,7 +261,7 @@ public class RE2HookBenchmark {
         var hitController = ManagedObject.ToManagedObject(args[1]).As<app.Collision.HitController>();
 
         Bench(() => {
-            for (int i = 0; i < 10000; ++i) {
+            for (int i = 0; i < 10; ++i) {
                 var gameobj = hitController.GameObject;
                 if (gameobj != null) {
                 }
@@ -280,22 +281,30 @@ public class RE2HookBenchmark {
     static System.Diagnostics.Stopwatch cameraFovStopwatch = new();
     static System.Diagnostics.Stopwatch cameraFovStopwatch2 = new();
 
-    [Callback(typeof(BeginRendering), CallbackType.Pre)]
-    static void BeginRenderingCallback() {
-        if (!cameraFovStopwatch2.IsRunning) {
-            cameraFovStopwatch2.Start();
+    [Callback(typeof(LockScene), CallbackType.Post)]
+    static void LockSceneCallback() {
+        var playerManager = API.GetManagedSingletonT<app.ropeway.PlayerManager>();
+        if (playerManager == null) {
+            return;
         }
 
-        cameraFovStopwatch.Stop();
-        var deltaSeconds = cameraFovStopwatch.Elapsed.TotalMilliseconds / 1000.0;
-        var elapsedSeconds = cameraFovStopwatch2.Elapsed.TotalMilliseconds / 1000.0;
-        cameraFovStopwatch.Restart();
+        var player = playerManager.CurrentPlayer;
+        if (player == null) {
+            return;
+        }
 
-        var wantedValue = Math.Sin(elapsedSeconds) + 1.0;
-        cameraFovLerp = double.Lerp(cameraFovLerp, wantedValue, cameraFovLerpSpeed * deltaSeconds);
+        var transform = player.Transform;
+        var headJoint = transform.getJointByName("head");
+
+        if (headJoint == null) {
+            return;
+        }
 
         var camera = via.SceneManager.MainView.PrimaryCamera;
-        var degrees = cameraFovLerp * 180.0 / Math.PI;
-        camera.FOV = (float)degrees;
+        camera.GameObject.Transform.Position = headJoint.Position;
+        camera.GameObject.Transform.Joints[0].Position = headJoint.Position;
+
+        // Shrink head scale
+        headJoint.LocalScale = via.vec3.Zero;
     }
 }

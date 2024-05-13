@@ -93,11 +93,10 @@ public class DangerousFunctions {
         var appdomain = _System.AppDomain.CurrentDomain;
         var assemblies = appdomain.GetAssemblies();
 
-        // TODO: Make this work! get_length, get_item is ugly!
         //foreach (REFrameworkNET.ManagedObject assemblyRaw in assemblies) {
         for (int i = 0; i < assemblies.Length; i++) {
             //var assembly = assemblyRaw.As<_System.Reflection.Assembly>();
-            var assembly = assemblies.get_Item(i);
+            var assembly = assemblies[i];
             REFrameworkNET.API.LogInfo("Assembly: " + assembly.Location?.ToString());
         }
 
@@ -149,7 +148,7 @@ public class DangerousFunctions {
 
         var meshes = via.SceneManager.MainScene.findComponents(via.render.Mesh.REFType.RuntimeType.As<_System.Type>());
         for (int i = 0; i < meshes.Length; i++) {
-            var mesh = (meshes.get_Item(i) as IObject).As<via.render.Mesh>();
+            var mesh = (meshes[i] as IObject).As<via.render.Mesh>();
             mesh.DrawRaytracing = true;
         }
 

@@ -19,6 +19,8 @@ public class ClassGenerator {
         public REFrameworkNET.Method? getter;
         public REFrameworkNET.Method? setter;
         public REFrameworkNET.TypeDefinition? type;
+        public bool indexer = false;
+        public REFrameworkNET.TypeDefinition? indexType;
     };
 
     private Dictionary<string, PseudoProperty> pseudoProperties = [];
@@ -68,24 +70,50 @@ public class ClassGenerator {
                 continue;
             }
 
-            if (method.Name.StartsWith("get_") && method.Parameters.Count == 0 && method.ReturnType.FullName != "System.Void") {
-                // Add the getter to the pseudo property (create if it doesn't exist)
-                var propertyName = method.Name[4..];
-                if (!pseudoProperties.ContainsKey(propertyName)) {
-                    pseudoProperties[propertyName] = new PseudoProperty();
-                }
+            if (method.Name.StartsWith("get_") && method.ReturnType.FullName != "System.Void") {
+                if (method.Parameters.Count == 0) {
+                    // Add the getter to the pseudo property (create if it doesn't exist)
+                    var propertyName = method.Name[4..];
+                    if (!pseudoProperties.ContainsKey(propertyName)) {
+                        pseudoProperties[propertyName] = new PseudoProperty();
+                    }
 
-                pseudoProperties[propertyName].getter = method;
-                pseudoProperties[propertyName].type = method.ReturnType;
-            } else if (method.Name.StartsWith("set_") && method.Parameters.Count == 1) {
-                // Add the setter to the pseudo property (create if it doesn't exist)
-                var propertyName = method.Name[4..];
-                if (!pseudoProperties.ContainsKey(propertyName)) {
-                    pseudoProperties[propertyName] = new PseudoProperty();
-                }
+                    pseudoProperties[propertyName].getter = method;
+                    pseudoProperties[propertyName].type = method.ReturnType;
+                } else if (method.Parameters.Count == 1 && method.Name == "get_Item") {
+                    // This is an indexer property
+                    var propertyName = method.Name[4..];
+                    if (!pseudoProperties.ContainsKey(propertyName)) {
+                        pseudoProperties[propertyName] = new PseudoProperty();
+                    }
 
-                pseudoProperties[propertyName].setter = method;
-                pseudoProperties[propertyName].type = method.Parameters[0].Type;
+                    pseudoProperties[propertyName].getter = method;
+                    pseudoProperties[propertyName].type = method.ReturnType;
+                    pseudoProperties[propertyName].indexer = true;
+                    pseudoProperties[propertyName].indexType = method.Parameters[0].Type;
+                }
+            } else if (method.Name.StartsWith("set_")) {
+                if (method.Parameters.Count == 1) {
+                    // Add the setter to the pseudo property (create if it doesn't exist)
+                    var propertyName = method.Name[4..];
+                    if (!pseudoProperties.ContainsKey(propertyName)) {
+                        pseudoProperties[propertyName] = new PseudoProperty();
+                    }
+
+                    pseudoProperties[propertyName].setter = method;
+                    pseudoProperties[propertyName].type = method.Parameters[0].Type;
+                } else if (method.Parameters.Count == 2 && method.Name == "set_Item") {
+                    // This is an indexer property
+                    var propertyName = method.Name[4..];
+                    if (!pseudoProperties.ContainsKey(propertyName)) {
+                        pseudoProperties[propertyName] = new PseudoProperty();
+                    }
+
+                    pseudoProperties[propertyName].setter = method;
+                    pseudoProperties[propertyName].type = method.Parameters[1].Type;
+                    pseudoProperties[propertyName].indexer = true;
+                    pseudoProperties[propertyName].indexType = method.Parameters[0].Type;
+                }
             } else {
                 methods.Add(method);
             }
@@ -332,8 +360,16 @@ public class ClassGenerator {
                 var propertyType = MakeProperType(property.Value.type, t);
                 var propertyName = new string(property.Key);
 
-                var propertyDeclaration = SyntaxFactory.PropertyDeclaration(propertyType, propertyName)
+                BasePropertyDeclarationSyntax propertyDeclaration = SyntaxFactory.PropertyDeclaration(propertyType, propertyName)
                     .AddModifiers([SyntaxFactory.Token(SyntaxKind.PublicKeyword)]);
+
+                if (property.Value.indexer) {
+                    ParameterSyntax parameter = SyntaxFactory.Parameter(SyntaxFactory.Identifier("index")).WithType(MakeProperType(property.Value.indexType, t));
+
+                    propertyDeclaration = SyntaxFactory.IndexerDeclaration(propertyType)
+                        .AddModifiers([SyntaxFactory.Token(SyntaxKind.PublicKeyword)])
+                        .AddParameterListParameters(parameter);
+                }
 
                 bool shouldAddNewKeyword = false;
                 bool shouldAddStaticKeyword = false;
