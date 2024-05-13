@@ -5,6 +5,7 @@
 
 namespace REFrameworkNET {
     ref class TypeDefinition;
+    ref class Field;
 
     static constexpr auto hash(std::string_view data) {
         size_t result = 0xcbf29ce484222325;
@@ -23,7 +24,12 @@ namespace REFrameworkNET {
 
     ref class Utility {
     public:
-        static System::Object^ BoxData(uintptr_t* ptr, TypeDefinition^ t, bool fromInvoke);
+        // field can be null, just used for more information (particularly for static strings that can be literal)
+        static System::Object^ BoxData(uintptr_t* ptr, TypeDefinition^ t, bool fromInvoke) {
+            return BoxData(ptr, t, fromInvoke, nullptr);
+        }
+        
+        static System::Object^ BoxData(uintptr_t* ptr, TypeDefinition^ t, bool fromInvoke, Field^ field);
         static System::Object^ TranslateBoxedData(System::Type^ targetReturnType, System::Object^ boxedData);
     };
 }

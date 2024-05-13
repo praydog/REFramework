@@ -14,7 +14,7 @@ public interface class DummyInterface {
 
 };
 
-System::Object^ Utility::BoxData(uintptr_t* ptr, TypeDefinition^ t, bool fromInvoke) {
+System::Object^ Utility::BoxData(uintptr_t* ptr, TypeDefinition^ t, bool fromInvoke, Field^ field) {
     System::Object^ result = nullptr;
 
     if (t == nullptr) {
@@ -35,6 +35,10 @@ System::Object^ Utility::BoxData(uintptr_t* ptr, TypeDefinition^ t, bool fromInv
 
         // TODO: Clean this up
         if (vm_object_type == VMObjType::String) {
+            if (field != nullptr && field->IsLiteral()) {
+                return gcnew System::String((const char*)field->GetInitDataPtr());
+            }
+
             auto strObject = (reframework::API::ManagedObject*)*ptr;
             auto strType = strObject->get_type_definition();
             const auto firstCharField = strType->find_field("_firstChar");
@@ -76,6 +80,7 @@ System::Object^ Utility::BoxData(uintptr_t* ptr, TypeDefinition^ t, bool fromInv
     switch (t->GetFNV64Hash()) {
     MAKE_TYPE_HANDLER_2(System, Boolean, bool, byte)
     MAKE_TYPE_HANDLER_2(System, Byte, uint8_t, byte)
+    MAKE_TYPE_HANDLER_2(System, Char, wchar_t, byte)
     MAKE_TYPE_HANDLER_2(System, UInt16, uint16_t, word)
     MAKE_TYPE_HANDLER_2(System, UInt32, uint32_t, dword)
     MAKE_TYPE_HANDLER_2(System, UInt64, uint64_t, qword)
@@ -83,13 +88,15 @@ System::Object^ Utility::BoxData(uintptr_t* ptr, TypeDefinition^ t, bool fromInv
     MAKE_TYPE_HANDLER_2(System, Int16, int16_t, word)
     MAKE_TYPE_HANDLER_2(System, Int32, int32_t, dword)
     MAKE_TYPE_HANDLER_2(System, Int64, int64_t, qword)
+    MAKE_TYPE_HANDLER_2(System, IntPtr, intptr_t, qword)
+    MAKE_TYPE_HANDLER_2(System, UIntPtr, uintptr_t, qword)
     MAKE_TYPE_HANDLER_2(System, Double, double, d)
     // Because invoke wrappers returning a single actually return a double
     // for consistency purposes
     //MAKE_TYPE_HANDLER_2(System, Single, double, d)
     case "System.Single"_fnv: {
         if (fromInvoke) {
-            result = gcnew System::Double(*(double*)ptr);
+            result = gcnew System::Single((float)*(double*)ptr);
             break;
         }
         

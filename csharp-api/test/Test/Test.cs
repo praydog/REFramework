@@ -394,19 +394,21 @@ class REFrameworkPlugin {
         REFrameworkNET.API.LogInfo("HasAnySave: " + hasAnySave.ToString());
 
         dynamic guiManager = REFrameworkNET.API.GetManagedSingleton("app.GuiManager");
-
         ulong guiManagerAddress = guiManager != null ? (guiManager as REFrameworkNET.ManagedObject).GetAddress() : 0;
-        dynamic fadeOwnerCmn = guiManager?.FadeOwnerCmn;
-        dynamic optionData = guiManager?.OptionData;
-        dynamic optionDataFromGet = guiManager?.getOptionData();
-        bool? isDispSubtitle = optionData?._IsDispSubtitle;
-
         REFrameworkNET.API.LogInfo("GuiManager: " + guiManager.ToString() + " @ " + guiManagerAddress.ToString("X"));
+
+        dynamic fadeOwnerCmn = guiManager?.FadeOwnerCmn;
         REFrameworkNET.API.LogInfo(" FadeOwnerCmn: " + fadeOwnerCmn.ToString());
+
+        dynamic optionData = guiManager?.OptionData;
         REFrameworkNET.API.LogInfo(" OptionData: " + optionData.ToString() + ": " + optionData?.GetTypeDefinition()?.GetFullName()?.ToString());
+
+        dynamic optionDataFromGet = guiManager?.getOptionData();
         REFrameworkNET.API.LogInfo(" OptionDataFromGet: " + optionDataFromGet.ToString() + ": " + optionDataFromGet?.GetTypeDefinition()?.GetFullName()?.ToString());
         REFrameworkNET.API.LogInfo(" OptionDataFromGet same: " + (optionData?.Equals(optionDataFromGet)).ToString() + (" {0} vs {1}", optionData?.GetAddress().ToString("X"), optionDataFromGet?.GetAddress().ToString("X")));
-        
+
+        bool? isDispSubtitle = optionData?._IsDispSubtitle;
+
         REFrameworkNET.API.LogInfo("  IsDispSubtitle: " + isDispSubtitle.ToString());
 
         if (optionData != null) {

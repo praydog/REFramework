@@ -34,7 +34,7 @@ namespace REFrameworkNET {
             return nullptr;
         }
 
-        return Utility::BoxData((uintptr_t*)raw_data, this->Type, false);
+        return Utility::BoxData((uintptr_t*)raw_data, this->Type, false, this);
     }
 
     System::Object^ Field::GetDataBoxed(System::Type^ targetReturnType, uintptr_t obj, bool isValueType) {
