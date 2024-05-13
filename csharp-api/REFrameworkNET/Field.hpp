@@ -142,6 +142,17 @@ public:
         throw gcnew System::NotImplementedException();
     }
 
+    uint32_t GetIndex() {
+        return m_field->get_index();
+    }
+
+    property uint32_t Index {
+    public:
+        uint32_t get() {
+            return GetIndex();
+        }
+    }
+
 private:
     const reframework::API::Field* m_field;
 };
