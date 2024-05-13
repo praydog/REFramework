@@ -83,6 +83,10 @@ public:
         return gcnew NativeObject(obj, t);
     }
 
+    virtual void AddProxy(System::Type^ type, IProxy^ proxy) override {
+        // Nothing, don't bother
+    }
+
 protected:
     void* m_object{};
     TypeDefinition^ m_type{};

@@ -29,6 +29,10 @@ public:
         return (uintptr_t)Ptr();
     }
 
+    virtual void AddProxy(System::Type^ type, IProxy^ proxy) override {
+        // Nothing, don't bother
+    }
+
     generic <typename T>
     virtual T As() override;
 
