@@ -336,6 +336,10 @@ public:
     TypeInfo^ GetTypeInfo();
 
 public: // IObject
+    virtual bool IsManaged() override {
+        return true;
+    }
+
     virtual void* Ptr() override {
         return (void*)m_object;
     }

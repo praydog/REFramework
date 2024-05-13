@@ -28,6 +28,10 @@ public:
         return ProxyPool::GetIfExists(this, type);
     }
 
+    virtual bool IsManaged() {
+        return false;
+    }
+
     virtual bool HandleInvokeMember_Internal(System::String^ methodName, array<System::Object^>^ args, System::Object^% result);
     virtual bool HandleInvokeMember_Internal(uint32_t methodIndex, array<System::Object^>^ args, System::Object^% result);
     virtual bool HandleInvokeMember_Internal(System::Object^ methodObj, array<System::Object^>^ args, System::Object^% result);

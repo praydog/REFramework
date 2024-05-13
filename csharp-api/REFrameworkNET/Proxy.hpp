@@ -77,6 +77,10 @@ public:
     virtual IProxy^ GetProxy(System::Type^ type) {
         return Instance->GetProxy(type);
     }
+    
+    virtual bool IsManaged() {
+        return Instance->IsManaged();
+    }
 
     static T Create(IObject^ target) {
         auto proxy = Reflection::DispatchProxy::Create<T, Proxy<T, T2>^>();
@@ -153,7 +157,22 @@ protected:
 
         if (methodAttribute != nullptr) {
             if (iobject != nullptr) {
-                auto method = methodAttribute->GetMethod(iobject->GetTypeDefinition());
+                auto underlyingObject = methodAttribute->GetUnderlyingObject(iobject->GetTypeDefinition());
+
+                // Property getter/setters for fields
+                if (methodAttribute->IsField) {
+                    auto field = (REFrameworkNET::Field^)underlyingObject;
+                    bool isValueType = !IsManaged() && GetTypeDefinition()->IsValueType();
+
+                    if (methodAttribute->FieldFacade == REFrameworkNET::FieldFacadeType::Getter) {
+                        return field->GetDataBoxed(iobject->GetAddress(), isValueType);
+                    }
+
+                    field->SetDataBoxed(iobject->GetAddress(), args[0], isValueType);
+                    return nullptr;
+                }
+
+                auto method = (REFrameworkNET::Method^)underlyingObject;
                 return method->InvokeBoxed(targetMethod->ReturnType, iobject, args);
             } else {
                 throw gcnew System::InvalidOperationException("Proxy: T2 must be IObject derived");
@@ -166,6 +185,8 @@ protected:
                 if (method != nullptr) {
                     return method->InvokeBoxed(targetMethod->ReturnType, iobject, args);
                 }
+
+                throw gcnew System::InvalidOperationException("Proxy: Method not found");
             } else {
                 throw gcnew System::InvalidOperationException("Proxy: T2 must be IObject derived");
             }

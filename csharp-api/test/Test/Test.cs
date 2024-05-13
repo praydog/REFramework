@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Dynamic;
 using System.Reflection;
+using app;
 using ImGuiNET;
 using REFrameworkNET;
 using REFrameworkNET.Attributes;
@@ -116,6 +117,11 @@ public class DangerousFunctions {
         //var range = via.RangeI.REFType.CreateInstance(0).As<via.RangeI>();
         var range = REFrameworkNET.ValueType.New<via.RangeI>();
         range.setMinMax(0, 10);
+        var testVec = REFrameworkNET.ValueType.New<via.vec3>();
+        System.Console.WriteLine("Test vec x: " + testVec.x);
+        testVec.x = 1.0f;
+        System.Console.WriteLine("Test vec x: " + testVec.x);
+        //testVec[0] = 1.0f;
         // print min max to test if this works
         REFrameworkNET.API.LogInfo("Range min: " + range.getMin().ToString());
         REFrameworkNET.API.LogInfo("Range max: " + range.getMax().ToString());

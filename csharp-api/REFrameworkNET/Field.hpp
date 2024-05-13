@@ -129,18 +129,23 @@ public:
 
     // For .NET
     generic <typename T>
-    T GetDataT(uintptr_t obj, bool isValueType) {
-        const auto raw_data = GetDataRaw(obj, isValueType);
-        if (raw_data == 0) {
-            return T();
-        }
-        
-        if (this->Type->IsValueType()) {
-            return (T)System::Runtime::InteropServices::Marshal::PtrToStructure(System::IntPtr((void*)raw_data), T::typeid);
-        }
+    T GetDataT(uintptr_t obj, bool isValueType);
+    
+    /// <summary>
+    /// Get the field data as a boxed object
+    /// </summary>
+    /// <param name="obj">The object to get the field data from</param>
+    /// <param name="isValueType">Whether the object holding the field is a value type</param>
+    /// <returns>The field data as a boxed object</returns>
+    System::Object^ GetDataBoxed(uintptr_t obj, bool isValueType);
 
-        throw gcnew System::NotImplementedException();
-    }
+    /// <summary>
+    /// Set the field data from a boxed object
+    /// </summary>
+    /// <param name="obj">The object to set the field data on</param>
+    /// <param name="value">The value to set the field data to</param>
+    /// <param name="isValueType">Whether the object holding the field is a value type</param>
+    void SetDataBoxed(uintptr_t obj, System::Object^ value, bool isValueType);
 
     uint32_t GetIndex() {
         return m_field->get_index();

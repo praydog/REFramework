@@ -179,6 +179,7 @@ set(csharp-api_SOURCES
 	"REFrameworkNET/Attributes/MethodHook.cpp"
 	"REFrameworkNET/Attributes/Plugin.cpp"
 	"REFrameworkNET/Callbacks.cpp"
+	"REFrameworkNET/Field.cpp"
 	"REFrameworkNET/ManagedObject.cpp"
 	"REFrameworkNET/Method.cpp"
 	"REFrameworkNET/MethodHook.cpp"
