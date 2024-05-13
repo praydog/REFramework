@@ -55,6 +55,18 @@ namespace REFrameworkNET {
         }
 
         if (!field_type->IsValueType()) {
+            if (value == nullptr) {
+                // Lightweight managed object
+                auto originalObject = *(reframework::API::ManagedObject**)data_ptr;
+
+                if (originalObject != nullptr && originalObject->get_ref_count() > 0) {
+                    originalObject->release();
+                }
+
+                *(uintptr_t*)data_ptr = 0;
+                return;
+            }
+
             auto iobject = dynamic_cast<REFrameworkNET::IObject^>(value);
 
             if (iobject != nullptr) {

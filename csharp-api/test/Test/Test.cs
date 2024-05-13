@@ -151,6 +151,9 @@ public class DangerousFunctions {
             var position = transform.get_Position();
 
             REFrameworkNET.API.LogInfo("Player position: " + position.x + " " + position.y + " " + position.z);
+
+            position.y += 5.0f;
+            transform.set_Position(position);
         }
     }
 
