@@ -8,6 +8,7 @@
 #include "NativeObject.hpp"
 #include "Proxy.hpp"
 #include "Utility.hpp"
+#include "ValueType.hpp"
 
 #include "TypeDefinition.hpp"
 
@@ -148,6 +149,11 @@ namespace REFrameworkNET {
         }
 
         return ManagedObject::Get(result);
+    }
+
+    REFrameworkNET::ValueType^ TypeDefinition::CreateValueType() 
+    {
+        return gcnew REFrameworkNET::ValueType(this);
     }
 
     REFrameworkNET::TypeInfo^ TypeDefinition::GetTypeInfo()

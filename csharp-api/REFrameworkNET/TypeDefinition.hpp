@@ -15,6 +15,7 @@ ref class Method;
 ref class Field;
 ref class Property;
 ref class TypeInfo;
+ref class ValueType;
 value struct InvokeRet;
 
 /// <summary>
@@ -312,6 +313,7 @@ public:
     /// <param name="flags">The flags to use when creating the instance.</param>
     /// <returns>A new <see cref="ManagedObject"/> instance of type <see cref="TypeDefinition"/>.</returns>
     ManagedObject^ CreateInstance(int32_t flags);
+    REFrameworkNET::ValueType^ CreateValueType();
     
     TypeDefinition^ GetParentType()
     {
