@@ -97,6 +97,14 @@ private:
         }();
 
         uint32_t hash{ 0 };
+
+        std::string replace_with_name = []() {
+            std::string result{};
+            result.resize(1024);
+            return result;
+        }();
+
+        uint32_t replace_with_hash{ 0 };
     };
 
     std::array<InterceptedShader, 8> m_intercepted_shaders{};
