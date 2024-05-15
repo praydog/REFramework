@@ -1007,6 +1007,7 @@ struct REField : public sdk::REField_ {
     bool is_literal() const;
 
     void* get_data_raw(void* object = nullptr, bool is_value_type = false) const;
+    uint32_t get_index() const;
 
     template <typename T> T& get_data(void* object = nullptr, bool is_value_type = false) const { return *(T*)get_data_raw(object); }
 };

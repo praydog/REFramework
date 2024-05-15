@@ -134,13 +134,13 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(bddisasm)
 
-message(STATUS "Fetching kananlib (65c205e9f3f0985fd298281a77098d48b9065e87)...")
+message(STATUS "Fetching kananlib (ccf2e5a32cf4c85a90641ae7a35c2b1d636c7636)...")
 FetchContent_Declare(
 	kananlib
 	GIT_REPOSITORY
 		https://github.com/cursey/kananlib
 	GIT_TAG
-		65c205e9f3f0985fd298281a77098d48b9065e87
+		ccf2e5a32cf4c85a90641ae7a35c2b1d636c7636
 )
 FetchContent_MakeAvailable(kananlib)
 
@@ -609,6 +609,7 @@ if(REF_BUILD_RE2_SDK OR REF_BUILD_FRAMEWORK) # build-re2-sdk
 		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/resources/MasterMaterialResource.cpp"
+		"shared/sdk/resources/ShaderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
 		"shared/sdk/GUIPrimitiveSystem.hpp"
@@ -1460,6 +1461,7 @@ if(REF_BUILD_RE2_TDB66SDK OR REF_BUILD_FRAMEWORK) # build-re2tdb66-sdk
 		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/resources/MasterMaterialResource.cpp"
+		"shared/sdk/resources/ShaderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
 		"shared/sdk/GUIPrimitiveSystem.hpp"
@@ -2740,6 +2742,7 @@ if(REF_BUILD_RE3_SDK OR REF_BUILD_FRAMEWORK) # build-re3-sdk
 		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/resources/MasterMaterialResource.cpp"
+		"shared/sdk/resources/ShaderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
 		"shared/sdk/GUIPrimitiveSystem.hpp"
@@ -3591,6 +3594,7 @@ if(REF_BUILD_RE3_TDB67SDK OR REF_BUILD_FRAMEWORK) # build-re3tdb67-sdk
 		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/resources/MasterMaterialResource.cpp"
+		"shared/sdk/resources/ShaderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
 		"shared/sdk/GUIPrimitiveSystem.hpp"
@@ -5085,6 +5089,7 @@ if(REF_BUILD_RE4_SDK OR REF_BUILD_FRAMEWORK) # build-re4-sdk
 		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/resources/MasterMaterialResource.cpp"
+		"shared/sdk/resources/ShaderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
 		"shared/sdk/GUIPrimitiveSystem.hpp"
@@ -5938,6 +5943,7 @@ if(REF_BUILD_RE7_SDK OR REF_BUILD_FRAMEWORK) # build-re7-sdk
 		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/resources/MasterMaterialResource.cpp"
+		"shared/sdk/resources/ShaderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
 		"shared/sdk/GUIPrimitiveSystem.hpp"
@@ -6789,6 +6795,7 @@ if(REF_BUILD_RE7_TDB49SDK OR REF_BUILD_FRAMEWORK) # build-re7tdb49-sdk
 		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/resources/MasterMaterialResource.cpp"
+		"shared/sdk/resources/ShaderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
 		"shared/sdk/GUIPrimitiveSystem.hpp"
@@ -8069,6 +8076,7 @@ if(REF_BUILD_RE8_SDK OR REF_BUILD_FRAMEWORK) # build-re8-sdk
 		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/resources/MasterMaterialResource.cpp"
+		"shared/sdk/resources/ShaderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
 		"shared/sdk/GUIPrimitiveSystem.hpp"
@@ -9136,6 +9144,7 @@ if(REF_BUILD_DMC5_SDK OR REF_BUILD_FRAMEWORK) # build-dmc5-sdk
 		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/resources/MasterMaterialResource.cpp"
+		"shared/sdk/resources/ShaderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
 		"shared/sdk/GUIPrimitiveSystem.hpp"
@@ -10201,6 +10210,7 @@ if(REF_BUILD_MHRISE_SDK OR REF_BUILD_FRAMEWORK) # build-mhrise-sdk
 		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/resources/MasterMaterialResource.cpp"
+		"shared/sdk/resources/ShaderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
 		"shared/sdk/GUIPrimitiveSystem.hpp"
@@ -11268,6 +11278,7 @@ if(REF_BUILD_SF6_SDK OR REF_BUILD_FRAMEWORK) # build-sf6-sdk
 		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/resources/MasterMaterialResource.cpp"
+		"shared/sdk/resources/ShaderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
 		"shared/sdk/GUIPrimitiveSystem.hpp"
@@ -12335,6 +12346,7 @@ if(REF_BUILD_DD2_SDK OR REF_BUILD_FRAMEWORK) # build-dd2-sdk
 		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/resources/MasterMaterialResource.cpp"
+		"shared/sdk/resources/ShaderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
 		"shared/sdk/GUIPrimitiveSystem.hpp"
