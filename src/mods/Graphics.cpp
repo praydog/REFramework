@@ -177,6 +177,10 @@ void Graphics::on_draw_ui() {
                 }
 
                 if (interception_node_open) {
+                    if (ImGui::InputText(std::format("Replace Shader", i).c_str(), intercepted.replace_with_name.data(), intercepted.replace_with_name.size())) {
+                        intercepted.replace_with_hash = sdk::murmur_hash::calc32_as_utf8(intercepted.replace_with_name.data());
+                    }
+
                     for (auto& replacement : intercepted.replacement_shaders) {
                         i++;
                         ImGui::PushID(std::format("Shader {}", i).c_str());
@@ -1110,7 +1114,7 @@ sdk::renderer::PipelineState* Graphics::find_pipeline_state_hook(void* shader_re
     auto& graphics = Graphics::get();
 
     const auto og = graphics->m_find_pipeline_state_hook->get_original<decltype(find_pipeline_state_hook)>();
-    const auto result = og(shader_resource, murmur_hash, unk);
+    auto result = og(shader_resource, murmur_hash, unk);
 
     if (!graphics->m_shader_playground->value()) {
         return result;
@@ -1135,6 +1139,15 @@ sdk::renderer::PipelineState* Graphics::find_pipeline_state_hook(void* shader_re
         if (intercepted_shader == nullptr) {
             return result;
         }
+
+        if (intercepted_shader->replace_with_hash != 0 || std::string_view{intercepted_shader->replace_with_name} == "None") {
+            const auto replacement = og(shader_resource, intercepted_shader->replace_with_hash, unk);
+
+            if (replacement != nullptr) {
+                result = replacement;
+            }
+        }
+
         uint32_t i = 1;
 
         for (auto& replacement_shader : intercepted_shader->replacement_shaders) {
