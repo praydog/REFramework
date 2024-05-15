@@ -599,6 +599,33 @@ public class ClassGenerator {
         return typeDeclaration.AddMembers(matchingFields.ToArray());
     }
 
+    private static readonly Dictionary<string, SyntaxToken> operatorTokens = new() {
+        ["op_Addition"] = SyntaxFactory.Token(SyntaxKind.PlusToken),
+        ["op_UnaryPlus"] = SyntaxFactory.Token(SyntaxKind.PlusToken),
+        ["op_Subtraction"] = SyntaxFactory.Token(SyntaxKind.MinusToken),
+        ["op_UnaryNegation"] = SyntaxFactory.Token(SyntaxKind.MinusToken),
+        ["op_Multiply"] = SyntaxFactory.Token(SyntaxKind.AsteriskToken),
+        ["op_Division"] = SyntaxFactory.Token(SyntaxKind.SlashToken),
+        ["op_Modulus"] = SyntaxFactory.Token(SyntaxKind.PercentToken),
+        ["op_BitwiseAnd"] = SyntaxFactory.Token(SyntaxKind.AmpersandToken),
+        ["op_BitwiseOr"] = SyntaxFactory.Token(SyntaxKind.BarToken),
+        ["op_ExclusiveOr"] = SyntaxFactory.Token(SyntaxKind.CaretToken),
+        ["op_LeftShift"] = SyntaxFactory.Token(SyntaxKind.LessThanLessThanToken),
+        ["op_RightShift"] = SyntaxFactory.Token(SyntaxKind.GreaterThanGreaterThanToken),
+        ["op_Equality"] = SyntaxFactory.Token(SyntaxKind.EqualsEqualsToken),
+        ["op_Inequality"] = SyntaxFactory.Token(SyntaxKind.ExclamationEqualsToken),
+        ["op_LessThan"] = SyntaxFactory.Token(SyntaxKind.LessThanToken),
+        ["op_LessThanOrEqual"] = SyntaxFactory.Token(SyntaxKind.LessThanEqualsToken),
+        ["op_GreaterThan"] = SyntaxFactory.Token(SyntaxKind.GreaterThanToken),
+        ["op_GreaterThanOrEqual"] = SyntaxFactory.Token(SyntaxKind.GreaterThanEqualsToken),
+        ["op_LogicalNot"] = SyntaxFactory.Token(SyntaxKind.ExclamationToken),
+        ["op_OnesComplement"] = SyntaxFactory.Token(SyntaxKind.TildeToken),
+        ["op_True"] = SyntaxFactory.Token(SyntaxKind.TrueKeyword),
+        ["op_False"] = SyntaxFactory.Token(SyntaxKind.FalseKeyword),
+        ["op_Implicit"] = SyntaxFactory.Token(SyntaxKind.ImplicitKeyword),
+        ["op_Explicit"] = SyntaxFactory.Token(SyntaxKind.ExplicitKeyword),
+    };
+
     private TypeDeclarationSyntax GenerateMethods(List<SimpleBaseTypeSyntax> baseTypes) {
         if (typeDeclaration == null) {
             throw new Exception("Type declaration is null"); // This should never happen
@@ -650,6 +677,15 @@ public class ClassGenerator {
             var methodDeclaration = SyntaxFactory.MethodDeclaration(returnType, methodName ?? "UnknownMethod")
                 .AddModifiers(new SyntaxToken[]{SyntaxFactory.Token(SyntaxKind.PublicKeyword)})
                 /*.AddBodyStatements(SyntaxFactory.ParseStatement("throw new System.NotImplementedException();"))*/;
+
+            if (operatorTokens.ContainsKey(methodName ?? "UnknownMethod")) {
+                // Add SpecialName attribute to the method
+                methodDeclaration = methodDeclaration.AddAttributeLists(
+                    SyntaxFactory.AttributeList().AddAttributes(SyntaxFactory.Attribute(
+                        SyntaxFactory.ParseName("global::System.Runtime.CompilerServices.SpecialName"))
+                    )
+                );
+            }
 
             simpleMethodSignature += methodName;
 
