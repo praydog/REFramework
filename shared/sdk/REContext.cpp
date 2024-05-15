@@ -260,7 +260,25 @@ namespace sdk {
             }
         }
         if (!method_inside_invoke_tbl) {
-            spdlog::info("[VM::update_pointers] Unable to find method inside invoke table.");
+            spdlog::info("[VM::update_pointers] Unable to find method inside invoke table. Trying fallback scan...");
+            const auto anchor = utility::scan(mod, "8D 56 FF 48 8B CF E8 ? ? ? ?");
+
+            if (!anchor) {
+                spdlog::info("[VM::update_pointers] Unable to find anchor for invoke table.");
+                return;
+            }
+
+            const auto lea_rdx = utility::scan_reverse(*anchor, 0x100, "48 8D 15 ? ? ? ?");
+
+            if (!lea_rdx) {
+                spdlog::info("[VM::update_pointers] Unable to find lea rdx for invoke table.");
+                return;
+            }
+
+            s_invoke_tbl = (sdk::InvokeMethod*)utility::resolve_displacement(*lea_rdx).value_or(0);
+
+            spdlog::info("[VM::update_pointers] s_invoke_tbl: {:x}", (uintptr_t)s_invoke_tbl);
+
             return;
         }
 
