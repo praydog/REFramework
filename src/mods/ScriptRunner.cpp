@@ -838,6 +838,58 @@ void ScriptRunner::hook_battle_rule() {
 }
 
 void ScriptRunner::on_frame() {
+    if (!m_scene_okay) try {
+        if (!m_checked_scene_once) {
+            m_checked_scene_once = true;
+            m_scene_check_time = std::chrono::system_clock::now();
+        }
+
+        // Just bail out of this if 5 seconds have passed and we still haven't found the scene or scene manager.
+        if (std::chrono::system_clock::now() - m_scene_check_time > std::chrono::seconds(5)) {
+            m_scene_okay = true;
+            spdlog::warn("[ScriptRunner] Scene or scene manager not found after 5 seconds. Loading scripts anyways...");
+            return;
+        }
+
+        const auto scene_manager_t = sdk::find_type_definition("via.SceneManager");
+        if (scene_manager_t == nullptr) {
+            return;
+        }
+
+        const auto get_CurrentScene = scene_manager_t->get_method("get_CurrentScene");
+
+        if (get_CurrentScene == nullptr) {
+            return;
+        }
+
+        const auto scene_manager = sdk::get_native_singleton("via.SceneManager");
+
+        if (scene_manager == nullptr) {
+            return;
+        }
+
+        const auto context = sdk::get_thread_context();
+        
+        if (context == nullptr) {
+            return;
+        }
+        
+        const auto scene = get_CurrentScene->call_safe<void*>(context, scene_manager);
+
+        if (scene == nullptr) {
+            return;
+        }
+
+        m_scene_okay = true;
+        spdlog::info("[ScriptRunner] Scene and scene manager found. Loading scripts...");
+    } catch (const std::exception& e) {
+        spdlog::error("[ScriptRunner] Error while checking for scene: {}", e.what());
+        return;
+    } catch (...) {
+        spdlog::error("[ScriptRunner] Unknown error while checking for scene.");
+        return;
+    }
+
     std::scoped_lock _{m_access_mutex};
 
     hook_battle_rule();

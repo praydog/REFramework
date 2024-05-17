@@ -338,6 +338,9 @@ private:
     std::shared_mutex m_script_error_mutex{};
     std::chrono::system_clock::time_point m_last_script_error_time{};
 
+    std::chrono::system_clock::time_point m_scene_check_time{};
+    bool m_checked_scene_once{false};
+    bool m_scene_okay{false};
     bool m_console_spawned{false};
     bool m_needs_first_reset{true};
     bool m_last_online_match_state{false};
