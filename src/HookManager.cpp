@@ -1,3 +1,5 @@
+#include <ranges>
+
 #include <hde64.h>
 #include <spdlog/spdlog.h>
 
@@ -127,7 +129,9 @@ void HookManager::HookedFn::on_post_hook() {
     auto& ret_val = storage->ret_val;
     //auto& ret_addr = storage->ret_addr_post;
 
-    for (const auto& cb : cbs) {
+    // Iterate in reverse because it helps with the hook storage we use in Lua
+    // It should help with any other system that wants to use a stack-based storage system.
+    for (const auto& cb : cbs | std::views::reverse) {
         if (cb.post_fn) {
             // Valid return address in recursion scenario is no longer supported with this API.
             // We just pass ret_addr_pre for now, even though it's not accurate.
