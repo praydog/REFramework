@@ -175,7 +175,7 @@ tag = "v1.34.10"
 
 [fetch-content.kananlib]
 git = "https://github.com/cursey/kananlib"
-tag = "ccf2e5a32cf4c85a90641ae7a35c2b1d636c7636"
+tag = "cca66766b139994f478ea48befd67a179b7310ab"
 
 [target.utility]
 type = "static"
