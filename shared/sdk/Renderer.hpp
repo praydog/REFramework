@@ -82,7 +82,7 @@ public:
     }
 
     Desc* get_desc() {
-        return (Desc*)((uintptr_t)this + sizeof(RenderResource) + sizeof(void*));
+        return (Desc*)((uintptr_t)this + s_desc_offset);
     }
 
     DirectXResource<ID3D12Resource>* get_d3d12_resource_container() {
@@ -90,7 +90,15 @@ public:
     }
 
 private:
-#if TDB_VER >= 71
+#if TDB_VER >= 73
+    static constexpr inline auto s_desc_offset = sizeof(RenderResource) + 0x18;
+#else
+    static constexpr inline auto s_desc_offset = sizeof(RenderResource) + sizeof(void*);
+#endif
+
+#if TDB_VER >= 73
+    static constexpr inline auto s_d3d12_resource_offset = 0xB8;
+#elif TDB_VER >= 71
 #ifdef SF6
     // So because this discrepancy in SF6 is > 8 bytes (which is how much was added to RenderResource), trying to automate this
     // is a bit trickier so we can look into this later, and just hardcode it for now.
@@ -186,7 +194,9 @@ public:
 
     // more here but not needed... for now
 };
-#if TDB_VER > 67
+#if TDB_VER >= 73
+static_assert(offsetof(TargetState, m_desc) + offsetof(TargetState::Desc, num_rtv) == 0x28);
+#elif TDB_VER > 67
 #ifdef SF6
 static_assert(offsetof(TargetState, m_desc) + offsetof(TargetState::Desc, num_rtv) == 0x28);
 #else
@@ -521,6 +531,20 @@ struct Fence : public FenceBase {
 };
 
 static_assert(sizeof(command::Fence) == 0x30);
+
+struct CopyBase : public Base {
+    sdk::renderer::RenderResource* src{};
+    sdk::renderer::RenderResource* dst{};
+    ::sdk::renderer::Fence fence{};
+};
+
+struct CopyTexture : public CopyBase {
+    int32_t src_subresource{-1};
+    int32_t dst_subresource{-1};
+};
+
+static_assert(sizeof(CopyBase) == 0x30);
+static_assert(sizeof(CopyTexture) == 0x38);
 }
 
 class RenderContext {
@@ -573,6 +597,10 @@ public:
 
 class Renderer {
 public:
+    void* get_device() const {
+        return *(void**)((uintptr_t)this + sizeof(void*)); // simple!
+    }
+
     ConstantBuffer* get_constant_buffer(std::string_view name) const;
 
     ConstantBuffer* get_scene_info() const {

@@ -734,11 +734,42 @@ void RenderContext::clear_rtv(sdk::renderer::RenderTargetView* rtv, float color[
 - 0xD InterleaveNormalDepthHalfWithoutGBuffer
 */
 void RenderContext::copy_texture(Texture* dest, Texture* src, Fence& fence) {
+    // Okay it was actually this simple in older games but it isn't anymore in DD2+
+    // There's some extra garbage going on that I don't want to deal with right now
+    // so will just call the function directly
+/*#if TDB_VER >= 73
+    static const auto copy_texture_typeid = sdk::get_enum_value<uint32_t>("via.render.command.TypeId", "CopyTexture");
+    auto new_command = (command::CopyTexture*)alloc(copy_texture_typeid, sizeof(command::CopyTexture));
+
+    if (new_command != nullptr) {
+        const auto protect_frame = get_protect_frame();
+
+        if (dest->m_render_frame != protect_frame) {
+            dest->m_render_frame = protect_frame;
+        }
+
+        if (src->m_render_frame != protect_frame) {
+            src->m_render_frame = protect_frame;
+        }
+
+        new_command->dst = dest;
+        new_command->src = src;
+        new_command->fence = fence;
+        new_command->dst_subresource = -1;
+        new_command->src_subresource = -1;
+    }
+    
+    return;
+#else*/
     static auto func = []() -> void (*)(RenderContext*, Texture*, Texture*, Fence&) {
         spdlog::info("Searching for RenderContext::copy_texture");
 
         std::vector<std::string> string_choices {
+            // CopyTexture isn't directly behind InterleaveNormalDepthHalfWithoutGBuffer in DD2+
+#if TDB_VER < 73
             "InterleaveNormalDepthHalfWithoutGBuffer",
+#endif
+            "opyImage", // Engine has a weird optimization sometimes where it starts from the +1 offset
             "CopyImage",
         };
 
@@ -788,6 +819,7 @@ void RenderContext::copy_texture(Texture* dest, Texture* src, Fence& fence) {
     }();
 
     func(this, dest, src, fence);
+//#endif
 }
 
 ConstantBuffer* Renderer::get_constant_buffer(std::string_view name) const {
@@ -1241,7 +1273,8 @@ Texture* create_texture(Texture::Desc* desc) {
         return nullptr;
     }();
 
-    return fn(nullptr, desc);
+    static auto renderer = sdk::renderer::get_renderer();
+    return fn(renderer->get_device(), desc);
 }
 
 /*
@@ -1401,10 +1434,18 @@ sdk::intrusive_ptr<Texture>& RenderTargetView::get_texture_d3d12() const {
     if (rtv_type != nullptr && rtv_type->size > 0 && rtv_type->size < 0x1000) {
         const auto rtv_size = rtv_type->size;
 
+#if TDB_VER < 73
         return *(sdk::intrusive_ptr<Texture>*)((uintptr_t)this + rtv_size + sizeof(void*));
+#else
+        return *(sdk::intrusive_ptr<Texture>*)((uintptr_t)this + rtv_size + (sizeof(void*) * 3));
+#endif
     }
     
+#if TDB_VER < 73
     return *(sdk::intrusive_ptr<Texture>*)((uintptr_t)this + detail::rtv_size + sizeof(void*));
+#else
+    return *(sdk::intrusive_ptr<Texture>*)((uintptr_t)this + detail::rtv_size + (sizeof(void*) * 3));
+#endif
 }
 
 sdk::intrusive_ptr<TargetState>& RenderTargetView::get_target_state_d3d12() const {

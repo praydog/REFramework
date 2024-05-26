@@ -16,8 +16,8 @@ public:
     int32_t m_ref_count;
     uint32_t m_render_frame;
 
-#ifdef SF6
-    void* _sf6_padding; // something added here in Dec 1 2023 update
+#if defined(SF6) || TDB_VER >= 73
+    void* _tdb73_padding; // something added here in Dec 1 2023 update
 #endif
 };
 }
