@@ -104,6 +104,7 @@ function(check_dlls_exist DLL_PREFIX DLLS VAR_NAME)
   endforeach()
 
   if (NOT ${${VAR_NAME}})
+    set(${VAR_NAME} FALSE PARENT_SCOPE)
     message(STATUS "One or more specified DLLs do not exist (${DLL_PREFIX})")
   else()
     message(STATUS "All specified DLLs exist (${DLL_PREFIX})")
