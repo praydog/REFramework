@@ -43,7 +43,7 @@ template<typename T>
 class DirectXResource : public RenderResource {
 public:
     T* get_native_resource() const {
-        return *(ID3D12Resource**)((uintptr_t)this + sizeof(RenderResource));
+        return *(T**)((uintptr_t)this + sizeof(RenderResource));
     }
 
 private:
