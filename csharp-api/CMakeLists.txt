@@ -71,48 +71,56 @@ if(NOT NUGET_PACKAGES_DIR)
     set(NUGET_PACKAGES_DIR ${DEFAULT_NUGET_PATH})
 endif()
 
-# Set a bool if the generated reference assemblies exist in the build/bin folder
-set(dd2_systemdll "${CMAKE_BINARY_DIR}/bin/dd2/REFramework.NET._System.dll")
-set(dd2_applicationdll "${CMAKE_BINARY_DIR}/bin/dd2/REFramework.NET.application.dll")
-set(dd2_viacoredll "${CMAKE_BINARY_DIR}/bin/dd2/REFramework.NET.viacore.dll")
+# Helper function for setting target properties with custom DLLs
+function(set_dotnet_references TARGET DLL_PREFIX DLLS)
+  foreach(dll IN ITEMS ${DLLS})
+    string(REPLACE "REFramework.NET." "" DLL_NAME ${dll})
+    string(REPLACE ".dll" "" DLL_NAME ${DLL_NAME})
+    set_target_properties(${TARGET} PROPERTIES
+      VS_DOTNET_REFERENCE_${DLL_NAME}
+      "${CMAKE_BINARY_DIR}/bin/${DLL_PREFIX}/REFramework.NET.${DLL_NAME}.dll"
+    )
+    set_target_properties(${TARGET} PROPERTIES
+      VS_PACKAGE_REFERENCES "REFramework.NET.${DLL_NAME}"
+    )
+  endforeach()
 
-set(re2_mscorlibdll "${CMAKE_BINARY_DIR}/bin/re2/REFramework.NET._mscorlib.dll")
-set(re2_systemdll "${CMAKE_BINARY_DIR}/bin/re2/REFramework.NET._System.dll")
-set(re2_systemcoredll "${CMAKE_BINARY_DIR}/bin/re2/REFramework.NET._System.Core.dll")
-set(re2_applicationdll "${CMAKE_BINARY_DIR}/bin/re2/REFramework.NET.application.dll")
-set(re2_viacoredll "${CMAKE_BINARY_DIR}/bin/re2/REFramework.NET.viacore.dll")
+  set_target_properties(${TARGET} PROPERTIES
+    VS_DOTNET_REFERENCE_REFramework.NET
+    "${REFRAMEWORK_DOT_NET_ASSEMBLY_PATH}"
+	)
+endfunction()
 
-# Initialize a variable to keep track of the existence of all files
-set(REFRAMEWORK_REF_ASSEMBLIES_EXIST_DD2 TRUE)
-set(REFRAMEWORK_REF_ASSEMBLIES_EXIST_RE2 TRUE)
+# Helper function for checking custom DLL existence
+function(check_dlls_exist DLL_PREFIX DLLS VAR_NAME)
+  message(STATUS "${VAR_NAME} Checking for DLLs in ${CMAKE_BINARY_DIR}/bin/${DLL_PREFIX}")
+  set(${VAR_NAME} TRUE PARENT_SCOPE)
+  foreach(dll IN ITEMS ${DLLS})
+    if(NOT EXISTS "${CMAKE_BINARY_DIR}/bin/${DLL_PREFIX}/${dll}")
+      set(${VAR_NAME} FALSE)
+      message(STATUS "DLL ${dll} does not exist in ${CMAKE_BINARY_DIR}/bin/${DLL_PREFIX}")
+      break()
+    endif()
+  endforeach()
 
-# Check if each DLL exists
-foreach(dll IN ITEMS ${dd2_systemdll} ${dd2_applicationdll} ${dd2_viacoredll})
-  if(NOT EXISTS ${dll})
-    set(REFRAMEWORK_REF_ASSEMBLIES_EXIST_DD2 FALSE)
-    break() # Exit the loop as soon as one file is not found
+  if (NOT ${${VAR_NAME}})
+    message(STATUS "One or more specified DLLs do not exist (${DLL_PREFIX})")
+  else()
+    message(STATUS "All specified DLLs exist (${DLL_PREFIX})")
   endif()
-endforeach()
+endfunction()
 
-foreach(dll IN ITEMS ${re2_mscorlibdll} ${re2_systemdll} ${re2_systemcoredll} ${re2_applicationdll} ${re2_viacoredll})
-  if(NOT EXISTS ${dll})
-    set(REFRAMEWORK_REF_ASSEMBLIES_EXIST_RE2 FALSE)
-    break() # Exit the loop as soon as one file is not found
-  endif()
-endforeach()
+# RE2
+set(RE2_DLLS "REFramework.NET._mscorlib.dll;REFramework.NET._System.dll;REFramework.NET._System.Core.dll;REFramework.NET.application.dll;REFramework.NET.viacore.dll")
+check_dlls_exist("re2" "${RE2_DLLS}" "REFRAMEWORK_REF_ASSEMBLIES_EXIST_RE2")
 
-# Use the result
-if(REFRAMEWORK_REF_ASSEMBLIES_EXIST_DD2)
-  message(STATUS "All specified DLLs exist (DD2)")
-else()
-  message(STATUS "One or more specified DLLs do not exist (DD2)")
-endif()
+# RE4
+set(RE4_DLLS "REFramework.NET._mscorlib.dll;REFramework.NET._System.dll;REFramework.NET._System.Core.dll;REFramework.NET.application.dll;REFramework.NET.viacore.dll")
+check_dlls_exist("re4" "${RE4_DLLS}" "REFRAMEWORK_REF_ASSEMBLIES_EXIST_RE4")
 
-if (REFRAMEWORK_REF_ASSEMBLIES_EXIST_RE2)
-  message(STATUS "All specified DLLs exist (RE2)")
-else()
-  message(STATUS "One or more specified DLLs do not exist (RE2)")
-endif()
+# DD2
+set(DD2_DLLS "REFramework.NET._System.dll;REFramework.NET.application.dll;REFramework.NET.viacore.dll")
+check_dlls_exist("dd2" "${DD2_DLLS}" "REFRAMEWORK_REF_ASSEMBLIES_EXIST_DD2")
 
 # Define a list of NuGet packages and their versions
 # the last part, the package framework will only be used for copying the files
@@ -390,31 +398,7 @@ if(REFRAMEWORK_REF_ASSEMBLIES_EXIST_DD2) # build-csharp-test-dd2
 	)
 
 	set(CMKR_TARGET CSharpAPITest)
-	set_target_properties(CSharpAPITest PROPERTIES
-	VS_DOTNET_REFERENCE_REFramework.NET
-	"${REFRAMEWORK_DOT_NET_ASSEMBLY_PATH}"
-	)
-	
-set_target_properties(CSharpAPITest PROPERTIES
-	VS_DOTNET_REFERENCE_REFramework.NET._System
-	"${dd2_systemdll}"
-	)
-	
-set_target_properties(CSharpAPITest PROPERTIES VS_PACKAGE_REFERENCES "REFramework.NET._System")
-	
-set_target_properties(CSharpAPITest PROPERTIES
-	VS_DOTNET_REFERENCE_REFramework.NET.viacore
-	"${dd2_viacoredll}"
-	)
-	
-set_target_properties(CSharpAPITest PROPERTIES VS_PACKAGE_REFERENCES "REFramework.NET.viacore")
-	
-set_target_properties(CSharpAPITest PROPERTIES
-	VS_DOTNET_REFERENCE_REFramework.NET.application
-	"${dd2_applicationdll}"
-	)
-	
-set_target_properties(CSharpAPITest PROPERTIES VS_PACKAGE_REFERENCES "REFramework.NET.application")
+	set_dotnet_references(CSharpAPITest "dd2" "${DD2_DLLS}")
 
 endif()
 # Target: CSharpAPITestRE2
@@ -455,45 +439,48 @@ if(REFRAMEWORK_REF_ASSEMBLIES_EXIST_RE2) # build-csharp-test-re2
 	)
 
 	set(CMKR_TARGET CSharpAPITestRE2)
-	set_target_properties(CSharpAPITestRE2 PROPERTIES
-	VS_DOTNET_REFERENCE_REFramework.NET
-	"${REFRAMEWORK_DOT_NET_ASSEMBLY_PATH}"
+	set_dotnet_references(CSharpAPITestRE2 "re2" "${RE2_DLLS}")
+
+endif()
+# Target: CSharpAPITestRE4
+if(REFRAMEWORK_REF_ASSEMBLIES_EXIST_RE4) # build-csharp-test-re4
+	set(CSharpAPITestRE4_SOURCES
+		"test/Test/TestRE4.cs"
+		cmake.toml
 	)
-	
-set_target_properties(CSharpAPITestRE2 PROPERTIES
-	VS_DOTNET_REFERENCE_REFramework.NET._mscorlib
-	"${re2_mscorlibdll}"
+
+	add_library(CSharpAPITestRE4 SHARED)
+
+	target_sources(CSharpAPITestRE4 PRIVATE ${CSharpAPITestRE4_SOURCES})
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${CSharpAPITestRE4_SOURCES})
+
+	target_link_libraries(CSharpAPITestRE4 PUBLIC
+		csharp-api
 	)
-	
-set_target_properties(CSharpAPITestRE2 PROPERTIES VS_PACKAGE_REFERENCES "REFramework.NET._mscorlib")
-	
-set_target_properties(CSharpAPITestRE2 PROPERTIES
-	VS_DOTNET_REFERENCE_REFramework.NET._System
-	"${re2_systemdll}"
+
+	set_target_properties(CSharpAPITestRE4 PROPERTIES
+		RUNTIME_OUTPUT_DIRECTORY_RELEASE
+			"${CMAKE_BINARY_DIR}/bin/"
+		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
+			"${CMAKE_BINARY_DIR}/bin"
+		RUNTIME_OUTPUT_DIRECTORY_DEBUG
+			"${CMAKE_BINARY_DIR}/bin"
+		LIBRARY_OUTPUT_DIRECTORY_RELEASE
+			"${CMAKE_BINARY_DIR}/lib"
+		LIBRARY_OUTPUT_DIRECTORY_RELWITHDEBINFO
+			"${CMAKE_BINARY_DIR}/lib"
+		LIBRARY_OUTPUT_DIRECTORY_DEBUG
+			"${CMAKE_BINARY_DIR}/lib"
+		DOTNET_SDK
+			Microsoft.NET.Sdk
+		DOTNET_TARGET_FRAMEWORK
+			net8.0-windows
+		VS_CONFIGURATION_TYPE
+			ClassLibrary
 	)
-	
-set_target_properties(CSharpAPITestRE2 PROPERTIES VS_PACKAGE_REFERENCES "REFramework.NET._System")
-	
-set_target_properties(CSharpAPITestRE2 PROPERTIES
-	VS_DOTNET_REFERENCE_REFramework.NET.System.Core
-	"${re2_systemcoredll}"
-	)
-	
-set_target_properties(CSharpAPITestRE2 PROPERTIES VS_PACKAGE_REFERENCES "REFramework.NET.System.Core")
-	
-set_target_properties(CSharpAPITestRE2 PROPERTIES
-	VS_DOTNET_REFERENCE_REFramework.NET.viacore
-	"${re2_viacoredll}"
-	)
-	
-set_target_properties(CSharpAPITestRE2 PROPERTIES VS_PACKAGE_REFERENCES "REFramework.NET.viacore")
-	
-set_target_properties(CSharpAPITestRE2 PROPERTIES
-	VS_DOTNET_REFERENCE_REFramework.NET.application
-	"${re2_applicationdll}"
-	)
-	
-set_target_properties(CSharpAPITestRE2 PROPERTIES VS_PACKAGE_REFERENCES "REFramework.NET.application")
+
+	set(CMKR_TARGET CSharpAPITestRE4)
+	set_dotnet_references(CSharpAPITestRE4 "re4" "${RE4_DLLS}")
 
 endif()
 # Target: ObjectExplorer
@@ -534,37 +521,6 @@ if(REFRAMEWORK_REF_ASSEMBLIES_EXIST_RE2) # build-csharp-test-re2
 	)
 
 	set(CMKR_TARGET ObjectExplorer)
-	set_target_properties(ObjectExplorer PROPERTIES
-	VS_DOTNET_REFERENCE_REFramework.NET
-	"${REFRAMEWORK_DOT_NET_ASSEMBLY_PATH}"
-	)
-	
-set_target_properties(ObjectExplorer PROPERTIES
-	VS_DOTNET_REFERENCE_REFramework.NET._mscorlib
-	"${re2_mscorlibdll}"
-	)
-	
-set_target_properties(ObjectExplorer PROPERTIES VS_PACKAGE_REFERENCES "REFramework.NET._mscorlib")
-	
-set_target_properties(ObjectExplorer PROPERTIES
-	VS_DOTNET_REFERENCE_REFramework.NET._System
-	"${re2_systemdll}"
-	)
-	
-set_target_properties(ObjectExplorer PROPERTIES VS_PACKAGE_REFERENCES "REFramework.NET._System")
-	
-set_target_properties(ObjectExplorer PROPERTIES
-	VS_DOTNET_REFERENCE_REFramework.NET.System.Core
-	"${re2_systemcoredll}"
-	)
-	
-set_target_properties(ObjectExplorer PROPERTIES VS_PACKAGE_REFERENCES "REFramework.NET.System.Core")
-	
-set_target_properties(ObjectExplorer PROPERTIES
-	VS_DOTNET_REFERENCE_REFramework.NET.viacore
-	"${re2_viacoredll}"
-	)
-	
-set_target_properties(ObjectExplorer PROPERTIES VS_PACKAGE_REFERENCES "REFramework.NET.viacore")
+	set_dotnet_references(ObjectExplorer "re2" "${RE2_DLLS}")
 
 endif()
