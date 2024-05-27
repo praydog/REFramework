@@ -110,7 +110,8 @@ private:
         void initialize(XrSessionCreateInfo& session_info);
         std::optional<std::string> create_swapchains();
         void destroy_swapchains();
-        void copy(uint32_t swapchain_idx, ID3D12Resource* src, D3D12_BOX* src_box, D3D12_RESOURCE_STATES src_state);
+        using CopyFn = std::function<void(d3d12::CommandContext& ctx, d3d12::TextureContext& dst, D3D12_RESOURCE_STATES src_state, D3D12_RESOURCE_STATES dst_state)>;
+        void copy(uint32_t swapchain_idx, ID3D12Resource* src, D3D12_BOX* src_box, D3D12_RESOURCE_STATES src_state, CopyFn copy_fn = nullptr);
         void wait_for_all_copies() {
             std::scoped_lock _{this->mtx};
 

@@ -494,6 +494,7 @@ private:
     template <typename T> using ComPtr = Microsoft::WRL::ComPtr<T>;
 
     struct MultiPass {
+        std::array<d3d12::TextureContext, 2> eye_contexts{}; // For the SRV
         std::array<ComPtr<ID3D12Resource>, 2> eye_textures{};
         std::array<sdk::intrusive_ptr<sdk::renderer::Texture>, 2> native_res_copies{}; // used with TemporalUpscaler disabled
         std::array<uint32_t, 2> allocated_size{};

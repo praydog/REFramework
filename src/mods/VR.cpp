@@ -3395,6 +3395,7 @@ void VR::on_end_rendering(void* entry) {
             const auto scene_layers = m_camera_duplicator.get_relevant_scene_layers();
 
             if (scene_layers.size() < 2) {
+                spdlog::warn("VR: on_end_rendering: scene layers are less than 2: {}", scene_layers.size());
                 return;
             }
 
@@ -3406,6 +3407,7 @@ void VR::on_end_rendering(void* entry) {
             };
 
             if (prepare_output_layers[0] == nullptr || prepare_output_layers[1] == nullptr) {
+                spdlog::warn("VR: on_end_rendering: prepare output layers are null: {:x} {:x}", (uintptr_t)prepare_output_layers[0], (uintptr_t)prepare_output_layers[1]);
                 return;
             }
 
@@ -3415,6 +3417,7 @@ void VR::on_end_rendering(void* entry) {
             };
 
             if (output_states[0] == nullptr || output_states[1] == nullptr) {
+                spdlog::warn("VR: on_end_rendering: output states are null: {:x} {:x}", (uintptr_t)output_states[0], (uintptr_t)output_states[1]);
                 return;
             }
 
@@ -3435,7 +3438,11 @@ void VR::on_end_rendering(void* entry) {
                             m_multipass.allocated_size[1] = get_hmd_height();
 
                             spdlog::info("Allocated native res copies");
+                        } else {
+                            spdlog::warn("VR: on_end_rendering: texs are null: {:x} {:x}", (uintptr_t)tex0.get(), (uintptr_t)tex1.get());
                         }
+                    } else {
+                        spdlog::warn("VR: on_end_rendering: rtvs are null: {:x} {:x}", (uintptr_t)rtv0.get(), (uintptr_t)rtv1.get());
                     }
                 }
 
