@@ -883,7 +883,6 @@ void D3D12Component::OpenXR::copy(
                         D3D12_RESOURCE_STATE_RENDER_TARGET);
                 }
             } else {
-                texture_ctx->texture = ctx.textures[texture_index].texture;
                 copy_fn(texture_ctx->commands, *texture_ctx, src_state, D3D12_RESOURCE_STATE_RENDER_TARGET);
             }
             texture_ctx->commands.execute();
