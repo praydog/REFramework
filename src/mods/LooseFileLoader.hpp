@@ -24,7 +24,12 @@ public:
 private:
     void hook();
     bool handle_path(const wchar_t* path, size_t hash);
+
+#if TDB_VER > 67
     static uint64_t path_to_hash_hook(const wchar_t* path);
+#else
+    static uint64_t path_to_hash_hook(void* This, const wchar_t* path);
+#endif
 
     bool m_hook_success{false};
     bool m_attempted_hook{false};

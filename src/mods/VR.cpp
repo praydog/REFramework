@@ -3062,6 +3062,7 @@ void VR::on_end_rendering(void* entry) {
                 "UpdateMovie", // Causes movies to play twice as fast if ran again
                 "UpdateSpeedTree",
                 "UpdateHansoft",
+                "UpdatePuppet",
                 // The dynamics stuff causes a cloth physics step in the right eye
                 "BeginRenderingDynamics",
                 "BeginDynamics",
@@ -3069,7 +3070,9 @@ void VR::on_end_rendering(void* entry) {
                 "EndDynamics",
                 "EndPhysics",
                 "RenderDynamics",
+#ifndef DD2
                 "RenderLandscape",
+#endif
                 "DevelopRenderer",
                 "DrawWidget"
             };

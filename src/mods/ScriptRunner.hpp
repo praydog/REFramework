@@ -178,7 +178,7 @@ public:
         auto it = m_hook_storage.find(thread_hash);
         if (it != m_hook_storage.end()) {
             if (!it->second.empty()) {
-                it->second.pop_front();
+                it->second.pop_back();
             }
         }
 
@@ -196,7 +196,7 @@ private:
         auto it = m_hook_storage.find(thread_hash);
         if (it != m_hook_storage.end()) {
             if (!it->second.empty()) {
-                return it->second.front();
+                return it->second.back();
             }
         }
 

@@ -144,9 +144,11 @@ private:
     void draw_ui();
     void draw_about();
 
+public:
     bool hook_d3d11();
     bool hook_d3d12();
 
+private:
     bool initialize();
     bool initialize_game_data();
     bool initialize_windows_message_hook();

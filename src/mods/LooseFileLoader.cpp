@@ -268,13 +268,26 @@ bool LooseFileLoader::handle_path(const wchar_t* path, size_t hash) {
     return false;
 }
 
+#if TDB_VER > 67
 uint64_t LooseFileLoader::path_to_hash_hook(const wchar_t* path) {
+#else
+uint64_t LooseFileLoader::path_to_hash_hook(void* This, const wchar_t* path) {
+#endif
     const auto og = g_loose_file_loader->m_path_to_hash_hook->get_original<decltype(path_to_hash_hook)>();
+
+#if TDB_VER > 67
     const auto result = og(path);
+#else
+    const auto result = og(This, path);
+#endif
 
     // true to skip.
     if (g_loose_file_loader->handle_path(path, result)) {
+#if TDB_VER > 67
         return 4294967296;
+#else
+        return 0xFFFFFFFF;
+#endif
     }
 
     return result;
