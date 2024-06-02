@@ -10,6 +10,7 @@
 #include <dxgi1_4.h>
 
 #include "utility/PointerHook.hpp"
+#include "utility/FunctionHook.hpp"
 #include "utility/VtableHook.hpp"
 
 class D3D12Hook
@@ -88,7 +89,7 @@ public:
     bool is_proton_swapchain() const {
         return m_using_proton_swapchain;
     }
-
+    
     bool is_framegen_swapchain() const {
         return m_using_frame_generation_swapchain;
     }
@@ -96,6 +97,8 @@ public:
     void ignore_next_present() {
         m_ignore_next_present = true;
     }
+
+    void hook_streamline();
 
 protected:
     ID3D12Device4* m_device{ nullptr };
@@ -118,17 +121,25 @@ protected:
     bool m_inside_present{false};
     bool m_ignore_next_present{false};
 
-    std::unique_ptr<PointerHook> m_present_hook{};
+    std::unique_ptr<FunctionHook> m_present_hook{};
+    //std::unique_ptr<PointerHook> m_release_hook{};
     std::unique_ptr<VtableHook> m_swapchain_hook{};
     //std::unique_ptr<FunctionHook> m_create_swap_chain_hook{};
 
+    struct Streamline {
+        static void* link_swapchain_to_cmd_queue(void* rcx, void* rdx, void* r8, void* r9);
+
+        std::unique_ptr<FunctionHook> link_swapchain_to_cmd_queue_hook{};
+        bool setup{ false };
+    } m_streamline{};
+    
     OnPresentFn m_on_present{ nullptr };
     OnPresentFn m_on_post_present{ nullptr };
     OnResizeBuffersFn m_on_resize_buffers{ nullptr };
     OnResizeTargetFn m_on_resize_target{ nullptr };
     //OnCreateSwapChainFn m_on_create_swap_chain{ nullptr };
     
-    static HRESULT WINAPI present(IDXGISwapChain3* swap_chain, UINT sync_interval, UINT flags);
+    static HRESULT WINAPI present(IDXGISwapChain3* swap_chain, uint64_t sync_interval, uint64_t flags, void* r9);
     static HRESULT WINAPI resize_buffers(IDXGISwapChain3* swap_chain, UINT buffer_count, UINT width, UINT height, DXGI_FORMAT new_format, UINT swap_chain_flags);
     static HRESULT WINAPI resize_target(IDXGISwapChain3* swap_chain, const DXGI_MODE_DESC* new_target_parameters);
     //static HRESULT WINAPI create_swap_chain(IDXGIFactory4* factory, IUnknown* device, HWND hwnd, const DXGI_SWAP_CHAIN_DESC* desc, const DXGI_SWAP_CHAIN_FULLSCREEN_DESC* p_fullscreen_desc, IDXGIOutput* p_restrict_to_output, IDXGISwapChain** swap_chain);
