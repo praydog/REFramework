@@ -29,16 +29,24 @@ void* D3D12Hook::Streamline::link_swapchain_to_cmd_queue(void* rcx, void* rdx, v
     spdlog::info("[Streamline] linkSwapchainToCmdQueue: {:x}", (uintptr_t)_ReturnAddress());
 
     g_framework->on_reset(); // Needed to prevent a crash due to resources hanging around
-    g_d3d12_hook->unhook(); // Removes all vtable hooks
 
-    auto& hook = g_d3d12_hook->m_streamline.link_swapchain_to_cmd_queue_hook;
+    if (g_d3d12_hook != nullptr) {
+        g_d3d12_hook->unhook(); // Removes all vtable hooks
+    }
+
+    auto& hook = D3D12Hook::s_streamline.link_swapchain_to_cmd_queue_hook;
     const auto result = hook->get_original<decltype(link_swapchain_to_cmd_queue)>()(rcx, rdx, r8, r9);
+
+    // Re-hooks present after the above function creates the swapchain
+    // This allows the hook to immediately still function
+    // rather than waiting on the hook monitor to notice the hook isn't working
+    g_framework->hook_d3d12();
 
     return result;
 }
 
 void D3D12Hook::hook_streamline() {
-    if (m_streamline.setup) {
+    if (D3D12Hook::s_streamline.setup) {
         return;
     }
 
@@ -72,15 +80,15 @@ void D3D12Hook::hook_streamline() {
         return;
     }
 
-    m_streamline.link_swapchain_to_cmd_queue_hook = std::make_unique<FunctionHook>(*fn, (uintptr_t)&Streamline::link_swapchain_to_cmd_queue);
+    D3D12Hook::s_streamline.link_swapchain_to_cmd_queue_hook = std::make_unique<FunctionHook>(*fn, (uintptr_t)&Streamline::link_swapchain_to_cmd_queue);
 
-    if (m_streamline.link_swapchain_to_cmd_queue_hook->create()) {
+    if (D3D12Hook::s_streamline.link_swapchain_to_cmd_queue_hook->create()) {
         spdlog::info("[Streamline] Hooked linkSwapchainToCmdQueue");
     } else {
         spdlog::error("[Streamline] Failed to hook linkSwapchainToCmdQueue");
     }
 
-    m_streamline.setup = true;
+    D3D12Hook::s_streamline.setup = true;
 }
 
 bool D3D12Hook::hook() {

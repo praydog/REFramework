@@ -131,7 +131,9 @@ protected:
 
         std::unique_ptr<FunctionHook> link_swapchain_to_cmd_queue_hook{};
         bool setup{ false };
-    } m_streamline{};
+    };
+
+    static inline Streamline s_streamline{};
     
     OnPresentFn m_on_present{ nullptr };
     OnPresentFn m_on_post_present{ nullptr };
