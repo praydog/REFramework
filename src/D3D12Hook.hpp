@@ -98,7 +98,7 @@ public:
         m_ignore_next_present = true;
     }
 
-    void hook_streamline();
+    static void hook_streamline(HMODULE dlssg_module = nullptr);
 
 protected:
     ID3D12Device4* m_device{ nullptr };

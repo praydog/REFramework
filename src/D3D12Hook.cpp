@@ -45,14 +45,18 @@ void* D3D12Hook::Streamline::link_swapchain_to_cmd_queue(void* rcx, void* rdx, v
     return result;
 }
 
-void D3D12Hook::hook_streamline() {
+void D3D12Hook::hook_streamline(HMODULE dlssg_module) try {
     if (D3D12Hook::s_streamline.setup) {
         return;
     }
 
+    std::scoped_lock _{g_framework->get_hook_monitor_mutex()};
+
     spdlog::info("[Streamline] Hooking Streamline");
 
-    const auto dlssg_module = GetModuleHandleW(L"sl.dlss_g.dll");
+    if (dlssg_module == nullptr) {
+        dlssg_module = GetModuleHandleW(L"sl.dlss_g.dll");
+    }
 
     if (dlssg_module == nullptr) {
         spdlog::error("[Streamline] Failed to get sl.dlss_g.dll module handle");
@@ -89,6 +93,8 @@ void D3D12Hook::hook_streamline() {
     }
 
     D3D12Hook::s_streamline.setup = true;
+} catch(...) {
+    spdlog::error("[Streamline] Failed to hook Streamline");
 }
 
 bool D3D12Hook::hook() {
