@@ -50,7 +50,11 @@ void D3D12Hook::hook_streamline(HMODULE dlssg_module) try {
         return;
     }
 
-    std::scoped_lock _{g_framework->get_hook_monitor_mutex()};
+    std::scoped_lock _{D3D12Hook::s_streamline.hook_mutex};
+
+    if (D3D12Hook::s_streamline.setup) {
+        return;
+    }
 
     spdlog::info("[Streamline] Hooking Streamline");
 

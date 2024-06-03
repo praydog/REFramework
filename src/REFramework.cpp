@@ -200,7 +200,7 @@ try {
             std::wstring base_dll_name = NotificationData->Loaded.BaseDllName->Buffer;
             spdlog::info("LdrRegisterDllNotification: Loaded: {}", utility::narrow(base_dll_name));
 
-            if (std::wstring_view{base_dll_name}.find(L"sl.dlss_g.dll") != std::wstring_view::npos) {
+            if (base_dll_name.find(L"sl.dlss_g.dll") != std::wstring::npos) {
                 spdlog::info("LdrRegisterDllNotification: Detected DLSS DLL loaded");
 
                 D3D12Hook::hook_streamline((HMODULE)NotificationData->Loaded.DllBase);

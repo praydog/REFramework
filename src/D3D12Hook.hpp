@@ -130,6 +130,7 @@ protected:
         static void* link_swapchain_to_cmd_queue(void* rcx, void* rdx, void* r8, void* r9);
 
         std::unique_ptr<FunctionHook> link_swapchain_to_cmd_queue_hook{};
+        std::mutex hook_mutex{};
         bool setup{ false };
     };
 
