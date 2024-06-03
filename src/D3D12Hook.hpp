@@ -121,8 +121,7 @@ protected:
     bool m_inside_present{false};
     bool m_ignore_next_present{false};
 
-    std::unique_ptr<FunctionHook> m_present_hook{};
-    std::unique_ptr<PointerHook> m_present_hook_ptr{};
+    std::unique_ptr<PointerHook> m_present_hook{};
     //std::unique_ptr<PointerHook> m_release_hook{};
     std::unique_ptr<VtableHook> m_swapchain_hook{};
     //std::unique_ptr<FunctionHook> m_create_swap_chain_hook{};

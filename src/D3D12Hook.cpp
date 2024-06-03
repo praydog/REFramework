@@ -408,18 +408,12 @@ bool D3D12Hook::hook() {
         spdlog::info("Initializing hooks");
 
         m_present_hook.reset();
-        m_present_hook_ptr.reset();
         m_swapchain_hook.reset();
 
         m_is_phase_1 = true;
 
         auto& present_fn = (*(void***)target_swapchain)[8]; // Present
-        m_present_hook = std::make_unique<FunctionHook>((uintptr_t)present_fn, (uintptr_t)&D3D12Hook::present);
-        if (!m_present_hook->create()) {
-            spdlog::info("[D3D12Hook] Failed to hook present, falling back to pointer hook");
-            m_present_hook.reset();
-            m_present_hook_ptr = std::make_unique<PointerHook>(&present_fn, &D3D12Hook::present);
-        }
+        m_present_hook = std::make_unique<PointerHook>(&present_fn, &D3D12Hook::present);
         m_hooked = true;
     } catch (const std::exception& e) {
         spdlog::error("Failed to initialize hooks: {}", e.what());
@@ -455,7 +449,6 @@ bool D3D12Hook::unhook() {
     spdlog::info("Unhooking D3D12");
 
     m_present_hook.reset();
-    m_present_hook_ptr.reset();
     m_swapchain_hook.reset();
 
     m_hooked = false;
@@ -474,12 +467,7 @@ HRESULT WINAPI D3D12Hook::present(IDXGISwapChain3* swap_chain, uint64_t sync_int
     decltype(D3D12Hook::present)* present_fn{nullptr};
 
     if (d3d12->m_is_phase_1) {
-        //present_fn = d3d12->m_present_hook->get_original<decltype(D3D12Hook::present)*>();
-        if (d3d12->m_present_hook != nullptr) {
-            present_fn = d3d12->m_present_hook->get_original<decltype(D3D12Hook::present)>();
-        } else {
-            present_fn = d3d12->m_present_hook_ptr->get_original<decltype(D3D12Hook::present)*>();
-        }
+        present_fn = d3d12->m_present_hook->get_original<decltype(D3D12Hook::present)*>();
     } else {
         present_fn = d3d12->m_swapchain_hook->get_method<decltype(D3D12Hook::present)*>(8);
     }
@@ -503,7 +491,6 @@ HRESULT WINAPI D3D12Hook::present(IDXGISwapChain3* swap_chain, uint64_t sync_int
         // And doing a global pointer replacement seems to have
         // conflicts with Streamline's hooks, causing unexplainable crashes
         d3d12->m_present_hook.reset();
-        d3d12->m_present_hook_ptr.reset();
 
         // vtable hook the swapchain instead of global hooking
         // this seems safer for whatever reason
