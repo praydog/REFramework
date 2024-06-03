@@ -10,6 +10,7 @@
 #include <utility/String.hpp>
 #include <utility/RTTI.hpp>
 #include <utility/Scan.hpp>
+#include <utility/ScopeGuard.hpp>
 
 #include "REFramework.hpp"
 
@@ -18,19 +19,28 @@
 #include "D3D12Hook.hpp"
 
 static D3D12Hook* g_d3d12_hook = nullptr;
+thread_local bool g_inside_d3d12_hook = false;
 
 D3D12Hook::~D3D12Hook() {
     unhook();
 }
 
 void* D3D12Hook::Streamline::link_swapchain_to_cmd_queue(void* rcx, void* rdx, void* r8, void* r9) {
+    if (g_inside_d3d12_hook) {
+        spdlog::info("[Streamline] linkSwapchainToCmdQueue: {:x} (inside D3D12 hook)", (uintptr_t)_ReturnAddress());
+
+        auto& hook = D3D12Hook::s_streamline.link_swapchain_to_cmd_queue_hook;
+        return hook->get_original<decltype(link_swapchain_to_cmd_queue)>()(rcx, rdx, r8, r9);
+    }
+
     std::scoped_lock _{g_framework->get_hook_monitor_mutex()};
 
     spdlog::info("[Streamline] linkSwapchainToCmdQueue: {:x}", (uintptr_t)_ReturnAddress());
 
-    g_framework->on_reset(); // Needed to prevent a crash due to resources hanging around
+    bool hook_was_nullptr = g_d3d12_hook == nullptr;
 
     if (g_d3d12_hook != nullptr) {
+        g_framework->on_reset(); // Needed to prevent a crash due to resources hanging around
         g_d3d12_hook->unhook(); // Removes all vtable hooks
     }
 
@@ -40,7 +50,9 @@ void* D3D12Hook::Streamline::link_swapchain_to_cmd_queue(void* rcx, void* rdx, v
     // Re-hooks present after the above function creates the swapchain
     // This allows the hook to immediately still function
     // rather than waiting on the hook monitor to notice the hook isn't working
-    g_framework->hook_d3d12();
+    if (!hook_was_nullptr) {
+        g_framework->hook_d3d12();
+    }
 
     return result;
 }
@@ -105,6 +117,12 @@ bool D3D12Hook::hook() {
     spdlog::info("Hooking D3D12");
 
     g_d3d12_hook = this;
+
+    g_inside_d3d12_hook = true;
+
+    utility::ScopeGuard guard{[]() {
+        g_inside_d3d12_hook = false;
+    }};
 
     IDXGISwapChain1* swap_chain1{ nullptr };
     IDXGISwapChain3* swap_chain{ nullptr };
