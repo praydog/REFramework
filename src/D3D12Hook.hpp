@@ -122,9 +122,7 @@ protected:
     bool m_ignore_next_present{false};
 
     std::unique_ptr<PointerHook> m_present_hook{};
-    //std::unique_ptr<PointerHook> m_release_hook{};
     std::unique_ptr<VtableHook> m_swapchain_hook{};
-    //std::unique_ptr<FunctionHook> m_create_swap_chain_hook{};
 
     struct Streamline {
         static void* link_swapchain_to_cmd_queue(void* rcx, void* rdx, void* r8, void* r9);
@@ -135,6 +133,9 @@ protected:
     };
 
     static inline Streamline s_streamline{};
+
+    // This is static because unhooking it seems to cause a crash sometimes
+    static inline std::unique_ptr<PointerHook> s_create_swapchain_hook{};
     
     OnPresentFn m_on_present{ nullptr };
     OnPresentFn m_on_post_present{ nullptr };
@@ -145,6 +146,6 @@ protected:
     static HRESULT WINAPI present(IDXGISwapChain3* swap_chain, uint64_t sync_interval, uint64_t flags, void* r9);
     static HRESULT WINAPI resize_buffers(IDXGISwapChain3* swap_chain, UINT buffer_count, UINT width, UINT height, DXGI_FORMAT new_format, UINT swap_chain_flags);
     static HRESULT WINAPI resize_target(IDXGISwapChain3* swap_chain, const DXGI_MODE_DESC* new_target_parameters);
-    //static HRESULT WINAPI create_swap_chain(IDXGIFactory4* factory, IUnknown* device, HWND hwnd, const DXGI_SWAP_CHAIN_DESC* desc, const DXGI_SWAP_CHAIN_FULLSCREEN_DESC* p_fullscreen_desc, IDXGIOutput* p_restrict_to_output, IDXGISwapChain** swap_chain);
+    static HRESULT WINAPI create_swapchain(IDXGIFactory4* factory, IUnknown* device, HWND hwnd, const DXGI_SWAP_CHAIN_DESC* desc, const DXGI_SWAP_CHAIN_FULLSCREEN_DESC* p_fullscreen_desc, IDXGIOutput* p_restrict_to_output, IDXGISwapChain** swap_chain);
 };
 
