@@ -105,9 +105,9 @@ void TemporalUpscaler::on_draw_ui() {
         return;
     }
 
-#if TDB_VER < 69
+#if TDB_VER < 67
     ImGui::TextWrapped("TemporalUpscaler is not yet supported on this version of the engine.");
-    ImGui::TextWrapped("Supported: RE2/RE3/RE7 (RT latest, not beta builds), RE4, RE8, SF6");
+    ImGui::TextWrapped("Supported: RE2/RE3/RE7 (RT latest, not beta builds), RE4, RE8, SF6, DMC5 (partial)");
     return;
 #else
     if (!m_backend_loaded) {
@@ -1349,8 +1349,15 @@ void TemporalUpscaler::finish_release_resources() {
 }
 
 void TemporalUpscaler::update_motion_scale() {
+#if TDB_VER > 67
     m_motion_scale[0] = (float)get_render_width() / 2.0f;
     m_motion_scale[1] = -1.0f * ((float)get_render_height() / 2.0f);
+#else
+    // I have no idea. Would need to take a look at the texture in RenderDoc.
+    // Might need a shader to fix this?
+    m_motion_scale[0] = 0.01f;
+    m_motion_scale[1] = -1.0f * ((float)get_render_height() / 2.0f);
+#endif
 
     SetMotionScaleX(get_evaluate_id(0), (float)m_motion_scale[0]);
     SetMotionScaleY(get_evaluate_id(0), (float)m_motion_scale[1]);
