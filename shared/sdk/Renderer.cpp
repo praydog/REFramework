@@ -1624,6 +1624,7 @@ RECamera* layer::Scene::get_main_camera_if_possible() const {
     static const std::vector<std::wstring> camera_names = {
         L"MainCamera",
         L"Main Camera",
+        L"GameCamera", // DMC5
         L"ess_DefaultCamera",
         L"ess_DefaultCamera_01",
         L"WTMainCamera",

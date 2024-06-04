@@ -111,7 +111,7 @@ private:
 #elif TDB_VER == 69
     static constexpr inline auto s_d3d12_resource_offset = 0x98;
 #else
-    // TODO? might not be right offset
+    // TODO? might not be right offset (verified in DMC5)
     static constexpr inline auto s_d3d12_resource_offset = 0x98;
 #endif
 };
@@ -182,9 +182,6 @@ public:
 
 public:
     struct Desc {
-#if TDB_VER <= 67
-        void* _unk_pad;
-#endif
         sdk::intrusive_ptr<RenderTargetView>* rtvs;
         sdk::intrusive_ptr<DepthStencilView> dsv;
         uint32_t num_rtv;
@@ -418,7 +415,7 @@ private:
 #elif TDB_VER >= 69
     static constexpr inline auto s_output_state_offset = 0xF8;
 #else
-    static constexpr inline auto s_output_state_offset = 0xF8; // TODO! VERIFY!
+    static constexpr inline auto s_output_state_offset = 0xE0; // Verified for DMC5
 #endif
 };
 
