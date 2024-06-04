@@ -199,6 +199,12 @@ try {
         if (NotificationData->Loaded.BaseDllName != nullptr && NotificationData->Loaded.BaseDllName->Buffer != nullptr) {
             std::wstring base_dll_name = NotificationData->Loaded.BaseDllName->Buffer;
             spdlog::info("LdrRegisterDllNotification: Loaded: {}", utility::narrow(base_dll_name));
+
+            if (base_dll_name.find(L"sl.dlss_g.dll") != std::wstring::npos) {
+                spdlog::info("LdrRegisterDllNotification: Detected DLSS DLL loaded");
+
+                D3D12Hook::hook_streamline((HMODULE)NotificationData->Loaded.DllBase);
+            }
         }
 
         if (g_current_game_path && NotificationData->Loaded.FullDllName != nullptr && NotificationData->Loaded.FullDllName->Buffer != nullptr) {
