@@ -24,11 +24,20 @@ namespace sdk {
 
     sdk::VM* VM::get() {
         update_pointers();
+
+        if (s_global_context == nullptr) {
+            return nullptr;
+        }
+
         return *s_global_context;
     }
 
     REThreadContext* VM::get_thread_context(int32_t unk /*= -1*/) {
         update_pointers();
+
+        if (s_get_thread_context == nullptr) {
+            return nullptr;
+        }
 
         return s_get_thread_context(this, unk);
     }
@@ -86,7 +95,7 @@ namespace sdk {
         std::unique_lock lock{ s_mutex };
 
         utility::ScopeGuard sg{ [&]() {
-                s_fully_updated_pointers = true;
+                s_fully_updated_pointers = s_global_context != nullptr && s_get_thread_context != nullptr;
             } 
         };
 
@@ -148,11 +157,16 @@ namespace sdk {
             return;
         }
 
-        s_global_context = (decltype(s_global_context))utility::calculate_absolute(*ref + context_pattern->ctx_offset);
-        s_get_thread_context = (decltype(s_get_thread_context))utility::calculate_absolute(*ref + context_pattern->get_thread_context_offset);
+        const auto potential_context = (decltype(s_global_context))utility::calculate_absolute(*ref + context_pattern->ctx_offset);
+        bool found_tdb = false;
+
+        if (*potential_context == nullptr) {
+            spdlog::info("[VM::update_pointers] Context is null.");
+            return;
+        }
 
         for (auto i = 0; i < 0x20000; i += sizeof(void*)) {
-            auto ptr = *(sdk::RETypeDB**)((uintptr_t)*s_global_context + i);
+            auto ptr = *(sdk::RETypeDB**)((uintptr_t)*potential_context + i);
 
             if (ptr == nullptr || IsBadReadPtr(ptr, sizeof(void*)) || ((uintptr_t)ptr & (sizeof(void*) - 1)) != 0) {
                 continue;
@@ -164,6 +178,7 @@ namespace sdk {
                 s_tdb_version = version;
                 s_type_db_offset = i;
                 s_static_tbl_offset = s_type_db_offset - 0x30; // hope this holds true for the older gameS!!!!!!!!!!!!!!!!!!!
+                found_tdb = true;
                 spdlog::info("[VM::update_pointers] s_type_db_offset: {:x}", s_type_db_offset);
                 spdlog::info("[VM::update_pointers] s_static_tbl_offset: {:x}", s_static_tbl_offset);
                 spdlog::info("[VM::update_pointers] TDB Version: {}", version);
@@ -171,6 +186,14 @@ namespace sdk {
                 break;
             }
         }
+
+        if (!found_tdb) {
+            spdlog::error("[VM::update_pointers] Unable to find TDB inside VM");
+            return;
+        }
+
+        s_global_context = potential_context;
+        s_get_thread_context = (decltype(s_get_thread_context))utility::calculate_absolute(*ref + context_pattern->get_thread_context_offset);
 
         spdlog::info("[VM::update_pointers] s_global_context: {:x}", (uintptr_t)s_global_context);
         spdlog::info("[VM::update_pointers] s_get_thread_context: {:x}", (uintptr_t)s_get_thread_context);
@@ -181,13 +204,14 @@ namespace sdk {
 #if TDB_VER >= 71
         if (s_global_context != nullptr && *s_global_context != nullptr) {
             auto static_tbl = (REStaticTbl**)((uintptr_t)*s_global_context + s_static_tbl_offset);
+            bool found_static_tbl_offset = false;
             if (IsBadReadPtr(*static_tbl, sizeof(void*)) || ((uintptr_t)*static_tbl & (sizeof(void*) - 1)) != 0) {
                 spdlog::info("[VM::update_pointers] Static table offset is bad, correcting...");
 
                 // We are looking for the two arrays, the static field table, and the static field "initialized table"
                 // The initialized table tells whether a specific entry in the static field table has been initialized or not
                 // so they both should have the same size, easy to find
-                for (auto i = sizeof(void*); i < 0x100; i+= sizeof(void*)) {
+                for (auto i = sizeof(void*); i < 0x100; i+= sizeof(void*)) try {
                     const auto& ptr = *(REStaticTbl**)((uintptr_t)*s_global_context + (s_type_db_offset - i));
 
                     if (IsBadReadPtr(ptr, sizeof(void*)) || ((uintptr_t)ptr & (sizeof(void*) - 1)) != 0) {
@@ -210,9 +234,23 @@ namespace sdk {
                     if (previous_count == potential_count) {
                         spdlog::info("[VM::update_pointers] Found static table at {:x} (offset {:x})", (uintptr_t)ptr, previous_offset);
                         s_static_tbl_offset = previous_offset;
+                        found_static_tbl_offset = true;
                         break;
                     }
+                } catch (...) {
+                    continue;
                 }
+            } else {
+                found_static_tbl_offset = true;
+            }
+
+            // Just make it return null if we can't find it
+            // We do this so the consumer can do while(sdk::VM::get() != nullptr) { ... } to wait for everything to be valid
+            if (!found_static_tbl_offset) {
+                spdlog::error("[VM::update_pointers] Unable to find static table offset.");
+                s_global_context = nullptr;
+                s_get_thread_context = nullptr;
+                return;
             }
         }
 #endif

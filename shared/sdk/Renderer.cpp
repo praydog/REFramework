@@ -710,6 +710,17 @@ void RenderContext::copy_texture(Texture* dest, Texture* src, Fence& fence) {
     func(this, dest, src, fence);
 }
 
+std::optional<uint32_t> Renderer::get_render_frame() const {
+    static auto tdef = sdk::find_type_definition("via.render.Renderer");
+    static auto m = tdef != nullptr ? tdef->get_method("get_RenderFrame") : nullptr;
+
+    if (m == nullptr) {
+        return std::nullopt;
+    }
+
+    return m->call<uint32_t>(sdk::get_thread_context(), this);
+}
+
 ConstantBuffer* Renderer::get_constant_buffer(std::string_view name) const {
     static auto tdef = sdk::find_type_definition("via.render.Renderer");
     static auto t = tdef->get_type();
