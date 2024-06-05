@@ -33,6 +33,10 @@ void* D3D12Hook::Streamline::link_swapchain_to_cmd_queue(void* rcx, void* rdx, v
         return hook->get_original<decltype(link_swapchain_to_cmd_queue)>()(rcx, rdx, r8, r9);
     }
 
+    while (g_framework == nullptr) {
+        std::this_thread::yield();
+    }
+
     std::scoped_lock _{g_framework->get_hook_monitor_mutex()};
 
     spdlog::info("[Streamline] linkSwapchainToCmdQueue: {:x}", (uintptr_t)_ReturnAddress());
@@ -66,6 +70,10 @@ HRESULT WINAPI D3D12Hook::create_swapchain(IDXGIFactory4* factory, IUnknown* dev
     }
 
     spdlog::info("create_swapchain called");
+
+    while (g_framework == nullptr) {
+        std::this_thread::yield();
+    }
 
     std::scoped_lock _{g_framework->get_hook_monitor_mutex()};
 
@@ -354,10 +362,13 @@ bool D3D12Hook::hook() {
         return false;
     }
 
-    const auto ti = utility::rtti::get_type_info(swap_chain1);
-
     try {
-        const auto swapchain_classname = ti != nullptr ? std::string_view{ti->name()} : "unknown";
+        const auto ti = utility::rtti::get_type_info(swap_chain1);
+        const auto swapchain_classname = ti != nullptr && ti->name() != nullptr ? std::string_view{ti->name()} : "unknown";
+        const auto raw_name = ti != nullptr && ti->raw_name() != nullptr ? std::string_view{ti->raw_name()} : "unknown";
+
+        spdlog::info("Swapchain type info: {}", swapchain_classname);
+        spdlog::info("Swapchain raw type info: {}", raw_name);
         
         if (swapchain_classname.contains("interposer::DXGISwapChain")) { // DLSS3
             spdlog::info("Found Streamline (DLSSFG) swapchain during dummy initialization: {:x}", (uintptr_t)swap_chain1);
@@ -505,6 +516,10 @@ bool D3D12Hook::hook() {
 }
 
 bool D3D12Hook::unhook() {
+    while (g_framework == nullptr) {
+        std::this_thread::yield();
+    }
+
     std::scoped_lock _{g_framework->get_hook_monitor_mutex()};
 
     if (!m_hooked) {
@@ -525,6 +540,10 @@ bool D3D12Hook::unhook() {
 thread_local int32_t g_present_depth = 0;
 
 HRESULT WINAPI D3D12Hook::present(IDXGISwapChain3* swap_chain, uint64_t sync_interval, uint64_t flags, void* r9) {
+    while (g_framework == nullptr) {
+        std::this_thread::yield();
+    }
+
     std::scoped_lock _{g_framework->get_hook_monitor_mutex()};
 
     auto d3d12 = g_d3d12_hook;
@@ -657,6 +676,10 @@ HRESULT WINAPI D3D12Hook::present(IDXGISwapChain3* swap_chain, uint64_t sync_int
 thread_local int32_t g_resize_buffers_depth = 0;
 
 HRESULT WINAPI D3D12Hook::resize_buffers(IDXGISwapChain3* swap_chain, UINT buffer_count, UINT width, UINT height, DXGI_FORMAT new_format, UINT swap_chain_flags) {
+    while (g_framework == nullptr) {
+        std::this_thread::yield();
+    }
+
     std::scoped_lock _{g_framework->get_hook_monitor_mutex()};
 
     spdlog::info("D3D12 resize buffers called");
@@ -742,6 +765,10 @@ HRESULT WINAPI D3D12Hook::resize_buffers(IDXGISwapChain3* swap_chain, UINT buffe
 thread_local int32_t g_resize_target_depth = 0;
 
 HRESULT WINAPI D3D12Hook::resize_target(IDXGISwapChain3* swap_chain, const DXGI_MODE_DESC* new_target_parameters) {
+    while (g_framework == nullptr) {
+        std::this_thread::yield();
+    }
+
     std::scoped_lock _{g_framework->get_hook_monitor_mutex()};
 
     spdlog::info("D3D12 resize target called");

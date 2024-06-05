@@ -598,6 +598,8 @@ public:
         return *(void**)((uintptr_t)this + sizeof(void*)); // simple!
     }
 
+    std::optional<uint32_t> get_render_frame() const;
+    
     ConstantBuffer* get_constant_buffer(std::string_view name) const;
 
     ConstantBuffer* get_scene_info() const {
