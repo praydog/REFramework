@@ -520,6 +520,8 @@ public class ClassGenerator {
 
         List<REFrameworkNET.Field> validFields = [];
 
+        int totalFields = 0;
+
         foreach (var field in fields) {
             if (field == null) {
                 continue;
@@ -552,7 +554,15 @@ public class ClassGenerator {
                 continue;
             }
 
+            ++totalFields;
+
             validFields.Add(field);
+
+            // Some kind of limitation in the runtime prevents too many methods in the class
+            if (totalFields >= (ushort.MaxValue - 15) / 2) {
+                System.Console.WriteLine("Skipping fields in " + t.FullName + " because it has too many fields (" + fields.Count + ")");
+                break;
+            }
         }
 
         var matchingFields = validFields
