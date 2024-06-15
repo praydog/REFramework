@@ -643,16 +643,11 @@ void PluginLoader::early_init() try {
 }
 
 void PluginLoader::on_frame() {
-    if (m_plugins_loaded) {
-        return;
-    }
+    init_d3d_pointers();
+}
 
-    m_plugins_loaded = true;
-
-    std::scoped_lock _{m_mux};
-
+void PluginLoader::init_d3d_pointers() {
     // Call reframework_plugin_required_version on any dlls that export it.
-    g_plugin_initialize_param.reframework_module = g_framework->get_reframework_module();
     reframework::g_renderer_data.renderer_type = (int)g_framework->get_renderer_type();
     
     if (reframework::g_renderer_data.renderer_type == REFRAMEWORK_RENDERER_D3D11) {
@@ -667,8 +662,14 @@ void PluginLoader::on_frame() {
         reframework::g_renderer_data.swapchain = d3d12->get_swap_chain();
         reframework::g_renderer_data.command_queue = d3d12->get_command_queue();
     }
+}
+
+std::optional<std::string> PluginLoader::on_initialize() {
+    std::scoped_lock _{m_mux};
 
     verify_sdk_pointers();
+
+    g_plugin_initialize_param.reframework_module = g_framework->get_reframework_module();
 
     for (auto it = m_plugins.begin(); it != m_plugins.end();) {
         auto name = it->first;
@@ -759,6 +760,10 @@ void PluginLoader::on_frame() {
 
         ++it;
     }
+
+    m_plugins_loaded = true;
+
+    return Mod::on_initialize();
 }
 
 void PluginLoader::on_draw_ui() {
@@ -892,6 +897,8 @@ bool reframework_on_imgui_frame(REFOnImGuiFrameCb cb) {
     if (cb == nullptr) {
         return false;
     }
+    
+    PluginLoader::get()->init_d3d_pointers();
 
     return APIProxy::get()->add_on_imgui_frame(cb);
 }
@@ -901,6 +908,8 @@ bool reframework_on_imgui_draw_ui(REFOnImGuiFrameCb cb) {
     if (cb == nullptr) {
         return false;
     }
+
+    PluginLoader::get()->init_d3d_pointers();
 
     return APIProxy::get()->add_on_imgui_draw_ui(cb);
 }

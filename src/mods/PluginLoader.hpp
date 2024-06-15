@@ -35,9 +35,12 @@ public:
     void early_init();
 
     std::string_view get_name() const override { return "PluginLoader"; }
+    std::optional<std::string> on_initialize() override;
     void on_frame() override;
     void on_draw_ui() override;
-
+    
+    void init_d3d_pointers();
+    
 private:
     bool m_plugins_loaded{false};
 
