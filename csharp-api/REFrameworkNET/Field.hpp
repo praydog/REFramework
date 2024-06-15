@@ -10,7 +10,8 @@
 namespace REFrameworkNET {
 ref class TypeDefinition;
 
-public ref class Field {
+public ref class Field : public System::IEquatable<Field^> 
+{
 public:
     static Field^ GetInstance(reframework::API::Field* fd) {
         return NativePool<Field>::GetInstance((uintptr_t)fd, s_createFromPointer);
@@ -165,6 +166,55 @@ public:
         uint32_t get() {
             return GetIndex();
         }
+    }
+
+public:
+    virtual bool Equals(System::Object^ other) override {
+        if (System::Object::ReferenceEquals(this, other)) {
+            return true;
+        }
+
+        if (System::Object::ReferenceEquals(other, nullptr)) {
+            return false;
+        }
+
+        if (other->GetType() != Field::typeid) {
+            return false;
+        }
+
+        return m_field == safe_cast<Field^>(other)->m_field;
+    }
+
+    virtual bool Equals(Field^ other) {
+        if (System::Object::ReferenceEquals(this, other)) {
+            return true;
+        }
+
+        if (System::Object::ReferenceEquals(other, nullptr)) {
+            return false;
+        }
+
+        return m_field == other->m_field;
+    }
+
+    static bool operator ==(Field^ left, Field^ right) {
+        if (System::Object::ReferenceEquals(left, right)) {
+            return true;
+        }
+
+        if (System::Object::ReferenceEquals(left, nullptr) || System::Object::ReferenceEquals(right, nullptr)) {
+            return false;
+        }
+
+        return left->m_field == right->m_field;
+    }
+
+    static bool operator !=(Field^ left, Field^ right) {
+        return !(left == right);
+    }
+
+    virtual int GetHashCode() override {
+        return (gcnew System::UIntPtr((uintptr_t)m_field))->GetHashCode();
     }
 
 private:
