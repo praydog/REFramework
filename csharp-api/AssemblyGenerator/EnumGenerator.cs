@@ -50,6 +50,16 @@ public class EnumGenerator {
         // Check if we need to add the new keyword to this.
         if (AssemblyGenerator.NestedTypeExistsInParent(t)) {
             enumDeclaration = enumDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.NewKeyword));
+        } else {
+            var declaringType = t.DeclaringType;
+
+            if (declaringType != null) {
+                var existingField = declaringType.FindField(t.Name);
+
+                if (existingField != null && AssemblyGenerator.validTypes.Contains(existingField.DeclaringType.FullName)) {
+                    enumDeclaration = enumDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.NewKeyword));
+                }
+            }
         }
 
         if (t.HasAttribute(s_FlagsAttribute, true)) {

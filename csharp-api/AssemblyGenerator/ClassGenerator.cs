@@ -13,6 +13,7 @@ using System.Linq;
 using Microsoft.CodeAnalysis.Operations;
 using REFrameworkNET;
 using System;
+using System.ComponentModel.DataAnnotations;
 
 public class ClassGenerator {
     public class PseudoProperty {
@@ -421,6 +422,17 @@ public class ClassGenerator {
                             break;
                         }
                     }
+
+                    if (baseTypes.Count > 0 && !shouldAddNewKeyword) {
+                        var declaringType = property.Value.getter.DeclaringType;
+                        if (declaringType != null) {
+                            var parent = declaringType.ParentType;
+
+                            if (parent != null && (parent.FindField(propertyName) != null || parent.FindField("<" + propertyName + ">k__BackingField") != null)) {
+                                shouldAddNewKeyword = true;
+                            }
+                        }
+                    }
                 }
 
                 if (property.Value.setter != null) {
@@ -468,6 +480,17 @@ public class ClassGenerator {
 
                             shouldAddNewKeyword = true;
                             break;
+                        }
+                    }
+
+                    if (baseTypes.Count > 0 && !shouldAddNewKeyword) {
+                        var declaringType = property.Value.setter.DeclaringType;
+                        if (declaringType != null) {
+                            var parent = declaringType.ParentType;
+
+                            if (parent != null && (parent.FindField(propertyName) != null || parent.FindField("<" + propertyName + ">k__BackingField") != null)) {
+                                shouldAddNewKeyword = true;
+                            }
                         }
                     }
                 }
@@ -577,6 +600,7 @@ public class ClassGenerator {
                     List<StatementSyntax> bodyStatementsSetter = [];
                     List<StatementSyntax> bodyStatementsGetter = [];
 
+
                     bodyStatementsGetter.Add(SyntaxFactory.ParseStatement("return (" + fieldType.GetText().ToString() + ")" + internalFieldName + ".GetDataBoxed(typeof(" + fieldType.GetText().ToString() + "), 0, false);"));
                     bodyStatementsSetter.Add(SyntaxFactory.ParseStatement(internalFieldName + ".SetDataBoxed(0, new object[] {value}, false);"));
 
@@ -589,9 +613,59 @@ public class ClassGenerator {
 
                 propertyDeclaration = propertyDeclaration.AddAccessorListAccessors(getter, setter);
 
-                if (this.t.ParentType != null && this.t.ParentType.FindField(field.Name) != null) {
-                    propertyDeclaration = propertyDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.NewKeyword));
+                // Search for k__BackingField version and the corrected version
+                if (this.t.ParentType != null) {
+                    var matchingField = this.t.ParentType.FindField(fieldName);
+                    matchingField ??= this.t.ParentType.FindField(field.Name);
+                    var matchingMethod = this.t.ParentType.FindMethod("get_" + fieldName);
+                    matchingMethod ??= this.t.ParentType.FindMethod("set_" + fieldName);
+
+                    bool added = false;
+
+                    if (matchingField != null) {
+                        var parentT = matchingField.DeclaringType;
+
+                        if (parentT != null && REFrameworkNET.AssemblyGenerator.validTypes.Contains(parentT.FullName)) {
+                            propertyDeclaration = propertyDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.NewKeyword));
+                            added = true;
+                        }
+                    }
+
+                    if (!added && matchingMethod != null) {
+                        var parentT = matchingMethod.DeclaringType;
+
+                        if (parentT != null && REFrameworkNET.AssemblyGenerator.validTypes.Contains(parentT.FullName)) {
+                            propertyDeclaration = propertyDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.NewKeyword));
+                        }
+                    }
+
+                    /*if ((this.t.ParentType.FindField(field.Name) != null || this.t.ParentType.FindField(fieldName) != null) || 
+                        (this.t.ParentType.FindMethod("get_" + fieldName) != null || this.t.ParentType.FindMethod("set_" + fieldName) != null))
+                    {
+                        //propertyDeclaration = propertyDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.NewKeyword));
+                    }*/
                 }
+
+                /*var fieldExtension = Il2CppDump.GetFieldExtension(field);
+
+                if (fieldExtension != null && fieldExtension.MatchingParentFields.Count > 0) {
+                    var matchingParentFields = fieldExtension.MatchingParentFields;
+
+                    // Go through the parents, check if the parents are allowed to be generated
+                    // and add the new keyword if the matching field is found in one allowed to be generated
+                    foreach (var matchingField in matchingParentFields) {
+                        var parent = matchingField.DeclaringType;
+                        if (parent == null) {
+                            continue;
+                        }
+                        if (!REFrameworkNET.AssemblyGenerator.validTypes.Contains(parent.FullName)) {
+                            continue;
+                        }
+
+                        propertyDeclaration = propertyDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.NewKeyword));
+                        break;
+                    }
+                }*/
 
                 return propertyDeclaration;
             });
@@ -674,6 +748,13 @@ public class ClassGenerator {
             var methodName = new string(method.Name);
             var methodExtension = Il2CppDump.GetMethodExtension(method);
 
+            // Hacky fix for MHR because parent classes have the same method names
+            // while we support that, we don't support constructed generic arguments yet, they are just "object"
+            if (methodName == "sortCountList") {
+                Console.WriteLine("Skipping sortCountList");
+                return null;
+            }
+
             var methodDeclaration = SyntaxFactory.MethodDeclaration(returnType, methodName ?? "UnknownMethod")
                 .AddModifiers(new SyntaxToken[]{SyntaxFactory.Token(SyntaxKind.PublicKeyword)})
                 /*.AddBodyStatements(SyntaxFactory.ParseStatement("throw new System.NotImplementedException();"))*/;
@@ -729,6 +810,10 @@ public class ClassGenerator {
 
                         if (paramName == null) {
                             paramName = "UnknownParam";
+                        }
+
+                        if (paramName == "object") {
+                            paramName = "object_"; // object is a reserved keyword.
                         }
 
                         var paramType = param.get_ParameterType();

@@ -17,8 +17,13 @@ using System.Collections.Concurrent;
 using System.Reflection.Metadata;
 
 public class Il2CppDump {
-    class Field {
+    public class Field {
+        public REFrameworkNET.Field Impl;
+        public Field(REFrameworkNET.Field impl) {
+            this.Impl = impl;
+        }
 
+        public List<REFrameworkNET.Field> MatchingParentFields = [];
     };
 
     public class Method {
@@ -77,6 +82,7 @@ public class Il2CppDump {
 
     static private Dictionary<REFrameworkNET.TypeDefinition, Type> typeExtensions = [];
     static private Dictionary<REFrameworkNET.Method, Method> methodExtensions = [];
+    static private Dictionary<REFrameworkNET.Field, Field> fieldExtensions = [];
     static public Type? GetTypeExtension(REFrameworkNET.TypeDefinition type) {
         if (typeExtensions.TryGetValue(type, out Type? value)) {
             return value;
@@ -104,6 +110,14 @@ public class Il2CppDump {
         return null;
     }
 
+    static public Field? GetFieldExtension(REFrameworkNET.Field field) {
+        if (fieldExtensions.TryGetValue(field, out Field? value)) {
+            return value;
+        }
+
+        return null;
+    }
+
     public static void FillTypeExtensions(REFrameworkNET.TDB context) {
         if (typeExtensions.Count > 0) {
             return;
@@ -125,46 +139,75 @@ public class Il2CppDump {
                 ext.NestedTypes.Add(t);
             }
 
-            if (t.GetNumMethods() == 0 || t.ParentType == null) {
-                continue;
+            if (t.GetNumMethods() != 0 && t.ParentType != null) {
+                // Look for methods with the same name and mark them as overrides
+                // We dont go through all parents, because GetMethod does that for us
+                // Going through all parents would exponentially increase the number of checks and they would be redundant
+                var parent = t.ParentType;
+                var tMethods = t.GetMethods();
+
+                //foreach (var method in t.Methods) {
+                //Parallel.ForEach(tMethods, method => {
+                foreach (REFrameworkNET.Method method in tMethods) { // parallel isn't necessary here because there arent many methods
+                    if (method == null) {
+                        continue;
+                    }
+
+                    if (GetMethodExtension(method) != null) {
+                        continue;
+                    }
+
+                    if (method.DeclaringType != t) {
+                        continue;
+                    }
+
+                    /*var parentMethod = parent.GetMethod(method.Name);
+
+                    if (parentMethod != null) {
+                        methodExtensions.Add(method, new Method(method) {
+                            Override = true
+                        });
+                    }*/
+
+                    var matchingParentMethods = method.GetMatchingParentMethods();
+
+                    if (matchingParentMethods.Count > 0) {
+                        methodExtensions.Add(method, new Method(method) {
+                            Override = true,
+                            MatchingParentMethods = matchingParentMethods
+                        });
+                    }
+                }
             }
 
-            // Look for methods with the same name and mark them as overrides
-            // We dont go through all parents, because GetMethod does that for us
-            // Going through all parents would exponentially increase the number of checks and they would be redundant
-            var parent = t.ParentType;
-            var tMethods = t.GetMethods();
+            if (t.GetNumFields() != 0 && t.ParentType != null) {
+                var tFields = t.GetFields();
 
-            //foreach (var method in t.Methods) {
-            //Parallel.ForEach(tMethods, method => {
-            foreach (REFrameworkNET.Method method in tMethods) { // parallel isn't necessary here because there arent many methods
-                if (method == null) {
-                    continue;
-                }
+                foreach (REFrameworkNET.Field field in tFields) {
+                    if (field == null) {
+                        continue;
+                    }
 
-                if (GetMethodExtension(method) != null) {
-                    continue;
-                }
+                    if (GetFieldExtension(field) != null) {
+                        continue;
+                    }
 
-                if (method.DeclaringType != t) {
-                    continue;
-                }
+                    List<REFrameworkNET.Field> matchingParentFields = [];
+                    for (var parent = t.ParentType; parent != null; parent = parent.ParentType) {
+                        var parentFields = parent.GetFields();
 
-                /*var parentMethod = parent.GetMethod(method.Name);
+                        foreach (var parentField in parentFields) {
+                            if (parentField.Name == field.Name) {
+                                matchingParentFields.Add(parentField);
+                            }
+                        }
+                    }
 
-                if (parentMethod != null) {
-                    methodExtensions.Add(method, new Method(method) {
-                        Override = true
-                    });
-                }*/
-
-                var matchingParentMethods = method.GetMatchingParentMethods();
-
-                if (matchingParentMethods.Count > 0) {
-                    methodExtensions.Add(method, new Method(method) {
-                        Override = true,
-                        MatchingParentMethods = matchingParentMethods
-                    });
+                    if (matchingParentFields.Count > 0) {
+                        fieldExtensions.Add(field, new Field(field) {
+                            MatchingParentFields = matchingParentFields
+                        });
+                    }
                 }
             }
         }   
@@ -193,6 +236,7 @@ public class AssemblyGenerator {
         '!',
         ' ',
         '`',
+        '\''
     ];
 
     public static string FixBadChars(string name) {
@@ -208,6 +252,25 @@ public class AssemblyGenerator {
         foreach (var c in invalidGenericChars) {
             name = name.Replace(c, '_');
         }*/
+
+        return name;
+    }
+
+    public static string FixBadChars_Internal(string name) {
+        int first = name.IndexOf('<');
+        int last = name.LastIndexOf('>');
+
+        if (first != -1 && last != -1) {
+            name = name.Substring(0, first) + name.Substring(first, last - first).Replace('.', '_') + name.Substring(last);
+        }
+
+        // Replace any invalid characters with underscores
+        foreach (var c in invalidGenericChars) {
+            name = name.Replace(c, '_');
+        }
+
+        // Replace any "[[", "]]" with "_"
+        name = name.Replace("[[", "_").Replace("]]", "_");
 
         return name;
     }
@@ -344,6 +407,10 @@ public class AssemblyGenerator {
                             return;
                         }
                     });
+
+                    if (equivalentArray != null) {
+                        return equivalentArray;
+                    }
                 }
             }
         }
@@ -487,13 +554,23 @@ public class AssemblyGenerator {
             }
 
             // Generics and arrays not yet supported
-            if (typeName.Contains("[[") /*|| typeName.Contains("]")*/ || typeName.Contains('!')) {
+            if (typeName.Contains("[[") || typeName.Contains('!')) {
                 continue;
             }
 
-            if (typeName.Contains('<') && !t.IsGenericTypeDefinition()) {
+            if (typeName.Contains('<') || typeName.Contains('`')) {
                 continue;
             }
+
+            // Check if abstract type and skip
+            /*var runtimeType = t.GetRuntimeType();
+
+            if (runtimeType != null && (runtimeType as dynamic).get_IsInterface()) {
+                System.Console.WriteLine("Skipping interface " + typeName);
+                continue;
+            }
+
+            var friendlyTypeName = FixBadChars_Internal(typeName);*/
 
             if (t.Namespace == null || t.Namespace.Length == 0) {
                 if (typeName.Length == 0) {
@@ -503,7 +580,7 @@ public class AssemblyGenerator {
                 var optionalPrefix = GetOptionalPrefix(t);
 
                 if (optionalPrefix != null) {
-                    typeFullRenames[t] = optionalPrefix + t.GetFullName();
+                    typeFullRenames[t] = optionalPrefix + typeName;
                 }
             }
 
@@ -602,7 +679,7 @@ public class AssemblyGenerator {
 
             if (generator.TypeDeclaration == null) {
                 return compilationUnit;
-            }
+            } 
 
             var generatedNamespace = ExtractNamespaceFromType(t);
 
@@ -731,6 +808,8 @@ public class AssemblyGenerator {
         }
 
         //compilationUnit = compilationUnit.AddUsings(SyntaxFactory.UsingDirective(SyntaxFactory.ParseName("System")));
+
+        System.Console.WriteLine("Compiling " + strippedAssemblyName + " with " + syntaxTrees.Count + " syntax trees...");
 
         var csoptions = new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, 
             optimizationLevel: OptimizationLevel.Release,
