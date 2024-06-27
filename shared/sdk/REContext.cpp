@@ -165,6 +165,8 @@ namespace sdk {
             return;
         }
 
+        sdk::RETypeDB* tdb = nullptr;
+
         for (auto i = 0; i < 0x20000; i += sizeof(void*)) {
             auto ptr = *(sdk::RETypeDB**)((uintptr_t)*potential_context + i);
 
@@ -173,6 +175,7 @@ namespace sdk {
             }
 
             if (*(uint32_t*)ptr == *(uint32_t*)"TDB") {
+                tdb = ptr; 
                 const auto version = *(uint32_t*)((uintptr_t)ptr + 4);
 
                 s_tdb_version = version;
@@ -286,6 +289,93 @@ namespace sdk {
         48 8B CF                                      mov     rcx, rdi
         */
 
+        auto alternative_invoke_scan = [&]() -> bool {
+            auto tdb_references = utility::scan_displacement_references(mod, (uintptr_t)tdb);
+
+            if (tdb_references.empty()) {
+                spdlog::info("[VM::update_pointers] Unable to find TDB references.");
+                return false;
+            }
+
+            for (const auto& ref : tdb_references) {
+                const auto fn_start = utility::find_function_start(ref);
+
+                if (!fn_start) {
+                    continue;
+                }
+
+                spdlog::info("[VM::update_pointers] Disassembling function at {:x}", *fn_start);
+
+                bool found = false;
+
+                utility::exhaustive_decode((uint8_t*)*fn_start, 1000, [&](utility::ExhaustionContext& ctx) -> utility::ExhaustionResult {
+                    if (found) {
+                        return utility::ExhaustionResult::BREAK;
+                    }
+
+                    if (std::string_view{ctx.instrux.Mnemonic} == "CALL") {
+                        return utility::ExhaustionResult::STEP_OVER;
+                    }
+
+                    if (std::string_view{ctx.instrux.Mnemonic} != "LEA") {
+                        return utility::ExhaustionResult::CONTINUE;
+                    }
+
+                    const auto disp = utility::resolve_displacement(ctx.addr);
+
+                    if (!disp) {
+                        return utility::ExhaustionResult::CONTINUE;
+                    }
+
+                    try {
+                        uintptr_t* functions = (uintptr_t*)*disp;
+
+                        // First pointer must always be null
+                        if (functions[0] != 0) {
+                            return utility::ExhaustionResult::CONTINUE;
+                        }
+
+                        // Rest of pointers are not null and point somewhere within the game module
+                        for (auto i = 1; i < 100; ++i) {
+                            if (functions[i] == 0 || IsBadReadPtr(&functions[i], sizeof(void*))) {
+                                return utility::ExhaustionResult::CONTINUE;
+                            }
+
+                            if (utility::get_module_within(functions[i]).value_or(nullptr) != mod) {
+                                return utility::ExhaustionResult::CONTINUE;
+                            }
+
+                            /*const auto ptr_fn_start = utility::find_function_start(functions[i]);
+
+                            if (!ptr_fn_start) {
+                                return utility::ExhaustionResult::CONTINUE;
+                            }
+
+                            if (*ptr_fn_start != functions[i]) {
+                                break;
+                            }*/
+                        }
+
+                        s_invoke_tbl = (sdk::InvokeMethod*)functions;
+                        found = true;
+
+                        spdlog::info("[VM::update_pointers] s_invoke_tbl: {:x}", (uintptr_t)s_invoke_tbl);
+
+                        return utility::ExhaustionResult::BREAK;
+                    } catch (...) {
+                        return utility::ExhaustionResult::CONTINUE;
+                    }
+
+                    return utility::ExhaustionResult::CONTINUE;
+                });
+
+                if (found) {
+                    return true;
+                }
+            }
+
+            return false;
+        };
 
         std::optional<uintptr_t> method_inside_invoke_tbl{std::nullopt};
 
@@ -297,12 +387,19 @@ namespace sdk {
                 break;
             }
         }
+
         if (!method_inside_invoke_tbl) {
             spdlog::info("[VM::update_pointers] Unable to find method inside invoke table. Trying fallback scan...");
             const auto anchor = utility::scan(mod, "8D 56 FF 48 8B CF E8 ? ? ? ?");
 
             if (!anchor) {
-                spdlog::info("[VM::update_pointers] Unable to find anchor for invoke table.");
+                spdlog::info("[VM::update_pointers] Unable to find anchor for invoke table, trying alternative scan...");
+
+                if (!alternative_invoke_scan()) {
+                    spdlog::info("[VM::update_pointers] Unable to find invoke table.");
+                    return;
+                }
+
                 return;
             }
 
@@ -310,6 +407,12 @@ namespace sdk {
 
             if (!lea_rdx) {
                 spdlog::info("[VM::update_pointers] Unable to find lea rdx for invoke table.");
+
+                if (!alternative_invoke_scan()) {
+                    spdlog::info("[VM::update_pointers] Unable to find invoke table.");
+                    return;
+                }
+
                 return;
             }
 
@@ -326,6 +429,12 @@ namespace sdk {
 
         if (!ptr_inside_invoke_tbl) {
             spdlog::info("[VM::update_pointers] Unable to find ptr inside invoke table.");
+
+            if (!alternative_invoke_scan()) {
+                spdlog::info("[VM::update_pointers] Unable to find invoke table.");
+                return;
+            }
+
             return;
         }
 

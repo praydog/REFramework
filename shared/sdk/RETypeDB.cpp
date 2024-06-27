@@ -457,13 +457,62 @@ void* REMethodDefinition::get_function() const {
     // The function this function uses to offset from has a predictable pattern as well.
     // So the pattern for that can be searched for if this one breaks.
     // It remains to be seen if this "encoding" is used in games other than MHRise.
+    static uintptr_t encoded_function_base = [&]() -> uintptr_t {
+        const auto game = utility::get_executable();
+        const auto invoke_table = sdk::VM::get_invoke_table();
+
+        if (invoke_table == nullptr) {
+            spdlog::error("[REMethodDefinition] Failed to find invoke table, cannot find encoded_function_base");
+            return 0;
+        }
+
+        const auto first_fn = invoke_table[1];
+
+        if (first_fn == nullptr) {
+            spdlog::error("[REMethodDefinition] Failed to find first function in invoke table, cannot find encoded_function_base");
+            return 0;
+        }
+
+        uintptr_t result = 0;
+
+        utility::exhaustive_decode((uint8_t*)first_fn, 100, [&](utility::ExhaustionContext& ctx) -> utility::ExhaustionResult {
+            if (result != 0) {
+                return utility::ExhaustionResult::BREAK;
+            }
+
+            if (std::string_view{ctx.instrux.Mnemonic} != "LEA") {
+                return utility::ExhaustionResult::CONTINUE;
+            }
+
+            const auto disp = utility::resolve_displacement(ctx.addr);
+
+            if (!disp) {
+                return utility::ExhaustionResult::CONTINUE;
+            }
+
+            if (utility::get_module_within(*disp).value_or(nullptr) != game) {
+                return utility::ExhaustionResult::CONTINUE;
+            }
+
+            result = *disp;
+            return utility::ExhaustionResult::BREAK;
+        });
+
+        spdlog::info("[REMethodDefinition] Found encoded_function_base at {:x}", result);
+
+        return result;
+    }();
+
     static void* (*get_encoded_pointer)(int32_t offset) = []() {
         spdlog::info("[REMethodDefinition] Finding get_encoded_pointer");
 
         auto fn = utility::scan(utility::get_executable(), "85 C9 75 03 33 C0 C3 48 63 C1 48 8d 0D ? ? ? ? 48 03 C1 C3");
 
+        // Alternative scan where we find the first LEA instruction that loads a pointer to a function basically
+        // inside the invoke table.
         if (!fn) {
             spdlog::error("[REMethodDefinition] Failed to find get_encoded_pointer");
+
             return (void* (*)(int32_t))nullptr;
         }
 
@@ -473,6 +522,10 @@ void* REMethodDefinition::get_function() const {
     }();
 
     if (get_encoded_pointer == nullptr) {
+        if (encoded_function_base != 0) {
+            return (void*)(encoded_function_base + this->encoded_offset);
+        }
+
         return nullptr;
     }
 

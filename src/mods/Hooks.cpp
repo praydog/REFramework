@@ -553,13 +553,18 @@ std::optional<std::string> Hooks::hook_view_get_size() {
     spdlog::info("via.SceneView.get_Size: {:x}", (uintptr_t)get_size_func);
 
     // Pattern scan for the native function call
-    auto ref = utility::scan((uintptr_t)get_size_func, 0x100, "49 8B C8 E8");
+    //auto ref = utility::scan((uintptr_t)get_size_func, 0x100, "49 8B C8 E8");
+    auto ref = utility::find_pattern_in_path((uint8_t*)get_size_func, 1000, false, "49 8B C8 E8");
+
+    if (!ref) {
+        ref = utility::find_pattern_in_path((uint8_t*)get_size_func, 1000, false, "48 8B CB E8");
+    }
 
     if (!ref) {
         return "Hook init failed: via.SceneView.get_Size native function not found. Pattern scan failed.";
     }
 
-    auto native_func = utility::calculate_absolute(*ref + 4);
+    auto native_func = utility::calculate_absolute(ref->addr + 4);
 
     // Hook the native function
     m_view_get_size_hook = std::make_unique<FunctionHook>(native_func, view_get_size_hook);
@@ -583,13 +588,17 @@ std::optional<std::string> Hooks::hook_camera_get_projection_matrix() {
     spdlog::info("via.Camera.get_ProjectionMatrix: {:x}", (uintptr_t)func);
     
     // Pattern scan for the native function call
-    auto ref = utility::scan((uintptr_t)func, 0x100, "49 8B C8 E8");
+    auto ref = utility::find_pattern_in_path((uint8_t*)func, 1000, false, "49 8B C8 E8");
+
+    if (!ref) {
+        ref = utility::find_pattern_in_path((uint8_t*)func, 1000, false, "48 8B CB E8");
+    }
 
     if (!ref) {
         return "Hook init failed: via.Camera.get_ProjectionMatrix native function not found. Pattern scan failed.";
     }
 
-    auto native_func = utility::calculate_absolute(*ref + 4);
+    auto native_func = utility::calculate_absolute(ref->addr + 4);
 
     // Hook the native function
     m_camera_get_projection_matrix_hook = std::make_unique<FunctionHook>(native_func, camera_get_projection_matrix_hook);
@@ -613,13 +622,17 @@ std::optional<std::string> Hooks::hook_camera_get_view_matrix() {
     spdlog::info("via.Camera.get_ViewMatrix: {:x}", (uintptr_t)func);
 
     // Pattern scan for the native function call
-    auto ref = utility::scan((uintptr_t)func, 0x100, "49 8B C8 E8");
+    auto ref = utility::find_pattern_in_path((uint8_t*)func, 1000, false, "49 8B C8 E8");
+
+    if (!ref) {
+        ref = utility::find_pattern_in_path((uint8_t*)func, 1000, false, "48 8B CB E8");
+    }
 
     if (!ref) {
         return "Hook init failed: via.Camera.get_ViewMatrix native function not found. Pattern scan failed.";
     }
 
-    auto native_func = utility::calculate_absolute(*ref + 4);
+    auto native_func = utility::calculate_absolute(ref->addr + 4);
 
     // Hook the native function
     m_camera_get_view_matrix_hook = std::make_unique<FunctionHook>(native_func, camera_get_view_matrix_hook);

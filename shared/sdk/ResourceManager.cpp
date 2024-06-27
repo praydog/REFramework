@@ -100,6 +100,8 @@ void ResourceManager::update_pointers() {
             return;
         }
 
+        spdlog::info("[ResourceManager::create_resource] Found string reference at {:x}", *string_reference);
+
         // use HDE to disasm *string_reference - 3 and disasm forward a bit
         // to find a call instruction which is the function we want
         auto ip = *string_reference - 3;
@@ -126,8 +128,10 @@ void ResourceManager::update_pointers() {
             // now find create_userdata, using the previous function as a reference to ignore
             // since they both have the same pattern at the start of the function
             const auto valid_patterns = {
+#if TDB_VER < 73
                 "66 83 F8 40 75 ? C6",
                 "66 83 F8 40 75 ? 48",
+#endif
                 "66 41 83 39 40" // DD2+
             };
 

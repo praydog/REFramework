@@ -167,6 +167,23 @@ namespace via {
 }
 
 namespace via {
+    struct Application 0x5000 {
+        struct Function {
+            void* entry; // 0 
+            void* func;
+            void* unk; // 0x10
+            char* description [[utf8*]]; // 0x18
+            uint16_t priority; // 0x20 (via.ModuleEntry enum)
+            uint16_t type; // 0x22
+
+            uint8_t pad[0xAC];
+        }
+
+        Function functions[100] @ 0x808
+    }
+}
+
+namespace via {
     struct Transform{};
     struct Folder{};
 
