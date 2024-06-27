@@ -524,7 +524,29 @@ void IntegrityCheckBypass::immediate_patch_dd2() {
 
         spdlog::info("[IntegrityCheckBypass]: Patched conditional_jmp! (DD2)");
     } else {
-        spdlog::error("[IntegrityCheckBypass]: Could not find conditional_jmp for DD2.");
+        spdlog::error("[IntegrityCheckBypass]: Could not find conditional_jmp for DD2, attempting fallback.");
+
+        const auto create_blas_fn = utility::find_function_from_string_ref(game, "createBLAS");
+
+        if (create_blas_fn) {
+            const auto and_eax_07_instr = utility::find_pattern_in_path((uint8_t*)*create_blas_fn, 100, false, "83 E0 07");
+            
+            if (and_eax_07_instr) {
+                // Find next conditional jmp and patch it.
+                const auto conditional_jmp = utility::scan_mnemonic(and_eax_07_instr->addr + and_eax_07_instr->instrux.Length, 10, "JNZ");
+
+                if (conditional_jmp) {
+                    // Jnz->Jmp
+                    static auto dd2patch = Patch::create(*conditional_jmp, { 0xEB }, true);
+
+                    spdlog::info("[IntegrityCheckBypass]: Patched conditional_jmp! (DD2)");
+                } else {
+                    spdlog::error("[IntegrityCheckBypass]: Could not find conditional_jmp for DD2.");
+                }
+            }
+        } else {
+            spdlog::error("[IntegrityCheckBypass]: Could not find createBLAS!");
+        }
     }
 
     const auto second_conditional_jmp_block = utility::scan(game, "49 3B D0 75 ? ? 8B ? ? ? ? ? ? 8B ? ? ? ? ? ? 8B ? ? 8B ? ? ? ? ?");
