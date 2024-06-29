@@ -725,7 +725,11 @@ void Graphics::setup_path_trace_hook() {
 
     const auto game = utility::get_executable();
     const auto start1 = std::chrono::high_resolution_clock::now();
-    const auto ref = utility::find_function_from_string_ref(game, "RayTraceSettings", true);
+    auto ref = utility::find_function_from_string_ref(game, "RayTraceSettings", true);
+
+    if (!ref.has_value()) {
+        ref = utility::find_function_from_string_ref(game, "DXRDebug", true);
+    }
 
     if (!ref.has_value()) {
         spdlog::error("[Graphics] Failed to find function with RayTraceSettings string reference");
