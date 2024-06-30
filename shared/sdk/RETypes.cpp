@@ -85,7 +85,7 @@ RETypes::RETypes() {
             try {
                 TypeList* potential_types = (TypeList*)*disp;
 
-                if (potential_types->data == nullptr) {
+                if (potential_types->data == nullptr || IsBadReadPtr(potential_types->data, sizeof(uintptr_t))) {
                     return utility::ExhaustionResult::CONTINUE;
                 }
 
@@ -102,7 +102,7 @@ RETypes::RETypes() {
 
                     if (t->name != nullptr && (std::string_view{t->name} == "via.clr.ManagedObject" || std::string_view{t->name} == "via.Object")) {
                         m_raw_types = potential_types;
-                        spdlog::info("Found TypeList: {:x}", (uintptr_t)m_raw_types);
+                        spdlog::info("Found TypeList: {:x} at ref {:x}", (uintptr_t)m_raw_types, ctx.addr);
                         break;
                     }
                 } catch(...) {

@@ -6,6 +6,8 @@ class Resource;
 #pragma once
 
 #include <string_view>
+#include <optional>
+
 #include "ManagedObject.hpp"
 #include "intrusive_ptr.hpp"
 
@@ -24,6 +26,7 @@ private:
     static void update_pointers();
     static void (*s_add_ref_fn)(Resource*);
     static void (*s_release_fn)(Resource*);
+    static inline std::optional<size_t> s_refcount_offset{};
 };
 
 class ResourceManager {
