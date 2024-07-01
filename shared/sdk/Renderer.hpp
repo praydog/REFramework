@@ -90,7 +90,7 @@ public:
     }
 
 private:
-#if TDB_VER >= 73
+#if TDB_VER >= 73 || defined(SF6)
     static constexpr inline auto s_desc_offset = sizeof(RenderResource) + 0x18;
 #else
     static constexpr inline auto s_desc_offset = sizeof(RenderResource) + sizeof(void*);
