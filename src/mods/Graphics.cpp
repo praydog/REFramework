@@ -313,6 +313,12 @@ void Graphics::fix_ui_element(REComponent* gui_element) {
         return;
     }
 
+    const auto go_name = utility::re_string::get_view(game_object->name);
+
+    if (go_name == L"BlackFade") {
+        return; // Don't do anything with the black fade, it should be taking over the whole screen
+    }
+
     const auto gui_component = utility::re_component::find<REComponent*>(game_object->transform, "via.gui.GUI");
 
     if (gui_component == nullptr) {
