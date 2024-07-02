@@ -388,6 +388,8 @@ bool Graphics::on_pre_gui_draw_element(REComponent* gui_element, void* primitive
 #endif
 
     auto game_object = utility::re_component::get_game_object(gui_element);
+    static auto letter_box_behavior_t = sdk::find_type_definition("app.LetterBoxBehavior");
+    static auto letter_box_behavior_retype = letter_box_behavior_t != nullptr ? letter_box_behavior_t->get_type() : nullptr;
 
     if (game_object != nullptr && game_object->transform != nullptr) {
         const auto name = utility::re_string::get_string(game_object->name);
@@ -399,6 +401,18 @@ bool Graphics::on_pre_gui_draw_element(REComponent* gui_element, void* primitive
         case "GUIEventPillar"_fnv:
             game_object->shouldDraw = false;
             return false;
+        
+        case "Gui_ui0211"_fnv: // Kunitsu-Gami
+            if (letter_box_behavior_t != nullptr) {
+                auto letter_box_behavior = utility::re_component::find<REComponent*>(game_object->transform, letter_box_behavior_retype);
+
+                if (letter_box_behavior != nullptr) {
+                    game_object->shouldDraw = false;
+                    return false;
+                }
+            }
+
+            break;
 
 #if defined(DD2)
         case "ui012203"_fnv:
