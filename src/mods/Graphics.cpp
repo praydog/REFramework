@@ -99,6 +99,9 @@ void Graphics::on_draw_ui() {
 
         if (m_ultrawide_fix->value()) {
             m_ultrawide_constrain_ui->draw("Ultrawide: Constrain UI to 16:9");
+            if (m_ultrawide_constrain_ui->value()) {
+                m_ultrawide_constrain_child_ui->draw("Ultrawide: Constrain Child UI to 16:9");
+            }
             m_ultrawide_vertical_fov->draw("Ultrawide: Enable Vertical FOV");
             m_ultrawide_custom_fov->draw("Ultrawide: Override FOV");
             m_ultrawide_fov_multiplier->draw("Ultrawide: FOV Multiplier");
@@ -351,6 +354,18 @@ void Graphics::fix_ui_element(REComponent* gui_element) {
         set_res_adjust_scale->call<void>(sdk::get_thread_context(), view, (int32_t)via::gui::ResolutionAdjustScale::FitSmallRatioAxis);
         set_res_adjust_anchor->call<void>(sdk::get_thread_context(), view, (int32_t)via::gui::ResolutionAdjustAnchor::CenterCenter);
         set_resolution_adjust->call<void>(sdk::get_thread_context(), view, true); // Causes the options to be applied/used
+
+        static const auto get_child = view_t->get_method("get_Child");
+
+        if (get_child != nullptr && m_ultrawide_constrain_child_ui->value()) {
+            const auto child = get_child->call<::REManagedObject*>(sdk::get_thread_context(), view);
+
+            if (child != nullptr) {
+                set_res_adjust_scale->call<void>(sdk::get_thread_context(), child, (int32_t)via::gui::ResolutionAdjustScale::FitSmallRatioAxis);
+                set_res_adjust_anchor->call<void>(sdk::get_thread_context(), child, (int32_t)via::gui::ResolutionAdjustAnchor::CenterCenter);
+                set_resolution_adjust->call<void>(sdk::get_thread_context(), child, true); // Causes the options to be applied/used
+            }
+        }
     }
 }
 
