@@ -208,7 +208,9 @@ namespace sdk {
         if (s_global_context != nullptr && *s_global_context != nullptr) {
             auto static_tbl = (REStaticTbl**)((uintptr_t)*s_global_context + s_static_tbl_offset);
             bool found_static_tbl_offset = false;
-            if (IsBadReadPtr(*static_tbl, sizeof(void*)) || ((uintptr_t)*static_tbl & (sizeof(void*) - 1)) != 0) {
+            const auto before_static_tbl_size = *(uint32_t*)((uintptr_t)static_tbl + sizeof(void*));
+            spdlog::info("[VM::update_pointers] Static table size (before): {}", *(uint32_t*)((uintptr_t)static_tbl + sizeof(void*)));
+            if (IsBadReadPtr(*static_tbl, sizeof(void*)) || ((uintptr_t)*static_tbl & (sizeof(void*) - 1)) != 0 || before_static_tbl_size > 9999999 || before_static_tbl_size < 2000) {
                 spdlog::info("[VM::update_pointers] Static table offset is bad, correcting...");
 
                 // We are looking for the two arrays, the static field table, and the static field "initialized table"

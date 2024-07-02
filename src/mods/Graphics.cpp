@@ -98,6 +98,10 @@ void Graphics::on_draw_ui() {
         }
 
         if (m_ultrawide_fix->value()) {
+            m_ultrawide_constrain_ui->draw("Ultrawide: Constrain UI to 16:9");
+            if (m_ultrawide_constrain_ui->value()) {
+                m_ultrawide_constrain_child_ui->draw("Ultrawide: Constrain Child UI to 16:9");
+            }
             m_ultrawide_vertical_fov->draw("Ultrawide: Enable Vertical FOV");
             m_ultrawide_custom_fov->draw("Ultrawide: Override FOV");
             m_ultrawide_fov_multiplier->draw("Ultrawide: FOV Multiplier");
@@ -309,6 +313,12 @@ void Graphics::fix_ui_element(REComponent* gui_element) {
         return;
     }
 
+    const auto go_name = utility::re_string::get_view(game_object->name);
+
+    if (go_name == L"BlackFade") {
+        return; // Don't do anything with the black fade, it should be taking over the whole screen
+    }
+
     const auto gui_component = utility::re_component::find<REComponent*>(game_object->transform, "via.gui.GUI");
 
     if (gui_component == nullptr) {
@@ -350,6 +360,18 @@ void Graphics::fix_ui_element(REComponent* gui_element) {
         set_res_adjust_scale->call<void>(sdk::get_thread_context(), view, (int32_t)via::gui::ResolutionAdjustScale::FitSmallRatioAxis);
         set_res_adjust_anchor->call<void>(sdk::get_thread_context(), view, (int32_t)via::gui::ResolutionAdjustAnchor::CenterCenter);
         set_resolution_adjust->call<void>(sdk::get_thread_context(), view, true); // Causes the options to be applied/used
+
+        static const auto get_child = view_t->get_method("get_Child");
+
+        if (get_child != nullptr && m_ultrawide_constrain_child_ui->value()) {
+            const auto child = get_child->call<::REManagedObject*>(sdk::get_thread_context(), view);
+
+            if (child != nullptr) {
+                set_res_adjust_scale->call<void>(sdk::get_thread_context(), child, (int32_t)via::gui::ResolutionAdjustScale::FitSmallRatioAxis);
+                set_res_adjust_anchor->call<void>(sdk::get_thread_context(), child, (int32_t)via::gui::ResolutionAdjustAnchor::CenterCenter);
+                set_resolution_adjust->call<void>(sdk::get_thread_context(), child, true); // Causes the options to be applied/used
+            }
+        }
     }
 }
 
@@ -365,9 +387,15 @@ bool Graphics::on_pre_gui_draw_element(REComponent* gui_element, void* primitive
     // TODO: Check how this interacts with the other games, could be useful for them too.
 #if defined(SF6)
     fix_ui_element(gui_element);
+#else
+    if (m_ultrawide_constrain_ui->value()) {
+        fix_ui_element(gui_element);
+    }
 #endif
 
     auto game_object = utility::re_component::get_game_object(gui_element);
+    static auto letter_box_behavior_t = sdk::find_type_definition("app.LetterBoxBehavior");
+    static auto letter_box_behavior_retype = letter_box_behavior_t != nullptr ? letter_box_behavior_t->get_type() : nullptr;
 
     if (game_object != nullptr && game_object->transform != nullptr) {
         const auto name = utility::re_string::get_string(game_object->name);
@@ -379,6 +407,18 @@ bool Graphics::on_pre_gui_draw_element(REComponent* gui_element, void* primitive
         case "GUIEventPillar"_fnv:
             game_object->shouldDraw = false;
             return false;
+        
+        case "Gui_ui0211"_fnv: // Kunitsu-Gami
+            if (letter_box_behavior_t != nullptr) {
+                auto letter_box_behavior = utility::re_component::find<REComponent*>(game_object->transform, letter_box_behavior_retype);
+
+                if (letter_box_behavior != nullptr) {
+                    game_object->shouldDraw = false;
+                    return false;
+                }
+            }
+
+            break;
 
 #if defined(DD2)
         case "ui012203"_fnv:
