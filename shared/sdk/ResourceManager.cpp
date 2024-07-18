@@ -19,6 +19,17 @@ decltype(Resource::s_release_fn) Resource::s_release_fn = nullptr;
 void Resource::add_ref() {
     ResourceManager::update_pointers();
 
+    // Hmm...
+    if (s_add_ref_fn == nullptr) {
+        if (s_refcount_offset.has_value()) {
+            _InterlockedIncrement((volatile LONG*)((uintptr_t)this + *s_refcount_offset));
+        } else {
+            _InterlockedIncrement((volatile LONG*)((uintptr_t)this + 0x28));
+        }
+        
+        return;
+    }
+
     s_add_ref_fn(this);
 }
 
@@ -244,5 +255,18 @@ void Resource::update_pointers() {
 
     auto first_call = locate_add_ref_or_release(ResourceManager::s_create_resource_reference + CALL_INSN_SIZE); // first pass finds add_ref or release
     locate_add_ref_or_release(*first_call + CALL_INSN_SIZE); // second pass finds add_ref or release
+
+    if (s_add_ref_fn == nullptr) {
+        const auto first_lock_inc = utility::find_pattern_in_path((uint8_t*)(ResourceManager::s_create_resource_reference + CALL_INSN_SIZE), 15, false, "F0 FF");
+
+        if (first_lock_inc.has_value()) {
+            const auto& ix = first_lock_inc->instrux;
+
+            if (ix.HasLock && ix.Instruction == ND_INS_INC && ix.Operands[0].Type == ND_OP_MEM && ix.Operands[0].Info.Memory.HasBase && ix.Operands[0].Info.Memory.HasDisp) {
+                s_refcount_offset = ix.Operands[0].Info.Memory.Disp;
+                spdlog::info("[Resource::update_pointers] Found refcount offset at {:x}", *s_refcount_offset);
+            }
+        }
+    }
 }
 }

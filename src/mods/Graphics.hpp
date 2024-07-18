@@ -166,6 +166,8 @@ private:
     const ModToggle::Ptr m_ultrawide_fix{ ModToggle::create(generate_name("UltrawideFix"), false) };
     const ModToggle::Ptr m_ultrawide_vertical_fov{ ModToggle::create(generate_name("UltrawideFixVerticalFOV_V2"), false) };
     const ModToggle::Ptr m_ultrawide_custom_fov{ModToggle::create(generate_name("UltrawideCustomFOV"), false)};
+    const ModToggle::Ptr m_ultrawide_constrain_ui{ModToggle::create(generate_name("UltrawideConstrainUI"), false)};
+    const ModToggle::Ptr m_ultrawide_constrain_child_ui{ModToggle::create(generate_name("UltrawideConstrainChildUI"), false)};
     const ModSlider::Ptr m_ultrawide_fov_multiplier{ ModSlider::create(generate_name("UltrawideFOVMultiplier_V2"), 0.01f, 3.0f, 1.0f) };
     const ModToggle::Ptr m_disable_gui{ ModToggle::create(generate_name("DisableGUI"), false) };
     const ModToggle::Ptr m_force_render_res_to_window{ ModToggle::create(generate_name("ForceRenderResToWindow"), false) };
@@ -234,6 +236,8 @@ private:
         *m_ultrawide_fix,
         *m_ultrawide_vertical_fov,
         *m_ultrawide_custom_fov,
+        *m_ultrawide_constrain_ui,
+        *m_ultrawide_constrain_child_ui,
         *m_ultrawide_fov_multiplier,
         *m_disable_gui,
         *m_force_render_res_to_window,
