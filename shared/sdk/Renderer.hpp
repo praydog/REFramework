@@ -409,7 +409,10 @@ public:
     }
 
 private:
-#if TDB_VER >= 71
+    // Man I REALLY need a way of automatically finding this.
+#if TDB_VER >= 73
+    static constexpr inline auto s_output_state_offset = 0x118;
+#elif TDB_VER >= 71
     // verify for other games, this is for RE4
     static constexpr inline auto s_output_state_offset = 0x108;
 #elif TDB_VER >= 69

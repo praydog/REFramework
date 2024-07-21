@@ -1377,7 +1377,7 @@ struct Scene : via.render.RenderLayer 0x1AC0 {
 };
 
 struct PrepareOutput : via.render.RenderLayer 0x1000 {
-    via.render.TargetState* output_state @ 0x108
+    via.render.TargetState* output_state @ 0x118
 };
 }
 
