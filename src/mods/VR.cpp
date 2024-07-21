@@ -6,6 +6,7 @@
 #include <glm/gtx/transform.hpp>
 
 #include <sdk/TDBVer.hpp>
+#include <reframework/API.hpp>
 
 #if TDB_VER <= 49
 #include "sdk/regenny/re7/via/Window.hpp"
@@ -48,6 +49,7 @@
 #include "utility/Module.hpp"
 #include "utility/Memory.hpp"
 #include "utility/Registry.hpp"
+#include "utility/ScopeGuard.hpp"
 
 #include "FirstPerson.hpp"
 #include "ManualFlashlight.hpp"
@@ -76,6 +78,18 @@ std::optional<regenny::via::Size> g_previous_size{};
 
 // Purpose: spoof the render target size to the size of the HMD displays
 void VR::on_view_get_size(REManagedObject* scene_view, float* result) {
+    // There are some very dumb optimizations that cause set_DisplayType
+    // to go through this hook. This function is actually something like "updateSceneView"
+    static thread_local bool already_inside = false;
+
+    if (already_inside) {
+        return;
+    }
+
+    already_inside = true;
+
+    utility::ScopeGuard _{ [&]() { already_inside = false; } };
+
     if (!g_framework->is_ready()) {
         return;
     }
@@ -92,7 +106,7 @@ void VR::on_view_get_size(REManagedObject* scene_view, float* result) {
     auto window = regenny_view->window;
 
     static auto via_scene_view = sdk::find_type_definition("via.SceneView");
-    static auto set_display_type_method = via_scene_view->get_method("set_DisplayType");
+    static auto set_display_type_method = via_scene_view != nullptr ? via_scene_view->get_method("set_DisplayType") : nullptr;
 
     // Force the display to stretch to the window size
     if (set_display_type_method != nullptr) {
@@ -194,8 +208,19 @@ void VR::on_view_get_size(REManagedObject* scene_view, float* result) {
     }
 
     // spoof the size to the HMD's size
+#if TDB_VER < 73
     result[0] = wanted_width;
     result[1] = wanted_height;
+#else
+    // Stupid optimizations cause the game to not use the result variant of this function
+    // but rather update the current scene view's size directly.
+    regenny_view->size.w = wanted_width;
+    regenny_view->size.h = wanted_height;
+    //regenny_view->custom_display_size.w = wanted_width;
+    //regenny_view->custom_display_size.h = wanted_height;
+    //regenny_view->present_rect.w = wanted_width;
+    //regenny_view->present_rect.h = wanted_height;
+#endif
 }
 
 void VR::on_camera_get_projection_matrix(REManagedObject* camera, Matrix4x4f* result) {
