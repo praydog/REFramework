@@ -2393,6 +2393,11 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
             return false;
 #endif
 
+#if TDB_VER >= 73
+        case "ui0199"_fnv: // weird black bars in Kunitsu-Gami
+            return false;
+#endif
+
         default:
             break;
         };
