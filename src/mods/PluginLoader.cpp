@@ -618,7 +618,7 @@ void PluginLoader::early_init() try {
     }
 
     spdlog::info("[PluginLoader] Loading plugins...");
-
+    
     // Load all dlls in the plugins directory.
     for (auto&& entry : fs::directory_iterator{plugin_path}) {
         auto&& path = entry.path();
@@ -642,11 +642,12 @@ void PluginLoader::early_init() try {
     spdlog::error("[PluginLoader] Unknown exception during early init");
 }
 
-std::optional<std::string> PluginLoader::on_initialize() {
-    std::scoped_lock _{m_mux};
+void PluginLoader::on_frame() {
+    init_d3d_pointers();
+}
 
+void PluginLoader::init_d3d_pointers() {
     // Call reframework_plugin_required_version on any dlls that export it.
-    g_plugin_initialize_param.reframework_module = g_framework->get_reframework_module();
     reframework::g_renderer_data.renderer_type = (int)g_framework->get_renderer_type();
     
     if (reframework::g_renderer_data.renderer_type == REFRAMEWORK_RENDERER_D3D11) {
@@ -660,12 +661,15 @@ std::optional<std::string> PluginLoader::on_initialize() {
         reframework::g_renderer_data.device = d3d12->get_device();
         reframework::g_renderer_data.swapchain = d3d12->get_swap_chain();
         reframework::g_renderer_data.command_queue = d3d12->get_command_queue();
-    } else {
-        spdlog::error("[PluginLoader] Unsupported renderer type {}", reframework::g_renderer_data.renderer_type);
-        return "PluginLoader: Unsupported renderer type detected";
     }
+}
+
+std::optional<std::string> PluginLoader::on_initialize() {
+    std::scoped_lock _{m_mux};
 
     verify_sdk_pointers();
+
+    g_plugin_initialize_param.reframework_module = g_framework->get_reframework_module();
 
     for (auto it = m_plugins.begin(); it != m_plugins.end();) {
         auto name = it->first;
@@ -757,7 +761,9 @@ std::optional<std::string> PluginLoader::on_initialize() {
         ++it;
     }
 
-    return std::nullopt;
+    m_plugins_loaded = true;
+
+    return Mod::on_initialize();
 }
 
 void PluginLoader::on_draw_ui() {
@@ -891,6 +897,8 @@ bool reframework_on_imgui_frame(REFOnImGuiFrameCb cb) {
     if (cb == nullptr) {
         return false;
     }
+    
+    PluginLoader::get()->init_d3d_pointers();
 
     return APIProxy::get()->add_on_imgui_frame(cb);
 }
@@ -900,6 +908,8 @@ bool reframework_on_imgui_draw_ui(REFOnImGuiFrameCb cb) {
     if (cb == nullptr) {
         return false;
     }
+
+    PluginLoader::get()->init_d3d_pointers();
 
     return APIProxy::get()->add_on_imgui_draw_ui(cb);
 }
