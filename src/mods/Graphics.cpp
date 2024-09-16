@@ -467,8 +467,15 @@ void Graphics::on_view_get_size(REManagedObject* scene_view, float* result) {
         return;
     }
 
+#if TDB_VER < 73
     result[0] = (float)(*m_backbuffer_size)[0];
     result[1] = (float)(*m_backbuffer_size)[1];
+#else
+    auto regenny_view = (regenny::via::SceneView*)scene_view;
+
+    regenny_view->size.w = (float)(*m_backbuffer_size)[0];
+    regenny_view->size.h = (float)(*m_backbuffer_size)[1];
+#endif
 }
 
 void Graphics::do_scope_tweaks(sdk::renderer::layer::Scene* layer) {
