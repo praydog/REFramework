@@ -49,7 +49,7 @@ void FreeCam::on_draw_ui() {
     ImGui::SameLine();
     m_lock_camera->draw("Lock Position");
 
-#if !defined(SF6) || !defined(RE8)
+#if !defined(SF6) || defined(RE2) || defined(RE3) || defined(RE8)
     m_disable_movement->draw("Disable Character Movement");
 #endif
 
