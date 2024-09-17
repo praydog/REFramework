@@ -562,6 +562,11 @@ public class AssemblyGenerator {
                 continue;
             }
 
+            if (typeName.Any(c => c > 127)) {
+                System.Console.WriteLine("Skipping type with non-ascii characters " + typeName);
+                continue;
+            }
+
             // Check if abstract type and skip
             /*var runtimeType = t.GetRuntimeType();
 
