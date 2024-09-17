@@ -475,7 +475,7 @@ class ObjectExplorer {
             if (ImGui.TreeNode("AppDomain")) {
                 if (assemblies != null && ImGui.TreeNode("Assemblies")) {
                     for (int i = 0; i < assemblies.Length; i++) {
-                        var assembly = assemblies[i];
+                        var assembly = assemblies.Get(i); // There is a strange thing in the generation where newer REE games do not generate an accessor for this, so we have to use Get instead
                         var assemblyT = (assembly as IObject).GetTypeDefinition();
                         var location = assembly.Location ?? "null";
                         

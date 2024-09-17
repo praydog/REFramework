@@ -119,9 +119,15 @@ check_dlls_exist("re2" "${RE2_DLLS}" "REFRAMEWORK_REF_ASSEMBLIES_EXIST_RE2")
 set(RE4_DLLS "REFramework.NET._mscorlib.dll;REFramework.NET._System.dll;REFramework.NET._System.Core.dll;REFramework.NET.application.dll;REFramework.NET.viacore.dll")
 check_dlls_exist("re4" "${RE4_DLLS}" "REFRAMEWORK_REF_ASSEMBLIES_EXIST_RE4")
 
+# DMC5
+set(DMC5_DLLS "REFramework.NET._mscorlib.dll;REFramework.NET._System.dll;REFramework.NET._System.Core.dll;REFramework.NET.application.dll;REFramework.NET.viacore.dll")
+check_dlls_exist("dmc5" "${DMC5_DLLS}" "REFRAMEWORK_REF_ASSEMBLIES_EXIST_DMC5")
+
 # DD2
 set(DD2_DLLS "REFramework.NET._System.dll;REFramework.NET.application.dll;REFramework.NET.viacore.dll")
 check_dlls_exist("dd2" "${DD2_DLLS}" "REFRAMEWORK_REF_ASSEMBLIES_EXIST_DD2")
+
+
 
 # Define a list of NuGet packages and their versions
 # the last part, the package framework will only be used for copying the files
