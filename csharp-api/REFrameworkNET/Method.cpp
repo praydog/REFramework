@@ -28,30 +28,18 @@ ManagedObject^ Method::GetRuntimeMethod() {
         return nullptr;
     }
 
-    // System.Type
-    auto runtimeType = declaringType->GetRuntimeType()/*->As<System::Type^>()*/;
+    auto methods = declaringType->GetRuntimeMethods();
+    for each (REFrameworkNET::ManagedObject^ method in methods) {
+        // Get the type handle and compare it to this (raw pointer stored in the Method object)
+        // System.RuntimeMethodHandle automatically gets converted to a Method object
+        auto methodHandle = (Method^)method->Call("get_MethodHandle");
 
-    if (runtimeType == nullptr) {
-        return nullptr;
-    }
+        if (methodHandle == nullptr) {
+            continue;
+        }
 
-    // Iterate over all methods in the runtime type
-    auto methods = (REFrameworkNET::ManagedObject^)runtimeType->Call("GetMethods(System.Reflection.BindingFlags)", System::Reflection::BindingFlags::Public | System::Reflection::BindingFlags::NonPublic | System::Reflection::BindingFlags::Instance | System::Reflection::BindingFlags::Static);
-
-    if (methods != nullptr) {
-        auto methodDefName = this->Name;
-        for each (REFrameworkNET::ManagedObject^ method in methods) {
-            // Get the type handle and compare it to this (raw pointer stored in the Method object)
-            // System.RuntimeMethodHandle automatically gets converted to a Method object
-            auto methodHandle = (Method^)method->Call("get_MethodHandle");
-
-            if (methodHandle == nullptr) {
-                continue;
-            }
-
-            if (methodHandle->GetRaw() == this->GetRaw()) {
-                return method;
-            }
+        if (methodHandle->GetRaw() == this->GetRaw()) {
+            return method;
         }
     }
 

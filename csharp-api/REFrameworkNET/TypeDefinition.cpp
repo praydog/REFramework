@@ -299,4 +299,33 @@ namespace REFrameworkNET {
 
         return m_elementType;
     }
+
+    System::Collections::Generic::List<REFrameworkNET::ManagedObject^>^ TypeDefinition::GetRuntimeMethods() {
+        if (m_runtimeMethods == nullptr) {
+            m_runtimeMethods = gcnew System::Collections::Generic::List<ManagedObject^>();
+            auto runtimeType = GetRuntimeType();
+
+            m_lock->EnterWriteLock();
+
+            try {
+                if (runtimeType != nullptr) {
+                    auto methods = (REFrameworkNET::ManagedObject^)runtimeType->Call("GetMethods(System.Reflection.BindingFlags)", System::Reflection::BindingFlags::Public | System::Reflection::BindingFlags::NonPublic | System::Reflection::BindingFlags::Instance | System::Reflection::BindingFlags::Static);
+                    
+                    if (methods != nullptr) {
+                        for each (REFrameworkNET::ManagedObject^ method in methods) {
+                            if (method == nullptr) {
+                                continue;
+                            }
+
+                            m_runtimeMethods->Add(method);
+                        }
+                    }
+                }
+            } finally {
+                m_lock->ExitWriteLock();
+            }
+        }
+
+        return m_runtimeMethods;
+    }
 }

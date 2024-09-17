@@ -410,6 +410,8 @@ public:
         }
     }
 
+    System::Collections::Generic::List<REFrameworkNET::ManagedObject^>^ GetRuntimeMethods();
+
     /*Void* GetInstance()
     {
         return m_type->get_instance();
@@ -525,5 +527,7 @@ private:
     System::Collections::Generic::List<REFrameworkNET::Method^>^ m_methods{nullptr};
     System::Collections::Generic::List<REFrameworkNET::Field^>^ m_fields{nullptr};
     System::Collections::Generic::List<REFrameworkNET::Property^>^ m_properties{nullptr};
+
+    System::Collections::Generic::List<REFrameworkNET::ManagedObject^>^ m_runtimeMethods{nullptr};
 };
 }
