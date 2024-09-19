@@ -1049,6 +1049,7 @@ void Graphics::apply_ray_tracing_tweaks() {
     static const auto set_RaytracingMode = rt_t->get_method("set_RaytracingMode");
     static const auto setBounce = rt_t->get_method("setBounce");
     static const auto setSpp = rt_t->get_method("setSpp");
+    static const auto set_enabled = rt_t->get_method("set_Enabled");
 
     bool any_pt = false;
 
@@ -1062,6 +1063,10 @@ void Graphics::apply_ray_tracing_tweaks() {
     auto fix = [this, &any_pt, &context](sdk::ManagedObject* target, int32_t rt_type) {
         if (target == nullptr) {
             return;
+        }
+
+        if (set_enabled != nullptr) {
+            set_enabled->call<void>(context, target, true); // Some games have this disabled.
         }
 
         const auto is_pure_pt = is_pure_pt_type(rt_type);
