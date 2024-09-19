@@ -396,8 +396,20 @@ bool Graphics::on_pre_gui_draw_element(REComponent* gui_element, void* primitive
     auto game_object = utility::re_component::get_game_object(gui_element);
     static auto letter_box_behavior_t = sdk::find_type_definition("app.LetterBoxBehavior");
     static auto letter_box_behavior_retype = letter_box_behavior_t != nullptr ? letter_box_behavior_t->get_type() : nullptr;
+    static auto csmaskui_t = sdk::find_type_definition("app.solid.gui.CSMaskUI");
+    static auto csmaskui_retype = csmaskui_t != nullptr ? csmaskui_t->get_type() : nullptr;
 
     if (game_object != nullptr && game_object->transform != nullptr) {
+        // Ultrawide for Dead Rising Deluxe Remaster
+        if (csmaskui_retype != nullptr) {
+            auto csmaskui = utility::re_component::find<REComponent*>(game_object->transform, csmaskui_retype);
+
+            if (csmaskui != nullptr) {
+                game_object->shouldDraw = false;
+                return false;
+            }
+        }
+
         const auto name = utility::re_string::get_string(game_object->name);
         const auto name_hash = utility::hash(name);
 

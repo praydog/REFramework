@@ -165,7 +165,15 @@ private:
     
     const ModToggle::Ptr m_ultrawide_fix{ ModToggle::create(generate_name("UltrawideFix"), false) };
     const ModToggle::Ptr m_ultrawide_vertical_fov{ ModToggle::create(generate_name("UltrawideFixVerticalFOV_V2"), false) };
+
+    // There is a trend with newer games where there actually is Ultrawide support, so we don't want to actually touch the FOV by default
+    // And sometimes messing with the FOV causes permanent issues with the UI, so don't touch it by default
+#if TDB_VER >= 73
+    const ModToggle::Ptr m_ultrawide_custom_fov{ModToggle::create(generate_name("UltrawideCustomFOV"), true)};
+#else
     const ModToggle::Ptr m_ultrawide_custom_fov{ModToggle::create(generate_name("UltrawideCustomFOV"), false)};
+#endif
+
     const ModToggle::Ptr m_ultrawide_constrain_ui{ModToggle::create(generate_name("UltrawideConstrainUI"), false)};
     const ModToggle::Ptr m_ultrawide_constrain_child_ui{ModToggle::create(generate_name("UltrawideConstrainChildUI"), false)};
     const ModSlider::Ptr m_ultrawide_fov_multiplier{ ModSlider::create(generate_name("UltrawideFOVMultiplier_V2"), 0.01f, 3.0f, 1.0f) };
