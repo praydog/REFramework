@@ -17,6 +17,8 @@ public:
     static std::shared_ptr<Graphics>& get();
 
 public:
+    std::optional<std::string> on_initialize() override;
+
     std::string_view get_name() const override { return "Graphics"; };
 
     void on_config_load(const utility::Config& cfg) override;
@@ -139,6 +141,7 @@ private:
     std::optional<size_t> m_rt_type_offset{};
     sdk::intrusive_ptr<sdk::ManagedObject> m_rt_component{};
     sdk::intrusive_ptr<sdk::ManagedObject> m_rt_cloned_component{};
+    sdk::intrusive_ptr<sdk::ManagedObject> m_rt_recreated_component{};
     void* m_pt_pipeline_resource{nullptr};
     void* m_dxr_shader_resource{nullptr};
 
@@ -165,7 +168,15 @@ private:
     
     const ModToggle::Ptr m_ultrawide_fix{ ModToggle::create(generate_name("UltrawideFix"), false) };
     const ModToggle::Ptr m_ultrawide_vertical_fov{ ModToggle::create(generate_name("UltrawideFixVerticalFOV_V2"), false) };
+
+    // There is a trend with newer games where there actually is Ultrawide support, so we don't want to actually touch the FOV by default
+    // And sometimes messing with the FOV causes permanent issues with the UI, so don't touch it by default
+#if TDB_VER >= 73
+    const ModToggle::Ptr m_ultrawide_custom_fov{ModToggle::create(generate_name("UltrawideCustomFOV"), true)};
+#else
     const ModToggle::Ptr m_ultrawide_custom_fov{ModToggle::create(generate_name("UltrawideCustomFOV"), false)};
+#endif
+
     const ModToggle::Ptr m_ultrawide_constrain_ui{ModToggle::create(generate_name("UltrawideConstrainUI"), false)};
     const ModToggle::Ptr m_ultrawide_constrain_child_ui{ModToggle::create(generate_name("UltrawideConstrainChildUI"), false)};
     const ModSlider::Ptr m_ultrawide_fov_multiplier{ ModSlider::create(generate_name("UltrawideFOVMultiplier_V2"), 0.01f, 3.0f, 1.0f) };
@@ -177,7 +188,7 @@ private:
     const ModToggle::Ptr m_shader_playground { ModToggle::create(generate_name("ShaderPlayground"), false) };
     const ModToggle::Ptr m_ray_tracing_tweaks { ModToggle::create(generate_name("RayTracingTweaks"), false) };
 
-    enum class RayTraceType : uint8_t {
+    /*enum class RayTraceType : uint8_t {
         Disabled = 0,
         AmbientOcclusion = 1,
         Hybrid = 2,
@@ -186,9 +197,10 @@ private:
         ScreenSpacePhotonMapping = 5,
         Debug = 6,
         ASVGF = 7,
-    };
+    };*/
 
-    static const inline std::vector<std::string> s_ray_trace_type {
+    // We will replace this dynamically with reflected data upon loading
+    static inline std::vector<std::string> s_ray_trace_type {
         "Disabled",
         "Ambient Occlusion",
         "Hybrid Path Tracing",
@@ -196,8 +208,41 @@ private:
         "Path Space Filter",
         "Screen Space Photon Mapping",
         "Debug",
-        "ASVGF",
+        "A S V G F",
     };
+
+    static std::string_view get_ray_trace_type_name(uint8_t type) {
+        if (type >= s_ray_trace_type.size()) {
+            return "Unknown";
+        }
+
+        return s_ray_trace_type[type];
+    }
+
+    static bool is_pt_type(uint8_t type) {
+        const auto name = get_ray_trace_type_name(type);
+
+        if (name == "Hybrid Path Tracing" || name == "Pure Path Tracing") {
+            return true;
+        }
+
+        // Added in TDB73, post dragon's dogma 2
+        if (name == "Prototype Reference") {
+            return true;
+        }
+
+        return false;
+    }
+
+    static bool is_pure_pt_type(uint8_t type) {
+        const auto name = get_ray_trace_type_name(type);
+
+        if (name == "Pure Path Tracing" || name == "Prototype Reference") {
+            return true;
+        }
+
+        return false;
+    }
 
     static const inline std::vector<std::string> s_bounce_count {
         "0",
@@ -215,6 +260,7 @@ private:
 
     const ModCombo::Ptr m_ray_trace_type{ ModCombo::create(generate_name("RayTraceType"), s_ray_trace_type) };
     const ModToggle::Ptr m_ray_trace_disable_raster_shadows{ ModToggle::create(generate_name("RayTraceDisableRasterShadowsWithPT"), true) };
+    const ModToggle::Ptr m_ray_trace_always_recreate_rt_component{ ModToggle::create(generate_name("RayTraceAlwaysRecreateRTComponent"), false) };
     bool m_was_shadows_disabled{ false };
     const ModCombo::Ptr m_ray_trace_clone_type_true{ ModCombo::create(generate_name("RayTraceTrueCloneType"), s_ray_trace_type) };
     const ModCombo::Ptr m_ray_trace_clone_type_pre{ ModCombo::create(generate_name("RayTraceCloneTypePre"), s_ray_trace_type) };
@@ -248,6 +294,7 @@ private:
         *m_ray_tracing_tweaks,
         *m_ray_trace_type,
         *m_ray_trace_disable_raster_shadows,
+        *m_ray_trace_always_recreate_rt_component,
         *m_ray_trace_clone_type_true,
         *m_ray_trace_clone_type_pre,
         *m_ray_trace_clone_type_post,

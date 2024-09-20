@@ -33,6 +33,7 @@ public:
     using REFOnDeviceResetCb = std::function<std::remove_pointer<::REFOnDeviceResetCb>::type>;
     using REFOnMessageCb = std::function<std::remove_pointer<::REFOnMessageCb>::type>;
     using REFOnImGuiFrameCb = std::function<std::remove_pointer<::REFOnImGuiFrameCb>::type>;
+    using REFOnImGuiDrawUICb = std::function<std::remove_pointer<::REFOnImGuiDrawUICb>::type>;
 
     bool add_on_lua_state_created(REFLuaStateCreatedCb cb);
     bool add_on_lua_state_destroyed(REFLuaStateDestroyedCb cb);

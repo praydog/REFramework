@@ -302,6 +302,11 @@ void IntegrityCheckBypass::disable_update_timers(std::string_view name) const {
 void IntegrityCheckBypass::ignore_application_entries() {
     Hooks::get()->ignore_application_entry(0x76b8100bec7c12c3);
     Hooks::get()->ignore_application_entry(0x9f63c0fc4eea6626);
+
+#if TDB_VER >= 73
+    Hooks::get()->ignore_application_entry(0x00c0ab9309584734);
+    Hooks::get()->ignore_application_entry(0xa474f1d3a294e6a4);
+#endif
 }
 
 void IntegrityCheckBypass::immediate_patch_re8() {

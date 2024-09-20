@@ -42,6 +42,76 @@ std::shared_ptr<Graphics>& Graphics::get() {
     return mod;
 }
 
+std::optional<std::string> Graphics::on_initialize() {
+#if TDB_VER >= 69
+    const auto raytracing_enum = sdk::find_type_definition("via.render.ExperimentalRayTrace.Raytracing");
+
+    if (raytracing_enum == nullptr) {
+        return Mod::on_initialize(); // OK
+    }
+
+    s_ray_trace_type.clear();
+    s_ray_trace_type.push_back("Disabled");
+
+    s_ray_trace_type.resize(raytracing_enum->get_fields().size() + 1);
+
+    int32_t actual_size = 1;
+
+    for (auto f : raytracing_enum->get_fields()) {
+        const auto field_flags = f->get_flags();
+
+        if ((field_flags & (uint16_t)via::clr::FieldFlag::Static) != 0 && (field_flags & (uint16_t)via::clr::FieldFlag::Literal) != 0) {
+            auto raw_data = f->get_data_raw(nullptr, true);
+            int64_t enum_data = 0;
+
+            switch(raytracing_enum->get_valuetype_size()) {
+                case 1:
+                    enum_data = (int64_t)*(int8_t*)raw_data;
+                    break;
+                case 2:
+                    enum_data = (int64_t)*(int16_t*)raw_data;
+                    break;
+                case 4:
+                    enum_data = (int64_t)*(int32_t*)raw_data;
+                    break;
+                case 8:
+                    enum_data = *(int64_t*)raw_data;
+                    break;
+                default:
+                    spdlog::error("Unknown enum size: {}", raytracing_enum->get_valuetype_size());
+                    break;
+            }
+
+            if (enum_data < 0 || enum_data + 1 >= s_ray_trace_type.size()) {
+                spdlog::error("Invalid enum data: {} {}", f->get_name(), enum_data);
+                continue;
+            }
+
+            auto unfriendly_name = std::string{f->get_name()};
+
+            // Format into a friendly name (Spacing between words)
+            for (size_t i = 1; i < unfriendly_name.size(); ++i) {
+                if (unfriendly_name[i] >= 'A' && unfriendly_name[i] <= 'Z') {
+                    unfriendly_name.insert(i, " ");
+                    i++;
+                }
+            }
+
+            s_ray_trace_type[enum_data + 1] = unfriendly_name;
+            ++actual_size;
+        }
+    }
+
+    s_ray_trace_type.resize(actual_size);
+    m_ray_trace_type->recreate_options(s_ray_trace_type);
+    m_ray_trace_clone_type_pre->recreate_options(s_ray_trace_type);
+    m_ray_trace_clone_type_post->recreate_options(s_ray_trace_type);
+    m_ray_trace_clone_type_true->recreate_options(s_ray_trace_type);
+#endif
+
+    return Mod::on_initialize(); // OK
+}
+
 void Graphics::on_config_load(const utility::Config& cfg) {
     for (IModValue& option : m_options) {
         option.config_load(cfg);
@@ -126,6 +196,11 @@ void Graphics::on_draw_ui() {
 
         if (m_ray_tracing_tweaks->value()) {
             m_ray_trace_disable_raster_shadows->draw("Disable Raster Shadows (with PT)");
+            m_ray_trace_always_recreate_rt_component->draw("Always Recreate RT Component");
+            // Description of the above option
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("Recreates the RT component. Useful if Ray Tracing Tweaks is not working.");
+            }
             m_ray_trace_type->draw("Ray Trace Type");
 
             const auto clone_tooltip = 
@@ -152,9 +227,7 @@ void Graphics::on_draw_ui() {
             }
 
             // Hybrid/pure
-            if (m_ray_trace_type->value() == (int32_t)RayTraceType::Hybrid || m_ray_trace_type->value() == (int32_t)RayTraceType::Pure
-                || m_ray_trace_clone_type_true->value() == (int32_t)RayTraceType::Hybrid || m_ray_trace_clone_type_true->value() == (int32_t)RayTraceType::Pure)
-            {
+            if (is_pt_type(m_ray_trace_type->value()) || is_pt_type(m_ray_trace_clone_type_true->value())) {
                 m_bounce_count->draw("Bounce Count");
                 m_samples_per_pixel->draw("Samples Per Pixel");
             }
@@ -396,8 +469,20 @@ bool Graphics::on_pre_gui_draw_element(REComponent* gui_element, void* primitive
     auto game_object = utility::re_component::get_game_object(gui_element);
     static auto letter_box_behavior_t = sdk::find_type_definition("app.LetterBoxBehavior");
     static auto letter_box_behavior_retype = letter_box_behavior_t != nullptr ? letter_box_behavior_t->get_type() : nullptr;
+    static auto csmaskui_t = sdk::find_type_definition("app.solid.gui.CSMaskUI");
+    static auto csmaskui_retype = csmaskui_t != nullptr ? csmaskui_t->get_type() : nullptr;
 
     if (game_object != nullptr && game_object->transform != nullptr) {
+        // Ultrawide for Dead Rising Deluxe Remaster
+        if (csmaskui_retype != nullptr) {
+            auto csmaskui = utility::re_component::find<REComponent*>(game_object->transform, csmaskui_retype);
+
+            if (csmaskui != nullptr) {
+                game_object->shouldDraw = false;
+                return false;
+            }
+        }
+
         const auto name = utility::re_string::get_string(game_object->name);
         const auto name_hash = utility::hash(name);
 
@@ -467,8 +552,15 @@ void Graphics::on_view_get_size(REManagedObject* scene_view, float* result) {
         return;
     }
 
+#if TDB_VER < 73
     result[0] = (float)(*m_backbuffer_size)[0];
     result[1] = (float)(*m_backbuffer_size)[1];
+#else
+    auto regenny_view = (regenny::via::SceneView*)scene_view;
+
+    regenny_view->size.w = (float)(*m_backbuffer_size)[0];
+    regenny_view->size.h = (float)(*m_backbuffer_size)[1];
+#endif
 }
 
 void Graphics::do_scope_tweaks(sdk::renderer::layer::Scene* layer) {
@@ -910,11 +1002,16 @@ void Graphics::setup_rt_component() {
     auto rt_component = utility::re_component::find<REComponent>(game_object->transform, rt_t->get_type());
     
     // Attempt to create the component if it doesn't exist
-    if (rt_component == nullptr) {
+    if (rt_component == nullptr || (m_ray_trace_always_recreate_rt_component->value() && m_rt_recreated_component.get() != (sdk::ManagedObject*)rt_component)) {
+        if (rt_component != nullptr) {
+            sdk::call_object_func_easy<void*>(rt_component, "destroy", rt_component);
+        }
+
         rt_component = sdk::call_object_func_easy<REComponent*>(game_object, "createComponent(System.Type)", rt_t->get_runtime_type());
 
         if (rt_component != nullptr) {
             spdlog::info("[Graphics] Successfully created new RT component @ {:x}", (uintptr_t)rt_component);
+            m_rt_recreated_component = (sdk::ManagedObject*)rt_component;
         }
     }
 
@@ -927,7 +1024,7 @@ void Graphics::setup_rt_component() {
         m_rt_component = (sdk::ManagedObject*)rt_component;
     }
 
-    if (m_rt_cloned_component.get() == nullptr && m_ray_trace_clone_type_true->value() > (int32_t)RayTraceType::Disabled) {
+    if (m_rt_cloned_component.get() == nullptr && m_ray_trace_clone_type_true->value() > 0) {
         m_rt_cloned_component = (sdk::ManagedObject*)rt_t->create_instance_full(false);
 
         if (m_rt_cloned_component.get() != nullptr) {
@@ -952,6 +1049,7 @@ void Graphics::apply_ray_tracing_tweaks() {
     static const auto set_RaytracingMode = rt_t->get_method("set_RaytracingMode");
     static const auto setBounce = rt_t->get_method("setBounce");
     static const auto setSpp = rt_t->get_method("setSpp");
+    static const auto set_enabled = rt_t->get_method("set_Enabled");
 
     bool any_pt = false;
 
@@ -967,11 +1065,17 @@ void Graphics::apply_ray_tracing_tweaks() {
             return;
         }
 
-        if (set_RaytracingMode != nullptr && rt_type > (int32_t)RayTraceType::Disabled) {
-            any_pt = any_pt || rt_type == (int32_t)RayTraceType::Pure;
+        if (set_enabled != nullptr) {
+            set_enabled->call<void>(context, target, true); // Some games have this disabled.
+        }
+
+        const auto is_pure_pt = is_pure_pt_type(rt_type);
+
+        if (set_RaytracingMode != nullptr && rt_type > 0) {
+            any_pt = any_pt || is_pure_pt;
             set_RaytracingMode->call<void>(context, target, rt_type - 1);
 
-            if (rt_type == (int32_t)RayTraceType::Pure && m_ray_trace_disable_raster_shadows->value()) {
+            if (is_pure_pt && m_ray_trace_disable_raster_shadows->value()) {
                 if (get_DynamicShadowEnable != nullptr && set_DynamicShadowEnable != nullptr) {
                     const bool is_shadow_enabled = get_DynamicShadowEnable->call<bool>(context);
                     
@@ -984,7 +1088,7 @@ void Graphics::apply_ray_tracing_tweaks() {
             }
         }
 
-        if (rt_type == (int32_t)RayTraceType::Hybrid || rt_type == (int32_t)RayTraceType::Pure) {
+        if (is_pt_type(rt_type)) { // hybrid or any pure
             if (setBounce != nullptr) {
                 setBounce->call<void>(context, target, m_bounce_count->value());
             }
@@ -1015,7 +1119,7 @@ void* Graphics::rt_draw_hook(REComponent* rt, void* draw_context, void* r8, void
         return og(rt, draw_context, r8, r9);
     }
 
-    if (graphics->m_ray_tracing_tweaks->value() && graphics->m_ray_trace_clone_type_true->value() > (int32_t)RayTraceType::Disabled) {
+    if (graphics->m_ray_tracing_tweaks->value() && graphics->m_ray_trace_clone_type_true->value() > 0) {
         static std::recursive_mutex mtx{};
         std::scoped_lock _{mtx};
 
@@ -1067,7 +1171,7 @@ void* Graphics::rt_draw_impl_hook(void* rt_impl, void* draw_context, void* r8, v
         .unk = unk
     };
 
-    if (graphics->m_ray_tracing_tweaks->value() && graphics->m_ray_trace_clone_type_pre->value() > (int32_t)RayTraceType::Disabled) {
+    if (graphics->m_ray_tracing_tweaks->value() && graphics->m_ray_trace_clone_type_pre->value() > 0) {
         ray_tracing_mode = graphics->m_ray_trace_clone_type_pre->value() - 1;
         og(rt_impl, draw_context, r8, r9, unk);
         ray_tracing_mode = old_mode;
@@ -1078,7 +1182,7 @@ void* Graphics::rt_draw_impl_hook(void* rt_impl, void* draw_context, void* r8, v
         result = og(rt_impl, draw_context, r8, r9, unk);
     }*/
 
-    if (graphics->m_ray_tracing_tweaks->value() && graphics->m_ray_trace_clone_type_post->value() > (int32_t)RayTraceType::Disabled) {
+    if (graphics->m_ray_tracing_tweaks->value() && graphics->m_ray_trace_clone_type_post->value() > 0) {
         ray_tracing_mode = graphics->m_ray_trace_clone_type_post->value() - 1;
         og(rt_impl, draw_context, r8, r9, unk);
         ray_tracing_mode = old_mode;

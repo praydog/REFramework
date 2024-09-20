@@ -229,6 +229,15 @@ public:
         ImGui::Text("%s: %s", name.data(), m_options[m_value]);
     }
 
+    void recreate_options(const std::vector<std::string>& options) {
+        m_options_stdstr = options;
+        m_options.clear();
+
+        for (auto& o : m_options_stdstr) {
+            m_options.push_back(o.c_str());
+        }
+    }
+
     void config_load(const utility::Config& cfg) override {
         ModValue<int32_t>::config_load(cfg);
 
@@ -244,7 +253,7 @@ public:
             m_value = 0;
         }
     };
-
+    
     const auto& options() const {
         return m_options;
     }
