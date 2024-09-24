@@ -68,7 +68,7 @@ jobs:
           repo: REFramework-nightly
           owner: praydog
           token: ${{ secrets.REPO_TOKEN }}
-          name: ${{format('{0} REF Nightly ({1})', env.RUN_NUMBER, github.sha)}}
+          name: ${{format('REF Nightly {0} ({1})', env.RUN_NUMBER, github.sha)}}
           tag: ${{format('nightly-{0}-{1}', env.RUN_NUMBER, github.sha)}}
           artifacts: ${{github.workspace}}/artifacts/**/*.zip
           makeLatest: true
