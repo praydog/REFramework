@@ -58,7 +58,7 @@ jobs:
 
       - name: Set padded run number
         run: |
-          $paddedRunNumber = "{0:D4}" -f ${{ github.run_number }}
+          $paddedRunNumber = "{0:D5}" -f ${{ github.run_number }}
           echo "RUN_NUMBER=$paddedRunNumber" >> $env:GITHUB_ENV
         shell: powershell
 
