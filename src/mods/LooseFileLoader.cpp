@@ -224,21 +224,30 @@ bool LooseFileLoader::handle_path(const wchar_t* path, size_t hash) {
         bool exists_on_disk{false};
 
         if (m_enable_file_cache) {
+            // Intended to get rid of mutex usage which can be a bottleneck
+            static thread_local std::unordered_set<size_t> files_on_disk_local{};
+            static thread_local std::unordered_set<size_t> seen_files_local{};
+
             {
-                std::shared_lock _{m_files_on_disk_mutex};
-                exists_on_disk = m_files_on_disk.contains(hash);
-                exists_in_cache = exists_on_disk || m_seen_files.contains(hash);
+                // No need to lock a mutex as these are thread_local
+                exists_on_disk = files_on_disk_local.contains(hash);
+                exists_in_cache = exists_on_disk || seen_files_local.contains(hash);
             }
 
             if (!exists_in_cache) {
+                // TODO: refine this with mixed shared and unique locks
+                // This shouldnt be a huge performance issue for now
                 std::unique_lock _{m_files_on_disk_mutex};
 
-                if (std::filesystem::exists(path)) {
-                    m_files_on_disk.insert(hash);
+                // Purpose of this is to only hit the disk once per unique file
+                if (m_files_on_disk.contains(hash) || std::filesystem::exists(path)) {
+                    m_files_on_disk.insert(hash); // Global
+                    files_on_disk_local.insert(hash); // Thread local
                     exists_on_disk = true;
                 }
 
-                m_seen_files.insert(hash);
+                m_seen_files.insert(hash); // Global
+                seen_files_local.insert(hash); // Thread local
                 ++m_uncached_hits;
             } else {
                 ++m_cache_hits;
