@@ -783,6 +783,8 @@ void ScriptRunner::on_config_save(utility::Config& cfg) {
 }
 
 void ScriptRunner::hook_battle_rule() {
+    // Removed for now as it seems to cause some weird issues with matchmaking
+#if 0
     if (m_attempted_hook_battle_rule) {
         return;
     }
@@ -828,6 +830,7 @@ void ScriptRunner::hook_battle_rule() {
             return HookManager::PreHookResult::CALL_ORIGINAL;
         },
         [this](uintptr_t& ret_val, sdk::RETypeDefinition* ret_ty, uintptr_t ret_addr) -> void {
+            // DONT set this, it probably breaks something now
             auto bt = this->get_last_battle_type();
 
             if (bt.has_value()) {
@@ -835,6 +838,7 @@ void ScriptRunner::hook_battle_rule() {
             }
         });
     }
+#endif
 }
 
 void ScriptRunner::on_frame() {
