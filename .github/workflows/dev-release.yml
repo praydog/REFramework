@@ -56,14 +56,20 @@ jobs:
         with:
           path: ${{github.workspace}}/artifacts
 
+      - name: Set padded run number
+        run: |
+          $paddedRunNumber = "{0:D5}" -f ${{ github.run_number }}
+          echo "RUN_NUMBER=$paddedRunNumber" >> $env:GITHUB_ENV
+        shell: powershell
+
       - name: Create Release
         uses: ncipollo/release-action@6c75be85e571768fa31b40abf38de58ba0397db5
         with:
           repo: REFramework-nightly
           owner: praydog
           token: ${{ secrets.REPO_TOKEN }}
-          name: ${{format('REF Nightly {0} ({1})', github.run_number, github.sha)}}
-          tag: ${{format('nightly-{0}-{1}', github.run_number, github.sha)}}
+          name: ${{format('REF Nightly {0} ({1})', env.RUN_NUMBER, github.sha)}}
+          tag: ${{format('nightly-{0}-{1}', env.RUN_NUMBER, github.sha)}}
           artifacts: ${{github.workspace}}/artifacts/**/*.zip
           makeLatest: true
           bodyFile: ${{github.workspace}}/nightly-body.md
