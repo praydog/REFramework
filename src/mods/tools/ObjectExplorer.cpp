@@ -23,6 +23,7 @@
 #include "Genny.hpp"
 #include "GennyIda.hpp"
 
+#include <sdk/REGameObject.hpp>
 #include "REFramework.hpp"
 #include "ObjectExplorer.hpp"
 
@@ -2290,7 +2291,7 @@ void ObjectExplorer::handle_address(Address address, int32_t offset, Address par
         context_menu(real_address);
 
         if (is_game_object) {
-            additional_text = utility::re_string::get_string(address.as<REGameObject*>()->name);
+            additional_text = utility::re_game_object::get_name(address.as<REGameObject*>());
         }
         else {
             // Change name based on VMType
@@ -2508,7 +2509,9 @@ void ObjectExplorer::handle_game_object(REGameObject* game_object) {
         m_add_component_name.reserve(256);
     }
 
-    ImGui::Text("Name: %s", utility::re_string::get_string(game_object->name).c_str());
+    auto game_object_name = utility::re_game_object::get_name(game_object);
+
+    ImGui::Text("Name: %s", game_object_name.c_str());
     make_tree_offset(game_object, offsetof(REGameObject, transform), "Transform");
     make_tree_offset(game_object, offsetof(REGameObject, folder), "Folder");
 
@@ -2519,7 +2522,7 @@ void ObjectExplorer::handle_component(REComponent* component) {
     auto display_component_preview = [&](REComponent* comp) {
         if (comp != nullptr && comp->ownerGameObject != nullptr) {
             auto prev_name = utility::re_managed_object::get_type_name(comp);
-            auto prev_gameobject_name = utility::re_string::get_string(comp->ownerGameObject->name);
+            auto prev_gameobject_name = utility::re_game_object::get_name(comp->ownerGameObject);
 
             auto tree_hovered = ImGui::IsItemHovered();
 
@@ -4052,7 +4055,7 @@ void ObjectExplorer::context_menu(void* address, std::optional<std::string> name
                     }
                     else {
                         auto owner = obj->ownerGameObject;
-                        spdlog::info("[{:s}] {:s} ({:x})", utility::re_string::get_string(owner->name), t->name, (uintptr_t)obj);
+                        spdlog::info("[{:s}] {:s} ({:x})", utility::re_game_object::get_name(owner), t->name, (uintptr_t)obj);
                     }
                 }
 

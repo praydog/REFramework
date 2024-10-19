@@ -5,6 +5,7 @@
 #include <sdk/MurmurHash.hpp>
 #include <sdk/Renderer.hpp>
 #include <sdk/resources/ShaderResource.hpp>
+#include <sdk/REGameObject.hpp>
 
 #include "VR.hpp"
 #include "Graphics.hpp"
@@ -483,7 +484,7 @@ bool Graphics::on_pre_gui_draw_element(REComponent* gui_element, void* primitive
             }
         }
 
-        const auto name = utility::re_string::get_string(game_object->name);
+        const auto name = utility::re_game_object::get_name(game_object);
         const auto name_hash = utility::hash(name);
 
         switch(name_hash) {
