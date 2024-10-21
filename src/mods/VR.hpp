@@ -224,6 +224,14 @@ public:
     void unhide_crosshair() {
         m_last_crosshair_hide = std::chrono::steady_clock::now();
     }
+    
+    void notify_camera_destroyed(RECamera* camera) {
+        for (auto& existing_camera : m_multipass_cameras) {
+            if (existing_camera == camera) {
+                existing_camera = nullptr;
+            }
+        }
+    }
 
     void set_multipass_camera(RECamera* camera, uint32_t index) {
         if (index >= 2) {

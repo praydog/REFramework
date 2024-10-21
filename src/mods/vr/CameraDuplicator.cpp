@@ -36,6 +36,8 @@ void CameraDuplicator::on_pre_application_entry(void* entry, const char* name, s
         }
 
         for (auto camera : cameras_to_remove) {
+            VR::get()->notify_camera_destroyed((RECamera*)camera);
+
             m_new_cameras.erase((RECamera*)camera);
             m_old_cameras.erase((RECamera*)camera);
             m_seen_cameras.erase((RECamera*)camera);
@@ -326,6 +328,12 @@ void CameraDuplicator::clone_camera() {
 
     m_called_activate = true;
     m_identified_new_cameras = true;
+
+    // Destroy our existing property jobs so we don't work with stale data
+    m_getter_setters.clear();
+    m_property_jobs.clear();
+    m_property_jobs_index = 0;
+
     /*m_identified_new_cameras = false;
     m_waiting_for_identify = true;
 
