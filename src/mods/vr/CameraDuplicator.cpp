@@ -22,6 +22,16 @@ void CameraDuplicator::on_pre_application_entry(void* entry, const char* name, s
             if (camera->referenceCount == 1) {
                 cameras_to_remove.push_back(camera);
                 spdlog::info("Removing camera {:x}", (uintptr_t)camera);
+            } else {
+                static const auto game_object_t = sdk::find_type_definition("via.GameObject");
+                static const auto get_Valid = game_object_t != nullptr ? game_object_t->get_method("get_Valid") : nullptr;
+                auto owner = utility::re_component::get_game_object(camera);
+
+                // if the owning game object was destroyed then well... destroy the camera
+                if (owner == nullptr || (get_Valid != nullptr && !get_Valid->call<bool>(sdk::get_thread_context(), owner))) {
+                    cameras_to_remove.push_back(camera);
+                    spdlog::info("Removing camera (destroyed gameobject) {:x}", (uintptr_t)camera);
+                }
             }
         }
 
@@ -31,6 +41,15 @@ void CameraDuplicator::on_pre_application_entry(void* entry, const char* name, s
             m_seen_cameras.erase((RECamera*)camera);
             m_old_to_new_camera.erase((RECamera*)camera);
             m_new_to_old_camera.erase((RECamera*)camera);
+
+            // Remove anything from the map that has the value of the camera, not just the key.
+            std::erase_if(m_old_to_new_camera, [camera](const auto& pair) {
+                return pair.second == camera;
+            });
+
+            std::erase_if(m_new_to_old_camera, [camera](const auto& pair) {
+                return pair.second == camera;
+            });
 
             utility::re_managed_object::release(camera);
         }
@@ -244,6 +263,7 @@ void CameraDuplicator::clone_camera() {
         "via.motion.MotionCamera", // Unnecessarily takes control of the camera transform which we don't want
         "via.motion.ActorMotionCamera", // Unnecessarily takes control of the camera transform which we don't want
         "via.wwise.WwiseListener",
+        "via.physics.Colliders",
         // todo
     };
 
@@ -270,8 +290,11 @@ void CameraDuplicator::clone_camera() {
             continue;
         }
 
+        const auto full_name = tdef->get_full_name();
+
         // TODO: other game framework prefixes or maybe app is just okay?
-        if (tdef->get_full_name().starts_with("app.")) {
+        // snow is for MHRise, app is for most of the other games
+        if (full_name.starts_with("app.") || full_name.starts_with("snow.")) {
             spdlog::info("Skipping app component {}", tdef->get_full_name());
             component = component->childComponent;
             continue;
