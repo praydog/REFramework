@@ -1423,6 +1423,8 @@ namespace detail {
 #if TDB_VER >= 71
 #if defined(SF6) || defined(DD2)
     constexpr auto rtv_size = 0x98;
+#elif defined(MHRISE)
+    constexpr auto rtv_size = 0x88;
 #else
     constexpr auto rtv_size = 0x98 - sizeof(void*);
 #endif
@@ -1642,6 +1644,7 @@ RECamera* layer::Scene::get_main_camera_if_possible() const {
         L"DefaultCamera",
         L"Camera_mainmenu",
         L"Camera_cp7mainmenu",
+        L"SnowCamera", // MHRise
     };
 
     for (const auto& camera_name : camera_names) {

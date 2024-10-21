@@ -103,6 +103,8 @@ private:
     // So because this discrepancy in SF6 is > 8 bytes (which is how much was added to RenderResource), trying to automate this
     // is a bit trickier so we can look into this later, and just hardcode it for now.
     static constexpr inline auto s_d3d12_resource_offset = 0xB8;
+#elif defined(MHRISE)
+    static constexpr inline auto s_d3d12_resource_offset = 0x98; // WHAT THE HECK!!!
 #else
     static constexpr inline auto s_d3d12_resource_offset = 0xA0;
 #endif
@@ -413,8 +415,12 @@ private:
 #if TDB_VER >= 73
     static constexpr inline auto s_output_state_offset = 0x118;
 #elif TDB_VER >= 71
+#ifdef MHRISE
+    static constexpr inline auto s_output_state_offset = 0xF8;
+#else
     // verify for other games, this is for RE4
     static constexpr inline auto s_output_state_offset = 0x108;
+#endif
 #elif TDB_VER >= 69
     static constexpr inline auto s_output_state_offset = 0xF8;
 #else
