@@ -46,6 +46,7 @@
 #include "sdk/Application.hpp"
 #include "sdk/Renderer.hpp"
 #include "sdk/REMath.hpp"
+#include "sdk/REGameObject.hpp"
 
 #include "utility/Scan.hpp"
 #include "utility/FunctionHook.hpp"
@@ -2709,7 +2710,7 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
     if (game_object != nullptr && game_object->transform != nullptr) {
         auto context = sdk::get_thread_context();
 
-        const auto name = utility::re_string::get_string(game_object->name);
+        const auto name = utility::re_game_object::get_name(game_object);
         const auto name_hash = utility::hash(name);
 
         switch (name_hash) {

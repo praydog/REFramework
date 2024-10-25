@@ -2,6 +2,7 @@
 #include "sdk/SceneManager.hpp"
 #include "sdk/RETypeDB.hpp"
 #include "sdk/REManagedObject.hpp"
+#include "sdk/REGameObject.hpp"
 
 #include "GameObjectsDisplay.hpp"
 
@@ -130,7 +131,7 @@ void GameObjectsDisplay::on_frame() {
             continue;
         }
 
-        auto owner_name = utility::re_string::get_string(owner->name);
+        auto owner_name = utility::re_game_object::get_name(owner);
 
         if (owner_name.empty()) {
             continue;
