@@ -7,7 +7,7 @@ public:
     static std::shared_ptr<REFrameworkConfig>& get();
 
 public:
-    std::string_view get_name() const {
+    std::string_view get_name() const override {
         return "REFrameworkConfig";
     }
 
