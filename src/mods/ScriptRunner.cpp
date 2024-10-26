@@ -457,6 +457,7 @@ void ScriptState::on_draw_ui() {
         ScriptRunner::get()->spew_error("Unknown error in on_draw_ui");
     }
 
+    api::imgui::cleanup();
     api::imnodes::cleanup();
 }
 
