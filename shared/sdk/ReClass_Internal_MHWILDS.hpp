@@ -135,8 +135,8 @@ public:
 	char *name; //0x0020
 	char pad_0028[4]; //0x0028
 	uint32_t typeCRC; //0x002C
-	uint16_t size; //0x0030
-	uint16_t unkThing; //0x0032
+	uint32_t size : 24; //0x0030
+	uint32_t unkFlags : 8;
 	uint32_t miscFlags; //0x0034
 	class REType *super; //0x0038
 	class REType *childType; //0x0040
