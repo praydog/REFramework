@@ -268,6 +268,8 @@ std::optional<std::string> Hooks::hook_update_camera_controller2() {
 }
 
 std::optional<std::string> Hooks::hook_gui_draw() {
+    // TODO: FIX THIS!!!
+#if TDB_VER < 74
     spdlog::info("[Hooks] Attempting to hook GUI functions...");
 
     auto game = g_framework->get_module().as<HMODULE>();
@@ -310,6 +312,7 @@ std::optional<std::string> Hooks::hook_gui_draw() {
     if (!m_gui_draw_hook->create()) {
         return "Failed to hook GUI::draw";
     }
+#endif
 
     return std::nullopt;
 }
@@ -357,7 +360,7 @@ std::optional<std::string> Hooks::hook_all_application_entries() {
     }
 
     spdlog::info("[Hooks] Found via.Application at {:x}", (uintptr_t)application);
-
+    
     auto generate_mov_rdx = [](uintptr_t target) {
         std::vector<uint8_t> mov_rdx{ 0x48, 0xBA, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
         *(uintptr_t*)&mov_rdx[2] = target;
@@ -479,6 +482,8 @@ std::optional<std::string> Hooks::hook_all_application_entries() {
 }
 
 std::optional<std::string> Hooks::hook_update_before_lock_scene() {
+    // This function is removed (or not reflected) >= TDB74...
+#if TDB_VER < 74
     // Hook updateBeforeLockScene
     auto update_before_lock_scene = sdk::find_native_method("via.render.EntityRenderer", "updateBeforeLockScene");
 
@@ -493,6 +498,7 @@ std::optional<std::string> Hooks::hook_update_before_lock_scene() {
     if (!m_update_before_lock_scene_hook->create()) {
         return "Failed to hook via::render::EntityRenderer::updateBeforeLockScene";
     }
+#endif
 
     return std::nullopt;
 }
@@ -560,6 +566,12 @@ std::optional<std::string> Hooks::hook_view_get_size() {
         ref = utility::find_pattern_in_path((uint8_t*)get_size_func, 1000, false, "48 8B CB E8");
     }
 
+#if TDB_VER >= 74
+    if (!ref) {
+        ref = utility::find_pattern_in_path((uint8_t*)get_size_func, 1000, false, "48 89 F2 E8"); // >= TDB74?
+    }
+#endif
+
     if (!ref) {
         return "Hook init failed: via.SceneView.get_Size native function not found. Pattern scan failed.";
     }
@@ -593,6 +605,12 @@ std::optional<std::string> Hooks::hook_camera_get_projection_matrix() {
     if (!ref) {
         ref = utility::find_pattern_in_path((uint8_t*)func, 1000, false, "48 8B CB E8");
     }
+    
+#if TDB_VER >= 74
+    if (!ref) {
+        ref = utility::find_pattern_in_path((uint8_t*)func, 1000, false, "48 89 F2 E8"); // >= TDB74?
+    }
+#endif
 
     if (!ref) {
         return "Hook init failed: via.Camera.get_ProjectionMatrix native function not found. Pattern scan failed.";
@@ -627,6 +645,12 @@ std::optional<std::string> Hooks::hook_camera_get_view_matrix() {
     if (!ref) {
         ref = utility::find_pattern_in_path((uint8_t*)func, 1000, false, "48 8B CB E8");
     }
+
+#if TDB_VER >= 74
+    if (!ref) {
+        ref = utility::find_pattern_in_path((uint8_t*)func, 1000, false, "48 89 F2 E8"); // >= TDB74?
+    }
+#endif
 
     if (!ref) {
         return "Hook init failed: via.Camera.get_ViewMatrix native function not found. Pattern scan failed.";

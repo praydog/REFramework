@@ -86,7 +86,7 @@ void startup_thread(HMODULE reframework_module) {
             }
             utility::unlink(*our_dll);
         }
-#elif defined (DD2)
+#elif defined (DD2) || TDB_VER >= 74
         if (!g_success_made_ldr_notification) {
             utility::spoof_module_paths_in_exe_dir();
         }
