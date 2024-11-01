@@ -168,11 +168,18 @@ std::optional<std::string> Hooks::hook_update_transform() {
         uint32_t offset;
     };
 
+    /*
+        these instructions are near the UpdateTransform call
+        mov     eax, 1
+        lock xadd [rsi+318h], eax
+        cdqe
+    */
     std::vector<TransformPattern> pats {
         { "E8 ? ? ? ? 48 8B 5B ? 48 85 DB 75 ? 48 8B 4D 40 48 ? ?", 1 }, // RE2 - MHRise v1.0
         { "33 D2 E8 ? ? ? ? B8 01 00 00 00 F0 0F", 3 }, // RE7/RE2/RE3 update to TDB v70/newer games?
         { "0F B6 D1 48 8B CB E8 ? ? ? ? 48 8B 9B ? ? ? ?", 7 }, // RE7
-        { "0F B6 D0 48 8B CB E8 ? ? ? ? 48 8B 9B ? ? ? ?", 7 } // RE7 Demo
+        { "0F B6 D0 48 8B CB E8 ? ? ? ? 48 8B 9B ? ? ? ?", 7 }, // RE7 Demo
+        { "31 D2 41 ? F8 E8 ? ? ? ? EB", 6}, // MHWILDS/TDB74+
     };
 
     uintptr_t update_transform = 0;
