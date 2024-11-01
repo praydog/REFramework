@@ -127,59 +127,110 @@ void LooseFileLoader::hook() {
         return;
     }
 
-    const auto via_io_file = tdb->find_type("via.io.file");
+    auto initial_candidate = [&]() -> std::optional<uintptr_t> {
+        const auto via_io_file = tdb->find_type("via.io.file");
 
-    if (via_io_file == nullptr) {
-        spdlog::error("[LooseFileLoader] Failed to find via.io.file");
-        return;
-    }
+        if (via_io_file == nullptr) {
+            spdlog::error("[LooseFileLoader] Failed to find via.io.file");
+            return std::nullopt;
+        }
 
-    // "exist" and "exists" are 2 different functions. one searches in pak and other doesnt.
-    const auto exists_fn = via_io_file->get_method("exists(System.String)");
+        // "exist" and "exists" are 2 different functions. one searches in pak and other doesnt.
+        const auto exists_fn = via_io_file->get_method("exists(System.String)");
 
-    if (exists_fn == nullptr) {
-        spdlog::error("[LooseFileLoader] Failed to find via.io.file.exists(System.String)");
-        return;
-    }
+        if (exists_fn == nullptr) {
+            spdlog::error("[LooseFileLoader] Failed to find via.io.file.exists(System.String)");
+            return std::nullopt;
+        }
 
-    const auto exists_ptr = exists_fn->get_function();
+        const auto exists_ptr = exists_fn->get_function();
 
-    if (exists_ptr == nullptr) {
-        spdlog::error("[LooseFileLoader] Failed to get function pointer for via.io.file.exists(System.String)");
-        return;
-    }
+        if (exists_ptr == nullptr) {
+            spdlog::error("[LooseFileLoader] Failed to get function pointer for via.io.file.exists(System.String)");
+            return std::nullopt;
+        }
 
-    std::optional<uintptr_t> candidate{};
+        return (uintptr_t)exists_ptr;
+    }();
+
     const auto game_module = utility::get_executable();
     const auto game_module_size = utility::get_module_size(game_module).value_or(0);
     const auto game_module_end = (uintptr_t)game_module + game_module_size;
 
-    utility::exhaustive_decode((uint8_t*)exists_ptr, 500, [&](utility::ExhaustionContext& ctx) -> utility::ExhaustionResult {
-        if (candidate) {
-            return utility::ExhaustionResult::BREAK;
-        }
+    std::optional<uintptr_t> candidate{};
 
-        // We do not care about the address if it is not in the game module, e.g. inside of kernel32.dll
-        if (ctx.addr < (uintptr_t)game_module || ctx.addr > game_module_end) {
-            return utility::ExhaustionResult::BREAK;
-        }
+    auto check_fn = [&](uintptr_t exists_ptr) {
+        spdlog::info("[LooseFileLoader] Scanning for path_to_hash candidate at {:x}", exists_ptr);
 
-        // This means we have just entered call or something
-        if (ctx.branch_start == ctx.addr) {
-            if (auto bs = utility::find_string_reference_in_path(ctx.branch_start, L"\\", false); bs.has_value()) {
-                spdlog::info("[LooseFileLoader] Found a backslash reference at {:x}", bs->addr);
+        utility::exhaustive_decode((uint8_t*)exists_ptr, 500, [&](utility::ExhaustionContext& ctx) -> utility::ExhaustionResult {
+            if (candidate) {
+                return utility::ExhaustionResult::BREAK;
+            }
 
-                // Now check if murmur hash constant is in the path
-                if (utility::find_pattern_in_path((uint8_t*)ctx.branch_start, 500, true, "? ? 6B CA EB 85")) {
-                    candidate = ctx.branch_start;
-                    spdlog::info("[LooseFileLoader] Found path_to_hash candidate at {:x}", *candidate);
-                    return utility::ExhaustionResult::BREAK;
+            // We do not care about the address if it is not in the game module, e.g. inside of kernel32.dll
+            if (ctx.addr < (uintptr_t)game_module || ctx.addr > game_module_end) {
+                return utility::ExhaustionResult::BREAK;
+            }
+
+            // This means we have just entered call or something
+            if (ctx.branch_start == ctx.addr) {
+                if (auto bs = utility::find_string_reference_in_path(ctx.branch_start, L"\\", false); bs.has_value()) {
+                    spdlog::info("[LooseFileLoader] Found a backslash reference at {:x}", bs->addr);
+
+                    // Now check if murmur hash constant is in the path
+                    if (utility::find_pattern_in_path((uint8_t*)ctx.branch_start, 500, true, "? ? 6B CA EB 85")) {
+                        candidate = ctx.branch_start;
+                        spdlog::info("[LooseFileLoader] Found path_to_hash candidate at {:x}", *candidate);
+                        return utility::ExhaustionResult::BREAK;
+                    }
                 }
             }
-        }
 
-        return utility::ExhaustionResult::CONTINUE;
-    });
+            return utility::ExhaustionResult::CONTINUE;
+        });
+    };
+
+    if (!initial_candidate) {
+        // Basically what we're doing here is finding an initial "mov r8d, 800h"
+        // and then finding a "mov r8d, 400h" in the function, as well as another "mov r8d, 800h"
+        // I call this a landmark scan, where we find a sequence of instructions that are unique to the function
+        // but they don't need to be near each other, they just need to be in the same function.
+        // Some other giveaways of the function are the uses of the UTF-16 backslash characters
+        // and the two calls to murmur hash functions at the end (these can be found in System.String's GetHashCode)
+        const std::string start_seq {"41 B8 00 08 00 00"}; // mov r8d, 800h
+        std::vector<std::string> patterns_in_function {
+            "BA 00 04 00 00",
+            "41 B8 00 08 00 00",
+        };
+
+        std::unordered_set<uintptr_t> analyzed_fns{};
+
+        for (auto new_candidate = utility::find_landmark_sequence(game_module, start_seq, patterns_in_function, false);
+            new_candidate.has_value();
+            new_candidate = utility::find_landmark_sequence(new_candidate->addr + new_candidate->instrux.Length, game_module_end - (new_candidate->addr + 1), start_seq, patterns_in_function, false)) 
+        {
+            const auto fn_start = utility::find_function_start_with_call(new_candidate->addr);
+
+            if (!fn_start.has_value()) {
+                spdlog::error("[LooseFileLoader] Failed to find path_to_hash candidate's start, cannot continue");
+                continue;
+            }
+
+            if (analyzed_fns.contains(fn_start.value())) {
+                continue;
+            }
+
+            analyzed_fns.insert(fn_start.value());
+
+            check_fn(*fn_start);
+
+            if (candidate) {
+                break;
+            }
+        }
+    } else {
+        check_fn(initial_candidate.value());
+    }
 
     if (!candidate) {
         spdlog::error("[LooseFileLoader] Failed to find path_to_hash candidate, cannot continue");
