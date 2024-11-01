@@ -1,6 +1,7 @@
 #include <sdk/RETypeDB.hpp>
 #include <utility/Scan.hpp>
 #include <utility/Module.hpp>
+#include "REFramework.hpp"
 
 #include <spdlog/sinks/basic_file_sink.h>
 
@@ -9,9 +10,12 @@
 LooseFileLoader* g_loose_file_loader{nullptr};
 
 LooseFileLoader::LooseFileLoader() 
-    : m_logger{spdlog::basic_logger_mt("LooseFileLoader", "reframework_accessed_files.txt")},
-    m_loose_file_logger{spdlog::basic_logger_mt("LooseFileLoader2", "reframework_loose_files.txt")}
 {
+    g_loose_file_loader = this;
+
+    m_logger = spdlog::basic_logger_mt("LooseFileLoader", REFramework::get_persistent_dir("reframework_accessed_files.txt").string(), true);
+    m_loose_file_logger = spdlog::basic_logger_mt("LooseFileLoader2", REFramework::get_persistent_dir("reframework_loose_files.txt").string(), true);
+
     m_logger->set_level(spdlog::level::info);
     m_logger->flush_on(spdlog::level::info);
 
@@ -29,7 +33,6 @@ std::shared_ptr<LooseFileLoader>& LooseFileLoader::get() {
 }
 
 std::optional<std::string> LooseFileLoader::on_initialize() {
-    g_loose_file_loader = this;
     return Mod::on_initialize();
 }
 
