@@ -2,9 +2,26 @@
 #include <utility/Scan.hpp>
 #include <utility/Module.hpp>
 
+#include <spdlog/sinks/basic_file_sink.h>
+
 #include "LooseFileLoader.hpp"
 
 LooseFileLoader* g_loose_file_loader{nullptr};
+
+LooseFileLoader::LooseFileLoader() 
+    : m_logger{spdlog::basic_logger_mt("LooseFileLoader", "reframework_accessed_files.txt")},
+    m_loose_file_logger{spdlog::basic_logger_mt("LooseFileLoader2", "reframework_loose_files.txt")}
+{
+    m_logger->set_level(spdlog::level::info);
+    m_logger->flush_on(spdlog::level::info);
+
+    m_logger->info("LooseFileLoader constructed");
+
+    m_loose_file_logger->set_level(spdlog::level::info);
+    m_loose_file_logger->flush_on(spdlog::level::info);
+
+    m_loose_file_logger->info("LooseFileLoader constructed");
+}
 
 std::shared_ptr<LooseFileLoader>& LooseFileLoader::get() {
     static auto instance = std::shared_ptr<LooseFileLoader>(new LooseFileLoader());
@@ -85,6 +102,20 @@ void LooseFileLoader::on_draw_ui() {
             }
 
             ImGui::TreePop();
+        }
+
+        m_log_accessed_files->draw("Log accessed files");
+        if (ImGui::IsItemHovered()) {
+            ImGui::BeginTooltip();
+            ImGui::Text("Logs all accessed files to <game_dir>/reframework_accessed_files.txt");
+            ImGui::EndTooltip();
+        }
+
+        m_log_loose_files->draw("Log loose files");
+        if (ImGui::IsItemHovered()) {
+            ImGui::BeginTooltip();
+            ImGui::Text("Logs loaded loose files to <game_dir>/reframework_loose_files.txt");
+            ImGui::EndTooltip();
         }
 
         ImGui::Checkbox("Show recent files", &m_show_recent_files);
@@ -295,6 +326,14 @@ bool LooseFileLoader::handle_path(const wchar_t* path, size_t hash) {
                     m_files_on_disk.insert(hash); // Global
                     files_on_disk_local.insert(hash); // Thread local
                     exists_on_disk = true;
+                }
+
+                if (m_log_accessed_files->value()) {
+                    m_logger->info("{}", utility::narrow(path));
+                }
+
+                if (exists_on_disk && m_log_loose_files->value()) {
+                    m_loose_file_logger->info("{}", utility::narrow(path));
                 }
 
                 m_seen_files.insert(hash); // Global
