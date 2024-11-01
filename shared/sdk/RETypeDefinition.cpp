@@ -945,12 +945,14 @@ static std::shared_mutex g_runtime_type_mtx{};
             struct FakeObject {
                 const TypeDefinitionHolder* holder{nullptr};
             } fake_obj;
-            
+
             fake_obj.holder = &holder;
             holder.t = this;
 
             return fn->call<::REManagedObject*>(sdk::get_thread_context(), &fake_obj);
         }
+
+        return nullptr;
     }
 
     auto context = sdk::get_thread_context();
