@@ -406,7 +406,8 @@ void ObjectExplorer::on_draw_dev_ui() {
         }
 
         // make a copy, we want to sort by name
-        auto singletons = reframework::get_globals()->get_objects();
+        auto singletons_unordered = reframework::get_globals()->get_objects();
+        std::vector<REManagedObject*> singletons{ singletons_unordered.begin(), singletons_unordered.end() };
 
         // first loop, sort
         std::sort(singletons.begin(), singletons.end(), [](REManagedObject* a, REManagedObject* b) {
@@ -4253,6 +4254,8 @@ void ObjectExplorer::populate_classes() {
     auto type_list = reframework::get_types()->get_raw_types();
     spdlog::info("TypeList: {:x}", (uintptr_t)type_list);
 
+    std::unordered_set<REType*> seen{};
+
     if (type_list != nullptr) try {
         // I don't know why but it can extend past the size.
         for (auto i = 0; i < type_list->numAllocated; ++i) {
@@ -4266,6 +4269,10 @@ void ObjectExplorer::populate_classes() {
                 continue;
             }
 
+            if (seen.contains(t)) {
+                continue;
+            }
+
             auto name = std::string{ t->name };
 
             if (name.empty()) {
@@ -4275,6 +4282,8 @@ void ObjectExplorer::populate_classes() {
             spdlog::info("{:s}", name);
             m_sorted_types.push_back(name);
             m_types[name] = t;
+
+            seen.insert(t);
         }
 
         std::sort(m_sorted_types.begin(), m_sorted_types.end());
@@ -4284,8 +4293,6 @@ void ObjectExplorer::populate_classes() {
     }
 
     auto tdb = sdk::RETypeDB::get();
-
-    std::unordered_set<REType*> seen{};
 
     if (tdb != nullptr) {
         for (auto i = 0; i < tdb->get_num_types(); ++i) {

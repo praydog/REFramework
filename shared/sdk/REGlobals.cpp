@@ -60,7 +60,7 @@ REGlobals::REGlobals() {
         }
         
         m_objects.insert(obj_ptr);
-        m_object_list.push_back(obj_ptr);
+        m_object_list.insert(obj_ptr);
     } catch(...) {
         
     }
@@ -111,13 +111,13 @@ REGlobals::REGlobals() {
     spdlog::info("Finished REGlobals initialization");
 }
 
-std::vector<REManagedObject*> REGlobals::get_objects() {
-    std::vector<REManagedObject*> out{};
+std::unordered_set<REManagedObject*> REGlobals::get_objects() {
+    std::unordered_set<REManagedObject*> out{};
 
     if (!m_object_list.empty()) {
         for (auto obj_ptr : m_object_list) {
             if (*obj_ptr != nullptr && !IsBadReadPtr(*obj_ptr, sizeof(void*))) {
-                out.push_back(*obj_ptr);
+                out.insert(*obj_ptr);
             }
         }
     } else {
@@ -125,7 +125,7 @@ std::vector<REManagedObject*> REGlobals::get_objects() {
             auto result = getter.second();
 
             if (result != nullptr) {
-                out.push_back(result);
+                out.insert(result);
             }
         }
     }
