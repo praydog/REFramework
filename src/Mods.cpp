@@ -82,7 +82,7 @@ std::optional<std::string> Mods::on_initialize() const {
         }
     }
 
-    utility::Config cfg{ (REFramework::get_persistent_dir() / "re2_fw_config.txt").string() };
+    utility::Config cfg{ (REFramework::get_persistent_dir() / REFrameworkConfig::REFRAMEWORK_CONFIG_NAME).string() };
 
     for (auto& mod : m_mods) {
         spdlog::info("{:s}::on_config_load()", mod->get_name().data());
@@ -96,7 +96,7 @@ std::optional<std::string> Mods::on_initialize() const {
 std::optional<std::string> Mods::on_initialize_d3d_thread() const {
     std::scoped_lock _{g_framework->get_hook_monitor_mutex()};
 
-    utility::Config cfg{ (REFramework::get_persistent_dir() / "re2_fw_config.txt").string() };
+    utility::Config cfg{ (REFramework::get_persistent_dir() / REFrameworkConfig::REFRAMEWORK_CONFIG_NAME).string() };
 
     // once here to at least setup the values
     for (auto& mod : m_mods) {

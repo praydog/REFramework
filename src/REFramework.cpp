@@ -28,6 +28,7 @@ extern "C" {
 #include "utility/Thread.hpp"
 
 #include "Mods.hpp"
+#include "mods/LooseFileLoader.hpp"
 #include "mods/PluginLoader.hpp"
 #include "sdk/REGlobals.hpp"
 #include "sdk/Application.hpp"
@@ -42,7 +43,6 @@ extern "C" {
 
 namespace fs = std::filesystem;
 using namespace std::literals;
-
 
 std::unique_ptr<REFramework> g_framework{};
 
@@ -539,6 +539,20 @@ REFramework::REFramework(HMODULE reframework_module)
     bool found_renderer = false;
     bool renderer_has_render_frame_fn = false;
 
+    if (sdk::RETypeDB::get() != nullptr) {
+        auto& loader = LooseFileLoader::get(); // Initialize this really early
+
+        const auto config_path = get_persistent_dir(REFrameworkConfig::REFRAMEWORK_CONFIG_NAME.data()).string();
+        if (fs::exists(utility::widen(config_path))) {
+            utility::Config cfg{ config_path };
+            loader->on_config_load(cfg);
+        }
+
+        if (loader->is_enabled()) {
+            loader->hook();
+        }
+    }
+
     while (true) try {
         const auto tdb = sdk::RETypeDB::get();
 
@@ -827,7 +841,7 @@ void REFramework::on_frame_d3d11() {
     if (is_init_ok) {
         // Write default config once if it doesn't exist.
         if (!std::exchange(m_created_default_cfg, true)) {
-            if (!fs::exists({utility::widen(get_persistent_dir("re2_fw_config.txt").string())})) {
+            if (!fs::exists({utility::widen(get_persistent_dir(REFrameworkConfig::REFRAMEWORK_CONFIG_NAME.data()).string())})) {
                 save_config();
             }
         }
@@ -932,7 +946,7 @@ void REFramework::on_frame_d3d12() {
     if (is_init_ok) {
         // Write default config once if it doesn't exist.
         if (!std::exchange(m_created_default_cfg, true)) {
-            if (!fs::exists({utility::widen(get_persistent_dir("re2_fw_config.txt").string())})) {
+            if (!fs::exists({utility::widen(get_persistent_dir(REFrameworkConfig::REFRAMEWORK_CONFIG_NAME.data()).string())})) {
                 save_config();
             }
         }
@@ -1313,7 +1327,7 @@ std::filesystem::path REFramework::get_persistent_dir() {
 void REFramework::save_config() {
     std::scoped_lock _{m_config_mtx};
 
-    spdlog::info("Saving config re2_fw_config.txt");
+    spdlog::info("Saving config {}", REFrameworkConfig::REFRAMEWORK_CONFIG_NAME.data());
 
     utility::Config cfg{};
 
@@ -1322,7 +1336,7 @@ void REFramework::save_config() {
     }
 
     try {
-        if (!cfg.save((get_persistent_dir() / "re2_fw_config.txt").string())) {
+        if (!cfg.save((get_persistent_dir() / REFrameworkConfig::REFRAMEWORK_CONFIG_NAME.data()).string())) {
             spdlog::error("Failed to save config");
             return;
         }

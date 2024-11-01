@@ -161,30 +161,53 @@ void LooseFileLoader::hook() {
         return;
     }
 
-    auto initial_candidate = [&]() -> std::optional<uintptr_t> {
-        const auto via_io_file = tdb->find_type("via.io.file");
+    auto initial_candidates = [&]() -> std::vector<uintptr_t> {
+        sdk::RETypeDefinition* via_io_file = nullptr;
+
+        // We need to look for via.io.file manually because LooseFileLoader gets loaded extremely early
+        // meaning VM stuff may not work correctly
+        for (auto i = 0; i < tdb->get_num_types(); ++i) {
+            const auto t = tdb->get_type(i);
+
+            if (t == nullptr || t->get_name() == nullptr) {
+                continue;
+            }
+
+            if (std::string_view{t->get_name()} == "file") {
+                if (t->get_declaring_type() != nullptr && std::string_view{t->get_declaring_type()->get_name()} == "io") {
+                    via_io_file = t;
+                    break;
+                }
+            }
+        }
 
         if (via_io_file == nullptr) {
             spdlog::error("[LooseFileLoader] Failed to find via.io.file");
-            return std::nullopt;
+            return {};
         }
 
-        // "exist" and "exists" are 2 different functions. one searches in pak and other doesnt.
-        const auto exists_fn = via_io_file->get_method("exists(System.String)");
+        spdlog::info("[LooseFileLoader] Found via.io.file");
 
-        if (exists_fn == nullptr) {
-            spdlog::error("[LooseFileLoader] Failed to find via.io.file.exists(System.String)");
-            return std::nullopt;
+        std::vector<uintptr_t> candidates{};
+
+        // Same reason as above, manually loop through methods because VM stuff may not work correctly
+        for (auto& m : via_io_file->get_methods()) {
+            if (m.get_name() == nullptr) {
+                continue;
+            }
+
+            if (std::string_view{m.get_name()} == "exists") {
+                if (auto func = m.get_function(); func != nullptr) {
+                    candidates.push_back((uintptr_t)func);
+                }
+            }
         }
 
-        const auto exists_ptr = exists_fn->get_function();
-
-        if (exists_ptr == nullptr) {
-            spdlog::error("[LooseFileLoader] Failed to get function pointer for via.io.file.exists(System.String)");
-            return std::nullopt;
+        if (candidates.empty()) {
+            spdlog::error("[LooseFileLoader] Failed to find via.io.file.exists methods");
         }
 
-        return (uintptr_t)exists_ptr;
+        return candidates;
     }();
 
     const auto game_module = utility::get_executable();
@@ -224,7 +247,7 @@ void LooseFileLoader::hook() {
         });
     };
 
-    if (!initial_candidate) {
+    if (initial_candidates.empty()) {
         // Basically what we're doing here is finding an initial "mov r8d, 800h"
         // and then finding a "mov r8d, 400h" in the function, as well as another "mov r8d, 800h"
         // I call this a landmark scan, where we find a sequence of instructions that are unique to the function
@@ -263,7 +286,13 @@ void LooseFileLoader::hook() {
             }
         }
     } else {
-        check_fn(initial_candidate.value());
+        for (const auto& c : initial_candidates) {
+            check_fn(c);
+
+            if (candidate) {
+                break;
+            }
+        }
     }
 
     if (!candidate) {

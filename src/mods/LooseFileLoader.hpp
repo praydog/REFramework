@@ -23,8 +23,13 @@ public:
     void on_frame() override;
     void on_draw_ui() override;
 
-private:
     void hook();
+
+    bool is_enabled() const {
+        return m_enabled->value();
+    }
+
+private:
     bool handle_path(const wchar_t* path, size_t hash);
 
 #if TDB_VER > 67
