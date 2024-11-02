@@ -275,8 +275,6 @@ std::optional<std::string> Hooks::hook_update_camera_controller2() {
 }
 
 std::optional<std::string> Hooks::hook_gui_draw() {
-    // TODO: FIX THIS!!!
-#if TDB_VER < 74
     spdlog::info("[Hooks] Attempting to hook GUI functions...");
 
     auto game = g_framework->get_module().as<HMODULE>();
@@ -296,6 +294,7 @@ std::optional<std::string> Hooks::hook_gui_draw() {
     ++*(_DWORD *)(gui_manager + 232);
     *(_QWORD *)&v35 = draw_task_function; <-- "gui_draw_call" is found within this function.
     */
+    size_t offset = 12;
     spdlog::info("[Hooks] Scanning for first GUI draw call...");
     auto gui_draw_call = utility::scan(game, "49 8B 0C CE 48 83 79 10 00 74 ? E8 ? ? ? ?");
 
@@ -305,13 +304,21 @@ std::optional<std::string> Hooks::hook_gui_draw() {
         gui_draw_call = utility::scan(game, "49 8B 0C CE 48 83 79 20 00 74 ? E8 ? ? ? ?");
 
         if (!gui_draw_call) {
-            return "Unable to find gui_draw_call pattern.";
+            // MHWILDS
+            gui_draw_call = utility::scan(game, "48 8B 0C C3 48 83 79 ? 00 74 ? 48 89 ? E8 ? ? ? ?");
+            offset = 15;
+
+            if (!gui_draw_call) {
+                //return "Unable to find gui_draw_call pattern.";
+                spdlog::error("[Hooks] Unable to find gui_draw_call pattern.");
+                return std::nullopt; // Don't bother erroring out the entire mod just because of this
+            }
         }
     }
 
     spdlog::info("[Hooks] Found gui_draw_call at {:x}", *gui_draw_call);
 
-    auto gui_draw = utility::calculate_absolute(*gui_draw_call + 12);
+    auto gui_draw = utility::calculate_absolute(*gui_draw_call + offset);
     spdlog::info("[Hooks] gui_draw: {:x}", gui_draw);
 
     m_gui_draw_hook = std::make_unique<FunctionHook>(gui_draw, &gui_draw_hook);
@@ -319,7 +326,6 @@ std::optional<std::string> Hooks::hook_gui_draw() {
     if (!m_gui_draw_hook->create()) {
         return "Failed to hook GUI::draw";
     }
-#endif
 
     return std::nullopt;
 }
