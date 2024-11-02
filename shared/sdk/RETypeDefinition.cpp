@@ -704,6 +704,13 @@ bool RETypeDefinition::is_by_ref() const {
 
     static auto by_ref_method = runtime_typedef->get_method("get_IsByRef");
 
+    if (by_ref_method == nullptr) {
+        // well...
+        // We might need to fix this later for Wilds?
+        g_by_ref_map[this] = false;
+        return false;
+    }
+
     g_by_ref_map[this] = by_ref_method->call<bool>(sdk::get_thread_context(), runtime_type);
 
     return g_by_ref_map[this];   
