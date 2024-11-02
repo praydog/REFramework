@@ -9,7 +9,7 @@ namespace sdk {
 Vector4f sdk::get_transform_position(RETransform* transform) {
     static auto get_position_method = sdk::find_type_definition("via.Transform")->get_method("get_Position");
 
-    Vector4f out{};
+    __declspec(align(16)) Vector4f out{};
     get_position_method->call<Vector4f*>(&out, sdk::get_thread_context(), transform);
 
     return out;
@@ -18,7 +18,7 @@ Vector4f sdk::get_transform_position(RETransform* transform) {
 glm::quat sdk::get_transform_rotation(RETransform* transform) {
     static auto get_rotation_method = sdk::find_type_definition("via.Transform")->get_method("get_Rotation");
 
-    glm::quat out{};
+    __declspec(align(16)) glm::quat out{};
     get_rotation_method->call<glm::quat*>(&out, sdk::get_thread_context(), transform);
 
     return out;
@@ -46,7 +46,8 @@ void set_transform_position(RETransform* transform, const Vector4f& pos, bool no
     if (!no_dirty) {
         static auto set_position_method = sdk::find_type_definition("via.Transform")->get_method("set_Position");
 
-        set_position_method->call<void*>(sdk::get_thread_context(), transform, &pos);
+        __declspec(align(16)) Vector4f p = pos;
+        set_position_method->call<void*>(sdk::get_thread_context(), transform, &p);
     } else {
         static auto get_parent_method = sdk::find_type_definition("via.Transform")->get_method("get_Parent");
         const auto parent_transform = get_parent_method->call<RETransform*>(sdk::get_thread_context(), transform);
@@ -69,7 +70,8 @@ void set_transform_position(RETransform* transform, const Vector4f& pos, bool no
 void set_transform_rotation(RETransform* transform, const glm::quat& rot) {
     static auto set_rotation_method = sdk::find_type_definition("via.Transform")->get_method("set_Rotation");
 
-    set_rotation_method->call<void*>(sdk::get_thread_context(), transform, &rot);
+    __declspec(align(16)) glm::quat q = rot;
+    set_rotation_method->call<void*>(sdk::get_thread_context(), transform, &q);
 }
 
 REJoint* sdk::get_joint_parent(REJoint* joint) {
@@ -106,19 +108,21 @@ uint32_t get_joint_hash(REJoint* joint) {
 void sdk::set_joint_position(REJoint* joint, const Vector4f& position) {
     static auto set_position_method = sdk::find_type_definition("via.Joint")->get_method("set_Position");
 
-    set_position_method->call<void*>(sdk::get_thread_context(), joint, &position);
+    __declspec(align(16)) Vector4f pos = position;
+    set_position_method->call<void*>(sdk::get_thread_context(), joint, &pos);
 };
 
 void sdk::set_joint_rotation(REJoint* joint, const glm::quat& rotation) {
     static auto set_rotation_method = sdk::find_type_definition("via.Joint")->get_method("set_Rotation");
 
-    set_rotation_method->call<void*>(sdk::get_thread_context(), joint, &rotation);
+    __declspec(align(16)) glm::quat rot = rotation;
+    set_rotation_method->call<void*>(sdk::get_thread_context(), joint, &rot);
 };
 
 glm::quat sdk::get_joint_rotation(REJoint* joint) {
     static auto get_rotation_method = sdk::find_type_definition("via.Joint")->get_method("get_Rotation");
 
-    glm::quat rotation{};
+    __declspec(align(16)) glm::quat rotation{};
     get_rotation_method->call<glm::quat*>(&rotation, sdk::get_thread_context(), joint);
 
     return rotation;
@@ -127,7 +131,7 @@ glm::quat sdk::get_joint_rotation(REJoint* joint) {
 Vector4f sdk::get_joint_position(REJoint* joint) {
     static auto get_position_method = sdk::find_type_definition("via.Joint")->get_method("get_Position");
 
-    Vector4f position{};
+    __declspec(align(16)) Vector4f position{};
     get_position_method->call<Vector4f*>(&position, sdk::get_thread_context(), joint);
 
     return position;
@@ -136,7 +140,7 @@ Vector4f sdk::get_joint_position(REJoint* joint) {
 glm::quat sdk::get_joint_local_rotation(REJoint* joint) {
     static auto get_local_rotation_method = sdk::find_type_definition("via.Joint")->get_method("get_LocalRotation");
 
-    glm::quat rotation{};
+    __declspec(align(16)) glm::quat rotation{};
     get_local_rotation_method->call<glm::quat*>(&rotation, sdk::get_thread_context(), joint);
 
     return rotation;
@@ -145,7 +149,7 @@ glm::quat sdk::get_joint_local_rotation(REJoint* joint) {
 Vector4f sdk::get_joint_local_position(REJoint* joint) {
     static auto get_local_position_method = sdk::find_type_definition("via.Joint")->get_method("get_LocalPosition");
 
-    Vector4f position{};
+    __declspec(align(16)) Vector4f position{};
     get_local_position_method->call<Vector4f*>(&position, sdk::get_thread_context(), joint);
 
     return position;
@@ -154,13 +158,15 @@ Vector4f sdk::get_joint_local_position(REJoint* joint) {
 void sdk::set_joint_local_rotation(REJoint* joint, const glm::quat& rotation) {
     static auto set_local_rotation_method = sdk::find_type_definition("via.Joint")->get_method("set_LocalRotation");
 
-    set_local_rotation_method->call<void*>(sdk::get_thread_context(), joint, &rotation);
+    __declspec(align(16)) glm::quat rot = rotation;
+    set_local_rotation_method->call<void*>(sdk::get_thread_context(), joint, &rot);
 };
 
 void sdk::set_joint_local_position(REJoint* joint, const Vector4f& position) {
     static auto set_local_position_method = sdk::find_type_definition("via.Joint")->get_method("set_LocalPosition");
 
-    set_local_position_method->call<void*>(sdk::get_thread_context(), joint, &position);
+    __declspec(align(16)) Vector4f pos = position;
+    set_local_position_method->call<void*>(sdk::get_thread_context(), joint, &pos);
 };
 
 std::string sdk::get_joint_name(REJoint* joint) {
@@ -231,10 +237,10 @@ glm::mat4 calculate_base_transform(const ::RETransform& transform, REJoint* targ
 
     auto parent_transform = calculate_base_transform(transform, parent_joint);
 
-    glm::quat base_rotation{};
+    __declspec(align(16)) glm::quat base_rotation{};
     get_base_local_rotation_method->call<glm::quat*>(&base_rotation, sdk::get_thread_context(), target);
 
-    Vector4f base_position{};
+    __declspec(align(16)) Vector4f base_position{};
     get_base_local_position_method->call<Vector4f*>(&base_position, sdk::get_thread_context(), target);
 
     // Convert to matrix
@@ -281,10 +287,10 @@ void calculate_base_transforms(const ::RETransform& transform, REJoint* target, 
 
     const auto& parent_transform = it->second;
 
-    glm::quat base_rotation{};
+    __declspec(align(16)) glm::quat base_rotation{};
     get_base_local_rotation_method->call<glm::quat*>(&base_rotation, sdk::get_thread_context(), target);
 
-    Vector4f base_position{};
+    __declspec(align(16)) Vector4f base_position{};
     get_base_local_position_method->call<Vector4f*>(&base_position, sdk::get_thread_context(), target);
 
     // Convert to matrix

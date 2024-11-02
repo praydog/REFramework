@@ -704,6 +704,13 @@ bool RETypeDefinition::is_by_ref() const {
 
     static auto by_ref_method = runtime_typedef->get_method("get_IsByRef");
 
+    if (by_ref_method == nullptr) {
+        // well...
+        // We might need to fix this later for Wilds?
+        g_by_ref_map[this] = false;
+        return false;
+    }
+
     g_by_ref_map[this] = by_ref_method->call<bool>(sdk::get_thread_context(), runtime_type);
 
     return g_by_ref_map[this];   
@@ -933,6 +940,27 @@ static std::shared_mutex g_runtime_type_mtx{};
     static auto get_current_domain_func = appdomain_type->get_method("get_CurrentDomain");
     static auto get_assemblies_func = appdomain_type->get_method("GetAssemblies");
     static auto get_assembly_type_func = assembly_type->get_method("GetType(System.String)");
+
+    if (get_assembly_type_func == nullptr) {
+        // Past TDB 74, we have to do this because
+        // a lot of the assembly stuff seems to be stripped?
+        if (auto fn = this->get_method("GetType()"); fn != nullptr) {
+            struct TypeDefinitionHolder {
+                const sdk::RETypeDefinition* t{nullptr};
+            } holder;
+
+            struct FakeObject {
+                const TypeDefinitionHolder* holder{nullptr};
+            } fake_obj;
+
+            fake_obj.holder = &holder;
+            holder.t = this;
+
+            return fn->call<::REManagedObject*>(sdk::get_thread_context(), &fake_obj);
+        }
+
+        return nullptr;
+    }
 
     auto context = sdk::get_thread_context();
     auto current_domain = get_current_domain_func->call<REManagedObject*>(context, nullptr);

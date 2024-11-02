@@ -103,6 +103,8 @@ public:
         return "sf6";
     #elif defined(DD2)
         return "dd2";
+    #elif defined(MHWILDS)
+        return "mhwilds";
     #else
         return "unknown";
     #endif

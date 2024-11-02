@@ -112,6 +112,10 @@ Application::Function* Application::get_functions() {
 
         const auto module_entry_enum = sdk::find_type_definition("via.ModuleEntry");
 
+        if (module_entry_enum == nullptr) {
+            spdlog::error("Cannot find via.ModuleEntry");
+        }
+
         // screw that lets just bruteforce through the Application object looking for huge
         // list of valid pointers within the current module
         for (auto i = 0x100; i < 0x1000; i += sizeof(void*)) try {
@@ -131,14 +135,17 @@ Application::Function* Application::get_functions() {
                 if (j == 0 && func.entry == nullptr || IsBadReadPtr(func.entry, sizeof(void*))) {
                     break; // the first one should always be valid.
                 }
-
+                
                 const auto name = std::string_view{func.description};
 
                 if (j == 0) {
                     if (module_entry_enum != nullptr) {
                         if (auto f = sdk::get_native_field<uint16_t>(nullptr, module_entry_enum, name, true); f != nullptr) {
                             if (*f != func.priority) {
+                                spdlog::error("{} priority mismatch: {} != {}", name.data(), *f, func.priority);
                                 break; // the first one should always be valid.
+                            } else{
+                                spdlog::info("{} priority match: {} == {}", name.data(), *f, func.priority);
                             }
                         }
                     } else if (func.priority != 1) {

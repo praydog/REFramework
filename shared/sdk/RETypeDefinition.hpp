@@ -12,6 +12,7 @@ class REManagedObject;
 
 // Manual definitions of REClassInfo because ReClass doesn't have bitfields like this.
 namespace sdk {
+struct RETypeDefVersion74;
 struct RETypeDefVersion71;
 struct RETypeDefVersion69;
 struct RETypeDefVersion67;
@@ -23,6 +24,45 @@ struct REMethodDefinition;
 struct REProperty;
 struct RETypeDefinition;
 struct GenericListData;
+
+struct RETypeDefVersion74 {
+    uint64_t index : TYPE_INDEX_BITS;
+    uint64_t parent_typeid : TYPE_INDEX_BITS;
+    uint64_t declaring_typeid : TYPE_INDEX_BITS;
+    uint64_t underlying_typeid : 7;
+
+   	uint64_t array_typeid_TBD : TYPE_INDEX_BITS;
+   	uint64_t element_typeid_TBD : TYPE_INDEX_BITS;
+
+    uint64_t impl_index : 18;
+    uint64_t system_typeid : 7;
+
+    uint32_t type_flags;
+    uint32_t size;
+    uint32_t fqn_hash;
+    uint32_t type_crc;
+    uint64_t default_ctor : 22;
+    uint64_t member_method : 22;
+    uint64_t member_field : TYPE_INDEX_BITS;
+    uint32_t num_member_prop : 12;
+    uint32_t member_prop : TYPE_INDEX_BITS;
+
+    uint32_t unk_data : 26;
+    uint32_t object_type : 3;
+
+    int64_t unk_data_before_generics : 26;
+	int64_t generics : 26;
+  	int64_t interfaces : 12;
+    struct sdk::RETypeCLR* type;
+    class ::REObjectInfo* managed_vt;
+    
+    uint64_t unk_new_tdb74_uint64; // Adds 8 bytes
+};
+
+#if TDB_VER >= 74
+static_assert(sizeof(RETypeDefVersion74) == 0x50, "RETypeDefVersion74 has wrong size");
+static_assert(offsetof(RETypeDefVersion74, type_crc) == 0x1C);
+#endif
 
 struct RETypeDefVersion71 {
     uint64_t index : TYPE_INDEX_BITS;
