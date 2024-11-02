@@ -27,7 +27,7 @@
 #elif defined(RE4)
 #include "sdk/regenny/re4/via/Window.hpp"
 #include "sdk/regenny/re4/via/SceneView.hpp"
-#elif defined(DD2)
+#elif defined(DD2) || TDB_VER >= 74
 #include "sdk/regenny/dd2/via/Window.hpp"
 #include "sdk/regenny/dd2/via/SceneView.hpp"
 #else
@@ -3131,7 +3131,7 @@ void VR::on_end_rendering(void* entry) {
                 "EndDynamics",
                 "EndPhysics",
                 "RenderDynamics",
-#ifndef DD2
+#if TDB_VER < 73
                 "RenderLandscape",
 #endif
                 "DevelopRenderer",

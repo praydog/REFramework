@@ -18,7 +18,7 @@ Vector4f sdk::get_transform_position(RETransform* transform) {
 glm::quat sdk::get_transform_rotation(RETransform* transform) {
     static auto get_rotation_method = sdk::find_type_definition("via.Transform")->get_method("get_Rotation");
 
-    glm::quat out{};
+    __declspec(align(16)) glm::quat out{};
     get_rotation_method->call<glm::quat*>(&out, sdk::get_thread_context(), transform);
 
     return out;
@@ -106,19 +106,21 @@ uint32_t get_joint_hash(REJoint* joint) {
 void sdk::set_joint_position(REJoint* joint, const Vector4f& position) {
     static auto set_position_method = sdk::find_type_definition("via.Joint")->get_method("set_Position");
 
-    set_position_method->call<void*>(sdk::get_thread_context(), joint, &position);
+    __declspec(align(16)) Vector4f pos = position;
+    set_position_method->call<void*>(sdk::get_thread_context(), joint, &pos);
 };
 
 void sdk::set_joint_rotation(REJoint* joint, const glm::quat& rotation) {
     static auto set_rotation_method = sdk::find_type_definition("via.Joint")->get_method("set_Rotation");
 
-    set_rotation_method->call<void*>(sdk::get_thread_context(), joint, &rotation);
+    __declspec(align(16)) glm::quat rot = rotation;
+    set_rotation_method->call<void*>(sdk::get_thread_context(), joint, &rot);
 };
 
 glm::quat sdk::get_joint_rotation(REJoint* joint) {
     static auto get_rotation_method = sdk::find_type_definition("via.Joint")->get_method("get_Rotation");
 
-    glm::quat rotation{};
+    __declspec(align(16)) glm::quat rotation{};
     get_rotation_method->call<glm::quat*>(&rotation, sdk::get_thread_context(), joint);
 
     return rotation;
@@ -127,7 +129,7 @@ glm::quat sdk::get_joint_rotation(REJoint* joint) {
 Vector4f sdk::get_joint_position(REJoint* joint) {
     static auto get_position_method = sdk::find_type_definition("via.Joint")->get_method("get_Position");
 
-    Vector4f position{};
+    __declspec(align(16)) Vector4f position{};
     get_position_method->call<Vector4f*>(&position, sdk::get_thread_context(), joint);
 
     return position;
@@ -136,7 +138,7 @@ Vector4f sdk::get_joint_position(REJoint* joint) {
 glm::quat sdk::get_joint_local_rotation(REJoint* joint) {
     static auto get_local_rotation_method = sdk::find_type_definition("via.Joint")->get_method("get_LocalRotation");
 
-    glm::quat rotation{};
+    __declspec(align(16)) glm::quat rotation{};
     get_local_rotation_method->call<glm::quat*>(&rotation, sdk::get_thread_context(), joint);
 
     return rotation;
@@ -145,7 +147,7 @@ glm::quat sdk::get_joint_local_rotation(REJoint* joint) {
 Vector4f sdk::get_joint_local_position(REJoint* joint) {
     static auto get_local_position_method = sdk::find_type_definition("via.Joint")->get_method("get_LocalPosition");
 
-    Vector4f position{};
+    __declspec(align(16)) Vector4f position{};
     get_local_position_method->call<Vector4f*>(&position, sdk::get_thread_context(), joint);
 
     return position;
