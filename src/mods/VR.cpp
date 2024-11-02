@@ -2171,7 +2171,11 @@ void VR::disable_bad_effects() {
     // get_MaxFps on application
     if (!is_sf6 && m_force_fps_settings->value() && application->get_max_fps() <  600.0f) {
         application->set_max_fps(600.0f);
-        spdlog::info("[VR] Max FPS set to {}", 600.0f);
+
+        static bool once = []() {
+            spdlog::info("[VR] Max FPS set to {}", 600.0f);
+            return true;
+        }();
     }
 
     if (m_force_aa_settings->value() && get_antialiasing_method != nullptr && set_antialiasing_method != nullptr) {
@@ -3486,6 +3490,8 @@ void VR::on_end_rendering(void* entry) {
             }
 
             if (g_framework->is_dx12()) {
+                bool force_reset = false;
+
                 if (m_multipass.allocated_size[0] != get_hmd_width() || m_multipass.allocated_size[1] != get_hmd_height()) {
                     const auto rtv0 = output_states[0]->get_rtv(0);
                     const auto rtv1 = output_states[1]->get_rtv(0);
@@ -3501,6 +3507,8 @@ void VR::on_end_rendering(void* entry) {
                             m_multipass.allocated_size[0] = get_hmd_width();
                             m_multipass.allocated_size[1] = get_hmd_height();
 
+                            force_reset = true;
+
                             spdlog::info("Allocated native res copies");
                         } else {
                             spdlog::warn("VR: on_end_rendering: texs are null: {:x} {:x}", (uintptr_t)tex0.get(), (uintptr_t)tex1.get());
@@ -3515,6 +3523,10 @@ void VR::on_end_rendering(void* entry) {
 
                     if (container != nullptr) {
                         m_multipass.eye_textures[0] = container->get_native_resource();
+
+                        if (m_multipass.eye_textures[0] == nullptr) {
+                            spdlog::warn("VR: on_end_rendering: eye texture 0 is null");
+                        }
                     }
                 }
                 
@@ -3523,7 +3535,15 @@ void VR::on_end_rendering(void* entry) {
 
                     if (container != nullptr) {
                         m_multipass.eye_textures[1] = container->get_native_resource();
+
+                        if (m_multipass.eye_textures[1] == nullptr) {
+                            spdlog::warn("VR: on_end_rendering: eye texture 1 is null");
+                        }
                     }
+                }
+
+                if (force_reset) {
+                    m_d3d12.force_reset();
                 }
             } else {
                 // TODO!

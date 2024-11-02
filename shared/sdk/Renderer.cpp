@@ -663,6 +663,12 @@ sdk::renderer::command::Base* RenderContext::alloc(uint32_t t, uint32_t size) {
     static auto func = []() -> sdk::renderer::command::Base* (*)(RenderContext*, uint32_t, uint32_t) {
         spdlog::info("Searching for RenderContext::alloc");
 
+        /*
+            // In wilds this looks more like this
+            BA 09 00 00 00    mov     edx, 9
+            41 B8 30 00 00 00 mov     r8d, 30h
+            E8 ? ? ? ?        call    alloc
+        */
         const auto game = utility::get_executable();
         const auto scan_result = utility::scan(game, "48 8b ? 44 8d 42 38 e8 ? ? ? ?");
 
@@ -761,7 +767,9 @@ void RenderContext::copy_texture(Texture* dest, Texture* src, Fence& fence) {
     
     return;
 #else*/
-    static auto func = []() -> void (*)(RenderContext*, Texture*, Texture*, Fence&) {
+
+    using CopyTexFn = void (*)(RenderContext*, Texture*, Texture*, Fence&);
+    static auto func = []() -> CopyTexFn {
         spdlog::info("Searching for RenderContext::copy_texture");
 
         std::vector<std::string> string_choices {
@@ -773,10 +781,11 @@ void RenderContext::copy_texture(Texture* dest, Texture* src, Fence& fence) {
             "CopyImage",
         };
 
+        const auto game = utility::get_executable();
+
         for (const auto& str_choice : string_choices) {
             spdlog::info("Scanning for string: {}", str_choice);
 
-            const auto game = utility::get_executable();
             const auto string = utility::scan_string(game, str_choice, true);
 
             if (!string) {
@@ -804,7 +813,7 @@ void RenderContext::copy_texture(Texture* dest, Texture* src, Fence& fence) {
                 ip = resolved->addr;
 
                 if (*(uint8_t*)ip == 0xE8) {
-                    const auto result = (void (*)(RenderContext*, Texture*, Texture*, Fence&))utility::calculate_absolute(ip + 1);
+                    const auto result = (CopyTexFn)utility::calculate_absolute(ip + 1);
 
                     spdlog::info("Found copy_texture: {:x}", (uintptr_t)result);
                     return result;
@@ -814,8 +823,32 @@ void RenderContext::copy_texture(Texture* dest, Texture* src, Fence& fence) {
             }
         }
 
-        spdlog::error("Could not find copy_texture");
-        return nullptr;
+        spdlog::error("Could not find copy_texture, trying fallback");
+
+        // Look for alloc call behind RE_POSTPROCESS_Color
+        /*
+            BA 01 00 00 00                                mov     edx, 1 ; this is the copy texture command type
+            41 B8 30 00 00 00                             mov     r8d, 30h ; can change, can also be a lea instruction
+            E8 9B A5 7E 09                                call    alloc
+            48 85 C0                                      test    rax, rax
+        */
+        const auto basic_sig_scan = utility::scan(game, "BA 01 00 00 00 41 B8 30 00 00 00 E8 ? ? ? ? 48 85 C0");
+
+        if (!basic_sig_scan) {
+            spdlog::error("Failed to find copy_texture (fallback)");
+            return nullptr;
+        }
+
+        const auto fn_start = utility::find_function_start_with_call(*basic_sig_scan);
+
+        if (!fn_start) {
+            spdlog::error("Failed to find copy_texture (fallback fn_start)");
+            return nullptr;
+        }
+
+        spdlog::info("Found copy_texture (fallback): {:x}", *fn_start);
+
+        return (CopyTexFn)*fn_start;
     }();
 
     func(this, dest, src, fence);
@@ -1055,6 +1088,27 @@ sdk::renderer::layer::Output* get_output_layer() {
     if (renderer_t == nullptr) {
         spdlog::error("[Renderer] Failed to find via.render.Renderer type");
         return nullptr;
+    }
+
+    static auto get_output_layer_method = renderer_t->get_method("getOutputLayer");
+
+    if (get_output_layer_method == nullptr) {
+        auto root = get_root_layer();
+
+        if (root == nullptr) {
+            return nullptr;
+        }
+
+        static auto output_t = sdk::find_type_definition("via.render.layer.Output");
+        static auto output_retype = output_t != nullptr ? output_t->get_type() : nullptr;
+
+        auto [parent, found] = root->find_layer_recursive(output_retype);
+
+        if (found == nullptr) {
+            return nullptr;
+        }
+
+        return (sdk::renderer::layer::Output*)*found;
     }
 
     return sdk::call_native_func<sdk::renderer::layer::Output*>(nullptr, renderer_t, "getOutputLayer", sdk::get_thread_context(), nullptr);
@@ -1302,7 +1356,34 @@ Texture* create_texture(Texture::Desc* desc) {
             ip -= 1;
         }
 
-        return nullptr;
+        spdlog::error("Failed to find create_texture, trying fallback");
+
+        const auto fn_start = utility::find_function_start_with_call(*string_ref);
+
+        if (!fn_start) {
+            spdlog::error("Failed to find create_texture (no fallback)");
+            return nullptr;
+        }
+
+        const auto first_call = utility::scan_mnemonic(*fn_start, 100, "CALL");
+
+        if (!first_call) {
+            spdlog::error("Failed to find create_texture (no first call)");
+            return nullptr;
+        }
+
+        const auto second_call = utility::scan_mnemonic(*first_call + 1, 100, "CALL");
+
+        if (!second_call) {
+            spdlog::error("Failed to find create_texture (no second call)");
+            return nullptr;
+        }
+
+        auto result = (Texture* (*)(void*, Texture::Desc*))utility::calculate_absolute(*second_call + 1);
+
+        spdlog::info("Found create_texture (fallback): {:x}", (uintptr_t)result);
+
+        return result;
     }();
 
     static auto renderer = sdk::renderer::get_renderer();
@@ -1441,7 +1522,9 @@ sdk::intrusive_ptr<RenderTargetView> RenderTargetView::clone(uint32_t new_width,
 }
 
 namespace detail {
-#if TDB_VER >= 71
+#if TDB_VER >= 74
+    constexpr auto rtv_size = 0xA8;
+#elif TDB_VER >= 71
 #if defined(SF6) || defined(DD2)
     constexpr auto rtv_size = 0x98;
 #elif defined(MHRISE)
@@ -1468,14 +1551,18 @@ sdk::intrusive_ptr<Texture>& RenderTargetView::get_texture_d3d12() const {
     if (rtv_type != nullptr && rtv_type->size > 0 && rtv_type->size < 0x1000) {
         const auto rtv_size = rtv_type->size;
 
-#if TDB_VER < 73
+#if TDB_VER >= 74
+        return *(sdk::intrusive_ptr<Texture>*)((uintptr_t)this + rtv_size + (sizeof(void*) * 4)); // 0xC8 usually
+#elif TDB_VER < 73
         return *(sdk::intrusive_ptr<Texture>*)((uintptr_t)this + rtv_size + sizeof(void*));
 #else
         return *(sdk::intrusive_ptr<Texture>*)((uintptr_t)this + rtv_size + (sizeof(void*) * 3));
 #endif
     }
     
-#if TDB_VER < 73
+#if TDB_VER >= 74
+    return *(sdk::intrusive_ptr<Texture>*)((uintptr_t)this + detail::rtv_size + (sizeof(void*) * 4)); // 0xC8 usually
+#elif TDB_VER < 73
     return *(sdk::intrusive_ptr<Texture>*)((uintptr_t)this + detail::rtv_size + sizeof(void*));
 #else
     return *(sdk::intrusive_ptr<Texture>*)((uintptr_t)this + detail::rtv_size + (sizeof(void*) * 3));
