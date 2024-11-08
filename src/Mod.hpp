@@ -229,6 +229,15 @@ public:
         ImGui::Text("%s: %s", name.data(), m_options[m_value]);
     }
 
+    void recreate_options(const std::vector<std::string>& options) {
+        m_options_stdstr = options;
+        m_options.clear();
+
+        for (auto& o : m_options_stdstr) {
+            m_options.push_back(o.c_str());
+        }
+    }
+
     const auto& options() const {
         return m_options;
     }

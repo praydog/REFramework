@@ -23,152 +23,156 @@ FILL_BYTE = 16
 
 zero_member_functions = {}
 
+# these are chains we'll use for testing on games we are encountering issues with
+# so we don't need to parse the entire JSON dump
 default_chains = {
-    "via.motion.tree.AddBlendNode": {
+    "via.Camera": {
         "deserializer_chain": [
             {
-                "address": "0x143bbbfd0",
+                "address": "0x14a2bd450",
                 "name": "via.Object"
             },
             {
-                "address": "0x143bc9390",
-                "name": "via.motion.tree.BaseNode"
-            },
-            {
-                "address": "0x143bca5a0",
-                "name": "via.motion.tree.TreeNode"
-            },
-            {
-                "address": "0x143bc9880",
-                "name": "via.motion.tree.InnerNodeDynamic"
-            },
-            {
-                "address": "0x143bc9110",
-                "name": "via.motion.tree.BaseBlendNode"
-            },
-            {
-                "address": "0x143bc9230",
-                "name": "via.motion.tree.BaseLayerBlendNode"
-            },
-            {
-                "address": "0x143bc98b0",
-                "name": "via.motion.tree.AddBlendNode"
-            }
-        ],
-    },
-    "via.render.LocalCubemap": {
-        "deserializer_chain": [
-            {
-                "address": "0x143bbbfd0",
-                "name": "via.Object"
-            },
-            {
-                "address": "0x143bd0d80",
+                "address": "0x149ead3e0",
                 "name": "System.Object"
             },
             {
-                "address": "0x143bd1650",
+                "address": "0x140024fa0",
                 "name": "via.Component"
             },
             {
-                "address": "0x143bd3b70",
-                "name": "via.render.LocalCubemap"
+                "address": "0x14a2e4e50",
+                "name": "via.Camera"
             }
         ],
     },
-    "via.render.MaterialParam": {
-        "address": "1451e8988",
-        "crc": "2bedb2b0",
+    "via.Transform": {
         "deserializer_chain": [
             {
-                "address": "0x143bbbfd0",
+                "address": "0x14a2bd450",
                 "name": "via.Object"
             },
             {
-                "address": "0x143bd0d80",
+                "address": "0x149ead3e0",
                 "name": "System.Object"
             },
             {
-                "address": "0x143bd3c50",
-                "name": "via.render.MaterialParam"
-            }
-        ],
-    },
-    "via.wwise.WwiseMaterialSwitchParam": {
-        "deserializer_chain": [
-            {
-                "address": "0x143bbbfd0",
-                "name": "via.Object"
-            },
-            {
-                "address": "0x143bd0d80",
-                "name": "System.Object"
-            },
-            {
-                "address": "0x143bdffe0",
-                "name": "via.wwise.WwiseMaterialSwitchParam"
-            }
-        ],
-    },
-    "via.wwise.WwiseSwitchByNameParam": {
-        "deserializer_chain": [
-            {
-                "address": "0x143bbbfd0",
-                "name": "via.Object"
-            },
-            {
-                "address": "0x143bd0d80",
-                "name": "System.Object"
-            },
-            {
-                "address": "0x143bdffe0",
-                "name": "via.wwise.WwiseSwitchByNameParam"
-            }
-        ],
-    },
-    "via.wwise.WwiseSwitchList": {
-        "deserializer_chain": [
-            {
-                "address": "0x143bbbfd0",
-                "name": "via.Object"
-            },
-            {
-                "address": "0x143bd0d80",
-                "name": "System.Object"
-            },
-            {
-                "address": "0x143bd1650",
+                "address": "0x140024fa0",
                 "name": "via.Component"
             },
             {
-                "address": "0x143bbb830",
-                "name": "via.Behavior"
-            },
-            {
-                "address": "0x143bdb270",
-                "name": "via.wwise.Wwise"
-            },
-            {
-                "address": "0x143bdb470",
-                "name": "via.wwise.WwiseSwitchList"
+                "address": "0x149d4c970",
+                "name": "via.Transform"
             }
         ],
     },
-    "via.wwise.WwiseSwitchParam": {
+    "via.render.WrapDeformer": {
         "deserializer_chain": [
             {
-                "address": "0x143bbbfd0",
+                "address": "0x14a2bd450",
                 "name": "via.Object"
             },
             {
-                "address": "0x143bd0d80",
+                "address": "0x149ead3e0",
                 "name": "System.Object"
             },
             {
-                "address": "0x143be0260",
-                "name": "via.wwise.WwiseSwitchParam"
+                "address": "0x140024fa0",
+                "name": "via.Component"
+            },
+            {
+                "address": "0x14010af10",
+                "name": "via.render.RenderEntity"
+            },
+            {
+                "address": "0x14a8123b0",
+                "name": "via.render.WrapDeformer"
             }
         ],
+    },
+    "via.effect.ProviderData": {
+        "deserializer_chain": [
+            {
+                "address": "0x14a2bd450",
+                "name": "via.Object"
+            },
+            {
+                "address": "0x149ead3e0",
+                "name": "System.Object"
+            },
+            {
+                "address": "0x1401273c0",
+                "name": "via.effect.ProviderData"
+            }
+        ],
+    },
+    "via.effect.EffectEntry": {
+        "deserializer_chain": [
+            {
+                "address": "0x14a2bd450",
+                "name": "via.Object"
+            },
+            {
+                "address": "0x14a2bd450",
+                "name": "via.Entry"
+            },
+            {
+                "address": "0x14a825340",
+                "name": "via.effect.EffectEntry"
+            }
+        ],
+    },
+    "via.geometry.GeometryBrush": {
+        "deserializer_chain": [
+            {
+                "address": "0x14a2bd450",
+                "name": "via.Object"
+            },
+            {
+                "address": "0x149ead3e0",
+                "name": "System.Object"
+            },
+            {
+                "address": "0x140024fa0",
+                "name": "via.Component"
+            },
+            {
+                "address": "0x14010af10",
+                "name": "via.render.RenderEntity"
+            },
+            {
+                "address": "0x149d7d410",
+                "name": "via.geometry.GeometryBrush"
+            }
+        ],
+    },
+    "via.network.ContextSteam": {
+        "deserializer_chain": [
+            {
+                "address": "0x14a2bd450",
+                "name": "via.Object"
+            },
+            {
+                "address": "0x149ead3e0",
+                "name": "System.Object"
+            },
+            {
+                "address": "0x140024fa0",
+                "name": "via.Component"
+            },
+            {
+                "address": "0x1402cc3e0",
+                "name": "via.network.ServiceBase"
+            },
+            {
+                "address": "0x14a3c1bc0",
+                "name": "via.network.ContextBase"
+            },
+            {
+                "address": "0x14a333090",
+                "name": "via.network.ContextSteam"
+            }
+        ]
     }
 }
 
@@ -214,7 +218,10 @@ def invalidate_and_return_call(emu, frame):
         for i in range(rip, rip + dis.size):
             hist[i] = hist[i] - 1
 
-    emu.mem_write(emu.reg_read(UC_X86_REG_RIP), b"\x90\x90\x90\x90\x90")
+    dis = next(cs.disasm(emu.mem_read(rip, 0x100), rip, 1)) # Disassembling because not all call variants are E8
+    # emu.mem_write(emu.reg_read(UC_X86_REG_RIP), b"\x90\x90\x90\x90\x90")
+    nops = b"\x90" * dis.size
+    emu.mem_write(rip, nops)
     emu.reg_write(UC_X86_REG_RAX, 0)
     emu.reg_write(UC_X86_REG_RDX, 0)
     emu.reg_write(UC_X86_REG_RCX, 0)
@@ -245,6 +252,8 @@ def hook_mem_invalid(emu, access, address, size, value, frame):
 import traceback
 
 def hook_code(emu, address, size, frame):
+        # print("%x" % address)
+
         frame["context"] = pickle.dumps(emu.context_save())
         cs = frame["cs"]
         deserialize_arg = frame["deserialize_arg"]
@@ -268,6 +277,7 @@ def hook_code(emu, address, size, frame):
                 invalidate_and_return_call(emu, frame)
                 emu.emu_stop()
                 return
+                
 
         '''
         try:
@@ -280,13 +290,30 @@ def hook_code(emu, address, size, frame):
         # print("%X %i" % (address, size))
 
         try:
-            dis = next(cs.disasm(emu.mem_read(address, size), address, 1))
+            # Read 15 bytes as that's the max size of an instruction on x86_64
+            # previously this was failing patheticly on a vbroadcastss instruction
+            # which is quite a rare instruction and also quite large
+            dis = next(cs.disasm(emu.mem_read(address, 15), address, 1))
         except Exception as e:
-            print(traceback.format_exc(), "EXCEPTION 0x%X" % address)
+            print(traceback.format_exc(), "EXCEPTION 0x%X size 0x%x" % (address, size))
             print(" ", emu.mem_read(address, 0x100).hex())
             print("%X" % frame["call_stack"][-1]["last_executed_addr"])
             os.system("pause")
         # print("0x%x: %s %s" % (address, dis.mnemonic, dis.op_str))
+
+        #if dis.prefix == "lock":
+        if emu.mem_read(address, 1) == b"\xF0":
+            print("LOCK PREFIX DETECTED! 0x%X %i" % (address, dis.size))
+            # Skip over instruction
+            #emu.reg_write(UC_X86_REG_RIP, address + dis.size)
+            next_dis = next(cs.disasm(emu.mem_read(address + dis.size, 15), address + dis.size, 1))
+            # Check if next insn is a conditional jmp and nop it out
+            if next_dis.mnemonic == "jne":
+                print("JNE detected after lock prefix, NOPing out")
+                nops = b"\x90" * next_dis.size
+                emu.mem_write(address + dis.size, nops)
+
+            return
 
         lex = 0
 
@@ -298,7 +325,13 @@ def hook_code(emu, address, size, frame):
 
             # We just left a loop
             if address not in cur_hist.keys() and lex in cur_hist.keys() and cur_hist[lex] > 1:
-                list_size = cur_hist[lex] - 1
+                list_size = cur_hist[lex] + 1
+
+                # Corrections for for loops vs do while loops
+                if list_size == FILL_BYTE + 1:
+                    list_size = FILL_BYTE
+                
+                # print("Multiple execution @ 0x%X (%i)" % (lex, list_size))
 
                 # Loop count matches the integer we filled the whole buffer with
                 if list_size == FILL_BYTE and len(frame["layout"]) > FILL_BYTE:
@@ -402,7 +435,9 @@ def hook_code(emu, address, size, frame):
                 frame["was_string"] = True
             elif frame["last_alignment"] == 4 and last_dis.bytes == bytearray(b"\x4B\x8D\x0C\x41"): # this means "lea rcx, [r9+r8*2]", e.g. reading a wide string
                 frame["was_string"] = True
-
+                #print("String or list detected")
+            elif frame["last_alignment"] == 4 and last_dis.bytes == bytearray(b"\x4A\x8D\x14\x4A"): # this means "lea rdx, [rdx+r9*2]", e.g. reading a wide string
+                frame["was_string"] = True
                 #print("String or list detected")
 
             cs.detail = False
@@ -452,7 +487,7 @@ def hook_code(emu, address, size, frame):
 
                 deserialize_cur = int.from_bytes(emu.mem_read(deserialize_arg + 0x8, 8), sys.byteorder)
 
-                if deserialize_cur != frame["last_deserialize_cur"]:
+                if deserialize_cur > frame["last_deserialize_cur"]:
                     delta = deserialize_cur - frame["last_deserialize_cur"]
 
                     # print("0x%X bytes, 0x%X alignment" % (delta, frame["last_alignment"]))
@@ -464,7 +499,7 @@ def hook_code(emu, address, size, frame):
                         "align": frame["last_alignment"],
                         "string": frame["was_string"],
                         "list": False,
-                        "offset": deserialize_cur
+                        "offset": deserialize_cur - frame["buffer_start"]
                     })
 
                     frame["last_layout_size"] = len(frame["layout"])
@@ -483,11 +518,61 @@ def hook_code(emu, address, size, frame):
                 print("Reached end of function call in a BAD WAY")
                 frame["start"] = EMU_END
                 emu.emu_stop()
+        else:
+            # Allows us to detect stream modifications that are inline
+            if len(frame["call_stack"]) == 1: # HACK: this is a fix for string read functions that are not inlined. Not future proof!
+                deserialize_cur = int.from_bytes(emu.mem_read(deserialize_arg + 0x8, 8), sys.byteorder)
+                
+                if cur_hist[address] > FILL_BYTE:
+                    #print("WARNING: Multiple execution of instruction at 0x%X (%i)" % (address, cur_hist[address]))
+
+                    if cur_hist[address] > 200:
+                        print("WARNING: Too many executions of instruction at 0x%X, STOPPING EXECUTION!" % address)
+                        frame["start"] = EMU_END
+                        emu.emu_stop()
+                        return
+
+                if deserialize_cur > frame["last_deserialize_cur"]: # != is naive, it must be greater to get past alignment
+                    # check if we've already executed this instruction
+                    cur_hist = frame["call_stack"][-1]["history"]
+
+                    delta = deserialize_cur - frame["last_deserialize_cur"]
+                    frame["layout"].append({ 
+                        "size": delta,
+                        "element_size": delta,
+                        "element": None,
+                        "align": frame["last_alignment"],
+                        "string": frame["was_string"],
+                        "list": False,
+                        "offset": deserialize_cur - frame["buffer_start"]
+                    })
+
+                    frame["last_layout_size"] = len(frame["layout"])
+                    frame["was_string"] = False
+                    
+                    frame["last_deserialize_reg"] = -1
+                    frame["last_deserialize_reg_val"] = 0
+                    frame["last_alignment"] = 1
+                
+                    frame["last_deserialize_cur"] = deserialize_cur
 
         if len(frame["call_stack"]) > 0:
             frame["call_stack"][-1]["last_executed_addr"] = address
 
         frame["last_disasm"] = dis
+
+# Hook for valid memory reads.
+def hook_read(emu, access, address, size, value, frame):
+    buffer_start = frame["buffer_start"]
+    buffer_end = frame["buffer_end"]
+
+    if address >= buffer_start and address < buffer_end:
+        if size <= 32:
+            #replacement_value = int(FILL_BYTE).to_bytes(size, sys.byteorder)  # 8 bytes representing the integer 16
+            emu.mem_write(address, np.zeros(size, dtype=np.byte).tobytes())
+            emu.mem_write(address, int(FILL_BYTE).to_bytes(1, sys.byteorder))
+
+            #print("%i bytes read at 0x%X" % (size, emu.reg_read(UC_X86_REG_RIP)))
 
 # Nops out instructions that are causing problems so we can continue execution
 def hook_unmapped(emu, access, address, size, value, frame):
@@ -526,6 +611,7 @@ def hook_unmapped(emu, access, address, size, value, frame):
 
             # Nop out the instruction causing read/write errors
             emu.mem_write(rip, nops.tobytes())
+            #emu.reg_write(UC_X86_REG_RIP, rip + dis.size)
         else:
             print("WTF? WE TRIED TO NOP OUT A RET? 0x%X" % rip)
 
@@ -547,6 +633,26 @@ def hook_write(emu, access, address, size, value, frame):
 
     return True
 
+def hook_invalid_insn(emu, frame):
+    rip = emu.reg_read(UC_X86_REG_RIP)
+
+    try:
+        print("Invalid instruction at 0x%X, attempting to ignore..." % rip)
+        cs = frame["cs"]
+
+        dis = next(cs.disasm(emu.mem_read(rip, 0x100), rip, 1))
+        print("0x%x: %s %s" % (rip, dis.mnemonic, dis.op_str))
+
+        # Advance to the next instruction
+        frame["start"] = emu.reg_read(UC_X86_REG_RIP)
+        emu.reg_write(UC_X86_REG_RIP, rip + dis.size)
+        nops = b"\x90" * dis.size
+        emu.mem_write(rip, nops)
+    except Exception as e:
+        print("Failed to disassemble 0x%X" % rip)
+        return
+
+
 def verify_file(p):
     if not os.path.exists(p):
         print("Path %s does not exist" % p)
@@ -561,6 +667,8 @@ def verify_file(p):
 def main(p, il2cpp_path="il2cpp_dump.json", test_mode=False):
     if not verify_file(p) or not verify_file(il2cpp_path):
         return
+
+    # test_mode = True
 
     pe_filename = os.path.basename(p)
 
@@ -684,14 +792,18 @@ def main(p, il2cpp_path="il2cpp_dump.json", test_mode=False):
         "last_layout_size": 0,
         "fake_vtable": fake_vtable,
         "fake_return_func": fake_return_func,
+        "buffer_start": deserialize_buffer,
+        "buffer_end": deserialize_buffer + REGISTER_MEMORY_SIZE
     }
 
     emu.hook_add(UC_HOOK_CODE, hook_code, meta_frame)
     # emu.hook_add(UC_HOOK_MEM_INVALID, hook_mem_invalid, meta_frame)
+    emu.hook_add(UC_HOOK_INSN_INVALID, hook_invalid_insn, meta_frame)
     emu.hook_add(UC_HOOK_MEM_FETCH_UNMAPPED, hook_unmapped, meta_frame)
     emu.hook_add(UC_HOOK_MEM_READ_UNMAPPED, hook_unmapped, meta_frame)
     emu.hook_add(UC_HOOK_MEM_WRITE_UNMAPPED, hook_unmapped, meta_frame)
     emu.hook_add(UC_HOOK_MEM_WRITE, hook_write, meta_frame)
+    emu.hook_add(UC_HOOK_MEM_READ, hook_read, meta_frame)
 
     pristine_context = pickle.dumps(emu.context_save())
 
@@ -755,6 +867,8 @@ def main(p, il2cpp_path="il2cpp_dump.json", test_mode=False):
 
         out_layout = []
 
+        original_start = deserializer_start
+
         for i in range(0, 1000):
             # Execution has left the scope of the function.
             if len(meta_frame["call_stack"]) == 0:
@@ -766,9 +880,10 @@ def main(p, il2cpp_path="il2cpp_dump.json", test_mode=False):
             try:
                 emu.emu_start(meta_frame["start"], deserializer_start + 0x10000)
             except unicorn.UcError as e:
+                print("RIP: 0x%X" % emu.reg_read(UC_X86_REG_RIP))
+                print(e)
+                #meta_frame["start"] = emu.reg_read(UC_X86_REG_RIP)
                 continue
-                #print("RIP: 0x%X" % emu.reg_read(UC_X86_REG_RIP))
-                #print(e)
 
         layout_delta = len(meta_frame["layout"]) - prev_layout_size
         # print("Function contained %i members" % layout_delta)

@@ -330,7 +330,7 @@ sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_t
 sol::object get_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name);
 sol::object get_native_field_from_field(sol::object obj, ::sdk::RETypeDefinition* ty, ::sdk::REField* field);
 sol::object get_field_or_method(sol::object obj, const char* name);
-void set_native_field(lua_State* l, sol::object obj, ::sdk::RETypeDefinition* ty, const char* name, sol::object value);
+void set_native_field(sol::this_state s, sol::object obj, ::sdk::RETypeDefinition* ty, const char* name, sol::object value);
 
 struct ValueType {
     std::vector<uint8_t> data{};
@@ -1055,9 +1055,10 @@ void set_native_field_from_field(sol::object obj, ::sdk::RETypeDefinition* ty, :
     set_data(data, field_type, value);
 }
 
-void set_native_field(lua_State* l, sol::object obj, ::sdk::RETypeDefinition* ty, const char* name, sol::object value) {
+void set_native_field(sol::this_state s, sol::object obj, ::sdk::RETypeDefinition* ty, const char* name, sol::object value) {
     const auto field = ty->get_field(name);
     if (field == nullptr) {
+        auto l = s.lua_state();
         //throw sol::error("Attempted to set invalid REManagedObject field:" + std::string(name));
         luaL_traceback(l, l, ("Attempted to set invalid REManagedObject field:" + std::string(name)).c_str(), 1);
         std::string traceback_err = lua_tostring(l, -1);
@@ -1686,7 +1687,7 @@ void bindings::open_sdk(ScriptState* s) {
                 return;
             }
 
-            return api::sdk::set_native_field(s->lua(), sol::make_object(s->lua(), obj), utility::re_managed_object::get_type_definition(obj), name, value); 
+            return api::sdk::set_native_field(sol::this_state{s->lua()}, sol::make_object(s->lua(), obj), utility::re_managed_object::get_type_definition(obj), name, value); 
         },
         "call", [s](REManagedObject* obj, const char* name, sol::variadic_args args) {
             if (obj == nullptr) {

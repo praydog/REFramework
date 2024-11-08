@@ -23,6 +23,7 @@
 #include "Genny.hpp"
 #include "GennyIda.hpp"
 
+#include <sdk/REGameObject.hpp>
 #include "REFramework.hpp"
 #include "ObjectExplorer.hpp"
 
@@ -405,7 +406,8 @@ void ObjectExplorer::on_draw_dev_ui() {
         }
 
         // make a copy, we want to sort by name
-        auto singletons = reframework::get_globals()->get_objects();
+        auto singletons_unordered = reframework::get_globals()->get_objects();
+        std::vector<REManagedObject*> singletons{ singletons_unordered.begin(), singletons_unordered.end() };
 
         // first loop, sort
         std::sort(singletons.begin(), singletons.end(), [](REManagedObject* a, REManagedObject* b) {
@@ -2294,7 +2296,7 @@ void ObjectExplorer::handle_address(Address address, int32_t offset, Address par
         context_menu(real_address);
 
         if (is_game_object) {
-            additional_text = utility::re_string::get_string(address.as<REGameObject*>()->name);
+            additional_text = utility::re_game_object::get_name(address.as<REGameObject*>());
         }
         else {
             // Change name based on VMType
@@ -2512,7 +2514,9 @@ void ObjectExplorer::handle_game_object(REGameObject* game_object) {
         m_add_component_name.reserve(256);
     }
 
-    ImGui::Text("Name: %s", utility::re_string::get_string(game_object->name).c_str());
+    auto game_object_name = utility::re_game_object::get_name(game_object);
+
+    ImGui::Text("Name: %s", game_object_name.c_str());
     make_tree_offset(game_object, offsetof(REGameObject, transform), "Transform");
     make_tree_offset(game_object, offsetof(REGameObject, folder), "Folder");
 
@@ -2523,7 +2527,7 @@ void ObjectExplorer::handle_component(REComponent* component) {
     auto display_component_preview = [&](REComponent* comp) {
         if (comp != nullptr && comp->ownerGameObject != nullptr) {
             auto prev_name = utility::re_managed_object::get_type_name(comp);
-            auto prev_gameobject_name = utility::re_string::get_string(comp->ownerGameObject->name);
+            auto prev_gameobject_name = utility::re_game_object::get_name(comp->ownerGameObject);
 
             auto tree_hovered = ImGui::IsItemHovered();
 
@@ -4056,7 +4060,7 @@ void ObjectExplorer::context_menu(void* address, std::optional<std::string> name
                     }
                     else {
                         auto owner = obj->ownerGameObject;
-                        spdlog::info("[{:s}] {:s} ({:x})", utility::re_string::get_string(owner->name), t->name, (uintptr_t)obj);
+                        spdlog::info("[{:s}] {:s} ({:x})", utility::re_game_object::get_name(owner), t->name, (uintptr_t)obj);
                     }
                 }
 
@@ -4254,6 +4258,8 @@ void ObjectExplorer::populate_classes() {
     auto type_list = reframework::get_types()->get_raw_types();
     spdlog::info("TypeList: {:x}", (uintptr_t)type_list);
 
+    std::unordered_set<REType*> seen{};
+
     if (type_list != nullptr) try {
         // I don't know why but it can extend past the size.
         for (auto i = 0; i < type_list->numAllocated; ++i) {
@@ -4267,6 +4273,10 @@ void ObjectExplorer::populate_classes() {
                 continue;
             }
 
+            if (seen.contains(t)) {
+                continue;
+            }
+
             auto name = std::string{ t->name };
 
             if (name.empty()) {
@@ -4276,6 +4286,8 @@ void ObjectExplorer::populate_classes() {
             spdlog::info("{:s}", name);
             m_sorted_types.push_back(name);
             m_types[name] = t;
+
+            seen.insert(t);
         }
 
         std::sort(m_sorted_types.begin(), m_sorted_types.end());
@@ -4285,8 +4297,6 @@ void ObjectExplorer::populate_classes() {
     }
 
     auto tdb = sdk::RETypeDB::get();
-
-    std::unordered_set<REType*> seen{};
 
     if (tdb != nullptr) {
         for (auto i = 0; i < tdb->get_num_types(); ++i) {

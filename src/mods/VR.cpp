@@ -27,7 +27,7 @@
 #elif defined(RE4)
 #include "sdk/regenny/re4/via/Window.hpp"
 #include "sdk/regenny/re4/via/SceneView.hpp"
-#elif defined(DD2)
+#elif defined(DD2) || TDB_VER >= 74
 #include "sdk/regenny/dd2/via/Window.hpp"
 #include "sdk/regenny/dd2/via/SceneView.hpp"
 #else
@@ -43,6 +43,7 @@
 #include "sdk/Application.hpp"
 #include "sdk/Renderer.hpp"
 #include "sdk/REMath.hpp"
+#include "sdk/REGameObject.hpp"
 
 #include "utility/Scan.hpp"
 #include "utility/FunctionHook.hpp"
@@ -2363,7 +2364,7 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
     if (game_object != nullptr && game_object->transform != nullptr) {
         auto context = sdk::get_thread_context();
 
-        const auto name = utility::re_string::get_string(game_object->name);
+        const auto name = utility::re_game_object::get_name(game_object);
         const auto name_hash = utility::hash(name);
 
         switch (name_hash) {
@@ -3130,7 +3131,7 @@ void VR::on_end_rendering(void* entry) {
                 "EndDynamics",
                 "EndPhysics",
                 "RenderDynamics",
-#ifndef DD2
+#if TDB_VER < 73
                 "RenderLandscape",
 #endif
                 "DevelopRenderer",

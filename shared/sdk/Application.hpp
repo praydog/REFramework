@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <string_view>
 
+#include "TDBVer.hpp"
+
 namespace sdk {
 struct RETypeDefinition;
 
@@ -11,12 +13,27 @@ struct Application {
     struct Function {
         void* entry; // 0 
         void (*func)(void* entry); // 0x8
+    
+#if TDB_VER < 74
         void* unk; // 0x10
+#endif
+
         const char* description; // 0x18
         uint16_t priority; // 0x20 (via.ModuleEntry enum)
         uint16_t type; // 0x22
+
+#if TDB_VER >= 74
+        uint8_t pad[0xC8 - 0x1C];
+#else
         uint8_t pad[0xD0 - 0x24];
+#endif
     };
+
+#if TDB_VER >= 74
+    static_assert(sizeof(Function) == 0xC8, "Function has wrong size");
+#elif TDB_VER < 74
+    static_assert(sizeof(Function) == 0xD0, "Function has wrong size");
+#endif
 
     static RETypeDefinition* get_type();
     static Application* get();

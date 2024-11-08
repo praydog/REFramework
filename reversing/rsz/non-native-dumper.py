@@ -294,7 +294,7 @@ def generate_field_entries(il2cpp_dump, natives, key, il2cpp_entry, use_typedefs
             append_potential_name = False
 
             # If len not match, we give-up
-            if len(layout) == len(reflection_properties):
+            if not (reflection_properties is None) and len(layout) == len(reflection_properties):
                 append_potential_name = True
 
                 # sort reflection_properties by its native order

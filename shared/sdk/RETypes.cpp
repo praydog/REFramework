@@ -18,7 +18,9 @@ std::string& game_namespace(std::string_view base_name)
     using namespace std::string_view_literals;
 
     static constexpr std::string_view prefix{
-#ifdef MHRISE
+#if TDB_VER >= 74
+    "app."sv
+#elif defined(MHRISE)
     "snow."sv
 #elif defined(RE8) || defined(RE7) || defined(DMC5) || defined(SF6)
     "app."sv

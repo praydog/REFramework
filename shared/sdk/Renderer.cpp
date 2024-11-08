@@ -812,6 +812,27 @@ RenderLayer* get_root_layer() {
 
         if (get_output_layer_fn == nullptr) {
             spdlog::error("[Renderer] Failed to find getOutputLayer");
+
+            // Hacky fix for >= TDB74
+            for (uint32_t i = 0; i < 0x10000; i += sizeof(void*)) {
+                const auto ptr = *(REManagedObject**)((uintptr_t)renderer + i);
+
+                if (ptr == nullptr) {
+                    continue;
+                }
+
+                if (!utility::re_managed_object::is_managed_object(ptr)) {
+                    continue;
+                }
+
+                if (utility::re_managed_object::is_a(ptr, "via.render.RenderLayer")) {
+                    root_layer_offset = i;
+                    return *(RenderLayer**)((uintptr_t)renderer + root_layer_offset);
+                }
+            }
+
+            spdlog::error("[Renderer] Failed to find root_layer_offset with fallback");
+
             return nullptr;
         }
 

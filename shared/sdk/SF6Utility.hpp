@@ -28,8 +28,11 @@ enum class EGameMode : uint8_t  {
     ONLINE_TRAINING = 18,
     TEAMBATTLE = 19,
     EXAM_CPU_MATCH = 20,
-    REPLAY = 21,
-    SPECTATE = 22,
+    CABINET_CPU_MATCH = 21,
+    LEARNING_AI_MATCH = 22,
+    LEARNING_AI_SPECTATE = 23,
+    REPLAY = 24,
+    SPECTATE = 25,
 };
 
 enum class HUD_GROUP_TYPE : uint8_t {

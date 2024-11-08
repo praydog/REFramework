@@ -10,6 +10,7 @@
 #include "sdk/RETypeDB.hpp"
 #include "sdk/REManagedObject.hpp"
 #include "sdk/Renderer.hpp"
+#include "sdk/REGameObject.hpp"
 
 #if TDB_VER < 69
 #include "sdk/regenny/re3/via/motion/Chain.hpp"
@@ -182,7 +183,7 @@ void ChainViewer::on_frame() {
             return;
         }
 
-        auto owner_name = utility::re_string::get_string(owner->name);
+        auto owner_name = utility::re_game_object::get_name(owner);
 
         if (owner_name.empty()) {
             owner_name = "";

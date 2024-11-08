@@ -2,6 +2,7 @@
 
 #include <deque>
 #include <unordered_set>
+#include <spdlog/spdlog.h>
 
 #include <utility/FunctionHook.hpp>
 
@@ -12,6 +13,7 @@ public:
     static std::shared_ptr<LooseFileLoader>& get();
 
 public:
+    LooseFileLoader();
     std::string_view get_name() const override { return "LooseFileLoader"; }
 
     std::optional<std::string> on_initialize() override;
@@ -21,8 +23,13 @@ public:
     void on_frame() override;
     void on_draw_ui() override;
 
-private:
     void hook();
+
+    bool is_enabled() const {
+        return m_enabled->value();
+    }
+
+private:
     bool handle_path(const wchar_t* path, size_t hash);
 
 #if TDB_VER > 67
@@ -51,10 +58,17 @@ private:
     std::unique_ptr<FunctionHook> m_path_to_hash_hook{nullptr};
 
     ModToggle::Ptr m_enabled{ ModToggle::create(generate_name("Enabled")) };
+    ModToggle::Ptr m_log_accessed_files{ ModToggle::create(generate_name("LogAccessedFiles")) };
+    ModToggle::Ptr m_log_loose_files{ ModToggle::create(generate_name("LogLooseFiles")) };
     bool m_show_recent_files{false}; // Not persistent because its for dev purposes
     bool m_enable_file_cache{true};
 
+    std::shared_ptr<spdlog::logger> m_logger{nullptr};
+    std::shared_ptr<spdlog::logger> m_loose_file_logger{nullptr};
+
     ValueList m_options{
-        *m_enabled
+        *m_enabled,
+        *m_log_accessed_files,
+        *m_log_loose_files,
     };
 };

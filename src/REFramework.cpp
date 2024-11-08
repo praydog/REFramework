@@ -28,6 +28,7 @@ extern "C" {
 #include "utility/Thread.hpp"
 
 #include "Mods.hpp"
+#include "mods/LooseFileLoader.hpp"
 #include "mods/PluginLoader.hpp"
 #include "sdk/REGlobals.hpp"
 #include "sdk/Application.hpp"
@@ -42,7 +43,6 @@ extern "C" {
 
 namespace fs = std::filesystem;
 using namespace std::literals;
-
 
 std::unique_ptr<REFramework> g_framework{};
 
@@ -216,7 +216,7 @@ try {
             if (full_dll_path.parent_path() == *g_current_game_path) {
                 spdlog::info("LdrRegisterDllNotification: DLL loaded from game directory: {}", utility::narrow(full_dll_name));
 
-#if defined(DD2) || defined(MHRISE)
+#if defined(DD2) || defined(MHRISE) || TDB_VER >= 74
                 utility::spoof_module_paths_in_exe_dir();
 #endif
             }
@@ -324,7 +324,7 @@ REFramework::REFramework(HMODULE reframework_module)
         }
 
         // Do this at least once before setting up our callback.
-#if defined(DD2) || defined(MHRISE)
+#if defined(DD2) || defined(MHRISE) || TDB_VER >= 74
         // Pre-emptively copy all DLL files in the current game directory into our _storage_ directory.
         if (g_current_game_path.has_value()) {
             const auto dest_path = *g_current_game_path / "_storage_";
@@ -447,7 +447,7 @@ REFramework::REFramework(HMODULE reframework_module)
     spdlog::info("D3D12 loaded");
 #endif
 
-#if defined(MHRISE) || defined(DD2)
+#if defined(MHRISE) || defined(DD2) || TDB_VER >= 74
     utility::load_module_from_current_directory(L"openvr_api.dll");
     utility::load_module_from_current_directory(L"openxr_loader.dll");
     LoadLibraryA("dxgi.dll");
@@ -500,7 +500,7 @@ REFramework::REFramework(HMODULE reframework_module)
     IntegrityCheckBypass::immediate_patch_re4();
 #endif
 
-#if defined(DD2)
+#if defined(DD2) || TDB_VER >= 74
     // Fixes new code added in DD2 only. Maybe >= TDB73 too. Probably will change.
     IntegrityCheckBypass::immediate_patch_dd2();
 #endif
@@ -537,6 +537,21 @@ REFramework::REFramework(HMODULE reframework_module)
     sdk::RETypeDefinition* renderer_t = nullptr;
     sdk::renderer::Renderer* renderer = nullptr;
     bool found_renderer = false;
+    bool renderer_has_render_frame_fn = false;
+
+    if (sdk::RETypeDB::get() != nullptr) {
+        auto& loader = LooseFileLoader::get(); // Initialize this really early
+
+        const auto config_path = get_persistent_dir(REFrameworkConfig::REFRAMEWORK_CONFIG_NAME.data()).string();
+        if (fs::exists(utility::widen(config_path))) {
+            utility::Config cfg{ config_path };
+            loader->on_config_load(cfg);
+        }
+
+        if (loader->is_enabled()) {
+            loader->hook();
+        }
+    }
 
     while (true) try {
         const auto tdb = sdk::RETypeDB::get();
@@ -568,6 +583,8 @@ REFramework::REFramework(HMODULE reframework_module)
             spdlog::error("Renderer type not found");
             break;
         }
+
+        renderer_has_render_frame_fn = renderer_t->get_method("get_RenderFrame") != nullptr;
 
         const auto renderer_has_instance = renderer_t->get_method("hasInstance");
 
@@ -605,7 +622,8 @@ REFramework::REFramework(HMODULE reframework_module)
 
     bool valid_render_frame = false;
 
-    while (found_renderer) try {
+    while (renderer_has_render_frame_fn) try {
+        // This function is static so its fine if renderer is null.
         const auto render_frame = renderer->get_render_frame();
 
         if (!render_frame.has_value()) {
@@ -621,8 +639,8 @@ REFramework::REFramework(HMODULE reframework_module)
 
         std::this_thread::yield();
     } catch(...) {
-        spdlog::warn("Exception occurred while waiting for render frame");
-        break;
+        //spdlog::warn("Exception occurred while waiting for render frame");
+        continue;
     }
 
     // If all is good, we can immediately hook D3D12 very early
@@ -823,7 +841,7 @@ void REFramework::on_frame_d3d11() {
     if (is_init_ok) {
         // Write default config once if it doesn't exist.
         if (!std::exchange(m_created_default_cfg, true)) {
-            if (!fs::exists({utility::widen(get_persistent_dir("re2_fw_config.txt").string())})) {
+            if (!fs::exists({utility::widen(get_persistent_dir(REFrameworkConfig::REFRAMEWORK_CONFIG_NAME.data()).string())})) {
                 save_config();
             }
         }
@@ -928,7 +946,7 @@ void REFramework::on_frame_d3d12() {
     if (is_init_ok) {
         // Write default config once if it doesn't exist.
         if (!std::exchange(m_created_default_cfg, true)) {
-            if (!fs::exists({utility::widen(get_persistent_dir("re2_fw_config.txt").string())})) {
+            if (!fs::exists({utility::widen(get_persistent_dir(REFrameworkConfig::REFRAMEWORK_CONFIG_NAME.data()).string())})) {
                 save_config();
             }
         }
@@ -1309,7 +1327,7 @@ std::filesystem::path REFramework::get_persistent_dir() {
 void REFramework::save_config() {
     std::scoped_lock _{m_config_mtx};
 
-    spdlog::info("Saving config re2_fw_config.txt");
+    spdlog::info("Saving config {}", REFrameworkConfig::REFRAMEWORK_CONFIG_NAME.data());
 
     utility::Config cfg{};
 
@@ -1318,7 +1336,7 @@ void REFramework::save_config() {
     }
 
     try {
-        if (!cfg.save((get_persistent_dir() / "re2_fw_config.txt").string())) {
+        if (!cfg.save((get_persistent_dir() / REFrameworkConfig::REFRAMEWORK_CONFIG_NAME.data()).string())) {
             spdlog::error("Failed to save config");
             return;
         }
@@ -1873,7 +1891,7 @@ bool REFramework::initialize_game_data() {
         std::scoped_lock _{this->m_startup_mutex};
 
         try {
-#if defined(MHRISE) || defined(DD2)
+#if defined(MHRISE) || defined(DD2) || TDB_VER >= 74
             if (!g_success_made_ldr_notification) {
                 utility::spoof_module_paths_in_exe_dir();
             }
@@ -1949,7 +1967,7 @@ bool REFramework::initialize_game_data() {
             spdlog::error("Initialization of mods failed. Reason: exception thrown.");
         }
 
-#if defined(MHRISE) || defined(DD2)
+#if defined(MHRISE) || defined(DD2) || TDB_VER >= 74
         if (!g_success_made_ldr_notification) {
             utility::spoof_module_paths_in_exe_dir();
         }

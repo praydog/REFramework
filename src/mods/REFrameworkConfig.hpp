@@ -4,10 +4,11 @@
 
 class REFrameworkConfig : public Mod {
 public:
+    static inline constexpr std::string_view REFRAMEWORK_CONFIG_NAME{ "re2_fw_config.txt" };
     static std::shared_ptr<REFrameworkConfig>& get();
 
 public:
-    std::string_view get_name() const {
+    std::string_view get_name() const override {
         return "REFrameworkConfig";
     }
 
