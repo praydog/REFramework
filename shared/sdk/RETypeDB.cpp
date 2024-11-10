@@ -46,27 +46,33 @@ reframework::InvokeRet invoke_object_func(::REManagedObject* obj, std::string_vi
 }
 
 sdk::RETypeDefinition* RETypeDB::find_type(std::string_view name) const {
+    static bool map_populated = false;
+
     {
         std::shared_lock _{ g_tdb_type_mtx };
 
         if (auto it = g_tdb_type_map.find(name.data()); it != g_tdb_type_map.end()) {
             return it->second;
         }
-    }
 
-    for (uint32_t i = 0; i < this->numTypes; ++i) {
-        auto t = get_type(i);
-
-        if (t->get_full_name() == name) {
-            std::unique_lock _{ g_tdb_type_mtx };
-
-            g_tdb_type_map[name.data()] = t;
-            return g_tdb_type_map[name.data()];
+        if (map_populated) {
+            return nullptr;
         }
     }
 
-    std::unique_lock _{ g_tdb_type_mtx };
-    return g_tdb_type_map[name.data()];
+    {
+        std::unique_lock _{ g_tdb_type_mtx };
+
+        map_populated = true;
+
+        for (uint32_t i = 0; i < this->numTypes; ++i) {
+            auto t = get_type(i);
+
+            g_tdb_type_map[t->get_full_name()] = t;
+        }
+    }
+
+    return this->find_type(name);
 }
 
 sdk::RETypeDefinition* RETypeDB::find_type_by_fqn(uint32_t fqn) const {
