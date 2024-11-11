@@ -209,7 +209,7 @@ void ChainViewer::on_frame() {
     std::vector<BackBufferRenderer::D3D12RenderWorkFn> d3d12_work{};
 
     // Set the view and projection matrices for the effect once per frame
-    d3d12_work.emplace_back([this, proj_directx, view_directx](ID3D12GraphicsCommandList* cmd_list) {
+    d3d12_work.emplace_back([this, proj_directx, view_directx](const BackBufferRenderer::RenderWorkData& data) {
         m_d3d12.effect->SetProjection(proj_directx);
         m_d3d12.effect->SetView(view_directx);
     });
@@ -323,12 +323,14 @@ void ChainViewer::on_frame() {
                         mat[3] = Vector4f{adjusted_pos1, 1.0f};
 
                         if (g_framework->is_dx12()) {
-                            d3d12_work.emplace_back([this, adjusted_pos1, radius = collider.sphere.r](ID3D12GraphicsCommandList* cmd_list){
-                                DirectX::SimpleMath::Matrix world = DirectX::SimpleMath::Matrix::CreateScale(radius) * DirectX::SimpleMath::Matrix::CreateTranslation(adjusted_pos1.x, adjusted_pos1.y, adjusted_pos1.z);
+                            const auto radius = collider.sphere.r;
+                            DirectX::SimpleMath::Matrix world = DirectX::SimpleMath::Matrix::CreateScale(radius) * DirectX::SimpleMath::Matrix::CreateTranslation(adjusted_pos1.x, adjusted_pos1.y, adjusted_pos1.z);
+
+                            d3d12_work.emplace_back([this, world](const BackBufferRenderer::RenderWorkData& data){
                                 m_d3d12.effect->SetWorld(world);
 
-                                m_d3d12.effect->Apply(cmd_list);
-                                m_d3d12.sphere->Draw(cmd_list);
+                                m_d3d12.effect->Apply(data.command_list);
+                                m_d3d12.sphere->Draw(data.command_list);
                             });
                         } else {
                             // TODO
@@ -353,20 +355,22 @@ void ChainViewer::on_frame() {
                     } else {
                         // Capsule
                         if (g_framework->is_dx12()) {
-                            d3d12_work.emplace_back([this, adjusted_pos1, adjusted_pos2, radius = collider.capsule.r](ID3D12GraphicsCommandList* cmd_list){
-                                const auto delta = adjusted_pos2 - adjusted_pos1;
-                                const auto dir = glm::normalize(delta);
-                                const auto length = glm::length(delta) + (radius * 2.0f);
-                                const auto center = (adjusted_pos1 + adjusted_pos2) * 0.5f;
-                                DirectX::SimpleMath::Matrix world = 
-                                    DirectX::SimpleMath::Matrix::CreateScale(radius * 2.0f, radius * 2.0f, length) *
-                                    DirectX::SimpleMath::Matrix::CreateLookAt(DirectX::SimpleMath::Vector3::Zero, DirectX::SimpleMath::Vector3(dir.x, dir.y, dir.z), DirectX::SimpleMath::Vector3::Up).Invert() *
-                                    DirectX::SimpleMath::Matrix::CreateTranslation(center.x, center.y, center.z);
+                            const auto radius = collider.capsule.r;
+                            const auto delta = adjusted_pos2 - adjusted_pos1;
+                            const auto dir = glm::normalize(delta);
+                            const auto length = glm::length(delta) + (radius * 2.0f);
+                            const auto center = (adjusted_pos1 + adjusted_pos2) * 0.5f;
+                            DirectX::SimpleMath::Matrix world = 
+                                DirectX::SimpleMath::Matrix::CreateScale(radius * 2.0f, radius * 2.0f, length) *
+                                DirectX::SimpleMath::Matrix::CreateLookAt(DirectX::SimpleMath::Vector3::Zero, DirectX::SimpleMath::Vector3(dir.x, dir.y, dir.z), DirectX::SimpleMath::Vector3::Up).Invert() *
+                                DirectX::SimpleMath::Matrix::CreateTranslation(center.x, center.y, center.z);
 
+
+                            d3d12_work.emplace_back([this, world](const BackBufferRenderer::RenderWorkData& data){
                                 m_d3d12.effect->SetWorld(world);
 
-                                m_d3d12.effect->Apply(cmd_list);
-                                m_d3d12.sphere->Draw(cmd_list);
+                                m_d3d12.effect->Apply(data.command_list);
+                                m_d3d12.sphere->Draw(data.command_list);
                             });
                         } else {
                             // TODO

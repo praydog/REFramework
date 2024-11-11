@@ -30,8 +30,13 @@ public:
     void on_device_reset() override;
 
 public:
-    using D3D12RenderWorkFn = std::function<void(ID3D12GraphicsCommandList*)>;
-
+    struct RenderWorkData {
+        ID3D12GraphicsCommandList* command_list;
+        D3D12_VIEWPORT viewport;
+        d3d12::TextureContext* backbuffer_ctx;
+    };
+    using D3D12RenderWorkFn = std::function<void(const RenderWorkData&)>;
+    
     void submit_work_d3d12(D3D12RenderWorkFn&& work) {
         std::scoped_lock _{ m_d3d12.render_work_mtx };
         m_d3d12.render_work.push_back(std::move(work));
@@ -52,6 +57,10 @@ public:
         return m_d3d12.default_rt_state;
     }
 
+    D3D12_VIEWPORT get_viewport_d3d12() {
+        return m_d3d12.viewport;
+    }
+
 private:
     void render_d3d12();
     void render_d3d11();
@@ -63,5 +72,7 @@ private:
         std::mutex render_work_mtx{};
 
         DirectX::RenderTargetState default_rt_state{};
+
+        D3D12_VIEWPORT viewport{};
     } m_d3d12;
 };

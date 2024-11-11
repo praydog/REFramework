@@ -100,10 +100,9 @@ void BackBufferRenderer::render_d3d12() {
     scissor_rect.right = (LONG)desc.Width;
     scissor_rect.bottom = (LONG)desc.Height;
 
-    D3D12_VIEWPORT viewport{};
-    viewport.Width = (float)desc.Width;
-    viewport.Height = (float)desc.Height;
-    viewport.MaxDepth = 1.0f;
+    m_d3d12.viewport.Width = (float)desc.Width;
+    m_d3d12.viewport.Height = (float)desc.Height;
+    m_d3d12.viewport.MaxDepth = 1.0f;
 
     D3D12_RESOURCE_BARRIER barrier{};
     barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
@@ -116,7 +115,7 @@ void BackBufferRenderer::render_d3d12() {
     D3D12_CPU_DESCRIPTOR_HANDLE rtv_heaps[] = { bb_context->get_rtv() };
     cmd_list->OMSetRenderTargets(1, rtv_heaps, FALSE, nullptr);
 
-    cmd_list->RSSetViewports(1, &viewport);
+    cmd_list->RSSetViewports(1, &m_d3d12.viewport);
     cmd_list->RSSetScissorRects(1, &scissor_rect);
 
     decltype(m_d3d12.render_work) works{};
@@ -126,8 +125,14 @@ void BackBufferRenderer::render_d3d12() {
         m_d3d12.render_work.clear();
     }
 
+    const RenderWorkData data{
+        cmd_list.Get(),
+        m_d3d12.viewport,
+        bb_context.get()
+    };
+
     for (auto& work : works) {
-        work(cmd_list.Get());
+        work(data);
     }
 
     barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
