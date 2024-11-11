@@ -122,7 +122,6 @@ void BackBufferRenderer::render_d3d12() {
     {
         std::scoped_lock _{m_d3d12.render_work_mtx};
         works = m_d3d12.render_work;
-        m_d3d12.render_work.clear();
     }
 
     const RenderWorkData data{
@@ -152,5 +151,13 @@ void BackBufferRenderer::on_present() {
         render_d3d12();
     } else {
         render_d3d11();
+    }
+}
+
+void BackBufferRenderer::on_frame() {
+    // Clearing this here instead of every time whenever we present fixes flickering in some games
+    if (g_framework->is_dx12() && !m_d3d12.render_work.empty()) {
+        std::scoped_lock _{m_d3d12.render_work_mtx};
+        m_d3d12.render_work.clear();
     }
 }

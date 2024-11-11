@@ -152,6 +152,7 @@ void GameObjectsDisplay::on_frame() {
     static auto get_gameobject_method = transform_def->get_method("get_GameObject");
     static auto get_position_method = transform_def->get_method("get_Position");
     static auto get_axisz_method = transform_def->get_method("get_AxisZ");
+    static auto get_world_matrix_method = transform_def->get_method("get_WorldMatrix");
 
     auto math = sdk::get_native_singleton("via.math");
     auto math_t = sdk::find_type_definition("via.math");
@@ -229,6 +230,8 @@ void GameObjectsDisplay::on_frame() {
         });
     }
 
+    __declspec(align(16)) Matrix4x4f world_matrix{};
+
     for (auto transform = first_transform; 
         transform != nullptr; 
         transform = next_transform_method->call<RETransform*>(context, transform)) 
@@ -264,15 +267,7 @@ void GameObjectsDisplay::on_frame() {
         }
 
         if (is_d3d12) {
-            // Billboard rotation to make the quad face the camera
-            /*DirectX::SimpleMath::Matrix rotation = DirectX::SimpleMath::Matrix::CreateBillboard(
-                DirectX::SimpleMath::Vector3(pos.x, pos.y, pos.z),
-                DirectX::SimpleMath::Vector3(camera_origin.x, camera_origin.y, camera_origin.z),
-                DirectX::SimpleMath::Vector3::Up
-            );*/
-
-            Matrix4x4f world_matrix{};
-            sdk::call_object_func<void*>(transform, "get_WorldMatrix", &world_matrix, context, transform);
+            get_world_matrix_method->call<void*>(&world_matrix, context, transform);
 
             DirectX::SimpleMath::Matrix world = 
                 DirectX::SimpleMath::Matrix{&world_matrix[0][0]};

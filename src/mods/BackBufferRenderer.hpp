@@ -27,6 +27,7 @@ public:
 
     std::optional<std::string> on_initialize_d3d_thread() override;
     void on_present() override;
+    void on_frame() override;
     void on_device_reset() override;
 
 public:
