@@ -2,6 +2,15 @@
 
 #include <chrono>
 
+#include <../../directxtk12-src/Inc/SimpleMath.h>
+#include <../../directxtk12-src/Inc/CommonStates.h>
+#include <../../directxtk12-src/Inc/Effects.h>
+#include <../../directxtk12-src/Inc/GeometricPrimitive.h>
+
+#include "../mods/vr/d3d12/CommandContext.hpp"
+#include "../mods/vr/d3d12/TextureContext.hpp"
+#include "../mods/vr/d3d12/ComPtr.hpp"
+
 #include "Tool.hpp"
 
 class ChainViewer : public Tool {
@@ -11,11 +20,23 @@ public:
     }
     
     std::optional<std::string> on_initialize() override;
+    std::optional<std::string> on_initialize_d3d_thread() override;
     void on_config_load(const utility::Config& cfg) override;
     void on_config_save(utility::Config& cfg) override;
 
     void on_draw_dev_ui() override;
     void on_frame() override;
+    void on_present() override;
+
+private:
+    struct {
+        std::unique_ptr<DirectX::DX12::BasicEffect> effect{};
+        std::unique_ptr<DirectX::DX12::GeometricPrimitive> cylinder{};
+        std::unique_ptr<DirectX::DX12::GeometricPrimitive> sphere{};
+    } m_d3d12;
+
+    float m_effect_alpha{0.5f};
+    bool m_effect_dirty{false};
 
 private:
     const ModToggle::Ptr m_enabled{ ModToggle::create(generate_name("Enabled")) };

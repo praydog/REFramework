@@ -1,6 +1,8 @@
 #include <optional>
 #include <tuple>
 
+#include <DirectxColors.h>
+
 #include <imgui.h>
 #include <ImGuizmo.h>
 
@@ -50,6 +52,7 @@
 
 #endif
 
+#include "../BackBufferRenderer.hpp"
 #include "ObjectExplorer.hpp"
 #include "ChainViewer.hpp"
 
@@ -58,6 +61,39 @@ std::optional<std::string> ChainViewer::on_initialize() {
     // OK
     return Mod::on_initialize();
 }
+
+std::optional<std::string> ChainViewer::on_initialize_d3d_thread() {
+    if (g_framework->is_dx12()) {
+        DirectX::EffectPipelineStateDescription psd(
+            &DirectX::DX12::GeometricPrimitive::VertexType::InputLayout,
+            DirectX::DX12::CommonStates::AlphaBlend,
+            DirectX::DX12::CommonStates::DepthNone,
+            DirectX::DX12::CommonStates::CullCounterClockwise,
+            BackBufferRenderer::get()->get_default_rt_state()
+        );
+
+        auto device = g_framework->get_d3d12_hook()->get_device();
+
+        m_d3d12.effect = std::make_unique<DirectX::DX12::BasicEffect>(device, DirectX::EffectFlags::None, psd);
+        m_d3d12.effect->SetWorld(DirectX::SimpleMath::Matrix::Identity);
+        m_d3d12.effect->SetView(DirectX::SimpleMath::Matrix::Identity);
+        m_d3d12.effect->SetProjection(DirectX::SimpleMath::Matrix::Identity);
+        m_d3d12.effect->SetDiffuseColor(DirectX::Colors::Blue);
+        m_d3d12.effect->SetAlpha(m_effect_alpha);
+
+        m_d3d12.cylinder = DirectX::GeometricPrimitive::CreateCylinder();
+        m_d3d12.sphere = DirectX::GeometricPrimitive::CreateSphere();
+
+        spdlog::info("ChainViewer D3D12 initialized");
+    } else {
+        // TODO
+        spdlog::info("ChainViewer D3D11 initialized");
+    }
+
+    // OK
+    return Mod::on_initialize();
+}
+
 
 void ChainViewer::on_config_load(const utility::Config& cfg) {
     for (IModValue& option : m_options) {
@@ -81,6 +117,21 @@ void ChainViewer::on_draw_dev_ui() {
 
     if (m_enabled->draw("Enabled") && !m_enabled->value()) {
         // todo
+    }
+
+    if (ImGui::SliderFloat("Effect Alpha", &m_effect_alpha, 0.0f, 1.0f)) {
+        m_effect_dirty = true;
+    }
+}
+
+void ChainViewer::on_present() {
+    if (g_framework->is_dx12()) {
+        if (m_effect_dirty) {
+            m_d3d12.effect->SetAlpha(m_effect_alpha);
+            m_effect_dirty = false;
+        }
+    } else {
+        // TODO
     }
 }
 
@@ -145,12 +196,23 @@ void ChainViewer::on_frame() {
         return;
     }
 
-    Matrix4x4f proj{}, view{};
+    __declspec(align(16)) Matrix4x4f proj{}, view{};
 
     const auto camera_origin = sdk::get_transform_position(camera_transform);
 
     sdk::call_object_func<void*>(camera, "get_ProjectionMatrix", &proj, context, camera);
     sdk::call_object_func<void*>(camera, "get_ViewMatrix", &view, context, camera);
+
+    auto proj_directx = DirectX::SimpleMath::Matrix{&proj[0][0]};
+    auto view_directx = DirectX::SimpleMath::Matrix{&view[0][0]};
+
+    std::vector<BackBufferRenderer::D3D12RenderWorkFn> d3d12_work{};
+
+    // Set the view and projection matrices for the effect once per frame
+    d3d12_work.emplace_back([this, proj_directx, view_directx](ID3D12GraphicsCommandList* cmd_list) {
+        m_d3d12.effect->SetProjection(proj_directx);
+        m_d3d12.effect->SetView(view_directx);
+    });
 
     /*view = view * Matrix4x4f {
         -1, 0, 0, 0,
@@ -256,10 +318,22 @@ void ChainViewer::on_frame() {
 
                     // Draw spheres/capsules and imguizmo widgets
                     if (collider.pair_joint == nullptr) {
-                        imgui::draw_sphere(adjusted_pos1, collider.sphere.r, ImGui::GetColorU32(col), true);
 
                         Matrix4x4f mat = glm::scale(Vector3f{collider.sphere.r, collider.sphere.r, collider.sphere.r});
                         mat[3] = Vector4f{adjusted_pos1, 1.0f};
+
+                        if (g_framework->is_dx12()) {
+                            d3d12_work.emplace_back([this, adjusted_pos1, radius = collider.sphere.r](ID3D12GraphicsCommandList* cmd_list){
+                                DirectX::SimpleMath::Matrix world = DirectX::SimpleMath::Matrix::CreateScale(radius) * DirectX::SimpleMath::Matrix::CreateTranslation(adjusted_pos1.x, adjusted_pos1.y, adjusted_pos1.z);
+                                m_d3d12.effect->SetWorld(world);
+
+                                m_d3d12.effect->Apply(cmd_list);
+                                m_d3d12.sphere->Draw(cmd_list);
+                            });
+                        } else {
+                            // TODO
+                            imgui::draw_sphere(adjusted_pos1, collider.sphere.r, ImGui::GetColorU32(col), true);
+                        }
 
                         const auto screen_pos1 = sdk::renderer::world_to_screen(adjusted_pos1);
                         const auto screen_pos1_top = sdk::renderer::world_to_screen(adjusted_pos1 + Vector3f{0.0f, collider.sphere.r, 0.0f});
@@ -278,7 +352,27 @@ void ChainViewer::on_frame() {
                         }
                     } else {
                         // Capsule
-                        imgui::draw_capsule(adjusted_pos1, adjusted_pos2, collider.capsule.r, ImGui::GetColorU32(col), true);
+                        if (g_framework->is_dx12()) {
+                            d3d12_work.emplace_back([this, adjusted_pos1, adjusted_pos2, radius = collider.capsule.r](ID3D12GraphicsCommandList* cmd_list){
+                                const auto delta = adjusted_pos2 - adjusted_pos1;
+                                const auto dir = glm::normalize(delta);
+                                const auto length = glm::length(delta) + (radius * 2.0f);
+                                const auto center = (adjusted_pos1 + adjusted_pos2) * 0.5f;
+                                DirectX::SimpleMath::Matrix world = 
+                                    DirectX::SimpleMath::Matrix::CreateScale(radius * 2.0f, radius * 2.0f, length) *
+                                    DirectX::SimpleMath::Matrix::CreateLookAt(DirectX::SimpleMath::Vector3::Zero, DirectX::SimpleMath::Vector3(dir.x, dir.y, dir.z), DirectX::SimpleMath::Vector3::Up).Invert() *
+                                    DirectX::SimpleMath::Matrix::CreateTranslation(center.x, center.y, center.z);
+
+                                m_d3d12.effect->SetWorld(world);
+
+                                m_d3d12.effect->Apply(cmd_list);
+                                m_d3d12.sphere->Draw(cmd_list);
+                            });
+                        } else {
+                            // TODO
+                            imgui::draw_capsule(adjusted_pos1, adjusted_pos2, collider.capsule.r, ImGui::GetColorU32(col), true);
+                        }
+
 
                         const auto screen_pos1 = sdk::renderer::world_to_screen(adjusted_pos1);
                         const auto screen_pos1_top = sdk::renderer::world_to_screen(adjusted_pos1 + Vector3f{0.0f, collider.capsule.r, 0.0f});
@@ -428,5 +522,9 @@ void ChainViewer::on_frame() {
     }
 
     ImGui::End();
+
+    if (g_framework->is_dx12()) {
+        BackBufferRenderer::get()->submit_work_d3d12(std::move(d3d12_work));
+    }
 }
 
