@@ -8,6 +8,10 @@
 
 using namespace utility;
 
+#if defined(RE2) || defined(RE3) || defined(RE8) || defined(RE4)
+#define MOVEMENT_DISABLE_FEATURE
+#endif
+
 void FreeCam::on_config_load(const Config& cfg) {
     for (IModValue& option : m_options) {
         option.config_load(cfg);
@@ -49,7 +53,7 @@ void FreeCam::on_draw_ui() {
     ImGui::SameLine();
     m_lock_camera->draw("Lock Position");
 
-#ifndef SF6
+#ifdef MOVEMENT_DISABLE_FEATURE
     m_disable_movement->draw("Disable Character Movement");
 #endif
 
@@ -57,7 +61,7 @@ void FreeCam::on_draw_ui() {
     m_move_up_key->draw("Move camera up Key");
     m_move_down_key->draw("Move camera down Key");
     m_lock_camera_key->draw("Lock Position Toggle Key");
-#ifndef SF6
+#ifdef MOVEMENT_DISABLE_FEATURE
     m_disable_movement_key->draw("Disable Movement Toggle Key");
 #endif
     m_speed_modifier_fast_key->draw("Speed modifier Fast key");
