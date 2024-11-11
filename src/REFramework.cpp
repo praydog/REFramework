@@ -1067,6 +1067,13 @@ void REFramework::on_post_present_d3d12() {
 
         return;
     }
+
+    if (m_d3d12.graphics_memory != nullptr) {
+        auto& hook = get_d3d12_hook();
+        auto command_queue = hook->get_command_queue();
+
+        m_d3d12.graphics_memory->Commit(command_queue);
+    }
     
     for (auto& mod : m_mods->get_mods()) {
         mod->on_post_present();
@@ -2164,6 +2171,13 @@ bool REFramework::init_d3d12() {
     deinit_d3d12();
     
     auto device = m_d3d12_hook->get_device();
+
+    spdlog::info("[D3D12] Creating DXTK graphics memory...");
+
+    // Realistically we only have one device. If not, then... IDK
+    if (m_d3d12.graphics_memory == nullptr) {
+        m_d3d12.graphics_memory = std::make_unique<DirectX::DX12::GraphicsMemory>(device);
+    }
 
     spdlog::info("[D3D12] Creating command allocator...");
 
