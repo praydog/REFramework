@@ -469,6 +469,7 @@ namespace sdk {
     static void* (*s_context_unhandled_exception_fn)(::REThreadContext*) = nullptr;
     static void* (*s_context_local_frame_gc_fn)(::REThreadContext*) = nullptr;
     static void* (*s_context_end_global_frame_fn)(::REThreadContext*) = nullptr;
+    static void* (*s_context_full_cleanup_fn)(::REThreadContext*) = nullptr;
 
     void sdk::VMContext::update_pointers() {
         {
@@ -489,7 +490,7 @@ namespace sdk {
             s_fully_updated_vm_context_pointers = true;
         }};
 
-        spdlog::info("Locating funcs");
+        spdlog::info("[VMContext] Locating funcs");
         
         // Version 1
         //auto ref = utility::scan(g_framework->getModule().as<HMODULE>(), "48 83 78 18 00 74 ? 48 89 D9 E8 ? ? ? ? 48 89 D9 E8 ? ? ? ?");
@@ -498,7 +499,65 @@ namespace sdk {
         auto ref = utility::scan(utility::get_executable(), "48 83 78 18 00 74 ? 48 ? ? E8 ? ? ? ? 48 ? ? E8 ? ? ? ? 48 ? ? E8 ? ? ? ?");
 
         if (!ref) {
-            spdlog::error("We're going to crash");
+            spdlog::info("[VMContext] Could not locate functions we need, trying fallback for full cleanup...");
+
+            auto full_cleanup_ref = utility::scan(utility::get_executable(), "48 8B 41 50 48 83 78 18 00");
+
+            if (full_cleanup_ref) {
+                auto fn = utility::find_function_start_with_call(*full_cleanup_ref);
+
+                if (!fn) {
+                    spdlog::error("[VMContext] Could not locate full cleanup function.");
+                    return;
+                }
+
+                s_context_full_cleanup_fn = (decltype(s_context_full_cleanup_fn))*fn;
+                spdlog::info("Context::FullCleanup {:x}", (uintptr_t)s_context_full_cleanup_fn);
+
+                // We need LocalFrameGC at least now, the other functions are not important if we have the full cleanup function.
+                // Because we actually do call LocalFrameGC by itself when needed.
+                // Doing this because I'm seeing tail calls which can confuse the disassembler
+                auto basic_blocks = utility::collect_basic_blocks(*fn);
+
+                if (basic_blocks.empty()) {
+                    spdlog::error("[VMContext] Could not locate LocalFrameGC function (basic blocks).");
+                    return;
+                }
+
+                for (const auto& bb : basic_blocks) {
+                    if (s_context_local_frame_gc_fn != nullptr) {
+                        break;
+                    }
+
+                    for (const auto& ix : bb.instructions) {
+                        if (s_context_local_frame_gc_fn != nullptr) {
+                            break;
+                        }
+
+                        // Hit a call
+                        if (*(uint8_t*)ix.addr == 0xE8) {
+                            const auto dst = utility::calculate_absolute(ix.addr + 1);
+
+                            // This is always near the very start of the function entry, seen back in RE8 up to MHWilds.
+                            // However it's such a common set of instructions which is why we narrow it to this function.
+                            if (utility::scan_disasm(dst, 20, "48 8B 41 50")) {
+                                s_context_local_frame_gc_fn = (decltype(s_context_local_frame_gc_fn))dst;
+                                spdlog::info("[VMContext] Context::LocalFrameGC {:x}", (uintptr_t)s_context_local_frame_gc_fn);
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (s_context_local_frame_gc_fn == nullptr) {
+                    spdlog::error("[VMContext] Could not locate LocalFrameGC function.");
+                    return;
+                }
+
+                return;
+            }
+
+            spdlog::error("[VMContext] We're going to crash, could not locate functions we need.");
             return;
         }
 
@@ -535,6 +594,11 @@ namespace sdk {
 
         spdlog::error("{}", reference_count);
         if (count_delta >= 1) {
+            if (s_context_full_cleanup_fn != nullptr) {
+                s_context_full_cleanup_fn(this);
+                return;
+            }
+
             --reference_count;
 
             // Perform object cleanup that was missed because an exception occurred.
