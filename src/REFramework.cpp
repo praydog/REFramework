@@ -2175,9 +2175,8 @@ bool REFramework::init_d3d12() {
     spdlog::info("[D3D12] Creating DXTK graphics memory...");
 
     // Realistically we only have one device. If not, then... IDK
-    if (m_d3d12.graphics_memory == nullptr) {
-        m_d3d12.graphics_memory = std::make_unique<DirectX::DX12::GraphicsMemory>(device);
-    }
+    m_d3d12.graphics_memory.reset();
+    m_d3d12.graphics_memory = std::make_unique<DirectX::DX12::GraphicsMemory>(device);
 
     spdlog::info("[D3D12] Creating command allocator...");
 

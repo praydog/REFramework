@@ -57,13 +57,18 @@
 #include "ChainViewer.hpp"
 
 std::optional<std::string> ChainViewer::on_initialize() {
-
     // OK
     return Mod::on_initialize();
 }
 
 std::optional<std::string> ChainViewer::on_initialize_d3d_thread() {
+    return initialize_d3d_resources();
+}
+
+std::optional<std::string> ChainViewer::initialize_d3d_resources() {
     if (g_framework->is_dx12()) {
+        m_d3d12 = {};
+
         DirectX::EffectPipelineStateDescription psd(
             &DirectX::DX12::GeometricPrimitive::VertexType::InputLayout,
             DirectX::DX12::CommonStates::AlphaBlend,
@@ -90,10 +95,10 @@ std::optional<std::string> ChainViewer::on_initialize_d3d_thread() {
         spdlog::info("ChainViewer D3D11 initialized");
     }
 
-    // OK
-    return Mod::on_initialize();
-}
+    m_needs_d3d_init = false;
 
+    return std::nullopt;
+}
 
 void ChainViewer::on_config_load(const utility::Config& cfg) {
     for (IModValue& option : m_options) {
@@ -125,6 +130,10 @@ void ChainViewer::on_draw_dev_ui() {
 }
 
 void ChainViewer::on_present() {
+    if (m_needs_d3d_init) {
+        initialize_d3d_resources();
+    }
+
     if (g_framework->is_dx12()) {
         if (m_effect_dirty) {
             m_d3d12.effect->SetAlpha(m_effect_alpha);
@@ -136,7 +145,7 @@ void ChainViewer::on_present() {
 }
 
 void ChainViewer::on_frame() {
-    if (!m_enabled->value()) {
+    if (!m_enabled->value() || m_needs_d3d_init) {
         return;
     }
 

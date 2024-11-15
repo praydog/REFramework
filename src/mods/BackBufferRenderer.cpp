@@ -65,13 +65,13 @@ void BackBufferRenderer::render_d3d12() {
         }
 
         if (m_d3d12.backbuffers[i] == nullptr || m_d3d12.backbuffers[i]->texture.Get() != backbuffer.Get()) {
-            spdlog::info("[ChainViewer] Setting up backbuffer {}", i);
+            spdlog::info("[BackBufferRenderer] Setting up backbuffer {}", i);
             
             m_d3d12.backbuffers[i].reset();
 
             m_d3d12.backbuffers[i] = std::make_unique<d3d12::TextureContext>();
-            if (!m_d3d12.backbuffers[i]->setup(device, backbuffer.Get(), std::nullopt, std::nullopt, L"ChainViewer Backbuffer")) {
-                spdlog::error("[ChainViewer] Failed to setup backbuffer {}", i);
+            if (!m_d3d12.backbuffers[i]->setup(device, backbuffer.Get(), std::nullopt, std::nullopt, L"BackBufferRenderer Backbuffer")) {
+                spdlog::error("[BackBufferRenderer] Failed to setup backbuffer {}", i);
                 m_d3d12.backbuffers[i].reset();
                 continue;
             }

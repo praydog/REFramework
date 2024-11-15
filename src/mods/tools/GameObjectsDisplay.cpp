@@ -29,8 +29,19 @@ struct Predicate : public REManagedObject {
 }
 
 std::optional<std::string> GameObjectsDisplay::on_initialize_d3d_thread() {
+    return initialize_d3d_resources();
+}
+
+std::optional<std::string> GameObjectsDisplay::on_initialize() {
+    // OK
+    return Mod::on_initialize();
+}
+
+std::optional<std::string> GameObjectsDisplay::initialize_d3d_resources() {
     if (g_framework->is_dx12()) {
-        DirectX::EffectPipelineStateDescription psd(
+        m_d3d12 = {};
+
+        DirectX::EffectPipelineStateDescription bbuffer_psd(
             &DirectX::DX12::GeometricPrimitive::VertexType::InputLayout,
             DirectX::DX12::CommonStates::AlphaBlend,
             DirectX::DX12::CommonStates::DepthNone,
@@ -42,24 +53,34 @@ std::optional<std::string> GameObjectsDisplay::on_initialize_d3d_thread() {
 
         m_d3d12.states = std::make_unique<DirectX::DX12::CommonStates>(device);
 
-        m_d3d12.effect = std::make_unique<DirectX::DX12::BasicEffect>(device, DirectX::EffectFlags::Texture, psd);
+        m_d3d12.effect = std::make_unique<DirectX::DX12::BasicEffect>(device, DirectX::EffectFlags::Texture, bbuffer_psd);
         m_d3d12.effect->SetWorld(DirectX::SimpleMath::Matrix::Identity);
         m_d3d12.effect->SetView(DirectX::SimpleMath::Matrix::Identity);
         m_d3d12.effect->SetProjection(DirectX::SimpleMath::Matrix::Identity);
+        m_d3d12.effect->SetAlpha(1.0f);
         //m_d3d12.effect->SetDiffuseColor(DirectX::Colors::Black);
+
+        m_d3d12.effect_no_tex = std::make_unique<DirectX::DX12::BasicEffect>(device, DirectX::EffectFlags::None, bbuffer_psd);
+        m_d3d12.effect_no_tex->SetWorld(DirectX::SimpleMath::Matrix::Identity);
+        m_d3d12.effect_no_tex->SetView(DirectX::SimpleMath::Matrix::Identity);
+        m_d3d12.effect_no_tex->SetProjection(DirectX::SimpleMath::Matrix::Identity);
+        m_d3d12.effect_no_tex->SetDiffuseColor(DirectX::Colors::Blue);
+        m_d3d12.effect_no_tex->SetAlpha(0.5f);
+
+
+        m_d3d12.font_heap = std::make_unique<DirectX::DescriptorHeap>(device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE, FontHeapIndices::FontHeap_Count);
 
         // Upload sprite font
         DirectX::ResourceUploadBatch upload(device);
         upload.Begin();
 
-        m_d3d12.font_heap = std::make_unique<DirectX::DescriptorHeap>(device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE, 10);
         m_d3d12.font = std::make_unique<DirectX::SpriteFont>(
             device, upload, Roboto_spritefont, sizeof(Roboto_spritefont), 
             m_d3d12.font_heap->GetCpuHandle(FontHeapIndices::SpriteFont_Data),
             m_d3d12.font_heap->GetGpuHandle(FontHeapIndices::SpriteFont_Data)
         );
         
-        DirectX::RenderTargetState output_state{BackBufferRenderer::get()->get_default_rt_state()};
+        DirectX::RenderTargetState output_state{DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_FORMAT_UNKNOWN};
         DirectX::SpriteBatchPipelineStateDescription pd{output_state};
 
         m_d3d12.sprite_batch = std::make_unique<DirectX::DX12::SpriteBatch>(device, upload, pd);
@@ -71,7 +92,7 @@ std::optional<std::string> GameObjectsDisplay::on_initialize_d3d_thread() {
 
         // Create text texture
         d3d12::ComPtr<ID3D12Resource> text_texture{};
-        const auto tex_desc = CD3DX12_RESOURCE_DESC::Tex2D(output_state.rtvFormats[0], 512, 512, 1, 1, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET);
+        const auto tex_desc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R8G8B8A8_UNORM, 512, 512, 1, 1, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET);
         const auto heap_props = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
         if (FAILED(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &tex_desc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr, IID_PPV_ARGS(&text_texture)))) {
             return "Failed to create text texture";
@@ -88,16 +109,10 @@ std::optional<std::string> GameObjectsDisplay::on_initialize_d3d_thread() {
     } else {
         // TODO
     }
+    
+    m_needs_d3d_init = false;
 
-    // OK
-    return Mod::on_initialize();
-}
-
-std::optional<std::string> GameObjectsDisplay::on_initialize() {
-
-
-    // OK
-    return Mod::on_initialize();
+    return std::nullopt;
 }
 
 void GameObjectsDisplay::on_config_load(const utility::Config& cfg) {
@@ -125,10 +140,27 @@ void GameObjectsDisplay::on_draw_dev_ui() {
     }
 
     m_max_distance->draw("Max Distance for GameObjects");
+
+    if (ImGui::SliderFloat("Object Effect Alpha", &m_effect_alpha, 0.0f, 1.0f)) {
+        m_effect_dirty = true;
+    }
+}
+
+void GameObjectsDisplay::on_present() {
+    if (m_needs_d3d_init) {
+        if (auto result = initialize_d3d_resources(); result.has_value()) {
+            spdlog::error(result.value());
+        }
+    }
+
+    if (m_effect_dirty) {
+        m_d3d12.effect_no_tex->SetAlpha(m_effect_alpha);
+        m_effect_dirty = false;
+    }
 }
 
 void GameObjectsDisplay::on_frame() {
-    if (!m_enabled->value()) {
+    if (!m_enabled->value() || m_needs_d3d_init) {
         return;
     }
 

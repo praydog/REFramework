@@ -24,11 +24,17 @@ public:
     void on_config_load(const utility::Config& cfg) override;
     void on_config_save(utility::Config& cfg) override;
 
+    void on_device_reset() override {
+        m_needs_d3d_init = true;
+    }
+
     void on_draw_dev_ui() override;
     void on_frame() override;
     void on_present() override;
 
 private:
+    std::optional<std::string> initialize_d3d_resources();
+
     struct {
         std::unique_ptr<DirectX::DX12::BasicEffect> effect{};
         std::unique_ptr<DirectX::DX12::GeometricPrimitive> cylinder{};
@@ -37,6 +43,7 @@ private:
 
     float m_effect_alpha{0.5f};
     bool m_effect_dirty{false};
+    bool m_needs_d3d_init{true};
 
 private:
     const ModToggle::Ptr m_enabled{ ModToggle::create(generate_name("Enabled")) };
