@@ -105,13 +105,13 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(directxtk)
 
-message(STATUS "Fetching directxtk12 (528801aa6dd8d628c2f756c41a76d300f47de478)...")
+message(STATUS "Fetching directxtk12 (be5dfc7e391aefaa4eeab8e8a08f7e2669e56cbb)...")
 FetchContent_Declare(
 	directxtk12
 	GIT_REPOSITORY
 		https://github.com/microsoft/DirectXTK12
 	GIT_TAG
-		528801aa6dd8d628c2f756c41a76d300f47de478
+		be5dfc7e391aefaa4eeab8e8a08f7e2669e56cbb
 )
 FetchContent_MakeAvailable(directxtk12)
 
