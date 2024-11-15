@@ -259,6 +259,10 @@ void GameObjectsDisplay::on_frame() {
 
             m_d3d12.effect->SetProjection(proj_directx);
             m_d3d12.effect->SetView(view_directx);
+            m_d3d12.effect->SetTexture(m_d3d12.text_texture->get_srv_gpu(), m_d3d12.states->LinearWrap());
+
+            m_d3d12.effect_no_tex->SetProjection(proj_directx);
+            m_d3d12.effect_no_tex->SetView(view_directx);
         });
     }
 
@@ -304,7 +308,7 @@ void GameObjectsDisplay::on_frame() {
             DirectX::SimpleMath::Matrix world = 
                 DirectX::SimpleMath::Matrix{&world_matrix[0][0]};
 
-            d3d12_work.emplace_back([this, world, owner_name](const BackBufferRenderer::RenderWorkData& data) {
+            d3d12_work.emplace_back([this, owner_name, world](const BackBufferRenderer::RenderWorkData& data) {
                 // Create barrier to transition to render target
                 D3D12_RESOURCE_BARRIER barrier{};
                 barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
@@ -337,8 +341,9 @@ void GameObjectsDisplay::on_frame() {
                 data.command_list->ClearRenderTargetView(m_d3d12.text_texture->get_rtv(), DirectX::Colors::Transparent, 0, nullptr);
                 
                 m_d3d12.sprite_batch->Begin(data.command_list);
-
-                m_d3d12.font->DrawString(m_d3d12.sprite_batch.get(), owner_name.c_str(), DirectX::SimpleMath::Vector2(0, 0), DirectX::Colors::White);
+                
+                const auto measurements = m_d3d12.font->MeasureString(owner_name.c_str());
+                m_d3d12.font->DrawString(m_d3d12.sprite_batch.get(), owner_name.c_str(), DirectX::SimpleMath::Vector2(256.0f - glm::min(DirectX::XMVectorGetX(measurements) / 2.0f, 256.0f), 256.0f), DirectX::Colors::White);
 
                 m_d3d12.sprite_batch->End();
 
@@ -358,6 +363,12 @@ void GameObjectsDisplay::on_frame() {
                 // Reset render target to backbuffer
                 D3D12_CPU_DESCRIPTOR_HANDLE bbrtv_heaps[] = { data.backbuffer_ctx->get_rtv() };
                 data.command_list->OMSetRenderTargets(1, bbrtv_heaps, FALSE, nullptr);
+
+                if (m_effect_alpha > 0.0f) {
+                    m_d3d12.effect_no_tex->SetWorld(world);
+                    m_d3d12.effect_no_tex->Apply(data.command_list);
+                    m_d3d12.quad->Draw(data.command_list);
+                }
 
                 m_d3d12.effect->SetWorld(world);
                 m_d3d12.effect->Apply(data.command_list);
