@@ -1083,6 +1083,16 @@ void ObjectExplorer::generate_sdk() {
         type_entry["is_generic_type"] = t.is_generic_type();
         type_entry["is_generic_type_definition"] = t.is_generic_type_definition();
 
+#if TDB_VER >= 71
+        if (tdef->element_typeid_TBD != 0) {
+            type_entry["element_type_name"] = init_type(il2cpp_dump, tdb, tdef->element_typeid_TBD)->full_name;
+        }
+#elif TDB_VER >= 69
+        if (tdef->element_typeid != 0) {
+            type_entry["element_type_name"] = init_type(il2cpp_dump, tdb, tdef->element_typeid)->full_name;
+        }
+#endif
+
         if (auto gtd = t.get_generic_type_definition(); gtd != nullptr) {
             type_entry["generic_type_definition"] = gtd->get_full_name();
         }
