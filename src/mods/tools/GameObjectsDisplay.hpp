@@ -48,6 +48,8 @@ private:
         std::unique_ptr<DirectX::DescriptorHeap> font_heap{};
         std::unique_ptr<DirectX::DX12::SpriteBatch> sprite_batch{};
         std::unique_ptr<DirectX::DX12::CommonStates> states{};
+
+        bool initialized{false};
     } m_d3d12;
 
 private:

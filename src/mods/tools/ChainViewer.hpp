@@ -39,6 +39,8 @@ private:
         std::unique_ptr<DirectX::DX12::BasicEffect> effect{};
         std::unique_ptr<DirectX::DX12::GeometricPrimitive> cylinder{};
         std::unique_ptr<DirectX::DX12::GeometricPrimitive> sphere{};
+
+        bool initialized{false};
     } m_d3d12;
 
     float m_effect_alpha{0.5f};

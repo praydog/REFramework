@@ -66,6 +66,14 @@ std::optional<std::string> ChainViewer::on_initialize_d3d_thread() {
 }
 
 std::optional<std::string> ChainViewer::initialize_d3d_resources() {
+    if (!m_enabled->value()) {
+        if (m_d3d12.initialized) {
+            m_d3d12 = {};
+        }
+
+        return std::nullopt;
+    }
+
     if (g_framework->is_dx12()) {
         m_d3d12 = {};
 
@@ -89,6 +97,7 @@ std::optional<std::string> ChainViewer::initialize_d3d_resources() {
         m_d3d12.cylinder = DirectX::GeometricPrimitive::CreateCylinder();
         m_d3d12.sphere = DirectX::GeometricPrimitive::CreateSphere();
 
+        m_d3d12.initialized = true;
         spdlog::info("ChainViewer D3D12 initialized");
     } else {
         // TODO

@@ -38,6 +38,14 @@ std::optional<std::string> GameObjectsDisplay::on_initialize() {
 }
 
 std::optional<std::string> GameObjectsDisplay::initialize_d3d_resources() {
+    if (!m_enabled->value()) {
+        if (m_d3d12.initialized) {
+            m_d3d12 = {};
+        }
+
+        return std::nullopt;
+    }
+
     if (g_framework->is_dx12()) {
         m_d3d12 = {};
 
@@ -105,6 +113,7 @@ std::optional<std::string> GameObjectsDisplay::initialize_d3d_resources() {
 
         m_d3d12.effect->SetTexture(m_d3d12.text_texture->get_srv_gpu(), m_d3d12.states->LinearWrap());
 
+        m_d3d12.initialized = true;
         spdlog::info("GameObjectsDisplay D3D12 initialized");
     } else {
         // TODO
