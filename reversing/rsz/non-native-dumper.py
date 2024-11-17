@@ -48,6 +48,8 @@ hardcoded_align_sizes = {
     "GameObjectRef": als(8, 16),
     "Color": als(4, 4),
     "DateTime": als(8, 8),
+    # Struct could have variable size and alignment depends on its element. So we set to (1, 1).
+    "Struct": als(1, 1),
     # Enum could have variable size and alignment, so we fallback to its base type and never use it.
 
     "Uint2": als(4, 8),
@@ -387,7 +389,9 @@ def generate_field_entries(il2cpp_dump, natives, key, il2cpp_entry, use_typedefs
             code = rsz_entry["code"]
             type = rsz_entry["type"]
 
-            if code == "Struct" and type in il2cpp_dump:
+            if code == "Struct" and type in il2cpp_dump and rsz_entry.get("array", 0) != 1:
+                # keep struct type data unpacked for backwards compatibility if it is not an array.
+
                 nested_entry, nested_str, i, struct_i = generate_field_entries(il2cpp_dump, natives, type, il2cpp_dump[type], use_typedefs, "STRUCT_" + name + "_", i, struct_i)
 
                 if len(nested_entry) > 0:
@@ -405,6 +409,20 @@ def generate_field_entries(il2cpp_dump, natives, key, il2cpp_entry, use_typedefs
                         code = code_typedefs[code]
                     else:
                         code = "RSZ" + code
+                
+                if rsz_entry["array"] == 1:
+                    array_type = il2cpp_dump[type]
+                    if array_type.get("element_type_name", None) is not None:
+                        type = array_type["element_type_name"]
+                    elif array_type.get("is_generic_type", False):
+                        array_element_types = [item["type"] for item in array_type["generic_arg_types"]]
+                        if len(array_element_types) == 1:
+                            type = array_element_types[0]
+                        else:
+                            print(f"Array type {type} has multiple element types: {array_element_types}")
+                    else:
+                        print(f"Array type {type} has no element type")
+
 
                 '''
                 if rsz_entry["array"] == True:
