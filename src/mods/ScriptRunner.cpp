@@ -1220,14 +1220,11 @@ void ScriptRunner::reset_scripts() {
     std::filesystem::create_directories(autorun_path);
     spdlog::info("[ScriptRunner] Loading scripts...");
 
-    auto path = std::filesystem::path(autorun_path);
-    auto dir = path.parent_path();
-
     std::string old_path = m_main_state->lua()["package"]["path"];
 
-    std::string package_path = old_path + ";" + dir.string() + "/?.lua";
-    package_path = package_path + ";" + dir.string() + "/?/init.lua";
-    package_path = package_path + ";" + dir.string() + "/?.dll";
+    std::string package_path = old_path + ";" + autorun_path.string() + "/?.lua";
+    package_path = package_path + ";" + autorun_path.string() + "/?/init.lua";
+    package_path = package_path + ";" + autorun_path.string() + "/?.dll";
 
     m_main_state->lua()["package"]["path"] = package_path;
 
