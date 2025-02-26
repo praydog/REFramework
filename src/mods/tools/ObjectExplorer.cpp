@@ -347,6 +347,8 @@ void ObjectExplorer::on_draw_dev_ui() {
         std::thread t(&ObjectExplorer::generate_sdk, this, false);
         t.detach();
     }
+    
+    ImGui::SameLine();
     if (ImGui::Button("Dump il2cpp json Only")) {
         std::thread t(&ObjectExplorer::generate_sdk, this, true);
         t.detach();
@@ -993,7 +995,7 @@ void ObjectExplorer::export_deserializer_chain(nlohmann::json& il2cpp_dump, sdk:
 }
 #endif
 
-void ObjectExplorer::generate_sdk(const bool justIl2CppJson) {
+void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
     // enums
     //auto ref = utility::scan(g_framework->get_module().as<HMODULE>(), "66 C7 40 18 01 01 48 89 05 ? ? ? ?");
     //auto& l = *(std::map<uint64_t, REEnumData>*)(utility::calculate_absolute(*ref + 9));
@@ -2247,7 +2249,7 @@ void ObjectExplorer::generate_sdk(const bool justIl2CppJson) {
     spdlog::info("Generating IDA SDK...");
     m_sdk_dump_stage = SdkDumpStage::GENERATE_SDK;
 
-    if (!justIl2CppJson) {
+    if (!skip_sdkgenny) {
         genny::ida::transform(sdk);
         sdk.generate("sdk_ida");
     }
