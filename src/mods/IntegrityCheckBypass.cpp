@@ -506,6 +506,19 @@ void IntegrityCheckBypass::immediate_patch_re4() {
     spdlog::info("[IntegrityCheckBypass]: Patched conditional_jmp!");
 }
 
+void* IntegrityCheckBypass::renderer_create_blas_hook(void* a1, void* a2, void* a3, void* a4, void* a5) {
+    if (s_corruption_when_zero != nullptr) {
+        if (*s_corruption_when_zero == 0) {
+            *s_corruption_when_zero = s_last_non_zero_corruption;
+            spdlog::info("[IntegrityCheckBypass]: Fixed corruption_when_zero!");
+        }
+
+        s_last_non_zero_corruption = *s_corruption_when_zero;
+    }
+
+    return s_renderer_create_blas_hook->get_original<decltype(renderer_create_blas_hook)>()(a1, a2, a3, a4, a5);
+}
+
 void IntegrityCheckBypass::immediate_patch_dd2() {
     // Just like RE4, this deals with the scans that are done every frame on the game's memory.
     // The scans are still performed, but the crash will be avoided.
@@ -550,6 +563,36 @@ void IntegrityCheckBypass::immediate_patch_dd2() {
         } else {
             spdlog::error("[IntegrityCheckBypass]: Could not find QueryPerformanceFrequency/Counter imports!");
         }
+    }
+
+    if (const auto create_blas_fn = utility::find_function_from_string_ref(game, "createBLAS"); create_blas_fn.has_value()) {
+        const auto create_blas_fn_unwind = utility::find_function_start_unwind(*create_blas_fn);
+
+        if (create_blas_fn_unwind) {
+            spdlog::info("[IntegrityCheckBypass]: Found createBLAS!");
+
+            // Look for first lea rcx, [mem]
+            const auto lea_rcx = utility::find_pattern_in_path((uint8_t*)*create_blas_fn_unwind, 1000, false, "48 8D 0D ? ? ? ?");
+
+            if (lea_rcx) {
+                s_corruption_when_zero = (uint32_t*)utility::calculate_absolute(lea_rcx->addr + 3);
+                spdlog::info("[IntegrityCheckBypass]: Found corruption_when_zero!");
+            } else {
+                spdlog::error("[IntegrityCheckBypass]: Could not find lea_rcx!");
+            }
+
+            s_renderer_create_blas_hook = std::make_unique<FunctionHook>(*create_blas_fn, &renderer_create_blas_hook);
+
+            if (!s_renderer_create_blas_hook->create()) {
+                spdlog::error("[IntegrityCheckBypass]: Failed to hook createBLAS!");
+            } else {
+                spdlog::info("[IntegrityCheckBypass]: Hooked createBLAS!");
+            }
+        } else {
+            spdlog::error("[IntegrityCheckBypass]: Could not find unwound createBLAS!");
+        }
+    } else {
+        spdlog::error("[IntegrityCheckBypass]: Could not find createBLAS!");
     }
 #endif
 
