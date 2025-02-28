@@ -43,7 +43,7 @@ struct RETypeDefVersion74 {
     uint32_t type_crc;
     uint64_t default_ctor : 22;
     uint64_t member_method : 22;
-    uint64_t member_field : TYPE_INDEX_BITS;
+    uint64_t member_field : FIELD_BITS;
     uint32_t num_member_prop : 12;
     uint32_t member_prop : TYPE_INDEX_BITS;
 
