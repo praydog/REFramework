@@ -518,6 +518,41 @@ void IntegrityCheckBypass::immediate_patch_dd2() {
     spdlog::info("[IntegrityCheckBypass]: Scanning DD2...");
 
     const auto game = utility::get_executable();
+
+#if TDB_VER >= 74
+    const auto query_performance_frequency = &QueryPerformanceFrequency;
+    const auto query_performance_counter = &QueryPerformanceCounter;
+
+    if (query_performance_frequency != nullptr && query_performance_counter != nullptr) {
+        const auto qpf_import = utility::scan_ptr(game, (uintptr_t)query_performance_frequency);
+        const auto qpc_import = utility::scan_ptr(game, (uintptr_t)query_performance_counter);
+
+        if (qpf_import && qpc_import) {
+            const auto crasher_fn = utility::find_function_with_refs(game, { *qpf_import, *qpc_import });
+
+            if (crasher_fn) {
+                spdlog::info("[IntegrityCheckBypass]: Found crasher_fn!");
+
+                // Make function just ret
+                //static auto patch = Patch::create(*crasher_fn, { 0xC3 }, true);
+
+                const auto cmp_jz = utility::find_pattern_in_path((uint8_t*)*crasher_fn, 1000, false, "39 0C 82 74 ?");
+
+                if (cmp_jz) {
+                    static auto patch = Patch::create(cmp_jz->addr + 3, { 0xEB }, true);
+                    spdlog::info("[IntegrityCheckBypass]: Patched crasher_fn!");
+                } else {
+                    spdlog::error("[IntegrityCheckBypass]: Could not find cmp_jz!");
+                }
+            } else {
+                spdlog::error("[IntegrityCheckBypass]: Could not find crasher_fn!");
+            }
+        } else {
+            spdlog::error("[IntegrityCheckBypass]: Could not find QueryPerformanceFrequency/Counter imports!");
+        }
+    }
+#endif
+
     const auto conditional_jmp_block = utility::scan(game, "41 8B ? ? 78 83 ? 07 ? ? 75 ?");
 
     if (conditional_jmp_block) {
