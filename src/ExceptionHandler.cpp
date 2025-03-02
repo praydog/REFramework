@@ -19,7 +19,13 @@ LONG WINAPI reframework::global_exception_handler(struct _EXCEPTION_POINTERS* ei
 
     spdlog::flush_on(spdlog::level::err);
 
+    if (_ReturnAddress() == nullptr) {
+        spdlog::warn("SUSPICIOUS EXCEPTION: _ReturnAddress() == nullptr");
+    }
+
     spdlog::error("Exception occurred: {:x}", ei->ExceptionRecord->ExceptionCode);
+    
+    spdlog::error("RIP (exception record): {:x}", (uintptr_t)ei->ExceptionRecord->ExceptionAddress);
     spdlog::error("RIP: {:x}", ei->ContextRecord->Rip);
     spdlog::error("RSP: {:x}", ei->ContextRecord->Rsp);
     spdlog::error("RCX: {:x}", ei->ContextRecord->Rcx);
