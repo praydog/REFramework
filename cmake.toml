@@ -95,7 +95,7 @@ tag = "f5026eb34e7053b1aff325d38db107703f394974"
 
 [fetch-content.directxtk12]
 git = "https://github.com/microsoft/DirectXTK12"
-tag = "528801aa6dd8d628c2f756c41a76d300f47de478"
+tag = "be5dfc7e391aefaa4eeab8e8a08f7e2669e56cbb"
 
 [target.spdlog]
 cmake-after="""
@@ -190,7 +190,7 @@ tag = "v1.34.10"
 
 [fetch-content.kananlib]
 git = "https://github.com/cursey/kananlib"
-tag = "61a04d4219e3cb81b524a6990d3924289982bbf6"
+tag = "d659e3b8312e26ba19329f96b73ba88d1211bfdb"
 
 [target.utility]
 type = "static"

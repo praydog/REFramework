@@ -53,7 +53,6 @@ private:
     d3d12::TextureContext m_converted_eye_tex{};
     std::array<d3d12::ResourceCopier, 3> m_generic_copiers{};
 
-    std::unique_ptr<DirectX::DX12::GraphicsMemory> m_graphics_memory{};
     std::unique_ptr<DirectX::DX12::SpriteBatch> m_sprite_batch{};
 
     // Mimicking what OpenXR does.

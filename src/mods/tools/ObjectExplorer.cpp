@@ -344,7 +344,13 @@ void ObjectExplorer::on_draw_dev_ui() {
         return;
     }
     if (ImGui::Button("Dump SDK")) {
-        std::thread t(&ObjectExplorer::generate_sdk, this);
+        std::thread t(&ObjectExplorer::generate_sdk, this, false);
+        t.detach();
+    }
+    
+    ImGui::SameLine();
+    if (ImGui::Button("Dump il2cpp json Only")) {
+        std::thread t(&ObjectExplorer::generate_sdk, this, true);
         t.detach();
     }
 
@@ -989,7 +995,7 @@ void ObjectExplorer::export_deserializer_chain(nlohmann::json& il2cpp_dump, sdk:
 }
 #endif
 
-void ObjectExplorer::generate_sdk() {
+void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
     // enums
     //auto ref = utility::scan(g_framework->get_module().as<HMODULE>(), "66 C7 40 18 01 01 48 89 05 ? ? ? ?");
     //auto& l = *(std::map<uint64_t, REEnumData>*)(utility::calculate_absolute(*ref + 9));
@@ -1086,6 +1092,16 @@ void ObjectExplorer::generate_sdk() {
         if (auto declaring_type = t.get_declaring_type(); declaring_type != nullptr) {
             type_entry["declaring_type"] = declaring_type->get_full_name();
         }
+
+#if TDB_VER >= 71
+        if (tdef->element_typeid_TBD != 0) {
+            type_entry["element_type_name"] = init_type(il2cpp_dump, tdb, tdef->element_typeid_TBD)->full_name;
+        }
+#elif TDB_VER >= 69
+        if (tdef->element_typeid != 0) {
+            type_entry["element_type_name"] = init_type(il2cpp_dump, tdb, tdef->element_typeid)->full_name;
+        }
+#endif
 
         if (auto gtd = t.get_generic_type_definition(); gtd != nullptr) {
             type_entry["generic_type_definition"] = gtd->get_full_name();
@@ -2236,9 +2252,11 @@ void ObjectExplorer::generate_sdk() {
 
     spdlog::info("Generating IDA SDK...");
     m_sdk_dump_stage = SdkDumpStage::GENERATE_SDK;
-    
-    genny::ida::transform(sdk);
-    sdk.generate("sdk_ida");
+
+    if (!skip_sdkgenny) {
+        genny::ida::transform(sdk);
+        sdk.generate("sdk_ida");
+    }
 
     // Free a couple gigabytes of no longer used memory
     g_stypedb.clear();

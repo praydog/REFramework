@@ -184,12 +184,6 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
 }
 
 void D3D12Component::on_post_present(VR* vr) {
-    if (m_graphics_memory != nullptr) {
-        auto& hook = g_framework->get_d3d12_hook();
-        auto command_queue = hook->get_command_queue();
-
-        m_graphics_memory->Commit(command_queue);
-    }
 }
 
 void D3D12Component::on_reset(VR* vr) {
@@ -210,7 +204,6 @@ void D3D12Component::on_reset(VR* vr) {
     m_prev_backbuffer.Reset();
     m_backbuffer_copy.reset();
     m_converted_eye_tex.reset();
-    m_graphics_memory.reset();
 
     if (runtime->is_openxr() && runtime->loaded) {
         if (m_openxr.last_resolution[0] != vr->get_hmd_width() || m_openxr.last_resolution[1] != vr->get_hmd_height()) {
@@ -241,10 +234,6 @@ void D3D12Component::setup() {
     if (FAILED(swapchain->GetBuffer(0, IID_PPV_ARGS(&backbuffer)))) {
         spdlog::error("[VR] Failed to get back buffer.");
         return;
-    }
-
-    if (m_graphics_memory == nullptr) {
-        m_graphics_memory = std::make_unique<DirectX::DX12::GraphicsMemory>(device);
     }
 
     const auto backbuffer_desc = backbuffer->GetDesc();

@@ -1067,6 +1067,12 @@ void Graphics::apply_ray_tracing_tweaks() {
         }
 
         if (set_enabled != nullptr) {
+            if (rt_type == 0) {
+                // Just turn it off
+                set_enabled->call<void>(context, target, false);
+                return;
+            }
+
             set_enabled->call<void>(context, target, true); // Some games have this disabled.
         }
 

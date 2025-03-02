@@ -43,7 +43,7 @@ struct RETypeDefVersion74 {
     uint32_t type_crc;
     uint64_t default_ctor : 22;
     uint64_t member_method : 22;
-    uint64_t member_field : TYPE_INDEX_BITS;
+    uint64_t member_field : FIELD_BITS;
     uint32_t num_member_prop : 12;
     uint32_t member_prop : TYPE_INDEX_BITS;
 
@@ -367,7 +367,7 @@ struct RETypeDefinition : public sdk::RETypeDefinition_ {
     uint32_t get_index() const;
     int32_t get_fieldptr_offset() const;
     bool has_fieldptr_offset() const;
-    bool is_a(sdk::RETypeDefinition* other) const;
+    bool is_a(const sdk::RETypeDefinition* other) const;
     bool is_a(std::string_view other) const;
 
     ::via::clr::VMObjType get_vm_obj_type() const;
@@ -395,6 +395,8 @@ struct RETypeDefinition : public sdk::RETypeDefinition_ {
     ::REManagedObject* create_instance_full(bool simplify = false);
     ::REObjectInfo* get_managed_vt() const;
     uint32_t get_flags() const;
+
+    std::vector<RETypeDefinition*> get_types_inherting_from_this() const;
 
 private:    
     void set_vm_obj_type(::via::clr::VMObjType type); // for REFramework shenanigans only!

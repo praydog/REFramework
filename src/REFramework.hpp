@@ -8,6 +8,7 @@
 #include <imgui.h>
 #include <utility/Patch.hpp>
 
+#include <../../directxtk12-src/Inc/GraphicsMemory.h>
 #include "mods/vr/d3d12/CommandContext.hpp"
 
 class Mods;
@@ -45,6 +46,7 @@ public:
     Address get_module() const { return m_game_module; }
 
     bool is_ready() const { return m_initialized && m_game_data_initialized; }
+    bool is_game_data_initialized() const { return m_game_data_initialized; }
     bool is_ui_focused() const { return m_is_ui_focused; }
 
     void run_imgui_frame(bool from_present);
@@ -315,6 +317,7 @@ private: // D3D12 members
         uint32_t rt_height{};
 
         std::array<void*, 2> imgui_backend_datas{};
+        std::unique_ptr<DirectX::DX12::GraphicsMemory> graphics_memory{}; // for use in several places around REF
     } m_d3d12{};
 
 public:

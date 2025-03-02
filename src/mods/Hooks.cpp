@@ -899,7 +899,7 @@ void Hooks::global_application_entry_hook_internal(void* entry, const char* name
 
     auto original = m_application_entry_hooks[name];
 
-    if (!g_framework->is_ready()) {
+    if (!g_framework->is_game_data_initialized()) {
         return original(entry);
     }
 

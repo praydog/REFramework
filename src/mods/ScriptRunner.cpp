@@ -1169,6 +1169,7 @@ void ScriptRunner::spew_error(const std::string& p) {
 
 void ScriptRunner::reset_scripts() {
     std::scoped_lock _{ m_access_mutex };
+    std::scoped_lock __{ g_framework->get_hook_monitor_mutex() }; // Stops D3D monitor from attempting to re-hook during long script startups
 
     {
         std::unique_lock _{ m_script_error_mutex };
@@ -1218,6 +1219,14 @@ void ScriptRunner::reset_scripts() {
     spdlog::info("[ScriptRunner] Creating directories {}", autorun_path.string());
     std::filesystem::create_directories(autorun_path);
     spdlog::info("[ScriptRunner] Loading scripts...");
+
+    std::string old_path = m_main_state->lua()["package"]["path"];
+
+    std::string package_path = old_path + ";" + autorun_path.string() + "/?.lua";
+    package_path = package_path + ";" + autorun_path.string() + "/?/init.lua";
+    package_path = package_path + ";" + autorun_path.string() + "/?.dll";
+
+    m_main_state->lua()["package"]["path"] = package_path;
 
     for (auto&& entry : std::filesystem::directory_iterator{autorun_path}) {
         auto&& path = entry.path();

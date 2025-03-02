@@ -144,7 +144,7 @@ private:
     std::string generate_full_name(sdk::RETypeDB* tdb, uint32_t i);
     void export_deserializer_chain(nlohmann::json& il2cpp_dump, sdk::RETypeDB* tdb, REType* t, std::optional<std::string> real_name = std::nullopt);
 #endif
-    void generate_sdk();
+    void generate_sdk(bool skip_sdkgenny);
     void report_sdk_dump_progress(float progress);
 
     void handle_game_object(REGameObject* game_object);

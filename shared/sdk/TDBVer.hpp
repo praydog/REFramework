@@ -53,48 +53,61 @@ struct RETypeDefinition;
 
 #if defined(MHWILDS)
 #define TYPE_INDEX_BITS 19
+#define FIELD_BITS 20
 using RETypeDefinition_ = sdk::RETypeDefVersion74;
 #elif defined(DD2)
 #define TYPE_INDEX_BITS 19
+#define FIELD_BITS 19
 using RETypeDefinition_ = sdk::RETypeDefVersion71; // same thing for now
 #elif defined(SF6)
 #define TYPE_INDEX_BITS 19
+#define FIELD_BITS 19
 using RETypeDefinition_ = sdk::RETypeDefVersion71;
 #elif defined(RE4)
 #define TYPE_INDEX_BITS 19
+#define FIELD_BITS 19
 using RETypeDefinition_ = sdk::RETypeDefVersion71;
 #elif defined(MHRISE)
 #ifdef MHRISE_TDB70
 // it's version 70 but looks the same for now i guess
 #define TYPE_INDEX_BITS 18
+#define FIELD_BITS 18
 using RETypeDefinition_ = sdk::RETypeDefVersion69;
 #else
 #define TYPE_INDEX_BITS 19
+#define FIELD_BITS 19
 using RETypeDefinition_ = sdk::RETypeDefVersion71;
 #endif
 #elif defined(RE8)
 #define TYPE_INDEX_BITS 18
+#define FIELD_BITS 18
 using RETypeDefinition_ = sdk::RETypeDefVersion69;
 #elif defined(DMC5)
 #define TYPE_INDEX_BITS 17
+#define FIELD_BITS 17
 using RETypeDefinition_ = sdk::RETypeDefVersion67;
 #elif defined(RE2) || defined(RE3)
 #ifdef RE2_TDB66
 #define TYPE_INDEX_BITS 16
+#define FIELD_BITS 16
 using RETypeDefinition_ = sdk::RETypeDefVersion66;
 #elif defined(RE3_TDB67)
 #define TYPE_INDEX_BITS 17
+#define FIELD_BITS 17
 using RETypeDefinition_ = sdk::RETypeDefVersion67;
 #else
 #define TYPE_INDEX_BITS 18
+#define FIELD_BITS 18
 using RETypeDefinition_ = sdk::RETypeDefVersion69;
 #endif
 #elif RE7
 #ifdef RE7_TDB49
 #define TYPE_INDEX_BITS 16
+#define FIELD_BITS 16
 using RETypeDefinition_ = sdk::RETypeDefVersion49;
 #else
 #define TYPE_INDEX_BITS 18
+#define FIELD_BITS 18
 using RETypeDefinition_ = sdk::RETypeDefVersion69;
 #endif
 #endif

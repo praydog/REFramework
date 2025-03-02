@@ -54,6 +54,7 @@ Supports both DirectX 11 and DirectX 12.
 * Devil May Cry 5
 * Street Fighter 6
 * Monster Hunter Rise
+* Monster Hunter Wilds
 * Dragon's Dogma 2
 * Ghosts 'n Goblins Resurrection (Using RE8 build)
 * Apollo Justice: Ace Attorney Trilogy (Using DD2 build)

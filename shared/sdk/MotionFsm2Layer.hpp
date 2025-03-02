@@ -235,6 +235,7 @@ public:
 
 class TreeObject : public regenny::via::behaviortree::TreeObject {
 public:
+    bool is_delayed() const;
     void relocate(uintptr_t old_start, uintptr_t old_end, sdk::NativeArrayNoCapacity<TreeNode>& new_nodes);
     void relocate_datas(uintptr_t old_start, uintptr_t old_end, sdk::NativeArrayNoCapacity<TreeNodeData>& new_nodes);
 
