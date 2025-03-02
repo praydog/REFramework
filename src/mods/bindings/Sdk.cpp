@@ -1570,7 +1570,9 @@ void bindings::open_sdk(ScriptState* s) {
 
             return false;
         },
-        "create_instance", &::sdk::RETypeDefinition::create_instance_full);
+        "create_instance", &::sdk::RETypeDefinition::create_instance_full,
+        "get_types_inheriting_from_this", &::sdk::RETypeDefinition::get_types_inherting_from_this
+    );
 
     auto method_call = [](sdk::REMethodDefinition* def, sol::object obj, sol::variadic_args va) {
         auto l = va.lua_state();

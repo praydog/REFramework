@@ -638,7 +638,7 @@ bool RETypeDefinition::has_fieldptr_offset() const {
 #endif
 }
 
-bool RETypeDefinition::is_a(sdk::RETypeDefinition* other) const {
+bool RETypeDefinition::is_a(const sdk::RETypeDefinition* other) const {
     if (other == nullptr) {
         return false;
     }
@@ -1132,5 +1132,25 @@ uint32_t RETypeDefinition::get_flags() const {
 
 bool RETypeDefinition::should_pass_by_pointer() const {
     return !is_value_type() || (get_valuetype_size() > sizeof(void*) || (!is_primitive() && !is_enum()));
+}
+
+std::vector<RETypeDefinition*> RETypeDefinition::get_types_inherting_from_this() const {
+    std::vector<RETypeDefinition*> out{};
+    auto tdb = RETypeDB::get();
+
+    // Maybe optimize by making a dependency graph?
+    for (auto i = 0; i < tdb->numTypes; ++i) {
+        auto type = tdb->get_type(i);
+
+        if (type == nullptr) {
+            continue;
+        }
+
+        if (type->is_a(this)) {
+            out.push_back(type);
+        }
+    }
+
+    return out;
 }
 } // namespace sdk
