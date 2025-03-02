@@ -43,6 +43,11 @@ private:
     static inline uint32_t* s_corruption_when_zero{ nullptr };
     static inline uint32_t s_last_non_zero_corruption{ 8 }; // What I've seen it default to
 
+    static void anti_debug_watcher();
+    static void init_anti_debug_watcher();
+    static void nuke_heap_allocated_code(uintptr_t addr);
+    static inline std::unique_ptr<std::jthread> s_anti_anti_debug_thread{nullptr};
+
     static BOOL WINAPI virtual_protect_impl(LPVOID lpAddress, SIZE_T dwSize, DWORD flNewProtect, PDWORD lpflOldProtect);
     static BOOL WINAPI virtual_protect_hook(LPVOID lpAddress, SIZE_T dwSize, DWORD flNewProtect, PDWORD lpflOldProtect);
     

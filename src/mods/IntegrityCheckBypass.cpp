@@ -307,6 +307,10 @@ void IntegrityCheckBypass::ignore_application_entries() {
     Hooks::get()->ignore_application_entry(0x00c0ab9309584734);
     Hooks::get()->ignore_application_entry(0xa474f1d3a294e6a4);
 #endif
+#if TDB_VER >= 74
+    Hooks::get()->ignore_application_entry(0x00ec4793097cd833);
+    Hooks::get()->ignore_application_entry(0x00d85893096c4c0c);
+#endif
 }
 
 void IntegrityCheckBypass::immediate_patch_re8() {
@@ -519,6 +523,110 @@ void* IntegrityCheckBypass::renderer_create_blas_hook(void* a1, void* a2, void* 
     return s_renderer_create_blas_hook->get_original<decltype(renderer_create_blas_hook)>()(a1, a2, a3, a4, a5);
 }
 
+// This is used to nuke the heap allocated code that causes crashes
+// when debuggers are attached and other integrity checks.
+// They happen to be in the same (heap allocated) executable section, so we can just
+// replace every byte with a RET instruction.
+void IntegrityCheckBypass::nuke_heap_allocated_code(uintptr_t addr) {
+    // Get the base of the memory region.
+    MEMORY_BASIC_INFORMATION mbi{};
+    if (VirtualQuery((LPCVOID)addr, &mbi, sizeof(mbi)) == 0) {
+        spdlog::error("[IntegrityCheckBypass]: VirtualQuery failed!");
+        return;
+    }
+    
+    // Get the end of the memory region.
+    const auto start = (uintptr_t)mbi.BaseAddress;
+    const auto end = (uintptr_t)mbi.BaseAddress + mbi.RegionSize;
+
+    spdlog::info("[IntegrityCheckBypass]: Nuking heap allocated code at 0x{:X} - 0x{:X}", start, end);
+
+    // Fix the protection of the memory region.
+    ProtectionOverride _{(void*)start, mbi.RegionSize, PAGE_EXECUTE_READWRITE};
+
+    // Replace every single byte with a RET (C3) instruction.
+    std::memset((void*)start, 0xC3, mbi.RegionSize);
+
+    spdlog::info("[IntegrityCheckBypass]: Nuked heap allocated code at 0x{:X}", start);
+}
+
+void IntegrityCheckBypass::anti_debug_watcher() try {
+    static const auto ntdll = GetModuleHandleW(L"ntdll.dll");
+    static const auto dbg_ui_remote_breakin = ntdll != nullptr ? GetProcAddress(ntdll, "DbgUiRemoteBreakin") : nullptr;
+    static auto original_dbg_ui_remote_breakin_bytes = dbg_ui_remote_breakin != nullptr ? utility::get_original_bytes(dbg_ui_remote_breakin) : std::optional<std::vector<uint8_t>>{};
+
+    if (dbg_ui_remote_breakin == nullptr) {
+        return;
+    }
+
+    // We can generally assume it's not hooked at this point if the original bytes are empty.
+    if (!original_dbg_ui_remote_breakin_bytes || original_dbg_ui_remote_breakin_bytes->empty()) {
+        spdlog::info("[IntegrityCheckBypass]: Manually copying original bytes for DbgUiRemoteBreakin.");
+        if (!original_dbg_ui_remote_breakin_bytes) {
+            original_dbg_ui_remote_breakin_bytes = std::vector<uint8_t>{};
+        }
+
+        if (original_dbg_ui_remote_breakin_bytes->size() < 32) {
+            std::copy_n((uint8_t*)dbg_ui_remote_breakin + original_dbg_ui_remote_breakin_bytes->size(), 32 - original_dbg_ui_remote_breakin_bytes->size(), std::back_inserter(*original_dbg_ui_remote_breakin_bytes));
+        }
+    }
+
+    const uint64_t* first_8_bytes = (uint64_t*)dbg_ui_remote_breakin;
+    const uint8_t* first_8_bytes_ptr = (uint8_t*)dbg_ui_remote_breakin;
+
+    if (*(uint64_t*)original_dbg_ui_remote_breakin_bytes->data() != *first_8_bytes) {
+        spdlog::info("[IntegrityCheckBypass]: DbgUiRemoteBreakin was hooked, restoring original bytes.");
+
+        if (first_8_bytes_ptr[0] == 0xE9) {
+            spdlog::info("[IntegrityCheckBypass]: DbgUiRemoteBreakin was directly hooked, resolving...");
+            const auto resolved_jmp = utility::calculate_absolute((uintptr_t)dbg_ui_remote_breakin + 1);
+            const auto is_heap_allocated = utility::get_module_within(resolved_jmp).value_or(nullptr) == nullptr;
+
+            if (is_heap_allocated && !IsBadReadPtr((void*)resolved_jmp, 32)) {
+                spdlog::info("[IntegrityCheckBypass]: Nuking heap allocated code at 0x{:X}", resolved_jmp);
+                nuke_heap_allocated_code(resolved_jmp);
+            }
+        } else if (first_8_bytes_ptr[0] == 0xFF && first_8_bytes_ptr[1] == 0x25) {
+            spdlog::info("[IntegrityCheckBypass]: DbgUiRemoteBreakin was indirectly hooked, resolving...");
+            const auto resolved_ptr = utility::calculate_absolute((uintptr_t)dbg_ui_remote_breakin + 2);
+            const auto resolved_jmp = *(uintptr_t*)resolved_ptr;
+            const auto is_heap_allocated = utility::get_module_within(resolved_jmp).value_or(nullptr) == nullptr;
+
+            if (is_heap_allocated && !IsBadReadPtr((void*)resolved_jmp, 32)) {
+                spdlog::info("[IntegrityCheckBypass]: Nuking heap allocated code at 0x{:X}", resolved_jmp);
+                nuke_heap_allocated_code(resolved_jmp);
+            }
+        }
+        
+        ProtectionOverride _{dbg_ui_remote_breakin, original_dbg_ui_remote_breakin_bytes->size(), PAGE_EXECUTE_READWRITE};
+        std::copy(original_dbg_ui_remote_breakin_bytes->begin(), original_dbg_ui_remote_breakin_bytes->end(), (uint8_t*)dbg_ui_remote_breakin);
+
+        spdlog::info("[IntegrityCheckBypass]: Restored DbgUiRemoteBreakin.");
+    }
+} catch (const std::exception& e) {
+    spdlog::error("[IntegrityCheckBypass]: Exception in anti_debug_watcher: {}", e.what());
+} catch (...) {
+    spdlog::error("[IntegrityCheckBypass]: Unknown exception in anti_debug_watcher!");
+}
+
+void IntegrityCheckBypass::init_anti_debug_watcher() {
+    if (s_anti_anti_debug_thread != nullptr) {
+        return;
+    }
+
+    // Run the original watcher once so we get it at least without creating a thread first.
+    anti_debug_watcher();
+
+    s_anti_anti_debug_thread = std::make_unique<std::jthread>([](std::stop_token stop_token) {
+        spdlog::info("[IntegrityCheckBypass]: Hello from anti_debug_watcher!");
+
+        while (!stop_token.stop_requested()) {
+            anti_debug_watcher();
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        }
+    });
+}
+
 void IntegrityCheckBypass::immediate_patch_dd2() {
     // Just like RE4, this deals with the scans that are done every frame on the game's memory.
     // The scans are still performed, but the crash will be avoided.
@@ -533,6 +641,8 @@ void IntegrityCheckBypass::immediate_patch_dd2() {
     const auto game = utility::get_executable();
 
 #if TDB_VER >= 74
+    init_anti_debug_watcher();
+
     const auto query_performance_frequency = &QueryPerformanceFrequency;
     const auto query_performance_counter = &QueryPerformanceCounter;
 
