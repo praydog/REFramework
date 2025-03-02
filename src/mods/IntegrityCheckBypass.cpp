@@ -565,10 +565,10 @@ void IntegrityCheckBypass::anti_debug_watcher() try {
         if (!original_dbg_ui_remote_breakin_bytes) {
             original_dbg_ui_remote_breakin_bytes = std::vector<uint8_t>{};
         }
+    }
 
-        if (original_dbg_ui_remote_breakin_bytes->size() < 32) {
-            std::copy_n((uint8_t*)dbg_ui_remote_breakin + original_dbg_ui_remote_breakin_bytes->size(), 32 - original_dbg_ui_remote_breakin_bytes->size(), std::back_inserter(*original_dbg_ui_remote_breakin_bytes));
-        }
+    if (original_dbg_ui_remote_breakin_bytes->size() < 32) {
+        std::copy_n((uint8_t*)dbg_ui_remote_breakin + original_dbg_ui_remote_breakin_bytes->size(), 32 - original_dbg_ui_remote_breakin_bytes->size(), std::back_inserter(*original_dbg_ui_remote_breakin_bytes));
     }
 
     const uint64_t* first_8_bytes = (uint64_t*)dbg_ui_remote_breakin;
