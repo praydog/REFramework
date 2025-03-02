@@ -59,6 +59,7 @@ private:
     float m_effect_alpha{ 0.5f };
     bool m_effect_dirty{ false };
     bool m_needs_d3d_init{ false };
+    bool m_legacy_mode{ false };
 
     ValueList m_options{
         *m_enabled,

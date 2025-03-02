@@ -148,6 +148,10 @@ void GameObjectsDisplay::on_draw_dev_ui() {
         // todo
     }
 
+    ImGui::SameLine();
+
+    ImGui::Checkbox("Legacy Mode", &m_legacy_mode);
+
     m_max_distance->draw("Max Distance for GameObjects");
 
     if (ImGui::SliderFloat("Object Effect Alpha", &m_effect_alpha, 0.0f, 1.0f)) {
@@ -311,7 +315,7 @@ void GameObjectsDisplay::on_frame() {
             }
         }
 
-        if (is_d3d12) {
+        if (is_d3d12 && !m_legacy_mode) {
             get_world_matrix_method->call<void*>(&world_matrix, context, transform);
 
             DirectX::SimpleMath::Matrix world = 
