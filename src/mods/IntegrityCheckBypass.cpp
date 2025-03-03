@@ -639,6 +639,8 @@ void IntegrityCheckBypass::immediate_patch_dd2() {
     spdlog::info("[IntegrityCheckBypass]: Scanning DD2...");
 
     const auto game = utility::get_executable();
+    const auto game_size = utility::get_module_size(game).value_or(0);
+    const auto game_end = (uintptr_t)game + game_size;
 
 #if TDB_VER >= 74
     init_anti_debug_watcher();
@@ -704,6 +706,18 @@ void IntegrityCheckBypass::immediate_patch_dd2() {
     } else {
         spdlog::error("[IntegrityCheckBypass]: Could not find createBLAS!");
     }
+
+    static std::vector<Patch::Ptr> sus_constant_patches{};
+
+    for (auto ref = utility::scan(game, "81 ? E1 53 BD 4C");
+         ref.has_value();
+         ref = utility::scan(*ref + 1, (game_end - (*ref + 1)) - 0x1000, "81 ? E1 53 BD 4C"))
+    {
+        // Patch to 0x1337BEEF
+        sus_constant_patches.emplace_back(Patch::create(*ref + 2, { 0xEF, 0xBE, 0x37, 0x13 }, true));
+    }
+
+    spdlog::info("[IntegrityCheckBypass]: Patched {} sus_constants!", sus_constant_patches.size());
 #endif
 
     const auto conditional_jmp_block = utility::scan(game, "41 8B ? ? 78 83 ? 07 ? ? 75 ?");
