@@ -879,7 +879,7 @@ void FirstPerson::update_player_arm_ik(RETransform* transform) {
         // fix up the controller_rotation by rotating it with the camera rotation (look_matrix)
         auto rotation_quat = glm::normalize(look_quat * controller_quat * offset_quat);
         
-        // be sure to always multiply the MATRIX BEFORE THE VECTOR!! WHAT HTE FUCK
+        // be sure to always multiply the MATRIX BEFORE THE VECTOR!! WHAT THE FUCK
         auto hand_pos = look_quat * ((controller_offset * m_vr_scale));
         hand_pos += (glm::normalize(look_quat * controller_quat) * hand_position_offset);
 
