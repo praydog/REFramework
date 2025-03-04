@@ -43,6 +43,11 @@ private:
     static inline uint32_t* s_corruption_when_zero{ nullptr };
     static inline uint32_t s_last_non_zero_corruption{ 8 }; // What I've seen it default to
 
+    static void sha3_rsa_code_midhook(safetyhook::Context& context);
+    static void restore_unencrypted_paks();
+    static inline safetyhook::MidHook s_sha3_rsa_code_midhook;
+    static inline std::optional<uintptr_t> s_sha3_code_end{};
+
     static void anti_debug_watcher();
     static void init_anti_debug_watcher();
     static void nuke_heap_allocated_code(uintptr_t addr);

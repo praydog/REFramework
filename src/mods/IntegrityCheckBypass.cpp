@@ -634,6 +634,71 @@ void IntegrityCheckBypass::init_anti_debug_watcher() {
     });
 }
 
+void IntegrityCheckBypass::sha3_rsa_code_midhook(safetyhook::Context& context) {
+    spdlog::info("[IntegrityCheckBypass]: sha3_code_midhook called!");
+    // Log registers
+    spdlog::info("[IntegrityCheckBypass]: RAX: 0x{:X}", context.rax);
+    spdlog::info("[IntegrityCheckBypass]: RCX: 0x{:X}", context.rcx);
+    spdlog::info("[IntegrityCheckBypass]: RDX: 0x{:X}", context.rdx);
+    spdlog::info("[IntegrityCheckBypass]: R8: 0x{:X}", context.r8);
+    spdlog::info("[IntegrityCheckBypass]: R9: 0x{:X}", context.r9);
+    spdlog::info("[IntegrityCheckBypass]: R10: 0x{:X}", context.r10);
+    spdlog::info("[IntegrityCheckBypass]: R11: 0x{:X}", context.r11);
+    spdlog::info("[IntegrityCheckBypass]: R12: 0x{:X}", context.r12);
+    spdlog::info("[IntegrityCheckBypass]: R13: 0x{:X}", context.r13);
+    spdlog::info("[IntegrityCheckBypass]: R14: 0x{:X}", context.r14);
+    spdlog::info("[IntegrityCheckBypass]: R15: 0x{:X}", context.r15);
+    spdlog::info("[IntegrityCheckBypass]: RSP: 0x{:X}", context.rsp);
+    spdlog::info("[IntegrityCheckBypass]: RIP: 0x{:X}", context.rip);
+    spdlog::info("[IntegrityCheckBypass]: RBP: 0x{:X}", context.rbp);
+    spdlog::info("[IntegrityCheckBypass]: RSI: 0x{:X}", context.rsi);
+    spdlog::info("[IntegrityCheckBypass]: RDI: 0x{:X}", context.rdi);
+
+    enum PakFlags : uint8_t {
+        ENCRYPTED = 0x8
+    };
+
+    const auto pak_flags = (PakFlags)context.r8; // Might change, maybe add automated register detection later
+
+    if ((pak_flags & PakFlags::ENCRYPTED) != 0) {
+        spdlog::info("[IntegrityCheckBypass]: Pak is encrypted, allowing decryption code to run.");
+        return;
+    }
+
+    context.rip = *s_sha3_code_end;
+
+    spdlog::info("[IntegrityCheckBypass]: Unencrypted pak detected, skipping decryption code!");
+}
+
+void IntegrityCheckBypass::restore_unencrypted_paks() {
+    spdlog::info("[IntegrityCheckBypass]: Restoring unencrypted paks...");
+
+    // If this breaks... we'll fix it!
+    const auto game = utility::get_executable();
+    const auto sha3_code_start = utility::scan(game, "C5 F8 57 C0 C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? C5 FC 11 44 24 60 48 C1 E9 ?");
+
+    if (!sha3_code_start) {
+        spdlog::error("[IntegrityCheckBypass]: Could not find sha3_rsa_code_start!");
+        return;
+    }
+    
+    spdlog::info("[IntegrityCheckBypass]: Found sha3_rsa_code_start @ 0x{:X}", *sha3_code_start);
+
+
+    s_sha3_code_end = utility::scan(game, "48 8B 8E C0 00 00 00 48 C1 E9 ?");
+
+    if (!s_sha3_code_end) {
+        spdlog::error("[IntegrityCheckBypass]: Could not find sha3_rsa_code_end, cannot restore unencrypted paks!");
+        return;
+    }
+    
+    spdlog::info("[IntegrityCheckBypass]: Found sha3_rsa_code_end @ 0x{:X}", *s_sha3_code_end);
+
+    s_sha3_rsa_code_midhook = safetyhook::create_mid((void*)*sha3_code_start, &sha3_rsa_code_midhook);
+
+    spdlog::info("[IntegrityCheckBypass]: Created sha3_rsa_code_midhook!");
+}
+
 void IntegrityCheckBypass::immediate_patch_dd2() {
     // Just like RE4, this deals with the scans that are done every frame on the game's memory.
     // The scans are still performed, but the crash will be avoided.
@@ -725,6 +790,8 @@ void IntegrityCheckBypass::immediate_patch_dd2() {
     }
 
     spdlog::info("[IntegrityCheckBypass]: Patched {} sus_constants!", sus_constant_patches.size());
+
+    restore_unencrypted_paks();
 #endif
 
     const auto conditional_jmp_block = utility::scan(game, "41 8B ? ? 78 83 ? 07 ? ? 75 ?");
