@@ -1,6 +1,17 @@
 # Warning
 For unknown reasons, these scripts require <= Python 3.9, otherwise the output is incomplete.
 
+# Standard dumping steps
+
+1. Dump the game with x64dbg's Scylla while it's running
+2. Run REFramework's SDK dumper under `DeveloperTools`
+3. Run the following commands (replace `re4` with your game name, and target the dumped executable)
+
+```
+python .\emulation-dumper.py --p="re4_dump.exe" --il2cpp_path="il2cpp_dump.json" --test_mode=False
+python .\non-native-dumper.py --out_postfix="re4" --natives_path=".\native_layouts_re4_dump.exe.json" --il2cpp_path="il2cpp_dump.json" --use_typedefs=False --use_hashkeys=True
+```
+
 # `emulation-dumper.py`
 Uses [Unicorn](https://github.com/unicorn-engine/unicorn) to emulate all of the deserializer chains to guess the RSZ structure layout for native (`via.*`) types.
 
