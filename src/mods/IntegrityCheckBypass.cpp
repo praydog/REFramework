@@ -619,6 +619,13 @@ void IntegrityCheckBypass::init_anti_debug_watcher() {
 
     s_anti_anti_debug_thread = std::make_unique<std::jthread>([](std::stop_token stop_token) {
         spdlog::info("[IntegrityCheckBypass]: Hello from anti_debug_watcher!");
+        spdlog::info("[IntegrityCheckBypass]: Waiting for REFramework startup to finish...");
+
+        while (g_framework == nullptr) {
+            std::this_thread::yield();
+        }
+
+        spdlog::info("[IntegrityCheckBypass]: REFramework startup finished!");
 
         while (!stop_token.stop_requested()) {
             anti_debug_watcher();
