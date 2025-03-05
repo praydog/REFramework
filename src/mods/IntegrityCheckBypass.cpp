@@ -634,6 +634,7 @@ void IntegrityCheckBypass::init_anti_debug_watcher() {
     });
 }
 
+// This allows unencrypted paks to load.
 void IntegrityCheckBypass::sha3_rsa_code_midhook(safetyhook::Context& context) {
     spdlog::info("[IntegrityCheckBypass]: sha3_code_midhook called!");
     // Log registers
@@ -697,6 +698,35 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
     s_sha3_rsa_code_midhook = safetyhook::create_mid((void*)*sha3_code_start, &sha3_rsa_code_midhook);
 
     spdlog::info("[IntegrityCheckBypass]: Created sha3_rsa_code_midhook!");
+
+    const auto previous_instructions = utility::get_disassembly_behind(*s_sha3_code_end);
+
+    // This NOPs out the conditional jump that rejects the PAK file if the integrity check fails.
+    // Normally, the game computes a SHA3-256 hash of the TOC/resource headers before obfuscation.
+    // It then XORs the TOC/resource headers with this hash to make them unreadable.
+    // To verify integrity, the game decrypts a precomputed SHA3-256 hash from the PAK header using RSA.
+    // If the computed SHA3-256 hash of the TOC/resource headers doesn't match the decrypted one, the PAK is rejected.
+    // Without patching, bypassing this check would require obtaining Capcom's private RSA key to sign new hashes,
+    // which is infeasible. Instead, we NOP the conditional jump to force the game to accept modded PAKs.
+    // (Thanks to Rick Gibbed (@gibbed) for the explanation about how SHA3 and RSA fit together in this context)
+    if (!previous_instructions.empty()) {
+        const auto& previous_instruction = previous_instructions.back();
+
+        if (previous_instruction.instrux.BranchInfo.IsBranch && previous_instruction.instrux.BranchInfo.IsConditional) {
+            spdlog::info("[IntegrityCheckBypass]: Found conditional branch instruction @ 0x{:X}, NOPing it", previous_instruction.addr);
+
+            // NOP out the conditional jump
+            std::vector<int16_t> nops{};
+            nops.resize(previous_instruction.instrux.Length);
+            std::fill(nops.begin(), nops.end(), 0x90);
+
+            static auto patch = Patch::create(previous_instruction.addr, nops, true);
+
+            spdlog::info("[IntegrityCheckBypass]: NOP'd out conditional jump!");
+        } else {
+            spdlog::warn("[IntegrityCheckBypass]: Previous instruction is not a conditional branch, cannot NOP it!");
+        }
+    }
 }
 
 void IntegrityCheckBypass::immediate_patch_dd2() {
