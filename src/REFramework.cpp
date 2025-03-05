@@ -47,17 +47,25 @@ using namespace std::literals;
 std::unique_ptr<REFramework> g_framework{};
 
 void REFramework::hook_monitor() {
+    if (m_do_not_hook_d3d_count.load() > 0) {
+        // Wait until nothing important is happening
+        m_last_present_time = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+        m_last_chance_time = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+        m_has_last_chance = true;
+        return;
+    }
+
     if (!m_hook_monitor_mutex.try_lock()) {
         // If this happens then we can assume execution is going as planned
         // so we can just reset the times so we dont break something
         m_last_present_time = std::chrono::steady_clock::now() + std::chrono::seconds(5);
         m_last_chance_time = std::chrono::steady_clock::now() + std::chrono::seconds(1);
         m_has_last_chance = true;
-    } else {
-        m_hook_monitor_mutex.unlock();
+        return;
     }
 
-    std::scoped_lock _{ m_hook_monitor_mutex };
+    // Take ownership of the mutex with adopt_lock
+    std::lock_guard _{ m_hook_monitor_mutex, std::adopt_lock };
 
     if (g_framework == nullptr) {
         return;
@@ -2018,7 +2026,7 @@ bool REFramework::first_frame_initialize() {
         return is_init_ok;
     }
 
-    std::scoped_lock _{get_hook_monitor_mutex()};
+    auto do_not_hook_d3d = acquire_do_not_hook_d3d();
 
     spdlog::info("Running first frame D3D initialization of mods...");
 

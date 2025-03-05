@@ -1168,7 +1168,8 @@ void ScriptRunner::spew_error(const std::string& p) {
 
 
 void ScriptRunner::reset_scripts() {
-    std::scoped_lock __{ g_framework->get_hook_monitor_mutex() }; // Stops D3D monitor from attempting to re-hook during long script startups
+    auto do_not_hook_d3d = g_framework->acquire_do_not_hook_d3d();
+    
     std::scoped_lock _{ m_access_mutex };
 
     {
