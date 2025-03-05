@@ -760,6 +760,45 @@ void IntegrityCheckBypass::immediate_patch_dd2() {
             if (crasher_fn) {
                 spdlog::info("[IntegrityCheckBypass]: Found crasher_fn!");
 
+                auto crasher_fn_ref = utility::scan_displacement_reference(game, *crasher_fn);
+
+                if (crasher_fn_ref) {
+                    spdlog::info("[IntegrityCheckBypass]: Found crasher_fn_ref");
+                }
+
+                if (crasher_fn_ref && *(uint8_t*)(*crasher_fn_ref - 1) == 0xE9) {
+                    crasher_fn_ref = utility::find_function_start(*crasher_fn_ref - 1);
+                } else {
+                    crasher_fn_ref = *crasher_fn;
+                }
+
+                if (crasher_fn_ref) {
+                    spdlog::info("[IntegrityCheckBypass]: Found crasher fn (real)");
+
+                    // We have to use this because I think that the AVX2 scan is broken here for some reason... uh oh...
+                    const auto scanner_fn_middle = utility::scan_relative_reference_scalar((uintptr_t)game, game_size - 0x1000, *crasher_fn_ref, [](uintptr_t addr) {
+                        return *(uint8_t*)(addr - 1) == 0xE8;
+                    });
+
+                    if (scanner_fn_middle) {
+                        spdlog::info("[IntegrityCheckBypass]: Found scanner_fn_middle");
+
+                        const auto scanner_fn = utility::find_function_start_unwind(*scanner_fn_middle);
+
+                        if (scanner_fn) {
+                            spdlog::info("[IntegrityCheckBypass]: Found scanner_fn!");
+                            static auto nuke_patch = Patch::create(*scanner_fn, { 0xC3 }, true); // ret
+                            spdlog::info("[IntegrityCheckBypass]: Patched scanner_fn!");
+                        } else {
+                            spdlog::error("[IntegrityCheckBypass]: Could not find scanner_fn!");
+                        }
+                    } else {
+                        spdlog::error("[IntegrityCheckBypass]: Could not find scanner_fn_middle! (3)");
+                    }
+                } else {
+                    spdlog::error("[IntegrityCheckBypass]: Could not find crasher_fn_ref! (2)");
+                }
+
                 // Make function just ret
                 //static auto patch = Patch::create(*crasher_fn, { 0xC3 }, true);
 
