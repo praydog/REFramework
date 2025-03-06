@@ -2241,7 +2241,7 @@ bool REFramework::init_d3d12() {
         // Create back buffer rtvs.
         auto swapchain = m_d3d12_hook->get_swap_chain();
 
-        for (auto i = 0; i <= (int)D3D12::RTV::BACKBUFFER_2; ++i) {
+        for (auto i = 0; i <= (int)D3D12::RTV::BACKBUFFER_6; ++i) {
             if (SUCCEEDED(swapchain->GetBuffer(i, IID_PPV_ARGS(&m_d3d12.rts[i])))) {
                 device->CreateRenderTargetView(m_d3d12.rts[i].Get(), nullptr, m_d3d12.get_cpu_rtv(device, (D3D12::RTV)i));
             } else {
