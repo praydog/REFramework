@@ -263,6 +263,7 @@ REFramework::REFramework(HMODULE reframework_module)
     spdlog::info("Total commits: {}", REF_TOTAL_COMMITS);
     spdlog::info("Build date: {}", REF_BUILD_DATE);
     spdlog::info("Build time: {}", REF_BUILD_TIME);
+    spdlog::info("Game name: {}", REFramework::get_game_name());
 
     const auto module_size = *utility::get_module_size(m_game_module);
 
