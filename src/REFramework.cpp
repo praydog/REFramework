@@ -2241,7 +2241,20 @@ bool REFramework::init_d3d12() {
         // Create back buffer rtvs.
         auto swapchain = m_d3d12_hook->get_swap_chain();
 
-        for (auto i = 0; i <= (int)D3D12::RTV::BACKBUFFER_6; ++i) {
+        DXGI_SWAP_CHAIN_DESC swapchain_desc{};
+
+        if (FAILED(swapchain->GetDesc(&swapchain_desc))) {
+            spdlog::error("[D3D12] Failed to get swap chain description.");
+            return false;
+        }
+        
+        spdlog::info("[D3D12] Swapchain buffer count: {}", swapchain_desc.BufferCount);
+
+        if (swapchain_desc.BufferCount > (int)D3D12::RTV::BACKBUFFER_LAST + 1) {
+            spdlog::warn("[D3D12] Too many back buffers ({} vs {}).", swapchain_desc.BufferCount, (int)D3D12::RTV::BACKBUFFER_LAST + 1);
+        }
+
+        for (auto i = 0; i < (int)swapchain_desc.BufferCount; ++i) {
             if (SUCCEEDED(swapchain->GetBuffer(i, IID_PPV_ARGS(&m_d3d12.rts[i])))) {
                 device->CreateRenderTargetView(m_d3d12.rts[i].Get(), nullptr, m_d3d12.get_cpu_rtv(device, (D3D12::RTV)i));
             } else {
