@@ -7,6 +7,7 @@
 #include <json.hpp>
 
 #include <windows.h>
+#include <TlHelp32.h>
 
 #include <utility/String.hpp>
 #include <utility/Scan.hpp>
@@ -590,6 +591,30 @@ void ObjectExplorer::on_draw_dev_ui() {
         }
     }
 
+    if (ImGui::InputText("TDB Method Address", m_method_tdb_address.data(), 17, ImGuiInputTextFlags_::ImGuiInputTextFlags_CharsHexadecimal)) {
+        m_displayed_method = nullptr;
+
+        try {
+            if (m_method_tdb_address[0] != 0) {
+                const auto method_address = std::stoull(m_method_tdb_address, nullptr, 16);
+                const auto tdb = sdk::RETypeDB::get();
+
+                if (method_address >= (uintptr_t)tdb->methods && method_address < (uintptr_t)tdb->methods + (tdb->numMethods * sizeof(void*))) {
+                    // Make sure method address is aligned to sizeof(sdk::REMethodDefinition)
+                    if ((method_address % sizeof(sdk::REMethodDefinition)) == 0) {
+                        m_displayed_method = (sdk::REMethodDefinition*)method_address;
+                    } else {
+                        ImGui::Text("Invalid address");
+                    }
+                } else {
+                    ImGui::Text("Invalid address");
+                }
+            }
+        } catch (...) {
+            ImGui::Text("Invalid address");
+        }
+    }
+
     ImGui::InputText("REObject Address", m_object_address.data(), 17, ImGuiInputTextFlags_::ImGuiInputTextFlags_CharsHexadecimal);
 
     if (ImGui::Button("Create new game object"))  {
@@ -629,6 +654,35 @@ void ObjectExplorer::on_draw_dev_ui() {
 }
 
 void ObjectExplorer::on_frame() {
+    if (!m_veh_state.read_listeners.empty()) {
+        bool open = true;
+
+        ImGui::SetNextWindowSize(ImVec2(200, 400), ImGuiCond_::ImGuiCond_Once);
+        if (ImGui::Begin("Read Listeners", &open)) {
+            std::shared_lock _{m_veh_state.listener_mtx};
+
+            for (auto& listener : m_veh_state.read_listeners) {
+                if (ImGui::TreeNode(listener.second->field, "%s [Hits: %d [%d instructions]]", listener.second->field->get_name(), listener.second->hits, listener.second->instructions.size())) {
+                    for (auto& instruction : listener.second->instructions) {
+                        auto nearest_method = locate_nearest_method(instruction);
+
+                        if (nearest_method != nullptr) {
+                            attempt_display_method(nullptr, *nearest_method, true);
+                        } else {
+                            ImGui::Text("0x%p", instruction);
+                        }
+                    }
+
+                    ImGui::TreePop();
+                }
+            }
+        }
+
+        if (!open) {
+            m_veh_state.clear_all_hardware_breakpoints();
+        }
+    }
+
     if (!m_pinned_objects.empty()) {
         bool open = true;
 
@@ -3071,6 +3125,8 @@ void ObjectExplorer::display_native_fields(REManagedObject* obj, sdk::RETypeDefi
 
             std::vector<std::string> postfixes{};
 
+            void* ptr_to_data{nullptr};
+
             // Handle static fields
             if ((field_flags & (uint16_t)via::clr::FieldFlag::Static) != 0) {
                 postfixes.push_back("STATIC");
@@ -3080,6 +3136,7 @@ void ObjectExplorer::display_native_fields(REManagedObject* obj, sdk::RETypeDefi
                     postfixes.push_back("CONST");
 
                     data = f->get_init_data();
+                    ptr_to_data = data;
 
                     switch (utility::hash(field_type_name)) {
                     case "System.String"_fnv:
@@ -3092,6 +3149,7 @@ void ObjectExplorer::display_native_fields(REManagedObject* obj, sdk::RETypeDefi
                 }
                 else {
                     data = f->get_data_raw();
+                    ptr_to_data = data;
 
                     if (data != nullptr && !is_valuetype) {
                         data = *(void**)data;
@@ -3108,6 +3166,7 @@ void ObjectExplorer::display_native_fields(REManagedObject* obj, sdk::RETypeDefi
 
                 if (obj != nullptr) {
                     data = Address{ obj }.get(offset);
+                    ptr_to_data = data;
 
                     if (!is_valuetype) {
                         data = *(void**)data;
@@ -3117,7 +3176,15 @@ void ObjectExplorer::display_native_fields(REManagedObject* obj, sdk::RETypeDefi
 
             is_managed_str = final_type_name == "System.String";
 
-            const auto made_node = widget_with_context(data, field_name, [&]() { return stretched_tree_node(f, "%s", field_type_name.c_str()); });
+            const auto made_node = widget_with_context(data, field_name, 
+                [&]() { return stretched_tree_node(f, "%s", field_type_name.c_str()); },
+                [&]() {
+                    if (is_real_object && ptr_to_data != nullptr && ImGui::Selectable("Listen for reads")) {
+                        install_veh();
+                        m_veh_state.add_read_listener((uintptr_t)data, f);
+                    }
+                }
+            );
             const auto tree_hovered = ImGui::IsItemHovered();
 
             // Draw the variable name with a color
@@ -4016,16 +4083,16 @@ int32_t ObjectExplorer::get_field_offset(REManagedObject* obj, VariableDescripto
     return m_offset_map[desc];
 }
 
-bool ObjectExplorer::widget_with_context(void* address, std::function<bool()> widget) {
+bool ObjectExplorer::widget_with_context(void* address, std::function<bool()> widget, std::optional<std::function<void()>> additional_context) {
     auto ret = widget();
-    context_menu(address);
+    context_menu(address, std::nullopt, additional_context);
 
     return ret;
 }
 
-bool ObjectExplorer::widget_with_context(void* address, const std::string& name, std::function<bool()> widget) {
+bool ObjectExplorer::widget_with_context(void* address, const std::string& name, std::function<bool()> widget, std::optional<std::function<void()>> additional_context) {
     auto ret = widget();
-    context_menu(address, name);
+    context_menu(address, name, additional_context);
 
     return ret;
 }
@@ -4520,6 +4587,350 @@ void ObjectExplorer::init() {
     }
 }
 
+void ObjectExplorer::install_veh() {
+    if (m_veh_installed) {
+        return;
+    }
+
+    spdlog::info("[ObjectExplorer] Istalling VEH");
+
+    m_veh_installed = true;
+    m_veh_state.veh_handle = AddVectoredExceptionHandler(1, exception_handler_veh);
+
+    spdlog::info("[ObjectExplorer] VEH Installed: {}", m_veh_state.veh_handle != nullptr);
+}
+
+void ObjectExplorer::VEHState::set_guard_page_protections(uintptr_t address) {
+    MEMORY_BASIC_INFORMATION mbi{};
+    VirtualQuery((LPCVOID)address, &mbi, sizeof(mbi));
+
+    if ((mbi.Protect & PAGE_NOACCESS) != 0 || (mbi.Protect & PAGE_GUARD) != 0) {
+        return;
+    }
+
+    std::unique_lock _{this->guard_page_mtx};
+
+    auto guarded_page = get_guarded_page_unsafe(address);
+
+    if (guarded_page == nullptr) {
+        // Add one
+        auto page = std::make_shared<GuardedPage>();
+        page->mbi = mbi;
+
+        this->guarded_pages.push_back(std::move(page));
+        guarded_page = this->guarded_pages.back();
+
+        VirtualProtect(mbi.BaseAddress, mbi.RegionSize, PAGE_EXECUTE_READWRITE, &guarded_page->old_protect);
+    }
+
+    DWORD old_protect{};
+    VirtualProtect(mbi.BaseAddress, mbi.RegionSize, guarded_page->old_protect | PAGE_GUARD, &old_protect);
+}
+
+void ObjectExplorer::VEHState::set_hardware_breakpoint(uintptr_t address, bool read, bool write) {
+    // Check this thread for which debug registers are available
+    auto this_thread = GetCurrentThread();
+    CONTEXT ctx{};
+    ctx.ContextFlags = CONTEXT_DEBUG_REGISTERS;
+
+    if (GetThreadContext(this_thread, &ctx) == FALSE) {
+        return;
+    }
+
+    std::optional<size_t> available_dr{};
+
+    for (auto i = 0; i < 4; ++i) {
+        auto dr = &ctx.Dr0 + i;
+        const auto actual_dr_in_use = ctx.Dr7 & (1 << (i * 2));
+        if (*dr == 0 && actual_dr_in_use == 0) {
+            available_dr = i;
+            break;
+        }
+    }
+
+    if (!available_dr.has_value()) {
+        return;
+    }
+
+    std::unique_lock _{this->hardware_breakpoint_mtx};
+
+    auto bpit = this->hardware_breakpoints.find(address);
+    std::shared_ptr<HardwareBreakpoint> bp{};
+
+    if (bpit == this->hardware_breakpoints.end()) {
+        bp = std::make_shared<HardwareBreakpoint>();
+        bp->address = address;
+        bp->read = read;
+        bp->write = write;
+
+        this->hardware_breakpoints[address] = bp;
+    } else {
+        bp = bpit->second;
+    }
+
+    bp->debug_register = *available_dr;
+
+    auto snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+    if (snapshot == INVALID_HANDLE_VALUE) {
+        return;
+    }
+
+    THREADENTRY32 te{};
+    te.dwSize = sizeof(te);
+
+    const auto pid = GetCurrentProcessId();
+
+    if (Thread32First(snapshot, &te) == FALSE) {
+        CloseHandle(snapshot);
+        return;
+    }
+
+    do {
+        if (te.th32OwnerProcessID != pid) {
+            continue;
+        }
+
+        auto thread = OpenThread(THREAD_ALL_ACCESS, FALSE, te.th32ThreadID);
+
+        if (thread == nullptr) {
+            continue;
+        }
+
+        CONTEXT ctx{};
+        ctx.ContextFlags = CONTEXT_DEBUG_REGISTERS;
+
+        if (GetThreadContext(thread, &ctx) == FALSE) {
+            CloseHandle(thread);
+            continue;
+        }
+
+        const auto i = *available_dr;
+
+        auto dr = &ctx.Dr0 + i;
+        *dr = address;
+
+        // Set which debug breakpoint to use
+        ctx.Dr7 |= (1 << (i * 2));
+
+        int32_t condition = (write ? 1 : 0) | (read ? 2 : 0);
+        // 00 = execute, 01 = write, 11 = read/write
+        ctx.Dr7 &= ~(0x3 << (16 + (i * 4)));
+        ctx.Dr7 |= (condition << (16 + (i * 4)));
+        
+        int32_t len = 1; // TODO?
+        ctx.Dr7 &= ~(0x3 << (18 + (i * 4)));
+        ctx.Dr7 |= (len << (18 + (i * 4)));
+
+        SetThreadContext(thread, &ctx);
+        CloseHandle(thread);
+    } while (Thread32Next(snapshot, &te));
+
+    CloseHandle(snapshot);
+}
+
+void ObjectExplorer::VEHState::clear_all_hardware_breakpoints() {
+    // Clear internal tracking map
+    std::unique_lock _{this->hardware_breakpoint_mtx};
+    this->hardware_breakpoints.clear();
+
+    {
+        std::unique_lock __{this->listener_mtx};
+        this->read_listeners.clear();
+        this->write_listeners.clear();
+    }
+    
+    // Get a snapshot of all threads
+    auto snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+    if (snapshot == INVALID_HANDLE_VALUE) {
+        return;
+    }
+    
+    THREADENTRY32 te{};
+    te.dwSize = sizeof(te);
+    const auto pid = GetCurrentProcessId();
+    
+    if (Thread32First(snapshot, &te) == FALSE) {
+        CloseHandle(snapshot);
+        return;
+    }
+
+    do {
+        if (te.th32OwnerProcessID != pid) {
+            continue;
+        }
+
+        auto thread = OpenThread(THREAD_ALL_ACCESS, FALSE, te.th32ThreadID);
+        if (thread == nullptr) {
+            continue;
+        }
+
+        CONTEXT ctx{};
+        ctx.ContextFlags = CONTEXT_DEBUG_REGISTERS;
+        
+        if (GetThreadContext(thread, &ctx) == FALSE) {
+            CloseHandle(thread);
+            continue;
+        }
+
+        ctx.Dr0 = 0;
+        ctx.Dr1 = 0;
+        ctx.Dr2 = 0;
+        ctx.Dr3 = 0;
+        ctx.Dr7 = 0;
+        
+        SetThreadContext(thread, &ctx);
+        CloseHandle(thread);
+    } while (Thread32Next(snapshot, &te));
+    
+    CloseHandle(snapshot);
+}
+
+void ObjectExplorer::VEHState::add_read_listener(uintptr_t address, sdk::REField* field) {
+    {
+        std::shared_lock _{this->listener_mtx};
+
+        if (auto it = read_listeners.find(address); it != read_listeners.end()) {
+            return;
+        }
+    }
+
+    std::unique_lock _{this->listener_mtx};
+    auto listener = std::make_unique<VEHState::Listener>();
+    listener->address = address;
+    listener->field = field;
+
+    read_listeners[address] = std::move(listener);
+
+    switch (this->breakpoint_method) {
+    case BreakpointMethod::GUARD_PAGE: 
+    {
+        set_guard_page_protections(address);
+
+        auto guarded_page = get_guarded_page(address);
+    
+        if (guarded_page != nullptr) {
+            ++guarded_page->num_references;
+        }
+
+        break;
+    }
+
+    case BreakpointMethod::HARDWARE:
+    {
+        set_hardware_breakpoint(address, true, true);
+        break;
+    }
+
+    default:
+        break;
+    };
+}
+
+void ObjectExplorer::VEHState::remove_read_listener(uintptr_t address) {
+    std::unique_lock _{this->listener_mtx};
+
+    if (auto it = read_listeners.find(address); it != read_listeners.end()) {
+        read_listeners.erase(it);
+
+        std::unique_lock __{this->guard_page_mtx};
+        if (auto guarded_page = get_guarded_page_unsafe(address); guarded_page != nullptr) {
+            if (--guarded_page->num_references == 0) {
+                DWORD old_protect{};
+                VirtualProtect(guarded_page->mbi.BaseAddress, guarded_page->mbi.RegionSize, guarded_page->old_protect, &old_protect);
+
+                // Remove entry
+                std::erase_if(guarded_pages, [&](auto& page) { return page == guarded_page; });
+            }
+        }
+    }
+}
+
+void ObjectExplorer::VEHState::display_listeners() {
+
+}
+
+LONG ObjectExplorer::exception_handler_veh_internal(_EXCEPTION_POINTERS* ex) {
+    if (ex->ExceptionRecord == nullptr || ex->ContextRecord == nullptr) {
+        return EXCEPTION_CONTINUE_SEARCH;
+    }
+
+    const auto thread_id = GetCurrentThreadId();
+
+    // Check if this address is within our guard page and reset it
+    if (ex->ExceptionRecord->ExceptionCode == STATUS_GUARD_PAGE_VIOLATION) {
+        const auto address_that_was_accessed = (uintptr_t)ex->ExceptionRecord->ExceptionInformation[1];
+        auto guarded_page = m_veh_state.get_guarded_page(address_that_was_accessed);
+
+        if (guarded_page != nullptr) {
+            {
+                std::unique_lock _{m_veh_state.single_step_mtx};
+                m_veh_state.single_step_pages[GetCurrentThreadId()] = guarded_page;
+            }
+
+            std::unique_lock __{m_veh_state.listener_mtx};
+            auto read_listener = m_veh_state.read_listeners.find(address_that_was_accessed);
+            auto write_listener = m_veh_state.write_listeners.find(address_that_was_accessed);
+
+            if (read_listener != m_veh_state.read_listeners.end()) {
+                ++read_listener->second->hits;
+                read_listener->second->instructions.insert((uintptr_t)ex->ExceptionRecord->ExceptionAddress);
+            }
+        
+            // TODO: Differentiate between read and write listeners
+            if (write_listener != m_veh_state.write_listeners.end()) {
+                ++write_listener->second->hits;
+                write_listener->second->instructions.insert((uintptr_t)ex->ExceptionRecord->ExceptionAddress);
+            }
+
+            ex->ContextRecord->EFlags |= 0x100; // trap flag to single step
+
+            return EXCEPTION_CONTINUE_EXECUTION;
+        }
+
+        // Not our problem?
+        return EXCEPTION_CONTINUE_SEARCH;
+    } else if (ex->ExceptionRecord->ExceptionCode == EXCEPTION_SINGLE_STEP) {
+        auto guarded_page = m_veh_state.pop_single_step_thread(thread_id);
+
+        if (guarded_page != nullptr) {
+            const auto& mbi = guarded_page->mbi;
+            VirtualProtect(mbi.BaseAddress, mbi.RegionSize, guarded_page->old_protect | PAGE_GUARD, &guarded_page->old_protect);
+            return EXCEPTION_CONTINUE_EXECUTION;
+        }
+
+        std::shared_lock _{m_veh_state.hardware_breakpoint_mtx};
+        std::unique_lock __{m_veh_state.listener_mtx};
+        
+        // Check if any debug registers point to our address
+        for (auto& [address, bp] : m_veh_state.hardware_breakpoints) {
+            for (auto i = 0; i < 4; ++i) {
+                const auto dr = &ex->ContextRecord->Dr0 + i;
+                const auto bp_hit = (ex->ContextRecord->Dr6 & (1 << i)) != 0;
+                if (*dr == bp->address && bp->read && bp_hit) {
+                    auto listener = m_veh_state.read_listeners.find(address);
+
+                    if (listener != m_veh_state.read_listeners.end()) {
+                        ++listener->second->hits;
+                        listener->second->instructions.insert((uintptr_t)ex->ExceptionRecord->ExceptionAddress);
+                    }
+
+                    // Clear DR6
+                    ex->ContextRecord->Dr6 &= ~(1 << i);
+                    break;
+                }
+            }
+        }
+
+        return EXCEPTION_CONTINUE_EXECUTION;
+    }
+
+    return EXCEPTION_CONTINUE_SEARCH;
+}
+
+LONG ObjectExplorer::exception_handler_veh(_EXCEPTION_POINTERS* ex) {
+    return ObjectExplorer::get()->exception_handler_veh_internal(ex);
+}
+
 std::string ObjectExplorer::get_full_enum_value_name(std::string_view enum_name, int64_t value) {
     std::string out{};
 
@@ -4719,6 +5130,39 @@ bool ObjectExplorer::is_filtered_field(sdk::REField& f) try {
     return false;
 }
 
+sdk::REMethodDefinition* ObjectExplorer::locate_nearest_method(uintptr_t instruction) {
+    static thread_local std::unordered_map<uintptr_t, sdk::REMethodDefinition*> method_map{};
+    if (auto it = method_map.find(instruction); it != method_map.end()) {
+        return it->second;
+    }
+
+    auto unwound_function_start = utility::find_function_start_unwind(instruction);
+    if (!unwound_function_start) {
+        unwound_function_start = instruction;
+    }
+
+    size_t nearest_distance = UINT64_MAX;
+    sdk::REMethodDefinition* nearest_method{nullptr};
+
+    const auto search = *unwound_function_start;
+
+    for (auto& it : m_method_map) {
+        if (it.first > search) {
+            continue;
+        }
+
+        const auto distance = search - it.first;
+        if (distance < nearest_distance) {
+            nearest_distance = distance;
+            nearest_method = it.second;
+        }
+    }
+
+    method_map[instruction] = nearest_method;
+
+    return nearest_method;
+}
+
 HookManager::PreHookResult ObjectExplorer::pre_hooked_method_internal(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys, uintptr_t ret_addr, sdk::REMethodDefinition* method) {
     auto it = std::find_if(m_hooked_methods.begin(), m_hooked_methods.end(), [method](auto& a) { return a.method == method; });
 
@@ -4736,20 +5180,7 @@ HookManager::PreHookResult ObjectExplorer::pre_hooked_method_internal(std::vecto
 
         hooked_method.return_addresses.insert(ret_addr);
         // Try to locate the containing function from the return address
-        sdk::REMethodDefinition* nearest_method{nullptr};
-        size_t nearest_distance = UINT64_MAX;
-
-        for (auto& it : m_method_map) {
-            if (it.first > ret_addr) {
-                continue;
-            }
-
-            const auto distance = ret_addr - it.first;
-            if (distance < nearest_distance) {
-                nearest_distance = distance;
-                nearest_method = it.second;
-            }
-        }
+        auto nearest_method = locate_nearest_method(ret_addr);
 
         if (nearest_method != nullptr) {
             auto method_entry = utility::find_function_entry((uintptr_t)nearest_method->get_function());

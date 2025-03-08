@@ -167,8 +167,8 @@ private:
     void display_data(void* data, void* real_data, std::string type_name, bool is_enum = false, bool managed_str = false, const sdk::RETypeDefinition* override_def = nullptr);
     int32_t get_field_offset(REManagedObject* obj, VariableDescriptor* desc, REType* type_info);
 
-    bool widget_with_context(void* address, std::function<bool()> widget);
-    bool widget_with_context(void* address, const std::string& name, std::function<bool()> widget);
+    bool widget_with_context(void* address, std::function<bool()> widget, std::optional<std::function<void()>> additional_context = std::nullopt);
+    bool widget_with_context(void* address, const std::string& name, std::function<bool()> widget, std::optional<std::function<void()>> additional_context = std::nullopt);
     void context_menu(void* address, std::optional<std::string> name = std::nullopt, std::optional<std::function<void()>> additional_context = std::nullopt);
     void hook_method(sdk::REMethodDefinition* method, std::optional<std::string> name);
     void hook_all_methods(sdk::RETypeDefinition* type);
@@ -181,6 +181,7 @@ private:
     void populate_classes();
     void populate_enums();
     void init();
+    void install_veh();
 
     std::string get_full_enum_value_name(std::string_view enum_name, int64_t value);
     std::string get_enum_value_name(std::string_view enum_name, int64_t value);
@@ -218,6 +219,7 @@ private:
         return path;
     }
 
+    sdk::REMethodDefinition* locate_nearest_method(uintptr_t instruction);
     HookManager::PreHookResult pre_hooked_method_internal(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys, uintptr_t ret_addr, sdk::REMethodDefinition* method);
     static HookManager::PreHookResult pre_hooked_method(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys, uintptr_t ret_addr, sdk::REMethodDefinition* method);
 
@@ -332,6 +334,7 @@ private:
     std::string m_type_member{""};
     std::string m_type_field{""};
     std::string m_method_address{ "0" };
+    std::string m_method_tdb_address{ "0" };
     std::string m_object_address{ "0" };
     std::string m_add_component_name{ "via.Component" };
     std::chrono::system_clock::time_point m_next_refresh;
@@ -359,6 +362,108 @@ private:
     sdk::REMethodDefinition* m_displayed_method{nullptr};
 
     std::vector<uint8_t> m_module_chunk{};
+
+    struct VEHState {
+        enum BreakpointMethod {
+            HARDWARE,
+            GUARD_PAGE,
+        };
+        BreakpointMethod breakpoint_method{HARDWARE};
+
+        HANDLE veh_handle{};
+        std::shared_mutex mtx{};
+        std::shared_mutex guard_page_mtx{};
+        std::shared_mutex single_step_mtx{};
+
+        struct Listener {
+            uintptr_t address{};
+            sdk::REField* field{};
+            size_t hits{};
+            std::unordered_set<uintptr_t> instructions{};
+        };
+
+        std::shared_mutex listener_mtx{};
+        std::unordered_map<uintptr_t, std::unique_ptr<Listener>> read_listeners{};
+        std::unordered_map<uintptr_t, std::unique_ptr<Listener>> write_listeners{};
+
+        struct GuardedPage {
+            DWORD old_protect{};
+            MEMORY_BASIC_INFORMATION mbi{};
+            size_t num_references{};
+        };
+
+        std::vector<std::shared_ptr<GuardedPage>> guarded_pages{};
+        std::unordered_map<uint32_t, std::shared_ptr<GuardedPage>> single_step_pages{};
+
+        struct HardwareBreakpoint {
+            uintptr_t address{};
+            size_t debug_register{}; // DR0 - DR3
+            bool read{};
+            bool write{};
+        };
+
+        std::shared_mutex hardware_breakpoint_mtx{};
+        std::unordered_map<uintptr_t, std::shared_ptr<HardwareBreakpoint>> hardware_breakpoints{};
+
+        std::shared_ptr<GuardedPage> pop_single_step_thread(uint32_t thread_id) {
+            std::unique_lock _(single_step_mtx);
+            if (auto it = single_step_pages.find(thread_id); it != single_step_pages.end()) {
+                auto page = it->second;
+                single_step_pages.erase(it);
+                return page;
+            }
+
+            return nullptr;
+        }
+
+        bool is_address_listening_unsafe(uintptr_t address) {
+            return read_listeners.contains(address) || write_listeners.contains(address);
+        }
+
+        bool is_address_listening(uintptr_t address) {
+            std::shared_lock lock(mtx);
+            return is_address_listening_unsafe(address);
+        }
+
+        std::shared_ptr<GuardedPage> get_guarded_page_unsafe(uintptr_t address) {
+            for (auto& page : guarded_pages) {
+                if (address >= (uintptr_t)page->mbi.BaseAddress && address < (uintptr_t)page->mbi.BaseAddress + page->mbi.RegionSize) {
+                    return page;
+                }
+            }
+
+            return nullptr;
+        }
+
+        std::shared_ptr<GuardedPage> get_guarded_page(uintptr_t address) {
+            std::shared_lock _{ guard_page_mtx };
+            return get_guarded_page_unsafe(address);
+        }
+
+        std::shared_ptr<HardwareBreakpoint> get_hardware_breakpoint_unsafe(uintptr_t address) {
+            if (auto it = hardware_breakpoints.find(address); it != hardware_breakpoints.end()) {
+                return it->second;
+            }
+
+            return nullptr;
+        }
+
+        std::shared_ptr<HardwareBreakpoint> get_hardware_breakpoint(uintptr_t address) {
+            std::shared_lock _{ hardware_breakpoint_mtx };
+            return get_hardware_breakpoint_unsafe(address);
+        }
+
+        void set_guard_page_protections(uintptr_t address);
+        void set_hardware_breakpoint(uintptr_t address, bool read, bool write);
+        void clear_all_hardware_breakpoints();
+        void add_read_listener(uintptr_t address, sdk::REField* field);
+        void remove_read_listener(uintptr_t address);
+        void display_listeners();
+    } m_veh_state{};
+
+    LONG exception_handler_veh_internal(_EXCEPTION_POINTERS* ei);
+    static LONG exception_handler_veh(_EXCEPTION_POINTERS* ei);
+    bool m_veh_installed{ false };
 
     bool m_do_init{ true };
 
