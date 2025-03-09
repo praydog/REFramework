@@ -1158,4 +1158,39 @@ std::vector<const char*> REMethodDefinition::get_param_names() const {
     return out;
 #endif
 }
+
+const char* REModule::get_assembly_name() const {
+    auto tdb = RETypeDB::get();
+    return tdb->get_string(this->assembly_name_offset);
+}
+
+const char* REModule::get_location() const {
+    auto tdb = RETypeDB::get();
+    return tdb->get_string(this->location_offset);
+}
+
+const char* REModule::get_module_name() const {
+    auto tdb = RETypeDB::get();
+    return tdb->get_string(this->module_name_offset);
+}
+
+std::span<uint32_t> REModule::get_types() const {
+    auto tdb = RETypeDB::get();
+    return std::span<uint32_t>{(uint32_t*)tdb->get_bytes(this->types_start), (size_t)this->types_count};
+}
+
+std::span<uint32_t> REModule::get_methods() const {
+    auto tdb = RETypeDB::get();
+    return std::span<uint32_t>{(uint32_t*)tdb->get_bytes(this->methods_start), (size_t)this->methods_count};
+}
+
+std::span<uint32_t> REModule::get_instantiated_methods() const {
+    auto tdb = RETypeDB::get();
+    return std::span<uint32_t>{(uint32_t*)tdb->get_bytes(this->method_instantiations_start), (size_t)this->method_instantiations_count};
+}
+
+std::span<uint32_t> REModule::get_member_references() const {
+    auto tdb = RETypeDB::get();
+    return std::span<uint32_t>{(uint32_t*)tdb->get_bytes(this->member_references_start), (size_t)this->member_references_count};
+}
 } // namespace sdk
