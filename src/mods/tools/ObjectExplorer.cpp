@@ -507,8 +507,76 @@ void ObjectExplorer::on_draw_dev_ui() {
                 fake_type.resize(t->size);
             }
 
-            memset(fake_type.data(), 0, t->size);\
+            memset(fake_type.data(), 0, t->size);
             handle_type((REManagedObject*)fake_type.data(), t);
+        }
+    }
+
+    if (ImGui::CollapsingHeader("Assemblies")) {
+        auto tdb = sdk::RETypeDB::get();
+
+        for (auto i = 0; i < tdb->get_num_modules(); ++i) {
+            auto& module = tdb->modules[i];
+            
+            if (ImGui::TreeNode(module.get_assembly_name())) {
+                ImGui::Text("Location: %s", module.get_location());
+                ImGui::Text("Module Name: %s", module.get_module_name());
+                
+                if (ImGui::TreeNode("Assembly Types")) {
+                    std::vector<uint8_t> fake_type{ 0 };
+
+                    for (auto& t_index : module.get_types()) {
+                        auto t = tdb->get_type(t_index);
+                        if (t == nullptr) {
+                            continue;
+                        }
+                        if (t->size > fake_type.size()) {
+                            fake_type.resize(t->size);
+                        }
+
+                        memset(fake_type.data(), 0, t->size);
+                        handle_type((REManagedObject*)fake_type.data(), t->get_type());
+                    }
+
+                    ImGui::TreePop();
+                }
+
+                if (ImGui::TreeNode("Assembly Methods")) {
+                    for (auto& m_index : module.get_methods()) {
+                        auto m = tdb->get_method(m_index);
+                        if (m == nullptr) {
+                            continue;
+                        }
+                        attempt_display_method(nullptr, *m, true);
+                    }
+
+                    ImGui::TreePop();
+                }
+
+                if (ImGui::TreeNode("Assembly Instantiated Methods")) {
+                    for (auto& m_index : module.get_instantiated_methods()) {
+                        auto m = tdb->get_method(m_index);
+                        if (m == nullptr) {
+                            continue;
+                        }
+                        attempt_display_method(nullptr, *m, true);
+                    }
+
+                    ImGui::TreePop();
+                }
+
+                if (ImGui::TreeNode("Assembly Member References")) {
+                    for (auto& m_index : module.get_member_references()) {
+                        if (auto m = tdb->get_method(m_index); m != nullptr) {
+                            attempt_display_method(nullptr, *m, true);
+                        }
+                    }
+
+                    ImGui::TreePop();
+                }
+
+                ImGui::TreePop();
+            }
         }
     }
 
@@ -4916,12 +4984,10 @@ LONG ObjectExplorer::exception_handler_veh_internal(_EXCEPTION_POINTERS* ex) {
 
                     // Clear DR6
                     ex->ContextRecord->Dr6 &= ~(1 << i);
-                    break;
+                    return EXCEPTION_CONTINUE_EXECUTION;
                 }
             }
         }
-
-        return EXCEPTION_CONTINUE_EXECUTION;
     }
 
     return EXCEPTION_CONTINUE_SEARCH;
