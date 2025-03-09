@@ -425,6 +425,7 @@ typedef struct {
     const REFrameworkVMContext* vm_context;
     const REFrameworkReflectionMethod* reflection_method; /* NOT a TDB method */
     const REFrameworkReflectionProperty* reflection_property; /* NOT a TDB property */
+    const REFrameworkModule* module;
 } REFrameworkSDKData;
 
 typedef struct {

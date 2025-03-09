@@ -582,6 +582,7 @@ REFrameworkSDKData g_sdk_data {
     &g_vm_context_data,
     &g_reflection_method_data,
     &g_reflection_prop_data,
+    &g_tdb_module_data
 };
 
 REFrameworkPluginInitializeParam g_plugin_initialize_param{
