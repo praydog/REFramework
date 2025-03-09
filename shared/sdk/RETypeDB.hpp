@@ -1088,6 +1088,8 @@ namespace sdk {
 struct RETypeDB : public sdk::RETypeDB_ {
     static RETypeDB* get();
 
+    sdk::REModule* get_module(uint32_t index) const;
+
     sdk::RETypeDefinition* find_type(std::string_view name) const;
     sdk::RETypeDefinition* find_type_by_fqn(uint32_t fqn) const;
     sdk::RETypeDefinition* get_type(uint32_t index) const;

@@ -45,6 +45,15 @@ reframework::InvokeRet invoke_object_func(::REManagedObject* obj, std::string_vi
     return method->invoke(obj, std::span<void*>(*const_cast<std::vector<void*>*>(&args)));
 }
 
+
+sdk::REModule* RETypeDB::get_module(uint32_t index) const {
+    if (index >= this->numModules) {
+        return nullptr;
+    }
+
+    return &(this->modules)[index];
+}
+
 sdk::RETypeDefinition* RETypeDB::find_type(std::string_view name) const {
     static bool map_populated = false;
 

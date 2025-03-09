@@ -417,6 +417,8 @@ REFrameworkTDB g_tdb_data {
     },
 
     [](REFrameworkTDBHandle tdb, unsigned int index) { return (REFrameworkPropertyHandle)RETDB(tdb)->get_property(index); },
+
+    [](REFrameworkTDBHandle tdb, unsigned int index) { return (REFrameworkModuleHandle)RETDB(tdb)->get_module(index); }
 };
 
 #define REMANAGEDOBJECT(var) ((::REManagedObject*)var)
@@ -546,6 +548,24 @@ REFrameworkReflectionProperty g_reflection_prop_data {
     [](REFrameworkReflectionPropertyHandle prop) {
         return utility::reflection_property::get_size(REFLPROP(prop));
     }
+};
+
+#define RE_MODULE(x) ((sdk::REModule*)x)
+
+REFrameworkModule g_tdb_module_data {
+    .get_major = [](REFrameworkModuleHandle mod) { return RE_MODULE(mod)->get_major(); },
+    .get_minor = [](REFrameworkModuleHandle mod) { return RE_MODULE(mod)->get_minor(); },
+    .get_build = [](REFrameworkModuleHandle mod) { return RE_MODULE(mod)->get_build(); },
+    .get_revision = [](REFrameworkModuleHandle mod) { return RE_MODULE(mod)->get_revision(); },
+    .get_assembly_name = [](REFrameworkModuleHandle mod) { return RE_MODULE(mod)->get_assembly_name(); },
+    .get_location = [](REFrameworkModuleHandle mod) { return RE_MODULE(mod)->get_location(); },
+    .get_module_name = [](REFrameworkModuleHandle mod) { return RE_MODULE(mod)->get_module_name(); },
+    .get_num_types = [](REFrameworkModuleHandle mod) -> uint32_t { return RE_MODULE(mod)->get_types().size(); },
+    .get_types = [](REFrameworkModuleHandle mod) { return (uint32_t*)RE_MODULE(mod)->get_types().data(); },
+    .get_num_methods = [](REFrameworkModuleHandle mod) -> uint32_t  { return RE_MODULE(mod)->get_methods().size(); },
+    .get_methods = [](REFrameworkModuleHandle mod) { return (uint32_t*)RE_MODULE(mod)->get_methods().data(); },
+    .get_num_member_references = [](REFrameworkModuleHandle mod) -> uint32_t  { return RE_MODULE(mod)->get_member_references().size(); },
+    .get_member_references = [](REFrameworkModuleHandle mod) { return (uint32_t*)RE_MODULE(mod)->get_member_references().data(); },
 };
 
 REFrameworkSDKData g_sdk_data {
