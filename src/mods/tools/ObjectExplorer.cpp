@@ -530,11 +530,12 @@ void ObjectExplorer::on_draw_dev_ui() {
                         if (t == nullptr) {
                             continue;
                         }
-                        if (t->size > fake_type.size()) {
-                            fake_type.resize(t->size);
+                        const auto size = t->get_size();
+                        if (size > fake_type.size()) {
+                            fake_type.resize(size);
                         }
 
-                        memset(fake_type.data(), 0, t->size);
+                        memset(fake_type.data(), 0, size);
                         handle_type((REManagedObject*)fake_type.data(), t->get_type());
                     }
 
