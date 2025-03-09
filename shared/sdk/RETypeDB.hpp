@@ -160,8 +160,9 @@ struct REModule {
     uint32_t flags;
     int32_t assembly_name_offset; // string
     int32_t location_offset; // string
-    uint32_t unk3[2];
+    uint32_t unk3;
     uint32_t module_name_offset; // string
+    uint32_t unk4;
     int32_t types_count;
     int32_t types_start;
     int32_t methods_count;
