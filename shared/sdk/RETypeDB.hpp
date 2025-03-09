@@ -756,7 +756,7 @@ struct TDB {
     uint32_t appEntry;                          // 0x003C
     uint32_t numStringPool;                     // 0x0040
     uint32_t numBytePool;                       // 0x0044
-    class N00002524 (*modules)[256];            // 0x0048
+    sdk::REModule* modules;                     // 0x0048
     sdk::RETypeDefinition (*types)[81728];      // 0x0050
     sdk::REMethodDefinition (*methods)[556344]; // 0x0058
     sdk::REField (*fields)[122496];             // 0x0060
@@ -842,7 +842,7 @@ struct TDB {
     uint32_t appEntry;                          // 0x003C
     uint32_t numStringPool;                     // 0x0040
     uint32_t numBytePool;                       // 0x0044
-    class N00002524 (*modules)[256];            // 0x0048
+    sdk::REModule* modules;                     // 0x0048
     sdk::RETypeDefinition (*types)[81728];      // 0x0050
     sdk::REMethodDefinition (*methods)[556344]; // 0x0058
     sdk::REField (*fields)[122496];             // 0x0060
