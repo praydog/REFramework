@@ -113,6 +113,69 @@ std::optional<std::string> Graphics::on_initialize() {
     return Mod::on_initialize(); // OK
 }
 
+void Graphics::on_lua_state_created(sol::state& lua) {
+    lua.new_usertype<Graphics>("REFGraphics",
+        "get", &Graphics::get,
+#ifdef MHWILDS
+        "get_mhwilds_ultrawide_correction_value", &Graphics::get_mhwilds_ultrawide_correction_value
+#endif
+    );
+
+#ifdef MHWILDS
+try {
+    lua.do_string(R"--delimiter--(local Statics = {}
+
+    function Statics.generate(typename, double_ended)
+        local double_ended = double_ended or false
+
+        local t = sdk.find_type_definition(typename)
+        if not t then return {} end
+
+        local fields = t:get_fields()
+        local enum = {}
+
+        for i, field in ipairs(fields) do
+            if field:is_static() then
+                local name = field:get_name()
+                local raw_value = field:get_data(nil)
+
+                log.info(name .. " = " .. tostring(raw_value))
+
+                enum[name] = raw_value
+
+                if double_ended then
+                    enum[raw_value] = name
+                end
+            end
+        end
+
+        return enum
+    end
+
+    local app_option_id = Statics.generate("app.Option.ID")
+
+    sdk.hook(sdk.find_type_definition("app.savedata.cOptionParam"):get_method("getOptionValue(app.Option.ID)"),
+    function(args)
+        local option_id = sdk.to_int64(args[3])
+        thread.get_hook_storage()["option_id"] = option_id
+    end,
+    function(retval)
+        local option_id = thread.get_hook_storage()["option_id"]
+        if (option_id == app_option_id.ULTRAWIDE_UI_POS) then
+            retval = sdk.to_ptr(REFGraphics.get():get_mhwilds_ultrawide_correction_value())
+        end
+        return retval
+    end)
+    )--delimiter--"
+);
+} catch(const std::exception& e) {
+    spdlog::error("Error while trying to hook app.savedata.cOptionParam.getOptionValue(app.Option.ID): {}", e.what());
+} catch(...) {
+    spdlog::error("Error while trying to hook app.savedata.cOptionParam.getOptionValue(app.Option.ID): unknown error");
+}
+#endif
+}
+
 void Graphics::on_config_load(const utility::Config& cfg) {
     for (IModValue& option : m_options) {
         option.config_load(cfg);
@@ -174,6 +237,8 @@ void Graphics::on_draw_ui() {
             if (m_ultrawide_constrain_ui->value()) {
                 m_ultrawide_constrain_child_ui->draw("Ultrawide: Constrain Child UI to 16:9");
             }
+#else
+            m_ultrawide_ui_correction->draw("Ultrawide: UI Correction");
 #endif
             m_ultrawide_vertical_fov->draw("Ultrawide: Enable Vertical FOV");
             m_ultrawide_custom_fov->draw("Ultrawide: Override FOV");
