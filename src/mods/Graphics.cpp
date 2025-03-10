@@ -169,10 +169,12 @@ void Graphics::on_draw_ui() {
         }
 
         if (m_ultrawide_fix->value()) {
+#ifndef MHWILDS
             m_ultrawide_constrain_ui->draw("Ultrawide: Constrain UI to 16:9");
             if (m_ultrawide_constrain_ui->value()) {
                 m_ultrawide_constrain_child_ui->draw("Ultrawide: Constrain Child UI to 16:9");
             }
+#endif
             m_ultrawide_vertical_fov->draw("Ultrawide: Enable Vertical FOV");
             m_ultrawide_custom_fov->draw("Ultrawide: Override FOV");
             m_ultrawide_fov_multiplier->draw("Ultrawide: FOV Multiplier");
@@ -462,9 +464,11 @@ bool Graphics::on_pre_gui_draw_element(REComponent* gui_element, void* primitive
 #if defined(SF6)
     fix_ui_element(gui_element);
 #else
+#ifndef MHWILDS
     if (m_ultrawide_constrain_ui->value()) {
         fix_ui_element(gui_element);
     }
+#endif
 #endif
 
     auto game_object = utility::re_component::get_game_object(gui_element);
