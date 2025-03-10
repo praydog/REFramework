@@ -115,7 +115,7 @@ std::optional<std::string> Graphics::on_initialize() {
 
 void Graphics::on_lua_state_created(sol::state& lua) {
     lua.new_usertype<Graphics>("REFGraphics",
-        "get", &Graphics::get,
+        "get", []() -> Graphics* { return Graphics::get().get(); },
 #ifdef MHWILDS
         "get_mhwilds_ultrawide_correction_value", &Graphics::get_mhwilds_ultrawide_correction_value
 #endif
@@ -156,14 +156,18 @@ try {
 
     sdk.hook(sdk.find_type_definition("app.savedata.cOptionParam"):get_method("getOptionValue(app.Option.ID)"),
     function(args)
-        local option_id = sdk.to_int64(args[3])
-        thread.get_hook_storage()["option_id"] = option_id
+        pcall(function()
+            local option_id = sdk.to_int64(args[3])
+            thread.get_hook_storage()["option_id"] = option_id
+        end)
     end,
     function(retval)
-        local option_id = thread.get_hook_storage()["option_id"]
-        if (option_id == app_option_id.ULTRAWIDE_UI_POS) then
-            retval = sdk.to_ptr(REFGraphics.get():get_mhwilds_ultrawide_correction_value())
-        end
+        pcall(function()
+            local option_id = thread.get_hook_storage()["option_id"]
+            if (option_id == app_option_id.ULTRAWIDE_UI_POS) then
+                retval = sdk.to_ptr(REFGraphics.get():get_mhwilds_ultrawide_correction_value())
+            end
+        end)
         return retval
     end)
     )--delimiter--"
