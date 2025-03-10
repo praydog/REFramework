@@ -184,7 +184,7 @@ public:
 
     bool draw(std::string_view name) override {
         ImGui::PushID(this);
-        auto ret = ImGui::InputInt(name.data(), &m_value);
+        auto ret = ImGui::SliderInt(name.data(), &m_value, 5, 40);
         ImGui::PopID();
 
         return ret;

@@ -1098,11 +1098,6 @@ void REFramework::on_reset() {
 
     spdlog::info("Reset!");
 
-    if (m_initialized) {
-        // fixes text boxes not being able to receive input
-        imgui::reset_keystates();
-    }
-
     // Crashes if we don't release it at this point.
     if (m_is_d3d11) {
         deinit_d3d11();
@@ -1390,17 +1385,17 @@ void REFramework::consume_input() {
     m_accumulated_mouse_delta[1] = 0.0f;
 }
 
-int REFramework::add_font(const std::filesystem::path& filepath, int size, const std::vector<ImWchar>& ranges) {
+int REFramework::add_font(const std::filesystem::path& filepath, float size) {
     // Look for a font already matching this description.
     for (int i = 0; i < m_additional_fonts.size(); ++i) {
         const auto& font = m_additional_fonts[i];
 
-        if (font.filepath == filepath && font.size == size && font.ranges == ranges) {
+        if (font.filepath == filepath && abs(font.size - size) < 0.1) {
             return i;
         }
     }
 
-    m_additional_fonts.emplace_back(REFramework::AdditionalFont{filepath, size, ranges, (ImFont*)nullptr});
+    m_additional_fonts.emplace_back(REFramework::AdditionalFont{filepath, size});
     m_fonts_need_updating = true;
 
     return m_additional_fonts.size() - 1;
@@ -1416,32 +1411,31 @@ void REFramework::update_fonts() {
     auto& fonts = ImGui::GetIO().Fonts;
     fonts->Clear();
 
-    // using 'reframework_pictographic.mode' file to 
+    // using 'reframework_pictographic.mode' file to
     // replace '?' to most flag in WorldObjectsViewer
-    ImFontConfig custom_icons{}; 
+    ImFontConfig custom_icons{};
     custom_icons.FontDataOwnedByAtlas = false;
     ImFont* fsload = (INVALID_FILE_ATTRIBUTES != ::GetFileAttributesA("reframework_pictographic.mode"))
-        ? fonts->AddFontFromMemoryTTF((void*)af_baidu_ptr, af_baidu_size, (float)m_font_size, &custom_icons, fonts->GetGlyphRangesChineseFull())
-        : fonts->AddFontFromMemoryCompressedTTF(RobotoMedium_compressed_data, RobotoMedium_compressed_size, (float)m_font_size);
+        ? fonts->AddFontFromMemoryTTF((void*)af_baidu_ptr, af_baidu_size, m_font_size, &custom_icons)
+        : fonts->AddFontFromMemoryCompressedTTF(RobotoMedium_compressed_data, RobotoMedium_compressed_size, m_font_size);
 
     // https://fontawesome.com/
     custom_icons.PixelSnapH = true;
     custom_icons.MergeMode = true;
     custom_icons.FontDataOwnedByAtlas = false;
     static const ImWchar icon_ranges[] = {0xF000, 0xF976, 0}; // ICON_MIN_FA ICON_MAX_FA
-    fonts->AddFontFromMemoryTTF((void*)af_faprolight_ptr, af_faprolight_size, (float)m_font_size, &custom_icons, icon_ranges);
+    fonts->AddFontFromMemoryTTF((void*)af_faprolight_ptr, af_faprolight_size, m_font_size, &custom_icons, icon_ranges);
 
     for (auto& font : m_additional_fonts) {
-        const ImWchar* ranges = nullptr;
-
-        if (!font.ranges.empty()) {
-            ranges = font.ranges.data();
-        }
-
         if (fs::exists(font.filepath)) {
-            font.font = fonts->AddFontFromFileTTF(font.filepath.string().c_str(), (float)font.size, nullptr, ranges);
+            // if (loaded_fonts.contains(font.filepath.string())) {
+            //     font.font = loaded_fonts[font.filepath.string()];
+            // } else {
+                font.font = fonts->AddFontFromFileTTF(font.filepath.string().c_str(), font.size);
+                loaded_fonts[font.filepath.string()] = font.font;
+            // }
         } else {
-            font.font = fsload; // fonts->AddFontFromMemoryCompressedTTF(RobotoMedium_compressed_data, RobotoMedium_compressed_size, (float)font.size, nullptr, ranges);
+            font.font = fsload; // fonts->AddFontFromMemoryCompressedTTF(RobotoMedium_compressed_data, RobotoMedium_compressed_size, font.size);
         }
     }
 
@@ -1518,7 +1512,8 @@ void REFramework::draw_ui() {
 
     ImGui::SetNextWindowPos(ImVec2(50, 50), ImGuiCond_::ImGuiCond_Once);
     ImGui::SetNextWindowSize(ImVec2(300, 500), ImGuiCond_::ImGuiCond_Once);
-    
+
+    ImGui::PushFontSize(m_font_size);
     static const auto REF_NAME = std::format("REFramework [{}+{}-{:.8}]", REF_TAG, REF_COMMITS_PAST_TAG, REF_COMMIT_HASH);
     bool is_open = true;
     ImGui::Begin(REF_NAME.c_str(), &is_open);
@@ -1549,6 +1544,7 @@ void REFramework::draw_ui() {
     m_last_window_pos = ImGui::GetWindowPos();
     m_last_window_size = ImGui::GetWindowSize();
 
+    ImGui::PopFontSize();
     ImGui::End();
 
     // save the menu state in config
@@ -2319,8 +2315,18 @@ bool REFramework::init_d3d12() {
     auto& bb = m_d3d12.get_rt(D3D12::RTV::BACKBUFFER_0);
     auto bb_desc = bb->GetDesc();
 
-    if (!ImGui_ImplDX12_Init(device, 3, bb_desc.Format, m_d3d12.srv_desc_heap.Get(),
-            m_d3d12.get_cpu_srv(device, D3D12::SRV::IMGUI_FONT_BACKBUFFER), m_d3d12.get_gpu_srv(device, D3D12::SRV::IMGUI_FONT_BACKBUFFER))) {
+    
+    ImGui_ImplDX12_InitInfo init_info = {};
+    init_info.Device = device;
+    init_info.CommandQueue = g_framework->get_d3d12_hook()->get_command_queue();
+    init_info.NumFramesInFlight = 3;
+    init_info.RTVFormat = DXGI_FORMAT_R8G8B8A8_UNORM; // bb_desc.Format
+    init_info.DSVFormat = DXGI_FORMAT_UNKNOWN;
+    init_info.SrvDescriptorHeap = m_d3d12.srv_desc_heap.Get();
+    init_info.LegacySingleSrvCpuDescriptor = m_d3d12.get_cpu_srv(device, D3D12::SRV::IMGUI_FONT_BACKBUFFER);
+    init_info.LegacySingleSrvGpuDescriptor = m_d3d12.get_gpu_srv(device, D3D12::SRV::IMGUI_FONT_BACKBUFFER);
+
+    if (!ImGui_ImplDX12_Init(&init_info)) {
         spdlog::error("[D3D12] Failed to initialize ImGui.");
         return false;
     }
@@ -2333,12 +2339,20 @@ bool REFramework::init_d3d12() {
     auto& bb_vr = m_d3d12.get_rt(D3D12::RTV::IMGUI);
     auto bb_vr_desc = bb_vr->GetDesc();
 
-    if (!ImGui_ImplDX12_Init(device, 3, bb_vr_desc.Format, m_d3d12.srv_desc_heap.Get(),
-            m_d3d12.get_cpu_srv(device, D3D12::SRV::IMGUI_FONT_VR), m_d3d12.get_gpu_srv(device, D3D12::SRV::IMGUI_FONT_VR))) {
+    ImGui_ImplDX12_InitInfo init_info_vr = {};
+    init_info_vr.Device = device;
+    init_info_vr.CommandQueue = g_framework->get_d3d12_hook()->get_command_queue();
+    init_info_vr.NumFramesInFlight = 3;
+    init_info_vr.RTVFormat = bb_vr_desc.Format;
+    init_info_vr.DSVFormat = DXGI_FORMAT_UNKNOWN;
+    init_info_vr.SrvDescriptorHeap = m_d3d12.srv_desc_heap.Get();
+    init_info_vr.LegacySingleSrvCpuDescriptor = m_d3d12.get_cpu_srv(device, D3D12::SRV::IMGUI_FONT_VR);
+    init_info_vr.LegacySingleSrvGpuDescriptor = m_d3d12.get_gpu_srv(device, D3D12::SRV::IMGUI_FONT_VR);
+
+    if (!ImGui_ImplDX12_Init(&init_info_vr)) {
         spdlog::error("[D3D12] Failed to initialize ImGui.");
         return false;
     }
-
     m_d3d12.imgui_backend_datas[1] = ImGui::GetIO().BackendRendererUserData;
 
     return true;
