@@ -503,6 +503,9 @@ void ScriptState::on_application_entry(size_t hash) {
     }
 
     if (hash == "EndRendering"_fnv && m_gc_data.gc_handler == ScriptState::GarbageCollectionHandler::REFRAMEWORK_MANAGED) {
+        // Sometimes this gets re-enabled? Not sure why.
+        lua_gc(m_lua, LUA_GCSTOP);
+
         switch (m_gc_data.gc_type) {
             case ScriptState::GarbageCollectionType::FULL:
                 lua_gc(m_lua, LUA_GCCOLLECT);
@@ -629,7 +632,8 @@ void ScriptState::install_hooks() {
                         return result;
                     }
 
-                    auto script_args = state->lua().create_table();
+                    auto script_args_ref = state->get_table_pool().acquire(state->lua());
+                    sol::table& script_args = script_args_ref;
 
                     // Call the script function.
                     // Convert the args to a table that we pass to the script function.
