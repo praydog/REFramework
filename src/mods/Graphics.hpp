@@ -37,6 +37,10 @@ public:
 
     void on_scene_layer_update(sdk::renderer::layer::Scene* layer, void* render_context) override;
 
+    bool is_ultrawide_fix_enabled() const {
+        return m_ultrawide_fix->value();
+    }
+
 #ifdef MHWILDS
     uint32_t get_mhwilds_ultrawide_correction_value() const {
         return (uint32_t)m_ultrawide_ui_correction->value();

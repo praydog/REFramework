@@ -116,7 +116,9 @@ std::optional<std::string> Graphics::on_initialize() {
 void Graphics::on_lua_state_created(sol::state& lua) {
     lua.new_usertype<Graphics>("REFGraphics",
         "get", []() -> Graphics* { return Graphics::get().get(); },
+        "is_ultrawide_fix_enabled", &Graphics::is_ultrawide_fix_enabled
 #ifdef MHWILDS
+        ,
         "get_mhwilds_ultrawide_correction_value", &Graphics::get_mhwilds_ultrawide_correction_value
 #endif
     );
@@ -153,22 +155,41 @@ try {
     end
 
     local app_option_id = Statics.generate("app.Option.ID")
+    local ULTRAWIDE_UI_POS = app_option_id.ULTRAWIDE_UI_POS
+    local hook_enabled = false
+    local graphics = REFGraphics.get()
 
-    sdk.hook(sdk.find_type_definition("app.savedata.cOptionParam"):get_method("getOptionValue(app.Option.ID)"),
-    function(args)
-        pcall(function()
-            local option_id = sdk.to_int64(args[3])
-            thread.get_hook_storage()["option_id"] = option_id
+    local function enable_hook()
+        hook_enabled = true
+
+        sdk.hook(sdk.find_type_definition("app.savedata.cOptionParam"):get_method("getOptionValue(app.Option.ID)"),
+        function(args)
+            pcall(function()
+                thread.get_hook_storage()["option_id"] = sdk.to_int64(args[3])
+            end)
+        end,
+        function(retval)
+            pcall(function()
+                local option_id = thread.get_hook_storage()["option_id"] or 0
+                if (option_id == ULTRAWIDE_UI_POS) then
+                    retval = sdk.to_ptr(graphics:get_mhwilds_ultrawide_correction_value())
+                end
+            end)
+            return retval
         end)
-    end,
-    function(retval)
-        pcall(function()
-            local option_id = thread.get_hook_storage()["option_id"]
-            if (option_id == app_option_id.ULTRAWIDE_UI_POS) then
-                retval = sdk.to_ptr(REFGraphics.get():get_mhwilds_ultrawide_correction_value())
-            end
-        end)
-        return retval
+
+        log.info("[Graphics] Hooked app.savedata.cOptionParam.getOptionValue(app.Option.ID)")
+    end
+
+    -- We use this to only hook if the ultrawide fix is enabled
+    re.on_frame(function()
+        if hook_enabled then
+            return
+        end
+
+        if graphics:is_ultrawide_fix_enabled() then
+            enable_hook()
+        end
     end)
     )--delimiter--"
 );
