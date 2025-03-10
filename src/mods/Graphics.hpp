@@ -167,7 +167,11 @@ private:
     } m_re4;
     
     const ModToggle::Ptr m_ultrawide_fix{ ModToggle::create(generate_name("UltrawideFix"), false) };
+#ifdef MHWILDS
+    const ModToggle::Ptr m_ultrawide_vertical_fov{ ModToggle::create(generate_name("UltrawideFixVerticalFOV_V2"), true) };
+#else
     const ModToggle::Ptr m_ultrawide_vertical_fov{ ModToggle::create(generate_name("UltrawideFixVerticalFOV_V2"), false) };
+#endif
 
     // There is a trend with newer games where there actually is Ultrawide support, so we don't want to actually touch the FOV by default
     // And sometimes messing with the FOV causes permanent issues with the UI, so don't touch it by default
