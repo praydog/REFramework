@@ -503,6 +503,8 @@ void ScriptState::on_application_entry(size_t hash) {
     }
 
     if (hash == "EndRendering"_fnv && m_gc_data.gc_handler == ScriptState::GarbageCollectionHandler::REFRAMEWORK_MANAGED) {
+        std::scoped_lock _{ m_execution_mutex };
+
         // Sometimes this gets re-enabled? Not sure why.
         lua_gc(m_lua, LUA_GCSTOP);
 
