@@ -167,7 +167,7 @@ public:
     void push_hook_storage(size_t thread_hash) {
         auto it = m_hook_storage.find(thread_hash);
         if (it == m_hook_storage.end()) {
-            it = m_hook_storage.emplace(thread_hash, std::deque<sol::table>{}).first;
+            it = m_hook_storage.emplace(thread_hash, std::list<sol::reference>{}).first;
         }
 
         it->second.push_back(m_lua.create_table());
@@ -231,7 +231,9 @@ private:
     std::deque<HookDef> m_hooks_to_add{};
     std::unordered_map<sdk::REMethodDefinition*, std::vector<HookManager::HookId>> m_hooks{};
 
-    std::unordered_map<size_t, std::deque<sol::table>> m_hook_storage{};
+    // Using std::list rather than deque because the elements need to remain valid even if the list is resized.
+    // Using sol::reference instead of sol::table to keep a guaranteed reference to the table.
+    std::unordered_map<size_t, std::list<sol::reference>> m_hook_storage{};
     sol::reference m_current_hook_storage{};
 };
 
