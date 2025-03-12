@@ -1395,27 +1395,38 @@ int REFramework::add_font(const std::filesystem::path& filepath, float size) {
         }
     }
 
-    m_additional_fonts.emplace_back(REFramework::AdditionalFont{filepath, size});
-    m_fonts_need_updating = true;
+    REFramework::AdditionalFont additional_font{filepath, size};
+    if (fs::exists(filepath)) {
+        auto path = filepath.string();
+        if (!loaded_fonts.contains(path)) {
+            loaded_fonts[path] = ImGui::GetIO().Fonts->AddFontFromFileTTF(path.c_str(), size);
+        }
+        additional_font.font = loaded_fonts[path];
+        // font.font = fonts->AddFontFromFileTTF(path.c_str(), font.size);
+    } else {
+        additional_font.font = m_default_font;
+    }
 
+    m_additional_fonts.emplace_back(additional_font);
+    
     return m_additional_fonts.size() - 1;
 }
 
 void REFramework::update_fonts() {
-    if (!m_fonts_need_updating) {
+    if (!m_fonts_need_init) {
         return;
     }
 
-    m_fonts_need_updating = false;
+    m_fonts_need_init = false;
 
     auto& fonts = ImGui::GetIO().Fonts;
-    fonts->Clear();
+    // fonts->Clear();
 
     // using 'reframework_pictographic.mode' file to
     // replace '?' to most flag in WorldObjectsViewer
     ImFontConfig custom_icons{};
     custom_icons.FontDataOwnedByAtlas = false;
-    ImFont* fsload = (INVALID_FILE_ATTRIBUTES != ::GetFileAttributesA("reframework_pictographic.mode"))
+    m_default_font = (INVALID_FILE_ATTRIBUTES != ::GetFileAttributesA("reframework_pictographic.mode"))
         ? fonts->AddFontFromMemoryTTF((void*)af_baidu_ptr, af_baidu_size, m_font_size, &custom_icons)
         : fonts->AddFontFromMemoryCompressedTTF(RobotoMedium_compressed_data, RobotoMedium_compressed_size, m_font_size);
 
@@ -1426,20 +1437,7 @@ void REFramework::update_fonts() {
     static const ImWchar icon_ranges[] = {0xF000, 0xF976, 0}; // ICON_MIN_FA ICON_MAX_FA
     fonts->AddFontFromMemoryTTF((void*)af_faprolight_ptr, af_faprolight_size, m_font_size, &custom_icons, icon_ranges);
 
-    for (auto& font : m_additional_fonts) {
-        if (fs::exists(font.filepath)) {
-            // if (loaded_fonts.contains(font.filepath.string())) {
-            //     font.font = loaded_fonts[font.filepath.string()];
-            // } else {
-                font.font = fonts->AddFontFromFileTTF(font.filepath.string().c_str(), font.size);
-                loaded_fonts[font.filepath.string()] = font.font;
-            // }
-        } else {
-            font.font = fsload; // fonts->AddFontFromMemoryCompressedTTF(RobotoMedium_compressed_data, RobotoMedium_compressed_size, font.size);
-        }
-    }
-
-    fonts->Build();
+    // fonts->Build();
     m_wants_device_object_cleanup = true;
 }
 

@@ -227,8 +227,9 @@ private:
         ImFont* font{};
     };
 
-    bool m_fonts_need_updating{true};
+    bool m_fonts_need_init{true};
     float m_font_size{16};
+    ImFont* m_default_font;
     std::map<std::string, ImFont*> loaded_fonts{};
     std::vector<AdditionalFont> m_additional_fonts{};
 
