@@ -37,7 +37,6 @@ private:
         bool        KeyShift{};
         bool        KeyAlt{};
         bool        KeySuper{};
-        bool        KeysDown[512]{};
     } m_initial_imgui_input_state;
 
     // overlay handle
