@@ -155,22 +155,13 @@ public:
 
     void gc_data_changed(GarbageCollectionData data);
 
-    /*sol::table get_thread_storage(size_t hash) {
-        auto it = m_thread_storage.find(hash);
-        if (it == m_thread_storage.end()) {
-            it = m_thread_storage.emplace(hash, m_lua.create_table()).first;
-        }
-
-        return it->second;
-    }*/
-
     void push_hook_storage(size_t thread_hash) {
         auto it = m_hook_storage.find(thread_hash);
         if (it == m_hook_storage.end()) {
-            it = m_hook_storage.emplace(thread_hash, std::deque<sol::table>{}).first;
+            it = m_hook_storage.emplace(thread_hash, std::list<TablePool::TableGuard>{}).first;
         }
 
-        it->second.push_back(m_lua.create_table());
+        it->second.push_back(m_table_pool.acquire(m_lua));
         m_current_hook_storage = it->second.back();
     }
 
@@ -188,6 +179,71 @@ public:
     sol::reference get_hook_storage() {
         return m_current_hook_storage;
     }
+    
+    class TablePool {
+    public:
+        class TableGuard {
+        public:
+            TableGuard(TablePool& pool, sol::table& table) 
+                : m_pool{pool},
+                m_table{table} 
+            {
+            
+            }
+
+            TableGuard(TableGuard&& other) noexcept
+                : m_pool{other.m_pool},
+                m_table{other.m_table}
+            {
+                other.m_table = sol::nil;
+                other.m_moved = true;
+            }
+            
+            TableGuard& operator=(TableGuard&& other) noexcept {
+                m_pool = other.m_pool;
+                m_table = other.m_table;
+                other.m_table = sol::nil;
+                other.m_moved = true;
+                return *this;
+            }
+
+            TableGuard(const TableGuard&) = delete;
+            TableGuard& operator=(const TableGuard&) = delete;
+
+            ~TableGuard() {
+                if (m_moved) {
+                    return;
+                }
+
+                m_pool.m_tables.push_back(m_table);
+            }
+            
+            operator sol::table&() { return m_table; }
+            sol::table get() { return m_table; }
+
+        private:
+            TablePool& m_pool;
+            sol::table m_table;
+            bool m_moved{false};
+        };
+
+        TableGuard acquire(sol::state_view lua) {
+            if (m_tables.empty()) {
+                m_tables.push_back(lua.create_table());
+            }
+
+            auto table = m_tables.front();
+            m_tables.pop_front();
+            return TableGuard{*this, table};
+        }
+
+    private:
+        std::list<sol::table> m_tables{};
+    };
+
+    TablePool& get_table_pool() {
+        return m_table_pool;
+    }
 
 private:
     sol::reference get_hook_storage_internal(size_t thread_hash) {
@@ -204,6 +260,7 @@ private:
     }
 
     sol::state m_lua{};
+    TablePool m_table_pool{};
 
     GarbageCollectionData m_gc_data{};
     bool m_is_main_state;
@@ -231,7 +288,9 @@ private:
     std::deque<HookDef> m_hooks_to_add{};
     std::unordered_map<sdk::REMethodDefinition*, std::vector<HookManager::HookId>> m_hooks{};
 
-    std::unordered_map<size_t, std::deque<sol::table>> m_hook_storage{};
+    // Using std::list rather than deque because the elements need to remain valid even if the list is resized.
+    // Using sol::reference instead of sol::table to keep a guaranteed reference to the table.
+    std::unordered_map<size_t, std::list<TablePool::TableGuard>> m_hook_storage{};
     sol::reference m_current_hook_storage{};
 };
 

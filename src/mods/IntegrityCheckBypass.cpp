@@ -619,12 +619,114 @@ void IntegrityCheckBypass::init_anti_debug_watcher() {
 
     s_anti_anti_debug_thread = std::make_unique<std::jthread>([](std::stop_token stop_token) {
         spdlog::info("[IntegrityCheckBypass]: Hello from anti_debug_watcher!");
+        spdlog::info("[IntegrityCheckBypass]: Waiting for REFramework startup to finish...");
+
+        while (g_framework == nullptr) {
+            std::this_thread::yield();
+        }
+
+        spdlog::info("[IntegrityCheckBypass]: REFramework startup finished!");
 
         while (!stop_token.stop_requested()) {
             anti_debug_watcher();
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
         }
     });
+}
+
+// This allows unencrypted paks to load.
+void IntegrityCheckBypass::sha3_rsa_code_midhook(safetyhook::Context& context) {
+    spdlog::info("[IntegrityCheckBypass]: sha3_code_midhook called!");
+    // Log registers
+    spdlog::info("[IntegrityCheckBypass]: RAX: 0x{:X}", context.rax);
+    spdlog::info("[IntegrityCheckBypass]: RCX: 0x{:X}", context.rcx);
+    spdlog::info("[IntegrityCheckBypass]: RDX: 0x{:X}", context.rdx);
+    spdlog::info("[IntegrityCheckBypass]: R8: 0x{:X}", context.r8);
+    spdlog::info("[IntegrityCheckBypass]: R9: 0x{:X}", context.r9);
+    spdlog::info("[IntegrityCheckBypass]: R10: 0x{:X}", context.r10);
+    spdlog::info("[IntegrityCheckBypass]: R11: 0x{:X}", context.r11);
+    spdlog::info("[IntegrityCheckBypass]: R12: 0x{:X}", context.r12);
+    spdlog::info("[IntegrityCheckBypass]: R13: 0x{:X}", context.r13);
+    spdlog::info("[IntegrityCheckBypass]: R14: 0x{:X}", context.r14);
+    spdlog::info("[IntegrityCheckBypass]: R15: 0x{:X}", context.r15);
+    spdlog::info("[IntegrityCheckBypass]: RSP: 0x{:X}", context.rsp);
+    spdlog::info("[IntegrityCheckBypass]: RIP: 0x{:X}", context.rip);
+    spdlog::info("[IntegrityCheckBypass]: RBP: 0x{:X}", context.rbp);
+    spdlog::info("[IntegrityCheckBypass]: RSI: 0x{:X}", context.rsi);
+    spdlog::info("[IntegrityCheckBypass]: RDI: 0x{:X}", context.rdi);
+
+    enum PakFlags : uint8_t {
+        ENCRYPTED = 0x8
+    };
+
+    const auto pak_flags = (PakFlags)context.r8; // Might change, maybe add automated register detection later
+
+    if ((pak_flags & PakFlags::ENCRYPTED) != 0) {
+        spdlog::info("[IntegrityCheckBypass]: Pak is encrypted, allowing decryption code to run.");
+        return;
+    }
+
+    context.rip = *s_sha3_code_end;
+
+    spdlog::info("[IntegrityCheckBypass]: Unencrypted pak detected, skipping decryption code!");
+}
+
+void IntegrityCheckBypass::restore_unencrypted_paks() {
+    spdlog::info("[IntegrityCheckBypass]: Restoring unencrypted paks...");
+
+    // If this breaks... we'll fix it!
+    const auto game = utility::get_executable();
+    const auto sha3_code_start = utility::scan(game, "C5 F8 57 C0 C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? C5 FC 11 44 24 ? 48 C1 E9 ?");
+
+    if (!sha3_code_start) {
+        spdlog::error("[IntegrityCheckBypass]: Could not find sha3_rsa_code_start!");
+        return;
+    }
+    
+    spdlog::info("[IntegrityCheckBypass]: Found sha3_rsa_code_start @ 0x{:X}", *sha3_code_start);
+
+
+    s_sha3_code_end = utility::scan(game, "48 8B 8E C0 00 00 00 48 C1 E9 ?");
+
+    if (!s_sha3_code_end) {
+        spdlog::error("[IntegrityCheckBypass]: Could not find sha3_rsa_code_end, cannot restore unencrypted paks!");
+        return;
+    }
+    
+    spdlog::info("[IntegrityCheckBypass]: Found sha3_rsa_code_end @ 0x{:X}", *s_sha3_code_end);
+
+    s_sha3_rsa_code_midhook = safetyhook::create_mid((void*)*sha3_code_start, &sha3_rsa_code_midhook);
+
+    spdlog::info("[IntegrityCheckBypass]: Created sha3_rsa_code_midhook!");
+
+    const auto previous_instructions = utility::get_disassembly_behind(*s_sha3_code_end);
+
+    // This NOPs out the conditional jump that rejects the PAK file if the integrity check fails.
+    // Normally, the game computes a SHA3-256 hash of the TOC/resource headers before obfuscation.
+    // It then XORs the TOC/resource headers with this hash to make them unreadable.
+    // To verify integrity, the game decrypts a precomputed SHA3-256 hash from the PAK header using RSA.
+    // If the computed SHA3-256 hash of the TOC/resource headers doesn't match the decrypted one, the PAK is rejected.
+    // Without patching, bypassing this check would require obtaining Capcom's private RSA key to sign new hashes,
+    // which is infeasible. Instead, we NOP the conditional jump to force the game to accept modded PAKs.
+    // (Thanks to Rick Gibbed (@gibbed) for the explanation about how SHA3 and RSA fit together in this context)
+    if (!previous_instructions.empty()) {
+        const auto& previous_instruction = previous_instructions.back();
+
+        if (previous_instruction.instrux.BranchInfo.IsBranch && previous_instruction.instrux.BranchInfo.IsConditional) {
+            spdlog::info("[IntegrityCheckBypass]: Found conditional branch instruction @ 0x{:X}, NOPing it", previous_instruction.addr);
+
+            // NOP out the conditional jump
+            std::vector<int16_t> nops{};
+            nops.resize(previous_instruction.instrux.Length);
+            std::fill(nops.begin(), nops.end(), 0x90);
+
+            static auto patch = Patch::create(previous_instruction.addr, nops, true);
+
+            spdlog::info("[IntegrityCheckBypass]: NOP'd out conditional jump!");
+        } else {
+            spdlog::warn("[IntegrityCheckBypass]: Previous instruction is not a conditional branch, cannot NOP it!");
+        }
+    }
 }
 
 void IntegrityCheckBypass::immediate_patch_dd2() {
@@ -657,6 +759,45 @@ void IntegrityCheckBypass::immediate_patch_dd2() {
 
             if (crasher_fn) {
                 spdlog::info("[IntegrityCheckBypass]: Found crasher_fn!");
+
+                auto crasher_fn_ref = utility::scan_displacement_reference(game, *crasher_fn);
+
+                if (crasher_fn_ref) {
+                    spdlog::info("[IntegrityCheckBypass]: Found crasher_fn_ref");
+                }
+
+                if (crasher_fn_ref && *(uint8_t*)(*crasher_fn_ref - 1) == 0xE9) {
+                    crasher_fn_ref = utility::find_function_start(*crasher_fn_ref - 1);
+                } else {
+                    crasher_fn_ref = *crasher_fn;
+                }
+
+                if (crasher_fn_ref) {
+                    spdlog::info("[IntegrityCheckBypass]: Found crasher fn (real)");
+
+                    // We have to use this because I think that the AVX2 scan is broken here for some reason... uh oh...
+                    const auto scanner_fn_middle = utility::scan_relative_reference_scalar((uintptr_t)game, game_size - 0x1000, *crasher_fn_ref, [](uintptr_t addr) {
+                        return *(uint8_t*)(addr - 1) == 0xE8;
+                    });
+
+                    if (scanner_fn_middle) {
+                        spdlog::info("[IntegrityCheckBypass]: Found scanner_fn_middle");
+
+                        const auto scanner_fn = utility::find_function_start_unwind(*scanner_fn_middle);
+
+                        if (scanner_fn) {
+                            spdlog::info("[IntegrityCheckBypass]: Found scanner_fn!");
+                            static auto nuke_patch = Patch::create(*scanner_fn, { 0xC3 }, true); // ret
+                            spdlog::info("[IntegrityCheckBypass]: Patched scanner_fn!");
+                        } else {
+                            spdlog::error("[IntegrityCheckBypass]: Could not find scanner_fn!");
+                        }
+                    } else {
+                        spdlog::error("[IntegrityCheckBypass]: Could not find scanner_fn_middle! (3)");
+                    }
+                } else {
+                    spdlog::error("[IntegrityCheckBypass]: Could not find crasher_fn_ref! (2)");
+                }
 
                 // Make function just ret
                 //static auto patch = Patch::create(*crasher_fn, { 0xC3 }, true);
@@ -718,6 +859,8 @@ void IntegrityCheckBypass::immediate_patch_dd2() {
     }
 
     spdlog::info("[IntegrityCheckBypass]: Patched {} sus_constants!", sus_constant_patches.size());
+
+    restore_unencrypted_paks();
 #endif
 
     const auto conditional_jmp_block = utility::scan(game, "41 8B ? ? 78 83 ? 07 ? ? 75 ?");

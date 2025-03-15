@@ -21,6 +21,7 @@ public:
 
     std::string_view get_name() const override { return "Graphics"; };
 
+    void on_lua_state_created(sol::state& lua) override;
     void on_config_load(const utility::Config& cfg) override;
     void on_config_save(utility::Config& cfg) override;
 
@@ -35,6 +36,16 @@ public:
     void on_view_get_size(REManagedObject* scene_view, float* result) override;
 
     void on_scene_layer_update(sdk::renderer::layer::Scene* layer, void* render_context) override;
+
+    bool is_ultrawide_fix_enabled() const {
+        return m_ultrawide_fix->value();
+    }
+
+#ifdef MHWILDS
+    uint32_t get_mhwilds_ultrawide_correction_value() const {
+        return (uint32_t)m_ultrawide_ui_correction->value();
+    }
+#endif
 
 private:
     void fix_ui_element(REComponent* gui_element);
@@ -167,7 +178,12 @@ private:
     } m_re4;
     
     const ModToggle::Ptr m_ultrawide_fix{ ModToggle::create(generate_name("UltrawideFix"), false) };
+#ifdef MHWILDS
+    const ModToggle::Ptr m_ultrawide_vertical_fov{ ModToggle::create(generate_name("UltrawideFixVerticalFOV_V2"), true) };
+    const ModSlider::Ptr m_ultrawide_ui_correction{ ModSlider::create(generate_name("UltrawideUICorrection"), 0.0f, 100.0f, 100.0f) };
+#else
     const ModToggle::Ptr m_ultrawide_vertical_fov{ ModToggle::create(generate_name("UltrawideFixVerticalFOV_V2"), false) };
+#endif
 
     // There is a trend with newer games where there actually is Ultrawide support, so we don't want to actually touch the FOV by default
     // And sometimes messing with the FOV causes permanent issues with the UI, so don't touch it by default
@@ -284,6 +300,11 @@ private:
         *m_ultrawide_custom_fov,
         *m_ultrawide_constrain_ui,
         *m_ultrawide_constrain_child_ui,
+#ifdef MHWILDS
+        *m_ultrawide_ui_correction,
+#endif
+
+
         *m_ultrawide_fov_multiplier,
         *m_disable_gui,
         *m_force_render_res_to_window,

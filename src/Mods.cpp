@@ -96,7 +96,7 @@ std::optional<std::string> Mods::on_initialize() const {
 
 
 std::optional<std::string> Mods::on_initialize_d3d_thread() const {
-    std::scoped_lock _{g_framework->get_hook_monitor_mutex()};
+    auto do_not_hook_d3d = g_framework->acquire_do_not_hook_d3d();
 
     utility::Config cfg{ (REFramework::get_persistent_dir() / REFrameworkConfig::REFRAMEWORK_CONFIG_NAME).string() };
 

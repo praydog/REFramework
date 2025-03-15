@@ -24,6 +24,26 @@ class RETypes;
 class REFramework {
 private:
     void hook_monitor();
+    std::atomic<uint32_t> m_do_not_hook_d3d_count{0};
+
+public:
+    struct DoNotHook {
+        DoNotHook(std::atomic<uint32_t>& count) : m_count(count) {
+            ++m_count;
+        }
+    
+        ~DoNotHook() {
+            --m_count;
+        }
+
+    private:
+        std::atomic<uint32_t>& m_count;
+    };
+
+    DoNotHook acquire_do_not_hook_d3d() {
+        return DoNotHook{m_do_not_hook_d3d_count};
+    }
+
 
 public:
     REFramework(HMODULE reframework_module);
@@ -119,6 +139,10 @@ public:
 
     auto& get_hook_monitor_mutex() {
         return m_hook_monitor_mutex;
+    }
+
+    auto& get_startup_mutex() {
+        return m_startup_mutex;
     }
 
     void set_font_size(int size) { 
@@ -279,6 +303,13 @@ private: // D3D12 members
             BACKBUFFER_0,
             BACKBUFFER_1,
             BACKBUFFER_2,
+            BACKBUFFER_3,
+            BACKBUFFER_4,
+            BACKBUFFER_5,
+            BACKBUFFER_6,
+            BACKBUFFER_7,
+            BACKBUFFER_8,
+            BACKBUFFER_LAST = BACKBUFFER_8,
             IMGUI,
             BLANK,
             COUNT,

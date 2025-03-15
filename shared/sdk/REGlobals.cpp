@@ -72,6 +72,8 @@ REGlobals::REGlobals() {
         auto& types = reframework::get_types();
         auto& type_list = types->get_types();
 
+        size_t i = 0;
+
         for (auto t : type_list) {
             auto name = std::string{t->name};
 
@@ -98,7 +100,9 @@ REGlobals::REGlobals() {
                 // Get the contained type by grabbing the string between the "`1<"" and the ">""
                 auto type_name = name.substr(name.find("`1<") + 3, name.find(">") - name.find("`1<") - 3);
 
-                spdlog::info("{}", type_name);
+                if (i++ < 100) {
+                    spdlog::info("{}", type_name);
+                }
 
                 m_getters[type_name] = getter;
             }

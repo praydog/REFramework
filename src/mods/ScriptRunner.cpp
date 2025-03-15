@@ -503,6 +503,11 @@ void ScriptState::on_application_entry(size_t hash) {
     }
 
     if (hash == "EndRendering"_fnv && m_gc_data.gc_handler == ScriptState::GarbageCollectionHandler::REFRAMEWORK_MANAGED) {
+        std::scoped_lock _{ m_execution_mutex };
+
+        // Sometimes this gets re-enabled? Not sure why.
+        lua_gc(m_lua, LUA_GCSTOP);
+
         switch (m_gc_data.gc_type) {
             case ScriptState::GarbageCollectionType::FULL:
                 lua_gc(m_lua, LUA_GCCOLLECT);
@@ -629,7 +634,8 @@ void ScriptState::install_hooks() {
                         return result;
                     }
 
-                    auto script_args = state->lua().create_table();
+                    auto script_args_ref = state->get_table_pool().acquire(state->lua());
+                    sol::table& script_args = script_args_ref;
 
                     // Call the script function.
                     // Convert the args to a table that we pass to the script function.
@@ -1168,8 +1174,9 @@ void ScriptRunner::spew_error(const std::string& p) {
 
 
 void ScriptRunner::reset_scripts() {
+    auto do_not_hook_d3d = g_framework->acquire_do_not_hook_d3d();
+    
     std::scoped_lock _{ m_access_mutex };
-    std::scoped_lock __{ g_framework->get_hook_monitor_mutex() }; // Stops D3D monitor from attempting to re-hook during long script startups
 
     {
         std::unique_lock _{ m_script_error_mutex };
