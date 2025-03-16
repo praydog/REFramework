@@ -7,12 +7,11 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR)
 	message(FATAL_ERROR "In-tree builds are not supported. Run CMake from a separate directory: cmake -B build")
 endif()
 
-# Regenerate CMakeLists.txt automatically in the root project
 set(CMKR_ROOT_PROJECT OFF)
 if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
 	set(CMKR_ROOT_PROJECT ON)
 
-	# Bootstrap cmkr
+	# Bootstrap cmkr and automatically regenerate CMakeLists.txt
 	include(cmkr.cmake OPTIONAL RESULT_VARIABLE CMKR_INCLUDE_RESULT)
 	if(CMKR_INCLUDE_RESULT)
 		cmkr()
@@ -20,30 +19,28 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
 
 	# Enable folder support
 	set_property(GLOBAL PROPERTY USE_FOLDERS ON)
-endif()
 
-# Create a configure-time dependency on cmake.toml to improve IDE support
-if(CMKR_ROOT_PROJECT)
-	configure_file(cmake.toml cmake.toml COPYONLY)
+	# Create a configure-time dependency on cmake.toml to improve IDE support
+	set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS cmake.toml)
 endif()
 
 # Options
-option(DEVELOPER_MODE "Enable developer mode" ON)
-option(REF_BUILD_RE2_SDK OFF)
-option(REF_BUILD_RE2_TDB66SDK OFF)
-option(REF_BUILD_RE3_SDK OFF)
-option(REF_BUILD_RE3_TDB67SDK OFF)
-option(REF_BUILD_RE4_SDK OFF)
-option(REF_BUILD_RE7_SDK OFF)
-option(REF_BUILD_RE7_TDB49SDK OFF)
-option(REF_BUILD_RE8_SDK OFF)
-option(REF_BUILD_DMC5_SDK OFF)
-option(REF_BUILD_MHRISE_SDK OFF)
-option(REF_BUILD_SF6_SDK OFF)
-option(REF_BUILD_DD2_SDK OFF)
-option(REF_BUILD_MHWILDS_SDK OFF)
-option(REF_BUILD_FRAMEWORK "Enable building the full REFramework" ON)
-option(REF_BUILD_DEPENDENCIES "Enable building dependencies" ON)
+option(DEVELOPER_MODE "" ON)
+option(REF_BUILD_RE2_SDK "" OFF)
+option(REF_BUILD_RE2_TDB66SDK "" OFF)
+option(REF_BUILD_RE3_SDK "" OFF)
+option(REF_BUILD_RE3_TDB67SDK "" OFF)
+option(REF_BUILD_RE4_SDK "" OFF)
+option(REF_BUILD_RE7_SDK "" OFF)
+option(REF_BUILD_RE7_TDB49SDK "" OFF)
+option(REF_BUILD_RE8_SDK "" OFF)
+option(REF_BUILD_DMC5_SDK "" OFF)
+option(REF_BUILD_MHRISE_SDK "" OFF)
+option(REF_BUILD_SF6_SDK "" OFF)
+option(REF_BUILD_DD2_SDK "" OFF)
+option(REF_BUILD_MHWILDS_SDK "" OFF)
+option(REF_BUILD_FRAMEWORK "" ON)
+option(REF_BUILD_DEPENDENCIES "" ON)
 
 project(reframework
 	LANGUAGES
@@ -92,82 +89,77 @@ endif()
 
 include(FetchContent)
 
+# Fix warnings about DOWNLOAD_EXTRACT_TIMESTAMP
+if(POLICY CMP0135)
+	cmake_policy(SET CMP0135 NEW)
+endif()
 message(STATUS "Fetching asmjit (2a706fd2ba355808cada31ac1eed8ce28caa6b37)...")
-FetchContent_Declare(
-	asmjit
+FetchContent_Declare(asmjit
 	GIT_REPOSITORY
-		https://github.com/asmjit/asmjit.git
+		"https://github.com/asmjit/asmjit.git"
 	GIT_TAG
 		2a706fd2ba355808cada31ac1eed8ce28caa6b37
 )
 FetchContent_MakeAvailable(asmjit)
 
 message(STATUS "Fetching openxr (458984d7f59d1ae6dc1b597d94b02e4f7132eaba)...")
-FetchContent_Declare(
-	openxr
+FetchContent_Declare(openxr
 	GIT_REPOSITORY
-		https://github.com/KhronosGroup/OpenXR-SDK
+		"https://github.com/KhronosGroup/OpenXR-SDK"
 	GIT_TAG
 		458984d7f59d1ae6dc1b597d94b02e4f7132eaba
 )
 FetchContent_MakeAvailable(openxr)
 
 message(STATUS "Fetching directxtk (f5026eb34e7053b1aff325d38db107703f394974)...")
-FetchContent_Declare(
-	directxtk
+FetchContent_Declare(directxtk
 	GIT_REPOSITORY
-		https://github.com/microsoft/DirectXTK
+		"https://github.com/microsoft/DirectXTK"
 	GIT_TAG
 		f5026eb34e7053b1aff325d38db107703f394974
 )
 FetchContent_MakeAvailable(directxtk)
 
 message(STATUS "Fetching directxtk12 (be5dfc7e391aefaa4eeab8e8a08f7e2669e56cbb)...")
-FetchContent_Declare(
-	directxtk12
+FetchContent_Declare(directxtk12
 	GIT_REPOSITORY
-		https://github.com/microsoft/DirectXTK12
+		"https://github.com/microsoft/DirectXTK12"
 	GIT_TAG
 		be5dfc7e391aefaa4eeab8e8a08f7e2669e56cbb
 )
 FetchContent_MakeAvailable(directxtk12)
 
 message(STATUS "Fetching safetyhook (b046e123dc69821f2c375161e0adef3c6d9c9db4)...")
-FetchContent_Declare(
-	safetyhook
+FetchContent_Declare(safetyhook
 	GIT_REPOSITORY
-		https://github.com/cursey/safetyhook
+		"https://github.com/cursey/safetyhook"
 	GIT_TAG
 		b046e123dc69821f2c375161e0adef3c6d9c9db4
 )
 FetchContent_MakeAvailable(safetyhook)
 
 message(STATUS "Fetching bddisasm (v1.34.10)...")
-FetchContent_Declare(
-	bddisasm
+FetchContent_Declare(bddisasm
 	GIT_REPOSITORY
-		https://github.com/bitdefender/bddisasm
+		"https://github.com/bitdefender/bddisasm"
 	GIT_TAG
 		v1.34.10
 )
 FetchContent_MakeAvailable(bddisasm)
 
 message(STATUS "Fetching kananlib (d659e3b8312e26ba19329f96b73ba88d1211bfdb)...")
-FetchContent_Declare(
-	kananlib
+FetchContent_Declare(kananlib
 	GIT_REPOSITORY
-		https://github.com/cursey/kananlib
+		"https://github.com/cursey/kananlib"
 	GIT_TAG
 		d659e3b8312e26ba19329f96b73ba88d1211bfdb
 )
 FetchContent_MakeAvailable(kananlib)
 
-# Target spdlog
+# Target: spdlog
 if(REF_BUILD_DEPENDENCIES AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework-dependencies
-	set(CMKR_TARGET spdlog)
-	set(spdlog_SOURCES "")
-
-	list(APPEND spdlog_SOURCES
+	set(spdlog_SOURCES
+		cmake.toml
 		"dependencies/spdlog/src/async.cpp"
 		"dependencies/spdlog/src/bundled_fmtlib_format.cpp"
 		"dependencies/spdlog/src/cfg.cpp"
@@ -177,17 +169,9 @@ if(REF_BUILD_DEPENDENCIES AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework-dep
 		"dependencies/spdlog/src/stdout_sinks.cpp"
 	)
 
-	list(APPEND spdlog_SOURCES
-		cmake.toml
-	)
-
-	set(CMKR_SOURCES ${spdlog_SOURCES})
 	add_library(spdlog STATIC)
 
-	if(spdlog_SOURCES)
-		target_sources(spdlog PRIVATE ${spdlog_SOURCES})
-	endif()
-
+	target_sources(spdlog PRIVATE ${spdlog_SOURCES})
 	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${spdlog_SOURCES})
 
 	add_library(spdlog::spdlog ALIAS spdlog)
@@ -199,51 +183,34 @@ if(REF_BUILD_DEPENDENCIES AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework-dep
 		"dependencies/spdlog/include"
 	)
 
+	set(CMKR_TARGET spdlog)
 	if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 19.35)
 	    target_compile_options(DirectXTK PRIVATE /Zc:templateScope-)
 	    target_compile_options(DirectXTK12 PRIVATE /Zc:templateScope-)
 	endif()
 
-	unset(CMKR_TARGET)
-	unset(CMKR_SOURCES)
 endif()
-
-# Target glm_static
+# Target: glm_static
 if(REF_BUILD_DEPENDENCIES AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework-dependencies
-	set(CMKR_TARGET glm_static)
-	set(glm_static_SOURCES "")
-
-	list(APPEND glm_static_SOURCES
+	set(glm_static_SOURCES
+		cmake.toml
 		"dependencies/glm/glm/detail/glm.cpp"
 	)
 
-	list(APPEND glm_static_SOURCES
-		cmake.toml
-	)
-
-	set(CMKR_SOURCES ${glm_static_SOURCES})
 	add_library(glm_static STATIC)
 
-	if(glm_static_SOURCES)
-		target_sources(glm_static PRIVATE ${glm_static_SOURCES})
-	endif()
-
+	target_sources(glm_static PRIVATE ${glm_static_SOURCES})
 	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${glm_static_SOURCES})
 
 	target_include_directories(glm_static PUBLIC
 		"dependencies/glm"
 	)
 
-	unset(CMKR_TARGET)
-	unset(CMKR_SOURCES)
 endif()
-
-# Target minhook
+# Target: minhook
 if(REF_BUILD_DEPENDENCIES AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework-dependencies
-	set(CMKR_TARGET minhook)
-	set(minhook_SOURCES "")
-
-	list(APPEND minhook_SOURCES
+	set(minhook_SOURCES
+		cmake.toml
 		"dependencies/minhook/src/buffer.c"
 		"dependencies/minhook/src/hde/hde32.c"
 		"dependencies/minhook/src/hde/hde64.c"
@@ -251,17 +218,9 @@ if(REF_BUILD_DEPENDENCIES AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework-dep
 		"dependencies/minhook/src/trampoline.c"
 	)
 
-	list(APPEND minhook_SOURCES
-		cmake.toml
-	)
-
-	set(CMKR_SOURCES ${minhook_SOURCES})
 	add_library(minhook STATIC)
 
-	if(minhook_SOURCES)
-		target_sources(minhook PRIVATE ${minhook_SOURCES})
-	endif()
-
+	target_sources(minhook PRIVATE ${minhook_SOURCES})
 	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${minhook_SOURCES})
 
 	target_include_directories(minhook PUBLIC
@@ -269,16 +228,11 @@ if(REF_BUILD_DEPENDENCIES AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework-dep
 		"dependencies/minhook/src/hde"
 	)
 
-	unset(CMKR_TARGET)
-	unset(CMKR_SOURCES)
 endif()
-
-# Target imgui
+# Target: imgui
 if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
-	set(CMKR_TARGET imgui)
-	set(imgui_SOURCES "")
-
-	list(APPEND imgui_SOURCES
+	set(imgui_SOURCES
+		cmake.toml
 		"dependencies/imgui/imgui.cpp"
 		"dependencies/imgui/imgui_demo.cpp"
 		"dependencies/imgui/imgui_draw.cpp"
@@ -286,17 +240,9 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"dependencies/imgui/imgui_widgets.cpp"
 	)
 
-	list(APPEND imgui_SOURCES
-		cmake.toml
-	)
-
-	set(CMKR_SOURCES ${imgui_SOURCES})
 	add_library(imgui STATIC)
 
-	if(imgui_SOURCES)
-		target_sources(imgui PRIVATE ${imgui_SOURCES})
-	endif()
-
+	target_sources(imgui PRIVATE ${imgui_SOURCES})
 	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${imgui_SOURCES})
 
 	target_compile_definitions(imgui PUBLIC
@@ -308,16 +254,11 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/re2-imgui"
 	)
 
-	unset(CMKR_TARGET)
-	unset(CMKR_SOURCES)
 endif()
-
-# Target imguizmo
+# Target: imguizmo
 if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
-	set(CMKR_TARGET imguizmo)
-	set(imguizmo_SOURCES "")
-
-	list(APPEND imguizmo_SOURCES
+	set(imguizmo_SOURCES
+		cmake.toml
 		"dependencies/imguizmo/GraphEditor.cpp"
 		"dependencies/imguizmo/ImCurveEdit.cpp"
 		"dependencies/imguizmo/ImGradient.cpp"
@@ -325,17 +266,9 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"dependencies/imguizmo/ImSequencer.cpp"
 	)
 
-	list(APPEND imguizmo_SOURCES
-		cmake.toml
-	)
-
-	set(CMKR_SOURCES ${imguizmo_SOURCES})
 	add_library(imguizmo STATIC)
 
-	if(imguizmo_SOURCES)
-		target_sources(imguizmo PRIVATE ${imguizmo_SOURCES})
-	endif()
-
+	target_sources(imguizmo PRIVATE ${imguizmo_SOURCES})
 	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${imguizmo_SOURCES})
 
 	target_compile_definitions(imguizmo PUBLIC
@@ -348,30 +281,17 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/re2-imgui"
 	)
 
-	unset(CMKR_TARGET)
-	unset(CMKR_SOURCES)
 endif()
-
-# Target imnodes
+# Target: imnodes
 if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
-	set(CMKR_TARGET imnodes)
-	set(imnodes_SOURCES "")
-
-	list(APPEND imnodes_SOURCES
+	set(imnodes_SOURCES
+		cmake.toml
 		"dependencies/imnodes/imnodes.cpp"
 	)
 
-	list(APPEND imnodes_SOURCES
-		cmake.toml
-	)
-
-	set(CMKR_SOURCES ${imnodes_SOURCES})
 	add_library(imnodes STATIC)
 
-	if(imnodes_SOURCES)
-		target_sources(imnodes PRIVATE ${imnodes_SOURCES})
-	endif()
-
+	target_sources(imnodes PRIVATE ${imnodes_SOURCES})
 	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${imnodes_SOURCES})
 
 	target_include_directories(imnodes PUBLIC
@@ -382,21 +302,10 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		imgui
 	)
 
-	unset(CMKR_TARGET)
-	unset(CMKR_SOURCES)
 endif()
-
-# Target openvr
+# Target: openvr
 if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
-	set(CMKR_TARGET openvr)
-	set(openvr_SOURCES "")
-
-	set(CMKR_SOURCES ${openvr_SOURCES})
 	add_library(openvr INTERFACE)
-
-	if(openvr_SOURCES)
-		target_sources(openvr INTERFACE ${openvr_SOURCES})
-	endif()
 
 	target_include_directories(openvr INTERFACE
 		"dependencies/openvr/headers"
@@ -406,19 +315,15 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"${CMAKE_CURRENT_SOURCE_DIR}/dependencies/openvr/lib/win64/openvr_api.lib"
 	)
 
+	set(CMKR_TARGET openvr)
 	file(COPY dependencies/openvr/lib/win64/openvr_api.lib DESTINATION ${CMAKE_BINARY_DIR}/lib)
 	file(COPY dependencies/openvr/bin/win64/openvr_api.dll DESTINATION ${CMAKE_BINARY_DIR}/bin)
 
-	unset(CMKR_TARGET)
-	unset(CMKR_SOURCES)
 endif()
-
-# Target lua
+# Target: lua
 if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
-	set(CMKR_TARGET lua)
-	set(lua_SOURCES "")
-
-	list(APPEND lua_SOURCES
+	set(lua_SOURCES
+		cmake.toml
 		"dependencies/lua/src/lapi.c"
 		"dependencies/lua/src/lauxlib.c"
 		"dependencies/lua/src/lbaselib.c"
@@ -453,93 +358,50 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"dependencies/lua/src/lzio.c"
 	)
 
-	list(APPEND lua_SOURCES
-		cmake.toml
-	)
-
-	set(CMKR_SOURCES ${lua_SOURCES})
 	add_library(lua STATIC)
 
-	if(lua_SOURCES)
-		target_sources(lua PRIVATE ${lua_SOURCES})
-	endif()
-
+	target_sources(lua PRIVATE ${lua_SOURCES})
 	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${lua_SOURCES})
 
 	target_include_directories(lua PUBLIC
 		"dependencies/lua/src"
 	)
 
-	unset(CMKR_TARGET)
-	unset(CMKR_SOURCES)
 endif()
-
-# Target sol2
+# Target: sol2
 if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
-	set(CMKR_TARGET sol2)
-	set(sol2_SOURCES "")
-
-	set(CMKR_SOURCES ${sol2_SOURCES})
 	add_library(sol2 INTERFACE)
-
-	if(sol2_SOURCES)
-		target_sources(sol2 INTERFACE ${sol2_SOURCES})
-	endif()
 
 	target_include_directories(sol2 INTERFACE
 		"dependencies/sol2/single/include"
 	)
 
-	unset(CMKR_TARGET)
-	unset(CMKR_SOURCES)
 endif()
-
-# Target nlohmann_json
+# Target: nlohmann_json
 if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
-	set(CMKR_TARGET nlohmann_json)
-	set(nlohmann_json_SOURCES "")
-
-	set(CMKR_SOURCES ${nlohmann_json_SOURCES})
 	add_library(nlohmann_json INTERFACE)
-
-	if(nlohmann_json_SOURCES)
-		target_sources(nlohmann_json INTERFACE ${nlohmann_json_SOURCES})
-	endif()
 
 	target_include_directories(nlohmann_json INTERFACE
 		"dependencies/nlohmann"
 	)
 
-	unset(CMKR_TARGET)
-	unset(CMKR_SOURCES)
 endif()
-
-# Target utility
-set(CMKR_TARGET utility)
-set(utility_SOURCES "")
-
-list(APPEND utility_SOURCES
+# Target: utility
+set(utility_SOURCES
+	cmake.toml
 	"shared/utility/Exceptions.cpp"
-	"shared/utility/FunctionHook.cpp"
-	"shared/utility/FunctionHookMinHook.cpp"
-	"shared/utility/Relocate.cpp"
 	"shared/utility/Exceptions.hpp"
+	"shared/utility/FunctionHook.cpp"
 	"shared/utility/FunctionHook.hpp"
+	"shared/utility/FunctionHookMinHook.cpp"
 	"shared/utility/FunctionHookMinHook.hpp"
+	"shared/utility/Relocate.cpp"
 	"shared/utility/Relocate.hpp"
 )
 
-list(APPEND utility_SOURCES
-	cmake.toml
-)
-
-set(CMKR_SOURCES ${utility_SOURCES})
 add_library(utility STATIC)
 
-if(utility_SOURCES)
-	target_sources(utility PRIVATE ${utility_SOURCES})
-endif()
-
+target_sources(utility PRIVATE ${utility_SOURCES})
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${utility_SOURCES})
 
 target_compile_features(utility PUBLIC
@@ -557,65 +419,50 @@ target_link_libraries(utility PUBLIC
 	kananlib
 )
 
-unset(CMKR_TARGET)
-unset(CMKR_SOURCES)
-
-# Target RE2SDK
+# Target: RE2SDK
 if(REF_BUILD_RE2_SDK OR REF_BUILD_FRAMEWORK) # build-re2-sdk
-	set(CMKR_TARGET RE2SDK)
-	set(RE2SDK_SOURCES "")
-
-	list(APPEND RE2SDK_SOURCES
+	set(RE2SDK_SOURCES
+		cmake.toml
 		"shared/sdk/Application.cpp"
-		"shared/sdk/GUIPrimitiveSystem.cpp"
-		"shared/sdk/ManagedObject.cpp"
-		"shared/sdk/Memory.cpp"
-		"shared/sdk/MotionFsm2Layer.cpp"
-		"shared/sdk/MurmurHash.cpp"
-		"shared/sdk/REArray.cpp"
-		"shared/sdk/REContext.cpp"
-		"shared/sdk/REGameObject.cpp"
-		"shared/sdk/REGlobals.cpp"
-		"shared/sdk/REManagedObject.cpp"
-		"shared/sdk/RETransform.cpp"
-		"shared/sdk/REType.cpp"
-		"shared/sdk/RETypeDB.cpp"
-		"shared/sdk/RETypeDefinition.cpp"
-		"shared/sdk/RETypes.cpp"
-		"shared/sdk/REVTableHook.cpp"
-		"shared/sdk/Renderer.cpp"
-		"shared/sdk/ResourceManager.cpp"
-		"shared/sdk/SDK.cpp"
-		"shared/sdk/SF6Utility.cpp"
-		"shared/sdk/SceneManager.cpp"
-		"shared/sdk/SystemArray.cpp"
-		"shared/sdk/helpers/NativeObject.cpp"
-		"shared/sdk/renderer/RenderResource.cpp"
-		"shared/sdk/resources/MasterMaterialResource.cpp"
-		"shared/sdk/resources/ShaderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
+		"shared/sdk/GUIPrimitiveSystem.cpp"
 		"shared/sdk/GUIPrimitiveSystem.hpp"
+		"shared/sdk/ManagedObject.cpp"
 		"shared/sdk/ManagedObject.hpp"
 		"shared/sdk/Math.hpp"
+		"shared/sdk/Memory.cpp"
 		"shared/sdk/Memory.hpp"
+		"shared/sdk/MotionFsm2Layer.cpp"
 		"shared/sdk/MotionFsm2Layer.hpp"
+		"shared/sdk/MurmurHash.cpp"
 		"shared/sdk/MurmurHash.hpp"
+		"shared/sdk/REArray.cpp"
 		"shared/sdk/REArray.hpp"
 		"shared/sdk/REComponent.hpp"
+		"shared/sdk/REContext.cpp"
 		"shared/sdk/REContext.hpp"
+		"shared/sdk/REGameObject.cpp"
 		"shared/sdk/REGameObject.hpp"
+		"shared/sdk/REGlobals.cpp"
 		"shared/sdk/REGlobals.hpp"
+		"shared/sdk/REManagedObject.cpp"
 		"shared/sdk/REManagedObject.hpp"
 		"shared/sdk/REMath.hpp"
 		"shared/sdk/RENativeArray.hpp"
 		"shared/sdk/REString.hpp"
+		"shared/sdk/RETransform.cpp"
 		"shared/sdk/RETransform.hpp"
+		"shared/sdk/REType.cpp"
 		"shared/sdk/REType.hpp"
 		"shared/sdk/RETypeCLR.hpp"
+		"shared/sdk/RETypeDB.cpp"
 		"shared/sdk/RETypeDB.hpp"
+		"shared/sdk/RETypeDefinition.cpp"
 		"shared/sdk/RETypeDefinition.hpp"
+		"shared/sdk/RETypes.cpp"
 		"shared/sdk/RETypes.hpp"
+		"shared/sdk/REVTableHook.cpp"
 		"shared/sdk/REVTableHook.hpp"
 		"shared/sdk/REVariableDescriptor.hpp"
 		"shared/sdk/ReClass.hpp"
@@ -630,14 +477,21 @@ if(REF_BUILD_RE2_SDK OR REF_BUILD_FRAMEWORK) # build-re2-sdk
 		"shared/sdk/ReClass_Internal_RE7.hpp"
 		"shared/sdk/ReClass_Internal_RE8.hpp"
 		"shared/sdk/ReClass_Internal_SF6.hpp"
+		"shared/sdk/Renderer.cpp"
 		"shared/sdk/Renderer.hpp"
+		"shared/sdk/ResourceManager.cpp"
 		"shared/sdk/ResourceManager.hpp"
 		"shared/sdk/RopewaySweetLightManager.hpp"
+		"shared/sdk/SDK.cpp"
 		"shared/sdk/SDK.hpp"
+		"shared/sdk/SF6Utility.cpp"
 		"shared/sdk/SF6Utility.hpp"
+		"shared/sdk/SceneManager.cpp"
 		"shared/sdk/SceneManager.hpp"
+		"shared/sdk/SystemArray.cpp"
 		"shared/sdk/SystemArray.hpp"
 		"shared/sdk/TDBVer.hpp"
+		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/helpers/NativeObject.hpp"
 		"shared/sdk/intrusive_ptr.hpp"
 		"shared/sdk/regenny/dd2/BullShit.hpp"
@@ -1346,21 +1200,18 @@ if(REF_BUILD_RE2_SDK OR REF_BUILD_FRAMEWORK) # build-re2-sdk
 		"shared/sdk/regenny/sf6/via/vec3.hpp"
 		"shared/sdk/regenny/sf6/via/vec4.hpp"
 		"shared/sdk/renderer/PipelineState.hpp"
+		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/renderer/RenderResource.hpp"
+		"shared/sdk/resources/MasterMaterialResource.cpp"
 		"shared/sdk/resources/MasterMaterialResource.hpp"
+		"shared/sdk/resources/ShaderResource.cpp"
 		"shared/sdk/resources/ShaderResource.hpp"
 	)
 
-	list(APPEND RE2SDK_SOURCES
-		cmake.toml
-	)
-
-	set(CMKR_SOURCES ${RE2SDK_SOURCES})
 	add_library(RE2SDK STATIC)
 
-	if(RE2SDK_SOURCES)
-		target_sources(RE2SDK PRIVATE ${RE2SDK_SOURCES})
-	endif()
+	target_sources(RE2SDK PRIVATE ${RE2SDK_SOURCES})
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${RE2SDK_SOURCES})
 
 	target_compile_features(RE2SDK PUBLIC
 		cxx_std_23
@@ -1388,66 +1239,51 @@ if(REF_BUILD_RE2_SDK OR REF_BUILD_FRAMEWORK) # build-re2-sdk
 		RE2
 	)
 
-	unset(CMKR_TARGET)
-	unset(CMKR_SOURCES)
 endif()
-
-# Target RE2_TDB66SDK
+# Target: RE2_TDB66SDK
 if(REF_BUILD_RE2_TDB66SDK OR REF_BUILD_FRAMEWORK) # build-re2tdb66-sdk
-	set(CMKR_TARGET RE2_TDB66SDK)
-	set(RE2_TDB66SDK_SOURCES "")
-
-	list(APPEND RE2_TDB66SDK_SOURCES
+	set(RE2_TDB66SDK_SOURCES
+		cmake.toml
 		"shared/sdk/Application.cpp"
-		"shared/sdk/GUIPrimitiveSystem.cpp"
-		"shared/sdk/ManagedObject.cpp"
-		"shared/sdk/Memory.cpp"
-		"shared/sdk/MotionFsm2Layer.cpp"
-		"shared/sdk/MurmurHash.cpp"
-		"shared/sdk/REArray.cpp"
-		"shared/sdk/REContext.cpp"
-		"shared/sdk/REGameObject.cpp"
-		"shared/sdk/REGlobals.cpp"
-		"shared/sdk/REManagedObject.cpp"
-		"shared/sdk/RETransform.cpp"
-		"shared/sdk/REType.cpp"
-		"shared/sdk/RETypeDB.cpp"
-		"shared/sdk/RETypeDefinition.cpp"
-		"shared/sdk/RETypes.cpp"
-		"shared/sdk/REVTableHook.cpp"
-		"shared/sdk/Renderer.cpp"
-		"shared/sdk/ResourceManager.cpp"
-		"shared/sdk/SDK.cpp"
-		"shared/sdk/SF6Utility.cpp"
-		"shared/sdk/SceneManager.cpp"
-		"shared/sdk/SystemArray.cpp"
-		"shared/sdk/helpers/NativeObject.cpp"
-		"shared/sdk/renderer/RenderResource.cpp"
-		"shared/sdk/resources/MasterMaterialResource.cpp"
-		"shared/sdk/resources/ShaderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
+		"shared/sdk/GUIPrimitiveSystem.cpp"
 		"shared/sdk/GUIPrimitiveSystem.hpp"
+		"shared/sdk/ManagedObject.cpp"
 		"shared/sdk/ManagedObject.hpp"
 		"shared/sdk/Math.hpp"
+		"shared/sdk/Memory.cpp"
 		"shared/sdk/Memory.hpp"
+		"shared/sdk/MotionFsm2Layer.cpp"
 		"shared/sdk/MotionFsm2Layer.hpp"
+		"shared/sdk/MurmurHash.cpp"
 		"shared/sdk/MurmurHash.hpp"
+		"shared/sdk/REArray.cpp"
 		"shared/sdk/REArray.hpp"
 		"shared/sdk/REComponent.hpp"
+		"shared/sdk/REContext.cpp"
 		"shared/sdk/REContext.hpp"
+		"shared/sdk/REGameObject.cpp"
 		"shared/sdk/REGameObject.hpp"
+		"shared/sdk/REGlobals.cpp"
 		"shared/sdk/REGlobals.hpp"
+		"shared/sdk/REManagedObject.cpp"
 		"shared/sdk/REManagedObject.hpp"
 		"shared/sdk/REMath.hpp"
 		"shared/sdk/RENativeArray.hpp"
 		"shared/sdk/REString.hpp"
+		"shared/sdk/RETransform.cpp"
 		"shared/sdk/RETransform.hpp"
+		"shared/sdk/REType.cpp"
 		"shared/sdk/REType.hpp"
 		"shared/sdk/RETypeCLR.hpp"
+		"shared/sdk/RETypeDB.cpp"
 		"shared/sdk/RETypeDB.hpp"
+		"shared/sdk/RETypeDefinition.cpp"
 		"shared/sdk/RETypeDefinition.hpp"
+		"shared/sdk/RETypes.cpp"
 		"shared/sdk/RETypes.hpp"
+		"shared/sdk/REVTableHook.cpp"
 		"shared/sdk/REVTableHook.hpp"
 		"shared/sdk/REVariableDescriptor.hpp"
 		"shared/sdk/ReClass.hpp"
@@ -1462,14 +1298,21 @@ if(REF_BUILD_RE2_TDB66SDK OR REF_BUILD_FRAMEWORK) # build-re2tdb66-sdk
 		"shared/sdk/ReClass_Internal_RE7.hpp"
 		"shared/sdk/ReClass_Internal_RE8.hpp"
 		"shared/sdk/ReClass_Internal_SF6.hpp"
+		"shared/sdk/Renderer.cpp"
 		"shared/sdk/Renderer.hpp"
+		"shared/sdk/ResourceManager.cpp"
 		"shared/sdk/ResourceManager.hpp"
 		"shared/sdk/RopewaySweetLightManager.hpp"
+		"shared/sdk/SDK.cpp"
 		"shared/sdk/SDK.hpp"
+		"shared/sdk/SF6Utility.cpp"
 		"shared/sdk/SF6Utility.hpp"
+		"shared/sdk/SceneManager.cpp"
 		"shared/sdk/SceneManager.hpp"
+		"shared/sdk/SystemArray.cpp"
 		"shared/sdk/SystemArray.hpp"
 		"shared/sdk/TDBVer.hpp"
+		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/helpers/NativeObject.hpp"
 		"shared/sdk/intrusive_ptr.hpp"
 		"shared/sdk/regenny/dd2/BullShit.hpp"
@@ -2178,21 +2021,18 @@ if(REF_BUILD_RE2_TDB66SDK OR REF_BUILD_FRAMEWORK) # build-re2tdb66-sdk
 		"shared/sdk/regenny/sf6/via/vec3.hpp"
 		"shared/sdk/regenny/sf6/via/vec4.hpp"
 		"shared/sdk/renderer/PipelineState.hpp"
+		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/renderer/RenderResource.hpp"
+		"shared/sdk/resources/MasterMaterialResource.cpp"
 		"shared/sdk/resources/MasterMaterialResource.hpp"
+		"shared/sdk/resources/ShaderResource.cpp"
 		"shared/sdk/resources/ShaderResource.hpp"
 	)
 
-	list(APPEND RE2_TDB66SDK_SOURCES
-		cmake.toml
-	)
-
-	set(CMKR_SOURCES ${RE2_TDB66SDK_SOURCES})
 	add_library(RE2_TDB66SDK STATIC)
 
-	if(RE2_TDB66SDK_SOURCES)
-		target_sources(RE2_TDB66SDK PRIVATE ${RE2_TDB66SDK_SOURCES})
-	endif()
+	target_sources(RE2_TDB66SDK PRIVATE ${RE2_TDB66SDK_SOURCES})
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${RE2_TDB66SDK_SOURCES})
 
 	target_compile_features(RE2_TDB66SDK PUBLIC
 		cxx_std_23
@@ -2221,135 +2061,125 @@ if(REF_BUILD_RE2_TDB66SDK OR REF_BUILD_FRAMEWORK) # build-re2tdb66-sdk
 		RE2_TDB66
 	)
 
-	unset(CMKR_TARGET)
-	unset(CMKR_SOURCES)
 endif()
-
-# Target RE2
+# Target: RE2
 if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	set(CMKR_TARGET RE2)
-	set(RE2_SOURCES "")
-
-	list(APPEND RE2_SOURCES
+	set(RE2_SOURCES
+		cmake.toml
 		"src/D3D11Hook.cpp"
-		"src/D3D12Hook.cpp"
-		"src/DInputHook.cpp"
-		"src/ExceptionHandler.cpp"
-		"src/HookManager.cpp"
-		"src/Main.cpp"
-		"src/Mods.cpp"
-		"src/REFramework.cpp"
-		"src/WindowFilter.cpp"
-		"src/WindowsMessageHook.cpp"
-		"src/cimgui/cimgui.cpp"
-		"src/mods/APIProxy.cpp"
-		"src/mods/BackBufferRenderer.cpp"
-		"src/mods/Camera.cpp"
-		"src/mods/DeveloperTools.cpp"
-		"src/mods/FirstPerson.cpp"
-		"src/mods/FreeCam.cpp"
-		"src/mods/Graphics.cpp"
-		"src/mods/Hooks.cpp"
-		"src/mods/IntegrityCheckBypass.cpp"
-		"src/mods/LooseFileLoader.cpp"
-		"src/mods/ManualFlashlight.cpp"
-		"src/mods/PluginLoader.cpp"
-		"src/mods/REFrameworkConfig.cpp"
-		"src/mods/Scene.cpp"
-		"src/mods/ScriptRunner.cpp"
-		"src/mods/VR.cpp"
-		"src/mods/bindings/FS.cpp"
-		"src/mods/bindings/ImGui.cpp"
-		"src/mods/bindings/Json.cpp"
-		"src/mods/bindings/Sdk.cpp"
-		"src/mods/tools/ChainViewer.cpp"
-		"src/mods/tools/GameObjectsDisplay.cpp"
-		"src/mods/tools/ObjectExplorer.cpp"
-		"src/mods/vr/Bindings.cpp"
-		"src/mods/vr/D3D11Component.cpp"
-		"src/mods/vr/D3D12Component.cpp"
-		"src/mods/vr/OverlayComponent.cpp"
-		"src/mods/vr/d3d12/CommandContext.cpp"
-		"src/mods/vr/d3d12/ResourceCopier.cpp"
-		"src/mods/vr/d3d12/TextureContext.cpp"
-		"src/mods/vr/games/RE8VR.cpp"
-		"src/mods/vr/runtimes/OpenVR.cpp"
-		"src/mods/vr/runtimes/OpenXR.cpp"
-		"src/re2-imgui/imgui_impl_dx11.cpp"
-		"src/re2-imgui/imgui_impl_dx12.cpp"
-		"src/re2-imgui/imgui_impl_win32.cpp"
-		"src/utility/ImGui.cpp"
 		"src/D3D11Hook.hpp"
+		"src/D3D12Hook.cpp"
 		"src/D3D12Hook.hpp"
+		"src/DInputHook.cpp"
 		"src/DInputHook.hpp"
+		"src/ExceptionHandler.cpp"
 		"src/ExceptionHandler.hpp"
 		"src/Genny.hpp"
 		"src/GennyIda.hpp"
+		"src/HookManager.cpp"
 		"src/HookManager.hpp"
 		"src/LicenseStrings.hpp"
+		"src/Main.cpp"
 		"src/Mod.hpp"
+		"src/Mods.cpp"
 		"src/Mods.hpp"
+		"src/REFramework.cpp"
 		"src/REFramework.hpp"
 		"src/Tool.hpp"
+		"src/WindowFilter.cpp"
 		"src/WindowFilter.hpp"
+		"src/WindowsMessageHook.cpp"
 		"src/WindowsMessageHook.hpp"
+		"src/cimgui/cimgui.cpp"
+		"src/cimgui/cimgui.h"
+		"src/mods/APIProxy.cpp"
 		"src/mods/APIProxy.hpp"
+		"src/mods/BackBufferRenderer.cpp"
 		"src/mods/BackBufferRenderer.hpp"
+		"src/mods/Camera.cpp"
 		"src/mods/Camera.hpp"
+		"src/mods/DeveloperTools.cpp"
 		"src/mods/DeveloperTools.hpp"
+		"src/mods/FirstPerson.cpp"
 		"src/mods/FirstPerson.hpp"
+		"src/mods/FreeCam.cpp"
 		"src/mods/FreeCam.hpp"
+		"src/mods/Graphics.cpp"
 		"src/mods/Graphics.hpp"
+		"src/mods/Hooks.cpp"
 		"src/mods/Hooks.hpp"
+		"src/mods/IntegrityCheckBypass.cpp"
 		"src/mods/IntegrityCheckBypass.hpp"
+		"src/mods/LooseFileLoader.cpp"
 		"src/mods/LooseFileLoader.hpp"
+		"src/mods/ManualFlashlight.cpp"
 		"src/mods/ManualFlashlight.hpp"
+		"src/mods/PluginLoader.cpp"
 		"src/mods/PluginLoader.hpp"
+		"src/mods/REFrameworkConfig.cpp"
 		"src/mods/REFrameworkConfig.hpp"
+		"src/mods/Scene.cpp"
 		"src/mods/Scene.hpp"
+		"src/mods/ScriptRunner.cpp"
 		"src/mods/ScriptRunner.hpp"
+		"src/mods/VR.cpp"
 		"src/mods/VR.hpp"
+		"src/mods/bindings/FS.cpp"
 		"src/mods/bindings/FS.hpp"
+		"src/mods/bindings/ImGui.cpp"
 		"src/mods/bindings/ImGui.hpp"
+		"src/mods/bindings/Json.cpp"
 		"src/mods/bindings/Json.hpp"
+		"src/mods/bindings/Sdk.cpp"
 		"src/mods/bindings/Sdk.hpp"
+		"src/mods/spritefonts/Roboto.spritefont.h"
+		"src/mods/tools/ChainViewer.cpp"
 		"src/mods/tools/ChainViewer.hpp"
+		"src/mods/tools/GameObjectsDisplay.cpp"
 		"src/mods/tools/GameObjectsDisplay.hpp"
+		"src/mods/tools/ObjectExplorer.cpp"
 		"src/mods/tools/ObjectExplorer.hpp"
+		"src/mods/vr/Bindings.cpp"
+		"src/mods/vr/D3D11Component.cpp"
 		"src/mods/vr/D3D11Component.hpp"
+		"src/mods/vr/D3D12Component.cpp"
 		"src/mods/vr/D3D12Component.hpp"
+		"src/mods/vr/OverlayComponent.cpp"
 		"src/mods/vr/OverlayComponent.hpp"
 		"src/mods/vr/d3d12/ComPtr.hpp"
+		"src/mods/vr/d3d12/CommandContext.cpp"
 		"src/mods/vr/d3d12/CommandContext.hpp"
+		"src/mods/vr/d3d12/ResourceCopier.cpp"
 		"src/mods/vr/d3d12/ResourceCopier.hpp"
+		"src/mods/vr/d3d12/TextureContext.cpp"
 		"src/mods/vr/d3d12/TextureContext.hpp"
+		"src/mods/vr/games/RE8VR.cpp"
 		"src/mods/vr/games/RE8VR.hpp"
+		"src/mods/vr/runtimes/OpenVR.cpp"
 		"src/mods/vr/runtimes/OpenVR.hpp"
+		"src/mods/vr/runtimes/OpenXR.cpp"
 		"src/mods/vr/runtimes/OpenXR.hpp"
 		"src/mods/vr/runtimes/VRRuntime.hpp"
 		"src/re2-imgui/af_baidu.hpp"
+		"src/re2-imgui/af_fadef.h"
 		"src/re2-imgui/af_faprolight.hpp"
 		"src/re2-imgui/font_robotomedium.hpp"
-		"src/re2-imgui/re2_imconfig.hpp"
-		"src/utility/ImGui.hpp"
-		"src/cimgui/cimgui.h"
-		"src/mods/spritefonts/Roboto.spritefont.h"
-		"src/re2-imgui/af_fadef.h"
+		"src/re2-imgui/imgui_impl_dx11.cpp"
 		"src/re2-imgui/imgui_impl_dx11.h"
+		"src/re2-imgui/imgui_impl_dx12.cpp"
 		"src/re2-imgui/imgui_impl_dx12.h"
+		"src/re2-imgui/imgui_impl_win32.cpp"
 		"src/re2-imgui/imgui_impl_win32.h"
+		"src/re2-imgui/re2_imconfig.hpp"
+		"src/utility/ImGui.cpp"
+		"src/utility/ImGui.hpp"
 	)
 
-	list(APPEND RE2_SOURCES
-		cmake.toml
-	)
-
-	set(CMKR_SOURCES ${RE2_SOURCES})
 	add_library(RE2 SHARED)
 
-	if(RE2_SOURCES)
-		target_sources(RE2 PRIVATE ${RE2_SOURCES})
-	endif()
+	target_sources(RE2 PRIVATE ${RE2_SOURCES})
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${RE2_SOURCES})
 
 	target_compile_definitions(RE2 PUBLIC
 		${CMKR_TARGET}
@@ -2357,7 +2187,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"REFRAMEWORK_GAME_NAME=\"${CMKR_TARGET}\""
 	)
 
-	if(DEVELOPER_MODE) # developer-mode
+	if(DEVELOPER_MODE) # developer-mode-cond
 		target_compile_definitions(RE2 PUBLIC
 			DEVELOPER
 		)
@@ -2431,135 +2261,125 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/MakeCommitHash.bat
 	)
 
-	unset(CMKR_TARGET)
-	unset(CMKR_SOURCES)
 endif()
-
-# Target RE2_TDB66
+# Target: RE2_TDB66
 if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	set(CMKR_TARGET RE2_TDB66)
-	set(RE2_TDB66_SOURCES "")
-
-	list(APPEND RE2_TDB66_SOURCES
+	set(RE2_TDB66_SOURCES
+		cmake.toml
 		"src/D3D11Hook.cpp"
-		"src/D3D12Hook.cpp"
-		"src/DInputHook.cpp"
-		"src/ExceptionHandler.cpp"
-		"src/HookManager.cpp"
-		"src/Main.cpp"
-		"src/Mods.cpp"
-		"src/REFramework.cpp"
-		"src/WindowFilter.cpp"
-		"src/WindowsMessageHook.cpp"
-		"src/cimgui/cimgui.cpp"
-		"src/mods/APIProxy.cpp"
-		"src/mods/BackBufferRenderer.cpp"
-		"src/mods/Camera.cpp"
-		"src/mods/DeveloperTools.cpp"
-		"src/mods/FirstPerson.cpp"
-		"src/mods/FreeCam.cpp"
-		"src/mods/Graphics.cpp"
-		"src/mods/Hooks.cpp"
-		"src/mods/IntegrityCheckBypass.cpp"
-		"src/mods/LooseFileLoader.cpp"
-		"src/mods/ManualFlashlight.cpp"
-		"src/mods/PluginLoader.cpp"
-		"src/mods/REFrameworkConfig.cpp"
-		"src/mods/Scene.cpp"
-		"src/mods/ScriptRunner.cpp"
-		"src/mods/VR.cpp"
-		"src/mods/bindings/FS.cpp"
-		"src/mods/bindings/ImGui.cpp"
-		"src/mods/bindings/Json.cpp"
-		"src/mods/bindings/Sdk.cpp"
-		"src/mods/tools/ChainViewer.cpp"
-		"src/mods/tools/GameObjectsDisplay.cpp"
-		"src/mods/tools/ObjectExplorer.cpp"
-		"src/mods/vr/Bindings.cpp"
-		"src/mods/vr/D3D11Component.cpp"
-		"src/mods/vr/D3D12Component.cpp"
-		"src/mods/vr/OverlayComponent.cpp"
-		"src/mods/vr/d3d12/CommandContext.cpp"
-		"src/mods/vr/d3d12/ResourceCopier.cpp"
-		"src/mods/vr/d3d12/TextureContext.cpp"
-		"src/mods/vr/games/RE8VR.cpp"
-		"src/mods/vr/runtimes/OpenVR.cpp"
-		"src/mods/vr/runtimes/OpenXR.cpp"
-		"src/re2-imgui/imgui_impl_dx11.cpp"
-		"src/re2-imgui/imgui_impl_dx12.cpp"
-		"src/re2-imgui/imgui_impl_win32.cpp"
-		"src/utility/ImGui.cpp"
 		"src/D3D11Hook.hpp"
+		"src/D3D12Hook.cpp"
 		"src/D3D12Hook.hpp"
+		"src/DInputHook.cpp"
 		"src/DInputHook.hpp"
+		"src/ExceptionHandler.cpp"
 		"src/ExceptionHandler.hpp"
 		"src/Genny.hpp"
 		"src/GennyIda.hpp"
+		"src/HookManager.cpp"
 		"src/HookManager.hpp"
 		"src/LicenseStrings.hpp"
+		"src/Main.cpp"
 		"src/Mod.hpp"
+		"src/Mods.cpp"
 		"src/Mods.hpp"
+		"src/REFramework.cpp"
 		"src/REFramework.hpp"
 		"src/Tool.hpp"
+		"src/WindowFilter.cpp"
 		"src/WindowFilter.hpp"
+		"src/WindowsMessageHook.cpp"
 		"src/WindowsMessageHook.hpp"
+		"src/cimgui/cimgui.cpp"
+		"src/cimgui/cimgui.h"
+		"src/mods/APIProxy.cpp"
 		"src/mods/APIProxy.hpp"
+		"src/mods/BackBufferRenderer.cpp"
 		"src/mods/BackBufferRenderer.hpp"
+		"src/mods/Camera.cpp"
 		"src/mods/Camera.hpp"
+		"src/mods/DeveloperTools.cpp"
 		"src/mods/DeveloperTools.hpp"
+		"src/mods/FirstPerson.cpp"
 		"src/mods/FirstPerson.hpp"
+		"src/mods/FreeCam.cpp"
 		"src/mods/FreeCam.hpp"
+		"src/mods/Graphics.cpp"
 		"src/mods/Graphics.hpp"
+		"src/mods/Hooks.cpp"
 		"src/mods/Hooks.hpp"
+		"src/mods/IntegrityCheckBypass.cpp"
 		"src/mods/IntegrityCheckBypass.hpp"
+		"src/mods/LooseFileLoader.cpp"
 		"src/mods/LooseFileLoader.hpp"
+		"src/mods/ManualFlashlight.cpp"
 		"src/mods/ManualFlashlight.hpp"
+		"src/mods/PluginLoader.cpp"
 		"src/mods/PluginLoader.hpp"
+		"src/mods/REFrameworkConfig.cpp"
 		"src/mods/REFrameworkConfig.hpp"
+		"src/mods/Scene.cpp"
 		"src/mods/Scene.hpp"
+		"src/mods/ScriptRunner.cpp"
 		"src/mods/ScriptRunner.hpp"
+		"src/mods/VR.cpp"
 		"src/mods/VR.hpp"
+		"src/mods/bindings/FS.cpp"
 		"src/mods/bindings/FS.hpp"
+		"src/mods/bindings/ImGui.cpp"
 		"src/mods/bindings/ImGui.hpp"
+		"src/mods/bindings/Json.cpp"
 		"src/mods/bindings/Json.hpp"
+		"src/mods/bindings/Sdk.cpp"
 		"src/mods/bindings/Sdk.hpp"
+		"src/mods/spritefonts/Roboto.spritefont.h"
+		"src/mods/tools/ChainViewer.cpp"
 		"src/mods/tools/ChainViewer.hpp"
+		"src/mods/tools/GameObjectsDisplay.cpp"
 		"src/mods/tools/GameObjectsDisplay.hpp"
+		"src/mods/tools/ObjectExplorer.cpp"
 		"src/mods/tools/ObjectExplorer.hpp"
+		"src/mods/vr/Bindings.cpp"
+		"src/mods/vr/D3D11Component.cpp"
 		"src/mods/vr/D3D11Component.hpp"
+		"src/mods/vr/D3D12Component.cpp"
 		"src/mods/vr/D3D12Component.hpp"
+		"src/mods/vr/OverlayComponent.cpp"
 		"src/mods/vr/OverlayComponent.hpp"
 		"src/mods/vr/d3d12/ComPtr.hpp"
+		"src/mods/vr/d3d12/CommandContext.cpp"
 		"src/mods/vr/d3d12/CommandContext.hpp"
+		"src/mods/vr/d3d12/ResourceCopier.cpp"
 		"src/mods/vr/d3d12/ResourceCopier.hpp"
+		"src/mods/vr/d3d12/TextureContext.cpp"
 		"src/mods/vr/d3d12/TextureContext.hpp"
+		"src/mods/vr/games/RE8VR.cpp"
 		"src/mods/vr/games/RE8VR.hpp"
+		"src/mods/vr/runtimes/OpenVR.cpp"
 		"src/mods/vr/runtimes/OpenVR.hpp"
+		"src/mods/vr/runtimes/OpenXR.cpp"
 		"src/mods/vr/runtimes/OpenXR.hpp"
 		"src/mods/vr/runtimes/VRRuntime.hpp"
 		"src/re2-imgui/af_baidu.hpp"
+		"src/re2-imgui/af_fadef.h"
 		"src/re2-imgui/af_faprolight.hpp"
 		"src/re2-imgui/font_robotomedium.hpp"
-		"src/re2-imgui/re2_imconfig.hpp"
-		"src/utility/ImGui.hpp"
-		"src/cimgui/cimgui.h"
-		"src/mods/spritefonts/Roboto.spritefont.h"
-		"src/re2-imgui/af_fadef.h"
+		"src/re2-imgui/imgui_impl_dx11.cpp"
 		"src/re2-imgui/imgui_impl_dx11.h"
+		"src/re2-imgui/imgui_impl_dx12.cpp"
 		"src/re2-imgui/imgui_impl_dx12.h"
+		"src/re2-imgui/imgui_impl_win32.cpp"
 		"src/re2-imgui/imgui_impl_win32.h"
+		"src/re2-imgui/re2_imconfig.hpp"
+		"src/utility/ImGui.cpp"
+		"src/utility/ImGui.hpp"
 	)
 
-	list(APPEND RE2_TDB66_SOURCES
-		cmake.toml
-	)
-
-	set(CMKR_SOURCES ${RE2_TDB66_SOURCES})
 	add_library(RE2_TDB66 SHARED)
 
-	if(RE2_TDB66_SOURCES)
-		target_sources(RE2_TDB66 PRIVATE ${RE2_TDB66_SOURCES})
-	endif()
+	target_sources(RE2_TDB66 PRIVATE ${RE2_TDB66_SOURCES})
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${RE2_TDB66_SOURCES})
 
 	target_compile_definitions(RE2_TDB66 PUBLIC
 		${CMKR_TARGET}
@@ -2567,7 +2387,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"REFRAMEWORK_GAME_NAME=\"${CMKR_TARGET}\""
 	)
 
-	if(DEVELOPER_MODE) # developer-mode
+	if(DEVELOPER_MODE) # developer-mode-cond
 		target_compile_definitions(RE2_TDB66 PUBLIC
 			DEVELOPER
 		)
@@ -2641,66 +2461,51 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/MakeCommitHash.bat
 	)
 
-	unset(CMKR_TARGET)
-	unset(CMKR_SOURCES)
 endif()
-
-# Target RE3SDK
+# Target: RE3SDK
 if(REF_BUILD_RE3_SDK OR REF_BUILD_FRAMEWORK) # build-re3-sdk
-	set(CMKR_TARGET RE3SDK)
-	set(RE3SDK_SOURCES "")
-
-	list(APPEND RE3SDK_SOURCES
+	set(RE3SDK_SOURCES
+		cmake.toml
 		"shared/sdk/Application.cpp"
-		"shared/sdk/GUIPrimitiveSystem.cpp"
-		"shared/sdk/ManagedObject.cpp"
-		"shared/sdk/Memory.cpp"
-		"shared/sdk/MotionFsm2Layer.cpp"
-		"shared/sdk/MurmurHash.cpp"
-		"shared/sdk/REArray.cpp"
-		"shared/sdk/REContext.cpp"
-		"shared/sdk/REGameObject.cpp"
-		"shared/sdk/REGlobals.cpp"
-		"shared/sdk/REManagedObject.cpp"
-		"shared/sdk/RETransform.cpp"
-		"shared/sdk/REType.cpp"
-		"shared/sdk/RETypeDB.cpp"
-		"shared/sdk/RETypeDefinition.cpp"
-		"shared/sdk/RETypes.cpp"
-		"shared/sdk/REVTableHook.cpp"
-		"shared/sdk/Renderer.cpp"
-		"shared/sdk/ResourceManager.cpp"
-		"shared/sdk/SDK.cpp"
-		"shared/sdk/SF6Utility.cpp"
-		"shared/sdk/SceneManager.cpp"
-		"shared/sdk/SystemArray.cpp"
-		"shared/sdk/helpers/NativeObject.cpp"
-		"shared/sdk/renderer/RenderResource.cpp"
-		"shared/sdk/resources/MasterMaterialResource.cpp"
-		"shared/sdk/resources/ShaderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
+		"shared/sdk/GUIPrimitiveSystem.cpp"
 		"shared/sdk/GUIPrimitiveSystem.hpp"
+		"shared/sdk/ManagedObject.cpp"
 		"shared/sdk/ManagedObject.hpp"
 		"shared/sdk/Math.hpp"
+		"shared/sdk/Memory.cpp"
 		"shared/sdk/Memory.hpp"
+		"shared/sdk/MotionFsm2Layer.cpp"
 		"shared/sdk/MotionFsm2Layer.hpp"
+		"shared/sdk/MurmurHash.cpp"
 		"shared/sdk/MurmurHash.hpp"
+		"shared/sdk/REArray.cpp"
 		"shared/sdk/REArray.hpp"
 		"shared/sdk/REComponent.hpp"
+		"shared/sdk/REContext.cpp"
 		"shared/sdk/REContext.hpp"
+		"shared/sdk/REGameObject.cpp"
 		"shared/sdk/REGameObject.hpp"
+		"shared/sdk/REGlobals.cpp"
 		"shared/sdk/REGlobals.hpp"
+		"shared/sdk/REManagedObject.cpp"
 		"shared/sdk/REManagedObject.hpp"
 		"shared/sdk/REMath.hpp"
 		"shared/sdk/RENativeArray.hpp"
 		"shared/sdk/REString.hpp"
+		"shared/sdk/RETransform.cpp"
 		"shared/sdk/RETransform.hpp"
+		"shared/sdk/REType.cpp"
 		"shared/sdk/REType.hpp"
 		"shared/sdk/RETypeCLR.hpp"
+		"shared/sdk/RETypeDB.cpp"
 		"shared/sdk/RETypeDB.hpp"
+		"shared/sdk/RETypeDefinition.cpp"
 		"shared/sdk/RETypeDefinition.hpp"
+		"shared/sdk/RETypes.cpp"
 		"shared/sdk/RETypes.hpp"
+		"shared/sdk/REVTableHook.cpp"
 		"shared/sdk/REVTableHook.hpp"
 		"shared/sdk/REVariableDescriptor.hpp"
 		"shared/sdk/ReClass.hpp"
@@ -2715,14 +2520,21 @@ if(REF_BUILD_RE3_SDK OR REF_BUILD_FRAMEWORK) # build-re3-sdk
 		"shared/sdk/ReClass_Internal_RE7.hpp"
 		"shared/sdk/ReClass_Internal_RE8.hpp"
 		"shared/sdk/ReClass_Internal_SF6.hpp"
+		"shared/sdk/Renderer.cpp"
 		"shared/sdk/Renderer.hpp"
+		"shared/sdk/ResourceManager.cpp"
 		"shared/sdk/ResourceManager.hpp"
 		"shared/sdk/RopewaySweetLightManager.hpp"
+		"shared/sdk/SDK.cpp"
 		"shared/sdk/SDK.hpp"
+		"shared/sdk/SF6Utility.cpp"
 		"shared/sdk/SF6Utility.hpp"
+		"shared/sdk/SceneManager.cpp"
 		"shared/sdk/SceneManager.hpp"
+		"shared/sdk/SystemArray.cpp"
 		"shared/sdk/SystemArray.hpp"
 		"shared/sdk/TDBVer.hpp"
+		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/helpers/NativeObject.hpp"
 		"shared/sdk/intrusive_ptr.hpp"
 		"shared/sdk/regenny/dd2/BullShit.hpp"
@@ -3431,21 +3243,18 @@ if(REF_BUILD_RE3_SDK OR REF_BUILD_FRAMEWORK) # build-re3-sdk
 		"shared/sdk/regenny/sf6/via/vec3.hpp"
 		"shared/sdk/regenny/sf6/via/vec4.hpp"
 		"shared/sdk/renderer/PipelineState.hpp"
+		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/renderer/RenderResource.hpp"
+		"shared/sdk/resources/MasterMaterialResource.cpp"
 		"shared/sdk/resources/MasterMaterialResource.hpp"
+		"shared/sdk/resources/ShaderResource.cpp"
 		"shared/sdk/resources/ShaderResource.hpp"
 	)
 
-	list(APPEND RE3SDK_SOURCES
-		cmake.toml
-	)
-
-	set(CMKR_SOURCES ${RE3SDK_SOURCES})
 	add_library(RE3SDK STATIC)
 
-	if(RE3SDK_SOURCES)
-		target_sources(RE3SDK PRIVATE ${RE3SDK_SOURCES})
-	endif()
+	target_sources(RE3SDK PRIVATE ${RE3SDK_SOURCES})
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${RE3SDK_SOURCES})
 
 	target_compile_features(RE3SDK PUBLIC
 		cxx_std_23
@@ -3473,66 +3282,51 @@ if(REF_BUILD_RE3_SDK OR REF_BUILD_FRAMEWORK) # build-re3-sdk
 		RE3
 	)
 
-	unset(CMKR_TARGET)
-	unset(CMKR_SOURCES)
 endif()
-
-# Target RE3_TDB67SDK
+# Target: RE3_TDB67SDK
 if(REF_BUILD_RE3_TDB67SDK OR REF_BUILD_FRAMEWORK) # build-re3tdb67-sdk
-	set(CMKR_TARGET RE3_TDB67SDK)
-	set(RE3_TDB67SDK_SOURCES "")
-
-	list(APPEND RE3_TDB67SDK_SOURCES
+	set(RE3_TDB67SDK_SOURCES
+		cmake.toml
 		"shared/sdk/Application.cpp"
-		"shared/sdk/GUIPrimitiveSystem.cpp"
-		"shared/sdk/ManagedObject.cpp"
-		"shared/sdk/Memory.cpp"
-		"shared/sdk/MotionFsm2Layer.cpp"
-		"shared/sdk/MurmurHash.cpp"
-		"shared/sdk/REArray.cpp"
-		"shared/sdk/REContext.cpp"
-		"shared/sdk/REGameObject.cpp"
-		"shared/sdk/REGlobals.cpp"
-		"shared/sdk/REManagedObject.cpp"
-		"shared/sdk/RETransform.cpp"
-		"shared/sdk/REType.cpp"
-		"shared/sdk/RETypeDB.cpp"
-		"shared/sdk/RETypeDefinition.cpp"
-		"shared/sdk/RETypes.cpp"
-		"shared/sdk/REVTableHook.cpp"
-		"shared/sdk/Renderer.cpp"
-		"shared/sdk/ResourceManager.cpp"
-		"shared/sdk/SDK.cpp"
-		"shared/sdk/SF6Utility.cpp"
-		"shared/sdk/SceneManager.cpp"
-		"shared/sdk/SystemArray.cpp"
-		"shared/sdk/helpers/NativeObject.cpp"
-		"shared/sdk/renderer/RenderResource.cpp"
-		"shared/sdk/resources/MasterMaterialResource.cpp"
-		"shared/sdk/resources/ShaderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
+		"shared/sdk/GUIPrimitiveSystem.cpp"
 		"shared/sdk/GUIPrimitiveSystem.hpp"
+		"shared/sdk/ManagedObject.cpp"
 		"shared/sdk/ManagedObject.hpp"
 		"shared/sdk/Math.hpp"
+		"shared/sdk/Memory.cpp"
 		"shared/sdk/Memory.hpp"
+		"shared/sdk/MotionFsm2Layer.cpp"
 		"shared/sdk/MotionFsm2Layer.hpp"
+		"shared/sdk/MurmurHash.cpp"
 		"shared/sdk/MurmurHash.hpp"
+		"shared/sdk/REArray.cpp"
 		"shared/sdk/REArray.hpp"
 		"shared/sdk/REComponent.hpp"
+		"shared/sdk/REContext.cpp"
 		"shared/sdk/REContext.hpp"
+		"shared/sdk/REGameObject.cpp"
 		"shared/sdk/REGameObject.hpp"
+		"shared/sdk/REGlobals.cpp"
 		"shared/sdk/REGlobals.hpp"
+		"shared/sdk/REManagedObject.cpp"
 		"shared/sdk/REManagedObject.hpp"
 		"shared/sdk/REMath.hpp"
 		"shared/sdk/RENativeArray.hpp"
 		"shared/sdk/REString.hpp"
+		"shared/sdk/RETransform.cpp"
 		"shared/sdk/RETransform.hpp"
+		"shared/sdk/REType.cpp"
 		"shared/sdk/REType.hpp"
 		"shared/sdk/RETypeCLR.hpp"
+		"shared/sdk/RETypeDB.cpp"
 		"shared/sdk/RETypeDB.hpp"
+		"shared/sdk/RETypeDefinition.cpp"
 		"shared/sdk/RETypeDefinition.hpp"
+		"shared/sdk/RETypes.cpp"
 		"shared/sdk/RETypes.hpp"
+		"shared/sdk/REVTableHook.cpp"
 		"shared/sdk/REVTableHook.hpp"
 		"shared/sdk/REVariableDescriptor.hpp"
 		"shared/sdk/ReClass.hpp"
@@ -3547,14 +3341,21 @@ if(REF_BUILD_RE3_TDB67SDK OR REF_BUILD_FRAMEWORK) # build-re3tdb67-sdk
 		"shared/sdk/ReClass_Internal_RE7.hpp"
 		"shared/sdk/ReClass_Internal_RE8.hpp"
 		"shared/sdk/ReClass_Internal_SF6.hpp"
+		"shared/sdk/Renderer.cpp"
 		"shared/sdk/Renderer.hpp"
+		"shared/sdk/ResourceManager.cpp"
 		"shared/sdk/ResourceManager.hpp"
 		"shared/sdk/RopewaySweetLightManager.hpp"
+		"shared/sdk/SDK.cpp"
 		"shared/sdk/SDK.hpp"
+		"shared/sdk/SF6Utility.cpp"
 		"shared/sdk/SF6Utility.hpp"
+		"shared/sdk/SceneManager.cpp"
 		"shared/sdk/SceneManager.hpp"
+		"shared/sdk/SystemArray.cpp"
 		"shared/sdk/SystemArray.hpp"
 		"shared/sdk/TDBVer.hpp"
+		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/helpers/NativeObject.hpp"
 		"shared/sdk/intrusive_ptr.hpp"
 		"shared/sdk/regenny/dd2/BullShit.hpp"
@@ -4263,21 +4064,18 @@ if(REF_BUILD_RE3_TDB67SDK OR REF_BUILD_FRAMEWORK) # build-re3tdb67-sdk
 		"shared/sdk/regenny/sf6/via/vec3.hpp"
 		"shared/sdk/regenny/sf6/via/vec4.hpp"
 		"shared/sdk/renderer/PipelineState.hpp"
+		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/renderer/RenderResource.hpp"
+		"shared/sdk/resources/MasterMaterialResource.cpp"
 		"shared/sdk/resources/MasterMaterialResource.hpp"
+		"shared/sdk/resources/ShaderResource.cpp"
 		"shared/sdk/resources/ShaderResource.hpp"
 	)
 
-	list(APPEND RE3_TDB67SDK_SOURCES
-		cmake.toml
-	)
-
-	set(CMKR_SOURCES ${RE3_TDB67SDK_SOURCES})
 	add_library(RE3_TDB67SDK STATIC)
 
-	if(RE3_TDB67SDK_SOURCES)
-		target_sources(RE3_TDB67SDK PRIVATE ${RE3_TDB67SDK_SOURCES})
-	endif()
+	target_sources(RE3_TDB67SDK PRIVATE ${RE3_TDB67SDK_SOURCES})
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${RE3_TDB67SDK_SOURCES})
 
 	target_compile_features(RE3_TDB67SDK PUBLIC
 		cxx_std_23
@@ -4306,135 +4104,125 @@ if(REF_BUILD_RE3_TDB67SDK OR REF_BUILD_FRAMEWORK) # build-re3tdb67-sdk
 		RE3_TDB67
 	)
 
-	unset(CMKR_TARGET)
-	unset(CMKR_SOURCES)
 endif()
-
-# Target RE3
+# Target: RE3
 if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	set(CMKR_TARGET RE3)
-	set(RE3_SOURCES "")
-
-	list(APPEND RE3_SOURCES
+	set(RE3_SOURCES
+		cmake.toml
 		"src/D3D11Hook.cpp"
-		"src/D3D12Hook.cpp"
-		"src/DInputHook.cpp"
-		"src/ExceptionHandler.cpp"
-		"src/HookManager.cpp"
-		"src/Main.cpp"
-		"src/Mods.cpp"
-		"src/REFramework.cpp"
-		"src/WindowFilter.cpp"
-		"src/WindowsMessageHook.cpp"
-		"src/cimgui/cimgui.cpp"
-		"src/mods/APIProxy.cpp"
-		"src/mods/BackBufferRenderer.cpp"
-		"src/mods/Camera.cpp"
-		"src/mods/DeveloperTools.cpp"
-		"src/mods/FirstPerson.cpp"
-		"src/mods/FreeCam.cpp"
-		"src/mods/Graphics.cpp"
-		"src/mods/Hooks.cpp"
-		"src/mods/IntegrityCheckBypass.cpp"
-		"src/mods/LooseFileLoader.cpp"
-		"src/mods/ManualFlashlight.cpp"
-		"src/mods/PluginLoader.cpp"
-		"src/mods/REFrameworkConfig.cpp"
-		"src/mods/Scene.cpp"
-		"src/mods/ScriptRunner.cpp"
-		"src/mods/VR.cpp"
-		"src/mods/bindings/FS.cpp"
-		"src/mods/bindings/ImGui.cpp"
-		"src/mods/bindings/Json.cpp"
-		"src/mods/bindings/Sdk.cpp"
-		"src/mods/tools/ChainViewer.cpp"
-		"src/mods/tools/GameObjectsDisplay.cpp"
-		"src/mods/tools/ObjectExplorer.cpp"
-		"src/mods/vr/Bindings.cpp"
-		"src/mods/vr/D3D11Component.cpp"
-		"src/mods/vr/D3D12Component.cpp"
-		"src/mods/vr/OverlayComponent.cpp"
-		"src/mods/vr/d3d12/CommandContext.cpp"
-		"src/mods/vr/d3d12/ResourceCopier.cpp"
-		"src/mods/vr/d3d12/TextureContext.cpp"
-		"src/mods/vr/games/RE8VR.cpp"
-		"src/mods/vr/runtimes/OpenVR.cpp"
-		"src/mods/vr/runtimes/OpenXR.cpp"
-		"src/re2-imgui/imgui_impl_dx11.cpp"
-		"src/re2-imgui/imgui_impl_dx12.cpp"
-		"src/re2-imgui/imgui_impl_win32.cpp"
-		"src/utility/ImGui.cpp"
 		"src/D3D11Hook.hpp"
+		"src/D3D12Hook.cpp"
 		"src/D3D12Hook.hpp"
+		"src/DInputHook.cpp"
 		"src/DInputHook.hpp"
+		"src/ExceptionHandler.cpp"
 		"src/ExceptionHandler.hpp"
 		"src/Genny.hpp"
 		"src/GennyIda.hpp"
+		"src/HookManager.cpp"
 		"src/HookManager.hpp"
 		"src/LicenseStrings.hpp"
+		"src/Main.cpp"
 		"src/Mod.hpp"
+		"src/Mods.cpp"
 		"src/Mods.hpp"
+		"src/REFramework.cpp"
 		"src/REFramework.hpp"
 		"src/Tool.hpp"
+		"src/WindowFilter.cpp"
 		"src/WindowFilter.hpp"
+		"src/WindowsMessageHook.cpp"
 		"src/WindowsMessageHook.hpp"
+		"src/cimgui/cimgui.cpp"
+		"src/cimgui/cimgui.h"
+		"src/mods/APIProxy.cpp"
 		"src/mods/APIProxy.hpp"
+		"src/mods/BackBufferRenderer.cpp"
 		"src/mods/BackBufferRenderer.hpp"
+		"src/mods/Camera.cpp"
 		"src/mods/Camera.hpp"
+		"src/mods/DeveloperTools.cpp"
 		"src/mods/DeveloperTools.hpp"
+		"src/mods/FirstPerson.cpp"
 		"src/mods/FirstPerson.hpp"
+		"src/mods/FreeCam.cpp"
 		"src/mods/FreeCam.hpp"
+		"src/mods/Graphics.cpp"
 		"src/mods/Graphics.hpp"
+		"src/mods/Hooks.cpp"
 		"src/mods/Hooks.hpp"
+		"src/mods/IntegrityCheckBypass.cpp"
 		"src/mods/IntegrityCheckBypass.hpp"
+		"src/mods/LooseFileLoader.cpp"
 		"src/mods/LooseFileLoader.hpp"
+		"src/mods/ManualFlashlight.cpp"
 		"src/mods/ManualFlashlight.hpp"
+		"src/mods/PluginLoader.cpp"
 		"src/mods/PluginLoader.hpp"
+		"src/mods/REFrameworkConfig.cpp"
 		"src/mods/REFrameworkConfig.hpp"
+		"src/mods/Scene.cpp"
 		"src/mods/Scene.hpp"
+		"src/mods/ScriptRunner.cpp"
 		"src/mods/ScriptRunner.hpp"
+		"src/mods/VR.cpp"
 		"src/mods/VR.hpp"
+		"src/mods/bindings/FS.cpp"
 		"src/mods/bindings/FS.hpp"
+		"src/mods/bindings/ImGui.cpp"
 		"src/mods/bindings/ImGui.hpp"
+		"src/mods/bindings/Json.cpp"
 		"src/mods/bindings/Json.hpp"
+		"src/mods/bindings/Sdk.cpp"
 		"src/mods/bindings/Sdk.hpp"
+		"src/mods/spritefonts/Roboto.spritefont.h"
+		"src/mods/tools/ChainViewer.cpp"
 		"src/mods/tools/ChainViewer.hpp"
+		"src/mods/tools/GameObjectsDisplay.cpp"
 		"src/mods/tools/GameObjectsDisplay.hpp"
+		"src/mods/tools/ObjectExplorer.cpp"
 		"src/mods/tools/ObjectExplorer.hpp"
+		"src/mods/vr/Bindings.cpp"
+		"src/mods/vr/D3D11Component.cpp"
 		"src/mods/vr/D3D11Component.hpp"
+		"src/mods/vr/D3D12Component.cpp"
 		"src/mods/vr/D3D12Component.hpp"
+		"src/mods/vr/OverlayComponent.cpp"
 		"src/mods/vr/OverlayComponent.hpp"
 		"src/mods/vr/d3d12/ComPtr.hpp"
+		"src/mods/vr/d3d12/CommandContext.cpp"
 		"src/mods/vr/d3d12/CommandContext.hpp"
+		"src/mods/vr/d3d12/ResourceCopier.cpp"
 		"src/mods/vr/d3d12/ResourceCopier.hpp"
+		"src/mods/vr/d3d12/TextureContext.cpp"
 		"src/mods/vr/d3d12/TextureContext.hpp"
+		"src/mods/vr/games/RE8VR.cpp"
 		"src/mods/vr/games/RE8VR.hpp"
+		"src/mods/vr/runtimes/OpenVR.cpp"
 		"src/mods/vr/runtimes/OpenVR.hpp"
+		"src/mods/vr/runtimes/OpenXR.cpp"
 		"src/mods/vr/runtimes/OpenXR.hpp"
 		"src/mods/vr/runtimes/VRRuntime.hpp"
 		"src/re2-imgui/af_baidu.hpp"
+		"src/re2-imgui/af_fadef.h"
 		"src/re2-imgui/af_faprolight.hpp"
 		"src/re2-imgui/font_robotomedium.hpp"
-		"src/re2-imgui/re2_imconfig.hpp"
-		"src/utility/ImGui.hpp"
-		"src/cimgui/cimgui.h"
-		"src/mods/spritefonts/Roboto.spritefont.h"
-		"src/re2-imgui/af_fadef.h"
+		"src/re2-imgui/imgui_impl_dx11.cpp"
 		"src/re2-imgui/imgui_impl_dx11.h"
+		"src/re2-imgui/imgui_impl_dx12.cpp"
 		"src/re2-imgui/imgui_impl_dx12.h"
+		"src/re2-imgui/imgui_impl_win32.cpp"
 		"src/re2-imgui/imgui_impl_win32.h"
+		"src/re2-imgui/re2_imconfig.hpp"
+		"src/utility/ImGui.cpp"
+		"src/utility/ImGui.hpp"
 	)
 
-	list(APPEND RE3_SOURCES
-		cmake.toml
-	)
-
-	set(CMKR_SOURCES ${RE3_SOURCES})
 	add_library(RE3 SHARED)
 
-	if(RE3_SOURCES)
-		target_sources(RE3 PRIVATE ${RE3_SOURCES})
-	endif()
+	target_sources(RE3 PRIVATE ${RE3_SOURCES})
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${RE3_SOURCES})
 
 	target_compile_definitions(RE3 PUBLIC
 		${CMKR_TARGET}
@@ -4442,7 +4230,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"REFRAMEWORK_GAME_NAME=\"${CMKR_TARGET}\""
 	)
 
-	if(DEVELOPER_MODE) # developer-mode
+	if(DEVELOPER_MODE) # developer-mode-cond
 		target_compile_definitions(RE3 PUBLIC
 			DEVELOPER
 		)
@@ -4516,135 +4304,125 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/MakeCommitHash.bat
 	)
 
-	unset(CMKR_TARGET)
-	unset(CMKR_SOURCES)
 endif()
-
-# Target RE3_TDB67
+# Target: RE3_TDB67
 if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	set(CMKR_TARGET RE3_TDB67)
-	set(RE3_TDB67_SOURCES "")
-
-	list(APPEND RE3_TDB67_SOURCES
+	set(RE3_TDB67_SOURCES
+		cmake.toml
 		"src/D3D11Hook.cpp"
-		"src/D3D12Hook.cpp"
-		"src/DInputHook.cpp"
-		"src/ExceptionHandler.cpp"
-		"src/HookManager.cpp"
-		"src/Main.cpp"
-		"src/Mods.cpp"
-		"src/REFramework.cpp"
-		"src/WindowFilter.cpp"
-		"src/WindowsMessageHook.cpp"
-		"src/cimgui/cimgui.cpp"
-		"src/mods/APIProxy.cpp"
-		"src/mods/BackBufferRenderer.cpp"
-		"src/mods/Camera.cpp"
-		"src/mods/DeveloperTools.cpp"
-		"src/mods/FirstPerson.cpp"
-		"src/mods/FreeCam.cpp"
-		"src/mods/Graphics.cpp"
-		"src/mods/Hooks.cpp"
-		"src/mods/IntegrityCheckBypass.cpp"
-		"src/mods/LooseFileLoader.cpp"
-		"src/mods/ManualFlashlight.cpp"
-		"src/mods/PluginLoader.cpp"
-		"src/mods/REFrameworkConfig.cpp"
-		"src/mods/Scene.cpp"
-		"src/mods/ScriptRunner.cpp"
-		"src/mods/VR.cpp"
-		"src/mods/bindings/FS.cpp"
-		"src/mods/bindings/ImGui.cpp"
-		"src/mods/bindings/Json.cpp"
-		"src/mods/bindings/Sdk.cpp"
-		"src/mods/tools/ChainViewer.cpp"
-		"src/mods/tools/GameObjectsDisplay.cpp"
-		"src/mods/tools/ObjectExplorer.cpp"
-		"src/mods/vr/Bindings.cpp"
-		"src/mods/vr/D3D11Component.cpp"
-		"src/mods/vr/D3D12Component.cpp"
-		"src/mods/vr/OverlayComponent.cpp"
-		"src/mods/vr/d3d12/CommandContext.cpp"
-		"src/mods/vr/d3d12/ResourceCopier.cpp"
-		"src/mods/vr/d3d12/TextureContext.cpp"
-		"src/mods/vr/games/RE8VR.cpp"
-		"src/mods/vr/runtimes/OpenVR.cpp"
-		"src/mods/vr/runtimes/OpenXR.cpp"
-		"src/re2-imgui/imgui_impl_dx11.cpp"
-		"src/re2-imgui/imgui_impl_dx12.cpp"
-		"src/re2-imgui/imgui_impl_win32.cpp"
-		"src/utility/ImGui.cpp"
 		"src/D3D11Hook.hpp"
+		"src/D3D12Hook.cpp"
 		"src/D3D12Hook.hpp"
+		"src/DInputHook.cpp"
 		"src/DInputHook.hpp"
+		"src/ExceptionHandler.cpp"
 		"src/ExceptionHandler.hpp"
 		"src/Genny.hpp"
 		"src/GennyIda.hpp"
+		"src/HookManager.cpp"
 		"src/HookManager.hpp"
 		"src/LicenseStrings.hpp"
+		"src/Main.cpp"
 		"src/Mod.hpp"
+		"src/Mods.cpp"
 		"src/Mods.hpp"
+		"src/REFramework.cpp"
 		"src/REFramework.hpp"
 		"src/Tool.hpp"
+		"src/WindowFilter.cpp"
 		"src/WindowFilter.hpp"
+		"src/WindowsMessageHook.cpp"
 		"src/WindowsMessageHook.hpp"
+		"src/cimgui/cimgui.cpp"
+		"src/cimgui/cimgui.h"
+		"src/mods/APIProxy.cpp"
 		"src/mods/APIProxy.hpp"
+		"src/mods/BackBufferRenderer.cpp"
 		"src/mods/BackBufferRenderer.hpp"
+		"src/mods/Camera.cpp"
 		"src/mods/Camera.hpp"
+		"src/mods/DeveloperTools.cpp"
 		"src/mods/DeveloperTools.hpp"
+		"src/mods/FirstPerson.cpp"
 		"src/mods/FirstPerson.hpp"
+		"src/mods/FreeCam.cpp"
 		"src/mods/FreeCam.hpp"
+		"src/mods/Graphics.cpp"
 		"src/mods/Graphics.hpp"
+		"src/mods/Hooks.cpp"
 		"src/mods/Hooks.hpp"
+		"src/mods/IntegrityCheckBypass.cpp"
 		"src/mods/IntegrityCheckBypass.hpp"
+		"src/mods/LooseFileLoader.cpp"
 		"src/mods/LooseFileLoader.hpp"
+		"src/mods/ManualFlashlight.cpp"
 		"src/mods/ManualFlashlight.hpp"
+		"src/mods/PluginLoader.cpp"
 		"src/mods/PluginLoader.hpp"
+		"src/mods/REFrameworkConfig.cpp"
 		"src/mods/REFrameworkConfig.hpp"
+		"src/mods/Scene.cpp"
 		"src/mods/Scene.hpp"
+		"src/mods/ScriptRunner.cpp"
 		"src/mods/ScriptRunner.hpp"
+		"src/mods/VR.cpp"
 		"src/mods/VR.hpp"
+		"src/mods/bindings/FS.cpp"
 		"src/mods/bindings/FS.hpp"
+		"src/mods/bindings/ImGui.cpp"
 		"src/mods/bindings/ImGui.hpp"
+		"src/mods/bindings/Json.cpp"
 		"src/mods/bindings/Json.hpp"
+		"src/mods/bindings/Sdk.cpp"
 		"src/mods/bindings/Sdk.hpp"
+		"src/mods/spritefonts/Roboto.spritefont.h"
+		"src/mods/tools/ChainViewer.cpp"
 		"src/mods/tools/ChainViewer.hpp"
+		"src/mods/tools/GameObjectsDisplay.cpp"
 		"src/mods/tools/GameObjectsDisplay.hpp"
+		"src/mods/tools/ObjectExplorer.cpp"
 		"src/mods/tools/ObjectExplorer.hpp"
+		"src/mods/vr/Bindings.cpp"
+		"src/mods/vr/D3D11Component.cpp"
 		"src/mods/vr/D3D11Component.hpp"
+		"src/mods/vr/D3D12Component.cpp"
 		"src/mods/vr/D3D12Component.hpp"
+		"src/mods/vr/OverlayComponent.cpp"
 		"src/mods/vr/OverlayComponent.hpp"
 		"src/mods/vr/d3d12/ComPtr.hpp"
+		"src/mods/vr/d3d12/CommandContext.cpp"
 		"src/mods/vr/d3d12/CommandContext.hpp"
+		"src/mods/vr/d3d12/ResourceCopier.cpp"
 		"src/mods/vr/d3d12/ResourceCopier.hpp"
+		"src/mods/vr/d3d12/TextureContext.cpp"
 		"src/mods/vr/d3d12/TextureContext.hpp"
+		"src/mods/vr/games/RE8VR.cpp"
 		"src/mods/vr/games/RE8VR.hpp"
+		"src/mods/vr/runtimes/OpenVR.cpp"
 		"src/mods/vr/runtimes/OpenVR.hpp"
+		"src/mods/vr/runtimes/OpenXR.cpp"
 		"src/mods/vr/runtimes/OpenXR.hpp"
 		"src/mods/vr/runtimes/VRRuntime.hpp"
 		"src/re2-imgui/af_baidu.hpp"
+		"src/re2-imgui/af_fadef.h"
 		"src/re2-imgui/af_faprolight.hpp"
 		"src/re2-imgui/font_robotomedium.hpp"
-		"src/re2-imgui/re2_imconfig.hpp"
-		"src/utility/ImGui.hpp"
-		"src/cimgui/cimgui.h"
-		"src/mods/spritefonts/Roboto.spritefont.h"
-		"src/re2-imgui/af_fadef.h"
+		"src/re2-imgui/imgui_impl_dx11.cpp"
 		"src/re2-imgui/imgui_impl_dx11.h"
+		"src/re2-imgui/imgui_impl_dx12.cpp"
 		"src/re2-imgui/imgui_impl_dx12.h"
+		"src/re2-imgui/imgui_impl_win32.cpp"
 		"src/re2-imgui/imgui_impl_win32.h"
+		"src/re2-imgui/re2_imconfig.hpp"
+		"src/utility/ImGui.cpp"
+		"src/utility/ImGui.hpp"
 	)
 
-	list(APPEND RE3_TDB67_SOURCES
-		cmake.toml
-	)
-
-	set(CMKR_SOURCES ${RE3_TDB67_SOURCES})
 	add_library(RE3_TDB67 SHARED)
 
-	if(RE3_TDB67_SOURCES)
-		target_sources(RE3_TDB67 PRIVATE ${RE3_TDB67_SOURCES})
-	endif()
+	target_sources(RE3_TDB67 PRIVATE ${RE3_TDB67_SOURCES})
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${RE3_TDB67_SOURCES})
 
 	target_compile_definitions(RE3_TDB67 PUBLIC
 		${CMKR_TARGET}
@@ -4652,7 +4430,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"REFRAMEWORK_GAME_NAME=\"${CMKR_TARGET}\""
 	)
 
-	if(DEVELOPER_MODE) # developer-mode
+	if(DEVELOPER_MODE) # developer-mode-cond
 		target_compile_definitions(RE3_TDB67 PUBLIC
 			DEVELOPER
 		)
@@ -4726,135 +4504,125 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/MakeCommitHash.bat
 	)
 
-	unset(CMKR_TARGET)
-	unset(CMKR_SOURCES)
 endif()
-
-# Target RE4
+# Target: RE4
 if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	set(CMKR_TARGET RE4)
-	set(RE4_SOURCES "")
-
-	list(APPEND RE4_SOURCES
+	set(RE4_SOURCES
+		cmake.toml
 		"src/D3D11Hook.cpp"
-		"src/D3D12Hook.cpp"
-		"src/DInputHook.cpp"
-		"src/ExceptionHandler.cpp"
-		"src/HookManager.cpp"
-		"src/Main.cpp"
-		"src/Mods.cpp"
-		"src/REFramework.cpp"
-		"src/WindowFilter.cpp"
-		"src/WindowsMessageHook.cpp"
-		"src/cimgui/cimgui.cpp"
-		"src/mods/APIProxy.cpp"
-		"src/mods/BackBufferRenderer.cpp"
-		"src/mods/Camera.cpp"
-		"src/mods/DeveloperTools.cpp"
-		"src/mods/FirstPerson.cpp"
-		"src/mods/FreeCam.cpp"
-		"src/mods/Graphics.cpp"
-		"src/mods/Hooks.cpp"
-		"src/mods/IntegrityCheckBypass.cpp"
-		"src/mods/LooseFileLoader.cpp"
-		"src/mods/ManualFlashlight.cpp"
-		"src/mods/PluginLoader.cpp"
-		"src/mods/REFrameworkConfig.cpp"
-		"src/mods/Scene.cpp"
-		"src/mods/ScriptRunner.cpp"
-		"src/mods/VR.cpp"
-		"src/mods/bindings/FS.cpp"
-		"src/mods/bindings/ImGui.cpp"
-		"src/mods/bindings/Json.cpp"
-		"src/mods/bindings/Sdk.cpp"
-		"src/mods/tools/ChainViewer.cpp"
-		"src/mods/tools/GameObjectsDisplay.cpp"
-		"src/mods/tools/ObjectExplorer.cpp"
-		"src/mods/vr/Bindings.cpp"
-		"src/mods/vr/D3D11Component.cpp"
-		"src/mods/vr/D3D12Component.cpp"
-		"src/mods/vr/OverlayComponent.cpp"
-		"src/mods/vr/d3d12/CommandContext.cpp"
-		"src/mods/vr/d3d12/ResourceCopier.cpp"
-		"src/mods/vr/d3d12/TextureContext.cpp"
-		"src/mods/vr/games/RE8VR.cpp"
-		"src/mods/vr/runtimes/OpenVR.cpp"
-		"src/mods/vr/runtimes/OpenXR.cpp"
-		"src/re2-imgui/imgui_impl_dx11.cpp"
-		"src/re2-imgui/imgui_impl_dx12.cpp"
-		"src/re2-imgui/imgui_impl_win32.cpp"
-		"src/utility/ImGui.cpp"
 		"src/D3D11Hook.hpp"
+		"src/D3D12Hook.cpp"
 		"src/D3D12Hook.hpp"
+		"src/DInputHook.cpp"
 		"src/DInputHook.hpp"
+		"src/ExceptionHandler.cpp"
 		"src/ExceptionHandler.hpp"
 		"src/Genny.hpp"
 		"src/GennyIda.hpp"
+		"src/HookManager.cpp"
 		"src/HookManager.hpp"
 		"src/LicenseStrings.hpp"
+		"src/Main.cpp"
 		"src/Mod.hpp"
+		"src/Mods.cpp"
 		"src/Mods.hpp"
+		"src/REFramework.cpp"
 		"src/REFramework.hpp"
 		"src/Tool.hpp"
+		"src/WindowFilter.cpp"
 		"src/WindowFilter.hpp"
+		"src/WindowsMessageHook.cpp"
 		"src/WindowsMessageHook.hpp"
+		"src/cimgui/cimgui.cpp"
+		"src/cimgui/cimgui.h"
+		"src/mods/APIProxy.cpp"
 		"src/mods/APIProxy.hpp"
+		"src/mods/BackBufferRenderer.cpp"
 		"src/mods/BackBufferRenderer.hpp"
+		"src/mods/Camera.cpp"
 		"src/mods/Camera.hpp"
+		"src/mods/DeveloperTools.cpp"
 		"src/mods/DeveloperTools.hpp"
+		"src/mods/FirstPerson.cpp"
 		"src/mods/FirstPerson.hpp"
+		"src/mods/FreeCam.cpp"
 		"src/mods/FreeCam.hpp"
+		"src/mods/Graphics.cpp"
 		"src/mods/Graphics.hpp"
+		"src/mods/Hooks.cpp"
 		"src/mods/Hooks.hpp"
+		"src/mods/IntegrityCheckBypass.cpp"
 		"src/mods/IntegrityCheckBypass.hpp"
+		"src/mods/LooseFileLoader.cpp"
 		"src/mods/LooseFileLoader.hpp"
+		"src/mods/ManualFlashlight.cpp"
 		"src/mods/ManualFlashlight.hpp"
+		"src/mods/PluginLoader.cpp"
 		"src/mods/PluginLoader.hpp"
+		"src/mods/REFrameworkConfig.cpp"
 		"src/mods/REFrameworkConfig.hpp"
+		"src/mods/Scene.cpp"
 		"src/mods/Scene.hpp"
+		"src/mods/ScriptRunner.cpp"
 		"src/mods/ScriptRunner.hpp"
+		"src/mods/VR.cpp"
 		"src/mods/VR.hpp"
+		"src/mods/bindings/FS.cpp"
 		"src/mods/bindings/FS.hpp"
+		"src/mods/bindings/ImGui.cpp"
 		"src/mods/bindings/ImGui.hpp"
+		"src/mods/bindings/Json.cpp"
 		"src/mods/bindings/Json.hpp"
+		"src/mods/bindings/Sdk.cpp"
 		"src/mods/bindings/Sdk.hpp"
+		"src/mods/spritefonts/Roboto.spritefont.h"
+		"src/mods/tools/ChainViewer.cpp"
 		"src/mods/tools/ChainViewer.hpp"
+		"src/mods/tools/GameObjectsDisplay.cpp"
 		"src/mods/tools/GameObjectsDisplay.hpp"
+		"src/mods/tools/ObjectExplorer.cpp"
 		"src/mods/tools/ObjectExplorer.hpp"
+		"src/mods/vr/Bindings.cpp"
+		"src/mods/vr/D3D11Component.cpp"
 		"src/mods/vr/D3D11Component.hpp"
+		"src/mods/vr/D3D12Component.cpp"
 		"src/mods/vr/D3D12Component.hpp"
+		"src/mods/vr/OverlayComponent.cpp"
 		"src/mods/vr/OverlayComponent.hpp"
 		"src/mods/vr/d3d12/ComPtr.hpp"
+		"src/mods/vr/d3d12/CommandContext.cpp"
 		"src/mods/vr/d3d12/CommandContext.hpp"
+		"src/mods/vr/d3d12/ResourceCopier.cpp"
 		"src/mods/vr/d3d12/ResourceCopier.hpp"
+		"src/mods/vr/d3d12/TextureContext.cpp"
 		"src/mods/vr/d3d12/TextureContext.hpp"
+		"src/mods/vr/games/RE8VR.cpp"
 		"src/mods/vr/games/RE8VR.hpp"
+		"src/mods/vr/runtimes/OpenVR.cpp"
 		"src/mods/vr/runtimes/OpenVR.hpp"
+		"src/mods/vr/runtimes/OpenXR.cpp"
 		"src/mods/vr/runtimes/OpenXR.hpp"
 		"src/mods/vr/runtimes/VRRuntime.hpp"
 		"src/re2-imgui/af_baidu.hpp"
+		"src/re2-imgui/af_fadef.h"
 		"src/re2-imgui/af_faprolight.hpp"
 		"src/re2-imgui/font_robotomedium.hpp"
-		"src/re2-imgui/re2_imconfig.hpp"
-		"src/utility/ImGui.hpp"
-		"src/cimgui/cimgui.h"
-		"src/mods/spritefonts/Roboto.spritefont.h"
-		"src/re2-imgui/af_fadef.h"
+		"src/re2-imgui/imgui_impl_dx11.cpp"
 		"src/re2-imgui/imgui_impl_dx11.h"
+		"src/re2-imgui/imgui_impl_dx12.cpp"
 		"src/re2-imgui/imgui_impl_dx12.h"
+		"src/re2-imgui/imgui_impl_win32.cpp"
 		"src/re2-imgui/imgui_impl_win32.h"
+		"src/re2-imgui/re2_imconfig.hpp"
+		"src/utility/ImGui.cpp"
+		"src/utility/ImGui.hpp"
 	)
 
-	list(APPEND RE4_SOURCES
-		cmake.toml
-	)
-
-	set(CMKR_SOURCES ${RE4_SOURCES})
 	add_library(RE4 SHARED)
 
-	if(RE4_SOURCES)
-		target_sources(RE4 PRIVATE ${RE4_SOURCES})
-	endif()
+	target_sources(RE4 PRIVATE ${RE4_SOURCES})
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${RE4_SOURCES})
 
 	target_compile_definitions(RE4 PUBLIC
 		${CMKR_TARGET}
@@ -4862,7 +4630,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"REFRAMEWORK_GAME_NAME=\"${CMKR_TARGET}\""
 	)
 
-	if(DEVELOPER_MODE) # developer-mode
+	if(DEVELOPER_MODE) # developer-mode-cond
 		target_compile_definitions(RE4 PUBLIC
 			DEVELOPER
 		)
@@ -4936,66 +4704,51 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/MakeCommitHash.bat
 	)
 
-	unset(CMKR_TARGET)
-	unset(CMKR_SOURCES)
 endif()
-
-# Target RE4SDK
+# Target: RE4SDK
 if(REF_BUILD_RE4_SDK OR REF_BUILD_FRAMEWORK) # build-re4-sdk
-	set(CMKR_TARGET RE4SDK)
-	set(RE4SDK_SOURCES "")
-
-	list(APPEND RE4SDK_SOURCES
+	set(RE4SDK_SOURCES
+		cmake.toml
 		"shared/sdk/Application.cpp"
-		"shared/sdk/GUIPrimitiveSystem.cpp"
-		"shared/sdk/ManagedObject.cpp"
-		"shared/sdk/Memory.cpp"
-		"shared/sdk/MotionFsm2Layer.cpp"
-		"shared/sdk/MurmurHash.cpp"
-		"shared/sdk/REArray.cpp"
-		"shared/sdk/REContext.cpp"
-		"shared/sdk/REGameObject.cpp"
-		"shared/sdk/REGlobals.cpp"
-		"shared/sdk/REManagedObject.cpp"
-		"shared/sdk/RETransform.cpp"
-		"shared/sdk/REType.cpp"
-		"shared/sdk/RETypeDB.cpp"
-		"shared/sdk/RETypeDefinition.cpp"
-		"shared/sdk/RETypes.cpp"
-		"shared/sdk/REVTableHook.cpp"
-		"shared/sdk/Renderer.cpp"
-		"shared/sdk/ResourceManager.cpp"
-		"shared/sdk/SDK.cpp"
-		"shared/sdk/SF6Utility.cpp"
-		"shared/sdk/SceneManager.cpp"
-		"shared/sdk/SystemArray.cpp"
-		"shared/sdk/helpers/NativeObject.cpp"
-		"shared/sdk/renderer/RenderResource.cpp"
-		"shared/sdk/resources/MasterMaterialResource.cpp"
-		"shared/sdk/resources/ShaderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
+		"shared/sdk/GUIPrimitiveSystem.cpp"
 		"shared/sdk/GUIPrimitiveSystem.hpp"
+		"shared/sdk/ManagedObject.cpp"
 		"shared/sdk/ManagedObject.hpp"
 		"shared/sdk/Math.hpp"
+		"shared/sdk/Memory.cpp"
 		"shared/sdk/Memory.hpp"
+		"shared/sdk/MotionFsm2Layer.cpp"
 		"shared/sdk/MotionFsm2Layer.hpp"
+		"shared/sdk/MurmurHash.cpp"
 		"shared/sdk/MurmurHash.hpp"
+		"shared/sdk/REArray.cpp"
 		"shared/sdk/REArray.hpp"
 		"shared/sdk/REComponent.hpp"
+		"shared/sdk/REContext.cpp"
 		"shared/sdk/REContext.hpp"
+		"shared/sdk/REGameObject.cpp"
 		"shared/sdk/REGameObject.hpp"
+		"shared/sdk/REGlobals.cpp"
 		"shared/sdk/REGlobals.hpp"
+		"shared/sdk/REManagedObject.cpp"
 		"shared/sdk/REManagedObject.hpp"
 		"shared/sdk/REMath.hpp"
 		"shared/sdk/RENativeArray.hpp"
 		"shared/sdk/REString.hpp"
+		"shared/sdk/RETransform.cpp"
 		"shared/sdk/RETransform.hpp"
+		"shared/sdk/REType.cpp"
 		"shared/sdk/REType.hpp"
 		"shared/sdk/RETypeCLR.hpp"
+		"shared/sdk/RETypeDB.cpp"
 		"shared/sdk/RETypeDB.hpp"
+		"shared/sdk/RETypeDefinition.cpp"
 		"shared/sdk/RETypeDefinition.hpp"
+		"shared/sdk/RETypes.cpp"
 		"shared/sdk/RETypes.hpp"
+		"shared/sdk/REVTableHook.cpp"
 		"shared/sdk/REVTableHook.hpp"
 		"shared/sdk/REVariableDescriptor.hpp"
 		"shared/sdk/ReClass.hpp"
@@ -5010,14 +4763,21 @@ if(REF_BUILD_RE4_SDK OR REF_BUILD_FRAMEWORK) # build-re4-sdk
 		"shared/sdk/ReClass_Internal_RE7.hpp"
 		"shared/sdk/ReClass_Internal_RE8.hpp"
 		"shared/sdk/ReClass_Internal_SF6.hpp"
+		"shared/sdk/Renderer.cpp"
 		"shared/sdk/Renderer.hpp"
+		"shared/sdk/ResourceManager.cpp"
 		"shared/sdk/ResourceManager.hpp"
 		"shared/sdk/RopewaySweetLightManager.hpp"
+		"shared/sdk/SDK.cpp"
 		"shared/sdk/SDK.hpp"
+		"shared/sdk/SF6Utility.cpp"
 		"shared/sdk/SF6Utility.hpp"
+		"shared/sdk/SceneManager.cpp"
 		"shared/sdk/SceneManager.hpp"
+		"shared/sdk/SystemArray.cpp"
 		"shared/sdk/SystemArray.hpp"
 		"shared/sdk/TDBVer.hpp"
+		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/helpers/NativeObject.hpp"
 		"shared/sdk/intrusive_ptr.hpp"
 		"shared/sdk/regenny/dd2/BullShit.hpp"
@@ -5726,21 +5486,18 @@ if(REF_BUILD_RE4_SDK OR REF_BUILD_FRAMEWORK) # build-re4-sdk
 		"shared/sdk/regenny/sf6/via/vec3.hpp"
 		"shared/sdk/regenny/sf6/via/vec4.hpp"
 		"shared/sdk/renderer/PipelineState.hpp"
+		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/renderer/RenderResource.hpp"
+		"shared/sdk/resources/MasterMaterialResource.cpp"
 		"shared/sdk/resources/MasterMaterialResource.hpp"
+		"shared/sdk/resources/ShaderResource.cpp"
 		"shared/sdk/resources/ShaderResource.hpp"
 	)
 
-	list(APPEND RE4SDK_SOURCES
-		cmake.toml
-	)
-
-	set(CMKR_SOURCES ${RE4SDK_SOURCES})
 	add_library(RE4SDK STATIC)
 
-	if(RE4SDK_SOURCES)
-		target_sources(RE4SDK PRIVATE ${RE4SDK_SOURCES})
-	endif()
+	target_sources(RE4SDK PRIVATE ${RE4SDK_SOURCES})
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${RE4SDK_SOURCES})
 
 	target_compile_features(RE4SDK PUBLIC
 		cxx_std_23
@@ -5770,66 +5527,51 @@ if(REF_BUILD_RE4_SDK OR REF_BUILD_FRAMEWORK) # build-re4-sdk
 		REENGINE_AT
 	)
 
-	unset(CMKR_TARGET)
-	unset(CMKR_SOURCES)
 endif()
-
-# Target RE7SDK
+# Target: RE7SDK
 if(REF_BUILD_RE7_SDK OR REF_BUILD_FRAMEWORK) # build-re7-sdk
-	set(CMKR_TARGET RE7SDK)
-	set(RE7SDK_SOURCES "")
-
-	list(APPEND RE7SDK_SOURCES
+	set(RE7SDK_SOURCES
+		cmake.toml
 		"shared/sdk/Application.cpp"
-		"shared/sdk/GUIPrimitiveSystem.cpp"
-		"shared/sdk/ManagedObject.cpp"
-		"shared/sdk/Memory.cpp"
-		"shared/sdk/MotionFsm2Layer.cpp"
-		"shared/sdk/MurmurHash.cpp"
-		"shared/sdk/REArray.cpp"
-		"shared/sdk/REContext.cpp"
-		"shared/sdk/REGameObject.cpp"
-		"shared/sdk/REGlobals.cpp"
-		"shared/sdk/REManagedObject.cpp"
-		"shared/sdk/RETransform.cpp"
-		"shared/sdk/REType.cpp"
-		"shared/sdk/RETypeDB.cpp"
-		"shared/sdk/RETypeDefinition.cpp"
-		"shared/sdk/RETypes.cpp"
-		"shared/sdk/REVTableHook.cpp"
-		"shared/sdk/Renderer.cpp"
-		"shared/sdk/ResourceManager.cpp"
-		"shared/sdk/SDK.cpp"
-		"shared/sdk/SF6Utility.cpp"
-		"shared/sdk/SceneManager.cpp"
-		"shared/sdk/SystemArray.cpp"
-		"shared/sdk/helpers/NativeObject.cpp"
-		"shared/sdk/renderer/RenderResource.cpp"
-		"shared/sdk/resources/MasterMaterialResource.cpp"
-		"shared/sdk/resources/ShaderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
+		"shared/sdk/GUIPrimitiveSystem.cpp"
 		"shared/sdk/GUIPrimitiveSystem.hpp"
+		"shared/sdk/ManagedObject.cpp"
 		"shared/sdk/ManagedObject.hpp"
 		"shared/sdk/Math.hpp"
+		"shared/sdk/Memory.cpp"
 		"shared/sdk/Memory.hpp"
+		"shared/sdk/MotionFsm2Layer.cpp"
 		"shared/sdk/MotionFsm2Layer.hpp"
+		"shared/sdk/MurmurHash.cpp"
 		"shared/sdk/MurmurHash.hpp"
+		"shared/sdk/REArray.cpp"
 		"shared/sdk/REArray.hpp"
 		"shared/sdk/REComponent.hpp"
+		"shared/sdk/REContext.cpp"
 		"shared/sdk/REContext.hpp"
+		"shared/sdk/REGameObject.cpp"
 		"shared/sdk/REGameObject.hpp"
+		"shared/sdk/REGlobals.cpp"
 		"shared/sdk/REGlobals.hpp"
+		"shared/sdk/REManagedObject.cpp"
 		"shared/sdk/REManagedObject.hpp"
 		"shared/sdk/REMath.hpp"
 		"shared/sdk/RENativeArray.hpp"
 		"shared/sdk/REString.hpp"
+		"shared/sdk/RETransform.cpp"
 		"shared/sdk/RETransform.hpp"
+		"shared/sdk/REType.cpp"
 		"shared/sdk/REType.hpp"
 		"shared/sdk/RETypeCLR.hpp"
+		"shared/sdk/RETypeDB.cpp"
 		"shared/sdk/RETypeDB.hpp"
+		"shared/sdk/RETypeDefinition.cpp"
 		"shared/sdk/RETypeDefinition.hpp"
+		"shared/sdk/RETypes.cpp"
 		"shared/sdk/RETypes.hpp"
+		"shared/sdk/REVTableHook.cpp"
 		"shared/sdk/REVTableHook.hpp"
 		"shared/sdk/REVariableDescriptor.hpp"
 		"shared/sdk/ReClass.hpp"
@@ -5844,14 +5586,21 @@ if(REF_BUILD_RE7_SDK OR REF_BUILD_FRAMEWORK) # build-re7-sdk
 		"shared/sdk/ReClass_Internal_RE7.hpp"
 		"shared/sdk/ReClass_Internal_RE8.hpp"
 		"shared/sdk/ReClass_Internal_SF6.hpp"
+		"shared/sdk/Renderer.cpp"
 		"shared/sdk/Renderer.hpp"
+		"shared/sdk/ResourceManager.cpp"
 		"shared/sdk/ResourceManager.hpp"
 		"shared/sdk/RopewaySweetLightManager.hpp"
+		"shared/sdk/SDK.cpp"
 		"shared/sdk/SDK.hpp"
+		"shared/sdk/SF6Utility.cpp"
 		"shared/sdk/SF6Utility.hpp"
+		"shared/sdk/SceneManager.cpp"
 		"shared/sdk/SceneManager.hpp"
+		"shared/sdk/SystemArray.cpp"
 		"shared/sdk/SystemArray.hpp"
 		"shared/sdk/TDBVer.hpp"
+		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/helpers/NativeObject.hpp"
 		"shared/sdk/intrusive_ptr.hpp"
 		"shared/sdk/regenny/dd2/BullShit.hpp"
@@ -6560,21 +6309,18 @@ if(REF_BUILD_RE7_SDK OR REF_BUILD_FRAMEWORK) # build-re7-sdk
 		"shared/sdk/regenny/sf6/via/vec3.hpp"
 		"shared/sdk/regenny/sf6/via/vec4.hpp"
 		"shared/sdk/renderer/PipelineState.hpp"
+		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/renderer/RenderResource.hpp"
+		"shared/sdk/resources/MasterMaterialResource.cpp"
 		"shared/sdk/resources/MasterMaterialResource.hpp"
+		"shared/sdk/resources/ShaderResource.cpp"
 		"shared/sdk/resources/ShaderResource.hpp"
 	)
 
-	list(APPEND RE7SDK_SOURCES
-		cmake.toml
-	)
-
-	set(CMKR_SOURCES ${RE7SDK_SOURCES})
 	add_library(RE7SDK STATIC)
 
-	if(RE7SDK_SOURCES)
-		target_sources(RE7SDK PRIVATE ${RE7SDK_SOURCES})
-	endif()
+	target_sources(RE7SDK PRIVATE ${RE7SDK_SOURCES})
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${RE7SDK_SOURCES})
 
 	target_compile_features(RE7SDK PUBLIC
 		cxx_std_23
@@ -6602,66 +6348,51 @@ if(REF_BUILD_RE7_SDK OR REF_BUILD_FRAMEWORK) # build-re7-sdk
 		RE7
 	)
 
-	unset(CMKR_TARGET)
-	unset(CMKR_SOURCES)
 endif()
-
-# Target RE7_TDB49SDK
+# Target: RE7_TDB49SDK
 if(REF_BUILD_RE7_TDB49SDK OR REF_BUILD_FRAMEWORK) # build-re7tdb49-sdk
-	set(CMKR_TARGET RE7_TDB49SDK)
-	set(RE7_TDB49SDK_SOURCES "")
-
-	list(APPEND RE7_TDB49SDK_SOURCES
+	set(RE7_TDB49SDK_SOURCES
+		cmake.toml
 		"shared/sdk/Application.cpp"
-		"shared/sdk/GUIPrimitiveSystem.cpp"
-		"shared/sdk/ManagedObject.cpp"
-		"shared/sdk/Memory.cpp"
-		"shared/sdk/MotionFsm2Layer.cpp"
-		"shared/sdk/MurmurHash.cpp"
-		"shared/sdk/REArray.cpp"
-		"shared/sdk/REContext.cpp"
-		"shared/sdk/REGameObject.cpp"
-		"shared/sdk/REGlobals.cpp"
-		"shared/sdk/REManagedObject.cpp"
-		"shared/sdk/RETransform.cpp"
-		"shared/sdk/REType.cpp"
-		"shared/sdk/RETypeDB.cpp"
-		"shared/sdk/RETypeDefinition.cpp"
-		"shared/sdk/RETypes.cpp"
-		"shared/sdk/REVTableHook.cpp"
-		"shared/sdk/Renderer.cpp"
-		"shared/sdk/ResourceManager.cpp"
-		"shared/sdk/SDK.cpp"
-		"shared/sdk/SF6Utility.cpp"
-		"shared/sdk/SceneManager.cpp"
-		"shared/sdk/SystemArray.cpp"
-		"shared/sdk/helpers/NativeObject.cpp"
-		"shared/sdk/renderer/RenderResource.cpp"
-		"shared/sdk/resources/MasterMaterialResource.cpp"
-		"shared/sdk/resources/ShaderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
+		"shared/sdk/GUIPrimitiveSystem.cpp"
 		"shared/sdk/GUIPrimitiveSystem.hpp"
+		"shared/sdk/ManagedObject.cpp"
 		"shared/sdk/ManagedObject.hpp"
 		"shared/sdk/Math.hpp"
+		"shared/sdk/Memory.cpp"
 		"shared/sdk/Memory.hpp"
+		"shared/sdk/MotionFsm2Layer.cpp"
 		"shared/sdk/MotionFsm2Layer.hpp"
+		"shared/sdk/MurmurHash.cpp"
 		"shared/sdk/MurmurHash.hpp"
+		"shared/sdk/REArray.cpp"
 		"shared/sdk/REArray.hpp"
 		"shared/sdk/REComponent.hpp"
+		"shared/sdk/REContext.cpp"
 		"shared/sdk/REContext.hpp"
+		"shared/sdk/REGameObject.cpp"
 		"shared/sdk/REGameObject.hpp"
+		"shared/sdk/REGlobals.cpp"
 		"shared/sdk/REGlobals.hpp"
+		"shared/sdk/REManagedObject.cpp"
 		"shared/sdk/REManagedObject.hpp"
 		"shared/sdk/REMath.hpp"
 		"shared/sdk/RENativeArray.hpp"
 		"shared/sdk/REString.hpp"
+		"shared/sdk/RETransform.cpp"
 		"shared/sdk/RETransform.hpp"
+		"shared/sdk/REType.cpp"
 		"shared/sdk/REType.hpp"
 		"shared/sdk/RETypeCLR.hpp"
+		"shared/sdk/RETypeDB.cpp"
 		"shared/sdk/RETypeDB.hpp"
+		"shared/sdk/RETypeDefinition.cpp"
 		"shared/sdk/RETypeDefinition.hpp"
+		"shared/sdk/RETypes.cpp"
 		"shared/sdk/RETypes.hpp"
+		"shared/sdk/REVTableHook.cpp"
 		"shared/sdk/REVTableHook.hpp"
 		"shared/sdk/REVariableDescriptor.hpp"
 		"shared/sdk/ReClass.hpp"
@@ -6676,14 +6407,21 @@ if(REF_BUILD_RE7_TDB49SDK OR REF_BUILD_FRAMEWORK) # build-re7tdb49-sdk
 		"shared/sdk/ReClass_Internal_RE7.hpp"
 		"shared/sdk/ReClass_Internal_RE8.hpp"
 		"shared/sdk/ReClass_Internal_SF6.hpp"
+		"shared/sdk/Renderer.cpp"
 		"shared/sdk/Renderer.hpp"
+		"shared/sdk/ResourceManager.cpp"
 		"shared/sdk/ResourceManager.hpp"
 		"shared/sdk/RopewaySweetLightManager.hpp"
+		"shared/sdk/SDK.cpp"
 		"shared/sdk/SDK.hpp"
+		"shared/sdk/SF6Utility.cpp"
 		"shared/sdk/SF6Utility.hpp"
+		"shared/sdk/SceneManager.cpp"
 		"shared/sdk/SceneManager.hpp"
+		"shared/sdk/SystemArray.cpp"
 		"shared/sdk/SystemArray.hpp"
 		"shared/sdk/TDBVer.hpp"
+		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/helpers/NativeObject.hpp"
 		"shared/sdk/intrusive_ptr.hpp"
 		"shared/sdk/regenny/dd2/BullShit.hpp"
@@ -7392,21 +7130,18 @@ if(REF_BUILD_RE7_TDB49SDK OR REF_BUILD_FRAMEWORK) # build-re7tdb49-sdk
 		"shared/sdk/regenny/sf6/via/vec3.hpp"
 		"shared/sdk/regenny/sf6/via/vec4.hpp"
 		"shared/sdk/renderer/PipelineState.hpp"
+		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/renderer/RenderResource.hpp"
+		"shared/sdk/resources/MasterMaterialResource.cpp"
 		"shared/sdk/resources/MasterMaterialResource.hpp"
+		"shared/sdk/resources/ShaderResource.cpp"
 		"shared/sdk/resources/ShaderResource.hpp"
 	)
 
-	list(APPEND RE7_TDB49SDK_SOURCES
-		cmake.toml
-	)
-
-	set(CMKR_SOURCES ${RE7_TDB49SDK_SOURCES})
 	add_library(RE7_TDB49SDK STATIC)
 
-	if(RE7_TDB49SDK_SOURCES)
-		target_sources(RE7_TDB49SDK PRIVATE ${RE7_TDB49SDK_SOURCES})
-	endif()
+	target_sources(RE7_TDB49SDK PRIVATE ${RE7_TDB49SDK_SOURCES})
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${RE7_TDB49SDK_SOURCES})
 
 	target_compile_features(RE7_TDB49SDK PUBLIC
 		cxx_std_23
@@ -7435,135 +7170,125 @@ if(REF_BUILD_RE7_TDB49SDK OR REF_BUILD_FRAMEWORK) # build-re7tdb49-sdk
 		RE7_TDB49
 	)
 
-	unset(CMKR_TARGET)
-	unset(CMKR_SOURCES)
 endif()
-
-# Target RE7
+# Target: RE7
 if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	set(CMKR_TARGET RE7)
-	set(RE7_SOURCES "")
-
-	list(APPEND RE7_SOURCES
+	set(RE7_SOURCES
+		cmake.toml
 		"src/D3D11Hook.cpp"
-		"src/D3D12Hook.cpp"
-		"src/DInputHook.cpp"
-		"src/ExceptionHandler.cpp"
-		"src/HookManager.cpp"
-		"src/Main.cpp"
-		"src/Mods.cpp"
-		"src/REFramework.cpp"
-		"src/WindowFilter.cpp"
-		"src/WindowsMessageHook.cpp"
-		"src/cimgui/cimgui.cpp"
-		"src/mods/APIProxy.cpp"
-		"src/mods/BackBufferRenderer.cpp"
-		"src/mods/Camera.cpp"
-		"src/mods/DeveloperTools.cpp"
-		"src/mods/FirstPerson.cpp"
-		"src/mods/FreeCam.cpp"
-		"src/mods/Graphics.cpp"
-		"src/mods/Hooks.cpp"
-		"src/mods/IntegrityCheckBypass.cpp"
-		"src/mods/LooseFileLoader.cpp"
-		"src/mods/ManualFlashlight.cpp"
-		"src/mods/PluginLoader.cpp"
-		"src/mods/REFrameworkConfig.cpp"
-		"src/mods/Scene.cpp"
-		"src/mods/ScriptRunner.cpp"
-		"src/mods/VR.cpp"
-		"src/mods/bindings/FS.cpp"
-		"src/mods/bindings/ImGui.cpp"
-		"src/mods/bindings/Json.cpp"
-		"src/mods/bindings/Sdk.cpp"
-		"src/mods/tools/ChainViewer.cpp"
-		"src/mods/tools/GameObjectsDisplay.cpp"
-		"src/mods/tools/ObjectExplorer.cpp"
-		"src/mods/vr/Bindings.cpp"
-		"src/mods/vr/D3D11Component.cpp"
-		"src/mods/vr/D3D12Component.cpp"
-		"src/mods/vr/OverlayComponent.cpp"
-		"src/mods/vr/d3d12/CommandContext.cpp"
-		"src/mods/vr/d3d12/ResourceCopier.cpp"
-		"src/mods/vr/d3d12/TextureContext.cpp"
-		"src/mods/vr/games/RE8VR.cpp"
-		"src/mods/vr/runtimes/OpenVR.cpp"
-		"src/mods/vr/runtimes/OpenXR.cpp"
-		"src/re2-imgui/imgui_impl_dx11.cpp"
-		"src/re2-imgui/imgui_impl_dx12.cpp"
-		"src/re2-imgui/imgui_impl_win32.cpp"
-		"src/utility/ImGui.cpp"
 		"src/D3D11Hook.hpp"
+		"src/D3D12Hook.cpp"
 		"src/D3D12Hook.hpp"
+		"src/DInputHook.cpp"
 		"src/DInputHook.hpp"
+		"src/ExceptionHandler.cpp"
 		"src/ExceptionHandler.hpp"
 		"src/Genny.hpp"
 		"src/GennyIda.hpp"
+		"src/HookManager.cpp"
 		"src/HookManager.hpp"
 		"src/LicenseStrings.hpp"
+		"src/Main.cpp"
 		"src/Mod.hpp"
+		"src/Mods.cpp"
 		"src/Mods.hpp"
+		"src/REFramework.cpp"
 		"src/REFramework.hpp"
 		"src/Tool.hpp"
+		"src/WindowFilter.cpp"
 		"src/WindowFilter.hpp"
+		"src/WindowsMessageHook.cpp"
 		"src/WindowsMessageHook.hpp"
+		"src/cimgui/cimgui.cpp"
+		"src/cimgui/cimgui.h"
+		"src/mods/APIProxy.cpp"
 		"src/mods/APIProxy.hpp"
+		"src/mods/BackBufferRenderer.cpp"
 		"src/mods/BackBufferRenderer.hpp"
+		"src/mods/Camera.cpp"
 		"src/mods/Camera.hpp"
+		"src/mods/DeveloperTools.cpp"
 		"src/mods/DeveloperTools.hpp"
+		"src/mods/FirstPerson.cpp"
 		"src/mods/FirstPerson.hpp"
+		"src/mods/FreeCam.cpp"
 		"src/mods/FreeCam.hpp"
+		"src/mods/Graphics.cpp"
 		"src/mods/Graphics.hpp"
+		"src/mods/Hooks.cpp"
 		"src/mods/Hooks.hpp"
+		"src/mods/IntegrityCheckBypass.cpp"
 		"src/mods/IntegrityCheckBypass.hpp"
+		"src/mods/LooseFileLoader.cpp"
 		"src/mods/LooseFileLoader.hpp"
+		"src/mods/ManualFlashlight.cpp"
 		"src/mods/ManualFlashlight.hpp"
+		"src/mods/PluginLoader.cpp"
 		"src/mods/PluginLoader.hpp"
+		"src/mods/REFrameworkConfig.cpp"
 		"src/mods/REFrameworkConfig.hpp"
+		"src/mods/Scene.cpp"
 		"src/mods/Scene.hpp"
+		"src/mods/ScriptRunner.cpp"
 		"src/mods/ScriptRunner.hpp"
+		"src/mods/VR.cpp"
 		"src/mods/VR.hpp"
+		"src/mods/bindings/FS.cpp"
 		"src/mods/bindings/FS.hpp"
+		"src/mods/bindings/ImGui.cpp"
 		"src/mods/bindings/ImGui.hpp"
+		"src/mods/bindings/Json.cpp"
 		"src/mods/bindings/Json.hpp"
+		"src/mods/bindings/Sdk.cpp"
 		"src/mods/bindings/Sdk.hpp"
+		"src/mods/spritefonts/Roboto.spritefont.h"
+		"src/mods/tools/ChainViewer.cpp"
 		"src/mods/tools/ChainViewer.hpp"
+		"src/mods/tools/GameObjectsDisplay.cpp"
 		"src/mods/tools/GameObjectsDisplay.hpp"
+		"src/mods/tools/ObjectExplorer.cpp"
 		"src/mods/tools/ObjectExplorer.hpp"
+		"src/mods/vr/Bindings.cpp"
+		"src/mods/vr/D3D11Component.cpp"
 		"src/mods/vr/D3D11Component.hpp"
+		"src/mods/vr/D3D12Component.cpp"
 		"src/mods/vr/D3D12Component.hpp"
+		"src/mods/vr/OverlayComponent.cpp"
 		"src/mods/vr/OverlayComponent.hpp"
 		"src/mods/vr/d3d12/ComPtr.hpp"
+		"src/mods/vr/d3d12/CommandContext.cpp"
 		"src/mods/vr/d3d12/CommandContext.hpp"
+		"src/mods/vr/d3d12/ResourceCopier.cpp"
 		"src/mods/vr/d3d12/ResourceCopier.hpp"
+		"src/mods/vr/d3d12/TextureContext.cpp"
 		"src/mods/vr/d3d12/TextureContext.hpp"
+		"src/mods/vr/games/RE8VR.cpp"
 		"src/mods/vr/games/RE8VR.hpp"
+		"src/mods/vr/runtimes/OpenVR.cpp"
 		"src/mods/vr/runtimes/OpenVR.hpp"
+		"src/mods/vr/runtimes/OpenXR.cpp"
 		"src/mods/vr/runtimes/OpenXR.hpp"
 		"src/mods/vr/runtimes/VRRuntime.hpp"
 		"src/re2-imgui/af_baidu.hpp"
+		"src/re2-imgui/af_fadef.h"
 		"src/re2-imgui/af_faprolight.hpp"
 		"src/re2-imgui/font_robotomedium.hpp"
-		"src/re2-imgui/re2_imconfig.hpp"
-		"src/utility/ImGui.hpp"
-		"src/cimgui/cimgui.h"
-		"src/mods/spritefonts/Roboto.spritefont.h"
-		"src/re2-imgui/af_fadef.h"
+		"src/re2-imgui/imgui_impl_dx11.cpp"
 		"src/re2-imgui/imgui_impl_dx11.h"
+		"src/re2-imgui/imgui_impl_dx12.cpp"
 		"src/re2-imgui/imgui_impl_dx12.h"
+		"src/re2-imgui/imgui_impl_win32.cpp"
 		"src/re2-imgui/imgui_impl_win32.h"
+		"src/re2-imgui/re2_imconfig.hpp"
+		"src/utility/ImGui.cpp"
+		"src/utility/ImGui.hpp"
 	)
 
-	list(APPEND RE7_SOURCES
-		cmake.toml
-	)
-
-	set(CMKR_SOURCES ${RE7_SOURCES})
 	add_library(RE7 SHARED)
 
-	if(RE7_SOURCES)
-		target_sources(RE7 PRIVATE ${RE7_SOURCES})
-	endif()
+	target_sources(RE7 PRIVATE ${RE7_SOURCES})
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${RE7_SOURCES})
 
 	target_compile_definitions(RE7 PUBLIC
 		${CMKR_TARGET}
@@ -7571,7 +7296,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"REFRAMEWORK_GAME_NAME=\"${CMKR_TARGET}\""
 	)
 
-	if(DEVELOPER_MODE) # developer-mode
+	if(DEVELOPER_MODE) # developer-mode-cond
 		target_compile_definitions(RE7 PUBLIC
 			DEVELOPER
 		)
@@ -7645,135 +7370,125 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/MakeCommitHash.bat
 	)
 
-	unset(CMKR_TARGET)
-	unset(CMKR_SOURCES)
 endif()
-
-# Target RE7_TDB49
+# Target: RE7_TDB49
 if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	set(CMKR_TARGET RE7_TDB49)
-	set(RE7_TDB49_SOURCES "")
-
-	list(APPEND RE7_TDB49_SOURCES
+	set(RE7_TDB49_SOURCES
+		cmake.toml
 		"src/D3D11Hook.cpp"
-		"src/D3D12Hook.cpp"
-		"src/DInputHook.cpp"
-		"src/ExceptionHandler.cpp"
-		"src/HookManager.cpp"
-		"src/Main.cpp"
-		"src/Mods.cpp"
-		"src/REFramework.cpp"
-		"src/WindowFilter.cpp"
-		"src/WindowsMessageHook.cpp"
-		"src/cimgui/cimgui.cpp"
-		"src/mods/APIProxy.cpp"
-		"src/mods/BackBufferRenderer.cpp"
-		"src/mods/Camera.cpp"
-		"src/mods/DeveloperTools.cpp"
-		"src/mods/FirstPerson.cpp"
-		"src/mods/FreeCam.cpp"
-		"src/mods/Graphics.cpp"
-		"src/mods/Hooks.cpp"
-		"src/mods/IntegrityCheckBypass.cpp"
-		"src/mods/LooseFileLoader.cpp"
-		"src/mods/ManualFlashlight.cpp"
-		"src/mods/PluginLoader.cpp"
-		"src/mods/REFrameworkConfig.cpp"
-		"src/mods/Scene.cpp"
-		"src/mods/ScriptRunner.cpp"
-		"src/mods/VR.cpp"
-		"src/mods/bindings/FS.cpp"
-		"src/mods/bindings/ImGui.cpp"
-		"src/mods/bindings/Json.cpp"
-		"src/mods/bindings/Sdk.cpp"
-		"src/mods/tools/ChainViewer.cpp"
-		"src/mods/tools/GameObjectsDisplay.cpp"
-		"src/mods/tools/ObjectExplorer.cpp"
-		"src/mods/vr/Bindings.cpp"
-		"src/mods/vr/D3D11Component.cpp"
-		"src/mods/vr/D3D12Component.cpp"
-		"src/mods/vr/OverlayComponent.cpp"
-		"src/mods/vr/d3d12/CommandContext.cpp"
-		"src/mods/vr/d3d12/ResourceCopier.cpp"
-		"src/mods/vr/d3d12/TextureContext.cpp"
-		"src/mods/vr/games/RE8VR.cpp"
-		"src/mods/vr/runtimes/OpenVR.cpp"
-		"src/mods/vr/runtimes/OpenXR.cpp"
-		"src/re2-imgui/imgui_impl_dx11.cpp"
-		"src/re2-imgui/imgui_impl_dx12.cpp"
-		"src/re2-imgui/imgui_impl_win32.cpp"
-		"src/utility/ImGui.cpp"
 		"src/D3D11Hook.hpp"
+		"src/D3D12Hook.cpp"
 		"src/D3D12Hook.hpp"
+		"src/DInputHook.cpp"
 		"src/DInputHook.hpp"
+		"src/ExceptionHandler.cpp"
 		"src/ExceptionHandler.hpp"
 		"src/Genny.hpp"
 		"src/GennyIda.hpp"
+		"src/HookManager.cpp"
 		"src/HookManager.hpp"
 		"src/LicenseStrings.hpp"
+		"src/Main.cpp"
 		"src/Mod.hpp"
+		"src/Mods.cpp"
 		"src/Mods.hpp"
+		"src/REFramework.cpp"
 		"src/REFramework.hpp"
 		"src/Tool.hpp"
+		"src/WindowFilter.cpp"
 		"src/WindowFilter.hpp"
+		"src/WindowsMessageHook.cpp"
 		"src/WindowsMessageHook.hpp"
+		"src/cimgui/cimgui.cpp"
+		"src/cimgui/cimgui.h"
+		"src/mods/APIProxy.cpp"
 		"src/mods/APIProxy.hpp"
+		"src/mods/BackBufferRenderer.cpp"
 		"src/mods/BackBufferRenderer.hpp"
+		"src/mods/Camera.cpp"
 		"src/mods/Camera.hpp"
+		"src/mods/DeveloperTools.cpp"
 		"src/mods/DeveloperTools.hpp"
+		"src/mods/FirstPerson.cpp"
 		"src/mods/FirstPerson.hpp"
+		"src/mods/FreeCam.cpp"
 		"src/mods/FreeCam.hpp"
+		"src/mods/Graphics.cpp"
 		"src/mods/Graphics.hpp"
+		"src/mods/Hooks.cpp"
 		"src/mods/Hooks.hpp"
+		"src/mods/IntegrityCheckBypass.cpp"
 		"src/mods/IntegrityCheckBypass.hpp"
+		"src/mods/LooseFileLoader.cpp"
 		"src/mods/LooseFileLoader.hpp"
+		"src/mods/ManualFlashlight.cpp"
 		"src/mods/ManualFlashlight.hpp"
+		"src/mods/PluginLoader.cpp"
 		"src/mods/PluginLoader.hpp"
+		"src/mods/REFrameworkConfig.cpp"
 		"src/mods/REFrameworkConfig.hpp"
+		"src/mods/Scene.cpp"
 		"src/mods/Scene.hpp"
+		"src/mods/ScriptRunner.cpp"
 		"src/mods/ScriptRunner.hpp"
+		"src/mods/VR.cpp"
 		"src/mods/VR.hpp"
+		"src/mods/bindings/FS.cpp"
 		"src/mods/bindings/FS.hpp"
+		"src/mods/bindings/ImGui.cpp"
 		"src/mods/bindings/ImGui.hpp"
+		"src/mods/bindings/Json.cpp"
 		"src/mods/bindings/Json.hpp"
+		"src/mods/bindings/Sdk.cpp"
 		"src/mods/bindings/Sdk.hpp"
+		"src/mods/spritefonts/Roboto.spritefont.h"
+		"src/mods/tools/ChainViewer.cpp"
 		"src/mods/tools/ChainViewer.hpp"
+		"src/mods/tools/GameObjectsDisplay.cpp"
 		"src/mods/tools/GameObjectsDisplay.hpp"
+		"src/mods/tools/ObjectExplorer.cpp"
 		"src/mods/tools/ObjectExplorer.hpp"
+		"src/mods/vr/Bindings.cpp"
+		"src/mods/vr/D3D11Component.cpp"
 		"src/mods/vr/D3D11Component.hpp"
+		"src/mods/vr/D3D12Component.cpp"
 		"src/mods/vr/D3D12Component.hpp"
+		"src/mods/vr/OverlayComponent.cpp"
 		"src/mods/vr/OverlayComponent.hpp"
 		"src/mods/vr/d3d12/ComPtr.hpp"
+		"src/mods/vr/d3d12/CommandContext.cpp"
 		"src/mods/vr/d3d12/CommandContext.hpp"
+		"src/mods/vr/d3d12/ResourceCopier.cpp"
 		"src/mods/vr/d3d12/ResourceCopier.hpp"
+		"src/mods/vr/d3d12/TextureContext.cpp"
 		"src/mods/vr/d3d12/TextureContext.hpp"
+		"src/mods/vr/games/RE8VR.cpp"
 		"src/mods/vr/games/RE8VR.hpp"
+		"src/mods/vr/runtimes/OpenVR.cpp"
 		"src/mods/vr/runtimes/OpenVR.hpp"
+		"src/mods/vr/runtimes/OpenXR.cpp"
 		"src/mods/vr/runtimes/OpenXR.hpp"
 		"src/mods/vr/runtimes/VRRuntime.hpp"
 		"src/re2-imgui/af_baidu.hpp"
+		"src/re2-imgui/af_fadef.h"
 		"src/re2-imgui/af_faprolight.hpp"
 		"src/re2-imgui/font_robotomedium.hpp"
-		"src/re2-imgui/re2_imconfig.hpp"
-		"src/utility/ImGui.hpp"
-		"src/cimgui/cimgui.h"
-		"src/mods/spritefonts/Roboto.spritefont.h"
-		"src/re2-imgui/af_fadef.h"
+		"src/re2-imgui/imgui_impl_dx11.cpp"
 		"src/re2-imgui/imgui_impl_dx11.h"
+		"src/re2-imgui/imgui_impl_dx12.cpp"
 		"src/re2-imgui/imgui_impl_dx12.h"
+		"src/re2-imgui/imgui_impl_win32.cpp"
 		"src/re2-imgui/imgui_impl_win32.h"
+		"src/re2-imgui/re2_imconfig.hpp"
+		"src/utility/ImGui.cpp"
+		"src/utility/ImGui.hpp"
 	)
 
-	list(APPEND RE7_TDB49_SOURCES
-		cmake.toml
-	)
-
-	set(CMKR_SOURCES ${RE7_TDB49_SOURCES})
 	add_library(RE7_TDB49 SHARED)
 
-	if(RE7_TDB49_SOURCES)
-		target_sources(RE7_TDB49 PRIVATE ${RE7_TDB49_SOURCES})
-	endif()
+	target_sources(RE7_TDB49 PRIVATE ${RE7_TDB49_SOURCES})
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${RE7_TDB49_SOURCES})
 
 	target_compile_definitions(RE7_TDB49 PUBLIC
 		${CMKR_TARGET}
@@ -7781,7 +7496,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"REFRAMEWORK_GAME_NAME=\"${CMKR_TARGET}\""
 	)
 
-	if(DEVELOPER_MODE) # developer-mode
+	if(DEVELOPER_MODE) # developer-mode-cond
 		target_compile_definitions(RE7_TDB49 PUBLIC
 			DEVELOPER
 		)
@@ -7855,66 +7570,51 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/MakeCommitHash.bat
 	)
 
-	unset(CMKR_TARGET)
-	unset(CMKR_SOURCES)
 endif()
-
-# Target RE8SDK
+# Target: RE8SDK
 if(REF_BUILD_RE8_SDK OR REF_BUILD_FRAMEWORK) # build-re8-sdk
-	set(CMKR_TARGET RE8SDK)
-	set(RE8SDK_SOURCES "")
-
-	list(APPEND RE8SDK_SOURCES
+	set(RE8SDK_SOURCES
+		cmake.toml
 		"shared/sdk/Application.cpp"
-		"shared/sdk/GUIPrimitiveSystem.cpp"
-		"shared/sdk/ManagedObject.cpp"
-		"shared/sdk/Memory.cpp"
-		"shared/sdk/MotionFsm2Layer.cpp"
-		"shared/sdk/MurmurHash.cpp"
-		"shared/sdk/REArray.cpp"
-		"shared/sdk/REContext.cpp"
-		"shared/sdk/REGameObject.cpp"
-		"shared/sdk/REGlobals.cpp"
-		"shared/sdk/REManagedObject.cpp"
-		"shared/sdk/RETransform.cpp"
-		"shared/sdk/REType.cpp"
-		"shared/sdk/RETypeDB.cpp"
-		"shared/sdk/RETypeDefinition.cpp"
-		"shared/sdk/RETypes.cpp"
-		"shared/sdk/REVTableHook.cpp"
-		"shared/sdk/Renderer.cpp"
-		"shared/sdk/ResourceManager.cpp"
-		"shared/sdk/SDK.cpp"
-		"shared/sdk/SF6Utility.cpp"
-		"shared/sdk/SceneManager.cpp"
-		"shared/sdk/SystemArray.cpp"
-		"shared/sdk/helpers/NativeObject.cpp"
-		"shared/sdk/renderer/RenderResource.cpp"
-		"shared/sdk/resources/MasterMaterialResource.cpp"
-		"shared/sdk/resources/ShaderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
+		"shared/sdk/GUIPrimitiveSystem.cpp"
 		"shared/sdk/GUIPrimitiveSystem.hpp"
+		"shared/sdk/ManagedObject.cpp"
 		"shared/sdk/ManagedObject.hpp"
 		"shared/sdk/Math.hpp"
+		"shared/sdk/Memory.cpp"
 		"shared/sdk/Memory.hpp"
+		"shared/sdk/MotionFsm2Layer.cpp"
 		"shared/sdk/MotionFsm2Layer.hpp"
+		"shared/sdk/MurmurHash.cpp"
 		"shared/sdk/MurmurHash.hpp"
+		"shared/sdk/REArray.cpp"
 		"shared/sdk/REArray.hpp"
 		"shared/sdk/REComponent.hpp"
+		"shared/sdk/REContext.cpp"
 		"shared/sdk/REContext.hpp"
+		"shared/sdk/REGameObject.cpp"
 		"shared/sdk/REGameObject.hpp"
+		"shared/sdk/REGlobals.cpp"
 		"shared/sdk/REGlobals.hpp"
+		"shared/sdk/REManagedObject.cpp"
 		"shared/sdk/REManagedObject.hpp"
 		"shared/sdk/REMath.hpp"
 		"shared/sdk/RENativeArray.hpp"
 		"shared/sdk/REString.hpp"
+		"shared/sdk/RETransform.cpp"
 		"shared/sdk/RETransform.hpp"
+		"shared/sdk/REType.cpp"
 		"shared/sdk/REType.hpp"
 		"shared/sdk/RETypeCLR.hpp"
+		"shared/sdk/RETypeDB.cpp"
 		"shared/sdk/RETypeDB.hpp"
+		"shared/sdk/RETypeDefinition.cpp"
 		"shared/sdk/RETypeDefinition.hpp"
+		"shared/sdk/RETypes.cpp"
 		"shared/sdk/RETypes.hpp"
+		"shared/sdk/REVTableHook.cpp"
 		"shared/sdk/REVTableHook.hpp"
 		"shared/sdk/REVariableDescriptor.hpp"
 		"shared/sdk/ReClass.hpp"
@@ -7929,14 +7629,21 @@ if(REF_BUILD_RE8_SDK OR REF_BUILD_FRAMEWORK) # build-re8-sdk
 		"shared/sdk/ReClass_Internal_RE7.hpp"
 		"shared/sdk/ReClass_Internal_RE8.hpp"
 		"shared/sdk/ReClass_Internal_SF6.hpp"
+		"shared/sdk/Renderer.cpp"
 		"shared/sdk/Renderer.hpp"
+		"shared/sdk/ResourceManager.cpp"
 		"shared/sdk/ResourceManager.hpp"
 		"shared/sdk/RopewaySweetLightManager.hpp"
+		"shared/sdk/SDK.cpp"
 		"shared/sdk/SDK.hpp"
+		"shared/sdk/SF6Utility.cpp"
 		"shared/sdk/SF6Utility.hpp"
+		"shared/sdk/SceneManager.cpp"
 		"shared/sdk/SceneManager.hpp"
+		"shared/sdk/SystemArray.cpp"
 		"shared/sdk/SystemArray.hpp"
 		"shared/sdk/TDBVer.hpp"
+		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/helpers/NativeObject.hpp"
 		"shared/sdk/intrusive_ptr.hpp"
 		"shared/sdk/regenny/dd2/BullShit.hpp"
@@ -8645,21 +8352,18 @@ if(REF_BUILD_RE8_SDK OR REF_BUILD_FRAMEWORK) # build-re8-sdk
 		"shared/sdk/regenny/sf6/via/vec3.hpp"
 		"shared/sdk/regenny/sf6/via/vec4.hpp"
 		"shared/sdk/renderer/PipelineState.hpp"
+		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/renderer/RenderResource.hpp"
+		"shared/sdk/resources/MasterMaterialResource.cpp"
 		"shared/sdk/resources/MasterMaterialResource.hpp"
+		"shared/sdk/resources/ShaderResource.cpp"
 		"shared/sdk/resources/ShaderResource.hpp"
 	)
 
-	list(APPEND RE8SDK_SOURCES
-		cmake.toml
-	)
-
-	set(CMKR_SOURCES ${RE8SDK_SOURCES})
 	add_library(RE8SDK STATIC)
 
-	if(RE8SDK_SOURCES)
-		target_sources(RE8SDK PRIVATE ${RE8SDK_SOURCES})
-	endif()
+	target_sources(RE8SDK PRIVATE ${RE8SDK_SOURCES})
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${RE8SDK_SOURCES})
 
 	target_compile_features(RE8SDK PUBLIC
 		cxx_std_23
@@ -8689,135 +8393,125 @@ if(REF_BUILD_RE8_SDK OR REF_BUILD_FRAMEWORK) # build-re8-sdk
 		REENGINE_AT
 	)
 
-	unset(CMKR_TARGET)
-	unset(CMKR_SOURCES)
 endif()
-
-# Target RE8
+# Target: RE8
 if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	set(CMKR_TARGET RE8)
-	set(RE8_SOURCES "")
-
-	list(APPEND RE8_SOURCES
+	set(RE8_SOURCES
+		cmake.toml
 		"src/D3D11Hook.cpp"
-		"src/D3D12Hook.cpp"
-		"src/DInputHook.cpp"
-		"src/ExceptionHandler.cpp"
-		"src/HookManager.cpp"
-		"src/Main.cpp"
-		"src/Mods.cpp"
-		"src/REFramework.cpp"
-		"src/WindowFilter.cpp"
-		"src/WindowsMessageHook.cpp"
-		"src/cimgui/cimgui.cpp"
-		"src/mods/APIProxy.cpp"
-		"src/mods/BackBufferRenderer.cpp"
-		"src/mods/Camera.cpp"
-		"src/mods/DeveloperTools.cpp"
-		"src/mods/FirstPerson.cpp"
-		"src/mods/FreeCam.cpp"
-		"src/mods/Graphics.cpp"
-		"src/mods/Hooks.cpp"
-		"src/mods/IntegrityCheckBypass.cpp"
-		"src/mods/LooseFileLoader.cpp"
-		"src/mods/ManualFlashlight.cpp"
-		"src/mods/PluginLoader.cpp"
-		"src/mods/REFrameworkConfig.cpp"
-		"src/mods/Scene.cpp"
-		"src/mods/ScriptRunner.cpp"
-		"src/mods/VR.cpp"
-		"src/mods/bindings/FS.cpp"
-		"src/mods/bindings/ImGui.cpp"
-		"src/mods/bindings/Json.cpp"
-		"src/mods/bindings/Sdk.cpp"
-		"src/mods/tools/ChainViewer.cpp"
-		"src/mods/tools/GameObjectsDisplay.cpp"
-		"src/mods/tools/ObjectExplorer.cpp"
-		"src/mods/vr/Bindings.cpp"
-		"src/mods/vr/D3D11Component.cpp"
-		"src/mods/vr/D3D12Component.cpp"
-		"src/mods/vr/OverlayComponent.cpp"
-		"src/mods/vr/d3d12/CommandContext.cpp"
-		"src/mods/vr/d3d12/ResourceCopier.cpp"
-		"src/mods/vr/d3d12/TextureContext.cpp"
-		"src/mods/vr/games/RE8VR.cpp"
-		"src/mods/vr/runtimes/OpenVR.cpp"
-		"src/mods/vr/runtimes/OpenXR.cpp"
-		"src/re2-imgui/imgui_impl_dx11.cpp"
-		"src/re2-imgui/imgui_impl_dx12.cpp"
-		"src/re2-imgui/imgui_impl_win32.cpp"
-		"src/utility/ImGui.cpp"
 		"src/D3D11Hook.hpp"
+		"src/D3D12Hook.cpp"
 		"src/D3D12Hook.hpp"
+		"src/DInputHook.cpp"
 		"src/DInputHook.hpp"
+		"src/ExceptionHandler.cpp"
 		"src/ExceptionHandler.hpp"
 		"src/Genny.hpp"
 		"src/GennyIda.hpp"
+		"src/HookManager.cpp"
 		"src/HookManager.hpp"
 		"src/LicenseStrings.hpp"
+		"src/Main.cpp"
 		"src/Mod.hpp"
+		"src/Mods.cpp"
 		"src/Mods.hpp"
+		"src/REFramework.cpp"
 		"src/REFramework.hpp"
 		"src/Tool.hpp"
+		"src/WindowFilter.cpp"
 		"src/WindowFilter.hpp"
+		"src/WindowsMessageHook.cpp"
 		"src/WindowsMessageHook.hpp"
+		"src/cimgui/cimgui.cpp"
+		"src/cimgui/cimgui.h"
+		"src/mods/APIProxy.cpp"
 		"src/mods/APIProxy.hpp"
+		"src/mods/BackBufferRenderer.cpp"
 		"src/mods/BackBufferRenderer.hpp"
+		"src/mods/Camera.cpp"
 		"src/mods/Camera.hpp"
+		"src/mods/DeveloperTools.cpp"
 		"src/mods/DeveloperTools.hpp"
+		"src/mods/FirstPerson.cpp"
 		"src/mods/FirstPerson.hpp"
+		"src/mods/FreeCam.cpp"
 		"src/mods/FreeCam.hpp"
+		"src/mods/Graphics.cpp"
 		"src/mods/Graphics.hpp"
+		"src/mods/Hooks.cpp"
 		"src/mods/Hooks.hpp"
+		"src/mods/IntegrityCheckBypass.cpp"
 		"src/mods/IntegrityCheckBypass.hpp"
+		"src/mods/LooseFileLoader.cpp"
 		"src/mods/LooseFileLoader.hpp"
+		"src/mods/ManualFlashlight.cpp"
 		"src/mods/ManualFlashlight.hpp"
+		"src/mods/PluginLoader.cpp"
 		"src/mods/PluginLoader.hpp"
+		"src/mods/REFrameworkConfig.cpp"
 		"src/mods/REFrameworkConfig.hpp"
+		"src/mods/Scene.cpp"
 		"src/mods/Scene.hpp"
+		"src/mods/ScriptRunner.cpp"
 		"src/mods/ScriptRunner.hpp"
+		"src/mods/VR.cpp"
 		"src/mods/VR.hpp"
+		"src/mods/bindings/FS.cpp"
 		"src/mods/bindings/FS.hpp"
+		"src/mods/bindings/ImGui.cpp"
 		"src/mods/bindings/ImGui.hpp"
+		"src/mods/bindings/Json.cpp"
 		"src/mods/bindings/Json.hpp"
+		"src/mods/bindings/Sdk.cpp"
 		"src/mods/bindings/Sdk.hpp"
+		"src/mods/spritefonts/Roboto.spritefont.h"
+		"src/mods/tools/ChainViewer.cpp"
 		"src/mods/tools/ChainViewer.hpp"
+		"src/mods/tools/GameObjectsDisplay.cpp"
 		"src/mods/tools/GameObjectsDisplay.hpp"
+		"src/mods/tools/ObjectExplorer.cpp"
 		"src/mods/tools/ObjectExplorer.hpp"
+		"src/mods/vr/Bindings.cpp"
+		"src/mods/vr/D3D11Component.cpp"
 		"src/mods/vr/D3D11Component.hpp"
+		"src/mods/vr/D3D12Component.cpp"
 		"src/mods/vr/D3D12Component.hpp"
+		"src/mods/vr/OverlayComponent.cpp"
 		"src/mods/vr/OverlayComponent.hpp"
 		"src/mods/vr/d3d12/ComPtr.hpp"
+		"src/mods/vr/d3d12/CommandContext.cpp"
 		"src/mods/vr/d3d12/CommandContext.hpp"
+		"src/mods/vr/d3d12/ResourceCopier.cpp"
 		"src/mods/vr/d3d12/ResourceCopier.hpp"
+		"src/mods/vr/d3d12/TextureContext.cpp"
 		"src/mods/vr/d3d12/TextureContext.hpp"
+		"src/mods/vr/games/RE8VR.cpp"
 		"src/mods/vr/games/RE8VR.hpp"
+		"src/mods/vr/runtimes/OpenVR.cpp"
 		"src/mods/vr/runtimes/OpenVR.hpp"
+		"src/mods/vr/runtimes/OpenXR.cpp"
 		"src/mods/vr/runtimes/OpenXR.hpp"
 		"src/mods/vr/runtimes/VRRuntime.hpp"
 		"src/re2-imgui/af_baidu.hpp"
+		"src/re2-imgui/af_fadef.h"
 		"src/re2-imgui/af_faprolight.hpp"
 		"src/re2-imgui/font_robotomedium.hpp"
-		"src/re2-imgui/re2_imconfig.hpp"
-		"src/utility/ImGui.hpp"
-		"src/cimgui/cimgui.h"
-		"src/mods/spritefonts/Roboto.spritefont.h"
-		"src/re2-imgui/af_fadef.h"
+		"src/re2-imgui/imgui_impl_dx11.cpp"
 		"src/re2-imgui/imgui_impl_dx11.h"
+		"src/re2-imgui/imgui_impl_dx12.cpp"
 		"src/re2-imgui/imgui_impl_dx12.h"
+		"src/re2-imgui/imgui_impl_win32.cpp"
 		"src/re2-imgui/imgui_impl_win32.h"
+		"src/re2-imgui/re2_imconfig.hpp"
+		"src/utility/ImGui.cpp"
+		"src/utility/ImGui.hpp"
 	)
 
-	list(APPEND RE8_SOURCES
-		cmake.toml
-	)
-
-	set(CMKR_SOURCES ${RE8_SOURCES})
 	add_library(RE8 SHARED)
 
-	if(RE8_SOURCES)
-		target_sources(RE8 PRIVATE ${RE8_SOURCES})
-	endif()
+	target_sources(RE8 PRIVATE ${RE8_SOURCES})
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${RE8_SOURCES})
 
 	target_compile_definitions(RE8 PUBLIC
 		${CMKR_TARGET}
@@ -8825,7 +8519,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"REFRAMEWORK_GAME_NAME=\"${CMKR_TARGET}\""
 	)
 
-	if(DEVELOPER_MODE) # developer-mode
+	if(DEVELOPER_MODE) # developer-mode-cond
 		target_compile_definitions(RE8 PUBLIC
 			DEVELOPER
 		)
@@ -8899,66 +8593,51 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/MakeCommitHash.bat
 	)
 
-	unset(CMKR_TARGET)
-	unset(CMKR_SOURCES)
 endif()
-
-# Target DMC5SDK
+# Target: DMC5SDK
 if(REF_BUILD_DMC5_SDK OR REF_BUILD_FRAMEWORK) # build-dmc5-sdk
-	set(CMKR_TARGET DMC5SDK)
-	set(DMC5SDK_SOURCES "")
-
-	list(APPEND DMC5SDK_SOURCES
+	set(DMC5SDK_SOURCES
+		cmake.toml
 		"shared/sdk/Application.cpp"
-		"shared/sdk/GUIPrimitiveSystem.cpp"
-		"shared/sdk/ManagedObject.cpp"
-		"shared/sdk/Memory.cpp"
-		"shared/sdk/MotionFsm2Layer.cpp"
-		"shared/sdk/MurmurHash.cpp"
-		"shared/sdk/REArray.cpp"
-		"shared/sdk/REContext.cpp"
-		"shared/sdk/REGameObject.cpp"
-		"shared/sdk/REGlobals.cpp"
-		"shared/sdk/REManagedObject.cpp"
-		"shared/sdk/RETransform.cpp"
-		"shared/sdk/REType.cpp"
-		"shared/sdk/RETypeDB.cpp"
-		"shared/sdk/RETypeDefinition.cpp"
-		"shared/sdk/RETypes.cpp"
-		"shared/sdk/REVTableHook.cpp"
-		"shared/sdk/Renderer.cpp"
-		"shared/sdk/ResourceManager.cpp"
-		"shared/sdk/SDK.cpp"
-		"shared/sdk/SF6Utility.cpp"
-		"shared/sdk/SceneManager.cpp"
-		"shared/sdk/SystemArray.cpp"
-		"shared/sdk/helpers/NativeObject.cpp"
-		"shared/sdk/renderer/RenderResource.cpp"
-		"shared/sdk/resources/MasterMaterialResource.cpp"
-		"shared/sdk/resources/ShaderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
+		"shared/sdk/GUIPrimitiveSystem.cpp"
 		"shared/sdk/GUIPrimitiveSystem.hpp"
+		"shared/sdk/ManagedObject.cpp"
 		"shared/sdk/ManagedObject.hpp"
 		"shared/sdk/Math.hpp"
+		"shared/sdk/Memory.cpp"
 		"shared/sdk/Memory.hpp"
+		"shared/sdk/MotionFsm2Layer.cpp"
 		"shared/sdk/MotionFsm2Layer.hpp"
+		"shared/sdk/MurmurHash.cpp"
 		"shared/sdk/MurmurHash.hpp"
+		"shared/sdk/REArray.cpp"
 		"shared/sdk/REArray.hpp"
 		"shared/sdk/REComponent.hpp"
+		"shared/sdk/REContext.cpp"
 		"shared/sdk/REContext.hpp"
+		"shared/sdk/REGameObject.cpp"
 		"shared/sdk/REGameObject.hpp"
+		"shared/sdk/REGlobals.cpp"
 		"shared/sdk/REGlobals.hpp"
+		"shared/sdk/REManagedObject.cpp"
 		"shared/sdk/REManagedObject.hpp"
 		"shared/sdk/REMath.hpp"
 		"shared/sdk/RENativeArray.hpp"
 		"shared/sdk/REString.hpp"
+		"shared/sdk/RETransform.cpp"
 		"shared/sdk/RETransform.hpp"
+		"shared/sdk/REType.cpp"
 		"shared/sdk/REType.hpp"
 		"shared/sdk/RETypeCLR.hpp"
+		"shared/sdk/RETypeDB.cpp"
 		"shared/sdk/RETypeDB.hpp"
+		"shared/sdk/RETypeDefinition.cpp"
 		"shared/sdk/RETypeDefinition.hpp"
+		"shared/sdk/RETypes.cpp"
 		"shared/sdk/RETypes.hpp"
+		"shared/sdk/REVTableHook.cpp"
 		"shared/sdk/REVTableHook.hpp"
 		"shared/sdk/REVariableDescriptor.hpp"
 		"shared/sdk/ReClass.hpp"
@@ -8973,14 +8652,21 @@ if(REF_BUILD_DMC5_SDK OR REF_BUILD_FRAMEWORK) # build-dmc5-sdk
 		"shared/sdk/ReClass_Internal_RE7.hpp"
 		"shared/sdk/ReClass_Internal_RE8.hpp"
 		"shared/sdk/ReClass_Internal_SF6.hpp"
+		"shared/sdk/Renderer.cpp"
 		"shared/sdk/Renderer.hpp"
+		"shared/sdk/ResourceManager.cpp"
 		"shared/sdk/ResourceManager.hpp"
 		"shared/sdk/RopewaySweetLightManager.hpp"
+		"shared/sdk/SDK.cpp"
 		"shared/sdk/SDK.hpp"
+		"shared/sdk/SF6Utility.cpp"
 		"shared/sdk/SF6Utility.hpp"
+		"shared/sdk/SceneManager.cpp"
 		"shared/sdk/SceneManager.hpp"
+		"shared/sdk/SystemArray.cpp"
 		"shared/sdk/SystemArray.hpp"
 		"shared/sdk/TDBVer.hpp"
+		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/helpers/NativeObject.hpp"
 		"shared/sdk/intrusive_ptr.hpp"
 		"shared/sdk/regenny/dd2/BullShit.hpp"
@@ -9689,21 +9375,18 @@ if(REF_BUILD_DMC5_SDK OR REF_BUILD_FRAMEWORK) # build-dmc5-sdk
 		"shared/sdk/regenny/sf6/via/vec3.hpp"
 		"shared/sdk/regenny/sf6/via/vec4.hpp"
 		"shared/sdk/renderer/PipelineState.hpp"
+		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/renderer/RenderResource.hpp"
+		"shared/sdk/resources/MasterMaterialResource.cpp"
 		"shared/sdk/resources/MasterMaterialResource.hpp"
+		"shared/sdk/resources/ShaderResource.cpp"
 		"shared/sdk/resources/ShaderResource.hpp"
 	)
 
-	list(APPEND DMC5SDK_SOURCES
-		cmake.toml
-	)
-
-	set(CMKR_SOURCES ${DMC5SDK_SOURCES})
 	add_library(DMC5SDK STATIC)
 
-	if(DMC5SDK_SOURCES)
-		target_sources(DMC5SDK PRIVATE ${DMC5SDK_SOURCES})
-	endif()
+	target_sources(DMC5SDK PRIVATE ${DMC5SDK_SOURCES})
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${DMC5SDK_SOURCES})
 
 	target_compile_features(DMC5SDK PUBLIC
 		cxx_std_23
@@ -9731,135 +9414,125 @@ if(REF_BUILD_DMC5_SDK OR REF_BUILD_FRAMEWORK) # build-dmc5-sdk
 		DMC5
 	)
 
-	unset(CMKR_TARGET)
-	unset(CMKR_SOURCES)
 endif()
-
-# Target DMC5
+# Target: DMC5
 if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	set(CMKR_TARGET DMC5)
-	set(DMC5_SOURCES "")
-
-	list(APPEND DMC5_SOURCES
+	set(DMC5_SOURCES
+		cmake.toml
 		"src/D3D11Hook.cpp"
-		"src/D3D12Hook.cpp"
-		"src/DInputHook.cpp"
-		"src/ExceptionHandler.cpp"
-		"src/HookManager.cpp"
-		"src/Main.cpp"
-		"src/Mods.cpp"
-		"src/REFramework.cpp"
-		"src/WindowFilter.cpp"
-		"src/WindowsMessageHook.cpp"
-		"src/cimgui/cimgui.cpp"
-		"src/mods/APIProxy.cpp"
-		"src/mods/BackBufferRenderer.cpp"
-		"src/mods/Camera.cpp"
-		"src/mods/DeveloperTools.cpp"
-		"src/mods/FirstPerson.cpp"
-		"src/mods/FreeCam.cpp"
-		"src/mods/Graphics.cpp"
-		"src/mods/Hooks.cpp"
-		"src/mods/IntegrityCheckBypass.cpp"
-		"src/mods/LooseFileLoader.cpp"
-		"src/mods/ManualFlashlight.cpp"
-		"src/mods/PluginLoader.cpp"
-		"src/mods/REFrameworkConfig.cpp"
-		"src/mods/Scene.cpp"
-		"src/mods/ScriptRunner.cpp"
-		"src/mods/VR.cpp"
-		"src/mods/bindings/FS.cpp"
-		"src/mods/bindings/ImGui.cpp"
-		"src/mods/bindings/Json.cpp"
-		"src/mods/bindings/Sdk.cpp"
-		"src/mods/tools/ChainViewer.cpp"
-		"src/mods/tools/GameObjectsDisplay.cpp"
-		"src/mods/tools/ObjectExplorer.cpp"
-		"src/mods/vr/Bindings.cpp"
-		"src/mods/vr/D3D11Component.cpp"
-		"src/mods/vr/D3D12Component.cpp"
-		"src/mods/vr/OverlayComponent.cpp"
-		"src/mods/vr/d3d12/CommandContext.cpp"
-		"src/mods/vr/d3d12/ResourceCopier.cpp"
-		"src/mods/vr/d3d12/TextureContext.cpp"
-		"src/mods/vr/games/RE8VR.cpp"
-		"src/mods/vr/runtimes/OpenVR.cpp"
-		"src/mods/vr/runtimes/OpenXR.cpp"
-		"src/re2-imgui/imgui_impl_dx11.cpp"
-		"src/re2-imgui/imgui_impl_dx12.cpp"
-		"src/re2-imgui/imgui_impl_win32.cpp"
-		"src/utility/ImGui.cpp"
 		"src/D3D11Hook.hpp"
+		"src/D3D12Hook.cpp"
 		"src/D3D12Hook.hpp"
+		"src/DInputHook.cpp"
 		"src/DInputHook.hpp"
+		"src/ExceptionHandler.cpp"
 		"src/ExceptionHandler.hpp"
 		"src/Genny.hpp"
 		"src/GennyIda.hpp"
+		"src/HookManager.cpp"
 		"src/HookManager.hpp"
 		"src/LicenseStrings.hpp"
+		"src/Main.cpp"
 		"src/Mod.hpp"
+		"src/Mods.cpp"
 		"src/Mods.hpp"
+		"src/REFramework.cpp"
 		"src/REFramework.hpp"
 		"src/Tool.hpp"
+		"src/WindowFilter.cpp"
 		"src/WindowFilter.hpp"
+		"src/WindowsMessageHook.cpp"
 		"src/WindowsMessageHook.hpp"
+		"src/cimgui/cimgui.cpp"
+		"src/cimgui/cimgui.h"
+		"src/mods/APIProxy.cpp"
 		"src/mods/APIProxy.hpp"
+		"src/mods/BackBufferRenderer.cpp"
 		"src/mods/BackBufferRenderer.hpp"
+		"src/mods/Camera.cpp"
 		"src/mods/Camera.hpp"
+		"src/mods/DeveloperTools.cpp"
 		"src/mods/DeveloperTools.hpp"
+		"src/mods/FirstPerson.cpp"
 		"src/mods/FirstPerson.hpp"
+		"src/mods/FreeCam.cpp"
 		"src/mods/FreeCam.hpp"
+		"src/mods/Graphics.cpp"
 		"src/mods/Graphics.hpp"
+		"src/mods/Hooks.cpp"
 		"src/mods/Hooks.hpp"
+		"src/mods/IntegrityCheckBypass.cpp"
 		"src/mods/IntegrityCheckBypass.hpp"
+		"src/mods/LooseFileLoader.cpp"
 		"src/mods/LooseFileLoader.hpp"
+		"src/mods/ManualFlashlight.cpp"
 		"src/mods/ManualFlashlight.hpp"
+		"src/mods/PluginLoader.cpp"
 		"src/mods/PluginLoader.hpp"
+		"src/mods/REFrameworkConfig.cpp"
 		"src/mods/REFrameworkConfig.hpp"
+		"src/mods/Scene.cpp"
 		"src/mods/Scene.hpp"
+		"src/mods/ScriptRunner.cpp"
 		"src/mods/ScriptRunner.hpp"
+		"src/mods/VR.cpp"
 		"src/mods/VR.hpp"
+		"src/mods/bindings/FS.cpp"
 		"src/mods/bindings/FS.hpp"
+		"src/mods/bindings/ImGui.cpp"
 		"src/mods/bindings/ImGui.hpp"
+		"src/mods/bindings/Json.cpp"
 		"src/mods/bindings/Json.hpp"
+		"src/mods/bindings/Sdk.cpp"
 		"src/mods/bindings/Sdk.hpp"
+		"src/mods/spritefonts/Roboto.spritefont.h"
+		"src/mods/tools/ChainViewer.cpp"
 		"src/mods/tools/ChainViewer.hpp"
+		"src/mods/tools/GameObjectsDisplay.cpp"
 		"src/mods/tools/GameObjectsDisplay.hpp"
+		"src/mods/tools/ObjectExplorer.cpp"
 		"src/mods/tools/ObjectExplorer.hpp"
+		"src/mods/vr/Bindings.cpp"
+		"src/mods/vr/D3D11Component.cpp"
 		"src/mods/vr/D3D11Component.hpp"
+		"src/mods/vr/D3D12Component.cpp"
 		"src/mods/vr/D3D12Component.hpp"
+		"src/mods/vr/OverlayComponent.cpp"
 		"src/mods/vr/OverlayComponent.hpp"
 		"src/mods/vr/d3d12/ComPtr.hpp"
+		"src/mods/vr/d3d12/CommandContext.cpp"
 		"src/mods/vr/d3d12/CommandContext.hpp"
+		"src/mods/vr/d3d12/ResourceCopier.cpp"
 		"src/mods/vr/d3d12/ResourceCopier.hpp"
+		"src/mods/vr/d3d12/TextureContext.cpp"
 		"src/mods/vr/d3d12/TextureContext.hpp"
+		"src/mods/vr/games/RE8VR.cpp"
 		"src/mods/vr/games/RE8VR.hpp"
+		"src/mods/vr/runtimes/OpenVR.cpp"
 		"src/mods/vr/runtimes/OpenVR.hpp"
+		"src/mods/vr/runtimes/OpenXR.cpp"
 		"src/mods/vr/runtimes/OpenXR.hpp"
 		"src/mods/vr/runtimes/VRRuntime.hpp"
 		"src/re2-imgui/af_baidu.hpp"
+		"src/re2-imgui/af_fadef.h"
 		"src/re2-imgui/af_faprolight.hpp"
 		"src/re2-imgui/font_robotomedium.hpp"
-		"src/re2-imgui/re2_imconfig.hpp"
-		"src/utility/ImGui.hpp"
-		"src/cimgui/cimgui.h"
-		"src/mods/spritefonts/Roboto.spritefont.h"
-		"src/re2-imgui/af_fadef.h"
+		"src/re2-imgui/imgui_impl_dx11.cpp"
 		"src/re2-imgui/imgui_impl_dx11.h"
+		"src/re2-imgui/imgui_impl_dx12.cpp"
 		"src/re2-imgui/imgui_impl_dx12.h"
+		"src/re2-imgui/imgui_impl_win32.cpp"
 		"src/re2-imgui/imgui_impl_win32.h"
+		"src/re2-imgui/re2_imconfig.hpp"
+		"src/utility/ImGui.cpp"
+		"src/utility/ImGui.hpp"
 	)
 
-	list(APPEND DMC5_SOURCES
-		cmake.toml
-	)
-
-	set(CMKR_SOURCES ${DMC5_SOURCES})
 	add_library(DMC5 SHARED)
 
-	if(DMC5_SOURCES)
-		target_sources(DMC5 PRIVATE ${DMC5_SOURCES})
-	endif()
+	target_sources(DMC5 PRIVATE ${DMC5_SOURCES})
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${DMC5_SOURCES})
 
 	target_compile_definitions(DMC5 PUBLIC
 		${CMKR_TARGET}
@@ -9867,7 +9540,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"REFRAMEWORK_GAME_NAME=\"${CMKR_TARGET}\""
 	)
 
-	if(DEVELOPER_MODE) # developer-mode
+	if(DEVELOPER_MODE) # developer-mode-cond
 		target_compile_definitions(DMC5 PUBLIC
 			DEVELOPER
 		)
@@ -9941,66 +9614,51 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/MakeCommitHash.bat
 	)
 
-	unset(CMKR_TARGET)
-	unset(CMKR_SOURCES)
 endif()
-
-# Target MHRISESDK
+# Target: MHRISESDK
 if(REF_BUILD_MHRISE_SDK OR REF_BUILD_FRAMEWORK) # build-mhrise-sdk
-	set(CMKR_TARGET MHRISESDK)
-	set(MHRISESDK_SOURCES "")
-
-	list(APPEND MHRISESDK_SOURCES
+	set(MHRISESDK_SOURCES
+		cmake.toml
 		"shared/sdk/Application.cpp"
-		"shared/sdk/GUIPrimitiveSystem.cpp"
-		"shared/sdk/ManagedObject.cpp"
-		"shared/sdk/Memory.cpp"
-		"shared/sdk/MotionFsm2Layer.cpp"
-		"shared/sdk/MurmurHash.cpp"
-		"shared/sdk/REArray.cpp"
-		"shared/sdk/REContext.cpp"
-		"shared/sdk/REGameObject.cpp"
-		"shared/sdk/REGlobals.cpp"
-		"shared/sdk/REManagedObject.cpp"
-		"shared/sdk/RETransform.cpp"
-		"shared/sdk/REType.cpp"
-		"shared/sdk/RETypeDB.cpp"
-		"shared/sdk/RETypeDefinition.cpp"
-		"shared/sdk/RETypes.cpp"
-		"shared/sdk/REVTableHook.cpp"
-		"shared/sdk/Renderer.cpp"
-		"shared/sdk/ResourceManager.cpp"
-		"shared/sdk/SDK.cpp"
-		"shared/sdk/SF6Utility.cpp"
-		"shared/sdk/SceneManager.cpp"
-		"shared/sdk/SystemArray.cpp"
-		"shared/sdk/helpers/NativeObject.cpp"
-		"shared/sdk/renderer/RenderResource.cpp"
-		"shared/sdk/resources/MasterMaterialResource.cpp"
-		"shared/sdk/resources/ShaderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
+		"shared/sdk/GUIPrimitiveSystem.cpp"
 		"shared/sdk/GUIPrimitiveSystem.hpp"
+		"shared/sdk/ManagedObject.cpp"
 		"shared/sdk/ManagedObject.hpp"
 		"shared/sdk/Math.hpp"
+		"shared/sdk/Memory.cpp"
 		"shared/sdk/Memory.hpp"
+		"shared/sdk/MotionFsm2Layer.cpp"
 		"shared/sdk/MotionFsm2Layer.hpp"
+		"shared/sdk/MurmurHash.cpp"
 		"shared/sdk/MurmurHash.hpp"
+		"shared/sdk/REArray.cpp"
 		"shared/sdk/REArray.hpp"
 		"shared/sdk/REComponent.hpp"
+		"shared/sdk/REContext.cpp"
 		"shared/sdk/REContext.hpp"
+		"shared/sdk/REGameObject.cpp"
 		"shared/sdk/REGameObject.hpp"
+		"shared/sdk/REGlobals.cpp"
 		"shared/sdk/REGlobals.hpp"
+		"shared/sdk/REManagedObject.cpp"
 		"shared/sdk/REManagedObject.hpp"
 		"shared/sdk/REMath.hpp"
 		"shared/sdk/RENativeArray.hpp"
 		"shared/sdk/REString.hpp"
+		"shared/sdk/RETransform.cpp"
 		"shared/sdk/RETransform.hpp"
+		"shared/sdk/REType.cpp"
 		"shared/sdk/REType.hpp"
 		"shared/sdk/RETypeCLR.hpp"
+		"shared/sdk/RETypeDB.cpp"
 		"shared/sdk/RETypeDB.hpp"
+		"shared/sdk/RETypeDefinition.cpp"
 		"shared/sdk/RETypeDefinition.hpp"
+		"shared/sdk/RETypes.cpp"
 		"shared/sdk/RETypes.hpp"
+		"shared/sdk/REVTableHook.cpp"
 		"shared/sdk/REVTableHook.hpp"
 		"shared/sdk/REVariableDescriptor.hpp"
 		"shared/sdk/ReClass.hpp"
@@ -10015,14 +9673,21 @@ if(REF_BUILD_MHRISE_SDK OR REF_BUILD_FRAMEWORK) # build-mhrise-sdk
 		"shared/sdk/ReClass_Internal_RE7.hpp"
 		"shared/sdk/ReClass_Internal_RE8.hpp"
 		"shared/sdk/ReClass_Internal_SF6.hpp"
+		"shared/sdk/Renderer.cpp"
 		"shared/sdk/Renderer.hpp"
+		"shared/sdk/ResourceManager.cpp"
 		"shared/sdk/ResourceManager.hpp"
 		"shared/sdk/RopewaySweetLightManager.hpp"
+		"shared/sdk/SDK.cpp"
 		"shared/sdk/SDK.hpp"
+		"shared/sdk/SF6Utility.cpp"
 		"shared/sdk/SF6Utility.hpp"
+		"shared/sdk/SceneManager.cpp"
 		"shared/sdk/SceneManager.hpp"
+		"shared/sdk/SystemArray.cpp"
 		"shared/sdk/SystemArray.hpp"
 		"shared/sdk/TDBVer.hpp"
+		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/helpers/NativeObject.hpp"
 		"shared/sdk/intrusive_ptr.hpp"
 		"shared/sdk/regenny/dd2/BullShit.hpp"
@@ -10731,21 +10396,18 @@ if(REF_BUILD_MHRISE_SDK OR REF_BUILD_FRAMEWORK) # build-mhrise-sdk
 		"shared/sdk/regenny/sf6/via/vec3.hpp"
 		"shared/sdk/regenny/sf6/via/vec4.hpp"
 		"shared/sdk/renderer/PipelineState.hpp"
+		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/renderer/RenderResource.hpp"
+		"shared/sdk/resources/MasterMaterialResource.cpp"
 		"shared/sdk/resources/MasterMaterialResource.hpp"
+		"shared/sdk/resources/ShaderResource.cpp"
 		"shared/sdk/resources/ShaderResource.hpp"
 	)
 
-	list(APPEND MHRISESDK_SOURCES
-		cmake.toml
-	)
-
-	set(CMKR_SOURCES ${MHRISESDK_SOURCES})
 	add_library(MHRISESDK STATIC)
 
-	if(MHRISESDK_SOURCES)
-		target_sources(MHRISESDK PRIVATE ${MHRISESDK_SOURCES})
-	endif()
+	target_sources(MHRISESDK PRIVATE ${MHRISESDK_SOURCES})
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${MHRISESDK_SOURCES})
 
 	target_compile_features(MHRISESDK PUBLIC
 		cxx_std_23
@@ -10775,135 +10437,125 @@ if(REF_BUILD_MHRISE_SDK OR REF_BUILD_FRAMEWORK) # build-mhrise-sdk
 		REENGINE_AT
 	)
 
-	unset(CMKR_TARGET)
-	unset(CMKR_SOURCES)
 endif()
-
-# Target MHRISE
+# Target: MHRISE
 if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	set(CMKR_TARGET MHRISE)
-	set(MHRISE_SOURCES "")
-
-	list(APPEND MHRISE_SOURCES
+	set(MHRISE_SOURCES
+		cmake.toml
 		"src/D3D11Hook.cpp"
-		"src/D3D12Hook.cpp"
-		"src/DInputHook.cpp"
-		"src/ExceptionHandler.cpp"
-		"src/HookManager.cpp"
-		"src/Main.cpp"
-		"src/Mods.cpp"
-		"src/REFramework.cpp"
-		"src/WindowFilter.cpp"
-		"src/WindowsMessageHook.cpp"
-		"src/cimgui/cimgui.cpp"
-		"src/mods/APIProxy.cpp"
-		"src/mods/BackBufferRenderer.cpp"
-		"src/mods/Camera.cpp"
-		"src/mods/DeveloperTools.cpp"
-		"src/mods/FirstPerson.cpp"
-		"src/mods/FreeCam.cpp"
-		"src/mods/Graphics.cpp"
-		"src/mods/Hooks.cpp"
-		"src/mods/IntegrityCheckBypass.cpp"
-		"src/mods/LooseFileLoader.cpp"
-		"src/mods/ManualFlashlight.cpp"
-		"src/mods/PluginLoader.cpp"
-		"src/mods/REFrameworkConfig.cpp"
-		"src/mods/Scene.cpp"
-		"src/mods/ScriptRunner.cpp"
-		"src/mods/VR.cpp"
-		"src/mods/bindings/FS.cpp"
-		"src/mods/bindings/ImGui.cpp"
-		"src/mods/bindings/Json.cpp"
-		"src/mods/bindings/Sdk.cpp"
-		"src/mods/tools/ChainViewer.cpp"
-		"src/mods/tools/GameObjectsDisplay.cpp"
-		"src/mods/tools/ObjectExplorer.cpp"
-		"src/mods/vr/Bindings.cpp"
-		"src/mods/vr/D3D11Component.cpp"
-		"src/mods/vr/D3D12Component.cpp"
-		"src/mods/vr/OverlayComponent.cpp"
-		"src/mods/vr/d3d12/CommandContext.cpp"
-		"src/mods/vr/d3d12/ResourceCopier.cpp"
-		"src/mods/vr/d3d12/TextureContext.cpp"
-		"src/mods/vr/games/RE8VR.cpp"
-		"src/mods/vr/runtimes/OpenVR.cpp"
-		"src/mods/vr/runtimes/OpenXR.cpp"
-		"src/re2-imgui/imgui_impl_dx11.cpp"
-		"src/re2-imgui/imgui_impl_dx12.cpp"
-		"src/re2-imgui/imgui_impl_win32.cpp"
-		"src/utility/ImGui.cpp"
 		"src/D3D11Hook.hpp"
+		"src/D3D12Hook.cpp"
 		"src/D3D12Hook.hpp"
+		"src/DInputHook.cpp"
 		"src/DInputHook.hpp"
+		"src/ExceptionHandler.cpp"
 		"src/ExceptionHandler.hpp"
 		"src/Genny.hpp"
 		"src/GennyIda.hpp"
+		"src/HookManager.cpp"
 		"src/HookManager.hpp"
 		"src/LicenseStrings.hpp"
+		"src/Main.cpp"
 		"src/Mod.hpp"
+		"src/Mods.cpp"
 		"src/Mods.hpp"
+		"src/REFramework.cpp"
 		"src/REFramework.hpp"
 		"src/Tool.hpp"
+		"src/WindowFilter.cpp"
 		"src/WindowFilter.hpp"
+		"src/WindowsMessageHook.cpp"
 		"src/WindowsMessageHook.hpp"
+		"src/cimgui/cimgui.cpp"
+		"src/cimgui/cimgui.h"
+		"src/mods/APIProxy.cpp"
 		"src/mods/APIProxy.hpp"
+		"src/mods/BackBufferRenderer.cpp"
 		"src/mods/BackBufferRenderer.hpp"
+		"src/mods/Camera.cpp"
 		"src/mods/Camera.hpp"
+		"src/mods/DeveloperTools.cpp"
 		"src/mods/DeveloperTools.hpp"
+		"src/mods/FirstPerson.cpp"
 		"src/mods/FirstPerson.hpp"
+		"src/mods/FreeCam.cpp"
 		"src/mods/FreeCam.hpp"
+		"src/mods/Graphics.cpp"
 		"src/mods/Graphics.hpp"
+		"src/mods/Hooks.cpp"
 		"src/mods/Hooks.hpp"
+		"src/mods/IntegrityCheckBypass.cpp"
 		"src/mods/IntegrityCheckBypass.hpp"
+		"src/mods/LooseFileLoader.cpp"
 		"src/mods/LooseFileLoader.hpp"
+		"src/mods/ManualFlashlight.cpp"
 		"src/mods/ManualFlashlight.hpp"
+		"src/mods/PluginLoader.cpp"
 		"src/mods/PluginLoader.hpp"
+		"src/mods/REFrameworkConfig.cpp"
 		"src/mods/REFrameworkConfig.hpp"
+		"src/mods/Scene.cpp"
 		"src/mods/Scene.hpp"
+		"src/mods/ScriptRunner.cpp"
 		"src/mods/ScriptRunner.hpp"
+		"src/mods/VR.cpp"
 		"src/mods/VR.hpp"
+		"src/mods/bindings/FS.cpp"
 		"src/mods/bindings/FS.hpp"
+		"src/mods/bindings/ImGui.cpp"
 		"src/mods/bindings/ImGui.hpp"
+		"src/mods/bindings/Json.cpp"
 		"src/mods/bindings/Json.hpp"
+		"src/mods/bindings/Sdk.cpp"
 		"src/mods/bindings/Sdk.hpp"
+		"src/mods/spritefonts/Roboto.spritefont.h"
+		"src/mods/tools/ChainViewer.cpp"
 		"src/mods/tools/ChainViewer.hpp"
+		"src/mods/tools/GameObjectsDisplay.cpp"
 		"src/mods/tools/GameObjectsDisplay.hpp"
+		"src/mods/tools/ObjectExplorer.cpp"
 		"src/mods/tools/ObjectExplorer.hpp"
+		"src/mods/vr/Bindings.cpp"
+		"src/mods/vr/D3D11Component.cpp"
 		"src/mods/vr/D3D11Component.hpp"
+		"src/mods/vr/D3D12Component.cpp"
 		"src/mods/vr/D3D12Component.hpp"
+		"src/mods/vr/OverlayComponent.cpp"
 		"src/mods/vr/OverlayComponent.hpp"
 		"src/mods/vr/d3d12/ComPtr.hpp"
+		"src/mods/vr/d3d12/CommandContext.cpp"
 		"src/mods/vr/d3d12/CommandContext.hpp"
+		"src/mods/vr/d3d12/ResourceCopier.cpp"
 		"src/mods/vr/d3d12/ResourceCopier.hpp"
+		"src/mods/vr/d3d12/TextureContext.cpp"
 		"src/mods/vr/d3d12/TextureContext.hpp"
+		"src/mods/vr/games/RE8VR.cpp"
 		"src/mods/vr/games/RE8VR.hpp"
+		"src/mods/vr/runtimes/OpenVR.cpp"
 		"src/mods/vr/runtimes/OpenVR.hpp"
+		"src/mods/vr/runtimes/OpenXR.cpp"
 		"src/mods/vr/runtimes/OpenXR.hpp"
 		"src/mods/vr/runtimes/VRRuntime.hpp"
 		"src/re2-imgui/af_baidu.hpp"
+		"src/re2-imgui/af_fadef.h"
 		"src/re2-imgui/af_faprolight.hpp"
 		"src/re2-imgui/font_robotomedium.hpp"
-		"src/re2-imgui/re2_imconfig.hpp"
-		"src/utility/ImGui.hpp"
-		"src/cimgui/cimgui.h"
-		"src/mods/spritefonts/Roboto.spritefont.h"
-		"src/re2-imgui/af_fadef.h"
+		"src/re2-imgui/imgui_impl_dx11.cpp"
 		"src/re2-imgui/imgui_impl_dx11.h"
+		"src/re2-imgui/imgui_impl_dx12.cpp"
 		"src/re2-imgui/imgui_impl_dx12.h"
+		"src/re2-imgui/imgui_impl_win32.cpp"
 		"src/re2-imgui/imgui_impl_win32.h"
+		"src/re2-imgui/re2_imconfig.hpp"
+		"src/utility/ImGui.cpp"
+		"src/utility/ImGui.hpp"
 	)
 
-	list(APPEND MHRISE_SOURCES
-		cmake.toml
-	)
-
-	set(CMKR_SOURCES ${MHRISE_SOURCES})
 	add_library(MHRISE SHARED)
 
-	if(MHRISE_SOURCES)
-		target_sources(MHRISE PRIVATE ${MHRISE_SOURCES})
-	endif()
+	target_sources(MHRISE PRIVATE ${MHRISE_SOURCES})
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${MHRISE_SOURCES})
 
 	target_compile_definitions(MHRISE PUBLIC
 		${CMKR_TARGET}
@@ -10911,7 +10563,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"REFRAMEWORK_GAME_NAME=\"${CMKR_TARGET}\""
 	)
 
-	if(DEVELOPER_MODE) # developer-mode
+	if(DEVELOPER_MODE) # developer-mode-cond
 		target_compile_definitions(MHRISE PUBLIC
 			DEVELOPER
 		)
@@ -10985,66 +10637,51 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/MakeCommitHash.bat
 	)
 
-	unset(CMKR_TARGET)
-	unset(CMKR_SOURCES)
 endif()
-
-# Target SF6SDK
+# Target: SF6SDK
 if(REF_BUILD_SF6_SDK OR REF_BUILD_FRAMEWORK) # build-sf6-sdk
-	set(CMKR_TARGET SF6SDK)
-	set(SF6SDK_SOURCES "")
-
-	list(APPEND SF6SDK_SOURCES
+	set(SF6SDK_SOURCES
+		cmake.toml
 		"shared/sdk/Application.cpp"
-		"shared/sdk/GUIPrimitiveSystem.cpp"
-		"shared/sdk/ManagedObject.cpp"
-		"shared/sdk/Memory.cpp"
-		"shared/sdk/MotionFsm2Layer.cpp"
-		"shared/sdk/MurmurHash.cpp"
-		"shared/sdk/REArray.cpp"
-		"shared/sdk/REContext.cpp"
-		"shared/sdk/REGameObject.cpp"
-		"shared/sdk/REGlobals.cpp"
-		"shared/sdk/REManagedObject.cpp"
-		"shared/sdk/RETransform.cpp"
-		"shared/sdk/REType.cpp"
-		"shared/sdk/RETypeDB.cpp"
-		"shared/sdk/RETypeDefinition.cpp"
-		"shared/sdk/RETypes.cpp"
-		"shared/sdk/REVTableHook.cpp"
-		"shared/sdk/Renderer.cpp"
-		"shared/sdk/ResourceManager.cpp"
-		"shared/sdk/SDK.cpp"
-		"shared/sdk/SF6Utility.cpp"
-		"shared/sdk/SceneManager.cpp"
-		"shared/sdk/SystemArray.cpp"
-		"shared/sdk/helpers/NativeObject.cpp"
-		"shared/sdk/renderer/RenderResource.cpp"
-		"shared/sdk/resources/MasterMaterialResource.cpp"
-		"shared/sdk/resources/ShaderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
+		"shared/sdk/GUIPrimitiveSystem.cpp"
 		"shared/sdk/GUIPrimitiveSystem.hpp"
+		"shared/sdk/ManagedObject.cpp"
 		"shared/sdk/ManagedObject.hpp"
 		"shared/sdk/Math.hpp"
+		"shared/sdk/Memory.cpp"
 		"shared/sdk/Memory.hpp"
+		"shared/sdk/MotionFsm2Layer.cpp"
 		"shared/sdk/MotionFsm2Layer.hpp"
+		"shared/sdk/MurmurHash.cpp"
 		"shared/sdk/MurmurHash.hpp"
+		"shared/sdk/REArray.cpp"
 		"shared/sdk/REArray.hpp"
 		"shared/sdk/REComponent.hpp"
+		"shared/sdk/REContext.cpp"
 		"shared/sdk/REContext.hpp"
+		"shared/sdk/REGameObject.cpp"
 		"shared/sdk/REGameObject.hpp"
+		"shared/sdk/REGlobals.cpp"
 		"shared/sdk/REGlobals.hpp"
+		"shared/sdk/REManagedObject.cpp"
 		"shared/sdk/REManagedObject.hpp"
 		"shared/sdk/REMath.hpp"
 		"shared/sdk/RENativeArray.hpp"
 		"shared/sdk/REString.hpp"
+		"shared/sdk/RETransform.cpp"
 		"shared/sdk/RETransform.hpp"
+		"shared/sdk/REType.cpp"
 		"shared/sdk/REType.hpp"
 		"shared/sdk/RETypeCLR.hpp"
+		"shared/sdk/RETypeDB.cpp"
 		"shared/sdk/RETypeDB.hpp"
+		"shared/sdk/RETypeDefinition.cpp"
 		"shared/sdk/RETypeDefinition.hpp"
+		"shared/sdk/RETypes.cpp"
 		"shared/sdk/RETypes.hpp"
+		"shared/sdk/REVTableHook.cpp"
 		"shared/sdk/REVTableHook.hpp"
 		"shared/sdk/REVariableDescriptor.hpp"
 		"shared/sdk/ReClass.hpp"
@@ -11059,14 +10696,21 @@ if(REF_BUILD_SF6_SDK OR REF_BUILD_FRAMEWORK) # build-sf6-sdk
 		"shared/sdk/ReClass_Internal_RE7.hpp"
 		"shared/sdk/ReClass_Internal_RE8.hpp"
 		"shared/sdk/ReClass_Internal_SF6.hpp"
+		"shared/sdk/Renderer.cpp"
 		"shared/sdk/Renderer.hpp"
+		"shared/sdk/ResourceManager.cpp"
 		"shared/sdk/ResourceManager.hpp"
 		"shared/sdk/RopewaySweetLightManager.hpp"
+		"shared/sdk/SDK.cpp"
 		"shared/sdk/SDK.hpp"
+		"shared/sdk/SF6Utility.cpp"
 		"shared/sdk/SF6Utility.hpp"
+		"shared/sdk/SceneManager.cpp"
 		"shared/sdk/SceneManager.hpp"
+		"shared/sdk/SystemArray.cpp"
 		"shared/sdk/SystemArray.hpp"
 		"shared/sdk/TDBVer.hpp"
+		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/helpers/NativeObject.hpp"
 		"shared/sdk/intrusive_ptr.hpp"
 		"shared/sdk/regenny/dd2/BullShit.hpp"
@@ -11775,21 +11419,18 @@ if(REF_BUILD_SF6_SDK OR REF_BUILD_FRAMEWORK) # build-sf6-sdk
 		"shared/sdk/regenny/sf6/via/vec3.hpp"
 		"shared/sdk/regenny/sf6/via/vec4.hpp"
 		"shared/sdk/renderer/PipelineState.hpp"
+		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/renderer/RenderResource.hpp"
+		"shared/sdk/resources/MasterMaterialResource.cpp"
 		"shared/sdk/resources/MasterMaterialResource.hpp"
+		"shared/sdk/resources/ShaderResource.cpp"
 		"shared/sdk/resources/ShaderResource.hpp"
 	)
 
-	list(APPEND SF6SDK_SOURCES
-		cmake.toml
-	)
-
-	set(CMKR_SOURCES ${SF6SDK_SOURCES})
 	add_library(SF6SDK STATIC)
 
-	if(SF6SDK_SOURCES)
-		target_sources(SF6SDK PRIVATE ${SF6SDK_SOURCES})
-	endif()
+	target_sources(SF6SDK PRIVATE ${SF6SDK_SOURCES})
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SF6SDK_SOURCES})
 
 	target_compile_features(SF6SDK PUBLIC
 		cxx_std_23
@@ -11819,135 +11460,125 @@ if(REF_BUILD_SF6_SDK OR REF_BUILD_FRAMEWORK) # build-sf6-sdk
 		REENGINE_AT
 	)
 
-	unset(CMKR_TARGET)
-	unset(CMKR_SOURCES)
 endif()
-
-# Target SF6
+# Target: SF6
 if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	set(CMKR_TARGET SF6)
-	set(SF6_SOURCES "")
-
-	list(APPEND SF6_SOURCES
+	set(SF6_SOURCES
+		cmake.toml
 		"src/D3D11Hook.cpp"
-		"src/D3D12Hook.cpp"
-		"src/DInputHook.cpp"
-		"src/ExceptionHandler.cpp"
-		"src/HookManager.cpp"
-		"src/Main.cpp"
-		"src/Mods.cpp"
-		"src/REFramework.cpp"
-		"src/WindowFilter.cpp"
-		"src/WindowsMessageHook.cpp"
-		"src/cimgui/cimgui.cpp"
-		"src/mods/APIProxy.cpp"
-		"src/mods/BackBufferRenderer.cpp"
-		"src/mods/Camera.cpp"
-		"src/mods/DeveloperTools.cpp"
-		"src/mods/FirstPerson.cpp"
-		"src/mods/FreeCam.cpp"
-		"src/mods/Graphics.cpp"
-		"src/mods/Hooks.cpp"
-		"src/mods/IntegrityCheckBypass.cpp"
-		"src/mods/LooseFileLoader.cpp"
-		"src/mods/ManualFlashlight.cpp"
-		"src/mods/PluginLoader.cpp"
-		"src/mods/REFrameworkConfig.cpp"
-		"src/mods/Scene.cpp"
-		"src/mods/ScriptRunner.cpp"
-		"src/mods/VR.cpp"
-		"src/mods/bindings/FS.cpp"
-		"src/mods/bindings/ImGui.cpp"
-		"src/mods/bindings/Json.cpp"
-		"src/mods/bindings/Sdk.cpp"
-		"src/mods/tools/ChainViewer.cpp"
-		"src/mods/tools/GameObjectsDisplay.cpp"
-		"src/mods/tools/ObjectExplorer.cpp"
-		"src/mods/vr/Bindings.cpp"
-		"src/mods/vr/D3D11Component.cpp"
-		"src/mods/vr/D3D12Component.cpp"
-		"src/mods/vr/OverlayComponent.cpp"
-		"src/mods/vr/d3d12/CommandContext.cpp"
-		"src/mods/vr/d3d12/ResourceCopier.cpp"
-		"src/mods/vr/d3d12/TextureContext.cpp"
-		"src/mods/vr/games/RE8VR.cpp"
-		"src/mods/vr/runtimes/OpenVR.cpp"
-		"src/mods/vr/runtimes/OpenXR.cpp"
-		"src/re2-imgui/imgui_impl_dx11.cpp"
-		"src/re2-imgui/imgui_impl_dx12.cpp"
-		"src/re2-imgui/imgui_impl_win32.cpp"
-		"src/utility/ImGui.cpp"
 		"src/D3D11Hook.hpp"
+		"src/D3D12Hook.cpp"
 		"src/D3D12Hook.hpp"
+		"src/DInputHook.cpp"
 		"src/DInputHook.hpp"
+		"src/ExceptionHandler.cpp"
 		"src/ExceptionHandler.hpp"
 		"src/Genny.hpp"
 		"src/GennyIda.hpp"
+		"src/HookManager.cpp"
 		"src/HookManager.hpp"
 		"src/LicenseStrings.hpp"
+		"src/Main.cpp"
 		"src/Mod.hpp"
+		"src/Mods.cpp"
 		"src/Mods.hpp"
+		"src/REFramework.cpp"
 		"src/REFramework.hpp"
 		"src/Tool.hpp"
+		"src/WindowFilter.cpp"
 		"src/WindowFilter.hpp"
+		"src/WindowsMessageHook.cpp"
 		"src/WindowsMessageHook.hpp"
+		"src/cimgui/cimgui.cpp"
+		"src/cimgui/cimgui.h"
+		"src/mods/APIProxy.cpp"
 		"src/mods/APIProxy.hpp"
+		"src/mods/BackBufferRenderer.cpp"
 		"src/mods/BackBufferRenderer.hpp"
+		"src/mods/Camera.cpp"
 		"src/mods/Camera.hpp"
+		"src/mods/DeveloperTools.cpp"
 		"src/mods/DeveloperTools.hpp"
+		"src/mods/FirstPerson.cpp"
 		"src/mods/FirstPerson.hpp"
+		"src/mods/FreeCam.cpp"
 		"src/mods/FreeCam.hpp"
+		"src/mods/Graphics.cpp"
 		"src/mods/Graphics.hpp"
+		"src/mods/Hooks.cpp"
 		"src/mods/Hooks.hpp"
+		"src/mods/IntegrityCheckBypass.cpp"
 		"src/mods/IntegrityCheckBypass.hpp"
+		"src/mods/LooseFileLoader.cpp"
 		"src/mods/LooseFileLoader.hpp"
+		"src/mods/ManualFlashlight.cpp"
 		"src/mods/ManualFlashlight.hpp"
+		"src/mods/PluginLoader.cpp"
 		"src/mods/PluginLoader.hpp"
+		"src/mods/REFrameworkConfig.cpp"
 		"src/mods/REFrameworkConfig.hpp"
+		"src/mods/Scene.cpp"
 		"src/mods/Scene.hpp"
+		"src/mods/ScriptRunner.cpp"
 		"src/mods/ScriptRunner.hpp"
+		"src/mods/VR.cpp"
 		"src/mods/VR.hpp"
+		"src/mods/bindings/FS.cpp"
 		"src/mods/bindings/FS.hpp"
+		"src/mods/bindings/ImGui.cpp"
 		"src/mods/bindings/ImGui.hpp"
+		"src/mods/bindings/Json.cpp"
 		"src/mods/bindings/Json.hpp"
+		"src/mods/bindings/Sdk.cpp"
 		"src/mods/bindings/Sdk.hpp"
+		"src/mods/spritefonts/Roboto.spritefont.h"
+		"src/mods/tools/ChainViewer.cpp"
 		"src/mods/tools/ChainViewer.hpp"
+		"src/mods/tools/GameObjectsDisplay.cpp"
 		"src/mods/tools/GameObjectsDisplay.hpp"
+		"src/mods/tools/ObjectExplorer.cpp"
 		"src/mods/tools/ObjectExplorer.hpp"
+		"src/mods/vr/Bindings.cpp"
+		"src/mods/vr/D3D11Component.cpp"
 		"src/mods/vr/D3D11Component.hpp"
+		"src/mods/vr/D3D12Component.cpp"
 		"src/mods/vr/D3D12Component.hpp"
+		"src/mods/vr/OverlayComponent.cpp"
 		"src/mods/vr/OverlayComponent.hpp"
 		"src/mods/vr/d3d12/ComPtr.hpp"
+		"src/mods/vr/d3d12/CommandContext.cpp"
 		"src/mods/vr/d3d12/CommandContext.hpp"
+		"src/mods/vr/d3d12/ResourceCopier.cpp"
 		"src/mods/vr/d3d12/ResourceCopier.hpp"
+		"src/mods/vr/d3d12/TextureContext.cpp"
 		"src/mods/vr/d3d12/TextureContext.hpp"
+		"src/mods/vr/games/RE8VR.cpp"
 		"src/mods/vr/games/RE8VR.hpp"
+		"src/mods/vr/runtimes/OpenVR.cpp"
 		"src/mods/vr/runtimes/OpenVR.hpp"
+		"src/mods/vr/runtimes/OpenXR.cpp"
 		"src/mods/vr/runtimes/OpenXR.hpp"
 		"src/mods/vr/runtimes/VRRuntime.hpp"
 		"src/re2-imgui/af_baidu.hpp"
+		"src/re2-imgui/af_fadef.h"
 		"src/re2-imgui/af_faprolight.hpp"
 		"src/re2-imgui/font_robotomedium.hpp"
-		"src/re2-imgui/re2_imconfig.hpp"
-		"src/utility/ImGui.hpp"
-		"src/cimgui/cimgui.h"
-		"src/mods/spritefonts/Roboto.spritefont.h"
-		"src/re2-imgui/af_fadef.h"
+		"src/re2-imgui/imgui_impl_dx11.cpp"
 		"src/re2-imgui/imgui_impl_dx11.h"
+		"src/re2-imgui/imgui_impl_dx12.cpp"
 		"src/re2-imgui/imgui_impl_dx12.h"
+		"src/re2-imgui/imgui_impl_win32.cpp"
 		"src/re2-imgui/imgui_impl_win32.h"
+		"src/re2-imgui/re2_imconfig.hpp"
+		"src/utility/ImGui.cpp"
+		"src/utility/ImGui.hpp"
 	)
 
-	list(APPEND SF6_SOURCES
-		cmake.toml
-	)
-
-	set(CMKR_SOURCES ${SF6_SOURCES})
 	add_library(SF6 SHARED)
 
-	if(SF6_SOURCES)
-		target_sources(SF6 PRIVATE ${SF6_SOURCES})
-	endif()
+	target_sources(SF6 PRIVATE ${SF6_SOURCES})
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SF6_SOURCES})
 
 	target_compile_definitions(SF6 PUBLIC
 		${CMKR_TARGET}
@@ -11955,7 +11586,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"REFRAMEWORK_GAME_NAME=\"${CMKR_TARGET}\""
 	)
 
-	if(DEVELOPER_MODE) # developer-mode
+	if(DEVELOPER_MODE) # developer-mode-cond
 		target_compile_definitions(SF6 PUBLIC
 			DEVELOPER
 		)
@@ -12029,66 +11660,51 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/MakeCommitHash.bat
 	)
 
-	unset(CMKR_TARGET)
-	unset(CMKR_SOURCES)
 endif()
-
-# Target DD2SDK
+# Target: DD2SDK
 if(REF_BUILD_DD2_SDK OR REF_BUILD_FRAMEWORK) # build-dd2-sdk
-	set(CMKR_TARGET DD2SDK)
-	set(DD2SDK_SOURCES "")
-
-	list(APPEND DD2SDK_SOURCES
+	set(DD2SDK_SOURCES
+		cmake.toml
 		"shared/sdk/Application.cpp"
-		"shared/sdk/GUIPrimitiveSystem.cpp"
-		"shared/sdk/ManagedObject.cpp"
-		"shared/sdk/Memory.cpp"
-		"shared/sdk/MotionFsm2Layer.cpp"
-		"shared/sdk/MurmurHash.cpp"
-		"shared/sdk/REArray.cpp"
-		"shared/sdk/REContext.cpp"
-		"shared/sdk/REGameObject.cpp"
-		"shared/sdk/REGlobals.cpp"
-		"shared/sdk/REManagedObject.cpp"
-		"shared/sdk/RETransform.cpp"
-		"shared/sdk/REType.cpp"
-		"shared/sdk/RETypeDB.cpp"
-		"shared/sdk/RETypeDefinition.cpp"
-		"shared/sdk/RETypes.cpp"
-		"shared/sdk/REVTableHook.cpp"
-		"shared/sdk/Renderer.cpp"
-		"shared/sdk/ResourceManager.cpp"
-		"shared/sdk/SDK.cpp"
-		"shared/sdk/SF6Utility.cpp"
-		"shared/sdk/SceneManager.cpp"
-		"shared/sdk/SystemArray.cpp"
-		"shared/sdk/helpers/NativeObject.cpp"
-		"shared/sdk/renderer/RenderResource.cpp"
-		"shared/sdk/resources/MasterMaterialResource.cpp"
-		"shared/sdk/resources/ShaderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
+		"shared/sdk/GUIPrimitiveSystem.cpp"
 		"shared/sdk/GUIPrimitiveSystem.hpp"
+		"shared/sdk/ManagedObject.cpp"
 		"shared/sdk/ManagedObject.hpp"
 		"shared/sdk/Math.hpp"
+		"shared/sdk/Memory.cpp"
 		"shared/sdk/Memory.hpp"
+		"shared/sdk/MotionFsm2Layer.cpp"
 		"shared/sdk/MotionFsm2Layer.hpp"
+		"shared/sdk/MurmurHash.cpp"
 		"shared/sdk/MurmurHash.hpp"
+		"shared/sdk/REArray.cpp"
 		"shared/sdk/REArray.hpp"
 		"shared/sdk/REComponent.hpp"
+		"shared/sdk/REContext.cpp"
 		"shared/sdk/REContext.hpp"
+		"shared/sdk/REGameObject.cpp"
 		"shared/sdk/REGameObject.hpp"
+		"shared/sdk/REGlobals.cpp"
 		"shared/sdk/REGlobals.hpp"
+		"shared/sdk/REManagedObject.cpp"
 		"shared/sdk/REManagedObject.hpp"
 		"shared/sdk/REMath.hpp"
 		"shared/sdk/RENativeArray.hpp"
 		"shared/sdk/REString.hpp"
+		"shared/sdk/RETransform.cpp"
 		"shared/sdk/RETransform.hpp"
+		"shared/sdk/REType.cpp"
 		"shared/sdk/REType.hpp"
 		"shared/sdk/RETypeCLR.hpp"
+		"shared/sdk/RETypeDB.cpp"
 		"shared/sdk/RETypeDB.hpp"
+		"shared/sdk/RETypeDefinition.cpp"
 		"shared/sdk/RETypeDefinition.hpp"
+		"shared/sdk/RETypes.cpp"
 		"shared/sdk/RETypes.hpp"
+		"shared/sdk/REVTableHook.cpp"
 		"shared/sdk/REVTableHook.hpp"
 		"shared/sdk/REVariableDescriptor.hpp"
 		"shared/sdk/ReClass.hpp"
@@ -12103,14 +11719,21 @@ if(REF_BUILD_DD2_SDK OR REF_BUILD_FRAMEWORK) # build-dd2-sdk
 		"shared/sdk/ReClass_Internal_RE7.hpp"
 		"shared/sdk/ReClass_Internal_RE8.hpp"
 		"shared/sdk/ReClass_Internal_SF6.hpp"
+		"shared/sdk/Renderer.cpp"
 		"shared/sdk/Renderer.hpp"
+		"shared/sdk/ResourceManager.cpp"
 		"shared/sdk/ResourceManager.hpp"
 		"shared/sdk/RopewaySweetLightManager.hpp"
+		"shared/sdk/SDK.cpp"
 		"shared/sdk/SDK.hpp"
+		"shared/sdk/SF6Utility.cpp"
 		"shared/sdk/SF6Utility.hpp"
+		"shared/sdk/SceneManager.cpp"
 		"shared/sdk/SceneManager.hpp"
+		"shared/sdk/SystemArray.cpp"
 		"shared/sdk/SystemArray.hpp"
 		"shared/sdk/TDBVer.hpp"
+		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/helpers/NativeObject.hpp"
 		"shared/sdk/intrusive_ptr.hpp"
 		"shared/sdk/regenny/dd2/BullShit.hpp"
@@ -12819,21 +12442,18 @@ if(REF_BUILD_DD2_SDK OR REF_BUILD_FRAMEWORK) # build-dd2-sdk
 		"shared/sdk/regenny/sf6/via/vec3.hpp"
 		"shared/sdk/regenny/sf6/via/vec4.hpp"
 		"shared/sdk/renderer/PipelineState.hpp"
+		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/renderer/RenderResource.hpp"
+		"shared/sdk/resources/MasterMaterialResource.cpp"
 		"shared/sdk/resources/MasterMaterialResource.hpp"
+		"shared/sdk/resources/ShaderResource.cpp"
 		"shared/sdk/resources/ShaderResource.hpp"
 	)
 
-	list(APPEND DD2SDK_SOURCES
-		cmake.toml
-	)
-
-	set(CMKR_SOURCES ${DD2SDK_SOURCES})
 	add_library(DD2SDK STATIC)
 
-	if(DD2SDK_SOURCES)
-		target_sources(DD2SDK PRIVATE ${DD2SDK_SOURCES})
-	endif()
+	target_sources(DD2SDK PRIVATE ${DD2SDK_SOURCES})
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${DD2SDK_SOURCES})
 
 	target_compile_features(DD2SDK PUBLIC
 		cxx_std_23
@@ -12863,135 +12483,125 @@ if(REF_BUILD_DD2_SDK OR REF_BUILD_FRAMEWORK) # build-dd2-sdk
 		REENGINE_AT
 	)
 
-	unset(CMKR_TARGET)
-	unset(CMKR_SOURCES)
 endif()
-
-# Target DD2
+# Target: DD2
 if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	set(CMKR_TARGET DD2)
-	set(DD2_SOURCES "")
-
-	list(APPEND DD2_SOURCES
+	set(DD2_SOURCES
+		cmake.toml
 		"src/D3D11Hook.cpp"
-		"src/D3D12Hook.cpp"
-		"src/DInputHook.cpp"
-		"src/ExceptionHandler.cpp"
-		"src/HookManager.cpp"
-		"src/Main.cpp"
-		"src/Mods.cpp"
-		"src/REFramework.cpp"
-		"src/WindowFilter.cpp"
-		"src/WindowsMessageHook.cpp"
-		"src/cimgui/cimgui.cpp"
-		"src/mods/APIProxy.cpp"
-		"src/mods/BackBufferRenderer.cpp"
-		"src/mods/Camera.cpp"
-		"src/mods/DeveloperTools.cpp"
-		"src/mods/FirstPerson.cpp"
-		"src/mods/FreeCam.cpp"
-		"src/mods/Graphics.cpp"
-		"src/mods/Hooks.cpp"
-		"src/mods/IntegrityCheckBypass.cpp"
-		"src/mods/LooseFileLoader.cpp"
-		"src/mods/ManualFlashlight.cpp"
-		"src/mods/PluginLoader.cpp"
-		"src/mods/REFrameworkConfig.cpp"
-		"src/mods/Scene.cpp"
-		"src/mods/ScriptRunner.cpp"
-		"src/mods/VR.cpp"
-		"src/mods/bindings/FS.cpp"
-		"src/mods/bindings/ImGui.cpp"
-		"src/mods/bindings/Json.cpp"
-		"src/mods/bindings/Sdk.cpp"
-		"src/mods/tools/ChainViewer.cpp"
-		"src/mods/tools/GameObjectsDisplay.cpp"
-		"src/mods/tools/ObjectExplorer.cpp"
-		"src/mods/vr/Bindings.cpp"
-		"src/mods/vr/D3D11Component.cpp"
-		"src/mods/vr/D3D12Component.cpp"
-		"src/mods/vr/OverlayComponent.cpp"
-		"src/mods/vr/d3d12/CommandContext.cpp"
-		"src/mods/vr/d3d12/ResourceCopier.cpp"
-		"src/mods/vr/d3d12/TextureContext.cpp"
-		"src/mods/vr/games/RE8VR.cpp"
-		"src/mods/vr/runtimes/OpenVR.cpp"
-		"src/mods/vr/runtimes/OpenXR.cpp"
-		"src/re2-imgui/imgui_impl_dx11.cpp"
-		"src/re2-imgui/imgui_impl_dx12.cpp"
-		"src/re2-imgui/imgui_impl_win32.cpp"
-		"src/utility/ImGui.cpp"
 		"src/D3D11Hook.hpp"
+		"src/D3D12Hook.cpp"
 		"src/D3D12Hook.hpp"
+		"src/DInputHook.cpp"
 		"src/DInputHook.hpp"
+		"src/ExceptionHandler.cpp"
 		"src/ExceptionHandler.hpp"
 		"src/Genny.hpp"
 		"src/GennyIda.hpp"
+		"src/HookManager.cpp"
 		"src/HookManager.hpp"
 		"src/LicenseStrings.hpp"
+		"src/Main.cpp"
 		"src/Mod.hpp"
+		"src/Mods.cpp"
 		"src/Mods.hpp"
+		"src/REFramework.cpp"
 		"src/REFramework.hpp"
 		"src/Tool.hpp"
+		"src/WindowFilter.cpp"
 		"src/WindowFilter.hpp"
+		"src/WindowsMessageHook.cpp"
 		"src/WindowsMessageHook.hpp"
+		"src/cimgui/cimgui.cpp"
+		"src/cimgui/cimgui.h"
+		"src/mods/APIProxy.cpp"
 		"src/mods/APIProxy.hpp"
+		"src/mods/BackBufferRenderer.cpp"
 		"src/mods/BackBufferRenderer.hpp"
+		"src/mods/Camera.cpp"
 		"src/mods/Camera.hpp"
+		"src/mods/DeveloperTools.cpp"
 		"src/mods/DeveloperTools.hpp"
+		"src/mods/FirstPerson.cpp"
 		"src/mods/FirstPerson.hpp"
+		"src/mods/FreeCam.cpp"
 		"src/mods/FreeCam.hpp"
+		"src/mods/Graphics.cpp"
 		"src/mods/Graphics.hpp"
+		"src/mods/Hooks.cpp"
 		"src/mods/Hooks.hpp"
+		"src/mods/IntegrityCheckBypass.cpp"
 		"src/mods/IntegrityCheckBypass.hpp"
+		"src/mods/LooseFileLoader.cpp"
 		"src/mods/LooseFileLoader.hpp"
+		"src/mods/ManualFlashlight.cpp"
 		"src/mods/ManualFlashlight.hpp"
+		"src/mods/PluginLoader.cpp"
 		"src/mods/PluginLoader.hpp"
+		"src/mods/REFrameworkConfig.cpp"
 		"src/mods/REFrameworkConfig.hpp"
+		"src/mods/Scene.cpp"
 		"src/mods/Scene.hpp"
+		"src/mods/ScriptRunner.cpp"
 		"src/mods/ScriptRunner.hpp"
+		"src/mods/VR.cpp"
 		"src/mods/VR.hpp"
+		"src/mods/bindings/FS.cpp"
 		"src/mods/bindings/FS.hpp"
+		"src/mods/bindings/ImGui.cpp"
 		"src/mods/bindings/ImGui.hpp"
+		"src/mods/bindings/Json.cpp"
 		"src/mods/bindings/Json.hpp"
+		"src/mods/bindings/Sdk.cpp"
 		"src/mods/bindings/Sdk.hpp"
+		"src/mods/spritefonts/Roboto.spritefont.h"
+		"src/mods/tools/ChainViewer.cpp"
 		"src/mods/tools/ChainViewer.hpp"
+		"src/mods/tools/GameObjectsDisplay.cpp"
 		"src/mods/tools/GameObjectsDisplay.hpp"
+		"src/mods/tools/ObjectExplorer.cpp"
 		"src/mods/tools/ObjectExplorer.hpp"
+		"src/mods/vr/Bindings.cpp"
+		"src/mods/vr/D3D11Component.cpp"
 		"src/mods/vr/D3D11Component.hpp"
+		"src/mods/vr/D3D12Component.cpp"
 		"src/mods/vr/D3D12Component.hpp"
+		"src/mods/vr/OverlayComponent.cpp"
 		"src/mods/vr/OverlayComponent.hpp"
 		"src/mods/vr/d3d12/ComPtr.hpp"
+		"src/mods/vr/d3d12/CommandContext.cpp"
 		"src/mods/vr/d3d12/CommandContext.hpp"
+		"src/mods/vr/d3d12/ResourceCopier.cpp"
 		"src/mods/vr/d3d12/ResourceCopier.hpp"
+		"src/mods/vr/d3d12/TextureContext.cpp"
 		"src/mods/vr/d3d12/TextureContext.hpp"
+		"src/mods/vr/games/RE8VR.cpp"
 		"src/mods/vr/games/RE8VR.hpp"
+		"src/mods/vr/runtimes/OpenVR.cpp"
 		"src/mods/vr/runtimes/OpenVR.hpp"
+		"src/mods/vr/runtimes/OpenXR.cpp"
 		"src/mods/vr/runtimes/OpenXR.hpp"
 		"src/mods/vr/runtimes/VRRuntime.hpp"
 		"src/re2-imgui/af_baidu.hpp"
+		"src/re2-imgui/af_fadef.h"
 		"src/re2-imgui/af_faprolight.hpp"
 		"src/re2-imgui/font_robotomedium.hpp"
-		"src/re2-imgui/re2_imconfig.hpp"
-		"src/utility/ImGui.hpp"
-		"src/cimgui/cimgui.h"
-		"src/mods/spritefonts/Roboto.spritefont.h"
-		"src/re2-imgui/af_fadef.h"
+		"src/re2-imgui/imgui_impl_dx11.cpp"
 		"src/re2-imgui/imgui_impl_dx11.h"
+		"src/re2-imgui/imgui_impl_dx12.cpp"
 		"src/re2-imgui/imgui_impl_dx12.h"
+		"src/re2-imgui/imgui_impl_win32.cpp"
 		"src/re2-imgui/imgui_impl_win32.h"
+		"src/re2-imgui/re2_imconfig.hpp"
+		"src/utility/ImGui.cpp"
+		"src/utility/ImGui.hpp"
 	)
 
-	list(APPEND DD2_SOURCES
-		cmake.toml
-	)
-
-	set(CMKR_SOURCES ${DD2_SOURCES})
 	add_library(DD2 SHARED)
 
-	if(DD2_SOURCES)
-		target_sources(DD2 PRIVATE ${DD2_SOURCES})
-	endif()
+	target_sources(DD2 PRIVATE ${DD2_SOURCES})
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${DD2_SOURCES})
 
 	target_compile_definitions(DD2 PUBLIC
 		${CMKR_TARGET}
@@ -12999,7 +12609,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"REFRAMEWORK_GAME_NAME=\"${CMKR_TARGET}\""
 	)
 
-	if(DEVELOPER_MODE) # developer-mode
+	if(DEVELOPER_MODE) # developer-mode-cond
 		target_compile_definitions(DD2 PUBLIC
 			DEVELOPER
 		)
@@ -13073,66 +12683,51 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/MakeCommitHash.bat
 	)
 
-	unset(CMKR_TARGET)
-	unset(CMKR_SOURCES)
 endif()
-
-# Target MHWILDSSDK
+# Target: MHWILDSSDK
 if(REF_BUILD_MHWILDS_SDK OR REF_BUILD_FRAMEWORK) # build-mhwilds-sdk
-	set(CMKR_TARGET MHWILDSSDK)
-	set(MHWILDSSDK_SOURCES "")
-
-	list(APPEND MHWILDSSDK_SOURCES
+	set(MHWILDSSDK_SOURCES
+		cmake.toml
 		"shared/sdk/Application.cpp"
-		"shared/sdk/GUIPrimitiveSystem.cpp"
-		"shared/sdk/ManagedObject.cpp"
-		"shared/sdk/Memory.cpp"
-		"shared/sdk/MotionFsm2Layer.cpp"
-		"shared/sdk/MurmurHash.cpp"
-		"shared/sdk/REArray.cpp"
-		"shared/sdk/REContext.cpp"
-		"shared/sdk/REGameObject.cpp"
-		"shared/sdk/REGlobals.cpp"
-		"shared/sdk/REManagedObject.cpp"
-		"shared/sdk/RETransform.cpp"
-		"shared/sdk/REType.cpp"
-		"shared/sdk/RETypeDB.cpp"
-		"shared/sdk/RETypeDefinition.cpp"
-		"shared/sdk/RETypes.cpp"
-		"shared/sdk/REVTableHook.cpp"
-		"shared/sdk/Renderer.cpp"
-		"shared/sdk/ResourceManager.cpp"
-		"shared/sdk/SDK.cpp"
-		"shared/sdk/SF6Utility.cpp"
-		"shared/sdk/SceneManager.cpp"
-		"shared/sdk/SystemArray.cpp"
-		"shared/sdk/helpers/NativeObject.cpp"
-		"shared/sdk/renderer/RenderResource.cpp"
-		"shared/sdk/resources/MasterMaterialResource.cpp"
-		"shared/sdk/resources/ShaderResource.cpp"
 		"shared/sdk/Application.hpp"
 		"shared/sdk/Enums_Internal.hpp"
+		"shared/sdk/GUIPrimitiveSystem.cpp"
 		"shared/sdk/GUIPrimitiveSystem.hpp"
+		"shared/sdk/ManagedObject.cpp"
 		"shared/sdk/ManagedObject.hpp"
 		"shared/sdk/Math.hpp"
+		"shared/sdk/Memory.cpp"
 		"shared/sdk/Memory.hpp"
+		"shared/sdk/MotionFsm2Layer.cpp"
 		"shared/sdk/MotionFsm2Layer.hpp"
+		"shared/sdk/MurmurHash.cpp"
 		"shared/sdk/MurmurHash.hpp"
+		"shared/sdk/REArray.cpp"
 		"shared/sdk/REArray.hpp"
 		"shared/sdk/REComponent.hpp"
+		"shared/sdk/REContext.cpp"
 		"shared/sdk/REContext.hpp"
+		"shared/sdk/REGameObject.cpp"
 		"shared/sdk/REGameObject.hpp"
+		"shared/sdk/REGlobals.cpp"
 		"shared/sdk/REGlobals.hpp"
+		"shared/sdk/REManagedObject.cpp"
 		"shared/sdk/REManagedObject.hpp"
 		"shared/sdk/REMath.hpp"
 		"shared/sdk/RENativeArray.hpp"
 		"shared/sdk/REString.hpp"
+		"shared/sdk/RETransform.cpp"
 		"shared/sdk/RETransform.hpp"
+		"shared/sdk/REType.cpp"
 		"shared/sdk/REType.hpp"
 		"shared/sdk/RETypeCLR.hpp"
+		"shared/sdk/RETypeDB.cpp"
 		"shared/sdk/RETypeDB.hpp"
+		"shared/sdk/RETypeDefinition.cpp"
 		"shared/sdk/RETypeDefinition.hpp"
+		"shared/sdk/RETypes.cpp"
 		"shared/sdk/RETypes.hpp"
+		"shared/sdk/REVTableHook.cpp"
 		"shared/sdk/REVTableHook.hpp"
 		"shared/sdk/REVariableDescriptor.hpp"
 		"shared/sdk/ReClass.hpp"
@@ -13147,14 +12742,21 @@ if(REF_BUILD_MHWILDS_SDK OR REF_BUILD_FRAMEWORK) # build-mhwilds-sdk
 		"shared/sdk/ReClass_Internal_RE7.hpp"
 		"shared/sdk/ReClass_Internal_RE8.hpp"
 		"shared/sdk/ReClass_Internal_SF6.hpp"
+		"shared/sdk/Renderer.cpp"
 		"shared/sdk/Renderer.hpp"
+		"shared/sdk/ResourceManager.cpp"
 		"shared/sdk/ResourceManager.hpp"
 		"shared/sdk/RopewaySweetLightManager.hpp"
+		"shared/sdk/SDK.cpp"
 		"shared/sdk/SDK.hpp"
+		"shared/sdk/SF6Utility.cpp"
 		"shared/sdk/SF6Utility.hpp"
+		"shared/sdk/SceneManager.cpp"
 		"shared/sdk/SceneManager.hpp"
+		"shared/sdk/SystemArray.cpp"
 		"shared/sdk/SystemArray.hpp"
 		"shared/sdk/TDBVer.hpp"
+		"shared/sdk/helpers/NativeObject.cpp"
 		"shared/sdk/helpers/NativeObject.hpp"
 		"shared/sdk/intrusive_ptr.hpp"
 		"shared/sdk/regenny/dd2/BullShit.hpp"
@@ -13863,21 +13465,18 @@ if(REF_BUILD_MHWILDS_SDK OR REF_BUILD_FRAMEWORK) # build-mhwilds-sdk
 		"shared/sdk/regenny/sf6/via/vec3.hpp"
 		"shared/sdk/regenny/sf6/via/vec4.hpp"
 		"shared/sdk/renderer/PipelineState.hpp"
+		"shared/sdk/renderer/RenderResource.cpp"
 		"shared/sdk/renderer/RenderResource.hpp"
+		"shared/sdk/resources/MasterMaterialResource.cpp"
 		"shared/sdk/resources/MasterMaterialResource.hpp"
+		"shared/sdk/resources/ShaderResource.cpp"
 		"shared/sdk/resources/ShaderResource.hpp"
 	)
 
-	list(APPEND MHWILDSSDK_SOURCES
-		cmake.toml
-	)
-
-	set(CMKR_SOURCES ${MHWILDSSDK_SOURCES})
 	add_library(MHWILDSSDK STATIC)
 
-	if(MHWILDSSDK_SOURCES)
-		target_sources(MHWILDSSDK PRIVATE ${MHWILDSSDK_SOURCES})
-	endif()
+	target_sources(MHWILDSSDK PRIVATE ${MHWILDSSDK_SOURCES})
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${MHWILDSSDK_SOURCES})
 
 	target_compile_features(MHWILDSSDK PUBLIC
 		cxx_std_23
@@ -13907,135 +13506,125 @@ if(REF_BUILD_MHWILDS_SDK OR REF_BUILD_FRAMEWORK) # build-mhwilds-sdk
 		REENGINE_AT
 	)
 
-	unset(CMKR_TARGET)
-	unset(CMKR_SOURCES)
 endif()
-
-# Target MHWILDS
+# Target: MHWILDS
 if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	set(CMKR_TARGET MHWILDS)
-	set(MHWILDS_SOURCES "")
-
-	list(APPEND MHWILDS_SOURCES
+	set(MHWILDS_SOURCES
+		cmake.toml
 		"src/D3D11Hook.cpp"
-		"src/D3D12Hook.cpp"
-		"src/DInputHook.cpp"
-		"src/ExceptionHandler.cpp"
-		"src/HookManager.cpp"
-		"src/Main.cpp"
-		"src/Mods.cpp"
-		"src/REFramework.cpp"
-		"src/WindowFilter.cpp"
-		"src/WindowsMessageHook.cpp"
-		"src/cimgui/cimgui.cpp"
-		"src/mods/APIProxy.cpp"
-		"src/mods/BackBufferRenderer.cpp"
-		"src/mods/Camera.cpp"
-		"src/mods/DeveloperTools.cpp"
-		"src/mods/FirstPerson.cpp"
-		"src/mods/FreeCam.cpp"
-		"src/mods/Graphics.cpp"
-		"src/mods/Hooks.cpp"
-		"src/mods/IntegrityCheckBypass.cpp"
-		"src/mods/LooseFileLoader.cpp"
-		"src/mods/ManualFlashlight.cpp"
-		"src/mods/PluginLoader.cpp"
-		"src/mods/REFrameworkConfig.cpp"
-		"src/mods/Scene.cpp"
-		"src/mods/ScriptRunner.cpp"
-		"src/mods/VR.cpp"
-		"src/mods/bindings/FS.cpp"
-		"src/mods/bindings/ImGui.cpp"
-		"src/mods/bindings/Json.cpp"
-		"src/mods/bindings/Sdk.cpp"
-		"src/mods/tools/ChainViewer.cpp"
-		"src/mods/tools/GameObjectsDisplay.cpp"
-		"src/mods/tools/ObjectExplorer.cpp"
-		"src/mods/vr/Bindings.cpp"
-		"src/mods/vr/D3D11Component.cpp"
-		"src/mods/vr/D3D12Component.cpp"
-		"src/mods/vr/OverlayComponent.cpp"
-		"src/mods/vr/d3d12/CommandContext.cpp"
-		"src/mods/vr/d3d12/ResourceCopier.cpp"
-		"src/mods/vr/d3d12/TextureContext.cpp"
-		"src/mods/vr/games/RE8VR.cpp"
-		"src/mods/vr/runtimes/OpenVR.cpp"
-		"src/mods/vr/runtimes/OpenXR.cpp"
-		"src/re2-imgui/imgui_impl_dx11.cpp"
-		"src/re2-imgui/imgui_impl_dx12.cpp"
-		"src/re2-imgui/imgui_impl_win32.cpp"
-		"src/utility/ImGui.cpp"
 		"src/D3D11Hook.hpp"
+		"src/D3D12Hook.cpp"
 		"src/D3D12Hook.hpp"
+		"src/DInputHook.cpp"
 		"src/DInputHook.hpp"
+		"src/ExceptionHandler.cpp"
 		"src/ExceptionHandler.hpp"
 		"src/Genny.hpp"
 		"src/GennyIda.hpp"
+		"src/HookManager.cpp"
 		"src/HookManager.hpp"
 		"src/LicenseStrings.hpp"
+		"src/Main.cpp"
 		"src/Mod.hpp"
+		"src/Mods.cpp"
 		"src/Mods.hpp"
+		"src/REFramework.cpp"
 		"src/REFramework.hpp"
 		"src/Tool.hpp"
+		"src/WindowFilter.cpp"
 		"src/WindowFilter.hpp"
+		"src/WindowsMessageHook.cpp"
 		"src/WindowsMessageHook.hpp"
+		"src/cimgui/cimgui.cpp"
+		"src/cimgui/cimgui.h"
+		"src/mods/APIProxy.cpp"
 		"src/mods/APIProxy.hpp"
+		"src/mods/BackBufferRenderer.cpp"
 		"src/mods/BackBufferRenderer.hpp"
+		"src/mods/Camera.cpp"
 		"src/mods/Camera.hpp"
+		"src/mods/DeveloperTools.cpp"
 		"src/mods/DeveloperTools.hpp"
+		"src/mods/FirstPerson.cpp"
 		"src/mods/FirstPerson.hpp"
+		"src/mods/FreeCam.cpp"
 		"src/mods/FreeCam.hpp"
+		"src/mods/Graphics.cpp"
 		"src/mods/Graphics.hpp"
+		"src/mods/Hooks.cpp"
 		"src/mods/Hooks.hpp"
+		"src/mods/IntegrityCheckBypass.cpp"
 		"src/mods/IntegrityCheckBypass.hpp"
+		"src/mods/LooseFileLoader.cpp"
 		"src/mods/LooseFileLoader.hpp"
+		"src/mods/ManualFlashlight.cpp"
 		"src/mods/ManualFlashlight.hpp"
+		"src/mods/PluginLoader.cpp"
 		"src/mods/PluginLoader.hpp"
+		"src/mods/REFrameworkConfig.cpp"
 		"src/mods/REFrameworkConfig.hpp"
+		"src/mods/Scene.cpp"
 		"src/mods/Scene.hpp"
+		"src/mods/ScriptRunner.cpp"
 		"src/mods/ScriptRunner.hpp"
+		"src/mods/VR.cpp"
 		"src/mods/VR.hpp"
+		"src/mods/bindings/FS.cpp"
 		"src/mods/bindings/FS.hpp"
+		"src/mods/bindings/ImGui.cpp"
 		"src/mods/bindings/ImGui.hpp"
+		"src/mods/bindings/Json.cpp"
 		"src/mods/bindings/Json.hpp"
+		"src/mods/bindings/Sdk.cpp"
 		"src/mods/bindings/Sdk.hpp"
+		"src/mods/spritefonts/Roboto.spritefont.h"
+		"src/mods/tools/ChainViewer.cpp"
 		"src/mods/tools/ChainViewer.hpp"
+		"src/mods/tools/GameObjectsDisplay.cpp"
 		"src/mods/tools/GameObjectsDisplay.hpp"
+		"src/mods/tools/ObjectExplorer.cpp"
 		"src/mods/tools/ObjectExplorer.hpp"
+		"src/mods/vr/Bindings.cpp"
+		"src/mods/vr/D3D11Component.cpp"
 		"src/mods/vr/D3D11Component.hpp"
+		"src/mods/vr/D3D12Component.cpp"
 		"src/mods/vr/D3D12Component.hpp"
+		"src/mods/vr/OverlayComponent.cpp"
 		"src/mods/vr/OverlayComponent.hpp"
 		"src/mods/vr/d3d12/ComPtr.hpp"
+		"src/mods/vr/d3d12/CommandContext.cpp"
 		"src/mods/vr/d3d12/CommandContext.hpp"
+		"src/mods/vr/d3d12/ResourceCopier.cpp"
 		"src/mods/vr/d3d12/ResourceCopier.hpp"
+		"src/mods/vr/d3d12/TextureContext.cpp"
 		"src/mods/vr/d3d12/TextureContext.hpp"
+		"src/mods/vr/games/RE8VR.cpp"
 		"src/mods/vr/games/RE8VR.hpp"
+		"src/mods/vr/runtimes/OpenVR.cpp"
 		"src/mods/vr/runtimes/OpenVR.hpp"
+		"src/mods/vr/runtimes/OpenXR.cpp"
 		"src/mods/vr/runtimes/OpenXR.hpp"
 		"src/mods/vr/runtimes/VRRuntime.hpp"
 		"src/re2-imgui/af_baidu.hpp"
+		"src/re2-imgui/af_fadef.h"
 		"src/re2-imgui/af_faprolight.hpp"
 		"src/re2-imgui/font_robotomedium.hpp"
-		"src/re2-imgui/re2_imconfig.hpp"
-		"src/utility/ImGui.hpp"
-		"src/cimgui/cimgui.h"
-		"src/mods/spritefonts/Roboto.spritefont.h"
-		"src/re2-imgui/af_fadef.h"
+		"src/re2-imgui/imgui_impl_dx11.cpp"
 		"src/re2-imgui/imgui_impl_dx11.h"
+		"src/re2-imgui/imgui_impl_dx12.cpp"
 		"src/re2-imgui/imgui_impl_dx12.h"
+		"src/re2-imgui/imgui_impl_win32.cpp"
 		"src/re2-imgui/imgui_impl_win32.h"
+		"src/re2-imgui/re2_imconfig.hpp"
+		"src/utility/ImGui.cpp"
+		"src/utility/ImGui.hpp"
 	)
 
-	list(APPEND MHWILDS_SOURCES
-		cmake.toml
-	)
-
-	set(CMKR_SOURCES ${MHWILDS_SOURCES})
 	add_library(MHWILDS SHARED)
 
-	if(MHWILDS_SOURCES)
-		target_sources(MHWILDS PRIVATE ${MHWILDS_SOURCES})
-	endif()
+	target_sources(MHWILDS PRIVATE ${MHWILDS_SOURCES})
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${MHWILDS_SOURCES})
 
 	target_compile_definitions(MHWILDS PUBLIC
 		${CMKR_TARGET}
@@ -14043,7 +13632,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"REFRAMEWORK_GAME_NAME=\"${CMKR_TARGET}\""
 	)
 
-	if(DEVELOPER_MODE) # developer-mode
+	if(DEVELOPER_MODE) # developer-mode-cond
 		target_compile_definitions(MHWILDS PUBLIC
 			DEVELOPER
 		)
@@ -14117,44 +13706,31 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/MakeCommitHash.bat
 	)
 
-	unset(CMKR_TARGET)
-	unset(CMKR_SOURCES)
 endif()
-
-# Target example_plugin
+# Target: example_plugin
 if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
-	set(CMKR_TARGET example_plugin)
-	set(example_plugin_SOURCES "")
-
-	list(APPEND example_plugin_SOURCES
+	set(example_plugin_SOURCES
+		cmake.toml
 		"examples/example_plugin/Plugin.cpp"
-		"examples/example_plugin/imgui/imgui_impl_dx11.cpp"
-		"examples/example_plugin/imgui/imgui_impl_dx12.cpp"
-		"examples/example_plugin/imgui/imgui_impl_win32.cpp"
-		"examples/example_plugin/rendering/d3d11.cpp"
-		"examples/example_plugin/rendering/d3d12.cpp"
 		"examples/example_plugin/Plugin.hpp"
 		"examples/example_plugin/imgui/font_robotomedium.hpp"
+		"examples/example_plugin/imgui/imgui_impl_dx11.cpp"
+		"examples/example_plugin/imgui/imgui_impl_dx11.h"
+		"examples/example_plugin/imgui/imgui_impl_dx12.cpp"
+		"examples/example_plugin/imgui/imgui_impl_dx12.h"
+		"examples/example_plugin/imgui/imgui_impl_win32.cpp"
+		"examples/example_plugin/imgui/imgui_impl_win32.h"
 		"examples/example_plugin/imgui/re2_imconfig.hpp"
+		"examples/example_plugin/rendering/d3d11.cpp"
 		"examples/example_plugin/rendering/d3d11.hpp"
+		"examples/example_plugin/rendering/d3d12.cpp"
 		"examples/example_plugin/rendering/d3d12.hpp"
 		"examples/example_plugin/rendering/shared.hpp"
-		"examples/example_plugin/imgui/imgui_impl_dx11.h"
-		"examples/example_plugin/imgui/imgui_impl_dx12.h"
-		"examples/example_plugin/imgui/imgui_impl_win32.h"
 	)
 
-	list(APPEND example_plugin_SOURCES
-		cmake.toml
-	)
-
-	set(CMKR_SOURCES ${example_plugin_SOURCES})
 	add_library(example_plugin SHARED)
 
-	if(example_plugin_SOURCES)
-		target_sources(example_plugin PRIVATE ${example_plugin_SOURCES})
-	endif()
-
+	target_sources(example_plugin PRIVATE ${example_plugin_SOURCES})
 	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${example_plugin_SOURCES})
 
 	target_compile_features(example_plugin PUBLIC
@@ -14186,30 +13762,17 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 			"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
 	)
 
-	unset(CMKR_TARGET)
-	unset(CMKR_SOURCES)
 endif()
-
-# Target weapon_stay_big_plugin
+# Target: weapon_stay_big_plugin
 if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
-	set(CMKR_TARGET weapon_stay_big_plugin)
-	set(weapon_stay_big_plugin_SOURCES "")
-
-	list(APPEND weapon_stay_big_plugin_SOURCES
+	set(weapon_stay_big_plugin_SOURCES
+		cmake.toml
 		"examples/weapon_stay_big_plugin/weapon_stay_big.cpp"
 	)
 
-	list(APPEND weapon_stay_big_plugin_SOURCES
-		cmake.toml
-	)
-
-	set(CMKR_SOURCES ${weapon_stay_big_plugin_SOURCES})
 	add_library(weapon_stay_big_plugin SHARED)
 
-	if(weapon_stay_big_plugin_SOURCES)
-		target_sources(weapon_stay_big_plugin PRIVATE ${weapon_stay_big_plugin_SOURCES})
-	endif()
-
+	target_sources(weapon_stay_big_plugin PRIVATE ${weapon_stay_big_plugin_SOURCES})
 	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${weapon_stay_big_plugin_SOURCES})
 
 	target_compile_features(weapon_stay_big_plugin PUBLIC
@@ -14235,7 +13798,4 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 			"${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"
 	)
 
-	unset(CMKR_TARGET)
-	unset(CMKR_SOURCES)
 endif()
-
