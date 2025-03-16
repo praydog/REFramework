@@ -38,6 +38,7 @@ private:
 
 public:
     struct TDB;
+    struct Module;
     struct TypeDefinition;
     struct Method;
     struct Field;
@@ -206,6 +207,11 @@ public:
             return (::REFrameworkTDBHandle)this;
         }
 
+        uint32_t get_num_modules() const {
+            static const auto fn = API::s_instance->sdk()->tdb->get_num_modules;
+            return fn(*this);
+        }
+
         uint32_t get_num_types() const {
             static const auto fn = API::s_instance->sdk()->tdb->get_num_types;
             return fn(*this);
@@ -285,6 +291,11 @@ public:
             static const auto fn = API::s_instance->sdk()->tdb->get_property;
             return (API::Property*)fn(*this, index);
         }
+
+        API::Module* get_module(uint32_t index) const {
+            static const auto fn = API::s_instance->sdk()->tdb->get_module;
+            return (API::Module*)fn(*this, index);
+        }
     };
 
     struct REFramework {
@@ -295,6 +306,75 @@ public:
         bool is_drawing_ui() const {
             static const auto fn = API::s_instance->param()->functions->is_drawing_ui;
             return fn();
+        }
+    };
+
+    struct Module {
+        operator ::REFrameworkModuleHandle() const {
+            return (::REFrameworkModuleHandle)this;
+        }
+
+        uint16_t get_major() const {
+            static const auto fn = initialize()->get_major;
+            return fn(*this);
+        }
+
+        uint16_t get_minor() const {
+            static const auto fn = initialize()->get_minor;
+            return fn(*this);
+        }
+
+        uint16_t get_build() const {
+            static const auto fn = initialize()->get_build;
+            return fn(*this);
+        }
+
+        uint16_t get_revision() const {
+            static const auto fn = initialize()->get_revision;
+            return fn(*this);
+        }
+
+        const char* get_assembly_name() const {
+            static const auto fn = initialize()->get_assembly_name;
+            return fn(*this);
+        }
+
+        const char* get_location() const {
+            static const auto fn = initialize()->get_location;
+            return fn(*this);
+        }
+
+        const char* get_module_name() const {
+            static const auto fn = initialize()->get_module_name;
+            return fn(*this);
+        }
+
+        std::span<uint32_t> get_types() const {
+            static const auto get_num_types = initialize()->get_num_types;
+            static const auto get_types = initialize()->get_types;
+
+            auto start = get_types(*this);
+
+            return std::span<uint32_t>{start, (size_t)get_num_types(*this)};
+        }
+
+        std::span<uint32_t> get_methods() const {
+            static const auto get_num_methods = initialize()->get_num_methods;
+            static const auto get_methods = initialize()->get_methods;
+
+            auto start = get_methods(*this);
+
+            return std::span<uint32_t>{start, (size_t)get_num_methods(*this)};
+        }
+
+    private:
+        static inline const ::REFrameworkModule* s_functions{nullptr};
+        static inline const ::REFrameworkModule* initialize() {
+            if (s_functions == nullptr) {
+                s_functions = API::s_instance->sdk()->module;
+            }
+
+            return s_functions;
         }
     };
 
