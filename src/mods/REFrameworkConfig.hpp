@@ -41,6 +41,8 @@ private:
 #endif
     ModKey::Ptr m_show_cursor_key{ ModKey::create(generate_name("ShowCursorKey")) };
     ModInt32::Ptr m_font_size{ModInt32::create(generate_name("FontSize"), 16)};
+    std::vector<std::string> fonts{};
+    ModComboString::Ptr m_font_file{};
 
     ValueList m_options {
         *m_menu_key,

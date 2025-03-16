@@ -787,7 +787,7 @@ void REFramework::run_imgui_frame(bool from_present) {
     const bool is_init_ok = m_error.empty() && m_game_data_initialized;
 
     consume_input();
-    update_fonts();
+    init_fonts();
     
     ImGui_ImplWin32_NewFrame();
 
@@ -860,7 +860,7 @@ void REFramework::on_frame_d3d11() {
 
     if (!m_has_frame) {
         if (!is_init_ok) {
-            update_fonts();
+            init_fonts();
             invalidate_device_objects();
 
             ImGui_ImplDX11_NewFrame();
@@ -977,7 +977,7 @@ void REFramework::on_frame_d3d12() {
 
     if (!m_has_frame) {
         if (!is_init_ok) {
-            update_fonts();
+            init_fonts();
             do_per_frame_thing();
             // hooks don't run until after initialization, so we just render the imgui window while initalizing.
             run_imgui_frame(true);
@@ -1412,7 +1412,7 @@ int REFramework::add_font(const std::filesystem::path& filepath, float size) {
     return m_additional_fonts.size() - 1;
 }
 
-void REFramework::update_fonts() {
+void REFramework::init_fonts() {
     if (!m_fonts_need_init) {
         return;
     }
@@ -1420,24 +1420,37 @@ void REFramework::update_fonts() {
     m_fonts_need_init = false;
 
     auto& fonts = ImGui::GetIO().Fonts;
-    // fonts->Clear();
 
     // using 'reframework_pictographic.mode' file to
     // replace '?' to most flag in WorldObjectsViewer
     ImFontConfig custom_icons{};
     custom_icons.FontDataOwnedByAtlas = false;
-    m_default_font = (INVALID_FILE_ATTRIBUTES != ::GetFileAttributesA("reframework_pictographic.mode"))
-        ? fonts->AddFontFromMemoryTTF((void*)af_baidu_ptr, af_baidu_size, m_font_size, &custom_icons)
-        : fonts->AddFontFromMemoryCompressedTTF(RobotoMedium_compressed_data, RobotoMedium_compressed_size, m_font_size);
 
-    // https://fontawesome.com/
-    custom_icons.PixelSnapH = true;
-    custom_icons.MergeMode = true;
-    custom_icons.FontDataOwnedByAtlas = false;
-    static const ImWchar icon_ranges[] = {0xF000, 0xF976, 0}; // ICON_MIN_FA ICON_MAX_FA
-    fonts->AddFontFromMemoryTTF((void*)af_faprolight_ptr, af_faprolight_size, m_font_size, &custom_icons, icon_ranges);
+    const auto fonts_path = REFramework::get_persistent_dir() / "reframework" / "fonts";
+    const auto font_path = fonts_path / m_default_font_file;
+    if (m_default_font_file != "DEFAULT" && fs::exists(font_path)) {
+        if (!loaded_fonts.contains(m_default_font_file)) {
+            loaded_fonts[m_default_font_file] = fonts->AddFontFromFileTTF(font_path.string().c_str(), m_font_size);
+        }
+        m_default_font = loaded_fonts[m_default_font_file];
+    } else {
+        if (!loaded_fonts.contains("DEFAULT")) {
+            loaded_fonts["DEFAULT"] = (INVALID_FILE_ATTRIBUTES != ::GetFileAttributesA("reframework_pictographic.mode"))
+                    ? fonts->AddFontFromMemoryTTF((void*)af_baidu_ptr, af_baidu_size, m_font_size, &custom_icons)
+                    : fonts->AddFontFromMemoryCompressedTTF(RobotoMedium_compressed_data, RobotoMedium_compressed_size, m_font_size);
+        }
+        m_default_font = loaded_fonts["DEFAULT"];
+    }
 
-    // fonts->Build();
+    if (!loaded_fonts.contains("ICON")) {
+        // https://fontawesome.com/
+        custom_icons.PixelSnapH = true;
+        custom_icons.MergeMode = true;
+        custom_icons.FontDataOwnedByAtlas = false;
+        static const ImWchar icon_ranges[] = {0xF000, 0xF976, 0}; // ICON_MIN_FA ICON_MAX_FA
+        loaded_fonts["ICON"] = fonts->AddFontFromMemoryTTF((void*)af_faprolight_ptr, af_faprolight_size, m_font_size, &custom_icons, icon_ranges);
+    }
+
     m_wants_device_object_cleanup = true;
 }
 
@@ -1511,7 +1524,7 @@ void REFramework::draw_ui() {
     ImGui::SetNextWindowPos(ImVec2(50, 50), ImGuiCond_::ImGuiCond_Once);
     ImGui::SetNextWindowSize(ImVec2(300, 500), ImGuiCond_::ImGuiCond_Once);
 
-    ImGui::PushFontSize(m_font_size);
+    ImGui::PushFont(m_default_font, m_font_size);
     static const auto REF_NAME = std::format("REFramework [{}+{}-{:.8}]", REF_TAG, REF_COMMITS_PAST_TAG, REF_COMMIT_HASH);
     bool is_open = true;
     ImGui::Begin(REF_NAME.c_str(), &is_open);
@@ -1542,7 +1555,7 @@ void REFramework::draw_ui() {
     m_last_window_pos = ImGui::GetWindowPos();
     m_last_window_size = ImGui::GetWindowSize();
 
-    ImGui::PopFontSize();
+    ImGui::PopFont();
     ImGui::End();
 
     // save the menu state in config

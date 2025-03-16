@@ -154,6 +154,11 @@ public:
 
     auto get_font_size() const { return m_font_size; }
 
+    void set_font(std::string path) { 
+        m_default_font_file = path;
+        m_fonts_need_init = true;
+    }
+
     int add_font(const std::filesystem::path& filepath, float size);
 
     ImFont* get_font(int index) const {
@@ -174,7 +179,7 @@ public:
 
 private:
     void consume_input();
-    void update_fonts();
+    void init_fonts();
     void invalidate_device_objects();
 
     void draw_ui();
@@ -227,6 +232,7 @@ private:
         ImFont* font{};
     };
 
+    std::string m_default_font_file = "DEFAULT";
     bool m_fonts_need_init{true};
     float m_font_size{16};
     ImFont* m_default_font;
