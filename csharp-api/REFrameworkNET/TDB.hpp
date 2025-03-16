@@ -1,10 +1,13 @@
 #pragma once
 
+#include <cstdint>
+
 #include <reframework/API.hpp>
 
 #pragma managed
 
 #include <msclr/marshal_cppstd.h>
+#include "Module.hpp"
 #include "TypeDefinition.hpp"
 #include "Method.hpp"
 #include "Field.hpp"
@@ -42,6 +45,10 @@ public:
 
     uintptr_t GetAddress() {
         return (uintptr_t)m_tdb;
+    }
+
+    uint32_t GetNumModules() {
+        return m_tdb->get_num_modules();
     }
 
     uint32_t GetNumTypes() {
@@ -195,6 +202,16 @@ public:
         }
 
         return gcnew Property(result);
+    }
+
+    Module^ GetModule(uint32_t index) {
+        auto result = m_tdb->get_module(index);
+
+        if (result == nullptr) {
+            return nullptr;
+        }
+
+        return Module::GetInstance(result);
     }
 
 protected:
