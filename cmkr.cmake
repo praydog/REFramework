@@ -2,7 +2,8 @@ include_guard()
 
 # Change these defaults to point to your infrastructure if desired
 set(CMKR_REPO "https://github.com/build-cpp/cmkr" CACHE STRING "cmkr git repository" FORCE)
-set(CMKR_TAG "v0.2.7" CACHE STRING "cmkr git tag (this needs to be available forever)" FORCE)
+set(CMKR_TAG "v0.2.44" CACHE STRING "cmkr git tag (this needs to be available forever)" FORCE)
+set(CMKR_COMMIT_HASH "" CACHE STRING "cmkr git commit hash (optional)" FORCE)
 
 # To bootstrap/generate a cmkr project: cmake -P cmkr.cmake
 if(CMAKE_SCRIPT_MODE_FILE)
@@ -15,6 +16,7 @@ endif()
 set(CMKR_EXECUTABLE "" CACHE FILEPATH "cmkr executable")
 set(CMKR_SKIP_GENERATION OFF CACHE BOOL "skip automatic cmkr generation")
 set(CMKR_BUILD_TYPE "Debug" CACHE STRING "cmkr build configuration")
+mark_as_advanced(CMKR_REPO CMKR_TAG CMKR_COMMIT_HASH CMKR_EXECUTABLE CMKR_SKIP_GENERATION CMKR_BUILD_TYPE)
 
 # Disable cmkr if generation is disabled
 if(DEFINED ENV{CI} OR CMKR_SKIP_GENERATION OR CMKR_BUILD_SKIP_GENERATION)
@@ -56,22 +58,41 @@ else()
 endif()
 
 # Use cached cmkr if found
-if(DEFINED ENV{CMKR_CACHE} AND EXISTS "$ENV{CMKR_CACHE}")
+if(DEFINED ENV{CMKR_CACHE})
     set(CMKR_DIRECTORY_PREFIX "$ENV{CMKR_CACHE}")
     string(REPLACE "\\" "/" CMKR_DIRECTORY_PREFIX "${CMKR_DIRECTORY_PREFIX}")
     if(NOT CMKR_DIRECTORY_PREFIX MATCHES "\\/$")
         set(CMKR_DIRECTORY_PREFIX "${CMKR_DIRECTORY_PREFIX}/")
     endif()
+    # Build in release mode for the cache
+    set(CMKR_BUILD_TYPE "Release")
 else()
     set(CMKR_DIRECTORY_PREFIX "${CMAKE_CURRENT_BINARY_DIR}/_cmkr_")
 endif()
 set(CMKR_DIRECTORY "${CMKR_DIRECTORY_PREFIX}${CMKR_TAG}")
 set(CMKR_CACHED_EXECUTABLE "${CMKR_DIRECTORY}/bin/${CMKR_EXECUTABLE_NAME}")
 
+# Helper function to check if a string starts with a prefix
+# Cannot use MATCHES, see: https://github.com/build-cpp/cmkr/issues/61
+function(cmkr_startswith str prefix result)
+    string(LENGTH "${prefix}" prefix_length)
+    string(LENGTH "${str}" str_length)
+    if(prefix_length LESS_EQUAL str_length)
+        string(SUBSTRING "${str}" 0 ${prefix_length} str_prefix)
+        if(prefix STREQUAL str_prefix)
+            set("${result}" ON PARENT_SCOPE)
+            return()
+        endif()
+    endif()
+    set("${result}" OFF PARENT_SCOPE)
+endfunction()
+
 # Handle upgrading logic
 if(CMKR_EXECUTABLE AND NOT CMKR_CACHED_EXECUTABLE STREQUAL CMKR_EXECUTABLE)
-    if(CMKR_EXECUTABLE MATCHES "^${CMAKE_CURRENT_BINARY_DIR}/_cmkr")
-        if(DEFINED ENV{CMKR_CACHE} AND EXISTS "$ENV{CMKR_CACHE}")
+    cmkr_startswith("${CMKR_EXECUTABLE}" "${CMAKE_CURRENT_BINARY_DIR}/_cmkr" CMKR_STARTSWITH_BUILD)
+    cmkr_startswith("${CMKR_EXECUTABLE}" "${CMKR_DIRECTORY_PREFIX}" CMKR_STARTSWITH_CACHE)
+    if(CMKR_STARTSWITH_BUILD)
+        if(DEFINED ENV{CMKR_CACHE})
             message(AUTHOR_WARNING "[cmkr] Switching to cached cmkr: '${CMKR_CACHED_EXECUTABLE}'")
             if(EXISTS "${CMKR_CACHED_EXECUTABLE}")
                 set(CMKR_EXECUTABLE "${CMKR_CACHED_EXECUTABLE}" CACHE FILEPATH "Full path to cmkr executable" FORCE)
@@ -82,7 +103,7 @@ if(CMKR_EXECUTABLE AND NOT CMKR_CACHED_EXECUTABLE STREQUAL CMKR_EXECUTABLE)
             message(AUTHOR_WARNING "[cmkr] Upgrading '${CMKR_EXECUTABLE}' to '${CMKR_CACHED_EXECUTABLE}'")
             unset(CMKR_EXECUTABLE CACHE)
         endif()
-    elseif(DEFINED ENV{CMKR_CACHE} AND EXISTS "$ENV{CMKR_CACHE}" AND CMKR_EXECUTABLE MATCHES "^${CMKR_DIRECTORY_PREFIX}")
+    elseif(DEFINED ENV{CMKR_CACHE} AND CMKR_STARTSWITH_CACHE)
         message(AUTHOR_WARNING "[cmkr] Upgrading cached '${CMKR_EXECUTABLE}' to '${CMKR_CACHED_EXECUTABLE}'")
         unset(CMKR_EXECUTABLE CACHE)
     endif()
@@ -112,6 +133,16 @@ else()
         ${CMKR_REPO}
         "${CMKR_DIRECTORY}"
     )
+    if(CMKR_COMMIT_HASH)
+        execute_process(
+            COMMAND "${GIT_EXECUTABLE}" checkout -q "${CMKR_COMMIT_HASH}"
+            RESULT_VARIABLE CMKR_EXEC_RESULT
+            WORKING_DIRECTORY "${CMKR_DIRECTORY}"
+        )
+        if(NOT CMKR_EXEC_RESULT EQUAL 0)
+            message(FATAL_ERROR "Tag '${CMKR_TAG}' hash is not '${CMKR_COMMIT_HASH}'")
+        endif()
+    endif()
     message(STATUS "[cmkr] Building cmkr (using system compiler)...")
     cmkr_exec("${CMAKE_COMMAND}"
         --no-warn-unused-cli

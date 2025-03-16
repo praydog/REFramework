@@ -5,6 +5,9 @@
 #include <windows.h>
 #include <ShlObj.h>
 
+#include <initguid.h>
+#include <Dbt.h>
+
 #include <spdlog/sinks/basic_file_sink.h>
 
 // minhook, used for AllocateBuffer
@@ -43,6 +46,9 @@ extern "C" {
 
 namespace fs = std::filesystem;
 using namespace std::literals;
+
+DEFINE_GUID(GUID_DEVINTERFACE_HID, 0x4D1E55B2L, 0xF16F, 0x11CF, 0x88, 0xCB, 0x00, 0x11, 0x11, 0x00, 0x00, 0x30);
+DEFINE_GUID(XUSB_INTERFACE_CLASS_GUID, 0xEC87F1E3, 0xC13B, 0x4100, 0xB5, 0xF7, 0x8B, 0x84, 0xD5, 0x42, 0x60, 0xCB);
 
 std::unique_ptr<REFramework> g_framework{};
 
@@ -1140,6 +1146,22 @@ void REFramework::remove_set_cursor_pos_patch() {
     m_set_cursor_pos_patch.reset();
 }
 
+// https://github.com/PGGB/DeviceStutterFix
+bool is_device_controller(PDEV_BROADCAST_HDR hdr, WPARAM w_param) {
+    if (hdr->dbch_devicetype == DBT_DEVTYP_DEVICEINTERFACE) {
+        const auto d_interface = (PDEV_BROADCAST_DEVICEINTERFACE)hdr;
+
+        if (d_interface->dbcc_classguid == XUSB_INTERFACE_CLASS_GUID) {
+            spdlog::info("Event {:x}: Relevant device detected", w_param);
+            return true;
+        }
+    }
+
+    spdlog::info("Event {:x}: No relevant device detected", w_param);
+
+    return false;
+}
+
 bool REFramework::on_message(HWND wnd, UINT message, WPARAM w_param, LPARAM l_param) {
     m_last_message_time = std::chrono::steady_clock::now();
 
@@ -1211,6 +1233,21 @@ bool REFramework::on_message(HWND wnd, UINT message, WPARAM w_param, LPARAM l_pa
         }
     } break;
 
+    // Fixes for stuttering when USB devices are removed/inserted
+    // Causes all sorts of random things to happen like DXGI ResizeTarget to get called...
+    // Maybe they forgot to add a break statement for WM_DEVICECHANGE and it falls through to some window resizing case?
+    // https://github.com/PGGB/DeviceStutterFix
+    case WM_DEVICECHANGE:
+        switch (w_param) {
+            case DBT_DEVICEARRIVAL:
+            case DBT_DEVICEREMOVECOMPLETE:
+                return is_device_controller((PDEV_BROADCAST_HDR)l_param, w_param);
+            default:
+                spdlog::info("Event {:x}: skipping", w_param);
+                return false;
+        }
+        
+        break;
     case RE_TOGGLE_CURSOR: {
         const auto is_internal_message = l_param != 0;
         const auto return_value = is_internal_message || !m_draw_ui;
@@ -2244,19 +2281,19 @@ bool REFramework::init_d3d12() {
 
     spdlog::info("[D3D12] Creating render targets...");
 
+    auto swapchain = m_d3d12_hook->get_swap_chain();
+
+    DXGI_SWAP_CHAIN_DESC swapchain_desc{};
+
+    if (FAILED(swapchain->GetDesc(&swapchain_desc))) {
+        spdlog::error("[D3D12] Failed to get swap chain description.");
+        return false;
+    }
+
+    spdlog::info("[D3D12] Swapchain buffer count: {}", swapchain_desc.BufferCount);
+
     {
         // Create back buffer rtvs.
-        auto swapchain = m_d3d12_hook->get_swap_chain();
-
-        DXGI_SWAP_CHAIN_DESC swapchain_desc{};
-
-        if (FAILED(swapchain->GetDesc(&swapchain_desc))) {
-            spdlog::error("[D3D12] Failed to get swap chain description.");
-            return false;
-        }
-        
-        spdlog::info("[D3D12] Swapchain buffer count: {}", swapchain_desc.BufferCount);
-
         if (swapchain_desc.BufferCount > (int)D3D12::RTV::BACKBUFFER_LAST + 1) {
             spdlog::warn("[D3D12] Too many back buffers ({} vs {}).", swapchain_desc.BufferCount, (int)D3D12::RTV::BACKBUFFER_LAST + 1);
         }
@@ -2326,12 +2363,11 @@ bool REFramework::init_d3d12() {
     auto& bb = m_d3d12.get_rt(D3D12::RTV::BACKBUFFER_0);
     auto bb_desc = bb->GetDesc();
 
-    
     ImGui_ImplDX12_InitInfo init_info = {};
     init_info.Device = device;
     init_info.CommandQueue = g_framework->get_d3d12_hook()->get_command_queue();
-    init_info.NumFramesInFlight = 3;
-    init_info.RTVFormat = DXGI_FORMAT_R8G8B8A8_UNORM; // bb_desc.Format
+    init_info.NumFramesInFlight = swapchain_desc.BufferCount;
+    init_info.RTVFormat = bb_desc.Format;
     init_info.DSVFormat = DXGI_FORMAT_UNKNOWN;
     init_info.SrvDescriptorHeap = m_d3d12.srv_desc_heap.Get();
     init_info.LegacySingleSrvCpuDescriptor = m_d3d12.get_cpu_srv(device, D3D12::SRV::IMGUI_FONT_BACKBUFFER);
@@ -2353,7 +2389,7 @@ bool REFramework::init_d3d12() {
     ImGui_ImplDX12_InitInfo init_info_vr = {};
     init_info_vr.Device = device;
     init_info_vr.CommandQueue = g_framework->get_d3d12_hook()->get_command_queue();
-    init_info_vr.NumFramesInFlight = 3;
+    init_info_vr.NumFramesInFlight = swapchain_desc.BufferCount;
     init_info_vr.RTVFormat = bb_vr_desc.Format;
     init_info_vr.DSVFormat = DXGI_FORMAT_UNKNOWN;
     init_info_vr.SrvDescriptorHeap = m_d3d12.srv_desc_heap.Get();

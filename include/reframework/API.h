@@ -7,7 +7,7 @@
 #endif
 
 #define REFRAMEWORK_PLUGIN_VERSION_MAJOR 1
-#define REFRAMEWORK_PLUGIN_VERSION_MINOR 11
+#define REFRAMEWORK_PLUGIN_VERSION_MINOR 12
 #define REFRAMEWORK_PLUGIN_VERSION_PATCH 0
 
 #define REFRAMEWORK_RENDERER_D3D11 0
@@ -286,6 +286,7 @@ typedef struct {
     REFrameworkPropertyHandle (*get_property)(REFrameworkTDBHandle, unsigned int index);
 
     REFrameworkModuleHandle (*get_module)(REFrameworkTDBHandle, unsigned int index);
+    unsigned int (*get_num_modules)(REFrameworkTDBHandle);
 } REFrameworkTDB;
 
 typedef struct {

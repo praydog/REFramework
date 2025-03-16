@@ -33,7 +33,7 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 """
 
 [options]
-DEVELOPER_MODE = { value = true, comment = "Enable developer mode" }
+DEVELOPER_MODE = { value = true }
 REF_BUILD_RE2_SDK = false
 REF_BUILD_RE2_TDB66SDK = false
 REF_BUILD_RE3_SDK = false
@@ -47,11 +47,11 @@ REF_BUILD_MHRISE_SDK = false
 REF_BUILD_SF6_SDK = false
 REF_BUILD_DD2_SDK = false
 REF_BUILD_MHWILDS_SDK = false
-REF_BUILD_FRAMEWORK = { value = true, comment = "Enable building the full REFramework" }
-REF_BUILD_DEPENDENCIES = { value = true, comment = "Enable building dependencies" }
+REF_BUILD_FRAMEWORK = { value = true }
+REF_BUILD_DEPENDENCIES = { value = true }
 
 [conditions]
-developer-mode = "DEVELOPER_MODE"
+developer-mode-cond = "DEVELOPER_MODE"
 build-framework = "REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8"
 build-re2-sdk = "REF_BUILD_RE2_SDK OR REF_BUILD_FRAMEWORK"
 build-re2tdb66-sdk = "REF_BUILD_RE2_TDB66SDK OR REF_BUILD_FRAMEWORK"
@@ -217,7 +217,7 @@ link-directories = ["dependencies/openvr/lib/win64/"]
 compile-options = ["/GS-", "/bigobj", "/EHa"]
 compile-features = ["cxx_std_23"]
 compile-definitions = ["${CMKR_TARGET}", "REFRAMEWORK_EXPORTS", "REFRAMEWORK_GAME_NAME=\"${CMKR_TARGET}\""]
-developer-mode.compile-definitions = ["DEVELOPER"]
+developer-mode-cond.compile-definitions = ["DEVELOPER"]
 link-libraries = [
     "${CMKR_TARGET}SDK",
     "utility",
@@ -239,6 +239,8 @@ link-libraries = [
     "DirectXTK",
     "DirectXTK12"
 ]
+cmake-before="""
+"""
 cmake-after="""
 add_custom_command(
     TARGET ${CMKR_TARGET} PRE_BUILD
