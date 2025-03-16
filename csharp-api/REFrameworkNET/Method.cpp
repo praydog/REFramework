@@ -32,7 +32,18 @@ ManagedObject^ Method::GetRuntimeMethod() {
     for each (REFrameworkNET::ManagedObject^ method in methods) {
         // Get the type handle and compare it to this (raw pointer stored in the Method object)
         // System.RuntimeMethodHandle automatically gets converted to a Method object
-        auto methodHandle = (Method^)method->Call("get_MethodHandle");
+        auto rawMethodHandle = (System::IntPtr^)method->GetField("_runtimeHandle");
+        auto methodHandle = rawMethodHandle != nullptr ? Method::GetInstance(reinterpret_cast<reframework::API::Method*>(rawMethodHandle->ToPointer())) : (Method^)method->Call("get_MethodHandle");
+        
+        if (methodHandle == nullptr) {
+            // This is some stupid way to deal with the absence of get_MethodHandle
+            // in monster hunter wilds.
+            uintptr_t hacky_ptr = *(uintptr_t*)((uintptr_t)method->Ptr() + 0x10);
+
+            if (hacky_ptr == (uintptr_t)this->GetRaw()) {
+                return method;
+            }
+        }
 
         if (methodHandle == nullptr) {
             continue;
