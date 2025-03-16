@@ -418,7 +418,8 @@ REFrameworkTDB g_tdb_data {
 
     [](REFrameworkTDBHandle tdb, unsigned int index) { return (REFrameworkPropertyHandle)RETDB(tdb)->get_property(index); },
 
-    [](REFrameworkTDBHandle tdb, unsigned int index) { return (REFrameworkModuleHandle)RETDB(tdb)->get_module(index); }
+    [](REFrameworkTDBHandle tdb, unsigned int index) { return (REFrameworkModuleHandle)RETDB(tdb)->get_module(index); },
+    [](REFrameworkTDBHandle tdb) { return RETDB(tdb)->get_num_modules(); }
 };
 
 #define REMANAGEDOBJECT(var) ((::REManagedObject*)var)
