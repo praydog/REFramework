@@ -971,7 +971,7 @@ static std::shared_mutex g_runtime_type_mtx{};
             fake_obj.holder = &holder;
             holder.t = this;
 
-            return fn->call<::REManagedObject*>(sdk::get_thread_context(), &fake_obj);
+            return get_type_method->call<::REManagedObject*>(sdk::get_thread_context(), &fake_obj);
         }
 
         return nullptr;
