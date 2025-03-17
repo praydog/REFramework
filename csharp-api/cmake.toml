@@ -100,7 +100,9 @@ check_dlls_exist("dmc5" "${DMC5_DLLS}" "REFRAMEWORK_REF_ASSEMBLIES_EXIST_DMC5")
 set(DD2_DLLS "REFramework.NET._System.dll;REFramework.NET.application.dll;REFramework.NET.viacore.dll")
 check_dlls_exist("dd2" "${DD2_DLLS}" "REFRAMEWORK_REF_ASSEMBLIES_EXIST_DD2")
 
-
+# MHWILDS
+set(MHWILDS_DLLS "REFramework.NET._System.Private.CoreLib.dll;REFramework.NET.application.dll;REFramework.NET.viacore.dll")
+check_dlls_exist("mhwilds" "${MHWILDS_DLLS}" "REFRAMEWORK_REF_ASSEMBLIES_EXIST_MHWILDS")
 
 # Define a list of NuGet packages and their versions
 # the last part, the package framework will only be used for copying the files
@@ -127,6 +129,7 @@ endforeach()
 build-csharp-test-dd2 = "REFRAMEWORK_REF_ASSEMBLIES_EXIST_DD2"
 build-csharp-test-re2 = "REFRAMEWORK_REF_ASSEMBLIES_EXIST_RE2"
 build-csharp-test-re4 = "REFRAMEWORK_REF_ASSEMBLIES_EXIST_RE4"
+build-csharp-test-mhwilds = "REFRAMEWORK_REF_ASSEMBLIES_EXIST_MHWILDS"
 
 [template.CSharpSharedTarget]
 type = "shared"
@@ -249,6 +252,15 @@ sources = ["test/Test/TestRE4.cs"]
 link-libraries = ["csharp-api"]
 cmake-after = """
 set_dotnet_references(CSharpAPITestRE4 "re4" "${RE4_DLLS}")
+"""
+
+[target.CSharpAPITestMHWilds]
+condition = "build-csharp-test-mhwilds"
+type = "CSharpSharedTarget"
+sources = ["test/Test/TestMHWilds.cs"]
+link-libraries = ["csharp-api"]
+cmake-after = """
+set_dotnet_references(CSharpAPITestMHWilds "mhwilds" "${MHWILDS_DLLS}")
 """
 
 [target.ObjectExplorer]

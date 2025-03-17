@@ -127,7 +127,9 @@ check_dlls_exist("dmc5" "${DMC5_DLLS}" "REFRAMEWORK_REF_ASSEMBLIES_EXIST_DMC5")
 set(DD2_DLLS "REFramework.NET._System.dll;REFramework.NET.application.dll;REFramework.NET.viacore.dll")
 check_dlls_exist("dd2" "${DD2_DLLS}" "REFRAMEWORK_REF_ASSEMBLIES_EXIST_DD2")
 
-
+# MHWILDS
+set(MHWILDS_DLLS "REFramework.NET._System.Private.CoreLib.dll;REFramework.NET.application.dll;REFramework.NET.viacore.dll")
+check_dlls_exist("mhwilds" "${MHWILDS_DLLS}" "REFRAMEWORK_REF_ASSEMBLIES_EXIST_MHWILDS")
 
 # Define a list of NuGet packages and their versions
 # the last part, the package framework will only be used for copying the files
@@ -153,6 +155,7 @@ endforeach()
 set(REFCoreDeps_SOURCES
 	"REFCoreDeps/Compiler.cs"
 	"REFCoreDeps/GarbageCollectionDisplay.cs"
+	"REFCoreDeps/HashHelper.cs"
 	cmake.toml
 )
 
@@ -490,6 +493,47 @@ if(REFRAMEWORK_REF_ASSEMBLIES_EXIST_RE4) # build-csharp-test-re4
 
 	set(CMKR_TARGET CSharpAPITestRE4)
 	set_dotnet_references(CSharpAPITestRE4 "re4" "${RE4_DLLS}")
+
+endif()
+# Target: CSharpAPITestMHWilds
+if(REFRAMEWORK_REF_ASSEMBLIES_EXIST_MHWILDS) # build-csharp-test-mhwilds
+	set(CSharpAPITestMHWilds_SOURCES
+		"test/Test/TestMHWilds.cs"
+		cmake.toml
+	)
+
+	add_library(CSharpAPITestMHWilds SHARED)
+
+	target_sources(CSharpAPITestMHWilds PRIVATE ${CSharpAPITestMHWilds_SOURCES})
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${CSharpAPITestMHWilds_SOURCES})
+
+	target_link_libraries(CSharpAPITestMHWilds PUBLIC
+		csharp-api
+	)
+
+	set_target_properties(CSharpAPITestMHWilds PROPERTIES
+		RUNTIME_OUTPUT_DIRECTORY_RELEASE
+			"${CMAKE_BINARY_DIR}/bin/"
+		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
+			"${CMAKE_BINARY_DIR}/bin"
+		RUNTIME_OUTPUT_DIRECTORY_DEBUG
+			"${CMAKE_BINARY_DIR}/bin"
+		LIBRARY_OUTPUT_DIRECTORY_RELEASE
+			"${CMAKE_BINARY_DIR}/lib"
+		LIBRARY_OUTPUT_DIRECTORY_RELWITHDEBINFO
+			"${CMAKE_BINARY_DIR}/lib"
+		LIBRARY_OUTPUT_DIRECTORY_DEBUG
+			"${CMAKE_BINARY_DIR}/lib"
+		DOTNET_SDK
+			Microsoft.NET.Sdk
+		DOTNET_TARGET_FRAMEWORK
+			net8.0-windows
+		VS_CONFIGURATION_TYPE
+			ClassLibrary
+	)
+
+	set(CMKR_TARGET CSharpAPITestMHWilds)
+	set_dotnet_references(CSharpAPITestMHWilds "mhwilds" "${MHWILDS_DLLS}")
 
 endif()
 # Target: ObjectExplorer
