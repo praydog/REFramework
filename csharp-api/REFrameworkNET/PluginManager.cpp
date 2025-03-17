@@ -187,7 +187,7 @@ namespace REFrameworkNET {
         System::Console::WriteLine("Game path: " + pathToGame);
         System::Console::WriteLine("Framework path: " + pathToFramework);
 
-        auto metadataPath = std::filesystem::current_path() / "reframework" / "plugins" / "managed" / "metadata.json";
+        auto metadataPath = generatedFolder / "metadata.json";
         auto files = System::IO::Directory::GetFiles(gcnew System::String(generatedFolder.wstring().c_str()), "*.dll");
 
         if (files->Length > 0 && !ShouldRecompile(gcnew System::String(metadataPath.wstring().c_str()), gameHash, frameworkHash)) {
