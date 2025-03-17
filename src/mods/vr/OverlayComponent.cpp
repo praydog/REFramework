@@ -70,7 +70,6 @@ void OverlayComponent::update_input() {
     const auto is_initial_frame = vr->get_frame_count() % 2 == vr->m_left_eye_interval || vr->m_use_afr;
 
     // Restore the previous frame's input state
-    memcpy(io.KeysDown, m_initial_imgui_input_state.KeysDown, sizeof(io.KeysDown));
     memcpy(io.MouseDown, m_initial_imgui_input_state.MouseDown, sizeof(io.MouseDown));
     io.MousePos = m_initial_imgui_input_state.MousePos;
     io.MouseWheel = m_initial_imgui_input_state.MouseWheel;
