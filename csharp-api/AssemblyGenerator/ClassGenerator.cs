@@ -809,17 +809,22 @@ public class ClassGenerator {
 
                 bool anyUnsafeParams = false;
 
-
                 if (runtimeParams != null) {
-                    foreach (dynamic param in runtimeParams) {
-                        if (param.get_IsRetval() == true) {
-                            continue;
-                        }
+                    var methodActualRetval = method.GetReturnType();
+                    UInt32 unknownArgCount = 0;
 
+                    foreach (dynamic param in runtimeParams) {
+                        /*if (param.get_IsRetval() == true) {
+                            continue;
+                        }*/
+
+                        var paramDef = (REFrameworkNET.TypeDefinition)param.GetTypeDefinition();
                         var paramName = param.get_Name();
 
-                        if (paramName == null) {
-                            paramName = "UnknownParam";
+                        if (paramName == null || paramName == "") {
+                            //paramName = "UnknownParam";
+                            paramName = "arg" + unknownArgCount.ToString();
+                            ++unknownArgCount;
                         }
 
                         if (paramName == "object") {
@@ -842,7 +847,7 @@ public class ClassGenerator {
 
                         var isByRef = paramType.IsByRefImpl();
                         var isPointer = paramType.IsPointerImpl();
-                        var isOut = param.get_IsOut();
+                        var isOut = paramDef != null && paramDef.FindMethod("get_IsOut") != null ? param.get_IsOut() : false;
                         var paramTypeDef = (REFrameworkNET.TypeDefinition)paramType.get_TypeHandle();
 
                         var paramTypeSyntax = MakeProperType(paramTypeDef, t);

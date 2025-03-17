@@ -482,6 +482,7 @@ public class AssemblyGenerator {
         var elementTypeDef = t.GetElementType();
 
         if (elementTypeDef == null || !t.IsDerivedFrom(SystemArrayT)) {
+            System.Console.WriteLine("Failed to get element type for " + t.FullName);
             return false;
         }
 
@@ -700,6 +701,12 @@ public class AssemblyGenerator {
 
                 System.Console.WriteLine("Generating array type " + arrayTypeName + " from " + t.FullName);
 
+                // Actually I don't care!!!
+                if (arrayTypeName == "_.System.Array[]") {
+                    System.Console.WriteLine("Skipping array type " + arrayTypeName);
+                    return;
+                }
+
                 var arrayClassGenerator = new ClassGenerator(
                     arrayTypeName,
                     arrayType
@@ -737,8 +744,9 @@ public class AssemblyGenerator {
         return [];
     }
 
-    public static REFrameworkNET.Compiler.DynamicAssemblyBytecode? GenerateForAssembly(dynamic assembly, List<REFrameworkNET.Compiler.DynamicAssemblyBytecode> previousCompilations) {
-        var strippedAssemblyName = assembly.get_FullName().Split(',')[0];
+    public static REFrameworkNET.Compiler.DynamicAssemblyBytecode? GenerateForAssembly(REFrameworkNET.Module assembly, List<REFrameworkNET.Compiler.DynamicAssemblyBytecode> previousCompilations) {
+        //var strippedAssemblyName = assembly.get_FullName().Split(',')[0];
+        var strippedAssemblyName = assembly.AssemblyName;
 
         // Dont want to conflict with the real .NET System
         if (strippedAssemblyName == "System") {
@@ -753,6 +761,10 @@ public class AssemblyGenerator {
             strippedAssemblyName = "_System.Core";
         }
 
+        if (strippedAssemblyName == "System.Private.CoreLib") {
+            strippedAssemblyName = "_System.Private.CoreLib";
+        }
+
         REFrameworkNET.API.LogInfo("Generating assembly " + strippedAssemblyName);
 
         List<CompilationUnitSyntax> compilationUnits = [];
@@ -760,8 +772,26 @@ public class AssemblyGenerator {
 
         List<dynamic> typeList = [];
 
-        foreach (dynamic reEngineT in assembly.GetTypes()) {
-            typeList.Add(reEngineT);
+        foreach (var tIndex in assembly.Types) {
+            var t = tdb.GetType(tIndex);
+
+            if (t == null) {
+                Console.WriteLine("Failed to get type " + tIndex);
+                continue;
+            }
+
+            dynamic runtimeType = t.GetRuntimeType();
+
+            if (runtimeType == null) {
+                Console.WriteLine("Failed to get runtime type for " + t.GetFullName());
+                continue;
+            }
+
+            // We don't want array types, pointers, etc
+            // Assembly.GetTypes usually filters this out but we have to manually do it
+            if (runtimeType.IsPointerImpl() == false && runtimeType.IsByRefImpl() == false) {
+                typeList.Add(runtimeType);
+            }
         }
 
         // Clean up all the local objects
@@ -800,7 +830,7 @@ public class AssemblyGenerator {
         var syntaxTreeParseOption = CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.CSharp12);
         
         foreach (var cu in compilationUnits) {
-            syntaxTrees.Add(SyntaxFactory.SyntaxTree(cu, syntaxTreeParseOption));
+            syntaxTrees.Add(SyntaxFactory.SyntaxTree(cu.NormalizeWhitespace(), syntaxTreeParseOption));
         }
 
         string? assemblyPath = Path.GetDirectoryName(typeof(object).Assembly.Location);
@@ -881,35 +911,39 @@ public class AssemblyGenerator {
         Il2CppDump.FillTypeExtensions(tdb);
         FillValidEntries(tdb);
 
-        dynamic appdomainT = tdb.GetType("System.AppDomain");
-        dynamic appdomain = appdomainT.get_CurrentDomain();
-        var assemblies = (appdomain.GetAssemblies() as ManagedObject)!;
+        List<REFrameworkNET.Module> modules = [];
 
-        List<dynamic> assembliesList = [];
+        // First module is an invalid module
+        for (uint i = 0; i < tdb.GetNumModules(); i++) {
+            var module = tdb.GetModule(i);
 
-        // Pre-emptively add all assemblies to the list
-        // because the assemblies list that was returned will be cleaned up by the call to LocalFrameGC
-        foreach (ManagedObject assembly in assemblies) {
-            if (assembly == null) {
+            if (module == null) {
                 continue;
             }
 
-            // The object will get destroyed by the LocalFrameGC call if we don't do this
-            if (!assembly.IsGlobalized()) {
-                assembly.Globalize();
-            }
-
-            assembliesList.Add(assembly);
+            modules.Add(module);
         }
 
         List<REFrameworkNET.Compiler.DynamicAssemblyBytecode> bytecodes = [];
 
-        foreach (dynamic assembly in assembliesList) {
-            var strippedAssemblyName = assembly.get_FullName().Split(',')[0];
-            REFrameworkNET.API.LogInfo("Assembly: " + (assembly.get_Location()?.ToString() ?? "NONE"));
-            REFrameworkNET.API.LogInfo("Assembly (stripped): " + strippedAssemblyName);
+        foreach (Module module in modules) {
+            var assemblyName = module.AssemblyName;
+            var location = module.Location;
+            var moduleName = module.ModuleName;
 
-            var bytecode = GenerateForAssembly(assembly, bytecodes);
+            if (assemblyName == null || location == null || moduleName == null) {
+                continue;
+            }
+
+            if (assemblyName == "") {
+                continue;
+            }
+
+            REFrameworkNET.API.LogInfo("Assembly: " + assemblyName);
+            REFrameworkNET.API.LogInfo("Location: " + location);
+            REFrameworkNET.API.LogInfo("Module: " + moduleName);
+
+            var bytecode = GenerateForAssembly(module, bytecodes);
 
             if (bytecode != null) {
                 bytecodes.Add(bytecode);
