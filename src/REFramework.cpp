@@ -18,7 +18,6 @@ extern "C" {
 #include <imgui.h>
 #include <ImGuizmo.h>
 #include <imnodes.h>
-#include "re2-imgui/af_baidu.hpp"
 #include "re2-imgui/af_faprolight.hpp"
 #include "re2-imgui/font_robotomedium.hpp"
 #include "re2-imgui/imgui_impl_dx11.h"
@@ -1457,9 +1456,21 @@ void REFramework::update_fonts() {
     // replace '?' to most flag in WorldObjectsViewer
     ImFontConfig custom_icons{}; 
     custom_icons.FontDataOwnedByAtlas = false;
-    ImFont* fsload = (INVALID_FILE_ATTRIBUTES != ::GetFileAttributesA("reframework_pictographic.mode"))
-        ? fonts->AddFontFromMemoryTTF((void*)af_baidu_ptr, af_baidu_size, (float)m_font_size, &custom_icons, fonts->GetGlyphRangesChineseFull())
-        : fonts->AddFontFromMemoryCompressedTTF(RobotoMedium_compressed_data, RobotoMedium_compressed_size, (float)m_font_size);
+
+    const ImWchar cjk_ranges[] = {
+        0x0020, 0x00FF, // Basic Latin + Latin Supplement
+        0x2000, 0x206F, // General Punctuation
+        0x3000, 0x30FF, // CJK Symbols and Punctuations, Hiragana, Katakana
+        0x3131, 0x3163, // Korean alphabets
+        0x31F0, 0x31FF, // Katakana Phonetic Extensions
+        0xAC00, 0xD7A3, // Korean characters
+        0xFF00, 0xFFEF, // Half-width characters
+        0xFFFD, 0xFFFD, // Invalid
+        0x4e00, 0x9FAF, // CJK Ideograms,
+        0
+    };
+
+    ImFont* fsload = fonts->AddFontFromMemoryCompressedTTF((void*)RobotoCJKSC_Medium_compressed_data, RobotoCJKSC_Medium_compressed_size, (float)m_font_size, &custom_icons, cjk_ranges);
 
     // https://fontawesome.com/
     custom_icons.PixelSnapH = true;
@@ -1634,7 +1645,7 @@ void REFramework::draw_about() {
             License{ "cimgui", license::cimgui },
             License{ "minhook", license::minhook },
             License{ "spdlog", license::spdlog },
-            License{ "robotomedium", license::roboto },
+            License{ "robotocjksc", license::roboto_cjk },
             License{ "openvr", license::openvr },
             License{ "lua", license::lua },
             License{ "sol", license::sol },
