@@ -701,10 +701,9 @@ public class AssemblyGenerator {
 
                 System.Console.WriteLine("Generating array type " + arrayTypeName + " from " + t.FullName);
 
-                // Actually I don't care!!!
                 if (arrayTypeName == "_.System.Array[]") {
-                    System.Console.WriteLine("Skipping array type " + arrayTypeName);
-                    return;
+                    typeFullRenames[arrayType] = "System.Array_Array1D";
+                    arrayTypeName = "System.Array_Array1D";
                 }
 
                 var arrayClassGenerator = new ClassGenerator(
