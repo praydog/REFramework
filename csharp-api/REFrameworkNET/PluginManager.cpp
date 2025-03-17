@@ -13,6 +13,7 @@ using namespace System;
 using namespace System::IO;
 using namespace System::Reflection;
 using namespace System::Collections::Generic;
+using namespace System::Text::Json;
 using namespace msclr::interop;
 
 namespace REFrameworkNET {
@@ -132,11 +133,91 @@ namespace REFrameworkNET {
         return LoadAssemblies(gcnew System::String(dependencies_path.wstring().c_str()));
     }
 
+    bool PluginManager::ShouldRecompile(System::String^ metadataPath, System::String^ currentGameHash, System::String^ currentFrameworkHash) {
+        if (!File::Exists(metadataPath)) {
+            return true; // No metadata file = force recompile
+        }
+    
+        try {
+            auto jsonText = File::ReadAllText(metadataPath);
+            auto jsonDocument = JsonDocument::Parse(jsonText);
+            auto root = jsonDocument->RootElement;
+    
+            System::String^ previousGameHash = root.GetProperty("GameExecutableHash").GetString();
+            System::String^ previousFrameworkHash = root.GetProperty("REFrameworkNetHash").GetString();
+    
+            return (previousGameHash != currentGameHash || previousFrameworkHash != currentFrameworkHash);
+        } catch (Exception^ ex) {
+            REFrameworkNET::API::LogError("Error reading metadata.json: " + ex->Message);
+            return true; // Force recompile if there's an issue with the file
+        }
+    }
+
+    bool PluginManager::WriteMetadata(System::String^ metadataPath, System::String^ currentGameHash, System::String^ currentFrameworkHash) {
+        auto metadata = gcnew System::Collections::Generic::Dictionary<System::String^, System::String^>();
+        metadata->Add("GameExecutableHash", currentGameHash);
+        metadata->Add("REFrameworkNetHash", currentFrameworkHash);
+    
+        try {
+            auto jsonText = JsonSerializer::Serialize(metadata);
+            File::WriteAllText(metadataPath, jsonText);
+            System::Console::WriteLine("Wrote metadata.json");
+            System::Console::WriteLine(jsonText);
+            return true;
+        } catch (Exception^ ex) {
+            REFrameworkNET::API::LogError("Error writing metadata.json: " + ex->Message);
+            return false;
+        }
+    }
+
     void PluginManager::GenerateReferenceAssemblies(List<System::Reflection::Assembly^>^ deps) {
         REFrameworkNET::API::LogInfo("Generating reference assemblies...");
 
         auto generatedFolder = std::filesystem::current_path() / "reframework" / "plugins" / "managed" / "generated";
         std::filesystem::create_directories(generatedFolder);
+
+        auto pathToGame = System::Diagnostics::Process::GetCurrentProcess()->MainModule->FileName;
+        auto gameHash = REFrameworkNET::HashHelper::ComputeSHA256(pathToGame);
+
+        auto pathToFramework = System::Reflection::Assembly::GetExecutingAssembly()->Location;
+        auto frameworkHash = REFrameworkNET::HashHelper::ComputeSHA256(pathToFramework);
+
+        System::Console::WriteLine("Game hash: " + gameHash);
+        System::Console::WriteLine("Framework hash: " + frameworkHash);
+        System::Console::WriteLine("Game path: " + pathToGame);
+        System::Console::WriteLine("Framework path: " + pathToFramework);
+
+        auto metadataPath = std::filesystem::current_path() / "reframework" / "plugins" / "managed" / "metadata.json";
+        auto files = System::IO::Directory::GetFiles(gcnew System::String(generatedFolder.wstring().c_str()), "*.dll");
+
+        if (files->Length > 0 && !ShouldRecompile(gcnew System::String(metadataPath.wstring().c_str()), gameHash, frameworkHash)) {
+            REFrameworkNET::API::LogInfo("No need to recompile reference assemblies");
+            
+            // Loop through all DLLs in the generated folder and load them instead
+            for each (System::String^ file in files) {
+                try {
+                    REFrameworkNET::API::LogInfo("Loading generated assembly " + file + "...");
+                    if (auto assem = System::Reflection::Assembly::LoadFrom(file); assem != nullptr) {
+                        deps->Add(assem);
+                        REFrameworkNET::API::LogInfo("Loaded " + file);
+                    }
+                } catch(System::Exception^ e) {
+                    REFrameworkNET::API::LogInfo(e->Message);
+                    // log stack
+                    auto ex = e;
+                    while (ex != nullptr) {
+                        REFrameworkNET::API::LogInfo(ex->StackTrace);
+                        ex = ex->InnerException;
+                    }
+                } catch(const std::exception& e) {
+                    REFrameworkNET::API::LogInfo(gcnew System::String(e.what()));
+                } catch(...) {
+                    REFrameworkNET::API::LogInfo("Unknown exception caught while loading generated assembly " + file);
+                }
+            }
+
+            return;
+        }
 
         // Look for AssemblyGenerator class in the loaded deps
         for each (System::Reflection::Assembly^ a in deps) {
@@ -150,6 +231,10 @@ namespace REFrameworkNET {
                     REFrameworkNET::API::LogInfo("Found AssemblyGenerator.Main in " + a->Location);
 
                     auto result = (List<Compiler::DynamicAssemblyBytecode^>^)mainMethod->Invoke(nullptr, nullptr);
+
+                    if (result->Count != 0) {
+                        WriteMetadata(gcnew System::String(metadataPath.wstring().c_str()), gameHash, frameworkHash);
+                    }
 
                     // Append the generated assemblies to the list of deps
                     for each (Compiler::DynamicAssemblyBytecode^ bytes in result) {

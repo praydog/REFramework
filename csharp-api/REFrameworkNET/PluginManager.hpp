@@ -35,6 +35,8 @@ internal:
     // after loading "ourselves" via System::Reflection::Assembly::LoadFrom
     static System::Collections::Generic::List<System::Reflection::Assembly^>^ LoadAssemblies(System::String^ path);
     static System::Collections::Generic::List<System::Reflection::Assembly^>^ LoadDependencies();
+    static bool ShouldRecompile(System::String^ metadataPath, System::String^ currentGameHash, System::String^ currentFrameworkHash);
+    static bool WriteMetadata(System::String^ metadataPath, System::String^ currentGameHash, System::String^ currentFrameworkHash);
     static void GenerateReferenceAssemblies(System::Collections::Generic::List<System::Reflection::Assembly^>^ deps);
     static bool LoadPlugins(uintptr_t param_raw);
     static bool LoadPlugins_FromSourceCode(uintptr_t param_raw, System::Collections::Generic::List<System::Reflection::Assembly^>^ deps);
