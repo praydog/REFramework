@@ -666,6 +666,10 @@ void PluginLoader::early_init() try {
 
 void PluginLoader::on_frame() {
     init_d3d_pointers();
+
+    if (auto error = initialize_plugins(); error.has_value()) {
+        spdlog::error("[PluginLoader] Failed to initialize plugins: {}", error.value());
+    }
 }
 
 void PluginLoader::init_d3d_pointers() {
@@ -686,7 +690,14 @@ void PluginLoader::init_d3d_pointers() {
     }
 }
 
-std::optional<std::string> PluginLoader::on_initialize() {
+std::optional<std::string> PluginLoader::initialize_plugins() {
+    if (m_plugins_loaded) {
+        return std::nullopt;
+    }
+
+    // Plugin init can take a really long time so don't try to re-hook d3d while it's happening.
+    auto do_not_hook_d3d = g_framework->acquire_do_not_hook_d3d();
+
     std::scoped_lock _{m_mux};
 
     verify_sdk_pointers();
