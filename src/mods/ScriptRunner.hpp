@@ -234,6 +234,10 @@ public:
 
             auto table = m_tables.front();
             m_tables.pop_front();
+
+            // Clear for re-use
+            table.clear();
+
             return TableGuard{*this, table};
         }
 
