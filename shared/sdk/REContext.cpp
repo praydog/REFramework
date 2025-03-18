@@ -723,8 +723,100 @@ namespace sdk {
     }
 
     sdk::SystemArray* VM::create_managed_array(::REManagedObject* runtime_type, uint32_t length) {
+        if (runtime_type == nullptr) {
+            return nullptr;
+        }
+
         static auto system_array_type = sdk::find_type_definition("System.Array");
         static auto create_instance_method = system_array_type->get_method("CreateInstance");
+
+        if (create_instance_method == nullptr) {
+            // This can also be found as the first function call within System.RuntimeType.CreateInstanceForAnotherGenericParameter
+            /*using vm_create_managed_array = sdk::SystemArray* (*)(sdk::VMContext*, sdk::RETypeDefinition*, uint64_t length, uint32_t rank, bool global);
+            static auto alternative = []() -> vm_create_managed_array {
+                spdlog::info("[VM::create_managed_array] Searching for alternative method...");
+
+                const auto game = utility::get_executable();
+                // Initial search for and eax, 7FFFFh
+                auto start_pat = utility::find_landmark_sequence(game, "25 FF FF 07 00", 
+                {
+                    "? 00 00 00 1C", // and reg, 1C000000h
+                    "? ? 00 00 00 14", // cmp reg, 14000000h
+                    "49 ? ? 00 02 00 00" // cmp reg, 200h
+                }, false);
+
+                if (!start_pat) {
+                    start_pat = utility::find_landmark_sequence(game, "25 FF FF 07 00", 
+                    {
+                        "? 00 00 00 1C",
+                        "? 00 00 00 14", // Smaller cmp variant
+                        "49 ? ? 00 02 00 00"
+                    }, false);
+                }
+
+                if (!start_pat) {
+                    spdlog::error("[VM::create_managed_array] Unable to find start pattern.");
+                    return nullptr;
+                }
+
+                const auto start = utility::find_function_start_with_call(start_pat->addr);
+
+                if (!start) {
+                    spdlog::error("[VM::create_managed_array] Unable to find start.");
+                    return nullptr;
+                }
+
+                spdlog::info("[VM::create_managed_array] Found vm_create_managed_array at {:x}", *start);
+
+                return (vm_create_managed_array)*start;
+            }();
+
+            static auto runtime_type_t = sdk::find_type_definition("System.RuntimeType");
+            static auto get_TypeHandle = runtime_type_t->get_method("get_TypeHandle");
+            //auto type_handle = get_TypeHandle->call<::REManagedObject*>(sdk::get_thread_context(), runtime_type);
+            auto type_handle = (sdk::RETypeDefinition*)get_TypeHandle->invoke(runtime_type).ptr;
+
+            return alternative(sdk::get_thread_context(), type_handle, length, 1, false);*/
+
+            using vm_create_managed_array_no_rank = sdk::SystemArray* (*)(sdk::VMContext*, sdk::RETypeDefinition*, uint64_t length, bool global);
+            static auto alternative = []() -> vm_create_managed_array_no_rank {
+                spdlog::info("[VM::create_managed_array] Searching for alternative method...");
+
+                const auto game = utility::get_executable();
+                const auto system_guid = sdk::find_type_definition("System.Guid");
+                const auto system_guid_to_byte_array = system_guid->get_method("ToByteArray");
+
+                if (system_guid_to_byte_array == nullptr || system_guid_to_byte_array->get_function() == nullptr) {
+                    spdlog::error("[VM::create_managed_array] Unable to find System.Guid.ToByteArray.");
+                    return nullptr;
+                }
+
+                // Find first call, even if there's a jmp in the way
+                const auto pat = utility::find_pattern_in_path((uint8_t*)system_guid_to_byte_array->get_function(), 100, true, "E8 ? ? ? ?");
+
+                if (!pat) {
+                    spdlog::error("[VM::create_managed_array] Unable to find pattern.");
+                    return nullptr;
+                }
+
+                const auto start = utility::calculate_absolute(pat->addr + 1);
+
+                spdlog::info("[VM::create_managed_array] Found vm_create_managed_array at {:x}", start);
+
+                return (vm_create_managed_array_no_rank)start;
+            }();
+
+            if (alternative == nullptr) {
+                return nullptr;
+            }
+
+            static auto runtime_type_t = sdk::find_type_definition("System.RuntimeType");
+            static auto get_TypeHandle = runtime_type_t->get_method("get_TypeHandle");
+            //auto type_handle = get_TypeHandle->call<::REManagedObject*>(sdk::get_thread_context(), runtime_type);
+            auto type_handle = (sdk::RETypeDefinition*)get_TypeHandle->invoke(runtime_type).ptr;
+
+            return alternative(sdk::get_thread_context(), type_handle, length, false);
+        }
 
         return create_instance_method->call<sdk::SystemArray*>(sdk::get_thread_context(), runtime_type, length);
     }
