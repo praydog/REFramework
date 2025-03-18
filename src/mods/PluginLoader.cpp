@@ -187,7 +187,15 @@ REFrameworkSDKFunctions g_sdk_functions {
     },
     [](REFrameworkMethodHandle fn, unsigned int id) { g_hookman.remove((sdk::REMethodDefinition*)fn, (HookManager::HookId)id); },
     &sdk::memory::allocate,
-    &sdk::memory::deallocate
+    &sdk::memory::deallocate,
+    [](REFrameworkTypeDefinitionHandle tdef, unsigned int size) -> REFrameworkManagedObjectHandle {
+        if (tdef == nullptr) {
+            return nullptr;
+        }
+
+        auto runtime_type = ((sdk::RETypeDefinition*)tdef)->get_runtime_type();
+        return (REFrameworkManagedObjectHandle)sdk::VM::create_managed_array(runtime_type, size);
+    },
 };
 
 #define RETYPEDEF(var) ((sdk::RETypeDefinition*)var)

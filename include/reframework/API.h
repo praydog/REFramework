@@ -7,7 +7,7 @@
 #endif
 
 #define REFRAMEWORK_PLUGIN_VERSION_MAJOR 1
-#define REFRAMEWORK_PLUGIN_VERSION_MINOR 12
+#define REFRAMEWORK_PLUGIN_VERSION_MINOR 13
 #define REFRAMEWORK_PLUGIN_VERSION_PATCH 0
 
 #define REFRAMEWORK_RENDERER_D3D11 0
@@ -407,6 +407,8 @@ typedef struct {
 
     void* (*allocate)(unsigned long long size);
     void (*deallocate)(void*);
+
+    REFrameworkManagedObjectHandle (*create_managed_array)(REFrameworkTypeDefinitionHandle, unsigned int size);
 } REFrameworkSDKFunctions;
 
 /* these are NOT pointers to the actual objects */
