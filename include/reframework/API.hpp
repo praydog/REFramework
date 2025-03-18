@@ -143,6 +143,21 @@ public:
         return (API::ManagedObject*)fn(name);
     }
 
+    API::ManagedObject* create_managed_string(const wchar_t* str) const {
+        static const auto fn = sdk()->functions->create_managed_string;
+        return (API::ManagedObject*)fn(str);
+    }
+
+    API::ManagedObject* create_managed_string_normal(const char* str) const {
+        static const auto fn = sdk()->functions->create_managed_string_normal;
+        return (API::ManagedObject*)fn(str);
+    }
+
+    API::ManagedObject* create_managed_array(API::TypeDefinition* type, uint32_t size) const {
+        static const auto fn = sdk()->functions->create_managed_array;
+        return (API::ManagedObject*)fn(*type, size);
+    }
+
     API::ManagedObject* get_managed_singleton(std::string_view name) const {
         static const auto fn = sdk()->functions->get_managed_singleton;
         return (API::ManagedObject*)fn(name.data());
