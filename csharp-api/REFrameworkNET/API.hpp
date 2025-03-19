@@ -52,6 +52,10 @@ public:
         s_api->get_vm_context()->local_frame_gc();
     }
 
+    static bool IsDrawingUI() {
+        return s_api->reframework()->is_drawing_ui();
+    }
+
     generic <typename T> where T : ref class
     static T GetNativeSingletonT() {
         auto fullName = T::typeid->FullName;
