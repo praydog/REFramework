@@ -548,12 +548,7 @@ public class ClassGenerator {
                 System.Console.WriteLine("Skipping field with non-ASCII characters: " + field.Name + " " + field.Index);
                 continue;
             }
-
-            // We don't want any of the properties to be "void" properties
-            if (!REFrameworkNET.AssemblyGenerator.validTypes.Contains(field.Type.FullName)) {
-                continue;
-            }
-
+            
             ++totalFields;
 
             validFields.Add(field);
