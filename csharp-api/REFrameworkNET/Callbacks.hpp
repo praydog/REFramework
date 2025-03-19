@@ -464,5 +464,6 @@ namespace Callbacks {
     // Manually generated callback class for ImGui rendering
     // We will manually filter out the ImGuiRender callback
     GENERATE_POCKET_CLASS(ImGuiRender);
+    GENERATE_POCKET_CLASS(ImGuiDrawUI);
 };
 }

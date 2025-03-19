@@ -26,9 +26,25 @@ class REFrameworkPluginWilds {
             }
 
             ImGui.Text("Name: " + player.ContextHolder.Pl._PlayerName);
+            ImGui.Text("Level: " + player.ContextHolder.Pl._CurrentStage);
+            ImGui.Text("Network position: " + player._ContextHolder.Pl.NetworkPosition.ToString());
+            ImGui.Text(player.ContextHolder.Pl._GeneralPos.ToString());
+            ImGui.Text(player.ContextHolder.Pl._NetMemberInfo.IsMasterRow.ToString());
+            ImGui.Text(player.ContextHolder.Pl._DistToCamera.ToString());
+            if (ImGui.Button("Test")) {
+                player.ContextHolder.Chara.HealthManager._Health.write(0.0f);
+            }
 
-            ImGui.Text("TestMHWilds.cs");
+            if (ImGui.Button("Test2")) {
+                player.ContextHolder.Chara.HealthManager.addHealth(1.0f);
+            }
+
             ImGui.End();
         }
+    }
+
+    [Callback(typeof(ImGuiDrawUI), CallbackType.Pre)]
+    public static void ImGuiDrawUICallback() {
+        ImGui.Text("Hello from TestMHWilds.cs");
     }
 }

@@ -849,6 +849,28 @@ namespace REFrameworkNET {
             PluginManager::s_plugin_states_to_remove->Clear();
         }
 
+        if (ImGuiNET::ImGui::CollapsingHeader("REFramework.NET Script Generated UI")) {
+            try {
+                Callbacks::ImGuiDrawUI::TriggerPre();
+            } catch (System::Exception^ e) {
+                REFrameworkNET::API::LogError("Failed to trigger ImGuiDrawUI::Pre: " + e->Message);
+            } catch (const std::exception& e) {
+                REFrameworkNET::API::LogError("Failed to trigger ImGuiDrawUI::Pre: " + gcnew System::String(e.what()));
+            } catch (...) {
+                REFrameworkNET::API::LogError("Unknown exception caught while triggering ImGuiDrawUI::Pre");
+            }
+
+            try {
+                Callbacks::ImGuiDrawUI::TriggerPost();
+            } catch (System::Exception^ e) {
+                REFrameworkNET::API::LogError("Failed to trigger ImGuiDrawUI::Post: " + e->Message);
+            } catch (const std::exception& e) {
+                REFrameworkNET::API::LogError("Failed to trigger ImGuiDrawUI::Post: " + gcnew System::String(e.what()));
+            } catch (...) {
+                REFrameworkNET::API::LogError("Unknown exception caught while triggering ImGuiDrawUI::Post");
+            }
+        }
+
         ImGuiNET::ImGui::PopID();
     }
 
