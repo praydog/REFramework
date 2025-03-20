@@ -56,7 +56,7 @@ void Impl::Setup(REFrameworkNET::API^ api) {
             s_knownStaticEvents->Add(post);
         }
 
-        if (type->Name == "ImGuiRender") {
+        if (type->Name == "ImGuiRender" || type->Name == "ImGuiDrawUI") {
             Console::WriteLine("Skipping ImGuiRender");
             continue;
         }
