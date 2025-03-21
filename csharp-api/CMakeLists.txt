@@ -536,6 +536,47 @@ if(REFRAMEWORK_REF_ASSEMBLIES_EXIST_MHWILDS) # build-csharp-test-mhwilds
 	set_dotnet_references(CSharpAPITestMHWilds "mhwilds" "${MHWILDS_DLLS}")
 
 endif()
+# Target: CSharpAPITestDMC5
+if(REFRAMEWORK_REF_ASSEMBLIES_EXIST_DMC5) # build-csharp-test-dmc5
+	set(CSharpAPITestDMC5_SOURCES
+		"test/Test/TestDMC5.cs"
+		cmake.toml
+	)
+
+	add_library(CSharpAPITestDMC5 SHARED)
+
+	target_sources(CSharpAPITestDMC5 PRIVATE ${CSharpAPITestDMC5_SOURCES})
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${CSharpAPITestDMC5_SOURCES})
+
+	target_link_libraries(CSharpAPITestDMC5 PUBLIC
+		csharp-api
+	)
+
+	set_target_properties(CSharpAPITestDMC5 PROPERTIES
+		RUNTIME_OUTPUT_DIRECTORY_RELEASE
+			"${CMAKE_BINARY_DIR}/bin/"
+		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
+			"${CMAKE_BINARY_DIR}/bin"
+		RUNTIME_OUTPUT_DIRECTORY_DEBUG
+			"${CMAKE_BINARY_DIR}/bin"
+		LIBRARY_OUTPUT_DIRECTORY_RELEASE
+			"${CMAKE_BINARY_DIR}/lib"
+		LIBRARY_OUTPUT_DIRECTORY_RELWITHDEBINFO
+			"${CMAKE_BINARY_DIR}/lib"
+		LIBRARY_OUTPUT_DIRECTORY_DEBUG
+			"${CMAKE_BINARY_DIR}/lib"
+		DOTNET_SDK
+			Microsoft.NET.Sdk
+		DOTNET_TARGET_FRAMEWORK
+			net8.0-windows
+		VS_CONFIGURATION_TYPE
+			ClassLibrary
+	)
+
+	set(CMKR_TARGET CSharpAPITestDMC5)
+	set_dotnet_references(CSharpAPITestDMC5 "dmc5" "${DMC5_DLLS}")
+
+endif()
 # Target: ObjectExplorer
 if(REFRAMEWORK_REF_ASSEMBLIES_EXIST_RE2) # build-csharp-test-re2
 	set(ObjectExplorer_SOURCES

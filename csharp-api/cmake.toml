@@ -126,6 +126,7 @@ endforeach()
 """
 
 [conditions]
+build-csharp-test-dmc5 = "REFRAMEWORK_REF_ASSEMBLIES_EXIST_DMC5"
 build-csharp-test-dd2 = "REFRAMEWORK_REF_ASSEMBLIES_EXIST_DD2"
 build-csharp-test-re2 = "REFRAMEWORK_REF_ASSEMBLIES_EXIST_RE2"
 build-csharp-test-re4 = "REFRAMEWORK_REF_ASSEMBLIES_EXIST_RE4"
@@ -261,6 +262,15 @@ sources = ["test/Test/TestMHWilds.cs"]
 link-libraries = ["csharp-api"]
 cmake-after = """
 set_dotnet_references(CSharpAPITestMHWilds "mhwilds" "${MHWILDS_DLLS}")
+"""
+
+[target.CSharpAPITestDMC5]
+condition = "build-csharp-test-dmc5"
+type = "CSharpSharedTarget"
+sources = ["test/Test/TestDMC5.cs"]
+link-libraries = ["csharp-api"]
+cmake-after = """
+set_dotnet_references(CSharpAPITestDMC5 "dmc5" "${DMC5_DLLS}")
 """
 
 [target.ObjectExplorer]
