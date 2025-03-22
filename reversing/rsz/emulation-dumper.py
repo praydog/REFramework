@@ -205,6 +205,46 @@ default_chains = {
                 "name": "via.Behavior"
             }
         ],
+    },
+    "via.Transform": {
+        "deserializer_chain": [
+            {
+                "address": "0x14a2f77d0",
+                "name": "via.Object"
+            },
+            {
+                "address": "0x149e909c0",
+                "name": "System.Object"
+            },
+            {
+                "address": "0x140001560",
+                "name": "via.Component"
+            },
+            {
+                "address": "0x149d16170",
+                "name": "via.Transform"
+            }
+        ],
+    },
+    "via.render.Mesh": {
+        "deserializer_chain": [
+            {
+                "address": "0x14a2f77d0",
+                "name": "via.Object"
+            },
+            {
+                "address": "0x149e909c0",
+                "name": "System.Object"
+            },
+            {
+                "address": "0x140001560",
+                "name": "via.Component"
+            },
+            {
+                "address": "0x149f1b8c0",
+                "name": "via.render.Mesh"
+            }
+        ],
     }
 }
 
@@ -302,11 +342,9 @@ def hook_code(emu, address, size, frame):
             print("STOPPING EXECUTION!!!!")
 
             # Advance stream pointer as we've already emulated the parent and know where it ends
-            cur_ptr = int.from_bytes(emu.mem_read(frame["deserialize_arg"] + 0x8, 8), sys.byteorder)
-            max_ptr = frame["max_deserialize_cur"]
-            if max_ptr != 0 and max_ptr > cur_ptr:
-                emu.mem_write(frame["deserialize_arg"] + 0x8, frame["max_deserialize_cur"].to_bytes(8, sys.byteorder))
-                print("Advanced stream pointer due to parent already being deserialized")
+            if address in frame["deserializer_maxs"]:
+                emu.mem_write(frame["deserialize_arg"] + 0x8, frame["deserializer_maxs"][address].to_bytes(8, sys.byteorder))
+                print("[precomputed] Advanced stream pointer due to parent already being deserialized")
 
             invalidate_and_return_call(emu, frame, nop_out=False)
             emu.emu_stop()
@@ -549,7 +587,6 @@ def hook_code(emu, address, size, frame):
                             "offset": deserialize_cur - frame["buffer_start"]
                         })
 
-                        frame["max_deserialize_cur"] = frame["last_deserialize_cur"]
                         frame["last_layout_size"] = len(frame["layout"])
                     frame["was_string"] = False
 
@@ -597,7 +634,6 @@ def hook_code(emu, address, size, frame):
                             "offset": deserialize_cur - frame["buffer_start"]
                         })
 
-                        frame["max_deserialize_cur"] = frame["last_deserialize_cur"]
                         frame["last_layout_size"] = len(frame["layout"])
                     frame["was_string"] = False
                     
@@ -832,6 +868,9 @@ def main(p, il2cpp_path="il2cpp_dump.json", test_mode=False):
         "deserialize_arg": deserialize_arg,
         "last_deserialize_cur": int.from_bytes(emu.mem_read(deserialize_arg + 0x8, 8), sys.byteorder),
         "max_deserialize_cur": 0,
+        "current_deserializer": 0,
+        "deserializer_layouts": {},
+        "deserializer_maxs": {},
         "allocator": allocator,
         "last_deserialize_reg": -1,
         "last_deserialize_reg_val": 0,
@@ -859,9 +898,19 @@ def main(p, il2cpp_path="il2cpp_dump.json", test_mode=False):
 
     pristine_context = pickle.dumps(emu.context_save())
 
-    def detect_members(deserializer_start):
+    def detect_members(deserializer_start, prev_entries):
         if deserializer_start in zero_member_functions:
             return []
+        
+        if deserializer_start in prev_entries:
+            print("Detected duplicate deserializer call at 0x%X" % deserializer_start)
+            return []
+        
+        if deserializer_start in meta_frame["deserializer_layouts"]:
+            if deserializer_start in meta_frame["deserializer_maxs"]:
+                meta_frame["max_deserialize_cur"] = meta_frame["deserializer_maxs"][deserializer_start]
+            
+            return meta_frame["deserializer_layouts"][deserializer_start]
 
         # print("Detecting members for deserializer %X" % deserializer_start)
 
@@ -908,6 +957,7 @@ def main(p, il2cpp_path="il2cpp_dump.json", test_mode=False):
             "first": False
         })
 
+        meta_frame["current_deserializer"] = deserializer_start
         meta_frame["start"] = deserializer_start
         meta_frame["last_deserialize_reg"] = -1
         meta_frame["last_deserialize_reg_val"] = 0
@@ -945,10 +995,15 @@ def main(p, il2cpp_path="il2cpp_dump.json", test_mode=False):
         else:
             out_layout = meta_frame["layout"][prev_layout_size:(prev_layout_size+layout_delta)]
 
-        #cur_deserialize_cur = int.from_bytes(emu.mem_read(deserialize_arg + 0x8, 8), sys.byteorder)
+        cur_deserialize_cur = int.from_bytes(emu.mem_read(deserialize_arg + 0x8, 8), sys.byteorder)
 
-        #if cur_deserialize_cur > start_deserialize_cur and cur_deserialize_cur > meta_frame["max_deserialize_cur"]:
-            #meta_frame["max_deserialize_cur"] = cur_deserialize_cur
+        if cur_deserialize_cur > start_deserialize_cur and cur_deserialize_cur > meta_frame["max_deserialize_cur"]:
+            meta_frame["max_deserialize_cur"] = cur_deserialize_cur
+        
+        if cur_deserialize_cur > start_deserialize_cur:
+            meta_frame["deserializer_maxs"][deserializer_start] = cur_deserialize_cur
+        
+        meta_frame["deserializer_layouts"][deserializer_start] = out_layout
         
         return out_layout
 
@@ -960,15 +1015,20 @@ def main(p, il2cpp_path="il2cpp_dump.json", test_mode=False):
         meta_frame["deserializers"] = {int(address, 16): True for item in chain for (key, address) in item.items() if key == "address"}
 
         emu.context_restore(pickle.loads(pristine_context))
-
+ 
         layout_list = []
+        prev_entries = {}
 
         # Actually detect the members now
         for entry in chain:
+            addr = int(entry["address"], 16)
+            #print("Detecting members for %s at 0x%X" % (entry["name"], addr))
             layout_list.append({
                 "name": entry["name"],
-                "layout": detect_members(int(entry["address"], 16))
+                "layout": detect_members(addr, prev_entries)
             })
+
+            prev_entries[addr] = True
 
         def generate_typename(layout):
             typename = ""
