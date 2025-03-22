@@ -26,6 +26,44 @@ zero_member_functions = {}
 # these are chains we'll use for testing on games we are encountering issues with
 # so we don't need to parse the entire JSON dump
 default_chains = {
+    "via.Component": {
+        "deserializer_chain": [
+            {
+                "address": "0x14a2f77d0",
+                "name": "via.Object"
+            },
+            {
+                "address": "0x149e909c0",
+                "name": "System.Object"
+            },
+            {
+                "address": "0x140001560",
+                "name": "via.Component"
+            }
+        ],
+    },
+    "via.Behavior": {
+        "address": "14d7af720",
+        "crc": "d4512561",
+        "deserializer_chain": [
+            {
+                "address": "0x14a2f77d0",
+                "name": "via.Object"
+            },
+            {
+                "address": "0x149e909c0",
+                "name": "System.Object"
+            },
+            {
+                "address": "0x140001560",
+                "name": "via.Component"
+            },
+            {
+                "address": "0x1400c0150",
+                "name": "via.Behavior"
+            }
+        ],
+    },
     "via.motion.Motion": {
         "deserializer_chain": [
             {
@@ -112,6 +150,22 @@ default_chains = {
             }
         ],
     },
+    "via.behaviortree.Condition": {
+        "deserializer_chain": [
+            {
+                "address": "0x14a2f77d0",
+                "name": "via.Object"
+            },
+            {
+                "address": "0x149e909c0",
+                "name": "System.Object"
+            },
+            {
+                "address": "0x149d1eb10",
+                "name": "via.behaviortree.Condition"
+            },
+        ],
+    },
     "via.motion.Fsm2ConditionMotionEnd": {
         "deserializer_chain": [
             {
@@ -132,7 +186,7 @@ default_chains = {
             }
         ],
     },
-    "via.behaviortree.Condition": {
+    "app.SoundSpatialAudioManager": {
         "deserializer_chain": [
             {
                 "address": "0x14a2f77d0",
@@ -143,9 +197,13 @@ default_chains = {
                 "name": "System.Object"
             },
             {
-                "address": "0x149d1eb10",
-                "name": "via.behaviortree.Condition"
+                "address": "0x140001560",
+                "name": "via.Component"
             },
+            {
+                "address": "0x1400c0150",
+                "name": "via.Behavior"
+            }
         ],
     }
 }
@@ -170,7 +228,7 @@ class Allocator:
 
 allocator = None
 
-def invalidate_and_return_call(emu, frame):
+def invalidate_and_return_call(emu, frame, nop_out=True):
     cs = frame["cs"]
 
     # Load the context before the previous call
@@ -194,14 +252,20 @@ def invalidate_and_return_call(emu, frame):
 
     dis = next(cs.disasm(emu.mem_read(rip, 0x100), rip, 1)) # Disassembling because not all call variants are E8
     # emu.mem_write(emu.reg_read(UC_X86_REG_RIP), b"\x90\x90\x90\x90\x90")
-    nops = b"\x90" * dis.size
-    emu.mem_write(rip, nops)
+    if nop_out == True:
+        nops = b"\x90" * dis.size
+        emu.mem_write(rip, nops)
+    
     emu.reg_write(UC_X86_REG_RAX, 0)
     emu.reg_write(UC_X86_REG_RDX, 0)
     emu.reg_write(UC_X86_REG_RCX, 0)
     emu.reg_write(UC_X86_REG_R8, 0)
     emu.reg_write(UC_X86_REG_R9, 0)
-    frame["start"] = emu.reg_read(UC_X86_REG_RIP)
+
+    if nop_out == True:
+        frame["start"] = emu.reg_read(UC_X86_REG_RIP)
+    else:
+        frame["start"] = emu.reg_read(UC_X86_REG_RIP) + dis.size
     
     # Try to read the new address to make sure it's valid memory
     try:
@@ -244,7 +308,7 @@ def hook_code(emu, address, size, frame):
                 emu.mem_write(frame["deserialize_arg"] + 0x8, frame["max_deserialize_cur"].to_bytes(8, sys.byteorder))
                 print("Advanced stream pointer due to parent already being deserialized")
 
-            invalidate_and_return_call(emu, frame)
+            invalidate_and_return_call(emu, frame, nop_out=False)
             emu.emu_stop()
             return
 
@@ -316,7 +380,7 @@ def hook_code(emu, address, size, frame):
                 # print("Multiple execution @ 0x%X (%i)" % (lex, list_size))
 
                 # Loop count matches the integer we filled the whole buffer with
-                if list_size == FILL_BYTE and len(frame["layout"]) > FILL_BYTE:
+                if list_size == FILL_BYTE and len(frame["layout"]) > FILL_BYTE and int.from_bytes(emu.mem_read(frame["deserialize_arg"] + 0x8, 8), sys.byteorder) > frame["max_deserialize_cur"]:
                     try:
                         element_layout = frame["layout"][-1]
                     except IndexError as e:
@@ -484,8 +548,9 @@ def hook_code(emu, address, size, frame):
                             "list": False,
                             "offset": deserialize_cur - frame["buffer_start"]
                         })
-                    
-                    frame["last_layout_size"] = len(frame["layout"])
+
+                        frame["max_deserialize_cur"] = frame["last_deserialize_cur"]
+                        frame["last_layout_size"] = len(frame["layout"])
                     frame["was_string"] = False
 
                 frame["last_deserialize_reg"] = -1
@@ -532,7 +597,8 @@ def hook_code(emu, address, size, frame):
                             "offset": deserialize_cur - frame["buffer_start"]
                         })
 
-                    frame["last_layout_size"] = len(frame["layout"])
+                        frame["max_deserialize_cur"] = frame["last_deserialize_cur"]
+                        frame["last_layout_size"] = len(frame["layout"])
                     frame["was_string"] = False
                     
                     frame["last_deserialize_reg"] = -1
@@ -765,6 +831,7 @@ def main(p, il2cpp_path="il2cpp_dump.json", test_mode=False):
         "cs": cs,
         "deserialize_arg": deserialize_arg,
         "last_deserialize_cur": int.from_bytes(emu.mem_read(deserialize_arg + 0x8, 8), sys.byteorder),
+        "max_deserialize_cur": 0,
         "allocator": allocator,
         "last_deserialize_reg": -1,
         "last_deserialize_reg_val": 0,
@@ -878,10 +945,10 @@ def main(p, il2cpp_path="il2cpp_dump.json", test_mode=False):
         else:
             out_layout = meta_frame["layout"][prev_layout_size:(prev_layout_size+layout_delta)]
 
-        cur_deserialize_cur = int.from_bytes(emu.mem_read(deserialize_arg + 0x8, 8), sys.byteorder)
+        #cur_deserialize_cur = int.from_bytes(emu.mem_read(deserialize_arg + 0x8, 8), sys.byteorder)
 
-        if cur_deserialize_cur > start_deserialize_cur and cur_deserialize_cur > meta_frame["max_deserialize_cur"]:
-            meta_frame["max_deserialize_cur"] = cur_deserialize_cur
+        #if cur_deserialize_cur > start_deserialize_cur and cur_deserialize_cur > meta_frame["max_deserialize_cur"]:
+            #meta_frame["max_deserialize_cur"] = cur_deserialize_cur
         
         return out_layout
 
