@@ -75,6 +75,78 @@ default_chains = {
                 "name": "via.physics.RequestSetCollider"
             }
         ],
+    },
+    "via.landscape.layer.LandformBaseLayer": {
+        "deserializer_chain": [
+            {
+                "address": "0x14a2f77d0",
+                "name": "via.Object"
+            },
+            {
+                "address": "0x149e909c0",
+                "name": "System.Object"
+            },
+            {
+                "address": "0x14bee7b10",
+                "name": "via.landscape.layer.LandformBaseLayer"
+            },
+        ],
+    },
+    "via.landscape.layer.OutputLayer": {
+        "deserializer_chain": [
+            {
+                "address": "0x14a2f77d0",
+                "name": "via.Object"
+            },
+            {
+                "address": "0x149e909c0",
+                "name": "System.Object"
+            },
+            {
+                "address": "0x14bee7b10",
+                "name": "via.landscape.layer.LandformBaseLayer"
+            },
+            {
+                "address": "0x14bee7b10",
+                "name": "via.landscape.layer.OutputLayer"
+            }
+        ],
+    },
+    "via.motion.Fsm2ConditionMotionEnd": {
+        "deserializer_chain": [
+            {
+                "address": "0x14a2f77d0",
+                "name": "via.Object"
+            },
+            {
+                "address": "0x149e909c0",
+                "name": "System.Object"
+            },
+            {
+                "address": "0x149d1eb10",
+                "name": "via.behaviortree.Condition"
+            },
+            {
+                "address": "0x14becd500",
+                "name": "via.motion.Fsm2ConditionMotionEnd"
+            }
+        ],
+    },
+    "via.behaviortree.Condition": {
+        "deserializer_chain": [
+            {
+                "address": "0x14a2f77d0",
+                "name": "via.Object"
+            },
+            {
+                "address": "0x149e909c0",
+                "name": "System.Object"
+            },
+            {
+                "address": "0x149d1eb10",
+                "name": "via.behaviortree.Condition"
+            },
+        ],
     }
 }
 
@@ -402,16 +474,17 @@ def hook_code(emu, address, size, frame):
 
                     # print("0x%X bytes, 0x%X alignment" % (delta, frame["last_alignment"]))
 
-                    frame["layout"].append({ 
-                        "size": delta,
-                        "element_size": delta,
-                        "element": None,
-                        "align": frame["last_alignment"],
-                        "string": frame["was_string"],
-                        "list": False,
-                        "offset": deserialize_cur - frame["buffer_start"]
-                    })
-
+                    if deserialize_cur > frame["max_deserialize_cur"]: # This stop duplicates from inlined descendants from leaking into this.
+                        frame["layout"].append({ 
+                            "size": delta,
+                            "element_size": delta,
+                            "element": None,
+                            "align": frame["last_alignment"],
+                            "string": frame["was_string"],
+                            "list": False,
+                            "offset": deserialize_cur - frame["buffer_start"]
+                        })
+                    
                     frame["last_layout_size"] = len(frame["layout"])
                     frame["was_string"] = False
 
