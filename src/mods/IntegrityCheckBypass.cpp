@@ -1168,3 +1168,47 @@ PVOID WINAPI IntegrityCheckBypass::add_vectored_exception_handler_hook(ULONG Fir
 
     return s_add_vectored_exception_handler_hook->get_original<decltype(add_vectored_exception_handler_hook)>()(FirstHandler, VectoredHandler);
 }
+
+void IntegrityCheckBypass::hook_rtl_exit_user_process() {
+    spdlog::info("[IntegrityCheckBypass]: Hooking RtlExitUserProcess...");
+
+    const auto ntdll = GetModuleHandleW(L"ntdll.dll");
+
+    if (ntdll == nullptr) {
+        spdlog::error("[IntegrityCheckBypass]: Could not find ntdll!");
+        return;
+    }
+
+    const auto RtlExitUserProcess = GetProcAddress(ntdll, "RtlExitUserProcess");
+
+    if (RtlExitUserProcess == nullptr) {
+        spdlog::error("[IntegrityCheckBypass]: Could not find RtlExitUserProcess!");
+        return;
+    }
+
+    s_rtl_exit_user_process_hook = std::make_unique<FunctionHookMinHook>(RtlExitUserProcess, &rtl_exit_user_process_hook);
+    if (!s_rtl_exit_user_process_hook->create()) {
+        spdlog::error("[IntegrityCheckBypass]: Could not hook RtlExitUserProcess!");
+        return;
+    }
+
+    spdlog::info("[IntegrityCheckBypass]: Hooked RtlExitUserProcess!");
+}
+
+void* IntegrityCheckBypass::rtl_exit_user_process_hook(uint32_t code) {
+    /*__try {
+        auto orig = s_rtl_exit_user_process_hook->get_original<decltype(rtl_exit_user_process_hook)>()(code);
+        return orig;
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        TerminateProcess(GetCurrentProcess(), code);
+        return nullptr;
+    }*/
+
+    // ok for some reason I can't explain yet,
+    // we need to do this because the game crashes if we don't
+    // It seems to have something to do with RtlpFlsDataCleanup (which is called by RtlExitUserProcess)
+    // and I think is responsible for calling the TLS destructors?
+    // It calls something that's heap allocated but no longer exists, and it crashes.
+    TerminateProcess(GetCurrentProcess(), code);
+    return nullptr;
+}
