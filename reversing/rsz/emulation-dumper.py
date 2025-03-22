@@ -26,153 +26,55 @@ zero_member_functions = {}
 # these are chains we'll use for testing on games we are encountering issues with
 # so we don't need to parse the entire JSON dump
 default_chains = {
-    "via.Camera": {
+    "via.motion.Motion": {
         "deserializer_chain": [
             {
-                "address": "0x14a2bd450",
+                "address": "0x14a2f77d0",
                 "name": "via.Object"
             },
             {
-                "address": "0x149ead3e0",
+                "address": "0x149e909c0",
                 "name": "System.Object"
             },
             {
-                "address": "0x140024fa0",
+                "address": "0x140001560",
                 "name": "via.Component"
             },
             {
-                "address": "0x14a2e4e50",
-                "name": "via.Camera"
-            }
-        ],
-    },
-    "via.Transform": {
-        "deserializer_chain": [
-            {
-                "address": "0x14a2bd450",
-                "name": "via.Object"
+                "address": "0x14a5ce960",
+                "name": "via.motion.Animation"
             },
             {
-                "address": "0x149ead3e0",
-                "name": "System.Object"
-            },
-            {
-                "address": "0x140024fa0",
-                "name": "via.Component"
-            },
-            {
-                "address": "0x149d4c970",
-                "name": "via.Transform"
-            }
-        ],
-    },
-    "via.render.WrapDeformer": {
-        "deserializer_chain": [
-            {
-                "address": "0x14a2bd450",
-                "name": "via.Object"
-            },
-            {
-                "address": "0x149ead3e0",
-                "name": "System.Object"
-            },
-            {
-                "address": "0x140024fa0",
-                "name": "via.Component"
-            },
-            {
-                "address": "0x14010af10",
-                "name": "via.render.RenderEntity"
-            },
-            {
-                "address": "0x14a8123b0",
-                "name": "via.render.WrapDeformer"
-            }
-        ],
-    },
-    "via.effect.ProviderData": {
-        "deserializer_chain": [
-            {
-                "address": "0x14a2bd450",
-                "name": "via.Object"
-            },
-            {
-                "address": "0x149ead3e0",
-                "name": "System.Object"
-            },
-            {
-                "address": "0x1401273c0",
-                "name": "via.effect.ProviderData"
-            }
-        ],
-    },
-    "via.effect.EffectEntry": {
-        "deserializer_chain": [
-            {
-                "address": "0x14a2bd450",
-                "name": "via.Object"
-            },
-            {
-                "address": "0x14a2bd450",
-                "name": "via.Entry"
-            },
-            {
-                "address": "0x14a825340",
-                "name": "via.effect.EffectEntry"
-            }
-        ],
-    },
-    "via.geometry.GeometryBrush": {
-        "deserializer_chain": [
-            {
-                "address": "0x14a2bd450",
-                "name": "via.Object"
-            },
-            {
-                "address": "0x149ead3e0",
-                "name": "System.Object"
-            },
-            {
-                "address": "0x140024fa0",
-                "name": "via.Component"
-            },
-            {
-                "address": "0x14010af10",
-                "name": "via.render.RenderEntity"
-            },
-            {
-                "address": "0x149d7d410",
-                "name": "via.geometry.GeometryBrush"
-            }
-        ],
-    },
-    "via.network.ContextSteam": {
-        "deserializer_chain": [
-            {
-                "address": "0x14a2bd450",
-                "name": "via.Object"
-            },
-            {
-                "address": "0x149ead3e0",
-                "name": "System.Object"
-            },
-            {
-                "address": "0x140024fa0",
-                "name": "via.Component"
-            },
-            {
-                "address": "0x1402cc3e0",
-                "name": "via.network.ServiceBase"
-            },
-            {
-                "address": "0x14a3c1bc0",
-                "name": "via.network.ContextBase"
-            },
-            {
-                "address": "0x14a333090",
-                "name": "via.network.ContextSteam"
+                "address": "0x149d3c400",
+                "name": "via.motion.Motion"
             }
         ]
+    },
+    "via.physics.RequestSetCollider": {
+        "address": "14db56c20",
+        "crc": "1be418e8",
+        "deserializer_chain": [
+            {
+                "address": "0x14a2f77d0",
+                "name": "via.Object"
+            },
+            {
+                "address": "0x149e909c0",
+                "name": "System.Object"
+            },
+            {
+                "address": "0x140001560",
+                "name": "via.Component"
+            },
+            {
+                "address": "0x1401aa990",
+                "name": "via.physics.CollidableBase"
+            },
+            {
+                "address": "0x1401ef9c0",
+                "name": "via.physics.RequestSetCollider"
+            }
+        ],
     }
 }
 
@@ -262,6 +164,14 @@ def hook_code(emu, address, size, frame):
         # It's also easier to manage this way, we don't have to worry about nested shit.
         if len(frame["call_stack"]) > 1 and address in frame["deserializers"]:
             print("STOPPING EXECUTION!!!!")
+
+            # Advance stream pointer as we've already emulated the parent and know where it ends
+            cur_ptr = int.from_bytes(emu.mem_read(frame["deserialize_arg"] + 0x8, 8), sys.byteorder)
+            max_ptr = frame["max_deserialize_cur"]
+            if max_ptr != 0 and max_ptr > cur_ptr:
+                emu.mem_write(frame["deserialize_arg"] + 0x8, frame["max_deserialize_cur"].to_bytes(8, sys.byteorder))
+                print("Advanced stream pointer due to parent already being deserialized")
+
             invalidate_and_return_call(emu, frame)
             emu.emu_stop()
             return
@@ -537,15 +447,17 @@ def hook_code(emu, address, size, frame):
                     cur_hist = frame["call_stack"][-1]["history"]
 
                     delta = deserialize_cur - frame["last_deserialize_cur"]
-                    frame["layout"].append({ 
-                        "size": delta,
-                        "element_size": delta,
-                        "element": None,
-                        "align": frame["last_alignment"],
-                        "string": frame["was_string"],
-                        "list": False,
-                        "offset": deserialize_cur - frame["buffer_start"]
-                    })
+
+                    if deserialize_cur > frame["max_deserialize_cur"]: # This stop duplicates from inlined descendants from leaking into this.
+                        frame["layout"].append({ 
+                            "size": delta,
+                            "element_size": delta,
+                            "element": None,
+                            "align": frame["last_alignment"],
+                            "string": frame["was_string"],
+                            "list": False,
+                            "offset": deserialize_cur - frame["buffer_start"]
+                        })
 
                     frame["last_layout_size"] = len(frame["layout"])
                     frame["was_string"] = False
@@ -862,6 +774,7 @@ def main(p, il2cpp_path="il2cpp_dump.json", test_mode=False):
         meta_frame["last_alignment"] = 1
         meta_frame["was_string"] = False
         meta_frame["last_deserialize_cur"] = int.from_bytes(emu.mem_read(deserialize_arg + 0x8, 8), sys.byteorder)
+        start_deserialize_cur = meta_frame["last_deserialize_cur"]
 
         prev_layout_size = len(meta_frame["layout"])
 
@@ -891,12 +804,18 @@ def main(p, il2cpp_path="il2cpp_dump.json", test_mode=False):
             zero_member_functions[deserializer_start] = True
         else:
             out_layout = meta_frame["layout"][prev_layout_size:(prev_layout_size+layout_delta)]
+
+        cur_deserialize_cur = int.from_bytes(emu.mem_read(deserialize_arg + 0x8, 8), sys.byteorder)
+
+        if cur_deserialize_cur > start_deserialize_cur and cur_deserialize_cur > meta_frame["max_deserialize_cur"]:
+            meta_frame["max_deserialize_cur"] = cur_deserialize_cur
         
         return out_layout
 
     # Detects members for one structure deserializer chain
     def detect_members_chain(struct_name, chain):
         meta_frame["layout"] = []
+        meta_frame["max_deserialize_cur"] = 0
         # our dict to check if the deserializer calls a parent deserializer (and ignore it)
         meta_frame["deserializers"] = {int(address, 16): True for item in chain for (key, address) in item.items() if key == "address"}
 
