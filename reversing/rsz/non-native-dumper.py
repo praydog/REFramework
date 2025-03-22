@@ -486,7 +486,7 @@ def main(out_postfix="", il2cpp_path="", natives_path=None, use_typedefs=False, 
         struct_str = "// " + entry["fqn"] + "\n"
         struct_str = struct_str + "struct " + key + " {\n"
 
-        fields, struct_body, _, __ = generate_field_entries(il2cpp_dump, natives, key, entry, use_typedefs, unpack_struct)
+        fields, struct_body, _, __ = generate_field_entries(il2cpp_dump, natives, key, entry, use_typedefs, unpack_struct = unpack_struct)
 
         json_entry["fields"] = fields
         struct_str = struct_str + struct_body
