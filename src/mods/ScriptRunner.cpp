@@ -331,7 +331,7 @@ ScriptState::ScriptState(const ScriptState::GarbageCollectionData& gc_data,bool 
     );
 
     m_lua.new_usertype<REFramework>("REFramework",
-        "save_config", &REFramework::save_config,
+        "save_config", &REFramework::request_save_config,
         "is_drawing_ui", &REFramework::is_drawing_ui,
         "get_game_name", &REFramework::get_game_name,
         "get_version_string", []() -> std::string { 
