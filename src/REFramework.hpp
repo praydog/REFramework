@@ -90,7 +90,9 @@ public:
         return get_persistent_dir() / dir;
     }
 
-    void save_config();
+    void request_save_config() {
+        m_wants_save_config = true;
+    }
 
     enum class RendererType : uint8_t {
         D3D11,
@@ -165,6 +167,7 @@ public:
     }
 
 private:
+        void save_config();
     void consume_input();
     void update_fonts();
     void invalidate_device_objects();
@@ -202,6 +205,7 @@ private:
     // UI
     bool m_has_frame{false};
     bool m_wants_device_object_cleanup{false};
+    bool m_wants_save_config{false};
     bool m_draw_ui{true};
     bool m_last_draw_ui{m_draw_ui};
     bool m_is_ui_focused{false};

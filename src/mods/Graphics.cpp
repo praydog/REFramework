@@ -119,7 +119,8 @@ void Graphics::on_lua_state_created(sol::state& lua) {
         "is_ultrawide_fix_enabled", &Graphics::is_ultrawide_fix_enabled
 #ifdef MHWILDS
         ,
-        "get_mhwilds_ultrawide_correction_value", &Graphics::get_mhwilds_ultrawide_correction_value
+        "get_mhwilds_ultrawide_correction_value", &Graphics::get_mhwilds_ultrawide_correction_value,
+        "set_mhwilds_ultrawide_correction_value", &Graphics::set_mhwilds_ultrawide_correction_value
 #endif
     );
 
@@ -158,6 +159,8 @@ try {
     local ULTRAWIDE_UI_POS = app_option_id.ULTRAWIDE_UI_POS
     local hook_enabled = false
     local graphics = REFGraphics.get()
+    local last_known_correction_value = graphics:get_mhwilds_ultrawide_correction_value()
+    local first_time = true
 
     local function enable_hook()
         hook_enabled = true
@@ -172,7 +175,18 @@ try {
             pcall(function()
                 local option_id = thread.get_hook_storage()["option_id"] or 0
                 if (option_id == ULTRAWIDE_UI_POS) then
+                    local retval_as_int = sdk.to_int64(retval) & 0xFFFFFFFF
+
+                    -- Allow user to change value from within game menu
+                    if retval_as_int ~= last_known_correction_value and not first_time then
+                        graphics:set_mhwilds_ultrawide_correction_value(retval_as_int)
+                    else
+                        first_time = false
+                    end
+
                     retval = sdk.to_ptr(graphics:get_mhwilds_ultrawide_correction_value())
+
+                    last_known_correction_value = retval_as_int
                 end
             end)
             return retval

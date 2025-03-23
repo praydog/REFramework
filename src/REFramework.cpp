@@ -819,6 +819,11 @@ void REFramework::run_imgui_frame(bool from_present) {
     ImGui::Render();
 
     m_has_frame = true;
+
+    if (!from_present && m_wants_save_config) {
+        save_config();
+        m_wants_save_config = false;
+    }
 }
 
 // D3D11 Draw funciton
@@ -1390,6 +1395,8 @@ std::filesystem::path REFramework::get_persistent_dir() {
 
 void REFramework::save_config() {
     std::scoped_lock _{m_config_mtx};
+
+    m_wants_save_config = false;
 
     spdlog::info("Saving config {}", REFrameworkConfig::REFRAMEWORK_CONFIG_NAME.data());
 

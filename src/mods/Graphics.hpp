@@ -45,6 +45,11 @@ public:
     uint32_t get_mhwilds_ultrawide_correction_value() const {
         return (uint32_t)m_ultrawide_ui_correction->value();
     }
+
+    void set_mhwilds_ultrawide_correction_value(uint32_t value) {
+        m_ultrawide_ui_correction->value() = (float)value;
+        g_framework->request_save_config();
+    }
 #endif
 
 private:
