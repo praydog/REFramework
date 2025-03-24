@@ -26,6 +26,50 @@ zero_member_functions = {}
 # these are chains we'll use for testing on games we are encountering issues with
 # so we don't need to parse the entire JSON dump
 default_chains = {
+    "via.motion.Constraint": {
+        "deserializer_chain": [
+            {
+                "address": "0x14a2f77d0",
+                "name": "via.Object"
+            },
+            {
+                "address": "0x149e909c0",
+                "name": "System.Object"
+            },
+            {
+                "address": "0x140001560",
+                "name": "via.Component"
+            },
+            {
+                "address": "0x14bedac20",
+                "name": "via.motion.Constraint"
+            },
+        ],
+    },
+    "via.motion.JointExprGraph": {
+        "deserializer_chain": [
+            {
+                "address": "0x14a2f77d0",
+                "name": "via.Object"
+            },
+            {
+                "address": "0x149e909c0",
+                "name": "System.Object"
+            },
+            {
+                "address": "0x140001560",
+                "name": "via.Component"
+            },
+            {
+                "address": "0x14bedac20",
+                "name": "via.motion.Constraint"
+            },
+            {
+                "address": "0x1402d4d70",
+                "name": "via.motion.JointExprGraph"
+            }
+        ],
+    },
     "via.navigation.Navigation": {
         "deserializer_chain": [
             {
@@ -691,37 +735,41 @@ def hook_code(emu, address, size, frame):
                     delta = deserialize_cur - frame["last_deserialize_cur"]
 
                     if deserialize_cur > frame["max_deserialize_cur"]: # This stop duplicates from inlined descendants from leaking into this.
-                        if len(frame["layout"]) > 0:
-                            prev_layout = frame["layout"][-1]
+                        prev_layout = frame["layout"][-1] if len(frame["layout"]) > 0 else None
 
-                            if prev_layout != None:
-                                # Check if the stream pointer moved by a strange amount
-                                expected_offset = 0
+                        # this is a fallback if we are in the very first detected field of the struct
+                        # but there was a parent struct that was deserialized before this one
+                        if prev_layout is None:
+                            prev_layout = frame["prev_layout"][-1] if len(frame["prev_layout"]) > 0 else None
 
-                                # so this is probably confusing but anyways "offset" is actually AFTER the data
-                                if prev_layout["string"] == False and prev_layout["list"] == False:
-                                    expected_offset = ((prev_layout["offset"] + delta) + (frame["last_alignment"] - 1)) & ~(frame["last_alignment"] - 1)
-                                elif prev_layout["string"] == True:
-                                    expected_offset = ((prev_layout["offset"] + delta) + (frame["last_alignment"] - 1)) & ~(frame["last_alignment"] - 1)
-                                elif prev_layout["list"] == True:
-                                    expected_offset = ((prev_layout["element"]["offset"] + delta) + (frame["last_alignment"] - 1)) & ~(frame["last_alignment"] - 1)
-                                
-                                actual_offset = deserialize_cur - frame["buffer_start"]
-                                if expected_offset < actual_offset:
-                                    print("Stream pointer shifted by an unaccounted amount! 0x%X -> 0x%X (%i)" % (expected_offset, actual_offset, len(frame["layout"])))
-                                    print("Last layout: ", prev_layout)
+                        # Check if the stream pointer moved by a strange amount
+                        if prev_layout != None:
+                            expected_offset = 0
 
-                                    # Add padding to the layout
-                                    padding_needed = actual_offset - expected_offset
-                                    frame["layout"].append({ 
-                                        "size": padding_needed,
-                                        "element_size": padding_needed,
-                                        "element": None,
-                                        "align": 1,
-                                        "string": False,
-                                        "list": False,
-                                        "offset": deserialize_cur - padding_needed - frame["buffer_start"]
-                                    })
+                            # so this is probably confusing but anyways "offset" is actually AFTER the data
+                            if prev_layout["string"] == False and prev_layout["list"] == False:
+                                expected_offset = ((prev_layout["offset"] + delta) + (frame["last_alignment"] - 1)) & ~(frame["last_alignment"] - 1)
+                            elif prev_layout["string"] == True:
+                                expected_offset = ((prev_layout["offset"] + delta) + (frame["last_alignment"] - 1)) & ~(frame["last_alignment"] - 1)
+                            elif prev_layout["list"] == True:
+                                expected_offset = ((prev_layout["element"]["offset"] + delta) + (frame["last_alignment"] - 1)) & ~(frame["last_alignment"] - 1)
+                            
+                            actual_offset = deserialize_cur - frame["buffer_start"]
+                            if expected_offset < actual_offset:
+                                print("Stream pointer shifted by an unaccounted amount! 0x%X -> 0x%X (%i)" % (expected_offset, actual_offset, len(frame["layout"])))
+                                print("Last layout: ", prev_layout)
+
+                                # Add padding to the layout
+                                padding_needed = actual_offset - expected_offset
+                                frame["layout"].append({ 
+                                    "size": padding_needed,
+                                    "element_size": padding_needed,
+                                    "element": None,
+                                    "align": 1,
+                                    "string": False,
+                                    "list": False,
+                                    "offset": deserialize_cur - padding_needed - frame["buffer_start"]
+                                })
 
                         frame["layout"].append({ 
                             "size": delta,
@@ -977,6 +1025,7 @@ def main(p, il2cpp_path="il2cpp_dump.json", test_mode=False):
         "last_alignment": 1,
         "call_stack": [],
         "layout": [],
+        "prev_layout": [],
         "was_string": False,
         "last_return_val": 0,
         "last_layout_size": 0,
@@ -1008,6 +1057,9 @@ def main(p, il2cpp_path="il2cpp_dump.json", test_mode=False):
         if deserializer_start in meta_frame["deserializer_layouts"]:
             if deserializer_start in meta_frame["deserializer_maxs"]:
                 meta_frame["max_deserialize_cur"] = meta_frame["deserializer_maxs"][deserializer_start]
+
+            if deserializer_start in meta_frame["deserializer_layouts"]:
+                meta_frame["prev_layout"] = meta_frame["deserializer_layouts"][deserializer_start]
             
             return meta_frame["deserializer_layouts"][deserializer_start]
 
@@ -1109,6 +1161,7 @@ def main(p, il2cpp_path="il2cpp_dump.json", test_mode=False):
     # Detects members for one structure deserializer chain
     def detect_members_chain(struct_name, chain):
         meta_frame["layout"] = []
+        meta_frame["prev_layout"] = []
         meta_frame["max_deserialize_cur"] = 0
         # our dict to check if the deserializer calls a parent deserializer (and ignore it)
         meta_frame["deserializers"] = {int(address, 16): True for item in chain for (key, address) in item.items() if key == "address"}
@@ -1128,6 +1181,7 @@ def main(p, il2cpp_path="il2cpp_dump.json", test_mode=False):
             })
 
             prev_entries[addr] = True
+            meta_frame["prev_layout"] = layout_list[-1]["layout"]
 
         def generate_typename(layout):
             typename = ""
