@@ -26,6 +26,50 @@ zero_member_functions = {}
 # these are chains we'll use for testing on games we are encountering issues with
 # so we don't need to parse the entire JSON dump
 default_chains = {
+    "via.navigation.Navigation": {
+        "deserializer_chain": [
+            {
+                "address": "0x14a2f77d0",
+                "name": "via.Object"
+            },
+            {
+                "address": "0x149e909c0",
+                "name": "System.Object"
+            },
+            {
+                "address": "0x140001560",
+                "name": "via.Component"
+            },
+            {
+                "address": "0x140309b90",
+                "name": "via.navigation.Navigation"
+            }
+        ],
+    },
+    "via.navigation.NavigationSurface": {
+        "deserializer_chain": [
+            {
+                "address": "0x14a2f77d0",
+                "name": "via.Object"
+            },
+            {
+                "address": "0x149e909c0",
+                "name": "System.Object"
+            },
+            {
+                "address": "0x140001560",
+                "name": "via.Component"
+            },
+            {
+                "address": "0x140309b90",
+                "name": "via.navigation.Navigation"
+            },
+            {
+                "address": "0x140309870",
+                "name": "via.navigation.NavigationSurface"
+            }
+        ],
+    },
     "via.Component": {
         "deserializer_chain": [
             {
@@ -577,6 +621,29 @@ def hook_code(emu, address, size, frame):
                     # print("0x%X bytes, 0x%X alignment" % (delta, frame["last_alignment"]))
 
                     if deserialize_cur > frame["max_deserialize_cur"]: # This stop duplicates from inlined descendants from leaking into this.
+                        if len(frame["layout"]) > 0:
+                            prev_layout = frame["layout"][-1]
+
+                            if prev_layout != None:
+                                # Check if the stream pointer moved by a strange amount
+                                expected_offset = 0
+
+                                # so this is probably confusing but anyways "offset" is actually AFTER the data
+                                if prev_layout["string"] == False and prev_layout["list"] == False:
+                                    expected_offset = ((prev_layout["offset"] + delta) + (frame["last_alignment"] - 1)) & ~(frame["last_alignment"] - 1)
+                                elif prev_layout["string"] == True:
+                                    expected_offset = ((prev_layout["offset"] + delta) + (frame["last_alignment"] - 1)) & ~(frame["last_alignment"] - 1)
+                                elif prev_layout["list"] == True:
+                                    expected_offset = ((prev_layout["element"]["offset"] + delta) + (frame["last_alignment"] - 1)) & ~(frame["last_alignment"] - 1)
+                                
+                                actual_offset = deserialize_cur - frame["buffer_start"]
+                                if expected_offset != actual_offset:
+                                    print("Stream pointer shifted by an unaccounted amount! 0x%X -> 0x%X (%i)" % (expected_offset, actual_offset, len(frame["layout"])))
+                                    print("Last layout: ", prev_layout)
+                                    #os.system("pause")
+                            #elif delta != 0:
+                                #print("Stream pointer shifted by an unaccounted amount! 0x%X -> 0x%X (%i)" % (0, delta, len(frame["layout"])))
+
                         frame["layout"].append({ 
                             "size": delta,
                             "element_size": delta,
@@ -624,6 +691,38 @@ def hook_code(emu, address, size, frame):
                     delta = deserialize_cur - frame["last_deserialize_cur"]
 
                     if deserialize_cur > frame["max_deserialize_cur"]: # This stop duplicates from inlined descendants from leaking into this.
+                        if len(frame["layout"]) > 0:
+                            prev_layout = frame["layout"][-1]
+
+                            if prev_layout != None:
+                                # Check if the stream pointer moved by a strange amount
+                                expected_offset = 0
+
+                                # so this is probably confusing but anyways "offset" is actually AFTER the data
+                                if prev_layout["string"] == False and prev_layout["list"] == False:
+                                    expected_offset = ((prev_layout["offset"] + delta) + (frame["last_alignment"] - 1)) & ~(frame["last_alignment"] - 1)
+                                elif prev_layout["string"] == True:
+                                    expected_offset = ((prev_layout["offset"] + delta) + (frame["last_alignment"] - 1)) & ~(frame["last_alignment"] - 1)
+                                elif prev_layout["list"] == True:
+                                    expected_offset = ((prev_layout["element"]["offset"] + delta) + (frame["last_alignment"] - 1)) & ~(frame["last_alignment"] - 1)
+                                
+                                actual_offset = deserialize_cur - frame["buffer_start"]
+                                if expected_offset < actual_offset:
+                                    print("Stream pointer shifted by an unaccounted amount! 0x%X -> 0x%X (%i)" % (expected_offset, actual_offset, len(frame["layout"])))
+                                    print("Last layout: ", prev_layout)
+
+                                    # Add padding to the layout
+                                    padding_needed = actual_offset - expected_offset
+                                    frame["layout"].append({ 
+                                        "size": padding_needed,
+                                        "element_size": padding_needed,
+                                        "element": None,
+                                        "align": 1,
+                                        "string": False,
+                                        "list": False,
+                                        "offset": deserialize_cur - padding_needed - frame["buffer_start"]
+                                    })
+
                         frame["layout"].append({ 
                             "size": delta,
                             "element_size": delta,
