@@ -23,6 +23,54 @@ FILL_BYTE = 16
 
 zero_member_functions = {}
 
+hardcoded_jointexprgraphlayer = [
+    {
+        "align": 4,
+        "element": None,
+        "element_size": 36,
+        "list": False,
+        "offset": 6097817636,
+        "size": 4,
+        "string": True
+    },
+    {
+        "align": 1,
+        "element": None,
+        "element_size": 1,
+        "list": False,
+        "offset": 6097817637,
+        "size": 1,
+        "string": False
+    },
+    {
+        "align": 4,
+        "element": None,
+        "element_size": 4,
+        "list": False,
+        "offset": 6097817644,
+        "size": 4,
+        "string": False
+    },
+    {
+        "align": 1,
+        "element": None,
+        "element_size": 1,
+        "list": False,
+        "offset": 6097817645,
+        "size": 1,
+        "string": False
+    },
+    {
+        "align": 4,
+        "element": None,
+        "element_size": 4,
+        "list": False,
+        "offset": 6097817652,
+        "size": 4,
+        "string": False
+    }
+]
+
 # these are chains we'll use for testing on games we are encountering issues with
 # so we don't need to parse the entire JSON dump
 default_chains = {
@@ -1180,6 +1228,11 @@ def main(p, il2cpp_path="il2cpp_dump.json", test_mode=False):
                 "layout": detect_members(addr, prev_entries)
             })
 
+            # This is because for some reason in Wilds this deserializer is obfuscated to hell and the emulator can't handle it
+            if entry["name"] == "via.motion.JointExprGraphLayer" and len(layout_list[-1]["layout"]) == 0:
+                layout_list[-1]["layout"] = hardcoded_jointexprgraphlayer
+                print("Hardcoded layout for via.motion.JointExprGraphLayer")
+
             prev_entries[addr] = True
             meta_frame["prev_layout"] = layout_list[-1]["layout"]
 
@@ -1252,7 +1305,7 @@ def main(p, il2cpp_path="il2cpp_dump.json", test_mode=False):
                             break
 
                         print(ins)
-                    os.system("pause")
+                    # os.system("pause")
 
         count = count + 1
         sys.stdout.write("\r%f%%" % (float(count / chains_len) * 100.0))
