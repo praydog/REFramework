@@ -34,7 +34,7 @@ public class ClassGenerator {
     private InterfaceDeclarationSyntax typeDeclaration;
     private bool addedNewKeyword = false;
     private bool generic = false;
-    
+
 
     public TypeDeclarationSyntax? TypeDeclaration {
         get {
@@ -59,7 +59,7 @@ public class ClassGenerator {
             if (method.DeclaringType != t_) {
                 break;
             }
-            
+
             if (method.Name == null) {
                 continue;
             }
@@ -150,7 +150,7 @@ public class ClassGenerator {
         Generate();
     }
 
-       
+
     static readonly SortedSet<string> invalidMethodNames = [
         "Finalize",
         //"MemberwiseClone",
@@ -185,7 +185,7 @@ public class ClassGenerator {
             for (int i = parentGenericCount; i < arguments.Length; ++i) {
                 argumentList.Add(TypeParameter(GenericNames[i]));
             }
-            typeDeclaration = typeDeclaration.AddTypeParameterListParameters([..argumentList]);
+            typeDeclaration = typeDeclaration.AddTypeParameterListParameters([.. argumentList]);
         }
 
 
@@ -201,7 +201,7 @@ public class ClassGenerator {
 
 
         // Add a static field that holds a NativeProxy to the class (for static methods)
-        var refProxyVarDecl = VariableDeclaration(TypeHandler.MakeProperType(t))
+        var refProxyVarDecl = VariableDeclaration(TypeHandler.ProperType(t))
             .AddVariables(
                 VariableDeclarator("REFProxy")
                 .WithInitializer(EqualsValueClause(ParseExpression("REFType.As<" + REFrameworkNET.AssemblyGenerator.CorrectTypeName(t.FullName) + ">()"))));
@@ -260,7 +260,7 @@ public class ClassGenerator {
 
         var matchingProperties = pseudoProperties
             .Select(property => {
-                var propertyType = TypeHandler.MakeProperType(property.Value.type);
+                var propertyType = TypeHandler.ProperType(property.Value.type);
                 var propertyName = new string(property.Key);
 
                 BasePropertyDeclarationSyntax propertyDeclaration = SyntaxFactory.PropertyDeclaration(propertyType, propertyName)
@@ -269,7 +269,7 @@ public class ClassGenerator {
                 if (property.Value.indexer) {
                     ParameterSyntax parameter = SyntaxFactory
                         .Parameter(SyntaxFactory.Identifier("index"))
-                        .WithType(TypeHandler.MakeProperType(property.Value.indexType));
+                        .WithType(TypeHandler.ProperType(property.Value.indexType));
 
                     propertyDeclaration = SyntaxFactory.IndexerDeclaration(propertyType)
                         .AddModifiers([SyntaxFactory.Token(SyntaxKind.PublicKeyword)])
@@ -303,7 +303,7 @@ public class ClassGenerator {
                         bodyStatements.Add(SyntaxFactory.ParseStatement("return (" + propertyType.GetText().ToString() + ")" + internalFieldName + ".InvokeBoxed(typeof(" + propertyType.GetText().ToString() + "), null, null);"));
 
                         getter = getter.AddBodyStatements(bodyStatements.ToArray());
-                    } else if (generic) { 
+                    } else if (generic) {
                         var index = t.Methods.IndexOf(property.Value.getter);
                         getter = getter
                             .AddBodyStatements(GenericStub(propertyType, [], index))
@@ -313,7 +313,7 @@ public class ClassGenerator {
                     }
 
                     propertyDeclaration = propertyDeclaration.AddAccessorListAccessors(getter);
-                    
+
                     var getterExtension = Il2CppDump.GetMethodExtension(property.Value.getter);
                     if (getterExtension?.MatchingParentMethods.Any() ?? false) {
                         shouldAddNewKeyword = true;
@@ -327,7 +327,7 @@ public class ClassGenerator {
                             SyntaxFactory.ParseName("global::REFrameworkNET.Attributes.Method"),
                             SyntaxFactory.ParseAttributeArgumentList("(" + property.Value.setter.Index.ToString() + ", global::REFrameworkNET.FieldFacadeType.None)"))
                         ));
-                    
+
                     if (property.Value.setter.IsStatic()) {
                         shouldAddStaticKeyword = true;
 
@@ -345,7 +345,7 @@ public class ClassGenerator {
                         bodyStatements.Add(SyntaxFactory.ParseStatement(internalFieldName + ".Invoke(null, new object[] {value});"));
 
                         setter = setter.AddBodyStatements(bodyStatements.ToArray());
-                    } else if (t.IsGenericType()) { 
+                    } else if (t.IsGenericType()) {
                         var index = t.Methods.IndexOf(property.Value.setter);
                         setter = setter
                             .AddBodyStatements(GenericStub(null, [], index))
@@ -353,7 +353,7 @@ public class ClassGenerator {
                     } else {
                         setter = setter.WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken));
                     }
-                    
+
                     propertyDeclaration = propertyDeclaration.AddAccessorListAccessors(setter);
 
                     var setterExtension = Il2CppDump.GetMethodExtension(property.Value.setter);
@@ -375,7 +375,7 @@ public class ClassGenerator {
             .ToArray();
 
         typeDeclaration = typeDeclaration
-            .AddMembers([..internalFieldDeclarations])
+            .AddMembers([.. internalFieldDeclarations])
             .AddMembers(matchingProperties);
     }
 
@@ -414,7 +414,7 @@ public class ClassGenerator {
                 System.Console.WriteLine("Skipping field with non-ASCII characters: " + field.Name + " " + field.Index);
                 continue;
             }
-            
+
             ++totalFields;
 
             validFields.Add(field);
@@ -428,7 +428,7 @@ public class ClassGenerator {
         List<FieldDeclarationSyntax> internalFieldDeclarations = [];
         var matchingFields = validFields
             .Select(field => {
-                var fieldType = TypeHandler.MakeProperType(field.Type);
+                var fieldType = TypeHandler.ProperType(field.Type);
                 var fieldName = new string(field.Name);
 
                 // Replace the k backingfield crap
@@ -477,7 +477,7 @@ public class ClassGenerator {
 
                     getter = getter.AddBodyStatements(bodyStatementsGetter.ToArray());
                     setter = setter.AddBodyStatements(bodyStatementsSetter.ToArray());
-                } else if (t.IsGenericType())  {
+                } else if (t.IsGenericType()) {
                     getter = getter
                         .AddBodyStatements(ParseStatement("throw new System.NotImplementedException();"))
                         .WithAttributeLists([]);
@@ -506,7 +506,7 @@ public class ClassGenerator {
             .ToArray();
 
         typeDeclaration = typeDeclaration
-            .AddMembers([..internalFieldDeclarations])
+            .AddMembers([.. internalFieldDeclarations])
             .AddMembers(matchingFields);
     }
 
@@ -546,7 +546,7 @@ public class ClassGenerator {
         List<FieldDeclarationSyntax> internalFieldDeclarations = [];
 
         try {
-            foreach(REFrameworkNET.Method m in methods) {
+            foreach (REFrameworkNET.Method m in methods) {
                 if (m == null) {
                     continue;
                 }
@@ -561,221 +561,221 @@ public class ClassGenerator {
 
                 validMethods.Add(m);
             }
-        } catch (Exception e) {
+        }
+        catch (Exception e) {
             Console.WriteLine("ASDF Error: " + e.Message);
         }
 
         var matchingMethods = validMethods
-            .Select(method => 
-        {
+            .Select(method => {
 
-            var returnType = TypeHandler.MakeProperType(method.ReturnType);
-            
+                var returnType = TypeHandler.ProperType(method.ReturnType);
 
-            //string simpleMethodSignature = returnType.GetText().ToString();
-            string simpleMethodSignature = ""; // Return types are not part of the signature. Return types are not overloaded.
 
-            var methodName = new string(method.Name);
-            if (methodName.StartsWith("System."))
-                methodName = "_" + methodName;
-            var methodExtension = Il2CppDump.GetMethodExtension(method);
+                //string simpleMethodSignature = returnType.GetText().ToString();
+                string simpleMethodSignature = ""; // Return types are not part of the signature. Return types are not overloaded.
 
-            // Hacky fix for MHR because parent classes have the same method names
-            // while we support that, we don't support constructed generic arguments yet, they are just "object"
-            if (methodName == "sortCountList") {
-                Console.WriteLine("Skipping sortCountList");
-                return null;
-            }
+                var methodName = new string(method.Name);
+                if (methodName.StartsWith("System."))
+                    methodName = "_" + methodName;
+                var methodExtension = Il2CppDump.GetMethodExtension(method);
 
-            var methodDeclaration = MethodDeclaration(returnType, methodName ?? "UnknownMethod").AddModifiers(Token(SyntaxKind.PublicKeyword))
-                /*.AddBodyStatements(SyntaxFactory.ParseStatement("throw new System.NotImplementedException();"))*/;
+                // Hacky fix for MHR because parent classes have the same method names
+                // while we support that, we don't support constructed generic arguments yet, they are just "object"
+                if (methodName == "sortCountList") {
+                    Console.WriteLine("Skipping sortCountList");
+                    return null;
+                }
 
-            if (operatorTokens.ContainsKey(methodName ?? "UnknownMethod")) {
-                // Add SpecialName attribute to the method
+                var methodDeclaration = MethodDeclaration(returnType, methodName ?? "UnknownMethod").AddModifiers(Token(SyntaxKind.PublicKeyword))
+                    /*.AddBodyStatements(SyntaxFactory.ParseStatement("throw new System.NotImplementedException();"))*/;
+
+                if (operatorTokens.ContainsKey(methodName ?? "UnknownMethod")) {
+                    // Add SpecialName attribute to the method
+                    methodDeclaration = methodDeclaration.AddAttributeLists(
+                        SyntaxFactory.AttributeList().AddAttributes(SyntaxFactory.Attribute(
+                            SyntaxFactory.ParseName("global::System.Runtime.CompilerServices.SpecialName"))
+                        )
+                    );
+                }
+
+                simpleMethodSignature += methodName;
+
+                // Add full method name as a MethodName attribute to the method
                 methodDeclaration = methodDeclaration.AddAttributeLists(
                     SyntaxFactory.AttributeList().AddAttributes(SyntaxFactory.Attribute(
-                        SyntaxFactory.ParseName("global::System.Runtime.CompilerServices.SpecialName"))
-                    )
-                );
-            }
+                        SyntaxFactory.ParseName("global::REFrameworkNET.Attributes.Method"),
+                        SyntaxFactory.ParseAttributeArgumentList("(" + method.GetIndex().ToString() + ", global::REFrameworkNET.FieldFacadeType.None)")))
+                    );
 
-            simpleMethodSignature += methodName;
+                bool anyOutParams = false;
+                System.Collections.Generic.List<string> paramNames = [];
 
-            // Add full method name as a MethodName attribute to the method
-            methodDeclaration = methodDeclaration.AddAttributeLists(
-                SyntaxFactory.AttributeList().AddAttributes(SyntaxFactory.Attribute(
-                    SyntaxFactory.ParseName("global::REFrameworkNET.Attributes.Method"),
-                    SyntaxFactory.ParseAttributeArgumentList("(" + method.GetIndex().ToString() + ", global::REFrameworkNET.FieldFacadeType.None)")))
-                );
+                if (method.Parameters.Count > 0) {
+                    var runtimeMethod = method.GetRuntimeMethod();
 
-            bool anyOutParams = false;
-            System.Collections.Generic.List<string> paramNames = [];
-
-            if (method.Parameters.Count > 0) {
-                var runtimeMethod = method.GetRuntimeMethod();
-                
-                if (runtimeMethod == null) {
-                    REFrameworkNET.API.LogWarning("Method " + method.DeclaringType.FullName + "." + method.Name + " has a null runtime method");
-                    return null;
-                }
-
-                var runtimeParams = runtimeMethod.Call("GetParameters") as REFrameworkNET.ManagedObject;
-                if (runtimeParams is null)  {
-                    return null;
-                }
-                System.Collections.Generic.List<ParameterSyntax> parameters = [];
-
-                bool anyUnsafeParams = false;
-
-
-                var methodActualRetval = method.GetReturnType();
-                UInt32 unknownArgCount = 0;
-
-                foreach (dynamic param in runtimeParams) {
-                    /*if (param.get_IsRetval() == true) {
-                        continue;
-                    }*/
-
-                    var paramDef = (REFrameworkNET.TypeDefinition)param.GetTypeDefinition();
-                    var paramName = param.get_Name();
-
-                    if (paramName == null || paramName == "") {
-                        //paramName = "UnknownParam";
-                        paramName = "arg" + unknownArgCount.ToString();
-                        ++unknownArgCount;
+                    if (runtimeMethod == null) {
+                        REFrameworkNET.API.LogWarning("Method " + method.DeclaringType.FullName + "." + method.Name + " has a null runtime method");
+                        return null;
                     }
 
-                    if (paramName == "object") {
-                        paramName = "object_"; // object is a reserved keyword.
+                    var runtimeParams = runtimeMethod.Call("GetParameters") as REFrameworkNET.ManagedObject;
+                    if (runtimeParams is null) {
+                        return null;
                     }
+                    System.Collections.Generic.List<ParameterSyntax> parameters = [];
 
-                    var paramType = param.get_ParameterType();
+                    bool anyUnsafeParams = false;
 
-                    if (paramType == null) {
-                        paramNames.Add(paramName);
-                        parameters.Add(SyntaxFactory.Parameter(SyntaxFactory.Identifier(paramName)).WithType(SyntaxFactory.ParseTypeName("object")));
-                        continue;
-                    }
 
-                    var parsedParamName = new string(paramName as string);
+                    var methodActualRetval = method.GetReturnType();
+                    UInt32 unknownArgCount = 0;
 
-                    /*if (param.get_IsGenericParameter() == true) {
-                        return null; // no generic parameters.
-                    }*/
+                    foreach (dynamic param in runtimeParams) {
+                        /*if (param.get_IsRetval() == true) {
+                            continue;
+                        }*/
 
-                    var isByRef = paramType.IsByRefImpl();
-                    var isPointer = paramType.IsPointerImpl();
-                    var isOut = paramDef != null && paramDef.FindMethod("get_IsOut") != null ? param.get_IsOut() : false;
-                    var paramTypeDef = (REFrameworkNET.TypeDefinition)paramType.get_TypeHandle();
+                        var paramDef = (REFrameworkNET.TypeDefinition)param.GetTypeDefinition();
+                        var paramName = param.get_Name();
 
-                    var paramTypeSyntax = TypeHandler.MakeProperType(paramTypeDef);
-
-                    System.Collections.Generic.List<SyntaxToken> modifiers = [];
-
-                    if (isOut == true) {
-                        simpleMethodSignature += "out";
-                        modifiers.Add(SyntaxFactory.Token(SyntaxKind.OutKeyword));
-                        anyOutParams = true;
-                    }
-
-                    if (isByRef == true) {
-                        // can only be either ref or out.
-                        if (!isOut) {
-                            simpleMethodSignature += "ref " + paramTypeSyntax.GetText().ToString();
-                            modifiers.Add(SyntaxFactory.Token(SyntaxKind.RefKeyword));
+                        if (paramName == null || paramName == "") {
+                            //paramName = "UnknownParam";
+                            paramName = "arg" + unknownArgCount.ToString();
+                            ++unknownArgCount;
                         }
 
-                        parameters.Add(SyntaxFactory.Parameter(SyntaxFactory.Identifier(paramName)).WithType(SyntaxFactory.ParseTypeName(paramTypeSyntax.ToString())).AddModifiers(modifiers.ToArray()));
-                    } else if (isPointer == true) {
-                        simpleMethodSignature += "ptr " + paramTypeSyntax.GetText().ToString();
-                        parameters.Add(SyntaxFactory.Parameter(SyntaxFactory.Identifier(paramName)).WithType(SyntaxFactory.ParseTypeName(paramTypeSyntax.ToString() + "*")).AddModifiers(modifiers.ToArray()));
-                        anyUnsafeParams = true;
+                        if (paramName == "object") {
+                            paramName = "object_"; // object is a reserved keyword.
+                        }
 
-                        parsedParamName = "(global::System.IntPtr) " + parsedParamName;
-                    } else {
-                        simpleMethodSignature += paramTypeSyntax.GetText().ToString();
-                        parameters.Add(SyntaxFactory.Parameter(SyntaxFactory.Identifier(paramName)).WithType(paramTypeSyntax).AddModifiers(modifiers.ToArray()));
+                        var paramType = param.get_ParameterType();
+
+                        if (paramType == null) {
+                            paramNames.Add(paramName);
+                            parameters.Add(SyntaxFactory.Parameter(SyntaxFactory.Identifier(paramName)).WithType(SyntaxFactory.ParseTypeName("object")));
+                            continue;
+                        }
+
+                        var parsedParamName = new string(paramName as string);
+
+                        /*if (param.get_IsGenericParameter() == true) {
+                            return null; // no generic parameters.
+                        }*/
+
+                        var isByRef = paramType.IsByRefImpl();
+                        var isPointer = paramType.IsPointerImpl();
+                        var isOut = paramDef != null && paramDef.FindMethod("get_IsOut") != null ? param.get_IsOut() : false;
+                        var paramTypeDef = (REFrameworkNET.TypeDefinition)paramType.get_TypeHandle();
+
+                        var paramTypeSyntax = TypeHandler.ProperType(paramTypeDef);
+
+                        System.Collections.Generic.List<SyntaxToken> modifiers = [];
+
+                        if (isOut == true) {
+                            simpleMethodSignature += "out";
+                            modifiers.Add(SyntaxFactory.Token(SyntaxKind.OutKeyword));
+                            anyOutParams = true;
+                        }
+
+                        if (isByRef == true) {
+                            // can only be either ref or out.
+                            if (!isOut) {
+                                simpleMethodSignature += "ref " + paramTypeSyntax.GetText().ToString();
+                                modifiers.Add(SyntaxFactory.Token(SyntaxKind.RefKeyword));
+                            }
+
+                            parameters.Add(SyntaxFactory.Parameter(SyntaxFactory.Identifier(paramName)).WithType(SyntaxFactory.ParseTypeName(paramTypeSyntax.ToString())).AddModifiers(modifiers.ToArray()));
+                        } else if (isPointer == true) {
+                            simpleMethodSignature += "ptr " + paramTypeSyntax.GetText().ToString();
+                            parameters.Add(SyntaxFactory.Parameter(SyntaxFactory.Identifier(paramName)).WithType(SyntaxFactory.ParseTypeName(paramTypeSyntax.ToString() + "*")).AddModifiers(modifiers.ToArray()));
+                            anyUnsafeParams = true;
+
+                            parsedParamName = "(global::System.IntPtr) " + parsedParamName;
+                        } else {
+                            simpleMethodSignature += paramTypeSyntax.GetText().ToString();
+                            parameters.Add(SyntaxFactory.Parameter(SyntaxFactory.Identifier(paramName)).WithType(paramTypeSyntax).AddModifiers(modifiers.ToArray()));
+                        }
+
+                        paramNames.Add(parsedParamName);
                     }
 
-                    paramNames.Add(parsedParamName);
-                }
+                    methodDeclaration = methodDeclaration.AddParameterListParameters([.. parameters]);
 
-                methodDeclaration = methodDeclaration.AddParameterListParameters([.. parameters]);
-
-                if (anyUnsafeParams) {
-                    methodDeclaration = methodDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.UnsafeKeyword));
-                }
-
-            } else {
-                simpleMethodSignature += "()";
-            }
-
-            if (method.IsStatic()) {
-                // lets see what happens if we just make it static
-                methodDeclaration = methodDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.StaticKeyword));
-
-                // Now we must add a body to it that actually calls the method
-                // We have our REFType field, so we can lookup the method and call it
-                // Make a private static field to hold the REFrameworkNET.Method
-                var internalFieldName = "INTERNAL_" + method.Name + method.GetIndex().ToString();
-                var methodVariableDeclaration = SyntaxFactory.VariableDeclaration(SyntaxFactory.ParseTypeName("global::REFrameworkNET.Method"))
-                    .AddVariables(SyntaxFactory.VariableDeclarator(internalFieldName).WithInitializer(SyntaxFactory.EqualsValueClause(SyntaxFactory.ParseExpression("REFType.GetMethod(\"" + method.GetMethodSignature() + "\")"))));
-
-                var methodFieldDeclaration = SyntaxFactory.FieldDeclaration(methodVariableDeclaration).AddModifiers(SyntaxFactory.Token(SyntaxKind.PrivateKeyword), SyntaxFactory.Token(SyntaxKind.StaticKeyword), SyntaxFactory.Token(SyntaxKind.ReadOnlyKeyword));
-                internalFieldDeclarations.Add(methodFieldDeclaration);
-
-                List<StatementSyntax> bodyStatements = [];
-
-                if (method.ReturnType.FullName == "System.Void") {
-                    if (method.Parameters.Count == 0) {
-                        bodyStatements.Add(SyntaxFactory.ParseStatement(internalFieldName + ".Invoke(null, null);"));
-                    } else if (!anyOutParams) {
-                        bodyStatements.Add(SyntaxFactory.ParseStatement(internalFieldName + ".Invoke(null, new object[] {" + string.Join(", ", paramNames) + "});"));
-                    } else {
-                        bodyStatements.Add(SyntaxFactory.ParseStatement("throw new System.NotImplementedException();")); // TODO: Implement this
+                    if (anyUnsafeParams) {
+                        methodDeclaration = methodDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.UnsafeKeyword));
                     }
+
                 } else {
-                    if (method.Parameters.Count == 0) {
-                        bodyStatements.Add(SyntaxFactory.ParseStatement("return (" + returnType.GetText().ToString() + ")" + internalFieldName + ".InvokeBoxed(typeof(" + returnType.GetText().ToString() + "), null, null);"));
-                    } else if (!anyOutParams) {
-                        bodyStatements.Add(SyntaxFactory.ParseStatement("return (" + returnType.GetText().ToString() + ")" + internalFieldName + ".InvokeBoxed(typeof(" + returnType.GetText().ToString() + "), null, new object[] {" + string.Join(", ", paramNames) + "});"));
-                    } else {
-                        bodyStatements.Add(SyntaxFactory.ParseStatement("throw new System.NotImplementedException();")); // TODO: Implement this
-                    }
+                    simpleMethodSignature += "()";
                 }
 
-                methodDeclaration = methodDeclaration.AddBodyStatements(
-                    [.. bodyStatements]
-                );
-            } else if (t.IsGenericType()) {
-                var index = t.Methods.IndexOf(method);
-                methodDeclaration = methodDeclaration
-                    .AddBodyStatements(GenericStub(returnType, [.. paramNames], index))
-                    .WithAttributeLists([]);
-            } else {
-                methodDeclaration = methodDeclaration.WithSemicolonToken(Token(SyntaxKind.SemicolonToken));
-            }
+                if (method.IsStatic()) {
+                    // lets see what happens if we just make it static
+                    methodDeclaration = methodDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.StaticKeyword));
 
-            if (seenMethodSignatures.Contains(simpleMethodSignature)) {
-                Console.WriteLine("Skipping duplicate method: " + methodDeclaration.NormalizeWhitespace().GetText().ToString());
-                return null;
-            }
+                    // Now we must add a body to it that actually calls the method
+                    // We have our REFType field, so we can lookup the method and call it
+                    // Make a private static field to hold the REFrameworkNET.Method
+                    var internalFieldName = "INTERNAL_" + method.Name + method.GetIndex().ToString();
+                    var methodVariableDeclaration = SyntaxFactory.VariableDeclaration(SyntaxFactory.ParseTypeName("global::REFrameworkNET.Method"))
+                        .AddVariables(SyntaxFactory.VariableDeclarator(internalFieldName).WithInitializer(SyntaxFactory.EqualsValueClause(SyntaxFactory.ParseExpression("REFType.GetMethod(\"" + method.GetMethodSignature() + "\")"))));
 
-            seenMethodSignatures.Add(simpleMethodSignature);
+                    var methodFieldDeclaration = SyntaxFactory.FieldDeclaration(methodVariableDeclaration).AddModifiers(SyntaxFactory.Token(SyntaxKind.PrivateKeyword), SyntaxFactory.Token(SyntaxKind.StaticKeyword), SyntaxFactory.Token(SyntaxKind.ReadOnlyKeyword));
+                    internalFieldDeclarations.Add(methodFieldDeclaration);
 
-            if (methodExtension?.MatchingParentMethods.Any() ?? false) {
-                methodDeclaration = methodDeclaration.AddModifiers(Token(SyntaxKind.NewKeyword));
-            }
+                    List<StatementSyntax> bodyStatements = [];
+
+                    if (method.ReturnType.FullName == "System.Void") {
+                        if (method.Parameters.Count == 0) {
+                            bodyStatements.Add(SyntaxFactory.ParseStatement(internalFieldName + ".Invoke(null, null);"));
+                        } else if (!anyOutParams) {
+                            bodyStatements.Add(SyntaxFactory.ParseStatement(internalFieldName + ".Invoke(null, new object[] {" + string.Join(", ", paramNames) + "});"));
+                        } else {
+                            bodyStatements.Add(SyntaxFactory.ParseStatement("throw new System.NotImplementedException();")); // TODO: Implement this
+                        }
+                    } else {
+                        if (method.Parameters.Count == 0) {
+                            bodyStatements.Add(SyntaxFactory.ParseStatement("return (" + returnType.GetText().ToString() + ")" + internalFieldName + ".InvokeBoxed(typeof(" + returnType.GetText().ToString() + "), null, null);"));
+                        } else if (!anyOutParams) {
+                            bodyStatements.Add(SyntaxFactory.ParseStatement("return (" + returnType.GetText().ToString() + ")" + internalFieldName + ".InvokeBoxed(typeof(" + returnType.GetText().ToString() + "), null, new object[] {" + string.Join(", ", paramNames) + "});"));
+                        } else {
+                            bodyStatements.Add(SyntaxFactory.ParseStatement("throw new System.NotImplementedException();")); // TODO: Implement this
+                        }
+                    }
+
+                    methodDeclaration = methodDeclaration.AddBodyStatements(
+                        [.. bodyStatements]
+                    );
+                } else if (t.IsGenericType()) {
+                    var index = t.Methods.IndexOf(method);
+                    methodDeclaration = methodDeclaration
+                        .AddBodyStatements(GenericStub(returnType, [.. paramNames], index))
+                        .WithAttributeLists([]);
+                } else {
+                    methodDeclaration = methodDeclaration.WithSemicolonToken(Token(SyntaxKind.SemicolonToken));
+                }
+
+                if (seenMethodSignatures.Contains(simpleMethodSignature)) {
+                    Console.WriteLine("Skipping duplicate method: " + methodDeclaration.NormalizeWhitespace().GetText().ToString());
+                    return null;
+                }
+
+                seenMethodSignatures.Add(simpleMethodSignature);
+
+                if (methodExtension?.MatchingParentMethods.Any() ?? false) {
+                    methodDeclaration = methodDeclaration.AddModifiers(Token(SyntaxKind.NewKeyword));
+                }
 
 
-            return methodDeclaration;
-        })
+                return methodDeclaration;
+            })
         .Where(method => method != null)
         .Select(method => method!)
         .ToArray();
 
         typeDeclaration = typeDeclaration
-            .AddMembers([..internalFieldDeclarations])
+            .AddMembers([.. internalFieldDeclarations])
             .AddMembers(matchingMethods);
     }
 
@@ -835,7 +835,7 @@ class TypeHandler {
 
     }
 
-    public static BaseTypeSyntax[] ParentTypes(REFrameworkNET.TypeDefinition type) {
+    public static BaseTypeSyntax[] ParentTypes(TypeDefinition type) {
         List<BaseTypeSyntax> parents = new();
         var parentType = type.ParentType;
         while (parentType != null) {
@@ -844,14 +844,26 @@ class TypeHandler {
                 parents.Insert(0, SimpleBaseType(ParseTypeName("global::_System.Object")));
                 break;
             }
-            var baseType = SimpleBaseType(MakeProperType(parentType));
+            var baseType = SimpleBaseType(ProperType(parentType));
             parents.Insert(0, baseType);
             parentType = parentType.ParentType;
         }
         return parents.ToArray();
     }
 
-    public static TypeSyntax MakeProperType(REFrameworkNET.TypeDefinition? targetType) {
+    public static TypeSyntax ProperType(TypeDefinition type) {
+        if (type is null) return VoidType();
+        if (type.Name.StartsWith("<")) return ObjType();
+        if (type.Name.StartsWith("!!")) return ObjType();
+
+        if (Predefined.ContainsKey(type.FullName))
+            return Predefined[type.FullName];
+        if (Cache.ContainsKey(type.Index))
+            return Cache[type.Index];
+        return ObjType();
+    }
+
+    static TypeSyntax BuildProperType(REFrameworkNET.TypeDefinition? targetType) {
 
         if (targetType is null) return VoidType();
         if (targetType.Name.StartsWith("<")) return ObjType();
@@ -863,7 +875,7 @@ class TypeHandler {
             return Cache[targetType.Index];
 
         if (targetType.GetElementType() is TypeDefinition elemType) {
-            var elem = MakeProperType(elemType);
+            var elem = BuildProperType(elemType);
             var arraySyntax = QualifiedName(
                     ParseName("global::_System.Array"),
                     GenericName("Impl")
@@ -902,7 +914,7 @@ class TypeHandler {
                     name += "UNKN";
                     continue;
                 }
-                name += MakeProperType(generics[i + genericIndex]).ToFullString();
+                name += ProperType(generics[i + genericIndex]).ToFullString();
             }
             name += ">";
             genericIndex += count;
@@ -914,6 +926,17 @@ class TypeHandler {
         var parsed = ParseTypeName($"global::{toParse}");
         Cache[targetType.Index] = parsed;
         return parsed;
+    }
+
+    public static void BuildProperTypes() {
+        foreach (TypeDefinition type in API.GetTDB().Types) {
+            BuildProperType(type);
+            // Special case delegates again
+            if (!(type.FullName.StartsWith("System.Action") || type.FullName.StartsWith("System.Func"))) {
+                if (type.IsGenericType()) BuildProperType(type.GetGenericTypeDefinition()); 
+            }
+        }
+        API.LogInfo("Built proper types");
     }
 
     public static MemberDeclarationSyntax? GenerateType(TypeDefinition t) {

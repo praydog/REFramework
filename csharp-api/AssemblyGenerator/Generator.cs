@@ -18,6 +18,7 @@ using System.Reflection.Metadata;
 using REFrameworkNET.Attributes;
 using REFrameworkNET;
 using REFrameworkNET.Callbacks;
+using System.Threading;
 
 
 public class Il2CppDump {
@@ -234,34 +235,19 @@ public class AssemblyGenerator {
         return FixBadChars(fullName);
     }
 
-    static public NamespaceDeclarationSyntax? ExtractNamespaceFromType(REFrameworkNET.TypeDefinition t) {
+    static public NamespaceDeclarationSyntax ExtractNamespaceFromType(REFrameworkNET.TypeDefinition t) {
         var ns = t.GetNamespace();
 
-        if (ns != null && ns.Length > 0) {
-            if (ns.StartsWith("System.") || ns == "System" || ns.StartsWith("Internal.") || ns == "Internal") {
-                ns = "_" + ns;
-            }
-
-            if (!namespaces.TryGetValue(ns, out NamespaceDeclarationSyntax? value)) {
-                //ns = Regex.Replace(ns, @"[^a-zA-Z0-9.]", "_");
-                Console.WriteLine("Creating namespace " + ns);
-                value = SyntaxTreeBuilder.CreateNamespace(ns);
-                namespaces[ns] = value;
-            }
-
-            return value;
-        } 
-
-        //Console.WriteLine("Failed to extract namespace from " + t.GetFullName());
-        if (!namespaces.TryGetValue("_", out NamespaceDeclarationSyntax? value2)) {
-            value2 = SyntaxTreeBuilder.CreateNamespace("_");
-            namespaces["_"] = value2;
+        if (ns is null || !ns.Any()) {
+            return SyntaxTreeBuilder.CreateNamespace("_");
         }
 
-        return value2;
+        if (ns.StartsWith("System") || ns.StartsWith("Internal"))
+            ns = "_" + ns;
+        return SyntaxTreeBuilder.CreateNamespace(ns);
     }
 
-    public static SortedSet<uint> generatedTypes = [];
+    public static ConcurrentDictionary<uint, bool> generatedTypes = [];
 
     public static REFrameworkNET.TypeDefinition? GetEquivalentNestedTypeInParent(REFrameworkNET.TypeDefinition nestedT) {
         var isolatedNestedName = nestedT.FullName?.Split('.').Last();
@@ -302,8 +288,9 @@ public class AssemblyGenerator {
         }
 
         if (t.DeclaringType != null) return null;
-        if (generatedTypes.Contains(t.Index)) return null;
-        generatedTypes.Add(t.Index);
+        if (!generatedTypes.TryAdd(t.Index, true)) return null;
+        // if (generatedTypes.Contains(t.Index)) return null;
+        // generatedTypes.Add(t.Index);
         var genNamespace = ExtractNamespaceFromType(t);
         if (genNamespace is null) {
             API.LogInfo($"Failed to create namespace for {t.FullName}");
@@ -395,7 +382,7 @@ public class AssemblyGenerator {
                 var def = type.GetGenericTypeDefinition();
                 if (delegateList.Add(def.GetRuntimeType())) {
                     API.LogInfo($"Added delegate {def.FullName}({def.Name}):{def.Index} ({def.GetNamespace()})");
-                    API.LogInfo($"Name: {TypeHandler.MakeProperType(def)}");
+                    API.LogInfo($"Name: {TypeHandler.ProperType(def)}");
                 }
 
             }
@@ -407,44 +394,47 @@ public class AssemblyGenerator {
         REFrameworkNET.API.LocalFrameGC();
 
         int count = typeList.Count;
-        List<SyntaxTree> syntaxTrees = new List<SyntaxTree>();
         var syntaxTreeParseOption = CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.CSharp12);
-        // Is this parallelizable?
-        foreach (dynamic reEngineT in typeList) {
-            var th = reEngineT.get_TypeHandle();
-    
-            if (count % 1000 == 0) Console.WriteLine($"{count} remaining");
-            count -= 1;
 
-            if (th == null) {
-                API.LogInfo("Failed to get type handle for " + reEngineT.get_FullName());
-                continue;
-            }
+        var syntaxTrees = typeList
+            // .AsParallel()  /// Causes memory violations for now, not exactly sure why
+            .Select((dynamic reEngineT) => {
+                var th = reEngineT.get_TypeHandle();
+                var thisCount = Interlocked.Decrement(ref count);
+                if (thisCount % 1000 == 0) Console.WriteLine($"{thisCount} remaining");
 
-            var t = th as REFrameworkNET.TypeDefinition;
-            if (t == null) {
-                API.LogError("Failed to convert type handle for " + reEngineT.get_FullName());
-                continue;
-            }
+                if (th == null) {
+                    API.LogInfo("Failed to get type handle for " + reEngineT.get_FullName());
+                    return null;
+                }
 
-            var properType = TypeHandler.MakeProperType(t);
-            var sanitizedTypeName = properType
-                .ToFullString()
-                .Replace('<', '_')
-                .Replace('>', '_')
-                .Replace(':', '_');
-            var compilationUnit = MakeFromTypeEntry(tdb, t);
-            if (compilationUnit is null) continue;
-            syntaxTrees.Add(SyntaxFactory.SyntaxTree(
-                compilationUnit.NormalizeWhitespace(), 
-                syntaxTreeParseOption,
-                $"{sanitizedTypeName}.cs"
-            ));
+                var t = th as REFrameworkNET.TypeDefinition;
+                if (t == null) {
+                    API.LogError("Failed to convert type handle for " + reEngineT.get_FullName());
+                    return null;
+                }
 
-            // Clean up all the local objects
-            // Mainly because some of the older games don't play well with a ton of objects on the thread local heap
-            REFrameworkNET.API.LocalFrameGC();
-        }
+                var properType = TypeHandler.ProperType(t);
+                var sanitizedTypeName = properType
+                    .ToFullString()
+                    .Replace('<', '_')
+                    .Replace('>', '_')
+                    .Replace(':', '_');
+                var compilationUnit = MakeFromTypeEntry(tdb, t);
+                if (compilationUnit is null) return null;
+
+                // Clean up all the local objects
+                // Mainly because some of the older games don't play well with a ton of objects on the thread local heap
+                // REFrameworkNET.API.LocalFrameGC();
+                return SyntaxFactory.SyntaxTree(
+                    compilationUnit.NormalizeWhitespace(),
+                    syntaxTreeParseOption,
+                    $"{sanitizedTypeName}.cs"
+                );
+            })
+            .Where(s => s is not null)
+            .Select(s => s!)
+            .ToList();
 
 
 
@@ -538,6 +528,7 @@ public class AssemblyGenerator {
     public static List<REFrameworkNET.Compiler.DynamicAssemblyBytecode> MainImpl() {
         var tdb = REFrameworkNET.API.GetTDB();
         Il2CppDump.FillTypeExtensions(tdb);
+        TypeHandler.BuildProperTypes();
 
         List<REFrameworkNET.Module> modules = [];
 
@@ -563,7 +554,7 @@ public class AssemblyGenerator {
             }
 
             if (assemblyName == "") continue;
-            if (assemblyName.Contains("application")) continue;
+            // if (assemblyName.Contains("application")) continue;
             // if (assemblyName.Contains("viacore")) continue;
 
             REFrameworkNET.API.LogInfo("Assembly: " + assemblyName);
