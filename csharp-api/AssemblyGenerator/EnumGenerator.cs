@@ -54,9 +54,7 @@ public class EnumGenerator {
             var declaringType = t.DeclaringType;
 
             if (declaringType != null) {
-                var existingField = declaringType.FindField(t.Name);
-
-                if (existingField != null && AssemblyGenerator.validTypes.Contains(existingField.DeclaringType.FullName)) {
+                if (declaringType.FindField(t.Name) != null) {
                     enumDeclaration = enumDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.NewKeyword));
                 }
             }
