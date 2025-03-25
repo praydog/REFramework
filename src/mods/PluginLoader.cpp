@@ -654,7 +654,7 @@ void PluginLoader::early_init() try {
         auto&& path = entry.path();
 
         if (path.has_extension() && path.extension() == ".dll") {
-            auto module = LoadLibrary(path.string().c_str());
+            auto module = LoadLibraryW(path.operator std::wstring().c_str());
 
             if (module == nullptr) {
                 spdlog::error("[PluginLoader] Failed to load {}", path.string());
