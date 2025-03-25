@@ -345,7 +345,7 @@ public class ClassGenerator {
                         bodyStatements.Add(SyntaxFactory.ParseStatement(internalFieldName + ".Invoke(null, new object[] {value});"));
 
                         setter = setter.AddBodyStatements(bodyStatements.ToArray());
-                    } else if (t.IsGenericType()) {
+                    } else if (generic) {
                         var index = t.Methods.IndexOf(property.Value.setter);
                         setter = setter
                             .AddBodyStatements(GenericStub(null, [], index))
@@ -477,7 +477,7 @@ public class ClassGenerator {
 
                     getter = getter.AddBodyStatements(bodyStatementsGetter.ToArray());
                     setter = setter.AddBodyStatements(bodyStatementsSetter.ToArray());
-                } else if (t.IsGenericType()) {
+                } else if (generic) {
                     getter = getter
                         .AddBodyStatements(ParseStatement("throw new System.NotImplementedException();"))
                         .WithAttributeLists([]);
@@ -747,7 +747,7 @@ public class ClassGenerator {
                     methodDeclaration = methodDeclaration.AddBodyStatements(
                         [.. bodyStatements]
                     );
-                } else if (t.IsGenericType()) {
+                } else if (generic) {
                     var index = t.Methods.IndexOf(method);
                     methodDeclaration = methodDeclaration
                         .AddBodyStatements(GenericStub(returnType, [.. paramNames], index))
@@ -783,7 +783,7 @@ public class ClassGenerator {
         var array_generic = TDB.Get().GetType("!0[]");
         if (array_generic is null) return null;
 
-        var decl = new ClassGenerator(array_generic).typeDeclaration;
+        var decl = new ClassGenerator(array_generic, true).typeDeclaration;
         return decl
             .WithIdentifier(Identifier("Impl"))
             .WithTypeParameterList(TypeParameterList(SingletonSeparatedList(TypeParameter("T"))));
