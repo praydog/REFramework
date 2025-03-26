@@ -16,6 +16,7 @@ using System;
 using System.ComponentModel.DataAnnotations;
 
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+using REFrameworkNET.Attributes;
 
 public class ClassGenerator {
     public class PseudoProperty {
@@ -209,15 +210,23 @@ public class ClassGenerator {
         var refProxyFieldDecl = SyntaxFactory.FieldDeclaration(refProxyVarDecl).AddModifiers(SyntaxFactory.Token(SyntaxKind.PrivateKeyword), SyntaxFactory.Token(SyntaxKind.StaticKeyword), SyntaxFactory.Token(SyntaxKind.ReadOnlyKeyword));
 
 
+        // var typeIdExpr = GenericDictExpr((t) => t.Index);
+        var refTypeName = (FieldDeclarationSyntax)ParseMemberDeclaration($"public static readonly string REFTypeName = {GenericTypeNameExpr()};")!;
+        if (baseTypes.Length > 0)
+            refTypeName = refTypeName.AddModifiers(Token(SyntaxKind.NewKeyword));
+        typeDeclaration = typeDeclaration.AddMembers(refTypeName);
+
         // Add a static field to the class that holds the REFrameworkNET.TypeDefinition
         var refTypeFieldDecl = ParseMemberDeclaration(
-            $"public static readonly global::REFrameworkNET.TypeDefinition REFType = global::REFrameworkNET.TDB.Get().FindType(\"{t.FullName}\");"
+            $"public static readonly global::REFrameworkNET.TypeDefinition REFType = global::REFrameworkNET.TDB.Get().FindType(REFTypeName);"
         )!;
         if (baseTypes.Length > 0) {
             refTypeFieldDecl = refTypeFieldDecl.AddModifiers(SyntaxFactory.Token(SyntaxKind.NewKeyword));
         }
         typeDeclaration = typeDeclaration.AddMembers(refTypeFieldDecl);
         //typeDeclaration = typeDeclaration.AddMembers(refProxyFieldDecl);
+
+
 
         GenerateMethods();
         GenerateFields();
@@ -249,6 +258,38 @@ public class ClassGenerator {
                     .InvokeBoxed(typeof({ret.ToFullString()}), this, [{argumentList}]);",
         };
         return ParseStatement(stmt);
+    }
+
+    // This is a fun one
+    private string GenericTypeNameExpr() {
+        if (!generic)
+            return $"\"{t.FullName}\"";
+        if (t.FullName == "!0[]")
+            return $"(string)typeof(T).GetField(\"REFTypeName\").GetValue(null) + \"[]\"";
+        var hierarchy = TypeHandler.NameHierarchy(t);
+        int genericCount = 0;
+        var expr = "\"\"";
+        bool dot = false;
+        foreach (var elem in hierarchy) {
+            if (dot) expr += "+ \".\"";
+            dot = true;
+
+            var (name, count) = TypeHandler.BaseTypeName(elem);
+            if (count == 0) {
+                expr += $" + \"{name}\"";
+            }
+
+            if (count != 0) {
+                expr += $"+ \"{elem}<\"";
+                for (int i = 0; i < count; ++i) {
+                    if (i > 0) expr += "+ \",\"";
+                    var genericParamName = GenericNames[genericCount++];
+                    expr += $"+ (string) typeof({genericParamName}).GetField(\"REFTypeName\").GetValue(null)";
+                }
+                expr += $"+ \">\"";
+            }
+        }
+        return expr;
     }
 
     private void GenerateProperties() {
@@ -285,10 +326,12 @@ public class ClassGenerator {
                             SyntaxFactory.ParseName("global::REFrameworkNET.Attributes.Method"),
                             SyntaxFactory.ParseAttributeArgumentList("(" + property.Value.getter.Index.ToString() + ", global::REFrameworkNET.FieldFacadeType.None)"))
                         ));
-
+    
                     if (property.Value.getter.IsStatic()) {
                         shouldAddStaticKeyword = true;
+                    }
 
+                    if (generic | property.Value.getter.IsStatic()) {
                         // Now we must add a body to it that actually calls the method
                         // We have our REFType field, so we can lookup the method and call it
                         // Make a private static field to hold the REFrameworkNET.Method
@@ -299,15 +342,9 @@ public class ClassGenerator {
                         var methodFieldDeclaration = SyntaxFactory.FieldDeclaration(methodVariableDeclaration).AddModifiers(SyntaxFactory.Token(SyntaxKind.PrivateKeyword), SyntaxFactory.Token(SyntaxKind.StaticKeyword), SyntaxFactory.Token(SyntaxKind.ReadOnlyKeyword));
                         internalFieldDeclarations.Add(methodFieldDeclaration);
 
-                        List<StatementSyntax> bodyStatements = [];
-                        bodyStatements.Add(SyntaxFactory.ParseStatement("return (" + propertyType.GetText().ToString() + ")" + internalFieldName + ".InvokeBoxed(typeof(" + propertyType.GetText().ToString() + "), null, null);"));
-
-                        getter = getter.AddBodyStatements(bodyStatements.ToArray());
-                    } else if (generic) {
-                        var index = t.Methods.IndexOf(property.Value.getter);
-                        getter = getter
-                            .AddBodyStatements(GenericStub(propertyType, [], index))
-                            .WithAttributeLists([]);
+                        var instance = property.Value.getter.IsStatic() ? "null" : "this";
+                        var stmt = $"return ({propertyType.ToFullString()}) {internalFieldName}.InvokeBoxed(typeof({propertyType.ToFullString()}), {instance}, null);";
+                        getter = getter.AddBodyStatements(ParseStatement(stmt));
                     } else {
                         getter = getter.WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken));
                     }
@@ -327,9 +364,11 @@ public class ClassGenerator {
                             SyntaxFactory.ParseName("global::REFrameworkNET.Attributes.Method"),
                             SyntaxFactory.ParseAttributeArgumentList("(" + property.Value.setter.Index.ToString() + ", global::REFrameworkNET.FieldFacadeType.None)"))
                         ));
-
+                        
                     if (property.Value.setter.IsStatic()) {
                         shouldAddStaticKeyword = true;
+                    }
+                    if (generic | property.Value.setter.IsStatic()) {
 
                         // Now we must add a body to it that actually calls the method
                         // We have our REFType field, so we can lookup the method and call it
@@ -341,15 +380,9 @@ public class ClassGenerator {
                         var methodFieldDeclaration = SyntaxFactory.FieldDeclaration(methodVariableDeclaration).AddModifiers(SyntaxFactory.Token(SyntaxKind.PrivateKeyword), SyntaxFactory.Token(SyntaxKind.StaticKeyword), SyntaxFactory.Token(SyntaxKind.ReadOnlyKeyword));
                         internalFieldDeclarations.Add(methodFieldDeclaration);
 
-                        List<StatementSyntax> bodyStatements = [];
-                        bodyStatements.Add(SyntaxFactory.ParseStatement(internalFieldName + ".Invoke(null, new object[] {value});"));
-
-                        setter = setter.AddBodyStatements(bodyStatements.ToArray());
-                    } else if (generic) {
-                        var index = t.Methods.IndexOf(property.Value.setter);
-                        setter = setter
-                            .AddBodyStatements(GenericStub(null, [], index))
-                            .WithAttributeLists([]);
+                        var instance = property.Value.setter.IsStatic() ? "null" : "this";
+                        var stmt = $"{internalFieldName}.Invoke({instance}, [value]);";
+                        setter = setter.AddBodyStatements(ParseStatement(stmt));
                     } else {
                         setter = setter.WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken));
                     }
@@ -455,8 +488,9 @@ public class ClassGenerator {
                 var propertyDeclaration = SyntaxFactory.PropertyDeclaration(fieldType, fieldName)
                     .AddModifiers([SyntaxFactory.Token(SyntaxKind.PublicKeyword)]);
 
-                if (field.IsStatic()) {
-                    propertyDeclaration = propertyDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.StaticKeyword));
+                if (field.IsStatic() || generic) {
+                    if (field.IsStatic())
+                        propertyDeclaration = propertyDeclaration.AddModifiers(Token(SyntaxKind.StaticKeyword));
 
                     // Now we must add a body to it that actually calls the method
                     // We have our REFType field, so we can lookup the method and call it
@@ -471,19 +505,15 @@ public class ClassGenerator {
                     List<StatementSyntax> bodyStatementsSetter = [];
                     List<StatementSyntax> bodyStatementsGetter = [];
 
+                    var instance = field.IsStatic() 
+                        ? "0"
+                        : "(this as REFrameworkNET.IObject).GetAddress()";
 
-                    bodyStatementsGetter.Add(SyntaxFactory.ParseStatement("return (" + fieldType.GetText().ToString() + ")" + internalFieldName + ".GetDataBoxed(typeof(" + fieldType.GetText().ToString() + "), 0, false);"));
-                    bodyStatementsSetter.Add(SyntaxFactory.ParseStatement(internalFieldName + ".SetDataBoxed(0, new object[] {value}, false);"));
+                    var getterStatement = ParseStatement(@$" return ({fieldType.ToFullString()}) {internalFieldName} .GetDataBoxed(typeof({fieldType.ToFullString()}), {instance}, false);");
+                    var setterStatement = ParseStatement($"{internalFieldName}.SetDataBoxed({instance}, new object[] {{value}}, false);");
 
-                    getter = getter.AddBodyStatements(bodyStatementsGetter.ToArray());
-                    setter = setter.AddBodyStatements(bodyStatementsSetter.ToArray());
-                } else if (generic) {
-                    getter = getter
-                        .AddBodyStatements(ParseStatement("throw new System.NotImplementedException();"))
-                        .WithAttributeLists([]);
-                    setter = setter
-                        .AddBodyStatements(ParseStatement("throw new System.NotImplementedException();"))
-                        .WithAttributeLists([]);
+                    getter = getter.AddBodyStatements(getterStatement);
+                    setter = setter.AddBodyStatements(setterStatement);
                 } else {
                     getter = getter.WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken));
                     setter = setter.WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken));
@@ -609,7 +639,7 @@ public class ClassGenerator {
                     );
 
                 bool anyOutParams = false;
-                System.Collections.Generic.List<string> paramNames = [];
+                List<string> paramNames = [];
 
                 if (method.Parameters.Count > 0) {
                     var runtimeMethod = method.GetRuntimeMethod();
@@ -710,48 +740,46 @@ public class ClassGenerator {
                     simpleMethodSignature += "()";
                 }
 
-                if (method.IsStatic()) {
+                if (method.IsStatic() || generic) {
+                    
                     // lets see what happens if we just make it static
-                    methodDeclaration = methodDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.StaticKeyword));
+                    if (method.IsStatic())
+                        methodDeclaration = methodDeclaration.AddModifiers(Token(SyntaxKind.StaticKeyword));
 
                     // Now we must add a body to it that actually calls the method
                     // We have our REFType field, so we can lookup the method and call it
                     // Make a private static field to hold the REFrameworkNET.Method
+                    var index = t.Methods.IndexOf(method);
                     var internalFieldName = "INTERNAL_" + method.Name + method.GetIndex().ToString();
-                    var methodVariableDeclaration = SyntaxFactory.VariableDeclaration(SyntaxFactory.ParseTypeName("global::REFrameworkNET.Method"))
-                        .AddVariables(SyntaxFactory.VariableDeclarator(internalFieldName).WithInitializer(SyntaxFactory.EqualsValueClause(SyntaxFactory.ParseExpression("REFType.GetMethod(\"" + method.GetMethodSignature() + "\")"))));
+                    internalFieldName = internalFieldName.Replace(".", "_");
+                    var methodVariableDeclaration = VariableDeclaration(
+                        ParseTypeName("global::REFrameworkNET.Method"))
+                        .AddVariables(VariableDeclarator(internalFieldName)
+                            .WithInitializer(
+                                EqualsValueClause(ParseExpression($"REFType.GetMethods()[{index}]"))));
 
-                    var methodFieldDeclaration = SyntaxFactory.FieldDeclaration(methodVariableDeclaration).AddModifiers(SyntaxFactory.Token(SyntaxKind.PrivateKeyword), SyntaxFactory.Token(SyntaxKind.StaticKeyword), SyntaxFactory.Token(SyntaxKind.ReadOnlyKeyword));
+                    var methodFieldDeclaration = FieldDeclaration(methodVariableDeclaration)
+                        .AddModifiers(
+                            Token(SyntaxKind.PrivateKeyword),
+                            Token(SyntaxKind.StaticKeyword),
+                            Token(SyntaxKind.ReadOnlyKeyword));
                     internalFieldDeclarations.Add(methodFieldDeclaration);
 
                     List<StatementSyntax> bodyStatements = [];
 
-                    if (method.ReturnType.FullName == "System.Void") {
-                        if (method.Parameters.Count == 0) {
-                            bodyStatements.Add(SyntaxFactory.ParseStatement(internalFieldName + ".Invoke(null, null);"));
-                        } else if (!anyOutParams) {
-                            bodyStatements.Add(SyntaxFactory.ParseStatement(internalFieldName + ".Invoke(null, new object[] {" + string.Join(", ", paramNames) + "});"));
-                        } else {
-                            bodyStatements.Add(SyntaxFactory.ParseStatement("throw new System.NotImplementedException();")); // TODO: Implement this
-                        }
-                    } else {
-                        if (method.Parameters.Count == 0) {
-                            bodyStatements.Add(SyntaxFactory.ParseStatement("return (" + returnType.GetText().ToString() + ")" + internalFieldName + ".InvokeBoxed(typeof(" + returnType.GetText().ToString() + "), null, null);"));
-                        } else if (!anyOutParams) {
-                            bodyStatements.Add(SyntaxFactory.ParseStatement("return (" + returnType.GetText().ToString() + ")" + internalFieldName + ".InvokeBoxed(typeof(" + returnType.GetText().ToString() + "), null, new object[] {" + string.Join(", ", paramNames) + "});"));
-                        } else {
-                            bodyStatements.Add(SyntaxFactory.ParseStatement("throw new System.NotImplementedException();")); // TODO: Implement this
-                        }
+                    var instance = "this";
+                    if (method.IsStatic()) {
+                        instance = "null";
                     }
 
-                    methodDeclaration = methodDeclaration.AddBodyStatements(
-                        [.. bodyStatements]
-                    );
-                } else if (generic) {
-                    var index = t.Methods.IndexOf(method);
-                    methodDeclaration = methodDeclaration
-                        .AddBodyStatements(GenericStub(returnType, [.. paramNames], index))
-                        .WithAttributeLists([]);
+                    var statement = (method.ReturnType.FullName, method.Parameters) switch {
+                        _ when anyOutParams => "throw new System.NotImplementedException();",
+                        ("System.Void", []) => $"{internalFieldName}.Invoke({instance}, null);",
+                        ("System.Void", [..]) => $"{internalFieldName}.Invoke({instance}, [{string.Join(",", paramNames)}]);",
+                        (_, []) => $"return ({returnType.ToFullString()}) {internalFieldName}.InvokeBoxed(typeof({returnType.ToFullString()}), {instance}, null);",
+                        (_, [..]) => $"return ({returnType.ToFullString()}) {internalFieldName}.InvokeBoxed(typeof({returnType.ToFullString()}), {instance}, [{string.Join(",", paramNames)}]);"
+                    };
+                    methodDeclaration = methodDeclaration.AddBodyStatements(ParseStatement(statement));
                 } else {
                     methodDeclaration = methodDeclaration.WithSemicolonToken(Token(SyntaxKind.SemicolonToken));
                 }
@@ -863,6 +891,22 @@ class TypeHandler {
         return ObjType();
     }
 
+    public static string[] NameHierarchy(TypeDefinition type) {
+        var typeList = new List<string>();
+        while (true) {
+            typeList.Insert(0, type.Name);
+            if (type.DeclaringType is null || type.DeclaringType == type)
+                break;
+            type = type.DeclaringType;
+        }
+        if (type.Namespace is not null && type.Namespace.Any()) {
+            typeList.Insert(0, type.Namespace);
+        } else {
+            typeList.Insert(0, "_");
+        }
+        return [.. typeList];
+    }
+
     static TypeSyntax BuildProperType(REFrameworkNET.TypeDefinition? targetType) {
 
         if (targetType is null) return VoidType();
@@ -886,22 +930,7 @@ class TypeHandler {
         }
         Cache[targetType.Index] = ObjType();
 
-        var typeList = new List<string>();
-        {
-            var type = targetType!;
-            while (true) {
-                typeList.Insert(0, type.Name ?? "UNKN");
-                if (type.DeclaringType is null || type.DeclaringType == type)
-                    break;
-                type = type.DeclaringType;
-            }
-            if (type.Namespace is not null && type.Namespace.Any()) {
-                typeList.Insert(0, type.Namespace);
-            } else {
-                typeList.Insert(0, "_");
-            }
-        }
-
+        var typeList = NameHierarchy(targetType);
         int genericIndex = 0;
         var generics = targetType.GenericArguments ?? [];
         var toParse = string.Join(".", typeList.Select(tName => {
@@ -933,7 +962,7 @@ class TypeHandler {
             BuildProperType(type);
             // Special case delegates again
             if (!(type.FullName.StartsWith("System.Action") || type.FullName.StartsWith("System.Func"))) {
-                if (type.IsGenericType()) BuildProperType(type.GetGenericTypeDefinition()); 
+                if (type.IsGenericType()) BuildProperType(type.GetGenericTypeDefinition());
             }
         }
         API.LogInfo("Built proper types");
@@ -965,4 +994,3 @@ class TypeHandler {
             .ToArray() ?? [];
     }
 }
-

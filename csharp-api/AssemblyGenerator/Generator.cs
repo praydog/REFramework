@@ -348,6 +348,9 @@ public class AssemblyGenerator {
 
         List<dynamic> typeList = [];
 
+        const string DEBUG_PATH = "reframework/debug-src";
+        bool debugOut = Directory.Exists(DEBUG_PATH);
+
         foreach (var tIndex in assembly.Types) {
             var t = tdb.GetType(tIndex);
 
@@ -420,9 +423,12 @@ public class AssemblyGenerator {
                     .Replace('<', '_')
                     .Replace('>', '_')
                     .Replace(':', '_');
-                var compilationUnit = MakeFromTypeEntry(tdb, t);
+                var compilationUnit = MakeFromTypeEntry(tdb, t)?.NormalizeWhitespace();
                 if (compilationUnit is null) return null;
 
+                if (debugOut && t.IsGenericType()) {
+                    File.WriteAllText($"{DEBUG_PATH}/{sanitizedTypeName}.cs", compilationUnit.ToFullString());
+                }
                 // Clean up all the local objects
                 // Mainly because some of the older games don't play well with a ton of objects on the thread local heap
                 // REFrameworkNET.API.LocalFrameGC();
@@ -471,13 +477,6 @@ public class AssemblyGenerator {
 
             if (!result.Success)
             {
-                const string DEBUG_PATH = "reframework/debug-src";
-                bool debugOut = Directory.Exists(DEBUG_PATH);
-                if (debugOut) {
-                    foreach (var f in Directory.EnumerateFiles(DEBUG_PATH)) {
-                        File.Delete(f);
-                    }
-                }
                 //var textLines = syntaxTrees.GetText().Lines;
                 List<(SyntaxTree, List<Diagnostic>)> sortedDiagnostics = result.Diagnostics
                     .OrderBy(d => (d.Location.SourceTree?.FilePath, d.Location.SourceSpan.Start))
