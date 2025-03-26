@@ -265,7 +265,7 @@ public class ClassGenerator {
         if (!generic)
             return $"\"{t.FullName}\"";
         if (t.FullName == "!0[]")
-            return $"(string)typeof(T).GetField(\"REFTypeName\").GetValue(null) + \"[]\"";
+            return $"REFrameworkNET.TypeName.Get<T>() + \"[]\"";
         var hierarchy = TypeHandler.NameHierarchy(t);
         int genericCount = 0;
         var expr = "\"\"";
@@ -284,7 +284,7 @@ public class ClassGenerator {
                 for (int i = 0; i < count; ++i) {
                     if (i > 0) expr += "+ \",\"";
                     var genericParamName = GenericNames[genericCount++];
-                    expr += $"+ (string) typeof({genericParamName}).GetField(\"REFTypeName\").GetValue(null)";
+                    expr += $"+ REFrameworkNET.TypeName.Get<{genericParamName}>()";
                 }
                 expr += $"+ \">\"";
             }
@@ -321,12 +321,16 @@ public class ClassGenerator {
                 bool shouldAddStaticKeyword = false;
 
                 if (property.Value.getter != null) {
-                    var getter = SyntaxFactory.AccessorDeclaration(SyntaxKind.GetAccessorDeclaration)
-                        .AddAttributeLists(SyntaxFactory.AttributeList().AddAttributes(SyntaxFactory.Attribute(
-                            SyntaxFactory.ParseName("global::REFrameworkNET.Attributes.Method"),
-                            SyntaxFactory.ParseAttributeArgumentList("(" + property.Value.getter.Index.ToString() + ", global::REFrameworkNET.FieldFacadeType.None)"))
+                    var getter = AccessorDeclaration(SyntaxKind.GetAccessorDeclaration);
+                    if (!generic) {
+                        getter = getter.AddAttributeLists(
+                            AttributeList()
+                            .AddAttributes(Attribute(
+                                ParseName("global::REFrameworkNET.Attributes.Method"),
+                                ParseAttributeArgumentList($"({property.Value.getter.Index}, global::REFrameworkNET.FieldFacadeType.None)"))
                         ));
-    
+                    }
+
                     if (property.Value.getter.IsStatic()) {
                         shouldAddStaticKeyword = true;
                     }
@@ -359,12 +363,16 @@ public class ClassGenerator {
                 }
 
                 if (property.Value.setter != null) {
-                    var setter = SyntaxFactory.AccessorDeclaration(SyntaxKind.SetAccessorDeclaration)
-                        .AddAttributeLists(SyntaxFactory.AttributeList().AddAttributes(SyntaxFactory.Attribute(
-                            SyntaxFactory.ParseName("global::REFrameworkNET.Attributes.Method"),
-                            SyntaxFactory.ParseAttributeArgumentList("(" + property.Value.setter.Index.ToString() + ", global::REFrameworkNET.FieldFacadeType.None)"))
+                    var setter = AccessorDeclaration(SyntaxKind.SetAccessorDeclaration);
+                    if (!generic) {
+                        setter = setter.AddAttributeLists(
+                            AttributeList()
+                            .AddAttributes(Attribute(
+                                ParseName("global::REFrameworkNET.Attributes.Method"),
+                                ParseAttributeArgumentList($"({property.Value.setter.Index}, global::REFrameworkNET.FieldFacadeType.None)"))
                         ));
-                        
+                    }
+
                     if (property.Value.setter.IsStatic()) {
                         shouldAddStaticKeyword = true;
                     }
@@ -469,21 +477,24 @@ public class ClassGenerator {
                     fieldName = fieldName[1..fieldName.IndexOf(">k__")];
                 }
 
-                // So this is actually going to be made a property with get/set instead of an actual field
-                // 1. Because interfaces can't have fields
-                // 2. Because we don't actually have a concrete reference to the field in our VM, so we'll be a facade for the field
-                var fieldFacadeGetter = SyntaxFactory.AttributeList().AddAttributes(SyntaxFactory.Attribute(
-                    SyntaxFactory.ParseName("global::REFrameworkNET.Attributes.Method"),
-                    SyntaxFactory.ParseAttributeArgumentList("(" + field.Index.ToString() + ", global::REFrameworkNET.FieldFacadeType.Getter)"))
-                );
+                AccessorDeclarationSyntax getter = AccessorDeclaration(SyntaxKind.GetAccessorDeclaration);
+                AccessorDeclarationSyntax setter = AccessorDeclaration(SyntaxKind.SetAccessorDeclaration);
+                if (!generic) {
+                    // So this is actually going to be made a property with get/set instead of an actual field
+                    // 1. Because interfaces can't have fields
+                    // 2. Because we don't actually have a concrete reference to the field in our VM, so we'll be a facade for the field
+                    var fieldFacadeGetter = AttributeList()
+                        .AddAttributes(Attribute(
+                            ParseName("global::REFrameworkNET.Attributes.Method"),
+                            ParseAttributeArgumentList("(" + field.Index.ToString() + ", global::REFrameworkNET.FieldFacadeType.Getter)")));
 
-                var fieldFacadeSetter = SyntaxFactory.AttributeList().AddAttributes(SyntaxFactory.Attribute(
-                    SyntaxFactory.ParseName("global::REFrameworkNET.Attributes.Method"),
-                    SyntaxFactory.ParseAttributeArgumentList("(" + field.Index.ToString() + ", global::REFrameworkNET.FieldFacadeType.Setter)"))
-                );
-
-                AccessorDeclarationSyntax getter = SyntaxFactory.AccessorDeclaration(SyntaxKind.GetAccessorDeclaration).AddAttributeLists(fieldFacadeGetter);
-                AccessorDeclarationSyntax setter = SyntaxFactory.AccessorDeclaration(SyntaxKind.SetAccessorDeclaration).AddAttributeLists(fieldFacadeSetter);
+                    var fieldFacadeSetter = AttributeList()
+                        .AddAttributes(Attribute(
+                            ParseName("global::REFrameworkNET.Attributes.Method"),
+                            ParseAttributeArgumentList("(" + field.Index.ToString() + ", global::REFrameworkNET.FieldFacadeType.Setter)")));
+                    getter = getter.AddAttributeLists(fieldFacadeGetter);
+                    setter = setter.AddAttributeLists(fieldFacadeSetter);
+                }
 
                 var propertyDeclaration = SyntaxFactory.PropertyDeclaration(fieldType, fieldName)
                     .AddModifiers([SyntaxFactory.Token(SyntaxKind.PublicKeyword)]);
@@ -505,7 +516,7 @@ public class ClassGenerator {
                     List<StatementSyntax> bodyStatementsSetter = [];
                     List<StatementSyntax> bodyStatementsGetter = [];
 
-                    var instance = field.IsStatic() 
+                    var instance = field.IsStatic()
                         ? "0"
                         : "(this as REFrameworkNET.IObject).GetAddress()";
 
@@ -631,12 +642,15 @@ public class ClassGenerator {
 
                 simpleMethodSignature += methodName;
 
+
                 // Add full method name as a MethodName attribute to the method
-                methodDeclaration = methodDeclaration.AddAttributeLists(
-                    SyntaxFactory.AttributeList().AddAttributes(SyntaxFactory.Attribute(
-                        SyntaxFactory.ParseName("global::REFrameworkNET.Attributes.Method"),
-                        SyntaxFactory.ParseAttributeArgumentList("(" + method.GetIndex().ToString() + ", global::REFrameworkNET.FieldFacadeType.None)")))
-                    );
+                if (!generic) {
+                    methodDeclaration = methodDeclaration.AddAttributeLists(
+                        AttributeList()
+                        .AddAttributes(Attribute(
+                            ParseName("global::REFrameworkNET.Attributes.Method"),
+                            ParseAttributeArgumentList("(" + method.GetIndex().ToString() + ", global::REFrameworkNET.FieldFacadeType.None)"))));
+                }
 
                 bool anyOutParams = false;
                 List<string> paramNames = [];
@@ -741,7 +755,7 @@ public class ClassGenerator {
                 }
 
                 if (method.IsStatic() || generic) {
-                    
+
                     // lets see what happens if we just make it static
                     if (method.IsStatic())
                         methodDeclaration = methodDeclaration.AddModifiers(Token(SyntaxKind.StaticKeyword));

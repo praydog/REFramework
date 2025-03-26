@@ -446,7 +446,13 @@ public class AssemblyGenerator {
 
 
         string? assemblyPath = Path.GetDirectoryName(typeof(object).Assembly.Location);
-        var references = REFrameworkNET.Compiler.GenerateExhaustiveMetadataReferences(typeof(REFrameworkNET.API).Assembly, new List<Assembly>());
+        var references = REFrameworkNET.Compiler.GenerateExhaustiveMetadataReferences(
+            typeof(REFrameworkNET.API).Assembly,
+            [typeof(REFrameworkNET.TypeName).Assembly]
+        );
+        foreach (PortableExecutableReference dep in references) {
+            API.LogInfo($"compile dependency: {dep.Display}");
+        }
 
         // Add the previous compilations as references
         foreach (var compilationbc in previousCompilations) {

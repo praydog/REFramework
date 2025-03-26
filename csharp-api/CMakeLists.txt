@@ -156,6 +156,7 @@ set(REFCoreDeps_SOURCES
 	"REFCoreDeps/Compiler.cs"
 	"REFCoreDeps/GarbageCollectionDisplay.cs"
 	"REFCoreDeps/HashHelper.cs"
+	"REFCoreDeps/TypeName.cs"
 	cmake.toml
 )
 
