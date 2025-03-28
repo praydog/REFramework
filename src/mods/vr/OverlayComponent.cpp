@@ -70,7 +70,7 @@ void OverlayComponent::update_input() {
     const auto is_initial_frame = vr->get_frame_count() % 2 == vr->m_left_eye_interval || vr->m_use_afr;
 
     // Restore the previous frame's input state
-    memcpy(io.KeysDown, m_initial_imgui_input_state.KeysDown, sizeof(io.KeysDown));
+    //memcpy(io.KeysDown, m_initial_imgui_input_state.KeysDown, sizeof(io.KeysDown));
     memcpy(io.MouseDown, m_initial_imgui_input_state.MouseDown, sizeof(io.MouseDown));
     io.MousePos = m_initial_imgui_input_state.MousePos;
     io.MouseWheel = m_initial_imgui_input_state.MouseWheel;
@@ -103,10 +103,12 @@ void OverlayComponent::update_input() {
             case vr::VREvent_MouseButtonDown:
                 m_initial_imgui_input_state.MouseDown[0] = true;
                 io.MouseDown[0] = true;
+                io.AddMouseButtonEvent(0, true);
                 break;
             case vr::VREvent_MouseButtonUp:
                 m_initial_imgui_input_state.MouseDown[0] = false;
                 io.MouseDown[0] = false;
+                io.AddMouseButtonEvent(0, false);
                 break;
             case vr::VREvent_MouseMove: {
                 const std::array<float, 2> raw_coords { event.data.mouse.x, event.data.mouse.y };

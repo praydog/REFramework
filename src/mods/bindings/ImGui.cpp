@@ -898,7 +898,7 @@ Vector2f get_mouse() {
 }
 
 int get_key_index(int imgui_key) {
-    return ImGui::GetKeyIndex((ImGuiKey)imgui_key);
+    return (ImGuiKey)imgui_key;
 }
 
 bool is_key_down(int key) {

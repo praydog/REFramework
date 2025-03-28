@@ -739,6 +739,34 @@ sol::object create_instance(sol::this_state s, const char* name, sol::object sim
     return sol::make_object(s, type_definition->create_instance_full(simplify));
 }
 
+bool copy_to_clipboard(sol::this_state s, const char* text) {
+    if (text == nullptr) {
+        return false;
+    }
+
+    if (OpenClipboard(nullptr)) {
+        EmptyClipboard();
+
+        size_t len = strlen(text) + 1;
+        HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, len);
+
+        if (hMem) {
+            memcpy(GlobalLock(hMem), text, len);
+            GlobalUnlock(hMem);
+
+            SetClipboardData(CF_TEXT, hMem);
+        } else {
+            return false;
+        }
+
+        CloseClipboard();
+    } else {
+        return false;
+    }
+
+    return true;
+}
+
 void* get_real_obj(sol::object obj) {
     void* real_obj = nullptr;
 
@@ -1427,6 +1455,7 @@ void bindings::open_sdk(ScriptState* s) {
     sdk["get_native_field"] = api::sdk::get_native_field;
     sdk["set_native_field"] = api::sdk::set_native_field;
     sdk["get_primary_camera"] = api::sdk::get_primary_camera;
+    sdk["copy_to_clipboard"] = api::sdk::copy_to_clipboard;
     sdk["hook"] = api::sdk::hook;
     sdk["hook_vtable"] = api::sdk::hook_vtable;
     sdk.new_enum("PreHookResult", "CALL_ORIGINAL", HookManager::PreHookResult::CALL_ORIGINAL, "SKIP_ORIGINAL", HookManager::PreHookResult::SKIP_ORIGINAL);

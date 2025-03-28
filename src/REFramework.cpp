@@ -47,6 +47,7 @@ extern "C" {
 namespace fs = std::filesystem;
 using namespace std::literals;
 
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 DEFINE_GUID(GUID_DEVINTERFACE_HID, 0x4D1E55B2L, 0xF16F, 0x11CF, 0x88, 0xCB, 0x00, 0x11, 0x11, 0x00, 0x00, 0x30);
 DEFINE_GUID(XUSB_INTERFACE_CLASS_GUID, 0xEC87F1E3, 0xC13B, 0x4100, 0xB5, 0xF7, 0x8B, 0x84, 0xD5, 0x42, 0x60, 0xCB);
 
@@ -1122,7 +1123,7 @@ void REFramework::on_reset() {
 
     if (m_initialized) {
         // fixes text boxes not being able to receive input
-        imgui::reset_keystates();
+        //imgui::reset_keystates();
     }
 
     // Crashes if we don't release it at this point.
@@ -2386,8 +2387,17 @@ bool REFramework::init_d3d12() {
     auto& bb = m_d3d12.get_rt(D3D12::RTV::BACKBUFFER_0);
     auto bb_desc = bb->GetDesc();
 
-    if (!ImGui_ImplDX12_Init(device, swapchain_desc.BufferCount, bb_desc.Format, m_d3d12.srv_desc_heap.Get(),
-            m_d3d12.get_cpu_srv(device, D3D12::SRV::IMGUI_FONT_BACKBUFFER), m_d3d12.get_gpu_srv(device, D3D12::SRV::IMGUI_FONT_BACKBUFFER))) {
+    ImGui_ImplDX12_InitInfo init_info{};
+    init_info.Device = device;
+    init_info.CommandQueue = g_framework->get_d3d12_hook()->get_command_queue();
+    init_info.NumFramesInFlight = swapchain_desc.BufferCount;
+    init_info.RTVFormat = bb_desc.Format;
+    init_info.DSVFormat = DXGI_FORMAT_UNKNOWN;
+    init_info.SrvDescriptorHeap = m_d3d12.srv_desc_heap.Get();
+    init_info.LegacySingleSrvCpuDescriptor = m_d3d12.get_cpu_srv(device, D3D12::SRV::IMGUI_FONT_BACKBUFFER);
+    init_info.LegacySingleSrvGpuDescriptor = m_d3d12.get_gpu_srv(device, D3D12::SRV::IMGUI_FONT_BACKBUFFER);
+
+    if (!ImGui_ImplDX12_Init(&init_info)) {
         spdlog::error("[D3D12] Failed to initialize ImGui.");
         return false;
     }
@@ -2400,8 +2410,17 @@ bool REFramework::init_d3d12() {
     auto& bb_vr = m_d3d12.get_rt(D3D12::RTV::IMGUI);
     auto bb_vr_desc = bb_vr->GetDesc();
 
-    if (!ImGui_ImplDX12_Init(device, swapchain_desc.BufferCount, bb_vr_desc.Format, m_d3d12.srv_desc_heap.Get(),
-            m_d3d12.get_cpu_srv(device, D3D12::SRV::IMGUI_FONT_VR), m_d3d12.get_gpu_srv(device, D3D12::SRV::IMGUI_FONT_VR))) {
+    ImGui_ImplDX12_InitInfo init_info_vr{};
+    init_info_vr.Device = device;
+    init_info_vr.CommandQueue = g_framework->get_d3d12_hook()->get_command_queue();
+    init_info_vr.NumFramesInFlight = swapchain_desc.BufferCount;
+    init_info_vr.RTVFormat = bb_vr_desc.Format;
+    init_info_vr.DSVFormat = DXGI_FORMAT_UNKNOWN;
+    init_info_vr.SrvDescriptorHeap = m_d3d12.srv_desc_heap.Get();
+    init_info_vr.LegacySingleSrvCpuDescriptor = m_d3d12.get_cpu_srv(device, D3D12::SRV::IMGUI_FONT_VR);
+    init_info_vr.LegacySingleSrvGpuDescriptor = m_d3d12.get_gpu_srv(device, D3D12::SRV::IMGUI_FONT_VR);
+
+    if (!ImGui_ImplDX12_Init(&init_info_vr)) {
         spdlog::error("[D3D12] Failed to initialize ImGui.");
         return false;
     }
