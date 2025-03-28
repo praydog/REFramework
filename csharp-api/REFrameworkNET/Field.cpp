@@ -48,7 +48,7 @@ namespace REFrameworkNET {
             return;
         }
 
-        const auto field_type = this->GetType();
+        auto field_type = this->GetType();
 
         if (field_type == nullptr) {
             return;
@@ -92,8 +92,14 @@ namespace REFrameworkNET {
             return; // Don't think there's any other way to set a reference type
         }
 
+        auto underlying_type = field_type->GetUnderlyingType();
+
+        // For enums
+        if (underlying_type != nullptr) {
+            field_type = underlying_type;
+        }
+
         const uintptr_t addr = IsStatic() ? 0 : obj;
-        const auto vm_obj_type = field_type->GetVMObjType();
 
         #define MAKE_TYPE_HANDLER_SET(X, Y) \
             case ##X##_fnv: \
