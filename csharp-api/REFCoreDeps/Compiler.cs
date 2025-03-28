@@ -140,7 +140,6 @@ namespace REFrameworkNET
 
                 return false;
             });
-
             return referencesStr.Select(r => MetadataReference.CreateFromFile(r)).ToList();
         }
 

@@ -251,6 +251,19 @@ namespace REFrameworkNET {
         return (bool)runtimeType->Call("get_IsGenericType");
     }
 
+    TypeDefinition ^ TypeDefinition::GetGenericTypeDefinition() {
+        auto runtimeType = this->GetRuntimeType();
+
+        if (runtimeType == nullptr)
+            return nullptr;
+
+        auto genericTypeDefinition = (ManagedObject ^) runtimeType->Call("GetGenericTypeDefinition");
+        if (genericTypeDefinition == nullptr)
+            return nullptr;
+
+        return (TypeDefinition ^) genericTypeDefinition->Call("get_TypeHandle");
+    }
+
     array<TypeDefinition^>^ TypeDefinition::GetGenericArguments() {
         auto runtimeType = this->GetRuntimeType();
 
@@ -264,7 +277,7 @@ namespace REFrameworkNET {
             return nullptr;
         }
 
-        auto result = gcnew array<TypeDefinition^>((int)arguments->Call("get_Length", gcnew System::Int32(0)));
+        auto result = gcnew array<TypeDefinition^>((int)arguments->Call("get_Length"));
 
         for (int i = 0; i < result->Length; i++) {
             auto runtimeType = (ManagedObject^)arguments->Call("get_Item", gcnew System::Int32(i));

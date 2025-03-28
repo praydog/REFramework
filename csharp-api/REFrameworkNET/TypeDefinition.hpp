@@ -394,6 +394,7 @@ public:
     bool HasAttribute(REFrameworkNET::ManagedObject^ runtimeAttribute, bool inherit);
     bool IsGenericTypeDefinition();
     bool IsGenericType();
+    TypeDefinition ^ GetGenericTypeDefinition();
     array<TypeDefinition^>^ GetGenericArguments();
 
     property array<TypeDefinition^>^ GenericArguments {
