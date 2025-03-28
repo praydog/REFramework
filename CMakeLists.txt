@@ -42,7 +42,12 @@ option(REF_BUILD_MHWILDS_SDK "" OFF)
 option(REF_BUILD_FRAMEWORK "" ON)
 option(REF_BUILD_DEPENDENCIES "" ON)
 
-project(reframework)
+project(reframework
+	LANGUAGES
+		CXX
+		C
+		CSharp
+)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MP")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
@@ -69,6 +74,18 @@ if ("${CMAKE_BUILD_TYPE}" MATCHES "Release")
 endif()
 
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
+set(NUGET_PACKAGES_DIR "$ENV{NUGET_PACKAGES}")
+
+# If NUGET_PACKAGES_DIR is not set, fall back to the default location
+if(NOT NUGET_PACKAGES_DIR)
+    if(WIN32)
+        set(DEFAULT_NUGET_PATH "$ENV{USERPROFILE}/.nuget/packages")
+    else()
+        set(DEFAULT_NUGET_PATH "$ENV{HOME}/.nuget/packages")
+    endif()
+    set(NUGET_PACKAGES_DIR ${DEFAULT_NUGET_PATH})
+endif()
 
 include(FetchContent)
 
