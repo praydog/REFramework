@@ -333,6 +333,7 @@ set(AssemblyGenerator_SOURCES
 	"AssemblyGenerator/EnumGenerator.cs"
 	"AssemblyGenerator/Generator.cs"
 	"AssemblyGenerator/SyntaxTreeBuilder.cs"
+	"AssemblyGenerator/TypeHandler.cs"
 	cmake.toml
 )
 

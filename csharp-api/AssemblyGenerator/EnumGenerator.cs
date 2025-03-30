@@ -47,19 +47,6 @@ public class EnumGenerator {
         enumDeclaration = SyntaxFactory.EnumDeclaration(enumName)
             .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword));
 
-        // Check if we need to add the new keyword to this.
-        if (AssemblyGenerator.NestedTypeExistsInParent(t)) {
-            enumDeclaration = enumDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.NewKeyword));
-        } else {
-            var declaringType = t.DeclaringType;
-
-            if (declaringType != null) {
-                if (declaringType.FindField(t.Name) != null) {
-                    enumDeclaration = enumDeclaration.AddModifiers(SyntaxFactory.Token(SyntaxKind.NewKeyword));
-                }
-            }
-        }
-
         if (t.HasAttribute(s_FlagsAttribute, true)) {
             enumDeclaration = enumDeclaration.AddAttributeLists(SyntaxFactory.AttributeList().AddAttributes(SyntaxFactory.Attribute(SyntaxFactory.ParseName("System.FlagsAttribute"))));
         }
@@ -73,7 +60,10 @@ public class EnumGenerator {
                 continue;
             }
 
-            var underlyingType = field.Type.GetUnderlyingType();
+            var underlyingType = field.Type?.GetUnderlyingType();
+            if (underlyingType is null) {
+                continue;
+            }
 
             SyntaxToken literalToken;
             bool foundRightType = true;

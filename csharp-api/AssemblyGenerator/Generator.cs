@@ -19,6 +19,7 @@ using REFrameworkNET.Attributes;
 using REFrameworkNET;
 using REFrameworkNET.Callbacks;
 using System.Threading;
+using System.Security.Cryptography.X509Certificates;
 
 
 public class Il2CppDump {
@@ -138,6 +139,8 @@ public class Il2CppDump {
                 continue;
             }
 
+            if (t.IsGenericType() && !t.IsGenericTypeDefinition()) continue;
+
             var tDeclaringType = t.DeclaringType;
             if (tDeclaringType != null) {
                 var ext = GetOrAddTypeExtension(tDeclaringType);
@@ -215,7 +218,9 @@ public class Il2CppDump {
                     }
                 }
             }
-        }   
+        }
+        API.LocalFrameGC();
+        API.LogInfo($"Loaded {typeExtensions.Count} types into db");
     }
 }
 
@@ -346,7 +351,7 @@ public class AssemblyGenerator {
 
         var tdb = REFrameworkNET.API.GetTDB();
 
-        List<dynamic> typeList = [];
+        List<TypeDefinition> typeList = [];
 
         const string DEBUG_PATH = "reframework/debug-src";
         bool debugOut = Directory.Exists(DEBUG_PATH);
@@ -360,20 +365,16 @@ public class AssemblyGenerator {
             }
 
             dynamic runtimeType = t.GetRuntimeType();
-
-            if (runtimeType == null) {
-                Console.WriteLine("Failed to get runtime type for " + t.GetFullName());
-                continue;
+            if (runtimeType is not null) {
+                // We don't want array types, pointers, etc
+                // Assembly.GetTypes usually filters this out but we have to manually do it
+                if (runtimeType.IsPointerImpl() || runtimeType.IsByRefImpl())
+                    continue;
             }
-
-            // We don't want array types, pointers, etc
-            // Assembly.GetTypes usually filters this out but we have to manually do it
-            if (runtimeType.IsPointerImpl() == false && runtimeType.IsByRefImpl() == false) {
-                typeList.Add(runtimeType);
-            }
+            typeList.Add(t);
         }
         
-        HashSet<dynamic> delegateList = new();
+        HashSet<TypeDefinition> delegateList = new();
         // Special case System.Action and System.Func, some of the generic implementations are dangling outside of modules
         if (strippedAssemblyName.StartsWith("_System")) {
             foreach (dynamic t in tdb.Types) {
@@ -383,7 +384,7 @@ public class AssemblyGenerator {
                     continue;
                 if (!type.IsGenericType()) continue;
                 var def = type.GetGenericTypeDefinition();
-                if (delegateList.Add(def.GetRuntimeType())) {
+                if (delegateList.Add(def)) {
                     API.LogInfo($"Added delegate {def.FullName}({def.Name}):{def.Index} ({def.GetNamespace()})");
                     API.LogInfo($"Name: {TypeHandler.ProperType(def)}");
                 }
@@ -401,21 +402,10 @@ public class AssemblyGenerator {
 
         var syntaxTrees = typeList
             // .AsParallel()  /// Causes memory violations for now, not exactly sure why
-            .Select((dynamic reEngineT) => {
-                var th = reEngineT.get_TypeHandle();
+            .Select((t) => {
                 var thisCount = Interlocked.Decrement(ref count);
                 if (thisCount % 1000 == 0) Console.WriteLine($"{thisCount} remaining");
-
-                if (th == null) {
-                    API.LogInfo("Failed to get type handle for " + reEngineT.get_FullName());
-                    return null;
-                }
-
-                var t = th as REFrameworkNET.TypeDefinition;
-                if (t == null) {
-                    API.LogError("Failed to convert type handle for " + reEngineT.get_FullName());
-                    return null;
-                }
+                if (t == null)  return null;
 
                 var properType = TypeHandler.ProperType(t);
                 var sanitizedTypeName = properType
@@ -423,6 +413,9 @@ public class AssemblyGenerator {
                     .Replace('<', '_')
                     .Replace('>', '_')
                     .Replace(':', '_');
+                if (sanitizedTypeName.Count() > 50) {
+                    sanitizedTypeName = sanitizedTypeName[..50];
+                }
                 var compilationUnit = MakeFromTypeEntry(tdb, t)?.NormalizeWhitespace();
                 if (compilationUnit is null) return null;
 
@@ -431,7 +424,7 @@ public class AssemblyGenerator {
                 }
                 // Clean up all the local objects
                 // Mainly because some of the older games don't play well with a ton of objects on the thread local heap
-                // REFrameworkNET.API.LocalFrameGC();
+                REFrameworkNET.API.LocalFrameGC();
                 return SyntaxFactory.SyntaxTree(
                     compilationUnit.NormalizeWhitespace(),
                     syntaxTreeParseOption,
@@ -450,9 +443,6 @@ public class AssemblyGenerator {
             typeof(REFrameworkNET.API).Assembly,
             [typeof(REFrameworkNET.TypeName).Assembly]
         );
-        foreach (PortableExecutableReference dep in references) {
-            API.LogInfo($"compile dependency: {dep.Display}");
-        }
 
         // Add the previous compilations as references
         foreach (var compilationbc in previousCompilations) {
@@ -460,12 +450,14 @@ public class AssemblyGenerator {
             references.Add(MetadataReference.CreateFromStream(ms));
         }
 
-        //compilationUnit = compilationUnit.AddUsings(SyntaxFactory.UsingDirective(SyntaxFactory.ParseName("System")));
-
         System.Console.WriteLine("Compiling " + strippedAssemblyName + " with " + syntaxTrees.Count + " syntax trees...");
 
         var csoptions = new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, 
             optimizationLevel: OptimizationLevel.Release,
+            specificDiagnosticOptions: new Dictionary<string, ReportDiagnostic>{
+                // Ignore missing 'new' keyword, because it makes things much easier and we do want shadowing
+                ["CS0108"]=ReportDiagnostic.Suppress,
+            },
             assemblyIdentityComparer: DesktopAssemblyIdentityComparer.Default,
             platform: Platform.X64,
             allowUnsafe: true
@@ -532,11 +524,15 @@ public class AssemblyGenerator {
 
     public static List<REFrameworkNET.Compiler.DynamicAssemblyBytecode> MainImpl() {
         var tdb = REFrameworkNET.API.GetTDB();
-        Il2CppDump.FillTypeExtensions(tdb);
-        TypeHandler.BuildProperTypes();
+        
+        // // var test = tdb.GetType("snow.enemy.EnemyCarryManagerBase`1.CarryInfo[[T, application, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null]]");
+        // var test = tdb.GetType("snow.enemy.EnemyCarryManagerBase`1.CarryInfo<snow.enemy.Em107_CarryManager.CarryType>");
+        
+        // API.LogInfo($"{test.GenericArguments?.Count().ToString() ?? "NOPARAMS"} {test.IsGenericType()} {test.IsGenericTypeDefinition()} {test.RuntimeType?.ToString() ?? "NORUNTIME"}");
+        // throw new Exception("TestDone");
 
+        API.LogInfo($"Start generating assemblies");
         List<REFrameworkNET.Module> modules = [];
-
         // First module is an invalid module
         for (uint i = 0; i < tdb.GetNumModules(); i++) {
             var module = tdb.GetModule(i);
@@ -546,7 +542,8 @@ public class AssemblyGenerator {
             }
             modules.Add(module);
         }
-
+        Il2CppDump.FillTypeExtensions(tdb);
+        TypeHandler.BuildProperTypes();
         List<REFrameworkNET.Compiler.DynamicAssemblyBytecode> bytecodes = [];
 
         foreach (Module module in modules) {
@@ -577,5 +574,5 @@ public class AssemblyGenerator {
         }
         return bytecodes;
     }
-};
+}
 }
