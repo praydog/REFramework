@@ -821,6 +821,69 @@ namespace sdk {
         return create_instance_method->call<sdk::SystemArray*>(sdk::get_thread_context(), runtime_type, length);
     }
 
+    sdk::Delegate* VM::create_delegate(sdk::RETypeDefinition* t, uint32_t num_methods) {
+        if (t == nullptr) {
+            return nullptr;
+        }
+
+        static const auto delegate_type = sdk::find_type_definition("System.Delegate");
+        static const auto combine_method = delegate_type->get_method("Combine(System.Delegate, System.Delegate)");
+
+        if (combine_method == nullptr) {
+            return nullptr;
+        }
+
+        ::REObjectInfo fake_object_info {
+            .classInfo = (::REClassInfo*)t,
+        };
+
+        sdk::Delegate fake_delegate_non_empty {
+            .num_methods = 1,
+        };
+
+        fake_delegate_non_empty.info = &fake_object_info;
+
+        sdk::Delegate fake_delegate_empty = fake_delegate_non_empty;
+        fake_delegate_empty.num_methods = 0;
+
+        sdk::Delegate* new_delegate = &fake_delegate_empty;
+
+        auto ctx = sdk::get_thread_context();
+
+        for (uint32_t i = 0; i < num_methods; ++i) {
+            const auto previous_delegate = new_delegate;
+            new_delegate = combine_method->call<sdk::Delegate*>(ctx, new_delegate, &fake_delegate_non_empty);
+
+            if (new_delegate == nullptr) {
+                spdlog::error("[VM::create_delegate] Unable to create delegate.");
+                return nullptr;
+            }
+        }
+
+        if (new_delegate == nullptr || new_delegate == &fake_delegate_empty) {
+            spdlog::error("[VM::create_delegate] Unable to create delegate.");
+            return nullptr;
+        }
+
+        return new_delegate;
+    }
+
+    sdk::Delegate* VM::create_delegate(::REManagedObject* runtime_type, uint32_t num_methods) {
+        if (runtime_type == nullptr) {
+            return nullptr;
+        }
+
+        static auto runtime_type_t = sdk::find_type_definition("System.RuntimeType");
+        static auto get_TypeHandle = runtime_type_t->get_method("get_TypeHandle");
+
+        if (get_TypeHandle == nullptr) {
+            return nullptr;
+        }
+
+        auto type_handle = (sdk::RETypeDefinition*)get_TypeHandle->invoke(runtime_type).ptr;
+        return create_delegate(type_handle, num_methods);
+    }
+
     ::REManagedObject* VM::create_sbyte(int8_t value)  {
         static auto sbyte_type = ::sdk::find_type_definition("System.SByte");
         static auto value_field = [&]() {

@@ -15,19 +15,6 @@
 #include "../BackBufferRenderer.hpp"
 #include "GameObjectsDisplay.hpp"
 
-namespace detail {
-struct Invocation {
-    void* object_ptr;
-    void* method_ptr;
-    void* unk;
-};
-
-struct Predicate : public REManagedObject {
-    uint32_t num_invocations{0};
-    std::array<Invocation, 10> invocations;
-};
-}
-
 std::optional<std::string> GameObjectsDisplay::on_initialize_d3d_thread() {
     return initialize_d3d_resources();
 }

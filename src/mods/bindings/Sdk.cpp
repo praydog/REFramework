@@ -583,6 +583,36 @@ sol::object create_managed_array(sol::this_state s, sol::object t_obj, uint32_t 
     return sol::make_object(s, (::sdk::SystemArray*)out);
 }
 
+sol::object create_delegate(sol::this_state s, sol::object t_obj, uint32_t num_methods) {
+    ::REManagedObject* t{nullptr};
+
+    if (t_obj.is<::REManagedObject*>()) {
+        t = t_obj.as<::REManagedObject*>();
+    } else if (t_obj.is<::sdk::RETypeDefinition*>()) {
+        t = t_obj.as<::sdk::RETypeDefinition*>()->get_runtime_type();
+    } else if (t_obj.is<const char*>()) {
+        const auto tdef = ::sdk::find_type_definition(t_obj.as<const char*>());
+
+        if (tdef != nullptr) {
+            t = tdef->get_runtime_type();
+        }
+    } else {
+        throw sol::error("Invalid type passed to create_delegate. Must be a runtime type, a type definition, or a type name.");
+    }
+
+    if (t == nullptr) {
+        throw sol::error("Type passed to create_delegate resolved to null.");
+    }
+
+    auto out = ::sdk::VM::create_delegate(t, num_methods);
+
+    if (out == nullptr) {
+        return sol::make_object(s, sol::nil);
+    }
+
+    return sol::make_object(s, (::REManagedObject*)out);
+}
+
 sol::object create_sbyte(sol::this_state s, int8_t value) {
     auto new_obj = ::sdk::VM::create_sbyte(value);
 
@@ -1435,6 +1465,7 @@ void bindings::open_sdk(ScriptState* s) {
     sdk["get_managed_singleton"] = api::sdk::get_managed_singleton;
     sdk["create_managed_string"] = api::sdk::create_managed_string;
     sdk["create_managed_array"] = api::sdk::create_managed_array;
+    sdk["create_delegate"] = api::sdk::create_delegate;
     sdk["create_sbyte"] = api::sdk::create_sbyte;
     sdk["create_byte"] = api::sdk::create_byte;
     sdk["create_int16"] = api::sdk::create_int16;
