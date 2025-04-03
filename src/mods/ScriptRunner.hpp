@@ -281,6 +281,8 @@ private:
     std::unordered_multimap<size_t, sol::protected_function> m_pre_application_entry_fns{};
     std::unordered_multimap<size_t, sol::protected_function> m_application_entry_fns{};
 
+    std::unordered_map<RETransform*, sol::protected_function> m_on_update_transform_fns{};
+
     std::vector<sol::protected_function> m_pre_gui_draw_element_fns{};
     std::vector<sol::protected_function> m_gui_draw_element_fns{};
     std::vector<sol::protected_function> m_on_draw_ui_fns{};
@@ -314,8 +316,6 @@ private:
     static inline std::recursive_mutex s_delegates_mutex{};
 
     static void delegate_callback(sdk::VMContext* ctx, REManagedObject* obj);
-
-    std::unordered_map<RETransform*, sol::protected_function> m_on_update_transform_fns{};
 };
 
 class ScriptRunner : public Mod {
