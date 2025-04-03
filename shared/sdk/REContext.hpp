@@ -29,23 +29,11 @@ InvokeMethod* get_invoke_table();
 
 namespace sdk {
 struct SystemArray;
+struct Delegate;
     
 struct REStaticTbl {
     uint8_t** elements;
     uint32_t size;
-};
-
-struct DelegateInvocation {
-    using InvocationFn = void (*)(void*, void*, void*);
-    
-    REManagedObject* object;
-    InvocationFn* func;
-    sdk::REMethodDefinition* method;
-};
-
-struct Delegate : public REManagedObject {
-    uint32_t num_methods{0};
-    DelegateInvocation methods[1];
 };
 
 // AKA via.clr.VM
