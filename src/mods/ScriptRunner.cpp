@@ -7,6 +7,7 @@
 
 #include "sdk/REContext.hpp"
 #include "sdk/REManagedObject.hpp"
+#include "sdk/REDelegate.hpp"
 #include "sdk/RETypeDB.hpp"
 #include "sdk/SceneManager.hpp"
 #include "sdk/REMath.hpp"
@@ -379,6 +380,11 @@ ScriptState::ScriptState(const ScriptState::GarbageCollectionData& gc_data,bool 
 }
 
 ScriptState::~ScriptState() {
+    {
+        std::scoped_lock _{s_delegates_mutex};
+        std::erase_if(s_delegates, [](auto& pair) { return pair.second->owner.expired(); });
+    }
+
     std::scoped_lock _{m_execution_mutex};
     for (auto&& [fn, hook_ids] : m_hooks) {
         for (auto&& id : hook_ids) {
@@ -700,6 +706,64 @@ void ScriptState::install_hooks() {
             }
         );
         m_hooks[fn].emplace_back(id);
+    }
+}
+
+void ScriptState::add_delegate_callback(sdk::DelegateInvocation& invo, sol::protected_function callback) {
+    std::unique_lock _{s_delegates_mutex};
+    auto it = s_delegates.find(invo.object);
+
+    if (it != s_delegates.end()) {
+        it->second->callbacks.push_back(callback);
+    } else {
+        auto storage = std::make_unique<DelegateStorage>();
+        storage->owner = shared_from_this();
+        storage->callbacks.push_back(callback);
+        
+        static auto system_object_t = sdk::find_type_definition("System.Object");
+
+        invo.object = (::REManagedObject*)system_object_t->create_instance_full();
+        utility::re_managed_object::add_ref(invo.object);
+
+        invo.func = &ScriptState::delegate_callback;
+        s_delegates[invo.object] = std::move(storage);
+    }
+}
+
+void ScriptState::delegate_callback(sdk::VMContext* ctx, REManagedObject* obj) {
+    std::scoped_lock _{ s_delegates_mutex };
+
+    if (ctx == nullptr) {
+        return;
+    }
+
+    auto it = s_delegates.find(obj);
+
+    if (it == s_delegates.end()) {
+        return;
+    }
+
+    auto& delegate = it->second;
+    auto owner_state = delegate->owner.lock();
+    if (owner_state == nullptr) {
+        s_delegates.erase(it);
+        return;
+    }
+
+    auto __ = owner_state->scoped_lock();
+
+    for (auto& fn : delegate->callbacks) {
+        try {
+            auto script_result = fn(obj);
+
+            if (!script_result.valid()) {
+                sol::script_default_on_error(owner_state->lua(), std::move(script_result));
+            }
+        } catch (const std::exception& e) {
+            ScriptRunner::get()->spew_error(e.what());
+        } catch(...) {
+            ScriptRunner::get()->spew_error("Unknown error executing delegate callback");
+        }
     }
 }
 

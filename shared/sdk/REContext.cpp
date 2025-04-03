@@ -12,6 +12,7 @@
 #include "reframework/API.hpp"
 #include "ReClass.hpp"
 #include "RETypeDB.hpp"
+#include "REDelegate.hpp"
 #include "REContext.hpp"
 
 namespace sdk {

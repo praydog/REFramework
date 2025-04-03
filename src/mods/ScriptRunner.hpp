@@ -51,6 +51,9 @@ namespace sdk {
 class REMethodDefinition;
 class RETypeDefinition;
 class REField;
+
+struct Delegate;
+struct DelegateInvocation;
 }
 
 class REManagedObject;
@@ -96,7 +99,7 @@ int sol_lua_push(sol::types<T*>, lua_State* l, T* obj);
 template<detail::CachedUserType T>
 int sol_lua_push(sol::types<T*>, lua_State* l, T* obj);
 
-class ScriptState {
+class ScriptState : public std::enable_shared_from_this<ScriptState> {
 public:
     enum class GarbageCollectionHandler : uint32_t {
         REFRAMEWORK_MANAGED = 0,
@@ -249,6 +252,8 @@ public:
         return m_table_pool;
     }
 
+    void add_delegate_callback(sdk::DelegateInvocation& invo, sol::protected_function callback);
+
 private:
     sol::reference get_hook_storage_internal(size_t thread_hash) {
         //return m_current_hook_storage;
@@ -296,6 +301,17 @@ private:
     // Using sol::reference instead of sol::table to keep a guaranteed reference to the table.
     std::unordered_map<size_t, std::list<TablePool::TableGuard>> m_hook_storage{};
     sol::reference m_current_hook_storage{};
+
+    struct DelegateStorage {
+        std::weak_ptr<ScriptState> owner{}; // Weak pointer to the ScriptState that owns this delegate storage because the ScriptState may be deleted. 
+        std::vector<sol::protected_function> callbacks{};
+
+    };
+
+    static inline std::unordered_map<REManagedObject*, std::unique_ptr<DelegateStorage>> s_delegates{};
+    static inline std::recursive_mutex s_delegates_mutex{};
+
+    static void delegate_callback(sdk::VMContext* ctx, REManagedObject* obj);
 };
 
 class ScriptRunner : public Mod {

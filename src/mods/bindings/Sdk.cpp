@@ -6,6 +6,7 @@
 #include "HookManager.hpp"
 #include "sdk/REContext.hpp"
 #include "sdk/REManagedObject.hpp"
+#include "sdk/REDelegate.hpp"
 #include "sdk/RETypeDB.hpp"
 #include "sdk/SceneManager.hpp"
 #include "sdk/ResourceManager.hpp"
@@ -324,6 +325,35 @@ int sol_lua_push(sol::types<T*>, lua_State* l, T* obj) {
     return sol::stack::push(l, sol::nil);
 }
 
+namespace api::delegate {
+void add_lua_delegate(sol::this_state s, ::sdk::Delegate* delegate, uint32_t index, sol::protected_function callback) {
+    if (index >= delegate->num_methods) {
+        throw sol::error("Delegate index out of bounds");
+    }
+
+    auto& invo = delegate->methods[index];
+    auto sol_state = sol::state_view{s};
+    auto state = sol_state.registry()["state"].get<ScriptState*>();
+
+    state->add_delegate_callback(invo, callback);
+}
+
+// newindex
+void new_index(sol::this_state s, ::sdk::Delegate* delegate, sol::object lua_obj, sol::variadic_args args) {
+    if (lua_obj.is<uint32_t>()) {
+        auto index = lua_obj.as<uint32_t>();
+
+        if (args[0].is<sol::protected_function>()) {
+            auto callback = args[0].get<sol::protected_function>();
+
+            add_lua_delegate(s, delegate, index, callback);
+        } else {
+            throw sol::error("Delegate callback must be a function");
+        }
+    }
+}
+}
+
 namespace api::sdk {
 std::vector<void*>& build_args(sol::variadic_args va);
 sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_type, bool from_method);
@@ -610,7 +640,7 @@ sol::object create_delegate(sol::this_state s, sol::object t_obj, uint32_t num_m
         return sol::make_object(s, sol::nil);
     }
 
-    return sol::make_object(s, (::REManagedObject*)out);
+    return sol::make_object(s, out);
 }
 
 sol::object create_sbyte(sol::this_state s, int8_t value) {
@@ -1889,6 +1919,15 @@ void bindings::open_sdk(ScriptState* s) {
     );
 
     create_managed_object_ptr_gc((sdk::SystemArray*)nullptr);
+
+    lua.new_usertype<sdk::Delegate>("Delegate",
+        "add", &api::delegate::add_lua_delegate,
+        "invoke", &sdk::Delegate::invoke,
+        sol::meta_function::new_index, &api::delegate::new_index,
+        sol::base_classes, sol::bases<::REManagedObject>()
+    );
+
+    create_managed_object_ptr_gc((sdk::Delegate*)nullptr);
     
     lua.new_usertype<api::sdk::ValueType>("ValueType",
         sol::meta_function::construct, sol::constructors<api::sdk::ValueType(sdk::RETypeDefinition*)>(),
