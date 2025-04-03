@@ -72,6 +72,7 @@ REFrameworkPluginFunctions g_plugin_functions {
 
     reframework_on_imgui_frame,
     reframework_on_imgui_draw_ui,
+    reframework_on_pre_gui_draw_element,
 };
 
 REFrameworkSDKFunctions g_sdk_functions {
@@ -932,4 +933,12 @@ bool reframework_on_imgui_draw_ui(REFOnImGuiFrameCb cb) {
     }
 
     return APIProxy::get()->add_on_imgui_draw_ui(cb);
+}
+
+bool reframework_on_pre_gui_draw_element(REFOnPreGuiDrawElementCb cb) {
+    if (cb == nullptr) {
+        return false;
+    }
+
+    return APIProxy::get()->add_on_pre_gui_draw_element(cb);
 }

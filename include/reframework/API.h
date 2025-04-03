@@ -34,6 +34,7 @@ typedef void (*REFOnPreApplicationEntryCb)();
 typedef void (*REFOnPostApplicationEntryCb)();
 typedef void (*REFOnDeviceResetCb)();
 typedef bool (*REFOnMessageCb)(void*, unsigned int, unsigned long long, long long);
+typedef bool (*REFOnPreGuiDrawElementCb)(void*, void*);
 
 typedef struct {
     void* context;
@@ -59,6 +60,7 @@ typedef bool (*REFOnMessageFn)(REFOnMessageCb);
 
 typedef bool (*REFOnImGuiFrameFn)(REFOnImGuiFrameCb);
 typedef bool (*REFOnImGuiDrawUIFn)(REFOnImGuiDrawUICb);
+typedef bool (*REFOnPreGuiDrawElementFn)(REFOnPreGuiDrawElementCb);
 
 typedef struct {
     int major;
@@ -88,6 +90,7 @@ typedef struct {
 
     REFOnImGuiFrameFn on_imgui_frame;
     REFOnImGuiDrawUIFn on_imgui_draw_ui;
+    REFOnPreGuiDrawElementFn on_pre_gui_draw_element;
 } REFrameworkPluginFunctions;
 
 typedef struct {
