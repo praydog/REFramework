@@ -134,6 +134,7 @@ public:
 
     void on_frame();
     void on_draw_ui();
+    void on_update_transform(RETransform* transform);
     void on_pre_application_entry(size_t hash);
     void on_application_entry(size_t hash);
     bool on_pre_gui_draw_element(REComponent* gui_element, void* primitive_context);
@@ -149,6 +150,7 @@ public:
     // add_hook enqueues the hook definition to be installed the next time install_hooks is called.
     void add_hook(sdk::REMethodDefinition* fn, sol::protected_function pre_cb, sol::protected_function post_cb, sol::object ignore_jmp_obj);
     void add_vtable(::REManagedObject* obj, sdk::REMethodDefinition* fn, sol::protected_function pre_cb, sol::protected_function post_cb);
+    void add_update_transform(RETransform* transform, sol::protected_function fn);
 
     // install_hooks goes through the queue of added hooks and actually creates them. The queue is emptied as a result.
     void install_hooks();
@@ -296,6 +298,8 @@ private:
     // Using sol::reference instead of sol::table to keep a guaranteed reference to the table.
     std::unordered_map<size_t, std::list<TablePool::TableGuard>> m_hook_storage{};
     sol::reference m_current_hook_storage{};
+
+    std::unordered_map<RETransform*, sol::protected_function> m_on_update_transform_fns{};
 };
 
 class ScriptRunner : public Mod {
@@ -322,6 +326,7 @@ public:
     }
     void on_frame() override;
     void on_draw_ui() override;
+    void on_update_transform(RETransform* transform) override;
     void on_pre_application_entry(void* entry, const char* name, size_t hash) override;
     void on_application_entry(void* entry, const char* name, size_t hash) override;
     bool on_pre_gui_draw_element(REComponent* gui_element, void* primitive_context) override;

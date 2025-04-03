@@ -461,6 +461,22 @@ void ScriptState::on_draw_ui() {
     api::imnodes::cleanup();
 }
 
+void ScriptState::on_update_transform(RETransform* transform) {
+    try {
+        if (m_on_update_transform_fns.empty()) {
+            return;
+        }
+        if (m_on_update_transform_fns.find(transform) != m_on_update_transform_fns.end()) {
+            std::scoped_lock _{m_execution_mutex};
+            handle_protected_result(m_on_update_transform_fns[transform](transform));
+        }
+    } catch (const std::exception& e) {
+        ScriptRunner::get()->spew_error(e.what());
+    } catch (...) {
+        ScriptRunner::get()->spew_error("Unknown exception in on_update_transform");
+    }
+}
+
 void ScriptState::on_pre_application_entry(size_t hash) {
     try {
         if (m_pre_application_entry_fns.empty()) {
@@ -605,6 +621,10 @@ void ScriptState::add_hook(
 
 void ScriptState::add_vtable(::REManagedObject* obj, sdk::REMethodDefinition* fn, sol::protected_function pre_cb, sol::protected_function post_cb) {
     m_hooks_to_add.emplace_back(obj, fn, pre_cb, post_cb);
+}
+
+void ScriptState::add_update_transform(RETransform* transform, sol::protected_function fn) {
+    m_on_update_transform_fns[transform] = fn;
 }
 
 void ScriptState::install_hooks() {
@@ -1083,6 +1103,22 @@ void ScriptRunner::on_draw_ui() {
             }
         }
             
+    }
+}
+
+void ScriptRunner::on_update_transform(RETransform* transform) {
+    std::scoped_lock _{m_access_mutex};
+
+    if (m_states.empty()) {
+        return;
+    }
+
+    if (m_last_online_match_state) {
+        return;
+    }
+
+    for (auto& state : m_states) {
+        state->on_update_transform(transform);
     }
 }
 
