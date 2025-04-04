@@ -1872,6 +1872,14 @@ void bindings::open_sdk(ScriptState* s) {
         "set_rotation", &sdk::set_transform_rotation,
         "get_position", &sdk::get_transform_position,
         "get_rotation", &sdk::get_transform_rotation,
+        "hook_update", [](sol::this_state s, RETransform* transform, sol::protected_function fn) {
+            if (transform == nullptr) {
+                return;
+            }
+            auto sol_state = sol::state_view{s};
+            auto state = sol_state.registry()["state"].get<ScriptState*>();
+            state->add_update_transform(transform, fn);
+        },
         sol::base_classes, sol::bases<::REComponent, ::REManagedObject>()
     );
 
