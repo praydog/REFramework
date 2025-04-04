@@ -630,6 +630,7 @@ void ScriptState::add_vtable(::REManagedObject* obj, sdk::REMethodDefinition* fn
 }
 
 void ScriptState::add_update_transform(RETransform* transform, sol::protected_function fn) {
+    ScriptRunner::get()->on_add_update_transform();
     m_on_update_transform_fns[transform] = fn;
 }
 
@@ -1171,6 +1172,10 @@ void ScriptRunner::on_draw_ui() {
 }
 
 void ScriptRunner::on_update_transform(RETransform* transform) {
+    if (!m_has_any_transform_updates) {
+        return;
+    }
+
     std::scoped_lock _{m_access_mutex};
 
     if (m_states.empty()) {
@@ -1300,6 +1305,9 @@ void ScriptRunner::reset_scripts() {
     // the FirstPerson mod would attempt to hook an already hooked function
     m_main_state.reset();
     m_states.clear();
+
+    m_has_any_transform_updates = false;
+
     //creating the main lua state
     m_main_state = std::make_shared<ScriptState>(make_gc_data(),true);
     //inserting it into the states vector

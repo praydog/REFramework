@@ -394,6 +394,10 @@ public:
         m_states_to_delete.push_back(lua_state);
     }
 
+    void on_add_update_transform() {
+        m_has_any_transform_updates = true;
+    }
+
 private:
     ScriptState::GarbageCollectionData make_gc_data() const {
         ScriptState::GarbageCollectionData data{};
@@ -425,6 +429,7 @@ private:
     std::chrono::system_clock::time_point m_scene_check_time{};
     bool m_checked_scene_once{false};
     bool m_scene_okay{false};
+    bool m_has_any_transform_updates{false};
     bool m_console_spawned{false};
     bool m_needs_first_reset{true};
     bool m_last_online_match_state{false};
