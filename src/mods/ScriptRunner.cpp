@@ -135,6 +135,9 @@ ScriptState::ScriptState(const ScriptState::GarbageCollectionData& gc_data,bool 
     os["setlocale"] = sol::nil;
     os["getenv"] = sol::nil;
 
+    auto debug = m_lua["debug"];
+    debug["getregistry"] = sol::nil;
+
     bindings::open_sdk(this);
     bindings::open_imgui(this);
     bindings::open_json(this);
@@ -374,6 +377,15 @@ ScriptState::ScriptState(const ScriptState::GarbageCollectionData& gc_data,bool 
     );
 
     m_lua["reframework"] = g_framework.get();
+    m_lua.registry()["package_path"] = m_lua["package"]["path"];
+    m_lua.registry()["package_cpath"] = m_lua["package"]["cpath"];
+    m_lua.registry()["package_searchers"] = m_lua.create_table();
+
+    sol::table package_searchers = m_lua["package"]["searchers"];
+
+    for (auto&& [k, v] : package_searchers) {
+        m_lua.registry()["package_searchers"][k] = v;
+    }
 
     // clang-format on
     //callback function removed from constructor and moved out into script runner
@@ -398,7 +410,12 @@ void ScriptState::run_script(const std::string& p) {
 
     spdlog::info("[ScriptState] Running script {}...", p);
 
-    std::string old_path = m_lua["package"]["path"];
+    m_lua["package"]["path"] = m_lua.registry()["package_path"];
+    m_lua["package"]["cpath"] = m_lua.registry()["package_cpath"];
+
+    const std::string old_pristine_path = m_lua.registry()["package_path"];
+    const std::string old_pristine_cpath = m_lua.registry()["package_cpath"];
+    const std::string old_path = m_lua["package"]["path"];
 
     try {
         auto path = std::filesystem::path(p);
@@ -411,6 +428,9 @@ void ScriptState::run_script(const std::string& p) {
         package_path = package_path + ";" + dir.string() + "/?.dll";
 
         m_lua["package"]["path"] = package_path;
+        m_lua.registry()["package_path"] = m_lua["package"]["path"];
+        m_lua.registry()["package_cpath"] = m_lua["package"]["cpath"];
+
         m_lua.safe_script_file(p);
     } catch (const std::exception& e) {
         ScriptRunner::get()->spew_error(e.what());
@@ -421,6 +441,8 @@ void ScriptState::run_script(const std::string& p) {
     }
 
     m_lua["package"]["path"] = old_path;
+    m_lua.registry()["package_path"] = old_pristine_path;
+    m_lua.registry()["package_cpath"] = old_pristine_cpath;
 }
 
 // i have to wonder why this isn't in sol when they have safe_script stuff

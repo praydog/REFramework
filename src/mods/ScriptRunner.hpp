@@ -353,10 +353,6 @@ public:
     const auto& get_state() {
         return m_main_state;
     }
-    //not sure how to approach this, should there be error checking here?
-    const auto& get_state(int index) { 
-        return m_states[index];
-    }
 
     void lock() {
         m_access_mutex.lock();
