@@ -29,6 +29,7 @@ InvokeMethod* get_invoke_table();
 
 namespace sdk {
 struct SystemArray;
+struct Delegate;
     
 struct REStaticTbl {
     uint8_t** elements;
@@ -55,6 +56,8 @@ public:
     static sdk::InvokeMethod* get_invoke_table();
     static SystemString* create_managed_string(std::wstring_view str); // System.String
     static sdk::SystemArray* create_managed_array(::REManagedObject* runtime_type, uint32_t length); // System.Array
+    static sdk::Delegate* create_delegate(sdk::RETypeDefinition* t, uint32_t num_methods); // System.Delegate
+    static sdk::Delegate* create_delegate(::REManagedObject* runtime_type, uint32_t num_methods); // System.Delegate
 
     static ::REManagedObject* create_sbyte(int8_t value); // System.SByte
     static ::REManagedObject* create_byte(uint8_t value); // System.Byte
