@@ -1490,7 +1490,7 @@ void REFramework::update_fonts() {
         0
     };
 
-    ImFont* fsload = fonts->AddFontFromMemoryCompressedTTF((void*)RobotoCJKSC_Medium_compressed_data, RobotoCJKSC_Medium_compressed_size, (float)m_font_size, &custom_icons, cjk_ranges);
+    fonts->AddFontFromMemoryCompressedTTF((void*)RobotoCJKSC_Medium_compressed_data, RobotoCJKSC_Medium_compressed_size, (float)m_font_size, &custom_icons, cjk_ranges);
 
     // https://fontawesome.com/
     custom_icons.PixelSnapH = true;
@@ -1509,7 +1509,10 @@ void REFramework::update_fonts() {
         if (fs::exists(font.filepath)) {
             font.font = fonts->AddFontFromFileTTF(font.filepath.string().c_str(), (float)font.size, nullptr, ranges);
         } else {
-            font.font = fsload; // fonts->AddFontFromMemoryCompressedTTF(RobotoMedium_compressed_data, RobotoMedium_compressed_size, (float)font.size, nullptr, ranges);
+            if (ranges == nullptr) {
+                ranges = cjk_ranges;
+            }
+            font.font = fonts->AddFontFromMemoryCompressedTTF((void*)RobotoCJKSC_Medium_compressed_data, RobotoCJKSC_Medium_compressed_size, (float)font.size, nullptr, ranges);
         }
     }
 
