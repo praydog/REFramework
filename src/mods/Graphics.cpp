@@ -758,7 +758,38 @@ void Graphics::do_ultrawide_fix() {
     // This disables any kind of pillarboxing and letterboxing.
     // This cannot be directly restored once applied.
     if (set_display_type_method != nullptr) {
-        set_display_type_method->call(sdk::get_thread_context(), main_view, via::DisplayType::Fit);
+
+        via::DisplayType display_type = via::DisplayType::Fit;
+
+        auto graphics = Graphics::get();
+
+        if(graphics->m_backbuffer_size.has_value()){
+            std::array<uint32_t, 2> size = graphics->m_backbuffer_size.value();
+
+            double ratio = static_cast<double>(size[0])/static_cast<double>(size[1]);
+            constexpr double epsilon = 0.01;
+            
+            if(std::fabs(ratio - 4.0 / 3.0) < epsilon){
+                display_type = via::DisplayType::Uniform4x3;
+            }
+            if(std::fabs(ratio - 16.0 / 9.0) < epsilon){
+                display_type = via::DisplayType::Uniform16x9;
+            }
+            if(std::fabs(ratio - 16.0 / 10.0) < epsilon){
+                display_type = via::DisplayType::Uniform16x10;
+            }
+            if(std::fabs(ratio - 21.0 / 9.0) < epsilon){
+                display_type = via::DisplayType::Uniform21x9;
+            }
+            if(std::fabs(ratio - 32.0 / 9.0) < epsilon){
+                display_type = via::DisplayType::Uniform32x9;
+            }
+            if(std::fabs(ratio - 48.0 / 9.0) < epsilon){
+                display_type = via::DisplayType::Uniform48x9;
+            }
+        }
+
+        set_display_type_method->call(sdk::get_thread_context(), main_view, display_type);
     }
 }
 
