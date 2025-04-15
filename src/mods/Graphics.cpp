@@ -758,33 +758,31 @@ void Graphics::do_ultrawide_fix() {
     // This disables any kind of pillarboxing and letterboxing.
     // This cannot be directly restored once applied.
     if (set_display_type_method != nullptr) {
-
-        via::DisplayType display_type = via::DisplayType::Fit;
-
+        auto display_type = via::DisplayType::Fit;
         auto graphics = Graphics::get();
 
-        if(graphics->m_backbuffer_size.has_value()){
-            std::array<uint32_t, 2> size = graphics->m_backbuffer_size.value();
-
-            double ratio = static_cast<double>(size[0])/static_cast<double>(size[1]);
+        if (graphics->m_backbuffer_size.has_value()) {
+            const auto& size = graphics->m_backbuffer_size.value();
+            const double ratio = static_cast<double>(size[0]) / static_cast<double>(size[1]);
             constexpr double epsilon = 0.01;
+            constexpr double _4_3   = 4.0 / 3.0;
+            constexpr double _16_9  = 16.0 / 9.0;
+            constexpr double _16_10 = 16.0 / 10.0;
+            constexpr double _21_9  = 21.0 / 9.0;
+            constexpr double _32_9  = 32.0 / 9.0;
+            constexpr double _48_9  = 48.0 / 9.0;
             
-            if(std::fabs(ratio - 4.0 / 3.0) < epsilon){
+            if (glm::abs(ratio - _4_3) < epsilon) {
                 display_type = via::DisplayType::Uniform4x3;
-            }
-            if(std::fabs(ratio - 16.0 / 9.0) < epsilon){
+            } else if (glm::abs(ratio - _16_9) < epsilon) {
                 display_type = via::DisplayType::Uniform16x9;
-            }
-            if(std::fabs(ratio - 16.0 / 10.0) < epsilon){
+            } else if (glm::abs(ratio - _16_10) < epsilon) {
                 display_type = via::DisplayType::Uniform16x10;
-            }
-            if(std::fabs(ratio - 21.0 / 9.0) < epsilon){
+            } else if (glm::abs(ratio - _21_9) < epsilon) {
                 display_type = via::DisplayType::Uniform21x9;
-            }
-            if(std::fabs(ratio - 32.0 / 9.0) < epsilon){
+            } else if (glm::abs(ratio - _32_9) < epsilon) {
                 display_type = via::DisplayType::Uniform32x9;
-            }
-            if(std::fabs(ratio - 48.0 / 9.0) < epsilon){
+            } else if (glm::abs(ratio - _48_9) < epsilon) {
                 display_type = via::DisplayType::Uniform48x9;
             }
         }
