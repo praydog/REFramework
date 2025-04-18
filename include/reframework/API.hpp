@@ -611,7 +611,7 @@ public:
             reframework::InvokeRet out{};
             REFrameworkResult result;
             if (args.size() == 0) {
-                auto result = fn(*this, obj, nullptr, 0, &out, sizeof(out));
+                result = fn(*this, obj, nullptr, 0, &out, sizeof(out));
             } else {
                 result = fn(*this, obj, (void**)&args[0], args.size() * sizeof(void*), &out, sizeof(out));
             }
