@@ -609,8 +609,12 @@ public:
         reframework::InvokeRet invoke(API::ManagedObject* obj, const std::vector<void*>& args) {
             static const auto fn = API::s_instance->sdk()->method->invoke;
             reframework::InvokeRet out{};
-
-            auto result = fn(*this, obj, (void**)&args[0], args.size() * sizeof(void*), &out, sizeof(out));
+            REFrameworkResult result;
+            if (args.size() == 0) {
+                result = fn(*this, obj, nullptr, 0, &out, sizeof(out));
+            } else {
+                result = fn(*this, obj, (void**)&args[0], args.size() * sizeof(void*), &out, sizeof(out));
+            }
 
 #ifdef REFRAMEWORK_API_EXCEPTIONS
             if (result != REFRAMEWORK_ERROR_NONE) {
