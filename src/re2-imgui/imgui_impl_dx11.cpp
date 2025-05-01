@@ -548,7 +548,7 @@ bool    ImGui_ImplDX11_CreateDeviceObjects()
 void    ImGui_ImplDX11_InvalidateDeviceObjects()
 {
     ImGui_ImplDX11_Data* bd = ImGui_ImplDX11_GetBackendData();
-    if (!bd->pd3dDevice)
+    if (bd == nullptr || !bd->pd3dDevice)
         return;
 
     ImGui_ImplDX11_DestroyFontsTexture();
@@ -601,6 +601,10 @@ bool    ImGui_ImplDX11_Init(ID3D11Device* device, ID3D11DeviceContext* device_co
 void ImGui_ImplDX11_Shutdown()
 {
     ImGui_ImplDX11_Data* bd = ImGui_ImplDX11_GetBackendData();
+    if (bd == nullptr) {
+        return;
+    }
+
     IM_ASSERT(bd != nullptr && "No renderer backend to shutdown, or already shutdown?");
     ImGuiIO& io = ImGui::GetIO();
 
@@ -617,6 +621,10 @@ void ImGui_ImplDX11_Shutdown()
 void ImGui_ImplDX11_NewFrame()
 {
     ImGui_ImplDX11_Data* bd = ImGui_ImplDX11_GetBackendData();
+    if (bd == nullptr) {
+        return;
+    }
+
     IM_ASSERT(bd != nullptr && "Context or backend not initialized! Did you call ImGui_ImplDX11_Init()?");
 
     if (!bd->pFontSampler)
