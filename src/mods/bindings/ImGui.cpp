@@ -2102,6 +2102,9 @@ void bindings::open_imgui(ScriptState* s) {
     imgui["end_menu"] = api::imgui::end_menu;
     imgui["menu_item"] = api::imgui::menu_item;
     imgui["get_display_size"] = api::imgui::get_display_size;
+    imgui["get_window_draw_list"] = api::imgui::get_window_draw_list;
+    imgui["get_background_draw_list"] = api::imgui::get_background_draw_list;
+    imgui["get_foreground_draw_list"] = api::imgui::get_foreground_draw_list;
 
     // Item
     imgui["push_item_width"] = api::imgui::push_item_width;
