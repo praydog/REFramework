@@ -9,13 +9,18 @@
 
 namespace fs = std::filesystem;
 
+std::optional<::fs::path> get_correct_subpath(sol::this_state l, const std::string& filepath, bool allow_dll = false);
+
 namespace api::fs {
 namespace detail {
 ::fs::path get_datadir(std::string wanted_subdir = "") {
-    std::string modpath{};
+    static const std::string modpath = []() {
+        std::string result{};
+        result.resize(1024, 0);
+        result.resize(GetModuleFileName(nullptr, result.data(), result.size()));
 
-    modpath.resize(1024, 0);
-    modpath.resize(GetModuleFileName(nullptr, modpath.data(), modpath.size()));
+        return result;
+    }();
 
     if (!wanted_subdir.empty() && wanted_subdir.find("$") != std::string::npos) {
         if (wanted_subdir.find("$natives") != std::string::npos) {
@@ -85,68 +90,42 @@ sol::table glob(sol::this_state l, const char* filter, const char* modifier) {
 }
 
 void write(sol::this_state l, const std::string& filepath, const std::string& data) {
-    if (filepath.find("..") != std::string::npos) {
-        //throw sol::error{"fs.write does not allow access to parent directories"};
-        lua_pushstring(l, "fs.write does not allow access to parent directories");
+    const auto path = get_correct_subpath(l, filepath);
+
+    if (!path) {
+        lua_pushstring(l, "fs.write: unknown error");
         lua_error(l);
     }
 
-    if (std::filesystem::path(filepath).is_absolute()) {
-        lua_pushstring(l, "fs.write does not allow the use of absolute paths");
-        lua_error(l);
-    }
+    ::fs::create_directories(path->parent_path());
 
-    const auto corrected_subpath = detail::fix_subdir(::fs::path{filepath});
-
-    if (corrected_subpath.is_absolute()) {
-        lua_pushstring(l, "fs.write does not allow the use of absolute paths");
-        lua_error(l);
-    }
-
-    auto path = detail::get_datadir(filepath) / corrected_subpath;
-
-    ::fs::create_directories(path.parent_path());
-
-    std::ofstream file{path};
+    std::ofstream file{*path};
 
     file << data;
 }
 
 std::string read(sol::this_state l, const std::string& filepath) {
-    if (filepath.find("..") != std::string::npos) {
-        //throw sol::error{"fs.read does not allow access to parent directories"};
-        lua_pushstring(l, "fs.read does not allow access to parent directories");
+    const auto path = get_correct_subpath(l, filepath);
+
+    if (!path) {
+        lua_pushstring(l, "fs.read: unknown error");
         lua_error(l);
     }
 
-    if (std::filesystem::path(filepath).is_absolute()) {
-        lua_pushstring(l, "fs.read does not allow the use of absolute paths");
-        lua_error(l);
-    }
-    
-    const auto corrected_subpath = detail::fix_subdir(::fs::path{filepath});
-
-    if (corrected_subpath.is_absolute()) {
-        lua_pushstring(l, "fs.read does not allow the use of absolute paths");
-        lua_error(l);
-    }
-
-    auto path = detail::get_datadir(filepath) / corrected_subpath;
-
-    if (!exists(path)) {
+    if (!exists(*path)) {
         return "";
     }
 
-    ::fs::create_directories(path.parent_path());
+    ::fs::create_directories(path->parent_path());
 
-    std::ifstream file{path};
+    std::ifstream file{*path};
     std::stringstream buffer;
     buffer << file.rdbuf();
     return buffer.str();
 }
 }
 
-std::optional<::fs::path> get_correct_subpath(sol::this_state l, const std::string& filepath) {
+std::optional<::fs::path> get_correct_subpath(sol::this_state l, const std::string& filepath, bool allow_dll) {
     if (filepath.find("..") != std::string::npos) {
         lua_pushstring(l, "This API does not allow access to parent directories");
         lua_error(l);
@@ -173,7 +152,23 @@ std::optional<::fs::path> get_correct_subpath(sol::this_state l, const std::stri
         return {};
     }
 
-    return api::fs::detail::get_datadir(filepath) / corrected_subpath;
+    const auto path = api::fs::detail::get_datadir(filepath) / corrected_subpath;
+    const auto extension_lower = [&]() {
+        auto ext = path.extension().string();
+        std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+        return ext;
+    }();
+
+    if (!allow_dll) {
+        // it's not a good idea to allow DLLs to be written to disk from Lua scripts.
+        if (extension_lower == ".dll" || extension_lower == ".exe") {
+            lua_pushstring(l, "This API does not allow interacting with executables or DLLs");
+            lua_error(l);
+            return {};
+        }
+    }
+
+    return path;
 }
 
 void bindings::open_fs(ScriptState* s) {
@@ -311,5 +306,56 @@ void bindings::open_fs(ScriptState* s) {
         ::fs::create_directories(path->parent_path());
 
         return old_output(path->string().c_str());
+    };
+
+    sol::function old_require = lua["require"];
+
+    lua["require"] = [=](sol::this_state l, const std::string& filepath) -> sol::object {
+        if (filepath.find("..") != std::string::npos) {
+            lua_pushstring(l, "require does not allow access to parent directories");
+            lua_error(l);
+        }
+
+        if (std::filesystem::path(filepath).is_absolute()) {
+            lua_pushstring(l, "require does not allow the use of absolute paths");
+            lua_error(l);
+        }
+
+        // Do not allow modification of the package path or cpath. We restore it to a pristine value before calling the original require.
+        auto lua = sol::state_view{l};
+        lua["package"]["path"] = lua.registry()["package_path"];
+        lua["package"]["cpath"] = lua.registry()["package_cpath"];
+        lua["package"]["searchers"] = lua.create_table();
+
+        sol::table searchers = lua.registry()["package_searchers"];
+        for (auto&& [k, v] : searchers) {
+            lua["package"]["searchers"][k] = v;
+        }
+
+        return old_require(filepath.c_str());
+    };
+
+    sol::function old_loadlib = lua["package"]["loadlib"];
+
+    lua["package"]["loadlib"] = [=](sol::this_state l, const std::string& filepath, const std::string& funcname) -> sol::object {
+        const auto path = get_correct_subpath(l, filepath, true);
+
+        if (!path) {
+            lua_pushstring(l, "package.loadlib: unknown error");
+            lua_error(l);
+        }
+
+        const auto extension_lower = [&]() {
+            auto ext = path->extension().string();
+            std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+            return ext;
+        }();
+
+        if (extension_lower != ".dll") {
+            lua_pushstring(l, "package.loadlib: only DLLs are allowed");
+            lua_error(l);
+        }
+
+        return old_loadlib(filepath.c_str(), funcname.c_str());
     };
 }
