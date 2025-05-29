@@ -565,6 +565,11 @@ public class ClassGenerator {
                 var fieldType = MakeProperType(field.Type, t);
                 var fieldName = new string(field.Name);
 
+                // Check if field type is void and just change it to object.
+                if (fieldType.GetText().ToString() == "void" || fieldType.GetText().ToString() == "System.Void") {
+                    fieldType = SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.ObjectKeyword));
+                }
+
                 // Replace the k backingfield crap
                 if (fieldName.StartsWith("<") && fieldName.EndsWith("k__BackingField")) {
                     fieldName = fieldName[1..fieldName.IndexOf(">k__")];
