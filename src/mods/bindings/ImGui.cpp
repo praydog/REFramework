@@ -1026,6 +1026,18 @@ Vector2f get_window_pos() {
     };
 }
 
+ImDrawList* get_window_draw_list() {
+    return ImGui::GetWindowDrawList();
+}
+
+ImDrawList* get_background_draw_list() {
+    return ImGui::GetBackgroundDrawList();
+}
+
+ImDrawList* get_foreground_draw_list() {
+    return ImGui::GetForegroundDrawList();
+}
+
 void set_next_item_open(bool is_open, sol::object condition_obj) {
     ImGuiCond condition{0};
 
@@ -2090,6 +2102,9 @@ void bindings::open_imgui(ScriptState* s) {
     imgui["end_menu"] = api::imgui::end_menu;
     imgui["menu_item"] = api::imgui::menu_item;
     imgui["get_display_size"] = api::imgui::get_display_size;
+    imgui["get_window_draw_list"] = api::imgui::get_window_draw_list;
+    imgui["get_background_draw_list"] = api::imgui::get_background_draw_list;
+    imgui["get_foreground_draw_list"] = api::imgui::get_foreground_draw_list;
 
     // Item
     imgui["push_item_width"] = api::imgui::push_item_width;
@@ -2440,6 +2455,98 @@ void bindings::open_imgui(ScriptState* s) {
         "SeparatorTextPadding", ImGuiStyleVar_SeparatorTextPadding
     );
 
+    imgui.new_usertype<ImDrawList>("ImDrawList", 
+        "push_clip_rect", [](ImDrawList* draw_list, sol::object min, sol::object max, bool intersect_with_current_clip_rect) {
+            draw_list->PushClipRect(::api::imgui::create_imvec2(min), ::api::imgui::create_imvec2(max), intersect_with_current_clip_rect);
+        },
+        "push_clip_rect_fullscreen", &ImDrawList::PushClipRectFullScreen,
+        "pop_clip_rect", &ImDrawList::PopClipRect,
+
+        "add_line", [](ImDrawList* draw_list, sol::object p1, sol::object p2, uint32_t col, float thickness) {
+            draw_list->AddLine(::api::imgui::create_imvec2(p1), ::api::imgui::create_imvec2(p2), col, thickness);
+        },
+        "add_rect", [](ImDrawList* draw_list, sol::object min, sol::object max, uint32_t col, float rounding, ImDrawFlags flags, float thickness) {
+            draw_list->AddRect(::api::imgui::create_imvec2(min), ::api::imgui::create_imvec2(max), col, rounding, flags, thickness);
+        },
+        "add_rect_filled", [](ImDrawList* draw_list, sol::object min, sol::object max, uint32_t col, float rounding, ImDrawFlags flags) {
+            draw_list->AddRectFilled(::api::imgui::create_imvec2(min), ::api::imgui::create_imvec2(max), col, rounding, flags);
+        },
+        "add_rect_filled_multi_color", [](ImDrawList* draw_list, sol::object min, sol::object max, uint32_t col_upr_left, uint32_t col_upr_right,
+            uint32_t col_bot_right, uint32_t col_bot_left) {
+            draw_list->AddRectFilledMultiColor(::api::imgui::create_imvec2(min), ::api::imgui::create_imvec2(max), col_upr_left, col_upr_right, col_bot_right, col_bot_left);
+        },
+        "add_quad", [](ImDrawList* draw_list, sol::object p1, sol::object p2, sol::object p3, sol::object p4, uint32_t col, float thickness) {
+            draw_list->AddQuad(::api::imgui::create_imvec2(p1), ::api::imgui::create_imvec2(p2), ::api::imgui::create_imvec2(p3), ::api::imgui::create_imvec2(p4), col, thickness);
+        },
+        "add_quad_filled", [](ImDrawList* draw_list, sol::object p1, sol::object p2, sol::object p3, sol::object p4, uint32_t col) {
+            draw_list->AddQuadFilled(::api::imgui::create_imvec2(p1), ::api::imgui::create_imvec2(p2), ::api::imgui::create_imvec2(p3), ::api::imgui::create_imvec2(p4), col);
+        },
+        "add_triangle", [](ImDrawList* draw_list, sol::object p1, sol::object p2, sol::object p3, uint32_t col, float thickness) {
+            draw_list->AddTriangle(::api::imgui::create_imvec2(p1), ::api::imgui::create_imvec2(p2), ::api::imgui::create_imvec2(p3), col, thickness);
+        },
+        "add_triangle_filled", [](ImDrawList* draw_list, sol::object p1, sol::object p2, sol::object p3, uint32_t col) {
+            draw_list->AddTriangleFilled(::api::imgui::create_imvec2(p1), ::api::imgui::create_imvec2(p2), ::api::imgui::create_imvec2(p3), col);
+        },
+        "add_circle", [](ImDrawList* draw_list, sol::object center, float radius, uint32_t col, int num_segments, float thickness) {
+            draw_list->AddCircle(::api::imgui::create_imvec2(center), radius, col, num_segments, thickness);
+        },
+        "add_circle_filled", [](ImDrawList* draw_list, sol::object center, float radius, uint32_t col, int num_segments) {
+            draw_list->AddCircleFilled(::api::imgui::create_imvec2(center), radius, col, num_segments);
+        },
+        "add_ngon", [](ImDrawList* draw_list, sol::object center, float radius, uint32_t col, int num_segments, float thickness) {
+            draw_list->AddNgon(::api::imgui::create_imvec2(center), radius, col, num_segments, thickness);
+        },
+        "add_ngon_filled", [](ImDrawList* draw_list, sol::object center, float radius, uint32_t col, int num_segments) {
+            draw_list->AddNgonFilled(::api::imgui::create_imvec2(center), radius, col, num_segments);
+        },
+        "add_ellipse", [](ImDrawList* draw_list, sol::object center, sol::object radius, uint32_t col, float rot, int num_segments, float thickness) {
+            draw_list->AddEllipse(::api::imgui::create_imvec2(center), ::api::imgui::create_imvec2(radius), col, num_segments, rot, thickness);
+        },
+        "add_ellipse_filled", [](ImDrawList* draw_list, sol::object center, sol::object radius, uint32_t col, float rot, int num_segments) {
+            draw_list->AddEllipseFilled(::api::imgui::create_imvec2(center), ::api::imgui::create_imvec2(radius), col, rot, num_segments);
+        },
+        "add_text", [](ImDrawList* draw_list, sol::object pos, uint32_t col, const std::string& text) {
+            draw_list->AddText(::api::imgui::create_imvec2(pos), col, text.c_str());
+        },
+        "add_bezier_cubic", [](ImDrawList* draw_list, sol::object p1, sol::object p2, sol::object p3, sol::object p4, uint32_t col, float thickness) {
+            draw_list->AddBezierCubic(::api::imgui::create_imvec2(p1), ::api::imgui::create_imvec2(p2), ::api::imgui::create_imvec2(p3), ::api::imgui::create_imvec2(p4), col, thickness);
+        },
+        "add_bezier_quadratic", [](ImDrawList* draw_list, sol::object p1, sol::object p2, sol::object p3, uint32_t col, float thickness) {
+            draw_list->AddBezierQuadratic(::api::imgui::create_imvec2(p1), ::api::imgui::create_imvec2(p2), ::api::imgui::create_imvec2(p3), col, thickness);
+        },
+
+        // Path APIs
+        "path_clear", &ImDrawList::PathClear, 
+        "path_line_to", [](ImDrawList* draw_list, sol::object pos) { draw_list->PathLineTo(::api::imgui::create_imvec2(pos)); }, 
+        "path_line_to_merge_duplicate", [](ImDrawList* draw_list, sol::object pos) {
+            draw_list->PathLineToMergeDuplicate(::api::imgui::create_imvec2(pos));
+        }, 
+        "path_fill_convex", &ImDrawList::PathFillConvex,
+        "path_fill_concave", &ImDrawList::PathFillConcave,
+        "path_stroke", [](ImDrawList* draw_list, uint32_t col, ImDrawFlags flags, float thickness) {
+            draw_list->PathStroke(col, flags, thickness);
+        },
+        "path_arc_to", [](ImDrawList* draw_list, sol::object center, float radius, float a_min, float a_max, int num_segments) {
+            draw_list->PathArcTo(::api::imgui::create_imvec2(center), radius, a_min, a_max, num_segments);
+        },
+        "path_arc_to_fast",
+        [](ImDrawList* draw_list, sol::object center, float radius, int a_min_of_12, int a_max_of_12) {
+            draw_list->PathArcToFast(::api::imgui::create_imvec2(center), radius, a_min_of_12, a_max_of_12);
+        },
+        "path_elliptical_arc_to", [](ImDrawList* draw_list, sol::object center, sol::object radius, float a_min, float a_max, int num_segments) {
+            draw_list->PathEllipticalArcTo(::api::imgui::create_imvec2(center), ::api::imgui::create_imvec2(radius), a_min, a_max, num_segments);
+        },
+        "path_bezier_cubic_curve_to", [](ImDrawList* draw_list, sol::object p2, sol::object p3, sol::object p4, int num_segments) {
+            draw_list->PathBezierCubicCurveTo(::api::imgui::create_imvec2(p2), ::api::imgui::create_imvec2(p3), ::api::imgui::create_imvec2(p4), num_segments);
+        },
+        "path_bezier_quadratic_curve_to", [](ImDrawList* draw_list, sol::object p2, sol::object p3, int num_segments) {
+            draw_list->PathBezierQuadraticCurveTo(::api::imgui::create_imvec2(p2), ::api::imgui::create_imvec2(p3), num_segments);
+        },
+        "path_rect", [](ImDrawList* draw_list, sol::object min, sol::object max, float rounding, ImDrawFlags flags) {
+            draw_list->PathRect(::api::imgui::create_imvec2(min), ::api::imgui::create_imvec2(max), rounding, flags);
+        }
+    );
+
     lua["imgui"] = imgui;
 
     auto imguizmo = lua.create_table();
@@ -2515,7 +2622,7 @@ void bindings::open_imgui(ScriptState* s) {
     imnodes["editor_move_to_node"] = &ImNodes::EditorContextMoveToNode;
     imnodes["editor_reset_panning"] = &api::imnodes::editor_reset_panning;
     imnodes["editor_get_panning"] = &api::imnodes::editor_get_panning;
-
+    
     imnodes["is_link_started"] = &api::imnodes::is_link_started;
     imnodes["is_link_dropped"] = &api::imnodes::is_link_dropped;
     imnodes["is_link_created"] = &api::imnodes::is_link_created;
