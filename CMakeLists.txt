@@ -140,6 +140,28 @@ FetchContent_Declare(kananlib
 )
 FetchContent_MakeAvailable(kananlib)
 
+# Target: pdperfmod
+if(REF_BUILD_DEPENDENCIES AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework-dependencies
+	set(pdperfmod_SOURCES
+		cmake.toml
+		"dependencies/pd-perfmod/dummy/PDPerfPlugin.cpp"
+	)
+
+	add_library(pdperfmod SHARED)
+
+	target_sources(pdperfmod PRIVATE ${pdperfmod_SOURCES})
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${pdperfmod_SOURCES})
+
+	target_include_directories(pdperfmod PUBLIC
+		"dependencies/pd-perfmod/include"
+	)
+
+	set_target_properties(pdperfmod PROPERTIES
+		OUTPUT_NAME
+			PDPerfPlugin
+	)
+
+endif()
 # Target: spdlog
 if(REF_BUILD_DEPENDENCIES AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework-dependencies
 	set(spdlog_SOURCES
@@ -379,6 +401,7 @@ set(utility_SOURCES
 	"shared/utility/FunctionHook.hpp"
 	"shared/utility/FunctionHookMinHook.cpp"
 	"shared/utility/FunctionHookMinHook.hpp"
+	"shared/utility/Profiler.hpp"
 	"shared/utility/Relocate.cpp"
 	"shared/utility/Relocate.hpp"
 )
@@ -818,8 +841,10 @@ if(REF_BUILD_RE2_SDK OR REF_BUILD_FRAMEWORK) # build-re2-sdk
 		"shared/sdk/regenny/re3/via/vec4.hpp"
 		"shared/sdk/regenny/re4/BullShit.hpp"
 		"shared/sdk/regenny/re4/DeserializeSequence.hpp"
+		"shared/sdk/regenny/re4/ID3D12Resource.hpp"
 		"shared/sdk/regenny/re4/ManagedVtable.hpp"
 		"shared/sdk/regenny/re4/RTInternal.hpp"
+		"shared/sdk/regenny/re4/RTL_CRITICAL_SECTION_DEBUG.hpp"
 		"shared/sdk/regenny/re4/RayTrace.hpp"
 		"shared/sdk/regenny/re4/RenderEntity.hpp"
 		"shared/sdk/regenny/re4/System/String.hpp"
@@ -839,6 +864,7 @@ if(REF_BUILD_RE2_SDK OR REF_BUILD_FRAMEWORK) # build-re2-sdk
 		"shared/sdk/regenny/re4/tdb71/TypeDefinition.hpp"
 		"shared/sdk/regenny/re4/tdb71/TypeImpl.hpp"
 		"shared/sdk/regenny/re4/via/BasisPlane.hpp"
+		"shared/sdk/regenny/re4/via/Camera.hpp"
 		"shared/sdk/regenny/re4/via/CameraType.hpp"
 		"shared/sdk/regenny/re4/via/Capsule.hpp"
 		"shared/sdk/regenny/re4/via/Color.hpp"
@@ -916,9 +942,29 @@ if(REF_BUILD_RE2_SDK OR REF_BUILD_FRAMEWORK) # build-re2-sdk
 		"shared/sdk/regenny/re4/via/motion/SecondaryAnimation.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionData.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionMap.hpp"
+		"shared/sdk/regenny/re4/via/render/DXResource.hpp"
+		"shared/sdk/regenny/re4/via/render/DepthStencilView.hpp"
+		"shared/sdk/regenny/re4/via/render/DepthStencilViewDX12.hpp"
+		"shared/sdk/regenny/re4/via/render/LayerArray.hpp"
+		"shared/sdk/regenny/re4/via/render/Mirror.hpp"
+		"shared/sdk/regenny/re4/via/render/Poop.hpp"
+		"shared/sdk/regenny/re4/via/render/RTL_CRITICAL_SECTION.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderLayer.hpp"
 		"shared/sdk/regenny/re4/via/render/RenderOutput.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderResource.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderTargetView.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderTargetViewDX12.hpp"
 		"shared/sdk/regenny/re4/via/render/SceneArray2.hpp"
+		"shared/sdk/regenny/re4/via/render/SceneInfo.hpp"
+		"shared/sdk/regenny/re4/via/render/TargetState.hpp"
+		"shared/sdk/regenny/re4/via/render/Texture.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureDX12.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureDesc.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureFormat.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureStreamingType.hpp"
+		"shared/sdk/regenny/re4/via/render/UsageType.hpp"
 		"shared/sdk/regenny/re4/via/render/layer/PrepareOutput.hpp"
+		"shared/sdk/regenny/re4/via/render/layer/Scene.hpp"
 		"shared/sdk/regenny/re4/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/re4/via/vec3.hpp"
 		"shared/sdk/regenny/re4/via/vec4.hpp"
@@ -1641,8 +1687,10 @@ if(REF_BUILD_RE2_TDB66SDK OR REF_BUILD_FRAMEWORK) # build-re2tdb66-sdk
 		"shared/sdk/regenny/re3/via/vec4.hpp"
 		"shared/sdk/regenny/re4/BullShit.hpp"
 		"shared/sdk/regenny/re4/DeserializeSequence.hpp"
+		"shared/sdk/regenny/re4/ID3D12Resource.hpp"
 		"shared/sdk/regenny/re4/ManagedVtable.hpp"
 		"shared/sdk/regenny/re4/RTInternal.hpp"
+		"shared/sdk/regenny/re4/RTL_CRITICAL_SECTION_DEBUG.hpp"
 		"shared/sdk/regenny/re4/RayTrace.hpp"
 		"shared/sdk/regenny/re4/RenderEntity.hpp"
 		"shared/sdk/regenny/re4/System/String.hpp"
@@ -1662,6 +1710,7 @@ if(REF_BUILD_RE2_TDB66SDK OR REF_BUILD_FRAMEWORK) # build-re2tdb66-sdk
 		"shared/sdk/regenny/re4/tdb71/TypeDefinition.hpp"
 		"shared/sdk/regenny/re4/tdb71/TypeImpl.hpp"
 		"shared/sdk/regenny/re4/via/BasisPlane.hpp"
+		"shared/sdk/regenny/re4/via/Camera.hpp"
 		"shared/sdk/regenny/re4/via/CameraType.hpp"
 		"shared/sdk/regenny/re4/via/Capsule.hpp"
 		"shared/sdk/regenny/re4/via/Color.hpp"
@@ -1739,9 +1788,29 @@ if(REF_BUILD_RE2_TDB66SDK OR REF_BUILD_FRAMEWORK) # build-re2tdb66-sdk
 		"shared/sdk/regenny/re4/via/motion/SecondaryAnimation.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionData.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionMap.hpp"
+		"shared/sdk/regenny/re4/via/render/DXResource.hpp"
+		"shared/sdk/regenny/re4/via/render/DepthStencilView.hpp"
+		"shared/sdk/regenny/re4/via/render/DepthStencilViewDX12.hpp"
+		"shared/sdk/regenny/re4/via/render/LayerArray.hpp"
+		"shared/sdk/regenny/re4/via/render/Mirror.hpp"
+		"shared/sdk/regenny/re4/via/render/Poop.hpp"
+		"shared/sdk/regenny/re4/via/render/RTL_CRITICAL_SECTION.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderLayer.hpp"
 		"shared/sdk/regenny/re4/via/render/RenderOutput.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderResource.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderTargetView.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderTargetViewDX12.hpp"
 		"shared/sdk/regenny/re4/via/render/SceneArray2.hpp"
+		"shared/sdk/regenny/re4/via/render/SceneInfo.hpp"
+		"shared/sdk/regenny/re4/via/render/TargetState.hpp"
+		"shared/sdk/regenny/re4/via/render/Texture.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureDX12.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureDesc.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureFormat.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureStreamingType.hpp"
+		"shared/sdk/regenny/re4/via/render/UsageType.hpp"
 		"shared/sdk/regenny/re4/via/render/layer/PrepareOutput.hpp"
+		"shared/sdk/regenny/re4/via/render/layer/Scene.hpp"
 		"shared/sdk/regenny/re4/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/re4/via/vec3.hpp"
 		"shared/sdk/regenny/re4/via/vec4.hpp"
@@ -2111,6 +2180,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/Scene.hpp"
 		"src/mods/ScriptRunner.cpp"
 		"src/mods/ScriptRunner.hpp"
+		"src/mods/TemporalUpscaler.cpp"
+		"src/mods/TemporalUpscaler.hpp"
 		"src/mods/VR.cpp"
 		"src/mods/VR.hpp"
 		"src/mods/bindings/FS.cpp"
@@ -2129,6 +2200,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/tools/ObjectExplorer.cpp"
 		"src/mods/tools/ObjectExplorer.hpp"
 		"src/mods/vr/Bindings.cpp"
+		"src/mods/vr/CameraDuplicator.cpp"
+		"src/mods/vr/CameraDuplicator.hpp"
 		"src/mods/vr/D3D11Component.cpp"
 		"src/mods/vr/D3D11Component.hpp"
 		"src/mods/vr/D3D12Component.cpp"
@@ -2138,6 +2211,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/d3d12/ComPtr.hpp"
 		"src/mods/vr/d3d12/CommandContext.cpp"
 		"src/mods/vr/d3d12/CommandContext.hpp"
+		"src/mods/vr/d3d12/DirectXTK.cpp"
+		"src/mods/vr/d3d12/DirectXTK.hpp"
 		"src/mods/vr/d3d12/ResourceCopier.cpp"
 		"src/mods/vr/d3d12/ResourceCopier.hpp"
 		"src/mods/vr/d3d12/TextureContext.cpp"
@@ -2221,13 +2296,14 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		delayimp
 		DirectXTK
 		DirectXTK12
+		pdperfmod
 	)
 
 	set_target_properties(RE2 PROPERTIES
 		OUTPUT_NAME
 			dinput8
 		LINK_FLAGS
-			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll /DELAYLOAD:d3d11.dll /DELAYLOAD:d3d12.dll /DELAYLOAD:D3DCOMPILER_47.dll"
+			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll /DELAYLOAD:PDPerfPlugin.dll /DELAYLOAD:d3d11.dll /DELAYLOAD:d3d12.dll /DELAYLOAD:D3DCOMPILER_47.dll"
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE
 			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
@@ -2310,6 +2386,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/Scene.hpp"
 		"src/mods/ScriptRunner.cpp"
 		"src/mods/ScriptRunner.hpp"
+		"src/mods/TemporalUpscaler.cpp"
+		"src/mods/TemporalUpscaler.hpp"
 		"src/mods/VR.cpp"
 		"src/mods/VR.hpp"
 		"src/mods/bindings/FS.cpp"
@@ -2328,6 +2406,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/tools/ObjectExplorer.cpp"
 		"src/mods/tools/ObjectExplorer.hpp"
 		"src/mods/vr/Bindings.cpp"
+		"src/mods/vr/CameraDuplicator.cpp"
+		"src/mods/vr/CameraDuplicator.hpp"
 		"src/mods/vr/D3D11Component.cpp"
 		"src/mods/vr/D3D11Component.hpp"
 		"src/mods/vr/D3D12Component.cpp"
@@ -2337,6 +2417,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/d3d12/ComPtr.hpp"
 		"src/mods/vr/d3d12/CommandContext.cpp"
 		"src/mods/vr/d3d12/CommandContext.hpp"
+		"src/mods/vr/d3d12/DirectXTK.cpp"
+		"src/mods/vr/d3d12/DirectXTK.hpp"
 		"src/mods/vr/d3d12/ResourceCopier.cpp"
 		"src/mods/vr/d3d12/ResourceCopier.hpp"
 		"src/mods/vr/d3d12/TextureContext.cpp"
@@ -2420,13 +2502,14 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		delayimp
 		DirectXTK
 		DirectXTK12
+		pdperfmod
 	)
 
 	set_target_properties(RE2_TDB66 PROPERTIES
 		OUTPUT_NAME
 			dinput8
 		LINK_FLAGS
-			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll /DELAYLOAD:d3d11.dll /DELAYLOAD:d3d12.dll /DELAYLOAD:D3DCOMPILER_47.dll"
+			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll /DELAYLOAD:PDPerfPlugin.dll /DELAYLOAD:d3d11.dll /DELAYLOAD:d3d12.dll /DELAYLOAD:D3DCOMPILER_47.dll"
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE
 			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
@@ -2863,8 +2946,10 @@ if(REF_BUILD_RE3_SDK OR REF_BUILD_FRAMEWORK) # build-re3-sdk
 		"shared/sdk/regenny/re3/via/vec4.hpp"
 		"shared/sdk/regenny/re4/BullShit.hpp"
 		"shared/sdk/regenny/re4/DeserializeSequence.hpp"
+		"shared/sdk/regenny/re4/ID3D12Resource.hpp"
 		"shared/sdk/regenny/re4/ManagedVtable.hpp"
 		"shared/sdk/regenny/re4/RTInternal.hpp"
+		"shared/sdk/regenny/re4/RTL_CRITICAL_SECTION_DEBUG.hpp"
 		"shared/sdk/regenny/re4/RayTrace.hpp"
 		"shared/sdk/regenny/re4/RenderEntity.hpp"
 		"shared/sdk/regenny/re4/System/String.hpp"
@@ -2884,6 +2969,7 @@ if(REF_BUILD_RE3_SDK OR REF_BUILD_FRAMEWORK) # build-re3-sdk
 		"shared/sdk/regenny/re4/tdb71/TypeDefinition.hpp"
 		"shared/sdk/regenny/re4/tdb71/TypeImpl.hpp"
 		"shared/sdk/regenny/re4/via/BasisPlane.hpp"
+		"shared/sdk/regenny/re4/via/Camera.hpp"
 		"shared/sdk/regenny/re4/via/CameraType.hpp"
 		"shared/sdk/regenny/re4/via/Capsule.hpp"
 		"shared/sdk/regenny/re4/via/Color.hpp"
@@ -2961,9 +3047,29 @@ if(REF_BUILD_RE3_SDK OR REF_BUILD_FRAMEWORK) # build-re3-sdk
 		"shared/sdk/regenny/re4/via/motion/SecondaryAnimation.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionData.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionMap.hpp"
+		"shared/sdk/regenny/re4/via/render/DXResource.hpp"
+		"shared/sdk/regenny/re4/via/render/DepthStencilView.hpp"
+		"shared/sdk/regenny/re4/via/render/DepthStencilViewDX12.hpp"
+		"shared/sdk/regenny/re4/via/render/LayerArray.hpp"
+		"shared/sdk/regenny/re4/via/render/Mirror.hpp"
+		"shared/sdk/regenny/re4/via/render/Poop.hpp"
+		"shared/sdk/regenny/re4/via/render/RTL_CRITICAL_SECTION.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderLayer.hpp"
 		"shared/sdk/regenny/re4/via/render/RenderOutput.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderResource.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderTargetView.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderTargetViewDX12.hpp"
 		"shared/sdk/regenny/re4/via/render/SceneArray2.hpp"
+		"shared/sdk/regenny/re4/via/render/SceneInfo.hpp"
+		"shared/sdk/regenny/re4/via/render/TargetState.hpp"
+		"shared/sdk/regenny/re4/via/render/Texture.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureDX12.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureDesc.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureFormat.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureStreamingType.hpp"
+		"shared/sdk/regenny/re4/via/render/UsageType.hpp"
 		"shared/sdk/regenny/re4/via/render/layer/PrepareOutput.hpp"
+		"shared/sdk/regenny/re4/via/render/layer/Scene.hpp"
 		"shared/sdk/regenny/re4/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/re4/via/vec3.hpp"
 		"shared/sdk/regenny/re4/via/vec4.hpp"
@@ -3686,8 +3792,10 @@ if(REF_BUILD_RE3_TDB67SDK OR REF_BUILD_FRAMEWORK) # build-re3tdb67-sdk
 		"shared/sdk/regenny/re3/via/vec4.hpp"
 		"shared/sdk/regenny/re4/BullShit.hpp"
 		"shared/sdk/regenny/re4/DeserializeSequence.hpp"
+		"shared/sdk/regenny/re4/ID3D12Resource.hpp"
 		"shared/sdk/regenny/re4/ManagedVtable.hpp"
 		"shared/sdk/regenny/re4/RTInternal.hpp"
+		"shared/sdk/regenny/re4/RTL_CRITICAL_SECTION_DEBUG.hpp"
 		"shared/sdk/regenny/re4/RayTrace.hpp"
 		"shared/sdk/regenny/re4/RenderEntity.hpp"
 		"shared/sdk/regenny/re4/System/String.hpp"
@@ -3707,6 +3815,7 @@ if(REF_BUILD_RE3_TDB67SDK OR REF_BUILD_FRAMEWORK) # build-re3tdb67-sdk
 		"shared/sdk/regenny/re4/tdb71/TypeDefinition.hpp"
 		"shared/sdk/regenny/re4/tdb71/TypeImpl.hpp"
 		"shared/sdk/regenny/re4/via/BasisPlane.hpp"
+		"shared/sdk/regenny/re4/via/Camera.hpp"
 		"shared/sdk/regenny/re4/via/CameraType.hpp"
 		"shared/sdk/regenny/re4/via/Capsule.hpp"
 		"shared/sdk/regenny/re4/via/Color.hpp"
@@ -3784,9 +3893,29 @@ if(REF_BUILD_RE3_TDB67SDK OR REF_BUILD_FRAMEWORK) # build-re3tdb67-sdk
 		"shared/sdk/regenny/re4/via/motion/SecondaryAnimation.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionData.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionMap.hpp"
+		"shared/sdk/regenny/re4/via/render/DXResource.hpp"
+		"shared/sdk/regenny/re4/via/render/DepthStencilView.hpp"
+		"shared/sdk/regenny/re4/via/render/DepthStencilViewDX12.hpp"
+		"shared/sdk/regenny/re4/via/render/LayerArray.hpp"
+		"shared/sdk/regenny/re4/via/render/Mirror.hpp"
+		"shared/sdk/regenny/re4/via/render/Poop.hpp"
+		"shared/sdk/regenny/re4/via/render/RTL_CRITICAL_SECTION.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderLayer.hpp"
 		"shared/sdk/regenny/re4/via/render/RenderOutput.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderResource.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderTargetView.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderTargetViewDX12.hpp"
 		"shared/sdk/regenny/re4/via/render/SceneArray2.hpp"
+		"shared/sdk/regenny/re4/via/render/SceneInfo.hpp"
+		"shared/sdk/regenny/re4/via/render/TargetState.hpp"
+		"shared/sdk/regenny/re4/via/render/Texture.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureDX12.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureDesc.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureFormat.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureStreamingType.hpp"
+		"shared/sdk/regenny/re4/via/render/UsageType.hpp"
 		"shared/sdk/regenny/re4/via/render/layer/PrepareOutput.hpp"
+		"shared/sdk/regenny/re4/via/render/layer/Scene.hpp"
 		"shared/sdk/regenny/re4/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/re4/via/vec3.hpp"
 		"shared/sdk/regenny/re4/via/vec4.hpp"
@@ -4156,6 +4285,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/Scene.hpp"
 		"src/mods/ScriptRunner.cpp"
 		"src/mods/ScriptRunner.hpp"
+		"src/mods/TemporalUpscaler.cpp"
+		"src/mods/TemporalUpscaler.hpp"
 		"src/mods/VR.cpp"
 		"src/mods/VR.hpp"
 		"src/mods/bindings/FS.cpp"
@@ -4174,6 +4305,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/tools/ObjectExplorer.cpp"
 		"src/mods/tools/ObjectExplorer.hpp"
 		"src/mods/vr/Bindings.cpp"
+		"src/mods/vr/CameraDuplicator.cpp"
+		"src/mods/vr/CameraDuplicator.hpp"
 		"src/mods/vr/D3D11Component.cpp"
 		"src/mods/vr/D3D11Component.hpp"
 		"src/mods/vr/D3D12Component.cpp"
@@ -4183,6 +4316,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/d3d12/ComPtr.hpp"
 		"src/mods/vr/d3d12/CommandContext.cpp"
 		"src/mods/vr/d3d12/CommandContext.hpp"
+		"src/mods/vr/d3d12/DirectXTK.cpp"
+		"src/mods/vr/d3d12/DirectXTK.hpp"
 		"src/mods/vr/d3d12/ResourceCopier.cpp"
 		"src/mods/vr/d3d12/ResourceCopier.hpp"
 		"src/mods/vr/d3d12/TextureContext.cpp"
@@ -4266,13 +4401,14 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		delayimp
 		DirectXTK
 		DirectXTK12
+		pdperfmod
 	)
 
 	set_target_properties(RE3 PROPERTIES
 		OUTPUT_NAME
 			dinput8
 		LINK_FLAGS
-			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll /DELAYLOAD:d3d11.dll /DELAYLOAD:d3d12.dll /DELAYLOAD:D3DCOMPILER_47.dll"
+			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll /DELAYLOAD:PDPerfPlugin.dll /DELAYLOAD:d3d11.dll /DELAYLOAD:d3d12.dll /DELAYLOAD:D3DCOMPILER_47.dll"
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE
 			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
@@ -4355,6 +4491,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/Scene.hpp"
 		"src/mods/ScriptRunner.cpp"
 		"src/mods/ScriptRunner.hpp"
+		"src/mods/TemporalUpscaler.cpp"
+		"src/mods/TemporalUpscaler.hpp"
 		"src/mods/VR.cpp"
 		"src/mods/VR.hpp"
 		"src/mods/bindings/FS.cpp"
@@ -4373,6 +4511,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/tools/ObjectExplorer.cpp"
 		"src/mods/tools/ObjectExplorer.hpp"
 		"src/mods/vr/Bindings.cpp"
+		"src/mods/vr/CameraDuplicator.cpp"
+		"src/mods/vr/CameraDuplicator.hpp"
 		"src/mods/vr/D3D11Component.cpp"
 		"src/mods/vr/D3D11Component.hpp"
 		"src/mods/vr/D3D12Component.cpp"
@@ -4382,6 +4522,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/d3d12/ComPtr.hpp"
 		"src/mods/vr/d3d12/CommandContext.cpp"
 		"src/mods/vr/d3d12/CommandContext.hpp"
+		"src/mods/vr/d3d12/DirectXTK.cpp"
+		"src/mods/vr/d3d12/DirectXTK.hpp"
 		"src/mods/vr/d3d12/ResourceCopier.cpp"
 		"src/mods/vr/d3d12/ResourceCopier.hpp"
 		"src/mods/vr/d3d12/TextureContext.cpp"
@@ -4465,13 +4607,14 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		delayimp
 		DirectXTK
 		DirectXTK12
+		pdperfmod
 	)
 
 	set_target_properties(RE3_TDB67 PROPERTIES
 		OUTPUT_NAME
 			dinput8
 		LINK_FLAGS
-			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll /DELAYLOAD:d3d11.dll /DELAYLOAD:d3d12.dll /DELAYLOAD:D3DCOMPILER_47.dll"
+			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll /DELAYLOAD:PDPerfPlugin.dll /DELAYLOAD:d3d11.dll /DELAYLOAD:d3d12.dll /DELAYLOAD:D3DCOMPILER_47.dll"
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE
 			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
@@ -4554,6 +4697,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/Scene.hpp"
 		"src/mods/ScriptRunner.cpp"
 		"src/mods/ScriptRunner.hpp"
+		"src/mods/TemporalUpscaler.cpp"
+		"src/mods/TemporalUpscaler.hpp"
 		"src/mods/VR.cpp"
 		"src/mods/VR.hpp"
 		"src/mods/bindings/FS.cpp"
@@ -4572,6 +4717,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/tools/ObjectExplorer.cpp"
 		"src/mods/tools/ObjectExplorer.hpp"
 		"src/mods/vr/Bindings.cpp"
+		"src/mods/vr/CameraDuplicator.cpp"
+		"src/mods/vr/CameraDuplicator.hpp"
 		"src/mods/vr/D3D11Component.cpp"
 		"src/mods/vr/D3D11Component.hpp"
 		"src/mods/vr/D3D12Component.cpp"
@@ -4581,6 +4728,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/d3d12/ComPtr.hpp"
 		"src/mods/vr/d3d12/CommandContext.cpp"
 		"src/mods/vr/d3d12/CommandContext.hpp"
+		"src/mods/vr/d3d12/DirectXTK.cpp"
+		"src/mods/vr/d3d12/DirectXTK.hpp"
 		"src/mods/vr/d3d12/ResourceCopier.cpp"
 		"src/mods/vr/d3d12/ResourceCopier.hpp"
 		"src/mods/vr/d3d12/TextureContext.cpp"
@@ -4664,13 +4813,14 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		delayimp
 		DirectXTK
 		DirectXTK12
+		pdperfmod
 	)
 
 	set_target_properties(RE4 PROPERTIES
 		OUTPUT_NAME
 			dinput8
 		LINK_FLAGS
-			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll /DELAYLOAD:d3d11.dll /DELAYLOAD:d3d12.dll /DELAYLOAD:D3DCOMPILER_47.dll"
+			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll /DELAYLOAD:PDPerfPlugin.dll /DELAYLOAD:d3d11.dll /DELAYLOAD:d3d12.dll /DELAYLOAD:D3DCOMPILER_47.dll"
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE
 			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
@@ -5107,8 +5257,10 @@ if(REF_BUILD_RE4_SDK OR REF_BUILD_FRAMEWORK) # build-re4-sdk
 		"shared/sdk/regenny/re3/via/vec4.hpp"
 		"shared/sdk/regenny/re4/BullShit.hpp"
 		"shared/sdk/regenny/re4/DeserializeSequence.hpp"
+		"shared/sdk/regenny/re4/ID3D12Resource.hpp"
 		"shared/sdk/regenny/re4/ManagedVtable.hpp"
 		"shared/sdk/regenny/re4/RTInternal.hpp"
+		"shared/sdk/regenny/re4/RTL_CRITICAL_SECTION_DEBUG.hpp"
 		"shared/sdk/regenny/re4/RayTrace.hpp"
 		"shared/sdk/regenny/re4/RenderEntity.hpp"
 		"shared/sdk/regenny/re4/System/String.hpp"
@@ -5128,6 +5280,7 @@ if(REF_BUILD_RE4_SDK OR REF_BUILD_FRAMEWORK) # build-re4-sdk
 		"shared/sdk/regenny/re4/tdb71/TypeDefinition.hpp"
 		"shared/sdk/regenny/re4/tdb71/TypeImpl.hpp"
 		"shared/sdk/regenny/re4/via/BasisPlane.hpp"
+		"shared/sdk/regenny/re4/via/Camera.hpp"
 		"shared/sdk/regenny/re4/via/CameraType.hpp"
 		"shared/sdk/regenny/re4/via/Capsule.hpp"
 		"shared/sdk/regenny/re4/via/Color.hpp"
@@ -5205,9 +5358,29 @@ if(REF_BUILD_RE4_SDK OR REF_BUILD_FRAMEWORK) # build-re4-sdk
 		"shared/sdk/regenny/re4/via/motion/SecondaryAnimation.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionData.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionMap.hpp"
+		"shared/sdk/regenny/re4/via/render/DXResource.hpp"
+		"shared/sdk/regenny/re4/via/render/DepthStencilView.hpp"
+		"shared/sdk/regenny/re4/via/render/DepthStencilViewDX12.hpp"
+		"shared/sdk/regenny/re4/via/render/LayerArray.hpp"
+		"shared/sdk/regenny/re4/via/render/Mirror.hpp"
+		"shared/sdk/regenny/re4/via/render/Poop.hpp"
+		"shared/sdk/regenny/re4/via/render/RTL_CRITICAL_SECTION.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderLayer.hpp"
 		"shared/sdk/regenny/re4/via/render/RenderOutput.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderResource.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderTargetView.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderTargetViewDX12.hpp"
 		"shared/sdk/regenny/re4/via/render/SceneArray2.hpp"
+		"shared/sdk/regenny/re4/via/render/SceneInfo.hpp"
+		"shared/sdk/regenny/re4/via/render/TargetState.hpp"
+		"shared/sdk/regenny/re4/via/render/Texture.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureDX12.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureDesc.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureFormat.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureStreamingType.hpp"
+		"shared/sdk/regenny/re4/via/render/UsageType.hpp"
 		"shared/sdk/regenny/re4/via/render/layer/PrepareOutput.hpp"
+		"shared/sdk/regenny/re4/via/render/layer/Scene.hpp"
 		"shared/sdk/regenny/re4/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/re4/via/vec3.hpp"
 		"shared/sdk/regenny/re4/via/vec4.hpp"
@@ -5932,8 +6105,10 @@ if(REF_BUILD_RE7_SDK OR REF_BUILD_FRAMEWORK) # build-re7-sdk
 		"shared/sdk/regenny/re3/via/vec4.hpp"
 		"shared/sdk/regenny/re4/BullShit.hpp"
 		"shared/sdk/regenny/re4/DeserializeSequence.hpp"
+		"shared/sdk/regenny/re4/ID3D12Resource.hpp"
 		"shared/sdk/regenny/re4/ManagedVtable.hpp"
 		"shared/sdk/regenny/re4/RTInternal.hpp"
+		"shared/sdk/regenny/re4/RTL_CRITICAL_SECTION_DEBUG.hpp"
 		"shared/sdk/regenny/re4/RayTrace.hpp"
 		"shared/sdk/regenny/re4/RenderEntity.hpp"
 		"shared/sdk/regenny/re4/System/String.hpp"
@@ -5953,6 +6128,7 @@ if(REF_BUILD_RE7_SDK OR REF_BUILD_FRAMEWORK) # build-re7-sdk
 		"shared/sdk/regenny/re4/tdb71/TypeDefinition.hpp"
 		"shared/sdk/regenny/re4/tdb71/TypeImpl.hpp"
 		"shared/sdk/regenny/re4/via/BasisPlane.hpp"
+		"shared/sdk/regenny/re4/via/Camera.hpp"
 		"shared/sdk/regenny/re4/via/CameraType.hpp"
 		"shared/sdk/regenny/re4/via/Capsule.hpp"
 		"shared/sdk/regenny/re4/via/Color.hpp"
@@ -6030,9 +6206,29 @@ if(REF_BUILD_RE7_SDK OR REF_BUILD_FRAMEWORK) # build-re7-sdk
 		"shared/sdk/regenny/re4/via/motion/SecondaryAnimation.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionData.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionMap.hpp"
+		"shared/sdk/regenny/re4/via/render/DXResource.hpp"
+		"shared/sdk/regenny/re4/via/render/DepthStencilView.hpp"
+		"shared/sdk/regenny/re4/via/render/DepthStencilViewDX12.hpp"
+		"shared/sdk/regenny/re4/via/render/LayerArray.hpp"
+		"shared/sdk/regenny/re4/via/render/Mirror.hpp"
+		"shared/sdk/regenny/re4/via/render/Poop.hpp"
+		"shared/sdk/regenny/re4/via/render/RTL_CRITICAL_SECTION.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderLayer.hpp"
 		"shared/sdk/regenny/re4/via/render/RenderOutput.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderResource.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderTargetView.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderTargetViewDX12.hpp"
 		"shared/sdk/regenny/re4/via/render/SceneArray2.hpp"
+		"shared/sdk/regenny/re4/via/render/SceneInfo.hpp"
+		"shared/sdk/regenny/re4/via/render/TargetState.hpp"
+		"shared/sdk/regenny/re4/via/render/Texture.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureDX12.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureDesc.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureFormat.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureStreamingType.hpp"
+		"shared/sdk/regenny/re4/via/render/UsageType.hpp"
 		"shared/sdk/regenny/re4/via/render/layer/PrepareOutput.hpp"
+		"shared/sdk/regenny/re4/via/render/layer/Scene.hpp"
 		"shared/sdk/regenny/re4/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/re4/via/vec3.hpp"
 		"shared/sdk/regenny/re4/via/vec4.hpp"
@@ -6755,8 +6951,10 @@ if(REF_BUILD_RE7_TDB49SDK OR REF_BUILD_FRAMEWORK) # build-re7tdb49-sdk
 		"shared/sdk/regenny/re3/via/vec4.hpp"
 		"shared/sdk/regenny/re4/BullShit.hpp"
 		"shared/sdk/regenny/re4/DeserializeSequence.hpp"
+		"shared/sdk/regenny/re4/ID3D12Resource.hpp"
 		"shared/sdk/regenny/re4/ManagedVtable.hpp"
 		"shared/sdk/regenny/re4/RTInternal.hpp"
+		"shared/sdk/regenny/re4/RTL_CRITICAL_SECTION_DEBUG.hpp"
 		"shared/sdk/regenny/re4/RayTrace.hpp"
 		"shared/sdk/regenny/re4/RenderEntity.hpp"
 		"shared/sdk/regenny/re4/System/String.hpp"
@@ -6776,6 +6974,7 @@ if(REF_BUILD_RE7_TDB49SDK OR REF_BUILD_FRAMEWORK) # build-re7tdb49-sdk
 		"shared/sdk/regenny/re4/tdb71/TypeDefinition.hpp"
 		"shared/sdk/regenny/re4/tdb71/TypeImpl.hpp"
 		"shared/sdk/regenny/re4/via/BasisPlane.hpp"
+		"shared/sdk/regenny/re4/via/Camera.hpp"
 		"shared/sdk/regenny/re4/via/CameraType.hpp"
 		"shared/sdk/regenny/re4/via/Capsule.hpp"
 		"shared/sdk/regenny/re4/via/Color.hpp"
@@ -6853,9 +7052,29 @@ if(REF_BUILD_RE7_TDB49SDK OR REF_BUILD_FRAMEWORK) # build-re7tdb49-sdk
 		"shared/sdk/regenny/re4/via/motion/SecondaryAnimation.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionData.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionMap.hpp"
+		"shared/sdk/regenny/re4/via/render/DXResource.hpp"
+		"shared/sdk/regenny/re4/via/render/DepthStencilView.hpp"
+		"shared/sdk/regenny/re4/via/render/DepthStencilViewDX12.hpp"
+		"shared/sdk/regenny/re4/via/render/LayerArray.hpp"
+		"shared/sdk/regenny/re4/via/render/Mirror.hpp"
+		"shared/sdk/regenny/re4/via/render/Poop.hpp"
+		"shared/sdk/regenny/re4/via/render/RTL_CRITICAL_SECTION.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderLayer.hpp"
 		"shared/sdk/regenny/re4/via/render/RenderOutput.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderResource.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderTargetView.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderTargetViewDX12.hpp"
 		"shared/sdk/regenny/re4/via/render/SceneArray2.hpp"
+		"shared/sdk/regenny/re4/via/render/SceneInfo.hpp"
+		"shared/sdk/regenny/re4/via/render/TargetState.hpp"
+		"shared/sdk/regenny/re4/via/render/Texture.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureDX12.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureDesc.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureFormat.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureStreamingType.hpp"
+		"shared/sdk/regenny/re4/via/render/UsageType.hpp"
 		"shared/sdk/regenny/re4/via/render/layer/PrepareOutput.hpp"
+		"shared/sdk/regenny/re4/via/render/layer/Scene.hpp"
 		"shared/sdk/regenny/re4/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/re4/via/vec3.hpp"
 		"shared/sdk/regenny/re4/via/vec4.hpp"
@@ -7225,6 +7444,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/Scene.hpp"
 		"src/mods/ScriptRunner.cpp"
 		"src/mods/ScriptRunner.hpp"
+		"src/mods/TemporalUpscaler.cpp"
+		"src/mods/TemporalUpscaler.hpp"
 		"src/mods/VR.cpp"
 		"src/mods/VR.hpp"
 		"src/mods/bindings/FS.cpp"
@@ -7243,6 +7464,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/tools/ObjectExplorer.cpp"
 		"src/mods/tools/ObjectExplorer.hpp"
 		"src/mods/vr/Bindings.cpp"
+		"src/mods/vr/CameraDuplicator.cpp"
+		"src/mods/vr/CameraDuplicator.hpp"
 		"src/mods/vr/D3D11Component.cpp"
 		"src/mods/vr/D3D11Component.hpp"
 		"src/mods/vr/D3D12Component.cpp"
@@ -7252,6 +7475,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/d3d12/ComPtr.hpp"
 		"src/mods/vr/d3d12/CommandContext.cpp"
 		"src/mods/vr/d3d12/CommandContext.hpp"
+		"src/mods/vr/d3d12/DirectXTK.cpp"
+		"src/mods/vr/d3d12/DirectXTK.hpp"
 		"src/mods/vr/d3d12/ResourceCopier.cpp"
 		"src/mods/vr/d3d12/ResourceCopier.hpp"
 		"src/mods/vr/d3d12/TextureContext.cpp"
@@ -7335,13 +7560,14 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		delayimp
 		DirectXTK
 		DirectXTK12
+		pdperfmod
 	)
 
 	set_target_properties(RE7 PROPERTIES
 		OUTPUT_NAME
 			dinput8
 		LINK_FLAGS
-			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll /DELAYLOAD:d3d11.dll /DELAYLOAD:d3d12.dll /DELAYLOAD:D3DCOMPILER_47.dll"
+			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll /DELAYLOAD:PDPerfPlugin.dll /DELAYLOAD:d3d11.dll /DELAYLOAD:d3d12.dll /DELAYLOAD:D3DCOMPILER_47.dll"
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE
 			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
@@ -7424,6 +7650,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/Scene.hpp"
 		"src/mods/ScriptRunner.cpp"
 		"src/mods/ScriptRunner.hpp"
+		"src/mods/TemporalUpscaler.cpp"
+		"src/mods/TemporalUpscaler.hpp"
 		"src/mods/VR.cpp"
 		"src/mods/VR.hpp"
 		"src/mods/bindings/FS.cpp"
@@ -7442,6 +7670,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/tools/ObjectExplorer.cpp"
 		"src/mods/tools/ObjectExplorer.hpp"
 		"src/mods/vr/Bindings.cpp"
+		"src/mods/vr/CameraDuplicator.cpp"
+		"src/mods/vr/CameraDuplicator.hpp"
 		"src/mods/vr/D3D11Component.cpp"
 		"src/mods/vr/D3D11Component.hpp"
 		"src/mods/vr/D3D12Component.cpp"
@@ -7451,6 +7681,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/d3d12/ComPtr.hpp"
 		"src/mods/vr/d3d12/CommandContext.cpp"
 		"src/mods/vr/d3d12/CommandContext.hpp"
+		"src/mods/vr/d3d12/DirectXTK.cpp"
+		"src/mods/vr/d3d12/DirectXTK.hpp"
 		"src/mods/vr/d3d12/ResourceCopier.cpp"
 		"src/mods/vr/d3d12/ResourceCopier.hpp"
 		"src/mods/vr/d3d12/TextureContext.cpp"
@@ -7534,13 +7766,14 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		delayimp
 		DirectXTK
 		DirectXTK12
+		pdperfmod
 	)
 
 	set_target_properties(RE7_TDB49 PROPERTIES
 		OUTPUT_NAME
 			dinput8
 		LINK_FLAGS
-			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll /DELAYLOAD:d3d11.dll /DELAYLOAD:d3d12.dll /DELAYLOAD:D3DCOMPILER_47.dll"
+			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll /DELAYLOAD:PDPerfPlugin.dll /DELAYLOAD:d3d11.dll /DELAYLOAD:d3d12.dll /DELAYLOAD:D3DCOMPILER_47.dll"
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE
 			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
@@ -7977,8 +8210,10 @@ if(REF_BUILD_RE8_SDK OR REF_BUILD_FRAMEWORK) # build-re8-sdk
 		"shared/sdk/regenny/re3/via/vec4.hpp"
 		"shared/sdk/regenny/re4/BullShit.hpp"
 		"shared/sdk/regenny/re4/DeserializeSequence.hpp"
+		"shared/sdk/regenny/re4/ID3D12Resource.hpp"
 		"shared/sdk/regenny/re4/ManagedVtable.hpp"
 		"shared/sdk/regenny/re4/RTInternal.hpp"
+		"shared/sdk/regenny/re4/RTL_CRITICAL_SECTION_DEBUG.hpp"
 		"shared/sdk/regenny/re4/RayTrace.hpp"
 		"shared/sdk/regenny/re4/RenderEntity.hpp"
 		"shared/sdk/regenny/re4/System/String.hpp"
@@ -7998,6 +8233,7 @@ if(REF_BUILD_RE8_SDK OR REF_BUILD_FRAMEWORK) # build-re8-sdk
 		"shared/sdk/regenny/re4/tdb71/TypeDefinition.hpp"
 		"shared/sdk/regenny/re4/tdb71/TypeImpl.hpp"
 		"shared/sdk/regenny/re4/via/BasisPlane.hpp"
+		"shared/sdk/regenny/re4/via/Camera.hpp"
 		"shared/sdk/regenny/re4/via/CameraType.hpp"
 		"shared/sdk/regenny/re4/via/Capsule.hpp"
 		"shared/sdk/regenny/re4/via/Color.hpp"
@@ -8075,9 +8311,29 @@ if(REF_BUILD_RE8_SDK OR REF_BUILD_FRAMEWORK) # build-re8-sdk
 		"shared/sdk/regenny/re4/via/motion/SecondaryAnimation.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionData.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionMap.hpp"
+		"shared/sdk/regenny/re4/via/render/DXResource.hpp"
+		"shared/sdk/regenny/re4/via/render/DepthStencilView.hpp"
+		"shared/sdk/regenny/re4/via/render/DepthStencilViewDX12.hpp"
+		"shared/sdk/regenny/re4/via/render/LayerArray.hpp"
+		"shared/sdk/regenny/re4/via/render/Mirror.hpp"
+		"shared/sdk/regenny/re4/via/render/Poop.hpp"
+		"shared/sdk/regenny/re4/via/render/RTL_CRITICAL_SECTION.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderLayer.hpp"
 		"shared/sdk/regenny/re4/via/render/RenderOutput.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderResource.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderTargetView.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderTargetViewDX12.hpp"
 		"shared/sdk/regenny/re4/via/render/SceneArray2.hpp"
+		"shared/sdk/regenny/re4/via/render/SceneInfo.hpp"
+		"shared/sdk/regenny/re4/via/render/TargetState.hpp"
+		"shared/sdk/regenny/re4/via/render/Texture.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureDX12.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureDesc.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureFormat.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureStreamingType.hpp"
+		"shared/sdk/regenny/re4/via/render/UsageType.hpp"
 		"shared/sdk/regenny/re4/via/render/layer/PrepareOutput.hpp"
+		"shared/sdk/regenny/re4/via/render/layer/Scene.hpp"
 		"shared/sdk/regenny/re4/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/re4/via/vec3.hpp"
 		"shared/sdk/regenny/re4/via/vec4.hpp"
@@ -8448,6 +8704,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/Scene.hpp"
 		"src/mods/ScriptRunner.cpp"
 		"src/mods/ScriptRunner.hpp"
+		"src/mods/TemporalUpscaler.cpp"
+		"src/mods/TemporalUpscaler.hpp"
 		"src/mods/VR.cpp"
 		"src/mods/VR.hpp"
 		"src/mods/bindings/FS.cpp"
@@ -8466,6 +8724,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/tools/ObjectExplorer.cpp"
 		"src/mods/tools/ObjectExplorer.hpp"
 		"src/mods/vr/Bindings.cpp"
+		"src/mods/vr/CameraDuplicator.cpp"
+		"src/mods/vr/CameraDuplicator.hpp"
 		"src/mods/vr/D3D11Component.cpp"
 		"src/mods/vr/D3D11Component.hpp"
 		"src/mods/vr/D3D12Component.cpp"
@@ -8475,6 +8735,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/d3d12/ComPtr.hpp"
 		"src/mods/vr/d3d12/CommandContext.cpp"
 		"src/mods/vr/d3d12/CommandContext.hpp"
+		"src/mods/vr/d3d12/DirectXTK.cpp"
+		"src/mods/vr/d3d12/DirectXTK.hpp"
 		"src/mods/vr/d3d12/ResourceCopier.cpp"
 		"src/mods/vr/d3d12/ResourceCopier.hpp"
 		"src/mods/vr/d3d12/TextureContext.cpp"
@@ -8558,13 +8820,14 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		delayimp
 		DirectXTK
 		DirectXTK12
+		pdperfmod
 	)
 
 	set_target_properties(RE8 PROPERTIES
 		OUTPUT_NAME
 			dinput8
 		LINK_FLAGS
-			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll /DELAYLOAD:d3d11.dll /DELAYLOAD:d3d12.dll /DELAYLOAD:D3DCOMPILER_47.dll"
+			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll /DELAYLOAD:PDPerfPlugin.dll /DELAYLOAD:d3d11.dll /DELAYLOAD:d3d12.dll /DELAYLOAD:D3DCOMPILER_47.dll"
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE
 			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
@@ -9001,8 +9264,10 @@ if(REF_BUILD_DMC5_SDK OR REF_BUILD_FRAMEWORK) # build-dmc5-sdk
 		"shared/sdk/regenny/re3/via/vec4.hpp"
 		"shared/sdk/regenny/re4/BullShit.hpp"
 		"shared/sdk/regenny/re4/DeserializeSequence.hpp"
+		"shared/sdk/regenny/re4/ID3D12Resource.hpp"
 		"shared/sdk/regenny/re4/ManagedVtable.hpp"
 		"shared/sdk/regenny/re4/RTInternal.hpp"
+		"shared/sdk/regenny/re4/RTL_CRITICAL_SECTION_DEBUG.hpp"
 		"shared/sdk/regenny/re4/RayTrace.hpp"
 		"shared/sdk/regenny/re4/RenderEntity.hpp"
 		"shared/sdk/regenny/re4/System/String.hpp"
@@ -9022,6 +9287,7 @@ if(REF_BUILD_DMC5_SDK OR REF_BUILD_FRAMEWORK) # build-dmc5-sdk
 		"shared/sdk/regenny/re4/tdb71/TypeDefinition.hpp"
 		"shared/sdk/regenny/re4/tdb71/TypeImpl.hpp"
 		"shared/sdk/regenny/re4/via/BasisPlane.hpp"
+		"shared/sdk/regenny/re4/via/Camera.hpp"
 		"shared/sdk/regenny/re4/via/CameraType.hpp"
 		"shared/sdk/regenny/re4/via/Capsule.hpp"
 		"shared/sdk/regenny/re4/via/Color.hpp"
@@ -9099,9 +9365,29 @@ if(REF_BUILD_DMC5_SDK OR REF_BUILD_FRAMEWORK) # build-dmc5-sdk
 		"shared/sdk/regenny/re4/via/motion/SecondaryAnimation.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionData.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionMap.hpp"
+		"shared/sdk/regenny/re4/via/render/DXResource.hpp"
+		"shared/sdk/regenny/re4/via/render/DepthStencilView.hpp"
+		"shared/sdk/regenny/re4/via/render/DepthStencilViewDX12.hpp"
+		"shared/sdk/regenny/re4/via/render/LayerArray.hpp"
+		"shared/sdk/regenny/re4/via/render/Mirror.hpp"
+		"shared/sdk/regenny/re4/via/render/Poop.hpp"
+		"shared/sdk/regenny/re4/via/render/RTL_CRITICAL_SECTION.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderLayer.hpp"
 		"shared/sdk/regenny/re4/via/render/RenderOutput.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderResource.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderTargetView.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderTargetViewDX12.hpp"
 		"shared/sdk/regenny/re4/via/render/SceneArray2.hpp"
+		"shared/sdk/regenny/re4/via/render/SceneInfo.hpp"
+		"shared/sdk/regenny/re4/via/render/TargetState.hpp"
+		"shared/sdk/regenny/re4/via/render/Texture.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureDX12.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureDesc.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureFormat.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureStreamingType.hpp"
+		"shared/sdk/regenny/re4/via/render/UsageType.hpp"
 		"shared/sdk/regenny/re4/via/render/layer/PrepareOutput.hpp"
+		"shared/sdk/regenny/re4/via/render/layer/Scene.hpp"
 		"shared/sdk/regenny/re4/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/re4/via/vec3.hpp"
 		"shared/sdk/regenny/re4/via/vec4.hpp"
@@ -9470,6 +9756,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/Scene.hpp"
 		"src/mods/ScriptRunner.cpp"
 		"src/mods/ScriptRunner.hpp"
+		"src/mods/TemporalUpscaler.cpp"
+		"src/mods/TemporalUpscaler.hpp"
 		"src/mods/VR.cpp"
 		"src/mods/VR.hpp"
 		"src/mods/bindings/FS.cpp"
@@ -9488,6 +9776,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/tools/ObjectExplorer.cpp"
 		"src/mods/tools/ObjectExplorer.hpp"
 		"src/mods/vr/Bindings.cpp"
+		"src/mods/vr/CameraDuplicator.cpp"
+		"src/mods/vr/CameraDuplicator.hpp"
 		"src/mods/vr/D3D11Component.cpp"
 		"src/mods/vr/D3D11Component.hpp"
 		"src/mods/vr/D3D12Component.cpp"
@@ -9497,6 +9787,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/d3d12/ComPtr.hpp"
 		"src/mods/vr/d3d12/CommandContext.cpp"
 		"src/mods/vr/d3d12/CommandContext.hpp"
+		"src/mods/vr/d3d12/DirectXTK.cpp"
+		"src/mods/vr/d3d12/DirectXTK.hpp"
 		"src/mods/vr/d3d12/ResourceCopier.cpp"
 		"src/mods/vr/d3d12/ResourceCopier.hpp"
 		"src/mods/vr/d3d12/TextureContext.cpp"
@@ -9580,13 +9872,14 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		delayimp
 		DirectXTK
 		DirectXTK12
+		pdperfmod
 	)
 
 	set_target_properties(DMC5 PROPERTIES
 		OUTPUT_NAME
 			dinput8
 		LINK_FLAGS
-			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll /DELAYLOAD:d3d11.dll /DELAYLOAD:d3d12.dll /DELAYLOAD:D3DCOMPILER_47.dll"
+			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll /DELAYLOAD:PDPerfPlugin.dll /DELAYLOAD:d3d11.dll /DELAYLOAD:d3d12.dll /DELAYLOAD:D3DCOMPILER_47.dll"
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE
 			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
@@ -10023,8 +10316,10 @@ if(REF_BUILD_MHRISE_SDK OR REF_BUILD_FRAMEWORK) # build-mhrise-sdk
 		"shared/sdk/regenny/re3/via/vec4.hpp"
 		"shared/sdk/regenny/re4/BullShit.hpp"
 		"shared/sdk/regenny/re4/DeserializeSequence.hpp"
+		"shared/sdk/regenny/re4/ID3D12Resource.hpp"
 		"shared/sdk/regenny/re4/ManagedVtable.hpp"
 		"shared/sdk/regenny/re4/RTInternal.hpp"
+		"shared/sdk/regenny/re4/RTL_CRITICAL_SECTION_DEBUG.hpp"
 		"shared/sdk/regenny/re4/RayTrace.hpp"
 		"shared/sdk/regenny/re4/RenderEntity.hpp"
 		"shared/sdk/regenny/re4/System/String.hpp"
@@ -10044,6 +10339,7 @@ if(REF_BUILD_MHRISE_SDK OR REF_BUILD_FRAMEWORK) # build-mhrise-sdk
 		"shared/sdk/regenny/re4/tdb71/TypeDefinition.hpp"
 		"shared/sdk/regenny/re4/tdb71/TypeImpl.hpp"
 		"shared/sdk/regenny/re4/via/BasisPlane.hpp"
+		"shared/sdk/regenny/re4/via/Camera.hpp"
 		"shared/sdk/regenny/re4/via/CameraType.hpp"
 		"shared/sdk/regenny/re4/via/Capsule.hpp"
 		"shared/sdk/regenny/re4/via/Color.hpp"
@@ -10121,9 +10417,29 @@ if(REF_BUILD_MHRISE_SDK OR REF_BUILD_FRAMEWORK) # build-mhrise-sdk
 		"shared/sdk/regenny/re4/via/motion/SecondaryAnimation.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionData.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionMap.hpp"
+		"shared/sdk/regenny/re4/via/render/DXResource.hpp"
+		"shared/sdk/regenny/re4/via/render/DepthStencilView.hpp"
+		"shared/sdk/regenny/re4/via/render/DepthStencilViewDX12.hpp"
+		"shared/sdk/regenny/re4/via/render/LayerArray.hpp"
+		"shared/sdk/regenny/re4/via/render/Mirror.hpp"
+		"shared/sdk/regenny/re4/via/render/Poop.hpp"
+		"shared/sdk/regenny/re4/via/render/RTL_CRITICAL_SECTION.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderLayer.hpp"
 		"shared/sdk/regenny/re4/via/render/RenderOutput.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderResource.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderTargetView.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderTargetViewDX12.hpp"
 		"shared/sdk/regenny/re4/via/render/SceneArray2.hpp"
+		"shared/sdk/regenny/re4/via/render/SceneInfo.hpp"
+		"shared/sdk/regenny/re4/via/render/TargetState.hpp"
+		"shared/sdk/regenny/re4/via/render/Texture.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureDX12.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureDesc.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureFormat.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureStreamingType.hpp"
+		"shared/sdk/regenny/re4/via/render/UsageType.hpp"
 		"shared/sdk/regenny/re4/via/render/layer/PrepareOutput.hpp"
+		"shared/sdk/regenny/re4/via/render/layer/Scene.hpp"
 		"shared/sdk/regenny/re4/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/re4/via/vec3.hpp"
 		"shared/sdk/regenny/re4/via/vec4.hpp"
@@ -10494,6 +10810,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/Scene.hpp"
 		"src/mods/ScriptRunner.cpp"
 		"src/mods/ScriptRunner.hpp"
+		"src/mods/TemporalUpscaler.cpp"
+		"src/mods/TemporalUpscaler.hpp"
 		"src/mods/VR.cpp"
 		"src/mods/VR.hpp"
 		"src/mods/bindings/FS.cpp"
@@ -10512,6 +10830,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/tools/ObjectExplorer.cpp"
 		"src/mods/tools/ObjectExplorer.hpp"
 		"src/mods/vr/Bindings.cpp"
+		"src/mods/vr/CameraDuplicator.cpp"
+		"src/mods/vr/CameraDuplicator.hpp"
 		"src/mods/vr/D3D11Component.cpp"
 		"src/mods/vr/D3D11Component.hpp"
 		"src/mods/vr/D3D12Component.cpp"
@@ -10521,6 +10841,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/d3d12/ComPtr.hpp"
 		"src/mods/vr/d3d12/CommandContext.cpp"
 		"src/mods/vr/d3d12/CommandContext.hpp"
+		"src/mods/vr/d3d12/DirectXTK.cpp"
+		"src/mods/vr/d3d12/DirectXTK.hpp"
 		"src/mods/vr/d3d12/ResourceCopier.cpp"
 		"src/mods/vr/d3d12/ResourceCopier.hpp"
 		"src/mods/vr/d3d12/TextureContext.cpp"
@@ -10604,13 +10926,14 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		delayimp
 		DirectXTK
 		DirectXTK12
+		pdperfmod
 	)
 
 	set_target_properties(MHRISE PROPERTIES
 		OUTPUT_NAME
 			dinput8
 		LINK_FLAGS
-			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll /DELAYLOAD:d3d11.dll /DELAYLOAD:d3d12.dll /DELAYLOAD:D3DCOMPILER_47.dll"
+			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll /DELAYLOAD:PDPerfPlugin.dll /DELAYLOAD:d3d11.dll /DELAYLOAD:d3d12.dll /DELAYLOAD:D3DCOMPILER_47.dll"
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE
 			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
@@ -11047,8 +11370,10 @@ if(REF_BUILD_SF6_SDK OR REF_BUILD_FRAMEWORK) # build-sf6-sdk
 		"shared/sdk/regenny/re3/via/vec4.hpp"
 		"shared/sdk/regenny/re4/BullShit.hpp"
 		"shared/sdk/regenny/re4/DeserializeSequence.hpp"
+		"shared/sdk/regenny/re4/ID3D12Resource.hpp"
 		"shared/sdk/regenny/re4/ManagedVtable.hpp"
 		"shared/sdk/regenny/re4/RTInternal.hpp"
+		"shared/sdk/regenny/re4/RTL_CRITICAL_SECTION_DEBUG.hpp"
 		"shared/sdk/regenny/re4/RayTrace.hpp"
 		"shared/sdk/regenny/re4/RenderEntity.hpp"
 		"shared/sdk/regenny/re4/System/String.hpp"
@@ -11068,6 +11393,7 @@ if(REF_BUILD_SF6_SDK OR REF_BUILD_FRAMEWORK) # build-sf6-sdk
 		"shared/sdk/regenny/re4/tdb71/TypeDefinition.hpp"
 		"shared/sdk/regenny/re4/tdb71/TypeImpl.hpp"
 		"shared/sdk/regenny/re4/via/BasisPlane.hpp"
+		"shared/sdk/regenny/re4/via/Camera.hpp"
 		"shared/sdk/regenny/re4/via/CameraType.hpp"
 		"shared/sdk/regenny/re4/via/Capsule.hpp"
 		"shared/sdk/regenny/re4/via/Color.hpp"
@@ -11145,9 +11471,29 @@ if(REF_BUILD_SF6_SDK OR REF_BUILD_FRAMEWORK) # build-sf6-sdk
 		"shared/sdk/regenny/re4/via/motion/SecondaryAnimation.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionData.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionMap.hpp"
+		"shared/sdk/regenny/re4/via/render/DXResource.hpp"
+		"shared/sdk/regenny/re4/via/render/DepthStencilView.hpp"
+		"shared/sdk/regenny/re4/via/render/DepthStencilViewDX12.hpp"
+		"shared/sdk/regenny/re4/via/render/LayerArray.hpp"
+		"shared/sdk/regenny/re4/via/render/Mirror.hpp"
+		"shared/sdk/regenny/re4/via/render/Poop.hpp"
+		"shared/sdk/regenny/re4/via/render/RTL_CRITICAL_SECTION.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderLayer.hpp"
 		"shared/sdk/regenny/re4/via/render/RenderOutput.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderResource.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderTargetView.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderTargetViewDX12.hpp"
 		"shared/sdk/regenny/re4/via/render/SceneArray2.hpp"
+		"shared/sdk/regenny/re4/via/render/SceneInfo.hpp"
+		"shared/sdk/regenny/re4/via/render/TargetState.hpp"
+		"shared/sdk/regenny/re4/via/render/Texture.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureDX12.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureDesc.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureFormat.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureStreamingType.hpp"
+		"shared/sdk/regenny/re4/via/render/UsageType.hpp"
 		"shared/sdk/regenny/re4/via/render/layer/PrepareOutput.hpp"
+		"shared/sdk/regenny/re4/via/render/layer/Scene.hpp"
 		"shared/sdk/regenny/re4/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/re4/via/vec3.hpp"
 		"shared/sdk/regenny/re4/via/vec4.hpp"
@@ -11518,6 +11864,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/Scene.hpp"
 		"src/mods/ScriptRunner.cpp"
 		"src/mods/ScriptRunner.hpp"
+		"src/mods/TemporalUpscaler.cpp"
+		"src/mods/TemporalUpscaler.hpp"
 		"src/mods/VR.cpp"
 		"src/mods/VR.hpp"
 		"src/mods/bindings/FS.cpp"
@@ -11536,6 +11884,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/tools/ObjectExplorer.cpp"
 		"src/mods/tools/ObjectExplorer.hpp"
 		"src/mods/vr/Bindings.cpp"
+		"src/mods/vr/CameraDuplicator.cpp"
+		"src/mods/vr/CameraDuplicator.hpp"
 		"src/mods/vr/D3D11Component.cpp"
 		"src/mods/vr/D3D11Component.hpp"
 		"src/mods/vr/D3D12Component.cpp"
@@ -11545,6 +11895,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/d3d12/ComPtr.hpp"
 		"src/mods/vr/d3d12/CommandContext.cpp"
 		"src/mods/vr/d3d12/CommandContext.hpp"
+		"src/mods/vr/d3d12/DirectXTK.cpp"
+		"src/mods/vr/d3d12/DirectXTK.hpp"
 		"src/mods/vr/d3d12/ResourceCopier.cpp"
 		"src/mods/vr/d3d12/ResourceCopier.hpp"
 		"src/mods/vr/d3d12/TextureContext.cpp"
@@ -11628,13 +11980,14 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		delayimp
 		DirectXTK
 		DirectXTK12
+		pdperfmod
 	)
 
 	set_target_properties(SF6 PROPERTIES
 		OUTPUT_NAME
 			dinput8
 		LINK_FLAGS
-			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll /DELAYLOAD:d3d11.dll /DELAYLOAD:d3d12.dll /DELAYLOAD:D3DCOMPILER_47.dll"
+			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll /DELAYLOAD:PDPerfPlugin.dll /DELAYLOAD:d3d11.dll /DELAYLOAD:d3d12.dll /DELAYLOAD:D3DCOMPILER_47.dll"
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE
 			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
@@ -12071,8 +12424,10 @@ if(REF_BUILD_DD2_SDK OR REF_BUILD_FRAMEWORK) # build-dd2-sdk
 		"shared/sdk/regenny/re3/via/vec4.hpp"
 		"shared/sdk/regenny/re4/BullShit.hpp"
 		"shared/sdk/regenny/re4/DeserializeSequence.hpp"
+		"shared/sdk/regenny/re4/ID3D12Resource.hpp"
 		"shared/sdk/regenny/re4/ManagedVtable.hpp"
 		"shared/sdk/regenny/re4/RTInternal.hpp"
+		"shared/sdk/regenny/re4/RTL_CRITICAL_SECTION_DEBUG.hpp"
 		"shared/sdk/regenny/re4/RayTrace.hpp"
 		"shared/sdk/regenny/re4/RenderEntity.hpp"
 		"shared/sdk/regenny/re4/System/String.hpp"
@@ -12092,6 +12447,7 @@ if(REF_BUILD_DD2_SDK OR REF_BUILD_FRAMEWORK) # build-dd2-sdk
 		"shared/sdk/regenny/re4/tdb71/TypeDefinition.hpp"
 		"shared/sdk/regenny/re4/tdb71/TypeImpl.hpp"
 		"shared/sdk/regenny/re4/via/BasisPlane.hpp"
+		"shared/sdk/regenny/re4/via/Camera.hpp"
 		"shared/sdk/regenny/re4/via/CameraType.hpp"
 		"shared/sdk/regenny/re4/via/Capsule.hpp"
 		"shared/sdk/regenny/re4/via/Color.hpp"
@@ -12169,9 +12525,29 @@ if(REF_BUILD_DD2_SDK OR REF_BUILD_FRAMEWORK) # build-dd2-sdk
 		"shared/sdk/regenny/re4/via/motion/SecondaryAnimation.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionData.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionMap.hpp"
+		"shared/sdk/regenny/re4/via/render/DXResource.hpp"
+		"shared/sdk/regenny/re4/via/render/DepthStencilView.hpp"
+		"shared/sdk/regenny/re4/via/render/DepthStencilViewDX12.hpp"
+		"shared/sdk/regenny/re4/via/render/LayerArray.hpp"
+		"shared/sdk/regenny/re4/via/render/Mirror.hpp"
+		"shared/sdk/regenny/re4/via/render/Poop.hpp"
+		"shared/sdk/regenny/re4/via/render/RTL_CRITICAL_SECTION.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderLayer.hpp"
 		"shared/sdk/regenny/re4/via/render/RenderOutput.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderResource.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderTargetView.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderTargetViewDX12.hpp"
 		"shared/sdk/regenny/re4/via/render/SceneArray2.hpp"
+		"shared/sdk/regenny/re4/via/render/SceneInfo.hpp"
+		"shared/sdk/regenny/re4/via/render/TargetState.hpp"
+		"shared/sdk/regenny/re4/via/render/Texture.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureDX12.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureDesc.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureFormat.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureStreamingType.hpp"
+		"shared/sdk/regenny/re4/via/render/UsageType.hpp"
 		"shared/sdk/regenny/re4/via/render/layer/PrepareOutput.hpp"
+		"shared/sdk/regenny/re4/via/render/layer/Scene.hpp"
 		"shared/sdk/regenny/re4/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/re4/via/vec3.hpp"
 		"shared/sdk/regenny/re4/via/vec4.hpp"
@@ -12542,6 +12918,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/Scene.hpp"
 		"src/mods/ScriptRunner.cpp"
 		"src/mods/ScriptRunner.hpp"
+		"src/mods/TemporalUpscaler.cpp"
+		"src/mods/TemporalUpscaler.hpp"
 		"src/mods/VR.cpp"
 		"src/mods/VR.hpp"
 		"src/mods/bindings/FS.cpp"
@@ -12560,6 +12938,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/tools/ObjectExplorer.cpp"
 		"src/mods/tools/ObjectExplorer.hpp"
 		"src/mods/vr/Bindings.cpp"
+		"src/mods/vr/CameraDuplicator.cpp"
+		"src/mods/vr/CameraDuplicator.hpp"
 		"src/mods/vr/D3D11Component.cpp"
 		"src/mods/vr/D3D11Component.hpp"
 		"src/mods/vr/D3D12Component.cpp"
@@ -12569,6 +12949,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/d3d12/ComPtr.hpp"
 		"src/mods/vr/d3d12/CommandContext.cpp"
 		"src/mods/vr/d3d12/CommandContext.hpp"
+		"src/mods/vr/d3d12/DirectXTK.cpp"
+		"src/mods/vr/d3d12/DirectXTK.hpp"
 		"src/mods/vr/d3d12/ResourceCopier.cpp"
 		"src/mods/vr/d3d12/ResourceCopier.hpp"
 		"src/mods/vr/d3d12/TextureContext.cpp"
@@ -12652,13 +13034,14 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		delayimp
 		DirectXTK
 		DirectXTK12
+		pdperfmod
 	)
 
 	set_target_properties(DD2 PROPERTIES
 		OUTPUT_NAME
 			dinput8
 		LINK_FLAGS
-			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll /DELAYLOAD:d3d11.dll /DELAYLOAD:d3d12.dll /DELAYLOAD:D3DCOMPILER_47.dll"
+			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll /DELAYLOAD:PDPerfPlugin.dll /DELAYLOAD:d3d11.dll /DELAYLOAD:d3d12.dll /DELAYLOAD:D3DCOMPILER_47.dll"
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE
 			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
@@ -13095,8 +13478,10 @@ if(REF_BUILD_MHWILDS_SDK OR REF_BUILD_FRAMEWORK) # build-mhwilds-sdk
 		"shared/sdk/regenny/re3/via/vec4.hpp"
 		"shared/sdk/regenny/re4/BullShit.hpp"
 		"shared/sdk/regenny/re4/DeserializeSequence.hpp"
+		"shared/sdk/regenny/re4/ID3D12Resource.hpp"
 		"shared/sdk/regenny/re4/ManagedVtable.hpp"
 		"shared/sdk/regenny/re4/RTInternal.hpp"
+		"shared/sdk/regenny/re4/RTL_CRITICAL_SECTION_DEBUG.hpp"
 		"shared/sdk/regenny/re4/RayTrace.hpp"
 		"shared/sdk/regenny/re4/RenderEntity.hpp"
 		"shared/sdk/regenny/re4/System/String.hpp"
@@ -13116,6 +13501,7 @@ if(REF_BUILD_MHWILDS_SDK OR REF_BUILD_FRAMEWORK) # build-mhwilds-sdk
 		"shared/sdk/regenny/re4/tdb71/TypeDefinition.hpp"
 		"shared/sdk/regenny/re4/tdb71/TypeImpl.hpp"
 		"shared/sdk/regenny/re4/via/BasisPlane.hpp"
+		"shared/sdk/regenny/re4/via/Camera.hpp"
 		"shared/sdk/regenny/re4/via/CameraType.hpp"
 		"shared/sdk/regenny/re4/via/Capsule.hpp"
 		"shared/sdk/regenny/re4/via/Color.hpp"
@@ -13193,9 +13579,29 @@ if(REF_BUILD_MHWILDS_SDK OR REF_BUILD_FRAMEWORK) # build-mhwilds-sdk
 		"shared/sdk/regenny/re4/via/motion/SecondaryAnimation.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionData.hpp"
 		"shared/sdk/regenny/re4/via/motion/TransitionMap.hpp"
+		"shared/sdk/regenny/re4/via/render/DXResource.hpp"
+		"shared/sdk/regenny/re4/via/render/DepthStencilView.hpp"
+		"shared/sdk/regenny/re4/via/render/DepthStencilViewDX12.hpp"
+		"shared/sdk/regenny/re4/via/render/LayerArray.hpp"
+		"shared/sdk/regenny/re4/via/render/Mirror.hpp"
+		"shared/sdk/regenny/re4/via/render/Poop.hpp"
+		"shared/sdk/regenny/re4/via/render/RTL_CRITICAL_SECTION.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderLayer.hpp"
 		"shared/sdk/regenny/re4/via/render/RenderOutput.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderResource.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderTargetView.hpp"
+		"shared/sdk/regenny/re4/via/render/RenderTargetViewDX12.hpp"
 		"shared/sdk/regenny/re4/via/render/SceneArray2.hpp"
+		"shared/sdk/regenny/re4/via/render/SceneInfo.hpp"
+		"shared/sdk/regenny/re4/via/render/TargetState.hpp"
+		"shared/sdk/regenny/re4/via/render/Texture.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureDX12.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureDesc.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureFormat.hpp"
+		"shared/sdk/regenny/re4/via/render/TextureStreamingType.hpp"
+		"shared/sdk/regenny/re4/via/render/UsageType.hpp"
 		"shared/sdk/regenny/re4/via/render/layer/PrepareOutput.hpp"
+		"shared/sdk/regenny/re4/via/render/layer/Scene.hpp"
 		"shared/sdk/regenny/re4/via/typeinfo/TypeInfo.hpp"
 		"shared/sdk/regenny/re4/via/vec3.hpp"
 		"shared/sdk/regenny/re4/via/vec4.hpp"
@@ -13566,6 +13972,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/Scene.hpp"
 		"src/mods/ScriptRunner.cpp"
 		"src/mods/ScriptRunner.hpp"
+		"src/mods/TemporalUpscaler.cpp"
+		"src/mods/TemporalUpscaler.hpp"
 		"src/mods/VR.cpp"
 		"src/mods/VR.hpp"
 		"src/mods/bindings/FS.cpp"
@@ -13584,6 +13992,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/tools/ObjectExplorer.cpp"
 		"src/mods/tools/ObjectExplorer.hpp"
 		"src/mods/vr/Bindings.cpp"
+		"src/mods/vr/CameraDuplicator.cpp"
+		"src/mods/vr/CameraDuplicator.hpp"
 		"src/mods/vr/D3D11Component.cpp"
 		"src/mods/vr/D3D11Component.hpp"
 		"src/mods/vr/D3D12Component.cpp"
@@ -13593,6 +14003,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/vr/d3d12/ComPtr.hpp"
 		"src/mods/vr/d3d12/CommandContext.cpp"
 		"src/mods/vr/d3d12/CommandContext.hpp"
+		"src/mods/vr/d3d12/DirectXTK.cpp"
+		"src/mods/vr/d3d12/DirectXTK.hpp"
 		"src/mods/vr/d3d12/ResourceCopier.cpp"
 		"src/mods/vr/d3d12/ResourceCopier.hpp"
 		"src/mods/vr/d3d12/TextureContext.cpp"
@@ -13676,13 +14088,14 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		delayimp
 		DirectXTK
 		DirectXTK12
+		pdperfmod
 	)
 
 	set_target_properties(MHWILDS PROPERTIES
 		OUTPUT_NAME
 			dinput8
 		LINK_FLAGS
-			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll /DELAYLOAD:d3d11.dll /DELAYLOAD:d3d12.dll /DELAYLOAD:D3DCOMPILER_47.dll"
+			"/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll /DELAYLOAD:PDPerfPlugin.dll /DELAYLOAD:d3d11.dll /DELAYLOAD:d3d12.dll /DELAYLOAD:D3DCOMPILER_47.dll"
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE
 			"${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
