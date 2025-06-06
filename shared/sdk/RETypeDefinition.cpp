@@ -4,6 +4,8 @@
 #include <execution>
 #include <sstream>
 
+#include <spdlog/spdlog.h>
+
 
 #include <reframework/API.hpp>
 
@@ -350,9 +352,6 @@ sdk::RETypeDefinition* RETypeDefinition::get_underlying_type() const {
     }
 
 #if TDB_VER > 49
-    // get the underlying type of the enum
-    // and then hash the name of the type instead
-    static auto get_underlying_type_method = this->get_method("GetUnderlyingType");
     const auto runtime_type = this->get_runtime_type();
 
     // dont forget to do this, passing nullptr into GetUnderlyingType causes System.ArgumentNullException
@@ -362,11 +361,24 @@ sdk::RETypeDefinition* RETypeDefinition::get_underlying_type() const {
         return nullptr;
     }
 
+    // get the underlying type of the enum
+    // and then hash the name of the type instead
+    static const auto system_runtime_type_type = sdk::find_type_definition("System.RuntimeType");
+    static const auto old_get_underlying_type_method = system_runtime_type_type != nullptr ? system_runtime_type_type->get_method("GetUnderlyingType") : nullptr;
+    static const auto new_underlying_type_method = system_runtime_type_type != nullptr ? system_runtime_type_type->get_method("GetEnumUnderlyingType") : nullptr;
+    const auto get_underlying_type_method = old_get_underlying_type_method != nullptr ? old_get_underlying_type_method : new_underlying_type_method;
+
+    if (get_underlying_type_method == nullptr) {
+        std::unique_lock _{ g_underlying_mtx };
+        g_underlying_types[this] = nullptr;
+        SPDLOG_WARN("[RETypeDefinition] Failed to find GetUnderlyingType method for {}", this->get_full_name());
+        return nullptr;
+    }
+
     const auto underlying_type = get_underlying_type_method->call<::REManagedObject*>(sdk::get_thread_context(), runtime_type);
 
     if (underlying_type != nullptr) {
-        static auto system_runtime_type_type = sdk::find_type_definition("System.RuntimeType");
-        static auto get_name_method = system_runtime_type_type->get_method("get_FullName");
+        static const auto get_name_method = system_runtime_type_type->get_method("get_FullName");
 
         const auto full_name = get_name_method->call<::REManagedObject*>(sdk::get_thread_context(), underlying_type);
 
@@ -626,7 +638,7 @@ bool RETypeDefinition::has_fieldptr_offset() const {
 #endif
 }
 
-bool RETypeDefinition::is_a(sdk::RETypeDefinition* other) const {
+bool RETypeDefinition::is_a(const sdk::RETypeDefinition* other) const {
     if (other == nullptr) {
         return false;
     }
@@ -942,9 +954,12 @@ static std::shared_mutex g_runtime_type_mtx{};
     static auto get_assembly_type_func = assembly_type->get_method("GetType(System.String)");
 
     if (get_assembly_type_func == nullptr) {
+        static auto system_object_type = sdk::find_type_definition("System.Object");
+        static auto get_type_method = system_object_type->get_method("GetType");
+
         // Past TDB 74, we have to do this because
         // a lot of the assembly stuff seems to be stripped?
-        if (auto fn = this->get_method("GetType()"); fn != nullptr) {
+        if (get_type_method != nullptr) {
             struct TypeDefinitionHolder {
                 const sdk::RETypeDefinition* t{nullptr};
             } holder;
@@ -956,7 +971,7 @@ static std::shared_mutex g_runtime_type_mtx{};
             fake_obj.holder = &holder;
             holder.t = this;
 
-            return fn->call<::REManagedObject*>(sdk::get_thread_context(), &fake_obj);
+            return get_type_method->call<::REManagedObject*>(sdk::get_thread_context(), &fake_obj);
         }
 
         return nullptr;
@@ -1120,5 +1135,25 @@ uint32_t RETypeDefinition::get_flags() const {
 
 bool RETypeDefinition::should_pass_by_pointer() const {
     return !is_value_type() || (get_valuetype_size() > sizeof(void*) || (!is_primitive() && !is_enum()));
+}
+
+std::vector<RETypeDefinition*> RETypeDefinition::get_types_inherting_from_this() const {
+    std::vector<RETypeDefinition*> out{};
+    auto tdb = RETypeDB::get();
+
+    // Maybe optimize by making a dependency graph?
+    for (auto i = 0; i < tdb->numTypes; ++i) {
+        auto type = tdb->get_type(i);
+
+        if (type == nullptr) {
+            continue;
+        }
+
+        if (type->is_a(this)) {
+            out.push_back(type);
+        }
+    }
+
+    return out;
 }
 } // namespace sdk

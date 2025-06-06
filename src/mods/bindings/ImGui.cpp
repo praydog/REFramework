@@ -898,7 +898,7 @@ Vector2f get_mouse() {
 }
 
 int get_key_index(int imgui_key) {
-    return ImGui::GetKeyIndex((ImGuiKey)imgui_key);
+    return (ImGuiKey)imgui_key;
 }
 
 bool is_key_down(int key) {
@@ -1024,6 +1024,18 @@ Vector2f get_window_pos() {
         result.x,
         result.y,
     };
+}
+
+ImDrawList* get_window_draw_list() {
+    return ImGui::GetWindowDrawList();
+}
+
+ImDrawList* get_background_draw_list() {
+    return ImGui::GetBackgroundDrawList();
+}
+
+ImDrawList* get_foreground_draw_list() {
+    return ImGui::GetForegroundDrawList();
 }
 
 void set_next_item_open(bool is_open, sol::object condition_obj) {
@@ -2090,6 +2102,9 @@ void bindings::open_imgui(ScriptState* s) {
     imgui["end_menu"] = api::imgui::end_menu;
     imgui["menu_item"] = api::imgui::menu_item;
     imgui["get_display_size"] = api::imgui::get_display_size;
+    imgui["get_window_draw_list"] = api::imgui::get_window_draw_list;
+    imgui["get_background_draw_list"] = api::imgui::get_background_draw_list;
+    imgui["get_foreground_draw_list"] = api::imgui::get_foreground_draw_list;
 
     // Item
     imgui["push_item_width"] = api::imgui::push_item_width;
@@ -2238,6 +2253,300 @@ void bindings::open_imgui(ScriptState* s) {
         "IsHovered", ImGuiTableColumnFlags_IsHovered           
     );
 
+    imgui.new_enum("ImGuiKey",
+        
+        // Keys
+        "Key_None", ImGuiKey_None,
+        "Key_Tab", ImGuiKey_Tab,
+        "Key_LeftArrow", ImGuiKey_LeftArrow,
+        "Key_RightArrow", ImGuiKey_RightArrow,
+        "Key_UpArrow", ImGuiKey_UpArrow,
+        "Key_DownArrow", ImGuiKey_DownArrow,
+        "Key_PageUp", ImGuiKey_PageUp,
+        "Key_PageDown", ImGuiKey_PageDown,
+        "Key_Home", ImGuiKey_Home,
+        "Key_End", ImGuiKey_End,
+        "Key_Insert", ImGuiKey_Insert,
+        "Key_Delete", ImGuiKey_Delete,
+        "Key_Backspace", ImGuiKey_Backspace,
+        "Key_Space", ImGuiKey_Space,
+        "Key_Enter", ImGuiKey_Enter,
+        "Key_Escape", ImGuiKey_Escape,
+        "Key_LeftCtrl", ImGuiKey_LeftCtrl,
+        "Key_LeftShift", ImGuiKey_LeftShift,
+        "Key_LeftAlt", ImGuiKey_LeftAlt,
+        "Key_LeftSuper", ImGuiKey_LeftSuper,
+        "Key_RightCtrl", ImGuiKey_RightCtrl,
+        "Key_RightShift", ImGuiKey_RightShift,
+        "Key_RightAlt", ImGuiKey_RightAlt,
+        "Key_RightSuper", ImGuiKey_RightSuper,
+        "Key_Menu", ImGuiKey_Menu,
+        "Key_0", ImGuiKey_0,
+        "Key_1", ImGuiKey_1,
+        "Key_2", ImGuiKey_2,
+        "Key_3", ImGuiKey_3,
+        "Key_4", ImGuiKey_4,
+        "Key_5", ImGuiKey_5,
+        "Key_6", ImGuiKey_6,
+        "Key_7", ImGuiKey_7,
+        "Key_8", ImGuiKey_8,
+        "Key_9", ImGuiKey_9,
+        "Key_A", ImGuiKey_A,
+        "Key_B", ImGuiKey_B,
+        "Key_C", ImGuiKey_C,
+        "Key_D", ImGuiKey_D,
+        "Key_E", ImGuiKey_E,
+        "Key_F", ImGuiKey_F,
+        "Key_G", ImGuiKey_G,
+        "Key_H", ImGuiKey_H,
+        "Key_I", ImGuiKey_I,
+        "Key_J", ImGuiKey_J,
+        "Key_K", ImGuiKey_K,
+        "Key_L", ImGuiKey_L,
+        "Key_M", ImGuiKey_M,
+        "Key_N", ImGuiKey_N,
+        "Key_O", ImGuiKey_O,
+        "Key_P", ImGuiKey_P,
+        "Key_Q", ImGuiKey_Q,
+        "Key_R", ImGuiKey_R,
+        "Key_S", ImGuiKey_S,
+        "Key_T", ImGuiKey_T,
+        "Key_U", ImGuiKey_U,
+        "Key_V", ImGuiKey_V,
+        "Key_W", ImGuiKey_W,
+        "Key_X", ImGuiKey_X,
+        "Key_Y", ImGuiKey_Y,
+        "Key_Z", ImGuiKey_Z,
+        "Key_F1", ImGuiKey_F1,
+        "Key_F2", ImGuiKey_F2,
+        "Key_F3", ImGuiKey_F3,
+        "Key_F4", ImGuiKey_F4,
+        "Key_F5", ImGuiKey_F5,
+        "Key_F6", ImGuiKey_F6,
+        "Key_F7", ImGuiKey_F7,
+        "Key_F8", ImGuiKey_F8,
+        "Key_F9", ImGuiKey_F9,
+        "Key_F10", ImGuiKey_F10,
+        "Key_F11", ImGuiKey_F11,
+        "Key_F12", ImGuiKey_F12,
+        "Key_F13", ImGuiKey_F13,
+        "Key_F14", ImGuiKey_F14,
+        "Key_F15", ImGuiKey_F15,
+        "Key_F16", ImGuiKey_F16,
+        "Key_F17", ImGuiKey_F17,
+        "Key_F18", ImGuiKey_F18,
+        "Key_F19", ImGuiKey_F19,
+        "Key_F20", ImGuiKey_F20,
+        "Key_F21", ImGuiKey_F21,
+        "Key_F22", ImGuiKey_F22,
+        "Key_F23", ImGuiKey_F23,
+        "Key_F24", ImGuiKey_F24,
+        "Key_Apostrophe", ImGuiKey_Apostrophe,
+        "Key_Comma", ImGuiKey_Comma,
+        "Key_Minus", ImGuiKey_Minus,
+        "Key_Period", ImGuiKey_Period,
+        "Key_Slash", ImGuiKey_Slash,
+        "Key_Semicolon", ImGuiKey_Semicolon,
+        "Key_Equal", ImGuiKey_Equal,
+        "Key_LeftBracket", ImGuiKey_LeftBracket,
+        "Key_Backslash", ImGuiKey_Backslash,
+        "Key_RightBracket", ImGuiKey_RightBracket,
+        "Key_GraveAccent", ImGuiKey_GraveAccent,
+        "Key_CapsLock", ImGuiKey_CapsLock,
+        "Key_ScrollLock", ImGuiKey_ScrollLock,
+        "Key_NumLock", ImGuiKey_NumLock,
+        "Key_PrintScreen", ImGuiKey_PrintScreen,
+        "Key_Pause", ImGuiKey_Pause,
+        "Key_Keypad0", ImGuiKey_Keypad0,
+        "Key_Keypad1", ImGuiKey_Keypad1,
+        "Key_Keypad2", ImGuiKey_Keypad2,
+        "Key_Keypad3", ImGuiKey_Keypad3,
+        "Key_Keypad4", ImGuiKey_Keypad4,
+        "Key_Keypad5", ImGuiKey_Keypad5,
+        "Key_Keypad6", ImGuiKey_Keypad6,
+        "Key_Keypad7", ImGuiKey_Keypad7,
+        "Key_Keypad8", ImGuiKey_Keypad8,
+        "Key_Keypad9", ImGuiKey_Keypad9,
+        "Key_KeypadDecimal", ImGuiKey_KeypadDecimal,
+        "Key_KeypadDivide", ImGuiKey_KeypadDivide,
+        "Key_KeypadMultiply", ImGuiKey_KeypadMultiply,
+        "Key_KeypadSubtract", ImGuiKey_KeypadSubtract,
+        "Key_KeypadAdd", ImGuiKey_KeypadAdd,
+        "Key_KeypadEnter", ImGuiKey_KeypadEnter,
+        "Key_KeypadEqual", ImGuiKey_KeypadEqual,
+        "Key_AppBack", ImGuiKey_AppBack,
+        "Key_AppForward", ImGuiKey_AppForward,
+        "Key_Oem102", ImGuiKey_Oem102,
+        "Key_GamepadStart", ImGuiKey_GamepadStart,
+        "Key_GamepadBack", ImGuiKey_GamepadBack,
+        "Key_GamepadFaceLeft", ImGuiKey_GamepadFaceLeft,
+        "Key_GamepadFaceRight", ImGuiKey_GamepadFaceRight,
+        "Key_GamepadFaceUp", ImGuiKey_GamepadFaceUp,
+        "Key_GamepadFaceDown", ImGuiKey_GamepadFaceDown,
+        "Key_GamepadDpadLeft", ImGuiKey_GamepadDpadLeft,
+        "Key_GamepadDpadRight", ImGuiKey_GamepadDpadRight,
+        "Key_GamepadDpadUp", ImGuiKey_GamepadDpadUp,
+        "Key_GamepadDpadDown", ImGuiKey_GamepadDpadDown,
+        "Key_GamepadL1", ImGuiKey_GamepadL1,
+        "Key_GamepadR1", ImGuiKey_GamepadR1,
+        "Key_GamepadL2", ImGuiKey_GamepadL2,
+        "Key_GamepadR2", ImGuiKey_GamepadR2,
+        "Key_GamepadL3", ImGuiKey_GamepadL3,
+        "Key_GamepadR3", ImGuiKey_GamepadR3,
+        "Key_GamepadLStickLeft", ImGuiKey_GamepadLStickLeft,
+        "Key_GamepadLStickRight", ImGuiKey_GamepadLStickRight,
+        "Key_GamepadLStickUp", ImGuiKey_GamepadLStickUp,
+        "Key_GamepadLStickDown", ImGuiKey_GamepadLStickDown,
+        "Key_GamepadRStickLeft", ImGuiKey_GamepadRStickLeft,
+        "Key_GamepadRStickRight", ImGuiKey_GamepadRStickRight,
+        "Key_GamepadRStickUp", ImGuiKey_GamepadRStickUp,
+        "Key_GamepadRStickDown", ImGuiKey_GamepadRStickDown,
+        "Key_MouseLeft", ImGuiKey_MouseLeft,
+        "Key_MouseRight", ImGuiKey_MouseRight,
+        "Key_MouseMiddle", ImGuiKey_MouseMiddle,
+        "Key_MouseX1", ImGuiKey_MouseX1,
+        "Key_MouseX2", ImGuiKey_MouseX2,
+        "Key_MouseWheelX", ImGuiKey_MouseWheelX,
+        "Key_MouseWheelY", ImGuiKey_MouseWheelY,
+
+        // Modifiers
+        "Mod_None", ImGuiMod_None,
+        "Mod_Ctrl", ImGuiMod_Ctrl,
+        "Mod_Shift", ImGuiMod_Shift,
+        "Mod_Alt", ImGuiMod_Alt,
+        "Mod_Super", ImGuiMod_Super,
+        "Mod_Mask_", ImGuiMod_Mask_
+    );
+    
+    imgui.new_enum("ImGuiStyleVar",
+        "Alpha", ImGuiStyleVar_Alpha,
+        "DisabledAlpha", ImGuiStyleVar_DisabledAlpha,
+        "WindowPadding", ImGuiStyleVar_WindowPadding,
+        "WindowRounding", ImGuiStyleVar_WindowRounding,
+        "WindowBorderSize", ImGuiStyleVar_WindowBorderSize,
+        "WindowMinSize", ImGuiStyleVar_WindowMinSize,
+        "WindowTitleAlign", ImGuiStyleVar_WindowTitleAlign,
+        "ChildRounding", ImGuiStyleVar_ChildRounding,
+        "ChildBorderSize", ImGuiStyleVar_ChildBorderSize,
+        "PopupRounding", ImGuiStyleVar_PopupRounding,
+        "PopupBorderSize", ImGuiStyleVar_PopupBorderSize,
+        "FramePadding", ImGuiStyleVar_FramePadding,
+        "FrameRounding", ImGuiStyleVar_FrameRounding,
+        "FrameBorderSize", ImGuiStyleVar_FrameBorderSize,
+        "ItemSpacing", ImGuiStyleVar_ItemSpacing,
+        "ItemInnerSpacing", ImGuiStyleVar_ItemInnerSpacing,
+        "IndentSpacing", ImGuiStyleVar_IndentSpacing,
+        "CellPadding", ImGuiStyleVar_CellPadding,
+        "ScrollbarSize", ImGuiStyleVar_ScrollbarSize,
+        "ScrollbarRounding", ImGuiStyleVar_ScrollbarRounding,
+        "GrabMinSize", ImGuiStyleVar_GrabMinSize,
+        "GrabRounding", ImGuiStyleVar_GrabRounding,
+        "ImageBorderSize", ImGuiStyleVar_ImageBorderSize,
+        "TabRounding", ImGuiStyleVar_TabRounding,
+        "TabBorderSize", ImGuiStyleVar_TabBorderSize,
+        "TabBarBorderSize", ImGuiStyleVar_TabBarBorderSize,
+        "TabBarOverlineSize", ImGuiStyleVar_TabBarOverlineSize,
+        "TableAngledHeadersAngle", ImGuiStyleVar_TableAngledHeadersAngle,
+        "TableAngledHeadersTextAlign", ImGuiStyleVar_TableAngledHeadersTextAlign,
+        "ButtonTextAlign", ImGuiStyleVar_ButtonTextAlign,
+        "SelectableTextAlign", ImGuiStyleVar_SelectableTextAlign,
+        "SeparatorTextBorderSize", ImGuiStyleVar_SeparatorTextBorderSize,
+        "SeparatorTextAlign", ImGuiStyleVar_SeparatorTextAlign,
+        "SeparatorTextPadding", ImGuiStyleVar_SeparatorTextPadding
+    );
+
+    imgui.new_usertype<ImDrawList>("ImDrawList", 
+        "push_clip_rect", [](ImDrawList* draw_list, sol::object min, sol::object max, bool intersect_with_current_clip_rect) {
+            draw_list->PushClipRect(::api::imgui::create_imvec2(min), ::api::imgui::create_imvec2(max), intersect_with_current_clip_rect);
+        },
+        "push_clip_rect_fullscreen", &ImDrawList::PushClipRectFullScreen,
+        "pop_clip_rect", &ImDrawList::PopClipRect,
+
+        "add_line", [](ImDrawList* draw_list, sol::object p1, sol::object p2, uint32_t col, float thickness) {
+            draw_list->AddLine(::api::imgui::create_imvec2(p1), ::api::imgui::create_imvec2(p2), col, thickness);
+        },
+        "add_rect", [](ImDrawList* draw_list, sol::object min, sol::object max, uint32_t col, float rounding, ImDrawFlags flags, float thickness) {
+            draw_list->AddRect(::api::imgui::create_imvec2(min), ::api::imgui::create_imvec2(max), col, rounding, flags, thickness);
+        },
+        "add_rect_filled", [](ImDrawList* draw_list, sol::object min, sol::object max, uint32_t col, float rounding, ImDrawFlags flags) {
+            draw_list->AddRectFilled(::api::imgui::create_imvec2(min), ::api::imgui::create_imvec2(max), col, rounding, flags);
+        },
+        "add_rect_filled_multi_color", [](ImDrawList* draw_list, sol::object min, sol::object max, uint32_t col_upr_left, uint32_t col_upr_right,
+            uint32_t col_bot_right, uint32_t col_bot_left) {
+            draw_list->AddRectFilledMultiColor(::api::imgui::create_imvec2(min), ::api::imgui::create_imvec2(max), col_upr_left, col_upr_right, col_bot_right, col_bot_left);
+        },
+        "add_quad", [](ImDrawList* draw_list, sol::object p1, sol::object p2, sol::object p3, sol::object p4, uint32_t col, float thickness) {
+            draw_list->AddQuad(::api::imgui::create_imvec2(p1), ::api::imgui::create_imvec2(p2), ::api::imgui::create_imvec2(p3), ::api::imgui::create_imvec2(p4), col, thickness);
+        },
+        "add_quad_filled", [](ImDrawList* draw_list, sol::object p1, sol::object p2, sol::object p3, sol::object p4, uint32_t col) {
+            draw_list->AddQuadFilled(::api::imgui::create_imvec2(p1), ::api::imgui::create_imvec2(p2), ::api::imgui::create_imvec2(p3), ::api::imgui::create_imvec2(p4), col);
+        },
+        "add_triangle", [](ImDrawList* draw_list, sol::object p1, sol::object p2, sol::object p3, uint32_t col, float thickness) {
+            draw_list->AddTriangle(::api::imgui::create_imvec2(p1), ::api::imgui::create_imvec2(p2), ::api::imgui::create_imvec2(p3), col, thickness);
+        },
+        "add_triangle_filled", [](ImDrawList* draw_list, sol::object p1, sol::object p2, sol::object p3, uint32_t col) {
+            draw_list->AddTriangleFilled(::api::imgui::create_imvec2(p1), ::api::imgui::create_imvec2(p2), ::api::imgui::create_imvec2(p3), col);
+        },
+        "add_circle", [](ImDrawList* draw_list, sol::object center, float radius, uint32_t col, int num_segments, float thickness) {
+            draw_list->AddCircle(::api::imgui::create_imvec2(center), radius, col, num_segments, thickness);
+        },
+        "add_circle_filled", [](ImDrawList* draw_list, sol::object center, float radius, uint32_t col, int num_segments) {
+            draw_list->AddCircleFilled(::api::imgui::create_imvec2(center), radius, col, num_segments);
+        },
+        "add_ngon", [](ImDrawList* draw_list, sol::object center, float radius, uint32_t col, int num_segments, float thickness) {
+            draw_list->AddNgon(::api::imgui::create_imvec2(center), radius, col, num_segments, thickness);
+        },
+        "add_ngon_filled", [](ImDrawList* draw_list, sol::object center, float radius, uint32_t col, int num_segments) {
+            draw_list->AddNgonFilled(::api::imgui::create_imvec2(center), radius, col, num_segments);
+        },
+        "add_ellipse", [](ImDrawList* draw_list, sol::object center, sol::object radius, uint32_t col, float rot, int num_segments, float thickness) {
+            draw_list->AddEllipse(::api::imgui::create_imvec2(center), ::api::imgui::create_imvec2(radius), col, num_segments, rot, thickness);
+        },
+        "add_ellipse_filled", [](ImDrawList* draw_list, sol::object center, sol::object radius, uint32_t col, float rot, int num_segments) {
+            draw_list->AddEllipseFilled(::api::imgui::create_imvec2(center), ::api::imgui::create_imvec2(radius), col, rot, num_segments);
+        },
+        "add_text", [](ImDrawList* draw_list, sol::object pos, uint32_t col, const std::string& text) {
+            draw_list->AddText(::api::imgui::create_imvec2(pos), col, text.c_str());
+        },
+        "add_bezier_cubic", [](ImDrawList* draw_list, sol::object p1, sol::object p2, sol::object p3, sol::object p4, uint32_t col, float thickness) {
+            draw_list->AddBezierCubic(::api::imgui::create_imvec2(p1), ::api::imgui::create_imvec2(p2), ::api::imgui::create_imvec2(p3), ::api::imgui::create_imvec2(p4), col, thickness);
+        },
+        "add_bezier_quadratic", [](ImDrawList* draw_list, sol::object p1, sol::object p2, sol::object p3, uint32_t col, float thickness) {
+            draw_list->AddBezierQuadratic(::api::imgui::create_imvec2(p1), ::api::imgui::create_imvec2(p2), ::api::imgui::create_imvec2(p3), col, thickness);
+        },
+
+        // Path APIs
+        "path_clear", &ImDrawList::PathClear, 
+        "path_line_to", [](ImDrawList* draw_list, sol::object pos) { draw_list->PathLineTo(::api::imgui::create_imvec2(pos)); }, 
+        "path_line_to_merge_duplicate", [](ImDrawList* draw_list, sol::object pos) {
+            draw_list->PathLineToMergeDuplicate(::api::imgui::create_imvec2(pos));
+        }, 
+        "path_fill_convex", &ImDrawList::PathFillConvex,
+        "path_fill_concave", &ImDrawList::PathFillConcave,
+        "path_stroke", [](ImDrawList* draw_list, uint32_t col, ImDrawFlags flags, float thickness) {
+            draw_list->PathStroke(col, flags, thickness);
+        },
+        "path_arc_to", [](ImDrawList* draw_list, sol::object center, float radius, float a_min, float a_max, int num_segments) {
+            draw_list->PathArcTo(::api::imgui::create_imvec2(center), radius, a_min, a_max, num_segments);
+        },
+        "path_arc_to_fast",
+        [](ImDrawList* draw_list, sol::object center, float radius, int a_min_of_12, int a_max_of_12) {
+            draw_list->PathArcToFast(::api::imgui::create_imvec2(center), radius, a_min_of_12, a_max_of_12);
+        },
+        "path_elliptical_arc_to", [](ImDrawList* draw_list, sol::object center, sol::object radius, float a_min, float a_max, int num_segments) {
+            draw_list->PathEllipticalArcTo(::api::imgui::create_imvec2(center), ::api::imgui::create_imvec2(radius), a_min, a_max, num_segments);
+        },
+        "path_bezier_cubic_curve_to", [](ImDrawList* draw_list, sol::object p2, sol::object p3, sol::object p4, int num_segments) {
+            draw_list->PathBezierCubicCurveTo(::api::imgui::create_imvec2(p2), ::api::imgui::create_imvec2(p3), ::api::imgui::create_imvec2(p4), num_segments);
+        },
+        "path_bezier_quadratic_curve_to", [](ImDrawList* draw_list, sol::object p2, sol::object p3, int num_segments) {
+            draw_list->PathBezierQuadraticCurveTo(::api::imgui::create_imvec2(p2), ::api::imgui::create_imvec2(p3), num_segments);
+        },
+        "path_rect", [](ImDrawList* draw_list, sol::object min, sol::object max, float rounding, ImDrawFlags flags) {
+            draw_list->PathRect(::api::imgui::create_imvec2(min), ::api::imgui::create_imvec2(max), rounding, flags);
+        }
+    );
+
     lua["imgui"] = imgui;
 
     auto imguizmo = lua.create_table();
@@ -2313,7 +2622,7 @@ void bindings::open_imgui(ScriptState* s) {
     imnodes["editor_move_to_node"] = &ImNodes::EditorContextMoveToNode;
     imnodes["editor_reset_panning"] = &api::imnodes::editor_reset_panning;
     imnodes["editor_get_panning"] = &api::imnodes::editor_get_panning;
-
+    
     imnodes["is_link_started"] = &api::imnodes::is_link_started;
     imnodes["is_link_dropped"] = &api::imnodes::is_link_dropped;
     imnodes["is_link_created"] = &api::imnodes::is_link_created;

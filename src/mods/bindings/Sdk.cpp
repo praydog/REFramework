@@ -6,6 +6,7 @@
 #include "HookManager.hpp"
 #include "sdk/REContext.hpp"
 #include "sdk/REManagedObject.hpp"
+#include "sdk/REDelegate.hpp"
 #include "sdk/RETypeDB.hpp"
 #include "sdk/SceneManager.hpp"
 #include "sdk/ResourceManager.hpp"
@@ -324,6 +325,35 @@ int sol_lua_push(sol::types<T*>, lua_State* l, T* obj) {
     return sol::stack::push(l, sol::nil);
 }
 
+namespace api::delegate {
+void add_lua_delegate(sol::this_state s, ::sdk::Delegate* delegate, uint32_t index, sol::protected_function callback) {
+    if (index >= delegate->num_methods) {
+        throw sol::error("Delegate index out of bounds");
+    }
+
+    auto& invo = delegate->methods[index];
+    auto sol_state = sol::state_view{s};
+    auto state = sol_state.registry()["state"].get<ScriptState*>();
+
+    state->add_delegate_callback(invo, callback);
+}
+
+// newindex
+void new_index(sol::this_state s, ::sdk::Delegate* delegate, sol::object lua_obj, sol::variadic_args args) {
+    if (lua_obj.is<uint32_t>()) {
+        auto index = lua_obj.as<uint32_t>();
+
+        if (args[0].is<sol::protected_function>()) {
+            auto callback = args[0].get<sol::protected_function>();
+
+            add_lua_delegate(s, delegate, index, callback);
+        } else {
+            throw sol::error("Delegate callback must be a function");
+        }
+    }
+}
+}
+
 namespace api::sdk {
 std::vector<void*>& build_args(sol::variadic_args va);
 sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_type, bool from_method);
@@ -583,6 +613,36 @@ sol::object create_managed_array(sol::this_state s, sol::object t_obj, uint32_t 
     return sol::make_object(s, (::sdk::SystemArray*)out);
 }
 
+sol::object create_delegate(sol::this_state s, sol::object t_obj, uint32_t num_methods) {
+    ::REManagedObject* t{nullptr};
+
+    if (t_obj.is<::REManagedObject*>()) {
+        t = t_obj.as<::REManagedObject*>();
+    } else if (t_obj.is<::sdk::RETypeDefinition*>()) {
+        t = t_obj.as<::sdk::RETypeDefinition*>()->get_runtime_type();
+    } else if (t_obj.is<const char*>()) {
+        const auto tdef = ::sdk::find_type_definition(t_obj.as<const char*>());
+
+        if (tdef != nullptr) {
+            t = tdef->get_runtime_type();
+        }
+    } else {
+        throw sol::error("Invalid type passed to create_delegate. Must be a runtime type, a type definition, or a type name.");
+    }
+
+    if (t == nullptr) {
+        throw sol::error("Type passed to create_delegate resolved to null.");
+    }
+
+    auto out = ::sdk::VM::create_delegate(t, num_methods);
+
+    if (out == nullptr) {
+        return sol::make_object(s, sol::nil);
+    }
+
+    return sol::make_object(s, out);
+}
+
 sol::object create_sbyte(sol::this_state s, int8_t value) {
     auto new_obj = ::sdk::VM::create_sbyte(value);
 
@@ -737,6 +797,34 @@ sol::object create_instance(sol::this_state s, const char* name, sol::object sim
     }
 
     return sol::make_object(s, type_definition->create_instance_full(simplify));
+}
+
+bool copy_to_clipboard(sol::this_state s, const char* text) {
+    if (text == nullptr) {
+        return false;
+    }
+
+    if (OpenClipboard(nullptr)) {
+        EmptyClipboard();
+
+        size_t len = strlen(text) + 1;
+        HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, len);
+
+        if (hMem) {
+            memcpy(GlobalLock(hMem), text, len);
+            GlobalUnlock(hMem);
+
+            SetClipboardData(CF_TEXT, hMem);
+        } else {
+            return false;
+        }
+
+        CloseClipboard();
+    } else {
+        return false;
+    }
+
+    return true;
 }
 
 void* get_real_obj(sol::object obj) {
@@ -1014,13 +1102,22 @@ void set_data(void* data, ::sdk::RETypeDefinition* data_type, sol::object& value
                 }
 
                 REManagedObject** field = (REManagedObject**) data;
-                if (field != nullptr && *field != nullptr) {
-                    utility::re_managed_object::release(*field);
+                if (field != nullptr && *field != new_data) {
+                    if (new_data != nullptr) {
+                        utility::re_managed_object::add_ref(new_data);
+                    }
+
+                    // Use a thread-safe atomic exchange. This is what Capcom does for all field assignments.
+                    auto old = *field;
+                    while (_InterlockedCompareExchangePointer((PVOID*)field, new_data, old) != old) {
+                        old = *field;
+                    }
+
+                    if (old != nullptr) {
+                        utility::re_managed_object::release(old);
+                    }
                 }
-                if (new_data != nullptr) {
-                    utility::re_managed_object::add_ref(new_data);
-                }
-                *(REManagedObject**) data = new_data;
+
                 return;
             }
         }
@@ -1398,6 +1495,7 @@ void bindings::open_sdk(ScriptState* s) {
     sdk["get_managed_singleton"] = api::sdk::get_managed_singleton;
     sdk["create_managed_string"] = api::sdk::create_managed_string;
     sdk["create_managed_array"] = api::sdk::create_managed_array;
+    sdk["create_delegate"] = api::sdk::create_delegate;
     sdk["create_sbyte"] = api::sdk::create_sbyte;
     sdk["create_byte"] = api::sdk::create_byte;
     sdk["create_int16"] = api::sdk::create_int16;
@@ -1418,6 +1516,7 @@ void bindings::open_sdk(ScriptState* s) {
     sdk["get_native_field"] = api::sdk::get_native_field;
     sdk["set_native_field"] = api::sdk::set_native_field;
     sdk["get_primary_camera"] = api::sdk::get_primary_camera;
+    sdk["copy_to_clipboard"] = api::sdk::copy_to_clipboard;
     sdk["hook"] = api::sdk::hook;
     sdk["hook_vtable"] = api::sdk::hook_vtable;
     sdk.new_enum("PreHookResult", "CALL_ORIGINAL", HookManager::PreHookResult::CALL_ORIGINAL, "SKIP_ORIGINAL", HookManager::PreHookResult::SKIP_ORIGINAL);
@@ -1570,7 +1669,9 @@ void bindings::open_sdk(ScriptState* s) {
 
             return false;
         },
-        "create_instance", &::sdk::RETypeDefinition::create_instance_full);
+        "create_instance", &::sdk::RETypeDefinition::create_instance_full,
+        "get_types_inheriting_from_this", &::sdk::RETypeDefinition::get_types_inherting_from_this
+    );
 
     auto method_call = [](sdk::REMethodDefinition* def, sol::object obj, sol::variadic_args va) {
         auto l = va.lua_state();
@@ -1771,6 +1872,14 @@ void bindings::open_sdk(ScriptState* s) {
         "set_rotation", &sdk::set_transform_rotation,
         "get_position", &sdk::get_transform_position,
         "get_rotation", &sdk::get_transform_rotation,
+        "hook_update", [](sol::this_state s, RETransform* transform, sol::protected_function fn) {
+            if (transform == nullptr) {
+                return;
+            }
+            auto sol_state = sol::state_view{s};
+            auto state = sol_state.registry()["state"].get<ScriptState*>();
+            state->add_update_transform(transform, fn);
+        },
         sol::base_classes, sol::bases<::REComponent, ::REManagedObject>()
     );
 
@@ -1818,6 +1927,15 @@ void bindings::open_sdk(ScriptState* s) {
     );
 
     create_managed_object_ptr_gc((sdk::SystemArray*)nullptr);
+
+    lua.new_usertype<sdk::Delegate>("Delegate",
+        "add", &api::delegate::add_lua_delegate,
+        "invoke", &sdk::Delegate::invoke,
+        sol::meta_function::new_index, &api::delegate::new_index,
+        sol::base_classes, sol::bases<::REManagedObject>()
+    );
+
+    create_managed_object_ptr_gc((sdk::Delegate*)nullptr);
     
     lua.new_usertype<api::sdk::ValueType>("ValueType",
         sol::meta_function::construct, sol::constructors<api::sdk::ValueType(sdk::RETypeDefinition*)>(),

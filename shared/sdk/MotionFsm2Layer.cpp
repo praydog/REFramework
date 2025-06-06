@@ -325,7 +325,7 @@ void BehaviorTree::set_current_node(sdk::behaviortree::TreeNode* node, uint32_t 
     method->call(sdk::get_thread_context(), this, node->get_id(), tree_idx, set_node_info);
 }
 
-bool is_delayed() {
+bool TreeObject::is_delayed() const {
     #if TDB_VER >= 69
     static auto bhvt_manager = sdk::get_native_singleton("via.behaviortree.BehaviorTreeManager");
     static auto bhvt_manager_t = sdk::find_type_definition("via.behaviortree.BehaviorTreeManager");
@@ -333,6 +333,15 @@ bool is_delayed() {
     static auto is_delay_setup_objects_prop = utility::re_type::get_field_desc(bhvt_manager_retype, "DelaySetupObjects");
 
     const auto is_delay_setup_objects = utility::re_managed_object::get_field<bool>((::REManagedObject*)bhvt_manager, is_delay_setup_objects_prop);
+
+    if (!is_delay_setup_objects) {
+        // For some reason this can happen
+        if (this->actions.count == 0 && this->conditions.count == 0 && this->transitions.count == 0) {
+            if (this->delayed_actions.count > 0 || this->delayed_conditions.count > 0 || this->delayed_transitions.count > 0) {
+                return true;
+            }
+        }
+    }
 #else
     const auto is_delay_setup_objects = false;
 #endif

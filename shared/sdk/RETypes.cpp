@@ -326,7 +326,9 @@ void RETypes::refresh_map() {
         m_type_map[name] = t;
 
         if (m_types.count(t) == 0) {
-            spdlog::info("{:s}", name);
+            if (i < 100) {
+                spdlog::info("{:s}", name);
+            }
             m_types.insert(t);
             m_type_list.push_back(t);
         }

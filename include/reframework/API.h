@@ -7,7 +7,7 @@
 #endif
 
 #define REFRAMEWORK_PLUGIN_VERSION_MAJOR 1
-#define REFRAMEWORK_PLUGIN_VERSION_MINOR 10
+#define REFRAMEWORK_PLUGIN_VERSION_MINOR 15
 #define REFRAMEWORK_PLUGIN_VERSION_PATCH 0
 
 #define REFRAMEWORK_RENDERER_D3D11 0
@@ -34,6 +34,7 @@ typedef void (*REFOnPreApplicationEntryCb)();
 typedef void (*REFOnPostApplicationEntryCb)();
 typedef void (*REFOnDeviceResetCb)();
 typedef bool (*REFOnMessageCb)(void*, unsigned int, unsigned long long, long long);
+typedef bool (*REFOnPreGuiDrawElementCb)(void*, void*);
 
 typedef struct {
     void* context;
@@ -59,6 +60,7 @@ typedef bool (*REFOnMessageFn)(REFOnMessageCb);
 
 typedef bool (*REFOnImGuiFrameFn)(REFOnImGuiFrameCb);
 typedef bool (*REFOnImGuiDrawUIFn)(REFOnImGuiDrawUICb);
+typedef bool (*REFOnPreGuiDrawElementFn)(REFOnPreGuiDrawElementCb);
 
 typedef struct {
     int major;
@@ -88,6 +90,7 @@ typedef struct {
 
     REFOnImGuiFrameFn on_imgui_frame;
     REFOnImGuiDrawUIFn on_imgui_draw_ui;
+    REFOnPreGuiDrawElementFn on_pre_gui_draw_element;
 } REFrameworkPluginFunctions;
 
 typedef struct {
@@ -114,6 +117,7 @@ DECLARE_REFRAMEWORK_HANDLE(REFrameworkVMContextHandle);
 DECLARE_REFRAMEWORK_HANDLE(REFrameworkTypeInfoHandle); /* NOT a type definition */
 DECLARE_REFRAMEWORK_HANDLE(REFrameworkReflectionPropertyHandle); /* NOT a TDB property */
 DECLARE_REFRAMEWORK_HANDLE(REFrameworkReflectionMethodHandle); /* NOT a TDB method */
+DECLARE_REFRAMEWORK_HANDLE(REFrameworkModuleHandle);
 
 #define REFRAMEWORK_CREATE_INSTANCE_FLAGS_NONE 0
 #define REFRAMEWORK_CREATE_INSTANCE_FLAGS_SIMPLIFY 1
@@ -283,6 +287,9 @@ typedef struct {
     REFrameworkFieldHandle (*get_field)(REFrameworkTDBHandle, unsigned int index);
     REFrameworkFieldHandle (*find_field)(REFrameworkTDBHandle, const char* type_name, const char* name);
     REFrameworkPropertyHandle (*get_property)(REFrameworkTDBHandle, unsigned int index);
+
+    REFrameworkModuleHandle (*get_module)(REFrameworkTDBHandle, unsigned int index);
+    unsigned int (*get_num_modules)(REFrameworkTDBHandle);
 } REFrameworkTDB;
 
 typedef struct {
@@ -359,6 +366,25 @@ typedef struct {
     unsigned int (*get_size)(REFrameworkReflectionPropertyHandle);
 } REFrameworkReflectionProperty;
 
+typedef struct {
+    unsigned short (*get_major)(REFrameworkModuleHandle);
+    unsigned short (*get_minor)(REFrameworkModuleHandle);
+    unsigned short (*get_build)(REFrameworkModuleHandle);
+    unsigned short (*get_revision)(REFrameworkModuleHandle);
+    const char* (*get_assembly_name)(REFrameworkModuleHandle);
+    const char* (*get_location)(REFrameworkModuleHandle);
+    const char* (*get_module_name)(REFrameworkModuleHandle);
+
+    unsigned int (*get_num_types)(REFrameworkModuleHandle);
+    unsigned int* (*get_types)(REFrameworkModuleHandle);
+    unsigned int (*get_num_methods)(REFrameworkModuleHandle);
+    unsigned int* (*get_methods)(REFrameworkModuleHandle);
+    unsigned int (*get_num_instantiated_methods)(REFrameworkModuleHandle);
+    unsigned int* (*get_instantiated_methods)(REFrameworkModuleHandle);
+    unsigned int (*get_num_member_references)(REFrameworkModuleHandle);
+    unsigned int* (*get_member_references)(REFrameworkModuleHandle);
+} REFrameworkModule;
+
 typedef int (*REFPreHookFn)(int argc, void** argv, REFrameworkTypeDefinitionHandle* arg_tys, unsigned long long ret_addr);
 typedef void (*REFPostHookFn)(void** ret_val, REFrameworkTypeDefinitionHandle ret_ty, unsigned long long ret_addr);
 
@@ -384,6 +410,8 @@ typedef struct {
 
     void* (*allocate)(unsigned long long size);
     void (*deallocate)(void*);
+
+    REFrameworkManagedObjectHandle (*create_managed_array)(REFrameworkTypeDefinitionHandle, unsigned int size);
 } REFrameworkSDKFunctions;
 
 /* these are NOT pointers to the actual objects */
@@ -403,6 +431,7 @@ typedef struct {
     const REFrameworkVMContext* vm_context;
     const REFrameworkReflectionMethod* reflection_method; /* NOT a TDB method */
     const REFrameworkReflectionProperty* reflection_property; /* NOT a TDB property */
+    const REFrameworkModule* module;
 } REFrameworkSDKData;
 
 typedef struct {

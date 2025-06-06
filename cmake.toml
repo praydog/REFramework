@@ -5,6 +5,7 @@
 [project]
 name = "reframework"
 cmake-after = """
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MP")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
 
@@ -33,7 +34,7 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 """
 
 [options]
-DEVELOPER_MODE = { value = true, comment = "Enable developer mode" }
+DEVELOPER_MODE = { value = true }
 REF_BUILD_RE2_SDK = false
 REF_BUILD_RE2_TDB66SDK = false
 REF_BUILD_RE3_SDK = false
@@ -47,11 +48,11 @@ REF_BUILD_MHRISE_SDK = false
 REF_BUILD_SF6_SDK = false
 REF_BUILD_DD2_SDK = false
 REF_BUILD_MHWILDS_SDK = false
-REF_BUILD_FRAMEWORK = { value = true, comment = "Enable building the full REFramework" }
-REF_BUILD_DEPENDENCIES = { value = true, comment = "Enable building dependencies" }
+REF_BUILD_FRAMEWORK = { value = true }
+REF_BUILD_DEPENDENCIES = { value = true }
 
 [conditions]
-developer-mode = "DEVELOPER_MODE"
+developer-mode-cond = "DEVELOPER_MODE"
 build-framework = "REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8"
 build-re2-sdk = "REF_BUILD_RE2_SDK OR REF_BUILD_FRAMEWORK"
 build-re2tdb66-sdk = "REF_BUILD_RE2_TDB66SDK OR REF_BUILD_FRAMEWORK"
@@ -91,7 +92,7 @@ tag = "f5026eb34e7053b1aff325d38db107703f394974"
 
 [fetch-content.directxtk12]
 git = "https://github.com/microsoft/DirectXTK12"
-tag = "528801aa6dd8d628c2f756c41a76d300f47de478"
+tag = "be5dfc7e391aefaa4eeab8e8a08f7e2669e56cbb"
 
 [target.spdlog]
 cmake-after="""
@@ -186,7 +187,7 @@ tag = "v1.34.10"
 
 [fetch-content.kananlib]
 git = "https://github.com/cursey/kananlib"
-tag = "61a04d4219e3cb81b524a6990d3924289982bbf6"
+tag = "d659e3b8312e26ba19329f96b73ba88d1211bfdb"
 
 [target.utility]
 type = "static"
@@ -226,7 +227,7 @@ link-directories = ["dependencies/openvr/lib/win64/"]
 compile-options = ["/GS-", "/bigobj", "/EHa"]
 compile-features = ["cxx_std_23"]
 compile-definitions = ["${CMKR_TARGET}", "REFRAMEWORK_EXPORTS", "REFRAMEWORK_GAME_NAME=\"${CMKR_TARGET}\""]
-developer-mode.compile-definitions = ["DEVELOPER"]
+developer-mode-cond.compile-definitions = ["DEVELOPER"]
 link-libraries = [
     "${CMKR_TARGET}SDK",
     "utility",
@@ -249,6 +250,8 @@ link-libraries = [
     "DirectXTK12",
     "pdperfmod"
 ]
+cmake-before="""
+"""
 cmake-after="""
 add_custom_command(
     TARGET ${CMKR_TARGET} PRE_BUILD

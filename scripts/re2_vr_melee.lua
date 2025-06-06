@@ -23,9 +23,6 @@ local function get_gameobject(component)
     return component:call("get_GameObject")
 end
 
-local camera = sdk.get_primary_camera()
-local camera_gameobject = camera:call("get_GameObject")
-
 local melee_type = sdk.find_type_definition(sdk.game_namespace("implement.Melee"))
 
 local function is_weapon_melee(weapon)

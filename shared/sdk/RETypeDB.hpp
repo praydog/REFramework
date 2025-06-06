@@ -28,6 +28,7 @@ struct REMethodImpl;
 struct REProperty;
 struct REPropertyImpl;
 struct REParameterDef;
+struct REModule;
 
 reframework::InvokeRet invoke_object_func(void* obj, sdk::RETypeDefinition* t, std::string_view name, const std::vector<void*>& args);
 reframework::InvokeRet invoke_object_func(::REManagedObject* obj, std::string_view name, const std::vector<void*>& args);
@@ -96,6 +97,7 @@ struct REProperty;
 struct RETypeImpl;
 struct REPropertyImpl;
 struct REParameterDef;
+struct REModule;
 
 struct TDB {
     uint32_t magic;                             
@@ -127,8 +129,7 @@ struct TDB {
 
     uint32_t padding;
 
-//
-    void* modules;                              
+    sdk::REModule* modules;                           
     sdk::RETypeDefinition (*types)[93788];      
     sdk::RETypeImpl (*typesImpl)[256];          
     sdk::REMethodDefinition (*methods)[703558]; 
@@ -147,6 +148,31 @@ struct TDB {
     uint8_t (*bytePool)[256];                   
     int32_t (*internStrings)[14154];            
 };
+
+struct REModule {
+    uint32_t guid[4];
+    int32_t unk1;
+    uint32_t unk2;
+    uint16_t major;
+    uint16_t minor;
+    uint16_t build;
+    uint16_t revision;
+    uint32_t flags;
+    int32_t assembly_name_offset; // string
+    int32_t location_offset; // string
+    uint32_t unk3;
+    uint32_t module_name_offset; // string
+    uint32_t unk4;
+    int32_t types_count;
+    int32_t types_start;
+    int32_t methods_count;
+    int32_t methods_start;
+    int32_t method_instantiations_count;
+    int32_t method_instantiations_start;
+    int32_t member_references_count;
+    int32_t member_references_start;
+};
+static_assert(sizeof(REModule) == 0x58);
 
 #pragma pack(push, 4)
 struct REParameterDef {
@@ -271,7 +297,7 @@ struct TDB {
     int32_t appEntry;                           // 0x004C
     uint32_t numStringPool;                     // 0x0050
     uint32_t numBytePool;                       // 0x0054
-    void* modules;                              // 0x0058
+    sdk::REModule* modules;                     // 0x0058
     sdk::RETypeDefinition (*types)[93788];      // 0x0060
     sdk::RETypeImpl (*typesImpl)[256];          // 0x0068
     sdk::REMethodDefinition (*methods)[703558]; // 0x0070
@@ -414,7 +440,7 @@ struct TDB {
     int32_t appEntry;                           // 0x004C
     uint32_t numStringPool;                     // 0x0050
     uint32_t numBytePool;                       // 0x0054
-    void* modules;                              // 0x0058
+    sdk::REModule* modules;                     // 0x0058
     sdk::RETypeDefinition (*types)[93788];      // 0x0060
     sdk::RETypeImpl (*typesImpl)[256];          // 0x0068
     sdk::REMethodDefinition (*methods)[703558]; // 0x0070
@@ -548,7 +574,7 @@ struct TDB {
     int32_t appEntry;                           // 0x004C
     uint32_t numStringPool;                     // 0x0050
     uint32_t numBytePool;                       // 0x0054
-    void* modules;                              // 0x0058
+    sdk::REModule* modules;                     // 0x0058
     sdk::RETypeDefinition (*types)[93788];      // 0x0060
     sdk::RETypeImpl (*typesImpl)[256];          // 0x0068
     sdk::REMethodDefinition (*methods)[703558]; // 0x0070
@@ -603,7 +629,7 @@ struct TDB {
     int32_t appEntry;                           // 0x004C
     uint32_t numStringPool;                     // 0x0050
     uint32_t numBytePool;                       // 0x0054
-    void* modules;                              // 0x0058
+    sdk::REModule* modules;                     // 0x0058
     sdk::RETypeDefinition (*types)[93788];      // 0x0060
     sdk::RETypeImpl (*typesImpl)[256];          // 0x0068
     sdk::REMethodDefinition (*methods)[703558]; // 0x0070
@@ -730,7 +756,7 @@ struct TDB {
     uint32_t appEntry;                          // 0x003C
     uint32_t numStringPool;                     // 0x0040
     uint32_t numBytePool;                       // 0x0044
-    class N00002524 (*modules)[256];            // 0x0048
+    sdk::REModule* modules;                     // 0x0048
     sdk::RETypeDefinition (*types)[81728];      // 0x0050
     sdk::REMethodDefinition (*methods)[556344]; // 0x0058
     sdk::REField (*fields)[122496];             // 0x0060
@@ -816,7 +842,7 @@ struct TDB {
     uint32_t appEntry;                          // 0x003C
     uint32_t numStringPool;                     // 0x0040
     uint32_t numBytePool;                       // 0x0044
-    class N00002524 (*modules)[256];            // 0x0048
+    sdk::REModule* modules;                     // 0x0048
     sdk::RETypeDefinition (*types)[81728];      // 0x0050
     sdk::REMethodDefinition (*methods)[556344]; // 0x0058
     sdk::REField (*fields)[122496];             // 0x0060
@@ -958,7 +984,7 @@ struct TDB {
     uint32_t appEntry; // 0x2c
     uint32_t numStringPool; // 0x30
     uint32_t numBytePool; // 0x34
-    void* modules; // 0x38
+    sdk::REModule* modules; // 0x38
     sdk::RETypeDefinition (*types)[1]; // 0x40
     sdk::REMethodDefinition (*methods)[1]; // 0x48
     sdk::REField (*fields)[1]; // 0x50
@@ -970,6 +996,9 @@ struct TDB {
 };
 #pragma pack(pop)
 }
+
+// TODO?
+struct REModule_ : public sdk::tdb74::REModule {};
 
 #if TDB_VER >= 74
 struct RETypeDB_ : public sdk::tdb74::TDB {};
@@ -1059,12 +1088,18 @@ namespace sdk {
 struct RETypeDB : public sdk::RETypeDB_ {
     static RETypeDB* get();
 
+    sdk::REModule* get_module(uint32_t index) const;
+
     sdk::RETypeDefinition* find_type(std::string_view name) const;
     sdk::RETypeDefinition* find_type_by_fqn(uint32_t fqn) const;
     sdk::RETypeDefinition* get_type(uint32_t index) const;
     sdk::REMethodDefinition* get_method(uint32_t index) const;
     sdk::REField* get_field(uint32_t index) const;
     sdk::REProperty* get_property(uint32_t index) const;
+
+    uint32_t get_num_modules() const {
+        return numModules;
+    }
 
     uint32_t get_num_types() const {
         return this->numTypes;
@@ -1158,6 +1193,32 @@ struct RETypeDB : public sdk::RETypeDB_ {
 } // namespace sdk
 
 namespace sdk {
+struct REModule : public sdk::REModule_ {
+    uint16_t get_major() const {
+        return this->major;
+    }
+
+    uint16_t get_minor() const {
+        return this->minor;
+    }
+
+    uint16_t get_build() const {
+        return this->build;
+    }
+
+    uint16_t get_revision() const {
+        return this->revision;
+    }
+
+    const char* get_assembly_name() const;
+    const char* get_location() const;
+    const char* get_module_name() const;
+    std::span<uint32_t> get_types() const;
+    std::span<uint32_t> get_methods() const;
+    std::span<uint32_t> get_instantiated_methods() const;
+    std::span<uint32_t> get_member_references() const;
+};
+
 struct REField : public sdk::REField_ {
     sdk::RETypeDefinition* get_declaring_type() const;
     sdk::RETypeDefinition* get_type() const;

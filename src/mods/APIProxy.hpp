@@ -22,6 +22,7 @@ public:
     void on_pre_application_entry(void* entry, const char* name, size_t hash) override;
     void on_application_entry(void* entry, const char* name, size_t hash) override;
     void on_device_reset() override;
+    bool on_pre_gui_draw_element(REComponent* gui_element, void* primitive_context) override;
     bool on_message(HWND wnd, UINT message, WPARAM w_param, LPARAM l_param) override;
 
 public:
@@ -34,6 +35,7 @@ public:
     using REFOnMessageCb = std::function<std::remove_pointer<::REFOnMessageCb>::type>;
     using REFOnImGuiFrameCb = std::function<std::remove_pointer<::REFOnImGuiFrameCb>::type>;
     using REFOnImGuiDrawUICb = std::function<std::remove_pointer<::REFOnImGuiDrawUICb>::type>;
+    using REFOnPreGuiDrawElementCb = std::function<std::remove_pointer<::REFOnPreGuiDrawElementCb>::type>;
 
     bool add_on_lua_state_created(REFLuaStateCreatedCb cb);
     bool add_on_lua_state_destroyed(REFLuaStateDestroyedCb cb);
@@ -44,6 +46,7 @@ public:
     bool add_on_message(REFOnMessageCb cb);
     bool add_on_imgui_frame(REFOnImGuiFrameCb cb);
     bool add_on_imgui_draw_ui(REFOnImGuiDrawUICb cb);
+    bool add_on_pre_gui_draw_element(REFOnPreGuiDrawElementCb cb);
 
 private:
     // API Callbacks
@@ -55,6 +58,7 @@ private:
     std::vector<APIProxy::REFOnMessageCb> m_on_message_cbs{};
     std::vector<APIProxy::REFOnImGuiFrameCb> m_on_imgui_frame_cbs{};
     std::vector<APIProxy::REFOnImGuiDrawUICb> m_on_imgui_draw_ui_cbs{};
+    std::vector<APIProxy::REFOnPreGuiDrawElementCb> m_on_pre_gui_draw_element_cbs{};
 
     // Application Entry Callbacks
     std::unordered_map<size_t, std::vector<APIProxy::REFOnPreApplicationEntryCb>> m_on_pre_application_entry_cbs{};

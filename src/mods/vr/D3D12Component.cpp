@@ -345,7 +345,7 @@ void D3D12Component::on_reset(VR* vr) {
     m_prev_backbuffer.Reset();
     m_backbuffer_copy.reset();
     m_converted_eye_tex.reset();
-    
+
     if (runtime->is_openxr() && runtime->loaded) {
         if (m_openxr.last_resolution[0] != vr->get_hmd_width() || m_openxr.last_resolution[1] != vr->get_hmd_height()) {
             m_openxr.create_swapchains();

@@ -154,12 +154,24 @@ bool D3D12Hook::hook() {
     spdlog::info("Hooking D3D12");
 
     g_d3d12_hook = this;
-
     g_inside_d3d12_hook = true;
 
     utility::ScopeGuard guard{[]() {
         g_inside_d3d12_hook = false;
     }};
+
+    if (s_command_queue_offset != 0 && s_swapchain_vtable != nullptr && s_factory_vtable != nullptr) {
+        spdlog::info("Reinitializing D3D12Hook via known pointers");
+
+        try {
+            hook_impl();
+        } catch (const std::exception& e) {
+            spdlog::error("Failed to initialize hooks: {}", e.what());
+            m_hooked = false;
+        }
+
+        return m_hooked;
+    }
 
     IDXGISwapChain1* swap_chain1{ nullptr };
     IDXGISwapChain3* swap_chain{ nullptr };
@@ -386,7 +398,7 @@ bool D3D12Hook::hook() {
 
     spdlog::info("Finding command queue offset");
 
-    m_command_queue_offset = 0;
+    s_command_queue_offset = 0;
 
     // Find the command queue offset in the swapchain
     for (auto i = 0; i < 512 * sizeof(void*); i += sizeof(void*)) {
@@ -400,7 +412,7 @@ bool D3D12Hook::hook() {
         auto data = *(ID3D12CommandQueue**)base;
 
         if (data == command_queue) {
-            m_command_queue_offset = i;
+            s_command_queue_offset = i;
             spdlog::info("Found command queue offset: {:x}", i);
             break;
         }
@@ -410,7 +422,7 @@ bool D3D12Hook::hook() {
 
     // Scan throughout the swapchain for a valid pointer to scan through
     // this is usually only necessary for Proton
-    if (m_command_queue_offset == 0) {
+    if (s_command_queue_offset == 0) {
         bool should_break = false;
 
         for (auto base = 0; base < 512 * sizeof(void*); base += sizeof(void*)) {
@@ -449,8 +461,8 @@ bool D3D12Hook::hook() {
                         m_using_proton_swapchain = true;
                     }
 
-                    m_command_queue_offset = i;
-                    m_proton_swapchain_offset = base;
+                    s_command_queue_offset = i;
+                    s_proton_swapchain_offset = base;
                     should_break = true;
 
                     spdlog::info("Proton potentially detected");
@@ -465,32 +477,18 @@ bool D3D12Hook::hook() {
         }
     }
 
-    if (m_command_queue_offset == 0) {
+    if (s_command_queue_offset == 0) {
         spdlog::error("Failed to find command queue offset");
         return false;
     }
 
-    hook_streamline();
-
     //utility::ThreadSuspender suspender{};
 
     try {
-        spdlog::info("Initializing hooks");
+        s_swapchain_vtable = *(void***)target_swapchain;
+        s_factory_vtable = *(void***)factory;
 
-        m_present_hook.reset();
-        m_swapchain_hook.reset();
-
-        m_is_phase_1 = true;
-
-        auto& present_fn = (*(void***)target_swapchain)[8]; // Present
-        m_present_hook = std::make_unique<PointerHook>(&present_fn, &D3D12Hook::present);
-
-        if (s_create_swapchain_hook == nullptr) {
-            auto& create_swapchain_fn = (*(void***)factory)[15]; // CreateSwapChainForHwnd
-            s_create_swapchain_hook = std::make_unique<PointerHook>(&create_swapchain_fn, &D3D12Hook::create_swapchain);
-        }
-
-        m_hooked = true;
+        hook_impl();
     } catch (const std::exception& e) {
         spdlog::error("Failed to initialize hooks: {}", e.what());
         m_hooked = false;
@@ -513,6 +511,27 @@ bool D3D12Hook::hook() {
     }
 
     return m_hooked;
+}
+
+void D3D12Hook::hook_impl() {
+    spdlog::info("Initializing hooks");
+
+    hook_streamline();
+
+    m_present_hook.reset();
+    m_swapchain_hook.reset();
+
+    m_is_phase_1 = true;
+
+    auto& present_fn = s_swapchain_vtable[8]; // Present
+    m_present_hook = std::make_unique<PointerHook>(&present_fn, &D3D12Hook::present);
+
+    if (s_create_swapchain_hook == nullptr) {
+        auto& create_swapchain_fn = s_factory_vtable[15]; // CreateSwapChainForHwnd
+        s_create_swapchain_hook = std::make_unique<PointerHook>(&create_swapchain_fn, &D3D12Hook::create_swapchain);
+    }
+
+    m_hooked = true;
 }
 
 bool D3D12Hook::unhook() {
@@ -600,10 +619,10 @@ HRESULT WINAPI D3D12Hook::present(IDXGISwapChain3* swap_chain, uint64_t sync_int
     }
 
     if (d3d12->m_using_proton_swapchain) {
-        const auto real_swapchain = *(uintptr_t*)((uintptr_t)swap_chain + d3d12->m_proton_swapchain_offset);
-        d3d12->m_command_queue = *(ID3D12CommandQueue**)(real_swapchain + d3d12->m_command_queue_offset);
+        const auto real_swapchain = *(uintptr_t*)((uintptr_t)swap_chain + d3d12->s_proton_swapchain_offset);
+        d3d12->m_command_queue = *(ID3D12CommandQueue**)(real_swapchain + d3d12->s_command_queue_offset);
     } else {
-        d3d12->m_command_queue = *(ID3D12CommandQueue**)((uintptr_t)swap_chain + d3d12->m_command_queue_offset);
+        d3d12->m_command_queue = *(ID3D12CommandQueue**)((uintptr_t)swap_chain + d3d12->s_command_queue_offset);
     }
 
     if (d3d12->m_swapchain_0 == nullptr) {
