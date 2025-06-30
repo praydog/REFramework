@@ -143,6 +143,21 @@ public:
         return (API::ManagedObject*)fn(name);
     }
 
+    API::ManagedObject* create_managed_string(const wchar_t* str) const {
+        static const auto fn = sdk()->functions->create_managed_string;
+        return (API::ManagedObject*)fn(str);
+    }
+
+    API::ManagedObject* create_managed_string_normal(const char* str) const {
+        static const auto fn = sdk()->functions->create_managed_string_normal;
+        return (API::ManagedObject*)fn(str);
+    }
+
+    API::ManagedObject* create_managed_array(API::TypeDefinition* type, uint32_t size) const {
+        static const auto fn = sdk()->functions->create_managed_array;
+        return (API::ManagedObject*)fn(*type, size);
+    }
+
     API::ManagedObject* get_managed_singleton(std::string_view name) const {
         static const auto fn = sdk()->functions->get_managed_singleton;
         return (API::ManagedObject*)fn(name.data());
@@ -594,8 +609,12 @@ public:
         reframework::InvokeRet invoke(API::ManagedObject* obj, const std::vector<void*>& args) {
             static const auto fn = API::s_instance->sdk()->method->invoke;
             reframework::InvokeRet out{};
-
-            auto result = fn(*this, obj, (void**)&args[0], args.size() * sizeof(void*), &out, sizeof(out));
+            REFrameworkResult result;
+            if (args.size() == 0) {
+                result = fn(*this, obj, nullptr, 0, &out, sizeof(out));
+            } else {
+                result = fn(*this, obj, (void**)&args[0], args.size() * sizeof(void*), &out, sizeof(out));
+            }
 
 #ifdef REFRAMEWORK_API_EXCEPTIONS
             if (result != REFRAMEWORK_ERROR_NONE) {

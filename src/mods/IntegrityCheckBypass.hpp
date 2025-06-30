@@ -28,6 +28,7 @@ public:
     static void fix_virtual_protect();
 
     static void hook_add_vectored_exception_handler();
+    static void hook_rtl_exit_user_process();
 
     static void allow_veh() {
         s_veh_allowed = true;
@@ -66,6 +67,9 @@ private:
     // Using minhook because safetyhook crashes on trying to hook VirtualProtect
     static inline std::unique_ptr<FunctionHookMinHook> s_virtual_protect_hook{};
     static inline std::unique_ptr<FunctionHookMinHook> s_add_vectored_exception_handler_hook{};
+
+    static void* rtl_exit_user_process_hook(uint32_t code);
+    static inline std::unique_ptr<FunctionHookMinHook> s_rtl_exit_user_process_hook{};
 
 #ifdef RE3
     // This is what the game uses to bypass its integrity checks altogether or something

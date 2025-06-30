@@ -954,9 +954,12 @@ static std::shared_mutex g_runtime_type_mtx{};
     static auto get_assembly_type_func = assembly_type->get_method("GetType(System.String)");
 
     if (get_assembly_type_func == nullptr) {
+        static auto system_object_type = sdk::find_type_definition("System.Object");
+        static auto get_type_method = system_object_type->get_method("GetType");
+
         // Past TDB 74, we have to do this because
         // a lot of the assembly stuff seems to be stripped?
-        if (auto fn = this->get_method("GetType()"); fn != nullptr) {
+        if (get_type_method != nullptr) {
             struct TypeDefinitionHolder {
                 const sdk::RETypeDefinition* t{nullptr};
             } holder;
@@ -968,7 +971,7 @@ static std::shared_mutex g_runtime_type_mtx{};
             fake_obj.holder = &holder;
             holder.t = this;
 
-            return fn->call<::REManagedObject*>(sdk::get_thread_context(), &fake_obj);
+            return get_type_method->call<::REManagedObject*>(sdk::get_thread_context(), &fake_obj);
         }
 
         return nullptr;

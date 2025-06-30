@@ -72,6 +72,7 @@ REFrameworkPluginFunctions g_plugin_functions {
 
     reframework_on_imgui_frame,
     reframework_on_imgui_draw_ui,
+    reframework_on_pre_gui_draw_element,
 };
 
 REFrameworkSDKFunctions g_sdk_functions {
@@ -187,7 +188,15 @@ REFrameworkSDKFunctions g_sdk_functions {
     },
     [](REFrameworkMethodHandle fn, unsigned int id) { g_hookman.remove((sdk::REMethodDefinition*)fn, (HookManager::HookId)id); },
     &sdk::memory::allocate,
-    &sdk::memory::deallocate
+    &sdk::memory::deallocate,
+    [](REFrameworkTypeDefinitionHandle tdef, unsigned int size) -> REFrameworkManagedObjectHandle {
+        if (tdef == nullptr) {
+            return nullptr;
+        }
+
+        auto runtime_type = ((sdk::RETypeDefinition*)tdef)->get_runtime_type();
+        return (REFrameworkManagedObjectHandle)sdk::VM::create_managed_array(runtime_type, size);
+    },
 };
 
 #define RETYPEDEF(var) ((sdk::RETypeDefinition*)var)
@@ -646,7 +655,7 @@ void PluginLoader::early_init() try {
         auto&& path = entry.path();
 
         if (path.has_extension() && path.extension() == ".dll") {
-            auto module = LoadLibrary(path.string().c_str());
+            auto module = LoadLibraryW(path.operator std::wstring().c_str());
 
             if (module == nullptr) {
                 spdlog::error("[PluginLoader] Failed to load {}", path.string());
@@ -924,4 +933,12 @@ bool reframework_on_imgui_draw_ui(REFOnImGuiFrameCb cb) {
     }
 
     return APIProxy::get()->add_on_imgui_draw_ui(cb);
+}
+
+bool reframework_on_pre_gui_draw_element(REFOnPreGuiDrawElementCb cb) {
+    if (cb == nullptr) {
+        return false;
+    }
+
+    return APIProxy::get()->add_on_pre_gui_draw_element(cb);
 }

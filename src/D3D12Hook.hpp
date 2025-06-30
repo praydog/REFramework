@@ -101,6 +101,8 @@ public:
     static void hook_streamline(HMODULE dlssg_module = nullptr);
 
 protected:
+    void hook_impl();
+    
     ID3D12Device4* m_device{ nullptr };
     IDXGISwapChain3* m_swap_chain{ nullptr };
     IDXGISwapChain3* m_swapchain_0{};
@@ -111,8 +113,8 @@ protected:
     UINT m_render_width{ NULL };
     UINT m_render_height{ NULL };
 
-    uint32_t m_command_queue_offset{};
-    uint32_t m_proton_swapchain_offset{};
+    static inline uint32_t s_command_queue_offset{};
+    static inline uint32_t s_proton_swapchain_offset{};
 
     bool m_using_proton_swapchain{ false };
     bool m_using_frame_generation_swapchain{ false };
@@ -136,6 +138,8 @@ protected:
 
     // This is static because unhooking it seems to cause a crash sometimes
     static inline std::unique_ptr<PointerHook> s_create_swapchain_hook{};
+    static inline void** s_factory_vtable{ nullptr };
+    static inline void** s_swapchain_vtable{ nullptr };
     
     OnPresentFn m_on_present{ nullptr };
     OnPresentFn m_on_post_present{ nullptr };

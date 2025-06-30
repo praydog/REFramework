@@ -119,7 +119,8 @@ void Graphics::on_lua_state_created(sol::state& lua) {
         "is_ultrawide_fix_enabled", &Graphics::is_ultrawide_fix_enabled
 #ifdef MHWILDS
         ,
-        "get_mhwilds_ultrawide_correction_value", &Graphics::get_mhwilds_ultrawide_correction_value
+        "get_mhwilds_ultrawide_correction_value", &Graphics::get_mhwilds_ultrawide_correction_value,
+        "set_mhwilds_ultrawide_correction_value", &Graphics::set_mhwilds_ultrawide_correction_value
 #endif
     );
 
@@ -158,6 +159,8 @@ try {
     local ULTRAWIDE_UI_POS = app_option_id.ULTRAWIDE_UI_POS
     local hook_enabled = false
     local graphics = REFGraphics.get()
+    local last_known_correction_value = graphics:get_mhwilds_ultrawide_correction_value()
+    local first_time = true
 
     local function enable_hook()
         hook_enabled = true
@@ -172,7 +175,18 @@ try {
             pcall(function()
                 local option_id = thread.get_hook_storage()["option_id"] or 0
                 if (option_id == ULTRAWIDE_UI_POS) then
+                    local retval_as_int = sdk.to_int64(retval) & 0xFFFFFFFF
+
+                    -- Allow user to change value from within game menu
+                    if retval_as_int ~= last_known_correction_value and not first_time then
+                        graphics:set_mhwilds_ultrawide_correction_value(retval_as_int)
+                    else
+                        first_time = false
+                    end
+
                     retval = sdk.to_ptr(graphics:get_mhwilds_ultrawide_correction_value())
+
+                    last_known_correction_value = retval_as_int
                 end
             end)
             return retval
@@ -744,7 +758,36 @@ void Graphics::do_ultrawide_fix() {
     // This disables any kind of pillarboxing and letterboxing.
     // This cannot be directly restored once applied.
     if (set_display_type_method != nullptr) {
-        set_display_type_method->call(sdk::get_thread_context(), main_view, via::DisplayType::Fit);
+        auto display_type = via::DisplayType::Fit;
+        auto graphics = Graphics::get();
+
+        if (graphics->m_backbuffer_size.has_value()) {
+            const auto& size = graphics->m_backbuffer_size.value();
+            const double ratio = static_cast<double>(size[0]) / static_cast<double>(size[1]);
+            constexpr double epsilon = 0.01;
+            constexpr double _4_3   = 4.0 / 3.0;
+            constexpr double _16_9  = 16.0 / 9.0;
+            constexpr double _16_10 = 16.0 / 10.0;
+            constexpr double _21_9  = 21.0 / 9.0;
+            constexpr double _32_9  = 32.0 / 9.0;
+            constexpr double _48_9  = 48.0 / 9.0;
+            
+            if (glm::abs(ratio - _4_3) < epsilon) {
+                display_type = via::DisplayType::Uniform4x3;
+            } else if (glm::abs(ratio - _16_9) < epsilon) {
+                display_type = via::DisplayType::Uniform16x9;
+            } else if (glm::abs(ratio - _16_10) < epsilon) {
+                display_type = via::DisplayType::Uniform16x10;
+            } else if (glm::abs(ratio - _21_9) < epsilon) {
+                display_type = via::DisplayType::Uniform21x9;
+            } else if (glm::abs(ratio - _32_9) < epsilon) {
+                display_type = via::DisplayType::Uniform32x9;
+            } else if (glm::abs(ratio - _48_9) < epsilon) {
+                display_type = via::DisplayType::Uniform48x9;
+            }
+        }
+
+        set_display_type_method->call(sdk::get_thread_context(), main_view, display_type);
     }
 }
 

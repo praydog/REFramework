@@ -93,6 +93,13 @@ bool APIProxy::add_on_imgui_draw_ui(REFOnImGuiDrawUICb cb) {
     return true;
 }
 
+bool APIProxy::add_on_pre_gui_draw_element(REFOnPreGuiDrawElementCb cb) {
+    std::unique_lock _{m_api_cb_mtx};
+
+    m_on_pre_gui_draw_element_cbs.push_back(cb);
+    return true;
+}
+
 void APIProxy::on_lua_state_created(sol::state& state) {
     std::shared_lock _{m_api_cb_mtx};
 
@@ -277,4 +284,23 @@ bool APIProxy::on_message(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
     }
 
     return true;
+}
+
+bool APIProxy::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_context) {
+    std::shared_lock _{m_api_cb_mtx};
+
+    bool any_false = false;
+
+    for (auto&& cb : m_on_pre_gui_draw_element_cbs) {
+        try {
+            if (!cb(gui_element, primitive_context)) {
+                any_false = true;
+            }
+        } catch(...) {
+            spdlog::error("[APIProxy] Exception occurred in on_pre_gui_draw_element callback; one of the plugins has an error.");
+            continue;
+        }
+    }
+
+    return !any_false;
 }

@@ -18,7 +18,6 @@ extern "C" {
 #include <imgui.h>
 #include <ImGuizmo.h>
 #include <imnodes.h>
-#include "re2-imgui/af_baidu.hpp"
 #include "re2-imgui/af_faprolight.hpp"
 #include "re2-imgui/font_robotomedium.hpp"
 #include "re2-imgui/imgui_impl_dx11.h"
@@ -33,6 +32,7 @@ extern "C" {
 #include "Mods.hpp"
 #include "mods/LooseFileLoader.hpp"
 #include "mods/PluginLoader.hpp"
+#include "mods/VR.hpp"
 #include "sdk/REGlobals.hpp"
 #include "sdk/Application.hpp"
 #include "sdk/SDK.hpp"
@@ -47,6 +47,7 @@ extern "C" {
 namespace fs = std::filesystem;
 using namespace std::literals;
 
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 DEFINE_GUID(GUID_DEVINTERFACE_HID, 0x4D1E55B2L, 0xF16F, 0x11CF, 0x88, 0xCB, 0x00, 0x11, 0x11, 0x00, 0x00, 0x30);
 DEFINE_GUID(XUSB_INTERFACE_CLASS_GUID, 0xEC87F1E3, 0xC13B, 0x4100, 0xB5, 0xF7, 0x8B, 0x84, 0xD5, 0x42, 0x60, 0xCB);
 
@@ -819,6 +820,11 @@ void REFramework::run_imgui_frame(bool from_present) {
     ImGui::Render();
 
     m_has_frame = true;
+
+    if (!from_present && m_wants_save_config) {
+        save_config();
+        m_wants_save_config = false;
+    }
 }
 
 // D3D11 Draw funciton
@@ -889,9 +895,14 @@ void REFramework::on_frame_d3d11() {
 
     m_d3d11_hook->get_device()->GetImmediateContext(&context);
     context->ClearRenderTargetView(m_d3d11.blank_rt_rtv.Get(), clear_color);
-    context->ClearRenderTargetView(m_d3d11.rt_rtv.Get(), clear_color);
-    context->OMSetRenderTargets(1, m_d3d11.rt_rtv.GetAddressOf(), NULL);
-    ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+
+    // Only render this if VR is running.
+    // TODO: Instead use this as an SRV to render to the back buffer so we don't render twice.
+    if (VR::get()->is_hmd_active()) {
+        context->ClearRenderTargetView(m_d3d11.rt_rtv.Get(), clear_color);
+        context->OMSetRenderTargets(1, m_d3d11.rt_rtv.GetAddressOf(), NULL);
+        ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());    
+    }
 
     // Set the back buffer to be the render target.
     context->OMSetRenderTargets(1, m_d3d11.bb_rtv.GetAddressOf(), nullptr);
@@ -1030,25 +1041,31 @@ void REFramework::on_frame_d3d12() {
         D3D12_RESOURCE_BARRIER barrier{};
         barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
         barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-        barrier.Transition.pResource = m_d3d12.get_rt(D3D12::RTV::IMGUI).Get();
         barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-        barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
-        barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
-        cmd_ctx->cmd_list->ResourceBarrier(1, &barrier);
 
-        float clear_color[]{0.0f, 0.0f, 0.0f, 0.0f};
         D3D12_CPU_DESCRIPTOR_HANDLE rts[1]{};
-        cmd_ctx->cmd_list->ClearRenderTargetView(m_d3d12.get_cpu_rtv(device, D3D12::RTV::IMGUI), clear_color, 0, nullptr);
-        rts[0] = m_d3d12.get_cpu_rtv(device, D3D12::RTV::IMGUI);
-        cmd_ctx->cmd_list->OMSetRenderTargets(1, rts, FALSE, NULL);
-        cmd_ctx->cmd_list->SetDescriptorHeaps(1, m_d3d12.srv_desc_heap.GetAddressOf());
 
-        ImGui::GetIO().BackendRendererUserData = m_d3d12.imgui_backend_datas[1];
-        ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), cmd_ctx->cmd_list.Get());
-        
-        barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
-        barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
-        cmd_ctx->cmd_list->ResourceBarrier(1, &barrier);
+        // Only render this if VR is running.
+        // TODO: Instead use this as an SRV to render to the back buffer so we don't render twice.
+        if (VR::get()->is_hmd_active()) {
+            barrier.Transition.pResource = m_d3d12.get_rt(D3D12::RTV::IMGUI).Get();
+            barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+            barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+            cmd_ctx->cmd_list->ResourceBarrier(1, &barrier);
+    
+            float clear_color[]{0.0f, 0.0f, 0.0f, 0.0f};
+            cmd_ctx->cmd_list->ClearRenderTargetView(m_d3d12.get_cpu_rtv(device, D3D12::RTV::IMGUI), clear_color, 0, nullptr);
+            rts[0] = m_d3d12.get_cpu_rtv(device, D3D12::RTV::IMGUI);
+            cmd_ctx->cmd_list->OMSetRenderTargets(1, rts, FALSE, NULL);
+            cmd_ctx->cmd_list->SetDescriptorHeaps(1, m_d3d12.srv_desc_heap.GetAddressOf());
+    
+            ImGui::GetIO().BackendRendererUserData = m_d3d12.imgui_backend_datas[1];
+            ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), cmd_ctx->cmd_list.Get());
+            
+            barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+            barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+            cmd_ctx->cmd_list->ResourceBarrier(1, &barrier);
+        }
 
         // Draw to the back buffer.
         barrier.Transition.pResource = m_d3d12.rts[bb_index].Get();
@@ -1103,6 +1120,11 @@ void REFramework::on_reset() {
     std::scoped_lock _{ m_imgui_mtx };
 
     spdlog::info("Reset!");
+
+    if (m_initialized) {
+        // fixes text boxes not being able to receive input
+        //imgui::reset_keystates();
+    }
 
     // Crashes if we don't release it at this point.
     if (m_is_d3d11) {
@@ -1375,6 +1397,8 @@ std::filesystem::path REFramework::get_persistent_dir() {
 void REFramework::save_config() {
     std::scoped_lock _{m_config_mtx};
 
+    m_wants_save_config = false;
+
     spdlog::info("Saving config {}", REFrameworkConfig::REFRAMEWORK_CONFIG_NAME.data());
 
     utility::Config cfg{};
@@ -1641,7 +1665,7 @@ void REFramework::draw_about() {
             License{ "cimgui", license::cimgui },
             License{ "minhook", license::minhook },
             License{ "spdlog", license::spdlog },
-            License{ "robotomedium", license::roboto },
+            License{ "robotocjksc", license::roboto_cjk },
             License{ "openvr", license::openvr },
             License{ "lua", license::lua },
             License{ "sol", license::sol },
@@ -2363,7 +2387,7 @@ bool REFramework::init_d3d12() {
     auto& bb = m_d3d12.get_rt(D3D12::RTV::BACKBUFFER_0);
     auto bb_desc = bb->GetDesc();
 
-    ImGui_ImplDX12_InitInfo init_info = {};
+    ImGui_ImplDX12_InitInfo init_info{};
     init_info.Device = device;
     init_info.CommandQueue = g_framework->get_d3d12_hook()->get_command_queue();
     init_info.NumFramesInFlight = swapchain_desc.BufferCount;
@@ -2386,7 +2410,7 @@ bool REFramework::init_d3d12() {
     auto& bb_vr = m_d3d12.get_rt(D3D12::RTV::IMGUI);
     auto bb_vr_desc = bb_vr->GetDesc();
 
-    ImGui_ImplDX12_InitInfo init_info_vr = {};
+    ImGui_ImplDX12_InitInfo init_info_vr{};
     init_info_vr.Device = device;
     init_info_vr.CommandQueue = g_framework->get_d3d12_hook()->get_command_queue();
     init_info_vr.NumFramesInFlight = swapchain_desc.BufferCount;

@@ -310,6 +310,30 @@ void LooseFileLoader::hook() {
     m_hook_success = true;
 }
 
+static thread_local std::chrono::steady_clock::time_point g_last_time_logged_safe_exists{};
+
+bool safe_exists(const wchar_t* path) try {
+    return std::filesystem::exists(path);
+} catch (const std::filesystem::filesystem_error& e) {
+    if (std::chrono::steady_clock::now() - g_last_time_logged_safe_exists > std::chrono::seconds(1)) {
+        spdlog::error("[LooseFileLoader] Filesystem error in safe_exists: {}", e.what());
+        g_last_time_logged_safe_exists = std::chrono::steady_clock::now();
+    }
+    return false;
+} catch (const std::exception& e) {
+    if (std::chrono::steady_clock::now() - g_last_time_logged_safe_exists > std::chrono::seconds(1)) {
+        spdlog::error("[LooseFileLoader] Exception in safe_exists: {}", e.what());
+        g_last_time_logged_safe_exists = std::chrono::steady_clock::now();
+    }
+    return false;
+} catch (...) {
+    if (std::chrono::steady_clock::now() - g_last_time_logged_safe_exists > std::chrono::seconds(1)) {
+        spdlog::error("[LooseFileLoader] Unknown exception in safe_exists!");
+        g_last_time_logged_safe_exists = std::chrono::steady_clock::now();
+    }
+    return false;
+}
+
 bool LooseFileLoader::handle_path(const wchar_t* path, size_t hash) {
     if (path == nullptr || path[0] == L'\0') {
         return false;
@@ -354,7 +378,7 @@ bool LooseFileLoader::handle_path(const wchar_t* path, size_t hash) {
                 std::unique_lock _{m_files_on_disk_mutex};
 
                 // Purpose of this is to only hit the disk once per unique file
-                if (m_files_on_disk.contains(hash) || std::filesystem::exists(path)) {
+                if (m_files_on_disk.contains(hash) || safe_exists(path)) {
                     m_files_on_disk.insert(hash); // Global
                     files_on_disk_local.insert(hash); // Thread local
                     exists_on_disk = true;
@@ -375,7 +399,7 @@ bool LooseFileLoader::handle_path(const wchar_t* path, size_t hash) {
                 ++m_cache_hits;
             }
         } else {
-            exists_on_disk = std::filesystem::exists(path);
+            exists_on_disk = safe_exists(path);
             ++m_uncached_hits;
         }
 
