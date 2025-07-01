@@ -585,11 +585,11 @@ void pop_font() {
 }
 
 void push_font_size(float size) {
-    ImGui::PushFontSize(size);
+    //ImGui::PushFontSize(size);
 }
 
 void pop_font_size() {
-    ImGui::PopFontSize();
+    //ImGui::PopFontSize();
 }
 
 int get_default_font_size() {

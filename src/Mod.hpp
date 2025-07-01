@@ -264,7 +264,7 @@ public:
     }
 
     void config_load(const utility::Config& cfg) override {
-        auto v = cfg.get<std::string>(m_config_name);
+        auto v = cfg.get(m_config_name);
         index = 0;
 
         if (v) {

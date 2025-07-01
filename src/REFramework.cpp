@@ -1496,9 +1496,7 @@ void REFramework::init_fonts() {
         m_default_font = loaded_fonts[m_default_font_file];
     } else {
         if (!loaded_fonts.contains("DEFAULT")) {
-            loaded_fonts["DEFAULT"] = (INVALID_FILE_ATTRIBUTES != ::GetFileAttributesA("reframework_pictographic.mode"))
-                    ? fonts->AddFontFromMemoryTTF((void*)af_baidu_ptr, af_baidu_size, m_font_size, &custom_icons)
-                    : fonts->AddFontFromMemoryCompressedTTF(RobotoMedium_compressed_data, RobotoMedium_compressed_size, m_font_size);
+            loaded_fonts["DEFAULT"] = fonts->AddFontFromMemoryCompressedTTF(RobotoCJKSC_Medium_compressed_data, RobotoCJKSC_Medium_compressed_size, m_font_size);
         }
         m_default_font = loaded_fonts["DEFAULT"];
     }
