@@ -231,7 +231,7 @@ try {
             if (full_dll_path.parent_path() == *g_current_game_path) {
                 spdlog::info("LdrRegisterDllNotification: DLL loaded from game directory: {}", utility::narrow(full_dll_name));
 
-#if defined(DD2) || defined(MHRISE) || TDB_VER >= 74
+#if 0  // Disabled for Steam EMU Goldberg compatibility
                 utility::spoof_module_paths_in_exe_dir();
 #endif
             }
@@ -340,7 +340,7 @@ REFramework::REFramework(HMODULE reframework_module)
         }
 
         // Do this at least once before setting up our callback.
-#if defined(DD2) || defined(MHRISE) || TDB_VER >= 74
+#if 0  // Disabled for Steam EMU Goldberg compatibility
         // Pre-emptively copy all DLL files in the current game directory into our _storage_ directory.
         if (g_current_game_path.has_value()) {
             const auto dest_path = *g_current_game_path / "_storage_";
@@ -463,7 +463,7 @@ REFramework::REFramework(HMODULE reframework_module)
     spdlog::info("D3D12 loaded");
 #endif
 
-#if defined(MHRISE) || defined(DD2) || TDB_VER >= 74
+#if 0  // Disabled for Steam EMU Goldberg compatibility
     utility::load_module_from_current_directory(L"openvr_api.dll");
     utility::load_module_from_current_directory(L"openxr_loader.dll");
     LoadLibraryA("dxgi.dll");
@@ -1978,7 +1978,7 @@ bool REFramework::initialize_game_data() {
         std::scoped_lock _{this->m_startup_mutex};
 
         try {
-#if defined(MHRISE) || defined(DD2) || TDB_VER >= 74
+#if 0  // Disabled for Steam EMU Goldberg compatibility
             if (!g_success_made_ldr_notification) {
                 utility::spoof_module_paths_in_exe_dir();
             }
@@ -2054,7 +2054,7 @@ bool REFramework::initialize_game_data() {
             spdlog::error("Initialization of mods failed. Reason: exception thrown.");
         }
 
-#if defined(MHRISE) || defined(DD2) || TDB_VER >= 74
+#if 0  // Disabled for Steam EMU Goldberg compatibility
         if (!g_success_made_ldr_notification) {
             utility::spoof_module_paths_in_exe_dir();
         }
