@@ -16,6 +16,7 @@ set(ASMJIT_STATIC ON CACHE BOOL "" FORCE)
 set(DYNAMIC_LOADER ON CACHE BOOL "" FORCE) # OpenXR
 set(BUILD_TOOLS OFF CACHE BOOL "" FORCE) # DirectXTK
 set(SAFETYHOOK_FETCH_ZYDIS ON)
+set(FT_DISABLE_HARFBUZZ ON CACHE BOOL "" FORCE) # Freetype
 
 if ("${CMAKE_BUILD_TYPE}" MATCHES "Release")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MT")
@@ -119,12 +120,25 @@ condition = "build-framework-dependencies"
 git = "https://github.com/cursey/safetyhook"
 tag = "b046e123dc69821f2c375161e0adef3c6d9c9db4"
 
+[fetch-content.freetype]
+git = "https://github.com/freetype/freetype"
+tag = "f1cd6dbfa0c98f352b698448f40ac27e8fb3832e"
+
 [target.imgui]
 type = "static"
-sources = ["dependencies/imgui/*.cpp"]
-include-directories = ["dependencies/imgui", "src/re2-imgui"]
+sources = [
+    "dependencies/imgui/*.cpp",
+    "dependencies/imgui/misc/freetype/imgui_freetype.cpp",
+]
+include-directories = [
+    "dependencies/imgui",
+    "dependencies/imgui/misc/freetype",
+    "src/re2-imgui"]
 compile-definitions = [
     "IMGUI_USER_CONFIG=\"${CMAKE_CURRENT_SOURCE_DIR}/src/re2-imgui/re2_imconfig.hpp\"",
+]
+link-libraries = [
+    "freetype"
 ]
 condition = "build-framework"
 

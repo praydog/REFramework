@@ -16,6 +16,7 @@ extern "C" {
 };
 
 #include <imgui.h>
+#include <imgui_freetype.h>
 #include <ImGuizmo.h>
 #include <imnodes.h>
 #include "re2-imgui/af_faprolight.hpp"
@@ -1481,6 +1482,7 @@ void REFramework::init_fonts() {
     m_fonts_need_init = false;
 
     auto& fonts = ImGui::GetIO().Fonts;
+    fonts->FontLoader = ImGuiFreeType::GetFontLoader();
 
     // using 'reframework_pictographic.mode' file to
     // replace '?' to most flag in WorldObjectsViewer
@@ -1489,26 +1491,79 @@ void REFramework::init_fonts() {
 
     const auto fonts_path = REFramework::get_persistent_dir() / "reframework" / "fonts";
     const auto font_path = fonts_path / m_default_font_file;
+
+    // @angelfor3v3r
+    auto load_seguiemj_font = [&]() {   
+        try {
+            wchar_t windows_dir[MAX_PATH]{};
+            if (GetWindowsDirectoryW(windows_dir, MAX_PATH) == 0) {
+                spdlog::error("Failed to get system directory");
+                return;
+            }
+
+            const auto seguiemj_path = std::filesystem::path(windows_dir) / "Fonts" / "seguiemj.ttf";
+
+            if (std::filesystem::exists(seguiemj_path)) {
+                spdlog::info("Loading Segoe UI Emoji font from: {}", seguiemj_path.string());
+
+                ImFontConfig cfg{};
+                cfg.FontDataOwnedByAtlas = true;
+                cfg.FontLoaderFlags |= ImGuiFreeTypeLoaderFlags_LoadColor;
+                cfg.MergeMode        = true;
+                fonts->AddFontFromFileTTF(seguiemj_path.string().c_str(), m_font_size, &cfg);
+            } else {
+                spdlog::warn("Segoe UI Emoji font not found");
+            }
+        } catch (const std::exception& e) {
+            spdlog::error("Failed to load default font: {}", e.what());
+            m_default_font_file = "DEFAULT";
+        }
+    };
+
     if (m_default_font_file != "DEFAULT" && fs::exists(font_path)) {
         if (!loaded_fonts.contains(m_default_font_file)) {
-            loaded_fonts[m_default_font_file] = fonts->AddFontFromFileTTF(font_path.string().c_str(), m_font_size);
+            ImFontConfig cfg{};
+            cfg.FontDataOwnedByAtlas = true;
+            cfg.MergeMode        = false;
+
+            loaded_fonts[m_default_font_file] = fonts->AddFontFromFileTTF(font_path.string().c_str(), m_font_size, &cfg);
         }
-        m_default_font = loaded_fonts[m_default_font_file];
+
+        if (loaded_fonts[m_default_font_file] == nullptr) {
+            spdlog::error("Failed to load font: {}", m_default_font_file);
+            m_default_font_file = "DEFAULT";
+        } else {
+            load_seguiemj_font();
+            m_default_font = loaded_fonts[m_default_font_file];
+        }
     } else {
         if (!loaded_fonts.contains("DEFAULT")) {
-            loaded_fonts["DEFAULT"] = fonts->AddFontFromMemoryCompressedTTF(RobotoCJKSC_Medium_compressed_data, RobotoCJKSC_Medium_compressed_size, m_font_size);
+            ImFontConfig cfg{};
+            cfg.FontDataOwnedByAtlas = false;
+
+            loaded_fonts["DEFAULT"] = fonts->AddFontFromMemoryCompressedTTF(RobotoCJKSC_Medium_compressed_data, RobotoCJKSC_Medium_compressed_size, m_font_size, &cfg);
+
+            if (loaded_fonts["DEFAULT"] == nullptr) {
+                spdlog::error("Failed to load default font!");
+                loaded_fonts["DEFAULT"] = fonts->AddFontDefault();
+            } else {
+                spdlog::info("Loaded default font: {}", m_default_font_file);
+            }
+
+            load_seguiemj_font();
         }
+        
         m_default_font = loaded_fonts["DEFAULT"];
     }
 
-    if (!loaded_fonts.contains("ICON")) {
+    /*if (!loaded_fonts.contains("ICON")) {
         // https://fontawesome.com/
         custom_icons.PixelSnapH = true;
         custom_icons.MergeMode = true;
         custom_icons.FontDataOwnedByAtlas = false;
         static const ImWchar icon_ranges[] = {0xF000, 0xF976, 0}; // ICON_MIN_FA ICON_MAX_FA
         loaded_fonts["ICON"] = fonts->AddFontFromMemoryTTF((void*)af_faprolight_ptr, af_faprolight_size, m_font_size, &custom_icons, icon_ranges);
-    }
+    }*/
 
     m_wants_device_object_cleanup = true;
 }

@@ -5,7 +5,7 @@
 
 #include <imgui.h>
 #ifdef IMGUI_ENABLE_FREETYPE
-#include "./imgui/misc/freetype/imgui_freetype.h"
+#include <misc/freetype/imgui_freetype.h>
 #endif
 #include <imgui_internal.h>
 #include "cimgui.h"
@@ -5666,10 +5666,12 @@ CIMGUI_API void ImFontLoader_destroy(ImFontLoader* self)
 {
     IM_DELETE(self);
 }
+#ifdef IMGUI_ENABLE_STB_TRUETYPE
 CIMGUI_API const ImFontLoader* igImFontAtlasGetFontLoaderForStbTruetype()
 {
     return ImFontAtlasGetFontLoaderForStbTruetype();
 }
+#endif
 CIMGUI_API int igImFontAtlasRectId_GetIndex(ImFontAtlasRectId id)
 {
     return ImFontAtlasRectId_GetIndex(id);
