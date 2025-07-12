@@ -3,6 +3,7 @@
 #include <array>
 #include <unordered_set>
 #include <filesystem>
+#include <map>
 
 #include <spdlog/spdlog.h>
 #include <imgui.h>
@@ -150,13 +151,17 @@ public:
     void set_font_size(int size) { 
         if (m_font_size != size) {
             m_font_size = size;
-            m_fonts_need_updating = true;
         }
     }
 
     auto get_font_size() const { return m_font_size; }
 
-    int add_font(const std::filesystem::path& filepath, int size, const std::vector<ImWchar>& ranges = {});
+    void set_font(std::string path) { 
+        m_default_font_file = path;
+        m_fonts_need_init = true;
+    }
+
+    int add_font(const std::filesystem::path& filepath, float size);
 
     ImFont* get_font(int index) const {
         if (index >= 0 && index < m_additional_fonts.size()) {
@@ -166,10 +171,18 @@ public:
         }
     }
 
+    auto get_font_size(int index) const {
+        if (index >= 0 && index < m_additional_fonts.size()) {
+            return m_additional_fonts[index].size;
+        } else {
+            return m_font_size;
+        }
+    }
+
 private:
         void save_config();
     void consume_input();
-    void update_fonts();
+    void init_fonts();
     void invalidate_device_objects();
 
     void draw_ui();
@@ -219,13 +232,15 @@ private:
 
     struct AdditionalFont {
         std::filesystem::path filepath{};
-        int size{16};
-        std::vector<ImWchar> ranges{};
+        float size{16};
         ImFont* font{};
     };
 
-    bool m_fonts_need_updating{true};
-    int m_font_size{16};
+    std::string m_default_font_file = "DEFAULT";
+    bool m_fonts_need_init{true};
+    float m_font_size{16};
+    ImFont* m_default_font;
+    std::map<std::string, ImFont*> loaded_fonts{};
     std::vector<AdditionalFont> m_additional_fonts{};
 
     std::mutex m_input_mutex{};
@@ -365,3 +380,6 @@ private:
 };
 
 extern std::unique_ptr<REFramework> g_framework;
+
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(
+    HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam); // Use ImGui::GetCurrentContext()
