@@ -659,7 +659,7 @@ void IntegrityCheckBypass::sha3_rsa_code_midhook(safetyhook::Context& context) {
         ENCRYPTED = 0x8
     };
 
-    const auto pak_flags = (PakFlags)context.r8; // Might change, maybe add automated register detection later
+    const auto pak_flags = (PakFlags)context.rax; // Might change, maybe add automated register detection later
 
     if ((pak_flags & PakFlags::ENCRYPTED) != 0) {
         spdlog::info("[IntegrityCheckBypass]: Pak is encrypted, allowing decryption code to run.");
