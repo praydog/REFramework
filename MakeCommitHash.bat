@@ -24,9 +24,7 @@ FOR /F "tokens=*" %%b IN ('git rev-parse --abbrev-ref HEAD') DO (SET REF_BRANCH=
 FOR /F "tokens=*" %%n IN ('git rev-list --count HEAD') DO (SET REF_TOTAL_COMMITS=%%n)
 IF "%REF_TOTAL_COMMITS%"=="" (SET REF_TOTAL_COMMITS=0)
 
-FOR /F "tokens=2 delims==" %%a IN ('wmic OS get localdatetime /value') DO (
-SET datetime=%%a
-)
+FOR /F "tokens=* delims=" %%a IN ('powershell -NoProfile -Command "Get-Date -Format yyyyMMddHHmm"') DO (SET datetime=%%a)
 
 SET year=%datetime:~0,4%
 SET month=%datetime:~4,2%
