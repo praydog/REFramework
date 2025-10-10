@@ -531,7 +531,7 @@ public:
             std::vector<API::Method*> methods;
 
             auto num_methods = get_num_methods();
-            if( num_methods<1){
+            if (num_methods < 1) {
                 return {};
             }
 
@@ -553,7 +553,7 @@ public:
             
 
             auto num_fields = get_num_fields();
-            if( num_fields<1){
+            if (num_fields < 1) {
                 return {};
             }
 
@@ -696,7 +696,7 @@ public:
             std::vector<REFrameworkMethodParameter> params;
 
             auto num_params = get_num_params();
-            if (num_params<1){
+            if (num_params < 1) {
                 return {};
             }
 
