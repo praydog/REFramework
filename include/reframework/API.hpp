@@ -696,7 +696,7 @@ public:
             std::vector<REFrameworkMethodParameter> params;
 
             auto num_params = get_num_params();
-            if (num_params>1){
+            if (num_params<1){
                 return {};
             }
 
