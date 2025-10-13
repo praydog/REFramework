@@ -45,6 +45,8 @@ Uses [Unicorn](https://github.com/unicorn-engine/unicorn) to emulate all of the 
 * `use_hashkeys`
 * `include_parents`
     * Will add the parent object name to the struct or omitted if not found.
+* `include_order`
+    * Will add the order attribute from reflection properties to via.GameObjectRef fields.
 
 ### Outputs
 `rsz(out_postfix).json`
