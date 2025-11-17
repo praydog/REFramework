@@ -231,7 +231,8 @@ void FirstPerson::on_lua_state_created(sol::state& state) {
         "new", sol::no_constructor,
         "is_enabled", &FirstPerson::is_enabled,
         "will_be_used", &FirstPerson::will_be_used,
-        "on_pre_flashlight_apply_transform", &FirstPerson::on_pre_flashlight_apply_transform
+        "on_pre_flashlight_apply_transform", &FirstPerson::on_pre_flashlight_apply_transform,
+        "right_hand_rotation_offset", &FirstPerson::m_right_hand_rotation_offset
     );
 
     state["firstpersonmod"] = this;
