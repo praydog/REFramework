@@ -1,6 +1,6 @@
 do return end -- remove this line to enable
 
-if reframework:get_game_name() ~= 're3' and not vrmod:is_openxr_loaded() then
+if reframework:get_game_name() ~= 're3' then
     return
 end
 
