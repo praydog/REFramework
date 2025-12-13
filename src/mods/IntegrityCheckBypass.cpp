@@ -844,6 +844,9 @@ void IntegrityCheckBypass::immediate_patch_dd2() {
 #if TDB_VER >= 74
     init_anti_debug_watcher();
 
+    // TODO: Check if full release of Pragmata needs this
+    // right now it freezes the game
+#if defined(MHWILDS)
     const auto query_performance_frequency = &QueryPerformanceFrequency;
     const auto query_performance_counter = &QueryPerformanceCounter;
 
@@ -914,6 +917,7 @@ void IntegrityCheckBypass::immediate_patch_dd2() {
             spdlog::error("[IntegrityCheckBypass]: Could not find QueryPerformanceFrequency/Counter imports!");
         }
     }
+#endif
 
     if (const auto create_blas_fn = utility::find_function_from_string_ref(game, "createBLAS"); create_blas_fn.has_value()) {
         const auto create_blas_fn_unwind = utility::find_function_start_unwind(*create_blas_fn);

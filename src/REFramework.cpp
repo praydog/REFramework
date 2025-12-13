@@ -589,7 +589,7 @@ REFramework::REFramework(HMODULE reframework_module)
                 }
 
                 if (std::string_view{t->get_name()} == "Renderer" && std::string_view{t->get_namespace()} == "via.render") {
-                    spdlog::info("Renderer type found manually");
+                    spdlog::info("Renderer type found manually @ {:x}", (uintptr_t)t);
                     renderer_t = t;
                     break;
                 }
@@ -635,9 +635,15 @@ REFramework::REFramework(HMODULE reframework_module)
         continue;
     }
     
-    spdlog::info("Found renderer, waiting for first frame...");
+    spdlog::info("Found renderer @ {:x} (type: {:x}), waiting for first frame...", (uintptr_t)renderer, (uintptr_t)renderer_t);
 
     bool valid_render_frame = false;
+
+    if (renderer_has_render_frame_fn) {
+        spdlog::info("Renderer has get_RenderFrame function");
+    } else {
+        spdlog::info("Renderer does not have get_RenderFrame function");
+    }
 
     while (renderer_has_render_frame_fn) try {
         // This function is static so its fine if renderer is null.

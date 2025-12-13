@@ -49,6 +49,7 @@ REF_BUILD_MHRISE_SDK = false
 REF_BUILD_SF6_SDK = false
 REF_BUILD_DD2_SDK = false
 REF_BUILD_MHWILDS_SDK = false
+REF_BUILD_PRAGMATA_SDK = false
 REF_BUILD_FRAMEWORK = { value = true }
 REF_BUILD_DEPENDENCIES = { value = true }
 
@@ -68,6 +69,7 @@ build-mhrise-sdk = "REF_BUILD_MHRISE_SDK OR REF_BUILD_FRAMEWORK"
 build-sf6-sdk = "REF_BUILD_SF6_SDK OR REF_BUILD_FRAMEWORK"
 build-dd2-sdk = "REF_BUILD_DD2_SDK OR REF_BUILD_FRAMEWORK"
 build-mhwilds-sdk = "REF_BUILD_MHWILDS_SDK OR REF_BUILD_FRAMEWORK"
+build-pragmata-sdk = "REF_BUILD_PRAGMATA_SDK OR REF_BUILD_FRAMEWORK"
 build-framework-dependencies = "REF_BUILD_DEPENDENCIES AND CMAKE_SIZEOF_VOID_P EQUAL 8"
 
 [fetch-content.asmjit]
@@ -376,6 +378,14 @@ compile-definitions = ["MHWILDS", "REENGINE_PACKED", "REENGINE_AT"]
 condition = "build-mhwilds-sdk"
 
 [target.MHWILDS]
+type = "game"
+
+[target.PRAGMATASDK]
+type = "sdk"
+compile-definitions = ["PRAGMATA", "REENGINE_PACKED", "REENGINE_AT"]
+condition = "build-pragmata-sdk"
+
+[target.PRAGMATA]
 type = "game"
 
 [template.plugin]

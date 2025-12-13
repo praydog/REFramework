@@ -579,9 +579,14 @@ std::optional<std::string> Hooks::hook_view_get_size() {
         ref = utility::find_pattern_in_path((uint8_t*)get_size_func, 1000, false, "48 8B CB E8");
     }
 
+    
 #if TDB_VER >= 74
     if (!ref) {
-        ref = utility::find_pattern_in_path((uint8_t*)get_size_func, 1000, false, "48 89 F2 E8"); // >= TDB74?
+        ref = utility::find_pattern_in_path((uint8_t*)get_size_func, 1000, false, "48 89 F2 E8"); // >= TDB74 (MHWILDS)
+    }
+
+    if (!ref) {
+        ref = utility::find_pattern_in_path((uint8_t*)get_size_func, 1000, false, "48 8B CF E8"); // Pragmata
     }
 #endif
 
