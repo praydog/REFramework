@@ -2,6 +2,8 @@
 
 #ifdef DMC5
 #define TDB_VER 67
+#elif defined(PRAGMATA)
+#define TDB_VER 84
 #elif defined(MHWILDS)
 #define TDB_VER 74
 #elif defined(DD2)
@@ -39,6 +41,7 @@
 #endif
 
 namespace sdk {
+struct RETypeDefVersion84;
 struct RETypeDefVersion74;
 struct RETypeDefVersion71;
 struct RETypeDefVersion69;
@@ -51,7 +54,11 @@ struct REMethodDefinition;
 struct REProperty;
 struct RETypeDefinition;
 
-#if defined(MHWILDS)
+#if defined(PRAGMATA)
+#define TYPE_INDEX_BITS 19
+#define FIELD_BITS 20
+using RETypeDefinition_ = sdk::RETypeDefVersion84;
+#elif defined(MHWILDS)
 #define TYPE_INDEX_BITS 19
 #define FIELD_BITS 20
 using RETypeDefinition_ = sdk::RETypeDefVersion74;
