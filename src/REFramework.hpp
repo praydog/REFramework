@@ -129,6 +129,8 @@ public:
         return "dd2";
     #elif defined(MHWILDS)
         return "mhwilds";
+    #elif defined(PRAGMATA)
+        return "pragmata";
     #else
         return "unknown";
     #endif

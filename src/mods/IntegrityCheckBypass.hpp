@@ -48,6 +48,7 @@ private:
     static void restore_unencrypted_paks();
     static inline safetyhook::MidHook s_sha3_rsa_code_midhook;
     static inline std::optional<uintptr_t> s_sha3_code_end{};
+    static inline int32_t s_sha3_reg_index{-1};
 
     static void anti_debug_watcher();
     static void init_anti_debug_watcher();
