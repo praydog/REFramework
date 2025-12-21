@@ -654,6 +654,8 @@ void IntegrityCheckBypass::patch_version_hook(safetyhook::Context& context) {
     // I WILL OVERWRITE THIS RAX. FUCK YOU
     // Scan for amount of paks. Get exe directory. To be honest set this to 9999 is okay, but i feel like it might take a long time
     context.rax = std::max<int>(scan_patch_files_count(), context.rax);
+
+    spdlog::info("[IntegrityCheckBypass]: New patch version (modded): {}", context.rax);
 }
 
 // This allows unencrypted paks to load.
@@ -884,7 +886,7 @@ int IntegrityCheckBypass::scan_patch_files_count() {
 
     // Scan for matching files: re_chunk_000.pak.sub_000.pak.patch_0.pak
     // Capture the patch number to find the highest one
-    std::regex pattern(R"(re_chunk_\d+\.pak\.sub_\d+\.pak\.patch_(\d+)\.pak)");
+    std::regex pattern(R"(re_chunk_\d+\.pak\.sub_\d+\.pak\.patch_(\d+)\.pak)", std::regex::ECMAScript);
     std::smatch match;
     int highest_patch_num = -1;
 
