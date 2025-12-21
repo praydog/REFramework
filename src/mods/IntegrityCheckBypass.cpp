@@ -1,5 +1,6 @@
 #include <unordered_set>
 #include <iomanip>
+#include <regex>
 
 #include "utility/Module.hpp"
 #include "utility/Scan.hpp"
@@ -229,6 +230,8 @@ std::optional<std::string> IntegrityCheckBypass::on_initialize() {
         spdlog::error("[{:s}]: Could not find very_awesome_type!", get_name().data());
     }
 #endif
+
+    s_patch_count_checked = false;
 
     spdlog::info("Done.");
 
@@ -634,6 +637,25 @@ void IntegrityCheckBypass::init_anti_debug_watcher() {
     });
 }
 
+void IntegrityCheckBypass::pak_load_check_function(safetyhook::Context& context) {
+    const auto return_address = *reinterpret_cast<uintptr_t*>(context.rsp);
+    auto pak_name_wstr = reinterpret_cast<const wchar_t*>(context.rdx);
+
+    spdlog::info("[IntegrityCheckBypass]: pak_load_check_function called from: 0x{:X}", return_address);
+    spdlog::info("[IntegrityCheckBypass]: Pak name: {}", utility::narrow(pak_name_wstr));
+}
+
+void IntegrityCheckBypass::patch_version_hook(safetyhook::Context& context) {
+    // THEY STORE PATCH VERSION INSIDE SOMEWHERE NOW! And only load until that patch version then dont load no more paks
+    spdlog::info("[IntegrityCheckBypass]: patch_version_hook called!");
+    // Print rax
+    spdlog::info("[IntegrityCheckBypass]: Patch version: {}. Game wont load past this patch version", context.rax);
+
+    // I WILL OVERWRITE THIS RAX. FUCK YOU
+    // Scan for amount of paks. Get exe directory. To be honest set this to 9999 is okay, but i feel like it might take a long time
+    context.rax = std::max<int>(scan_patch_files_count(), context.rax);
+}
+
 // This allows unencrypted paks to load.
 void IntegrityCheckBypass::sha3_rsa_code_midhook(safetyhook::Context& context) {
     spdlog::info("[IntegrityCheckBypass]: sha3_code_midhook called!");
@@ -771,6 +793,20 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
 
     spdlog::info("[IntegrityCheckBypass]: Created sha3_rsa_code_midhook!");
 
+    const auto pak_load_check_start = utility::scan(game, "41 57 41 56 41 55 41 54 56 57 55 53 48 81 EC 18 01 00 00 48 89 CE 48 8B 05 43 43 BB 09 48 31 E0");
+    
+    if (pak_load_check_start) {
+        spdlog::info("[IntegrityCheckBypass]: Found pak_load_check_function @ 0x{:X}, hook!", (uintptr_t)*pak_load_check_start);
+        s_pak_load_check_function_hook = safetyhook::create_mid((void*)*pak_load_check_start, &IntegrityCheckBypass::pak_load_check_function);
+    }
+
+    const auto patch_version_start = utility::scan(game, "48 89 44 24 30 48 85 FF 0F 84 28 01 00 00 66 83 3F 72 0F 85 1E 01 00 00 66 BA 72 00 B8 02 00 00 00 48 8D 0D 3A A7 BB 03 66 85 D2 74");
+
+    if (patch_version_start) {
+        spdlog::info("[IntegrityCheckBypass]: Created patch_version_hook to 0x{:X}, hook!", (uintptr_t)*patch_version_start);
+        s_patch_version_hook = safetyhook::create_mid((void*)*patch_version_start, &IntegrityCheckBypass::patch_version_hook);
+    }
+
     auto previous_instructions = utility::get_disassembly_behind(*s_sha3_code_end);
     auto previous_instructions_start = utility::get_disassembly_behind(*sha3_code_start);
 
@@ -824,6 +860,60 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
             spdlog::error("[IntegrityCheckBypass]: Could not determine sha3_reg_index!");
         }
     }
+}
+
+int IntegrityCheckBypass::scan_patch_files_count() {
+    if (s_patch_count_checked) {
+        return s_patch_count;
+    }
+
+    spdlog::info("[IntegrityCheckBypass]: Scanning for patch files...");
+
+    // Get executable directory
+    const auto exe_module = utility::get_executable();
+    const auto exe_path = utility::get_module_pathw(exe_module);
+
+    if (!exe_path) {
+        spdlog::error("[IntegrityCheckBypass]: Could not get executable path!");
+        return -1;
+    }
+
+    const auto exe_dir = std::filesystem::path(*exe_path).parent_path();
+
+    spdlog::info("[IntegrityCheckBypass]: Scanning directory: {}", utility::narrow(exe_dir.wstring()));
+
+    // Scan for matching files: re_chunk_000.pak.sub_000.pak.patch_0.pak
+    // Capture the patch number to find the highest one
+    std::regex pattern(R"(re_chunk_\d+\.pak\.sub_\d+\.pak\.patch_(\d+)\.pak)");
+    std::smatch match;
+    int highest_patch_num = -1;
+
+    for (const auto& entry : std::filesystem::directory_iterator(exe_dir)) {
+        if (entry.is_regular_file()) {
+            const auto filename = entry.path().filename().string();
+            if (std::regex_match(filename, match, pattern)) {
+                try {
+                    const int patch_num = std::stoi(match[1].str());
+                    highest_patch_num = std::max(highest_patch_num, patch_num);
+                    spdlog::info("[IntegrityCheckBypass]: Found patch file: {} (patch_{})", filename, patch_num);
+                } catch (const std::exception& e) {
+                    spdlog::warn("[IntegrityCheckBypass]: Failed to parse patch number from {}: {}", filename, e.what());
+                }
+            }
+        }
+    }
+
+    if (highest_patch_num >= 0) {
+        spdlog::info("[IntegrityCheckBypass]: Highest patch number found: {}", highest_patch_num);
+    } else {
+        spdlog::warn("[IntegrityCheckBypass]: No valid patch files found!");
+        highest_patch_num = 0;
+    }
+
+    s_patch_count_checked = true;
+    s_patch_count = highest_patch_num;
+
+    return highest_patch_num;
 }
 
 void IntegrityCheckBypass::immediate_patch_dd2() {
