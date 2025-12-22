@@ -54,6 +54,7 @@ private:
     static inline safetyhook::MidHook s_patch_version_hook;
     static inline std::optional<uintptr_t> s_sha3_code_end{};
     static inline int32_t s_sha3_reg_index{-1};
+    static inline int32_t s_patch_version_reg_index{-1};
     static inline int s_patch_count;
     static inline bool s_patch_count_checked;
 

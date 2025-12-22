@@ -651,11 +651,95 @@ void IntegrityCheckBypass::patch_version_hook(safetyhook::Context& context) {
     // Print rax
     spdlog::info("[IntegrityCheckBypass]: Patch version: {}. Game wont load past this patch version", context.rax);
 
-    // I WILL OVERWRITE THIS RAX. FUCK YOU
     // Scan for amount of paks. Get exe directory. To be honest set this to 9999 is okay, but i feel like it might take a long time
-    context.rax = std::max<int>(scan_patch_files_count(), context.rax);
+    int file_count_result = std::max<int>(scan_patch_files_count(), context.rax);
 
-    spdlog::info("[IntegrityCheckBypass]: New patch version (modded): {}", context.rax);
+    switch (s_patch_version_reg_index) {
+        case NDR_RAX:
+            context.rax = file_count_result;
+            SPDLOG_INFO("[IntegrityCheckBypass]: New patch version set to RAX: {}", context.rax);
+            break;
+
+        case NDR_RCX:
+            context.rcx = file_count_result;
+            SPDLOG_INFO("[IntegrityCheckBypass]: New patch version set to RCX: {}", context.rcx);
+            break;
+
+        case NDR_RDX:
+            context.rdx = file_count_result;
+            SPDLOG_INFO("[IntegrityCheckBypass]: New patch version set to RDX: {}", context.rdx);
+            break;
+
+        case NDR_RBX:
+            context.rbx = file_count_result;
+            SPDLOG_INFO("[IntegrityCheckBypass]: New patch version set to RBX: {}", context.rbx);
+            break;
+
+        case NDR_RSP:
+            context.rsp = file_count_result;
+            SPDLOG_INFO("[IntegrityCheckBypass]: New patch version set to RSP: {}", context.rsp);
+            break;
+
+        case NDR_RBP:
+            context.rbp = file_count_result;
+            SPDLOG_INFO("[IntegrityCheckBypass]: New patch version set to RBP: {}", context.rbp);
+            break;
+
+        case NDR_RSI:
+            context.rsi = file_count_result;
+            SPDLOG_INFO("[IntegrityCheckBypass]: New patch version set to RSI: {}", context.rsi);
+            break;
+
+        case NDR_RDI:
+            context.rdi = file_count_result;
+            SPDLOG_INFO("[IntegrityCheckBypass]: New patch version set to RDI: {}", context.rdi);
+            break;
+
+        case NDR_R8:
+            context.r8 = file_count_result;
+            SPDLOG_INFO("[IntegrityCheckBypass]: New patch version set to R8: {}", context.r8);
+            break;
+
+        case NDR_R9:
+            context.r9 = file_count_result;
+            SPDLOG_INFO("[IntegrityCheckBypass]: New patch version set to R9: {}", context.r9);
+            break;
+
+        case NDR_R10:
+            context.r10 = file_count_result;
+            SPDLOG_INFO("[IntegrityCheckBypass]: New patch version set to R10: {}", context.r10);
+            break;
+
+        case NDR_R11:
+            context.r11 = file_count_result;
+            SPDLOG_INFO("[IntegrityCheckBypass]: New patch version set to R11: {}", context.r11);
+            break;
+
+        case NDR_R12:
+            context.r12 = file_count_result;
+            SPDLOG_INFO("[IntegrityCheckBypass]: New patch version set to R12: {}", context.r12);
+            break;
+
+        case NDR_R13:
+            context.r13 = file_count_result;
+            SPDLOG_INFO("[IntegrityCheckBypass]: New patch version set to R13: {}", context.r13);
+            break;
+
+        case NDR_R14:
+            context.r14 = file_count_result;
+            SPDLOG_INFO("[IntegrityCheckBypass]: New patch version set to R14: {}", context.r14);
+            break;
+
+        case NDR_R15:
+            context.r15 = file_count_result;
+            SPDLOG_INFO("[IntegrityCheckBypass]: New patch version set to R15: {}", context.r15);
+            break;
+
+        default:
+            context.rax = file_count_result; // fallback to RAX
+            SPDLOG_INFO("[IntegrityCheckBypass]: Unknown register, falling back to RAX for patch version: {}", context.rax);
+            break;
+    }
 }
 
 // This allows unencrypted paks to load.
@@ -795,18 +879,29 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
 
     spdlog::info("[IntegrityCheckBypass]: Created sha3_rsa_code_midhook!");
 
-    const auto pak_load_check_start = utility::scan(game, "41 57 41 56 41 55 41 54 56 57 55 53 48 81 EC 18 01 00 00 48 89 CE 48 8B 05 43 43 BB 09 48 31 E0");
+    const auto pak_load_check_start = utility::scan(game, "41 57 41 56 41 55 41 54 56 57 55 53 48 81 EC ? ? ? ? 48 89 CE 48 8B 05 ? ? ? ? 48 31 E0 48 89 84 24 ? ? ? ? 48 8B 81 ? ? ? ? 48 C1 E8 10");
     
     if (pak_load_check_start) {
         spdlog::info("[IntegrityCheckBypass]: Found pak_load_check_function @ 0x{:X}, hook!", (uintptr_t)*pak_load_check_start);
         s_pak_load_check_function_hook = safetyhook::create_mid((void*)*pak_load_check_start, &IntegrityCheckBypass::pak_load_check_function);
     }
 
-    const auto patch_version_start = utility::scan(game, "48 89 44 24 30 48 85 FF 0F 84 28 01 00 00 66 83 3F 72 0F 85 1E 01 00 00 66 BA 72 00 B8 02 00 00 00 48 8D 0D 3A A7 BB 03 66 85 D2 74");
+    const auto patch_version_start = utility::scan(game, "48 89 ? 24 ? 48 85 FF 0F 84 ? ? ? ? 66 83 3F 72 0F 85 ? ? ? ? 66 BA 72 00");
 
     if (patch_version_start) {
+        // Before patching, decode the instruction at patch_version_start to find the source register of the MOV instruction
+        auto move_instruction = utility::decode_one((std::uint8_t*)*patch_version_start);
+
         spdlog::info("[IntegrityCheckBypass]: Created patch_version_hook to 0x{:X}, hook!", (uintptr_t)*patch_version_start);
         s_patch_version_hook = safetyhook::create_mid((void*)*patch_version_start, &IntegrityCheckBypass::patch_version_hook);
+
+        // Get the source register of the MOV instruction
+        if (move_instruction && move_instruction->Instruction == ND_INS_MOV && move_instruction->Operands[1].Type == ND_OP_REG) {
+            s_patch_version_reg_index = move_instruction->Operands[1].Info.Register.Reg;
+            spdlog::info("[IntegrityCheckBypass]: patch_version_reg_index set to {}", s_patch_version_reg_index);
+        } else {
+            spdlog::error("[IntegrityCheckBypass]: Could not determine patch_version_reg_index! Default to RAX");
+        }
     }
 
     auto previous_instructions = utility::get_disassembly_behind(*s_sha3_code_end);
