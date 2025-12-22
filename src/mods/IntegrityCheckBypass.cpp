@@ -879,6 +879,7 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
 
     spdlog::info("[IntegrityCheckBypass]: Created sha3_rsa_code_midhook!");
 
+#ifdef MHWILDS
     const auto pak_load_check_start = utility::scan(game, "41 57 41 56 41 55 41 54 56 57 55 53 48 81 EC ? ? ? ? 48 89 CE 48 8B 05 ? ? ? ? 48 31 E0 48 89 84 24 ? ? ? ? 48 8B 81 ? ? ? ? 48 C1 E8 10");
     
     if (pak_load_check_start) {
@@ -903,6 +904,7 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
             spdlog::error("[IntegrityCheckBypass]: Could not determine patch_version_reg_index! Default to RAX");
         }
     }
+#endif
 
     auto previous_instructions = utility::get_disassembly_behind(*s_sha3_code_end);
     auto previous_instructions_start = utility::get_disassembly_behind(*sha3_code_start);
