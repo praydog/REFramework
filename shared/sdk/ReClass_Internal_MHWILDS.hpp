@@ -133,11 +133,11 @@ public:
 	uint32_t typeIndexProbably; //0x0018
 	char pad_001C[4]; //0x001C
 	char *name; //0x0020
-	char pad_0028[8]; //0x0028
+	uint32_t parentTypeId; //0x0028
+	uint32_t typeCRC; //0x002C
 	uint32_t size; //0x0030
-	uint32_t typeCRC; //0x0034
-	uint32_t miscFlags; //0x0038
-	char pad_003C[4]; //0x003C
+	uint32_t miscFlags; //0x0034
+	char pad_0038[8]; //0x0038
 	class REType *super; //0x0040
 	class REType *childType; //0x0048
 	class REType *chainType; //0x0050
