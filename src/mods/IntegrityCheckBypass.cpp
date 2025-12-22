@@ -648,96 +648,94 @@ void IntegrityCheckBypass::pak_load_check_function(safetyhook::Context& context)
 void IntegrityCheckBypass::patch_version_hook(safetyhook::Context& context) {
     // THEY STORE PATCH VERSION INSIDE SOMEWHERE NOW! And only load until that patch version then dont load no more paks
     spdlog::info("[IntegrityCheckBypass]: patch_version_hook called!");
-    // Print rax
-    spdlog::info("[IntegrityCheckBypass]: Patch version: {}. Game wont load past this patch version", context.rax);
 
     // Scan for amount of paks. Get exe directory. To be honest set this to 9999 is okay, but i feel like it might take a long time
     int file_count_result = std::max<int>(scan_patch_files_count(), context.rax);
 
     switch (s_patch_version_reg_index) {
         case NDR_RAX:
+            spdlog::info("[IntegrityCheckBypass]: Patch version: {}. Game wont load past this patch version. Setting new patch version at RAX to {}", context.rax, file_count_result);
             context.rax = file_count_result;
-            SPDLOG_INFO("[IntegrityCheckBypass]: New patch version set to RAX: {}", context.rax);
             break;
 
         case NDR_RCX:
+            spdlog::info("[IntegrityCheckBypass]: Patch version: {}. Game wont load past this patch version. Setting new patch version at RCX to {}", context.rcx, file_count_result);
             context.rcx = file_count_result;
-            SPDLOG_INFO("[IntegrityCheckBypass]: New patch version set to RCX: {}", context.rcx);
             break;
 
         case NDR_RDX:
+            spdlog::info("[IntegrityCheckBypass]: Patch version: {}. Game wont load past this patch version. Setting new patch version at RDX to {}", context.rdx, file_count_result);
             context.rdx = file_count_result;
-            SPDLOG_INFO("[IntegrityCheckBypass]: New patch version set to RDX: {}", context.rdx);
             break;
 
         case NDR_RBX:
+            spdlog::info("[IntegrityCheckBypass]: Patch version: {}. Game wont load past this patch version. Setting new patch version at RBX to {}", context.rbx, file_count_result);
             context.rbx = file_count_result;
-            SPDLOG_INFO("[IntegrityCheckBypass]: New patch version set to RBX: {}", context.rbx);
             break;
 
         case NDR_RSP:
+            spdlog::info("[IntegrityCheckBypass]: Patch version: {}. Game wont load past this patch version. Setting new patch version at RSP to {}", context.rsp, file_count_result);
             context.rsp = file_count_result;
-            SPDLOG_INFO("[IntegrityCheckBypass]: New patch version set to RSP: {}", context.rsp);
             break;
 
         case NDR_RBP:
+            spdlog::info("[IntegrityCheckBypass]: Patch version: {}. Game wont load past this patch version. Setting new patch version at RBP to {}", context.rbp, file_count_result);
             context.rbp = file_count_result;
-            SPDLOG_INFO("[IntegrityCheckBypass]: New patch version set to RBP: {}", context.rbp);
             break;
 
         case NDR_RSI:
+            spdlog::info("[IntegrityCheckBypass]: Patch version: {}. Game wont load past this patch version. Setting new patch version at RSI to {}", context.rsi, file_count_result);
             context.rsi = file_count_result;
-            SPDLOG_INFO("[IntegrityCheckBypass]: New patch version set to RSI: {}", context.rsi);
             break;
 
         case NDR_RDI:
+            spdlog::info("[IntegrityCheckBypass]: Patch version: {}. Game wont load past this patch version. Setting new patch version at RDI to {}", context.rdi, file_count_result);
             context.rdi = file_count_result;
-            SPDLOG_INFO("[IntegrityCheckBypass]: New patch version set to RDI: {}", context.rdi);
             break;
 
         case NDR_R8:
+            spdlog::info("[IntegrityCheckBypass]: Patch version: {}. Game wont load past this patch version. Setting new patch version at R8 to {}", context.r8, file_count_result);
             context.r8 = file_count_result;
-            SPDLOG_INFO("[IntegrityCheckBypass]: New patch version set to R8: {}", context.r8);
             break;
 
         case NDR_R9:
+            spdlog::info("[IntegrityCheckBypass]: Patch version: {}. Game wont load past this patch version. Setting new patch version at R9 to {}", context.r9, file_count_result);
             context.r9 = file_count_result;
-            SPDLOG_INFO("[IntegrityCheckBypass]: New patch version set to R9: {}", context.r9);
             break;
 
         case NDR_R10:
+            spdlog::info("[IntegrityCheckBypass]: Patch version: {}. Game wont load past this patch version. Setting new patch version at R10 to {}", context.r10, file_count_result);
             context.r10 = file_count_result;
-            SPDLOG_INFO("[IntegrityCheckBypass]: New patch version set to R10: {}", context.r10);
             break;
 
         case NDR_R11:
+            spdlog::info("[IntegrityCheckBypass]: Patch version: {}. Game wont load past this patch version. Setting new patch version at R11 to {}", context.r11, file_count_result);
             context.r11 = file_count_result;
-            SPDLOG_INFO("[IntegrityCheckBypass]: New patch version set to R11: {}", context.r11);
             break;
 
         case NDR_R12:
+            spdlog::info("[IntegrityCheckBypass]: Patch version: {}. Game wont load past this patch version. Setting new patch version at R12 to {}", context.r12, file_count_result);
             context.r12 = file_count_result;
-            SPDLOG_INFO("[IntegrityCheckBypass]: New patch version set to R12: {}", context.r12);
             break;
 
         case NDR_R13:
+            spdlog::info("[IntegrityCheckBypass]: Patch version: {}. Game wont load past this patch version. Setting new patch version at R13 to {}", context.r13, file_count_result);
             context.r13 = file_count_result;
-            SPDLOG_INFO("[IntegrityCheckBypass]: New patch version set to R13: {}", context.r13);
             break;
 
         case NDR_R14:
+            spdlog::info("[IntegrityCheckBypass]: Patch version: {}. Game wont load past this patch version. Setting new patch version at R14 to {}", context.r14, file_count_result);
             context.r14 = file_count_result;
-            SPDLOG_INFO("[IntegrityCheckBypass]: New patch version set to R14: {}", context.r14);
             break;
 
         case NDR_R15:
+            spdlog::info("[IntegrityCheckBypass]: Patch version: {}. Game wont load past this patch version. Setting new patch version at R15 to {}", context.r15, file_count_result);
             context.r15 = file_count_result;
-            SPDLOG_INFO("[IntegrityCheckBypass]: New patch version set to R15: {}", context.r15);
             break;
 
         default:
+            spdlog::info("[IntegrityCheckBypass]: Unknown register, falling back to RAX for patch version: {} (update it to {})", context.rax, file_count_result);
             context.rax = file_count_result; // fallback to RAX
-            SPDLOG_INFO("[IntegrityCheckBypass]: Unknown register, falling back to RAX for patch version: {}", context.rax);
             break;
     }
 }
