@@ -133,18 +133,18 @@ public:
 	uint32_t typeIndexProbably; //0x0018
 	char pad_001C[4]; //0x001C
 	char *name; //0x0020
-	uint32_t parentTypeId; //0x0028
+	char pad_0028[4]; //0x0028
 	uint32_t typeCRC; //0x002C
-	uint32_t size; //0x0030
+	uint32_t size : 24; //0x0030
+	uint32_t unkFlags : 8;
 	uint32_t miscFlags; //0x0034
-	char pad_0038[8]; //0x0038
-	class REType *super; //0x0040
-	class REType *childType; //0x0048
-	class REType *chainType; //0x0050
-	class REFieldList *fields; //0x0058
-	class REClassInfo *classInfo; //0x0060 is a managed type if this is not null
-}; //Size: 0x0068
-static_assert(sizeof(REType) == 0x68);
+	class REType *super; //0x0038
+	class REType *childType; //0x0040
+	class REType *chainType; //0x0048
+	class REFieldList *fields; //0x0050
+	class REClassInfo *classInfo; //0x0058 is a managed type if this is not null
+}; //Size: 0x0060
+static_assert(sizeof(REType) == 0x60);
 
 class N000003DE
 {
@@ -408,22 +408,24 @@ public:
 	uint16_t typeIndex; //0x0000 index into global type array
 	char pad_0002[5]; //0x0002
 	uint8_t objectFlags; //0x0007 flags >> 5 ==  1 == normal type ? ??
-	uint32_t elementBitField; //0x0008 >> 4 is the value type index (RETypeImpl)
-	uint32_t typeFlags; //0x000C System::Reflection::TypeAttributes or via::clr::TypeFlag
-	uint32_t size; //0x0010
-	uint32_t fqnHash; //0x0014
-	uint32_t typeCRC; //0x0018
-	uint32_t defaultCtor; //0x001C
-	uint32_t vt; //0x0020 vtable byte pool
-	uint32_t memberMethod; //0x0024
-	uint32_t memberField; //0x0028
-	uint32_t memberProp; //0x002C
-	uint32_t memberEvent; //0x0030
-	int32_t interfaces; //0x0034
-	class RETypeCLR *type; //0x0038
-	class REObjectInfo *parentInfo; //0x0040
-}; //Size: 0x0048
-static_assert(sizeof(REClassInfo) == 0x48);
+	uint32_t _; //0x0008
+	uint32_t elementBitField; //0x000C >> 4 is the value type index (RETypeImpl)
+	uint32_t typeFlags; //0x0010 System::Reflection::TypeAttributes or via::clr::TypeFlag
+	uint32_t size; //0x0014
+	uint32_t fqnHash; //0x0018
+	uint32_t typeCRC; //0x001C
+	uint32_t defaultCtor; //0x0020
+	uint32_t vt; //0x0024 vtable byte pool
+	uint32_t memberMethod; //0x0028
+	uint32_t memberField; //0x002C
+	uint32_t memberProp; //0x0030
+	uint32_t memberEvent; //0x0034
+	int32_t interfaces; //0x0038
+	int32_t generics; //0x003C byte pool
+	class RETypeCLR *type; //0x0040
+	class REObjectInfo *parentInfo; //0x0048
+}; //Size: 0x0050
+static_assert(sizeof(REClassInfo) == 0x50);
 
 class N00000CF1
 {
@@ -1305,8 +1307,8 @@ class TypeListArray
 {
 public:
 	class REClassInfo N00000A51[100000]; //0x0000
-}; //Size: 0x6DDD00
-static_assert(sizeof(TypeListArray) == 0x6DDD00);
+}; //Size: 0x7A1200
+static_assert(sizeof(TypeListArray) == 0x7A1200);
 
 class GlobalArrayData2
 {
@@ -4017,11 +4019,11 @@ static_assert(sizeof(ArrayDeserializeSequence) == 0x10);
 class RETypeCLR : public REType
 {
 public:
-	class ArrayDeserializeSequence deserializeThing; //0x0068
-	class REType *nativeType; //0x0078
-	char *name2; //0x0080
-}; //Size: 0x0088
-static_assert(sizeof(RETypeCLR) == 0x88);
+	class ArrayDeserializeSequence deserializeThing; //0x0060
+	class REType *nativeType; //0x0070
+	char *name2; //0x0078
+}; //Size: 0x0080
+static_assert(sizeof(RETypeCLR) == 0x80);
 
 class DeserializeSequence
 {

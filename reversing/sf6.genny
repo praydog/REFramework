@@ -115,11 +115,11 @@ namespace via {
 
     struct Window  0x100 {
         void* vtable
-        uint32_t width @ 0x78
+        uint32_t width @ 0x58
         uint32_t height
         via.Point cursor_pos;
         bool show_cursor;
-        via.Size borderless_size @ 0xB8
+        via.Size borderless_size @ 0x98
     };
 
     struct SceneView : via.clr.ManagedObject 0xb0 {

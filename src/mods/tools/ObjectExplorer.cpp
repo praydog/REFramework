@@ -3743,7 +3743,7 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
         if (real_data != nullptr) {
             auto& int_val = *(uint32_t*)real_data;
 
-            ImGui::DragInt("Set Value", (int*)&int_val, 1.0f, min_uint, max_uint);
+            ImGui::DragScalar("Set Value", ImGuiDataType_U32, &int_val, 1.0f, &min_uint, &max_uint);
         }
 
         break;

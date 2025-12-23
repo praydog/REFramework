@@ -309,9 +309,15 @@ std::optional<std::string> Hooks::hook_gui_draw() {
             offset = 15;
 
             if (!gui_draw_call) {
-                //return "Unable to find gui_draw_call pattern.";
-                spdlog::error("[Hooks] Unable to find gui_draw_call pattern.");
-                return std::nullopt; // Don't bother erroring out the entire mod just because of this
+                // PRAGMATA
+                gui_draw_call = utility::scan(game, "49 8B 0C C6 48 83 79 ? 00 74 ? E8 ? ? ? ?");
+                offset = 12;
+
+                if (!gui_draw_call) {
+                    //return "Unable to find gui_draw_call pattern.";
+                    spdlog::error("[Hooks] Unable to find gui_draw_call pattern.");
+                    return std::nullopt; // Don't bother erroring out the entire mod just because of this
+                }
             }
         }
     }
@@ -579,9 +585,14 @@ std::optional<std::string> Hooks::hook_view_get_size() {
         ref = utility::find_pattern_in_path((uint8_t*)get_size_func, 1000, false, "48 8B CB E8");
     }
 
+    
 #if TDB_VER >= 74
     if (!ref) {
-        ref = utility::find_pattern_in_path((uint8_t*)get_size_func, 1000, false, "48 89 F2 E8"); // >= TDB74?
+        ref = utility::find_pattern_in_path((uint8_t*)get_size_func, 1000, false, "48 89 F2 E8"); // >= TDB74 (MHWILDS)
+    }
+
+    if (!ref) {
+        ref = utility::find_pattern_in_path((uint8_t*)get_size_func, 1000, false, "48 8B CF E8"); // Pragmata
     }
 #endif
 

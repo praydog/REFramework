@@ -17,6 +17,7 @@ set(ASMJIT_STATIC ON CACHE BOOL "" FORCE)
 set(DYNAMIC_LOADER ON CACHE BOOL "" FORCE) # OpenXR
 set(BUILD_TOOLS OFF CACHE BOOL "" FORCE) # DirectXTK
 set(SAFETYHOOK_FETCH_ZYDIS ON)
+set(FT_DISABLE_HARFBUZZ ON CACHE BOOL "" FORCE) # Freetype
 
 if ("${CMAKE_BUILD_TYPE}" MATCHES "Release")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MT")
@@ -61,6 +62,7 @@ REF_BUILD_MHRISE_SDK = false
 REF_BUILD_SF6_SDK = false
 REF_BUILD_DD2_SDK = false
 REF_BUILD_MHWILDS_SDK = false
+REF_BUILD_PRAGMATA_SDK = false
 REF_BUILD_FRAMEWORK = { value = true }
 REF_BUILD_DEPENDENCIES = { value = true }
 
@@ -80,6 +82,7 @@ build-mhrise-sdk = "REF_BUILD_MHRISE_SDK OR REF_BUILD_FRAMEWORK"
 build-sf6-sdk = "REF_BUILD_SF6_SDK OR REF_BUILD_FRAMEWORK"
 build-dd2-sdk = "REF_BUILD_DD2_SDK OR REF_BUILD_FRAMEWORK"
 build-mhwilds-sdk = "REF_BUILD_MHWILDS_SDK OR REF_BUILD_FRAMEWORK"
+build-pragmata-sdk = "REF_BUILD_PRAGMATA_SDK OR REF_BUILD_FRAMEWORK"
 build-framework-dependencies = "REF_BUILD_DEPENDENCIES AND CMAKE_SIZEOF_VOID_P EQUAL 8"
 
 [fetch-content.asmjit]
@@ -132,12 +135,25 @@ condition = "build-framework-dependencies"
 git = "https://github.com/cursey/safetyhook"
 tag = "b046e123dc69821f2c375161e0adef3c6d9c9db4"
 
+[fetch-content.freetype]
+git = "https://github.com/freetype/freetype"
+tag = "f1cd6dbfa0c98f352b698448f40ac27e8fb3832e"
+
 [target.imgui]
 type = "static"
-sources = ["dependencies/imgui/*.cpp"]
-include-directories = ["dependencies/imgui", "src/re2-imgui"]
+sources = [
+    "dependencies/imgui/*.cpp",
+    "dependencies/imgui/misc/freetype/imgui_freetype.cpp",
+]
+include-directories = [
+    "dependencies/imgui",
+    "dependencies/imgui/misc/freetype",
+    "src/re2-imgui"]
 compile-definitions = [
     "IMGUI_USER_CONFIG=\"${CMAKE_CURRENT_SOURCE_DIR}/src/re2-imgui/re2_imconfig.hpp\"",
+]
+link-libraries = [
+    "freetype"
 ]
 condition = "build-framework"
 
@@ -191,7 +207,7 @@ tag = "v1.34.10"
 
 [fetch-content.kananlib]
 git = "https://github.com/cursey/kananlib"
-tag = "d659e3b8312e26ba19329f96b73ba88d1211bfdb"
+tag = "3a2448d5b12afd607f02af231571ec76443cb545"
 
 [target.utility]
 type = "static"
@@ -376,6 +392,14 @@ compile-definitions = ["MHWILDS", "REENGINE_PACKED", "REENGINE_AT"]
 condition = "build-mhwilds-sdk"
 
 [target.MHWILDS]
+type = "game"
+
+[target.PRAGMATASDK]
+type = "sdk"
+compile-definitions = ["PRAGMATA", "REENGINE_PACKED", "REENGINE_AT"]
+condition = "build-pragmata-sdk"
+
+[target.PRAGMATA]
 type = "game"
 
 [template.plugin]

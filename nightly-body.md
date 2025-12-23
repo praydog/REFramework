@@ -13,7 +13,7 @@ If you want builds that work on the old non-RT versions, download the versions t
 
 [Documentation](https://cursey.github.io/reframework-book/)
 
-[Modding Haven](https://discord.gg/9Vr2SJ3) (General RE Engine modding)
+[Haven's Night](https://discord.gg/9Vr2SJ3) (General RE Engine modding)
 
 [Infernal Warks](https://discord.com/invite/nX5EzVU) (DMC5 modding)
 

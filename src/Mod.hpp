@@ -184,7 +184,7 @@ public:
 
     bool draw(std::string_view name) override {
         ImGui::PushID(this);
-        auto ret = ImGui::InputInt(name.data(), &m_value);
+        auto ret = ImGui::SliderInt(name.data(), &m_value, 5, 40);
         ImGui::PopID();
 
         return ret;
@@ -243,6 +243,72 @@ public:
     }
     
 protected:
+    std::vector<const char*> m_options{};
+    std::vector<std::string> m_options_stdstr{};
+};
+
+class ModComboString : public ModValue<std::string> {
+public:
+    using Ptr = std::unique_ptr<ModComboString>;
+
+    static auto create(std::string_view config_name, std::vector<std::string> options, std::string key) {
+        return std::make_unique<ModComboString>(config_name, options, key);
+    }
+
+    ModComboString(std::string_view config_name, const std::vector<std::string>& options, std::string default_value)
+        : ModValue{config_name, default_value}
+        , m_options_stdstr{options} {
+        for (auto& o : m_options_stdstr) {
+            m_options.push_back(o.c_str());
+        }
+    }
+
+    void config_load(const utility::Config& cfg) override {
+        auto v = cfg.get(m_config_name);
+        index = 0;
+
+        if (v) {
+            m_value = *v;
+
+            auto it = std::find(m_options_stdstr.begin(), m_options_stdstr.end(), m_value);
+            if (it != m_options_stdstr.end()) {
+                index = std::distance(m_options_stdstr.begin(), it);
+            }
+        }
+    };
+
+    bool draw(std::string_view name) override {
+        // clamp m_value to valid range
+        index = std::clamp<int32_t>(index, 0, static_cast<int32_t>(m_options.size()) - 1);
+
+        ImGui::PushID(this);
+        auto ret = ImGui::Combo(name.data(), &index, m_options.data(), static_cast<int32_t>(m_options.size()));
+        ImGui::PopID();
+
+        m_value = m_options[index];
+
+        return ret;
+    }
+
+    void draw_value(std::string_view name) override {
+        index = std::clamp<int32_t>(index, 0, static_cast<int32_t>(m_options.size()) - 1);
+
+        ImGui::Text("%s: %s | %s", name.data(), m_options[index], m_value.c_str());
+    }
+
+    void recreate_options(const std::vector<std::string>& options) {
+        m_options_stdstr = options;
+        m_options.clear();
+
+        for (auto& o : m_options_stdstr) {
+            m_options.push_back(o.c_str());
+        }
+    }
+
+    const auto& options() const { return m_options; }
+
+protected:
+    int index;
     std::vector<const char*> m_options{};
     std::vector<std::string> m_options_stdstr{};
 };

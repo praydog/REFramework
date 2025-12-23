@@ -659,7 +659,79 @@ void IntegrityCheckBypass::sha3_rsa_code_midhook(safetyhook::Context& context) {
         ENCRYPTED = 0x8
     };
 
-    const auto pak_flags = (PakFlags)context.r8; // Might change, maybe add automated register detection later
+    //const auto pak_flags = (PakFlags)context.rax; // Might change, maybe add automated register detection later
+    PakFlags pak_flags{};
+
+    switch (s_sha3_reg_index) {
+        case NDR_RAX:
+            pak_flags = (PakFlags)context.rax;
+            SPDLOG_INFO("[IntegrityCheckBypass]: Using RAX for pak_flags");
+            break;
+        case NDR_RCX:
+            pak_flags = (PakFlags)context.rcx;
+            SPDLOG_INFO("[IntegrityCheckBypass]: Using RCX for pak_flags");
+            break;
+        case NDR_RDX:
+            pak_flags = (PakFlags)context.rdx;
+            SPDLOG_INFO("[IntegrityCheckBypass]: Using RDX for pak_flags");
+            break;
+        case NDR_RBX:
+            pak_flags = (PakFlags)context.rbx;
+            SPDLOG_INFO("[IntegrityCheckBypass]: Using RBX for pak_flags");
+            break;
+        case NDR_RSP:
+            pak_flags = (PakFlags)context.rsp;
+            SPDLOG_INFO("[IntegrityCheckBypass]: Using RSP for pak_flags");
+            break;
+        case NDR_RBP:
+            pak_flags = (PakFlags)context.rbp;
+            SPDLOG_INFO("[IntegrityCheckBypass]: Using RBP for pak_flags");
+            break;
+        case NDR_RSI:
+            pak_flags = (PakFlags)context.rsi;
+            SPDLOG_INFO("[IntegrityCheckBypass]: Using RSI for pak_flags");
+            break;
+        case NDR_RDI:
+            pak_flags = (PakFlags)context.rdi;
+            SPDLOG_INFO("[IntegrityCheckBypass]: Using RDI for pak_flags");
+            break;
+        case NDR_R8:
+            pak_flags = (PakFlags)context.r8;
+            SPDLOG_INFO("[IntegrityCheckBypass]: Using R8 for pak_flags");
+            break;
+        case NDR_R9:
+            pak_flags = (PakFlags)context.r9;
+            SPDLOG_INFO("[IntegrityCheckBypass]: Using R9 for pak_flags");
+            break;
+        case NDR_R10:
+            pak_flags = (PakFlags)context.r10;
+            SPDLOG_INFO("[IntegrityCheckBypass]: Using R10 for pak_flags");
+            break;
+        case NDR_R11:
+            pak_flags = (PakFlags)context.r11;
+            SPDLOG_INFO("[IntegrityCheckBypass]: Using R11 for pak_flags");
+            break;
+        case NDR_R12:
+            pak_flags = (PakFlags)context.r12;
+            SPDLOG_INFO("[IntegrityCheckBypass]: Using R12 for pak_flags");
+            break;
+        case NDR_R13:
+            pak_flags = (PakFlags)context.r13;
+            SPDLOG_INFO("[IntegrityCheckBypass]: Using R13 for pak_flags");
+            break;
+        case NDR_R14:
+            pak_flags = (PakFlags)context.r14;
+            SPDLOG_INFO("[IntegrityCheckBypass]: Using R14 for pak_flags");
+            break;
+        case NDR_R15:
+            pak_flags = (PakFlags)context.r15;
+            SPDLOG_INFO("[IntegrityCheckBypass]: Using R15 for pak_flags");
+            break;
+        default:
+            pak_flags = (PakFlags)context.r8; // fallback to R8
+            SPDLOG_INFO("[IntegrityCheckBypass]: Unknown register, falling back to R8 for pak_flags");
+            break;
+    }
 
     if ((pak_flags & PakFlags::ENCRYPTED) != 0) {
         spdlog::info("[IntegrityCheckBypass]: Pak is encrypted, allowing decryption code to run.");
@@ -676,7 +748,7 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
 
     // If this breaks... we'll fix it!
     const auto game = utility::get_executable();
-    const auto sha3_code_start = utility::scan(game, "C5 F8 57 C0 C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? C5 FC 11 44 24 ? 48 C1 E9 ?");
+    const auto sha3_code_start = utility::scan(game, "C5 F8 57 C0 C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? C5 FC 11 44 24 ? 48");
 
     if (!sha3_code_start) {
         spdlog::error("[IntegrityCheckBypass]: Could not find sha3_rsa_code_start!");
@@ -699,7 +771,8 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
 
     spdlog::info("[IntegrityCheckBypass]: Created sha3_rsa_code_midhook!");
 
-    const auto previous_instructions = utility::get_disassembly_behind(*s_sha3_code_end);
+    auto previous_instructions = utility::get_disassembly_behind(*s_sha3_code_end);
+    auto previous_instructions_start = utility::get_disassembly_behind(*sha3_code_start);
 
     // This NOPs out the conditional jump that rejects the PAK file if the integrity check fails.
     // Normally, the game computes a SHA3-256 hash of the TOC/resource headers before obfuscation.
@@ -727,6 +800,30 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
             spdlog::warn("[IntegrityCheckBypass]: Previous instruction is not a conditional branch, cannot NOP it!");
         }
     }
+
+    if (!previous_instructions_start.empty()) {
+        // reverse
+        std::reverse(previous_instructions_start.begin(), previous_instructions_start.end());
+
+        // go forward until we find a test insn
+        for (auto& insn : previous_instructions_start) {
+            if (std::string_view(insn.instrux.Mnemonic).contains("TEST")) {
+                spdlog::info("[IntegrityCheckBypass]: Found test instruction at 0x{:X}", insn.addr);
+                // Check if the first operand is a register
+                if (insn.instrux.Operands[0].Type == ND_OP_REG && insn.instrux.Operands[0].Info.Register.Type == ND_REG_GPR) {
+                    s_sha3_reg_index = insn.instrux.Operands[0].Info.Register.Reg;
+                    spdlog::info("[IntegrityCheckBypass]: sha3_reg_index set to {}", s_sha3_reg_index);
+                    break;
+                } else {
+                    spdlog::error("[IntegrityCheckBypass]: First operand of test instruction is not a register!");
+                }
+            }
+        }
+
+        if (s_sha3_reg_index == -1) {
+            spdlog::error("[IntegrityCheckBypass]: Could not determine sha3_reg_index!");
+        }
+    }
 }
 
 void IntegrityCheckBypass::immediate_patch_dd2() {
@@ -747,6 +844,9 @@ void IntegrityCheckBypass::immediate_patch_dd2() {
 #if TDB_VER >= 74
     init_anti_debug_watcher();
 
+    // TODO: Check if full release of Pragmata needs this
+    // right now it freezes the game
+#if defined(MHWILDS)
     const auto query_performance_frequency = &QueryPerformanceFrequency;
     const auto query_performance_counter = &QueryPerformanceCounter;
 
@@ -817,6 +917,7 @@ void IntegrityCheckBypass::immediate_patch_dd2() {
             spdlog::error("[IntegrityCheckBypass]: Could not find QueryPerformanceFrequency/Counter imports!");
         }
     }
+#endif
 
     if (const auto create_blas_fn = utility::find_function_from_string_ref(game, "createBLAS"); create_blas_fn.has_value()) {
         const auto create_blas_fn_unwind = utility::find_function_start_unwind(*create_blas_fn);

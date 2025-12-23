@@ -5,14 +5,14 @@ namespace regenny::via {
 #pragma pack(push, 1)
 struct Window {
     void* vtable; // 0x0
-    char pad_8[0x70];
-    uint32_t width; // 0x78
-    uint32_t height; // 0x7c
-    regenny::via::Point cursor_pos; // 0x80
-    bool show_cursor; // 0x88
-    char pad_89[0x2f];
-    regenny::via::Size borderless_size; // 0xb8
-    char pad_c0[0x40];
+    private: char pad_8[0x50]; public:
+    uint32_t width; // 0x58
+    uint32_t height; // 0x5c
+    regenny::via::Point cursor_pos; // 0x60
+    bool show_cursor; // 0x68
+    private: char pad_69[0x2f]; public:
+    regenny::via::Size borderless_size; // 0x98
+    private: char pad_a0[0x60]; public:
 }; // Size: 0x100
 #pragma pack(pop)
 }

@@ -54,10 +54,11 @@ void resolve_release() {
     // because we need to make sure we don't resolve release to the same function.
     resolve_add_ref();
 
-    constexpr std::array<std::string_view, 3> possible_patterns{
+    constexpr std::array<std::string_view, 4> possible_patterns{
         "40 53 48 83 EC ? 8B 41 08 48 8B D9 85 C0 0F", // RE2+
         "40 53 48 83 EC ? 8B 41 08 48 8B D9 48 83 C1 08 85 C0 78", // RE7
         "41 57 41 56 41 55 41 54 56 57 55 53 48 83 EC ? 48 8B 05 ? ? ? ? 48 31 E0 48 89 44 24 30 8B 41 08", // MHWILDS+ (or unoptimized compiler builds?)
+        "41 57 41 56 41 55 41 54 56 57 55 53 48 83 EC ? 48 8B 05 ? ? ? ? 48 31 E0 48 89 ? ? ? 8B 41 08 85 C0", // MHWILDS TU4+
     };
 
     spdlog::info("[REManagedObject] Finding release function...");
