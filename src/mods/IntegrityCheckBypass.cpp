@@ -1,5 +1,6 @@
 #include <unordered_set>
 #include <iomanip>
+#include <regex>
 
 #include "utility/Module.hpp"
 #include "utility/Scan.hpp"
@@ -229,6 +230,8 @@ std::optional<std::string> IntegrityCheckBypass::on_initialize() {
         spdlog::error("[{:s}]: Could not find very_awesome_type!", get_name().data());
     }
 #endif
+
+    s_patch_count_checked = false;
 
     spdlog::info("Done.");
 
@@ -634,6 +637,109 @@ void IntegrityCheckBypass::init_anti_debug_watcher() {
     });
 }
 
+void IntegrityCheckBypass::pak_load_check_function(safetyhook::Context& context) {
+    const auto return_address = *reinterpret_cast<uintptr_t*>(context.rsp);
+    auto pak_name_wstr = reinterpret_cast<const wchar_t*>(context.rdx);
+
+    spdlog::info("[IntegrityCheckBypass]: pak_load_check_function called from: 0x{:X}", return_address);
+    spdlog::info("[IntegrityCheckBypass]: Pak name: {}", utility::narrow(pak_name_wstr));
+}
+
+void IntegrityCheckBypass::patch_version_hook(safetyhook::Context& context) {
+    // THEY STORE PATCH VERSION INSIDE SOMEWHERE NOW! And only load until that patch version then dont load no more paks
+    spdlog::info("[IntegrityCheckBypass]: patch_version_hook called!");
+
+    // Scan for amount of paks. Get exe directory. To be honest set this to 9999 is okay, but i feel like it might take a long time
+    int file_count_result = std::max<int>(scan_patch_files_count(), context.rax);
+
+    switch (s_patch_version_reg_index) {
+        case NDR_RAX:
+            spdlog::info("[IntegrityCheckBypass]: Patch version: {}. Game wont load past this patch version. Setting new patch version at RAX to {}", context.rax, file_count_result);
+            context.rax = file_count_result;
+            break;
+
+        case NDR_RCX:
+            spdlog::info("[IntegrityCheckBypass]: Patch version: {}. Game wont load past this patch version. Setting new patch version at RCX to {}", context.rcx, file_count_result);
+            context.rcx = file_count_result;
+            break;
+
+        case NDR_RDX:
+            spdlog::info("[IntegrityCheckBypass]: Patch version: {}. Game wont load past this patch version. Setting new patch version at RDX to {}", context.rdx, file_count_result);
+            context.rdx = file_count_result;
+            break;
+
+        case NDR_RBX:
+            spdlog::info("[IntegrityCheckBypass]: Patch version: {}. Game wont load past this patch version. Setting new patch version at RBX to {}", context.rbx, file_count_result);
+            context.rbx = file_count_result;
+            break;
+
+        case NDR_RSP:
+            spdlog::info("[IntegrityCheckBypass]: Patch version: {}. Game wont load past this patch version. Setting new patch version at RSP to {}", context.rsp, file_count_result);
+            context.rsp = file_count_result;
+            break;
+
+        case NDR_RBP:
+            spdlog::info("[IntegrityCheckBypass]: Patch version: {}. Game wont load past this patch version. Setting new patch version at RBP to {}", context.rbp, file_count_result);
+            context.rbp = file_count_result;
+            break;
+
+        case NDR_RSI:
+            spdlog::info("[IntegrityCheckBypass]: Patch version: {}. Game wont load past this patch version. Setting new patch version at RSI to {}", context.rsi, file_count_result);
+            context.rsi = file_count_result;
+            break;
+
+        case NDR_RDI:
+            spdlog::info("[IntegrityCheckBypass]: Patch version: {}. Game wont load past this patch version. Setting new patch version at RDI to {}", context.rdi, file_count_result);
+            context.rdi = file_count_result;
+            break;
+
+        case NDR_R8:
+            spdlog::info("[IntegrityCheckBypass]: Patch version: {}. Game wont load past this patch version. Setting new patch version at R8 to {}", context.r8, file_count_result);
+            context.r8 = file_count_result;
+            break;
+
+        case NDR_R9:
+            spdlog::info("[IntegrityCheckBypass]: Patch version: {}. Game wont load past this patch version. Setting new patch version at R9 to {}", context.r9, file_count_result);
+            context.r9 = file_count_result;
+            break;
+
+        case NDR_R10:
+            spdlog::info("[IntegrityCheckBypass]: Patch version: {}. Game wont load past this patch version. Setting new patch version at R10 to {}", context.r10, file_count_result);
+            context.r10 = file_count_result;
+            break;
+
+        case NDR_R11:
+            spdlog::info("[IntegrityCheckBypass]: Patch version: {}. Game wont load past this patch version. Setting new patch version at R11 to {}", context.r11, file_count_result);
+            context.r11 = file_count_result;
+            break;
+
+        case NDR_R12:
+            spdlog::info("[IntegrityCheckBypass]: Patch version: {}. Game wont load past this patch version. Setting new patch version at R12 to {}", context.r12, file_count_result);
+            context.r12 = file_count_result;
+            break;
+
+        case NDR_R13:
+            spdlog::info("[IntegrityCheckBypass]: Patch version: {}. Game wont load past this patch version. Setting new patch version at R13 to {}", context.r13, file_count_result);
+            context.r13 = file_count_result;
+            break;
+
+        case NDR_R14:
+            spdlog::info("[IntegrityCheckBypass]: Patch version: {}. Game wont load past this patch version. Setting new patch version at R14 to {}", context.r14, file_count_result);
+            context.r14 = file_count_result;
+            break;
+
+        case NDR_R15:
+            spdlog::info("[IntegrityCheckBypass]: Patch version: {}. Game wont load past this patch version. Setting new patch version at R15 to {}", context.r15, file_count_result);
+            context.r15 = file_count_result;
+            break;
+
+        default:
+            spdlog::info("[IntegrityCheckBypass]: Unknown register, falling back to RAX for patch version: {} (update it to {})", context.rax, file_count_result);
+            context.rax = file_count_result; // fallback to RAX
+            break;
+    }
+}
+
 // This allows unencrypted paks to load.
 void IntegrityCheckBypass::sha3_rsa_code_midhook(safetyhook::Context& context) {
     spdlog::info("[IntegrityCheckBypass]: sha3_code_midhook called!");
@@ -771,6 +877,33 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
 
     spdlog::info("[IntegrityCheckBypass]: Created sha3_rsa_code_midhook!");
 
+#ifdef MHWILDS
+    const auto pak_load_check_start = utility::scan(game, "41 57 41 56 41 55 41 54 56 57 55 53 48 81 EC ? ? ? ? 48 89 CE 48 8B 05 ? ? ? ? 48 31 E0 48 89 84 24 ? ? ? ? 48 8B 81 ? ? ? ? 48 C1 E8 10");
+    
+    if (pak_load_check_start) {
+        spdlog::info("[IntegrityCheckBypass]: Found pak_load_check_function @ 0x{:X}, hook!", (uintptr_t)*pak_load_check_start);
+        s_pak_load_check_function_hook = safetyhook::create_mid((void*)*pak_load_check_start, &IntegrityCheckBypass::pak_load_check_function);
+    }
+
+    const auto patch_version_start = utility::scan(game, "48 89 ? 24 ? 48 85 FF 0F 84 ? ? ? ? 66 83 3F 72 0F 85 ? ? ? ? 66 BA 72 00");
+
+    if (patch_version_start) {
+        // Before patching, decode the instruction at patch_version_start to find the source register of the MOV instruction
+        auto move_instruction = utility::decode_one((std::uint8_t*)*patch_version_start);
+
+        spdlog::info("[IntegrityCheckBypass]: Created patch_version_hook to 0x{:X}, hook!", (uintptr_t)*patch_version_start);
+        s_patch_version_hook = safetyhook::create_mid((void*)*patch_version_start, &IntegrityCheckBypass::patch_version_hook);
+
+        // Get the source register of the MOV instruction
+        if (move_instruction && move_instruction->Instruction == ND_INS_MOV && move_instruction->Operands[1].Type == ND_OP_REG) {
+            s_patch_version_reg_index = move_instruction->Operands[1].Info.Register.Reg;
+            spdlog::info("[IntegrityCheckBypass]: patch_version_reg_index set to {}", s_patch_version_reg_index);
+        } else {
+            spdlog::error("[IntegrityCheckBypass]: Could not determine patch_version_reg_index! Default to RAX");
+        }
+    }
+#endif
+
     auto previous_instructions = utility::get_disassembly_behind(*s_sha3_code_end);
     auto previous_instructions_start = utility::get_disassembly_behind(*sha3_code_start);
 
@@ -824,6 +957,60 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
             spdlog::error("[IntegrityCheckBypass]: Could not determine sha3_reg_index!");
         }
     }
+}
+
+int IntegrityCheckBypass::scan_patch_files_count() {
+    if (s_patch_count_checked) {
+        return s_patch_count;
+    }
+
+    spdlog::info("[IntegrityCheckBypass]: Scanning for patch files...");
+
+    // Get executable directory
+    const auto exe_module = utility::get_executable();
+    const auto exe_path = utility::get_module_pathw(exe_module);
+
+    if (!exe_path) {
+        spdlog::error("[IntegrityCheckBypass]: Could not get executable path!");
+        return -1;
+    }
+
+    const auto exe_dir = std::filesystem::path(*exe_path).parent_path();
+
+    spdlog::info("[IntegrityCheckBypass]: Scanning directory: {}", utility::narrow(exe_dir.wstring()));
+
+    // Scan for matching files: re_chunk_000.pak.sub_000.pak.patch_0.pak
+    // Capture the patch number to find the highest one
+    std::regex pattern(R"(re_chunk_\d+\.pak\.sub_\d+\.pak\.patch_(\d+)\.pak)", std::regex::ECMAScript);
+    std::smatch match;
+    int highest_patch_num = -1;
+
+    for (const auto& entry : std::filesystem::directory_iterator(exe_dir)) {
+        if (entry.is_regular_file()) {
+            const auto filename = entry.path().filename().string();
+            if (std::regex_match(filename, match, pattern)) {
+                try {
+                    const int patch_num = std::stoi(match[1].str());
+                    highest_patch_num = std::max(highest_patch_num, patch_num);
+                    spdlog::info("[IntegrityCheckBypass]: Found patch file: {} (patch_{})", filename, patch_num);
+                } catch (const std::exception& e) {
+                    spdlog::warn("[IntegrityCheckBypass]: Failed to parse patch number from {}: {}", filename, e.what());
+                }
+            }
+        }
+    }
+
+    if (highest_patch_num >= 0) {
+        spdlog::info("[IntegrityCheckBypass]: Highest patch number found: {}", highest_patch_num);
+    } else {
+        spdlog::warn("[IntegrityCheckBypass]: No valid patch files found!");
+        highest_patch_num = 0;
+    }
+
+    s_patch_count_checked = true;
+    s_patch_count = highest_patch_num;
+
+    return highest_patch_num;
 }
 
 void IntegrityCheckBypass::immediate_patch_dd2() {
