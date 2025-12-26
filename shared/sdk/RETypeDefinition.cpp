@@ -1135,10 +1135,11 @@ void* RETypeDefinition::create_instance() const {
 #if TDB_VER > 49
     #if MHWILDS
         REObjectInfo *target_managed_vt = this->managed_vt;
+        const int ABSTRACT_TYPE_FLAG = 128;
 
         if (this->managed_vt == nullptr) {
             // Abstract
-            if (this->type_flags & 128) {
+            if (this->type_flags & ABSTRACT_TYPE_FLAG) {
                 // Keep getting parent type until getting a hit
                 auto parent_type_def = this->get_parent_type();
                 while (parent_type_def != nullptr) {
