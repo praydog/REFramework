@@ -617,11 +617,21 @@ uint32_t RETypeDefinition::get_index() const {
 
 int32_t RETypeDefinition::get_fieldptr_offset() const {
 #if TDB_VER > 49
-    if (this->managed_vt == nullptr) {
-        return 0;
-    }
+    #ifdef MHWILDS
+        REObjectInfo *target_managed_vt = get_managed_vt();
 
-    return *(int32_t*)((uintptr_t)this->managed_vt - sizeof(void*));
+        if (target_managed_vt == nullptr) {
+            return 0;
+        }
+
+        return *(int32_t*)((uintptr_t)target_managed_vt - sizeof(void*));
+    #else
+        if (this->managed_vt == nullptr) {
+            return 0;
+        }
+
+        return *(int32_t*)((uintptr_t)this->managed_vt - sizeof(void*));
+    #endif
 #else
     auto vm = sdk::VM::get();
     const auto& vm_type = vm->types[this->get_index()];
@@ -632,7 +642,11 @@ int32_t RETypeDefinition::get_fieldptr_offset() const {
 
 bool RETypeDefinition::has_fieldptr_offset() const {
 #if TDB_VER > 49
-    return this->managed_vt != nullptr;
+    #ifdef MHWILDS
+        return get_managed_vt() != nullptr;
+    #else
+        return this->managed_vt != nullptr;
+    #endif
 #else
     return true;
 #endif
@@ -1119,7 +1133,30 @@ void* RETypeDefinition::create_instance() const {
 
 ::REObjectInfo* RETypeDefinition::get_managed_vt() const {
 #if TDB_VER > 49
-    return (::REObjectInfo*)this->managed_vt;
+    #if MHWILDS
+        REObjectInfo *target_managed_vt = this->managed_vt;
+
+        if (this->managed_vt == nullptr) {
+            // Abstract
+            if (this->type_flags & 128) {
+                // Keep getting parent type until getting a hit
+                auto parent_type_def = this->get_parent_type();
+                while (parent_type_def != nullptr) {
+                    target_managed_vt = parent_type_def->managed_vt;
+
+                    if (target_managed_vt != nullptr) {
+                        break;
+                    }
+
+                    parent_type_def = parent_type_def->get_parent_type();
+                }
+            }
+        }
+
+        return target_managed_vt;
+    #else
+        return (::REObjectInfo*)this->managed_vt;
+    #endif
 #else
     return (::REObjectInfo*)&sdk::VM::get()->types[this->get_index()];
 #endif
