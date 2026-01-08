@@ -15,6 +15,8 @@
 
 #include "sdk/RETypeDB.hpp"
 #include "utility/FunctionHook.hpp"
+#include <utility/ScopeGuard.hpp>
+#include <utility/SafeCallbackVector.hpp>
 
 #include "Mod.hpp"
 
@@ -283,12 +285,12 @@ private:
 
     std::unordered_map<RETransform*, sol::protected_function> m_on_update_transform_fns{};
 
-    std::vector<sol::protected_function> m_pre_gui_draw_element_fns{};
-    std::vector<sol::protected_function> m_gui_draw_element_fns{};
-    std::vector<sol::protected_function> m_on_draw_ui_fns{};
-    std::vector<sol::protected_function> m_on_frame_fns{};
-    std::vector<sol::protected_function> m_on_script_reset_fns{};
-    std::vector<sol::protected_function> m_on_config_save_fns{};
+    SafeCallbackVector<sol::protected_function> m_pre_gui_draw_element_fns{};
+    SafeCallbackVector<sol::protected_function> m_gui_draw_element_fns{};
+    SafeCallbackVector<sol::protected_function> m_on_draw_ui_fns{};
+    SafeCallbackVector<sol::protected_function> m_on_frame_fns{};
+    SafeCallbackVector<sol::protected_function> m_on_script_reset_fns{};
+    SafeCallbackVector<sol::protected_function> m_on_config_save_fns{};
 
     struct HookDef {
         ::REManagedObject* obj{nullptr};
@@ -308,7 +310,7 @@ private:
 
     struct DelegateStorage {
         std::weak_ptr<ScriptState> owner{}; // Weak pointer to the ScriptState that owns this delegate storage because the ScriptState may be deleted. 
-        std::vector<sol::protected_function> callbacks{};
+        SafeCallbackVector<sol::protected_function> callbacks{};
 
     };
 
