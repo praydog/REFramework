@@ -141,7 +141,7 @@ public:
 
     void run_script(const std::string& p);
     sol::protected_function_result handle_protected_result(sol::protected_function_result result); // because protected_functions don't throw
-    bool should_remove_hook(const sol::object &result);
+    bool should_remove_hook(const sol::protected_function_result &result);
 
     void on_frame();
     void on_draw_ui();

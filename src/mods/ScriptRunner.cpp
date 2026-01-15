@@ -459,12 +459,18 @@ sol::protected_function_result ScriptState::handle_protected_result(sol::protect
     return result;
 }
 
-bool ScriptState::should_remove_hook(const sol::object &result) {
-    if (!result.valid() || result.is<sol::nil_t>()) {
+bool ScriptState::should_remove_hook(const sol::protected_function_result &result) {
+    if (!result.valid()) {
         return false;
     }
 
-    auto action = result.as<ReCallbackNextAction>();
+    auto result_obj = result.get<sol::object>();
+
+    if (!result_obj.valid() || result_obj.is<sol::nil_t>()) {
+        return false;
+    }
+
+    auto action = result_obj.as<ReCallbackNextAction>();
     return action == ReCallbackNextAction::STOP;
 }
 
@@ -477,7 +483,7 @@ void ScriptState::on_frame() {
 
         auto guard = m_on_frame_fns.acquire_iteration();
         for (auto& fn : m_on_frame_fns.get()) {
-            sol::object result = handle_protected_result(fn());
+            auto result = handle_protected_result(fn());
 
             if (should_remove_hook(result)) {
                 m_on_frame_fns.remove(fn);
@@ -499,7 +505,7 @@ void ScriptState::on_draw_ui() {
 
         auto guard = m_on_draw_ui_fns.acquire_iteration();
         for (auto& fn : m_on_draw_ui_fns.get()) {
-            sol::object result = handle_protected_result(fn());
+            auto result = handle_protected_result(fn());
 
             if (should_remove_hook(result)) {
                 m_on_draw_ui_fns.remove(fn);
@@ -612,8 +618,10 @@ bool ScriptState::on_pre_gui_draw_element(REComponent* gui_element, void* contex
 
         auto guard = m_pre_gui_draw_element_fns.acquire_iteration();
         for (auto& fn : m_pre_gui_draw_element_fns.get()) {
-            if (sol::object result = handle_protected_result(fn(gui_element, context))) {
-                if (!result.is<sol::nil_t>() && result.is<bool>() && result.as<bool>() == false) {
+            if (auto result = handle_protected_result(fn(gui_element, context))) {
+                auto result_obj = result.get<sol::object>();
+
+                if (!result_obj.is<sol::nil_t>() && result_obj.is<bool>() && result_obj.as<bool>() == false) {
                     any_false = true;
                 } else {
                     if (should_remove_hook(result)) {
@@ -637,7 +645,7 @@ void ScriptState::on_gui_draw_element(REComponent* gui_element, void* context) {
 
         auto guard = m_gui_draw_element_fns.acquire_iteration();
         for (auto& fn : m_gui_draw_element_fns.get()) {
-            sol::object result = handle_protected_result(fn(gui_element, context));
+            auto result = handle_protected_result(fn(gui_element, context));
 
             if (should_remove_hook(result)) {
                 m_gui_draw_element_fns.remove(fn);
@@ -656,7 +664,7 @@ void ScriptState::on_script_reset() try {
     // We first call on_config_save functions so scripts can save prior to reset.
     auto guard_save = m_on_config_save_fns.acquire_iteration();
     for (auto& fn : m_on_config_save_fns.get()) {
-        sol::object result = handle_protected_result(fn());
+        auto result = handle_protected_result(fn());
         if (should_remove_hook(result)) {
             m_on_config_save_fns.remove(fn);
         }
@@ -664,7 +672,7 @@ void ScriptState::on_script_reset() try {
 
     auto guard_reset = m_on_script_reset_fns.acquire_iteration();
     for (auto& fn : m_on_script_reset_fns.get()) {
-        sol::object result = handle_protected_result(fn());
+        auto result = handle_protected_result(fn());
         if (should_remove_hook(result)) {
             m_on_script_reset_fns.remove(fn);
         }
@@ -680,7 +688,7 @@ void ScriptState::on_config_save() try {
 
     auto guard = m_on_config_save_fns.acquire_iteration();
     for (auto& fn : m_on_config_save_fns.get()) {
-        sol::object result = handle_protected_result(fn());
+        auto result = handle_protected_result(fn());
 
         if (should_remove_hook(result)) {
             m_on_config_save_fns.remove(fn);
