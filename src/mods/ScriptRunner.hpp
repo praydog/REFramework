@@ -121,6 +121,11 @@ public:
         LAST
     };
 
+    enum class ReCallbackNextAction: uint32_t {
+        CONTINUE = 0,
+        STOP = 1
+    };
+
     struct GarbageCollectionData {
         GarbageCollectionHandler gc_handler{GarbageCollectionHandler::REFRAMEWORK_MANAGED};
         GarbageCollectionType gc_type{GarbageCollectionType::FULL};
@@ -136,6 +141,7 @@ public:
 
     void run_script(const std::string& p);
     sol::protected_function_result handle_protected_result(sol::protected_function_result result); // because protected_functions don't throw
+    bool should_remove_hook(const sol::object &result);
 
     void on_frame();
     void on_draw_ui();

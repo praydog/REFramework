@@ -11,6 +11,7 @@ class SafeCallbackVector {
 private:
     std::vector<T> m_callbacks;
     std::vector<T> m_pending;
+    std::vector<T> m_pending_removals;
     int m_use_count = 0;
 
 public:
@@ -19,9 +20,23 @@ public:
         m_use_count++;
         return utility::ScopeGuard([this]() {
             m_use_count--;
-            if (m_use_count == 0 && !m_pending.empty()) {
-                m_callbacks.insert(m_callbacks.end(), m_pending.begin(), m_pending.end());
-                m_pending.clear();
+            if (m_use_count == 0) {
+                // Apply pending removals
+                if (!m_pending_removals.empty()) {
+                    for (const auto& item : m_pending_removals) {
+                        auto it = std::find(m_callbacks.begin(), m_callbacks.end(), item);
+                        if (it != m_callbacks.end()) {
+                            m_callbacks.erase(it);
+                        }
+                    }
+                    m_pending_removals.clear();
+                }
+                
+                // Merge pending additions
+                if (!m_pending.empty()) {
+                    m_callbacks.insert(m_callbacks.end(), m_pending.begin(), m_pending.end());
+                    m_pending.clear();
+                }
             }
         });
     }
@@ -40,10 +55,23 @@ public:
         }
     }
 
+    // Remove a callback (queues if currently iterating)
+    void remove(const T& callback) {
+        if (m_use_count > 0) {
+            m_pending_removals.push_back(callback);
+        } else {
+            auto it = std::find(m_callbacks.begin(), m_callbacks.end(), callback);
+            if (it != m_callbacks.end()) {
+                m_callbacks.erase(it);
+            }
+        }
+    }
+
     // Clear all callbacks
     void clear() {
         m_callbacks.clear();
         m_pending.clear();
+        m_pending_removals.clear();
     }
 
     // Check if empty
