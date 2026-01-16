@@ -758,7 +758,24 @@ sol::object create_resource(sol::this_state s, std::string type_name, std::strin
     return sol::make_object(s, resource_manager->create_resource(t, utility::widen(name)));
 }
 
-sol::object create_userdata(sol::this_state s, std::string type_name, std::string name) {
+sol::object create_global_object(sol::this_state &s, ::REManagedObject *obj) {
+    bool is_currently_local = static_cast<std::int32_t>(obj->referenceCount) <= 0;
+
+    // Mark object as global so that lua knows
+    if (is_currently_local) {
+        utility::re_managed_object::add_ref(obj);
+    }
+
+    auto obj_safe = sol::make_object(s, obj);
+
+    if (is_currently_local) {
+        utility::re_managed_object::release(obj);
+    }
+
+    return obj_safe;
+}
+
+sol::object create_userdata_impl(sol::this_state s, std::string type_name, std::string name, bool global) {
     auto& types = reframework::get_types();
 
     // NOT a type definition!!
@@ -776,10 +793,24 @@ sol::object create_userdata(sol::this_state s, std::string type_name, std::strin
         return sol::make_object(s, sol::nil);
     }
 
-    return sol::make_object(s, (::REManagedObject*)obj.get());
+    auto re_obj = (::REManagedObject*)obj.get();
+
+    if (global) {
+        return create_global_object(s, re_obj);
+    } else {
+        return sol::make_object(s, re_obj);
+    }
 }
 
-sol::object create_instance(sol::this_state s, const char* name, sol::object simplify_obj) {
+sol::object create_userdata(sol::this_state s, std::string type_name, std::string name) {
+    return create_userdata_impl(s, type_name, name, false);
+}
+
+sol::object create_userdata_global(sol::this_state s, std::string type_name, std::string name) {
+    return create_userdata_impl(s, type_name, name, true);
+}
+
+sol::object create_instance_impl(sol::this_state s, const char* name, sol::object simplify_obj, bool global) {
     bool simplify = false;
 
     if (simplify_obj.is<bool>()) {
@@ -796,7 +827,53 @@ sol::object create_instance(sol::this_state s, const char* name, sol::object sim
         return sol::make_object(s, sol::nil);
     }
 
-    return sol::make_object(s, type_definition->create_instance_full(simplify));
+    auto instance_full = type_definition->create_instance_full(simplify);
+
+    if (global) {
+        return create_global_object(s, instance_full);
+    } else {
+        return sol::make_object(s, instance_full);
+    }
+}
+
+sol::object create_instance(sol::this_state s, const char* name, sol::object simplify_obj) {
+    return create_instance_impl(s, name, simplify_obj, false);
+}
+
+sol::object create_instance_global(sol::this_state s, const char* name, sol::object simplify_obj) {
+    return create_instance_impl(s, name, simplify_obj, true);
+}
+
+sol::object create_holder_impl(sol::this_state s, ::sdk::Resource* res, const char* tn, bool global) {
+    if (tn == nullptr) {
+        return sol::make_object(s, sol::nil);
+    }
+
+    const auto t = sdk::find_type_definition(tn);
+
+    if (t == nullptr) {
+        return sol::make_object(s, sol::nil);
+    }
+
+    auto holder = res->create_holder(t);
+
+    if (holder == nullptr) {
+        return sol::make_object(s, sol::nil);
+    }
+
+    if (global) {
+        return create_global_object(s, holder);
+    } else {
+        return sol::make_object(s, holder);
+    }
+}
+
+sol::object create_holder(sol::this_state s, ::sdk::Resource* res, const char* tn) {
+    return create_holder_impl(s, res, tn, false);
+}
+
+sol::object create_holder_global(sol::this_state s, ::sdk::Resource* res, const char* tn) {
+    return create_holder_impl(s, res, tn, true);
 }
 
 bool copy_to_clipboard(sol::this_state s, const char* text) {
@@ -1474,7 +1551,7 @@ T read_memory(::REManagedObject* obj, int32_t offset) {
 
     return *(T*)((uintptr_t)obj + offset);
 }
-} 
+}
 
 void bindings::open_sdk(ScriptState* s) {
     auto& lua = s->lua();
@@ -1508,7 +1585,9 @@ void bindings::open_sdk(ScriptState* s) {
     sdk["create_double"] = api::sdk::create_double;
     sdk["create_resource"] = api::sdk::create_resource;
     sdk["create_userdata"] = api::sdk::create_userdata;
+    sdk["create_userdata_global"] = api::sdk::create_userdata_global;
     sdk["create_instance"] = api::sdk::create_instance;
+    sdk["create_instance_global"] = api::sdk::create_instance_global;
     sdk["find_type_definition"] = api::sdk::find_type_definition;
     sdk["typeof"] = api::sdk::typeof;
     sdk["call_native_func"] = api::sdk::call_native_func;
@@ -1670,6 +1749,10 @@ void bindings::open_sdk(ScriptState* s) {
             return false;
         },
         "create_instance", &::sdk::RETypeDefinition::create_instance_full,
+        "create_instance_gc_safe", [](sol::this_state s, ::sdk::RETypeDefinition* type_def_obj) {
+            auto obj = type_def_obj->create_instance_full();
+            return api::sdk::create_global_object(s, obj);
+        },
         "get_types_inheriting_from_this", &::sdk::RETypeDefinition::get_types_inherting_from_this
     );
 
@@ -1991,25 +2074,8 @@ void bindings::open_sdk(ScriptState* s) {
         "release", [](::sdk::Resource* res) {
             res->release();
         },
-        "create_holder", [](sol::this_state s, ::sdk::Resource* res, const char* tn) {
-            if (tn == nullptr) {
-                return sol::make_object(s, sol::nil);
-            }
-
-            const auto t = sdk::find_type_definition(tn);
-
-            if (t == nullptr) {
-                return sol::make_object(s, sol::nil);
-            }
-
-            auto holder = res->create_holder(t);
-
-            if (holder == nullptr) {
-                return sol::make_object(s, sol::nil);
-            }
-
-            return sol::make_object(s, (::REManagedObject*)holder);
-        },
+        "create_holder", &::api::sdk::create_holder,
+        "create_holder_global", &::api::sdk::create_holder_global,
         "get_address", [](::sdk::Resource* res) { return (uintptr_t)res; }
     );
 
