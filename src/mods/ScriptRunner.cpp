@@ -478,9 +478,6 @@ void ScriptState::on_frame() {
     try {
         std::scoped_lock _{ m_execution_mutex };
 
-        volatile int current_number_call = 0;
-        volatile int temporary_to_hold = 0;
-
         auto guard = m_on_frame_fns.acquire_iteration();
         for (auto& fn : m_on_frame_fns.get()) {
             auto result = handle_protected_result(fn());
