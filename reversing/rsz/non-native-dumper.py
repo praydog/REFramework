@@ -259,7 +259,7 @@ def enum_fallback(reflection_property, il2cpp_dump={}):
         return "Enum"
     return native_element["RSZ"][0]["code"]
 
-def generate_field_entries(il2cpp_dump, natives, key, il2cpp_entry, use_typedefs, prefix = "", i=0, struct_i=0, unpack_struct=True):
+def generate_field_entries(il2cpp_dump, natives, key, il2cpp_entry, use_typedefs, prefix = "", i=0, struct_i=0, unpack_struct=True, include_order=False):
     e = il2cpp_entry
     parent_name = key
 
@@ -330,11 +330,27 @@ def generate_field_entries(il2cpp_dump, natives, key, il2cpp_entry, use_typedefs
             if append_potential_name:
                 rp_names = list(reflection_properties.keys())
                 rp_values = list(reflection_properties.values())
+            
+            # extract GameObjectRef orders by position for unmatched fields
+            gameobjectref_orders_by_pos = {}
+            if include_order and reflection_properties:
+                all_8_16_props = [(int(v["order"]), v.get("type")) for v in reflection_properties.values()
+                                  if v.get("type") in ["via.Guid", "System.Guid", "via.GameObjectRef"]]
+                all_8_16_props.sort()
+                pos = 0
+                for order, prop_type in all_8_16_props:
+                    if prop_type == "via.GameObjectRef":
+                        gameobjectref_orders_by_pos[pos] = order
+                    pos += 1
+            
+            unmatched_8_16_idx = 0
 
             for rp_idx, field in enumerate(layout):
                 native_type_name = generate_native_name(field, False, None)
                 native_field_name = "v" + str(i)
                 native_org_type_name = ""
+                rp_order = None
+                
                 if append_potential_name:
                     if rp_values[rp_idx]["TypeCode"] != "Data":
                         native_type_name = rp_values[rp_idx]["TypeCode"]
@@ -342,8 +358,17 @@ def generate_field_entries(il2cpp_dump, natives, key, il2cpp_entry, use_typedefs
                     native_field_name += "_" + rp_names[rp_idx]
                     # native_field_name = rp_names[rp_idx] # without start with v_
                     native_org_type_name = rp_values[rp_idx]['type']
+                    if include_order and native_org_type_name == "via.GameObjectRef":
+                        rp_order = int(rp_values[rp_idx]['order'])
+                    
                     if native_type_name != "Data" and not native_org_type_name.startswith("via"):
                         native_org_type_name = "" # those would be sth like "bool" "s32"
+                else:
+                    # for unmatched fields with align=8/size=16, check if it's a GameObjectRef position
+                    if include_order and field["align"] == 8 and field["size"] == 16:
+                        if unmatched_8_16_idx in gameobjectref_orders_by_pos:
+                            rp_order = gameobjectref_orders_by_pos[unmatched_8_16_idx]
+                        unmatched_8_16_idx += 1
 
                 new_entry = {
                     "type": native_type_name,
@@ -353,6 +378,9 @@ def generate_field_entries(il2cpp_dump, natives, key, il2cpp_entry, use_typedefs
                     "size": field["size"],
                     "native": True
                 }
+                
+                if rp_order is not None:
+                    new_entry["order"] = rp_order
 
                 if "element" in field and "list" in field and field["list"] == True:
                     '''
@@ -380,6 +408,11 @@ def generate_field_entries(il2cpp_dump, natives, key, il2cpp_entry, use_typedefs
             break
 
     if "RSZ" in il2cpp_entry:
+        # map RSZ field names to their reflection property orders
+        name_to_order = {}
+        if include_order:
+            name_to_order = {k: int(v["order"]) for k, v in il2cpp_entry.get("reflection_properties", {}).items() if "order" in v}
+        
         for rsz_entry in il2cpp_entry["RSZ"]:
             name = "v" + str(i)
 
@@ -392,7 +425,7 @@ def generate_field_entries(il2cpp_dump, natives, key, il2cpp_entry, use_typedefs
             if unpack_struct and code == "Struct" and type in il2cpp_dump and rsz_entry.get("array", 0) != 1:
                 # keep struct type data unpacked for backwards compatibility if it is not an array.
 
-                nested_entry, nested_str, i, struct_i = generate_field_entries(il2cpp_dump, natives, type, il2cpp_dump[type], use_typedefs, "STRUCT_" + name + "_", i, struct_i)
+                nested_entry, nested_str, i, struct_i = generate_field_entries(il2cpp_dump, natives, type, il2cpp_dump[type], use_typedefs, "STRUCT_" + name + "_", i, struct_i, unpack_struct, include_order)
 
                 if len(nested_entry) > 0:
                     fields_out += nested_entry
@@ -429,7 +462,7 @@ def generate_field_entries(il2cpp_dump, natives, key, il2cpp_entry, use_typedefs
                     code = code + "List"
                 '''
 
-                fields_out.append({
+                field_entry = {
                     "type": code,
                     "name": prefix + name,
                     "original_type": type,
@@ -437,7 +470,14 @@ def generate_field_entries(il2cpp_dump, natives, key, il2cpp_entry, use_typedefs
                     "align": align_size["align"],
                     "size": align_size["size"],
                     "native": False
-                })
+                }
+                
+                if include_order and "potential_name" in rsz_entry and type == "via.GameObjectRef":
+                    potential_name = rsz_entry["potential_name"]
+                    if potential_name in name_to_order:
+                        field_entry["order"] = name_to_order[potential_name]
+
+                fields_out.append(field_entry)
 
                 field_str = "    " + code + " " + name + "; //\"" + type + "\""
                 struct_str = struct_str + field_str + "\n"
@@ -447,7 +487,7 @@ def generate_field_entries(il2cpp_dump, natives, key, il2cpp_entry, use_typedefs
     return fields_out, struct_str, i, struct_i
 
 
-def main(out_postfix="", il2cpp_path="", natives_path=None, use_typedefs=False, use_hashkeys=False, include_parents=False, unpack_struct=True):
+def main(out_postfix="", il2cpp_path="", natives_path=None, use_typedefs=False, use_hashkeys=False, include_parents=False, unpack_struct=True, include_order=False):
     if il2cpp_path is None:
         return
 
@@ -486,7 +526,7 @@ def main(out_postfix="", il2cpp_path="", natives_path=None, use_typedefs=False, 
         struct_str = "// " + entry["fqn"] + "\n"
         struct_str = struct_str + "struct " + key + " {\n"
 
-        fields, struct_body, _, __ = generate_field_entries(il2cpp_dump, natives, key, entry, use_typedefs, unpack_struct = unpack_struct)
+        fields, struct_body, _, __ = generate_field_entries(il2cpp_dump, natives, key, entry, use_typedefs, "", 0, 0, unpack_struct = unpack_struct, include_order = include_order)
 
         json_entry["fields"] = fields
         struct_str = struct_str + struct_body
