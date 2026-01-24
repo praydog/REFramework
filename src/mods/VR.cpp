@@ -89,7 +89,7 @@ void VR::on_view_get_size(REManagedObject* scene_view, float* result) {
 
     already_inside = true;
 
-    utility::ScopeGuard _{ [&]() { already_inside = false; } };
+    utility::ScopeGuard _{[&]() { already_inside = false; }};
 
     if (!g_framework->is_ready()) {
         return;
@@ -149,7 +149,8 @@ void VR::on_view_get_size(REManagedObject* scene_view, float* result) {
                 const auto& backbuffer_size = m_d3d12.get_backbuffer_size();
 
                 if (backbuffer_size[0] > 0 && backbuffer_size[1] > 0) {
-                    if (std::abs((int)backbuffer_size[0] - (int)window_width) > 50 || std::abs((int)backbuffer_size[1] - (int)window_height) > 50) {
+                    if (std::abs((int)backbuffer_size[0] - (int)window_width) > 50 ||
+                        std::abs((int)backbuffer_size[1] - (int)window_height) > 50) {
                         const auto now = get_game_frame_count();
 
                         if (!m_backbuffer_inconsistency) {
@@ -165,7 +166,8 @@ void VR::on_view_get_size(REManagedObject* scene_view, float* result) {
                             window_height = get_hmd_height() + 1;
 
                             spdlog::info("[VR] Previous backbuffer size: {}x{}", backbuffer_size[0], backbuffer_size[1]);
-                            spdlog::info("[VR] Backbuffer size inconsistency detected, resetting backbuffer size to {}x{}", window_width, window_height);
+                            spdlog::info("[VR] Backbuffer size inconsistency detected, resetting backbuffer size to {}x{}", window_width,
+                                window_height);
 
                             // m_backbuffer_inconsistency gets set to false on device reset.
                         }
@@ -435,7 +437,7 @@ bool VR::on_pre_post_effect_layer_draw(sdk::renderer::layer::PostEffect* layer, 
     if (camera == nullptr) {
         return true;
     }
-    
+
     static auto render_output_type = sdk::find_type_definition("via.render.RenderOutput")->get_type();
     auto render_output_component = utility::re_component::find(camera, render_output_type);
 
@@ -472,7 +474,7 @@ void VR::on_post_effect_layer_draw(sdk::renderer::layer::PostEffect* layer, void
             sdk::call_object_func_easy<void*>(scene_layer, "set_DistortionType", m_previous_distortion_type); // Left
         }
 
-        //mod->fix_temporal_effects();
+        // mod->fix_temporal_effects();
         m_set_next_post_effect_distortion_type = false;
     }
 }
@@ -500,12 +502,12 @@ bool VR::on_pre_scene_layer_update(sdk::renderer::layer::Scene* layer, void* ren
     auto jitter_disable_scene_info = layer->get_jitter_disable_scene_info();
     auto z_prepass_scene_info = layer->get_z_prepass_scene_info();
 
-    m_scene_layer_data = std::array<SceneLayerData, 5> {
-        SceneLayerData{ scene_info },
-        SceneLayerData{ depth_distortion_scene_info },
-        SceneLayerData{ filter_scene_info },
-        SceneLayerData{ jitter_disable_scene_info },
-        SceneLayerData{ z_prepass_scene_info },
+    m_scene_layer_data = std::array<SceneLayerData, 5>{
+        SceneLayerData{scene_info},
+        SceneLayerData{depth_distortion_scene_info},
+        SceneLayerData{filter_scene_info},
+        SceneLayerData{jitter_disable_scene_info},
+        SceneLayerData{z_prepass_scene_info},
     };
 
     m_set_next_scene_layer_data = true;
@@ -597,7 +599,7 @@ void VR::wwise_listener_update_hook(void* listener) {
 /*
 float VR::get_sharpness_hook(void* tonemapping) {
     auto original_func = g_get_sharpness_hook->get_original<decltype(get_sharpness_hook)>();
-    
+
     if (!g_framework->is_ready()) {
         return original_func(tonemapping);
     }
@@ -639,10 +641,15 @@ and place the openxr_loader.dll in the same folder.)";
     }
 
     if (!get_runtime()->loaded) {
-        // this is okay. we're not going to fail the whole thing entirely
-        // so we're just going to return OK, but
-        // when the VR mod draws its menu, it'll say "VR is not available"
-        return Mod::on_initialize();
+        // Try to load XrDriver as fallback
+        auto xr_driver_error = initialize_xr_driver();
+
+        if (xr_driver_error || !m_xr_driver->loaded) {
+            // this is okay. we're not going to fail the whole thing entirely
+            // so we're just going to return OK, but
+            // when the VR mod draws its menu, it'll say "VR is not available"
+            return Mod::on_initialize();
+        }
     }
 
     // Check whether the user has Hardware accelerated GPU scheduling enabled
@@ -683,7 +690,7 @@ and place the openxr_loader.dll in the same folder.)";
 
     // all OK
     return Mod::on_initialize();
-} catch(...) {
+} catch (...) {
     spdlog::error("Exception occurred in VR::on_initialize()");
 
     m_runtime->error = "Exception occurred in VR::on_initialize()";
@@ -700,63 +707,28 @@ and place the openxr_loader.dll in the same folder.)";
 }
 
 void VR::on_lua_state_created(sol::state& lua) {
-    lua.new_usertype<VR>("VR",
-        "get_controllers", &VR::get_controllers,
-        "get_position", &VR::get_position,
-        "get_velocity", &VR::get_velocity,
-        "get_angular_velocity", &VR::get_angular_velocity,
-        "get_rotation", &VR::get_rotation,
-        "get_transform", &VR::get_transform,
-        "get_left_stick_axis", &VR::get_left_stick_axis,
-        "get_right_stick_axis", &VR::get_right_stick_axis,
-        "get_current_eye_transform", &VR::get_current_eye_transform,
-        "get_current_projection_matrix", &VR::get_current_projection_matrix,
-        "get_standing_origin", &VR::get_standing_origin,
-        "set_standing_origin", &VR::set_standing_origin,
-        "get_rotation_offset", &VR::get_rotation_offset,
-        "set_rotation_offset", &VR::set_rotation_offset,
-        "recenter_view", &VR::recenter_view,
-        "get_gui_rotation_offset", &VR::get_gui_rotation_offset,
-        "set_gui_rotation_offset", &VR::set_gui_rotation_offset,
-        "recenter_gui", &VR::recenter_gui,
-        "get_action_set", &VR::get_action_set,
-        "get_active_action_set", &VR::get_active_action_set,
-        "get_action_trigger", &VR::get_action_trigger,
-        "get_action_grip", &VR::get_action_grip,
-        "get_action_joystick", &VR::get_action_joystick,
-        "get_action_joystick_click", &VR::get_action_joystick_click,
-        "get_action_a_button", &VR::get_action_a_button,
-        "get_action_b_button", &VR::get_action_b_button,
-        "get_action_weapon_dial", &VR::get_action_weapon_dial,
-        "get_action_minimap", &VR::get_action_minimap,
-        "get_action_block", &VR::get_action_block,
-        "get_action_dpad_up", &VR::get_action_dpad_up,
-        "get_action_dpad_down", &VR::get_action_dpad_down,
-        "get_action_dpad_left", &VR::get_action_dpad_left,
-        "get_action_dpad_right", &VR::get_action_dpad_right,
-        "get_action_heal", &VR::get_action_heal,
-        "get_left_joystick", &VR::get_left_joystick,
-        "get_right_joystick", &VR::get_right_joystick,
-        "is_using_controllers", &VR::is_using_controllers,
-        "is_openvr_loaded", &VR::is_openvr_loaded,
-        "is_openxr_loaded", &VR::is_openxr_loaded,
-        "is_hmd_active", &VR::is_hmd_active,
-        "is_action_active", &VR::is_action_active,
-        "is_using_hmd_oriented_audio", &VR::is_using_hmd_oriented_audio,
-        "toggle_hmd_oriented_audio", &VR::toggle_hmd_oriented_audio,
-        "apply_hmd_transform", [](VR* vr, glm::quat& rotation, Vector4f& position) {
-            vr->apply_hmd_transform(rotation, position);
-        },
-        "trigger_haptic_vibration", &VR::trigger_haptic_vibration,
-        "get_last_render_matrix", &VR::get_last_render_matrix,
-        "should_handle_pause", [](VR* vr) { 
-            return vr->get_runtime()->handle_pause;
-        },
-        "set_handle_pause", [](VR* vr, bool state) { 
-            return vr->get_runtime()->handle_pause = state;
-        },
-        "unhide_crosshair", &VR::unhide_crosshair
-    );
+    lua.new_usertype<VR>(
+        "VR", "get_controllers", &VR::get_controllers, "get_position", &VR::get_position, "get_velocity", &VR::get_velocity,
+        "get_angular_velocity", &VR::get_angular_velocity, "get_rotation", &VR::get_rotation, "get_transform", &VR::get_transform,
+        "get_left_stick_axis", &VR::get_left_stick_axis, "get_right_stick_axis", &VR::get_right_stick_axis, "get_current_eye_transform",
+        &VR::get_current_eye_transform, "get_current_projection_matrix", &VR::get_current_projection_matrix, "get_standing_origin",
+        &VR::get_standing_origin, "set_standing_origin", &VR::set_standing_origin, "get_rotation_offset", &VR::get_rotation_offset,
+        "set_rotation_offset", &VR::set_rotation_offset, "recenter_view", &VR::recenter_view, "get_gui_rotation_offset",
+        &VR::get_gui_rotation_offset, "set_gui_rotation_offset", &VR::set_gui_rotation_offset, "recenter_gui", &VR::recenter_gui,
+        "get_action_set", &VR::get_action_set, "get_active_action_set", &VR::get_active_action_set, "get_action_trigger",
+        &VR::get_action_trigger, "get_action_grip", &VR::get_action_grip, "get_action_joystick", &VR::get_action_joystick,
+        "get_action_joystick_click", &VR::get_action_joystick_click, "get_action_a_button", &VR::get_action_a_button, "get_action_b_button",
+        &VR::get_action_b_button, "get_action_weapon_dial", &VR::get_action_weapon_dial, "get_action_minimap", &VR::get_action_minimap,
+        "get_action_block", &VR::get_action_block, "get_action_dpad_up", &VR::get_action_dpad_up, "get_action_dpad_down",
+        &VR::get_action_dpad_down, "get_action_dpad_left", &VR::get_action_dpad_left, "get_action_dpad_right", &VR::get_action_dpad_right,
+        "get_action_heal", &VR::get_action_heal, "get_left_joystick", &VR::get_left_joystick, "get_right_joystick", &VR::get_right_joystick,
+        "is_using_controllers", &VR::is_using_controllers, "is_openvr_loaded", &VR::is_openvr_loaded, "is_openxr_loaded",
+        &VR::is_openxr_loaded, "is_hmd_active", &VR::is_hmd_active, "is_action_active", &VR::is_action_active,
+        "is_using_hmd_oriented_audio", &VR::is_using_hmd_oriented_audio, "toggle_hmd_oriented_audio", &VR::toggle_hmd_oriented_audio,
+        "apply_hmd_transform", [](VR* vr, glm::quat& rotation, Vector4f& position) { vr->apply_hmd_transform(rotation, position); },
+        "trigger_haptic_vibration", &VR::trigger_haptic_vibration, "get_last_render_matrix", &VR::get_last_render_matrix,
+        "should_handle_pause", [](VR* vr) { return vr->get_runtime()->handle_pause; }, "set_handle_pause",
+        [](VR* vr, bool state) { return vr->get_runtime()->handle_pause = state; }, "unhide_crosshair", &VR::unhide_crosshair);
 
     lua["vrmod"] = this;
 }
@@ -785,7 +757,7 @@ std::optional<std::string> VR::initialize_openvr() {
     m_openvr->was_hmd_active = true;
 
     auto error = vr::VRInitError_None;
-	m_openvr->hmd = vr::VR_Init(&error, vr::VRApplication_Scene);
+    m_openvr->hmd = vr::VR_Init(&error, vr::VRApplication_Scene);
 
     // check if error
     if (error != vr::VRInitError_None) {
@@ -819,7 +791,7 @@ std::optional<std::string> VR::initialize_openvr() {
         m_openvr->error = *overlay_error;
         return Mod::on_initialize();
     }
-    
+
     m_openvr->loaded = true;
     m_openvr->error = std::nullopt;
     m_runtime = m_openvr;
@@ -834,7 +806,7 @@ std::optional<std::string> VR::initialize_openvr_input() {
     for (auto& it : m_binding_files) {
         spdlog::info("Writing default binding file {}", it.first);
 
-        std::ofstream file{ module_directory / it.first };
+        std::ofstream file{module_directory / it.first};
         file << it.second;
     }
 
@@ -922,7 +894,7 @@ std::optional<std::string> VR::initialize_openxr() {
 
         strcpy(instance_create_info.applicationInfo.applicationName, g_framework->get_game_name());
         instance_create_info.applicationInfo.apiVersion = XR_CURRENT_API_VERSION;
-        
+
         result = xrCreateInstance(&instance_create_info, &m_openxr->instance);
 
         // we can't convert the result to a string here
@@ -936,7 +908,7 @@ std::optional<std::string> VR::initialize_openxr() {
     } else {
         spdlog::info("[VR] Found existing openxr instance");
     }
-    
+
     // Step 2: Create a system
     spdlog::info("[VR] Creating OpenXR system");
 
@@ -1041,7 +1013,7 @@ std::optional<std::string> VR::initialize_openxr() {
     m_openxr->update_render_target_size();
 
     // Step 7: Create a view
-    if (!m_openxr->view_configs.empty()){
+    if (!m_openxr->view_configs.empty()) {
         m_openxr->views.resize(m_openxr->view_configs.size(), {XR_TYPE_VIEW});
         m_openxr->stage_views.resize(m_openxr->view_configs.size(), {XR_TYPE_VIEW});
     }
@@ -1075,6 +1047,28 @@ std::optional<std::string> VR::initialize_openxr() {
     return std::nullopt;
 }
 
+std::optional<std::string> VR::initialize_xr_driver() {
+    m_xr_driver = std::make_shared<runtimes::XrDriver>();
+    m_xr_driver->loaded = false;
+
+    spdlog::info("[VR] Initializing XrDriver JSON");
+
+    // No DLL required, just check if JSON file exists or will be created
+    m_xr_driver->needs_pose_update = true;
+    m_xr_driver->got_first_poses = false;
+
+    // Update render target size
+    m_xr_driver->update_render_target_size();
+
+    m_xr_driver->loaded = true;
+    m_xr_driver->error = std::nullopt;
+    m_runtime = m_xr_driver;
+
+    spdlog::info("[VR] XrDriver runtime initialized. Reading from xr_driver.dll");
+
+    return std::nullopt;
+}
+
 std::optional<std::string> VR::initialize_openxr_input() {
     if (auto err = m_openxr->initialize_actions(VR::actions_json)) {
         m_openxr->error = err.value();
@@ -1082,7 +1076,7 @@ std::optional<std::string> VR::initialize_openxr_input() {
 
         return std::nullopt;
     }
-    
+
     for (auto& it : m_action_handles) {
         auto openxr_action_name = m_openxr->translate_openvr_action_name(it.first);
 
@@ -1172,7 +1166,7 @@ std::optional<std::string> VR::hijack_camera() {
 
     if (func != nullptr) {
         spdlog::info("via.gui.GUICamera.get_ProjectionMatrix: {:x}", (uintptr_t)func);
-        
+
         // Pattern scan for the native function call
         auto ref = utility::scan((uintptr_t)func, 0x100, "49 8B C8 E8");
 
@@ -1218,9 +1212,9 @@ std::optional<std::string> VR::hijack_wwise_listeners() {
     if (func_wrapper == nullptr) {
         return "VR init failed: via.wwise.WwiseListener.update native function not found.";
     }
-    
+
     spdlog::info("via.wwise.WwiseListener.update: {:x}", (uintptr_t)func_wrapper);
-    
+
     // Use hde to disassemble the method and find the first jmp, which jmps to the real function
     // in the vtable
     const auto jmp = utility::scan_disasm((uintptr_t)func_wrapper, 10, "48 FF");
@@ -1238,7 +1232,7 @@ std::optional<std::string> VR::hijack_wwise_listeners() {
     if (fake_obj == nullptr) {
         return "VR init failed: Failed to create fake via.wwise.WwiseListener instance.";
     }
-    
+
     spdlog::info("Attempting to read vtable from fake via.wwise.WwiseListener instance");
     auto obj_vtable = *(void***)fake_obj;
 
@@ -1298,9 +1292,12 @@ bool VR::detect_controllers() {
         left_joystick_origin_info = {};
         right_joystick_origin_info = {};
 
-        left_joystick_origin_error = vr::VRInput()->GetOriginTrackedDeviceInfo(m_left_joystick, &left_joystick_origin_info, sizeof(left_joystick_origin_info));
-        right_joystick_origin_error = vr::VRInput()->GetOriginTrackedDeviceInfo(m_right_joystick, &right_joystick_origin_info, sizeof(right_joystick_origin_info));
-        if (left_joystick_origin_error != vr::EVRInputError::VRInputError_None || right_joystick_origin_error != vr::EVRInputError::VRInputError_None) {
+        left_joystick_origin_error =
+            vr::VRInput()->GetOriginTrackedDeviceInfo(m_left_joystick, &left_joystick_origin_info, sizeof(left_joystick_origin_info));
+        right_joystick_origin_error =
+            vr::VRInput()->GetOriginTrackedDeviceInfo(m_right_joystick, &right_joystick_origin_info, sizeof(right_joystick_origin_info));
+        if (left_joystick_origin_error != vr::EVRInputError::VRInputError_None ||
+            right_joystick_origin_error != vr::EVRInputError::VRInputError_None) {
             return false;
         }
 
@@ -1325,7 +1322,6 @@ bool VR::detect_controllers() {
         spdlog::info("Left Hand: {}", 1);
         spdlog::info("Right Hand: {}", 2);
     }
-
 
     return true;
 }
@@ -1357,13 +1353,13 @@ bool VR::is_any_action_down() {
 
 void VR::update_hmd_state() {
     auto runtime = get_runtime();
-    
+
     if (runtime->get_synchronize_stage() == VRRuntime::SynchronizeStage::EARLY) {
         if (runtime->is_openxr()) {
             if (g_framework->get_renderer_type() == REFramework::RendererType::D3D11) {
                 if (!runtime->got_first_sync || runtime->synchronize_frame() != VRRuntime::Error::SUCCESS) {
                     return;
-                }  
+                }
             } else if (runtime->synchronize_frame() != VRRuntime::Error::SUCCESS) {
                 return;
             }
@@ -1375,14 +1371,14 @@ void VR::update_hmd_state() {
             }
         }
     }
-    
+
     runtime->update_poses();
 
     // Update the poses used for the game
     // If we used the data directly from the WaitGetPoses call, we would have to lock a different mutex and wait a long time
     // This is because the WaitGetPoses call is blocking, and we don't want to block any game logic
     if (runtime->wants_reset_origin && runtime->ready() && runtime->got_first_valid_poses) {
-        std::unique_lock _{ runtime->pose_mtx };
+        std::unique_lock _{runtime->pose_mtx};
         set_rotation_offset(glm::identity<glm::quat>());
         m_standing_origin = get_position_unsafe(vr::k_unTrackedDeviceIndex_Hmd);
 
@@ -1429,11 +1425,12 @@ void VR::update_action_states() {
         m_avg_input_delay = (m_avg_input_delay + time_delta) / 2;
 
         if ((end_time - start_time) >= std::chrono::milliseconds(30)) {
-            spdlog::warn("VRInput update action state took too long: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count());
+            spdlog::warn("VRInput update action state took too long: {}ms",
+                std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count());
 
-            //reinitialize_openvr();
+            // reinitialize_openvr();
             runtime->wants_reinitialize = true;
-        }   
+        }
     } else {
         get_runtime()->update_input();
     }
@@ -1519,9 +1516,9 @@ void VR::update_camera() {
     const auto vfov = glm::degrees(2.0f * std::atan(1.0f / projection_matrix[1][1]));
     const auto aspect = projection_matrix[1][1] / projection_matrix[0][0];
     const auto hfov = vfov * aspect;
-    
-    //spdlog::info("vFOV: {}", vfov);
-    //spdlog::info("Aspect: {}", aspect);
+
+    // spdlog::info("vFOV: {}", vfov);
+    // spdlog::info("Aspect: {}", aspect);
 
     set_fov_method->call<void*>(sdk::get_thread_context(), camera, vfov);
     set_vertical_enable_method->call<void*>(sdk::get_thread_context(), camera, true);
@@ -1577,10 +1574,10 @@ void VR::update_camera_origin() {
 void VR::apply_hmd_transform(glm::quat& rotation, Vector4f& position) {
     const auto rotation_offset = get_rotation_offset();
     const auto current_hmd_rotation = glm::normalize(rotation_offset * glm::quat{get_rotation(0)});
-    
+
     glm::quat new_rotation{};
     glm::quat camera_rotation{};
-    
+
     if (!m_decoupled_pitch->value()) {
         camera_rotation = rotation;
         new_rotation = glm::normalize(rotation * current_hmd_rotation);
@@ -1609,7 +1606,7 @@ void VR::apply_hmd_transform(::REJoint* camera_joint) {
     sdk::set_joint_rotation(camera_joint, rotation);
 
     if (m_positional_tracking) {
-        sdk::set_joint_position(camera_joint, position);   
+        sdk::set_joint_position(camera_joint, position);
     }
 }
 
@@ -1673,7 +1670,7 @@ void VR::update_audio_camera() {
     sdk::set_joint_rotation(camera_joint, rotation);
 
     if (m_positional_tracking) {
-        sdk::set_joint_position(camera_joint, position);   
+        sdk::set_joint_position(camera_joint, position);
     }
 }
 
@@ -1726,7 +1723,7 @@ void VR::restore_audio_camera() {
         return;
     }
 
-    //camera_object->transform->worldTransform = m_original_camera_matrix;
+    // camera_object->transform->worldTransform = m_original_camera_matrix;
 
     auto joint = utility::re_transform::get_joint(*camera_object->transform, 0);
 
@@ -1767,7 +1764,7 @@ void VR::restore_camera() {
         return;
     }
 
-    //camera_object->transform->worldTransform = m_original_camera_matrix;
+    // camera_object->transform->worldTransform = m_original_camera_matrix;
 
     auto joint = utility::re_transform::get_joint(*camera_object->transform, 0);
 
@@ -1878,9 +1875,9 @@ void VR::disable_bad_effects() {
             spdlog::info("[VR] Set framerate to variable");
         }
     }
-    
+
     // get_MaxFps on application
-    if (!is_sf6 && m_force_fps_settings->value() && application->get_max_fps() <  600.0f) {
+    if (!is_sf6 && m_force_fps_settings->value() && application->get_max_fps() < 600.0f) {
         application->set_max_fps(600.0f);
         spdlog::info("[VR] Max FPS set to {}", 600.0f);
     }
@@ -1890,18 +1887,21 @@ void VR::disable_bad_effects() {
 
         // Disable TAA
         switch (antialiasing) {
-            case via::render::RenderConfig::AntiAliasingType::TAA: [[fallthrough]];
-            case via::render::RenderConfig::AntiAliasingType::FXAA_TAA:
-                set_antialiasing_method->call<void*>(context, render_config, via::render::RenderConfig::AntiAliasingType::NONE);
-                spdlog::info("[VR] TAA disabled");
-                break;
-            default:
-                break;
+        case via::render::RenderConfig::AntiAliasingType::TAA:
+            [[fallthrough]];
+        case via::render::RenderConfig::AntiAliasingType::FXAA_TAA:
+            set_antialiasing_method->call<void*>(context, render_config, via::render::RenderConfig::AntiAliasingType::NONE);
+            spdlog::info("[VR] TAA disabled");
+            break;
+        default:
+            break;
         }
     }
 
-    if (m_force_lensdistortion_settings->value() && get_lens_distortion_setting_method != nullptr && set_lens_distortion_setting_method != nullptr) {
-        const auto lens_distortion_setting = get_lens_distortion_setting_method->call<via::render::RenderConfig::LensDistortionSetting>(context, render_config);
+    if (m_force_lensdistortion_settings->value() && get_lens_distortion_setting_method != nullptr &&
+        set_lens_distortion_setting_method != nullptr) {
+        const auto lens_distortion_setting =
+            get_lens_distortion_setting_method->call<via::render::RenderConfig::LensDistortionSetting>(context, render_config);
 
         // Disable lens distortion
         if (lens_distortion_setting != via::render::RenderConfig::LensDistortionSetting::OFF) {
@@ -1937,8 +1937,10 @@ void VR::disable_bad_effects() {
 #endif
     }
 
-    if (m_force_volumetrics_settings->value() && get_transparent_buffer_quality_method != nullptr && set_transparent_buffer_quality_method != nullptr) {
-        const auto transparent_buffer_quality = get_transparent_buffer_quality_method->call<via::render::RenderConfig::Quality>(context, render_config);
+    if (m_force_volumetrics_settings->value() && get_transparent_buffer_quality_method != nullptr &&
+        set_transparent_buffer_quality_method != nullptr) {
+        const auto transparent_buffer_quality =
+            get_transparent_buffer_quality_method->call<via::render::RenderConfig::Quality>(context, render_config);
 
         // Disable volumetrics
         if (transparent_buffer_quality != via::render::RenderConfig::Quality::NONE) {
@@ -1964,7 +1966,7 @@ void VR::disable_bad_effects() {
         // Disable HDR
         if (is_hdr_enabled) {
             set_hdrmode_method->call<void*>(context, false);
-            
+
             if (set_hdr_display_mode_enable_method != nullptr) {
                 set_hdr_display_mode_enable_method->call<void*>(context, false);
             }
@@ -1974,7 +1976,8 @@ void VR::disable_bad_effects() {
     }
 
     if (get_colorspace_method != nullptr && set_colorspace_method != nullptr) {
-        const auto is_hdr_enabled = get_colorspace_method->call<via::render::ColorSpace>(context, render_config) == via::render::ColorSpace::HDR10;
+        const auto is_hdr_enabled =
+            get_colorspace_method->call<via::render::ColorSpace>(context, render_config) == via::render::ColorSpace::HDR10;
 
         if (is_hdr_enabled) {
             set_colorspace_method->call<void*>(context, render_config, via::render::ColorSpace::HDTV);
@@ -1982,7 +1985,8 @@ void VR::disable_bad_effects() {
         }
     }
 
-    if (m_force_dynamic_shadows_settings->value() && get_dynamic_shadow_enable_method != nullptr && set_dynamic_shadow_enable_method != nullptr) {
+    if (m_force_dynamic_shadows_settings->value() && get_dynamic_shadow_enable_method != nullptr &&
+        set_dynamic_shadow_enable_method != nullptr) {
         const auto is_dynamic_shadow_enabled = get_dynamic_shadow_enable_method->call<bool>(context, render_config);
 
         // Enable dynamic shadows
@@ -1991,7 +1995,6 @@ void VR::disable_bad_effects() {
             spdlog::info("[VR] Dynamic shadows enabled");
         }
     }
-
 
     // Causes crashes on D3D11.
     if (!is_sf6 && g_framework->get_renderer_type() == REFramework::RendererType::D3D12 && m_enable_asynchronous_rendering->value()) {
@@ -2022,7 +2025,7 @@ void VR::disable_bad_effects() {
     if (camera_game_object == nullptr) {
         return;
     }
-    
+
     auto camera_transform = camera_game_object->transform;
 
     if (camera_transform == nullptr) {
@@ -2044,7 +2047,7 @@ void VR::disable_bad_effects() {
                 auto game_object = child->ownerGameObject;
 
                 game_object->shouldDraw = false;
-                //sdk::call_object_func<void*>(game_object, "set_Draw", sdk::get_thread_context(), game_object, false);
+                // sdk::call_object_func<void*>(game_object, "set_Draw", sdk::get_thread_context(), game_object, false);
             }
         }
     }
@@ -2058,7 +2061,7 @@ void VR::fix_temporal_effects() {
     if (camera == nullptr) {
         return;
     }
-    
+
     static auto render_output_type = sdk::find_type_definition("via.render.RenderOutput")->get_type();
     auto render_output_component = utility::re_component::find(camera, render_output_type);
 
@@ -2103,31 +2106,31 @@ int32_t VR::get_game_frame_count() const {
 }
 
 float VR::get_standing_height() {
-    std::shared_lock _{ get_runtime()->pose_mtx };
+    std::shared_lock _{get_runtime()->pose_mtx};
 
     return m_standing_origin.y;
 }
 
 Vector4f VR::get_standing_origin() {
-    std::shared_lock _{ get_runtime()->pose_mtx };
+    std::shared_lock _{get_runtime()->pose_mtx};
 
     return m_standing_origin;
 }
 
 void VR::set_standing_origin(const Vector4f& origin) {
-    std::unique_lock _{ get_runtime()->pose_mtx };
-    
+    std::unique_lock _{get_runtime()->pose_mtx};
+
     m_standing_origin = origin;
 }
 
 glm::quat VR::get_rotation_offset() {
-    std::shared_lock _{ m_rotation_mtx };
+    std::shared_lock _{m_rotation_mtx};
 
     return m_rotation_offset;
 }
 
 void VR::set_rotation_offset(const glm::quat& offset) {
-    std::unique_lock _{ m_rotation_mtx };
+    std::unique_lock _{m_rotation_mtx};
 
     m_rotation_offset = offset;
 }
@@ -2139,13 +2142,13 @@ void VR::recenter_view() {
 }
 
 glm::quat VR::get_gui_rotation_offset() {
-    std::shared_lock _{ m_gui_mtx };
+    std::shared_lock _{m_gui_mtx};
 
     return m_gui_rotation_offset;
 }
 
 void VR::set_gui_rotation_offset(const glm::quat& offset) {
-    std::unique_lock _{ m_gui_mtx };
+    std::unique_lock _{m_gui_mtx};
 
     m_gui_rotation_offset = offset;
 }
@@ -2160,15 +2163,15 @@ Vector4f VR::get_current_offset() {
         return Vector4f{};
     }
 
-    std::shared_lock _{ get_runtime()->eyes_mtx };
+    std::shared_lock _{get_runtime()->eyes_mtx};
 
     if (m_frame_count % 2 == m_left_eye_interval) {
-        //return Vector4f{m_eye_distance * -1.0f, 0.0f, 0.0f, 0.0f};
+        // return Vector4f{m_eye_distance * -1.0f, 0.0f, 0.0f, 0.0f};
         return get_runtime()->eyes[vr::Eye_Left][3];
     }
-    
+
     return get_runtime()->eyes[vr::Eye_Right][3];
-    //return Vector4f{m_eye_distance, 0.0f, 0.0f, 0.0f};
+    // return Vector4f{m_eye_distance, 0.0f, 0.0f, 0.0f};
 }
 
 Matrix4x4f VR::get_current_eye_transform(bool flip) {
@@ -2227,7 +2230,8 @@ void VR::on_present() {
     if (runtime->is_openvr()) {
         if (openvr->got_first_poses) {
             const auto hmd_activity = openvr->hmd->GetTrackedDeviceActivityLevel(vr::k_unTrackedDeviceIndex_Hmd);
-            auto hmd_active = hmd_activity == vr::k_EDeviceActivityLevel_UserInteraction || hmd_activity == vr::k_EDeviceActivityLevel_UserInteraction_Timeout;
+            auto hmd_active = hmd_activity == vr::k_EDeviceActivityLevel_UserInteraction ||
+                              hmd_activity == vr::k_EDeviceActivityLevel_UserInteraction_Timeout;
 
             if (hmd_active) {
                 openvr->last_hmd_active_time = std::chrono::system_clock::now();
@@ -2291,7 +2295,7 @@ void VR::on_present() {
             m_overlay_component.on_post_compositor_submit();
 
             if (runtime->is_openvr()) {
-                //vr::VRCompositor()->SetExplicitTimingMode(vr::VRCompositorTimingMode_Explicit_ApplicationPerformsPostPresentHandoff);
+                // vr::VRCompositor()->SetExplicitTimingMode(vr::VRCompositorTimingMode_Explicit_ApplicationPerformsPostPresentHandoff);
                 vr::VRCompositor()->PostPresentHandoff();
             }
         }
@@ -2320,7 +2324,6 @@ void VR::on_post_present() {
 }
 
 void VR::on_update_transform(RETransform* transform) {
-    
 }
 
 void VR::on_update_camera_controller(RopewayPlayerCameraController* controller) {
@@ -2344,8 +2347,8 @@ void VR::on_update_camera_controller(RopewayPlayerCameraController* controller) 
 struct GUIRestoreData {
     REComponent* element{nullptr};
     REComponent* view{nullptr};
-    Vector4f original_position{ 0.0f, 0.0f, 0.0f, 1.0f };
-    via::gui::ViewType view_type{ via::gui::ViewType::Screen };
+    Vector4f original_position{0.0f, 0.0f, 0.0f, 1.0f};
+    via::gui::ViewType view_type{via::gui::ViewType::Screen};
     bool overlay{false};
     bool detonemap{true};
 };
@@ -2411,12 +2414,12 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
             if (fp->is_enabled() && fp->will_be_used()) {
                 const auto has_motion_controls = this->is_using_controllers();
 
-                switch(name_hash) {
+                switch (name_hash) {
                 case "GUI_Reticle"_fnv: // Crosshair
                     if (has_motion_controls) {
                         return false;
                     }
-                    
+
                     break;
                 default:
                     break;
@@ -2432,8 +2435,8 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
         }
 #endif
 
-        //spdlog::info("VR: on_pre_gui_draw_element: {}", name);
-        //spdlog::info("VR: on_pre_gui_draw_element: {} {:x}", name, (uintptr_t)game_object);
+        // spdlog::info("VR: on_pre_gui_draw_element: {}", name);
+        // spdlog::info("VR: on_pre_gui_draw_element: {} {:x}", name, (uintptr_t)game_object);
 
         auto view = sdk::call_object_func<REComponent*>(gui_element, "get_View", context, gui_element);
 
@@ -2489,8 +2492,9 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
 
                 // Go through the children until we hit a blur filter
                 // And then remove it
-                /*for (auto child = sdk::call_object_func<REComponent*>(view, "get_Child", sdk::get_thread_context(), view); child != nullptr; child = sdk::call_object_func<REComponent*>(child, "get_Child", sdk::get_thread_context(), child)) {
-                    if (utility::re_managed_object::is_a(child, "via.gui.BlurFilter")) {
+                /*for (auto child = sdk::call_object_func<REComponent*>(view, "get_Child", sdk::get_thread_context(), view); child !=
+                nullptr; child = sdk::call_object_func<REComponent*>(child, "get_Child", sdk::get_thread_context(), child)) { if
+                (utility::re_managed_object::is_a(child, "via.gui.BlurFilter")) {
                         // Call remove()
                         sdk::call_object_func<void*>(child, "remove", sdk::get_thread_context(), child);
                         break;
@@ -2507,10 +2511,8 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                         auto& gui_matrix = game_object->transform->worldTransform;
                         auto child = sdk::call_object_func<REManagedObject*>(view, "get_Child", context, view);
 
-                        auto fix_2d_position = [&](const Vector4f& target_position, 
-                                                    bool screen_correction = true,
-                                                    std::optional<float> custom_ui_scale = std::nullopt)
-                        {
+                        auto fix_2d_position = [&](const Vector4f& target_position, bool screen_correction = true,
+                                                   std::optional<float> custom_ui_scale = std::nullopt) {
                             if (!custom_ui_scale) {
                                 custom_ui_scale = world_ui_scale;
                             }
@@ -2520,9 +2522,9 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
 
                             auto dir = glm::normalize(delta);
                             dir.w = 0.0f;
-                            
+
                             // make matrix from dir
-                            const auto look_mat = glm::rowMajor4(glm::lookAtLH(Vector3f{}, Vector3f{ dir }, Vector3f(0.0f, 1.0f, 0.0f)));
+                            const auto look_mat = glm::rowMajor4(glm::lookAtLH(Vector3f{}, Vector3f{dir}, Vector3f(0.0f, 1.0f, 0.0f)));
                             const auto look_rot = glm::quat{look_mat};
 
                             auto new_pos = target_position;
@@ -2534,16 +2536,16 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                             // LESSON: DO NOT CALL THESE METHODS ON THE TRANSFORM!
                             // THEY CAUSE SOME STRANGE BUGS WHEN THE GUI ELEMENT HAS A PARENT TRANSFORM!
                             // THE GUI RENDERING FUNCTIONS PERFORM ON THE WORLD MATRIX, SO THIS IS NOT NECESSARY.
-                            //sdk::set_transform_position(game_object->transform, new_pos);
-                            //sdk::set_transform_rotation(game_object->transform, look_rot);
-                            
+                            // sdk::set_transform_position(game_object->transform, new_pos);
+                            // sdk::set_transform_rotation(game_object->transform, look_rot);
+
                             const auto scaled_ui_scale = *custom_ui_scale * 0.01f;
                             const auto distance = glm::length(delta);
                             const auto scale = std::clamp<float>(distance * scaled_ui_scale, 0.1f, 100.0f);
 
                             regenny::via::Size gui_size{};
                             sdk::call_object_func<void*>(view, "get_ScreenSize", &gui_size, context, view);
-                            
+
                             auto fix_transform_object = [&](::REManagedObject* object) {
                                 static auto transform_object_type = sdk::find_type_definition("via.gui.TransformObject");
 
@@ -2557,16 +2559,16 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                                     return;
                                 }
 
-                                //sdk::call_object_func<void*>(object, "set_ResolutionAdjust", context, object, true);
+                                // sdk::call_object_func<void*>(object, "set_ResolutionAdjust", context, object, true);
 
                                 if (screen_correction) {
-                                    Vector3f half_size{ gui_size.w / 2.0f, gui_size.h / 2.0f, 0.0f };
+                                    Vector3f half_size{gui_size.w / 2.0f, gui_size.h / 2.0f, 0.0f};
                                     sdk::call_object_func<void*>(object, "set_Position", context, object, &half_size);
                                 }
 
-                                //Vector4f new_scale{ scale, scale, scale, 1.0f };
+                                // Vector4f new_scale{ scale, scale, scale, 1.0f };
                                 const auto old_scale = sdk::call_object_func_easy<Vector4f>(object, "get_Scale");
-                                Vector4f new_scale{ old_scale.y, old_scale.y, old_scale.z, 1.0f };
+                                Vector4f new_scale{old_scale.y, old_scale.y, old_scale.z, 1.0f};
                                 sdk::call_object_func<void*>(object, "set_Scale", context, object, &new_scale);
                             };
 
@@ -2577,7 +2579,8 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                             // Fix for other kinds of world pos attach elements.
 #ifdef RE7
                             if (name_hash == "InteractOperationCursor"_fnv) {
-                                auto world_pos_attach_comp = utility::re_component::find(game_object->transform, ui_world_pos_attach_typedef->get_type());
+                                auto world_pos_attach_comp =
+                                    utility::re_component::find(game_object->transform, ui_world_pos_attach_typedef->get_type());
 
                                 // Fix the world position of the gui element
                                 if (world_pos_attach_comp != nullptr) {
@@ -2587,7 +2590,7 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                                         auto element = sdk::get_object_field<::REManagedObject*>(*target_cache, "_Element");
 
                                         if (element != nullptr && *element != nullptr) {
-                                            Vector3f zero_size{ 0.0f, 0.0f, 0.0f };
+                                            Vector3f zero_size{0.0f, 0.0f, 0.0f};
                                             sdk::call_object_func<void*>(*element, "set_Position", context, *element, &zero_size);
                                         }
                                     }
@@ -2595,7 +2598,7 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                             }
 #endif
 
-                            gui_matrix = glm::scale(gui_matrix, Vector3f{ scale, scale, scale });
+                            gui_matrix = glm::scale(gui_matrix, Vector3f{scale, scale, scale});
                         };
 
                         auto camera_transform = camera_object->transform;
@@ -2604,7 +2607,7 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                         const auto& camera_position = camera_matrix[3];
 
                         glm::quat wanted_rotation{};
-                        
+
                         bool wants_face_glue = false;
                         auto ui_distance = m_ui_distance_option->value();
 
@@ -2668,33 +2671,27 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                         if (wants_face_glue) {
                             ui_distance = 5.0f;
 
-                            wanted_rotation = glm::extractMatrixRotation(m_render_camera_matrix) * Matrix4x4f{
-                                -1, 0, 0, 0,
-                                0, 1, 0, 0,
-                                0, 0, -1, 0,
-                                0, 0, 0, 1
-                            };
+                            wanted_rotation = glm::extractMatrixRotation(m_render_camera_matrix) *
+                                              Matrix4x4f{-1, 0, 0, 0, 0, 1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1};
                         } else {
                             const auto gui_rotation_offset = get_gui_rotation_offset();
 
-                            wanted_rotation = glm::extractMatrixRotation(camera_matrix) * Matrix4x4f{
-                                -1, 0, 0, 0,
-                                0, 1, 0, 0,
-                                0, 0, -1, 0,
-                                0, 0, 0, 1
-                            };
+                            wanted_rotation =
+                                glm::extractMatrixRotation(camera_matrix) * Matrix4x4f{-1, 0, 0, 0, 0, 1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1};
 
                             if (m_decoupled_pitch->value()) {
                                 bool is_exception = false;
 
                                 switch (name_hash) {
-                                    case "GUIReticle"_fnv:[[fallthrough]];
-                                    case "ReticleGUI"_fnv:[[fallthrough]];
-                                    case "GUI_Reticle"_fnv:
-                                        is_exception = true;
-                                        break;
-                                    default:
-                                        break;
+                                case "GUIReticle"_fnv:
+                                    [[fallthrough]];
+                                case "ReticleGUI"_fnv:
+                                    [[fallthrough]];
+                                case "GUI_Reticle"_fnv:
+                                    is_exception = true;
+                                    break;
+                                default:
+                                    break;
                                 }
 
                                 if (!is_exception) {
@@ -2708,49 +2705,51 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                         const auto wanted_rotation_mat = Matrix4x4f{wanted_rotation};
 
                         gui_matrix = wanted_rotation_mat;
-                        gui_matrix[3] = camera_position + (wanted_rotation_mat[2] * ui_distance) + (wanted_rotation_mat[0] * right_world_adjust);
+                        gui_matrix[3] =
+                            camera_position + (wanted_rotation_mat[2] * ui_distance) + (wanted_rotation_mat[0] * right_world_adjust);
                         gui_matrix[3].w = 1.0f;
 
                         // Scales the GUI so it's not massive.
                         if (!wants_face_glue) {
                             const auto scale = 1.0f / ui_scale;
-                            gui_matrix = glm::scale(gui_matrix, Vector3f{ scale, scale, scale });
+                            gui_matrix = glm::scale(gui_matrix, Vector3f{scale, scale, scale});
                         }
 
                         static auto gui_driver_typedef = sdk::find_type_definition(game_namespace("GUIDriver"));
-                        static auto mhrise_npc_head_message_typedef = sdk::find_type_definition(game_namespace("gui.GuiCommonNpcHeadMessage"));
-                        static auto mhrise_speech_balloon_typedef = sdk::find_type_definition(game_namespace("gui.GuiCommonNpcSpeechBalloon"));
+                        static auto mhrise_npc_head_message_typedef =
+                            sdk::find_type_definition(game_namespace("gui.GuiCommonNpcHeadMessage"));
+                        static auto mhrise_speech_balloon_typedef =
+                            sdk::find_type_definition(game_namespace("gui.GuiCommonNpcSpeechBalloon"));
                         static auto mhrise_head_message_typedef = sdk::find_type_definition(game_namespace("gui.GuiCommonHeadMessage"));
-                        static auto mhrise_otomo_head_message_typedef = sdk::find_type_definition(game_namespace("gui.GuiCommonOtomoHeadMessage"));
+                        static auto mhrise_otomo_head_message_typedef =
+                            sdk::find_type_definition(game_namespace("gui.GuiCommonOtomoHeadMessage"));
                         static auto kg_float_icon_behavior = sdk::find_type_definition("app.FloatIconBehavior");
                         static auto kg_general_vital_gauge_behavior = sdk::find_type_definition("app.GeneralVitalGaugeBehavior");
 
-                        static auto gameobject_elements_list = {
-                            mhrise_npc_head_message_typedef,
-                            mhrise_speech_balloon_typedef,
-                            mhrise_head_message_typedef,
-                            mhrise_otomo_head_message_typedef,
-                            kg_float_icon_behavior,
-                            kg_general_vital_gauge_behavior
-                        };
-                        
+                        static auto gameobject_elements_list = {mhrise_npc_head_message_typedef, mhrise_speech_balloon_typedef,
+                            mhrise_head_message_typedef, mhrise_otomo_head_message_typedef, kg_float_icon_behavior,
+                            kg_general_vital_gauge_behavior};
+
                         // Fix position of interaction icons
-                        if (name_hash == "GUI_FloatIcon"_fnv || name_hash == "RogueFloatIcon"_fnv || name_hash == "Gui_FloatIcon"_fnv) { // RE2, RE3, RE4
+                        if (name_hash == "GUI_FloatIcon"_fnv || name_hash == "RogueFloatIcon"_fnv ||
+                            name_hash == "Gui_FloatIcon"_fnv) { // RE2, RE3, RE4
                             if (name_hash == "GUI_FloatIcon"_fnv || name_hash == "Gui_FloatIcon"_fnv) {
                                 m_last_interaction_display = std::chrono::steady_clock::now();
                             }
-                        
+
                             fix_2d_position(original_game_object_pos);
-                        } else if(gui_driver_typedef != nullptr) { // RE8
+                        } else if (gui_driver_typedef != nullptr) { // RE8
                             auto interact_icon_comp = utility::re_component::find(game_object->transform, gui_driver_typedef->get_type());
 
                             if (interact_icon_comp != nullptr) {
-                                auto interact_icon_object = sdk::call_object_func<REGameObject*>(interact_icon_comp, "get_attachTarget", context, interact_icon_comp);
+                                auto interact_icon_object = sdk::call_object_func<REGameObject*>(
+                                    interact_icon_comp, "get_attachTarget", context, interact_icon_comp);
 
                                 if (interact_icon_object != nullptr && interact_icon_object->transform != nullptr) {
                                     // call get_Position on the object
                                     Vector4f interact_icon_position{};
-                                    sdk::call_object_func<Vector4f*>(interact_icon_object->transform, "get_Position", &interact_icon_position, context, interact_icon_object->transform);
+                                    sdk::call_object_func<Vector4f*>(interact_icon_object->transform, "get_Position",
+                                        &interact_icon_position, context, interact_icon_object->transform);
 
                                     fix_2d_position(interact_icon_position);
                                 }
@@ -2791,7 +2790,7 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                                     } else if (element_type == mhrise_npc_head_message_typedef) {
                                         static auto pos_data_field = mhrise_npc_head_message_typedef->get_field("posData");
                                         static auto npc_message_pos = pos_data_field->get_type()->get_field("NpcMessagePos");
-                                        
+
                                         auto pos_data = pos_data_field->get_data<::REManagedObject*>(element_comp);
 
                                         if (pos_data != nullptr) {
@@ -2805,11 +2804,12 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
 
                                         const auto y_offset = message_pos_y_field->get_data<float>(element_comp);
                                         offset = Vector4f{0.0f, y_offset, 0.0f, 0.0f};
-                                    } else if (element_type == mhrise_otomo_head_message_typedef) { //airou and dog
+                                    } else if (element_type == mhrise_otomo_head_message_typedef) { // airou and dog
                                         offset = Vector4f{0.0, 1.0f, 0.0f, 0.0f};
                                     } else if (element_type == kg_float_icon_behavior) {
                                         static auto param_field = kg_float_icon_behavior->get_field("_Param");
-                                        static auto world_pos_field = param_field != nullptr ? param_field->get_type()->get_field("WorldPos") : nullptr;
+                                        static auto world_pos_field =
+                                            param_field != nullptr ? param_field->get_type()->get_field("WorldPos") : nullptr;
 
                                         if (world_pos_field != nullptr) {
                                             auto param = param_field->get_data<::REManagedObject*>(element_comp);
@@ -2821,7 +2821,8 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                                         }
                                     } else if (element_type == kg_general_vital_gauge_behavior) {
                                         static auto param_field = kg_general_vital_gauge_behavior->get_field("_OpenParam");
-                                        static auto world_pos_field = param_field != nullptr ? param_field->get_type()->get_field("WorldPos") : nullptr;
+                                        static auto world_pos_field =
+                                            param_field != nullptr ? param_field->get_type()->get_field("WorldPos") : nullptr;
 
                                         if (world_pos_field != nullptr) {
                                             auto param = param_field->get_data<::REManagedObject*>(element_comp);
@@ -2842,12 +2843,13 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
 
                         // ... RE7
 #ifdef RE7
-                        auto world_pos_attach_comp = utility::re_component::find(game_object->transform, ui_world_pos_attach_typedef->get_type());
+                        auto world_pos_attach_comp =
+                            utility::re_component::find(game_object->transform, ui_world_pos_attach_typedef->get_type());
 
                         // Fix the world position of the gui element
                         if (world_pos_attach_comp != nullptr) {
                             const auto& target_pos = *sdk::get_object_field<Vector4f>(world_pos_attach_comp, "_NowTargetPos");
-                            
+
                             fix_2d_position(target_pos);
                         }
 #endif
@@ -2863,7 +2865,7 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
 }
 
 void VR::on_gui_draw_element(REComponent* gui_element, void* primitive_context) {
-    //spdlog::info("VR: on_gui_draw_element");
+    // spdlog::info("VR: on_gui_draw_element");
 
     auto context = sdk::get_thread_context();
 
@@ -2872,11 +2874,11 @@ void VR::on_gui_draw_element(REComponent* gui_element, void* primitive_context) 
         sdk::call_object_func<void*>(data->view, "set_ViewType", context, data->view, (uint32_t)via::gui::ViewType::Screen);
         sdk::call_object_func<void*>(data->view, "set_Overlay", context, data->view, data->overlay);
         sdk::call_object_func<void*>(data->view, "set_Detonemap", context, data->view, data->detonemap);
-        
+
         auto game_object = utility::re_component::get_game_object(data->element);
 
         if (game_object != nullptr && game_object->transform != nullptr) {
-            //sdk::set_transform_position(game_object->transform, data->original_position);
+            // sdk::set_transform_position(game_object->transform, data->original_position);
 
             auto& gui_matrix = game_object->transform->worldTransform;
             gui_matrix[3] = data->original_position;
@@ -2901,7 +2903,7 @@ void VR::on_pre_update_before_lock_scene(void* ctx) {
     const auto vfov = glm::degrees(2.0f * std::atan(1.0f / projection_matrix[1][1]));
     const auto aspect = projection_matrix[1][1] / projection_matrix[0][0];
     const auto hfov = vfov * aspect;
-    
+
     spdlog::info("vFOV: {}", vfov);
     spdlog::info("Aspect: {}", aspect);
 
@@ -2993,7 +2995,7 @@ void VR::on_pre_begin_rendering(void* entry) {
 
     detect_controllers();
 
-    //actual_frame_count = get_game_frame_count();
+    // actual_frame_count = get_game_frame_count();
     m_frame_count++;
     actual_frame_count = m_frame_count;
 
@@ -3017,14 +3019,18 @@ void VR::on_pre_begin_rendering(void* entry) {
     if (runtime->needs_pose_update && inside_on_end) {
         spdlog::info("VR: on_pre_wait_rendering: inside on end!");
     }
-    
+
     // Call WaitGetPoses
-    if (!inside_on_end && m_frame_count % 2 == m_left_eye_interval) {
-        runtime->consume_events(nullptr);
-        update_hmd_state();
+    // For XrDriver, update every frame for low latency (not just every other frame)
+    const bool is_xr_driver = runtime->is_xr_driver();
+    if (!inside_on_end) {
+        if (is_xr_driver || m_frame_count % 2 == m_left_eye_interval) {
+            runtime->consume_events(nullptr);
+            update_hmd_state();
+        }
     }
 
-    const auto should_update_camera = (m_frame_count % 2 == m_left_eye_interval) || is_using_afr();
+    const auto should_update_camera = (m_frame_count % 2 == m_left_eye_interval) || is_using_afr() || is_xr_driver;
 
     if (!inside_on_end && should_update_camera) {
         update_camera();
@@ -3034,11 +3040,11 @@ void VR::on_pre_begin_rendering(void* entry) {
 
     // update our internally stored render matrix
     update_render_matrix();
-    //fix_temporal_effects(); // BAD way to do it!
+    // fix_temporal_effects(); // BAD way to do it!
 }
 
 void VR::on_begin_rendering(void* entry) {
-    //spdlog::info("BeginRendering");
+    // spdlog::info("BeginRendering");
 }
 
 void VR::on_pre_end_rendering(void* entry) {
@@ -3095,7 +3101,7 @@ void VR::on_end_rendering(void* entry) {
     // Meaning the previous frame was a left eye frame.
     if (!inside_on_end && m_render_frame_count % 2 == m_left_eye_interval) {
         inside_on_end = true;
-        
+
         // Try to render again for the right eye
         auto app = sdk::Application::get();
 
@@ -3116,39 +3122,26 @@ void VR::on_end_rendering(void* entry) {
             do_once = false;
 
             // Remove these from the chain (std::vector)
-            auto entries_to_remove = std::vector<std::string> {
-                "WaitRendering",
-                "UpdatePhysicsCharacterController",
-                "UpdateTelemetry",
+            auto entries_to_remove = std::vector<std::string>{"WaitRendering", "UpdatePhysicsCharacterController", "UpdateTelemetry",
                 "UpdateMovie", // Causes movies to play twice as fast if ran again
-                "UpdateSpeedTree",
-                "UpdateHansoft",
-                "UpdatePuppet",
+                "UpdateSpeedTree", "UpdateHansoft", "UpdatePuppet",
                 // The dynamics stuff causes a cloth physics step in the right eye
-                "BeginRenderingDynamics",
-                "BeginDynamics",
-                "EndRenderingDynamics",
-                "EndDynamics",
-                "EndPhysics",
-                "RenderDynamics",
+                "BeginRenderingDynamics", "BeginDynamics", "EndRenderingDynamics", "EndDynamics", "EndPhysics", "RenderDynamics",
 #if TDB_VER < 73
                 "RenderLandscape",
 #endif
-                "DevelopRenderer",
-                "DrawWidget"
-            };
+                "DevelopRenderer", "DrawWidget"};
 
             for (auto& entry : entries_to_remove) {
-                chain.erase(std::remove_if(chain.begin(), chain.end(), [&](auto& func) {
-                    return entry == func->description;
-                }), chain.end());
+                chain.erase(
+                    std::remove_if(chain.begin(), chain.end(), [&](auto& func) { return entry == func->description; }), chain.end());
             }
         }
 
         sdk::renderer::wait_rendering();
         sdk::renderer::begin_update_primitive();
 
-        //static auto update_geometry = app->get_function("UpdateGeometry");
+        // static auto update_geometry = app->get_function("UpdateGeometry");
         static auto begin_update_effect = app->get_function("BeginUpdateEffect");
         static auto update_effect = app->get_function("UpdateEffect");
         static auto end_update_effect = app->get_function("EndUpdateEffect");
@@ -3185,7 +3178,7 @@ void VR::on_end_rendering(void* entry) {
         }
 
         for (auto func : chain) {
-            //spdlog::info("Calling {}", func->description);
+            // spdlog::info("Calling {}", func->description);
 
             func->func(func->entry);
         }
@@ -3230,20 +3223,20 @@ void VR::on_pre_application_entry(void* entry, const char* name, size_t hash) {
     }
 
     switch (hash) {
-        case "UpdateHID"_fnv:
-            on_pre_update_hid(entry);
-            break;
-        case "WaitRendering"_fnv:
-            on_pre_wait_rendering(entry);
-            break;
-        case "BeginRendering"_fnv:
-            on_pre_begin_rendering(entry);
-            break;
-        case "EndRendering"_fnv:
-            on_pre_end_rendering(entry);
-            break;
-        default:
-            break;
+    case "UpdateHID"_fnv:
+        on_pre_update_hid(entry);
+        break;
+    case "WaitRendering"_fnv:
+        on_pre_wait_rendering(entry);
+        break;
+    case "BeginRendering"_fnv:
+        on_pre_begin_rendering(entry);
+        break;
+    case "EndRendering"_fnv:
+        on_pre_end_rendering(entry);
+        break;
+    default:
+        break;
     }
 }
 
@@ -3253,20 +3246,20 @@ void VR::on_application_entry(void* entry, const char* name, size_t hash) {
     }
 
     switch (hash) {
-        case "UpdateHID"_fnv:
-            on_update_hid(entry);
-            break;
-        case "WaitRendering"_fnv:
-            on_wait_rendering(entry);
-            break;
-        case "BeginRendering"_fnv:
-            on_begin_rendering(entry);
-            break;
-        case "EndRendering"_fnv:
-            on_end_rendering(entry);
-            break;
-        default:
-            break;
+    case "UpdateHID"_fnv:
+        on_update_hid(entry);
+        break;
+    case "WaitRendering"_fnv:
+        on_wait_rendering(entry);
+        break;
+    case "BeginRendering"_fnv:
+        on_begin_rendering(entry);
+        break;
+    case "EndRendering"_fnv:
+        on_end_rendering(entry);
+        break;
+    default:
+        break;
     }
 }
 
@@ -3325,9 +3318,8 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
 #endif
 
     auto gui_master = gui_master_get_instance->call<::REManagedObject*>(sdk::get_thread_context());
-    auto gui_input = gui_master != nullptr ? 
-                     gui_master_get_input->call<::REManagedObject*>(sdk::get_thread_context(), gui_master) : 
-                     (::REManagedObject*)nullptr;
+    auto gui_input = gui_master != nullptr ? gui_master_get_input->call<::REManagedObject*>(sdk::get_thread_context(), gui_master)
+                                           : (::REManagedObject*)nullptr;
 
     auto ctx = sdk::get_thread_context();
 
@@ -3364,40 +3356,49 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
     const auto is_left_joystick_click_down = is_action_active(m_action_joystick_click, m_left_joystick);
     const auto is_right_joystick_click_down = is_action_active(m_action_joystick_click, m_right_joystick);
 
-    const auto is_minimap_down = is_action_active(m_action_minimap, m_left_joystick) || is_action_active(m_action_minimap, m_right_joystick);
+    const auto is_minimap_down =
+        is_action_active(m_action_minimap, m_left_joystick) || is_action_active(m_action_minimap, m_right_joystick);
     const auto is_left_a_button_down = is_action_active(m_action_a_button, m_left_joystick);
     const auto is_left_b_button_down = !is_minimap_down && is_action_active(m_action_b_button, m_left_joystick);
     const auto is_right_a_button_down = is_action_active(m_action_a_button, m_right_joystick);
     const auto is_right_b_button_down = is_action_active(m_action_b_button, m_right_joystick);
 
-    const auto is_dpad_up_down = is_action_active(m_action_dpad_up, m_left_joystick) || is_action_active(m_action_dpad_up, m_right_joystick);
-    const auto is_dpad_right_down = is_action_active(m_action_dpad_right, m_left_joystick) || is_action_active(m_action_dpad_right, m_right_joystick);
-    const auto is_dpad_down_down = is_action_active(m_action_dpad_down, m_left_joystick) || is_action_active(m_action_dpad_down, m_right_joystick);
-    const auto is_dpad_left_down = is_action_active(m_action_dpad_left, m_left_joystick) || is_action_active(m_action_dpad_left, m_right_joystick);
+    const auto is_dpad_up_down =
+        is_action_active(m_action_dpad_up, m_left_joystick) || is_action_active(m_action_dpad_up, m_right_joystick);
+    const auto is_dpad_right_down =
+        is_action_active(m_action_dpad_right, m_left_joystick) || is_action_active(m_action_dpad_right, m_right_joystick);
+    const auto is_dpad_down_down =
+        is_action_active(m_action_dpad_down, m_left_joystick) || is_action_active(m_action_dpad_down, m_right_joystick);
+    const auto is_dpad_left_down =
+        is_action_active(m_action_dpad_left, m_left_joystick) || is_action_active(m_action_dpad_left, m_right_joystick);
 
-    const auto is_weapon_dial_down = is_action_active(m_action_weapon_dial, m_left_joystick) || is_action_active(m_action_weapon_dial, m_right_joystick);
-    const auto is_re3_dodge_down = is_action_active(m_action_re3_dodge, m_left_joystick) || is_action_active(m_action_re3_dodge, m_right_joystick);
-    const auto is_quickturn_down = is_action_active(m_action_re2_quickturn, m_left_joystick) || is_action_active(m_action_re2_quickturn, m_right_joystick);
-    const auto is_reset_view_down = is_action_active(m_action_re2_reset_view, m_left_joystick) || is_action_active(m_action_re2_reset_view, m_right_joystick);
-    const auto is_change_ammo_down = is_action_active(m_action_re2_change_ammo, m_left_joystick) || is_action_active(m_action_re2_change_ammo, m_right_joystick);
-	const auto is_toggle_flashlight_down = is_action_active(m_action_re2_toggle_flashlight, m_left_joystick) || is_action_active(m_action_re2_toggle_flashlight, m_right_joystick);
+    const auto is_weapon_dial_down =
+        is_action_active(m_action_weapon_dial, m_left_joystick) || is_action_active(m_action_weapon_dial, m_right_joystick);
+    const auto is_re3_dodge_down =
+        is_action_active(m_action_re3_dodge, m_left_joystick) || is_action_active(m_action_re3_dodge, m_right_joystick);
+    const auto is_quickturn_down =
+        is_action_active(m_action_re2_quickturn, m_left_joystick) || is_action_active(m_action_re2_quickturn, m_right_joystick);
+    const auto is_reset_view_down =
+        is_action_active(m_action_re2_reset_view, m_left_joystick) || is_action_active(m_action_re2_reset_view, m_right_joystick);
+    const auto is_change_ammo_down =
+        is_action_active(m_action_re2_change_ammo, m_left_joystick) || is_action_active(m_action_re2_change_ammo, m_right_joystick);
+    const auto is_toggle_flashlight_down = is_action_active(m_action_re2_toggle_flashlight, m_left_joystick) ||
+                                           is_action_active(m_action_re2_toggle_flashlight, m_right_joystick);
 
     const auto is_left_system_button_down = is_action_active(m_action_system_button, m_left_joystick);
     const auto is_right_system_button_down = is_action_active(m_action_system_button, m_right_joystick);
 
-    
-    
 #if defined(RE2) || defined(RE3) || defined(RE8)
-    if (is_toggle_flashlight_down && !m_was_flashlight_toggle_down) {            
-        ManualFlashlight::g_manual_flashlight-> toggle_flashlight();
-    }    
+    if (is_toggle_flashlight_down && !m_was_flashlight_toggle_down) {
+        ManualFlashlight::g_manual_flashlight->toggle_flashlight();
+    }
 
     m_was_flashlight_toggle_down = is_toggle_flashlight_down;
 #endif
 
-
 #if defined(RE2) || defined(RE3)
-    const auto is_firstperson_toggle_down = is_action_active(m_action_re2_firstperson_toggle, m_left_joystick) || is_action_active(m_action_re2_firstperson_toggle, m_right_joystick);
+    const auto is_firstperson_toggle_down = is_action_active(m_action_re2_firstperson_toggle, m_left_joystick) ||
+                                            is_action_active(m_action_re2_firstperson_toggle, m_right_joystick);
 
     if (is_firstperson_toggle_down && !m_was_firstperson_toggle_down) {
         FirstPerson::get()->toggle();
@@ -3467,7 +3468,7 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
             if (is_using_controller) {
                 button_bits_down &= ~kind_uint64;
                 m_button_states_down &= ~kind_uint64;
-                
+
                 button_bits_on &= ~kind_uint64;
                 m_button_states_on &= ~kind_uint64;
             }
@@ -3479,7 +3480,7 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
     set_button_state(app::ropeway::InputDefine::Kind::UI_SHIFT_RIGHT, is_grip_down);
 
     // Left Grip: Alternate aim (grenades, knives, etc), UI left (LB)
-    set_button_state(app::ropeway::InputDefine::Kind::SUPPORT_HOLD, is_left_grip_down && !is_gripping_weapon);   
+    set_button_state(app::ropeway::InputDefine::Kind::SUPPORT_HOLD, is_left_grip_down && !is_gripping_weapon);
     set_button_state(app::ropeway::InputDefine::Kind::UI_SHIFT_LEFT, is_left_grip_down);
 
     // Right Trigger (RB): Attack, Alternate UI right (RT), GE_RTrigBottom (quick time event), GE_RTrigTop (another quick time event)
@@ -3487,7 +3488,7 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
     set_button_state(app::ropeway::InputDefine::Kind::UI_SHIFT_RIGHT_2, is_trigger_down);
     set_button_state((app::ropeway::InputDefine::Kind)18014398509481984, is_trigger_down);
     set_button_state((app::ropeway::InputDefine::Kind)9007199254740992, is_trigger_down);
-    //set_button_state((app::ropeway::InputDefine::Kind)4503599627370496, is_trigger_down);
+    // set_button_state((app::ropeway::InputDefine::Kind)4503599627370496, is_trigger_down);
 
     // Left Trigger (LB): Alternate UI left (LT), DEFENSE (LB)
     set_button_state(app::ropeway::InputDefine::Kind::UI_SHIFT_LEFT_2, is_left_trigger_down);
@@ -3508,7 +3509,7 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
     set_button_state(app::ropeway::InputDefine::Kind::PRESS_START, is_left_a_button_down);
     set_button_state(app::ropeway::InputDefine::Kind::CANCEL, is_left_a_button_down);
     set_button_state(app::ropeway::InputDefine::Kind::DIALOG_CANCEL, is_left_a_button_down);
-    
+
     // Right A: Action, ITEM, PRESS_START, DECIDE, DIALOG_DECIDE, (1 << 51)
     set_button_state(app::ropeway::InputDefine::Kind::ACTION, is_right_a_button_down);
     set_button_state(app::ropeway::InputDefine::Kind::ITEM, is_right_a_button_down);
@@ -3522,7 +3523,7 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
     } else {
         set_button_state((app::ropeway::InputDefine::Kind)((uint64_t)1 << 51), false); // RE3 dodge
     }
-    
+
     // Right B: Reload, Skip Event, UI_EXCHANGE, UI_RESET, (1 << 52) (that one is RE3 only? don't see it in the enum)
     set_button_state(app::ropeway::InputDefine::Kind::RELOAD, is_right_b_button_down);
     set_button_state(app::ropeway::InputDefine::Kind::SKIP_EVENT, is_right_b_button_down);
@@ -3576,7 +3577,8 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
     set_button_state(app::ropeway::InputDefine::Kind::MINIMAP, is_minimap_down);
 
     // Left or Right System Button: Pause
-    set_button_state(app::ropeway::InputDefine::Kind::PAUSE, is_left_system_button_down || is_right_system_button_down || get_runtime()->handle_pause);
+    set_button_state(
+        app::ropeway::InputDefine::Kind::PAUSE, is_left_system_button_down || is_right_system_button_down || get_runtime()->handle_pause);
     get_runtime()->handle_pause = false;
 
     // Fixes QTE bound to triggers
@@ -3597,7 +3599,7 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
         moved_sticks = true;
 
         // Override the left stick's axis values to the VR controller's values
-        Vector3f axis{ left_axis.x, left_axis.y, 0.0f };
+        Vector3f axis{left_axis.x, left_axis.y, 0.0f};
 
         static auto update_method = sdk::get_object_method(lstick, "update");
         update_method->call<void*>(ctx, lstick, &axis, &axis);
@@ -3607,7 +3609,7 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
         moved_sticks = true;
 
         // Override the right stick's axis values to the VR controller's values
-        Vector3f axis{ right_axis.x, right_axis.y, 0.0f };
+        Vector3f axis{right_axis.x, right_axis.y, 0.0f};
 
         static auto update_method = sdk::get_object_method(rstick, "update");
         update_method->call<void*>(ctx, rstick, &axis, &axis);
@@ -3629,7 +3631,7 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
 
     set_button_state(app::ropeway::InputDefine::Kind::WATCH, right_axis_len > deadzone);
     set_button_state(app::ropeway::InputDefine::Kind::UI_R_STICK, right_axis_len > deadzone);
-    //set_button_state(app::ropeway::InputDefine::Kind::RUN, right_axis_len > 0.01f);
+    // set_button_state(app::ropeway::InputDefine::Kind::RUN, right_axis_len > 0.01f);
 
     // Causes the right stick to take effect properly
     if (is_using_controller) {
@@ -3699,7 +3701,8 @@ void VR::on_draw_ui() {
 
         if (runtime->error && runtime->dll_missing) {
             ImGui::TextWrapped("%s not loaded: %s not found", runtime->name().data(), dll_name.data());
-            ImGui::TextWrapped("Please drop the %s file into the game's directory if you want to use %s", dll_name.data(), runtime->name().data());
+            ImGui::TextWrapped(
+                "Please drop the %s file into the game's directory if you want to use %s", dll_name.data(), runtime->name().data());
         } else if (runtime->error) {
             ImGui::TextWrapped("%s not loaded: %s", runtime->name().data(), runtime->error->c_str());
         } else {
@@ -3743,7 +3746,7 @@ void VR::on_draw_ui() {
             m_openxr->resolution_scale = m_resolution_scale->value();
         }
     }
-    
+
     ImGui::Combo("Sync Mode", (int*)&get_runtime()->custom_stage, "Early\0Late\0Very Late\0");
     ImGui::Separator();
 
@@ -3763,8 +3766,8 @@ void VR::on_draw_ui() {
         get_runtime()->wants_reinitialize = true;
     }
 
-    //ImGui::DragFloat4("Right Bounds", (float*)&m_right_bounds, 0.005f, -2.0f, 2.0f);
-    //ImGui::DragFloat4("Left Bounds", (float*)&m_left_bounds, 0.005f, -2.0f, 2.0f);
+    // ImGui::DragFloat4("Right Bounds", (float*)&m_right_bounds, 0.005f, -2.0f, 2.0f);
+    // ImGui::DragFloat4("Left Bounds", (float*)&m_left_bounds, 0.005f, -2.0f, 2.0f);
 
     ImGui::Separator();
 
@@ -3822,7 +3825,7 @@ void VR::on_draw_ui() {
     ImGui::Checkbox("Disable Backbuffer Size Override", &m_disable_backbuffer_size_override);
     ImGui::Checkbox("Disable Temporal Fix", &m_disable_temporal_fix);
     ImGui::Checkbox("Disable Post Effect Fix", &m_disable_post_effect_fix);
-    
+
     const double min_ = 0.0;
     const double max_ = 25.0;
     ImGui::SliderScalar("Prediction Scale", ImGuiDataType_Double, &m_openxr->prediction_scale, &min_, &max_);
@@ -3896,8 +3899,8 @@ Vector4f VR::get_position(uint32_t index) const {
         return Vector4f{};
     }
 
-    std::shared_lock _{ get_runtime()->pose_mtx };
-    std::shared_lock __{ get_runtime()->eyes_mtx };
+    std::shared_lock _{get_runtime()->pose_mtx};
+    std::shared_lock __{get_runtime()->eyes_mtx};
 
     return get_position_unsafe(index);
 }
@@ -3907,7 +3910,7 @@ Vector4f VR::get_velocity(uint32_t index) const {
         return Vector4f{};
     }
 
-    std::shared_lock _{ get_runtime()->pose_mtx };
+    std::shared_lock _{get_runtime()->pose_mtx};
 
     return get_velocity_unsafe(index);
 }
@@ -3917,7 +3920,7 @@ Vector4f VR::get_angular_velocity(uint32_t index) const {
         return Vector4f{};
     }
 
-    std::shared_lock _{ get_runtime()->pose_mtx };
+    std::shared_lock _{get_runtime()->pose_mtx};
 
     return get_angular_velocity_unsafe(index);
 }
@@ -3929,7 +3932,7 @@ Vector4f VR::get_position_unsafe(uint32_t index) const {
         }
 
         auto& pose = get_openvr_poses()[index];
-        auto matrix = Matrix4x4f{ *(Matrix3x4f*)&pose.mDeviceToAbsoluteTracking };
+        auto matrix = Matrix4x4f{*(Matrix3x4f*)&pose.mDeviceToAbsoluteTracking};
         auto result = glm::rowMajor4(matrix)[3];
         result.w = 1.0f;
 
@@ -3941,13 +3944,20 @@ Vector4f VR::get_position_unsafe(uint32_t index) const {
 
         // HMD position
         if (index == 0 && !m_openxr->stage_views.empty()) {
-            return Vector4f{ *(Vector3f*)&m_openxr->view_space_location.pose.position, 1.0f };
+            return Vector4f{*(Vector3f*)&m_openxr->view_space_location.pose.position, 1.0f};
         } else if (index > 0) {
-            return Vector4f{ *(Vector3f*)&m_openxr->hands[index-1].location.pose.position, 1.0f };
+            return Vector4f{*(Vector3f*)&m_openxr->hands[index - 1].location.pose.position, 1.0f};
         }
 
         return Vector4f{};
-    } 
+    } else if (get_runtime()->is_xr_driver()) {
+        // HMD position
+        if (index == 0) {
+            return m_xr_driver->m_hmd_position;
+        }
+
+        return Vector4f{};
+    }
 
     return Vector4f{};
 }
@@ -3961,7 +3971,7 @@ Vector4f VR::get_velocity_unsafe(uint32_t index) const {
         const auto& pose = get_openvr_poses()[index];
         const auto& velocity = pose.vVelocity;
 
-        return Vector4f{ velocity.v[0], velocity.v[1], velocity.v[2], 0.0f };
+        return Vector4f{velocity.v[0], velocity.v[1], velocity.v[2], 0.0f};
     } else if (get_runtime()->is_openxr()) {
         if (index >= 3) {
             return Vector4f{};
@@ -3972,7 +3982,7 @@ Vector4f VR::get_velocity_unsafe(uint32_t index) const {
             return Vector4f{};
         }
 
-        return Vector4f{ *(Vector3f*)&m_openxr->hands[index-1].velocity.linearVelocity, 0.0f };
+        return Vector4f{*(Vector3f*)&m_openxr->hands[index - 1].velocity.linearVelocity, 0.0f};
     }
 
     return Vector4f{};
@@ -3987,7 +3997,7 @@ Vector4f VR::get_angular_velocity_unsafe(uint32_t index) const {
         const auto& pose = get_openvr_poses()[index];
         const auto& angular_velocity = pose.vAngularVelocity;
 
-        return Vector4f{ angular_velocity.v[0], angular_velocity.v[1], angular_velocity.v[2], 0.0f };
+        return Vector4f{angular_velocity.v[0], angular_velocity.v[1], angular_velocity.v[2], 0.0f};
     } else if (get_runtime()->is_openxr()) {
         if (index >= 3) {
             return Vector4f{};
@@ -3997,8 +4007,8 @@ Vector4f VR::get_angular_velocity_unsafe(uint32_t index) const {
         if (index == 0) {
             return Vector4f{};
         }
-    
-        return Vector4f{ *(Vector3f*)&m_openxr->hands[index-1].velocity.angularVelocity, 0.0f };
+
+        return Vector4f{*(Vector3f*)&m_openxr->hands[index - 1].velocity.angularVelocity, 0.0f};
     }
 
     return Vector4f{};
@@ -4016,19 +4026,28 @@ Matrix4x4f VR::get_rotation(uint32_t index) const {
         auto matrix = Matrix4x4f{ *(Matrix3x4f*)&pose.mDeviceToAbsoluteTracking };
         return glm::extractMatrixRotation(glm::rowMajor4(matrix));
     } else if (get_runtime()->is_openxr()) {
-        std::shared_lock _{ get_runtime()->pose_mtx };
-        std::shared_lock __{ get_runtime()->eyes_mtx };
+        std::shared_lock _{get_runtime()->pose_mtx};
+        std::shared_lock __{get_runtime()->eyes_mtx};
 
         // HMD rotation
         if (index == 0 && !m_openxr->stage_views.empty()) {
             return Matrix4x4f{*(glm::quat*)&m_openxr->view_space_location.pose.orientation};
-            //return Matrix4x4f{*(glm::quat*)&m_openxr->stage_views[0].pose.orientation};
+            // return Matrix4x4f{*(glm::quat*)&m_openxr->stage_views[0].pose.orientation};
         } else if (index > 0) {
-            if (index == VRRuntime::Hand::LEFT+1) {
+            if (index == VRRuntime::Hand::LEFT + 1) {
                 return Matrix4x4f{*(glm::quat*)&m_openxr->hands[VRRuntime::Hand::LEFT].location.pose.orientation};
-            } else if (index == VRRuntime::Hand::RIGHT+1) {
+            } else if (index == VRRuntime::Hand::RIGHT + 1) {
                 return Matrix4x4f{*(glm::quat*)&m_openxr->hands[VRRuntime::Hand::RIGHT].location.pose.orientation};
             }
+        }
+
+        return glm::identity<Matrix4x4f>();
+    } else if (get_runtime()->is_xr_driver()) {
+        std::shared_lock _{get_runtime()->pose_mtx};
+
+        // HMD rotation
+        if (index == 0) {
+            return Matrix4x4f{m_xr_driver->m_hmd_rotation};
         }
 
         return glm::identity<Matrix4x4f>();
