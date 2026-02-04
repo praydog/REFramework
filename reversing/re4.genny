@@ -1237,6 +1237,8 @@ struct RenderResource {
 	Poop* unkpoop;
     int32_t ref_count @ 8;
     uint32_t render_frame
+
+    void* padding;
 };
 
 struct TextureDesc {

@@ -85,9 +85,7 @@ public:
         return (Desc*)((uintptr_t)this + s_desc_offset);
     }
 
-    DirectXResource<ID3D12Resource>* get_d3d12_resource_container() {
-        return *(DirectXResource<ID3D12Resource>**)((uintptr_t)this + s_d3d12_resource_offset);
-    }
+    DirectXResource<ID3D12Resource>* get_d3d12_resource_container();
 
 private:
 #if TDB_VER >= 73 || defined(SF6)
@@ -199,7 +197,11 @@ static_assert(offsetof(TargetState, m_desc) + offsetof(TargetState::Desc, num_rt
 #ifdef SF6
 static_assert(offsetof(TargetState, m_desc) + offsetof(TargetState::Desc, num_rtv) == 0x28);
 #else
+#ifdef RE4
+static_assert(offsetof(TargetState, m_desc) + offsetof(TargetState::Desc, num_rtv) == 0x28);
+#else
 static_assert(offsetof(TargetState, m_desc) + offsetof(TargetState::Desc, num_rtv) == 0x20);
+#endif
 #endif
 #else
 static_assert(offsetof(TargetState, m_desc) + offsetof(TargetState::Desc, num_rtv) == 0x28);

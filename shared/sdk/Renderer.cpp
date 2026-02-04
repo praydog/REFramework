@@ -1497,6 +1497,98 @@ ID3D12Resource* TargetState::get_native_resource_d3d12() const {
     return internal_resource->get_native_resource();
 }
 
+DirectXResource<ID3D12Resource>* Texture::get_d3d12_resource_container() {
+#if TDB_VER < 71
+    return *(DirectXResource<ID3D12Resource>**)((uintptr_t)this + s_d3d12_resource_offset);
+#else
+    static std::optional<size_t> offset = std::nullopt;
+
+    if (offset) {
+        return *(DirectXResource<ID3D12Resource>**)((uintptr_t)this + *offset);
+    }
+
+    spdlog::info("Searching for Texture D3D12Resource offset");
+
+    // Scan through past offset 98 looking for pointers that contain
+    // vtable pointer to either D3D12Core.dll or dxgi/d3d12.dll
+    for (size_t i = 0x98; i < 0x200; i += sizeof(void*)) try {
+        if (offset) {
+            break;
+        }
+
+        const auto potential_ptr = *(uintptr_t*)((uintptr_t)this + i);
+
+        if (potential_ptr == 0) {
+            continue;
+        }
+
+        // Make sure this has a valid vtable pointer
+        const auto vtable_ptr = *(uintptr_t*)potential_ptr;
+
+        if (vtable_ptr == 0 || !utility::get_module_within(vtable_ptr)) {
+            continue;
+        }
+
+        // Scan memory of this object looking for another pointer that contains a vtable pointer to d3d12.dll or D3D12Core.dll
+        for (size_t j = 0; j < sizeof(RenderResource) + 0x18; j += sizeof(void*)) try {
+            const auto inner_potential_ptr = *(uintptr_t*)(potential_ptr + j);
+
+            if (inner_potential_ptr == 0) {
+                continue;
+            }
+
+            const auto inner_vtable_ptr = *(uintptr_t*)inner_potential_ptr;
+
+            if (inner_vtable_ptr == 0) {
+                continue;
+            }
+
+            const auto module = utility::get_module_within(inner_vtable_ptr);
+
+            if (module) {
+                const auto module_name = utility::get_module_pathw(*module);
+
+                if (!module_name.has_value()) {
+                    continue;
+                }
+
+                std::wstring module_name_lower = *module_name;
+                std::transform(module_name_lower.begin(), module_name_lower.end(), module_name_lower.begin(), ::towlower);
+
+                auto is_vtable_d3d = [](std::wstring_view module_path_lower) {
+                    return module_path_lower.ends_with(L"d3d11.dll") || 
+                    module_path_lower.ends_with(L"d3d12.dll") || 
+                    module_path_lower.ends_with(L"d3d12core.dll") ||
+                    module_path_lower.ends_with(L"dxgi.dll") ||
+                    module_path_lower.ends_with(L"d3d12sdklayers.dll") ||
+                    module_path_lower.ends_with(L"d3d11_1sdklayers.dll") ||
+                    module_path_lower.ends_with(L"d3d11_2sdklayers.dll") ||
+                    module_path_lower.ends_with(L"d3d11_3sdklayers.dll") ||
+                    module_path_lower.ends_with(L"d3d11on12.dll");
+                };
+
+                // Standard path for semi-newer UE versions
+                if (is_vtable_d3d(module_name_lower)) {
+                    spdlog::info("Found Texture D3D12Resource at offset {:x}", i);
+                    offset = i;
+                    return *(DirectXResource<ID3D12Resource>**)((uintptr_t)this + *offset);
+                }
+            }
+        } catch(...) {
+            continue;
+        }
+    } catch(...) {
+        continue;
+    }
+
+    if (offset) {
+        return *(DirectXResource<ID3D12Resource>**)((uintptr_t)this + *offset);
+    }
+
+    return nullptr;
+#endif
+}
+
 Texture* Texture::clone() {
     return sdk::renderer::create_texture(get_desc());
 }
