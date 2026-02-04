@@ -539,7 +539,7 @@ bool collapsing_header(const char* name) {
     return ImGui::CollapsingHeader(name);
 }
 
-int load_font(sol::object filepath_obj, int size, sol::object ranges) {
+int load_font(sol::object filepath_obj, float size) {
     namespace fs = std::filesystem;
     const char* filepath = "doesnt-exist.not-a-real-font";
 
@@ -559,24 +559,36 @@ int load_font(sol::object filepath_obj, int size, sol::object ranges) {
     const auto font_path = fonts_path / filepath;
 
     fs::create_directories(fonts_path);
-    std::vector<ImWchar> ranges_vec{};
 
-    if (ranges.is<sol::table>()) {
-        sol::table ranges_table = ranges;
-
-        for (auto i = 1u; i <= ranges_table.size(); ++i) {
-            ranges_vec.push_back(ranges_table[i].get<ImWchar>());
-        }
-    }
-
-    return g_framework->add_font(font_path, size, ranges_vec);
+    return g_framework->add_font(font_path, size);
 }
 
-void push_font(int font) {
-    ImGui::PushFont(g_framework->get_font(font));
+void push_font(int font, sol::object size_obj) {
+    try {
+        float size = g_framework->get_font_size();
+
+        if (size_obj.is<float>()) {
+            size = size_obj.as<float>();
+        } else {
+            size = g_framework->get_font_size(font);
+        }
+        const auto loaded_font = g_framework->get_font(font);
+
+        ImGui::PushFont(loaded_font, size);
+    } catch (const std::exception& e) {
+        spdlog::error("Failed to push_font: {}", e.what());
+    }
 }
 
 void pop_font() {
+    ImGui::PopFont();
+}
+
+void push_font_size(float size) {
+    ImGui::PushFont(nullptr, size);
+}
+
+void pop_font_size() {
     ImGui::PopFont();
 }
 
@@ -2054,6 +2066,8 @@ void bindings::open_imgui(ScriptState* s) {
     imgui["load_font"] = api::imgui::load_font;
     imgui["push_font"] = api::imgui::push_font;
     imgui["pop_font"] = api::imgui::pop_font;
+    imgui["push_font_size"] = api::imgui::push_font_size;
+    imgui["pop_font_size"] = api::imgui::pop_font_size;
     imgui["get_default_font_size"] = api::imgui::get_default_font_size;
     imgui["color_picker"] = api::imgui::color_picker;
     imgui["color_picker_argb"] = api::imgui::color_picker_argb;

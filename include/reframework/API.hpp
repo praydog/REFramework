@@ -529,7 +529,13 @@ public:
             static const auto fn = API::s_instance->sdk()->type_definition->get_methods;
 
             std::vector<API::Method*> methods;
-            methods.resize(get_num_methods());
+
+            auto num_methods = get_num_methods();
+            if (num_methods < 1) {
+                return {};
+            }
+
+            methods.resize(num_methods);
 
             auto result = fn(*this, (REFrameworkMethodHandle*)&methods[0], methods.size() * sizeof(API::Method*), nullptr);
 
@@ -544,7 +550,14 @@ public:
             static const auto fn = API::s_instance->sdk()->type_definition->get_fields;
 
             std::vector<API::Field*> fields;
-            fields.resize(get_num_fields());
+            
+
+            auto num_fields = get_num_fields();
+            if (num_fields < 1) {
+                return {};
+            }
+
+            fields.resize(num_fields);
 
             auto result = fn(*this, (REFrameworkFieldHandle*)&fields[0], fields.size() * sizeof(API::Field*), nullptr);
 
@@ -681,7 +694,13 @@ public:
             static const auto fn = API::s_instance->sdk()->method->get_params;
 
             std::vector<REFrameworkMethodParameter> params;
-            params.resize(get_num_params());
+
+            auto num_params = get_num_params();
+            if (num_params < 1) {
+                return {};
+            }
+
+            params.resize(num_params);
 
             auto result = fn(*this, (REFrameworkMethodParameter*)&params[0], params.size() * sizeof(REFrameworkMethodParameter), nullptr);
 

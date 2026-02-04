@@ -222,8 +222,12 @@ void FreeCam::on_update_transform(RETransform* transform) {
 
             // Move direction
             // It's not a Vector2f because via.vec2 is not actually 8 bytes, we don't want stack corruption to occur.
-            const auto axis_l = *re_managed_object::get_field<Vector3f*>(pad, "AxisL");
-            const auto axis_r = *re_managed_object::get_field<Vector3f*>(pad, "AxisR");
+            auto axis_l_field = re_managed_object::get_field<Vector3f*>(pad, "AxisL");
+            auto axis_r_field = re_managed_object::get_field<Vector3f*>(pad, "AxisR");
+
+            // TODO: Fix for Wilds
+            const auto axis_l = axis_l_field != nullptr ? *axis_l_field : Vector3f{};
+            const auto axis_r = axis_r_field != nullptr ? *axis_r_field : Vector3f{};
 
             bool is_using_up_down_modifier = false;
             bool is_using_twist_modifier = false;
