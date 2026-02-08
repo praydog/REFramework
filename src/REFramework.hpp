@@ -159,6 +159,7 @@ public:
     }
 
     auto get_font_size() const { return m_font_size; }
+    auto get_default_font() const { return m_default_font; }
 
     void set_font(std::string path) { 
         m_default_font_file = path;

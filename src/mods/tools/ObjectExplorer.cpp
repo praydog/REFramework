@@ -727,6 +727,8 @@ void ObjectExplorer::on_frame() {
         bool open = true;
 
         ImGui::SetNextWindowSize(ImVec2(200, 400), ImGuiCond_::ImGuiCond_Once);
+        ImGui::PushFont(g_framework->get_default_font(), g_framework->get_font_size());
+
         if (ImGui::Begin("Read Listeners", &open)) {
             std::shared_lock _{m_veh_state.listener_mtx};
 
@@ -747,6 +749,8 @@ void ObjectExplorer::on_frame() {
             }
         }
 
+        ImGui::PopFont();
+
         if (!open) {
             m_veh_state.clear_all_hardware_breakpoints();
         }
@@ -759,11 +763,15 @@ void ObjectExplorer::on_frame() {
         // the pinned objects in a separate window
 
         ImGui::SetNextWindowSize(ImVec2(200, 400), ImGuiCond_::ImGuiCond_Once);
+        ImGui::PushFont(g_framework->get_default_font(), g_framework->get_font_size());
+
         if (ImGui::Begin("Pinned objects", &open)) {
             display_pins();
 
             ImGui::End();
         }
+
+        ImGui::PopFont();
 
         if (!open) {
             m_pinned_objects.clear();
@@ -777,11 +785,15 @@ void ObjectExplorer::on_frame() {
         // the pinned objects in a separate window
 
         ImGui::SetNextWindowSize(ImVec2(400, 800), ImGuiCond_::ImGuiCond_Once);
+        ImGui::PushFont(g_framework->get_default_font(), g_framework->get_font_size());
+
         if (ImGui::Begin("Hooked methods", &open)) {
             display_hooks();
 
             ImGui::End();
         }
+
+        ImGui::PopFont();
 
         if (!open) {
             for (auto& h : m_hooked_methods) {
