@@ -1190,16 +1190,34 @@ std::span<uint32_t> REModule::get_types() const {
 
 std::span<uint32_t> REModule::get_methods() const {
     auto tdb = RETypeDB::get();
+
+#if TDB_VER == 81
+    spdlog::warn("This TDB version does not support REModule::get_methods()");
+    return {};
+#else
     return std::span<uint32_t>{(uint32_t*)tdb->get_bytes(this->methods_start), (size_t)this->methods_count};
+#endif
 }
 
 std::span<uint32_t> REModule::get_instantiated_methods() const {
     auto tdb = RETypeDB::get();
+
+#if TDB_VER == 81
+    spdlog::warn("This TDB version does not support REModule::get_instantiated_methods()");
+    return {};
+#else
     return std::span<uint32_t>{(uint32_t*)tdb->get_bytes(this->method_instantiations_start), (size_t)this->method_instantiations_count};
+#endif
 }
 
 std::span<uint32_t> REModule::get_member_references() const {
     auto tdb = RETypeDB::get();
+
+#if TDB_VER == 81
+    spdlog::warn("This TDB version does not support REModule::get_member_references()");
+    return {};
+#else
     return std::span<uint32_t>{(uint32_t*)tdb->get_bytes(this->member_references_start), (size_t)this->member_references_count};
+#endif
 }
 } // namespace sdk
