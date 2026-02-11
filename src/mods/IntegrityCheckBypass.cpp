@@ -653,8 +653,6 @@ void *IntegrityCheckBypass::pak_load_check_function(void *a1, const wchar_t *pak
 void IntegrityCheckBypass::patch_version_hook(safetyhook::Context& context) {
     // THEY STORE PATCH VERSION INSIDE SOMEWHERE NOW! And only load until that patch version then dont load no more paks
     spdlog::info("[IntegrityCheckBypass]: patch_version_hook called!");
-// THEY STORE PATCH VERSION INSIDE SOMEWHERE NOW! And only load until that patch version then dont load no more paks
-    spdlog::info("[IntegrityCheckBypass]: patch_version_hook called!");
 
     // Get the current patch version from the correct register
     uint64_t current_patch_version = 0;

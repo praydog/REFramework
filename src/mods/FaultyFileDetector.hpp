@@ -73,8 +73,6 @@ private:
     safetyhook::MidHook m_resource_open_failed_hook{};
     uint8_t *m_resource_open_failed_addr{};
     uint8_t m_resource_open_failed_register{0};
-    CheckFileExistsFunc m_check_file_exist_func{};
-    bool m_check_file_exist_func_resolved{ false };
 
     ModToggle::Ptr m_enabled{ ModToggle::create(generate_name("Enabled"), false) };
     ModInt32::Ptr m_max_recent_files{ ModInt32::create(generate_name("MaxRecentFiles"), 100) };
