@@ -21,6 +21,19 @@ public:
         Severe = 2,
     };
 
+    enum FaultyReason {
+        Unknown = 0,
+        MissingFile = 1,
+        Invalid = 2,
+        ShouldBeEncrypted = 3,
+    };
+
+    struct FaultyBufferEntry {
+        std::wstring filename;
+        FaultyTier tier;
+        FaultyReason reason;
+    };
+
     FaultyFileDetector();
 
     std::string_view get_name() const override { return "FaultyFileDetector"; };
@@ -48,12 +61,12 @@ private:
     static void on_pak_load_result(bool success, std::wstring_view pak_name);
     static void cache_patch_version();
 
-    void try_add_to_faulty_list(std::wstring_view filename, FaultyTier tier = FaultyTier::Severe);
+    void try_add_to_faulty_list(std::wstring_view filename, FaultyTier tier = FaultyTier::Severe, FaultyReason reason = FaultyReason::Unknown);
 
     static void listen_to_pak_load_result_from_integrity_check_bypass();
 
-    static FaultyTier determine_pak_faulty_tier(std::wstring_view pak_name);
-    static FaultyTier detect_if_success_pak_still_suspicious(std::wstring_view pak_name);
+    static FaultyBufferEntry determine_pak_faulty_tier(std::wstring_view pak_name);
+    static FaultyBufferEntry detect_if_success_pak_still_suspicious(std::wstring_view pak_name);
     static std::optional<int> extract_patch_version_from_pak_name(std::wstring_view pak_name);
     static bool check_is_stock_patch_pak(std::wstring_view pak_name);
 
@@ -62,7 +75,7 @@ private:
 
     std::optional<std::string> m_blocking_error{};
     std::unordered_set<std::wstring> m_faulty_files{}; // All faulty files for spam detection
-    std::deque<std::wstring> m_recent_faulty_files{}; // Recent files for display
+    std::map<FaultyReason, std::deque<std::wstring>> m_recent_faulty_files_by_reason{}; // Recent files organized by reason
     std::shared_mutex m_mutex{};
     std::shared_ptr<spdlog::logger> m_logger{};
     safetyhook::InlineHook m_create_resource_original{};
@@ -81,7 +94,7 @@ private:
     static inline int s_patch_version{0};
     static inline bool s_patch_version_cached{false};
     static inline std::wregex s_extract_patch_version_regex { std::wregex(LR"((.*)patch_(\d+)\.pak)", std::regex::icase | std::regex::ECMAScript) };
-    static inline std::vector<std::pair<std::wstring, FaultyTier>> s_buffered_faulties{};
+    static inline std::vector<FaultyBufferEntry> s_buffered_faulties{};
 
     ValueList m_options{
         *m_enabled,

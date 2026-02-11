@@ -24,6 +24,21 @@ struct REResource_Via_Raw {
 };
 #pragma pack(pop)
 
+const char *faulty_reason_to_string(FaultyFileDetector::FaultyReason reason) {
+    switch (reason) {
+        case FaultyFileDetector::FaultyReason::Unknown:
+            return "Unknown reason";
+        case FaultyFileDetector::FaultyReason::MissingFile:
+            return "Missing file";
+        case FaultyFileDetector::FaultyReason::Invalid:
+            return "Invalid file";
+        case FaultyFileDetector::FaultyReason::ShouldBeEncrypted:
+            return "PAK should be encrypted";
+        default:
+            return "Unknown reason";
+    }
+}
+
 sdk::Resource* FaultyFileDetector::create_resource_hook_wrapper(sdk::ResourceManager *resource_manager, void* type_info, wchar_t* name) {
     if (s_instance == nullptr) {
         return nullptr;
@@ -88,10 +103,10 @@ FaultyFileDetector::FaultyFileDetector() {
     m_logger->set_level(spdlog::level::info);
     m_logger->flush_on(spdlog::level::info);
 
-    m_logger->set_pattern("%l - %v");
+    m_logger->set_pattern("\"%l\" %v");
 
     for (auto &faulty : s_buffered_faulties) {
-        try_add_to_faulty_list(faulty.first, faulty.second);
+        try_add_to_faulty_list(faulty.filename, faulty.tier, faulty.reason);
     }
 
     s_buffered_faulties.clear();
@@ -355,7 +370,7 @@ sdk::Resource* FaultyFileDetector::create_resource_hook(sdk::ResourceManager *re
         return original_result;
     }
     if (original_result == nullptr && name != nullptr) {
-        try_add_to_faulty_list(name, FaultyTier::Severe);
+        try_add_to_faulty_list(name, FaultyTier::Severe, FaultyReason::MissingFile);
     }
     return original_result;
 }
@@ -368,7 +383,7 @@ void FaultyFileDetector::resource_parse_open_stream_failed_hook(safetyhook::Cont
     REResource_Via_Raw* resource = get_register_value<REResource_Via_Raw>(ctx, m_resource_open_failed_register);
 
     if (resource) {
-        try_add_to_faulty_list(resource->path, FaultyTier::Severe);
+        try_add_to_faulty_list(resource->path, FaultyTier::Severe, FaultyReason::MissingFile);
     }
 }
 
@@ -417,12 +432,12 @@ void FaultyFileDetector::resource_parse_finish_hook(safetyhook::Context& ctx) {
             // Log parsed resource path for debugging
             // Get resource name
             std::wstring_view resource_path(resource->path);
-            try_add_to_faulty_list(resource_path);
+            try_add_to_faulty_list(resource_path, FaultyTier::Severe, FaultyReason::Invalid);
         }
     }
 }
 
-void FaultyFileDetector::try_add_to_faulty_list(std::wstring_view filename, FaultyTier tier) {
+void FaultyFileDetector::try_add_to_faulty_list(std::wstring_view filename, FaultyTier tier, FaultyReason reason) {
     if (filename.empty()) {
         return;
     }
@@ -438,13 +453,14 @@ void FaultyFileDetector::try_add_to_faulty_list(std::wstring_view filename, Faul
         if (m_faulty_files.find(name_wstr) == m_faulty_files.end()) {
             m_faulty_files.insert(name_wstr);
             
-            // Add to recent files for display
-            m_recent_faulty_files.push_front(name_wstr);
+            // Add to recent files for this reason
+            auto& reason_deque = m_recent_faulty_files_by_reason[reason];
+            reason_deque.push_front(name_wstr);
             
-            // Trim recent files to max size
-            if (m_recent_faulty_files.size() > m_max_recent_files->value()) {
-                while (m_recent_faulty_files.size() > m_max_recent_files->value()) {
-                    m_recent_faulty_files.pop_back();
+            // Trim recent files to max size for this reason
+            if (reason_deque.size() > m_max_recent_files->value()) {
+                while (reason_deque.size() > m_max_recent_files->value()) {
+                    reason_deque.pop_back();
                 }
             }
 
@@ -454,16 +470,18 @@ void FaultyFileDetector::try_add_to_faulty_list(std::wstring_view filename, Faul
 
     if (should_log) {
         // Log the faulty file to dedicated log file
+        auto log_msg = std::format("{} \"{}\" \"{}\"", (int)reason, faulty_reason_to_string(reason), utility::narrow(name_wstr));
+
         if (m_logger) {
             switch (tier) {
                 case FaultyTier::Warning:
-                    m_logger->warn("{}", utility::narrow(name_wstr));
+                    m_logger->warn("{}", log_msg);
                     break;
                 case FaultyTier::Severe:
-                    m_logger->error("{}", utility::narrow(name_wstr));
+                    m_logger->error("{}", log_msg);
                     break;
                 default:
-                    m_logger->info("{}", utility::narrow(name_wstr));
+                    m_logger->info("{}", log_msg);
                     break;
             }
         }
@@ -493,29 +511,56 @@ void FaultyFileDetector::on_draw_ui() {
     }
 
     ImGui::TextWrapped("Faulty files detected!");
-    ImGui::TextWrapped("See reframework_faulty_files.txt for full list. Use external tool to find out what mod/patch is causing the issue.");
+    ImGui::TextWrapped("See reframework_faulty_files.txt for full list and details. Use external tool to find out what mod/patch is causing the issue.");
 
     bool changed = false;
 
     changed |= m_enabled->draw("Enable Faulty File Detector");
     changed |= m_max_recent_files->draw("Max Recent Files to Display");
 
-    if (ImGui::TreeNode("Recent faulty files")) {
-        // Display recent files
-        int count = 0;
-        const int max_display = m_max_recent_files->value();
-        
-        for (const auto& file : m_recent_faulty_files) {
-            if (count >= max_display) {
-                break;
+    // Define reason display info
+    struct ReasonInfo {
+        const char* label;
+        ImVec4 color;
+    };
+    
+    static const std::map<FaultyReason, ReasonInfo> reason_info{
+        {FaultyReason::Unknown, {"Unknown", ImVec4(0.8f, 0.8f, 0.8f, 1.0f)}},
+        {FaultyReason::MissingFile, {"Missing File", ImVec4(1.0f, 1.0f, 0.0f, 1.0f)}},
+        {FaultyReason::Invalid, {"Invalid File", ImVec4(1.0f, 0.5f, 0.0f, 1.0f)}},
+        {FaultyReason::ShouldBeEncrypted, {"Should Be Encrypted", ImVec4(1.0f, 0.0f, 0.0f, 1.0f)}},
+    };
+
+    if (ImGui::TreeNode("Show recent##ShowRecentFaultyFiles")) {
+        // Display files organized by reason
+        for (const auto& [reason, info] : reason_info) {
+            auto it = m_recent_faulty_files_by_reason.find(reason);
+            if (it == m_recent_faulty_files_by_reason.end() || it->second.empty()) {
+                continue; // Skip if no files for this reason
+            }
+
+            const auto& files = it->second;
+            const int count_to_display = std::min((int)files.size(), m_max_recent_files->value());
+            const int total_for_reason = (int)std::count_if(
+                m_faulty_files.begin(), m_faulty_files.end(),
+                [&reason](const auto&) { return true; } // Simplified; in production you'd track per-reason totals
+            );
+
+            ImGui::PushStyleColor(ImGuiCol_Text, info.color);
+            
+            if (ImGui::TreeNode(std::format("{} ({})", info.label, files.size()).c_str())) {
+                for (int i = 0; i < count_to_display; ++i) {
+                    ImGui::TextWrapped("%s", utility::narrow(files[i]).c_str());
+                }
+
+                if (files.size() > (size_t)count_to_display) {
+                    ImGui::TextWrapped("... and %zu more", files.size() - count_to_display);
+                }
+
+                ImGui::TreePop();
             }
             
-            ImGui::TextWrapped("%s", utility::narrow(file).c_str());
-            count++;
-        }
-
-        if (m_faulty_files.size() > (size_t)count) {
-            ImGui::TextWrapped("... and %zu more (see log for full list)", m_faulty_files.size() - count);
+            ImGui::PopStyleColor();
         }
 
         ImGui::TreePop();
@@ -527,17 +572,18 @@ void FaultyFileDetector::on_draw_ui() {
 }
 
 void FaultyFileDetector::on_pak_load_result(bool success, std::wstring_view pak_name) {
-    FaultyTier tier = FaultyTier::None;
+    FaultyBufferEntry faulty_entry{};
     if (success) {
-        tier = detect_if_success_pak_still_suspicious(pak_name);
+        faulty_entry = detect_if_success_pak_still_suspicious(pak_name);
     } else {
-        tier = determine_pak_faulty_tier(pak_name);
+        faulty_entry = determine_pak_faulty_tier(pak_name);
     }
-    if (tier != FaultyTier::None) {
+    if (faulty_entry.tier != FaultyTier::None) {
         if (s_instance == nullptr) {
-            s_buffered_faulties.push_back({std::wstring{pak_name}, tier});
+            faulty_entry.filename = std::wstring{pak_name};
+            s_buffered_faulties.push_back(faulty_entry);
         } else {
-            s_instance->try_add_to_faulty_list(pak_name);
+            s_instance->try_add_to_faulty_list(pak_name, faulty_entry.tier, faulty_entry.reason);
         }
     }
 }
@@ -572,7 +618,7 @@ bool FaultyFileDetector::check_is_stock_patch_pak(std::wstring_view pak_name) {
     return false;
 }
 
-FaultyFileDetector::FaultyTier FaultyFileDetector::detect_if_success_pak_still_suspicious(std::wstring_view pak_name) {
+FaultyFileDetector::FaultyBufferEntry FaultyFileDetector::detect_if_success_pak_still_suspicious(std::wstring_view pak_name) {
     struct PAKHeaderSimple {
         char signature[4];
         uint8_t major_version;
@@ -589,30 +635,42 @@ FaultyFileDetector::FaultyTier FaultyFileDetector::detect_if_success_pak_still_s
     auto game = utility::get_executable();
     auto game_path_opt = utility::get_module_path(game);
 
+    FaultyFileDetector::FaultyBufferEntry result{};
+
     if (game_path_opt.has_value()) {
         auto game_path = std::filesystem::path(game_path_opt.value()).parent_path();
         auto pak_path = game_path / pak_name;
 
         if (!std::filesystem::exists(pak_path)) {
-            return FaultyTier::Severe;
+            result.tier = FaultyFileDetector::FaultyTier::Severe;
+            result.reason = FaultyFileDetector::FaultyReason::MissingFile;
+
+            return result;
         } else {
             // Read PAK header
             std::ifstream pak_file_stream{pak_path, std::ios::binary};
             if (!pak_file_stream.is_open()) {
                 spdlog::warn("[FaultyFileDetector]: Failed to open PAK file for reading: {}", utility::narrow(pak_path.wstring()));
-                return FaultyTier::Warning;
+                result.tier = FaultyFileDetector::FaultyTier::Warning;
+                result.reason = FaultyFileDetector::FaultyReason::MissingFile;
+
+                return result;
             } else {
                 PAKHeaderSimple header{};
                 pak_file_stream.read(reinterpret_cast<char*>(&header), sizeof(PAKHeaderSimple));
 
                 if (!pak_file_stream) {
                     spdlog::warn("[FaultyFileDetector]: Failed to read PAK header from file: {}", utility::narrow(pak_path.wstring()));
-                    return FaultyTier::Warning;
+                    result.tier = FaultyFileDetector::FaultyTier::Warning;
+                    result.reason = FaultyFileDetector::FaultyReason::MissingFile;
+                    return result;
                 }
 
                 if (std::memcmp(header.signature, signature, 4) != 0) {
                     spdlog::warn("[FaultyFileDetector]: Invalid PAK signature in file: {}", utility::narrow(pak_path.wstring()));
-                    return FaultyTier::Severe;
+                    result.tier = FaultyFileDetector::FaultyTier::Severe;
+                    result.reason = FaultyFileDetector::FaultyReason::Invalid;
+                    return result;
                 }
 
                 if (pak_name.contains(L"patch")) {
@@ -621,22 +679,29 @@ FaultyFileDetector::FaultyTier FaultyFileDetector::detect_if_success_pak_still_s
                         // Stock patch PAK should be encrypted (put it as warning for now)
                         if (!(header.flags & PAKFlags::Encrypted)) {
                             spdlog::warn("[FaultyFileDetector]: Stock patch PAK is not encrypted: {}", utility::narrow(pak_path.wstring()));
-                            return FaultyTier::Warning;
+                            result.tier = FaultyFileDetector::FaultyTier::Warning;
+                            result.reason = FaultyFileDetector::FaultyReason::Invalid;
+                            return result;
                         }
                     }
                 }
 
-                return FaultyTier::None;
+                return result;
             }
         }
     } else {
-        return FaultyTier::None;
+        return result;
     }
 }
 
-FaultyFileDetector::FaultyTier FaultyFileDetector::determine_pak_faulty_tier(std::wstring_view pak_name) {
+FaultyFileDetector::FaultyBufferEntry FaultyFileDetector::determine_pak_faulty_tier(std::wstring_view pak_name) {
+    FaultyFileDetector::FaultyBufferEntry result{};
+
     if (pak_name.contains(L"dlc")) {
-        return FaultyTier::Severe;
+        result.tier = FaultyTier::Severe;
+        result.reason = FaultyReason::Invalid;
+        
+        return result;
     }
     
     auto patch_position_in_name = pak_name.find(L"patch");
@@ -654,27 +719,38 @@ FaultyFileDetector::FaultyTier FaultyFileDetector::determine_pak_faulty_tier(std
             auto patch_target_pak = game_path / filename_before_patch;
             if (!std::filesystem::exists(patch_target_pak)) {
                 // Target patch PAK does not exist, false positive
-                return FaultyTier::None;
+                return result;
             } else {
                 // Target patch PAK exists, check if its existence is necessary first
                 bool is_stock_patch_pak = check_is_stock_patch_pak(pak_name);
 
                 if (is_stock_patch_pak) {
-                    return FaultyTier::Severe;
+                    result.tier = FaultyTier::Severe;
+
+                    if (std::filesystem::exists(game_path / pak_name)) {
+                        result.reason = FaultyReason::Invalid;
+                    } else {
+                        result.reason = FaultyReason::MissingFile;
+                    }
+
+                    return result;
                 } else {
                     // The PAK is probably in modded PAK range, if it does not exist then its fine
                     auto pak_path = game_path / pak_name;
                     if (std::filesystem::exists(pak_path)) {
-                        return FaultyTier::Severe;
+                        result.tier = FaultyTier::Severe;
+                        result.reason = FaultyReason::Invalid;
+
+                        return result;
                     } else {
-                        return FaultyTier::None;
+                        return result;
                     }
                 }
             }
         }
     }
 
-    return FaultyTier::Severe;
+    return result;
 }
 
 void FaultyFileDetector::cache_patch_version() {
