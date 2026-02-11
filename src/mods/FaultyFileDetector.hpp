@@ -11,6 +11,7 @@
 #include <thread>
 #include <unordered_set>
 #include <spdlog/spdlog.h>
+#include <utility/Scan.hpp>
 
 class FaultyFileDetector : public Mod {
 public:
@@ -38,6 +39,9 @@ private:
     static void resource_parse_finish_hook_wrapper(safetyhook::Context& ctx);
     void resource_parse_finish_hook(safetyhook::Context& ctx);
 
+    static void resource_parse_open_stream_failed_hook_wrapper(safetyhook::Context& ctx);
+    void resource_parse_open_stream_failed_hook(safetyhook::Context& ctx);
+
     static void resource_set_argument_hook_wrapper(safetyhook::Context& ctx);
     void resource_set_argument_hook(safetyhook::Context& ctx);
 
@@ -54,9 +58,9 @@ private:
     static bool check_is_stock_patch_pak(std::wstring_view pak_name);
 
     bool scan_resource_process_parse_and_hook();
+    utility::ExhaustionResult scan_for_resource_open_failed_hook(utility::ExhaustionContext& ctx);
 
     std::optional<std::string> m_blocking_error{};
-
     std::unordered_set<std::wstring> m_faulty_files{}; // All faulty files for spam detection
     std::deque<std::wstring> m_recent_faulty_files{}; // Recent files for display
     std::shared_mutex m_mutex{};
@@ -66,6 +70,11 @@ private:
     std::map<std::thread::id, void*> m_resource_by_thread_map{};
     std::vector<safetyhook::MidHook> m_resource_parse_finish_hooks{};
     std::vector<safetyhook::MidHook> m_resource_set_argument_hooks{};
+    safetyhook::MidHook m_resource_open_failed_hook{};
+    uint8_t *m_resource_open_failed_addr{};
+    uint8_t m_resource_open_failed_register{0};
+    CheckFileExistsFunc m_check_file_exist_func{};
+    bool m_check_file_exist_func_resolved{ false };
 
     ModToggle::Ptr m_enabled{ ModToggle::create(generate_name("Enabled"), false) };
     ModInt32::Ptr m_max_recent_files{ ModInt32::create(generate_name("MaxRecentFiles"), 100) };

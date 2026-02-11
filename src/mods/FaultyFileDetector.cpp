@@ -45,6 +45,36 @@ void FaultyFileDetector::resource_set_argument_hook_wrapper(safetyhook::Context&
     s_instance->resource_set_argument_hook(ctx);
 }
 
+void FaultyFileDetector::resource_parse_open_stream_failed_hook_wrapper(safetyhook::Context& ctx) {
+    if (s_instance == nullptr) {
+        return;
+    }
+    s_instance->resource_parse_open_stream_failed_hook(ctx);
+}
+
+template <typename T>
+T* get_register_value(safetyhook::Context& ctx, uint8_t reg) {
+    switch (reg) {
+        case NDR_RAX: return reinterpret_cast<T*>(ctx.rax);
+        case NDR_RBX: return reinterpret_cast<T*>(ctx.rbx);
+        case NDR_RCX: return reinterpret_cast<T*>(ctx.rcx);
+        case NDR_RDX: return reinterpret_cast<T*>(ctx.rdx);
+        case NDR_RSI: return reinterpret_cast<T*>(ctx.rsi);
+        case NDR_RDI: return reinterpret_cast<T*>(ctx.rdi);
+        case NDR_RBP: return reinterpret_cast<T*>(ctx.rbp);
+        case NDR_RSP: return reinterpret_cast<T*>(ctx.rsp);
+        case NDR_R8:  return reinterpret_cast<T*>(ctx.r8);
+        case NDR_R9:  return reinterpret_cast<T*>(ctx.r9);
+        case NDR_R10: return reinterpret_cast<T*>(ctx.r10);
+        case NDR_R11: return reinterpret_cast<T*>(ctx.r11);
+        case NDR_R12: return reinterpret_cast<T*>(ctx.r12);
+        case NDR_R13: return reinterpret_cast<T*>(ctx.r13);
+        case NDR_R14: return reinterpret_cast<T*>(ctx.r14);
+        case NDR_R15: return reinterpret_cast<T*>(ctx.r15);
+        default: return nullptr;
+    }
+}
+
 FaultyFileDetector::FaultyFileDetector() {
     if (s_instance == nullptr) {
         s_instance = this;
@@ -103,6 +133,23 @@ std::optional<std::string> FaultyFileDetector::on_initialize() {
     return Mod::on_initialize();
 }
 
+utility::ExhaustionResult FaultyFileDetector::scan_for_resource_open_failed_hook(utility::ExhaustionContext& ctx) {
+    if (ctx.instrux.Instruction == ND_INS_CALLNI || ctx.instrux.Instruction == ND_INS_CALLNR || ctx.instrux.Instruction == ND_INS_CALLFD || ctx.instrux.Instruction == ND_INS_CALLFI) {
+        return utility::ExhaustionResult::STEP_OVER;
+    }
+
+    if (ctx.instrux.Instruction == ND_INS_MOV && ctx.instrux.OperandsCount >= 2 && 
+        ctx.instrux.Operands[0].Type == ND_OP_MEM && ctx.instrux.Operands[0].Info.Memory.Disp == 0x3C &&
+        ctx.instrux.Operands[1].Type == ND_OP_IMM && ((ctx.instrux.Operands[1].Info.Immediate.Imm & 0xFFFFFFFF) == 0xFFFFFFFF)) {
+        m_resource_open_failed_addr = (std::uint8_t*)(ctx.addr);
+        m_resource_open_failed_register = ctx.instrux.Operands[0].Info.Memory.Base;
+
+        return utility::ExhaustionResult::BREAK;
+    }
+
+    return utility::ExhaustionResult::CONTINUE;
+}
+
 bool FaultyFileDetector::scan_resource_process_parse_and_hook() {
     // Future note: related function has a text: ResourceManager::parallelProc, seems like logger or profile marker or something
     static const char *resource_manager_unk_constructor_pattern = "41 56 56 57 53 48 83 EC 28 44 89 C7 48 89 D3 48 89 CE 44 89 41 08 48 C7 41 48 00 00 00 00 48 8D 05 ? ? ? ? 48 89 01 48 8D 51 50 48 8D 05 ? ? ? ? 48 89 41 50 4C 8D 71 58 4C 89 F1";
@@ -122,6 +169,8 @@ bool FaultyFileDetector::scan_resource_process_parse_and_hook() {
         spdlog::error("[FaultyFileDetector] {}", *m_blocking_error);
         return false;
     }
+
+    std::unordered_set<uintptr_t> process_func_candidates;
 
     for (auto anchor : unk_constructor_refs) {
         auto probably_call_instr_ptr = reinterpret_cast<std::uint8_t*>(anchor) - 1; // Displacement is one byte ahead
@@ -221,12 +270,60 @@ bool FaultyFileDetector::scan_resource_process_parse_and_hook() {
 
                     m_resource_parse_finish_hooks.push_back(std::move(hook));
                     m_resource_set_argument_hooks.push_back(std::move(argument_set_hook));
+
+                    auto fn = utility::find_function_start((uintptr_t)parse_call_return_address);
+
+                    if (fn.has_value() && !process_func_candidates.contains(fn.value())) {
+                        process_func_candidates.insert(fn.value());
+                    }
                 }
             } else {
                 spdlog::warn("[FaultyFileDetector]: Failed to find three consecutive vtable calls after unk constructor call at 0x{:X}", (uintptr_t)anchor);
             }
         } else {
             spdlog::warn("[FaultyFileDetector]: Failed to decode probable call instruction at 0x{:X}", (uintptr_t)probably_call_instr_ptr);
+        }
+    }
+
+    // Search for function that get the next resource to process. That function also checks for the validity of resource stream
+    const wchar_t *resource_path_format = L"%ls/%ls/%ls.%d";
+
+    auto str_offset = utility::scan_string(game, resource_path_format, true);
+    if (str_offset.has_value()) {
+        for (auto candidate_fn_addr : process_func_candidates) {
+            auto possible_get_next_resource_to_process_call = utility::find_encapsulating_function_disp(candidate_fn_addr, str_offset.value());
+            if (possible_get_next_resource_to_process_call.has_value()) {
+                // TODO: For now only one exists, but if multiple exists we should hook them all, just need to figure out how to differentiate them
+                spdlog::info("[FaultyFileDetector]: Found possible get next resource to process function at 0x{:X}", possible_get_next_resource_to_process_call.value());
+
+                // Follow the failure function
+                const int scan_resource_path_usage_length = 1024;
+                auto using_resource_path_offset = utility::scan_displacement_reference(possible_get_next_resource_to_process_call.value(), scan_resource_path_usage_length, str_offset.value());
+
+                std::uint8_t *resource_stream_failed_offset = nullptr;
+
+                if (using_resource_path_offset.has_value()) {
+                    // Skip the displacement value
+                    auto next_instr = using_resource_path_offset.value() + 4;
+
+                    const int scan_resource_stream_failed_length = 2048;
+                    utility::exhaustive_decode((uint8_t*)next_instr, scan_resource_stream_failed_length, std::bind(&FaultyFileDetector::scan_for_resource_open_failed_hook, this, std::placeholders::_1));
+                }
+
+                if (m_resource_open_failed_addr) {
+                    spdlog::info("[FaultyFileDetector]: Found resource stream failed check at 0x{:X}, hooking to detect failed resource stream", (uintptr_t)m_resource_open_failed_addr);
+
+                    auto hook = safetyhook::create_mid(
+                        m_resource_open_failed_addr,
+                        &resource_parse_open_stream_failed_hook_wrapper
+                    );
+
+                    m_resource_open_failed_hook = std::move(hook);
+                    break;
+                } else {
+                    spdlog::warn("[FaultyFileDetector]: Failed to find resource stream failed check after using resource path at 0x{:X}", (uintptr_t)using_resource_path_offset.value());
+                }
+            }
         }
     }
 
@@ -258,9 +355,21 @@ sdk::Resource* FaultyFileDetector::create_resource_hook(sdk::ResourceManager *re
         return original_result;
     }
     if (original_result == nullptr && name != nullptr) {
-        try_add_to_faulty_list(name);
+        try_add_to_faulty_list(name, FaultyTier::Severe);
     }
     return original_result;
+}
+
+void FaultyFileDetector::resource_parse_open_stream_failed_hook(safetyhook::Context& ctx) {
+    if (!m_enabled->value()) {
+        return;
+    }
+
+    REResource_Via_Raw* resource = get_register_value<REResource_Via_Raw>(ctx, m_resource_open_failed_register);
+
+    if (resource) {
+        try_add_to_faulty_list(resource->path, FaultyTier::Severe);
+    }
 }
 
 void FaultyFileDetector::resource_set_argument_hook(safetyhook::Context& ctx) {
@@ -270,6 +379,10 @@ void FaultyFileDetector::resource_set_argument_hook(safetyhook::Context& ctx) {
 
     void *resource_ptr = reinterpret_cast<void*>(ctx.rcx);
     std::thread::id thread_id = std::this_thread::get_id();
+
+    REResource_Via_Raw* resource = reinterpret_cast<REResource_Via_Raw*>(resource_ptr);
+
+    spdlog::info("[FaultyFileDetector]: resource_set_argument_hook called for resource path: {}", utility::narrow(resource->path));
 
     {
         std::scoped_lock lock{m_mutex};
@@ -302,8 +415,6 @@ void FaultyFileDetector::resource_parse_finish_hook(safetyhook::Context& ctx) {
         // Get resource pointer from register
         if (resource != nullptr) {
             // Log parsed resource path for debugging
-            // spdlog::info("[FaultyFileDetector]: resource_parse_finish_hook called for resource path: {}", utility::narrow(resource->path));
-
             // Get resource name
             std::wstring_view resource_path(resource->path);
             try_add_to_faulty_list(resource_path);
