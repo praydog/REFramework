@@ -16,6 +16,7 @@
 #include "mods/ScriptRunner.hpp"
 #include "mods/VR.hpp"
 #include "mods/LooseFileLoader.hpp"
+#include "mods/FaultyFileDetector.hpp"
 #include "mods/vr/games/RE8VR.hpp"
 
 #include "Mods.hpp"
@@ -56,6 +57,10 @@ Mods::Mods() {
 
 #if TDB_VER > 49
     m_mods.emplace_back(std::make_unique<SceneMods>());
+#endif
+
+#if defined(MHWILDS)
+    m_mods.emplace_back(std::make_unique<FaultyFileDetector>());
 #endif
 
 #endif

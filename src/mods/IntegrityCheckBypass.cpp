@@ -648,9 +648,33 @@ void IntegrityCheckBypass::pak_load_check_function(safetyhook::Context& context)
 void IntegrityCheckBypass::patch_version_hook(safetyhook::Context& context) {
     // THEY STORE PATCH VERSION INSIDE SOMEWHERE NOW! And only load until that patch version then dont load no more paks
     spdlog::info("[IntegrityCheckBypass]: patch_version_hook called!");
+// THEY STORE PATCH VERSION INSIDE SOMEWHERE NOW! And only load until that patch version then dont load no more paks
+    spdlog::info("[IntegrityCheckBypass]: patch_version_hook called!");
+
+    // Get the current patch version from the correct register
+    uint64_t current_patch_version = 0;
+    switch (s_patch_version_reg_index) {
+        case NDR_RAX: current_patch_version = context.rax; break;
+        case NDR_RCX: current_patch_version = context.rcx; break;
+        case NDR_RDX: current_patch_version = context.rdx; break;
+        case NDR_RBX: current_patch_version = context.rbx; break;
+        case NDR_RSP: current_patch_version = context.rsp; break;
+        case NDR_RBP: current_patch_version = context.rbp; break;
+        case NDR_RSI: current_patch_version = context.rsi; break;
+        case NDR_RDI: current_patch_version = context.rdi; break;
+        case NDR_R8: current_patch_version = context.r8; break;
+        case NDR_R9: current_patch_version = context.r9; break;
+        case NDR_R10: current_patch_version = context.r10; break;
+        case NDR_R11: current_patch_version = context.r11; break;
+        case NDR_R12: current_patch_version = context.r12; break;
+        case NDR_R13: current_patch_version = context.r13; break;
+        case NDR_R14: current_patch_version = context.r14; break;
+        case NDR_R15: current_patch_version = context.r15; break;
+        default: current_patch_version = context.rax; break; // fallback
+    }
 
     // Scan for amount of paks. Get exe directory. To be honest set this to 9999 is okay, but i feel like it might take a long time
-    int file_count_result = std::max<int>(scan_patch_files_count(), context.rax);
+    int file_count_result = std::max<int>(scan_patch_files_count(), (int)current_patch_version);
 
     switch (s_patch_version_reg_index) {
         case NDR_RAX:
