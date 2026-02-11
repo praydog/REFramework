@@ -10,13 +10,13 @@
 #include <safetyhook/mid_hook.hpp>
 #include "REFramework.hpp"
 
-// TODO: Probably offset wont change but if it changed then oops
+// TODO: Probably offset wont change but if it changes then oops
 #pragma pack(push, 1)
 struct REResource_Via_Raw {
     void *vtable;   // NOTE: 
     wchar_t* path;
     std::uint8_t unk10[0x28];
-    bool isInitialized; // 0x38, seems shader/texture resource does not use this variable
+    bool isInitialized; // 0x38, seems shader/texture resource does not use this variable so dont rely on it
 };
 #pragma pack(pop)
 
@@ -34,39 +34,11 @@ void FaultyFileDetector::resource_parse_finish_hook_wrapper(safetyhook::Context&
     s_instance->resource_parse_finish_hook(ctx);
 }
 
-template<typename T> T *get_pointer_from_register(safetyhook::Context& ctx, std::uint8_t reg) {
-    switch (reg) {
-        case NDR_RAX:
-            return reinterpret_cast<T*>(ctx.rax);
-        case NDR_RBX:
-            return reinterpret_cast<T*>(ctx.rbx);
-        case NDR_RCX:
-            return reinterpret_cast<T*>(ctx.rcx);
-        case NDR_RDX:
-            return reinterpret_cast<T*>(ctx.rdx);
-        case NDR_RDI:
-            return reinterpret_cast<T*>(ctx.rdi);
-        case NDR_RSI:
-            return reinterpret_cast<T*>(ctx.rsi);
-        case NDR_R8:
-            return reinterpret_cast<T*>(ctx.r8);
-        case NDR_R9:
-            return reinterpret_cast<T*>(ctx.r9);
-        case NDR_R10:
-            return reinterpret_cast<T*>(ctx.r10);
-        case NDR_R11:
-            return reinterpret_cast<T*>(ctx.r11);
-        case NDR_R12:
-            return reinterpret_cast<T*>(ctx.r12);
-        case NDR_R13:
-            return reinterpret_cast<T*>(ctx.r13);
-        case NDR_R14:
-            return reinterpret_cast<T*>(ctx.r14);
-        case NDR_R15:
-            return reinterpret_cast<T*>(ctx.r15);
-        default:
-            return nullptr;
+void FaultyFileDetector::resource_set_argument_hook_wrapper(safetyhook::Context& ctx) {
+    if (s_instance == nullptr) {
+        return;
     }
+    s_instance->resource_set_argument_hook(ctx);
 }
 
 FaultyFileDetector::FaultyFileDetector(){
@@ -84,14 +56,6 @@ FaultyFileDetector::FaultyFileDetector(){
     
     m_logger->info("FaultyFileDetector constructed");
 }
-
-void FaultyFileDetector::test_func(safetyhook::Context &context) {
-    if (s_instance != nullptr && s_instance->m_logger != nullptr) {
-        s_instance->m_logger->info("Test func called from 0x{:X}!", *(uintptr_t*)context.rsp);
-    }
-}
-
-safetyhook::MidHook test_hook_o;
 
 std::optional<std::string> FaultyFileDetector::on_initialize() {
     auto create_resource_func = sdk::ResourceManager::get_create_resource_function();
@@ -166,8 +130,10 @@ bool FaultyFileDetector::scan_resource_process_parse_and_hook() {
             const int max_instructions_search_range = 60;
 
             int current_calls_found = 0;
+
             std::uint8_t *parse_call_ptr = nullptr;
             std::uint8_t *parse_call_return_address = nullptr;
+            std::uint8_t *start_searching_resource_access_ptr = nullptr;
 
             for (int i = 0; i < max_instructions_search_range; i++) {
                 auto instr = utility::decode_one(after_call_ptr);
@@ -182,6 +148,7 @@ bool FaultyFileDetector::scan_resource_process_parse_and_hook() {
                             if (current_calls_found == 0 && mem_operand.Disp == first_call_vtable_offset) {
                                 // First call found
                                 current_calls_found++;
+                                start_searching_resource_access_ptr = after_call_ptr + instr->Length;
                             } else if (current_calls_found == 1 && mem_operand.Disp == second_call_vtable_offset) {
                                 // Second call found
                                 current_calls_found++;
@@ -201,24 +168,24 @@ bool FaultyFileDetector::scan_resource_process_parse_and_hook() {
 
             if (current_calls_found == 3) {
                 // Definitively what we are looking for
-                if (parse_call_ptr == nullptr) {
+                if (parse_call_ptr == nullptr || start_searching_resource_access_ptr == nullptr) {
                     spdlog::error("[FaultyFileDetector]: parse_call_ptr is null even though we found all three calls, this should not happen");
                 }
 
-                static const int resource_register_search_max_num_instructions = 8;
-                std::uint8_t *instr_ptr = reinterpret_cast<std::uint8_t*>(parse_call_ptr);
-                std::uint8_t resource_register = ND_REG_NOT_PRESENT;
+                static const int resource_register_search_max_num_instructions = 10;
+                std::uint8_t *instr_ptr = reinterpret_cast<std::uint8_t*>(start_searching_resource_access_ptr);
+                std::uint8_t *resource_argument_assigned_ptr = nullptr;
 
                 // Very fragile way, but it works for now
-                for (int i = 0; i < resource_register_search_max_num_instructions; i++) {
+                for (int i = 0; i < resource_register_search_max_num_instructions && instr_ptr < parse_call_ptr; i++) {
                     auto instrux = utility::decode_one(instr_ptr);
                     if (instrux && instrux->Instruction == ND_INS_MOV) {
                         bool is_first_operator_first_arg = instrux->OperandsCount >= 1 && instrux->Operands[0].Type == ND_OP_REG && instrux->Operands[0].Info.Register.Reg == NDR_RCX;
                         bool is_second_operator_register = instrux->OperandsCount >= 2 && instrux->Operands[1].Type == ND_OP_REG;
 
                         if (is_first_operator_first_arg && is_second_operator_register) {
-                            resource_register = instrux->Operands[1].Info.Register.Reg;
-                            spdlog::info("[FaultyFileDetector]: Found resource isInitialized check at 0x{:x}, extracing resource register as (int): {}", (uintptr_t)instr_ptr, (std::uint8_t)resource_register);
+                            resource_argument_assigned_ptr = instr_ptr + instrux->Length;
+                            spdlog::info("[FaultyFileDetector]: Found resource argument assign at 0x{:x}, hooking to extract it at: 0x{:x}", (uintptr_t)instr_ptr, (uintptr_t)resource_argument_assigned_ptr);
 
                             break;
                         }
@@ -226,11 +193,9 @@ bool FaultyFileDetector::scan_resource_process_parse_and_hook() {
                     instr_ptr += instrux ? instrux->Length : 1;
                 }
 
-                if (resource_register == ND_REG_NOT_PRESENT) {
-                    spdlog::warn("[FaultyFileDetector]: Failed to extract resource register from 0x{:X}", (uintptr_t)parse_call_ptr);
+                if (resource_argument_assigned_ptr == nullptr) {
+                    spdlog::warn("[FaultyFileDetector]: Failed to find resource argument assign from 0x{:X}", (uintptr_t)parse_call_ptr);
                 } else {
-                    m_parse_finish_address_to_resource_register_map[(uintptr_t)parse_call_return_address] = resource_register;
-                    spdlog::info("[FaultyFileDetector]: Mapping return address 0x{:X} to resource register {}", (uintptr_t)parse_call_return_address, (std::uint8_t)resource_register);
                     spdlog::info("[FaultyFileDetector]: All checks passed, hooking resource parse finish function at 0x{:X}", (uintptr_t)parse_call_return_address);
 
                     // Hook after finish
@@ -239,7 +204,13 @@ bool FaultyFileDetector::scan_resource_process_parse_and_hook() {
                         &resource_parse_finish_hook_wrapper
                     );
 
+                    auto argument_set_hook = safetyhook::create_mid(
+                        reinterpret_cast<uint8_t*>(resource_argument_assigned_ptr),
+                        &resource_set_argument_hook_wrapper
+                    );
+
                     m_resource_parse_finish_hooks.push_back(std::move(hook));
+                    m_resource_set_argument_hooks.push_back(std::move(argument_set_hook));
                 }
             } else {
                 spdlog::warn("[FaultyFileDetector]: Failed to find three consecutive vtable calls after unk constructor call at 0x{:X}", (uintptr_t)anchor);
@@ -282,33 +253,47 @@ sdk::Resource* FaultyFileDetector::create_resource_hook(sdk::ResourceManager *re
     return original_result;
 }
 
+void FaultyFileDetector::resource_set_argument_hook(safetyhook::Context& ctx) {
+    if (!m_enabled->value()) {
+        return;
+    }
+
+    void *resource_ptr = reinterpret_cast<void*>(ctx.rcx);
+    std::thread::id thread_id = std::this_thread::get_id();
+
+    {
+        std::scoped_lock lock{m_mutex};
+        m_resource_by_thread_map[thread_id] = resource_ptr;
+    }
+}
+
 void FaultyFileDetector::resource_parse_finish_hook(safetyhook::Context& ctx) {
     if (!m_enabled->value()) {
         return;
     }
 
-    auto current_rip = ctx.rip;
-    auto it = m_parse_finish_address_to_resource_register_map.find(current_rip);
+    // Check parse result
+    bool parse_result = ctx.rax & 0x1; // First arg is parse result (0 = fail, 1 = success)
 
-    std::uint8_t resource_register = ND_REG_NOT_PRESENT;
+    if (!parse_result) {
+        auto thread_id = std::this_thread::get_id();
+        REResource_Via_Raw* resource = nullptr;
 
-    if (it != m_parse_finish_address_to_resource_register_map.end()) {
-        resource_register = it->second;
-    } else {
-        spdlog::warn("[FaultyFileDetector]: resource_parse_finish_hook called at unknown address 0x{:X}, cannot determine resource register!", (uintptr_t)current_rip);
-        return;
-    }
+        {
+            std::scoped_lock lock{m_mutex};
 
-    // Get resource pointer from register
-    REResource_Via_Raw* resource = get_pointer_from_register<REResource_Via_Raw>(ctx, resource_register);
-    if (resource != nullptr) {
-        // Log parsed resource path for debugging
-        // spdlog::info("[FaultyFileDetector]: resource_parse_finish_hook called for resource path: {}", utility::narrow(resource->path));
+            if (!m_resource_by_thread_map.contains(thread_id)) {
+                return;
+            } else {
+                resource = reinterpret_cast<REResource_Via_Raw*>(m_resource_by_thread_map[thread_id]);
+            }
+        }
 
-        // Check parse result
-        bool parse_result = ctx.rax & 0x1; // First arg is parse result (0 = fail, 1 = success)
+        // Get resource pointer from register
+        if (resource != nullptr) {
+            // Log parsed resource path for debugging
+            // spdlog::info("[FaultyFileDetector]: resource_parse_finish_hook called for resource path: {}", utility::narrow(resource->path));
 
-        if (!parse_result) {
             // Get resource name
             std::wstring_view resource_path(resource->path);
             try_add_to_faulty_list(resource_path);
@@ -326,7 +311,7 @@ void FaultyFileDetector::try_add_to_faulty_list(std::wstring_view filename) {
     bool should_log = false;
     
     {
-        std::unique_lock lock{m_mutex};
+        std::scoped_lock lock{m_mutex};
 
         // Only log if this is a new faulty file (prevents spam)
         if (m_faulty_files.find(name_wstr) == m_faulty_files.end()) {
@@ -366,7 +351,7 @@ void FaultyFileDetector::on_draw_ui() {
         return;
     }
 
-    std::unique_lock lock{m_mutex};
+    std::scoped_lock lock{m_mutex};
 
     // Display statistics
     ImGui::TextWrapped("Total faulty files encountered: %zu", m_faulty_files.size());

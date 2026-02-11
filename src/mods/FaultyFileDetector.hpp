@@ -4,11 +4,12 @@
 #include "sdk/ResourceManager.hpp"
 
 #include <safetyhook.hpp>
-#include <unordered_set>
 #include <deque>
 #include <map>
-#include <shared_mutex>
 #include <regex>
+#include <shared_mutex>
+#include <thread>
+#include <unordered_set>
 #include <spdlog/spdlog.h>
 
 class FaultyFileDetector : public Mod {
@@ -29,7 +30,8 @@ private:
     static void resource_parse_finish_hook_wrapper(safetyhook::Context& ctx);
     void resource_parse_finish_hook(safetyhook::Context& ctx);
 
-    static void test_func(safetyhook::Context &context);
+    static void resource_set_argument_hook_wrapper(safetyhook::Context& ctx);
+    void resource_set_argument_hook(safetyhook::Context& ctx);
 
     static void on_pak_load_result(bool success, std::wstring_view pak_name);
 
@@ -48,8 +50,9 @@ private:
     std::shared_ptr<spdlog::logger> m_logger{};
     safetyhook::InlineHook m_create_resource_original{};
     safetyhook::MidHook m_resource_parse_finish_hook{};
-    std::map<uintptr_t, std::uint8_t> m_parse_finish_address_to_resource_register_map{};
+    std::map<std::thread::id, void*> m_resource_by_thread_map{};
     std::vector<safetyhook::MidHook> m_resource_parse_finish_hooks{};
+    std::vector<safetyhook::MidHook> m_resource_set_argument_hooks{};
 
     ModToggle::Ptr m_enabled{ ModToggle::create(generate_name("Enabled"), false) };
     ModInt32::Ptr m_max_recent_files{ ModInt32::create(generate_name("MaxRecentFiles"), 100) };
