@@ -31,6 +31,7 @@ extern "C" {
 #include "utility/Thread.hpp"
 
 #include "Mods.hpp"
+#include "mods/FaultyFileDetector.hpp"
 #include "mods/LooseFileLoader.hpp"
 #include "mods/PluginLoader.hpp"
 #include "mods/VR.hpp"
@@ -501,6 +502,10 @@ REFramework::REFramework(HMODULE reframework_module)
         }
     });
     startup_lookup_thread->detach();
+#endif
+
+#if defined(MHWILDS)
+    FaultyFileDetector::early_init();
 #endif
 
 #if defined(REENGINE_AT)

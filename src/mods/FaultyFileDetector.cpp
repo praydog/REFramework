@@ -1,6 +1,7 @@
 #include "FaultyFileDetector.hpp"
 #include "IntegrityCheckBypass.hpp"
 
+#include <fstream>
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/basic_file_sink.h>
 #include <utility/String.hpp>
@@ -9,6 +10,9 @@
 
 #include <safetyhook/mid_hook.hpp>
 #include "REFramework.hpp"
+
+// Still do some basic PAK checks, but I cant find the function where they detect non-stock PAK file
+// And they still crash the whole DirectX if PAK file that is supposed to be stock is non-stock, maybe there are still some obsfucation somewhere
 
 // TODO: Probably offset wont change but if it changes then oops
 #pragma pack(push, 1)
@@ -41,7 +45,7 @@ void FaultyFileDetector::resource_set_argument_hook_wrapper(safetyhook::Context&
     s_instance->resource_set_argument_hook(ctx);
 }
 
-FaultyFileDetector::FaultyFileDetector(){
+FaultyFileDetector::FaultyFileDetector() {
     if (s_instance == nullptr) {
         s_instance = this;
     } else {
@@ -53,8 +57,14 @@ FaultyFileDetector::FaultyFileDetector(){
     
     m_logger->set_level(spdlog::level::info);
     m_logger->flush_on(spdlog::level::info);
-    
-    m_logger->info("FaultyFileDetector constructed");
+
+    m_logger->set_pattern("%l - %v");
+
+    for (auto &faulty : s_buffered_faulties) {
+        try_add_to_faulty_list(faulty.first, faulty.second);
+    }
+
+    s_buffered_faulties.clear();
 }
 
 std::optional<std::string> FaultyFileDetector::on_initialize() {
@@ -301,7 +311,7 @@ void FaultyFileDetector::resource_parse_finish_hook(safetyhook::Context& ctx) {
     }
 }
 
-void FaultyFileDetector::try_add_to_faulty_list(std::wstring_view filename) {
+void FaultyFileDetector::try_add_to_faulty_list(std::wstring_view filename, FaultyTier tier) {
     if (filename.empty()) {
         return;
     }
@@ -334,7 +344,17 @@ void FaultyFileDetector::try_add_to_faulty_list(std::wstring_view filename) {
     if (should_log) {
         // Log the faulty file to dedicated log file
         if (m_logger) {
-            m_logger->info("{}", utility::narrow(name_wstr));
+            switch (tier) {
+                case FaultyTier::Warning:
+                    m_logger->warn("{}", utility::narrow(name_wstr));
+                    break;
+                case FaultyTier::Severe:
+                    m_logger->error("{}", utility::narrow(name_wstr));
+                    break;
+                default:
+                    m_logger->info("{}", utility::narrow(name_wstr));
+                    break;
+            }
         }
     }
 }
@@ -393,4 +413,202 @@ void FaultyFileDetector::on_draw_ui() {
     if (changed) {
         g_framework->request_save_config();
     }
+}
+
+void FaultyFileDetector::on_pak_load_result(bool success, std::wstring_view pak_name) {
+    FaultyTier tier = FaultyTier::None;
+    if (success) {
+        tier = detect_if_success_pak_still_suspicious(pak_name);
+    } else {
+        tier = determine_pak_faulty_tier(pak_name);
+    }
+    if (tier != FaultyTier::None) {
+        if (s_instance == nullptr) {
+            s_buffered_faulties.push_back({std::wstring{pak_name}, tier});
+        } else {
+            s_instance->try_add_to_faulty_list(pak_name);
+        }
+    }
+}
+
+std::optional<int> FaultyFileDetector::extract_patch_version_from_pak_name(std::wstring_view pak_name) {
+    auto pak_name_copy = std::wstring{pak_name};
+    std::wsmatch match;
+
+    if (std::regex_match(pak_name_copy, match, s_extract_patch_version_regex)) {
+        if (match.size() >= 3) {
+            try {
+                return std::stoi(match[2].str());
+            } catch (const std::exception& e) {
+                spdlog::warn("[FaultyFileDetector]: Failed to parse patch version from PAK name: {}", utility::narrow(pak_name));
+            }
+        }
+    }
+
+    return std::nullopt;
+}
+
+bool FaultyFileDetector::check_is_stock_patch_pak(std::wstring_view pak_name) {
+    cache_patch_version();
+
+    auto version_opt = extract_patch_version_from_pak_name(pak_name);
+    if (version_opt.has_value()) {
+        int pak_version = version_opt.value();
+        if (s_patch_version_cached && pak_version <= s_patch_version) {
+            return true;
+        }
+    }
+    return false;
+}
+
+FaultyFileDetector::FaultyTier FaultyFileDetector::detect_if_success_pak_still_suspicious(std::wstring_view pak_name) {
+    struct PAKHeaderSimple {
+        char signature[4];
+        uint8_t major_version;
+        uint8_t minor_version;
+        uint8_t flags;
+    };
+
+    enum PAKFlags : uint8_t {
+        Encrypted = 1 << 3,
+    };
+
+    const char *signature = "KPKA";
+
+    auto game = utility::get_executable();
+    auto game_path_opt = utility::get_module_path(game);
+
+    if (game_path_opt.has_value()) {
+        auto game_path = std::filesystem::path(game_path_opt.value()).parent_path();
+        auto pak_path = game_path / pak_name;
+
+        if (!std::filesystem::exists(pak_path)) {
+            return FaultyTier::Severe;
+        } else {
+            // Read PAK header
+            std::ifstream pak_file_stream{pak_path, std::ios::binary};
+            if (!pak_file_stream.is_open()) {
+                spdlog::warn("[FaultyFileDetector]: Failed to open PAK file for reading: {}", utility::narrow(pak_path.wstring()));
+                return FaultyTier::Warning;
+            } else {
+                PAKHeaderSimple header{};
+                pak_file_stream.read(reinterpret_cast<char*>(&header), sizeof(PAKHeaderSimple));
+
+                if (!pak_file_stream) {
+                    spdlog::warn("[FaultyFileDetector]: Failed to read PAK header from file: {}", utility::narrow(pak_path.wstring()));
+                    return FaultyTier::Warning;
+                }
+
+                if (std::memcmp(header.signature, signature, 4) != 0) {
+                    spdlog::warn("[FaultyFileDetector]: Invalid PAK signature in file: {}", utility::narrow(pak_path.wstring()));
+                    return FaultyTier::Severe;
+                }
+
+                if (pak_name.contains(L"patch")) {
+                    bool is_stock_patch = check_is_stock_patch_pak(pak_name);
+                    if (is_stock_patch) {
+                        // Stock patch PAK should be encrypted (put it as warning for now)
+                        if (!(header.flags & PAKFlags::Encrypted)) {
+                            spdlog::warn("[FaultyFileDetector]: Stock patch PAK is not encrypted: {}", utility::narrow(pak_path.wstring()));
+                            return FaultyTier::Warning;
+                        }
+                    }
+                }
+
+                return FaultyTier::None;
+            }
+        }
+    } else {
+        return FaultyTier::None;
+    }
+}
+
+FaultyFileDetector::FaultyTier FaultyFileDetector::determine_pak_faulty_tier(std::wstring_view pak_name) {
+    if (pak_name.contains(L"dlc")) {
+        return FaultyTier::Severe;
+    }
+    
+    auto patch_position_in_name = pak_name.find(L"patch");
+
+    if (patch_position_in_name != std::wstring_view::npos) {
+        cache_patch_version();
+
+        auto game_module = utility::get_executable();
+        auto game_path_opt = utility::get_module_path(game_module);
+
+        if (game_path_opt.has_value()) {
+            auto game_path = std::filesystem::path(game_path_opt.value()).parent_path();
+            auto filename_before_patch = pak_name.substr(0, std::max<int>(0, (int)patch_position_in_name - 1));
+
+            auto patch_target_pak = game_path / filename_before_patch;
+            if (!std::filesystem::exists(patch_target_pak)) {
+                // Target patch PAK does not exist, false positive
+                return FaultyTier::None;
+            } else {
+                // Target patch PAK exists, check if its existence is necessary first
+                bool is_stock_patch_pak = check_is_stock_patch_pak(pak_name);
+
+                if (is_stock_patch_pak) {
+                    return FaultyTier::Severe;
+                } else {
+                    // The PAK is probably in modded PAK range, if it does not exist then its fine
+                    auto pak_path = game_path / pak_name;
+                    if (std::filesystem::exists(pak_path)) {
+                        return FaultyTier::Severe;
+                    } else {
+                        return FaultyTier::None;
+                    }
+                }
+            }
+        }
+    }
+
+    return FaultyTier::Severe;
+}
+
+void FaultyFileDetector::cache_patch_version() {
+    if (s_patch_version_cached) {
+        return;
+    }
+    
+    const wchar_t *patch_version_prefix = L"/Environment/Package/PatchVersion:";
+
+    auto argument_count_method = sdk::find_method_definition("via.Application", "getArgumentCount");
+    if (argument_count_method == nullptr) {
+        spdlog::warn("[FaultyFileDetector]: Failed to find via.Application::getArgumentCount method for patch version detection");
+        return;
+    }
+
+    int argument_count = argument_count_method->call<int>();
+    for (int i = 0; i < argument_count; i++) {
+        auto argument_value_method = sdk::find_method_definition("via.Application", "getArgument");
+        if (argument_value_method == nullptr) {
+            spdlog::warn("[FaultyFileDetector]: Failed to find via.Application::getArgument method for patch version detection");
+            return;
+        }
+
+        auto arg_value_obj = argument_value_method->call<SystemString*>(sdk::get_thread_context(), i);
+        if (arg_value_obj != nullptr) {
+            auto arg_str = utility::re_string::get_view(arg_value_obj);
+            spdlog::info("[FaultyFileDetector]: Detected argument: {}", utility::narrow(arg_str));
+            if (arg_str.starts_with(patch_version_prefix)) {
+                auto version_str = arg_str.substr(wcslen(patch_version_prefix));
+                try {
+                    s_patch_version = std::stoi(utility::narrow(version_str));
+                    s_patch_version_cached = true;
+
+                    spdlog::info("[FaultyFileDetector]: Detected patch version: {}", s_patch_version);
+                } catch (const std::exception& e) {
+                    spdlog::warn("[FaultyFileDetector]: Failed to parse patch version from argument: {}", utility::narrow(arg_str));
+                }
+                break;
+            }
+        } else {
+            spdlog::warn("[FaultyFileDetector]: Argument value at index {} is null", i);
+        }
+    }
+}
+
+void FaultyFileDetector::early_init() {
+    IntegrityCheckBypass::add_pak_load_result_listener(&FaultyFileDetector::on_pak_load_result);
 }

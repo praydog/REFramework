@@ -637,12 +637,17 @@ void IntegrityCheckBypass::init_anti_debug_watcher() {
     });
 }
 
-void IntegrityCheckBypass::pak_load_check_function(safetyhook::Context& context) {
-    const auto return_address = *reinterpret_cast<uintptr_t*>(context.rsp);
-    auto pak_name_wstr = reinterpret_cast<const wchar_t*>(context.rdx);
+void *IntegrityCheckBypass::pak_load_check_function(void *a1, const wchar_t *pak_name, void *a3, void *a4, void *a5) {
+    spdlog::info("[IntegrityCheckBypass]: Pak name: {}", utility::narrow(pak_name));
 
-    spdlog::info("[IntegrityCheckBypass]: pak_load_check_function called from: 0x{:X}", return_address);
-    spdlog::info("[IntegrityCheckBypass]: Pak name: {}", utility::narrow(pak_name_wstr));
+    void *result = s_pak_load_check_function_hook.call<void*>(a1, pak_name, a3, a4, a5);
+    bool success = (((uintptr_t)result & 0x1) != 0);
+
+    for (auto& callback : s_pak_load_result_listeners) {
+        callback(success, pak_name);
+    }
+
+    return result;
 }
 
 void IntegrityCheckBypass::patch_version_hook(safetyhook::Context& context) {
@@ -906,7 +911,7 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
     
     if (pak_load_check_start) {
         spdlog::info("[IntegrityCheckBypass]: Found pak_load_check_function @ 0x{:X}, hook!", (uintptr_t)*pak_load_check_start);
-        s_pak_load_check_function_hook = safetyhook::create_mid((void*)*pak_load_check_start, &IntegrityCheckBypass::pak_load_check_function);
+        s_pak_load_check_function_hook = safetyhook::create_inline((void*)*pak_load_check_start, &IntegrityCheckBypass::pak_load_check_function);
     }
 
     const auto patch_version_start = utility::scan(game, "48 89 ? 24 ? 48 85 FF 0F 84 ? ? ? ? 66 83 3F 72 0F 85 ? ? ? ? 66 BA 72 00");
@@ -1523,4 +1528,12 @@ void* IntegrityCheckBypass::rtl_exit_user_process_hook(uint32_t code) {
     // It calls something that's heap allocated but no longer exists, and it crashes.
     TerminateProcess(GetCurrentProcess(), code);
     return nullptr;
+}
+
+void IntegrityCheckBypass::add_pak_load_result_listener(PakLoadResultCallback callback) {
+    s_pak_load_result_listeners.insert(callback);
+}
+
+void IntegrityCheckBypass::remove_pak_load_result_listener(PakLoadResultCallback callback) {
+    s_pak_load_result_listeners.erase(callback);
 }

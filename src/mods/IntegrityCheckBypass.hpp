@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <string_view>
+#include <unordered_set>
 
 #include "Mod.hpp"
 #include "utility/Patch.hpp"
@@ -13,6 +14,8 @@
 // And RE3 has unfortunately decided to implement an integrity check on the executable code of the process
 class IntegrityCheckBypass : public Mod {
 public:
+    using PakLoadResultCallback = void(*)(bool success, std::wstring_view pak_name);
+
     std::string_view get_name() const override { return "IntegrityCheckBypass"; };
     std::optional<std::string> on_initialize() override;
 
@@ -38,6 +41,9 @@ public:
         return s_veh_called;
     }
 
+    static void add_pak_load_result_listener(PakLoadResultCallback callback);
+    static void remove_pak_load_result_listener(PakLoadResultCallback callback);
+
 private:
     static void* renderer_create_blas_hook(void* a1, void* a2, void* a3, void* a4, void* a5);
     static inline std::unique_ptr<FunctionHook> s_renderer_create_blas_hook{};
@@ -45,18 +51,19 @@ private:
     static inline uint32_t s_last_non_zero_corruption{ 8 }; // What I've seen it default to
 
     static void sha3_rsa_code_midhook(safetyhook::Context& context);
-    static void pak_load_check_function(safetyhook::Context& context);
+    static void *pak_load_check_function(void *a1, const wchar_t *pak_name, void *a3, void *a4, void *a5);
     static void patch_version_hook(safetyhook::Context& context);
     static int scan_patch_files_count();
     static void restore_unencrypted_paks();
     static inline safetyhook::MidHook s_sha3_rsa_code_midhook;
-    static inline safetyhook::MidHook s_pak_load_check_function_hook;
+    static inline safetyhook::InlineHook s_pak_load_check_function_hook;
     static inline safetyhook::MidHook s_patch_version_hook;
     static inline std::optional<uintptr_t> s_sha3_code_end{};
     static inline int32_t s_sha3_reg_index{-1};
     static inline int32_t s_patch_version_reg_index{-1};
     static inline int s_patch_count;
     static inline bool s_patch_count_checked;
+    static inline std::unordered_set<PakLoadResultCallback> s_pak_load_result_listeners;
 
     static void anti_debug_watcher();
     static void init_anti_debug_watcher();

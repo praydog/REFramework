@@ -14,6 +14,12 @@
 
 class FaultyFileDetector : public Mod {
 public:
+    enum FaultyTier {
+        None = 0,
+        Warning = 1,
+        Severe = 2,
+    };
+
     FaultyFileDetector();
 
     std::string_view get_name() const override { return "FaultyFileDetector"; };
@@ -22,6 +28,8 @@ public:
     void on_config_load(const utility::Config& cfg) override;
     void on_config_save(utility::Config& cfg) override;
     void on_draw_ui() override;
+
+    static void early_init();
 
 private:
     static sdk::Resource* create_resource_hook_wrapper(sdk::ResourceManager *resource_manager, void* type_info, wchar_t* name);
@@ -34,11 +42,16 @@ private:
     void resource_set_argument_hook(safetyhook::Context& ctx);
 
     static void on_pak_load_result(bool success, std::wstring_view pak_name);
+    static void cache_patch_version();
 
-    void try_add_to_faulty_list(std::wstring_view filename);
+    void try_add_to_faulty_list(std::wstring_view filename, FaultyTier tier = FaultyTier::Severe);
 
     static void listen_to_pak_load_result_from_integrity_check_bypass();
-    static void cache_patch_version();
+
+    static FaultyTier determine_pak_faulty_tier(std::wstring_view pak_name);
+    static FaultyTier detect_if_success_pak_still_suspicious(std::wstring_view pak_name);
+    static std::optional<int> extract_patch_version_from_pak_name(std::wstring_view pak_name);
+    static bool check_is_stock_patch_pak(std::wstring_view pak_name);
 
     bool scan_resource_process_parse_and_hook();
 
@@ -58,6 +71,10 @@ private:
     ModInt32::Ptr m_max_recent_files{ ModInt32::create(generate_name("MaxRecentFiles"), 100) };
 
     static inline FaultyFileDetector* s_instance{nullptr};
+    static inline int s_patch_version{0};
+    static inline bool s_patch_version_cached{false};
+    static inline std::wregex s_extract_patch_version_regex { std::wregex(LR"((.*)patch_(\d+)\.pak)", std::regex::icase | std::regex::ECMAScript) };
+    static inline std::vector<std::pair<std::wstring, FaultyTier>> s_buffered_faulties{};
 
     ValueList m_options{
         *m_enabled,
