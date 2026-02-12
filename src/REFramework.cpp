@@ -564,10 +564,18 @@ REFramework::REFramework(HMODULE reframework_module)
     if (sdk::RETypeDB::get() != nullptr) {
         auto& loader = LooseFileLoader::get(); // Initialize this really early
 
+#if defined(MHWILDS)
+        auto& faulty_file_detector = FaultyFileDetector::get_existing_instance();
+#endif
+
         const auto config_path = get_persistent_dir(REFrameworkConfig::REFRAMEWORK_CONFIG_NAME.data()).string();
         if (fs::exists(utility::widen(config_path))) {
             utility::Config cfg{ config_path };
             loader->on_config_load(cfg);
+
+#if defined(MHWILDS)
+            faulty_file_detector->on_config_load(cfg);
+#endif
         }
 
         if (loader->is_enabled()) {

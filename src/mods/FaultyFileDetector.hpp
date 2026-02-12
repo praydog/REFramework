@@ -44,6 +44,7 @@ public:
     void on_draw_ui() override;
 
     static void early_init();
+    static std::shared_ptr<FaultyFileDetector>& get_existing_instance();
 
 private:
     static sdk::Resource* create_resource_hook_wrapper(sdk::ResourceManager *resource_manager, void* type_info, wchar_t* name);
@@ -73,6 +74,8 @@ private:
     bool scan_resource_process_parse_and_hook();
     utility::ExhaustionResult scan_for_resource_open_failed_hook(utility::ExhaustionContext& ctx);
 
+    void initialize_impl();
+
     std::optional<std::string> m_blocking_error{};
     std::unordered_set<std::wstring> m_faulty_files{}; // All faulty files for spam detection
     std::map<FaultyReason, std::deque<std::wstring>> m_recent_faulty_files_by_reason{}; // Recent files organized by reason
@@ -86,8 +89,9 @@ private:
     safetyhook::MidHook m_resource_open_failed_hook{};
     uint8_t *m_resource_open_failed_addr{};
     uint8_t m_resource_open_failed_register{0};
+    bool m_initialized{false};
 
-    ModToggle::Ptr m_enabled{ ModToggle::create(generate_name("Enabled"), false) };
+    ModToggle::Ptr m_enabled{ ModToggle::create(generate_name("Enabled"), true) };
     ModInt32::Ptr m_max_recent_files{ ModInt32::create(generate_name("MaxRecentFiles"), 100) };
 
     static inline FaultyFileDetector* s_instance{nullptr};

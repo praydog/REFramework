@@ -11,6 +11,8 @@
 #include <safetyhook/mid_hook.hpp>
 #include "REFramework.hpp"
 
+std::shared_ptr<FaultyFileDetector> g_faulty_detector_instance = nullptr;
+
 // Still do some basic PAK checks, but I cant find the function where they detect non-stock PAK file
 // And they still crash the whole DirectX if PAK file that is supposed to be stock is non-stock, maybe there are still some obsfucation somewhere
 
@@ -113,12 +115,21 @@ FaultyFileDetector::FaultyFileDetector() {
 }
 
 std::optional<std::string> FaultyFileDetector::on_initialize() {
+    initialize_impl();
+    return Mod::on_initialize();
+}
+
+void FaultyFileDetector::initialize_impl() {
+    if (m_initialized) {
+        return;
+    }
+
+    m_initialized = true;
+
     auto create_resource_func = sdk::ResourceManager::get_create_resource_function();
     if (create_resource_func == nullptr) {
         m_blocking_error = "Can't find load resource function!";
         spdlog::error("[FaultyFileDetector] {}", *m_blocking_error);
-
-        return Mod::on_initialize();
     }
 
     m_create_resource_original = safetyhook::create_inline(
@@ -129,23 +140,19 @@ std::optional<std::string> FaultyFileDetector::on_initialize() {
     if (!m_create_resource_original) {
         m_blocking_error = "Failed to hook load resource function!";
         spdlog::error("[FaultyFileDetector] {}", *m_blocking_error);
-
-        return Mod::on_initialize();
     }
 
     if (!scan_resource_process_parse_and_hook()) {
-        return Mod::on_initialize();
+        return;
     }
 
     if (m_blocking_error.has_value()) {
         spdlog::error("[FaultyFileDetector] {}", *m_blocking_error);
-        return Mod::on_initialize();
+        return;
     }
 
     spdlog::info("[FaultyFileDetector]: Initialized successfully");
     m_blocking_error = std::nullopt;
-
-    return Mod::on_initialize();
 }
 
 utility::ExhaustionResult FaultyFileDetector::scan_for_resource_open_failed_hook(utility::ExhaustionContext& ctx) {
@@ -680,7 +687,7 @@ FaultyFileDetector::FaultyBufferEntry FaultyFileDetector::detect_if_success_pak_
                         if (!(header.flags & PAKFlags::Encrypted)) {
                             spdlog::warn("[FaultyFileDetector]: Stock patch PAK is not encrypted: {}", utility::narrow(pak_path.wstring()));
                             result.tier = FaultyFileDetector::FaultyTier::Warning;
-                            result.reason = FaultyFileDetector::FaultyReason::Invalid;
+                            result.reason = FaultyFileDetector::FaultyReason::ShouldBeEncrypted;
                             return result;
                         }
                     }
@@ -797,5 +804,14 @@ void FaultyFileDetector::cache_patch_version() {
 }
 
 void FaultyFileDetector::early_init() {
+    if (g_faulty_detector_instance == nullptr) {
+        g_faulty_detector_instance = std::make_unique<FaultyFileDetector>();
+    }
+
     IntegrityCheckBypass::add_pak_load_result_listener(&FaultyFileDetector::on_pak_load_result);
+    g_faulty_detector_instance->initialize_impl();
+}
+
+std::shared_ptr<FaultyFileDetector>& FaultyFileDetector::get_existing_instance() {
+    return g_faulty_detector_instance;
 }

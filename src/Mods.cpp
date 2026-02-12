@@ -60,7 +60,7 @@ Mods::Mods() {
 #endif
 
 #if defined(MHWILDS)
-    m_mods.emplace_back(std::make_unique<FaultyFileDetector>());
+    m_mods.emplace_back(FaultyFileDetector::get_existing_instance());
 #endif
 
 #endif
