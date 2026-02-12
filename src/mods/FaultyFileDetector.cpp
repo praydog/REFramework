@@ -13,9 +13,6 @@
 
 std::shared_ptr<FaultyFileDetector> g_faulty_detector_instance = nullptr;
 
-// Still do some basic PAK checks, but I cant find the function where they detect non-stock PAK file
-// And they still crash the whole DirectX if PAK file that is supposed to be stock is non-stock, maybe there are still some obsfucation somewhere
-
 // TODO: Probably offset wont change but if it changes then oops
 #pragma pack(push, 1)
 struct REResource_Via_Raw {
