@@ -401,7 +401,7 @@ void FaultyFileDetector::resource_set_argument_hook(safetyhook::Context& ctx) {
 
     REResource_Via_Raw* resource = reinterpret_cast<REResource_Via_Raw*>(resource_ptr);
 
-    spdlog::info("[FaultyFileDetector]: resource_set_argument_hook called for resource path: {}", utility::narrow(resource->path));
+    //spdlog::info("[FaultyFileDetector]: resource_set_argument_hook called for resource path: {}", utility::narrow(resource->path));
 
     {
         std::scoped_lock lock{m_mutex};
@@ -752,6 +752,9 @@ FaultyFileDetector::FaultyBufferEntry FaultyFileDetector::determine_pak_faulty_t
                 }
             }
         }
+    } else {
+        result.tier = FaultyTier::Severe;
+        result.reason = FaultyReason::Invalid;
     }
 
     return result;

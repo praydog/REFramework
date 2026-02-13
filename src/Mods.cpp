@@ -33,6 +33,10 @@ Mods::Mods() {
     m_mods.emplace_back(Hooks::get());
     m_mods.emplace_back(LooseFileLoader::get());
 
+#if defined(MHWILDS)
+    m_mods.emplace_back(FaultyFileDetector::get_existing_instance());
+#endif
+
     m_mods.emplace_back(VR::get());
 
 #if defined(RE8) || defined(RE7)
@@ -57,10 +61,6 @@ Mods::Mods() {
 
 #if TDB_VER > 49
     m_mods.emplace_back(std::make_unique<SceneMods>());
-#endif
-
-#if defined(MHWILDS)
-    m_mods.emplace_back(FaultyFileDetector::get_existing_instance());
 #endif
 
 #endif
