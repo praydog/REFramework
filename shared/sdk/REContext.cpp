@@ -341,7 +341,7 @@ namespace sdk {
                         spdlog::info("[VM::update_pointers] Analyzing potential invoke table at {:x}", (uintptr_t)functions);
 
                         // Rest of pointers are not null and point somewhere within the game module
-                        for (auto i = 1; i < 28; ++i) {
+                        for (auto i = 1; i < 13; ++i) {
                             if (functions[i] == 0 || IsBadReadPtr(&functions[i], sizeof(void*))) {
                                 return utility::ExhaustionResult::CONTINUE;
                             }
