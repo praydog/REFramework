@@ -76,24 +76,24 @@ hardcoded_jointexprgraphlayer = [
 default_chains = {
     # This things is obsfucated to hell, if someone gonna do it in the future just use a memory dump with it
     # Tried to map kernel user data, TEB, local thread storage, but looks like it will not gonna accept dummy value that easily
-    "via.navigation.FilterSet": {
-        "address": "14ed9c9e0",
-        "crc": "704b0605",
-        "deserializer_chain": [
-            {
-                "address": "0x14b3fa1d0",
-                "name": "via.Object"
-            },
-            {
-                "address": "0x14af9d7c0",
-                "name": "System.Object"
-            },
-            {
-                "address": "0x14b42b2f0",
-                "name": "via.navigation.FilterSet"
-            }
-        ],
-    }
+    # "via.navigation.FilterSet": {
+    #     "address": "14ed9c9e0",
+    #     "crc": "704b0605",
+    #     "deserializer_chain": [
+    #         {
+    #             "address": "0x14b3fa1d0",
+    #             "name": "via.Object"
+    #         },
+    #         {
+    #             "address": "0x14af9d7c0",
+    #             "name": "System.Object"
+    #         },
+    #         {
+    #             "address": "0x14b42b2f0",
+    #             "name": "via.navigation.FilterSet"
+    #         }
+    #     ],
+    # },
     # "via.render.Mesh": {
     #     "address": "14ee7d8a0",
     #     "crc": "d74182f1",
@@ -116,32 +116,32 @@ default_chains = {
     #         }
     #     ],
     # },
-    # "via.motion.ActorMotion": {
-    #     "address": "14ead2390",
-    #     "crc": "e3a6fb73",
-    #     "deserializer_chain": [
-    #         {
-    #             "address": "0x14b3fa1d0",
-    #             "name": "via.Object"
-    #         },
-    #         {
-    #             "address": "0x14af9d7c0",
-    #             "name": "System.Object"
-    #         },
-    #         {
-    #             "address": "0x140001000",
-    #             "name": "via.Component"
-    #         },
-    #         {
-    #             "address": "0x14cfeae60",
-    #             "name": "via.motion.SecondaryAnimation"
-    #         },
-    #         {
-    #             "address": "0x14aded460",
-    #             "name": "via.motion.ActorMotion"
-    #         }
-    #     ]
-    # },
+    "via.motion.ActorMotion": {
+        "address": "14ead2390",
+        "crc": "e3a6fb73",
+        "deserializer_chain": [
+            {
+                "address": "0x14b3fa1d0",
+                "name": "via.Object"
+            },
+            {
+                "address": "0x14af9d7c0",
+                "name": "System.Object"
+            },
+            {
+                "address": "0x140001000",
+                "name": "via.Component"
+            },
+            {
+                "address": "0x14cfeae60",
+                "name": "via.motion.SecondaryAnimation"
+            },
+            {
+                "address": "0x14aded460",
+                "name": "via.motion.ActorMotion"
+            }
+        ]
+    },
     # "app.ChainSub": {
     #     "address": "14e8d4890",
     #     "crc": "55ddee1f",
@@ -557,39 +557,39 @@ def hook_code(emu, address, size, frame):
                             # invalidate_and_return_call(emu, frame)
                             # os.system("pause")
 
-                    # if last_dis.mnemonic == "and" and last_dis.operands[1].type == X86_OP_IMM and last_dis.operands[0].reg == frame["last_deserialize_reg"]:
-                    #     # print("0x%X alignment detected" % (~last_dis.operands[1].imm + 1))
-                    #     expected_alignment =  (~last_dis.operands[1].imm + 1)
+                    if last_dis.mnemonic == "and" and last_dis.operands[1].type == X86_OP_IMM and last_dis.operands[0].reg == frame["last_deserialize_reg"]:
+                        # print("0x%X alignment detected" % (~last_dis.operands[1].imm + 1))
+                        expected_alignment =  (~last_dis.operands[1].imm + 1)
 
-                    #     # The if is to stop inline stuffs
-                    #     if frame["last_deserialize_cur"] >= frame["max_deserialize_cur"]:
-                    #         previous_context_obj = pickle.loads(frame["previous_context"]) if frame["previous_context"] != None else None
-                    #         if previous_context_obj == None:
-                    #             print("Previous context is None. It should not be for the alignment instruction. 0x%X" % lex)
+                        # The if is to stop inline stuffs
+                        if frame["last_deserialize_cur"] >= frame["max_deserialize_cur"]:
+                            previous_context_obj = pickle.loads(frame["previous_context"]) if frame["previous_context"] != None else None
+                            if previous_context_obj == None:
+                                print("Previous context is None. It should not be for the alignment instruction. 0x%X" % lex)
 
-                    #         increased_pointer_val = previous_context_obj.reg_read(last_dis.operands[0].reg)
-                    #         delta_before_and = increased_pointer_val - frame["last_deserialize_cur"]
+                            increased_pointer_val = previous_context_obj.reg_read(last_dis.operands[0].reg)
+                            delta_before_and = increased_pointer_val - frame["last_deserialize_cur"]
 
-                    #         if delta_before_and != expected_alignment - 1:
-                    #             print("Expected alignment of 0x%X doesn't match actual increased pointer value of 0x%X (delta 0x%X) at 0x%X. Probably a skipped member" % (expected_alignment, increased_pointer_val, delta_before_and, lex))
+                            if delta_before_and != expected_alignment - 1:
+                                print("Expected alignment of 0x%X doesn't match actual increased pointer value of 0x%X (delta 0x%X) at 0x%X. Probably a skipped member" % (expected_alignment, increased_pointer_val, delta_before_and, lex))
 
-                    #             probale_element_size = delta_before_and - (expected_alignment - 1)
-                    #             previous_member_offset = get_last_frame_offset(frame)
+                                probale_element_size = delta_before_and - (expected_alignment - 1)
+                                previous_member_offset = get_last_frame_offset(frame)
 
-                    #             frame["layout"].append({ 
-                    #                 "size": probale_element_size,
-                    #                 "element_size": probale_element_size,
-                    #                 "element": None,
-                    #                 "align": 1,
-                    #                 "string": False,
-                    #                 "list": False,
-                    #                 "offset": previous_member_offset
-                    #             })
+                                frame["layout"].append({ 
+                                    "size": probale_element_size,
+                                    "element_size": probale_element_size,
+                                    "element": None,
+                                    "align": 1,
+                                    "string": False,
+                                    "list": False,
+                                    "offset": previous_member_offset
+                                })
 
-                    #     frame["last_deserialize_cur"] = val
-                    #     frame["last_alignment"] = expected_alignment
+                        frame["last_deserialize_cur"] = val
+                        frame["last_alignment"] = expected_alignment
 
-                    # frame["last_deserialize_reg_val"] = val
+                    frame["last_deserialize_reg_val"] = val
             elif frame["last_alignment"] == 4 and last_dis.group(X86_GRP_BRANCH_RELATIVE):
                 frame["was_string"] = True
             elif frame["last_alignment"] == 4 and last_dis.bytes == bytearray(b"\x4B\x8D\x0C\x41"): # this means "lea rcx, [r9+r8*2]", e.g. reading a wide string
@@ -1138,7 +1138,7 @@ def main(p, il2cpp_path="il2cpp_dump.json", test_mode=False):
             meta_frame["stopped"] = False
 
             try:
-                emu.emu_start(meta_frame["start"], highest_alloc)
+                emu.emu_start(meta_frame["start"], deserializer_start + 0x10000)
             except unicorn.UcError as e:
                 print("RIP: 0x%X" % emu.reg_read(UC_X86_REG_RIP))
                 print(e)
