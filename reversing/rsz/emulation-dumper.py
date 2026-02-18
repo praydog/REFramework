@@ -21,6 +21,22 @@ REGISTER_MEMORY_SIZE = 1024 * 1024
 
 FILL_BYTE = 16
 
+INVALID_RETURN_ADDR = 0xBADCAFFE
+
+# Why do you even need this?
+KUSER_SHARED_DATA_ADDR = 0x7FFE0000
+KUSER_SHARED_DATA_SIZE = 0x1000
+
+TEB_ADDR = 0x400000
+TEB_SIZE = 0x2000
+
+PEB_ADDR = 0x600000
+PEB_SIZE = 0x2000
+
+TLS_REGION_START = 0x800000
+TLS_REGION_SIZE = 0x1000
+TLS_MAX_TEST_SIZE = 10
+
 zero_member_functions = {}
 
 hardcoded_jointexprgraphlayer = [
@@ -74,26 +90,202 @@ hardcoded_jointexprgraphlayer = [
 # these are chains we'll use for testing on games we are encountering issues with
 # so we don't need to parse the entire JSON dump
 default_chains = {
-    "via.render.Mesh": {
+    "via.navigation.FilterSet": {
+        "address": "14ed9c9e0",
+        "crc": "704b0605",
         "deserializer_chain": [
             {
-                "address": "0x14b34c9c0",
+                "address": "0x14b3fa1d0",
                 "name": "via.Object"
             },
             {
-                "address": "0x14aeedf90",
+                "address": "0x14af9d7c0",
                 "name": "System.Object"
             },
             {
-                "address": "0x140001000",
-                "name": "via.Component"
-            },
-            {
-                "address": "0x14af4d7a0",
-                "name": "via.render.Mesh"
+                "address": "0x14b42b2f0",
+                "name": "via.navigation.FilterSet"
             }
         ],
     }
+    # "via.render.Mesh": {
+    #     "address": "14ee7d8a0",
+    #     "crc": "d74182f1",
+    #     "deserializer_chain": [
+    #         {
+    #             "address": "0x14b3fa1d0",
+    #             "name": "via.Object"
+    #         },
+    #         {
+    #             "address": "0x14af9d7c0",
+    #             "name": "System.Object"
+    #         },
+    #         {
+    #             "address": "0x140001000",
+    #             "name": "via.Component"
+    #         },
+    #         {
+    #             "address": "0x14affc350",
+    #             "name": "via.render.Mesh"
+    #         }
+    #     ],
+    # },
+    # "via.motion.ActorMotion": {
+    #     "address": "14ead2390",
+    #     "crc": "e3a6fb73",
+    #     "deserializer_chain": [
+    #         {
+    #             "address": "0x14b3fa1d0",
+    #             "name": "via.Object"
+    #         },
+    #         {
+    #             "address": "0x14af9d7c0",
+    #             "name": "System.Object"
+    #         },
+    #         {
+    #             "address": "0x140001000",
+    #             "name": "via.Component"
+    #         },
+    #         {
+    #             "address": "0x14cfeae60",
+    #             "name": "via.motion.SecondaryAnimation"
+    #         },
+    #         {
+    #             "address": "0x14aded460",
+    #             "name": "via.motion.ActorMotion"
+    #         }
+    #     ]
+    # },
+    # "app.ChainSub": {
+    #     "address": "14e8d4890",
+    #     "crc": "55ddee1f",
+    #     "deserializer_chain": [
+    #         {
+    #             "address": "0x14b3fa1d0",
+    #             "name": "via.Object"
+    #         },
+    #         {
+    #             "address": "0x14af9d7c0",
+    #             "name": "System.Object"
+    #         },
+    #         {
+    #             "address": "0x140001000",
+    #             "name": "via.Component"
+    #         },
+    #         {
+    #             "address": "0x14cfeae60",
+    #             "name": "via.motion.SecondaryAnimation"
+    #         },
+    #         {
+    #             "address": "0x14cfeae60",
+    #             "name": "via.motion.SecondaryEventListener"
+    #         },
+    #         {
+    #             "address": "0x14ade8ef0",
+    #             "name": "via.motion.Chain"
+    #         }
+    #     ],
+    # },
+    # "app.ChainSub2": {
+    #     "address": "14ed77640",
+    #     "crc": "814aaf36",
+    #     "deserializer_chain": [
+    #         {
+    #             "address": "0x14b3fa1d0",
+    #             "name": "via.Object"
+    #         },
+    #         {
+    #             "address": "0x14af9d7c0",
+    #             "name": "System.Object"
+    #         },
+    #         {
+    #             "address": "0x140001000",
+    #             "name": "via.Component"
+    #         },
+    #         {
+    #             "address": "0x14cfeae60",
+    #             "name": "via.motion.SecondaryAnimation"
+    #         },
+    #         {
+    #             "address": "0x14cfeae60",
+    #             "name": "via.motion.SecondaryEventListener"
+    #         },
+    #         {
+    #             "address": "0x14ade9340",
+    #             "name": "via.motion.Chain2"
+    #         }
+    #     ],
+    # },
+    # "via.motion.IkMultiLookAt2": {
+    #     "address": "14ea24420",
+    #     "crc": "8479fa27",
+    #     "deserializer_chain": [
+    #         {
+    #             "address": "0x14b3fa1d0",
+    #             "name": "via.Object"
+    #         },
+    #         {
+    #             "address": "0x14af9d7c0",
+    #             "name": "System.Object"
+    #         },
+    #         {
+    #             "address": "0x140001000",
+    #             "name": "via.Component"
+    #         },
+    #         {
+    #             "address": "0x14cfeae60",
+    #             "name": "via.motion.SecondaryAnimation"
+    #         },
+    #         {
+    #             "address": "0x14029aa70",
+    #             "name": "via.motion.IkMultiLookAt2"
+    #         }
+    #     ],
+    # },
+    # "via.motion.JointExprGraphLayer": {
+    #     "address": "14e9a78d0",
+    #     "crc": "2d18c265",
+    #     "deserializer_chain": [
+    #         {
+    #             "address": "0x14b3fa1d0",
+    #             "name": "via.Object"
+    #         },
+    #         {
+    #             "address": "0x14af9d7c0",
+    #             "name": "System.Object"
+    #         },
+    #         {
+    #             "address": "0x1403452a0",
+    #             "name": "via.motion.JointExprGraphLayer"
+    #         }
+    #     ],
+    # },
+    # "via.motion.JointExprGraph": {
+    #     "address": "14ec81c40",
+    #     "crc": "deb2bb18",
+    #     "deserializer_chain": [
+    #         {
+    #             "address": "0x14b3fa1d0",
+    #             "name": "via.Object"
+    #         },
+    #         {
+    #             "address": "0x14af9d7c0",
+    #             "name": "System.Object"
+    #         },
+    #         {
+    #             "address": "0x140001000",
+    #             "name": "via.Component"
+    #         },
+    #         {
+    #             "address": "0x14cfea840",
+    #             "name": "via.motion.Constraint"
+    #         },
+    #         {
+    #             "address": "0x1402c87f0",
+    #             "name": "via.motion.JointExprGraph"
+    #         }
+    #     ],
+    # }
 }
 
 class Allocator:
@@ -180,9 +372,27 @@ def hook_mem_invalid(emu, access, address, size, value, frame):
 
 import traceback
 
+def get_last_frame_offset(frame, delta=0):
+    prev_layout = frame["layout"][-1] if len(frame["layout"]) > 0 else None
+    expected_offset = 0
+
+    if prev_layout is None:
+        return 0
+
+    # so this is probably confusing but anyways "offset" is actually AFTER the data
+    if prev_layout["string"] == False and prev_layout["list"] == False:
+        expected_offset = ((prev_layout["offset"] + delta) + (frame["last_alignment"] - 1)) & ~(frame["last_alignment"] - 1)
+    elif prev_layout["string"] == True:
+        expected_offset = ((prev_layout["offset"] + delta) + (frame["last_alignment"] - 1)) & ~(frame["last_alignment"] - 1)
+    elif prev_layout["list"] == True:
+        expected_offset = ((prev_layout["element"]["offset"] + delta) + (frame["last_alignment"] - 1)) & ~(frame["last_alignment"] - 1)
+    
+    return expected_offset
+
 def hook_code(emu, address, size, frame):
         # print("%x" % address)
 
+        frame["previous_context"] = frame["context"] if "context" in frame else None
         frame["context"] = pickle.dumps(emu.context_save())
         cs = frame["cs"]
         deserialize_arg = frame["deserialize_arg"]
@@ -361,14 +571,39 @@ def hook_code(emu, address, size, frame):
                             # invalidate_and_return_call(emu, frame)
                             # os.system("pause")
 
-                    if last_dis.mnemonic == "and" and last_dis.operands[1].type == X86_OP_IMM and last_dis.operands[0].reg == frame["last_deserialize_reg"]:
-                        # print("0x%X alignment detected" % (~last_dis.operands[1].imm + 1))
+                    # if last_dis.mnemonic == "and" and last_dis.operands[1].type == X86_OP_IMM and last_dis.operands[0].reg == frame["last_deserialize_reg"]:
+                    #     # print("0x%X alignment detected" % (~last_dis.operands[1].imm + 1))
+                    #     expected_alignment =  (~last_dis.operands[1].imm + 1)
 
-                        # Set this because we don't want the actual byte count screwing up
-                        frame["last_deserialize_cur"] = val
-                        frame["last_alignment"] = (~last_dis.operands[1].imm + 1)
+                    #     # The if is to stop inline stuffs
+                    #     if frame["last_deserialize_cur"] >= frame["max_deserialize_cur"]:
+                    #         previous_context_obj = pickle.loads(frame["previous_context"]) if frame["previous_context"] != None else None
+                    #         if previous_context_obj == None:
+                    #             print("Previous context is None. It should not be for the alignment instruction. 0x%X" % lex)
 
-                    frame["last_deserialize_reg_val"] = val
+                    #         increased_pointer_val = previous_context_obj.reg_read(last_dis.operands[0].reg)
+                    #         delta_before_and = increased_pointer_val - frame["last_deserialize_cur"]
+
+                    #         if delta_before_and != expected_alignment - 1:
+                    #             print("Expected alignment of 0x%X doesn't match actual increased pointer value of 0x%X (delta 0x%X) at 0x%X. Probably a skipped member" % (expected_alignment, increased_pointer_val, delta_before_and, lex))
+
+                    #             probale_element_size = delta_before_and - (expected_alignment - 1)
+                    #             previous_member_offset = get_last_frame_offset(frame)
+
+                    #             frame["layout"].append({ 
+                    #                 "size": probale_element_size,
+                    #                 "element_size": probale_element_size,
+                    #                 "element": None,
+                    #                 "align": 1,
+                    #                 "string": False,
+                    #                 "list": False,
+                    #                 "offset": previous_member_offset
+                    #             })
+
+                    #     frame["last_deserialize_cur"] = val
+                    #     frame["last_alignment"] = expected_alignment
+
+                    # frame["last_deserialize_reg_val"] = val
             elif frame["last_alignment"] == 4 and last_dis.group(X86_GRP_BRANCH_RELATIVE):
                 frame["was_string"] = True
             elif frame["last_alignment"] == 4 and last_dis.bytes == bytearray(b"\x4B\x8D\x0C\x41"): # this means "lea rcx, [r9+r8*2]", e.g. reading a wide string
@@ -472,6 +707,20 @@ def hook_code(emu, address, size, frame):
                 frame["last_deserialize_cur"] = deserialize_cur
                 frame["last_alignment"] = 1
 
+                # Obsfucated code just mess with the stack, so make sure we are returning home
+                stack_top = emu.reg_read(UC_X86_REG_RSP)
+                return_to_addr = int.from_bytes(emu.mem_read(stack_top, 8), sys.byteorder)
+
+                if return_to_addr != INVALID_RETURN_ADDR:
+                    # Push call stack again
+                    frame["call_stack"].append({
+                        "addr": return_to_addr,
+                        "context":  pickle.dumps(emu.context_save()),
+                        "history": {},
+                        "last_executed_addr": 0,
+                        "first": False
+                    })
+
                 if len(frame["call_stack"]) == 0:
                     # print("Reached end of function call")
                     frame["start"] = EMU_END
@@ -528,17 +777,17 @@ def hook_code(emu, address, size, frame):
                                 print("Stream pointer shifted by an unaccounted amount! 0x%X -> 0x%X (%i)" % (expected_offset, actual_offset, len(frame["layout"])))
                                 print("Last layout: ", prev_layout)
 
-                                # Add padding to the layout
-                                padding_needed = actual_offset - expected_offset
-                                frame["layout"].append({ 
-                                    "size": padding_needed,
-                                    "element_size": padding_needed,
-                                    "element": None,
-                                    "align": 1,
-                                    "string": False,
-                                    "list": False,
-                                    "offset": deserialize_cur - padding_needed - frame["buffer_start"]
-                                })
+                                # # Add padding to the layout
+                                # padding_needed = actual_offset - expected_offset
+                                # frame["layout"].append({ 
+                                #     "size": padding_needed,
+                                #     "element_size": padding_needed,
+                                #     "element": None,
+                                #     "align": 1,
+                                #     "string": False,
+                                #     "list": False,
+                                #     "offset": deserialize_cur - padding_needed - frame["buffer_start"]
+                                # })
 
                         frame["layout"].append({ 
                             "size": delta,
@@ -737,6 +986,62 @@ def main(p, il2cpp_path="il2cpp_dump.json", test_mode=False):
     highest_alloc = (highest_alloc + 1024 + (map_align - 1)) & ~(map_align - 1)
     allocator = Allocator(emu, highest_alloc + (1024 + (map_align - 1)) & ~(map_align - 1))
     
+    # Map kernel user shared data page so that the obsfucator is happy
+    emu.mem_map(KUSER_SHARED_DATA_ADDR, KUSER_SHARED_DATA_SIZE, UC_PROT_READ)
+
+    page_data_dummy = np.zeros(KUSER_SHARED_DATA_SIZE, dtype=np.ubyte)
+    page_data_dummy.fill(0xCC)
+    emu.mem_write(KUSER_SHARED_DATA_ADDR, page_data_dummy.tobytes())
+
+    # Build TLS
+    # Create the first page that will hold the pointer to each thread's TEB
+    emu.mem_map(TLS_REGION_START, map_align, UC_PROT_READ | UC_PROT_WRITE)
+
+    # Build the byte buffers that hold pointers to each TLS region
+    tls_page = np.zeros(map_align, dtype=np.ubyte)
+    tls_regions = []
+    
+    # Map each thread's TLS region sequentially
+    for i in range(TLS_MAX_TEST_SIZE):
+        # Calculate the base address for this thread's TLS region
+        tls_region_addr = TLS_REGION_START + map_align + (i * TLS_REGION_SIZE)
+        
+        # Map the TLS region
+        emu.mem_map(tls_region_addr, TLS_REGION_SIZE, UC_PROT_READ | UC_PROT_WRITE)
+        
+        # Fill the TLS region with dummy data
+        tls_data = np.zeros(TLS_REGION_SIZE, dtype=np.ubyte)
+        tls_data.fill(0xEE)  # Fill with marker byte
+        emu.mem_write(tls_region_addr, tls_data.tobytes())
+        
+        # Store pointer in the TLS pointer page (offset i*8 for 8-byte pointers)
+        tls_regions.append(tls_region_addr)
+        pointer_offset = i * 8
+        tls_page[pointer_offset:pointer_offset + 8] = np.frombuffer(
+            tls_region_addr.to_bytes(8, sys.byteorder), dtype=np.ubyte
+        )
+    
+    # Write the pointer page to the TLS region start
+    emu.mem_write(TLS_REGION_START, tls_page.tobytes())
+    
+    print("Mapped %d TLS regions starting at 0x%X" % (len(tls_regions), TLS_REGION_START + map_align))
+
+    # Map TEB so that the obsfucator is happy
+    emu.mem_map(TEB_ADDR, TEB_SIZE, UC_PROT_READ | UC_PROT_WRITE)
+
+    dummy_teb = np.zeros(TEB_SIZE, dtype=np.ubyte)
+    dummy_teb.fill(0xCD)
+    dummy_teb[0x58:0x60] = np.frombuffer(TLS_REGION_START.to_bytes(8, sys.byteorder), dtype=np.ubyte)
+    dummy_teb[0x60:0x68] = np.frombuffer(PEB_ADDR.to_bytes(8, sys.byteorder), dtype=np.ubyte)
+
+    emu.mem_write(TEB_ADDR, dummy_teb.tobytes())
+
+    # MAP PEB so that the obsfucator is also happy
+    emu.mem_map(PEB_ADDR, PEB_SIZE, UC_PROT_READ | UC_PROT_WRITE)
+    dummy_peb = np.zeros(PEB_SIZE, dtype=np.ubyte)
+    dummy_peb.fill(0xDD)
+    emu.mem_write(PEB_ADDR, dummy_peb.tobytes())
+
     '''
     pe.parse_data_directories()
     for entry in pe.DIRECTORY_ENTRY_IMPORT:
@@ -879,6 +1184,7 @@ def main(p, il2cpp_path="il2cpp_dump.json", test_mode=False):
 
         # Write the fake vtable to the object
         emu.mem_write(args["rcx"], fake_vtable.to_bytes(8, sys.byteorder))
+        emu.reg_write(UC_X86_REG_GS_BASE, TEB_ADDR)
 
         meta_frame["call_stack"] = []
 
@@ -916,8 +1222,15 @@ def main(p, il2cpp_path="il2cpp_dump.json", test_mode=False):
 
             meta_frame["stopped"] = False
 
+            # First time!
+            if i == 0:
+                current_rsp = emu.reg_read(UC_X86_REG_RSP)
+                emu.mem_write(current_rsp, INVALID_RETURN_ADDR.to_bytes(8, sys.byteorder))
+
             try:
-                emu.emu_start(meta_frame["start"], deserializer_start + 0x10000)
+                if meta_frame['start'] == 0x14B42B2F0:
+                    print("Hello im debug")
+                emu.emu_start(meta_frame["start"], highest_alloc)
             except unicorn.UcError as e:
                 print("RIP: 0x%X" % emu.reg_read(UC_X86_REG_RIP))
                 print(e)
