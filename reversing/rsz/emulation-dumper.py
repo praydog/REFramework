@@ -21,22 +21,6 @@ REGISTER_MEMORY_SIZE = 1024 * 1024
 
 FILL_BYTE = 16
 
-INVALID_RETURN_ADDR = 0xBADCAFFE
-
-# Why do you even need this?
-KUSER_SHARED_DATA_ADDR = 0x7FFE0000
-KUSER_SHARED_DATA_SIZE = 0x1000
-
-TEB_ADDR = 0x400000
-TEB_SIZE = 0x2000
-
-PEB_ADDR = 0x600000
-PEB_SIZE = 0x2000
-
-TLS_REGION_START = 0x800000
-TLS_REGION_SIZE = 0x1000
-TLS_MAX_TEST_SIZE = 10
-
 zero_member_functions = {}
 
 hardcoded_jointexprgraphlayer = [
@@ -90,6 +74,8 @@ hardcoded_jointexprgraphlayer = [
 # these are chains we'll use for testing on games we are encountering issues with
 # so we don't need to parse the entire JSON dump
 default_chains = {
+    # This things is obsfucated to hell, if someone gonna do it in the future just use a memory dump with it
+    # Tried to map kernel user data, TEB, local thread storage, but looks like it will not gonna accept dummy value that easily
     "via.navigation.FilterSet": {
         "address": "14ed9c9e0",
         "crc": "704b0605",
@@ -707,20 +693,6 @@ def hook_code(emu, address, size, frame):
                 frame["last_deserialize_cur"] = deserialize_cur
                 frame["last_alignment"] = 1
 
-                # Obsfucated code just mess with the stack, so make sure we are returning home
-                stack_top = emu.reg_read(UC_X86_REG_RSP)
-                return_to_addr = int.from_bytes(emu.mem_read(stack_top, 8), sys.byteorder)
-
-                if return_to_addr != INVALID_RETURN_ADDR:
-                    # Push call stack again
-                    frame["call_stack"].append({
-                        "addr": return_to_addr,
-                        "context":  pickle.dumps(emu.context_save()),
-                        "history": {},
-                        "last_executed_addr": 0,
-                        "first": False
-                    })
-
                 if len(frame["call_stack"]) == 0:
                     # print("Reached end of function call")
                     frame["start"] = EMU_END
@@ -985,62 +957,6 @@ def main(p, il2cpp_path="il2cpp_dump.json", test_mode=False):
 
     highest_alloc = (highest_alloc + 1024 + (map_align - 1)) & ~(map_align - 1)
     allocator = Allocator(emu, highest_alloc + (1024 + (map_align - 1)) & ~(map_align - 1))
-    
-    # Map kernel user shared data page so that the obsfucator is happy
-    emu.mem_map(KUSER_SHARED_DATA_ADDR, KUSER_SHARED_DATA_SIZE, UC_PROT_READ)
-
-    page_data_dummy = np.zeros(KUSER_SHARED_DATA_SIZE, dtype=np.ubyte)
-    page_data_dummy.fill(0xCC)
-    emu.mem_write(KUSER_SHARED_DATA_ADDR, page_data_dummy.tobytes())
-
-    # Build TLS
-    # Create the first page that will hold the pointer to each thread's TEB
-    emu.mem_map(TLS_REGION_START, map_align, UC_PROT_READ | UC_PROT_WRITE)
-
-    # Build the byte buffers that hold pointers to each TLS region
-    tls_page = np.zeros(map_align, dtype=np.ubyte)
-    tls_regions = []
-    
-    # Map each thread's TLS region sequentially
-    for i in range(TLS_MAX_TEST_SIZE):
-        # Calculate the base address for this thread's TLS region
-        tls_region_addr = TLS_REGION_START + map_align + (i * TLS_REGION_SIZE)
-        
-        # Map the TLS region
-        emu.mem_map(tls_region_addr, TLS_REGION_SIZE, UC_PROT_READ | UC_PROT_WRITE)
-        
-        # Fill the TLS region with dummy data
-        tls_data = np.zeros(TLS_REGION_SIZE, dtype=np.ubyte)
-        tls_data.fill(0xEE)  # Fill with marker byte
-        emu.mem_write(tls_region_addr, tls_data.tobytes())
-        
-        # Store pointer in the TLS pointer page (offset i*8 for 8-byte pointers)
-        tls_regions.append(tls_region_addr)
-        pointer_offset = i * 8
-        tls_page[pointer_offset:pointer_offset + 8] = np.frombuffer(
-            tls_region_addr.to_bytes(8, sys.byteorder), dtype=np.ubyte
-        )
-    
-    # Write the pointer page to the TLS region start
-    emu.mem_write(TLS_REGION_START, tls_page.tobytes())
-    
-    print("Mapped %d TLS regions starting at 0x%X" % (len(tls_regions), TLS_REGION_START + map_align))
-
-    # Map TEB so that the obsfucator is happy
-    emu.mem_map(TEB_ADDR, TEB_SIZE, UC_PROT_READ | UC_PROT_WRITE)
-
-    dummy_teb = np.zeros(TEB_SIZE, dtype=np.ubyte)
-    dummy_teb.fill(0xCD)
-    dummy_teb[0x58:0x60] = np.frombuffer(TLS_REGION_START.to_bytes(8, sys.byteorder), dtype=np.ubyte)
-    dummy_teb[0x60:0x68] = np.frombuffer(PEB_ADDR.to_bytes(8, sys.byteorder), dtype=np.ubyte)
-
-    emu.mem_write(TEB_ADDR, dummy_teb.tobytes())
-
-    # MAP PEB so that the obsfucator is also happy
-    emu.mem_map(PEB_ADDR, PEB_SIZE, UC_PROT_READ | UC_PROT_WRITE)
-    dummy_peb = np.zeros(PEB_SIZE, dtype=np.ubyte)
-    dummy_peb.fill(0xDD)
-    emu.mem_write(PEB_ADDR, dummy_peb.tobytes())
 
     '''
     pe.parse_data_directories()
@@ -1184,7 +1100,6 @@ def main(p, il2cpp_path="il2cpp_dump.json", test_mode=False):
 
         # Write the fake vtable to the object
         emu.mem_write(args["rcx"], fake_vtable.to_bytes(8, sys.byteorder))
-        emu.reg_write(UC_X86_REG_GS_BASE, TEB_ADDR)
 
         meta_frame["call_stack"] = []
 
@@ -1222,14 +1137,7 @@ def main(p, il2cpp_path="il2cpp_dump.json", test_mode=False):
 
             meta_frame["stopped"] = False
 
-            # First time!
-            if i == 0:
-                current_rsp = emu.reg_read(UC_X86_REG_RSP)
-                emu.mem_write(current_rsp, INVALID_RETURN_ADDR.to_bytes(8, sys.byteorder))
-
             try:
-                if meta_frame['start'] == 0x14B42B2F0:
-                    print("Hello im debug")
                 emu.emu_start(meta_frame["start"], highest_alloc)
             except unicorn.UcError as e:
                 print("RIP: 0x%X" % emu.reg_read(UC_X86_REG_RIP))
