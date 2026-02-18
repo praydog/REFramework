@@ -783,8 +783,7 @@ void IntegrityCheckBypass::sha3_rsa_code_midhook(safetyhook::Context& context) {
     spdlog::info("[IntegrityCheckBypass]: RDI: 0x{:X}", context.rdi);
 
     enum PakFlags : uint8_t {
-        ENCRYPTED = 0x8,
-        NO_RSA_CHECK = 0x40
+        ENCRYPTED = 0x8
     };
 
     //const auto pak_flags = (PakFlags)context.rax; // Might change, maybe add automated register detection later
