@@ -671,7 +671,7 @@ void IntegrityCheckBypass::patch_version_hook(safetyhook::Context& context) {
     }
 
     // Scan for amount of paks. Get exe directory. To be honest set this to 9999 is okay, but i feel like it might take a long time
-    int file_count_result = std::max<int>(scan_patch_files_count(), context.rax);
+    int file_count_result = std::max<int>(scan_patch_files_count(), current_patch_version);
 
     switch (s_patch_version_reg_index) {
         case NDR_RAX:
