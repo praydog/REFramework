@@ -649,6 +649,27 @@ void IntegrityCheckBypass::patch_version_hook(safetyhook::Context& context) {
     // THEY STORE PATCH VERSION INSIDE SOMEWHERE NOW! And only load until that patch version then dont load no more paks
     spdlog::info("[IntegrityCheckBypass]: patch_version_hook called!");
 
+    uint64_t current_patch_version = 0;
+    switch (s_patch_version_reg_index) {
+        case NDR_RAX: current_patch_version = context.rax; break;
+        case NDR_RCX: current_patch_version = context.rcx; break;
+        case NDR_RDX: current_patch_version = context.rdx; break;
+        case NDR_RBX: current_patch_version = context.rbx; break;
+        case NDR_RSP: current_patch_version = context.rsp; break;
+        case NDR_RBP: current_patch_version = context.rbp; break;
+        case NDR_RSI: current_patch_version = context.rsi; break;
+        case NDR_RDI: current_patch_version = context.rdi; break;
+        case NDR_R8: current_patch_version = context.r8; break;
+        case NDR_R9: current_patch_version = context.r9; break;
+        case NDR_R10: current_patch_version = context.r10; break;
+        case NDR_R11: current_patch_version = context.r11; break;
+        case NDR_R12: current_patch_version = context.r12; break;
+        case NDR_R13: current_patch_version = context.r13; break;
+        case NDR_R14: current_patch_version = context.r14; break;
+        case NDR_R15: current_patch_version = context.r15; break;
+        default: current_patch_version = context.rax; break; // fallback
+    }
+
     // Scan for amount of paks. Get exe directory. To be honest set this to 9999 is okay, but i feel like it might take a long time
     int file_count_result = std::max<int>(scan_patch_files_count(), context.rax);
 
@@ -762,7 +783,8 @@ void IntegrityCheckBypass::sha3_rsa_code_midhook(safetyhook::Context& context) {
     spdlog::info("[IntegrityCheckBypass]: RDI: 0x{:X}", context.rdi);
 
     enum PakFlags : uint8_t {
-        ENCRYPTED = 0x8
+        ENCRYPTED = 0x8,
+        NO_RSA_CHECK = 0x40
     };
 
     //const auto pak_flags = (PakFlags)context.rax; // Might change, maybe add automated register detection later
@@ -854,7 +876,20 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
 
     // If this breaks... we'll fix it!
     const auto game = utility::get_executable();
-    const auto sha3_code_start = utility::scan(game, "C5 F8 57 C0 C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? C5 FC 11 44 24 ? 48");
+
+    std::vector<std::string> possible_patterns = {
+        "C5 F8 57 C0 C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? C5 FC 11 44 24 ? 48", 
+        "C5 F8 57 C0 C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? 48 C1 E9 10",  // MHWILDS v1.041
+    };
+    
+    std::optional<uintptr_t> sha3_code_start;
+
+    for (const auto& pattern : possible_patterns) {
+        sha3_code_start = utility::scan(game, pattern);
+        if (sha3_code_start) {
+            break;
+        }
+    }
 
     if (!sha3_code_start) {
         spdlog::error("[IntegrityCheckBypass]: Could not find sha3_rsa_code_start!");
@@ -877,7 +912,6 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
 
     spdlog::info("[IntegrityCheckBypass]: Created sha3_rsa_code_midhook!");
 
-#ifdef MHWILDS
     const auto pak_load_check_start = utility::scan(game, "41 57 41 56 41 55 41 54 56 57 55 53 48 81 EC ? ? ? ? 48 89 CE 48 8B 05 ? ? ? ? 48 31 E0 48 89 84 24 ? ? ? ? 48 8B 81 ? ? ? ? 48 C1 E8 10");
     
     if (pak_load_check_start) {
@@ -902,7 +936,6 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
             spdlog::error("[IntegrityCheckBypass]: Could not determine patch_version_reg_index! Default to RAX");
         }
     }
-#endif
 
     auto previous_instructions = utility::get_disassembly_behind(*s_sha3_code_end);
     auto previous_instructions_start = utility::get_disassembly_behind(*sha3_code_start);
