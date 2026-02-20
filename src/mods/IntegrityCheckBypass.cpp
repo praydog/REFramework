@@ -16,6 +16,15 @@ struct IntegrityCheckPattern {
     uint32_t offset{};
 };
 
+std::shared_ptr<IntegrityCheckBypass> s_integrity_check_bypass_instance{nullptr};
+
+std::shared_ptr<IntegrityCheckBypass>& IntegrityCheckBypass::get_shared_instance() {
+    if (!s_integrity_check_bypass_instance) {
+        s_integrity_check_bypass_instance = std::make_unique<IntegrityCheckBypass>();
+    }
+    return s_integrity_check_bypass_instance;
+}
+
 std::optional<std::string> IntegrityCheckBypass::on_initialize() {
     // Patterns for assigning or accessing of the integrity check boolean (RE3)
     // and for jumping past the integrity checks (RE8)
@@ -917,6 +926,8 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
     if (pak_load_check_start) {
         spdlog::info("[IntegrityCheckBypass]: Found pak_load_check_function @ 0x{:X}, hook!", (uintptr_t)*pak_load_check_start);
         s_pak_load_check_function_hook = safetyhook::create_mid((void*)*pak_load_check_start, &IntegrityCheckBypass::pak_load_check_function);
+
+        find_try_hook_via_file_load_win32_create_file(*pak_load_check_start);
     }
 
     const auto patch_version_start = utility::scan(game, "48 89 ? 24 ? 48 85 FF 0F 84 ? ? ? ? 66 83 3F 72 0F 85 ? ? ? ? 66 BA 72 00");
@@ -1040,6 +1051,12 @@ int IntegrityCheckBypass::scan_patch_files_count() {
         spdlog::warn("[IntegrityCheckBypass]: No valid patch files found!");
         highest_patch_num = 0;
     }
+
+    auto integrity_shared_instance = IntegrityCheckBypass::get_shared_instance();
+    auto other_custom_paks_count = integrity_shared_instance->cache_and_count_custom_pak_in_directory();
+
+    s_base_directory_patch_count = highest_patch_num;
+    highest_patch_num += other_custom_paks_count;
 
     s_patch_count_checked = true;
     s_patch_count = highest_patch_num;
@@ -1533,4 +1550,303 @@ void* IntegrityCheckBypass::rtl_exit_user_process_hook(uint32_t code) {
     // It calls something that's heap allocated but no longer exists, and it crashes.
     TerminateProcess(GetCurrentProcess(), code);
     return nullptr;
+}
+
+#pragma region Custom PAK directory loading
+
+static utility::ExhaustionResult do_exhaustion_scan_create_file_refs(utility::ExhaustionContext &ctx, uintptr_t target_search_func, std::vector<uintptr_t> &before_create_file_ptrs) {
+    if (ctx.instrux.Instruction == ND_INS_CALLNI || ctx.instrux.Instruction == ND_INS_CALLNR || ctx.instrux.Instruction == ND_INS_CALLFD || ctx.instrux.Instruction == ND_INS_CALLFI) {
+        return utility::ExhaustionResult::STEP_OVER;
+    }
+
+    // Try decode next instruction and see if it calls CreateFileW
+    auto next_instr_opt = utility::decode_one((std::uint8_t*)(ctx.addr + ctx.instrux.Length));
+    if (next_instr_opt) {
+        auto next_instr = *next_instr_opt;
+        if (next_instr.Instruction == ND_INS_CALLNI) {
+            auto displacement_opt = utility::resolve_displacement((uintptr_t)(ctx.addr + ctx.instrux.Length));
+            if (displacement_opt && *(uintptr_t*)(*displacement_opt) == target_search_func) {
+                spdlog::info("[IntegrityCheckBypass]: Found stream open's call to CreateFileW at 0x{:X}, hooking before it!", ctx.addr + ctx.instrux.Length);
+                before_create_file_ptrs.push_back(ctx.addr);
+            }
+        }
+    }
+
+    return utility::ExhaustionResult::CONTINUE;
+}
+
+void IntegrityCheckBypass::find_try_hook_via_file_load_win32_create_file(uintptr_t pak_load_func_addr) {
+    // Find the first call instruction, thats our opening PAK file function
+    const int INSTRUCTION_SEARCH_COUNT = 60;
+
+    uint8_t *open_stream_func_addr = 0;
+    uint8_t *search_current = (uint8_t*)pak_load_func_addr;
+
+    for (int i = 0; i < INSTRUCTION_SEARCH_COUNT; i++) {
+        auto instr = utility::decode_one(search_current);
+        if (!instr) {
+            continue;
+        }
+
+        if (instr->Instruction == ND_INS_CALLNR) {
+            if (auto resolved_opt = utility::resolve_displacement((uintptr_t)search_current)) {
+                open_stream_func_addr = (uint8_t*)*resolved_opt;
+                break;
+            }
+        }
+
+        search_current += instr->Length;
+    }
+
+    if (open_stream_func_addr == nullptr) {
+        spdlog::error("[IntegrityCheckBypass]: Could not find call to stream open function!");
+        return;
+    }
+
+    uintptr_t target_search_func = (uintptr_t)&CreateFileW;
+    const std::size_t exhaustive_decode_max = 12000;
+
+    std::vector<uintptr_t> before_create_file_ptrs{};
+
+    spdlog::info("[IntegrityCheckBypass]: Exhaustively decoding from 0x{:X} to find calls to CreateFileW...", (uintptr_t)open_stream_func_addr);
+
+    utility::exhaustive_decode(open_stream_func_addr, exhaustive_decode_max, [target_search_func, &before_create_file_ptrs](utility::ExhaustionContext &ctx) {
+        return do_exhaustion_scan_create_file_refs(ctx, target_search_func, before_create_file_ptrs);
+    });
+
+    for (auto ptr : before_create_file_ptrs) {
+        auto hook = safetyhook::create_mid((void*)ptr, &IntegrityCheckBypass::via_file_prepare_to_create_file_w_hook_wrappper);
+        if (hook) {
+            spdlog::info("[IntegrityCheckBypass]: Successfully hooked instruction before CreateFileW at 0x{:X}!", ptr);
+            s_before_create_file_w_hooks.push_back(std::move(hook));
+        } else {
+            spdlog::error("[IntegrityCheckBypass]: Failed to hook instruction before CreateFileW at 0x{:X}!", ptr);
+        }
+    }
+
+    const char *direct_storage_open_pak_pattern = "48 8D 56 08 48 8D 7C 24 ? 48 C7 07 00 00 00 00 48 8B 0D ? ? ? ? 48 8B 01 4C 8D 05 ? ? ? ? 49 89 F9 FF 50 20 48 8B 0F 85 C0";
+    auto direct_storage_open_pak_func_addr = utility::scan(utility::get_executable(), direct_storage_open_pak_pattern);
+
+    if (!direct_storage_open_pak_func_addr) {
+        spdlog::error("[IntegrityCheckBypass]: Could not find DirectStorage pak open block!");
+        return;
+    }
+
+    // Find the first CALLNI instruction, which is the call to open the pak file stream
+    uint8_t *direct_storage_before_open_pak_call = nullptr;
+    uint8_t *previous_search_current = nullptr;
+
+    search_current = (uint8_t*)*direct_storage_open_pak_func_addr;
+
+    const int DIRECT_STORAGE_OPEN_PAK_CALL_SEARCH_COUNT = 25;
+
+    for (int i = 0; i < DIRECT_STORAGE_OPEN_PAK_CALL_SEARCH_COUNT; i++) {
+        auto instr = utility::decode_one(search_current);
+        if (!instr) {
+            continue;
+        }
+
+        if (instr->Instruction == ND_INS_CALLNI) {
+            direct_storage_before_open_pak_call = previous_search_current;
+            break;
+        }
+
+        previous_search_current = search_current;
+        search_current += instr->Length;
+    }
+
+    if (direct_storage_before_open_pak_call == nullptr) {
+        spdlog::error("[IntegrityCheckBypass]: Could not find call to open pak file stream in DirectStorage pak open block!");
+        return;
+    }
+
+    s_directstorage_open_pak_hook = safetyhook::create_mid((void*)direct_storage_before_open_pak_call, &IntegrityCheckBypass::directstorage_open_pak_hook_wrappper);
+    spdlog::info("[IntegrityCheckBypass]: Hooked DirectStorage pak open function at 0x{:X}!", (uintptr_t)direct_storage_before_open_pak_call);
+}
+
+int IntegrityCheckBypass::cache_and_count_custom_pak_in_directory() {
+    if (!m_load_pak_directory || !m_load_pak_directory->value()) {
+        spdlog::info("[IntegrityCheckBypass]: Pak directory loading is disabled, skipping it.");
+        return 0;
+    }
+
+    if (m_custom_pak_in_directory_paths_cached) {
+        return static_cast<int>(m_custom_pak_in_directory_paths.size());
+    }
+
+    spdlog::info("[IntegrityCheckBypass]: Caching custom pak paths in executable directory...");
+    m_custom_pak_in_directory_paths_cached = true;
+
+    auto exe_module = utility::get_executable();
+    auto exe_path = utility::get_module_pathw(exe_module);
+    auto exe_dir = std::filesystem::path(*exe_path).parent_path();
+    auto pak_dir_fs_path = exe_dir / CUSTOM_PAK_DIRECTORY_PATH;
+
+    if (!std::filesystem::exists(pak_dir_fs_path)) {
+        spdlog::warn("[IntegrityCheckBypass]: Custom pak directory does not exist at path: {}", utility::narrow(pak_dir_fs_path.wstring()));
+        return 0;
+    }
+
+    // Iterate through the directory (recursively), and cache paths of all .pak files
+    for (const auto& entry : std::filesystem::recursive_directory_iterator(pak_dir_fs_path)) {
+        if (entry.is_regular_file() && entry.path().extension() == PAK_EXTENSION_NAME) {
+            m_custom_pak_in_directory_paths.push_back(entry.path());
+            spdlog::info("[IntegrityCheckBypass]: Cached custom pak with name: {} at path: {}", entry.path().filename().string(), utility::narrow(entry.path().wstring()));
+        }
+    }
+
+    spdlog::info("[IntegrityCheckBypass]: Finished caching custom pak paths. Total count: {}", m_custom_pak_in_directory_paths.size());
+    return static_cast<int>(m_custom_pak_in_directory_paths.size());
+}
+
+std::optional<int> IntegrityCheckBypass::extract_patch_num_from_path(std::wstring &path) {
+    std::wsmatch match;
+    if (std::regex_match(path, match, m_sub_patch_scan_regex)) {
+        try {
+            const int patch_num = std::stoi(match[1].str());
+            return patch_num;
+        } catch (const std::exception& e) {
+            return std::nullopt;
+        }
+    }
+    return std::nullopt;
+}
+
+void IntegrityCheckBypass::via_file_prepare_to_create_file_w_hook_wrappper(safetyhook::Context& context) {
+    auto instance = IntegrityCheckBypass::get_shared_instance();
+    if (instance) {
+        instance->via_file_prepare_to_create_file_w_hook(context);
+    } else {
+        spdlog::error("[IntegrityCheckBypass]: Shared instance is null in via_file_prepare_to_create_file_w_hook_wrapper!");
+    }
+}
+
+void IntegrityCheckBypass::directstorage_open_pak_hook_wrappper(safetyhook::Context& context) {
+    auto instance = IntegrityCheckBypass::get_shared_instance();
+    if (instance) {
+        instance->directstorage_open_pak_hook(context);
+    } else {
+        spdlog::error("[IntegrityCheckBypass]: Shared instance is null in directstorage_open_pak_hook_wrapper!");
+    }
+}
+
+template <typename T>
+T get_register_value(safetyhook::Context& context, int reg) {
+    switch (reg) {
+    case NDR_RAX: return (T)context.rax;
+    case NDR_RCX: return (T)context.rcx;
+    case NDR_RDX: return (T)context.rdx;
+    case NDR_RBX: return (T)context.rbx;
+    case NDR_RSP: return (T)context.rsp;
+    case NDR_RBP: return (T)context.rbp;
+    case NDR_RSI: return (T)context.rsi;
+    case NDR_RDI: return (T)context.rdi;
+    case NDR_R8:  return (T)context.r8;
+    case NDR_R9:  return (T)context.r9;
+    case NDR_R10: return (T)context.r10;
+    case NDR_R11: return (T)context.r11;
+    case NDR_R12: return (T)context.r12;
+    case NDR_R13: return (T)context.r13;
+    case NDR_R14: return (T)context.r14;
+    case NDR_R15: return (T)context.r15;
+    default: return (T)0;
+    }
+}
+
+template <typename T>
+void set_register_value(safetyhook::Context& context, int reg, T value) {
+    switch (reg) {
+    case NDR_RAX: context.rax = (uint64_t)value; break;
+    case NDR_RCX: context.rcx = (uint64_t)value; break;
+    case NDR_RDX: context.rdx = (uint64_t)value; break;
+    case NDR_RBX: context.rbx = (uint64_t)value; break;
+    case NDR_RSP: context.rsp = (uint64_t)value; break;
+    case NDR_RBP: context.rbp = (uint64_t)value; break;
+    case NDR_RSI: context.rsi = (uint64_t)value; break;
+    case NDR_RDI: context.rdi = (uint64_t)value; break;
+    case NDR_R8:  context.r8 = (uint64_t)value; break;
+    case NDR_R9:  context.r9 = (uint64_t)value; break;
+    case NDR_R10: context.r10 = (uint64_t)value; break;
+    case NDR_R11: context.r11 = (uint64_t)value; break;
+    case NDR_R12: context.r12 = (uint64_t)value; break;
+    case NDR_R13: context.r13 = (uint64_t)value; break;
+    case NDR_R14: context.r14 = (uint64_t)value; break;
+    case NDR_R15: context.r15 = (uint64_t)value; break;
+    }
+}
+
+void IntegrityCheckBypass::correct_pak_load_path(safetyhook::Context& context, int register_index) {
+    if (!m_load_pak_directory || !m_load_pak_directory->value() || m_custom_pak_in_directory_paths.empty()) {
+        return;
+    }
+
+    auto path_ptr = get_register_value<wchar_t*>(context, register_index);
+    if (path_ptr != nullptr) {
+        std::wstring_view path_view(path_ptr);
+        if (path_view.ends_with(PAK_EXTENSION_NAME_W)) {
+            std::wstring filename_copy = std::filesystem::path(path_view).filename().wstring();
+            auto patch_num_opt = extract_patch_num_from_path(filename_copy);
+
+            if (patch_num_opt) {
+                int patch_num = *patch_num_opt;
+                if (patch_num > s_base_directory_patch_count) {
+                    auto custom_directory_pak_index = patch_num - s_base_directory_patch_count - 1;
+                    if (custom_directory_pak_index < m_custom_pak_in_directory_paths.size()) {
+                        auto &pak_path = m_custom_pak_in_directory_paths[custom_directory_pak_index];
+                        spdlog::info("[IntegrityCheckBypass]: Redirecting load of {} to custom pak at path: {}", utility::narrow(filename_copy), utility::narrow(pak_path));
+                    
+                        set_register_value(context, register_index, pak_path.c_str());
+                    } else {
+                        spdlog::error("[IntegrityCheckBypass]: Patch number {} is out of range for PAK directory's PAK! (index {})", patch_num, custom_directory_pak_index);
+                    }
+                }
+            }
+        }
+    }
+}
+
+void IntegrityCheckBypass::directstorage_open_pak_hook(safetyhook::Context& context) {
+    correct_pak_load_path(context, NDR_RDX);
+}
+
+void IntegrityCheckBypass::via_file_prepare_to_create_file_w_hook(safetyhook::Context& context) {
+    correct_pak_load_path(context, NDR_RCX);
+}
+
+#pragma endregion
+
+void IntegrityCheckBypass::on_config_load(const utility::Config& cfg) {
+    for (IModValue& option : m_options) {
+        option.config_load(cfg);
+    }
+}
+
+void IntegrityCheckBypass::on_config_save(utility::Config& cfg) {
+    for (IModValue& option : m_options) {
+        option.config_save(cfg);
+    }
+}
+
+void IntegrityCheckBypass::on_draw_ui() {
+    if (!ImGui::CollapsingHeader("PAK Directory Loading")) {
+        return;
+    }
+
+    ImGui::Text("Allow loading PAKs inside reframework/paks directory. PAKs can be of any filename and ends with .pak (case-sensitive)");
+    ImGui::Text("Restart the game to apply changes.");
+
+    auto changed = false;
+    changed |= m_load_pak_directory->draw("Enable");
+
+    if (changed) {
+        g_framework->request_save_config();
+    }
+
+    if (ImGui::TreeNode("List of custom PAKs loaded:")) {
+        for (const auto& pak_path : m_custom_pak_in_directory_paths) {
+            auto pak_utf8 = utility::narrow(pak_path);
+            ImGui::BulletText("%s", pak_utf8.c_str());
+        }
+        ImGui::TreePop();
+    }
 }

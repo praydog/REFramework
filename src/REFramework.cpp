@@ -558,11 +558,13 @@ REFramework::REFramework(HMODULE reframework_module)
 
     if (sdk::RETypeDB::get() != nullptr) {
         auto& loader = LooseFileLoader::get(); // Initialize this really early
+        auto &integrity_bypass = IntegrityCheckBypass::get_shared_instance();
 
         const auto config_path = get_persistent_dir(REFrameworkConfig::REFRAMEWORK_CONFIG_NAME.data()).string();
         if (fs::exists(utility::widen(config_path))) {
             utility::Config cfg{ config_path };
             loader->on_config_load(cfg);
+            integrity_bypass->on_config_load(cfg);
         }
 
         if (loader->is_enabled()) {
