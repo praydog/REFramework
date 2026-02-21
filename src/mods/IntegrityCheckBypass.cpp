@@ -1833,7 +1833,7 @@ void IntegrityCheckBypass::on_draw_ui() {
         return;
     }
 
-    ImGui::Text("Allow loading PAKs inside reframework/paks directory. PAKs can be of any filename and ends with .pak (case-sensitive)");
+    ImGui::Text("Allow loading PAKs inside %s directory. PAKs can be of any filename and ends with .pak (case-sensitive)", IntegrityCheckBypass::CUSTOM_PAK_DIRECTORY_PATH);
     ImGui::Text("Restart the game to apply changes.");
 
     auto changed = false;
