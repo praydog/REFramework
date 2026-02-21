@@ -1554,6 +1554,8 @@ void* IntegrityCheckBypass::rtl_exit_user_process_hook(uint32_t code) {
 
 #pragma region Custom PAK directory loading
 
+#define ENABLE_PAK_DIRECTORY_LOAD (TDB_VER >= 81)
+
 static utility::ExhaustionResult do_exhaustion_scan_create_file_refs(utility::ExhaustionContext &ctx, uintptr_t target_search_func, std::vector<uintptr_t> &before_create_file_ptrs) {
     if (ctx.instrux.Instruction == ND_INS_CALLNI || ctx.instrux.Instruction == ND_INS_CALLNR || ctx.instrux.Instruction == ND_INS_CALLFD || ctx.instrux.Instruction == ND_INS_CALLFI) {
         return utility::ExhaustionResult::STEP_OVER;
@@ -1576,6 +1578,7 @@ static utility::ExhaustionResult do_exhaustion_scan_create_file_refs(utility::Ex
 }
 
 void IntegrityCheckBypass::find_try_hook_via_file_load_win32_create_file(uintptr_t pak_load_func_addr) {
+#if ENABLE_PAK_DIRECTORY_LOAD
     // Find the first call instruction, thats our opening PAK file function
     const int INSTRUCTION_SEARCH_COUNT = 60;
 
@@ -1662,9 +1665,15 @@ void IntegrityCheckBypass::find_try_hook_via_file_load_win32_create_file(uintptr
 
     s_directstorage_open_pak_hook = safetyhook::create_mid((void*)direct_storage_before_open_pak_call, &IntegrityCheckBypass::directstorage_open_pak_hook_wrappper);
     spdlog::info("[IntegrityCheckBypass]: Hooked DirectStorage pak open function at 0x{:X}!", (uintptr_t)direct_storage_before_open_pak_call);
+#else
+    spdlog::info("[IntegrityCheckBypass]: Custom pak directory loading is not supported for TDB version {}", TDB_VER);
+#endif
 }
 
 int IntegrityCheckBypass::cache_and_count_custom_pak_in_directory() {
+#if !ENABLE_PAK_DIRECTORY_LOAD
+    return 0;
+#else
     if (!m_load_pak_directory || !m_load_pak_directory->value()) {
         spdlog::info("[IntegrityCheckBypass]: Pak directory loading is disabled, skipping it.");
         return 0;
@@ -1697,6 +1706,7 @@ int IntegrityCheckBypass::cache_and_count_custom_pak_in_directory() {
 
     spdlog::info("[IntegrityCheckBypass]: Finished caching custom pak paths. Total count: {}", m_custom_pak_in_directory_paths.size());
     return static_cast<int>(m_custom_pak_in_directory_paths.size());
+#endif
 }
 
 std::optional<int> IntegrityCheckBypass::extract_patch_num_from_path(std::wstring &path) {
@@ -1828,6 +1838,7 @@ void IntegrityCheckBypass::on_config_save(utility::Config& cfg) {
 }
 
 void IntegrityCheckBypass::on_draw_ui() {
+#if ENABLE_PAK_DIRECTORY_LOAD
     if (!ImGui::CollapsingHeader("PAK Directory Loading")) {
         return;
     }
@@ -1849,4 +1860,5 @@ void IntegrityCheckBypass::on_draw_ui() {
         }
         ImGui::TreePop();
     }
+#endif
 }
