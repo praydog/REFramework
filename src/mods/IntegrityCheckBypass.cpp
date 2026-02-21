@@ -1557,21 +1557,14 @@ void* IntegrityCheckBypass::rtl_exit_user_process_hook(uint32_t code) {
 #define ENABLE_PAK_DIRECTORY_LOAD (TDB_VER >= 81)
 
 static utility::ExhaustionResult do_exhaustion_scan_create_file_refs(utility::ExhaustionContext &ctx, uintptr_t target_search_func, std::vector<uintptr_t> &before_create_file_ptrs) {
-    if (ctx.instrux.Instruction == ND_INS_CALLNI || ctx.instrux.Instruction == ND_INS_CALLNR || ctx.instrux.Instruction == ND_INS_CALLFD || ctx.instrux.Instruction == ND_INS_CALLFI) {
-        return utility::ExhaustionResult::STEP_OVER;
-    }
-
-    // Try decode next instruction and see if it calls CreateFileW
-    auto next_instr_opt = utility::decode_one((std::uint8_t*)(ctx.addr + ctx.instrux.Length));
-    if (next_instr_opt) {
-        auto next_instr = *next_instr_opt;
-        if (next_instr.Instruction == ND_INS_CALLNI) {
-            auto displacement_opt = utility::resolve_displacement((uintptr_t)(ctx.addr + ctx.instrux.Length));
-            if (displacement_opt && *(uintptr_t*)(*displacement_opt) == target_search_func) {
-                spdlog::info("[IntegrityCheckBypass]: Found stream open's call to CreateFileW at 0x{:X}, hooking before it!", ctx.addr + ctx.instrux.Length);
-                before_create_file_ptrs.push_back(ctx.addr);
-            }
+    if (ctx.instrux.Category == ND_CAT_CALL) {
+        auto displacement_opt = utility::resolve_displacement(ctx.addr);
+        if (displacement_opt && *(uintptr_t*)(*displacement_opt) == target_search_func) {
+            spdlog::info("[IntegrityCheckBypass]: Found stream open's call to CreateFileW at 0x{:X}, hooking it!", ctx.addr);
+            before_create_file_ptrs.push_back(ctx.addr);
         }
+
+        return utility::ExhaustionResult::STEP_OVER;
     }
 
     return utility::ExhaustionResult::CONTINUE;
@@ -1637,8 +1630,6 @@ void IntegrityCheckBypass::find_try_hook_via_file_load_win32_create_file(uintptr
 
     // Find the first CALLNI instruction, which is the call to open the pak file stream
     uint8_t *direct_storage_before_open_pak_call = nullptr;
-    uint8_t *previous_search_current = nullptr;
-
     search_current = (uint8_t*)*direct_storage_open_pak_func_addr;
 
     const int DIRECT_STORAGE_OPEN_PAK_CALL_SEARCH_COUNT = 25;
@@ -1650,11 +1641,10 @@ void IntegrityCheckBypass::find_try_hook_via_file_load_win32_create_file(uintptr
         }
 
         if (instr->Instruction == ND_INS_CALLNI) {
-            direct_storage_before_open_pak_call = previous_search_current;
+            direct_storage_before_open_pak_call = search_current;
             break;
         }
 
-        previous_search_current = search_current;
         search_current += instr->Length;
     }
 
