@@ -95,7 +95,7 @@ private:
 #endif
 
 #pragma region Custom PAK directory loading
-    constexpr static const char* CUSTOM_PAK_DIRECTORY_PATH = "reframework/paks/";
+    constexpr static const char* CUSTOM_PAK_DIRECTORY_PATH = "pak_mods/";
     constexpr static const char* PAK_EXTENSION_NAME = ".pak";
     constexpr static const wchar_t* PAK_EXTENSION_NAME_W = L".pak";
     constexpr static const wchar_t* SUB_PATCH_SCAN_REGEX = LR"(re_chunk_000\.pak\.sub_000\.pak\.patch_(\d+)\.pak)";
