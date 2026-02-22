@@ -1558,10 +1558,12 @@ void* IntegrityCheckBypass::rtl_exit_user_process_hook(uint32_t code) {
 
 static utility::ExhaustionResult do_exhaustion_scan_create_file_refs(utility::ExhaustionContext &ctx, uintptr_t target_search_func, std::vector<uintptr_t> &before_create_file_ptrs) {
     if (ctx.instrux.Category == ND_CAT_CALL) {
-        auto displacement_opt = utility::resolve_displacement(ctx.addr);
-        if (displacement_opt && *(uintptr_t*)(*displacement_opt) == target_search_func) {
-            spdlog::info("[IntegrityCheckBypass]: Found stream open's call to CreateFileW at 0x{:X}, hooking it!", ctx.addr);
-            before_create_file_ptrs.push_back(ctx.addr);
+        if (ctx.instrux.Instruction == ND_INS_CALLNI) {
+            auto displacement_opt = utility::resolve_displacement(ctx.addr);
+            if (displacement_opt && *(uintptr_t*)(*displacement_opt) == target_search_func) {
+                spdlog::info("[IntegrityCheckBypass]: Found stream open's call to CreateFileW at 0x{:X}, hooking it!", ctx.addr);
+                before_create_file_ptrs.push_back(ctx.addr);
+            }
         }
 
         return utility::ExhaustionResult::STEP_OVER;
