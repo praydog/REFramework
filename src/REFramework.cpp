@@ -566,7 +566,7 @@ REFramework::REFramework(HMODULE reframework_module)
         auto &integrity_bypass = IntegrityCheckBypass::get_shared_instance();
 
 #if defined(MHWILDS)
-        auto& faulty_file_detector = FaultyFileDetector::get_existing_instance();
+        auto& faulty_file_detector = FaultyFileDetector::get();
 #endif
 
         const auto config_path = get_persistent_dir(REFrameworkConfig::REFRAMEWORK_CONFIG_NAME.data()).string();

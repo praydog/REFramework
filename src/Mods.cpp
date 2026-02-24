@@ -36,7 +36,7 @@ Mods::Mods() {
     m_mods.emplace_back(LooseFileLoader::get());
 
 #if defined(MHWILDS)
-    m_mods.emplace_back(FaultyFileDetector::get_existing_instance());
+    m_mods.emplace_back(FaultyFileDetector::get());
 #endif
 
     m_mods.emplace_back(VR::get());

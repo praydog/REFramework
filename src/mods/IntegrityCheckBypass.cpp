@@ -646,17 +646,12 @@ void IntegrityCheckBypass::init_anti_debug_watcher() {
     });
 }
 
-void *IntegrityCheckBypass::pak_load_check_function(void *a1, const wchar_t *pak_name, void *a3, void *a4, void *a5) {
-    spdlog::info("[IntegrityCheckBypass]: Pak name: {}", utility::narrow(pak_name));
+void IntegrityCheckBypass::pak_load_check_function(safetyhook::Context& context) {
+    const auto return_address = *reinterpret_cast<uintptr_t*>(context.rsp);
+    auto pak_name_wstr = reinterpret_cast<const wchar_t*>(context.rdx);
 
-    void *result = s_pak_load_check_function_hook.call<void*>(a1, pak_name, a3, a4, a5);
-    bool success = (((uintptr_t)result & 0x1) != 0);
-
-    for (auto& callback : s_pak_load_result_listeners) {
-        callback(success, pak_name);
-    }
-
-    return result;
+    spdlog::info("[IntegrityCheckBypass]: pak_load_check_function called from: 0x{:X}", return_address);
+    spdlog::info("[IntegrityCheckBypass]: Pak name: {}", utility::narrow(pak_name_wstr));
 }
 
 void IntegrityCheckBypass::patch_version_hook(safetyhook::Context& context) {
