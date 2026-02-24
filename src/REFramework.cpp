@@ -563,6 +563,7 @@ REFramework::REFramework(HMODULE reframework_module)
 
     if (sdk::RETypeDB::get() != nullptr) {
         auto& loader = LooseFileLoader::get(); // Initialize this really early
+        auto &integrity_bypass = IntegrityCheckBypass::get_shared_instance();
 
 #if defined(MHWILDS)
         auto& faulty_file_detector = FaultyFileDetector::get_existing_instance();
@@ -576,6 +577,7 @@ REFramework::REFramework(HMODULE reframework_module)
 #if defined(MHWILDS)
             faulty_file_detector->on_config_load(cfg);
 #endif
+            integrity_bypass->on_config_load(cfg);
         }
 
         if (loader->is_enabled()) {

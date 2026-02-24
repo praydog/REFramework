@@ -180,6 +180,7 @@ std::optional<std::string> Hooks::hook_update_transform() {
         { "0F B6 D1 48 8B CB E8 ? ? ? ? 48 8B 9B ? ? ? ?", 7 }, // RE7
         { "0F B6 D0 48 8B CB E8 ? ? ? ? 48 8B 9B ? ? ? ?", 7 }, // RE7 Demo
         { "31 D2 41 ? F8 E8 ? ? ? ? EB", 6}, // MHWILDS/TDB74+
+        { "31 D2 41 ? F8 E8 ? ? ? ? B8 01 00 00 00 F0", 6 }, // MHS3/TDB82+ (lock xadd after call)
     };
 
     uintptr_t update_transform = 0;

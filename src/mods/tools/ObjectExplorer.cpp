@@ -517,10 +517,14 @@ void ObjectExplorer::on_draw_dev_ui() {
 
         for (auto i = 0; i < tdb->get_num_modules(); ++i) {
             auto& module = tdb->modules[i];
+
+            std::string_view assembly_name{ module.get_assembly_name() != nullptr ? module.get_assembly_name() : "Unknown" };
+            std::string_view module_name{ module.get_module_name() != nullptr ? module.get_module_name() : "Unknown" };
+            std::string_view location{ module.get_location() != nullptr ? module.get_location() : "Unknown" };
             
-            if (ImGui::TreeNode(module.get_assembly_name())) {
-                ImGui::Text("Location: %s", module.get_location());
-                ImGui::Text("Module Name: %s", module.get_module_name());
+            if (ImGui::TreeNode(assembly_name.data())) {
+                ImGui::Text("Location: %s", location.data());
+                ImGui::Text("Module Name: %s", module_name.data());
                 
                 if (ImGui::TreeNode("Assembly Types")) {
                     std::vector<uint8_t> fake_type{ 0 };
@@ -1223,6 +1227,10 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
         type_entry["name_hierarchy"] = t.get_name_hierarchy();
         type_entry["is_generic_type"] = t.is_generic_type();
         type_entry["is_generic_type_definition"] = t.is_generic_type_definition();
+
+        if (auto declaring_type = t.get_declaring_type(); declaring_type != nullptr) {
+            type_entry["declaring_type"] = declaring_type->get_full_name();
+        }
 
 #if TDB_VER >= 71
         if (tdef->element_typeid_TBD != 0) {

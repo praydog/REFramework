@@ -465,7 +465,7 @@ void* REMethodDefinition::get_function() const {
 
         auto decl_type = this->get_declaring_type();
         auto name = decl_type != nullptr ? decl_type->get_full_name() : std::string{"null"};
-        spdlog::error("[REMethodDefinition::get_function] Encoded offset is 0 (vindex {}) (method: {}.{})", this->get_virtual_index(), name, this->get_name());
+        SPDLOG_DEBUG("[REMethodDefinition::get_function] Encoded offset is 0 (vindex {}) (method: {}.{})", this->get_virtual_index(), name, this->get_name());
         return nullptr;
     }
 
@@ -1191,7 +1191,7 @@ std::span<uint32_t> REModule::get_types() const {
 std::span<uint32_t> REModule::get_methods() const {
     auto tdb = RETypeDB::get();
 
-#if TDB_VER == 81
+#if TDB_VER >= 81
     spdlog::warn("This TDB version does not support REModule::get_methods()");
     return {};
 #else
@@ -1202,7 +1202,7 @@ std::span<uint32_t> REModule::get_methods() const {
 std::span<uint32_t> REModule::get_instantiated_methods() const {
     auto tdb = RETypeDB::get();
 
-#if TDB_VER == 81
+#if TDB_VER >= 81
     spdlog::warn("This TDB version does not support REModule::get_instantiated_methods()");
     return {};
 #else
@@ -1213,7 +1213,7 @@ std::span<uint32_t> REModule::get_instantiated_methods() const {
 std::span<uint32_t> REModule::get_member_references() const {
     auto tdb = RETypeDB::get();
 
-#if TDB_VER == 81
+#if TDB_VER >= 81
     spdlog::warn("This TDB version does not support REModule::get_member_references()");
     return {};
 #else

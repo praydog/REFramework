@@ -44,7 +44,14 @@ option(REF_BUILD_PRAGMATA_SDK "" OFF)
 option(REF_BUILD_FRAMEWORK "" ON)
 option(REF_BUILD_DEPENDENCIES "" ON)
 
-project(reframework)
+project(reframework
+	LANGUAGES
+		CXX
+		C
+		CSharp
+)
+
+include(CSharpUtilities)
 
 set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MP")
@@ -73,6 +80,18 @@ if ("${CMAKE_BUILD_TYPE}" MATCHES "Release")
 endif()
 
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
+set(NUGET_PACKAGES_DIR "$ENV{NUGET_PACKAGES}")
+
+# If NUGET_PACKAGES_DIR is not set, fall back to the default location
+if(NOT NUGET_PACKAGES_DIR)
+    if(WIN32)
+        set(DEFAULT_NUGET_PATH "$ENV{USERPROFILE}/.nuget/packages")
+    else()
+        set(DEFAULT_NUGET_PATH "$ENV{HOME}/.nuget/packages")
+    endif()
+    set(NUGET_PACKAGES_DIR ${DEFAULT_NUGET_PATH})
+endif()
 
 include(FetchContent)
 
@@ -473,6 +492,7 @@ if(REF_BUILD_RE2_SDK OR REF_BUILD_FRAMEWORK) # build-re2-sdk
 		"shared/sdk/ReClass_Internal.hpp"
 		"shared/sdk/ReClass_Internal_DD2.hpp"
 		"shared/sdk/ReClass_Internal_DMC5.hpp"
+		"shared/sdk/ReClass_Internal_MHSTORIES3.hpp"
 		"shared/sdk/ReClass_Internal_MHWILDS.hpp"
 		"shared/sdk/ReClass_Internal_PRAGMATA.hpp"
 		"shared/sdk/ReClass_Internal_RE2_TDB70.hpp"
@@ -1297,6 +1317,7 @@ if(REF_BUILD_RE2_TDB66SDK OR REF_BUILD_FRAMEWORK) # build-re2tdb66-sdk
 		"shared/sdk/ReClass_Internal.hpp"
 		"shared/sdk/ReClass_Internal_DD2.hpp"
 		"shared/sdk/ReClass_Internal_DMC5.hpp"
+		"shared/sdk/ReClass_Internal_MHSTORIES3.hpp"
 		"shared/sdk/ReClass_Internal_MHWILDS.hpp"
 		"shared/sdk/ReClass_Internal_PRAGMATA.hpp"
 		"shared/sdk/ReClass_Internal_RE2_TDB70.hpp"
@@ -2125,6 +2146,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/LooseFileLoader.hpp"
 		"src/mods/ManualFlashlight.cpp"
 		"src/mods/ManualFlashlight.hpp"
+		"src/mods/MethodDatabase.cpp"
+		"src/mods/MethodDatabase.hpp"
 		"src/mods/PluginLoader.cpp"
 		"src/mods/PluginLoader.hpp"
 		"src/mods/REFrameworkConfig.cpp"
@@ -2326,6 +2349,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/LooseFileLoader.hpp"
 		"src/mods/ManualFlashlight.cpp"
 		"src/mods/ManualFlashlight.hpp"
+		"src/mods/MethodDatabase.cpp"
+		"src/mods/MethodDatabase.hpp"
 		"src/mods/PluginLoader.cpp"
 		"src/mods/PluginLoader.hpp"
 		"src/mods/REFrameworkConfig.cpp"
@@ -2524,6 +2549,7 @@ if(REF_BUILD_RE3_SDK OR REF_BUILD_FRAMEWORK) # build-re3-sdk
 		"shared/sdk/ReClass_Internal.hpp"
 		"shared/sdk/ReClass_Internal_DD2.hpp"
 		"shared/sdk/ReClass_Internal_DMC5.hpp"
+		"shared/sdk/ReClass_Internal_MHSTORIES3.hpp"
 		"shared/sdk/ReClass_Internal_MHWILDS.hpp"
 		"shared/sdk/ReClass_Internal_PRAGMATA.hpp"
 		"shared/sdk/ReClass_Internal_RE2_TDB70.hpp"
@@ -3348,6 +3374,7 @@ if(REF_BUILD_RE3_TDB67SDK OR REF_BUILD_FRAMEWORK) # build-re3tdb67-sdk
 		"shared/sdk/ReClass_Internal.hpp"
 		"shared/sdk/ReClass_Internal_DD2.hpp"
 		"shared/sdk/ReClass_Internal_DMC5.hpp"
+		"shared/sdk/ReClass_Internal_MHSTORIES3.hpp"
 		"shared/sdk/ReClass_Internal_MHWILDS.hpp"
 		"shared/sdk/ReClass_Internal_PRAGMATA.hpp"
 		"shared/sdk/ReClass_Internal_RE2_TDB70.hpp"
@@ -4176,6 +4203,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/LooseFileLoader.hpp"
 		"src/mods/ManualFlashlight.cpp"
 		"src/mods/ManualFlashlight.hpp"
+		"src/mods/MethodDatabase.cpp"
+		"src/mods/MethodDatabase.hpp"
 		"src/mods/PluginLoader.cpp"
 		"src/mods/PluginLoader.hpp"
 		"src/mods/REFrameworkConfig.cpp"
@@ -4377,6 +4406,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/LooseFileLoader.hpp"
 		"src/mods/ManualFlashlight.cpp"
 		"src/mods/ManualFlashlight.hpp"
+		"src/mods/MethodDatabase.cpp"
+		"src/mods/MethodDatabase.hpp"
 		"src/mods/PluginLoader.cpp"
 		"src/mods/PluginLoader.hpp"
 		"src/mods/REFrameworkConfig.cpp"
@@ -4578,6 +4609,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/LooseFileLoader.hpp"
 		"src/mods/ManualFlashlight.cpp"
 		"src/mods/ManualFlashlight.hpp"
+		"src/mods/MethodDatabase.cpp"
+		"src/mods/MethodDatabase.hpp"
 		"src/mods/PluginLoader.cpp"
 		"src/mods/PluginLoader.hpp"
 		"src/mods/REFrameworkConfig.cpp"
@@ -4776,6 +4809,7 @@ if(REF_BUILD_RE4_SDK OR REF_BUILD_FRAMEWORK) # build-re4-sdk
 		"shared/sdk/ReClass_Internal.hpp"
 		"shared/sdk/ReClass_Internal_DD2.hpp"
 		"shared/sdk/ReClass_Internal_DMC5.hpp"
+		"shared/sdk/ReClass_Internal_MHSTORIES3.hpp"
 		"shared/sdk/ReClass_Internal_MHWILDS.hpp"
 		"shared/sdk/ReClass_Internal_PRAGMATA.hpp"
 		"shared/sdk/ReClass_Internal_RE2_TDB70.hpp"
@@ -5602,6 +5636,7 @@ if(REF_BUILD_RE7_SDK OR REF_BUILD_FRAMEWORK) # build-re7-sdk
 		"shared/sdk/ReClass_Internal.hpp"
 		"shared/sdk/ReClass_Internal_DD2.hpp"
 		"shared/sdk/ReClass_Internal_DMC5.hpp"
+		"shared/sdk/ReClass_Internal_MHSTORIES3.hpp"
 		"shared/sdk/ReClass_Internal_MHWILDS.hpp"
 		"shared/sdk/ReClass_Internal_PRAGMATA.hpp"
 		"shared/sdk/ReClass_Internal_RE2_TDB70.hpp"
@@ -6426,6 +6461,7 @@ if(REF_BUILD_RE7_TDB49SDK OR REF_BUILD_FRAMEWORK) # build-re7tdb49-sdk
 		"shared/sdk/ReClass_Internal.hpp"
 		"shared/sdk/ReClass_Internal_DD2.hpp"
 		"shared/sdk/ReClass_Internal_DMC5.hpp"
+		"shared/sdk/ReClass_Internal_MHSTORIES3.hpp"
 		"shared/sdk/ReClass_Internal_MHWILDS.hpp"
 		"shared/sdk/ReClass_Internal_PRAGMATA.hpp"
 		"shared/sdk/ReClass_Internal_RE2_TDB70.hpp"
@@ -7254,6 +7290,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/LooseFileLoader.hpp"
 		"src/mods/ManualFlashlight.cpp"
 		"src/mods/ManualFlashlight.hpp"
+		"src/mods/MethodDatabase.cpp"
+		"src/mods/MethodDatabase.hpp"
 		"src/mods/PluginLoader.cpp"
 		"src/mods/PluginLoader.hpp"
 		"src/mods/REFrameworkConfig.cpp"
@@ -7455,6 +7493,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/LooseFileLoader.hpp"
 		"src/mods/ManualFlashlight.cpp"
 		"src/mods/ManualFlashlight.hpp"
+		"src/mods/MethodDatabase.cpp"
+		"src/mods/MethodDatabase.hpp"
 		"src/mods/PluginLoader.cpp"
 		"src/mods/PluginLoader.hpp"
 		"src/mods/REFrameworkConfig.cpp"
@@ -7653,6 +7693,7 @@ if(REF_BUILD_RE8_SDK OR REF_BUILD_FRAMEWORK) # build-re8-sdk
 		"shared/sdk/ReClass_Internal.hpp"
 		"shared/sdk/ReClass_Internal_DD2.hpp"
 		"shared/sdk/ReClass_Internal_DMC5.hpp"
+		"shared/sdk/ReClass_Internal_MHSTORIES3.hpp"
 		"shared/sdk/ReClass_Internal_MHWILDS.hpp"
 		"shared/sdk/ReClass_Internal_PRAGMATA.hpp"
 		"shared/sdk/ReClass_Internal_RE2_TDB70.hpp"
@@ -8482,6 +8523,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/LooseFileLoader.hpp"
 		"src/mods/ManualFlashlight.cpp"
 		"src/mods/ManualFlashlight.hpp"
+		"src/mods/MethodDatabase.cpp"
+		"src/mods/MethodDatabase.hpp"
 		"src/mods/PluginLoader.cpp"
 		"src/mods/PluginLoader.hpp"
 		"src/mods/REFrameworkConfig.cpp"
@@ -8680,6 +8723,7 @@ if(REF_BUILD_DMC5_SDK OR REF_BUILD_FRAMEWORK) # build-dmc5-sdk
 		"shared/sdk/ReClass_Internal.hpp"
 		"shared/sdk/ReClass_Internal_DD2.hpp"
 		"shared/sdk/ReClass_Internal_DMC5.hpp"
+		"shared/sdk/ReClass_Internal_MHSTORIES3.hpp"
 		"shared/sdk/ReClass_Internal_MHWILDS.hpp"
 		"shared/sdk/ReClass_Internal_PRAGMATA.hpp"
 		"shared/sdk/ReClass_Internal_RE2_TDB70.hpp"
@@ -9507,6 +9551,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/LooseFileLoader.hpp"
 		"src/mods/ManualFlashlight.cpp"
 		"src/mods/ManualFlashlight.hpp"
+		"src/mods/MethodDatabase.cpp"
+		"src/mods/MethodDatabase.hpp"
 		"src/mods/PluginLoader.cpp"
 		"src/mods/PluginLoader.hpp"
 		"src/mods/REFrameworkConfig.cpp"
@@ -9705,6 +9751,7 @@ if(REF_BUILD_MHRISE_SDK OR REF_BUILD_FRAMEWORK) # build-mhrise-sdk
 		"shared/sdk/ReClass_Internal.hpp"
 		"shared/sdk/ReClass_Internal_DD2.hpp"
 		"shared/sdk/ReClass_Internal_DMC5.hpp"
+		"shared/sdk/ReClass_Internal_MHSTORIES3.hpp"
 		"shared/sdk/ReClass_Internal_MHWILDS.hpp"
 		"shared/sdk/ReClass_Internal_PRAGMATA.hpp"
 		"shared/sdk/ReClass_Internal_RE2_TDB70.hpp"
@@ -10534,6 +10581,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/LooseFileLoader.hpp"
 		"src/mods/ManualFlashlight.cpp"
 		"src/mods/ManualFlashlight.hpp"
+		"src/mods/MethodDatabase.cpp"
+		"src/mods/MethodDatabase.hpp"
 		"src/mods/PluginLoader.cpp"
 		"src/mods/PluginLoader.hpp"
 		"src/mods/REFrameworkConfig.cpp"
@@ -10732,6 +10781,7 @@ if(REF_BUILD_SF6_SDK OR REF_BUILD_FRAMEWORK) # build-sf6-sdk
 		"shared/sdk/ReClass_Internal.hpp"
 		"shared/sdk/ReClass_Internal_DD2.hpp"
 		"shared/sdk/ReClass_Internal_DMC5.hpp"
+		"shared/sdk/ReClass_Internal_MHSTORIES3.hpp"
 		"shared/sdk/ReClass_Internal_MHWILDS.hpp"
 		"shared/sdk/ReClass_Internal_PRAGMATA.hpp"
 		"shared/sdk/ReClass_Internal_RE2_TDB70.hpp"
@@ -11561,6 +11611,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/LooseFileLoader.hpp"
 		"src/mods/ManualFlashlight.cpp"
 		"src/mods/ManualFlashlight.hpp"
+		"src/mods/MethodDatabase.cpp"
+		"src/mods/MethodDatabase.hpp"
 		"src/mods/PluginLoader.cpp"
 		"src/mods/PluginLoader.hpp"
 		"src/mods/REFrameworkConfig.cpp"
@@ -11759,6 +11811,7 @@ if(REF_BUILD_DD2_SDK OR REF_BUILD_FRAMEWORK) # build-dd2-sdk
 		"shared/sdk/ReClass_Internal.hpp"
 		"shared/sdk/ReClass_Internal_DD2.hpp"
 		"shared/sdk/ReClass_Internal_DMC5.hpp"
+		"shared/sdk/ReClass_Internal_MHSTORIES3.hpp"
 		"shared/sdk/ReClass_Internal_MHWILDS.hpp"
 		"shared/sdk/ReClass_Internal_PRAGMATA.hpp"
 		"shared/sdk/ReClass_Internal_RE2_TDB70.hpp"
@@ -12588,6 +12641,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/LooseFileLoader.hpp"
 		"src/mods/ManualFlashlight.cpp"
 		"src/mods/ManualFlashlight.hpp"
+		"src/mods/MethodDatabase.cpp"
+		"src/mods/MethodDatabase.hpp"
 		"src/mods/PluginLoader.cpp"
 		"src/mods/PluginLoader.hpp"
 		"src/mods/REFrameworkConfig.cpp"
@@ -12786,6 +12841,7 @@ if(REF_BUILD_MHWILDS_SDK OR REF_BUILD_FRAMEWORK) # build-mhwilds-sdk
 		"shared/sdk/ReClass_Internal.hpp"
 		"shared/sdk/ReClass_Internal_DD2.hpp"
 		"shared/sdk/ReClass_Internal_DMC5.hpp"
+		"shared/sdk/ReClass_Internal_MHSTORIES3.hpp"
 		"shared/sdk/ReClass_Internal_MHWILDS.hpp"
 		"shared/sdk/ReClass_Internal_PRAGMATA.hpp"
 		"shared/sdk/ReClass_Internal_RE2_TDB70.hpp"
@@ -13615,6 +13671,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/LooseFileLoader.hpp"
 		"src/mods/ManualFlashlight.cpp"
 		"src/mods/ManualFlashlight.hpp"
+		"src/mods/MethodDatabase.cpp"
+		"src/mods/MethodDatabase.hpp"
 		"src/mods/PluginLoader.cpp"
 		"src/mods/PluginLoader.hpp"
 		"src/mods/REFrameworkConfig.cpp"
@@ -13813,6 +13871,7 @@ if(REF_BUILD_MHSTORIES3_SDK OR REF_BUILD_FRAMEWORK) # build-mhstories3-sdk
 		"shared/sdk/ReClass_Internal.hpp"
 		"shared/sdk/ReClass_Internal_DD2.hpp"
 		"shared/sdk/ReClass_Internal_DMC5.hpp"
+		"shared/sdk/ReClass_Internal_MHSTORIES3.hpp"
 		"shared/sdk/ReClass_Internal_MHWILDS.hpp"
 		"shared/sdk/ReClass_Internal_PRAGMATA.hpp"
 		"shared/sdk/ReClass_Internal_RE2_TDB70.hpp"
@@ -14642,6 +14701,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/LooseFileLoader.hpp"
 		"src/mods/ManualFlashlight.cpp"
 		"src/mods/ManualFlashlight.hpp"
+		"src/mods/MethodDatabase.cpp"
+		"src/mods/MethodDatabase.hpp"
 		"src/mods/PluginLoader.cpp"
 		"src/mods/PluginLoader.hpp"
 		"src/mods/REFrameworkConfig.cpp"
@@ -14840,6 +14901,7 @@ if(REF_BUILD_PRAGMATA_SDK OR REF_BUILD_FRAMEWORK) # build-pragmata-sdk
 		"shared/sdk/ReClass_Internal.hpp"
 		"shared/sdk/ReClass_Internal_DD2.hpp"
 		"shared/sdk/ReClass_Internal_DMC5.hpp"
+		"shared/sdk/ReClass_Internal_MHSTORIES3.hpp"
 		"shared/sdk/ReClass_Internal_MHWILDS.hpp"
 		"shared/sdk/ReClass_Internal_PRAGMATA.hpp"
 		"shared/sdk/ReClass_Internal_RE2_TDB70.hpp"
@@ -15669,6 +15731,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/LooseFileLoader.hpp"
 		"src/mods/ManualFlashlight.cpp"
 		"src/mods/ManualFlashlight.hpp"
+		"src/mods/MethodDatabase.cpp"
+		"src/mods/MethodDatabase.hpp"
 		"src/mods/PluginLoader.cpp"
 		"src/mods/PluginLoader.hpp"
 		"src/mods/REFrameworkConfig.cpp"

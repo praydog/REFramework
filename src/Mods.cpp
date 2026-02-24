@@ -12,6 +12,7 @@
 #include "mods/ManualFlashlight.hpp"
 #include "mods/PluginLoader.hpp"
 #include "mods/REFrameworkConfig.hpp"
+#include "mods/MethodDatabase.hpp"
 #include "mods/Scene.hpp"
 #include "mods/ScriptRunner.hpp"
 #include "mods/VR.hpp"
@@ -26,10 +27,11 @@ Mods::Mods() {
     m_mods.emplace_back(REFrameworkConfig::get());
 
 #if defined(REENGINE_AT)
-    m_mods.emplace_back(std::make_unique<IntegrityCheckBypass>());
+    m_mods.emplace_back(IntegrityCheckBypass::get_shared_instance());
 #endif
 
 #ifndef BAREBONES
+    m_mods.emplace_back(MethodDatabase::get());
     m_mods.emplace_back(Hooks::get());
     m_mods.emplace_back(LooseFileLoader::get());
 
