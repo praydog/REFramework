@@ -905,6 +905,82 @@ public class AssemblyGenerator {
         return null;
     }
 
+    private static REFrameworkNET.Compiler.DynamicAssemblyBytecode? GenerateCollectionWrappers() {
+        string sourceCode = @"
+#nullable enable
+namespace REFrameworkNET.Collections
+{
+    public interface _IEnumerator<T>
+    {
+        T Current { get; }
+        bool MoveNext();
+    }
+
+    public interface _List<T>
+    {
+        int Count { get; }
+        T this[int index] { get; set; }
+        void Add(T item);
+        void Clear();
+        bool Contains(T item);
+        bool Remove(T item);
+        int IndexOf(T item);
+        void Insert(int index, T item);
+        void RemoveAt(int index);
+        _IEnumerator<T> GetEnumerator();
+    }
+
+    public interface _Dictionary<TKey, TValue>
+    {
+        int Count { get; }
+        TValue this[TKey key] { get; set; }
+        bool ContainsKey(TKey key);
+        void Add(TKey key, TValue value);
+        bool Remove(TKey key);
+        void Clear();
+    }
+}
+";
+
+        var syntaxTreeParseOption = CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.CSharp12);
+        var syntaxTree = CSharpSyntaxTree.ParseText(sourceCode, syntaxTreeParseOption);
+
+        var references = REFrameworkNET.Compiler.GenerateExhaustiveMetadataReferences(
+            typeof(REFrameworkNET.API).Assembly, new List<Assembly>());
+
+        var csoptions = new CSharpCompilationOptions(
+            OutputKind.DynamicallyLinkedLibrary,
+            optimizationLevel: OptimizationLevel.Release,
+            assemblyIdentityComparer: DesktopAssemblyIdentityComparer.Default,
+            platform: Platform.X64,
+            allowUnsafe: true);
+
+        CSharpCompilation compilation = CSharpCompilation.Create("Collections")
+            .WithOptions(csoptions)
+            .AddReferences(references)
+            .AddSyntaxTrees(syntaxTree);
+
+        using (var ms = new MemoryStream()) {
+            var result = compilation.Emit(ms);
+
+            if (!result.Success) {
+                foreach (Diagnostic diagnostic in result.Diagnostics) {
+                    Console.WriteLine($"Collections wrapper error: {diagnostic.Id}: {diagnostic.GetMessage()}");
+                }
+                REFrameworkNET.API.LogError("Failed to compile Collections wrappers");
+                return null;
+            }
+
+            ms.Seek(0, SeekOrigin.Begin);
+            REFrameworkNET.API.LogInfo("Successfully compiled Collections wrappers");
+
+            return new REFrameworkNET.Compiler.DynamicAssemblyBytecode {
+                Bytecode = ms.ToArray(),
+                AssemblyName = "Collections"
+            };
+        }
+    }
+
     public static List<REFrameworkNET.Compiler.DynamicAssemblyBytecode> MainImpl() {
         var tdb = REFrameworkNET.API.GetTDB();
         Il2CppDump.FillTypeExtensions(tdb);
@@ -924,6 +1000,13 @@ public class AssemblyGenerator {
         }
 
         List<REFrameworkNET.Compiler.DynamicAssemblyBytecode> bytecodes = [];
+
+        // Generate collection wrapper interfaces before any game module
+        // so all modules can reference _List<T>, _Dictionary<TKey,TValue>, etc.
+        var collectionsWrappers = GenerateCollectionWrappers();
+        if (collectionsWrappers != null) {
+            bytecodes.Add(collectionsWrappers);
+        }
 
         foreach (Module module in modules) {
             var assemblyName = module.AssemblyName;
