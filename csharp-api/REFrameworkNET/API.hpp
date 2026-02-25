@@ -14,6 +14,7 @@
 #include "NativeObject.hpp"
 
 #include "Callbacks.hpp"
+#include "Collections.hpp"
 
 namespace reframework {
 class API;

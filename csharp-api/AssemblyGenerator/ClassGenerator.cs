@@ -38,11 +38,30 @@ public class ClassGenerator {
 
     private static readonly Dictionary<string, (string WrapperName, int ArgCount)> genericCollectionMap = new()
     {
-        ["System.Collections.Generic.List"] = ("REFrameworkNET.Collections._List", 1),
-        ["System.Collections.Generic.IList"] = ("REFrameworkNET.Collections._List", 1),
-        ["System.Collections.Generic.ICollection"] = ("REFrameworkNET.Collections._List", 1),
-        ["System.Collections.Generic.Dictionary"] = ("REFrameworkNET.Collections._Dictionary", 2),
-        ["System.Collections.Generic.IDictionary"] = ("REFrameworkNET.Collections._Dictionary", 2),
+        // List types → IList
+        ["System.Collections.Generic.List"] = ("REFrameworkNET.Collections.IList", 1),
+        ["System.Collections.Generic.IList"] = ("REFrameworkNET.Collections.IList", 1),
+
+        // Collection types → ICollection
+        ["System.Collections.Generic.ICollection"] = ("REFrameworkNET.Collections.ICollection", 1),
+        ["System.Collections.Generic.HashSet"] = ("REFrameworkNET.Collections.ICollection", 1),
+        ["System.Collections.Generic.LinkedList"] = ("REFrameworkNET.Collections.ICollection", 1),
+        ["System.Collections.Generic.Queue"] = ("REFrameworkNET.Collections.IReadOnlyCollection", 1),
+        ["System.Collections.Generic.Stack"] = ("REFrameworkNET.Collections.IReadOnlyCollection", 1),
+
+        // Dictionary types → IDictionary
+        ["System.Collections.Generic.Dictionary"] = ("REFrameworkNET.Collections.IDictionary", 2),
+        ["System.Collections.Generic.IDictionary"] = ("REFrameworkNET.Collections.IDictionary", 2),
+        ["System.Collections.Generic.SortedList"] = ("REFrameworkNET.Collections.IDictionary", 2),
+
+        // Enumerable/Enumerator
+        ["System.Collections.Generic.IEnumerable"] = ("REFrameworkNET.Collections.IEnumerable", 1),
+        ["System.Collections.Generic.IEnumerator"] = ("REFrameworkNET.Collections.IEnumerator", 1),
+
+        // Read-only types
+        ["System.Collections.Generic.IReadOnlyCollection"] = ("REFrameworkNET.Collections.IReadOnlyCollection", 1),
+        ["System.Collections.Generic.IReadOnlyList"] = ("REFrameworkNET.Collections.IReadOnlyList", 1),
+        ["System.Collections.Generic.IReadOnlyDictionary"] = ("REFrameworkNET.Collections.IReadOnlyDictionary", 2),
     };
 
     public TypeDeclarationSyntax? TypeDeclaration {
