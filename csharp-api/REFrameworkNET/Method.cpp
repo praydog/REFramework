@@ -243,6 +243,7 @@ System::Object^ Method::InvokeBoxed(System::Type^ targetReturnType, System::Obje
     // Temporary native storage for value type data to avoid GC moving the managed array
     // during the native invoke. We copy data out, invoke, then copy mutations back.
     std::vector<uint8_t> vt_storage;
+    bool vt_boxed = false; // whether vt_storage has a 0x10 boxed header
 
     if (obj != nullptr) try {
         const auto obj_t = obj->GetType();
@@ -251,15 +252,41 @@ System::Object^ Method::InvokeBoxed(System::Type^ targetReturnType, System::Obje
             auto iobj = static_cast<REFrameworkNET::IObject^>(obj);
 
             // For instance methods on value types, copy the data to a native buffer
-            // so the GC can't move it during the invoke. The native invoke wrapper
-            // passes this pointer directly as 'this' to the method, which expects
-            // a pointer to the raw value type data (no boxed object header).
+            // so the GC can't move it during the invoke.
+            //
+            // The calling convention depends on where the method is declared:
+            // - Methods declared on the value type itself (e.g. MoveNext on a struct
+            //   enumerator): the invoke wrapper expects 'this' to point to raw unboxed
+            //   value type data.
+            // - Methods inherited from a reference type parent (e.g. ToString from
+            //   System.Object): the invoke wrapper expects 'this' to be a boxed
+            //   ManagedObject* with a 0x10 byte header before the data.
             if (!this->IsStatic() && REFrameworkNET::ValueType::typeid->IsAssignableFrom(obj_t)) {
                 auto vt = static_cast<REFrameworkNET::ValueType^>(iobj);
-                auto vt_size = vt->GetTypeDefinition()->ValueTypeSize;
+                auto type_def = vt->GetTypeDefinition();
+                auto vt_size = type_def->ValueTypeSize;
 
-                vt_storage.resize(vt_size, 0);
-                memcpy(vt_storage.data(), vt->Ptr(), vt_size);
+                auto declaring_type = this->GetDeclaringType();
+                bool needs_boxed = declaring_type != nullptr && !declaring_type->IsValueType();
+
+                if (needs_boxed) {
+                    // Method inherited from a reference type (e.g. Object.ToString).
+                    // Construct a fake boxed object with 0x10 header.
+                    vt_boxed = true;
+                    vt_storage.resize(0x10 + vt_size, 0);
+
+                    // REObject header: REObjectInfo* at offset 0x00
+                    *(void**)&vt_storage[0x00] = (void*)(uintptr_t)type_def->Ptr();
+                    // REManagedObject: reference count at offset 0x08
+                    *(uint32_t*)&vt_storage[0x08] = 9999;
+                    // Value type data at offset 0x10
+                    memcpy(&vt_storage[0x10], vt->Ptr(), vt_size);
+                } else {
+                    // Method declared on the value type itself.
+                    // Pass raw unboxed data.
+                    vt_storage.resize(vt_size, 0);
+                    memcpy(vt_storage.data(), vt->Ptr(), vt_size);
+                }
 
                 obj_ptr = vt_storage.data();
             } else {
@@ -286,7 +313,8 @@ System::Object^ Method::InvokeBoxed(System::Type^ targetReturnType, System::Obje
         if (REFrameworkNET::ValueType::typeid->IsAssignableFrom(obj->GetType())) {
             auto vt = static_cast<REFrameworkNET::ValueType^>(iobj);
             auto vt_size = vt->GetTypeDefinition()->ValueTypeSize;
-            memcpy(vt->Ptr(), vt_storage.data(), vt_size);
+            size_t data_offset = vt_boxed ? 0x10 : 0;
+            memcpy(vt->Ptr(), &vt_storage[data_offset], vt_size);
         }
     }
 
