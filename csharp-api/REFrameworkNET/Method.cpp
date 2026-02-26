@@ -240,9 +240,9 @@ System::Object^ Method::InvokeBoxed(System::Type^ targetReturnType, System::Obje
     }
 
     void* obj_ptr = nullptr;
-    // Temporary storage for fake boxed value type (0x10 header + value type data)
-    std::vector<uint8_t> fake_boxed_storage;
-    uintptr_t fake_object_ptr{};
+    // Temporary native storage for value type data to avoid GC moving the managed array
+    // during the native invoke. We copy data out, invoke, then copy mutations back.
+    std::vector<uint8_t> vt_storage;
 
     if (obj != nullptr) try {
         const auto obj_t = obj->GetType();
@@ -250,28 +250,18 @@ System::Object^ Method::InvokeBoxed(System::Type^ targetReturnType, System::Obje
         if (REFrameworkNET::IObject::typeid->IsAssignableFrom(obj_t)) {
             auto iobj = static_cast<REFrameworkNET::IObject^>(obj);
 
-            // For instance methods on value types, we need to construct a fake boxed object.
-            // The native invoke() expects a ManagedObject* with a 0x10 byte header:
-            //   0x00: REObjectInfo* (type info / vtable pointer)
-            //   0x08: uint32_t refcount + padding
-            //   0x10: actual value type data starts here
-            // ValueType::Ptr() returns raw data at offset 0, so we need to prepend the header.
+            // For instance methods on value types, copy the data to a native buffer
+            // so the GC can't move it during the invoke. The native invoke wrapper
+            // passes this pointer directly as 'this' to the method, which expects
+            // a pointer to the raw value type data (no boxed object header).
             if (!this->IsStatic() && REFrameworkNET::ValueType::typeid->IsAssignableFrom(obj_t)) {
                 auto vt = static_cast<REFrameworkNET::ValueType^>(iobj);
-                auto type_def = vt->GetTypeDefinition();
-                auto vt_size = type_def->ValueTypeSize;
+                auto vt_size = vt->GetTypeDefinition()->ValueTypeSize;
 
-                fake_boxed_storage.resize(0x10 + vt_size, 0);
-                fake_object_ptr = (uintptr_t)type_def->Ptr();
+                vt_storage.resize(vt_size, 0);
+                memcpy(vt_storage.data(), vt->Ptr(), vt_size);
 
-                // REObject header: REObjectInfo* at offset 0x00
-                *(void**)&fake_boxed_storage[0x00] = (void*)fake_object_ptr;
-                // REManagedObject: reference count at offset 0x08 (set high to prevent GC interference)
-                *(uint32_t*)&fake_boxed_storage[0x08] = 9999;
-                // Copy value type data at offset 0x10
-                memcpy(&fake_boxed_storage[0x10], vt->Ptr(), vt_size);
-
-                obj_ptr = fake_boxed_storage.data();
+                obj_ptr = vt_storage.data();
             } else {
                 obj_ptr = iobj->Ptr();
             }
@@ -290,13 +280,13 @@ System::Object^ Method::InvokeBoxed(System::Type^ targetReturnType, System::Obje
 
     auto result = m_method->invoke((::reframework::API::ManagedObject*)obj_ptr, std::span<void*>(args2.data(), argcount));
 
-    // If we used a fake boxed object, copy any mutations back to the original value type
-    if (!fake_boxed_storage.empty() && obj != nullptr) {
+    // Copy any mutations back from the native buffer to the managed value type
+    if (!vt_storage.empty() && obj != nullptr) {
         auto iobj = static_cast<REFrameworkNET::IObject^>(obj);
         if (REFrameworkNET::ValueType::typeid->IsAssignableFrom(obj->GetType())) {
             auto vt = static_cast<REFrameworkNET::ValueType^>(iobj);
             auto vt_size = vt->GetTypeDefinition()->ValueTypeSize;
-            memcpy(vt->Ptr(), &fake_boxed_storage[0x10], vt_size);
+            memcpy(vt->Ptr(), vt_storage.data(), vt_size);
         }
     }
 

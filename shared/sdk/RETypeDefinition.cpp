@@ -717,8 +717,8 @@ bool RETypeDefinition::is_by_ref() const {
     auto runtime_type = this->get_runtime_type();
 
     if (runtime_type == nullptr) {
-        g_by_ref_map[this] = true;
-        return true;
+        g_by_ref_map[this] = false;
+        return false;
     }
 
     auto runtime_typedef = utility::re_managed_object::get_type_definition(runtime_type);
