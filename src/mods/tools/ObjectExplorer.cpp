@@ -5288,15 +5288,15 @@ HookManager::PreHookResult ObjectExplorer::pre_hooked_method_internal(std::vecto
                 added = true;
             };
 
-            if (method_entry != nullptr) {
+            if (method_entry) {
                 const auto module_addr = (uintptr_t)utility::get_module_within(ret_addr).value_or(nullptr);
                 const auto ret_addr_rva = (uint32_t)(ret_addr - module_addr);
                 const auto ret_addr_entry = utility::find_function_entry(ret_addr);
 
                 // First condition isn't as heavy as fully disassembling the function which is the second condition
-                if (ret_addr_entry == method_entry ||
+                if ((ret_addr_entry && ret_addr_entry->BeginAddress == method_entry->BeginAddress && ret_addr_entry->EndAddress == method_entry->EndAddress) ||
                     (ret_addr_rva >= method_entry->BeginAddress && ret_addr_rva <= method_entry->EndAddress) ||
-                    (ret_addr_entry != nullptr && ret_addr_entry->BeginAddress >= method_entry->BeginAddress && ret_addr_entry->BeginAddress <= method_entry->EndAddress + 1))
+                    (ret_addr_entry && ret_addr_entry->BeginAddress >= method_entry->BeginAddress && ret_addr_entry->BeginAddress <= method_entry->EndAddress + 1))
                 {
                     add_method();
                 } else {

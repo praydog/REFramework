@@ -878,24 +878,10 @@ class MHWildsWebAPI {
             var guidStr = req.QueryString["guid"];
             if (string.IsNullOrEmpty(guidStr)) return new { error = "Missing 'guid' parameter" };
 
-            var msgTdef = REFrameworkNET.TDB.Get().FindType("via.gui.message");
-            if (msgTdef == null) return new { error = "via.gui.message type not found" };
-
-            var getMethod = msgTdef.GetMethod("get");
-            if (getMethod == null) return new { error = "via.gui.message.get method not found" };
-
-            var guidType = REFrameworkNET.TDB.Get().FindType("System.Guid");
-            if (guidType == null) return new { error = "System.Guid type not found" };
-
-            var parseMethod = guidType.GetMethod("Parse");
-            if (parseMethod == null) return new { error = "System.Guid.Parse not found" };
-
             // Support comma-separated GUIDs for batch resolution
             var guids = guidStr.Split(',');
             if (guids.Length == 1) {
-                var guid = parseMethod.InvokeBoxed(null, null, new object[] { guidStr.Trim() });
-                if (guid == null) return new { error = "Failed to parse GUID" };
-                var text = getMethod.InvokeBoxed(typeof(string), null, new object[] { guid }) as string;
+                var text = via.gui.message.get(_System.Guid.Parse(guidStr.Trim()))?.ToString();
                 return new { guid = guidStr, text = text ?? "" };
             }
 
@@ -903,10 +889,7 @@ class MHWildsWebAPI {
             foreach (var g in guids) {
                 var trimmed = g.Trim();
                 try {
-                    var guid = parseMethod.InvokeBoxed(null, null, new object[] { trimmed });
-                    var text = guid != null
-                        ? getMethod.InvokeBoxed(typeof(string), null, new object[] { guid }) as string
-                        : null;
+                    var text = via.gui.message.get(_System.Guid.Parse(trimmed))?.ToString();
                     results.Add(new { guid = trimmed, text = text ?? "" });
                 } catch {
                     results.Add(new { guid = trimmed, text = "", error = "Failed to parse" });
