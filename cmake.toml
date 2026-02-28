@@ -63,6 +63,7 @@ REF_BUILD_SF6_SDK = false
 REF_BUILD_DD2_SDK = false
 REF_BUILD_MHWILDS_SDK = false
 REF_BUILD_MHSTORIES3_SDK = false
+REF_BUILD_RE9_SDK = false
 REF_BUILD_PRAGMATA_SDK = false
 REF_BUILD_FRAMEWORK = { value = true }
 REF_BUILD_DEPENDENCIES = { value = true }
@@ -84,6 +85,7 @@ build-sf6-sdk = "REF_BUILD_SF6_SDK OR REF_BUILD_FRAMEWORK"
 build-dd2-sdk = "REF_BUILD_DD2_SDK OR REF_BUILD_FRAMEWORK"
 build-mhwilds-sdk = "REF_BUILD_MHWILDS_SDK OR REF_BUILD_FRAMEWORK"
 build-mhstories3-sdk = "REF_BUILD_MHSTORIES3_SDK OR REF_BUILD_FRAMEWORK"
+build-re9-sdk = "REF_BUILD_RE9_SDK OR REF_BUILD_FRAMEWORK"
 build-pragmata-sdk = "REF_BUILD_PRAGMATA_SDK OR REF_BUILD_FRAMEWORK"
 build-framework-dependencies = "REF_BUILD_DEPENDENCIES AND CMAKE_SIZEOF_VOID_P EQUAL 8"
 
@@ -402,6 +404,14 @@ compile-definitions = ["MHSTORIES3", "REENGINE_PACKED", "REENGINE_AT"]
 condition = "build-mhstories3-sdk"
 
 [target.MHSTORIES3]
+type = "game"
+
+[target.RE9SDK]
+type = "sdk"
+compile-definitions = ["RE9", "REENGINE_PACKED", "REENGINE_AT"]
+condition = "build-re9-sdk"
+
+[target.RE9]
 type = "game"
 
 [target.PRAGMATASDK]

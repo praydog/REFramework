@@ -119,6 +119,8 @@ public:
         return "re7";
     #elif defined(RE8)
         return "re8";
+    #elif defined(RE9)
+        return "re9";
     #elif defined(DMC5)
         return "dmc5";
     #elif defined(MHRISE)

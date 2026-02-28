@@ -35,7 +35,8 @@ def symlink_main(gamedir=None, bindir="build/bin", just_copy=False, skip_test_sc
             "Test/Test/TestRE2.cs",
             "Test/Test/TestRE4.cs",
             "Test/Test/TestMHWilds.cs",
-            "Test/Test/TestMHWildsWebAPI.cs",
+            "Test/Test/TestWebAPI.cs",
+            "Test/Test/TestRE9.cs",
             "Test/Test/ObjectExplorer.cs",
         ]
 

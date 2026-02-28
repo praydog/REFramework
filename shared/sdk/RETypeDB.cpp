@@ -47,7 +47,7 @@ reframework::InvokeRet invoke_object_func(::REManagedObject* obj, std::string_vi
 
 
 sdk::REModule* RETypeDB::get_module(uint32_t index) const {
-    if (index >= this->numModules) {
+    if (index >= this->get_num_modules()) {
         return nullptr;
     }
 

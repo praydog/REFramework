@@ -43,6 +43,12 @@ public:
 
     static TDB^ Get();
 
+    uint32_t GetVersion() {
+        // version has always been at offset 4, so
+        // we dont need an API for it.
+        return *(uint32_t*)((uintptr_t)m_tdb + 4);
+    }
+
     uintptr_t GetAddress() {
         return (uintptr_t)m_tdb;
     }

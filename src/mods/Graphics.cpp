@@ -10,7 +10,10 @@
 #include "VR.hpp"
 #include "Graphics.hpp"
 
-#if TDB_VER <= 49
+#if TDB_VER >= 83
+#include "sdk/regenny/re9/via/Window.hpp"
+#include "sdk/regenny/re9/via/SceneView.hpp"
+#elif TDB_VER <= 49
 #include "sdk/regenny/re7/via/Window.hpp"
 #include "sdk/regenny/re7/via/SceneView.hpp"
 #elif TDB_VER < 69
@@ -634,6 +637,12 @@ bool Graphics::on_pre_gui_draw_element(REComponent* gui_element, void* primitive
                 m_re4.last_inventory_open = std::chrono::steady_clock::now();
             }
             break;
+#endif
+
+#if defined(RE9)
+        case "Gui_ui0440"_fnv: // Black bars in cutscenes
+            game_object->shouldDraw = false;
+            return false;
 #endif
 
         default:

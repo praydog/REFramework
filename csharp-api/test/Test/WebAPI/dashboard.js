@@ -758,39 +758,81 @@ async function updateChat() {
   });
 })();
 
+// ── Game name mapping ──────────────────────────────────────────────
+const GAME_NAMES = {
+  MonsterHunterWilds: 'Monster Hunter Wilds',
+  DevilMayCry5: 'Devil May Cry 5',
+  re2: 'Resident Evil 2',
+  re3: 'Resident Evil 3',
+  re4: 'Resident Evil 4',
+  re8: 'Resident Evil Village',
+  StreetFighter6: 'Street Fighter 6',
+  DragonsDogma2: "Dragon's Dogma 2",
+};
+
+let gameEndpoints = [];
+
+async function initDashboard() {
+  try {
+    const info = await fetchJson('/api');
+    const game = info.game || 'REFramework';
+    const title = GAME_NAMES[game] || game;
+    document.getElementById('game-title').textContent = title;
+    document.title = title + ' Dashboard';
+    gameEndpoints = info.endpoints || [];
+  } catch {
+    document.getElementById('game-title').textContent = 'REFramework (offline)';
+  }
+
+  const has = (ep) => gameEndpoints.includes(ep);
+
+  // Hide cards for endpoints not available in this game
+  const cardMap = {
+    '/api/player': 'player-card',
+    '/api/weather': 'weather-card',
+    '/api/map': 'map-card',
+    '/api/equipment': 'equip-card',
+    '/api/palico': 'palico-card',
+    '/api/huntlog': 'huntlog-card',
+    '/api/inventory': 'inventory-card',
+    '/api/meshes': 'mesh-card',
+    '/api/chat': 'chat-card',
+    '/api/lobby': 'lobby-card',
+  };
+  for (const [ep, cardId] of Object.entries(cardMap)) {
+    if (!has(ep)) {
+      const el = document.getElementById(cardId);
+      if (el) el.style.display = 'none';
+    }
+  }
+
+  // Fast-polling data (camera always, player if available) every 500ms
+  setInterval(poll, 500);
+  poll();
+
+  // Medium-polling: only start polls for endpoints the game exposes
+  if (has('/api/lobby'))     { updateLobby();     setInterval(updateLobby, 5000); }
+  if (has('/api/weather'))   { updateWeather();   setInterval(updateWeather, 5000); }
+  if (has('/api/equipment')) { updateEquipment(); setInterval(updateEquipment, 5000); }
+  if (has('/api/inventory')) { updateInventory(); setInterval(updateInventory, 5000); }
+  if (has('/api/meshes'))    { updateMeshes();    setInterval(updateMeshes, 5000); }
+  if (has('/api/map'))       { updateMap();       setInterval(updateMap, 5000); }
+  if (has('/api/chat'))      { updateChat();      setInterval(updateChat, 3000); }
+  if (has('/api/huntlog'))   { updateHuntLog();   setInterval(updateHuntLog, 10000); }
+  if (has('/api/palico'))    { updatePalico();    setInterval(updatePalico, 5000); }
+}
+
 async function poll() {
   pollCount++;
   const start = performance.now();
-  await Promise.all([updatePlayer(), updateCamera(), updateFPSFast()]);
+  const tasks = [updateCamera(), updateFPSFast()];
+  if (gameEndpoints.includes('/api/player')) tasks.push(updatePlayer());
+  await Promise.all(tasks);
   const ms = (performance.now() - start).toFixed(0);
   document.getElementById('poll-info').textContent = `Poll #${pollCount} | ${ms}ms | ${new Date().toLocaleTimeString()}`;
 }
 
-// Fast-polling data (player, camera) every 500ms
-setInterval(poll, 500);
-
-// Medium-polling data (lobby, weather, equipment, map) every 5s
-updateLobby();
-updateWeather();
-updateEquipment();
-updateInventory();
-updateMeshes();
-updateMap();
-updateChat();
-updateHuntLog();
-updatePalico();
-setInterval(updateLobby, 5000);
-setInterval(updateWeather, 5000);
-setInterval(updateEquipment, 5000);
-setInterval(updateInventory, 5000);
-setInterval(updateMeshes, 5000);
-setInterval(updateMap, 5000);
-setInterval(updateChat, 3000);
-setInterval(updateHuntLog, 10000);
-setInterval(updatePalico, 5000);
-
-// Initial fast poll
-poll();
+initDashboard();
 
 // ── Tooltip for [data-tip] elements ──────────────────────────────
 (function() {

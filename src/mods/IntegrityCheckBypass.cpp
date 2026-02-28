@@ -920,7 +920,7 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
 
     spdlog::info("[IntegrityCheckBypass]: Created sha3_rsa_code_midhook!");
 
-#if defined(MHWILDS) || defined(MHSTORIES3)
+#if TDB_VER >= 81
     const auto pak_load_check_start = utility::scan(game, "41 57 41 56 41 55 41 54 56 57 55 53 48 81 EC ? ? ? ? 48 89 CE 48 8B 05 ? ? ? ? 48 31 E0 48 89 84 24 ? ? ? ? 48 8B 81 ? ? ? ? 48 C1 E8 10");
     
     if (pak_load_check_start) {
@@ -1275,6 +1275,54 @@ void IntegrityCheckBypass::immediate_patch_dd2() {
         spdlog::info("[IntegrityCheckBypass]: Patched /natives/ string for DD2.");
     } else {
         spdlog::error("[IntegrityCheckBypass]: Could not find /natives/ string for DD2.");
+    }
+}
+
+void IntegrityCheckBypass::immediate_patch_re9() {
+    spdlog::info("[IntegrityCheckBypass]: Scanning RE9...");
+
+    const auto game = utility::get_executable();
+    const auto game_size = utility::get_module_size(game).value_or(0);
+    const auto game_end = (uintptr_t)game + game_size;
+
+    static std::vector<Patch::Ptr> sus_constant_patches2{};
+
+    // Fixes calls into BushClover. BushClover is a manually mapped DLL in the RE Engine that causes a fake UD2 exception
+    // using a manually crafted exception that calls into KiUserExceptionDispatcher, triggered at will by the consumer.
+    // This is very similar to the crash below this one that causes UD2s (via replacing job pointers to UD2s), but it's not the same.
+    for (auto ref = utility::scan(game, "E1 53 BD 4C 75 ?");
+         ref.has_value();
+         ref = utility::scan(*ref + 1, (game_end - (*ref + 1)) - 0x1000, "E1 53 BD 4C 75 ?"))
+    {
+        // Patch to 0x1337BEEF
+        sus_constant_patches2.emplace_back(Patch::create(*ref, { 0xEF, 0xBE, 0x37, 0x13 }, true));
+    }
+
+    // This is hidden within RenderTaskEnd. RenderTaskEnd is interleaved with legitimate game code and integrity checks. Entire function is obfuscated.
+    // What they are doing is finding UD2 gadgets (even in the middle of instructions) around the game and replace random thread scheduler jobs
+    // with pointers to the found UD2 function/gadget.
+    // This pattern will likely change in the next update, we don't know what the invariants are yet without another sample.
+    auto thread_scheduler_corruptor = utility::scan(game, "48 89 74 08 08 48 89 F0");
+
+    if (thread_scheduler_corruptor) {
+        // Only patch out the mov [reg+reg*1+08], rsi.
+        static auto tspatch = Patch::create(*thread_scheduler_corruptor, { 0x90, 0x90, 0x90, 0x90, 0x90 }, true);
+        spdlog::info("[IntegrityCheckBypass]: Patched thread scheduler corruptor in RE9!");
+    } else {
+        spdlog::error("[IntegrityCheckBypass]: Could not find thread scheduler corruptor in RE9!");
+    }
+
+    // This is also in RenderTaskEnd.
+    // It determines whether it should take the path to reach the thread_scheduler_corruptor, among many other things.
+    // The most noticeable thing is that it drops FPS to single digits, so we need to ignore it entirely.
+    auto conditional_mov_laggy_corruption_path = utility::scan(game, "53 48 8d ? ? ? ? ? 48 0F 45 cb 48");
+
+    if (conditional_mov_laggy_corruption_path) {
+        // NOP out the conditional mov. The normal path is already in RCX.
+        static auto cmpatch = Patch::create(*conditional_mov_laggy_corruption_path + 8, {0x90, 0x90, 0x90, 0x90}, true);
+        spdlog::info("[IntegrityCheckBypass]: Patched conditional mov laggy corruption path in RE9!");
+    } else {
+        spdlog::error("[IntegrityCheckBypass]: Could not find conditional mov laggy corruption path in RE9!");
     }
 }
 

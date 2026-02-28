@@ -104,6 +104,10 @@ check_dlls_exist("dd2" "${DD2_DLLS}" "REFRAMEWORK_REF_ASSEMBLIES_EXIST_DD2")
 set(MHWILDS_DLLS "REFramework.NET._System.Private.CoreLib.dll;REFramework.NET.application.dll;REFramework.NET.viacore.dll")
 check_dlls_exist("mhwilds" "${MHWILDS_DLLS}" "REFRAMEWORK_REF_ASSEMBLIES_EXIST_MHWILDS")
 
+# RE9
+set(RE9_DLLS "REFramework.NET._System.Private.CoreLib.dll;REFramework.NET.application.dll;REFramework.NET.viacore.dll")
+check_dlls_exist("re9" "${RE9_DLLS}" "REFRAMEWORK_REF_ASSEMBLIES_EXIST_RE9")
+
 # Define a list of NuGet packages and their versions
 # the last part, the package framework will only be used for copying the files
 set(REFRAMEWORK_NUGET_PACKAGES
@@ -132,6 +136,7 @@ build-csharp-test-dd2 = "REFRAMEWORK_REF_ASSEMBLIES_EXIST_DD2"
 build-csharp-test-re2 = "REFRAMEWORK_REF_ASSEMBLIES_EXIST_RE2"
 build-csharp-test-re4 = "REFRAMEWORK_REF_ASSEMBLIES_EXIST_RE4"
 build-csharp-test-mhwilds = "REFRAMEWORK_REF_ASSEMBLIES_EXIST_MHWILDS"
+build-csharp-test-re9 = "REFRAMEWORK_REF_ASSEMBLIES_EXIST_RE9"
 
 [template.CSharpSharedTarget]
 type = "shared"
@@ -144,7 +149,7 @@ LIBRARY_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/lib"
 LIBRARY_OUTPUT_DIRECTORY_RELWITHDEBINFO = "${CMAKE_BINARY_DIR}/lib"
 LIBRARY_OUTPUT_DIRECTORY_DEBUG = "${CMAKE_BINARY_DIR}/lib"
 DOTNET_SDK = "Microsoft.NET.Sdk"
-DOTNET_TARGET_FRAMEWORK = "net8.0-windows"
+DOTNET_TARGET_FRAMEWORK = "net10.0-windows"
 VS_CONFIGURATION_TYPE = "ClassLibrary"
 
 # REFCoreDeps is a shared target that is used by the CSharpAPI and AssemblyGenerator targets
@@ -209,8 +214,8 @@ LIBRARY_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/lib/"
 LIBRARY_OUTPUT_DIRECTORY_RELWITHDEBINFO = "${CMAKE_BINARY_DIR}/lib/"
 LIBRARY_OUTPUT_DIRECTORY_DEBUG = "${CMAKE_BINARY_DIR}/lib/"
 COMMON_LANGUAGE_RUNTIME = "netcore"
-DOTNET_TARGET_FRAMEWORK = "net8.0-windows"
-# DOTNET_TARGET_FRAMEWORK_VERSION = "net8.0"
+DOTNET_TARGET_FRAMEWORK = "net10.0-windows"
+# DOTNET_TARGET_FRAMEWORK_VERSION = "net10.0"
 VS_GLOBAL_EnableManagedPackageReferenceSupport = "true"
 # VS_PACKAGE_REFERENCES = "Microsoft.CodeAnalysis_4.9.2"
 VS_GLOBAL_ConcurrentGarbageCollection = "true"
@@ -265,13 +270,22 @@ cmake-after = """
 set_dotnet_references(CSharpAPITestMHWilds "mhwilds" "${MHWILDS_DLLS}")
 """
 
-[target.CSharpAPITestMHWildsWebAPI]
+[target.CSharpAPITestWebAPI]
 condition = "build-csharp-test-mhwilds"
 type = "CSharpSharedTarget"
-sources = ["test/Test/TestMHWildsWebAPI.cs"]
+sources = ["test/Test/TestWebAPI.cs"]
 link-libraries = ["csharp-api"]
 cmake-after = """
-set_dotnet_references(CSharpAPITestMHWildsWebAPI "mhwilds" "${MHWILDS_DLLS}")
+set_dotnet_references(CSharpAPITestWebAPI "mhwilds" "${MHWILDS_DLLS}")
+"""
+
+[target.CSharpAPITestRE9]
+condition = "build-csharp-test-re9"
+type = "CSharpSharedTarget"
+sources = ["test/Test/TestRE9.cs"]
+link-libraries = ["csharp-api"]
+cmake-after = """
+set_dotnet_references(CSharpAPITestRE9 "re9" "${RE9_DLLS}")
 """
 
 [target.CSharpAPITestDMC5]

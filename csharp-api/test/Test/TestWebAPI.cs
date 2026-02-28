@@ -9,7 +9,7 @@ using System.Threading;
 using REFrameworkNET;
 using REFrameworkNET.Attributes;
 
-class MHWildsWebAPI {
+class REFrameworkWebAPI {
     static HttpListener s_listener;
     static Thread s_thread;
     static CancellationTokenSource s_cts = new();
@@ -25,7 +25,7 @@ class MHWildsWebAPI {
     [PluginEntryPoint]
     public static void Main() {
         try {
-            var pluginDir = API.GetPluginDirectory(typeof(MHWildsWebAPI).Assembly);
+            var pluginDir = API.GetPluginDirectory(typeof(REFrameworkWebAPI).Assembly);
             s_webRoot = Path.Combine(pluginDir, "WebAPI");
 
             if (!Directory.Exists(s_webRoot)) {
@@ -82,11 +82,13 @@ class MHWildsWebAPI {
                 // POST endpoints
                 if (method == "POST") {
                     object postResult = path switch {
+#if MHWILDS
                         "/api/player/health" => SetPlayerHealth(ctx.Request),
                         "/api/player/position" => SetPlayerPosition(ctx.Request),
                         "/api/meshes" => SetMeshVisibility(ctx.Request),
                         "/api/materials" => SetMaterialVisibility(ctx.Request),
                         "/api/chat" => SendChat(ctx.Request),
+#endif
                         "/api/explorer/field" => PostExplorerField(ctx.Request),
                         "/api/explorer/method" => PostExplorerMethod(ctx.Request),
                         "/api/explorer/batch" => PostExplorerBatch(ctx.Request),
@@ -121,7 +123,6 @@ class MHWildsWebAPI {
                 // GET endpoints
                 object result = path switch {
                     "/api" => GetIndex(),
-                    "/api/player" => GetPlayerInfo(),
                     "/api/camera" => GetCameraInfo(),
                     "/api/tdb" => GetTDBStats(),
                     "/api/singletons" => GetSingletonList(),
@@ -134,6 +135,9 @@ class MHWildsWebAPI {
                     "/api/explorer/search" => GetExplorerSearch(ctx.Request),
                     "/api/explorer/type" => GetExplorerType(ctx.Request),
                     "/api/explorer/singleton" => GetExplorerSingleton(ctx.Request),
+                    "/api/localize" => ResolveGuid(ctx.Request),
+#if MHWILDS
+                    "/api/player" => GetPlayerInfo(),
                     "/api/lobby" => GetLobbyMembers(),
                     "/api/weather" => GetWeather(),
                     "/api/equipment" => GetEquipment(),
@@ -144,8 +148,8 @@ class MHWildsWebAPI {
                     "/api/chat" => GetChatHistory(),
                     "/api/huntlog" => GetHuntLog(),
                     "/api/palico" => GetPalicoStats(),
-                    "/api/localize" => ResolveGuid(ctx.Request),
                     "/api/debug/byref" => DebugByRef(),
+#endif
                     _ => null
                 };
 
@@ -213,13 +217,22 @@ class MHWildsWebAPI {
     }
 
     static object GetIndex() {
+        var endpoints = new List<string> {
+            "/api/camera", "/api/tdb", "/api/singletons", "/api/localize", "/api/help",
+            "/api/explorer/singletons", "/api/explorer/singleton",
+            "/api/explorer/object", "/api/explorer/summary", "/api/explorer/field", "/api/explorer/method",
+            "/api/explorer/array", "/api/explorer/search", "/api/explorer/type",
+            "/api/explorer/batch", "/api/explorer/chain"
+        };
+#if MHWILDS
+        endpoints.AddRange(new[] { "/api/player", "/api/lobby", "/api/weather", "/api/equipment",
+            "/api/inventory", "/api/meshes", "/api/materials", "/api/map", "/api/chat",
+            "/api/huntlog", "/api/palico" });
+#endif
         return new {
-            name = "MHWilds REFramework.NET Web API",
-            endpoints = new[] { "/api/player", "/api/camera", "/api/tdb", "/api/singletons", "/api/lobby", "/api/equipment", "/api/map", "/api/huntlog", "/api/palico",
-                "/api/explorer/singletons", "/api/explorer/singleton",
-                "/api/explorer/object", "/api/explorer/field", "/api/explorer/method",
-                "/api/explorer/array", "/api/explorer/search", "/api/explorer/type",
-                "/api/explorer/batch", "/api/explorer/chain" }
+            name = "REFramework.NET Web API",
+            game = System.Diagnostics.Process.GetCurrentProcess().ProcessName,
+            endpoints
         };
     }
 
@@ -227,6 +240,7 @@ class MHWildsWebAPI {
         try { return via.gui.message.get(guid)?.ToString(); } catch { return null; }
     }
 
+#if MHWILDS
     static object GetEquipment() {
         try {
             var pm = API.GetManagedSingletonT<app.PlayerManager>();
@@ -871,7 +885,7 @@ class MHWildsWebAPI {
             return new { error = e.Message };
         }
     }
-
+#endif
 
     static object ResolveGuid(HttpListenerRequest req) {
         try {
@@ -901,6 +915,7 @@ class MHWildsWebAPI {
         }
     }
 
+#if MHWILDS
     static object DebugByRef() {
         try {
             var tdef = REFrameworkNET.TDB.Get().FindType("ace.cFixedRingBuffer`1<app.ChatDef.MessageElement>");
@@ -1169,6 +1184,7 @@ class MHWildsWebAPI {
             return new { error = e.Message };
         }
     }
+#endif
 
     static object GetCameraInfo() {
         try {
@@ -1557,6 +1573,7 @@ class MHWildsWebAPI {
         return new { isObject = false, value = result.ToString() };
     }
 
+#if MHWILDS
     // ── Lobby endpoint ─────────────────────────────────────────────────
 
     static object GetLobbyMembers() {
@@ -1716,6 +1733,7 @@ class MHWildsWebAPI {
             return new { error = e.Message };
         }
     }
+#endif
 
     // ── Chain endpoint ───────────────────────────────────────────────────
 

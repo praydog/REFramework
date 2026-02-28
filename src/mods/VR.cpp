@@ -8,7 +8,10 @@
 #include <sdk/TDBVer.hpp>
 #include <reframework/API.hpp>
 
-#if TDB_VER <= 49
+#if TDB_VER >= 83
+#include "sdk/regenny/re9/via/Window.hpp"
+#include "sdk/regenny/re9/via/SceneView.hpp"
+#elif TDB_VER <= 49
 #include "sdk/regenny/re7/via/Window.hpp"
 #include "sdk/regenny/re7/via/SceneView.hpp"
 #elif TDB_VER < 69

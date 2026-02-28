@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -144,10 +145,49 @@ namespace REFrameworkNET
             return referencesStr.Select(r => MetadataReference.CreateFromFile(r)).ToList();
         }
 
+        private static readonly Dictionary<string, string> s_gameAliases = new(StringComparer.OrdinalIgnoreCase)
+        {
+            { "MonsterHunterWilds", "MHWILDS" },
+            { "DevilMayCry5", "DMC5" },
+            { "StreetFighter6", "SF6" },
+            { "DD2", "DD2" },
+        };
+
+        private static List<string> GetGamePreprocessorSymbols()
+        {
+            var symbols = new List<string> { "REFRAMEWORK" };
+
+            try
+            {
+                var exePath = Process.GetCurrentProcess().MainModule.FileName;
+                var exeName = Path.GetFileNameWithoutExtension(exePath);
+
+                // Always define the exe name (uppercased, non-alphanumeric stripped)
+                var normalized = new string(exeName.Where(c => char.IsLetterOrDigit(c) || c == '_').ToArray()).ToUpperInvariant();
+                if (normalized.Length > 0 && !char.IsDigit(normalized[0]))
+                    symbols.Add(normalized);
+
+                // Known short aliases
+                if (s_gameAliases.TryGetValue(exeName, out var alias) && alias != normalized)
+                    symbols.Add(alias);
+
+                Console.WriteLine($"[Compiler] Preprocessor symbols: {string.Join(", ", symbols)}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Compiler] Failed to detect game for preprocessor symbols: {ex.Message}");
+            }
+
+            return symbols;
+        }
+
         private static CSharpCompilation GenerateCode(string sourceCode, string filePath, Assembly executingAssembly, List<Assembly> deps)
         {
             var codeString = SourceText.From(sourceCode);
-            var options = CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.CSharp12);
+            var symbols = GetGamePreprocessorSymbols();
+            var options = CSharpParseOptions.Default
+                .WithLanguageVersion(LanguageVersion.CSharp12)
+                .WithPreprocessorSymbols(symbols);
             var parsedSyntaxTree = SyntaxFactory.ParseSyntaxTree(codeString, options);
 
             var references = GenerateExhaustiveMetadataReferences(executingAssembly, deps);

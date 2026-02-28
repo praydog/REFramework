@@ -131,6 +131,10 @@ check_dlls_exist("dd2" "${DD2_DLLS}" "REFRAMEWORK_REF_ASSEMBLIES_EXIST_DD2")
 set(MHWILDS_DLLS "REFramework.NET._System.Private.CoreLib.dll;REFramework.NET.application.dll;REFramework.NET.viacore.dll")
 check_dlls_exist("mhwilds" "${MHWILDS_DLLS}" "REFRAMEWORK_REF_ASSEMBLIES_EXIST_MHWILDS")
 
+# RE9
+set(RE9_DLLS "REFramework.NET._System.Private.CoreLib.dll;REFramework.NET.application.dll;REFramework.NET.viacore.dll")
+check_dlls_exist("re9" "${RE9_DLLS}" "REFRAMEWORK_REF_ASSEMBLIES_EXIST_RE9")
+
 # Define a list of NuGet packages and their versions
 # the last part, the package framework will only be used for copying the files
 set(REFRAMEWORK_NUGET_PACKAGES
@@ -181,7 +185,7 @@ set_target_properties(REFCoreDeps PROPERTIES
 	DOTNET_SDK
 		Microsoft.NET.Sdk
 	DOTNET_TARGET_FRAMEWORK
-		net8.0-windows
+		net10.0-windows
 	VS_CONFIGURATION_TYPE
 		ClassLibrary
 )
@@ -221,6 +225,7 @@ set(csharp-api_SOURCES
 	"REFrameworkNET/Attributes/MethodHook.hpp"
 	"REFrameworkNET/Attributes/Plugin.hpp"
 	"REFrameworkNET/Callbacks.hpp"
+	"REFrameworkNET/Collections.hpp"
 	"REFrameworkNET/Field.hpp"
 	"REFrameworkNET/IObject.hpp"
 	"REFrameworkNET/IProxyable.hpp"
@@ -292,7 +297,7 @@ set_target_properties(csharp-api PROPERTIES
 	COMMON_LANGUAGE_RUNTIME
 		netcore
 	DOTNET_TARGET_FRAMEWORK
-		net8.0-windows
+		net10.0-windows
 	VS_GLOBAL_EnableManagedPackageReferenceSupport
 		true
 	VS_GLOBAL_ConcurrentGarbageCollection
@@ -362,7 +367,7 @@ set_target_properties(AssemblyGenerator PROPERTIES
 	DOTNET_SDK
 		Microsoft.NET.Sdk
 	DOTNET_TARGET_FRAMEWORK
-		net8.0-windows
+		net10.0-windows
 	VS_CONFIGURATION_TYPE
 		ClassLibrary
 )
@@ -405,7 +410,7 @@ if(REFRAMEWORK_REF_ASSEMBLIES_EXIST_DD2) # build-csharp-test-dd2
 		DOTNET_SDK
 			Microsoft.NET.Sdk
 		DOTNET_TARGET_FRAMEWORK
-			net8.0-windows
+			net10.0-windows
 		VS_CONFIGURATION_TYPE
 			ClassLibrary
 	)
@@ -446,7 +451,7 @@ if(REFRAMEWORK_REF_ASSEMBLIES_EXIST_RE2) # build-csharp-test-re2
 		DOTNET_SDK
 			Microsoft.NET.Sdk
 		DOTNET_TARGET_FRAMEWORK
-			net8.0-windows
+			net10.0-windows
 		VS_CONFIGURATION_TYPE
 			ClassLibrary
 	)
@@ -487,7 +492,7 @@ if(REFRAMEWORK_REF_ASSEMBLIES_EXIST_RE4) # build-csharp-test-re4
 		DOTNET_SDK
 			Microsoft.NET.Sdk
 		DOTNET_TARGET_FRAMEWORK
-			net8.0-windows
+			net10.0-windows
 		VS_CONFIGURATION_TYPE
 			ClassLibrary
 	)
@@ -528,7 +533,7 @@ if(REFRAMEWORK_REF_ASSEMBLIES_EXIST_MHWILDS) # build-csharp-test-mhwilds
 		DOTNET_SDK
 			Microsoft.NET.Sdk
 		DOTNET_TARGET_FRAMEWORK
-			net8.0-windows
+			net10.0-windows
 		VS_CONFIGURATION_TYPE
 			ClassLibrary
 	)
@@ -537,23 +542,23 @@ if(REFRAMEWORK_REF_ASSEMBLIES_EXIST_MHWILDS) # build-csharp-test-mhwilds
 	set_dotnet_references(CSharpAPITestMHWilds "mhwilds" "${MHWILDS_DLLS}")
 
 endif()
-# Target: CSharpAPITestMHWildsWebAPI
+# Target: CSharpAPITestWebAPI
 if(REFRAMEWORK_REF_ASSEMBLIES_EXIST_MHWILDS) # build-csharp-test-mhwilds
-	set(CSharpAPITestMHWildsWebAPI_SOURCES
-		"test/Test/TestMHWildsWebAPI.cs"
+	set(CSharpAPITestWebAPI_SOURCES
+		"test/Test/TestWebAPI.cs"
 		cmake.toml
 	)
 
-	add_library(CSharpAPITestMHWildsWebAPI SHARED)
+	add_library(CSharpAPITestWebAPI SHARED)
 
-	target_sources(CSharpAPITestMHWildsWebAPI PRIVATE ${CSharpAPITestMHWildsWebAPI_SOURCES})
-	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${CSharpAPITestMHWildsWebAPI_SOURCES})
+	target_sources(CSharpAPITestWebAPI PRIVATE ${CSharpAPITestWebAPI_SOURCES})
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${CSharpAPITestWebAPI_SOURCES})
 
-	target_link_libraries(CSharpAPITestMHWildsWebAPI PUBLIC
+	target_link_libraries(CSharpAPITestWebAPI PUBLIC
 		csharp-api
 	)
 
-	set_target_properties(CSharpAPITestMHWildsWebAPI PROPERTIES
+	set_target_properties(CSharpAPITestWebAPI PROPERTIES
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE
 			"${CMAKE_BINARY_DIR}/bin/"
 		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
@@ -569,13 +574,54 @@ if(REFRAMEWORK_REF_ASSEMBLIES_EXIST_MHWILDS) # build-csharp-test-mhwilds
 		DOTNET_SDK
 			Microsoft.NET.Sdk
 		DOTNET_TARGET_FRAMEWORK
-			net8.0-windows
+			net10.0-windows
 		VS_CONFIGURATION_TYPE
 			ClassLibrary
 	)
 
-	set(CMKR_TARGET CSharpAPITestMHWildsWebAPI)
-	set_dotnet_references(CSharpAPITestMHWildsWebAPI "mhwilds" "${MHWILDS_DLLS}")
+	set(CMKR_TARGET CSharpAPITestWebAPI)
+	set_dotnet_references(CSharpAPITestWebAPI "mhwilds" "${MHWILDS_DLLS}")
+
+endif()
+# Target: CSharpAPITestRE9
+if(REFRAMEWORK_REF_ASSEMBLIES_EXIST_RE9) # build-csharp-test-re9
+	set(CSharpAPITestRE9_SOURCES
+		"test/Test/TestRE9.cs"
+		cmake.toml
+	)
+
+	add_library(CSharpAPITestRE9 SHARED)
+
+	target_sources(CSharpAPITestRE9 PRIVATE ${CSharpAPITestRE9_SOURCES})
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${CSharpAPITestRE9_SOURCES})
+
+	target_link_libraries(CSharpAPITestRE9 PUBLIC
+		csharp-api
+	)
+
+	set_target_properties(CSharpAPITestRE9 PROPERTIES
+		RUNTIME_OUTPUT_DIRECTORY_RELEASE
+			"${CMAKE_BINARY_DIR}/bin/"
+		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
+			"${CMAKE_BINARY_DIR}/bin"
+		RUNTIME_OUTPUT_DIRECTORY_DEBUG
+			"${CMAKE_BINARY_DIR}/bin"
+		LIBRARY_OUTPUT_DIRECTORY_RELEASE
+			"${CMAKE_BINARY_DIR}/lib"
+		LIBRARY_OUTPUT_DIRECTORY_RELWITHDEBINFO
+			"${CMAKE_BINARY_DIR}/lib"
+		LIBRARY_OUTPUT_DIRECTORY_DEBUG
+			"${CMAKE_BINARY_DIR}/lib"
+		DOTNET_SDK
+			Microsoft.NET.Sdk
+		DOTNET_TARGET_FRAMEWORK
+			net10.0-windows
+		VS_CONFIGURATION_TYPE
+			ClassLibrary
+	)
+
+	set(CMKR_TARGET CSharpAPITestRE9)
+	set_dotnet_references(CSharpAPITestRE9 "re9" "${RE9_DLLS}")
 
 endif()
 # Target: CSharpAPITestDMC5
@@ -610,7 +656,7 @@ if(REFRAMEWORK_REF_ASSEMBLIES_EXIST_DMC5) # build-csharp-test-dmc5
 		DOTNET_SDK
 			Microsoft.NET.Sdk
 		DOTNET_TARGET_FRAMEWORK
-			net8.0-windows
+			net10.0-windows
 		VS_CONFIGURATION_TYPE
 			ClassLibrary
 	)
@@ -651,7 +697,7 @@ if(REFRAMEWORK_REF_ASSEMBLIES_EXIST_RE2) # build-csharp-test-re2
 		DOTNET_SDK
 			Microsoft.NET.Sdk
 		DOTNET_TARGET_FRAMEWORK
-			net8.0-windows
+			net10.0-windows
 		VS_CONFIGURATION_TYPE
 			ClassLibrary
 	)
