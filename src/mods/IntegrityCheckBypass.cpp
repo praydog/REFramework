@@ -14,6 +14,9 @@
 
 #include "IntegrityCheckBypass.hpp"
 
+template <typename T>
+T get_register_value(safetyhook::Context& context, int reg);
+
 struct IntegrityCheckPattern {
     std::string pat{};
     uint32_t offset{};
@@ -773,6 +776,27 @@ void IntegrityCheckBypass::patch_version_hook(safetyhook::Context& context) {
     }
 }
 
+void IntegrityCheckBypass::pak_store_flags_hook(safetyhook::Context& context) {
+    spdlog::info("[IntegrityCheckBypass]: pak_store_flags_hook called!");
+
+    s_pak_flags_value = std::nullopt;
+
+    if (s_pak_load_check_insn.Operands[0].Type == ND_OP_REG) {
+        s_pak_flags_value = get_register_value<std::uint8_t>(context, s_pak_load_check_insn.Operands[0].Info.Register.Reg);
+    } else if (s_pak_load_check_insn.Operands[0].Type == ND_OP_MEM) {
+        auto base_reg_value = get_register_value<uintptr_t>(context, s_pak_load_check_insn.Operands[0].Info.Memory.Base);
+        auto displacement = s_pak_load_check_insn.Operands[0].Info.Memory.Disp;
+
+        s_pak_flags_value = *(std::uint8_t*)(base_reg_value + displacement);
+    }
+
+    if (s_pak_flags_value) {
+        spdlog::info("[IntegrityCheckBypass]: Stored pak flags value: 0x{:X}", *s_pak_flags_value);
+    } else {
+        spdlog::error("[IntegrityCheckBypass]: Failed to store pak flags value, unknown operand type {}!", s_pak_load_check_insn.Operands[0].Type);
+    }
+}
+
 // This allows unencrypted paks to load.
 void IntegrityCheckBypass::sha3_rsa_code_midhook(safetyhook::Context& context) {
     spdlog::info("[IntegrityCheckBypass]: sha3_code_midhook called!");
@@ -801,75 +825,82 @@ void IntegrityCheckBypass::sha3_rsa_code_midhook(safetyhook::Context& context) {
     //const auto pak_flags = (PakFlags)context.rax; // Might change, maybe add automated register detection later
     PakFlags pak_flags{};
 
-    switch (s_sha3_reg_index) {
-        case NDR_RAX:
-            pak_flags = (PakFlags)context.rax;
-            SPDLOG_INFO("[IntegrityCheckBypass]: Using RAX for pak_flags");
-            break;
-        case NDR_RCX:
-            pak_flags = (PakFlags)context.rcx;
-            SPDLOG_INFO("[IntegrityCheckBypass]: Using RCX for pak_flags");
-            break;
-        case NDR_RDX:
-            pak_flags = (PakFlags)context.rdx;
-            SPDLOG_INFO("[IntegrityCheckBypass]: Using RDX for pak_flags");
-            break;
-        case NDR_RBX:
-            pak_flags = (PakFlags)context.rbx;
-            SPDLOG_INFO("[IntegrityCheckBypass]: Using RBX for pak_flags");
-            break;
-        case NDR_RSP:
-            pak_flags = (PakFlags)context.rsp;
-            SPDLOG_INFO("[IntegrityCheckBypass]: Using RSP for pak_flags");
-            break;
-        case NDR_RBP:
-            pak_flags = (PakFlags)context.rbp;
-            SPDLOG_INFO("[IntegrityCheckBypass]: Using RBP for pak_flags");
-            break;
-        case NDR_RSI:
-            pak_flags = (PakFlags)context.rsi;
-            SPDLOG_INFO("[IntegrityCheckBypass]: Using RSI for pak_flags");
-            break;
-        case NDR_RDI:
-            pak_flags = (PakFlags)context.rdi;
-            SPDLOG_INFO("[IntegrityCheckBypass]: Using RDI for pak_flags");
-            break;
-        case NDR_R8:
-            pak_flags = (PakFlags)context.r8;
-            SPDLOG_INFO("[IntegrityCheckBypass]: Using R8 for pak_flags");
-            break;
-        case NDR_R9:
-            pak_flags = (PakFlags)context.r9;
-            SPDLOG_INFO("[IntegrityCheckBypass]: Using R9 for pak_flags");
-            break;
-        case NDR_R10:
-            pak_flags = (PakFlags)context.r10;
-            SPDLOG_INFO("[IntegrityCheckBypass]: Using R10 for pak_flags");
-            break;
-        case NDR_R11:
-            pak_flags = (PakFlags)context.r11;
-            SPDLOG_INFO("[IntegrityCheckBypass]: Using R11 for pak_flags");
-            break;
-        case NDR_R12:
-            pak_flags = (PakFlags)context.r12;
-            SPDLOG_INFO("[IntegrityCheckBypass]: Using R12 for pak_flags");
-            break;
-        case NDR_R13:
-            pak_flags = (PakFlags)context.r13;
-            SPDLOG_INFO("[IntegrityCheckBypass]: Using R13 for pak_flags");
-            break;
-        case NDR_R14:
-            pak_flags = (PakFlags)context.r14;
-            SPDLOG_INFO("[IntegrityCheckBypass]: Using R14 for pak_flags");
-            break;
-        case NDR_R15:
-            pak_flags = (PakFlags)context.r15;
-            SPDLOG_INFO("[IntegrityCheckBypass]: Using R15 for pak_flags");
-            break;
-        default:
-            pak_flags = (PakFlags)context.r8; // fallback to R8
-            SPDLOG_INFO("[IntegrityCheckBypass]: Unknown register, falling back to R8 for pak_flags");
-            break;
+    if (s_pak_flags_value) {
+        pak_flags = static_cast<PakFlags>(*s_pak_flags_value);
+        spdlog::info("[IntegrityCheckBypass]: Using stored pak flags value: 0x{:X}", *s_pak_flags_value);
+    } else {
+        spdlog::info("[IntegrityCheckBypass]: Pak flags value not stored, falling back to register detection! This may cause issues if the value is stored in memory instead of a register, or if the value is modified after being stored!");
+
+        switch (s_sha3_reg_index) {
+            case NDR_RAX:
+                pak_flags = (PakFlags)context.rax;
+                SPDLOG_INFO("[IntegrityCheckBypass]: Using RAX for pak_flags");
+                break;
+            case NDR_RCX:
+                pak_flags = (PakFlags)context.rcx;
+                SPDLOG_INFO("[IntegrityCheckBypass]: Using RCX for pak_flags");
+                break;
+            case NDR_RDX:
+                pak_flags = (PakFlags)context.rdx;
+                SPDLOG_INFO("[IntegrityCheckBypass]: Using RDX for pak_flags");
+                break;
+            case NDR_RBX:
+                pak_flags = (PakFlags)context.rbx;
+                SPDLOG_INFO("[IntegrityCheckBypass]: Using RBX for pak_flags");
+                break;
+            case NDR_RSP:
+                pak_flags = (PakFlags)context.rsp;
+                SPDLOG_INFO("[IntegrityCheckBypass]: Using RSP for pak_flags");
+                break;
+            case NDR_RBP:
+                pak_flags = (PakFlags)context.rbp;
+                SPDLOG_INFO("[IntegrityCheckBypass]: Using RBP for pak_flags");
+                break;
+            case NDR_RSI:
+                pak_flags = (PakFlags)context.rsi;
+                SPDLOG_INFO("[IntegrityCheckBypass]: Using RSI for pak_flags");
+                break;
+            case NDR_RDI:
+                pak_flags = (PakFlags)context.rdi;
+                SPDLOG_INFO("[IntegrityCheckBypass]: Using RDI for pak_flags");
+                break;
+            case NDR_R8:
+                pak_flags = (PakFlags)context.r8;
+                SPDLOG_INFO("[IntegrityCheckBypass]: Using R8 for pak_flags");
+                break;
+            case NDR_R9:
+                pak_flags = (PakFlags)context.r9;
+                SPDLOG_INFO("[IntegrityCheckBypass]: Using R9 for pak_flags");
+                break;
+            case NDR_R10:
+                pak_flags = (PakFlags)context.r10;
+                SPDLOG_INFO("[IntegrityCheckBypass]: Using R10 for pak_flags");
+                break;
+            case NDR_R11:
+                pak_flags = (PakFlags)context.r11;
+                SPDLOG_INFO("[IntegrityCheckBypass]: Using R11 for pak_flags");
+                break;
+            case NDR_R12:
+                pak_flags = (PakFlags)context.r12;
+                SPDLOG_INFO("[IntegrityCheckBypass]: Using R12 for pak_flags");
+                break;
+            case NDR_R13:
+                pak_flags = (PakFlags)context.r13;
+                SPDLOG_INFO("[IntegrityCheckBypass]: Using R13 for pak_flags");
+                break;
+            case NDR_R14:
+                pak_flags = (PakFlags)context.r14;
+                SPDLOG_INFO("[IntegrityCheckBypass]: Using R14 for pak_flags");
+                break;
+            case NDR_R15:
+                pak_flags = (PakFlags)context.r15;
+                SPDLOG_INFO("[IntegrityCheckBypass]: Using R15 for pak_flags");
+                break;
+            default:
+                pak_flags = (PakFlags)context.r8; // fallback to R8
+                SPDLOG_INFO("[IntegrityCheckBypass]: Unknown register, falling back to R8 for pak_flags");
+                break;
+        }
     }
 
     if ((pak_flags & PakFlags::ENCRYPTED) != 0) {
@@ -890,7 +921,9 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
 
     std::vector<std::string> possible_patterns = {
         "C5 F8 57 C0 C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? C5 FC 11 44 24 ? 48", 
-        "C5 F8 57 C0 C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? 48 C1 E9 10",  // MHWILDS v1.041
+        "C5 F8 57 C0 C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? 48 C1 ? 10",  // MHWILDS v1.041
+        "C5 F8 57 C0 C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? 48 8B ? ? 00 00 00 48 C1 ? 10",  // MHSTORIES3
+        "48 8B 05 ? ? ? ? 49 33 ? C0 00 00 00 C5 F1 EF C9 C5 F9 EF C0 C5 FC 11 45 ? C5 FC 11 4D ? C5 FC 11 4D ? C5 FC 11 4D ? C5 FC 11 4D ? 48 A9 00 00 F8 FF"  // PRAGMATA
     };
     
     std::optional<uintptr_t> sha3_code_start;
@@ -910,7 +943,17 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
     spdlog::info("[IntegrityCheckBypass]: Found sha3_rsa_code_start @ 0x{:X}", *sha3_code_start);
 
 
-    s_sha3_code_end = utility::scan(game, "48 8B 8E C0 00 00 00 48 C1 E9 ?");
+    std::vector<std::string> possible_end_patterns = {
+        "48 8B 8E C0 00 00 00 48 C1 E9 ?",
+        "48 8B 05 ? ? ? ? 49 33 86 C0 00 00 00 48 A9 00 00 F8 FF 75 ? 49 83 7E 30 FF 74 ? 49 8D 4E 30 45 33 C0 33 D2 C5 F8 77"
+    };
+
+    for (const auto& pattern : possible_end_patterns) {
+        s_sha3_code_end = utility::scan(game, pattern);
+        if (s_sha3_code_end) {
+            break;
+        }
+    }
 
     if (!s_sha3_code_end) {
         spdlog::error("[IntegrityCheckBypass]: Could not find sha3_rsa_code_end, cannot restore unencrypted paks!");
@@ -924,31 +967,74 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
     spdlog::info("[IntegrityCheckBypass]: Created sha3_rsa_code_midhook!");
 
 #if TDB_VER >= 81
-    const auto pak_load_check_start = utility::scan(game, "41 57 41 56 41 55 41 54 56 57 55 53 48 81 EC ? ? ? ? 48 89 CE 48 8B 05 ? ? ? ? 48 31 E0 48 89 84 24 ? ? ? ? 48 8B 81 ? ? ? ? 48 C1 E8 10");
-    
+    // Find function start may
+    auto pak_load_check_start = utility::scan(game, "41 57 41 56 41 55 41 54 56 57 55 53 48 81 EC ? ? ? ? 48 89 CE 48 8B 05 ? ? ? ? 48 31 E0 48 89 84 24 ? ? ? ? 48 8B 81 ? ? ? ? 48 C1 E8 10");
+
+    if (!pak_load_check_start) {
+        pak_load_check_start = utility::find_function_start_unwind(*sha3_code_start);
+    }
+
     if (pak_load_check_start) {
         spdlog::info("[IntegrityCheckBypass]: Found pak_load_check_function @ 0x{:X}, hook!", (uintptr_t)*pak_load_check_start);
         s_pak_load_check_function_hook = safetyhook::create_mid((void*)*pak_load_check_start, &IntegrityCheckBypass::pak_load_check_function);
 
         find_try_hook_via_file_load_win32_create_file(*pak_load_check_start);
+    } else {
+        spdlog::error("[IntegrityCheckBypass]: Could not find pak_load_check_function start!");
     }
 
-    const auto patch_version_start = utility::scan(game, "48 89 ? 24 ? 48 85 FF 0F 84 ? ? ? ? 66 83 3F 72 0F 85 ? ? ? ? 66 BA 72 00");
+    auto patch_version_start = utility::scan(game, "48 89 ? 24 ? 48 85 FF 0F 84 ? ? ? ? 66 83 3F 72 0F 85 ? ? ? ? 66 BA 72 00");
 
     if (patch_version_start) {
         // Before patching, decode the instruction at patch_version_start to find the source register of the MOV instruction
         auto move_instruction = utility::decode_one((std::uint8_t*)*patch_version_start);
-
-        spdlog::info("[IntegrityCheckBypass]: Created patch_version_hook to 0x{:X}, hook!", (uintptr_t)*patch_version_start);
-        s_patch_version_hook = safetyhook::create_mid((void*)*patch_version_start, &IntegrityCheckBypass::patch_version_hook);
 
         // Get the source register of the MOV instruction
         if (move_instruction && move_instruction->Instruction == ND_INS_MOV && move_instruction->Operands[1].Type == ND_OP_REG) {
             s_patch_version_reg_index = move_instruction->Operands[1].Info.Register.Reg;
             spdlog::info("[IntegrityCheckBypass]: patch_version_reg_index set to {}", s_patch_version_reg_index);
         } else {
-            spdlog::error("[IntegrityCheckBypass]: Could not determine patch_version_reg_index! Default to RAX");
+            spdlog::error("[IntegrityCheckBypass]: Could not determine patch_version_reg_index through");
         }
+    }
+
+#if TDB_VER >= 83
+    if (!patch_version_start) {
+        // Method 2
+        const wchar_t *patch_version_string = L"/Environment/Package/PatchVersion:";
+        const wchar_t *re_chunk_string = L"re_chunk_";
+        
+        auto load_patch_func = utility::find_function_with_string_refs(game, patch_version_string, re_chunk_string);
+        if (load_patch_func) {
+            // Find the lea that loads re_chunk string
+            auto where_compare_str = utility::find_string_reference_in_path(*load_patch_func, re_chunk_string, false);
+            if (where_compare_str) {
+                spdlog::info("[IntegrityCheckBypass]: Found reference to re_chunk string at 0x{:X}, assuming this is the start of using patch version", where_compare_str->addr);
+                patch_version_start = where_compare_str->addr;
+
+                auto previous_instructions = utility::get_disassembly_behind(*patch_version_start);
+                
+                // Check if previous instruction is a mov, that should be our register
+                if (!previous_instructions.empty()) {
+                    const auto& previous_instruction = previous_instructions.back();
+
+                    if (previous_instruction.instrux.Instruction == ND_INS_MOV && previous_instruction.instrux.Operands[0].Type == ND_OP_REG && previous_instruction.instrux.Operands[1].Type == ND_OP_REG) {
+                        s_patch_version_reg_index = previous_instruction.instrux.Operands[0].Info.Register.Reg;
+                        spdlog::info("[IntegrityCheckBypass]: patch_version_reg_index set to {} through fallback method", s_patch_version_reg_index);
+                    } else {
+                        spdlog::error("[IntegrityCheckBypass]: Previous instruction is not a MOV with register operand, cannot determine patch_version_reg_index through fallback method!");
+                    }
+                } else {
+                    spdlog::error("[IntegrityCheckBypass]: Could not find previous instructions for patch_version_reg_index fallback method!");
+                }
+            }
+        }
+    }
+#endif
+
+    if (patch_version_start) {
+        spdlog::info("[IntegrityCheckBypass]: Created patch_version_hook to 0x{:X}, hook!", (uintptr_t)*patch_version_start);
+        s_patch_version_hook = safetyhook::create_mid((void*)*patch_version_start, &IntegrityCheckBypass::patch_version_hook);
     }
 #endif
 
@@ -992,6 +1078,17 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
                 spdlog::info("[IntegrityCheckBypass]: Found test instruction at 0x{:X}", insn.addr);
                 // Check if the first operand is a register
                 if (insn.instrux.Operands[0].Type == ND_OP_REG && insn.instrux.Operands[0].Info.Register.Type == ND_REG_GPR) {
+                    // Avoid false positive, check if it ANDs with 0x8 or 0x20 or 0x40, which are the flags for pak encryption and compression
+                    bool is_correct_test = false;
+                    if (insn.instrux.Operands[1].Type == ND_OP_IMM && (insn.instrux.Operands[1].Info.Immediate.Imm == 0x8 || insn.instrux.Operands[1].Info.Immediate.Imm == 0x20 || insn.instrux.Operands[1].Info.Immediate.Imm == 0x40)) {
+                        spdlog::info("[IntegrityCheckBypass]: Found test instruction with correct immediate value, likely the one checking pak flags!");
+                        is_correct_test = true;
+                    } else {
+                        spdlog::warn("[IntegrityCheckBypass]: Found test instruction but with unexpected immediate value 0x{:X}, this may not be the correct instruction!", insn.instrux.Operands[1].Info.Immediate.Imm);
+                    }
+                    if (!is_correct_test) {
+                        continue;
+                    }
                     s_sha3_reg_index = insn.instrux.Operands[0].Info.Register.Reg;
                     spdlog::info("[IntegrityCheckBypass]: sha3_reg_index set to {}", s_sha3_reg_index);
                     break;
@@ -1003,6 +1100,26 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
 
         if (s_sha3_reg_index == -1) {
             spdlog::error("[IntegrityCheckBypass]: Could not determine sha3_reg_index!");
+
+#if TDB_VER >= 83
+            // A safe way is to store the flags value by ourself, because sometimes the compiled code stores it in stack only
+            spdlog::info("[IntegrityCheckBypass]: Attempting to do a safe fallback to get the pak_flags");
+            
+            for (auto &insn: previous_instructions_start) {
+                if (insn.instrux.Instruction == ND_INS_TEST && insn.instrux.Operands[1].Type == ND_OP_IMM) {
+                    auto imm_value = insn.instrux.Operands[1].Info.Immediate.Imm;
+
+                    if (imm_value == 0x40 || imm_value == 0x20 || imm_value == 0x4) {
+                        // Hook at this address
+                        s_patch_store_flags_hook = safetyhook::create_mid((void*)insn.addr, &IntegrityCheckBypass::pak_store_flags_hook);
+                        s_pak_load_check_insn = insn.instrux;
+
+                        spdlog::info("[IntegrityCheckBypass]: Created pak_store_flags_hook at 0x{:X} to store pak_flags for fallback!", insn.addr);
+                        break;
+                    }
+                }
+            }
+#endif
         }
     }
 }
@@ -1945,7 +2062,7 @@ static utility::ExhaustionResult do_exhaustion_scan_create_file_refs(utility::Ex
 void IntegrityCheckBypass::find_try_hook_via_file_load_win32_create_file(uintptr_t pak_load_func_addr) {
 #if ENABLE_PAK_DIRECTORY_LOAD
     // Find the first call instruction, thats our opening PAK file function
-    const int INSTRUCTION_SEARCH_COUNT = 60;
+    const int INSTRUCTION_SEARCH_COUNT = 240;
 
     uint8_t *open_stream_func_addr = 0;
     uint8_t *search_current = (uint8_t*)pak_load_func_addr;
@@ -1957,9 +2074,20 @@ void IntegrityCheckBypass::find_try_hook_via_file_load_win32_create_file(uintptr
         }
 
         if (instr->Instruction == ND_INS_CALLNR) {
-            if (auto resolved_opt = utility::resolve_displacement((uintptr_t)search_current)) {
-                open_stream_func_addr = (uint8_t*)*resolved_opt;
-                break;
+            // Is next instruction testing if the result is zero/non-zero? If so, this is likely the call that opens the file stream, since it checks if the handle is valid.
+            auto next_instr = utility::decode_one(search_current + instr->Length);
+            if (next_instr && next_instr->Instruction == ND_INS_TEST) {
+                if (next_instr->Operands[0].Type == ND_OP_REG && next_instr->Operands[0].Info.Register.Reg == NDR_RAX
+                    && next_instr->Operands[1].Type == ND_OP_REG && next_instr->Operands[1].Info.Register.Reg == NDR_RAX) {
+                    spdlog::info("[IntegrityCheckBypass]: Found call to stream open function at 0x{:X}!", (uintptr_t)search_current);
+ 
+                    if (auto resolved_opt = utility::resolve_displacement((uintptr_t)search_current)) {
+                        open_stream_func_addr = (uint8_t*)*resolved_opt;
+                        break;
+                    }
+                } else {
+                    continue;
+                }
             }
         }
 
@@ -1992,8 +2120,20 @@ void IntegrityCheckBypass::find_try_hook_via_file_load_win32_create_file(uintptr
         }
     }
 
-    const char *direct_storage_open_pak_pattern = "48 8D 56 08 48 8D 7C 24 ? 48 C7 07 00 00 00 00 48 8B 0D ? ? ? ? 48 8B 01 4C 8D 05 ? ? ? ? 49 89 F9 FF 50 20 48 8B 0F 85 C0";
-    auto direct_storage_open_pak_func_addr = utility::scan(utility::get_executable(), direct_storage_open_pak_pattern);
+    const char *direct_storage_open_pak_pattern[] = {
+        "48 8D 56 08 48 8D 7C 24 ? 48 C7 07 00 00 00 00 48 8B 0D ? ? ? ? 48 8B 01 4C 8D 05 ? ? ? ? 49 89 F9 FF 50 20 48 8B 0F 85 C0", // MHWILDS v1041/MHSTORIES3
+        "48 8D 56 08 48 8B 01 4C 8D 4D ? 4C 8D 05 ? ? ? ? FF 50 20 85 C0"   // Pragmata
+    };
+
+    std::optional<uintptr_t> direct_storage_open_pak_func_addr;
+
+    for (const auto& pattern : direct_storage_open_pak_pattern) {
+        auto addr = utility::scan(utility::get_executable(), pattern);
+        if (addr) {
+            direct_storage_open_pak_func_addr = addr;
+            break;
+        }
+    }
 
     if (!direct_storage_open_pak_func_addr) {
         spdlog::error("[IntegrityCheckBypass]: Could not find DirectStorage pak open block!");
