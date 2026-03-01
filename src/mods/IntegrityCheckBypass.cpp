@@ -829,8 +829,6 @@ void IntegrityCheckBypass::sha3_rsa_code_midhook(safetyhook::Context& context) {
         pak_flags = static_cast<PakFlags>(*s_pak_flags_value);
         spdlog::info("[IntegrityCheckBypass]: Using stored pak flags value: 0x{:X}", *s_pak_flags_value);
     } else {
-        spdlog::info("[IntegrityCheckBypass]: Pak flags value not stored, falling back to register detection! This may cause issues if the value is stored in memory instead of a register, or if the value is modified after being stored!");
-
         switch (s_sha3_reg_index) {
             case NDR_RAX:
                 pak_flags = (PakFlags)context.rax;
@@ -942,10 +940,10 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
     
     spdlog::info("[IntegrityCheckBypass]: Found sha3_rsa_code_start @ 0x{:X}", *sha3_code_start);
 
-
     std::vector<std::string> possible_end_patterns = {
         "48 8B 8E C0 00 00 00 48 C1 E9 ?",
-        "48 8B 05 ? ? ? ? 49 33 86 C0 00 00 00 48 A9 00 00 F8 FF 75 ? 49 83 7E 30 FF 74 ? 49 8D 4E 30 45 33 C0 33 D2 C5 F8 77"
+        "48 8B ? C0 00 00 00 48 C1 ? 10 4C 21 ? 48 8B 0D ? ? ? ? 48 C1 ? 10 4C 21 ? 48 39 ? 75 ? 48 83 ? 30 FF 74 ? 31 ? 4C 89 ? 31 ? 45 31 ? C5 F8 77", // MHSTORIES3, hope its the last thing that is like this
+        "48 8B 05 ? ? ? ? 49 33 86 C0 00 00 00 48 A9 00 00 F8 FF 75 ? 49 83 7E 30 FF 74 ? 49 8D 4E 30 45 33 C0 33 D2 C5 F8 77",   // PRAGMATA
     };
 
     for (const auto& pattern : possible_end_patterns) {
@@ -998,7 +996,7 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
         }
     }
 
-#if TDB_VER >= 83
+#if TDB_VER >= 82
     if (!patch_version_start) {
         // Method 2
         const wchar_t *patch_version_string = L"/Environment/Package/PatchVersion:";
@@ -1016,13 +1014,17 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
                 
                 // Check if previous instruction is a mov, that should be our register
                 if (!previous_instructions.empty()) {
-                    const auto& previous_instruction = previous_instructions.back();
+                    for (auto insn_begin = previous_instructions.rbegin(); insn_begin != previous_instructions.rend(); ++insn_begin) {
+                        auto previous_instruction = *insn_begin;
 
-                    if (previous_instruction.instrux.Instruction == ND_INS_MOV && previous_instruction.instrux.Operands[0].Type == ND_OP_REG && previous_instruction.instrux.Operands[1].Type == ND_OP_REG) {
-                        s_patch_version_reg_index = previous_instruction.instrux.Operands[0].Info.Register.Reg;
-                        spdlog::info("[IntegrityCheckBypass]: patch_version_reg_index set to {} through fallback method", s_patch_version_reg_index);
-                    } else {
-                        spdlog::error("[IntegrityCheckBypass]: Previous instruction is not a MOV with register operand, cannot determine patch_version_reg_index through fallback method!");
+                        if ((previous_instruction.instrux.Instruction == ND_INS_MOV || previous_instruction.instrux.Instruction == ND_INS_MOVZX) && previous_instruction.instrux.Operands[0].Type == ND_OP_REG) {
+                            s_patch_version_reg_index = previous_instruction.instrux.Operands[0].Info.Register.Reg;
+                            spdlog::info("[IntegrityCheckBypass]: patch_version_reg_index set to {} through fallback method", s_patch_version_reg_index);
+
+                            break;
+                        } else {
+                            spdlog::error("[IntegrityCheckBypass]: Previous instruction is not a MOV or MOVZX with register operand, cannot determine patch_version_reg_index through fallback method!");
+                        }
                     }
                 } else {
                     spdlog::error("[IntegrityCheckBypass]: Could not find previous instructions for patch_version_reg_index fallback method!");
