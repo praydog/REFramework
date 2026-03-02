@@ -366,12 +366,15 @@ void* REField::get_data_raw(void* object, bool is_value_type) const {
         // ancestor's vtable with a WRONG fieldptr_offset. The object's
         // vtable always has the correct value — this matches what the
         // .NET runtime does in RuntimeFieldInfo.GetValue.
-        if (object != nullptr) {
+        if (object != nullptr) try {
             const auto vtable_ptr = *(uintptr_t*)object;
             if (vtable_ptr != 0) {
                 const auto fieldptr_offset = *(int32_t*)(vtable_ptr - sizeof(void*));
                 return Address{object}.get(fieldptr_offset + this->get_offset_from_fieldptr());
             }
+        } catch (...) {
+            // Occurs if consumer passes some bad object in. Need to look into this more.
+            return nullptr;
         }
 #endif
 
