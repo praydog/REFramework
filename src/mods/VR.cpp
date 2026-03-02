@@ -2397,6 +2397,12 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
             return false;
 #endif
 
+#if defined(RE9)
+        case "Gui_ui0440"_fnv: // Black bars in cutscenes
+            game_object->shouldDraw = false;
+            return false;
+#endif
+
 #if TDB_VER >= 73
         case "ui0199"_fnv: // weird black bars in Kunitsu-Gami
             return false;
