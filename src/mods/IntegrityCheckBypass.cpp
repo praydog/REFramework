@@ -921,7 +921,8 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
         "C5 F8 57 C0 C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? C5 FC 11 44 24 ? 48", 
         "C5 F8 57 C0 C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? 48 C1 ? 10",  // MHWILDS v1.041
         "C5 F8 57 C0 C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? C5 FC 11 84 24 ? ? ? ? 48 8B ? ? 00 00 00 48 C1 ? 10",  // MHSTORIES3
-        "48 8B 05 ? ? ? ? 49 33 ? C0 00 00 00 C5 F1 EF C9 C5 F9 EF C0 C5 FC 11 45 ? C5 FC 11 4D ? C5 FC 11 4D ? C5 FC 11 4D ? C5 FC 11 4D ? 48 A9 00 00 F8 FF"  // PRAGMATA
+        "48 8B 05 ? ? ? ? 49 33 ? C0 00 00 00 C5 F1 EF C9 C5 F9 EF C0 C5 FC 11 45 ? C5 FC 11 4D ? C5 FC 11 4D ? C5 FC 11 4D ? C5 FC 11 4D ? 48 A9 00 00 F8 FF",  // PRAGMATA
+        "C5 F8 57 C0 C5 FC 11 45 ? C5 FC 11 45 ? C5 FC 11 45 ? C5 FC 11 45 ? C5 FC 11 45 ? 48 C1 E9 10" // RE9 v1.0.0.0
     };
     
     std::optional<uintptr_t> sha3_code_start;
