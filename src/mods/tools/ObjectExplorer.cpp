@@ -1228,6 +1228,10 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
         type_entry["is_generic_type"] = t.is_generic_type();
         type_entry["is_generic_type_definition"] = t.is_generic_type_definition();
 
+        if (auto declaring_type = t.get_declaring_type(); declaring_type != nullptr) {
+            type_entry["declaring_type"] = declaring_type->get_full_name();
+        }
+
 #if TDB_VER >= 71
         if (tdef->element_typeid_TBD != 0) {
             type_entry["element_type_name"] = init_type(il2cpp_dump, tdb, tdef->element_typeid_TBD)->full_name;
@@ -5284,15 +5288,15 @@ HookManager::PreHookResult ObjectExplorer::pre_hooked_method_internal(std::vecto
                 added = true;
             };
 
-            if (method_entry != nullptr) {
+            if (method_entry) {
                 const auto module_addr = (uintptr_t)utility::get_module_within(ret_addr).value_or(nullptr);
                 const auto ret_addr_rva = (uint32_t)(ret_addr - module_addr);
                 const auto ret_addr_entry = utility::find_function_entry(ret_addr);
 
                 // First condition isn't as heavy as fully disassembling the function which is the second condition
-                if (ret_addr_entry == method_entry ||
+                if ((ret_addr_entry && ret_addr_entry->BeginAddress == method_entry->BeginAddress && ret_addr_entry->EndAddress == method_entry->EndAddress) ||
                     (ret_addr_rva >= method_entry->BeginAddress && ret_addr_rva <= method_entry->EndAddress) ||
-                    (ret_addr_entry != nullptr && ret_addr_entry->BeginAddress >= method_entry->BeginAddress && ret_addr_entry->BeginAddress <= method_entry->EndAddress + 1))
+                    (ret_addr_entry && ret_addr_entry->BeginAddress >= method_entry->BeginAddress && ret_addr_entry->BeginAddress <= method_entry->EndAddress + 1))
                 {
                     add_method();
                 } else {

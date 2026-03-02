@@ -10,6 +10,8 @@
 #include "ReClass_Internal_DMC5.hpp"
 #elif defined(PRAGMATA)
 #include "ReClass_Internal_PRAGMATA.hpp"
+#elif defined(RE9)
+#include "ReClass_Internal_RE9.hpp"
 #elif defined(MHWILDS)
 #include "ReClass_Internal_MHWILDS.hpp" // Copy of DD2 (for now)
 #elif defined(MHSTORIES3)

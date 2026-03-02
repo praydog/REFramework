@@ -3,11 +3,49 @@ on: [push, workflow_dispatch]
 env:
   BUILD_TYPE: Release
 jobs:
+  csharp-release:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        target: [csharp-api]
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c
+        with:
+          python-version: "3.12"
+
+      - name: Checkout
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+        
+      - name: Configure CMake
+        run: cmake -S ${{github.workspace}}/csharp-api -B ${{github.workspace}}/csharp-api/build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+
+      - name: Build
+        run: cmake --build ${{github.workspace}}/csharp-api/build --config ${{env.BUILD_TYPE}} --target ALL_BUILD
+      
+      - name: Prepare release
+        working-directory: ${{github.workspace}}/csharp-api
+        run: |
+          pip install -r requirements.txt
+          python make_symlinks.py --gamedir="${{github.workspace}}/csharp-api" --bindir="${{github.workspace}}/csharp-api/build/bin" --just_copy=True --skip_test_scripts=True
+
+      - name: Compress release
+        working-directory: ${{github.workspace}}/csharp-api
+        run: |
+          7z a ${{github.workspace}}/${{matrix.target}}.zip reframework
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3
+        with:
+          name: ${{matrix.target}}
+          path: ${{github.workspace}}/${{matrix.target}}.zip
+          if-no-files-found: error
+
   dev-release:
     runs-on: windows-latest
     strategy:
       matrix:
-        target: [RE2, RE2_TDB66, RE3, RE3_TDB67, RE4, RE7, RE7_TDB49, RE8, DMC5, MHRISE, SF6, DD2, MHWILDS, PRAGMATA]
+        target: [RE2, RE2_TDB66, RE3, RE3_TDB67, RE4, RE7, RE7_TDB49, RE8, RE9, DMC5, MHRISE, SF6, DD2, MHWILDS, PRAGMATA, MHSTORIES3]
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -43,7 +81,7 @@ jobs:
     
   nightly-push:
     runs-on: windows-latest
-    needs: dev-release
+    needs: [dev-release, csharp-release]
     if: github.ref == 'refs/heads/master'
     steps:
       - name: Checkout

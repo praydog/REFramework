@@ -30,6 +30,8 @@ Application::Function* Application::get_functions() {
         const auto mod_size = utility::get_module_size(mod);
         const auto mod_end = (uintptr_t)mod + *mod_size - 0x100;
 
+        // Fall back to full heuristic analysis on newer versions of the engine.
+#if TDB_VER < 81
         // For MHRise (game pass only? or TU4)
         for (auto ref = utility::scan(mod, "89 81 ? ? ? ? 48 8B ? 48 81 C1 ? ? ? ?");
             ref;
@@ -105,7 +107,9 @@ Application::Function* Application::get_functions() {
 
             spdlog::info("Skipping invalid Application::functions offset: {:x}", candidate);
         }
+#endif
 
+        // Heuristic structure analyis.
         bool found_wait_rendering = false;
         bool found_begin_rendering = false;
         bool found_end_rendering = false;
