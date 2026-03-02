@@ -1022,11 +1022,7 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
 
 #if TDB_VER >= 81
     // Find function start may
-    auto pak_load_check_start = utility::scan(game, "41 57 41 56 41 55 41 54 56 57 55 53 48 81 EC ? ? ? ? 48 89 CE 48 8B 05 ? ? ? ? 48 31 E0 48 89 84 24 ? ? ? ? 48 8B 81 ? ? ? ? 48 C1 E8 10");
-
-    if (!pak_load_check_start) {
-        pak_load_check_start = utility::find_function_start_unwind(*sha3_code_start);
-    }
+    auto pak_load_check_start = utility::find_function_start_unwind(*pak_load_fn);
 
     if (pak_load_check_start) {
         spdlog::info("[IntegrityCheckBypass]: Found pak_load_check_function @ 0x{:X}, hook!", (uintptr_t)*pak_load_check_start);
@@ -1066,29 +1062,40 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
                 spdlog::info("[IntegrityCheckBypass]: Found reference to re_chunk string at 0x{:X}, assuming this is the start of using patch version", where_compare_str->addr);
                 patch_version_start = where_compare_str->addr;
 
-                auto previous_instructions = utility::get_disassembly_behind(*patch_version_start);
-                
-                // Check if previous instruction is a mov, that should be our register
-                if (!previous_instructions.empty()) {
-#if defined(RE9)
-                    s_patch_version_reg_index = NDR_RDI; // RE9 v1.0.0.0
-                    spdlog::info("[IntegrityCheckBypass]: patch_version_reg_index set to {} based on RE9 knowledge", s_patch_version_reg_index);
-#else
-                    for (auto insn_begin = previous_instructions.rbegin(); insn_begin != previous_instructions.rend(); ++insn_begin) {
-                        auto previous_instruction = *insn_begin;
+                // No reliable way to detect the patch version register, rather then finding the last loop point of the function
+                auto bounds = utility::determine_function_bounds(*load_patch_func);
+                if (bounds) {
+                    auto blocks = utility::collect_linear_blocks(bounds->start, bounds->end);
+                    for (auto rite = blocks.rbegin(); rite != blocks.rend(); ++rite) {
+                        auto& block = *rite;
 
-                        if ((previous_instruction.instrux.Instruction == ND_INS_MOV || previous_instruction.instrux.Instruction == ND_INS_MOVZX) && previous_instruction.instrux.Operands[0].Type == ND_OP_REG) {
-                            s_patch_version_reg_index = previous_instruction.instrux.Operands[0].Info.Register.Reg;
-                            spdlog::info("[IntegrityCheckBypass]: patch_version_reg_index set to {} through fallback method", s_patch_version_reg_index);
+                        auto first_instruction = utility::decode_one((uint8_t*)block.start);
+                        auto second_instruction = first_instruction ? utility::decode_one((uint8_t*)(block.start + first_instruction->Length)) : std::nullopt;
 
-                            break;
-                        } else {
-                            spdlog::error("[IntegrityCheckBypass]: Previous instruction is not a MOV or MOVZX with register operand, cannot determine patch_version_reg_index through fallback method!");
+                        if (!first_instruction || !second_instruction) {
+                            continue;
+                        }
+
+                        if (first_instruction->Instruction == ND_INS_INC && second_instruction->Instruction == ND_INS_CMP
+                            && first_instruction->Operands[0].Type == ND_OP_REG && second_instruction->Operands[0].Type == ND_OP_REG
+                            && second_instruction->Operands[1].Type == ND_OP_REG) {
+                            spdlog::info("[IntegrityCheckBypass]: Found loop at 0x{:X}, assuming patch version check loops back here", block.start);
+
+
+                            // Get the register being compared in the CMP instruction
+                            auto inc_register = first_instruction->Operands[0].Info.Register.Reg;
+                            auto cmp_op0_register = second_instruction->Operands[0].Info.Register.Reg;
+                            auto cmp_op1_register = second_instruction->Operands[1].Info.Register.Reg;
+
+                            if (inc_register == cmp_op0_register) {
+                                s_patch_version_reg_index = cmp_op1_register;
+                            } else {
+                                s_patch_version_reg_index = cmp_op0_register;
+                            }
+
+                            spdlog::info("[IntegrityCheckBypass]: patch_version_reg_index set to {} (fallback method)", s_patch_version_reg_index);
                         }
                     }
-#endif
-                } else {
-                    spdlog::error("[IntegrityCheckBypass]: Could not find previous instructions for patch_version_reg_index fallback method!");
                 }
             }
         }
@@ -2125,48 +2132,35 @@ static utility::ExhaustionResult do_exhaustion_scan_create_file_refs(utility::Ex
 void IntegrityCheckBypass::find_try_hook_via_file_load_win32_create_file(uintptr_t pak_load_func_addr) {
 #if ENABLE_PAK_DIRECTORY_LOAD
     // Find the first call instruction, thats our opening PAK file function
-    const int INSTRUCTION_SEARCH_COUNT = 240;
+    const int INSTRUCTION_SEARCH_COUNT = 520;
 
     uint8_t *open_stream_func_addr = 0;
     uint8_t *search_current = (uint8_t*)pak_load_func_addr;
 
-    for (int i = 0; i < INSTRUCTION_SEARCH_COUNT; i++) {
-        auto instr = utility::decode_one(search_current);
-        if (!instr) {
-            continue;
-        }
+    uintptr_t last_call = 0;
 
-#if defined(RE9) // Super ultra dirty hack (TM) for RE9 v1.0.0.0
-        if (instr->Instruction == ND_INS_CALLNR) {
-            spdlog::info("[IntegrityCheckBypass]: Found call to stream open function at 0x{:X}!", (uintptr_t)search_current);
-
-            if (auto resolved_opt = utility::resolve_displacement((uintptr_t)search_current)) {
-                open_stream_func_addr = (uint8_t*)*resolved_opt;
-                break;
+    // The only clear indication of this function for now is that it is the first call function that checks its boolean result
+    utility::linear_decode(search_current, INSTRUCTION_SEARCH_COUNT, [&](utility::ExhaustionContext& ctx) -> bool {
+        auto &instr = ctx.instrux;
+        if (instr.Instruction == ND_INS_CALLNR) {
+            auto displacement_result = utility::resolve_displacement(ctx.addr);
+            if (displacement_result) {
+                last_call = *displacement_result;
             }
         }
-#else
-        if (instr->Instruction == ND_INS_CALLNR) {
-            // Is next instruction testing if the result is zero/non-zero? If so, this is likely the call that opens the file stream, since it checks if the handle is valid.
-            auto next_instr = utility::decode_one(search_current + instr->Length);
-            if (next_instr && next_instr->Instruction == ND_INS_TEST) {
-                if (next_instr->Operands[0].Type == ND_OP_REG && next_instr->Operands[0].Info.Register.Reg == NDR_RAX
-                    && next_instr->Operands[1].Type == ND_OP_REG && next_instr->Operands[1].Info.Register.Reg == NDR_RAX) {
-                    spdlog::info("[IntegrityCheckBypass]: Found call to stream open function at 0x{:X}!", (uintptr_t)search_current);
- 
-                    if (auto resolved_opt = utility::resolve_displacement((uintptr_t)search_current)) {
-                        open_stream_func_addr = (uint8_t*)*resolved_opt;
-                        break;
-                    }
-                } else {
-                    continue;
-                }
+
+        // Is next instruction testing if the result is zero/non-zero? If so, this is likely the call that opens the file stream, since it checks if the handle is valid.
+        if (instr.Instruction == ND_INS_TEST) {
+            if (instr.Operands[0].Type == ND_OP_REG && instr.Operands[0].Info.Register.Reg == NDR_RAX
+                && instr.Operands[1].Type == ND_OP_REG && instr.Operands[1].Info.Register.Reg == NDR_RAX) {
+                spdlog::info("[IntegrityCheckBypass]: Found call to stream open function at 0x{:X}!", (uintptr_t)last_call);
+                open_stream_func_addr = (uint8_t*)last_call;
+                return false;
             }
         }
-#endif
 
-        search_current += instr->Length;
-    }
+        return true;
+    });
 
     if (open_stream_func_addr == nullptr) {
         spdlog::error("[IntegrityCheckBypass]: Could not find call to stream open function!");
