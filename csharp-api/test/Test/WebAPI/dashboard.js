@@ -82,6 +82,70 @@ async function updatePlayer() {
     setDot('player-card', !d.error);
     if (d.error) { el.innerHTML = `<span class='error-msg'>${d.error}</span>`; return; }
 
+    // Detect RE9 vs MHWilds by checking for characterId field
+    if (d.characterId !== undefined) {
+      updatePlayerRE9(d, el);
+    } else {
+      updatePlayerMHWilds(d, el);
+    }
+  } catch(e) {
+    setDot('player-card', false);
+    document.getElementById('player-content').innerHTML = `<span class='error-msg'>${e.message}</span>`;
+  }
+}
+
+function updatePlayerRE9(d, el) {
+  if (d.maxHealth > 0) lastKnownMaxHealth = d.maxHealth;
+
+  const slider = document.getElementById('hp-slider');
+  if (!slider) {
+    const statusBadges = [];
+    if (d.isInSafeRoom) statusBadges.push("<span class='badge badge-safe'>Safe Room</span>");
+    if (d.isDead) statusBadges.push("<span class='badge badge-dead'>Dead</span>");
+    if (d.invincible) statusBadges.push("<span class='badge badge-invincible'>Invincible</span>");
+    if (d.isGameOver) statusBadges.push("<span class='badge badge-dead'>Game Over</span>");
+
+    el.innerHTML =
+      row('Character', d.characterName || d.characterId || '?', 'highlight') +
+      (statusBadges.length ? `<div class='status-badges'>${statusBadges.join(' ')}</div>` : '') +
+      `<div class='hp-bar-bg'>
+        <div class='hp-bar' id='hp-bar-fill'><span id='hp-bar-label'></span></div>
+      </div>
+      <input type='range' id='hp-slider' class='hp-slider' min='0' max='${d.maxHealth || 100}' step='1' value='${d.health || 0}'>` +
+      row('Position', `${fmt(d.position.x)}, ${fmt(d.position.y)}, ${fmt(d.position.z)}`);
+
+    const newSlider = document.getElementById('hp-slider');
+    newSlider.addEventListener('input', onHealthSliderInput);
+    newSlider.addEventListener('pointerdown', onHealthSliderDown);
+    newSlider.addEventListener('pointerup', onHealthSliderUp);
+  } else {
+    if (d.maxHealth && parseFloat(slider.max) !== d.maxHealth) slider.max = d.maxHealth;
+    if (!isDraggingHealth) slider.value = d.health;
+
+    // Update status badges
+    const badgesEl = el.querySelector('.status-badges');
+    if (badgesEl) {
+      const statusBadges = [];
+      if (d.isInSafeRoom) statusBadges.push("<span class='badge badge-safe'>Safe Room</span>");
+      if (d.isDead) statusBadges.push("<span class='badge badge-dead'>Dead</span>");
+      if (d.invincible) statusBadges.push("<span class='badge badge-invincible'>Invincible</span>");
+      if (d.isGameOver) statusBadges.push("<span class='badge badge-dead'>Game Over</span>");
+      badgesEl.innerHTML = statusBadges.join(' ');
+    }
+
+    const rows = el.querySelectorAll('.row');
+    for (const r of rows) {
+      const lbl = r.querySelector('.label')?.textContent;
+      const val = r.querySelector('.value');
+      if (!val) continue;
+      if (lbl === 'Position') val.textContent = `${fmt(d.position.x)}, ${fmt(d.position.y)}, ${fmt(d.position.z)}`;
+    }
+  }
+
+  if (!isDraggingHealth) updateHealthBar(d.health, d.maxHealth);
+}
+
+function updatePlayerMHWilds(d, el) {
     if (d.maxHealth > 0) lastKnownMaxHealth = d.maxHealth;
 
     // Build health slider row — only rebuild DOM if slider doesn't exist yet
@@ -138,10 +202,6 @@ async function updatePlayer() {
     if (!isDraggingHealth) {
       updateHealthBar(d.health, d.maxHealth);
     }
-  } catch(e) {
-    setDot('player-card', false);
-    document.getElementById('player-content').innerHTML = `<span class='error-msg'>${e.message}</span>`;
-  }
 }
 
 async function updateCamera() {
@@ -679,6 +739,185 @@ async function updatePalico() {
   }
 }
 
+// ── Enemies (RE9) ───────────────────────────────────────────────────
+
+async function updateEnemies() {
+  try {
+    const d = await fetchJson('/api/enemies');
+    const el = document.getElementById('enemies-content');
+    setDot('enemies-card', !d.error);
+    if (d.error) { el.innerHTML = `<span class='error-msg'>${d.error}</span>`; return; }
+
+    document.getElementById('enemies-count').textContent = `(${d.count})`;
+
+    if (!d.enemies || d.enemies.length === 0) {
+      el.innerHTML = d.isPlayerInSafeRoom
+        ? `<span class='error-msg'>Safe room &mdash; no enemies</span>`
+        : `<span class='error-msg'>No active enemies</span>`;
+      return;
+    }
+
+    el.innerHTML = d.enemies.map(e => {
+      const pct = e.maxHealth > 0 ? e.health / e.maxHealth : 0;
+      const color = hpColor(pct);
+      const dead = e.isDead ? " <span class='badge badge-dead'>Dead</span>" : '';
+      const elite = e.isElite ? " <span class='badge badge-elite'>Elite</span>" : '';
+      const hpText = e.health != null ? `${e.health} / ${e.maxHealth}` : '?';
+
+      return `<div class='enemy-row'>
+        <div class='enemy-header'>
+          <span class='enemy-name'>${e.kindId || '?'}${elite}${dead}</span>
+          <span class='enemy-hp-text'>${hpText}</span>
+        </div>
+        <div class='hp-bar-bg hp-bar-sm'>
+          <div class='hp-bar' style='width:${(pct * 100).toFixed(0)}%;background:${color}'></div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    setDot('enemies-card', false);
+    document.getElementById('enemies-content').innerHTML = `<span class='error-msg'>${e.message}</span>`;
+  }
+}
+
+// ── Game Info ────────────────────────────────────────────────────────
+
+const weaponCategoryIcons = {
+  Handgun: '🔫', Shotgun: '💥', Rifle: '🎯', MachineGun: '🔫',
+  RocketLauncher: '🚀', Knife: '🔪', Axe: '🪓', Chainsaw: '⛓️',
+  PoisonPump: '☠️', Throwing: '💣'
+};
+
+function formatDifficulty(id) {
+  if (!id) return '?';
+  // e.g. "ID0010" → "Easy", "ID0020" → "Normal", "ID0030" → "Hard"
+  const map = { ID0010: 'Assisted', ID0020: 'Standard', ID0030: 'Hardcore' };
+  return map[id] || id;
+}
+
+async function updateGameInfo() {
+  try {
+    const d = await fetchJson('/api/gameinfo');
+    const el = document.getElementById('gameinfo-content');
+    setDot('gameinfo-card', !d.error);
+    if (d.error) { el.innerHTML = `<span class='error-msg'>${d.error}</span>`; return; }
+
+    let html = '';
+
+    // Chapter / Progress
+    if (d.chapter) {
+      html += row('Chapter', d.chapter, 'highlight');
+    }
+    if (d.progressNo != null) {
+      html += row('Progress #', d.progressNo);
+    }
+
+    // Difficulty
+    if (d.difficulty) {
+      html += row('Difficulty', formatDifficulty(d.difficulty));
+    }
+
+    // Adaptive Rank
+    if (d.rank != null) {
+      const rankPct = d.rankMax > 0 ? (d.rank / d.rankMax * 100).toFixed(0) : 0;
+      html += `<div style='margin-top:8px;padding-top:8px;border-top:1px solid #21262d'>`;
+      html += row('Adaptive Rank', `${d.rank} / ${d.rankMax}`);
+      html += `<div class='hp-bar-bg'><div class='hp-bar' style='width:${rankPct}%;background:#a371f7'></div></div>`;
+      if (d.enemyDamageFactor != null) {
+        html += `<div class='equip-stats' style='margin-top:6px'>`;
+        html += `<div class='equip-stat'><span class='equip-stat-label'>Enemy DMG</span><span class='equip-stat-val'>${fmt(d.enemyDamageFactor, 2)}x</span></div>`;
+        html += `<div class='equip-stat'><span class='equip-stat-label'>Player DMG</span><span class='equip-stat-val'>${fmt(d.playerDamageFactor, 2)}x</span></div>`;
+        html += `<div class='equip-stat'><span class='equip-stat-label'>Enemy Move</span><span class='equip-stat-val'>${fmt(d.enemyMoveFactor, 2)}x</span></div>`;
+        html += `<div class='equip-stat'><span class='equip-stat-label'>Wince</span><span class='equip-stat-val'>${fmt(d.enemyWinceFactor, 2)}x</span></div>`;
+        html += `</div>`;
+      }
+      html += `</div>`;
+    }
+
+    // Play time
+    if (d.playTimeSeconds != null) {
+      html += row('Play Time', formatPlayTime(d.playTimeSeconds));
+    }
+
+    // Scene info
+    if (d.isMainGame != null) {
+      html += row('In Main Game', d.isMainGame ? 'Yes' : 'No');
+    }
+
+    // Clear data
+    if (d.newGameStarts != null || d.totalClears != null) {
+      html += `<div style='margin-top:8px;padding-top:8px;border-top:1px solid #21262d'>`;
+      if (d.totalClears != null) html += row('Clears', d.totalClears);
+      if (d.newGameStarts != null) html += row('New Games', d.newGameStarts);
+      html += `</div>`;
+    }
+
+    // Collectibles
+    if (d.collectibles) {
+      const c = d.collectibles;
+      html += `<div style='margin-top:8px;padding-top:8px;border-top:1px solid #21262d'>`;
+      html += `<div style='color:#8b949e;font-size:0.8em;margin-bottom:6px'>Collectibles</div>`;
+      for (const [label, data] of [['Safes', c.safes], ['Containers', c.containers], ['Fragile Symbols', c.fragileSymbols]]) {
+        if (!data) continue;
+        const pct = data.max > 0 ? (data.found / data.max * 100).toFixed(0) : 0;
+        const done = data.found >= data.max;
+        html += `<div style='margin-bottom:4px'>
+          <div style='display:flex;justify-content:space-between;font-size:0.85em'>
+            <span>${label}</span>
+            <span style='color:${done ? '#3fb950' : '#c9d1d9'}'>${data.found} / ${data.max}</span>
+          </div>
+          <div class='hp-bar-bg hp-bar-sm'><div class='hp-bar' style='width:${pct}%;background:${done ? '#3fb950' : '#58a6ff'}'></div></div>
+        </div>`;
+      }
+      html += `</div>`;
+    }
+
+    // Weapon & Combat state
+    if (d.weapon || d.combat) {
+      html += `<div style='margin-top:8px;padding-top:8px;border-top:1px solid #21262d'>`;
+      if (d.weapon) {
+        const wName = d.weaponName && d.weaponName !== d.weapon ? `${d.weaponName} (${d.weapon})` : d.weapon;
+        html += row('Weapon', wName, 'highlight');
+      }
+      if (d.fearLevel != null) {
+        const fearPct = (d.fearLevel * 100).toFixed(0);
+        const fearColor = d.fearLevel > 0.6 ? '#f85149' : d.fearLevel > 0.3 ? '#d29922' : '#3fb950';
+        html += `<div style='margin-top:4px'>
+          <div style='display:flex;justify-content:space-between;font-size:0.85em'>
+            <span>Fear Level</span>
+            <span style='color:${fearColor}'>${fearPct}%</span>
+          </div>
+          <div class='hp-bar-bg hp-bar-sm'><div class='hp-bar' style='width:${fearPct}%;background:${fearColor}'></div></div>
+        </div>`;
+      }
+      if (d.combat) {
+        const badges = [];
+        if (d.combat.isHolding) badges.push('Holding');
+        if (d.combat.isShooting) badges.push('Shooting');
+        if (d.combat.isReloading) badges.push('Reloading');
+        if (d.combat.isMeleeAttack) badges.push('Melee');
+        if (d.combat.isCrouch) badges.push('Crouching');
+        if (d.combat.isRun) badges.push('Running');
+        if (d.combat.isIdle) badges.push('Idle');
+        if (badges.length > 0) {
+          html += `<div class='status-badges' style='margin-top:6px'>${badges.map(b => `<span class='badge badge-safe'>${b}</span>`).join(' ')}</div>`;
+        }
+      }
+      html += `</div>`;
+    }
+
+    // Scenario time
+    if (d.scenarioTime) {
+      html += row('Scenario', d.scenarioTime);
+    }
+
+    el.innerHTML = html;
+  } catch(e) {
+    setDot('gameinfo-card', false);
+    document.getElementById('gameinfo-content').innerHTML = `<span class='error-msg'>${e.message}</span>`;
+  }
+}
+
 // ── Chat ────────────────────────────────────────────────────────────
 
 let lastChatCount = -1;
@@ -766,6 +1005,7 @@ const GAME_NAMES = {
   re3: 'Resident Evil 3',
   re4: 'Resident Evil 4',
   re8: 'Resident Evil Village',
+  re9: 'Resident Evil 9',
   StreetFighter6: 'Street Fighter 6',
   DragonsDogma2: "Dragon's Dogma 2",
 };
@@ -798,6 +1038,8 @@ async function initDashboard() {
     '/api/meshes': 'mesh-card',
     '/api/chat': 'chat-card',
     '/api/lobby': 'lobby-card',
+    '/api/enemies': 'enemies-card',
+    '/api/gameinfo': 'gameinfo-card',
   };
   for (const [ep, cardId] of Object.entries(cardMap)) {
     if (!has(ep)) {
@@ -820,6 +1062,8 @@ async function initDashboard() {
   if (has('/api/chat'))      { updateChat();      setInterval(updateChat, 3000); }
   if (has('/api/huntlog'))   { updateHuntLog();   setInterval(updateHuntLog, 10000); }
   if (has('/api/palico'))    { updatePalico();    setInterval(updatePalico, 5000); }
+  if (has('/api/enemies'))   { updateEnemies();   setInterval(updateEnemies, 1000); }
+  if (has('/api/gameinfo'))  { updateGameInfo();  setInterval(updateGameInfo, 3000); }
 }
 
 async function poll() {

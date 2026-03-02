@@ -14,6 +14,9 @@ namespace REFrameworkNET
 {
     public class Compiler
     {
+        /// <summary>Set by host to forward errors to REFramework's log.</summary>
+        public static Action<string> OnCompileError { get; set; }
+
         public class DynamicAssemblyBytecode {
             public byte[] Bytecode {
                 get;
@@ -42,7 +45,21 @@ namespace REFrameworkNET
 
                     foreach (var diagnostic in failures)
                     {
-                        Console.Error.WriteLine("{0}: {1}", diagnostic.Id, diagnostic.GetMessage());
+                        string msg;
+                        var lineSpan = diagnostic.Location.GetMappedLineSpan();
+                        if (lineSpan.IsValid)
+                        {
+                            var pos = lineSpan.StartLinePosition;
+                            msg = $"{lineSpan.Path}({pos.Line + 1},{pos.Character + 1}): {diagnostic.Id}: {diagnostic.GetMessage()}";
+                        }
+                        else
+                        {
+                            msg = $"{diagnostic.Id}: {diagnostic.GetMessage()}";
+                        }
+
+                        Console.Error.WriteLine(msg);
+
+                        try { OnCompileError?.Invoke(msg); } catch { }
                     }
 
                     return null;
@@ -188,7 +205,7 @@ namespace REFrameworkNET
             var options = CSharpParseOptions.Default
                 .WithLanguageVersion(LanguageVersion.CSharp12)
                 .WithPreprocessorSymbols(symbols);
-            var parsedSyntaxTree = SyntaxFactory.ParseSyntaxTree(codeString, options);
+            var parsedSyntaxTree = SyntaxFactory.ParseSyntaxTree(codeString, options, path: filePath);
 
             var references = GenerateExhaustiveMetadataReferences(executingAssembly, deps);
 

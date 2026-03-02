@@ -1,3 +1,4 @@
+#if MHWILDS
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -116,3 +117,4 @@ class REFrameworkPluginWilds {
         ImGui.Text("Hello from TestMHWilds.cs");
     }
 }
+#endif

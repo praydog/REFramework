@@ -9,6 +9,8 @@
 #include "utility/FunctionHook.hpp"
 #include "utility/FunctionHookMinHook.hpp"
 
+#include <bddisasm.h>
+
 // Always on for RE3
 // Because we use hooks that modify the integrity of the executable
 // And RE3 has unfortunately decided to implement an integrity check on the executable code of the process
@@ -64,6 +66,9 @@ private:
     static inline int32_t s_patch_version_reg_index{-1};
     static inline int s_patch_count;
     static inline bool s_patch_count_checked;
+    static inline std::optional<std::uint8_t> s_pak_flags_value{};
+    static inline safetyhook::MidHook s_patch_store_flags_hook;
+    static inline INSTRUX s_pak_load_check_insn{};
 
     static void anti_debug_watcher();
     static void init_anti_debug_watcher();
@@ -86,6 +91,8 @@ private:
 
     static void* rtl_exit_user_process_hook(uint32_t code);
     static inline std::unique_ptr<FunctionHookMinHook> s_rtl_exit_user_process_hook{};
+    static void pak_store_flags_hook(safetyhook::Context& context);
+
 #ifdef RE3
     // This is what the game uses to bypass its integrity checks altogether or something
     bool* m_bypass_integrity_checks{ nullptr };

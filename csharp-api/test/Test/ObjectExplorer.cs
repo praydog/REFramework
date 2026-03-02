@@ -40,6 +40,30 @@ class ObjectExplorer {
 
     static _System.Enum SystemEnumT = REFrameworkNET.TDB.Get().GetTypeT<_System.Enum>();
 
+    // Resolve boxEnum vs InternalBoxEnum at startup (varies by game)
+    static REFrameworkNET.Method s_boxEnumMethod = ResolveBoxEnumMethod();
+    static bool s_boxEnumUsesRuntimeType;
+
+    static REFrameworkNET.Method ResolveBoxEnumMethod() {
+        var enumTDef = REFrameworkNET.TDB.Get().GetType("System.Enum");
+        var m = enumTDef.FindMethod("InternalBoxEnum");
+        if (m != null) { s_boxEnumUsesRuntimeType = true; return m; }
+        m = enumTDef.FindMethod("boxEnum");
+        if (m != null) { s_boxEnumUsesRuntimeType = false; return m; }
+        return null;
+    }
+
+    static IObject BoxEnum(REFrameworkNET.TypeDefinition enumType, long value) {
+        if (s_boxEnumMethod == null) return null;
+        var rtType = enumType.GetRuntimeType();
+        if (rtType == null) return null;
+        // InternalBoxEnum takes RuntimeType, boxEnum takes Type
+        var typeArg = s_boxEnumUsesRuntimeType ? rtType.As<_System.RuntimeType>() as IObject : rtType.As<_System.Type>() as IObject;
+        object result = null;
+        s_boxEnumMethod.HandleInvokeMember_Internal(null, new object[] { typeArg, value }, ref result);
+        return result as IObject;
+    }
+
     public static void DisplayColorPicker() {
         ImGui.ColorEdit4("Type Color", ref TYPE_COLOR);
         ImGui.ColorEdit4("Field Color", ref FIELD_COLOR);
@@ -153,8 +177,8 @@ class ObjectExplorer {
 
                 if (t.IsEnum() && fieldData != null) {
                     long longValue = Convert.ToInt64(fieldData);
-                    var boxedEnum = _System.Enum.boxEnum(t.GetRuntimeType().As<_System.Type>(), longValue);
-                    ImGui.Text("Result: " + (boxedEnum as IObject).Call("ToString()") + " (" + fieldData.ToString() + ")");
+                    var boxedEnum = BoxEnum(t, longValue);
+                    ImGui.Text("Result: " + (boxedEnum != null ? boxedEnum.Call("ToString()") : "?") + " (" + fieldData.ToString() + ")");
                 } else if (fieldData != null) {
                     ImGui.Text("Value: " + fieldData.ToString());
                     //ImGui.Text("Value (" + t.FullName + ")" + field.GetDataRaw(obj.GetAddress(), false).ToString("X"));
@@ -230,8 +254,8 @@ class ObjectExplorer {
 
                         if (returnType.IsEnum()) {
                             long longValue = Convert.ToInt64(result);
-                            var boxedEnum = _System.Enum.boxEnum(returnType.GetRuntimeType().As<_System.Type>(), longValue);
-                            ImGui.Text("Result: " + (boxedEnum as IObject).Call("ToString()") + " (" + result.ToString() + ")");
+                            var boxedEnum = BoxEnum(returnType, longValue);
+                            ImGui.Text("Result: " + (boxedEnum != null ? boxedEnum.Call("ToString()") : "?") + " (" + result.ToString() + ")");
                         } else {
                             ImGui.Text("Result: " + result.ToString() + " (" + result.GetType().FullName + ")");
                         }
@@ -467,26 +491,30 @@ class ObjectExplorer {
 
             if (ImGui.TreeNode("Native Singletons")) {
                 RenderNativeSingletons();
+                ImGui.TreePop();
             }
 
             var appdomain = _System.AppDomain.CurrentDomain;
-            var assemblies = appdomain.GetAssemblies();
 
             if (ImGui.TreeNode("AppDomain")) {
-                if (assemblies != null && ImGui.TreeNode("Assemblies")) {
-                    for (int i = 0; i < assemblies.Length; i++) {
-                        var assembly = assemblies.Get(i); // There is a strange thing in the generation where newer REE games do not generate an accessor for this, so we have to use Get instead
-                        var assemblyT = (assembly as IObject).GetTypeDefinition();
-                        var location = assembly.Location ?? "null";
-                        
-                        if (ImGui.TreeNode(location)) {
-                            DisplayObject(assembly as IObject);
-                            ImGui.TreePop();
+                // GetAssemblies doesn't exist in all games' proxies, use reflection
+                try {
+                    var assembliesObj = (appdomain as IObject).Call("GetAssemblies()");
+                    if (assembliesObj is IObject arrObj && ImGui.TreeNode("Assemblies")) {
+                        int len = (int)arrObj.Call("get_Length");
+                        for (int i = 0; i < len; i++) {
+                            var element = arrObj.As<_System.Array>().GetValue(i);
+                            if (element is IObject elemObj) {
+                                var location = elemObj.Call("get_Location") as string ?? "null";
+                                if (ImGui.TreeNode(location)) {
+                                    DisplayObject(elemObj);
+                                    ImGui.TreePop();
+                                }
+                            }
                         }
+                        ImGui.TreePop();
                     }
-
-                    ImGui.TreePop();
-                }
+                } catch { }
 
                 DisplayObject(appdomain as IObject);
                 ImGui.TreePop();

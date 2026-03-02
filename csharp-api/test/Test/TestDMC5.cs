@@ -1,3 +1,4 @@
+#if DMC5
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -115,3 +116,4 @@ class REFrameworkPluginWilds {
         ImGui.Text("Hello from TestDMC5.cs");
     }
 }
+#endif

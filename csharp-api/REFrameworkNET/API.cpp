@@ -138,6 +138,11 @@ REFrameworkNET::NativeObject^ REFrameworkNET::API::GetNativeSingleton(System::St
     return gcnew NativeObject(result, t);
 }
 
+// Separate method so PipeServer type is resolved lazily (not during JIT of LogError/etc)
+static void ForwardToPipeServer(System::String^ level, System::String^ message) {
+    REFrameworkNET::PipeServer::AddLog(level, message);
+}
+
 void REFrameworkNET::API::LogError(System::String^ message) {
     if (s_api == nullptr) {
         throw gcnew APINotInitializedException();
@@ -149,6 +154,8 @@ void REFrameworkNET::API::LogError(System::String^ message) {
         if (LogToConsole) {
             System::Console::WriteLine(message);
         }
+
+        try { ForwardToPipeServer("error", message); } catch (...) {}
     }
 }
 
@@ -163,6 +170,8 @@ void REFrameworkNET::API::LogWarning(System::String^ message) {
         if (LogToConsole) {
             System::Console::WriteLine(message);
         }
+
+        try { ForwardToPipeServer("warn", message); } catch (...) {}
     }
 }
 
@@ -177,6 +186,8 @@ void REFrameworkNET::API::LogInfo(System::String^ message) {
         if (LogToConsole) {
             System::Console::WriteLine(message);
         }
+
+        try { ForwardToPipeServer("info", message); } catch (...) {}
     }
 }
 

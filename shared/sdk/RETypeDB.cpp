@@ -359,6 +359,22 @@ void* REField::get_data_raw(void* object, bool is_value_type) const {
             return Address{object}.get(this->get_offset_from_fieldptr());
         }
 
+#if TDB_VER >= 81
+        // Read fieldptr_offset from the object's own vtable, not from the
+        // declaring type's managed_vt. For abstract declaring types,
+        // get_managed_vt() walks up the parent chain and can return an
+        // ancestor's vtable with a WRONG fieldptr_offset. The object's
+        // vtable always has the correct value — this matches what the
+        // .NET runtime does in RuntimeFieldInfo.GetValue.
+        if (object != nullptr) {
+            const auto vtable_ptr = *(uintptr_t*)object;
+            if (vtable_ptr != 0) {
+                const auto fieldptr_offset = *(int32_t*)(vtable_ptr - sizeof(void*));
+                return Address{object}.get(fieldptr_offset + this->get_offset_from_fieldptr());
+            }
+        }
+#endif
+
         return Address{object}.get(this->get_offset_from_base());
     }
 

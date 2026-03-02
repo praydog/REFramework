@@ -1,3 +1,4 @@
+#if RE4
 using System;
 
 using Hexa.NET.ImGui;
@@ -73,3 +74,4 @@ public class TestRE4Plugin {
         }
     }
 }
+#endif

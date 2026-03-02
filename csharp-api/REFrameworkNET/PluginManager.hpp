@@ -104,6 +104,12 @@ internal:
         bool is_dynamic{false};
     };
 
+    static void StartPipeServer();
+    static void BeginCompileCyclePipe();
+    static void EndCompileCyclePipe();
+    static void WireCompileErrorToPipe();
+    static System::String^ GetPluginStatesAsJson();
+
     static System::Collections::Generic::List<PluginState^>^ s_plugin_states{gcnew System::Collections::Generic::List<PluginState^>()};
     static System::Collections::Generic::List<PluginState^>^ s_plugin_states_to_remove{gcnew System::Collections::Generic::List<PluginState^>()};
     static bool s_auto_reload_plugins{true};

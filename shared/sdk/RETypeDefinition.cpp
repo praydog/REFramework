@@ -617,7 +617,7 @@ uint32_t RETypeDefinition::get_index() const {
 
 int32_t RETypeDefinition::get_fieldptr_offset() const {
 #if TDB_VER > 49
-    #ifdef MHWILDS
+    #if TDB_VER >= 81
         REObjectInfo *target_managed_vt = get_managed_vt();
 
         if (target_managed_vt == nullptr) {
@@ -642,7 +642,7 @@ int32_t RETypeDefinition::get_fieldptr_offset() const {
 
 bool RETypeDefinition::has_fieldptr_offset() const {
 #if TDB_VER > 49
-    #ifdef MHWILDS
+    #if TDB_VER >= 81
         return get_managed_vt() != nullptr;
     #else
         return this->managed_vt != nullptr;
@@ -1142,7 +1142,7 @@ void* RETypeDefinition::create_instance() const {
 
 ::REObjectInfo* RETypeDefinition::get_managed_vt() const {
 #if TDB_VER > 49
-    #if MHWILDS
+    #if TDB_VER >= 81
         REObjectInfo *target_managed_vt = this->managed_vt;
         const int ABSTRACT_TYPE_FLAG = 128;
 

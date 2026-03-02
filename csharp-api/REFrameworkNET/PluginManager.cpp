@@ -297,6 +297,15 @@ namespace REFrameworkNET {
 
         s_dependencies = LoadDependencies(); // Pre-loads DLLs in the dependencies folder before loading the plugins
 
+        // Start named pipe server for MCP communication (after dependencies are loaded so REFCoreDeps is resolvable)
+        try {
+            StartPipeServer();
+        } catch (System::Exception^ e) {
+            REFrameworkNET::API::LogError("Failed to start PipeServer: " + e->Message);
+        } catch (...) {
+            REFrameworkNET::API::LogError("Failed to start PipeServer: unknown error");
+        }
+
         try {
             GenerateReferenceAssemblies(s_dependencies);
         } catch(System::Exception^ e) {
@@ -644,6 +653,13 @@ namespace REFrameworkNET {
 
         auto self = System::Reflection::Assembly::LoadFrom(System::Reflection::Assembly::GetExecutingAssembly()->Location);
 
+        // Signal new compile cycle (auto-clears stale errors)
+        try { BeginCompileCyclePipe(); } catch (...) {}
+
+        // Wire up compiler error logging to REFramework's log + pipe server
+        REFrameworkNET::Compiler::OnCompileError = gcnew System::Action<System::String^>(&REFrameworkNET::API::LogError);
+        try { WireCompileErrorToPipe(); } catch (...) {}
+
         for each (System::String^ file in files) {
             System::Console::WriteLine(file);
 
@@ -675,12 +691,16 @@ namespace REFrameworkNET {
             }
         }
 
+        // Signal compile cycle finished
+        try { EndCompileCyclePipe(); } catch (...) {}
+
         if (!ever_found) {
             Console::WriteLine("No C# plugins with an entry point found in " + cs_files_dir);
         }
 
         return true;
     } catch(System::Exception^ e) {
+        try { EndCompileCyclePipe(); } catch (...) {}
         REFrameworkNET::API::LogError(e->Message);
 
         // log stack
@@ -692,9 +712,11 @@ namespace REFrameworkNET {
 
         return false;
     } catch(const std::exception& e) {
+        try { EndCompileCyclePipe(); } catch (...) {}
         REFrameworkNET::API::LogError(gcnew System::String(e.what()));
         return false;
     } catch(...) {
+        try { EndCompileCyclePipe(); } catch (...) {}
         REFrameworkNET::API::LogError("Unknown exception caught while compiling C# files");
         return false;
     }
@@ -923,6 +945,54 @@ namespace REFrameworkNET {
             }
 
             Hexa::NET::ImGui::ImGui::TreePop();
+        }
+    }
+
+    void PluginManager::BeginCompileCyclePipe() {
+        REFrameworkNET::PipeServer::BeginCompileCycle();
+    }
+
+    void PluginManager::EndCompileCyclePipe() {
+        REFrameworkNET::PipeServer::EndCompileCycle();
+    }
+
+    void PluginManager::WireCompileErrorToPipe() {
+        REFrameworkNET::Compiler::OnCompileError += gcnew System::Action<System::String^>(&REFrameworkNET::PipeServer::AddError);
+    }
+
+    void PluginManager::StartPipeServer() {
+        PipeServer::GameExe = System::Diagnostics::Process::GetCurrentProcess()->MainModule->FileName;
+        PipeServer::GameDir = System::IO::Path::GetDirectoryName(PipeServer::GameExe);
+        PipeServer::WorkingDir = gcnew System::String(std::filesystem::current_path().wstring().c_str());
+        PipeServer::PluginsDir = gcnew System::String((std::filesystem::current_path() / "reframework" / "plugins").wstring().c_str());
+        PipeServer::FrameworkVersion = System::Reflection::Assembly::GetExecutingAssembly()->GetName()->Version->ToString();
+        PipeServer::GetPluginStatesJson = gcnew System::Func<System::String^>(&PluginManager::GetPluginStatesAsJson);
+        PipeServer::Start();
+    }
+
+    System::String^ PluginManager::GetPluginStatesAsJson() {
+        try {
+            // Snapshot to avoid iteration issues if s_plugin_states is modified during hot-reload
+            auto snapshot = s_plugin_states->ToArray();
+
+            auto sb = gcnew System::Text::StringBuilder();
+            sb->Append("[");
+            bool first = true;
+            for each (PluginState^ state in snapshot) {
+                if (!first) sb->Append(",");
+                first = false;
+                sb->Append("{\"path\":\"");
+                sb->Append((state->script_path != nullptr ? state->script_path->Replace("\\", "\\\\") : ""));
+                sb->Append("\",\"isDynamic\":");
+                sb->Append(state->is_dynamic ? "true" : "false");
+                sb->Append(",\"isAlive\":");
+                sb->Append(state->IsAlive() ? "true" : "false");
+                sb->Append("}");
+            }
+            sb->Append("]");
+            return sb->ToString();
+        } catch (...) {
+            return "[]"; // concurrent modification during hot-reload, return empty
         }
     }
 }

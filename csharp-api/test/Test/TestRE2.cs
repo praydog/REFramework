@@ -1,3 +1,4 @@
+#if RE2
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -308,3 +309,4 @@ public class RE2HookBenchmark {
         headJoint.LocalScale = via.vec3.Zero;
     }
 }
+#endif

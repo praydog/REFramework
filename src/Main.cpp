@@ -19,6 +19,7 @@ extern "C" {
 #include "REFramework.hpp"
 
 HMODULE g_dinput = 0;
+decltype(DirectInput8Create)* g_original_dinput8_create = nullptr;
 std::mutex g_load_mutex{};
 extern bool g_success_made_ldr_notification;
 
@@ -42,6 +43,9 @@ bool load_dinput8() {
             return false;
         }
 
+        // Cache the original proc address immediately before any overlay (e.g. EOS) can hook it
+        g_original_dinput8_create = (decltype(DirectInput8Create)*)GetProcAddress(g_dinput, "DirectInput8Create");
+
         return true;
     }
 
@@ -57,8 +61,21 @@ __declspec(dllexport) HRESULT WINAPI
 // It is a redefinition, so we assign an export by not using the original name
 #pragma comment(linker, "/EXPORT:DirectInput8Create=direct_input8_create")
 
+    // Reentrancy guard: overlays like EOS hook DirectInput8Create in the system DLL,
+    // and their hook calls back into our export, causing infinite recursion / stack overflow.
+    // On re-entry, call the real system function directly so the chain still completes.
+    static thread_local bool s_in_call = false;
+
     load_dinput8();
-    return ((decltype(DirectInput8Create)*)GetProcAddress(g_dinput, "DirectInput8Create"))(hinst, dw_version, riidltf, ppv_out, punk_outer);
+
+    if (s_in_call) {
+        return g_original_dinput8_create(hinst, dw_version, riidltf, ppv_out, punk_outer);
+    }
+
+    s_in_call = true;
+    auto result = g_original_dinput8_create(hinst, dw_version, riidltf, ppv_out, punk_outer);
+    s_in_call = false;
+    return result;
 }
 }
 

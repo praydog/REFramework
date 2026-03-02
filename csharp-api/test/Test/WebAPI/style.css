@@ -236,6 +236,31 @@ h1 { color: #58a6ff; margin-bottom: 8px; font-size: 1.6em; }
 .huntlog-badge.slay { background: #3d1f1f; color: #f85149; }
 .huntlog-badge.capture { background: #2d3a1f; color: #d29922; }
 
+/* ── Status badges (RE9) ────────────────────────────────────────── */
+.status-badges { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; }
+.badge {
+  display: inline-flex; align-items: center; padding: 2px 8px;
+  border-radius: 10px; font-size: 0.75em; font-weight: 600;
+  border: 1px solid; letter-spacing: 0.02em;
+}
+.badge-safe { background: #0d2818; color: #3fb950; border-color: #238636; }
+.badge-dead { background: #3d1f1f; color: #f85149; border-color: #da3633; }
+.badge-invincible { background: #1f2d3d; color: #58a6ff; border-color: #1f6feb; }
+.badge-elite { background: #2d1f3d; color: #a371f7; border-color: #8957e5; }
+
+/* ── Enemy list styles (RE9) ────────────────────────────────────── */
+.enemies-list { display: flex; flex-direction: column; gap: 6px; max-height: 500px; overflow-y: auto; }
+.enemy-row {
+  padding: 8px 10px; background: #0d1117; border: 1px solid #21262d; border-radius: 6px;
+}
+.enemy-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 4px;
+}
+.enemy-name { color: #c9d1d9; font-weight: 500; font-size: 0.9em; display: flex; align-items: center; gap: 6px; }
+.enemy-hp-text { color: #8b949e; font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 0.8em; }
+.hp-bar-sm { height: 8px; margin: 0; }
+
 /* ── Tooltip ─────────────────────────────────────────────────────── */
 .tip {
   position: fixed; z-index: 9999; pointer-events: none;
