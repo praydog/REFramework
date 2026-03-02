@@ -1081,7 +1081,6 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
                             && second_instruction->Operands[1].Type == ND_OP_REG) {
                             spdlog::info("[IntegrityCheckBypass]: Found loop at 0x{:X}, assuming patch version check loops back here", block.start);
 
-
                             // Get the register being compared in the CMP instruction
                             auto inc_register = first_instruction->Operands[0].Info.Register.Reg;
                             auto cmp_op0_register = second_instruction->Operands[0].Info.Register.Reg;
