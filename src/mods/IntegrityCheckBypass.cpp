@@ -1062,6 +1062,8 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
                 spdlog::info("[IntegrityCheckBypass]: Found reference to re_chunk string at 0x{:X}, assuming this is the start of using patch version", where_compare_str->addr);
                 patch_version_start = where_compare_str->addr;
 
+                bool found_reg = false;
+
                 // No reliable way to detect the patch version register, rather then finding the last loop point of the function
                 auto bounds = utility::determine_function_bounds(*load_patch_func);
                 if (bounds) {
@@ -1071,12 +1073,18 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
 
                         auto first_instruction = utility::decode_one((uint8_t*)block.start);
                         auto second_instruction = first_instruction ? utility::decode_one((uint8_t*)(block.start + first_instruction->Length)) : std::nullopt;
+                        auto third_instruction = second_instruction ? utility::decode_one((uint8_t*)(block.start + first_instruction->Length + second_instruction->Length)) : std::nullopt;
 
-                        if (!first_instruction || !second_instruction) {
+                        if (!first_instruction || !second_instruction || !third_instruction) {
                             continue;
                         }
 
-                        if (first_instruction->Instruction == ND_INS_INC && second_instruction->Instruction == ND_INS_CMP
+                        auto total_length = first_instruction->Length + second_instruction->Length + third_instruction->Length;
+                        if (block.start + total_length > block.end) {
+                            continue;
+                        }
+
+                        if (first_instruction->Instruction == ND_INS_INC && second_instruction->Instruction == ND_INS_CMP && third_instruction->BranchInfo.IsBranch
                             && first_instruction->Operands[0].Type == ND_OP_REG && second_instruction->Operands[0].Type == ND_OP_REG
                             && second_instruction->Operands[1].Type == ND_OP_REG) {
                             spdlog::info("[IntegrityCheckBypass]: Found loop at 0x{:X}, assuming patch version check loops back here", block.start);
@@ -1093,8 +1101,15 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
                             }
 
                             spdlog::info("[IntegrityCheckBypass]: patch_version_reg_index set to {} (fallback method)", s_patch_version_reg_index);
+
+                            found_reg = true;
+                            break;
                         }
                     }
+                }
+
+                if (!found_reg) {
+                    spdlog::error("[IntegrityCheckBypass]: Could not determine patch_version_reg_index through fallback method either!");
                 }
             }
         }
