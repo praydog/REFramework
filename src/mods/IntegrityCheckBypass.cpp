@@ -1015,6 +1015,10 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
                 
                 // Check if previous instruction is a mov, that should be our register
                 if (!previous_instructions.empty()) {
+#if defined(RE9)
+                    s_patch_version_reg_index = NDR_RDI; // RE9 v1.0.0.0
+                    spdlog::info("[IntegrityCheckBypass]: patch_version_reg_index set to {} based on RE9 knowledge", s_patch_version_reg_index);
+#else
                     for (auto insn_begin = previous_instructions.rbegin(); insn_begin != previous_instructions.rend(); ++insn_begin) {
                         auto previous_instruction = *insn_begin;
 
@@ -1027,6 +1031,7 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
                             spdlog::error("[IntegrityCheckBypass]: Previous instruction is not a MOV or MOVZX with register operand, cannot determine patch_version_reg_index through fallback method!");
                         }
                     }
+#endif
                 } else {
                     spdlog::error("[IntegrityCheckBypass]: Could not find previous instructions for patch_version_reg_index fallback method!");
                 }
@@ -2076,6 +2081,16 @@ void IntegrityCheckBypass::find_try_hook_via_file_load_win32_create_file(uintptr
             continue;
         }
 
+#if defined(RE9) // Super ultra dirty hack (TM) for RE9 v1.0.0.0
+        if (instr->Instruction == ND_INS_CALLNR) {
+            spdlog::info("[IntegrityCheckBypass]: Found call to stream open function at 0x{:X}!", (uintptr_t)search_current);
+
+            if (auto resolved_opt = utility::resolve_displacement((uintptr_t)search_current)) {
+                open_stream_func_addr = (uint8_t*)*resolved_opt;
+                break;
+            }
+        }
+#else
         if (instr->Instruction == ND_INS_CALLNR) {
             // Is next instruction testing if the result is zero/non-zero? If so, this is likely the call that opens the file stream, since it checks if the handle is valid.
             auto next_instr = utility::decode_one(search_current + instr->Length);
@@ -2093,6 +2108,7 @@ void IntegrityCheckBypass::find_try_hook_via_file_load_win32_create_file(uintptr
                 }
             }
         }
+#endif
 
         search_current += instr->Length;
     }
