@@ -151,6 +151,18 @@ namespace REFrameworkNET {
         return ManagedObject::Get(result);
     }
 
+    ManagedObject^ TypeDefinition::CreateManagedArray(uint32_t size)
+    {
+        static auto fn = API::GetNativeImplementation()->sdk()->functions->create_managed_array;
+        auto result = (reframework::API::ManagedObject*)fn(*m_type, size);
+
+        if (result == nullptr) {
+            return nullptr;
+        }
+
+        return ManagedObject::Get(result);
+    }
+
     REFrameworkNET::ValueType^ TypeDefinition::CreateValueType() 
     {
         return gcnew REFrameworkNET::ValueType(this);

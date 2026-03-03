@@ -314,6 +314,17 @@ public:
     /// <returns>A new <see cref="ManagedObject"/> instance of type <see cref="TypeDefinition"/>.</returns>
     ManagedObject^ CreateInstance(int32_t flags);
     REFrameworkNET::ValueType^ CreateValueType();
+
+    /// <summary>
+    /// Creates a managed array whose element type is this <see cref="TypeDefinition"/>.
+    /// <para>
+    /// Like CreateInstance, the returned object is NOT globalized.
+    /// Call <see cref="ManagedObject::Globalize"/> if you intend to keep it around.
+    /// </para>
+    /// </summary>
+    /// <param name="size">Number of elements in the array.</param>
+    /// <returns>A new managed array, or nullptr on failure.</returns>
+    ManagedObject^ CreateManagedArray(uint32_t size);
     
     TypeDefinition^ GetParentType()
     {
