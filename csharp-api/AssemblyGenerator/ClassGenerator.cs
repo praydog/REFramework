@@ -44,10 +44,11 @@ public class ClassGenerator {
 
         // Collection types → ICollection
         ["System.Collections.Generic.ICollection"] = ("REFrameworkNET.Collections.ICollection", 1),
-        ["System.Collections.Generic.HashSet"] = ("REFrameworkNET.Collections.ICollection", 1),
+        ["System.Collections.Generic.HashSet"] = ("REFrameworkNET.Collections.ISet", 1),
         ["System.Collections.Generic.LinkedList"] = ("REFrameworkNET.Collections.ICollection", 1),
         ["System.Collections.Generic.Queue"] = ("REFrameworkNET.Collections.IReadOnlyCollection", 1),
         ["System.Collections.Generic.Stack"] = ("REFrameworkNET.Collections.IReadOnlyCollection", 1),
+        ["System.Collections.Generic.SortedSet"] = ("REFrameworkNET.Collections.ISet", 1),
 
         // Dictionary types → IDictionary
         ["System.Collections.Generic.Dictionary"] = ("REFrameworkNET.Collections.IDictionary", 2),

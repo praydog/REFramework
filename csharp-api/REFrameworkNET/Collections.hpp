@@ -51,6 +51,15 @@ public interface class IReadOnlyList {
     IEnumerator<T>^ GetEnumerator();
 };
 
+generic <typename T>
+public interface class ISet {
+    property int Count { int get(); }
+    bool Add(T item);
+    void Clear();
+    bool Contains(T item);
+    bool Remove(T item);
+    IEnumerator<T>^ GetEnumerator();
+};
 generic <typename TKey, typename TValue>
 public interface class IDictionary {
     property int Count { int get(); }
