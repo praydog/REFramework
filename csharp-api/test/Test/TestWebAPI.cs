@@ -1533,6 +1533,19 @@ class REFrameworkWebAPI {
             return vt;
         }
 
+        // Reference type: resolve hex address string to ManagedObject
+        if (!tdef.IsValueType() && value.ValueKind == JsonValueKind.String) {
+            var addrStr = value.GetString();
+            if (addrStr != null && addrStr.StartsWith("0x", StringComparison.OrdinalIgnoreCase)) {
+                try {
+                    var addr = Convert.ToUInt64(addrStr.Substring(2), 16);
+                    if (addr != 0) {
+                        return ManagedObject.ToManagedObject(addr);
+                    }
+                } catch { }
+            }
+        }
+
         return null;
     }
 
