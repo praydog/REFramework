@@ -5,56 +5,53 @@
 namespace REFrameworkNET {
 ref class ObjectEnumerator : public System::Collections::IEnumerator {
 private:
-    int position = -1;
-    IObject^ nativeObject;
+    IObject^ m_source;
+    IObject^ m_enumerator; // ValueType or ManagedObject returned by GetEnumerator()
 
-public:
-    ObjectEnumerator(IObject^ nativeObject) {
-        this->nativeObject = nativeObject;
+    void AcquireEnumerator() {
+        m_enumerator = nullptr;
+        System::Object^ result = nullptr;
+        if (m_source->HandleInvokeMember_Internal("GetEnumerator", gcnew array<System::Object^>{}, result)) {
+            m_enumerator = dynamic_cast<IObject^>(result);
+        }
     }
 
-    // IEnumerator implementation
+public:
+    ObjectEnumerator(IObject^ source) : m_source(source) {
+        AcquireEnumerator();
+    }
+
     virtual bool MoveNext() {
-        int itemCount = GetItemCount();
-        if (position < itemCount - 1) {
-            position++;
-            return true;
+        if (m_enumerator == nullptr) {
+            return false;
+        }
+
+        System::Object^ result = nullptr;
+        if (m_enumerator->HandleInvokeMember_Internal("MoveNext", gcnew array<System::Object^>{}, result)) {
+            if (result != nullptr) {
+                return (bool)result;
+            }
         }
         return false;
     }
 
     virtual void Reset() {
-        position = -1;
+        AcquireEnumerator();
     }
 
     virtual property System::Object^ Current {
         System::Object^ get() {
-            if (position == -1 || position >= GetItemCount()) {
-                throw gcnew System::InvalidOperationException();
+            if (m_enumerator == nullptr) {
+                throw gcnew System::InvalidOperationException("ObjectEnumerator: no enumerator available");
             }
 
             System::Object^ result = nullptr;
-            if (nativeObject->HandleInvokeMember_Internal("get_Item", gcnew array<System::Object^>{ position }, result)) {
+            if (m_enumerator->HandleInvokeMember_Internal("get_Current", gcnew array<System::Object^>{}, result)) {
                 return result;
             }
 
             return nullptr;
         }
     }
-
-private:
-    int GetItemCount() {
-        //return nativeObject->Invoke("get_Count", gcnew array<System::Object^>{})->DWord;
-        System::Object^ result = nullptr;
-
-        if (nativeObject->HandleInvokeMember_Internal("get_Count", gcnew array<System::Object^>{}, result)) {
-            return (int)result;
-        }
-
-        if (nativeObject->HandleInvokeMember_Internal("get_Length", gcnew array<System::Object^>{}, result)) {
-            return (int)result;
-        }
-
-        return 0;}
 };
 }
