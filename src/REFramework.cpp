@@ -31,6 +31,7 @@ extern "C" {
 #include "utility/Thread.hpp"
 
 #include "Mods.hpp"
+#include "mods/FaultyFileDetector.hpp"
 #include "mods/LooseFileLoader.hpp"
 #include "mods/PluginLoader.hpp"
 #include "mods/VR.hpp"
@@ -503,6 +504,10 @@ REFramework::REFramework(HMODULE reframework_module)
     startup_lookup_thread->detach();
 #endif
 
+#if defined(MHWILDS)
+    FaultyFileDetector::early_init();
+#endif
+
 #if defined(REENGINE_AT)
     utility::ThreadSuspender suspender{};
     IntegrityCheckBypass::ignore_application_entries();
@@ -565,10 +570,18 @@ REFramework::REFramework(HMODULE reframework_module)
         auto& loader = LooseFileLoader::get(); // Initialize this really early
         auto &integrity_bypass = IntegrityCheckBypass::get_shared_instance();
 
+#if defined(MHWILDS)
+        auto& faulty_file_detector = FaultyFileDetector::get();
+#endif
+
         const auto config_path = get_persistent_dir(REFrameworkConfig::REFRAMEWORK_CONFIG_NAME.data()).string();
         if (fs::exists(utility::widen(config_path))) {
             utility::Config cfg{ config_path };
             loader->on_config_load(cfg);
+
+#if defined(MHWILDS)
+            faulty_file_detector->on_config_load(cfg);
+#endif
             integrity_bypass->on_config_load(cfg);
         }
 

@@ -17,6 +17,7 @@
 #include "mods/ScriptRunner.hpp"
 #include "mods/VR.hpp"
 #include "mods/LooseFileLoader.hpp"
+#include "mods/FaultyFileDetector.hpp"
 #include "mods/vr/games/RE8VR.hpp"
 
 #include "Mods.hpp"
@@ -33,6 +34,10 @@ Mods::Mods() {
     m_mods.emplace_back(MethodDatabase::get());
     m_mods.emplace_back(Hooks::get());
     m_mods.emplace_back(LooseFileLoader::get());
+
+#if defined(MHWILDS)
+    m_mods.emplace_back(FaultyFileDetector::get());
+#endif
 
     m_mods.emplace_back(VR::get());
 
