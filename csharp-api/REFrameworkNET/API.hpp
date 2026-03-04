@@ -12,6 +12,7 @@
 #include "ManagedSingleton.hpp"
 #include "NativeSingleton.hpp"
 #include "NativeObject.hpp"
+#include "ResourceManager.hpp"
 
 #include "Callbacks.hpp"
 #include "Collections.hpp"
@@ -43,6 +44,7 @@ public:
 
     static reframework::API* GetNativeImplementation();
     static REFrameworkNET::TDB^ GetTDB();
+    static REFrameworkNET::ResourceManager^ GetResourceManager();
 
     static System::Collections::Generic::List<REFrameworkNET::ManagedSingleton^>^ GetManagedSingletons();
     static System::Collections::Generic::List<REFrameworkNET::NativeSingleton^>^ GetNativeSingletons();
@@ -91,6 +93,7 @@ public:
     // Returns the directory containing the plugin's source file (.cs) or DLL (.dll).
     // Pass your own assembly, e.g. API.GetPluginDirectory(typeof(MyPlugin).Assembly)
     static System::String^ GetPluginDirectory(System::Reflection::Assembly^ assembly);
+
 
 protected:
     void Init_Internal(const REFrameworkPluginInitializeParam* param);
