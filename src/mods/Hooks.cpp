@@ -998,6 +998,10 @@ void Hooks::global_application_entry_hook(void* entry, const char* name, size_t 
 }
 
 float* Hooks::view_get_size_hook_internal(REManagedObject* scene_view, float* result) {
+    if (!g_framework->is_ready()) {
+        return m_view_get_size_hook->get_original<decltype(view_get_size_hook)>()(scene_view, result);
+    }
+
     const auto& mods = g_framework->get_mods()->get_mods();
 
     for (auto& mod : mods) {
@@ -1020,6 +1024,10 @@ float* Hooks::view_get_size_hook(REManagedObject* scene_view, float* result) {
 }
 
 Matrix4x4f* Hooks::camera_get_projection_matrix_hook_internal(REManagedObject* camera, Matrix4x4f* result) {
+    if (!g_framework->is_ready()) {
+        return m_camera_get_projection_matrix_hook->get_original<decltype(camera_get_projection_matrix_hook)>()(camera, result);
+    }
+
     const auto& mods = g_framework->get_mods()->get_mods();
 
     for (auto& mod : mods) {
@@ -1042,6 +1050,10 @@ Matrix4x4f* Hooks::camera_get_projection_matrix_hook(REManagedObject* camera, Ma
 }
 
 Matrix4x4f* Hooks::camera_get_view_matrix_hook_internal(REManagedObject* camera, Matrix4x4f* result) {
+    if (!g_framework->is_ready()) {
+        return m_camera_get_view_matrix_hook->get_original<decltype(camera_get_view_matrix_hook)>()(camera, result);
+    }
+
     const auto& mods = g_framework->get_mods()->get_mods();
 
     for (auto& mod : mods) {
