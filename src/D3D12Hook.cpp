@@ -20,6 +20,99 @@
 
 static D3D12Hook* g_d3d12_hook = nullptr;
 thread_local bool g_inside_d3d12_hook = false;
+static constexpr auto COMMAND_QUEUE_SCAN_BYTES = 512 * sizeof(void*);
+static intptr_t s_wine_cq_delta = 0;
+
+static bool is_wine() {
+    static int cached = -1;
+    if (cached == -1) {
+        auto ntdll = GetModuleHandleA("ntdll.dll");
+        cached = (ntdll && GetProcAddress(ntdll, "wine_get_version") != nullptr) ? 1 : 0;
+    }
+    return cached == 1;
+}
+
+struct HeldRefcountProbe {
+    IUnknown* object{};
+    ULONG held_refcount{};
+    bool valid{};
+};
+
+static HeldRefcountProbe hold_refcount_probe(IUnknown* object) {
+    HeldRefcountProbe probe{};
+
+    if (object == nullptr || IsBadReadPtr(object, sizeof(void*))) {
+        return probe;
+    }
+
+    __try {
+        probe.object = object;
+        probe.held_refcount = object->AddRef();
+        probe.valid = true;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        // Ignore crash on invalid COM pointer
+    }
+
+    return probe;
+}
+
+static void release_refcount_probe(HeldRefcountProbe& probe) {
+    if (!probe.valid || probe.object == nullptr) {
+        return;
+    }
+
+    __try {
+        probe.object->Release();
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        // Ignore crash on invalid COM pointer
+    }
+
+    probe.valid = false;
+    probe.object = nullptr;
+    probe.held_refcount = 0;
+}
+
+static bool matches_refcount_probe(IUnknown* candidate, const HeldRefcountProbe& probe) {
+    if (!probe.valid || candidate == nullptr || IsBadReadPtr(candidate, sizeof(void*))) {
+        return false;
+    }
+
+    bool match = false;
+
+    __try {
+        const auto addref_result = candidate->AddRef();
+        const auto release_result = candidate->Release();
+        match = addref_result == probe.held_refcount + 1 && release_result == probe.held_refcount;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        // Ignore crash on invalid COM pointer
+    }
+
+    return match;
+}
+
+static uint32_t scan_for_refcount_match(void* object, const HeldRefcountProbe& probe) {
+    if (object == nullptr || !probe.valid) {
+        return 0;
+    }
+
+    // Wine/D3DMetal can surface the same queue through a different COM interface pointer.
+    // Matching AddRef/Release return values avoids QueryInterface in this hot path.
+    for (auto i = 0; i < COMMAND_QUEUE_SCAN_BYTES; i += sizeof(void*)) {
+        const auto base = (uintptr_t)object + i;
+
+        if (IsBadReadPtr((void*)base, sizeof(void*))) {
+            break;
+        }
+
+        auto data = *(IUnknown**)base;
+
+        if (matches_refcount_probe(data, probe)) {
+            return i;
+        }
+    }
+
+    return 0;
+}
 
 D3D12Hook::~D3D12Hook() {
     unhook();
@@ -85,6 +178,63 @@ HRESULT WINAPI D3D12Hook::create_swapchain(IDXGIFactory4* factory, IUnknown* dev
     }
 
     const auto result = create_swap_chain_fn(factory, device, hwnd, desc, p_fullscreen_desc, p_restrict_to_output, swap_chain);
+
+    if (result == S_OK && s_command_queue_offset == 0) {
+        spdlog::info("D3D12Hook: Dynamically initializing offsets from real swapchain");
+
+        s_factory_vtable = *(void***)factory;
+        s_swapchain_vtable = *(void***)*swap_chain;
+        const auto wine = is_wine();
+
+        // Find the command queue offset in the swapchain (direct pointer comparison only)
+        for (auto i = 0; i < COMMAND_QUEUE_SCAN_BYTES; i += sizeof(void*)) {
+            const auto base = (uintptr_t)*swap_chain + i;
+
+            if (IsBadReadPtr((void*)base, sizeof(void*))) {
+                break;
+            }
+
+            auto data = *(IUnknown**)base;
+
+            if (data == device) {
+                s_command_queue_offset = i;
+                spdlog::info("Found command queue offset: {:x}", i);
+                break;
+            }
+        }
+
+        if (s_command_queue_offset == 0 && wine) {
+            auto refcount_probe = hold_refcount_probe(device);
+            utility::ScopeGuard refcount_guard{[&]() {
+                release_refcount_probe(refcount_probe);
+            }};
+
+            s_command_queue_offset = scan_for_refcount_match(*swap_chain, refcount_probe);
+
+            if (s_command_queue_offset != 0) {
+                spdlog::info("Found command queue offset via Wine refcount scan: {:x}", s_command_queue_offset);
+            }
+        }
+
+        // Wine/D3DMetal last resort: hardcoded offset from swapchain memory dump
+        if (s_command_queue_offset == 0 && wine) {
+            constexpr uint32_t WINE_D3DMETAL_CQ_OFFSET = 0x4C8;
+            const auto base = (uintptr_t)*swap_chain + WINE_D3DMETAL_CQ_OFFSET;
+            if (!IsBadReadPtr((void*)base, sizeof(void*))) {
+                auto candidate = *(IUnknown**)base;
+                if (candidate != nullptr && !IsBadReadPtr((void*)candidate, sizeof(void*))) {
+                    s_command_queue_offset = WINE_D3DMETAL_CQ_OFFSET;
+                    spdlog::warn("Wine: Using hardcoded command queue offset 0x{:x} (D3DMetal fallback)", WINE_D3DMETAL_CQ_OFFSET);
+                }
+            }
+        }
+
+        if (s_command_queue_offset == 0) {
+            spdlog::error("Failed to find command queue offset on real swapchain!");
+        } else {
+            g_d3d12_hook->hook_impl();
+        }
+    }
 
     // rather than waiting on the hook monitor to notice the hook isn't working
     if (!hook_was_nullptr) {
@@ -191,7 +341,21 @@ bool D3D12Hook::hook() {
     swap_chain_desc1.Width = 1;
     swap_chain_desc1.Height = 1;
 
-    // Manually get D3D12CreateDevice export because the user may be running Windows 7
+    // Manually get CreateDXGIFactory export because the user may be running Windows 7
+    const auto dxgi_module = LoadLibraryA("dxgi.dll");
+    if (dxgi_module == nullptr) {
+        spdlog::error("Failed to load dxgi.dll");
+        return false;
+    }
+
+    auto create_dxgi_factory = (decltype(CreateDXGIFactory)*)GetProcAddress(dxgi_module, "CreateDXGIFactory");
+
+    if (create_dxgi_factory == nullptr) {
+        spdlog::error("Failed to get CreateDXGIFactory export");
+        return false;
+    }
+
+    // Manually get D3D12CreateDevice export
     const auto d3d12_module = LoadLibraryA("d3d12.dll");
     if (d3d12_module == nullptr) {
         spdlog::error("Failed to load d3d12.dll");
@@ -206,51 +370,68 @@ bool D3D12Hook::hook() {
 
     spdlog::info("Creating dummy device");
 
-    // Get the original on-disk bytes of the D3D12CreateDevice export
-    const auto original_bytes = utility::get_original_bytes(d3d12_create_device);
+    if (is_wine()) {
+        // Wine/D3DMetal: D3D12CreateDevice(nullptr, ...) crashes.
+        // Use enumerated adapter instead, skip the unhooking dance.
+        spdlog::info("Wine/CrossOver detected, creating device with enumerated adapter");
 
-    // Temporarily unhook D3D12CreateDevice
-    // it allows compatibility with ReShade and other overlays that hook it
-    // this is just a dummy device anyways, we don't want the other overlays to be able to use it
-    if (original_bytes) {
-        spdlog::info("D3D12CreateDevice appears to be hooked, temporarily unhooking");
-
-        std::vector<uint8_t> hooked_bytes(original_bytes->size());
-        memcpy(hooked_bytes.data(), d3d12_create_device, original_bytes->size());
-
-        ProtectionOverride protection_override{ d3d12_create_device, original_bytes->size(), PAGE_EXECUTE_READWRITE };
-        memcpy(d3d12_create_device, original_bytes->data(), original_bytes->size());
-        
-        if (FAILED(d3d12_create_device(nullptr, feature_level, IID_PPV_ARGS(&device)))) {
-            spdlog::error("Failed to create D3D12 Dummy device");
-            memcpy(d3d12_create_device, hooked_bytes.data(), hooked_bytes.size());
+        IDXGIFactory4* wine_factory{ nullptr };
+        if (FAILED(create_dxgi_factory(IID_PPV_ARGS(&wine_factory)))) {
+            spdlog::error("Wine: Failed to create DXGI factory for adapter enumeration");
             return false;
         }
 
-        spdlog::info("Restoring hooked bytes for D3D12CreateDevice");
-        memcpy(d3d12_create_device, hooked_bytes.data(), hooked_bytes.size());
-    } else { // D3D12CreateDevice is not hooked
-        if (FAILED(d3d12_create_device(nullptr, feature_level, IID_PPV_ARGS(&device)))) {
-            spdlog::error("Failed to create D3D12 Dummy device");
+        IDXGIAdapter* adapter{ nullptr };
+        wine_factory->EnumAdapters(0, &adapter);
+        wine_factory->Release();
+
+        if (adapter == nullptr) {
+            spdlog::error("Wine: No adapters found");
             return false;
+        }
+
+        auto hr = d3d12_create_device(adapter, feature_level, IID_PPV_ARGS(&device));
+        adapter->Release();
+
+        if (FAILED(hr)) {
+            spdlog::error("Wine: Failed to create D3D12 device with adapter: {:x}", (uint32_t)hr);
+            return false;
+        }
+
+        spdlog::info("Wine: Created D3D12 device via adapter enumeration: {:x}", (uintptr_t)device);
+    } else {
+        // Get the original on-disk bytes of the D3D12CreateDevice export
+        const auto original_bytes = utility::get_original_bytes(d3d12_create_device);
+
+        // Temporarily unhook D3D12CreateDevice
+        // it allows compatibility with ReShade and other overlays that hook it
+        // this is just a dummy device anyways, we don't want the other overlays to be able to use it
+        if (original_bytes) {
+            spdlog::info("D3D12CreateDevice appears to be hooked, temporarily unhooking");
+
+            std::vector<uint8_t> hooked_bytes(original_bytes->size());
+            memcpy(hooked_bytes.data(), d3d12_create_device, original_bytes->size());
+
+            ProtectionOverride protection_override{ d3d12_create_device, original_bytes->size(), PAGE_EXECUTE_READWRITE };
+            memcpy(d3d12_create_device, original_bytes->data(), original_bytes->size());
+
+            if (FAILED(d3d12_create_device(nullptr, feature_level, IID_PPV_ARGS(&device)))) {
+                spdlog::error("Failed to create D3D12 Dummy device");
+                memcpy(d3d12_create_device, hooked_bytes.data(), hooked_bytes.size());
+                return false;
+            }
+
+            spdlog::info("Restoring hooked bytes for D3D12CreateDevice");
+            memcpy(d3d12_create_device, hooked_bytes.data(), hooked_bytes.size());
+        } else { // D3D12CreateDevice is not hooked
+            if (FAILED(d3d12_create_device(nullptr, feature_level, IID_PPV_ARGS(&device)))) {
+                spdlog::error("Failed to create D3D12 Dummy device");
+                return false;
+            }
         }
     }
 
     spdlog::info("Dummy device: {:x}", (uintptr_t)device);
-
-    // Manually get CreateDXGIFactory export because the user may be running Windows 7
-    const auto dxgi_module = LoadLibraryA("dxgi.dll");
-    if (dxgi_module == nullptr) {
-        spdlog::error("Failed to load dxgi.dll");
-        return false;
-    }
-
-    auto create_dxgi_factory = (decltype(CreateDXGIFactory)*)GetProcAddress(dxgi_module, "CreateDXGIFactory");
-
-    if (create_dxgi_factory == nullptr) {
-        spdlog::error("Failed to get CreateDXGIFactory export");
-        return false;
-    }
 
     spdlog::info("Creating dummy DXGI factory");
 
@@ -399,9 +580,14 @@ bool D3D12Hook::hook() {
     spdlog::info("Finding command queue offset");
 
     s_command_queue_offset = 0;
+    const auto wine = is_wine();
+    auto command_queue_refcount_probe = wine ? hold_refcount_probe(command_queue) : HeldRefcountProbe{};
+    utility::ScopeGuard refcount_guard{[&]() {
+        release_refcount_probe(command_queue_refcount_probe);
+    }};
 
-    // Find the command queue offset in the swapchain
-    for (auto i = 0; i < 512 * sizeof(void*); i += sizeof(void*)) {
+    // Find the command queue offset in the swapchain (direct pointer comparison only)
+    for (auto i = 0; i < COMMAND_QUEUE_SCAN_BYTES; i += sizeof(void*)) {
         const auto base = (uintptr_t)swap_chain1 + i;
 
         // reached the end
@@ -418,6 +604,27 @@ bool D3D12Hook::hook() {
         }
     }
 
+    if (s_command_queue_offset == 0 && wine) {
+        s_command_queue_offset = scan_for_refcount_match(swap_chain1, command_queue_refcount_probe);
+
+        if (s_command_queue_offset != 0) {
+            spdlog::info("Found command queue offset via Wine refcount scan: {:x}", s_command_queue_offset);
+        }
+    }
+
+    // Wine/D3DMetal last resort: hardcoded offset discovered from swapchain memory dump
+    if (s_command_queue_offset == 0 && wine) {
+        constexpr uint32_t WINE_D3DMETAL_CQ_OFFSET = 0x4C8;
+        const auto base = (uintptr_t)swap_chain1 + WINE_D3DMETAL_CQ_OFFSET;
+        if (!IsBadReadPtr((void*)base, sizeof(void*))) {
+            auto candidate = *(ID3D12CommandQueue**)base;
+            if (candidate != nullptr && !IsBadReadPtr((void*)candidate, sizeof(void*))) {
+                s_command_queue_offset = WINE_D3DMETAL_CQ_OFFSET;
+                spdlog::warn("Wine: Using hardcoded command queue offset 0x{:x} (D3DMetal fallback)", WINE_D3DMETAL_CQ_OFFSET);
+            }
+        }
+    }
+
     auto target_swapchain = swap_chain;
 
     // Scan throughout the swapchain for a valid pointer to scan through
@@ -425,7 +632,7 @@ bool D3D12Hook::hook() {
     if (s_command_queue_offset == 0) {
         bool should_break = false;
 
-        for (auto base = 0; base < 512 * sizeof(void*); base += sizeof(void*)) {
+        for (auto base = 0; base < COMMAND_QUEUE_SCAN_BYTES; base += sizeof(void*)) {
             const auto pre_scan_base = (uintptr_t)swap_chain1 + base;
 
             // reached the end
@@ -439,7 +646,7 @@ bool D3D12Hook::hook() {
                 continue;
             }
 
-            for (auto i = 0; i < 512 * sizeof(void*); i += sizeof(void*)) {
+            for (auto i = 0; i < COMMAND_QUEUE_SCAN_BYTES; i += sizeof(void*)) {
                 const auto pre_data = scan_base + i;
 
                 if (IsBadReadPtr((void*)pre_data, sizeof(void*))) {
@@ -448,7 +655,9 @@ bool D3D12Hook::hook() {
 
                 auto data = *(ID3D12CommandQueue**)pre_data;
 
-                if (data == command_queue) {
+                const auto matched_by_refcount = wine && matches_refcount_probe(data, command_queue_refcount_probe);
+
+                if (data == command_queue || matched_by_refcount) {
                     // If we hook Streamline's Swapchain, the menu fails to render correctly/flickers
                     // So we switch out the swapchain with the internal one owned by Streamline
                     // Side note: Even though we are scanning for Proton here,
@@ -465,8 +674,13 @@ bool D3D12Hook::hook() {
                     s_proton_swapchain_offset = base;
                     should_break = true;
 
-                    spdlog::info("Proton potentially detected");
-                    spdlog::info("Found command queue offset: {:x}", i);
+                    if (matched_by_refcount) {
+                        spdlog::info("Proton potentially detected (via Wine refcount scan)");
+                        spdlog::info("Found command queue offset via Wine refcount scan: {:x}", i);
+                    } else {
+                        spdlog::info("Proton potentially detected");
+                        spdlog::info("Found command queue offset: {:x}", i);
+                    }
                     break;
                 }
             }
@@ -480,6 +694,16 @@ bool D3D12Hook::hook() {
     if (s_command_queue_offset == 0) {
         spdlog::error("Failed to find command queue offset");
         return false;
+    }
+
+    // Wine/D3DMetal: compute delta between hook()'s command_queue and the raw pointer
+    // stored inside the swapchain.  present() applies this delta arithmetically -- zero COM calls.
+    if (wine && s_command_queue_offset != 0) {
+        auto raw = *(uintptr_t*)((uintptr_t)swap_chain1 + s_command_queue_offset);
+        s_wine_cq_delta = (intptr_t)((uintptr_t)command_queue - raw);
+        if (s_wine_cq_delta != 0) {
+            spdlog::info("Wine command queue delta: 0x{:X}", s_wine_cq_delta);
+        }
     }
 
     //utility::ThreadSuspender suspender{};
@@ -623,6 +847,11 @@ HRESULT WINAPI D3D12Hook::present(IDXGISwapChain3* swap_chain, uint64_t sync_int
         d3d12->m_command_queue = *(ID3D12CommandQueue**)(real_swapchain + d3d12->s_command_queue_offset);
     } else {
         d3d12->m_command_queue = *(ID3D12CommandQueue**)((uintptr_t)swap_chain + d3d12->s_command_queue_offset);
+    }
+
+    // Wine/D3DMetal: adjust raw swapchain pointer by pre-computed delta (zero COM calls)
+    if (s_wine_cq_delta != 0) {
+        d3d12->m_command_queue = (ID3D12CommandQueue*)((uintptr_t)d3d12->m_command_queue + s_wine_cq_delta);
     }
 
     if (d3d12->m_swapchain_0 == nullptr) {
