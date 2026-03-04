@@ -217,5 +217,8 @@ REFrameworkNET::ResourceManager^ REFrameworkNET::API::GetResourceManager() {
     }
 
     auto mgr = s_api->resource_manager();
+    if (mgr == nullptr) {
+        return nullptr;
+    }
     return gcnew REFrameworkNET::ResourceManager((REFrameworkResourceManagerHandle)mgr);
 }
