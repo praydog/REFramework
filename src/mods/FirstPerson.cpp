@@ -52,6 +52,7 @@ FirstPerson::FirstPerson() {
         m_attach_offsets["pl5600"] = Vector4f{ -0.316, 0.556f, 1.02f, 0.0f };
         // Elizabeth
         m_attach_offsets["pl6400"] = Vector4f{ -0.316, 0.466f, 0.79f, 0.0f };
+    }
 }
 
 void FirstPerson::toggle() {
@@ -273,6 +274,7 @@ void FirstPerson::on_lua_state_created(sol::state& state) {
         } catch (const std::exception& e) {
             spdlog::info("Error while trying to hook FlashLight.applyTransform: {}", e.what());
         }
+    }
 }
 
 void FirstPerson::on_config_load(const utility::Config& cfg) {

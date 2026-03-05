@@ -95,8 +95,8 @@ private:
     std::string_view m_game_name{"unknown"};
     std::string_view m_target_name{"UNKNOWN"};
 
-    static inline GameIdentity s_instance{};
-    static inline bool s_initialized{false};
+    static GameIdentity s_instance;
+    static bool s_initialized;
 };
 
 } // namespace sdk

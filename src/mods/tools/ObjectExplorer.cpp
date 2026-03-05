@@ -1236,10 +1236,12 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
             if (tdef->element_typeid_TBD != 0) {
                 type_entry["element_type_name"] = init_type(il2cpp_dump, tdb, tdef->element_typeid_TBD)->full_name;
             }
+#ifndef REFRAMEWORK_UNIVERSAL
         } else if (gi.tdb_ver() >= 69) {
             if (tdef->element_typeid != 0) {
                 type_entry["element_type_name"] = init_type(il2cpp_dump, tdb, tdef->element_typeid)->full_name;
             }
+#endif
         }
 
         if (auto gtd = t.get_generic_type_definition(); gtd != nullptr) {
@@ -1314,9 +1316,11 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
             rsz_entry["static"] = is_static;
             rsz_entry["offset_from_fieldptr"] = (std::stringstream{} << "0x" << std::hex << sequence.offset).str();
 
+#ifndef REFRAMEWORK_UNIVERSAL
             if (gi.tdb_ver() <= 49) {
                 rsz_entry["potential_name"] = sequence.prop->name;
             }
+#endif
 
             il2cpp_dump[pt->full_name]["RSZ"].emplace_back(rsz_entry);
         }
@@ -1342,7 +1346,9 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
             impl_id = (uint32_t)m.impl_id;
             param_list = (uint32_t)m.get_param_index();
         } else {
+#ifndef REFRAMEWORK_UNIVERSAL
             param_list = m.params;
+#endif
         }
 
         if (g_itypedb.find(type_id) == g_itypedb.end()) {
@@ -1365,10 +1371,12 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
             impl_flags = impl.impl_flags;
             method_flags = impl.flags;
         } else {
+#ifndef REFRAMEWORK_UNIVERSAL
             name_offset = m.name_offset;
             vtable_index = m.vtable_index;
             impl_flags = m.impl_flags;
             method_flags = m.flags;
+#endif
         }
 
         const auto name = tdb->get_string(name_offset);
@@ -1408,7 +1416,9 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
 
         // Parameters
         sdk::ParamList* param_list_69 = nullptr;
+#ifndef REFRAMEWORK_UNIVERSAL
         sdk::REMethodParamDef* param_ids_legacy = nullptr;
+#endif
         uint8_t num_params = 0;
         uint16_t invoke_id = 0;
         if (gi.tdb_ver() >= 69) {
@@ -1416,6 +1426,7 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
             num_params = param_list_69->numParams;
             invoke_id = param_list_69->invokeID;
         } else {
+#ifndef REFRAMEWORK_UNIVERSAL
             if (gi.tdb_ver() >= 66) {
                 param_ids_legacy = tdb->get_data<sdk::REMethodParamDef>(param_list);
             } else {
@@ -1424,6 +1435,7 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
             }
             num_params = (uint8_t)m.get_num_params();
             invoke_id = (uint16_t)m.invoke_id;
+#endif
         }
 
         // Invoke wrapper for arbitrary amount of arguments, so we can just pass it on the VM stack/context as an array
@@ -1441,10 +1453,12 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
                 modifier = (uint8_t)p.modifier;
                 flags = (uint16_t)p.flags;
             } else {
+#ifndef REFRAMEWORK_UNIVERSAL
                 auto& p = param_ids_legacy[param_index];
                 param_type_id = (uint32_t)p.param_typeid;
                 name_index = p.name_offset;
                 flags = p.flags;
+#endif
             }
 
             if (auto it = g_itypedb.find(param_type_id); it == g_itypedb.end()) {
@@ -1682,7 +1696,9 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
             field_impl_id = (uint32_t)f.impl_id;
             offset = (uint32_t)f.get_offset_from_fieldptr();
         } else {
+#ifndef REFRAMEWORK_UNIVERSAL
             offset = f.offset;
+#endif
         }
 
         if (g_itypedb.find(type_id) == g_itypedb.end()) {
@@ -1720,6 +1736,7 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
             init_data_index = f.get_init_data_index();
             name = tdb->get_string(name_offset);
         } else {
+#ifndef REFRAMEWORK_UNIVERSAL
             name_offset = f.name_offset;
             name = Address{ tdb->stringPool }.get(name_offset).as<const char*>();
             field_type = (uint32_t)f.field_typeid;
@@ -1727,13 +1744,16 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
             if (gi.tdb_ver() >= 66) {
                 init_data_index = f.init_data_index;
             }
+#endif
         }
 
         uint32_t init_data_offset = 0;
         if (gi.tdb_ver() >= 66) {
             init_data_offset = init_data_index != 0 ? (*tdb->initData)[init_data_index] : 0;
         } else {
+#ifndef REFRAMEWORK_UNIVERSAL
             init_data_offset = f.init_data_offset;
+#endif
         }
 
         // Create an easier to deal with structure
@@ -2008,7 +2028,9 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
             auto& impl = (*tdb->propertiesImpl)[impl_id];
             name = Address{tdb->stringPool}.get(impl.name_offset).as<const char*>();
         } else {
+#ifndef REFRAMEWORK_UNIVERSAL
             name = Address{ tdb->stringPool }.get(p.name_offset).as<const char*>();
+#endif
         }
 
         // ha ha

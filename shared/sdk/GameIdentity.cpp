@@ -11,6 +11,8 @@
 
 namespace sdk {
 
+GameIdentity GameIdentity::s_instance{};
+bool GameIdentity::s_initialized{false};
 void GameIdentity::initialize() {
     if (s_initialized) {
         return;

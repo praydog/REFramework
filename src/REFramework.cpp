@@ -237,6 +237,7 @@ try {
                 if (sdk::GameIdentity::get().is_dd2() || sdk::GameIdentity::get().is_mhrise() || sdk::GameIdentity::get().tdb_ver() >= 74) {
                     utility::spoof_module_paths_in_exe_dir();
                 }
+            }
         } else {
             spdlog::info("LdrRegisterDllNotification: DLL loaded from unknown location");
         }

@@ -468,6 +468,7 @@ void Graphics::on_pre_application_entry(void* entry, const char* name, size_t ha
         if (!sdk::GameIdentity::get().is_sf6()) {
             do_ultrawide_fix();
         }
+    }
 
     if (hash == "UnlockScene"_fnv) {
         do_ultrawide_fov_restore();
@@ -479,6 +480,7 @@ void Graphics::on_application_entry(void* entry, const char* name, size_t hash) 
         if (!sdk::GameIdentity::get().is_sf6()) {
             do_ultrawide_fov_restore();
         }
+    }
 
     // To actually fix the rendering.
     if (hash == "LockScene"_fnv) {
