@@ -7,6 +7,7 @@
 #include "RETypeCLR.hpp"
 #include "ReClass.hpp"
 #include "TDBVer.hpp"
+#include "RETypeDefDispatch.hpp"
 
 class REManagedObject;
 
@@ -98,6 +99,9 @@ struct RETypeDefVersion83 {
 static_assert(sizeof(RETypeDefVersion84) == 0x50, "RETypeDefVersion84 has wrong size");
 static_assert(offsetof(RETypeDefVersion84, type_crc) == 0x1C);
 #endif
+
+// Verify the 18-bit V69 struct matches the expected stride.
+static_assert(sizeof(sdk::tdb_bits18::RETypeDefVersion69) == 0x50, "V69/18-bit must be 0x50 to match types array stride");
 
 #if TDB_VER >= 83
 static_assert(sizeof(RETypeDefVersion83) == 0x50, "RETypeDefVersion83 has wrong size");

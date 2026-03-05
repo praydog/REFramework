@@ -16,30 +16,30 @@ namespace sdk {
 struct RETypeDefinition;
 
 sdk::REMethodDefinition* RETypeDefinition::MethodIterator::begin() const {
-    if (m_parent->member_method == 0) {
+    if (TDEF_FIELD(m_parent, member_method) == 0) {
         return nullptr;
     }
 
     auto tdb = RETypeDB::get();
 
-    return &(*tdb->methods)[m_parent->member_method];
+    return &(*tdb->methods)[TDEF_FIELD(m_parent, member_method)];
 }
 
 sdk::REMethodDefinition* RETypeDefinition::MethodIterator::end()  const {
-    if (m_parent->member_method == 0) {
+    if (TDEF_FIELD(m_parent, member_method) == 0) {
         return nullptr;
     }
 
     auto tdb = RETypeDB::get();
 
 #if TDB_VER >= 69
-    const auto& impl = (*tdb->typesImpl)[m_parent->impl_index];
+    const auto& impl = (*tdb->typesImpl)[TDEF_FIELD(m_parent, impl_index)];
     const auto num_methods = impl.num_member_methods;
 #else
     const auto num_methods = m_parent->num_member_method;
 #endif
 
-    return &(*tdb->methods)[m_parent->member_method + num_methods];
+    return &(*tdb->methods)[TDEF_FIELD(m_parent, member_method) + num_methods];
 }
 
 size_t RETypeDefinition::MethodIterator::size() const {
@@ -48,13 +48,13 @@ size_t RETypeDefinition::MethodIterator::size() const {
 
 sdk::REField* sdk::RETypeDefinition::FieldIterator::REFieldIterator::operator*() const {
 //#ifndef RE7
-    if (m_parent->member_field == 0) {
+    if (TDEF_FIELD(m_parent, member_field) == 0) {
         return nullptr;
     }
 
     auto tdb = RETypeDB::get();
 
-    return &(*tdb->fields)[m_parent->member_field + m_index];
+    return &(*tdb->fields)[TDEF_FIELD(m_parent, member_field) + m_index];
 /*#else
     if (m_parent->member_field_start == 0) {
         return nullptr;
@@ -76,7 +76,7 @@ sdk::REField* sdk::RETypeDefinition::FieldIterator::REFieldIterator::operator*()
 size_t sdk::RETypeDefinition::FieldIterator::size() const {
 #if TDB_VER >= 69
         auto tdb = sdk::RETypeDB::get();
-        const auto& impl = (*tdb->typesImpl)[m_parent->impl_index];
+        const auto& impl = (*tdb->typesImpl)[TDEF_FIELD(m_parent, impl_index)];
         const auto num_fields = impl.num_member_fields;
 #else
         const auto num_fields = m_parent->num_member_field;
@@ -86,25 +86,25 @@ size_t sdk::RETypeDefinition::FieldIterator::size() const {
     }
 
 sdk::REProperty* RETypeDefinition::PropertyIterator::begin() const {
-    if (m_parent->member_prop == 0) {
+    if (TDEF_FIELD(m_parent, member_prop) == 0) {
         return nullptr;
     }
 
     auto tdb = RETypeDB::get();
 
-    return &(*tdb->properties)[m_parent->member_prop];
+    return &(*tdb->properties)[TDEF_FIELD(m_parent, member_prop)];
 }
 
 sdk::REProperty* RETypeDefinition::PropertyIterator::end() const {
-    if (m_parent->member_prop == 0) {
+    if (TDEF_FIELD(m_parent, member_prop) == 0) {
         return nullptr;
     }
 
     auto tdb = RETypeDB::get();
 
-    const auto num_prop = m_parent->num_member_prop;
+    const auto num_prop = TDEF_FIELD(m_parent, num_member_prop);
 
-    return &(*tdb->properties)[m_parent->member_prop + num_prop];
+    return &(*tdb->properties)[TDEF_FIELD(m_parent, member_prop) + num_prop];
 }
 
 size_t RETypeDefinition::PropertyIterator::size() const {
@@ -115,7 +115,7 @@ const char* RETypeDefinition::get_namespace() const {
     auto tdb = RETypeDB::get();
 
 #if TDB_VER >= 69
-    auto& impl = (*tdb->typesImpl)[this->impl_index];
+    auto& impl = (*tdb->typesImpl)[TDEF_FIELD(this, impl_index)];
 
     const auto name_index = impl.namespace_offset;
 #else
@@ -129,7 +129,7 @@ const char* RETypeDefinition::get_name() const {
     auto tdb = RETypeDB::get();
 
 #if TDB_VER >= 69
-    auto& impl = (*tdb->typesImpl)[this->impl_index];
+    auto& impl = (*tdb->typesImpl)[TDEF_FIELD(this, impl_index)];
 
     const auto name_index = impl.name_offset;
 #else
@@ -163,7 +163,7 @@ std::string RETypeDefinition::get_full_name() const {
     // because using normal find_type will loop back to this function and cause a deadlock
     static auto system_runtime_type = sdk::RETypeDB::get()->find_type_by_fqn(0x99ff88e6);
 
-    if (this->declaring_typeid > 0 && this->declaring_typeid != this->get_index()) {
+    if (TDEF_FIELD(this, declaring_typeid) > 0 && TDEF_FIELD(this, declaring_typeid) != this->get_index()) {
         std::unordered_set<const sdk::RETypeDefinition*> seen_classes{};
 
         for (auto owner = this; owner != nullptr; owner = owner->get_declaring_type()) {
@@ -282,7 +282,7 @@ std::vector<std::string> RETypeDefinition::get_name_hierarchy() const {
     std::deque<std::string> names{};
     std::string full_name{};
 
-    if (this->declaring_typeid > 0 && this->declaring_typeid != this->get_index()) {
+    if (TDEF_FIELD(this, declaring_typeid) > 0 && TDEF_FIELD(this, declaring_typeid) != this->get_index()) {
         std::unordered_set<const sdk::RETypeDefinition*> seen_classes{};
 
         for (auto owner = this; owner != nullptr; owner = owner->get_declaring_type()) {
@@ -318,21 +318,21 @@ std::vector<std::string> RETypeDefinition::get_name_hierarchy() const {
 sdk::RETypeDefinition* RETypeDefinition::get_declaring_type() const {
     auto tdb = RETypeDB::get();
 
-    if (this->declaring_typeid == 0 || this->declaring_typeid >= tdb->numTypes) {
+    if (TDEF_FIELD(this, declaring_typeid) == 0 || TDEF_FIELD(this, declaring_typeid) >= tdb->numTypes) {
         return nullptr;
     }
 
-    return tdb->get_type(this->declaring_typeid);
+    return tdb->get_type(TDEF_FIELD(this, declaring_typeid));
 }
 
 sdk::RETypeDefinition* RETypeDefinition::get_parent_type() const {
     auto tdb = RETypeDB::get();
 
-    if (this->parent_typeid == 0 || this->parent_typeid >= tdb->numTypes) {
+    if (TDEF_FIELD(this, parent_typeid) == 0 || TDEF_FIELD(this, parent_typeid) >= tdb->numTypes) {
         return nullptr;
     }
 
-    return tdb->get_type(this->parent_typeid);
+    return tdb->get_type(TDEF_FIELD(this, parent_typeid));
 }
 
 static std::shared_mutex g_underlying_mtx{};
@@ -415,9 +415,9 @@ sdk::RETypeDefinition* RETypeDefinition::get_underlying_type() const {
 
 sdk::RETypeDefinition* RETypeDefinition::get_generic_type_definition() const {
 #if TDB_VER > 49
-    if (this->generics > 0) {
+    if (TDEF_FIELD(this, generics) > 0) {
         const auto tdb = sdk::RETypeDB::get();
-        auto generics = tdb->get_data<sdk::GenericListData>(this->generics);
+        auto generics = tdb->get_data<sdk::GenericListData>(TDEF_FIELD(this, generics));
 
         const auto id = generics->definition_typeid;
 
@@ -596,9 +596,9 @@ std::vector<sdk::RETypeDefinition*> RETypeDefinition::get_generic_argument_types
 
 sdk::GenericListData* RETypeDefinition::get_generic_data() const {
 #if TDB_VER > 49
-    if (this->generics > 0) {
+    if (TDEF_FIELD(this, generics) > 0) {
         const auto tdb = sdk::RETypeDB::get();
-        return tdb->get_data<sdk::GenericListData>(this->generics);
+        return tdb->get_data<sdk::GenericListData>(TDEF_FIELD(this, generics));
     }
 #endif
 
@@ -607,7 +607,7 @@ sdk::GenericListData* RETypeDefinition::get_generic_data() const {
 
 uint32_t RETypeDefinition::get_index() const {
 #if TDB_VER > 49
-    return this->index;
+    return TDEF_FIELD(this, index);
 #else
     const auto tdb = RETypeDB::get();
 
@@ -671,11 +671,11 @@ bool RETypeDefinition::is_a(std::string_view other) const {
 }
 
 ::via::clr::VMObjType RETypeDefinition::get_vm_obj_type() const {
-    return (::via::clr::VMObjType)this->object_type;
+    return (::via::clr::VMObjType)TDEF_FIELD(this, object_type);
 }
 
 void RETypeDefinition::set_vm_obj_type(::via::clr::VMObjType type) {
-    this->object_type = (uint8_t)type;
+    TDEF_FIELD_SET(this, object_type, (uint8_t)type);
 }
 
 bool RETypeDefinition::is_value_type() const {
@@ -934,7 +934,7 @@ uint32_t RETypeDefinition::get_size() const {
 uint32_t RETypeDefinition::get_valuetype_size() const {
 #if TDB_VER >= 69
     auto tdb = RETypeDB::get();
-    auto impl_id = this->impl_index;
+    auto impl_id = TDEF_FIELD(this, impl_index);
 
     if (impl_id == 0) {
         return 0;
@@ -948,7 +948,7 @@ uint32_t RETypeDefinition::get_valuetype_size() const {
 
 ::REType* RETypeDefinition::get_type() const {
 #if TDB_VER > 49
-    return this->type;
+    return TDEF_FIELD(this, type);
 #else
     auto vm = sdk::VM::get();
     const auto& vm_type = vm->types[this->get_index()];
@@ -1143,16 +1143,16 @@ void* RETypeDefinition::create_instance() const {
 ::REObjectInfo* RETypeDefinition::get_managed_vt() const {
 #if TDB_VER > 49
     #if TDB_VER >= 81
-        REObjectInfo *target_managed_vt = this->managed_vt;
+        REObjectInfo *target_managed_vt = TDEF_FIELD(this, managed_vt);
         const int ABSTRACT_TYPE_FLAG = 128;
 
-        if (this->managed_vt == nullptr) {
+        if (TDEF_FIELD(this, managed_vt) == nullptr) {
             // Abstract
             if (this->type_flags & ABSTRACT_TYPE_FLAG) {
                 // Keep getting parent type until getting a hit
                 auto parent_type_def = this->get_parent_type();
                 while (parent_type_def != nullptr) {
-                    target_managed_vt = parent_type_def->managed_vt;
+                    target_managed_vt = TDEF_FIELD(parent_type_def, managed_vt);
 
                     if (target_managed_vt != nullptr) {
                         break;
