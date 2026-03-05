@@ -1626,7 +1626,9 @@ void IntegrityCheckBypass::immediate_patch_re9() {
     //auto thread_scheduler_corruptor = utility::scan(game, "48 89 74 08 08 48 89 F0");
 
     // Invariant that works through obfuscation. They don't obfuscate the epilogue of the block above the slow path conditional.
-    const auto function_epilogue_sig = "48 31 e1 e8 ? ? ? ? C5 F8 28 B4 24 D0 01 00 00 48 81 c4 e8 01";
+    // The xor rcx,rsp + call __security_check_cookie + vmovaps xmm6 sequence is compiler-generated and stable.
+    // In new builds there was a sub rbp, rbp randomly inserted after the vmovaps, so we added a wildcard functionality to the signature scan to allow some instructions in between.
+    const auto function_epilogue_sig = "48 31 E1 E8 ? ? ? ? *[5] C5 F8 28 B4 24 D0 01 00 00 *[5] 48 81 C4 E8 01 00 00";
     std::optional<uintptr_t> result{};
     size_t nop_size{};
 
@@ -1655,43 +1657,82 @@ void IntegrityCheckBypass::immediate_patch_re9() {
 
         spdlog::info("Checking candidate at 0x{:X}, pop_count: {}", *ref, pop_count);
 
-        // Now check if we have a cmov conditional nearby.
-        bool prev_was_ret = false;
-        utility::linear_decode((uint8_t*)*ref, 0x150, [&](utility::ExhaustionContext& ctx) -> bool {
-#if 0
-            char buf[256]{};
-            NdToText(&ctx.instrux, ctx.addr, sizeof(buf), buf);
-            spdlog::info("    0x{:X}: {}", ctx.addr, buf);
-#endif
+        // Linear decode past rets into the dispatch block. Look for the slow path discriminator:
+        // a SETcc or CMOVcc instruction followed by a dispatch table access [reg + reg*8].
+        // Old obfuscation used CMOVcc as the dispatch table load itself.
+        // New obfuscation uses SETcc to set an index, then a separate MOV rXX, [rYY + rZZ*8].
+        // The semantic proof that this is an obfuscated dispatch block is the presence of BOTH:
+        //   1) a flag-dependent instruction (CMOVcc or SETcc)
+        //   2) a SIB-indexed memory load with scale=8 (the 2-entry dispatch table)
+        std::optional<uintptr_t> cond_addr{};
+        size_t cond_nop_size{};
+        bool has_dispatch_table = false;
+        bool already_in_dispatch_block = false;
 
+        utility::linear_decode((uint8_t*)*ref, 0x150, [&](utility::ExhaustionContext& ctx) -> bool {
+            // CMOVcc pattern (old + variant): The cmov IS the dispatch selector.
+            // Variant A: cmovcc rcx, [rip+disp32] (memory source, dispatch table load)
+            // Variant B: cmovcc rcx, rbx (register source, both paths loaded via LEA)
+            // In all observed variants the CMOVcc conditionally overwrites the default (clean)
+            // path with the penalty path. NOPing it keeps the clean path unconditionally.
+            // The structural context (epilogue match + pop_count <= 2 + ret-skip) is sufficient
+            // to confirm this is an obfuscated dispatch, no operand-type check needed.
             if (ctx.instrux.Instruction == ND_INS_CMOVcc) {
-                result = ctx.addr;
-                nop_size = ctx.instrux.Length;
+                cond_addr = ctx.addr;
+                cond_nop_size = ctx.instrux.Length;
+                has_dispatch_table = true;
                 return false;
             }
 
-            // Stop at ret/int3/jmp
+            // New pattern: SETcc sets an index register, then a separate MOV rXX, [rYY + rZZ*8]
+            // reads from the 2-entry dispatch table using that index.
+            if (ctx.instrux.Instruction == ND_INS_SETcc) {
+                cond_addr = ctx.addr;
+                cond_nop_size = ctx.instrux.Length;
+            }
+
+            // After finding a SETcc, look for the dispatch table access: MOV with [base + index*8]
+            if (cond_addr.has_value() && ctx.instrux.Instruction == ND_INS_MOV) {
+                for (uint8_t i = 0; i < ctx.instrux.OperandsCount; i++) {
+                    const auto& op = ctx.instrux.Operands[i];
+                    if (op.Type == ND_OP_MEM && op.Info.Memory.HasIndex && op.Info.Memory.HasBase && op.Info.Memory.Scale == 8) {
+                        has_dispatch_table = true;
+                        return false;
+                    }
+                }
+            }
+
+            // Skip past ret + garbage byte to continue into the next obfuscated block.
             if (ctx.instrux.Category == ND_CAT_RET) {
-                // advance ip by 1 to get to the other basic block.
-                // this is part of their obfuscation where they insert a random byte after a ret
-                // to break linear decoders, it really messes with IDA for example.
+                if (already_in_dispatch_block) {
+                    // We've already passed through one RET, the next RET would be the end of the dispatch block, so stop.
+                    return false;
+                }
+
+                already_in_dispatch_block = true;
                 ctx.addr += 1;
             }
             return true;
         });
 
-        if (result) {
+        if (cond_addr.has_value() && has_dispatch_table) {
+            result = cond_addr;
+            nop_size = cond_nop_size;
             break;
         }
     }
 
     if (result) {
-        spdlog::info("[IntegrityCheckBypass]: Found conditional move instruction for thread scheduler corruptor in RE9 @ 0x{:X}, patching...", *result);
-        // Patch the cmov to to do nothing, the correct path is already in rcx.
+        spdlog::info("[IntegrityCheckBypass]: Found slow path discriminator in RE9 @ 0x{:X} ({}B), patching...", *result, nop_size);
+        // NOP the conditional. This forces the dispatch index to its default (clean) value:
+        // - For SETcc: the target register keeps its restored value (0) from the surrounding obfuscation,
+        //   so the dispatch table always selects index 0 (the clean path).
+        // - For CMOVcc: the destination register keeps the value from the preceding MOV (the default path),
+        //   preventing the conditional overwrite to the penalty path.
         std::vector<int16_t> nops{};
         nops.resize(nop_size, 0x90);
         static auto patch = Patch::create(*result, nops, true);
-        spdlog::info("[IntegrityCheckBypass]: Patched thread scheduler corruptor in RE9!");
+        spdlog::info("[IntegrityCheckBypass]: Patched slow path discriminator in RE9!");
     } else {
         spdlog::error("[IntegrityCheckBypass]: Could not find conditional move instruction for thread scheduler corruptor in RE9!");
 
@@ -1726,6 +1767,7 @@ void IntegrityCheckBypass::immediate_patch_re9() {
 
     // Scan for PE header integrity check (thanks to SunBeam for pointing out this exists in RE9 and showing me where it is!)
     auto before_sig = "4C 89 ? 24 40 00 00 00 41 ?";
+    bool patched_pe_header_check = false;
 
     for (auto ref = utility::scan(game, before_sig);
          ref.has_value();
@@ -1823,8 +1865,13 @@ void IntegrityCheckBypass::immediate_patch_re9() {
             std::vector<int16_t> patch_bytes(raw.begin(), raw.end());
             static auto pe_header_patch = Patch::create(patch_addr, patch_bytes, true);
             spdlog::info("[IntegrityCheckBypass]: Patched PE header integrity check with movabs to 0x{:X} (reg: {})", (uintptr_t)allocated_memory, reg);
+            patched_pe_header_check = true;
             break;
         }
+    }
+
+    if (!patched_pe_header_check) {
+        spdlog::error("[IntegrityCheckBypass]: Could not find PE header integrity check!");
     }
 }
 
