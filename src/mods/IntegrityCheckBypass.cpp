@@ -9,6 +9,7 @@
 #include "utility/Scan.hpp"
 
 #include "sdk/RETypeDB.hpp"
+#include <sdk/GameIdentity.hpp>
 
 #include "Hooks.hpp"
 
@@ -35,60 +36,65 @@ std::optional<std::string> IntegrityCheckBypass::on_initialize() {
     // Patterns for assigning or accessing of the integrity check boolean (RE3)
     // and for jumping past the integrity checks (RE8)
     // In RE8, the integrity checks cause a noticeable stutter as well.
-    std::vector<IntegrityCheckPattern> possible_patterns {
-#ifdef RE3
-        /*
-        cmp     qword ptr [rax+18h], 0
-        cmovz   ecx, r15d
-        mov     cs:bypass_integrity_checks, cl*/
-        // Referenced above "steam_api64.dll"
-        {"48 ? ? 18 00 41 ? ? ? 88 0D ? ? ? ?", 11}, 
-        {"48 ? ? 18 00 0F ? ? 88 0D ? ? ? ? 49 ? ? ? 48", 10},
-#elif defined(RE8)
-        /*
-        These are partially obfuscated and are within protected sections.
-        The ja jumps past the checksum checks which cause very large stutters if they are ran.
-        We'll replace the ja to always jump past the checksum checks.
+    std::vector<IntegrityCheckPattern> possible_patterns{};
 
-        There are various patterns here because the code is obfuscated, there's an element of randomness per update.
-        Lots of random junk code. Some instructions are obfuscated into multiple instructions as well.
-        We're taking a shot in the dark here hoping that the obfuscated code
-        stays generally the same past a game update.
-        */
+    const auto& gi = sdk::GameIdentity::get();
+    if (gi.is_re3()) {
+        possible_patterns = {
+            /*
+            cmp     qword ptr [rax+18h], 0
+            cmovz   ecx, r15d
+            mov     cs:bypass_integrity_checks, cl*/
+            // Referenced above "steam_api64.dll"
+            {"48 ? ? 18 00 41 ? ? ? 88 0D ? ? ? ?", 11}, 
+            {"48 ? ? 18 00 0F ? ? 88 0D ? ? ? ? 49 ? ? ? 48", 10},
+        };
+    } else if (gi.is_re8()) {
+        possible_patterns = {
+            /*
+            These are partially obfuscated and are within protected sections.
+            The ja jumps past the checksum checks which cause very large stutters if they are ran.
+            We'll replace the ja to always jump past the checksum checks.
 
-        /*
-        sub     eax, ecx
-        ja      NO_CHECKSUM_CHECKS1
-        mov     eax, [rsp+whatever]
-        */
-        // app.PlayerCore.onDamage, app.EnemyCore.onDie2 (onDie2 gets called from onDie)
-        {"29 c8 0f 87 ? ? ? ? 8b 84", 2},
+            There are various patterns here because the code is obfuscated, there's an element of randomness per update.
+            Lots of random junk code. Some instructions are obfuscated into multiple instructions as well.
+            We're taking a shot in the dark here hoping that the obfuscated code
+            stays generally the same past a game update.
+            */
 
-        /*
-        sub     eax, ecx
-        ja      NO_CHECKSUM_CHECKS2
-.       xor     eax, eax
-        sub     eax, [rsp+whatever]
-        */
-        // app.PlayerCore.onDamage #2
-        {"29 c8 0f 87 ? ? ? ? 31 C0 2B", 2},
+            /*
+            sub     eax, ecx
+            ja      NO_CHECKSUM_CHECKS1
+            mov     eax, [rsp+whatever]
+            */
+            // app.PlayerCore.onDamage, app.EnemyCore.onDie2 (onDie2 gets called from onDie)
+            {"29 c8 0f 87 ? ? ? ? 8b 84", 2},
 
-        /*
-        mov     eax, [rsp+whatever]
-        sub     eax, ecx
-        ja      NO_CHECKSUM_CHECKS3
-        xor     eax, eax
-        */
-        // app.PlayerCore.onDamage #3, app.EnemyCore.onDie2 #2
-        {"8b 84 ? ? ? ? ? 29 c8 0f 87 ? ? ? ?", 9},
-        /* 
-        There is another one inside of app.GlobalService.msgSceneTransition_afterDeactivate
-        but didn't bother to patch it out. Reason being that it seems to only get called when loading is finished. 
-        Maybe some more investigation is required here?
-        */
-        // The above function names can be found within il2cpp_dump.json, which is dumped with REFramework's "Dump SDK" button in developer mode.
-#endif
-    };
+            /*
+            sub     eax, ecx
+            ja      NO_CHECKSUM_CHECKS2
+.           xor     eax, eax
+            sub     eax, [rsp+whatever]
+            */
+            // app.PlayerCore.onDamage #2
+            {"29 c8 0f 87 ? ? ? ? 31 C0 2B", 2},
+
+            /*
+            mov     eax, [rsp+whatever]
+            sub     eax, ecx
+            ja      NO_CHECKSUM_CHECKS3
+            xor     eax, eax
+            */
+            // app.PlayerCore.onDamage #3, app.EnemyCore.onDie2 #2
+            {"8b 84 ? ? ? ? ? 29 c8 0f 87 ? ? ? ?", 9},
+            /* 
+            There is another one inside of app.GlobalService.msgSceneTransition_afterDeactivate
+            but didn't bother to patch it out. Reason being that it seems to only get called when loading is finished. 
+            Maybe some more investigation is required here?
+            */
+            // The above function names can be found within il2cpp_dump.json, which is dumped with REFramework's "Dump SDK" button in developer mode.
+        };
+    }
 
     std::unordered_set<uintptr_t> already_patched{};
 
@@ -104,59 +110,59 @@ std::optional<std::string> IntegrityCheckBypass::on_initialize() {
             continue;
         }
 
-#if defined(RE3)
-        m_bypass_integrity_checks = (bool*)utility::calculate_absolute(*integrity_check_ref + possible_pattern.offset);
-#elif defined(RE8)
-        ignore_application_entries();
+        if (gi.is_re3()) {
+            m_bypass_integrity_checks = (bool*)utility::calculate_absolute(*integrity_check_ref + possible_pattern.offset);
+        } else if (gi.is_re8()) {
+            ignore_application_entries();
 
-        while (integrity_check_ref) {
-            const auto ja_instruction = *integrity_check_ref + possible_pattern.offset;
+            while (integrity_check_ref) {
+                const auto ja_instruction = *integrity_check_ref + possible_pattern.offset;
 
-            if (already_patched.contains(ja_instruction)) {
-                spdlog::info("IntegrityCheckBypass: ja instruction at 0x{:X} already patched, continuing...", ja_instruction);
-                integrity_check_ref =
-                    utility::scan(*integrity_check_ref + 1, module_end - (*integrity_check_ref + 1), possible_pattern.pat);
-                continue;
+                if (already_patched.contains(ja_instruction)) {
+                    spdlog::info("IntegrityCheckBypass: ja instruction at 0x{:X} already patched, continuing...", ja_instruction);
+                    integrity_check_ref =
+                        utility::scan(*integrity_check_ref + 1, module_end - (*integrity_check_ref + 1), possible_pattern.pat);
+                    continue;
+                }
+
+                // Create a ja->jmp patch for bypassing the integrity check
+                std::vector<uint8_t> patch_bytes{0xE9, 0x00, 0x00, 0x00, 0x00, 0x90};
+
+                // Overwrite the target address with the original ja target. Add 1 byte because the new instruction is smaller.
+                *(uint32_t*)&patch_bytes[1] = *(uint32_t*)(ja_instruction + 2) + 1;
+
+                // Convert the uint8_t patch_bytes to int16_t vector
+                std::vector<int16_t> patch_int16_bytes{};
+
+                for (auto& patch_byte : patch_bytes) {
+                    patch_int16_bytes.push_back(patch_byte);
+                }
+
+                // Log the patch address (ja_instruction) and bytes with spdlog
+                spdlog::info("Patch address: 0x{:X}", ja_instruction);
+
+                // Convert patch_bytes to hex string with stringstream and then log the string with spdlog
+                std::stringstream ss;
+                ss << std::hex << std::setfill('0');
+                for (auto& patch_byte : patch_bytes) {
+                    ss << std::setw(2) << (int)patch_byte << " ";
+                }
+
+                spdlog::info("Patch bytes: {}", ss.str());
+
+                // Patch the bytes
+                m_patches.emplace_back(Patch::create(ja_instruction, patch_int16_bytes));
+                already_patched.emplace(ja_instruction);
+
+                // Search for the next integrity check using the same pattern
+                integrity_check_ref = utility::scan(*integrity_check_ref + 1, module_end - (*integrity_check_ref + 1), possible_pattern.pat);
             }
 
-            // Create a ja->jmp patch for bypassing the integrity check
-            std::vector<uint8_t> patch_bytes{0xE9, 0x00, 0x00, 0x00, 0x00, 0x90};
-
-            // Overwrite the target address with the original ja target. Add 1 byte because the new instruction is smaller.
-            *(uint32_t*)&patch_bytes[1] = *(uint32_t*)(ja_instruction + 2) + 1;
-
-            // Convert the uint8_t patch_bytes to int16_t vector
-            std::vector<int16_t> patch_int16_bytes{};
-
-            for (auto& patch_byte : patch_bytes) {
-                patch_int16_bytes.push_back(patch_byte);
+            // If we didn't find any integrity checks
+            if (m_patches.empty()) {
+                spdlog::info("Could not find any integrity checks to bypass!");
             }
-
-            // Log the patch address (ja_instruction) and bytes with spdlog
-            spdlog::info("Patch address: 0x{:X}", ja_instruction);
-
-            // Convert patch_bytes to hex string with stringstream and then log the string with spdlog
-            std::stringstream ss;
-            ss << std::hex << std::setfill('0');
-            for (auto& patch_byte : patch_bytes) {
-                ss << std::setw(2) << (int)patch_byte << " ";
-            }
-
-            spdlog::info("Patch bytes: {}", ss.str());
-
-            // Patch the bytes
-            m_patches.emplace_back(Patch::create(ja_instruction, patch_int16_bytes));
-            already_patched.emplace(ja_instruction);
-
-            // Search for the next integrity check using the same pattern
-            integrity_check_ref = utility::scan(*integrity_check_ref + 1, module_end - (*integrity_check_ref + 1), possible_pattern.pat);
         }
-
-        // If we didn't find any integrity checks
-        if (m_patches.empty()) {
-            spdlog::info("Could not find any integrity checks to bypass!");
-        }
-#endif
     }
 
     // These may be removed, so don't fail altogether
@@ -164,11 +170,11 @@ std::optional<std::string> IntegrityCheckBypass::on_initialize() {
         return "Failed to find IntegrityCheckBypass pattern";
     }*/
 
-#ifdef RE3
-    spdlog::info("[{:s}]: bypass_integrity_checks: {:x}", get_name().data(), (uintptr_t)m_bypass_integrity_checks);
-#endif
+    if (gi.is_re3()) {
+        spdlog::info("[{:s}]: bypass_integrity_checks: {:x}", get_name().data(), (uintptr_t)m_bypass_integrity_checks);
+    }
 
-#ifdef MHRISE
+    if (gi.is_mhrise()) {
     // this is pretty much what it was like finding this, you just gotta look a little closer!
     const auto very_cool_type = sdk::find_type_definition_by_fqn(0x83f09f47);
     static std::vector<Patch::Ptr> very_cool_patches{};
@@ -244,7 +250,7 @@ std::optional<std::string> IntegrityCheckBypass::on_initialize() {
     } else {
         spdlog::error("[{:s}]: Could not find very_awesome_type!", get_name().data());
     }
-#endif
+    }
 
     s_patch_count_checked = false;
 
@@ -254,24 +260,24 @@ std::optional<std::string> IntegrityCheckBypass::on_initialize() {
 }
 
 void IntegrityCheckBypass::on_frame() {
-#ifdef RE3
-    if (m_bypass_integrity_checks != nullptr) {
-        *m_bypass_integrity_checks = true;
+    const auto& gi = sdk::GameIdentity::get();
+    if (gi.is_re3()) {
+        if (m_bypass_integrity_checks != nullptr) {
+            *m_bypass_integrity_checks = true;
+        }
     }
-#endif
 
-#ifdef RE8
-    // These three are responsible for various stutters and
-    // gameplay altering effects e.g. not being able to interact with objects
-    disable_update_timers("app.InteractManager");
-    disable_update_timers("app.EnemyManager");
-    disable_update_timers("app.GUIManager");
-    disable_update_timers("app.HIDManager");
-    disable_update_timers("app.FadeManager");
-#endif
+    if (gi.is_re8()) {
+        // These three are responsible for various stutters and
+        // gameplay altering effects e.g. not being able to interact with objects
+        disable_update_timers("app.InteractManager");
+        disable_update_timers("app.EnemyManager");
+        disable_update_timers("app.GUIManager");
+        disable_update_timers("app.HIDManager");
+        disable_update_timers("app.FadeManager");
+    }
 }
 
-#ifdef RE8
 void IntegrityCheckBypass::disable_update_timers(std::string_view name) const {
     // get the singleton correspdonding to the given name
     auto manager = sdk::get_managed_singleton<::REManagedObject>(name);
@@ -315,32 +321,31 @@ void IntegrityCheckBypass::disable_update_timers(std::string_view name) const {
         update_timer_late_enable = false;
     }
 }
-#endif
 
 void IntegrityCheckBypass::ignore_application_entries() {
     Hooks::get()->ignore_application_entry(0x76b8100bec7c12c3);
     Hooks::get()->ignore_application_entry(0x9f63c0fc4eea6626);
 
-#if TDB_VER >= 73
-    Hooks::get()->ignore_application_entry(0x00c0ab9309584734);
-    Hooks::get()->ignore_application_entry(0xa474f1d3a294e6a4);
-#endif
-#if TDB_VER >= 74
-    Hooks::get()->ignore_application_entry(0x00ec4793097cd833);
-    Hooks::get()->ignore_application_entry(0x00d85893096c4c0c);
-#endif
+    const auto& gi = sdk::GameIdentity::get();
+    if (gi.tdb_ver() >= 73) {
+        Hooks::get()->ignore_application_entry(0x00c0ab9309584734);
+        Hooks::get()->ignore_application_entry(0xa474f1d3a294e6a4);
+    }
+    if (gi.tdb_ver() >= 74) {
+        Hooks::get()->ignore_application_entry(0x00ec4793097cd833);
+        Hooks::get()->ignore_application_entry(0x00d85893096c4c0c);
+    }
 }
 
 void IntegrityCheckBypass::immediate_patch_re8() {
     // Apparently patching this in SF6 causes some bugs like chat not showing up and being unable to view replays.
     // Disabling it for now as the game still seems to work fine without it.
-#ifdef SF6 
-    if (true) {
+    const auto& gi = sdk::GameIdentity::get();
+    if (gi.is_sf6()) {
         return;
     }
-#endif
 
-#if TDB_VER < 73
+    if (gi.tdb_ver() < 73) {
     // We have to immediately patch this at startup in RE8 unlike MHRise
     // because the game immediately starts checking the integrity of the executable
     // on the first execution of this callback, unlike MHRise which was delayed.
@@ -443,7 +448,7 @@ void IntegrityCheckBypass::immediate_patch_re8() {
     } else {
         spdlog::error("[IntegrityCheckBypass]: Could not find sussy_result_4!");
     }
-#endif
+    }
 }
 
 void IntegrityCheckBypass::immediate_patch_re4() {
@@ -1020,7 +1025,8 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
 
     spdlog::info("[IntegrityCheckBypass]: Created sha3_rsa_code_midhook!");
 
-#if TDB_VER >= 81
+    const auto& gi = sdk::GameIdentity::get();
+    if (gi.tdb_ver() >= 81) {
     // Find function start may
     auto pak_load_check_start = utility::scan(game, "41 57 41 56 41 55 41 54 56 57 55 53 48 81 EC ? ? ? ? 48 89 CE 48 8B 05 ? ? ? ? 48 31 E0 48 89 84 24 ? ? ? ? 48 8B 81 ? ? ? ? 48 C1 E8 10");
 
@@ -1052,7 +1058,7 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
         }
     }
 
-#if TDB_VER >= 82
+    if (gi.tdb_ver() >= 82) {
     if (!patch_version_start) {
         // Method 2
         const wchar_t *patch_version_string = L"/Environment/Package/PatchVersion:";
@@ -1070,36 +1076,36 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
                 
                 // Check if previous instruction is a mov, that should be our register
                 if (!previous_instructions.empty()) {
-#if defined(RE9)
-                    s_patch_version_reg_index = NDR_RDI; // RE9 v1.0.0.0
-                    spdlog::info("[IntegrityCheckBypass]: patch_version_reg_index set to {} based on RE9 knowledge", s_patch_version_reg_index);
-#else
-                    for (auto insn_begin = previous_instructions.rbegin(); insn_begin != previous_instructions.rend(); ++insn_begin) {
-                        auto previous_instruction = *insn_begin;
+                    if (gi.is_re9()) {
+                        s_patch_version_reg_index = NDR_RDI; // RE9 v1.0.0.0
+                        spdlog::info("[IntegrityCheckBypass]: patch_version_reg_index set to {} based on RE9 knowledge", s_patch_version_reg_index);
+                    } else {
+                        for (auto insn_begin = previous_instructions.rbegin(); insn_begin != previous_instructions.rend(); ++insn_begin) {
+                            auto previous_instruction = *insn_begin;
 
-                        if ((previous_instruction.instrux.Instruction == ND_INS_MOV || previous_instruction.instrux.Instruction == ND_INS_MOVZX) && previous_instruction.instrux.Operands[0].Type == ND_OP_REG) {
-                            s_patch_version_reg_index = previous_instruction.instrux.Operands[0].Info.Register.Reg;
-                            spdlog::info("[IntegrityCheckBypass]: patch_version_reg_index set to {} through fallback method", s_patch_version_reg_index);
+                            if ((previous_instruction.instrux.Instruction == ND_INS_MOV || previous_instruction.instrux.Instruction == ND_INS_MOVZX) && previous_instruction.instrux.Operands[0].Type == ND_OP_REG) {
+                                s_patch_version_reg_index = previous_instruction.instrux.Operands[0].Info.Register.Reg;
+                                spdlog::info("[IntegrityCheckBypass]: patch_version_reg_index set to {} through fallback method", s_patch_version_reg_index);
 
-                            break;
-                        } else {
-                            spdlog::error("[IntegrityCheckBypass]: Previous instruction is not a MOV or MOVZX with register operand, cannot determine patch_version_reg_index through fallback method!");
+                                break;
+                            } else {
+                                spdlog::error("[IntegrityCheckBypass]: Previous instruction is not a MOV or MOVZX with register operand, cannot determine patch_version_reg_index through fallback method!");
+                            }
                         }
                     }
-#endif
                 } else {
                     spdlog::error("[IntegrityCheckBypass]: Could not find previous instructions for patch_version_reg_index fallback method!");
                 }
             }
         }
     }
-#endif
+    }
 
     if (patch_version_start) {
         spdlog::info("[IntegrityCheckBypass]: Created patch_version_hook to 0x{:X}, hook!", (uintptr_t)*patch_version_start);
         s_patch_version_hook = safetyhook::create_mid((void*)*patch_version_start, &IntegrityCheckBypass::patch_version_hook);
     }
-#endif
+    }
 
     auto previous_instructions = utility::get_disassembly_behind(*s_sha3_code_end);
     auto previous_instructions_start = utility::get_disassembly_behind(*sha3_code_start);
@@ -1164,7 +1170,7 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
         if (s_sha3_reg_index == -1) {
             spdlog::error("[IntegrityCheckBypass]: Could not determine sha3_reg_index!");
 
-#if TDB_VER >= 83
+            if (gi.tdb_ver() >= 83) {
             // A safe way is to store the flags value by ourself, because sometimes the compiled code stores it in stack only
             spdlog::info("[IntegrityCheckBypass]: Attempting to do a safe fallback to get the pak_flags");
             
@@ -1182,7 +1188,7 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
                     }
                 }
             }
-#endif
+            }
         }
     }
 }
@@ -1262,12 +1268,13 @@ void IntegrityCheckBypass::immediate_patch_dd2() {
     const auto game_size = utility::get_module_size(game).value_or(0);
     const auto game_end = (uintptr_t)game + game_size;
 
-#if TDB_VER >= 74
+    const auto& gi = sdk::GameIdentity::get();
+    if (gi.tdb_ver() >= 74) {
     init_anti_debug_watcher();
 
     // TODO: Check if full release of Pragmata needs this
     // right now it freezes the game
-#if defined(MHWILDS)
+    if (gi.is_mhwilds()) {
     const auto query_performance_frequency = &QueryPerformanceFrequency;
     const auto query_performance_counter = &QueryPerformanceCounter;
 
@@ -1338,7 +1345,7 @@ void IntegrityCheckBypass::immediate_patch_dd2() {
             spdlog::error("[IntegrityCheckBypass]: Could not find QueryPerformanceFrequency/Counter imports!");
         }
     }
-#endif
+    }
 
     if (const auto create_blas_fn = utility::find_function_from_string_ref(game, "createBLAS"); create_blas_fn.has_value()) {
         const auto create_blas_fn_unwind = utility::find_function_start_unwind(*create_blas_fn);
@@ -1383,7 +1390,7 @@ void IntegrityCheckBypass::immediate_patch_dd2() {
     spdlog::info("[IntegrityCheckBypass]: Patched {} sus_constants!", sus_constant_patches.size());
 
     restore_unencrypted_paks();
-#endif
+    }
 
     const auto conditional_jmp_block = utility::scan(game, "41 8B ? ? 78 83 ? 07 ? ? 75 ?");
 
@@ -2045,7 +2052,7 @@ BOOL WINAPI IntegrityCheckBypass::virtual_protect_hook(LPVOID lpAddress, SIZE_T 
 }
 
 void IntegrityCheckBypass::hook_add_vectored_exception_handler() {
-#if TDB_VER >= 73
+    if (sdk::GameIdentity::get().tdb_ver() < 73) return;
     spdlog::info("[IntegrityCheckBypass]: Hooking AddVectoredExceptionHandler...");
 
     s_add_vectored_exception_handler_hook = std::make_unique<FunctionHookMinHook>(AddVectoredExceptionHandler, (uintptr_t)add_vectored_exception_handler_hook);
@@ -2055,7 +2062,6 @@ void IntegrityCheckBypass::hook_add_vectored_exception_handler() {
     }
 
     spdlog::info("[IntegrityCheckBypass]: Hooked AddVectoredExceptionHandler!");
-#endif
 }
 
 PVOID WINAPI IntegrityCheckBypass::add_vectored_exception_handler_hook(ULONG FirstHandler, PVECTORED_EXCEPTION_HANDLER VectoredHandler) {
@@ -2183,34 +2189,34 @@ void IntegrityCheckBypass::find_try_hook_via_file_load_win32_create_file(uintptr
             continue;
         }
 
-#if defined(RE9) // Super ultra dirty hack (TM) for RE9 v1.0.0.0
-        if (instr->Instruction == ND_INS_CALLNR) {
-            spdlog::info("[IntegrityCheckBypass]: Found call to stream open function at 0x{:X}!", (uintptr_t)search_current);
+        if (sdk::GameIdentity::get().is_re9()) { // Super ultra dirty hack (TM) for RE9 v1.0.0.0
+            if (instr->Instruction == ND_INS_CALLNR) {
+                spdlog::info("[IntegrityCheckBypass]: Found call to stream open function at 0x{:X}!", (uintptr_t)search_current);
 
-            if (auto resolved_opt = utility::resolve_displacement((uintptr_t)search_current)) {
-                open_stream_func_addr = (uint8_t*)*resolved_opt;
-                break;
+                if (auto resolved_opt = utility::resolve_displacement((uintptr_t)search_current)) {
+                    open_stream_func_addr = (uint8_t*)*resolved_opt;
+                    break;
+                }
             }
-        }
-#else
-        if (instr->Instruction == ND_INS_CALLNR) {
-            // Is next instruction testing if the result is zero/non-zero? If so, this is likely the call that opens the file stream, since it checks if the handle is valid.
-            auto next_instr = utility::decode_one(search_current + instr->Length);
-            if (next_instr && next_instr->Instruction == ND_INS_TEST) {
-                if (next_instr->Operands[0].Type == ND_OP_REG && next_instr->Operands[0].Info.Register.Reg == NDR_RAX
-                    && next_instr->Operands[1].Type == ND_OP_REG && next_instr->Operands[1].Info.Register.Reg == NDR_RAX) {
-                    spdlog::info("[IntegrityCheckBypass]: Found call to stream open function at 0x{:X}!", (uintptr_t)search_current);
+        } else {
+            if (instr->Instruction == ND_INS_CALLNR) {
+                // Is next instruction testing if the result is zero/non-zero? If so, this is likely the call that opens the file stream, since it checks if the handle is valid.
+                auto next_instr = utility::decode_one(search_current + instr->Length);
+                if (next_instr && next_instr->Instruction == ND_INS_TEST) {
+                    if (next_instr->Operands[0].Type == ND_OP_REG && next_instr->Operands[0].Info.Register.Reg == NDR_RAX
+                        && next_instr->Operands[1].Type == ND_OP_REG && next_instr->Operands[1].Info.Register.Reg == NDR_RAX) {
+                        spdlog::info("[IntegrityCheckBypass]: Found call to stream open function at 0x{:X}!", (uintptr_t)search_current);
  
-                    if (auto resolved_opt = utility::resolve_displacement((uintptr_t)search_current)) {
-                        open_stream_func_addr = (uint8_t*)*resolved_opt;
-                        break;
+                        if (auto resolved_opt = utility::resolve_displacement((uintptr_t)search_current)) {
+                            open_stream_func_addr = (uint8_t*)*resolved_opt;
+                            break;
+                        }
+                    } else {
+                        continue;
                     }
-                } else {
-                    continue;
                 }
             }
         }
-#endif
 
         search_current += instr->Length;
     }

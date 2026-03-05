@@ -27,6 +27,7 @@
 #include <sdk/REGameObject.hpp>
 #include "REFramework.hpp"
 #include "ObjectExplorer.hpp"
+#include <sdk/GameIdentity.hpp>
 
 using json = nlohmann::json;
 
@@ -44,7 +45,6 @@ constexpr std::string_view TYPE_DEFINITION_NAME = "sdk::RETypeDefinition";
 
 std::unordered_set<std::string> g_class_set{};
 
-#if TDB_VER < 69
 // via.typeinfo.TypeCode doesn't exist in older games...
 std::array<const char*, 84> g_typecode_names{
     "Undefined",
@@ -132,7 +132,6 @@ std::array<const char*, 84> g_typecode_names{
     "F16",
     "End",
 };
-#endif
 
 static std::unordered_map<std::string, std::string> g_valuetype_typedefs {
     { "System.Void", "void" },
@@ -1168,6 +1167,7 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
 
 #ifdef TDB_DUMP_ALLOWED
     auto tdb = (sdk::RETypeDB*)reframework::get_types()->get_type_db();
+    const auto& gi = sdk::GameIdentity::get();
 
     // Types
     for (uint32_t i = 0; i < tdb->numTypes; ++i) {
@@ -1232,15 +1232,15 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
             type_entry["declaring_type"] = declaring_type->get_full_name();
         }
 
-#if TDB_VER >= 71
-        if (tdef->element_typeid_TBD != 0) {
-            type_entry["element_type_name"] = init_type(il2cpp_dump, tdb, tdef->element_typeid_TBD)->full_name;
+        if (gi.tdb_ver() >= 71) {
+            if (tdef->element_typeid_TBD != 0) {
+                type_entry["element_type_name"] = init_type(il2cpp_dump, tdb, tdef->element_typeid_TBD)->full_name;
+            }
+        } else if (gi.tdb_ver() >= 69) {
+            if (tdef->element_typeid != 0) {
+                type_entry["element_type_name"] = init_type(il2cpp_dump, tdb, tdef->element_typeid)->full_name;
+            }
         }
-#elif TDB_VER >= 69
-        if (tdef->element_typeid != 0) {
-            type_entry["element_type_name"] = init_type(il2cpp_dump, tdb, tdef->element_typeid)->full_name;
-        }
-#endif
 
         if (auto gtd = t.get_generic_type_definition(); gtd != nullptr) {
             type_entry["generic_type_definition"] = gtd->get_full_name();
@@ -1301,11 +1301,11 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
             
 
             rsz_entry["type"] = generate_full_name(tdb, (sequence.get_native_type())->get_index());
-#if TDB_VER >= 69
-            rsz_entry["code"] = get_enum_value_name("via.typeinfo.TypeCode", code);
-#else
-            rsz_entry["code"] = g_typecode_names[code];
-#endif
+            if (gi.tdb_ver() >= 69) {
+                rsz_entry["code"] = get_enum_value_name("via.typeinfo.TypeCode", code);
+            } else {
+                rsz_entry["code"] = g_typecode_names[code];
+            }
             rsz_entry["code_id"] = code;
             rsz_entry["align"] = align;
             rsz_entry["size"] = (std::stringstream{} << "0x" << std::hex << (uint32_t)size).str();
@@ -1314,9 +1314,9 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
             rsz_entry["static"] = is_static;
             rsz_entry["offset_from_fieldptr"] = (std::stringstream{} << "0x" << std::hex << sequence.offset).str();
 
-#if TDB_VER <= 49
-            rsz_entry["potential_name"] = sequence.prop->name;
-#endif
+            if (gi.tdb_ver() <= 49) {
+                rsz_entry["potential_name"] = sequence.prop->name;
+            }
 
             il2cpp_dump[pt->full_name]["RSZ"].emplace_back(rsz_entry);
         }
@@ -1335,14 +1335,15 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
 
         auto& m = *tdb->get_method(i);
 
-#if TDB_VER >= 69
         auto type_id = (uint32_t)m.declaring_typeid;
-        auto impl_id = (uint32_t)m.impl_id;
-        auto param_list = (uint32_t)m.get_param_index();
-#else
-        const auto type_id = (uint32_t)m.declaring_typeid;
-        const auto param_list = m.params;
-#endif
+        uint32_t impl_id = 0;
+        uint32_t param_list = 0;
+        if (gi.tdb_ver() >= 69) {
+            impl_id = (uint32_t)m.impl_id;
+            param_list = (uint32_t)m.get_param_index();
+        } else {
+            param_list = m.params;
+        }
 
         if (g_itypedb.find(type_id) == g_itypedb.end()) {
             continue;
@@ -1352,13 +1353,23 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
 
         desc->methods.push_back(&m);
 
-#if TDB_VER >= 69
-        auto& impl = (*tdb->methodsImpl)[impl_id];
-        desc->method_impls.push_back(&impl);
-        const auto name_offset = impl.name_offset;
-#else
-        const auto name_offset = m.name_offset;
-#endif
+        uint32_t name_offset = 0;
+        int32_t vtable_index = 0;
+        uint16_t impl_flags = 0;
+        uint16_t method_flags = 0;
+        if (gi.tdb_ver() >= 69) {
+            auto& impl = (*tdb->methodsImpl)[impl_id];
+            desc->method_impls.push_back(&impl);
+            name_offset = impl.name_offset;
+            vtable_index = impl.vtable_index;
+            impl_flags = impl.impl_flags;
+            method_flags = impl.flags;
+        } else {
+            name_offset = m.name_offset;
+            vtable_index = m.vtable_index;
+            impl_flags = m.impl_flags;
+            method_flags = m.flags;
+        }
 
         const auto name = tdb->get_string(name_offset);
 
@@ -1369,16 +1380,9 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
         pm->name = name;
         pm->owner = desc;
 
-#if TDB_VER >= 69
-        pm->m_impl = &impl;
-        const auto vtable_index = impl.vtable_index;
-        const auto impl_flags = impl.impl_flags;
-        const auto method_flags = impl.flags;
-#else
-        const auto vtable_index = m.vtable_index;
-        const auto impl_flags = m.impl_flags;
-        const auto method_flags = m.flags;
-#endif
+        if (gi.tdb_ver() >= 69) {
+            pm->m_impl = &(*tdb->methodsImpl)[impl_id];
+        }
 
         g_imethoddb[i] = pm;
 
@@ -1403,41 +1407,45 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
         }
 
         // Parameters
-#if TDB_VER >= 69
-        auto param_ids = Address{ tdb->bytePool }.get(param_list).as<sdk::ParamList*>();
-        const auto num_params = param_ids->numParams;
-        const auto invoke_id = param_ids->invokeID;
-#else
-#if TDB_VER >= 66
-        auto param_ids = tdb->get_data<sdk::REMethodParamDef>(param_list);
-#else
-        auto params_data = tdb->get_data<sdk::REMethodParamDef>(param_list);
-        auto param_ids = params_data->params;
-#endif
-        const auto num_params = (uint8_t)m.get_num_params();
-        const auto invoke_id = (uint16_t)m.invoke_id;
-#endif
+        sdk::ParamList* param_list_69 = nullptr;
+        sdk::REMethodParamDef* param_ids_legacy = nullptr;
+        uint8_t num_params = 0;
+        uint16_t invoke_id = 0;
+        if (gi.tdb_ver() >= 69) {
+            param_list_69 = Address{ tdb->bytePool }.get(param_list).as<sdk::ParamList*>();
+            num_params = param_list_69->numParams;
+            invoke_id = param_list_69->invokeID;
+        } else {
+            if (gi.tdb_ver() >= 66) {
+                param_ids_legacy = tdb->get_data<sdk::REMethodParamDef>(param_list);
+            } else {
+                auto params_data = tdb->get_data<sdk::REMethodParamDef>(param_list);
+                param_ids_legacy = params_data->params;
+            }
+            num_params = (uint8_t)m.get_num_params();
+            invoke_id = (uint16_t)m.invoke_id;
+        }
 
         // Invoke wrapper for arbitrary amount of arguments, so we can just pass it on the VM stack/context as an array
         method_entry["invoke_id"] = invoke_id;
 
         auto parse_param = [&](uint32_t param_index, bool is_return = false) {
-#if TDB_VER >= 69
-            auto& p = (*tdb->params)[param_index];
-
-            const auto attributes_index = (uint16_t)p.attributes_id;
-            const auto init_data_index = (uint16_t)p.init_data_index;
-            const auto name_index = (uint32_t)p.name_offset;
-            const auto modifier = (uint8_t)p.modifier;
-            const auto param_type_id = (uint32_t)p.type_id;
-            const auto flags = (uint16_t)p.flags;
-#else
-            auto& p = param_ids[param_index];
-
-            const auto param_type_id = (uint32_t)p.param_typeid;
-            const auto name_index = p.name_offset;
-            const auto flags = p.flags;
-#endif
+            uint32_t param_type_id = 0;
+            uint32_t name_index = 0;
+            uint16_t flags = 0;
+            uint8_t modifier = 0;
+            if (gi.tdb_ver() >= 69) {
+                auto& p = (*tdb->params)[param_index];
+                param_type_id = (uint32_t)p.type_id;
+                name_index = (uint32_t)p.name_offset;
+                modifier = (uint8_t)p.modifier;
+                flags = (uint16_t)p.flags;
+            } else {
+                auto& p = param_ids_legacy[param_index];
+                param_type_id = (uint32_t)p.param_typeid;
+                name_index = p.name_offset;
+                flags = p.flags;
+            }
 
             if (auto it = g_itypedb.find(param_type_id); it == g_itypedb.end()) {
                 return json{};
@@ -1470,11 +1478,11 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
                 param_entry["flags"] = param_flags;
             }
 
-#if TDB_VER >= 69
-            if (auto param_modifier = get_full_enum_value_name("via.clr.ParamModifier", modifier); !param_modifier.empty()) {
-                param_entry["modifier"] = param_modifier;
+            if (gi.tdb_ver() >= 69) {
+                if (auto param_modifier = get_full_enum_value_name("via.clr.ParamModifier", modifier); !param_modifier.empty()) {
+                    param_entry["modifier"] = param_modifier;
+                }
             }
-#endif
 
             return param_entry;
         };
@@ -1483,25 +1491,26 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
         const auto return_type_name = return_type != nullptr ? return_type->get_full_name() : "";
 
         // Parse return type
-#if TDB_VER >= 69
-        method_entry["returns"] = parse_param(param_ids->returnType, true);
-#else
-        method_entry["returns"] = json{
-            {"type", return_type_name},
-            {"name", ""},
-        };
-#endif
+        if (gi.tdb_ver() >= 69) {
+            method_entry["returns"] = parse_param(param_list_69->returnType, true);
+        } else {
+            method_entry["returns"] = json{
+                {"type", return_type_name},
+                {"name", ""},
+            };
+        }
 
         // Parse all params
         for (auto f = 0; f < num_params; ++f) {
-#if TDB_VER >= 69
-            const auto param_index = param_ids->params[f];
-            if (param_index >= tdb->numParams) {
-                break;
+            uint32_t param_index = 0;
+            if (gi.tdb_ver() >= 69) {
+                param_index = param_list_69->params[f];
+                if (param_index >= tdb->numParams) {
+                    break;
+                }
+            } else {
+                param_index = f;
             }
-#else
-            const auto param_index = f;
-#endif
 
             auto param_entry = parse_param(param_index);
 
@@ -1666,14 +1675,15 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
 
         auto& f = (*tdb->fields)[i];
 
-#if TDB_VER >= 69
         const auto type_id = (uint32_t)f.declaring_typeid;
-        const auto impl_id = (uint32_t)f.impl_id;
-        const auto offset = (uint32_t)f.get_offset_from_fieldptr();
-#else
-        const auto type_id = (uint32_t)f.declaring_typeid;
-        const auto offset = f.offset;
-#endif
+        uint32_t field_impl_id = 0;
+        uint32_t offset = 0;
+        if (gi.tdb_ver() >= 69) {
+            field_impl_id = (uint32_t)f.impl_id;
+            offset = (uint32_t)f.get_offset_from_fieldptr();
+        } else {
+            offset = f.offset;
+        }
 
         if (g_itypedb.find(type_id) == g_itypedb.end()) {
             continue;
@@ -1683,43 +1693,48 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
 
         desc->fields.push_back(&f);
 
-#if TDB_VER >= 69
-        auto& impl = (*tdb->fieldsImpl)[impl_id];
-        desc->field_impls.push_back(&impl);
+        uint32_t name_offset = 0;
+        uint32_t field_flags = 0;
+        uint32_t field_type = 0;
+        uint32_t init_data_index = 0;
+        const char* name = nullptr;
+        if (gi.tdb_ver() >= 69) {
+            auto& impl = (*tdb->fieldsImpl)[field_impl_id];
+            desc->field_impls.push_back(&impl);
 
+            auto br_impl = BitReader{&impl};
 
-        auto br_impl = BitReader{&impl};
+            /*const auto field_attr_id = (uint16_t)br_impl.read_short();
+            const auto field_flags = (uint16_t)br_impl.read_short();
+            const auto field_type = (uint32_t)br_impl.read(18);
+            const auto init_data_low = (uint16_t)br_impl.read(14);
+            const auto name_offset = (uint32_t)br_impl.read(30);
+            const auto init_data_high = (uint8_t)br_impl.read(2);
+            const auto name = Address{tdb->stringPool}.get(name_offset).as<const char*>();
+            const auto init_data_index = init_data_low | (init_data_high << 14);*/
 
-        /*const auto field_attr_id = (uint16_t)br_impl.read_short();
-        const auto field_flags = (uint16_t)br_impl.read_short();
-        const auto field_type = (uint32_t)br_impl.read(18);
-        const auto init_data_low = (uint16_t)br_impl.read(14);
-        const auto name_offset = (uint32_t)br_impl.read(30);
-        const auto init_data_high = (uint8_t)br_impl.read(2);
-        const auto name = Address{tdb->stringPool}.get(name_offset).as<const char*>();
-        const auto init_data_index = init_data_low | (init_data_high << 14);*/
+            const auto field_attr_id = impl.attributes_id;
+            field_flags = impl.flags;
+            field_type = f.get_type() != nullptr ? f.get_type()->get_index() : 0;
+            name_offset = impl.name_offset;
+            init_data_index = f.get_init_data_index();
+            name = tdb->get_string(name_offset);
+        } else {
+            name_offset = f.name_offset;
+            name = Address{ tdb->stringPool }.get(name_offset).as<const char*>();
+            field_type = (uint32_t)f.field_typeid;
+            field_flags = f.flags;
+            if (gi.tdb_ver() >= 66) {
+                init_data_index = f.init_data_index;
+            }
+        }
 
-        const auto field_attr_id = impl.attributes_id;
-        const auto field_flags = impl.flags;
-        const auto field_type = f.get_type() != nullptr ? f.get_type()->get_index() : 0;
-        const auto name_offset = impl.name_offset;
-        const auto init_data_index = f.get_init_data_index();
-        const auto name = tdb->get_string(name_offset);
-#else
-        const auto name_offset = f.name_offset;
-        const auto name = Address{ tdb->stringPool }.get(name_offset).as<const char*>();
-        const auto field_type = (uint32_t)f.field_typeid;
-        const auto field_flags = f.flags;
-#if TDB_VER >= 66
-        const auto init_data_index = f.init_data_index;
-#endif
-#endif
-
-#if TDB_VER >= 66
-        const auto init_data_offset = init_data_index != 0 ? (*tdb->initData)[init_data_index] : 0;
-#else
-        const auto init_data_offset = f.init_data_offset;
-#endif
+        uint32_t init_data_offset = 0;
+        if (gi.tdb_ver() >= 66) {
+            init_data_offset = init_data_index != 0 ? (*tdb->initData)[init_data_index] : 0;
+        } else {
+            init_data_offset = f.init_data_offset;
+        }
 
         // Create an easier to deal with structure
         auto& pf = desc->parsed_fields.emplace_back(std::make_shared<detail::ParsedField>());
@@ -1731,9 +1746,9 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
         pf->offset_from_base = pf->offset_from_fieldptr;
         pf->type = g_itypedb[field_type];
 
-#if TDB_VER >= 69
-        pf->f_impl = &impl;
-#endif
+        if (gi.tdb_ver() >= 69) {
+            pf->f_impl = &(*tdb->fieldsImpl)[field_impl_id];
+        }
 
         // Resolve the offset to be from the base class
         pf->offset_from_base += pf->owner->t->get_fieldptr_offset();
@@ -1856,10 +1871,10 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
             {"type", field_type_name},
             {"offset_from_base", (std::stringstream{} << "0x" << std::hex << pf->offset_from_base).str()},
             {"offset_from_fieldptr", (std::stringstream{} << "0x" << std::hex << pf->offset_from_fieldptr).str()},
-#if TDB_VER >= 66
-            {"init_data_index", init_data_index}
-#endif
         };
+        if (gi.tdb_ver() >= 66) {
+            field_entry["init_data_index"] = init_data_index;
+        }
 
         if (auto field_flags_str = get_full_enum_value_name("via.clr.FieldFlag", field_flags); !field_flags_str.empty()) {
             field_entry["flags"] = field_flags_str;
@@ -1987,13 +2002,14 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
 
         auto& desc = prop_method->owner;
 
-#if TDB_VER >= 69
-        const auto impl_id = (uint32_t)p.impl_id;
-        auto& impl = (*tdb->propertiesImpl)[impl_id];
-        auto name = Address{tdb->stringPool}.get(impl.name_offset).as<const char*>();
-#else
-        auto name = Address{ tdb->stringPool }.get(p.name_offset).as<const char*>();
-#endif
+        const char* name = nullptr;
+        if (gi.tdb_ver() >= 69) {
+            const auto impl_id = (uint32_t)p.impl_id;
+            auto& impl = (*tdb->propertiesImpl)[impl_id];
+            name = Address{tdb->stringPool}.get(impl.name_offset).as<const char*>();
+        } else {
+            name = Address{ tdb->stringPool }.get(p.name_offset).as<const char*>();
+        }
 
         // ha ha
         auto& pp = desc->parsed_props.emplace_back(std::make_shared<detail::ParsedProperty>());
@@ -2004,9 +2020,10 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
         pp->getter = getter;
         pp->setter = setter;
 
-#if TDB_VER >= 69
-        pp->p_impl = &impl;
-#endif
+        if (gi.tdb_ver() >= 69) {
+            const auto impl_id = (uint32_t)p.impl_id;
+            pp->p_impl = &(*tdb->propertiesImpl)[impl_id];
+        }
 
         auto getter_name = pp->getter != nullptr ? pp->getter->name : "";
         auto setter_name = pp->setter != nullptr ? pp->setter->name : "";
@@ -2029,7 +2046,7 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
     // In RE7, the deserializer points to the reflection property,
     // so we can just grab the name from there instead of comparing field offsets.
     
-#if TDB_VER > 49
+    if (gi.tdb_ver() > 49) {
     m_sdk_dump_stage = SdkDumpStage::DUMP_RSZ_2;
     k = 0;
     n_types = m_sorted_types.size();
@@ -2094,7 +2111,7 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
             }
         }
     }
-#endif
+    }  // tdb_ver > 49
 #endif
     m_sdk_dump_stage = SdkDumpStage::DUMP_DESERIALIZER_CHAIN;
     k = 0;
@@ -2135,7 +2152,7 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
         g_class_set.insert(t->name);
     }
 
-#if TDB_VER > 49
+    if (gi.tdb_ver() > 49) {
     m_sdk_dump_stage = SdkDumpStage::DUMP_NON_TDB_TYPES;
     k = 0;
     n_types = m_sorted_types.size();
@@ -2223,7 +2240,7 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
         auto methods = fields->methods;
 
 // BORKED RIGHT NOW
-#if TDB_VER > 49
+        if (gi.tdb_ver() > 49) {
         // Generate Methods
         if (fields->methods != nullptr) {
             for (auto i = 0; i < num_methods; ++i) try {
@@ -2290,7 +2307,7 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
                 continue; // unexplained crash
             }
         }
-#endif
+        }  // tdb_ver > 49
 
         // Generate Properties
         if (fields->variables != nullptr && fields->variables->data != nullptr) {
@@ -2346,22 +2363,22 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
                 };
 #endif
             
-#if defined(RE8) || defined(MHRISE)
-                // Property attributes
-                if (variable->attributes != 0 && variable->attributes != -1) {
-                    for (auto attr = (REAttribute*)((uintptr_t)&variable->attributes + variable->attributes); attr != nullptr && !IsBadReadPtr(attr, sizeof(REAttribute)) && attr->info != nullptr; attr = attr->next) {
-                        auto type_func = (REType* (*)())attr->info->getType;
+                if (gi.is_re8() || gi.is_mhrise()) {
+                    // Property attributes
+                    if (variable->attributes != 0 && variable->attributes != -1) {
+                        for (auto attr = (REAttribute*)((uintptr_t)&variable->attributes + variable->attributes); attr != nullptr && !IsBadReadPtr(attr, sizeof(REAttribute)) && attr->info != nullptr; attr = attr->next) {
+                            auto type_func = (REType* (*)())attr->info->getType;
 
-                        prop_entry["attributes"].emplace_back(
-                            json{ {"name", type_func()->name } }
-                        );
+                            prop_entry["attributes"].emplace_back(
+                                json{ {"name", type_func()->name } }
+                            );
+                        }
                     }
                 }
-#endif
             }
         }
     }
-#endif
+    }  // tdb_ver > 49
 
     // don't.
     /*for (auto& it : this->m_enums) {
@@ -3070,6 +3087,7 @@ void ObjectExplorer::display_reflection_properties(REManagedObject* obj, REType*
         return;
     }
 
+    const auto& gi = sdk::GameIdentity::get();
     const auto is_real_object = utility::re_managed_object::is_managed_object(obj);
     auto descriptors = type_info->fields->variables->data->descriptors;
 
@@ -3110,20 +3128,21 @@ void ObjectExplorer::display_reflection_properties(REManagedObject* obj, REType*
                 }
             }
 
-#if defined(RE8) || defined(MHRISE)
-            const auto allowed = is_real_object || utility::reflection_property::is_static(variable) || utility::re_type::is_singleton(type_info);
+            bool allowed = false;
+            if (gi.is_re8() || gi.is_mhrise()) {
+                allowed = is_real_object || utility::reflection_property::is_static(variable) || utility::re_type::is_singleton(type_info);
 
-            // Set the obj to the static table so we can get static variables
-            if (utility::reflection_property::is_static(variable)) {
-                const auto type_index = ((sdk::RETypeDefinition*)type_info->classInfo)->get_index();
+                // Set the obj to the static table so we can get static variables
+                if (utility::reflection_property::is_static(variable)) {
+                    const auto type_index = ((sdk::RETypeDefinition*)type_info->classInfo)->get_index();
 
-                local_obj = (REManagedObject*)sdk::VM::get()->get_static_tbl_for_type(type_index);
+                    local_obj = (REManagedObject*)sdk::VM::get()->get_static_tbl_for_type(type_index);
 
-                make_same_line_text("STATIC", ImVec4{ 1.0f, 0.0f, 0.0f, 1.0f });
+                    make_same_line_text("STATIC", ImVec4{ 1.0f, 0.0f, 0.0f, 1.0f });
+                }
+            } else {
+                allowed = is_real_object || utility::re_type::is_singleton(type_info);
             }
-#else
-            const auto allowed = is_real_object || utility::re_type::is_singleton(type_info);
-#endif
 
             // Info about the field
             if (made_node) {
@@ -4505,8 +4524,9 @@ void ObjectExplorer::populate_classes() {
 
 void ObjectExplorer::populate_enums() {
     bool has_enums = false;
+    const auto& gi = sdk::GameIdentity::get();
 
-#if TDB_VER > 49
+    if (gi.tdb_ver() > 49) {
     try {
         auto ref = utility::scan(g_framework->get_module().as<HMODULE>(), "66 C7 40 18 01 01 48 89 05 ? ? ? ?");
 
@@ -4556,7 +4576,7 @@ void ObjectExplorer::populate_enums() {
         m_enums.clear();
         spdlog::error("Unknown exception caught while populating enums, falling back to other method.");
     }
-#endif
+    }
 
     if (!has_enums) {
         std::ofstream out_file(REFramework::get_persistent_dir("Enums_Internal.hpp"));

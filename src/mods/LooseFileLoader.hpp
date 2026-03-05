@@ -1,5 +1,6 @@
 #pragma once
 
+#include <sdk/GameIdentity.hpp>
 #include <deque>
 #include <unordered_set>
 #include <spdlog/spdlog.h>
@@ -32,10 +33,15 @@ public:
 private:
     bool handle_path(const wchar_t* path, size_t hash);
 
+#ifdef REFRAMEWORK_UNIVERSAL
+    static uint64_t path_to_hash_hook(const wchar_t* path);
+    static uint64_t path_to_hash_hook_legacy(void* This, const wchar_t* path);
+#else
 #if TDB_VER > 67
     static uint64_t path_to_hash_hook(const wchar_t* path);
 #else
     static uint64_t path_to_hash_hook(void* This, const wchar_t* path);
+#endif
 #endif
 
     bool m_hook_success{false};

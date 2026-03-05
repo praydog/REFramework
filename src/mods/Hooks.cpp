@@ -5,6 +5,7 @@
 #include <utility/String.hpp>
 #include <utility/Memory.hpp>
 
+#include <sdk/GameIdentity.hpp>
 #include "sdk/GUIPrimitiveSystem.hpp"
 #include "sdk/Application.hpp"
 
@@ -214,7 +215,10 @@ std::optional<std::string> Hooks::hook_update_transform() {
 }
 
 std::optional<std::string> Hooks::hook_update_camera_controller() {
-#if defined(RE2) || defined(RE3)
+    if (!(sdk::GameIdentity::get().is_re2() || sdk::GameIdentity::get().is_re3())) {
+        return std::nullopt;
+    }
+
     // Version 1.0 jmp stub: game+0xB4685A0
     // Version 1
     /*auto updatecamera_controllerCall = utility::scan(game, "75 ? 48 89 FA 48 89 D9 E8 ? ? ? ? 48 8B 43 50 48 83 78 18 00 75 ? 45 89");
@@ -243,13 +247,15 @@ std::optional<std::string> Hooks::hook_update_camera_controller() {
     if (!m_update_camera_controller_hook->create()) {
         return "Failed to hook UpdateCameraController";
     }
-#endif
 
     return std::nullopt;
 }
 
 std::optional<std::string> Hooks::hook_update_camera_controller2() {
-#if defined(RE2) || defined(RE3)
+    if (!(sdk::GameIdentity::get().is_re2() || sdk::GameIdentity::get().is_re3())) {
+        return std::nullopt;
+    }
+
     // Version 1.0 jmp stub: game+0xCF2510
     // Version 1.0 function: game+0xB436230
     
@@ -270,7 +276,6 @@ std::optional<std::string> Hooks::hook_update_camera_controller2() {
     if (!m_update_camera_controller2_hook->create()) {
         return "Failed to hook Updatecamera_controller2";
     }
-#endif
 
     return std::nullopt;
 }
@@ -545,11 +550,7 @@ std::optional<std::string> Hooks::hook_lightshaft_draw() {
         return "Unable to get via::render::LightShaft vtable";
     }
 
-#if defined(RE8) || defined(MHRISE)
-    auto draw = lightshaft_vtable[13];
-#else
-    auto draw = lightshaft_vtable[10];
-#endif
+    auto draw = lightshaft_vtable[(sdk::GameIdentity::get().is_re8() || sdk::GameIdentity::get().is_mhrise()) ? 13 : 10];
 
     if (draw == nullptr) {
         return "Unable to get via::render::LightShaft::draw";

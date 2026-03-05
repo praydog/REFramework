@@ -9,10 +9,10 @@
 #include "sdk/MurmurHash.hpp"
 #include "sdk/Application.hpp"
 
+#include <sdk/GameIdentity.hpp>
 #include "VR.hpp"
 #include "FirstPerson.hpp"
 
-#if defined(RE2) || defined(RE3)
 
 FirstPerson* g_first_person = nullptr;
 
@@ -22,33 +22,36 @@ std::shared_ptr<FirstPerson>& FirstPerson::get() {
 }
 
 FirstPerson::FirstPerson() {
+    const auto& gi = sdk::GameIdentity::get();
+    if (!gi.is_re2() && !gi.is_re3()) {
+        return;
+    }
     // thanks imgui
     g_first_person = this;
     m_attach_bone_imgui.reserve(256);
 
-#ifdef RE3
-    // Carlos
-    m_attach_offsets["pl0000"] = Vector4f{ 0.0f, 0.667f, 1.1f, 0.0f };
-    // Jill (it looks better with 0?)
-    m_attach_offsets["pl2000"] = Vector4f{ 0.0f, 0.5f, 0.776f, 0.0f };
-    //m_attach_offsets["pl2000"] = Vector4f{ -0.23f, 0.4f, 1.0f, 0.0f };
-#else
-    // Specific player model configs
-    // Leon
-    m_attach_offsets["pl0000"] = Vector4f{ -0.26f, 0.435f, 1.0f, 0.0f };
-    // Claire
-    m_attach_offsets["pl1000"] = Vector4f{ -0.23f, 0.4f, 1.0f, 0.0f };
-    // Sherry
-    m_attach_offsets["pl3000"] = Vector4f{ -0.278f, 0.435f, 0.945f, 0.0f };
-    // Hunk
-    m_attach_offsets["pl4000"] = Vector4f{ -0.26f, 0.435f, 1.0f, 0.0f };
-    // Kendo
-    m_attach_offsets["pl5000"] = Vector4f{ -0.24f, 0.4f, 1.0f, 0.0f };
-    // Forgotten Soldier
-    m_attach_offsets["pl5600"] = Vector4f{ -0.316, 0.556f, 1.02f, 0.0f };
-    // Elizabeth
-    m_attach_offsets["pl6400"] = Vector4f{ -0.316, 0.466f, 0.79f, 0.0f };
-#endif
+    if (gi.is_re3()) {
+        // Carlos
+        m_attach_offsets["pl0000"] = Vector4f{ 0.0f, 0.667f, 1.1f, 0.0f };
+        // Jill (it looks better with 0?)
+        m_attach_offsets["pl2000"] = Vector4f{ 0.0f, 0.5f, 0.776f, 0.0f };
+        //m_attach_offsets["pl2000"] = Vector4f{ -0.23f, 0.4f, 1.0f, 0.0f };
+    } else {
+        // Specific player model configs
+        // Leon
+        m_attach_offsets["pl0000"] = Vector4f{ -0.26f, 0.435f, 1.0f, 0.0f };
+        // Claire
+        m_attach_offsets["pl1000"] = Vector4f{ -0.23f, 0.4f, 1.0f, 0.0f };
+        // Sherry
+        m_attach_offsets["pl3000"] = Vector4f{ -0.278f, 0.435f, 0.945f, 0.0f };
+        // Hunk
+        m_attach_offsets["pl4000"] = Vector4f{ -0.26f, 0.435f, 1.0f, 0.0f };
+        // Kendo
+        m_attach_offsets["pl5000"] = Vector4f{ -0.24f, 0.4f, 1.0f, 0.0f };
+        // Forgotten Soldier
+        m_attach_offsets["pl5600"] = Vector4f{ -0.316, 0.556f, 1.02f, 0.0f };
+        // Elizabeth
+        m_attach_offsets["pl6400"] = Vector4f{ -0.316, 0.466f, 0.79f, 0.0f };
 }
 
 void FirstPerson::toggle() {
@@ -58,6 +61,11 @@ void FirstPerson::toggle() {
 }
 
 std::optional<std::string> FirstPerson::on_initialize() {
+    const auto& gi = sdk::GameIdentity::get();
+    if (!gi.is_re2() && !gi.is_re3()) {
+        return Mod::on_initialize();
+    }
+
     /*auto vignetteCode = utility::scan(g_framework->getModule().as<HMODULE>(), "8B 87 3C 01 00 00 89 83 DC 00 00 00");
 
     if (!vignetteCode) {
@@ -242,30 +250,29 @@ void FirstPerson::on_lua_state_created(sol::state& state) {
     // when using VR controllers
     // one of the main reasons for this is to allow
     // compatibility with Lua's sdk.hook which supports multiple hook callbacks under one hook
-#ifdef RE2
-    try {
-        state.do_string(R"(
-            -- re3 doesnt have handheld flashlights
-            if reframework:get_game_name() ~= "re2" then return end
+    if (sdk::GameIdentity::get().is_re2()) {
+        try {
+            state.do_string(R"(
+                -- re3 doesnt have handheld flashlights
+                if reframework:get_game_name() ~= "re2" then return end
 
-            local function on_pre_apply_transform(args)
-                local flashlight = sdk.to_managed_object(args[2])
+                local function on_pre_apply_transform(args)
+                    local flashlight = sdk.to_managed_object(args[2])
 
-                if not firstpersonmod:on_pre_flashlight_apply_transform(flashlight) then
-                    return sdk.PreHookResult.SKIP_ORIGINAL
+                    if not firstpersonmod:on_pre_flashlight_apply_transform(flashlight) then
+                        return sdk.PreHookResult.SKIP_ORIGINAL
+                    end
                 end
-            end
 
-            local function on_post_apply_transform(retval)
-                return retval
-            end
+                local function on_post_apply_transform(retval)
+                    return retval
+                end
 
-            sdk.hook(sdk.find_type_definition(sdk.game_namespace("FlashLight")):get_method("applyTransform"), on_pre_apply_transform, on_post_apply_transform)
-        )");
-    } catch (const std::exception& e) {
-        spdlog::info("Error while trying to hook FlashLight.applyTransform: {}", e.what());
-    }
-#endif
+                sdk.hook(sdk.find_type_definition(sdk.game_namespace("FlashLight")):get_method("applyTransform"), on_pre_apply_transform, on_post_apply_transform)
+            )");
+        } catch (const std::exception& e) {
+            spdlog::info("Error while trying to hook FlashLight.applyTransform: {}", e.what());
+        }
 }
 
 void FirstPerson::on_config_load(const utility::Config& cfg) {
@@ -1961,4 +1968,3 @@ void FirstPerson::on_disabled() {
     m_wants_disable = false;
 }
 
-#endif

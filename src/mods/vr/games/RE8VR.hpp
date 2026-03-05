@@ -1,7 +1,7 @@
 // Even though this is called RE8VR, it also affects RE7.
 #pragma once
 
-#if defined(RE7) || defined(RE8)
+#include <sdk/GameIdentity.hpp>
 #include <chrono>
 #include <sdk/REMath.hpp>
 #include <reframework/API.h>
@@ -177,4 +177,3 @@ private:
 
     static constexpr inline auto GUI_MAX_SLERP_TIME = 1.5f;
 };
-#endif
