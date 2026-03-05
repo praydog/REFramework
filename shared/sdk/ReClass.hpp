@@ -7,10 +7,8 @@
 
 #pragma pack(push, r1, 1)
 #ifdef REFRAMEWORK_UNIVERSAL
-// Monolithic build: include the RE8 layout as the canonical base.
-// RE8 covers TDB69-73 (RE8, MHRISE, RE4, SF6, DD2).
-// For TDB81+ (MHWILDS, RE9, PRAGMATA) and TDB49-67 (RE7, RE2 old, RE3 old, DMC5),
-// accessor functions in ReClassAccessors.hpp handle offset differences.
+// Monolithic build: RE8 layout at global scope (majority of games use 0x60 REType).
+// MHWILDS/RE9 have 0x68 REType — runtime dispatch via RETypeLayouts.hpp accessors.
 #include "ReClass_Internal_RE8.hpp"
 #else
 // Legacy per-game build (when individual game macros are defined)
@@ -60,6 +58,7 @@
 
 #include "RETypes.hpp"
 #include "REType.hpp"
+#include "RETypeLayouts.hpp"
 #include "RETypeCLR.hpp"
 #include "RETypeDB.hpp"
 #include "RETypeDefinition.hpp"

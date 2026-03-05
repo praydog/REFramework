@@ -7,6 +7,8 @@
 
 #include "REManagedObject.hpp"
 
+using namespace utility::re_type_accessor;
+
 namespace utility::re_managed_object {
 
 // Used all over the place. It may be one of the most referenced functions in a disassembler.
@@ -196,7 +198,7 @@ void deserialize_native(::REManagedObject* object, const uint8_t* data, size_t s
 
     const auto t = tdef->get_type();
 
-    if (t == nullptr || t->fields == nullptr || t->fields->deserializer == nullptr) {
+    if (t == nullptr || get_fields(t) == nullptr || get_fields(t)->deserializer == nullptr) {
         return;
     }
 
@@ -208,7 +210,7 @@ void deserialize_native(::REManagedObject* object, const uint8_t* data, size_t s
         uint8_t* stack[32]{0};
     }; static_assert(sizeof(DeserializeStream) == 0x120, "DeserializeStream is not the correct size");
 
-    const auto deserializer = (void (*)(::REManagedObject*, DeserializeStream*, sdk::NativeArray<REManagedObject*>* objects))t->fields->deserializer;
+    const auto deserializer = (void (*)(::REManagedObject*, DeserializeStream*, sdk::NativeArray<REManagedObject*>* objects))get_fields(t)->deserializer;
 
     std::array<uint8_t, 1024 * 8> stack_buffer{};
 
@@ -306,11 +308,11 @@ bool is_managed_object(Address address) {
         return false;
     }
 
-    if (info->type->super != nullptr && IsBadReadPtr(info->type->super, sizeof(REType))) {
+    if (get_super(info->type) != nullptr && IsBadReadPtr(get_super(info->type), sizeof(REType))) {
         return false;
     }
 
-    if (info->type->classInfo != nullptr && IsBadReadPtr(info->type->classInfo, sizeof(REObjectInfo))) {
+    if (get_classInfo(info->type) != nullptr && IsBadReadPtr(get_classInfo(info->type), sizeof(REObjectInfo))) {
         return false;
     }
 
@@ -394,7 +396,7 @@ bool is_a(::REManagedObject* object, std::string_view name) {
         return false;
     }
 
-    for (auto t = re_managed_object::get_type(object); t != nullptr && t->name != nullptr; t = t->super) {
+    for (auto t = re_managed_object::get_type(object); t != nullptr && t->name != nullptr; t = get_super(t)) {
         if (name == t->name) {
             return true;
         }
@@ -408,7 +410,7 @@ bool is_a(::REManagedObject* object, REType* cmp) {
         return false;
     }
 
-    for (auto t = re_managed_object::get_type(object); t != nullptr && t->name != nullptr; t = t->super) {
+    for (auto t = re_managed_object::get_type(object); t != nullptr && t->name != nullptr; t = get_super(t)) {
         if (cmp == t) {
             return true;
         }

@@ -5,20 +5,22 @@
 #include "RETypeDefinition.hpp"
 #include "REType.hpp"
 
+using namespace utility::re_type_accessor;
+
 sdk::RETypeDefinition* utility::re_type::get_type_definition(REType* type) {
-    if (type == nullptr || type->classInfo == nullptr) {
+    if (type == nullptr || get_classInfo(type) == nullptr) {
         return nullptr;
     }
 
 #if TDB_VER > 49
-    return (sdk::RETypeDefinition*)type->classInfo;
+    return (sdk::RETypeDefinition*)get_classInfo(type);
 #else
-    return (sdk::RETypeDefinition*)type->classInfo->classInfo;
+    return (sdk::RETypeDefinition*)get_classInfo(type)->classInfo;
 #endif
 }
 
 uint32_t utility::re_type::get_vm_type(::REType* t) {
-    if (t == nullptr || t->classInfo == nullptr) {
+    if (t == nullptr || get_classInfo(t) == nullptr) {
         return (uint32_t)via::clr::VMObjType::NULL_;
     }
 
@@ -32,12 +34,12 @@ uint32_t utility::re_type::get_vm_type(::REType* t) {
 }
 
 uint32_t utility::re_type::get_value_type_size(::REType* t) {
-    if (t == nullptr || t->classInfo == nullptr) {
+    if (t == nullptr || get_classInfo(t) == nullptr) {
         return 0;
     }
 
     if (get_vm_type(t) != (uint32_t)via::clr::VMObjType::ValType) {
-        return t->size;
+        return get_size(t);
     }
 
     const auto tdef = get_type_definition(t);
@@ -101,7 +103,7 @@ VariableDescriptor* utility::re_type::get_field_desc(::REType* t, std::string_vi
         }
     }
 
-    for (; t != nullptr; t = t->super) {
+    for (; t != nullptr; t = get_super(t)) {
         auto vars = get_variables(t);
 
         if (vars == nullptr) {
@@ -127,11 +129,11 @@ VariableDescriptor* utility::re_type::get_field_desc(::REType* t, std::string_vi
 }
 
 REVariableList* utility::re_type::get_variables(::REType* t) {
-    if (t == nullptr || t->fields == nullptr || t->fields->variables == nullptr) {
+    if (t == nullptr || get_fields(t) == nullptr || get_fields(t)->variables == nullptr) {
         return nullptr;
     }
 
-    auto vars = t->fields->variables;
+    auto vars = get_fields(t)->variables;
 
     if (vars->data == nullptr || vars->num <= 0) {
         return nullptr;
@@ -158,8 +160,8 @@ FunctionDescriptor* utility::re_type::get_method_desc(::REType* t, std::string_v
         }
     }
 
-    for (; t != nullptr; t = t->super) {
-        auto fields = t->fields;
+    for (; t != nullptr; t = get_super(t)) {
+        auto fields = get_fields(t);
 
         if (fields == nullptr || fields->methods == nullptr) {
             continue;

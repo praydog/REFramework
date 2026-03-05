@@ -29,6 +29,8 @@ REFrameworkRendererData g_renderer_data{
 };
 }
 
+using namespace utility::re_type_accessor;
+
 namespace reframework {
 void log_error(const char* format, ...) {
     va_list args{};
@@ -517,17 +519,17 @@ REFrameworkTypeInfo g_type_info_data {
     [](REFrameworkTypeInfoHandle ti, const char* name) { return (REFrameworkReflectionPropertyHandle)utility::re_type::get_field_desc(RETYPEINFO(ti), name); },
     [](REFrameworkTypeInfoHandle ti, const char* name) { return (REFrameworkReflectionMethodHandle)utility::re_type::get_method_desc(RETYPEINFO(ti), name); },
     [](REFrameworkTypeInfoHandle ti) -> void* {
-        if (RETYPEINFO(ti)->fields == nullptr) {
+        if (get_fields(RETYPEINFO(ti)) == nullptr) {
             return nullptr;
         }
 
-        return RETYPEINFO(ti)->fields->deserializer;
+        return get_fields(RETYPEINFO(ti))->deserializer;
     },
     [](REFrameworkTypeInfoHandle ti) -> REFrameworkTypeInfoHandle {
-        return (REFrameworkTypeInfoHandle)RETYPEINFO(ti)->super;
+        return (REFrameworkTypeInfoHandle)get_super(RETYPEINFO(ti));
     },
     [](REFrameworkTypeInfoHandle ti) {
-        return RETYPEINFO(ti)->typeCRC;
+        return get_typeCRC(RETYPEINFO(ti));
     }
 };
 

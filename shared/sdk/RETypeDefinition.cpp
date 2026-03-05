@@ -901,7 +901,7 @@ bool RETypeDefinition::has_attribute(::REManagedObject* attribute_runtime_type, 
 uint32_t RETypeDefinition::get_crc_hash() const {
 #if TDB_VER > 49
     const auto t = get_type();
-    return t != nullptr ? t->typeCRC : this->type_crc;
+    return t != nullptr ? utility::re_type_accessor::get_typeCRC(t) : this->type_crc;
 #else
     const auto t = (regenny::via::typeinfo::TypeInfo*)get_type();
 
