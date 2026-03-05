@@ -1,0 +1,273 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: #0d1117; color: #c9d1d9;
+  padding: 20px; max-width: 1200px; margin: 0 auto;
+}
+h1 { color: #58a6ff; margin-bottom: 8px; font-size: 1.6em; }
+.subtitle { color: #8b949e; margin-bottom: 24px; font-size: 0.9em; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 16px; }
+.card {
+  background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+  padding: 20px; position: relative;
+}
+.card h2 { color: #58a6ff; font-size: 1.1em; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.card h2 .dot { width: 8px; height: 8px; border-radius: 50%; background: #3fb950; display: inline-block; }
+.card h2 .dot.error { background: #f85149; }
+.row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #21262d; }
+.row:last-child { border-bottom: none; }
+.label { color: #8b949e; }
+.value { color: #c9d1d9; font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 0.9em; }
+.value.highlight { color: #3fb950; }
+.value.warn { color: #d29922; }
+.hp-bar-bg {
+  width: 100%; height: 20px; background: #21262d; border-radius: 4px;
+  margin: 8px 0; overflow: hidden; position: relative;
+}
+.hp-bar {
+  height: 100%; border-radius: 4px; transition: width 0.5s ease, background 0.5s ease;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.75em; font-weight: 600; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+}
+.singleton-list { max-height: 400px; overflow-y: auto; }
+.singleton-item {
+  padding: 6px 8px; border-bottom: 1px solid #21262d; font-size: 0.85em;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.singleton-item:hover { background: #1c2128; }
+.singleton-name { color: #7ee787; font-family: monospace; }
+.singleton-meta { color: #8b949e; font-size: 0.8em; }
+.search {
+  width: 100%; padding: 8px 12px; margin-bottom: 12px;
+  background: #0d1117; border: 1px solid #30363d; border-radius: 6px;
+  color: #c9d1d9; font-size: 0.9em; outline: none;
+}
+.search:focus { border-color: #58a6ff; }
+.hp-slider {
+  width: 100%; height: 6px; margin: 4px 0 8px 0;
+  -webkit-appearance: none; appearance: none;
+  background: #21262d; border-radius: 3px; outline: none;
+  cursor: pointer;
+}
+.hp-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: #58a6ff; border: 2px solid #0d1117;
+  cursor: grab;
+}
+.hp-slider::-webkit-slider-thumb:active { cursor: grabbing; background: #79c0ff; }
+.hp-slider::-moz-range-thumb {
+  width: 16px; height: 16px; border-radius: 50%;
+  background: #58a6ff; border: 2px solid #0d1117;
+  cursor: grab;
+}
+.hp-slider::-moz-range-thumb:active { cursor: grabbing; background: #79c0ff; }
+#fps-canvas { width: 100%; display: block; }
+.weather-current { display: flex; align-items: center; gap: 10px; }
+.weather-icon { font-size: 2em; }
+.weather-name { font-size: 1.3em; color: #c9d1d9; font-weight: 600; }
+.weather-clock { color: #c9d1d9; font-size: 1.1em; margin-top: 6px; font-family: 'Cascadia Code', 'Fira Code', monospace; }
+.weather-timezone { color: #8b949e; font-size: 0.75em; text-transform: capitalize; }
+.weather-next { color: #d29922; font-size: 0.85em; margin-top: 6px; }
+.weather-blends { margin-top: 12px; }
+.weather-blend-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.weather-blend-label { color: #8b949e; font-size: 0.8em; min-width: 110px; }
+.weather-blend-bar-bg { flex: 1; height: 6px; background: #21262d; border-radius: 3px; overflow: hidden; }
+.weather-blend-bar { height: 100%; background: #58a6ff; border-radius: 3px; transition: width 0.5s ease; }
+.weather-blend-pct { color: #8b949e; font-size: 0.75em; font-family: monospace; min-width: 32px; text-align: right; }
+.error-msg { color: #f85149; font-style: italic; }
+.poll-info { color: #484f58; font-size: 0.75em; text-align: right; margin-top: 16px; }
+
+/* ── Equipment styles ───────────────────────────────────────────── */
+.equip-weapon {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; margin-bottom: 10px;
+  background: #0d1117; border: 1px solid #30363d; border-radius: 6px;
+}
+.equip-weapon-name { color: #f0883e; font-weight: 600; font-size: 1.05em; }
+.equip-weapon-type { color: #8b949e; font-size: 0.8em; }
+.equip-armor-list { display: flex; flex-direction: column; gap: 4px; }
+.equip-armor-piece {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 5px 10px; background: #0d1117; border: 1px solid #21262d; border-radius: 6px;
+  font-size: 0.85em;
+}
+.equip-slot { color: #8b949e; min-width: 44px; font-size: 0.8em; }
+.equip-name { color: #c9d1d9; flex: 1; margin: 0 8px; }
+.equip-level { color: #8b949e; font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 0.8em; }
+.equip-stats {
+  display: flex; gap: 12px; flex-wrap: wrap;
+  padding: 8px 0; margin-bottom: 8px; border-bottom: 1px solid #21262d;
+}
+.equip-stat { display: flex; flex-direction: column; align-items: center; min-width: 50px; }
+.equip-stat-label { color: #8b949e; font-size: 0.7em; text-transform: uppercase; }
+.equip-stat-val { color: #c9d1d9; font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 1.05em; font-weight: 600; }
+.equip-slots { display: flex; gap: 3px; align-items: center; }
+.equip-gem {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 50%; font-size: 0.7em; font-weight: 700;
+  border: 1.5px solid #484f58; color: #c9d1d9; background: #21262d;
+}
+.equip-gem-1 { border-color: #8b949e; }
+.equip-gem-2 { border-color: #58a6ff; color: #58a6ff; }
+.equip-gem-3 { border-color: #d29922; color: #d29922; }
+.equip-gem-4 { border-color: #a371f7; color: #a371f7; }
+
+/* ── Inventory styles ────────────────────────────────────────────── */
+.inventory-list { display: flex; flex-direction: column; gap: 3px; max-height: 400px; overflow-y: auto; }
+.inv-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 5px 10px; background: #0d1117; border: 1px solid #21262d; border-radius: 6px;
+  font-size: 0.85em;
+}
+.inv-name { color: #c9d1d9; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inv-qty { color: #8b949e; font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 0.9em; margin-left: 8px; }
+
+/* ── Mesh visibility styles ──────────────────────────────────────── */
+.mesh-list { display: flex; flex-direction: column; gap: 3px; max-height: 400px; overflow-y: auto; }
+.mesh-toggle {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 10px; background: #0d1117; border: 1px solid #21262d; border-radius: 6px;
+  font-size: 0.85em; cursor: pointer; user-select: none;
+}
+.mesh-toggle:hover { border-color: #30363d; }
+.mesh-toggle input[type="checkbox"] { accent-color: #58a6ff; cursor: pointer; }
+.mesh-label { color: #c9d1d9; flex: 1; }
+.mesh-name { color: #484f58; font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 0.8em; }
+
+/* ── Chat styles ─────────────────────────────────────────────────── */
+.chat-log {
+  display: flex; flex-direction: column; gap: 2px;
+  max-height: 280px; overflow-y: auto; margin-bottom: 10px;
+  padding: 6px; background: #0d1117; border: 1px solid #21262d; border-radius: 6px;
+  min-height: 60px;
+}
+.chat-msg { font-size: 0.85em; padding: 3px 6px; border-radius: 4px; line-height: 1.4; }
+.chat-msg:hover { background: #161b22; }
+.chat-time { color: #484f58; font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 0.8em; margin-right: 6px; }
+.chat-sender { color: #58a6ff; font-weight: 600; margin-right: 6px; }
+.chat-text { color: #c9d1d9; }
+.chat-form { display: flex; gap: 8px; }
+.chat-input {
+  flex: 1; padding: 8px 12px;
+  background: #0d1117; border: 1px solid #30363d; border-radius: 6px;
+  color: #c9d1d9; font-size: 0.9em; outline: none;
+}
+.chat-input:focus { border-color: #58a6ff; }
+.chat-send {
+  padding: 8px 16px; background: #238636; border: 1px solid #2ea043; border-radius: 6px;
+  color: #fff; font-size: 0.85em; font-weight: 600; cursor: pointer;
+}
+.chat-send:hover { background: #2ea043; }
+.chat-send:disabled { opacity: 0.5; cursor: not-allowed; }
+.chat-status { font-size: 0.8em; margin-top: 6px; min-height: 1.2em; }
+.chat-ok { color: #3fb950; }
+.chat-err { color: #f85149; }
+
+/* ── Lobby styles ────────────────────────────────────────────────── */
+.lobby-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 6px; max-height: 500px; overflow-y: auto; }
+.lobby-member {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px; border-radius: 6px; background: #0d1117;
+  border: 1px solid #21262d; font-size: 0.85em;
+}
+.lobby-member.is-self { border-color: #3fb950; background: #0d1117; }
+.lobby-member.is-quest { border-color: #d29922; }
+.lobby-name { color: #c9d1d9; font-weight: 500; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lobby-member.is-self .lobby-name { color: #3fb950; }
+.lobby-hr { color: #8b949e; font-size: 0.8em; font-family: monospace; }
+
+/* ── Explorer / Tree styles ────────────────────────────────────── */
+.nav-link { color: #58a6ff; text-decoration: none; font-size: 0.9em; }
+.nav-link:hover { text-decoration: underline; }
+
+.tree-node { margin-left: 16px; }
+.tree-header {
+  display: flex; align-items: center; gap: 4px;
+  padding: 3px 4px; border-radius: 4px; cursor: pointer;
+  user-select: none; font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 0.85em;
+}
+.tree-header:hover { background: #1c2128; }
+.tree-arrow {
+  display: inline-block; width: 16px; text-align: center;
+  color: #8b949e; font-size: 0.7em; transition: transform 0.15s ease;
+  flex-shrink: 0;
+}
+.tree-arrow.expanded { transform: rotate(90deg); }
+.tree-arrow.leaf { visibility: hidden; }
+.tree-children { display: none; }
+.tree-children.open { display: block; }
+.tree-leaf { margin-left: 16px; padding: 2px 4px; font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 0.85em; }
+.tree-load-more {
+  margin-left: 32px; padding: 4px 12px; margin-top: 4px;
+  background: #21262d; border: 1px solid #30363d; border-radius: 4px;
+  color: #58a6ff; cursor: pointer; font-size: 0.8em;
+}
+.tree-load-more:hover { background: #30363d; }
+.tree-group-label {
+  color: #58a6ff; font-weight: 600; font-size: 0.95em;
+  padding: 6px 4px; border-bottom: 1px solid #21262d;
+}
+.tree-status { color: #8b949e; font-style: italic; font-size: 0.8em; padding: 4px 20px; }
+
+/* ObjectExplorer color classes */
+.oe-type { color: #4ec9b0; }
+.oe-field { color: #9cdcfe; }
+.oe-method { color: #dcdcaa; }
+.oe-static { color: #c04000; }
+.oe-value { color: #ce9178; }
+.oe-null { color: #8b949e; font-style: italic; }
+
+/* ── Hunt Log styles ─────────────────────────────────────────────── */
+.huntlog-list { display: flex; flex-direction: column; gap: 3px; max-height: 400px; overflow-y: auto; }
+.huntlog-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 5px 10px; background: #0d1117; border: 1px solid #21262d; border-radius: 6px;
+  font-size: 0.85em;
+}
+.huntlog-name { color: #c9d1d9; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.huntlog-counts { display: flex; gap: 6px; margin-left: 8px; flex-shrink: 0; }
+.huntlog-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 24px; padding: 1px 6px; border-radius: 10px;
+  font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 0.8em; font-weight: 600;
+}
+.huntlog-badge.hunt { background: #1f3d2a; color: #3fb950; }
+.huntlog-badge.slay { background: #3d1f1f; color: #f85149; }
+.huntlog-badge.capture { background: #2d3a1f; color: #d29922; }
+
+/* ── Status badges (RE9) ────────────────────────────────────────── */
+.status-badges { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; }
+.badge {
+  display: inline-flex; align-items: center; padding: 2px 8px;
+  border-radius: 10px; font-size: 0.75em; font-weight: 600;
+  border: 1px solid; letter-spacing: 0.02em;
+}
+.badge-safe { background: #0d2818; color: #3fb950; border-color: #238636; }
+.badge-dead { background: #3d1f1f; color: #f85149; border-color: #da3633; }
+.badge-invincible { background: #1f2d3d; color: #58a6ff; border-color: #1f6feb; }
+.badge-elite { background: #2d1f3d; color: #a371f7; border-color: #8957e5; }
+
+/* ── Enemy list styles (RE9) ────────────────────────────────────── */
+.enemies-list { display: flex; flex-direction: column; gap: 6px; max-height: 500px; overflow-y: auto; }
+.enemy-row {
+  padding: 8px 10px; background: #0d1117; border: 1px solid #21262d; border-radius: 6px;
+}
+.enemy-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 4px;
+}
+.enemy-name { color: #c9d1d9; font-weight: 500; font-size: 0.9em; display: flex; align-items: center; gap: 6px; }
+.enemy-hp-text { color: #8b949e; font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 0.8em; }
+.hp-bar-sm { height: 8px; margin: 0; }
+
+/* ── Tooltip ─────────────────────────────────────────────────────── */
+.tip {
+  position: fixed; z-index: 9999; pointer-events: none;
+  max-width: 340px; padding: 10px 14px;
+  background: #1c2128; border: 1px solid #30363d; border-radius: 8px;
+  color: #c9d1d9; font-size: 0.82em; line-height: 1.45;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  opacity: 0; transition: opacity 0.15s ease;
+}
+.tip.show { opacity: 1; }

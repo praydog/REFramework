@@ -12,10 +12,12 @@
 #include "mods/ManualFlashlight.hpp"
 #include "mods/PluginLoader.hpp"
 #include "mods/REFrameworkConfig.hpp"
+#include "mods/MethodDatabase.hpp"
 #include "mods/Scene.hpp"
 #include "mods/ScriptRunner.hpp"
 #include "mods/VR.hpp"
 #include "mods/LooseFileLoader.hpp"
+#include "mods/FaultyFileDetector.hpp"
 #include "mods/vr/games/RE8VR.hpp"
 #include "mods/TemporalUpscaler.hpp"
 
@@ -26,12 +28,17 @@ Mods::Mods() {
     m_mods.emplace_back(REFrameworkConfig::get());
 
 #if defined(REENGINE_AT)
-    m_mods.emplace_back(std::make_unique<IntegrityCheckBypass>());
+    m_mods.emplace_back(IntegrityCheckBypass::get_shared_instance());
 #endif
 
 #ifndef BAREBONES
+    m_mods.emplace_back(MethodDatabase::get());
     m_mods.emplace_back(Hooks::get());
     m_mods.emplace_back(LooseFileLoader::get());
+
+#if defined(MHWILDS)
+    m_mods.emplace_back(FaultyFileDetector::get());
+#endif
 
     m_mods.emplace_back(VR::get());
     m_mods.emplace_back(TemporalUpscaler::get());

@@ -74,314 +74,204 @@ hardcoded_jointexprgraphlayer = [
 # these are chains we'll use for testing on games we are encountering issues with
 # so we don't need to parse the entire JSON dump
 default_chains = {
-    "via.motion.Constraint": {
+    # This things is obsfucated to hell, if someone gonna do it in the future just use a memory dump with it
+    # Tried to map kernel user data, TEB, local thread storage, but looks like it will not gonna accept dummy value that easily
+    # "via.navigation.FilterSet": {
+    #     "address": "14ed9c9e0",
+    #     "crc": "704b0605",
+    #     "deserializer_chain": [
+    #         {
+    #             "address": "0x14b3fa1d0",
+    #             "name": "via.Object"
+    #         },
+    #         {
+    #             "address": "0x14af9d7c0",
+    #             "name": "System.Object"
+    #         },
+    #         {
+    #             "address": "0x14b42b2f0",
+    #             "name": "via.navigation.FilterSet"
+    #         }
+    #     ],
+    # },
+    # "via.render.Mesh": {
+    #     "address": "14ee7d8a0",
+    #     "crc": "d74182f1",
+    #     "deserializer_chain": [
+    #         {
+    #             "address": "0x14b3fa1d0",
+    #             "name": "via.Object"
+    #         },
+    #         {
+    #             "address": "0x14af9d7c0",
+    #             "name": "System.Object"
+    #         },
+    #         {
+    #             "address": "0x140001000",
+    #             "name": "via.Component"
+    #         },
+    #         {
+    #             "address": "0x14affc350",
+    #             "name": "via.render.Mesh"
+    #         }
+    #     ],
+    # },
+    "via.motion.ActorMotion": {
+        "address": "14ead2390",
+        "crc": "e3a6fb73",
         "deserializer_chain": [
             {
-                "address": "0x14a2f77d0",
+                "address": "0x14b3fa1d0",
                 "name": "via.Object"
             },
             {
-                "address": "0x149e909c0",
+                "address": "0x14af9d7c0",
                 "name": "System.Object"
             },
             {
-                "address": "0x140001560",
+                "address": "0x140001000",
                 "name": "via.Component"
             },
             {
-                "address": "0x14bedac20",
-                "name": "via.motion.Constraint"
-            },
-        ],
-    },
-    "via.motion.JointExprGraph": {
-        "deserializer_chain": [
-            {
-                "address": "0x14a2f77d0",
-                "name": "via.Object"
+                "address": "0x14cfeae60",
+                "name": "via.motion.SecondaryAnimation"
             },
             {
-                "address": "0x149e909c0",
-                "name": "System.Object"
-            },
-            {
-                "address": "0x140001560",
-                "name": "via.Component"
-            },
-            {
-                "address": "0x14bedac20",
-                "name": "via.motion.Constraint"
-            },
-            {
-                "address": "0x1402d4d70",
-                "name": "via.motion.JointExprGraph"
-            }
-        ],
-    },
-    "via.navigation.Navigation": {
-        "deserializer_chain": [
-            {
-                "address": "0x14a2f77d0",
-                "name": "via.Object"
-            },
-            {
-                "address": "0x149e909c0",
-                "name": "System.Object"
-            },
-            {
-                "address": "0x140001560",
-                "name": "via.Component"
-            },
-            {
-                "address": "0x140309b90",
-                "name": "via.navigation.Navigation"
-            }
-        ],
-    },
-    "via.navigation.NavigationSurface": {
-        "deserializer_chain": [
-            {
-                "address": "0x14a2f77d0",
-                "name": "via.Object"
-            },
-            {
-                "address": "0x149e909c0",
-                "name": "System.Object"
-            },
-            {
-                "address": "0x140001560",
-                "name": "via.Component"
-            },
-            {
-                "address": "0x140309b90",
-                "name": "via.navigation.Navigation"
-            },
-            {
-                "address": "0x140309870",
-                "name": "via.navigation.NavigationSurface"
-            }
-        ],
-    },
-    "via.Component": {
-        "deserializer_chain": [
-            {
-                "address": "0x14a2f77d0",
-                "name": "via.Object"
-            },
-            {
-                "address": "0x149e909c0",
-                "name": "System.Object"
-            },
-            {
-                "address": "0x140001560",
-                "name": "via.Component"
-            }
-        ],
-    },
-    "via.Behavior": {
-        "address": "14d7af720",
-        "crc": "d4512561",
-        "deserializer_chain": [
-            {
-                "address": "0x14a2f77d0",
-                "name": "via.Object"
-            },
-            {
-                "address": "0x149e909c0",
-                "name": "System.Object"
-            },
-            {
-                "address": "0x140001560",
-                "name": "via.Component"
-            },
-            {
-                "address": "0x1400c0150",
-                "name": "via.Behavior"
-            }
-        ],
-    },
-    "via.motion.Motion": {
-        "deserializer_chain": [
-            {
-                "address": "0x14a2f77d0",
-                "name": "via.Object"
-            },
-            {
-                "address": "0x149e909c0",
-                "name": "System.Object"
-            },
-            {
-                "address": "0x140001560",
-                "name": "via.Component"
-            },
-            {
-                "address": "0x14a5ce960",
-                "name": "via.motion.Animation"
-            },
-            {
-                "address": "0x149d3c400",
-                "name": "via.motion.Motion"
+                "address": "0x14aded460",
+                "name": "via.motion.ActorMotion"
             }
         ]
     },
-    "via.physics.RequestSetCollider": {
-        "address": "14db56c20",
-        "crc": "1be418e8",
-        "deserializer_chain": [
-            {
-                "address": "0x14a2f77d0",
-                "name": "via.Object"
-            },
-            {
-                "address": "0x149e909c0",
-                "name": "System.Object"
-            },
-            {
-                "address": "0x140001560",
-                "name": "via.Component"
-            },
-            {
-                "address": "0x1401aa990",
-                "name": "via.physics.CollidableBase"
-            },
-            {
-                "address": "0x1401ef9c0",
-                "name": "via.physics.RequestSetCollider"
-            }
-        ],
-    },
-    "via.landscape.layer.LandformBaseLayer": {
-        "deserializer_chain": [
-            {
-                "address": "0x14a2f77d0",
-                "name": "via.Object"
-            },
-            {
-                "address": "0x149e909c0",
-                "name": "System.Object"
-            },
-            {
-                "address": "0x14bee7b10",
-                "name": "via.landscape.layer.LandformBaseLayer"
-            },
-        ],
-    },
-    "via.landscape.layer.OutputLayer": {
-        "deserializer_chain": [
-            {
-                "address": "0x14a2f77d0",
-                "name": "via.Object"
-            },
-            {
-                "address": "0x149e909c0",
-                "name": "System.Object"
-            },
-            {
-                "address": "0x14bee7b10",
-                "name": "via.landscape.layer.LandformBaseLayer"
-            },
-            {
-                "address": "0x14bee7b10",
-                "name": "via.landscape.layer.OutputLayer"
-            }
-        ],
-    },
-    "via.behaviortree.Condition": {
-        "deserializer_chain": [
-            {
-                "address": "0x14a2f77d0",
-                "name": "via.Object"
-            },
-            {
-                "address": "0x149e909c0",
-                "name": "System.Object"
-            },
-            {
-                "address": "0x149d1eb10",
-                "name": "via.behaviortree.Condition"
-            },
-        ],
-    },
-    "via.motion.Fsm2ConditionMotionEnd": {
-        "deserializer_chain": [
-            {
-                "address": "0x14a2f77d0",
-                "name": "via.Object"
-            },
-            {
-                "address": "0x149e909c0",
-                "name": "System.Object"
-            },
-            {
-                "address": "0x149d1eb10",
-                "name": "via.behaviortree.Condition"
-            },
-            {
-                "address": "0x14becd500",
-                "name": "via.motion.Fsm2ConditionMotionEnd"
-            }
-        ],
-    },
-    "app.SoundSpatialAudioManager": {
-        "deserializer_chain": [
-            {
-                "address": "0x14a2f77d0",
-                "name": "via.Object"
-            },
-            {
-                "address": "0x149e909c0",
-                "name": "System.Object"
-            },
-            {
-                "address": "0x140001560",
-                "name": "via.Component"
-            },
-            {
-                "address": "0x1400c0150",
-                "name": "via.Behavior"
-            }
-        ],
-    },
-    "via.Transform": {
-        "deserializer_chain": [
-            {
-                "address": "0x14a2f77d0",
-                "name": "via.Object"
-            },
-            {
-                "address": "0x149e909c0",
-                "name": "System.Object"
-            },
-            {
-                "address": "0x140001560",
-                "name": "via.Component"
-            },
-            {
-                "address": "0x149d16170",
-                "name": "via.Transform"
-            }
-        ],
-    },
-    "via.render.Mesh": {
-        "deserializer_chain": [
-            {
-                "address": "0x14a2f77d0",
-                "name": "via.Object"
-            },
-            {
-                "address": "0x149e909c0",
-                "name": "System.Object"
-            },
-            {
-                "address": "0x140001560",
-                "name": "via.Component"
-            },
-            {
-                "address": "0x149f1b8c0",
-                "name": "via.render.Mesh"
-            }
-        ],
-    }
+    # "app.ChainSub": {
+    #     "address": "14e8d4890",
+    #     "crc": "55ddee1f",
+    #     "deserializer_chain": [
+    #         {
+    #             "address": "0x14b3fa1d0",
+    #             "name": "via.Object"
+    #         },
+    #         {
+    #             "address": "0x14af9d7c0",
+    #             "name": "System.Object"
+    #         },
+    #         {
+    #             "address": "0x140001000",
+    #             "name": "via.Component"
+    #         },
+    #         {
+    #             "address": "0x14cfeae60",
+    #             "name": "via.motion.SecondaryAnimation"
+    #         },
+    #         {
+    #             "address": "0x14cfeae60",
+    #             "name": "via.motion.SecondaryEventListener"
+    #         },
+    #         {
+    #             "address": "0x14ade8ef0",
+    #             "name": "via.motion.Chain"
+    #         }
+    #     ],
+    # },
+    # "app.ChainSub2": {
+    #     "address": "14ed77640",
+    #     "crc": "814aaf36",
+    #     "deserializer_chain": [
+    #         {
+    #             "address": "0x14b3fa1d0",
+    #             "name": "via.Object"
+    #         },
+    #         {
+    #             "address": "0x14af9d7c0",
+    #             "name": "System.Object"
+    #         },
+    #         {
+    #             "address": "0x140001000",
+    #             "name": "via.Component"
+    #         },
+    #         {
+    #             "address": "0x14cfeae60",
+    #             "name": "via.motion.SecondaryAnimation"
+    #         },
+    #         {
+    #             "address": "0x14cfeae60",
+    #             "name": "via.motion.SecondaryEventListener"
+    #         },
+    #         {
+    #             "address": "0x14ade9340",
+    #             "name": "via.motion.Chain2"
+    #         }
+    #     ],
+    # },
+    # "via.motion.IkMultiLookAt2": {
+    #     "address": "14ea24420",
+    #     "crc": "8479fa27",
+    #     "deserializer_chain": [
+    #         {
+    #             "address": "0x14b3fa1d0",
+    #             "name": "via.Object"
+    #         },
+    #         {
+    #             "address": "0x14af9d7c0",
+    #             "name": "System.Object"
+    #         },
+    #         {
+    #             "address": "0x140001000",
+    #             "name": "via.Component"
+    #         },
+    #         {
+    #             "address": "0x14cfeae60",
+    #             "name": "via.motion.SecondaryAnimation"
+    #         },
+    #         {
+    #             "address": "0x14029aa70",
+    #             "name": "via.motion.IkMultiLookAt2"
+    #         }
+    #     ],
+    # },
+    # "via.motion.JointExprGraphLayer": {
+    #     "address": "14e9a78d0",
+    #     "crc": "2d18c265",
+    #     "deserializer_chain": [
+    #         {
+    #             "address": "0x14b3fa1d0",
+    #             "name": "via.Object"
+    #         },
+    #         {
+    #             "address": "0x14af9d7c0",
+    #             "name": "System.Object"
+    #         },
+    #         {
+    #             "address": "0x1403452a0",
+    #             "name": "via.motion.JointExprGraphLayer"
+    #         }
+    #     ],
+    # },
+    # "via.motion.JointExprGraph": {
+    #     "address": "14ec81c40",
+    #     "crc": "deb2bb18",
+    #     "deserializer_chain": [
+    #         {
+    #             "address": "0x14b3fa1d0",
+    #             "name": "via.Object"
+    #         },
+    #         {
+    #             "address": "0x14af9d7c0",
+    #             "name": "System.Object"
+    #         },
+    #         {
+    #             "address": "0x140001000",
+    #             "name": "via.Component"
+    #         },
+    #         {
+    #             "address": "0x14cfea840",
+    #             "name": "via.motion.Constraint"
+    #         },
+    #         {
+    #             "address": "0x1402c87f0",
+    #             "name": "via.motion.JointExprGraph"
+    #         }
+    #     ],
+    # }
 }
 
 class Allocator:
@@ -431,6 +321,9 @@ def invalidate_and_return_call(emu, frame, nop_out=True):
     if nop_out == True:
         nops = b"\x90" * dis.size
         emu.mem_write(rip, nops)
+
+        # If we dont clear instruction cache, it will (unfortunately randomly) execute the old stuff again
+        emu.ctl_remove_cache(rip, rip + dis.size)
     
     emu.reg_write(UC_X86_REG_RAX, 0)
     emu.reg_write(UC_X86_REG_RDX, 0)
@@ -465,9 +358,27 @@ def hook_mem_invalid(emu, access, address, size, value, frame):
 
 import traceback
 
+def get_last_frame_offset(frame, delta=0):
+    prev_layout = frame["layout"][-1] if len(frame["layout"]) > 0 else None
+    expected_offset = 0
+
+    if prev_layout is None:
+        return 0
+
+    # so this is probably confusing but anyways "offset" is actually AFTER the data
+    if prev_layout["string"] == False and prev_layout["list"] == False:
+        expected_offset = ((prev_layout["offset"] + delta) + (frame["last_alignment"] - 1)) & ~(frame["last_alignment"] - 1)
+    elif prev_layout["string"] == True:
+        expected_offset = ((prev_layout["offset"] + delta) + (frame["last_alignment"] - 1)) & ~(frame["last_alignment"] - 1)
+    elif prev_layout["list"] == True:
+        expected_offset = ((prev_layout["element"]["offset"] + delta) + (frame["last_alignment"] - 1)) & ~(frame["last_alignment"] - 1)
+    
+    return expected_offset
+
 def hook_code(emu, address, size, frame):
         # print("%x" % address)
 
+        frame["previous_context"] = frame["context"] if "context" in frame else None
         frame["context"] = pickle.dumps(emu.context_save())
         cs = frame["cs"]
         deserialize_arg = frame["deserialize_arg"]
@@ -483,6 +394,7 @@ def hook_code(emu, address, size, frame):
                 print("[precomputed] Advanced stream pointer due to parent already being deserialized")
 
             invalidate_and_return_call(emu, frame, nop_out=False)
+            frame["stopped"] = True
             emu.emu_stop()
             return
 
@@ -495,6 +407,7 @@ def hook_code(emu, address, size, frame):
             # Any other function is irrelevant to us
             if emu.reg_read(UC_X86_REG_RCX) != deserialize_arg:
                 invalidate_and_return_call(emu, frame)
+                frame["stopped"] = True
                 emu.emu_stop()
                 return
                 
@@ -532,6 +445,7 @@ def hook_code(emu, address, size, frame):
                 print("JNE detected after lock prefix, NOPing out")
                 nops = b"\x90" * next_dis.size
                 emu.mem_write(address + dis.size, nops)
+                emu.ctl_remove_cache(address + dis.size, address + dis.size + next_dis.size)
 
             return
 
@@ -645,10 +559,35 @@ def hook_code(emu, address, size, frame):
 
                     if last_dis.mnemonic == "and" and last_dis.operands[1].type == X86_OP_IMM and last_dis.operands[0].reg == frame["last_deserialize_reg"]:
                         # print("0x%X alignment detected" % (~last_dis.operands[1].imm + 1))
+                        expected_alignment =  (~last_dis.operands[1].imm + 1)
 
-                        # Set this because we don't want the actual byte count screwing up
+                        # The if is to stop inline stuffs
+                        if frame["last_deserialize_cur"] >= frame["max_deserialize_cur"]:
+                            previous_context_obj = pickle.loads(frame["previous_context"]) if frame["previous_context"] != None else None
+                            if previous_context_obj == None:
+                                print("Previous context is None. It should not be for the alignment instruction. 0x%X" % lex)
+
+                            increased_pointer_val = previous_context_obj.reg_read(last_dis.operands[0].reg)
+                            delta_before_and = increased_pointer_val - frame["last_deserialize_cur"]
+
+                            if delta_before_and != expected_alignment - 1:
+                                print("Expected alignment of 0x%X doesn't match actual increased pointer value of 0x%X (delta 0x%X) at 0x%X. Probably a skipped member" % (expected_alignment, increased_pointer_val, delta_before_and, lex))
+
+                                probale_element_size = delta_before_and - (expected_alignment - 1)
+                                previous_member_offset = get_last_frame_offset(frame)
+
+                                frame["layout"].append({ 
+                                    "size": probale_element_size,
+                                    "element_size": probale_element_size,
+                                    "element": None,
+                                    "align": 1,
+                                    "string": False,
+                                    "list": False,
+                                    "offset": previous_member_offset
+                                })
+
                         frame["last_deserialize_cur"] = val
-                        frame["last_alignment"] = (~last_dis.operands[1].imm + 1)
+                        frame["last_alignment"] = expected_alignment
 
                     frame["last_deserialize_reg_val"] = val
             elif frame["last_alignment"] == 4 and last_dis.group(X86_GRP_BRANCH_RELATIVE):
@@ -757,10 +696,12 @@ def hook_code(emu, address, size, frame):
                 if len(frame["call_stack"]) == 0:
                     # print("Reached end of function call")
                     frame["start"] = EMU_END
+                    frame["stopped"] = True
                     emu.emu_stop()
             else:
                 print("Reached end of function call in a BAD WAY")
                 frame["start"] = EMU_END
+                frame["stopped"] = True
                 emu.emu_stop()
         else:
             # Allows us to detect stream modifications that are inline
@@ -773,6 +714,7 @@ def hook_code(emu, address, size, frame):
                     if cur_hist[address] > 200:
                         print("WARNING: Too many executions of instruction at 0x%X, STOPPING EXECUTION!" % address)
                         frame["start"] = EMU_END
+                        frame["stopped"] = True
                         emu.emu_stop()
                         return
 
@@ -807,17 +749,17 @@ def hook_code(emu, address, size, frame):
                                 print("Stream pointer shifted by an unaccounted amount! 0x%X -> 0x%X (%i)" % (expected_offset, actual_offset, len(frame["layout"])))
                                 print("Last layout: ", prev_layout)
 
-                                # Add padding to the layout
-                                padding_needed = actual_offset - expected_offset
-                                frame["layout"].append({ 
-                                    "size": padding_needed,
-                                    "element_size": padding_needed,
-                                    "element": None,
-                                    "align": 1,
-                                    "string": False,
-                                    "list": False,
-                                    "offset": deserialize_cur - padding_needed - frame["buffer_start"]
-                                })
+                                # # Add padding to the layout
+                                # padding_needed = actual_offset - expected_offset
+                                # frame["layout"].append({ 
+                                #     "size": padding_needed,
+                                #     "element_size": padding_needed,
+                                #     "element": None,
+                                #     "align": 1,
+                                #     "string": False,
+                                #     "list": False,
+                                #     "offset": deserialize_cur - padding_needed - frame["buffer_start"]
+                                # })
 
                         frame["layout"].append({ 
                             "size": delta,
@@ -858,9 +800,14 @@ def hook_read(emu, access, address, size, value, frame):
 
 # Nops out instructions that are causing problems so we can continue execution
 def hook_unmapped(emu, access, address, size, value, frame):
+    # Check if emulator is already stopped
+    if frame["stopped"]:
+        return False
+    
     # Execution has left the scope of the function.
     if len(frame["call_stack"]) == 0:
         frame["start"] = EMU_END
+        frame["stopped"] = True
         emu.emu_stop()
         return False
 
@@ -881,8 +828,14 @@ def hook_unmapped(emu, access, address, size, value, frame):
         # only NOP out non-return instructions
         # otherwise weird things happen
         if dis.mnemonic != "ret":
-            nops = np.empty(dis.size, dtype=np.byte)
-            nops.fill(0x90)
+            # Fuck you numpy
+            nops = np.empty(dis.size, dtype=np.ubyte)
+
+            try:
+                nops.fill(0x90)
+            except Exception as e:
+                print("Failed to create NOPs for size %i at 0x%X" % (dis.size, rip))
+                return
 
             # Fix the history count for RIP
             if len(frame["call_stack"]) > 0 and rip in frame["call_stack"][-1]["history"]:
@@ -893,6 +846,7 @@ def hook_unmapped(emu, access, address, size, value, frame):
 
             # Nop out the instruction causing read/write errors
             emu.mem_write(rip, nops.tobytes())
+            emu.ctl_remove_cache(rip, rip + dis.size)
             #emu.reg_write(UC_X86_REG_RIP, rip + dis.size)
         else:
             print("WTF? WE TRIED TO NOP OUT A RET? 0x%X" % rip)
@@ -930,6 +884,7 @@ def hook_invalid_insn(emu, frame):
         emu.reg_write(UC_X86_REG_RIP, rip + dis.size)
         nops = b"\x90" * dis.size
         emu.mem_write(rip, nops)
+        emu.ctl_remove_cache(rip, rip + dis.size)
     except Exception as e:
         print("Failed to disassemble 0x%X" % rip)
         return
@@ -1002,7 +957,7 @@ def main(p, il2cpp_path="il2cpp_dump.json", test_mode=False):
 
     highest_alloc = (highest_alloc + 1024 + (map_align - 1)) & ~(map_align - 1)
     allocator = Allocator(emu, highest_alloc + (1024 + (map_align - 1)) & ~(map_align - 1))
-    
+
     '''
     pe.parse_data_directories()
     for entry in pe.DIRECTORY_ENTRY_IMPORT:
@@ -1080,7 +1035,8 @@ def main(p, il2cpp_path="il2cpp_dump.json", test_mode=False):
         "fake_vtable": fake_vtable,
         "fake_return_func": fake_return_func,
         "buffer_start": deserialize_buffer,
-        "buffer_end": deserialize_buffer + REGISTER_MEMORY_SIZE
+        "buffer_end": deserialize_buffer + REGISTER_MEMORY_SIZE,
+        "stopped": False
     }
 
     emu.hook_add(UC_HOOK_CODE, hook_code, meta_frame)
@@ -1178,6 +1134,8 @@ def main(p, il2cpp_path="il2cpp_dump.json", test_mode=False):
 
             if meta_frame["start"] == EMU_END:
                 break
+
+            meta_frame["stopped"] = False
 
             try:
                 emu.emu_start(meta_frame["start"], deserializer_start + 0x10000)

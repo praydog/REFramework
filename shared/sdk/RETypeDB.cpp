@@ -47,7 +47,7 @@ reframework::InvokeRet invoke_object_func(::REManagedObject* obj, std::string_vi
 
 
 sdk::REModule* RETypeDB::get_module(uint32_t index) const {
-    if (index >= this->numModules) {
+    if (index >= this->get_num_modules()) {
         return nullptr;
     }
 
@@ -359,6 +359,25 @@ void* REField::get_data_raw(void* object, bool is_value_type) const {
             return Address{object}.get(this->get_offset_from_fieldptr());
         }
 
+#if TDB_VER >= 81
+        // Read fieldptr_offset from the object's own vtable, not from the
+        // declaring type's managed_vt. For abstract declaring types,
+        // get_managed_vt() walks up the parent chain and can return an
+        // ancestor's vtable with a WRONG fieldptr_offset. The object's
+        // vtable always has the correct value — this matches what the
+        // .NET runtime does in RuntimeFieldInfo.GetValue.
+        if (object != nullptr) try {
+            const auto vtable_ptr = *(uintptr_t*)object;
+            if (vtable_ptr != 0) {
+                const auto fieldptr_offset = *(int32_t*)(vtable_ptr - sizeof(void*));
+                return Address{object}.get(fieldptr_offset + this->get_offset_from_fieldptr());
+            }
+        } catch (...) {
+            // Occurs if consumer passes some bad object in. Need to look into this more.
+            return nullptr;
+        }
+#endif
+
         return Address{object}.get(this->get_offset_from_base());
     }
 
@@ -465,7 +484,7 @@ void* REMethodDefinition::get_function() const {
 
         auto decl_type = this->get_declaring_type();
         auto name = decl_type != nullptr ? decl_type->get_full_name() : std::string{"null"};
-        spdlog::error("[REMethodDefinition::get_function] Encoded offset is 0 (vindex {}) (method: {}.{})", this->get_virtual_index(), name, this->get_name());
+        SPDLOG_DEBUG("[REMethodDefinition::get_function] Encoded offset is 0 (vindex {}) (method: {}.{})", this->get_virtual_index(), name, this->get_name());
         return nullptr;
     }
 
@@ -1190,16 +1209,34 @@ std::span<uint32_t> REModule::get_types() const {
 
 std::span<uint32_t> REModule::get_methods() const {
     auto tdb = RETypeDB::get();
+
+#if TDB_VER >= 81
+    spdlog::warn("This TDB version does not support REModule::get_methods()");
+    return {};
+#else
     return std::span<uint32_t>{(uint32_t*)tdb->get_bytes(this->methods_start), (size_t)this->methods_count};
+#endif
 }
 
 std::span<uint32_t> REModule::get_instantiated_methods() const {
     auto tdb = RETypeDB::get();
+
+#if TDB_VER >= 81
+    spdlog::warn("This TDB version does not support REModule::get_instantiated_methods()");
+    return {};
+#else
     return std::span<uint32_t>{(uint32_t*)tdb->get_bytes(this->method_instantiations_start), (size_t)this->method_instantiations_count};
+#endif
 }
 
 std::span<uint32_t> REModule::get_member_references() const {
     auto tdb = RETypeDB::get();
+
+#if TDB_VER >= 81
+    spdlog::warn("This TDB version does not support REModule::get_member_references()");
+    return {};
+#else
     return std::span<uint32_t>{(uint32_t*)tdb->get_bytes(this->member_references_start), (size_t)this->member_references_count};
+#endif
 }
 } // namespace sdk

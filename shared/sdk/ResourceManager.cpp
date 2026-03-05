@@ -118,26 +118,35 @@ void ResourceManager::update_pointers() {
         auto ip = *string_reference - 3;
         bool found = false;
 
-        for (auto i = 0; i < 10; ++i) {
-            hde64s hde{};
-            auto len = hde64_disasm((void*)ip, &hde);
-
-            if (hde.opcode == 0xE8) { // call
-                found = true;
-                break;
+        // Use exhaustive_decode. We need to follow control flow.
+        // newer games have been seen to have a hard jmp right after the string reference.
+        utility::exhaustive_decode((uint8_t*)ip, 100, [&](utility::ExhaustionContext& ctx) -> utility::ExhaustionResult {
+            if (found) {
+                return utility::ExhaustionResult::BREAK;
             }
 
-            ip += len;
-        }
+            if (ctx.instrux.Category == ND_CAT_CALL) {
+                if (*(uint8_t*)ctx.addr == 0xE8) {
+                    spdlog::info("[ResourceManager::create_resource] Found function at {:x}", ctx.addr);
+                    s_create_resource_fn = (decltype(s_create_resource_fn))utility::calculate_absolute(ctx.addr + 1);
+                    s_create_resource_reference = ctx.addr;
+                    found = true;
+                    return utility::ExhaustionResult::BREAK;
+                }
+
+                return utility::ExhaustionResult::STEP_OVER;
+            }
+
+            return utility::ExhaustionResult::CONTINUE;
+        });
 
         if (found) {
-            s_create_resource_fn = (decltype(s_create_resource_fn))utility::calculate_absolute(ip + 1);
-            s_create_resource_reference = ip;
             Resource::update_pointers();
             spdlog::info("[ResourceManager::create_resource] Found function at {:x}", (uintptr_t)s_create_resource_fn);
             
             // now find create_userdata, using the previous function as a reference to ignore
             // since they both have the same pattern at the start of the function
+#if TDB_VER < 81
             const auto valid_patterns = {
 #if TDB_VER < 73
                 "66 83 F8 40 75 ? C6",
@@ -180,6 +189,54 @@ void ResourceManager::update_pointers() {
                     break;
                 }
             }
+#else   
+            // Heuristic invariant fallback using ABI guarantees.
+            // Look for test r9, r9, followed by a conditional jump.
+            // Shortly after that will be another conditional jmp, comparing the deref of r9.
+            // Then look ~60 bytes ahead for a cmp * 0x40, word size.
+            spdlog::info("[ResourceManager::create_userdata] Finding function via heuristic invariant search...");
+            for (auto ref = utility::scan(mod, "4D 85 C9 0F 84 ? ? ? ?"); 
+                ref.has_value(); 
+                ref = utility::scan(*ref + 1, (mod_end - (*ref + 1)) - 100, "4D 85 C9 0F 84 ? ? ? ?")) 
+            {
+                if (s_create_userdata_fn != nullptr) {
+                    break;
+                }
+
+                utility::linear_decode((uint8_t*)(*ref), 40, [&](utility::ExhaustionContext& ctx) -> bool {
+                    if (s_create_userdata_fn != nullptr) {
+                        return false;
+                    }
+
+                    if (!std::string_view(ctx.instrux.Mnemonic).starts_with("CMP")) {
+                        return true;
+                    }
+
+                    if (ctx.instrux.HasImm1 && (ctx.instrux.Immediate1 & 0xFFFFFFFF) == 0x40) {
+                        spdlog::info("[ResourceManager::create_userdata] Found candidate reference at {:x}", *ref);
+
+                        // Check if there's another conditional jmp between the first jmp and the cmp,This is to ensure we have the right code path, since there are multiple similar patterns in the code.
+                        // So we don't hit the memcmp function that looks similar.
+                        auto cond_jmp = utility::scan_disasm(*ref + 9, 30, "0F 84 ? ? ? ?");
+
+                        if (!cond_jmp || *cond_jmp >= ctx.addr) {
+                            spdlog::info("[ResourceManager::create_userdata] Failed to find expected conditional jump, skipping reference at {:x}", *ref);
+                            return true;
+                        }
+
+                        s_create_userdata_fn = (decltype(s_create_userdata_fn))utility::find_function_start_with_call(*ref).value_or(0);
+
+                        if (s_create_userdata_fn != nullptr) {
+                            spdlog::info("[ResourceManager::create_userdata] Found via heuristic invariant search at {:x}", (uintptr_t)s_create_userdata_fn);  
+                            return false;
+                        }
+                    }
+ 
+                    return true;
+                });
+            }
+
+#endif
 
             if (found) {
                 spdlog::info("[ResourceManager::create_userdata] Found function at {:x}", (uintptr_t)s_create_userdata_fn);

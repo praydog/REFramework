@@ -78,6 +78,7 @@ void LooseFileLoader::on_draw_ui() {
 
     if (m_enabled->draw("Enable Loose File Loader")) {
         clear_existence_cache();
+        g_framework->request_save_config();
     }
 
     if (m_hook_success) {

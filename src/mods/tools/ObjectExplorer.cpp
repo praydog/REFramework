@@ -526,10 +526,14 @@ void ObjectExplorer::on_draw_dev_ui() {
 
         for (auto i = 0; i < tdb->get_num_modules(); ++i) {
             auto& module = tdb->modules[i];
+
+            std::string_view assembly_name{ module.get_assembly_name() != nullptr ? module.get_assembly_name() : "Unknown" };
+            std::string_view module_name{ module.get_module_name() != nullptr ? module.get_module_name() : "Unknown" };
+            std::string_view location{ module.get_location() != nullptr ? module.get_location() : "Unknown" };
             
-            if (ImGui::TreeNode(module.get_assembly_name())) {
-                ImGui::Text("Location: %s", module.get_location());
-                ImGui::Text("Module Name: %s", module.get_module_name());
+            if (ImGui::TreeNode(assembly_name.data())) {
+                ImGui::Text("Location: %s", location.data());
+                ImGui::Text("Module Name: %s", module_name.data());
                 
                 if (ImGui::TreeNode("Assembly Types")) {
                     std::vector<uint8_t> fake_type{ 0 };
@@ -736,6 +740,8 @@ void ObjectExplorer::on_frame() {
         bool open = true;
 
         ImGui::SetNextWindowSize(ImVec2(200, 400), ImGuiCond_::ImGuiCond_Once);
+        ImGui::PushFont(g_framework->get_default_font(), g_framework->get_font_size());
+
         if (ImGui::Begin("Read Listeners", &open)) {
             std::shared_lock _{m_veh_state.listener_mtx};
 
@@ -756,6 +762,8 @@ void ObjectExplorer::on_frame() {
             }
         }
 
+        ImGui::PopFont();
+
         if (!open) {
             m_veh_state.clear_all_hardware_breakpoints();
         }
@@ -768,11 +776,15 @@ void ObjectExplorer::on_frame() {
         // the pinned objects in a separate window
 
         ImGui::SetNextWindowSize(ImVec2(200, 400), ImGuiCond_::ImGuiCond_Once);
+        ImGui::PushFont(g_framework->get_default_font(), g_framework->get_font_size());
+
         if (ImGui::Begin("Pinned objects", &open)) {
             display_pins();
 
             ImGui::End();
         }
+
+        ImGui::PopFont();
 
         if (!open) {
             m_pinned_objects.clear();
@@ -786,11 +798,15 @@ void ObjectExplorer::on_frame() {
         // the pinned objects in a separate window
 
         ImGui::SetNextWindowSize(ImVec2(400, 800), ImGuiCond_::ImGuiCond_Once);
+        ImGui::PushFont(g_framework->get_default_font(), g_framework->get_font_size());
+
         if (ImGui::Begin("Hooked methods", &open)) {
             display_hooks();
 
             ImGui::End();
         }
+
+        ImGui::PopFont();
 
         if (!open) {
             for (auto& h : m_hooked_methods) {
@@ -1220,6 +1236,10 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
         type_entry["name_hierarchy"] = t.get_name_hierarchy();
         type_entry["is_generic_type"] = t.is_generic_type();
         type_entry["is_generic_type_definition"] = t.is_generic_type_definition();
+
+        if (auto declaring_type = t.get_declaring_type(); declaring_type != nullptr) {
+            type_entry["declaring_type"] = declaring_type->get_full_name();
+        }
 
 #if TDB_VER >= 71
         if (tdef->element_typeid_TBD != 0) {
@@ -5448,15 +5468,15 @@ HookManager::PreHookResult ObjectExplorer::pre_hooked_method_internal(std::vecto
                 added = true;
             };
 
-            if (method_entry != nullptr) {
+            if (method_entry) {
                 const auto module_addr = (uintptr_t)utility::get_module_within(ret_addr).value_or(nullptr);
                 const auto ret_addr_rva = (uint32_t)(ret_addr - module_addr);
                 const auto ret_addr_entry = utility::find_function_entry(ret_addr);
 
                 // First condition isn't as heavy as fully disassembling the function which is the second condition
-                if (ret_addr_entry == method_entry ||
+                if ((ret_addr_entry && ret_addr_entry->BeginAddress == method_entry->BeginAddress && ret_addr_entry->EndAddress == method_entry->EndAddress) ||
                     (ret_addr_rva >= method_entry->BeginAddress && ret_addr_rva <= method_entry->EndAddress) ||
-                    (ret_addr_entry != nullptr && ret_addr_entry->BeginAddress >= method_entry->BeginAddress && ret_addr_entry->BeginAddress <= method_entry->EndAddress + 1))
+                    (ret_addr_entry && ret_addr_entry->BeginAddress >= method_entry->BeginAddress && ret_addr_entry->BeginAddress <= method_entry->EndAddress + 1))
                 {
                     add_method();
                 } else {

@@ -119,6 +119,8 @@ public:
         return "re7";
     #elif defined(RE8)
         return "re8";
+    #elif defined(RE9)
+        return "re9";
     #elif defined(DMC5)
         return "dmc5";
     #elif defined(MHRISE)
@@ -129,6 +131,8 @@ public:
         return "dd2";
     #elif defined(MHWILDS)
         return "mhwilds";
+    #elif defined(MHSTORIES3)
+        return "mhstories3";
     #elif defined(PRAGMATA)
         return "pragmata";
     #else
@@ -157,6 +161,7 @@ public:
     }
 
     auto get_font_size() const { return m_font_size; }
+    auto get_default_font() const { return m_default_font; }
 
     void set_font(std::string path) { 
         m_default_font_file = path;

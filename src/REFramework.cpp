@@ -31,6 +31,7 @@ extern "C" {
 #include "utility/Thread.hpp"
 
 #include "Mods.hpp"
+#include "mods/FaultyFileDetector.hpp"
 #include "mods/LooseFileLoader.hpp"
 #include "mods/PluginLoader.hpp"
 #include "mods/VR.hpp"
@@ -503,6 +504,10 @@ REFramework::REFramework(HMODULE reframework_module)
     startup_lookup_thread->detach();
 #endif
 
+#if defined(MHWILDS)
+    FaultyFileDetector::early_init();
+#endif
+
 #if defined(REENGINE_AT)
     utility::ThreadSuspender suspender{};
     IntegrityCheckBypass::ignore_application_entries();
@@ -520,6 +525,11 @@ REFramework::REFramework(HMODULE reframework_module)
 #if defined(DD2) || TDB_VER >= 74
     // Fixes new code added in DD2 only. Maybe >= TDB73 too. Probably will change.
     IntegrityCheckBypass::immediate_patch_dd2();
+#endif
+
+#if TDB_VER >= 83
+    // Fixes new code added in RE9 only. Maybe >= TDB83 too. Probably will change.
+    IntegrityCheckBypass::immediate_patch_re9();
 #endif
 
     // Seen in SF6
@@ -558,11 +568,21 @@ REFramework::REFramework(HMODULE reframework_module)
 
     if (sdk::RETypeDB::get() != nullptr) {
         auto& loader = LooseFileLoader::get(); // Initialize this really early
+        auto &integrity_bypass = IntegrityCheckBypass::get_shared_instance();
+
+#if defined(MHWILDS)
+        auto& faulty_file_detector = FaultyFileDetector::get();
+#endif
 
         const auto config_path = get_persistent_dir(REFrameworkConfig::REFRAMEWORK_CONFIG_NAME.data()).string();
         if (fs::exists(utility::widen(config_path))) {
             utility::Config cfg{ config_path };
             loader->on_config_load(cfg);
+
+#if defined(MHWILDS)
+            faulty_file_detector->on_config_load(cfg);
+#endif
+            integrity_bypass->on_config_load(cfg);
         }
 
         if (loader->is_enabled()) {
@@ -1641,8 +1661,8 @@ void REFramework::draw_ui() {
         m_windows_message_hook->window_toggle_cursor(true);
     }
 
-    ImGui::SetNextWindowPos(ImVec2(50, 50), ImGuiCond_::ImGuiCond_Once);
-    ImGui::SetNextWindowSize(ImVec2(300, 500), ImGuiCond_::ImGuiCond_Once);
+    ImGui::SetNextWindowPos(ImVec2(50, 50), ImGuiCond_::ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(300, 500), ImGuiCond_::ImGuiCond_FirstUseEver);
 
     ImGui::PushFont(m_default_font, m_font_size);
     static const auto REF_NAME = std::format("REFramework [{}+{}-{:.8}]", REF_TAG, REF_COMMITS_PAST_TAG, REF_COMMIT_HASH);

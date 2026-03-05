@@ -341,7 +341,7 @@ namespace sdk {
                         spdlog::info("[VM::update_pointers] Analyzing potential invoke table at {:x}", (uintptr_t)functions);
 
                         // Rest of pointers are not null and point somewhere within the game module
-                        for (auto i = 1; i < 28; ++i) {
+                        for (auto i = 1; i < 13; ++i) {
                             if (functions[i] == 0 || IsBadReadPtr(&functions[i], sizeof(void*))) {
                                 return utility::ExhaustionResult::CONTINUE;
                             }
@@ -504,7 +504,13 @@ namespace sdk {
         if (!ref) {
             spdlog::info("[VMContext] Could not locate functions we need, trying fallback for full cleanup...");
 
-            auto full_cleanup_ref = utility::scan(utility::get_executable(), "48 8B 41 50 48 83 78 18 00");
+            // Very stable across engine/game variants. Even the 48 83 EC ? FF 49 ? would just work.
+            auto full_cleanup_landmark = utility::find_landmark_sequence(utility::get_executable(), "48 83 EC ? FF 49 ?", { "48 8B 41 50 48 83 78 18 00" });
+            auto full_cleanup_ref = full_cleanup_landmark ? full_cleanup_landmark->addr : std::optional<uintptr_t>{};
+
+            if (!full_cleanup_ref) {
+                full_cleanup_ref = utility::scan(utility::get_executable(), "48 8B 41 50 48 83 78 18 00");
+            }
 
             if (full_cleanup_ref) {
                 auto fn = utility::find_function_start_with_call(*full_cleanup_ref);

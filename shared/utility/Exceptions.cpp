@@ -10,6 +10,11 @@ namespace utility {
 namespace exceptions{
 static bool symbols_initialized = false;
 static HANDLE process{};
+static AddressNameResolver s_address_name_resolver = nullptr;
+
+void set_address_name_resolver(AddressNameResolver resolver) {
+    s_address_name_resolver = resolver;
+}
 
 void dump_callstack(EXCEPTION_POINTERS* exception) {
     const auto dbghelp = LoadLibraryA("dbghelp.dll");
@@ -62,6 +67,20 @@ void dump_callstack(EXCEPTION_POINTERS* exception) {
         }
 
         std::string symbol_name = symbol_found ? symbol->Name : "Unknown symbol";
+
+        if (s_address_name_resolver != nullptr) {
+            try {
+                auto tdb_name = s_address_name_resolver(stack[i]);
+                if (!tdb_name.empty()) {
+                    if (!symbol_found) {
+                        symbol_name = tdb_name;
+                    } else {
+                        symbol_name += " [TDB: " + tdb_name + "]";
+                    }
+                }
+            } catch (...) {
+            }
+        }
 
         if (sym_get_line_from_addr64 != nullptr && symbols_initialized && symbol_found) {
             DWORD displacement = 0;

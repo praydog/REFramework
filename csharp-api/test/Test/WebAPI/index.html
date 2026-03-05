@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>REFramework Dashboard</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<h1 id="game-title">REFramework</h1>
+<p class="subtitle">REFramework.NET Live Dashboard &mdash; <a class="nav-link" href="/explorer.html">Object Explorer</a></p>
+
+<div class="grid">
+  <div class="card" id="player-card">
+    <h2><span class="dot"></span> Player</h2>
+    <div id="player-content"><span class="error-msg">Loading...</span></div>
+  </div>
+
+  <div class="card" id="camera-card">
+    <h2><span class="dot"></span> Camera</h2>
+    <div id="camera-content"><span class="error-msg">Loading...</span></div>
+  </div>
+
+  <div class="card" id="fps-card">
+    <h2><span class="dot"></span> FPS <span id="fps-value" style="color:#8b949e;font-size:0.8em"></span></h2>
+    <canvas id="fps-canvas" width="360" height="100"></canvas>
+  </div>
+
+  <div class="card" id="weather-card">
+    <h2><span class="dot"></span> Weather</h2>
+    <div id="weather-content"><span class="error-msg">Loading...</span></div>
+  </div>
+
+  <div class="card" id="map-card">
+    <h2><span class="dot"></span> Location</h2>
+    <div id="map-content"><span class="error-msg">Loading...</span></div>
+  </div>
+
+  <div class="card" id="equip-card">
+    <h2><span class="dot"></span> Equipment</h2>
+    <div id="equip-content"><span class="error-msg">Loading...</span></div>
+  </div>
+
+  <div class="card" id="palico-card">
+    <h2><span class="dot"></span> Palico</h2>
+    <div id="palico-content"><span class="error-msg">Loading...</span></div>
+  </div>
+
+  <div class="card" id="gameinfo-card">
+    <h2><span class="dot"></span> Game Info</h2>
+    <div id="gameinfo-content"><span class="error-msg">Loading...</span></div>
+  </div>
+
+  <div class="card" id="enemies-card">
+    <h2><span class="dot"></span> Enemies <span id="enemies-count" style="color:#8b949e;font-size:0.8em"></span></h2>
+    <div class="enemies-list" id="enemies-content"><span class="error-msg">Loading...</span></div>
+  </div>
+
+  <div class="card" id="huntlog-card">
+    <h2><span class="dot"></span> Hunt Log <span id="huntlog-count" style="color:#8b949e;font-size:0.8em"></span></h2>
+    <div class="huntlog-list" id="huntlog-content"><span class="error-msg">Loading...</span></div>
+  </div>
+
+  <div class="card" id="inventory-card">
+    <h2><span class="dot"></span> Item Pouch <span id="inventory-count" style="color:#8b949e;font-size:0.8em"></span></h2>
+    <div class="inventory-list" id="inventory-content"><span class="error-msg">Loading...</span></div>
+  </div>
+
+  <div class="card" id="mesh-card">
+    <h2><span class="dot"></span> Mesh Visibility</h2>
+    <div class="mesh-list" id="mesh-content"><span class="error-msg">Loading...</span></div>
+  </div>
+
+  <div class="card" id="chat-card">
+    <h2><span class="dot"></span> Chat <span id="chat-count" style="color:#8b949e;font-size:0.8em"></span></h2>
+    <div id="chat-content">
+      <div class="chat-log" id="chat-log"></div>
+      <form id="chat-form" class="chat-form" autocomplete="off">
+        <input type="text" id="chat-input" class="chat-input" placeholder="Type a message..." maxlength="256">
+        <button type="submit" class="chat-send">Send</button>
+      </form>
+      <div id="chat-status" class="chat-status"></div>
+    </div>
+  </div>
+
+  <div class="card" style="grid-column: 1 / -1;" id="lobby-card">
+    <h2><span class="dot"></span> Lobby Members <span id="lobby-count" style="color:#8b949e;font-size:0.8em"></span></h2>
+    <div class="lobby-list" id="lobby-content"><span class="error-msg">Loading...</span></div>
+  </div>
+</div>
+
+<div class="poll-info" id="poll-info"></div>
+
+<script src="/dashboard.js"></script>
+</body>
+</html>

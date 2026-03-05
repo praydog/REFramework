@@ -333,10 +333,13 @@ void FreeCam::on_update_transform(RETransform* transform) {
     transform->worldTransform = m_last_camera_matrix;
     transform->position = m_last_camera_matrix[3];
 
+    // IDK!!!
+#if TDB_VER < 81
     if (joint != nullptr) {
         joint->posOffset = Vector4f{};
         *(Vector4f*)&joint->anglesOffset = Vector4f{0.0f, 0.00f, 0.0f, 1.0f};
     }
+#endif
 }
 
 void FreeCam::on_pre_application_entry(void* entry, const char* name, size_t hash) {

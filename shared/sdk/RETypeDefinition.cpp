@@ -617,7 +617,7 @@ uint32_t RETypeDefinition::get_index() const {
 
 int32_t RETypeDefinition::get_fieldptr_offset() const {
 #if TDB_VER > 49
-    #ifdef MHWILDS
+    #if TDB_VER >= 81
         REObjectInfo *target_managed_vt = get_managed_vt();
 
         if (target_managed_vt == nullptr) {
@@ -642,7 +642,7 @@ int32_t RETypeDefinition::get_fieldptr_offset() const {
 
 bool RETypeDefinition::has_fieldptr_offset() const {
 #if TDB_VER > 49
-    #ifdef MHWILDS
+    #if TDB_VER >= 81
         return get_managed_vt() != nullptr;
     #else
         return this->managed_vt != nullptr;
@@ -717,18 +717,20 @@ bool RETypeDefinition::is_by_ref() const {
     auto runtime_type = this->get_runtime_type();
 
     if (runtime_type == nullptr) {
-        g_by_ref_map[this] = true;
-        return true;
+        g_by_ref_map[this] = false;
+        return false;
     }
 
     auto runtime_typedef = utility::re_managed_object::get_type_definition(runtime_type);
 
     if (runtime_typedef == nullptr) {
-        g_by_ref_map[this] = true;
-        return true;
+        g_by_ref_map[this] = false;
+        return false;
     }
 
-    static auto by_ref_method = runtime_typedef->get_method("get_IsByRef");
+    static auto by_ref_method = runtime_typedef->get_method("get_IsByRef") != nullptr ? 
+        runtime_typedef->get_method("get_IsByRef") : 
+        runtime_typedef->get_method("IsByRefImpl"); // MHWilds
 
     if (by_ref_method == nullptr) {
         // well...
@@ -770,7 +772,14 @@ bool RETypeDefinition::is_pointer() const {
         return false;
     }
 
-    static auto pointer_method = runtime_typedef->get_method("get_IsPointer");
+    static auto pointer_method = runtime_typedef->get_method("get_IsPointer") != nullptr ?
+        runtime_typedef->get_method("get_IsPointer") :
+        runtime_typedef->get_method("IsPointerImpl"); // MHWilds
+
+    if (pointer_method == nullptr) {
+        g_pointer_map[this] = false;
+        return false;
+    }
 
     g_pointer_map[this] = pointer_method->call<bool>(sdk::get_thread_context(), runtime_type);
 
@@ -1133,7 +1142,7 @@ void* RETypeDefinition::create_instance() const {
 
 ::REObjectInfo* RETypeDefinition::get_managed_vt() const {
 #if TDB_VER > 49
-    #if MHWILDS
+    #if TDB_VER >= 81
         REObjectInfo *target_managed_vt = this->managed_vt;
         const int ABSTRACT_TYPE_FLAG = 128;
 

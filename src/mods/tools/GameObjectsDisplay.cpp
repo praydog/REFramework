@@ -131,8 +131,10 @@ void GameObjectsDisplay::on_draw_dev_ui() {
         return;
     }
 
-    if (m_enabled->draw("Enabled") && !m_enabled->value()) {
-        // todo
+    if (m_enabled->draw("Enabled")) {
+        if (m_enabled->value()) {
+            m_needs_d3d_init = true;
+        }
     }
 
     ImGui::SameLine();
@@ -153,14 +155,14 @@ void GameObjectsDisplay::on_present() {
         }
     }
 
-    if (m_effect_dirty) {
+    if (m_effect_dirty && m_d3d12.effect_no_tex) {
         m_d3d12.effect_no_tex->SetAlpha(m_effect_alpha);
         m_effect_dirty = false;
     }
 }
 
 void GameObjectsDisplay::on_frame() {
-    if (!m_enabled->value() || m_needs_d3d_init) {
+    if (!m_enabled->value() || m_needs_d3d_init || !m_d3d12.initialized) {
         return;
     }
 
