@@ -51,10 +51,12 @@ Supports both DirectX 11 and DirectX 12.
 * Resident Evil 4
 * Resident Evil 7
 * Resident Evil Village
+* Resident Evil Requiem
 * Devil May Cry 5
 * Street Fighter 6
 * Monster Hunter Rise
 * Monster Hunter Wilds
+* Monster Hunter Stories 3
 * Dragon's Dogma 2
 * Ghosts 'n Goblins Resurrection (Using `RE8` build)
 * Apollo Justice: Ace Attorney Trilogy (Using `DD2` build)
