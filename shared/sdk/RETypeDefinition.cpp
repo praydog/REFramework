@@ -15,35 +15,46 @@
 namespace sdk {
 struct RETypeDefinition;
 
-sdk::REMethodDefinition* RETypeDefinition::MethodIterator::begin() const {
-    if (TDEF_FIELD(m_parent, member_method) == 0) {
-        return nullptr;
-    }
-
+// MethodIterator: index-based to support variable method stride across TDB versions.
+sdk::REMethodDefinition& RETypeDefinition::MethodIterator::REMethodIterator::operator*() const {
     auto tdb = RETypeDB::get();
-
-    return &(*tdb->methods)[TDEF_FIELD(m_parent, member_method)];
+    const auto base_index = TDEF_FIELD(m_parent, member_method);
+    return *tdb->get_method(base_index + static_cast<uint32_t>(m_index));
 }
 
-sdk::REMethodDefinition* RETypeDefinition::MethodIterator::end()  const {
+RETypeDefinition::MethodIterator::REMethodIterator RETypeDefinition::MethodIterator::begin() const {
     if (TDEF_FIELD(m_parent, member_method) == 0) {
-        return nullptr;
+        return REMethodIterator{m_parent, 0};
+    }
+    return REMethodIterator{m_parent, 0};
+}
+
+RETypeDefinition::MethodIterator::REMethodIterator RETypeDefinition::MethodIterator::end() const {
+    if (TDEF_FIELD(m_parent, member_method) == 0) {
+        return REMethodIterator{m_parent, 0};
     }
 
     auto tdb = RETypeDB::get();
 
 #if TDB_VER >= 69
-    const auto& impl = (*tdb->typesImpl)[TDEF_FIELD(m_parent, impl_index)];
+    const auto& impl = (*tdb->get_typesImpl_ptr())[TDEF_FIELD(m_parent, impl_index)];
     const auto num_methods = impl.num_member_methods;
 #else
     const auto num_methods = m_parent->num_member_method;
 #endif
 
-    return &(*tdb->methods)[TDEF_FIELD(m_parent, member_method) + num_methods];
+    return REMethodIterator{m_parent, static_cast<size_t>(num_methods)};
 }
 
 size_t RETypeDefinition::MethodIterator::size() const {
-    return ((uintptr_t)end() - (uintptr_t)begin()) / sizeof(sdk::REMethodDefinition);
+    auto tdb = RETypeDB::get();
+
+#if TDB_VER >= 69
+    const auto& impl = (*tdb->get_typesImpl_ptr())[TDEF_FIELD(m_parent, impl_index)];
+    return static_cast<size_t>(impl.num_member_methods);
+#else
+    return static_cast<size_t>(m_parent->num_member_method);
+#endif
 }
 
 sdk::REField* sdk::RETypeDefinition::FieldIterator::REFieldIterator::operator*() const {
@@ -54,7 +65,7 @@ sdk::REField* sdk::RETypeDefinition::FieldIterator::REFieldIterator::operator*()
 
     auto tdb = RETypeDB::get();
 
-    return &(*tdb->fields)[TDEF_FIELD(m_parent, member_field) + m_index];
+    return &(*tdb->get_fields_ptr())[TDEF_FIELD(m_parent, member_field) + m_index];
 /*#else
     if (m_parent->member_field_start == 0) {
         return nullptr;
@@ -69,14 +80,14 @@ sdk::REField* sdk::RETypeDefinition::FieldIterator::REFieldIterator::operator*()
         return nullptr;
     }
 
-    return &(*tdb->fields)[index];
+    return &(*tdb->get_fields_ptr())[index];
 #endif*/
 }
 
 size_t sdk::RETypeDefinition::FieldIterator::size() const {
 #if TDB_VER >= 69
         auto tdb = sdk::RETypeDB::get();
-        const auto& impl = (*tdb->typesImpl)[TDEF_FIELD(m_parent, impl_index)];
+        const auto& impl = (*tdb->get_typesImpl_ptr())[TDEF_FIELD(m_parent, impl_index)];
         const auto num_fields = impl.num_member_fields;
 #else
         const auto num_fields = m_parent->num_member_field;
@@ -92,7 +103,7 @@ sdk::REProperty* RETypeDefinition::PropertyIterator::begin() const {
 
     auto tdb = RETypeDB::get();
 
-    return &(*tdb->properties)[TDEF_FIELD(m_parent, member_prop)];
+    return &(*tdb->get_properties_ptr())[TDEF_FIELD(m_parent, member_prop)];
 }
 
 sdk::REProperty* RETypeDefinition::PropertyIterator::end() const {
@@ -104,7 +115,7 @@ sdk::REProperty* RETypeDefinition::PropertyIterator::end() const {
 
     const auto num_prop = TDEF_FIELD(m_parent, num_member_prop);
 
-    return &(*tdb->properties)[TDEF_FIELD(m_parent, member_prop) + num_prop];
+    return &(*tdb->get_properties_ptr())[TDEF_FIELD(m_parent, member_prop) + num_prop];
 }
 
 size_t RETypeDefinition::PropertyIterator::size() const {
@@ -115,7 +126,7 @@ const char* RETypeDefinition::get_namespace() const {
     auto tdb = RETypeDB::get();
 
 #if TDB_VER >= 69
-    auto& impl = (*tdb->typesImpl)[TDEF_FIELD(this, impl_index)];
+    auto& impl = (*tdb->get_typesImpl_ptr())[TDEF_FIELD(this, impl_index)];
 
     const auto name_index = impl.namespace_offset;
 #else
@@ -129,7 +140,7 @@ const char* RETypeDefinition::get_name() const {
     auto tdb = RETypeDB::get();
 
 #if TDB_VER >= 69
-    auto& impl = (*tdb->typesImpl)[TDEF_FIELD(this, impl_index)];
+    auto& impl = (*tdb->get_typesImpl_ptr())[TDEF_FIELD(this, impl_index)];
 
     const auto name_index = impl.name_offset;
 #else
@@ -243,7 +254,7 @@ std::string RETypeDefinition::get_full_name() const {
             for (uint32_t f = 0; f < generics->num; ++f) {
                 auto gtypeid = generics->types[f];
 
-                if (gtypeid > 0 && gtypeid < tdb->numTypes) {
+                if (gtypeid > 0 && gtypeid < tdb->get_num_types()) {
                     auto& generic_type = *tdb->get_type(gtypeid);
                     full_name += generic_type.get_full_name();
                 } else {
@@ -318,7 +329,7 @@ std::vector<std::string> RETypeDefinition::get_name_hierarchy() const {
 sdk::RETypeDefinition* RETypeDefinition::get_declaring_type() const {
     auto tdb = RETypeDB::get();
 
-    if (TDEF_FIELD(this, declaring_typeid) == 0 || TDEF_FIELD(this, declaring_typeid) >= tdb->numTypes) {
+    if (TDEF_FIELD(this, declaring_typeid) == 0 || TDEF_FIELD(this, declaring_typeid) >= tdb->get_num_types()) {
         return nullptr;
     }
 
@@ -328,7 +339,7 @@ sdk::RETypeDefinition* RETypeDefinition::get_declaring_type() const {
 sdk::RETypeDefinition* RETypeDefinition::get_parent_type() const {
     auto tdb = RETypeDB::get();
 
-    if (TDEF_FIELD(this, parent_typeid) == 0 || TDEF_FIELD(this, parent_typeid) >= tdb->numTypes) {
+    if (TDEF_FIELD(this, parent_typeid) == 0 || TDEF_FIELD(this, parent_typeid) >= tdb->get_num_types()) {
         return nullptr;
     }
 
@@ -582,7 +593,7 @@ std::vector<sdk::RETypeDefinition*> RETypeDefinition::get_generic_argument_types
         for (uint32_t f = 0; f < generics->num; ++f) {
             auto gtypeid = generics->types[f];
 
-            if (gtypeid > 0 && gtypeid < tdb->numTypes) {
+            if (gtypeid > 0 && gtypeid < tdb->get_num_types()) {
                 out.push_back(tdb->get_type(gtypeid)); // This COULD be null. we aren't going to skip it because it's important to know the index of the generic type
             } else {
                 out.push_back(nullptr);
@@ -611,7 +622,7 @@ uint32_t RETypeDefinition::get_index() const {
 #else
     const auto tdb = RETypeDB::get();
 
-    return (uint32_t)(((uintptr_t)this - (uintptr_t)tdb->types) / sizeof(sdk::RETypeDefinition));
+    return (uint32_t)(((uintptr_t)this - (uintptr_t)tdb->get_types_ptr()) / sizeof(sdk::RETypeDefinition));
 #endif
 }
 
@@ -940,7 +951,7 @@ uint32_t RETypeDefinition::get_valuetype_size() const {
         return 0;
     }
 
-    return (*tdb->typesImpl)[impl_id].field_size;
+    return (*tdb->get_typesImpl_ptr())[impl_id].field_size;
 #else
     return this->element_size;
 #endif
@@ -1189,7 +1200,7 @@ std::vector<RETypeDefinition*> RETypeDefinition::get_types_inherting_from_this()
     auto tdb = RETypeDB::get();
 
     // Maybe optimize by making a dependency graph?
-    for (auto i = 0; i < tdb->numTypes; ++i) {
+    for (auto i = 0; i < tdb->get_num_types(); ++i) {
         auto type = tdb->get_type(i);
 
         if (type == nullptr) {

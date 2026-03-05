@@ -62,6 +62,24 @@ struct RETypeDefVersion69 {
     class ::REObjectInfo* managed_vt;
 };
 
+
+// tdb69 REMethodDefinition: 16 bytes (vs tdb84: 12 bytes)
+// Used by RE2, RE3, RE7, RE8, MHRISE_TDB70 (TDB 69-70)
+struct REMethodDef69 {
+    uint64_t declaring_typeid : 18;
+    uint64_t impl_id : 20;
+    uint64_t params : 26;
+    void* function;
+};
+static_assert(sizeof(REMethodDef69) == 16);
+
+// tdb69 REField: 8 bytes (same stride as tdb84, different bit layout)
+struct REField69 {
+    uint64_t declaring_typeid : 18;
+    uint64_t impl_id : 20;
+    uint64_t offset : 26;
+};
+static_assert(sizeof(REField69) == 8);
 } // namespace tdb_bits18
 
 // ============================================================================
@@ -97,10 +115,28 @@ inline bool needs_18bit() {
             (ptr)->field = (value); \
     } while(0)
 
+
+// TMETH_FIELD: Read a bitfield from a REMethodDefinition pointer with runtime dispatch.
+// For TDB < 73 (tdb69), casts to REMethodDef69.
+// Fields common to both: declaring_typeid, impl_id
+#define TMETH_FIELD(ptr, field) \
+    (sdk::tdb_dispatch::needs_18bit() \
+        ? reinterpret_cast<const sdk::tdb_bits18::REMethodDef69*>(ptr)->field \
+        : (ptr)->field)
+
+// TFIELD_FIELD: Read a bitfield from a REField pointer with runtime dispatch.
+// For TDB < 73 (tdb69), casts to REField69.
+// Fields common to both: declaring_typeid, impl_id
+#define TFIELD_FIELD(ptr, field) \
+    (sdk::tdb_dispatch::needs_18bit() \
+        ? reinterpret_cast<const sdk::tdb_bits18::REField69*>(ptr)->field \
+        : (ptr)->field)
 #else // Non-universal builds: no dispatch needed, direct access.
 
 #define TDEF_FIELD(ptr, field) ((ptr)->field)
 #define TDEF_FIELD_SET(ptr, field, value) ((ptr)->field = (value))
+#define TMETH_FIELD(ptr, field) ((ptr)->field)
+#define TFIELD_FIELD(ptr, field) ((ptr)->field)
 
 #endif // REFRAMEWORK_UNIVERSAL
 

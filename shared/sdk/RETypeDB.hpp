@@ -1860,39 +1860,68 @@ struct RETypeDB : public sdk::RETypeDB_ {
     sdk::REField* get_field(uint32_t index) const;
     sdk::REProperty* get_property(uint32_t index) const;
 
+#ifdef REFRAMEWORK_UNIVERSAL
+    // Runtime dispatch: tdb84::TDB has different field offsets than tdb70::TDB.
+    // For TDB < 73, cast to tdb70::TDB to read the correct offsets.
     uint32_t get_num_modules() const {
+        if (sdk::tdb_dispatch::needs_18bit())
+            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->numModules;
         return numModules;
     }
 
     uint32_t get_num_types() const {
+        if (sdk::tdb_dispatch::needs_18bit())
+            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->numTypes;
         return this->numTypes;
     }
 
     uint32_t get_num_methods() const {
+        if (sdk::tdb_dispatch::needs_18bit())
+            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->numMethods;
         return numMethods;
     }
 
     uint32_t get_num_fields() const {
+        if (sdk::tdb_dispatch::needs_18bit())
+            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->numFields;
         return numFields;
     }
 
-#if TDB_VER >= 69
     uint32_t get_num_params() const {
+        if (sdk::tdb_dispatch::needs_18bit())
+            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->numParams;
         return numParams;
     }
-#endif
 
     uint32_t get_num_properties() const {
+        if (sdk::tdb_dispatch::needs_18bit())
+            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->numProperties;
         return numProperties;
     }
 
     uint32_t get_string_pool_size() const {
+        if (sdk::tdb_dispatch::needs_18bit())
+            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->numStringPool;
         return numStringPool;
     }
 
     uint32_t get_byte_pool_size() const {
+        if (sdk::tdb_dispatch::needs_18bit())
+            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->numBytePool;
         return numBytePool;
     }
+#else
+    uint32_t get_num_modules() const { return numModules; }
+    uint32_t get_num_types() const { return this->numTypes; }
+    uint32_t get_num_methods() const { return numMethods; }
+    uint32_t get_num_fields() const { return numFields; }
+#if TDB_VER >= 69
+    uint32_t get_num_params() const { return numParams; }
+#endif
+    uint32_t get_num_properties() const { return numProperties; }
+    uint32_t get_string_pool_size() const { return numStringPool; }
+    uint32_t get_byte_pool_size() const { return numBytePool; }
+#endif
 
     const char* get_string(uint32_t offset) const;
     uint8_t* get_bytes(uint32_t offset) const;
@@ -1950,6 +1979,111 @@ struct RETypeDB : public sdk::RETypeDB_ {
         }();
 
         return result;
+    }
+#endif
+
+#ifdef REFRAMEWORK_UNIVERSAL
+    // Dispatched pointer field accessors for TDB header layout differences.
+    // tdb84: types at 0x68, tdb70: types at 0x60, etc.
+    auto* get_types_ptr() const {
+        if (sdk::tdb_dispatch::needs_18bit())
+            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->types;
+        return this->types;
+    }
+    auto* get_typesImpl_ptr() const {
+        if (sdk::tdb_dispatch::needs_18bit())
+            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->typesImpl;
+        return this->typesImpl;
+    }
+    auto* get_methods_ptr() const {
+        if (sdk::tdb_dispatch::needs_18bit())
+            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->methods;
+        return this->methods;
+    }
+    auto* get_methodsImpl_ptr() const {
+        if (sdk::tdb_dispatch::needs_18bit())
+            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->methodsImpl;
+        return this->methodsImpl;
+    }
+    auto* get_fields_ptr() const {
+        if (sdk::tdb_dispatch::needs_18bit())
+            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->fields;
+        return this->fields;
+    }
+    auto* get_fieldsImpl_ptr() const {
+        if (sdk::tdb_dispatch::needs_18bit())
+            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->fieldsImpl;
+        return this->fieldsImpl;
+    }
+    auto* get_properties_ptr() const {
+        if (sdk::tdb_dispatch::needs_18bit())
+            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->properties;
+        return this->properties;
+    }
+    auto* get_propertiesImpl_ptr() const {
+        if (sdk::tdb_dispatch::needs_18bit())
+            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->propertiesImpl;
+        return this->propertiesImpl;
+    }
+    auto* get_params_ptr() const {
+        if (sdk::tdb_dispatch::needs_18bit())
+            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->params;
+        return this->params;
+    }
+    auto* get_modules_ptr() const {
+        if (sdk::tdb_dispatch::needs_18bit())
+            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->modules;
+        return this->modules;
+    }
+    auto* get_stringPool_ptr() const {
+        if (sdk::tdb_dispatch::needs_18bit())
+            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->stringPool;
+        return this->stringPool;
+    }
+    auto* get_bytePool_ptr() const {
+        if (sdk::tdb_dispatch::needs_18bit())
+            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->bytePool;
+        return this->bytePool;
+    }
+    auto* get_initData_ptr() const {
+        if (sdk::tdb_dispatch::needs_18bit())
+            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->initData;
+        return this->initData;
+    }
+    auto* get_internStrings_ptr() const {
+        if (sdk::tdb_dispatch::needs_18bit())
+            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->internStrings;
+        return this->internStrings;
+    }
+#else
+    auto* get_types_ptr() const { return this->types; }
+    auto* get_typesImpl_ptr() const { return this->typesImpl; }
+    auto* get_methods_ptr() const { return this->methods; }
+    auto* get_methodsImpl_ptr() const { return this->methodsImpl; }
+    auto* get_fields_ptr() const { return this->fields; }
+    auto* get_fieldsImpl_ptr() const { return this->fieldsImpl; }
+    auto* get_properties_ptr() const { return this->properties; }
+    auto* get_propertiesImpl_ptr() const { return this->propertiesImpl; }
+    auto* get_params_ptr() const { return this->params; }
+    auto* get_modules_ptr() const { return this->modules; }
+    auto* get_stringPool_ptr() const { return this->stringPool; }
+    auto* get_bytePool_ptr() const { return this->bytePool; }
+    auto* get_initData_ptr() const { return this->initData; }
+    auto* get_internStrings_ptr() const { return this->internStrings; }
+#endif
+
+#ifdef REFRAMEWORK_UNIVERSAL
+    // Runtime stride for method array indexing.
+    // tdb69 REMethodDefinition is 16 bytes (uint64 + void*); tdb71+ is 12 bytes.
+    size_t get_method_stride() const {
+        if (sdk::tdb_dispatch::needs_18bit())
+            return 16; // sizeof(tdb69::REMethodDefinition) = uint64_t + void*
+        return 12;  // sizeof(tdb84::REMethodDefinition) = 3 * uint32_t
+    }
+
+    // Stride-aware method element access.
+    sdk::REMethodDefinition* get_method_at(uintptr_t base, uint32_t index) const {
+        return reinterpret_cast<sdk::REMethodDefinition*>(base + static_cast<size_t>(index) * get_method_stride());
     }
 #endif
 };
@@ -2148,13 +2282,21 @@ struct REMethodDefinition : public sdk::REMethodDefinition_ {
     uint32_t get_invoke_id() const;
     uint32_t get_num_params() const;
     uint32_t get_param_index() const {
-#if TDB_VER >= 71
+#ifdef REFRAMEWORK_UNIVERSAL
+        if (sdk::tdb_dispatch::needs_18bit()) {
+            // tdb69: single 'params' field (26 bits)
+            return static_cast<uint32_t>(
+                reinterpret_cast<const sdk::tdb_bits18::REMethodDef69*>(this)->params);
+        }
+        return (this->params_hi << 13) | this->params_lo;
+#elif TDB_VER >= 71
         const auto params_index = (this->params_hi << 13) | this->params_lo;
 #else
         const auto params_index = this->params;
 #endif
-
+#ifndef REFRAMEWORK_UNIVERSAL
         return params_index;
+#endif
     }
 
     std::vector<uint32_t> get_param_typeids() const;
@@ -2290,7 +2432,7 @@ T* get_managed_singleton() {
     static auto t = []() -> sdk::RETypeDefinition* {
         const auto tdb = sdk::RETypeDB::get();
 
-        for (auto i = 0; i < tdb->numTypes; i++) {
+        for (auto i = 0; i < tdb->get_num_types(); i++) {
             auto t = tdb->get_type(i);
 
             if (t == nullptr) {

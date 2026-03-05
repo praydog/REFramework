@@ -399,8 +399,29 @@ struct RETypeDefinition : public sdk::RETypeDefinition_ {
         MethodIterator(const sdk::RETypeDefinition* parent)
             : m_parent{parent} {}
 
-        sdk::REMethodDefinition* begin() const;
-        sdk::REMethodDefinition* end() const;
+        class REMethodIterator {
+        public:
+            REMethodIterator(const sdk::RETypeDefinition* parent, size_t start = 0)
+                : m_parent{parent}, m_index{start} {}
+
+            sdk::REMethodDefinition& operator*() const;
+            REMethodIterator& operator++() {
+                m_index++;
+                return *this;
+            }
+            bool operator!=(const REMethodIterator& other) const {
+                return m_index != other.m_index || m_parent != other.m_parent;
+            }
+            bool operator==(const REMethodIterator& other) const {
+                return m_index == other.m_index && m_parent == other.m_parent;
+            }
+        private:
+            const sdk::RETypeDefinition* m_parent;
+            size_t m_index{0};
+        };
+
+        REMethodIterator begin() const;
+        REMethodIterator end() const;
         size_t size() const;
 
     private:

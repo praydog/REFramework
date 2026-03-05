@@ -516,7 +516,7 @@ void ObjectExplorer::on_draw_dev_ui() {
         auto tdb = sdk::RETypeDB::get();
 
         for (auto i = 0; i < tdb->get_num_modules(); ++i) {
-            auto& module = tdb->modules[i];
+            auto& module = tdb->get_modules_ptr()[i];
 
             std::string_view assembly_name{ module.get_assembly_name() != nullptr ? module.get_assembly_name() : "Unknown" };
             std::string_view module_name{ module.get_module_name() != nullptr ? module.get_module_name() : "Unknown" };
@@ -672,7 +672,7 @@ void ObjectExplorer::on_draw_dev_ui() {
                 const auto method_address = std::stoull(m_method_tdb_address, nullptr, 16);
                 const auto tdb = sdk::RETypeDB::get();
 
-                if (method_address >= (uintptr_t)tdb->methods && method_address < (uintptr_t)tdb->methods + (tdb->numMethods * sizeof(void*))) {
+                if (method_address >= (uintptr_t)tdb->get_methods_ptr() && method_address < (uintptr_t)tdb->get_methods_ptr() + (tdb->get_num_methods() * sizeof(void*))) {
                     // Make sure method address is aligned to sizeof(sdk::REMethodDefinition)
                     if ((method_address % sizeof(sdk::REMethodDefinition)) == 0) {
                         m_displayed_method = (sdk::REMethodDefinition*)method_address;
@@ -1054,11 +1054,11 @@ std::shared_ptr<detail::ParsedType> ObjectExplorer::init_type(nlohmann::json& il
 }
 
 std::string ObjectExplorer::generate_full_name(sdk::RETypeDB* tdb, uint32_t i) {
-    if (i == 0 || i >= tdb->numTypes) {
+    if (i == 0 || i >= tdb->get_num_types()) {
         return "";
     }
 
-    auto& raw_t = (*tdb->types)[i];
+    auto& raw_t = (*tdb->get_types_ptr())[i];
     auto full_name = raw_t.get_full_name();
 
     spdlog::info("{:s}", full_name);
@@ -1171,11 +1171,11 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
     const auto& gi = sdk::GameIdentity::get();
 
     // Types
-    for (uint32_t i = 0; i < tdb->numTypes; ++i) {
+    for (uint32_t i = 0; i < tdb->get_num_types(); ++i) {
         init_type(il2cpp_dump, tdb, i);
     }
 
-    for (uint32_t i = 0; i < tdb->numTypes; ++i) {
+    for (uint32_t i = 0; i < tdb->get_num_types(); ++i) {
         auto desc = init_type(il2cpp_dump, tdb, i);
 
         desc->full_name = generate_full_name(tdb, i);
@@ -1185,8 +1185,8 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
     m_sdk_dump_stage = SdkDumpStage::DUMP_TYPES;
 
     // Finish off initialization of types
-    for (uint32_t i = 0; i < tdb->numTypes; ++i) {
-        m_sdk_dump_progress = static_cast<float>(i) / tdb->numTypes;
+    for (uint32_t i = 0; i < tdb->get_num_types(); ++i) {
+        m_sdk_dump_progress = static_cast<float>(i) / tdb->get_num_types();
 
         auto desc = init_type(il2cpp_dump, tdb, i);
         auto& t = *desc->t;
@@ -1272,8 +1272,8 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
 
     // Initialize RSZ
     // Dont do it in init_type because it calls init_type
-    for (uint32_t i = 0; i < tdb->numTypes; ++i) {
-        m_sdk_dump_progress = static_cast<float>(i) / tdb->numTypes;
+    for (uint32_t i = 0; i < tdb->get_num_types(); ++i) {
+        m_sdk_dump_progress = static_cast<float>(i) / tdb->get_num_types();
 
         auto pt = init_type(il2cpp_dump, tdb, i);
         auto& t = *pt->t;
@@ -1335,16 +1335,16 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
     m_sdk_dump_stage = SdkDumpStage::DUMP_METHODS;
 
     // Methods
-    for (uint32_t i = 0; i < tdb->numMethods; ++i) {
-        m_sdk_dump_progress = static_cast<float>(i) / tdb->numMethods;
+    for (uint32_t i = 0; i < tdb->get_num_methods(); ++i) {
+        m_sdk_dump_progress = static_cast<float>(i) / tdb->get_num_methods();
 
         auto& m = *tdb->get_method(i);
 
-        auto type_id = (uint32_t)m.declaring_typeid;
+        auto type_id = (uint32_t)TMETH_FIELD(&m, declaring_typeid);
         uint32_t impl_id = 0;
         uint32_t param_list = 0;
         if (gi.tdb_ver() >= 69) {
-            impl_id = (uint32_t)m.impl_id;
+            impl_id = (uint32_t)TMETH_FIELD(&m, impl_id);
             param_list = (uint32_t)m.get_param_index();
         } else {
 #ifndef REFRAMEWORK_UNIVERSAL
@@ -1365,7 +1365,7 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
         uint16_t impl_flags = 0;
         uint16_t method_flags = 0;
         if (gi.tdb_ver() >= 69) {
-            auto& impl = (*tdb->methodsImpl)[impl_id];
+            auto& impl = (*tdb->get_methodsImpl_ptr())[impl_id];
             desc->method_impls.push_back(&impl);
             name_offset = impl.name_offset;
             vtable_index = impl.vtable_index;
@@ -1390,7 +1390,7 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
         pm->owner = desc;
 
         if (gi.tdb_ver() >= 69) {
-            pm->m_impl = &(*tdb->methodsImpl)[impl_id];
+            pm->m_impl = &(*tdb->get_methodsImpl_ptr())[impl_id];
         }
 
         g_imethoddb[i] = pm;
@@ -1423,7 +1423,7 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
         uint8_t num_params = 0;
         uint16_t invoke_id = 0;
         if (gi.tdb_ver() >= 69) {
-            param_list_69 = Address{ tdb->bytePool }.get(param_list).as<sdk::ParamList*>();
+            param_list_69 = Address{ tdb->get_bytePool_ptr() }.get(param_list).as<sdk::ParamList*>();
             num_params = param_list_69->numParams;
             invoke_id = param_list_69->invokeID;
         } else {
@@ -1448,7 +1448,7 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
             uint16_t flags = 0;
             uint8_t modifier = 0;
             if (gi.tdb_ver() >= 69) {
-                auto& p = (*tdb->params)[param_index];
+                auto& p = (*tdb->get_params_ptr())[param_index];
                 param_type_id = (uint32_t)p.type_id;
                 name_index = (uint32_t)p.name_offset;
                 modifier = (uint8_t)p.modifier;
@@ -1471,7 +1471,7 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
             auto pdesc = std::make_shared<detail::ParsedParams>();
             g_iparamdb[param_index] = pdesc;
 
-            auto param_name = Address{tdb->stringPool}.get(name_index).as<const char*>();
+            auto param_name = Address{tdb->get_stringPool_ptr()}.get(name_index).as<const char*>();
 
             pdesc->owner = pm;
             pdesc->type = param_type;
@@ -1520,7 +1520,7 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
             uint32_t param_index = 0;
             if (gi.tdb_ver() >= 69) {
                 param_index = param_list_69->params[f];
-                if (param_index >= tdb->numParams) {
+                if (param_index >= tdb->get_num_params()) {
                     break;
                 }
             } else {
@@ -1685,16 +1685,16 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
     auto dummy_constant = g->class_("__DummyClass__")->constant("__DummyConstant__")->type("int32_t");
 
     // Fields
-    for (uint32_t i = 0; i < tdb->numFields; ++i) {
-        m_sdk_dump_progress = static_cast<float>(i) / tdb->numFields;
+    for (uint32_t i = 0; i < tdb->get_num_fields(); ++i) {
+        m_sdk_dump_progress = static_cast<float>(i) / tdb->get_num_fields();
 
-        auto& f = (*tdb->fields)[i];
+        auto& f = (*tdb->get_fields_ptr())[i];
 
-        const auto type_id = (uint32_t)f.declaring_typeid;
+        const auto type_id = (uint32_t)TFIELD_FIELD(&f, declaring_typeid);
         uint32_t field_impl_id = 0;
         uint32_t offset = 0;
         if (gi.tdb_ver() >= 69) {
-            field_impl_id = (uint32_t)f.impl_id;
+            field_impl_id = (uint32_t)TFIELD_FIELD(&f, impl_id);
             offset = (uint32_t)f.get_offset_from_fieldptr();
         } else {
 #ifndef REFRAMEWORK_UNIVERSAL
@@ -1716,7 +1716,7 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
         uint32_t init_data_index = 0;
         const char* name = nullptr;
         if (gi.tdb_ver() >= 69) {
-            auto& impl = (*tdb->fieldsImpl)[field_impl_id];
+            auto& impl = (*tdb->get_fieldsImpl_ptr())[field_impl_id];
             desc->field_impls.push_back(&impl);
 
             auto br_impl = BitReader{&impl};
@@ -1727,7 +1727,7 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
             const auto init_data_low = (uint16_t)br_impl.read(14);
             const auto name_offset = (uint32_t)br_impl.read(30);
             const auto init_data_high = (uint8_t)br_impl.read(2);
-            const auto name = Address{tdb->stringPool}.get(name_offset).as<const char*>();
+            const auto name = Address{tdb->get_stringPool_ptr()}.get(name_offset).as<const char*>();
             const auto init_data_index = init_data_low | (init_data_high << 14);*/
 
             const auto field_attr_id = impl.attributes_id;
@@ -1739,7 +1739,7 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
         } else {
 #ifndef REFRAMEWORK_UNIVERSAL
             name_offset = f.name_offset;
-            name = Address{ tdb->stringPool }.get(name_offset).as<const char*>();
+            name = Address{ tdb->get_stringPool_ptr() }.get(name_offset).as<const char*>();
             field_type = (uint32_t)f.field_typeid;
             field_flags = f.flags;
             if (gi.tdb_ver() >= 66) {
@@ -1750,7 +1750,7 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
 
         uint32_t init_data_offset = 0;
         if (gi.tdb_ver() >= 66) {
-            init_data_offset = init_data_index != 0 ? (*tdb->initData)[init_data_index] : 0;
+            init_data_offset = init_data_index != 0 ? (*tdb->get_initData_ptr())[init_data_index] : 0;
         } else {
 #ifndef REFRAMEWORK_UNIVERSAL
             init_data_offset = f.init_data_offset;
@@ -1768,7 +1768,7 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
         pf->type = g_itypedb[field_type];
 
         if (gi.tdb_ver() >= 69) {
-            pf->f_impl = &(*tdb->fieldsImpl)[field_impl_id];
+            pf->f_impl = &(*tdb->get_fieldsImpl_ptr())[field_impl_id];
         }
 
         // Resolve the offset to be from the base class
@@ -1902,11 +1902,11 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
         }
 
         if (init_data_offset != 0) {
-            auto init_data = &(*tdb->bytePool)[init_data_offset];
+            auto init_data = &(*tdb->get_bytePool_ptr())[init_data_offset];
 
             // WACKY
             if (init_data_offset < 0) {
-                init_data = &((uint8_t*)tdb->stringPool)[init_data_offset * -1];
+                init_data = &((uint8_t*)tdb->get_stringPool_ptr())[init_data_offset * -1];
             }
 
             auto init_data_type = pf->type;
@@ -1994,10 +1994,10 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
     m_sdk_dump_stage = SdkDumpStage::DUMP_PROPERTIES;
 
     // properties
-    for (uint32_t i = 0; i < tdb->numProperties; ++i) {
-        m_sdk_dump_progress = static_cast<float>(i) / tdb->numProperties;
+    for (uint32_t i = 0; i < tdb->get_num_properties(); ++i) {
+        m_sdk_dump_progress = static_cast<float>(i) / tdb->get_num_properties();
 
-        auto& p = (*tdb->properties)[i];
+        auto& p = (*tdb->get_properties_ptr())[i];
 
         const auto getter_id = (uint32_t)p.getter;
         const auto setter_id = (uint32_t)p.setter;
@@ -2026,11 +2026,11 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
         const char* name = nullptr;
         if (gi.tdb_ver() >= 69) {
             const auto impl_id = (uint32_t)p.impl_id;
-            auto& impl = (*tdb->propertiesImpl)[impl_id];
-            name = Address{tdb->stringPool}.get(impl.name_offset).as<const char*>();
+            auto& impl = (*tdb->get_propertiesImpl_ptr())[impl_id];
+            name = Address{tdb->get_stringPool_ptr()}.get(impl.name_offset).as<const char*>();
         } else {
 #ifndef REFRAMEWORK_UNIVERSAL
-            name = Address{ tdb->stringPool }.get(p.name_offset).as<const char*>();
+            name = Address{ tdb->get_stringPool_ptr() }.get(p.name_offset).as<const char*>();
 #endif
         }
 
@@ -2045,7 +2045,7 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
 
         if (gi.tdb_ver() >= 69) {
             const auto impl_id = (uint32_t)p.impl_id;
-            pp->p_impl = &(*tdb->propertiesImpl)[impl_id];
+            pp->p_impl = &(*tdb->get_propertiesImpl_ptr())[impl_id];
         }
 
         auto getter_name = pp->getter != nullptr ? pp->getter->name : "";
@@ -3631,7 +3631,7 @@ void ObjectExplorer::display_native_methods(REManagedObject* obj, sdk::RETypeDef
         return;
     }
     
-    if (ImGui::TreeNode(methods.begin(), "TDB Methods: %i", methods.size())) {
+    if (ImGui::TreeNode((void*)&methods, "TDB Methods: %i", methods.size())) {
         for (auto& m : methods) {
             if (!is_filtered_method(m)) {
                 continue;
@@ -4610,7 +4610,7 @@ void ObjectExplorer::populate_enums() {
         const auto flags_attribute = tdb->find_type("System.FlagsAttribute");
         const auto flags_attribute_runtime_type = flags_attribute != nullptr ? flags_attribute->get_runtime_type() : nullptr;
 
-        for (uint32_t i = 0; i < tdb->numTypes; ++i) {
+        for (uint32_t i = 0; i < tdb->get_num_types(); ++i) {
             auto t = tdb->get_type(i);
             auto parent_t = t->get_parent_type();
 
