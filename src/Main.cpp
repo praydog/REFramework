@@ -7,6 +7,7 @@
 #include <utility/Module.hpp>
 #include <utility/Thread.hpp>
 
+#include <sdk/GameIdentity.hpp>
 #include <safetyhook/allocator.hpp>
 
 // minhook, used for AllocateBuffer
@@ -91,23 +92,27 @@ void startup_thread(HMODULE reframework_module) {
     freopen("CONOUT$", "w", stderr);
 #endif
 
+    // Initialize game identity before creating framework
+    sdk::GameIdentity::initialize();
+
     if (load_dinput8()) {
         g_framework = std::make_unique<REFramework>(reframework_module);
 
         const auto our_dll = utility::get_module_within(&load_dinput8);
+        const auto& gi = sdk::GameIdentity::get();
 
-#if defined(MHRISE)
-        if (our_dll) {
+        if (gi.is_mhrise()) {
+            if (our_dll) {
+                if (!g_success_made_ldr_notification) {
+                    utility::spoof_module_paths_in_exe_dir();
+                }
+                utility::unlink(*our_dll);
+            }
+        } else if (gi.is_dd2() || gi.tdb_ver() >= 74) {
             if (!g_success_made_ldr_notification) {
                 utility::spoof_module_paths_in_exe_dir();
             }
-            utility::unlink(*our_dll);
         }
-#elif defined (DD2) || TDB_VER >= 74
-        if (!g_success_made_ldr_notification) {
-            utility::spoof_module_paths_in_exe_dir();
-        }
-#endif
     }
 }
 

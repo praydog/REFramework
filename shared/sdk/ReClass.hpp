@@ -6,6 +6,14 @@
 #include "TDBVer.hpp"
 
 #pragma pack(push, r1, 1)
+#ifdef REFRAMEWORK_UNIVERSAL
+// Monolithic build: include the RE8 layout as the canonical base.
+// RE8 covers TDB69-73 (RE8, MHRISE, RE4, SF6, DD2).
+// For TDB81+ (MHWILDS, RE9, PRAGMATA) and TDB49-67 (RE7, RE2 old, RE3 old, DMC5),
+// accessor functions in ReClassAccessors.hpp handle offset differences.
+#include "ReClass_Internal_RE8.hpp"
+#else
+// Legacy per-game build (when individual game macros are defined)
 #ifdef DMC5
 #include "ReClass_Internal_DMC5.hpp"
 #elif defined(PRAGMATA)
@@ -13,11 +21,11 @@
 #elif defined(RE9)
 #include "ReClass_Internal_RE9.hpp"
 #elif defined(MHWILDS)
-#include "ReClass_Internal_MHWILDS.hpp" // Copy of DD2 (for now)
+#include "ReClass_Internal_MHWILDS.hpp"
 #elif defined(MHSTORIES3)
-#include "ReClass_Internal_MHSTORIES3.hpp" // Copy of MHWILDS (for now)
+#include "ReClass_Internal_MHSTORIES3.hpp"
 #elif defined(DD2)
-#include "ReClass_Internal_DD2.hpp" // Copy of SF6
+#include "ReClass_Internal_DD2.hpp"
 #elif defined(SF6)
 #include "ReClass_Internal_SF6.hpp"
 #elif defined(MHRISE)
@@ -44,7 +52,8 @@
 #else
 #include "ReClass_Internal_RE2_TDB70.hpp"
 #endif
-#endif
+#endif // game macros
+#endif // REFRAMEWORK_UNIVERSAL
 #pragma pack(pop, r1)
 
 #include "Enums_Internal.hpp"

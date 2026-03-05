@@ -11,14 +11,17 @@
 #include "sdk/ResourceManager.hpp"
 #include "sdk/Memory.hpp"
 
+#include <sdk/GameIdentity.hpp>
 #include "APIProxy.hpp"
 #include "ScriptRunner.hpp"
 #include "HookManager.hpp"
 
 #include "PluginLoader.hpp"
 
+// In the monolithic build, game_name is set at runtime after GameIdentity::initialize().
+// The g_plugin_version global is updated in PluginLoader's initialization.
 REFrameworkPluginVersion g_plugin_version{
-    REFRAMEWORK_PLUGIN_VERSION_MAJOR, REFRAMEWORK_PLUGIN_VERSION_MINOR, REFRAMEWORK_PLUGIN_VERSION_PATCH, REFRAMEWORK_GAME_NAME};
+    REFRAMEWORK_PLUGIN_VERSION_MAJOR, REFRAMEWORK_PLUGIN_VERSION_MINOR, REFRAMEWORK_PLUGIN_VERSION_PATCH, "REFramework"};
 
 namespace reframework {
 REFrameworkRendererData g_renderer_data{
@@ -709,6 +712,8 @@ std::optional<std::string> PluginLoader::initialize_plugins() {
 
     std::scoped_lock _{m_mux};
 
+    // In monolithic build, update game_name now that GameIdentity is initialized.
+    g_plugin_version.game_name = sdk::GameIdentity::get().target_name().data();
     verify_sdk_pointers();
 
     g_plugin_initialize_param.reframework_module = g_framework->get_reframework_module();
