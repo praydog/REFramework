@@ -11,10 +11,10 @@ local wanted_sharpness_enable = false
 local wanted_jitter = false
 local debug_disable = false
 
-local prev_filter_args = nil
+local prev_filter_self = nil
 
 local function on_pre_apply_layer_param(args)
-    prev_filter_args = args
+    prev_filter_self = args[2]
 
     if debug_disable then
         return sdk.PreHookResult.SKIP_ORIGINAL
@@ -28,7 +28,7 @@ local function on_post_apply_layer_param(retval)
         return retval
     end
 
-    local tonemapping_controller = sdk.to_managed_object(prev_filter_args[2])
+    local tonemapping_controller = sdk.to_managed_object(prev_filter_self)
     local current_param = tonemapping_controller:get_field("CurrentParam")
 
     if current_param ~= nil then
