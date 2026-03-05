@@ -75,3 +75,52 @@ Old games had different TDB versions. The monolithic DLL handles this by:
 2. Auto-detecting the actual TDB version from the binary header when the type database is first loaded
 3. Updating `GameIdentity` TDB version accordingly
 This means RE7 starts assuming TDB70 but if the actual binary has TDB49, it switches.
+
+
+## Current Status (v2 branch)
+
+### Completed
+- GameIdentity singleton: runtime game detection from exe name
+- cmake.toml: single `REFrameworkSDK` + `REFramework` (dinput8.dll) targets
+- TDBVer.hpp: compile-time TDB_VER=84 under REFRAMEWORK_UNIVERSAL
+- ReClass.hpp: includes RE8 layout as canonical base
+- ~200 game-specific `#ifdef` guards in src/ converted to runtime GameIdentity checks
+- Build compiles and links successfully (MSVC 19.44 / VS 2022)
+
+### Game Compatibility
+| TDB Version | Games | Status |
+|---|---|---|
+| 84 | PRAGMATA | Full (compiled struct matches) |
+| 83 | RE9 | Full |
+| 82 | MHSTORIES3 | Full |
+| 81 | MHWILDS | Full |
+| 73 | DD2 | Likely works (tdb84 struct is superset) |
+| 71 | RE4, MHRISE, SF6 | Likely works |
+| 70 | RE2, RE3, RE7 (modern) | Needs runtime struct dispatch |
+| 69 | RE8 | Needs runtime struct dispatch |
+| 67 | DMC5 | Needs runtime struct dispatch |
+| 66 | RE2 (legacy) | Needs runtime struct dispatch |
+| 49 | RE7 (legacy) | Needs runtime struct dispatch |
+
+### Remaining: SDK TDB Struct Dispatch (BLOCKER for old games)
+209 compile-time `#if TDB_VER` guards remain in `shared/sdk/`.
+
+The core problem: `RETypeDB.hpp` lines 1712-1847 select ONE struct layout at compile time.
+With TDB_VER=84, the code compiles against `tdb84::TDB`, `tdb84::REMethodDefinition`, etc.
+These POD structs have different field counts and offsets per TDB version:
+- tdb84::TDB: `modules` at ~offset 0x88 (after 20+ uint32 fields)
+- tdb49::TDB: `modules` at offset 0x38 (after 10 uint32 fields)
+
+When the monolithic DLL runs inside DMC5 (TDB67), the actual TDB in memory has the
+tdb67 layout, but compiled code interprets it as tdb84. Member offsets don't match.
+
+**Options for runtime struct dispatch:**
+1. Virtual accessor wrapper: `sdk::RETypeDB` becomes a polymorphic class with
+   version-specific subclasses that override accessors
+2. Offset table: A per-TDB-version offset table drives field access at runtime
+3. Reinterpret + switch: Cast `this` to the correct versioned struct in each accessor
+4. Template-based dispatch: Game identity → template param → correct struct type at each callsite
+
+This requires an architectural decision from the maintainer.
+The `shared/sdk/*.cpp` accessor functions (RETypeDB.cpp: 30 guards, RETypeDefinition.cpp: 25 guards)
+can be converted to runtime `if` chains AFTER the struct selection is solved.
