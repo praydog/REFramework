@@ -261,11 +261,11 @@ namespace sdk {
 sdk::RETypeDefinition* REField::get_declaring_type() const {
     auto tdb = RETypeDB::get();
 
-    if (TFIELD_FIELD(this, declaring_typeid) == 0) {
+    if (sdk::tdb_dispatch::tfield_declaring_typeid(this) == 0) {
         return nullptr;
     }
 
-    return tdb->get_type(TFIELD_FIELD(this, declaring_typeid));
+    return tdb->get_type(sdk::tdb_dispatch::tfield_declaring_typeid(this));
 }
 
 sdk::RETypeDefinition* REField::get_type() const {
@@ -503,11 +503,11 @@ namespace sdk {
 sdk::RETypeDefinition* REMethodDefinition::get_declaring_type() const {
     auto tdb = RETypeDB::get();
 
-    if (TMETH_FIELD(this, declaring_typeid) == 0) {
+    if (sdk::tdb_dispatch::tmeth_declaring_typeid(this) == 0) {
         return nullptr;
     }
 
-    return tdb->get_type(TMETH_FIELD(this, declaring_typeid));
+    return tdb->get_type(sdk::tdb_dispatch::tmeth_declaring_typeid(this));
 }
 
 sdk::RETypeDefinition* REMethodDefinition::get_return_type() const {

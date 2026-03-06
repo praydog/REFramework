@@ -2476,3 +2476,28 @@ T* create_instance(std::string_view type_name, bool simplify) {
     return (T*)t->create_instance_full(simplify);
 }
 } // namespace sdk
+
+#ifdef REFRAMEWORK_UNIVERSAL
+// 3-tier declaring_typeid dispatch for REMethodDefinition and REField.
+// These live here (not in RETypeDefDispatch.hpp) because they need full
+// struct definitions from the tdb67/tdb69 namespaces above.
+namespace sdk::tdb_dispatch {
+
+inline uint32_t tmeth_declaring_typeid(const sdk::REMethodDefinition* ptr) {
+    if (needs_pre_impl())
+        return (uint32_t)reinterpret_cast<const sdk::tdb67::REMethodDefinition*>(ptr)->declaring_typeid;
+    if (needs_18bit())
+        return (uint32_t)reinterpret_cast<const sdk::tdb69::REMethodDefinition*>(ptr)->declaring_typeid;
+    return (uint32_t)ptr->declaring_typeid;
+}
+
+inline uint32_t tfield_declaring_typeid(const sdk::REField* ptr) {
+    if (needs_pre_impl())
+        return (uint32_t)reinterpret_cast<const sdk::tdb67::REField*>(ptr)->declaring_typeid;
+    if (needs_18bit())
+        return (uint32_t)reinterpret_cast<const sdk::tdb69::REField*>(ptr)->declaring_typeid;
+    return (uint32_t)ptr->declaring_typeid;
+}
+
+} // namespace sdk::tdb_dispatch
+#endif // REFRAMEWORK_UNIVERSAL

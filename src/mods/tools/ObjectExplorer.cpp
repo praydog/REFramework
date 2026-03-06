@@ -1239,12 +1239,11 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
             if (tdef->element_typeid_TBD != 0) {
                 type_entry["element_type_name"] = init_type(il2cpp_dump, tdb, tdef->element_typeid_TBD)->full_name;
             }
-#ifndef REFRAMEWORK_UNIVERSAL
         } else if (gi.tdb_ver() >= 69) {
-            if (tdef->element_typeid != 0) {
-                type_entry["element_type_name"] = init_type(il2cpp_dump, tdb, tdef->element_typeid)->full_name;
+            auto elem_tid = (uint32_t)reinterpret_cast<const sdk::RETypeDefVersion69*>(tdef)->element_typeid;
+            if (elem_tid != 0) {
+                type_entry["element_type_name"] = init_type(il2cpp_dump, tdb, elem_tid)->full_name;
             }
-#endif
         }
 
         if (auto gtd = t.get_generic_type_definition(); gtd != nullptr) {
@@ -1319,11 +1318,7 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
             rsz_entry["static"] = is_static;
             rsz_entry["offset_from_fieldptr"] = (std::stringstream{} << "0x" << std::hex << sequence.offset).str();
 
-#ifndef REFRAMEWORK_UNIVERSAL
-            if (gi.tdb_ver() <= 49) {
-                rsz_entry["potential_name"] = sequence.prop->name;
-            }
-#endif
+            // TDB <= 49 (old RE7) not supported in universal build.
 
             il2cpp_dump[pt->full_name]["RSZ"].emplace_back(rsz_entry);
         }
@@ -1342,16 +1337,14 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
 
         auto& m = *tdb->get_method(i);
 
-        auto type_id = (uint32_t)TMETH_FIELD(&m, declaring_typeid);
+        auto type_id = (uint32_t)sdk::tdb_dispatch::tmeth_declaring_typeid(&m);
         uint32_t impl_id = 0;
         uint32_t param_list = 0;
         if (gi.tdb_ver() >= 69) {
             impl_id = (uint32_t)TMETH_FIELD(&m, impl_id);
             param_list = (uint32_t)m.get_param_index();
         } else {
-#ifndef REFRAMEWORK_UNIVERSAL
-            param_list = m.params;
-#endif
+            param_list = reinterpret_cast<const sdk::tdb67::REMethodDefinition*>(&m)->params;
         }
 
         if (g_itypedb.find(type_id) == g_itypedb.end()) {
@@ -1374,12 +1367,11 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
             impl_flags = impl.impl_flags;
             method_flags = impl.flags;
         } else {
-#ifndef REFRAMEWORK_UNIVERSAL
-            name_offset = m.name_offset;
-            vtable_index = m.vtable_index;
-            impl_flags = m.impl_flags;
-            method_flags = m.flags;
-#endif
+            auto* m67 = reinterpret_cast<const sdk::tdb67::REMethodDefinition*>(&m);
+            name_offset = m67->name_offset;
+            vtable_index = m67->vtable_index;
+            impl_flags = m67->impl_flags;
+            method_flags = m67->flags;
         }
 
         const auto name = tdb->get_string(name_offset);
@@ -1419,9 +1411,7 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
 
         // Parameters
         sdk::ParamList* param_list_69 = nullptr;
-#ifndef REFRAMEWORK_UNIVERSAL
-        sdk::REMethodParamDef* param_ids_legacy = nullptr;
-#endif
+        sdk::tdb67::REMethodParamDef* param_ids_legacy = nullptr;
         uint8_t num_params = 0;
         uint16_t invoke_id = 0;
         if (gi.tdb_ver() >= 69) {
@@ -1429,16 +1419,11 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
             num_params = param_list_69->numParams;
             invoke_id = param_list_69->invokeID;
         } else {
-#ifndef REFRAMEWORK_UNIVERSAL
-            if (gi.tdb_ver() >= 66) {
-                param_ids_legacy = tdb->get_data<sdk::REMethodParamDef>(param_list);
-            } else {
-                auto params_data = tdb->get_data<sdk::REMethodParamDef>(param_list);
-                param_ids_legacy = params_data->params;
-            }
-            num_params = (uint8_t)m.get_num_params();
-            invoke_id = (uint16_t)m.invoke_id;
-#endif
+            auto* m67 = reinterpret_cast<const sdk::tdb67::REMethodDefinition*>(&m);
+            // All universal-supported games are TDB >= 66.
+            param_ids_legacy = tdb->get_data<sdk::tdb67::REMethodParamDef>(param_list);
+            num_params = (uint8_t)m67->num_params;
+            invoke_id = (uint16_t)m67->invoke_id;
         }
 
         // Invoke wrapper for arbitrary amount of arguments, so we can just pass it on the VM stack/context as an array
@@ -1456,12 +1441,10 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
                 modifier = (uint8_t)p.modifier;
                 flags = (uint16_t)p.flags;
             } else {
-#ifndef REFRAMEWORK_UNIVERSAL
                 auto& p = param_ids_legacy[param_index];
                 param_type_id = (uint32_t)p.param_typeid;
                 name_index = p.name_offset;
                 flags = p.flags;
-#endif
             }
 
             if (auto it = g_itypedb.find(param_type_id); it == g_itypedb.end()) {
@@ -1692,16 +1675,14 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
 
         auto& f = *tdb->get_field(i);
 
-        const auto type_id = (uint32_t)TFIELD_FIELD(&f, declaring_typeid);
+        const auto type_id = (uint32_t)sdk::tdb_dispatch::tfield_declaring_typeid(&f);
         uint32_t field_impl_id = 0;
         uint32_t offset = 0;
         if (gi.tdb_ver() >= 69) {
             field_impl_id = (uint32_t)TFIELD_FIELD(&f, impl_id);
             offset = (uint32_t)f.get_offset_from_fieldptr();
         } else {
-#ifndef REFRAMEWORK_UNIVERSAL
-            offset = f.offset;
-#endif
+            offset = reinterpret_cast<const sdk::tdb67::REField*>(&f)->offset;
         }
 
         if (g_itypedb.find(type_id) == g_itypedb.end()) {
@@ -1739,24 +1720,21 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
             init_data_index = f.get_init_data_index();
             name = tdb->get_string(name_offset);
         } else {
-#ifndef REFRAMEWORK_UNIVERSAL
-            name_offset = f.name_offset;
+            auto* f67 = reinterpret_cast<const sdk::tdb67::REField*>(&f);
+            name_offset = f67->name_offset;
             name = Address{ tdb->get_stringPool_ptr() }.get(name_offset).as<const char*>();
-            field_type = (uint32_t)f.field_typeid;
-            field_flags = f.flags;
+            field_type = (uint32_t)f67->field_typeid;
+            field_flags = f67->flags;
             if (gi.tdb_ver() >= 66) {
-                init_data_index = f.init_data_index;
+                init_data_index = f67->init_data_index;
             }
-#endif
         }
 
         uint32_t init_data_offset = 0;
         if (gi.tdb_ver() >= 66) {
             init_data_offset = init_data_index != 0 ? (*tdb->get_initData_ptr())[init_data_index] : 0;
         } else {
-#ifndef REFRAMEWORK_UNIVERSAL
-            init_data_offset = f.init_data_offset;
-#endif
+            // TDB < 66 not supported in universal build.
         }
 
         // Create an easier to deal with structure
@@ -2031,9 +2009,7 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
             auto& impl = (*tdb->get_propertiesImpl_ptr())[impl_id];
             name = Address{tdb->get_stringPool_ptr()}.get(impl.name_offset).as<const char*>();
         } else {
-#ifndef REFRAMEWORK_UNIVERSAL
-            name = Address{ tdb->get_stringPool_ptr() }.get(p.name_offset).as<const char*>();
-#endif
+            name = Address{ tdb->get_stringPool_ptr() }.get(reinterpret_cast<const sdk::tdb67::REProperty*>(&p)->name_offset).as<const char*>();
         }
 
         // ha ha

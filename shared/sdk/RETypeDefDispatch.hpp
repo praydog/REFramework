@@ -167,23 +167,28 @@ inline bool needs_plain_impl() {
 //   TDB 71+:   use compiled-in layout
 // NOTE: For TDB < 69 fields (vtable_index, flags, impl_flags, num_params, etc.),
 //       cast directly to tdb67::REMethodDefinition — those fields don't exist in tdb69+.
+//       For declaring_typeid, use tmeth_declaring_typeid() below instead.
 #define TMETH_FIELD(ptr, field) \
     (sdk::tdb_dispatch::needs_18bit() \
         ? reinterpret_cast<const sdk::tdb69::REMethodDefinition*>(ptr)->field \
         : (ptr)->field)
 
+
 // TFIELD_FIELD: Read a bitfield from a REField pointer with runtime dispatch.
 //   TDB 69-70: cast to tdb69::REField (18-bit TYPE_INDEX_BITS)
 //   TDB 71+:   use compiled-in layout
 // NOTE: For TDB < 69 fields, cast directly to tdb67::REField.
+//       For declaring_typeid, use tfield_declaring_typeid() below instead.
 #define TFIELD_FIELD(ptr, field) \
     (sdk::tdb_dispatch::needs_18bit() \
         ? reinterpret_cast<const sdk::tdb69::REField*>(ptr)->field \
         : (ptr)->field)
 
+
 // TPARAM_FIELD: Read a bitfield from a REParameterDef pointer with runtime dispatch.
 //   TDB 69-70: cast to tdb69::REParameterDef
 //   TDB 71+:   use compiled-in layout
+// NOTE: TDB < 69 does not use REParameterDef — params are in the byte pool.
 #define TPARAM_FIELD(ptr, field) \
     (sdk::tdb_dispatch::needs_18bit() \
         ? reinterpret_cast<const sdk::tdb69::REParameterDef*>(ptr)->field \
