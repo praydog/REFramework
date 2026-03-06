@@ -2074,11 +2074,10 @@ struct RETypeDB : public sdk::RETypeDB_ {
 
 #ifdef REFRAMEWORK_UNIVERSAL
     // Runtime stride for method array indexing.
-    // tdb69 REMethodDefinition is 16 bytes (uint64 + void*); tdb71+ is 12 bytes.
     size_t get_method_stride() const {
         if (sdk::tdb_dispatch::needs_18bit())
-            return 16; // sizeof(tdb69::REMethodDefinition) = uint64_t + void*
-        return 12;  // sizeof(tdb84::REMethodDefinition) = 3 * uint32_t
+            return sizeof(sdk::tdb69::REMethodDefinition);  // 16 bytes
+        return sizeof(sdk::tdb84::REMethodDefinition);      // 12 bytes
     }
 
     // Stride-aware method element access.
@@ -2102,13 +2101,12 @@ struct RETypeDB : public sdk::RETypeDB_ {
     }
 
     // Runtime stride for type definition array indexing.
-    // TDB 71-73 (RE4/SF6/MHRISE/DD2): RETypeDefVersion71 = 0x48 bytes (no unk_new_tdb74_uint64).
-    // TDB 69-70 and TDB 74+: 0x50 bytes.
+    // Each TDB version struct has the correct sizeof for its variant.
     size_t get_typedef_stride() const {
         const auto ver = sdk::GameIdentity::get().tdb_ver();
-        if (ver >= 71 && ver < 74)
-            return 0x48;  // sizeof(RETypeDefVersion71)
-        return 0x50;      // sizeof(RETypeDefVersion84) == sizeof(tdb_bits18::RETypeDefVersion69)
+        if (ver >= 74) return sizeof(sdk::RETypeDefVersion74);  // 0x50 (has unk_new_tdb74_uint64)
+        if (ver >= 71) return sizeof(sdk::RETypeDefVersion71);  // 0x48
+        return sizeof(sdk::RETypeDefVersion69);                 // 0x50 (18-bit layout)
     }
 #endif
 };
