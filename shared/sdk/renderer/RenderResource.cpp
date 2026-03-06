@@ -64,6 +64,8 @@ RenderResource::ReleaseFn RenderResource::get_release_fn() {
 
         const auto reset_method_addr = (uintptr_t)reset_method->get_function();
 
+        spdlog::info("[RenderResource] Found reset method at {:x}", reset_method_addr);
+
         // The first call instruction in the reset method is the release function.
         const auto ref = utility::scan_disasm(reset_method_addr, 50, "E8 ? ? ? ?");
 
@@ -71,6 +73,8 @@ RenderResource::ReleaseFn RenderResource::get_release_fn() {
             spdlog::error("[RenderResource] Failed to find release function!");
             return nullptr;
         }
+
+        spdlog::info("[RenderResource] Found call to release function at {:x}", *ref);
 
         const auto result = (ReleaseFn)utility::calculate_absolute(*ref + 1);
 
