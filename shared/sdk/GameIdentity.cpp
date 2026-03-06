@@ -83,8 +83,8 @@ static constexpr ExeMapping s_exe_table[] = {
     {"mhwilds",                 GameID::MHWILDS},
 
     // Monster Hunter Stories 3 (provisional)
-    {"monsterhunterstories3",   GameID::MHSTORIES3},
-    {"mhstories3",              GameID::MHSTORIES3},
+    {"monster_hunter_stories_3_twisted_reflection_trial",   GameID::MHSTORIES3},
+    {"monster_hunter_stories_3_twisted_reflection",              GameID::MHSTORIES3},
 
     // Pragmata (provisional)
     {"pragmata",                GameID::PRAGMATA},
