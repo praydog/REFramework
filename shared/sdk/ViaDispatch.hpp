@@ -1,95 +1,206 @@
 #pragma once
-// Runtime dispatch for regenny struct field offsets that vary per game.
-// Used under REFRAMEWORK_UNIVERSAL to replace compile-time header selection.
+// Runtime dispatch for regenny via::Window / via::SceneView structs.
+// Each game's regenny output is included inside a distinct outer namespace so
+// that all layouts coexist.  Accessor functions cast to the right type at
+// runtime based on GameIdentity.
+//
+// When Regenny regenerates a header, offsets update automatically — no manual
+// offset tables to maintain.
+//
+// NOTE: The caller must include the "default" re9 regenny headers in the
+// global scope BEFORE including this header (Graphics.cpp / VR.cpp already
+// do this).  We skip re9 here because #pragma once would block re-inclusion.
 
 #include <cstdint>
-#include <cstddef>
 #include <sdk/GameIdentity.hpp>
+
+// ── Namespaced includes for each game variant (except re9, see note) ────────
+
+namespace ns_re7 {
+#include "sdk/regenny/re7/via/Window.hpp"
+#include "sdk/regenny/re7/via/SceneView.hpp"
+}
+
+namespace ns_re3 {
+#include "sdk/regenny/re3/via/Window.hpp"
+#include "sdk/regenny/re3/via/SceneView.hpp"
+}
+
+namespace ns_re2 {
+#include "sdk/regenny/re2_tdb70/via/Window.hpp"
+#include "sdk/regenny/re2_tdb70/via/SceneView.hpp"
+}
+
+namespace ns_mhrise {
+#include "sdk/regenny/mhrise_tdb71/via/Window.hpp"
+#include "sdk/regenny/mhrise_tdb71/via/SceneView.hpp"
+}
+
+namespace ns_re8 {
+#include "sdk/regenny/re8/via/Window.hpp"
+#include "sdk/regenny/re8/via/SceneView.hpp"
+}
+
+namespace ns_re4 {
+#include "sdk/regenny/re4/via/Window.hpp"
+#include "sdk/regenny/re4/via/SceneView.hpp"
+}
+
+namespace ns_sf6 {
+#include "sdk/regenny/sf6/via/Window.hpp"
+#include "sdk/regenny/sf6/via/SceneView.hpp"
+}
+
+namespace ns_dd2 {
+#include "sdk/regenny/dd2/via/Window.hpp"
+#include "sdk/regenny/dd2/via/SceneView.hpp"
+}
+
+// re9 headers are already included globally by the caller — use ::regenny::via.
+
+// ── Dispatch helpers ────────────────────────────────────────────────────────
 
 namespace sdk::via {
 
-// ──────────────────────────────────────────────
-// via::Window field offsets
-// ──────────────────────────────────────────────
-struct WindowOffsets {
-    size_t width;
-    size_t height;
-    size_t cursor_pos;
-    size_t show_cursor;
-    size_t borderless_size;  // 0 if not present (RE7)
-};
-
-inline const WindowOffsets& window_offsets() {
-    static const WindowOffsets offsets = []() -> WindowOffsets {
-        switch (GameIdentity::get().game()) {
-        case GameID::RE7:
-            return { 0x40, 0x44, 0x48, 0x50, 0 };
-        case GameID::RE3:
-        case GameID::DMC5:
-            return { 0x48, 0x4c, 0x50, 0x58, 0x88 };
-        case GameID::RE2:
-        case GameID::MHRISE:
-        case GameID::SF6:
-            return { 0x58, 0x5c, 0x60, 0x68, 0x98 };
-        case GameID::DD2:
-            return { 0x60, 0x64, 0x68, 0x70, 0xa0 };
-        case GameID::RE8:
-            return { 0x70, 0x74, 0x78, 0x80, 0xb0 };
-        case GameID::RE4:
-            return { 0x78, 0x7c, 0x80, 0x88, 0xb8 };
-        default: // RE9, MHWILDS, MHSTORIES3, PRAGMATA — use re9 layout
-            return { 0x60, 0x64, 0x68, 0x70, 0xa8 };
-        }
-    }();
-    return offsets;
+// Convenience aliases for the namespaced Window types.
+namespace W {
+    using re7    = ns_re7::regenny::via::Window;
+    using re3    = ns_re3::regenny::via::Window;
+    using re2    = ns_re2::regenny::via::Window;
+    using mhrise = ns_mhrise::regenny::via::Window;
+    using re8    = ns_re8::regenny::via::Window;
+    using re4    = ns_re4::regenny::via::Window;
+    using sf6    = ns_sf6::regenny::via::Window;
+    using dd2    = ns_dd2::regenny::via::Window;
+    using re9    = ::regenny::via::Window;  // global — already included
 }
 
-// Typed accessors for via::Window — take opaque void* since the compiled
-// struct layout does not match the runtime game.
-inline uint32_t& window_width(void* w)  { return *(uint32_t*)((uintptr_t)w + window_offsets().width); }
-inline uint32_t& window_height(void* w) { return *(uint32_t*)((uintptr_t)w + window_offsets().height); }
-
-// borderless_size is a via::Size { float w; float h; } — return float refs.
-inline float& window_borderless_w(void* w) { return *(float*)((uintptr_t)w + window_offsets().borderless_size); }
-inline float& window_borderless_h(void* w) { return *(float*)((uintptr_t)w + window_offsets().borderless_size + 4); }
-inline bool   window_has_borderless(void* w) { (void)w; return window_offsets().borderless_size != 0; }
-
-// ──────────────────────────────────────────────
-// via::SceneView field offsets
-// ──────────────────────────────────────────────
-struct SceneViewOffsets {
-    size_t window;           // pointer to via::Window
-    size_t scene;            // pointer to via::Scene
-    size_t size;             // via::Size {float w, float h}
-    size_t custom_display_size; // via::Size
-    size_t present_rect;     // via::Size
-    size_t display_type;     // via::DisplayType (int32)
-};
-
-inline const SceneViewOffsets& scene_view_offsets() {
-    static const SceneViewOffsets offsets = []() -> SceneViewOffsets {
-        switch (GameIdentity::get().game()) {
-        case GameID::RE7:
-            return { 0x20, 0x28, 0x58, 0x60, 0x68, 0x74 };
-        case GameID::RE3:
-        case GameID::DMC5:
-            return { 0x10, 0x18, 0x48, 0x50, 0x58, 0x74 };
-        default: // RE2, RE4, RE8, RE9, MHRISE, SF6, DD2, MHWILDS, etc.
-            return { 0x10, 0x18, 0x30, 0x38, 0x40, 0x64 };
-        }
-    }();
-    return offsets;
+namespace SV {
+    using re7    = ns_re7::regenny::via::SceneView;
+    using re3    = ns_re3::regenny::via::SceneView;
+    using re2    = ns_re2::regenny::via::SceneView;
+    using mhrise = ns_mhrise::regenny::via::SceneView;
+    using re8    = ns_re8::regenny::via::SceneView;
+    using re4    = ns_re4::regenny::via::SceneView;
+    using sf6    = ns_sf6::regenny::via::SceneView;
+    using dd2    = ns_dd2::regenny::via::SceneView;
+    using re9    = ::regenny::via::SceneView;  // global
 }
 
-// Typed accessors for via::SceneView — take opaque void*.
-inline void*  sv_window(void* sv)        { return *(void**)((uintptr_t)sv + scene_view_offsets().window); }
-inline void*  sv_scene(void* sv)         { return *(void**)((uintptr_t)sv + scene_view_offsets().scene); }
-inline float& sv_size_w(void* sv)        { return *(float*)((uintptr_t)sv + scene_view_offsets().size); }
-inline float& sv_size_h(void* sv)        { return *(float*)((uintptr_t)sv + scene_view_offsets().size + 4); }
-inline float& sv_custom_disp_w(void* sv) { return *(float*)((uintptr_t)sv + scene_view_offsets().custom_display_size); }
-inline float& sv_custom_disp_h(void* sv) { return *(float*)((uintptr_t)sv + scene_view_offsets().custom_display_size + 4); }
-inline float& sv_present_w(void* sv)     { return *(float*)((uintptr_t)sv + scene_view_offsets().present_rect); }
-inline float& sv_present_h(void* sv)     { return *(float*)((uintptr_t)sv + scene_view_offsets().present_rect + 4); }
-inline int32_t& sv_display_type(void* sv){ return *(int32_t*)((uintptr_t)sv + scene_view_offsets().display_type); }
+// ── via::Window accessors ───────────────────────────────────────────────────
+
+// Macro: dispatches to the correct namespaced Window struct and returns a
+// reference to the named field.
+#define VIA_WIN_FIELD(w, field) \
+    switch (sdk::GameIdentity::get().game()) { \
+    case sdk::GameID::RE7:     return ((W::re7*)(w))->field;    \
+    case sdk::GameID::RE3:                                      \
+    case sdk::GameID::DMC5:    return ((W::re3*)(w))->field;    \
+    case sdk::GameID::RE2:     return ((W::re2*)(w))->field;    \
+    case sdk::GameID::MHRISE:  return ((W::mhrise*)(w))->field; \
+    case sdk::GameID::RE8:     return ((W::re8*)(w))->field;    \
+    case sdk::GameID::RE4:     return ((W::re4*)(w))->field;    \
+    case sdk::GameID::SF6:     return ((W::sf6*)(w))->field;    \
+    case sdk::GameID::DD2:     return ((W::dd2*)(w))->field;    \
+    default:                   return ((W::re9*)(w))->field;    \
+    }
+
+inline uint32_t& window_width(void* w)  { VIA_WIN_FIELD(w, width); }
+inline uint32_t& window_height(void* w) { VIA_WIN_FIELD(w, height); }
+
+// borderless_size is a via::Size { float w; float h; }.
+// RE7 does not have this field — callers MUST guard with window_has_borderless().
+inline bool window_has_borderless() {
+    return sdk::GameIdentity::get().game() != sdk::GameID::RE7;
+}
+
+// NOTE: calling these on RE7 is undefined (the field doesn't exist).
+#define VIA_WIN_BORDERLESS(w, sub) \
+    switch (sdk::GameIdentity::get().game()) { \
+    case sdk::GameID::RE3:                                                     \
+    case sdk::GameID::DMC5:    return ((W::re3*)(w))->borderless_size.sub;     \
+    case sdk::GameID::RE2:     return ((W::re2*)(w))->borderless_size.sub;     \
+    case sdk::GameID::MHRISE:  return ((W::mhrise*)(w))->borderless_size.sub;  \
+    case sdk::GameID::RE8:     return ((W::re8*)(w))->borderless_size.sub;     \
+    case sdk::GameID::RE4:     return ((W::re4*)(w))->borderless_size.sub;     \
+    case sdk::GameID::SF6:     return ((W::sf6*)(w))->borderless_size.sub;     \
+    case sdk::GameID::DD2:     return ((W::dd2*)(w))->borderless_size.sub;     \
+    default:                   return ((W::re9*)(w))->borderless_size.sub;     \
+    }
+
+inline float& window_borderless_w(void* w) { VIA_WIN_BORDERLESS(w, w); }
+inline float& window_borderless_h(void* w) { VIA_WIN_BORDERLESS(w, h); }
+
+#undef VIA_WIN_FIELD
+#undef VIA_WIN_BORDERLESS
+
+// ── via::SceneView accessors ────────────────────────────────────────────────
+
+// Returns the via::Window* stored in the SceneView.
+inline void* sv_window(void* sv) {
+    switch (sdk::GameIdentity::get().game()) {
+    case sdk::GameID::RE7:     return ((SV::re7*)sv)->window;
+    case sdk::GameID::RE3:
+    case sdk::GameID::DMC5:    return ((SV::re3*)sv)->window;
+    case sdk::GameID::RE2:     return ((SV::re2*)sv)->window;
+    case sdk::GameID::MHRISE:  return ((SV::mhrise*)sv)->window;
+    case sdk::GameID::RE8:     return ((SV::re8*)sv)->window;
+    case sdk::GameID::RE4:     return ((SV::re4*)sv)->window;
+    case sdk::GameID::SF6:     return ((SV::sf6*)sv)->window;
+    case sdk::GameID::DD2:     return ((SV::dd2*)sv)->window;
+    default:                   return ((SV::re9*)sv)->window;
+    }
+}
+
+// size is via::Size { float w; float h; }.
+// All namespaced Size types are layout-compatible, so we return float&.
+#define VIA_SV_SIZE(sv, sub) \
+    switch (sdk::GameIdentity::get().game()) { \
+    case sdk::GameID::RE7:     return ((SV::re7*)(sv))->size.sub;    \
+    case sdk::GameID::RE3:                                           \
+    case sdk::GameID::DMC5:    return ((SV::re3*)(sv))->size.sub;    \
+    case sdk::GameID::RE2:     return ((SV::re2*)(sv))->size.sub;    \
+    case sdk::GameID::MHRISE:  return ((SV::mhrise*)(sv))->size.sub; \
+    case sdk::GameID::RE8:     return ((SV::re8*)(sv))->size.sub;    \
+    case sdk::GameID::RE4:     return ((SV::re4*)(sv))->size.sub;    \
+    case sdk::GameID::SF6:     return ((SV::sf6*)(sv))->size.sub;    \
+    case sdk::GameID::DD2:     return ((SV::dd2*)(sv))->size.sub;    \
+    default:                   return ((SV::re9*)(sv))->size.sub;    \
+    }
+
+inline float& sv_size_w(void* sv) { VIA_SV_SIZE(sv, w); }
+inline float& sv_size_h(void* sv) { VIA_SV_SIZE(sv, h); }
+
+#undef VIA_SV_SIZE
+
+// display_type — each namespace has its own DisplayType enum, but they're all
+// int32 under the hood.  Return int32_t& so all branches agree on type.
+inline int32_t& sv_display_type(void* sv) {
+    switch (sdk::GameIdentity::get().game()) {
+    case sdk::GameID::RE7:     return *(int32_t*)&((SV::re7*)sv)->display_type;
+    case sdk::GameID::RE3:
+    case sdk::GameID::DMC5:    return *(int32_t*)&((SV::re3*)sv)->display_type;
+    case sdk::GameID::RE2:     return *(int32_t*)&((SV::re2*)sv)->display_type;
+    case sdk::GameID::MHRISE:  return *(int32_t*)&((SV::mhrise*)sv)->display_type;
+    case sdk::GameID::RE8:     return *(int32_t*)&((SV::re8*)sv)->display_type;
+    case sdk::GameID::RE4:     return *(int32_t*)&((SV::re4*)sv)->display_type;
+    case sdk::GameID::SF6:     return *(int32_t*)&((SV::sf6*)sv)->display_type;
+    case sdk::GameID::DD2:     return *(int32_t*)&((SV::dd2*)sv)->display_type;
+    default:                   return *(int32_t*)&((SV::re9*)sv)->display_type;
+    }
+}
+
+// Offset of display_type within the SceneView (for the Sunbreak +4 trick).
+inline size_t sv_display_type_offset() {
+    // Use pointer arithmetic on a null pointer — no UB, just offset calc.
+    #define SV_DT_OFF(T) ((size_t)&((T*)nullptr)->display_type)
+    switch (sdk::GameIdentity::get().game()) {
+    case sdk::GameID::RE7:     return SV_DT_OFF(SV::re7);
+    case sdk::GameID::RE3:
+    case sdk::GameID::DMC5:    return SV_DT_OFF(SV::re3);
+    default:                   return SV_DT_OFF(SV::re9);
+    }
+    #undef SV_DT_OFF
+}
 
 } // namespace sdk::via

@@ -138,7 +138,7 @@ void VR::on_view_get_size(REManagedObject* scene_view, float* result) {
 
             if (is_sunbreak) {
 #ifdef REFRAMEWORK_UNIVERSAL
-                *(int32_t*)((uintptr_t)scene_view + sdk::via::scene_view_offsets().display_type + 4) = (int32_t)regenny::via::DisplayType::Fit;
+                *(int32_t*)((uintptr_t)scene_view + sdk::via::sv_display_type_offset() + 4) = (int32_t)regenny::via::DisplayType::Fit;
             } else {
                 sdk::via::sv_display_type(scene_view) = (int32_t)regenny::via::DisplayType::Fit;
 #else
@@ -149,7 +149,7 @@ void VR::on_view_get_size(REManagedObject* scene_view, float* result) {
             }
         } else {
 #ifdef REFRAMEWORK_UNIVERSAL
-            *(int32_t*)((uintptr_t)scene_view + sdk::via::scene_view_offsets().display_type + 4) = (int32_t)regenny::via::DisplayType::Fit;
+            *(int32_t*)((uintptr_t)scene_view + sdk::via::sv_display_type_offset() + 4) = (int32_t)regenny::via::DisplayType::Fit;
 #else
             *(regenny::via::DisplayType*)((uintptr_t)&regenny_view->display_type + 4) = regenny::via::DisplayType::Fit;
 #endif
