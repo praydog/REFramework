@@ -93,10 +93,10 @@ namespace SV {
 // reference to the named field.
 #define VIA_WIN_FIELD(w, field) \
     switch (sdk::GameIdentity::get().game()) { \
-    case sdk::GameID::RE7:     return ((W::re7*)(w))->field;    \
+    case sdk::GameID::RE7:                                      \
+    case sdk::GameID::RE2:     return ((W::re2*)(w))->field;    \
     case sdk::GameID::RE3:                                      \
     case sdk::GameID::DMC5:    return ((W::re3*)(w))->field;    \
-    case sdk::GameID::RE2:     return ((W::re2*)(w))->field;    \
     case sdk::GameID::MHRISE:  return ((W::mhrise*)(w))->field; \
     case sdk::GameID::RE8:     return ((W::re8*)(w))->field;    \
     case sdk::GameID::RE4:     return ((W::re4*)(w))->field;    \
@@ -109,17 +109,13 @@ inline uint32_t& window_width(void* w)  { VIA_WIN_FIELD(w, width); }
 inline uint32_t& window_height(void* w) { VIA_WIN_FIELD(w, height); }
 
 // borderless_size is a via::Size { float w; float h; }.
-// RE7 does not have this field — callers MUST guard with window_has_borderless().
-inline bool window_has_borderless() {
-    return sdk::GameIdentity::get().game() != sdk::GameID::RE7;
-}
-
-// NOTE: calling these on RE7 is undefined (the field doesn't exist).
+// Modern RE7 (TDB 70) shares the RE2 Window layout.
 #define VIA_WIN_BORDERLESS(w, sub) \
     switch (sdk::GameIdentity::get().game()) { \
+    case sdk::GameID::RE7:                                                     \
+    case sdk::GameID::RE2:     return ((W::re2*)(w))->borderless_size.sub;     \
     case sdk::GameID::RE3:                                                     \
     case sdk::GameID::DMC5:    return ((W::re3*)(w))->borderless_size.sub;     \
-    case sdk::GameID::RE2:     return ((W::re2*)(w))->borderless_size.sub;     \
     case sdk::GameID::MHRISE:  return ((W::mhrise*)(w))->borderless_size.sub;  \
     case sdk::GameID::RE8:     return ((W::re8*)(w))->borderless_size.sub;     \
     case sdk::GameID::RE4:     return ((W::re4*)(w))->borderless_size.sub;     \
@@ -139,10 +135,10 @@ inline float& window_borderless_h(void* w) { VIA_WIN_BORDERLESS(w, h); }
 // Returns the via::Window* stored in the SceneView.
 inline void* sv_window(void* sv) {
     switch (sdk::GameIdentity::get().game()) {
-    case sdk::GameID::RE7:     return ((SV::re7*)sv)->window;
+    case sdk::GameID::RE7:
+    case sdk::GameID::RE2:     return ((SV::re2*)sv)->window;
     case sdk::GameID::RE3:
     case sdk::GameID::DMC5:    return ((SV::re3*)sv)->window;
-    case sdk::GameID::RE2:     return ((SV::re2*)sv)->window;
     case sdk::GameID::MHRISE:  return ((SV::mhrise*)sv)->window;
     case sdk::GameID::RE8:     return ((SV::re8*)sv)->window;
     case sdk::GameID::RE4:     return ((SV::re4*)sv)->window;
@@ -156,10 +152,10 @@ inline void* sv_window(void* sv) {
 // All namespaced Size types are layout-compatible, so we return float&.
 #define VIA_SV_SIZE(sv, sub) \
     switch (sdk::GameIdentity::get().game()) { \
-    case sdk::GameID::RE7:     return ((SV::re7*)(sv))->size.sub;    \
+    case sdk::GameID::RE7:                                           \
+    case sdk::GameID::RE2:     return ((SV::re2*)(sv))->size.sub;    \
     case sdk::GameID::RE3:                                           \
     case sdk::GameID::DMC5:    return ((SV::re3*)(sv))->size.sub;    \
-    case sdk::GameID::RE2:     return ((SV::re2*)(sv))->size.sub;    \
     case sdk::GameID::MHRISE:  return ((SV::mhrise*)(sv))->size.sub; \
     case sdk::GameID::RE8:     return ((SV::re8*)(sv))->size.sub;    \
     case sdk::GameID::RE4:     return ((SV::re4*)(sv))->size.sub;    \
@@ -177,10 +173,10 @@ inline float& sv_size_h(void* sv) { VIA_SV_SIZE(sv, h); }
 // int32 under the hood.  Return int32_t& so all branches agree on type.
 inline int32_t& sv_display_type(void* sv) {
     switch (sdk::GameIdentity::get().game()) {
-    case sdk::GameID::RE7:     return *(int32_t*)&((SV::re7*)sv)->display_type;
+    case sdk::GameID::RE7:
+    case sdk::GameID::RE2:     return *(int32_t*)&((SV::re2*)sv)->display_type;
     case sdk::GameID::RE3:
     case sdk::GameID::DMC5:    return *(int32_t*)&((SV::re3*)sv)->display_type;
-    case sdk::GameID::RE2:     return *(int32_t*)&((SV::re2*)sv)->display_type;
     case sdk::GameID::MHRISE:  return *(int32_t*)&((SV::mhrise*)sv)->display_type;
     case sdk::GameID::RE8:     return *(int32_t*)&((SV::re8*)sv)->display_type;
     case sdk::GameID::RE4:     return *(int32_t*)&((SV::re4*)sv)->display_type;
@@ -195,7 +191,8 @@ inline size_t sv_display_type_offset() {
     // Use pointer arithmetic on a null pointer — no UB, just offset calc.
     #define SV_DT_OFF(T) ((size_t)&((T*)nullptr)->display_type)
     switch (sdk::GameIdentity::get().game()) {
-    case sdk::GameID::RE7:     return SV_DT_OFF(SV::re7);
+    case sdk::GameID::RE7:
+    case sdk::GameID::RE2:     return SV_DT_OFF(SV::re2);
     case sdk::GameID::RE3:
     case sdk::GameID::DMC5:    return SV_DT_OFF(SV::re3);
     default:                   return SV_DT_OFF(SV::re9);

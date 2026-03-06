@@ -847,7 +847,7 @@ void Graphics::on_view_get_size(REManagedObject* scene_view, float* result) {
 #ifdef REFRAMEWORK_UNIVERSAL
         auto window = sdk::via::sv_window(scene_view);
 
-        if (window != nullptr && sdk::via::window_has_borderless()) {
+        if (window != nullptr) {
             sdk::via::window_borderless_w(window) = (float)sdk::via::window_width(window);
             sdk::via::window_borderless_h(window) = (float)sdk::via::window_height(window);
         }
