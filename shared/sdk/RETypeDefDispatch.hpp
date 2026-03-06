@@ -103,6 +103,26 @@ inline bool needs_plain_impl() {
         ? reinterpret_cast<const sdk::tdb82::RETypeImpl*>(&(ref))->field \
         : (ref).field)
 
+// TIMPL_DISPATCH: Read any field from RETypeImpl with full per-version dispatch.
+// Unlike TIMPL_FIELD (which only handles name_offset/namespace_offset),
+// this dispatches to the correct RETypeImpl struct for EVERY TDB version.
+// Required for fields whose offset differs across versions (e.g. num_member_methods,
+// num_member_fields) where tdb69 has a fundamentally different struct layout.
+// Returns the field value cast to the specified type for consistency.
+#define TIMPL_DISPATCH(ret_type, ref, field) \
+    [&]() -> ret_type { \
+        switch (sdk::GameIdentity::get().tdb_ver()) { \
+        case 69: case 70: return static_cast<ret_type>(reinterpret_cast<const sdk::tdb69::RETypeImpl*>(&(ref))->field); \
+        case 71: case 72: return static_cast<ret_type>(reinterpret_cast<const sdk::tdb71::RETypeImpl*>(&(ref))->field); \
+        case 73:          return static_cast<ret_type>(reinterpret_cast<const sdk::tdb73::RETypeImpl*>(&(ref))->field); \
+        case 74:          return static_cast<ret_type>(reinterpret_cast<const sdk::tdb74::RETypeImpl*>(&(ref))->field); \
+        case 81:          return static_cast<ret_type>(reinterpret_cast<const sdk::tdb81::RETypeImpl*>(&(ref))->field); \
+        case 82:          return static_cast<ret_type>(reinterpret_cast<const sdk::tdb82::RETypeImpl*>(&(ref))->field); \
+        case 83:          return static_cast<ret_type>(reinterpret_cast<const sdk::tdb83::RETypeImpl*>(&(ref))->field); \
+        default:          return static_cast<ret_type>((ref).field); \
+        } \
+    }()
+
 // TMETH_FIELD: Read a bitfield from a REMethodDefinition pointer with runtime dispatch.
 // For TDB < 71, casts to tdb69::REMethodDefinition.
 #define TMETH_FIELD(ptr, field) \

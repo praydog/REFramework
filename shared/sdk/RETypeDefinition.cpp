@@ -38,7 +38,7 @@ RETypeDefinition::MethodIterator::REMethodIterator RETypeDefinition::MethodItera
 
 #if TDB_VER >= 69
     const auto& impl = (*tdb->get_typesImpl_ptr())[TDEF_FIELD(m_parent, impl_index)];
-    const auto num_methods = impl.num_member_methods;
+    const auto num_methods = TIMPL_DISPATCH(uint32_t, impl, num_member_methods);
 #else
     const auto num_methods = m_parent->num_member_method;
 #endif
@@ -51,7 +51,7 @@ size_t RETypeDefinition::MethodIterator::size() const {
 
 #if TDB_VER >= 69
     const auto& impl = (*tdb->get_typesImpl_ptr())[TDEF_FIELD(m_parent, impl_index)];
-    return static_cast<size_t>(impl.num_member_methods);
+    return static_cast<size_t>(TIMPL_DISPATCH(uint32_t, impl, num_member_methods));
 #else
     return static_cast<size_t>(m_parent->num_member_method);
 #endif
@@ -88,7 +88,7 @@ size_t sdk::RETypeDefinition::FieldIterator::size() const {
 #if TDB_VER >= 69
         auto tdb = sdk::RETypeDB::get();
         const auto& impl = (*tdb->get_typesImpl_ptr())[TDEF_FIELD(m_parent, impl_index)];
-        const auto num_fields = impl.num_member_fields;
+        const auto num_fields = TIMPL_DISPATCH(uint32_t, impl, num_member_fields);
 #else
         const auto num_fields = m_parent->num_member_field;
 #endif

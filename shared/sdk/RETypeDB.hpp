@@ -1861,66 +1861,68 @@ struct RETypeDB : public sdk::RETypeDB_ {
     sdk::REProperty* get_property(uint32_t index) const;
 
 #ifdef REFRAMEWORK_UNIVERSAL
-    // Runtime dispatch: tdb84::TDB has different field offsets than tdb70::TDB.
-    // For TDB < 73, cast to tdb70::TDB to read the correct offsets.
-    uint32_t get_num_modules() const {
-        if (sdk::tdb_dispatch::needs_18bit())
-            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->numModules;
-        return numModules;
+    // =========================================================================
+    // TDB header field dispatch: cast to the correct TDB struct per version.
+    // Each TDB version may have fields at different offsets.
+    // =========================================================================
+
+    // Dispatch macro: switches on tdb_ver() and casts `this` to the correct
+    // version-specific TDB struct to read `field`.
+    // Every case maps to a real TDB namespace struct — no cross-version reuse.
+#define TDB_DISPATCH(field) \
+    switch (sdk::GameIdentity::get().tdb_ver()) { \
+    case 69: case 70: return reinterpret_cast<const sdk::tdb70::TDB*>(this)->field; \
+    case 71: case 72: return reinterpret_cast<const sdk::tdb71::TDB*>(this)->field; \
+    case 73:          return reinterpret_cast<const sdk::tdb73::TDB*>(this)->field; \
+    case 74:          return reinterpret_cast<const sdk::tdb74::TDB*>(this)->field; \
+    case 81:          return reinterpret_cast<const sdk::tdb81::TDB*>(this)->field; \
+    case 82:          return reinterpret_cast<const sdk::tdb82::TDB*>(this)->field; \
+    case 83:          return reinterpret_cast<const sdk::tdb83::TDB*>(this)->field; \
+    default:          return this->field; /* tdb84 compiled-in layout */ \
     }
 
-    uint32_t get_num_types() const {
-        if (sdk::tdb_dispatch::needs_18bit())
-            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->numTypes;
-        return this->numTypes;
-    }
+    // --- Scalar count accessors ---
+    uint32_t get_num_modules() const    { TDB_DISPATCH(numModules) }
+    uint32_t get_num_types() const      { TDB_DISPATCH(numTypes) }
+    uint32_t get_num_methods() const    { TDB_DISPATCH(numMethods) }
+    uint32_t get_num_fields() const     { TDB_DISPATCH(numFields) }
+    uint32_t get_num_params() const     { TDB_DISPATCH(numParams) }
+    uint32_t get_num_properties() const { TDB_DISPATCH(numProperties) }
+    uint32_t get_string_pool_size() const { TDB_DISPATCH(numStringPool) }
+    uint32_t get_byte_pool_size() const   { TDB_DISPATCH(numBytePool) }
 
-    uint32_t get_num_methods() const {
-        if (sdk::tdb_dispatch::needs_18bit())
-            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->numMethods;
-        return numMethods;
-    }
+    // --- Pointer field accessors ---
+    auto* get_types_ptr() const         { TDB_DISPATCH(types) }
+    auto* get_typesImpl_ptr() const     { TDB_DISPATCH(typesImpl) }
+    auto* get_methods_ptr() const       { TDB_DISPATCH(methods) }
+    auto* get_methodsImpl_ptr() const   { TDB_DISPATCH(methodsImpl) }
+    auto* get_fields_ptr() const        { TDB_DISPATCH(fields) }
+    auto* get_fieldsImpl_ptr() const    { TDB_DISPATCH(fieldsImpl) }
+    auto* get_properties_ptr() const    { TDB_DISPATCH(properties) }
+    auto* get_propertiesImpl_ptr() const{ TDB_DISPATCH(propertiesImpl) }
+    auto* get_params_ptr() const        { TDB_DISPATCH(params) }
+    auto* get_modules_ptr() const       { TDB_DISPATCH(modules) }
+    auto* get_stringPool_ptr() const    { TDB_DISPATCH(stringPool) }
+    auto* get_bytePool_ptr() const      { TDB_DISPATCH(bytePool) }
+    auto* get_initData_ptr() const      { TDB_DISPATCH(initData) }
+    auto* get_internStrings_ptr() const { TDB_DISPATCH(internStrings) }
 
-    uint32_t get_num_fields() const {
-        if (sdk::tdb_dispatch::needs_18bit())
-            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->numFields;
-        return numFields;
-    }
-
-    uint32_t get_num_params() const {
-        if (sdk::tdb_dispatch::needs_18bit())
-            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->numParams;
-        return numParams;
-    }
-
-    uint32_t get_num_properties() const {
-        if (sdk::tdb_dispatch::needs_18bit())
-            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->numProperties;
-        return numProperties;
-    }
-
-    uint32_t get_string_pool_size() const {
-        if (sdk::tdb_dispatch::needs_18bit())
-            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->numStringPool;
-        return numStringPool;
-    }
-
-    uint32_t get_byte_pool_size() const {
-        if (sdk::tdb_dispatch::needs_18bit())
-            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->numBytePool;
-        return numBytePool;
-    }
+#undef TDB_DISPATCH
 #else
-    uint32_t get_num_modules() const { return numModules; }
-    uint32_t get_num_types() const { return this->numTypes; }
-    uint32_t get_num_methods() const { return numMethods; }
-    uint32_t get_num_fields() const { return numFields; }
-#if TDB_VER >= 69
-    uint32_t get_num_params() const { return numParams; }
-#endif
-    uint32_t get_num_properties() const { return numProperties; }
-    uint32_t get_string_pool_size() const { return numStringPool; }
-    uint32_t get_byte_pool_size() const { return numBytePool; }
+    auto* get_types_ptr() const { return this->types; }
+    auto* get_typesImpl_ptr() const { return this->typesImpl; }
+    auto* get_methods_ptr() const { return this->methods; }
+    auto* get_methodsImpl_ptr() const { return this->methodsImpl; }
+    auto* get_fields_ptr() const { return this->fields; }
+    auto* get_fieldsImpl_ptr() const { return this->fieldsImpl; }
+    auto* get_properties_ptr() const { return this->properties; }
+    auto* get_propertiesImpl_ptr() const { return this->propertiesImpl; }
+    auto* get_params_ptr() const { return this->params; }
+    auto* get_modules_ptr() const { return this->modules; }
+    auto* get_stringPool_ptr() const { return this->stringPool; }
+    auto* get_bytePool_ptr() const { return this->bytePool; }
+    auto* get_initData_ptr() const { return this->initData; }
+    auto* get_internStrings_ptr() const { return this->internStrings; }
 #endif
 
     const char* get_string(uint32_t offset) const;
@@ -1980,96 +1982,6 @@ struct RETypeDB : public sdk::RETypeDB_ {
 
         return result;
     }
-#endif
-
-#ifdef REFRAMEWORK_UNIVERSAL
-    // Dispatched pointer field accessors for TDB header layout differences.
-    // tdb84: types at 0x68, tdb70: types at 0x60, etc.
-    auto* get_types_ptr() const {
-        if (sdk::tdb_dispatch::needs_18bit())
-            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->types;
-        return this->types;
-    }
-    auto* get_typesImpl_ptr() const {
-        if (sdk::tdb_dispatch::needs_18bit())
-            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->typesImpl;
-        return this->typesImpl;
-    }
-    auto* get_methods_ptr() const {
-        if (sdk::tdb_dispatch::needs_18bit())
-            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->methods;
-        return this->methods;
-    }
-    auto* get_methodsImpl_ptr() const {
-        if (sdk::tdb_dispatch::needs_18bit())
-            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->methodsImpl;
-        return this->methodsImpl;
-    }
-    auto* get_fields_ptr() const {
-        if (sdk::tdb_dispatch::needs_18bit())
-            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->fields;
-        return this->fields;
-    }
-    auto* get_fieldsImpl_ptr() const {
-        if (sdk::tdb_dispatch::needs_18bit())
-            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->fieldsImpl;
-        return this->fieldsImpl;
-    }
-    auto* get_properties_ptr() const {
-        if (sdk::tdb_dispatch::needs_18bit())
-            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->properties;
-        return this->properties;
-    }
-    auto* get_propertiesImpl_ptr() const {
-        if (sdk::tdb_dispatch::needs_18bit())
-            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->propertiesImpl;
-        return this->propertiesImpl;
-    }
-    auto* get_params_ptr() const {
-        if (sdk::tdb_dispatch::needs_18bit())
-            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->params;
-        return this->params;
-    }
-    auto* get_modules_ptr() const {
-        if (sdk::tdb_dispatch::needs_18bit())
-            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->modules;
-        return this->modules;
-    }
-    auto* get_stringPool_ptr() const {
-        if (sdk::tdb_dispatch::needs_18bit())
-            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->stringPool;
-        return this->stringPool;
-    }
-    auto* get_bytePool_ptr() const {
-        if (sdk::tdb_dispatch::needs_18bit())
-            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->bytePool;
-        return this->bytePool;
-    }
-    auto* get_initData_ptr() const {
-        if (sdk::tdb_dispatch::needs_18bit())
-            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->initData;
-        return this->initData;
-    }
-    auto* get_internStrings_ptr() const {
-        if (sdk::tdb_dispatch::needs_18bit())
-            return reinterpret_cast<const sdk::tdb70::TDB*>(this)->internStrings;
-        return this->internStrings;
-    }
-#else
-    auto* get_types_ptr() const { return this->types; }
-    auto* get_typesImpl_ptr() const { return this->typesImpl; }
-    auto* get_methods_ptr() const { return this->methods; }
-    auto* get_methodsImpl_ptr() const { return this->methodsImpl; }
-    auto* get_fields_ptr() const { return this->fields; }
-    auto* get_fieldsImpl_ptr() const { return this->fieldsImpl; }
-    auto* get_properties_ptr() const { return this->properties; }
-    auto* get_propertiesImpl_ptr() const { return this->propertiesImpl; }
-    auto* get_params_ptr() const { return this->params; }
-    auto* get_modules_ptr() const { return this->modules; }
-    auto* get_stringPool_ptr() const { return this->stringPool; }
-    auto* get_bytePool_ptr() const { return this->bytePool; }
-    auto* get_initData_ptr() const { return this->initData; }
-    auto* get_internStrings_ptr() const { return this->internStrings; }
 #endif
 
 #ifdef REFRAMEWORK_UNIVERSAL
