@@ -38,11 +38,16 @@ template<typename T>
 class DirectXResource : public RenderResource {
 public:
     T* get_native_resource() const {
+#ifdef REFRAMEWORK_UNIVERSAL
+        const auto offset = sdk::GameIdentity::get().tdb_ver() > 67 ? 0x10 : 0x18;
+        return *(ID3D12Resource**)((uintptr_t)this + offset);
+#else
     #if TDB_VER > 67
         return *(ID3D12Resource**)((uintptr_t)this + 0x10);
     #else
         return *(ID3D12Resource**)((uintptr_t)this + 0x18);
     #endif
+#endif
     }
 
 private:
@@ -140,6 +145,25 @@ public:
         return m_desc;
     }
 
+#ifdef REFRAMEWORK_UNIVERSAL
+    uint32_t get_rtv_count() const {
+        const auto pad = sdk::GameIdentity::get().tdb_ver() <= 67 ? sizeof(void*) : (size_t)0;
+        return *(uint32_t*)((uintptr_t)&m_desc + pad + offsetof(Desc, num_rtv));
+    }
+
+    RenderTargetView** get_rtvs_ptr() const {
+        const auto pad = sdk::GameIdentity::get().tdb_ver() <= 67 ? sizeof(void*) : (size_t)0;
+        return *(RenderTargetView***)((uintptr_t)&m_desc + pad + offsetof(Desc, rtvs));
+    }
+
+    RenderTargetView* get_rtv(int32_t index) const {
+        auto rtvs = get_rtvs_ptr();
+        if (index < 0 || (uint32_t)index >= get_rtv_count() || rtvs == nullptr) {
+            return nullptr;
+        }
+        return rtvs[index];
+    }
+#else
     uint32_t get_rtv_count() const {
         return m_desc.num_rtv;
     }
@@ -151,11 +175,14 @@ public:
         
         return m_desc.rtvs[index];
     }
+#endif
 
 public:
     struct Desc {
+#ifndef REFRAMEWORK_UNIVERSAL
 #if TDB_VER <= 67
         void* _unk_pad;
+#endif
 #endif
         RenderTargetView** rtvs;
         DepthStencilView* dsv;
@@ -169,10 +196,12 @@ public:
 
     // more here but not needed... for now
 };
+#ifndef REFRAMEWORK_UNIVERSAL
 #if TDB_VER > 67
 static_assert(offsetof(TargetState, m_desc) + offsetof(TargetState::Desc, num_rtv) == 0x20);
 #else
 static_assert(offsetof(TargetState, m_desc) + offsetof(TargetState::Desc, num_rtv) == 0x28);
+#endif
 #endif
 
 class Buffer : public RenderResource {
@@ -222,6 +251,27 @@ public:
         return state != nullptr ? state->get_native_resource_d3d12() : nullptr;
     }
 
+#ifdef REFRAMEWORK_UNIVERSAL
+    static inline uint32_t get_draw_vtable_index() {
+        const auto ver = sdk::GameIdentity::get().tdb_ver();
+        if (ver >= 69) return 14;
+        if (ver > 49) return 12;
+        return 10;
+    }
+
+    static inline uint32_t get_update_vtable_index() {
+        return get_draw_vtable_index() + 1;
+    }
+
+    static inline uint32_t get_num_priority_offsets() {
+        const auto ver = sdk::GameIdentity::get().tdb_ver();
+        if (ver >= 69) return 7;
+        if (ver >= 66) return 6;
+        return 0;
+    }
+
+    static constexpr uint32_t MAX_PRIORITY_OFFSETS = 7;
+#else
 #if TDB_VER >= 69
     static constexpr uint32_t DRAW_VTABLE_INDEX = 14;
 #elif TDB_VER > 49
@@ -240,15 +290,24 @@ public:
 #else
     static constexpr uint32_t NUM_PRIORITY_OFFSETS = 0;
 #endif
+#endif
 
     void draw(void* render_context) {
         const auto vtable = *(void(***)(void*, void*))this;
+#ifdef REFRAMEWORK_UNIVERSAL
+        return vtable[get_draw_vtable_index()](this, render_context);
+#else
         return vtable[DRAW_VTABLE_INDEX](this, render_context);
+#endif
     }
 
     void update() {
         const auto vtable = *(void(***)(void*))this;
+#ifdef REFRAMEWORK_UNIVERSAL
+        return vtable[get_update_vtable_index()](this);
+#else
         return vtable[UPDATE_VTABLE_INDEX](this);
+#endif
     }
 
 public:
@@ -256,6 +315,12 @@ public:
     uint32_t m_render_output_id;
     uint32_t m_render_output_id_2;
 
+#ifdef REFRAMEWORK_UNIVERSAL
+    uint32_t m_priority;
+    uint32_t m_priority_offsets[MAX_PRIORITY_OFFSETS];
+    sdk::renderer::RenderLayer* m_parent;
+    sdk::NativeArray<sdk::renderer::RenderLayer*> m_layers;
+#else
 #if TDB_VER <= 49
     sdk::renderer::RenderLayer* m_parent;
     sdk::NativeArray<sdk::renderer::RenderLayer*> m_layers;
@@ -265,6 +330,7 @@ public:
     uint32_t m_priority_offsets[NUM_PRIORITY_OFFSETS];
     sdk::renderer::RenderLayer* m_parent;
     sdk::NativeArray<sdk::renderer::RenderLayer*> m_layers;
+#endif
 #endif
 
     struct {
@@ -278,10 +344,12 @@ public:
     uint32_t m_version;
 };
 
+#ifndef REFRAMEWORK_UNIVERSAL
 #if TDB_VER <= 49
 static_assert(offsetof(RenderLayer, m_priority) == 0x48, "RenderLayer::m_priority offset is wrong");
 static_assert(offsetof(RenderLayer, m_layers) == 0x38, "RenderLayer::m_layers offset is wrong");
 static_assert(offsetof(RenderLayer, m_parent) == 0x30, "RenderLayer::m_parent offset is wrong");
+#endif
 #endif
 
 namespace layer {
@@ -341,18 +409,28 @@ public:
     }
 
     void set_lod_bias(float x, float y) {
+#ifdef REFRAMEWORK_UNIVERSAL
+        if (sdk::GameIdentity::get().is_re4()) {
+            *(float*)((uintptr_t)this + s_lod_bias_offset) = x;
+            *(float*)((uintptr_t)this + s_lod_bias_offset + 4) = y;
+        }
+#else
 #ifdef RE4
         *(float*)((uintptr_t)this + s_lod_bias_offset) = x;
         *(float*)((uintptr_t)this + s_lod_bias_offset + 4) = y;
-#else
+#endif
 #endif
     }
 
 private:
+#ifdef REFRAMEWORK_UNIVERSAL
+    constexpr static auto s_lod_bias_offset = 0x1818; // RE4 offset, only used when is_re4()
+#else
 #ifdef RE4
     constexpr static auto s_lod_bias_offset = 0x1818;
-#else // TODO
+#else
     constexpr static auto s_lod_bias_offset = 0;
+#endif
 #endif
 };
 

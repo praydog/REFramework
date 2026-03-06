@@ -11,6 +11,10 @@
 #include "VR.hpp"
 #include "Graphics.hpp"
 
+#ifdef REFRAMEWORK_UNIVERSAL
+#include "sdk/regenny/re9/via/Window.hpp"
+#include "sdk/regenny/re9/via/SceneView.hpp"
+#else
 #if TDB_VER >= 83
 #include "sdk/regenny/re9/via/Window.hpp"
 #include "sdk/regenny/re9/via/SceneView.hpp"
@@ -27,7 +31,6 @@
 #include "sdk/regenny/re2_tdb70/via/Window.hpp"
 #include "sdk/regenny/re2_tdb70/via/SceneView.hpp"
 #elif TDB_VER >= 71
-#ifndef REFRAMEWORK_UNIVERSAL
 #ifdef SF6
 #include "sdk/regenny/sf6/via/Window.hpp"
 #include "sdk/regenny/sf6/via/SceneView.hpp"
@@ -41,10 +44,7 @@
 #include "sdk/regenny/mhrise_tdb71/via/Window.hpp"
 #include "sdk/regenny/mhrise_tdb71/via/SceneView.hpp"
 #endif
-#else // REFRAMEWORK_UNIVERSAL
-#include "sdk/regenny/dd2/via/Window.hpp"
-#include "sdk/regenny/dd2/via/SceneView.hpp"
-#endif // !REFRAMEWORK_UNIVERSAL
+#endif
 #endif
 
 std::shared_ptr<Graphics>& Graphics::get() {
@@ -674,6 +674,17 @@ void Graphics::on_view_get_size(REManagedObject* scene_view, float* result) {
         return;
     }
 
+#ifdef REFRAMEWORK_UNIVERSAL
+    if (sdk::GameIdentity::get().tdb_ver() < 73) {
+        result[0] = (float)(*m_backbuffer_size)[0];
+        result[1] = (float)(*m_backbuffer_size)[1];
+    } else {
+        auto regenny_view = (regenny::via::SceneView*)scene_view;
+
+        regenny_view->size.w = (float)(*m_backbuffer_size)[0];
+        regenny_view->size.h = (float)(*m_backbuffer_size)[1];
+    }
+#else
 #if TDB_VER < 73
     result[0] = (float)(*m_backbuffer_size)[0];
     result[1] = (float)(*m_backbuffer_size)[1];
@@ -682,6 +693,7 @@ void Graphics::on_view_get_size(REManagedObject* scene_view, float* result) {
 
     regenny_view->size.w = (float)(*m_backbuffer_size)[0];
     regenny_view->size.h = (float)(*m_backbuffer_size)[1];
+#endif
 #endif
 }
 

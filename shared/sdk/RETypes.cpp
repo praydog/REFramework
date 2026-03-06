@@ -73,7 +73,12 @@ RETypes::RETypes() {
     bool re7_version = false;
 
     if (!ref) {
-#if TDB_VER >= 73
+#ifdef REFRAMEWORK_UNIVERSAL
+        const bool use_exhaustive_scan = sdk::GameIdentity::get().tdb_ver() >= 73;
+#else
+        constexpr bool use_exhaustive_scan = TDB_VER >= 73;
+#endif
+        if (use_exhaustive_scan) {
         // This is the absolutely foolproof way of finding it
         // We can probably completely replace it with this for all the games, but not doing that just yet to be safe
         const auto via_object_ref = utility::scan(mod, "BA 55 FD 09 D2");
@@ -135,8 +140,7 @@ RETypes::RETypes() {
             refresh_map();
             return;
         }
-#else
-        // Scan for RE7 version
+        } else {
         // mov edx, 8F7E7AEh (TypeInfoNone hash)
         pat = "BA AE E7 F7 08";
 
@@ -186,7 +190,7 @@ RETypes::RETypes() {
 
         types_offset = 3;
         re7_version = true;
-#endif
+        }
     }
 
     spdlog::info("Initial ref: {:x}", (uintptr_t)*ref);

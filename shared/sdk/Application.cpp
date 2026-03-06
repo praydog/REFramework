@@ -47,7 +47,6 @@ Application* Application::get() {
     const auto application_type = Application::get_type();
 
     if (application_type == nullptr) {
-        spdlog::error("Cannot find via.Application");
         return nullptr;
     }
 
@@ -62,8 +61,15 @@ Application::Function* Application::get_functions() {
         const auto mod_size = utility::get_module_size(mod);
         const auto mod_end = (uintptr_t)mod + *mod_size - 0x100;
 
-        // Fall back to full heuristic analysis on newer versions of the engine.
+        // Byte-pattern scans for older RE Engine games (TDB < 81).
+        // On newer engines these patterns don't exist; fall back to heuristic analysis.
+#ifdef REFRAMEWORK_UNIVERSAL
+        if (GameIdentity::get().tdb_ver() < 81) {
+#else
 #if TDB_VER < 81
+        {
+#endif
+#endif
         // For MHRise (game pass only? or TU4)
         for (auto ref = utility::scan(mod, "89 81 ? ? ? ? 48 8B ? 48 81 C1 ? ? ? ?");
             ref;
@@ -81,12 +87,12 @@ Application::Function* Application::get_functions() {
                 try {
                     const auto ptr = (Application::Function*)((uintptr_t)this + candidate);
 
-                    if (ptr == nullptr || IsBadReadPtr(ptr, sizeof(Application::Function) * 50)) {
+                    if (ptr == nullptr || IsBadReadPtr(ptr, get_function_stride() * 50)) {
                         spdlog::info("Skipping invalid Application::functions offset: {:x}", candidate);
                         continue;
                     }
 
-                    if (ptr->description == nullptr || IsBadReadPtr(ptr->description, 32)) {
+                    if (ptr->get_description() == nullptr || IsBadReadPtr(ptr->get_description(), 32)) {
                         spdlog::info("Skipping invalid Application::functions offset: {:x}", candidate);
                         continue;
                     }
@@ -119,12 +125,12 @@ Application::Function* Application::get_functions() {
                 try {
                     const auto ptr = (Application::Function*)((uintptr_t)this + candidate);
 
-                    if (ptr == nullptr || IsBadReadPtr(ptr, sizeof(Application::Function) * 50)) {
+                    if (ptr == nullptr || IsBadReadPtr(ptr, get_function_stride() * 50)) {
                         spdlog::info("Skipping invalid Application::functions offset: {:x}", candidate);
                         continue;
                     }
 
-                    if (ptr->description == nullptr || IsBadReadPtr(ptr->description, 32)) {
+                    if (ptr->get_description() == nullptr || IsBadReadPtr(ptr->get_description(), 32)) {
                         spdlog::info("Skipping invalid Application::functions offset: {:x}", candidate);
                         continue;
                     }
@@ -139,6 +145,12 @@ Application::Function* Application::get_functions() {
 
             spdlog::info("Skipping invalid Application::functions offset: {:x}", candidate);
         }
+#ifdef REFRAMEWORK_UNIVERSAL
+        }
+#else
+#if TDB_VER < 81
+        }
+#endif
 #endif
 
         // Heuristic structure analyis.

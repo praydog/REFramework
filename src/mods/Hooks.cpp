@@ -508,7 +508,13 @@ std::optional<std::string> Hooks::hook_all_application_entries() {
 
 std::optional<std::string> Hooks::hook_update_before_lock_scene() {
     // This function is removed (or not reflected) >= TDB74...
+#ifdef REFRAMEWORK_UNIVERSAL
+    if (sdk::GameIdentity::get().tdb_ver() < 74) {
+#else
 #if TDB_VER < 74
+    {
+#endif
+#endif
     // Hook updateBeforeLockScene
     auto update_before_lock_scene = sdk::find_native_method("via.render.EntityRenderer", "updateBeforeLockScene");
 
@@ -523,6 +529,12 @@ std::optional<std::string> Hooks::hook_update_before_lock_scene() {
     if (!m_update_before_lock_scene_hook->create()) {
         return "Failed to hook via::render::EntityRenderer::updateBeforeLockScene";
     }
+#ifdef REFRAMEWORK_UNIVERSAL
+    }
+#else
+#if TDB_VER < 74
+    }
+#endif
 #endif
 
     return std::nullopt;
@@ -715,7 +727,11 @@ std::optional<std::string> Hooks::hook_render_layer(Hooks::RenderLayerHook<sdk::
 
     spdlog::info("{:s} vtable: {:x}", hook.name, (uintptr_t)obj_vtable - g_framework->get_module());
 
+#ifdef REFRAMEWORK_UNIVERSAL
+    auto draw_native = obj_vtable[sdk::renderer::RenderLayer::get_draw_vtable_index()];
+#else
     auto draw_native = obj_vtable[sdk::renderer::RenderLayer::DRAW_VTABLE_INDEX];
+#endif
 
     if (draw_native == 0) {
         return std::string{"Hooks init failed: "} + hook.name + " draw native not found.";
@@ -734,7 +750,11 @@ std::optional<std::string> Hooks::hook_render_layer(Hooks::RenderLayerHook<sdk::
         spdlog::info("Skipping draw hook for {:s}, stub code detected", hook.name);
     }
 
+#ifdef REFRAMEWORK_UNIVERSAL
+    auto update_native = obj_vtable[sdk::renderer::RenderLayer::get_update_vtable_index()];
+#else
     auto update_native = obj_vtable[sdk::renderer::RenderLayer::UPDATE_VTABLE_INDEX];
+#endif
 
     if (update_native == 0) {
         return std::string{"Hooks init failed: "} + hook.name + " update native not found.";
@@ -929,7 +949,13 @@ void Hooks::global_application_entry_hook_internal(void* entry, const char* name
     }
 
     if (hash == "BeginRendering"_fnv) {
+#ifdef REFRAMEWORK_UNIVERSAL
+    if (sdk::GameIdentity::get().tdb_ver() >= 73) {
+#else
 #if TDB_VER >= 73
+    {
+#endif
+#endif
     if (auto primitive_system = sdk::gui::renderer::PrimitiveSystem::get(); primitive_system != nullptr) {
         auto primitive_buffer = primitive_system->get_primitive_buffer();
         
@@ -940,6 +966,12 @@ void Hooks::global_application_entry_hook_internal(void* entry, const char* name
             }
         }
     }
+#ifdef REFRAMEWORK_UNIVERSAL
+    }
+#else
+#if TDB_VER >= 73
+    }
+#endif
 #endif
     }
 

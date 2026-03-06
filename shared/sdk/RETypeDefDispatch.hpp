@@ -105,6 +105,13 @@ inline bool needs_18bit() {
     return tdb_ver < 73;
 }
 
+
+// TDB 83+ uses 28-bit bitfields for RETypeImpl name_offset/namespace_offset.
+// TDB < 83 uses plain int32_t. Other fields are identical.
+inline bool needs_plain_impl() {
+    const auto tdb_ver = sdk::GameIdentity::get().tdb_ver();
+    return tdb_ver < 83;
+}
 } // namespace tdb_dispatch
 
 // TDEF_FIELD: Read a bitfield from a RETypeDefinition pointer with runtime dispatch.
@@ -126,6 +133,16 @@ inline bool needs_18bit() {
             (ptr)->field = (value); \
     } while(0)
 
+
+// TIMPL_FIELD: Read a field from an RETypeImpl pointer with runtime dispatch.
+// TDB 83+ uses 28-bit bitfields for name_offset/namespace_offset packed in int64_t.
+// TDB < 83 uses plain int32_t for name_offset/namespace_offset.
+// Other fields (field_size, num_member_methods, etc.) are identical across versions.
+// Usage: TIMPL_FIELD(impl, name_offset) or TIMPL_FIELD(impl, namespace_offset)
+#define TIMPL_FIELD(ref, field) \
+    (sdk::tdb_dispatch::needs_plain_impl() \
+        ? reinterpret_cast<const sdk::tdb82::RETypeImpl*>(&(ref))->field \
+        : (ref).field)
 
 // TMETH_FIELD: Read a bitfield from a REMethodDefinition pointer with runtime dispatch.
 // For TDB < 73 (tdb69), casts to REMethodDef69.
@@ -156,6 +173,7 @@ inline bool needs_18bit() {
 #define TMETH_FIELD(ptr, field) ((ptr)->field)
 #define TFIELD_FIELD(ptr, field) ((ptr)->field)
 #define TPARAM_FIELD(ptr, field) ((ptr)->field)
+#define TIMPL_FIELD(ref, field) ((ref).field)
 
 #endif // REFRAMEWORK_UNIVERSAL
 

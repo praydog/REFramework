@@ -2085,6 +2085,21 @@ struct RETypeDB : public sdk::RETypeDB_ {
     sdk::REMethodDefinition* get_method_at(uintptr_t base, uint32_t index) const {
         return reinterpret_cast<sdk::REMethodDefinition*>(base + static_cast<size_t>(index) * get_method_stride());
     }
+
+    // Runtime stride for module array indexing.
+    // tdb81+ REModule is 0x40 bytes (no methods/instantiations/member_references).
+    // tdb74 and below REModule is 0x58 bytes (has methods/instantiations/member_references).
+    size_t get_module_stride() const {
+        if (sdk::GameIdentity::get().tdb_ver() >= 81)
+            return sizeof(sdk::tdb81::REModule);  // 0x40
+        return sizeof(sdk::tdb74::REModule);  // 0x58
+    }
+
+    // Stride-aware module element access.
+    sdk::REModule* get_module_at(uint32_t index) const {
+        auto base = reinterpret_cast<uintptr_t>(get_modules_ptr());
+        return reinterpret_cast<sdk::REModule*>(base + static_cast<size_t>(index) * get_module_stride());
+    }
 #endif
 };
 } // namespace sdk

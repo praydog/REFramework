@@ -128,7 +128,7 @@ const char* RETypeDefinition::get_namespace() const {
 #if TDB_VER >= 69
     auto& impl = (*tdb->get_typesImpl_ptr())[TDEF_FIELD(this, impl_index)];
 
-    const auto name_index = impl.namespace_offset;
+    const auto name_index = TIMPL_FIELD(impl, namespace_offset);
 #else
     const auto name_index = this->namespace_offset;
 #endif
@@ -142,7 +142,7 @@ const char* RETypeDefinition::get_name() const {
 #if TDB_VER >= 69
     auto& impl = (*tdb->get_typesImpl_ptr())[TDEF_FIELD(this, impl_index)];
 
-    const auto name_index = impl.name_offset;
+    const auto name_index = TIMPL_FIELD(impl, name_offset);
 #else
     const auto name_index = this->name_offset;
 #endif

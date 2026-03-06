@@ -52,7 +52,11 @@ sdk::REModule* RETypeDB::get_module(uint32_t index) const {
         return nullptr;
     }
 
+#ifdef REFRAMEWORK_UNIVERSAL
+    return get_module_at(index);
+#else
     return &(get_modules_ptr())[index];
+#endif
 }
 
 sdk::RETypeDefinition* RETypeDB::find_type(std::string_view name) const {
@@ -1279,33 +1283,66 @@ std::span<uint32_t> REModule::get_types() const {
 std::span<uint32_t> REModule::get_methods() const {
     auto tdb = RETypeDB::get();
 
+#ifdef REFRAMEWORK_UNIVERSAL
+    if (sdk::GameIdentity::get().tdb_ver() >= 81) {
+        spdlog::warn("This TDB version does not support REModule::get_methods()");
+        return {};
+    }
+    {
+        auto* mod74 = reinterpret_cast<const sdk::tdb74::REModule*>(this);
+        return std::span<uint32_t>{(uint32_t*)tdb->get_bytes(mod74->methods_start), (size_t)mod74->methods_count};
+    }
+#else
 #if TDB_VER >= 81
     spdlog::warn("This TDB version does not support REModule::get_methods()");
     return {};
 #else
     return std::span<uint32_t>{(uint32_t*)tdb->get_bytes(this->methods_start), (size_t)this->methods_count};
 #endif
+#endif
 }
 
 std::span<uint32_t> REModule::get_instantiated_methods() const {
     auto tdb = RETypeDB::get();
 
+#ifdef REFRAMEWORK_UNIVERSAL
+    if (sdk::GameIdentity::get().tdb_ver() >= 81) {
+        spdlog::warn("This TDB version does not support REModule::get_instantiated_methods()");
+        return {};
+    }
+    {
+        auto* mod74 = reinterpret_cast<const sdk::tdb74::REModule*>(this);
+        return std::span<uint32_t>{(uint32_t*)tdb->get_bytes(mod74->method_instantiations_start), (size_t)mod74->method_instantiations_count};
+    }
+#else
 #if TDB_VER >= 81
     spdlog::warn("This TDB version does not support REModule::get_instantiated_methods()");
     return {};
 #else
     return std::span<uint32_t>{(uint32_t*)tdb->get_bytes(this->method_instantiations_start), (size_t)this->method_instantiations_count};
 #endif
+#endif
 }
 
 std::span<uint32_t> REModule::get_member_references() const {
     auto tdb = RETypeDB::get();
 
+#ifdef REFRAMEWORK_UNIVERSAL
+    if (sdk::GameIdentity::get().tdb_ver() >= 81) {
+        spdlog::warn("This TDB version does not support REModule::get_member_references()");
+        return {};
+    }
+    {
+        auto* mod74 = reinterpret_cast<const sdk::tdb74::REModule*>(this);
+        return std::span<uint32_t>{(uint32_t*)tdb->get_bytes(mod74->member_references_start), (size_t)mod74->member_references_count};
+    }
+#else
 #if TDB_VER >= 81
     spdlog::warn("This TDB version does not support REModule::get_member_references()");
     return {};
 #else
     return std::span<uint32_t>{(uint32_t*)tdb->get_bytes(this->member_references_start), (size_t)this->member_references_count};
+#endif
 #endif
 }
 } // namespace sdk

@@ -3,6 +3,7 @@
 #include <chrono>
 #include <unordered_map>
 
+#include <sdk/GameIdentity.hpp>
 #include <sdk/intrusive_ptr.hpp>
 #include <sdk/ManagedObject.hpp>
 #include <sdk/renderer/PipelineState.hpp>
@@ -192,10 +193,14 @@ private:
 
     // There is a trend with newer games where there actually is Ultrawide support, so we don't want to actually touch the FOV by default
     // And sometimes messing with the FOV causes permanent issues with the UI, so don't touch it by default
+#ifdef REFRAMEWORK_UNIVERSAL
+    const ModToggle::Ptr m_ultrawide_custom_fov{ModToggle::create(generate_name("UltrawideCustomFOV"), sdk::GameIdentity::get().tdb_ver() >= 73)};
+#else
 #if TDB_VER >= 73
     const ModToggle::Ptr m_ultrawide_custom_fov{ModToggle::create(generate_name("UltrawideCustomFOV"), true)};
 #else
     const ModToggle::Ptr m_ultrawide_custom_fov{ModToggle::create(generate_name("UltrawideCustomFOV"), false)};
+#endif
 #endif
 
     const ModToggle::Ptr m_ultrawide_constrain_ui{ModToggle::create(generate_name("UltrawideConstrainUI"), false)};
