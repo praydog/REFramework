@@ -14,6 +14,7 @@
 #ifdef REFRAMEWORK_UNIVERSAL
 #include "sdk/regenny/re9/via/Window.hpp"
 #include "sdk/regenny/re9/via/SceneView.hpp"
+#include <sdk/ViaDispatch.hpp>
 #else
 #if TDB_VER >= 83
 #include "sdk/regenny/re9/via/Window.hpp"
@@ -661,6 +662,14 @@ bool Graphics::on_pre_gui_draw_element(REComponent* gui_element, void* primitive
 
 void Graphics::on_view_get_size(REManagedObject* scene_view, float* result) {
     if ((sdk::GameIdentity::get().is_sf6() || sdk::GameIdentity::get().is_dmc5() || sdk::GameIdentity::get().tdb_ver() >= 73) && m_ultrawide_fix->value()) {
+#ifdef REFRAMEWORK_UNIVERSAL
+        auto window = sdk::via::sv_window(scene_view);
+
+        if (window != nullptr && sdk::via::window_has_borderless(window)) {
+            sdk::via::window_borderless_w(window) = (float)sdk::via::window_width(window);
+            sdk::via::window_borderless_h(window) = (float)sdk::via::window_height(window);
+        }
+#else
         auto regenny_view = (regenny::via::SceneView*)scene_view;
         auto window = regenny_view->window;
 
@@ -668,6 +677,7 @@ void Graphics::on_view_get_size(REManagedObject* scene_view, float* result) {
             window->borderless_size.w = (float)window->width;
             window->borderless_size.h = (float)window->height;
         }
+#endif
     }
 
     if (!m_force_render_res_to_window->value() || !m_backbuffer_size.has_value()) {
@@ -679,10 +689,8 @@ void Graphics::on_view_get_size(REManagedObject* scene_view, float* result) {
         result[0] = (float)(*m_backbuffer_size)[0];
         result[1] = (float)(*m_backbuffer_size)[1];
     } else {
-        auto regenny_view = (regenny::via::SceneView*)scene_view;
-
-        regenny_view->size.w = (float)(*m_backbuffer_size)[0];
-        regenny_view->size.h = (float)(*m_backbuffer_size)[1];
+        sdk::via::sv_size_w(scene_view) = (float)(*m_backbuffer_size)[0];
+        sdk::via::sv_size_h(scene_view) = (float)(*m_backbuffer_size)[1];
     }
 #else
 #if TDB_VER < 73
