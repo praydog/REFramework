@@ -11,6 +11,9 @@
 #endif
 
 #include "RETypeDB.hpp"
+#ifdef REFRAMEWORK_UNIVERSAL
+#include "GameIdentity.hpp"
+#endif
 
 namespace sdk {
 // because the ReClass version looks like ass
@@ -98,8 +101,21 @@ namespace utility::re_transform {
         return nullptr;
     }
 
+#ifdef REFRAMEWORK_UNIVERSAL
+    // RE2/RE3 (TDB 70) RETransform has JointMatrices* at offset 0xC0.
+    // RE8+ RETransform has REJointArray.matrices (JointMatrices*) at offset 0xE0.
+    static JointMatrices* get_joint_matrices(const ::RETransform& transform) {
+        const auto& gi = sdk::GameIdentity::get();
+        if (gi.is_re2() || gi.is_re3()) {
+            return *reinterpret_cast<JointMatrices* const*>(reinterpret_cast<uintptr_t>(&transform) + 0xC0);
+        }
+        return transform.joints.matrices;
+    }
+#endif
     static Matrix4x4f& get_joint_matrix_by_index(const ::RETransform& transform, uint32_t index) {
-#if TDB_VER >= 70 && (defined(RE2) || defined(RE3) || defined(RE7))
+#ifdef REFRAMEWORK_UNIVERSAL
+        return get_joint_matrices(transform)->data[index].worldMatrix;
+#elif TDB_VER >= 70 && (defined(RE2) || defined(RE3) || defined(RE7))
         return transform.jointMatrices->data[index].worldMatrix;
 #else
         return transform.joints.matrices->data[index].worldMatrix;
@@ -111,7 +127,9 @@ namespace utility::re_transform {
         auto joint = get_joint(transform, name);
 
         if (joint != nullptr && joint->info != nullptr) {
-#if TDB_VER >= 70 && (defined(RE2) || defined(RE3) || defined(RE7))
+#ifdef REFRAMEWORK_UNIVERSAL
+            return get_joint_matrices(transform)->data[((sdk::Joint*)joint)->get_joint_index()].worldMatrix;
+#elif TDB_VER >= 70 && (defined(RE2) || defined(RE3) || defined(RE7))
             return transform.jointMatrices->data[((sdk::Joint*)joint)->get_joint_index()].worldMatrix;
 #else
             return transform.joints.matrices->data[((sdk::Joint*)joint)->get_joint_index()].worldMatrix;
@@ -123,7 +141,9 @@ namespace utility::re_transform {
 
     static Matrix4x4f& get_joint_matrix(const ::RETransform& transform, REJoint* joint) {
         if (joint != nullptr && joint->info != nullptr) {
-#if TDB_VER >= 70 && (defined(RE2) || defined(RE3) || defined(RE7))
+#ifdef REFRAMEWORK_UNIVERSAL
+            return get_joint_matrices(transform)->data[((sdk::Joint*)joint)->get_joint_index()].worldMatrix;
+#elif TDB_VER >= 70 && (defined(RE2) || defined(RE3) || defined(RE7))
             return transform.jointMatrices->data[((sdk::Joint*)joint)->get_joint_index()].worldMatrix;
 #else
             return transform.joints.matrices->data[((sdk::Joint*)joint)->get_joint_index()].worldMatrix;

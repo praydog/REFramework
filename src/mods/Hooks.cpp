@@ -467,7 +467,7 @@ std::optional<std::string> Hooks::hook_all_application_entries() {
     for (auto i = 0; i < 1024; ++i) {
         auto entry = application->get_function(i);
 
-        if (entry == nullptr || entry->description == nullptr) {
+        if (entry == nullptr || entry->get_description() == nullptr) {
             continue;
         }
 
@@ -482,19 +482,19 @@ std::optional<std::string> Hooks::hook_all_application_entries() {
             continue;
         }*/
 
-        spdlog::info("{} {} entry: {:x}", i, entry->description, (uintptr_t)entry);
+        spdlog::info("{} {} entry: {:x}", i, entry->get_description(), (uintptr_t)entry);
 
-        auto generated_hook = generate_hook_func((const char*)entry->description, (uintptr_t)&global_application_entry_hook);
+        auto generated_hook = generate_hook_func((const char*)entry->get_description(), (uintptr_t)&global_application_entry_hook);
 
         //m_application_entry_hooks[entry->description] = std::make_unique<FunctionHook>(func, generated_hook);
         
         // We are just going to replace the pointer to the function for now
         // Doing a full hook with FunctionHook eats up a lot of initialization time because of
         // the constant thread suspension. 
-        m_application_entry_hooks[entry->description] = func;
+        m_application_entry_hooks[entry->get_description()] = func;
         entry->func = (void (*)(void*))generated_hook;
 
-        spdlog::info("Hooked {} {:x}->{:x}", entry->description, (uintptr_t)func, (uintptr_t)generated_hook);
+        spdlog::info("Hooked {} {:x}->{:x}", entry->get_description(), (uintptr_t)func, (uintptr_t)generated_hook);
     }
 
     /*for (auto& entry : m_application_entry_hooks) {

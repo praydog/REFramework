@@ -3147,13 +3147,13 @@ void VR::on_end_rendering(void* entry) {
 
             for (auto& entry : entries_to_remove) {
                 chain.erase(std::remove_if(chain.begin(), chain.end(), [&](auto& func) {
-                    return entry == func->description;
+                    return entry == func->get_description();
                 }), chain.end());
             }
 
             if (sdk::GameIdentity::get().tdb_ver() < 73) {
                 chain.erase(std::remove_if(chain.begin(), chain.end(), [](auto& func) {
-                    return func->description == "RenderLandscape";
+                    return func->get_description() == std::string_view{"RenderLandscape"};
                 }), chain.end());
             }
         }
