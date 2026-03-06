@@ -91,3 +91,44 @@ struct RopewayPlayerCameraController_RE2 : public REBehavior {
     (sdk::GameIdentity::get().is_re2() \
         ? reinterpret_cast<sdk::re2::RopewayPlayerCameraController_RE2*>(ptr)->field \
         : (ptr)->field)
+
+// ---------------------------------------------------------------------------
+// RE3-specific RopewayMainCameraController (fields shifted +0x10 after cameraPosition)
+// RE3 has extra cameraDampingCameraPosition at 0x90, pushing everything down.
+// RE2 and RE8 share the same layout.
+// ---------------------------------------------------------------------------
+namespace sdk::re3 {
+struct RopewayMainCameraController_RE3 : public REBehavior {
+    char pad_0048[9];                                       // 0x0048
+    bool updateCamera;                                      // 0x0051
+    char pad_0052[6];                                       // 0x0052
+    class RopewayCameraStatus* cameraStatus;                // 0x0058
+    Vector4f cameraObjectPosition;                          // 0x0060
+    Vector4f cameraObjectRotation;                          // 0x0070
+    Vector4f cameraPosition;                                // 0x0080
+    Vector4f cameraDampingCameraPosition;                   // 0x0090  <-- RE3 only
+    Vector4f cameraRotation;                                // 0x00A0
+    char pad_00B0[4];                                       // 0x00B0
+    float fov;                                              // 0x00B4
+    bool controllerEnabled;                                 // 0x00B8
+    char pad_00B9[3];                                       // 0x00B9
+    float switchBusyTime;                                   // 0x00BC
+    float switchInterpolationTime;                          // 0x00C0
+    char pad_00C4[4];                                       // 0x00C4
+    class REAnimationCurve* N00000817;                      // 0x00C8
+    class DotNetGenericList* cameraShakes;                  // 0x00D0
+    class REGameObject* mainCameraObject;                   // 0x00D8
+    class RECamera* mainCamera;                             // 0x00E0
+    class REJoint* N0000081B;                               // 0x00E8
+    class AppliedCameraShakeParam* appliedCameraShakeParam; // 0x00F0
+    char pad_00F8[88];                                      // 0x00F8
+};
+} // namespace sdk::re3
+
+// RopewayMainCameraController field dispatch (RE3 shifted +0x10 vs RE2/RE8).
+// Only use for fields AFTER cameraPosition (0x80). Fields at/before 0x80 are identical.
+// updateCamera (0x51) is also identical — no dispatch needed.
+#define MAINCAM(ptr, field) \
+    (sdk::GameIdentity::get().is_re3() \
+        ? reinterpret_cast<sdk::re3::RopewayMainCameraController_RE3*>(ptr)->field \
+        : (ptr)->field)

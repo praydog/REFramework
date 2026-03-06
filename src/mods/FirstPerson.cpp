@@ -1529,7 +1529,7 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
             auto c = CAMSYS(m_camera_system, mainCameraController);
 
             if (is_player_camera) {
-                auto len = c->switchInterpolationTime;
+                auto len = MAINCAM(c, switchInterpolationTime);
                 
                 if (len == 0.0f) {
                     len = 1.0f;
@@ -1584,7 +1584,7 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
             CAMCTRL(m_player_camera_controller, yaw) = m_last_controller_angles.y;
         }
 
-        CAMSYS(m_camera_system, mainCameraController)->cameraRotation = *(Vector4f*)&m_last_controller_rotation;
+        MAINCAM(CAMSYS(m_camera_system, mainCameraController), cameraRotation) = *(Vector4f*)&m_last_controller_rotation;
         CAMSYS(m_camera_system, cameraController)->worldRotation = *(Vector4f*)&m_last_controller_rotation;
 
         m_has_cutscene_rotation = false;
@@ -1722,7 +1722,7 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
         }
 
         CAMSYS(m_camera_system, mainCameraController)->cameraPosition = m_last_controller_pos;
-        CAMSYS(m_camera_system, mainCameraController)->cameraRotation = *(Vector4f*)&final_quat_pre_vr;
+        MAINCAM(CAMSYS(m_camera_system, mainCameraController), cameraRotation) = *(Vector4f*)&final_quat_pre_vr;
         CAMSYS(m_camera_system, cameraController)->worldRotation = *(Vector4f*)&final_quat_pre_vr;
 
         //if (!is_switching_to_player_camera) {
@@ -1843,7 +1843,7 @@ void FirstPerson::update_fov(RopewayPlayerCameraController* controller) {
         && CAMSYS(m_camera_system, cameraController)->cameraParam != nullptr
         && CAMSYS(m_camera_system, cameraController)->activeCamera != nullptr
         && CAMSYS(m_camera_system, mainCameraController) != nullptr
-        && CAMSYS(m_camera_system, mainCameraController)->mainCamera != nullptr;
+        && MAINCAM(CAMSYS(m_camera_system, mainCameraController), mainCamera) != nullptr;
 
     if (!is_active_camera) { 
         return; 
@@ -1862,12 +1862,12 @@ void FirstPerson::update_fov(RopewayPlayerCameraController* controller) {
                 auto delta = prev_value - new_value;
 
                 m_fov_offset->value() += delta;
-                CAMSYS(m_camera_system, mainCameraController)->mainCamera->fov = (param->fov * m_fov_mult->value()) + m_fov_offset->value();
-                CAMCTRL(controller, activeCamera)->fov = CAMSYS(m_camera_system, mainCameraController)->mainCamera->fov;
+                MAINCAM(CAMSYS(m_camera_system, mainCameraController), mainCamera)->fov = (param->fov * m_fov_mult->value()) + m_fov_offset->value();
+                CAMCTRL(controller, activeCamera)->fov = MAINCAM(CAMSYS(m_camera_system, mainCameraController), mainCamera)->fov;
             }
             else {
-                CAMSYS(m_camera_system, mainCameraController)->mainCamera->fov = new_value;
-                CAMCTRL(controller, activeCamera)->fov = CAMSYS(m_camera_system, mainCameraController)->mainCamera->fov;
+                MAINCAM(CAMSYS(m_camera_system, mainCameraController), mainCamera)->fov = new_value;
+                CAMCTRL(controller, activeCamera)->fov = MAINCAM(CAMSYS(m_camera_system, mainCameraController), mainCamera)->fov;
             }
 
             m_last_player_fov = CAMCTRL(controller, activeCamera)->fov;
@@ -1877,7 +1877,7 @@ void FirstPerson::update_fov(RopewayPlayerCameraController* controller) {
                 m_last_player_fov = 90.0f;
             }
 
-            CAMSYS(m_camera_system, mainCameraController)->mainCamera->fov = m_last_player_fov;
+            MAINCAM(CAMSYS(m_camera_system, mainCameraController), mainCamera)->fov = m_last_player_fov;
             CAMCTRL(controller, activeCamera)->fov = m_last_player_fov;
         }
         
