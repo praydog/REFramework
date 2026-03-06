@@ -80,6 +80,17 @@ struct REField69 {
     uint64_t offset : 26;
 };
 static_assert(sizeof(REField69) == 8);
+
+// tdb69 REParamDef: 12 bytes (type_id is 18 bits, not 19)
+struct REParamDef69 {
+    uint16_t attributes_id;
+    uint16_t init_data_index;
+    uint32_t name_offset : 30;
+    uint32_t modifier : 2;
+    uint32_t type_id : 18;
+    uint32_t flags : 14;
+};
+static_assert(sizeof(REParamDef69) == 12);
 } // namespace tdb_bits18
 
 // ============================================================================
@@ -131,12 +142,20 @@ inline bool needs_18bit() {
     (sdk::tdb_dispatch::needs_18bit() \
         ? reinterpret_cast<const sdk::tdb_bits18::REField69*>(ptr)->field \
         : (ptr)->field)
+
+// TPARAM_FIELD: Read a bitfield from a REParameterDef pointer with runtime dispatch.
+// For TDB < 73 (tdb69), casts to REParamDef69.
+#define TPARAM_FIELD(ptr, field) \
+    (sdk::tdb_dispatch::needs_18bit() \
+        ? reinterpret_cast<const sdk::tdb_bits18::REParamDef69*>(ptr)->field \
+        : (ptr)->field)
 #else // Non-universal builds: no dispatch needed, direct access.
 
 #define TDEF_FIELD(ptr, field) ((ptr)->field)
 #define TDEF_FIELD_SET(ptr, field, value) ((ptr)->field = (value))
 #define TMETH_FIELD(ptr, field) ((ptr)->field)
 #define TFIELD_FIELD(ptr, field) ((ptr)->field)
+#define TPARAM_FIELD(ptr, field) ((ptr)->field)
 
 #endif // REFRAMEWORK_UNIVERSAL
 

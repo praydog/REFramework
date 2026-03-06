@@ -2,6 +2,7 @@
 #include <utility/Scan.hpp>
 #include <utility/Module.hpp>
 
+#include "GameIdentity.hpp"
 #include "reframework/API.hpp"
 #include "RETypeDB.hpp"
 
@@ -398,7 +399,26 @@ void* REField::get_data_raw(void* object, bool is_value_type) const {
             return Address{object}.get(this->get_offset_from_fieldptr());
         }
 
-#if TDB_VER >= 81
+#ifdef REFRAMEWORK_UNIVERSAL
+        if (sdk::GameIdentity::get().tdb_ver() >= 81) {
+            // Read fieldptr_offset from the object's own vtable, not from the
+            // declaring type's managed_vt. For abstract declaring types,
+            // get_managed_vt() walks up the parent chain and can return an
+            // ancestor's vtable with a WRONG fieldptr_offset. The object's
+            // vtable always has the correct value — this matches what the
+            // .NET runtime does in RuntimeFieldInfo.GetValue.
+            if (object != nullptr) try {
+                const auto vtable_ptr = *(uintptr_t*)object;
+                if (vtable_ptr != 0) {
+                    const auto fieldptr_offset = *(int32_t*)(vtable_ptr - sizeof(void*));
+                    return Address{object}.get(fieldptr_offset + this->get_offset_from_fieldptr());
+                }
+            } catch (...) {
+                // Occurs if consumer passes some bad object in. Need to look into this more.
+                return nullptr;
+            }
+        }
+#elif TDB_VER >= 81
         // Read fieldptr_offset from the object's own vtable, not from the
         // declaring type's managed_vt. For abstract declaring types,
         // get_managed_vt() walks up the parent chain and can return an
@@ -452,11 +472,11 @@ sdk::RETypeDefinition* REMethodDefinition::get_return_type() const {
     const auto return_param_id = param_ids->returnType;
     const auto& p = (*tdb->get_params_ptr())[return_param_id];
 
-    if (p.type_id == 0) {
+    if (TPARAM_FIELD(&p, type_id) == 0) {
         return nullptr;
     }
 
-    const auto return_typeid = p.type_id;
+    const auto return_typeid = TPARAM_FIELD(&p, type_id);
 #elif TDB_VER >= 66
     const auto return_typeid = (uint32_t)this->return_typeid;
 #else
@@ -1144,7 +1164,7 @@ std::vector<uint32_t> REMethodDefinition::get_param_typeids() const {
 
         auto& p = (*tdb->get_params_ptr())[param_index];
 
-        out.push_back(p.type_id);
+        out.push_back(TPARAM_FIELD(&p, type_id));
     }
 
     return out;

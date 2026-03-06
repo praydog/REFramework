@@ -3,6 +3,7 @@
 #include "utility/Scan.hpp"
 #include "utility/Module.hpp"
 
+#include "GameIdentity.hpp"
 #include "RETypeDB.hpp"
 #include "RETypes.hpp"
 
@@ -17,6 +18,18 @@ std::string& game_namespace(std::string_view base_name)
 {
     using namespace std::string_view_literals;
 
+#ifdef REFRAMEWORK_UNIVERSAL
+    static const std::string_view prefix = []() -> std::string_view {
+        const auto& gi = sdk::GameIdentity::get();
+        switch (gi.game()) {
+            case sdk::GameID::RE2: return "app.ropeway."sv;
+            case sdk::GameID::RE3: return "offline."sv;
+            case sdk::GameID::RE4: return "chainsaw."sv;
+            case sdk::GameID::MHRISE: return "snow."sv;
+            default: return "app."sv;  // RE7, RE8, RE9, DMC5, SF6, DD2, MHWILDS, etc.
+        }
+    }();
+#else
     static constexpr std::string_view prefix{
 #if TDB_VER >= 74
     "app."sv
@@ -32,6 +45,7 @@ std::string& game_namespace(std::string_view base_name)
     "app.ropeway."sv
 #endif
     };
+#endif
 
     static thread_local std::string buffer = [&]
     {

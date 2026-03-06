@@ -6,6 +6,7 @@
 #include "ReClass.hpp"
 
 #include "REManagedObject.hpp"
+#include "GameIdentity.hpp"
 
 using namespace utility::re_type_accessor;
 
@@ -253,7 +254,50 @@ bool is_managed_object(Address address) {
         return false;
     }
 
-#if TDB_VER >= 71
+#ifdef REFRAMEWORK_UNIVERSAL
+    const auto& gi = sdk::GameIdentity::get();
+    if (gi.tdb_ver() >= 71) {
+        const auto td = (sdk::RETypeDefinition*)class_info;
+
+        if ((uintptr_t)td->managed_vt != (uintptr_t)object->info) {
+            // This allows for cases when a vtable hook is being used to replace this pointer.
+            if (IsBadReadPtr(td->managed_vt, sizeof(void*)) || *(sdk::RETypeDefinition**)td->managed_vt != td) {
+                return false;
+            }
+        }
+
+        if (td->type == nullptr) {
+            return false;
+        }
+
+        if (IsBadReadPtr(td->type, sizeof(REType)) || td->type->name == nullptr) {
+            return false;
+        }
+
+        if (IsBadReadPtr(td->type->name, sizeof(void*))) {
+            return false;
+        }
+    } else {
+        if (class_info->parentInfo != object->info) {
+            // This allows for cases when a vtable hook is being used to replace this pointer.
+            if (IsBadReadPtr(class_info->parentInfo, sizeof(void*)) || class_info->parentInfo->classInfo != class_info) {
+                return false;
+            }
+        }
+
+        if (class_info->type == nullptr) {
+            return false;
+        }
+
+        if (IsBadReadPtr(class_info->type, sizeof(REType)) || class_info->type->name == nullptr) {
+            return false;
+        }
+
+        if (IsBadReadPtr(class_info->type->name, sizeof(void*))) {
+            return false;
+        }
+    }
+#elif TDB_VER >= 71
     const auto td = (sdk::RETypeDefinition*)class_info;
 
     if ((uintptr_t)td->managed_vt != (uintptr_t)object->info) {
@@ -342,7 +386,26 @@ REType* get_type(::REManagedObject* object) {
         return nullptr;
     }
 
-#if TDB_VER >= 71
+#ifdef REFRAMEWORK_UNIVERSAL
+    const auto& gi = sdk::GameIdentity::get();
+    if (gi.tdb_ver() >= 71) {
+        const auto td = get_type_definition(object);
+
+        if (td == nullptr) {
+            return nullptr;
+        }
+
+        return td->type;
+    } else {
+        auto class_info = info->classInfo;
+
+        if (class_info == nullptr) {
+            return nullptr;
+        }
+
+        return class_info->type;
+    }
+#elif TDB_VER >= 71
     const auto td = get_type_definition(object);
 
     if (td == nullptr) {
@@ -426,7 +489,14 @@ via::clr::VMObjType get_vm_type(::REManagedObject* object) {
         return via::clr::VMObjType::NULL_;
     }
 
-#if TDB_VER >= 71
+#ifdef REFRAMEWORK_UNIVERSAL
+    const auto& gi = sdk::GameIdentity::get();
+    if (gi.tdb_ver() >= 71) {
+        return get_type_definition(object)->get_vm_obj_type();
+    } else {
+        return (via::clr::VMObjType)(info->classInfo->objectFlags >> 5);
+    }
+#elif TDB_VER >= 71
     return get_type_definition(object)->get_vm_obj_type();
 #elif TDB_VER >= 69
     return (via::clr::VMObjType)(info->classInfo->objectFlags >> 5);

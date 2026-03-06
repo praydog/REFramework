@@ -9,6 +9,10 @@
 #include "renderer/RenderResource.hpp"
 #include "renderer/PipelineState.hpp"
 
+#ifdef REFRAMEWORK_UNIVERSAL
+#include "GameIdentity.hpp"
+#endif
+
 class REType;
 struct ID3D12Resource;
 
@@ -53,19 +57,25 @@ public:
     }
 
     DirectXResource<ID3D12Resource>* get_d3d12_resource_container() {
-        return *(DirectXResource<ID3D12Resource>**)((uintptr_t)this + s_d3d12_resource_offset);
+        return *(DirectXResource<ID3D12Resource>**)((uintptr_t)this + get_s_d3d12_resource_offset());
     }
 
 private:
-#if TDB_VER >= 71
-    static constexpr inline auto s_d3d12_resource_offset = 0xA0;
+#ifdef REFRAMEWORK_UNIVERSAL
+    static inline uintptr_t get_s_d3d12_resource_offset() {
+        const auto v = sdk::GameIdentity::get().tdb_ver();
+        if (v >= 71) return 0xA0;
+        return 0x98; // TDB 69, 70
+    }
+#elif TDB_VER >= 71
+    static constexpr inline auto get_s_d3d12_resource_offset() { return (uintptr_t)0xA0; }
 #elif TDB_VER == 70
-    static constexpr inline auto s_d3d12_resource_offset = 0x98;
+    static constexpr inline auto get_s_d3d12_resource_offset() { return (uintptr_t)0x98; }
 #elif TDB_VER == 69
-    static constexpr inline auto s_d3d12_resource_offset = 0x98;
+    static constexpr inline auto get_s_d3d12_resource_offset() { return (uintptr_t)0x98; }
 #else
     // TODO? might not be right offset
-    static constexpr inline auto s_d3d12_resource_offset = 0x98;
+    static constexpr inline auto get_s_d3d12_resource_offset() { return (uintptr_t)0x98; }
 #endif
 };
 
@@ -88,28 +98,33 @@ public:
     }
 
     Texture* get_texture_d3d12() const {
-        return *(Texture**)((uintptr_t)this + s_texture_d3d12_offset);
+        return *(Texture**)((uintptr_t)this + get_s_texture_d3d12_offset());
     }
 
     TargetState* get_target_state_d3d12() const {
-        return *(TargetState**)((uintptr_t)this + s_target_state_d3d12_offset);
+        return *(TargetState**)((uintptr_t)this + get_s_texture_d3d12_offset() - sizeof(void*));
     }
 
 private:
     Desc m_desc;
 
-#if TDB_VER >= 71 // untested on 73
-    static constexpr inline auto s_texture_d3d12_offset = 0x98;
+#ifdef REFRAMEWORK_UNIVERSAL
+    static inline uintptr_t get_s_texture_d3d12_offset() {
+        const auto v = sdk::GameIdentity::get().tdb_ver();
+        if (v >= 71) return 0x98;
+        if (v == 70) return 0x90;
+        return 0x88; // TDB 69 and below
+    }
+#elif TDB_VER >= 71 // untested on 73
+    static constexpr inline uintptr_t get_s_texture_d3d12_offset() { return 0x98; }
 #elif TDB_VER == 70
-    static constexpr inline auto s_texture_d3d12_offset = 0x90;
+    static constexpr inline uintptr_t get_s_texture_d3d12_offset() { return 0x90; }
 #elif TDB_VER == 69
-    static constexpr inline auto s_texture_d3d12_offset = 0x88;
+    static constexpr inline uintptr_t get_s_texture_d3d12_offset() { return 0x88; }
 #elif TDB_VER <= 67
     // TODO: 66 and below
-    static constexpr inline auto s_texture_d3d12_offset = 0x88;
+    static constexpr inline uintptr_t get_s_texture_d3d12_offset() { return 0x88; }
 #endif
-
-    static constexpr inline auto s_target_state_d3d12_offset = s_texture_d3d12_offset - sizeof(void*);
 };
 
 static_assert(sizeof(RenderTargetView::Desc) == 0x14);
@@ -344,22 +359,28 @@ private:
 class PrepareOutput : public sdk::renderer::RenderLayer {
 public:
     sdk::renderer::TargetState* get_output_state() {
-        return *(sdk::renderer::TargetState**)((uintptr_t)this + s_output_state_offset);
+        return *(sdk::renderer::TargetState**)((uintptr_t)this + get_s_output_state_offset());
     }
 
     void set_output_state(sdk::renderer::TargetState* state) {
         state->add_ref();
-        *(sdk::renderer::TargetState**)((uintptr_t)this + s_output_state_offset) = state;
+        *(sdk::renderer::TargetState**)((uintptr_t)this + get_s_output_state_offset()) = state;
     }
 
 private:
-#if TDB_VER >= 71
+#ifdef REFRAMEWORK_UNIVERSAL
+    static inline uintptr_t get_s_output_state_offset() {
+        const auto v = sdk::GameIdentity::get().tdb_ver();
+        if (v >= 71) return 0x108;
+        return 0xF8; // TDB 69, 70
+    }
+#elif TDB_VER >= 71
     // verify for other games, this is for RE4
-    static constexpr inline auto s_output_state_offset = 0x108;
+    static constexpr inline uintptr_t get_s_output_state_offset() { return 0x108; }
 #elif TDB_VER >= 69
-    static constexpr inline auto s_output_state_offset = 0xF8;
+    static constexpr inline uintptr_t get_s_output_state_offset() { return 0xF8; }
 #else
-    static constexpr inline auto s_output_state_offset = 0xF8; // TODO! VERIFY!
+    static constexpr inline uintptr_t get_s_output_state_offset() { return 0xF8; } // TODO! VERIFY!
 #endif
 };
 
@@ -373,19 +394,27 @@ class PostEffect : public sdk::renderer::RenderLayer {
 class RenderOutput {
 public:
     sdk::NativeArray<sdk::renderer::layer::Scene*>& get_scene_layers() {
-        return *(sdk::NativeArray<sdk::renderer::layer::Scene*>*)((uintptr_t)this + s_scene_layers_offset);
+        return *(sdk::NativeArray<sdk::renderer::layer::Scene*>*)((uintptr_t)this + get_s_scene_layers_offset());
     }
 
 private:
-#if TDB_VER >= 71
+#ifdef REFRAMEWORK_UNIVERSAL
+    static inline uintptr_t get_s_scene_layers_offset() {
+        const auto v = sdk::GameIdentity::get().tdb_ver();
+        if (v >= 71) return 0x98;
+        if (v >= 70) return 0xB8;
+        if (v == 69) return 0x98;
+        return 0x98; // TODO! VERIFY!
+    }
+#elif TDB_VER >= 71
     // verify for other games, this is for RE4
-    static constexpr inline auto s_scene_layers_offset = 0x98;
+    static constexpr inline uintptr_t get_s_scene_layers_offset() { return 0x98; }
 #elif TDB_VER >= 70
-    static constexpr inline auto s_scene_layers_offset = 0xB8;
+    static constexpr inline uintptr_t get_s_scene_layers_offset() { return 0xB8; }
 #elif TDB_VER == 69
-    static constexpr inline auto s_scene_layers_offset = 0x98;
+    static constexpr inline uintptr_t get_s_scene_layers_offset() { return 0x98; }
 #else
-    static constexpr inline auto s_scene_layers_offset = 0x98; // TODO! VERIFY!
+    static constexpr inline uintptr_t get_s_scene_layers_offset() { return 0x98; } // TODO! VERIFY!
 #endif
 };
 
