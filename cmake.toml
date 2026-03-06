@@ -97,6 +97,15 @@ tag = "2a706fd2ba355808cada31ac1eed8ce28caa6b37"
 git = "https://github.com/KhronosGroup/OpenXR-SDK"
 tag = "458984d7f59d1ae6dc1b597d94b02e4f7132eaba"
 
+[target.pdperfmod]
+type = "shared"
+include-directories = ["dependencies/pd-perfmod/include"]
+sources = ["dependencies/pd-perfmod/dummy/**.cpp"]
+condition = "build-framework-dependencies"
+
+[target.pdperfmod.properties]
+OUTPUT_NAME = "PDPerfPlugin"
+
 [fetch-content.directxtk]
 git = "https://github.com/microsoft/DirectXTK"
 tag = "f5026eb34e7053b1aff325d38db107703f394974"
@@ -271,7 +280,8 @@ link-libraries = [
     "openxr_loader",
     "delayimp",
     "DirectXTK",
-    "DirectXTK12"
+    "DirectXTK12",
+    "pdperfmod"
 ]
 cmake-before="""
 """
@@ -285,7 +295,7 @@ add_custom_command(
 
 [template.game.properties]
 OUTPUT_NAME = "dinput8"
-LINK_FLAGS = "/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll /DELAYLOAD:d3d11.dll /DELAYLOAD:d3d12.dll /DELAYLOAD:D3DCOMPILER_47.dll"
+LINK_FLAGS = "/DELAYLOAD:openvr_api.dll /DELAYLOAD:openxr_loader.dll /DELAYLOAD:PDPerfPlugin.dll /DELAYLOAD:d3d11.dll /DELAYLOAD:d3d12.dll /DELAYLOAD:D3DCOMPILER_47.dll"
 RUNTIME_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO = "${CMAKE_BINARY_DIR}/bin/${CMKR_TARGET}"
 LIBRARY_OUTPUT_DIRECTORY_RELEASE = "${CMAKE_BINARY_DIR}/lib/${CMKR_TARGET}"

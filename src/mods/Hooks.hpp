@@ -128,6 +128,14 @@ private:
             return error;
         }
 
+        if (auto error = hook_render_layer(m_layer_hooks.output); error.has_value()) {
+            return error;
+        }
+
+        if (auto error = hook_render_layer(m_layer_hooks.prepare_output); error.has_value()) {
+            return error;
+        }
+
         return std::nullopt;
     }
 
@@ -170,6 +178,8 @@ protected:
         RenderLayerHook<sdk::renderer::layer::Overlay> overlay{"via.render.layer.Overlay"};
         RenderLayerHook<sdk::renderer::layer::PostEffect> post_effect{"via.render.layer.PostEffect"};
         RenderLayerHook<sdk::renderer::layer::Scene> scene{"via.render.layer.Scene"};
+        RenderLayerHook<sdk::renderer::layer::PrepareOutput> prepare_output{"via.render.layer.PrepareOutput"};
+        RenderLayerHook<sdk::renderer::layer::Output> output{"via.render.layer.Output"};
     } m_layer_hooks;
 
     std::unordered_map<const char*, void (*)(void*)> m_application_entry_hooks;

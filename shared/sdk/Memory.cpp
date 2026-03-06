@@ -6,8 +6,9 @@
 
 namespace sdk {
 namespace memory {
-void* allocate(size_t size) {
-    static decltype(sdk::memory::allocate)* allocate_fn = []() -> decltype(sdk::memory::allocate)* {
+void* allocate(size_t size, bool zero_memory) {
+    using allocate_fn_t = void* (*)(size_t);
+    static allocate_fn_t allocate_fn = []() -> allocate_fn_t {
         spdlog::info("[via::memory::allocate] Finding allocate function...");
 
         // this pattern literally works back to the very first version of the RE Engine!
@@ -23,7 +24,7 @@ void* allocate(size_t size) {
 
         spdlog::info("[via::memory::allocate] Ref {:x}", (uintptr_t)*ref);
 
-        auto fn = (decltype(sdk::memory::allocate)*)utility::calculate_absolute(*ref + 6);
+        auto fn = (allocate_fn_t)utility::calculate_absolute(*ref + 6);
 
         if (!fn) {
             spdlog::error("[via::memory::allocate] Failed to calculate allocate function!");
@@ -35,7 +36,13 @@ void* allocate(size_t size) {
         return fn;
     }();
 
-    return allocate_fn(size);
+    auto result = allocate_fn(size);
+
+    if (zero_memory && result != nullptr) {
+        memset(result, 0, size);
+    }
+
+    return result;
 }
 
 void deallocate(void* ptr) {
