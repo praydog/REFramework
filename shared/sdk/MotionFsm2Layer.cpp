@@ -41,7 +41,34 @@ std::vector<TreeNode*> TreeNode::get_children() const {
 }
 
 std::vector<::REManagedObject*> TreeNode::get_unloaded_actions() const {
-#if TDB_VER >= 69
+#ifdef REFRAMEWORK_UNIVERSAL
+    if (sdk::GameIdentity::get().tdb_ver() >= 69) {
+        const auto tree_data = get_data();
+
+        if (tree_data == nullptr) {
+            return {};
+        }
+
+        const auto tree_owner = this->get_owner();
+    
+        if (tree_owner == nullptr) {
+            return {};
+        }
+    
+        std::vector<::REManagedObject*> out{};
+
+        for (auto i = 0; i < tree_data->actions.count; ++i) {
+            const auto action_index = tree_data->actions.data[i];
+            const auto action = tree_owner->get_unloaded_action(action_index);
+
+            out.push_back(action);
+        }
+
+        return out;
+    } else {
+        return {};
+    }
+#elif TDB_VER >= 69
     const auto tree_data = get_data();
 
     if (tree_data == nullptr) {
@@ -326,7 +353,29 @@ void BehaviorTree::set_current_node(sdk::behaviortree::TreeNode* node, uint32_t 
 }
 
 bool TreeObject::is_delayed() const {
-    #if TDB_VER >= 69
+#ifdef REFRAMEWORK_UNIVERSAL
+    if (sdk::GameIdentity::get().tdb_ver() >= 69) {
+        static auto bhvt_manager = sdk::get_native_singleton("via.behaviortree.BehaviorTreeManager");
+        static auto bhvt_manager_t = sdk::find_type_definition("via.behaviortree.BehaviorTreeManager");
+        static auto bhvt_manager_retype = bhvt_manager_t->get_type();
+        static auto is_delay_setup_objects_prop = utility::re_type::get_field_desc(bhvt_manager_retype, "DelaySetupObjects");
+
+        const auto is_delay_setup_objects = utility::re_managed_object::get_field<bool>((::REManagedObject*)bhvt_manager, is_delay_setup_objects_prop);
+
+        if (!is_delay_setup_objects) {
+            // For some reason this can happen
+            if (this->actions.count == 0 && this->conditions.count == 0 && this->transitions.count == 0) {
+                if (this->delayed_actions.count > 0 || this->delayed_conditions.count > 0 || this->delayed_transitions.count > 0) {
+                    return true;
+                }
+            }
+        }
+
+        return is_delay_setup_objects;
+    } else {
+        return false;
+    }
+#elif TDB_VER >= 69
     static auto bhvt_manager = sdk::get_native_singleton("via.behaviortree.BehaviorTreeManager");
     static auto bhvt_manager_t = sdk::find_type_definition("via.behaviortree.BehaviorTreeManager");
     static auto bhvt_manager_retype = bhvt_manager_t->get_type();
@@ -342,11 +391,12 @@ bool TreeObject::is_delayed() const {
             }
         }
     }
-#else
-    const auto is_delay_setup_objects = false;
-#endif
 
     return is_delay_setup_objects;
+#else
+    const auto is_delay_setup_objects = false;
+    return is_delay_setup_objects;
+#endif
 }
 
 void TreeObject::relocate(uintptr_t old_start, uintptr_t old_end, sdk::NativeArrayNoCapacity<TreeNode>& new_nodes) {
@@ -435,7 +485,29 @@ void CoreHandle::relocate_datas(uintptr_t old_start, uintptr_t old_end, sdk::Nat
 
         return (::REManagedObject*)this->data->static_actions.objects[new_idx];
     } else {
-#if TDB_VER >= 69
+#ifdef REFRAMEWORK_UNIVERSAL
+        if (sdk::GameIdentity::get().tdb_ver() >= 69) {
+            if (is_delay_setup_objects) {
+                if (index >= this->delayed_actions.count || this->delayed_actions.objects == nullptr) {
+                    return nullptr;
+                }
+
+                return (::REManagedObject*)this->delayed_actions.objects[index];
+            } else {
+                if (index >= this->actions.count || this->actions.objects == nullptr) {
+                    return nullptr;
+                }
+
+                return (::REManagedObject*)this->actions.objects[index];
+            }
+        } else {
+            if (index >= this->actions.count || this->actions.objects == nullptr) {
+                return nullptr;
+            }
+
+            return (::REManagedObject*)this->actions.objects[index];
+        }
+#elif TDB_VER >= 69
         if (is_delay_setup_objects) {
             if (index >= this->delayed_actions.count || this->delayed_actions.objects == nullptr) {
                 return nullptr;
@@ -462,7 +534,28 @@ void CoreHandle::relocate_datas(uintptr_t old_start, uintptr_t old_end, sdk::Nat
 }
 
 ::REManagedObject* TreeObject::get_unloaded_action(uint32_t index) const {
-#if TDB_VER >= 69
+#ifdef REFRAMEWORK_UNIVERSAL
+    if (sdk::GameIdentity::get().tdb_ver() >= 69) {
+        if (this->data == nullptr) {
+            return nullptr;
+        }
+
+        if (_bittest((const long*)&index, 30)) {
+            const auto new_idx = index & 0xFFFFFFF;
+            if (new_idx >= this->data->static_actions.count || this->data->static_actions.objects == nullptr) {
+                return nullptr;
+            }
+
+            return (::REManagedObject*)this->data->static_actions.objects[new_idx];
+        } else {
+            if (index >= this->data->actions.count || this->data->actions.objects == nullptr) {
+                return nullptr;
+            }
+
+            return (::REManagedObject*)this->data->actions.objects[index];
+        }
+    }
+#elif TDB_VER >= 69
     if (this->data == nullptr) {
         return nullptr;
     }
@@ -501,7 +594,29 @@ void CoreHandle::relocate_datas(uintptr_t old_start, uintptr_t old_end, sdk::Nat
 
         return (::REManagedObject*)this->data->static_conditions.objects[new_idx];
     } else {
-#if TDB_VER >= 69
+#ifdef REFRAMEWORK_UNIVERSAL
+        if (sdk::GameIdentity::get().tdb_ver() >= 69) {
+            if (is_delay_setup_objects) {
+                if (index >= this->delayed_conditions.count || this->delayed_conditions.objects == nullptr) {
+                    return nullptr;
+                }
+
+                return (::REManagedObject*)this->delayed_conditions.objects[index];
+            } else {
+                if (index >= this->conditions.count || this->conditions.objects == nullptr) {
+                    return nullptr;
+                }
+
+                return (::REManagedObject*)this->conditions.objects[index];
+            }
+        } else {
+            if (index >= this->conditions.count || this->conditions.objects == nullptr) {
+                return nullptr;
+            }
+
+            return (::REManagedObject*)this->conditions.objects[index];
+        }
+#elif TDB_VER >= 69
         if (is_delay_setup_objects) {
             if (index >= this->delayed_conditions.count || this->delayed_conditions.objects == nullptr) {
                 return nullptr;
@@ -542,7 +657,29 @@ void CoreHandle::relocate_datas(uintptr_t old_start, uintptr_t old_end, sdk::Nat
 
         return (::REManagedObject*)this->data->static_transitions.objects[new_idx];
     } else {
-#if TDB_VER >= 69
+#ifdef REFRAMEWORK_UNIVERSAL
+        if (sdk::GameIdentity::get().tdb_ver() >= 69) {
+            if (is_delay_setup_objects) {
+                if (index >= this->delayed_transitions.count || this->delayed_transitions.objects == nullptr) {
+                    return nullptr;
+                }
+
+                return (::REManagedObject*)this->delayed_transitions.objects[index];
+            } else {
+                if (index >= this->transitions.count || this->transitions.objects == nullptr) {
+                    return nullptr;
+                }
+
+                return (::REManagedObject*)this->transitions.objects[index];
+            }
+        } else {
+            if (index >= this->transitions.count || this->transitions.objects == nullptr) {
+                return nullptr;
+            }
+
+            return (::REManagedObject*)this->transitions.objects[index];
+        }
+#elif TDB_VER >= 69
         if (is_delay_setup_objects) {
             if (index >= this->delayed_transitions.count || this->delayed_transitions.objects == nullptr) {
                 return nullptr;
@@ -569,7 +706,11 @@ void CoreHandle::relocate_datas(uintptr_t old_start, uintptr_t old_end, sdk::Nat
 }
 
 uint32_t TreeObject::get_action_count() const {
-#if TDB_VER >= 69
+#ifdef REFRAMEWORK_UNIVERSAL
+    const auto is_delay_setup_objects = is_delayed();
+
+    return is_delay_setup_objects ? this->delayed_actions.count : this->actions.count;
+#elif TDB_VER >= 69
     const auto is_delay_setup_objects = is_delayed();
 
     return is_delay_setup_objects ? this->delayed_actions.count : this->actions.count;
@@ -579,7 +720,11 @@ uint32_t TreeObject::get_action_count() const {
 }
 
 uint32_t TreeObject::get_condition_count() const {
-#if TDB_VER >= 69
+#ifdef REFRAMEWORK_UNIVERSAL
+    const auto is_delay_setup_objects = is_delayed();
+
+    return is_delay_setup_objects ? this->delayed_conditions.count : this->conditions.count;
+#elif TDB_VER >= 69
     const auto is_delay_setup_objects = is_delayed();
 
     return is_delay_setup_objects ? this->delayed_conditions.count : this->conditions.count;
@@ -589,7 +734,11 @@ uint32_t TreeObject::get_condition_count() const {
 }
 
 uint32_t TreeObject::get_transition_count() const {
-#if TDB_VER >= 69
+#ifdef REFRAMEWORK_UNIVERSAL
+    const auto is_delay_setup_objects = is_delayed();
+
+    return is_delay_setup_objects ? this->delayed_transitions.count : this->transitions.count;
+#elif TDB_VER >= 69
     const auto is_delay_setup_objects = is_delayed();
 
     return is_delay_setup_objects ? this->delayed_transitions.count : this->transitions.count;

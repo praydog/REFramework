@@ -22,6 +22,7 @@ namespace sdk {
 struct RETypeCLR;
 struct RETypeDefVersion69;  // defined in RETypeDefinition.hpp
 struct RETypeDefVersion71;  // defined in RETypeDefinition.hpp
+struct RETypeDefVersion67;  // defined in RETypeDefinition.hpp (DMC5 / TDB < 69)
 
 // ============================================================================
 // Forward declarations for tdb69 sub-structs (defined in RETypeDB.hpp)
@@ -32,6 +33,13 @@ namespace tdb69 {
     struct REField;
     struct REParameterDef;
 } // namespace tdb69
+
+// Forward declarations for tdb67 sub-structs (TDB < 69, pre-impl split)
+namespace tdb67 {
+    struct REMethodDefinition;
+    struct REField;
+    struct REMethodParamDef;
+} // namespace tdb67
 
 // Backwards-compat aliases — old code used tdb_bits18::* names
 namespace tdb_bits18 {
@@ -48,6 +56,12 @@ namespace tdb_bits18 {
 #ifdef REFRAMEWORK_UNIVERSAL
 
 namespace tdb_dispatch {
+
+// TDB < 69 has no TypeImpl split — fields like name_offset, num_member_method
+// live directly on RETypeDefinition (Version67 struct).
+inline bool needs_pre_impl() {
+    return sdk::GameIdentity::get().tdb_ver() < 69;
+}
 
 // TDB 69-70 uses 18-bit TYPE_INDEX_BITS.  TDB 71+ uses 19-bit.
 inline bool needs_18bit() {
@@ -70,21 +84,46 @@ inline bool needs_plain_impl() {
 } // namespace tdb_dispatch
 
 // TDEF_FIELD: Read a bitfield from a RETypeDefinition pointer with runtime dispatch.
-//   TDB < 71:  cast to RETypeDefVersion69 (18-bit fields, different layout)
-//   TDB 71-73: cast to RETypeDefVersion71 (19-bit, member_field:19, no extra uint64)
-//   TDB 74+:   use compiled-in V84 layout (19-bit, member_field:20, has extra uint64)
-// Usage: TDEF_FIELD(this, impl_index) or TDEF_FIELD(m_parent, member_method)
+// Use for fields that exist in ALL TDB version structs (member_method, member_field,
+// member_prop, num_member_prop, fqn_hash, type, managed_vt, size, type_flags,
+// system_type, object_type, default_ctor, vt, events, interfaces, generics, etc.).
+//   TDB < 69:  cast to RETypeDefVersion67 (pre-impl, all fields on the typedef)
+//   TDB 69-70: cast to RETypeDefVersion69 (18-bit fields, impl split)
+//   TDB 71-73: cast to RETypeDefVersion71 (19-bit, no extra uint64)
+//   TDB 74+:   use compiled-in V84 layout
 #define TDEF_FIELD(ptr, field) \
+    (sdk::tdb_dispatch::needs_pre_impl() \
+        ? reinterpret_cast<const sdk::RETypeDefVersion67*>(ptr)->field \
+        : sdk::tdb_dispatch::needs_18bit() \
+            ? reinterpret_cast<const sdk::RETypeDefVersion69*>(ptr)->field \
+            : sdk::tdb_dispatch::needs_v71_stride() \
+                ? reinterpret_cast<const sdk::RETypeDefVersion71*>(ptr)->field \
+                : (ptr)->field)
+
+// TDEF_FIELD_69: Read a bitfield that only exists in TDB >= 69 structs (impl_index,
+// array_typeid, element_typeid, etc.). Does NOT dispatch to RETypeDefVersion67.
+// Caller MUST gate with tdb_ver() >= 69 check.
+#define TDEF_FIELD_69(ptr, field) \
     (sdk::tdb_dispatch::needs_18bit() \
         ? reinterpret_cast<const sdk::RETypeDefVersion69*>(ptr)->field \
         : sdk::tdb_dispatch::needs_v71_stride() \
             ? reinterpret_cast<const sdk::RETypeDefVersion71*>(ptr)->field \
             : (ptr)->field)
 
+// TDEF_FIELD_PRE_IMPL: Access fields that only exist in TDB < 69 type definitions
+// (before the impl split). Fields: num_member_method, num_member_field, name_offset,
+// namespace_offset, element_size. These fields were moved to RETypeImpl in TDB 69+.
+// Caller MUST gate with tdb_ver() < 69 check — calling on TDB >= 69 is undefined.
+#define TDEF_FIELD_PRE_IMPL(ptr, field) \
+    (reinterpret_cast<const sdk::RETypeDefVersion67*>(ptr)->field)
+
 // TDEF_FIELD_SET: Write a bitfield. Only used for object_type currently.
 #define TDEF_FIELD_SET(ptr, field, value) \
     do { \
-        if (sdk::tdb_dispatch::needs_18bit()) \
+        if (sdk::tdb_dispatch::needs_pre_impl()) \
+            const_cast<sdk::RETypeDefVersion67*>( \
+                reinterpret_cast<const sdk::RETypeDefVersion67*>(ptr))->field = (value); \
+        else if (sdk::tdb_dispatch::needs_18bit()) \
             const_cast<sdk::RETypeDefVersion69*>( \
                 reinterpret_cast<const sdk::RETypeDefVersion69*>(ptr))->field = (value); \
         else if (sdk::tdb_dispatch::needs_v71_stride()) \
@@ -124,21 +163,27 @@ inline bool needs_plain_impl() {
     }()
 
 // TMETH_FIELD: Read a bitfield from a REMethodDefinition pointer with runtime dispatch.
-// For TDB < 71, casts to tdb69::REMethodDefinition.
+//   TDB 69-70: cast to tdb69::REMethodDefinition (18-bit TYPE_INDEX_BITS)
+//   TDB 71+:   use compiled-in layout
+// NOTE: For TDB < 69 fields (vtable_index, flags, impl_flags, num_params, etc.),
+//       cast directly to tdb67::REMethodDefinition — those fields don't exist in tdb69+.
 #define TMETH_FIELD(ptr, field) \
     (sdk::tdb_dispatch::needs_18bit() \
         ? reinterpret_cast<const sdk::tdb69::REMethodDefinition*>(ptr)->field \
         : (ptr)->field)
 
 // TFIELD_FIELD: Read a bitfield from a REField pointer with runtime dispatch.
-// For TDB < 71, casts to tdb69::REField.
+//   TDB 69-70: cast to tdb69::REField (18-bit TYPE_INDEX_BITS)
+//   TDB 71+:   use compiled-in layout
+// NOTE: For TDB < 69 fields, cast directly to tdb67::REField.
 #define TFIELD_FIELD(ptr, field) \
     (sdk::tdb_dispatch::needs_18bit() \
         ? reinterpret_cast<const sdk::tdb69::REField*>(ptr)->field \
         : (ptr)->field)
 
 // TPARAM_FIELD: Read a bitfield from a REParameterDef pointer with runtime dispatch.
-// For TDB < 71, casts to tdb69::REParameterDef.
+//   TDB 69-70: cast to tdb69::REParameterDef
+//   TDB 71+:   use compiled-in layout
 #define TPARAM_FIELD(ptr, field) \
     (sdk::tdb_dispatch::needs_18bit() \
         ? reinterpret_cast<const sdk::tdb69::REParameterDef*>(ptr)->field \
@@ -146,6 +191,8 @@ inline bool needs_plain_impl() {
 #else // Non-universal builds: no dispatch needed, direct access.
 
 #define TDEF_FIELD(ptr, field) ((ptr)->field)
+#define TDEF_FIELD_69(ptr, field) ((ptr)->field)
+#define TDEF_FIELD_PRE_IMPL(ptr, field) ((ptr)->field)
 #define TDEF_FIELD_SET(ptr, field, value) ((ptr)->field = (value))
 #define TMETH_FIELD(ptr, field) ((ptr)->field)
 #define TFIELD_FIELD(ptr, field) ((ptr)->field)

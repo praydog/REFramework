@@ -54,7 +54,73 @@ std::shared_ptr<Graphics>& Graphics::get() {
 }
 
 std::optional<std::string> Graphics::on_initialize() {
-#if TDB_VER >= 69
+#ifdef REFRAMEWORK_UNIVERSAL
+    if (sdk::GameIdentity::get().tdb_ver() >= 69) {
+        const auto raytracing_enum = sdk::find_type_definition("via.render.ExperimentalRayTrace.Raytracing");
+
+        if (raytracing_enum == nullptr) {
+            return Mod::on_initialize(); // OK
+        }
+
+        s_ray_trace_type.clear();
+        s_ray_trace_type.push_back("Disabled");
+
+        s_ray_trace_type.resize(raytracing_enum->get_fields().size() + 1);
+
+        int32_t actual_size = 1;
+
+        for (auto f : raytracing_enum->get_fields()) {
+            const auto field_flags = f->get_flags();
+
+            if ((field_flags & (uint16_t)via::clr::FieldFlag::Static) != 0 && (field_flags & (uint16_t)via::clr::FieldFlag::Literal) != 0) {
+                auto raw_data = f->get_data_raw(nullptr, true);
+                int64_t enum_data = 0;
+
+                switch(raytracing_enum->get_valuetype_size()) {
+                    case 1:
+                        enum_data = (int64_t)*(int8_t*)raw_data;
+                        break;
+                    case 2:
+                        enum_data = (int64_t)*(int16_t*)raw_data;
+                        break;
+                    case 4:
+                        enum_data = (int64_t)*(int32_t*)raw_data;
+                        break;
+                    case 8:
+                        enum_data = *(int64_t*)raw_data;
+                        break;
+                    default:
+                        spdlog::error("Unknown enum size: {}", raytracing_enum->get_valuetype_size());
+                        break;
+                }
+
+                if (enum_data < 0 || enum_data + 1 >= s_ray_trace_type.size()) {
+                    spdlog::error("Invalid enum data: {} {}", f->get_name(), enum_data);
+                    continue;
+                }
+
+                auto unfriendly_name = std::string{f->get_name()};
+
+                // Format into a friendly name (Spacing between words)
+                for (size_t i = 1; i < unfriendly_name.size(); ++i) {
+                    if (unfriendly_name[i] >= 'A' && unfriendly_name[i] <= 'Z') {
+                        unfriendly_name.insert(i, " ");
+                        i++;
+                    }
+                }
+
+                s_ray_trace_type[enum_data + 1] = unfriendly_name;
+                ++actual_size;
+            }
+        }
+
+        s_ray_trace_type.resize(actual_size);
+        m_ray_trace_type->recreate_options(s_ray_trace_type);
+        m_ray_trace_clone_type_pre->recreate_options(s_ray_trace_type);
+        m_ray_trace_clone_type_post->recreate_options(s_ray_trace_type);
+        m_ray_trace_clone_type_true->recreate_options(s_ray_trace_type);
+    }
+#elif TDB_VER >= 69
     const auto raytracing_enum = sdk::find_type_definition("via.render.ExperimentalRayTrace.Raytracing");
 
     if (raytracing_enum == nullptr) {
@@ -239,7 +305,18 @@ void Graphics::on_frame() {
         m_disable_gui->toggle();
     }
 
-#if TDB_VER >= 69
+#ifdef REFRAMEWORK_UNIVERSAL
+    if (sdk::GameIdentity::get().tdb_ver() >= 69) {
+        if (m_ray_tracing_tweaks->value()) {
+            setup_path_trace_hook();
+            apply_ray_tracing_tweaks();
+        }
+
+        if (m_shader_playground->value()) {
+            setup_shader_interception_hook();
+        }
+    }
+#elif TDB_VER >= 69
     if (m_ray_tracing_tweaks->value()) {
         setup_path_trace_hook();
         apply_ray_tracing_tweaks();
@@ -303,7 +380,112 @@ void Graphics::on_draw_ui() {
         ImGui::TreePop();
     }
 
-#if TDB_VER >= 69
+#ifdef REFRAMEWORK_UNIVERSAL
+    if (sdk::GameIdentity::get().tdb_ver() >= 69) {
+        ImGui::SetNextItemOpen(true, ImGuiCond_::ImGuiCond_Once);
+        if (ImGui::TreeNode("Ray Tracing Tweaks")) {
+            m_ray_tracing_tweaks->draw("Enable Ray Tracing Tweaks");
+
+            if (m_ray_tracing_tweaks->value()) {
+                m_ray_trace_disable_raster_shadows->draw("Disable Raster Shadows (with PT)");
+                m_ray_trace_always_recreate_rt_component->draw("Always Recreate RT Component");
+                // Description of the above option
+                if (ImGui::IsItemHovered()) {
+                    ImGui::SetTooltip("Recreates the RT component. Useful if Ray Tracing Tweaks is not working.");
+                }
+                m_ray_trace_type->draw("Ray Trace Type");
+
+                const auto clone_tooltip = 
+                        "Can draw another RT pass over the main RT pass. Useful for hybrid rendering.\n"
+                        "Example: Set Ray Trace Type to Pure and Ray Trace Clone Type to ASVGF. This adds RTGI to the path traced image.\n"
+                        "Path Space Filter is also another good alternative for RTGI but it costs more performance.\n";
+
+                m_ray_trace_clone_type_pre->draw("Ray Trace Clone Type Pre");
+                if (ImGui::IsItemHovered()) {
+                    ImGui::SetTooltip(clone_tooltip);
+                }
+
+                m_ray_trace_clone_type_post->draw("Ray Trace Clone Type Post");
+                if (ImGui::IsItemHovered()) {
+                    ImGui::SetTooltip(clone_tooltip);
+                }
+                
+                m_ray_trace_clone_type_true->draw("Ray Trace Clone Type True");
+                if (ImGui::IsItemHovered()) {
+                    const auto true_tooltip =
+                        "Uses a completely separate RT component instead of re-using the main RT component.\n"
+                        "Might crash or have other issues. Use with caution.\n";
+                    ImGui::SetTooltip(true_tooltip);
+                }
+
+                // Hybrid/pure
+                if (is_pt_type(m_ray_trace_type->value()) || is_pt_type(m_ray_trace_clone_type_true->value())) {
+                    m_bounce_count->draw("Bounce Count");
+                    m_samples_per_pixel->draw("Samples Per Pixel");
+                }
+            }
+
+            ImGui::TreePop();
+        }
+
+        ImGui::SetNextItemOpen(true, ImGuiCond_::ImGuiCond_Once);
+        if (ImGui::TreeNode("Shader Playground")) {
+            m_shader_playground->draw("Enable Shader Playground");
+
+            if (m_shader_playground->value()) {  
+                //for (size_t i = 0; i < m_replacement_shaders.size(); ++i) {
+                uint32_t j = 0;
+                for (auto& intercepted : m_intercepted_shaders) {
+                    uint32_t i = 0;
+                    ImGui::PushID(std::format("Interception Shader {}", j++).c_str());
+
+                    const auto interception_node_open = ImGui::TreeNode("");
+                    ImGui::SameLine();
+                    if (ImGui::InputText("Interception Shader", intercepted.name.data(), intercepted.name.size())) {
+                        intercepted.hash = sdk::murmur_hash::calc32_as_utf8(intercepted.name.data());
+                    }
+
+                    if (interception_node_open) {
+                        if (ImGui::InputText(std::format("Replace Shader", i).c_str(), intercepted.replace_with_name.data(), intercepted.replace_with_name.size())) {
+                            intercepted.replace_with_hash = sdk::murmur_hash::calc32_as_utf8(intercepted.replace_with_name.data());
+                        }
+
+                        for (auto& replacement : intercepted.replacement_shaders) {
+                            i++;
+                            ImGui::PushID(std::format("Shader {}", i).c_str());
+                            const auto node_open = ImGui::TreeNodeEx("");
+                            ImGui::SameLine();
+                            if (ImGui::InputText(std::format("Custom Shader {}", i).c_str(), replacement.shader.data(), replacement.shader.size())) {
+                                replacement.hash = sdk::murmur_hash::calc32_as_utf8(replacement.shader.data());
+                            }
+
+                            if (node_open) {
+                                ImGui::Combo("Dispatch Mode", (int*)&replacement.dispatch_mode, s_shader_dispatch_modes.data(), s_shader_dispatch_modes.size());
+
+                                ImGui::InputInt("Thread Group X", (int32_t*)&replacement.thread_group_x);
+                                ImGui::InputInt("Thread Group Y", (int32_t*)&replacement.thread_group_y);
+                                ImGui::InputInt("Thread Group Z", (int32_t*)&replacement.thread_group_z);
+                                ImGui::InputInt("Constant", (int32_t*)&replacement.constant);
+
+                                ImGui::Checkbox("Valid hash", &replacement.valid_hash);
+
+                                ImGui::TreePop();
+                            }
+
+                            ImGui::PopID();
+                        }
+
+                        ImGui::TreePop();
+                    }
+
+                    ImGui::PopID();
+                }
+            }
+
+            ImGui::TreePop();
+        }
+    }
+#elif TDB_VER >= 69
     ImGui::SetNextItemOpen(true, ImGuiCond_::ImGuiCond_Once);
     if (ImGui::TreeNode("Ray Tracing Tweaks")) {
         m_ray_tracing_tweaks->draw("Enable Ray Tracing Tweaks");
@@ -997,7 +1179,7 @@ void Graphics::set_ultrawide_fov(bool use_vertical_fov) {
     }
 }
 
-#if TDB_VER >= 69
+#if defined(REFRAMEWORK_UNIVERSAL) || TDB_VER >= 69
 void Graphics::setup_shader_interception_hook() {
     if (m_attempted_shader_interception_hook) {
         return;

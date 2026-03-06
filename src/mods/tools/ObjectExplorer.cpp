@@ -1058,7 +1058,9 @@ std::string ObjectExplorer::generate_full_name(sdk::RETypeDB* tdb, uint32_t i) {
         return "";
     }
 
-    auto& raw_t = (*tdb->get_types_ptr())[i];
+    auto* raw_t_ptr = tdb->get_type(i);
+    if (raw_t_ptr == nullptr) return "";
+    auto& raw_t = *raw_t_ptr;
     auto full_name = raw_t.get_full_name();
 
     spdlog::info("{:s}", full_name);
@@ -1688,7 +1690,7 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
     for (uint32_t i = 0; i < tdb->get_num_fields(); ++i) {
         m_sdk_dump_progress = static_cast<float>(i) / tdb->get_num_fields();
 
-        auto& f = (*tdb->get_fields_ptr())[i];
+        auto& f = *tdb->get_field(i);
 
         const auto type_id = (uint32_t)TFIELD_FIELD(&f, declaring_typeid);
         uint32_t field_impl_id = 0;
@@ -1997,7 +1999,7 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
     for (uint32_t i = 0; i < tdb->get_num_properties(); ++i) {
         m_sdk_dump_progress = static_cast<float>(i) / tdb->get_num_properties();
 
-        auto& p = (*tdb->get_properties_ptr())[i];
+        auto& p = *tdb->get_property(i);
 
         const auto getter_id = (uint32_t)p.getter;
         const auto setter_id = (uint32_t)p.setter;

@@ -535,8 +535,40 @@ struct RETypeDefinition : public sdk::RETypeDefinition_ {
         PropertyIterator(const sdk::RETypeDefinition* parent)
             : m_parent{parent} {}
 
-        sdk::REProperty* begin() const;
-        sdk::REProperty* end() const;
+        // Index-based inner iterator for stride-safe property access (TDB 67 has different REProperty size).
+        class REPropertyIterator {
+        public:
+            REPropertyIterator(const sdk::RETypeDefinition* parent, size_t start = 0)
+                : m_parent{parent},
+                m_index{start}
+            {
+            }
+
+            sdk::REProperty* operator*() const;
+            REPropertyIterator& operator++() {
+                m_index++;
+                return *this;
+            }
+
+            bool operator==(const REPropertyIterator& other) const {
+                return m_index == other.m_index && m_parent == other.m_parent;
+            }
+
+            bool operator!=(const REPropertyIterator& other) const {
+                return m_index != other.m_index || m_parent != other.m_parent;
+            }
+        private:
+            const sdk::RETypeDefinition* m_parent;
+            size_t m_index{0};
+        };
+
+        REPropertyIterator begin() const {
+            return REPropertyIterator{m_parent};
+        }
+
+        REPropertyIterator end() const {
+            return REPropertyIterator{m_parent, size()};
+        }
 
         size_t size() const;
 

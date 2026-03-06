@@ -60,7 +60,7 @@ private:
     void do_ultrawide_fov_restore(bool force = false);
     void set_ultrawide_fov(bool enable);
 
-#if TDB_VER >= 69
+#if defined(REFRAMEWORK_UNIVERSAL) || TDB_VER >= 69
     void setup_path_trace_hook();
     void setup_shader_interception_hook();
     void setup_rt_component();
@@ -210,7 +210,7 @@ private:
     const ModToggle::Ptr m_force_render_res_to_window{ ModToggle::create(generate_name("ForceRenderResToWindow"), false) };
     const ModKey::Ptr m_disable_gui_key{ ModKey::create(generate_name("DisableGUIKey")) };
 
-#if TDB_VER >= 69
+#if defined(REFRAMEWORK_UNIVERSAL) || TDB_VER >= 69
     const ModToggle::Ptr m_shader_playground { ModToggle::create(generate_name("ShaderPlayground"), false) };
     const ModToggle::Ptr m_ray_tracing_tweaks { ModToggle::create(generate_name("RayTracingTweaks"), false) };
 
@@ -320,7 +320,7 @@ private:
         *m_force_render_res_to_window,
         *m_disable_gui_key,
 
-#if TDB_VER >= 69
+#if defined(REFRAMEWORK_UNIVERSAL) || TDB_VER >= 69
         *m_shader_playground,
         *m_ray_tracing_tweaks,
         *m_ray_trace_type,

@@ -2,6 +2,7 @@
 #include <vector>
 #include <span>
 #include <cstdint>
+#include <type_traits>
 
 // Forward decls
 class RETypeDB;
@@ -1871,6 +1872,23 @@ struct RETypeDB : public sdk::RETypeDB_ {
     // Every case maps to a real TDB namespace struct — no cross-version reuse.
 #define TDB_DISPATCH(field) \
     switch (sdk::GameIdentity::get().tdb_ver()) { \
+    case 66: case 67: return reinterpret_cast<const sdk::tdb67::TDB*>(this)->field; \
+    case 69:          return reinterpret_cast<const sdk::tdb69::TDB*>(this)->field; \
+    case 70:          return reinterpret_cast<const sdk::tdb70::TDB*>(this)->field; \
+    case 71: case 72: return reinterpret_cast<const sdk::tdb71::TDB*>(this)->field; \
+    case 73:          return reinterpret_cast<const sdk::tdb73::TDB*>(this)->field; \
+    case 74:          return reinterpret_cast<const sdk::tdb74::TDB*>(this)->field; \
+    case 81:          return reinterpret_cast<const sdk::tdb81::TDB*>(this)->field; \
+    case 82:          return reinterpret_cast<const sdk::tdb82::TDB*>(this)->field; \
+    case 83:          return reinterpret_cast<const sdk::tdb83::TDB*>(this)->field; \
+    default:          return this->field; /* tdb84 compiled-in layout */ \
+    }
+
+    // TDB_DISPATCH_69: for fields that only exist in TDB >= 69 (typesImpl, params, etc.)
+    // Returns nullptr / 0 for TDB < 69.
+#define TDB_DISPATCH_69(field, fallback) \
+    switch (sdk::GameIdentity::get().tdb_ver()) { \
+    case 66: case 67: return fallback; \
     case 69:          return reinterpret_cast<const sdk::tdb69::TDB*>(this)->field; \
     case 70:          return reinterpret_cast<const sdk::tdb70::TDB*>(this)->field; \
     case 71: case 72: return reinterpret_cast<const sdk::tdb71::TDB*>(this)->field; \
@@ -1887,28 +1905,73 @@ struct RETypeDB : public sdk::RETypeDB_ {
     uint32_t get_num_types() const      { TDB_DISPATCH(numTypes) }
     uint32_t get_num_methods() const    { TDB_DISPATCH(numMethods) }
     uint32_t get_num_fields() const     { TDB_DISPATCH(numFields) }
-    uint32_t get_num_params() const     { TDB_DISPATCH(numParams) }
     uint32_t get_num_properties() const { TDB_DISPATCH(numProperties) }
     uint32_t get_string_pool_size() const { TDB_DISPATCH(numStringPool) }
     uint32_t get_byte_pool_size() const   { TDB_DISPATCH(numBytePool) }
 
-    // --- Pointer field accessors ---
-    auto* get_types_ptr() const         { TDB_DISPATCH(types) }
-    auto* get_typesImpl_ptr() const     { TDB_DISPATCH(typesImpl) }
-    auto* get_methods_ptr() const       { TDB_DISPATCH(methods) }
-    auto* get_methodsImpl_ptr() const   { TDB_DISPATCH(methodsImpl) }
-    auto* get_fields_ptr() const        { TDB_DISPATCH(fields) }
-    auto* get_fieldsImpl_ptr() const    { TDB_DISPATCH(fieldsImpl) }
-    auto* get_properties_ptr() const    { TDB_DISPATCH(properties) }
-    auto* get_propertiesImpl_ptr() const{ TDB_DISPATCH(propertiesImpl) }
-    auto* get_params_ptr() const        { TDB_DISPATCH(params) }
-    auto* get_modules_ptr() const       { TDB_DISPATCH(modules) }
-    auto* get_stringPool_ptr() const    { TDB_DISPATCH(stringPool) }
-    auto* get_bytePool_ptr() const      { TDB_DISPATCH(bytePool) }
-    auto* get_initData_ptr() const      { TDB_DISPATCH(initData) }
-    auto* get_internStrings_ptr() const { TDB_DISPATCH(internStrings) }
+    // numParams: named maybeNumParams in tdb66/67
+    uint32_t get_num_params() const {
+        auto ver = sdk::GameIdentity::get().tdb_ver();
+        if (ver <= 67) {
+            return reinterpret_cast<const sdk::tdb67::TDB*>(this)->maybeNumParams;
+        }
+        TDB_DISPATCH_69(numParams, 0)
+    }
 
+    // --- Pointer field accessors ---
+    // TDB versions declare arrays with different bounds (e.g. types[81728] vs types[93788]).
+    // We cast all to the compiled-in (tdb84) return type so auto* deduction works.
+
+#define TDB_DISPATCH_PTR(field) \
+    using _ret = decltype(this->field); \
+    switch (sdk::GameIdentity::get().tdb_ver()) { \
+    case 66: case 67: return (_ret)reinterpret_cast<const sdk::tdb67::TDB*>(this)->field; \
+    case 69:          return (_ret)reinterpret_cast<const sdk::tdb69::TDB*>(this)->field; \
+    case 70:          return (_ret)reinterpret_cast<const sdk::tdb70::TDB*>(this)->field; \
+    case 71: case 72: return (_ret)reinterpret_cast<const sdk::tdb71::TDB*>(this)->field; \
+    case 73:          return (_ret)reinterpret_cast<const sdk::tdb73::TDB*>(this)->field; \
+    case 74:          return (_ret)reinterpret_cast<const sdk::tdb74::TDB*>(this)->field; \
+    case 81:          return (_ret)reinterpret_cast<const sdk::tdb81::TDB*>(this)->field; \
+    case 82:          return (_ret)reinterpret_cast<const sdk::tdb82::TDB*>(this)->field; \
+    case 83:          return (_ret)reinterpret_cast<const sdk::tdb83::TDB*>(this)->field; \
+    default:          return this->field; \
+    }
+
+#define TDB_DISPATCH_PTR_69(field) \
+    using _ret = decltype(this->field); \
+    switch (sdk::GameIdentity::get().tdb_ver()) { \
+    case 66: case 67: return (_ret)nullptr; \
+    case 69:          return (_ret)reinterpret_cast<const sdk::tdb69::TDB*>(this)->field; \
+    case 70:          return (_ret)reinterpret_cast<const sdk::tdb70::TDB*>(this)->field; \
+    case 71: case 72: return (_ret)reinterpret_cast<const sdk::tdb71::TDB*>(this)->field; \
+    case 73:          return (_ret)reinterpret_cast<const sdk::tdb73::TDB*>(this)->field; \
+    case 74:          return (_ret)reinterpret_cast<const sdk::tdb74::TDB*>(this)->field; \
+    case 81:          return (_ret)reinterpret_cast<const sdk::tdb81::TDB*>(this)->field; \
+    case 82:          return (_ret)reinterpret_cast<const sdk::tdb82::TDB*>(this)->field; \
+    case 83:          return (_ret)reinterpret_cast<const sdk::tdb83::TDB*>(this)->field; \
+    default:          return this->field; \
+    }
+
+    auto* get_types_ptr() const         { TDB_DISPATCH_PTR(types) }
+    auto* get_methods_ptr() const       { TDB_DISPATCH_PTR(methods) }
+    auto* get_fields_ptr() const        { TDB_DISPATCH_PTR(fields) }
+    auto* get_properties_ptr() const    { TDB_DISPATCH_PTR(properties) }
+    auto* get_modules_ptr() const       { TDB_DISPATCH_PTR(modules) }
+    auto* get_stringPool_ptr() const    { TDB_DISPATCH_PTR(stringPool) }
+    auto* get_bytePool_ptr() const      { TDB_DISPATCH_PTR(bytePool) }
+    auto* get_initData_ptr() const      { TDB_DISPATCH_PTR(initData) }
+    auto* get_internStrings_ptr() const { TDB_DISPATCH_PTR(internStrings) }
+
+    // Impl pointers: only exist in TDB >= 69, return nullptr for older games
+    auto* get_typesImpl_ptr() const     { TDB_DISPATCH_PTR_69(typesImpl) }
+    auto* get_methodsImpl_ptr() const   { TDB_DISPATCH_PTR_69(methodsImpl) }
+    auto* get_fieldsImpl_ptr() const    { TDB_DISPATCH_PTR_69(fieldsImpl) }
+    auto* get_propertiesImpl_ptr() const{ TDB_DISPATCH_PTR_69(propertiesImpl) }
+    auto* get_params_ptr() const        { TDB_DISPATCH_PTR_69(params) }
 #undef TDB_DISPATCH
+#undef TDB_DISPATCH_69
+#undef TDB_DISPATCH_PTR
+#undef TDB_DISPATCH_PTR_69
 #else
     auto* get_types_ptr() const { return this->types; }
     auto* get_typesImpl_ptr() const { return this->typesImpl; }
@@ -1988,6 +2051,8 @@ struct RETypeDB : public sdk::RETypeDB_ {
 #ifdef REFRAMEWORK_UNIVERSAL
     // Runtime stride for method array indexing.
     size_t get_method_stride() const {
+        if (sdk::tdb_dispatch::needs_pre_impl())
+            return sizeof(sdk::tdb67::REMethodDefinition);  // 0x20 (32 bytes, has function ptr + all fields inline)
         if (sdk::tdb_dispatch::needs_18bit())
             return sizeof(sdk::tdb69::REMethodDefinition);  // 16 bytes
         return sizeof(sdk::tdb84::REMethodDefinition);      // 12 bytes
@@ -2019,7 +2084,8 @@ struct RETypeDB : public sdk::RETypeDB_ {
         const auto ver = sdk::GameIdentity::get().tdb_ver();
         if (ver >= 74) return sizeof(sdk::RETypeDefVersion74);  // 0x50 (has unk_new_tdb74_uint64)
         if (ver >= 71) return sizeof(sdk::RETypeDefVersion71);  // 0x48
-        return sizeof(sdk::RETypeDefVersion69);                 // 0x50 (18-bit layout)
+        if (ver >= 69) return sizeof(sdk::RETypeDefVersion69);  // 0x50 (18-bit layout)
+        return sizeof(sdk::RETypeDefVersion67);                 // 0x78 (pre-impl, all fields on typedef)
     }
 #endif
 };
