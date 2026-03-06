@@ -1871,7 +1871,8 @@ struct RETypeDB : public sdk::RETypeDB_ {
     // Every case maps to a real TDB namespace struct — no cross-version reuse.
 #define TDB_DISPATCH(field) \
     switch (sdk::GameIdentity::get().tdb_ver()) { \
-    case 69: case 70: return reinterpret_cast<const sdk::tdb70::TDB*>(this)->field; \
+    case 69:          return reinterpret_cast<const sdk::tdb69::TDB*>(this)->field; \
+    case 70:          return reinterpret_cast<const sdk::tdb70::TDB*>(this)->field; \
     case 71: case 72: return reinterpret_cast<const sdk::tdb71::TDB*>(this)->field; \
     case 73:          return reinterpret_cast<const sdk::tdb73::TDB*>(this)->field; \
     case 74:          return reinterpret_cast<const sdk::tdb74::TDB*>(this)->field; \
