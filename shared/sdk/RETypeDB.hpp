@@ -2100,6 +2100,16 @@ struct RETypeDB : public sdk::RETypeDB_ {
         auto base = reinterpret_cast<uintptr_t>(get_modules_ptr());
         return reinterpret_cast<sdk::REModule*>(base + static_cast<size_t>(index) * get_module_stride());
     }
+
+    // Runtime stride for type definition array indexing.
+    // TDB 71-73 (RE4/SF6/MHRISE/DD2): RETypeDefVersion71 = 0x48 bytes (no unk_new_tdb74_uint64).
+    // TDB 69-70 and TDB 74+: 0x50 bytes.
+    size_t get_typedef_stride() const {
+        const auto ver = sdk::GameIdentity::get().tdb_ver();
+        if (ver >= 71 && ver < 74)
+            return 0x48;  // sizeof(RETypeDefVersion71)
+        return 0x50;      // sizeof(RETypeDefVersion84) == sizeof(tdb_bits18::RETypeDefVersion69)
+    }
 #endif
 };
 } // namespace sdk

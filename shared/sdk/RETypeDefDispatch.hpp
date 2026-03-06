@@ -102,7 +102,7 @@ namespace tdb_dispatch {
 
 inline bool needs_18bit() {
     const auto tdb_ver = sdk::GameIdentity::get().tdb_ver();
-    return tdb_ver < 73;
+    return tdb_ver < 71;  // TDB 71+ (RE4/SF6/MHRISE/DD2) uses 19-bit; TDB 69-70 uses 18-bit
 }
 
 
@@ -115,8 +115,8 @@ inline bool needs_plain_impl() {
 } // namespace tdb_dispatch
 
 // TDEF_FIELD: Read a bitfield from a RETypeDefinition pointer with runtime dispatch.
-// For TDB >= 73, the compiled V84 layout is correct.
-// For TDB < 73 (RE2/RE3/RE8/RE7/MHRISE_TDB70), cast to the 18-bit V69 layout.
+// For TDB >= 71, the compiled V84 layout (19-bit) is correct.
+// For TDB < 71 (RE2/RE3/RE8/RE7/MHRISE_TDB70), cast to the 18-bit V69 layout.
 // Usage: TDEF_FIELD(this, impl_index) or TDEF_FIELD(m_parent, member_method)
 #define TDEF_FIELD(ptr, field) \
     (sdk::tdb_dispatch::needs_18bit() \
