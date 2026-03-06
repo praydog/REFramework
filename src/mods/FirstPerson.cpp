@@ -447,7 +447,7 @@ void FirstPerson::on_update_camera_controller2(RopewayPlayerCameraController* co
     const auto allowed = is_first_person_allowed();
 
     if (!allowed && !m_ignore_next_player_angles) {
-        m_last_controller_angles = Vector3f{ controller->pitch, controller->yaw, 0.0f };
+        m_last_controller_angles = Vector3f{ CAMCTRL(controller, pitch), CAMCTRL(controller, yaw), 0.0f };
         m_last_controller_pos = controller->worldPosition;
         m_last_controller_rotation = *(glm::quat*) & controller->worldRotation;
         return;
@@ -468,14 +468,14 @@ void FirstPerson::on_update_camera_controller2(RopewayPlayerCameraController* co
             }
 
             *(glm::quat*)&controller->worldRotation = m_last_controller_rotation;
-            controller->pitch = m_last_controller_angles.x;
-            controller->yaw = m_last_controller_angles.y;
+            CAMCTRL(controller, pitch) = m_last_controller_angles.x;
+            CAMCTRL(controller, yaw) = m_last_controller_angles.y;
         }
         else {
             m_ignore_next_player_angles = false;
         }
 
-        m_last_controller_angles = Vector3f{ controller->pitch, controller->yaw, 0.0f };
+        m_last_controller_angles = Vector3f{ CAMCTRL(controller, pitch), CAMCTRL(controller, yaw), 0.0f };
     }
 
     m_last_controller_pos = controller->worldPosition;
@@ -755,11 +755,11 @@ bool FirstPerson::update_pointers_from_camera_system(RopewayCameraSystem* camera
     if (m_player_camera_controller == nullptr) {
         auto controller = CAMSYS(camera_system, cameraController);
 
-        if (controller == nullptr || controller->ownerGameObject == nullptr || controller->activeCamera == nullptr || controller->activeCamera->ownerGameObject == nullptr) {
+        if (controller == nullptr || controller->ownerGameObject == nullptr || CAMCTRL(controller, activeCamera) == nullptr || CAMCTRL(controller, activeCamera)->ownerGameObject == nullptr) {
             return false;
         }
 
-        if (utility::re_string::equals(controller->activeCamera->ownerGameObject->name, L"PlayerCameraController")) {
+        if (utility::re_string::equals(CAMCTRL(controller, activeCamera)->ownerGameObject->name, L"PlayerCameraController")) {
             m_player_camera_controller = controller;
             spdlog::info("Found PlayerCameraController {:p}", (void*)m_player_camera_controller);
         }
@@ -1580,8 +1580,8 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
         if (m_player_camera_controller != nullptr) {
             m_player_camera_controller->worldRotation = CAMSYS(m_camera_system, cameraController)->worldRotation;
 
-            m_player_camera_controller->pitch = m_last_controller_angles.x;
-            m_player_camera_controller->yaw = m_last_controller_angles.y;
+            CAMCTRL(m_player_camera_controller, pitch) = m_last_controller_angles.x;
+            CAMCTRL(m_player_camera_controller, yaw) = m_last_controller_angles.y;
         }
 
         CAMSYS(m_camera_system, mainCameraController)->cameraRotation = *(Vector4f*)&m_last_controller_rotation;
@@ -1750,8 +1750,8 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
 
             // Forces the game to keep the previous angles/rotation we set after exiting a cutscene
             //if (is_switching_to_player_camera) {
-                m_player_camera_controller->pitch = m_last_controller_angles.x;
-                m_player_camera_controller->yaw = m_last_controller_angles.y;
+                CAMCTRL(m_player_camera_controller, pitch) = m_last_controller_angles.x;
+                CAMCTRL(m_player_camera_controller, yaw) = m_last_controller_angles.y;
             //}
 
             m_ignore_next_player_angles = m_ignore_next_player_angles || is_switching_to_player_camera;
@@ -1853,7 +1853,7 @@ void FirstPerson::update_fov(RopewayPlayerCameraController* controller) {
         return;
     }
 
-    if (auto param = controller->cameraParam; param != nullptr) {
+    if (auto param = CAMCTRL(controller, cameraParam); param != nullptr) {
         auto new_value = (param->fov * m_fov_mult->value()) + m_fov_offset->value();
 
         if (m_last_camera_type == app::ropeway::camera::CameraControlType::PLAYER) {
@@ -1863,14 +1863,14 @@ void FirstPerson::update_fov(RopewayPlayerCameraController* controller) {
 
                 m_fov_offset->value() += delta;
                 CAMSYS(m_camera_system, mainCameraController)->mainCamera->fov = (param->fov * m_fov_mult->value()) + m_fov_offset->value();
-                controller->activeCamera->fov = CAMSYS(m_camera_system, mainCameraController)->mainCamera->fov;
+                CAMCTRL(controller, activeCamera)->fov = CAMSYS(m_camera_system, mainCameraController)->mainCamera->fov;
             }
             else {
                 CAMSYS(m_camera_system, mainCameraController)->mainCamera->fov = new_value;
-                controller->activeCamera->fov = CAMSYS(m_camera_system, mainCameraController)->mainCamera->fov;
+                CAMCTRL(controller, activeCamera)->fov = CAMSYS(m_camera_system, mainCameraController)->mainCamera->fov;
             }
 
-            m_last_player_fov = controller->activeCamera->fov;
+            m_last_player_fov = CAMCTRL(controller, activeCamera)->fov;
         }
         else {
             if (m_last_player_fov == 0.0f) {
@@ -1878,7 +1878,7 @@ void FirstPerson::update_fov(RopewayPlayerCameraController* controller) {
             }
 
             CAMSYS(m_camera_system, mainCameraController)->mainCamera->fov = m_last_player_fov;
-            controller->activeCamera->fov = m_last_player_fov;
+            CAMCTRL(controller, activeCamera)->fov = m_last_player_fov;
         }
         
         // Causes the camera to ignore the FOV inside the param
