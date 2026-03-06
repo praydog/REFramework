@@ -19,5 +19,13 @@ public:
 #if defined(SF6) || TDB_VER >= 73 || TDB_VER <= 67 || defined (RE4) /* idk why new re4 has this. */
     void* _tdb73_padding; // something added here in Dec 1 2023 update
 #endif
+
+    #if TDB_VER >= 82
+    void* tdb82_padding; // something added in RE9?
+    #endif
 };
+
+#ifdef RE9
+    static_assert(sizeof(RenderResource) == 0x20);
+#endif
 }

@@ -191,7 +191,9 @@ public:
 
     // more here but not needed... for now
 };
-#if TDB_VER >= 73
+#if TDB_VER >= 82
+static_assert(offsetof(TargetState, m_desc) + offsetof(TargetState::Desc, num_rtv) == 0x30);
+#elif TDB_VER >= 73
 static_assert(offsetof(TargetState, m_desc) + offsetof(TargetState::Desc, num_rtv) == 0x28);
 #elif TDB_VER > 67
 #ifdef SF6
