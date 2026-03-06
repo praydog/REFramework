@@ -180,12 +180,12 @@ struct REParameterDef {
     uint16_t init_data_index;
     uint32_t name_offset : 30;
     uint32_t modifier : 2;
-    uint32_t type_id : TYPE_INDEX_BITS;
-    uint32_t flags : (32 - TYPE_INDEX_BITS);
+    uint32_t type_id : 19;
+    uint32_t flags : 13;
 };
 
 struct REMethodDefinition {
-    uint32_t declaring_typeid : TYPE_INDEX_BITS;
+    uint32_t declaring_typeid : 19;
     uint32_t params_lo : 13;
     uint32_t impl_id : 19;
     uint32_t params_hi : 13;
@@ -241,9 +241,9 @@ struct ParamList {
 };
 
 struct REField {
-    uint64_t declaring_typeid : TYPE_INDEX_BITS;
-    uint64_t impl_id : TYPE_INDEX_BITS;
-    uint64_t field_typeid : TYPE_INDEX_BITS;
+    uint64_t declaring_typeid : 19;
+    uint64_t impl_id : 19;
+    uint64_t field_typeid : 19;
     uint64_t init_data_hi : 6;
     uint64_t rest2 : 1;
 };
@@ -259,8 +259,8 @@ struct REFieldImpl {
 };
 
 struct GenericListData {
-    uint32_t definition_typeid : TYPE_INDEX_BITS;
-    uint32_t num : (32 - TYPE_INDEX_BITS);
+    uint32_t definition_typeid : 19;
+    uint32_t num : 13;
     uint32_t types[1];
 };
 }
@@ -360,12 +360,12 @@ struct REParameterDef {
     uint16_t init_data_index;
     uint32_t name_offset : 30;
     uint32_t modifier : 2;
-    uint32_t type_id : TYPE_INDEX_BITS;
-    uint32_t flags : (32 - TYPE_INDEX_BITS);
+    uint32_t type_id : 19;
+    uint32_t flags : 13;
 };
 
 struct REMethodDefinition {
-    uint32_t declaring_typeid : TYPE_INDEX_BITS;
+    uint32_t declaring_typeid : 19;
     uint32_t params_lo : 13;
     uint32_t impl_id : 19;
     uint32_t params_hi : 13;
@@ -421,9 +421,9 @@ struct ParamList {
 };
 
 struct REField {
-    uint64_t declaring_typeid : TYPE_INDEX_BITS;
-    uint64_t impl_id : TYPE_INDEX_BITS;
-    uint64_t field_typeid : TYPE_INDEX_BITS;
+    uint64_t declaring_typeid : 19;
+    uint64_t impl_id : 19;
+    uint64_t field_typeid : 19;
     uint64_t init_data_hi : 6;
     uint64_t rest2 : 1;
 };
@@ -439,8 +439,8 @@ struct REFieldImpl {
 };
 
 struct GenericListData {
-    uint32_t definition_typeid : TYPE_INDEX_BITS;
-    uint32_t num : (32 - TYPE_INDEX_BITS);
+    uint32_t definition_typeid : 19;
+    uint32_t num : 13;
     uint32_t types[1];
 };
 }
@@ -537,12 +537,12 @@ struct REParameterDef {
     uint16_t init_data_index;
     uint32_t name_offset : 30;
     uint32_t modifier : 2;
-    uint32_t type_id : TYPE_INDEX_BITS;
-    uint32_t flags : (32 - TYPE_INDEX_BITS);
+    uint32_t type_id : 19;
+    uint32_t flags : 13;
 };
 
 struct REMethodDefinition {
-    uint32_t declaring_typeid : TYPE_INDEX_BITS;
+    uint32_t declaring_typeid : 19;
     uint32_t params_lo : 13;
     uint32_t impl_id : 19;
     uint32_t params_hi : 13;
@@ -597,9 +597,9 @@ struct ParamList {
 };
 
 struct REField {
-    uint64_t declaring_typeid : TYPE_INDEX_BITS;
-    uint64_t impl_id : TYPE_INDEX_BITS;
-    uint64_t field_typeid : TYPE_INDEX_BITS;
+    uint64_t declaring_typeid : 19;
+    uint64_t impl_id : 19;
+    uint64_t field_typeid : 19;
     uint64_t init_data_hi : 6;
     uint64_t rest2 : 1;
 };
@@ -615,8 +615,8 @@ struct REFieldImpl {
 };
 
 struct GenericListData {
-    uint32_t definition_typeid : TYPE_INDEX_BITS;
-    uint32_t num : (32 - TYPE_INDEX_BITS);
+    uint32_t definition_typeid : 19;
+    uint32_t num : 13;
     uint32_t types[1];
 };
 }
@@ -710,12 +710,12 @@ struct REParameterDef {
     uint16_t init_data_index;
     uint32_t name_offset : 30;
     uint32_t modifier : 2;
-    uint32_t type_id : TYPE_INDEX_BITS;
-    uint32_t flags : (32 - TYPE_INDEX_BITS);
+    uint32_t type_id : 19;
+    uint32_t flags : 13;
 };
 
 struct REMethodDefinition {
-    uint32_t declaring_typeid : TYPE_INDEX_BITS;
+    uint32_t declaring_typeid : 19;
     uint32_t params_lo : 13;
     uint32_t impl_id : 19;
     uint32_t params_hi : 13;
@@ -770,9 +770,9 @@ struct ParamList {
 };
 
 struct REField {
-    uint64_t declaring_typeid : TYPE_INDEX_BITS;
-    uint64_t impl_id : TYPE_INDEX_BITS;
-    uint64_t field_typeid : TYPE_INDEX_BITS;
+    uint64_t declaring_typeid : 19;
+    uint64_t impl_id : 19;
+    uint64_t field_typeid : 19;
     uint64_t init_data_hi : 6;
     uint64_t rest2 : 1;
 };
@@ -788,8 +788,8 @@ struct REFieldImpl {
 };
 
 struct GenericListData {
-    uint32_t definition_typeid : TYPE_INDEX_BITS;
-    uint32_t num : (32 - TYPE_INDEX_BITS);
+    uint32_t definition_typeid : 19;
+    uint32_t num : 13;
     uint32_t types[1];
 };
 }
@@ -886,12 +886,12 @@ struct REParameterDef {
     uint16_t init_data_index;
     uint32_t name_offset : 30;
     uint32_t modifier : 2;
-    uint32_t type_id : TYPE_INDEX_BITS;
-    uint32_t flags : (32 - TYPE_INDEX_BITS);
+    uint32_t type_id : 19;
+    uint32_t flags : 13;
 };
 
 struct REMethodDefinition {
-    uint32_t declaring_typeid : TYPE_INDEX_BITS;
+    uint32_t declaring_typeid : 19;
     uint32_t params_lo : 13;
     uint32_t impl_id : 19;
     uint32_t params_hi : 13;
@@ -946,9 +946,9 @@ struct ParamList {
 };
 
 struct REField {
-    uint64_t declaring_typeid : TYPE_INDEX_BITS;
-    uint64_t impl_id : TYPE_INDEX_BITS;
-    uint64_t field_typeid : TYPE_INDEX_BITS;
+    uint64_t declaring_typeid : 19;
+    uint64_t impl_id : 19;
+    uint64_t field_typeid : 19;
     uint64_t init_data_hi : 6;
     uint64_t rest2 : 1;
 };
@@ -964,8 +964,8 @@ struct REFieldImpl {
 };
 
 struct GenericListData {
-    uint32_t definition_typeid : TYPE_INDEX_BITS;
-    uint32_t num : (32 - TYPE_INDEX_BITS);
+    uint32_t definition_typeid : 19;
+    uint32_t num : 13;
     uint32_t types[1];
 };
 }
@@ -1029,12 +1029,12 @@ struct REParameterDef {
     uint16_t init_data_index;
     uint32_t name_offset : 30;
     uint32_t modifier : 2;
-    uint32_t type_id : TYPE_INDEX_BITS;
-    uint32_t flags : (32 - TYPE_INDEX_BITS);
+    uint32_t type_id : 19;
+    uint32_t flags : 13;
 };
 
 struct REMethodDefinition {
-    uint32_t declaring_typeid : TYPE_INDEX_BITS;
+    uint32_t declaring_typeid : 19;
     uint32_t params_lo : 13;
     uint32_t impl_id : 19;
     uint32_t params_hi : 13;
@@ -1089,9 +1089,9 @@ struct ParamList {
 };
 
 struct REField {
-    uint64_t declaring_typeid : TYPE_INDEX_BITS;
-    uint64_t impl_id : TYPE_INDEX_BITS;
-    uint64_t field_typeid : TYPE_INDEX_BITS;
+    uint64_t declaring_typeid : 19;
+    uint64_t impl_id : 19;
+    uint64_t field_typeid : 19;
     uint64_t init_data_hi : 6;
     uint64_t rest2 : 1;
 };
@@ -1107,8 +1107,8 @@ struct REFieldImpl {
 };
 
 struct GenericListData {
-    uint32_t definition_typeid : TYPE_INDEX_BITS;
-    uint32_t num : (32 - TYPE_INDEX_BITS);
+    uint32_t definition_typeid : 19;
+    uint32_t num : 13;
     uint32_t types[1];
 };
 }
@@ -1172,12 +1172,12 @@ struct REParameterDef {
     uint16_t init_data_index;
     uint32_t name_offset : 30;
     uint32_t modifier : 2;
-    uint32_t type_id : TYPE_INDEX_BITS;
-    uint32_t flags : (32 - TYPE_INDEX_BITS);
+    uint32_t type_id : 19;
+    uint32_t flags : 13;
 };
 
 struct REMethodDefinition {
-    uint32_t declaring_typeid : TYPE_INDEX_BITS;
+    uint32_t declaring_typeid : 19;
     uint32_t params_lo : 13;
     uint32_t impl_id : 19;
     uint32_t params_hi : 13;
@@ -1232,9 +1232,9 @@ struct ParamList {
 };
 
 struct REField {
-    uint64_t declaring_typeid : TYPE_INDEX_BITS;
-    uint64_t impl_id : TYPE_INDEX_BITS;
-    uint64_t field_typeid : TYPE_INDEX_BITS;
+    uint64_t declaring_typeid : 19;
+    uint64_t impl_id : 19;
+    uint64_t field_typeid : 19;
     uint64_t init_data_hi : 6;
     uint64_t rest2 : 1;
 };
@@ -1250,8 +1250,8 @@ struct REFieldImpl {
 };
 
 struct GenericListData {
-    uint32_t definition_typeid : TYPE_INDEX_BITS;
-    uint32_t num : (32 - TYPE_INDEX_BITS);
+    uint32_t definition_typeid : 19;
+    uint32_t num : 13;
     uint32_t types[1];
 };
 }
@@ -1417,7 +1417,7 @@ struct ParamList {
 };
 
 struct REField {
-    uint64_t declaring_typeid : TYPE_INDEX_BITS;
+    uint64_t declaring_typeid : 18;
     uint64_t impl_id : 20;
     uint64_t offset : 26;
 };
@@ -1432,7 +1432,7 @@ struct REFieldImpl {
 };
 
 struct GenericListData {
-    uint32_t definition_typeid : TYPE_INDEX_BITS;
+    uint32_t definition_typeid : 18;
     uint32_t num : 14;
     uint32_t types[1];
 };
@@ -1478,11 +1478,11 @@ struct TDB {
 };
 
 struct REMethodDefinition {
-    uint64_t declaring_typeid : TYPE_INDEX_BITS;
+    uint64_t declaring_typeid : 17;
     uint64_t invoke_id : 16;
     uint64_t num_params : 6;
     uint64_t unk : 8; // NOT REALLY SURE WHAT THIS IS? IT HAS SOMETHING TO DO WITH RETURN TYPE
-    uint64_t return_typeid : TYPE_INDEX_BITS;
+    uint64_t return_typeid : 17;
     char pad_0008[2];
     int16_t vtable_index;
     uint32_t name_offset;
@@ -1493,14 +1493,14 @@ struct REMethodDefinition {
 };
 
 struct REMethodParamDef {
-    uint64_t param_typeid : TYPE_INDEX_BITS;
+    uint64_t param_typeid : 17;
     uint64_t flags : 16;
     uint64_t name_offset : 31;
 };
 
 struct REField {
-    uint64_t declaring_typeid : TYPE_INDEX_BITS;
-    uint64_t field_typeid : TYPE_INDEX_BITS;
+    uint64_t declaring_typeid : 17;
+    uint64_t field_typeid : 17;
     // TODO: fill in rest of bitfield
 
     uint32_t name_offset;
@@ -1518,7 +1518,7 @@ struct REProperty {
 };
 
 struct GenericListData {
-    uint32_t definition_typeid : TYPE_INDEX_BITS;
+    uint32_t definition_typeid : 17;
     uint32_t num : 14;
     uint32_t types[1];
 };
@@ -1564,11 +1564,11 @@ struct TDB {
 };
 
 struct REMethodDefinition {
-    uint64_t declaring_typeid : TYPE_INDEX_BITS; // 0 - 2
+    uint64_t declaring_typeid : 16; // 0 - 2
     int64_t vtable_index : 16;                   // 2 - 4
     uint64_t num_params : 8;                     // 4 - 5
     uint64_t unk : 8;                            // NOT REALLY SURE WHAT THIS IS? IT HAS SOMETHING TO DO WITH RETURN TYPE // 5 - 6
-    uint64_t return_typeid : TYPE_INDEX_BITS;
+    uint64_t return_typeid : 16;
     char pad_0008[2];
     int16_t invoke_id;
     uint32_t name_offset;
@@ -1579,15 +1579,15 @@ struct REMethodDefinition {
 };
 
 struct REMethodParamDef {
-    uint64_t param_typeid : TYPE_INDEX_BITS;
+    uint64_t param_typeid : 16;
     uint64_t flags : 16;
     uint64_t name_offset : 31;
 };
 
 #pragma pack(push, 4)
 struct REField {
-    uint64_t declaring_typeid : TYPE_INDEX_BITS;
-    uint64_t field_typeid : TYPE_INDEX_BITS;
+    uint64_t declaring_typeid : 16;
+    uint64_t field_typeid : 16;
     // TODO: fill in rest of bitfield
 
     uint32_t name_offset;
@@ -1608,7 +1608,7 @@ struct REProperty {
 };
 
 struct GenericListData {
-    uint32_t definition_typeid : TYPE_INDEX_BITS;
+    uint32_t definition_typeid : 16;
     uint32_t num : 16;
     uint16_t types[1];
 };
