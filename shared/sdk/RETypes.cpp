@@ -3,6 +3,7 @@
 #include "utility/Scan.hpp"
 #include "utility/Module.hpp"
 
+#include "GameIdentity.hpp"
 #include "RETypeDB.hpp"
 #include "RETypes.hpp"
 
@@ -17,6 +18,18 @@ std::string& game_namespace(std::string_view base_name)
 {
     using namespace std::string_view_literals;
 
+#ifdef REFRAMEWORK_UNIVERSAL
+    static const std::string_view prefix = []() -> std::string_view {
+        const auto& gi = sdk::GameIdentity::get();
+        switch (gi.game()) {
+            case sdk::GameID::RE2: return "app.ropeway."sv;
+            case sdk::GameID::RE3: return "offline."sv;
+            case sdk::GameID::RE4: return "chainsaw."sv;
+            case sdk::GameID::MHRISE: return "snow."sv;
+            default: return "app."sv;  // RE7, RE8, RE9, DMC5, SF6, DD2, MHWILDS, etc.
+        }
+    }();
+#else
     static constexpr std::string_view prefix{
 #if TDB_VER >= 74
     "app."sv
@@ -32,6 +45,7 @@ std::string& game_namespace(std::string_view base_name)
     "app.ropeway."sv
 #endif
     };
+#endif
 
     static thread_local std::string buffer = [&]
     {
@@ -59,7 +73,12 @@ RETypes::RETypes() {
     bool re7_version = false;
 
     if (!ref) {
-#if TDB_VER >= 73
+#ifdef REFRAMEWORK_UNIVERSAL
+        const bool use_exhaustive_scan = sdk::GameIdentity::get().tdb_ver() >= 73;
+#else
+        constexpr bool use_exhaustive_scan = TDB_VER >= 73;
+#endif
+        if (use_exhaustive_scan) {
         // This is the absolutely foolproof way of finding it
         // We can probably completely replace it with this for all the games, but not doing that just yet to be safe
         const auto via_object_ref = utility::scan(mod, "BA 55 FD 09 D2");
@@ -121,8 +140,7 @@ RETypes::RETypes() {
             refresh_map();
             return;
         }
-#else
-        // Scan for RE7 version
+        } else {
         // mov edx, 8F7E7AEh (TypeInfoNone hash)
         pat = "BA AE E7 F7 08";
 
@@ -172,7 +190,7 @@ RETypes::RETypes() {
 
         types_offset = 3;
         re7_version = true;
-#endif
+        }
     }
 
     spdlog::info("Initial ref: {:x}", (uintptr_t)*ref);

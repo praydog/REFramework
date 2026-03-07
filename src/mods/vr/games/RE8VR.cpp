@@ -1,7 +1,7 @@
-#if defined(RE7) || defined(RE8)
 #include <sdk/SceneManager.hpp>
 #include <sdk/MurmurHash.hpp>
 #include <sdk/Application.hpp>
+#include <sdk/GameIdentity.hpp>
 
 #include "HookManager.hpp"
 
@@ -18,6 +18,11 @@ std::shared_ptr<RE8VR>& RE8VR::get() {
 }
 
 std::optional<std::string> RE8VR::on_initialize() {
+    const auto& gi = sdk::GameIdentity::get();
+    if (!gi.is_re7() && !gi.is_re8()) {
+        return Mod::on_initialize(); // Not applicable to this game
+    }
+
     auto app_player_shadow_late_update = sdk::find_method_definition("app.PlayerShadow", "lateUpdate");
 
     if (app_player_shadow_late_update == nullptr) {
@@ -172,20 +177,23 @@ void RE8VR::set_hand_joints_to_tpose(::REManagedObject* hand_ik) {
         return;
     }
 
-#ifdef RE7
-        std::vector<uint32_t> hashes = {
+    const auto& gi = sdk::GameIdentity::get();
+
+    std::vector<uint32_t> hashes;
+    if (gi.is_re7()) {
+        hashes = {
             *sdk::get_object_field<uint32_t>(hand_ik, "HashJoint0"),
             *sdk::get_object_field<uint32_t>(hand_ik, "HashJoint1"),
             *sdk::get_object_field<uint32_t>(hand_ik, "HashJoint2"),
             *sdk::get_object_field<uint32_t>(hand_ik, "HashJoint3")
         };
-#else
-        std::vector<uint32_t> hashes = {
+    } else {
+        hashes = {
             *sdk::get_object_field<uint32_t>(hand_ik, "<HashJoint0>k__BackingField"),
             *sdk::get_object_field<uint32_t>(hand_ik, "<HashJoint1>k__BackingField"),
             *sdk::get_object_field<uint32_t>(hand_ik, "<HashJoint2>k__BackingField")
         };
-#endif
+    }
 
     std::vector<::REJoint*> joints{};
     auto player_transform = m_player->transform;
@@ -212,6 +220,7 @@ void RE8VR::set_hand_joints_to_tpose(::REManagedObject* hand_ik) {
 }
 
 void RE8VR::update_hand_ik() {
+    const auto& gi = sdk::GameIdentity::get();
     if (m_in_re8_end_game_event) {
         return;
     }
@@ -276,13 +285,13 @@ void RE8VR::update_hand_ik() {
         uint32_t left_hash = 0;
         uint32_t right_hash = 0;
 
-#ifdef RE7
-        left_hash = *sdk::get_object_field<uint32_t>(m_left_hand_ik, "HashJoint2");
-        right_hash = *sdk::get_object_field<uint32_t>(m_right_hand_ik, "HashJoint2");
-#else
-        left_hash = *sdk::get_object_field<uint32_t>(m_left_hand_ik, "<HashJoint2>k__BackingField");
-        right_hash = *sdk::get_object_field<uint32_t>(m_right_hand_ik, "<HashJoint2>k__BackingField");
-#endif
+        if (gi.is_re7()) {
+            left_hash = *sdk::get_object_field<uint32_t>(m_left_hand_ik, "HashJoint2");
+            right_hash = *sdk::get_object_field<uint32_t>(m_right_hand_ik, "HashJoint2");
+        } else {
+            left_hash = *sdk::get_object_field<uint32_t>(m_left_hand_ik, "<HashJoint2>k__BackingField");
+            right_hash = *sdk::get_object_field<uint32_t>(m_right_hand_ik, "<HashJoint2>k__BackingField");
+        }
 
         const auto left_index = motion_get_joint_index_by_name_hash->call<uint32_t>(sdk::get_thread_context(), motion, left_hash);
         const auto right_index = motion_get_joint_index_by_name_hash->call<uint32_t>(sdk::get_thread_context(), motion, right_hash);
@@ -524,6 +533,7 @@ void RE8VR::update_player_gestures() {
 }
 
 void RE8VR::fix_player_camera(::REManagedObject* player_camera) {
+    const auto& gi = sdk::GameIdentity::get();
     auto& vr = VR::get();
 
     m_in_re8_end_game_event = false;
@@ -562,26 +572,26 @@ void RE8VR::fix_player_camera(::REManagedObject* player_camera) {
         return;
     }
 
-#ifdef RE8
-    /*
-    Check whether we're in the event at the end of RE8
-    and return early if we are.
-    */
-    if (m_is_in_cutscene && m_game_event_action_controller != nullptr) {
-        auto event_action = sdk::get_object_field<::REManagedObject*>(m_game_event_action_controller, "_GameEventAction");
+    if (gi.is_re8()) {
+        /*
+        Check whether we're in the event at the end of RE8
+        and return early if we are.
+        */
+        if (m_is_in_cutscene && m_game_event_action_controller != nullptr) {
+            auto event_action = sdk::get_object_field<::REManagedObject*>(m_game_event_action_controller, "_GameEventAction");
 
-        if (event_action != nullptr && *event_action != nullptr) {
-            auto event_name = sdk::get_object_field<::SystemString*>(*event_action, "_EventName");
+            if (event_action != nullptr && *event_action != nullptr) {
+                auto event_name = sdk::get_object_field<::SystemString*>(*event_action, "_EventName");
 
-            if (event_name != nullptr && *event_name != nullptr) {
-                if (s_re8_end_game_events.contains(utility::re_string::get_string(*event_name))) {
-                    m_in_re8_end_game_event = true;
-                    return;
+                if (event_name != nullptr && *event_name != nullptr) {
+                    if (s_re8_end_game_events.contains(utility::re_string::get_string(*event_name))) {
+                        m_in_re8_end_game_event = true;
+                        return;
+                    }
                 }
             }
         }
     }
-#endif
 
     m_camera_data.last_hmd_active_state = true;
 
@@ -589,20 +599,21 @@ void RE8VR::fix_player_camera(::REManagedObject* player_camera) {
     auto is_maximum_controllable = true;
 
     if (base_transform_solver != nullptr && *base_transform_solver != nullptr) {
-#ifdef RE8
-        auto current_type_obj = *sdk::get_object_field<::REManagedObject*>(*base_transform_solver, "<currentType>k__BackingField");
-        auto current_type = *sdk::get_object_field<int>(current_type_obj, "Value");
+        int current_type = 0;
+        if (gi.is_re8()) {
+            auto current_type_obj = *sdk::get_object_field<::REManagedObject*>(*base_transform_solver, "<currentType>k__BackingField");
+            current_type = *sdk::get_object_field<int>(current_type_obj, "Value");
 
-        auto vehicle = sdk::get_object_field<::REGameObject*>(player_camera, "RideVehicleObject");
-        m_has_vehicle = vehicle != nullptr && *vehicle != nullptr;
+            auto vehicle = sdk::get_object_field<::REGameObject*>(player_camera, "RideVehicleObject");
+            m_has_vehicle = vehicle != nullptr && *vehicle != nullptr;
 
-        // Fixes special cutscene near the end of the game.
-        if (m_has_vehicle && m_is_arm_jacked) {
-            return;
+            // Fixes special cutscene near the end of the game.
+            if (m_has_vehicle && m_is_arm_jacked) {
+                return;
+            }
+        } else {
+            current_type = *sdk::get_object_field<int>(*base_transform_solver, "<currentType>k__BackingField");
         }
-#else
-        auto current_type = *sdk::get_object_field<int>(*base_transform_solver, "<currentType>k__BackingField");
-#endif
 
         if (current_type != 0 && !m_has_vehicle) { // MaximumOperatable
             m_is_in_cutscene = true;
@@ -758,16 +769,16 @@ void RE8VR::fix_player_camera(::REManagedObject* player_camera) {
 
     *camera_position_field = camera_pos;
 
-#ifdef RE8
-    // RE8 pre oct14 update
-    auto fixed_aim_rotation_field = sdk::get_object_field<glm::quat>(player_camera, "FixedAimRotation");
+    if (gi.is_re8()) {
+        // RE8 pre oct14 update
+        auto fixed_aim_rotation_field = sdk::get_object_field<glm::quat>(player_camera, "FixedAimRotation");
 
-    if (fixed_aim_rotation_field == nullptr) {
-        fixed_aim_rotation_field = sdk::get_object_field<glm::quat>(player_camera, "<fixedAimRotation>k__BackingField");
+        if (fixed_aim_rotation_field == nullptr) {
+            fixed_aim_rotation_field = sdk::get_object_field<glm::quat>(player_camera, "<fixedAimRotation>k__BackingField");
+        }
+
+        *fixed_aim_rotation_field = fixed_rot;
     }
-
-    *fixed_aim_rotation_field = fixed_rot;
-#endif
 
     auto camera_rotation_with_movement_shake_field = sdk::get_object_field<glm::quat>(player_camera, "CameraRotationWithMovementShake");
 
@@ -808,11 +819,9 @@ void RE8VR::fix_player_camera(::REManagedObject* player_camera) {
             auto camera_controller_rot = glm::identity<glm::quat>();
 
             if (m_is_in_cutscene) {
-#ifdef RE7
-                camera_controller_rot = *sdk::get_object_field<glm::quat>(*camera_controller, "<rotation>k__BackingField");
-#else
-                camera_controller_rot = *sdk::get_object_field<glm::quat>(*camera_controller, "<Rotation>k__BackingField");
-#endif
+                camera_controller_rot = gi.is_re7()
+                    ? *sdk::get_object_field<glm::quat>(*camera_controller, "<rotation>k__BackingField")
+                    : *sdk::get_object_field<glm::quat>(*camera_controller, "<Rotation>k__BackingField");
             } else {
                 camera_controller_rot = fixed_rot;
             }
@@ -823,13 +832,12 @@ void RE8VR::fix_player_camera(::REManagedObject* player_camera) {
                 if (!m_is_in_cutscene) {
                     vr->recenter_view();
                 }
-#ifdef RE7
-                *sdk::get_object_field<glm::quat>(*camera_controller, "<rotation>k__BackingField") = camera_controller_rot;
-#else
-                *sdk::get_object_field<glm::quat>(*camera_controller, "<Rotation>k__BackingField") = camera_controller_rot;
-#endif
+                if (gi.is_re7()) {
+                    *sdk::get_object_field<glm::quat>(*camera_controller, "<rotation>k__BackingField") = camera_controller_rot;
+                } else {
+                    *sdk::get_object_field<glm::quat>(*camera_controller, "<Rotation>k__BackingField") = camera_controller_rot;
+                }
             }
-
             *sdk::get_object_field<glm::quat>(*base_transform_solver, "<rotation>k__BackingField") = camera_controller_rot;
             *sdk::get_object_field<bool>(*camera_controller, "IsVerticalRotateLimited") = is_maximum_controllable;
 
@@ -904,6 +912,7 @@ void RE8VR::slerp_gui(const glm::quat& new_gui_quat) {
 }
 
 void RE8VR::fix_player_shadow() {
+    const auto& gi = sdk::GameIdentity::get();
     if (m_player == nullptr || m_player->transform == nullptr) {
         return;
     }
@@ -916,20 +925,21 @@ void RE8VR::fix_player_shadow() {
 
     static auto app_player_mesh_controller = sdk::find_type_definition("app.PlayerMeshController");
 
-#ifdef RE8
-    if (m_updater == nullptr) {
-        return;
-    }
+    ::REManagedObject* mesh_controller = nullptr;
+    if (gi.is_re8()) {
+        if (m_updater == nullptr) {
+            return;
+        }
 
-    auto mesh_controller = sdk::call_object_func_easy<::REManagedObject*>(m_updater, "get_playerMeshController");
+        mesh_controller = sdk::call_object_func_easy<::REManagedObject*>(m_updater, "get_playerMeshController");
 
-    if (mesh_controller == nullptr && m_order != nullptr) {
-        mesh_controller = sdk::call_object_func_easy<::REManagedObject*>(m_order, "get_playerMeshController");
+        if (mesh_controller == nullptr && m_order != nullptr) {
+            mesh_controller = sdk::call_object_func_easy<::REManagedObject*>(m_order, "get_playerMeshController");
+        }
+    } else {
+        static auto app_player_mesh_controller_type = app_player_mesh_controller->get_type();
+        mesh_controller = utility::re_component::find<::REManagedObject>(m_player->transform, app_player_mesh_controller_type);
     }
-#else
-    static auto app_player_mesh_controller_type = app_player_mesh_controller->get_type();
-    auto mesh_controller = utility::re_component::find<::REManagedObject>(m_player->transform, app_player_mesh_controller_type);
-#endif
 
     if (mesh_controller == nullptr) {
         return;
@@ -1089,91 +1099,96 @@ void RE8VR::fix_player_shadow() {
 }
 
 ::REManagedObject* RE8VR::get_localplayer() const {
-#ifdef RE7
-    auto object_man = sdk::get_managed_singleton<::REManagedObject>("app.ObjectManager");
+    const auto& gi = sdk::GameIdentity::get();
 
-    if (object_man == nullptr) {
-        return nullptr;
+    if (gi.is_re7()) {
+        auto object_man = sdk::get_managed_singleton<::REManagedObject>("app.ObjectManager");
+
+        if (object_man == nullptr) {
+            return nullptr;
+        }
+
+        static auto field = sdk::find_type_definition("app.ObjectManager")->get_field("PlayerObj");
+
+        return field->get_data<::REManagedObject*>(object_man);
+    } else {
+        auto propsman = sdk::get_managed_singleton<::REManagedObject>("app.PropsManager");
+
+        if (propsman == nullptr) {
+            return nullptr;
+        }
+
+        static auto field = sdk::find_type_definition("app.PropsManager")->get_field("<Player>k__BackingField");
+
+        return field->get_data<::REManagedObject*>(propsman);
     }
-
-    static auto field = sdk::find_type_definition("app.ObjectManager")->get_field("PlayerObj");
-
-    return field->get_data<::REManagedObject*>(object_man);
-#else
-    auto propsman = sdk::get_managed_singleton<::REManagedObject>("app.PropsManager");
-
-    if (propsman == nullptr) {
-        return nullptr;
-    }
-
-    static auto field = sdk::find_type_definition("app.PropsManager")->get_field("<Player>k__BackingField");
-
-    return field->get_data<::REManagedObject*>(propsman);
-#endif
 }
 
 ::REManagedObject* RE8VR::get_weapon_object(::REGameObject* player) const {
-#ifdef RE7
-    static auto equip_manager_type = sdk::find_type_definition("app.EquipManager")->get_type();
-    auto equip_manager = utility::re_component::find<::REManagedObject>(player->transform, equip_manager_type);
+    const auto& gi = sdk::GameIdentity::get();
 
-    if (equip_manager == nullptr) {
+    if (gi.is_re7()) {
+        static auto equip_manager_type = sdk::find_type_definition("app.EquipManager")->get_type();
+        auto equip_manager = utility::re_component::find<::REManagedObject>(player->transform, equip_manager_type);
+
+        if (equip_manager == nullptr) {
+            return nullptr;
+        }
+
+        static auto get_equip_weapon_right_method = sdk::find_method_definition("app.EquipManager", "get_equipWeaponRight");
+
+        return get_equip_weapon_right_method->call<::REManagedObject*>(sdk::get_thread_context(), equip_manager);
+    } else {
+        if (m_updater == nullptr) {
+            return nullptr;
+        }
+
+        auto find_fps_method = [](std::string_view tname, std::string_view method_name) -> sdk::REMethodDefinition* {
+            auto t = sdk::find_type_definition(tname);
+
+            if (t == nullptr) {
+                t = sdk::find_type_definition(std::string{ tname } + "FPS");
+            }
+
+            if (t == nullptr) {
+                return nullptr;
+            }
+
+            return t->get_method(method_name);
+        };
+
+        if (m_player_type == PlayerType::ETHAN) {
+            static auto get_player_gun_method = find_fps_method("app.PlayerUpdater", "get_playerGun");
+
+            auto player_gun = get_player_gun_method->call<::REGameObject*>(sdk::get_thread_context(), m_updater);
+
+            if (player_gun == nullptr) {
+                return nullptr;
+            }
+
+            static auto get_equip_weapon_object_method = sdk::find_method_definition("app.PlayerGun", "get_equipWeaponObject");
+
+            return get_equip_weapon_object_method->call<::REManagedObject*>(sdk::get_thread_context(), player_gun);
+        } else if (m_player_type == PlayerType::CHRIS_MERC) {
+            static auto get_player_gun_method = find_fps_method("app.PlayerUpdaterPl2001", "get_playerGun");
+
+            auto player_gun = get_player_gun_method->call<::REGameObject*>(sdk::get_thread_context(), m_updater);
+
+            if (player_gun == nullptr) {
+                return nullptr;
+            }
+
+            static auto get_equip_weapon_object_method = sdk::find_method_definition("app.PlayerGunPl2001", "get_equipWeaponObject");
+
+            return get_equip_weapon_object_method->call<::REManagedObject*>(sdk::get_thread_context(), player_gun);
+        }
+
         return nullptr;
     }
-
-    static auto get_equip_weapon_right_method = sdk::find_method_definition("app.EquipManager", "get_equipWeaponRight");
-
-    return get_equip_weapon_right_method->call<::REManagedObject*>(sdk::get_thread_context(), equip_manager);
-#else
-    if (m_updater == nullptr) {
-        return nullptr;
-    }
-
-    auto find_fps_method = [](std::string_view tname, std::string_view method_name) -> sdk::REMethodDefinition* {
-        auto t = sdk::find_type_definition(tname);
-
-        if (t == nullptr) {
-            t = sdk::find_type_definition(std::string{ tname } + "FPS");
-        }
-
-        if (t == nullptr) {
-            return nullptr;
-        }
-
-        return t->get_method(method_name);
-    };
-
-    if (m_player_type == PlayerType::ETHAN) {
-        static auto get_player_gun_method = find_fps_method("app.PlayerUpdater", "get_playerGun");
-
-        auto player_gun = get_player_gun_method->call<::REGameObject*>(sdk::get_thread_context(), m_updater);
-
-        if (player_gun == nullptr) {
-            return nullptr;
-        }
-
-        static auto get_equip_weapon_object_method = sdk::find_method_definition("app.PlayerGun", "get_equipWeaponObject");
-
-        return get_equip_weapon_object_method->call<::REManagedObject*>(sdk::get_thread_context(), player_gun);
-    } else if (m_player_type == PlayerType::CHRIS_MERC) {
-        static auto get_player_gun_method = find_fps_method("app.PlayerUpdaterPl2001", "get_playerGun");
-
-        auto player_gun = get_player_gun_method->call<::REGameObject*>(sdk::get_thread_context(), m_updater);
-
-        if (player_gun == nullptr) {
-            return nullptr;
-        }
-
-        static auto get_equip_weapon_object_method = sdk::find_method_definition("app.PlayerGunPl2001", "get_equipWeaponObject");
-
-        return get_equip_weapon_object_method->call<::REManagedObject*>(sdk::get_thread_context(), player_gun);
-    }
-
-    return nullptr;
-#endif
 }
 
 bool RE8VR::update_pointers() {
+    const auto& gi = sdk::GameIdentity::get();
     m_player_downcast = get_localplayer();
 
     if (m_player == nullptr) {
@@ -1219,30 +1234,30 @@ bool RE8VR::update_pointers() {
     static auto updater_type = get_ambiguous_re_type("app.PlayerUpdater");
     assign_component(m_updater, updater_type);
 
-#ifdef RE8
-    if (m_updater == nullptr) {
-        static auto updater_type_chris = get_ambiguous_re_type("app.PlayerUpdaterPl2001");
-        assign_component(m_updater, updater_type_chris);
+    if (gi.is_re8()) {
+        if (m_updater == nullptr) {
+            static auto updater_type_chris = get_ambiguous_re_type("app.PlayerUpdaterPl2001");
+            assign_component(m_updater, updater_type_chris);
 
-        if (m_updater != nullptr) {
-            m_player_type = PlayerType::CHRIS_MERC;
+            if (m_updater != nullptr) {
+                m_player_type = PlayerType::CHRIS_MERC;
+            }
+        } else {
+            m_player_type = PlayerType::ETHAN;
         }
     } else {
         m_player_type = PlayerType::ETHAN;
     }
-#else
-    m_player_type = PlayerType::ETHAN;
-#endif
 
     static auto order_type = get_ambiguous_re_type("app.PlayerOrder");
     assign_component(m_order, order_type);
 
-#ifdef RE8
-    if (m_order == nullptr) {
-        static auto order_type_chris = get_ambiguous_re_type("app.PlayerOrderPl2001");
-        assign_component(m_order, order_type_chris);
+    if (gi.is_re8()) {
+        if (m_order == nullptr) {
+            static auto order_type_chris = get_ambiguous_re_type("app.PlayerOrderPl2001");
+            assign_component(m_order, order_type_chris);
+        }
     }
-#endif
 
     static auto event_action_controller_type = get_ambiguous_re_type("app.EventActionController");
     assign_component(m_event_action_controller, event_action_controller_type);
@@ -1250,20 +1265,20 @@ bool RE8VR::update_pointers() {
     static auto game_event_action_controller_type = get_ambiguous_re_type("app.GameEventActionController");
     assign_component(m_game_event_action_controller, game_event_action_controller_type);
 
-#ifdef RE7
-    static auto hit_controller_type = get_ambiguous_re_type("app.Collision.HitController");
-    assign_component(m_hit_controller, hit_controller_type);
-#else
-    // TODO
-#endif
-
-#ifdef RE8
-    if (m_game_event_action_controller != nullptr) {
-        m_is_motion_play = *sdk::get_object_field<bool>(m_game_event_action_controller, "_isMotionPlay");
+    if (gi.is_re7()) {
+        static auto hit_controller_type = get_ambiguous_re_type("app.Collision.HitController");
+        assign_component(m_hit_controller, hit_controller_type);
+    } else {
+        // TODO
     }
-#else 
-    m_is_motion_play = false;
-#endif
+
+    if (gi.is_re8()) {
+        if (m_game_event_action_controller != nullptr) {
+            m_is_motion_play = *sdk::get_object_field<bool>(m_game_event_action_controller, "_isMotionPlay");
+        }
+    } else {
+        m_is_motion_play = false;
+    }
 
     if (m_order != nullptr) {
         m_is_grapple_aim = *sdk::get_object_field<bool>(m_order, "IsGrappleAimEnable");
@@ -1273,31 +1288,31 @@ bool RE8VR::update_pointers() {
 
     static auto inventory_type = get_ambiguous_re_type("app.Inventory");
 
-#ifdef RE7
-    assign_component(m_inventory, inventory_type);
+    if (gi.is_re7()) {
+        assign_component(m_inventory, inventory_type);
 
-    static auto status_type = get_ambiguous_re_type("app.PlayerStatus");
-    assign_component(m_status, status_type);
-#else
-    if (m_updater != nullptr) {
-        m_status = sdk::call_object_func_easy<::REManagedObject*>(m_updater, "get_playerstatus");
+        static auto status_type = get_ambiguous_re_type("app.PlayerStatus");
+        assign_component(m_status, status_type);
+    } else {
+        if (m_updater != nullptr) {
+            m_status = sdk::call_object_func_easy<::REManagedObject*>(m_updater, "get_playerstatus");
 
-        auto container = sdk::get_object_field<::REManagedObject*>(m_updater, "playerContainer");
+            auto container = sdk::get_object_field<::REManagedObject*>(m_updater, "playerContainer");
 
-        if (container == nullptr ) {
-            container = sdk::get_object_field<::REManagedObject*>(m_updater, "<playerContainer>k__BackingField");
-        }
-        
-        if (container != nullptr && *container != nullptr) {
-            m_inventory = sdk::call_object_func_easy<::REManagedObject*>(*container, "get_inventory");
+            if (container == nullptr ) {
+                container = sdk::get_object_field<::REManagedObject*>(m_updater, "<playerContainer>k__BackingField");
+            }
+            
+            if (container != nullptr && *container != nullptr) {
+                m_inventory = sdk::call_object_func_easy<::REManagedObject*>(*container, "get_inventory");
+            } else {
+                m_inventory = nullptr;
+            }
         } else {
+            m_status = nullptr;
             m_inventory = nullptr;
         }
-    } else {
-        m_status = nullptr;
-        m_inventory = nullptr;
     }
-#endif
 
     if (m_status != nullptr) {
         m_is_reloading = sdk::call_object_func_easy<bool>(m_status, "get_isReload");
@@ -1401,11 +1416,9 @@ void RE8VR::post_shadow_late_update(uintptr_t& ret_val, sdk::RETypeDefinition* r
 }
 
 void RE8VR::update_heal_gesture() {
-#ifdef RE7
-    if (m_inventory == nullptr) {
-#else
-    if (m_inventory == nullptr || m_updater == nullptr) {
-#endif
+    const auto& gi = sdk::GameIdentity::get();
+
+    if (gi.is_re7() ? (m_inventory == nullptr) : (m_inventory == nullptr || m_updater == nullptr)) {
         m_wants_heal = false;
         m_heal_gesture.was_grip_down = false;
         m_heal_gesture.was_trigger_down = false;
@@ -1427,26 +1440,30 @@ void RE8VR::update_heal_gesture() {
     const auto is_trigger_down = vr->is_action_active(action_trigger, right_joystick);
     const auto is_grip_down = vr->is_action_active(action_grip, right_joystick);
 
-#ifdef RE8
+    ::REManagedObject* items_list = nullptr;
+    ::REManagedObject* weapon_change = nullptr;
+    ::REManagedObject* mesh_controller = nullptr;
+
     static auto app_medicine_core = sdk::find_type_definition("app.MedicineCore");
 
-    auto items_list = *sdk::get_object_field<::REManagedObject*>(m_inventory, "<items>k__BackingField");
-    auto weapon_change = sdk::call_object_func_easy<::REManagedObject*>(m_updater, "get_playerWeaponChange");
-    auto mesh_controller = sdk::call_object_func_easy<::REManagedObject*>(m_updater, "get_playerMeshController");
+    if (gi.is_re8()) {
+        items_list = *sdk::get_object_field<::REManagedObject*>(m_inventory, "<items>k__BackingField");
+        weapon_change = sdk::call_object_func_easy<::REManagedObject*>(m_updater, "get_playerWeaponChange");
+        mesh_controller = sdk::call_object_func_easy<::REManagedObject*>(m_updater, "get_playerMeshController");
 
-    if (mesh_controller == nullptr && m_order != nullptr) {
-        mesh_controller =  sdk::call_object_func_easy<::REManagedObject*>(m_order, "get_playerMeshController");
+        if (mesh_controller == nullptr && m_order != nullptr) {
+            mesh_controller =  sdk::call_object_func_easy<::REManagedObject*>(m_order, "get_playerMeshController");
+        }
+    } else {
+        static auto app_player_weapon_change = sdk::find_type_definition("app.PlayerWeaponChange");
+        static auto app_player_mesh_controller = sdk::find_type_definition("app.PlayerMeshController");
+        static auto app_player_weapon_change_type = app_player_weapon_change->get_type();
+        static auto app_player_mesh_controller_type = app_player_mesh_controller->get_type();
+
+        items_list = *sdk::get_object_field<::REManagedObject*>(m_inventory, "_ItemList");
+        weapon_change = utility::re_component::find<::REManagedObject>(m_player->transform, app_player_weapon_change_type);
+        mesh_controller = utility::re_component::find<::REManagedObject>(m_player->transform, app_player_mesh_controller_type);
     }
-#else
-    static auto app_player_weapon_change = sdk::find_type_definition("app.PlayerWeaponChange");
-    static auto app_player_mesh_controller = sdk::find_type_definition("app.PlayerMeshController");
-    static auto app_player_weapon_change_type = app_player_weapon_change->get_type();
-    static auto app_player_mesh_controller_type = app_player_mesh_controller->get_type();
-
-    auto items_list = *sdk::get_object_field<::REManagedObject*>(m_inventory, "_ItemList");
-    auto weapon_change = utility::re_component::find<::REManagedObject>(m_player->transform, app_player_weapon_change_type);
-    auto mesh_controller = utility::re_component::find<::REManagedObject>(m_player->transform, app_player_mesh_controller_type);
-#endif
 
     if (items_list == nullptr || weapon_change == nullptr || mesh_controller == nullptr) {
         spdlog::info("[RE8VR] Could not find inventory, weapon change, or mesh controller");
@@ -1470,20 +1487,20 @@ void RE8VR::update_heal_gesture() {
             continue;
         }
 
-#ifdef RE8
-        const auto is_medicine = utility::re_managed_object::get_type_definition(item)->is_a(app_medicine_core);
-#else
         bool is_medicine = false;
-        auto item_internal = *sdk::get_object_field<::REManagedObject*>(item, "Item");
+        if (gi.is_re8()) {
+            is_medicine = utility::re_managed_object::get_type_definition(item)->is_a(app_medicine_core);
+        } else {
+            auto item_internal = *sdk::get_object_field<::REManagedObject*>(item, "Item");
 
-        if (item_internal != nullptr) {
-            auto item_name = *sdk::get_object_field<::SystemString*>(item_internal, "ItemDataID");
+            if (item_internal != nullptr) {
+                auto item_name = *sdk::get_object_field<::SystemString*>(item_internal, "ItemDataID");
 
-            if (item_name != nullptr) {
-                is_medicine = utility::re_string::get_string(item_name).find("Remedy") != std::string::npos;
+                if (item_name != nullptr) {
+                    is_medicine = utility::re_string::get_string(item_name).find("Remedy") != std::string::npos;
+                }
             }
         }
-#endif
 
         if (is_medicine) {
             medicine_item = item;
@@ -1499,12 +1516,13 @@ void RE8VR::update_heal_gesture() {
         return;
     }
 
-#ifdef RE7
-    auto item_internal = *sdk::get_object_field<::REManagedObject*>(medicine_item, "Item");
-    auto owner = *sdk::get_object_field<::REGameObject*>(medicine_item, "Owner");
-#else
-    auto owner = *sdk::get_object_field<::REGameObject*>(medicine_item, "<owner>k__BackingField");
-#endif
+    ::REManagedObject* item_internal = nullptr;
+    if (gi.is_re7()) {
+        item_internal = *sdk::get_object_field<::REManagedObject*>(medicine_item, "Item");
+    }
+    auto owner = gi.is_re7()
+        ? *sdk::get_object_field<::REGameObject*>(medicine_item, "Owner")
+        : *sdk::get_object_field<::REGameObject*>(medicine_item, "<owner>k__BackingField");
 
     if (owner == nullptr) {
         m_wants_heal = false;
@@ -1530,23 +1548,23 @@ void RE8VR::update_heal_gesture() {
     }
 
     auto dequip_item = [&]() {
-#ifdef RE7
-        auto equip_manager = utility::re_component::find<::REManagedObject>(m_player->transform, "app.EquipManager");
-        if (equip_manager == nullptr) {
-            return;
+        if (gi.is_re7()) {
+            auto equip_manager = utility::re_component::find<::REManagedObject>(m_player->transform, "app.EquipManager");
+            if (equip_manager == nullptr) {
+                return;
+            }
+
+            auto item_weapon = *sdk::get_object_field<::REManagedObject*>(item_internal, "<weapon>k__BackingField");
+
+            sdk::call_object_func_easy<void*>(weapon_change, "removeWeapon");
+            sdk::call_object_func_easy<void*>(mesh_controller, "onEquipWeaponChanged", nullptr, item_weapon);
+
+            auto current_equipped_right = *sdk::get_object_field<::REManagedObject*>(equip_manager, "<equipWeaponRight>k__BackingField");
+
+            if (current_equipped_right == item_weapon) {
+               sdk::call_object_func_easy<void*>(equip_manager, "set_equipWeaponRight", nullptr);
+            }
         }
-
-        auto item_weapon = *sdk::get_object_field<::REManagedObject*>(item_internal, "<weapon>k__BackingField");
-
-        sdk::call_object_func_easy<void*>(weapon_change, "removeWeapon");
-        sdk::call_object_func_easy<void*>(mesh_controller, "onEquipWeaponChanged", nullptr, item_weapon);
-
-        auto current_equipped_right = *sdk::get_object_field<::REManagedObject*>(equip_manager, "<equipWeaponRight>k__BackingField");
-
-        if (current_equipped_right == item_weapon) {
-           sdk::call_object_func_easy<void*>(equip_manager, "set_equipWeaponRight", nullptr);
-        }
-#endif
     };
 
     if (!is_same_mesh) {
@@ -1557,75 +1575,75 @@ void RE8VR::update_heal_gesture() {
             vr->trigger_haptic_vibration(0.0f, 0.1f, 1.0f, 5.0f, right_joystick);
 
             if (is_grip_down) {
-#ifdef RE8
-                auto equip_manager = sdk::call_object_func_easy<::REManagedObject*>(m_updater, "get_equipController");
+                if (gi.is_re8()) {
+                    auto equip_manager = sdk::call_object_func_easy<::REManagedObject*>(m_updater, "get_equipController");
 
-                if (equip_manager == nullptr && m_order != nullptr) {
-                    equip_manager = sdk::call_object_func_easy<::REManagedObject*>(m_order, "get_equipController");
+                    if (equip_manager == nullptr && m_order != nullptr) {
+                        equip_manager = sdk::call_object_func_easy<::REManagedObject*>(m_order, "get_equipController");
+                    }
+
+                    sdk::call_object_func_easy<void*>(medicine_item, "setActive", true);
+                    sdk::call_object_func_easy<void*>(weapon_change, "removeWeaponWithNoAction");
+
+                    if (equip_manager != nullptr) {
+                        sdk::call_object_func_easy<void*>(equip_manager, "equipObject", owner);
+                    }
+
+                    m_heal_gesture.last_grab_time = now;
+                } else {
+                    auto equip_manager = utility::re_component::find<::REManagedObject>(m_player->transform, "app.EquipManager");
+
+                    if (equip_manager == nullptr) {
+                        spdlog::info("[RE8VR] No equip manager found");
+                        return;
+                    }
+
+                    auto current_equipped_right = *sdk::get_object_field<::REManagedObject*>(equip_manager, "<equipWeaponRight>k__BackingField");
+                    auto item_weapon = *sdk::get_object_field<::REManagedObject*>(item_internal, "<weapon>k__BackingField");
+
+                    sdk::call_object_func_easy<void*>(weapon_change, "removeWeapon");
+                    
+                    try {
+                        sdk::call_object_func_easy<void*>(equip_manager, "equipWeapon(app.Weapon, app.CharacterDefine.Hand)", item_weapon, 0);
+                    } catch(...) {}
+
+                    try {
+                        sdk::call_object_func_easy<void*>(weapon_change, "equipWeapon", item_internal, item_weapon);
+                    } catch(...) {}
+
+                    if (m_weapon != nullptr) {
+                        sdk::call_object_func_easy<void*>(mesh_controller, "onEquipWeaponChanged", item_weapon, m_weapon);
+                    }
+
+                    if (current_equipped_right != item_weapon) {
+                        sdk::call_object_func_easy<void*>(equip_manager, "set_equipWeaponRight", item_weapon);
+                    }
+
+                    m_heal_gesture.last_grab_time = now;
                 }
-
-                sdk::call_object_func_easy<void*>(medicine_item, "setActive", true);
-                sdk::call_object_func_easy<void*>(weapon_change, "removeWeaponWithNoAction");
-
-                if (equip_manager != nullptr) {
-                    sdk::call_object_func_easy<void*>(equip_manager, "equipObject", owner);
-                }
-
-                m_heal_gesture.last_grab_time = now;
-#else
-                auto equip_manager = utility::re_component::find<::REManagedObject>(m_player->transform, "app.EquipManager");
-
-                if (equip_manager == nullptr) {
-                    spdlog::info("[RE8VR] No equip manager found");
-                    return;
-                }
-
-                auto current_equipped_right = *sdk::get_object_field<::REManagedObject*>(equip_manager, "<equipWeaponRight>k__BackingField");
-                auto item_weapon = *sdk::get_object_field<::REManagedObject*>(item_internal, "<weapon>k__BackingField");
-
-                sdk::call_object_func_easy<void*>(weapon_change, "removeWeapon");
-                
-                try {
-                    sdk::call_object_func_easy<void*>(equip_manager, "equipWeapon(app.Weapon, app.CharacterDefine.Hand)", item_weapon, 0);
-                } catch(...) {}
-
-                try {
-                    sdk::call_object_func_easy<void*>(weapon_change, "equipWeapon", item_internal, item_weapon);
-                } catch(...) {}
-
-                if (m_weapon != nullptr) {
-                    sdk::call_object_func_easy<void*>(mesh_controller, "onEquipWeaponChanged", item_weapon, m_weapon);
-                }
-
-                if (current_equipped_right != item_weapon) {
-                    sdk::call_object_func_easy<void*>(equip_manager, "set_equipWeaponRight", item_weapon);
-                }
-
-                m_heal_gesture.last_grab_time = now;
-#endif
             }
         }
     } else if (is_trigger_down) {
         if (!m_heal_gesture.was_trigger_down) {
-#ifdef RE7
-            auto item_weapon = *sdk::get_object_field<::REManagedObject*>(item_internal, "<weapon>k__BackingField");
+            if (gi.is_re7()) {
+                auto item_weapon = *sdk::get_object_field<::REManagedObject*>(item_internal, "<weapon>k__BackingField");
 
-            dequip_item();
-            sdk::call_object_func_easy<void*>(weapon_change, "useItem", item_internal, item_weapon);
-#else
-            sdk::call_object_func_easy<void*>(weapon_change, "requestUseItem", medicine_item, false, false);
-#endif
+                dequip_item();
+                sdk::call_object_func_easy<void*>(weapon_change, "useItem", item_internal, item_weapon);
+            } else {
+                sdk::call_object_func_easy<void*>(weapon_change, "requestUseItem", medicine_item, false, false);
+            }
         }
     } else if (!is_grip_down) {
         if (is_same_mesh) {
-#ifdef RE7
-            auto item_weapon = *sdk::get_object_field<::REManagedObject*>(item_internal, "<weapon>k__BackingField");
-            sdk::call_object_func_easy<void*>(weapon_change, "removeWeapon");
-            sdk::call_object_func_easy<void*>(mesh_controller, "onEquipWeaponChanged", nullptr, item_weapon);
-#else
-            sdk::call_object_func_easy<void*>(weapon_change, "removeWeaponWithNoAction");
-            sdk::call_object_func_easy<void*>(medicine_item, "setActive", false);
-#endif
+            if (gi.is_re7()) {
+                auto item_weapon = *sdk::get_object_field<::REManagedObject*>(item_internal, "<weapon>k__BackingField");
+                sdk::call_object_func_easy<void*>(weapon_change, "removeWeapon");
+                sdk::call_object_func_easy<void*>(mesh_controller, "onEquipWeaponChanged", nullptr, item_weapon);
+            } else {
+                sdk::call_object_func_easy<void*>(weapon_change, "removeWeaponWithNoAction");
+                sdk::call_object_func_easy<void*>(medicine_item, "setActive", false);
+            }
         }
     }
 
@@ -1633,27 +1651,24 @@ void RE8VR::update_heal_gesture() {
     m_heal_gesture.was_trigger_down = is_trigger_down && m_heal_gesture.last_grip_weapon == m_weapon;
     m_heal_gesture.last_grip_weapon = m_weapon;
 
-#ifdef RE8
-    static auto common_use_remedy_action = *sdk::get_static_field<::REManagedObject*>("app.PlayerDefineEnumLikeArray.UpperActionID", "CommonUseRemedy");
+    if (gi.is_re8()) {
+        static auto common_use_remedy_action = *sdk::get_static_field<::REManagedObject*>("app.PlayerDefineEnumLikeArray.UpperActionID", "CommonUseRemedy");
 
-    const auto is_syringe = utility::re_string::get_string(owner->name) == "ri1022_Inventory";
-    const auto upper_action_id = *sdk::get_object_field<::REManagedObject*>(m_status, "<upperActionID>k__BackingField");
-    const auto using_effect = *sdk::get_object_field<::REManagedObject*>(medicine_item, "usingEffect") != nullptr
-                                || upper_action_id == common_use_remedy_action;
+        const auto is_syringe = utility::re_string::get_string(owner->name) == "ri1022_Inventory";
+        const auto upper_action_id = *sdk::get_object_field<::REManagedObject*>(m_status, "<upperActionID>k__BackingField");
+        const auto using_effect = *sdk::get_object_field<::REManagedObject*>(medicine_item, "usingEffect") != nullptr
+                                    || upper_action_id == common_use_remedy_action;
 
-
-
-    // In RE8 the medicine is rotated all weird.
-    if (!is_trigger_down && !using_effect) {
-        if (!is_syringe) {
-            sdk::call_object_func_easy<void*>(owner->transform, "set_LocalRotation", &m_heal_gesture.re8_medicine_rotation);
-        } else {
-            sdk::call_object_func_easy<void*>(owner->transform, "set_LocalRotation", &m_heal_gesture.re8_syringe_rotation);
+        // In RE8 the medicine is rotated all weird.
+        if (!is_trigger_down && !using_effect) {
+            if (!is_syringe) {
+                sdk::call_object_func_easy<void*>(owner->transform, "set_LocalRotation", &m_heal_gesture.re8_medicine_rotation);
+            } else {
+                sdk::call_object_func_easy<void*>(owner->transform, "set_LocalRotation", &m_heal_gesture.re8_syringe_rotation);
+            }
+        } else if (is_syringe && using_effect) {
+            glm::quat zero_rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+            sdk::call_object_func_easy<void*>(owner->transform, "set_LocalRotation", &zero_rotation);
         }
-    } else if (is_syringe && using_effect) {
-        glm::quat zero_rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
-        sdk::call_object_func_easy<void*>(owner->transform, "set_LocalRotation", &zero_rotation);
     }
-#endif
 }
-#endif

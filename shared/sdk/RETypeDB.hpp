@@ -2,6 +2,7 @@
 #include <vector>
 #include <span>
 #include <cstdint>
+#include <type_traits>
 
 // Forward decls
 class RETypeDB;
@@ -180,12 +181,12 @@ struct REParameterDef {
     uint16_t init_data_index;
     uint32_t name_offset : 30;
     uint32_t modifier : 2;
-    uint32_t type_id : TYPE_INDEX_BITS;
-    uint32_t flags : (32 - TYPE_INDEX_BITS);
+    uint32_t type_id : 19;
+    uint32_t flags : 13;
 };
 
 struct REMethodDefinition {
-    uint32_t declaring_typeid : TYPE_INDEX_BITS;
+    uint32_t declaring_typeid : 19;
     uint32_t params_lo : 13;
     uint32_t impl_id : 19;
     uint32_t params_hi : 13;
@@ -241,9 +242,9 @@ struct ParamList {
 };
 
 struct REField {
-    uint64_t declaring_typeid : TYPE_INDEX_BITS;
-    uint64_t impl_id : TYPE_INDEX_BITS;
-    uint64_t field_typeid : TYPE_INDEX_BITS;
+    uint64_t declaring_typeid : 19;
+    uint64_t impl_id : 19;
+    uint64_t field_typeid : 19;
     uint64_t init_data_hi : 6;
     uint64_t rest2 : 1;
 };
@@ -259,8 +260,8 @@ struct REFieldImpl {
 };
 
 struct GenericListData {
-    uint32_t definition_typeid : TYPE_INDEX_BITS;
-    uint32_t num : (32 - TYPE_INDEX_BITS);
+    uint32_t definition_typeid : 19;
+    uint32_t num : 13;
     uint32_t types[1];
 };
 }
@@ -360,12 +361,12 @@ struct REParameterDef {
     uint16_t init_data_index;
     uint32_t name_offset : 30;
     uint32_t modifier : 2;
-    uint32_t type_id : TYPE_INDEX_BITS;
-    uint32_t flags : (32 - TYPE_INDEX_BITS);
+    uint32_t type_id : 19;
+    uint32_t flags : 13;
 };
 
 struct REMethodDefinition {
-    uint32_t declaring_typeid : TYPE_INDEX_BITS;
+    uint32_t declaring_typeid : 19;
     uint32_t params_lo : 13;
     uint32_t impl_id : 19;
     uint32_t params_hi : 13;
@@ -421,9 +422,9 @@ struct ParamList {
 };
 
 struct REField {
-    uint64_t declaring_typeid : TYPE_INDEX_BITS;
-    uint64_t impl_id : TYPE_INDEX_BITS;
-    uint64_t field_typeid : TYPE_INDEX_BITS;
+    uint64_t declaring_typeid : 19;
+    uint64_t impl_id : 19;
+    uint64_t field_typeid : 19;
     uint64_t init_data_hi : 6;
     uint64_t rest2 : 1;
 };
@@ -439,8 +440,8 @@ struct REFieldImpl {
 };
 
 struct GenericListData {
-    uint32_t definition_typeid : TYPE_INDEX_BITS;
-    uint32_t num : (32 - TYPE_INDEX_BITS);
+    uint32_t definition_typeid : 19;
+    uint32_t num : 13;
     uint32_t types[1];
 };
 }
@@ -537,12 +538,12 @@ struct REParameterDef {
     uint16_t init_data_index;
     uint32_t name_offset : 30;
     uint32_t modifier : 2;
-    uint32_t type_id : TYPE_INDEX_BITS;
-    uint32_t flags : (32 - TYPE_INDEX_BITS);
+    uint32_t type_id : 19;
+    uint32_t flags : 13;
 };
 
 struct REMethodDefinition {
-    uint32_t declaring_typeid : TYPE_INDEX_BITS;
+    uint32_t declaring_typeid : 19;
     uint32_t params_lo : 13;
     uint32_t impl_id : 19;
     uint32_t params_hi : 13;
@@ -597,9 +598,9 @@ struct ParamList {
 };
 
 struct REField {
-    uint64_t declaring_typeid : TYPE_INDEX_BITS;
-    uint64_t impl_id : TYPE_INDEX_BITS;
-    uint64_t field_typeid : TYPE_INDEX_BITS;
+    uint64_t declaring_typeid : 19;
+    uint64_t impl_id : 19;
+    uint64_t field_typeid : 19;
     uint64_t init_data_hi : 6;
     uint64_t rest2 : 1;
 };
@@ -615,8 +616,8 @@ struct REFieldImpl {
 };
 
 struct GenericListData {
-    uint32_t definition_typeid : TYPE_INDEX_BITS;
-    uint32_t num : (32 - TYPE_INDEX_BITS);
+    uint32_t definition_typeid : 19;
+    uint32_t num : 13;
     uint32_t types[1];
 };
 }
@@ -710,12 +711,12 @@ struct REParameterDef {
     uint16_t init_data_index;
     uint32_t name_offset : 30;
     uint32_t modifier : 2;
-    uint32_t type_id : TYPE_INDEX_BITS;
-    uint32_t flags : (32 - TYPE_INDEX_BITS);
+    uint32_t type_id : 19;
+    uint32_t flags : 13;
 };
 
 struct REMethodDefinition {
-    uint32_t declaring_typeid : TYPE_INDEX_BITS;
+    uint32_t declaring_typeid : 19;
     uint32_t params_lo : 13;
     uint32_t impl_id : 19;
     uint32_t params_hi : 13;
@@ -770,9 +771,9 @@ struct ParamList {
 };
 
 struct REField {
-    uint64_t declaring_typeid : TYPE_INDEX_BITS;
-    uint64_t impl_id : TYPE_INDEX_BITS;
-    uint64_t field_typeid : TYPE_INDEX_BITS;
+    uint64_t declaring_typeid : 19;
+    uint64_t impl_id : 19;
+    uint64_t field_typeid : 19;
     uint64_t init_data_hi : 6;
     uint64_t rest2 : 1;
 };
@@ -788,8 +789,8 @@ struct REFieldImpl {
 };
 
 struct GenericListData {
-    uint32_t definition_typeid : TYPE_INDEX_BITS;
-    uint32_t num : (32 - TYPE_INDEX_BITS);
+    uint32_t definition_typeid : 19;
+    uint32_t num : 13;
     uint32_t types[1];
 };
 }
@@ -886,12 +887,12 @@ struct REParameterDef {
     uint16_t init_data_index;
     uint32_t name_offset : 30;
     uint32_t modifier : 2;
-    uint32_t type_id : TYPE_INDEX_BITS;
-    uint32_t flags : (32 - TYPE_INDEX_BITS);
+    uint32_t type_id : 19;
+    uint32_t flags : 13;
 };
 
 struct REMethodDefinition {
-    uint32_t declaring_typeid : TYPE_INDEX_BITS;
+    uint32_t declaring_typeid : 19;
     uint32_t params_lo : 13;
     uint32_t impl_id : 19;
     uint32_t params_hi : 13;
@@ -946,9 +947,9 @@ struct ParamList {
 };
 
 struct REField {
-    uint64_t declaring_typeid : TYPE_INDEX_BITS;
-    uint64_t impl_id : TYPE_INDEX_BITS;
-    uint64_t field_typeid : TYPE_INDEX_BITS;
+    uint64_t declaring_typeid : 19;
+    uint64_t impl_id : 19;
+    uint64_t field_typeid : 19;
     uint64_t init_data_hi : 6;
     uint64_t rest2 : 1;
 };
@@ -964,8 +965,8 @@ struct REFieldImpl {
 };
 
 struct GenericListData {
-    uint32_t definition_typeid : TYPE_INDEX_BITS;
-    uint32_t num : (32 - TYPE_INDEX_BITS);
+    uint32_t definition_typeid : 19;
+    uint32_t num : 13;
     uint32_t types[1];
 };
 }
@@ -1029,12 +1030,12 @@ struct REParameterDef {
     uint16_t init_data_index;
     uint32_t name_offset : 30;
     uint32_t modifier : 2;
-    uint32_t type_id : TYPE_INDEX_BITS;
-    uint32_t flags : (32 - TYPE_INDEX_BITS);
+    uint32_t type_id : 19;
+    uint32_t flags : 13;
 };
 
 struct REMethodDefinition {
-    uint32_t declaring_typeid : TYPE_INDEX_BITS;
+    uint32_t declaring_typeid : 19;
     uint32_t params_lo : 13;
     uint32_t impl_id : 19;
     uint32_t params_hi : 13;
@@ -1089,9 +1090,9 @@ struct ParamList {
 };
 
 struct REField {
-    uint64_t declaring_typeid : TYPE_INDEX_BITS;
-    uint64_t impl_id : TYPE_INDEX_BITS;
-    uint64_t field_typeid : TYPE_INDEX_BITS;
+    uint64_t declaring_typeid : 19;
+    uint64_t impl_id : 19;
+    uint64_t field_typeid : 19;
     uint64_t init_data_hi : 6;
     uint64_t rest2 : 1;
 };
@@ -1107,8 +1108,8 @@ struct REFieldImpl {
 };
 
 struct GenericListData {
-    uint32_t definition_typeid : TYPE_INDEX_BITS;
-    uint32_t num : (32 - TYPE_INDEX_BITS);
+    uint32_t definition_typeid : 19;
+    uint32_t num : 13;
     uint32_t types[1];
 };
 }
@@ -1172,12 +1173,12 @@ struct REParameterDef {
     uint16_t init_data_index;
     uint32_t name_offset : 30;
     uint32_t modifier : 2;
-    uint32_t type_id : TYPE_INDEX_BITS;
-    uint32_t flags : (32 - TYPE_INDEX_BITS);
+    uint32_t type_id : 19;
+    uint32_t flags : 13;
 };
 
 struct REMethodDefinition {
-    uint32_t declaring_typeid : TYPE_INDEX_BITS;
+    uint32_t declaring_typeid : 19;
     uint32_t params_lo : 13;
     uint32_t impl_id : 19;
     uint32_t params_hi : 13;
@@ -1232,9 +1233,9 @@ struct ParamList {
 };
 
 struct REField {
-    uint64_t declaring_typeid : TYPE_INDEX_BITS;
-    uint64_t impl_id : TYPE_INDEX_BITS;
-    uint64_t field_typeid : TYPE_INDEX_BITS;
+    uint64_t declaring_typeid : 19;
+    uint64_t impl_id : 19;
+    uint64_t field_typeid : 19;
     uint64_t init_data_hi : 6;
     uint64_t rest2 : 1;
 };
@@ -1250,8 +1251,8 @@ struct REFieldImpl {
 };
 
 struct GenericListData {
-    uint32_t definition_typeid : TYPE_INDEX_BITS;
-    uint32_t num : (32 - TYPE_INDEX_BITS);
+    uint32_t definition_typeid : 19;
+    uint32_t num : 13;
     uint32_t types[1];
 };
 }
@@ -1417,7 +1418,7 @@ struct ParamList {
 };
 
 struct REField {
-    uint64_t declaring_typeid : TYPE_INDEX_BITS;
+    uint64_t declaring_typeid : 18;
     uint64_t impl_id : 20;
     uint64_t offset : 26;
 };
@@ -1432,7 +1433,7 @@ struct REFieldImpl {
 };
 
 struct GenericListData {
-    uint32_t definition_typeid : TYPE_INDEX_BITS;
+    uint32_t definition_typeid : 18;
     uint32_t num : 14;
     uint32_t types[1];
 };
@@ -1478,11 +1479,11 @@ struct TDB {
 };
 
 struct REMethodDefinition {
-    uint64_t declaring_typeid : TYPE_INDEX_BITS;
+    uint64_t declaring_typeid : 17;
     uint64_t invoke_id : 16;
     uint64_t num_params : 6;
     uint64_t unk : 8; // NOT REALLY SURE WHAT THIS IS? IT HAS SOMETHING TO DO WITH RETURN TYPE
-    uint64_t return_typeid : TYPE_INDEX_BITS;
+    uint64_t return_typeid : 17;
     char pad_0008[2];
     int16_t vtable_index;
     uint32_t name_offset;
@@ -1493,14 +1494,14 @@ struct REMethodDefinition {
 };
 
 struct REMethodParamDef {
-    uint64_t param_typeid : TYPE_INDEX_BITS;
+    uint64_t param_typeid : 17;
     uint64_t flags : 16;
     uint64_t name_offset : 31;
 };
 
 struct REField {
-    uint64_t declaring_typeid : TYPE_INDEX_BITS;
-    uint64_t field_typeid : TYPE_INDEX_BITS;
+    uint64_t declaring_typeid : 17;
+    uint64_t field_typeid : 17;
     // TODO: fill in rest of bitfield
 
     uint32_t name_offset;
@@ -1518,7 +1519,7 @@ struct REProperty {
 };
 
 struct GenericListData {
-    uint32_t definition_typeid : TYPE_INDEX_BITS;
+    uint32_t definition_typeid : 17;
     uint32_t num : 14;
     uint32_t types[1];
 };
@@ -1564,11 +1565,11 @@ struct TDB {
 };
 
 struct REMethodDefinition {
-    uint64_t declaring_typeid : TYPE_INDEX_BITS; // 0 - 2
+    uint64_t declaring_typeid : 16; // 0 - 2
     int64_t vtable_index : 16;                   // 2 - 4
     uint64_t num_params : 8;                     // 4 - 5
     uint64_t unk : 8;                            // NOT REALLY SURE WHAT THIS IS? IT HAS SOMETHING TO DO WITH RETURN TYPE // 5 - 6
-    uint64_t return_typeid : TYPE_INDEX_BITS;
+    uint64_t return_typeid : 16;
     char pad_0008[2];
     int16_t invoke_id;
     uint32_t name_offset;
@@ -1579,15 +1580,15 @@ struct REMethodDefinition {
 };
 
 struct REMethodParamDef {
-    uint64_t param_typeid : TYPE_INDEX_BITS;
+    uint64_t param_typeid : 16;
     uint64_t flags : 16;
     uint64_t name_offset : 31;
 };
 
 #pragma pack(push, 4)
 struct REField {
-    uint64_t declaring_typeid : TYPE_INDEX_BITS;
-    uint64_t field_typeid : TYPE_INDEX_BITS;
+    uint64_t declaring_typeid : 16;
+    uint64_t field_typeid : 16;
     // TODO: fill in rest of bitfield
 
     uint32_t name_offset;
@@ -1608,7 +1609,7 @@ struct REProperty {
 };
 
 struct GenericListData {
-    uint32_t definition_typeid : TYPE_INDEX_BITS;
+    uint32_t definition_typeid : 16;
     uint32_t num : 16;
     uint16_t types[1];
 };
@@ -1860,39 +1861,133 @@ struct RETypeDB : public sdk::RETypeDB_ {
     sdk::REField* get_field(uint32_t index) const;
     sdk::REProperty* get_property(uint32_t index) const;
 
-    uint32_t get_num_modules() const {
-        return numModules;
+#ifdef REFRAMEWORK_UNIVERSAL
+    // =========================================================================
+    // TDB header field dispatch: cast to the correct TDB struct per version.
+    // Each TDB version may have fields at different offsets.
+    // =========================================================================
+
+    // Dispatch macro: switches on tdb_ver() and casts `this` to the correct
+    // version-specific TDB struct to read `field`.
+    // Every case maps to a real TDB namespace struct — no cross-version reuse.
+#define TDB_DISPATCH(field) \
+    switch (sdk::GameIdentity::get().tdb_ver()) { \
+    case 66: case 67: return reinterpret_cast<const sdk::tdb67::TDB*>(this)->field; \
+    case 69:          return reinterpret_cast<const sdk::tdb69::TDB*>(this)->field; \
+    case 70:          return reinterpret_cast<const sdk::tdb70::TDB*>(this)->field; \
+    case 71: case 72: return reinterpret_cast<const sdk::tdb71::TDB*>(this)->field; \
+    case 73:          return reinterpret_cast<const sdk::tdb73::TDB*>(this)->field; \
+    case 74:          return reinterpret_cast<const sdk::tdb74::TDB*>(this)->field; \
+    case 81:          return reinterpret_cast<const sdk::tdb81::TDB*>(this)->field; \
+    case 82:          return reinterpret_cast<const sdk::tdb82::TDB*>(this)->field; \
+    case 83:          return reinterpret_cast<const sdk::tdb83::TDB*>(this)->field; \
+    default:          return this->field; /* tdb84 compiled-in layout */ \
     }
 
-    uint32_t get_num_types() const {
-        return this->numTypes;
+    // TDB_DISPATCH_69: for fields that only exist in TDB >= 69 (typesImpl, params, etc.)
+    // Returns nullptr / 0 for TDB < 69.
+#define TDB_DISPATCH_69(field, fallback) \
+    switch (sdk::GameIdentity::get().tdb_ver()) { \
+    case 66: case 67: return fallback; \
+    case 69:          return reinterpret_cast<const sdk::tdb69::TDB*>(this)->field; \
+    case 70:          return reinterpret_cast<const sdk::tdb70::TDB*>(this)->field; \
+    case 71: case 72: return reinterpret_cast<const sdk::tdb71::TDB*>(this)->field; \
+    case 73:          return reinterpret_cast<const sdk::tdb73::TDB*>(this)->field; \
+    case 74:          return reinterpret_cast<const sdk::tdb74::TDB*>(this)->field; \
+    case 81:          return reinterpret_cast<const sdk::tdb81::TDB*>(this)->field; \
+    case 82:          return reinterpret_cast<const sdk::tdb82::TDB*>(this)->field; \
+    case 83:          return reinterpret_cast<const sdk::tdb83::TDB*>(this)->field; \
+    default:          return this->field; /* tdb84 compiled-in layout */ \
     }
 
-    uint32_t get_num_methods() const {
-        return numMethods;
-    }
+    // --- Scalar count accessors ---
+    uint32_t get_num_modules() const    { TDB_DISPATCH(numModules) }
+    uint32_t get_num_types() const      { TDB_DISPATCH(numTypes) }
+    uint32_t get_num_methods() const    { TDB_DISPATCH(numMethods) }
+    uint32_t get_num_fields() const     { TDB_DISPATCH(numFields) }
+    uint32_t get_num_properties() const { TDB_DISPATCH(numProperties) }
+    uint32_t get_string_pool_size() const { TDB_DISPATCH(numStringPool) }
+    uint32_t get_byte_pool_size() const   { TDB_DISPATCH(numBytePool) }
 
-    uint32_t get_num_fields() const {
-        return numFields;
-    }
-
-#if TDB_VER >= 69
+    // numParams: named maybeNumParams in tdb66/67
     uint32_t get_num_params() const {
-        return numParams;
+        auto ver = sdk::GameIdentity::get().tdb_ver();
+        if (ver <= 67) {
+            return reinterpret_cast<const sdk::tdb67::TDB*>(this)->maybeNumParams;
+        }
+        TDB_DISPATCH_69(numParams, 0)
     }
+
+    // --- Pointer field accessors ---
+    // TDB versions declare arrays with different bounds (e.g. types[81728] vs types[93788]).
+    // We cast all to the compiled-in (tdb84) return type so auto* deduction works.
+
+#define TDB_DISPATCH_PTR(field) \
+    using _ret = decltype(this->field); \
+    switch (sdk::GameIdentity::get().tdb_ver()) { \
+    case 66: case 67: return (_ret)reinterpret_cast<const sdk::tdb67::TDB*>(this)->field; \
+    case 69:          return (_ret)reinterpret_cast<const sdk::tdb69::TDB*>(this)->field; \
+    case 70:          return (_ret)reinterpret_cast<const sdk::tdb70::TDB*>(this)->field; \
+    case 71: case 72: return (_ret)reinterpret_cast<const sdk::tdb71::TDB*>(this)->field; \
+    case 73:          return (_ret)reinterpret_cast<const sdk::tdb73::TDB*>(this)->field; \
+    case 74:          return (_ret)reinterpret_cast<const sdk::tdb74::TDB*>(this)->field; \
+    case 81:          return (_ret)reinterpret_cast<const sdk::tdb81::TDB*>(this)->field; \
+    case 82:          return (_ret)reinterpret_cast<const sdk::tdb82::TDB*>(this)->field; \
+    case 83:          return (_ret)reinterpret_cast<const sdk::tdb83::TDB*>(this)->field; \
+    default:          return this->field; \
+    }
+
+#define TDB_DISPATCH_PTR_69(field) \
+    using _ret = decltype(this->field); \
+    switch (sdk::GameIdentity::get().tdb_ver()) { \
+    case 66: case 67: return (_ret)nullptr; \
+    case 69:          return (_ret)reinterpret_cast<const sdk::tdb69::TDB*>(this)->field; \
+    case 70:          return (_ret)reinterpret_cast<const sdk::tdb70::TDB*>(this)->field; \
+    case 71: case 72: return (_ret)reinterpret_cast<const sdk::tdb71::TDB*>(this)->field; \
+    case 73:          return (_ret)reinterpret_cast<const sdk::tdb73::TDB*>(this)->field; \
+    case 74:          return (_ret)reinterpret_cast<const sdk::tdb74::TDB*>(this)->field; \
+    case 81:          return (_ret)reinterpret_cast<const sdk::tdb81::TDB*>(this)->field; \
+    case 82:          return (_ret)reinterpret_cast<const sdk::tdb82::TDB*>(this)->field; \
+    case 83:          return (_ret)reinterpret_cast<const sdk::tdb83::TDB*>(this)->field; \
+    default:          return this->field; \
+    }
+
+    auto* get_types_ptr() const         { TDB_DISPATCH_PTR(types) }
+    auto* get_methods_ptr() const       { TDB_DISPATCH_PTR(methods) }
+    auto* get_fields_ptr() const        { TDB_DISPATCH_PTR(fields) }
+    auto* get_properties_ptr() const    { TDB_DISPATCH_PTR(properties) }
+    auto* get_modules_ptr() const       { TDB_DISPATCH_PTR(modules) }
+    auto* get_stringPool_ptr() const    { TDB_DISPATCH_PTR(stringPool) }
+    auto* get_bytePool_ptr() const      { TDB_DISPATCH_PTR(bytePool) }
+    auto* get_initData_ptr() const      { TDB_DISPATCH_PTR(initData) }
+    auto* get_internStrings_ptr() const { TDB_DISPATCH_PTR(internStrings) }
+
+    // Impl pointers: only exist in TDB >= 69, return nullptr for older games
+    auto* get_typesImpl_ptr() const     { TDB_DISPATCH_PTR_69(typesImpl) }
+    auto* get_methodsImpl_ptr() const   { TDB_DISPATCH_PTR_69(methodsImpl) }
+    auto* get_fieldsImpl_ptr() const    { TDB_DISPATCH_PTR_69(fieldsImpl) }
+    auto* get_propertiesImpl_ptr() const{ TDB_DISPATCH_PTR_69(propertiesImpl) }
+    auto* get_params_ptr() const        { TDB_DISPATCH_PTR_69(params) }
+#undef TDB_DISPATCH
+#undef TDB_DISPATCH_69
+#undef TDB_DISPATCH_PTR
+#undef TDB_DISPATCH_PTR_69
+#else
+    auto* get_types_ptr() const { return this->types; }
+    auto* get_typesImpl_ptr() const { return this->typesImpl; }
+    auto* get_methods_ptr() const { return this->methods; }
+    auto* get_methodsImpl_ptr() const { return this->methodsImpl; }
+    auto* get_fields_ptr() const { return this->fields; }
+    auto* get_fieldsImpl_ptr() const { return this->fieldsImpl; }
+    auto* get_properties_ptr() const { return this->properties; }
+    auto* get_propertiesImpl_ptr() const { return this->propertiesImpl; }
+    auto* get_params_ptr() const { return this->params; }
+    auto* get_modules_ptr() const { return this->modules; }
+    auto* get_stringPool_ptr() const { return this->stringPool; }
+    auto* get_bytePool_ptr() const { return this->bytePool; }
+    auto* get_initData_ptr() const { return this->initData; }
+    auto* get_internStrings_ptr() const { return this->internStrings; }
 #endif
-
-    uint32_t get_num_properties() const {
-        return numProperties;
-    }
-
-    uint32_t get_string_pool_size() const {
-        return numStringPool;
-    }
-
-    uint32_t get_byte_pool_size() const {
-        return numBytePool;
-    }
 
     const char* get_string(uint32_t offset) const;
     uint8_t* get_bytes(uint32_t offset) const;
@@ -1950,6 +2045,47 @@ struct RETypeDB : public sdk::RETypeDB_ {
         }();
 
         return result;
+    }
+#endif
+
+#ifdef REFRAMEWORK_UNIVERSAL
+    // Runtime stride for method array indexing.
+    size_t get_method_stride() const {
+        if (sdk::tdb_dispatch::needs_pre_impl())
+            return sizeof(sdk::tdb67::REMethodDefinition);  // 0x20 (32 bytes, has function ptr + all fields inline)
+        if (sdk::tdb_dispatch::needs_18bit())
+            return sizeof(sdk::tdb69::REMethodDefinition);  // 16 bytes
+        return sizeof(sdk::tdb84::REMethodDefinition);      // 12 bytes
+    }
+
+    // Stride-aware method element access.
+    sdk::REMethodDefinition* get_method_at(uintptr_t base, uint32_t index) const {
+        return reinterpret_cast<sdk::REMethodDefinition*>(base + static_cast<size_t>(index) * get_method_stride());
+    }
+
+    // Runtime stride for module array indexing.
+    // tdb81+ REModule is 0x40 bytes (no methods/instantiations/member_references).
+    // tdb74 and below REModule is 0x58 bytes (has methods/instantiations/member_references).
+    size_t get_module_stride() const {
+        if (sdk::GameIdentity::get().tdb_ver() >= 81)
+            return sizeof(sdk::tdb81::REModule);  // 0x40
+        return sizeof(sdk::tdb74::REModule);  // 0x58
+    }
+
+    // Stride-aware module element access.
+    sdk::REModule* get_module_at(uint32_t index) const {
+        auto base = reinterpret_cast<uintptr_t>(get_modules_ptr());
+        return reinterpret_cast<sdk::REModule*>(base + static_cast<size_t>(index) * get_module_stride());
+    }
+
+    // Runtime stride for type definition array indexing.
+    // Each TDB version struct has the correct sizeof for its variant.
+    size_t get_typedef_stride() const {
+        const auto ver = sdk::GameIdentity::get().tdb_ver();
+        if (ver >= 74) return sizeof(sdk::RETypeDefVersion74);  // 0x50 (has unk_new_tdb74_uint64)
+        if (ver >= 71) return sizeof(sdk::RETypeDefVersion71);  // 0x48
+        if (ver >= 69) return sizeof(sdk::RETypeDefVersion69);  // 0x50 (18-bit layout)
+        return sizeof(sdk::RETypeDefVersion67);                 // 0x78 (pre-impl, all fields on typedef)
     }
 #endif
 };
@@ -2148,13 +2284,21 @@ struct REMethodDefinition : public sdk::REMethodDefinition_ {
     uint32_t get_invoke_id() const;
     uint32_t get_num_params() const;
     uint32_t get_param_index() const {
-#if TDB_VER >= 71
+#ifdef REFRAMEWORK_UNIVERSAL
+        if (sdk::tdb_dispatch::needs_18bit()) {
+            // tdb69: single 'params' field (26 bits)
+            return static_cast<uint32_t>(
+                reinterpret_cast<const sdk::tdb_bits18::REMethodDef69*>(this)->params);
+        }
+        return (this->params_hi << 13) | this->params_lo;
+#elif TDB_VER >= 71
         const auto params_index = (this->params_hi << 13) | this->params_lo;
 #else
         const auto params_index = this->params;
 #endif
-
+#ifndef REFRAMEWORK_UNIVERSAL
         return params_index;
+#endif
     }
 
     std::vector<uint32_t> get_param_typeids() const;
@@ -2290,7 +2434,7 @@ T* get_managed_singleton() {
     static auto t = []() -> sdk::RETypeDefinition* {
         const auto tdb = sdk::RETypeDB::get();
 
-        for (auto i = 0; i < tdb->numTypes; i++) {
+        for (auto i = 0; i < tdb->get_num_types(); i++) {
             auto t = tdb->get_type(i);
 
             if (t == nullptr) {
@@ -2332,3 +2476,28 @@ T* create_instance(std::string_view type_name, bool simplify) {
     return (T*)t->create_instance_full(simplify);
 }
 } // namespace sdk
+
+#ifdef REFRAMEWORK_UNIVERSAL
+// 3-tier declaring_typeid dispatch for REMethodDefinition and REField.
+// These live here (not in RETypeDefDispatch.hpp) because they need full
+// struct definitions from the tdb67/tdb69 namespaces above.
+namespace sdk::tdb_dispatch {
+
+inline uint32_t tmeth_declaring_typeid(const sdk::REMethodDefinition* ptr) {
+    if (needs_pre_impl())
+        return (uint32_t)reinterpret_cast<const sdk::tdb67::REMethodDefinition*>(ptr)->declaring_typeid;
+    if (needs_18bit())
+        return (uint32_t)reinterpret_cast<const sdk::tdb69::REMethodDefinition*>(ptr)->declaring_typeid;
+    return (uint32_t)ptr->declaring_typeid;
+}
+
+inline uint32_t tfield_declaring_typeid(const sdk::REField* ptr) {
+    if (needs_pre_impl())
+        return (uint32_t)reinterpret_cast<const sdk::tdb67::REField*>(ptr)->declaring_typeid;
+    if (needs_18bit())
+        return (uint32_t)reinterpret_cast<const sdk::tdb69::REField*>(ptr)->declaring_typeid;
+    return (uint32_t)ptr->declaring_typeid;
+}
+
+} // namespace sdk::tdb_dispatch
+#endif // REFRAMEWORK_UNIVERSAL

@@ -14,6 +14,9 @@
 #include "RETypeDB.hpp"
 #include "REDelegate.hpp"
 #include "REContext.hpp"
+#ifdef REFRAMEWORK_UNIVERSAL
+#include "GameIdentity.hpp"
+#endif
 
 namespace sdk {
     VM** VM::s_global_context{ nullptr };
@@ -205,8 +208,14 @@ namespace sdk {
         // Needed on TDB73/AJ. The 0x30 offset we have is not correct, so we need to find the correct one
         // And the "correct" one is the first one that doesn't look like a BS pointer (crude, i know)
         // so... TODO: find a better way to do this
-#if TDB_VER >= 71
-        if (s_global_context != nullptr && *s_global_context != nullptr) {
+#ifdef REFRAMEWORK_UNIVERSAL
+        const bool should_fixup_static_tbl = sdk::GameIdentity::get().tdb_ver() >= 71;
+#elif TDB_VER >= 71
+        constexpr bool should_fixup_static_tbl = true;
+#else
+        constexpr bool should_fixup_static_tbl = false;
+#endif
+        if (should_fixup_static_tbl && s_global_context != nullptr && *s_global_context != nullptr) {
             auto static_tbl = (REStaticTbl**)((uintptr_t)*s_global_context + s_static_tbl_offset);
             bool found_static_tbl_offset = false;
             const auto before_static_tbl_size = *(uint32_t*)((uintptr_t)static_tbl + sizeof(void*));
@@ -259,7 +268,6 @@ namespace sdk {
                 return;
             }
         }
-#endif
 
         // Get invoke_tbl
         // this SEEMS to work on RE2 and onwards, but not on RE7

@@ -1,5 +1,6 @@
 #include <spdlog/spdlog.h>
 
+#include <sdk/GameIdentity.hpp>
 #include "mods/BackBufferRenderer.hpp"
 #include "mods/APIProxy.hpp"
 #include "mods/Camera.hpp"
@@ -26,44 +27,49 @@ Mods::Mods() {
     m_mods.emplace_back(BackBufferRenderer::get());
     m_mods.emplace_back(REFrameworkConfig::get());
 
-#if defined(REENGINE_AT)
-    m_mods.emplace_back(IntegrityCheckBypass::get_shared_instance());
-#endif
+    // IntegrityCheckBypass: only for games with anti-tamper (REENGINE_AT)
+    if (sdk::GameIdentity::get().is_reengine_at()) {
+        m_mods.emplace_back(IntegrityCheckBypass::get_shared_instance());
+    }
 
 #ifndef BAREBONES
     m_mods.emplace_back(MethodDatabase::get());
     m_mods.emplace_back(Hooks::get());
     m_mods.emplace_back(LooseFileLoader::get());
 
-#if defined(MHWILDS)
-    m_mods.emplace_back(FaultyFileDetector::get());
-#endif
+    if (sdk::GameIdentity::get().is_mhwilds()) {
+        m_mods.emplace_back(FaultyFileDetector::get());
+    }
 
     m_mods.emplace_back(VR::get());
 
-#if defined(RE8) || defined(RE7)
-    m_mods.emplace_back(RE8VR::get());
-#endif
+    if (sdk::GameIdentity::get().is_re8() || sdk::GameIdentity::get().is_re7()) {
+        m_mods.emplace_back(RE8VR::get());
+    }
 
-#ifndef RE8
-#if defined(RE2) || defined(RE3)
-    m_mods.emplace_back(FirstPerson::get());
-#endif
-#endif
+    {
+        const auto& gi = sdk::GameIdentity::get();
+        if (!gi.is_re8() && (gi.is_re2() || gi.is_re3())) {
+            m_mods.emplace_back(FirstPerson::get());
+        }
+    }
 
     // All games!!!!
     m_mods.emplace_back(std::make_unique<Camera>());
     m_mods.emplace_back(Graphics::get());
 
-#if defined(RE2) || defined(RE3) || defined(RE8)
-    m_mods.emplace_back(std::make_unique<ManualFlashlight>());
-#endif
+    {
+        const auto& gi = sdk::GameIdentity::get();
+        if (gi.is_re2() || gi.is_re3() || gi.is_re8()) {
+            m_mods.emplace_back(std::make_unique<ManualFlashlight>());
+        }
+    }
 
     m_mods.emplace_back(std::make_unique<FreeCam>());
 
-#if TDB_VER > 49
-    m_mods.emplace_back(std::make_unique<SceneMods>());
-#endif
+    if (sdk::GameIdentity::get().tdb_ver() > 49) {
+        m_mods.emplace_back(std::make_unique<SceneMods>());
+    }
 
 #endif
 

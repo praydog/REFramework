@@ -38,6 +38,7 @@ extern "C" {
 #include "sdk/REGlobals.hpp"
 #include "sdk/Application.hpp"
 #include "sdk/SDK.hpp"
+#include <sdk/GameIdentity.hpp>
 
 #include "ExceptionHandler.hpp"
 #include "LicenseStrings.hpp"
@@ -233,9 +234,9 @@ try {
             if (full_dll_path.parent_path() == *g_current_game_path) {
                 spdlog::info("LdrRegisterDllNotification: DLL loaded from game directory: {}", utility::narrow(full_dll_name));
 
-#if defined(DD2) || defined(MHRISE) || TDB_VER >= 74
-                utility::spoof_module_paths_in_exe_dir();
-#endif
+                if (sdk::GameIdentity::get().is_dd2() || sdk::GameIdentity::get().is_mhrise() || sdk::GameIdentity::get().tdb_ver() >= 74) {
+                    utility::spoof_module_paths_in_exe_dir();
+                }
             }
         } else {
             spdlog::info("LdrRegisterDllNotification: DLL loaded from unknown location");
@@ -255,6 +256,7 @@ REFramework::REFramework(HMODULE reframework_module)
     s_reframework_module = reframework_module;
 
     std::scoped_lock __{m_startup_mutex};
+    const auto& gi = sdk::GameIdentity::get();
 
     spdlog::set_default_logger(m_logger);
     spdlog::flush_on(spdlog::level::info);
@@ -342,83 +344,83 @@ REFramework::REFramework(HMODULE reframework_module)
         }
 
         // Do this at least once before setting up our callback.
-#if defined(DD2) || defined(MHRISE) || TDB_VER >= 74
-        // Pre-emptively copy all DLL files in the current game directory into our _storage_ directory.
-        if (g_current_game_path.has_value()) {
-            const auto dest_path = *g_current_game_path / "_storage_";
-            fs::create_directories(dest_path);
+        if (gi.is_dd2() || gi.is_mhrise() || gi.tdb_ver() >= 74) {
+            // Pre-emptively copy all DLL files in the current game directory into our _storage_ directory.
+            if (g_current_game_path.has_value()) {
+                const auto dest_path = *g_current_game_path / "_storage_";
+                fs::create_directories(dest_path);
 
-            if (std::filesystem::exists(dest_path)) try {
-                std::error_code directory_ec{};
-                // Locate all DLL files in the current game directory
-                for (const auto& entry : fs::directory_iterator(*g_current_game_path, directory_ec)) try {
-                    const auto entry_path = entry.path();
-                    
-                    if (entry.is_regular_file() && entry_path.extension() == ".dll") {
-                        spdlog::info("Copying DLL file: {}", entry_path.filename().string());
-                        spdlog::info(" Full path: {}", entry_path.string());
-                        const auto final_dest = dest_path / entry_path.filename().string();
-                        spdlog::info(" Destination: {}", final_dest.string());
-                        std::error_code ec{};
-                        fs::copy_file(entry_path, final_dest, fs::copy_options::overwrite_existing, ec);
+                if (std::filesystem::exists(dest_path)) try {
+                    std::error_code directory_ec{};
+                    // Locate all DLL files in the current game directory
+                    for (const auto& entry : fs::directory_iterator(*g_current_game_path, directory_ec)) try {
+                        const auto entry_path = entry.path();
+                        
+                        if (entry.is_regular_file() && entry_path.extension() == ".dll") {
+                            spdlog::info("Copying DLL file: {}", entry_path.filename().string());
+                            spdlog::info(" Full path: {}", entry_path.string());
+                            const auto final_dest = dest_path / entry_path.filename().string();
+                            spdlog::info(" Destination: {}", final_dest.string());
+                            std::error_code ec{};
+                            fs::copy_file(entry_path, final_dest, fs::copy_options::overwrite_existing, ec);
 
-                        // check if error occurred
-                        if (ec) {
-                            spdlog::error("Failed to copy DLL file: {}", ec.message());
+                            // check if error occurred
+                            if (ec) {
+                                spdlog::error("Failed to copy DLL file: {}", ec.message());
+                            }
+
+                            ec.clear();
                         }
-
-                        ec.clear();
+                    } catch (const std::filesystem::filesystem_error& e) {
+                        spdlog::error("Failed to copy DLL file: {}", e.what());
+                    } catch (const std::exception& e) {
+                        spdlog::error("Failed to copy DLL file: {}", e.what());
+                    } catch(...) {
+                        spdlog::error("Failed to copy DLL file: unknown exception occurred");
                     }
-                } catch (const std::filesystem::filesystem_error& e) {
-                    spdlog::error("Failed to copy DLL file: {}", e.what());
-                } catch (const std::exception& e) {
-                    spdlog::error("Failed to copy DLL file: {}", e.what());
-                } catch(...) {
-                    spdlog::error("Failed to copy DLL file: unknown exception occurred");
-                }
 
-                if (directory_ec) {
-                    spdlog::error("An error occurred while traversing the game directory: {}", directory_ec.message());
-                }
+                    if (directory_ec) {
+                        spdlog::error("An error occurred while traversing the game directory: {}", directory_ec.message());
+                    }
 
-                // Copy the D3D12/D3D12Core.dll file from the current game directory into our _storage_ directory with the same subdirectory structure.
-                const auto d3d12_path = *g_current_game_path / "D3D12" / "D3D12Core.dll";
+                    // Copy the D3D12/D3D12Core.dll file from the current game directory into our _storage_ directory with the same subdirectory structure.
+                    const auto d3d12_path = *g_current_game_path / "D3D12" / "D3D12Core.dll";
 
-                if (std::filesystem::exists(d3d12_path)) try {
-                    spdlog::info("Copying D3D12Core.dll file");
-                    fs::create_directories(dest_path / "D3D12");
-
-                    if (std::filesystem::exists(d3d12_path)) {
+                    if (std::filesystem::exists(d3d12_path)) try {
                         spdlog::info("Copying D3D12Core.dll file");
-                        std::error_code ec{};
-                        fs::copy_file(d3d12_path, dest_path / "D3D12" / "D3D12Core.dll", fs::copy_options::overwrite_existing, ec);
+                        fs::create_directories(dest_path / "D3D12");
 
-                        if (ec) {
-                            spdlog::error("Failed to copy D3D12Core.dll file: {}", ec.message());
+                        if (std::filesystem::exists(d3d12_path)) {
+                            spdlog::info("Copying D3D12Core.dll file");
+                            std::error_code ec{};
+                            fs::copy_file(d3d12_path, dest_path / "D3D12" / "D3D12Core.dll", fs::copy_options::overwrite_existing, ec);
+
+                            if (ec) {
+                                spdlog::error("Failed to copy D3D12Core.dll file: {}", ec.message());
+                            }
+
+                            ec.clear();
                         }
-
-                        ec.clear();
+                    } catch (const std::filesystem::filesystem_error& e) {
+                        spdlog::error("Failed to copy D3D12Core.dll file: {}", e.what());
+                    } catch (const std::exception& e) {
+                        spdlog::error("Failed to copy D3D12Core.dll file: {}", e.what());
+                    } catch(...) {
+                        spdlog::error("Failed to copy D3D12Core.dll file: unknown exception occurred");
                     }
                 } catch (const std::filesystem::filesystem_error& e) {
-                    spdlog::error("Failed to copy D3D12Core.dll file: {}", e.what());
+                    spdlog::error("An error occurred while copying DLL files: {}", e.what());
                 } catch (const std::exception& e) {
-                    spdlog::error("Failed to copy D3D12Core.dll file: {}", e.what());
+                    spdlog::error("An error occurred while copying DLL files: {}", e.what());
                 } catch(...) {
-                    spdlog::error("Failed to copy D3D12Core.dll file: unknown exception occurred");
+                    spdlog::error("An error occurred while copying DLL files: unknown exception occurred");
+                } else {
+                    spdlog::error("Failed to create storage directory");
                 }
-            } catch (const std::filesystem::filesystem_error& e) {
-                spdlog::error("An error occurred while copying DLL files: {}", e.what());
-            } catch (const std::exception& e) {
-                spdlog::error("An error occurred while copying DLL files: {}", e.what());
-            } catch(...) {
-                spdlog::error("An error occurred while copying DLL files: unknown exception occurred");
-            } else {
-                spdlog::error("Failed to create storage directory");
             }
-        }
 
-        utility::spoof_module_paths_in_exe_dir();
-#endif
+            utility::spoof_module_paths_in_exe_dir();
+        }
 
         // Register our LdrRegisterDllNotification callback
         spdlog::info("Registering LdrRegisterDllNotification callback...");
@@ -442,100 +444,100 @@ REFramework::REFramework(HMODULE reframework_module)
 
     // wait for the game to load (WTF MHRISE??)
     // once this is done, we can assume the process is unpacked.
-#if defined (REENGINE_PACKED)
-    auto now = std::chrono::steady_clock::now();
-    std::chrono::steady_clock::time_point next_log = now;
+    if (gi.is_reengine_packed()) {
+        auto now = std::chrono::steady_clock::now();
+        std::chrono::steady_clock::time_point next_log = now;
 
-    while (GetModuleHandleA("d3d12.dll") == nullptr) {
-        now = std::chrono::steady_clock::now();
-        if (now >= next_log) {
-            spdlog::info("[REFramework] Waiting for D3D12...");
-            next_log = now + 1s;
+        while (GetModuleHandleA("d3d12.dll") == nullptr) {
+            now = std::chrono::steady_clock::now();
+            if (now >= next_log) {
+                spdlog::info("[REFramework] Waiting for D3D12...");
+                next_log = now + 1s;
+            }
+            Sleep(50);
         }
-        Sleep(50);
-    }
 
-    while (LoadLibraryA("d3d12.dll") == nullptr) {
-        if (now >= next_log) {
-            spdlog::info("[REFramework] Waiting for D3D12...");
-            next_log = now + 1s;
-        }
-    }
-
-    spdlog::info("D3D12 loaded");
-#endif
-
-#if defined(MHRISE) || defined(DD2) || TDB_VER >= 74
-    utility::load_module_from_current_directory(L"openvr_api.dll");
-    utility::load_module_from_current_directory(L"openxr_loader.dll");
-    LoadLibraryA("dxgi.dll");
-    LoadLibraryA("d3d11.dll");
-
-    if (!g_success_made_ldr_notification) {
-        utility::spoof_module_paths_in_exe_dir();
-    }
-#endif
-
-#if defined(RE8)
-    auto startup_lookup_thread = std::make_unique<std::thread>([this]() {
-        // Fixes a crash on some machines when starting the game
-        // This one has nothing to do with integrity checks
-        // it has something to do with the Agility SDK and pipeline state.
-        uint32_t times_searched = 0;
-
-        auto startup_patch_addr = utility::scan(m_game_module, "40 53 57 48 83 ec 28 48 83 b9 ? ? ? ? 00");
-
-        while (!startup_patch_addr) {
-            startup_patch_addr = utility::scan(m_game_module, "40 53 57 48 83 ec 28 48 83 b9 ? ? ? ? 00");
-
-            if (times_searched++ > 10) {
-                spdlog::error("Failed to find startup patch address");
-                return;
+        while (LoadLibraryA("d3d12.dll") == nullptr) {
+            if (now >= next_log) {
+                spdlog::info("[REFramework] Waiting for D3D12...");
+                next_log = now + 1s;
             }
         }
 
-        if (startup_patch_addr) {
-            spdlog::info("Found startup patch at {:x}", *startup_patch_addr);
-            static auto permanent_patch = Patch::create(*startup_patch_addr, {0xC3});
-        } else {
-            spdlog::info("Couldn't find RE8 crash fix patch location!");
+        spdlog::info("D3D12 loaded");
+    }
+
+    if (gi.is_mhrise() || gi.is_dd2() || gi.tdb_ver() >= 74) {
+        utility::load_module_from_current_directory(L"openvr_api.dll");
+        utility::load_module_from_current_directory(L"openxr_loader.dll");
+        LoadLibraryA("dxgi.dll");
+        LoadLibraryA("d3d11.dll");
+
+        if (!g_success_made_ldr_notification) {
+            utility::spoof_module_paths_in_exe_dir();
         }
-    });
-    startup_lookup_thread->detach();
-#endif
+    }
 
-#if defined(MHWILDS)
-    FaultyFileDetector::early_init();
-#endif
+    if (gi.is_re8()) {
+        auto startup_lookup_thread = std::make_unique<std::thread>([this]() {
+            // Fixes a crash on some machines when starting the game
+            // This one has nothing to do with integrity checks
+            // it has something to do with the Agility SDK and pipeline state.
+            uint32_t times_searched = 0;
 
-#if defined(REENGINE_AT)
-    utility::ThreadSuspender suspender{};
-    IntegrityCheckBypass::ignore_application_entries();
+            auto startup_patch_addr = utility::scan(m_game_module, "40 53 57 48 83 ec 28 48 83 b9 ? ? ? ? 00");
 
-#if defined(RE8) || defined(RE4) || defined(SF6)
-    // Also done on RE4 because some of the scans are the same.
-    IntegrityCheckBypass::immediate_patch_re8();
-#endif
+            while (!startup_patch_addr) {
+                startup_patch_addr = utility::scan(m_game_module, "40 53 57 48 83 ec 28 48 83 b9 ? ? ? ? 00");
 
-#if defined(RE4) || defined(SF6)
-    // Fixes new code added in RE4 only.
-    IntegrityCheckBypass::immediate_patch_re4();
-#endif
+                if (times_searched++ > 10) {
+                    spdlog::error("Failed to find startup patch address");
+                    return;
+                }
+            }
 
-#if defined(DD2) || TDB_VER >= 74
-    // Fixes new code added in DD2 only. Maybe >= TDB73 too. Probably will change.
-    IntegrityCheckBypass::immediate_patch_dd2();
-#endif
+            if (startup_patch_addr) {
+                spdlog::info("Found startup patch at {:x}", *startup_patch_addr);
+                static auto permanent_patch = Patch::create(*startup_patch_addr, {0xC3});
+            } else {
+                spdlog::info("Couldn't find RE8 crash fix patch location!");
+            }
+        });
+        startup_lookup_thread->detach();
+    }
 
-#if TDB_VER >= 83
-    // Fixes new code added in RE9 only. Maybe >= TDB83 too. Probably will change.
-    IntegrityCheckBypass::immediate_patch_re9();
-#endif
+    if (gi.is_mhwilds()) {
+        FaultyFileDetector::early_init();
+    }
 
-    // Seen in SF6
-    IntegrityCheckBypass::remove_stack_destroyer();
-    suspender.resume();
-#endif
+    if (gi.is_reengine_at()) {
+        utility::ThreadSuspender suspender{};
+        IntegrityCheckBypass::ignore_application_entries();
+
+        if (gi.is_re8() || gi.is_re4() || gi.is_sf6()) {
+            // Also done on RE4 because some of the scans are the same.
+            IntegrityCheckBypass::immediate_patch_re8();
+        }
+
+        if (gi.is_re4() || gi.is_sf6()) {
+            // Fixes new code added in RE4 only.
+            IntegrityCheckBypass::immediate_patch_re4();
+        }
+
+        if (gi.is_dd2() || gi.tdb_ver() >= 74) {
+            // Fixes new code added in DD2 only. Maybe >= TDB73 too. Probably will change.
+            IntegrityCheckBypass::immediate_patch_dd2();
+        }
+
+        if (gi.tdb_ver() >= 83) {
+            // Fixes new code added in RE9 only. Maybe >= TDB83 too. Probably will change.
+            IntegrityCheckBypass::immediate_patch_re9();
+        }
+
+        // Seen in SF6
+        IntegrityCheckBypass::remove_stack_destroyer();
+        suspender.resume();
+    }
 
     // Load the plugins early right after executable unpacking
     PluginLoader::get()->early_init();
@@ -570,18 +572,19 @@ REFramework::REFramework(HMODULE reframework_module)
         auto& loader = LooseFileLoader::get(); // Initialize this really early
         auto &integrity_bypass = IntegrityCheckBypass::get_shared_instance();
 
-#if defined(MHWILDS)
-        auto& faulty_file_detector = FaultyFileDetector::get();
-#endif
+        const bool is_mhwilds = gi.is_mhwilds();
+        if (is_mhwilds) {
+            FaultyFileDetector::get(); // Initialize early
+        }
 
         const auto config_path = get_persistent_dir(REFrameworkConfig::REFRAMEWORK_CONFIG_NAME.data()).string();
         if (fs::exists(utility::widen(config_path))) {
             utility::Config cfg{ config_path };
             loader->on_config_load(cfg);
 
-#if defined(MHWILDS)
-            faulty_file_detector->on_config_load(cfg);
-#endif
+            if (is_mhwilds) {
+                FaultyFileDetector::get()->on_config_load(cfg);
+            }
             integrity_bypass->on_config_load(cfg);
         }
 
@@ -2053,49 +2056,50 @@ bool REFramework::initialize_game_data() {
     std::thread init_thread([this]() {
         std::scoped_lock _{this->m_startup_mutex};
 
+        const auto& gi = sdk::GameIdentity::get();
         try {
-#if defined(MHRISE) || defined(DD2) || TDB_VER >= 74
-            if (!g_success_made_ldr_notification) {
-                utility::spoof_module_paths_in_exe_dir();
+            if (gi.is_mhrise() || gi.is_dd2() || gi.tdb_ver() >= 74) {
+                if (!g_success_made_ldr_notification) {
+                    utility::spoof_module_paths_in_exe_dir();
+                }
             }
-#endif
             reframework::initialize_sdk();
 
-#if TDB_VER >= 71
-            const auto start_time = std::chrono::high_resolution_clock::now();
+            if (gi.tdb_ver() >= 71) {
+                const auto start_time = std::chrono::high_resolution_clock::now();
 
-            while (true) {
-                try {
-                    if (sdk::VM::get() != nullptr) {
-                        break;
+                while (true) {
+                    try {
+                        if (sdk::VM::get() != nullptr) {
+                            break;
+                        }
+                    } catch(...) {
                     }
-                } catch(...) {
-                }
 
-                if (std::chrono::high_resolution_clock::now() - start_time > std::chrono::seconds(30)) {
-                    spdlog::error("Timed out waiting for VM to initialize.");
-                    throw std::runtime_error("Timed out waiting for VM to initialize.");
-                }
-
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            }
-
-            while (true) {
-                try {
-                    if (sdk::Application::get() != nullptr) {
-                        break;
+                    if (std::chrono::high_resolution_clock::now() - start_time > std::chrono::seconds(30)) {
+                        spdlog::error("Timed out waiting for VM to initialize.");
+                        throw std::runtime_error("Timed out waiting for VM to initialize.");
                     }
-                } catch(...) {
+
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
                 }
 
-                if (std::chrono::high_resolution_clock::now() - start_time > std::chrono::seconds(30)) {
-                    spdlog::error("Timed out waiting for Application to initialize.");
-                    throw std::runtime_error("Timed out waiting for Application to initialize.");
-                }
+                while (true) {
+                    try {
+                        if (sdk::Application::get() != nullptr) {
+                            break;
+                        }
+                    } catch(...) {
+                    }
 
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                    if (std::chrono::high_resolution_clock::now() - start_time > std::chrono::seconds(30)) {
+                        spdlog::error("Timed out waiting for Application to initialize.");
+                        throw std::runtime_error("Timed out waiting for Application to initialize.");
+                    }
+
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                }
             }
-#endif
 
             m_mods = std::make_unique<Mods>();
 
@@ -2130,11 +2134,11 @@ bool REFramework::initialize_game_data() {
             spdlog::error("Initialization of mods failed. Reason: exception thrown.");
         }
 
-#if defined(MHRISE) || defined(DD2) || TDB_VER >= 74
-        if (!g_success_made_ldr_notification) {
-            utility::spoof_module_paths_in_exe_dir();
+        if (gi.is_mhrise() || gi.is_dd2() || gi.tdb_ver() >= 74) {
+            if (!g_success_made_ldr_notification) {
+                utility::spoof_module_paths_in_exe_dir();
+            }
         }
-#endif
         spdlog::info("Game data initialization thread finished");
     });
 

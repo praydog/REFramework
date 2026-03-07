@@ -7,6 +7,7 @@
 
 #include "RETypeDB.hpp"
 #include "ResourceManager.hpp"
+#include "GameIdentity.hpp"
 
 namespace sdk {
 // static definitions
@@ -146,6 +147,109 @@ void ResourceManager::update_pointers() {
             
             // now find create_userdata, using the previous function as a reference to ignore
             // since they both have the same pattern at the start of the function
+#ifdef REFRAMEWORK_UNIVERSAL
+            {
+                const auto tdb_ver = sdk::GameIdentity::get().tdb_ver();
+                bool found = false;
+                if (tdb_ver < 81) {
+                    auto valid_patterns = tdb_ver < 73
+                        ? std::initializer_list<const char*>{
+                            "66 83 F8 40 75 ? C6",
+                            "66 83 F8 40 75 ? 48",
+                            "66 41 83 39 40" // DD2+
+                        }
+                        : std::initializer_list<const char*>{
+                            "66 41 83 39 40" // DD2+
+                        };
+
+                    bool exception_directory_maybe_removed = false;
+
+                    for (const auto& pat : valid_patterns) {
+                        for (auto ref = utility::scan(mod, pat); ref.has_value(); ref = utility::scan(*ref + 1, (mod_end - (*ref + 1)) - 100, pat)) {
+                            auto func = utility::find_function_start_with_call(*ref);
+
+                            if (func && *func != (uintptr_t)s_create_resource_fn) {
+                                if (std::abs((ptrdiff_t)(*func - (uintptr_t)s_create_resource_fn)) < 0x50) {
+                                    spdlog::info("Exception directory may have been removed, falling back to int3 scan");
+                                    exception_directory_maybe_removed = true;
+                                    continue;
+                                }
+
+                                if (exception_directory_maybe_removed) {
+                                    func = utility::scan_reverse(*func, 0x100, "CC CC CC");
+
+                                    if (func) {
+                                        *func += 3;
+                                    } else {
+                                        func = utility::scan_reverse(*ref, 0x100, "4C 89 4C");
+                                    }
+                                }
+
+                                found = true;
+                                s_create_userdata_fn = (decltype(s_create_userdata_fn))*func;
+                                break;
+                            }
+                        }
+
+                        if (found) {
+                            break;
+                        }
+                    }
+                } else {
+                    // Heuristic invariant fallback using ABI guarantees.
+                    // Look for test r9, r9, followed by a conditional jump.
+                    // Shortly after that will be another conditional jmp, comparing the deref of r9.
+                    // Then look ~60 bytes ahead for a cmp * 0x40, word size.
+                    spdlog::info("[ResourceManager::create_userdata] Finding function via heuristic invariant search...");
+                    for (auto ref = utility::scan(mod, "4D 85 C9 0F 84 ? ? ? ?");
+                        ref.has_value();
+                        ref = utility::scan(*ref + 1, (mod_end - (*ref + 1)) - 100, "4D 85 C9 0F 84 ? ? ? ?"))
+                    {
+                        if (s_create_userdata_fn != nullptr) {
+                            break;
+                        }
+
+                        utility::linear_decode((uint8_t*)(*ref), 40, [&](utility::ExhaustionContext& ctx) -> bool {
+                            if (s_create_userdata_fn != nullptr) {
+                                return false;
+                            }
+
+                            if (!std::string_view(ctx.instrux.Mnemonic).starts_with("CMP")) {
+                                return true;
+                            }
+
+                            if (ctx.instrux.HasImm1 && (ctx.instrux.Immediate1 & 0xFFFFFFFF) == 0x40) {
+                                spdlog::info("[ResourceManager::create_userdata] Found candidate reference at {:x}", *ref);
+
+                                auto cond_jmp = utility::scan_disasm(*ref + 9, 30, "0F 84 ? ? ? ?");
+
+                                if (!cond_jmp || *cond_jmp >= ctx.addr) {
+                                    spdlog::info("[ResourceManager::create_userdata] Failed to find expected conditional jump, skipping reference at {:x}", *ref);
+                                    return true;
+                                }
+
+                                s_create_userdata_fn = (decltype(s_create_userdata_fn))utility::find_function_start_with_call(*ref).value_or(0);
+
+                                if (s_create_userdata_fn != nullptr) {
+                                    spdlog::info("[ResourceManager::create_userdata] Found via heuristic invariant search at {:x}", (uintptr_t)s_create_userdata_fn);
+                                    return false;
+                                }
+                            }
+
+                            return true;
+                        });
+                    }
+
+                    found = s_create_userdata_fn != nullptr;
+                }
+
+                if (found) {
+                    spdlog::info("[ResourceManager::create_userdata] Found function at {:x}", (uintptr_t)s_create_userdata_fn);
+                } else {
+                    spdlog::error("[ResourceManager::create_userdata] Failed to find function!");
+                }
+            }
+#else
 #if TDB_VER < 81
             const auto valid_patterns = {
 #if TDB_VER < 73
@@ -189,15 +293,15 @@ void ResourceManager::update_pointers() {
                     break;
                 }
             }
-#else   
+#else
             // Heuristic invariant fallback using ABI guarantees.
             // Look for test r9, r9, followed by a conditional jump.
             // Shortly after that will be another conditional jmp, comparing the deref of r9.
             // Then look ~60 bytes ahead for a cmp * 0x40, word size.
             spdlog::info("[ResourceManager::create_userdata] Finding function via heuristic invariant search...");
-            for (auto ref = utility::scan(mod, "4D 85 C9 0F 84 ? ? ? ?"); 
-                ref.has_value(); 
-                ref = utility::scan(*ref + 1, (mod_end - (*ref + 1)) - 100, "4D 85 C9 0F 84 ? ? ? ?")) 
+            for (auto ref = utility::scan(mod, "4D 85 C9 0F 84 ? ? ? ?");
+                ref.has_value();
+                ref = utility::scan(*ref + 1, (mod_end - (*ref + 1)) - 100, "4D 85 C9 0F 84 ? ? ? ?"))
             {
                 if (s_create_userdata_fn != nullptr) {
                     break;
@@ -227,22 +331,22 @@ void ResourceManager::update_pointers() {
                         s_create_userdata_fn = (decltype(s_create_userdata_fn))utility::find_function_start_with_call(*ref).value_or(0);
 
                         if (s_create_userdata_fn != nullptr) {
-                            spdlog::info("[ResourceManager::create_userdata] Found via heuristic invariant search at {:x}", (uintptr_t)s_create_userdata_fn);  
+                            spdlog::info("[ResourceManager::create_userdata] Found via heuristic invariant search at {:x}", (uintptr_t)s_create_userdata_fn);
                             return false;
                         }
                     }
- 
+
                     return true;
                 });
             }
 
 #endif
-
             if (found) {
                 spdlog::info("[ResourceManager::create_userdata] Found function at {:x}", (uintptr_t)s_create_userdata_fn);
             } else {
                 spdlog::error("[ResourceManager::create_userdata] Failed to find function!");
             }
+#endif
         } else {
             spdlog::error("[ResourceManager::create_resource] Failed to find function!");
             return;

@@ -57,8 +57,12 @@ struct ParsedParams {
 struct ParsedMethod {
     std::shared_ptr<ParsedType> owner{};
     sdk::REMethodDefinition* m{};
+#ifdef REFRAMEWORK_UNIVERSAL
+    sdk::REMethodImpl* m_impl{};
+#else
 #if TDB_VER >= 69
     sdk::REMethodImpl* m_impl{};
+#endif
 #endif
     const char* name{};
 
@@ -70,8 +74,12 @@ struct ParsedField {
     std::shared_ptr<ParsedType> owner{};
     std::shared_ptr<ParsedType> type{};
     sdk::REField* f{};
+#ifdef REFRAMEWORK_UNIVERSAL
+    sdk::REFieldImpl* f_impl{};
+#else
 #if TDB_VER >= 69
     sdk::REFieldImpl* f_impl{};
+#endif
 #endif
     const char* name{};
     uint32_t offset_from_fieldptr{};
@@ -85,8 +93,12 @@ struct ParsedProperty {
 
     sdk::REProperty* p{};
 
+#ifdef REFRAMEWORK_UNIVERSAL
+    sdk::REPropertyImpl* p_impl{};
+#else
 #if TDB_VER >= 69
     sdk::REPropertyImpl* p_impl{};
+#endif
 #endif
     const char* name{};
 };
@@ -106,10 +118,16 @@ struct ParsedType {
     std::vector<sdk::REField*> fields{};
     std::vector<sdk::REProperty*> props{};
 
+#ifdef REFRAMEWORK_UNIVERSAL
+    std::vector<sdk::REMethodImpl*> method_impls{};
+    std::vector<sdk::REPropertyImpl> prop_impls{};
+    std::vector<sdk::REFieldImpl*> field_impls{};
+#else
 #if TDB_VER >= 69
     std::vector<sdk::REMethodImpl*> method_impls{};
     std::vector<sdk::REPropertyImpl> prop_impls{};
     std::vector<sdk::REFieldImpl*> field_impls{};
+#endif
 #endif
 
     std::vector<std::shared_ptr<ParsedField>> parsed_fields;

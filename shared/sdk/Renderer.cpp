@@ -344,10 +344,16 @@ void RenderLayer::clone(RenderLayer* other, bool recursive) {
     this->m_parent = other->m_parent;
     this->m_priority = other->m_priority;
 
+#ifdef REFRAMEWORK_UNIVERSAL
+    for (uint32_t i = 0; i < sdk::renderer::RenderLayer::get_num_priority_offsets(); ++i) {
+        this->m_priority_offsets[i] = other->m_priority_offsets[i];
+    }
+#else
 #if TDB_VER > 49
     for (auto i = 0; i < sdk::renderer::RenderLayer::NUM_PRIORITY_OFFSETS; ++i) {
         this->m_priority_offsets[i] = other->m_priority_offsets[i];
     }
+#endif
 #endif
 
     this->clone_layers(other, recursive);

@@ -1,5 +1,28 @@
 #pragma once
 
+#include <cstdint>
+
+// ============================================================================
+// TDB Version Configuration
+// ============================================================================
+//
+// In the monolithic build (REFRAMEWORK_UNIVERSAL), TDB_VER is set to the
+// maximum supported version so ALL code paths compile. Runtime dispatch uses
+// sdk::GameIdentity::get().tdb_ver() for actual version-specific logic.
+//
+// In legacy per-game builds, TDB_VER is set based on the game macro as before.
+// ============================================================================
+
+#ifdef REFRAMEWORK_UNIVERSAL
+
+// Monolithic build: compile ALL version-dependent code paths.
+// Use the maximum TDB version so every #if TDB_VER >= X passes.
+#define TDB_VER 84
+#define TYPE_INDEX_BITS 19
+#define FIELD_BITS 20
+
+#else // Legacy per-game builds
+
 #ifdef DMC5
 #define TDB_VER 67
 #elif defined(PRAGMATA)
@@ -44,7 +67,42 @@
 #endif
 #endif
 
+// Legacy builds: TYPE_INDEX_BITS / FIELD_BITS from game macros
+#ifndef TYPE_INDEX_BITS
+#if defined(PRAGMATA) || defined(RE9) || defined(MHSTORIES3) || defined(MHWILDS)
+#define TYPE_INDEX_BITS 19
+#define FIELD_BITS 20
+#elif defined(DD2) || defined(SF6) || defined(RE4)
+#define TYPE_INDEX_BITS 19
+#define FIELD_BITS 19
+#elif defined(MHRISE)
+#ifdef MHRISE_TDB70
+#define TYPE_INDEX_BITS 18
+#define FIELD_BITS 18
+#else
+#define TYPE_INDEX_BITS 19
+#define FIELD_BITS 19
+#endif
+#elif defined(RE8)
+#define TYPE_INDEX_BITS 18
+#define FIELD_BITS 18
+#elif defined(DMC5) || defined(RE3_TDB67)
+#define TYPE_INDEX_BITS 17
+#define FIELD_BITS 17
+#elif defined(RE2_TDB66) || defined(RE7_TDB49)
+#define TYPE_INDEX_BITS 16
+#define FIELD_BITS 16
+#elif defined(RE2) || defined(RE3) || defined(RE7)
+#define TYPE_INDEX_BITS 18
+#define FIELD_BITS 18
+#endif
+#endif // TYPE_INDEX_BITS
+
+#endif // REFRAMEWORK_UNIVERSAL
+
 namespace sdk {
+
+// Forward declarations — all TDB struct versions exist in all builds.
 struct RETypeDefVersion84;
 struct RETypeDefVersion83;
 struct RETypeDefVersion82;
@@ -60,76 +118,59 @@ struct REMethodDefinition;
 struct REProperty;
 struct RETypeDefinition;
 
+// ============================================================================
+// RETypeDefinition_ alias
+// ============================================================================
+//
+// In the monolithic build, we use RETypeDefVersion84 (the largest/newest)
+// as the compile-time type. At runtime, accessor functions in
+// RETypeDefinition.cpp handle version-specific field offsets.
+//
+// In legacy per-game builds, the alias points to the exact version.
+// ============================================================================
+
+#ifdef REFRAMEWORK_UNIVERSAL
+using RETypeDefinition_ = sdk::RETypeDefVersion84;
+#else
 #if defined(PRAGMATA)
-#define TYPE_INDEX_BITS 19
-#define FIELD_BITS 20
 using RETypeDefinition_ = sdk::RETypeDefVersion84;
 #elif defined(RE9)
-#define TYPE_INDEX_BITS 19
-#define FIELD_BITS 20
 using RETypeDefinition_ = sdk::RETypeDefVersion83;
 #elif defined(MHSTORIES3)
-#define TYPE_INDEX_BITS 19
-#define FIELD_BITS 20
 using RETypeDefinition_ = sdk::RETypeDefVersion82;
 #elif defined(MHWILDS)
-#define TYPE_INDEX_BITS 19
-#define FIELD_BITS 20
 using RETypeDefinition_ = sdk::RETypeDefVersion74;
 #elif defined(DD2)
-#define TYPE_INDEX_BITS 19
-#define FIELD_BITS 19
-using RETypeDefinition_ = sdk::RETypeDefVersion71; // same thing for now
+using RETypeDefinition_ = sdk::RETypeDefVersion71;
 #elif defined(SF6)
-#define TYPE_INDEX_BITS 19
-#define FIELD_BITS 19
 using RETypeDefinition_ = sdk::RETypeDefVersion71;
 #elif defined(RE4)
-#define TYPE_INDEX_BITS 19
-#define FIELD_BITS 19
 using RETypeDefinition_ = sdk::RETypeDefVersion71;
 #elif defined(MHRISE)
 #ifdef MHRISE_TDB70
-// it's version 70 but looks the same for now i guess
-#define TYPE_INDEX_BITS 18
-#define FIELD_BITS 18
 using RETypeDefinition_ = sdk::RETypeDefVersion69;
 #else
-#define TYPE_INDEX_BITS 19
-#define FIELD_BITS 19
 using RETypeDefinition_ = sdk::RETypeDefVersion71;
 #endif
 #elif defined(RE8)
-#define TYPE_INDEX_BITS 18
-#define FIELD_BITS 18
 using RETypeDefinition_ = sdk::RETypeDefVersion69;
 #elif defined(DMC5)
-#define TYPE_INDEX_BITS 17
-#define FIELD_BITS 17
 using RETypeDefinition_ = sdk::RETypeDefVersion67;
 #elif defined(RE2) || defined(RE3)
 #ifdef RE2_TDB66
-#define TYPE_INDEX_BITS 16
-#define FIELD_BITS 16
 using RETypeDefinition_ = sdk::RETypeDefVersion66;
 #elif defined(RE3_TDB67)
-#define TYPE_INDEX_BITS 17
-#define FIELD_BITS 17
 using RETypeDefinition_ = sdk::RETypeDefVersion67;
 #else
-#define TYPE_INDEX_BITS 18
-#define FIELD_BITS 18
 using RETypeDefinition_ = sdk::RETypeDefVersion69;
 #endif
 #elif RE7
 #ifdef RE7_TDB49
-#define TYPE_INDEX_BITS 16
-#define FIELD_BITS 16
 using RETypeDefinition_ = sdk::RETypeDefVersion49;
 #else
-#define TYPE_INDEX_BITS 18
-#define FIELD_BITS 18
 using RETypeDefinition_ = sdk::RETypeDefVersion69;
 #endif
 #endif
+#endif // REFRAMEWORK_UNIVERSAL
+
 } // namespace sdk

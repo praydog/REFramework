@@ -11,20 +11,25 @@
 #include "sdk/ResourceManager.hpp"
 #include "sdk/Memory.hpp"
 
+#include <sdk/GameIdentity.hpp>
 #include "APIProxy.hpp"
 #include "ScriptRunner.hpp"
 #include "HookManager.hpp"
 
 #include "PluginLoader.hpp"
 
+// In the monolithic build, game_name is set at runtime after GameIdentity::initialize().
+// The g_plugin_version global is updated in PluginLoader's initialization.
 REFrameworkPluginVersion g_plugin_version{
-    REFRAMEWORK_PLUGIN_VERSION_MAJOR, REFRAMEWORK_PLUGIN_VERSION_MINOR, REFRAMEWORK_PLUGIN_VERSION_PATCH, REFRAMEWORK_GAME_NAME};
+    REFRAMEWORK_PLUGIN_VERSION_MAJOR, REFRAMEWORK_PLUGIN_VERSION_MINOR, REFRAMEWORK_PLUGIN_VERSION_PATCH, "REFramework"};
 
 namespace reframework {
 REFrameworkRendererData g_renderer_data{
     REFRAMEWORK_RENDERER_D3D12, nullptr, nullptr, nullptr
 };
 }
+
+using namespace utility::re_type_accessor;
 
 namespace reframework {
 void log_error(const char* format, ...) {
@@ -514,17 +519,17 @@ REFrameworkTypeInfo g_type_info_data {
     [](REFrameworkTypeInfoHandle ti, const char* name) { return (REFrameworkReflectionPropertyHandle)utility::re_type::get_field_desc(RETYPEINFO(ti), name); },
     [](REFrameworkTypeInfoHandle ti, const char* name) { return (REFrameworkReflectionMethodHandle)utility::re_type::get_method_desc(RETYPEINFO(ti), name); },
     [](REFrameworkTypeInfoHandle ti) -> void* {
-        if (RETYPEINFO(ti)->fields == nullptr) {
+        if (get_fields(RETYPEINFO(ti)) == nullptr) {
             return nullptr;
         }
 
-        return RETYPEINFO(ti)->fields->deserializer;
+        return get_fields(RETYPEINFO(ti))->deserializer;
     },
     [](REFrameworkTypeInfoHandle ti) -> REFrameworkTypeInfoHandle {
-        return (REFrameworkTypeInfoHandle)RETYPEINFO(ti)->super;
+        return (REFrameworkTypeInfoHandle)get_super(RETYPEINFO(ti));
     },
     [](REFrameworkTypeInfoHandle ti) {
-        return RETYPEINFO(ti)->typeCRC;
+        return get_typeCRC(RETYPEINFO(ti));
     }
 };
 
@@ -709,6 +714,8 @@ std::optional<std::string> PluginLoader::initialize_plugins() {
 
     std::scoped_lock _{m_mux};
 
+    // In monolithic build, update game_name now that GameIdentity is initialized.
+    g_plugin_version.game_name = sdk::GameIdentity::get().target_name().data();
     verify_sdk_pointers();
 
     g_plugin_initialize_param.reframework_module = g_framework->get_reframework_module();
