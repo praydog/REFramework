@@ -258,7 +258,7 @@ void GameIdentity::derive_engine_params() {
         break;
 
     case GameID::PRAGMATA:
-        m_tdb_ver          = 84;
+        m_tdb_ver          = 83; // PRAGMATA_SKETCHBOOK uses TDB 83, not 84
         m_type_index_bits  = 19;
         m_field_bits       = 20;
         m_reengine_packed  = true;
