@@ -972,6 +972,7 @@ RenderLayer* get_root_layer() {
 
                 if (utility::re_managed_object::is_a(ptr, "via.render.RenderLayer")) {
                     root_layer_offset = i;
+                    spdlog::info("[Renderer] Found root_layer_offset with fallback: {:x}", root_layer_offset);
                     return *(RenderLayer**)((uintptr_t)renderer + root_layer_offset);
                 }
             }
@@ -1643,7 +1644,10 @@ sdk::intrusive_ptr<Texture>& RenderTargetView::get_texture_d3d12() const {
     if (rtv_type != nullptr && rtv_type->size > 0 && rtv_type->size < 0x1000) {
         const auto rtv_size = rtv_type->size;
 
-#if TDB_VER >= 74
+#if TDB_VER >= 81
+        return *(sdk::intrusive_ptr<Texture>*)((uintptr_t)this + rtv_size + (sizeof(void*) * 4)); // 0xE0 usually
+
+#elif TDB_VER >= 74
         return *(sdk::intrusive_ptr<Texture>*)((uintptr_t)this + rtv_size + (sizeof(void*) * 4)); // 0xC8 usually
 #elif TDB_VER < 73
         return *(sdk::intrusive_ptr<Texture>*)((uintptr_t)this + rtv_size + sizeof(void*));
@@ -1898,6 +1902,73 @@ sdk::renderer::SceneInfo* layer::Scene::get_jitter_disable_post_scene_info() {
 
 sdk::renderer::SceneInfo* layer::Scene::get_z_prepass_scene_info() {
     return utility::re_managed_object::get_field<SceneInfo*>(this, "ZPrepassSceneInfo");
+}
+
+std::optional<size_t> layer::PrepareOutput::get_output_state_offset() {
+    static constexpr size_t GET_TYPEINFO_FN_INDEX = 3;
+    static std::optional<size_t> s_output_state_offset = std::nullopt;
+
+    if (s_output_state_offset) {
+        return *s_output_state_offset;
+    }
+    for (size_t offset = 0x10; offset < 0x500; offset += sizeof(void*)) try {
+        // Grab vtable.
+        const auto ptr = *(uintptr_t*)((uintptr_t)this + offset);
+        if (ptr == 0 || IsBadReadPtr((void*)ptr, sizeof(void*))) {
+            continue;
+        }
+
+        const auto vtable = *(uintptr_t**)ptr;
+        if (vtable == 0 || IsBadReadPtr((void*)vtable, sizeof(void*))) {
+            continue;
+        }
+
+        const auto get_typeinfo_fn = vtable[GET_TYPEINFO_FN_INDEX];
+
+        if (get_typeinfo_fn == 0 || IsBadReadPtr((void*)get_typeinfo_fn, sizeof(void*))) {
+            continue;
+        }
+
+        if (!utility::get_module_within(get_typeinfo_fn)) {
+            continue;
+        }
+
+        using type_info_fn_t = sdk::RETypeCLR* (*)();
+        
+        const auto type_info_fn = (type_info_fn_t)get_typeinfo_fn;
+        // if this is essentially a mov rax, return it.
+        if (((uint8_t*)get_typeinfo_fn)[0] != 0x48 || ((uint8_t*)get_typeinfo_fn)[1] != 0x8B || ((uint8_t*)get_typeinfo_fn)[2] != 0x05) {
+            spdlog::info("[PrepareOutput] Skipping offset {:x} because get_typeinfo_fn does not look like a mov rax", offset);
+            continue;
+        }
+
+        const auto type_info = type_info_fn();
+
+        if (type_info == nullptr || IsBadReadPtr(type_info, sizeof(void*))) {
+            continue;
+        }
+
+        if (type_info->name == nullptr || IsBadReadPtr(type_info->name, sizeof(void*))) {
+            continue;
+        }
+
+        const auto type_name = std::string_view{type_info->name};
+
+        if (type_name == "via.render.TargetState") {
+            s_output_state_offset = offset;
+            spdlog::info("[PrepareOutput] Found output state offset: {:x}", offset);
+            return *s_output_state_offset;
+            break;
+        }
+
+        spdlog::info("[PrepareOutput] Checked offset {:x}, type name: {}", offset, type_name);
+    } catch(...) {
+        continue;
+    }
+
+    spdlog::warn("[PrepareOutput] Failed to find output state offset, trying next time...");
+
+    return s_output_state_offset;
 }
 
 Texture* layer::Scene::get_depth_stencil() {
