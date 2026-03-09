@@ -45,6 +45,23 @@ RenderResource::ReleaseFn RenderResource::get_release_fn() {
             // Initial scan for a lock cmpxchg [reg + 8], reg instruction
             auto landmark = utility::find_landmark_sequence(game, "F0 0F B1 ? 08 75 ?", landmark_patterns, false);
 
+            // RE9/TDB83+: the release function uses lock dec [reg+8] as its first
+            // real instruction after sub rsp (no CAS loop for the refcount). The
+            // cmpxchg inside operates on [reg] (offset pre-baked via lea) with a
+            // near jnz, not short. Match sub rsp, ?; lock dec [reg+8] to anchor
+            // on the function prologue shape — this eliminates false positives from
+            // large destructors that inline the release logic deep in their body.
+            if (!landmark) {
+                std::vector<std::string> alt_landmark_patterns {
+                    "48 8D ? 08", // lea reg, [reg + 8]
+                    "F0 0F B1", // lock cmpxchg [reg], reg
+                    "BA 01 00 00 00", // mov edx, 1
+                    "E8 ? ? ? ?", // call ?
+                };
+
+                landmark = utility::find_landmark_sequence(game, "48 83 EC ? F0 FF ? 08", alt_landmark_patterns, false);
+            }
+
             if (!landmark) {
                 spdlog::error("[RenderResource] Failed to find landmark sequence!");
                 return nullptr;
