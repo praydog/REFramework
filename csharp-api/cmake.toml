@@ -282,7 +282,7 @@ set_dotnet_references(CSharpAPITestWebAPI "mhwilds" "${MHWILDS_DLLS}")
 [target.CSharpAPITestRE9]
 condition = "build-csharp-test-re9"
 type = "CSharpSharedTarget"
-sources = ["test/Test/TestRE9.cs"]
+sources = ["test/Test/ZombieSpawner.cs"]
 link-libraries = ["csharp-api"]
 cmake-after = """
 set_dotnet_references(CSharpAPITestRE9 "re9" "${RE9_DLLS}")
