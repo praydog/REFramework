@@ -431,6 +431,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		cmake.toml
 		"shared/sdk/Application.cpp"
 		"shared/sdk/Application.hpp"
+		"shared/sdk/CameraSystemDispatch.hpp"
 		"shared/sdk/Enums_Internal.hpp"
 		"shared/sdk/GUIPrimitiveSystem.cpp"
 		"shared/sdk/GUIPrimitiveSystem.hpp"

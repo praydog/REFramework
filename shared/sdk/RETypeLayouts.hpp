@@ -46,7 +46,7 @@ static_assert(sizeof(REType) == 0x68);
 // Returns true if the running game uses the 0x68 REType layout.
 inline bool retype_is_large_layout() {
     const auto& gi = sdk::GameIdentity::get();
-    return gi.is_mhwilds() || gi.is_re9();
+    return gi.tdb_ver() >= 81;
 }
 
 // Runtime accessors for REType fields that differ between layouts.

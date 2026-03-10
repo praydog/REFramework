@@ -101,7 +101,8 @@ namespace SV {
     case sdk::GameID::RE8:     return ((W::re8*)(w))->field;    \
     case sdk::GameID::RE4:     return ((W::re4*)(w))->field;    \
     case sdk::GameID::SF6:     return ((W::sf6*)(w))->field;    \
-    case sdk::GameID::DD2:     return ((W::dd2*)(w))->field;    \
+    case sdk::GameID::DD2:                                          \
+    case sdk::GameID::MHSTORIES3: return ((W::dd2*)(w))->field;    \
     default:                   return ((W::re9*)(w))->field;    \
     }
 
@@ -120,7 +121,8 @@ inline uint32_t& window_height(void* w) { VIA_WIN_FIELD(w, height); }
     case sdk::GameID::RE8:     return ((W::re8*)(w))->borderless_size.sub;     \
     case sdk::GameID::RE4:     return ((W::re4*)(w))->borderless_size.sub;     \
     case sdk::GameID::SF6:     return ((W::sf6*)(w))->borderless_size.sub;     \
-    case sdk::GameID::DD2:     return ((W::dd2*)(w))->borderless_size.sub;     \
+    case sdk::GameID::DD2:                                                     \
+    case sdk::GameID::MHSTORIES3: return ((W::dd2*)(w))->borderless_size.sub;     \
     default:                   return ((W::re9*)(w))->borderless_size.sub;     \
     }
 
@@ -143,7 +145,8 @@ inline void* sv_window(void* sv) {
     case sdk::GameID::RE8:     return ((SV::re8*)sv)->window;
     case sdk::GameID::RE4:     return ((SV::re4*)sv)->window;
     case sdk::GameID::SF6:     return ((SV::sf6*)sv)->window;
-    case sdk::GameID::DD2:     return ((SV::dd2*)sv)->window;
+    case sdk::GameID::DD2:
+    case sdk::GameID::MHSTORIES3: return ((SV::dd2*)sv)->window;
     default:                   return ((SV::re9*)sv)->window;
     }
 }

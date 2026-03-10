@@ -12,6 +12,19 @@
 #include "RETypeDB.hpp"
 #include "RETypeDefinition.hpp"
 
+// SEH wrapper for calling game's managed get_FullName. Debug builds of some
+// RE Engine games (e.g. Pragmata Sketchbook) fire DebugBreak() assertions
+// inside the game's typeDB code when certain types have invalid impl_index.
+// C++ try/catch cannot catch EXCEPTION_BREAKPOINT — SEH is required.
+// This must be a standalone function because __try cannot coexist with
+// C++ objects that have destructors in the same function scope.
+static ::SystemString* seh_call_get_full_name(sdk::REMethodDefinition* method, void* fake_type) {
+    __try {
+        return method->call<::SystemString*>(sdk::get_thread_context(), fake_type);
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        return nullptr;
+    }
+}
 namespace sdk {
 struct RETypeDefinition;
 
@@ -255,7 +268,7 @@ std::string RETypeDefinition::get_full_name() const {
 
         static auto get_full_name_method = system_runtime_type->get_method("get_FullName");
 
-        auto full_name_obj = get_full_name_method->call<::SystemString*>(sdk::get_thread_context(), &fake_type);
+        auto full_name_obj = seh_call_get_full_name(get_full_name_method, &fake_type);
 
         if (full_name_obj != nullptr) {
             full_name = utility::re_string::get_string(full_name_obj);
