@@ -1,3 +1,4 @@
+#include <sdk/GameIdentity.hpp>
 #include <sdk/RETypeDB.hpp>
 #include <utility/Scan.hpp>
 #include <utility/Module.hpp>
@@ -301,7 +302,15 @@ void LooseFileLoader::hook() {
         return;
     }
 
+#ifdef REFRAMEWORK_UNIVERSAL
+    if (sdk::GameIdentity::get().tdb_ver() > 67) {
+        m_path_to_hash_hook = std::make_unique<FunctionHook>(candidate.value(), (uintptr_t)&path_to_hash_hook);
+    } else {
+        m_path_to_hash_hook = std::make_unique<FunctionHook>(candidate.value(), (uintptr_t)&path_to_hash_hook_legacy);
+    }
+#else
     m_path_to_hash_hook = std::make_unique<FunctionHook>(candidate.value(), (uintptr_t)&path_to_hash_hook);
+#endif
 
     if (!m_path_to_hash_hook->create()) {
         spdlog::error("[LooseFileLoader] Failed to hook path_to_hash");
@@ -424,6 +433,29 @@ bool LooseFileLoader::handle_path(const wchar_t* path, size_t hash) {
     return false;
 }
 
+#ifdef REFRAMEWORK_UNIVERSAL
+uint64_t LooseFileLoader::path_to_hash_hook(const wchar_t* path) {
+    const auto og = g_loose_file_loader->m_path_to_hash_hook->get_original<decltype(path_to_hash_hook)>();
+    const auto result = og(path);
+
+    if (g_loose_file_loader->handle_path(path, result)) {
+        return 4294967296;
+    }
+
+    return result;
+}
+
+uint64_t LooseFileLoader::path_to_hash_hook_legacy(void* This, const wchar_t* path) {
+    const auto og = g_loose_file_loader->m_path_to_hash_hook->get_original<decltype(path_to_hash_hook_legacy)>();
+    const auto result = og(This, path);
+
+    if (g_loose_file_loader->handle_path(path, result)) {
+        return 0xFFFFFFFF;
+    }
+
+    return result;
+}
+#else
 #if TDB_VER > 67
 uint64_t LooseFileLoader::path_to_hash_hook(const wchar_t* path) {
 #else
@@ -448,3 +480,4 @@ uint64_t LooseFileLoader::path_to_hash_hook(void* This, const wchar_t* path) {
 
     return result;
 }
+#endif

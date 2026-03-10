@@ -13,7 +13,16 @@
 #include "sdk/REManagedObject.hpp"
 #include "sdk/Renderer.hpp"
 #include "sdk/REGameObject.hpp"
+#include <sdk/GameIdentity.hpp>
 
+#ifdef REFRAMEWORK_UNIVERSAL
+// Universal build: use re2_tdb70 structs (with ChainCollisionTop).
+// Games with TDB < 69 or MHRISE TDB==70 use flat collision layouts with different
+// struct sizes, so the chain viewer may not display correctly for those games.
+#include "sdk/regenny/re2_tdb70/via/motion/Chain.hpp"
+#include "sdk/regenny/re2_tdb70/via/motion/ChainCollisionTop.hpp"
+#include "sdk/regenny/re2_tdb70/via/motion/ChainCollisions.hpp"
+#else
 #if TDB_VER < 69
 #include "sdk/regenny/re3/via/motion/Chain.hpp"
 #include "sdk/regenny/re3/via/motion/ChainCollisions.hpp"
@@ -50,6 +59,7 @@
 
 #endif
 
+#endif
 #endif
 
 #include "../BackBufferRenderer.hpp"
@@ -249,6 +259,8 @@ void ChainViewer::on_frame() {
     static auto chain_runtime_type = chain_type->get_runtime_type();
     static auto chain_re_type = chain_type->get_type();
 
+    const auto& gi = sdk::GameIdentity::get();
+    const bool has_collision_top = gi.tdb_ver() >= 69 && !(gi.is_mhrise() && gi.tdb_ver() == 70);
     auto attempt_display_chains = [&](RETransform* transform) {
         auto chain = utility::re_component::find<regenny::via::motion::Chain>(transform, chain_re_type);
         bool made = false;
@@ -299,14 +311,12 @@ void ChainViewer::on_frame() {
 
         if (chain != nullptr && chain->CollisionData.num > 0 && chain->CollisionData.collisions != nullptr) {
             for (auto i = 0; i < chain->CollisionData.num; ++i) {
-                #if TDB_VER >= 69 && !defined(MHRISE_CHAIN70)
-                const auto& collider_top = chain->CollisionData.collisions[i];
-
-                for (auto j = 0; j < collider_top.num_collisions; ++j) {
-                    auto& collider = collider_top.collisions[j];
-                #else
-                    auto& collider = chain->CollisionData.collisions[i];
-                #endif
+                const auto num_sub = has_collision_top ? chain->CollisionData.collisions[i].num_collisions : 1;
+                for (auto j = 0; j < num_sub; ++j) {
+                    auto& collider = has_collision_top
+                        ? chain->CollisionData.collisions[i].collisions[j]
+                        : reinterpret_cast<regenny::via::motion::ChainCollisions&>(
+                            reinterpret_cast<regenny::via::motion::ChainCollisions*>(chain->CollisionData.collisions)[i]);
                     auto adjusted_pos1 = collider.pair_joint == nullptr ? *(Vector3f*)&collider.sphere.pos : *(Vector3f*)&collider.capsule.p0;
                     auto adjusted_pos2 = collider.pair_joint == nullptr ? Vector3f{} : *(Vector3f*)&collider.capsule.p1;
 
@@ -445,11 +455,10 @@ void ChainViewer::on_frame() {
                         
                         ImGui::SetNextItemOpen(true, ImGuiCond_::ImGuiCond_Once);
 
-                    #if TDB_VER >= 69 && !defined(MHRISE_CHAIN70)
-                        if (ImGui::TreeNode(&collider, "Collision %d %d", i, j)) {
-                    #else
-                        if (ImGui::TreeNode(&collider, "Collision %d", i)) {
-                    #endif
+                    const bool tree_open = has_collision_top
+                        ? ImGui::TreeNode(&collider, "Collision %d %d", i, j)
+                        : ImGui::TreeNode(&collider, "Collision %d", i);
+                    if (tree_open) {
                             auto made_joint_node = ImGui::TreeNode(&collider.joint, "Joint");
 
                             const auto col = ImVec4{100.0f / 255.0f, 149.0f / 255.0f, 237.0f / 255.0f, 255 / 255.0f};
@@ -486,9 +495,7 @@ void ChainViewer::on_frame() {
 
                         ImGui::PopID();
                     }
-            #if TDB_VER >= 69 && !defined(MHRISE_CHAIN70)
                 }
-            #endif
             }
         }
 

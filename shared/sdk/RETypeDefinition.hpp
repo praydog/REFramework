@@ -7,16 +7,22 @@
 #include "RETypeCLR.hpp"
 #include "ReClass.hpp"
 #include "TDBVer.hpp"
+#include "RETypeDefDispatch.hpp"
 
 class REManagedObject;
 
 // Manual definitions of REClassInfo because ReClass doesn't have bitfields like this.
+// Each version struct has hardcoded bit widths matching the exact TDB version —
+// no dependency on TYPE_INDEX_BITS / FIELD_BITS compile-time macros.
 namespace sdk {
 struct RETypeDefVersion84;
+struct RETypeDefVersion83;
+struct RETypeDefVersion82;
 struct RETypeDefVersion74;
 struct RETypeDefVersion71;
 struct RETypeDefVersion69;
 struct RETypeDefVersion67;
+struct RETypeDefVersion67_RE3;
 struct RETypeDefVersion66;
 struct RETypeDefVersion49;
 
@@ -26,14 +32,18 @@ struct REProperty;
 struct RETypeDefinition;
 struct GenericListData;
 
+// ============================================================================
+// TDB 84 (PRAGMATA) — TYPE_INDEX_BITS=19, FIELD_BITS=20
+// sizeof = 0x50 (has unk_new_tdb74_uint64)
+// ============================================================================
 struct RETypeDefVersion84 {
-    uint64_t index : TYPE_INDEX_BITS;
-    uint64_t parent_typeid : TYPE_INDEX_BITS;
-    uint64_t declaring_typeid : TYPE_INDEX_BITS;
+    uint64_t index : 19;
+    uint64_t parent_typeid : 19;
+    uint64_t declaring_typeid : 19;
     uint64_t underlying_typeid : 7;
 
-   	uint64_t array_typeid_TBD : TYPE_INDEX_BITS;
-   	uint64_t element_typeid_TBD : TYPE_INDEX_BITS;
+    uint64_t array_typeid_TBD : 19;
+    uint64_t element_typeid_TBD : 19;
 
     uint64_t impl_index : 18;
     uint64_t system_typeid : 7;
@@ -44,75 +54,76 @@ struct RETypeDefVersion84 {
     uint32_t type_crc;
     uint64_t default_ctor : 22;
     uint64_t member_method : 22;
-    uint64_t member_field : FIELD_BITS;
+    uint64_t member_field : 20;
     uint32_t num_member_prop : 12;
-    uint32_t member_prop : TYPE_INDEX_BITS;
+    uint32_t member_prop : 19;
 
     uint32_t unk_data : 26;
     uint32_t object_type : 3;
 
     int64_t unk_data_before_generics : 26;
-	int64_t generics : 26;
-  	int64_t interfaces : 12;
+    int64_t generics : 26;
+    int64_t interfaces : 12;
     struct sdk::RETypeCLR* type;
     class ::REObjectInfo* managed_vt;
-    
-    uint64_t unk_new_tdb74_uint64; // Adds 8 bytes
+
+    uint64_t unk_new_tdb74_uint64;
 };
-
-struct RETypeDefVersion83 {
-    uint64_t index : TYPE_INDEX_BITS;
-    uint64_t parent_typeid : TYPE_INDEX_BITS;
-    uint64_t declaring_typeid : TYPE_INDEX_BITS;
-    uint64_t underlying_typeid : 7;
-
-   	uint64_t array_typeid_TBD : TYPE_INDEX_BITS;
-   	uint64_t element_typeid_TBD : TYPE_INDEX_BITS;
-
-    uint64_t impl_index : 18;
-    uint64_t system_typeid : 7;
-
-    uint32_t type_flags;
-    uint32_t size;
-    uint32_t fqn_hash;
-    uint32_t type_crc;
-    uint64_t default_ctor : 22;
-    uint64_t member_method : 22;
-    uint64_t member_field : FIELD_BITS;
-    uint32_t num_member_prop : 12;
-    uint32_t member_prop : TYPE_INDEX_BITS;
-
-    uint32_t unk_data : 26;
-    uint32_t object_type : 3;
-
-    int64_t unk_data_before_generics : 26;
-	int64_t generics : 26;
-  	int64_t interfaces : 12;
-    struct sdk::RETypeCLR* type;
-    class ::REObjectInfo* managed_vt;
-    
-    uint64_t unk_new_tdb74_uint64; // Adds 8 bytes
-};
-
-#if TDB_VER >= 84
 static_assert(sizeof(RETypeDefVersion84) == 0x50, "RETypeDefVersion84 has wrong size");
 static_assert(offsetof(RETypeDefVersion84, type_crc) == 0x1C);
-#endif
 
-#if TDB_VER >= 83
+// ============================================================================
+// TDB 83 (RE9) — TYPE_INDEX_BITS=19, FIELD_BITS=20
+// sizeof = 0x50 (same layout as V84)
+// ============================================================================
+struct RETypeDefVersion83 {
+    uint64_t index : 19;
+    uint64_t parent_typeid : 19;
+    uint64_t declaring_typeid : 19;
+    uint64_t underlying_typeid : 7;
+
+    uint64_t array_typeid_TBD : 19;
+    uint64_t element_typeid_TBD : 19;
+
+    uint64_t impl_index : 18;
+    uint64_t system_typeid : 7;
+
+    uint32_t type_flags;
+    uint32_t size;
+    uint32_t fqn_hash;
+    uint32_t type_crc;
+    uint64_t default_ctor : 22;
+    uint64_t member_method : 22;
+    uint64_t member_field : 20;
+    uint32_t num_member_prop : 12;
+    uint32_t member_prop : 19;
+
+    uint32_t unk_data : 26;
+    uint32_t object_type : 3;
+
+    int64_t unk_data_before_generics : 26;
+    int64_t generics : 26;
+    int64_t interfaces : 12;
+    struct sdk::RETypeCLR* type;
+    class ::REObjectInfo* managed_vt;
+
+    uint64_t unk_new_tdb74_uint64;
+};
 static_assert(sizeof(RETypeDefVersion83) == 0x50, "RETypeDefVersion83 has wrong size");
 static_assert(offsetof(RETypeDefVersion83, type_crc) == 0x1C);
-static_assert(offsetof(RETypeDefVersion83, type) == 0x38);
-#endif
 
+// ============================================================================
+// TDB 82 (MHSTORIES3) — TYPE_INDEX_BITS=19, FIELD_BITS=20
+// sizeof = 0x50 (same layout as V84)
+// ============================================================================
 struct RETypeDefVersion82 {
-    uint64_t index : TYPE_INDEX_BITS;
-    uint64_t parent_typeid : TYPE_INDEX_BITS;
-    uint64_t declaring_typeid : TYPE_INDEX_BITS;
+    uint64_t index : 19;
+    uint64_t parent_typeid : 19;
+    uint64_t declaring_typeid : 19;
     uint64_t underlying_typeid : 7;
 
-   	uint64_t array_typeid_TBD : TYPE_INDEX_BITS;
-   	uint64_t element_typeid_TBD : TYPE_INDEX_BITS;
+    uint64_t array_typeid_TBD : 19;
+    uint64_t element_typeid_TBD : 19;
 
     uint64_t impl_index : 18;
     uint64_t system_typeid : 7;
@@ -123,35 +134,36 @@ struct RETypeDefVersion82 {
     uint32_t type_crc;
     uint64_t default_ctor : 22;
     uint64_t member_method : 22;
-    uint64_t member_field : FIELD_BITS;
+    uint64_t member_field : 20;
     uint32_t num_member_prop : 12;
-    uint32_t member_prop : TYPE_INDEX_BITS;
+    uint32_t member_prop : 19;
 
     uint32_t unk_data : 26;
     uint32_t object_type : 3;
 
     int64_t unk_data_before_generics : 26;
-	int64_t generics : 26;
-  	int64_t interfaces : 12;
+    int64_t generics : 26;
+    int64_t interfaces : 12;
     struct sdk::RETypeCLR* type;
     class ::REObjectInfo* managed_vt;
-    
-    uint64_t unk_new_tdb74_uint64; // Adds 8 bytes
-};
 
-#if TDB_VER >= 82
+    uint64_t unk_new_tdb74_uint64;
+};
 static_assert(sizeof(RETypeDefVersion82) == 0x50, "RETypeDefVersion82 has wrong size");
 static_assert(offsetof(RETypeDefVersion82, type_crc) == 0x1C);
-#endif
 
+// ============================================================================
+// TDB 74 (MHWILDS) — TYPE_INDEX_BITS=19, FIELD_BITS=20
+// sizeof = 0x50 (has unk_new_tdb74_uint64)
+// ============================================================================
 struct RETypeDefVersion74 {
-    uint64_t index : TYPE_INDEX_BITS;
-    uint64_t parent_typeid : TYPE_INDEX_BITS;
-    uint64_t declaring_typeid : TYPE_INDEX_BITS;
+    uint64_t index : 19;
+    uint64_t parent_typeid : 19;
+    uint64_t declaring_typeid : 19;
     uint64_t underlying_typeid : 7;
 
-   	uint64_t array_typeid_TBD : TYPE_INDEX_BITS;
-   	uint64_t element_typeid_TBD : TYPE_INDEX_BITS;
+    uint64_t array_typeid_TBD : 19;
+    uint64_t element_typeid_TBD : 19;
 
     uint64_t impl_index : 18;
     uint64_t system_typeid : 7;
@@ -162,35 +174,36 @@ struct RETypeDefVersion74 {
     uint32_t type_crc;
     uint64_t default_ctor : 22;
     uint64_t member_method : 22;
-    uint64_t member_field : FIELD_BITS;
+    uint64_t member_field : 20;
     uint32_t num_member_prop : 12;
-    uint32_t member_prop : TYPE_INDEX_BITS;
+    uint32_t member_prop : 19;
 
     uint32_t unk_data : 26;
     uint32_t object_type : 3;
 
     int64_t unk_data_before_generics : 26;
-	int64_t generics : 26;
-  	int64_t interfaces : 12;
+    int64_t generics : 26;
+    int64_t interfaces : 12;
     struct sdk::RETypeCLR* type;
     class ::REObjectInfo* managed_vt;
-    
-    uint64_t unk_new_tdb74_uint64; // Adds 8 bytes
-};
 
-#if TDB_VER >= 74
+    uint64_t unk_new_tdb74_uint64;
+};
 static_assert(sizeof(RETypeDefVersion74) == 0x50, "RETypeDefVersion74 has wrong size");
 static_assert(offsetof(RETypeDefVersion74, type_crc) == 0x1C);
-#endif
 
+// ============================================================================
+// TDB 71 (RE4, SF6, MHRISE, DD2/TDB73) — TYPE_INDEX_BITS=19, FIELD_BITS=19
+// sizeof = 0x48 (no unk_new_tdb74_uint64)
+// ============================================================================
 struct RETypeDefVersion71 {
-    uint64_t index : TYPE_INDEX_BITS;
-    uint64_t parent_typeid : TYPE_INDEX_BITS;
-    uint64_t declaring_typeid : TYPE_INDEX_BITS;
+    uint64_t index : 19;
+    uint64_t parent_typeid : 19;
+    uint64_t declaring_typeid : 19;
     uint64_t underlying_typeid : 7;
 
-   	uint64_t array_typeid_TBD : TYPE_INDEX_BITS;
-   	uint64_t element_typeid_TBD : TYPE_INDEX_BITS;
+    uint64_t array_typeid_TBD : 19;
+    uint64_t element_typeid_TBD : 19;
 
     uint64_t impl_index : 18;
     uint64_t system_typeid : 7;
@@ -201,34 +214,40 @@ struct RETypeDefVersion71 {
     uint32_t type_crc;
     uint64_t default_ctor : 22;
     uint64_t member_method : 22;
-    uint64_t member_field : TYPE_INDEX_BITS;
+    uint64_t member_field : 19;
     uint32_t num_member_prop : 12;
-    uint32_t member_prop : TYPE_INDEX_BITS;
+    uint32_t member_prop : 19;
 
     uint32_t unk_data : 26;
     uint32_t object_type : 3;
 
     int64_t unk_data_before_generics : 26;
-	int64_t generics : 26;
-  	int64_t interfaces : 12;
+    int64_t generics : 26;
+    int64_t interfaces : 12;
     struct sdk::RETypeCLR* type;
     class ::REObjectInfo* managed_vt;
 };
-
-#if TDB_VER >= 71
 static_assert(sizeof(RETypeDefVersion71) == 0x48, "RETypeDefVersion71 has wrong size");
 static_assert(offsetof(RETypeDefVersion71, type_crc) == 0x1C);
-#endif
 
+// ============================================================================
+// TDB 69 (RE8, RE2/TDB70, RE3/TDB70, RE7/TDB70, MHRISE/TDB70)
+// TYPE_INDEX_BITS=18, FIELD_BITS=18
+// sizeof = 0x50 — different field encoding from V71+ (plain uint32_t for
+// default_ctor/vt/member_method/member_field; different bitfield packing)
+// ============================================================================
 struct RETypeDefVersion69 {
-    uint64_t index : TYPE_INDEX_BITS;
-    uint64_t parent_typeid : TYPE_INDEX_BITS;
-    uint64_t declaring_typeid : TYPE_INDEX_BITS;
+    // First uint64_t: 18+18+18+7+3 = 64 bits
+    uint64_t index : 18;
+    uint64_t parent_typeid : 18;
+    uint64_t declaring_typeid : 18;
     uint64_t underlying_typeid : 7;
     uint64_t object_type : 3;
-    uint64_t array_typeid : TYPE_INDEX_BITS;
-    uint64_t element_typeid : TYPE_INDEX_BITS;
-    uint64_t impl_index : TYPE_INDEX_BITS;
+
+    // Second uint64_t: 18+18+18+10 = 64 bits
+    uint64_t array_typeid : 18;
+    uint64_t element_typeid : 18;
+    uint64_t impl_index : 18;
     uint64_t system_typeid : 10;
 
     uint32_t type_flags;
@@ -242,7 +261,7 @@ struct RETypeDefVersion69 {
 
     // 0x0030
     uint32_t num_member_prop : 12;
-    uint32_t member_prop : 19;
+    uint32_t member_prop : 18;
 
     uint32_t member_event;
     int32_t interfaces;
@@ -250,13 +269,19 @@ struct RETypeDefVersion69 {
     struct sdk::RETypeCLR* type;
     class ::REObjectInfo* managed_vt;
 };
+static_assert(sizeof(RETypeDefVersion69) == 0x50, "RETypeDefVersion69 has wrong size");
 
+// ============================================================================
+// TDB 67 — DMC5 variant (bitfields for method/field members)
+// TYPE_INDEX_BITS=17, FIELD_BITS=17
+// sizeof = 0x78
+// ============================================================================
 struct RETypeDefVersion67 {
     // 0-8
-    uint64_t index : TYPE_INDEX_BITS;
+    uint64_t index : 17;
     uint64_t unkbitfieldthing : 13;
-    uint64_t parent_typeid : TYPE_INDEX_BITS;
-    uint64_t declaring_typeid : TYPE_INDEX_BITS;
+    uint64_t parent_typeid : 17;
+    uint64_t declaring_typeid : 17;
 
     uint32_t fqn_hash; // murmurhash3
     uint32_t type_crc;
@@ -273,19 +298,10 @@ struct RETypeDefVersion67 {
     uint32_t size;
     char pad_0034[4];
 
-    // this is fun
-#ifdef RE3
-    uint32_t member_method;
-    uint32_t num_member_method;
-    uint32_t member_field;
-    uint32_t num_member_field;
-#else
     uint32_t num_member_method : 12;
     uint32_t member_method : 19;
     uint32_t num_member_field : 12;
     uint32_t member_field : 19;
-#endif
-
     uint32_t num_member_prop : 12;
     uint32_t member_prop : 19;
 
@@ -299,13 +315,65 @@ struct RETypeDefVersion67 {
     struct sdk::RETypeCLR* type;
     class ::REObjectInfo* managed_vt;
 };
+static_assert(sizeof(RETypeDefVersion67) == 0x78, "RETypeDefVersion67 (DMC5) has wrong size");
 
+// ============================================================================
+// TDB 67 — RE3 variant (plain uint32_t for method/field members)
+// TYPE_INDEX_BITS=17, FIELD_BITS=17
+// sizeof = 0x80 (different from DMC5 due to no bitfield packing)
+// ============================================================================
+struct RETypeDefVersion67_RE3 {
+    // 0-8
+    uint64_t index : 17;
+    uint64_t unkbitfieldthing : 13;
+    uint64_t parent_typeid : 17;
+    uint64_t declaring_typeid : 17;
+
+    uint32_t fqn_hash;
+    uint32_t type_crc;
+    char pad_0010[8];
+    uint32_t name_offset;
+    uint32_t namespace_offset;
+    uint32_t type_flags;
+    uint8_t system_type;
+    char pad_0025[1];
+    uint8_t object_type;
+    char pad_0027[1];
+    uint32_t default_ctor;
+    uint32_t element_size;
+    uint32_t size;
+    char pad_0034[4];
+
+    // RE3 uses plain uint32_t (not bitfields)
+    uint32_t member_method;
+    uint32_t num_member_method;
+    uint32_t member_field;
+    uint32_t num_member_field;
+    uint32_t num_member_prop : 12;
+    uint32_t member_prop : 19;
+
+    uint32_t events;
+    uint32_t interfaces;
+    char pad_0054[4];
+    uint32_t generics;
+    uint32_t vt; // byte pool
+    char pad_005C[8];
+    void* unk;
+    struct sdk::RETypeCLR* type;
+    class ::REObjectInfo* managed_vt;
+};
+static_assert(sizeof(RETypeDefVersion67_RE3) == 0x80, "RETypeDefVersion67_RE3 has wrong size");
+
+// ============================================================================
+// TDB 66 (RE2_TDB66) — TYPE_INDEX_BITS=16, FIELD_BITS=16
+// sizeof = 0x78
+// ============================================================================
 struct RETypeDefVersion66 {
     // 0-8
-    uint64_t index : TYPE_INDEX_BITS;
+    uint64_t index : 16;
     uint64_t unkbitfieldthing : 16;
-    uint64_t parent_typeid : TYPE_INDEX_BITS;
-    uint64_t declaring_typeid : TYPE_INDEX_BITS;
+    uint64_t parent_typeid : 16;
+    uint64_t declaring_typeid : 16;
 
     uint32_t fqn_hash; // murmurhash3
     uint32_t type_crc;
@@ -341,6 +409,10 @@ struct RETypeDefVersion66 {
 };
 
 #pragma pack(push, 1)
+// ============================================================================
+// TDB 49 (RE7_TDB49) — TYPE_INDEX_BITS=16, FIELD_BITS=16
+// sizeof = 0x60 (packed)
+// ============================================================================
 struct RETypeDefVersion49 {
     uint32_t fqn_hash; // 0x0
     uint16_t parent_typeid; // 0x4
@@ -371,20 +443,8 @@ struct RETypeDefVersion49 {
     char pad_50[0x10];
 };
 #pragma pack(pop)
-
 static_assert(sizeof(RETypeDefVersion49) == 0x60);
 
-#if TDB_VER < 69
-#if defined(RE3)
-static_assert(sizeof(RETypeDefVersion67) == 0x80);
-#else
-#if defined(DMC5)
-static_assert(sizeof(RETypeDefVersion67) == 0x78);
-#else
-static_assert(sizeof(RETypeDefVersion66) == 0x78);
-#endif
-#endif
-#endif
 } // namespace sdk
 
 // helper class
@@ -395,8 +455,29 @@ struct RETypeDefinition : public sdk::RETypeDefinition_ {
         MethodIterator(const sdk::RETypeDefinition* parent)
             : m_parent{parent} {}
 
-        sdk::REMethodDefinition* begin() const;
-        sdk::REMethodDefinition* end() const;
+        class REMethodIterator {
+        public:
+            REMethodIterator(const sdk::RETypeDefinition* parent, size_t start = 0)
+                : m_parent{parent}, m_index{start} {}
+
+            sdk::REMethodDefinition& operator*() const;
+            REMethodIterator& operator++() {
+                m_index++;
+                return *this;
+            }
+            bool operator!=(const REMethodIterator& other) const {
+                return m_index != other.m_index || m_parent != other.m_parent;
+            }
+            bool operator==(const REMethodIterator& other) const {
+                return m_index == other.m_index && m_parent == other.m_parent;
+            }
+        private:
+            const sdk::RETypeDefinition* m_parent;
+            size_t m_index{0};
+        };
+
+        REMethodIterator begin() const;
+        REMethodIterator end() const;
         size_t size() const;
 
     private:
@@ -454,8 +535,40 @@ struct RETypeDefinition : public sdk::RETypeDefinition_ {
         PropertyIterator(const sdk::RETypeDefinition* parent)
             : m_parent{parent} {}
 
-        sdk::REProperty* begin() const;
-        sdk::REProperty* end() const;
+        // Index-based inner iterator for stride-safe property access (TDB 67 has different REProperty size).
+        class REPropertyIterator {
+        public:
+            REPropertyIterator(const sdk::RETypeDefinition* parent, size_t start = 0)
+                : m_parent{parent},
+                m_index{start}
+            {
+            }
+
+            sdk::REProperty* operator*() const;
+            REPropertyIterator& operator++() {
+                m_index++;
+                return *this;
+            }
+
+            bool operator==(const REPropertyIterator& other) const {
+                return m_index == other.m_index && m_parent == other.m_parent;
+            }
+
+            bool operator!=(const REPropertyIterator& other) const {
+                return m_index != other.m_index || m_parent != other.m_parent;
+            }
+        private:
+            const sdk::RETypeDefinition* m_parent;
+            size_t m_index{0};
+        };
+
+        REPropertyIterator begin() const {
+            return REPropertyIterator{m_parent};
+        }
+
+        REPropertyIterator end() const {
+            return REPropertyIterator{m_parent, size()};
+        }
 
         size_t size() const;
 

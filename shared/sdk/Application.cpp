@@ -5,8 +5,40 @@
 #include "utility/Module.hpp"
 
 #include "Application.hpp"
+#ifdef REFRAMEWORK_UNIVERSAL
+#include "GameIdentity.hpp"
+#endif
 
 namespace sdk {
+
+#ifdef REFRAMEWORK_UNIVERSAL
+const char* Application::Function::get_description() const {
+    if (GameIdentity::get().tdb_ver() < 74)
+        return *reinterpret_cast<const char* const*>(reinterpret_cast<uintptr_t>(this) + 0x18);
+    return *reinterpret_cast<const char* const*>(reinterpret_cast<uintptr_t>(this) + 0x10);
+}
+
+uint16_t Application::Function::get_priority() const {
+    if (GameIdentity::get().tdb_ver() < 74)
+        return *reinterpret_cast<const uint16_t*>(reinterpret_cast<uintptr_t>(this) + 0x20);
+    return *reinterpret_cast<const uint16_t*>(reinterpret_cast<uintptr_t>(this) + 0x18);
+}
+
+uint16_t Application::Function::get_type_val() const {
+    if (GameIdentity::get().tdb_ver() < 74)
+        return *reinterpret_cast<const uint16_t*>(reinterpret_cast<uintptr_t>(this) + 0x22);
+    return *reinterpret_cast<const uint16_t*>(reinterpret_cast<uintptr_t>(this) + 0x1A);
+}
+
+size_t Application::get_function_stride() {
+    if (GameIdentity::get().tdb_ver() < 74) return 0xD0;
+    return 0xC8;
+}
+
+Application::Function* Application::get_function_at(Application::Function* base, size_t index) {
+    return reinterpret_cast<Function*>(reinterpret_cast<uintptr_t>(base) + index * get_function_stride());
+}
+#endif // REFRAMEWORK_UNIVERSAL
 RETypeDefinition* Application::get_type() {
     return sdk::find_type_definition("via.Application");
 }
@@ -15,7 +47,6 @@ Application* Application::get() {
     const auto application_type = Application::get_type();
 
     if (application_type == nullptr) {
-        spdlog::error("Cannot find via.Application");
         return nullptr;
     }
 
@@ -30,8 +61,15 @@ Application::Function* Application::get_functions() {
         const auto mod_size = utility::get_module_size(mod);
         const auto mod_end = (uintptr_t)mod + *mod_size - 0x100;
 
-        // Fall back to full heuristic analysis on newer versions of the engine.
+        // Byte-pattern scans for older RE Engine games (TDB < 81).
+        // On newer engines these patterns don't exist; fall back to heuristic analysis.
+#ifdef REFRAMEWORK_UNIVERSAL
+        if (GameIdentity::get().tdb_ver() < 81) {
+#else
 #if TDB_VER < 81
+        {
+#endif
+#endif
         // For MHRise (game pass only? or TU4)
         for (auto ref = utility::scan(mod, "89 81 ? ? ? ? 48 8B ? 48 81 C1 ? ? ? ?");
             ref;
@@ -49,12 +87,12 @@ Application::Function* Application::get_functions() {
                 try {
                     const auto ptr = (Application::Function*)((uintptr_t)this + candidate);
 
-                    if (ptr == nullptr || IsBadReadPtr(ptr, sizeof(Application::Function) * 50)) {
+                    if (ptr == nullptr || IsBadReadPtr(ptr, get_function_stride() * 50)) {
                         spdlog::info("Skipping invalid Application::functions offset: {:x}", candidate);
                         continue;
                     }
 
-                    if (ptr->description == nullptr || IsBadReadPtr(ptr->description, 32)) {
+                    if (ptr->get_description() == nullptr || IsBadReadPtr(ptr->get_description(), 32)) {
                         spdlog::info("Skipping invalid Application::functions offset: {:x}", candidate);
                         continue;
                     }
@@ -87,12 +125,12 @@ Application::Function* Application::get_functions() {
                 try {
                     const auto ptr = (Application::Function*)((uintptr_t)this + candidate);
 
-                    if (ptr == nullptr || IsBadReadPtr(ptr, sizeof(Application::Function) * 50)) {
+                    if (ptr == nullptr || IsBadReadPtr(ptr, get_function_stride() * 50)) {
                         spdlog::info("Skipping invalid Application::functions offset: {:x}", candidate);
                         continue;
                     }
 
-                    if (ptr->description == nullptr || IsBadReadPtr(ptr->description, 32)) {
+                    if (ptr->get_description() == nullptr || IsBadReadPtr(ptr->get_description(), 32)) {
                         spdlog::info("Skipping invalid Application::functions offset: {:x}", candidate);
                         continue;
                     }
@@ -107,6 +145,12 @@ Application::Function* Application::get_functions() {
 
             spdlog::info("Skipping invalid Application::functions offset: {:x}", candidate);
         }
+#ifdef REFRAMEWORK_UNIVERSAL
+        }
+#else
+#if TDB_VER < 81
+        }
+#endif
 #endif
 
         // Heuristic structure analyis.
@@ -125,14 +169,14 @@ Application::Function* Application::get_functions() {
         for (auto i = 0x100; i < 0x1000; i += sizeof(void*)) try {
             const auto ptr = (Application::Function*)((uintptr_t)this + i);
 
-            if (ptr == nullptr || IsBadReadPtr(ptr, sizeof(Application::Function) * 50)) {
+            if (ptr == nullptr || IsBadReadPtr(ptr, get_function_stride() * 50)) {
                 continue;
             }
 
             for (auto j = 0; j < 1024; ++j) try {
-                const auto& func = ptr[j];
+                const auto& func = *get_function_at(ptr, j);
 
-                if (func.description == nullptr || IsBadReadPtr(func.description, 32)) {
+                if (func.get_description() == nullptr || IsBadReadPtr(func.get_description(), 32)) {
                     break;
                 }
 
@@ -140,19 +184,19 @@ Application::Function* Application::get_functions() {
                     break; // the first one should always be valid.
                 }
                 
-                const auto name = std::string_view{func.description};
+                const auto name = std::string_view{func.get_description()};
 
                 if (j == 0) {
                     if (module_entry_enum != nullptr) {
                         if (auto f = sdk::get_native_field<uint16_t>(nullptr, module_entry_enum, name, true); f != nullptr) {
-                            if (*f != func.priority) {
-                                spdlog::error("{} priority mismatch: {} != {}", name.data(), *f, func.priority);
+                            if (*f != func.get_priority()) {
+                                spdlog::error("{} priority mismatch: {} != {}", name.data(), *f, func.get_priority());
                                 break; // the first one should always be valid.
                             } else{
-                                spdlog::info("{} priority match: {} == {}", name.data(), *f, func.priority);
+                                spdlog::info("{} priority match: {} == {}", name.data(), *f, func.get_priority());
                             }
                         }
-                    } else if (func.priority != 1) {
+                    } else if (func.get_priority() != 1) {
                         break; // the first one should always be valid.
                     }
                 }
@@ -160,7 +204,7 @@ Application::Function* Application::get_functions() {
                 if (name == "WaitRendering") {
                     if (module_entry_enum != nullptr) {
                         if (auto f = sdk::get_native_field<uint16_t>(nullptr, module_entry_enum, "WaitRendering", true); f != nullptr) {
-                            if (*f == func.priority) {
+                            if (*f == func.get_priority()) {
                                 found_wait_rendering = true;
                             }
                         }
@@ -170,7 +214,7 @@ Application::Function* Application::get_functions() {
                 } else if (name == "BeginRendering") {
                     if (module_entry_enum != nullptr) {
                         if (auto f = sdk::get_native_field<uint16_t>(nullptr, module_entry_enum, "BeginRendering", true); f != nullptr) {
-                            if (*f == func.priority) {
+                            if (*f == func.get_priority()) {
                                 found_begin_rendering = true;
                             }
                         }
@@ -180,7 +224,7 @@ Application::Function* Application::get_functions() {
                 } else if (name == "EndRendering") {
                     if (module_entry_enum != nullptr) {
                         if (auto f = sdk::get_native_field<uint16_t>(nullptr, module_entry_enum, "EndRendering", true); f != nullptr) {
-                            if (*f == func.priority) {
+                            if (*f == func.get_priority()) {
                                 found_end_rendering = true;
                             }
                         }
@@ -221,8 +265,9 @@ Application::Function* Application::get_function(uint16_t index) {
     }
 
     for (auto i = 0; i < 1024; ++i) {
-        if (functions[i].priority == index) {
-            return &functions[i];
+        auto* fn = get_function_at(functions, i);
+        if (fn->get_priority() == index) {
+            return fn;
         }
     }
 
@@ -244,9 +289,9 @@ Application::Function* Application::get_function(std::string_view name) {
     }*/
 
     for (auto i = 0; i < 1024; ++i) {
-        //if (functions[i].priority == *function_index) {
-        if (functions[i].description != nullptr && functions[i].description == name) {
-            return &functions[i];
+        auto* fn = get_function_at(functions, i);
+        if (fn->get_description() != nullptr && fn->get_description() == name) {
+            return fn;
         }
     }
 
@@ -260,8 +305,8 @@ std::vector<Application::Function*> Application::generate_chain(std::string_view
     //const auto start_index = sdk::get_object_field<uint16_t>(nullptr, module_entry_enum, start_name, true);
     //const auto end_index = sdk::get_object_field<uint16_t>(nullptr, module_entry_enum, end_name, true);
 
-    const auto start_index = get_function(start_name)->priority;
-    const auto end_index = get_function(end_name)->priority;
+    const auto start_index = get_function(start_name)->get_priority();
+    const auto end_index = get_function(end_name)->get_priority();
 
     /*if (start_index == nullptr || end_index == nullptr) {
         return chain;
