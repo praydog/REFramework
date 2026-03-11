@@ -673,11 +673,25 @@ sdk::renderer::command::Base* RenderContext::alloc(uint32_t t, uint32_t size) {
         const auto scan_result = utility::scan(game, "48 8b ? 44 8d 42 38 e8 ? ? ? ?");
 
         if (!scan_result) {
+            const auto midfn_result = utility::scan(game, "81 FF ? 08 00 00 *[32] 8D ? 0F 83 ? f0");
+
+            if (midfn_result) {
+                const auto fn_start = utility::find_function_start_unwind(*midfn_result);
+                if (!fn_start) {
+                    spdlog::error("Failed to find start of function for potential RenderContext::alloc");
+                    return nullptr;
+                }
+                spdlog::info("Found potential RenderContext::alloc at {:x} using mid-function pattern", *fn_start);
+                return (sdk::renderer::command::Base* (*)(RenderContext*, uint32_t, uint32_t))*fn_start;
+            }
+
             spdlog::error("Failed to find RenderContext::alloc");
             return nullptr;
         }
 
         const auto result = utility::calculate_absolute(*scan_result + 8);
+
+        spdlog::info("Found RenderContext::alloc at {:x}", result);
 
         return (sdk::renderer::command::Base* (*)(RenderContext*, uint32_t, uint32_t))result;
     }();
