@@ -112,5 +112,11 @@ void* reallocate(void* ptr, size_t old_size, size_t size) {
 
     return new_mem;
 }
+
+namespace detail {
+void* allocate_plugin_loader(size_t size) {
+    return allocate(size);
+}
+}
 }
 }

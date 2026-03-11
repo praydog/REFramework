@@ -154,6 +154,7 @@ namespace REFrameworkNET
                     pipe = null; // prevent finally from disposing
                     var clientThread = new Thread(() => {
                         try { HandleClient(clientPipe, token); }
+                        catch (Exception ex) { Console.WriteLine("[PipeServer] Client error: " + ex.Message); }
                         finally { try { clientPipe.Dispose(); } catch { } }
                     }) { IsBackground = true, Name = "PipeServer.Client" };
                     clientThread.Start();
@@ -178,45 +179,53 @@ namespace REFrameworkNET
 
         static void HandleClient(NamedPipeServerStream pipe, CancellationToken token)
         {
-            using var reader = new StreamReader(pipe, s_utf8NoBom, detectEncodingFromByteOrderMarks: false, leaveOpen: true);
-            using var writer = new StreamWriter(pipe, s_utf8NoBom, leaveOpen: true) { AutoFlush = true };
+            var reader = new StreamReader(pipe, s_utf8NoBom, detectEncodingFromByteOrderMarks: false, leaveOpen: true);
+            var writer = new StreamWriter(pipe, s_utf8NoBom, leaveOpen: true) { AutoFlush = true };
 
-            while (!token.IsCancellationRequested && pipe.IsConnected)
+            try
             {
-                string line;
-                try
+                while (!token.IsCancellationRequested && pipe.IsConnected)
                 {
-                    line = reader.ReadLine();
-                }
-                catch
-                {
-                    break; // pipe broken
-                }
+                    string line;
+                    try
+                    {
+                        line = reader.ReadLine();
+                    }
+                    catch
+                    {
+                        break; // pipe broken
+                    }
 
-                if (line == null) break; // client disconnected
+                    if (line == null) break; // client disconnected
 
-                line = line.Trim();
-                if (line.Length == 0) continue;
+                    line = line.Trim();
+                    if (line.Length == 0) continue;
 
-                string response;
-                try
-                {
-                    response = DispatchRequest(line);
-                }
-                catch (Exception ex)
-                {
-                    response = JsonSerializer.Serialize(new { id = 0, error = ex.Message });
-                }
+                    string response;
+                    try
+                    {
+                        response = DispatchRequest(line);
+                    }
+                    catch (Exception ex)
+                    {
+                        response = JsonSerializer.Serialize(new { id = 0, error = ex.Message });
+                    }
 
-                try
-                {
-                    writer.WriteLine(response);
-                    pipe.Flush();
+                    try
+                    {
+                        writer.WriteLine(response);
+                        pipe.Flush();
+                    }
+                    catch
+                    {
+                        break; // pipe broken
+                    }
                 }
-                catch
-                {
-                    break; // pipe broken
-                }
+            }
+            finally
+            {
+                try { writer.Dispose(); } catch { }
+                try { reader.Dispose(); } catch { }
             }
 
             Console.WriteLine("[PipeServer] Client disconnected");

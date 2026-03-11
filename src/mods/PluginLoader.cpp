@@ -187,7 +187,7 @@ REFrameworkSDKFunctions g_sdk_functions {
             ignore_jmp);
     },
     [](REFrameworkMethodHandle fn, unsigned int id) { g_hookman.remove((sdk::REMethodDefinition*)fn, (HookManager::HookId)id); },
-    [](unsigned long long size) { return sdk::memory::allocate(size); },
+    &sdk::memory::detail::allocate_plugin_loader,
     &sdk::memory::deallocate,
     [](REFrameworkTypeDefinitionHandle tdef, unsigned int size) -> REFrameworkManagedObjectHandle {
         if (tdef == nullptr) {
