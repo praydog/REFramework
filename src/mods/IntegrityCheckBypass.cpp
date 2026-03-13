@@ -1838,14 +1838,54 @@ void IntegrityCheckBypass::immediate_patch_re9() {
             constexpr size_t pattern_byte_size = 10; // "4C 89 ? 24 40 00 00 00 41 ?"
             const auto patch_addr = *ref + pattern_byte_size;
 
-            // Decode the instruction at patch_addr to get the destination register
+            // Newer RE9 builds materialize the PE header pointer across a short LEA/ADD chain.
+            // Patch the whole chain so the derived register keeps pointing at our copied header.
             const auto first_ix = utility::decode_one((uint8_t*)patch_addr);
-            const auto reg = first_ix->Operands[0].Info.Register.Reg;
-            const auto first_ix_len = first_ix->Length;
 
-            // Decode the next instruction to know how many bytes to NOP
-            const auto second_ix = utility::decode_one((uint8_t*)(patch_addr + first_ix_len));
-            const auto second_ix_len = second_ix->Length;
+            if (!first_ix || first_ix->OperandsCount == 0 || first_ix->Operands[0].Type != ND_OP_REG || first_ix->Operands[0].Info.Register.Type != ND_REG_GPR) {
+                spdlog::error("[IntegrityCheckBypass]: Could not decode PE header patch candidate at 0x{:X}", patch_addr);
+                continue;
+            }
+
+            auto reg = first_ix->Operands[0].Info.Register.Reg;
+            auto total_size = (size_t)first_ix->Length;
+            auto next_ix_addr = patch_addr + first_ix->Length;
+
+            for (size_t i = 0; i < 8; ++i) {
+                const auto next_ix = utility::decode_one((uint8_t*)next_ix_addr);
+
+                if (!next_ix) {
+                    break;
+                }
+
+                bool extend_patch = false;
+
+                if (next_ix->Instruction == ND_INS_LEA &&
+                    next_ix->OperandsCount >= 2 &&
+                    next_ix->Operands[0].Type == ND_OP_REG &&
+                    next_ix->Operands[0].Info.Register.Type == ND_REG_GPR &&
+                    next_ix->Operands[1].Type == ND_OP_MEM &&
+                    next_ix->Operands[1].Info.Memory.HasBase &&
+                    next_ix->Operands[1].Info.Memory.Base == reg)
+                {
+                    reg = next_ix->Operands[0].Info.Register.Reg;
+                    extend_patch = true;
+                } else if ((next_ix->Instruction == ND_INS_ADD || next_ix->Instruction == ND_INS_SUB) &&
+                    next_ix->OperandsCount >= 2 &&
+                    next_ix->Operands[0].Type == ND_OP_REG &&
+                    next_ix->Operands[0].Info.Register.Reg == reg &&
+                    next_ix->Operands[1].Type == ND_OP_IMM)
+                {
+                    extend_patch = true;
+                }
+
+                if (!extend_patch) {
+                    break;
+                }
+
+                total_size += next_ix->Length;
+                next_ix_addr += next_ix->Length;
+            }
 
             // Build movabs reg, allocated_memory using asmjit
             using namespace asmjit;
@@ -1858,13 +1898,18 @@ void IntegrityCheckBypass::immediate_patch_re9() {
             a.movabs(gpq(reg), (uintptr_t)allocated_memory);
 
             const auto& buf = code.textSection()->buffer();
-            const auto total_size = first_ix_len + second_ix_len;
             std::vector<uint8_t> raw(total_size, 0x90);
+
+            if (buf.size() > raw.size()) {
+                spdlog::error("[IntegrityCheckBypass]: PE header patch span at 0x{:X} is too small ({}B < {}B)", patch_addr, raw.size(), buf.size());
+                continue;
+            }
+
             memcpy(raw.data(), buf.data(), buf.size());
 
             std::vector<int16_t> patch_bytes(raw.begin(), raw.end());
             static auto pe_header_patch = Patch::create(patch_addr, patch_bytes, true);
-            spdlog::info("[IntegrityCheckBypass]: Patched PE header integrity check with movabs to 0x{:X} (reg: {})", (uintptr_t)allocated_memory, reg);
+            spdlog::info("[IntegrityCheckBypass]: Patched PE header integrity check with movabs to 0x{:X} (reg: {}, span: {}B)", (uintptr_t)allocated_memory, reg, total_size);
             patched_pe_header_check = true;
             break;
         }
