@@ -527,8 +527,9 @@ REFramework::REFramework(HMODULE reframework_module)
     IntegrityCheckBypass::immediate_patch_dd2();
 #endif
 
-#if TDB_VER >= 83
+#if TDB_VER >= 82
     // Fixes new code added in RE9 only. Maybe >= TDB83 too. Probably will change.
+    // Addendum: Found to be present in MHSTORIES3 (TDB 82) as well, so this is not RE9 exclusive.
     IntegrityCheckBypass::immediate_patch_re9();
 #endif
 

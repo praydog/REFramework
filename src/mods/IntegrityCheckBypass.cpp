@@ -1658,6 +1658,7 @@ void IntegrityCheckBypass::immediate_patch_re9() {
         });
 
         if (pop_count > 2) {
+            spdlog::info("Skipping candidate at 0x{:X} due to high pop count: {}", *ref, pop_count);
             continue;
         }
 
