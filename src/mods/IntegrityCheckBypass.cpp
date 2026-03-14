@@ -1526,7 +1526,7 @@ static void remember_submit_descriptor_original_func_ptr(int64_t descriptor, uin
         if (get_submit_descriptor_original_func_ptr(descriptor) == func_ptr) {
             return; // Only incur cost of a shared mutex.
         }
-        
+
         std::unique_lock lock{get_submit_descriptor_original_func_ptrs_mutex()};
         get_submit_descriptor_original_func_ptrs()[descriptor] = func_ptr;
     } catch (...) {
@@ -1583,7 +1583,15 @@ static void __fastcall noop_job(int64_t, int64_t) {}
 template<int reg>
 void validate_job_func(SafetyHookContext& ctx) {
     auto func_ptr = ctx.rax;
-    if (!func_ptr || IsBadReadPtr((void*)func_ptr, 8)) {
+    if (!func_ptr) {
+        return;
+    }
+
+    // inline isbadreadptr recreation so we don't call out into kernel32
+    __try {
+        volatile uint64_t dummy = *(volatile uint64_t*)func_ptr;
+        (void)dummy;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
         return;
     }
 
@@ -1606,7 +1614,7 @@ void validate_job_func(SafetyHookContext& ctx) {
         }
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         ctx.rax = reinterpret_cast<uintptr_t>(&noop_job);
-        //SPDLOG_WARN("[IntegrityCheckBypass]: Exception caught while validating job function pointer. FuncPtr: 0x{:X}", func_ptr);
+        SPDLOG_WARN("[IntegrityCheckBypass]: Exception caught while validating job function pointer. FuncPtr: 0x{:X}", func_ptr);
     }
 }
 
@@ -1747,26 +1755,33 @@ void IntegrityCheckBypass::immediate_patch_re9() {
         nops.resize(nop_size, 0x90);
         static auto patch = Patch::create(*result, nops, true);
         spdlog::info("[IntegrityCheckBypass]: Patched slow path discriminator in RE9!");
-    } else {
-        spdlog::error("[IntegrityCheckBypass]: Could not find conditional move instruction for thread scheduler corruptor in RE9!");
+    } 
+    
+    // Hook this anyways as a backup plan.
+    {
+        if (!result) {
+            spdlog::error("[IntegrityCheckBypass]: Could not find conditional move instruction for thread scheduler corruptor in RE9!");
+            spdlog::error("[IntegrityCheckBypass]: Could not find thread scheduler corruptor in RE9!");
+        }
 
-        spdlog::error("[IntegrityCheckBypass]: Could not find thread scheduler corruptor in RE9!");
         spdlog::warn("[IntegrityCheckBypass]: Attempting to hook JobQueue::SubmitDescriptor as a fallback for RE9. This may cause lag during integrity check jobs, but it should prevent crashes.");
 
         // Temporary workarounds for when none of that can be found
         // Temporarily needed on EGS and Japanese copies where obfuscation is different.
         // game will still lag but function with these.
-        auto ref = utility::scan(game, "41 B9 FF FF FF FF E8 ? ? ? ? 48 89 BE");
+
+        // This one is unnecessary and seems to be more unstable than mid-hooking the job callsites.
+        /*auto ref = utility::scan(game, "41 B9 FF FF FF FF E8 ? ? ? ? 48 89 BE");
         auto fn = ref ? utility::calculate_absolute(*ref + 7) : std::optional<uintptr_t>{};
 
         if (fn) {
-            /*g_submit_hook = safetyhook::create_inline(
+            g_submit_hook = safetyhook::create_inline(
                 *fn,
                 hk_JobQueue_SubmitDescriptor
-            );*/
+            );
 
             spdlog::info("[IntegrityCheckBypass]: Hooked JobQueue::SubmitDescriptor in RE9 @ 0x{:X}!", *fn);
-        }
+        }*/
 
         static std::vector<SafetyHookMid> callsites{};
 
