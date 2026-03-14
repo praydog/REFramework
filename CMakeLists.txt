@@ -154,21 +154,21 @@ FetchContent_Declare(freetype
 )
 FetchContent_MakeAvailable(freetype)
 
-message(STATUS "Fetching bddisasm (v1.34.10)...")
+message(STATUS "Fetching bddisasm (70db095765ab2066dd88dfb7bbcc42259ed167c5)...")
 FetchContent_Declare(bddisasm
 	GIT_REPOSITORY
 		"https://github.com/bitdefender/bddisasm"
 	GIT_TAG
-		v1.34.10
+		70db095765ab2066dd88dfb7bbcc42259ed167c5
 )
 FetchContent_MakeAvailable(bddisasm)
 
-message(STATUS "Fetching kananlib (c2081707cd50da11b8304deb529d18c88d46ba7a)...")
+message(STATUS "Fetching kananlib (ec847cbb2a0586db682edc643dd9b17784babc25)...")
 FetchContent_Declare(kananlib
 	GIT_REPOSITORY
 		"https://github.com/cursey/kananlib"
 	GIT_TAG
-		c2081707cd50da11b8304deb529d18c88d46ba7a
+		ec847cbb2a0586db682edc643dd9b17784babc25
 )
 FetchContent_MakeAvailable(kananlib)
 

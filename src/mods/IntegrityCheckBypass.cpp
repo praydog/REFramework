@@ -8,6 +8,8 @@
 
 #include "utility/Module.hpp"
 #include "utility/Scan.hpp"
+#include "utility/Emulation.hpp"
+#include <bdshemu.h>
 
 #include "sdk/RETypeDB.hpp"
 
@@ -1839,37 +1841,80 @@ void IntegrityCheckBypass::immediate_patch_re9() {
             static auto allocated_memory = VirtualAlloc(nullptr, 0x1000, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
             memcpy(allocated_memory, (void*)GetModuleHandleA(nullptr), 0x1000);
 
-            constexpr size_t pattern_byte_size = 10; // "4C 89 ? 24 40 00 00 00 41 ?"
-            const auto patch_addr = *ref + pattern_byte_size;
+            size_t pattern_byte_size = 0; // "4C 89 ? 24 40 00 00 00 41 ?"
+            const auto patch_addr = *ref + 10;
+
+            size_t reg = 0;
+            bool found_register = false;
+
+            // Emulate past this point and watch for when a register turns into the imagebase (0x140000000 in RE9).
+            // This is the register we need to patch with our allocated memory.
+            // It also lets us know how many bytes we actually need to NOP.
+            // If we DON'T find it, we don't need to mindlessly patch this.
+            // This only needs to be patched in the rare case someone actually modifies the PE header.
+            utility::emulate(game, patch_addr, 15, [&](utility::ShemuContextExtended ctx) -> utility::ExhaustionResult {
+                pattern_byte_size += ctx.ctx->ctx->Instruction.Length;
+
+                // now check ALL THE REGISTERS.
+                const auto regs = (uint64_t*)&ctx.ctx->ctx->Registers;
+                for (size_t i = NDR_RAX; i <= NDR_R15; i++) {
+                    if (regs[i] == (uintptr_t)game) {
+                        spdlog::info("[IntegrityCheckBypass]: Found register containing image base: {}, at instruction 0x{:X}!", i, patch_addr + pattern_byte_size);
+                        reg = i;
+                        found_register = true;
+                        return utility::ExhaustionResult::BREAK;
+                    }
+                }
+
+                // Disallow memory writes so we don't break game state.
+                if (ctx.next.writes_to_memory) {
+                    return utility::ExhaustionResult::STEP_OVER; // yeet. swag. dab. no scope. big chungus.
+                }
+
+                // step over calls we don't care.
+                if (ctx.next.ix.Category == ND_CAT_CALL) {
+                    return utility::ExhaustionResult::STEP_OVER;
+                }
+
+                return utility::ExhaustionResult::CONTINUE;
+            });
 
             // Decode the instruction at patch_addr to get the destination register
-            const auto first_ix = utility::decode_one((uint8_t*)patch_addr);
+            /*const auto first_ix = utility::decode_one((uint8_t*)patch_addr);
             const auto reg = first_ix->Operands[0].Info.Register.Reg;
             const auto first_ix_len = first_ix->Length;
 
             // Decode the next instruction to know how many bytes to NOP
             const auto second_ix = utility::decode_one((uint8_t*)(patch_addr + first_ix_len));
-            const auto second_ix_len = second_ix->Length;
+            const auto second_ix_len = second_ix->Length;*/
 
             // Build movabs reg, allocated_memory using asmjit
-            using namespace asmjit;
-            using namespace asmjit::x86;
 
-            CodeHolder code{};
-            code.init(Environment::host());
-            Assembler a{&code};
+            if (found_register) {
+                using namespace asmjit;
+                using namespace asmjit::x86;
 
-            a.movabs(gpq(reg), (uintptr_t)allocated_memory);
+                CodeHolder code{};
+                code.init(Environment::host());
+                Assembler a{&code};
 
-            const auto& buf = code.textSection()->buffer();
-            const auto total_size = first_ix_len + second_ix_len;
-            std::vector<uint8_t> raw(total_size, 0x90);
-            memcpy(raw.data(), buf.data(), buf.size());
+                a.movabs(gpq(reg), (uintptr_t)allocated_memory);
 
-            std::vector<int16_t> patch_bytes(raw.begin(), raw.end());
-            static auto pe_header_patch = Patch::create(patch_addr, patch_bytes, true);
-            spdlog::info("[IntegrityCheckBypass]: Patched PE header integrity check with movabs to 0x{:X} (reg: {})", (uintptr_t)allocated_memory, reg);
-            patched_pe_header_check = true;
+                const auto& buf = code.textSection()->buffer();
+                //const auto total_size = first_ix_len + second_ix_len;
+                std::vector<uint8_t> raw(pattern_byte_size, 0x90);
+                memcpy(raw.data(), buf.data(), buf.size());
+
+                std::vector<int16_t> patch_bytes(raw.begin(), raw.end());
+                static auto pe_header_patch = Patch::create(patch_addr, patch_bytes, true);
+
+
+                spdlog::info("[IntegrityCheckBypass]: Patched PE header integrity check with movabs to 0x{:X} (reg: {})", (uintptr_t)allocated_memory, reg);
+                patched_pe_header_check = true;
+            } else {
+                spdlog::error("[IntegrityCheckBypass]: Could not find register containing image base for PE header integrity check!");
+            }
+
             break;
         }
     }

@@ -207,11 +207,11 @@ condition = "build-framework"
 
 [fetch-content.bddisasm]
 git = "https://github.com/bitdefender/bddisasm"
-tag = "v1.34.10"
+tag = "70db095765ab2066dd88dfb7bbcc42259ed167c5"
 
 [fetch-content.kananlib]
 git = "https://github.com/cursey/kananlib"
-tag = "c2081707cd50da11b8304deb529d18c88d46ba7a"
+tag = "ec847cbb2a0586db682edc643dd9b17784babc25"
 
 [target.utility]
 type = "static"
