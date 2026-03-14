@@ -1,4 +1,5 @@
 #include <unordered_set>
+#include <shared_mutex>
 #include <iomanip>
 #include <regex>
 
@@ -1466,10 +1467,19 @@ static SafetyHookInline g_submit_hook{};
 
 static void log_submit_descriptor_once(int64_t descriptor, uintptr_t first_entry, uintptr_t func_ptr) {
     static std::unordered_set<int64_t> seen_descriptors{};
-    static std::mutex seen_descriptors_mutex{};
+    static std::shared_mutex seen_descriptors_mutex{};
 
     try {
-        std::lock_guard<std::mutex> lock{seen_descriptors_mutex};
+        // Fast path: check under shared lock (most calls hit this)
+        {
+            std::shared_lock lock{seen_descriptors_mutex};
+            if (seen_descriptors.contains(descriptor)) {
+                return;
+            }
+        }
+
+        // Slow path: take exclusive lock to insert
+        std::unique_lock lock{seen_descriptors_mutex};
         if (seen_descriptors.emplace(descriptor).second) {
             SPDLOG_INFO("[IntegrityCheckBypass]: First time seeing descriptor 0x{:X}, Entry: 0x{:X}, Func Ptr: 0x{:X}", descriptor, first_entry, func_ptr);
         }
@@ -1482,8 +1492,8 @@ static std::unordered_map<int64_t, uintptr_t>& get_submit_descriptor_original_fu
     return original_func_ptrs;
 }
 
-static std::mutex& get_submit_descriptor_original_func_ptrs_mutex() {
-    static std::mutex original_func_ptrs_mutex{};
+static std::shared_mutex& get_submit_descriptor_original_func_ptrs_mutex() {
+    static std::shared_mutex original_func_ptrs_mutex{};
     return original_func_ptrs_mutex;
 }
 
@@ -1493,14 +1503,8 @@ static void remember_submit_descriptor_original_func_ptr(int64_t descriptor, uin
     }
 
     try {
-        std::lock_guard<std::mutex> lock{get_submit_descriptor_original_func_ptrs_mutex()};
-        auto& original_func_ptrs = get_submit_descriptor_original_func_ptrs();
-        /*auto it = original_func_ptrs.find(descriptor);
-        if (it == original_func_ptrs.end()) {
-            original_func_ptrs.emplace(descriptor, func_ptr);
-        }*/
-
-        original_func_ptrs[descriptor] = func_ptr; // always update to the most recent func ptr.
+        std::unique_lock lock{get_submit_descriptor_original_func_ptrs_mutex()};
+        get_submit_descriptor_original_func_ptrs()[descriptor] = func_ptr;
     } catch (...) {
     }
 }
@@ -1511,7 +1515,7 @@ static uintptr_t get_submit_descriptor_original_func_ptr(int64_t descriptor) {
     }
 
     try {
-        std::lock_guard<std::mutex> lock{get_submit_descriptor_original_func_ptrs_mutex()};
+        std::shared_lock lock{get_submit_descriptor_original_func_ptrs_mutex()};
         auto& original_func_ptrs = get_submit_descriptor_original_func_ptrs();
         auto it = original_func_ptrs.find(descriptor);
         if (it != original_func_ptrs.end()) {
