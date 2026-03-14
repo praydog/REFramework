@@ -17,7 +17,7 @@
 
 #include "IntegrityCheckBypass.hpp"
 
-template <typename T>
+template <typename T = uint64_t>
 T get_register_value(safetyhook::Context& context, int reg);
 
 struct IntegrityCheckPattern {
@@ -1383,7 +1383,7 @@ void IntegrityCheckBypass::immediate_patch_dd2() {
         sus_constant_patches.emplace_back(Patch::create(*ref + 2, { 0xEF, 0xBE, 0x37, 0x13 }, true));
     }
 
-    spdlog::info("[IntegrityCheckBypass]: Patched {} sus_constants!", sus_constant_patches.size());
+    spdlog::info("[IntegrityCheckBypass]: Patched {} sus_constants! (DD2+ variant)", sus_constant_patches.size());
 
     restore_unencrypted_paks();
 #endif
@@ -1499,18 +1499,6 @@ static std::shared_mutex& get_submit_descriptor_original_func_ptrs_mutex() {
     return original_func_ptrs_mutex;
 }
 
-static void remember_submit_descriptor_original_func_ptr(int64_t descriptor, uintptr_t func_ptr) {
-    if (descriptor == 0 || func_ptr == 0) {
-        return;
-    }
-
-    try {
-        std::unique_lock lock{get_submit_descriptor_original_func_ptrs_mutex()};
-        get_submit_descriptor_original_func_ptrs()[descriptor] = func_ptr;
-    } catch (...) {
-    }
-}
-
 static uintptr_t get_submit_descriptor_original_func_ptr(int64_t descriptor) {
     if (descriptor == 0) {
         return 0;
@@ -1527,6 +1515,22 @@ static uintptr_t get_submit_descriptor_original_func_ptr(int64_t descriptor) {
     }
 
     return 0;
+}
+
+static void remember_submit_descriptor_original_func_ptr(int64_t descriptor, uintptr_t func_ptr) {
+    if (descriptor == 0 || func_ptr == 0) {
+        return;
+    }
+
+    try {
+        if (get_submit_descriptor_original_func_ptr(descriptor) == func_ptr) {
+            return; // Only incur cost of a shared mutex.
+        }
+        
+        std::unique_lock lock{get_submit_descriptor_original_func_ptrs_mutex()};
+        get_submit_descriptor_original_func_ptrs()[descriptor] = func_ptr;
+    } catch (...) {
+    }
 }
 
 uintptr_t __fastcall hk_JobQueue_SubmitDescriptor(uintptr_t scheduler, int64_t descriptor, int priority, uint32_t max_workers) {
@@ -1576,9 +1580,10 @@ uintptr_t __fastcall hk_JobQueue_SubmitDescriptor(uintptr_t scheduler, int64_t d
 // Harmless replacement - just returns
 static void __fastcall noop_job(int64_t, int64_t) {}
 
+template<int reg>
 void validate_job_func(SafetyHookContext& ctx) {
     auto func_ptr = ctx.rax;
-    if (!func_ptr) {
+    if (!func_ptr || IsBadReadPtr((void*)func_ptr, 8)) {
         return;
     }
 
@@ -1586,18 +1591,18 @@ void validate_job_func(SafetyHookContext& ctx) {
         // UD2
         if (*reinterpret_cast<uint16_t*>(func_ptr) == 0x0B0F) {
             // if we already have a cached original, restore it to prevent crashes.
-            const auto original_func_ptr = get_submit_descriptor_original_func_ptr(ctx.rdx);
+            const auto original_func_ptr = get_submit_descriptor_original_func_ptr(get_register_value(ctx, reg));
             if (original_func_ptr != 0 && original_func_ptr != func_ptr) {
                 ctx.rax = original_func_ptr;
-                *(uintptr_t*)(ctx.rdx + 8) = original_func_ptr; // restore the func ptr in the descriptor as well.
-                SPDLOG_INFO("[IntegrityCheckBypass]: Restored descriptor 0x{:X} func pointer to 0x{:X} in job func validation (was 0x{:X})", ctx.rdx, original_func_ptr, func_ptr);
+                *(uintptr_t*)(get_register_value(ctx, reg) + 8) = original_func_ptr; // restore the func ptr in the descriptor as well.
+                SPDLOG_INFO("[IntegrityCheckBypass]: Restored descriptor 0x{:X} func pointer to 0x{:X} in job func validation (was 0x{:X})", get_register_value(ctx, reg), original_func_ptr, func_ptr);
             } else {
                 ctx.rax = reinterpret_cast<uintptr_t>(&noop_job);
                 //SPDLOG_INFO("[IntegrityCheckBypass]: Caught integrity check job submission at call site, skipping! FuncPtr: 0x{:X}", func_ptr);
             }
         } else {
             // also cache the original here for later.
-            remember_submit_descriptor_original_func_ptr(ctx.rdx, func_ptr);
+            remember_submit_descriptor_original_func_ptr(get_register_value(ctx, reg), func_ptr);
         }
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         ctx.rax = reinterpret_cast<uintptr_t>(&noop_job);
@@ -1624,6 +1629,8 @@ void IntegrityCheckBypass::immediate_patch_re9() {
         // Patch to 0x1337BEEF
         sus_constant_patches2.emplace_back(Patch::create(*ref, { 0xEF, 0xBE, 0x37, 0x13 }, true));
     }
+
+    spdlog::info("[IntegrityCheckBypass]: Patched {} sus_constants! (RE9+)", sus_constant_patches2.size());
 
     // This is hidden within RenderTaskEnd. RenderTaskEnd is interleaved with legitimate game code and integrity checks. Entire function is obfuscated.
     // What they are doing is finding UD2 gadgets (even in the middle of instructions) around the game and replace random thread scheduler jobs
@@ -1753,21 +1760,86 @@ void IntegrityCheckBypass::immediate_patch_re9() {
         auto fn = ref ? utility::calculate_absolute(*ref + 7) : std::optional<uintptr_t>{};
 
         if (fn) {
-            g_submit_hook = safetyhook::create_inline(
+            /*g_submit_hook = safetyhook::create_inline(
                 *fn,
                 hk_JobQueue_SubmitDescriptor
-            );
+            );*/
 
             spdlog::info("[IntegrityCheckBypass]: Hooked JobQueue::SubmitDescriptor in RE9 @ 0x{:X}!", *fn);
         }
 
         static std::vector<SafetyHookMid> callsites{};
 
-        for (auto ref = utility::scan(utility::get_executable(), "48 8b 42 08 48 8b 4a 10 48 8b 52 18 48 85 c9 0f 84 ? ? ? ? ff d0"); 
+        for (auto ref = utility::scan(utility::get_executable(), "? 8b ? 08 ? 8b ? 10 ? 8b ? 18 48 85 c9 0f 84 ? ? ? ? ff d0"); 
             ref; 
-            ref = utility::scan((*ref + 1), game_end - (*ref + 1), "48 8b 42 08 48 8b 4a 10 48 8b 52 18 48 85 c9 0f 84 ? ? ? ? ff d0")) 
+            ref = utility::scan((*ref + 1), game_end - (*ref + 1), "? 8b ? 08 ? 8b ? 10 ? 8b ? 18 48 85 c9 0f 84 ? ? ? ? ff d0")) 
         {
-            callsites.emplace_back(safetyhook::create_mid((void*)(*ref + 4), validate_job_func));
+            const auto dec = utility::decode_one((uint8_t*)(*ref));
+            int reg = NDR_RDX; // default to rdx, which is the most common register used for the job descriptor pointer in observed patterns
+            if (dec && dec->OperandsCount >= 2 && dec->Operands[1].Type == ND_OP_MEM) {
+                // determine register being used in right hand side (mem)
+                reg = dec->Operands[1].Info.Memory.Base;
+                spdlog::info("[IntegrityCheckBypass]: Found candidate call site for job submission with integrity check in RE9 @ 0x{:X}, using register {} for descriptor", *ref, reg);
+            } else {
+                spdlog::warn("[IntegrityCheckBypass]: Found candidate call site for job submission with integrity check in RE9 @ 0x{:X}, but failed to decode register used for descriptor, defaulting to rdx", *ref);
+            }
+
+            switch (reg)
+            {
+            case NDR_RAX:
+                callsites.emplace_back(safetyhook::create_mid((void*)(*ref + 4), &validate_job_func<NDR_RAX>));
+                break;
+            case NDR_RCX:
+                callsites.emplace_back(safetyhook::create_mid((void*)(*ref + 4), &validate_job_func<NDR_RCX>));
+                break;
+            case NDR_RDX:
+                callsites.emplace_back(safetyhook::create_mid((void*)(*ref + 4), &validate_job_func<NDR_RDX>));
+                break;
+            case NDR_RBX:
+                callsites.emplace_back(safetyhook::create_mid((void*)(*ref + 4), &validate_job_func<NDR_RBX>));
+                break;
+            case NDR_RSP:
+                callsites.emplace_back(safetyhook::create_mid((void*)(*ref + 4), &validate_job_func<NDR_RSP>));
+                break;
+            case NDR_RBP:
+                callsites.emplace_back(safetyhook::create_mid((void*)(*ref + 4), &validate_job_func<NDR_RBP>));
+                break;
+            case NDR_RSI:
+                callsites.emplace_back(safetyhook::create_mid((void*)(*ref + 4), &validate_job_func<NDR_RSI>));
+                break;
+            case NDR_RDI:
+                callsites.emplace_back(safetyhook::create_mid((void*)(*ref + 4), &validate_job_func<NDR_RDI>));
+                break;
+            case NDR_R8:
+                callsites.emplace_back(safetyhook::create_mid((void*)(*ref + 4), &validate_job_func<NDR_R8>));
+                break;
+            case NDR_R9:
+                callsites.emplace_back(safetyhook::create_mid((void*)(*ref + 4), &validate_job_func<NDR_R9>));
+                break;
+            case NDR_R10:
+                callsites.emplace_back(safetyhook::create_mid((void*)(*ref + 4), &validate_job_func<NDR_R10>));
+                break;
+            case NDR_R11:
+                callsites.emplace_back(safetyhook::create_mid((void*)(*ref + 4), &validate_job_func<NDR_R11>));
+                break;
+            case NDR_R12:
+                callsites.emplace_back(safetyhook::create_mid((void*)(*ref + 4), &validate_job_func<NDR_R12>));
+                break;
+            case NDR_R13:
+                callsites.emplace_back(safetyhook::create_mid((void*)(*ref + 4), &validate_job_func<NDR_R13>));
+                break;
+            case NDR_R14:
+                callsites.emplace_back(safetyhook::create_mid((void*)(*ref + 4), &validate_job_func<NDR_R14>));
+                break;
+            case NDR_R15:
+                callsites.emplace_back(safetyhook::create_mid((void*)(*ref + 4), &validate_job_func<NDR_R15>));
+                break;
+            default:
+                callsites.emplace_back(safetyhook::create_mid((void*)(*ref + 4), &validate_job_func<NDR_RDX>));
+                break;
+            };
+
+            //callsites.emplace_back(safetyhook::create_mid((void*)(*ref + 4), validate_job_func
             spdlog::info("[IntegrityCheckBypass]: Hooked call site at 0x{:X}", *ref);
         }
     }
