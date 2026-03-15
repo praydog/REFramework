@@ -1653,6 +1653,7 @@ void IntegrityCheckBypass::immediate_patch_re9() {
     std::optional<uintptr_t> result{};
     size_t nop_size{};
 
+#ifdef RE9
     for (auto ref = utility::scan(game, function_epilogue_sig);
             ref.has_value();
             ref = utility::scan(*ref + 1, (game_end - (*ref + 1)) - 0x1000, function_epilogue_sig))
@@ -1743,9 +1744,98 @@ void IntegrityCheckBypass::immediate_patch_re9() {
             break;
         }
     }
+#endif
+
+    // Fallback: UD2 writer anchor approach (works for MHSTORIES3 and other games where the
+    // epilogue signature above doesn't match). The UD2 writer instruction 'mov [rax+rcx+8], rdx'
+    // (48 89 ? 08 08) is unique or near-unique in the anti-tamper section. Searching backwards from it
+    // for the SETcc + dispatch table load pattern finds the discriminator reliably.
+    if (!result) {
+        spdlog::info("[IntegrityCheckBypass]: Epilogue scan failed, trying UD2 writer anchor approach...");
+
+        for (auto ud2_ref = utility::scan(game, "48 89 ? 08 08");
+             ud2_ref.has_value() && !result;
+             ud2_ref = utility::scan(*ud2_ref + 1, (game_end - (*ud2_ref + 1)) - 0x1000, "48 89 ? 08 08"))
+        {
+            // Filter: the real UD2 writer uses SIB addressing: mov [base+index+disp8], reg.
+            // ModR/M byte (offset +2) must have rm=100 (SIB follows) and mod=01 (8-bit disp).
+            // False positives like mov [rdi+0x808],rax have rm=111 and mod=10 (32-bit disp).
+            const uint8_t modrm = *reinterpret_cast<const uint8_t*>(*ud2_ref + 2);
+            if ((modrm & 0xC7) != 0x44) { // mod=01, rm=100 -> SIB + disp8
+                continue;
+            }
+
+            // Search backwards from the UD2 writer for the dispatch pattern:
+            // [REX?] 0F 9x {ModR/M mod=11} [REX.W] 8B {ModR/M rm=100(SIB)} {SIB scale=8}
+            // The SETcc sets an index (0 or 1), the MOV loads from a 2-entry dispatch table.
+            const auto search_start = (*ud2_ref > 0x2000) ? (*ud2_ref - 0x2000) : (uintptr_t)game;
+            const uint8_t* base = reinterpret_cast<const uint8_t*>(search_start);
+            const size_t search_len = *ud2_ref - search_start;
+
+            for (size_t i = 0; i < search_len; i++) {
+                // Check for 0F 9x with the byte after having mod=11 (>= 0xC0)
+                size_t setcc_off = 0;
+                size_t setcc_len = 0;
+
+                // Pattern A: no REX prefix on SETcc -> 0F 9? {mod=11}
+                if (base[i] == 0x0F && (base[i+1] & 0xF0) == 0x90 && (base[i+2] & 0xC0) == 0xC0) {
+                    setcc_off = i;
+                    setcc_len = 3;
+                }
+                // Pattern B: REX prefix (40-4F) before SETcc -> 4? 0F 9? {mod=11}
+                else if ((base[i] & 0xF0) == 0x40 && base[i+1] == 0x0F && (base[i+2] & 0xF0) == 0x90 && (base[i+3] & 0xC0) == 0xC0) {
+                    setcc_off = i;
+                    setcc_len = 4;
+                }
+                else {
+                    continue;
+                }
+
+                // Now check if a MOV with SIB scale=8 follows within the next few bytes
+                // (there may be 0-2 intervening bytes between the SETcc and the MOV).
+                size_t dispatch_mov_end = 0;
+                bool found_dispatch = false;
+                for (size_t j = setcc_off + setcc_len; j < setcc_off + setcc_len + 4 && j + 3 < search_len; j++) {
+                    // REX.W prefix (48-4F) followed by 8B (MOV), ModR/M with rm=100 (SIB), SIB with scale=8
+                    if ((base[j] & 0xF0) == 0x40 && base[j+1] == 0x8B && (base[j+2] & 0x07) == 0x04 && (base[j+3] & 0xC0) == 0xC0) {
+                        found_dispatch = true;
+                        dispatch_mov_end = j + 4; // byte after the 4-byte MOV+SIB
+                        break;
+                    }
+                }
+
+                if (!found_dispatch) {
+                    continue;
+                }
+
+                // Final verification: this must be a anti-tamper dispatch block, not normal game code.
+                // anti-tamper dispatches always end with 'xchg [rsp], rXX; ret' (obfuscated indirect jmp).
+                // Compilers never emit this pattern. Search forward from the dispatch MOV for:
+                //   [REX?] 87 {ModR/M: mod=00, rm=100(SIB)} 24(SIB=[rsp]) C3(ret)
+                bool has_xchg_ret = false;
+                for (size_t k = dispatch_mov_end; k + 4 < search_len && k < dispatch_mov_end + 30; k++) {
+                    size_t xo = k;
+                    if ((base[xo] & 0xF0) == 0x40) xo++; // skip optional REX
+                    if (xo + 3 < search_len &&
+                        base[xo] == 0x87 && (base[xo+1] & 0xC7) == 0x04 && base[xo+2] == 0x24 && base[xo+3] == 0xC3) {
+                        has_xchg_ret = true;
+                        break;
+                    }
+                }
+
+                if (has_xchg_ret) {
+                    result = search_start + setcc_off;
+                    nop_size = setcc_len;
+                    spdlog::info("[IntegrityCheckBypass]: Found SETcc dispatch via UD2 writer anchor @ 0x{:X} ({}B), UD2 writer @ 0x{:X}",
+                        *result, nop_size, *ud2_ref);
+                    break;
+                }
+            }
+        }
+    }
 
     if (result) {
-        spdlog::info("[IntegrityCheckBypass]: Found slow path discriminator in RE9 @ 0x{:X} ({}B), patching...", *result, nop_size);
+        spdlog::info("[IntegrityCheckBypass]: Found slow path discriminator @ 0x{:X} ({}B), patching...", *result, nop_size);
         // NOP the conditional. This forces the dispatch index to its default (clean) value:
         // - For SETcc: the target register keeps its restored value (0) from the surrounding obfuscation,
         //   so the dispatch table always selects index 0 (the clean path).
@@ -1754,7 +1844,7 @@ void IntegrityCheckBypass::immediate_patch_re9() {
         std::vector<int16_t> nops{};
         nops.resize(nop_size, 0x90);
         static auto patch = Patch::create(*result, nops, true);
-        spdlog::info("[IntegrityCheckBypass]: Patched slow path discriminator in RE9!");
+        spdlog::info("[IntegrityCheckBypass]: Patched slow path discriminator!");
     } 
     
     // Hook this anyways as a backup plan.
