@@ -14,8 +14,9 @@
 #include <utility/Module.hpp>
 #include <utility/Memory.hpp>
 #include <utility/ImGui.hpp>
-#include "sdk/Renderer.hpp"
-#include "sdk/MotionFsm2Layer.hpp"
+#include <sdk/Renderer.hpp>
+#include <sdk/MotionFsm2Layer.hpp>
+#include <sdk/SceneManager.hpp>
 
 #include "../mods/ScriptRunner.hpp"
 
@@ -489,6 +490,14 @@ void ObjectExplorer::on_draw_dev_ui() {
             if (scene_layer != nullptr && ImGui::TreeNode("Scene Layer")) {
                 handle_address((void*)*scene_layer);
                 ImGui::TreePop();
+            }
+        }
+
+        if (ImGui::TreeNode("Camera")) {
+            const auto camera = sdk::get_primary_camera();
+
+            if (camera != nullptr) {
+                handle_address((void*)camera);
             }
         }
     }
@@ -2757,9 +2766,126 @@ void ObjectExplorer::handle_transform(RETransform* transform) {
 }
 
 void ObjectExplorer::handle_render_layer(sdk::renderer::RenderLayer* layer) {
-    if (ImGui::Button("Attempt to Clone")) {
-        layer->add_layer(utility::re_managed_object::get_type_definition(layer)->get_type(), layer->m_priority)->clone_layers(layer);
+    if (ImGui::Button("Clone")) {
+        auto parent = layer->get_parent();
+
+        if (parent != nullptr) {
+            parent->add_layer(utility::re_managed_object::get_type_definition(layer)->get_type(), layer->m_priority)->clone_layers(layer);
+        }
     }
+
+    ImGui::SameLine();
+
+    if (ImGui::Button("Remove")) {
+        auto parent = layer->get_parent();
+
+        if (parent != nullptr) {
+            auto& layers = parent->get_layers();
+
+            std::optional<int32_t> index{};
+
+            for (auto i = 0; i < layers.size(); ++i) {
+                if (layers[i] == layer) {
+                    index = i;
+                    break;
+                }
+            }
+
+            if (index) {
+                layers.erase(*index);
+            }
+        }
+    }
+
+    ImGui::SameLine();
+
+    if (ImGui::Button("Up")) {
+        auto parent = layer->get_parent();
+
+        if (parent != nullptr) {
+            auto& layers = parent->get_layers();
+
+            std::optional<int32_t> index{};
+
+            for (auto i = 0; i < layers.size(); ++i) {
+                if (layers[i] == layer) {
+                    index = i;
+                    break;
+                }
+            }
+
+            if (index && layers.size() > 1) {
+                if (*index > 0) {
+                    std::swap(layers[*index]->m_priority, layers[*index - 1]->m_priority);
+                    std::swap(layers[*index], layers[*index - 1]);
+                }
+            }
+        }
+    }
+
+    ImGui::SameLine();
+
+    if (ImGui::Button("Down")) {
+        auto parent = layer->get_parent();
+
+        if (parent != nullptr) {
+            auto& layers = parent->get_layers();
+
+            std::optional<int32_t> index{};
+
+            for (auto i = 0; i < layers.size(); ++i) {
+                if (layers[i] == layer) {
+                    index = i;
+                    break;
+                }
+            }
+
+            if (index && layers.size() > 1) {
+                if (*index < layers.size() - 1) {
+                    std::swap(layers[*index], layers[*index + 1]);
+                    std::swap(layers[*index]->m_priority, layers[*index + 1]->m_priority);
+                }
+            }
+        }
+    }
+
+    char new_name[256]{};
+    if (ImGui::InputText("Add Layer", new_name, 256, ImGuiInputTextFlags_EnterReturnsTrue)) {
+        const auto tdef = sdk::find_type_definition(new_name);
+
+        if (tdef != nullptr) {
+            const auto t = tdef->get_type();
+
+            if (t != nullptr) {
+                const auto new_layer = layer->add_layer(t, 0x5000000);
+
+                if (std::string_view{new_name} == "via.render.layer.Output") {
+                    auto root = sdk::renderer::get_root_layer();
+                    auto [output_parent, output_layer] = root->find_layer_recursive("via.render.layer.Output");
+    
+                    // copy the output target.
+                    //*(void**)((uintptr_t)new_layer + 0xB0) = *(void**)((uintptr_t)*output_layer + 0xB0);
+                    const auto parent_size = tdef->get_parent_type()->get_size();
+                    const auto size = tdef->get_size();
+                    //memcpy((void*)((uintptr_t)new_layer + parent_size), (void*)((uintptr_t)*output_layer + parent_size), size - parent_size);
+
+                    // copy the output target.
+                    *(void**)((uintptr_t)new_layer + 0x88) = *(void**)((uintptr_t)*output_layer + 0x88);
+
+                    auto common = new_layer->add_layer(sdk::find_type_definition("via.render.layer.OutputCommon")->get_type(), 0x1000000);
+                    common->add_layer(sdk::find_type_definition("via.render.layer.ShadowCastRoot")->get_type(), 0x1000000);
+                    common->add_layer(sdk::find_type_definition("via.render.layer.ShadowCastJunction")->get_type(), 0x5000000);
+
+                    new_layer->add_layer(sdk::find_type_definition("via.render.layer.OutputOverlay")->get_type(), 0x9000000);
+
+                    //memcpy((void*)((uintptr_t)*output_layer), (void*)((uintptr_t)new_layer), size);
+                    //*output_layer = new_layer;
+                    //root->m_layers.num--;
+                }
+            }
+        }
+    }
+
 
     const auto made_node = ImGui::TreeNode(&layer->m_layers, "Child Layers");
     context_menu(&layer->m_layers);
@@ -3714,6 +3840,55 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
 
     // yay for compile time string hashing
     switch (utility::hash(type_name)) {
+    case "via.render.TargetState"_fnv: {
+        if (ImGui::Button("Replace with dummy state")) {
+            auto& real_target_state = *(sdk::renderer::TargetState**)real_data;
+
+            if (real_target_state != nullptr) {
+                auto prev_target_state = real_target_state;
+                real_target_state = real_target_state->clone();
+                real_target_state->add_ref();
+                prev_target_state->release();
+            }
+        }
+
+        const auto target_state = (sdk::renderer::TargetState*)data;
+        const auto& desc = target_state->get_desc();
+
+        if (ImGui::Button("Replace RTVs with dummy RTVs")) {
+            for (auto i = 0; i < target_state->get_rtv_count(); ++i) {
+                auto old_rtv = target_state->get_rtv(i);
+                auto clone = old_rtv->clone();
+                clone->add_ref();
+                target_state->set_rtv(i, clone);
+                old_rtv->release();
+            }
+        }
+
+        ImGui::Text("0x%p", (void*)target_state);
+        ImGui::Text("%i RTVs", target_state->get_rtv_count());
+        ImGui::Text("Left: %f", desc.rect.left);
+        ImGui::Text("Right: %f", desc.rect.right);
+        ImGui::Text("Top: %f", desc.rect.top);
+        ImGui::Text("Bottom: %f", desc.rect.bottom);
+
+        if (target_state->get_rtv_count() > 0) {
+            if (ImGui::TreeNode("RTVs")) {
+                for (auto i = 0; i < target_state->get_rtv_count(); ++i) {
+                    auto rtv = target_state->get_rtv(i);
+
+                    if (rtv != nullptr) {
+                        if (widget_with_context(rtv, [&]() { return ImGui::TreeNode(rtv, "RTV %i", i); })) {
+                            ImGui::Text("Format: %i", rtv->get_desc().format);
+                            ImGui::TreePop();
+                        }
+                    }
+                }
+
+                ImGui::TreePop();
+            }
+        }
+    } break;
     case "via.GameObjectRef"_fnv: {
         static auto object_ref_type = sdk::find_type_definition("via.GameObjectRef");
         auto obj = sdk::call_native_func_easy<REGameObject*>(data, object_ref_type, "get_Target");
@@ -4059,6 +4234,11 @@ int32_t ObjectExplorer::get_field_offset(REManagedObject* obj, VariableDescripto
     }
 
     if (parent_hash == "via.ResourceManager"_fnv && name_hash == "Loading"_fnv) {
+        return m_offset_map[desc];
+    }
+
+    if (parent_hash == "via.render.ToneMapping"_fnv && (name_hash == "AutoExposureMinEV"_fnv || 
+                                                        name_hash == "HistogramMinEV"_fnv)) {
         return m_offset_map[desc];
     }
 

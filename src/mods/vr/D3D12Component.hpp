@@ -12,7 +12,7 @@
 #include <../../directxtk12-src/Inc/GraphicsMemory.h>
 #include <../../directxtk12-src/Inc/SpriteBatch.h>
 
-#include "d3d12/ResourceCopier.hpp"
+#include "d3d12/CommandContext.hpp"
 #include "d3d12/TextureContext.hpp"
 
 #define XR_USE_PLATFORM_WIN32
@@ -41,6 +41,10 @@ public:
 
     auto& openxr() { return m_openxr; }
 
+    auto& get_sprite_batch() {
+        return m_sprite_batch;
+    }
+
 private:
     void setup();
     void setup_sprite_batch_pso(DXGI_FORMAT output_format);
@@ -51,8 +55,9 @@ private:
     ComPtr<ID3D12Resource> m_prev_backbuffer{};
     d3d12::TextureContext m_backbuffer_copy{};
     d3d12::TextureContext m_converted_eye_tex{};
-    std::array<d3d12::ResourceCopier, 3> m_generic_copiers{};
-
+    std::array<d3d12::CommandContext, 3> m_generic_copiers{};
+    std::array<d3d12::CommandContext, 3> m_backbuffer_copy_commands{};
+    
     std::unique_ptr<DirectX::DX12::SpriteBatch> m_sprite_batch{};
 
     // Mimicking what OpenXR does.
@@ -83,28 +88,30 @@ private:
             return ctx;
         }
 
-        void copy_left(ID3D12Resource* src) {
+        void copy_left(ID3D12Resource* src, D3D12_RESOURCE_STATES src_state = D3D12_RESOURCE_STATE_PRESENT) {
             auto& ctx = this->acquire_left();
-            ctx.commands.copy(src, ctx.texture.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+            ctx.commands.copy(src, ctx.texture.Get(), src_state, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
             ctx.commands.execute();
         }
 
-        void copy_right(ID3D12Resource* src) {
+        void copy_right(ID3D12Resource* src, D3D12_RESOURCE_STATES src_state = D3D12_RESOURCE_STATE_PRESENT) {
             auto& ctx = this->acquire_right();
-            ctx.commands.copy(src, ctx.texture.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+            ctx.commands.copy(src, ctx.texture.Get(), src_state, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
             ctx.commands.execute();
         }
 
         std::array<d3d12::TextureContext, 3> left_eye_tex{};
         std::array<d3d12::TextureContext, 3> right_eye_tex{};
         uint32_t texture_counter{0};
+        DXGI_FORMAT last_format{};
     } m_openvr;
 
     struct OpenXR {
         void initialize(XrSessionCreateInfo& session_info);
         std::optional<std::string> create_swapchains();
         void destroy_swapchains();
-        void copy(uint32_t swapchain_idx, ID3D12Resource* src);
+        using CopyFn = std::function<void(d3d12::CommandContext& ctx, d3d12::TextureContext& dst, D3D12_RESOURCE_STATES src_state, D3D12_RESOURCE_STATES dst_state)>;
+        void copy(uint32_t swapchain_idx, ID3D12Resource* src, D3D12_BOX* src_box, D3D12_RESOURCE_STATES src_state, CopyFn copy_fn = nullptr);
         void wait_for_all_copies() {
             std::scoped_lock _{this->mtx};
 
@@ -126,6 +133,7 @@ private:
         std::vector<SwapchainContext> contexts{};
         std::recursive_mutex mtx{};
         std::array<uint32_t, 2> last_resolution{};
+        DXGI_FORMAT last_format{};
     } m_openxr;
 
     uint32_t m_backbuffer_size[2]{};
