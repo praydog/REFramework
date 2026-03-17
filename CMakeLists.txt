@@ -17860,6 +17860,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	target_link_libraries(RE9 PUBLIC
 		${CMKR_TARGET}SDK
 		utility
+        bddisasm
+        bdshemu
 		asmjit::asmjit
 		nlohmann_json
 		spdlog
