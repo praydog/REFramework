@@ -256,9 +256,23 @@ private:
             "Number of Threads Called From"
         };
 
+        enum class AutoUnhookMethod : uint8_t {
+            NONE,
+            EXCEED_CALL_COUNT
+        };
+
+        static inline constexpr std::array<const char*, 2> s_auto_unhook_method_names {
+            "None",
+            "Exceed Call Count"
+        };
+
         std::recursive_mutex mtx{};
         bool hide_uncalled_methods{false};
         SortMethod sort_method{SortMethod::NONE};
+
+        bool enable_auto_unhook{false};
+        AutoUnhookMethod auto_unhook_method{AutoUnhookMethod::NONE};
+        uint32_t auto_unhook_call_count_threshold{10000};
     } m_hooks_context{};
 
     std::recursive_mutex m_job_mutex{};

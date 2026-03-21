@@ -881,6 +881,30 @@ void ObjectExplorer::display_hooks() {
             ImGui::EndCombo();
         }
 
+        // Auto-unhook options
+        ImGui::Checkbox("Enable Auto Unhook", &m_hooks_context.enable_auto_unhook);
+
+        if (m_hooks_context.enable_auto_unhook) {
+            if (ImGui::BeginCombo("Auto Unhook When", HooksContext::s_auto_unhook_method_names[(uint8_t)m_hooks_context.auto_unhook_method])) {
+                for (int i = 0; i < HooksContext::s_auto_unhook_method_names.size(); i++) {
+                    const bool is_selected = (m_hooks_context.auto_unhook_method == (HooksContext::AutoUnhookMethod)i);
+
+                    if (ImGui::Selectable(HooksContext::s_auto_unhook_method_names[i], is_selected)) {
+                        m_hooks_context.auto_unhook_method = (HooksContext::AutoUnhookMethod)i;
+                    }
+
+                    if (is_selected) {
+                        ImGui::SetItemDefaultFocus();
+                    }
+                }
+
+                ImGui::EndCombo();
+            }
+
+            // Always make it editable regardless of the auto unhook method, this is intentional
+            ImGui::InputScalar("Max Call Count", ImGuiDataType_U32, &m_hooks_context.auto_unhook_call_count_threshold);
+        }
+
         ImGui::TreePop();
     }
 
@@ -5432,6 +5456,20 @@ void ObjectExplorer::post_hooked_method_internal(uintptr_t& ret_val, sdk::REType
     const auto delta = now - hooked_method.stats.last_call_times[tid];
     hooked_method.stats.last_call_delta = delta;
     hooked_method.stats.total_call_time += delta;
+    
+    // Auto-unhook check
+    if (m_hooks_context.enable_auto_unhook && m_hooks_context.auto_unhook_method == HooksContext::AutoUnhookMethod::EXCEED_CALL_COUNT) {
+        if (hooked_method.stats.call_count >= m_hooks_context.auto_unhook_call_count_threshold) {
+            std::scoped_lock job_lock{m_job_mutex};
+            m_frame_jobs.push_back([this, method]() {
+                auto it2 = std::find_if(m_hooked_methods.begin(), m_hooked_methods.end(), [method](auto& a) { return a.method == method; });
+                if (it2 != m_hooked_methods.end()) {
+                    g_hookman.remove(it2->method, it2->hook_id);
+                    m_hooked_methods.erase(it2);
+                }
+            });
+        }
+    }
 }
 
 void ObjectExplorer::post_hooked_method(uintptr_t& ret_val, sdk::RETypeDefinition*& ret_ty, uintptr_t ret_addr, sdk::REMethodDefinition* method) {
