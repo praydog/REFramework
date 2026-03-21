@@ -19,6 +19,7 @@
 #include "mods/LooseFileLoader.hpp"
 #include "mods/FaultyFileDetector.hpp"
 #include "mods/vr/games/RE8VR.hpp"
+#include "mods/LooseTextureLoader.hpp"
 
 #include "Mods.hpp"
 
@@ -34,6 +35,10 @@ Mods::Mods() {
     m_mods.emplace_back(MethodDatabase::get());
     m_mods.emplace_back(Hooks::get());
     m_mods.emplace_back(LooseFileLoader::get());
+
+#if ENABLE_LOOSE_TEXTURE_LOADER
+    m_mods.emplace_back(LooseTextureLoader::get());
+#endif
 
 #if defined(MHWILDS)
     m_mods.emplace_back(FaultyFileDetector::get());

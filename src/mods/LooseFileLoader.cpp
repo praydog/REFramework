@@ -448,3 +448,19 @@ uint64_t LooseFileLoader::path_to_hash_hook(void* This, const wchar_t* path) {
 
     return result;
 }
+
+bool LooseFileLoader::can_loosely_load_file(const wchar_t* path) {
+    if (!m_enabled->value()) {
+        return false;
+    }
+
+    if (path == nullptr || path[0] == L'\0') {
+        return false;
+    }
+
+    if (safe_exists(path)) {
+        return true;
+    }
+
+    return false;
+}

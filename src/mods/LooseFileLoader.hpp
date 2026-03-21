@@ -29,6 +29,8 @@ public:
         return m_enabled->value();
     }
 
+    bool can_loosely_load_file(const wchar_t* path);
+
 private:
     bool handle_path(const wchar_t* path, size_t hash);
 
