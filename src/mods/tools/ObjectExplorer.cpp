@@ -317,6 +317,24 @@ genny::Enum* enum_from_name(genny::Namespace* g, const std::string& enum_name) {
     return new_ns->enum_(namespaces.back());
 }
 
+std::string get_method_prototype_context_name(sdk::REMethodDefinition& m) {
+    auto method_name = m.get_name();
+    auto method_param_types = m.get_param_types();
+
+    std::stringstream ss_context{};
+    ss_context << method_name << "(";
+
+    for (auto i = 0; i < method_param_types.size(); i++) {
+        if (i > 0) {
+            ss_context << ", ";
+        }
+        ss_context << method_param_types[i]->get_full_name();
+    }
+
+    ss_context << ")";
+    return ss_context.str();
+}
+
 std::shared_ptr<ObjectExplorer>& ObjectExplorer::get() {
     static auto instance = std::make_shared<ObjectExplorer>();
 
@@ -4269,7 +4287,7 @@ void ObjectExplorer::hook_method(sdk::REMethodDefinition* method, std::optional<
     if (name) {
         hooked.name = method->get_declaring_type()->get_full_name() + "." + *name;
     } else {
-        hooked.name = method->get_declaring_type()->get_full_name() + "." + method->get_name();
+        hooked.name = method->get_declaring_type()->get_full_name() + "." +  get_method_prototype_context_name(*method);
     }
 
     using namespace asmjit;
