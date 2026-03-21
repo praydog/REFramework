@@ -172,6 +172,7 @@ private:
     void context_menu(void* address, std::optional<std::string> name = std::nullopt, std::optional<std::function<void()>> additional_context = std::nullopt);
     void hook_method(sdk::REMethodDefinition* method, std::optional<std::string> name);
     void hook_all_methods(sdk::RETypeDefinition* type);
+    void unhook_all_methods(sdk::RETypeDefinition* type);
     void method_context_menu(sdk::REMethodDefinition* method, std::optional<std::string> name, ::REManagedObject* obj = nullptr);
     void make_same_line_text(std::string_view text, const ImVec4& color);
 

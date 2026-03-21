@@ -4360,6 +4360,23 @@ void ObjectExplorer::hook_all_methods(sdk::RETypeDefinition* t) {
     }
 }
 
+void ObjectExplorer::unhook_all_methods(sdk::RETypeDefinition* t) {
+    if (t == nullptr) {
+        return;
+    }
+
+    const auto methods = t->get_methods();
+
+    for (auto& m : methods) {
+        auto it = std::find_if(m_hooked_methods.begin(), m_hooked_methods.end(), [&m](auto& hook) { return hook.method == &m; });
+
+        if (it != m_hooked_methods.end()) {
+            g_hookman.remove(it->method, it->hook_id);
+            m_hooked_methods.erase(it);
+        }
+    }
+}
+
 void ObjectExplorer::method_context_menu(sdk::REMethodDefinition* method, std::optional<std::string> name, ::REManagedObject* obj) {
     auto additional_ctx = [&]() {
         auto it = std::find_if(m_hooked_methods.begin(), m_hooked_methods.end(), [method](auto& hook) { return hook.method == method; });
@@ -4391,6 +4408,18 @@ void ObjectExplorer::method_context_menu(sdk::REMethodDefinition* method, std::o
 
                 m_frame_jobs.push_back([this, declaring_type]() {
                     hook_all_methods(declaring_type);
+                });
+            }
+        }
+
+        if (ImGui::Selectable("Unhook All Methods")) {
+            const auto declaring_type = method->get_declaring_type();
+
+            if (declaring_type != nullptr) {
+                std::scoped_lock _{m_job_mutex};
+
+                m_frame_jobs.push_back([this, declaring_type]() {
+                    unhook_all_methods(declaring_type);
                 });
             }
         }
