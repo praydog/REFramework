@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -24,7 +25,8 @@ namespace sdk { class ResourceManager; }
 
 typedef bool (*GetNativeResourcePath)(sdk::ResourceManager *resource_manager, wchar_t *dest_path_buffer, const wchar_t *local_resource_path, void *resource_type, bool localize);
 
-class LooseTextureLoader : public Mod {
+// Component class owned by LooseFileLoader — not a standalone Mod.
+class LooseTextureLoader {
 public:
     enum class ResourceType {
         None,
@@ -44,18 +46,19 @@ public:
     };
 
 public:
-    std::string_view get_name() const override { return "LooseTextureLoader"; }
-    std::optional<std::string> on_initialize() override;
-    void on_config_load(const utility::Config& cfg) override;
-    void on_config_save(utility::Config& cfg) override;
-    void on_draw_ui() override;
+    void on_config_load(const utility::Config& cfg);
+    void on_config_save(utility::Config& cfg);
+    void on_draw_ui();
 
     bool is_enabled() const { return m_enabled->value(); }
 
-    static std::shared_ptr<LooseTextureLoader>& get();
+    static LooseTextureLoader& get();
     void early_initialize();
 
 private:
+    static constexpr const char* CONFIG_PREFIX = "LooseFileLoader_";
+    static std::string generate_name(std::string_view name) { return std::string{CONFIG_PREFIX} + name.data(); }
+
     static constexpr const wchar_t *DEFAULT_ROOT_RESOURCE_PATH = L"natives/STM/";
     static constexpr const wchar_t *TEX_FILE_EXTENSION = L".tex.";
 
@@ -111,7 +114,7 @@ private:
     ModToggle::Ptr m_enabled{ ModToggle::create(generate_name("Enabled"), true) };
     ModToggle::Ptr m_disable_texture_cache{ ModToggle::create(generate_name("DisableTextureCache"), false) };
 
-    ValueList m_options{
+    std::vector<std::reference_wrapper<IModValue>> m_options{
         *m_enabled,
         *m_disable_texture_cache,
     };

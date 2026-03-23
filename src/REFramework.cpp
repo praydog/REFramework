@@ -33,7 +33,6 @@ extern "C" {
 #include "Mods.hpp"
 #include "mods/FaultyFileDetector.hpp"
 #include "mods/LooseFileLoader.hpp"
-#include "mods/LooseTextureLoader.hpp"
 #include "mods/PluginLoader.hpp"
 #include "mods/VR.hpp"
 #include "sdk/REGlobals.hpp"
@@ -505,9 +504,7 @@ REFramework::REFramework(HMODULE reframework_module)
     startup_lookup_thread->detach();
 #endif
 
-#if ENABLE_LOOSE_TEXTURE_LOADER
-    LooseTextureLoader::get()->early_initialize();
-#endif
+    LooseTextureLoader::get().early_initialize();
 
 #if defined(MHWILDS)
     FaultyFileDetector::early_init();
@@ -580,10 +577,6 @@ REFramework::REFramework(HMODULE reframework_module)
         auto& faulty_file_detector = FaultyFileDetector::get();
 #endif
 
-#if ENABLE_LOOSE_TEXTURE_LOADER
-        auto& loose_texture_loader = LooseTextureLoader::get();
-#endif
-
         const auto config_path = get_persistent_dir(REFrameworkConfig::REFRAMEWORK_CONFIG_NAME.data()).string();
         if (fs::exists(utility::widen(config_path))) {
             utility::Config cfg{ config_path };
@@ -591,9 +584,6 @@ REFramework::REFramework(HMODULE reframework_module)
 
 #if defined(MHWILDS)
             faulty_file_detector->on_config_load(cfg);
-#endif
-#if ENABLE_LOOSE_TEXTURE_LOADER
-            loose_texture_loader->on_config_load(cfg);
 #endif
             integrity_bypass->on_config_load(cfg);
         }

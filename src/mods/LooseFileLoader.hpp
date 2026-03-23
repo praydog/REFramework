@@ -7,6 +7,7 @@
 #include <utility/FunctionHook.hpp>
 
 #include "../Mod.hpp"
+#include "LooseTextureLoader.hpp"
 
 class LooseFileLoader : public Mod {
 public:
@@ -24,12 +25,15 @@ public:
     void on_draw_ui() override;
 
     void hook();
+    void early_initialize();
 
     bool is_enabled() const {
         return m_enabled->value();
     }
 
     bool can_loosely_load_file(const wchar_t* path);
+
+    LooseTextureLoader& get_texture_loader() { return m_texture_loader; }
 
 private:
     bool handle_path(const wchar_t* path, size_t hash);
@@ -73,4 +77,7 @@ private:
         *m_log_accessed_files,
         *m_log_loose_files,
     };
+
+    // Components
+    LooseTextureLoader m_texture_loader{};
 };

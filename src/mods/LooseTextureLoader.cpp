@@ -15,25 +15,24 @@
 #include "LooseTextureLoader.hpp"
 #include "REFramework.hpp"
 
-std::shared_ptr<LooseTextureLoader>& LooseTextureLoader::get() {
-    static auto instance = std::shared_ptr<LooseTextureLoader>(new LooseTextureLoader());
-    return instance;
+LooseTextureLoader& LooseTextureLoader::get() {
+    return LooseFileLoader::get()->get_texture_loader();
 }
 
 void LooseTextureLoader::handle_prepare_enqueue_texture_upload_wrapper(safetyhook::Context& context) {
-    get()->handle_prepare_enqueue_texture_upload(context);
+    get().handle_prepare_enqueue_texture_upload(context);
 }
 
 void LooseTextureLoader::handle_start_enqueue_texture_upload_wrapper(safetyhook::Context& context) {
-    get()->handle_start_enqueue_texture_upload(context);
+    get().handle_start_enqueue_texture_upload(context);
 }
 
 void LooseTextureLoader::handle_path_check_to_open_dstorage_file_wrapper(safetyhook::Context& context) {
-    get()->handle_path_check_to_open_dstorage_file(context);
+    get().handle_path_check_to_open_dstorage_file(context);
 }
 
 void LooseTextureLoader::handle_resource_hash_path_wrapper(safetyhook::Context& context) {
-    get()->handle_resource_hash_path(context);
+    get().handle_resource_hash_path(context);
 }
 
 // Single-ref variant: find the function that references `ptr` via displacement.
@@ -45,10 +44,6 @@ static std::optional<uintptr_t> find_reference_function(HMODULE module, uintptr_
     }
 
     return utility::find_function_start(ref.value());
-}
-
-std::optional<std::string> LooseTextureLoader::on_initialize() {
-    return std::nullopt;
 }
 
 void LooseTextureLoader::on_config_load(const utility::Config& cfg) {
@@ -64,19 +59,19 @@ void LooseTextureLoader::on_config_save(utility::Config& cfg) {
 }
 
 void LooseTextureLoader::on_draw_ui() {
-    if (!ImGui::CollapsingHeader("Loose Texture Loader")) {
+#if !ENABLE_LOOSE_TEXTURE_LOADER
         return;
-    }
+#else
 
-    if (m_enabled->draw("Enable Loose Texture Loader")) {
-        g_framework->request_save_config();
-    }
+    if (ImGui::TreeNode("Loose Texture")) {
+        if (m_enabled->draw("Enable")) {
+            g_framework->request_save_config();
+        }
 
-    if (!m_enabled->value()) {
-        return;
-    }
+        if (!m_enabled->value()) {
+            return;
+        }
 
-    if (ImGui::TreeNode("Debug")) {
         if (m_disable_texture_cache->draw("Disable Texture Cache (force reload)")) {
             g_framework->request_save_config();
         }
@@ -118,6 +113,16 @@ void LooseTextureLoader::on_draw_ui() {
 
         ImGui::TreePop();
     }
+#endif
+}
+
+void LooseTextureLoader::early_initialize() {
+#if ENABLE_LOOSE_TEXTURE_LOADER
+    hook_dstorage_path_checks();
+    hook_dstorage_enqueue_chain();
+    hook_resource_path_hashing();
+    find_get_path_to_resource_func();
+#endif
 }
 
 sdk::ResourceManager* LooseTextureLoader::get_resource_manager() {
@@ -133,13 +138,6 @@ void* LooseTextureLoader::get_resource_re_type(ResourceType type) {
         m_resource_re_type_cache[type] = reframework::get_types()->get(type_info.re_type_name);
     }
     return m_resource_re_type_cache[type];
-}
-
-void LooseTextureLoader::early_initialize() {
-    hook_dstorage_path_checks();
-    hook_dstorage_enqueue_chain();
-    hook_resource_path_hashing();
-    find_get_path_to_resource_func();
 }
 
 void LooseTextureLoader::hook_dstorage_path_checks() {
