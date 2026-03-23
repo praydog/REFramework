@@ -15,7 +15,7 @@
 
 #include <safetyhook.hpp>
 
-#if defined(MHWILDS)
+#if TDB_VER >= 81
     #define ENABLE_LOOSE_TEXTURE_LOADER 1
 #else
     #define ENABLE_LOOSE_TEXTURE_LOADER 0
