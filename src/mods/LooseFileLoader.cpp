@@ -464,8 +464,12 @@ bool LooseFileLoader::can_loosely_load_file(const wchar_t* path) {
         return false;
     }
 
+#if TDB_VER > 67
     auto hash = m_path_to_hash_hook->get_original<decltype(path_to_hash_hook)>()(path);
     return handle_path(path, hash);
+#else
+    return safe_exists(path);
+#endif
 }
 
 void LooseFileLoader::early_initialize() {
