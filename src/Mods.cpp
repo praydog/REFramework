@@ -35,7 +35,7 @@ Mods::Mods() {
     m_mods.emplace_back(Hooks::get());
     m_mods.emplace_back(LooseFileLoader::get());
 
-#if defined(MHWILDS)
+#if FAULTY_FILE_DETECTOR_ENABLED
     m_mods.emplace_back(FaultyFileDetector::get());
 #endif
 

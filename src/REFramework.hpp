@@ -131,6 +131,8 @@ public:
         return "dd2";
     #elif defined(MHWILDS)
         return "mhwilds";
+    #elif defined(STARFORCE)
+        return "starforce";
     #elif defined(MHSTORIES3)
         return "mhstories3";
     #elif defined(PRAGMATA)

@@ -66,7 +66,7 @@ REGlobals::REGlobals() {
     }
 
     // Create a list of getter functions instead
-    if (m_objects.empty()) {
+    if (m_objects.empty() || TDB_VER >= 78) {
         spdlog::info("Usual pattern for REGlobals not working, falling back to scanning for SingletonBehavior types");
 
         auto& types = reframework::get_types();
@@ -74,13 +74,14 @@ REGlobals::REGlobals() {
 
         size_t i = 0;
 
-        for (auto t : type_list) {
+        for (auto t : type_list) try {
             auto name = std::string{t->name};
 
             if (name.find(game_namespace("SingletonBehavior`1")) != std::string::npos ||
                 name.find(game_namespace("SingletonBehaviorRoot`1")) != std::string::npos ||
                 name.find(game_namespace("SnowSingletonBehaviorRoot`1")) != std::string::npos ||
-                name.find(game_namespace("RopewaySingletonBehaviorRoot`1")) != std::string::npos)
+                name.find(game_namespace("RopewaySingletonBehaviorRoot`1")) != std::string::npos ||
+                name.find(game_namespace("ace.GAElement`1")) != std::string::npos)
             {
                 const auto type_definition = utility::re_type::get_type_definition(t);
 
@@ -88,6 +89,8 @@ REGlobals::REGlobals() {
                     spdlog::info("Failed to get type definition for {}", name);
                     continue;
                 }
+
+                spdlog::info("Found singleton type: {}", name);
 
                 //using asdf = decltype(m_getters)::value_type::second_type::_Func_class;
                 using Getter = REManagedObject* (*)();
@@ -106,6 +109,61 @@ REGlobals::REGlobals() {
 
                 m_getters[type_name] = getter;
             }
+        } catch(...) {
+            continue;
+        }
+    }
+
+    // lets just go through the tdb types
+    if (m_objects.empty() || TDB_VER >= 78) {
+        auto tdb = sdk::RETypeDB::get();
+
+        for (size_t i = 0; i < tdb->get_num_types(); ++i) try {
+            auto type_definition = tdb->get_type(i);
+
+            if (type_definition == nullptr || type_definition->get_name() == nullptr) {
+                continue;
+            }
+            
+            auto high_name = std::string_view{ type_definition->get_name() };
+            
+            for (auto super = type_definition; super != nullptr; super = super->get_parent_type()) {
+                auto name = std::string_view{ super->get_name() };
+
+                if (name.find("SingletonBehavior`1") != std::string::npos ||
+                    name.find("SingletonBehaviorRoot`1") != std::string::npos ||
+                    name.find("SnowSingletonBehaviorRoot`1") != std::string::npos ||
+                    name.find("RopewaySingletonBehaviorRoot`1") != std::string::npos ||
+                    name.find("GAElement`1") != std::string::npos ||
+                    name.find("AppSingleton`1") != std::string::npos)
+                {
+                    if (high_name == name) {
+                        continue; // dont care.
+                    }
+
+                    auto full_name = super->get_full_name();
+
+                    spdlog::info("Found singleton type: {}", high_name.data());
+
+                    using Getter = REManagedObject* (*)();
+                    auto getter = (Getter)sdk::find_native_method(type_definition, "get_Instance");
+
+                    if (getter == nullptr) {
+                        spdlog::warn("Failed to find get_Instance method for {}", high_name.data());
+                        continue;
+                    }
+
+                    // Get the contained type by grabbing the string between the "`1<"" and the ">""
+                    auto type_name = std::string{full_name}.substr(full_name.find("`1<") + 3, full_name.find(">") - full_name.find("`1<") - 3);
+
+                    spdlog::info("{}", type_name);
+
+                    m_getters[type_name] = getter;
+                    break;
+                }
+            }
+        } catch(...) {
+            continue;
         }
     }
 
@@ -124,13 +182,13 @@ std::unordered_set<REManagedObject*> REGlobals::get_objects() {
                 out.insert(*obj_ptr);
             }
         }
-    } else {
-        for (auto getter : m_getters) {
-            auto result = getter.second();
+    }
 
-            if (result != nullptr) {
-                out.insert(result);
-            }
+    for (auto getter : m_getters) {
+        auto result = getter.second();
+
+        if (result != nullptr) {
+            out.insert(result);
         }
     }
 

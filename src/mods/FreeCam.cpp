@@ -339,6 +339,11 @@ void FreeCam::on_update_transform(RETransform* transform) {
         joint->posOffset = Vector4f{};
         *(Vector4f*)&joint->anglesOffset = Vector4f{0.0f, 0.00f, 0.0f, 1.0f};
     }
+#else
+    if (joint != nullptr) {
+        sdk::set_joint_local_rotation(joint, glm::quat{1.0f, 0.0f, 0.0f, 0.0f});
+        sdk::set_joint_local_position(joint, Vector4f{});
+    }
 #endif
 }
 

@@ -172,6 +172,7 @@ private:
     void context_menu(void* address, std::optional<std::string> name = std::nullopt, std::optional<std::function<void()>> additional_context = std::nullopt);
     void hook_method(sdk::REMethodDefinition* method, std::optional<std::string> name);
     void hook_all_methods(sdk::RETypeDefinition* type);
+    void unhook_all_methods(sdk::RETypeDefinition* type);
     void method_context_menu(sdk::REMethodDefinition* method, std::optional<std::string> name, ::REManagedObject* obj = nullptr);
     void make_same_line_text(std::string_view text, const ImVec4& color);
 
@@ -255,9 +256,23 @@ private:
             "Number of Threads Called From"
         };
 
+        enum class AutoUnhookMethod : uint8_t {
+            NONE,
+            EXCEED_CALL_COUNT
+        };
+
+        static inline constexpr std::array<const char*, 2> s_auto_unhook_method_names {
+            "None",
+            "Exceed Call Count"
+        };
+
         std::recursive_mutex mtx{};
         bool hide_uncalled_methods{false};
         SortMethod sort_method{SortMethod::NONE};
+
+        bool enable_auto_unhook{false};
+        AutoUnhookMethod auto_unhook_method{AutoUnhookMethod::NONE};
+        uint32_t auto_unhook_call_count_threshold{10000};
     } m_hooks_context{};
 
     std::recursive_mutex m_job_mutex{};
