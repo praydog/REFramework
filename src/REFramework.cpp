@@ -506,7 +506,6 @@ REFramework::REFramework(HMODULE reframework_module)
 
     LooseTextureLoader::get().early_initialize();
 
-#if defined(MHWILDS)
 #if FAULTY_FILE_DETECTOR_ENABLED
     FaultyFileDetector::early_init();
 #endif
