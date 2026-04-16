@@ -788,119 +788,134 @@ void RenderContext::copy_texture(Texture* dest, Texture* src, Fence& fence) {
     return;
 #else*/
 
-#if TDB_VER < 82
-    using CopyTexFn = void (*)(RenderContext*, Texture*, Texture*, Fence&);
-    static auto func = []() -> CopyTexFn {
-        spdlog::info("Searching for RenderContext::copy_texture");
+    // Two implementations depending on TDB version: the legacy (<82) form takes
+    // a single source/dest pair; the modern (>=82) form takes per-texture subresource
+    // indices. They resolve to different native functions with different signatures,
+    // so in universal builds we dispatch at runtime but both branches must compile.
+#if defined(REFRAMEWORK_UNIVERSAL) || TDB_VER < 82
+    auto copy_legacy = [&]() {
+        using CopyTexFn = void (*)(RenderContext*, Texture*, Texture*, Fence&);
+        static auto func = []() -> CopyTexFn {
+            spdlog::info("Searching for RenderContext::copy_texture");
 
-        std::vector<std::string> string_choices {
-            // CopyTexture isn't directly behind InterleaveNormalDepthHalfWithoutGBuffer in DD2+
+            std::vector<std::string> string_choices {
+#ifdef REFRAMEWORK_UNIVERSAL
+            };
+            if (sdk::GameIdentity::get().tdb_ver() < 73) {
+                string_choices.push_back("InterleaveNormalDepthHalfWithoutGBuffer");
+            }
+            string_choices.push_back("opyImage");
+            string_choices.push_back("CopyImage");
+            {
+#else
+                // CopyTexture isn't directly behind InterleaveNormalDepthHalfWithoutGBuffer in DD2+
 #if TDB_VER < 73
-            "InterleaveNormalDepthHalfWithoutGBuffer",
+                "InterleaveNormalDepthHalfWithoutGBuffer",
 #endif
-            "opyImage", // Engine has a weird optimization sometimes where it starts from the +1 offset
-            "CopyImage",
-        };
+                "opyImage", // Engine has a weird optimization sometimes where it starts from the +1 offset
+                "CopyImage",
+            };
+#endif
 
-        const auto game = utility::get_executable();
+            const auto game = utility::get_executable();
 
-        for (const auto& str_choice : string_choices) {
-            spdlog::info("Scanning for string: {}", str_choice);
+            for (const auto& str_choice : string_choices) {
+                spdlog::info("Scanning for string: {}", str_choice);
 
-            const auto string = utility::scan_string(game, str_choice, true);
+                const auto string = utility::scan_string(game, str_choice, true);
 
-            if (!string) {
-                spdlog::error("Failed to find copy_texture (no string)");
-                continue;
-            }
-
-            const auto string_ref = utility::scan_displacement_reference(game, *string);
-
-            if (!string_ref) {
-                spdlog::error("Failed to find copy_texture (no string ref)");
-                continue;
-            }
-
-            uintptr_t ip = *string_ref;
-
-            for (auto i = 0; i < 20; ++i) {
-                const auto resolved = utility::resolve_instruction(ip);
-
-                if (!resolved) {
-                    spdlog::error("Failed to find copy_texture (could not resolve instruction)");
+                if (!string) {
+                    spdlog::error("Failed to find copy_texture (no string)");
                     continue;
                 }
 
-                ip = resolved->addr;
+                const auto string_ref = utility::scan_displacement_reference(game, *string);
 
-                if (*(uint8_t*)ip == 0xE8) {
-                    const auto result = (CopyTexFn)utility::calculate_absolute(ip + 1);
-
-                    spdlog::info("Found copy_texture: {:x}", (uintptr_t)result);
-                    return result;
+                if (!string_ref) {
+                    spdlog::error("Failed to find copy_texture (no string ref)");
+                    continue;
                 }
 
-                ip -= 1;
+                uintptr_t ip = *string_ref;
+
+                for (auto i = 0; i < 20; ++i) {
+                    const auto resolved = utility::resolve_instruction(ip);
+
+                    if (!resolved) {
+                        spdlog::error("Failed to find copy_texture (could not resolve instruction)");
+                        continue;
+                    }
+
+                    ip = resolved->addr;
+
+                    if (*(uint8_t*)ip == 0xE8) {
+                        const auto result = (CopyTexFn)utility::calculate_absolute(ip + 1);
+
+                        spdlog::info("Found copy_texture: {:x}", (uintptr_t)result);
+                        return result;
+                    }
+
+                    ip -= 1;
+                }
             }
+#ifdef REFRAMEWORK_UNIVERSAL
+            }
+#endif
+
+            spdlog::error("Could not find copy_texture");
+            return (CopyTexFn)nullptr;
+        }();
+
+        if (func != nullptr) {
+            func(this, dest, src, fence);
         }
+    };
+#endif
 
-        spdlog::error("Could not find copy_texture, trying fallback");
+#if defined(REFRAMEWORK_UNIVERSAL) || TDB_VER >= 82
+    auto copy_modern = [&]() {
+        using CopyTexFn = void (*)(RenderContext*, Texture*, int32_t, Texture*, int32_t, Fence&);
+        static auto func = []() -> CopyTexFn {
+            spdlog::info("Searching for RenderContext::copy_texture (>= TDB82)");
 
-        // Look for alloc call behind RE_POSTPROCESS_Color
-        /*
-            BA 01 00 00 00                                mov     edx, 1 ; this is the copy texture command type
-            41 B8 30 00 00 00                             mov     r8d, 30h ; can change, can also be a lea instruction
-            E8 9B A5 7E 09                                call    alloc
-            48 85 C0                                      test    rax, rax
-        */
-        const auto basic_sig_scan = utility::scan(game, "BA 01 00 00 00 41 B8 30 00 00 00 E8 ? ? ? ? 48 85 C0");
+            const auto game = utility::get_executable();
+            // constants 0x301 (the typeid 1 or'd with something) 0x36, 0x3f, 0x2a.
+            const auto mid_result = utility::scan(game, "01 03 00 00 *[64] 36 *[32] 3f *[32] 2a");
 
-        if (!basic_sig_scan) {
-            spdlog::error("Failed to find copy_texture (fallback)");
-            return nullptr;
+            if (!mid_result) {
+                spdlog::error("Failed to find copy_texture (>= TDB82)");
+                return (CopyTexFn)nullptr;
+            }
+
+            const auto fn_start = utility::find_function_start_unwind(*mid_result);
+
+            if (!fn_start) {
+                spdlog::error("Failed to find copy_texture function start (>= TDB82)");
+                return (CopyTexFn)nullptr;
+            }
+
+            spdlog::info("Found copy_texture (>= TDB82) at {:x}", *fn_start);
+
+            return (CopyTexFn)*fn_start;
+        }();
+
+        if (func != nullptr) {
+            // src, src_subresource, dst, dst_subresource, fence
+            func(this, src, -1, dest, -1, fence);
         }
+    };
+#endif
 
-        const auto fn_start = utility::find_function_start_with_call(*basic_sig_scan);
-
-        if (!fn_start) {
-            spdlog::error("Failed to find copy_texture (fallback fn_start)");
-            return nullptr;
-        }
-
-        spdlog::info("Found copy_texture (fallback): {:x}", *fn_start);
-
-        return (CopyTexFn)*fn_start;
-    }();
-
-    func(this, dest, src, fence);
+#ifdef REFRAMEWORK_UNIVERSAL
+    if (sdk::GameIdentity::get().tdb_ver() < 82) {
+        copy_legacy();
+    } else {
+        copy_modern();
+    }
+#elif TDB_VER < 82
+    copy_legacy();
 #else
-    using CopyTexFn = void (*)(RenderContext*, Texture*, int32_t, Texture*, int32_t, Fence&);
-    static auto func = []() -> CopyTexFn {
-        spdlog::info("Searching for RenderContext::copy_texture (>= TDB82)");
-
-        const auto game = utility::get_executable();
-        // constants 0x301 (the typeid 1 or'd with something) 0x36, 0x3f, 0x2a.
-        const auto mid_result = utility::scan(game, "01 03 00 00 *[64] 36 *[32] 3f *[32] 2a");
-
-        if (!mid_result) {
-            spdlog::error("Failed to find copy_texture (>= TDB82)");
-            return nullptr;
-        }
-
-        const auto fn_start = utility::find_function_start_unwind(*mid_result);
-
-        if (!fn_start) {
-            spdlog::error("Failed to find copy_texture function start (>= TDB82)");
-            return nullptr;
-        }
-
-        spdlog::info("Found copy_texture (>= TDB82) at {:x}", *fn_start);
-
-        return (CopyTexFn)*fn_start;
-    }();
-
-    // src, src_subresource, dst, dst_subresource, fence
-    func(this, src, -1, dest, -1, fence);
+    copy_modern();
 #endif
 //#endif
 }
@@ -1549,9 +1564,15 @@ ID3D12Resource* TargetState::get_native_resource_d3d12() const {
 }
 
 DirectXResource<ID3D12Resource>* Texture::get_d3d12_resource_container() {
-#if TDB_VER < 71
+#ifdef REFRAMEWORK_UNIVERSAL
+    // DMC5 (TDB <71) uses hardcoded offset; newer games bruteforce-scan.
+    if (sdk::GameIdentity::get().tdb_ver() < 71) {
+        return *(DirectXResource<ID3D12Resource>**)((uintptr_t)this + get_s_d3d12_resource_offset());
+    }
+    // fall through to bruteforce for TDB >= 71
+#elif TDB_VER < 71
     return *(DirectXResource<ID3D12Resource>**)((uintptr_t)this + s_d3d12_resource_offset);
-#else
+#endif
     static std::optional<size_t> offset = std::nullopt;
 
     if (offset) {
@@ -1621,7 +1642,7 @@ DirectXResource<ID3D12Resource>* Texture::get_d3d12_resource_container() {
     }
 
     return nullptr;
-#endif
+
 }
 
 Texture* Texture::clone() {
