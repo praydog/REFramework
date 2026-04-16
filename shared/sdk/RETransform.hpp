@@ -61,21 +61,21 @@ namespace utility::re_transform {
     REJoint* get_joint(const ::RETransform& transform, uint32_t index);
 
 #ifdef REFRAMEWORK_UNIVERSAL
-    // RE2/RE3 (TDB 70) RETransform has JointMatrices* at offset 0xC0.
+    // RE2/RE3/RE7 (TDB 70) RETransform has JointMatrices* at offset 0xC0.
     // RE8+ RETransform has REJointArray.matrices (JointMatrices*) at offset 0xE0.
     static JointMatrices* get_joint_matrices(const ::RETransform& transform) {
         const auto& gi = sdk::GameIdentity::get();
-        if (gi.is_re2() || gi.is_re3()) {
+        if (gi.is_re2() || gi.is_re3() || gi.is_re7()) {
             return *reinterpret_cast<JointMatrices* const*>(reinterpret_cast<uintptr_t>(&transform) + 0xC0);
         }
         return transform.joints.matrices;
     }
 
-    // RE2/RE3 (TDB 70) RETransform has REJointArray at offset 0xD0.
+    // RE2/RE3/RE7 (TDB 70) RETransform has REJointArray at offset 0xD0.
     // RE8+ RETransform has REJointArray at offset 0xD8.
     static REArrayBase* get_joint_array_data(const ::RETransform& transform) {
         const auto& gi = sdk::GameIdentity::get();
-        if (gi.is_re2() || gi.is_re3()) {
+        if (gi.is_re2() || gi.is_re3() || gi.is_re7()) {
             return *reinterpret_cast<REArrayBase* const*>(reinterpret_cast<uintptr_t>(&transform) + 0xD0);
         }
         return transform.joints.data;

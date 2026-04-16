@@ -92,8 +92,8 @@ void startup_thread(HMODULE reframework_module) {
     freopen("CONOUT$", "w", stderr);
 #endif
 
-    // Initialize game identity before creating framework
-    sdk::GameIdentity::initialize();
+    // GameIdentity::initialize() already called from DllMain (before integrity hooks).
+    // The call is idempotent, but the authoritative init is the DllMain one.
 
     if (load_dinput8()) {
         g_framework = std::make_unique<REFramework>(reframework_module);
@@ -136,6 +136,11 @@ BOOL APIENTRY DllMain(HANDLE handle, DWORD reason, LPVOID reserved) {
         }
 
         AllocateBuffer((LPVOID)halfway_module); // minhook
+
+        // GameIdentity must be initialized before the integrity hooks below,
+        // because hook_add_vectored_exception_handler gates on tdb_ver() >= 73.
+        // Safe under loader lock: detection is just GetModuleFileNameW.
+        sdk::GameIdentity::initialize();
 
         IntegrityCheckBypass::setup_pristine_syscall();
         IntegrityCheckBypass::hook_add_vectored_exception_handler();
