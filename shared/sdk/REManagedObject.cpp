@@ -10,6 +10,27 @@
 
 using namespace utility::re_type_accessor;
 
+
+#ifdef REFRAMEWORK_UNIVERSAL
+// DMC5 (TDB 67) has a completely different REClassInfo struct layout:
+//   RE8/RE2/etc (TDB 69+): type @ 0x40, parentInfo @ 0x48, size 0x50
+//   DMC5 (TDB 67):          type @ 0x68, parentInfo @ 0x70, size 0x78
+// These accessors dispatch at runtime to read the correct offset.
+namespace classinfo_accessor {
+    inline REObjectInfo* get_parentInfo(REClassInfo* ci) {
+        if (sdk::GameIdentity::get().tdb_ver() < 69) {
+            return *(REObjectInfo**)((uintptr_t)ci + 0x70);
+        }
+        return ci->parentInfo;
+    }
+    inline REType* get_type(REClassInfo* ci) {
+        if (sdk::GameIdentity::get().tdb_ver() < 69) {
+            return *(REType**)((uintptr_t)ci + 0x68);
+        }
+        return (REType*)ci->type;
+    }
+}
+#endif
 namespace utility::re_managed_object {
 
 // Used all over the place. It may be one of the most referenced functions in a disassembler.
@@ -278,22 +299,29 @@ bool is_managed_object(Address address) {
             return false;
         }
     } else {
-        if (class_info->parentInfo != object->info) {
+#ifdef REFRAMEWORK_UNIVERSAL
+        auto ci_parentInfo = classinfo_accessor::get_parentInfo(class_info);
+        auto ci_type = classinfo_accessor::get_type(class_info);
+#else
+        auto ci_parentInfo = class_info->parentInfo;
+        auto ci_type = class_info->type;
+#endif
+        if (ci_parentInfo != object->info) {
             // This allows for cases when a vtable hook is being used to replace this pointer.
-            if (IsBadReadPtr(class_info->parentInfo, sizeof(void*)) || class_info->parentInfo->classInfo != class_info) {
+            if (IsBadReadPtr(ci_parentInfo, sizeof(void*)) || ci_parentInfo->classInfo != class_info) {
                 return false;
             }
         }
 
-        if (class_info->type == nullptr) {
+        if (ci_type == nullptr) {
             return false;
         }
 
-        if (IsBadReadPtr(class_info->type, sizeof(REType)) || class_info->type->name == nullptr) {
+        if (IsBadReadPtr(ci_type, sizeof(REType)) || ci_type->name == nullptr) {
             return false;
         }
 
-        if (IsBadReadPtr(class_info->type->name, sizeof(void*))) {
+        if (IsBadReadPtr(ci_type->name, sizeof(void*))) {
             return false;
         }
     }
@@ -403,7 +431,7 @@ REType* get_type(::REManagedObject* object) {
             return nullptr;
         }
 
-        return class_info->type;
+        return classinfo_accessor::get_type(class_info);
     }
 #elif TDB_VER >= 71
     const auto td = get_type_definition(object);
@@ -493,8 +521,13 @@ via::clr::VMObjType get_vm_type(::REManagedObject* object) {
     const auto& gi = sdk::GameIdentity::get();
     if (gi.tdb_ver() >= 71) {
         return get_type_definition(object)->get_vm_obj_type();
-    } else {
+    } else if (gi.tdb_ver() >= 69) {
         return (via::clr::VMObjType)(info->classInfo->objectFlags >> 5);
+    } else {
+        // TDB 67 (DMC5): REClassInfo has objectType as a direct field,
+        // not a bit-shifted objectFlags. Use the type definition path.
+        auto td = get_type_definition(object);
+        return td != nullptr ? td->get_vm_obj_type() : via::clr::VMObjType::NULL_;
     }
 #elif TDB_VER >= 71
     return get_type_definition(object)->get_vm_obj_type();

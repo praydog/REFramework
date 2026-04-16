@@ -273,12 +273,16 @@ sdk::RETypeDefinition* REField::get_type() const {
 
 #ifdef REFRAMEWORK_UNIVERSAL
     uint32_t field_typeid;
-    if (sdk::tdb_dispatch::needs_18bit()) {
-        // tdb69: field_typeid is on the impl, not on REField itself.
+    if (sdk::tdb_dispatch::needs_pre_impl()) {
+        // TDB 67 (DMC5): field_typeid is directly on tdb67::REField, no impl split.
+        field_typeid = (uint32_t)reinterpret_cast<const sdk::tdb67::REField*>(this)->field_typeid;
+    } else if (sdk::tdb_dispatch::needs_18bit()) {
+        // TDB 69-70: field_typeid is on the impl, via 18-bit impl_id.
         auto* impl = reinterpret_cast<const sdk::tdb69::REFieldImpl*>(
             &(*tdb->get_fieldsImpl_ptr())[TFIELD_FIELD(this, impl_id)]);
         field_typeid = (uint32_t)impl->field_typeid;
     } else {
+        // TDB 71+: direct on compiled-in struct.
         field_typeid = this->field_typeid;
     }
 #elif TDB_VER >= 71
@@ -341,7 +345,10 @@ uint32_t REField::get_init_data_index() const {
     
 #ifdef REFRAMEWORK_UNIVERSAL
     uint32_t init_data_index;
-    if (sdk::tdb_dispatch::needs_18bit()) {
+    if (sdk::tdb_dispatch::needs_pre_impl()) {
+        // TDB 67 (DMC5): init_data_index directly on the struct.
+        init_data_index = reinterpret_cast<const sdk::tdb67::REField*>(this)->init_data_index;
+    } else if (sdk::tdb_dispatch::needs_18bit()) {
         // tdb69: different init_data split and field layout
         auto* impl = reinterpret_cast<const sdk::tdb69::REFieldImpl*>(
             &(*tdb->get_fieldsImpl_ptr())[TFIELD_FIELD(this, impl_id)]);
@@ -388,7 +395,10 @@ void* REField::get_init_data() const {
 
 uint32_t REField::get_offset_from_fieldptr() const {
 #ifdef REFRAMEWORK_UNIVERSAL
-    if (sdk::tdb_dispatch::needs_18bit()) {
+    if (sdk::tdb_dispatch::needs_pre_impl()) {
+        // TDB 67 (DMC5): offset directly on tdb67::REField.
+        return reinterpret_cast<const sdk::tdb67::REField*>(this)->offset;
+    } else if (sdk::tdb_dispatch::needs_18bit()) {
         // tdb69: offset is on the REField itself, not on impl.
         return static_cast<uint32_t>(
             reinterpret_cast<const sdk::tdb_bits18::REField69*>(this)->offset);

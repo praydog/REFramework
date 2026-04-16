@@ -2289,6 +2289,10 @@ struct REMethodDefinition : public sdk::REMethodDefinition_ {
     uint32_t get_num_params() const;
     uint32_t get_param_index() const {
 #ifdef REFRAMEWORK_UNIVERSAL
+        if (sdk::tdb_dispatch::needs_pre_impl()) {
+            // TDB 67 (DMC5): params offset directly on tdb67::REMethodDefinition.
+            return reinterpret_cast<const sdk::tdb67::REMethodDefinition*>(this)->params;
+        }
         if (sdk::tdb_dispatch::needs_18bit()) {
             // tdb69: single 'params' field (26 bits)
             return static_cast<uint32_t>(
