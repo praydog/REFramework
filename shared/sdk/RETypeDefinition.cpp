@@ -978,12 +978,12 @@ uint32_t RETypeDefinition::get_crc_hash() const {
 }
 
 uint32_t RETypeDefinition::get_fqn_hash() const {
-    return this->fqn_hash;
+    return TDEF_FIELD(this, fqn_hash);
 }
 
 uint32_t RETypeDefinition::get_size() const {
 #if TDB_VER > 49
-    return this->size;
+    return TDEF_FIELD(this, size);
 #else
     auto t = (regenny::via::typeinfo::TypeInfo*)get_type();
 
@@ -1261,7 +1261,7 @@ void* RETypeDefinition::create_instance() const {
 
 uint32_t RETypeDefinition::get_flags() const {
 #if TDB_VER > 49
-    return this->type_flags;
+    return TDEF_FIELD(this, type_flags);
 #else
     return 0;
 #endif
