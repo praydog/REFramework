@@ -508,6 +508,16 @@ std::optional<std::string> Hooks::hook_all_application_entries() {
 
 std::optional<std::string> Hooks::hook_update_before_lock_scene() {
     // This function is removed (or not reflected) >= TDB74...
+    // Additionally, it never existed in RE7 or MHRISE — attempting to hook
+    // there returns an error string and aborts the whole Hooks init chain.
+#ifdef REFRAMEWORK_UNIVERSAL
+    {
+        const auto& gi = sdk::GameIdentity::get();
+        if (gi.is_re7() || gi.is_mhrise()) {
+            return std::nullopt;
+        }
+    }
+#endif
 #ifdef REFRAMEWORK_UNIVERSAL
     if (sdk::GameIdentity::get().tdb_ver() < 74) {
 #else

@@ -136,11 +136,15 @@ void GameIdentity::detect_game() {
 void GameIdentity::derive_engine_params() {
     // This mapping mirrors the old TDBVer.hpp #ifdef chain.
     // Note: the old build had variant builds (RE2_TDB66, RE3_TDB67, RE7_TDB49)
-    // for older TDB versions of the same game. In the monolithic DLL, we detect
-    // the TDB version from the actual running binary at SDK init time, not here.
-    // The values below are the MODERN/LATEST TDB version for each game.
-    // If a user runs an older game version, the TDB auto-detection in RETypeDB
-    // will override this.
+    // for older TDB versions of the same game.
+    //
+    // In the monolithic DLL, the values below provide the default per-game
+    // engine parameters used by GameIdentity, including the modern/latest
+    // TDB version associated with each title. This function does not perform
+    // runtime override/mutation of m_tdb_ver for legacy binaries — if a demo
+    // or trial ships with a different TDB version than the full game, it must
+    // be handled either by a dedicated GameID entry or by hardcoding the
+    // correct version here (see PRAGMATA_SKETCHBOOK → TDB 83).
 
     switch (m_game) {
     case GameID::RE7:
