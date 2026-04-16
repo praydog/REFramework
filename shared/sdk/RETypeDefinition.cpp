@@ -258,6 +258,14 @@ std::string RETypeDefinition::get_full_name() const {
     }
 
     auto generate_full_name_via_reflection = [&]() {
+        // system_runtime_type may be null on older TDB versions (e.g. DMC5/TDB67)
+        // where System.RuntimeType doesn't hash to this FQN, or when reflection isn't
+        // available yet. Fall through silently — full_name already contains the
+        // string-constructed version above.
+        if (system_runtime_type == nullptr) {
+            return;
+        }
+
         struct FakeRuntimeType : public ::REManagedObject {
             const sdk::RETypeDefinition* t{nullptr};
             uint32_t unk{0};
@@ -268,8 +276,11 @@ std::string RETypeDefinition::get_full_name() const {
 
         static auto get_full_name_method = system_runtime_type->get_method("get_FullName");
 
-        auto full_name_obj = seh_call_get_full_name(get_full_name_method, &fake_type);
+        if (get_full_name_method == nullptr) {
+            return;
+        }
 
+        auto full_name_obj = seh_call_get_full_name(get_full_name_method, &fake_type);
         if (full_name_obj != nullptr) {
             full_name = utility::re_string::get_string(full_name_obj);
 
@@ -281,7 +292,7 @@ std::string RETypeDefinition::get_full_name() const {
 #if TDB_VER > 49
     const auto generics = this->get_generic_data();
 
-    if (generics != nullptr && generics->num > 0) {
+    if (generics != nullptr && sdk::generic_list_accessor::get_num(generics) > 0) {
         // The base type that isn't inflated.
         if (this->is_generic_type_definition()) {
             generate_full_name_via_reflection();
@@ -289,8 +300,9 @@ std::string RETypeDefinition::get_full_name() const {
             // We COULD use generate_full_name_via_reflection, but that's API breaking because it removes the spaces we add manually here.
             full_name += "<";
 
-            for (uint32_t f = 0; f < generics->num; ++f) {
-                auto gtypeid = generics->types[f];
+            const auto num_generics = sdk::generic_list_accessor::get_num(generics);
+            for (uint32_t f = 0; f < num_generics; ++f) {
+                auto gtypeid = sdk::generic_list_accessor::get_type_at(generics, f);
 
                 if (gtypeid > 0 && gtypeid < tdb->get_num_types()) {
                     auto& generic_type = *tdb->get_type(gtypeid);
@@ -299,7 +311,7 @@ std::string RETypeDefinition::get_full_name() const {
                     full_name += "";
                 }
 
-                if (generics->num > 1 && f < generics->num - 1) {
+                if (num_generics > 1 && f < num_generics - 1) {
                     full_name += ",";
                 }
             }
@@ -429,6 +441,13 @@ sdk::RETypeDefinition* RETypeDefinition::get_underlying_type() const {
     if (underlying_type != nullptr) {
         static const auto get_name_method = system_runtime_type_type->get_method("get_FullName");
 
+        if (get_name_method == nullptr) {
+            std::unique_lock _{ g_underlying_mtx };
+            g_underlying_types[this] = nullptr;
+            return nullptr;
+        }
+
+
         const auto full_name = get_name_method->call<::REManagedObject*>(sdk::get_thread_context(), underlying_type);
 
         if (full_name != nullptr) {
@@ -468,7 +487,7 @@ sdk::RETypeDefinition* RETypeDefinition::get_generic_type_definition() const {
         const auto tdb = sdk::RETypeDB::get();
         auto generics = tdb->get_data<sdk::GenericListData>(TDEF_FIELD(this, generics));
 
-        const auto id = generics->definition_typeid;
+        const auto id = sdk::generic_list_accessor::get_definition_typeid(generics);
 
         if (id > 0) {
             return tdb->get_type(id);
@@ -625,11 +644,12 @@ std::vector<sdk::RETypeDefinition*> RETypeDefinition::get_generic_argument_types
 #if TDB_VER > 49
     const auto generics = get_generic_data();
 
-    if (generics != nullptr && generics->num > 0) {
+    if (generics != nullptr && sdk::generic_list_accessor::get_num(generics) > 0) {
         const auto tdb = sdk::RETypeDB::get();
 
-        for (uint32_t f = 0; f < generics->num; ++f) {
-            auto gtypeid = generics->types[f];
+        const auto num_generics = sdk::generic_list_accessor::get_num(generics);
+        for (uint32_t f = 0; f < num_generics; ++f) {
+            auto gtypeid = sdk::generic_list_accessor::get_type_at(generics, f);
 
             if (gtypeid > 0 && gtypeid < tdb->get_num_types()) {
                 out.push_back(tdb->get_type(gtypeid)); // This COULD be null. we aren't going to skip it because it's important to know the index of the generic type
@@ -917,7 +937,7 @@ bool RETypeDefinition::is_primitive() const {
 
 bool RETypeDefinition::is_generic_type_definition() const {
 #if TDB_VER > 49
-    if (const auto gd = get_generic_data(); gd != nullptr && gd->definition_typeid == this->get_index()) {
+    if (const auto gd = get_generic_data(); gd != nullptr && sdk::generic_list_accessor::get_definition_typeid(gd) == this->get_index()) {
         return true;
     }
 #endif
@@ -965,7 +985,7 @@ bool RETypeDefinition::has_attribute(::REManagedObject* attribute_runtime_type, 
 uint32_t RETypeDefinition::get_crc_hash() const {
 #if TDB_VER > 49
     const auto t = get_type();
-    return t != nullptr ? utility::re_type_accessor::get_typeCRC(t) : this->type_crc;
+    return t != nullptr ? utility::re_type_accessor::get_typeCRC(t) : TDEF_FIELD(this, type_crc);
 #else
     const auto t = (regenny::via::typeinfo::TypeInfo*)get_type();
 
@@ -1220,7 +1240,7 @@ void* RETypeDefinition::create_instance() const {
         REObjectInfo *target_managed_vt = TDEF_FIELD(this, managed_vt);
         const int ABSTRACT_TYPE_FLAG = 128;
         if (TDEF_FIELD(this, managed_vt) == nullptr) {
-            if (this->type_flags & ABSTRACT_TYPE_FLAG) {
+            if (TDEF_FIELD(this, type_flags) & ABSTRACT_TYPE_FLAG) {
                 auto parent_type_def = this->get_parent_type();
                 while (parent_type_def != nullptr) {
                     target_managed_vt = TDEF_FIELD(parent_type_def, managed_vt);

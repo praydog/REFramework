@@ -4,6 +4,10 @@
 #include <cstdint>
 #include <type_traits>
 
+#ifdef REFRAMEWORK_UNIVERSAL
+#include "GameIdentity.hpp"
+#endif
+
 // Forward decls
 class RETypeDB;
 class REClassInfo;
@@ -1846,6 +1850,35 @@ struct GenericListData : public sdk::tdb66::GenericListData {};
 #else
 static_assert(false, "TDB_VER is not defined");
 #endif
+
+// GenericListData bitfield dispatch.
+// tdb67: definition_typeid:17, num:14 (1 bit padding)
+// tdb69+: definition_typeid:19, num:13
+// Universal build compiles the tdb84 layout, so direct ->num / ->definition_typeid
+// reads are wrong on DMC5 (tdb67). These helpers dispatch at runtime.
+#ifdef REFRAMEWORK_UNIVERSAL
+namespace generic_list_accessor {
+    inline uint32_t get_num(const GenericListData* gd) {
+        if (sdk::GameIdentity::get().tdb_ver() < 69) {
+            return reinterpret_cast<const tdb67::GenericListData*>(gd)->num;
+        }
+        return gd->num;
+    }
+    inline uint32_t get_definition_typeid(const GenericListData* gd) {
+        if (sdk::GameIdentity::get().tdb_ver() < 69) {
+            return reinterpret_cast<const tdb67::GenericListData*>(gd)->definition_typeid;
+        }
+        return gd->definition_typeid;
+    }
+    inline uint32_t get_type_at(const GenericListData* gd, uint32_t index) {
+        if (sdk::GameIdentity::get().tdb_ver() < 69) {
+            return reinterpret_cast<const tdb67::GenericListData*>(gd)->types[index];
+        }
+        return gd->types[index];
+    }
+}
+#endif
+
 } // namespace sdk
 
 namespace sdk {
