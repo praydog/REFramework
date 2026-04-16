@@ -351,6 +351,22 @@ public:
     }
 
     static constexpr uint32_t MAX_PRIORITY_OFFSETS = 7;
+
+    // Returns the actual in-game sizeof(RenderLayer) at runtime.
+    // The universal binary compiles m_priority_offsets[MAX_PRIORITY_OFFSETS] (7 slots = 28 bytes),
+    // but TDB 66-67 games (e.g. DMC5) only have 6 slots in their real struct (24 bytes),
+    // making sizeof(RenderLayer) 4 bytes too large for those games.
+    // Any code that uses sizeof(RenderLayer) to locate members of a derived class
+    // (e.g. Overlay) must call this instead.
+    static inline uintptr_t get_runtime_sizeof() {
+        const auto actual = get_num_priority_offsets();
+        if (actual < MAX_PRIORITY_OFFSETS) {
+            // e.g. DMC5 (TDB 67) has 6 slots; subtract the extra 4 bytes per missing slot.
+            return sizeof(RenderLayer) - (MAX_PRIORITY_OFFSETS - actual) * sizeof(uint32_t);
+        }
+        // TDB >= 69: 7 slots — matches the compiled-in array size.
+        return sizeof(RenderLayer);
+    }
 #else
 #if TDB_VER >= 81
     static constexpr uint32_t DRAW_VTABLE_INDEX = 15;
@@ -555,11 +571,19 @@ public:
 class Overlay : public sdk::renderer::RenderLayer {
 public:
     sdk::intrusive_ptr<sdk::renderer::TargetState>& get_main_target_state() {
+#ifdef REFRAMEWORK_UNIVERSAL
+        return *(sdk::intrusive_ptr<sdk::renderer::TargetState>*)((uintptr_t)this + RenderLayer::get_runtime_sizeof() + sizeof(void*));
+#else
         return *(sdk::intrusive_ptr<sdk::renderer::TargetState>*)((uintptr_t)this + sizeof(sdk::renderer::RenderLayer) + sizeof(void*));
+#endif
     }
 
     sdk::intrusive_ptr<sdk::renderer::TargetState>& get_main_depth_target_state() {
+#ifdef REFRAMEWORK_UNIVERSAL
+        return *(sdk::intrusive_ptr<sdk::renderer::TargetState>*)((uintptr_t)this + RenderLayer::get_runtime_sizeof());
+#else
         return *(sdk::intrusive_ptr<sdk::renderer::TargetState>*)((uintptr_t)this + sizeof(sdk::renderer::RenderLayer));
+#endif
     }
 
     sdk::renderer::Texture** get_b8g8r8a8_unorm_textures() {
