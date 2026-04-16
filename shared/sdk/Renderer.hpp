@@ -297,6 +297,14 @@ public:
 class ConstantBufferDX12 : public ConstantBuffer {
 public:
     void* get_desc() {
+        // TODO (universal): sizeof(ConstantBuffer) = sizeof(RenderResource) + Buffer fields + m_update_times.
+        // In the universal build sizeof(RenderResource) is always 0x20 (compile-time includes both padding
+        // fields), but on RE2/RE3/RE7 (TDB 70) the real in-game size is 0x18, and on DMC5 (TDB 67) it is
+        // 0x10. This makes get_desc() return a pointer 8–16 bytes past the real Desc on those games.
+        // Currently ConstantBufferDX12 has no call sites so this is latent, not active. If the method is
+        // ever wired up, replace sizeof(ConstantBuffer) with a runtime-computed offset that accounts for
+        // RenderResource::get_runtime_size() + sizeof(Buffer::m_size_in_bytes/m_usage_type/m_option_flags)
+        // + sizeof(m_update_times).
         return (void*)((uintptr_t)this + sizeof(ConstantBuffer));
     }
 };
@@ -415,6 +423,15 @@ public:
 
 #ifdef REFRAMEWORK_UNIVERSAL
     uint32_t m_priority;
+    // NOTE: In the universal build this array is always MAX_PRIORITY_OFFSETS (7) slots.
+    // The TDB ≤49 member ordering (m_parent / m_layers / m_priority without an offset array)
+    // is *not* compiled in universal mode — that layout was only supported in the old
+    // per-game builds where TDB_VER <= 49 was set at compile time.
+    // If a TDB ≤49 game (e.g. the legacy RE7 TDB49 build) is ever added to the universal
+    // roster, the entire RenderLayer layout must be revisited; the current struct will be
+    // silently wrong (members in the wrong order).  Add the new GameID to the list below
+    // when that happens so this comment can be updated.
+    // Current universal roster minimum TDB: 67 (DMC5). TDB ≤49 is not supported. ✅
     uint32_t m_priority_offsets[MAX_PRIORITY_OFFSETS];
     sdk::renderer::RenderLayer* m_parent;
     sdk::NativeArray<sdk::renderer::RenderLayer*> m_layers;
@@ -604,6 +621,14 @@ public:
 
 private:
     // Offsets verified in SF6/RE4 (TDB >= 71); other games copy these as best-guess defaults.
+    // TODO (universal): these are compile-time constants but the true values vary across TDB versions.
+    // All get_b8g8r8a8_unorm_*/get_r8g8b8a8_unorm_* accessors below use these offsets unconditionally
+    // for every game in the universal build (DMC5, RE7, RE8, RE2, RE3, MHRISE, MHWILDS, etc.).
+    // If any of these methods are exercised on a game where the offsets differ from the RE4/SF6 baseline,
+    // they will read garbage or crash without warning.  Before activating these in non-RE4/SF6 code paths,
+    // verify the per-TDB offsets and replace these constexprs with a runtime dispatcher
+    // (see RenderOutput::get_s_scene_layers_offset() for the pattern to follow), or gate the callers
+    // with is_re4() || is_sf6() until the other games' offsets are confirmed.
     static constexpr inline auto s_b8g8r8a8_unorm_textures_offset = 0x288;
     static constexpr inline auto s_r8g8b8a8_unorm_textures_offset = 0x260;
     static constexpr inline auto s_b8g8r8a8_unorm_target_state_offset = 0x1A0;
