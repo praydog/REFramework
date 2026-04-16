@@ -43,54 +43,64 @@ static_assert(sizeof(REType) == 0x68);
 
 } // namespace reclass_mhwilds
 
-// Returns true if the running game uses the 0x68 REType layout.
-inline bool retype_is_large_layout() {
+// Returns true if the running game uses the 0x68 REType layout (super at 0x40, +8 shift).
+// Only MHWILDS and RE9 have this; MHSTORIES3/PRAGMATA are 0x60 despite tdb >= 82.
+inline bool retype_has_shifted_pointers() {
     const auto& gi = sdk::GameIdentity::get();
-    return gi.tdb_ver() >= 81;
+    return gi.is_mhwilds() || gi.is_re9();
+}
+
+// Returns true if typeCRC/size fields are reordered relative to RE8.
+// All tdb >= 81 games swap these two scalar fields (typeCRC@0x2C, size@0x30
+// instead of RE8's size@0x2C, typeCRC@0x30). This is independent of the
+// pointer shift — MHSTORIES3/PRAGMATA have the scalar swap but NOT the shift.
+inline bool retype_has_field_reorder() {
+    return sdk::GameIdentity::get().tdb_ver() >= 81;
 }
 
 // Runtime accessors for REType fields that differ between layouts.
 // Fields at offsets 0x00-0x0020 (through `name`) are identical in all layouts.
-// Fields from 0x0028 onward shift by 8 bytes in MHWILDS/RE9.
+// Scalar fields (size, typeCRC) swap positions in tdb >= 81.
+// Pointer fields (super, childType, chainType, fields, classInfo) shift +8 only in MHWILDS/RE9.
 namespace utility::re_type_accessor {
 
 inline uint32_t get_size(const ::REType* t) {
-    if (retype_is_large_layout()) {
+    if (retype_has_field_reorder()) {
         return reinterpret_cast<const reclass_mhwilds::REType*>(t)->size;
     }
     return t->size;
 }
 
 inline uint32_t get_typeCRC(const ::REType* t) {
-    if (retype_is_large_layout()) {
+    if (retype_has_field_reorder()) {
         return reinterpret_cast<const reclass_mhwilds::REType*>(t)->typeCRC;
     }
     return t->typeCRC;
 }
 
 inline ::REType* get_super(const ::REType* t) {
-    if (retype_is_large_layout()) {
+    if (retype_has_shifted_pointers()) {
         return reinterpret_cast<const reclass_mhwilds::REType*>(t)->super;
     }
     return t->super;
 }
 
 inline ::REType* get_childType(const ::REType* t) {
-    if (retype_is_large_layout()) {
+    if (retype_has_shifted_pointers()) {
         return reinterpret_cast<const reclass_mhwilds::REType*>(t)->childType;
     }
     return t->childType;
 }
 
 inline ::REType* get_chainType(const ::REType* t) {
-    if (retype_is_large_layout()) {
+    if (retype_has_shifted_pointers()) {
         return reinterpret_cast<const reclass_mhwilds::REType*>(t)->chainType;
     }
     return t->chainType;
 }
 
 inline ::REFieldList* get_fields(const ::REType* t) {
-    if (retype_is_large_layout()) {
+    if (retype_has_shifted_pointers()) {
         return reinterpret_cast<::REFieldList*>(
             reinterpret_cast<const reclass_mhwilds::REType*>(t)->fields);
     }
@@ -98,7 +108,7 @@ inline ::REFieldList* get_fields(const ::REType* t) {
 }
 
 inline ::REClassInfo* get_classInfo(const ::REType* t) {
-    if (retype_is_large_layout()) {
+    if (retype_has_shifted_pointers()) {
         return reinterpret_cast<::REClassInfo*>(
             reinterpret_cast<const reclass_mhwilds::REType*>(t)->classInfo);
     }
