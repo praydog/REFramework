@@ -33,6 +33,7 @@ extern "C" {
 #include "Mods.hpp"
 #include "mods/FaultyFileDetector.hpp"
 #include "mods/LooseFileLoader.hpp"
+#include "mods/LooseTextureLoader.hpp"
 #include "mods/PluginLoader.hpp"
 #include "mods/VR.hpp"
 #include "sdk/REGlobals.hpp"
@@ -478,6 +479,12 @@ REFramework::REFramework(HMODULE reframework_module)
         }
     }
 
+    LooseTextureLoader::get().early_initialize();
+
+    if (gi.tdb_ver() >= 81) {
+        FaultyFileDetector::early_init();
+    }
+
     if (gi.is_re8()) {
         auto startup_lookup_thread = std::make_unique<std::thread>([this]() {
             // Fixes a crash on some machines when starting the game
@@ -506,9 +513,6 @@ REFramework::REFramework(HMODULE reframework_module)
         startup_lookup_thread->detach();
     }
 
-    if (gi.is_mhwilds()) {
-        FaultyFileDetector::early_init();
-    }
 
     if (gi.is_reengine_at()) {
         utility::ThreadSuspender suspender{};
@@ -529,8 +533,9 @@ REFramework::REFramework(HMODULE reframework_module)
             IntegrityCheckBypass::immediate_patch_dd2();
         }
 
-        if (gi.tdb_ver() >= 83) {
+        if (gi.tdb_ver() >= 82) {
             // Fixes new code added in RE9 only. Maybe >= TDB83 too. Probably will change.
+            // Addendum: Found to be present in MHSTORIES3 (TDB 82) as well, so this is not RE9 exclusive.
             IntegrityCheckBypass::immediate_patch_re9();
         }
 
@@ -572,8 +577,8 @@ REFramework::REFramework(HMODULE reframework_module)
         auto& loader = LooseFileLoader::get(); // Initialize this really early
         auto &integrity_bypass = IntegrityCheckBypass::get_shared_instance();
 
-        const bool is_mhwilds = gi.is_mhwilds();
-        if (is_mhwilds) {
+        const bool has_faulty_file_detector = gi.tdb_ver() >= 81;
+        if (has_faulty_file_detector) {
             FaultyFileDetector::get(); // Initialize early
         }
 
@@ -582,7 +587,7 @@ REFramework::REFramework(HMODULE reframework_module)
             utility::Config cfg{ config_path };
             loader->on_config_load(cfg);
 
-            if (is_mhwilds) {
+            if (has_faulty_file_detector) {
                 FaultyFileDetector::get()->on_config_load(cfg);
             }
             integrity_bypass->on_config_load(cfg);

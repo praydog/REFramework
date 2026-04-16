@@ -86,7 +86,13 @@ static constexpr ExeMapping s_exe_table[] = {
     {"monster_hunter_stories_3_twisted_reflection_trial",   GameID::MHSTORIES3},
     {"monster_hunter_stories_3_twisted_reflection",              GameID::MHSTORIES3},
 
+    // Mega Man Star Force Legacy Collection
+    {"starforce",               GameID::STARFORCE},
+    {"megamanstarforce",        GameID::STARFORCE},
+    {"mmstarforce",             GameID::STARFORCE},
+
     // Pragmata (provisional)
+
     {"pragmata",                GameID::PRAGMATA},
 };
 
@@ -245,6 +251,16 @@ void GameIdentity::derive_engine_params() {
         m_reengine_at      = true;
         m_game_name        = "mhstories3";
         m_target_name      = "MHSTORIES3";
+        break;
+
+    case GameID::STARFORCE:
+        m_tdb_ver          = 78;
+        m_type_index_bits  = 19;
+        m_field_bits       = 20;
+        m_reengine_packed  = true;
+        m_reengine_at      = true;
+        m_game_name        = "starforce";
+        m_target_name      = "STARFORCE";
         break;
 
     case GameID::RE9:

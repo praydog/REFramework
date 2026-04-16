@@ -22,6 +22,8 @@
 #include "ReClass_Internal_MHWILDS.hpp"
 #elif defined(MHSTORIES3)
 #include "ReClass_Internal_MHSTORIES3.hpp"
+#elif defined(STARFORCE)
+#include "ReClass_Internal_MHSTORIES3.hpp" // Copy of MHSTORIES3 (for now)
 #elif defined(DD2)
 #include "ReClass_Internal_DD2.hpp"
 #elif defined(SF6)

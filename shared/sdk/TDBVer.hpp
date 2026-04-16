@@ -29,6 +29,8 @@
 #define TDB_VER 84
 #elif defined(RE9)
 #define TDB_VER 83
+#elif defined(STARFORCE)
+#define TDB_VER 78
 #elif defined(MHSTORIES3)
 #define TDB_VER 82
 #elif defined(MHWILDS)
@@ -136,6 +138,10 @@ using RETypeDefinition_ = sdk::RETypeDefVersion84;
 using RETypeDefinition_ = sdk::RETypeDefVersion84;
 #elif defined(RE9)
 using RETypeDefinition_ = sdk::RETypeDefVersion83;
+#elif defined(STARFORCE)
+#define TYPE_INDEX_BITS 19
+#define FIELD_BITS 19
+using RETypeDefinition_ = sdk::RETypeDefVersion74;
 #elif defined(MHSTORIES3)
 using RETypeDefinition_ = sdk::RETypeDefVersion82;
 #elif defined(MHWILDS)

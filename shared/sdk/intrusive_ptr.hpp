@@ -45,6 +45,20 @@ public:
         return *this;
     }
 
+    intrusive_ptr& operator=(const intrusive_ptr& other) {
+        if (m_ptr != nullptr) {
+            m_ptr->release();
+        }
+
+        m_ptr = other.m_ptr;
+
+        if (m_ptr != nullptr) {
+            m_ptr->add_ref();
+        }
+
+        return *this;
+    }
+
     T* get() const {
         return m_ptr;
     }

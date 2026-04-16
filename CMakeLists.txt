@@ -138,21 +138,21 @@ FetchContent_Declare(freetype
 )
 FetchContent_MakeAvailable(freetype)
 
-message(STATUS "Fetching bddisasm (v1.34.10)...")
+message(STATUS "Fetching bddisasm (70db095765ab2066dd88dfb7bbcc42259ed167c5)...")
 FetchContent_Declare(bddisasm
 	GIT_REPOSITORY
 		"https://github.com/bitdefender/bddisasm"
 	GIT_TAG
-		v1.34.10
+		70db095765ab2066dd88dfb7bbcc42259ed167c5
 )
 FetchContent_MakeAvailable(bddisasm)
 
-message(STATUS "Fetching kananlib (7109f03a487be4db05ff3950981c9d303a260680)...")
+message(STATUS "Fetching kananlib (8c27b656734355db0f2893581fd62e838fa130ad)...")
 FetchContent_Declare(kananlib
 	GIT_REPOSITORY
 		"https://github.com/cursey/kananlib"
 	GIT_TAG
-		7109f03a487be4db05ff3950981c9d303a260680
+		8c27b656734355db0f2893581fd62e838fa130ad
 )
 FetchContent_MakeAvailable(kananlib)
 
@@ -485,6 +485,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"shared/sdk/ReClass_Internal_MHSTORIES3.hpp"
 		"shared/sdk/ReClass_Internal_MHWILDS.hpp"
 		"shared/sdk/ReClass_Internal_PRAGMATA.hpp"
+		"shared/sdk/ReClass_LooseTextureLoader_Internal.hpp"
 		"shared/sdk/ReClass_Internal_RE2_TDB70.hpp"
 		"shared/sdk/ReClass_Internal_RE3.hpp"
 		"shared/sdk/ReClass_Internal_RE3_TDB70.hpp"
@@ -1404,6 +1405,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/ExceptionHandler.cpp"
 		"src/ExceptionHandler.hpp"
 		"src/Genny.hpp"
+		"src/DisasmUtils.hpp"
 		"src/GennyIda.hpp"
 		"src/HookManager.cpp"
 		"src/HookManager.hpp"
@@ -1443,6 +1445,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/mods/IntegrityCheckBypass.hpp"
 		"src/mods/LooseFileLoader.cpp"
 		"src/mods/LooseFileLoader.hpp"
+		"src/mods/LooseTextureLoader.cpp"
+		"src/mods/LooseTextureLoader.hpp"
 		"src/mods/ManualFlashlight.cpp"
 		"src/mods/ManualFlashlight.hpp"
 		"src/mods/MethodDatabase.cpp"

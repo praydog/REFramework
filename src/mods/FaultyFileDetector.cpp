@@ -1,6 +1,8 @@
 #include "FaultyFileDetector.hpp"
 #include "IntegrityCheckBypass.hpp"
 
+#include <sdk/GameIdentity.hpp>
+
 #include <fstream>
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/basic_file_sink.h>
@@ -10,6 +12,7 @@
 
 #include <safetyhook/mid_hook.hpp>
 #include "REFramework.hpp"
+#include "DisasmUtils.hpp"
 
 std::shared_ptr<FaultyFileDetector> g_faulty_detector_instance = nullptr;
 
@@ -66,28 +69,6 @@ void FaultyFileDetector::resource_parse_open_stream_failed_hook_wrapper(safetyho
     s_instance->resource_parse_open_stream_failed_hook(ctx);
 }
 
-template <typename T>
-T* get_register_value(safetyhook::Context& ctx, uint8_t reg) {
-    switch (reg) {
-        case NDR_RAX: return reinterpret_cast<T*>(ctx.rax);
-        case NDR_RBX: return reinterpret_cast<T*>(ctx.rbx);
-        case NDR_RCX: return reinterpret_cast<T*>(ctx.rcx);
-        case NDR_RDX: return reinterpret_cast<T*>(ctx.rdx);
-        case NDR_RSI: return reinterpret_cast<T*>(ctx.rsi);
-        case NDR_RDI: return reinterpret_cast<T*>(ctx.rdi);
-        case NDR_RBP: return reinterpret_cast<T*>(ctx.rbp);
-        case NDR_RSP: return reinterpret_cast<T*>(ctx.rsp);
-        case NDR_R8:  return reinterpret_cast<T*>(ctx.r8);
-        case NDR_R9:  return reinterpret_cast<T*>(ctx.r9);
-        case NDR_R10: return reinterpret_cast<T*>(ctx.r10);
-        case NDR_R11: return reinterpret_cast<T*>(ctx.r11);
-        case NDR_R12: return reinterpret_cast<T*>(ctx.r12);
-        case NDR_R13: return reinterpret_cast<T*>(ctx.r13);
-        case NDR_R14: return reinterpret_cast<T*>(ctx.r14);
-        case NDR_R15: return reinterpret_cast<T*>(ctx.r15);
-        default: return nullptr;
-    }
-}
 
 FaultyFileDetector::FaultyFileDetector() {
     if (s_instance == nullptr) {
@@ -198,8 +179,9 @@ bool FaultyFileDetector::scan_resource_process_parse_and_hook() {
             const int first_call_vtable_offset = 0x20;
             const int second_call_vtable_offset = 0x48;
             const int third_call_vtable_offset = 0x38;
+            bool found[3]{false, false, false};
 
-            const int max_instructions_search_range = 60;
+            const int max_instructions_search_range = 100;
 
             int current_calls_found = 0;
 
@@ -207,36 +189,53 @@ bool FaultyFileDetector::scan_resource_process_parse_and_hook() {
             std::uint8_t *parse_call_return_address = nullptr;
             std::uint8_t *start_searching_resource_access_ptr = nullptr;
 
-            for (int i = 0; i < max_instructions_search_range; i++) {
-                auto instr = utility::decode_one(after_call_ptr);
-                if (!instr.has_value()) {
-                    break;
+            //for (int i = 0; i < max_instructions_search_range; i++) {
+                //auto instr = utility::decode_one(after_call_ptr);
+                //if (!instr.has_value()) {
+                    //break;
+                //}
+            // exhaustive_decode instead. seen to be using non contiguous control flow in some games.
+            utility::exhaustive_decode((uint8_t*)after_call_ptr, max_instructions_search_range, [&](utility::ExhaustionContext& ctx) -> utility::ExhaustionResult {
+                if (current_calls_found >= 3) {
+                    return utility::ExhaustionResult::BREAK;
                 }
+            
+                auto* instr = &ctx.instrux;
 
                 if (instr->Instruction == ND_INS_CALLNI) {
                     if (instr->OperandsCount >= 1 && instr->Operands[0].Type == ND_OP_MEM) {
                         auto mem_operand = instr->Operands[0].Info.Memory;
-                        if (mem_operand.Base == NDR_RAX) {
-                            if (current_calls_found == 0 && mem_operand.Disp == first_call_vtable_offset) {
+                        if (mem_operand.HasBase && mem_operand.Base == NDR_RAX) {
+                            if (mem_operand.Disp == first_call_vtable_offset && !found[0]) {
                                 // First call found
                                 current_calls_found++;
-                                start_searching_resource_access_ptr = after_call_ptr + instr->Length;
-                            } else if (current_calls_found == 1 && mem_operand.Disp == second_call_vtable_offset) {
+                                start_searching_resource_access_ptr = (uint8_t*)(ctx.addr + instr->Length); // The instruction that accesses resource after the call is usually right after the call instruction, so we can start searching from there
+                                found[0] = true;
+                                spdlog::info("[FaultyFileDetector]: Found first call at 0x{:X}", (uintptr_t)ctx.addr);
+                            } else if (mem_operand.Disp == second_call_vtable_offset && !found[1]) {
                                 // Second call found
                                 current_calls_found++;
-                                parse_call_ptr = after_call_ptr;
-                                parse_call_return_address = after_call_ptr + instr->Length;
-                            } else if (current_calls_found == 2 && mem_operand.Disp == third_call_vtable_offset) {
+                                parse_call_ptr = (uint8_t*)(ctx.addr);
+                                parse_call_return_address = (uint8_t*)(ctx.addr + instr->Length);
+                                found[1] = true;
+                                spdlog::info("[FaultyFileDetector]: Found second call at 0x{:X}", (uintptr_t)ctx.addr);
+                            } else if (mem_operand.Disp == third_call_vtable_offset && !found[2]) {
                                 // Third call found
                                 current_calls_found++;
-                                break;
+                                found[2] = true;
+                                spdlog::info("[FaultyFileDetector]: Found third call at 0x{:X}", (uintptr_t)ctx.addr);
                             }
                         }
                     }
                 }
 
-                after_call_ptr += instr->Length;
-            }
+                // step over calls.
+                if (instr->Category == ND_CAT_CALL) {
+                    return utility::ExhaustionResult::STEP_OVER;
+                }
+
+                return utility::ExhaustionResult::CONTINUE;
+            });
 
             if (current_calls_found == 3) {
                 // Definitively what we are looking for
@@ -249,21 +248,30 @@ bool FaultyFileDetector::scan_resource_process_parse_and_hook() {
                 std::uint8_t *resource_argument_assigned_ptr = nullptr;
 
                 // Very fragile way, but it works for now
-                for (int i = 0; i < resource_register_search_max_num_instructions && instr_ptr < parse_call_ptr; i++) {
-                    auto instrux = utility::decode_one(instr_ptr);
-                    if (instrux && instrux->Instruction == ND_INS_MOV) {
+                //for (int i = 0; i < resource_register_search_max_num_instructions; i++) {
+                    //auto instrux = utility::decode_one(instr_ptr);
+                utility::exhaustive_decode((uint8_t*)start_searching_resource_access_ptr, resource_register_search_max_num_instructions, [&](utility::ExhaustionContext& ctx) -> utility::ExhaustionResult {
+                    if (resource_argument_assigned_ptr != nullptr) {
+                        return utility::ExhaustionResult::BREAK;
+                    }
+
+                    auto instrux = &ctx.instrux;
+                    if (std::string_view(instrux->Mnemonic).starts_with("MOV")) {
                         bool is_first_operator_first_arg = instrux->OperandsCount >= 1 && instrux->Operands[0].Type == ND_OP_REG && instrux->Operands[0].Info.Register.Reg == NDR_RCX;
                         bool is_second_operator_register = instrux->OperandsCount >= 2 && instrux->Operands[1].Type == ND_OP_REG;
+                        // Seen in RE9
+                        bool is_second_operator_rsp_based = instrux->OperandsCount >= 2 && instrux->Operands[1].Type == ND_OP_MEM && instrux->Operands[1].Info.Memory.Base == NDR_RSP;
 
-                        if (is_first_operator_first_arg && is_second_operator_register) {
-                            resource_argument_assigned_ptr = instr_ptr + instrux->Length;
+                        if (is_first_operator_first_arg && (is_second_operator_register || is_second_operator_rsp_based)) {
+                            resource_argument_assigned_ptr = (uint8_t*)(ctx.addr + instrux->Length); // The instruction that uses the resource argument is the next instruction after the assignment
                             spdlog::info("[FaultyFileDetector]: Found resource argument assign at 0x{:x}, hooking to extract it at: 0x{:x}", (uintptr_t)instr_ptr, (uintptr_t)resource_argument_assigned_ptr);
 
-                            break;
+                            return utility::ExhaustionResult::BREAK;
                         }
                     }
-                    instr_ptr += instrux ? instrux->Length : 1;
-                }
+
+                    return utility::ExhaustionResult::CONTINUE;
+                });
 
                 if (resource_argument_assigned_ptr == nullptr) {
                     spdlog::warn("[FaultyFileDetector]: Failed to find resource argument assign from 0x{:X}", (uintptr_t)parse_call_ptr);
@@ -378,7 +386,7 @@ void FaultyFileDetector::resource_parse_open_stream_failed_hook(safetyhook::Cont
         return;
     }
 
-    REResource_Via_Raw* resource = get_register_value<REResource_Via_Raw>(ctx, m_resource_open_failed_register);
+    REResource_Via_Raw* resource = disasm_utils::get_register_value<REResource_Via_Raw*>(ctx, m_resource_open_failed_register);
 
     if (resource) {
         try_add_to_faulty_list(resource->path, FaultyTier::Severe, FaultyReason::MissingFile);
@@ -467,6 +475,14 @@ void FaultyFileDetector::try_add_to_faulty_list(std::wstring_view filename, Faul
     }
 
     if (should_log) {
+        // Push a toast notification
+        {
+            std::scoped_lock lock2{m_mutex};
+            Notification notif{};
+            notif.text = std::format("[{}] {}", faulty_reason_to_string(reason), utility::narrow(name_wstr));
+            notif.reason = reason;
+            m_notifications.push_back(std::move(notif));
+        }
         // Log the faulty file to dedicated log file
         auto log_msg = std::format("{} \"{}\" \"{}\"", (int)reason, faulty_reason_to_string(reason), utility::narrow(name_wstr));
 
@@ -483,6 +499,87 @@ void FaultyFileDetector::try_add_to_faulty_list(std::wstring_view filename, Faul
                     break;
             }
         }
+    }
+}
+
+void FaultyFileDetector::on_frame() {
+    if (!m_enabled->value()) {
+        return;
+    }
+
+    std::scoped_lock lock{m_mutex};
+
+    if (m_notifications.empty()) {
+        return;
+    }
+
+    const float dt = std::min(ImGui::GetIO().DeltaTime, 0.1f);
+
+    // Remove expired notifications from the front
+    while (!m_notifications.empty()) {
+        auto& front = m_notifications.front();
+        if (front.started && front.elapsed > NOTIFICATION_DURATION + NOTIFICATION_FADE_OUT) {
+            m_notifications.pop_front();
+        } else {
+            break;
+        }
+    }
+
+    float y_offset = 10.0f;
+
+    for (auto& notif : m_notifications) {
+        // Mark as started on first frame so pre-rendering queued notifications
+        // don't accumulate wall-clock time before ImGui is ready.
+        notif.started = true;
+        notif.elapsed += dt;
+
+        float elapsed = notif.elapsed;
+
+        // Compute alpha: fade in, hold, fade out
+        float alpha = 1.0f;
+        if (elapsed < NOTIFICATION_FADE_IN) {
+            alpha = elapsed / NOTIFICATION_FADE_IN;
+        } else if (elapsed > NOTIFICATION_DURATION) {
+            alpha = 1.0f - (elapsed - NOTIFICATION_DURATION) / NOTIFICATION_FADE_OUT;
+        }
+        alpha = std::clamp(alpha, 0.0f, 1.0f);
+
+        // Slide in from the left
+        float slide = (elapsed < NOTIFICATION_FADE_IN) ? (elapsed / NOTIFICATION_FADE_IN) : 1.0f;
+
+        // Pick color based on reason
+        ImVec4 text_color;
+        switch (notif.reason) {
+            case FaultyReason::MissingFile:       text_color = ImVec4(1.0f, 1.0f, 0.3f, alpha); break;
+            case FaultyReason::Invalid:           text_color = ImVec4(1.0f, 0.6f, 0.2f, alpha); break;
+            case FaultyReason::ShouldBeEncrypted: text_color = ImVec4(1.0f, 0.3f, 0.3f, alpha); break;
+            default:                              text_color = ImVec4(0.9f, 0.9f, 0.9f, alpha); break;
+        }
+
+        auto text_size = ImGui::CalcTextSize(notif.text.c_str());
+        float box_width = text_size.x + NOTIFICATION_PADDING * 2.0f;
+        float box_height = text_size.y + NOTIFICATION_PADDING * 2.0f;
+
+        float x_pos = -box_width * (1.0f - slide) + 10.0f * slide;
+
+        auto* draw_list = ImGui::GetForegroundDrawList();
+
+        // Background
+        ImU32 bg_color = IM_COL32(20, 20, 20, (int)(200 * alpha));
+        ImU32 border_color = IM_COL32(80, 80, 80, (int)(180 * alpha));
+        ImVec2 p_min{x_pos, y_offset};
+        ImVec2 p_max{x_pos + box_width, y_offset + box_height};
+        draw_list->AddRectFilled(p_min, p_max, bg_color, 4.0f);
+        draw_list->AddRect(p_min, p_max, border_color, 4.0f);
+
+        // Text
+        draw_list->AddText(
+            ImVec2{x_pos + NOTIFICATION_PADDING, y_offset + NOTIFICATION_PADDING},
+            ImGui::ColorConvertFloat4ToU32(text_color),
+            notif.text.c_str()
+        );
+
+        y_offset += box_height + NOTIFICATION_MARGIN;
     }
 }
 
@@ -570,6 +667,12 @@ void FaultyFileDetector::on_draw_ui() {
 }
 
 void FaultyFileDetector::early_init() {
+#ifdef REFRAMEWORK_UNIVERSAL
+    // Pre-TDB81 games don't have the scan patterns the detector looks for.
+    if (sdk::GameIdentity::get().tdb_ver() < 81) {
+        return;
+    }
+#endif
     if (g_faulty_detector_instance == nullptr) {
         g_faulty_detector_instance = std::make_unique<FaultyFileDetector>();
     }

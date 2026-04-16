@@ -155,6 +155,7 @@ inline bool needs_plain_impl() {
         case 71: case 72: return static_cast<ret_type>(reinterpret_cast<const sdk::tdb71::RETypeImpl*>(&(ref))->field); \
         case 73:          return static_cast<ret_type>(reinterpret_cast<const sdk::tdb73::RETypeImpl*>(&(ref))->field); \
         case 74:          return static_cast<ret_type>(reinterpret_cast<const sdk::tdb74::RETypeImpl*>(&(ref))->field); \
+        case 78:          return static_cast<ret_type>(reinterpret_cast<const sdk::tdb74::RETypeImpl*>(&(ref))->field); /* STARFORCE */ \
         case 81:          return static_cast<ret_type>(reinterpret_cast<const sdk::tdb81::RETypeImpl*>(&(ref))->field); \
         case 82:          return static_cast<ret_type>(reinterpret_cast<const sdk::tdb82::RETypeImpl*>(&(ref))->field); \
         case 83:          return static_cast<ret_type>(reinterpret_cast<const sdk::tdb83::RETypeImpl*>(&(ref))->field); \

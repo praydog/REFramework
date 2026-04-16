@@ -1878,6 +1878,7 @@ struct RETypeDB : public sdk::RETypeDB_ {
     case 71: case 72: return reinterpret_cast<const sdk::tdb71::TDB*>(this)->field; \
     case 73:          return reinterpret_cast<const sdk::tdb73::TDB*>(this)->field; \
     case 74:          return reinterpret_cast<const sdk::tdb74::TDB*>(this)->field; \
+    case 78:          return reinterpret_cast<const sdk::tdb74::TDB*>(this)->field; /* STARFORCE: same layout as TDB74 */ \
     case 81:          return reinterpret_cast<const sdk::tdb81::TDB*>(this)->field; \
     case 82:          return reinterpret_cast<const sdk::tdb82::TDB*>(this)->field; \
     case 83:          return reinterpret_cast<const sdk::tdb83::TDB*>(this)->field; \
@@ -1894,6 +1895,7 @@ struct RETypeDB : public sdk::RETypeDB_ {
     case 71: case 72: return reinterpret_cast<const sdk::tdb71::TDB*>(this)->field; \
     case 73:          return reinterpret_cast<const sdk::tdb73::TDB*>(this)->field; \
     case 74:          return reinterpret_cast<const sdk::tdb74::TDB*>(this)->field; \
+    case 78:          return reinterpret_cast<const sdk::tdb74::TDB*>(this)->field; /* STARFORCE */ \
     case 81:          return reinterpret_cast<const sdk::tdb81::TDB*>(this)->field; \
     case 82:          return reinterpret_cast<const sdk::tdb82::TDB*>(this)->field; \
     case 83:          return reinterpret_cast<const sdk::tdb83::TDB*>(this)->field; \
@@ -1931,6 +1933,7 @@ struct RETypeDB : public sdk::RETypeDB_ {
     case 71: case 72: return (_ret)reinterpret_cast<const sdk::tdb71::TDB*>(this)->field; \
     case 73:          return (_ret)reinterpret_cast<const sdk::tdb73::TDB*>(this)->field; \
     case 74:          return (_ret)reinterpret_cast<const sdk::tdb74::TDB*>(this)->field; \
+    case 78:          return (_ret)reinterpret_cast<const sdk::tdb74::TDB*>(this)->field; /* STARFORCE */ \
     case 81:          return (_ret)reinterpret_cast<const sdk::tdb81::TDB*>(this)->field; \
     case 82:          return (_ret)reinterpret_cast<const sdk::tdb82::TDB*>(this)->field; \
     case 83:          return (_ret)reinterpret_cast<const sdk::tdb83::TDB*>(this)->field; \
@@ -1946,6 +1949,7 @@ struct RETypeDB : public sdk::RETypeDB_ {
     case 71: case 72: return (_ret)reinterpret_cast<const sdk::tdb71::TDB*>(this)->field; \
     case 73:          return (_ret)reinterpret_cast<const sdk::tdb73::TDB*>(this)->field; \
     case 74:          return (_ret)reinterpret_cast<const sdk::tdb74::TDB*>(this)->field; \
+    case 78:          return (_ret)reinterpret_cast<const sdk::tdb74::TDB*>(this)->field; /* STARFORCE */ \
     case 81:          return (_ret)reinterpret_cast<const sdk::tdb81::TDB*>(this)->field; \
     case 82:          return (_ret)reinterpret_cast<const sdk::tdb82::TDB*>(this)->field; \
     case 83:          return (_ret)reinterpret_cast<const sdk::tdb83::TDB*>(this)->field; \
@@ -2382,6 +2386,18 @@ T* get_static_field(std::string_view type_name, std::string_view name, bool is_v
     }
 
     return get_native_field<T>((void*)nullptr, t, name, is_value_type);
+}
+
+template<typename T>
+T get_enum_value(std::string_view type_name, std::string_view name) {
+    const auto field = get_static_field<T>(type_name, name, false);
+
+    if (field == nullptr) {
+        // spdlog::error("Cannot find enum value {:s}", name.data());
+        return T{};
+    }
+
+    return *field;
 }
 
 template <typename T>
