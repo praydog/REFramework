@@ -1852,27 +1852,41 @@ static_assert(false, "TDB_VER is not defined");
 #endif
 
 // GenericListData bitfield dispatch.
-// tdb67: definition_typeid:17, num:14 (1 bit padding)
-// tdb69+: definition_typeid:19, num:13
+// tdb67:    definition_typeid:17, num:14 (1 bit padding)
+// tdb69-70: definition_typeid:18, num:14
+// tdb71+:   definition_typeid:19, num:13
 // Universal build compiles the tdb84 layout, so direct ->num / ->definition_typeid
-// reads are wrong on DMC5 (tdb67). These helpers dispatch at runtime.
+// reads are wrong on DMC5 (tdb67) AND on tdb69-70 games (RE2/RE3/RE7/RE8).
+// These helpers dispatch at runtime.
 #ifdef REFRAMEWORK_UNIVERSAL
 namespace generic_list_accessor {
     inline uint32_t get_num(const GenericListData* gd) {
-        if (sdk::GameIdentity::get().tdb_ver() < 69) {
+        const auto v = sdk::GameIdentity::get().tdb_ver();
+        if (v < 69) {
             return reinterpret_cast<const tdb67::GenericListData*>(gd)->num;
+        }
+        if (v < 71) {
+            return reinterpret_cast<const tdb69::GenericListData*>(gd)->num;
         }
         return gd->num;
     }
     inline uint32_t get_definition_typeid(const GenericListData* gd) {
-        if (sdk::GameIdentity::get().tdb_ver() < 69) {
+        const auto v = sdk::GameIdentity::get().tdb_ver();
+        if (v < 69) {
             return reinterpret_cast<const tdb67::GenericListData*>(gd)->definition_typeid;
+        }
+        if (v < 71) {
+            return reinterpret_cast<const tdb69::GenericListData*>(gd)->definition_typeid;
         }
         return gd->definition_typeid;
     }
     inline uint32_t get_type_at(const GenericListData* gd, uint32_t index) {
-        if (sdk::GameIdentity::get().tdb_ver() < 69) {
+        const auto v = sdk::GameIdentity::get().tdb_ver();
+        if (v < 69) {
             return reinterpret_cast<const tdb67::GenericListData*>(gd)->types[index];
+        }
+        if (v < 71) {
+            return reinterpret_cast<const tdb69::GenericListData*>(gd)->types[index];
         }
         return gd->types[index];
     }

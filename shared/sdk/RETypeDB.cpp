@@ -7,6 +7,7 @@
 #include "RETypeDB.hpp"
 
 namespace sdk {
+
 RETypeDB* RETypeDB::get() {
     auto vm = VM::get();
 

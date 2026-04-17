@@ -396,14 +396,14 @@ REFrameworkTDBProperty g_tdb_property_data {
 #define RETDB(var) ((sdk::RETypeDB*)var)
 
 REFrameworkTDB g_tdb_data {
-    [](REFrameworkTDBHandle tdb) { return RETDB(tdb)->numTypes; },
-    [](REFrameworkTDBHandle tdb) { return RETDB(tdb)->numMethods; },
-    [](REFrameworkTDBHandle tdb) { return RETDB(tdb)->numFields; },
-    [](REFrameworkTDBHandle tdb) { return RETDB(tdb)->numProperties; },
-    [](REFrameworkTDBHandle tdb) { return (unsigned int)RETDB(tdb)->numStringPool; },
-    [](REFrameworkTDBHandle tdb) { return (unsigned int)RETDB(tdb)->numBytePool; },
-    [](REFrameworkTDBHandle tdb) { return (const char*)RETDB(tdb)->stringPool; },
-    [](REFrameworkTDBHandle tdb) { return (unsigned char*)RETDB(tdb)->bytePool; },
+    [](REFrameworkTDBHandle tdb) { return RETDB(tdb)->get_num_types(); },
+    [](REFrameworkTDBHandle tdb) { return RETDB(tdb)->get_num_methods(); },
+    [](REFrameworkTDBHandle tdb) { return RETDB(tdb)->get_num_fields(); },
+    [](REFrameworkTDBHandle tdb) { return RETDB(tdb)->get_num_properties(); },
+    [](REFrameworkTDBHandle tdb) { return (unsigned int)RETDB(tdb)->get_string_pool_size(); },
+    [](REFrameworkTDBHandle tdb) { return (unsigned int)RETDB(tdb)->get_byte_pool_size(); },
+    [](REFrameworkTDBHandle tdb) { return (const char*)RETDB(tdb)->get_stringPool_ptr(); },
+    [](REFrameworkTDBHandle tdb) { return (unsigned char*)RETDB(tdb)->get_bytePool_ptr(); },
 
     [](REFrameworkTDBHandle tdb, unsigned int index) { return (REFrameworkTypeDefinitionHandle)RETDB(tdb)->get_type(index); },
     [](REFrameworkTDBHandle tdb, const char* name) { return (REFrameworkTypeDefinitionHandle)RETDB(tdb)->find_type(name); },
