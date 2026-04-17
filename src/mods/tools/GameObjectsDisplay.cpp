@@ -162,7 +162,15 @@ void GameObjectsDisplay::on_present() {
 }
 
 void GameObjectsDisplay::on_frame() {
-    if (!m_enabled->value() || m_needs_d3d_init || !m_d3d12.initialized) {
+    if (!m_enabled->value() || m_needs_d3d_init) {
+        return;
+    }
+
+    // The D3D12 3D-text rendering path needs m_d3d12.initialized. The ImGui
+    // world-to-screen fallback (legacy mode or D3D11) does not — it draws via
+    // ImGui::GetBackgroundDrawList() and only needs world_to_screen to work.
+    const bool is_d3d12_frame = g_framework->is_dx12();
+    if (is_d3d12_frame && !m_legacy_mode && !m_d3d12.initialized) {
         return;
     }
 
