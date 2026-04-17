@@ -315,18 +315,9 @@ bool FaultyFileDetector::scan_resource_process_parse_and_hook() {
                 // TODO: For now only one exists, but if multiple exists we should hook them all, just need to figure out how to differentiate them
                 spdlog::info("[FaultyFileDetector]: Found possible get next resource to process function at 0x{:X}", possible_get_next_resource_to_process_call.value());
 
-                // Follow the failure function
-                const int scan_resource_path_usage_length = 1024;
-                auto using_resource_path_offset = utility::scan_displacement_reference(possible_get_next_resource_to_process_call.value(), scan_resource_path_usage_length, str_offset.value());
-
-                std::uint8_t *resource_stream_failed_offset = nullptr;
-
-                if (using_resource_path_offset.has_value()) {
-                    // Skip the displacement value
-                    auto next_instr = using_resource_path_offset.value() + 4;
-
-                    const int scan_resource_stream_failed_length = 2048;
-                    utility::exhaustive_decode((uint8_t*)next_instr, scan_resource_stream_failed_length, std::bind(&FaultyFileDetector::scan_for_resource_open_failed_hook, this, std::placeholders::_1));
+                auto bounds = utility::determine_function_bounds(possible_get_next_resource_to_process_call.value());
+                if (bounds.has_value()) {
+                    utility::exhaustive_decode((uint8_t*)bounds->start, bounds->end - bounds->start, std::bind(&FaultyFileDetector::scan_for_resource_open_failed_hook, this, std::placeholders::_1));
                 }
 
                 if (m_resource_open_failed_addr) {
@@ -340,11 +331,7 @@ bool FaultyFileDetector::scan_resource_process_parse_and_hook() {
                     m_resource_open_failed_hook = std::move(hook);
                     break;
                 } else {
-                    if (using_resource_path_offset.has_value()) {
-                        spdlog::warn("[FaultyFileDetector]: Failed to find resource stream failed check after using resource path at 0x{:X}", (uintptr_t)using_resource_path_offset.value());
-                    } else {
-                        spdlog::warn("[FaultyFileDetector]: Failed to find usage of resource path string at 0x{:X}", (uintptr_t)possible_get_next_resource_to_process_call.value());
-                    }
+                    spdlog::warn("[FaultyFileDetector]: Failed to find resource stream failed check after using resource path at 0x{:X}", (uintptr_t)possible_get_next_resource_to_process_call.value());
                 }
             }
         }
