@@ -17,10 +17,10 @@ Convert the project from N per-game DLLs (each built with game-specific `#ifdef`
 - Provides: `game()`, `tdb_ver()`, `type_index_bits()`, `field_bits()`, `is_reengine_packed()`, `is_reengine_at()`, `game_name()`, `target_name()`
 
 ### 2. TDB Version Handling
-- Default TDB version derived from game identity (modern version for each game).
-- Auto-detection from the TDB binary header at runtime to support legacy game versions (RE2_TDB66, RE3_TDB67, RE7_TDB49).
-- `GameIdentity::tdb_ver()` is the authoritative source; may be updated after TDB header is read.
-- All `#if TDB_VER >= X` guards become `if (GameIdentity::get().tdb_ver() >= X)`.
+- `GameIdentity::tdb_ver()` returns the modern TDB version for each game (hardcoded from the game roster).
+- Legacy binaries that ship a different TDB version than the modern release (`RE2_TDB66`, `RE3_TDB67`, `RE7_TDB49`) are **out of scope** for the monolithic build — they need a dedicated `GameID` entry with a different hardcoded `tdb_ver`, or a runtime downgrade path that is not currently implemented.
+- Runtime struct-layout dispatch is driven by the `TDB_DISPATCH` / `TDB_DISPATCH_PTR` macros in `RETypeDB.hpp`, which `switch` on `tdb_ver()` to select the correct per-version struct layout.
+- All `#if TDB_VER >= X` guards in `src/` were converted to `if (GameIdentity::get().tdb_ver() >= X)`. Most guards in `shared/sdk/` were collapsed into stride-aware accessors and the `TDB_DISPATCH` chain; a small residual set of `#if TDB_VER` blocks remains for legacy per-game builds compiled without `REFRAMEWORK_UNIVERSAL`.
 
 ### 3. Struct Layout Strategy (ReClass, Regenny)
 - All per-game struct definitions are kept and compiled simultaneously.
@@ -70,57 +70,34 @@ Convert the project from N per-game DLLs (each built with game-specific `#ifdef`
 - **Performance**: Runtime dispatch in hot loops (unlikely to matter vs cache misses from game engine itself).
 
 ## Legacy TDB Versions
-Old games had different TDB versions. The monolithic DLL handles this by:
-1. Starting with the modern TDB version for each game
-2. Auto-detecting the actual TDB version from the binary header when the type database is first loaded
-3. Updating `GameIdentity` TDB version accordingly
-This means RE7 starts assuming TDB70 but if the actual binary has TDB49, it switches.
+Old non-RT releases of RE2/RE3/RE7 shipped with earlier TDB versions (66/67/49). The monolithic build does **not** auto-detect the TDB version from the binary header or downgrade `GameIdentity::tdb_ver()` at runtime — that path was considered and rejected in favour of keeping legacy binaries out of scope. Users on those binaries should continue to use the pre-monolithic per-game DLLs.
 
 
 ## Current Status (v2 branch)
 
 ### Completed
-- GameIdentity singleton: runtime game detection from exe name
-- cmake.toml: single `REFrameworkSDK` + `REFramework` (dinput8.dll) targets
-- TDBVer.hpp: compile-time TDB_VER=84 under REFRAMEWORK_UNIVERSAL
-- ReClass.hpp: includes RE8 layout as canonical base
-- ~200 game-specific `#ifdef` guards in src/ converted to runtime GameIdentity checks
-- Build compiles and links successfully (MSVC 19.44 / VS 2022)
+- `GameIdentity` singleton: runtime game detection from exe name; `DllMain`-scoped initialisation (safe under loader lock).
+- `cmake.toml`: single `REFrameworkSDK` + `REFramework` (dinput8.dll) targets.
+- `TDBVer.hpp`: compile-time `TDB_VER=84` under `REFRAMEWORK_UNIVERSAL`.
+- `ReClass.hpp`: RE8 layout as the canonical base; per-game divergences handled via `utility::re_type_accessor`, `classinfo_accessor`, and the REType predicate split (`retype_has_shifted_pointers` vs `retype_has_field_reorder`).
+- `RETypeDB.hpp`: `TDB_DISPATCH` / `TDB_DISPATCH_PTR` macro chain dispatches struct layout to the correct tier at runtime. All production accessors (`get_type`, `get_method`, `get_field`, `get_property`, `get_module`, `get_num_types`, ...) are stride-aware.
+- Plugin ABI (`src/mods/PluginLoader.cpp`): direct-field accesses that bypassed `TDB_DISPATCH` were eliminated in commit `99a5f49a` (eight lambdas in `g_tdb_data`).
+- .NET assembly generation verified across all 14 supported games.
 
 ### Game Compatibility
-| TDB Version | Games | Status |
+| TDB | Games | Status |
 |---|---|---|
-| 84 | PRAGMATA | Full (compiled struct matches) |
-| 83 | RE9 | Full |
-| 82 | MHSTORIES3 | Full |
-| 81 | MHWILDS | Full |
-| 73 | DD2 | Likely works (tdb84 struct is superset) |
-| 71 | RE4, MHRISE, SF6 | Likely works |
-| 70 | RE2, RE3, RE7 (modern) | Needs runtime struct dispatch |
-| 69 | RE8 | Needs runtime struct dispatch |
-| 67 | DMC5 | Needs runtime struct dispatch |
-| 66 | RE2 (legacy) | Needs runtime struct dispatch |
-| 49 | RE7 (legacy) | Needs runtime struct dispatch |
+| 67 | DMC5 | Works — `classinfo_accessor` handles REClassInfo layout divergence; `GenericListData` tier 67 bitfield in place |
+| 69 | RE8 | Works |
+| 70 | RE2, RE3, RE7 (modern only) | Works |
+| 71 | RE4, MHRISE, SF6 | Works |
+| 73 | DD2 | Works — D3D12 freeze resolved by `99a5f49a` (plugin ABI `numTypes`) and `dc980944` (`copy_texture`) |
+| 78 | STARFORCE | Works — Mega Man Star Force Legacy Collection |
+| 81 | MHWILDS | Works |
+| 82 | MHSTORIES3 | Works — window uses DD2 layout (borderless_size @ 0xa0) |
+| 83 | PRAGMATA, RE9 | Works |
 
-### Remaining: SDK TDB Struct Dispatch (BLOCKER for old games)
-209 compile-time `#if TDB_VER` guards remain in `shared/sdk/`.
-
-The core problem: `RETypeDB.hpp` lines 1712-1847 select ONE struct layout at compile time.
-With TDB_VER=84, the code compiles against `tdb84::TDB`, `tdb84::REMethodDefinition`, etc.
-These POD structs have different field counts and offsets per TDB version:
-- tdb84::TDB: `modules` at ~offset 0x88 (after 20+ uint32 fields)
-- tdb49::TDB: `modules` at offset 0x38 (after 10 uint32 fields)
-
-When the monolithic DLL runs inside DMC5 (TDB67), the actual TDB in memory has the
-tdb67 layout, but compiled code interprets it as tdb84. Member offsets don't match.
-
-**Options for runtime struct dispatch:**
-1. Virtual accessor wrapper: `sdk::RETypeDB` becomes a polymorphic class with
-   version-specific subclasses that override accessors
-2. Offset table: A per-TDB-version offset table drives field access at runtime
-3. Reinterpret + switch: Cast `this` to the correct versioned struct in each accessor
-4. Template-based dispatch: Game identity → template param → correct struct type at each callsite
-
-This requires an architectural decision from the maintainer.
-The `shared/sdk/*.cpp` accessor functions (RETypeDB.cpp: 30 guards, RETypeDefinition.cpp: 25 guards)
-can be converted to runtime `if` chains AFTER the struct selection is solved.
+### Out of scope
+- Legacy non-RT binaries (`RE2_TDB66`, `RE3_TDB67`, `RE7_TDB49`).
+- Full VR (motion controls) on RE2/RE3/RE7/RE8 — not tested in the monolithic build.
+- Old (non-RT) DMC5 builds.

@@ -190,23 +190,29 @@ public:
     sdk::intrusive_ptr<TargetState> clone() const;
     sdk::intrusive_ptr<TargetState> clone(const std::vector<std::array<uint32_t, 2>>& new_dimensions) const;
 
+#ifdef REFRAMEWORK_UNIVERSAL
+    // The compiled `m_desc` member is at `sizeof(compiled RenderResource)` bytes
+    // past `this`, but the real per-game RenderResource size varies (0x10 / 0x18 / 0x20).
+    // `get_desc_ptr()` / `get_desc()` compute the runtime offset and return a reference
+    // into the actual game memory.
+    uintptr_t get_desc_base() const {
+        return (uintptr_t)this + RenderResource::get_runtime_size();
+    }
+
     Desc& get_desc() {
-        return m_desc;
+        return *reinterpret_cast<Desc*>(get_desc_base());
     }
 
     const Desc& get_desc() const {
-        return m_desc;
+        return *reinterpret_cast<const Desc*>(get_desc_base());
     }
 
-#ifdef REFRAMEWORK_UNIVERSAL
     uint32_t get_rtv_count() const {
-        const auto pad = sdk::GameIdentity::get().tdb_ver() <= 67 ? sizeof(void*) : (size_t)0;
-        return *(uint32_t*)((uintptr_t)&m_desc + pad + offsetof(Desc, num_rtv));
+        return get_desc().num_rtv;
     }
 
     sdk::intrusive_ptr<RenderTargetView>* get_rtvs_ptr() const {
-        const auto pad = sdk::GameIdentity::get().tdb_ver() <= 67 ? sizeof(void*) : (size_t)0;
-        return *(sdk::intrusive_ptr<RenderTargetView>**)((uintptr_t)&m_desc + pad + offsetof(Desc, rtvs));
+        return get_desc().rtvs;
     }
 
     sdk::intrusive_ptr<RenderTargetView> get_rtv(int32_t index) const {
@@ -225,6 +231,14 @@ public:
         rtvs[index] = rtv;
     }
 #else
+    Desc& get_desc() {
+        return m_desc;
+    }
+
+    const Desc& get_desc() const {
+        return m_desc;
+    }
+
     uint32_t get_rtv_count() const {
         return m_desc.num_rtv;
     }

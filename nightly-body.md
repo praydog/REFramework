@@ -10,6 +10,9 @@ If you're **NOT USING VR**, do **NOT** extract any file other than dinput8.dll i
 
 Old (non-RT) builds of RE2, RE3, and RE7 are not currently supported in the monolithic build.
 
+### Migration note
+Older releases published per-game zips named `DMC5.zip`, `RE2.zip`, `RE3.zip`, `RE4.zip`, `RE7.zip`, `RE8.zip`, `RE9.zip`, `MHRISE.zip`, `SF6.zip`, `DD2.zip`, `MHWILDS.zip`, `PRAGMATA.zip`, `MHSTORIES3.zip`, `STARFORCE.zip`, and legacy TDB-suffixed variants (`RE2_TDB66.zip`, `RE3_TDB67.zip`, `RE7_TDB49.zip`). These are replaced by the single `REFramework.zip`. Legacy TDB66/67/49 variants are no longer produced; use the last pre-monolithic nightly if you need them.
+
 # Links
 [Main repository](https://github.com/praydog/REFramework)
 

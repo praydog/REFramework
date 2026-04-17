@@ -690,9 +690,13 @@ void ObjectExplorer::on_draw_dev_ui() {
                 const auto method_address = std::stoull(m_method_tdb_address, nullptr, 16);
                 const auto tdb = sdk::RETypeDB::get();
 
-                if (method_address >= (uintptr_t)tdb->get_methods_ptr() && method_address < (uintptr_t)tdb->get_methods_ptr() + (tdb->get_num_methods() * sizeof(void*))) {
-                    // Make sure method address is aligned to sizeof(sdk::REMethodDefinition)
-                    if ((method_address % sizeof(sdk::REMethodDefinition)) == 0) {
+                const auto base = (uintptr_t)tdb->get_methods_ptr();
+                const auto stride = tdb->get_method_stride();
+                const auto total = base + static_cast<uintptr_t>(tdb->get_num_methods()) * stride;
+
+                if (method_address >= base && method_address < total) {
+                    // Make sure method address is aligned to the runtime method stride.
+                    if (((method_address - base) % stride) == 0) {
                         m_displayed_method = (sdk::REMethodDefinition*)method_address;
                     } else {
                         ImGui::Text("Invalid address");
