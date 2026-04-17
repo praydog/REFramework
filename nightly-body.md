@@ -4,7 +4,11 @@ Extract the zip file into your game folder.
 
 If you're **NOT USING VR**, do **NOT** extract any file other than dinput8.dll into your game folder, or your game may become unstable, and you will lose any form of anti-aliasing.
 
-If you want builds that work on the old non-RT versions, download the versions that have "TDB" in them.
+`REFramework.zip` is the monolithic DLL — it works across every supported RE Engine game (DMC5, RE2/3/4/7/8/9, MHRise, MHWilds, MHStories3, SF6, DD2, Pragmata, Star Force Legacy Collection). The same `dinput8.dll` detects the game at runtime and dispatches to the correct TDB layout.
+
+`csharp-api.zip` is the C# plugin framework. Extract it only if you want to run C# plugins; regular Lua scripts do not need it.
+
+Old (non-RT) builds of RE2, RE3, and RE7 are not currently supported in the monolithic build.
 
 # Links
 [Main repository](https://github.com/praydog/REFramework)
