@@ -342,7 +342,11 @@ bool FaultyFileDetector::scan_resource_process_parse_and_hook() {
                     m_resource_open_failed_hook = std::move(hook);
                     break;
                 } else {
-                    spdlog::warn("[FaultyFileDetector]: Failed to find resource stream failed check after using resource path at 0x{:X}", (uintptr_t)using_resource_path_offset.value());
+                    if (using_resource_path_offset.has_value()) {
+                        spdlog::warn("[FaultyFileDetector]: Failed to find resource stream failed check after using resource path at 0x{:X}", (uintptr_t)using_resource_path_offset.value());
+                    } else {
+                        spdlog::warn("[FaultyFileDetector]: Failed to find usage of resource path string at 0x{:X}", (uintptr_t)possible_get_next_resource_to_process_call.value());
+                    }
                 }
             }
         }
