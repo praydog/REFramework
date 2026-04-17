@@ -348,7 +348,9 @@ void LooseTextureLoader::find_get_path_to_resource_func() {
 
     spdlog::info("[LooseTextureLoader]: Found path format string at 0x{:X}", *format_str);
 
-    constexpr int EXPECTED_FIRST_MEM_DISP = 0x58;
+    constexpr int EXPECTED_FIRST_MEM_DISP = 1164;
+    constexpr int EXPECTED_SECOND_MEM_DISP = 1136;
+
     auto format_refs = utility::scan_displacement_references(game, *format_str);
 
     for (auto ref : format_refs) {
@@ -358,50 +360,50 @@ void LooseTextureLoader::find_get_path_to_resource_func() {
         auto func_bounds = utility::determine_function_bounds(*func);
         if (!func_bounds) continue;
 
-        bool found_first_mov_mem_disp = false;
-        bool first_mov_mem_disp_is_valid = false;
-        int cmp_12_count = 0;
+        bool specific_cmp_with_12_found = false;
+        bool specific_second_mov_found = false;
 
         utility::exhaustive_decode((uint8_t*)*func, func_bounds->end - func_bounds->start, [&](utility::ExhaustionContext& ctx) -> utility::ExhaustionResult {
             if (ctx.instrux.Category == ND_CAT_CALL) {
                 return utility::ExhaustionResult::STEP_OVER;
             }
 
-            // Check first MOV/MOVZX with non-zero memory displacement in second operand
-            if (!found_first_mov_mem_disp && (ctx.instrux.Instruction == ND_INS_MOV || ctx.instrux.Instruction == ND_INS_MOVZX)) {
-                if (ctx.instrux.ExpOperandsCount >= 2) {
-                    const auto& op = ctx.instrux.Operands[1];
-                    if (op.Type == ND_OP_MEM && op.Info.Memory.HasDisp && op.Info.Memory.Disp != 0) {
-                        found_first_mov_mem_disp = true;
-                        first_mov_mem_disp_is_valid = (op.Info.Memory.Disp == EXPECTED_FIRST_MEM_DISP);
-                    }
-                }
-            }
-
             // Count CMP instructions with immediate 12
-            if (ctx.instrux.Instruction == ND_INS_CMP) {
-                for (size_t i = 0; i < ctx.instrux.ExpOperandsCount; ++i) {
-                    if (ctx.instrux.Operands[i].Type == ND_OP_IMM && ctx.instrux.Operands[i].Info.Immediate.Imm == 12) {
-                        cmp_12_count++;
-                        break;
+            if (!specific_cmp_with_12_found && ctx.instrux.Instruction == ND_INS_CMP) {
+                if (ctx.instrux.OperandsCount >= 2) {
+                    const auto& op1 = ctx.instrux.Operands[0];
+                    const auto& op2 = ctx.instrux.Operands[1];
+
+                    if ((op1.Type == ND_OP_MEM && op1.Info.Memory.Disp == EXPECTED_FIRST_MEM_DISP &&
+                         op2.Type == ND_OP_IMM && op2.Info.Immediate.Imm == 12) ||
+                        (op1.Type == ND_OP_IMM && op1.Info.Immediate.Imm == 12 &&
+                         op2.Type == ND_OP_MEM && op2.Info.Memory.Disp == EXPECTED_FIRST_MEM_DISP)) {
+                        specific_cmp_with_12_found = true;
                     }
                 }
             }
 
-            if (found_first_mov_mem_disp && !first_mov_mem_disp_is_valid) {
-                return utility::ExhaustionResult::BREAK;
+            if (specific_cmp_with_12_found && !specific_second_mov_found) {
+                if (ctx.instrux.Instruction == ND_INS_MOV || ctx.instrux.Instruction == ND_INS_MOVZX) {
+                    if (ctx.instrux.OperandsCount >= 2) {
+                        const auto& src = ctx.instrux.Operands[1];
+                        if (src.Type == ND_OP_MEM && src.Info.Memory.Disp == EXPECTED_SECOND_MEM_DISP) {
+                            specific_second_mov_found = true;
+                        }
+                    }
+                }
             }
 
-            if (first_mov_mem_disp_is_valid && cmp_12_count >= 1) {
+            if (specific_cmp_with_12_found && specific_second_mov_found) {
                 return utility::ExhaustionResult::BREAK;
             }
 
             return utility::ExhaustionResult::CONTINUE;
         });
 
-        if (first_mov_mem_disp_is_valid && cmp_12_count >= 1) {
+        if (specific_cmp_with_12_found && specific_second_mov_found) {
             m_get_native_path_to_resource_func = (GetNativeResourcePath)*func;
-            spdlog::info("[LooseTextureLoader]: Found get_path_to_resource at 0x{:X} (cmp 12 count: {})", *func, cmp_12_count);
+            spdlog::info("[LooseTextureLoader]: Found get_path_to_resource at 0x{:X}", *func);
             return;
         }
     }
