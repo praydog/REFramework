@@ -28,6 +28,7 @@
 #include "REFramework.hpp"
 #include "ObjectExplorer.hpp"
 #include <sdk/GameIdentity.hpp>
+#include <sdk/RETypeDefDispatch.hpp>
 
 using json = nlohmann::json;
 using namespace utility::re_type_accessor;
@@ -1094,7 +1095,9 @@ std::shared_ptr<detail::ParsedType> ObjectExplorer::init_type(nlohmann::json& il
     auto desc = init_type_min(il2cpp_dump, tdb, i);
 
     g_itypedb[i] = desc;
-    g_fqntypedb[desc->t->get_fqn_hash()] = desc;
+    if (desc->t != nullptr) {
+        g_fqntypedb[desc->t->get_fqn_hash()] = desc;
+    }
 
     return desc;
 }
@@ -1115,7 +1118,15 @@ std::string ObjectExplorer::generate_full_name(sdk::RETypeDB* tdb, uint32_t i) {
 }
 
 std::shared_ptr<detail::ParsedType> ObjectExplorer::init_type_min(json& il2cpp_dump, sdk::RETypeDB* tdb, uint32_t i) {
-    auto& t = *tdb->get_type(i);
+    auto* raw_t = tdb->get_type(i);
+    if (raw_t == nullptr) {
+        // Out-of-range or unresolvable type index. Return a sentinel desc so callers
+        // that cache by `i` don't repeatedly retry; they must null-check `desc->t`.
+        auto empty = std::make_shared<detail::ParsedType>();
+        empty->t = nullptr;
+        return empty;
+    }
+    auto& t = *raw_t;
     auto br = BitReader{&t};
 
     auto desc = std::make_shared<detail::ParsedType>();
@@ -1254,13 +1265,17 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
             {"size", (std::stringstream{} << std::hex << t.get_size()).str()},
         };
 
-        if (tdef->declaring_typeid != 0) {
-            desc->owner = init_type(il2cpp_dump, tdb, tdef->declaring_typeid);
+        const auto declaring_tid = (uint32_t)TDEF_FIELD(tdef, declaring_typeid);
+        if (declaring_tid != 0) {
+            desc->owner = init_type(il2cpp_dump, tdb, declaring_tid);
         }
 
-        if (tdef->parent_typeid != 0) {
-            desc->super = init_type(il2cpp_dump, tdb, tdef->parent_typeid);
-            type_entry["parent"] = desc->super->full_name;
+        const auto parent_tid = (uint32_t)TDEF_FIELD(tdef, parent_typeid);
+        if (parent_tid != 0) {
+            desc->super = init_type(il2cpp_dump, tdb, parent_tid);
+            if (desc->super != nullptr && desc->super->t != nullptr) {
+                type_entry["parent"] = desc->super->full_name;
+            }
         }
 
         if (auto type_flags_str = get_full_enum_value_name("via.clr.TypeFlag", t.type_flags); !type_flags_str.empty()) {
@@ -1928,11 +1943,35 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
         }
 
         if (init_data_offset != 0) {
-            auto init_data = &(*tdb->get_bytePool_ptr())[init_data_offset];
+            // Bounds-check init_data_offset against the byte/string pool sizes.
+            // On DMC5 (TDB 67) and other TDB<69 games, init_data_index is a bitfield
+            // whose position differs from the V84 compiled layout; if that read
+            // yields a garbage index, init_data_offset lands past the end of the
+            // pool and later dereferences (strlen on a string, *(T*)init_data on a
+            // primitive) crash. Skip the field's default-value extraction if the
+            // offset is out of range.
+            const auto byte_pool_size = tdb->get_byte_pool_size();
+            const auto string_pool_size = tdb->get_string_pool_size();
+            uint8_t* init_data = nullptr;
 
-            // WACKY
-            if (init_data_offset < 0) {
-                init_data = &((uint8_t*)tdb->get_stringPool_ptr())[init_data_offset * -1];
+            // WACKY: the original code tested `init_data_offset < 0` on a uint32_t,
+            // which is always false. Preserve the (probably-intended) signed-offset
+            // semantics by interpreting the high bit as 'negative' — if the sign bit
+            // is set, treat as a string-pool-relative negative index.
+            const auto signed_offset = static_cast<int32_t>(init_data_offset);
+            if (signed_offset < 0) {
+                const auto neg_off = static_cast<uint32_t>(-signed_offset);
+                if (neg_off < string_pool_size) {
+                    init_data = &((uint8_t*)tdb->get_stringPool_ptr())[neg_off];
+                }
+            } else if (init_data_offset < byte_pool_size) {
+                init_data = &(*tdb->get_bytePool_ptr())[init_data_offset];
+            }
+
+            if (init_data == nullptr) {
+                // Offset out of range — likely a garbage read from a mis-dispatched
+                // bitfield. Skip the default-value extraction for this field.
+                continue;
             }
 
             auto init_data_type = pf->type;
