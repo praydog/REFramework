@@ -534,7 +534,7 @@ void ObjectExplorer::on_draw_dev_ui() {
         auto tdb = sdk::RETypeDB::get();
 
         for (auto i = 0; i < tdb->get_num_modules(); ++i) {
-            auto& module = tdb->get_modules_ptr()[i];
+            auto& module = *tdb->get_module_at(i);
 
             std::string_view assembly_name{ module.get_assembly_name() != nullptr ? module.get_assembly_name() : "Unknown" };
             std::string_view module_name{ module.get_module_name() != nullptr ? module.get_module_name() : "Unknown" };
